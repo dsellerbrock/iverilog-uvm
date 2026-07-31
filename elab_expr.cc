@@ -14721,13 +14721,21 @@ NetExpr* PEIdent::elaborate_expr_param_select_multi_(Design*des,
 
 /*
  * Any select on an unpacked ARRAY parameter. The elements were expanded
- * into individual parameters named "name[i]" under their REAL declared
- * indices. A constant first index resolves the element directly; a
- * variable first index (legal: IEEE 1800-2017 11.5.2 places no
- * constant requirement on the index) is supported by materializing the
- * flattened element table as one constant and selecting from it.
- * Remaining index components apply to the ELEMENT through the shared
- * packed-select calculation.
+ * into individual parameters named "name[i0][i1]..." -- one bracket per
+ * unpacked dimension, outermost first -- under their REAL declared
+ * indices. This name MUST be formed exactly as
+ * NetScope::evaluate_parameter_array_() forms it; see
+ * array_param_elem_suffix() there.
+ *
+ * The leading N index components (N = number of unpacked dimensions)
+ * address the array; anything after them addresses the ELEMENT and goes
+ * through the shared packed-select calculation. When every array index
+ * is constant the element parameter is fetched by name. When any of
+ * them is a run-time expression (legal: IEEE 1800-2017 11.5.2 places no
+ * constant requirement on the index) the whole element table is
+ * materialized as one flat constant and the whole index list is handed
+ * to param_select_packed_(), which treats the unpacked dimensions as
+ * the outermost packed dimensions of that table.
  */
 NetExpr* PEIdent::elaborate_expr_param_array_(Design*des, NetScope*scope,
 					      const NetExpr*par,
@@ -14738,7 +14746,6 @@ NetExpr* PEIdent::elaborate_expr_param_array_(Design*des, NetScope*scope,
       perm_string name = peek_tail_name(path_);
       const name_component_t&name_tail = path_.back();
       ivl_assert(*this, !name_tail.index.empty());
-      const index_component_t&index_head = name_tail.index.front();
 
 	// The array parameter's declared type is its ELEMENT type; an
 	// out-of-range or undefined select answers x at that width.
@@ -14746,44 +14753,96 @@ NetExpr* PEIdent::elaborate_expr_param_array_(Design*des, NetScope*scope,
       if (par_type && par_type->packed())
 	    xwid = par_type->packed_width();
 
-	// The declared bounds, recorded when the array was expanded.
-      long arr_left = 0, arr_right = 0;
+	// The declared bounds of every unpacked dimension, recorded when
+	// the array was expanded.
+      netranges_t adims;
       bool bounds_known = false;
       {
 	    std::map<perm_string,NetScope::param_expr_t>::const_iterator pit =
 		  found_in->parameters.find(name);
 	    if (pit != found_in->parameters.end()
 		&& pit->second.array_bounds_known) {
-		  arr_left = pit->second.array_left;
-		  arr_right = pit->second.array_right;
+		  adims = pit->second.array_dims;
 		  bounds_known = true;
 	    }
       }
+      const size_t ndims = adims.empty() ? 1 : adims.size();
 
-      if (index_head.sel != index_component_t::SEL_BIT) {
-	    cerr << get_fileline() << ": sorry: A part select of the "
-		 << "elements of array parameter `" << name
-		 << "' is not supported." << endl;
+	// IEEE 1800-2017 7.4.5: a partial index of an unpacked array
+	// yields an unpacked ARRAY, which is not an integral value and
+	// cannot be the result of this expression. Refuse loudly --
+	// letting it through would produce a packed value of the whole
+	// row's width, which is a different thing entirely.
+      if (name_tail.index.size() < ndims) {
+	    cerr << get_fileline() << ": sorry: `" << name << "' has "
+		 << ndims << " unpacked dimension(s) but only "
+		 << name_tail.index.size() << " index(es) were given; a "
+		 << "partial index of an array parameter yields an "
+		 << "unpacked array, which is not supported here." << endl;
 	    des->errors += 1;
 	    return 0;
       }
-      ivl_assert(*this, index_head.msb);
 
-      NetExpr*sel = elab_and_eval(des, scope, index_head.msb, -1, need_const);
-      if (!sel) return 0;
+	// Only the array indices are taken here; the rest belong to the
+	// element. Every array index must be a plain [i] -- a part
+	// select of the array dimension is not a value.
+      std::list<index_component_t>::const_iterator icur =
+	    name_tail.index.begin();
+      for (size_t k = 0 ; k < ndims ; k += 1, ++icur) {
+	    if (icur->sel != index_component_t::SEL_BIT) {
+		  cerr << get_fileline() << ": sorry: A part select of the "
+		       << "elements of array parameter `" << name
+		       << "' is not supported." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+	    ivl_assert(*this, icur->msb);
+      }
 
-      auto elem_by_index = [&](long idx, ivl_type_t&elem_type) -> const NetExpr* {
-	    char buf[64];
-	    snprintf(buf, sizeof(buf), "[%ld]", idx);
-	    string elem_str = string(name.str()) + buf;
+	// The element's packed dimensions come from the array
+	// parameter's DECLARED element type. They must NOT come from the
+	// type get_parameter() infers for an individual element
+	// constant, which is a single flat vector -- a multi-dimensional
+	// packed element such as `logic [1:0][5:0]' would collapse to ONE
+	// dimension and `P[1][1]' would read bit 1 instead of the upper
+	// 6-bit element: exit 0, no diagnostic, wrong value.
+	// slice_dimensions() walks the real type, so an enum or packed
+	// struct element reports its own one flat range.
+      auto element_dims = [&](const NetEConst*ec,
+			      ivl_type_t elem_type) -> netranges_t {
+	    netranges_t elem_dims;
+	    if (par_type)
+		  elem_dims = par_type->slice_dimensions();
+	    if (elem_dims.empty()) {
+		  const netvector_t*elem_vec =
+			dynamic_cast<const netvector_t*>(elem_type);
+		  if (elem_vec && elem_vec->packed_dims().size() > 0)
+			elem_dims = elem_vec->packed_dims();
+		  else if (ec)
+			elem_dims.push_back(netrange_t(ec->value().len()-1, 0));
+	    }
+	    return elem_dims;
+      };
+
+	// Fetch the element parameter for a tuple of REAL declared
+	// indices. The name is built exactly as the write side builds it.
+      auto elem_by_index = [&](const std::vector<long>&idx,
+			       ivl_type_t&elem_type) -> const NetExpr* {
+	    string elem_str = name.str();
+	    for (size_t k = 0 ; k < idx.size() ; k += 1) {
+		  char buf[64];
+		  snprintf(buf, sizeof(buf), "[%ld]", idx[k]);
+		  elem_str += buf;
+	    }
 	    perm_string elem_name = lex_strings.make(elem_str.c_str());
 	    return const_cast<NetScope*>(found_in)->get_parameter(des, elem_name,
 								  elem_type);
       };
 
-	// Apply any remaining index components to a resolved element.
+	// Apply any index components AFTER the array indices to a
+	// resolved element.
       auto apply_tail = [&](const NetExpr*elem, ivl_type_t elem_type) -> NetExpr* {
-	    if (name_tail.index.size() == 1) {
+	    if (name_tail.index.size() == ndims) {
 		  NetExpr*result = elem->dup_expr();
 		  result->set_line(*this);
 		  return result;
@@ -14796,51 +14855,75 @@ NetExpr* PEIdent::elaborate_expr_param_array_(Design*des, NetScope*scope,
 		  des->errors += 1;
 		  return 0;
 	    }
-	    const netvector_t*elem_vec =
-		  dynamic_cast<const netvector_t*>(elem_type);
-	    netranges_t elem_dims;
-	    if (elem_vec && elem_vec->packed_dims().size() > 0)
-		  elem_dims = elem_vec->packed_dims();
-	    else
-		  elem_dims.push_back(netrange_t(elem_c->value().len()-1, 0));
-
+	    netranges_t elem_dims = element_dims(elem_c, elem_type);
 	    std::list<index_component_t> tail_indices (
-		  std::next(name_tail.index.begin()), name_tail.index.end());
+		  std::next(name_tail.index.begin(), ndims),
+		  name_tail.index.end());
 	    return param_select_packed_(des, scope, this, name, elem_c,
 					elem_dims, tail_indices,
 					0 /* base is the element */,
 					need_const);
       };
 
-      if (const NetEConst*sel_c = dynamic_cast<const NetEConst*>(sel)) {
-	    if (! sel_c->value().is_defined()) {
-		  cerr << get_fileline() << ": warning: Undefined index for "
-		       << "array parameter `" << name
-		       << "'; replacing select with 'bx." << endl;
-		  NetEConst*res = new NetEConst(verinum(verinum::Vx, xwid, true));
-		  res->set_line(*this);
-		  return res;
+	// Elaborate the array indices. Constant ones fold; any run-time
+	// one forces the flat-table path.
+      std::vector<NetExpr*> sels (ndims);
+      std::vector<long> cidx (ndims);
+      bool all_const = true;
+      bool undef = false;
+      {
+	    std::list<index_component_t>::const_iterator it =
+		  name_tail.index.begin();
+	    for (size_t k = 0 ; k < ndims ; k += 1, ++it) {
+		  NetExpr*sel = elab_and_eval(des, scope, it->msb, -1,
+					      need_const);
+		  if (!sel) return 0;
+		  sels[k] = sel;
+		  if (const NetEConst*sc = dynamic_cast<const NetEConst*>(sel)) {
+			if (! sc->value().is_defined())
+			      undef = true;
+			else
+			      cidx[k] = sc->value().as_long();
+		  } else {
+			all_const = false;
+		  }
 	    }
-	    long sel_v = sel_c->value().as_long();
+      }
+
+      if (all_const && undef) {
+	    cerr << get_fileline() << ": warning: Undefined index for "
+		 << "array parameter `" << name
+		 << "'; replacing select with 'bx." << endl;
+	    NetEConst*res = new NetEConst(verinum(verinum::Vx, xwid, true));
+	    res->set_line(*this);
+	    return res;
+      }
+
+      if (all_const) {
 	    ivl_type_t elem_type = 0;
-	    const NetExpr*elem = elem_by_index(sel_v, elem_type);
+	    const NetExpr*elem = elem_by_index(cidx, elem_type);
 	    if (elem)
 		  return apply_tail(elem, elem_type);
 
 	      // No such element: an out-of-range constant select.
-	    cerr << get_fileline() << ": warning: Index [" << sel_v
-		 << "] is outside array parameter `" << name << "'";
-	    if (bounds_known)
-		  cerr << " [" << arr_left << ":" << arr_right << "]";
+	    cerr << get_fileline() << ": warning: Index [";
+	    for (size_t k = 0 ; k < ndims ; k += 1)
+		  cerr << (k ? "][" : "") << cidx[k];
+	    cerr << "] is outside array parameter `" << name << "'";
+	    if (bounds_known) {
+		  for (size_t k = 0 ; k < adims.size() ; k += 1)
+			cerr << " [" << adims[k].get_msb() << ":"
+			     << adims[k].get_lsb() << "]";
+	    }
 	    cerr << "; replacing select with 'bx." << endl;
 	    NetEConst*res = new NetEConst(verinum(verinum::Vx, xwid, true));
 	    res->set_line(*this);
 	    return res;
       }
 
-	// Variable index: materialize the element table as one flat
-	// constant and select the element from it at a canonical
-	// offset. Elements must be integral constants of equal width.
+	// Run-time index: materialize the element table as one flat
+	// constant and select from it. Elements must be integral
+	// constants of equal width.
       if (!bounds_known) {
 	    cerr << get_fileline() << ": error: Variable index into array "
 		 << "parameter `" << name << "' whose bounds are not "
@@ -14848,60 +14931,99 @@ NetExpr* PEIdent::elaborate_expr_param_array_(Design*des, NetScope*scope,
 	    des->errors += 1;
 	    return 0;
       }
+      for (size_t k = 0 ; k < ndims ; k += 1)
+	    delete sels[k];
 
-      size_t count = (size_t)labs(arr_left - arr_right) + 1;
-      long lo = (arr_left <= arr_right) ? arr_left : arr_right;
-      long hi = (arr_left <= arr_right) ? arr_right : arr_left;
+	/* The table is laid out ROW-MAJOR over the REAL declared
+	   indices, ascending from the LOW index of every dimension and
+	   with the LAST dimension varying fastest:
+
+	     slot(i0..in) = sum_k (i_k - lo_k) * prod_{j>k} width_j
+
+	   The matching netrange_t for dimension k is therefore
+	   (hi_k, lo_k) -- NOT (declared_left, declared_right).
+	   normalize_variable_base() and param_select_packed_()'s
+	   norm_const() both branch on msb < lsb, so passing the declared
+	   pair would silently REVERSE an ascending declaration such as
+	   [1:4] or [0:3], reading ASC[1] as ASC[4] with no diagnostic. */
+      std::vector<long> lo (ndims), hi (ndims);
+      size_t total = 1;
+      for (size_t k = 0 ; k < ndims ; k += 1) {
+	    long l = adims[k].get_msb();
+	    long r = adims[k].get_lsb();
+	    lo[k] = (l <= r) ? l : r;
+	    hi[k] = (l <= r) ? r : l;
+	    total *= (size_t)adims[k].width();
+      }
 
       unsigned long elem_wid = 0;
-      std::vector<const NetEConst*> elems (count);
-      for (long idx = lo ; idx <= hi ; idx += 1) {
-	    ivl_type_t elem_type = 0;
-	    const NetExpr*elem = elem_by_index(idx, elem_type);
-	    const NetEConst*ec = dynamic_cast<const NetEConst*>(elem);
-	    if (!ec || ec->value().is_string()) {
-		  cerr << get_fileline() << ": sorry: Variable index into "
-		       << "array parameter `" << name << "' requires "
-		       << "integral elements." << endl;
-		  des->errors += 1;
-		  return 0;
+      std::vector<const NetEConst*> elems (total);
+      {
+	    std::vector<long> idx (ndims);
+	    for (size_t k = 0 ; k < ndims ; k += 1) idx[k] = lo[k];
+	    for (size_t slot = 0 ; slot < total ; slot += 1) {
+		  ivl_type_t elem_type = 0;
+		  const NetExpr*elem = elem_by_index(idx, elem_type);
+		  const NetEConst*ec = dynamic_cast<const NetEConst*>(elem);
+		  if (!ec || ec->value().is_string()) {
+			cerr << get_fileline() << ": sorry: Variable index "
+			     << "into array parameter `" << name
+			     << "' requires integral elements." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+		  if (elem_wid == 0)
+			elem_wid = ec->value().len();
+		  if (ec->value().len() != elem_wid) {
+			cerr << get_fileline() << ": sorry: Variable index "
+			     << "into array parameter `" << name
+			     << "' requires elements of equal width." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+		  elems[slot] = ec;
+		    // Odometer step, last dimension fastest.
+		  for (size_t k = ndims ; k-- > 0 ; ) {
+			idx[k] += 1;
+			if (idx[k] <= hi[k]) break;
+			idx[k] = lo[k];
+		  }
 	    }
-	    if (elem_wid == 0)
-		  elem_wid = ec->value().len();
-	    ivl_assert(*this, ec->value().len() == elem_wid);
-	      // Canonical slot: distance from the low index.
-	    elems[idx - lo] = ec;
       }
       ivl_assert(*this, elem_wid > 0);
 
-      verinum table (verinum::Vx, (unsigned)(count * elem_wid), true);
-      for (size_t slot = 0 ; slot < count ; slot += 1) {
+      verinum table (verinum::Vx, (unsigned)(total * elem_wid), true);
+      for (size_t slot = 0 ; slot < total ; slot += 1) {
 	    const verinum&ev = elems[slot]->value();
 	    for (unsigned long b = 0 ; b < elem_wid ; b += 1)
 		  table.set(slot*elem_wid + b, ev[b]);
       }
-
-	// Normalize the runtime index against the declared bounds. The
-	// canonical slot of index i is (i - lo), which is what
-	// normalize_variable_base computes with (hi, lo) as the range
-	// for either declaration direction.
-      sel = normalize_variable_base(sel, hi, lo, 1, true);
-      sel = scale_index_to_bits(sel, elem_wid, *this);
-
       NetEConst*table_ex = new NetEConst(table);
       table_ex->set_line(*this);
 
-      if (name_tail.index.size() > 1) {
-	    cerr << get_fileline() << ": sorry: A variable element index "
-		 << "combined with further selects on array parameter `"
-		 << name << "' is not supported." << endl;
-	    des->errors += 1;
-	    return 0;
+	/* The flat element table IS a packed value: the unpacked
+	   dimensions are its outermost packed dimensions and the
+	   element's own dimensions are inside. Hand the whole index list
+	   to the shared packed-select calculation, which already does
+	   exactly this for a genuinely packed parameter. */
+      netranges_t dims;
+      for (size_t k = 0 ; k < ndims ; k += 1)
+	    dims.push_back(netrange_t(hi[k], lo[k]));
+      netranges_t elem_dims = element_dims(elems[0], 0);
+      if (elem_dims.empty())
+	    elem_dims.push_back(netrange_t((long)elem_wid - 1, 0));
+	// The element dimensions must account for exactly elem_wid bits,
+	// or the strides computed below address the wrong slots.
+      if (netrange_width(elem_dims) != elem_wid) {
+	    elem_dims.clear();
+	    elem_dims.push_back(netrange_t((long)elem_wid - 1, 0));
       }
+      for (size_t k = 0 ; k < elem_dims.size() ; k += 1)
+	    dims.push_back(elem_dims[k]);
 
-      NetExpr*tmp = new NetESelect(table_ex, sel, elem_wid);
-      tmp->set_line(*this);
-      return tmp;
+      return param_select_packed_(des, scope, this, name, table_ex,
+				  dims, name_tail.index, found_in,
+				  need_const);
 }
 
 NetExpr* PEIdent::elaborate_expr_param_bit_(Design*des, NetScope*scope,

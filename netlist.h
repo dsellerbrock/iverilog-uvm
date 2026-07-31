@@ -1358,11 +1358,13 @@ class NetScope : public Definitions, public Attrib {
 	    // REAL declared indices ([3:0] stores "name[3]" first), not
 	    // their pattern positions.
 	    const std::list<pform_range_t>*udims = nullptr;
-	    // The declared bounds, evaluated during array expansion.
-	    // array_left is the first-listed bound: '{e0, e1, ...}
-	    // assigns e0 to [array_left].
-	    long array_left = 0;
-	    long array_right = 0;
+	    // The declared bounds of EVERY unpacked dimension, evaluated
+	    // during array expansion, outermost first. Each entry keeps
+	    // the declaration's own direction: get_msb() is the
+	    // first-listed bound, so '{e0, e1, ...} assigns e0 to
+	    // [array_dims[0].get_msb()]. Empty unless
+	    // array_bounds_known.
+	    netranges_t array_dims;
 	    bool array_bounds_known = false;
 	    // The lexical position of the declaration
 	    unsigned lexical_pos = 0;
