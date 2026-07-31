@@ -623,6 +623,17 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
       // path_ is a.b.x.y, we have determined that a.b is a reference
       // to the net, and that x.y are the member_path. So in this case
       // we handle the member_path.
+	// The DECLARED type of the member the path finally selects, when
+	// the l-value turns out to be a struct member. The synthesized
+	// l-value net below is otherwise given a bare vector of the right
+	// WIDTH, which loses the member's type -- and PGAssign::elaborate
+	// passes that type to the r-value, so an assignment pattern onto
+	// `hw2reg.tpm_cap' was matched against a bit count instead of
+	// against the struct, and its member names had nowhere to bind.
+	// The same pattern in an always_comb was accepted, because the
+	// procedural l-value keeps the member type.
+      ivl_type_t member_net_type = 0;
+
       const netstruct_t*struct_type = 0;
       if ((struct_type = sig->struct_type()) && !member_path.empty()) {
 
@@ -752,6 +763,11 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 
 		  member_off += tmp_off;
 		  member_width = member->net_type->packed_width();
+		    // Remember what was selected. The branches below may
+		    // narrow this further (an index into a packed-array
+		    // member, a nested struct); the width guard at the
+		    // point of use rejects a stale answer.
+		  member_net_type = member->net_type;
 
 		  if (const netparray_t*array = dynamic_cast<const netparray_t*> (member->net_type)) {
 			  // The member is a PACKED ARRAY, so this path
@@ -1120,11 +1136,21 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 		       << " wid=" << subnet_wid <<"]"
 		       << endl;
 
-	    const netvector_t*tmp2_vec = new netvector_t(sig->data_type(),
-	                                                 subnet_wid-1,0);
+	      // Keep the member's DECLARED type when this select is
+	      // exactly that member -- the width test is what makes that
+	      // safe, since a member walk that then indexed into a packed
+	      // array leaves a type wider than the slice actually taken.
+	      // Everything else gets the bare vector it always got.
+	    ivl_type_t use_type = 0;
+	    if (member_net_type
+		&& member_net_type->packed_width() == (long)subnet_wid)
+		  use_type = member_net_type;
+	    if (!use_type)
+		  use_type = new netvector_t(sig->data_type(), subnet_wid-1, 0);
+
 	    NetNet*subsig = new NetNet(sig->scope(),
 				       sig->scope()->local_symbol(),
-				       NetNet::WIRE, tmp2_vec);
+				       NetNet::WIRE, use_type);
 	    subsig->local_flag(true);
 	    subsig->set_line(*this);
 

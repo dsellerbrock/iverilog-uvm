@@ -1066,6 +1066,14 @@ class PETernary : public PExpr {
 		                     unsigned expr_wid,
                                      unsigned flags) const override;
 
+	// Type-context form. Without this the base class falls back to
+	// the width form with a width of 1, which strands any operand
+	// that needs a TYPE rather than a width -- an assignment pattern
+	// in particular.
+      virtual NetExpr*elaborate_expr(Design*des, NetScope*,
+				     ivl_type_t type,
+				     unsigned flags) const override;
+
     private:
       NetExpr* elab_and_eval_alternative_(Design*des, NetScope*scope,
 					  PExpr*expr, unsigned expr_wid,

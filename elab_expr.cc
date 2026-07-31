@@ -1255,6 +1255,27 @@ NetExpr* elaborate_rval_expr(Design *des, NetScope *scope, ivl_type_t lv_net_typ
 				 expr, need_const, force_unsigned);
 }
 
+/*
+ * Does this expression need the TARGET TYPE rather than just a width?
+ *
+ * An assignment pattern always does -- it has no meaning without the
+ * type it is filling in. A conditional is an assignment-like context
+ * for both of its result expressions (IEEE 1800-2017 11.4.11), so a
+ * pattern nested in one of its arms needs the type just as much; the
+ * chain of conditionals in hmac_core.sv, whose arms are
+ * `'{data: .., mask: ..}' patterns, failed with "Unable to elaborate
+ * r-value" because only a DIRECT pattern was recognized here.
+ */
+static bool expr_needs_typed_elab_(const PExpr*expr)
+{
+      if (dynamic_cast<const PEAssignPattern*>(expr))
+	    return true;
+      if (const PETernary*ter = dynamic_cast<const PETernary*>(expr))
+	    return expr_needs_typed_elab_(ter->get_true())
+		|| expr_needs_typed_elab_(ter->get_false());
+      return false;
+}
+
 NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 			     ivl_variable_type_t lv_type, unsigned lv_width,
 			     PExpr*expr, bool need_const, bool force_unsigned)
@@ -1314,7 +1335,7 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 
 	// Special case, PEAssignPattern is context dependend on the type and
 	// always uses the typed elaboration
-      if (dynamic_cast<PEAssignPattern*>(expr))
+      if (expr_needs_typed_elab_(expr))
 	    typed_elab = true;
 
       if (lv_net_type && typed_elab) {
@@ -17265,6 +17286,90 @@ bool NetETernary::test_operand_compat(ivl_variable_type_t l,
  * parsed so I can presume that they exist, and call elaboration
  * methods. If any elaboration fails, then give up and return 0.
  */
+/*
+ * Type-context elaboration of a conditional. IEEE 1800-2017 11.4.11
+ * makes the conditional operator an assignment-like context for its two
+ * result expressions, so a target type has to reach BOTH arms: each is
+ * a valid place for an assignment pattern, and a pattern has no meaning
+ * without the type it is filling in.
+ *
+ * PExpr's default forwards to the WIDTH form with a width of 1, which
+ * loses the type entirely. hmac_core.sv assigns a struct from a chain
+ * of conditionals whose arms are `'{data: .., mask: ..}' patterns, and
+ * that failed with "Unable to elaborate r-value".
+ *
+ * Only the pieces that genuinely need the type are routed here; the
+ * condition is self-determined as always, and an arm that is not itself
+ * type-directed falls back through PExpr's default to the width form,
+ * exactly as before.
+ */
+NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
+				  ivl_type_t type, unsigned flags) const
+{
+      if (type == 0)
+	    return elaborate_expr(des, scope, 1u, flags);
+
+      flags &= ~SYS_TASK_ARG;
+
+      ivl_assert(*this, expr_ && tru_ && fal_);
+
+	// The condition is self-determined (11.4.11).
+      NetExpr*con = elab_and_eval(des, scope, expr_, -1, NEED_CONST & flags);
+      if (con == 0)
+	    return 0;
+      con = condition_reduce(con);
+
+	// Short-circuit on a constant condition, as the width form
+	// does -- but keep elaborating the dead arm so its errors are
+	// still reported.
+      if (const NetEConst*cv = dynamic_cast<NetEConst*>(con)) {
+	    verinum cval = cv->value();
+	    ivl_assert(*this, cval.len()==1);
+	    if (cval.get(0) == verinum::V1 || cval.get(0) == verinum::V0) {
+		  bool take_true = (cval.get(0) == verinum::V1);
+		  PExpr*live = take_true ? tru_ : fal_;
+		  PExpr*dead = take_true ? fal_ : tru_;
+		  delete dead->elaborate_expr(des, scope, type, flags);
+		  delete con;
+		  return live->elaborate_expr(des, scope, type, flags);
+	    }
+	      // An x/z condition has to blend both arms.
+      }
+
+      NetExpr*tru = tru_->elaborate_expr(des, scope, type, flags);
+      if (tru == 0) { delete con; return 0; }
+
+      NetExpr*fal = fal_->elaborate_expr(des, scope, type, flags);
+      if (fal == 0) { delete con; delete tru; return 0; }
+
+      if (! NetETernary::test_operand_compat(tru->expr_type(), fal->expr_type())) {
+	    cerr << get_fileline() << ": error: Incompatible operand types "
+		 << "in the arms of a conditional expression." << endl;
+	    des->errors += 1;
+	    delete con; delete tru; delete fal;
+	    return 0;
+      }
+
+	// packed_width() is only meaningful for a packed type; it is
+	// zero or negative for a class handle, a queue, an unpacked
+	// array. Fall back to the wider arm in those cases.
+      unsigned wid = 0;
+      if (type->packed()) {
+	    long pw = type->packed_width();
+	    if (pw > 0) wid = (unsigned)pw;
+      }
+      if (wid == 0)
+	    wid = tru->expr_width() > fal->expr_width()
+			? tru->expr_width() : fal->expr_width();
+      if (wid == 0)
+	    wid = 1;
+
+      NetETernary*res = new NetETernary(con, tru, fal, wid,
+					tru->has_sign() && fal->has_sign());
+      res->set_line(*this);
+      return res;
+}
+
 NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 				  unsigned expr_wid, unsigned flags) const
 {

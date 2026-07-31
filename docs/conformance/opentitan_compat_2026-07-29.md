@@ -858,3 +858,94 @@ OpenTitan RTL elaboration errors (`-DSYNTHESIS`, prim_generic mapping):
     Reproducer: `docs/conformance/repros/ot_net_member_nested_pattern.sv`.
     The procedural/continuous split is the discriminator -- the same
     pattern, the same target type.
+
+## Wave: type context reaching l-value members and conditional arms
+
+Both defects share a shape: an assignment pattern needs the TARGET TYPE,
+and the type was being dropped on the way to it.
+
+### Struct member l-value through a continuous assign
+
+    assign hw2reg.tpm_cap = '{ rev: '{de:1'b1, d:4'h5}, loc: '{..} };
+
+was rejected ("Packed array assignment pattern expects 10 element(s)",
+then "scalar type is not a valid context for assignment pattern") while
+the identical pattern in an `always_comb` was accepted.
+
+`PEIdent::elaborate_lnet_common_` rewrites a member select as a part
+select and synthesizes the l-value net with a bare `netvector_t` of the
+right WIDTH -- the member's declared type is gone.
+`PGAssign::elaborate` then hands `lval->net_type()` to the r-value, so
+the pattern was matched against a bit count and the member names had
+nowhere to bind. The member walk now carries the selected member's
+declared type out, and the synthesized net keeps it when its packed
+width equals the slice actually taken. The width test is what makes this
+safe: a walk that then indexed into a packed-array member leaves a type
+wider than the slice, and that case falls back to the bare vector.
+
+Regression: `ivtest/ivltests/sv_net_member_nested_pattern.v` elaborates
+the procedural spelling alongside and compares bit for bit, so a fix
+that merely compiled while misplacing members still fails.
+
+### Assignment pattern inside a conditional
+
+    assign sha_rdata_o =
+        (!hmac_en_i)  ? fifo_rdata_i                          :
+        (sel == IPad) ? '{data: i_pad_256[...-:32], mask: '1} :
+        ...
+
+failed with "Unable to elaborate r-value". IEEE 1800-2017 11.4.11 makes
+a conditional an assignment-like context for BOTH result expressions, so
+the target type has to reach each arm.
+
+Two pieces were missing. `elaborate_rval_expr` recognized only a DIRECT
+`PEAssignPattern` as needing typed elaboration, so a pattern nested in a
+conditional took the width path; the test is now recursive through
+conditional arms. And `PETernary` had no type-context `elaborate_expr`
+at all, so `PExpr`'s default forwarded to the WIDTH form with a width of
+1 -- the type was discarded before the arms were ever reached. The new
+override elaborates both arms against the target type, keeps the
+constant-condition short circuit (still elaborating the dead arm so its
+errors are reported), and derives its result width from the type only
+when the type is packed.
+
+Regression: `ivtest/ivltests/sv_ternary_pattern_type_ctx.v`, checking
+each arm's value through both a continuous and a procedural assign.
+
+### Measured effect
+
+OpenTitan RTL elaboration errors (`-DSYNTHESIS`, prim_generic mapping):
+
+    ip           start   now
+    spi_device      4      0
+    aes            24      4
+    hmac           25      0
+    otbn            6      4
+    kmac            0      0
+    TOTAL          64      8
+
+Three of the five IPs elaborate clean.
+
+### Remaining
+
+  * `otbn` (4) -- the var->uwire promotion. Fully characterized, with a
+    reproducer, in the previous section. The fix has a shape: nothing
+    between the promotion in `elaborate_lnet_common_` (elab_net.cc ~578)
+    and the double-drive check (~1078) reads `sig->type()`, so the
+    promotion can move down to where `midx`/`lidx` are final and ask
+    whether the continuous assign's bits overlap any PROCEDURAL driver.
+    That needs a bit-accurate procedural record, which does not exist --
+    `lref_count_` is a bare count. The lazy form is to keep the
+    registered `NetAssign_` objects on the NetNet and ask each for its
+    range at query time (`get_base()` folded plus `lwidth()`), treating
+    a non-constant base or an absent part select as conservatively
+    overlapping.
+
+  * `aes` (4) -- a conditional whose two arms are WHOLE UNPACKED ARRAYS
+    (`!CiphOpFwdOnly ? key_dec_q : prd_clearing_key_i`, both
+    `logic [7:0][31:0] x [NumShares]`). Deliberately NOT implemented:
+    IEEE 1800-2017 11.4.11 enumerates the conditional's operand types
+    and unpacked aggregates are not among them, so accepting this would
+    be a guess. The current behaviour is a loud rejection, which is the
+    safe side of that uncertainty. Resolving it needs an LRM reading, or
+    a decision to accept it as an extension, before any code changes.

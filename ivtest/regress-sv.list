@@ -1262,3 +1262,6 @@ sv_packed_runtime_idx_part normal,-g2012 ivltests
 sv_enum_packed_array_sel normal,-g2012 ivltests
 sv_pkg_export_resolve normal,-g2012 ivltests
 sv_packed_struct_array_pattern normal,-g2012 ivltests
+sv_net_member_nested_pattern normal,-g2012 ivltests
+sv_ternary_pattern_type_ctx normal,-g2012 ivltests
+sv_ternary_typed_aggregates normal,-g2012 ivltests
