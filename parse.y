@@ -5058,6 +5058,32 @@ package_import_item
       { lex_in_package_scope(0);
         pform_package_import(@1, $1, 0);
       }
+  /* A name that is not a known package. The lexer only produces
+     PACKAGE_IDENTIFIER for a package it has already seen, so an import
+     of one that was never compiled does not match package_scope above
+     and used to die as a bare `syntax error'. At module scope that came
+     out as "Invalid module item", inside a subroutine as "Syntax error
+     defining function" -- blaming the enclosing construct rather than
+     the import -- and at package scope it was FATAL ("I give up"),
+     taking every later diagnostic with it.
+
+     That is the single most misleading diagnostic in a large build: one
+     missing file in a compile list is reported as broken syntax
+     somewhere else entirely. Say what is actually wrong. */
+  | IDENTIFIER K_SCOPE_RES '*'
+      { cerr << @1 << ": error: Unknown package `" << $1
+	     << "' in import. Is its source in the compile list?" << endl;
+	error_count += 1;
+	delete[]$1;
+      }
+  | IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { cerr << @1 << ": error: Unknown package `" << $1
+	     << "' in import of `" << $1 << "::" << $3 << "'. "
+	     << "Is its source in the compile list?" << endl;
+	error_count += 1;
+	delete[]$1;
+	delete[]$3;
+      }
   ;
 
 package_import_item_list

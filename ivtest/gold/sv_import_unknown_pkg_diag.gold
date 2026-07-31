@@ -1,0 +1,3 @@
+./ivltests/sv_import_unknown_pkg_diag.v:21: error: Unknown package `never_compiled_a_pkg' in import. Is its source in the compile list?
+./ivltests/sv_import_unknown_pkg_diag.v:25: error: Unknown package `never_compiled_b_pkg' in import. Is its source in the compile list?
+./ivltests/sv_import_unknown_pkg_diag.v:28: error: Unknown package `never_compiled_c_pkg' in import. Is its source in the compile list?
