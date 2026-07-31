@@ -8669,6 +8669,62 @@ static sva_property_t* sva_nested_prop_sorry_(const struct vlltype&loc,
 }
 
 /*
+ * `S1 or S2 |-> c' -- a sequence combinator as an implication
+ * ANTECEDENT. Legal per IEEE 1800-2017 A.2.10 (the antecedent is a
+ * sequence_expr) plus 16.9.5 (or/and produce one), but not
+ * representable: sva_property_t::antecedent is a flat
+ * std::vector<sva_seq_step_t>, while a combinator is an sva_stree_t.
+ *
+ * The grammar previously had no production for this shape at all, so it
+ * failed as a bare `syntax error'. That is much worse than it sounds:
+ * the parser then desynchronizes, and when the form appears inside a
+ * macro inside a generate block -- exactly how OpenTitan's alert
+ * primitives write it -- the desync produces a cascade of "Invalid
+ * module item" and "Malformed statement" errors attributed to
+ * unrelated, perfectly good code further down the file, plus bogus
+ * module end-label mismatches. Accepting the form and refusing it by
+ * name keeps the parser in sync, so the remaining diagnostics describe
+ * real defects instead of parser confusion.
+ */
+extern sva_property_t* pform_sva_comb_antecedent_sorry(const struct vlltype&loc,
+						       sva_property_t*ante,
+						       std::vector<sva_seq_step_t>*conseq);
+sva_property_t* pform_sva_comb_antecedent_sorry(const struct vlltype&loc,
+						sva_property_t*ante,
+						std::vector<sva_seq_step_t>*conseq)
+{
+      cerr << loc << ": sorry: a sequence `or'/`and' combinator as the "
+	   << "antecedent of an implication is not supported yet (IEEE "
+	   << "1800-2017 16.9.5 makes it legal); the assertion is dropped."
+	   << endl;
+      error_count += 1;
+      pform_sva_destroy_property(ante);
+      pform_sva_destroy_sequence(conseq);
+      return nullptr;
+}
+
+/* The mirror of pform_sva_comb_antecedent_sorry: a combinator as the
+   CONSEQUENT of an implication. Same representation limit (the
+   consequent field `seq' is also a flat step chain), same need to keep
+   the parser in sync rather than emit a bare syntax error. */
+extern sva_property_t* pform_sva_comb_consequent_sorry(const struct vlltype&loc,
+						       std::vector<sva_seq_step_t>*ante,
+						       sva_property_t*conseq);
+sva_property_t* pform_sva_comb_consequent_sorry(const struct vlltype&loc,
+						std::vector<sva_seq_step_t>*ante,
+						sva_property_t*conseq)
+{
+      cerr << loc << ": sorry: a sequence `or'/`and'/`throughout' "
+	   << "combinator as the consequent of an implication is not "
+	   << "supported yet (IEEE 1800-2017 16.9.5/16.9.8 make it legal); "
+	   << "the assertion is dropped." << endl;
+      error_count += 1;
+      pform_sva_destroy_sequence(ante);
+      pform_sva_destroy_property(conseq);
+      return nullptr;
+}
+
+/*
  * `not property_expr' (16.12.9). A plain-sequence operand lowers as it
  * always has (op_type 3); a nested property is refused by name.
  */

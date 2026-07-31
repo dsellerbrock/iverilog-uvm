@@ -5883,6 +5883,37 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      binding tighter than `or' (16.9-1). A bare `sva_seq_expr' stays
      op 0 (above); `sva_seq_comb' requires >=1 operator, so there is no
      ambiguity with the op-0 rule. */
+  /* IEEE 1800-2017 A.2.10 makes the antecedent of an implication a
+     `sequence_expr', and 16.9.5 makes `sequence_expr or/and
+     sequence_expr' one -- so `S1 or S2 |-> c' is LEGAL. It cannot be
+     represented here: sva_property_t::antecedent is a flat step chain
+     and a combinator is a tree. Without this production the form has no
+     parse at all and dies as a bare `syntax error', which inside a
+     macro inside a generate block DESYNCS the parser and buries the
+     real diagnostics under cascading "Invalid module item" noise (this
+     is what turns a handful of defects in OpenTitan's alert primitives
+     into 47 errors). Accept it and refuse it BY NAME so the parser
+     stays in sync. */
+  | sva_seq_comb K_PIPE_IMPL_OV sva_seq_expr
+      { $$ = pform_sva_comb_antecedent_sorry(@2, $1, $3); }
+  | sva_seq_comb K_PIPE_IMPL_NOV sva_seq_expr
+      { $$ = pform_sva_comb_antecedent_sorry(@2, $1, $3); }
+  /* Same shape with a property-operator consequent, e.g.
+     `A and B |=> s_eventually(c)' -- how OpenTitan's TL-UL error
+     assertions are written. */
+  | sva_seq_comb K_PIPE_IMPL_OV K_s_eventually '(' sva_seq_expr ')'
+      { $$ = pform_sva_comb_antecedent_sorry(@2, $1, $5); }
+  | sva_seq_comb K_PIPE_IMPL_NOV K_s_eventually '(' sva_seq_expr ')'
+      { $$ = pform_sva_comb_antecedent_sorry(@2, $1, $5); }
+  /* The mirror case: a combinator (`or'/`and'/`throughout') as the
+     CONSEQUENT. `a |-> (b throughout c[->1])' is how OpenTitan's
+     prim_sync_reqack reset assertions are written. Same
+     representation limit, same reason to be loud rather than a bare
+     syntax error. */
+  | sva_seq_expr K_PIPE_IMPL_OV sva_seq_comb
+      { $$ = pform_sva_comb_consequent_sorry(@2, $1, $3); }
+  | sva_seq_expr K_PIPE_IMPL_NOV sva_seq_comb
+      { $$ = pform_sva_comb_consequent_sorry(@2, $1, $3); }
   | sva_seq_comb
       { $$ = $1; }
   /* IEEE 1800-2017 16.9.9: `guard throughout seq` — guard must hold at

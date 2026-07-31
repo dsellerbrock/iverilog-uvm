@@ -542,7 +542,18 @@ from. A handful of real defects present as 47.
 
 Reproducer: `docs/conformance/repros/ot_seq_comb_antecedent.sv`.
 
-**What a fix requires.** `sva_property_t::antecedent` is a flat
+**Status: made loud, cascade removed.** Three grammar productions now
+accept the combinator-in-implication forms (antecedent, antecedent with
+an `s_eventually' consequent, and consequent) and refuse them by name
+citing 16.9.5. That does not make the construct work, but it keeps the
+parser in sync -- which took the UART assertion build from **47 errors
+to 8**. The 39 that disappeared were never separate defects; they were
+one construct's desync misattributed to unrelated correct code.
+Remaining in this family: `throughout' has its own grammar production
+(`expression K_throughout sva_seq_expr') rather than reducing through
+`sva_seq_comb', so it is not yet covered -- a symmetric addition.
+
+**What a REAL fix requires.** `sva_property_t::antecedent` is a flat
 `std::vector<sva_seq_step_t>*`; a combinator antecedent is an
 `sva_stree_t`, which that field cannot hold. So this needs the
 antecedent to be able to carry a tree -- smaller than full property_expr
@@ -578,6 +589,23 @@ ELABORATION, and are per-instance -- `m #(.N(2))` and `m #(.N(5))` need
 different checker structures from one module definition. So this needs
 lowering to become parameter-aware (realistically, deferred past
 parameter resolution), not a relaxed cast.
+
+## Also found, reproduced, not yet fixed
+
+`duplicate sequence declaration `S'` when the SAME sequence name is
+declared in two MUTUALLY EXCLUSIVE generate branches:
+
+```systemverilog
+if (1) begin : g_async
+  sequence S; a == b [*2]; endsequence
+end else begin : g_sync
+  sequence S; a == b; endsequence      // legal: a distinct scope
+end
+```
+
+IEEE 1800-2017 27.6 gives each generate block its own scope, so this is
+legal. `sva_module_sequences` is a flat per-module map keyed by name
+with no scope awareness. Accounts for 2 of the 8 remaining UART errors.
 
 ## Consequence for the roadmap
 
