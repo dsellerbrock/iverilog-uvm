@@ -1242,3 +1242,45 @@ method-result compare). Those two expression forms are the work that
 unblocks it. Measured, not assumed -- an earlier scan of the fork's
 suite missed this because it compiled the test files without
 `uvm_pkg.sv`, so the library was never elaborated.
+
+### The seventh: a packed-array element with a struct type
+
+Making the fallbacks loud found this the same afternoon. OpenTitan's
+spi_device declares
+
+    cmd_info_t [NumTotalCmdInfo-1:0] cmd_info;   // PACKED array
+
+and fills it (spi_device.sv:631) with
+
+    cmd_info[i] = '{ valid: ..., opcode: ..., ... };
+
+Every one of those assignments was being DISCARDED. The l-value select
+recorded only its WIDTH -- `elaborate_lval_net_bit_` called
+`set_part(base, lwid)` for the multi-dimensional packed-slice case -- so
+`NetAssign_::net_type()` answered null. That is the r-value's only
+source of context, and without it the pattern had nowhere to get its
+member types from: it fell into the width-driven
+`PEAssignPattern::elaborate_expr`, which (before the change above)
+warned and returned null without counting anything. The caller dropped
+the statement. spi_device's compiled model ran with an all-zero command
+table.
+
+`set_packed_slice_part_()` now carries the element's declared type onto
+the select. `packed_type_after_dims()` walks the real type tree, so it
+stops at the struct instead of dissolving it into bits, and it declines
+when the select would land mid-way through an array level. A plain
+VECTOR element deliberately keeps the width-only form: its type adds
+nothing a pattern or a member reference needs, and giving the r-value a
+type context where it previously had a width would change how
+self-determined operands size themselves in `x[2] = <expr>` for every
+packed vector in every design.
+
+Regression `sv_packed_array_elem_pattern` fills the same array twice --
+once through a run-time index, once through scrambled constant indices,
+which take different paths in `elaborate_lval_net_bit_` -- and compares
+element-wise and as one flat vector. Against the compiler from before
+this campaign it builds, runs, and reports twelve X-valued mismatches.
+
+spi_device's RTL build drops from three diagnostics to one; what is
+left is the `TpmReturnByHwAddr` array-parameter sorry, a real
+unimplemented construct.
