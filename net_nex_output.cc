@@ -73,12 +73,36 @@ void NetAssign_::nex_output(NexusSet&out)
 	      // sure I don't know how to handle this yet
 	      // in synthesis, so punt for now.
 
-	      // Even with constant bit/part select, we want to
-	      // return the entire signal as an output. The
-	      // context will need to sort out which bits are
-	      // actually assigned.
-	    use_base = 0;
-	    use_wid = nex->vector_width();
+	      // A CONSTANT bit/part select assigns exactly the bits it
+	      // names, and saying so matters: NetBlock::nex_input()
+	      // subtracts this set from the block's inputs to build an
+	      // always_comb sensitivity list, so reporting the whole
+	      // signal removes bits the block only READS.
+	      //
+	      //     always_comb begin
+	      //       tmp   = st[0] ^ 8'h0F;   // reads st (widened)
+	      //       st[1] = tmp + 8'd1;      // wrote ALL of st
+	      //     end
+	      //
+	      // left the process with an EMPTY sensitivity set, so it ran
+	      // once at time 0 and simulated a stale value thereafter.
+	      //
+	      // A non-constant base really can land anywhere, so that
+	      // case still claims the whole signal.
+	    const NetEConst*base_c = dynamic_cast<const NetEConst*>(base_);
+	    if (base_c && base_c->value().is_defined()) {
+		  long off = base_c->value().as_long();
+		  if (off >= 0 && (unsigned long)off + use_wid
+				  <= nex->vector_width()) {
+			use_base = (unsigned)off;
+		  } else {
+			use_base = 0;
+			use_wid = nex->vector_width();
+		  }
+	    } else {
+		  use_base = 0;
+		  use_wid = nex->vector_width();
+	    }
       }
       out.add(nex, use_base, use_wid);
 }
