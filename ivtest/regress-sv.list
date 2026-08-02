@@ -1273,7 +1273,7 @@ sva_throughout_goto_repeat normal,-g2012 ivltests
 sva_clocking_member_assert normal,-g2012 ivltests
 sva_seq_generate_scope normal,-g2012 ivltests
 sva_paren_seq_conseq normal,-g2012 ivltests
-sva_paren_prop_conseq_ce CE,-g2012 ivltests gold=sva_paren_prop_conseq_ce.gold
+sva_paren_prop_conseq_ce normal,-g2012 ivltests
 sv_uarray_nb_pattern normal,-g2012 ivltests
 sv_uarray_nb_pattern_slice normal,-g2012 ivltests
 sv_packed_array_elem_pattern normal,-g2012 ivltests

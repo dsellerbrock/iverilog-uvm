@@ -269,7 +269,14 @@ static void string_ex_select(ivl_expr_t expr)
       }
 
       if (ivl_expr_type(sube) == IVL_EX_PROPERTY) {
-	    if (expr_is_queue_container_(sube)) {
+	    ivl_type_t prop_type = property_expr_type_(sube);
+	    int positional_container = expr_is_dynarray_container_(sube);
+	    if (prop_type
+		&& (ivl_type_base(prop_type) == IVL_VT_DARRAY
+		    || (ivl_type_base(prop_type) == IVL_VT_QUEUE
+			&& !ivl_type_queue_assoc_compat(prop_type))))
+		  positional_container = 1;
+	    if (positional_container) {
 		  draw_eval_object(sube);
 		  draw_eval_expr_into_integer(shift, 3);
 		  fprintf(vvp_out, "    %%load/qo/str;\n");

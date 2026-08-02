@@ -107,6 +107,17 @@ static void draw_eval_function_argument(ivl_signal_t port, ivl_expr_t expr)
 	   evaluated, since evaluating one may call another function). */
       if (ivl_signal_port(port) == IVL_SIP_REF)
 	    return;
+
+	/* An unpacked fixed-array formal can retain its element data type
+	 * (notably an implicitly typed `input a[3:0]') while still having
+	 * signal dimensions. It is passed through the same temporary open-array
+	 * object used by explicitly typed fixed-array formals. Treating it as a
+	 * scalar reaches function_argument_logic's no-dimensions invariant and
+	 * aborts the target. */
+      if (ivl_signal_dimensions(port) > 0) {
+	    vvp_errors += draw_eval_object(expr);
+	    return;
+      }
       if (port_is_unsupported_aggregate_formal_(port)) {
 	    if (!warned_aggregate_arg_skip) {
 		  fprintf(stderr,
@@ -167,6 +178,17 @@ static void draw_send_function_argument(ivl_signal_t port, ivl_expr_t actual)
 
       if (ivl_signal_port(port) == IVL_SIP_REF)
 	    return;
+
+      if (ivl_signal_dimensions(port) > 0) {
+	    unsigned kind;
+	    if (uarray_container_kind_(port, &kind,
+				       ivl_signal_file(port),
+				       ivl_signal_lineno(port)))
+		  emit_store_arr_dar_(port, kind);
+	    else
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    return;
+      }
 
       if (port_is_unsupported_aggregate_formal_(port)) {
 	    if (!warned_aggregate_send_skip) {

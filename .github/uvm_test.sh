@@ -194,6 +194,7 @@ KNOWN_FAIL=""
 # under the bash 3.2 that ships on macOS (associative arrays need bash 4+).
 plusargs_for() {
     case "$1" in
+        plusargs_class_integral_test) echo "+ENABLED=1 +OFFSET=-7 +COUNT=deadbeef +TIMEOUT_NS=1000000" ;;
         plusargs_class_string_test) echo "+MY_TESTNAME=hello +MY_SEED=42" ;;
         *) echo "" ;;
     esac

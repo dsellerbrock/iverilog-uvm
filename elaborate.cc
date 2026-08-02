@@ -7168,13 +7168,26 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 			      auto end_it = std::next(path_.end(), -2);
 			      for (; it != end_it; ++it)
 				    obj_path.push_back(*it);
-			      PEIdent *obj_id = new PEIdent(obj_path, /*lexical_pos*/0);
-			      obj_id->set_file(get_file());
-			      obj_id->set_lineno(get_lineno());
-			      obj_expr = obj_id->elaborate_expr(des, scope,
-							       /*expr_wid*/0u,
-							       /*flags*/0u);
-			      delete obj_id;
+			      /* A direct receiver may be an automatic block variable.
+			       * PEIdent's compile-progress expression path does not bind
+			       * those reliably, while the ordinary method path's symbol
+			       * search does. Prefer that exact net and retain PEIdent for
+			       * genuine nested class-property receivers. */
+			      symbol_search_results obj_sr;
+			      symbol_search(this, des, scope, obj_path, UINT_MAX, &obj_sr);
+			      if (obj_sr.net) {
+				    obj_expr = new NetESignal(obj_sr.net);
+				    obj_expr->set_line(*this);
+			      } else {
+				    PEIdent *obj_id = new PEIdent(obj_path,
+							    /*lexical_pos*/0);
+				    obj_id->set_file(get_file());
+				    obj_id->set_lineno(get_lineno());
+				    obj_expr = obj_id->elaborate_expr(des, scope,
+							     /*expr_wid*/0u,
+							     /*flags*/0u);
+				    delete obj_id;
+			      }
 			}
 			if (obj_expr) {
 			      const netclass_t *ctype =

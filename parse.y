@@ -9933,6 +9933,29 @@ tf_item_list /* IEEE1800-2017: A.2.7 */
 tf_item_declaration /* IEEE1800-2017: A.2.7 */
   : tf_port_declaration { $$ = $1; }
   | block_item_decl     { $$ = 0; }
+  /* Prefer the declaration-list path for a leading Verilog `reg`
+     declaration. Without this explicit token-prefixed form, the empty
+     K_const_opt reduction in block_item_decl loses a reduce/reduce conflict
+     to the empty tf_item_list_opt production, so a following localparam is
+     misparsed as a statement (ivtest decl_before_use6). */
+  | K_reg unsigned_signed_opt dimensions_opt list_of_variable_decl_assignments ';'
+      { vector_type_t*data_type =
+	      new vector_type_t(IVL_VT_LOGIC, $2, $3);
+	FILE_NAME(data_type, @1);
+	pform_make_var(@1, $4, data_type, attributes_in_context, false);
+	var_lifetime = LexicalScope::INHERITED;
+	pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	$$ = 0;
+      }
+  /* Preserve Icarus's `reg <data_type> name;` extension after the explicit
+     K_reg shift above has selected the declaration-list path. */
+  | K_reg data_type list_of_variable_decl_assignments ';'
+      { if ($2)
+	      pform_make_var(@2, $3, $2, attributes_in_context, false);
+	var_lifetime = LexicalScope::INHERITED;
+	pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	$$ = 0;
+      }
   ;
 
   /* A gate_instance is a module instantiation or a built in part
