@@ -42,6 +42,8 @@ HARD_ERROR_PATTERNS = (
     re.compile(r"\binternal error\b", re.I),
     re.compile(r"\bsegmentation fault\b", re.I),
     re.compile(r"\bassertion (?:failed|failure)\b", re.I),
+    re.compile(r"\bfailed assertion\b", re.I),
+    re.compile(r"\babort trap\b", re.I),
     re.compile(r"\bcore dumped\b", re.I),
 )
 DEBT_PATTERNS = (
@@ -436,6 +438,12 @@ def run_job(
     compile_log = work_root / "matrix-compile.log"
     write_log(compile_log, "OpenTitan Icarus compile", compile_result)
     hard_errors = matching_lines(compile_result.output, HARD_ERROR_PATTERNS)
+    if compile_result.returncode != 0 and not hard_errors:
+        hard_errors = [
+            "compiler exited with status "
+            f"{compile_result.returncode} without a recognized hard diagnostic; "
+            "see the complete compile log"
+        ]
     semantic_debt = matching_lines(compile_result.output, DEBT_PATTERNS)
     record.update(
         {
@@ -598,6 +606,8 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     assert not core_supports_lane(fpv, "rtl")
     assert matching_lines("x: warning: compile-progress fallback", DEBT_PATTERNS)
     assert matching_lines("foo.sv:4: syntax error", HARD_ERROR_PATTERNS)
+    assert matching_lines("ivl: synth2.cc:1: failed assertion x", HARD_ERROR_PATTERNS)
+    assert matching_lines("Abort trap: 6", HARD_ERROR_PATTERNS)
     assert NO_TOPLEVEL_RE.search("ERROR: x:y:z:0 : Target 'default' has no toplevel")
     assert not actionable_setup_lines(
         "WARNING: No trustfile configured (ssh-trustfile in fusesoc.conf), "
