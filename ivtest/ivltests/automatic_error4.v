@@ -1,15 +1,24 @@
-module automatic_error();
+module automatic_error;
 
-reg  global;
+reg global;
 
 task automatic auto_task;
-
-reg local;
-
-begin:block
-  @(local || global);
-end
-
+  reg local;
+  begin : block
+    local = 0;
+    fork
+      #1 local = 1;
+      begin
+        @(local || global);
+        $display("PASSED");
+      end
+    join
+  end
 endtask
+
+initial begin
+  global = 0;
+  auto_task;
+end
 
 endmodule

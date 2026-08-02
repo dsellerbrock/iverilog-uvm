@@ -20710,6 +20710,51 @@ bool of_WAIT_VIF_ANYEDGE(vthread_t thr, vvp_code_t cp)
       return false;
 }
 
+/* %wait/vif/anyedge/multi <count>
+ *
+ * Pop <count> member indices and virtual-interface objects, then suspend
+ * until any selected member changes. Each edge functor keeps a side-table
+ * registration so the same thread never occupies several wait_next lists;
+ * the first edge removes every sibling registration before scheduling it. */
+bool of_WAIT_VIF_ANYEDGE_MULTI(vthread_t thr, vvp_code_t cp)
+{
+      std::set<vvp_fun_edge_sa*>edges;
+      for (unsigned idx = 0 ; idx < cp->number ; idx += 1) {
+            vvp_vector4_t member_vec = thr->pop_vec4();
+            unsigned member = 0;
+            for (unsigned bit = 0 ; bit < member_vec.size()
+                 && bit < 8*sizeof(member) ; bit += 1) {
+                  if (member_vec.value(bit) == BIT4_1)
+                        member |= 1U << bit;
+            }
+
+            vvp_object_t obj;
+            thr->pop_object(obj);
+            vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+            if (!vif)
+                  continue;
+            edges.insert(vif->get_anyedge_functor(member));
+      }
+
+      if (edges.empty()) {
+            static bool warned = false;
+            if (!warned) {
+                  fprintf(stderr,
+                          "Warning: %%wait/vif/anyedge/multi reached no live"
+                          " virtual interfaces (further similar warnings suppressed)\n");
+                  warned = true;
+            }
+            return true;
+      }
+
+      thr->waiting_for_event = 1;
+      thr->wait_next = 0;
+      for (std::set<vvp_fun_edge_sa*>::const_iterator edge = edges.begin();
+           edge != edges.end(); ++edge)
+            (*edge)->add_multi_waiting_thread(thr);
+      return false;
+}
+
 /*
  * %wait/obj/mutation
  *

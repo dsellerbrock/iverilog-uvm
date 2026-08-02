@@ -2248,16 +2248,62 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 
       } else {
 	    unsigned idx;
-	    ivl_event_t ev = ivl_stmt_events(net, 0);
-	    fprintf(vvp_out, "Ewait_%u .event/or E_%p", cascade_counter, ev);
-
-	    for (idx = 1 ;  idx < ivl_stmt_nevent(net) ;  idx += 1) {
-		  ev = ivl_stmt_events(net, idx);
-		  fprintf(vvp_out, ", E_%p", ev);
+	    int all_vif_anyedge = 1;
+	    for (idx = 0 ; idx < ivl_stmt_nevent(net) ; idx += 1) {
+		  if (!ivl_event_is_vif_anyedge(ivl_stmt_events(net, idx))) {
+			all_vif_anyedge = 0;
+			break;
+		  }
 	    }
-	    assert(ivl_stmt_needs_t0_trigger(net) == 0);
-	    fprintf(vvp_out, ";\n    %%wait Ewait_%u;\n", cascade_counter);
-	    cascade_counter += 1;
+
+	    if (all_vif_anyedge) {
+		  /* A compound expression such as @(cfg.vif.a || cfg.vif.b)
+		   * produces one dynamic VIF event per member. Load every
+		   * runtime VIF object and pair it with its member index;
+		   * the multi wait resumes on the first edge and unregisters
+		   * the thread from all sibling edge functors. */
+		  for (idx = 0 ; idx < ivl_stmt_nevent(net) ; idx += 1) {
+			ivl_event_t ev = ivl_stmt_events(net, idx);
+			unsigned root_pin = ivl_event_vif_root_pin(ev);
+			ivl_nexus_t this_nex = ivl_event_nany(ev) > root_pin
+			      ? ivl_event_any(ev, root_pin) : 0;
+			const char*this_var = draw_input_from_net(
+			      this_nex, ivl_event_scope(ev));
+			unsigned path_count = ivl_event_vif_path_count(ev);
+			fprintf(vvp_out, "    %%load/obj %s;\n", this_var);
+			if (path_count > 0) {
+			      for (unsigned path = 0 ; path < path_count ; path += 1)
+				    fprintf(vvp_out, "    %%prop/obj %u, 0;\n",
+					  ivl_event_vif_path_index(ev, path));
+			      fprintf(vvp_out, "    %%pop/obj %u, 1;\n", path_count);
+			} else if (ivl_event_vif_N(ev) != UINT_MAX) {
+			      unsigned pre_N = ivl_event_vif_pre_N(ev);
+			      int has_pre = (pre_N != UINT_MAX);
+			      if (has_pre)
+				    fprintf(vvp_out, "    %%prop/obj %u, 0;\n", pre_N);
+			      fprintf(vvp_out, "    %%prop/obj %u, 0;\n",
+				    ivl_event_vif_N(ev));
+			      fprintf(vvp_out, "    %%pop/obj %d, 1;\n",
+				    has_pre ? 2 : 1);
+			}
+			fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32;\n",
+			      ivl_event_vif_M(ev));
+		  }
+		  assert(ivl_stmt_needs_t0_trigger(net) == 0);
+		  fprintf(vvp_out, "    %%wait/vif/anyedge/multi %u;\n",
+			ivl_stmt_nevent(net));
+	    } else {
+		  ivl_event_t ev = ivl_stmt_events(net, 0);
+		  fprintf(vvp_out, "Ewait_%u .event/or E_%p", cascade_counter, ev);
+
+		  for (idx = 1 ; idx < ivl_stmt_nevent(net) ; idx += 1) {
+			ev = ivl_stmt_events(net, idx);
+			fprintf(vvp_out, ", E_%p", ev);
+		  }
+		  assert(ivl_stmt_needs_t0_trigger(net) == 0);
+		  fprintf(vvp_out, ";\n    %%wait Ewait_%u;\n", cascade_counter);
+		  cascade_counter += 1;
+	    }
       }
 
       return show_statement(ivl_stmt_sub_stmt(net), sscope);

@@ -265,8 +265,8 @@ race			normal			ivltests
 # Icarus limitations
 #------------------------------------------------------------------------------
 
-# Limited support for event expressions in automatic scopes
-automatic_error4	CE			ivltests
+# Compound event expressions in automatic scopes
+automatic_error4	normal			ivltests gold=automatic_error4.gold
 
 # These are not currently supported in Icarus
 # Also update the regress-fsv.list since it has these marked as normal

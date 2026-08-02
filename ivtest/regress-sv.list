@@ -1109,6 +1109,8 @@ sv_modport_read_visibility_fail CE,-g2012 ivltests
 sv_interface_member_sensitivity normal,-g2012 ivltests
 sv_vif_dispatch_many normal,-g2012 ivltests
 sv_vif_nested_interface_method normal,-g2012 ivltests
+sv_auto_complex_class_property_event normal,-g2012 ivltests
+sv_auto_complex_vif_event normal,-g2012 ivltests
 sv_class_array_method_dispatch normal,-g2012 ivltests
 sv_typeparam_formal_member normal,-g2012 ivltests
 sv_randcase normal,-g2012 ivltests

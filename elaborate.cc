@@ -10757,6 +10757,66 @@ static bool find_vif_member_path_(const NetExpr*e, vif_member_path_t&out)
       return false;
 }
 
+static void add_vif_member_path_(std::vector<vif_member_path_t>&paths,
+                                 const vif_member_path_t&path)
+{
+      for (const vif_member_path_t&prior : paths) {
+            if (prior.root == path.root && prior.path == path.path
+                && prior.member == path.member)
+                  return;
+      }
+      paths.push_back(path);
+}
+
+/* Collect all virtual-interface members in a compound event expression.
+   Each member becomes a dynamic event source, and the VVP backend combines
+   their edge registrations into one wait-any operation. */
+static void collect_vif_member_paths_(const NetExpr*e,
+                                      std::vector<vif_member_path_t>&paths)
+{
+      if (!e)
+            return;
+      if (const NetEProperty*p = dynamic_cast<const NetEProperty*>(e)) {
+            vif_member_path_t path;
+            if (decode_vif_member_path_(p, path)) {
+                  add_vif_member_path_(paths, path);
+                  return;
+            }
+            collect_vif_member_paths_(p->get_base(), paths);
+            collect_vif_member_paths_(p->get_index(), paths);
+            return;
+      }
+      if (const NetEBinary*b = dynamic_cast<const NetEBinary*>(e)) {
+            collect_vif_member_paths_(b->left(), paths);
+            collect_vif_member_paths_(b->right(), paths);
+            return;
+      }
+      if (const NetEUnary*u = dynamic_cast<const NetEUnary*>(e)) {
+            collect_vif_member_paths_(u->expr(), paths);
+            return;
+      }
+      if (const NetESelect*s = dynamic_cast<const NetESelect*>(e)) {
+            collect_vif_member_paths_(s->sub_expr(), paths);
+            collect_vif_member_paths_(s->select(), paths);
+            return;
+      }
+      if (const NetETernary*t = dynamic_cast<const NetETernary*>(e)) {
+            collect_vif_member_paths_(t->cond_expr(), paths);
+            collect_vif_member_paths_(t->true_expr(), paths);
+            collect_vif_member_paths_(t->false_expr(), paths);
+            return;
+      }
+      if (const NetEConcat*c = dynamic_cast<const NetEConcat*>(e)) {
+            for (unsigned idx = 0 ; idx < c->nparms() ; idx += 1)
+                  collect_vif_member_paths_(c->parm(idx), paths);
+            return;
+      }
+      if (const NetESFunc*f = dynamic_cast<const NetESFunc*>(e)) {
+            for (unsigned idx = 0 ; idx < f->nparms() ; idx += 1)
+                  collect_vif_member_paths_(f->parm(idx), paths);
+      }
+}
+
 /* True if the expression reads any ordinary net (a NetESignal anywhere in
    the tree). Used to keep the single-interface-member direct-vif probe from
    firing on a MIXED r-value such as `p.a & module_net`, whose real-net part
@@ -10797,6 +10857,133 @@ static bool expr_reads_real_signal_(const NetExpr*e)
 	    return false;
       }
       return false;
+}
+
+struct class_property_mutation_dep_t {
+      const NetESignal*root;
+      unsigned owner_N;
+      unsigned pre_N;
+};
+
+static void add_class_property_mutation_dep_(
+      std::vector<class_property_mutation_dep_t>&deps,
+      const NetESignal*root, unsigned owner_N, unsigned pre_N)
+{
+      if (!(root && root->sig()))
+            return;
+      for (const class_property_mutation_dep_t&dep : deps) {
+            if (dep.root == root && dep.owner_N == owner_N
+                && dep.pre_N == pre_N)
+                  return;
+      }
+      class_property_mutation_dep_t dep = {root, owner_N, pre_N};
+      deps.push_back(dep);
+}
+
+/* Collect every class object whose mutation can change an event expression.
+   This is the event-control counterpart of the dynamic object dependencies
+   used by wait(expr). In particular, it handles a concatenation or boolean
+   expression containing several direct and nested class properties, such as
+
+     @({active_alert, cfg.active_ping,
+        cfg.under_ping_handshake || cfg.under_ping_handshake_ph_2})
+
+   in an automatic class task. */
+static void collect_class_property_mutation_deps_(
+      const NetExpr*e, std::vector<class_property_mutation_dep_t>&deps)
+{
+      if (!e)
+            return;
+
+      if (const NetEProperty*outer_p = dynamic_cast<const NetEProperty*>(e)) {
+            vif_member_path_t vif_path;
+            if (decode_vif_member_path_(outer_p, vif_path))
+                  return;
+            if (outer_p->get_sig())
+                  return;
+
+            const NetEProperty*owner_p =
+                  dynamic_cast<const NetEProperty*>(outer_p->get_base());
+            if (owner_p && !owner_p->get_sig()) {
+                  const NetESignal*root_e =
+                        dynamic_cast<const NetESignal*>(owner_p->get_base());
+                  const NetEProperty*pre_p = nullptr;
+                  if (!root_e) {
+                        pre_p = dynamic_cast<const NetEProperty*>(
+                              owner_p->get_base());
+                        if (pre_p && !pre_p->get_sig())
+                              root_e = dynamic_cast<const NetESignal*>(
+                                    pre_p->get_base());
+                  }
+
+                  const netclass_t*root_cls = root_e
+                        ? dynamic_cast<const netclass_t*>(
+                              root_e->sig()->net_type())
+                        : nullptr;
+                  if (!root_cls)
+                        return;
+
+                  // Replacing an intermediate handle changes the expression.
+                  add_class_property_mutation_dep_(deps, root_e,
+                                                   UINT_MAX, UINT_MAX);
+
+                  const netclass_t*owner_host = root_cls;
+                  unsigned pre_N = UINT_MAX;
+                  if (pre_p) {
+                        pre_N = pre_p->property_idx();
+                        owner_host = dynamic_cast<const netclass_t*>(
+                              owner_host->get_prop_type(pre_N));
+                  }
+                  if (owner_host) {
+                        unsigned owner_N = owner_p->property_idx();
+                        const netclass_t*owner_cls =
+                              dynamic_cast<const netclass_t*>(
+                                    owner_host->get_prop_type(owner_N));
+                        if (owner_cls && !owner_cls->is_interface())
+                              add_class_property_mutation_dep_(
+                                    deps, root_e, owner_N, pre_N);
+                  }
+            } else {
+                  const NetESignal*root_e =
+                        dynamic_cast<const NetESignal*>(outer_p->get_base());
+                  if (root_e && root_e->sig()
+                      && dynamic_cast<const netclass_t*>(
+                            root_e->sig()->net_type()))
+                        add_class_property_mutation_dep_(
+                              deps, root_e, UINT_MAX, UINT_MAX);
+            }
+            return;
+      }
+
+      if (const NetEBinary*bin = dynamic_cast<const NetEBinary*>(e)) {
+            collect_class_property_mutation_deps_(bin->left(), deps);
+            collect_class_property_mutation_deps_(bin->right(), deps);
+            return;
+      }
+      if (const NetEUnary*un = dynamic_cast<const NetEUnary*>(e)) {
+            collect_class_property_mutation_deps_(un->expr(), deps);
+            return;
+      }
+      if (const NetEConcat*cat = dynamic_cast<const NetEConcat*>(e)) {
+            for (unsigned idx = 0 ; idx < cat->nparms() ; idx += 1)
+                  collect_class_property_mutation_deps_(cat->parm(idx), deps);
+            return;
+      }
+      if (const NetESelect*sel = dynamic_cast<const NetESelect*>(e)) {
+            collect_class_property_mutation_deps_(sel->sub_expr(), deps);
+            collect_class_property_mutation_deps_(sel->select(), deps);
+            return;
+      }
+      if (const NetETernary*tern = dynamic_cast<const NetETernary*>(e)) {
+            collect_class_property_mutation_deps_(tern->cond_expr(), deps);
+            collect_class_property_mutation_deps_(tern->true_expr(), deps);
+            collect_class_property_mutation_deps_(tern->false_expr(), deps);
+            return;
+      }
+      if (const NetESFunc*sf = dynamic_cast<const NetESFunc*>(e)) {
+            for (unsigned idx = 0 ; idx < sf->nparms() ; idx += 1)
+                  collect_class_property_mutation_deps_(sf->parm(idx), deps);
+      }
 }
 
 NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
@@ -11256,22 +11443,6 @@ cerr << endl;
 		 the sub-expression as a net and decide how to handle
 		 the edge. */
 
-            if (scope->is_auto()) {
-                  if (! dynamic_cast<PEIdent*>(expr_[idx]->expr())) {
-                        if (gn_system_verilog()) {
-                              cerr << get_fileline() << ": warning: complex event "
-                                      "expressions are not yet supported in "
-                                      "automatic tasks (compile-progress: event skipped)." << endl;
-                              continue;
-                        }
-                        cerr << get_fileline() << ": sorry, complex event "
-                                "expressions are not yet supported in "
-                                "automatic tasks." << endl;
-                        des->errors += 1;
-                        return 0;
-                  }
-            }
-
 	    NetExpr*tmp = elab_and_eval(des, scope, expr_[idx]->expr(), -1);
 	    if (tmp == 0) {
 		  // Compile-progress: clocking block or complex VIF event references
@@ -11313,6 +11484,101 @@ cerr << endl;
 		  des->errors += 1;
 		  continue;
 	    }
+
+            /* A compound automatic event may read one or more members of a
+               virtual interface. Preserve those as dynamic interface-edge
+               waits; treating their root class as an object-mutation source
+               both loses signal sensitivity and creates broad spurious
+               wakeups during UVM construction. */
+            if (gn_system_verilog()
+                && expr_[idx]->type() == PEEvent::ANYEDGE) {
+                  std::vector<vif_member_path_t> vif_paths;
+                  collect_vif_member_paths_(tmp, vif_paths);
+                  /* Each member gets its own dynamic event descriptor. The
+                     VVP wait backend combines those descriptors and removes
+                     sibling registrations when any member changes. */
+                  NexusSet*vif_set = vif_paths.empty()
+                        ? nullptr : tmp->nex_input();
+                  unsigned added = 0;
+                  if (vif_set && vif_set->size() > 0) {
+                        for (const vif_member_path_t&path : vif_paths) {
+                              if (!(path.root && path.root->pin_count() > 0))
+                                    continue;
+                              Nexus*root_nexus = const_cast<Nexus*>(
+                                    path.root->pin(0).nexus());
+                              unsigned root_pin = UINT_MAX;
+                              for (unsigned pin = 0 ; pin < vif_set->size() ; pin += 1) {
+                                    if (vif_set->at(pin).lnk.nexus() == root_nexus) {
+                                          root_pin = pin;
+                                          break;
+                                    }
+                              }
+                              if (root_pin == UINT_MAX)
+                                    continue;
+
+                              NetEvent*vif_ev = new NetEvent(scope->local_symbol());
+                              vif_ev->set_line(*this);
+                              vif_ev->local_flag(true);
+                              NetEvProbe*pr = new NetEvProbe(
+                                    scope, scope->local_symbol(), vif_ev,
+                                    NetEvProbe::ANYEDGE, vif_set->size());
+                              for (unsigned pin = 0 ; pin < vif_set->size() ; pin += 1)
+                                    connect(vif_set->at(pin).lnk, pr->pin(pin));
+                              pr->set_vif_anyedge_path(path.path, path.member);
+                              pr->set_vif_root_pin(root_pin);
+                              scope->add_event(vif_ev);
+                              wa->add_event(vif_ev);
+                              des->add_node(pr);
+                              added += 1;
+                        }
+                  }
+                  delete vif_set;
+                  if (added > 0) {
+                        delete tmp;
+                        continue;
+                  }
+            }
+
+            /* IEEE 1800-2017 9.4.2: an event expression in an automatic
+               class task can combine several direct/nested properties. Such
+               expressions cannot be synthesized into a static NetNet because
+               their object handles are selected at run time. Suspend on the
+               mutation sets of all contributing class objects instead. */
+            if (gn_system_verilog()
+                && expr_[idx]->type() == PEEvent::ANYEDGE) {
+                  std::vector<class_property_mutation_dep_t> deps;
+                  collect_class_property_mutation_deps_(tmp, deps);
+                  NexusSet*prop_set = deps.empty() ? nullptr : tmp->nex_input();
+                  if (prop_set && prop_set->size() > 0) {
+                        NetEvProbe*pr = new NetEvProbe(
+                              scope, scope->local_symbol(), ev,
+                              NetEvProbe::ANYEDGE, prop_set->size());
+                        for (unsigned pin = 0 ; pin < prop_set->size() ; pin += 1)
+                              connect(prop_set->at(pin).lnk, pr->pin(pin));
+
+                        for (const class_property_mutation_dep_t&dep : deps) {
+                              Nexus*root_nexus = const_cast<Nexus*>(
+                                    dep.root->sig()->pin(0).nexus());
+                              for (unsigned pin = 0 ; pin < prop_set->size() ; pin += 1) {
+                                    if (prop_set->at(pin).lnk.nexus() == root_nexus) {
+                                          pr->add_obj_mutation(dep.owner_N,
+                                                               dep.pre_N, pin);
+                                          break;
+                                    }
+                              }
+                        }
+
+                        if (pr->obj_mutation_count() > 0) {
+                              delete prop_set;
+                              delete tmp;
+                              des->add_node(pr);
+                              expr_count += 1;
+                              continue;
+                        }
+                        delete pr;
+                  }
+                  delete prop_set;
+            }
 
 	    if (gn_system_verilog()
 		&& dynamic_cast<NetEProperty*>(tmp)) {

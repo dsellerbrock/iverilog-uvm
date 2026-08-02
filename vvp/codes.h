@@ -545,6 +545,7 @@ extern bool of_WAIT_REACTIVE(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_VIF_POSEDGE(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_VIF_NEGEDGE(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_VIF_ANYEDGE(vthread_t thr, vvp_code_t code);
+extern bool of_WAIT_VIF_ANYEDGE_MULTI(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_OBJ_MUTATION(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_OBJ_MUTATION_MULTI(vthread_t thr, vvp_code_t code);
 extern bool of_XNOR(vthread_t thr, vvp_code_t code);

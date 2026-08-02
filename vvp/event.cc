@@ -27,6 +27,8 @@
 # include  <cassert>
 # include  <cstdlib>
 # include  <cstdint>
+# include  <map>
+# include  <set>
 # include  <vector>
 
 # include <iostream>
@@ -297,6 +299,9 @@ bool vvp_fun_edge::recv_vec4_(const vvp_vector4_t&bit,
       return false;
 }
 
+static std::map<vthread_t, std::set<vvp_fun_edge_sa*> >
+      vif_multi_wait_edges_;
+
 vvp_fun_edge_sa::vvp_fun_edge_sa(edge_t e)
 : vvp_fun_edge(e), threads_(0)
 {
@@ -304,6 +309,16 @@ vvp_fun_edge_sa::vvp_fun_edge_sa(edge_t e)
 
 vvp_fun_edge_sa::~vvp_fun_edge_sa()
 {
+      for (std::set<vthread_t>::const_iterator cur = multi_threads_.begin();
+           cur != multi_threads_.end(); ++cur) {
+            std::map<vthread_t, std::set<vvp_fun_edge_sa*> >::iterator found =
+                  vif_multi_wait_edges_.find(*cur);
+            if (found == vif_multi_wait_edges_.end())
+                  continue;
+            found->second.erase(this);
+            if (found->second.empty())
+                  vif_multi_wait_edges_.erase(found);
+      }
 }
 
 vthread_t vvp_fun_edge_sa::add_waiting_thread(vthread_t thread)
@@ -314,10 +329,39 @@ vthread_t vvp_fun_edge_sa::add_waiting_thread(vthread_t thread)
       return tmp;
 }
 
+void vvp_fun_edge_sa::add_multi_waiting_thread(vthread_t thread)
+{
+      if (!thread)
+            return;
+      multi_threads_.insert(thread);
+      vif_multi_wait_edges_[thread].insert(this);
+}
+
+void vvp_fun_edge_sa::run_multi_waiting_threads_()
+{
+      std::set<vthread_t>waiters;
+      waiters.swap(multi_threads_);
+      for (std::set<vthread_t>::const_iterator cur = waiters.begin();
+           cur != waiters.end(); ++cur) {
+            vthread_t thread = *cur;
+            std::map<vthread_t, std::set<vvp_fun_edge_sa*> >::iterator found =
+                  vif_multi_wait_edges_.find(thread);
+            if (found != vif_multi_wait_edges_.end()) {
+                  std::set<vvp_fun_edge_sa*> siblings = found->second;
+                  vif_multi_wait_edges_.erase(found);
+                  for (std::set<vvp_fun_edge_sa*>::const_iterator edge =
+                       siblings.begin(); edge != siblings.end(); ++edge)
+                        (*edge)->multi_threads_.erase(thread);
+            }
+            vthread_schedule_mutation_waiter(thread);
+      }
+}
+
 void vvp_fun_edge_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                 vvp_context_t)
 {
       if (recv_vec4_(bit, bits_[port.port()], threads_)) {
+	    run_multi_waiting_threads_();
 	    vvp_net_t*net = port.ptr();
 	    net->send_vec4(bit, 0);
       }
@@ -328,6 +372,7 @@ void vvp_fun_edge_sa::recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 {
       assert(base == 0);
       if (recv_vec4_(bit, bits_[port.port()], threads_)) {
+	    run_multi_waiting_threads_();
 	    vvp_net_t*net = port.ptr();
 	    net->send_vec4_pv(bit, base, vwid, 0);
       }

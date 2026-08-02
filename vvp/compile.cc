@@ -603,6 +603,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%wait/observed",of_WAIT_OBSERVED,0,{OA_NONE,OA_NONE, OA_NONE} },
       { "%wait/reactive",of_WAIT_REACTIVE,0,{OA_NONE,OA_NONE, OA_NONE} },
       { "%wait/vif/anyedge",of_WAIT_VIF_ANYEDGE,1,{OA_NUMBER,OA_NONE, OA_NONE} },
+      { "%wait/vif/anyedge/multi",of_WAIT_VIF_ANYEDGE_MULTI,1,{OA_NUMBER,OA_NONE, OA_NONE} },
       { "%wait/vif/negedge",of_WAIT_VIF_NEGEDGE,1,{OA_NUMBER,OA_NONE, OA_NONE} },
       { "%wait/vif/posedge",of_WAIT_VIF_POSEDGE,1,{OA_NUMBER,OA_NONE, OA_NONE} },
       { "%xnor",   of_XNOR,   0,  {OA_NONE,     OA_NONE,     OA_NONE} },
