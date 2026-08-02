@@ -7175,7 +7175,7 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 			       * genuine nested class-property receivers. */
 			      symbol_search_results obj_sr;
 			      symbol_search(this, des, scope, obj_path, UINT_MAX, &obj_sr);
-			      if (obj_sr.net) {
+			      if (obj_sr.net && obj_sr.path_tail.empty()) {
 				    obj_expr = new NetESignal(obj_sr.net);
 				    obj_expr->set_line(*this);
 			      } else {
