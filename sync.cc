@@ -33,6 +33,12 @@ bool NetProc::is_synchronous()
 
 bool NetEvWait::is_synchronous()
 {
+      // always_comb processes whose bodies read no signals have an
+      // automatically inserted event wait with an empty event list. They are
+      // constant combinational logic, not clocked processes.
+      if (events_.empty())
+	    return false;
+
       for (unsigned idx = 0 ;  idx < events_.size() ;  idx += 1) {
 	    NetEvent*ev = events_[idx];
 

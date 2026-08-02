@@ -32,7 +32,19 @@ DEFAULT_TOPS = {
     "earlgrey": "lowrisc:systems:top_earlgrey:0.1",
     "darjeeling": "lowrisc:systems:top_darjeeling:0.1",
 }
+TOP_VARIANTS = (*DEFAULT_TOPS, "englishbreakfast")
 PRIM_MAPPING = "lowrisc:prim_generic:all:0.1"
+ENGLISHBREAKFAST_MAPPING = "local:matrix:top_englishbreakfast:0.1"
+ENGLISHBREAKFAST_MAPPING_CORE = """CAPI=2:
+name: local:matrix:top_englishbreakfast:0.1
+description: Deterministic virtual-core providers for the OpenTitan matrix
+mapping:
+  "lowrisc:virtual_constants:top_racl_pkg": "lowrisc:englishbreakfast_constants:top_racl_pkg"
+  "lowrisc:systems:ast_pkg": "lowrisc:systems:top_englishbreakfast_ast_pkg"
+  "lowrisc:virtual_ip:flash_ctrl_prim_reg_top": "lowrisc:englishbreakfast_ip:flash_ctrl_prim_reg_top"
+  "lowrisc:virtual_ip:flash_ctrl_top_specific_pkg": "lowrisc:englishbreakfast_ip:flash_ctrl_top_specific_pkg"
+  "lowrisc:virtual_constants:rnd_cnst_pkg": "lowrisc:englishbreakfast_constants:testing_rnd_cnst_pkg"
+"""
 
 CORE_LINE_RE = re.compile(r"^(?P<core>[^\s:]+:[^\s:]+:[^\s:]+:[^\s]+)\s+:\s+")
 MAKE_ASSIGN_RE = re.compile(r"^(?P<name>[A-Z_]+)\s*:?=\s*(?P<value>.*)$")
@@ -162,6 +174,48 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def directory_sha256(root: Path) -> str:
+    """Hash file names and contents so an installed source tree is identifiable."""
+    digest = hashlib.sha256()
+    for path in sorted(
+        candidate for candidate in root.rglob("*") if candidate.is_file()
+    ):
+        digest.update(path.relative_to(root).as_posix().encode())
+        digest.update(b"\0")
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def compiler_fingerprint(iverilog: Path, vvp: Path) -> dict[str, object]:
+    """Fingerprint the engine and targets, not only the stable driver binary."""
+    ivl_root = iverilog.parent.parent / "lib" / "ivl"
+    candidates = {
+        "driver": iverilog,
+        "compiler_engine": ivl_root / "ivl",
+        "vvp_target": ivl_root / "vvp.tgt",
+        "vvp_runtime": vvp,
+        "normal_config": ivl_root / "vvp.conf",
+        "synthesis_config": ivl_root / "vvp-s.conf",
+        "uvm_dpi": ivl_root / "uvm_dpi.vpi",
+    }
+    components = {
+        name: {"path": str(path), "sha256": file_sha256(path)}
+        for name, path in candidates.items()
+        if path.is_file()
+    }
+    uvm_sources = ivl_root / "uvm" / "src"
+    result: dict[str, object] = {"components": components}
+    if uvm_sources.is_dir():
+        result["uvm_sources"] = {
+            "path": str(uvm_sources),
+            "sha256": directory_sha256(uvm_sources),
+        }
+    return result
+
+
 def discover_cores(
     fusesoc: Path, opentitan_root: Path, env: dict[str, str], timeout: int
 ) -> list[Core]:
@@ -240,12 +294,30 @@ def safe_name(value: str) -> str:
 def top_for_job(job: Job, requested: str) -> str:
     if requested != "auto":
         return requested
-    return "darjeeling" if "darjeeling" in job.core.vlnv else "earlgrey"
+    for top in ("darjeeling", "englishbreakfast", "earlgrey"):
+        if top in job.core.vlnv:
+            return top
+    return "earlgrey"
 
 
 def provider_mappings(job: Job, requested_top: str) -> list[str]:
     top = top_for_job(job, requested_top)
+    if top == "englishbreakfast":
+        return [PRIM_MAPPING, ENGLISHBREAKFAST_MAPPING]
     return [PRIM_MAPPING, DEFAULT_TOPS[top]]
+
+
+def prepare_matrix_core_root(build_root: Path) -> Path:
+    """Create local mapping cores needed for deterministic dependency solves."""
+    core_root = build_root / "matrix-provider-cores"
+    core_root.mkdir(parents=True, exist_ok=True)
+    mapping_core = core_root / "top_englishbreakfast_mapping.core"
+    if (
+        not mapping_core.is_file()
+        or mapping_core.read_text() != ENGLISHBREAKFAST_MAPPING_CORE
+    ):
+        mapping_core.write_text(ENGLISHBREAKFAST_MAPPING_CORE)
+    return core_root
 
 
 def actionable_setup_lines(output: str) -> list[str]:
@@ -292,12 +364,14 @@ def setup_command(
     job: Job,
     fusesoc: Path,
     opentitan_root: Path,
+    matrix_core_root: Path,
     work_root: Path,
     requested_top: str,
 ) -> list[str]:
     command = [
         str(fusesoc),
         f"--cores-root={opentitan_root}",
+        f"--cores-root={matrix_core_root}",
         "run",
         f"--target={job.target}",
         "--tool=icarus",
@@ -372,6 +446,7 @@ def run_job(
     args: argparse.Namespace,
     opentitan_root: Path,
     build_root: Path,
+    matrix_core_root: Path,
     fusesoc: Path,
     iverilog: Path,
     vvp: Path,
@@ -383,7 +458,14 @@ def run_job(
     record = result_base(job, work_root, mappings)
 
     setup = command_result(
-        setup_command(job, fusesoc, opentitan_root, work_root, args.top),
+        setup_command(
+            job,
+            fusesoc,
+            opentitan_root,
+            matrix_core_root,
+            work_root,
+            args.top,
+        ),
         cwd=opentitan_root,
         env=env,
         timeout=args.setup_timeout,
@@ -520,6 +602,10 @@ def markdown_report(report: dict[str, object]) -> str:
         status = str(result["status"])
         counts[status] = counts.get(status, 0) + 1
 
+    compiler_components = metadata.get("compiler_fingerprint", {}).get(
+        "components", {}
+    )
+    engine = compiler_components.get("compiler_engine", {})
     lines = [
         "# OpenTitan Icarus matrix",
         "",
@@ -527,6 +613,7 @@ def markdown_report(report: dict[str, object]) -> str:
         f"- OpenTitan revision: `{metadata['opentitan_revision']}`"
         + (" (dirty)" if metadata["opentitan_dirty"] else ""),
         f"- Icarus: `{metadata['iverilog_version']}`",
+        f"- Compiler engine SHA-256: `{engine.get('sha256', 'unavailable')}`",
         f"- Jobs: `{len(results)}`",
         "- Status counts: "
         + ", ".join(f"`{key}={value}`" for key, value in sorted(counts.items())),
@@ -604,6 +691,14 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     fpv = Core("lowrisc:darjeeling_ip:rv_plic_fpv:0.1", "")
     assert core_supports_lane(fpv, "sva")
     assert not core_supports_lane(fpv, "rtl")
+    englishbreakfast = Job(
+        "rtl", Core("lowrisc:englishbreakfast_ip:flash_ctrl:0.1", "")
+    )
+    assert top_for_job(englishbreakfast, "auto") == "englishbreakfast"
+    assert provider_mappings(englishbreakfast, "auto") == [
+        PRIM_MAPPING,
+        ENGLISHBREAKFAST_MAPPING,
+    ]
     assert matching_lines("x: warning: compile-progress fallback", DEBT_PATTERNS)
     assert matching_lines("foo.sv:4: syntax error", HARD_ERROR_PATTERNS)
     assert matching_lines("ivl: synth2.cc:1: failed assertion x", HARD_ERROR_PATTERNS)
@@ -631,7 +726,7 @@ def parser() -> argparse.ArgumentParser:
     )
     result.add_argument("--core", action="append", default=[], help="exact VLNV")
     result.add_argument("--ip", action="append", default=[], help="name/description substring")
-    result.add_argument("--top", choices=("auto", *DEFAULT_TOPS), default="auto")
+    result.add_argument("--top", choices=("auto", *TOP_VARIANTS), default="auto")
     result.add_argument("--max-cores", type=int, default=0)
     result.add_argument(
         "--jobs",
@@ -681,6 +776,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not opentitan_root.is_dir():
         parser().error(f"OpenTitan root does not exist: {opentitan_root}")
     build_root.mkdir(parents=True, exist_ok=True)
+    matrix_core_root = prepare_matrix_core_root(build_root)
 
     env = os.environ.copy()
     env["PATH"] = os.pathsep.join(
@@ -708,9 +804,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         "iverilog": str(iverilog),
         "iverilog_sha256": file_sha256(iverilog),
         "iverilog_version": tool_version([str(iverilog), "-V"], opentitan_root, env),
+        "compiler_fingerprint": compiler_fingerprint(iverilog, vvp),
         "fusesoc": str(fusesoc),
         "fusesoc_version": tool_version([str(fusesoc), "--version"], opentitan_root, env),
         "top_mapping": args.top,
+        "matrix_provider_core_root": str(matrix_core_root),
+        "englishbreakfast_mapping_sha256": hashlib.sha256(
+            ENGLISHBREAKFAST_MAPPING_CORE.encode()
+        ).hexdigest(),
     }
     json_path = (args.result_json or (build_root / "opentitan-matrix.json")).resolve()
     md_path = (args.result_md or (build_root / "opentitan-matrix.md")).resolve()
@@ -722,6 +823,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args=args,
             opentitan_root=opentitan_root,
             build_root=build_root,
+            matrix_core_root=matrix_core_root,
             fusesoc=fusesoc,
             iverilog=iverilog,
             vvp=vvp,

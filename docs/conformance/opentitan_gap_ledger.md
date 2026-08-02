@@ -421,6 +421,30 @@ The exact Darjeeling alert-handler target now returns zero with no hard error;
 its remaining matrix status is `DEBT` solely because of the separately tracked
 conservative `always_*` sensitivity warning.
 
+## G19 — constant-only `always_comb` misclassified as synchronous — **fixed** (current upstream campaign)
+
+*9.2.2.2.2 / synthesis contextualization [general] — compiler abort.*
+
+```systemverilog
+always_comb begin
+  attr = '0;
+  attr.mode = 3'b101;
+  attr.enable = 1'b1;
+end
+```
+
+Elaboration correctly creates an empty implicit event wait and reports that
+the process has no sensitivities. Synthesis previously treated an empty event
+list as proof that the process was synchronous, then entered the clocked
+process path and asserted that exactly one event existed. OpenTitan's
+`prim_pad_attr` triggered this abort while synthesizing pinmux.
+
+An empty event wait is now classified as combinational. The regression checks
+the packed-struct value after both ordinary and synthesized compilation. The
+exact Darjeeling pinmux target now exits zero with no hard errors; its two
+remaining debts are the explicit no-sensitivities warning and the separately
+tracked conservative `always_*` sensitivity warning.
+
 ---
 
 ## Two measurement traps worth remembering

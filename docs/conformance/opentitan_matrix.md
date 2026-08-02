@@ -36,10 +36,21 @@ selection order:
 - `lowrisc:systems:top_earlgrey:0.1`, or
   `lowrisc:systems:top_darjeeling:0.1` for Darjeeling cores
 
+The `top_englishbreakfast` core intentionally has no virtual-core `mapping`
+stanza. For English Breakfast jobs, the runner generates a build-local CAPI
+mapping core that pins its RACL, AST, flash-register, flash-package, and random
+constant providers, then selects that mapping alongside the generic primitive
+mapping. This avoids both the Earl Grey provider conflict and FuseSoC's
+nondeterministic-provider fallback without modifying the OpenTitan checkout.
+
 The JSON report also records the OpenTitan commit and dirty state, compiler and
 FuseSoC versions, exact setup and compile commands, selected top, diagnostics,
-durations, log paths, and a hash of compiler output.  A dirty OpenTitan tree is
-reported rather than modified.
+durations, log paths, and a hash of compiler output. The compiler fingerprint
+includes the driver, the actual `ivl` compiler engine, the VVP target and
+runtime, normal and synthesis configurations, installed UVM DPI module, and
+installed UVM source tree when present. Hashing only the `iverilog` driver is
+insufficient because that binary can remain unchanged when the compiler engine
+is rebuilt. A dirty OpenTitan tree is reported rather than modified.
 
 At OpenTitan revision `7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19`, initial
 discovery finds 267 RTL/default-target candidates, 109 standalone SVA/formal
