@@ -525,11 +525,38 @@ void NetEvProbe::set_vif_anyedge_path(const vector<unsigned>&path, unsigned M)
       vif_pre_N_ = path.size() == 2 ? path.front() : UINT_MAX;
 }
 
-void NetEvProbe::set_obj_mutation(unsigned N, unsigned pre_N)
+void NetEvProbe::set_obj_mutation(unsigned N, unsigned pre_N,
+                                  unsigned root_pin)
 {
       is_obj_mutation_ = true;
       obj_N_ = N;
       obj_pre_N_ = pre_N;
+      obj_root_pin_ = root_pin;
+      obj_mutation_N_.clear();
+      obj_mutation_pre_N_.clear();
+      obj_mutation_root_pin_.clear();
+      add_obj_mutation(N, pre_N, root_pin);
+}
+
+void NetEvProbe::add_obj_mutation(unsigned N, unsigned pre_N,
+                                  unsigned root_pin)
+{
+      for (unsigned idx = 0 ; idx < obj_mutation_N_.size() ; idx += 1) {
+            if (obj_mutation_N_[idx] == N
+                && obj_mutation_pre_N_[idx] == pre_N
+                && obj_mutation_root_pin_[idx] == root_pin)
+                  return;
+      }
+
+      is_obj_mutation_ = true;
+      if (obj_mutation_N_.empty()) {
+            obj_N_ = N;
+            obj_pre_N_ = pre_N;
+            obj_root_pin_ = root_pin;
+      }
+      obj_mutation_N_.push_back(N);
+      obj_mutation_pre_N_.push_back(pre_N);
+      obj_mutation_root_pin_.push_back(root_pin);
 }
 
 NetEvProbe::~NetEvProbe()

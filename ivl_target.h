@@ -828,6 +828,10 @@ extern unsigned    ivl_event_vif_root_pin(ivl_event_t net);
 extern int         ivl_event_is_obj_mutation(ivl_event_t net);
 extern unsigned    ivl_event_obj_N(ivl_event_t net); /* UINT_MAX = root object */
 extern unsigned    ivl_event_obj_pre_N(ivl_event_t net);
+extern unsigned    ivl_event_obj_mutation_count(ivl_event_t net);
+extern unsigned    ivl_event_obj_mutation_N(ivl_event_t net, unsigned idx);
+extern unsigned    ivl_event_obj_mutation_pre_N(ivl_event_t net, unsigned idx);
+extern unsigned    ivl_event_obj_mutation_root_pin(ivl_event_t net, unsigned idx);
 
 extern const char*ivl_event_file(ivl_event_t net);
 extern unsigned ivl_event_lineno(ivl_event_t net);

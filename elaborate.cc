@@ -11766,8 +11766,6 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 	    }
 	    des->add_node(wait_pr);
       }
-      delete wait_set;
-
       // Phase 55/58: Detect VIF signal chain in wait() for RTL-driven wakeup.
       // Mirrors the @(posedge/anyedge) detection at lines ~7067-7123.
       // expr here is NetEBComp('N', original_cond, 1'b1) due to the inversion
@@ -11790,11 +11788,28 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
       // object (`wait (!cfg.in_reset)`). The ordinary nexus set contains the
       // root `this` handle, but writing cfg.in_reset mutates cfg rather than
       // that root object. Record the path to the owning object so the target
-      // emits a dynamic object-mutation wait.
+      // emits a dynamic object-mutation wait. Collect EVERY distinct object
+      // dependency: wait(a.done && b.done) must wake when either object
+      // changes, not just whichever property the AST walk happens to find
+      // first (IEEE 1800-2017 9.4.3).
       if (wait_pr && !wait_pr->is_vif_anyedge()) {
-	    std::function<bool(const NetExpr*)> try_set_obj_mutation;
-	    try_set_obj_mutation = [&](const NetExpr*e) -> bool {
-		  if (!e) return false;
+	    auto obj_root_pin = [&](const NetESignal*root_e) -> unsigned {
+		  if (!(root_e && root_e->sig() && wait_set))
+			return 0;
+		  Nexus*root_nexus = const_cast<Nexus*>(
+			root_e->sig()->pin(0).nexus());
+		  if (!root_nexus)
+			return 0;
+		  for (unsigned idx = 0 ; idx < wait_set->size() ; idx += 1) {
+			if (wait_set->at(idx).lnk.nexus() == root_nexus)
+			      return idx;
+		  }
+		  return 0;
+	    };
+
+	    std::function<void(const NetExpr*)> collect_obj_mutations;
+	    collect_obj_mutations = [&](const NetExpr*e) {
+		  if (!e) return;
 		  NetEProperty*outer_p = dynamic_cast<NetEProperty*>(
 		      const_cast<NetExpr*>(e));
 		  if (outer_p && !outer_p->get_sig()) {
@@ -11811,11 +11826,18 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 					  root_e = dynamic_cast<NetESignal*>(
 					      const_cast<NetExpr*>(pre_p->get_base()));
 			      }
-			      if (root_e && root_e->sig()) {
-				    const netclass_t*root_cls = dynamic_cast<const netclass_t*>(
-					root_e->sig()->net_type());
-				    const netclass_t*owner_host = root_cls;
-				    unsigned pre_N = UINT_MAX;
+				      if (root_e && root_e->sig()) {
+					    unsigned root_pin = obj_root_pin(root_e);
+					    const netclass_t*root_cls = dynamic_cast<const netclass_t*>(
+						root_e->sig()->net_type());
+					    /* Replacing an intermediate object handle also changes
+					       the expression, so observe the root as well as the
+					       current nested owner. */
+					    if (root_cls)
+						  wait_pr->add_obj_mutation(UINT_MAX, UINT_MAX,
+									    root_pin);
+					    const netclass_t*owner_host = root_cls;
+					    unsigned pre_N = UINT_MAX;
 				    if (owner_host && pre_p) {
 					  pre_N = pre_p->property_idx();
 					  owner_host = dynamic_cast<const netclass_t*>(
@@ -11823,41 +11845,43 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 				    }
 				    if (owner_host) {
 					  unsigned owner_N = owner_p->property_idx();
-					  const netclass_t*owner_cls =
-						dynamic_cast<const netclass_t*>(
-						    owner_host->get_prop_type(owner_N));
-					  if (owner_cls && !owner_cls->is_interface()) {
-						wait_pr->set_obj_mutation(owner_N, pre_N);
-						return true;
-					  }
-				    }
-			      }
+						  const netclass_t*owner_cls =
+							dynamic_cast<const netclass_t*>(
+							    owner_host->get_prop_type(owner_N));
+						  if (owner_cls && !owner_cls->is_interface())
+							wait_pr->add_obj_mutation(owner_N, pre_N,
+										  root_pin);
+					    }
+				      }
 			} else {
 			      const NetESignal*root_e = dynamic_cast<NetESignal*>(
 				  const_cast<NetExpr*>(outer_p->get_base()));
 			      if (root_e && root_e->sig()
 				  && dynamic_cast<const netclass_t*>(
-				      root_e->sig()->net_type())) {
-				    wait_pr->set_obj_mutation(UINT_MAX, UINT_MAX);
-				    return true;
-			      }
+				      root_e->sig()->net_type()))
+				    wait_pr->add_obj_mutation(UINT_MAX, UINT_MAX,
+						      obj_root_pin(root_e));
 			}
-			return false;
+			return;
 		  }
 		  if (const NetEBinary*bin = dynamic_cast<const NetEBinary*>(e)) {
-			if (try_set_obj_mutation(bin->left())) return true;
-			return try_set_obj_mutation(bin->right());
+			collect_obj_mutations(bin->left());
+			collect_obj_mutations(bin->right());
+			return;
 		  }
-		  if (const NetEUnary*un = dynamic_cast<const NetEUnary*>(e))
-			return try_set_obj_mutation(un->expr());
+		  if (const NetEUnary*un = dynamic_cast<const NetEUnary*>(e)) {
+			collect_obj_mutations(un->expr());
+			return;
+		  }
 		  if (const NetESFunc*sf = dynamic_cast<const NetESFunc*>(e)) {
 			for (unsigned i = 0; i < sf->nparms(); ++i)
-			      if (try_set_obj_mutation(sf->parm(i))) return true;
+			      collect_obj_mutations(sf->parm(i));
 		  }
-		  return false;
 	    };
-	    try_set_obj_mutation(expr);
+	    collect_obj_mutations(expr);
       }
+
+      delete wait_set;
 
       NetWhile*loop = new NetWhile(expr, wait);
       loop->set_line(*this);

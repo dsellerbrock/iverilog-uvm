@@ -3961,10 +3961,21 @@ class NetEvProbe  : public NetNode {
       // Dynamic class-object mutation sensitivity. For a direct property of
       // the root object obj_N is UINT_MAX. For `base.owner[N].field`, obj_N
       // selects the owner object that must wake the wait expression.
-      void set_obj_mutation(unsigned N, unsigned pre_N = UINT_MAX);
+      void set_obj_mutation(unsigned N, unsigned pre_N = UINT_MAX,
+                            unsigned root_pin = 0);
+      void add_obj_mutation(unsigned N, unsigned pre_N = UINT_MAX,
+                            unsigned root_pin = 0);
       bool is_obj_mutation() const { return is_obj_mutation_; }
       unsigned obj_N() const { return obj_N_; }
       unsigned obj_pre_N() const { return obj_pre_N_; }
+      unsigned obj_root_pin() const { return obj_root_pin_; }
+      unsigned obj_mutation_count() const { return obj_mutation_N_.size(); }
+      unsigned obj_mutation_N(unsigned idx) const
+            { return obj_mutation_N_.at(idx); }
+      unsigned obj_mutation_pre_N(unsigned idx) const
+            { return obj_mutation_pre_N_.at(idx); }
+      unsigned obj_mutation_root_pin(unsigned idx) const
+            { return obj_mutation_root_pin_.at(idx); }
 
       virtual bool emit_node(struct target_t*) const override;
       virtual void dump_node(std::ostream&, unsigned ind) const override;
@@ -3985,6 +3996,10 @@ class NetEvProbe  : public NetNode {
       bool is_obj_mutation_ = false;
       unsigned obj_N_ = UINT_MAX;
       unsigned obj_pre_N_ = UINT_MAX;
+      unsigned obj_root_pin_ = 0;
+      std::vector<unsigned> obj_mutation_N_;
+      std::vector<unsigned> obj_mutation_pre_N_;
+      std::vector<unsigned> obj_mutation_root_pin_;
 };
 
 /*

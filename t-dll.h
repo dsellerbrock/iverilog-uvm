@@ -220,6 +220,12 @@ struct ivl_delaypath_s {
       uint64_t delay[12];
 };
 
+struct ivl_obj_mutation_path_s {
+      unsigned obj_N;
+      unsigned obj_pre_N;
+      unsigned root_pin;
+};
+
 struct ivl_event_s {
       perm_string name;
       ivl_scope_t scope;
@@ -239,6 +245,7 @@ struct ivl_event_s {
       bool is_obj_mutation;
       unsigned obj_N;
       unsigned obj_pre_N;
+      std::vector<ivl_obj_mutation_path_s> obj_mutation_paths;
       // Named-event array support (IEEE 1800-2017 6.20): see
       // ivl_event_is_array() et al. in ivl_target.h.
       bool is_array;

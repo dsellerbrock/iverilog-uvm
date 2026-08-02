@@ -1013,6 +1013,7 @@ void dll_target::event(const NetEvent*net)
       obj->is_obj_mutation = false;
       obj->obj_N = UINT_MAX;
       obj->obj_pre_N = UINT_MAX;
+      obj->obj_mutation_paths.clear();
       obj->is_array = net->is_event_array();
       obj->array_base = net->array_base_slot();
       obj->array_count = net->array_count();
@@ -1022,9 +1023,35 @@ void dll_target::event(const NetEvent*net)
 	    for (unsigned idx = 0 ;  idx < net->nprobe() ;  idx += 1) {
 		  const NetEvProbe*pr = net->probe(idx);
 		  if (pr->is_obj_mutation()) {
-			obj->is_obj_mutation = true;
-			obj->obj_N = pr->obj_N();
-			obj->obj_pre_N = pr->obj_pre_N();
+			assert(pr->edge() == NetEvProbe::ANYEDGE);
+			for (unsigned pidx = 0 ; pidx < pr->obj_mutation_count();
+			     pidx += 1) {
+			      ivl_obj_mutation_path_s path;
+			      path.obj_N = pr->obj_mutation_N(pidx);
+			      path.obj_pre_N = pr->obj_mutation_pre_N(pidx);
+			      path.root_pin = obj->nany
+				    + pr->obj_mutation_root_pin(pidx);
+			      bool duplicate = false;
+			      for (unsigned old = 0 ; old < obj->obj_mutation_paths.size();
+				   old += 1) {
+				    const ivl_obj_mutation_path_s&prior =
+					  obj->obj_mutation_paths[old];
+				    if (prior.obj_N == path.obj_N
+					&& prior.obj_pre_N == path.obj_pre_N
+					&& prior.root_pin == path.root_pin) {
+					  duplicate = true;
+					  break;
+				    }
+			      }
+			      if (!duplicate)
+				    obj->obj_mutation_paths.push_back(path);
+			}
+			obj->is_obj_mutation = !obj->obj_mutation_paths.empty();
+			if (obj->is_obj_mutation) {
+			      obj->obj_N = obj->obj_mutation_paths.front().obj_N;
+			      obj->obj_pre_N =
+				    obj->obj_mutation_paths.front().obj_pre_N;
+			}
 		  }
 		  switch (pr->edge()) {
 		      case NetEvProbe::ANYEDGE:

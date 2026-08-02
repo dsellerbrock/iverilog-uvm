@@ -505,6 +505,34 @@ extern "C" unsigned ivl_event_obj_pre_N(ivl_event_t net)
       return net->obj_pre_N;
 }
 
+extern "C" unsigned ivl_event_obj_mutation_count(ivl_event_t net)
+{
+      assert(net);
+      return net->obj_mutation_paths.size();
+}
+
+extern "C" unsigned ivl_event_obj_mutation_N(ivl_event_t net, unsigned idx)
+{
+      assert(net);
+      assert(idx < net->obj_mutation_paths.size());
+      return net->obj_mutation_paths[idx].obj_N;
+}
+
+extern "C" unsigned ivl_event_obj_mutation_pre_N(ivl_event_t net, unsigned idx)
+{
+      assert(net);
+      assert(idx < net->obj_mutation_paths.size());
+      return net->obj_mutation_paths[idx].obj_pre_N;
+}
+
+extern "C" unsigned ivl_event_obj_mutation_root_pin(ivl_event_t net,
+                                                      unsigned idx)
+{
+      assert(net);
+      assert(idx < net->obj_mutation_paths.size());
+      return net->obj_mutation_paths[idx].root_pin;
+}
+
 extern "C" const char* ivl_expr_bits(ivl_expr_t net)
 {
       assert(net);

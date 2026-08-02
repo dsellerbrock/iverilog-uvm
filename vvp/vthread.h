@@ -87,6 +87,7 @@ extern void vthread_run(vthread_t thr);
  * the list by the %wait instruction.
  */
 extern void vthread_schedule_list(vthread_t thr);
+extern void vthread_schedule_mutation_waiter(vthread_t thr);
 extern void vthread_dump_live_threads(const char*reason);
 extern void vthread_dump_running_thread(const char*reason);
 

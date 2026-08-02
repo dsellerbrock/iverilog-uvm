@@ -2160,24 +2160,40 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 		  fprintf(vvp_out, "    %%wait Ewait_%u;\n", cascade_counter);
 		  cascade_counter += 1;
 	    } else if (ivl_event_is_obj_mutation(ev)) {
-		  /* Nested class-property sensitivity: load the expression root,
-		   * walk to the object that owns the observed scalar property, and
-		   * wait for that object's mutation epoch to change. */
-		  ivl_nexus_t this_nex = ivl_event_nany(ev) > 0
-			? ivl_event_any(ev, 0) : ivl_event_pos(ev, 0);
-		  const char*this_var = draw_input_from_net(this_nex,
-							    ivl_event_scope(ev));
-		  unsigned pre_N = ivl_event_obj_pre_N(ev);
-		  unsigned obj_N = ivl_event_obj_N(ev);
-		  fprintf(vvp_out, "    %%load/obj %s;\n", this_var);
-		  if (pre_N != UINT_MAX)
-			fprintf(vvp_out, "    %%prop/obj %u, 0;\n", pre_N);
-		  if (obj_N != UINT_MAX)
-			fprintf(vvp_out, "    %%prop/obj %u, 0;\n", obj_N);
-		  if (pre_N != UINT_MAX || obj_N != UINT_MAX)
-			fprintf(vvp_out, "    %%pop/obj %u, 1;\n",
-				(pre_N != UINT_MAX) + (obj_N != UINT_MAX));
-		  fprintf(vvp_out, "    %%wait/obj/mutation;\n");
+		  /* Class-property sensitivity can span multiple objects. Load
+		   * every distinct root/owner path and suspend on their combined
+		   * mutation set so a change to ANY operand re-evaluates wait(). */
+		  unsigned path_count = ivl_event_obj_mutation_count(ev);
+		  if (path_count == 0)
+			path_count = 1; /* Compatibility with older target records. */
+		  for (unsigned path = 0 ; path < path_count ; path += 1) {
+			unsigned root_pin = ivl_event_obj_mutation_count(ev)
+			      ? ivl_event_obj_mutation_root_pin(ev, path) : 0;
+			ivl_nexus_t this_nex = ivl_event_nany(ev) > root_pin
+			      ? ivl_event_any(ev, root_pin)
+			      : ivl_event_pos(ev, root_pin);
+			const char*this_var = draw_input_from_net(this_nex,
+							      ivl_event_scope(ev));
+			unsigned pre_N = ivl_event_obj_mutation_count(ev)
+			      ? ivl_event_obj_mutation_pre_N(ev, path)
+			      : ivl_event_obj_pre_N(ev);
+			unsigned obj_N = ivl_event_obj_mutation_count(ev)
+			      ? ivl_event_obj_mutation_N(ev, path)
+			      : ivl_event_obj_N(ev);
+			fprintf(vvp_out, "    %%load/obj %s;\n", this_var);
+			if (pre_N != UINT_MAX)
+			      fprintf(vvp_out, "    %%prop/obj %u, 0;\n", pre_N);
+			if (obj_N != UINT_MAX)
+			      fprintf(vvp_out, "    %%prop/obj %u, 0;\n", obj_N);
+			if (pre_N != UINT_MAX || obj_N != UINT_MAX)
+			      fprintf(vvp_out, "    %%pop/obj %u, 1;\n",
+				      (pre_N != UINT_MAX) + (obj_N != UINT_MAX));
+		  }
+		  if (path_count == 1)
+			fprintf(vvp_out, "    %%wait/obj/mutation;\n");
+		  else
+			fprintf(vvp_out, "    %%wait/obj/mutation/multi %u;\n",
+				path_count);
 	    } else if (ivl_event_is_vif_posedge(ev)
 		       || ivl_event_is_vif_negedge(ev)
 		       || ivl_event_is_vif_anyedge(ev)) {

@@ -599,6 +599,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%wait/fork",of_WAIT_FORK,0,{OA_NONE,   OA_NONE,     OA_NONE} },
       { "%wait/obj",of_WAIT_OBJ,1,{OA_NUMBER,  OA_NONE,     OA_NONE} },
       { "%wait/obj/mutation",of_WAIT_OBJ_MUTATION,0,{OA_NONE,OA_NONE, OA_NONE} },
+      { "%wait/obj/mutation/multi",of_WAIT_OBJ_MUTATION_MULTI,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%wait/observed",of_WAIT_OBSERVED,0,{OA_NONE,OA_NONE, OA_NONE} },
       { "%wait/reactive",of_WAIT_REACTIVE,0,{OA_NONE,OA_NONE, OA_NONE} },
       { "%wait/vif/anyedge",of_WAIT_VIF_ANYEDGE,1,{OA_NUMBER,OA_NONE, OA_NONE} },

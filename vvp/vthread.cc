@@ -5711,6 +5711,14 @@ void vthread_schedule_list(vthread_t thr)
 	    schedule_vthread(reactive_head, 0);
 }
 
+void vthread_schedule_mutation_waiter(vthread_t thr)
+{
+      if (!(thr && thr->waiting_for_event))
+            return;
+      thr->wait_next = 0;
+      vthread_schedule_list(thr);
+}
+
 static __vpiScope* resolve_context_scope(__vpiScope*scope);
 
 vvp_context_t vthread_get_wt_context()
@@ -20848,7 +20856,43 @@ bool of_WAIT_OBJ_MUTATION(vthread_t thr, vvp_code_t)
       }
 
       thr->waiting_for_event = 1;
-      thr->wait_next = cobj->add_mutation_waiter(thr);
+      thr->wait_next = 0;
+      cobj->add_mutation_waiter(thr);
+      return false;
+}
+
+/* %wait/obj/mutation/multi <count>
+ *
+ * Pop <count> class objects and suspend until any of them mutates. The
+ * object runtime removes the thread from every sibling object's wait set
+ * before scheduling it, so one expression re-evaluates exactly once for a
+ * simultaneous change and can safely register a fresh dependency set. */
+bool of_WAIT_OBJ_MUTATION_MULTI(vthread_t thr, vvp_code_t cp)
+{
+      bool registered = false;
+      for (unsigned idx = 0 ; idx < cp->number ; idx += 1) {
+            vvp_object_t obj;
+            thr->pop_object(obj);
+            vvp_cobject*cobj = obj.peek<vvp_cobject>();
+            if (!cobj)
+                  continue;
+            cobj->add_mutation_waiter(thr);
+            registered = true;
+      }
+
+      if (!registered) {
+            static bool warned = false;
+            if (!warned) {
+                  fprintf(stderr,
+                          "Warning: %%wait/obj/mutation/multi reached no live"
+                          " class objects (further similar warnings suppressed)\n");
+                  warned = true;
+            }
+            return true;
+      }
+
+      thr->waiting_for_event = 1;
+      thr->wait_next = 0;
       return false;
 }
 
