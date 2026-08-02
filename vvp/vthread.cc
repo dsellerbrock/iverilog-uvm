@@ -12991,10 +12991,10 @@ static void notify_mutated_object_root_(vthread_t thr, const vvp_object_t&recv,
             recv.touch();
             recv.notify_signal_aliases();
       }
-      if (root_obj != recv)
+      if (root_obj != recv) {
             root_obj.touch();
-
-      root_obj.notify_signal_aliases();
+            root_obj.notify_signal_aliases();
+      }
       vvp_send_object(vvp_net_ptr_t(root_net, 0), root_obj,
                       ensure_write_context_(thr, where));
 }
