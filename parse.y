@@ -501,6 +501,33 @@ static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
       };
 
       PClass*class_scope = find_visible_class_scope(pform_peek_scope(), class_key);
+      const typeref_t*class_alias_ref = 0;
+
+      /* The left side of `::` may itself be a typedef of a class
+       * specialization, for example the UVM factory idiom
+       *
+       *   typedef registry #(item) type_id;
+       *   type_id::T value;
+       *
+       * IEEE 1800-2017 6.18/8.25 makes type_id a class scope. Resolve the
+       * alias to its underlying PClass instead of requiring the spelling on
+       * the left to be the declaration's original class name. */
+      if (class_scope == 0) {
+	    typedef_t*class_alias = pform_test_type_identifier(class_loc,
+							 class_name);
+	    class_alias_ref = class_alias
+		  ? dynamic_cast<const typeref_t*>(class_alias->get_data_type())
+		  : 0;
+	    typedef_t*base_td = class_alias_ref
+		  ? class_alias_ref->typedef_ref() : 0;
+	    if (base_td) {
+		  LexicalScope*lookup_scope = class_alias_ref->scope_ref()
+			? class_alias_ref->scope_ref() : pform_peek_scope();
+		  class_scope = find_visible_class_scope(lookup_scope,
+						   base_td->name);
+	    }
+      }
+
       typedef_t*type = 0;
 
       if (class_scope) {
@@ -520,6 +547,58 @@ static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
       if (type == 0) {
 	    yyerror(member_loc, "error: %s doesn't name a type.", member_name);
 	    return 0;
+      }
+
+      /* If the selected member is a type parameter, a typedef of a class
+       * SPECIALIZATION selects the actual type, not the generic parameter.
+       * Type actuals are represented as PETypename nodes in the alias's
+       * parameter list. Clone the common named-type forms so each variable
+       * declaration retains independent ownership of its data_type_t. */
+      if (class_alias_ref
+	  && dynamic_cast<const type_parameter_t*>(type->get_data_type())) {
+	    const parmvalue_t*overrides = class_alias_ref->parameter_values();
+	    PExpr*actual_expr = 0;
+	    if (overrides && overrides->by_name) {
+		  for (const named_pexpr_t&item : *overrides->by_name) {
+			if (item.name == member_key) {
+			      actual_expr = item.parm;
+			      break;
+			}
+		  }
+	    } else if (overrides && overrides->by_order) {
+		  std::list<perm_string>::const_iterator name_it =
+			class_scope->parameter_order.begin();
+		  std::list<PExpr*>::const_iterator expr_it =
+			overrides->by_order->begin();
+		  while (name_it != class_scope->parameter_order.end()
+			 && expr_it != overrides->by_order->end()) {
+			if (*name_it == member_key) {
+			      actual_expr = *expr_it;
+			      break;
+			}
+			++name_it;
+			++expr_it;
+		  }
+	    }
+
+	    const PETypename*actual_name =
+		  dynamic_cast<const PETypename*>(actual_expr);
+	    const data_type_t*actual_type = actual_name
+		  ? actual_name->get_type() : 0;
+	    if (const typeref_t*actual_ref =
+		  dynamic_cast<const typeref_t*>(actual_type)) {
+		  if (actual_ref->parameter_values() == 0) {
+			data_type_t*tmp = new typeref_t(actual_ref->typedef_ref(),
+						 actual_ref->scope_ref());
+			FILE_NAME(tmp, member_loc);
+			return tmp;
+		  }
+	    } else if (const type_parameter_t*actual_param =
+		       dynamic_cast<const type_parameter_t*>(actual_type)) {
+		  data_type_t*tmp = new type_parameter_t(actual_param->name);
+		  FILE_NAME(tmp, member_loc);
+		  return tmp;
+	    }
       }
 
       typeref_t*tmp = new typeref_t(type, class_scope);
@@ -1282,7 +1361,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <cov_seqs>    transition_list transition_seq_list
 %type <cross_sel>   cross_bins_expr
 
-%type <expr>  constraint_expression constraint_block_item
+%type <expr>  constraint_expression constraint_block_item constraint_set_item
 %type <exprs> constraint_block_item_list constraint_block_item_list_opt
 %type <exprs> constraint_expression_list constraint_set constraint_trigger
 
@@ -1398,6 +1477,14 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %nonassoc no_timeunits_declaration
 %nonassoc one_timeunits_declaration
 %nonassoc K_timeunit K_timeprecision
+
+/* A procedural `const' after a declaration can be parsed either as the next
+   block item or, after the long-standing declaration/statement ambiguity has
+   ended the block-item list, by the statement-context declaration rule. Give
+   the token precedence over ending that list so the added standards form does
+   not create unresolved shift/reduce conflicts. */
+%nonassoc block_item_decls_done
+%nonassoc K_const
 
 %%
 
@@ -2337,20 +2424,23 @@ class_item /* IEEE1800-2005: A.1.8 */
 	      yyerror(@4, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
 	std::vector<perm_string>*formals__ = 0;
 	std::vector<data_type_t*>*ftypes__ = 0;
+	std::vector<PExpr*>*fdefaults__ = 0;
 	if ($6) {
 	      formals__ = new std::vector<perm_string>;
 	      ftypes__ = new std::vector<data_type_t*>;
+	      fdefaults__ = new std::vector<PExpr*>;
 	      for (size_t idx__ = 0; idx__ < $6->size(); idx__ += 1)
 		    if ((*$6)[idx__].port) {
 			  formals__->push_back((*$6)[idx__].port->basename());
 			  ftypes__->push_back(const_cast<data_type_t*>((*$6)[idx__].port->data_type()));
+			  fdefaults__->push_back((*$6)[idx__].defe);
 		    }
 	      current_function->set_ports($6);
 	}
         pform_pop_scope(); current_function = 0;
         pform_class_covergroup(@1, $1, $8, formals__, ftypes__, nullptr,
 			       pending_cg_ctor_names_, pending_cg_ctor_types_,
-			       pending_cg_ctor_defaults_);
+			       pending_cg_ctor_defaults_, fdefaults__);
 	pending_cg_ctor_names_ = nullptr;
 	pending_cg_ctor_types_ = nullptr;
 	pending_cg_ctor_defaults_ = nullptr;
@@ -2597,6 +2687,14 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
   ;
 
 constraint_block_item /* IEEE1800-2005 A.1.9 */
+  : constraint_set_item
+      { $$ = $1; }
+  | error ';'
+      { yyerrok; $$ = nullptr; }
+  ;
+
+/* Items admitted by both an outer constraint block and a nested set. */
+constraint_set_item
   : constraint_expression
       { $$ = $1; }
   /* solve X, Y before Z; — variable ordering (IEEE 1800-2017 18.5.10) */
@@ -2605,8 +2703,6 @@ constraint_block_item /* IEEE1800-2005 A.1.9 */
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
-  | error ';'
-      { yyerrok; $$ = nullptr; }
   ;
 
 constraint_block_item_list
@@ -2771,11 +2867,11 @@ constraint_trigger
   ;
 
 constraint_expression_list /* */
-  : constraint_expression_list constraint_expression
+  : constraint_expression_list constraint_set_item
       { $$ = $1;
 	if ($2) $$->push_back($2);
       }
-  | constraint_expression
+  | constraint_set_item
       { $$ = new std::list<PExpr*>();
 	if ($1) $$->push_back($1);
       }
@@ -5423,13 +5519,16 @@ package_covergroup_declaration
               yyerror(@4, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
         std::vector<perm_string>*formals__ = 0;
         std::vector<data_type_t*>*ftypes__ = 0;
+	std::vector<PExpr*>*fdefaults__ = 0;
         if ($6) {
               formals__ = new std::vector<perm_string>;
               ftypes__ = new std::vector<data_type_t*>;
+	      fdefaults__ = new std::vector<PExpr*>;
               for (size_t idx__ = 0; idx__ < $6->size(); idx__ += 1)
                     if ((*$6)[idx__].port) {
                           formals__->push_back((*$6)[idx__].port->basename());
                           ftypes__->push_back(const_cast<data_type_t*>((*$6)[idx__].port->data_type()));
+			  fdefaults__->push_back((*$6)[idx__].defe);
                     }
               current_function->set_ports($6);
         }
@@ -5437,7 +5536,7 @@ package_covergroup_declaration
         pform_standalone_covergroup(@2, $1, $8, nullptr, formals__, ftypes__,
 				    pending_cg_ctor_names_,
 				    pending_cg_ctor_types_,
-				    pending_cg_ctor_defaults_);
+				    pending_cg_ctor_defaults_, fdefaults__);
 	pending_cg_ctor_names_ = nullptr;
 	pending_cg_ctor_types_ = nullptr;
 	pending_cg_ctor_defaults_ = nullptr;
@@ -6313,6 +6412,24 @@ sva_seq_expr
 	}
 	delete $3;
 	$$ = $7; }
+  /* IEEE 1800-2017 16.9.2 delay-control shorthands:
+       ##[*] == ##[0:$], ##[+] == ##[1:$]. */
+  | K_CYCLE_DELAY K_LBSTAR ']' sva_seq_atom
+      { sva_seq_step_t&f0 = (*$4)[0];
+	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = 0; f0.delay_hi = -1;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	$$ = $4; }
+  | K_CYCLE_DELAY '[' '+' ']' sva_seq_atom
+      { sva_seq_step_t&f0 = (*$5)[0];
+	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = 1; f0.delay_hi = -1;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	$$ = $5; }
   | sva_seq_expr K_CYCLE_DELAY delay_value_simple sva_seq_atom
       { long val = 0;
 	sva_seq_step_t&f0 = (*$4)[0];
@@ -6353,6 +6470,26 @@ sva_seq_expr
 	delete $4;
 	$1->insert($1->end(), $8->begin(), $8->end());
 	delete $8;
+	$$ = $1; }
+  | sva_seq_expr K_CYCLE_DELAY K_LBSTAR ']' sva_seq_atom
+      { sva_seq_step_t&f0 = (*$5)[0];
+	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = 0; f0.delay_hi = -1;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	$1->insert($1->end(), $5->begin(), $5->end());
+	delete $5;
+	$$ = $1; }
+  | sva_seq_expr K_CYCLE_DELAY '[' '+' ']' sva_seq_atom
+      { sva_seq_step_t&f0 = (*$6)[0];
+	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = 1; f0.delay_hi = -1;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	$1->insert($1->end(), $6->begin(), $6->end());
+	delete $6;
 	$$ = $1; }
   ;
 
@@ -7259,8 +7396,8 @@ block_item_decls
   ;
 
 block_item_decls_opt
-  : block_item_decls { $$ = true; }
-  | { $$ = false; }
+  : block_item_decls %prec block_item_decls_done { $$ = true; }
+  | %prec block_item_decls_done { $$ = false; }
   ;
 
   /* We need to handle K_enum separately because
@@ -9961,9 +10098,9 @@ expr_primary
      declarations of ports. We check later to make sure there are no
      output or inout ports actually used for functions. */
 tf_item_list_opt /* IEEE1800-2017: A.2.7 */
-  : tf_item_list
+  : tf_item_list %prec block_item_decls_done
       { $$ = $1; }
-  |
+  | %prec block_item_decls_done
       { $$ = 0; }
   ;
 
@@ -11431,13 +11568,16 @@ module_item
 	      yyerror(@6, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
 	std::vector<perm_string>*formals__ = 0;
 	std::vector<data_type_t*>*ftypes__ = 0;
+	std::vector<PExpr*>*fdefaults__ = 0;
 	if ($8) {
 	      formals__ = new std::vector<perm_string>;
 	      ftypes__ = new std::vector<data_type_t*>;
+	      fdefaults__ = new std::vector<PExpr*>;
 	      for (size_t idx__ = 0; idx__ < $8->size(); idx__ += 1)
 		    if ((*$8)[idx__].port) {
 			  formals__->push_back((*$8)[idx__].port->basename());
 			  ftypes__->push_back(const_cast<data_type_t*>((*$8)[idx__].port->data_type()));
+			  fdefaults__->push_back((*$8)[idx__].defe);
 		    }
 	      current_function->set_ports($8);
 	}
@@ -11448,7 +11588,7 @@ module_item
 	pform_pop_scope();
 	current_function = 0;
 	pform_standalone_covergroup(@1, $2, $10, nullptr, formals__, ftypes__,
-				    ctor_names__, ctor_types__, ctor_defs__);
+				    ctor_names__, ctor_types__, ctor_defs__, fdefaults__);
 	delete[] $2; if ($3) delete $3; delete[] $6;
 	if ($12) delete[] $12;
       }
@@ -13486,6 +13626,15 @@ statement_item /* This is roughly statement_item in the LRM */
 
   /* Accept declaration-style statements for user types in procedural blocks.
      These are treated as declarations-only and emit no executable statement. */
+  | K_const TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
+      { typeref_t*tmp = new typeref_t($2.type);
+	FILE_NAME(tmp, @2);
+	pform_make_var(@2, $3, tmp, nullptr, true);
+	var_lifetime = LexicalScope::INHERITED;
+	pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	delete[]$2.text;
+	$$ = nullptr;
+      }
   | variable_lifetime_opt data_type list_of_variable_decl_assignments ';'
       { if ($2) pform_make_var(@2, $3, $2, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));

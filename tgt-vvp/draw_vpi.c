@@ -767,6 +767,21 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  ? ivl_stmt_parm(tnet, idx)
 		  : ivl_expr_parm(fnet, idx);
 
+	      /* A selected instance-array scope can arrive as a zero-extension
+	       * select around IVL_EX_SCOPE. System-task arguments use the scope as
+	       * a VPI handle (for example `$asserton(0, ifs[0])'); evaluating this
+	       * wrapper as a vector loses the scope and produces a zero fallback.
+	       * Strip only a padding select -- a real part-select has oper2. */
+	    if (ivl_expr_type(expr) == IVL_EX_SELECT
+		&& ivl_expr_oper2(expr) == 0
+		&& ivl_expr_oper1(expr)
+		&& ivl_expr_type(ivl_expr_oper1(expr)) == IVL_EX_SCOPE) {
+		  snprintf(buffer, sizeof buffer, "S_%p",
+		           ivl_expr_scope(ivl_expr_oper1(expr)));
+		  args[idx].text = strdup(buffer);
+		  continue;
+	    }
+
 	    if (tf_name && strcmp(tf_name, "$cast") == 0 && idx == 0) {
 		  if (get_vpi_taskfunc_lvalue_arg(&args[idx], expr))
 			continue;

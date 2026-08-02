@@ -145,6 +145,14 @@ void NetBlock::nex_output(NexusSet&out)
       } while (cur != last_);
 }
 
+void NetBreak::nex_output(NexusSet&)
+{
+}
+
+void NetContinue::nex_output(NexusSet&)
+{
+}
+
 void NetCase::nex_output(NexusSet&out)
 {
       for (size_t idx = 0 ;  idx < items_.size() ;  idx += 1) {

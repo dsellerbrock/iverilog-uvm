@@ -650,6 +650,7 @@ struct class_type_t : public data_type_t {
 	      // declared type, used to size automatic bins (M11-5).
 	    std::vector<perm_string> sample_formals;
 	    std::vector<data_type_t*> sample_formal_types;
+	    std::vector<PExpr*> sample_formal_defaults;
 	    std::vector<pform_coverpoint_t> coverpoints;
 	    std::vector<pform_cross_t> crosses;  // I1: cross declarations
 	      // M11: covergroup options (option.name = const_expr)

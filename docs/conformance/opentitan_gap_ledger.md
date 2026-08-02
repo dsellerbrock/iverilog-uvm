@@ -13,6 +13,23 @@ Every entry is an **IEEE 1800 conformance gap or a compiler defect**, not an
 OpenTitan-specific accommodation. Several break ordinary RTL that has nothing
 to do with OpenTitan; those are marked **[general]**.
 
+## Current upstream closure campaign
+
+The newer upstream witness at OpenTitan revision
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` is being measured independently
+from the historical `ef575385` ledger below. The generated `adc_ctrl` simulation
+graph now reaches VVP code generation with **zero hard errors**. That milestone
+closed, among other items, class-handle dynamic-array assignment patterns and
+selected interface-array scopes used by `$asserton`, `$assertoff` and
+`$assertkill`.
+
+It is not yet a clean UVM result: the log still contains explicit
+compile-progress/degradation warnings for unresolved UVM specialization and
+method calls, constraint loss, interface typing, covergroup members, queue/ref
+semantics, assertion binding and NBA scheduling. Each is a ledger item to fix or
+turn into a strict error; none may be ignored for the final zero-debt gate. The
+canonical post-corpus plan is M14B in [`ROADMAP.md`](ROADMAP.md).
+
 ## How to read the status column
 
 | Status | Meaning |

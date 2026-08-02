@@ -570,12 +570,26 @@ struct Z3Builder {
       std::vector<DynForeach> dyn_foreach;
       const std::map<unsigned,uint64_t>*dyn_sizes = nullptr;
 
-	// solve...before ordering pairs (IEEE 1800-2017 18.5.10):
-	// (first, second) means property `first` is solved in an
-	// earlier stage than property `second`. Collected from
-	// "(order (vars ...) (vars ...))" IR forms; drives the staged
-	// solve in z3_solve_pass_.
-      std::vector<std::pair<unsigned,unsigned> > order_pairs;
+	// solve...before ordering pairs (IEEE 1800-2017 18.5.10). A
+	// selected static-array element is a distinct ordering variable,
+	// rather than collapsing to its owning property: OpenTitan uses
+	// `solve control before table[i]' inside foreach constraint sets.
+      struct OrderRef {
+	    bool is_elem;
+	    unsigned idx;
+	    unsigned elem;
+
+	    bool operator<(const OrderRef&that) const {
+		  if (is_elem != that.is_elem) return is_elem < that.is_elem;
+		  if (idx != that.idx) return idx < that.idx;
+		  return elem < that.elem;
+	    }
+	    bool operator==(const OrderRef&that) const {
+		  return is_elem == that.is_elem && idx == that.idx
+			&& elem == that.elem;
+	    }
+      };
+      std::vector<std::pair<OrderRef,OrderRef> > order_pairs;
 
       Z3Builder(Z3_context c, const class_type* d, vvp_cobject* o)
       : ctx(c), defn(d), cobj(o), opt(0) {}
@@ -615,6 +629,25 @@ static Z3_ast parse_prop(IRParser&, Z3Builder& b, const string& tok)
       while (*s && *s != ':') ++s;
       bool sflag = (*s == ':' && s[1] == 's');
       Z3_ast var = b.get_prop_var(idx, width);
+      if (sflag) b.signed_vars.insert(var);
+      if (b.collect_prop_refs) b.collect_prop_refs->insert((int)idx);
+      return var;
+}
+
+// Parse "e:N:W:I[:s]" -- returns the selected array-element variable.
+static Z3_ast parse_elem(IRParser&, Z3Builder& b, const string& tok)
+{
+      const char*s = tok.c_str() + 2; // skip "e:"
+      unsigned idx = (unsigned)atoi(s);
+      while (*s && *s != ':') ++s;
+      unsigned width = 32;
+      if (*s == ':') { width = (unsigned)atoi(s + 1); ++s; }
+      while (*s && *s != ':') ++s;
+      unsigned elem = 0;
+      if (*s == ':') { elem = (unsigned)atoi(s + 1); ++s; }
+      while (*s && *s != ':') ++s;
+      bool sflag = (*s == ':' && s[1] == 's');
+      Z3_ast var = b.get_elem_var(idx, width, elem);
       if (sflag) b.signed_vars.insert(var);
       if (b.collect_prop_refs) b.collect_prop_refs->insert((int)idx);
       return var;
@@ -860,20 +893,7 @@ static Z3_ast build_z3_atom(IRParser& par, Z3Builder& b)
 	    return b.get_size_var(idx, dtype);
       }
       if (tok.substr(0,2) == "e:") {
-	      // e:N:W:I[:s] — element I of array property N, width W.
-	    const char*s = tok.c_str() + 2;
-	    unsigned idx = (unsigned)atoi(s);
-	    while (*s && *s != ':') ++s;
-	    unsigned width = 32;
-	    if (*s == ':') { width = (unsigned)atoi(s + 1); ++s; }
-	    while (*s && *s != ':') ++s;
-	    unsigned elem = 0;
-	    if (*s == ':') { elem = (unsigned)atoi(s + 1); ++s; }
-	    while (*s && *s != ':') ++s;
-	    bool sflag = (*s == ':' && s[1] == 's');
-	    Z3_ast var = b.get_elem_var(idx, width, elem);
-	    if (sflag) b.signed_vars.insert(var);
-	    return var;
+	    return parse_elem(par, b, tok);
       }
       return b.mk_true();
 }
@@ -1037,13 +1057,14 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    return var;
       }
 
-	/* Variable-ordering directive: (order (vars p:..) (vars p:..)).
-	 * Registers the properties (so they become solver variables
+	/* Variable-ordering directive: (order (vars p:../e:..)
+	 * (vars p:../e:..)). Registers properties or selected elements
+	 * (so they become solver variables
 	 * even if otherwise unconstrained) and records every
 	 * before-var x after-var pair. Contributes `true` — ordering
 	 * affects distribution, not satisfiability (18.5.10). */
       if (op == "order") {
-	    std::vector<unsigned> groups[2];
+	    std::vector<Z3Builder::OrderRef> groups[2];
 	    for (int g = 0 ; g < 2 ; g += 1) {
 		  par.skip_ws();
 		  if (!par.expect('(')) break;
@@ -1056,14 +1077,29 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 			if (tok.empty()) break;
 			if (tok.compare(0, 2, "p:") == 0) {
 			      parse_prop(par, b, tok);
-			      groups[g].push_back(
-				    (unsigned)atoi(tok.c_str() + 2));
+			      Z3Builder::OrderRef ref;
+			      ref.is_elem = false;
+			      ref.idx = (unsigned)atoi(tok.c_str() + 2);
+			      ref.elem = 0;
+			      groups[g].push_back(ref);
+			} else if (tok.compare(0, 2, "e:") == 0) {
+			      parse_elem(par, b, tok);
+			      const char*s = tok.c_str() + 2;
+			      Z3Builder::OrderRef ref;
+			      ref.is_elem = true;
+			      ref.idx = (unsigned)atoi(s);
+			      while (*s && *s != ':') ++s;
+			      if (*s == ':') ++s;
+			      while (*s && *s != ':') ++s;
+			      ref.elem = (*s == ':')
+				    ? (unsigned)atoi(s + 1) : 0;
+			      groups[g].push_back(ref);
 			}
 		  }
 	    }
 	    par.skip_ws(); par.expect(')');
-	    for (unsigned a : groups[0])
-		  for (unsigned c : groups[1])
+	    for (const Z3Builder::OrderRef&a : groups[0])
+		  for (const Z3Builder::OrderRef&c : groups[1])
 			b.order_pairs.push_back(std::make_pair(a, c));
 	    return b.mk_true();
       }
@@ -2700,7 +2736,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       }
 
 	// solve...before staged solving (IEEE 1800-2017 18.5.10): rank
-	// the ordered properties by longest path in the before-graph,
+	// the ordered scalar properties/selected array elements by longest
+	// path in the before-graph,
 	// then for each non-final rank solve the FULL hard-constraint
 	// set with the diversity objective applied to that rank's
 	// variables alone, and pin their solved values before the next
@@ -2708,7 +2745,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	// the normal combined pass below. Pins come from a complete
 	// satisfying model, so they can never make later stages UNSAT.
       if (!builder.order_pairs.empty()) {
-	    std::map<unsigned,unsigned> rank;
+	    std::map<Z3Builder::OrderRef,unsigned> rank;
 	    for (const auto& pr : builder.order_pairs) {
 		  rank[pr.first];
 		  rank[pr.second];
@@ -2741,17 +2778,38 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			if (rv.second > max_rank) max_rank = rv.second;
 		  for (unsigned r = 0 ; r < max_rank ; r += 1) {
 			Z3_optimize_push(ctx, opt);
-			for (auto& pv : builder.prop_vars) {
-			      auto it = rank.find(pv.idx);
-			      if (it == rank.end() || it->second != r)
+			for (const auto&ranked : rank) {
+			      if (ranked.second != r) continue;
+			      const Z3Builder::OrderRef&ref = ranked.first;
+			      if (!rand_active_(defn, cobj, prop_active, ref.idx))
 				    continue;
-			      if (!rand_active_(defn, cobj, prop_active, pv.idx))
-				    continue;
-			      uint64_t rand_bits = cobj_prop_bits(cobj, pv.idx);
-			      Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
+			      Z3_ast var = nullptr;
+			      unsigned width = 0;
+			      uint64_t rand_bits = 0;
+			      if (ref.is_elem) {
+				    for (auto&ev : builder.elem_vars)
+					  if (ev.idx == ref.idx
+					      && ev.elem == ref.elem) {
+						var = ev.var;
+						width = ev.width;
+						break;
+					  }
+				    rand_bits = cobj_elem_bits(cobj, ref.idx,
+							     ref.elem);
+			      } else {
+				    for (auto&pv : builder.prop_vars)
+					  if (pv.idx == ref.idx) {
+						var = pv.var;
+						width = pv.width;
+						break;
+					  }
+				    rand_bits = cobj_prop_bits(cobj, ref.idx);
+			      }
+			      if (!var || width == 0) continue;
+			      Z3_sort sort = Z3_mk_bv_sort(ctx, width);
 			      Z3_ast rv = Z3_mk_unsigned_int64(ctx, rand_bits, sort);
 			      Z3_optimize_minimize(ctx, opt,
-				    Z3_mk_bvxor(ctx, pv.var, rv));
+				    Z3_mk_bvxor(ctx, var, rv));
 			}
 			Z3_lbool st = Z3_optimize_check(ctx, opt, 0, nullptr);
 			if (st != Z3_L_TRUE) {
@@ -2761,19 +2819,34 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			Z3_model stage_model = Z3_optimize_get_model(ctx, opt);
 			Z3_model_inc_ref(ctx, stage_model);
 			std::vector<std::pair<Z3_ast,uint64_t> > pins;
-			for (auto& pv : builder.prop_vars) {
-			      auto it = rank.find(pv.idx);
-			      if (it == rank.end() || it->second != r)
+			for (const auto&ranked : rank) {
+			      if (ranked.second != r) continue;
+			      const Z3Builder::OrderRef&ref = ranked.first;
+			      if (!rand_active_(defn, cobj, prop_active, ref.idx))
 				    continue;
-			      if (!rand_active_(defn, cobj, prop_active, pv.idx))
-				    continue;
+			      Z3_ast var = nullptr;
+			      if (ref.is_elem) {
+				    for (auto&ev : builder.elem_vars)
+					  if (ev.idx == ref.idx
+					      && ev.elem == ref.elem) {
+						var = ev.var;
+						break;
+					  }
+			      } else {
+				    for (auto&pv : builder.prop_vars)
+					  if (pv.idx == ref.idx) {
+						var = pv.var;
+						break;
+					  }
+			      }
+			      if (!var) continue;
 			      Z3_ast interp = nullptr;
 			      uint64_t bits = 0;
-			      if (Z3_model_eval(ctx, stage_model, pv.var, 1,
+			      if (Z3_model_eval(ctx, stage_model, var, 1,
 						&interp)
 				  && interp
 				  && Z3_get_numeral_uint64(ctx, interp, &bits))
-				    pins.push_back(std::make_pair(pv.var, bits));
+				    pins.push_back(std::make_pair(var, bits));
 			}
 			Z3_model_dec_ref(ctx, stage_model);
 			Z3_optimize_pop(ctx, opt);

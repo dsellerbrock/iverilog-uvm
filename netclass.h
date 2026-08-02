@@ -374,14 +374,20 @@ class netclass_t : public ivl_type_s {
 	// have the same type itself (for example a packed vector passed to a
 	// packed-struct formal). Coverpoint member lookup must use the
 	// formal's declared type after that conversion.
-	void add_covgrp_sample_formal(perm_string n, ivl_type_t t)
+	void add_covgrp_sample_formal(perm_string n, ivl_type_t t, PExpr*d)
 	{ covgrp_sample_formals_.push_back(n);
-	  covgrp_sample_formal_types_.push_back(t); }
+	  covgrp_sample_formal_types_.push_back(t);
+	  covgrp_sample_formal_defaults_.push_back(d); }
 	size_t covgrp_sample_formal_count() const { return covgrp_sample_formals_.size(); }
 	perm_string covgrp_sample_formal(size_t i) const { return covgrp_sample_formals_[i]; }
 	ivl_type_t covgrp_sample_formal_type(size_t i) const {
 	    if (i < covgrp_sample_formal_types_.size())
 		  return covgrp_sample_formal_types_[i];
+	    return nullptr;
+	}
+	PExpr* covgrp_sample_formal_default(size_t i) const {
+	    if (i < covgrp_sample_formal_defaults_.size())
+		  return covgrp_sample_formal_defaults_[i];
 	    return nullptr;
 	}
       PExpr* covgrp_cp_expr(unsigned cp_idx) const {
@@ -416,6 +422,7 @@ class netclass_t : public ivl_type_s {
       std::vector<PExpr*> covgrp_cp_exprs_;
       std::vector<perm_string> covgrp_sample_formals_;
       std::vector<ivl_type_t> covgrp_sample_formal_types_;
+      std::vector<PExpr*> covgrp_sample_formal_defaults_;
 	std::vector<perm_string> covgrp_ctor_names_;
 	std::vector<unsigned> covgrp_ctor_props_;
 	std::vector<ivl_type_t> covgrp_ctor_types_;

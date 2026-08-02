@@ -513,6 +513,20 @@ NexusSet* NetBlock::nex_input(bool rem_out, bool always_sens, bool nested_func) 
       return result;
 }
 
+/* break/continue only redirect procedural control flow. They read no design
+ * object and therefore add nothing to an implicit always_comb/@* sensitivity
+ * set. Explicit leaf implementations also avoid the generic NetProc fallback
+ * reporting a false internal compiler error. */
+NexusSet* NetBreak::nex_input(bool, bool, bool) const
+{
+      return new NexusSet;
+}
+
+NexusSet* NetContinue::nex_input(bool, bool, bool) const
+{
+      return new NexusSet;
+}
+
 /*
  * The inputs to a case statement are the inputs to the expression,
  * the inputs to all the guards, and the inputs to all the guarded

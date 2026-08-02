@@ -8837,11 +8837,11 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				    ? new NetBlock(NetBlock::SEQU, 0) : nullptr;
 			      if (sample_block) sample_block->set_line(*this);
 			      if (nformals > 0) {
-				    if (parms_.size() != nformals) {
+				    if (parms_.size() > nformals) {
 					  cerr << get_fileline()
 					       << ": error: covergroup '"
 					       << cgtype->get_name()
-					       << "' sample() expects "
+					       << "' sample() expects at most "
 					       << nformals << " argument(s), got "
 					       << parms_.size() << "." << endl;
 					  des->errors += 1;
@@ -8910,11 +8910,37 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 						slot->set_line(*this);
 						slot->local_flag(true);
 						formal_nets[k] = slot;
-						NetEConst*zero = new NetEConst(
-						      verinum((uint64_t)0, 32));
-						zero->set_line(*this);
+						PExpr*default_expr =
+						      cgtype->covgrp_sample_formal_default(k);
+						NetExpr*default_value = default_expr
+						      ? elab_and_eval(des, scope, default_expr,
+								      -1, false, false)
+						      : nullptr;
+						if (!default_expr) {
+						      cerr << get_fileline()
+							   << ": error: covergroup '"
+							   << cgtype->get_name()
+							   << "' sample() is missing required "
+							   << "formal '"
+							   << cgtype->covgrp_sample_formal(k)
+							   << "'." << endl;
+						      des->errors += 1;
+						} else if (!default_value) {
+						      cerr << get_fileline()
+							   << ": error: unable to elaborate "
+							   << "default for covergroup sample "
+							   << "formal '"
+							   << cgtype->covgrp_sample_formal(k)
+							   << "'." << endl;
+						      des->errors += 1;
+						}
+						if (!default_value) {
+						      default_value = new NetEConst(
+							    verinum((uint64_t)0, 32));
+						      default_value->set_line(*this);
+						}
 						NetAssign*copy = new NetAssign(
-						      new NetAssign_(slot), zero);
+						      new NetAssign_(slot), default_value);
 						copy->set_line(*this);
 						sample_block->append(copy);
 					  }
@@ -16355,10 +16381,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (!item) continue;
 			string s = pexpr_to_constraint_ir(item, cls,
 						value_slots, scope, loop_env);
-			  // Only scalar rand properties participate;
-			  // anything else makes the directive
-			  // unrepresentable (warned by the caller).
-			if (s.compare(0, 2, "p:") != 0)
+			  // Ordering may name either a scalar rand property or a
+			  // statically selected rand-array element. The runtime
+			  // retains the complete element identity so `solve a
+			  // before values[i]' remains a distribution directive
+			  // after a foreach constraint is unrolled.
+			if (s.compare(0, 2, "p:") != 0
+			    && s.compare(0, 2, "e:") != 0)
 			      return "";
 			acc += acc.empty() ? s : (" " + s);
 		  }
@@ -17040,7 +17069,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				if (declared) formal_type = declared;
 			  }
 			  cg_class->add_covgrp_sample_formal(
-				cgdef->sample_formals[fi], formal_type);
+				cgdef->sample_formals[fi], formal_type,
+				fi < cgdef->sample_formal_defaults.size()
+				      ? cgdef->sample_formal_defaults[fi] : nullptr);
 		    }
 
 		      // Constant-evaluate an option value (default when

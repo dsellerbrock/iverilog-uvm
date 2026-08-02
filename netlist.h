@@ -3259,6 +3259,10 @@ class NetBlock  : public NetProc {
 
 class NetBreak : public NetProc {
     public:
+      virtual NexusSet* nex_input(bool rem_out = true,
+				  bool always_sens = false,
+				  bool nested_func = false) const override;
+      virtual void nex_output(NexusSet&) override;
       virtual void dump(std::ostream&, unsigned ind) const override;
       virtual bool emit_proc(struct target_t*) const override;
       bool evaluate_function(const LineInfo &loc,
@@ -3414,6 +3418,10 @@ class NetCondit  : public NetProc {
 
 class NetContinue : public NetProc {
     public:
+      virtual NexusSet* nex_input(bool rem_out = true,
+				  bool always_sens = false,
+				  bool nested_func = false) const override;
+      virtual void nex_output(NexusSet&) override;
       virtual void dump(std::ostream&, unsigned ind) const override;
       virtual bool emit_proc(struct target_t*) const override;
       bool evaluate_function(const LineInfo &loc,
@@ -5343,6 +5351,7 @@ class NetEUReduce : public NetEUnary {
 
       virtual NetNet* synthesize(Design*, NetScope*scope, NetExpr*root) override;
       virtual NetEUReduce* dup_expr() const override;
+      virtual ivl_variable_type_t expr_type() const override;
 
     private:
       virtual NetEConst* eval_arguments_(const NetExpr*ex) const override;

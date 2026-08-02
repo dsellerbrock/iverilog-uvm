@@ -2738,6 +2738,16 @@ NetEUReduce::~NetEUReduce()
 {
 }
 
+ivl_variable_type_t NetEUReduce::expr_type() const
+{
+      /* Logical NOT and reduction operators produce a one-bit unsigned
+       * integral result; they do not retain an object/container operand's
+       * type. A four-state operand can still produce X, while every other
+       * accepted operand shape has a two-state result. */
+      return expr_->expr_type() == IVL_VT_LOGIC
+	    ? IVL_VT_LOGIC : IVL_VT_BOOL;
+}
+
 NetECast::NetECast(char op__, NetExpr*ex, unsigned wid, bool signed_flag)
 : NetEUnary(op__, ex, wid, signed_flag)
 {

@@ -372,13 +372,15 @@ void pform_class_covergroup(const struct vlltype& /*loc*/,
 			     std::vector<PEEvent*>*sample_events,
 			     std::vector<perm_string>*ctor_formals,
 			     std::vector<data_type_t*>*ctor_formal_types,
-			     std::vector<PExpr*>*ctor_defaults)
+			     std::vector<PExpr*>*ctor_defaults,
+			     std::vector<PExpr*>*sample_formal_defaults)
 {
       if (!pform_cur_class || !name) {
 	    pending_crosses_.clear();  // discard if we can't attach
 	    pending_cg_options_.clear();
 	    if (sample_formals) delete sample_formals;
 	    if (sample_formal_types) delete sample_formal_types;
+	    if (sample_formal_defaults) delete sample_formal_defaults;
 	    if (sample_events) delete sample_events;
 	    if (ctor_formals) delete ctor_formals;
 	    if (ctor_formal_types) delete ctor_formal_types;
@@ -422,6 +424,10 @@ void pform_class_covergroup(const struct vlltype& /*loc*/,
 	    cg->sample_formal_types = *sample_formal_types;
 	    delete sample_formal_types;
       }
+      if (sample_formal_defaults) {
+	    cg->sample_formal_defaults = *sample_formal_defaults;
+	    delete sample_formal_defaults;
+      }
 	// M11-3: declaration sampling event on a class-embedded
 	// covergroup.
       if (sample_events) {
@@ -439,13 +445,15 @@ void pform_standalone_covergroup(const struct vlltype&loc,
 			     std::vector<data_type_t*>*sample_formal_types,
 			     std::vector<perm_string>*ctor_formals,
 			     std::vector<data_type_t*>*ctor_formal_types,
-			     std::vector<PExpr*>*ctor_defaults)
+			     std::vector<PExpr*>*ctor_defaults,
+			     std::vector<PExpr*>*sample_formal_defaults)
 {
       if (!name) {
 	    pending_crosses_.clear();
 	    pending_cg_options_.clear();
 	    if (sample_formals) delete sample_formals;
 	    if (sample_formal_types) delete sample_formal_types;
+	    if (sample_formal_defaults) delete sample_formal_defaults;
 	    if (ctor_formals) delete ctor_formals;
 	    if (ctor_formal_types) delete ctor_formal_types;
 	    if (ctor_defaults) delete ctor_defaults;
@@ -466,7 +474,7 @@ void pform_standalone_covergroup(const struct vlltype&loc,
       pform_cur_class = cls;
       pform_class_covergroup(loc, name, coverpoints, nullptr, nullptr,
 			     nullptr, ctor_formals, ctor_formal_types,
-			     ctor_defaults);
+			     ctor_defaults, nullptr);
       pform_cur_class = save_cur;
       if (sample_events && !ct->covergroups.empty()) {
 	    ct->covergroups.back()->sample_events = *sample_events;
@@ -485,6 +493,13 @@ void pform_standalone_covergroup(const struct vlltype&loc,
 	    delete sample_formal_types;
       } else if (sample_formal_types) {
 	    delete sample_formal_types;
+      }
+      if (sample_formal_defaults && !ct->covergroups.empty()) {
+	    ct->covergroups.back()->sample_formal_defaults =
+		  *sample_formal_defaults;
+	    delete sample_formal_defaults;
+      } else if (sample_formal_defaults) {
+	    delete sample_formal_defaults;
       }
       pform_pop_scope();
 }
