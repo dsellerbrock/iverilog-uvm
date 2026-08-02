@@ -51,8 +51,9 @@ class netenum_t : public LineInfo, public ivl_type_s {
 	// enumeration value.
       bool insert_name(size_t idx, perm_string name, const verinum&val);
 
-	// Indicate that there will be no more names to insert.
+      // Indicate that there will be no more names to insert.
       void insert_name_close(void);
+      bool names_closed(void) const;
 
       typedef std::map<perm_string,verinum>::const_iterator iterator;
       iterator find_name(perm_string name) const;
@@ -73,6 +74,7 @@ class netenum_t : public LineInfo, public ivl_type_s {
     private:
       ivl_type_t base_type_;
       bool integer_flag_;
+      bool names_closed_;
 
       std::map<perm_string,verinum> names_map_;
       std::vector<perm_string> names_;
@@ -83,5 +85,7 @@ inline ivl_variable_type_t netenum_t::base_type() const
 { return base_type_->base_type(); }
 
 inline size_t netenum_t::size() const { return names_.size(); }
+
+inline bool netenum_t::names_closed() const { return names_closed_; }
 
 #endif /* IVL_netenum_H */

@@ -136,7 +136,7 @@ static struct __vpiModPath*modpath_dst = 0;
 %type <cdelay> delay
 
 %type <enum_name> enum_type_name
-%type <enum_namev> enum_type_names
+%type <enum_namev> enum_type_names enum_type_names_opt
 
 %%
 
@@ -1094,14 +1094,21 @@ dimension
 
   /* Enumeration types */
 enum_type
-  : T_LABEL K_ENUM2 '(' T_NUMBER ')' enum_type_names ';'
+  : T_LABEL K_ENUM2 '(' T_NUMBER ')' enum_type_names_opt ';'
       { compile_enum2_type($1, $4, false, $6); }
-  | T_LABEL K_ENUM2_S '(' T_NUMBER ')' enum_type_names ';'
+  | T_LABEL K_ENUM2_S '(' T_NUMBER ')' enum_type_names_opt ';'
       { compile_enum2_type($1, $4, true, $6); }
-  | T_LABEL K_ENUM4 '(' T_NUMBER ')' enum_type_names ';'
+  | T_LABEL K_ENUM4 '(' T_NUMBER ')' enum_type_names_opt ';'
       { compile_enum4_type($1, $4, false, $6); }
-  | T_LABEL K_ENUM4_S '(' T_NUMBER ')' enum_type_names ';'
+  | T_LABEL K_ENUM4_S '(' T_NUMBER ')' enum_type_names_opt ';'
       { compile_enum4_type($1, $4, true, $6); }
+  ;
+
+enum_type_names_opt
+  : enum_type_names
+      { $$ = $1; }
+  |
+      { $$ = new list<struct enum_name_s>; }
   ;
 
 enum_type_names

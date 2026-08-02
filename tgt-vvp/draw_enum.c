@@ -67,6 +67,7 @@ void draw_enumeration_in_scope(ivl_enumtype_t enumtype)
 {
       unsigned idx;
       unsigned emitted = 0;
+      unsigned incomplete = 0;
       unsigned name_count = ivl_enum_names(enumtype);
       const char*dtype = ivl_enum_type(enumtype)==IVL_VT_BOOL? "2" : "4";
       const char*stype = ivl_enum_signed(enumtype) ? "/s" : "";
@@ -85,6 +86,7 @@ void draw_enumeration_in_scope(ivl_enumtype_t enumtype)
 	    if (!name || !bits) {
 		  fprintf(stderr, "vvp.tgt warning: incomplete enumeration "
 			  "literal %u omitted from generated code.\n", idx);
+		  incomplete += 1;
 		  continue;
 	    }
 
@@ -106,4 +108,11 @@ void draw_enumeration_in_scope(ivl_enumtype_t enumtype)
       }
 
       fprintf(vvp_out, "\n ;\n");
+
+	/* An incomplete type is never a successful output. Keep the emitted
+	 * program syntactically readable for diagnostics, but make target
+	 * generation fail loudly instead of producing an exit-0 image whose
+	 * enum reflection is silently wrong. */
+      if (incomplete)
+	    vvp_errors += 1;
 }

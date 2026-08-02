@@ -5178,11 +5178,10 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 	    } else if (ptype == IVL_VT_STRING) {
 		  letter = 's';
 	    } else if (ptype == IVL_VT_DARRAY) {
-		    /* Open array (35.5.6.1): pass an svOpenArrayHandle
-		       that shares the dynamic array's storage. Only
-		       atom-typed elements have contiguous raw storage;
-		       validate here so anything else is a loud sorry
-		       instead of a runtime surprise. */
+		    /* Open array (35.5.6.1): pass an svOpenArrayHandle.
+		       Atom/real elements may expose direct storage through
+		       svGetArrElemPtr; arbitrary packed bit/logic elements use
+		       the canonical svGet/Put*ArrElem*VecVal copy API. */
 		  ivl_type_t nt = ivl_signal_net_type(port);
 		  ivl_type_t et = nt ? ivl_type_element(nt) : 0;
 		    /* M10B-md: a MULTI-dimensional open array is a
@@ -5195,15 +5194,13 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  ivl_variable_type_t ebase = et ? ivl_type_base(et)
 			                         : IVL_VT_NO_TYPE;
 		  unsigned ewid = et ? ivl_type_packed_width(et) : 0;
-		  int atom_ok = (ebase == IVL_VT_REAL)
+		  int elem_ok = (ebase == IVL_VT_REAL)
 			|| ((ebase == IVL_VT_BOOL || ebase == IVL_VT_LOGIC)
-			    && (ewid == 8 || ewid == 16
-				|| ewid == 32 || ewid == 64));
-		  if (! atom_ok) {
+			    && ewid > 0);
+		  if (! elem_ok) {
 			fprintf(stderr, "%s:%u: sorry: DPI import '%s': "
-				"open array argument '%s' must have "
-				"2-state atom elements (byte/shortint/"
-				"int/longint) or real elements; the "
+				"open array argument '%s' must have packed "
+				"bit/logic or real elements; the "
 				"call is skipped.\n",
 				ivl_scope_def_file(scope),
 				ivl_scope_def_lineno(scope),

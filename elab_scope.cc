@@ -465,6 +465,14 @@ static void elaborate_scope_enumeration(Design*des, NetScope*scope,
 
       netenum_t *use_enum = scope->enumeration_for_key(enum_type);
 
+	// Class methods and parameterized type specializations may ask the
+	// same lexical scope to elaborate more than once. Enum literals are
+	// immutable once closed; reinserting them diagnoses each name as a
+	// duplicate and used to assert in netenum_t::insert_name. Treat the
+	// completed typespec as the idempotence boundary.
+      if (use_enum->names_closed())
+	    return;
+
       size_t name_idx = 0;
 	// Find the enumeration width.
       long raw_width = use_enum->packed_width();
@@ -3138,6 +3146,14 @@ void PFunction::elaborate_scope(Design*des, NetScope*scope) const
 
       collect_scope_signals(scope, wires);
 
+	// A typedef enum declared directly in a function belongs to the
+	// function lexical scope. Elaborating only enums from nested named
+	// blocks leaves the netenum_t shape allocated but all literal/name
+	// slots empty, which later makes enum methods and target metadata
+	// unusable. Populate the function-local enum before its declarations
+	// and body are elaborated.
+      elaborate_scope_enumerations(des, scope, enum_sets);
+
 	// Scan through all the named events in this scope.
       elaborate_scope_events_(des, scope, events);
 
@@ -3159,6 +3175,10 @@ void PTask::elaborate_scope(Design*des, NetScope*scope) const
       collect_scope_parameters(des, scope, parameters);
 
       collect_scope_signals(scope, wires);
+
+	// Match functions and every other lexical scope: task-local enum
+	// typedefs must be fully elaborated before local variables use them.
+      elaborate_scope_enumerations(des, scope, enum_sets);
 
 	// Scan through all the named events in this scope.
       elaborate_scope_events_(des, scope, events);

@@ -9789,6 +9789,7 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		      arr.length = 0;
 		      arr.elem_bytes = 0;
 		      arr.elem_is_real = false;
+		      arr.storage = 0;
 		      arr.outer = 0;
 		      arr.has_range = false;
 		      arr.left = 0;
@@ -9804,6 +9805,7 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 			    arr.right = da->dpi_decl_right();
 		      }
 		      if (da) {
+			    arr.storage = da;
 			    unsigned eb = da->dpi_elem_bytes();
 			    if (eb > 0) {
 				  arr.data = da->dpi_raw_data();
@@ -9819,6 +9821,12 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 				       construction. */
 				  arr.length = (unsigned)da->get_size();
 				  arr.outer = da;
+			    } else if (dynamic_cast<vvp_darray_vec2*>(da)
+				       || dynamic_cast<vvp_darray_vec4*>(da)) {
+				    /* Packed vector elements need the canonical-copy
+				       accessors rather than a direct C pointer. Retain
+				       their live container and shape. */
+				  arr.length = (unsigned)da->get_size();
 			    } else {
 				  fprintf(stderr, "DPI error: '%s': open "
 					  "array argument %u does not have "

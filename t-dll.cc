@@ -968,6 +968,16 @@ bool dll_target::class_type(const NetScope*in_scope, netclass_t*net)
 bool dll_target::enumeration(const NetScope*in_scope, netenum_t*net)
 {
       ivl_scope_t use_scope = find_scope(des_, in_scope);
+	// A scope can be reached through more than one type-emission path
+	// (notably a class method and its owning specialization). The enum
+	// typespec is identified by NET, so emitting that same object twice
+	// creates duplicate labels in the VVP program. Keep one entry per
+	// typespec while preserving declaration order.
+      for (std::vector<ivl_enumtype_t>::const_iterator cur =
+		 use_scope->enumerations_.begin()
+		 ; cur != use_scope->enumerations_.end() ; ++cur)
+	    if (*cur == net)
+		  return true;
       use_scope->enumerations_.push_back(net);
       return true;
 }
