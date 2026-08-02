@@ -2022,8 +2022,23 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			ivl_assert(*this, psig);
 
 			if (member_cur.index.empty()) {
+			      // A static property can be selected through an
+			      // object handle (IEEE 1800-2017 8.9). If more of
+			      // the member path remains, the static property is
+			      // the new root of that path; returning here drops
+			      // the tail. In particular,
+			      //
+			      //   singleton.member = new(...);
+			      //
+			      // was contextualized as the singleton type and the
+			      // generated store overwrote singleton instead of
+			      // constructing member. Rebase on the real static
+			      // signal and continue walking the complete l-value.
+			      delete lv;
 			      lv = new NetAssign_(psig);
-			      return lv;
+			      if (member_path.empty())
+				    return lv;
+			      continue;
 			}
 
 			  // An indexed static property with a TRAILING
