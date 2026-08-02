@@ -1168,7 +1168,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
 %type <text> label_opt class_declaration_endlabel_opt
 %type <text> block_identifier_opt
-%type <text> identifier_name bins_name package_cg_port_prefix
+%type <text> identifier_name bins_name class_cg_port_prefix package_cg_port_prefix
 %type <text> bind_instance_path
 %type <strings> bind_instance_path_list
 %type <event_ident> event_variable
@@ -1684,6 +1684,25 @@ class_items_opt /* IEEE1800-2005: A.1.2 */
 class_items /* IEEE1800-2005: A.1.2 */
   : class_items class_item
   | class_item
+  ;
+
+/* IEEE 1800-2017 19.3: covergroup constructor formals have a scope
+   belonging to that covergroup, not to the class that contains the
+   covergroup property. Keep an unbound function-like scope active while
+   parsing the covergroup body so references such as `option.name = name`
+   see the constructor formal, then retain the port declarations for the
+   synthesized covergroup class. */
+class_cg_port_prefix
+  : K_covergroup IDENTIFIER
+      { current_function = pform_push_function_scope_unbound(
+            @2, $2, LexicalScope::INHERITED); }
+    tf_port_list_parens_opt
+      { if ($4) current_function->set_ports($4);
+	cov_capture_ctor_ports_($4, pending_cg_ctor_names_,
+				pending_cg_ctor_types_,
+				pending_cg_ctor_defaults_);
+	$$ = $2;
+      }
   ;
 
 class_item /* IEEE1800-2005: A.1.8 */
@@ -2280,86 +2299,94 @@ class_item /* IEEE1800-2005: A.1.8 */
 
     /* Class covergroups (functional coverage) */
 
-  | K_covergroup IDENTIFIER ';' covergroup_item_list_opt K_endgroup label_opt
-      { pform_class_covergroup(@1, $2, $4);
-	delete[] $2; if ($6) delete[] $6;
-      }
-
-  | K_covergroup IDENTIFIER tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup label_opt
-      { std::vector<perm_string>*ctor_names__ = nullptr;
-	std::vector<data_type_t*>*ctor_types__ = nullptr;
-	std::vector<PExpr*>*ctor_defs__ = nullptr;
-	cov_capture_ctor_ports_($3, ctor_names__, ctor_types__, ctor_defs__);
-	pform_class_covergroup(@1, $2, $5, nullptr, nullptr, nullptr,
-			       ctor_names__, ctor_types__, ctor_defs__);
-	delete[] $2; if ($3) delete $3; if ($7) delete[] $7;
+  | class_cg_port_prefix ';' covergroup_item_list_opt K_endgroup label_opt
+      { pform_pop_scope(); current_function = 0;
+	pform_class_covergroup(@1, $1, $3, nullptr, nullptr, nullptr,
+			       pending_cg_ctor_names_, pending_cg_ctor_types_,
+			       pending_cg_ctor_defaults_);
+	pending_cg_ctor_names_ = nullptr;
+	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_defaults_ = nullptr;
+	delete[] $1; if ($5) delete[] $5;
       }
 
   /* M11-3: class-embedded covergroup with a declaration sampling
      event (IEEE 1800-2017 19.3): every instance samples on the
      event automatically. */
-  | K_covergroup IDENTIFIER tf_port_list_parens_opt '@' '(' event_expression_list ')' ';' covergroup_item_list_opt K_endgroup label_opt
-      { std::vector<perm_string>*ctor_names__ = nullptr;
-	std::vector<data_type_t*>*ctor_types__ = nullptr;
-	std::vector<PExpr*>*ctor_defs__ = nullptr;
-	cov_capture_ctor_ports_($3, ctor_names__, ctor_types__, ctor_defs__);
-	pform_class_covergroup(@1, $2, $9, nullptr, nullptr, $6,
-			       ctor_names__, ctor_types__, ctor_defs__);
-	delete[] $2; if ($3) delete $3; if ($11) delete[] $11;
+  | class_cg_port_prefix '@' '(' event_expression_list ')' ';' covergroup_item_list_opt K_endgroup label_opt
+      { pform_pop_scope(); current_function = 0;
+	pform_class_covergroup(@1, $1, $7, nullptr, nullptr, $4,
+			       pending_cg_ctor_names_, pending_cg_ctor_types_,
+			       pending_cg_ctor_defaults_);
+	pending_cg_ctor_names_ = nullptr;
+	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_defaults_ = nullptr;
+	delete[] $1; if ($9) delete[] $9;
       }
 
-  | K_covergroup IDENTIFIER tf_port_list_parens_opt K_with K_function IDENTIFIER
-      { current_function = pform_push_function_scope_unbound(@6, $6, LexicalScope::INHERITED); }
+  | class_cg_port_prefix K_with K_function IDENTIFIER
+      { pform_pop_scope();
+	current_function = pform_push_function_scope_unbound(
+	      @4, $4, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
     covergroup_item_list_opt K_endgroup label_opt
       { /* M11-4: `with function sample(<formals>)` (19.8.1) — the
 	   formal names bind positionally to the sample() call
 	   arguments at each call site. */
-	if (strcmp($6, "sample") != 0)
-	      yyerror(@6, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
+	if (strcmp($4, "sample") != 0)
+	      yyerror(@4, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
 	std::vector<perm_string>*formals__ = 0;
 	std::vector<data_type_t*>*ftypes__ = 0;
-	if ($8) {
+	if ($6) {
 	      formals__ = new std::vector<perm_string>;
 	      ftypes__ = new std::vector<data_type_t*>;
-	      for (size_t idx__ = 0; idx__ < $8->size(); idx__ += 1)
-		    if ((*$8)[idx__].port) {
-			  formals__->push_back((*$8)[idx__].port->basename());
-			  ftypes__->push_back(const_cast<data_type_t*>((*$8)[idx__].port->data_type()));
+	      for (size_t idx__ = 0; idx__ < $6->size(); idx__ += 1)
+		    if ((*$6)[idx__].port) {
+			  formals__->push_back((*$6)[idx__].port->basename());
+			  ftypes__->push_back(const_cast<data_type_t*>((*$6)[idx__].port->data_type()));
 		    }
-	      current_function->set_ports($8);
+	      current_function->set_ports($6);
 	}
-	std::vector<perm_string>*ctor_names__ = nullptr;
-	std::vector<data_type_t*>*ctor_types__ = nullptr;
-	std::vector<PExpr*>*ctor_defs__ = nullptr;
-	cov_capture_ctor_ports_($3, ctor_names__, ctor_types__, ctor_defs__);
         pform_pop_scope(); current_function = 0;
-        pform_class_covergroup(@1, $2, $10, formals__, ftypes__, nullptr,
-			       ctor_names__, ctor_types__, ctor_defs__);
-	delete[] $2; if ($3) delete $3; delete[] $6;
-	if ($12) delete[] $12;
+        pform_class_covergroup(@1, $1, $8, formals__, ftypes__, nullptr,
+			       pending_cg_ctor_names_, pending_cg_ctor_types_,
+			       pending_cg_ctor_defaults_);
+	pending_cg_ctor_names_ = nullptr;
+	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_defaults_ = nullptr;
+	delete[] $1; delete[] $4;
+	if ($10) delete[] $10;
       }
 
-  | K_covergroup IDENTIFIER ';' error K_endgroup label_opt
-      { yyerror(@1, "error: Errors in covergroup body.");
+  | class_cg_port_prefix ';' error K_endgroup label_opt
+      { pform_pop_scope(); current_function = 0;
+	yyerror(@1, "error: Errors in covergroup body.");
 	yyerrok;
-	delete[] $2; if ($6) delete[] $6;
+	delete pending_cg_ctor_names_;
+	delete pending_cg_ctor_types_;
+	delete pending_cg_ctor_defaults_;
+	pending_cg_ctor_names_ = nullptr;
+	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_defaults_ = nullptr;
+	delete[] $1; if ($5) delete[] $5;
       }
 
-  | K_covergroup IDENTIFIER tf_port_list_parens_opt ';' error K_endgroup label_opt
-      { yyerror(@1, "error: Errors in covergroup body.");
-	yyerrok;
-	delete[] $2; if ($3) delete $3; if ($7) delete[] $7;
-      }
-
-  | K_covergroup IDENTIFIER tf_port_list_parens_opt K_with K_function IDENTIFIER
-      { current_function = pform_push_function_scope_unbound(@6, $6, LexicalScope::INHERITED); }
+  | class_cg_port_prefix K_with K_function IDENTIFIER
+      { pform_pop_scope();
+	current_function = pform_push_function_scope_unbound(
+	      @4, $4, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';' error K_endgroup label_opt
       { pform_pop_scope(); current_function = 0;
         yyerror(@1, "error: Errors in covergroup body.");
 	yyerrok;
-	delete[] $2; if ($3) delete $3; delete[] $6; if ($8) delete $8;
-	if ($12) delete[] $12;
+	delete pending_cg_ctor_names_;
+	delete pending_cg_ctor_types_;
+	delete pending_cg_ctor_defaults_;
+	pending_cg_ctor_names_ = nullptr;
+	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_defaults_ = nullptr;
+	delete[] $1; delete[] $4; if ($6) delete $6;
+	if ($10) delete[] $10;
       }
 
     /* Here are some error matching rules to help recover from various

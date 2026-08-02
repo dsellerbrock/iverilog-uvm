@@ -149,7 +149,8 @@ NetESFunc* make_randomize_with_expr(
       NetExpr*obj_expr,
       const netclass_t*class_type,
       Design*des, NetScope*scope,
-      perm_string std_object_root = perm_string())
+      perm_string std_object_root = perm_string(),
+      bool scope_form = false)
 {
       string combined_ir;
       vector<const PExpr*> value_slots;
@@ -172,7 +173,9 @@ NetESFunc* make_randomize_with_expr(
       // `sel` holds only digits, commas or a single `*`, so the IR — the
       // one field that can carry arbitrary text — stays last and needs
       // no escaping.
-      string mangled = string("$ivl_class_method$randomize_with|")
+      string mangled = string(scope_form
+		     ? "$ivl_class_method$scope_randomize_with|"
+		     : "$ivl_class_method$randomize_with|")
 		     + to_string(n_vals) + "|"
 		     + (std_object_root.nil()
 			? randomize_arg_selector(parms, class_type, call)
@@ -233,6 +236,45 @@ NetESFunc* make_std_randomize_with_expr(
 			      id->path().back().name);
 		  }
 		  delete obj;
+	    }
+      }
+
+      /* A scope variable named by std::randomize may be a property of the
+       * current `this` object. It is still IEEE 18.12 SCOPE randomization:
+       * class constraint blocks and pre/post_randomize hooks do not apply.
+       * Use the class property's existing container/scalar solver and
+       * write-back machinery, but mark the generated call so the target and
+       * runtime preserve those scope-form differences. This also covers rand
+       * dynamic-array properties constrained through `arr.size()`. */
+      if (NetNet*this_net = find_implicit_this_handle(des, scope)) {
+	    const netclass_t*class_type = dynamic_cast<const netclass_t*>(
+		  this_net->net_type());
+	    const NetScope*class_scope = scope->get_class_scope();
+	    bool all_this_properties = class_type && !parms.empty();
+	    for (size_t idx = 0 ; all_this_properties && idx < parms.size(); idx++) {
+		  const PEIdent*id = dynamic_cast<const PEIdent*>(parms[idx].parm);
+		  if (!id || id->path().size() != 1
+		      || !id->path().back().index.empty()
+		      || class_type->property_idx_from_name(
+			    id->path().back().name) < 0)
+			all_this_properties = false;
+
+		  /* A block/method variable takes precedence over an equally
+		   * named property. Do not infer `this.property` merely because
+		   * the class has that name (IEEE 3.13/8.18 lookup rules). */
+		  for (NetScope*cur = scope;
+		       all_this_properties && cur && cur != class_scope;
+		       cur = cur->parent()) {
+			if (cur->find_signal(id->path().back().name))
+			      all_this_properties = false;
+		  }
+	    }
+	    if (all_this_properties) {
+		  NetESignal*self = new NetESignal(this_net);
+		  self->set_line(*loc);
+		  return make_randomize_with_expr(
+			loc, parms, with_constraints, self, class_type,
+			des, scope, perm_string(), true);
 	    }
       }
 
@@ -13725,14 +13767,19 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	      // constants when symbol_search resolves them to a parameter value
 	      // found in a PACKAGE scope. A parameter found through a genuine
 	      // instance path (`dut.WIDTH`) stays a hierarchical reference and
-	      // is illegal in a constant expression (IEEE 1800-2017 11.2.1,
-	      // ivtest pr2792883) -- the old blanket parameter exception let
-	      // it through silently.
+	      // is illegal in an ordinary constant expression (IEEE 1800-2017
+	      // 11.2.1, ivtest pr2792883). A bind parameter override is
+	      // different: IEEE 23.11 elaborates the bound instance in the
+	      // target scope, and real verification collateral uses a target
+	      // instance parameter to specialize the bound checker/interface.
+	      // Permit that narrowly marked context without reopening the
+	      // ordinary hierarchical-parameter exception.
             bool pkg_param = sr.par_val != 0 && sr.scope != 0
                   && sr.scope->type() == NetScope::PACKAGE;
             bool local_param_member = sr.par_val != 0
 		  && !sr.path_tail.empty() && sr.path_head.size() == 1;
-            if (!pkg_param && !local_param_member) {
+            bool bind_parameter = bind_parameter_expr_ && sr.par_val != 0;
+            if (!pkg_param && !local_param_member && !bind_parameter) {
                   // Allow local struct/class member paths in constant functions.
                   // sr.net found in the current scope (e.g., struct variable
                   // declared in the same function) is not a hierarchical reference.

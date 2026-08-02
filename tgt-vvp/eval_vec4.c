@@ -1855,13 +1855,17 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 						      post_dyn->type);
 	    return;
       }
-      if (strncmp(ivl_expr_name(expr),"$ivl_class_method$randomize_with|",33)==0) {
+      if (strncmp(ivl_expr_name(expr),"$ivl_class_method$randomize_with|",33)==0
+	  || strncmp(ivl_expr_name(expr),
+		     "$ivl_class_method$scope_randomize_with|",39)==0) {
 	      /* Mangled name:
 	       *   "$ivl_class_method$randomize_with|N_vals|sel|ir_string"
 	       * parm[0] = object, parm[1..N_vals] = runtime slot values.
 	       * `sel` is the 18.11 argument selector: "*" for the plain
 	       * form, "" for randomize(null), else a property-id list. */
-	    const char*rest = ivl_expr_name(expr) + 33;
+	    int scope_form = strncmp(ivl_expr_name(expr),
+		     "$ivl_class_method$scope_randomize_with|",39) == 0;
+	    const char*rest = ivl_expr_name(expr) + (scope_form ? 39 : 33);
 	    unsigned n_vals = (unsigned)strtoul(rest, NULL, 10);
 	    while (*rest && *rest != '|') rest++;
 	    if (*rest == '|') rest++;
@@ -1879,7 +1883,7 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    ivl_type_t rt = 0;
 	    rand_hook_pair_t*pre_dyn = 0;
 	    rand_hook_pair_t*post_dyn = 0;
-	    if (obj_arg) {
+	    if (obj_arg && !scope_form) {
 		  rt = ivl_expr_net_type(obj_arg);
 		  if (!rt && ivl_expr_type(obj_arg) == IVL_EX_SIGNAL) {
 			ivl_signal_t sig = ivl_expr_signal(obj_arg);
@@ -1914,7 +1918,8 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 			  (int)sel_len, sel_beg);
 	      /* Push the object. */
 	    if (obj_arg) draw_eval_object(obj_arg);
-	    fprintf(vvp_out, "    %%randomize/with \"%s\", %u;\n", ir, n_vals);
+	    fprintf(vvp_out, "    %%randomize/with \"%s\", %u;\n", ir,
+		    n_vals | (scope_form ? 0x80000000u : 0u));
 	    if (post && obj_arg)
 		  emit_conditional_post_randomize_(obj_arg, post);
 	    else if (post_dyn && obj_arg)

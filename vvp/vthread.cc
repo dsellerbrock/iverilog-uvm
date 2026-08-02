@@ -3286,8 +3286,11 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 {
 	// code->text      = IR string (with possible "v:N:W" slot placeholders)
-	// code->bit_idx[0] = number of runtime value slots on the vec4 stack
-      unsigned n_vals = code->bit_idx[0];
+	// code->bit_idx[0] = number of runtime value slots on the vec4 stack;
+	// bit 31 marks std::randomize(this_property), which uses this object's
+	// storage but excludes class constraints and randomize hooks (18.12).
+      bool scope_form = (code->bit_idx[0] & 0x80000000u) != 0;
+      unsigned n_vals = code->bit_idx[0] & 0x7fffffffu;
       const char* ir_text = code->text ? code->text : "";
 
 	// Pop runtime slot values (pushed in reverse: slot 0 is deepest).
@@ -3318,6 +3321,12 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
       bool solve_ok = true;
       if (cobj) {
 	    const class_type*defn = cobj->get_defn();
+	    vthread_t scope_rng_owner = scope_form
+		  ? logical_process_thread_(thr) : nullptr;
+	    auto next_random = [&]() -> unsigned {
+		  return scope_form ? thread_rng_next_(scope_rng_owner)
+				    : randomize_rand_(cobj);
+	    };
 
 	    std::vector<rand_saved_prop_s> saved;
 	    randomize_snapshot_(cobj, defn, saved, sel);
@@ -3363,7 +3372,7 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 				    break;
 			      vvp_vector4_t nv(awid, BIT4_0);
 			      for (unsigned b = 0 ; b < awid ; b += 1)
-				    nv.set_bit(b, (randomize_rand_(cobj) & 1) ? BIT4_1 : BIT4_0);
+			    nv.set_bit(b, (next_random() & 1) ? BIT4_1 : BIT4_0);
 			      cobj->set_vec4(pid, nv, adr);
 			}
 			continue;
@@ -3384,7 +3393,7 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 			      bool found = false;
 			      for (unsigned attempt = 0;
 				   attempt < 4 * (unsigned)period; attempt += 1) {
-				    uint64_t cand = (uint64_t)randomize_rand_(cobj) % period;
+				    uint64_t cand = (uint64_t)next_random() % period;
 				    if (!cobj->randc_seen(pid, cand)) {
 					  pick = cand; found = true; break;
 				    }
@@ -3407,7 +3416,7 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 			}
 		  }
 		  for (unsigned i = 0 ; i < wid ; i += 32) {
-			unsigned rnd = randomize_rand_(cobj);
+		    unsigned rnd = next_random();
 			for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)
 			      val.set_bit(i + b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
 		  }
@@ -3421,9 +3430,11 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	      // (18.5.14.1): anything the merge missed from a base first,
 	      // then the call-site with-clause, which outranks everything.
 	    vector<string> extra_ir;
-	    collect_unmerged_base_constraints_(defn, extra_ir);
+	    if (!scope_form)
+		  collect_unmerged_base_constraints_(defn, extra_ir);
 	    if (ir_text && *ir_text) extra_ir.push_back(string(ir_text));
-	    solve_ok = vvp_z3_randomize(defn, cobj, extra_ir, slot_vals, sel);
+	    solve_ok = vvp_z3_randomize(defn, cobj, extra_ir, slot_vals, sel,
+				      !scope_form);
 	    if (!solve_ok)
 		  randomize_restore_(cobj, saved);
       }

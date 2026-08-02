@@ -86,7 +86,7 @@ class PExpr : public LineInfo {
 	// positions to end-of-scope so the declaration-before-use check
 	// does not reject target names declared "after" the directive's
 	// own parse position (e.g. binds in a different source file).
-      virtual void reloc_lexical_pos_bind();
+      virtual void reloc_lexical_pos_bind(bool parameter_context = false);
 
 	// This method tests the type and width that the expression wants
 	// to be. It should be called before elaborating an expression to
@@ -274,7 +274,7 @@ class PEConcat : public PExpr {
       explicit PEConcat(const std::list<PExpr*>&p, PExpr*r =0);
       ~PEConcat() override;
 
-      virtual void reloc_lexical_pos_bind() override;
+      virtual void reloc_lexical_pos_bind(bool parameter_context) override;
 
       bool is_empty_concat() const { return parms_.empty() && repeat_ == 0; }
 
@@ -458,7 +458,7 @@ class PEIdent : public PExpr {
 
       unsigned lexical_pos() const { return lexical_pos_; }
 
-      virtual void reloc_lexical_pos_bind() override;
+      virtual void reloc_lexical_pos_bind(bool parameter_context) override;
 
       // I5 (Phase 62m): when path was parsed from `Class#(args)::var`,
       // these are the leading type arguments needed to identify the
@@ -687,6 +687,7 @@ class PEIdent : public PExpr {
     private:
       bool strict_bind_ = false;
       bool quiet_bind_ = false;
+      bool bind_parameter_expr_ = false;
 
       NetNet* elaborate_lnet_common_(Design*des, NetScope*scope,
 				     bool bidirectional_flag,
@@ -928,7 +929,7 @@ class PEUnary : public PExpr {
 
       virtual bool has_aa_term(Design*des, NetScope*scope) const override;
 
-      virtual void reloc_lexical_pos_bind() override;
+      virtual void reloc_lexical_pos_bind(bool parameter_context) override;
 
       virtual unsigned test_width(Design*des, NetScope*scope,
 				  width_mode_t&mode) override;
@@ -961,7 +962,7 @@ class PEBinary : public PExpr {
 
       virtual bool has_aa_term(Design*des, NetScope*scope) const override;
 
-      virtual void reloc_lexical_pos_bind() override;
+      virtual void reloc_lexical_pos_bind(bool parameter_context) override;
 
       virtual unsigned test_width(Design*des, NetScope*scope,
 				  width_mode_t&mode) override;
@@ -1095,7 +1096,7 @@ class PETernary : public PExpr {
 
       virtual bool has_aa_term(Design*des, NetScope*scope) const override;
 
-      virtual void reloc_lexical_pos_bind() override;
+      virtual void reloc_lexical_pos_bind(bool parameter_context) override;
 
       virtual unsigned test_width(Design*des, NetScope*scope,
 				  width_mode_t&mode) override;
@@ -1169,7 +1170,7 @@ class PECallFunction : public PExpr {
 
       virtual bool has_aa_term(Design*des, NetScope*scope) const override;
 
-      virtual void reloc_lexical_pos_bind() override;
+      virtual void reloc_lexical_pos_bind(bool parameter_context) override;
 
       virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
 				     ivl_type_t type, unsigned flags) const override;

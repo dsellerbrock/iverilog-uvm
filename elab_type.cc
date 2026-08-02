@@ -291,6 +291,14 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
 		  iface_scope->set_parameter(kv.first, false, *kv.second, nullptr);
       }
 
+      // Named package imports declared in the interface body participate in
+      // member dimensions and types just like interface parameters do. The
+      // regular instantiated/root interface scopes receive these imports in
+      // elaborate_scope; the temporary scope used to construct a virtual-
+      // interface type must mirror them as well (for example,
+      // `import pkg::Width; logic [Width-1:0] data;`).
+      iface_scope->add_imports(&mod->explicit_imports);
+
       // Interface-local typedefs (e.g. `typedef struct packed {...} pkt_t;`
       // declared inside the interface, then used as a member type) must be
       // resolvable when the member property types are elaborated below. A

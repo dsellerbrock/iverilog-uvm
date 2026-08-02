@@ -2398,7 +2398,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                       const vector<uint64_t>& slot_vals,
                       const std::map<unsigned,uint64_t>* dyn_sizes,
                       std::vector<Z3Builder::DynForeach>* dyn_out,
-                      const std::vector<bool>* prop_active)
+                      const std::vector<bool>* prop_active,
+                      bool include_class_constraints)
 {
       if (z3_solve_trace(defn)) {
 	    fprintf(stderr,
@@ -2442,7 +2443,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       Z3_solver_inc_ref(ctx, base);
 
       // Assert hard constraints (class-level), skipping disabled ones.
-      for (size_t ci = 0; ci < defn->constraint_count(); ++ci) {
+
+      for (size_t ci = 0;
+	   include_class_constraints && ci < defn->constraint_count(); ++ci) {
 	    if (cobj && !cobj->constraint_mode(ci)) continue;
 	    const string& ir = defn->constraint_ir(ci);
 	    if (ir.empty()) continue;
@@ -2601,7 +2604,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  if (!sa.from_soft_kw || soft_dropped(sa)) continue;
 		  Z3_solver_assert(ctx, chk, sa.a);
 	    }
-	    for (size_t ci = 0; ci < defn->constraint_count(); ++ci) {
+	    for (size_t ci = 0;
+		 include_class_constraints && ci < defn->constraint_count(); ++ci) {
 		  if (cobj && !cobj->constraint_mode(ci)) continue;
 		  const string& ir = defn->constraint_ir(ci);
 		  if (ir.empty()) continue;
@@ -3033,15 +3037,18 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
                       const vector<string>& extra_ir,
                       const vector<uint64_t>& slot_vals,
-                      const std::vector<bool>* prop_active)
+                      const std::vector<bool>* prop_active,
+                      bool include_class_constraints)
 {
-      if (defn->constraint_count() == 0 && extra_ir.empty()) return true;
+      if ((!include_class_constraints || defn->constraint_count() == 0)
+	  && extra_ir.empty()) return true;
 
 	// Size pass: dynamic-foreach bodies deferred; sizes solved and
 	// written back.
       std::vector<Z3Builder::DynForeach> dyn;
       int r1 = z3_solve_pass_(defn, cobj, extra_ir, slot_vals,
-			      nullptr, &dyn, prop_active);
+			      nullptr, &dyn, prop_active,
+			      include_class_constraints);
       if (dyn.empty())
 	    return r1 != Z3PASS_UNSAT;
 
@@ -3054,7 +3061,8 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
       for (const auto& d : dyn)
 	    sizes[d.pidx] = cobj_darray_size(cobj, d.pidx);
       int r2 = z3_solve_pass_(defn, cobj, extra_ir, slot_vals,
-			      &sizes, nullptr, prop_active);
+			      &sizes, nullptr, prop_active,
+			      include_class_constraints);
       return r1 != Z3PASS_UNSAT && r2 != Z3PASS_UNSAT;
 }
 

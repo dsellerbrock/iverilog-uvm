@@ -76,7 +76,8 @@ extern NetESFunc* make_randomize_with_expr(
       NetExpr*obj_expr,
       const netclass_t*class_type,
       Design*des, NetScope*scope,
-      perm_string std_object_root = perm_string());
+      perm_string std_object_root = perm_string(),
+      bool scope_form = false);
 extern NetESFunc* make_std_randomize_with_expr(
       const std::vector<named_pexpr_t>&parms,
       const std::vector<PExpr*>&with_constraints,

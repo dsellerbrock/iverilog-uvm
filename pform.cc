@@ -3387,13 +3387,13 @@ static void bind_apply_one(Module*scope, pending_bind_t&bind,
 			    bind.overrides->by_name->end(), byname);
 		  for (unsigned pdx = 0 ; pdx < cnt ; pdx += 1) {
 			if (byname[pdx].parm)
-			      byname[pdx].parm->reloc_lexical_pos_bind();
+			      byname[pdx].parm->reloc_lexical_pos_bind(true);
 		  }
 		  gate->set_parameters(byname, cnt);
 	    } else if (bind.overrides && bind.overrides->by_order) {
 		  for (list<PExpr*>::iterator odx = bind.overrides->by_order->begin()
 			     ; odx != bind.overrides->by_order->end() ; ++odx) {
-			if (*odx) (*odx)->reloc_lexical_pos_bind();
+			if (*odx) (*odx)->reloc_lexical_pos_bind(true);
 		  }
 		  gate->set_parameters(bind.overrides->by_order);
 	    }
@@ -5945,7 +5945,7 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		    /* The checker is a compiler-generated module process and can
 		       be emitted before a later module-item declaration. Resolve
 		       its cloned operand against the completed module scope. */
-		  cp->reloc_lexical_pos_bind();
+		  cp->reloc_lexical_pos_bind(false);
 		  cp->set_line(*e);
 		  return cp;
 	    }
@@ -5954,7 +5954,7 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		  ? new PEIdent(id->path().package, id->path().name,
 				id->lexical_pos())
 		  : new PEIdent(id->path().name, id->lexical_pos());
-	    cp->reloc_lexical_pos_bind();
+	    cp->reloc_lexical_pos_bind(false);
 	    cp->set_line(*e);
 
 	      /* A bare single-name read is sampled whether or not it
