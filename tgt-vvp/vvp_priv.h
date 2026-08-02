@@ -757,6 +757,10 @@ static inline int emit_property_queue_last_index_(ivl_expr_t expr,
 extern int uarray_container_kind_(ivl_signal_t sig, unsigned*kind_out,
 				  const char*file, unsigned lineno);
 
+/* Emit the fixed-array -> container load, flat or nested according to
+   the source's declared dimensionality. */
+extern void emit_load_arr_dar_(ivl_signal_t sig, unsigned kind);
+
 /* Emit the container -> fixed-array store, flat or nesting according to
    the destination's declared dimensionality. */
 extern void emit_store_arr_dar_(ivl_signal_t sig, unsigned kind);

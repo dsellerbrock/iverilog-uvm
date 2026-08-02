@@ -16,8 +16,9 @@
 // reads the wrong elements and runs off the end.
 //
 // The ranges below are chosen so every previously-hardcoded answer is
-// wrong: 3:10 (low 3, high 10, increment +1) and 10:3 (left 10, right 3,
-// increment -1). A 0-based range would hide all of it.
+// wrong: 3:10 (low 3, high 10, increment -1) and 10:3 (left 10, right 3,
+// increment +1). $increment/svIncrement is the right-to-left increment.
+// A 0-based range would hide the declared-bound translation.
 module m10_dpi_fixed_array_marshal_test;
 
   class Item;
@@ -29,6 +30,11 @@ module m10_dpi_fixed_array_marshal_test;
   import "DPI-C" function int c_fixed_asc (input int a[]);
   import "DPI-C" function int c_fixed_desc(input int a[]);
   import "DPI-C" function int c_dyn_plain (input int a[]);
+  import "DPI-C" function void c_fixed_fill(output int unsigned a[3:10]);
+
+  function automatic void wrap_fixed_fill(output int unsigned a[3:10]);
+    c_fixed_fill(a);
+  endfunction
 
   int errors = 0;
 
@@ -80,7 +86,21 @@ module m10_dpi_fixed_array_marshal_test;
     foreach (dyn[i]) dyn[i] = i * 7;
     check("c_dyn_plain", c_dyn_plain(dyn));
 
-    // 4. A fixed array of CLASS HANDLES marshals element-wise into a
+    // 4. A fixed output formal remains an aggregate through both the SV
+    //    wrapper and the imported DPI function call.
+    begin
+      int unsigned filled[3:10];
+      wrap_fixed_fill(filled);
+      foreach (filled[i]) begin
+        if (filled[i] !== i * 11) begin
+          $display("FAIL fixed DPI output: filled[%0d]=%0d, expected %0d",
+                   i, filled[i], i * 11);
+          errors++;
+        end
+      end
+    end
+
+    // 5. A fixed array of CLASS HANDLES marshals element-wise into a
     //    dynamic array (handles copied by reference). The illegal
     //    single-handle form `h = arr' is rejected at ELABORATION, where the
     //    target type is visible -- see tests/negative/object_array_to_handle.

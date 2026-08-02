@@ -3405,11 +3405,54 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
 		  return res;
 	    }
 	    if (dims.size() == 1 && ewl > 0) {
-		  cerr << get_fileline() << ": sorry: streaming with "
-		        "dynamically sized operands into a FIXED unpacked "
-		        "array target is not yet supported." << endl;
-		  des->errors += 1;
-		  return nullptr;
+		  // The stream width is known only at run time, but the fixed
+		  // target width and element layout are known now. Build the
+		  // runtime stream directly in that total-width context (which
+		  // left-aligns and zero-fills a short stream, and diagnoses an
+		  // oversized one), then distribute its fixed result into the
+		  // target's declared element order exactly like the static path.
+		  unsigned ew = (unsigned)ewl;
+		  unsigned n = (unsigned)dims[0].width();
+		  unsigned total = ew * n;
+		  NetExpr*body = elaborate_stream_sfunc(des, scope, 0, total);
+		  if (!body)
+			return nullptr;
+
+		  long a_left = dims[0].get_msb();
+		  long a_right = dims[0].get_lsb();
+		  long a_step = (a_left <= a_right) ? 1 : -1;
+		  long a_low = std::min(a_left, a_right);
+		  std::vector<NetExpr*> elems(n, (NetExpr*)0);
+		  bool map_ok = true;
+		  for (unsigned i = 0; i < n && map_ok; i += 1) {
+			long declared_idx = a_left + a_step * (long)i;
+			unsigned canonical_idx =
+			      (unsigned)(declared_idx - a_low);
+			if (canonical_idx >= n) {
+			      map_ok = false;
+			      break;
+			}
+			NetEConst*base = new NetEConst(
+			      verinum((uint64_t)(total - (i+1)*ew), 32u));
+			base->set_line(*this);
+			NetESelect*sel = new NetESelect(
+			      body->dup_expr(), base, ew, et);
+			sel->set_line(*this);
+			elems[canonical_idx] = sel;
+		  }
+		  delete body;
+		  if (!map_ok) {
+			for (unsigned i = 0; i < n; i += 1)
+			      delete elems[i];
+			cerr << get_fileline() << ": internal error: cannot map "
+			     << "fixed unpacked-array range for dynamic streaming."
+			     << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+		  NetEArrayPattern*res = new NetEArrayPattern(type, elems);
+		  res->set_line(*this);
+		  return res;
 	    }
       }
 
@@ -3697,7 +3740,25 @@ static NetExpr* elaborate_stream_operand_(Design*des, NetScope*scope,
 			  && dynamic_cast<const netdarray_t*>(sr.net->net_type())) {
 			    NetESignal*sig = new NetESignal(sr.net);
 			    sig->set_line(*op);
-			    return sig;
+		      return sig;
+		      }
+		}
+
+		  // A dynamically-sized container can also be the result of
+		  // selecting through other containers and unpacked aggregate
+		  // members, for example assoc[key][i].payload.  The ordinary
+		  // identifier elaborator already builds the required chain of
+		  // NetESelect/NetEProperty nodes and preserves the final object
+		  // type.  Use that path here instead of restricting streaming
+		  // operands to bare container signals.
+		if (id) {
+		      NetExpr*obj = op->elaborate_expr(des, scope, w,
+						PExpr::NO_FLAGS);
+		      if (obj) {
+			    ivl_variable_type_t vt = ivl_type_base(obj->net_type());
+			    if (vt == IVL_VT_DARRAY || vt == IVL_VT_QUEUE)
+				  return obj;
+			    delete obj;
 		      }
 		}
 		cerr << op->get_fileline() << ": sorry: This form of "
@@ -9449,6 +9510,74 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 					  0);
 	    tmp->set_line(*this);
 	    return tmp;
+      }
+
+	/* IEEE 1800-2017 18.8: a named constraint's zero-argument
+	   constraint_mode() form returns its current active state.  This is
+	   distinct from obj.constraint_mode(), which queries no particular
+	   block, and from the one-argument setter handled in the task path. */
+      if (gn_system_verilog()
+	  && peek_tail_name(path_) == perm_string::literal("constraint_mode")
+	  && path_.name.size() >= 2 && parms_.empty()) {
+	    perm_string cname = std::next(path_.name.end(), -2)->name;
+	    NetExpr*obj_expr = nullptr;
+	    if (path_.name.size() == 2) {
+		  if (NetNet*this_net = find_implicit_this_handle(des, scope)) {
+			obj_expr = new NetESignal(this_net);
+			obj_expr->set_line(*this);
+		  }
+	    } else {
+		  pform_name_t obj_path;
+		  auto it = path_.name.begin();
+		  auto end_it = std::next(path_.name.end(), -2);
+		  for (; it != end_it; ++it)
+			obj_path.push_back(*it);
+
+		  symbol_search_results obj_sr;
+		  symbol_search(this, des, scope, obj_path, UINT_MAX, &obj_sr);
+		  if (obj_sr.net && obj_sr.path_tail.empty()) {
+			obj_expr = new NetESignal(obj_sr.net);
+			obj_expr->set_line(*this);
+		  } else {
+			PEIdent*obj_id = new PEIdent(obj_path, /*lexical_pos*/0);
+			obj_id->set_file(get_file());
+			obj_id->set_lineno(get_lineno());
+			obj_expr = obj_id->elaborate_expr(des, scope,
+						  /*expr_wid*/0u,
+						  /*flags*/0u);
+			delete obj_id;
+		  }
+	    }
+
+	    if (obj_expr) {
+		  const netclass_t*ctype =
+			dynamic_cast<const netclass_t*>(obj_expr->net_type());
+		  if (ctype) {
+			size_t cid = ctype->constraint_ir_count();
+			for (size_t ci = 0; ci < ctype->constraint_ir_count();
+			     ++ci) {
+			      if (ctype->constraint_ir_name(ci) == string(cname)) {
+				    cid = ci;
+				    break;
+			      }
+			}
+			if (cid < ctype->constraint_ir_count()) {
+			      NetEConst*ce = new NetEConst(
+				    verinum((uint64_t)cid, 32));
+			      ce->set_line(*this);
+			      NetESFunc*tmp = new NetESFunc(
+				    "$ivl_class_method$constraint_mode_get",
+				    IVL_VT_BOOL, 1, 2);
+			      tmp->set_line(*this);
+			      tmp->parm(0, obj_expr);
+			      tmp->parm(1, ce);
+			      return tmp;
+			}
+		  }
+		  delete obj_expr;
+	    }
+	      // A missing block remains an ordinary unresolved method and is
+	      // diagnosed by normal class-method resolution below.
       }
 
 	/* M3B-12: obj.field.rand_mode() called as a FUNCTION (IEEE

@@ -130,7 +130,8 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 		  atypes[idx] = &ffi_type_pointer;
 		  vals[idx].ptr = arg.sval;
 		  break;
-		case 'o': // svOpenArrayHandle: opaque pointer by value
+		case 'o': // dynamic/open svOpenArrayHandle
+		case 'O': // fixed unpacked-array svOpenArrayHandle
 		  atypes[idx] = &ffi_type_pointer;
 		  vals[idx].ptr = (const char*)arg.aval;
 		  break;
@@ -150,7 +151,7 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 	      // (seeded) typed slot; the callee writes through it.
 	      // Open arrays are already handles that share storage,
 	      // so direction changes nothing about their marshaling.
-	    if (arg.is_output && arg.type != 'o'
+	    if (arg.is_output && arg.type != 'o' && arg.type != 'O'
 		&& arg.type != 'V' && arg.type != 'W') {
 		  optrs[idx] = &vals[idx];
 		  atypes[idx] = &ffi_type_pointer;
@@ -536,17 +537,17 @@ int svHigh(const void*h, int dim)
 }
 
 /*
- * H.10.2: the increment is +1 when left <= right (ascending) and -1 when
- * left > right (descending). This returned a hardcoded -1, which is wrong
- * for EVERY array that can currently be marshaled, since they are all
- * ascending -- a C model stepping an index by svIncrement walked the wrong
- * way with no diagnostic. Derive it from the bounds instead.
+ * IEEE 1800-2017 H.10.2 uses the array-query $increment semantics: this is
+ * the right-to-left increment, +1 when left >= right and -1 otherwise. A
+ * traversal from left to right therefore subtracts svIncrement. The old
+ * natural-direction interpretation happened to work for ascending arrays
+ * but disagreed with both $increment and descending open arrays.
  */
 int svIncrement(const void*h, int dim)
 {
       int left  = svLeft(h, dim);
       int right = svRight(h, dim);
-      return (left <= right) ? 1 : -1;
+      return (left >= right) ? 1 : -1;
 }
 
 /*

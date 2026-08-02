@@ -1783,6 +1783,16 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%rand_mode/get %ld;\n", pid);
 	    return;
       }
+      if (strcmp(ivl_expr_name(expr),"$ivl_class_method$constraint_mode_get")==0) {
+	      /* IEEE 1800-2017 18.8: parm[0] = object,
+	       * parm[1] = named constraint id. */
+	    ivl_expr_t obj_arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
+	    ivl_expr_t cid_arg = (parm_count > 1) ? ivl_expr_parm(expr, 1) : 0;
+	    long cid = cid_arg ? get_number_immediate(cid_arg) : 0;
+	    if (obj_arg) draw_eval_object(obj_arg);
+	    fprintf(vvp_out, "    %%constraint_mode/get %ld;\n", cid);
+	    return;
+      }
       if (strcmp(ivl_expr_name(expr),"$ivl_class_method$randomize")==0
 	  || strncmp(ivl_expr_name(expr),"$ivl_class_method$randomize|",28)==0) {
 	    ivl_expr_t arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;

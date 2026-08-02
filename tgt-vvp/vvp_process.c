@@ -5353,7 +5353,26 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 	    int is_out = (ivl_signal_port(port) != IVL_SIP_INPUT);
 	    char letter = 0;
 
-	    if (ptype == IVL_VT_REAL) {
+	    if (ivl_signal_dimensions(port) > 0) {
+		    /* Fixed unpacked arrays use the svOpenArrayHandle ABI too.
+		       Materialize the inline word array before the call and copy
+		       it back below for output/inout directions. */
+		  int elem_ok = (ptype == IVL_VT_REAL)
+			|| ((ptype == IVL_VT_BOOL || ptype == IVL_VT_LOGIC)
+			    && pwid > 0);
+		  if (!elem_ok) {
+			fprintf(stderr, "%s:%u: sorry: DPI import '%s': "
+				"fixed unpacked array argument '%s' must have "
+				"packed bit/logic or real elements; the call is "
+				"skipped.\n",
+				ivl_scope_def_file(scope),
+				ivl_scope_def_lineno(scope), c_name,
+				ivl_signal_basename(port));
+			unsupported = 1;
+			break;
+		  }
+		  letter = 'O';
+	    } else if (ptype == IVL_VT_REAL) {
 		  letter = 'r';
 	    } else if (ptype == IVL_VT_STRING) {
 		  letter = 's';
@@ -5446,21 +5465,34 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  fprintf(vvp_out, "    %%load/real v%p_0;\n", (void*)port);
 	    else if (letter == 's')
 		  fprintf(vvp_out, "    %%load/str v%p_0;\n", (void*)port);
-	    else if (letter == 'o')
-		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", (void*)port);
+	    else if (letter == 'o' || letter == 'O') {
+		  if (ivl_signal_dimensions(port) > 0) {
+			unsigned kind;
+			if (!uarray_container_kind_(port, &kind,
+						 ivl_scope_def_file(scope),
+						 ivl_scope_def_lineno(scope))) {
+			      unsupported = 1;
+			      break;
+			}
+			emit_load_arr_dar_(port, kind);
+		  } else {
+			fprintf(vvp_out, "    %%load/obj v%p_0;\n", (void*)port);
+		  }
+	    }
 	    else
 		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", (void*)port);
 
-	      /* Open arrays share storage through the handle in both
-		 directions — no output prefix, no copy-back store. */
-	    if (is_out && letter != 'o')
+	      /* Return output/inout open-array objects as well: dynamic
+		 formals simply retain their shared object, while fixed formals
+		 unmarshal the temporary back into their inline words. */
+	    if (is_out)
 		  arg_types[types_pos++] = '+';
 	    if ((letter == 'b' || letter == 'h' || letter == 'i'
 		 || letter == 'l') && ! ivl_signal_signed(port))
 		  arg_types[types_pos++] = 'u';
 	    arg_types[types_pos++] = letter;
 
-	    if (is_out && letter != 'o') {
+	    if (is_out) {
 		  out_ports[nout] = port;
 		  out_kinds[nout] = letter;
 		  out_wids[nout] = pwid;
@@ -5518,6 +5550,18 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  break;
 		case 's':
 		  fprintf(vvp_out, "    %%store/str v%p_0;\n", (void*)port);
+		  break;
+		case 'o':
+		case 'O':
+		  if (ivl_signal_dimensions(port) > 0) {
+			unsigned kind;
+			if (uarray_container_kind_(port, &kind,
+						 ivl_scope_def_file(scope),
+						 ivl_scope_def_lineno(scope)))
+			      emit_store_arr_dar_(port, kind);
+		  } else {
+			fprintf(vvp_out, "    %%store/obj v%p_0;\n", (void*)port);
+		  }
 		  break;
 		case 'g':
 		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 1;\n",

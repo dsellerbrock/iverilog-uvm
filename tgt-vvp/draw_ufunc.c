@@ -295,6 +295,28 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
       if (port_is_unsupported_aggregate_formal_(port))
 	    return;
 
+	/* Whole fixed-array output/inout copy-back. Both sides use inline
+	   word storage, so marshal the formal through the same temporary
+	   container used by fixed<->dynamic assignment. This also covers a
+	   fixed unpacked-array DPI formal called from an SV wrapper. */
+      if (ivl_signal_dimensions(port) > 0
+	  && ivl_expr_type(actual) == IVL_EX_ARRAY
+	  && ivl_expr_signal(actual)
+	  && ivl_signal_dimensions(ivl_expr_signal(actual)) > 0) {
+	    ivl_signal_t asig = ivl_expr_signal(actual);
+	    unsigned pkind, akind;
+	    if (uarray_container_kind_(port, &pkind,
+				       ivl_expr_file(actual),
+				       ivl_expr_lineno(actual))
+		&& uarray_container_kind_(asig, &akind,
+					 ivl_expr_file(actual),
+					 ivl_expr_lineno(actual))) {
+		  emit_load_arr_dar_(port, pkind);
+		  emit_store_arr_dar_(asig, akind);
+	    }
+	    return;
+      }
+
       /* Phase 63b/B6 (gap close): unwrap a single-level IVL_EX_SELECT
          that's just a width/sign cast wrapping an IVL_EX_PROPERTY.
          iverilog emits this when `uvm_config_db#(T)::get(this, "",

@@ -3582,6 +3582,25 @@ bool of_CONSTRAINT_MODE(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %constraint_mode/get N
+ *
+ * Read constraint_mode for constraint index N of the cobject on the
+ * object stack and push the result as a 32-bit value.
+ */
+bool of_CONSTRAINT_MODE_GET(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+
+      bool st = cobj && cobj->constraint_mode(cp->number);
+      vvp_vector4_t result(32, BIT4_0);
+      result.set_bit(0, st ? BIT4_1 : BIT4_0);
+      thr->push_vec4(result);
+      return true;
+}
+
+/*
  * %rand_mode
  *
  * Set rand_mode for all rand properties of the cobject on the object stack.
@@ -9785,7 +9804,8 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		case 'g':
 		  arg.ival = dpi_pop_logic_(thr);
 		  break;
-		case 'o': {
+		case 'o':
+		case 'O': {
 		      thr->pop_object(obj_store[slot]);
 		      vvp_dpi_open_array_t&arr = arr_store[slot];
 		      arr.data = 0;
@@ -9798,8 +9818,9 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		      arr.left = 0;
 		      arr.right = 0;
 	      vvp_darray*da = obj_store[slot].peek<vvp_darray>();
-	      if (da && da->sv_uses_declared_indexing()
-		  && da->dpi_has_decl_range()) {
+	      if (da && da->dpi_has_decl_range()
+		  && (sig[slot].base == 'O'
+		      || da->sv_uses_declared_indexing())) {
 			      /* M10-1: marshaled from a fixed-size array, so
 				 dimension 1 reports that array's declared
 				 range (H.10.2). */
@@ -9945,6 +9966,8 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		case 'r': thr->push_real(args[ii].rval);          break;
 		case 's': thr->push_str(args[ii].sval ? args[ii].sval : "");
 			  break;
+		case 'o':
+		case 'O': thr->push_object(obj_store[ii]);              break;
 		case 'V':
 		case 'W': {
 			/* Unpack the (callee-updated) packed buffer back into
@@ -16317,10 +16340,8 @@ bool of_PROCESS_RESUME(vthread_t thr, vvp_code_t)
       return true;
 }
 
-bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)
+static vvp_object_t make_darray_for_enc_(const char*text, size_t size)
 {
-      const char*text = cp->text;
-      size_t size = thr->words[cp->bit_idx[0]].w_int;
       unsigned word_wid;
       size_t n;
 
@@ -16360,14 +16381,93 @@ bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)
       } else if (strcmp(text,"o") == 0) {
 	    obj = new vvp_darray_object(size);
       } else {
-	    cerr << get_fileline()
-	         << "Internal error: Unsupported dynamic array type: "
-	         << text << "." << endl;
-	    assert(0);
+            return vvp_object_t();
+      }
+
+      return obj;
+}
+
+bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)
+{
+      const char*text = cp->text;
+      size_t size = thr->words[cp->bit_idx[0]].w_int;
+      vvp_object_t obj = make_darray_for_enc_(text, size);
+      if (obj.test_nil()) {
+            cerr << get_fileline()
+                 << "Internal error: Unsupported dynamic array type: "
+                 << text << "." << endl;
+            assert(0);
       }
 
       thr->push_object(obj);
 
+      return true;
+}
+
+/*
+ * %queue/to/darray "<element-encoding>"
+ *
+ * Finish an unpacked-array concatenation whose runtime-sized operands were
+ * accumulated in a temporary queue. Pops the queue and pushes a new dynamic
+ * array with the same elements, preserving the declared container kind for
+ * later indexing and DPI operations (IEEE 1800-2017 7.5 and 10.10).
+ */
+bool of_QUEUE_TO_DARRAY(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t src_obj;
+      thr->pop_object(src_obj);
+      vvp_darray*src = src_obj.peek<vvp_darray>();
+      size_t size = src ? src->get_size() : 0;
+      vvp_object_t dst_obj = make_darray_for_enc_(cp->text, size);
+      vvp_darray*dst = dst_obj.peek<vvp_darray>();
+
+      if (!dst) {
+            cerr << get_fileline()
+                 << "Internal error: Unsupported dynamic array type: "
+                 << cp->text << "." << endl;
+            assert(0);
+      }
+
+      if (src) {
+            unsigned word_wid = 0;
+            size_t n = 0;
+            bool is_real = strcmp(cp->text, "r") == 0;
+            bool is_string = strcmp(cp->text, "S") == 0;
+            bool is_object = strcmp(cp->text, "o") == 0;
+            bool is_vector =
+                  ((1 == sscanf(cp->text, "b%u%zn", &word_wid, &n))
+                   && n == strlen(cp->text))
+                  || ((1 == sscanf(cp->text, "sb%u%zn", &word_wid, &n))
+                      && n == strlen(cp->text))
+                  || ((1 == sscanf(cp->text, "v%u%zn", &word_wid, &n))
+                      && n == strlen(cp->text))
+                  || ((1 == sscanf(cp->text, "sv%u%zn", &word_wid, &n))
+                      && n == strlen(cp->text));
+
+            for (size_t idx = 0; idx < size; idx += 1) {
+                  if (is_real) {
+                        double value = 0.0;
+                        src->get_word(idx, value);
+                        dst->set_word(idx, value);
+                  } else if (is_string) {
+                        string value;
+                        src->get_word(idx, value);
+                        dst->set_word(idx, value);
+                  } else if (is_object) {
+                        vvp_object_t value;
+                        src->get_word(idx, value);
+                        dst->set_word(idx, value.value_copy_element());
+                  } else if (is_vector) {
+                        vvp_vector4_t value(word_wid, BIT4_X);
+                        src->get_word(idx, value);
+                        dst->set_word(idx, value);
+                  }
+            }
+            if (src->elem_class())
+                  dst->set_elem_class(src->elem_class());
+      }
+
+      thr->push_object(dst_obj);
       return true;
 }
 

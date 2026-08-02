@@ -4279,7 +4279,9 @@ static NetProc* make_uarray_copy_loop_(Design*des, NetScope*scope,
 				       unsigned long count,
 				       NetNet*src_sig,
 				       const NetEProperty*src_prop,
-				       bool nonblocking = false)
+				       bool nonblocking = false,
+				       long dst_base = 0,
+				       long src_base = 0)
 {
       (void)des;
 
@@ -4303,21 +4305,29 @@ static NetProc* make_uarray_copy_loop_(Design*des, NetScope*scope,
       NetAssign*step = new NetAssign(step_lv, '+', step_val);
       step->set_line(loc);
 
-      NetESignal*lv_word = new NetESignal(idx_sig);
-      lv_word->set_line(loc);
-      lv->set_word(lv_word);
+      auto word_index = [&](long base) -> NetExpr* {
+	    NetESignal*idx = new NetESignal(idx_sig);
+	    idx->set_line(loc);
+	    if (base == 0)
+		  return idx;
+	    NetEConst*off = make_const_val_s(base);
+	    off->set_line(loc);
+	    NetEBAdd*sum = new NetEBAdd('+', idx, off, 32, true);
+	    sum->set_line(loc);
+	    return sum;
+      };
+
+      lv->set_word(word_index(dst_base));
 
       NetExpr*elem_rv = 0;
       if (src_sig) {
-	    NetESignal*rv_word = new NetESignal(idx_sig);
-	    rv_word->set_line(loc);
+	    NetExpr*rv_word = word_index(src_base);
 	    NetESignal*tmp = new NetESignal(src_sig, rv_word);
 	    tmp->set_line(loc);
 	    elem_rv = tmp;
       } else {
 	    ivl_assert(loc, src_prop);
-	    NetESignal*rv_word = new NetESignal(idx_sig);
-	    rv_word->set_line(loc);
+	    NetExpr*rv_word = word_index(src_base);
 	    NetEProperty*tmp;
 	    if (const NetExpr*base = src_prop->get_base())
 		  tmp = new NetEProperty(base->dup_expr(),
@@ -4346,6 +4356,62 @@ static NetProc* make_uarray_copy_loop_(Design*des, NetScope*scope,
 	    bl->set_line(loc);
 	    body = bl;
       }
+
+      NetForLoop*loop = new NetForLoop(idx_sig, init_expr, cond_expr,
+				       body, step);
+      loop->set_line(loc);
+      return loop;
+}
+
+/* Copy a contiguous run of canonical words between two fixed unpacked
+ * array signals. This is the aggregate equivalent of the scalar copy loop
+ * above, with explicit source and destination bases so a subroutine actual
+ * such as a[3:10] can be materialized and copied back without pretending
+ * the slice is a packed part select. */
+static NetProc* make_uarray_signal_slice_copy_loop_(NetScope*scope,
+						    const LineInfo&loc,
+						    NetNet*dst_sig, long dst_base,
+						    NetNet*src_sig, long src_base,
+						    unsigned long count)
+{
+      NetNet*idx_sig = new NetNet(scope, scope->local_symbol(),
+				  NetNet::REG, &netvector_t::atom2s32);
+      idx_sig->local_flag(true);
+      idx_sig->set_line(loc);
+
+      NetEConst*init_expr = make_const_val_s(0);
+      init_expr->set_line(loc);
+
+      NetESignal*cond_idx = new NetESignal(idx_sig);
+      cond_idx->set_line(loc);
+      NetEConst*count_expr = make_const_val_s(count);
+      count_expr->set_line(loc);
+      NetEBComp*cond_expr = new NetEBComp('<', cond_idx, count_expr);
+      cond_expr->set_line(loc);
+
+      NetAssign_*step_lv = new NetAssign_(idx_sig);
+      NetEConst*step_val = make_const_val_s(1);
+      NetAssign*step = new NetAssign(step_lv, '+', step_val);
+      step->set_line(loc);
+
+      auto word_index = [&](long base) -> NetExpr* {
+	    NetESignal*idx = new NetESignal(idx_sig);
+	    idx->set_line(loc);
+	    if (base == 0)
+		  return idx;
+	    NetEConst*off = make_const_val_s(base);
+	    off->set_line(loc);
+	    NetEBAdd*sum = new NetEBAdd('+', idx, off, 32, true);
+	    sum->set_line(loc);
+	    return sum;
+      };
+
+      NetAssign_*lv = new NetAssign_(dst_sig);
+      lv->set_word(word_index(dst_base));
+      NetESignal*rv = new NetESignal(src_sig, word_index(src_base));
+      rv->set_line(loc);
+      NetAssign*body = new NetAssign(lv, rv);
+      body->set_line(loc);
 
       NetForLoop*loop = new NetForLoop(idx_sig, init_expr, cond_expr,
 				       body, step);
@@ -9528,6 +9594,178 @@ static void warn_ref_companion_fork_hazard_(const LineInfo*call_loc,
 	   << "lifetime." << endl;
 }
 
+struct subroutine_uarray_slice_actual_t {
+      bool valid = false;
+      NetNet*sig = 0;
+      NetNet*property_owner = 0;
+      int property_idx = -1;
+      perm_string property_name;
+      long base = 0;
+      unsigned long count = 0;
+      netranges_t dims;
+      ivl_type_t element_type = 0;
+};
+
+/* Recognize a constant one-dimensional unpacked-array slice used as a
+ * subroutine actual (IEEE 1800-2017 7.4.6, 13.5.1/13.5.2). Packed part
+ * selects continue through the ordinary expression path. Return -1 after a
+ * diagnosed malformed unpacked slice, 0 when this is not this shape, and 1
+ * with a canonical base/count description on success. */
+static int decode_subroutine_uarray_slice_actual_(
+		Design*des, NetScope*scope, const LineInfo&loc,
+		const PExpr*actual, subroutine_uarray_slice_actual_t&out)
+{
+      const PEIdent*id = dynamic_cast<const PEIdent*>(actual);
+      if (!id || id->path().name.empty())
+	    return 0;
+
+      const name_component_t&tail = id->path().name.back();
+      if (tail.index.size() != 1
+	  || tail.index.front().sel != index_component_t::SEL_PART)
+	    return 0;
+
+      symbol_search_results sr;
+      bool found = symbol_search(&loc, des, scope, id->path(),
+				 id->lexical_pos(), &sr);
+      const netranges_t*source_dims = 0;
+      ivl_type_t element_type = 0;
+      perm_string source_name;
+      if (found && sr.net && sr.path_tail.empty()
+	  && sr.net->unpacked_dimensions() == 1) {
+	    out.sig = sr.net;
+	    source_dims = &sr.net->unpacked_dims();
+	    element_type = sr.net->net_type();
+	    source_name = sr.net->name();
+	  } else if (id->path().name.size() == 1) {
+	      // A bare non-static property inside one of its class methods,
+	      // e.g. exp_digest[0:7] in the OpenTitan scoreboard. It is
+	      // stored as inline property words and therefore has no sr.net.
+	    const netclass_t*cls = find_class_containing_scope(loc, scope);
+	    int pidx = cls ? cls->property_idx_from_name(tail.name) : -1;
+	    ivl_type_t ptype = pidx >= 0 ? cls->get_prop_type(pidx) : 0;
+	    const netuarray_t*ua =
+		  dynamic_cast<const netuarray_t*>(ptype);
+	    NetNet*this_net = ua ? find_implicit_this_handle(des, scope) : 0;
+	    if (!ua || ua->static_dimensions().size() != 1 || !this_net)
+		  return 0;
+	    out.property_owner = this_net;
+	    out.property_idx = pidx;
+	    out.property_name = tail.name;
+	    source_dims = &ua->static_dimensions();
+	    element_type = ua->element_type();
+	    source_name = tail.name;
+	  } else {
+	    return 0;
+	  }
+
+      const index_component_t&part = tail.index.front();
+      NetExpr*left_expr = elab_and_eval(des, scope, part.msb, -1, true);
+      NetExpr*right_expr = elab_and_eval(des, scope, part.lsb, -1, true);
+      long left = 0, right = 0;
+      bool bounds_ok = left_expr && right_expr
+	    && eval_as_long(left, left_expr) && eval_as_long(right, right_expr);
+      delete left_expr;
+      delete right_expr;
+      if (!bounds_ok) {
+	    cerr << loc.get_fileline() << ": error: an unpacked-array slice "
+		 << "used as a subroutine argument must have constant integral "
+		 << "bounds." << endl;
+	    des->errors += 1;
+	    return -1;
+      }
+
+      ivl_assert(loc, source_dims && source_dims->size() == 1);
+      long source_left = source_dims->front().get_msb();
+      long source_right = source_dims->front().get_lsb();
+      long source_low = std::min(source_left, source_right);
+      long source_high = std::max(source_left, source_right);
+      long slice_low = std::min(left, right);
+      long slice_high = std::max(left, right);
+      if (slice_low < source_low || slice_high > source_high) {
+	    cerr << loc.get_fileline() << ": error: unpacked-array slice ["
+		 << left << ":" << right << "] is outside the declared range ["
+		 << source_left << ":" << source_right << "] of '"
+		 << source_name << "'." << endl;
+	    des->errors += 1;
+	    return -1;
+      }
+
+      out.valid = true;
+      out.base = slice_low - source_low;
+      out.count = static_cast<unsigned long>(slice_high - slice_low) + 1;
+      out.dims.push_back(netrange_t(left, right));
+      out.element_type = element_type;
+      return 1;
+}
+
+static NetNet* make_subroutine_uarray_slice_temp_(
+		NetScope*scope, const LineInfo&loc,
+		const subroutine_uarray_slice_actual_t&slice)
+{
+      NetNet*tmp = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+			      slice.dims, slice.element_type);
+      tmp->set_line(loc);
+      tmp->local_flag(true);
+      if (scope->is_auto())
+	    tmp->lifetime_override(IVL_VLT_AUTOMATIC);
+      return tmp;
+}
+
+static bool subroutine_uarray_slice_matches_formal_(
+		const subroutine_uarray_slice_actual_t&slice, const NetNet*port)
+{
+      if (const netuarray_t*fixed =
+	    dynamic_cast<const netuarray_t*>(port->array_type()))
+	    return uarray_copy_shapes_compatible_(fixed, slice.count,
+					     slice.element_type);
+
+      if (const netdarray_t*open =
+	    dynamic_cast<const netdarray_t*>(port->net_type())) {
+	    netuarray_t slice_type(slice.dims, slice.element_type);
+	    return uarray_element_matches_container_(&slice_type, open);
+      }
+      return false;
+}
+
+static NetProc* copy_subroutine_uarray_slice_to_signal_(
+		Design*des, NetScope*scope, const LineInfo&loc,
+		NetNet*dst, long dst_base,
+		const subroutine_uarray_slice_actual_t&slice)
+{
+      if (slice.sig)
+	    return make_uarray_signal_slice_copy_loop_(
+		  scope, loc, dst, dst_base,
+		  slice.sig, slice.base, slice.count);
+
+      ivl_assert(loc, slice.property_owner && slice.property_idx >= 0);
+      NetESignal*owner = new NetESignal(slice.property_owner);
+      owner->set_line(loc);
+      NetEProperty*src = new NetEProperty(owner, slice.property_idx, 0);
+      src->set_line(loc);
+      NetProc*copy = make_uarray_copy_loop_(
+	    des, scope, loc, new NetAssign_(dst), slice.count,
+	    0, src, false, dst_base, slice.base);
+      delete src;
+      return copy;
+}
+
+static NetProc* copy_signal_to_subroutine_uarray_slice_(
+		Design*des, NetScope*scope, const LineInfo&loc,
+		const subroutine_uarray_slice_actual_t&slice,
+		NetNet*src, long src_base)
+{
+      if (slice.sig)
+	    return make_uarray_signal_slice_copy_loop_(
+		  scope, loc, slice.sig, slice.base,
+		  src, src_base, slice.count);
+
+      ivl_assert(loc, slice.property_owner && slice.property_idx >= 0);
+      NetAssign_*dst = new NetAssign_(slice.property_owner);
+      dst->set_property(slice.property_name, slice.property_idx);
+      return make_uarray_copy_loop_(des, scope, loc, dst, slice.count,
+				     src, 0, false, slice.base, src_base);
+}
+
 NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 					  NetScope*task, NetExpr*use_this,
 					  bool super_call) const
@@ -9725,11 +9963,66 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	   this records that temporary. */
       vector<NetNet*> copy_via (parm_count, static_cast<NetNet*>(0));
       vector<bool> ref_bound (parm_count, false);
+      vector<subroutine_uarray_slice_actual_t> slice_actuals (parm_count);
+      vector<NetNet*> slice_temps (parm_count, static_cast<NetNet*>(0));
       for (unsigned int idx = off; idx < parm_count; idx++) {
 	    size_t parms_idx = idx - off;
 
 	    NetNet*port = def->port(idx);
 	    ivl_assert(*this, port->port_type() != NetNet::NOT_A_PORT);
+
+	      /* An unpacked-array slice is an aggregate actual, not an
+		 unpacked word followed by a packed part select. Materialize
+		 open-array formals through a fixed temporary so their shape and
+		 declared bounds survive into SV/DPI, and use direct canonical
+		 word copies for fixed formals. The same description is retained
+		 for the direction-correct copy-back below. */
+	    int slice_kind = args[parms_idx]
+		  ? decode_subroutine_uarray_slice_actual_(
+			des, scope, *this, args[parms_idx], slice_actuals[idx])
+		  : 0;
+	    if (slice_kind < 0)
+		  continue;
+	    if (slice_kind > 0) {
+		  const subroutine_uarray_slice_actual_t&slice =
+			slice_actuals[idx];
+		  if (!subroutine_uarray_slice_matches_formal_(slice, port)) {
+			cerr << get_fileline() << ": error: unpacked-array slice "
+			     << "actual for subroutine port " << (idx+1)
+			     << " is not assignment compatible with the formal."
+			     << endl;
+			des->errors += 1;
+			continue;
+		  }
+
+		  const netuarray_t*fixed_formal =
+			dynamic_cast<const netuarray_t*>(port->array_type());
+		  const netdarray_t*open_formal =
+			dynamic_cast<const netdarray_t*>(port->net_type());
+		  bool needs_copy_in = port->port_type() != NetNet::POUTPUT
+			|| open_array_formal_needs_copy_in_(port);
+
+		  if (open_formal) {
+			NetNet*tmp = make_subroutine_uarray_slice_temp_(
+			      scope, *this, slice);
+			slice_temps[idx] = tmp;
+			if (needs_copy_in) {
+			      block->append(copy_subroutine_uarray_slice_to_signal_(
+				    des, scope, *this, tmp, 0, slice));
+			      NetESignal*rv = new NetESignal(tmp);
+			      rv->set_line(*this);
+			      NetAssign*copy = new NetAssign(new NetAssign_(port), rv);
+			      copy->set_line(*this);
+			      block->append(copy);
+			}
+		  } else {
+			ivl_assert(*this, fixed_formal);
+			if (needs_copy_in)
+			      block->append(copy_subroutine_uarray_slice_to_signal_(
+				    des, scope, *this, port, 0, slice));
+		  }
+		  continue;
+	    }
 
 	      /* A `ref' formal is not a copy (IEEE 1800-2017 13.5.2): it
 		 is another name for the actual. Bind it here -- where
@@ -9890,6 +10183,30 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    if (ref_bound[idx])
 		  continue;
 
+	      /* Direction-correct companion of the slice copy-in above.
+		 Fixed formals can be copied straight back into the selected
+		 canonical words. An open formal first copies into the fixed
+		 temporary (the existing container-to-fixed lowering) and the
+		 temporary then copies into the caller's slice. */
+	    if (slice_actuals[idx].valid) {
+		  const subroutine_uarray_slice_actual_t&slice =
+			slice_actuals[idx];
+		  NetNet*copy_src = copy_via[idx] ? copy_via[idx] : port;
+		  if (dynamic_cast<const netdarray_t*>(copy_src->net_type())) {
+			NetNet*tmp = slice_temps[idx];
+			ivl_assert(*this, tmp);
+			NetESignal*rv = new NetESignal(copy_src);
+			rv->set_line(*this);
+			NetAssign*to_tmp = new NetAssign(new NetAssign_(tmp), rv);
+			to_tmp->set_line(*this);
+			block->append(to_tmp);
+			copy_src = tmp;
+		  }
+		  block->append(copy_signal_to_subroutine_uarray_slice_(
+			des, scope, *this, slice, copy_src, 0));
+		  continue;
+	    }
+
 
 	      /* Elaborate an l-value version of the port expression
 		 for output and inout ports. If the expression does
@@ -9951,6 +10268,25 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		  ivl_variable_type_t src_vt = copy_src->data_type();
 		  bool plain_signal_dst = (lv->get_property_idx() < 0)
 			&& (lv->more == 0) && !lv->word() && lv->sig();
+		    /* Fixed formal -> whole fixed actual. The formal's
+		       data_type() is its ELEMENT type, so the container-only
+		       branch below cannot recognize this aggregate and the
+		       generic vector assignment reaches tgt-vvp as
+		       IVL_EX_ARRAY-in-a-vector-context. Copy canonical words
+		       directly, preserving output/inout function-as-statement
+		       calls such as fixed-array DPI wrappers. */
+		  if (copy_src->unpacked_dimensions() == 1) {
+			const netuarray_t*src_ua =
+			      dynamic_cast<const netuarray_t*>(copy_src->array_type());
+			unsigned long count = copy_src->unpacked_count();
+			if (src_ua && uarray_copy_shapes_compatible_(
+				      lv_ua, count, copy_src->net_type())) {
+			      block->append(make_uarray_copy_loop_(
+				    des, scope, *this, lv, count,
+				    copy_src, 0));
+			      continue;
+			}
+		  }
 		  if (plain_signal_dst
 		      && (src_vt == IVL_VT_DARRAY || src_vt == IVL_VT_QUEUE)) {
 			const netdarray_t*src_da =
@@ -17640,8 +17976,46 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      else if (const netvector_t*svt =
 						 dynamic_cast<const netvector_t*>(source_type))
 					    src_w = svt->packed_width();
+				      unsigned selected_width = 0;
 				      if (const PEIdent*spe =
 					    dynamic_cast<const PEIdent*>(cp.expr)) {
+					    if (!spe->path().name.empty()) {
+						  const name_component_t&tail =
+							spe->path().name.back();
+						  if (!tail.index.empty()) {
+							const index_component_t&sel =
+							      tail.index.back();
+							if (sel.sel == index_component_t::SEL_BIT) {
+							      selected_width = 1;
+							} else if (sel.sel == index_component_t::SEL_PART
+								   || sel.sel == index_component_t::SEL_IDX_UP
+								   || sel.sel == index_component_t::SEL_IDX_DO) {
+							      NetExpr*lo_e = elab_and_eval(
+								    des, class_scope_, sel.lsb,
+								    -1, false, false);
+							      NetEConst*lo_c =
+								    dynamic_cast<NetEConst*>(lo_e);
+							      if (sel.sel == index_component_t::SEL_PART) {
+								    NetExpr*hi_e = elab_and_eval(
+									  des, class_scope_, sel.msb,
+									  -1, false, false);
+								    NetEConst*hi_c =
+									  dynamic_cast<NetEConst*>(hi_e);
+								    if (lo_c && hi_c) {
+									  uint64_t lo = lo_c->value().as_ulong64();
+									  uint64_t hi = hi_c->value().as_ulong64();
+									  selected_width = (unsigned)
+										(hi >= lo ? hi-lo+1 : lo-hi+1);
+								    }
+								    delete hi_e;
+							      } else if (lo_c) {
+								    selected_width = (unsigned)
+									  lo_c->value().as_ulong64();
+							      }
+							      delete lo_e;
+							}
+						  }
+					    }
 					      // Resolve the complete identifier path first.
 					      // This preserves member types for sources such
 					      // as `item.data`, `cfg.en_parity`, and enum
@@ -17692,6 +18066,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							      src_enum = set_;
 						  }
 					    }
+				      }
+				      if (selected_width > 0) {
+					    src_enum = nullptr;
+					    src_w = selected_width;
 				      }
 				      if (getenv("IVL_COV_TRACE")) {
 					    cerr << "[cov-source-trace] " << cgdef->name
@@ -18039,12 +18417,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    rsizes[k] = d.ranges.size() ? d.ranges.size() : 1;
 					    nrt *= rsizes[k];
 				      }
-				      if (nrt > 256) {
+				      static const uint64_t cross_range_tuple_limit = 65536;
+				      if (nrt > cross_range_tuple_limit) {
 					    cerr << "sorry: a cross product bin of '"
 						 << (cross.label.nil() ? "(unnamed)"
 								       : cross.label.str())
 						 << "' spans " << nrt << " range tuples "
-						 << "(limit 256); the product bin never "
+						 << "(limit " << cross_range_tuple_limit
+						 << "); the product bin never "
 						 << "matches." << endl;
 					    nrt = 0;
 				      }
@@ -18100,13 +18480,21 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				this);
 			  cg_class->set_covgrp_parent_prop((int)prop_idx);
 			  prop_idx++;
-			  for (unsigned ci = 0; ci < cg_class->covgrp_ncoverpoints(); ci++) {
-				if (cg_class->covgrp_cp_srcprop(ci) < 0)
-				      cerr << "sorry: covergroup '" << cgdef->name
-					   << "' coverpoint " << (ci+1)
-					   << " is not backed by a parent-class "
-					   << "property; event-driven sampling "
-					   << "records constant 0 for it." << endl;
+			    // Only an implicit sampling process needs to read the
+			    // coverpoint source through a parent property. Set bins
+			    // also need the hidden parent handle, but are evaluated by
+			    // explicit sample() and may legally use an expression that
+			    // is not a direct property. Do not diagnose those as an
+			    // event-driven constant-zero source.
+			  if (!cgdef->sample_events.empty()) {
+				for (unsigned ci = 0; ci < cg_class->covgrp_ncoverpoints(); ci++) {
+				      if (cg_class->covgrp_cp_srcprop(ci) < 0)
+					    cerr << "sorry: covergroup '" << cgdef->name
+						 << "' coverpoint " << (ci+1)
+						 << " is not backed by a parent-class "
+						 << "property; event-driven sampling "
+						 << "records constant 0 for it." << endl;
+				}
 			  }
 		    }
 
