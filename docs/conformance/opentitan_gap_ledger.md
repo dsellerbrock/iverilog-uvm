@@ -9,6 +9,10 @@ Narrative, toolchain recipe and per-IP measurements live in
 is the flat list: what is wrong, why, whether it is fixed, and the smallest
 input that shows it.
 
+The current upstream campaign is driven by the reproducible synthesis/SVA/UVM/
+runtime census in [`opentitan_matrix.md`](opentitan_matrix.md); its JSON output
+keeps build/topology failures separate from compiler conformance defects.
+
 Every entry is an **IEEE 1800 conformance gap or a compiler defect**, not an
 OpenTitan-specific accommodation. Several break ordinary RTL that has nothing
 to do with OpenTitan; those are marked **[general]**.
@@ -29,6 +33,16 @@ method calls, constraint loss, interface typing, covergroup members, queue/ref
 semantics, assertion binding and NBA scheduling. Each is a ledger item to fix or
 turn into a strict error; none may be ignored for the final zero-debt gate. The
 canonical post-corpus plan is M14B in [`ROADMAP.md`](ROADMAP.md).
+
+The first durable matrix inventory at this revision contains 270 RTL jobs,
+54 standalone SVA/formal jobs and 80 UVM simulation jobs (plus the same 80 as
+runtime jobs). The ADC-control witness currently reports RTL `DEBT`, SVA
+`FAIL`, and UVM `DEBT`; details and exact pass criteria are recorded in
+[`opentitan_matrix.md`](opentitan_matrix.md). The SVA hard error is currently a
+corpus topology mismatch: the formal target elaborates `adc_ctrl` while its SVA
+source directly names `tb.dut`. It is not being counted as an IEEE compiler gap
+unless an equivalent standard-valid, self-contained reproducer demonstrates
+one.
 
 ## How to read the status column
 
