@@ -147,7 +147,8 @@ class class_type : public __vpiHandle {
 	    uint64_t lo;         // wildcard: value
 	    uint64_t hi;         // wildcard: care mask
 	    // kind & 7: 0=normal, 1=ignore, 2=illegal, 3=default,
-	    //           4=transition step (tuple = (seq<<8)|step)
+	    //           4=transition step (tuple = (seq<<8)|step),
+	    //           5=illegal default, 6=ignore default
 	    // kind & 8: wildcard match ((v ^ lo) & hi == 0)
 	    unsigned kind = 0;
 	    unsigned tuple = 0;

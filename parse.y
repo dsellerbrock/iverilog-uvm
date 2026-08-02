@@ -3009,6 +3009,41 @@ bins_item
 	delete[] $2;
 	$$ = b;
       }
+  /* A set_covergroup_expression yielding an unpacked array or queue. */
+  | bins_keyword bins_name '[' ']' '=' IDENTIFIER ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	b->arrayed = true;
+	b->set_expr = new PEIdent(lex_strings.make($6), @6.lexical_pos);
+	FILE_NAME(b->set_expr, @6);
+	delete[] $6;
+	delete[] $2;
+	$$ = b;
+      }
+  | bins_keyword bins_name '[' expression ']' '=' IDENTIFIER ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	b->arrayed = true;
+	b->array_size = $4;
+	b->set_expr = new PEIdent(lex_strings.make($7), @7.lexical_pos);
+	FILE_NAME(b->set_expr, @7);
+	delete[] $7;
+	delete[] $2;
+	$$ = b;
+      }
+  /* Values of a named coverpoint selected by a with(item) predicate. */
+  | bins_keyword bins_name '=' bins_name K_with '(' expression ')' ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	b->source_coverpoint = lex_strings.make($4);
+	b->with_expr = $7;
+	delete[] $2;
+	delete[] $4;
+	$$ = b;
+      }
   /* Transition bins: bins b = (v => v), (v => v => v), ...; */
   | bins_keyword bins_name '=' transition_seq_list ';'
       { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
@@ -3029,17 +3064,12 @@ bins_item
 	delete[] $2;
 	$$ = b;
       }
-  /* Default bins: bins b = default; — catch-all, excluded from coverage */
+  /* Default bins compose with all three bin kinds. */
   | bins_keyword bins_name '=' K_default ';'
       { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
 	b->name = lex_strings.make($2);
-	if ($1 == 0) {
-	      b->kind = class_type_t::pform_cov_bins_t::BIN_DEFAULT;
-	} else {
-	      cerr << @4 << ": sorry: ignore/illegal 'default' bins are "
-		   << "not supported; the bin is ignored." << endl;
-	      b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
-	}
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	b->is_default = true;
 	delete[] $2;
 	$$ = b;
       }

@@ -16927,6 +16927,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    unsigned prop_idx = cg_class->get_properties();
 		    unsigned cp_idx  = 0;
 		    unsigned dyn_family = 0;
+		    bool has_parent_set_bins = false;
 		      // A coverpoint expression may combine sample() formals
 		      // (for example {valid, ready}). Bind typed placeholder
 		      // signals while sizing the expression so ordinary expression
@@ -17209,20 +17210,168 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      continue;
 				}
 
-				if (base_kind == 3) { // default bin
+				if (bin.is_default || base_kind == 3) {
+				        // Runtime kinds 5 and 6 are the complements of all
+				        // ordinary bins in the item.  Keeping these distinct
+				        // preserves illegal_bins/ignore_bins = default.
+				      unsigned default_kind = base_kind == 2 ? 5u
+							    : base_kind == 1 ? 6u : 3u;
 				      perm_string bpp = lex_strings.make(bstem.c_str());
 				      cg_class->set_property(bpp,
-						property_qualifier_t::make_none(),
-						&netvector_t::atom2s32);
-				      cg_class->add_covgrp_bin(cp_idx, prop_idx,
+						    property_qualifier_t::make_none(),
+						    &netvector_t::atom2s32);
+				      unsigned default_prop = prop_idx++;
+				      cg_class->add_covgrp_bin(cp_idx, default_prop,
 							       0, ~(uint64_t)0,
-							       3u, 0, cp_idx);
-				      prop_idx++;
+							       default_kind, 0, cp_idx);
+				      continue;
+				}
+
+				if (bin.set_expr) {
+				        // A set_covergroup_expression is immutable for the
+				        // lifetime of a legal covergroup instance.  Preserve a
+				        // direct integral container property as compact runtime
+				        // metadata instead of flattening it at declaration time.
+				      const PEIdent*sid = dynamic_cast<const PEIdent*>(bin.set_expr);
+				      int set_prop = -1;
+				      bool set_on_parent = false;
+				      ivl_type_t set_type = nullptr;
+				      if (sid && sid->path().size() == 1) {
+					    perm_string set_name = peek_head_name(sid->path());
+					    for (size_t ci = 0; ci < cgdef->ctor_formals.size(); ci++) {
+						  if (cgdef->ctor_formals[ci] != set_name) continue;
+						  set_prop = cg_class->property_idx_from_name(set_name);
+						  if (set_prop >= 0)
+							set_type = cg_class->get_prop_type((size_t)set_prop);
+						  break;
+					    }
+					    if (set_prop < 0 && !cg_standalone) {
+						  set_prop = property_idx_from_name(set_name);
+						  if (set_prop >= 0) {
+							set_on_parent = true;
+							set_type = get_prop_type((size_t)set_prop);
+						  }
+					    }
+				      }
+				      const netdarray_t*set_array_type =
+					    dynamic_cast<const netdarray_t*>(set_type);
+				      bool integral_set = set_array_type
+					    && (set_array_type->element_base_type() == IVL_VT_BOOL
+						|| set_array_type->element_base_type() == IVL_VT_LOGIC);
+				      uint64_t set_array_size = bin.arrayed ? 0
+							      : ~(uint64_t)0;
+				      if (bin.arrayed && bin.array_size) {
+					    NetExpr*se = elab_and_eval(des, class_scope_,
+							       bin.array_size, -1,
+							       false, false);
+					    NetEConst*sc = dynamic_cast<NetEConst*>(se);
+					    if (!sc || sc->value().as_ulong64() == 0)
+						  integral_set = false;
+					    else
+						  set_array_size = sc->value().as_ulong64();
+					    delete se;
+				      }
+				      if (!integral_set || set_prop < 0) {
+					    cerr << "sorry: covergroup bin '" << bin.name
+						 << "' set expression must be a direct integral "
+						 << "dynamic-array or queue property; the bin is "
+						 << "dropped." << endl;
+					    continue;
+				      }
+				      unsigned family = dyn_family++;
+				      std::string set_ir = set_on_parent ? "setp:" : "setc:";
+				      set_ir += std::to_string(set_prop);
+				      cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx, kindval,
+							   family, set_array_size,
+							   bin.name.str(), set_ir, set_ir);
+				      if (set_on_parent) has_parent_set_bins = true;
+				      if (base_kind == 0) {
+					    xbin_desc_t d;
+					    d.name = bin.name;
+					    d.wildcard = false;
+					    d.dyn_family = (int)family;
+					    vbins.push_back(d);
+					    has_value_bins = true;
+				      }
 				      continue;
 				}
 
 				std::vector<std::pair<uint64_t,uint64_t>> rr;
-				if (bin.wildcard) {
+				if (!bin.source_coverpoint.nil()) {
+				      const class_type_t::pform_coverpoint_t*source_cp = nullptr;
+				      for (auto&candidate : cgdef->coverpoints)
+					    if (candidate.label == bin.source_coverpoint) {
+						  source_cp = &candidate;
+						  break;
+					    }
+				      unsigned source_width = 0;
+				      if (source_cp && source_cp->expr) {
+					      // A selected packed identifier carries its semantic
+					      // width in the select itself even when ordinary name
+					      // lookup cannot see a class property from this scope.
+					    if (const PEIdent*source_id =
+						  dynamic_cast<const PEIdent*>(source_cp->expr)) {
+						  if (!source_id->path().name.empty()) {
+							const name_component_t&tail =
+							      source_id->path().name.back();
+							if (!tail.index.empty()) {
+							      const index_component_t&sel = tail.index.back();
+							      if (sel.sel == index_component_t::SEL_BIT)
+								    source_width = 1;
+							      else if (sel.sel == index_component_t::SEL_PART
+								       || sel.sel == index_component_t::SEL_IDX_UP
+								       || sel.sel == index_component_t::SEL_IDX_DO) {
+								    PExpr*width_expr = sel.lsb;
+								    NetExpr*lo_e = elab_and_eval(des, class_scope_,
+									  width_expr, -1, false, false);
+								    NetEConst*lo_c = dynamic_cast<NetEConst*>(lo_e);
+								    if (sel.sel == index_component_t::SEL_PART) {
+									  NetExpr*hi_e = elab_and_eval(
+										des, class_scope_, sel.msb,
+										-1, false, false);
+									  NetEConst*hi_c =
+										dynamic_cast<NetEConst*>(hi_e);
+									  if (lo_c && hi_c) {
+										uint64_t lo = lo_c->value().as_ulong64();
+										uint64_t hi = hi_c->value().as_ulong64();
+										source_width = (unsigned)
+										      (hi >= lo ? hi-lo+1 : lo-hi+1);
+									  }
+									  delete hi_e;
+								    } else if (lo_c) {
+									  source_width = (unsigned)
+										lo_c->value().as_ulong64();
+								    }
+								    delete lo_e;
+							      }
+							}
+						  }
+					    }
+					    if (source_width == 0) {
+						  PExpr::width_mode_t wm = PExpr::SIZED;
+						  source_width = source_cp->expr->test_width(
+							des, class_scope_, wm);
+					    }
+					    if (source_width == 0) {
+						  ivl_type_t source_type =
+							coverpoint_expr_type(source_cp->expr);
+						  if (source_type)
+							source_width = source_type->packed_width();
+					    }
+				      }
+				      if (source_width == 0 || source_width > 64) {
+					    cerr << "sorry: covergroup bin '" << bin.name
+						 << "' source coverpoint '"
+						 << bin.source_coverpoint
+						 << "' does not have a supported integral width; "
+						 << "the bin is dropped." << endl;
+					    continue;
+				      }
+				      uint64_t source_max = source_width == 64
+							  ? ~(uint64_t)0
+							  : (((uint64_t)1 << source_width) - 1);
+				      rr.push_back(std::make_pair(0, source_max));
+				} else if (bin.wildcard) {
 				      bool okw = true;
 				      for (auto&range : bin.ranges) {
 					    uint64_t v, m;
@@ -17943,7 +18092,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    // can read the coverpoint source properties of every live
 		    // instance. Added AFTER the bin properties so their
 		    // indexes are unchanged.
-		    if (!cg_standalone && !cgdef->sample_events.empty()) {
+		    if (!cg_standalone
+			&& (has_parent_set_bins || !cgdef->sample_events.empty())) {
 			  cg_class->set_property(
 				perm_string::literal("__covgrp_parent"),
 				property_qualifier_t::make_none(),

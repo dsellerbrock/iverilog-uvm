@@ -1001,7 +1001,8 @@ class __vpiCovItem : public __vpiHandle {
 		  const class_type::cov_bin_t&bin = defn_->covgrp_bin(bi);
 		  if (bin.item_idx != item_) continue;
 		  unsigned k = bin.kind & 7;
-		  if (k == 1 || k == 2 || k == 3) continue;
+		  if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6)
+			continue;
 		  if (bin.prop_idx == class_type::COV_NO_PROP) continue;
 		  bool seen = false;
 		  for (size_t i = 0 ; i < out.size() ; i += 1)

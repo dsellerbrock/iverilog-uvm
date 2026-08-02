@@ -581,6 +581,17 @@ struct class_type_t : public data_type_t {
 	      // M11: "with (expr)" filter — keep only values where the
 	      // expression (over 'item') evaluates true.
 	    PExpr* with_expr = nullptr;
+	      // IEEE 1800-2017 19.5.1.1 set-covergroup expression.  The
+	      // expression yields an unpacked array/queue whose elements form
+	      // the value set for this declaration.
+	    PExpr* set_expr = nullptr;
+	      // IEEE 1800-2017 19.5.1.2 coverpoint-derived bin set:
+	      //   bins b = source_cp with (item_predicate);
+	    perm_string source_coverpoint;
+	      // `default' composes with bins/ignore_bins/illegal_bins.  Keep it
+	      // orthogonal to kind so illegal_bins x = default is not silently
+	      // downgraded or dropped.
+	    bool is_default = false;
 	      // M11-2: transition sequences — each sequence is an
 	      // ordered list of [lo:hi] steps; a bin may carry several
 	      // (comma-separated) sequences.

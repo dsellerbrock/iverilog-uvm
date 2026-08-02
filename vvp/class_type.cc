@@ -1753,7 +1753,7 @@ double class_type::type_coverage(vvp_cobject*context) const
       for (size_t bi = 0 ; bi < covgrp_bins_.size() ; bi += 1) {
 	    const cov_bin_t&bin = covgrp_bins_[bi];
 	    unsigned k = bin.kind & 7;
-	    if (k == 1 || k == 2 || k == 3) continue;
+	    if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6) continue;
 	    if (bin.prop_idx == COV_NO_PROP) continue;
 	    item_props[bin.item_idx].insert(bin.prop_idx);
       }
@@ -1834,8 +1834,8 @@ void class_type::covgrp_report(FILE*fd)
 			  at_least, weight);
 		  for (unsigned prop : ip.second) {
 			unsigned k = prop_kind[prop];
-			const char*tag = (k == 2) ? "illegal"
-				       : (k == 3) ? "default"
+			const char*tag = (k == 2 || k == 5) ? "illegal"
+				       : (k == 3 || k == 6) ? "default"
 				       : "bin";
 			uint32_t cnt = ct->type_count(prop);
 			fprintf(fd, "    %s %s count %u %s\n", tag,

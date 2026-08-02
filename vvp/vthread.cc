@@ -4111,6 +4111,45 @@ static std::map<unsigned,covgrp_dyn_state_t> covgrp_dyn_states_(
       std::map<unsigned,covgrp_dyn_state_t> out;
       for (size_t ri = 0; ri < defn->covgrp_dyn_bin_count(); ri += 1) {
 	    const class_type::cov_dyn_bin_t&rec = defn->covgrp_dyn_bin(ri);
+	      // A set-covergroup expression backed by a direct class
+	      // container is encoded without extending the public IVL type ABI.
+	      // setc:N reads property N of the covergroup object; setp:N reads
+	      // property N of its enclosing class through __covgrp_parent.
+	    bool set_current = rec.lo_ir.compare(0, 5, "setc:") == 0;
+	    bool set_parent = rec.lo_ir.compare(0, 5, "setp:") == 0;
+	    if ((set_current || set_parent) && rec.lo_ir == rec.hi_ir) {
+		  char*end = 0;
+		  unsigned long raw_prop = std::strtoul(rec.lo_ir.c_str() + 5,
+						       &end, 10);
+		  if (!end || *end != 0) continue;
+		  vvp_cobject*owner = cobj;
+		  if (set_parent) {
+			int pprop = defn->covgrp_parent_prop();
+			if (pprop < 0) continue;
+			vvp_object_t parent_obj;
+			cobj->get_object((size_t)pprop, parent_obj, 0);
+			owner = parent_obj.peek<vvp_cobject>();
+		  }
+		  if (!owner || raw_prop >= owner->get_defn()->property_count())
+			continue;
+		  vvp_object_t set_obj;
+		  owner->get_object((size_t)raw_prop, set_obj, 0);
+		  vvp_darray*set = set_obj.peek<vvp_darray>();
+		  if (!set) continue;
+		  covgrp_dyn_state_t&state = out[rec.family];
+		  if (!state.meta) state.meta = &rec;
+		  for (size_t idx = 0; idx < set->get_size(); idx += 1) {
+			vvp_vector4_t word;
+			set->get_word((unsigned)idx, word);
+			uint64_t value = 0;
+			for (unsigned bit = 0; bit < word.size() && bit < 64; bit += 1)
+			      if (word.value(bit) == BIT4_1)
+				    value |= (uint64_t)1 << bit;
+			state.ranges.push_back(std::make_pair(value, value));
+			state.total += 1;
+		  }
+		  continue;
+	    }
 	    uint64_t lo = 0, hi = 0;
 	    if (!defn->covgrp_eval_ir(cobj, rec.lo_ir, lo)
 		|| !defn->covgrp_eval_ir(cobj, rec.hi_ir, hi))
@@ -4342,6 +4381,13 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	// track per-item "any normal bin matched" for default bins.
       std::map<unsigned, bool> item_matched;
       std::vector<std::pair<unsigned, unsigned>> default_props; // (prop,item)
+      struct default_special_t {
+	    unsigned prop;
+	    unsigned item;
+	    unsigned cp;
+      };
+      std::vector<default_special_t> default_illegal;
+      std::vector<default_special_t> default_ignore;
 
       for (auto& kv : by_prop) {
 	    const std::vector<size_t>&recs = kv.second;
@@ -4351,7 +4397,14 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    if (k == 2) continue; // illegal handled above
 	    if (k == 3) {
 		  default_props.push_back(std::make_pair(kv.first,
-							 first.item_idx));
+						 first.item_idx));
+		  continue;
+	    }
+	    if (k == 5 || k == 6) {
+		  default_special_t special = { kv.first, first.item_idx,
+						first.cp_idx };
+		  if (k == 5) default_illegal.push_back(special);
+		  else default_ignore.push_back(special);
 		  continue;
 	    }
 	    if (k == 4) {
@@ -4443,7 +4496,27 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    }
       }
 
-	// Default bins: count when the item saw no normal-bin match
+	// A default illegal/ignore bin is the complement of the ordinary
+	// bins in its item.  Evaluate that complement only after all ordinary
+	// (including dynamic) bins have had a chance to match.
+      for (auto&di : default_illegal) {
+	    if (item_matched.count(di.item) && item_matched[di.item])
+		  continue;
+	    if (di.cp >= ncp || !cp_sampled[di.cp] || cp_suppressed[di.cp])
+		  continue;
+	    std::cerr << "ERROR: covergroup illegal_bins default matched"
+		      << " (prop_idx=" << di.prop << ")" << std::endl;
+	    covgrp_bump_count_(cobj, di.prop);
+	    cp_suppressed[di.cp] = true;
+      }
+      for (auto&di : default_ignore) {
+	    if (item_matched.count(di.item) && item_matched[di.item])
+		  continue;
+	    if (di.cp < ncp && cp_sampled[di.cp] && !cp_suppressed[di.cp])
+		  cp_suppressed[di.cp] = true;
+      }
+
+	// Ordinary default bins count when the item saw no normal-bin match
 	// and its coverpoint was sampled and not carved out.
       for (auto&dp : default_props) {
 	    unsigned item = dp.second;
@@ -4578,7 +4651,8 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 	    for (size_t bi = 0 ; bi < nbins ; bi += 1) {
 		  const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
 		  unsigned k = bin.kind & 7;
-		  if (k == 1 || k == 2 || k == 3) continue;
+		  if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6)
+			continue;
 		  if (bin.prop_idx == class_type::COV_NO_PROP) continue;
 		  item_props[bin.item_idx].insert(bin.prop_idx);
 	    }

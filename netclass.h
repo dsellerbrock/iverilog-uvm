@@ -266,6 +266,8 @@ class netclass_t : public ivl_type_s {
 	    //               bin of the item matched; excluded from %)
 	    //           4 = transition step (M11-2; tuple encodes
 	    //               (seq_id << 8) | step_pos, lo/hi the step)
+	    //           5 = illegal_bins default (complement of normal bins)
+	    //           6 = ignore_bins default (complement of normal bins)
 	    // kind & 8: wildcard match ((v ^ lo) & hi == 0)
 	    unsigned kind = 0;
 	    unsigned tuple = 0;
