@@ -1401,6 +1401,7 @@ class NetScope : public Definitions, public Attrib {
       long genvar_tmp_val;
 
       std::map<perm_string,LocalVar> loop_index_tmp;
+      NetNet*loop_index_net_tmp;
 
     private:
       void class_definitions_changed_() override;

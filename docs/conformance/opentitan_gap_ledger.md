@@ -34,9 +34,11 @@ semantics, assertion binding and NBA scheduling. Each is a ledger item to fix or
 turn into a strict error; none may be ignored for the final zero-debt gate. The
 canonical post-corpus plan is M14B in [`ROADMAP.md`](ROADMAP.md).
 
-The first durable matrix inventory at this revision contains 270 RTL jobs,
-54 standalone SVA/formal jobs and 80 UVM simulation jobs (plus the same 80 as
-runtime jobs). The ADC-control witness currently reports RTL `DEBT`, SVA
+The first durable matrix inventory at this revision contains 267 RTL candidates,
+109 standalone SVA/formal jobs and 80 UVM simulation jobs (plus the same 80 as
+runtime jobs). Package/fileset providers with no standalone top are recorded as
+dependency-covered rather than false failures. The ADC-control witness
+currently reports RTL `DEBT`, SVA
 `FAIL`, and UVM `DEBT`; details and exact pass criteria are recorded in
 [`opentitan_matrix.md`](opentitan_matrix.md). The SVA hard error is currently a
 corpus topology mismatch: the formal target elaborates `adc_ctrl` while its SVA
@@ -389,6 +391,35 @@ requires a constant index. The dominant blocker for `hmac` (81 errors).
 
 38 × "cannot have multiple drivers" plus 10 × "also continuously assigned" in
 `otbn`. Not yet diagnosed; may be several distinct causes.
+
+## G18 — run-time selected packed l-value in synthesis — **fixed** (current upstream campaign)
+
+*11.5.1 / 11.5.2. [general] — compiler abort and unsupported legal RTL.*
+
+```systemverilog
+always_comb begin
+  class_masks = '0;
+  for (int unsigned k = 0; k < N_ALERTS; k++)
+    class_masks[alert_class[k]][k] = 1'b1;
+end
+```
+
+Synthesis tried to constant-fold the whole flattened l-value base because `k`
+was an unrolled loop index, even though another packed dimension still depended
+on the run-time value `alert_class[k]`. Constant-function evaluation reported
+an error and then aborted in `NetESelect::evaluate_function`. This blocked both
+Darjeeling and Earl Grey alert-handler synthesis.
+
+The synthesis path now distinguishes expressions foldable in the loop context
+from genuinely dynamic bases. Dynamic writes use a case-equality decoder and
+bit-level mux network, preserving the required no-write behavior for X/Z and
+out-of-range indices, including partially overlapping signed and unsigned
+indexed part selects. The regression checks values after synthesis, not merely
+successful compilation: `ivtest/ivltests/synth_variable_packed_lvalue.v`.
+
+The exact Darjeeling alert-handler target now returns zero with no hard error;
+its remaining matrix status is `DEBT` solely because of the separately tracked
+conservative `always_*` sensitivity warning.
 
 ---
 

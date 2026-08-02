@@ -296,6 +296,177 @@ bool NetProc::synth_async(Design*, NetScope*, NexusSet&, NetBus&, NetBus&, vecto
       return false;
 }
 
+/* Return true when constant-function evaluation can fold this expression
+ * without encountering a run-time signal. This lets synthesis substitute an
+ * unrolled loop index quietly, while preserving a dynamic l-value index such
+ * as vec[index_signal][loop_index]. */
+static bool synth_context_constant(const NetExpr*expr,
+				   const map<perm_string,LocalVar>&context)
+{
+      if (dynamic_cast<const NetEConst*>(expr))
+	    return true;
+
+      if (const NetESignal*sig = dynamic_cast<const NetESignal*>(expr)) {
+	    if (context.find(sig->name()) == context.end())
+		  return false;
+	    return !sig->word_index()
+		  || synth_context_constant(sig->word_index(), context);
+      }
+
+      if (const NetEBinary*binary = dynamic_cast<const NetEBinary*>(expr))
+	    return synth_context_constant(binary->left(), context)
+		&& synth_context_constant(binary->right(), context);
+
+      if (const NetEUnary*unary = dynamic_cast<const NetEUnary*>(expr))
+	    return synth_context_constant(unary->expr(), context);
+
+      if (const NetESelect*select = dynamic_cast<const NetESelect*>(expr))
+	    return synth_context_constant(select->sub_expr(), context)
+		&& (!select->select()
+		    || synth_context_constant(select->select(), context));
+
+      if (const NetETernary*ternary = dynamic_cast<const NetETernary*>(expr))
+	    return synth_context_constant(ternary->cond_expr(), context)
+		&& synth_context_constant(ternary->true_expr(), context)
+		&& synth_context_constant(ternary->false_expr(), context);
+
+      return false;
+}
+
+/* Synthesize a procedural write to a run-time selected packed part. Build one
+ * case-equality decoder per legal canonical base, then mux only the affected
+ * scalar bits and concatenate them back into a vector. Case equality is
+ * intentional: an index containing X/Z, or an out-of-range index, matches no
+ * legal base and therefore leaves the value unchanged, as a procedural packed
+ * write must. */
+static NetNet*synth_variable_part_update(Design*des, NetScope*scope,
+					 const LineInfo&loc,
+					 const NetExpr*base_expr,
+					 NetNet*prior, NetNet*replacement,
+					 unsigned full_width,
+					 unsigned part_width)
+{
+      NetExpr*base_copy = base_expr->dup_expr();
+      NetNet*base_sig = base_copy->synthesize(des, scope, base_copy);
+      delete base_copy;
+      if (!base_sig)
+	    return 0;
+
+      unsigned select_width = base_sig->vector_width();
+      if (select_width == 0 || part_width == 0 || part_width > full_width)
+	    return 0;
+      if (debug_synth2) {
+	    cerr << loc.get_fileline() << ": synth_variable_part_update: selector "
+		 << "width=" << select_width
+		 << ", signed=" << base_sig->get_signed()
+		 << ", full_width=" << full_width
+		 << ", part_width=" << part_width << endl;
+      }
+
+      long first_base = 1 - static_cast<long>(part_width);
+      long last_base = static_cast<long>(full_width) - 1;
+      if (select_width < 8 * sizeof(long)) {
+	    if (base_sig->get_signed()) {
+		  const long representable_min = -(1L << (select_width - 1));
+		  const long representable_max = (1L << (select_width - 1)) - 1;
+		  first_base = max(first_base, representable_min);
+		  last_base = min(last_base, representable_max);
+	    } else {
+		  first_base = max(first_base, 0L);
+		  const unsigned long representable_max =
+			(1UL << select_width) - 1;
+		  if (static_cast<unsigned long>(last_base) > representable_max)
+			last_base = static_cast<long>(representable_max);
+	    }
+      } else if (!base_sig->get_signed()) {
+	    first_base = max(first_base, 0L);
+      }
+      ivl_assert(loc, first_base <= last_base);
+
+      vector<NetNet*>base_selected(last_base - first_base + 1,
+					  static_cast<NetNet*>(0));
+      for (long base = first_base; base <= last_base; base += 1) {
+	    verinum base_value(static_cast<uint64_t>(base), select_width);
+	    NetEConst base_constant(base_value);
+	    base_constant.set_line(loc);
+	    NetNet*constant_sig =
+		  base_constant.synthesize(des, scope, &base_constant);
+	    ivl_assert(loc, constant_sig);
+
+	    NetCaseCmp*compare = new NetCaseCmp(scope, scope->local_symbol(),
+						 select_width, NetCaseCmp::EEQ);
+	    compare->set_line(loc);
+	    des->add_node(compare);
+	    connect(compare->pin(1), base_sig->pin(0));
+	    connect(compare->pin(2), constant_sig->pin(0));
+
+	    const unsigned decoder_index = base - first_base;
+	    base_selected[decoder_index] =
+		  new NetNet(scope, scope->local_symbol(), NetNet::WIRE,
+			     &netvector_t::scalar_logic);
+	    base_selected[decoder_index]->local_flag(true);
+	    base_selected[decoder_index]->set_line(loc);
+	    connect(base_selected[decoder_index]->pin(0), compare->pin(0));
+      }
+
+      auto select_bit = [des, scope, &loc](NetNet*vector,
+						  unsigned bit) -> NetNet* {
+	    NetPartSelect*select =
+		  new NetPartSelect(vector, bit, 1, NetPartSelect::VP);
+	    select->set_line(loc);
+	    des->add_node(select);
+	    NetNet*result = new NetNet(scope, scope->local_symbol(),
+					NetNet::WIRE, &netvector_t::scalar_logic);
+	    result->local_flag(true);
+	    result->set_line(loc);
+	    connect(result->pin(0), select->pin(0));
+	    return result;
+      };
+
+      vector<NetNet*>replacement_bits(part_width, static_cast<NetNet*>(0));
+      for (unsigned bit = 0; bit < part_width; bit += 1)
+	    replacement_bits[bit] = select_bit(replacement, bit);
+
+      NetConcat*concat = new NetConcat(scope, scope->local_symbol(),
+				      full_width, full_width, false);
+      concat->set_line(loc);
+      des->add_node(concat);
+      for (unsigned dst_bit = 0; dst_bit < full_width; dst_bit += 1) {
+	    NetNet*current = select_bit(prior, dst_bit);
+	    for (unsigned src_bit = 0; src_bit < part_width; src_bit += 1) {
+		  const long base = static_cast<long>(dst_bit) - src_bit;
+		  if (base < first_base || base > last_base)
+			continue;
+
+		  NetMux*mux = new NetMux(scope, scope->local_symbol(), 1, 2, 1);
+		  mux->set_line(loc);
+		  des->add_node(mux);
+		  connect(mux->pin_Sel(),
+			  base_selected[base - first_base]->pin(0));
+		  connect(mux->pin_Data(0), current->pin(0));
+		  connect(mux->pin_Data(1), replacement_bits[src_bit]->pin(0));
+
+		  NetNet*next = new NetNet(scope, scope->local_symbol(),
+					    NetNet::WIRE,
+					    &netvector_t::scalar_logic);
+		  next->local_flag(true);
+		  next->set_line(loc);
+		  connect(next->pin(0), mux->pin_Result());
+		  current = next;
+	    }
+	    connect(concat->pin(dst_bit + 1), current->pin(0));
+      }
+
+      const netvector_t*result_type =
+	    new netvector_t(replacement->data_type(), full_width-1, 0);
+      NetNet*result = new NetNet(scope, scope->local_symbol(),
+				NetNet::WIRE, result_type);
+      result->local_flag(true);
+      result->set_line(loc);
+      connect(result->pin(0), concat->pin(0));
+      return result;
+}
+
 /*
  * Async synthesis of assignments is done by synthesizing the rvalue
  * expression, then connecting the l-value directly to the output of
@@ -411,90 +582,87 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
       bool is_part_select = lval_width != lsig_width;
 
       long base_off = 0;
-      if (is_part_select && !scope->loop_index_tmp.empty()) {
-	      // If we are within a NetForLoop, there may be an index
-	      // value. That is collected from the scope member
-	      // loop_index_tmp, and the evaluate_function method
-	      // knows how to apply it.
-	    ivl_assert(*this, !scope->loop_index_tmp.empty());
+      bool variable_part_select = false;
+      if (is_part_select) {
 	    ivl_assert(*this, lval_width < lsig_width);
-
-	      // Evaluate the index expression to a constant.
 	    const NetExpr*base_expr_raw = lval_->get_base();
 	    ivl_assert(*this, base_expr_raw);
-	    const NetExpr*base_expr = base_expr_raw->evaluate_function(*this, scope->loop_index_tmp);
-	    if (! eval_as_long(base_off, base_expr)) {
-		  ivl_assert(*this, 0);
-	    }
-	    ivl_assert(*this, base_off >= 0);
 
-	    ivl_variable_type_t tmp_data_type = rsig->data_type();
-	    const netvector_t*tmp_type = new netvector_t(tmp_data_type, lsig_width-1,0);
+	    NetExpr*base_expr = 0;
+	    if (synth_context_constant(base_expr_raw, scope->loop_index_tmp))
+		  base_expr = base_expr_raw->evaluate_function(*this,
+							 scope->loop_index_tmp);
 
-	    NetNet*tmp = new NetNet(scope, scope->local_symbol(),
-				    NetNet::WIRE, tmp_type);
-	    tmp->local_flag(true);
-	    tmp->set_line(*this);
+	    bool constant_base = eval_as_long(base_off, base_expr);
+	    delete base_expr;
+	    if (constant_base && base_off >= 0
+		&& static_cast<unsigned long>(base_off) + lval_width <= lsig_width) {
+		  ivl_variable_type_t tmp_data_type = rsig->data_type();
+		  const netvector_t*tmp_type =
+			new netvector_t(tmp_data_type, lsig_width-1, 0);
+		  NetNet*tmp = new NetNet(scope, scope->local_symbol(),
+					  NetNet::WIRE, tmp_type);
+		  tmp->local_flag(true);
+		  tmp->set_line(*this);
 
-	    NetPartSelect*ps = new NetPartSelect(tmp, base_off, lval_width, NetPartSelect::PV);
-	    ps->set_line(*this);
-	    des->add_node(ps);
-
-	    connect(ps->pin(0), rsig->pin(0));
-	    rsig = tmp;
-
-      } else if (is_part_select) {
-	      // In this case, there is no loop_index_tmp, so we are
-	      // not within a NetForLoop. Generate a NetSubstitute
-	      // object to handle the bit/part-select in the l-value.
-	    ivl_assert(*this, scope->loop_index_tmp.empty());
-	    ivl_assert(*this, lval_width < lsig_width);
-
-	    const NetExpr*base_expr_raw = lval_->get_base();
-	    ivl_assert(*this, base_expr_raw);
-	    const NetExpr*base_expr = base_expr_raw->evaluate_function(*this, scope->loop_index_tmp);
-	    if (! eval_as_long(base_off, base_expr)) {
-		  cerr << get_fileline() << ": sorry: assignment to variable "
-			  "bit location is not currently supported in "
-			  "synthesis." << endl;
-		  des->errors += 1;
-		  return false;
-	    }
-	    ivl_assert(*this, base_off >= 0);
-
-	    ivl_variable_type_t tmp_data_type = rsig->data_type();
-	    const netvector_t*tmp_type = new netvector_t(tmp_data_type, lsig_width-1,0);
-
-	    NetNet*tmp = new NetNet(scope, scope->local_symbol(),
-				    NetNet::WIRE, tmp_type);
-	    tmp->local_flag(true);
-	    tmp->set_line(*this);
-
-	    NetNet*isig = nex_out.pin(ptr).nexus()->pick_any_net();
-	    if (isig) {
-		  if (debug_synth2) {
-			cerr << get_fileline() << ": NetAssignBase::synth_async: "
-			     << " Found an isig:" << endl;
-			nex_out.pin(ptr).dump_link(cerr, 8);
+		  if (!scope->loop_index_tmp.empty()) {
+			NetPartSelect*ps = new NetPartSelect(tmp, base_off, lval_width,
+							NetPartSelect::PV);
+			ps->set_line(*this);
+			des->add_node(ps);
+			connect(ps->pin(0), rsig->pin(0));
+		  } else {
+			NetNet*isig = nex_out.pin(ptr).nexus()->pick_any_net();
+			if (!isig) {
+			      isig = new NetNet(scope, scope->local_symbol(),
+						NetNet::WIRE, tmp_type);
+			      isig->local_flag(true);
+			      isig->set_line(*this);
+			      connect(isig->pin(0), nex_out.pin(ptr));
+			}
+			NetSubstitute*ps =
+			      new NetSubstitute(isig, rsig, lsig_width, base_off);
+			ps->set_line(*this);
+			des->add_node(ps);
+			connect(ps->pin(0), tmp->pin(0));
+		  }
+		  rsig = tmp;
+	    } else if (constant_base
+		       && (base_off >= static_cast<long>(lsig_width)
+			   || base_off + static_cast<long>(lval_width) <= 0)) {
+		    // A statically non-overlapping procedural select writes no bits.
+		  rsig = nex_out.pin(ptr).nexus()->pick_any_net();
+		  if (!rsig) {
+			const netvector_t*tmp_type =
+			      new netvector_t(lsig->data_type(), lsig_width-1, 0);
+			rsig = new NetNet(scope, scope->local_symbol(),
+					  NetNet::WIRE, tmp_type);
+			rsig->local_flag(true);
+			rsig->set_line(*this);
+			connect(rsig->pin(0), nex_out.pin(ptr));
 		  }
 	    } else {
-		  if (debug_synth2) {
-			cerr << get_fileline() << ": NetAssignBase::synth_async: "
-			     << " Found no isig, resorting to lsig." << endl;
+		  const netvector_t*tmp_type =
+			new netvector_t(lsig->data_type(), lsig_width-1, 0);
+		  NetNet*isig = nex_out.pin(ptr).nexus()->pick_any_net();
+		  if (!isig) {
+			isig = new NetNet(scope, scope->local_symbol(),
+					  NetNet::WIRE, tmp_type);
+			isig->local_flag(true);
+			isig->set_line(*this);
+			connect(isig->pin(0), nex_out.pin(ptr));
 		  }
-		  isig = new NetNet(scope, scope->local_symbol(),
-				    NetNet::WIRE, tmp_type);
-		  isig->local_flag(true);
-		  isig->set_line(*this);
-		  connect(isig->pin(0), nex_out.pin(ptr));
+		  rsig = synth_variable_part_update(des, scope, *this,
+						    base_expr_raw, isig, rsig,
+						    lsig_width, lval_width);
+		  if (!rsig) {
+			cerr << get_fileline() << ": error: unable to synthesize "
+				  "variable packed l-value select." << endl;
+			des->errors += 1;
+			return false;
+		  }
+		  variable_part_select = true;
 	    }
-	    ivl_assert(*this, isig);
-	    NetSubstitute*ps = new NetSubstitute(isig, rsig, lsig_width, base_off);
-	    ps->set_line(*this);
-	    des->add_node(ps);
-
-	    connect(ps->pin(0), tmp->pin(0));
-	    rsig = tmp;
       }
 
       rsig = crop_to_width(des, rsig, lsig_width);
@@ -506,7 +674,9 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
       connect(enables.pin(ptr), scope->tie_hi());
 
       mask_t&bitmask = bitmasks[ptr];
-      if (is_part_select) {
+      if (variable_part_select) {
+	    bitmask = mask_t (lsig_width, true);
+      } else if (is_part_select) {
 	    if (bitmask.size() == 0) {
 		  bitmask = mask_t (lsig_width, false);
 	    }
@@ -1518,6 +1688,7 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
 	      // value and use it during its own synthesis.
 	    ivl_assert(*this, scope->loop_index_tmp.empty());
 	    scope->loop_index_tmp = index_args;
+	    scope->loop_index_net_tmp = index_;
 
 	    NetBus tmp_ena (scope, nex_out.pin_count());
 	    vector<mask_t> tmp_masks (nex_out.pin_count());
@@ -1531,6 +1702,7 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
 	    }
 
 	    scope->loop_index_tmp.clear();
+	    scope->loop_index_net_tmp = 0;
 
 	      // Evaluate the step_expr to generate the next index value.
 	    tmp = step_expr->evaluate_function(*this, index_args);

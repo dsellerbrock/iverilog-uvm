@@ -135,5 +135,6 @@ sqrt32synth		normal			ivltests
 ssetclr1		normal			ivltests
 ssetclr2		normal			ivltests
 ssetclr3		normal			ivltests
+synth_variable_packed_lvalue normal,-g2012	ivltests
 synth_if_no_else	normal			ivltests
 ufuncsynth1		normal			ivltests

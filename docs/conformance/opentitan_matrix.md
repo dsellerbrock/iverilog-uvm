@@ -13,6 +13,7 @@ The runner keeps these outcomes distinct:
 | `PASS` | Setup, compile, and (for the runtime lane) execution completed with no hard diagnostic or semantic-degradation warning. |
 | `DEBT` | The process exited successfully, but the compiler reported a warning, ignored construct, approximation, fallback, unresolved operation, or other possible semantic loss. This is **not** a conformance pass. |
 | `FAIL` | Compilation returned nonzero or emitted a hard error even if its exit status was zero. |
+| `DEPENDENCY_ONLY` | The CAPI core is a package/fileset provider with no standalone top. Its sources are covered through runnable parent top-level jobs. |
 | `SETUP_*`, `*_TIMEOUT`, `RUNTIME_FAIL`, `MATRIX_ERROR` | The named build, execution, or census infrastructure stage did not complete. |
 
 An exit status of zero is therefore necessary but insufficient.  In
@@ -41,9 +42,15 @@ durations, log paths, and a hash of compiler output.  A dirty OpenTitan tree is
 reported rather than modified.
 
 At OpenTitan revision `7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19`, initial
-discovery finds 270 RTL/default-target jobs, 54 standalone SVA/formal jobs, and
-80 UVM simulation jobs.  The runtime lane reuses the same 80 simulation cores
-but only earns `PASS` after executing the generated image.
+discovery finds 267 RTL/default-target candidates, 109 standalone SVA/formal
+jobs, and 80 UVM simulation jobs. Some RTL candidates are CAPI package/fileset
+providers without a toplevel; the runner records those as `DEPENDENCY_ONLY`
+rather than falsely reporting a compiler or setup failure. The runtime lane
+reuses the same 80 simulation cores but only earns `PASS` after executing the
+generated image. The SVA count combines 54 assertion/bind cores with 55 FPV
+cores. Three top-specific `rv_plic_fpv` cores live in an `*_ip` VLNV library;
+their formal sources and target belong only to the SVA/formal lane, so they are
+excluded from RTL rather than being compiled twice under different labels.
 
 ## Commands
 

@@ -60,6 +60,7 @@ SETUP_ALLOWLIST = (
     # sources, provider mapping, compiler invocation, or HDL semantics.
     re.compile(r"This backend is deprecated .* migrate to the flow API", re.I),
 )
+NO_TOPLEVEL_RE = re.compile(r"Target '[^']+' has no toplevel", re.I)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -188,14 +189,18 @@ def discover_cores(
 
 def core_supports_lane(core: Core, lane: str) -> bool:
     dv_library = core.library == "dv" or core.library.endswith("_dv")
+    fpv_core = core.name.endswith("_fpv")
     if lane in ("uvm", "runtime"):
         return dv_library and core.name.endswith("_sim")
     if lane == "sva":
-        return dv_library and core.name.endswith("_sva")
+        return (dv_library and core.name.endswith("_sva")) or fpv_core
     if lane == "rtl":
         return (
-            core.library in {"ip", "prim", "tlul", "ibex", "systems"}
-            or core.library.endswith("_ip")
+            not fpv_core
+            and (
+                core.library in {"ip", "prim", "tlul", "ibex", "systems"}
+                or core.library.endswith("_ip")
+            )
         )
     raise ValueError(f"unknown lane: {lane}")
 
@@ -398,6 +403,17 @@ def run_job(
         record["status"] = "SETUP_TIMEOUT"
         return record
     if setup.returncode != 0:
+        if NO_TOPLEVEL_RE.search(setup.output):
+            # CAPI package/fileset cores are dependencies, not standalone
+            # elaboration units.  They are compiled through every runnable
+            # parent that depends on them and must not become false failures.
+            record.update(
+                {
+                    "status": "DEPENDENCY_ONLY",
+                    "coverage_mode": "compiled_through_parent_toplevel",
+                }
+            )
+            return record
         record["status"] = "SETUP_FAIL"
         return record
     if args.setup_only:
@@ -552,7 +568,7 @@ def print_inventory(jobs: Sequence[Job]) -> None:
     counts = {lane: 0 for lane in LANES}
     for job in jobs:
         counts[job.lane] += 1
-    print("OpenTitan matrix inventory")
+    print("OpenTitan matrix candidate inventory")
     print(" ".join(f"{lane}={counts[lane]}" for lane in LANES))
     for job in jobs:
         print(f"{job.lane:7} {job.target:7} {job.core.vlnv}  {job.core.description}")
@@ -577,8 +593,12 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     assert core_supports_lane(Core(parsed[0], ""), "uvm")
     assert core_supports_lane(Core(parsed[1], ""), "sva")
     assert core_supports_lane(Core(parsed[2], ""), "rtl")
+    fpv = Core("lowrisc:darjeeling_ip:rv_plic_fpv:0.1", "")
+    assert core_supports_lane(fpv, "sva")
+    assert not core_supports_lane(fpv, "rtl")
     assert matching_lines("x: warning: compile-progress fallback", DEBT_PATTERNS)
     assert matching_lines("foo.sv:4: syntax error", HARD_ERROR_PATTERNS)
+    assert NO_TOPLEVEL_RE.search("ERROR: x:y:z:0 : Target 'default' has no toplevel")
     assert not actionable_setup_lines(
         "WARNING: No trustfile configured (ssh-trustfile in fusesoc.conf), "
         "signatures will not be checked."

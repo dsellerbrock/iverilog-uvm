@@ -1428,7 +1428,8 @@ NetNet* NetESignal::synthesize(Design*des, NetScope*scope, NetExpr*root)
 {
 	// If this is a synthesis with a specific value for the
 	// signal, then replace it (here) with a constant value.
-      if (net_->scope()==scope && net_->name()==scope->genvar_tmp) {
+      if (net_ == scope->loop_index_net_tmp
+	  || (net_->scope()==scope && net_->name()==scope->genvar_tmp)) {
 	    const netvector_t*tmp_vec = new netvector_t(net_->data_type(),
 	                                                net_->vector_width()-1, 0);
 	    NetNet*tmp = new NetNet(scope, scope->local_symbol(),
