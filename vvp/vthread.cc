@@ -1985,6 +1985,48 @@ bool of_INSIDE_ARR_O(vthread_t thr, vvp_code_t)
       return true;
 }
 
+/* String-valued counterpart to %inside/arr. String membership uses exact
+ * value equality and the string stack; routing it through the vec4 helper
+ * asks a string container for vector words and can never match. */
+static void inside_arr_match_string_(vthread_t thr, vvp_darray*arr)
+{
+      string val = thr->pop_str();
+      bool matched = false;
+
+      if (arr) {
+	    size_t size = arr->get_size();
+	    for (size_t idx = 0 ; idx < size && !matched ; idx += 1) {
+		  string elem;
+		  arr->get_word((unsigned)idx, elem);
+		  matched = elem == val;
+	    }
+      }
+
+      thr->push_vec4(vvp_vector4_t(1, matched ? BIT4_1 : BIT4_0));
+}
+
+bool of_INSIDE_ARR_STR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_fun_signal_object*fun =
+	    dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      vvp_object_t obj;
+      vvp_darray*arr = 0;
+      if (fun) {
+	    obj = fun->get_object();
+	    arr = obj.peek<vvp_darray>();
+      }
+      inside_arr_match_string_(thr, arr);
+      return true;
+}
+
+bool of_INSIDE_ARR_O_STR(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t recv;
+      thr->pop_object(recv);
+      inside_arr_match_string_(thr, recv.peek<vvp_darray>());
+      return true;
+}
+
 bool of_QSIZE(vthread_t thr, vvp_code_t cp)
 {
       vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (cp->net->fun);

@@ -2917,7 +2917,7 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			  /* The property is a darray, and there is no mux
 			     expression to the assignment is of an entire
 			     array object. */
-			errors += draw_eval_object(rval);
+			errors += draw_eval_object_value_copy(rval, prop_type);
 			fprintf(vvp_out, "    %%store/prop/obj %d, %d; IVL_VT_DARRAY\n",
 			        prop_idx, idx);
 			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");

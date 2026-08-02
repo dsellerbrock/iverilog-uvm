@@ -2018,6 +2018,17 @@ int draw_eval_object_value_copy(ivl_expr_t ex, ivl_type_t element_type)
 			    && ivl_type_base(element_type) == IVL_VT_NO_TYPE
 			    && ivl_type_properties(element_type) > 0;
 
+        /* An unpacked-array value can reach the target as an array pattern
+         * whose own net type describes the fixed source rather than the
+         * dynamic/queue destination. The assignment context supplies the
+         * required container type (7.6), so construct and populate that
+         * container instead of letting the object evaluator degrade the
+         * pattern to its first element. */
+      if (rvt == IVL_EX_ARRAY_PATTERN && element_type
+	  && (ivl_type_base(element_type) == IVL_VT_DARRAY
+	      || ivl_type_base(element_type) == IVL_VT_QUEUE))
+	    return eval_object_container_pattern_(ex, element_type);
+
       if (is_value_struct && rval_aliases) {
 	    ensure_class_type_emitted(element_type);
 	    fprintf(vvp_out, "    %%new/cobj C%p; struct value copy\n", element_type);

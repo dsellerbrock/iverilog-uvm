@@ -1982,11 +1982,25 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    /* parm 0: array signal (receiver), parm 1: value to check */
 	    ivl_expr_t arr_arg = (ivl_expr_parms(expr) > 0) ? ivl_expr_parm(expr, 0) : 0;
 	    ivl_expr_t val_arg = (ivl_expr_parms(expr) > 1) ? ivl_expr_parm(expr, 1) : 0;
+	    ivl_type_t arr_type = arr_arg ? ivl_expr_net_type(arr_arg) : 0;
+	    if (arr_arg && ivl_expr_type(arr_arg) == IVL_EX_SIGNAL
+		&& ivl_expr_signal(arr_arg))
+		  arr_type = ivl_signal_net_type(ivl_expr_signal(arr_arg));
+	    ivl_type_t elem_type = arr_type ? ivl_type_element(arr_type) : 0;
+	    int string_value = (val_arg && ivl_expr_value(val_arg) == IVL_VT_STRING)
+		|| (elem_type && ivl_type_base(elem_type) == IVL_VT_STRING);
 	    if (arr_arg && val_arg
 		&& ivl_expr_type(arr_arg) == IVL_EX_SIGNAL
 		&& ivl_expr_signal(arr_arg)) {
-		  draw_eval_vec4(val_arg);
-		  fprintf(vvp_out, "    %%inside/arr v%p_0;\n", ivl_expr_signal(arr_arg));
+		  if (string_value) {
+			draw_eval_string(val_arg);
+			fprintf(vvp_out, "    %%inside/arr/str v%p_0;\n",
+				ivl_expr_signal(arr_arg));
+		  } else {
+			draw_eval_vec4(val_arg);
+			fprintf(vvp_out, "    %%inside/arr v%p_0;\n",
+				ivl_expr_signal(arr_arg));
+		  }
 		  return;
 	    }
 	    /* Queue/darray held in an expression (e.g. a class property):
@@ -1995,9 +2009,14 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    if (arr_arg && val_arg
 		&& (ivl_expr_type(arr_arg) == IVL_EX_PROPERTY
 		    || ivl_expr_value(arr_arg) == IVL_VT_DARRAY)) {
-		  draw_eval_vec4(val_arg);
+		  if (string_value)
+			draw_eval_string(val_arg);
+		  else
+			draw_eval_vec4(val_arg);
 		  draw_eval_object(arr_arg);
-		  fprintf(vvp_out, "    %%inside/arr/o;\n");
+		  fprintf(vvp_out, string_value
+			  ? "    %%inside/arr/o/str;\n"
+			  : "    %%inside/arr/o;\n");
 		  return;
 	    }
 	    /* Fallback: push 0 (no match) — and say so, loudly. */
