@@ -360,15 +360,30 @@ void draw_class_in_scope(ivl_type_t classtype)
 			  ivl_type_covgrp_bin_tuple(classtype, idx),
 			  ivl_type_covgrp_bin_item(classtype, idx));
 	    }
+	    int nd = ivl_type_covgrp_dyn_bins(classtype);
+	    for (idx = 0 ; idx < nd ; idx += 1) {
+		  fprintf(vvp_out,
+			  " .covgrp_dyn_bin %u %u %u %u %" PRIu64
+			  " \"%s\" \"%s\" \"%s\"\n",
+			  ivl_type_covgrp_dyn_bin_cp(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_item(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_kind(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_family(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_array_size(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_name(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_lo_ir(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_hi_ir(classtype, idx));
+	    }
 	    int ni = ivl_type_covgrp_items(classtype);
 	    for (idx = 0 ; idx < ni ; idx += 1) {
 		    /* M12-7: the trailing string is the coverpoint/cross
 		       label, consumed by the VPI drill-down handles. */
-		  fprintf(vvp_out, " .covgrp_item %u %u %u \"%s\"\n",
+		  fprintf(vvp_out, " .covgrp_item %u %u %u \"%s\" \"%s\"\n",
 			  ivl_type_covgrp_item_at_least(classtype, idx),
 			  ivl_type_covgrp_item_weight(classtype, idx),
 			  ivl_type_covgrp_item_is_cross(classtype, idx),
-			  ivl_type_covgrp_item_name(classtype, idx));
+			  ivl_type_covgrp_item_name(classtype, idx),
+			  ivl_type_covgrp_item_weight_ir(classtype, idx));
 	    }
 	      /* M11-3: event-driven sampling metadata — the hidden
 		 parent-handle property plus per-coverpoint parent

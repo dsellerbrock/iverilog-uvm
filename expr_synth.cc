@@ -1633,10 +1633,28 @@ NetNet* NetEUFunc::synthesize(Design*des, NetScope*scope, NetExpr*root)
 		 << ", osig->vector_width()=" << osig->vector_width() << endl;
       }
 
-        /* Connect the pins to the arguments. */
+      /* Connect the pins to the arguments. */
       const NetFuncDef*def = func_->func_def();
+      unsigned function_pin = 1;
       for (unsigned idx = 0; idx < eparms.size(); idx += 1) {
-	    unsigned width = def->port(idx)->vector_width();
+	    const NetNet*formal = def->port(idx);
+	    unsigned width = formal->vector_width();
+	    if (formal->unpacked_dimensions() > 0) {
+		  unsigned words = formal->unpacked_count();
+		  if (eparms[idx]->pin_count() != words
+		      || eparms[idx]->vector_width() != width) {
+			cerr << get_fileline() << ": error: fixed-array argument "
+			     << idx << " of call to " << func_->basename()
+			     << " does not match the formal array shape." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+		  for (unsigned word = 0 ; word < words ; word += 1)
+			connect(net->pin(function_pin++),
+				eparms[idx]->pin(word));
+		  continue;
+	    }
+
 	    NetNet*tmp;
 	    if (eparms[idx]->get_signed()) {
 		  tmp = pad_to_width_signed(des, eparms[idx], width, *this);
@@ -1644,8 +1662,9 @@ NetNet* NetEUFunc::synthesize(Design*des, NetScope*scope, NetExpr*root)
 		  tmp = pad_to_width(des, eparms[idx], width, *this);
 	    }
 	    NetNet*tmpc = crop_to_width(des, tmp, width);
-	    connect(net->pin(idx+1), tmpc->pin(0));
+	    connect(net->pin(function_pin++), tmpc->pin(0));
       }
+      ivl_assert(*this, function_pin == net->pin_count());
 
       return osig;
 }

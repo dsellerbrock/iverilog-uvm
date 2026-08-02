@@ -50,6 +50,11 @@ class PModport : public PNamedItem {
       std::set<perm_string> import_ports;
       std::set<perm_string> export_ports;
 
+      // Clocking blocks exported by `modport mp(clocking cb)'. Keep these
+      // names so virtual-interface event resolution can treat the modport as
+      // a transparent qualification layer (`vif.mp.cb').
+      std::set<perm_string> clocking_ports;
+
       SymbolType symbol_type() const override;
 
     private:

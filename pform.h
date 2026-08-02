@@ -207,7 +207,10 @@ extern void pform_class_covergroup(const struct vlltype&loc,
 				    std::list<class_type_t::pform_coverpoint_t*>*coverpoints,
 				    std::vector<perm_string>*sample_formals = nullptr,
 				    std::vector<data_type_t*>*sample_formal_types = nullptr,
-				    std::vector<PEEvent*>*sample_events = nullptr);
+				    std::vector<PEEvent*>*sample_events = nullptr,
+				    std::vector<perm_string>*ctor_formals = nullptr,
+				    std::vector<data_type_t*>*ctor_formal_types = nullptr,
+				    std::vector<PExpr*>*ctor_defaults = nullptr);
 
 // M11-1/2: a STANDALONE covergroup declaration (module/package/
 // interface scope). Synthesizes a class type of the same name whose
@@ -218,7 +221,10 @@ extern void pform_standalone_covergroup(const struct vlltype&loc,
 				    std::list<class_type_t::pform_coverpoint_t*>*coverpoints,
 				    std::vector<PEEvent*>*sample_events = nullptr,
 				    std::vector<perm_string>*sample_formals = nullptr,
-				    std::vector<data_type_t*>*sample_formal_types = nullptr);
+				    std::vector<data_type_t*>*sample_formal_types = nullptr,
+				    std::vector<perm_string>*ctor_formals = nullptr,
+				    std::vector<data_type_t*>*ctor_formal_types = nullptr,
+				    std::vector<PExpr*>*ctor_defaults = nullptr);
 
 extern void pform_make_udp(const struct vlltype&loc, perm_string name,
 			   std::list<pform_ident_t>*parms,
@@ -256,6 +262,8 @@ extern void pform_start_modport_item(const struct vlltype&loc, const char*name);
 extern void pform_end_modport_item(const struct vlltype&loc);
 extern void pform_add_modport_tf_port(const struct vlltype&loc,
                                       bool is_import, perm_string name);
+extern void pform_add_modport_clocking_port(const struct vlltype&loc,
+                                            perm_string name);
 extern void pform_add_modport_port(const struct vlltype&loc,
 				   NetNet::PortType port_type,
 				   perm_string name, PExpr*expr);
@@ -333,6 +341,9 @@ extern void pform_sva_declare_sequence_p(const struct vlltype&loc,
 					 std::vector<sva_seq_step_t>*steps);
 extern void pform_sva_set_default_disable(PExpr*expr);
 extern void pform_sva_sorry(const struct vlltype&loc, const char*what);
+/* Evaluate the integral constant-expression subset used by SVA
+   repetition and cycle-delay bounds while the module is being parsed. */
+extern bool pform_sva_const_long(PExpr*expr, long&value);
 extern void pform_sva_module_done(void);
 
 /* M9-2: consecutive repetition e[*lo] / e[*lo:hi] — expands the step
@@ -469,10 +480,12 @@ pform_sva_prop_iff(const struct vlltype&loc,
 extern sva_property_t*
 pform_sva_prop_not(const struct vlltype&loc, sva_property_t*sub);
 extern sva_property_t*
-pform_sva_comb_antecedent_sorry(const struct vlltype&loc, sva_property_t*ante,
-				std::vector<sva_seq_step_t>*conseq);
+pform_sva_comb_antecedent_sorry(const struct vlltype&loc, int op_type,
+				sva_property_t*ante,
+				std::vector<sva_seq_step_t>*conseq,
+				bool strong_eventually = false);
 extern sva_property_t*
-pform_sva_comb_consequent_sorry(const struct vlltype&loc,
+pform_sva_comb_consequent_sorry(const struct vlltype&loc, int op_type,
 				std::vector<sva_seq_step_t>*ante,
 				sva_property_t*conseq);
 extern sva_property_t*

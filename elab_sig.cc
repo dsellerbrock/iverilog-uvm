@@ -1727,9 +1727,11 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 			des->errors += 1;
 		  }
 	    }
-	    if (tmp->unpacked_dimensions() != 0) {
+	    if (tmp->unpacked_dimensions() != 0
+		&& tmp->port_type() != NetNet::PINPUT) {
 		  cerr << get_fileline() << ": sorry: Subroutine ports with "
-			  "unpacked dimensions are not yet supported." << endl;
+			  "unpacked dimensions are not yet supported for "
+			  "output, inout or ref directions." << endl;
 		 des->errors += 1;
 	    }
       }

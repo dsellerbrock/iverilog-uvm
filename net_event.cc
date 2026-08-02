@@ -165,9 +165,9 @@ static bool vif_probes_match_(const NetEvProbe*a, const NetEvProbe*b)
       return a->is_vif_anyedge() == b->is_vif_anyedge()
 	  && a->is_vif_posedge() == b->is_vif_posedge()
 	  && a->is_vif_negedge() == b->is_vif_negedge()
-	  && a->vif_N() == b->vif_N()
 	  && a->vif_M() == b->vif_M()
-	  && a->vif_pre_N() == b->vif_pre_N();
+	  && a->vif_path() == b->vif_path()
+	  && a->vif_root_pin() == b->vif_root_pin();
 }
 
 void NetEvent::find_similar_event(list<NetEvent*>&event_list)
@@ -465,6 +465,11 @@ void NetEvProbe::set_vif_posedge(unsigned N, unsigned M, unsigned pre_N)
       vif_N_ = N;
       vif_M_ = M;
       vif_pre_N_ = pre_N;
+      vif_path_.clear();
+      if (pre_N != UINT_MAX)
+	    vif_path_.push_back(pre_N);
+      if (N != UINT_MAX)
+	    vif_path_.push_back(N);
 }
 
 void NetEvProbe::set_vif_negedge(unsigned N, unsigned M, unsigned pre_N)
@@ -473,6 +478,11 @@ void NetEvProbe::set_vif_negedge(unsigned N, unsigned M, unsigned pre_N)
       vif_N_ = N;
       vif_M_ = M;
       vif_pre_N_ = pre_N;
+      vif_path_.clear();
+      if (pre_N != UINT_MAX)
+	    vif_path_.push_back(pre_N);
+      if (N != UINT_MAX)
+	    vif_path_.push_back(N);
 }
 
 void NetEvProbe::set_vif_anyedge(unsigned N, unsigned M, unsigned pre_N)
@@ -481,6 +491,45 @@ void NetEvProbe::set_vif_anyedge(unsigned N, unsigned M, unsigned pre_N)
       vif_N_ = N;
       vif_M_ = M;
       vif_pre_N_ = pre_N;
+      vif_path_.clear();
+      if (pre_N != UINT_MAX)
+	    vif_path_.push_back(pre_N);
+      if (N != UINT_MAX)
+	    vif_path_.push_back(N);
+}
+
+void NetEvProbe::set_vif_posedge_path(const vector<unsigned>&path, unsigned M)
+{
+      is_vif_posedge_ = true;
+      vif_path_ = path;
+      vif_M_ = M;
+      vif_N_ = path.empty() ? UINT_MAX : path.back();
+      vif_pre_N_ = path.size() == 2 ? path.front() : UINT_MAX;
+}
+
+void NetEvProbe::set_vif_negedge_path(const vector<unsigned>&path, unsigned M)
+{
+      is_vif_negedge_ = true;
+      vif_path_ = path;
+      vif_M_ = M;
+      vif_N_ = path.empty() ? UINT_MAX : path.back();
+      vif_pre_N_ = path.size() == 2 ? path.front() : UINT_MAX;
+}
+
+void NetEvProbe::set_vif_anyedge_path(const vector<unsigned>&path, unsigned M)
+{
+      is_vif_anyedge_ = true;
+      vif_path_ = path;
+      vif_M_ = M;
+      vif_N_ = path.empty() ? UINT_MAX : path.back();
+      vif_pre_N_ = path.size() == 2 ? path.front() : UINT_MAX;
+}
+
+void NetEvProbe::set_obj_mutation(unsigned N, unsigned pre_N)
+{
+      is_obj_mutation_ = true;
+      obj_N_ = N;
+      obj_pre_N_ = pre_N;
 }
 
 NetEvProbe::~NetEvProbe()

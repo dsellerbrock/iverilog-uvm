@@ -87,8 +87,10 @@ ostream& operator<< (ostream&out, const index_component_t&that)
 
 ostream& operator<< (ostream&out, const name_component_t&that)
 {
+      if (that.local_scope)
+	out << "local::";
       if (that.name == THIS_TOKEN)
-	    out << "this";
+	out << "this";
       else if (that.name == SUPER_TOKEN)
 	    out << "super";
       else

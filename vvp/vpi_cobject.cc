@@ -872,7 +872,8 @@ class __vpiCovBin : public __vpiHandle {
 		  return 1;
 		case vpiCoverWeight:
 		  if (item_ < defn_->covgrp_item_count())
-			return (int)defn_->covgrp_item(item_).weight;
+			return (int)defn_->covgrp_item_weight(
+			      live_cobject_of_(root_), item_);
 		  return 1;
 		default:
 		  return vpiUndefined;
@@ -918,7 +919,8 @@ class __vpiCovItem : public __vpiHandle {
 		  return 1;
 		case vpiCoverWeight:
 		  if (item_ < defn_->covgrp_item_count())
-			return (int)defn_->covgrp_item(item_).weight;
+			return (int)defn_->covgrp_item_weight(
+			      live_cobject_of_(root_), item_);
 		  return 1;
 		case vpiSize:
 		  return (int)countable_props_().size();
@@ -1221,6 +1223,79 @@ class __vpiClassPropertyStringVar : public __vpiHandle {
 vpiHandle vpip_make_cobject_property_string_var(char*label, size_t prop_idx)
 {
       __vpiClassPropertyStringVar*obj = new __vpiClassPropertyStringVar(prop_idx);
+      functor_ref_lookup(&obj->cobj_net_, label);
+      return obj;
+}
+
+/* A VPI lvalue for an integral class property. The ordinary class-variable
+   handle identifies the containing object only, while a vec4-stack argument
+   is a temporary whose vpi_put_value result is discarded after the system
+   function returns. Retaining the property index here gives system
+   functions with output arguments (notably $value$plusargs) a real writable
+   destination. */
+class __vpiClassPropertyVecVar : public __vpiHandle {
+    public:
+      __vpiClassPropertyVecVar(size_t prop_idx, unsigned width,
+                               bool signed_flag)
+            : cobj_net_(nullptr), prop_idx_(prop_idx), width_(width),
+              signed_flag_(signed_flag) {}
+
+      vvp_net_t*cobj_net_;
+
+      int get_type_code(void) const override { return vpiReg; }
+
+      int vpi_get(int code) override
+      {
+            switch (code) {
+                case vpiSize:        return width_;
+                case vpiAutomatic:   return 0;
+                case vpiSigned:      return signed_flag_ ? 1 : 0;
+                case vpiConstType:   return vpiNullConst;
+                default: return 0;
+            }
+      }
+
+      char* vpi_get_str(int) override { return nullptr; }
+
+      void vpi_get_value(p_vpi_value val) override
+      {
+            vvp_vector4_t current(width_, BIT4_X);
+            if (vvp_cobject*cobj = current_object_())
+                  cobj->get_vec4(prop_idx_, current);
+            vpip_vec4_get_value(current, width_, signed_flag_, val);
+      }
+
+      vpiHandle vpi_put_value(p_vpi_value val, int) override
+      {
+            if (vvp_cobject*cobj = current_object_())
+                  cobj->set_vec4(prop_idx_, vec4_from_vpi_value(val, width_));
+            return 0;
+      }
+
+      vpiHandle vpi_handle(int) override { return nullptr; }
+
+    private:
+      size_t prop_idx_;
+      unsigned width_;
+      bool signed_flag_;
+
+      vvp_cobject*current_object_() const
+      {
+            vvp_fun_signal_object*fun =
+                  cobj_net_ ? dynamic_cast<vvp_fun_signal_object*>(cobj_net_->fun) : nullptr;
+            if (!fun)
+                  fun = cobj_net_ ? dynamic_cast<vvp_fun_signal_object*>(cobj_net_->fil) : nullptr;
+            if (!fun) return nullptr;
+            vvp_object_t obj = fun->peek_object();
+            return obj.peek<vvp_cobject>();
+      }
+};
+
+vpiHandle vpip_make_cobject_property_vec_var(char*label, size_t prop_idx,
+                                             unsigned width, bool signed_flag)
+{
+      __vpiClassPropertyVecVar*obj =
+            new __vpiClassPropertyVecVar(prop_idx, width, signed_flag);
       functor_ref_lookup(&obj->cobj_net_, label);
       return obj;
 }

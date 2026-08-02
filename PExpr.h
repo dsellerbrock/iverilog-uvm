@@ -448,7 +448,8 @@ class PEIdent : public PExpr {
 	// Elaborate the identifier allowing for unpacked arrays. This
 	// method only applies to Ident expressions because only Ident
 	// expressions can can be unpacked arrays.
-      NetNet* elaborate_unpacked_net(Design*des, NetScope*sc) const;
+      NetNet* elaborate_unpacked_net(Design*des, NetScope*sc,
+				      ivl_type_t target_type = nullptr) const;
 
       virtual bool is_collapsible_net(Design*des, NetScope*scope,
                                       NetNet::PortType port_type) const override;
@@ -603,6 +604,20 @@ class PEIdent : public PExpr {
 					  const NetScope*found_in,
 					  ivl_type_t par_type,
 					  bool need_const) const;
+	// Materialize a whole unpacked array parameter as a typed array
+	// pattern, for assignments and fixed-array subroutine arguments.
+      NetExpr*elaborate_expr_param_array_whole_(Design*des,
+						NetScope*scope,
+						const NetScope*found_in,
+						perm_string name,
+						ivl_type_t par_type,
+						ivl_type_t target_type) const;
+	// Select packed-struct members after resolving a scalar parameter or
+	// an element of an unpacked array parameter (P[i].member).
+      NetExpr*elaborate_expr_param_member_(Design*des,
+					   NetScope*scope,
+					   const symbol_search_results&sr,
+					   unsigned flags) const;
       NetExpr*elaborate_expr_param_part_(Design*des,
 					 NetScope*scope,
 					 const NetExpr*par,
@@ -687,6 +702,9 @@ class PEMemberAccess : public PExpr {
     public:
       explicit PEMemberAccess(PExpr*base, perm_string member_name);
       ~PEMemberAccess() override;
+
+      PExpr* base() const { return base_; }
+      perm_string member_name() const { return member_name_; }
 
       virtual void dump(std::ostream&) const override;
 
@@ -1267,6 +1285,9 @@ class PECastSize  : public PExpr {
       virtual unsigned test_width(Design*des, NetScope*scope,
 				  width_mode_t&mode) override;
 
+      PExpr* cast_size() const { return size_; }
+      PExpr* cast_base() const { return base_; }
+
     private:
       PExpr* size_;
       PExpr* base_;
@@ -1298,6 +1319,7 @@ class PECastType  : public PExpr {
       // target type, and the base expression, so a stream operand of
       // the form queue_type'(...) can be classified and elaborated.
       ivl_type_t resolve_target_type(Design*des, NetScope*scope) const;
+      data_type_t* cast_target() const { return target_; }
       PExpr* cast_base() const { return base_; }
 
     private:
@@ -1323,6 +1345,8 @@ class PECastSign : public PExpr {
       virtual bool has_aa_term(Design *des, NetScope *scope) const override;
 
       unsigned test_width(Design *des, NetScope *scope, width_mode_t &mode) override;
+
+      PExpr* cast_base() const { return base_.get(); }
 
     private:
       std::unique_ptr<PExpr> base_;

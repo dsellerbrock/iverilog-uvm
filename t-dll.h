@@ -234,6 +234,11 @@ struct ivl_event_s {
       unsigned vif_N;
       unsigned vif_M;
       unsigned vif_pre_N; // UINT_MAX = unused (2-level); set = extra prop hop (3-level)
+      std::vector<unsigned> vif_path; // root-to-interface property indices
+      unsigned vif_root_pin;
+      bool is_obj_mutation;
+      unsigned obj_N;
+      unsigned obj_pre_N;
       // Named-event array support (IEEE 1800-2017 6.20): see
       // ivl_event_is_array() et al. in ivl_target.h.
       bool is_array;

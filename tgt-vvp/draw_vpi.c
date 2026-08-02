@@ -220,6 +220,23 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 		    result->text = strdup(buffer);
 		    return 1;
 	      }
+	      /* Integral class properties need the same property-aware VPI
+	         lvalue treatment as strings. In particular,
+	         $value$plusargs("N=%d", obj.n) must update obj.n rather than
+	         a discarded vec4 stack temporary. Encode the property index,
+	         width, and signedness for the runtime handle. */
+	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
+		  && (ivl_expr_value(expr) == IVL_VT_LOGIC
+		      || ivl_expr_value(expr) == IVL_VT_BOOL)
+		  && ivl_expr_signal(expr)
+		  && !ivl_expr_oper1(expr)) {
+		    unsigned pidx = (unsigned)ivl_expr_property_idx(expr);
+		    snprintf(buffer, sizeof buffer, "&CPV<v%p_0, %u, %u, %u>",
+			     (void*)ivl_expr_signal(expr), pidx,
+			     ivl_expr_width(expr), ivl_expr_signed(expr) ? 1 : 0);
+		    result->text = strdup(buffer);
+		    return 1;
+	      }
 	      /* Nested or array-indexed string property: fall back so the
 	         caller dispatches to draw_eval_string (rvalue-only). */
 	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY

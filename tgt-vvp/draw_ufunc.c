@@ -651,10 +651,30 @@ static void draw_ufunc_preamble(ivl_expr_t expr)
 {
       ivl_scope_t def = ivl_expr_def(expr);
       unsigned idx;
+      unsigned first_unbound_parm = 0;
 
         /* If this is an automatic function, allocate the local storage. */
       if (ivl_scope_is_auto(def)) {
             fprintf(vvp_out, "    %%alloc S_%p;\n", def);
+      }
+
+	/* A class method's first actual is its implicit `this' handle.  Bind
+	 * that handle before evaluating user arguments.  A default argument is
+	 * elaborated in the method's scope and may call another method or read a
+	 * property through `this' (IEEE 1800-2017 13.5.3).  The old generic
+	 * two-pass sequence evaluated every argument first and did not store
+	 * `this' until afterwards, so such a default read a stale/null object
+	 * from the callee frame.  Automatic class-method frames make this early
+	 * store safe from nested calls; explicit actuals retain their existing
+	 * left-to-right evaluation order. */
+      if (ivl_expr_parms(expr) > 0 && ivl_scope_ports(def) > 1) {
+	    ivl_signal_t this_port = ivl_scope_port(def, 1);
+	    const char*name = this_port ? ivl_signal_basename(this_port) : 0;
+	    if (name && strcmp(name, "@") == 0) {
+		  draw_eval_function_argument(this_port, ivl_expr_parm(expr, 0));
+		  draw_send_function_argument(this_port, ivl_expr_parm(expr, 0));
+		  first_unbound_parm = 1;
+	    }
       }
 
 	/* Evaluate the expressions and send the results to the
@@ -664,11 +684,13 @@ static void draw_ufunc_preamble(ivl_expr_t expr)
 	   is called in one of the expressions. */
 
       assert(ivl_expr_parms(expr) == (ivl_scope_ports(def)-1));
-      for (idx = 0 ;  idx < ivl_expr_parms(expr) ;  idx += 1) {
+      for (idx = first_unbound_parm ;
+	   idx < ivl_expr_parms(expr) ; idx += 1) {
 	    ivl_signal_t port = ivl_scope_port(def, idx+1);
 	    draw_eval_function_argument(port, ivl_expr_parm(expr, idx));
       }
-      for (idx = ivl_expr_parms(expr) ;  idx > 0 ;  idx -= 1) {
+	for (idx = ivl_expr_parms(expr) ;
+	     idx > first_unbound_parm ; idx -= 1) {
 	    ivl_signal_t port = ivl_scope_port(def, idx);
 	    draw_send_function_argument(port, ivl_expr_parm(expr, idx-1));
       }
@@ -676,7 +698,8 @@ static void draw_ufunc_preamble(ivl_expr_t expr)
 	/* Bind the ref formals last, so that evaluating any argument --
 	   which may itself call a function, allocating and freeing
 	   frames -- is finished before this frame's bindings are set. */
-      for (idx = 0 ;  idx < ivl_expr_parms(expr) ;  idx += 1) {
+      for (idx = first_unbound_parm ;
+	   idx < ivl_expr_parms(expr) ; idx += 1) {
 	    ivl_signal_t port = ivl_scope_port(def, idx+1);
 	    if (ivl_signal_port(port) == IVL_SIP_REF)
 		  draw_bind_function_ref_argument(port, ivl_expr_parm(expr, idx));

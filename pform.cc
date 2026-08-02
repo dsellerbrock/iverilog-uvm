@@ -47,6 +47,7 @@
 # include  <cstring>
 # include  <cstdlib>
 # include  <cctype>
+# include  <climits>
 
 # include  "ivl_assert.h"
 # include  "ivl_alloc.h"
@@ -796,7 +797,7 @@ PFunction* pform_push_function_scope_unbound(const struct vlltype&loc, const cha
 // record each one and resolve them all at end of parse
 // (pform_resolve_dpi_exports), once every definition exists.
 struct pending_dpi_export_s {
-      PScopeExtra*scopex;
+      LexicalScope*scope;
       perm_string sv_name;
       perm_string c_name;
       bool is_task;
@@ -819,7 +820,10 @@ void pform_set_dpi_export(const struct vlltype&loc, const char*c_name,
       tmp << loc;
 
       pending_dpi_export_s pend;
-      pend.scopex  = scopex;
+	  /* Keep the exact lexical scope. A generate block owns its own task
+	     and function maps; collapsing it to the nearest module made a
+	     forward export in that block appear out of scope at resolution. */
+	  pend.scope   = lexical_scope;
       pend.sv_name = lex_strings.make(sv_name);
       pend.c_name  = lex_strings.make(c_name);
       pend.is_task = is_task;
@@ -832,17 +836,28 @@ void pform_resolve_dpi_exports(void)
       for (std::vector<pending_dpi_export_s>::iterator cur
 		 = pending_dpi_exports_.begin()
 		 ; cur != pending_dpi_exports_.end() ; ++cur) {
-	    PScopeExtra*scopex = cur->scopex;
-
 	    PTaskFunc*sub = 0;
-	    if (cur->is_task) {
-		  map<perm_string,PTask*>::iterator it
-			= scopex->tasks.find(cur->sv_name);
-		  if (it != scopex->tasks.end()) sub = it->second;
-	    } else {
-		  map<perm_string,PFunction*>::iterator it
-			= scopex->funcs.find(cur->sv_name);
-		  if (it != scopex->funcs.end()) sub = it->second;
+	    if (PGenerate*gen = dynamic_cast<PGenerate*>(cur->scope)) {
+		  if (cur->is_task) {
+			map<perm_string,PTask*>::iterator it =
+			      gen->tasks.find(cur->sv_name);
+			if (it != gen->tasks.end()) sub = it->second;
+		  } else {
+			map<perm_string,PFunction*>::iterator it =
+			      gen->funcs.find(cur->sv_name);
+			if (it != gen->funcs.end()) sub = it->second;
+		  }
+	    } else if (PScopeExtra*scopex =
+		       dynamic_cast<PScopeExtra*>(cur->scope)) {
+		  if (cur->is_task) {
+			map<perm_string,PTask*>::iterator it =
+			      scopex->tasks.find(cur->sv_name);
+			if (it != scopex->tasks.end()) sub = it->second;
+		  } else {
+			map<perm_string,PFunction*>::iterator it =
+			      scopex->funcs.find(cur->sv_name);
+			if (it != scopex->funcs.end()) sub = it->second;
+		  }
 	    }
 
 	    if (sub == 0) {
@@ -1238,6 +1253,9 @@ static typedef_t* pform_find_potential_imported_type(const struct vlltype&loc,
 
 typedef_t* pform_test_type_identifier(const struct vlltype&loc, const char*txt)
 {
+      if (getenv("IVL_TRACE_TYPES"))
+	    cerr << "TYPE_TRACE " << loc << " name=" << txt
+		 << " scope=" << lexical_scope << endl;
       perm_string name = lex_strings.make(txt);
       if (name == lex_strings.make("process")) {
 	    static typedef_t*process_type = nullptr;
@@ -3189,6 +3207,38 @@ struct pending_bind_t {
 };
 static vector<pending_bind_t> pending_binds;
 
+/*
+ * A bind directive is a generate item (IEEE 1800-2017 27.2), so a
+ * directive in an unselected conditional-generate arm must not be applied.
+ * Binds are normally moved into their target module after parsing, before
+ * generate elaboration takes place.  Preserve the important constant-literal
+ * case here rather than losing the enclosing generate context.  This is the
+ * form produced by preprocessor configuration switches (for example,
+ * OpenTitan's ``if (`EN_MASKING) bind ...'').
+ *
+ * Non-literal generate conditions continue through the normal path: they can
+ * depend on parameters and therefore require the later, parameter-aware bind
+ * elaboration path.  Do not guess their value here.
+ */
+static bool bind_in_statically_unselected_generate_()
+{
+      for (const PGenerate*gen = pform_cur_generate ; gen ; ) {
+	    if (gen->scheme_type == PGenerate::GS_CONDIT
+		|| gen->scheme_type == PGenerate::GS_ELSE) {
+		  const PENumber*num = dynamic_cast<const PENumber*>(gen->loop_test);
+		  if (num && num->value().is_defined()) {
+			bool selected = !num->value().is_zero();
+			if (gen->scheme_type == PGenerate::GS_ELSE)
+			      selected = !selected;
+			if (!selected) return true;
+		  }
+	    }
+
+	    gen = dynamic_cast<const PGenerate*>(gen->parent_scope());
+      }
+      return false;
+}
+
 void pform_bind_directive(const struct vlltype&loc,
 			  perm_string target,
 			  perm_string type,
@@ -3196,6 +3246,9 @@ void pform_bind_directive(const struct vlltype&loc,
 			  std::vector<lgate>*gates,
 			  std::list<std::string>*inst_paths)
 {
+      if (bind_in_statically_unselected_generate_())
+	    return;
+
       pending_bind_t cur;
       FILE_NAME(&cur.li, loc);
       cur.target = target;
@@ -4667,6 +4720,13 @@ void pform_add_modport_tf_port(const struct vlltype&loc,
 	    pform_cur_modport->export_ports.insert(name);
 }
 
+void pform_add_modport_clocking_port(const struct vlltype&loc,
+                                     perm_string name)
+{
+      ivl_assert(loc, pform_cur_modport);
+      pform_cur_modport->clocking_ports.insert(name);
+}
+
 void pform_add_modport_port(const struct vlltype&loc,
                             NetNet::PortType port_type,
                             perm_string name, PExpr*expr)
@@ -5066,6 +5126,45 @@ struct sva_param_prop_t {
 static std::map<sva_scoped_name_t, sva_param_seq_t> sva_param_sequences;
 static std::map<sva_scoped_name_t, sva_param_prop_t> sva_param_properties;
 
+/* Sampled calls in a DECLARATION acquire their clock only when the named
+   property/sequence is instantiated. They must not remain in the generic
+   procedural pending list, whose endmodule flush would diagnose them as
+   unclocked and synthesize the wrong standalone fallback. */
+static void sva_expr_forget_sampled_(PExpr*e);
+static void sva_decl_sequence_forget_sampled_(
+				const std::vector<sva_seq_step_t>*seq)
+{
+      if (!seq) return;
+      for (size_t i = 0 ; i < seq->size() ; i += 1) {
+	    sva_expr_forget_sampled_((*seq)[i].expr);
+	    sva_expr_forget_sampled_((*seq)[i].lv_rhs);
+      }
+}
+
+static void sva_decl_tree_forget_sampled_(const sva_stree_t*t)
+{
+      if (!t) return;
+      sva_decl_sequence_forget_sampled_(t->chain);
+      sva_expr_forget_sampled_(t->gexpr);
+      sva_decl_tree_forget_sampled_(t->a);
+      sva_decl_tree_forget_sampled_(t->b);
+}
+
+static void sva_decl_property_forget_sampled_(const sva_property_t*p)
+{
+      if (!p) return;
+      sva_expr_forget_sampled_(p->disable_iff_expr);
+      sva_expr_forget_sampled_(p->abort_cond);
+      sva_decl_sequence_forget_sampled_(p->antecedent);
+      sva_decl_sequence_forget_sampled_(p->mc_prefix);
+      sva_decl_sequence_forget_sampled_(p->seq);
+      sva_decl_tree_forget_sampled_(p->ante_tree);
+      sva_decl_tree_forget_sampled_(p->tree);
+      if (p->mc_more)
+	    for (size_t i = 0 ; i < p->mc_more->size() ; i += 1)
+		  sva_decl_sequence_forget_sampled_((*p->mc_more)[i].chain);
+}
+
 /* The key a declaration made HERE gets: the innermost enclosing
    generate block, or nullptr at module scope. */
 static sva_scoped_name_t sva_decl_key_(perm_string nm)
@@ -5125,6 +5224,245 @@ void pform_sva_sorry(const struct vlltype&loc, const char*what)
 	   << "is dropped (IEEE 1800-2017 clause 16)." << endl;
 }
 
+static bool pform_sva_const_long_(PExpr*expr, long&value,
+				  std::set<const PExpr*>&visiting,
+				  LexicalScope*lookup_scope);
+
+/* Resolve an enum literal directly from the parse form. Assertion delay and
+   sampled-value bounds are lowered before normal elaboration has built the
+   netlist enum table, so the SVA constant evaluator must understand the
+   declaration's implicit numbering itself. */
+static bool pform_sva_enum_long_(LexicalScope*scope, perm_string name,
+				 long&value,
+				 std::set<const PExpr*>&visiting)
+{
+      if (!scope) return false;
+      for (std::vector<enum_type_t*>::const_iterator et =
+		     scope->enum_sets.begin() ; et != scope->enum_sets.end(); ++et) {
+	    long next = 0;
+	    if (!*et || !(*et)->names) continue;
+	    for (std::list<named_pexpr_t>::const_iterator nm =
+		       (*et)->names->begin() ; nm != (*et)->names->end(); ++nm) {
+		  long cur = next;
+		  if (nm->parm && !pform_sva_const_long_(nm->parm, cur,
+						     visiting, scope))
+			return false;
+		  if (nm->name == name) {
+			value = cur;
+			return true;
+		  }
+		  if (cur == LONG_MAX) return false;
+		  next = cur + 1;
+	    }
+      }
+      return false;
+}
+
+/* Constant classification is deliberately separate from numeric folding.
+   A parameter/enum remains a constant even when its initializer is wider
+   than long or uses an expression shape this early SVA evaluator does not
+   fold (for example $clog2 or a concatenated sparse-FSM enum value). Such a
+   name must not be sampled or reported as a live design operand. */
+static bool pform_sva_enum_has_(LexicalScope*scope, perm_string name)
+{
+      if (!scope) return false;
+      for (std::vector<enum_type_t*>::const_iterator et =
+		     scope->enum_sets.begin() ; et != scope->enum_sets.end(); ++et) {
+	    if (!*et || !(*et)->names) continue;
+	    for (std::list<named_pexpr_t>::const_iterator nm =
+		       (*et)->names->begin() ; nm != (*et)->names->end(); ++nm)
+		  if (nm->name == name) return true;
+      }
+      return false;
+}
+
+/* Return true when the root object named by an identifier is a parameter or
+   enum literal. A selected parameter array such as LUT[idx] is not itself a constant
+   expression when idx is live, but the LUT storage still must not be sampled:
+   only idx is a design operand. */
+static bool pform_sva_ident_base_is_constant_(const PEIdent*id)
+{
+      if (!id || id->path().name.empty()) return false;
+      perm_string name = id->path().name.front().name;
+      if (id->path().package) {
+	    PPackage*pkg = id->path().package;
+	    std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator pit =
+		  pkg->parameters.find(name);
+	    return (pit != pkg->parameters.end() && pit->second
+		    && !pit->second->type_flag)
+		  || pform_sva_enum_has_(pkg, name);
+      }
+      for (LexicalScope*scope = lexical_scope ; scope
+	   ; scope = scope->parent_scope()) {
+	    std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator pit =
+		  scope->parameters.find(name);
+	    if (pit != scope->parameters.end())
+		  return pit->second && !pit->second->type_flag;
+	    if (pform_sva_enum_has_(scope, name)) return true;
+	    std::map<perm_string,PPackage*>::const_iterator imp =
+		  scope->explicit_imports.find(name);
+	    if (imp != scope->explicit_imports.end()) {
+		  PPackage*pkg = imp->second;
+		  std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator pp =
+			pkg->parameters.find(name);
+		  return (pp != pkg->parameters.end() && pp->second
+			  && !pp->second->type_flag)
+			|| pform_sva_enum_has_(pkg, name);
+	    }
+	    for (std::list<PPackage*>::const_iterator pkg =
+		       scope->potential_imports.begin()
+		 ; pkg != scope->potential_imports.end() ; ++pkg) {
+		  std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator pp =
+			(*pkg)->parameters.find(name);
+		  if ((pp != (*pkg)->parameters.end() && pp->second
+		       && !pp->second->type_flag)
+		      || pform_sva_enum_has_(*pkg, name)) return true;
+	    }
+      }
+      return false;
+}
+
+static bool pform_sva_const_long_(PExpr*expr, long&value,
+				  std::set<const PExpr*>&visiting,
+				  LexicalScope*lookup_scope)
+{
+      if (!expr || visiting.count(expr)) return false;
+      visiting.insert(expr);
+      if (PENumber*num = dynamic_cast<PENumber*>(expr)) {
+	    value = num->value().as_long();
+	    visiting.erase(expr);
+	    return true;
+      }
+      if (PEIdent*id = dynamic_cast<PEIdent*>(expr)) {
+	    if (id->path().name.size() == 1
+		&& id->path().name.front().index.empty()) {
+		  perm_string name = id->path().name.front().name;
+		  if (id->path().package) {
+			PPackage*pkg = id->path().package;
+			std::map<perm_string,LexicalScope::param_expr_t*>::iterator it =
+			      pkg->parameters.find(name);
+			bool ok = false;
+			if (it != pkg->parameters.end())
+			      ok = it->second && !it->second->type_flag
+				 && pform_sva_const_long_(it->second->expr, value,
+							  visiting, pkg);
+			else
+			      ok = pform_sva_enum_long_(pkg, name, value, visiting);
+			visiting.erase(expr);
+			return ok;
+		  }
+		  for (LexicalScope*scope = lookup_scope ; scope
+		       ; scope = scope->parent_scope()) {
+			std::map<perm_string,LexicalScope::param_expr_t*>::iterator it =
+			      scope->parameters.find(name);
+			if (it != scope->parameters.end()) {
+			      bool ok = it->second && !it->second->type_flag
+				 && pform_sva_const_long_(it->second->expr, value,
+							  visiting, scope);
+			      visiting.erase(expr);
+			      return ok;
+			}
+			if (pform_sva_enum_long_(scope, name, value, visiting)) {
+			      visiting.erase(expr);
+			      return true;
+			}
+			std::map<perm_string,PPackage*>::iterator imp =
+			      scope->explicit_imports.find(name);
+			if (imp != scope->explicit_imports.end()) {
+			      PPackage*pkg = imp->second;
+			      std::map<perm_string,LexicalScope::param_expr_t*>::iterator
+				    pit = pkg->parameters.find(name);
+			      bool ok = pit != pkg->parameters.end()
+				 ? pit->second && !pit->second->type_flag
+				   && pform_sva_const_long_(pit->second->expr, value,
+							    visiting, pkg)
+				 : pform_sva_enum_long_(pkg, name, value, visiting);
+			      visiting.erase(expr);
+			      return ok;
+			}
+		  }
+	    }
+	    visiting.erase(expr);
+	    return false;
+      }
+      if (PEUnary*un = dynamic_cast<PEUnary*>(expr)) {
+	    long a = 0;
+	    bool ok = pform_sva_const_long_(un->get_expr(), a, visiting,
+					 lookup_scope);
+	    if (ok) switch (un->get_op()) {
+		case '+': value = a; break;
+		case '-': value = -a; break;
+		case '~': value = ~a; break;
+		case '!': value = !a; break;
+		default: ok = false; break;
+	    }
+	    visiting.erase(expr);
+	    return ok;
+      }
+      if (PEBinary*bin = dynamic_cast<PEBinary*>(expr)) {
+	    long a = 0, b = 0;
+	    bool ok = pform_sva_const_long_(bin->get_left(), a, visiting,
+					 lookup_scope)
+		   && pform_sva_const_long_(bin->get_right(), b, visiting,
+						lookup_scope);
+	    if (ok) switch (bin->get_op()) {
+		case '+': value = a + b; break;
+		case '-': value = a - b; break;
+		case '*': value = a * b; break;
+		case '/': if (b) value = a / b; else ok = false; break;
+		case '%': if (b) value = a % b; else ok = false; break;
+		case '&': value = a & b; break;
+		case '|': value = a | b; break;
+		case '^': value = a ^ b; break;
+		case 'X': value = ~(a ^ b); break;
+		case 'A': value = ~(a & b); break;
+		case 'O': value = ~(a | b); break;
+		case 'l': if (b >= 0 && b < long(sizeof(long) * CHAR_BIT))
+				value = long(static_cast<unsigned long>(a) << b);
+			  else ok = false; break;
+		case 'r':
+			  if (b >= 0 && b < long(sizeof(long) * CHAR_BIT))
+				value = long(static_cast<unsigned long>(a) >> b);
+			  else ok = false; break;
+		case 'R':
+			  if (b >= 0 && b < long(sizeof(long) * CHAR_BIT)) value = a >> b;
+			  else ok = false; break;
+		case '<': value = a < b; break;
+		case '>': value = a > b; break;
+		case 'L': value = a <= b; break;
+		case 'G': value = a >= b; break;
+		case 'e': case 'E': case 'w': value = a == b; break;
+		case 'n': case 'N': case 'W': value = a != b; break;
+		case 'a': value = a && b; break;
+		case 'o': value = a || b; break;
+		case 'q': value = !a || b; break;
+		case 'Q': value = (!a) == (!b); break;
+		default: ok = false; break;
+	    }
+	    visiting.erase(expr);
+	    return ok;
+      }
+      if (PETernary*ter = dynamic_cast<PETernary*>(expr)) {
+	    long cond = 0;
+	    bool ok = pform_sva_const_long_(ter->get_cond(), cond, visiting,
+					 lookup_scope);
+	    if (ok)
+		  ok = pform_sva_const_long_(cond ? ter->get_true()
+					     : ter->get_false(),
+					     value, visiting, lookup_scope);
+	    visiting.erase(expr);
+	    return ok;
+      }
+      visiting.erase(expr);
+      return false;
+}
+
+bool pform_sva_const_long(PExpr*expr, long&value)
+{
+      std::set<const PExpr*> visiting;
+      return pform_sva_const_long_(expr, value, visiting, lexical_scope);
+}
+
 void pform_sva_declare_property(const struct vlltype&loc, const char*name,
 				sva_property_t*prop)
 {
@@ -5136,6 +5474,7 @@ void pform_sva_declare_property(const struct vlltype&loc, const char*name,
 	    pform_sva_destroy_property(prop);
 	    return;
       }
+      sva_decl_property_forget_sampled_(prop);
       sva_module_properties[sva_decl_key_(use_name)] = prop;
 }
 
@@ -5150,6 +5489,7 @@ void pform_sva_declare_sequence(const struct vlltype&loc, const char*name,
 	    pform_sva_destroy_sequence(steps);
 	    return;
       }
+      sva_decl_sequence_forget_sampled_(steps);
       sva_module_sequences[sva_decl_key_(use_name)] = steps;
 }
 
@@ -5170,6 +5510,7 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
       }
       sva_param_prop_t rec;
       if (formals) { for (perm_string f : *formals) rec.formals.push_back(f); }
+      sva_decl_property_forget_sampled_(prop);
       rec.body = prop;
       sva_param_properties[sva_decl_key_(use_name)] = rec;
       delete formals;
@@ -5191,6 +5532,7 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
       }
       sva_param_seq_t rec;
       if (formals) { for (perm_string f : *formals) rec.formals.push_back(f); }
+      sva_decl_sequence_forget_sampled_(steps);
       rec.body = steps;
       sva_param_sequences[sva_decl_key_(use_name)] = rec;
       delete formals;
@@ -5281,6 +5623,8 @@ static PExpr* sva_clone_subst_(PExpr*e,
 		  cp = new PEBComp(bin->get_op(), l, r);
 	    else if (dynamic_cast<PEBLogic*>(e))
 		  cp = new PEBLogic(bin->get_op(), l, r);
+	    else if (dynamic_cast<PEBPower*>(e))
+		  cp = new PEBPower(bin->get_op(), l, r);
 	    else if (dynamic_cast<PEBShift*>(e))
 		  cp = new PEBShift(bin->get_op(), l, r);
 	    else if (typeid(*e) == typeid(PEBinary))
@@ -5298,12 +5642,104 @@ static PExpr* sva_clone_subst_(PExpr*e,
 	    cp->set_line(*e);
 	    return cp;
       }
-	/* System/sampled function calls ($rose/$past/…) with copyable
+	/* Membership expressions are common in parameterized assertion
+	   properties (OpenTitan uses `byte inside {'0, '1}`). Clone both
+	   endpoints and any dist weight so formal substitution reaches every
+	   expression owned by the node. */
+      if (PEInside*inside = dynamic_cast<PEInside*>(e)) {
+	    PExpr*base = sva_clone_subst_(inside->get_expr(), subst);
+	    if (!base) return nullptr;
+	    std::list<inside_range_t>*ranges = new std::list<inside_range_t>;
+	    const std::vector<inside_range_t>&src = inside->get_ranges();
+	    for (size_t k = 0 ; k < src.size() ; k += 1) {
+		  inside_range_t dst;
+		  dst.lo = src[k].lo ? sva_clone_subst_(src[k].lo, subst) : nullptr;
+		  dst.hi = src[k].hi ? sva_clone_subst_(src[k].hi, subst) : nullptr;
+		  dst.weight = src[k].weight
+			? sva_clone_subst_(src[k].weight, subst) : nullptr;
+		  dst.is_range = src[k].is_range;
+		  dst.weight_is_divided = src[k].weight_is_divided;
+		  if ((src[k].lo && !dst.lo) || (src[k].hi && !dst.hi)
+		      || (src[k].weight && !dst.weight)) {
+			delete dst.lo;
+			delete dst.hi;
+			delete dst.weight;
+			delete base;
+			for (std::list<inside_range_t>::iterator it = ranges->begin()
+			     ; it != ranges->end() ; ++it) {
+			      delete it->lo;
+			      delete it->hi;
+			      delete it->weight;
+			}
+			delete ranges;
+			return nullptr;
+		  }
+		  ranges->push_back(dst);
+	    }
+	    PEInside*cp = new PEInside(base, ranges);
+	    cp->set_line(*e);
+	    return cp;
+      }
+	/* Casts are transparent to sampling but not to expression type.
+	   Preserve the cast node while cloning/replacing its operand. Parse
+	   data-type nodes are arena-like (PECastType does not own/delete its
+	   target), so sharing the immutable target is intentional. */
+      if (PECastSize*cast = dynamic_cast<PECastSize*>(e)) {
+	    PExpr*size = sva_clone_subst_(cast->cast_size(), subst);
+	    PExpr*base = sva_clone_subst_(cast->cast_base(), subst);
+	    if (!size || !base) { delete size; delete base; return nullptr; }
+	    PECastSize*cp = new PECastSize(size, base);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PECastType*cast = dynamic_cast<PECastType*>(e)) {
+	    PExpr*base = sva_clone_subst_(cast->cast_base(), subst);
+	    if (!base) return nullptr;
+	    PECastType*cp = new PECastType(cast->cast_target(), base);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PECastSign*cast = dynamic_cast<PECastSign*>(e)) {
+	    PExpr*base = sva_clone_subst_(cast->cast_base(), subst);
+	    if (!base) return nullptr;
+	    PECastSign*cp = new PECastSign(cast->has_sign(), base);
+	    cp->set_line(*e);
+	    return cp;
+      }
+	/* Concatenations occur frequently inside reusable named sequences
+	   (for example `$countones(mask ^ {mask[..], 1'b0})'). They are
+	   ordinary structural expression nodes and are safe to duplicate. */
+      if (PEConcat*cat = dynamic_cast<PEConcat*>(e)) {
+	    std::list<PExpr*> parms;
+	    for (std::vector<PExpr*>::const_iterator it =
+		       cat->stream_parms().begin()
+		 ; it != cat->stream_parms().end() ; ++it) {
+		  PExpr*cp = sva_clone_subst_(*it, subst);
+		  if (!cp) {
+			for (std::list<PExpr*>::iterator jt = parms.begin()
+			     ; jt != parms.end() ; ++jt) delete *jt;
+			return nullptr;
+		  }
+		  parms.push_back(cp);
+	    }
+	    PExpr*rep = nullptr;
+	    if (cat->has_repeat()) {
+		  rep = sva_clone_subst_(cat->repeat_expr(), subst);
+		  if (!rep) {
+			for (std::list<PExpr*>::iterator jt = parms.begin()
+			     ; jt != parms.end() ; ++jt) delete *jt;
+			return nullptr;
+		  }
+	    }
+	    PEConcat*cp = new PEConcat(parms, rep);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      /* System/sampled function calls ($rose/$past/…) with copyable
 	   argument expressions — needed so a formal can appear inside a
 	   sampled-value function of a parameterized body. */
       if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
-	    if (cf->path().package || cf->path().name.size() != 1)
-		  return nullptr;
+	    if (cf->receiver_expr()) return nullptr;
 	    const std::vector<named_pexpr_t>&parms = cf->get_parms();
 	    std::list<named_pexpr_t> np;
 	    for (size_t k = 0 ; k < parms.size() ; k += 1) {
@@ -5315,8 +5751,9 @@ static PExpr* sva_clone_subst_(PExpr*e,
 		  }
 		  np.push_back(a);
 	    }
-	    PECallFunction*cp = new PECallFunction(
-		  peek_tail_name(cf->path().name), np);
+	    PECallFunction*cp = cf->path().package
+		  ? new PECallFunction(cf->path().package, cf->path().name, np)
+		  : new PECallFunction(cf->path().name, np);
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -5326,6 +5763,94 @@ static PExpr* sva_clone_subst_(PExpr*e,
 static PExpr* sva_clone_expr_(PExpr*e)
 {
       return sva_clone_subst_(e, nullptr);
+}
+
+/* A cloned sampled-value call is consumed by the assertion rewrite rather
+   than the later procedural/default-clock binder. */
+static void sampled_pending_drop_(const PECallFunction*cf);
+
+/* Expand a whole one-dimensional fixed unpacked-array operand into one
+   scalar/packed expression per declared element. This is needed before
+   Preponed/$past rewriting: an array is not one packed value that can be
+   captured in a single history register. The optional outer sampled-value
+   call is cloned around each element, yielding the IEEE element-wise array
+   comparison semantics without losing the clock context. */
+static bool sva_expand_uarray_operand_(PExpr*e, std::vector<PExpr*>&items)
+{
+      PECallFunction*outer = dynamic_cast<PECallFunction*>(e);
+      PEIdent*id = dynamic_cast<PEIdent*>(e);
+      if (outer) {
+	    if (outer->path().package || outer->path().name.size() != 1)
+		  return false;
+	    const char*nm = peek_tail_name(outer->path().name).str();
+	    if (strcmp(nm, "$past") && strcmp(nm, "$sampled")
+		&& strcmp(nm, "$stable") && strcmp(nm, "$changed"))
+		  return false;
+	    const std::vector<named_pexpr_t>&args = outer->get_parms();
+	    if (args.empty()) return false;
+	    id = dynamic_cast<PEIdent*>(args[0].parm);
+      }
+      if (!id || id->path().package || id->path().name.size() != 1
+          || !id->path().name.front().index.empty()) {
+            return false;
+      }
+
+      PWire*wire = pform_get_wire_in_scope(id->path().name.front().name);
+      if (!wire || wire->unpacked_indices().size() != 1) {
+            return false;
+      }
+      const pform_range_t&range = wire->unpacked_indices().front();
+      long left = 0, right = 0;
+      if (!pform_sva_const_long(range.first, left)) return false;
+      if (!range.second) {
+	    if (left <= 0) return false;
+	    right = left - 1;
+	    left = 0;
+	  } else if (!pform_sva_const_long(range.second, right)) {
+	    return false;
+      }
+	/* Bound the parse-time expansion against hostile gigantic ranges.
+	   Ordinary large arrays still reach the elaborator's loud aggregate
+	   diagnostic; no unbounded allocation is attempted here. */
+      unsigned long long count = left <= right
+	    ? (unsigned long long)right - (unsigned long long)left + 1
+	    : (unsigned long long)left - (unsigned long long)right + 1;
+      if (count == 0 || count > 65536) return false;
+      long step = left <= right ? 1 : -1;
+
+      const std::vector<named_pexpr_t>*outer_args =
+	    outer ? &outer->get_parms() : nullptr;
+      for (unsigned long long k = 0 ; k < count ; k += 1) {
+	    long index_value = left + step * (long)k;
+	    pform_name_t path = id->path().name;
+	    index_component_t index;
+	    index.sel = index_component_t::SEL_BIT;
+	    index.msb = new PENumber(new verinum((int64_t)index_value));
+	    index.lsb = index.msb;
+	    path.front().index.push_back(index);
+	    PEIdent*word = new PEIdent(path, id->lexical_pos());
+	    word->set_line(*id);
+	    if (!outer) {
+		  items.push_back(word);
+		  continue;
+	    }
+
+	    std::list<named_pexpr_t> args;
+	    for (size_t a = 0 ; a < outer_args->size() ; a += 1) {
+		  named_pexpr_t arg;
+		  arg.name = (*outer_args)[a].name;
+		  arg.parm = a == 0 ? static_cast<PExpr*>(word)
+			: sva_clone_expr_((*outer_args)[a].parm);
+		  if ((*outer_args)[a].parm && !arg.parm) return false;
+		  args.push_back(arg);
+	    }
+	    PECallFunction*call = new PECallFunction(
+		  peek_tail_name(outer->path().name), args);
+	    call->set_line(*outer);
+	    items.push_back(call);
+      }
+      if (outer) sampled_pending_drop_(outer);
+      return true;
 }
 
 /*
@@ -5378,10 +5903,6 @@ static PExpr* sva_clone_expr_(PExpr*e)
  * nullptr for a shape this cannot copy -- the caller then keeps the
  * original expression, reading live.
  */
-/* A cloned sampled-value call is consumed by the assertion rewrite rather
-   than the later procedural/default-clock binder. */
-static void sampled_pending_drop_(const PECallFunction*cf);
-
 static PExpr* sva_wrap_preponed_(PExpr*e,
 				 std::map<std::string, pform_name_t>&sampled,
 				 unsigned&live_operands)
@@ -5389,10 +5910,51 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
       if (!e) return nullptr;
 
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	      /* Parameters, localparams, and enum literals are constants, not
+		 sampled design objects. In particular a package-qualified enum
+		 used to be counted as an unsampled live operand even though its
+		 value cannot change. A parameter array selected by a live index
+		 is subtler: retain the constant base and sample only expressions
+		 inside its selects. Sampling the aggregate parameter is both
+		 meaningless and illegal for an unpacked array. */
+	    if (pform_sva_ident_base_is_constant_(id)) {
+		  pform_name_t path = id->path().name;
+		  for (pform_name_t::iterator comp = path.begin()
+		       ; comp != path.end() ; ++comp) {
+			for (std::list<index_component_t>::iterator idx =
+			       comp->index.begin() ; idx != comp->index.end(); ++idx) {
+			      PExpr*old_msb = idx->msb;
+			      PExpr*old_lsb = idx->lsb;
+			      PExpr*new_msb = old_msb
+				    ? sva_wrap_preponed_(old_msb, sampled,
+							    live_operands)
+				    : nullptr;
+			      if (old_msb && !new_msb) return nullptr;
+			      PExpr*new_lsb = old_lsb == old_msb ? new_msb
+				    : (old_lsb ? sva_wrap_preponed_(
+					 old_lsb, sampled, live_operands) : nullptr);
+			      if (old_lsb && !new_lsb) return nullptr;
+			      idx->msb = new_msb;
+			      idx->lsb = new_lsb;
+			}
+		  }
+		  PEIdent*cp = id->path().package
+			? new PEIdent(id->path().package, path,
+				      id->lexical_pos())
+			: new PEIdent(path, id->lexical_pos());
+		    /* The checker is a compiler-generated module process and can
+		       be emitted before a later module-item declaration. Resolve
+		       its cloned operand against the completed module scope. */
+		  cp->reloc_lexical_pos_bind();
+		  cp->set_line(*e);
+		  return cp;
+	    }
+
 	    PEIdent*cp = id->path().package
 		  ? new PEIdent(id->path().package, id->path().name,
 				id->lexical_pos())
 		  : new PEIdent(id->path().name, id->lexical_pos());
+	    cp->reloc_lexical_pos_bind();
 	    cp->set_line(*e);
 
 	      /* A bare single-name read is sampled whether or not it
@@ -5408,10 +5970,23 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		 select off the path; `u.q[3]' enables history on `u.q'. */
 	    pform_name_t base = id->path().name;
 	    std::string key;
-	    for (auto&comp : base) {
+	    pform_name_t::iterator indexed_base = base.end();
+	    for (pform_name_t::iterator it = base.begin(); it != base.end(); ++it) {
+		  name_component_t&comp = *it;
+		  if (!comp.index.empty() && indexed_base == base.end())
+			indexed_base = it;
 		  comp.index.clear();
 		  if (!key.empty()) key += ".";
 		  key += comp.name.str();
+	    }
+	      /* In `packed_array[i].member', everything after the selected
+	         component is a member path, not hierarchy. History belongs to
+	         the whole packed_array signal. For `u.vec[i]' the indexed
+	         component is last, so the hierarchical prefix is preserved. */
+	    if (indexed_base != base.end()) {
+		  pform_name_t::iterator after = indexed_base;
+		  ++after;
+		  base.erase(after, base.end());
 	    }
 
 	    std::list<named_pexpr_t> parms;
@@ -5451,6 +6026,40 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 	    return cp;
       }
       if (PEBinary*bin = dynamic_cast<PEBinary*>(e)) {
+	    /* Equality on fixed unpacked arrays is element-wise (7.4.1).
+	       Expand before sampling so `$past(array)' becomes one sampled
+	       history per element rather than an illegal scalar capture. */
+	    if (dynamic_cast<PEBComp*>(e)
+		&& (bin->get_op() == 'e' || bin->get_op() == 'E'
+		    || bin->get_op() == 'w' || bin->get_op() == 'n'
+		    || bin->get_op() == 'N' || bin->get_op() == 'W')) {
+		  std::vector<PExpr*>left_items, right_items;
+		  if (sva_expand_uarray_operand_(bin->get_left(), left_items)
+		      && sva_expand_uarray_operand_(bin->get_right(), right_items)
+		      && left_items.size() == right_items.size()
+		      && !left_items.empty()) {
+			PExpr*res = nullptr;
+			bool equal_op = bin->get_op() == 'e' || bin->get_op() == 'E'
+				     || bin->get_op() == 'w';
+			for (size_t k = 0 ; k < left_items.size() ; k += 1) {
+			      PExpr*l = sva_wrap_preponed_(left_items[k], sampled,
+							 live_operands);
+			      PExpr*r = sva_wrap_preponed_(right_items[k], sampled,
+							 live_operands);
+			      if (!l || !r) return nullptr;
+			      PEBComp*cmp = new PEBComp(bin->get_op(), l, r);
+			      cmp->set_line(*e);
+			      if (!res) res = cmp;
+			      else {
+				    PEBLogic*join = new PEBLogic(equal_op ? 'a' : 'o',
+							      res, cmp);
+				    join->set_line(*e);
+				    res = join;
+			      }
+			}
+			return res;
+		  }
+	    }
 	    PExpr*l = sva_wrap_preponed_(bin->get_left(), sampled, live_operands);
 	    PExpr*r = sva_wrap_preponed_(bin->get_right(), sampled, live_operands);
 	    if (!l || !r) { delete l; delete r; return nullptr; }
@@ -5459,6 +6068,8 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		  cp = new PEBComp(bin->get_op(), l, r);
 	    else if (dynamic_cast<PEBLogic*>(e))
 		  cp = new PEBLogic(bin->get_op(), l, r);
+	    else if (dynamic_cast<PEBPower*>(e))
+		  cp = new PEBPower(bin->get_op(), l, r);
 	    else if (dynamic_cast<PEBShift*>(e))
 		  cp = new PEBShift(bin->get_op(), l, r);
 	    else if (typeid(*e) == typeid(PEBinary))
@@ -5476,31 +6087,164 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 	    cp->set_line(*e);
 	    return cp;
       }
+      if (PEInside*inside = dynamic_cast<PEInside*>(e)) {
+	    PExpr*base = sva_wrap_preponed_(inside->get_expr(), sampled,
+					     live_operands);
+	    if (!base) return nullptr;
+	    std::list<inside_range_t>*ranges = new std::list<inside_range_t>;
+	    const std::vector<inside_range_t>&src = inside->get_ranges();
+	    for (size_t k = 0 ; k < src.size() ; k += 1) {
+		  inside_range_t dst;
+		  dst.lo = src[k].lo
+			? sva_wrap_preponed_(src[k].lo, sampled, live_operands)
+			: nullptr;
+		  dst.hi = src[k].hi
+			? sva_wrap_preponed_(src[k].hi, sampled, live_operands)
+			: nullptr;
+		  dst.weight = src[k].weight
+			? sva_wrap_preponed_(src[k].weight, sampled, live_operands)
+			: nullptr;
+		  dst.is_range = src[k].is_range;
+		  dst.weight_is_divided = src[k].weight_is_divided;
+		  if ((src[k].lo && !dst.lo) || (src[k].hi && !dst.hi)
+		      || (src[k].weight && !dst.weight)) {
+			delete dst.lo;
+			delete dst.hi;
+			delete dst.weight;
+			delete base;
+			for (std::list<inside_range_t>::iterator it = ranges->begin()
+			     ; it != ranges->end() ; ++it) {
+			      delete it->lo;
+			      delete it->hi;
+			      delete it->weight;
+			}
+			delete ranges;
+			return nullptr;
+		  }
+		  ranges->push_back(dst);
+	    }
+	    PEInside*cp = new PEInside(base, ranges);
+	    cp->set_line(*e);
+	    return cp;
+      }
+	/* A cast does not create a separately sampled object: recurse into
+	   its value operand and rebuild the exact cast around that sample.
+	   Size expressions are constant contexts and must not be wrapped. */
+      if (PECastSize*cast = dynamic_cast<PECastSize*>(e)) {
+	    PExpr*size = sva_clone_expr_(cast->cast_size());
+	    PExpr*base = sva_wrap_preponed_(cast->cast_base(), sampled,
+					   live_operands);
+	    if (!size || !base) { delete size; delete base; return nullptr; }
+	    PECastSize*cp = new PECastSize(size, base);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PECastType*cast = dynamic_cast<PECastType*>(e)) {
+	    PExpr*base = sva_wrap_preponed_(cast->cast_base(), sampled,
+					   live_operands);
+	    if (!base) return nullptr;
+	    PECastType*cp = new PECastType(cast->cast_target(), base);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PECastSign*cast = dynamic_cast<PECastSign*>(e)) {
+	    PExpr*base = sva_wrap_preponed_(cast->cast_base(), sampled,
+					   live_operands);
+	    if (!base) return nullptr;
+	    PECastSign*cp = new PECastSign(cast->has_sign(), base);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PEConcat*cat = dynamic_cast<PEConcat*>(e)) {
+	    std::list<PExpr*> parms;
+	    for (std::vector<PExpr*>::const_iterator it =
+		       cat->stream_parms().begin()
+		 ; it != cat->stream_parms().end() ; ++it) {
+		  PExpr*part = sva_wrap_preponed_(*it, sampled, live_operands);
+		  if (!part) {
+			for (std::list<PExpr*>::iterator jt = parms.begin()
+			     ; jt != parms.end() ; ++jt) delete *jt;
+			return nullptr;
+		  }
+		  parms.push_back(part);
+	    }
+	    PExpr*repeat = cat->has_repeat()
+		  ? sva_clone_expr_(cat->repeat_expr()) : nullptr;
+	    if (cat->has_repeat() && !repeat) {
+		  for (std::list<PExpr*>::iterator jt = parms.begin()
+		       ; jt != parms.end() ; ++jt) delete *jt;
+		  return nullptr;
+	    }
+	    PEConcat*cp = new PEConcat(parms, repeat);
+	    cp->set_line(*e);
+	    return cp;
+      }
 	/* Sampled-value functions ($past/$rose/…) are rewritten to history
 	   chains after this pass; sampling their arguments here means the
 	   history captures preponed values too, which is what 16.9.3
 	   requires. */
       if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	      /* A whole fixed unpacked array is not a scalar function
+		 argument, but $stable/$changed are well-defined over its value.
+		 Lower to per-element sampled functions: all words must be
+		 stable, while any changed word changes the aggregate. */
+	    if (!cf->path().package && cf->path().name.size() == 1) {
+		  const char*sample_name =
+			peek_tail_name(cf->path().name).str();
+		  bool stable_array = !strcmp(sample_name, "$stable");
+		  bool changed_array = !strcmp(sample_name, "$changed");
+		  if (stable_array || changed_array) {
+			std::vector<PExpr*>items;
+			if (sva_expand_uarray_operand_(cf, items)
+			    && !items.empty()) {
+			      PExpr*result = nullptr;
+			      for (size_t k = 0 ; k < items.size() ; k += 1) {
+				    PExpr*word = sva_wrap_preponed_(
+					  items[k], sampled, live_operands);
+				    if (!word) return nullptr;
+				    if (!result) result = word;
+				    else {
+					  PEBLogic*join = new PEBLogic(
+						stable_array ? 'a' : 'o',
+						result, word);
+					  join->set_line(*e);
+					  result = join;
+				    }
+			      }
+			      return result;
+			}
+		  }
+	    }
 	    if (PExpr*done = cf->sampled_subst())
 		  return sva_clone_expr_(done);
-	    if (cf->path().package || cf->path().name.size() != 1)
-		  return nullptr;
+	    if (cf->receiver_expr()) return nullptr;
+	    bool sampled_call = !cf->path().package
+		  && cf->path().name.size() == 1
+		  && pform_is_sampled_value_function(
+		  peek_tail_name(cf->path().name).str());
 	    const std::vector<named_pexpr_t>&parms = cf->get_parms();
 	    std::list<named_pexpr_t> np;
 	    for (size_t k = 0 ; k < parms.size() ; k += 1) {
 		  named_pexpr_t a;
 		  a.name = parms[k].name;
 		  if (parms[k].parm) {
-			a.parm = sva_wrap_preponed_(parms[k].parm, sampled, live_operands);
+			/* $past's number_of_ticks is a constant context, not a
+			   sampled operand. Wrapping it in $ivl_clocking_sample
+			   destroys constant-expression identity (AES uses a
+			   localparam arithmetic expression here). */
+			a.parm = (sampled_call && k == 1)
+			      ? sva_clone_expr_(parms[k].parm)
+			      : sva_wrap_preponed_(parms[k].parm, sampled,
+						    live_operands);
 			if (!a.parm) return nullptr;
 		  }
 		  np.push_back(a);
 	    }
-	    PECallFunction*cp = new PECallFunction(
-		  peek_tail_name(cf->path().name), np);
+	    PECallFunction*cp = cf->path().package
+		  ? new PECallFunction(cf->path().package, cf->path().name, np)
+		  : new PECallFunction(cf->path().name, np);
 	    cp->set_line(*e);
-	    if (pform_is_sampled_value_function(
-		      peek_tail_name(cf->path().name).str()))
+	    if (sampled_call)
 		  sampled_pending_drop_(cf);
 	    return cp;
       }
@@ -5582,6 +6326,10 @@ static Statement* sva_hist_on_stmt_(const struct vlltype&loc,
       named_pexpr_t a0;
       a0.parm = new PEIdent(path, loc.lexical_pos);
       FILE_NAME(a0.parm, loc);
+	/* Assertion checkers are synthesized while their source module is
+	   still being parsed. Permit this bookkeeping reference to bind a
+	   module-scope signal declared after the assertion item. */
+      a0.parm->reloc_lexical_pos_bind();
 	// Compiler-generated bookkeeping reference. It shadows a name the
 	// user already wrote in the assertion, so if the name does not
 	// bind, THAT reference reports it -- this one must stay silent.
@@ -5637,13 +6385,16 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
       for (size_t k = 0 ; k < decl.body->size() ; k += 1) {
 	    sva_seq_step_t st = (*decl.body)[k];   /* copies delays */
 	    st.expr = sva_clone_subst_((*decl.body)[k].expr, &subst);
-	    if (!st.expr) {
+	    st.lv_rhs = (*decl.body)[k].lv_rhs
+		? sva_clone_subst_((*decl.body)[k].lv_rhs, &subst) : nullptr;
+	    if (!st.expr || ((*decl.body)[k].lv_rhs && !st.lv_rhs)) {
 		  cerr << loc << ": sorry: sequence `" << nm << "' has a body "
 		       << "expression that cannot be instantiated with "
 		       << "arguments; the assertion is dropped." << endl;
 		  error_count += 1;
-		  for (size_t j = 0 ; j < out->size() ; j += 1) delete (*out)[j].expr;
-		  delete out;
+		  delete st.expr;
+		  delete st.lv_rhs;
+		  pform_sva_destroy_sequence(out);
 		  return nullptr;
 	    }
 	    out->push_back(st);
@@ -5663,9 +6414,12 @@ sva_clone_steps_subst_(const struct vlltype&loc,
       for (size_t k = 0 ; k < in->size() ; k += 1) {
 	    sva_seq_step_t st = (*in)[k];
 	    st.expr = sva_clone_subst_((*in)[k].expr, &subst);
-	    if (!st.expr) {
-		  for (size_t j = 0 ; j < out->size() ; j += 1) delete (*out)[j].expr;
-		  delete out;
+	    st.lv_rhs = (*in)[k].lv_rhs
+		? sva_clone_subst_((*in)[k].lv_rhs, &subst) : nullptr;
+	    if (!st.expr || ((*in)[k].lv_rhs && !st.lv_rhs)) {
+		  delete st.expr;
+		  delete st.lv_rhs;
+		  pform_sva_destroy_sequence(out);
 		  (void)loc;
 		  return nullptr;
 	    }
@@ -5689,9 +6443,132 @@ static PExpr* sva_bit_(const struct vlltype&loc, int v)
       return num;
 }
 
+static bool sva_data_type_signed_(const data_type_t*type)
+{
+      if (const vector_type_t*vec = dynamic_cast<const vector_type_t*>(type))
+	    return vec->signed_flag;
+      if (const atom_type_t*atom = dynamic_cast<const atom_type_t*>(type))
+	    return atom->signed_flag;
+      if (const enum_type_t*enm = dynamic_cast<const enum_type_t*>(type))
+	    return sva_data_type_signed_(enm->base_type.get());
+      if (const parray_type_t*arr = dynamic_cast<const parray_type_t*>(type))
+	    return sva_data_type_signed_(arr->base_type.get());
+      return false;
+}
+
+/* Infer the parse-time signedness needed by a synthesized sampled-value
+   register. Width alone is insufficient: storing -2 in an unsigned history
+   register makes `$past(s) < 0' false even though `s' is signed. This helper
+   covers the self-determined integral shapes used during assertion lowering;
+   elaboration still performs the ordinary width/type checks afterwards. */
+static bool sva_expr_signed_(PExpr*expr)
+{
+      if (!expr) return false;
+      if (PENumber*num = dynamic_cast<PENumber*>(expr))
+	    return num->value().has_sign();
+      if (PEIdent*id = dynamic_cast<PEIdent*>(expr)) {
+	    if (!id->path().package && id->path().name.size() == 1) {
+		  PWire*wire = pform_get_wire_in_scope(
+			id->path().name.front().name);
+		  if (wire)
+			return wire->get_signed()
+			    || sva_data_type_signed_(wire->data_type());
+	    }
+	    return false;
+      }
+      if (PECastSign*cast = dynamic_cast<PECastSign*>(expr))
+	    return cast->has_sign();
+      if (PECastSize*cast = dynamic_cast<PECastSize*>(expr))
+	    return sva_expr_signed_(cast->cast_base());
+      if (PECastType*cast = dynamic_cast<PECastType*>(expr))
+	    return sva_data_type_signed_(cast->cast_target());
+      if (dynamic_cast<PEConcat*>(expr)) return false;
+      if (PEUnary*un = dynamic_cast<PEUnary*>(expr)) {
+	    switch (un->get_op()) {
+		case '!': case '&': case '|': case '^':
+		case 'A': case 'N': case 'X': return false;
+		default: return sva_expr_signed_(un->get_expr());
+	    }
+      }
+      if (PEBinary*bin = dynamic_cast<PEBinary*>(expr)) {
+	    if (dynamic_cast<PEBComp*>(expr)
+		|| dynamic_cast<PEBLogic*>(expr)) return false;
+	    if (dynamic_cast<PEBShift*>(expr))
+		  return sva_expr_signed_(bin->get_left());
+	    return sva_expr_signed_(bin->get_left())
+		&& sva_expr_signed_(bin->get_right());
+      }
+      if (PETernary*ter = dynamic_cast<PETernary*>(expr))
+	    return sva_expr_signed_(ter->get_true())
+		&& sva_expr_signed_(ter->get_false());
+      if (PECallFunction*call = dynamic_cast<PECallFunction*>(expr)) {
+	    if (!call->path().package && call->path().name.size() == 1) {
+		  const char*name = peek_tail_name(call->path().name).str();
+		  if (!strcmp(name, "$signed")) return true;
+		  if (!strcmp(name, "$unsigned")) return false;
+		  if (!strcmp(name, "$ivl_clocking_sample")) {
+			const std::vector<named_pexpr_t>&args = call->get_parms();
+			return !args.empty() && sva_expr_signed_(args[0].parm);
+		  }
+	    }
+      }
+      return false;
+}
+
+/* Recover a sampled expression's nominal parse type when it can be named
+   exactly. History registers store raw bits, but `$past(enum_value)' still
+   has the enum type (16.9.3); without restoring it, passing that result to a
+   function with an enum formal spuriously requires an explicit cast. */
+static data_type_t* sva_expr_sample_type_(PExpr*expr)
+{
+      if (!expr) return nullptr;
+      if (PECallFunction*call = dynamic_cast<PECallFunction*>(expr)) {
+	    if (!call->path().package && call->path().name.size() == 1
+		&& !strcmp(peek_tail_name(call->path().name).str(),
+			   "$ivl_clocking_sample")) {
+		  const std::vector<named_pexpr_t>&args = call->get_parms();
+		  return args.empty() ? nullptr
+			: sva_expr_sample_type_(args[0].parm);
+	    }
+	    return nullptr;
+      }
+      if (PECastType*cast = dynamic_cast<PECastType*>(expr))
+	    return cast->cast_target();
+      PEIdent*id = dynamic_cast<PEIdent*>(expr);
+      if (!id || id->path().package || id->path().name.size() != 1)
+	    return nullptr;
+      PWire*wire = pform_get_wire_in_scope(id->path().name.front().name);
+      if (!wire || !wire->data_type()) return nullptr;
+
+      const std::list<index_component_t>&index_list =
+	    id->path().name.front().index;
+      std::vector<index_component_t>indices(index_list.begin(),
+					     index_list.end());
+      size_t unpacked = wire->unpacked_indices().size();
+      if (indices.size() < unpacked) return nullptr;
+      size_t packed_selects = indices.size() - unpacked;
+      const data_type_t*type = wire->data_type();
+      size_t pos = unpacked;
+      while (packed_selects > 0) {
+	    const parray_type_t*arr = dynamic_cast<const parray_type_t*>(type);
+	    if (!arr || !arr->dims || arr->dims->empty()) return nullptr;
+	    size_t dims = arr->dims->size();
+	    if (packed_selects < dims) return nullptr;
+	    for (size_t k = 0 ; k < dims ; k += 1)
+		  if (indices[pos + k].sel != index_component_t::SEL_BIT)
+			return nullptr;
+	    pos += dims;
+	    packed_selects -= dims;
+	    type = arr->base_type.get();
+      }
+      return const_cast<data_type_t*>(type);
+}
+
 static perm_string sva_make_reg_(const struct vlltype&loc, unsigned inst,
 				 const char*what, unsigned idx,
-				 bool wide = false, bool as_real = false)
+				 bool wide = false, bool as_real = false,
+				 PExpr*width_from = nullptr,
+				 bool signed_value = false)
 {
       char buf[64];
       snprintf(buf, sizeof buf, "_ivl_sva%u_%s%u", inst, what, idx);
@@ -5710,19 +6587,38 @@ static perm_string sva_make_reg_(const struct vlltype&loc, unsigned inst,
       }
       PWire*w = pform_makewire(loc, pform_ident_t(name, loc.lexical_pos),
 			       NetNet::REG, nullptr);
-	/* A value-carrying sample register ($past history, a local
-	   variable capture) is 64 bits: wide enough for every integral
-	   type the LRM allows here, including longint and time. It used
-	   to be 32, which silently truncated the upper half of a wider
-	   $past. Boolean sample registers stay 1 bit. */
+	/* A value-carrying sampled-value register has the exact packed width
+	   of its operand. SystemVerilog sampled-value functions accept any
+	   integral expression, including packed arrays wider than longint;
+	   the former fixed 64-bit register silently truncated AES's 128-bit
+	   state before an element-wise `$past(array)' comparison. Keep the
+	   width expression symbolic as `$bits(operand)' so parameters and
+	   typedefs are resolved in their normal elaboration context. Other
+	   internal value registers that have no source expression retain the
+	   established 64-bit size. Boolean state registers stay 1 bit. */
       if (wide && w) {
 	    std::list<pform_range_t> range;
 	    pform_range_t r;
-	    r.first = new PENumber(new verinum((uint64_t)63, 32));
+	    if (width_from) {
+		  std::list<named_pexpr_t> args;
+		  named_pexpr_t arg;
+		  arg.parm = sva_clone_expr_(width_from);
+		  args.push_back(arg);
+		  PECallFunction*bits = new PECallFunction(
+			lex_strings.make("$bits"), args);
+		  FILE_NAME(bits, loc);
+		  PENumber*one = new PENumber(new verinum((uint64_t)1, 32));
+		  FILE_NAME(one, loc);
+		  r.first = new PEBinary('-', bits, one);
+		  FILE_NAME(r.first, loc);
+	    } else {
+		  r.first = new PENumber(new verinum((uint64_t)63, 32));
+	    }
 	    r.second = new PENumber(new verinum((uint64_t)0, 32));
 	    range.push_back(r);
 	    w->set_range(range, SR_NET);
       }
+      if (signed_value && w) w->set_signed(true);
       return name;
 }
 
@@ -5884,6 +6780,28 @@ static PExpr* sva_logic_(const struct vlltype&loc, char op,
       PEBLogic*b = new PEBLogic(op, l, r);
       FILE_NAME(b, loc);
       return b;
+}
+
+/* Reduce a large Boolean term list as a balanced tree. Temporal windows can
+   legally span thousands of cycles (OTBN uses 4000); a left-deep OR makes
+   expression typing/evaluation quadratic and can exhaust the C++ stack. */
+static PExpr* sva_logic_reduce_(const struct vlltype&loc, char op,
+			       std::vector<PExpr*> terms)
+{
+      if (terms.empty()) return nullptr;
+      while (terms.size() > 1) {
+	    std::vector<PExpr*> next;
+	    next.reserve((terms.size() + 1) / 2);
+	    for (size_t idx = 0 ; idx < terms.size() ; idx += 2) {
+		  if (idx + 1 < terms.size())
+			next.push_back(sva_logic_(loc, op, terms[idx],
+						 terms[idx+1]));
+		  else
+			next.push_back(terms[idx]);
+	    }
+	    terms.swap(next);
+      }
+      return terms.front();
 }
 
 /* M12/20.12: wrap a fail action so it only fires while assertions are
@@ -6714,14 +7632,12 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 							 init, cur_live);
 			long depth = 1;
 			if (is_past && parms.size() > 1 && parms[1].parm) {
-			      PENumber*dn = dynamic_cast<PENumber*>(parms[1].parm);
-			      if (!dn) {
-				    cerr << loc << ": sorry: $past depth must "
-					 << "be a literal constant here." << endl;
+			      if (!pform_sva_const_long(parms[1].parm, depth)) {
+				    cerr << loc << ": error: $past depth must "
+					 << "be a constant expression." << endl;
 				    error_count += 1;
 				    return e;
 			      }
-			      depth = dn->value().as_long();
 			      if (depth < 1) {
 				    /* 16.9.3: number_of_ticks shall be >= 1. The
 				       old clamp silently turned $past(x,0) into
@@ -6754,13 +7670,12 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 				   << "not supported here; it is ignored and "
 				   << "the inferred clock is used." << endl;
 			}
-			  /* $past must preserve the FULL value of its
-			     argument (a local-variable capture stores a
-			     data word, not a bit), so its sample/history
-			     registers are 64-bit -- wide enough for every
-			     integral type; the boolean sampled functions
-			     ($rose/$fell/... ) stay 1-bit. */
-			bool wide = is_past || is_smpl;
+			  /* $past/$sampled preserve the value, and $stable/$changed
+			     compare the FULL value even though their result is one
+			     bit. Derive their capture/history width with
+			     $bits(argument). Only $rose/$fell intentionally inspect
+			     the least-significant bit and use one-bit history. */
+			bool wide = is_past || is_smpl || is_stbl || is_chgd;
 			  /* ...unless the argument is a real variable, in
 			     which case an integral history would round
 			     the fraction away silently. A REAL history
@@ -6769,7 +7684,7 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			     that matters; a real-valued EXPRESSION still
 			     lands in the integral chain. */
 			bool as_real = false;
-			if (is_past || is_smpl) {
+			if (wide) {
 			      if (const PEIdent*aid =
 				  dynamic_cast<const PEIdent*>(parms[0].parm)) {
 				    if (aid->path().size() == 1) {
@@ -6781,6 +7696,8 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 				    }
 			      }
 			}
+			bool sample_signed = wide && !as_real
+			      && sva_expr_signed_(arg);
 			  /* The CURRENT sample. Spliced into a checker
 			     body it is a capture register assigned at the
 			     top of the block; in a standalone sampler
@@ -6793,7 +7710,8 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			perm_string cur;
 			if (!cur_live) {
 			      cur = sva_make_reg_(loc, inst, "smp", hist_idx++,
-						  wide, as_real);
+						  wide, as_real, arg,
+						  sample_signed);
 			      pre.push_back(sva_assign_(loc, cur, arg));
 			}
 			auto mk_cur = [&]() -> PExpr* {
@@ -6814,7 +7732,8 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			std::vector<perm_string> hist (depth);
 			for (long k = 0 ; k < depth ; k += 1) {
 			      hist[k] = sva_make_reg_(loc, inst, "hist", hist_idx++,
-						      wide, as_real);
+						      wide, as_real, arg,
+						      sample_signed);
 				/* Deterministic first-cycle behavior:
 				   histories start at 0, so $stable
 				   compares against 0 rather than the
@@ -6851,8 +7770,17 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			     waiting for one. */
 			sampled_pending_drop_(cf);
 
-			if (is_past)
-			      return sva_id_(loc, old_reg);
+			if (is_past) {
+			      PExpr*old_value = sva_id_(loc, old_reg);
+			      if (data_type_t*sample_type =
+					    sva_expr_sample_type_(arg)) {
+				    PECastType*typed = new PECastType(sample_type,
+							 old_value);
+				    FILE_NAME(typed, loc);
+				    return typed;
+			      }
+			      return old_value;
+			}
 			if (is_rose) {
 			      PEUnary*np = new PEUnary('!', sva_id_(loc, old_reg));
 			      FILE_NAME(np, loc);
@@ -6874,6 +7802,42 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 						sva_id_(loc, old_reg));
 			FILE_NAME(r, loc);
 			return r;
+		  }
+	    }
+
+	      /* Ordinary function calls can contain sampled-value calls in
+		 their arguments (`min($past(a), b)' is common in OpenTitan).
+		 Recurse through them instead of leaving the nested call for the
+		 unrelated procedural-clock binder. The function itself remains
+		 in place; only its input expressions are contextualized. */
+	    if (!cf->receiver_expr()) {
+		  const std::vector<named_pexpr_t>&src = cf->get_parms();
+		  std::vector<PExpr*>rewritten(src.size(), nullptr);
+		  bool changed = false;
+		  for (size_t k = 0 ; k < src.size() ; k += 1) {
+			if (!src[k].parm) continue;
+			rewritten[k] = sva_rewrite_sampled_(
+			      loc, src[k].parm, inst, hist_idx, pre, post,
+			      init, cur_live);
+			changed |= rewritten[k] != src[k].parm;
+		  }
+		  if (changed) {
+			std::list<named_pexpr_t>args;
+			for (size_t k = 0 ; k < src.size() ; k += 1) {
+			      named_pexpr_t arg;
+			      arg.name = src[k].name;
+			      arg.parm = !src[k].parm ? nullptr
+				    : rewritten[k] == src[k].parm
+				    ? sva_clone_expr_(src[k].parm) : rewritten[k];
+			      if (src[k].parm && !arg.parm) return e;
+			      args.push_back(arg);
+			}
+			PECallFunction*cp = cf->path().package
+			      ? new PECallFunction(cf->path().package,
+						   cf->path().name, args)
+			      : new PECallFunction(cf->path().name, args);
+			cp->set_line(*e);
+			return cp;
 		  }
 	    }
 	    return e;
@@ -6901,6 +7865,8 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 		  cp = new PEBComp(bin->get_op(), l, r);
 	    else if (dynamic_cast<PEBLogic*>(e))
 		  cp = new PEBLogic(bin->get_op(), l, r);
+	    else if (dynamic_cast<PEBPower*>(e))
+		  cp = new PEBPower(bin->get_op(), l, r);
 	    else if (dynamic_cast<PEBShift*>(e))
 		  cp = new PEBShift(bin->get_op(), l, r);
 	    else
@@ -6921,6 +7887,122 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 	    if (c == ter->get_cond() && t == ter->get_true()
 		&& f == ter->get_false()) return e;
 	    PETernary*cp = new PETernary(c, t, f);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PECastSize*cast = dynamic_cast<PECastSize*>(e)) {
+	    PExpr*base = sva_rewrite_sampled_(loc, cast->cast_base(), inst,
+					     hist_idx, pre, post, init,
+					     cur_live);
+	    if (base == cast->cast_base()) return e;
+	    PExpr*size = sva_clone_expr_(cast->cast_size());
+	    if (!size) return e;
+	    PECastSize*cp = new PECastSize(size, base);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PECastType*cast = dynamic_cast<PECastType*>(e)) {
+	    PExpr*base = sva_rewrite_sampled_(loc, cast->cast_base(), inst,
+					     hist_idx, pre, post, init,
+					     cur_live);
+	    if (base == cast->cast_base()) return e;
+	    PECastType*cp = new PECastType(cast->cast_target(), base);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PECastSign*cast = dynamic_cast<PECastSign*>(e)) {
+	    PExpr*base = sva_rewrite_sampled_(loc, cast->cast_base(), inst,
+					     hist_idx, pre, post, init,
+					     cur_live);
+	    if (base == cast->cast_base()) return e;
+	    PECastSign*cp = new PECastSign(cast->has_sign(), base);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PEConcat*cat = dynamic_cast<PEConcat*>(e)) {
+	    const std::vector<PExpr*>&src = cat->stream_parms();
+	    std::vector<PExpr*>rewritten(src.size());
+	    bool changed = false;
+	    for (size_t k = 0 ; k < src.size() ; k += 1) {
+		  rewritten[k] = sva_rewrite_sampled_(loc, src[k], inst,
+						 hist_idx, pre, post, init,
+						 cur_live);
+		  changed |= rewritten[k] != src[k];
+	    }
+	    if (!changed) return e;
+	    std::list<PExpr*>parts;
+	    for (size_t k = 0 ; k < src.size() ; k += 1) {
+		  PExpr*part = rewritten[k] == src[k]
+			? sva_clone_expr_(src[k]) : rewritten[k];
+		  if (!part) return e;
+		  parts.push_back(part);
+	    }
+	    PExpr*repeat = cat->has_repeat()
+		  ? sva_clone_expr_(cat->repeat_expr()) : nullptr;
+	    if (cat->has_repeat() && !repeat) return e;
+	    PEConcat*cp = new PEConcat(parts, repeat);
+	    cp->set_line(*e);
+	    return cp;
+      }
+      if (PEInside*inside = dynamic_cast<PEInside*>(e)) {
+	    const std::vector<inside_range_t>&src = inside->get_ranges();
+	    PExpr*base = sva_rewrite_sampled_(loc, inside->get_expr(), inst,
+					       hist_idx, pre, post, init,
+					       cur_live);
+	    struct rewritten_range_t {
+		  PExpr*lo;
+		  PExpr*hi;
+		  PExpr*weight;
+	    };
+	    std::vector<rewritten_range_t> rewritten(src.size());
+	    bool changed = base != inside->get_expr();
+	    for (size_t k = 0 ; k < src.size() ; k += 1) {
+		  rewritten[k].lo = src[k].lo
+			? sva_rewrite_sampled_(loc, src[k].lo, inst, hist_idx,
+						 pre, post, init, cur_live) : nullptr;
+		  rewritten[k].hi = src[k].hi
+			? sva_rewrite_sampled_(loc, src[k].hi, inst, hist_idx,
+						 pre, post, init, cur_live) : nullptr;
+		  rewritten[k].weight = src[k].weight
+			? sva_rewrite_sampled_(loc, src[k].weight, inst, hist_idx,
+						 pre, post, init, cur_live) : nullptr;
+		  changed |= rewritten[k].lo != src[k].lo;
+		  changed |= rewritten[k].hi != src[k].hi;
+		  changed |= rewritten[k].weight != src[k].weight;
+	    }
+	    if (!changed) return e;
+
+	    if (base == inside->get_expr()) base = sva_clone_expr_(base);
+	    if (!base) return e;
+	    std::list<inside_range_t>*ranges = new std::list<inside_range_t>;
+	    for (size_t k = 0 ; k < src.size() ; k += 1) {
+		  inside_range_t dst;
+		  dst.lo = rewritten[k].lo == src[k].lo
+			? sva_clone_expr_(src[k].lo) : rewritten[k].lo;
+		  dst.hi = rewritten[k].hi == src[k].hi
+			? sva_clone_expr_(src[k].hi) : rewritten[k].hi;
+		  dst.weight = rewritten[k].weight == src[k].weight
+			? sva_clone_expr_(src[k].weight) : rewritten[k].weight;
+		  dst.is_range = src[k].is_range;
+		  dst.weight_is_divided = src[k].weight_is_divided;
+		  if ((src[k].lo && !dst.lo) || (src[k].hi && !dst.hi)
+		      || (src[k].weight && !dst.weight)) {
+			delete dst.lo;
+			delete dst.hi;
+			delete dst.weight;
+			delete base;
+			for (std::list<inside_range_t>::iterator it = ranges->begin()
+			     ; it != ranges->end() ; ++it) {
+			      delete it->lo;
+			      delete it->hi;
+			      delete it->weight;
+			}
+			delete ranges;
+			return e;
+		  }
+		  ranges->push_back(dst);
+	    }
+	    PEInside*cp = new PEInside(base, ranges);
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -7044,6 +8126,19 @@ static void sva_mark_strict_(PExpr*e)
 	    sva_mark_strict_(ter->get_false());
 	    return;
       }
+      if (PECastSize*cast = dynamic_cast<PECastSize*>(e)) {
+	    sva_mark_strict_(cast->cast_size());
+	    sva_mark_strict_(cast->cast_base());
+	    return;
+      }
+      if (PECastType*cast = dynamic_cast<PECastType*>(e)) {
+	    sva_mark_strict_(cast->cast_base());
+	    return;
+      }
+      if (PECastSign*cast = dynamic_cast<PECastSign*>(e)) {
+	    sva_mark_strict_(cast->cast_base());
+	    return;
+      }
       if (PEConcat*cc = dynamic_cast<PEConcat*>(e)) {
 	    const std::vector<PExpr*>&parms = cc->stream_parms();
 	    for (size_t i = 0 ; i < parms.size() ; i += 1)
@@ -7091,6 +8186,29 @@ static void sva_expr_forget_sampled_(PExpr*e)
 	    sva_expr_forget_sampled_(ter->get_cond());
 	    sva_expr_forget_sampled_(ter->get_true());
 	    sva_expr_forget_sampled_(ter->get_false());
+	    return;
+      }
+      if (PECastSize*cast = dynamic_cast<PECastSize*>(e)) {
+	    sva_expr_forget_sampled_(cast->cast_size());
+	    sva_expr_forget_sampled_(cast->cast_base());
+	    return;
+      }
+      if (PECastType*cast = dynamic_cast<PECastType*>(e)) {
+	    sva_expr_forget_sampled_(cast->cast_base());
+	    return;
+      }
+      if (PECastSign*cast = dynamic_cast<PECastSign*>(e)) {
+	    sva_expr_forget_sampled_(cast->cast_base());
+	    return;
+      }
+      if (PEInside*inside = dynamic_cast<PEInside*>(e)) {
+	    sva_expr_forget_sampled_(inside->get_expr());
+	    const std::vector<inside_range_t>&ranges = inside->get_ranges();
+	    for (size_t i = 0 ; i < ranges.size() ; i += 1) {
+		  sva_expr_forget_sampled_(ranges[i].lo);
+		  sva_expr_forget_sampled_(ranges[i].hi);
+		  sva_expr_forget_sampled_(ranges[i].weight);
+	    }
 	    return;
       }
       if (PEConcat*cc = dynamic_cast<PEConcat*>(e)) {
@@ -7404,13 +8522,19 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 	    for (size_t k = 0 ; k < seq_it->second->size() ; k += 1) {
 		  sva_seq_step_t st = (*seq_it->second)[k];
 		  PExpr*cp = sva_clone_expr_(st.expr);
-		  if (!cp) {
+		  PExpr*lv_cp = st.lv_rhs ? sva_clone_expr_(st.lv_rhs) : nullptr;
+		  bool had_lv = st.lv_name != perm_string();
+		  if (!cp || (had_lv && !lv_cp)) {
 			  /* consume-once: move the tree and drop the
 			     declaration so a second use is diagnosed */
+			delete cp;
+			delete lv_cp;
 			cp = st.expr;
 			(*seq_it->second)[k].expr = nullptr;
+			lv_cp = st.lv_rhs;
+			(*seq_it->second)[k].lv_rhs = nullptr;
 		  }
-		  if (!cp) {
+		  if (!cp || (had_lv && !lv_cp)) {
 			cerr << loc << ": error: sequence `"
 			     << seq_it->first.name << "' was already "
 			     << "instantiated and its body cannot be "
@@ -7419,8 +8543,12 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			error_count += 1;
 			i += 1;
 			cp = sva_bit_(loc, 1);
+			delete lv_cp;
+			lv_cp = nullptr;
+			st.lv_name = perm_string();
 		  }
 		  st.expr = cp;
+		  st.lv_rhs = lv_cp;
 		  if (k == 0) {
 			st.delay_lo += steps[i].delay_lo;
 			st.delay_hi += steps[i].delay_hi;
@@ -7447,22 +8575,41 @@ pform_sva_repeat(const struct vlltype&loc,
 		 std::vector<sva_seq_step_t>*steps, PExpr*lo, PExpr*hi,
 		 bool unbounded)
 {
-      PENumber*lon = dynamic_cast<PENumber*>(lo);
-      PENumber*hin = dynamic_cast<PENumber*>(hi);
-      long lov = lon ? lon->value().as_long() : -1;
+      long lov = -1, hiv_eval = -1;
+      bool had_hi_expr = hi != nullptr;
+      bool have_lo = pform_sva_const_long(lo, lov);
+      bool have_hi = hi && pform_sva_const_long(hi, hiv_eval);
 	/* `e[*m:$]' has no numeric upper bound; rep_tail = -1 marks it. */
-      long hiv = unbounded ? -1 : (hi ? (hin ? hin->value().as_long() : -1) : lov);
+      long hiv = unbounded ? -1 : (hi ? (have_hi ? hiv_eval : -1) : lov);
       delete lo;
       delete hi;
 
       if (!steps || steps->empty())
 	    return steps;
-      if (lov < 1 || !lon) {
+      if (!have_lo || lov < 0) {
 	    (*steps)[0].delay_lo = -3;
 	    return steps;
       }
-      if (!unbounded && (hiv < lov || (hi && !hin))) {
+      if (!unbounded && (hiv < lov || (had_hi_expr && !have_hi))) {
 	    (*steps)[0].delay_lo = -3;
+	    return steps;
+      }
+
+	/* A zero lower bound has an empty match, which cannot be encoded by
+	   cloning a concrete first step. Record this boolean consecutive
+	   repetition for the automaton builder instead. */
+      if (lov == 0) {
+	    bool plain_bool = steps->size() == 1
+		&& !(*steps)[0].lv_rhs && (*steps)[0].rep_kind == 0
+		&& (*steps)[0].rep_tail == 0
+		&& (*steps)[0].delay_lo == 0 && (*steps)[0].delay_hi == 0;
+	    if (!plain_bool) {
+		  (*steps)[0].delay_lo = -3;
+		  return steps;
+	    }
+	    (*steps)[0].rep_kind = 3;
+	    (*steps)[0].rep_lo = 0;
+	    (*steps)[0].rep_hi = unbounded ? -1 : hiv;
 	    return steps;
       }
 
@@ -7522,10 +8669,11 @@ pform_sva_goto_repeat(const struct vlltype&loc,
 		      int kind, PExpr*lo, PExpr*hi, bool unbounded)
 {
       (void)loc;
-      PENumber*lon = dynamic_cast<PENumber*>(lo);
-      PENumber*hin = dynamic_cast<PENumber*>(hi);
-      long lov = lon ? lon->value().as_long() : -1;
-      long hiv = unbounded ? -1 : (hi ? (hin ? hin->value().as_long() : -1) : lov);
+      long lov = -1, hiv_eval = -1;
+      bool had_hi_expr = hi != nullptr;
+      bool have_lo = pform_sva_const_long(lo, lov);
+      bool have_hi = hi && pform_sva_const_long(hi, hiv_eval);
+      long hiv = unbounded ? -1 : (hi ? (have_hi ? hiv_eval : -1) : lov);
       delete lo;
       delete hi;
 
@@ -7541,8 +8689,9 @@ pform_sva_goto_repeat(const struct vlltype&loc,
 		&& (*steps)[0].delay_lo >= 0
 		&& (*steps)[0].delay_lo == (*steps)[0].delay_hi;
 	/* Count validity: m >= 1, and (bounded) n >= m. */
-      if (ok && (!lon || lov < 1)) ok = false;
-      if (ok && !unbounded && (hiv < lov || (hi && !hin))) ok = false;
+      if (ok && (!have_lo || lov < 1)) ok = false;
+      if (ok && !unbounded && (hiv < lov || (had_hi_expr && !have_hi)))
+	    ok = false;
 
       if (!ok) {
 	    (*steps)[0].delay_lo = -3;
@@ -8752,7 +9901,7 @@ static bool sva_nfa_chain_fixed_(const std::vector<sva_seq_step_t>&steps,
       for (size_t j = 0 ; j < steps.size() ; j += 1) {
 	    const sva_seq_step_t&st = steps[j];
 	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
-		|| st.rep_tail != 0)
+		|| st.rep_tail != 0 || st.rep_kind != 0)
 		  return false;
 	    edge_span += (j == 0 && st.delay_lo == 0) ? 1 : st.delay_lo;
 	    delay_sum += st.delay_lo;
@@ -8860,9 +10009,23 @@ void pform_sva_destroy_mc_segments(std::vector<sva_mc_seg_t>*segs)
 static bool sva_prop_is_plain_seq_(const sva_property_t*prop)
 {
       return prop && prop->op_type == 0 && prop->seq && !prop->tree
+	     && !prop->ante_tree
 	     && !prop->antecedent && !prop->clk_evt && !prop->seq_clk_evt
 	     && !prop->mc_prefix && (!prop->mc_more || prop->mc_more->empty())
 	     && !prop->disable_iff_expr && prop->strength == 0;
+}
+
+static sva_stree_t* sva_prop_take_tree_(sva_property_t*p);
+
+static sva_stree_t* sva_chain_take_tree_(std::vector<sva_seq_step_t>*chain)
+{
+      if (!chain || chain->empty()) {
+	    pform_sva_destroy_sequence(chain);
+	    return nullptr;
+      }
+      sva_stree_t*t = new sva_stree_t;
+      t->chain = chain;
+      return t;
 }
 
 /*
@@ -8908,42 +10071,72 @@ static sva_property_t* sva_nested_prop_sorry_(const struct vlltype&loc,
  * name keeps the parser in sync, so the remaining diagnostics describe
  * real defects instead of parser confusion.
  */
-extern sva_property_t* pform_sva_comb_antecedent_sorry(const struct vlltype&loc,
-						       sva_property_t*ante,
-						       std::vector<sva_seq_step_t>*conseq);
-sva_property_t* pform_sva_comb_antecedent_sorry(const struct vlltype&loc,
-						sva_property_t*ante,
-						std::vector<sva_seq_step_t>*conseq)
+extern sva_property_t* pform_sva_comb_antecedent_sorry(
+					const struct vlltype&loc, int op_type,
+					sva_property_t*ante,
+					std::vector<sva_seq_step_t>*conseq,
+					bool strong_eventually);
+sva_property_t* pform_sva_comb_antecedent_sorry(
+					const struct vlltype&loc, int op_type,
+					sva_property_t*ante,
+					std::vector<sva_seq_step_t>*conseq,
+					bool strong_eventually)
 {
-      cerr << loc << ": sorry: a sequence `or'/`and' combinator as the "
-	   << "antecedent of an implication is not supported yet (IEEE "
-	   << "1800-2017 16.9.5 makes it legal); the assertion is dropped."
-	   << endl;
-      error_count += 1;
-      pform_sva_destroy_property(ante);
-      pform_sva_destroy_sequence(conseq);
-      return nullptr;
+      sva_stree_t*at = sva_prop_take_tree_(ante);
+      sva_stree_t*ct = sva_chain_take_tree_(conseq);
+      if (!at || !ct) {
+	    sva_tree_delete_(at, true);
+	    sva_tree_delete_(ct, true);
+	    return nullptr;
+      }
+      if (strong_eventually) {
+	    if (!ct->chain || ct->chain->size() != 1) {
+		  cerr << loc << ": sorry: an `s_eventually' consequent with a "
+		       << "sequence operand is not supported yet; the assertion "
+		       << "is dropped." << endl;
+		  error_count += 1;
+		  sva_tree_delete_(at, true);
+		  sva_tree_delete_(ct, true);
+		  return nullptr;
+	    }
+	      /* s_eventually(b) is the strong sequence ##[0:$] b. The
+		 implication builder supplies the |=> boundary tick. */
+	    (*ct->chain)[0].delay_lo = 0;
+	    (*ct->chain)[0].delay_hi = -1;
+      }
+      sva_property_t*p = new sva_property_t;
+      p->ante_tree = at;
+      p->tree = ct;
+      p->op_type = op_type;
+      p->strength = strong_eventually ? 1 : 0;
+      return p;
 }
 
 /* The mirror of pform_sva_comb_antecedent_sorry: a combinator as the
    CONSEQUENT of an implication. Same representation limit (the
    consequent field `seq' is also a flat step chain), same need to keep
    the parser in sync rather than emit a bare syntax error. */
-extern sva_property_t* pform_sva_comb_consequent_sorry(const struct vlltype&loc,
-						       std::vector<sva_seq_step_t>*ante,
-						       sva_property_t*conseq);
-sva_property_t* pform_sva_comb_consequent_sorry(const struct vlltype&loc,
-						std::vector<sva_seq_step_t>*ante,
-						sva_property_t*conseq)
+extern sva_property_t* pform_sva_comb_consequent_sorry(
+					const struct vlltype&loc, int op_type,
+					std::vector<sva_seq_step_t>*ante,
+					sva_property_t*conseq);
+sva_property_t* pform_sva_comb_consequent_sorry(
+					const struct vlltype&loc, int op_type,
+					std::vector<sva_seq_step_t>*ante,
+					sva_property_t*conseq)
 {
-      cerr << loc << ": sorry: a sequence `or'/`and'/`throughout' "
-	   << "combinator as the consequent of an implication is not "
-	   << "supported yet (IEEE 1800-2017 16.9.5/16.9.8 make it legal); "
-	   << "the assertion is dropped." << endl;
-      error_count += 1;
-      pform_sva_destroy_sequence(ante);
-      pform_sva_destroy_property(conseq);
-      return nullptr;
+      sva_stree_t*at = sva_chain_take_tree_(ante);
+      sva_stree_t*ct = sva_prop_take_tree_(conseq);
+      if (!at || !ct) {
+	    sva_tree_delete_(at, true);
+	    sva_tree_delete_(ct, true);
+	    return nullptr;
+      }
+      sva_property_t*p = new sva_property_t;
+      p->ante_tree = at;
+      p->tree = ct;
+      p->op_type = op_type;
+      return p;
 }
 
 /*
@@ -8983,7 +10176,6 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 	    pform_sva_destroy_property(conseq);
 	    return nullptr;
       }
-
       if (sva_prop_is_plain_seq_(conseq)) {
 	    std::vector<sva_seq_step_t>*chain = conseq->seq;
 	    conseq->seq = nullptr;
@@ -8992,6 +10184,267 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 	    p->antecedent = ante;
 	    p->seq = chain;
 	    p->op_type = op_type;
+	    return p;
+      }
+
+	/* A sequence property with explicit strength is still an ordinary
+	   implication consequent. Likewise, a multiclocked sequence carries
+	   its first-domain prefix and later clock boundary on the property
+	   wrapper itself. Move the antecedent onto that wrapper so recursive
+	   grammar does not alter either representation. */
+      if (conseq->op_type == 0 && conseq->seq && !conseq->tree
+	  && !conseq->ante_tree && !conseq->antecedent
+	  && !conseq->clk_evt && !conseq->disable_iff_expr) {
+	    conseq->antecedent = ante;
+	    conseq->op_type = op_type;
+	    return conseq;
+      }
+
+	/* `a |-> s_eventually(b)' retains the dedicated compact liveness
+	   lowering. The recursive grammar reaches the same IR that the old
+	   one-off production built. */
+      if (conseq->op_type == 11 && conseq->seq && !conseq->antecedent
+	  && !conseq->tree && !conseq->ante_tree && !conseq->clk_evt
+	  && !conseq->seq_clk_evt && !conseq->mc_prefix
+	  && !conseq->disable_iff_expr) {
+	    std::vector<sva_seq_step_t>*chain = conseq->seq;
+	    conseq->seq = nullptr;
+	    pform_sva_destroy_property(conseq);
+	    sva_property_t*p = new sva_property_t;
+	    p->antecedent = ante;
+	    p->seq = chain;
+	    p->op_type = (op_type == 1) ? 18 : 19;
+	    p->strength = 1;
+	    return p;
+      }
+
+	/* nexttime/s_nexttime and bounded eventually are regular sequence
+	   consequences once their contextual starting point is known. */
+      if ((conseq->op_type == 9 || conseq->op_type == 10
+	   || conseq->op_type == 13)
+	  && conseq->seq && conseq->seq->size() == 1
+	  && !conseq->antecedent && !conseq->tree && !conseq->ante_tree
+	  && !conseq->clk_evt && !conseq->seq_clk_evt && !conseq->mc_prefix
+	  && !conseq->disable_iff_expr) {
+	    sva_seq_step_t&st = (*conseq->seq)[0];
+	    long lo = conseq->win_lo;
+	    long hi = conseq->win_hi;
+	    if (conseq->op_type == 9 || conseq->op_type == 10) {
+		  if (lo < 0) lo = 1;
+		  if (hi < 0) hi = lo;
+	    }
+	    if (lo < 0 || hi < lo) {
+		  cerr << loc << ": error: invalid temporal consequent window."
+		       << endl;
+		  error_count += 1;
+		  pform_sva_destroy_sequence(ante);
+		  pform_sva_destroy_property(conseq);
+		  return nullptr;
+	    }
+	    st.delay_lo = lo;
+	    st.delay_hi = hi;
+	    std::vector<sva_seq_step_t>*chain = conseq->seq;
+	    int strength = (conseq->op_type == 10) ? 1 : conseq->strength;
+	    conseq->seq = nullptr;
+	    pform_sva_destroy_property(conseq);
+	    sva_property_t*p = new sva_property_t;
+	    p->antecedent = ante;
+	    p->seq = chain;
+	    p->op_type = op_type;
+	    p->strength = strength;
+	    return p;
+      }
+
+	/* Negation and safety operators are most naturally composed with an
+	   implication as a forbidden sequence: a match is a failure; once the
+	   antecedent has matched, death of every forbidden path is success.
+	   This preserves the exact attempt boundary instead of sampling the
+	   property later in a detached monitor. */
+      if (conseq->op_type == 3 && conseq->seq && !conseq->antecedent
+	  && !conseq->tree && !conseq->ante_tree && !conseq->clk_evt
+	  && !conseq->seq_clk_evt && !conseq->mc_prefix
+	  && !conseq->disable_iff_expr) {
+	    std::vector<sva_seq_step_t>*bad = conseq->seq;
+	    conseq->seq = nullptr;
+	    pform_sva_destroy_property(conseq);
+	    sva_property_t*p = new sva_property_t;
+	    p->antecedent = ante;
+	    p->seq = bad;
+	    p->op_type = op_type;
+	    p->forbidden_consequent = true;
+	    return p;
+      }
+
+	/* always [m:n] p fails exactly when !p matches at any point in its
+	   window. The unbounded form uses ##[0:$] !p, a looping forbidden
+	   sequence whose pending state at end of simulation is success. */
+      if (conseq->op_type == 12 && conseq->seq
+	  && conseq->seq->size() == 1 && !conseq->antecedent
+	  && !conseq->tree && !conseq->ante_tree && !conseq->clk_evt
+	  && !conseq->seq_clk_evt && !conseq->mc_prefix
+	  && !conseq->disable_iff_expr) {
+	    sva_seq_step_t&st = (*conseq->seq)[0];
+	    st.expr = sva_not_(loc, st.expr);
+	    st.delay_lo = (conseq->win_lo < 0) ? 0 : conseq->win_lo;
+	    st.delay_hi = (conseq->win_hi < 0) ? -1 : conseq->win_hi;
+	    std::vector<sva_seq_step_t>*bad = conseq->seq;
+	    conseq->seq = nullptr;
+	    pform_sva_destroy_property(conseq);
+	    sva_property_t*p = new sva_property_t;
+	    p->antecedent = ante;
+	    p->seq = bad;
+	    p->op_type = op_type;
+	    p->forbidden_consequent = true;
+	    return p;
+      }
+
+	/* p until q is violated by the first !p&&!q tick; until_with is
+	   violated by !p, including the q tick. Encode the good prefix as
+	   (p&&!q)[*0:$] and fuse the bad terminal with ##0. q kills every
+	   remaining path, discharging a weak obligation. A strong-until
+	   property marks a still-looping path as an end-of-simulation fail. */
+      if (conseq->op_type >= 4 && conseq->op_type <= 7
+	  && conseq->antecedent && conseq->antecedent->size() == 1
+	  && conseq->seq && conseq->seq->size() == 1
+	  && !conseq->tree && !conseq->ante_tree && !conseq->clk_evt
+	  && !conseq->seq_clk_evt && !conseq->mc_prefix
+	  && !conseq->disable_iff_expr) {
+	    sva_seq_step_t&ps = (*conseq->antecedent)[0];
+	    sva_seq_step_t&qs = (*conseq->seq)[0];
+	    bool plain = ps.delay_lo >= 0 && ps.delay_hi == ps.delay_lo
+		       && ps.rep_tail == 0 && ps.rep_kind == 0
+		       && qs.delay_lo == 0 && qs.delay_hi == 0
+		       && qs.rep_tail == 0 && qs.rep_kind == 0;
+	    PExpr*pc = plain ? sva_clone_expr_(ps.expr) : nullptr;
+	    PExpr*qc = plain ? sva_clone_expr_(qs.expr) : nullptr;
+	    if (!plain || !pc || !qc) {
+		  delete pc;
+		  delete qc;
+		  cerr << loc << ": sorry: this `until' implication consequent "
+		       << "requires boolean operands that can be contextualized; "
+		       << "the assertion is dropped." << endl;
+		  error_count += 1;
+		  pform_sva_destroy_sequence(ante);
+		  pform_sva_destroy_property(conseq);
+		  return nullptr;
+	    }
+	    PExpr*loop = sva_logic_(loc, 'a', ps.expr,
+				     sva_not_(loc, qc));
+	    ps.expr = nullptr;
+	    PExpr*bad = sva_not_(loc, pc);
+	    bool with = conseq->op_type == 5 || conseq->op_type == 7;
+	    if (!with)
+		  bad = sva_logic_(loc, 'a', bad,
+				   sva_not_(loc, qs.expr));
+	    else
+		  delete qs.expr;
+	    qs.expr = nullptr;
+	    int strength = (conseq->op_type == 6
+			    || conseq->op_type == 7) ? 1 : 0;
+	    long start_delay = ps.delay_lo;
+	    pform_sva_destroy_property(conseq);
+
+	    std::vector<sva_seq_step_t>*bad_seq =
+		  new std::vector<sva_seq_step_t>;
+	    sva_seq_step_t good_prefix;
+	    good_prefix.expr = loop;
+	    good_prefix.delay_lo = start_delay;
+	    good_prefix.delay_hi = start_delay;
+	    good_prefix.rep_kind = 3;
+	    good_prefix.rep_lo = 0;
+	    good_prefix.rep_hi = -1;
+	    bad_seq->push_back(good_prefix);
+	    sva_seq_step_t terminal;
+	    terminal.expr = bad;
+	    terminal.delay_lo = 0;
+	    terminal.delay_hi = 0;
+	    bad_seq->push_back(terminal);
+
+	    sva_property_t*p = new sva_property_t;
+	    p->antecedent = ante;
+	    p->seq = bad_seq;
+	    p->op_type = op_type;
+	    p->strength = strength;
+	    p->forbidden_consequent = true;
+	    return p;
+      }
+
+      if (conseq->op_type == 0 && conseq->tree && !conseq->ante_tree
+	  && !conseq->clk_evt && !conseq->seq_clk_evt
+	  && !conseq->mc_prefix && !conseq->disable_iff_expr)
+	    return pform_sva_comb_consequent_sorry(loc, op_type, ante,
+						     conseq);
+
+	/* A boolean overlapped outer implication wrapped around another
+	   implication is exactly an AND on the nested antecedent:
+
+	       enable |-> (a |=> b)  ==  (enable and a) |=> b
+
+	   Both antecedent operands start on the same tick; sequence `and'
+	   correctly lets a longer nested antecedent finish later. This is the
+	   canonical expansion of OpenTitan's ASSERT_IF macro. */
+      bool nested_impl = conseq->op_type == 1 || conseq->op_type == 2
+			 || conseq->op_type == 18 || conseq->op_type == 19;
+      bool outer_bool = ante->size() == 1
+			&& (*ante)[0].delay_lo == 0
+			&& (*ante)[0].delay_hi == 0
+			&& (*ante)[0].rep_tail == 0
+			&& (*ante)[0].rep_kind == 0;
+      if (op_type == 1 && nested_impl && outer_bool
+	  && !conseq->clk_evt && !conseq->seq_clk_evt
+	  && !conseq->mc_prefix && !conseq->disable_iff_expr) {
+	    sva_stree_t*outer = sva_chain_take_tree_(ante);
+	    sva_stree_t*inner_ante = conseq->ante_tree;
+	    conseq->ante_tree = nullptr;
+	    if (!inner_ante) {
+		  inner_ante = sva_chain_take_tree_(conseq->antecedent);
+		  conseq->antecedent = nullptr;
+	    }
+	    sva_stree_t*inner_seq = conseq->tree;
+	    conseq->tree = nullptr;
+	    if (!inner_seq) {
+		  inner_seq = sva_chain_take_tree_(conseq->seq);
+		  conseq->seq = nullptr;
+	    }
+	    if (!outer || !inner_ante || !inner_seq) {
+		  sva_tree_delete_(outer, true);
+		  sva_tree_delete_(inner_ante, true);
+		  sva_tree_delete_(inner_seq, true);
+		  pform_sva_destroy_property(conseq);
+		  return nullptr;
+	    }
+
+	    int nested_op = conseq->op_type;
+	    int strength = conseq->strength;
+	    if (nested_op == 18 || nested_op == 19) {
+		  if (!inner_seq->chain || inner_seq->chain->size() != 1) {
+			cerr << loc << ": sorry: this nested `s_eventually' "
+			     << "sequence operand is not supported; the assertion "
+			     << "is dropped." << endl;
+			error_count += 1;
+			sva_tree_delete_(outer, true);
+			sva_tree_delete_(inner_ante, true);
+			sva_tree_delete_(inner_seq, true);
+			pform_sva_destroy_property(conseq);
+			return nullptr;
+		  }
+		  (*inner_seq->chain)[0].delay_lo = 0;
+		  (*inner_seq->chain)[0].delay_hi = -1;
+		  nested_op = (nested_op == 18) ? 1 : 2;
+		  strength = 1;
+	    }
+
+	    sva_stree_t*both = new sva_stree_t;
+	    both->kind = sva_stree_t::SEQ_AND;
+	    both->a = outer;
+	    both->b = inner_ante;
+	    sva_property_t*p = new sva_property_t;
+	    p->ante_tree = both;
+	    p->tree = inner_seq;
+	    p->op_type = nested_op;
+	    p->strength = strength;
+	    p->forbidden_consequent = conseq->forbidden_consequent;
+	    pform_sva_destroy_property(conseq);
 	    return p;
       }
 
@@ -9036,6 +10489,7 @@ void pform_sva_destroy_property(sva_property_t*prop)
       pform_sva_destroy_sequence(prop->mc_prefix);
       pform_sva_destroy_sequence(prop->seq);
       pform_sva_destroy_mc_segments(prop->mc_more);
+      sva_tree_delete_(prop->ante_tree, true);
       sva_tree_delete_(prop->tree, true);
       delete prop;
 }
@@ -9365,6 +10819,34 @@ static bool sva_expr_reads_lv_(PExpr*e,
 	    return sva_expr_reads_lv_(t->get_cond(), lv)
 		|| sva_expr_reads_lv_(t->get_true(), lv)
 		|| sva_expr_reads_lv_(t->get_false(), lv);
+      if (PECastSize*cast = dynamic_cast<PECastSize*>(e))
+	    return sva_expr_reads_lv_(cast->cast_size(), lv)
+		|| sva_expr_reads_lv_(cast->cast_base(), lv);
+      if (PECastType*cast = dynamic_cast<PECastType*>(e))
+	    return sva_expr_reads_lv_(cast->cast_base(), lv);
+      if (PECastSign*cast = dynamic_cast<PECastSign*>(e))
+	    return sva_expr_reads_lv_(cast->cast_base(), lv);
+      if (PEConcat*cat = dynamic_cast<PEConcat*>(e)) {
+	    const std::vector<PExpr*>&parts = cat->stream_parms();
+	    for (size_t i = 0 ; i < parts.size() ; i += 1)
+		  if (sva_expr_reads_lv_(parts[i], lv)) return true;
+	    return sva_expr_reads_lv_(cat->repeat_expr(), lv);
+      }
+      if (PEInside*inside = dynamic_cast<PEInside*>(e)) {
+	    if (sva_expr_reads_lv_(inside->get_expr(), lv)) return true;
+	    const std::vector<inside_range_t>&ranges = inside->get_ranges();
+	    for (size_t i = 0 ; i < ranges.size() ; i += 1)
+		  if (sva_expr_reads_lv_(ranges[i].lo, lv)
+		      || sva_expr_reads_lv_(ranges[i].hi, lv)
+		      || sva_expr_reads_lv_(ranges[i].weight, lv)) return true;
+	    return false;
+      }
+      if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	    const std::vector<named_pexpr_t>&args = cf->get_parms();
+	    for (size_t i = 0 ; i < args.size() ; i += 1)
+		  if (sva_expr_reads_lv_(args[i].parm, lv)) return true;
+	    return false;
+      }
 	/* Unknown shape: be conservative (per-slot). */
       return true;
 }
@@ -9417,14 +10899,18 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	/* `cover property (not ...)` is a legacy sorry; fall back for
 	   the diagnostic. */
       if (kind == 2 && prop->op_type == 3) return false;
-	/* Stage B trees ride op 0 only (the grammar builds them
-	   there). */
-      if (have_tree && prop->op_type != 0) return false;
+	/* An implication may carry both operands as automaton trees. */
+      bool tree_implication = have_tree && prop->ante_tree
+			   && (prop->op_type == 1 || prop->op_type == 2);
+      if (have_tree && prop->op_type != 0 && !tree_implication)
+	    return false;
 
 	/* Expand named sequence references (idempotent; the legacy
 	   path re-runs it harmlessly on fallback). */
       std::vector< std::vector<sva_seq_step_t>* > tree_leaves;
       if (have_tree) {
+	    if (prop->ante_tree)
+		  sva_tree_leaves_(prop->ante_tree, tree_leaves);
 	    sva_tree_leaves_(prop->tree, tree_leaves);
 	    for (size_t i = 0 ; i < tree_leaves.size() ; i += 1)
 		  sva_splice_sequences_(loc, *tree_leaves[i]);
@@ -9437,6 +10923,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       bool negated = (prop->op_type == 3);
       bool cover = (kind == 2);
       bool implication = (prop->op_type == 1 || prop->op_type == 2);
+      bool forbidden = implication && prop->forbidden_consequent;
+	/* A cover of the logical dual needs a first-class recursive-property
+	   verdict rather than the assertion pass/fail dual below. Keep it on
+	   the loud fallback path instead of counting forbidden matches. */
+      if (cover && forbidden) return false;
 
       std::vector<sva_seq_step_t> chain;
       long ante_edges = 0;
@@ -9506,7 +10997,12 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       }
 
       sva_nfa_t nfa;
-      bool built = have_tree
+      std::vector<sva_nfa_boundary_t> tree_boundary;
+      bool built = tree_implication
+	    ? pform_sva_nfa_build_implication(
+			nfa, prop->ante_tree, prop->tree,
+			prop->op_type == 2, tree_boundary)
+	    : have_tree
 	    ? pform_sva_nfa_build_from_tree(nfa, prop->tree)
 	    : pform_sva_nfa_build_from_chain(nfa, chain);
       if (!built)
@@ -9534,12 +11030,12 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    if (!seen[nfa.accept]) return false;
       }
 
-	/* LV-2: the automaton states after which each local variable is
-	   captured — destinations of edges whose guard set contains the
-	   assigning step's gate expression. (A ##0-fused or windowed
-	   assigning step could scatter the gate across several edges;
-	   require a single capture state per variable so the write is
-	   unambiguous, else fall back.) */
+	/* LV-2: verify that each assigning-step gate survived construction.
+	   A ##0-fused continuation may legitimately clone that gate onto
+	   several outgoing edges (for example, the good and bad branches of
+	   an `until' consequence). They all fire on the same attempt/tick and
+	   store the same sampled rhs, so multiple destinations are exact, not
+	   ambiguous; the capture OR below deliberately covers all of them. */
       std::vector< std::vector<bool> > lv_capture (lv_list.size());
       for (unsigned li = 0 ; li < lv_list.size() ; li += 1) {
 	    lv_capture[li].assign(nfa.nstates, false);
@@ -9553,7 +11049,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			cnt += 1;
 		  }
 	    }
-	    if (cnt != 1) return false;
+	    if (cnt == 0) return false;
       }
 
       bool cyclic = pform_sva_nfa_has_cycle(nfa);
@@ -9568,7 +11064,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		 values), and STRONG sequence properties (C.2: the legacy
 		 engine has no end-of-sim obligation for a bare sequence),
 		 which MUST use the automaton's cyclic pool. */
-	    if (!have_tree && !has_lv && prop->strength == 0
+	    if (!have_tree && !has_lv && prop->strength == 0 && !forbidden
 		&& sva_nfa_legacy_supports_(*prop->seq, ante_delay_sum,
 					    implication))
 		  return false;
@@ -9586,7 +11082,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   path, so exactly one state sits at BFS depth ante_edges-1;
 	   anything else is a construction surprise — fall back. */
       unsigned pre_boundary = 0;
-      if (implication) {
+      if (implication && !tree_implication) {
 	    std::vector<long> dist (N, -1);
 	    std::vector<unsigned> q;
 	    dist[nfa.start] = 0;
@@ -9735,8 +11231,16 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    char what[24];
 	    snprintf(what, sizeof what, "lvr%u", li);
 	    lv_rhs_reg[li] = sva_make_reg_(loc, inst, what, 0, true);
-	    pre.push_back(sva_assign_(loc, lv_rhs_reg[li],
-				      sva_clone_expr_(lv_rhs_expr[li])));
+	    /* The assignment rhs is part of the sampled assertion too. In
+	       particular OpenTitan captures `$past(state)' into a property
+	       local variable. Sending an unrewritten clone to elaboration
+	       evaluates it outside any clocking context, silently turning
+	       $past into the current value. Route the owned source node through
+	       the same history rewrite as edge guards; the property vectors are
+	       shallow-freed after this lowering, so ownership transfers here. */
+	    PExpr*rhs = sva_rewrite_sampled_(loc, lv_rhs_expr[li], inst,
+					     hist_idx, pre, post, init_zero);
+	    pre.push_back(sva_assign_(loc, lv_rhs_reg[li], rhs));
       }
 	/* Per-slot local-variable copies (32-bit). */
       std::vector< std::vector<perm_string> > vk (K);
@@ -9868,6 +11372,23 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		 (possibly fused) consequent edge also fires. Evaluated
 		 on the PRE-advance state bits. */
 	    if (track_ob) {
+	      if (tree_implication) {
+		    PExpr*done = nullptr;
+		    for (size_t bi = 0 ; bi < tree_boundary.size() ; bi += 1) {
+			  const sva_nfa_boundary_t&bd = tree_boundary[bi];
+			  PExpr*term = sva_id_(loc, s[k][bd.from]);
+			  for (size_t g = 0 ; g < bd.guards.size() ; g += 1) {
+				std::map<PExpr*,perm_string>::iterator it =
+				      guard_reg.find(bd.guards[g]);
+				assert(it != guard_reg.end());
+				term = sva_logic_(loc, 'a', term,
+						  sva_id_(loc, it->second));
+			  }
+			  done = done ? sva_logic_(loc, 'o', done, term) : term;
+		    }
+		    body.push_back(sva_if_(loc, done,
+			  sva_assign_(loc, ob[k], sva_bit_(loc, 1)), nullptr));
+	      } else {
 		  size_t tail0 = prop->antecedent->size() - 1;
 		  while (tail0 > 0
 			 && (*prop->antecedent)[tail0].delay_lo == 0)
@@ -9882,6 +11403,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  }
 		  body.push_back(sva_if_(loc, done,
 			sva_assign_(loc, ob[k], sva_bit_(loc, 1)), nullptr));
+	      }
 	    }
 	      /* LV-2: per-slot substitution map (local var -> this slot's
 		 copy) for guards that read a local variable. */
@@ -9968,7 +11490,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  FILE_NAME(add, loc);
 		  acc_v.push_back(sva_assign_(loc, r_cnt, add));
 	    } else {
-		  acc_v.push_back(sva_assign_(loc, negated ? r_f : r_p,
+		  acc_v.push_back(sva_assign_(loc,
+					       (negated || forbidden) ? r_f : r_p,
 					      sva_bit_(loc, 1)));
 	    }
 	    clear_slot(k, acc_v);
@@ -9977,7 +11500,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 
 	    if (track_ob) {
 		  die_v.push_back(sva_if_(loc, sva_id_(loc, ob[k]),
-					  sva_assign_(loc, r_f,
+					  sva_assign_(loc, forbidden ? r_p : r_f,
 						      sva_bit_(loc, 1)),
 					  nullptr));
 		  die_v.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
@@ -10173,7 +11696,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  FILE_NAME(fc, loc);
 		  PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
 		  FILE_NAME(fp, loc);
-	    } else if (pend) {
+	    } else if (pend && !forbidden) {
 		    /* weak (default): informational note only. */
 		  std::list<named_pexpr_t> dargs;
 		  named_pexpr_t darg;
@@ -10194,6 +11717,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       delete eos_fail_stmt;
 
       if (have_tree) {
+	    sva_tree_delete_(prop->ante_tree, false);
+	    prop->ante_tree = nullptr;
 	    sva_tree_delete_(prop->tree, false);
 	    prop->tree = nullptr;
       }
@@ -12825,6 +14350,24 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   sva_hoist_out_of_block_t. */
       sva_hoist_out_of_block_t sva_scope_guard;
 
+	/* A variable-length implication antecedent is a regular sequence,
+	   but it cannot use the legacy flat implication bookkeeping (there
+	   is no single fixed completion offset). Promote both operands to
+	   trees so the NFA implication composer can detect every possible
+	   antecedent endpoint and open the consequent there. */
+      if (prop && !prop->tree && !prop->ante_tree
+	  && (prop->op_type == 1 || prop->op_type == 2)
+	  && !prop->seq_clk_evt && prop->antecedent && prop->seq) {
+	    long edge_span = 0, delay_sum = 0;
+	    if (!sva_nfa_chain_fixed_(*prop->antecedent,
+				      edge_span, delay_sum)) {
+		  prop->ante_tree = sva_chain_take_tree_(prop->antecedent);
+		  prop->antecedent = nullptr;
+		  prop->tree = sva_chain_take_tree_(prop->seq);
+		  prop->seq = nullptr;
+	    }
+      }
+
 	/* Stage B combinator trees (sequence or/and): only the
 	   automaton engine lowers these — everything below assumes
 	   the chain members. */
@@ -12842,7 +14385,11 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	         dispatch used to bypass it, leaving the references
 	         unresolved and the assertion silently wrong
 	         (recovery C5). */
-	    if (!sva_lower_endpoint_methods_tree_(loc, prop->tree)) {
+	    if ((prop->ante_tree
+		 && !sva_lower_endpoint_methods_tree_(loc, prop->ante_tree))
+		|| !sva_lower_endpoint_methods_tree_(loc, prop->tree)) {
+		  sva_tree_delete_(prop->ante_tree, true);
+		  prop->ante_tree = nullptr;
 		  sva_tree_delete_(prop->tree, true);
 		  prop->tree = nullptr;
 		  delete prop->clk_evt;
@@ -12888,6 +14435,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			     "IVL_SVA_LEGACY)")
 		       << "; the assertion is dropped." << endl;
 	    error_count += 1;
+	    sva_tree_delete_(prop->ante_tree, true);
+	    prop->ante_tree = nullptr;
 	    sva_tree_delete_(prop->tree, true);
 	    prop->tree = nullptr;
 	    delete prop->clk_evt;
@@ -12906,8 +14455,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	/* Named property instantiation: `assert property (p);` where p
 	   is a declared no-argument property of this module. */
       if (prop->op_type == 0 && prop->seq->size() == 1
-	  && !prop->clk_evt && !prop->seq_clk_evt && !prop->mc_prefix
-	  && prop->mc_boundary == -1 && !prop->disable_iff_expr) {
+	  && !prop->seq_clk_evt && !prop->mc_prefix
+	  && prop->mc_boundary == -1) {
 	    if (PEIdent*id = dynamic_cast<PEIdent*>((*prop->seq)[0].expr)) {
 		  if (!id->path().package && id->path().name.size() == 1
 		      && id->path().name.front().index.empty()) {
@@ -12934,6 +14483,11 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			}
 			if (pit != sva_module_properties.end() && pit->second) {
 			      sva_property_t*named = pit->second;
+			      PEventStatement*outer_clk = prop->clk_evt;
+			      prop->clk_evt = nullptr;
+			      PExpr*outer_disable = prop->disable_iff_expr;
+			      prop->disable_iff_expr = nullptr;
+			      bool has_outer_context = outer_clk || outer_disable;
 			        /* Deep-clone the declaration per instantiation
 			           (recovery C5): the old transfer-and-null
 			           "consume once" made every SECOND assert of
@@ -12950,6 +14504,34 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				  || (named->mc_more && !named->mc_more->empty())) {
 				    inst = named;
 				    pit->second = nullptr;  /* consume once */
+				    if (outer_clk && inst->clk_evt) {
+					  cerr << loc << ": sorry: a named property with "
+					       << "its own leading clock cannot also be "
+					       << "instantiated under another explicit "
+					       << "clock yet; the assertion is dropped."
+					       << endl;
+					  error_count += 1;
+					  delete outer_clk;
+					  delete outer_disable;
+					  delete id;
+					  delete prop->seq;
+					  delete prop;
+					  delete fail_stmt;
+					  delete pass_stmt;
+					  return;
+				    }
+				    if (outer_clk) inst->clk_evt = outer_clk;
+				    if (outer_disable) {
+					  if (inst->disable_iff_expr) {
+						PEBLogic*both = new PEBLogic(
+						      'o', outer_disable,
+						      inst->disable_iff_expr);
+						FILE_NAME(both, loc);
+						inst->disable_iff_expr = both;
+					  } else {
+						inst->disable_iff_expr = outer_disable;
+					  }
+				    }
 			      } else {
 				    std::map<perm_string,PExpr*> subst;
 				    bool ok = true;
@@ -12957,13 +14539,29 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				    inst->op_type = named->op_type;
 				    inst->mc_boundary = named->mc_boundary;
 				    inst->strength = named->strength;
+				    inst->forbidden_consequent =
+					  named->forbidden_consequent;
 				    inst->win_lo = named->win_lo;
 				    inst->win_hi = named->win_hi;
 				    inst->tree_sorry = named->tree_sorry;
+				    inst->clk_evt = outer_clk;
+				    outer_clk = nullptr;
+				    inst->disable_iff_expr = outer_disable;
+				    outer_disable = nullptr;
 				    if (named->clk_evt) {
-					  inst->clk_evt = sva_clone_event_control_(
-						named->clk_evt, loc, &subst);
-					  if (!inst->clk_evt) ok = false;
+					  if (inst->clk_evt) {
+						cerr << loc << ": sorry: a named property with "
+						     << "its own leading clock cannot also be "
+						     << "instantiated under another explicit "
+						     << "clock yet; the assertion is dropped."
+						     << endl;
+						error_count += 1;
+						ok = false;
+					  } else {
+						inst->clk_evt = sva_clone_event_control_(
+						      named->clk_evt, loc, &subst);
+						if (!inst->clk_evt) ok = false;
+					  }
 				    }
 				    if (ok && named->seq_clk_evt) {
 					  inst->seq_clk_evt = sva_clone_event_control_(
@@ -12971,9 +14569,18 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					  if (!inst->seq_clk_evt) ok = false;
 				    }
 				    if (ok && named->disable_iff_expr) {
-					  inst->disable_iff_expr = sva_clone_subst_(
+					  PExpr*dd = sva_clone_subst_(
 						named->disable_iff_expr, &subst);
-					  if (!inst->disable_iff_expr) ok = false;
+					  if (!dd) {
+						ok = false;
+					  } else if (inst->disable_iff_expr) {
+						PEBLogic*both = new PEBLogic(
+						      'o', inst->disable_iff_expr, dd);
+						FILE_NAME(both, loc);
+						inst->disable_iff_expr = both;
+					  } else {
+						inst->disable_iff_expr = dd;
+					  }
 				    }
 				    if (ok && named->abort_cond) {
 					  inst->abort_cond = sva_clone_subst_(
@@ -12996,18 +14603,28 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					  if (!inst->mc_prefix) ok = false;
 				    }
 				    if (!ok) {
-					    /* Clone failed: keep the old
-					       transfer semantics rather than
-					       dropping the FIRST use; re-use
-					       then hits the loud refusal. */
 					  pform_sva_destroy_property(inst);
-					  inst = named;
-					  pit->second = nullptr;
+					  if (has_outer_context) {
+						/* The contextual clock/disable was owned by
+						   the failed clone. Do not silently discard it
+						   by falling back to transfer semantics. */
+						inst = nullptr;
+					  } else {
+						/* Preserve the historical first-use transfer
+						   fallback for an uncontextualized property. */
+						inst = named;
+						pit->second = nullptr;
+					  }
 				    }
 			      }
 			      delete id;
 			      delete prop->seq;
 			      delete prop;
+			      if (!inst) {
+				    delete fail_stmt;
+				    delete pass_stmt;
+				    return;
+			      }
 			      pform_make_assertion(loc, inst, fail_stmt,
 						   pass_stmt, kind);
 			      return;
@@ -13016,9 +14633,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    }
       }
 
-	/* M9D: parameterized property instantiation `p(a,b)'. A clock-flow
-	   event in the declaration body is cloned with formal substitution;
-	   the leading clock comes from the assertion site. */
+	/* M9D: parameterized property instantiation `p(a,b)'. Leading and
+	   clock-flow events in the declaration body are cloned with formal
+	   substitution; an assertion-site clock supplies the context only
+	   when the declaration does not already carry one. */
       if (prop->op_type == 0 && prop->seq->size() == 1
 	  && !prop->seq_clk_evt && !prop->mc_prefix
 	  && prop->mc_boundary == -1
@@ -13032,16 +14650,6 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			if (pit != sva_param_properties.end() && pit->second.body) {
 			      sva_property_t*decl = pit->second.body;
 			      bool fatal = false;
-			      if (decl->clk_evt) {
-				    cerr << loc << ": sorry: a parameterized "
-					 << "property with a leading clock in its "
-					 << "body is not supported; put that clock "
-					 << "at the assertion (`@(clk) " << nm
-					 << "(...)`). A clock-flow event later in "
-					 << "the body is supported." << endl;
-				    error_count += 1;
-				    fatal = true;
-			      }
 			      if (!fatal && decl->mc_more && !decl->mc_more->empty()) {
 				    cerr << loc << ": sorry: a parameterized "
 					 << "property with more than one "
@@ -13062,6 +14670,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				    inst->op_type = decl->op_type;
 				    inst->mc_boundary = decl->mc_boundary;
 				    inst->strength = decl->strength;
+				    inst->forbidden_consequent =
+					  decl->forbidden_consequent;
 				    inst->win_lo = decl->win_lo;
 				    inst->win_hi = decl->win_hi;
 				    bool ok = true;
@@ -13069,7 +14679,22 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				    prop->clk_evt = nullptr;
 				    inst->disable_iff_expr = prop->disable_iff_expr;
 				    prop->disable_iff_expr = nullptr;
-				    if (decl->seq_clk_evt) {
+				    if (decl->clk_evt) {
+					  if (inst->clk_evt) {
+						cerr << loc << ": sorry: parameterized property `"
+						     << nm << "' has a leading clock and cannot "
+						     << "also be instantiated under another "
+						     << "explicit clock yet; the assertion is "
+						     << "dropped." << endl;
+						error_count += 1;
+						ok = false;
+					  } else {
+						inst->clk_evt = sva_clone_event_control_(
+						      decl->clk_evt, loc, &subst);
+						if (!inst->clk_evt) ok = false;
+					  }
+				    }
+				    if (ok && decl->seq_clk_evt) {
 					  inst->seq_clk_evt = sva_clone_event_control_(
 						decl->seq_clk_evt, loc, &subst);
 					  if (!inst->seq_clk_evt) ok = false;
@@ -13401,12 +15026,14 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       std::vector<sva_seq_step_t>&seq = *prop->seq;
       if (prop->op_type == 2) {
 	    seq[0].delay_lo += 1;
-	    seq[0].delay_hi += 1;
+	      /* Preserve -1, the ##[m:$] unbounded sentinel. Turning it
+	         into zero produces an inverted [m+1:0] window and used to
+	         synthesize a null condition for OTBN's |=> ##[0:$] checks. */
+	    if (seq[0].delay_hi >= 0) seq[0].delay_hi += 1;
       }
 
 	/* Validate the chain shape: constant bounded delays, at most
 	   one range, and only on the LAST step. */
-      long total = 0;
       for (size_t j = 0 ; j < seq.size() ; j += 1) {
 	    if (seq[j].delay_hi == -1 && j + 1 != seq.size()) {
 		  cerr << loc << ": sorry: an unbounded ##[m:$] delay is "
@@ -13449,19 +15076,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  delete fail_stmt; delete pass_stmt;
 		  return;
 	    }
-	    if (seq[j].delay_hi >= 0)
-		  total += seq[j].delay_hi;
-	    else
-		  total += seq[j].delay_lo;
       }
-      if (total > 512) {
-	    cerr << loc << ": sorry: sequence spans more than 512 cycles; "
-		 << "the assertion is dropped." << endl;
-	    error_count += 1;
-	    delete fail_stmt; delete pass_stmt;
-	    return;
-      }
-
       bool unbounded = seq.back().delay_hi == -1;
       bool has_window = !unbounded
 	    && seq.back().delay_lo != seq.back().delay_hi;
@@ -13668,18 +15283,14 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		 attempt (positions m..n); for cover, count them.
 		 Otherwise an attempt at position n has failed. */
 	    perm_string bw = r_b[seq.size()-1];
-	      /* anyW: is any attempt in the eligible window? */
-	    PExpr*anyw = nullptr;
-	    for (long q = win_m ; q <= win_n ; q += 1) {
-		  if (anyw) {
-			PEBLogic*n2 = new PEBLogic('o', anyw,
-						   sva_id_(loc, w_regs[q]));
-			FILE_NAME(n2, loc);
-			anyw = n2;
-		  } else {
-			anyw = sva_id_(loc, w_regs[q]);
-		  }
-	    }
+	      /* anyW: is any attempt in the eligible window? Keep the
+	         reduction balanced so very large legal windows do not create
+	         quadratic elaboration or a thousands-deep call stack. */
+	    std::vector<PExpr*> anyw_terms;
+	    anyw_terms.reserve(win_n - win_m + 1);
+	    for (long q = win_m ; q <= win_n ; q += 1)
+		  anyw_terms.push_back(sva_id_(loc, w_regs[q]));
+	    PExpr*anyw = sva_logic_reduce_(loc, 'o', anyw_terms);
 	    std::vector<Statement*> sat;
 	    if (negated) {
 		    /* A match under `not` is the failure. */
@@ -13778,13 +15389,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 
 	      /* End-of-simulation pending report. */
 	    if (kind != 2 && !negated) {
-		  PExpr*outst = sva_id_(loc, r_pend);
-		  for (long q = 0 ; q < win_m ; q += 1) {
-			PEBLogic*n2 = new PEBLogic('o', outst,
-						   sva_id_(loc, w_regs[q]));
-			FILE_NAME(n2, loc);
-			outst = n2;
-		  }
+		  std::vector<PExpr*> outstanding_terms;
+		  outstanding_terms.reserve(win_m + 1);
+		  outstanding_terms.push_back(sva_id_(loc, r_pend));
+		  for (long q = 0 ; q < win_m ; q += 1)
+			outstanding_terms.push_back(sva_id_(loc, w_regs[q]));
+		  PExpr*outst = sva_logic_reduce_(loc, 'o', outstanding_terms);
 		  std::list<named_pexpr_t> dargs;
 		  named_pexpr_t darg;
 		  darg.parm = new PEString(strdup(

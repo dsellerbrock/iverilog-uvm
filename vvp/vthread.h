@@ -144,6 +144,18 @@ extern void vthread_push_ref_context(vvp_context_t ctx,
 extern void vthread_pop_ref_context(const struct vthread_ref_ctx_save*save);
 extern vvp_context_t vthread_recover_context_for_scope(vvp_context_t candidate,
                                                        __vpiScope*scope);
+/* Resolve only along CANDIDATE's lexical activation stack. Unlike the
+   general recovery helper, this never selects an unrelated sole live frame. */
+extern vvp_context_t vthread_recover_stacked_context_for_scope(
+      vvp_context_t candidate, __vpiScope*scope);
+/* Return the target scope's activation only when it has exactly one live
+   frame. This is the same unambiguous fallback used by scoped reads. */
+extern vvp_context_t vthread_recover_unique_context_for_scope(__vpiScope*scope);
+/* True when CANDIDATE belongs to a lexical child of SCOPE. This lets an
+   automatic signal distinguish a native store from a detached nested block
+   from an unrelated cross-scope object-mutation notification. */
+extern bool vthread_context_owner_is_within(vvp_context_t candidate,
+                                            __vpiScope*scope);
 
 /* Returns true if automatic-context debug warnings should be printed.
    Set IVL_AUTO_CTX_WARN=1 to enable. */

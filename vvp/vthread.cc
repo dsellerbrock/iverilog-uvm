@@ -95,6 +95,7 @@ static __vpiScope* resolve_context_scope(__vpiScope*scope);
 static bool assoc_trace_scope_match_(vthread_t thr);
 static bool load_str_trace_scope_match_(__vpiScope*scope);
 static bool function_runtime_trace_enabled_(const char*scope_name);
+static bool function_runtime_trace_configured_();
 static void resume_joining_parent_(vthread_t parent, vthread_t child);
 static void notify_mutated_object_signal_(vthread_t thr, vvp_net_t*net, const char*where);
 static void notify_mutated_object_root_(vthread_t thr, const vvp_object_t&recv,
@@ -558,6 +559,7 @@ struct vthread_s {
 	// report a delayed process as WAITING rather than RUNNING.
       unsigned i_am_delaying :1;
       unsigned owns_automatic_context :1;
+      unsigned owned_context_is_chain :1;
 	/* M3B-13 (IEEE 1800-2017 18.11): in-line random variable
 	   control. `%rand/active' arms the property set that the NEXT
 	   %randomize / %randomize/with solves for, which is how
@@ -3059,6 +3061,42 @@ static bool randomize_cobject_(vvp_cobject*cobj, const std::vector<bool>*sel)
 	    {
 		  vvp_object_t propobj;
 		  cobj->get_object(pid, propobj, 0);
+		  /* A rand associative array of class handles keeps its keys
+		     and handles; each non-null element object is randomized
+		     recursively (IEEE 1800-2017 18.4). Treating the container
+		     as an integral property reached class_property_t::set_vec4,
+		     produced an ignored-write warning, and skipped every child
+		     object's constraints. Support all three key representations
+		     used by the associative-array runtime. */
+		  if (vvp_assoc_object*assoc = propobj.peek<vvp_assoc_object>()) {
+			std::string skey;
+			bool sok = assoc->first_key(skey);
+			while (sok) {
+			      vvp_object_t elem;
+			      if (assoc->get(skey, elem))
+				    randomize_cobject_(elem.peek<vvp_cobject>(), nullptr);
+			      sok = assoc->next_key(skey);
+			}
+
+			vvp_object_t okey;
+			bool ook = assoc->first_key(okey);
+			while (ook) {
+			      vvp_object_t elem;
+			      if (assoc->get(okey, elem))
+				    randomize_cobject_(elem.peek<vvp_cobject>(), nullptr);
+			      ook = assoc->next_key(okey);
+			}
+
+			vvp_vector4_t vkey;
+			bool vok = assoc->first_key(vkey);
+			while (vok) {
+			      vvp_object_t elem;
+			      if (assoc->get(vkey, elem))
+				    randomize_cobject_(elem.peek<vvp_cobject>(), nullptr);
+			      vok = assoc->next_key(vkey);
+			}
+			continue;
+		  }
 		  if (vvp_assoc_vec4*assoc = propobj.peek<vvp_assoc_vec4>()) {
 			std::string key;
 			bool ok = assoc->first_key(key);
@@ -3347,18 +3385,66 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 }
 
 /*
- * %std/randomize/with "IR", <N-random>, <N-slots>
+ * %std/randomize/with "IR", <N-random>, <packed-slots>
  *
- * Stack input (deepest first): N current destination values, then N slot
- * values. The current values provide exact widths; fresh random diversity
- * targets are generated here. On SAT, model values are saved in the thread
- * and 1 is pushed. On UNSAT, no values are saved and 0 is pushed, so the
- * target skips every copy-back store.
+ * packed-slots carries scalar-slot count in bits 15:0 and queue/darray
+ * object-slot count in bits 31:16. Stack input (deepest first): N current
+ * destination values, then scalar slots; object slots use the independent
+ * object stack. The current values provide exact widths; fresh random
+ * diversity targets are generated here. On SAT, model values are saved in
+ * the thread and 1 is pushed. On UNSAT, no values are saved and 0 is pushed,
+ * so the target skips every copy-back store.
  */
 bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 {
       const unsigned n_rand = code->bit_idx[0];
-      const unsigned n_vals = code->bit_idx[1];
+      const unsigned n_vals = code->bit_idx[1] & 0xffffu;
+      const unsigned n_objs = code->bit_idx[1] >> 16;
+
+      vector<vector<uint64_t> > object_vals(n_objs);
+      for (unsigned i = n_objs ; i > 0 ; i -= 1) {
+	    vvp_object_t obj;
+	    thr->pop_object(obj);
+	    vvp_darray*da = obj.peek<vvp_darray>();
+	    if (!da) continue;
+	      /* qfield object slots carry queues/darrays of unpacked
+	       * structs. Find the requested runtime member id from the IR;
+	       * each qfield reference gets its own slot, so one id per slot
+	       * is sufficient. Ordinary qv membership slots retain the
+	       * vector-element path below. */
+	    int field_pid = -1;
+	    const char*scan = code->text ? code->text : "";
+	    while ((scan = strstr(scan, "qf:")) != nullptr) {
+		  const char*q = scan + 3;
+		  unsigned slot = (unsigned)strtoul(q,
+						 const_cast<char**>(&q), 10);
+		  if (*q == ':') {
+			q += 1;
+			unsigned pid = (unsigned)strtoul(q,
+						 const_cast<char**>(&q), 10);
+			if (slot == i - 1) { field_pid = (int)pid; break; }
+		  }
+		  scan += 3;
+	    }
+	    size_t count = da->get_size();
+	    object_vals[i - 1].reserve(count);
+	    for (size_t elem = 0 ; elem < count ; elem += 1) {
+		  vvp_vector4_t word;
+		  if (field_pid >= 0) {
+			vvp_object_t element;
+			da->get_word((unsigned)elem, element);
+			if (vvp_cobject*cobj = element.peek<vvp_cobject>())
+			      cobj->get_vec4((size_t)field_pid, word);
+		  } else {
+			da->get_word((unsigned)elem, word);
+		  }
+		  uint64_t bits = 0;
+		  unsigned wid = word.size() > 64 ? 64 : word.size();
+		  for (unsigned b = 0 ; b < wid ; b += 1)
+			if (word.value(b) == BIT4_1) bits |= UINT64_C(1) << b;
+		  object_vals[i - 1].push_back(bits);
+	    }
+      }
       vector<uint64_t> slot_vals(n_vals);
       for (unsigned i = n_vals ; i > 0 ; i -= 1) {
 	    vvp_vector4_t v = thr->pop_vec4();
@@ -3370,7 +3456,7 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
       }
 
       vector<unsigned> widths(n_rand);
-      vector<uint64_t> targets(n_rand);
+      vector<string> targets(n_rand);
       for (unsigned i = n_rand ; i > 0 ; i -= 1) {
 	    vvp_vector4_t old = thr->pop_vec4();
 	    widths[i - 1] = old.size();
@@ -3380,23 +3466,27 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	// own (logical-process) generator rather than a raw global rand().
       vthread_t rng_owner = logical_process_thread_(thr);
       for (unsigned i = 0 ; i < n_rand ; i += 1) {
-	    uint64_t bits = 0;
-	    for (unsigned b = 0 ; b < widths[i] && b < 64 ; b += 1)
-		  if (thread_rng_next_(rng_owner) & 1) bits |= UINT64_C(1) << b;
+	    string bits(widths[i], '0');
+	    for (unsigned b = 0 ; b < widths[i] ; b += 1)
+		  if (thread_rng_next_(rng_owner) & 1)
+			bits[widths[i] - 1 - b] = '1';
 	    targets[i] = bits;
       }
 
-      vector<uint64_t> model;
+      vector<string> model;
       bool ok = vvp_z3_randomize_scope(code->text ? code->text : "",
-				       targets, widths, slot_vals, model);
+				       targets, widths, slot_vals, object_vals,
+				       model);
       thr->std_randomize_results.clear();
       if (ok) {
 	    thr->std_randomize_results.resize(n_rand);
 	    for (unsigned i = 0 ; i < n_rand ; i += 1) {
 		  vvp_vector4_t val(widths[i], BIT4_0);
-		  uint64_t bits = i < model.size() ? model[i] : targets[i];
+		  const string&bits = i < model.size() ? model[i] : targets[i];
 		  for (unsigned b = 0 ; b < widths[i] ; b += 1)
-			val.set_bit(b, (bits >> b) & 1 ? BIT4_1 : BIT4_0);
+			val.set_bit(b, b < bits.size()
+			      && bits[bits.size() - 1 - b] == '1'
+			      ? BIT4_1 : BIT4_0);
 		  thr->std_randomize_results[i] = val;
 	    }
       }
@@ -3956,6 +4046,75 @@ static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
       return val >= bin.lo && val <= bin.hi;
 }
 
+struct covgrp_dyn_state_t {
+      const class_type::cov_dyn_bin_t*meta = 0;
+      std::vector<std::pair<uint64_t,uint64_t>> ranges;
+      unsigned __int128 total = 0;
+};
+
+static std::map<unsigned,covgrp_dyn_state_t> covgrp_dyn_states_(
+      const class_type*defn, vvp_cobject*cobj)
+{
+      std::map<unsigned,covgrp_dyn_state_t> out;
+      for (size_t ri = 0; ri < defn->covgrp_dyn_bin_count(); ri += 1) {
+	    const class_type::cov_dyn_bin_t&rec = defn->covgrp_dyn_bin(ri);
+	    uint64_t lo = 0, hi = 0;
+	    if (!defn->covgrp_eval_ir(cobj, rec.lo_ir, lo)
+		|| !defn->covgrp_eval_ir(cobj, rec.hi_ir, hi))
+		  continue;
+	    if (hi < lo) std::swap(lo, hi);
+	    covgrp_dyn_state_t&state = out[rec.family];
+	    if (!state.meta) state.meta = &rec;
+	    state.ranges.push_back(std::make_pair(lo, hi));
+	    state.total += (unsigned __int128)hi - (unsigned __int128)lo + 1;
+      }
+      return out;
+}
+
+/* Return the logical bin index for a value and the active family size.
+ * Unsized arrays map each member of the range union to one bin; fixed arrays
+ * use the same front-loaded uniform partition as declaration-time arrays. */
+static bool covgrp_dyn_match_(const covgrp_dyn_state_t&state, uint64_t value,
+			      uint64_t&bin_index,
+			      unsigned __int128&logical_count)
+{
+      if (!state.meta || state.total == 0) return false;
+      unsigned __int128 ordinal = 0;
+      bool found = false;
+      for (auto&range : state.ranges) {
+	    if (value >= range.first && value <= range.second) {
+		  ordinal += (unsigned __int128)value - range.first;
+		  found = true;
+		  break;
+	    }
+	    ordinal += (unsigned __int128)range.second - range.first + 1;
+      }
+      if (!found) return false;
+
+      uint64_t requested = state.meta->array_size;
+      if (requested == ~(uint64_t)0) {
+	    logical_count = 1;
+	    bin_index = 0;
+	    return true;
+      }
+      if (requested == 0) {
+	    logical_count = state.total;
+	    bin_index = (uint64_t)ordinal;
+	    return true;
+      }
+      unsigned __int128 bins = requested;
+      if (bins > state.total) bins = state.total;
+      logical_count = bins;
+      unsigned __int128 q = state.total / bins;
+      unsigned __int128 r = state.total % bins;
+      unsigned __int128 larger_values = r * (q + 1);
+      unsigned __int128 idx = ordinal < larger_values
+	   ? ordinal / (q + 1)
+	   : r + (ordinal - larger_values) / q;
+      bin_index = (uint64_t)idx;
+      return true;
+}
+
 /* %covgrp/sample ncp, has_guards
  *
  * Stack on entry: obj-stack top = cg_obj; vec4 stack holds ncp
@@ -4029,6 +4188,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 {
       const class_type*defn = cobj->get_defn();
       size_t nbins = defn->covgrp_bin_count();
+      std::map<unsigned,covgrp_dyn_state_t> dyn_states =
+	    covgrp_dyn_states_(defn, cobj);
 
 	// Pass 1: per-coverpoint sampled/suppressed state.
 	//   sampled: guard true.  X/Z values coerce to 0-bits (2-state
@@ -4087,6 +4248,23 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    }
       }
 
+	// Constructor-dependent illegal families have the same precedence as
+	// ordinary illegal_bins and suppress their coverpoint for this sample.
+      for (auto&entry : dyn_states) {
+	    const covgrp_dyn_state_t&state = entry.second;
+	    if (!state.meta || (state.meta->kind & 7) != 2) continue;
+	    unsigned cp = state.meta->cp_idx;
+	    uint64_t logical = 0;
+	    unsigned __int128 count = 0;
+	    if (cp < ncp && cp_sampled[cp]
+		&& covgrp_dyn_match_(state, cp_vals[cp], logical, count)) {
+		  std::cerr << "ERROR: covergroup dynamic illegal_bin matched"
+			    << " (family=" << entry.first << ")" << std::endl;
+		  cobj->cov_dyn_bump(entry.first, logical);
+		  cp_suppressed[cp] = true;
+	    }
+      }
+
 	// Ignore carve-out (kind 1): a matching ignore record makes
 	// the whole coverpoint inert for this sample.
       for (size_t bi : ignore_recs) {
@@ -4095,6 +4273,16 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 		  continue;
 	    if (covgrp_rec_match_(bin, cp_vals[bin.cp_idx]))
 		  cp_suppressed[bin.cp_idx] = true;
+      }
+      for (auto&entry : dyn_states) {
+	    const covgrp_dyn_state_t&state = entry.second;
+	    if (!state.meta || (state.meta->kind & 7) != 1) continue;
+	    unsigned cp = state.meta->cp_idx;
+	    uint64_t logical = 0;
+	    unsigned __int128 count = 0;
+	    if (cp < ncp && cp_sampled[cp]
+		&& covgrp_dyn_match_(state, cp_vals[cp], logical, count))
+		  cp_suppressed[cp] = true;
       }
 
 	// Pass 2: normal/wildcard value bins and cross products;
@@ -4185,6 +4373,20 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    if (hit) {
 		  covgrp_bump_count_(cobj, kv.first);
 		  item_matched[first.item_idx] = true;
+	    }
+      }
+
+	// Normal constructor-dependent families are sampled after carve-outs.
+      for (auto&entry : dyn_states) {
+	    const covgrp_dyn_state_t&state = entry.second;
+	    if (!state.meta || (state.meta->kind & 7) != 0) continue;
+	    unsigned cp = state.meta->cp_idx;
+	    uint64_t logical = 0;
+	    unsigned __int128 count = 0;
+	    if (cp < ncp && cp_sampled[cp] && !cp_suppressed[cp]
+		&& covgrp_dyn_match_(state, cp_vals[cp], logical, count)) {
+		  cobj->cov_dyn_bump(entry.first, logical);
+		  item_matched[state.meta->item_idx] = true;
 	    }
       }
 
@@ -4283,7 +4485,7 @@ bool of_COVGRP_GET_COVERAGE(vthread_t thr, vvp_code_t)
       thr->pop_object(obj);
       double result = 0.0;
       if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
-	    result = cobj->get_defn()->type_coverage();
+	    result = cobj->get_defn()->type_coverage(cobj);
       thr->push_real(result);
       return true;
 }
@@ -4327,21 +4529,48 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 		  if (bin.prop_idx == class_type::COV_NO_PROP) continue;
 		  item_props[bin.item_idx].insert(bin.prop_idx);
 	    }
+	    std::map<unsigned,long double> item_dyn_total;
+	    std::map<unsigned,uint64_t> item_dyn_hits;
+	    std::map<unsigned,covgrp_dyn_state_t> dyn_states =
+		  covgrp_dyn_states_(defn, cobj);
+	    for (auto&entry : dyn_states) {
+		  const covgrp_dyn_state_t&state = entry.second;
+		  if (!state.meta || (state.meta->kind & 7) != 0) continue;
+		  unsigned __int128 logical = state.meta->array_size;
+		  if (state.meta->array_size == ~(uint64_t)0)
+			logical = 1;
+		  else if (state.meta->array_size == 0)
+			logical = state.total;
+		  else if (logical > state.total)
+			logical = state.total;
+		  item_dyn_total[state.meta->item_idx] += (long double)logical;
+		  unsigned at_least = 1;
+		  if (state.meta->item_idx < defn->covgrp_item_count())
+			at_least = defn->covgrp_item(state.meta->item_idx).at_least;
+		  item_dyn_hits[state.meta->item_idx] +=
+			cobj->cov_dyn_hits(entry.first, at_least);
+	    }
+	    std::set<unsigned> items;
+	    for (auto&ip : item_props) items.insert(ip.first);
+	    for (auto&ip : item_dyn_total) items.insert(ip.first);
 
 	    double wsum = 0.0, wcov = 0.0;
-	    for (auto&ip : item_props) {
+	    for (unsigned item : items) {
 		  unsigned at_least = 1, weight = 1;
-		  if (ip.first < defn->covgrp_item_count()) {
-			at_least = defn->covgrp_item(ip.first).at_least;
-			weight = defn->covgrp_item(ip.first).weight;
+		  if (item < defn->covgrp_item_count()) {
+			at_least = defn->covgrp_item(item).at_least;
+			weight = defn->covgrp_item_weight(cobj, item);
 		  }
-		  if (ip.second.empty()) continue;
-		  unsigned hits = 0;
-		  for (unsigned prop : ip.second) {
+		  long double total = item_dyn_total[item];
+		  uint64_t hits = item_dyn_hits[item];
+		  const std::set<unsigned>&props = item_props[item];
+		  total += props.size();
+		  for (unsigned prop : props) {
 			if (covgrp_get_count_(cobj, prop) >= at_least)
 			      hits += 1;
 		  }
-		  double icov = 100.0 * (double)hits / (double)ip.second.size();
+		  if (total == 0.0) continue;
+		  double icov = (double)(100.0L * (long double)hits / total);
 		  wsum += (double)weight;
 		  wcov += (double)weight * icov;
 	    }
@@ -4721,6 +4950,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->suspend_resched = 0;
       thr->i_am_delaying = 0;
       thr->owns_automatic_context = 0;
+      thr->owned_context_is_chain = 0;
       thr->rand_sel_armed = false;
       thr->owned_context = 0;
       thr->skip_free_context = 0;
@@ -4936,12 +5166,15 @@ void vthread_dump_live_threads(const char*reason)
                   scheduled += 1;
 
             fprintf(stderr,
-                    "trace sched: thr=%p scope=%s parent=%s pc=%s pause=%s scheduled=%d waiting=%d joining=%d ended=%d detached=%d disabled=%d callf=%d in_func=%d children=%zu wt=%p rd=%p event=%p ecount=%lu\n",
+                    "trace sched: thr=%p parent_thr=%p scope=%s parent=%s pc=%s@%p pause=%s@%p scheduled=%d waiting=%d joining=%d ended=%d detached=%d disabled=%d callf=%d in_func=%d children=%zu wt=%p rd=%p event=%p ecount=%lu\n",
                     (void*)thr,
+                    (void*)thr->parent,
                     scope_name,
                     parent_name,
                     pc_name,
+                    (void*)thr->pc,
                     pause_name,
+                    (void*)thr->last_pause_pc,
                     thr->is_scheduled ? 1 : 0,
                     thr->waiting_for_event ? 1 : 0,
                     thr->i_am_joining ? 1 : 0,
@@ -5008,9 +5241,18 @@ void vthread_mark_scheduled(vthread_t thr)
       while (thr != 0) {
             static unsigned long trace_count = 0;
             static unsigned long trace_limit = 512;
-            const char*target_scope = scope_name_or_unknown_(thr->parent_scope);
-            const char*src_scope = scope_name_or_unknown_(running_thread ? running_thread->parent_scope : 0);
-            if (trace_count == 0) {
+            bool trace_candidate = function_runtime_trace_configured_()
+                  && trace_count < trace_limit
+                  && (thr->i_am_in_function || thr->is_callf_child
+                      || (running_thread && running_thread->i_am_in_function));
+            const char*target_scope = "<unknown>";
+            const char*src_scope = "<unknown>";
+            if (trace_candidate) {
+                  target_scope = scope_name_or_unknown_(thr->parent_scope);
+                  src_scope = scope_name_or_unknown_(
+                        running_thread ? running_thread->parent_scope : 0);
+            }
+            if (trace_candidate && trace_count == 0) {
                   const char*env = getenv("IVL_FUNC_TRACE_LIMIT");
                   if (env && *env) {
                         unsigned long parsed = strtoul(env, 0, 10);
@@ -5018,9 +5260,7 @@ void vthread_mark_scheduled(vthread_t thr)
                               trace_limit = parsed;
                   }
             }
-            if (trace_count < trace_limit
-                && (thr->i_am_in_function || thr->is_callf_child
-                    || (running_thread && running_thread->i_am_in_function))
+            if (trace_candidate
                 && (function_runtime_trace_enabled_(target_scope)
                     || function_runtime_trace_enabled_(src_scope))) {
                   const char*src_next = (running_thread && running_thread->pc)
@@ -5125,6 +5365,7 @@ void vthread_run(vthread_t thr)
       static int pc_progress_enabled = -1;
       static unsigned long pc_progress_period = 0;
       static unsigned long pc_progress_counter = 0;
+      static int step_trace_configured = -1;
       static bool warned_runentry_rd_sync = false;
       static bool warned_runentry_wt_sync = false;
       static const unsigned long noncallf_loop_limit = 200000;
@@ -5140,6 +5381,9 @@ void vthread_run(vthread_t thr)
             }
             const char*prog = getenv("IVL_PC_PROGRESS");
             pc_progress_enabled = (prog && *prog && strcmp(prog, "0") != 0) ? 1 : 0;
+            const char*step = getenv("IVL_STEP_TRACE");
+            step_trace_configured =
+                  (step && *step && strcmp(step, "0") != 0) ? 1 : 0;
             const char*prog_lim = getenv("IVL_PC_PROGRESS_LIMIT");
             if (prog_lim && *prog_lim) {
                   unsigned long parsed = strtoul(prog_lim, 0, 10);
@@ -5202,12 +5446,18 @@ void vthread_run(vthread_t thr)
 
 	    for (;;) {
 		  vvp_code_t cp = thr->pc;
-                  const char*step_scope_name = thr->parent_scope
-                                             ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
-                  bool trace_step = step_trace_enabled_(step_scope_name);
+                  const char*step_scope_name = 0;
+                  bool trace_step = false;
+                  if (step_trace_configured) {
+                        step_scope_name = thr->parent_scope
+                              ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+                        trace_step = step_trace_enabled_(step_scope_name);
+                  }
 		  thr->pc += 1;
 
-		  unsigned long hits = ++pc_hottrace_hits[cp];
+		  unsigned long hits = 0;
+		  if (pc_hottrace_enabled || thr->i_am_in_function)
+			hits = ++pc_hottrace_hits[cp];
 		  if (pc_progress_enabled) {
 			pc_progress_counter += 1;
 			if (pc_progress_counter >= pc_progress_period) {
@@ -5218,7 +5468,8 @@ void vthread_run(vthread_t thr)
 				    if (nm) scope_name = nm;
 			      }
 			      fprintf(stderr,
-				      "trace pc-progress: pc=%p opcode=%s@%p scope=%s in_function=%d hits=%lu\n",
+				      "trace pc-progress: time=%llu pc=%p opcode=%s@%p scope=%s in_function=%d hits=%lu\n",
+				      (unsigned long long)schedule_simtime(),
 				      (void*)cp, op_name, (void*)cp->opcode, scope_name,
 				      thr->i_am_in_function ? 1 : 0, hits);
 			      pc_progress_counter = 0;
@@ -5317,8 +5568,17 @@ void vthread_run(vthread_t thr)
 		  }
 		  if (rc == false) {
                         thr->last_pause_pc = cp;
+                        const char*function_scope_name = step_scope_name;
+                        if (thr->i_am_in_function && !function_scope_name) {
+                              const char*func_trace = getenv("IVL_FUNC_TRACE");
+                              if (func_trace && *func_trace
+                                  && strcmp(func_trace, "0") != 0)
+                                    function_scope_name = thr->parent_scope
+                                          ? vpi_get_str(vpiFullName,
+                                                        thr->parent_scope) : 0;
+                        }
                         if (thr->i_am_in_function
-                            && function_runtime_trace_enabled_(step_scope_name)) {
+                            && function_runtime_trace_enabled_(function_scope_name)) {
                               static unsigned long pause_trace_count = 0;
                               static unsigned long pause_trace_limit = 512;
                               if (pause_trace_count == 0) {
@@ -5334,7 +5594,7 @@ void vthread_run(vthread_t thr)
                                     fprintf(stderr,
                                             "trace func-pause[%lu]: scope=%s pause_op=%s cp=%p next_op=%s next=%p scheduled=%d waiting=%d joining=%d ended=%d disabled=%d children=%zu callf=%d\n",
                                             pause_trace_count + 1,
-                                            step_scope_name ? step_scope_name : "<unknown>",
+                                            function_scope_name ? function_scope_name : "<unknown>",
                                             vvp_opcode_mnemonic(cp->opcode),
                                             (void*)cp,
                                             next_op,
@@ -6007,6 +6267,45 @@ bool vthread_context_live_matches_scope(vvp_context_t context,
       return context_live_matches_scope_(context, scope);
 }
 
+vvp_context_t vthread_recover_stacked_context_for_scope(
+      vvp_context_t candidate, __vpiScope*scope)
+{
+      scope = resolve_context_scope(scope);
+      if (!(candidate && scope && scope->is_automatic()))
+            return 0;
+      if (context_live_matches_scope_(candidate, scope))
+            return candidate;
+      return first_live_context_for_scope(candidate, scope);
+}
+
+vvp_context_t vthread_recover_unique_context_for_scope(__vpiScope*scope)
+{
+      scope = resolve_context_scope(scope);
+      if (!(scope && scope->is_automatic() && scope->live_contexts))
+            return 0;
+      if (vvp_get_next_context(scope->live_contexts))
+            return 0;
+      return scope->live_contexts;
+}
+
+bool vthread_context_owner_is_within(vvp_context_t candidate,
+                                     __vpiScope*scope)
+{
+      if (!(candidate && scope))
+            return false;
+
+      map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
+            automatic_context_owner.find(candidate);
+      if (owner_it == automatic_context_owner.end())
+            return false;
+
+      for (__vpiScope*cur = owner_it->second ; cur ; cur = cur->scope) {
+            if (cur == scope)
+                  return true;
+      }
+      return false;
+}
+
 vvp_context_t vthread_recover_context_for_scope(vvp_context_t candidate,
                                                 __vpiScope*ctx_scope)
 {
@@ -6065,11 +6364,19 @@ static void release_owned_context_(vthread_t thr)
             return;
 
       vvp_context_t owned = thr->owned_context;
+      bool release_chain = thr->owned_context_is_chain;
       thr->owned_context = 0;
       thr->owns_automatic_context = 0;
+      thr->owned_context_is_chain = 0;
 
       while (owned) {
-            vvp_context_t next_owned = vvp_get_stacked_context(owned);
+            vvp_context_t saved_owned_next = vvp_get_stacked_context(owned);
+            vvp_context_t next_owned = release_chain ? saved_owned_next : 0;
+            bool retain_owned_link = false;
+            map<vvp_context_t, unsigned>::const_iterator ref_it =
+                  automatic_context_refcount.find(owned);
+            if (ref_it != automatic_context_refcount.end() && ref_it->second > 1)
+                  retain_owned_link = true;
             __vpiScope*ctx_scope = resolve_context_scope(thr->parent_scope);
             map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
                   automatic_context_owner.find(owned);
@@ -6081,6 +6388,14 @@ static void release_owned_context_(vthread_t thr)
 
             if (ctx_scope && ctx_scope->is_automatic())
                   vthread_free_context(owned, ctx_scope);
+            /* The stacked link lives in the context object itself, not in
+               the thread. Removing a self-pinned context from an ending
+               child therefore clears the link for every thread sharing that
+               activation. Restore it while another retained owner remains;
+               otherwise a nested begin/end child severs its detached
+               caller's path to the method frame containing `this'. */
+            if (retain_owned_link)
+                  vvp_set_stacked_context(owned, saved_owned_next);
             owned = next_owned;
       }
 }
@@ -6215,7 +6530,30 @@ bool of_AND(vthread_t thr, vvp_code_t)
 {
       vvp_vector4_t valb = thr->pop_vec4();
       vvp_vector4_t&vala = thr->peek_vec4();
-      assert(vala.size() == valb.size());
+      if (vala.size() != valb.size()) {
+	      // Bytecode normally carries context-sized operands.  Keep the
+	      // runtime conformant and memory-safe when an unsized/class-derived
+	      // operand reaches this point by applying the integral expression's
+	      // common width instead of indexing unlike vector layouts.
+	    static bool warned_mixed_and = false;
+	    if (!warned_mixed_and) {
+		  fprintf(stderr,
+			  "Warning: context-sizing mixed-width %%and operands"
+			  " (left=%u right=%u scope=%s); widening to %u bits"
+			  " (further similar warnings suppressed).\n",
+			  vala.size(), valb.size(),
+			  scope_name_or_unknown_(thr->parent_scope),
+			  std::max(vala.size(), valb.size()));
+		  warned_mixed_and = true;
+	    }
+	    unsigned wid = std::max(vala.size(), valb.size());
+	    vvp_vector4_t left(wid, BIT4_0);
+	    vvp_vector4_t right(wid, BIT4_0);
+	    left.set_vec(0, vala);
+	    right.set_vec(0, valb);
+	    vala = left;
+	    valb = right;
+      }
       vala &= valb;
       return true;
 }
@@ -6882,6 +7220,26 @@ static bool function_runtime_trace_enabled_(const char*scope_name)
       return scope_trace_enabled_("IVL_FUNC_TRACE", scope_name);
 }
 
+static bool function_runtime_trace_configured_()
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+            const char*env = getenv("IVL_FUNC_TRACE");
+            enabled = (env && *env) ? 1 : 0;
+      }
+      return enabled != 0;
+}
+
+static bool context_trace_configured_()
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+            const char*env = getenv("IVL_CTX_TRACE");
+            enabled = (env && *env) ? 1 : 0;
+      }
+      return enabled != 0;
+}
+
 static void dump_callf_tree_(vthread_t thr, unsigned depth)
 {
       if (!thr)
@@ -6967,6 +7325,12 @@ static void trace_context_event_(const char*where, vthread_t thr,
                                  __vpiScope*extra_scope,
                                  vvp_context_t extra_context)
 {
+      // Context tracing is a diagnostic facility. Avoid constructing full
+      // hierarchical names (and their recursive string copies) on every
+      // ordinary store/call/fork when the facility is not configured.
+      if (!context_trace_configured_())
+            return;
+
       const char*scope_name = scope_name_or_unknown_(thr ? thr->parent_scope : 0);
       const char*extra_name = scope_name_or_unknown_(extra_scope);
       const char*wt_owner_name = "<none>";
@@ -7033,10 +7397,13 @@ static bool callf_trace_scope_match_(const char*name)
       if (env && *env) {
             if (strcmp(env, "ALL") == 0 || strcmp(env, "*") == 0)
                   return true;
-            if (strcmp(env, "1") != 0 && strcmp(env, "true") != 0
-                && strstr(name, env) != 0)
-                  return true;
+            if (strcmp(env, "1") != 0 && strcmp(env, "true") != 0)
+                  return strstr(name, env) != 0;
       }
+      /* With no explicit substring target, retain the small set of
+         historically useful default trace sites. An explicit target must
+         not be flooded by these unrelated calls before the requested site
+         is reached. */
       return strstr(name, "uvm_object.new") != 0
           || strstr(name, "uvm_report_object.uvm_report_info") != 0
           || strstr(name, "uvm_cmdline_processor.get_arg_value") != 0;
@@ -11049,6 +11416,7 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
                   retain_automatic_context_(thr->wt_context);
                   child->owns_automatic_context = 1;
                   child->owned_context = thr->wt_context;
+                  child->owned_context_is_chain = 0;
             }
       }
       if (!cp->scope->is_automatic()
@@ -11100,6 +11468,7 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
             retain_context_chain_(thr->owned_context);
             child->owns_automatic_context = 1;
             child->owned_context = thr->owned_context;
+            child->owned_context_is_chain = 1;
       }
       trace_context_event_("fork", thr, child->parent_scope, child->wt_context);
 
@@ -11212,6 +11581,7 @@ bool of_FORK_V(vthread_t thr, vvp_code_t cp)
             retain_context_chain_(thr->owned_context);
             child->owns_automatic_context = 1;
             child->owned_context = thr->owned_context;
+            child->owned_context_is_chain = 1;
       }
       trace_context_event_("fork", thr, child->parent_scope, child->wt_context);
 
@@ -11305,6 +11675,13 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
             trace_context_event_("free-null", thr, ctx_scope, 0);
             return true;
       }
+      vvp_context_t saved_child_next = vvp_get_stacked_context(child_context);
+      bool retain_child_link = false;
+      map<vvp_context_t, unsigned>::const_iterator child_ref_it =
+            automatic_context_refcount.find(child_context);
+      if (child_ref_it != automatic_context_refcount.end()
+          && child_ref_it->second > 1)
+            retain_child_link = true;
       thr->wt_context = remove_context_from_stacked_chain_(thr->wt_context, child_context);
       thr->rd_context = remove_context_from_stacked_chain_(thr->rd_context, child_context);
 
@@ -11336,6 +11713,14 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
 
       /* Free the context. */
       vthread_free_context(child_context, ctx_scope);
+      /* A retained automatic frame can be the shared head of several fork
+         branches. remove_context_from_stacked_chain_ clears the link in the
+         context object itself, so without restoring it here, one branch's
+         ordinary %free severs every sibling's path to the enclosing method
+         frame. This is the non-skip counterpart of the preservation in
+         release_owned_context_ and free-skip above. */
+      if (retain_child_link)
+            vvp_set_stacked_context(child_context, saved_child_next);
       if (!(ctx_scope && ctx_scope->is_automatic()
             && thr->wt_context && context_live_in_owner(thr->wt_context))) {
             ensure_write_context_(thr, "free");
@@ -11581,6 +11966,30 @@ bool of_JMP(vthread_t thr, vvp_code_t cp)
 	   ivtest pr243). The post-finish respawn spin is prevented at the
 	   %delay/%delayx opcodes instead, which stop rescheduling once
 	   the simulation is finished. */
+      if (schedule_stopped()) {
+	    schedule_vthread(thr, 0, false);
+	    return false;
+      }
+
+      return true;
+}
+
+/*
+ * %jmp/wr/e <pc>, <word-register>, <immediate>
+ *
+ * Branch when a word register equals an unsigned immediate. This lets the
+ * unique-case lowering remember only the first matching item instead of
+ * consuming one thread flag per case item.
+ */
+bool of_JMP_WR_EQ(vthread_t thr, vvp_code_t cp)
+{
+      unsigned word = cp->bit_idx[0];
+      uint32_t value = cp->bit_idx[1];
+      assert(word < vthread_s::WORDS_COUNT);
+
+      if (thr->words[word].w_uint == value)
+	    thr->pc = cp->cptr;
+
       if (schedule_stopped()) {
 	    schedule_vthread(thr, 0, false);
 	    return false;
@@ -11842,6 +12251,7 @@ typedef union ivl_dpi_arg_u {
       int64_t i;
       double  r;
       const char*s;
+      uint32_t*v;
 } ivl_dpi_arg_t;
 
 // Multi-instance export selection (H.9 / 35.5.2). Among the N records
@@ -11967,21 +12377,44 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 	    vvp_net_t*net = info.arg_nets[idx];
 	    if (net == 0)
 		  continue;
-	    char letter = info.arg_sig[idx];
+	    char letter = info.arg_sig[2*idx];
+	    char direction = info.arg_sig[2*idx+1];
 	    if (letter == 'r') {
-		  vvp_send_real(vvp_net_ptr_t(net, 0), args[idx].r, exp_context);
+		  vvp_send_real(vvp_net_ptr_t(net, 0),
+				direction == 'o' ? 0.0 : args[idx].r,
+				exp_context);
 	    } else if (letter == 's') {
 		  vvp_send_string(vvp_net_ptr_t(net, 0),
-				  std::string(args[idx].s ? args[idx].s : ""),
+				  direction == 'o' ? std::string()
+				  : std::string(args[idx].s ? args[idx].s : ""),
 				  exp_context);
 	    } else {
 		  vvp_signal_value*sv = dynamic_cast<vvp_signal_value*>(net->fil);
 		  unsigned wid = sv ? sv->value_size() : 64;
-		  vvp_vector4_t val (wid, BIT4_0);
-		  uint64_t u = (uint64_t) args[idx].i;
-		  for (unsigned b = 0 ; b < wid ; b += 1)
-			val.set_bit(b, ((u >> (b < 64 ? b : 63)) & 1)
-				    ? BIT4_1 : BIT4_0);
+		  vvp_vector4_t val (wid,
+			(direction == 'o' && letter == 'W') ? BIT4_X : BIT4_0);
+		  if ((letter == 'V' || letter == 'W') && direction != 'o'
+		      && args[idx].v) {
+			for (unsigned b = 0 ; b < wid ; b += 1) {
+			      unsigned word = b / 32;
+			      unsigned shift = b % 32;
+			      bool aval = (args[idx].v[(letter == 'W') ? 2*word
+								     : word] >> shift) & 1;
+			      if (letter == 'V') {
+				    val.set_bit(b, aval ? BIT4_1 : BIT4_0);
+			      } else {
+				    bool bval = (args[idx].v[2*word+1] >> shift) & 1;
+				    val.set_bit(b, !bval ? (aval ? BIT4_1 : BIT4_0)
+							 : (aval ? BIT4_X : BIT4_Z));
+			      }
+			}
+		  } else if (letter != 'V' && letter != 'W'
+			     && direction != 'o') {
+			uint64_t u = (uint64_t) args[idx].i;
+			for (unsigned b = 0 ; b < wid ; b += 1)
+			      val.set_bit(b, ((u >> (b < 64 ? b : 63)) & 1)
+					  ? BIT4_1 : BIT4_0);
+		  }
 		  vvp_send_vec4(vvp_net_ptr_t(net, 0), val, exp_context);
 	    }
       }
@@ -12059,6 +12492,59 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 
       bool ok = child->i_have_ended && child->parent == thr
 		&& ! child->waiting_for_event;
+
+	/* DPI output and inout arguments are copy-out parameters (35.5.6).
+	   Read them before joining/reaping the child, while an automatic
+	   function's invocation context is still alive. */
+      if (ok) {
+	    running_thread = child;
+	    for (unsigned idx = 0 ; idx < info.nargs && (int)idx < nargs ; idx += 1) {
+		  char letter = info.arg_sig[2*idx];
+		  char direction = info.arg_sig[2*idx+1];
+		  if (direction == 'i' || info.arg_nets[idx] == 0) continue;
+		  vvp_net_t*net = info.arg_nets[idx];
+		  vvp_signal_value*sv = dynamic_cast<vvp_signal_value*>(net->fil);
+		  if (letter == 'r') {
+			if (sv) args[idx].r = sv->real_value();
+		  } else if (letter == 's') {
+			vvp_fun_signal_string*ss =
+			      dynamic_cast<vvp_fun_signal_string*>(net->fil);
+			if (ss) args[idx].s = ss->get_string().c_str();
+		  } else if (sv) {
+			vvp_vector4_t val;
+			sv->vec4_value(val);
+			if ((letter == 'V' || letter == 'W') && args[idx].v) {
+			      unsigned words = (val.size() + 31) / 32;
+			      for (unsigned w = 0 ; w < words ; w += 1) {
+				    if (letter == 'V') args[idx].v[w] = 0;
+				    else {
+					  args[idx].v[2*w] = 0;
+					  args[idx].v[2*w+1] = 0;
+				    }
+			      }
+			      for (unsigned b = 0 ; b < val.size() ; b += 1) {
+				    unsigned word = b / 32;
+				    uint32_t mask = uint32_t(1) << (b % 32);
+				    vvp_bit4_t bit = val.value(b);
+				    if (letter == 'V') {
+					  if (bit == BIT4_1) args[idx].v[word] |= mask;
+				    } else {
+					  if (bit == BIT4_1 || bit == BIT4_X)
+						args[idx].v[2*word] |= mask;
+					  if (bit == BIT4_X || bit == BIT4_Z)
+						args[idx].v[2*word+1] |= mask;
+				    }
+			      }
+			} else {
+			      uint64_t u = 0;
+			      for (unsigned b = 0 ; b < val.size() && b < 64 ; b += 1)
+				    if (val.value(b) == BIT4_1) u |= uint64_t(1) << b;
+			      args[idx].i = (int64_t)u;
+			}
+		  }
+	    }
+	    running_thread = thr;
+      }
 
 	/* Read the return value off this thread's stack (the slot the child
 	   poked) and pop the placeholder. */
@@ -12253,20 +12739,39 @@ bool of_JOIN_DETACH(vthread_t thr, vvp_code_t cp)
                              frame for the child and let the parent drop its
                              reference at the matching %free. */
                           ctx_stats_bump("detach.retain-shared");
-                          retain_automatic_context_(child_context);
                           vvp_context_t parent_context = thr->rd_context;
                           if (!parent_context || parent_context == child_context)
                                 parent_context = vvp_get_stacked_context(child_context);
                           if (parent_context
                               && parent_context != child_context
                               && context_live_in_owner(parent_context)) {
-                                retain_automatic_context_(parent_context);
                                 vvp_set_stacked_context(child_context, parent_context);
                           }
                           thr->skip_free_context = child_context;
                           thr->skip_free_scope = child_context_scope;
-                          child->owns_automatic_context = 1;
-                          child->owned_context = child_context;
+                          if (child->owns_automatic_context
+                              && child->owned_context == child_context) {
+                                /* do_fork_ already gave an automatic branch a
+                                   retained self-pin on child_context. Convert
+                                   that ownership to a chain by retaining only
+                                   the ancestors it did not own yet. Retaining
+                                   the head again would leak it, while retaining
+                                   only the immediate parent would undercount
+                                   deeper callers that release_owned_context_
+                                   subsequently walks and releases. */
+                                if (!child->owned_context_is_chain) {
+                                      retain_context_chain_(parent_context);
+                                      child->owned_context_is_chain = 1;
+                                }
+                          } else {
+                                /* A branch without a self-pin is acquiring the
+                                   complete chain here, so retain head and every
+                                   linked ancestor exactly once. */
+                                retain_context_chain_(child_context);
+                                child->owns_automatic_context = 1;
+                                child->owned_context = child_context;
+                                child->owned_context_is_chain = 1;
+                          }
                           trace_context_event_("join-detach-share", thr,
                                                child ? child->parent_scope : 0,
                                                child_context);
@@ -20268,6 +20773,36 @@ bool of_WAIT_VIF_ANYEDGE(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %wait/obj/mutation
+ *
+ * Pop a class object and suspend until any property of that object changes.
+ * This is the dynamic sensitivity path for nested class-property event/wait
+ * expressions.  Waking on another property of the same object is harmless:
+ * the source wait statement re-evaluates its complete expression and blocks
+ * again when it is still false.
+ */
+bool of_WAIT_OBJ_MUTATION(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj) {
+            static bool warned = false;
+            if (!warned) {
+                  fprintf(stderr,
+                          "Warning: %%wait/obj/mutation reached a null or non-class object"
+                          " (further similar warnings suppressed)\n");
+                  warned = true;
+            }
+            return true;
+      }
+
+      thr->waiting_for_event = 1;
+      thr->wait_next = cobj->add_mutation_waiter(thr);
+      return false;
+}
+
+/*
  * %wait/observed
  *
  * Suspend this thread and resume it in the Observed region of the
@@ -20591,6 +21126,19 @@ bool of_MBX_PUT(vthread_t thr, vvp_code_t)
       vvp_mailbox*mbx = mbx_obj.peek<vvp_mailbox>();
       if (!mbx) return true; /* null mailbox: silently ignore */
 
+      const char*mbx_trace = getenv("IVL_MBX_TRACE");
+      const char*scope_name = (thr && thr->parent_scope)
+                             ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+      if (mbx_trace && *mbx_trace && strcmp(mbx_trace, "0") != 0
+          && (strcmp(mbx_trace, "1") == 0 || strcmp(mbx_trace, "ALL") == 0
+              || strcmp(mbx_trace, "*") == 0
+              || (scope_name && strstr(scope_name, mbx_trace)))) {
+            if (vvp_boxed_vec4*box = item_obj.peek<vvp_boxed_vec4>())
+                  cerr << "trace mbx-put scope="
+                       << (scope_name ? scope_name : "<unknown>")
+                       << " mbx=" << mbx << " value=" << box->get_value() << endl;
+      }
+
       bool done = mbx->put(thr, item_obj);
       if (!done) return false; /* thread suspended */
       return true;
@@ -20617,6 +21165,18 @@ bool of_MBX_GET(vthread_t thr, vvp_code_t)
       vvp_object_t item;
       bool done = mbx->get(thr, item);
       if (!done) return false; /* thread suspended */
+      const char*mbx_trace = getenv("IVL_MBX_TRACE");
+      const char*scope_name = (thr && thr->parent_scope)
+                             ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+      if (mbx_trace && *mbx_trace && strcmp(mbx_trace, "0") != 0
+          && (strcmp(mbx_trace, "1") == 0 || strcmp(mbx_trace, "ALL") == 0
+              || strcmp(mbx_trace, "*") == 0
+              || (scope_name && strstr(scope_name, mbx_trace)))) {
+            if (vvp_boxed_vec4*box = item.peek<vvp_boxed_vec4>())
+                  cerr << "trace mbx-get scope="
+                       << (scope_name ? scope_name : "<unknown>")
+                       << " mbx=" << mbx << " value=" << box->get_value() << endl;
+      }
       thr->push_object(item);
       return true;
 }
@@ -20919,6 +21479,16 @@ bool of_UNBOX_VEC4(vthread_t thr, vvp_code_t cp)
       vvp_vector4_t res(wid, BIT4_0);
       if (vvp_boxed_vec4*box = obj.peek<vvp_boxed_vec4>()) {
 	    const vvp_vector4_t& v = box->get_value();
+	    const char*mbx_trace = getenv("IVL_MBX_TRACE");
+	    const char*scope_name = (thr && thr->parent_scope)
+	                           ? vpi_get_str(vpiFullName, thr->parent_scope) : 0;
+	    if (mbx_trace && *mbx_trace && strcmp(mbx_trace, "0") != 0
+	        && (strcmp(mbx_trace, "1") == 0 || strcmp(mbx_trace, "ALL") == 0
+	            || strcmp(mbx_trace, "*") == 0
+	            || (scope_name && strstr(scope_name, mbx_trace))))
+		  cerr << "trace mbx-unbox scope="
+		       << (scope_name ? scope_name : "<unknown>")
+		       << " value=" << v << endl;
 	    unsigned bits = v.size() < wid ? v.size() : wid;
 	    for (unsigned i = 0; i < bits; ++i)
 		  res.set_bit(i, v.value(i));

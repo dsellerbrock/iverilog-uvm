@@ -783,7 +783,15 @@ void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
       };
 
 	// Create one scalar element parameter. `expr' is the (unelaborated)
-	// source expression, or `val' an already-evaluated constant.
+	// source expression, or `val' an already-evaluated constant. An
+	// assignment pattern at a leaf is context-determined by the array's
+	// declared element type (IEEE 1800-2017 10.9.1). Preserve that type on
+	// the expanded element; otherwise a declaration such as
+	//
+	//   localparam pair_t P[2] = '{'{a:1, b:2}, '{a:3, b:4}};
+	//
+	// is split into P[0]/P[1] and each nested pattern is later elaborated
+	// without any type context.
       auto make_elem = [&](const string&suffix, PExpr*expr,
 			   NetExpr*val, NetScope*vscope,
 			   ivl_type_t vtype = nullptr) {
@@ -798,14 +806,10 @@ void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 	    ref.overridable = false;
 	    ref.type_flag = false;
 	    ref.is_array_param = false;
-	    // For an unevaluated element, don't set ivl_type:
-	    // evaluate_parameter_ checks (val||ivl_type) for early exit, and
-	    // val is null until the child param is evaluated -- let
-	    // evaluate_parameter_logic_ infer the type from the expression.
-	    // For an element COPIED from an already-evaluated source, the
-	    // type has to come across with the value: nothing will infer it
-	    // later, and t-dll asserts on a parameter with no type.
-	    ref.ivl_type = vtype;
+	    // A copied element carries its source type. An unevaluated element
+	    // carries the declared array element type so typed expressions,
+	    // especially nested assignment patterns, can be elaborated exactly.
+	    ref.ivl_type = vtype ? vtype : (expr ? cur->second.ivl_type : nullptr);
 	    ref.val = val;
 	    ref.solving = false;
 	    ref.range = nullptr;
@@ -813,14 +817,37 @@ void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
       };
 
       PEAssignPattern* ap = dynamic_cast<PEAssignPattern*>(cur->second.val_expr);
-      if (!ap) {
+      PEConcat* ac = dynamic_cast<PEConcat*>(cur->second.val_expr);
+      if (!ap && !ac) {
 	    /* If val_expr is an identifier reference (e.g. a parent's array
 	     * parameter passed through a port), copy the elements over from
 	     * the source array, index tuple by index tuple. */
 	    PEIdent* id = dynamic_cast<PEIdent*>(cur->second.val_expr);
 	    if (id && cur->second.val_scope) {
-		  perm_string src_name = peek_tail_name(id->path().name);
-		  NetScope* src_scope = cur->second.val_scope;
+		  // Resolve the identifier as a symbol instead of assuming it is
+		  // a parameter declared directly in val_scope. The latter is true
+		  // for a simple parent-to-child override, but not for a qualified
+		  // package constant such as pkg::PmpCfgRst, nor for an unqualified
+		  // reference found in an ancestor scope. IEEE 1800-2017 23.10
+		  // passes the array value; qualification only chooses its source.
+		  symbol_search_results src_res;
+		  bool src_found = symbol_search(id, des, cur->second.val_scope,
+			id->path(), id->lexical_pos(), &src_res);
+		  perm_string src_name = src_res.path_head.empty()
+			? peek_tail_name(id->path().name)
+			: peek_tail_name(src_res.path_head);
+		  NetScope* src_scope = src_found ? src_res.scope : nullptr;
+		  if (!src_found || !src_scope || !src_res.par_val
+		      || !src_res.path_tail.empty()) {
+			cerr << cur->second.get_fileline() << ": sorry: "
+			     << "Array parameter '" << cur->first
+			     << "' is initialized from `" << id->path()
+			     << "', which does not resolve to an array parameter."
+			     << endl;
+			des->errors += 1;
+			give_up();
+			return;
+		  }
 		  param_ref_t src_it = src_scope->parameters.find(src_name);
 		  if (src_it == src_scope->parameters.end()) {
 			/* Not a parameter of val_scope at all -- a
@@ -960,7 +987,8 @@ void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 		  return;
 	    }
 	    PEAssignPattern* pat = dynamic_cast<PEAssignPattern*>(e);
-	    if (! pat) {
+	    PEConcat* cat = dynamic_cast<PEConcat*>(e);
+	    if (!pat && !cat) {
 		  cerr << e->get_fileline() << ": error: "
 		       << "Array parameter '" << cur->first << "' dimension "
 		       << depth << " needs an assignment pattern here, not a "
@@ -970,9 +998,38 @@ void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 		  return;
 	    }
 	    std::vector<PExpr*> elems;
-	    if (! pat->expand_replication_(des, cur->second.val_scope, elems)) {
-		  failed = true;
-		  return;
+	    if (pat) {
+		  if (!pat->expand_replication_(des, cur->second.val_scope, elems)) {
+			failed = true;
+			return;
+		  }
+	    } else {
+		    // IEEE 1800-2017 10.10: an unpacked array concatenation
+		    // supplies elements in the same left-to-right positional
+		    // order as an assignment pattern. OpenTitan uses this legal
+		    // form for string array parameters:
+		    //   parameter string P[2] = {"a", "b"};
+		  const std::vector<PExpr*>&base = cat->stream_parms();
+		  unsigned repeat = 1;
+		  if (cat->has_repeat()) {
+			NetExpr*re = elab_and_eval(des, cur->second.val_scope,
+					    cat->repeat_expr(), -1, true);
+			NetEConst*rc = dynamic_cast<NetEConst*>(re);
+			if (!rc || !rc->value().is_defined()) {
+			      cerr << cat->get_fileline() << ": error: Array "
+				      "concatenation repetition must be a constant."
+				   << endl;
+			      des->errors += 1;
+			      delete re;
+			      failed = true;
+			      return;
+			}
+			repeat = (unsigned)rc->value().as_ulong64();
+			delete re;
+		  }
+		  elems.reserve((size_t)repeat * base.size());
+		  for (unsigned rep = 0 ; rep < repeat ; rep += 1)
+			for (PExpr*elem : base) elems.push_back(elem);
 	    }
 	      // IEEE 1800-2017 10.9.1/7.6: the pattern must supply exactly
 	      // one expression per element. A mismatch is an error, not a
@@ -1480,8 +1537,12 @@ void NetScope::evaluate_type_parameter_(Design *des, param_ref_t cur)
 void NetScope::evaluate_parameter_(Design*des, param_ref_t cur)
 {
 
-      // If the parameter has already been evaluated, quietly return.
-      if (cur->second.val || cur->second.ivl_type)
+      // A value parameter is evaluated when it has a value, not merely when
+      // its declared type has been elaborated. Expanded array elements carry
+      // ivl_type before their expression is evaluated so nested assignment
+      // patterns retain their context. Type parameters have no NetExpr value,
+      // so their resolved ivl_type remains their completion marker.
+      if (cur->second.val || (cur->second.type_flag && cur->second.ivl_type))
             return;
 
       if (cur->second.val_expr == 0) {

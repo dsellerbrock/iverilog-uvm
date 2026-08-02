@@ -368,6 +368,17 @@ static void draw_sfunc_string(ivl_expr_t expr)
 	   message and exit 134 instead of diagnosing the source. Report
 	   it and emit an empty string so the rest of the run can still
 	   produce diagnostics. */
+	/* IEEE 1800-2017 6.24.3 permits an integral expression to be
+	   explicitly converted to string (and string assignment uses the
+	   same byte conversion). Preserve the system-function evaluation
+	   and convert its packed bytes instead of diagnosing the function's
+	   underlying integral return type. */
+      if (ivl_expr_value(expr) == IVL_VT_BOOL
+	  || ivl_expr_value(expr) == IVL_VT_LOGIC) {
+	    draw_eval_vec4(expr);
+	    fprintf(vvp_out, "    %%pushv/str;\n");
+	    return;
+      }
       if (ivl_expr_value(expr) != IVL_VT_STRING) {
 	    fprintf(stderr, "%s:%u: vvp.tgt error: system function %s does "
 		    "not return a string, but is used where a string is "

@@ -189,6 +189,48 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 	    long m = st.rep_lo;
 	    long n = st.rep_hi;                 // -1 == unbounded upper
 	    bool ub = (n < 0);
+	      /* Consecutive repetition with an empty lower bound. A fresh
+		 exit admits the zero-copy match. For a mid-chain ##0 arrival,
+		 the first nonempty copy must be fused onto the incoming tick;
+		 otherwise `[ *0:$] ##0 tail' skips checking the first copy and
+		 can survive a terminating condition for one cycle too long. */
+	    if (st.rep_kind == 3) {
+		  if (m != 0 || (!ub && n < 0) || st.rep_tail != 0)
+			return ~0u;
+		  /* The generic delay prefix above emitted fixed-1 ticks because
+		     an ordinary nonempty step places its expression on the final
+		     arrival tick. An empty repetition still owns that final tick;
+		     emit it unguarded, then fuse the first nonempty alternative
+		     back onto it. */
+		  if (fixed > 0) {
+			unsigned arrival = nfa.new_state();
+			nfa.tick(cur, arrival, nullptr);
+			cur = arrival;
+		  }
+		  unsigned exit = nfa.new_state();
+		  nfa.eps(cur, exit);
+		  if (!ub && n == 0) return exit;
+		  unsigned prev;
+		  if (first && fixed == 0) {
+			prev = nfa.new_state();
+			nfa.tick(cur, prev, st.expr);
+		  } else {
+			prev = nfa_fuse_arrival_(nfa, cur, st.expr);
+			if (prev == ~0u) return ~0u;
+		  }
+		  nfa.eps(prev, exit);
+		  if (ub) {
+			nfa.tick(prev, prev, st.expr);
+		  } else {
+			for (long i = 2; i <= n; i += 1) {
+			      unsigned nxt = nfa.new_state();
+			      nfa.tick(prev, nxt, st.expr);
+			      nfa.eps(nxt, exit);
+			      prev = nxt;
+			}
+		  }
+		  return exit;
+	    }
 	      // rep_lo < 1 ([->0]/[=0]) admits empty matches -- still
 	      // declined here (falls back to the legacy loud sorry).
 	    if (m < 1 || (!ub && n < m)) return ~0u;
@@ -473,7 +515,8 @@ static void fold_epsilons_(sva_nfa_t&nfa)
  * test — a thread sitting only in dead states must count as failed,
  * so dead states must not exist. Edges from/to dead states go too.
  */
-static void prune_dead_states_(sva_nfa_t&nfa)
+static void prune_dead_states_(sva_nfa_t&nfa,
+			       std::vector<unsigned>*old_to_new = nullptr)
 {
       std::vector<bool> live (nfa.nstates, false);
       live[nfa.accept] = true;
@@ -510,6 +553,7 @@ static void prune_dead_states_(sva_nfa_t&nfa)
       nfa.start = remap[nfa.start];
       nfa.accept = remap[nfa.accept];
       nfa.nstates = next;
+      if (old_to_new) old_to_new->swap(remap);
 }
 
 static bool nfa_chain_fragment_(sva_nfa_t&nfa,
@@ -694,6 +738,77 @@ bool pform_sva_nfa_build_from_tree(sva_nfa_t&nfa, const sva_stree_t*tree)
       fold_epsilons_(nfa);
       prune_dead_states_(nfa);
       return true;
+}
+
+bool pform_sva_nfa_build_implication(
+				sva_nfa_t&nfa, const sva_stree_t*ante,
+				const sva_stree_t*conseq, bool nonoverlap,
+				std::vector<sva_nfa_boundary_t>&boundary)
+{
+      sva_nfa_t A, B;
+      if (!pform_sva_nfa_build_from_tree(A, ante)
+	  || !pform_sva_nfa_build_from_tree(B, conseq))
+	    return false;
+
+      nfa = sva_nfa_t();
+      boundary.clear();
+      for (unsigned i = 0; i < A.nstates + B.nstates; i += 1)
+	    nfa.new_state();
+      const unsigned boff = A.nstates;
+
+      std::vector<sva_nfa_edge_t> terminal;
+      for (size_t i = 0; i < A.edges.size(); i += 1) {
+	    const sva_nfa_edge_t&e = A.edges[i];
+	    if (e.to == A.accept) {
+		  terminal.push_back(e);
+		  sva_nfa_boundary_t b;
+		  b.from = e.from;
+		  b.guards = e.guards;
+		  boundary.push_back(b);
+	    }
+	    nfa.edges.push_back(e);
+      }
+      for (size_t i = 0; i < B.edges.size(); i += 1) {
+	    sva_nfa_edge_t e = B.edges[i];
+	    e.from += boff;
+	    e.to += boff;
+	    nfa.edges.push_back(e);
+      }
+
+      nfa.start = A.start;
+      nfa.accept = boff + B.accept;
+      if (nonoverlap) {
+	    nfa.eps(A.accept, boff + B.start);
+      } else {
+	      /* |->: the consequent's first tick is the antecedent's
+		 terminal tick. Pair every terminal antecedent edge with every
+		 first consequent edge. The old terminal edges become dead and
+		 are removed below; keeping them until pruning makes the
+		 construction and its boundary probes straightforward. */
+	    for (size_t ai = 0; ai < terminal.size(); ai += 1)
+		  for (size_t bi = 0; bi < B.edges.size(); bi += 1) {
+			const sva_nfa_edge_t&be = B.edges[bi];
+			if (be.from != B.start) continue;
+			sva_nfa_edge_t e;
+			e.from = terminal[ai].from;
+			e.to = boff + be.to;
+			e.guards = terminal[ai].guards;
+			e.guards.insert(e.guards.end(), be.guards.begin(),
+					be.guards.end());
+			nfa.edges.push_back(e);
+		  }
+      }
+
+      fold_epsilons_(nfa);
+      std::vector<unsigned> remap;
+      prune_dead_states_(nfa, &remap);
+      for (size_t i = 0; i < boundary.size(); i += 1) {
+	    if (boundary[i].from >= remap.size()
+		|| remap[boundary[i].from] == ~0u)
+		  return false;
+	    boundary[i].from = remap[boundary[i].from];
+      }
+      return !boundary.empty();
 }
 
 void pform_sva_nfa_dump(const struct vlltype&loc, const char*what,

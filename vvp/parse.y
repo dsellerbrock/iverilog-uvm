@@ -76,14 +76,14 @@ static struct __vpiModPath*modpath_dst = 0;
       int      vpi_enum;
 };
 
-%token K_A K_APV K_CPS
+%token K_A K_APV K_CPS K_CPV
 %token K_ARITH_ABS K_ARITH_DIV K_ARITH_DIV_R K_ARITH_DIV_S K_ARITH_MOD
 %token K_ARITH_MOD_R K_ARITH_MOD_S
 %token K_ARITH_MULT K_ARITH_MULT_R K_ARITH_SUB K_ARITH_SUB_R
 %token K_ARITH_SUM K_ARITH_SUM_R K_ARITH_POW K_ARITH_POW_R K_ARITH_POW_S
 %token K_ARRAY K_ARRAY_2U K_ARRAY_2S K_ARRAY_I K_ARRAY_OBJ K_ARRAY_R K_ARRAY_S K_ARRAY_STR K_ARRAY_PORT
 %token K_CAST_INT K_CAST_REAL K_CAST_REAL_S K_CAST_2
-%token K_CLASS K_CLASS_STRUCT K_CONSTRAINT_DEF K_COVGRP_BIN K_COVGRP_ITEM K_COVGRP_PARENT K_COVGRP_SRC K_MODPORT
+%token K_CLASS K_CLASS_STRUCT K_CONSTRAINT_DEF K_COVGRP_BIN K_COVGRP_DYN_BIN K_COVGRP_ITEM K_COVGRP_PARENT K_COVGRP_SRC K_MODPORT
 %token K_CMP_EEQ K_CMP_EQ K_CMP_EQX K_CMP_EQZ K_CMP_WEQ K_CMP_WNE
 %token K_CMP_EQ_R K_CMP_NEE K_CMP_NE K_CMP_NE_R
 %token K_CMP_GE K_CMP_GE_R K_CMP_GE_S K_CMP_GT K_CMP_GT_R K_CMP_GT_S
@@ -1046,10 +1046,14 @@ class_property
       { compile_class_covgrp_bin($2, $3, $4, $5, $6); }
   | K_COVGRP_BIN T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER
       { compile_class_covgrp_bin($2, $3, $4, $5, $6, $7, $8); }
+  | K_COVGRP_DYN_BIN T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_STRING T_STRING T_STRING
+      { compile_class_covgrp_dyn_bin($2, $3, $4, $5, $6, $7, $8, $9); }
   | K_COVGRP_ITEM T_NUMBER T_NUMBER T_NUMBER
       { compile_class_covgrp_item($2, $3, $4); }
   | K_COVGRP_ITEM T_NUMBER T_NUMBER T_NUMBER T_STRING
       { compile_class_covgrp_item($2, $3, $4, $5); }
+  | K_COVGRP_ITEM T_NUMBER T_NUMBER T_NUMBER T_STRING T_STRING
+      { compile_class_covgrp_item($2, $3, $4, $5, $6); }
   | K_COVGRP_PARENT T_NUMBER
       { compile_class_covgrp_parent($2); }
   | K_COVGRP_SRC T_NUMBER T_NUMBER
@@ -1275,6 +1279,8 @@ symbol_access
       { $$ = vpip_make_vthr_APV($3, $5, $7, $9); }
   | K_CPS '<' T_SYMBOL ',' T_NUMBER '>'
       { $$ = vpip_make_cobject_property_string_var($3, $5); }
+  | K_CPV '<' T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER '>'
+      { $$ = vpip_make_cobject_property_vec_var($3, $5, $7, $9); }
   ;
 
   /* functor operands can only be a list of symbols. */

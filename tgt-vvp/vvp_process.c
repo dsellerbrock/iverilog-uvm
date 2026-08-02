@@ -745,18 +745,18 @@ static int show_stmt_block_named(ivl_statement_t net, ivl_scope_t scope)
  * (first match jumps straight into its branch and no further items
  * are tested), the unique/unique0 lowering has to:
  *
- *   1. Evaluate every item's label exactly once, recording a
- *      per-item "matched" flag and folding the results into an
- *      "any match seen so far" flag and a "more than one match
- *      seen" flag (the latter set precisely when a match is found
- *      after a match was already seen).
+ *   1. Evaluate every item's label exactly once, recording the first
+ *      matching item in one word register and folding the results into
+ *      an "any match seen so far" flag and a "more than one match seen"
+ *      flag (the latter set precisely when a match is found after a
+ *      match was already seen).
  *   2. Emit the multiple-match $warning once, if the multi-match
  *      flag is set.
- *   3. Dispatch to the FIRST matching item's branch, by replaying
- *      the per-item matched flags (already computed, so this is a
- *      cheap flag test, not a re-evaluation of the label) in item
- *      order -- this preserves first-match-wins semantics exactly
- *      like the plain/priority chain.
+ *   3. Dispatch to the FIRST matching item's branch from the saved item
+ *      index, without re-evaluating a label. This preserves
+ *      first-match-wins semantics exactly like the plain/priority chain
+ *      while using constant temporary storage even for generated register
+ *      maps with hundreds of case items.
  *   4. If nothing matched, fall through to the default branch (if
  *      any) or the existing "value is unhandled" warning (unique
  *      only -- unique0 stays silent on zero matches, unchanged).
@@ -777,7 +777,7 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 
       int any_flag = allocate_flag();
       int multi_flag = allocate_flag();
-      int*match_flag = count ? calloc(count, sizeof(int)) : 0;
+      int first_match_word = allocate_word();
       unsigned*body_label = count ? calloc(count, sizeof(unsigned)) : 0;
 
       show_stmt_file_line(net, "Case statement.");
@@ -789,6 +789,8 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 
       fprintf(vvp_out, "    %%flag_set/imm %d, 0;\n", any_flag);
       fprintf(vvp_out, "    %%flag_set/imm %d, 0;\n", multi_flag);
+      fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", first_match_word,
+              count);
 
       default_case = count;
 
@@ -796,14 +798,14 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 	   the per-item match result into any_flag/multi_flag. */
       for (idx = 0 ;  idx < count ;  idx += 1) {
 	    ivl_expr_t cex = ivl_stmt_case_expr(net, idx);
-	    unsigned lab_after;
+	    unsigned lab_after, lab_already_matched;
+	    int result_flag = 4;
 
 	    if (cex == 0) {
 		  default_case = idx;
 		  continue;
 	    }
 
-	    match_flag[idx] = allocate_flag();
 	    body_label[idx] = local_count++;
 
 	      /* Duplicate the case expression so that the cmp
@@ -822,17 +824,17 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 		       even though a literal case must match X/Z bits
 		       exactly. This mirrors the branch table below. */
 		  fprintf(vvp_out, "    %%cmp/u;\n");
-		  fprintf(vvp_out, "    %%flag_mov %d, 6;\n", match_flag[idx]);
+		  result_flag = 6;
 		  break;
 
 		case IVL_ST_CASEX:
 		  fprintf(vvp_out, "    %%cmp/x;\n");
-		  fprintf(vvp_out, "    %%flag_mov %d, 4;\n", match_flag[idx]);
+		  result_flag = 4;
 		  break;
 
 		case IVL_ST_CASEZ:
 		  fprintf(vvp_out, "    %%cmp/z;\n");
-		  fprintf(vvp_out, "    %%flag_mov %d, 4;\n", match_flag[idx]);
+		  result_flag = 4;
 		  break;
 
 		default:
@@ -843,13 +845,20 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 		 bookkeeping below. */
 	    lab_after = local_count++;
 	    fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d;\n",
-		    thread_count, lab_after, match_flag[idx]);
+		    thread_count, lab_after, result_flag);
 
 	      /* This item matched. If any_flag is already set, a
 		 previous item also matched, so this is (at least) a
 		 second match: fold that into multi_flag before
 		 marking any_flag. */
 	    fprintf(vvp_out, "    %%flag_or %d, %d;\n", multi_flag, any_flag);
+	    lab_already_matched = local_count++;
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, %d;\n",
+		    thread_count, lab_already_matched, any_flag);
+	    fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n",
+		    first_match_word, idx);
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count,
+		    lab_already_matched);
 	    fprintf(vvp_out, "    %%flag_set/imm %d, 1;\n", any_flag);
 
 	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_after);
@@ -869,15 +878,21 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 
       lab_out = local_count++;
 
-	/* Pass 2: dispatch to the first matching item, in item order,
-	   by testing the already-computed match flags (cheap -- no
-	   re-evaluation of any label). */
+	/* Pass 2: dispatch to the saved first matching item without
+	   re-evaluating any label. */
       for (idx = 0 ;  idx < count ;  idx += 1) {
 	    if (idx == default_case)
 		  continue;
-	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, %d;\n",
-		    thread_count, body_label[idx], match_flag[idx]);
+	    fprintf(vvp_out, "    %%jmp/wr/e T_%u.%u, %d, %u;\n",
+		    thread_count, body_label[idx], first_match_word, idx);
       }
+
+	/* All runtime uses of these temporaries have now been emitted. Free
+	   their code-generation slots before lowering any branch body so a
+	   nested unique case can safely reuse them. */
+      clr_flag(any_flag);
+      clr_flag(multi_flag);
+      clr_word(first_match_word);
 
 	/* Nothing matched: fall through to the default (if any) or
 	   the existing no-match warning (unique only; unique0 is
@@ -910,14 +925,6 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_out);
       fprintf(vvp_out, "    %%pop/vec4 1;\n");
 
-      clr_flag(any_flag);
-      clr_flag(multi_flag);
-      for (idx = 0 ;  idx < count ;  idx += 1) {
-	    if (idx == default_case)
-		  continue;
-	    clr_flag(match_flag[idx]);
-      }
-      free(match_flag);
       free(body_label);
 
       return rc;
@@ -2152,6 +2159,25 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 		                   cascade_counter, ev);
 		  fprintf(vvp_out, "    %%wait Ewait_%u;\n", cascade_counter);
 		  cascade_counter += 1;
+	    } else if (ivl_event_is_obj_mutation(ev)) {
+		  /* Nested class-property sensitivity: load the expression root,
+		   * walk to the object that owns the observed scalar property, and
+		   * wait for that object's mutation epoch to change. */
+		  ivl_nexus_t this_nex = ivl_event_nany(ev) > 0
+			? ivl_event_any(ev, 0) : ivl_event_pos(ev, 0);
+		  const char*this_var = draw_input_from_net(this_nex,
+							    ivl_event_scope(ev));
+		  unsigned pre_N = ivl_event_obj_pre_N(ev);
+		  unsigned obj_N = ivl_event_obj_N(ev);
+		  fprintf(vvp_out, "    %%load/obj %s;\n", this_var);
+		  if (pre_N != UINT_MAX)
+			fprintf(vvp_out, "    %%prop/obj %u, 0;\n", pre_N);
+		  if (obj_N != UINT_MAX)
+			fprintf(vvp_out, "    %%prop/obj %u, 0;\n", obj_N);
+		  if (pre_N != UINT_MAX || obj_N != UINT_MAX)
+			fprintf(vvp_out, "    %%pop/obj %u, 1;\n",
+				(pre_N != UINT_MAX) + (obj_N != UINT_MAX));
+		  fprintf(vvp_out, "    %%wait/obj/mutation;\n");
 	    } else if (ivl_event_is_vif_posedge(ev)
 		       || ivl_event_is_vif_negedge(ev)
 		       || ivl_event_is_vif_anyedge(ev)) {
@@ -2164,16 +2190,16 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 		  const char*opcode = ivl_event_is_vif_posedge(ev)
 			? "posedge"
 			: ivl_event_is_vif_negedge(ev) ? "negedge" : "anyedge";
+		  unsigned root_pin = ivl_event_vif_root_pin(ev);
 		  ivl_nexus_t this_nex = 0;
-		  if (ivl_event_npos(ev) > 0) this_nex = ivl_event_pos(ev, 0);
-		  else if (ivl_event_nneg(ev) > 0) this_nex = ivl_event_neg(ev, 0);
-		  else if (ivl_event_nany(ev) > 0) this_nex = ivl_event_any(ev, 0);
+		  if (ivl_event_npos(ev) > root_pin) this_nex = ivl_event_pos(ev, root_pin);
+		  else if (ivl_event_nneg(ev) > root_pin) this_nex = ivl_event_neg(ev, root_pin);
+		  else if (ivl_event_nany(ev) > root_pin) this_nex = ivl_event_any(ev, root_pin);
 		  const char*this_var = draw_input_from_net(this_nex,
 							    ivl_event_scope(ev));
-		  unsigned pre_N = ivl_event_vif_pre_N(ev);
-		  int has_pre = (pre_N != UINT_MAX);
+		  unsigned path_count = ivl_event_vif_path_count(ev);
 		  fprintf(vvp_out, "    %%load/obj %s;\n", this_var);
-		  if (ivl_event_vif_N(ev) == UINT_MAX) {
+		  if (path_count == 0 && ivl_event_vif_N(ev) == UINT_MAX) {
 			/* Direct interface-port member `@(edge p.sig)`: the base
 			   object loaded above IS the virtual interface, so there
 			   is no intermediate vif property to extract. %wait/vif
@@ -2181,11 +2207,22 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 			fprintf(vvp_out, "    %%wait/vif/%s %u;\n",
 				opcode, ivl_event_vif_M(ev));
 		  } else {
-			if (has_pre)
-			      fprintf(vvp_out, "    %%prop/obj %u, 0;\n", pre_N);
-			fprintf(vvp_out, "    %%prop/obj %u, 0;\n",
-				ivl_event_vif_N(ev));
-			fprintf(vvp_out, "    %%pop/obj %d, 1;\n", has_pre ? 2 : 1);
+			if (path_count > 0) {
+			      for (unsigned idx = 0 ; idx < path_count ; idx += 1)
+				    fprintf(vvp_out, "    %%prop/obj %u, 0;\n",
+					    ivl_event_vif_path_index(ev, idx));
+			      fprintf(vvp_out, "    %%pop/obj %u, 1;\n", path_count);
+			} else {
+			      /* Compatibility with targets produced before the full
+			       * path metadata was added. */
+			      unsigned pre_N = ivl_event_vif_pre_N(ev);
+			      int has_pre = (pre_N != UINT_MAX);
+			      if (has_pre)
+				    fprintf(vvp_out, "    %%prop/obj %u, 0;\n", pre_N);
+			      fprintf(vvp_out, "    %%prop/obj %u, 0;\n",
+				      ivl_event_vif_N(ev));
+			      fprintf(vvp_out, "    %%pop/obj %d, 1;\n", has_pre ? 2 : 1);
+			}
 			fprintf(vvp_out, "    %%wait/vif/%s %u;\n",
 				opcode, ivl_event_vif_M(ev));
 		  }
@@ -3129,10 +3166,21 @@ static void emit_iface_method_call_(ivl_statement_t net, ivl_scope_t method,
 
       unsigned nparms = ivl_stmt_parm_count(net);
       unsigned nports = ivl_scope_ports(method);
-      for (unsigned i = parm_base ; i < nparms && (i - parm_base) < nports ; i += 1) {
+      /* Function port zero is the return value, including for a void
+       * function.  Interface methods are commonly void functions invoked
+       * as statements (for example vif.set_freq_mhz(value)); treating port
+       * zero as the first argument silently stored nothing because that
+       * port has IVL_VT_VOID, leaving the real input at its zero default.
+       * Tasks have no return port, so their first user argument remains
+       * port zero. */
+      unsigned port_base = (ivl_scope_type(method) == IVL_SCT_FUNCTION) ? 1 : 0;
+      unsigned user_ports = nports >= port_base ? nports - port_base : 0;
+      for (unsigned i = parm_base ;
+           i < nparms && (i - parm_base) < user_ports ; i += 1) {
             ivl_expr_t pe = ivl_stmt_parm(net, i);
             if (!pe) continue;
-            ivl_signal_t port = ivl_scope_port(method, i - parm_base);
+            ivl_signal_t port = ivl_scope_port(method,
+                                               port_base + i - parm_base);
             if (!port) continue;
             ivl_variable_type_t pt = ivl_signal_data_type(port);
             switch (pt) {
@@ -3343,15 +3391,18 @@ static int show_iface_late_call(ivl_statement_t net)
       if (is_auto)
             fprintf(vvp_out, "    %%alloc S_%p;\n", method);
 
-      /* Map caller-supplied parms to the task's ports.  ivl_scope_port(method, i)
-       * returns the i-th port; for an interface task there's no implicit `this`,
-       * so port[0] is the first user-visible argument. */
+      /* Map caller-supplied parms to the method's ports.  Interface tasks
+       * have their first user argument at port zero.  Functions reserve
+       * port zero for the return value (also for a void function), so their
+       * first user argument is port one. */
       unsigned nparms = ivl_stmt_parm_count(net);
       unsigned nports = ivl_scope_ports(method);
-      for (unsigned i = 0 ; i < nparms && i < nports ; i += 1) {
+      unsigned port_base = (ivl_scope_type(method) == IVL_SCT_FUNCTION) ? 1 : 0;
+      unsigned user_ports = nports >= port_base ? nports - port_base : 0;
+      for (unsigned i = 0 ; i < nparms && i < user_ports ; i += 1) {
             ivl_expr_t pe = ivl_stmt_parm(net, i);
             if (!pe) continue;
-            ivl_signal_t port = ivl_scope_port(method, i);
+            ivl_signal_t port = ivl_scope_port(method, port_base + i);
             if (!port) continue;
             ivl_variable_type_t pt = ivl_signal_data_type(port);
             switch (pt) {
@@ -3411,14 +3462,20 @@ static int show_system_task_call(ivl_statement_t net)
 	    unsigned n_vals = (unsigned)strtoul(rest, NULL, 10);
 	    while (*rest && *rest != '|') rest++;
 	    if (*rest == '|') rest++;
+	    unsigned n_objs = (unsigned)strtoul(rest, NULL, 10);
+	    while (*rest && *rest != '|') rest++;
+	    if (*rest == '|') rest++;
 	    const char*ir = rest;
 
 	    for (unsigned i = 0 ; i < n_rand ; i++)
 		  draw_eval_vec4(ivl_stmt_parm(net, i));
 	    for (unsigned i = 0 ; i < n_vals ; i++)
 		  draw_eval_vec4(ivl_stmt_parm(net, n_rand + i));
+	    for (unsigned i = 0 ; i < n_objs ; i++)
+		  draw_eval_object(ivl_stmt_parm(net, n_rand + n_vals + i));
+	    unsigned packed_slots = (n_objs << 16) | (n_vals & 0xffffu);
 	    fprintf(vvp_out, "    %%std/randomize/with \"%s\", %u, %u;\n",
-		    ir, n_rand, n_vals);
+		    ir, n_rand, packed_slots);
 
 	    unsigned lab_done = local_count++;
 	    int success_flag = allocate_flag();
@@ -3438,8 +3495,11 @@ static int show_system_task_call(ivl_statement_t net)
 			continue;
 		  }
 		  fprintf(vvp_out, "    %%std/randomize/load %u;\n", i);
-		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
-			  sig, wid);
+		  if (signal_is_return_value(sig))
+			fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;\n", wid);
+		  else
+			fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
+				sig, wid);
 	    }
 	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_done);
 	    clr_flag(success_flag);

@@ -975,6 +975,10 @@ extern vpiHandle vpip_class_member_by_name(vpiHandle base, const char*name);
  * lvalues passed to sysfuncs such as `$value$plusargs`. */
 extern vpiHandle vpip_make_cobject_property_string_var(char*label,
                                                        size_t prop_idx);
+extern vpiHandle vpip_make_cobject_property_vec_var(char*label,
+                                                    size_t prop_idx,
+                                                    unsigned width,
+                                                    bool signed_flag);
 
 /*
  * When a loaded VPI module announces a system task/function, one

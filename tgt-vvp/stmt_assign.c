@@ -2798,6 +2798,13 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		  if (ivl_type_base(prop_type) == IVL_VT_BOOL &&
 		      ivl_expr_value(rval) != IVL_VT_BOOL)
 			fprintf(vvp_out, "    %%cast2;\n");
+		  /* The class-property path bypasses the generic vector
+		     assignment lowering. For a compound assignment, explicitly
+		     match the r-value to the property width before emitting the
+		     binary opcode, as the indexed and field-property paths do. */
+		  if (ivl_stmt_opcode(net) != 0)
+			fprintf(vvp_out, "    %%pad/%s %u;\n",
+				ivl_expr_signed(rval) ? "s" : "u", lwid);
 
 		  draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
 					         ivl_expr_signed(rval));

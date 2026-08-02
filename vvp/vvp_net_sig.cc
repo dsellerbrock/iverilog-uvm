@@ -115,6 +115,16 @@ static bool recv_object_trace_scope_match_(const char*scope_name)
       return scope_name && strstr(scope_name, match_text.c_str());
 }
 
+static bool recv_object_trace_configured_()
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+            const char*env = getenv("IVL_RECV_OBJ_TRACE");
+            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      return enabled != 0;
+}
+
 static bool load_str_trace_scope_match_(const char*scope_name)
 {
       static int enabled = -1;
@@ -134,6 +144,16 @@ static bool load_str_trace_scope_match_(const char*scope_name)
       if (match_text.empty())
             return true;
       return scope_name && strstr(scope_name, match_text.c_str());
+}
+
+static bool load_str_trace_configured_()
+{
+      static int enabled = -1;
+      if (enabled < 0) {
+            const char*env = getenv("IVL_LOAD_STR_TRACE");
+            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+      }
+      return enabled != 0;
 }
 
 /*
@@ -524,11 +544,38 @@ void vvp_fun_signal4_aa::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
                                    vvp_context_t context)
 {
       assert(ptr.port() == 0);
+      vvp_context_t supplied_context = context;
       context = recover_automatic_recv_context_(context, context_scope_, "recv-vec4-aa");
+      /* A detached automatic worker can outlive the lexical chain that
+         originally reached its owning task frame. Scoped reads already
+         recover that frame when the target scope has exactly one live
+         activation. Apply the same unambiguous rule to scalar copy-out so
+         a blocking task output (for example UVM FIFO get(dir)) is not
+         silently dropped after a nested task call. Never guess when two
+         recursive/sibling activations are live. */
+      if (!context && supplied_context) {
+            context = vthread_recover_unique_context_for_scope(context_scope_);
+            if (context)
+                  ctx_stats_bump("recv-vec4-aa.unique-repair");
+      }
       if (!context)
             return;
 
       signal4_aa_slot*slot = signal4_aa_get_or_make_slot(context, context_idx_, size_, init_);
+      const char*trace = getenv("IVL_RECV_VEC_TRACE");
+      const char*scope_name = context_scope_
+                             ? vpi_get_str(vpiFullName, context_scope_) : 0;
+      const bool trace_this = trace && *trace && strcmp(trace, "0") != 0
+                              && (strcmp(trace, "1") == 0
+                                  || strcmp(trace, "ALL") == 0
+                                  || strcmp(trace, "*") == 0
+                                  || (scope_name && strstr(scope_name, trace)));
+      if (trace_this)
+            cerr << "trace recv-vec4-aa scope="
+                 << (scope_name ? scope_name : "<unknown>")
+                 << " idx=" << context_idx_ << " supplied=" << supplied_context
+                 << " resolved=" << context << " old=" << slot->bits
+                 << " new=" << bit << endl;
       if (!slot->bits.eeq(bit)) {
             slot->bits = bit;
             ptr.ptr()->send_vec4(slot->bits, context);
@@ -577,14 +624,25 @@ vvp_scalar_t vvp_fun_signal4_aa::scalar_value(unsigned idx) const
 
 void vvp_fun_signal4_aa::vec4_value(vvp_vector4_t&val) const
 {
-      const signal4_aa_slot*slot =
-            signal4_aa_slot_from_raw(vthread_get_rd_context_item_scoped(context_idx_, context_scope_));
+      const void*raw = vthread_get_rd_context_item_scoped(context_idx_, context_scope_);
+      const signal4_aa_slot*slot = signal4_aa_slot_from_raw(raw);
       if (!slot) {
             val = vvp_vector4_t(size_, BIT4_X);
             return;
       }
 
       val = slot->bits;
+      const char*trace = getenv("IVL_LOAD_VEC_TRACE");
+      const char*scope_name = context_scope_
+                             ? vpi_get_str(vpiFullName, context_scope_) : 0;
+      if (trace && *trace && strcmp(trace, "0") != 0
+          && (strcmp(trace, "1") == 0 || strcmp(trace, "ALL") == 0
+              || strcmp(trace, "*") == 0
+              || (scope_name && strstr(scope_name, trace))))
+            cerr << "trace load-vec4-aa scope="
+                 << (scope_name ? scope_name : "<unknown>")
+                 << " idx=" << context_idx_ << " rd=" << vthread_get_rd_context()
+                 << " raw=" << raw << " value=" << val << endl;
 }
 
 const vvp_vector4_t&vvp_fun_signal4_aa::vec4_unfiltered_value() const
@@ -1637,8 +1695,13 @@ double vvp_fun_signal_string_aa::real_value() const
 
 const std::string& vvp_fun_signal_string_aa::get_string() const
 {
-      const char*scope_name = context_scope_ ? vpi_get_str(vpiFullName, context_scope_) : 0;
-      bool trace_this = load_str_trace_scope_match_(scope_name);
+      const char*scope_name = 0;
+      bool trace_this = false;
+      if (load_str_trace_configured_()) {
+            scope_name = context_scope_
+                  ? vpi_get_str(vpiFullName, context_scope_) : 0;
+            trace_this = load_str_trace_scope_match_(scope_name);
+      }
       const void*raw = vthread_get_rd_context_item_scoped(context_idx_, context_scope_);
       const vvp_string_slot_s*slot = static_cast<const vvp_string_slot_s*>(raw);
       if (!slot || slot_ptr_poisoned_(slot) || slot->magic != vvp_string_slot_s::kMagic) {
@@ -1918,10 +1981,41 @@ void vvp_fun_signal_object_aa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
 {
       assert(ptr.port() == 0);
       attached_net_ = ptr.ptr();
-      if (recv_object_trace_scope_match_(context_scope_
-                                         ? vpi_get_str(vpiFullName, context_scope_) : 0)) {
+
+	/* An assignment executed in a nested automatic function/block carries
+	   that nested frame, while its destination can be a local in an
+	   enclosing automatic task. Vector, string and real automatic signals
+	   already repair this through recover_automatic_recv_context_. Object
+	   signals also receive mutation notifications, so do the narrower safe
+	   version here. Prefer a matching frame on the supplied lexical stack.
+	   A detached nested block can outlive the link to its enclosing task;
+	   in that case recover the task only when (a) the supplied context is
+	   lexically inside the target scope and (b) the target has exactly one
+	   live activation. This never guesses between recursive/sibling frames
+	   and does not redirect unrelated object-mutation notifications. This is
+	   the UVM FIFO `try_get(item)' copy-back shape from a detached scoreboard
+	   worker. */
+      if (context
+	  && !vthread_context_live_matches_scope(context, context_scope_)) {
+	    vvp_context_t stacked =
+		  vthread_recover_stacked_context_for_scope(context,
+						     context_scope_);
+	    if (stacked) {
+		  context = stacked;
+		  ctx_stats_bump("recv-obj-aa.stacked-repair");
+	    } else if (vthread_context_owner_is_within(context, context_scope_)) {
+		  vvp_context_t unique =
+			vthread_recover_unique_context_for_scope(context_scope_);
+		  if (unique) {
+			context = unique;
+			ctx_stats_bump("recv-obj-aa.unique-nested-repair");
+		  }
+	    }
+      }
+      if (recv_object_trace_configured_()) {
             const char*scope_name = context_scope_
-                                  ? vpi_get_str(vpiFullName, context_scope_) : 0;
+                  ? vpi_get_str(vpiFullName, context_scope_) : 0;
+            if (recv_object_trace_scope_match_(scope_name)) {
             fprintf(stderr,
                     "trace recv-object-aa scope=%s net=%p ctx=%p native=%d val_nil=%d val=%p\n",
                     scope_name ? scope_name : "<unknown>",
@@ -1929,6 +2023,7 @@ void vvp_fun_signal_object_aa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
                     context && vthread_context_live_matches_scope(context, context_scope_) ? 1 : 0,
                     bit.test_nil() ? 1 : 0,
                     bit.peek<vvp_object>());
+            }
       }
 
 	/* A store executed by a thread in this functor's scope carries a

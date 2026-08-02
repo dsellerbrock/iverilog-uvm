@@ -34,6 +34,7 @@ using namespace std;
  * The functions here help the parser put together class type declarations.
  */
 static PClass*pform_cur_class = 0;
+static PTaskFunc* pform_recent_class_method_ = 0;
 
 void pform_blend_class_constructors(PClass*pclass)
 {
@@ -88,6 +89,8 @@ void pform_blend_class_constructors(PClass*pclass)
                   use_new->push_statement_front(def_new2);
 
             pclass->funcs.erase(iter_new2);
+            if (pform_recent_class_method_ == use_new2)
+                  pform_recent_class_method_ = 0;
             delete use_new2;
             use_new2 = 0;
       }
@@ -174,8 +177,6 @@ void pform_class_property(const struct vlltype&loc,
 	    }
       }
 }
-
-static PTaskFunc* pform_recent_class_method_ = 0;
 
 void pform_set_this_class(const struct vlltype&loc, PTaskFunc*net)
 {
@@ -281,6 +282,7 @@ void pform_end_class_declaration(const struct vlltype&loc)
       }
 
       pform_blend_class_constructors(pform_cur_class);
+      pform_recent_class_method_ = 0;
 
       pform_cur_class = 0;
       pform_pop_scope();
@@ -367,7 +369,10 @@ void pform_class_covergroup(const struct vlltype& /*loc*/,
 			     std::list<class_type_t::pform_coverpoint_t*>*coverpoints,
 			     std::vector<perm_string>*sample_formals,
 			     std::vector<data_type_t*>*sample_formal_types,
-			     std::vector<PEEvent*>*sample_events)
+			     std::vector<PEEvent*>*sample_events,
+			     std::vector<perm_string>*ctor_formals,
+			     std::vector<data_type_t*>*ctor_formal_types,
+			     std::vector<PExpr*>*ctor_defaults)
 {
       if (!pform_cur_class || !name) {
 	    pending_crosses_.clear();  // discard if we can't attach
@@ -375,11 +380,28 @@ void pform_class_covergroup(const struct vlltype& /*loc*/,
 	    if (sample_formals) delete sample_formals;
 	    if (sample_formal_types) delete sample_formal_types;
 	    if (sample_events) delete sample_events;
+	    if (ctor_formals) delete ctor_formals;
+	    if (ctor_formal_types) delete ctor_formal_types;
+	    if (ctor_defaults) delete ctor_defaults;
 	    return;
       }
 
       class_type_t::pform_covergroup_t* cg = new class_type_t::pform_covergroup_t();
       cg->name = lex_strings.make(name);
+	// Constructor formals retain their declaration types/defaults so
+	// the synthesized covergroup class can store per-instance values.
+      if (ctor_formals) {
+	    cg->ctor_formals = *ctor_formals;
+	    delete ctor_formals;
+      }
+      if (ctor_formal_types) {
+	    cg->ctor_formal_types = *ctor_formal_types;
+	    delete ctor_formal_types;
+      }
+      if (ctor_defaults) {
+	    cg->ctor_defaults = *ctor_defaults;
+	    delete ctor_defaults;
+      }
       if (coverpoints) {
 	    for (auto* cp : *coverpoints)
 		  cg->coverpoints.push_back(std::move(*cp));
@@ -414,13 +436,19 @@ void pform_standalone_covergroup(const struct vlltype&loc,
 			     std::list<class_type_t::pform_coverpoint_t*>*coverpoints,
 			     std::vector<PEEvent*>*sample_events,
 			     std::vector<perm_string>*sample_formals,
-			     std::vector<data_type_t*>*sample_formal_types)
+			     std::vector<data_type_t*>*sample_formal_types,
+			     std::vector<perm_string>*ctor_formals,
+			     std::vector<data_type_t*>*ctor_formal_types,
+			     std::vector<PExpr*>*ctor_defaults)
 {
       if (!name) {
 	    pending_crosses_.clear();
 	    pending_cg_options_.clear();
 	    if (sample_formals) delete sample_formals;
 	    if (sample_formal_types) delete sample_formal_types;
+	    if (ctor_formals) delete ctor_formals;
+	    if (ctor_formal_types) delete ctor_formal_types;
+	    if (ctor_defaults) delete ctor_defaults;
 	    return;
       }
       perm_string cg_name = lex_strings.make(name);
@@ -436,7 +464,9 @@ void pform_standalone_covergroup(const struct vlltype&loc,
 	// manages — point it at the wrapper for the call.
       PClass*save_cur = pform_cur_class;
       pform_cur_class = cls;
-      pform_class_covergroup(loc, name, coverpoints);
+      pform_class_covergroup(loc, name, coverpoints, nullptr, nullptr,
+			     nullptr, ctor_formals, ctor_formal_types,
+			     ctor_defaults);
       pform_cur_class = save_cur;
       if (sample_events && !ct->covergroups.empty()) {
 	    ct->covergroups.back()->sample_events = *sample_events;

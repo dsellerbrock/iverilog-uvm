@@ -194,10 +194,15 @@ NexusSet* NetESelect::nex_input(bool rem_out, bool always_sens, bool nested_func
 	    if (/* const NetEConst *val = */ dynamic_cast <NetEConst*> (base_)) {
 		  assert(select_type() == IVL_SEL_OTHER);
 		  if (const NetESignal *sig = dynamic_cast<NetESignal*> (expr_)) {
-			cerr << get_fileline() << ": sorry: constant selects "
-			        "in always_* processes are not fully supported "
-			        "(the process will be sensitive to all bits in '"
-                             << *sig << "')." << endl;
+			static bool warned_always_const_select = false;
+			if (!warned_always_const_select) {
+			      cerr << get_fileline() << ": warning: a constant "
+				      "bit/part select in always_* uses conservative "
+				      "whole-vector sensitivity (further similar "
+				      "warnings suppressed); changes to unselected "
+				      "bits may cause an extra, harmless evaluation." << endl;
+			      warned_always_const_select = true;
+			}
 #if 0
 // Enable this code once PEventStatement::elaborate_st() has been enhanced to
 // support bit/part select sensitivity.
@@ -206,8 +211,10 @@ NexusSet* NetESelect::nex_input(bool rem_out, bool always_sens, bool nested_func
                                                   val->value().as_unsigned(), expr_width());
 #endif
 		  } else {
-			cerr << get_fileline() << ": Sorry, cannot determine the sensitivity "
-			     << "for the select of " << *expr_ << ", using all bits." << endl;
+			cerr << get_fileline() << ": warning: cannot determine the "
+			     << "precise sensitivity for the select of " << *expr_
+			     << "; using conservative whole-expression sensitivity."
+			     << endl;
 		  }
 	    }
       }

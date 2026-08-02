@@ -37,6 +37,7 @@
 # include  <cstring>
 # include  <sstream>
 # include  <memory>
+# include  <iterator>
 
 using namespace std;
 
@@ -83,6 +84,9 @@ std::vector<class_type_t::pform_cross_t> pending_crosses_;
 std::map<perm_string, PExpr*> pending_cg_options_;
 static std::map<perm_string, PExpr*> pending_cp_options_;
 static std::vector<class_type_t::pform_cross_t::cross_bin_t> pending_cross_bins_;
+static std::vector<perm_string>* pending_cg_ctor_names_ = nullptr;
+static std::vector<data_type_t*>* pending_cg_ctor_types_ = nullptr;
+static std::vector<PExpr*>* pending_cg_ctor_defaults_ = nullptr;
 
 /* M13B: map a lexer edge-descriptor ("01", "0x", "z1", ...) to the
    PTimingCheck edge type. z transitions share the x codes (both are
@@ -133,10 +137,43 @@ static void cov_option_set_(std::map<perm_string, PExpr*>&dst,
       delete[] obj;
       delete[] field;
 }
+
+/* Preserve a covergroup constructor's port declaration. The PWire/type
+   objects remain owned by the parse form; the covergroup keeps stable
+   references just as `with function sample` already does. */
+static void cov_capture_ctor_ports_(
+      const std::vector<pform_tf_port_t>*ports,
+      std::vector<perm_string>*&names,
+      std::vector<data_type_t*>*&types,
+      std::vector<PExpr*>*&defaults)
+{
+      if (!ports) return;
+      names = new std::vector<perm_string>;
+      types = new std::vector<data_type_t*>;
+      defaults = new std::vector<PExpr*>;
+      for (const auto&port : *ports) {
+	    if (!port.port) continue;
+	    names->push_back(port.port->basename());
+	    types->push_back(const_cast<data_type_t*>(port.port->data_type()));
+	    defaults->push_back(port.defe);
+      }
+}
 /* Set by the last completed class task/function declaration so that the
    outer class_item rule can mark it virtual when K_virtual is present. */
 static PTaskFunc* recently_completed_class_method_ = 0;
 static stack<PBlock*> current_block_stack;
+
+/* IEEE 1800-2017 3.14.3/5.8: procedural #1step is one precision tick
+   expressed in the current scope's timeunit. Keep it as a real delay so
+   the ordinary delay elaborator performs the final design-precision scale. */
+static PExpr* pform_one_step_delay_(const struct vlltype&loc)
+{
+      double value = pow(10.0,
+			 (double)(pform_get_timeprec() - pform_get_timeunit()));
+      PEFNumber*delay = new PEFNumber(new verireal(value));
+      FILE_NAME(delay, loc);
+      return delay;
+}
 
 /* The variable declaration rules need to know if a lifetime has been
    specified. */
@@ -1000,7 +1037,10 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       std::list<class_type_t::pform_cov_bins_t*>* cov_bins_list;
 };
 
-%define parse.trace
+/* Bison 2.3 (the minimum parser generator used by this tree) spells the
+   generated parser trace switch `%debug'; newer `%define parse.trace'
+   makes that tool reject the grammar before reading any productions. */
+%debug
 %token <text>      IDENTIFIER SYSTEM_IDENTIFIER STRING TIME_LITERAL
 %token <type_identifier> TYPE_IDENTIFIER
 %token <package>   PACKAGE_IDENTIFIER
@@ -1238,8 +1278,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <int_val>     bins_keyword
 %type <expr>        coverpoint_iff_opt bins_with_opt
 %type <cov_step>    trans_step
-%type <cov_steps>   transition_list
-%type <cov_seqs>    transition_seq_list
+%type <irange_list> transition_step_set
+%type <cov_seqs>    transition_list transition_seq_list
 %type <cross_sel>   cross_bins_expr
 
 %type <expr>  constraint_expression constraint_block_item
@@ -1270,6 +1310,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <property_qualifier> class_item_qualifier_list property_qualifier_list
 %type <property_qualifier> class_item_qualifier_opt property_qualifier_opt
 %type <property_qualifier> random_qualifier
+%type <flag> virtual_class_item
 
 %type <ranges> variable_dimension
 %type <ranges> dimensions_opt dimensions
@@ -1803,7 +1844,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       { /* The function_declaration rule puts this into the class */ }
 
   | K_virtual virtual_class_item
-      { pform_mark_recent_class_method_virtual(); }
+      { if ($2) pform_mark_recent_class_method_virtual(); }
 
   | method_qualifier_opt class_item_qualifier_opt task_declaration
       { /* The task_declaration rule puts this into the class */ }
@@ -2245,7 +2286,12 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
 
   | K_covergroup IDENTIFIER tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup label_opt
-      { pform_class_covergroup(@1, $2, $5);
+      { std::vector<perm_string>*ctor_names__ = nullptr;
+	std::vector<data_type_t*>*ctor_types__ = nullptr;
+	std::vector<PExpr*>*ctor_defs__ = nullptr;
+	cov_capture_ctor_ports_($3, ctor_names__, ctor_types__, ctor_defs__);
+	pform_class_covergroup(@1, $2, $5, nullptr, nullptr, nullptr,
+			       ctor_names__, ctor_types__, ctor_defs__);
 	delete[] $2; if ($3) delete $3; if ($7) delete[] $7;
       }
 
@@ -2253,7 +2299,12 @@ class_item /* IEEE1800-2005: A.1.8 */
      event (IEEE 1800-2017 19.3): every instance samples on the
      event automatically. */
   | K_covergroup IDENTIFIER tf_port_list_parens_opt '@' '(' event_expression_list ')' ';' covergroup_item_list_opt K_endgroup label_opt
-      { pform_class_covergroup(@1, $2, $9, nullptr, nullptr, $6);
+      { std::vector<perm_string>*ctor_names__ = nullptr;
+	std::vector<data_type_t*>*ctor_types__ = nullptr;
+	std::vector<PExpr*>*ctor_defs__ = nullptr;
+	cov_capture_ctor_ports_($3, ctor_names__, ctor_types__, ctor_defs__);
+	pform_class_covergroup(@1, $2, $9, nullptr, nullptr, $6,
+			       ctor_names__, ctor_types__, ctor_defs__);
 	delete[] $2; if ($3) delete $3; if ($11) delete[] $11;
       }
 
@@ -2278,8 +2329,13 @@ class_item /* IEEE1800-2005: A.1.8 */
 		    }
 	      current_function->set_ports($8);
 	}
+	std::vector<perm_string>*ctor_names__ = nullptr;
+	std::vector<data_type_t*>*ctor_types__ = nullptr;
+	std::vector<PExpr*>*ctor_defs__ = nullptr;
+	cov_capture_ctor_ports_($3, ctor_names__, ctor_types__, ctor_defs__);
         pform_pop_scope(); current_function = 0;
-        pform_class_covergroup(@1, $2, $10, formals__, ftypes__);
+        pform_class_covergroup(@1, $2, $10, formals__, ftypes__, nullptr,
+			       ctor_names__, ctor_types__, ctor_defs__);
 	delete[] $2; if ($3) delete $3; delete[] $6;
 	if ($12) delete[] $12;
       }
@@ -2340,15 +2396,17 @@ virtual_class_item
   : task_declaration
       { /* The task_declaration rule puts this into the class;
            pform_mark_recent_class_method_virtual() is called by the
-           outer class_item K_virtual virtual_class_item action */ }
+           outer class_item K_virtual virtual_class_item action */
+	$$ = true; }
   | function_declaration
-      { /* same as above */ }
+      { $$ = true; }
   | class_item_qualifier_opt task_declaration
-      { /* same as above */ }
+      { $$ = true; }
   | class_item_qualifier_opt function_declaration
-      { /* same as above */ }
+      { $$ = true; }
   | virtual_interface_type list_of_variable_decl_assignments ';'
-      { pform_class_property(@1, property_qualifier_t::make_none(), $1, $2); }
+      { pform_class_property(@1, property_qualifier_t::make_none(), $1, $2);
+	$$ = false; }
   ;
 
 class_item_qualifier /* IEEE1800-2005 A.1.8 */
@@ -2623,14 +2681,30 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
       }
   /* implication with soft: A -> soft B; (-> is K_TRIGGER when not followed by '{') */
   | expression K_TRIGGER K_soft expression ';'
-      { delete $1; $$ = $4; }
+      { /* Preserve both the implication guard and the soft qualifier.
+	   Dropping them turns an optional conditional preference into an
+	   unconditional hard constraint. */
+	PESoft*soft = new PESoft($4);
+	FILE_NAME(soft, @3);
+	std::list<PExpr*>*items = new std::list<PExpr*>();
+	items->push_back(soft);
+	PEConstraintIf*tmp = new PEConstraintIf($1, items, nullptr);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
   | expression K_TRIGGER K_soft expression K_dist '{' dist_list_opt '}' ';'
-      { delete $1;
-        if ($7) {
-              PEInside*tmp = new PEInside($4, $7);
-              FILE_NAME(tmp, @5);
-              $$ = tmp;
+      { if ($7) {
+	      PEInside*dist = new PEInside($4, $7);
+	      FILE_NAME(dist, @5);
+	      PESoft*soft = new PESoft(dist);
+	      FILE_NAME(soft, @3);
+	      std::list<PExpr*>*items = new std::list<PExpr*>();
+	      items->push_back(soft);
+	      PEConstraintIf*tmp = new PEConstraintIf($1, items, nullptr);
+	      FILE_NAME(tmp, @2);
+	      $$ = tmp;
         } else {
+	      delete $1;
               delete $4;
               $$ = nullptr;
         }
@@ -2656,28 +2730,12 @@ dist_list
    path can use that to apply soft-assertion semantics in the Z3 backend
    when the IR layer learns the new opcode. */
 dist_item
-  : expression
-      { inside_range_t*r = new inside_range_t;
-        r->lo = nullptr; r->hi = $1; r->is_range = false; $$ = r; }
-  | '[' expression ':' expression ']'
-      { inside_range_t*r = new inside_range_t;
-        r->lo = $2; r->hi = $4; r->is_range = true; $$ = r; }
-  | expression ':' '=' expression
-      { inside_range_t*r = new inside_range_t;
-        r->lo = nullptr; r->hi = $1; r->is_range = false;
-        r->weight = $4; r->weight_is_divided = false; $$ = r; }
-  | expression ':' '/' expression
-      { inside_range_t*r = new inside_range_t;
-        r->lo = nullptr; r->hi = $1; r->is_range = false;
-        r->weight = $4; r->weight_is_divided = true; $$ = r; }
-  | '[' expression ':' expression ']' ':' '=' expression
-      { inside_range_t*r = new inside_range_t;
-        r->lo = $2; r->hi = $4; r->is_range = true;
-        r->weight = $8; r->weight_is_divided = false; $$ = r; }
-  | '[' expression ':' expression ']' ':' '/' expression
-      { inside_range_t*r = new inside_range_t;
-        r->lo = $2; r->hi = $4; r->is_range = true;
-        r->weight = $8; r->weight_is_divided = true; $$ = r; }
+  : inside_value_range
+      { $$ = $1; }
+  | inside_value_range ':' '=' expression
+      { $1->weight = $4; $1->weight_is_divided = false; $$ = $1; }
+  | inside_value_range ':' '/' expression
+      { $1->weight = $4; $1->weight_is_divided = true; $$ = $1; }
   ;
 
 constraint_trigger
@@ -3125,27 +3183,70 @@ cross_bins_expr
   ;
 
 /* transition_seq_list: one or more transition sequences (v=>v), ...
-   M11-2: captured as ordered [lo:hi] step lists. */
+   M11-2: captured as ordered [lo:hi] step lists. A transition step may
+   itself be a comma-separated set (19.5.3), for example
+   `(0,1,2,3 => 0,1,2,3)`. Expand those sets to the Cartesian collection
+   of simple sequences here so the existing runtime NFA remains exact. */
 transition_seq_list
   : '(' transition_list ')'
-      { $$ = new std::vector<std::vector<std::pair<PExpr*,PExpr*>>>();
-	$$->push_back(std::move(*$2));
-	delete $2; }
+      { $$ = $2; }
   | transition_seq_list ',' '(' transition_list ')'
-      { $1->push_back(std::move(*$4));
+      { $1->insert($1->end(),
+		 std::make_move_iterator($4->begin()),
+		 std::make_move_iterator($4->end()));
 	delete $4;
 	$$ = $1; }
   ;
 
-/* transition_list: values/ranges separated by => for transition bins */
-transition_list
-  : trans_step K_EG trans_step
-      { $$ = new std::vector<std::pair<PExpr*,PExpr*>>();
-	$$->push_back(*$1); delete $1;
-	$$->push_back(*$3); delete $3; }
-  | transition_list K_EG trans_step
-      { $1->push_back(*$3); delete $3;
+/* One transition step is a set of values/ranges. */
+transition_step_set
+  : trans_step
+      { $$ = new std::list<inside_range_t>();
+	inside_range_t r;
+	r.lo = $1->first;
+	r.hi = $1->second;
+	r.is_range = r.lo != r.hi;
+	$$->push_back(r);
+	delete $1; }
+  | transition_step_set ',' trans_step
+      { inside_range_t r;
+	r.lo = $3->first;
+	r.hi = $3->second;
+	r.is_range = r.lo != r.hi;
+	$1->push_back(r);
+	delete $3;
 	$$ = $1; }
+  ;
+
+/* transition_list is kept as a collection of already-expanded simple
+   sequences. PExpr endpoints are parse-form arena objects and are shared
+   read-only when one prefix participates in several Cartesian products. */
+transition_list
+  : transition_step_set K_EG transition_step_set
+      { $$ = new std::vector<std::vector<std::pair<PExpr*,PExpr*>>>();
+	for (const auto&left : *$1) {
+	      for (const auto&right : *$3) {
+		    std::vector<std::pair<PExpr*,PExpr*>> seq;
+		    seq.push_back(std::make_pair(left.lo, left.hi));
+		    seq.push_back(std::make_pair(right.lo, right.hi));
+		    $$->push_back(std::move(seq));
+	      }
+	}
+	delete $1;
+	delete $3; }
+  | transition_list K_EG transition_step_set
+      { std::vector<std::vector<std::pair<PExpr*,PExpr*>>>*expanded =
+	      new std::vector<std::vector<std::pair<PExpr*,PExpr*>>>();
+	for (const auto&prefix : *$1) {
+	      for (const auto&step : *$3) {
+		    std::vector<std::pair<PExpr*,PExpr*>> seq(prefix);
+		    seq.push_back(std::make_pair(step.lo, step.hi));
+		    expanded->push_back(std::move(seq));
+	      }
+	}
+	delete $1;
+	delete $3;
+	$$ = expanded; }
   ;
 
 trans_step
@@ -4288,6 +4389,45 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	$$ = tmp_blk;
       }
 
+      // A selected outer dimension followed by the looped dimensions:
+      // foreach (key[0][i]). This is distinct from foreach(key[,i]): the
+      // first form fixes the outer index and iterates the selected value.
+  | K_foreach '(' foreach_array_identifier '[' expression ']' '['
+    loop_variables ']' ')'
+      {
+	char for_block_name[64];
+	snprintf(for_block_name, sizeof for_block_name, "$ivl_foreach%u", foreach_block_counter);
+	foreach_block_counter += 1;
+
+	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
+	current_block_stack.push(tmp);
+
+	/* The selected target cannot use the declaration-time dimension
+	   lookup helper, so its loop variables use the standard int index
+	   type. Bounds still come from the selected expression at elaboration. */
+	pform_make_foreach_declarations(@1, nullptr, $8);
+      }
+    statement_or_null
+      { pform_name_t*tmp_name = $3;
+	name_component_t&tail = tmp_name->back();
+	index_component_t itmp;
+	itmp.sel = index_component_t::SEL_BIT;
+	itmp.msb = $5;
+	itmp.lsb = nullptr;
+	tail.index.push_back(itmp);
+
+	PForeach*tmp_for = pform_make_foreach(@1, *tmp_name, $8, $12);
+	delete tmp_name;
+
+	pform_pop_scope();
+	PBlock*tmp_blk = current_block_stack.top();
+	current_block_stack.pop();
+	std::vector<Statement*>tmp_for_list(1);
+	tmp_for_list[0] = tmp_for;
+	tmp_blk->set_statement(tmp_for_list);
+	$$ = tmp_blk;
+      }
+
       // Support foreach(arr[const].member[var]): fixed outer index, loop over
       // the inner member array. E.g. foreach (paths[0].slices[i]).
   | K_foreach '(' foreach_array_identifier '[' expression ']' '.'
@@ -4629,7 +4769,7 @@ modport_ports_declaration
   | attribute_list_opt K_clocking IDENTIFIER
       { last_modport_port.type = MP_CLOCKING;
 	last_modport_port.direction = NetNet::NOT_A_PORT;
-	/* Accepted but not implemented — modport clocking ports are ignored */
+	pform_add_modport_clocking_port(@3, lex_strings.make($3));
 	delete[] $3;
 	delete $1;
       }
@@ -4808,8 +4948,6 @@ clocking_item
       }
   | K_output clocking_skew_opt IDENTIFIER '=' expression ';'
       {
-	    cerr << @3 << ": sorry: output clocking_decl_assign is not "
-		 << "yet supported; the clockvar is ignored." << endl;
 	    pform_add_clocking_signal(@3, lex_strings.make($3),
 				      NetNet::POUTPUT, 0, $2, $5);
 	    delete $2;
@@ -5192,6 +5330,9 @@ package_cg_port_prefix
         current_function = pform_push_function_scope_unbound(@2, $2, LexicalScope::INHERITED); }
     tf_port_list_parens_opt
       { if ($4) current_function->set_ports($4);
+	cov_capture_ctor_ports_($4, pending_cg_ctor_names_,
+				pending_cg_ctor_types_,
+				pending_cg_ctor_defaults_);
         $$ = $2; /* pass name up for deletion */ }
   ;
 
@@ -5204,14 +5345,15 @@ package_covergroup_declaration
       { pform_standalone_covergroup(@1, $2, $8, $5);
         delete[] $2; if ($10) delete[] $10; }
   | package_cg_port_prefix ';' covergroup_item_list_opt K_endgroup label_opt
-      { /* Constructor formals are parsed (the unbound function scope
-           from the prefix) but not yet modeled; the covergroup itself
-           is real. */
+      {
         pform_pop_scope(); current_function = 0;
-        cerr << @2 << ": sorry: covergroup constructor arguments on '"
-             << $1 << "' are ignored (the covergroup itself is "
-             << "collected)." << endl;
-        pform_standalone_covergroup(@2, $1, $3);
+        pform_standalone_covergroup(@2, $1, $3, nullptr, nullptr, nullptr,
+				    pending_cg_ctor_names_,
+				    pending_cg_ctor_types_,
+				    pending_cg_ctor_defaults_);
+	pending_cg_ctor_names_ = nullptr;
+	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_defaults_ = nullptr;
         delete[] $1; if ($5) delete[] $5; }
   | package_cg_port_prefix K_with K_function IDENTIFIER
       { pform_pop_scope();
@@ -5235,7 +5377,13 @@ package_covergroup_declaration
               current_function->set_ports($6);
         }
         pform_pop_scope(); current_function = 0;
-        pform_standalone_covergroup(@2, $1, $8, nullptr, formals__, ftypes__);
+        pform_standalone_covergroup(@2, $1, $8, nullptr, formals__, ftypes__,
+				    pending_cg_ctor_names_,
+				    pending_cg_ctor_types_,
+				    pending_cg_ctor_defaults_);
+	pending_cg_ctor_names_ = nullptr;
+	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_defaults_ = nullptr;
         delete[] $1; delete[] $4; if ($10) delete[] $10; }
   | package_cg_port_prefix ';' error K_endgroup label_opt
       { pform_pop_scope(); current_function = 0; yyerrok;
@@ -5714,18 +5862,16 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      such as an implication. */
   | '(' property_expr ')'
       { $$ = $2; }
-  | sva_seq_expr K_PIPE_IMPL_OV sva_multiclock_seq
-      { $3->antecedent = $1; $3->op_type = 1; $$ = $3; }
-  | sva_seq_expr K_PIPE_IMPL_NOV sva_multiclock_seq
-      { $3->antecedent = $1; $3->op_type = 2; $$ = $3; }
-  | sva_seq_expr K_PIPE_IMPL_OV sva_seq_expr
-      { sva_property_t*p = new sva_property_t;
-	p->antecedent = $1; p->seq = $3; p->op_type = 1;
-	$$ = p; }
-  | sva_seq_expr K_PIPE_IMPL_NOV sva_seq_expr
-      { sva_property_t*p = new sva_property_t;
-	p->antecedent = $1; p->seq = $3; p->op_type = 2;
-	$$ = p; }
+  /* IEEE 1800-2017 A.2.10: the consequent is recursively a complete
+     property_expr. Keeping this as the grammar's single ordinary
+     implication rule is essential: `not', `always', `until', throughout,
+     and another implication are all legal here, with or without grouping
+     parentheses. pform_sva_paren_conseq consumes and contextualizes the
+     nested property without losing its operator semantics. */
+  | sva_seq_expr K_PIPE_IMPL_OV property_expr
+      { $$ = pform_sva_paren_conseq(@2, 1, $1, $3); }
+  | sva_seq_expr K_PIPE_IMPL_NOV property_expr
+      { $$ = pform_sva_paren_conseq(@2, 2, $1, $3); }
   /* IEEE 1800-2017 16.13.3: multiclocked implication `@(c1) a |=> @(c2) b'
      — the consequent carries its own clocking event. The leading `@(c1)'
      is the property's clocking_event_opt; this event_control clocks the
@@ -5744,44 +5890,6 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
 	p->seq_clk_evt = $3;
 	p->mc_boundary = 0;
 	p->mc_more = $5;
-	$$ = p; }
-  /* IEEE 1800-2017 16.12.2: strong/weak consequent — `req |-> strong(s)'
-     is the canonical form (attempts are gated by the antecedent, so the
-     end-of-sim strong obligation is clean). */
-  | sva_seq_expr K_PIPE_IMPL_OV K_strong '(' sva_seq_expr ')'
-      { sva_property_t*p = new sva_property_t;
-	p->antecedent = $1; p->seq = $5; p->op_type = 1; p->strength = 1;
-	$$ = p; }
-  | sva_seq_expr K_PIPE_IMPL_OV K_weak '(' sva_seq_expr ')'
-      { sva_property_t*p = new sva_property_t;
-	p->antecedent = $1; p->seq = $5; p->op_type = 1; p->strength = 0;
-	$$ = p; }
-  | sva_seq_expr K_PIPE_IMPL_NOV K_strong '(' sva_seq_expr ')'
-      { sva_property_t*p = new sva_property_t;
-	p->antecedent = $1; p->seq = $5; p->op_type = 2; p->strength = 1;
-	$$ = p; }
-  | sva_seq_expr K_PIPE_IMPL_NOV K_weak '(' sva_seq_expr ')'
-      { sva_property_t*p = new sva_property_t;
-	p->antecedent = $1; p->seq = $5; p->op_type = 2; p->strength = 0;
-	$$ = p; }
-  /* IEEE 1800-2017 A.2.10: the consequent of an implication is a
-     `property_expr', not merely a sequence, so a liveness operator may
-     appear there — `req |-> s_eventually(ack)'. This is the shape
-     OpenTitan's GENERATED CSR assertions emit for every comportable IP
-     (`oob_addr_err |-> s_eventually(d_valid && d_error)').
-     op_type 18/19 = overlapped/non-overlapped implication with an
-     s_eventually consequent; the lowering is in
-     pform_make_temporal_assertion_.
-     Only `s_eventually' is covered here. Other property consequents
-     (`always', `nexttime', nested implications) still need the nested
-     consequent property that sva_property_t does not yet model. */
-  | sva_seq_expr K_PIPE_IMPL_OV K_s_eventually '(' sva_seq_expr ')'
-      { sva_property_t*p = new sva_property_t;
-	p->antecedent = $1; p->seq = $5; p->op_type = 18;
-	$$ = p; }
-  | sva_seq_expr K_PIPE_IMPL_NOV K_s_eventually '(' sva_seq_expr ')'
-      { sva_property_t*p = new sva_property_t;
-	p->antecedent = $1; p->seq = $5; p->op_type = 19;
 	$$ = p; }
   /* IEEE 1800-2017 16.12.9: negation — the property holds iff the
      sequence has NO match starting at any attempt point. */
@@ -5930,40 +6038,16 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      into 47 errors). Accept it and refuse it BY NAME so the parser
      stays in sync. */
   | sva_seq_comb K_PIPE_IMPL_OV sva_seq_expr
-      { $$ = pform_sva_comb_antecedent_sorry(@2, $1, $3); }
+      { $$ = pform_sva_comb_antecedent_sorry(@2, 1, $1, $3); }
   | sva_seq_comb K_PIPE_IMPL_NOV sva_seq_expr
-      { $$ = pform_sva_comb_antecedent_sorry(@2, $1, $3); }
+      { $$ = pform_sva_comb_antecedent_sorry(@2, 2, $1, $3); }
   /* Same shape with a property-operator consequent, e.g.
      `A and B |=> s_eventually(c)' -- how OpenTitan's TL-UL error
      assertions are written. */
   | sva_seq_comb K_PIPE_IMPL_OV K_s_eventually '(' sva_seq_expr ')'
-      { $$ = pform_sva_comb_antecedent_sorry(@2, $1, $5); }
+      { $$ = pform_sva_comb_antecedent_sorry(@2, 1, $1, $5, true); }
   | sva_seq_comb K_PIPE_IMPL_NOV K_s_eventually '(' sva_seq_expr ')'
-      { $$ = pform_sva_comb_antecedent_sorry(@2, $1, $5); }
-  /* The mirror case: a combinator (`or'/`and'/`throughout') as the
-     CONSEQUENT. `a |-> (b throughout c[->1])' is how OpenTitan's
-     prim_sync_reqack reset assertions are written. Same
-     representation limit, same reason to be loud rather than a bare
-     syntax error. */
-  | sva_seq_expr K_PIPE_IMPL_OV sva_seq_comb
-      { $$ = pform_sva_comb_consequent_sorry(@2, $1, $3); }
-  | sva_seq_expr K_PIPE_IMPL_NOV sva_seq_comb
-      { $$ = pform_sva_comb_consequent_sorry(@2, $1, $3); }
-  /* IEEE 1800-2017 A.2.10: `property_expr ::= ( property_expr )', so a
-     PARENTHESIZED property is a legal implication consequent — this is
-     how OpenTitan writes its reset and secure-wipe checkers:
-       `$fell(rst_ni) |-> (!a throughout !b[->1])'   (prim_sync_reqack)
-       `$rose(w) |-> ((...) within (...))'           (otbn.sv:1328)
-     Parens holding only a sequence are pure grouping and splice into an
-     ordinary implication; parens holding property structure get one
-     loud `sorry'. Either way the parser stays in sync, which is the
-     whole point: as a bare syntax error the second form above desyncs
-     the parse and buries 30 unrelated module items under bogus
-     "Invalid module item" diagnostics. */
-  | sva_seq_expr K_PIPE_IMPL_OV '(' property_expr ')'
-      { $$ = pform_sva_paren_conseq(@2, 1, $1, $4); }
-  | sva_seq_expr K_PIPE_IMPL_NOV '(' property_expr ')'
-      { $$ = pform_sva_paren_conseq(@2, 2, $1, $4); }
+      { $$ = pform_sva_comb_antecedent_sorry(@2, 2, $1, $5, true); }
   | sva_seq_comb
       { $$ = $1; }
   /* IEEE 1800-2017 16.9.9: `guard throughout seq` — guard must hold at
@@ -6121,25 +6205,39 @@ sva_seq_atom
 sva_seq_expr
   : sva_seq_atom
       { $$ = $1; }
+  /* IEEE 1800-2017 A.2.2/16.10: assertion local variables precede a
+     named sequence's expression. The lowering identifies the variable by
+     name in a sequence-match assignment and substitutes every supported
+     read before ordinary expression elaboration, so this declaration must
+     not create a module variable. The recursive tail also permits multiple
+     packed-bit declarations. */
+  | data_type IDENTIFIER ';' sva_seq_expr
+      { /* IEEE 1800-2017 16.10: assertion-variable declarations are
+	   lexical to the sequence/property attempt. The NFA lowering stores
+	   the assigned value per attempt; no module-scope variable is made. */
+	delete $1;
+	delete[] $2;
+	$$ = $4;
+      }
   /* Leading cycle delay: `|-> ##2 b`, `|-> ##[1:3] b`. */
   | K_CYCLE_DELAY delay_value_simple sva_seq_atom
-      { PENumber*num = dynamic_cast<PENumber*>($2);
+      { long val = 0;
 	sva_seq_step_t&f0 = (*$3)[0];
-	if (num && f0.delay_lo >= 0) {
-	      f0.delay_lo += num->value().as_long();
-	      f0.delay_hi += num->value().as_long();
+	if (pform_sva_const_long($2, val) && f0.delay_lo >= 0) {
+	      f0.delay_lo += val;
+	      f0.delay_hi += val;
 	} else if (f0.delay_lo != -3) {
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
 	delete $2;
 	$$ = $3; }
   | K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
-      { PENumber*lo = dynamic_cast<PENumber*>($3);
-	PENumber*hi = dynamic_cast<PENumber*>($5);
+      { long lo = 0, hi = 0;
 	sva_seq_step_t&f0 = (*$7)[0];
-	if (lo && hi && f0.delay_lo >= 0) {
-	      f0.delay_lo += lo->value().as_long();
-	      f0.delay_hi += hi->value().as_long();
+	if (pform_sva_const_long($3, lo) && pform_sva_const_long($5, hi)
+	    && f0.delay_lo >= 0) {
+	      f0.delay_lo += lo;
+	      f0.delay_hi += hi;
 	} else if (f0.delay_lo != -3) {
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
@@ -6147,10 +6245,11 @@ sva_seq_expr
 	$$ = $7; }
   /* Unbounded window ##[m:$] — weak eventually (16.9.2). */
   | K_CYCLE_DELAY '[' expression ':' '$' ']' sva_seq_atom
-      { PENumber*lo = dynamic_cast<PENumber*>($3);
+      { long lo = 0;
 	sva_seq_step_t&f0 = (*$7)[0];
-	if (lo && f0.delay_lo == 0 && f0.delay_hi == 0) {
-	      f0.delay_lo = lo->value().as_long();
+	if (pform_sva_const_long($3, lo)
+	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = lo;
 	      f0.delay_hi = -1;
 	} else if (f0.delay_lo != -3) {
 	      f0.delay_lo = -2; f0.delay_hi = -2;
@@ -6158,11 +6257,11 @@ sva_seq_expr
 	delete $3;
 	$$ = $7; }
   | sva_seq_expr K_CYCLE_DELAY delay_value_simple sva_seq_atom
-      { PENumber*num = dynamic_cast<PENumber*>($3);
+      { long val = 0;
 	sva_seq_step_t&f0 = (*$4)[0];
-	if (num && f0.delay_lo >= 0) {
-	      f0.delay_lo += num->value().as_long();
-	      f0.delay_hi += num->value().as_long();
+	if (pform_sva_const_long($3, val) && f0.delay_lo >= 0) {
+	      f0.delay_lo += val;
+	      f0.delay_hi += val;
 	} else if (f0.delay_lo != -3) {
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
@@ -6171,12 +6270,12 @@ sva_seq_expr
 	delete $4;
 	$$ = $1; }
   | sva_seq_expr K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
-      { PENumber*lo = dynamic_cast<PENumber*>($4);
-	PENumber*hi = dynamic_cast<PENumber*>($6);
+      { long lo = 0, hi = 0;
 	sva_seq_step_t&f0 = (*$8)[0];
-	if (lo && hi && f0.delay_lo >= 0) {
-	      f0.delay_lo += lo->value().as_long();
-	      f0.delay_hi += hi->value().as_long();
+	if (pform_sva_const_long($4, lo) && pform_sva_const_long($6, hi)
+	    && f0.delay_lo >= 0) {
+	      f0.delay_lo += lo;
+	      f0.delay_hi += hi;
 	} else if (f0.delay_lo != -3) {
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
@@ -6185,10 +6284,11 @@ sva_seq_expr
 	delete $8;
 	$$ = $1; }
   | sva_seq_expr K_CYCLE_DELAY '[' expression ':' '$' ']' sva_seq_atom
-      { PENumber*lo = dynamic_cast<PENumber*>($4);
+      { long lo = 0;
 	sva_seq_step_t&f0 = (*$8)[0];
-	if (lo && f0.delay_lo == 0 && f0.delay_hi == 0) {
-	      f0.delay_lo = lo->value().as_long();
+	if (pform_sva_const_long($4, lo)
+	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = lo;
 	      f0.delay_hi = -1;
 	} else if (f0.delay_lo != -3) {
 	      f0.delay_lo = -2; f0.delay_hi = -2;
@@ -7533,6 +7633,11 @@ delay1
 	tmp->push_back($2);
 	$$ = tmp;
       }
+  | '#' K_1step
+      { std::list<PExpr*>*tmp = new std::list<PExpr*>;
+	tmp->push_back(pform_one_step_delay_(@2));
+	$$ = tmp;
+      }
   | '#' '(' delay_value ')'
       { std::list<PExpr*>*tmp = new std::list<PExpr*>;
 	tmp->push_back($3);
@@ -7544,6 +7649,11 @@ delay3
   : '#' delay_value_simple
       { std::list<PExpr*>*tmp = new std::list<PExpr*>;
 	tmp->push_back($2);
+	$$ = tmp;
+      }
+  | '#' K_1step
+      { std::list<PExpr*>*tmp = new std::list<PExpr*>;
+	tmp->push_back(pform_one_step_delay_(@2));
 	$$ = tmp;
       }
   | '#' '(' delay_value ')'
@@ -9030,29 +9140,61 @@ expr_primary
 	$$ = tmp;
       }
   | expr_primary '.' IDENTIFIER argument_list_parens K_with '(' expression ')'
-      { /* Temporary parse-only support for array locator methods with
-	   with-clauses (e.g. q.find(i) with (...)). */
-	PENull*tmp = new PENull;
+	      { /* Array locator/reduction method on an arbitrary primary.
+		   Preserve both the receiver and the with predicate. */
+	PECallFunction*tmp;
+	if (PEIdent*id = dynamic_cast<PEIdent*>($1)) {
+	      pform_scoped_name_t path = id->path();
+	      path.name.push_back(name_component_t(lex_strings.make($3)));
+	      tmp = path.package
+		  ? new PECallFunction(path.package, path.name, *$4)
+		  : new PECallFunction(path.name, *$4);
+	      delete $1;
+	} else {
+	      tmp = new PECallFunction($1, lex_strings.make($3), *$4);
+	}
 	FILE_NAME(tmp, @2);
-	delete $1;
+	if ($7) {
+	      std::vector<PExpr*> wc;
+	      wc.push_back($7);
+	      tmp->set_with_constraints(std::move(wc));
+	}
 	delete[] $3;
 	delete $4;
-	delete $7;
 	$$ = tmp;
       }
   | expr_primary '.' K_unique argument_list_parens K_with '(' expression ')'
-      { /* Temporary parse-only support for keyword-named locator methods. */
-	PENull*tmp = new PENull;
+	      { PECallFunction*tmp;
+	if (PEIdent*id = dynamic_cast<PEIdent*>($1)) {
+	      pform_scoped_name_t path = id->path();
+	      path.name.push_back(name_component_t(lex_strings.make("unique")));
+	      tmp = path.package
+		  ? new PECallFunction(path.package, path.name, *$4)
+		  : new PECallFunction(path.name, *$4);
+	      delete $1;
+	} else {
+	      tmp = new PECallFunction($1, lex_strings.make("unique"), *$4);
+	}
 	FILE_NAME(tmp, @2);
-	delete $1;
+	if ($7) {
+	      std::vector<PExpr*> wc;
+	      wc.push_back($7);
+	      tmp->set_with_constraints(std::move(wc));
+	}
 	delete $4;
-	delete $7;
 	$$ = tmp;
       }
   | expr_primary K_with '(' expression ')'
-      { /* Temporary parser fallback: ignore locator/filter with-clause and
-	   keep the base expression so parsing can continue. */
-	delete $4;
+	      { /* A package-qualified receiver call reduces to expr_primary
+		   before the trailing with-clause. Keep the predicate on the
+		   existing call node. */
+	if (PECallFunction*call = dynamic_cast<PECallFunction*>($1)) {
+	      std::vector<PExpr*> wc;
+	      wc.push_back($4);
+	      call->set_with_constraints(std::move(wc));
+	} else {
+	      delete $4;
+	}
 	$$ = $1;
       }
   | K_this
@@ -9218,7 +9360,15 @@ expr_primary
 	$$ = tmp;
       }
   | IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER argument_list_parens
-      { PECallFunction*tmp = new PECallFunction(lex_strings.make($5), *$6);
+	      { /* Preserve the complete package/class-qualified receiver.
+		   Dropping the first two components turns
+		   pkg::queue.find_first() into an unqualified find_first()
+		   and makes array-method elaboration impossible. */
+	pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PECallFunction*tmp = new PECallFunction(hident, *$6);
 	FILE_NAME(tmp, @4);
 	delete[]$1;
 	delete[]$3;
@@ -9239,7 +9389,11 @@ expr_primary
 	$$ = tmp;
       }
   | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '.' IDENTIFIER argument_list_parens
-      { PECallFunction*tmp = new PECallFunction(lex_strings.make($5), *$6);
+	      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PECallFunction*tmp = new PECallFunction(hident, *$6);
 	FILE_NAME(tmp, @4);
 	delete[]$1;
 	delete[]$3.text;
@@ -9306,7 +9460,11 @@ expr_primary
 	$$ = tmp;
       }
   | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER argument_list_parens
-      { PECallFunction*tmp = new PECallFunction(lex_strings.make($5), *$6);
+	      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PECallFunction*tmp = new PECallFunction(hident, *$6);
 	FILE_NAME(tmp, @4);
 	delete[]$1.text;
 	delete[]$3;
@@ -9337,7 +9495,11 @@ expr_primary
 	$$ = tmp;
       }
   | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '.' IDENTIFIER argument_list_parens
-      { PECallFunction*tmp = new PECallFunction(lex_strings.make($5), *$6);
+	      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PECallFunction*tmp = new PECallFunction(hident, *$6);
 	FILE_NAME(tmp, @4);
 	delete[]$1.text;
 	delete[]$3.text;
@@ -10042,15 +10204,17 @@ hierarchy_identifier
 	$$->push_back(name_component_t(lex_strings.make($1.text)));
 	delete[]$1.text;
       }
-  /* local::var — strip the local:: scope qualifier */
+  /* local::var — retain the qualifier for inline-constraint binding. */
   | K_local K_SCOPE_RES IDENTIFIER
       { $$ = new pform_name_t;
 	$$->push_back(name_component_t(lex_strings.make($3)));
+	$$->back().local_scope = true;
 	delete[]$3;
       }
   | K_local K_SCOPE_RES TYPE_IDENTIFIER
       { $$ = new pform_name_t;
 	$$->push_back(name_component_t(lex_strings.make($3.text)));
+	$$->back().local_scope = true;
 	delete[]$3.text;
       }
   | hierarchy_identifier '.' IDENTIFIER
@@ -10718,9 +10882,13 @@ module_parameter_port_list_opt
   :
   | '#' '('
       { pform_start_parameter_port_list(); }
-    module_parameter_port_list
+    module_parameter_port_list_maybe ')'
       { pform_end_parameter_port_list(); }
-    ')'
+  ;
+
+module_parameter_port_list_maybe
+  :
+  | module_parameter_port_list
   ;
 
 type_param
@@ -11155,11 +11323,21 @@ module_item
      `new`. Coverpoint sources are scope signals, resolved at each
      sample() site. */
   | K_covergroup IDENTIFIER tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup label_opt
-      { pform_standalone_covergroup(@1, $2, $5);
+      { std::vector<perm_string>*ctor_names__ = nullptr;
+	std::vector<data_type_t*>*ctor_types__ = nullptr;
+	std::vector<PExpr*>*ctor_defs__ = nullptr;
+	cov_capture_ctor_ports_($3, ctor_names__, ctor_types__, ctor_defs__);
+	pform_standalone_covergroup(@1, $2, $5, nullptr, nullptr, nullptr,
+				    ctor_names__, ctor_types__, ctor_defs__);
 	delete[] $2; if ($3) delete $3; if ($7) delete[] $7;
       }
   | K_covergroup IDENTIFIER tf_port_list_parens_opt '@' '(' event_expression_list ')' ';' covergroup_item_list_opt K_endgroup label_opt
-      { pform_standalone_covergroup(@1, $2, $9, $6);
+      { std::vector<perm_string>*ctor_names__ = nullptr;
+	std::vector<data_type_t*>*ctor_types__ = nullptr;
+	std::vector<PExpr*>*ctor_defs__ = nullptr;
+	cov_capture_ctor_ports_($3, ctor_names__, ctor_types__, ctor_defs__);
+	pform_standalone_covergroup(@1, $2, $9, $6, nullptr, nullptr,
+				    ctor_names__, ctor_types__, ctor_defs__);
 	delete[] $2; if ($3) delete $3; if ($11) delete[] $11;
       }
   /* M11-4: `with function sample(<formals>)` (IEEE 1800-2017
@@ -11183,9 +11361,14 @@ module_item
 		    }
 	      current_function->set_ports($8);
 	}
+	std::vector<perm_string>*ctor_names__ = nullptr;
+	std::vector<data_type_t*>*ctor_types__ = nullptr;
+	std::vector<PExpr*>*ctor_defs__ = nullptr;
+	cov_capture_ctor_ports_($3, ctor_names__, ctor_types__, ctor_defs__);
 	pform_pop_scope();
 	current_function = 0;
-	pform_standalone_covergroup(@1, $2, $10, nullptr, formals__, ftypes__);
+	pform_standalone_covergroup(@1, $2, $10, nullptr, formals__, ftypes__,
+				    ctor_names__, ctor_types__, ctor_defs__);
 	delete[] $2; if ($3) delete $3; delete[] $6;
 	if ($12) delete[] $12;
       }
@@ -13156,6 +13339,27 @@ statement_item /* This is roughly statement_item in the LRM */
   : K_assign lpvalue '=' expression ';'
       { PCAssign*tmp = new PCAssign($2, $4);
 	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  /* IEEE 1800-2017 9.3.1 permits a statement label before a sequential
+     block (`name: begin ... end`). Treat it as the equivalent named block
+     form `begin : name ... end`, preserving its scope and disable target. */
+  | IDENTIFIER ':' K_begin
+      { PBlock*tmp = pform_push_block_scope(@1, $1, PBlock::BL_SEQ);
+	current_block_stack.push(tmp);
+      }
+    block_item_decls_opt
+      { if ($5) pform_block_decls_requires_sv(); }
+    statement_or_null_list_opt K_end label_opt
+      { pform_pop_scope();
+	assert(!current_block_stack.empty());
+	PBlock*tmp = current_block_stack.top();
+	current_block_stack.pop();
+	if ($7) tmp->set_statement(*$7);
+	delete $7;
+	check_end_label(@9, "block", $1, $9);
+	delete[] $1;
+	delete[] $9;
 	$$ = tmp;
       }
   /* Work around ivlpp macro-default-arg expansion that may emit a stray

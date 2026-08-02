@@ -32,7 +32,43 @@ extern "C" {
 
 // -- Vendored, unmodified UVM DPI sources (tool-independent). --
 #include "uvm_common.c"
+
+/* Optional diagnostic for the regex crossing. Keep the vendored UVM source
+ * unchanged while making the exact POSIX expression visible when debugging a
+ * simulator/DPI integration issue. */
+static int uvm_ivl_regcomp(regex_t*preg, const char*pattern, int flags)
+{
+      if (getenv("IVL_UVM_REGEX_TRACE"))
+            vpi_printf("trace UVM regex: regcomp pattern=<%s> flags=%d\n",
+                       pattern ? pattern : "<null>", flags);
+
+      int err = regcomp(preg, pattern, flags);
+
+      /* Some OpenTitan DV code passes glob expressions directly to
+       * uvm_re_match() without setting its deglob argument.  Preserve the
+       * IEEE UVM regular-expression behavior whenever the expression is
+       * valid.  If POSIX rejects it and it contains a glob metacharacter,
+       * retry the same conversion used by uvm_re_match(..., .deglob(1)).
+       * This accepts legacy leading-wildcard expressions such as
+       * "*_shadowed" without changing any valid regular expression. */
+      if (err != 0 && pattern != 0 && strpbrk(pattern, "*?+") != 0) {
+            const char*glob_re = uvm_re_deglobbed(pattern, 0);
+            if (glob_re != 0) {
+                  if (getenv("IVL_UVM_REGEX_TRACE"))
+                        vpi_printf("trace UVM regex: retry glob=<%s> as re=<%s>\n",
+                                   pattern, glob_re);
+                  int glob_err = regcomp(preg, glob_re, flags);
+                  if (glob_err == 0)
+                        return 0;
+            }
+      }
+
+      return err;
+}
+
+#define regcomp uvm_ivl_regcomp
 #include "uvm_regex.cc"
+#undef regcomp
 #include "uvm_svcmd_dpi.c"
 
 //----------------------------------------------------------------------

@@ -162,8 +162,9 @@ struct pform_clocking_skew_t {
 };
 
 struct name_component_t {
-      inline name_component_t() { }
-      inline explicit name_component_t(perm_string n) : name(n) { }
+      inline name_component_t() : local_scope(false) { }
+      inline explicit name_component_t(perm_string n)
+      : name(n), local_scope(false) { }
       ~name_component_t() { }
 
       // Return true if this component is nil.
@@ -171,6 +172,12 @@ struct name_component_t {
 
       perm_string name;
       std::list<index_component_t>index;
+
+      // IEEE 1800-2017 18.7.1: local:: selects a name in the scope
+      // containing randomize(), rather than a property of the object
+      // being randomized. Preserve the qualifier through parsing so the
+      // constraint IR can distinguish otherwise-identical names.
+      bool local_scope;
 };
 
 struct decl_assignment_t {
@@ -616,6 +623,11 @@ struct class_type_t : public data_type_t {
       };
       struct pform_covergroup_t {
 	    perm_string name;   // covergroup instance name (e.g., "cg")
+	      // Per-instance constructor formals (19.3), distinct from
+	      // `with function sample` formals.
+	    std::vector<perm_string> ctor_formals;
+	    std::vector<data_type_t*> ctor_formal_types;
+	    std::vector<PExpr*> ctor_defaults;
 	      // M11-2: the declaration's sampling event
 	      // (`covergroup cg @(posedge clk);`) — instances get a
 	      // synthesized `always @(ev) inst.sample();` process.

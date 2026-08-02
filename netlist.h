@@ -2273,6 +2273,8 @@ class NetEArrayPattern  : public NetExpr {
       void dump(std::ostream&) const override;
 
       NetEArrayPattern* dup_expr() const override;
+      NetExpr*evaluate_function(const LineInfo&loc,
+				std::map<perm_string,LocalVar>&context_map) const override;
       NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
                           bool nested_func = false) const override;
       NetNet* synthesize(Design *des, NetScope *scope, NetExpr *root) override;
@@ -3942,6 +3944,9 @@ class NetEvProbe  : public NetNode {
       void set_vif_posedge(unsigned N, unsigned M, unsigned pre_N = UINT_MAX);
       void set_vif_negedge(unsigned N, unsigned M, unsigned pre_N = UINT_MAX);
       void set_vif_anyedge(unsigned N, unsigned M, unsigned pre_N = UINT_MAX);
+      void set_vif_posedge_path(const std::vector<unsigned>&path, unsigned M);
+      void set_vif_negedge_path(const std::vector<unsigned>&path, unsigned M);
+      void set_vif_anyedge_path(const std::vector<unsigned>&path, unsigned M);
       bool is_vif_posedge() const { return is_vif_posedge_; }
       bool is_vif_negedge() const { return is_vif_negedge_; }
       bool is_vif_anyedge() const { return is_vif_anyedge_; }
@@ -3949,6 +3954,17 @@ class NetEvProbe  : public NetNode {
       unsigned vif_M() const { return vif_M_; }
       unsigned vif_pre_N() const { return vif_pre_N_; }
       bool has_vif_pre_N() const { return vif_pre_N_ != UINT_MAX; }
+      const std::vector<unsigned>& vif_path() const { return vif_path_; }
+      void set_vif_root_pin(unsigned pin) { vif_root_pin_ = pin; }
+      unsigned vif_root_pin() const { return vif_root_pin_; }
+
+      // Dynamic class-object mutation sensitivity. For a direct property of
+      // the root object obj_N is UINT_MAX. For `base.owner[N].field`, obj_N
+      // selects the owner object that must wake the wait expression.
+      void set_obj_mutation(unsigned N, unsigned pre_N = UINT_MAX);
+      bool is_obj_mutation() const { return is_obj_mutation_; }
+      unsigned obj_N() const { return obj_N_; }
+      unsigned obj_pre_N() const { return obj_pre_N_; }
 
       virtual bool emit_node(struct target_t*) const override;
       virtual void dump_node(std::ostream&, unsigned ind) const override;
@@ -3964,6 +3980,11 @@ class NetEvProbe  : public NetNode {
       unsigned vif_N_ = 0;
       unsigned vif_M_ = 0;
       unsigned vif_pre_N_ = UINT_MAX;
+      std::vector<unsigned> vif_path_;
+      unsigned vif_root_pin_ = 0;
+      bool is_obj_mutation_ = false;
+      unsigned obj_N_ = UINT_MAX;
+      unsigned obj_pre_N_ = UINT_MAX;
 };
 
 /*

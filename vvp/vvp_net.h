@@ -62,6 +62,13 @@ class  vvp_net_t;
 class  vvp_net_fun_t;
 class  vvp_net_fil_t;
 
+/* Store a vector value through a fixed-address array-port functor. This is
+   used by continuous user-function calls to copy a flattened unpacked-array
+   actual into the callee's array formal. Returns false when NET is not an
+   array-port functor. */
+extern bool vvp_array_port_store(vvp_net_t*net,
+                                 const vvp_vector4_t&value);
+
 /* Core net function types. */
 class  vvp_fun_drive;
 class  vvp_fun_part;

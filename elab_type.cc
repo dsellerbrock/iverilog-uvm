@@ -311,11 +311,20 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
       for (map<perm_string,Module::PClocking*>::const_iterator cur = mod->clocking_blocks.begin()
 		 ; cur != mod->clocking_blocks.end() ; ++cur) {
 	    map<perm_string,int> dirs;
+	    map<perm_string,perm_string> aliases;
 	    for (map<perm_string,NetNet::PortType>::const_iterator dir = cur->second->directions.begin()
 		       ; dir != cur->second->directions.end() ; ++dir)
 		  dirs[dir->first] = static_cast<int>(dir->second);
+	    for (map<perm_string,PExpr*>::const_iterator da =
+		       cur->second->decl_assigns.begin()
+		 ; da != cur->second->decl_assigns.end() ; ++da) {
+		  const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
+		  if (id && !id->path().package && id->path().name.size() == 1
+		      && id->path().name.front().index.empty())
+			aliases[da->first] = id->path().name.front().name;
+	    }
 	    iface_type->add_clocking_block(cur->first, cur->second->event,
-					   cur->second->signals, dirs);
+					   cur->second->signals, dirs, aliases);
 
 	      /* M8-2a-4: register the hidden clocking sample variables
 		 (and the sampler tick bit) as interface properties, so

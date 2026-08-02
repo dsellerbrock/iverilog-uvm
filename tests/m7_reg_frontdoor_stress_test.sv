@@ -1,7 +1,7 @@
 // M7 stress: register-model FRONT-DOOR access. Now part of the standard
 // sweep (was quarantined in tests/wip/). Exercises the full RAL front
 // door: sequence -> sequencer -> driver over a real bus, then reads back
-// through the register model. Passes with checks=4 writes=4 reads=4.
+// through the register model. Passes with checks=5 writes=4 reads=5.
 //
 // This test pinned down "Finding 4"
 // (docs/conformance/m7_stress_findings_2026-07-18.md), which was two
@@ -175,6 +175,31 @@ class m7_reg_frontdoor_stress extends uvm_test;
       checks_ok += 1;
   endtask
 
+  // OpenTitan's reset-aware CSR polling reads a field from two nested
+  // automatic fork frames. Keep that exact shape here so the implicit
+  // default-map lookup and output copy-back remain covered.
+  task automatic check_field_from_nested_fork(uvm_reg_field fld,
+                                               bit [31:0] expected);
+    fork
+      begin : outer
+        uvm_status_e status;
+        uvm_reg_data_t value;
+        fork
+          begin
+            fld.read(status, value);
+          end
+        join
+        if (status != UVM_IS_OK)
+          `uvm_error("FLDRD", "nested field read status was not UVM_IS_OK")
+        else if (value !== expected)
+          `uvm_error("FLDRDV", $sformatf("nested field read 0x%0h, want 0x%0h",
+                                          value, expected))
+        else
+          checks_ok += 1;
+      end
+    join
+  endtask
+
   task run_phase(uvm_phase phase);
     uvm_status_e   status;
     uvm_reg_data_t rval;
@@ -183,6 +208,7 @@ class m7_reg_frontdoor_stress extends uvm_test;
     check_reg(model.r0, 32'h1111_2222);
     check_reg(model.r1, 32'hcafe_f00d);
     check_reg(model.r2, 32'h0badc0de);
+    check_field_from_nested_fork(model.r0.value, 32'h1111_2222);
 
     // Desired-value + update(): set() marks r1 dirty, update() emits
     // exactly one bus write, and the readback must see the new value.
@@ -200,11 +226,11 @@ class m7_reg_frontdoor_stress extends uvm_test;
       `uvm_error("REGUPDN", "r1 needs_update() false after set()")
     end
 
-    if (checks_ok == 4 && drv.n_writes == 4 && drv.n_reads == 4)
+    if (checks_ok == 5 && drv.n_writes == 4 && drv.n_reads == 5)
       $display("PASS: reg front-door stress (checks=%0d writes=%0d reads=%0d)",
                checks_ok, drv.n_writes, drv.n_reads);
     else
-      $display("FAIL: checks=%0d (want 4) writes=%0d (want 4) reads=%0d (want 4)",
+      $display("FAIL: checks=%0d (want 5) writes=%0d (want 4) reads=%0d (want 5)",
                checks_ok, drv.n_writes, drv.n_reads);
 
     phase.drop_objection(this);

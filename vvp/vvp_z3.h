@@ -46,9 +46,10 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
  * destination as required by 18.12/18.6.1.
  */
 bool vvp_z3_randomize_scope(const std::string&ir,
-			    const std::vector<uint64_t>&targets,
+			    const std::vector<std::string>&targets,
 			    const std::vector<unsigned>&widths,
 			    const std::vector<uint64_t>&slot_vals,
-			    std::vector<uint64_t>&values);
+			    const std::vector<std::vector<uint64_t> >&object_vals,
+			    std::vector<std::string>&values);
 
 #endif /* IVL_vvp_z3_H */

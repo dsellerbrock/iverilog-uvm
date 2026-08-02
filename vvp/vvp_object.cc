@@ -19,6 +19,7 @@
 
 # include  "vvp_object.h"
 # include  "vvp_net.h"
+# include  "vthread.h"
 # include  <iostream>
 # include  <typeinfo>
 # include  <set>
@@ -51,6 +52,31 @@ bool vvp_object::pointer_is_live(const vvp_object*ptr)
 
 void vvp_object::cleanup(void)
 {
+}
+
+vthread_t vvp_object::add_mutation_waiter(vthread_t thread)
+{
+      vthread_t previous = mutation_waiters_;
+      mutation_waiters_ = thread;
+      return previous;
+}
+
+void vvp_object::touch()
+{
+      mutation_epoch_ += 1;
+
+      // A wait expression may depend on a property of an object reached
+      // through another class property (for example `wait(!cfg.in_reset)`).
+      // The root object handle does not change when the nested property is
+      // written, so a static event on that handle cannot wake the waiter.
+      // Dynamic object-property waits register here and are resumed whenever
+      // the observed object mutates; the wait statement then re-evaluates its
+      // expression as required by IEEE 1800-2017 9.4.3.
+      vthread_t waiters = mutation_waiters_;
+      if (!waiters)
+            return;
+      mutation_waiters_ = 0;
+      vthread_schedule_list(waiters);
 }
 
 vvp_object::~vvp_object()

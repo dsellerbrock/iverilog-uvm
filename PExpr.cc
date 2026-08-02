@@ -504,6 +504,15 @@ void PEIdent::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
                         return;
                   if (find_enum_constant(ss, name))
                         return;
+		  // An explicitly imported package symbol is already a
+		  // declaration visible in this scope (IEEE 1800-2017 26.3).
+		  // Do not manufacture an implicit wire with the same name.
+		  // In particular, enum literals imported in a module body and
+		  // then used as parameter actuals were shadowed by such a wire;
+		  // constant elaboration consequently rejected the literal as a
+		  // net instead of reading its package enum value.
+		  if (ss->explicit_imports.find(name) != ss->explicit_imports.end())
+			return;
                   /* Strictly speaking, we should also check for name clashes
                      with tasks, functions, named blocks, and generate
                      blocks. However, this information is not readily
@@ -885,9 +894,11 @@ void PEInside::dump(std::ostream& out) const
 	    if (i > 0) out << ", ";
 	    if (ranges_[i].is_range) {
 		  out << "[";
-		  ranges_[i].lo->dump(out);
+		  if (ranges_[i].lo) ranges_[i].lo->dump(out);
+		  else out << "$";
 		  out << ":";
-		  ranges_[i].hi->dump(out);
+		  if (ranges_[i].hi) ranges_[i].hi->dump(out);
+		  else out << "$";
 		  out << "]";
 	    } else {
 		  ranges_[i].hi->dump(out);

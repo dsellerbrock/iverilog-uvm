@@ -887,12 +887,10 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
  * exactly -- the select lands mid-way through one array level -- there
  * is no named type to carry and the width-only form is still right.
  *
- * A plain vector element keeps the width-only form deliberately. Its
- * type adds nothing an assignment pattern or a member reference needs,
- * and handing the r-value a type context where it previously had a
- * width would change how self-determined operands size themselves in
- * `x[2] = <expr>' for every packed vector in every design. The defect
- * is about element types that carry STRUCTURE, so only those are.
+ * A slice of a multi-dimensional plain packed vector also keeps its
+ * remaining declared dimensions. Ordinary r-values still take the
+ * width-driven path, but assignment patterns require those dimensions
+ * as their context (for example `x[i][j] = '{default:'1}`).
  */
 static void set_packed_slice_part_(NetAssign_*lv, NetExpr*base,
 				   const NetNet*reg, size_t dims_used,
@@ -903,6 +901,25 @@ static void set_packed_slice_part_(NetAssign_*lv, NetExpr*base,
 	  && dynamic_cast<const netvector_t*>(elem) == 0) {
 	    lv->set_part(base, elem);
 	    return;
+      }
+
+      if (const netvector_t*vec =
+		dynamic_cast<const netvector_t*>(reg->net_type())) {
+	    const netranges_t&dims = vec->packed_dims();
+	    if (dims_used < dims.size()) {
+		  netranges_t remain;
+		  netranges_t::const_iterator cur = dims.begin();
+		  std::advance(cur, dims_used);
+		  remain.insert(remain.end(), cur, dims.end());
+		  netvector_t*slice_type = new netvector_t(remain,
+						       vec->base_type());
+		  slice_type->set_signed(vec->get_signed());
+		  if (slice_type->packed_width() == (long)lwid) {
+			lv->set_part(base, slice_type);
+			return;
+		  }
+		  delete slice_type;
+	    }
       }
       lv->set_part(base, lwid);
 }
@@ -933,7 +950,8 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 			delete pbase;
 			return false;
 		  }
-		  lv->set_part(pbase, sel_wid);
+		  set_packed_slice_part_(lv, pbase, preg,
+					 path_.back().index.size(), sel_wid);
 		  return true;
 	    }
 	    delete pbase;
@@ -2158,9 +2176,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			const size_t adims = stype->static_dimensions().size();
 			const netvector_t*evec =
 			      dynamic_cast<const netvector_t*>(stype->element_type());
-			if (member_cur.index.size() > adims && evec
-			    && evec->packed_dims().size() == 1
-			    && evec->packed_dims()[0].defined()) {
+			if (member_cur.index.size() > adims && evec) {
 			      std::list<index_component_t> elem_idx(
 				    member_cur.index.begin(),
 				    std::next(member_cur.index.begin(), adims));
@@ -2168,91 +2184,17 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				    std::next(member_cur.index.begin(), adims),
 				    member_cur.index.end());
 			      word_index = make_canonical_index(des, scope, this,
-								elem_idx, stype, false);
-			      const netrange_t&er = evec->packed_dims()[0];
-			      bool desc = er.get_msb() >= er.get_lsb();
-			      long elsb = er.get_lsb();
-			      bool tail_ok = false;
-			      if (word_index && tail_idx.size() == 1) {
-				    const index_component_t&ts = tail_idx.front();
-				    if (ts.sel == index_component_t::SEL_BIT
-					&& ts.msb && !ts.lsb) {
-					  NetExpr*ie = elab_and_eval(des, scope,
-								     ts.msb, -1);
-					  NetEConst*ic = dynamic_cast<NetEConst*>(ie);
-					  if (ic && ic->value().is_defined()) {
-						long off = desc
-						      ? ic->value().as_long()-elsb
-						      : elsb-ic->value().as_long();
-						lv->set_part(new NetEConst(
-							 verinum((int64_t)off)),
-						      new netvector_t(evec->base_type(), 0, 0));
-						tail_ok = true;
-					  }
-				    } else if ((ts.sel == index_component_t::SEL_IDX_UP
-						|| ts.sel == index_component_t::SEL_IDX_DO)
-					       && ts.msb && ts.lsb) {
-					  NetExpr*we = elab_and_eval(des, scope,
-								     ts.lsb, -1, true);
-					  long w = 0;
-					  if (we && eval_as_long(w, we) && w > 0) {
-						delete we;
-						NetExpr*be = elab_and_eval(des, scope,
-									   ts.msb, -1);
-						if (be) {
-						      NetExpr*off = be;
-						      if (NetEConst*bc =
-							    dynamic_cast<NetEConst*>(be)) {
-							    long b = bc->value().as_long();
-							    long o = desc ? b-elsb : elsb-b;
-							    if (ts.sel == index_component_t::SEL_IDX_DO)
-								  o -= (w-1);
-							    delete be;
-							    off = new NetEConst(
-								verinum((int64_t)o));
-						      } else {
-							    off = pad_to_width(off, 32, true, *this);
-							    if (elsb != 0)
-								  off = desc
-								    ? new NetEBAdd('-', off,
-									new NetEConst(verinum((uint64_t)(uint32_t)(int32_t)elsb, 32)), 32, true)
-								    : new NetEBAdd('-',
-									new NetEConst(verinum((uint64_t)(uint32_t)(int32_t)elsb, 32)), off, 32, true);
-							    if (ts.sel == index_component_t::SEL_IDX_DO
-								&& w > 1)
-								  off = new NetEBAdd('-', off,
-									new NetEConst(verinum((uint64_t)(w-1), 32)), 32, true);
-						      }
-						      lv->set_part(off,
-							    new netvector_t(evec->base_type(),
-									    (long)w-1, 0));
-						      tail_ok = true;
-						}
-					  } else {
-						delete we;
-					  }
-				    } else if (ts.sel == index_component_t::SEL_PART
-					       && ts.msb && ts.lsb) {
-					  NetExpr*me = elab_and_eval(des, scope, ts.msb, -1);
-					  NetExpr*le = elab_and_eval(des, scope, ts.lsb, -1);
-					  NetEConst*mc = dynamic_cast<NetEConst*>(me);
-					  NetEConst*lc = dynamic_cast<NetEConst*>(le);
-					  if (mc && lc && mc->value().is_defined()
-					      && lc->value().is_defined()) {
-						long mv = mc->value().as_long();
-						long lv2 = lc->value().as_long();
-						long ca = desc ? mv-elsb : elsb-mv;
-						long cb = desc ? lv2-elsb : elsb-lv2;
-						long off = ca < cb ? ca : cb;
-						unsigned w = (unsigned)
-						      ((mv>=lv2 ? mv-lv2 : lv2-mv)+1);
-						lv->set_part(new NetEConst(
-							 verinum((int64_t)off)),
-						      new netvector_t(evec->base_type(),
-								      (long)w-1, 0));
-						tail_ok = true;
-					  }
-				    }
+							elem_idx, stype, false);
+			      NetExpr*part_off = 0;
+			      unsigned long part_wid = 0;
+			      bool tail_ok = word_index
+				    && collapse_packed_member_indices(
+					 des, scope, this, evec->packed_dims(),
+					 tail_idx, part_off, part_wid);
+			      if (tail_ok) {
+				    lv->set_part(part_off,
+					  new netvector_t(evec->base_type(),
+							   (long)part_wid-1, 0));
 			      }
 			      if (!tail_ok) {
 				    cerr << get_fileline() << ": sorry: this form"
@@ -2329,6 +2271,15 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			const netranges_t&dims = pvec->packed_dims();
 			const index_component_t&sel = member_cur.index.front();
 
+			NetExpr*canonical_off = 0;
+			unsigned long canonical_wid = 0;
+			if (collapse_packed_member_indices(
+			      des, scope, this, dims, member_cur.index,
+			      canonical_off, canonical_wid)) {
+			      lv->set_part(canonical_off,
+				    new netvector_t(pvec->base_type(),
+						     (long)canonical_wid - 1, 0));
+			} else {
 			{
 			      bool handled = false;
 
@@ -2617,6 +2568,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 					 << " yet supported." << endl;
 				    des->errors += 1;
 			      }
+			}
 			}
 		  } else {
 			cerr << get_fileline() << ": warning: "

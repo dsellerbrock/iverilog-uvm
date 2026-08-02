@@ -22,6 +22,8 @@
 # include  <stdlib.h>
 # include  <stdint.h>
 class vvp_net_t;
+struct vthread_s;
+typedef struct vthread_s* vthread_t;
 
 inline bool vvp_object_ptr_is_poisoned(const class vvp_object*ptr)
 {
@@ -57,6 +59,7 @@ class vvp_object {
       {
             ref_cnt_ = 0;
             mutation_epoch_ = 0;
+            mutation_waiters_ = 0;
             total_active_cnt_ += 1;
             register_live_ptr_(this);
       }
@@ -68,7 +71,8 @@ class vvp_object {
       static void cleanup(void);
       static bool pointer_is_live(const vvp_object*ptr);
       inline uint64_t mutation_epoch() const { return mutation_epoch_; }
-      inline void touch() { mutation_epoch_ += 1; }
+      void touch();
+      vthread_t add_mutation_waiter(vthread_t thread);
       void register_signal_alias(vvp_net_t*net, void*context);
       void unregister_signal_alias(vvp_net_t*net, void*context);
       void notify_signal_aliases() const;
@@ -80,6 +84,7 @@ class vvp_object {
       friend class vvp_object_t;
       int ref_cnt_;
       uint64_t mutation_epoch_;
+      vthread_t mutation_waiters_;
 
       static int total_active_cnt_;
 };

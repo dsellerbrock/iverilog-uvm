@@ -999,6 +999,10 @@ void dll_target::event(const NetEvent*net)
       obj->vif_N = 0;
       obj->vif_M = 0;
       obj->vif_pre_N = UINT_MAX;
+      obj->vif_root_pin = 0;
+      obj->is_obj_mutation = false;
+      obj->obj_N = UINT_MAX;
+      obj->obj_pre_N = UINT_MAX;
       obj->is_array = net->is_event_array();
       obj->array_base = net->array_base_slot();
       obj->array_count = net->array_count();
@@ -1007,6 +1011,11 @@ void dll_target::event(const NetEvent*net)
 
 	    for (unsigned idx = 0 ;  idx < net->nprobe() ;  idx += 1) {
 		  const NetEvProbe*pr = net->probe(idx);
+		  if (pr->is_obj_mutation()) {
+			obj->is_obj_mutation = true;
+			obj->obj_N = pr->obj_N();
+			obj->obj_pre_N = pr->obj_pre_N();
+		  }
 		  switch (pr->edge()) {
 		      case NetEvProbe::ANYEDGE:
 			obj->nany += pr->pin_count();
@@ -1015,6 +1024,8 @@ void dll_target::event(const NetEvent*net)
 			      obj->vif_N = pr->vif_N();
 			      obj->vif_M = pr->vif_M();
 			      obj->vif_pre_N = pr->vif_pre_N();
+			      obj->vif_path = pr->vif_path();
+			      obj->vif_root_pin = pr->vif_root_pin();
 			}
 			break;
 		      case NetEvProbe::NEGEDGE:
@@ -1024,6 +1035,8 @@ void dll_target::event(const NetEvent*net)
 			      obj->vif_N = pr->vif_N();
 			      obj->vif_M = pr->vif_M();
 			      obj->vif_pre_N = pr->vif_pre_N();
+			      obj->vif_path = pr->vif_path();
+			      obj->vif_root_pin = pr->vif_root_pin();
 			}
 			break;
 		      case NetEvProbe::POSEDGE:
@@ -1033,6 +1046,8 @@ void dll_target::event(const NetEvent*net)
 			      obj->vif_N = pr->vif_N();
 			      obj->vif_M = pr->vif_M();
 			      obj->vif_pre_N = pr->vif_pre_N();
+			      obj->vif_path = pr->vif_path();
+			      obj->vif_root_pin = pr->vif_root_pin();
 			}
 			break;
 		      case NetEvProbe::EDGE:

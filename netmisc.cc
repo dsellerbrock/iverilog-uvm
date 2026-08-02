@@ -3049,6 +3049,9 @@ bool rewrite_class_clocking_member_path(const PEIdent*ident,
 			      if (input_write) *input_write = true;
 			}
 
+			pform_name_t::iterator sig_it = erase_it;
+			++sig_it;
+			bool sampled_input = false;
 			if (!as_lvalue
 			    && (dir == static_cast<int>(NetNet::PINPUT)
 				|| dir == static_cast<int>(NetNet::PINOUT))) {
@@ -3057,12 +3060,30 @@ bool rewrite_class_clocking_member_path(const PEIdent*ident,
 				    + "$" + next->name.str();
 			      perm_string smp_name = lex_strings.make(sname.c_str());
 			      if (class_type->property_idx_from_name(smp_name) >= 0) {
-				    pform_name_t::iterator sig_it = erase_it;
-				    ++sig_it;
 				    if (sig_it != rewritten.end()
-					&& sig_it->name == next->name)
+					&& sig_it->name == next->name) {
 					  sig_it->name = smp_name;
+					  sampled_input = true;
+				    }
 			      }
+			}
+
+			  /* A clocking declaration assignment names the actual
+			     signal driven by an output clockvar, for example
+
+			         output h2d = h2d_int;
+
+			     Erasing only the clocking component used to turn
+			     `vif.cb.h2d.field' into `vif.h2d.field', incorrectly
+			     targeting the clockvar's external net.  Apply the
+			     simple alias recorded on the interface type whenever
+			     this is not a sampled input read. */
+			if (!sampled_input && sig_it != rewritten.end()) {
+			      std::map<perm_string,perm_string>::const_iterator alias_it =
+				    clocking->aliases.find(next->name);
+			      if (alias_it != clocking->aliases.end()
+				  && sig_it->name == next->name)
+				    sig_it->name = alias_it->second;
 			}
 
 			rewritten.erase(erase_it);
@@ -3149,6 +3170,7 @@ static void apply_clocking_member_rewrite_(const PEIdent*ident,
       pform_name_t::iterator sig_comp = cb_comp;
       ++sig_comp;
       NetNet::PortType dir = cb->signal_direction(sig_comp->name);
+	perm_string clockvar_name = sig_comp->name;
 
       if (as_lvalue && dir == NetNet::PINPUT) {
 	    cerr << ident->get_fileline() << ": error: clocking-block "
@@ -3158,14 +3180,33 @@ static void apply_clocking_member_rewrite_(const PEIdent*ident,
 	    if (input_write) *input_write = true;
       }
 
-      if (!as_lvalue
-	  && (dir == NetNet::PINPUT || dir == NetNet::PINOUT)
-	  && def_scope) {
+	bool sampled_input = false;
+	if (!as_lvalue
+	    && (dir == NetNet::PINPUT || dir == NetNet::PINOUT)
+	    && def_scope) {
 	    string sname = string("_ivl_smp$") + cb->name.str()
 		  + "$" + sig_comp->name.str();
 	    perm_string smp_name = lex_strings.make(sname.c_str());
-	    if (const_cast<NetScope*>(def_scope)->find_signal(smp_name))
+	    if (const_cast<NetScope*>(def_scope)->find_signal(smp_name)) {
 		  sig_comp->name = smp_name;
+		  sampled_input = true;
+	    }
+      }
+
+	  /* Preserve clocking_decl_assign aliases after removing the
+	     clocking scope. Simple identifier aliases cover the virtual-
+	     interface representation and the common packed-struct member
+	     drive form; complex expressions remain with the existing raw
+	     signal resolver. */
+      if (!sampled_input) {
+	    std::map<perm_string,PExpr*>::const_iterator da =
+		  cb->decl_assigns.find(clockvar_name);
+	    if (da != cb->decl_assigns.end()) {
+		  const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
+		  if (id && !id->path().package && id->path().name.size() == 1
+		      && id->path().name.front().index.empty())
+			sig_comp->name = id->path().name.front().name;
+	    }
       }
 
       newpath.erase(cb_comp);
@@ -3184,6 +3225,10 @@ bool rewrite_clocking_member_path_via_scope(const PEIdent*ident,
 {
       if (sr.net || !sr.scope) return false;
       if (ident->path().size() < 3) return false;
+	/* A successful prefix search may end at a generate/block scope. Such
+	   a scope is not an interface/module instance and has no module_name;
+	   leave the identifier to ordinary hierarchical resolution. */
+      if (sr.scope->type() != NetScope::MODULE) return false;
       perm_string scope_module = sr.scope->module_name();
       if (scope_module.nil()) return false;
       auto cur = pform_modules.find(scope_module);

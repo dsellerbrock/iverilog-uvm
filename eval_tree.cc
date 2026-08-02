@@ -2513,6 +2513,25 @@ NetExpr* NetESFunc::eval_tree()
       }
 }
 
+static bool is_const_function_argument_(const NetExpr*expr)
+{
+      if (dynamic_cast<const NetEConst*>(expr))
+	    return true;
+      if (dynamic_cast<const NetECReal*>(expr))
+	    return true;
+
+      const NetEArrayPattern*pat = dynamic_cast<const NetEArrayPattern*>(expr);
+      if (!pat)
+	    return false;
+
+      for (size_t idx = 0 ; idx < pat->item_size() ; idx += 1) {
+	    const NetExpr*item = pat->item(idx);
+	    if (!item || !is_const_function_argument_(item))
+		  return false;
+      }
+      return true;
+}
+
 NetExpr* NetEUFunc::eval_tree()
 {
         // If we know the function cannot be evaluated as a constant,
@@ -2532,13 +2551,11 @@ NetExpr* NetEUFunc::eval_tree()
       if (!func()->is_auto() && !need_const_ && (opt_const_func < 2))
             return 0;
 
-        // Run through the input parameters to check they are constants.
+      // Run through the input parameters to check they are constants.
       for (unsigned idx = 0; idx < parm_count(); idx += 1) {
-            if (dynamic_cast<const NetEConst*> (parm(idx)))
-                  continue;
-            if (dynamic_cast<const NetECReal*> (parm(idx)))
-                  continue;
-            return 0;
+	    if (is_const_function_argument_(parm(idx)))
+		  continue;
+	    return 0;
       }
 
       const NetFuncDef*def = func_->func_def();

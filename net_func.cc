@@ -25,6 +25,19 @@
 
 using namespace std;
 
+static unsigned net_user_func_pin_count_(NetScope*def)
+{
+      const NetFuncDef*fdef = def->func_def();
+      assert(fdef);
+      unsigned count = 1; // Return value.
+      for (unsigned idx = 0 ; idx < fdef->port_count() ; idx += 1) {
+	    const NetNet*port = fdef->port(idx);
+	    count += port->unpacked_dimensions() > 0
+		  ? port->unpacked_count() : 1;
+      }
+      return count;
+}
+
 /*
  * To make a NetUserFunc device, make as many pins as there are ports
  * in the function. Get the port count from the function definition,
@@ -33,7 +46,7 @@ using namespace std;
  */
 NetUserFunc::NetUserFunc(NetScope*s, perm_string n, NetScope*d,
                          NetEvWait*trigger__)
-: NetNode(s, n, d->func_def()->port_count()+1),
+: NetNode(s, n, net_user_func_pin_count_(d)),
   def_(d), trigger_(trigger__)
 {
       pin(0).set_dir(Link::OUTPUT);
@@ -62,10 +75,16 @@ unsigned NetUserFunc::port_width(unsigned port) const
       }
 
       port -= 1;
-      assert(port < fdef->port_count());
-      const NetNet*port_sig = fdef->port(port);
-
-      return port_sig->vector_width();
+      for (unsigned idx = 0 ; idx < fdef->port_count() ; idx += 1) {
+	    const NetNet*port_sig = fdef->port(idx);
+	    unsigned words = port_sig->unpacked_dimensions() > 0
+		  ? port_sig->unpacked_count() : 1;
+	    if (port < words)
+		  return port_sig->vector_width();
+	    port -= words;
+      }
+      assert(0);
+      return 0;
 }
 
 const NetScope* NetUserFunc::def() const
