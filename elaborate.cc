@@ -6948,6 +6948,145 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	    return blk;
       }
 
+      /* A virtual interface may expose a statically named nested interface,
+	 for example cfg.vif.clk_rst_async_if.set_active().  The ordinary
+	 method resolver searches the complete path as a class/interface member
+	 chain.  A nested interface instance is a pform module instance rather
+	 than a property, however, so that search stops at clk_rst_async_if and
+	 the call is later discarded as an unknown task.
+
+	 Resolve the outer virtual-interface expression first, then use its
+	 interface definition to identify the fixed nested instance and method.
+	 The outer handle remains an argument of the synthetic call so tgt-vvp
+	 can select the correct outer instance dynamically before descending to
+	 the named child (IEEE 1800-2017 25.10). */
+      if (gn_system_verilog() && path_.size() >= 3) {
+	    auto method_it = std::prev(path_.end());
+	    auto nested_it = std::prev(method_it);
+	    if (method_it->index.empty() && nested_it->index.empty()) {
+		  pform_name_t outer_path;
+		  for (auto it = path_.begin(); it != nested_it; ++it)
+			outer_path.push_back(*it);
+
+		  /* Use the method-target path walker here.  PEIdent's ordinary
+		     expression elaborator cannot bind an automatic class-method
+		     formal such as local_cfg in local_cfg.vif, while symbol_search
+		     plus NetEProperty is the established method-call path. */
+		  symbol_search_results outer_sr;
+		  symbol_search(this, des, scope, outer_path, UINT_MAX, &outer_sr);
+		  NetExpr*outer_expr = nullptr;
+		  ivl_type_t outer_expr_type = nullptr;
+		  if (outer_sr.net) {
+			outer_expr = new NetESignal(outer_sr.net);
+			outer_expr->set_line(*this);
+			outer_expr_type = outer_sr.type
+			      ? outer_sr.type : outer_sr.net->net_type();
+			if (!outer_sr.path_head.empty()
+			    && !outer_sr.path_head.back().index.empty()) {
+			      outer_expr = elaborate_root_indexed_method_target_expr_(
+				    this, des, scope, outer_expr, outer_expr_type,
+				    outer_sr.path_head.back().index, method_it->name,
+				    outer_expr_type);
+			}
+			while (outer_expr && !outer_sr.path_tail.empty()) {
+			      const netclass_t*walk_type =
+				    dynamic_cast<const netclass_t*>(outer_expr_type);
+			      if (!walk_type) {
+				    delete outer_expr;
+				    outer_expr = nullptr;
+				    break;
+			      }
+			      outer_expr = elaborate_nested_method_target_property_task_(
+				    this, des, scope, outer_expr, walk_type,
+				    outer_sr.path_tail.front(), method_it->name,
+				    outer_expr_type);
+			      outer_sr.path_tail.pop_front();
+			}
+		  }
+		  const netclass_t*outer_type = outer_expr
+			? dynamic_cast<const netclass_t*>(outer_expr_type)
+			: nullptr;
+
+		  PTaskFunc*method = nullptr;
+		  const std::vector<pform_tf_port_t>*pports = nullptr;
+		  if (outer_type && outer_type->is_interface()) {
+			auto outer_mod_it = pform_modules.find(outer_type->get_name());
+			if (outer_mod_it != pform_modules.end()
+			    && outer_mod_it->second->is_interface) {
+			      PGModule*nested_inst = dynamic_cast<PGModule*>(
+				    outer_mod_it->second->get_gate(nested_it->name));
+			      if (nested_inst) {
+				auto nested_mod_it = pform_modules.find(
+				      nested_inst->get_type());
+				if (nested_mod_it != pform_modules.end()
+				    && nested_mod_it->second->is_interface) {
+				      auto task_it = nested_mod_it->second->tasks.find(
+					    method_it->name);
+				      if (task_it != nested_mod_it->second->tasks.end())
+					    method = task_it->second;
+				      if (!method) {
+					    auto func_it = nested_mod_it->second->funcs.find(
+						  method_it->name);
+					    if (func_it != nested_mod_it->second->funcs.end())
+						  method = func_it->second;
+				      }
+				}
+			      }
+			}
+		  }
+
+		  if (method) {
+			pports = method->peek_ports();
+			bool inputs_only = true;
+			if (pports) {
+			      for (const pform_tf_port_t&pp : *pports) {
+				    if (pp.port
+					&& pp.port->get_port_type() != NetNet::PINPUT) {
+					  inputs_only = false;
+					  break;
+				    }
+			      }
+			}
+
+			if (inputs_only
+			    && (pports ? parms_.size() <= pports->size()
+				       : parms_.empty())) {
+			      std::vector<perm_string> port_names;
+			      if (pports) {
+				    for (const pform_tf_port_t&pp : *pports)
+					  port_names.push_back(pp.port
+						? pp.port->basename() : perm_string());
+			      }
+			      std::vector<PExpr*> args = map_named_args(
+				    des, port_names, parms_);
+			      std::vector<NetExpr*> argv;
+			      argv.push_back(outer_expr);
+			      outer_expr = nullptr;
+			      for (size_t pi = 0; pi < port_names.size(); ++pi) {
+				    PExpr*arg = args[pi];
+				    if (!arg && pports)
+					  arg = (*pports)[pi].defe;
+				    argv.push_back(arg ? elab_sys_task_arg(
+					  des, scope, method_it->name, pi, arg) : nullptr);
+			      }
+
+			      std::string call_name = "$ivl_vif_nested_call$";
+			      call_name += outer_type->get_name().str();
+			      call_name += "$";
+			      call_name += nested_it->name.str();
+			      call_name += "$";
+			      call_name += method_it->name.str();
+			      perm_string cn = lex_strings.make(call_name.c_str());
+			      NetSTask*sys = new NetSTask(cn.str(),
+				    IVL_SFUNC_AS_TASK_IGNORE, argv);
+			      sys->set_line(*this);
+			      return sys;
+			}
+		  }
+		  delete outer_expr;
+	    }
+      }
+
 	/* M3-rm: obj.field.rand_mode(mode) — freeze/unfreeze a SPECIFIC
 	   rand field (IEEE 1800-2017 18.8). This must run BEFORE the
 	   general method dispatch below, which resolves `obj.field` as a

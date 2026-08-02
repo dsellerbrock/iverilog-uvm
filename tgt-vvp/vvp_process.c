@@ -3250,6 +3250,121 @@ static ivl_scope_t find_iface_method_child_(ivl_scope_t found,
       return 0;
 }
 
+/* Resolve a method below a named interface instance contained in another
+ * interface instance. The outer instance is selected dynamically from its
+ * virtual-interface handle; only then is the fixed nested child descended. */
+static ivl_scope_t find_nested_iface_method_(ivl_scope_t outer,
+                                             const char*nested_name,
+                                             const char*method_name)
+{
+      if (!outer) return 0;
+      for (size_t i = 0 ; i < ivl_scope_childs(outer) ; i += 1) {
+            ivl_scope_t child = ivl_scope_child(outer, i);
+            if (!child || ivl_scope_type(child) != IVL_SCT_MODULE
+                || strcmp(ivl_scope_basename(child), nested_name) != 0)
+                  continue;
+            return find_iface_method_child_(child, method_name);
+      }
+      return 0;
+}
+
+/* Dynamic virtual-interface dispatch through one nested interface instance:
+ *
+ *   $ivl_vif_nested_call$<outer>$<nested>$<method>(receiver, args...)
+ *
+ * The receiver is the OUTER virtual-interface handle. Each branch compares
+ * that handle with an outer instance, then invokes <method> in its named
+ * <nested> child. */
+static int show_vif_nested_dyn_call(ivl_statement_t net)
+{
+      static const char prefix[] = "$ivl_vif_nested_call$";
+      const char*stmt_name = ivl_stmt_name(net);
+      const char*p = stmt_name + strlen(prefix);
+      const char*sep_outer = strchr(p, '$');
+      const char*sep_nested = sep_outer ? strchr(sep_outer + 1, '$') : 0;
+      if (!sep_outer || !sep_nested) {
+            fprintf(stderr,
+                    "Warning: malformed $ivl_vif_nested_call name '%s'; skipping\n",
+                    stmt_name);
+            return 0;
+      }
+
+      char outer_name[256];
+      size_t outer_len = sep_outer - p;
+      if (outer_len >= sizeof(outer_name)) outer_len = sizeof(outer_name) - 1;
+      memcpy(outer_name, p, outer_len);
+      outer_name[outer_len] = '\0';
+
+      char nested_name[256];
+      size_t nested_len = sep_nested - (sep_outer + 1);
+      if (nested_len >= sizeof(nested_name))
+            nested_len = sizeof(nested_name) - 1;
+      memcpy(nested_name, sep_outer + 1, nested_len);
+      nested_name[nested_len] = '\0';
+      const char*method_name = sep_nested + 1;
+
+      ivl_expr_t recv = (ivl_stmt_parm_count(net) > 0)
+            ? ivl_stmt_parm(net, 0) : 0;
+      ivl_design_t des = vvp_get_saved_design();
+      if (!des || !recv) return 0;
+
+      ivl_scope_t*roots = 0;
+      unsigned nroots = 0;
+      ivl_design_roots(des, &roots, &nroots);
+      ivl_scope_t*insts = 0;
+      unsigned ninst = 0, insts_cap = 0;
+      for (unsigned i = 0 ; i < nroots ; i += 1)
+            collect_module_scopes_(roots[i], outer_name, &insts, &ninst,
+                                   &insts_cap);
+
+      if (ninst == 0) {
+            fprintf(stderr,
+                    "Warning: nested interface call %s.%s.%s -- no outer"
+                    " instance found; skipping\n",
+                    outer_name, nested_name, method_name);
+            return 0;
+      }
+
+      if (ninst == 1) {
+            ivl_scope_t method = find_nested_iface_method_(
+                  insts[0], nested_name, method_name);
+            if (method)
+                  emit_iface_method_call_(net, method, 1);
+            free(insts);
+            return 0;
+      }
+
+      unsigned lab_end = local_count++;
+      unsigned*lab_inst = calloc(ninst, sizeof(unsigned));
+      assert(lab_inst);
+
+      draw_eval_object(recv);
+      for (unsigned i = 0 ; i < ninst ; i += 1) {
+            if (!find_nested_iface_method_(insts[i], nested_name, method_name))
+                  continue;
+            lab_inst[i] = local_count++;
+            fprintf(vvp_out, "    %%jmp/vif T_%u.%u, S_%p;\n",
+                    thread_count, lab_inst[i], insts[i]);
+      }
+      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_end);
+
+      for (unsigned i = 0 ; i < ninst ; i += 1) {
+            ivl_scope_t method = find_nested_iface_method_(
+                  insts[i], nested_name, method_name);
+            if (!method) continue;
+            fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_inst[i]);
+            fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            emit_iface_method_call_(net, method, 1);
+            fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_end);
+      }
+      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_end);
+
+      free(lab_inst);
+      free(insts);
+      return 0;
+}
+
 /* Dynamic virtual-interface method dispatch:
  *   $ivl_vif_call$<iface>$<method>(receiver, args...)
  * The receiver handle is evaluated once; a %jmp/vif compare chain
@@ -3528,6 +3643,9 @@ static int show_system_task_call(ivl_statement_t net)
 
       if (strncmp(stmt_name, "$ivl_vif_call$", 14) == 0)
 	    return show_vif_dyn_call(net);
+
+      if (strncmp(stmt_name, "$ivl_vif_nested_call$", 21) == 0)
+	    return show_vif_nested_dyn_call(net);
 
 	/* Suspend until the Observed region of the current time step
 	 * (14.4 numeric input skews: sample the settled value). */
