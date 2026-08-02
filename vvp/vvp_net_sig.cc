@@ -156,6 +156,52 @@ static bool load_str_trace_configured_()
       return enabled != 0;
 }
 
+static bool recv_vec_trace_scope_match_(__vpiScope*scope)
+{
+      static int enabled = -1;
+      static string match_text;
+
+      if (enabled < 0) {
+            const char*env = getenv("IVL_RECV_VEC_TRACE");
+            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+            if (enabled && env
+                && strcmp(env, "1") != 0 && strcmp(env, "ALL") != 0
+                && strcmp(env, "*") != 0)
+                  match_text = env;
+      }
+
+      if (!enabled)
+            return false;
+      if (match_text.empty())
+            return true;
+
+      const char*scope_name = scope ? vpi_get_str(vpiFullName, scope) : 0;
+      return scope_name && strstr(scope_name, match_text.c_str());
+}
+
+static bool load_vec_trace_scope_match_(__vpiScope*scope)
+{
+      static int enabled = -1;
+      static string match_text;
+
+      if (enabled < 0) {
+            const char*env = getenv("IVL_LOAD_VEC_TRACE");
+            enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+            if (enabled && env
+                && strcmp(env, "1") != 0 && strcmp(env, "ALL") != 0
+                && strcmp(env, "*") != 0)
+                  match_text = env;
+      }
+
+      if (!enabled)
+            return false;
+      if (match_text.empty())
+            return true;
+
+      const char*scope_name = scope ? vpi_get_str(vpiFullName, scope) : 0;
+      return scope_name && strstr(scope_name, match_text.c_str());
+}
+
 /*
  * The filter_mask_ method takes as an input the value to propagate,
  * the mask of what is being forced, and returns a propagation
@@ -562,20 +608,15 @@ void vvp_fun_signal4_aa::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
             return;
 
       signal4_aa_slot*slot = signal4_aa_get_or_make_slot(context, context_idx_, size_, init_);
-      const char*trace = getenv("IVL_RECV_VEC_TRACE");
-      const char*scope_name = context_scope_
-                             ? vpi_get_str(vpiFullName, context_scope_) : 0;
-      const bool trace_this = trace && *trace && strcmp(trace, "0") != 0
-                              && (strcmp(trace, "1") == 0
-                                  || strcmp(trace, "ALL") == 0
-                                  || strcmp(trace, "*") == 0
-                                  || (scope_name && strstr(scope_name, trace)));
-      if (trace_this)
+      if (recv_vec_trace_scope_match_(context_scope_)) {
+            const char*scope_name = context_scope_
+                                   ? vpi_get_str(vpiFullName, context_scope_) : 0;
             cerr << "trace recv-vec4-aa scope="
                  << (scope_name ? scope_name : "<unknown>")
                  << " idx=" << context_idx_ << " supplied=" << supplied_context
                  << " resolved=" << context << " old=" << slot->bits
                  << " new=" << bit << endl;
+      }
       if (!slot->bits.eeq(bit)) {
             slot->bits = bit;
             ptr.ptr()->send_vec4(slot->bits, context);
@@ -632,17 +673,14 @@ void vvp_fun_signal4_aa::vec4_value(vvp_vector4_t&val) const
       }
 
       val = slot->bits;
-      const char*trace = getenv("IVL_LOAD_VEC_TRACE");
-      const char*scope_name = context_scope_
-                             ? vpi_get_str(vpiFullName, context_scope_) : 0;
-      if (trace && *trace && strcmp(trace, "0") != 0
-          && (strcmp(trace, "1") == 0 || strcmp(trace, "ALL") == 0
-              || strcmp(trace, "*") == 0
-              || (scope_name && strstr(scope_name, trace))))
+      if (load_vec_trace_scope_match_(context_scope_)) {
+            const char*scope_name = context_scope_
+                                   ? vpi_get_str(vpiFullName, context_scope_) : 0;
             cerr << "trace load-vec4-aa scope="
                  << (scope_name ? scope_name : "<unknown>")
                  << " idx=" << context_idx_ << " rd=" << vthread_get_rd_context()
                  << " raw=" << raw << " value=" << val << endl;
+      }
 }
 
 const vvp_vector4_t&vvp_fun_signal4_aa::vec4_unfiltered_value() const

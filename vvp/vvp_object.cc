@@ -24,12 +24,13 @@
 # include  <typeinfo>
 # include  <set>
 # include  <map>
+# include  <unordered_set>
 # include  <vector>
 
 using namespace std;
 
 int vvp_object::total_active_cnt_ = 0;
-static std::set<const vvp_object*> live_vvp_objects_;
+static std::unordered_set<const vvp_object*> live_vvp_objects_;
 typedef std::pair<vvp_net_t*, void*> object_alias_key_t;
 static std::map<const vvp_object*, std::set<object_alias_key_t> > object_signal_aliases_;
 static std::map<vvp_object*, std::set<vthread_t> > object_mutation_waiters_;

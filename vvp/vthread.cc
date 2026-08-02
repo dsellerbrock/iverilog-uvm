@@ -56,6 +56,8 @@
 #endif
 # include  <set>
 # include  <map>
+# include  <unordered_map>
+# include  <unordered_set>
 # include  <typeinfo>
 # include  <vector>
 # include  <functional>
@@ -4770,18 +4772,22 @@ template vvp_vector4_t coerce_to_width(const vvp_vector4_t&that,
                                        unsigned width);
 
 /*
- * Keep a best-effort owner map for automatic contexts so we can free
- * through the allocating scope even if callers pass a mismatched scope.
+ * Keep best-effort owner/refcount registries for automatic contexts so we
+ * can free through the allocating scope even if callers pass a mismatched
+ * scope. Track live membership separately: checking the scope's linked list
+ * for every automatic signal access is O(number of live activations) and is
+ * prohibitively expensive in UVM testbenches with detached worker frames.
  */
-static map<vvp_context_t, __vpiScope*> automatic_context_owner;
-static map<vvp_context_t, unsigned> automatic_context_refcount;
+static unordered_map<vvp_context_t, __vpiScope*> automatic_context_owner;
+static unordered_map<vvp_context_t, unsigned> automatic_context_refcount;
+static unordered_set<vvp_context_t> live_automatic_contexts;
 
 static void retain_automatic_context_(vvp_context_t context)
 {
       if (!context)
             return;
 
-      map<vvp_context_t, unsigned>::iterator ref_it =
+      unordered_map<vvp_context_t, unsigned>::iterator ref_it =
             automatic_context_refcount.find(context);
       if (ref_it == automatic_context_refcount.end()) {
             automatic_context_refcount[context] = 1;
@@ -4848,6 +4854,7 @@ static vvp_context_t vthread_alloc_context(__vpiScope*scope)
       scope->live_contexts = context;
       automatic_context_owner[context] = scope;
       automatic_context_refcount[context] = 1;
+      live_automatic_contexts.insert(context);
 
       return context;
 }
@@ -4863,14 +4870,15 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
       if (!context)
             return;
 
-      map<vvp_context_t, __vpiScope*>::const_iterator owner_it = automatic_context_owner.find(context);
+      unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
+            automatic_context_owner.find(context);
       if (owner_it != automatic_context_owner.end()) {
             __vpiScope*owner = owner_it->second;
             if (owner && owner != scope && owner->is_automatic())
                   scope = owner;
       }
 
-      map<vvp_context_t, unsigned>::iterator ref_it =
+      unordered_map<vvp_context_t, unsigned>::iterator ref_it =
             automatic_context_refcount.find(context);
       if (ref_it != automatic_context_refcount.end()) {
             if (ref_it->second > 1) {
@@ -4879,6 +4887,7 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
             }
             automatic_context_refcount.erase(ref_it);
       }
+      live_automatic_contexts.erase(context);
 
       auto context_in_list = [](vvp_context_t head, vvp_context_t needle) -> bool {
             for (vvp_context_t cur = head ; cur ; cur = vvp_get_next_context(cur)) {
@@ -5769,26 +5778,18 @@ void vthread_pop_ref_context(const struct vthread_ref_ctx_save*save)
       running_thread->staged_alloc_rd_scope = save->staged_rd_scope;
 }
 
-static bool context_on_list(vvp_context_t head, vvp_context_t needle)
-{
-      for (vvp_context_t cur = head ; cur ; cur = vvp_get_next_context(cur)) {
-	    if (cur == needle)
-		  return true;
-      }
-      return false;
-}
-
 static bool context_live_in_owner(vvp_context_t context)
 {
       if (!context)
             return false;
-      map<vvp_context_t, __vpiScope*>::const_iterator owner_it = automatic_context_owner.find(context);
+      unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
+            automatic_context_owner.find(context);
       if (owner_it == automatic_context_owner.end())
             return false;
       __vpiScope*owner = owner_it->second;
       if (!(owner && owner->is_automatic()))
             return false;
-      return context_on_list(owner->live_contexts, context);
+      return live_automatic_contexts.count(context) != 0;
 }
 
 static bool context_live_matches_scope_(vvp_context_t context, __vpiScope*ctx_scope)
@@ -5799,13 +5800,14 @@ static bool context_live_matches_scope_(vvp_context_t context, __vpiScope*ctx_sc
       if (!(ctx_scope && ctx_scope->is_automatic()))
             return context_live_in_owner(context);
 
-      map<vvp_context_t, __vpiScope*>::const_iterator owner_it = automatic_context_owner.find(context);
+      unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
+            automatic_context_owner.find(context);
       if (owner_it == automatic_context_owner.end())
             return false;
       if (owner_it->second != ctx_scope)
             return false;
 
-      return context_on_list(ctx_scope->live_contexts, context);
+      return live_automatic_contexts.count(context) != 0;
 }
 
 static void warn_stacked_context_cycle_(const char*where, __vpiScope*ctx_scope,
@@ -5920,7 +5922,7 @@ static vvp_context_t first_live_stacked_context(vvp_context_t candidate, __vpiSc
       vvp_context_t scoped_match = find_stacked_context_match_(candidate, ctx_scope,
                         "first_live_stacked_context(scope)",
                         [ctx_scope](vvp_context_t cur) {
-                              return context_on_list(ctx_scope->live_contexts, cur);
+                              return context_live_matches_scope_(cur, ctx_scope);
                         });
       if (scoped_match)
             return scoped_match;
@@ -5928,13 +5930,13 @@ static vvp_context_t first_live_stacked_context(vvp_context_t candidate, __vpiSc
       return find_stacked_context_match_(candidate, ctx_scope,
                   "first_live_stacked_context(owner)",
                   [](vvp_context_t cur) {
-                        map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
+                        unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
                               automatic_context_owner.find(cur);
                         if (owner_it == automatic_context_owner.end())
                               return false;
                         __vpiScope*owner = owner_it->second;
                         return owner && owner->is_automatic()
-                            && context_on_list(owner->live_contexts, cur);
+                            && live_automatic_contexts.count(cur) != 0;
                   });
 }
 
@@ -5946,13 +5948,13 @@ static vvp_context_t first_live_context_for_scope(vvp_context_t candidate, __vpi
       return find_stacked_context_match_(candidate, ctx_scope,
                   "first_live_context_for_scope",
                   [ctx_scope](vvp_context_t cur) {
-                        map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
+                        unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
                               automatic_context_owner.find(cur);
                         if (owner_it == automatic_context_owner.end())
                               return false;
                         if (owner_it->second != ctx_scope)
                               return false;
-                        return context_on_list(ctx_scope->live_contexts, cur);
+                        return live_automatic_contexts.count(cur) != 0;
                   });
 }
 
@@ -6332,7 +6334,7 @@ bool vthread_context_owner_is_within(vvp_context_t candidate,
       if (!(candidate && scope))
             return false;
 
-      map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
+      unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
             automatic_context_owner.find(candidate);
       if (owner_it == automatic_context_owner.end())
             return false;
@@ -6411,12 +6413,12 @@ static void release_owned_context_(vthread_t thr)
             vvp_context_t saved_owned_next = vvp_get_stacked_context(owned);
             vvp_context_t next_owned = release_chain ? saved_owned_next : 0;
             bool retain_owned_link = false;
-            map<vvp_context_t, unsigned>::const_iterator ref_it =
+            unordered_map<vvp_context_t, unsigned>::const_iterator ref_it =
                   automatic_context_refcount.find(owned);
             if (ref_it != automatic_context_refcount.end() && ref_it->second > 1)
                   retain_owned_link = true;
             __vpiScope*ctx_scope = resolve_context_scope(thr->parent_scope);
-            map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
+            unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
                   automatic_context_owner.find(owned);
             if (owner_it != automatic_context_owner.end() && owner_it->second)
                   ctx_scope = owner_it->second;
@@ -7345,13 +7347,13 @@ static void trace_context_event_(const char*where, vthread_t thr,
             return;
 
       if (thr && thr->wt_context) {
-            map<vvp_context_t, __vpiScope*>::const_iterator wt_owner_it =
+            unordered_map<vvp_context_t, __vpiScope*>::const_iterator wt_owner_it =
                   automatic_context_owner.find(thr->wt_context);
             if (wt_owner_it != automatic_context_owner.end())
                   wt_owner_name = scope_name_or_unknown_(wt_owner_it->second);
       }
       if (thr && thr->rd_context) {
-            map<vvp_context_t, __vpiScope*>::const_iterator rd_owner_it =
+            unordered_map<vvp_context_t, __vpiScope*>::const_iterator rd_owner_it =
                   automatic_context_owner.find(thr->rd_context);
             if (rd_owner_it != automatic_context_owner.end())
                   rd_owner_name = scope_name_or_unknown_(rd_owner_it->second);
@@ -11567,7 +11569,7 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
                                   ? thr->skip_free_scope : ctx_scope;
             vvp_context_t saved_skip_next = vvp_get_stacked_context(skip_context);
             bool retain_skip_chain = false;
-            map<vvp_context_t, unsigned>::const_iterator ref_it =
+            unordered_map<vvp_context_t, unsigned>::const_iterator ref_it =
                   automatic_context_refcount.find(skip_context);
             if (ref_it != automatic_context_refcount.end() && ref_it->second > 1)
                   retain_skip_chain = true;
@@ -11612,7 +11614,7 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
       }
       vvp_context_t saved_child_next = vvp_get_stacked_context(child_context);
       bool retain_child_link = false;
-      map<vvp_context_t, unsigned>::const_iterator child_ref_it =
+      unordered_map<vvp_context_t, unsigned>::const_iterator child_ref_it =
             automatic_context_refcount.find(child_context);
       if (child_ref_it != automatic_context_refcount.end()
           && child_ref_it->second > 1)
@@ -12664,7 +12666,7 @@ bool of_JOIN_DETACH(vthread_t thr, vvp_code_t cp)
 		      // is OK if the child context is distinct (See %exec_ufunc.)
 		    if (child->wt_context && thr->wt_context == child->wt_context) {
 			  vvp_context_t child_context = child->wt_context;
-			  map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
+			  unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
 				automatic_context_owner.find(child_context);
 			  __vpiScope*child_context_scope =
 				(owner_it != automatic_context_owner.end())
