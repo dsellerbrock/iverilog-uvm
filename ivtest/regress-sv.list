@@ -1281,3 +1281,4 @@ sv_param_uarray_packed_elem normal,-g2012 ivltests
 sv_uparam_multi_dim normal,-g2012 ivltests
 sv_import_unknown_pkg_diag CE,-g2012 ivltests gold=sv_import_unknown_pkg_diag.gold
 sv_darray_queue_arg_by_value normal,-g2012 ivltests
+sv_function_repeated_calls1 normal,-g2012 ivltests

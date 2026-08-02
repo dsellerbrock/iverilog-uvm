@@ -258,7 +258,16 @@ struct vthread_s {
       }
       inline void push_vec4(const vvp_vector4_t&val)
       {
-	    if (val.size() == 1 && getenv("IVL_PUSH1_TRACE")) {
+	    /* Debug environment controls are immutable for a vvp run. This
+	       operation is on nearly every integral expression path, so asking
+	       libc to lock and rescan environ for every one-bit push is a large
+	       tax on real RTL/UVM workloads even when tracing is disabled. */
+	    static int push1_trace = -1;
+	    if (push1_trace < 0) {
+		  const char*env = getenv("IVL_PUSH1_TRACE");
+		  push1_trace = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+	    }
+	    if (val.size() == 1 && push1_trace) {
 		  fprintf(stderr, "[push1] pushed 1-bit val at depth %zu, pc=%p\n",
 			  stack_vec4_.size(), (void*)pc);
 	    }
@@ -5410,8 +5419,6 @@ void vthread_run(vthread_t thr)
       static int step_trace_configured = -1;
       static bool warned_runentry_rd_sync = false;
       static bool warned_runentry_wt_sync = false;
-      static const unsigned long noncallf_loop_limit = 200000;
-      static std::set<const struct vvp_code_s*> noncallf_loop_reported;
       if (pc_hottrace_enabled < 0) {
             const char*env = getenv("IVL_PC_HOTTRACE");
             pc_hottrace_enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
@@ -5498,7 +5505,7 @@ void vthread_run(vthread_t thr)
 		  thr->pc += 1;
 
 		  unsigned long hits = 0;
-		  if (pc_hottrace_enabled || thr->i_am_in_function)
+		  if (pc_hottrace_enabled)
 			hits = ++pc_hottrace_hits[cp];
 		  if (pc_progress_enabled) {
 			pc_progress_counter += 1;
@@ -5531,25 +5538,6 @@ void vthread_run(vthread_t thr)
 				      (void*)cp, op_name, (void*)cp->opcode, hits, scope_name);
 			      pc_hottrace_reported.insert(cp);
 			}
-		  }
-
-		  if (thr->i_am_in_function
-		      && hits >= noncallf_loop_limit
-		      && noncallf_loop_reported.count(cp) == 0) {
-			const char*scope_name = "<unknown>";
-			const char*op_name = vvp_opcode_mnemonic(cp->opcode);
-			if (thr->parent_scope) {
-			      const char*nm = vpi_get_str(vpiFullName, thr->parent_scope);
-			      if (nm) scope_name = nm;
-			}
-			fprintf(stderr,
-				"Warning: non-callf loop hotspot at %p (opcode=%s@%p) in %s exceeded %lu hits;"
-				" forcing function return fallback (further similar warnings suppressed per-PC)\n",
-				(void*)cp, op_name, (void*)cp->opcode, scope_name, hits);
-			noncallf_loop_reported.insert(cp);
-			thr->pc = codespace_null();
-			thr->i_have_ended = 1;
-			break;
 		  }
 
 		    /* Run the opcode implementation. If the execution of
@@ -7122,52 +7110,19 @@ static int callf_depth = 0;
 /*
  * Name-agnostic backstops against zero-time runaway recursion in the
  * synchronous call model (M6 item 5 rearchitecture — see
- * docs/conformance/m6_callf_rearchitecture.md).  These are pure safety
- * limits on the C++ call-stack depth the synchronous model consumes,
- * NOT per-scope correctness knobs.  Each is set to the maximum any
- * former per-UVM-identifier branch granted, so no legitimate recursion
- * is truncated earlier than before, and the value applies uniformly to
- * every scope (retiring the strstr("uvm_...") special-casing).
+ * docs/conformance/m6_callf_rearchitecture.md).  This is a pure safety
+ * limit on the C++ call-stack depth the synchronous model consumes,
+ * not a cumulative invocation counter or per-scope correctness knob.
  */
-static const unsigned long CALLF_SITE_LIMIT  = 16384; // self-recursion at one callsite
-static const unsigned      CALLF_SCOPE_LIMIT = 16384; // one scope's cycles on the callf stack
 static const int           CALLF_MAX_DEPTH   = 4096;  // absolute callf nesting depth
 
 static bool warned_callf_depth_fallback = false;
-static bool warned_callf_scope_cycle_fallback = false;
 static bool warned_callf_child_reaped = false;
-static bool warned_callf_self_callsite_fallback = false;
 static bool warned_callf_rd_sync = false;
 static bool warned_callf_child_not_ended = false;
 static unsigned callf_target_trace_count = 0;
 static unsigned callf_target_trace_limit = 256;
 static std::vector<__vpiScope*> callf_scope_stack;
-static std::map<const __vpiScope*, unsigned long> callf_scope_invocations;
-static std::set<const __vpiScope*> callf_scope_hot_warned;
-struct callf_edge_key_s {
-      const __vpiScope*from;
-      const __vpiScope*to;
-      bool operator<(const callf_edge_key_s&that) const
-      {
-	    if (from < that.from) return true;
-	    if (from > that.from) return false;
-	    return to < that.to;
-      }
-};
-static std::map<callf_edge_key_s, unsigned long> callf_edge_invocations;
-static std::set<callf_edge_key_s> callf_edge_hot_warned;
-struct callf_self_site_key_s {
-      const __vpiScope*scope;
-      const struct vvp_code_s*pc;
-      bool operator<(const callf_self_site_key_s&that) const
-      {
-            if (scope < that.scope) return true;
-            if (scope > that.scope) return false;
-            return pc < that.pc;
-      }
-};
-static std::map<callf_self_site_key_s, unsigned long> callf_self_site_invocations;
-static std::map<const struct vvp_code_s*, unsigned long> callf_self_name_site_invocations;
 
 static bool scope_has_own_automatic_context_(__vpiScope*scope)
 {
@@ -8156,84 +8111,6 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
             }
             thr->rd_context = thr->wt_context;
       }
-      bool same_scope = (caller_scope && child_scope && caller_scope == child_scope);
-      bool same_scope_name = (caller_name && child_name && strcmp(caller_name, child_name) == 0);
-      if ((same_scope || same_scope_name) && callsite_pc) {
-            unsigned long site_hits = 0;
-            if (same_scope) {
-                  callf_self_site_key_s self_key = { caller_scope, callsite_pc };
-                  site_hits = ++callf_self_site_invocations[self_key];
-            } else {
-                  site_hits = ++callf_self_name_site_invocations[callsite_pc];
-            }
-            const unsigned long site_limit = CALLF_SITE_LIMIT;
-	            if (site_hits > site_limit) {
-	                  if (!warned_callf_self_callsite_fallback) {
-	                        fprintf(stderr,
-	                                "%sWarning: callf self-recursion at %s callsite %p exceeded %lu hits (limit %lu);"
-                                " using compile-progress return fallback (further similar warnings suppressed)\n",
-                                thr->get_fileline().c_str(),
-                                caller_name ? caller_name : "<unknown>",
-                                (void*)callsite_pc, site_hits, site_limit);
-                        warned_callf_self_callsite_fallback = true;
-                  }
-                  vthread_delete(child);
-                  callf_depth--;
-                  return true;
-            }
-      }
-      callf_edge_key_s edge = { caller_scope, child_scope };
-      unsigned long edge_invoc = ++callf_edge_invocations[edge];
-      if ((edge_invoc >= 50000) && (callf_edge_hot_warned.count(edge) == 0)) {
-	    const char*from_name = "<unknown>";
-	    const char*to_name = "<unknown>";
-	    if (caller_scope) {
-		  const char*nm = vpi_get_str(vpiFullName, caller_scope);
-		  if (nm) from_name = nm;
-	    }
-	    if (child_scope) {
-		  const char*nm = vpi_get_str(vpiFullName, child_scope);
-		  if (nm) to_name = nm;
-	    }
-	    fprintf(stderr, "Warning: hot callf edge %s -> %s has %lu invocations; potential zero-time liveness loop\n",
-	            from_name, to_name, edge_invoc);
-	    callf_edge_hot_warned.insert(edge);
-      }
-      unsigned long invoc = ++callf_scope_invocations[child_scope];
-      if ((invoc >= 50000) && (callf_scope_hot_warned.count(child_scope) == 0)) {
-	    const char*scope_name = "<unknown>";
-	    if (child_scope) {
-		  const char*nm = vpi_get_str(vpiFullName, child_scope);
-		  if (nm) scope_name = nm;
-	    }
-	    fprintf(stderr, "Warning: hot callf scope %s has %lu invocations; potential zero-time liveness loop\n",
-	            scope_name, invoc);
-	    callf_scope_hot_warned.insert(child_scope);
-      }
-	      unsigned scope_hits = 0;
-	      for (size_t idx = 0 ; idx < callf_scope_stack.size() ; idx += 1) {
-		    if (callf_scope_stack[idx] == child_scope)
-			  scope_hits += 1;
-	      }
-	      const unsigned scope_limit = CALLF_SCOPE_LIMIT;
-	      if (scope_hits >= scope_limit) {
-		    if (!warned_callf_scope_cycle_fallback) {
-			  const char*scope_name = "<unknown>";
-			  if (child_scope) {
-				const char*nm = vpi_get_str(vpiFullName, child_scope);
-				if (nm) scope_name = nm;
-			  }
-			  fprintf(stderr,
-			          "Warning: callf scope-cycle detected at %s (hits=%u limit=%u);"
-			          " using compile-progress return fallback (further similar warnings suppressed)\n",
-			          scope_name, scope_hits, scope_limit);
-			  warned_callf_scope_cycle_fallback = true;
-		    }
-		    vthread_delete(child);
-		    callf_depth--;
-	    return true;
-      }
-
       callf_scope_stack.push_back(child_scope);
 	/* The former same-scope `depth_limit` fallback (raised by name to
 	 * 16384/32768 for specific UVM scopes) was dead code: any value
