@@ -8634,7 +8634,7 @@ bool of_CASSIGN_VEC4_OFF(vthread_t thr, vvp_code_t cp)
 	/* Remove any previous continuous assign to this net. */
       cassign_unlink(net);
 
-      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (net->fil);
+      vvp_signal_value*sig = net->fil ? net->fil->as_signal_value() : 0;
       assert(sig);
 
       if (base < 0 && (wid <= (unsigned)-base))
@@ -14970,7 +14970,7 @@ bool of_LOAD_VEC4(vthread_t thr, vvp_code_t cp)
 
 	// For the %load to work, the functor must actually be a
 	// signal functor. Only signals save their vector value.
-      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (net->fil);
+      vvp_signal_value*sig = net->fil ? net->fil->as_signal_value() : 0;
       if (sig == 0) {
 	    cerr << thr->get_fileline()
 	         << "%load/v error: Net arg not a signal? "
@@ -20054,7 +20054,8 @@ bool of_STORE_STRA(vthread_t thr, vvp_code_t cp)
 bool of_STORE_VEC4(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_ptr_t ptr(cp->net, 0);
-      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (cp->net->fil);
+      vvp_signal_value*sig = cp->net->fil
+                           ? cp->net->fil->as_signal_value() : 0;
       unsigned off_index = cp->bit_idx[0];
       unsigned int wid = cp->bit_idx[1];
 
