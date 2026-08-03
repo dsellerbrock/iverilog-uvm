@@ -1147,7 +1147,29 @@ NetNet* NetESelect::synthesize(Design *des, NetScope*scope, NetExpr*root)
 
 	// Detect the special case that there is a base expression and
 	// it is constant. In this case we can generate fixed part selects.
-      if (const NetEConst*base_const = dynamic_cast<NetEConst*>(base_)) {
+	// A procedural for-loop is unrolled with its index in loop_index_tmp,
+	// so also evaluate bases whose only input is that index. Expressions
+	// such as vec[i-BASE] are constant in each synthesized iteration even
+	// though their elaborated expression tree is not a NetEConst.
+      unique_ptr<NetExpr> evaluated_base;
+      const NetEConst*base_const = dynamic_cast<NetEConst*>(base_);
+      if (!base_const && base_ && scope->loop_index_net_tmp) {
+	    unique_ptr<NexusSet> base_inputs(base_->nex_input());
+	    Nexus*loop_index_nex = scope->loop_index_net_tmp->pin(0).nexus();
+	    bool loop_constant = true;
+	    for (size_t idx = 0 ; idx < base_inputs->size() ; idx += 1) {
+		  if ((*base_inputs)[idx].lnk.nexus() != loop_index_nex) {
+			loop_constant = false;
+			break;
+		  }
+	    }
+	    if (loop_constant) {
+		  evaluated_base.reset(
+			base_->evaluate_function(*this, scope->loop_index_tmp));
+		  base_const = dynamic_cast<NetEConst*>(evaluated_base.get());
+	    }
+      }
+      if (base_const) {
 	    verinum base_tmp = base_const->value();
 	    unsigned select_width = expr_width();
 

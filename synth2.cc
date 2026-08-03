@@ -1063,6 +1063,45 @@ bool NetCase::synth_async(Design*des, NetScope*scope,
 	    return synth_async_casez_(des, scope, nex_map, nex_out,
 				      enables, bitmasks);
 
+	// A dense mux is a good representation for compact ordinary cases, but
+	// sparse constant values make its input count proportional to the largest
+	// guard rather than the number of clauses. Lower those cases as a chain of
+	// exact case-equality comparisons and binary muxes, just as casez/casex are
+	// lowered below. Undefined and variable guards also require comparisons to
+	// preserve ordinary case matching instead of coercing them through an
+	// unsigned mux index.
+      bool use_comparison_chain = false;
+      bool chain_has_default = false;
+      size_t guard_count = 0;
+      unsigned long chain_max_guard = 0;
+      for (size_t item = 0 ; item < items_.size() ; item += 1) {
+	    if (!items_[item].guard) {
+		  chain_has_default = true;
+		  continue;
+	    }
+	    guard_count += 1;
+	    const NetEConst*guard =
+		  dynamic_cast<const NetEConst*>(items_[item].guard);
+	    if (!guard || !guard->value().is_defined()) {
+		  use_comparison_chain = true;
+		  break;
+	    }
+	    unsigned long guard_value = guard->value().as_ulong();
+	    if (guard_value > chain_max_guard)
+		  chain_max_guard = guard_value;
+      }
+      if (!use_comparison_chain && guard_count > 0
+	  && chain_max_guard / guard_count >= 4)
+	    use_comparison_chain = true;
+      unsigned chain_sel_need =
+	    max(ceil(log2(chain_max_guard + 1)), 1.0);
+      if (!use_comparison_chain && !chain_has_default && guard_count > 0
+	  && expr_->expr_width() > chain_sel_need)
+	    use_comparison_chain = true;
+      if (use_comparison_chain)
+	    return synth_async_casez_(des, scope, nex_map, nex_out,
+				      enables, bitmasks);
+
 	// Special case: If the case expression is constant, then this
 	// is a pattern where the guards are non-constant and tested
 	// against a constant case. Handle this as chained conditions
@@ -1123,10 +1162,12 @@ bool NetCase::synth_async(Design*des, NetScope*scope,
 
       unsigned long max_guard_value = 0;
       map<unsigned long,NetProc*>statement_map;
+      bool has_default_clause = false;
       NetProc*default_statement = 0;
 
       for (size_t item = 0 ;  item < items_.size() ;  item += 1) {
 	    if (items_[item].guard == 0) {
+		  has_default_clause = true;
 		  default_statement = items_[item].statement;
 		  continue;
 	    }
@@ -1173,7 +1214,7 @@ bool NetCase::synth_async(Design*des, NetScope*scope,
 	// If the sel_width can select more than just the explicit
 	// guard values, and there is a default statement, then adjust
 	// the sel_need to allow for the implicit selections.
-      if (default_statement && (sel_width > sel_need))
+	if (has_default_clause && (sel_width > sel_need))
 	    sel_need += 1;
 
 	// The mux size is always an exact power of 2.
@@ -1269,16 +1310,33 @@ bool NetCase::synth_async(Design*des, NetScope*scope,
 	    full_case[mdx] = true;
       }
 
+	// Sparse case values can make mux_size much larger than the number of
+	// explicit clauses. Most mux inputs then share the same default nexuses.
+	// Cache those nexuses so connecting each input remains constant-time
+	// instead of repeatedly walking an ever-growing circular link list. The
+	// default enable is also invariant across all missing selector values.
+      vector<Nexus*> default_out_nex (nex_out.pin_count());
+      vector<Nexus*> default_ena_nex (nex_out.pin_count());
+      vector<bool> default_full_case (nex_out.pin_count());
+      for (size_t mdx = 0 ; mdx < nex_out.pin_count() ; mdx += 1) {
+	    default_out_nex[mdx] = default_out.pin(mdx).nexus();
+	    default_ena_nex[mdx] = default_ena.pin(mdx).nexus();
+	    default_full_case[mdx] =
+		  default_ena.pin(mdx).is_linked(scope->tie_hi());
+      }
+
       for (unsigned idx = 0 ;  idx < mux_size ;  idx += 1) {
 
-	    NetProc*stmt = statement_map[idx];
+	    map<unsigned long,NetProc*>::const_iterator stmt_it =
+		  statement_map.find(idx);
+	    NetProc*stmt = stmt_it == statement_map.end()? 0 : stmt_it->second;
 	    if (stmt==0) {
 		  ivl_assert(*this, default_out.pin_count() == out_mux.size());
 		  for (unsigned mdx = 0 ; mdx < nex_out.pin_count() ; mdx += 1) {
-			connect(out_mux[mdx]->pin_Data(idx), default_out.pin(mdx));
-			connect(ena_mux[mdx]->pin_Data(idx), default_ena.pin(mdx));
+			connect(default_out_nex[mdx], out_mux[mdx]->pin_Data(idx));
+			connect(default_ena_nex[mdx], ena_mux[mdx]->pin_Data(idx));
 			merge_parallel_masks(bitmasks[mdx], default_masks[mdx]);
-			if (!default_ena.pin(mdx).is_linked(scope->tie_hi()))
+			if (!default_full_case[mdx])
 			      full_case[mdx] = false;
 		  }
 		  continue;
@@ -1446,7 +1504,6 @@ bool NetCase::synth_async_casez_(Design*des, NetScope*scope,
 		  continue;
 
 	    NetProc*stmt = items_[item].statement;
-	    ivl_assert(*this, stmt);
 
 	    NetExpr*guard_expr = items_[item].guard;
 	    NetNet*guard = guard_expr->synthesize(des, scope, guard_expr);
@@ -1475,8 +1532,12 @@ bool NetCase::synth_async_casez_(Design*des, NetScope*scope,
 	    for (unsigned pdx = 0 ; pdx < nex_out.pin_count() ; pdx += 1)
 		  connect(tmp_out.pin(pdx), statement_input.pin(pdx));
 
-	    synth_async_block_substatement_(des, scope, nex_map, tmp_out,
-					    tmp_ena, tmp_masks, stmt);
+	    if (stmt) {
+		  bool flag = synth_async_block_substatement_(des, scope, nex_map,
+						  tmp_out, tmp_ena, tmp_masks,
+						  stmt);
+		  if (!flag) return false;
+	    }
 
 	    NetBus prev_ena (scope, nex_out.pin_count());
 	    for (unsigned mdx = 0 ; mdx < nex_out.pin_count() ; mdx += 1) {
@@ -1800,6 +1861,9 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
 	// Calculate the initial value for the index.
       index_var.value = init_expr_->evaluate_function(*this, index_args);
       ivl_assert(*this, index_var.value);
+	// The declaration supplies the assignment context for the initializer.
+	// Preserve it when constant evaluation returns a self-determined literal.
+      index_var.value->cast_signed(index_->get_signed());
       index_args[index_->name()] = index_var;
 
       for (;;) {
@@ -1859,8 +1923,16 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
 		case 0:
 		  break;
 		case '+':
+		  index_var.value = new NetEBAdd('+', tmp, index_var.value,
+					    32, true);
+		  tmp = index_var.value->evaluate_function(*this, index_args);
+		  break;
 		case '-':
-		  index_var.value = new NetEBAdd(assign_operator, tmp, index_var.value, 32, true);
+		    // Subtraction is not commutative: i -= step and i-- mean
+		    // next = current - step, not step - current. Reversing these
+		    // operands makes descending loops alternate forever.
+		  index_var.value = new NetEBAdd('-', index_var.value, tmp,
+					    32, true);
 		  tmp = index_var.value->evaluate_function(*this, index_args);
 		  break;
 
@@ -1869,6 +1941,12 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
 		       << "NetForLoop::synth_async: What to do with assign_operator=" << assign_operator << endl;
 		  ivl_assert(*this, 0);
 	    }
+	    ivl_assert(*this, tmp);
+	      // Constant binary evaluation returns a value-sized expression, but
+	      // the loop variable's declared signedness is the context for the
+	      // next condition. Without restoring it, -1 from a signed int loop
+	      // becomes 32'hffff_ffff and `i >= 0' never terminates.
+	    tmp->cast_signed(index_->get_signed());
 	    delete index_var.value;
 	    index_var.value = tmp;
 	    index_args[index_->name()] = index_var;

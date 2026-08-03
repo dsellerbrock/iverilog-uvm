@@ -498,7 +498,7 @@ asynchronous reset is rejected with an ordinary nonzero exit rather than a
 signal. This does not implement partial resets or bit-level latch enables; it
 makes their current boundary deterministic and non-crashing.
 
-## G22 — Ibex synthesis lowering exceeds its declared resource bound — **open** (current upstream campaign)
+## G22 — Ibex synthesis lowering exceeds its declared resource bound — **fixed** (current upstream campaign)
 
 *[general] — bounded-termination/performance defect, not a cybersecurity finding.*
 
@@ -527,9 +527,17 @@ constant-only `always_comb` warning in `ibex_cs_registers.sv`; that warning is
 removed immediately afterward under G26. The termination hot path therefore
 remains independent of both semantic fixes.
 
-Pass criterion: the pinned core must terminate comfortably below the declared
-bound, with no crash, leaked descendant, fallback process or hard diagnostic.
-Crash removal and cleanup are robustness progress, not a conformance pass.
+G27 through G29 close the independent causes hidden by that timeout: sparse
+ordinary cases were expanded into dense muxes with quadratic nexus searches;
+loop-context select arithmetic was not folded; descending loop subtraction was
+reversed and then lost the signed loop-variable context; and an empty default
+clause was not recorded as a default when reducing a wide selector.
+
+The final exact `ibex-case-fallback-v8` replay of
+`lowrisc:ibex:ibex_core:0.1` at the same pinned OpenTitan revision is `PASS` in
+0.761 seconds: exit 0, 0 hard errors, 0 semantic-debt diagnostics, no timeout
+and no leaked descendant. This is bounded-termination and synthesis-conformance
+closure, not a cybersecurity vulnerability.
 
 ## G23 — disjoint packed fields looked like conflicting whole-vector processes — **fixed** (current upstream campaign)
 
@@ -618,6 +626,61 @@ The warning is removed for `always_comb` only. The existing regression now
 checks the time-zero value without expecting a diagnostic. A sensitivity-free
 `always_latch` remains an error, and legacy `always @*` retains its warning
 because it has no mandatory time-zero execution.
+
+## G27 — sparse ordinary cases expanded into dense muxes — **fixed** (current upstream campaign)
+
+*12.5 / synthesis lowering [general] — bounded termination and exact matching.*
+
+Ibex's CSR write decoder has 77 explicit values over a 12-bit selector and 19
+outputs. The old lowering allocated a 4,096-input data mux and enable mux for
+every output. Missing selections all shared the same default nexus, but every
+connection searched that growing circular list again and every selector value
+rescanned the same default enable. This made a finite decode effectively
+quadratic and consumed the complete 600-second bound.
+
+Sparse ordinary cases now lower as exact case-equality comparisons followed by
+binary muxes, so the circuit scales with explicit clauses. Undefined and
+variable ordinary guards take the same exact-comparison path instead of being
+coerced to unsigned mux indices. Dense cases retain their compact mux lowering,
+with cached default nexuses and one invariant default-enable check so their
+construction is linear. `synth_sparse_case.v` checks the Ibex-shaped 12-bit
+decode and an empty default in ordinary and `-S` execution. The pre-existing
+`casesynth8.v` regression is now a passing synthesis case for a variable guard,
+rather than an expected compile error.
+
+## G28 — procedural loop context lost constant indices and signed decrement semantics — **fixed** (current upstream campaign)
+
+*11.5 / 12.7 [general] — contextualization and bounded termination.*
+
+The synthesis unroller knew each procedural `for` index value, but expressions
+such as `matrix[i][i-BASE]` remained dynamic selects because only a literal
+`NetEConst` base selected the fixed lowering. Loop-only base expressions are
+now evaluated in the current iteration context and become fixed selects.
+
+Ibex also exposed two basic descending-loop defects in
+`for (int i = 14; i >= 0; i--)`: subtract-assignment constructed `step-current`
+instead of `current-step`, producing `14,-13,14,...`; after correcting the
+operand order, constant folding dropped the declared signed `int` context, so
+`-1` became unsigned `32'hffff_ffff` and still satisfied `i >= 0`. Initializers
+and step results now retain the loop variable's declared signedness.
+`synth_for_loop_index_select.v` checks the packed-matrix selection shape;
+`synth_for_loop_descending.v` checks both `i--` and `i -= 2` with a signed
+termination comparison.
+
+## G29 — empty case default was lost during selector reduction — **fixed** (current upstream campaign)
+
+*12.5.3 [general] — incorrect fallback selection and compiler assertion.*
+
+An empty `default: ;` has a null statement pointer but is still a present
+default clause. Dense case lowering used the pointer itself as the presence
+test, reduced Ibex's 3-bit selector for explicit values 0 and 1 to one bit, and
+asserted because the reduction helper requires a fallback selector bit.
+
+Default presence is now tracked independently of the statement body. A wide
+case with no written default uses the exact comparison chain when narrowing
+would fold unmatched high values onto an explicit arm. The
+`synth_case_wide_select_fallback.v` regression value-checks both an empty
+default and the implicit no-default fallback for selector values 0, 1, 2 and 7.
 
 ---
 

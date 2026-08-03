@@ -100,6 +100,7 @@ case5-syn-fail		CE			ivltests
 case6			normal			ivltests
 case7			normal			ivltests
 case_wo_default		normal			ivltests
+synth_case_wide_select_fallback normal,-g2012	ivltests
 casesynth1		normal			ivltests
 casesynth2		normal			ivltests
 casesynth3		normal			ivltests
@@ -107,7 +108,7 @@ casesynth4		normal			ivltests
 casesynth5		normal			ivltests
 casesynth6		normal			ivltests
 casesynth7		normal			ivltests gold=casesynth7.gold
-casesynth8		CE			ivltests
+casesynth8		normal			ivltests
 casesynth9		normal			ivltests
 condit1			normal			ivltests
 conditsynth1		normal			ivltests
@@ -116,6 +117,9 @@ conditsynth3		normal			ivltests
 ff_dual_enable		normal			ivltests
 for_loop_synth		normal			ivltests
 for_loop_synth2		normal			ivltests
+synth_for_loop_descending normal,-g2012	ivltests
+synth_for_loop_index_select normal,-g2012	ivltests
+synth_sparse_case	normal,-g2012	ivltests
 if_part_no_else		normal			ivltests
 if_part_no_else2	normal			ivltests
 inside_synth		normal			ivltests
