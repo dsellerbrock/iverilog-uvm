@@ -94,6 +94,19 @@ class vvp_cobject : public vvp_object {
       void set_cov_trans_mask(uint64_t key, uint64_t mask) {
 	    cov_trans_[key] = mask;
       }
+	// Per-instance counters for constructor-dependent bin families.
+      uint32_t cov_dyn_count(unsigned family, uint64_t bin) const
+      { auto it = cov_dyn_counts_.find(std::make_pair(family, bin));
+	return it == cov_dyn_counts_.end() ? 0 : it->second; }
+      void cov_dyn_bump(unsigned family, uint64_t bin)
+      { cov_dyn_counts_[std::make_pair(family, bin)] += 1;
+	defn_->dyn_type_bump(family, bin); }
+      uint64_t cov_dyn_hits(unsigned family, unsigned at_least) const
+      { uint64_t hits = 0;
+	for (auto&entry : cov_dyn_counts_)
+	      if (entry.first.first == family && entry.second >= at_least)
+		    hits += 1;
+	return hits; }
 	// M11: covergroup start()/stop() sampling enable.
       bool cov_enabled() const { return cov_enabled_; }
       void set_cov_enabled(bool f) { cov_enabled_ = f; }
@@ -129,6 +142,7 @@ class vvp_cobject : public vvp_object {
       std::vector<bool> constraint_mode_;
       std::map<size_t, std::vector<bool> > randc_history_;
       std::map<uint64_t, uint64_t> cov_trans_;
+      std::map<std::pair<unsigned,uint64_t>,uint32_t> cov_dyn_counts_;
       bool cov_enabled_ = true;
 	// Lazily-allocated per-instance event nets, keyed by event slot.
       std::map<uint32_t, class vvp_net_t*> inst_events_;

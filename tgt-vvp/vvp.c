@@ -26,6 +26,7 @@
 # include  <sys/types.h>
 # include  <sys/stat.h>
 # include  <signal.h>
+# include  <stdint.h>
 
 static const char*version_string =
 "Icarus Verilog VVP Code Generator " VERSION " (" VERSION_TAG ")\n\n"
@@ -52,6 +53,190 @@ unsigned show_file_line = 0;
 int debug_draw = 0;
 
 static ivl_design_t saved_design = NULL;
+
+/* Normal INITIAL processes all enter the Active region at time zero. The
+ * standard deliberately leaves their relative execution order unspecified,
+ * but a deterministic lexical order is both legal and important for source
+ * compatibility. In particular, OpenTitan initializes a simulation-only
+ * value in a module-level INITIAL and checks it from a later generate scope.
+ *
+ * The core/dll handoff reverses the process list, which used to put generate
+ * INITIAL processes ahead of earlier module-level INITIAL processes. Collect
+ * the target processes and restore source-line order for normal INITIALs from
+ * the same source file and containing module instance. Pre-simulation static
+ * initializers keep their existing, separately constrained order.
+ */
+struct process_list_s {
+      ivl_process_t*items;
+      size_t count;
+      size_t capacity;
+};
+
+static int collect_process(ivl_process_t net, void*data)
+{
+      struct process_list_s*list = (struct process_list_s*)data;
+      if (list->count == list->capacity) {
+            size_t new_capacity = list->capacity ? 2 * list->capacity : 256;
+            ivl_process_t*new_items = (ivl_process_t*)realloc(
+                  list->items, new_capacity * sizeof(ivl_process_t));
+            assert(new_items);
+            list->items = new_items;
+            list->capacity = new_capacity;
+      }
+      list->items[list->count++] = net;
+      return 0;
+}
+
+static int process_is_normal_initial(ivl_process_t net)
+{
+      unsigned idx;
+      if (ivl_process_type(net) != IVL_PR_INITIAL)
+            return 0;
+
+      for (idx = 0; idx < ivl_process_attr_cnt(net); idx += 1) {
+            ivl_attribute_t attr = ivl_process_attr_val(net, idx);
+            if (strcmp(attr->key, "_ivl_schedule_init") == 0)
+                  return 0;
+      }
+      return 1;
+}
+
+static ivl_scope_t process_containing_module(ivl_process_t net)
+{
+      ivl_scope_t scope = ivl_process_scope(net);
+      while (scope && ivl_scope_type(scope) != IVL_SCT_MODULE)
+            scope = ivl_scope_parent(scope);
+      return scope;
+}
+
+struct lexical_process_s {
+      ivl_process_t process;
+      ivl_scope_t module;
+      const char*file;
+      unsigned line;
+      size_t position;
+};
+
+static int compare_lexical_group(const struct lexical_process_s*left,
+                                 const struct lexical_process_s*right)
+{
+      /* uintptr_t gives qsort a total order without relational comparison
+       * between unrelated opaque scope pointers. */
+      uintptr_t left_module = (uintptr_t)left->module;
+      uintptr_t right_module = (uintptr_t)right->module;
+      if (left_module < right_module) return -1;
+      if (left_module > right_module) return 1;
+      return strcmp(left->file, right->file);
+}
+
+static int compare_lexical_line(const void*left_arg, const void*right_arg)
+{
+      const struct lexical_process_s*left =
+            (const struct lexical_process_s*)left_arg;
+      const struct lexical_process_s*right =
+            (const struct lexical_process_s*)right_arg;
+      int group_cmp = compare_lexical_group(left, right);
+      if (group_cmp) return group_cmp;
+      if (left->line < right->line) return -1;
+      if (left->line > right->line) return 1;
+      if (left->position < right->position) return -1;
+      if (left->position > right->position) return 1;
+      return 0;
+}
+
+static int compare_lexical_position(const void*left_arg, const void*right_arg)
+{
+      const struct lexical_process_s*left =
+            (const struct lexical_process_s*)left_arg;
+      const struct lexical_process_s*right =
+            (const struct lexical_process_s*)right_arg;
+      int group_cmp = compare_lexical_group(left, right);
+      if (group_cmp) return group_cmp;
+      if (left->position < right->position) return -1;
+      if (left->position > right->position) return 1;
+      return 0;
+}
+
+static void order_normal_initials_lexically(struct process_list_s*list)
+{
+      struct lexical_process_s*by_line;
+      struct lexical_process_s*by_position;
+      size_t eligible_count = 0;
+      size_t idx;
+
+      if (list->count < 2)
+            return;
+
+      by_line = (struct lexical_process_s*)malloc(
+            list->count * sizeof(struct lexical_process_s));
+      assert(by_line);
+
+      for (idx = 0; idx < list->count; idx += 1) {
+            ivl_process_t process = list->items[idx];
+            ivl_scope_t module;
+            const char*file;
+            unsigned line;
+            if (!process_is_normal_initial(process))
+                  continue;
+            module = process_containing_module(process);
+            file = ivl_process_file(process);
+            line = ivl_process_lineno(process);
+            if (!module || ivl_scope_program(module) || !file || line == 0)
+                  continue;
+            by_line[eligible_count].process = process;
+            by_line[eligible_count].module = module;
+            by_line[eligible_count].file = file;
+            by_line[eligible_count].line = line;
+            by_line[eligible_count].position = idx;
+            eligible_count += 1;
+      }
+
+      if (eligible_count < 2) {
+            free(by_line);
+            return;
+      }
+
+      by_position = (struct lexical_process_s*)malloc(
+            eligible_count * sizeof(struct lexical_process_s));
+      assert(by_position);
+      memcpy(by_position, by_line,
+             eligible_count * sizeof(struct lexical_process_s));
+
+      qsort(by_line, eligible_count, sizeof(struct lexical_process_s),
+            compare_lexical_line);
+      qsort(by_position, eligible_count, sizeof(struct lexical_process_s),
+            compare_lexical_position);
+
+      for (idx = 0; idx < eligible_count; idx += 1) {
+            assert(compare_lexical_group(&by_line[idx], &by_position[idx]) == 0);
+            list->items[by_position[idx].position] = by_line[idx].process;
+      }
+
+      free(by_position);
+      free(by_line);
+}
+
+static int draw_processes(ivl_design_t des)
+{
+      struct process_list_s list = { 0, 0, 0 };
+      size_t idx;
+      int rc;
+
+      rc = ivl_design_process(des, collect_process, &list);
+      if (rc != 0) {
+            free(list.items);
+            return rc;
+      }
+
+      order_normal_initials_lexically(&list);
+      for (idx = 0; idx < list.count; idx += 1) {
+            rc = draw_process(list.items[idx], 0);
+            if (rc != 0)
+                  break;
+      }
+      free(list.items);
+      return rc;
+}
 
 /* Accessor for tgt-vvp helpers that need design-wide scope navigation
  * (e.g. randomize() pre/post-hook lookup in eval_vec4.c). */
@@ -262,7 +447,7 @@ int target_design(ivl_design_t des)
         /* Finish up any modpaths that are not yet emitted. */
       cleanup_modpath();
 
-      rc = ivl_design_process(des, draw_process, 0);
+      rc = draw_processes(des);
 
       emit_deferred_array_decls();
 

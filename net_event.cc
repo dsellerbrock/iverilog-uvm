@@ -165,9 +165,9 @@ static bool vif_probes_match_(const NetEvProbe*a, const NetEvProbe*b)
       return a->is_vif_anyedge() == b->is_vif_anyedge()
 	  && a->is_vif_posedge() == b->is_vif_posedge()
 	  && a->is_vif_negedge() == b->is_vif_negedge()
-	  && a->vif_N() == b->vif_N()
 	  && a->vif_M() == b->vif_M()
-	  && a->vif_pre_N() == b->vif_pre_N();
+	  && a->vif_path() == b->vif_path()
+	  && a->vif_root_pin() == b->vif_root_pin();
 }
 
 void NetEvent::find_similar_event(list<NetEvent*>&event_list)
@@ -280,7 +280,21 @@ NexusSet* NetEvent::nex_async_()
 
 	    for (unsigned idx = 0 ;  idx < cur->pin_count() ;  idx += 1) {
 		  Nexus*nex = cur->pin(idx).nexus();
-		  tmp->add(nex, 0, nex->vector_width());
+		  bool precise_part = false;
+		  for (Link*link = nex->first_nlink(); link;
+		       link = link->next_nlink()) {
+			NetPartSelect*select =
+			      dynamic_cast<NetPartSelect*>(link->get_obj());
+			if (!select || select->dir() != NetPartSelect::VP
+			    || link->get_pin() != 0)
+			      continue;
+			tmp->add(select->pin(1).nexus(), select->base(),
+				 select->width());
+			precise_part = true;
+			break;
+		  }
+		  if (!precise_part)
+			tmp->add(nex, 0, nex->vector_width());
 	    }
       }
 
@@ -465,6 +479,11 @@ void NetEvProbe::set_vif_posedge(unsigned N, unsigned M, unsigned pre_N)
       vif_N_ = N;
       vif_M_ = M;
       vif_pre_N_ = pre_N;
+      vif_path_.clear();
+      if (pre_N != UINT_MAX)
+	    vif_path_.push_back(pre_N);
+      if (N != UINT_MAX)
+	    vif_path_.push_back(N);
 }
 
 void NetEvProbe::set_vif_negedge(unsigned N, unsigned M, unsigned pre_N)
@@ -473,6 +492,11 @@ void NetEvProbe::set_vif_negedge(unsigned N, unsigned M, unsigned pre_N)
       vif_N_ = N;
       vif_M_ = M;
       vif_pre_N_ = pre_N;
+      vif_path_.clear();
+      if (pre_N != UINT_MAX)
+	    vif_path_.push_back(pre_N);
+      if (N != UINT_MAX)
+	    vif_path_.push_back(N);
 }
 
 void NetEvProbe::set_vif_anyedge(unsigned N, unsigned M, unsigned pre_N)
@@ -481,6 +505,72 @@ void NetEvProbe::set_vif_anyedge(unsigned N, unsigned M, unsigned pre_N)
       vif_N_ = N;
       vif_M_ = M;
       vif_pre_N_ = pre_N;
+      vif_path_.clear();
+      if (pre_N != UINT_MAX)
+	    vif_path_.push_back(pre_N);
+      if (N != UINT_MAX)
+	    vif_path_.push_back(N);
+}
+
+void NetEvProbe::set_vif_posedge_path(const vector<unsigned>&path, unsigned M)
+{
+      is_vif_posedge_ = true;
+      vif_path_ = path;
+      vif_M_ = M;
+      vif_N_ = path.empty() ? UINT_MAX : path.back();
+      vif_pre_N_ = path.size() == 2 ? path.front() : UINT_MAX;
+}
+
+void NetEvProbe::set_vif_negedge_path(const vector<unsigned>&path, unsigned M)
+{
+      is_vif_negedge_ = true;
+      vif_path_ = path;
+      vif_M_ = M;
+      vif_N_ = path.empty() ? UINT_MAX : path.back();
+      vif_pre_N_ = path.size() == 2 ? path.front() : UINT_MAX;
+}
+
+void NetEvProbe::set_vif_anyedge_path(const vector<unsigned>&path, unsigned M)
+{
+      is_vif_anyedge_ = true;
+      vif_path_ = path;
+      vif_M_ = M;
+      vif_N_ = path.empty() ? UINT_MAX : path.back();
+      vif_pre_N_ = path.size() == 2 ? path.front() : UINT_MAX;
+}
+
+void NetEvProbe::set_obj_mutation(unsigned N, unsigned pre_N,
+                                  unsigned root_pin)
+{
+      is_obj_mutation_ = true;
+      obj_N_ = N;
+      obj_pre_N_ = pre_N;
+      obj_root_pin_ = root_pin;
+      obj_mutation_N_.clear();
+      obj_mutation_pre_N_.clear();
+      obj_mutation_root_pin_.clear();
+      add_obj_mutation(N, pre_N, root_pin);
+}
+
+void NetEvProbe::add_obj_mutation(unsigned N, unsigned pre_N,
+                                  unsigned root_pin)
+{
+      for (unsigned idx = 0 ; idx < obj_mutation_N_.size() ; idx += 1) {
+            if (obj_mutation_N_[idx] == N
+                && obj_mutation_pre_N_[idx] == pre_N
+                && obj_mutation_root_pin_[idx] == root_pin)
+                  return;
+      }
+
+      is_obj_mutation_ = true;
+      if (obj_mutation_N_.empty()) {
+            obj_N_ = N;
+            obj_pre_N_ = pre_N;
+            obj_root_pin_ = root_pin;
+      }
+      obj_mutation_N_.push_back(N);
+      obj_mutation_pre_N_.push_back(pre_N);
+      obj_mutation_root_pin_.push_back(root_pin);
 }
 
 NetEvProbe::~NetEvProbe()

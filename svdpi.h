@@ -1,10 +1,8 @@
 #ifndef IVL_svdpi_H
 #define IVL_svdpi_H
 /*
- * svdpi.h — SystemVerilog DPI (IEEE1800-2017 Annex H) subset for
- * Icarus Verilog. Covers the scalar type mappings and the
- * one-dimensional open-array accessors implemented by the vvp
- * runtime. Symbols resolve from the vvp executable when the DPI
+ * svdpi.h — SystemVerilog DPI definitions (IEEE1800-2017 Annex H) for
+ * Icarus Verilog. Symbols resolve from the vvp executable when the DPI
  * library is loaded with `vvp -d libfoo.so`.
  *
  *    This source code is free software; you can redistribute it
@@ -39,7 +37,10 @@ typedef void* svOpenArrayHandle;
  * svBitVecVal is 2-state (one word per 32 bits); svLogicVecVal adds a
  * b (control) word for the Z/X state. */
 typedef uint32_t svBitVecVal;
-typedef struct t_vpi_vecval svLogicVecVal;
+typedef struct {
+      uint32_t aval;
+      uint32_t bval;
+} svLogicVecVal;
 
 /* Scope handle (H.9). A svScope is an opaque handle to a SystemVerilog
  * instance scope; in this implementation it is a vpiHandle for the
@@ -62,9 +63,7 @@ extern svScope svGetScopeFromName(const char* scopeName);
 extern const char* svGetNameFromScope(svScope scope);
 extern const char* svGetFullNameFromScope(const svScope scope);
 
-/* Open-array queries (H.12.2). This implementation marshals
- * one-dimensional, zero-based open arrays of 2-state atom types
- * (byte/shortint/int/longint, signed or unsigned) and real. */
+/* Open-array queries (H.12.2). */
 extern int  svDimensions(const void*h);
 extern int  svSize(const void*h, int dim);      /* dim is 1 */
 extern int  svLow(const void*h, int dim);       /* always 0 */
@@ -82,6 +81,82 @@ extern void* svGetArrElemPtr1(const void*h, int indx1);
 extern void* svGetArrElemPtr2(const void*h, int indx1, int indx2);
 extern void* svGetArrElemPtr3(const void*h, int indx1, int indx2, int indx3);
 extern void* svGetArrayPtr(const void*h);
+
+/* Packed element copy accessors (H.12.3). These are the canonical-copy
+ * counterparts to svGetArrElemPtr: they also work when the simulator's
+ * packed element representation is not directly addressable from C. */
+extern void svPutBitArrElemVecVal(const svOpenArrayHandle d,
+                                 const svBitVecVal*s, int indx1, ...);
+extern void svPutBitArrElem1VecVal(const svOpenArrayHandle d,
+                                  const svBitVecVal*s, int indx1);
+extern void svPutBitArrElem2VecVal(const svOpenArrayHandle d,
+                                  const svBitVecVal*s, int indx1, int indx2);
+extern void svPutBitArrElem3VecVal(const svOpenArrayHandle d,
+                                  const svBitVecVal*s, int indx1, int indx2,
+                                  int indx3);
+
+extern void svPutLogicArrElemVecVal(const svOpenArrayHandle d,
+                                   const svLogicVecVal*s, int indx1, ...);
+extern void svPutLogicArrElem1VecVal(const svOpenArrayHandle d,
+                                    const svLogicVecVal*s, int indx1);
+extern void svPutLogicArrElem2VecVal(const svOpenArrayHandle d,
+                                    const svLogicVecVal*s, int indx1,
+                                    int indx2);
+extern void svPutLogicArrElem3VecVal(const svOpenArrayHandle d,
+                                    const svLogicVecVal*s, int indx1,
+                                    int indx2, int indx3);
+
+extern void svGetBitArrElemVecVal(svBitVecVal*d,
+                                 const svOpenArrayHandle s, int indx1, ...);
+extern void svGetBitArrElem1VecVal(svBitVecVal*d,
+                                  const svOpenArrayHandle s, int indx1);
+extern void svGetBitArrElem2VecVal(svBitVecVal*d,
+                                  const svOpenArrayHandle s, int indx1,
+                                  int indx2);
+extern void svGetBitArrElem3VecVal(svBitVecVal*d,
+                                  const svOpenArrayHandle s, int indx1,
+                                  int indx2, int indx3);
+
+extern void svGetLogicArrElemVecVal(svLogicVecVal*d,
+                                   const svOpenArrayHandle s, int indx1, ...);
+extern void svGetLogicArrElem1VecVal(svLogicVecVal*d,
+                                    const svOpenArrayHandle s, int indx1);
+extern void svGetLogicArrElem2VecVal(svLogicVecVal*d,
+                                    const svOpenArrayHandle s, int indx1,
+                                    int indx2);
+extern void svGetLogicArrElem3VecVal(svLogicVecVal*d,
+                                    const svOpenArrayHandle s, int indx1,
+                                    int indx2, int indx3);
+
+/* Scalar packed-element accessors (H.12.3). */
+extern svBit svGetBitArrElem(const svOpenArrayHandle s, int indx1, ...);
+extern svBit svGetBitArrElem1(const svOpenArrayHandle s, int indx1);
+extern svBit svGetBitArrElem2(const svOpenArrayHandle s, int indx1, int indx2);
+extern svBit svGetBitArrElem3(const svOpenArrayHandle s, int indx1, int indx2,
+                             int indx3);
+extern svLogic svGetLogicArrElem(const svOpenArrayHandle s, int indx1, ...);
+extern svLogic svGetLogicArrElem1(const svOpenArrayHandle s, int indx1);
+extern svLogic svGetLogicArrElem2(const svOpenArrayHandle s, int indx1,
+                                 int indx2);
+extern svLogic svGetLogicArrElem3(const svOpenArrayHandle s, int indx1,
+                                 int indx2, int indx3);
+
+extern void svPutBitArrElem(const svOpenArrayHandle d, svBit value,
+                           int indx1, ...);
+extern void svPutBitArrElem1(const svOpenArrayHandle d, svBit value,
+                            int indx1);
+extern void svPutBitArrElem2(const svOpenArrayHandle d, svBit value,
+                            int indx1, int indx2);
+extern void svPutBitArrElem3(const svOpenArrayHandle d, svBit value,
+                            int indx1, int indx2, int indx3);
+extern void svPutLogicArrElem(const svOpenArrayHandle d, svLogic value,
+                             int indx1, ...);
+extern void svPutLogicArrElem1(const svOpenArrayHandle d, svLogic value,
+                              int indx1);
+extern void svPutLogicArrElem2(const svOpenArrayHandle d, svLogic value,
+                              int indx1, int indx2);
+extern void svPutLogicArrElem3(const svOpenArrayHandle d, svLogic value,
+                              int indx1, int indx2, int indx3);
 
 #ifdef __cplusplus
 }

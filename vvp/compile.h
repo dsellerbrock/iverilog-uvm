@@ -645,8 +645,13 @@ extern void compile_class_covgrp_bin(uint64_t cp_idx, uint64_t prop_idx,
 				     uint64_t lo, uint64_t hi,
 				     uint64_t kind = 0, uint64_t tuple = 0,
 				     uint64_t item_idx = 0);
+extern void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
+					 uint64_t kind, uint64_t family,
+					 uint64_t array_size, char*name,
+					 char*lo_ir, char*hi_ir);
 extern void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
-				      uint64_t is_cross, char*name = 0);
+				      uint64_t is_cross, char*name = 0,
+				      char*weight_ir = 0);
 extern void compile_class_covgrp_parent(uint64_t prop);
 extern void compile_class_covgrp_src(uint64_t srcprop, uint64_t guardsrc);
 extern void compile_class_done(void);

@@ -1,12 +1,11 @@
 // M10-1/R7: open-array bounds accessors (IEEE 1800-2017 H.10.1/H.10.2).
 //
-// Two of them returned hardcoded values that were silently wrong:
+// Two of them returned hardcoded or incomplete values that were silently
+// wrong:
 //
-//   svIncrement always returned -1. H.10.2 defines it as +1 when
-//   left <= right and -1 when left > right, and every array that can be
-//   marshaled today is a dynamic array -- 0-based ascending -- so the
-//   answer was wrong for all of them. A C model stepping an index by
-//   svIncrement walked the wrong way, with no diagnostic.
+//   svIncrement used one hardcoded direction. H.10.2 shares $increment's
+//   right-to-left semantics: +1 when left >= right and -1 otherwise, so a
+//   traversal from left to right subtracts the returned value.
 //
 //   svSizeOfArray computed `length * elem_bytes'. That is right for a 1-D
 //   array but returns 0 for a multi-dimensional one, because the outer
@@ -16,7 +15,7 @@
 // The C side returns a bitmask of failures so a wrong value is a test
 // failure rather than something a human has to spot in a log. The checks
 // are written against values that differ from the old hardcoded ones:
-// increment must be +1, and the 2x3 int array must be 24 bytes.
+// ascending increment must be -1, and the 2x3 int array must be 24 bytes.
 //
 // svLow returning 0 is correct for these arrays but only incidentally --
 // dynamic arrays are 0-based. A fixed-size array with a declared range
@@ -46,14 +45,13 @@ module m10_dpi_open_array_bounds_test;
 
   initial begin
     // 1-D: 8 ints -> size 8, low 0, high 7, left 0, right 7,
-    //               increment +1, sizeOfArray 32.
+    //               increment -1, sizeOfArray 32.
     d = new[8];
     foreach (d[i]) d[i] = i * 3;
     check("c_bounds_1d", c_bounds_1d(d));
 
-    // A C loop driven by svLow/svHigh/svIncrement must visit every
-    // element exactly once and in order. With increment -1 it used to
-    // walk away from the array immediately.
+    // A C loop using the right-to-left svIncrement convention must visit
+    // every element exactly once and in order (subtract the increment).
     check("c_walk_by_increment", c_walk_by_increment(d));
 
     // 2-D: 2 x 3 ints -> dims 2, sizes 2 and 3, sizeOfArray 24.

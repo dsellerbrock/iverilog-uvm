@@ -465,6 +465,14 @@ static void elaborate_scope_enumeration(Design*des, NetScope*scope,
 
       netenum_t *use_enum = scope->enumeration_for_key(enum_type);
 
+	// Class methods and parameterized type specializations may ask the
+	// same lexical scope to elaborate more than once. Enum literals are
+	// immutable once closed; reinserting them diagnoses each name as a
+	// duplicate and used to assert in netenum_t::insert_name. Treat the
+	// completed typespec as the idempotence boundary.
+      if (use_enum->names_closed())
+	    return;
+
       size_t name_idx = 0;
 	// Find the enumeration width.
       long raw_width = use_enum->packed_width();
@@ -1243,6 +1251,127 @@ static bool overrides_match_parameter_order_(const parmvalue_t*overrides,
       return expr_it == overrides->by_order->end() && name_it == param_order.end();
 }
 
+/* Class specializations are types, so equivalent named and positional
+ * parameter assignments must select the same netclass_t.  In particular,
+ * UVM parameterized registries commonly spell a class once as C#(A,B) and
+ * again in a self typedef as C#(.T(A),.U(B),.R(A)), where R defaults to T.
+ * Keeping the source spelling in the cache key makes those two legal uses
+ * unrelated class types and causes derived-to-base $cast operations to fail.
+ *
+ * Express the complete effective parameter list in declaration order.  A
+ * default which is a bare reference to an earlier formal uses that formal's
+ * effective key; more complicated dependent defaults remain conservatively
+ * source-sensitive.
+ */
+static std::string canonical_specialization_parm_key_(
+		Design*des, NetScope*call_scope, NetScope*definition_scope,
+		const parmvalue_t*overrides, const PClass*pclass)
+{
+      if (!overrides || !pclass)
+	    return parmvalue_cache_key_(des, call_scope, overrides);
+
+      /* Single-parameter UVM traversal templates are deliberately visited
+       * with unresolved formals during the compile-progress pass.  Preserve
+       * their source-sensitive key until that dead-template path is removed;
+       * the identity bug addressed here requires a dependent default in a
+       * multi-parameter class. */
+      if (pclass->parameter_order.size() < 2)
+	    return parmvalue_cache_key_(des, call_scope, overrides);
+
+      bool has_bare_dependent_default = false;
+      std::set<perm_string> prior_formals;
+      for (std::list<perm_string>::const_iterator name_it =
+		   pclass->parameter_order.begin()
+	   ; name_it != pclass->parameter_order.end(); ++name_it) {
+	    std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator formal =
+		  pclass->parameters.find(*name_it);
+	    if (formal != pclass->parameters.end() && formal->second) {
+		  for (std::set<perm_string>::const_iterator prior =
+		       prior_formals.begin(); prior != prior_formals.end(); ++prior) {
+			if (pexpr_matches_parameter_name_(formal->second->expr, *prior)) {
+			      has_bare_dependent_default = true;
+			      break;
+			}
+		  }
+	    }
+	    prior_formals.insert(*name_it);
+      }
+      if (!has_bare_dependent_default)
+	    return parmvalue_cache_key_(des, call_scope, overrides);
+
+      std::map<perm_string,const PExpr*> supplied;
+      if (overrides->by_order) {
+	    std::list<perm_string>::const_iterator name_it =
+		  pclass->parameter_order.begin();
+	    for (std::list<PExpr*>::const_iterator expr_it =
+		       overrides->by_order->begin()
+		 ; expr_it != overrides->by_order->end(); ++expr_it) {
+		  if (name_it == pclass->parameter_order.end())
+			return parmvalue_cache_key_(des, call_scope, overrides);
+		  supplied[*name_it++] = *expr_it;
+	    }
+      } else if (overrides->by_name) {
+	    for (std::list<named_pexpr_t>::const_iterator cur =
+		       overrides->by_name->begin()
+		 ; cur != overrides->by_name->end(); ++cur) {
+		  if (pclass->parameters.find(cur->name) == pclass->parameters.end()
+		      || supplied.find(cur->name) != supplied.end())
+			return parmvalue_cache_key_(des, call_scope, overrides);
+		  supplied[cur->name] = cur->parm;
+	    }
+      } else {
+	    return parmvalue_cache_key_(des, call_scope, overrides);
+      }
+
+      std::map<perm_string,std::string> effective;
+      std::ostringstream out;
+      out << "C";
+      for (std::list<perm_string>::const_iterator name_it =
+		   pclass->parameter_order.begin()
+	   ; name_it != pclass->parameter_order.end(); ++name_it) {
+	    std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator formal =
+		  pclass->parameters.find(*name_it);
+	    if (formal == pclass->parameters.end() || !formal->second
+		|| !formal->second->expr || !formal->second->type_flag)
+		  return parmvalue_cache_key_(des, call_scope, overrides);
+
+	    const PExpr*default_expr = formal->second->expr;
+	    std::string default_key;
+	    for (std::map<perm_string,std::string>::const_iterator prior =
+		       effective.begin(); prior != effective.end(); ++prior) {
+		  if (pexpr_matches_parameter_name_(default_expr, prior->first)) {
+			default_key = prior->second;
+			break;
+		  }
+	    }
+	    if (default_key.empty()) {
+		  std::ostringstream tmp;
+		  append_cache_expr_key_(des, definition_scope, tmp, default_expr);
+		  default_key = tmp.str();
+	    }
+
+	    std::map<perm_string,const PExpr*>::const_iterator actual =
+		  supplied.find(*name_it);
+	    if (actual == supplied.end()) {
+		  if (default_key.compare(0, 12, "<class-type:") != 0)
+			return parmvalue_cache_key_(des, call_scope, overrides);
+		  effective[*name_it] = default_key;
+		  out << "|" << *name_it << "=" << default_key;
+		  continue;
+	    }
+
+	    std::ostringstream tmp;
+	    append_cache_expr_key_(des, call_scope, tmp, actual->second);
+	    const std::string actual_key = tmp.str();
+	    if (actual_key.compare(0, 12, "<class-type:") != 0)
+		  return parmvalue_cache_key_(des, call_scope, overrides);
+	    effective[*name_it] = actual_key;
+	    out << "|" << *name_it << "=" << actual_key;
+      }
+
+      return out.str();
+}
+
 static void apply_specialized_class_overrides_(Design*des, NetScope*class_scope,
 					       const parmvalue_t*overrides,
 					       NetScope*call_scope,
@@ -1485,15 +1614,21 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       }
 
       static std::map<std::string,const netclass_t*> cache;
-      std::ostringstream key;
+      static std::map<std::string,const netclass_t*> semantic_cache;
+      std::ostringstream key_prefix;
 	// Use the pclass (parse-tree) pointer as the stable key prefix.
 	// The netclass_t (base_class) pointer is NOT stable — the same
 	// parsed class can be elaborated into multiple netclass_t objects
 	// when mutual-reference cycles are resolved.  pclass is the
 	// unique canonical representative of the class definition.
-      key << (const void*)pclass << "|";
-      key << parmvalue_cache_key_(des, call_scope, overrides);
-      std::string key_str = key.str();
+      key_prefix << (const void*)pclass << "|";
+      const std::string source_key_str = key_prefix.str()
+	    + parmvalue_cache_key_(des, call_scope, overrides);
+      const std::string semantic_parms = canonical_specialization_parm_key_(
+	    des, call_scope, definition_scope, overrides, pclass);
+      const bool has_semantic_key = semantic_parms.compare(0, 2, "C|") == 0;
+      const std::string semantic_key_str = has_semantic_key
+	    ? key_prefix.str() + semantic_parms : std::string();
       if (trace_specialization_key_(base_class)) {
 	    cerr << pclass->get_fileline() << ": trace spec-key"
 		 << " class=" << specialization_perf_base_label_(base_class)
@@ -1502,15 +1637,30 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 		  cerr << scope_path(call_scope);
 	    else
 		  cerr << "<null>";
-	    cerr << " key=" << key_str << endl;
+	    cerr << " key=" << source_key_str;
+	    if (has_semantic_key)
+		  cerr << " semantic-key=" << semantic_key_str;
+	    cerr << endl;
       }
-	      std::map<std::string,const netclass_t*>::const_iterator cached = cache.find(key_str);
+	      const netclass_t*cached_result = 0;
+	      std::map<std::string,const netclass_t*>::const_iterator cached =
+		    cache.find(source_key_str);
 	      if (cached != cache.end()) {
+		    cached_result = cached->second;
+	      } else if (has_semantic_key) {
+		    std::map<std::string,const netclass_t*>::const_iterator semantic_cached =
+			  semantic_cache.find(semantic_key_str);
+		    if (semantic_cached != semantic_cache.end()) {
+			  cached_result = semantic_cached->second;
+			  cache[source_key_str] = cached_result;
+		    }
+	      }
+	      if (cached_result) {
 		    note_specialization_cache_hit_();
-		    netclass_t*cached_class = const_cast<netclass_t*>(cached->second);
+		    netclass_t*cached_class = const_cast<netclass_t*>(cached_result);
 		    if (!fully_elaborate) {
 			  enqueue_pending_specialized_method_seed_(cached_class);
-			  return cached->second;
+			  return cached_result;
 		    }
 		    const PClass*cached_pclass = cached_class->class_scope()
 			  ? cached_class->class_scope()->class_pform() : 0;
@@ -1522,7 +1672,7 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 			      !cached_class->body_elaborating())
 			cached_class->elaborate(des, const_cast<PClass*>(cached_pclass));
 	    }
-	    return cached->second;
+	    return cached_result;
       }
       note_specialization_cache_miss_(base_class);
 
@@ -1552,7 +1702,9 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 	    use_class->set_has_embedded_covergroups(true);
       use_class->set_specialized_instance(true);
       set_scope_timescale(des, class_scope, pclass);
-      cache[key_str] = use_class;
+      cache[source_key_str] = use_class;
+      if (has_semantic_key)
+	    semantic_cache[semantic_key_str] = use_class;
 
       class_scope->add_typedefs(&pclass->typedefs);
       collect_scope_parameters(des, class_scope, pclass->parameters);
@@ -3138,6 +3290,14 @@ void PFunction::elaborate_scope(Design*des, NetScope*scope) const
 
       collect_scope_signals(scope, wires);
 
+	// A typedef enum declared directly in a function belongs to the
+	// function lexical scope. Elaborating only enums from nested named
+	// blocks leaves the netenum_t shape allocated but all literal/name
+	// slots empty, which later makes enum methods and target metadata
+	// unusable. Populate the function-local enum before its declarations
+	// and body are elaborated.
+      elaborate_scope_enumerations(des, scope, enum_sets);
+
 	// Scan through all the named events in this scope.
       elaborate_scope_events_(des, scope, events);
 
@@ -3159,6 +3319,10 @@ void PTask::elaborate_scope(Design*des, NetScope*scope) const
       collect_scope_parameters(des, scope, parameters);
 
       collect_scope_signals(scope, wires);
+
+	// Match functions and every other lexical scope: task-local enum
+	// typedefs must be fully elaborated before local variables use them.
+      elaborate_scope_enumerations(des, scope, enum_sets);
 
 	// Scan through all the named events in this scope.
       elaborate_scope_events_(des, scope, events);

@@ -8,6 +8,7 @@
  *   (ge  p:N:W  c:V)     -- prop[N] >= V
  *   (eq  p:N:W  c:V)     -- prop[N] == V
  *   (ne  p:N:W  c:V)     -- prop[N] != V
+ *   r:I.J.K:W[:s]        -- integral state reached through object props I.J.K
  *   (and expr expr)      -- logical AND
  *   (or  expr expr)      -- logical OR
  *   (not expr)           -- logical NOT
@@ -18,10 +19,12 @@
 # include  "class_type.h"
 # include  "vvp_cobject.h"
 # include  "vvp_darray.h"
+# include  "vvp_assoc.h"
 # include  "vvp_z3.h"
 
 # include  <z3.h>
 # include  <z3_optimization.h>
+# include  <cctype>
 # include  <cstdlib>
 # include  <cstring>
 # include  <sstream>
@@ -30,6 +33,7 @@
 # include  <string>
 # include  <vector>
 # include  <stdint.h>
+# include  <climits>
 
 using namespace std;
 
@@ -47,6 +51,17 @@ static bool z3_dyndbg()
 	    on = (e && *e && strcmp(e, "0") != 0) ? 1 : 0;
       }
       return on != 0;
+}
+
+static bool z3_solve_trace(const class_type*defn)
+{
+      const char*e = getenv("IVL_Z3_SOLVE_TRACE");
+      if (!(e && *e) || strcmp(e, "0") == 0)
+	    return false;
+      if (strcmp(e, "1") == 0 || strcmp(e, "true") == 0
+	  || strcmp(e, "ALL") == 0 || strcmp(e, "*") == 0)
+	    return true;
+      return defn && strstr(defn->class_name().c_str(), e) != 0;
 }
 
 /* Evaluate `var` under `model` and extract it as a uint64.
@@ -402,6 +417,18 @@ struct Z3Builder {
 			  std::set<int> prop_refs; };
       vector<SoftAssert> pending_soft;
 
+      // A soft constraint (or a dist preference) nested on the right of
+      // a constraint implication is active only while every enclosing
+      // guard is true. The IR parser is recursive and records soft/dist
+      // preferences as side effects, so retain those guards explicitly
+      // while parsing the implication RHS.
+      vector<Z3_ast> soft_guards;
+      Z3_ast guard_soft_assert(Z3_ast assertion) const {
+	    for (size_t i = soft_guards.size() ; i-- > 0 ; )
+		  assertion = Z3_mk_implies(ctx, soft_guards[i], assertion);
+	    return assertion;
+      }
+
       // RANDOM-DIST fix #2 (18.5.4): a `dist` node's branches, recorded
       // structurally (not just as OR'd hard clauses + soft preferences)
       // so the solver can draw a value with probability proportional to
@@ -543,12 +570,26 @@ struct Z3Builder {
       std::vector<DynForeach> dyn_foreach;
       const std::map<unsigned,uint64_t>*dyn_sizes = nullptr;
 
-	// solve...before ordering pairs (IEEE 1800-2017 18.5.10):
-	// (first, second) means property `first` is solved in an
-	// earlier stage than property `second`. Collected from
-	// "(order (vars ...) (vars ...))" IR forms; drives the staged
-	// solve in z3_solve_pass_.
-      std::vector<std::pair<unsigned,unsigned> > order_pairs;
+	// solve...before ordering pairs (IEEE 1800-2017 18.5.10). A
+	// selected static-array element is a distinct ordering variable,
+	// rather than collapsing to its owning property: OpenTitan uses
+	// `solve control before table[i]' inside foreach constraint sets.
+      struct OrderRef {
+	    bool is_elem;
+	    unsigned idx;
+	    unsigned elem;
+
+	    bool operator<(const OrderRef&that) const {
+		  if (is_elem != that.is_elem) return is_elem < that.is_elem;
+		  if (idx != that.idx) return idx < that.idx;
+		  return elem < that.elem;
+	    }
+	    bool operator==(const OrderRef&that) const {
+		  return is_elem == that.is_elem && idx == that.idx
+			&& elem == that.elem;
+	    }
+      };
+      std::vector<std::pair<OrderRef,OrderRef> > order_pairs;
 
       Z3Builder(Z3_context c, const class_type* d, vvp_cobject* o)
       : ctx(c), defn(d), cobj(o), opt(0) {}
@@ -573,6 +614,7 @@ struct Z3Builder {
 
 // Forward declaration
 static Z3_ast build_z3_expr(IRParser&, Z3Builder&);
+static uint64_t cobj_prop_bits(vvp_cobject* cobj, unsigned idx);
 static uint64_t cobj_elem_bits(vvp_cobject* cobj, unsigned idx, unsigned elem);
 static uint64_t cobj_darray_size(vvp_cobject* cobj, unsigned idx);
 
@@ -590,6 +632,76 @@ static Z3_ast parse_prop(IRParser&, Z3Builder& b, const string& tok)
       if (sflag) b.signed_vars.insert(var);
       if (b.collect_prop_refs) b.collect_prop_refs->insert((int)idx);
       return var;
+}
+
+// Parse "e:N:W:I[:s]" -- returns the selected array-element variable.
+static Z3_ast parse_elem(IRParser&, Z3Builder& b, const string& tok)
+{
+      const char*s = tok.c_str() + 2; // skip "e:"
+      unsigned idx = (unsigned)atoi(s);
+      while (*s && *s != ':') ++s;
+      unsigned width = 32;
+      if (*s == ':') { width = (unsigned)atoi(s + 1); ++s; }
+      while (*s && *s != ':') ++s;
+      unsigned elem = 0;
+      if (*s == ':') { elem = (unsigned)atoi(s + 1); ++s; }
+      while (*s && *s != ':') ++s;
+      bool sflag = (*s == ':' && s[1] == 's');
+      Z3_ast var = b.get_elem_var(idx, width, elem);
+      if (sflag) b.signed_vars.insert(var);
+      if (b.collect_prop_refs) b.collect_prop_refs->insert((int)idx);
+      return var;
+}
+
+/* Parse r:I.J.K:W[:s]. Unlike p:N:W this is not a solver variable: it is
+ * ordinary object state read through the live class-property chain at the
+ * moment randomize() is called (IEEE 1800-2017 18.3). */
+static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
+{
+      const char*p = tok.c_str() + 2;
+      vector<unsigned> path;
+      while (*p) {
+	    char*end = nullptr;
+	    unsigned idx = (unsigned)strtoul(p, &end, 10);
+	    if (end == p) break;
+	    path.push_back(idx);
+	    p = end;
+	    if (*p == '.') { ++p; continue; }
+	    break;
+      }
+
+      unsigned width = 32;
+      bool sflag = false;
+      if (*p == ':') {
+	    char*end = nullptr;
+	    width = (unsigned)strtoul(p + 1, &end, 10);
+	    if (width == 0 || width > 64) width = 32;
+	    p = end;
+	    sflag = (*p == ':' && p[1] == 's');
+      }
+
+      uint64_t bits = 0;
+      vvp_cobject*cur = b.cobj;
+      if (!path.empty()) {
+	    for (size_t i = 0 ; cur && i + 1 < path.size() ; i += 1) {
+		  vvp_object_t nested;
+		  cur->get_object(path[i], nested, 0);
+		  cur = nested.peek<vvp_cobject>();
+	    }
+	    if (cur) {
+		  vvp_vector4_t vec;
+		  cur->get_vec4(path.back(), vec);
+		  unsigned nbits = vec.size();
+		  if (nbits > 64) nbits = 64;
+		  for (unsigned bit = 0 ; bit < nbits ; bit += 1)
+			if (vec.value(bit) == BIT4_1) bits |= (1ULL << bit);
+	    }
+      }
+
+      Z3_sort sort = Z3_mk_bv_sort(b.ctx, width);
+      Z3_ast val = Z3_mk_unsigned_int64(b.ctx, bits, sort);
+      if (sflag) b.signed_vars.insert(val);
+      return val;
 }
 
 /* Capture the raw text of the remainder of the current form: the
@@ -642,15 +754,30 @@ static string subst_loop_token(const string& body, uint64_t i)
  * "c:V" tokens and (add|sub|mul|div|mod a b) forms, uint64
  * two's-complement arithmetic (matching the elaboration-side
  * folding). Returns false when anything else appears. */
-static bool eval_const_ir(IRParser& par, uint64_t& out)
+static bool eval_const_ir_impl(IRParser& par, uint64_t& out)
 {
       par.skip_ws();
       if (par.peek() == '(') {
 	    par.consume();
 	    string op = par.read_token();
+	    if (op == "ite") {
+		  uint64_t c = 0, t = 0, f = 0;
+		  if (!eval_const_ir_impl(par, c) || !eval_const_ir_impl(par, t)
+		      || !eval_const_ir_impl(par, f)) return false;
+		  par.skip_ws();
+		  if (!par.expect(')')) return false;
+		  out = c ? t : f;
+		  return true;
+	    }
 	    uint64_t a = 0, b = 0;
-	    if (!eval_const_ir(par, a)) return false;
-	    if (!eval_const_ir(par, b)) return false;
+	    if (!eval_const_ir_impl(par, a)) return false;
+	    if (op == "not") {
+		  par.skip_ws();
+		  if (!par.expect(')')) return false;
+		  out = !a;
+		  return true;
+	    }
+	    if (!eval_const_ir_impl(par, b)) return false;
 	    par.skip_ws();
 	    if (!par.expect(')')) return false;
 	    if (op == "add") out = a + b;
@@ -658,6 +785,14 @@ static bool eval_const_ir(IRParser& par, uint64_t& out)
 	    else if (op == "mul") out = a * b;
 	    else if (op == "div") out = b ? a / b : 0;
 	    else if (op == "mod") out = b ? a % b : 0;
+	    else if (op == "lt") out = a < b;
+	    else if (op == "le") out = a <= b;
+	    else if (op == "gt") out = a > b;
+	    else if (op == "ge") out = a >= b;
+	    else if (op == "eq") out = a == b;
+	    else if (op == "ne") out = a != b;
+	    else if (op == "and") out = (a != 0) && (b != 0);
+	    else if (op == "or") out = (a != 0) || (b != 0);
 	    else return false;
 	    return true;
       }
@@ -665,6 +800,19 @@ static bool eval_const_ir(IRParser& par, uint64_t& out)
       if (tok.compare(0, 2, "c:") != 0) return false;
       out = (uint64_t)strtoull(tok.c_str() + 2, nullptr, 10);
       return true;
+}
+
+/* A failed speculative constant parse must not consume part of the next
+ * expression. Dist weights and range endpoints share the same token stream;
+ * leaving the cursor in the middle of a parenthesized nonconstant expression
+ * can strand the outer parser on its closing `)' forever. */
+static bool eval_const_ir(IRParser& par, uint64_t& out)
+{
+      const char* start = par.p;
+      if (eval_const_ir_impl(par, out))
+	    return true;
+      par.p = start;
+      return false;
 }
 
 // Get width from a Z3 bitvector AST
@@ -695,6 +843,20 @@ static Z3_ast bv_to_bool(Z3_context ctx, Z3_ast a)
       return a;
 }
 
+/* Relational/logical expressions are one-bit integral values when they feed
+ * an ordinary SystemVerilog expression. Z3 represents them as Bool, so a
+ * mixed ternary such as cond ? 16'hffff : (nco < limit) must convert the
+ * Boolean branch back to bit[0:0] before branch sizing. */
+static Z3_ast bool_to_bv1(Z3_context ctx, Z3_ast a)
+{
+      Z3_sort sort = Z3_get_sort(ctx, a);
+      if (Z3_get_sort_kind(ctx, sort) != Z3_BOOL_SORT) return a;
+      Z3_sort bv1 = Z3_mk_bv_sort(ctx, 1);
+      Z3_ast one = Z3_mk_unsigned_int64(ctx, 1, bv1);
+      Z3_ast zero = Z3_mk_unsigned_int64(ctx, 0, bv1);
+      return Z3_mk_ite(ctx, a, one, zero);
+}
+
 static Z3_ast build_z3_atom(IRParser& par, Z3Builder& b)
 {
       par.skip_ws();
@@ -705,6 +867,7 @@ static Z3_ast build_z3_atom(IRParser& par, Z3Builder& b)
       string tok = par.read_token();
       if (tok.empty()) return b.mk_true();
       if (tok.substr(0,2) == "p:") return parse_prop(par, b, tok);
+      if (tok.substr(0,2) == "r:") return parse_state_path(b, tok);
       if (tok.substr(0,2) == "c:") {
 	    const char*s = tok.c_str() + 2;
 	    char*end = nullptr;
@@ -730,22 +893,57 @@ static Z3_ast build_z3_atom(IRParser& par, Z3Builder& b)
 	    return b.get_size_var(idx, dtype);
       }
       if (tok.substr(0,2) == "e:") {
-	      // e:N:W:I[:s] — element I of array property N, width W.
-	    const char*s = tok.c_str() + 2;
-	    unsigned idx = (unsigned)atoi(s);
-	    while (*s && *s != ':') ++s;
-	    unsigned width = 32;
-	    if (*s == ':') { width = (unsigned)atoi(s + 1); ++s; }
-	    while (*s && *s != ':') ++s;
-	    unsigned elem = 0;
-	    if (*s == ':') { elem = (unsigned)atoi(s + 1); ++s; }
-	    while (*s && *s != ':') ++s;
-	    bool sflag = (*s == ':' && s[1] == 's');
-	    Z3_ast var = b.get_elem_var(idx, width, elem);
-	    if (sflag) b.signed_vars.insert(var);
-	    return var;
+	    return parse_elem(par, b, tok);
       }
       return b.mk_true();
+}
+
+/* Evaluate an integral expression at the point randomize() is called.
+ * IEEE 1800-2017 18.5.4 permits dist weights to be integral expressions,
+ * including ordinary object properties. Build the expression with the same
+ * width/signedness rules as a constraint, replace every property leaf with
+ * its current object value, then ground-fold it. This is deliberately
+ * transactional: a nonground/malformed expression restores the cursor so a
+ * caller can recover without corrupting the surrounding branch parse. */
+static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
+				     uint64_t& out)
+{
+      const char* start = par.p;
+      Z3Builder value_builder(b.ctx, b.defn, b.cobj);
+      Z3_ast value = build_z3_atom(par, value_builder);
+      if (par.p == start) {
+	    par.p = start;
+	    return false;
+      }
+
+      Z3_sort sort = Z3_get_sort(b.ctx, value);
+      if (Z3_get_sort_kind(b.ctx, sort) == Z3_BOOL_SORT)
+	    value = bool_to_bv1(b.ctx, value);
+
+      vector<Z3_ast> from;
+      vector<Z3_ast> to;
+      from.reserve(value_builder.prop_vars.size());
+      to.reserve(value_builder.prop_vars.size());
+      for (const auto& pv : value_builder.prop_vars) {
+	    if (!b.cobj) {
+		  par.p = start;
+		  return false;
+	    }
+	    unsigned width = pv.width ? pv.width : 32;
+	    from.push_back(pv.var);
+	    to.push_back(Z3_mk_unsigned_int64(
+		  b.ctx, cobj_prop_bits(b.cobj, pv.idx),
+		  Z3_mk_bv_sort(b.ctx, width)));
+      }
+      if (!from.empty())
+	    value = Z3_substitute(b.ctx, value, (unsigned)from.size(),
+				  from.data(), to.data());
+      value = Z3_simplify(b.ctx, value);
+      if (z3_ground_uint64(b.ctx, value, out))
+	    return true;
+
+      par.p = start;
+      return false;
 }
 
 /* Parse a "P:W[:s]" header token into property index / width / signed. */
@@ -859,13 +1057,14 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    return var;
       }
 
-	/* Variable-ordering directive: (order (vars p:..) (vars p:..)).
-	 * Registers the properties (so they become solver variables
+	/* Variable-ordering directive: (order (vars p:../e:..)
+	 * (vars p:../e:..)). Registers properties or selected elements
+	 * (so they become solver variables
 	 * even if otherwise unconstrained) and records every
 	 * before-var x after-var pair. Contributes `true` — ordering
 	 * affects distribution, not satisfiability (18.5.10). */
       if (op == "order") {
-	    std::vector<unsigned> groups[2];
+	    std::vector<Z3Builder::OrderRef> groups[2];
 	    for (int g = 0 ; g < 2 ; g += 1) {
 		  par.skip_ws();
 		  if (!par.expect('(')) break;
@@ -878,16 +1077,155 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 			if (tok.empty()) break;
 			if (tok.compare(0, 2, "p:") == 0) {
 			      parse_prop(par, b, tok);
-			      groups[g].push_back(
-				    (unsigned)atoi(tok.c_str() + 2));
+			      Z3Builder::OrderRef ref;
+			      ref.is_elem = false;
+			      ref.idx = (unsigned)atoi(tok.c_str() + 2);
+			      ref.elem = 0;
+			      groups[g].push_back(ref);
+			} else if (tok.compare(0, 2, "e:") == 0) {
+			      parse_elem(par, b, tok);
+			      const char*s = tok.c_str() + 2;
+			      Z3Builder::OrderRef ref;
+			      ref.is_elem = true;
+			      ref.idx = (unsigned)atoi(s);
+			      while (*s && *s != ':') ++s;
+			      if (*s == ':') ++s;
+			      while (*s && *s != ':') ++s;
+			      ref.elem = (*s == ':')
+				    ? (unsigned)atoi(s + 1) : 0;
+			      groups[g].push_back(ref);
 			}
 		  }
 	    }
 	    par.skip_ws(); par.expect(')');
-	    for (unsigned a : groups[0])
-		  for (unsigned c : groups[1])
+	    for (const Z3Builder::OrderRef&a : groups[0])
+		  for (const Z3Builder::OrderRef&c : groups[1])
 			b.order_pairs.push_back(std::make_pair(a, c));
 	    return b.mk_true();
+      }
+
+      /* Packed selection forms used by scope-randomization constraints.
+       * The select index may itself be randomized. Fixed part-select bounds
+       * have already had caller value slots substituted with constants. */
+      if (op == "bit") {
+	    Z3_ast base = build_z3_atom(par, b);
+	    Z3_ast idx = build_z3_atom(par, b);
+	    par.skip_ws(); par.expect(')');
+	    unsigned bw = bv_width(b.ctx, base);
+	      // A packed bit select outside the vector's declared domain does
+	      // not wrap modulo the vector width.  In the two-state constraint
+	      // model its unknown/out-of-range result is 0.  Previously the
+	      // shift operand was truncated to `bw` bits, so a constraint such
+	      // as `valid_mask[index] == 1` accepted arbitrary 32-bit indices
+	      // whose low nibble happened to name a set bit.
+	    bool idx_signed = b.is_signed(idx);
+	    unsigned iw = bv_width(b.ctx, idx);
+	    unsigned limit_w = 1;
+	    uint64_t limit_cap = 2;
+	    while (limit_cap <= bw && limit_w < 64) {
+		  ++limit_w;
+		  limit_cap <<= 1;
+	    }
+	    unsigned cmpw = std::max(iw, limit_w);
+	    Z3_ast cmp_idx = b.coerce(idx, cmpw);
+	    Z3_sort cmps = Z3_mk_bv_sort(b.ctx, cmpw);
+	    Z3_ast limit = Z3_mk_unsigned_int64(b.ctx, bw, cmps);
+	    Z3_ast valid = Z3_mk_bvult(b.ctx, cmp_idx, limit);
+	    if (idx_signed) {
+		  Z3_ast signed_bounds[2] = {
+			Z3_mk_bvsge(b.ctx, cmp_idx,
+			      Z3_mk_unsigned_int64(b.ctx, 0, cmps)),
+			Z3_mk_bvslt(b.ctx, cmp_idx, limit)
+		  };
+		  valid = Z3_mk_and(b.ctx, 2, signed_bounds);
+	    }
+	    Z3_ast shift_idx = b.coerce(idx, bw);
+	    Z3_ast shifted = Z3_mk_bvlshr(b.ctx, base, shift_idx);
+	    Z3_ast selected = Z3_mk_extract(b.ctx, 0, 0, shifted);
+	    Z3_ast zero = Z3_mk_unsigned_int64(b.ctx, 0,
+				       Z3_mk_bv_sort(b.ctx, 1));
+	    return Z3_mk_ite(b.ctx, valid, selected, zero);
+      }
+
+      if (op == "part") {
+	    Z3_ast base = build_z3_atom(par, b);
+	    uint64_t hi = 0, lo = 0;
+	    bool ok = eval_const_ir(par, hi) && eval_const_ir(par, lo);
+	    par.skip_ws(); par.expect(')');
+	    unsigned bw = bv_width(b.ctx, base);
+	    if (!ok || hi < lo || hi >= bw) return mk_free_bv(b, 1);
+	    return Z3_mk_extract(b.ctx, (unsigned)hi, (unsigned)lo, base);
+      }
+
+      if (op == "concat") {
+	    vector<Z3_ast> parts;
+	    par.skip_ws();
+	    while (par.peek() != ')' && !par.at_end()) {
+		  parts.push_back(build_z3_atom(par, b));
+		  par.skip_ws();
+	    }
+	    par.expect(')');
+	    if (parts.empty())
+		  return Z3_mk_unsigned_int64(b.ctx, 0,
+					      Z3_mk_bv_sort(b.ctx, 1));
+	    Z3_ast out = parts[0];
+	    for (size_t i = 1 ; i < parts.size() ; i += 1)
+		  out = Z3_mk_concat(b.ctx, out, parts[i]);
+	    return out;
+      }
+
+      if (op == "countones") {
+	    Z3_ast arg = build_z3_atom(par, b);
+	    par.skip_ws(); par.expect(')');
+	    unsigned aw = bv_width(b.ctx, arg);
+	    Z3_sort out_sort = Z3_mk_bv_sort(b.ctx, 32);
+	    Z3_ast sum = Z3_mk_unsigned_int64(b.ctx, 0, out_sort);
+	    for (unsigned i = 0 ; i < aw ; i += 1) {
+		  Z3_ast bit = Z3_mk_extract(b.ctx, i, i, arg);
+		  Z3_ast wide = Z3_mk_zero_ext(b.ctx, 31, bit);
+		  sum = Z3_mk_bvadd(b.ctx, sum, wide);
+	    }
+	    b.set_sv(sum, 32);
+	    return sum;
+      }
+
+      if (op == "onehot" || op == "onehot0") {
+	    Z3_ast arg = build_z3_atom(par, b);
+	    par.skip_ws(); par.expect(')');
+	    unsigned aw = bv_width(b.ctx, arg);
+	    Z3_ast zero = Z3_mk_unsigned_int64(b.ctx, 0,
+					     Z3_mk_bv_sort(b.ctx, aw));
+	    Z3_ast one = Z3_mk_unsigned_int64(b.ctx, 1,
+					    Z3_mk_bv_sort(b.ctx, aw));
+	    Z3_ast minus_one = Z3_mk_bvsub(b.ctx, arg, one);
+	    Z3_ast masked = Z3_mk_bvand(b.ctx, arg, minus_one);
+	    Z3_ast at_most_one = Z3_mk_eq(b.ctx, masked, zero);
+	    if (op == "onehot0") return at_most_one;
+	    Z3_ast nonzero = Z3_mk_not(b.ctx, Z3_mk_eq(b.ctx, arg, zero));
+	    Z3_ast both[2] = { at_most_one, nonzero };
+	    return Z3_mk_and(b.ctx, 2, both);
+      }
+
+      if (op == "ite") {
+	    Z3_ast cond = bv_to_bool(b.ctx, build_z3_atom(par, b));
+	    Z3_ast yes = build_z3_atom(par, b);
+	    Z3_ast no = build_z3_atom(par, b);
+	    par.skip_ws(); par.expect(')');
+	    Z3_sort_kind yes_kind = Z3_get_sort_kind(
+		  b.ctx, Z3_get_sort(b.ctx, yes));
+	    Z3_sort_kind no_kind = Z3_get_sort_kind(
+		  b.ctx, Z3_get_sort(b.ctx, no));
+	    if (yes_kind == Z3_BOOL_SORT && no_kind == Z3_BOOL_SORT)
+		  return Z3_mk_ite(b.ctx, cond, yes, no);
+	    yes = bool_to_bv1(b.ctx, yes);
+	    no = bool_to_bv1(b.ctx, no);
+	    unsigned sw = b.sv_of(yes);
+	    if (b.sv_of(no) > sw) sw = b.sv_of(no);
+	    yes = b.coerce(yes, sw);
+	    no = b.coerce(no, sw);
+	    Z3_ast out = Z3_mk_ite(b.ctx, cond, yes, no);
+	    b.set_sv(out, sw);
+	    return out;
       }
 
       if (op == "and" || op == "or") {
@@ -907,7 +1245,9 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
        * equivalence A <-> B. Both operands take their boolean views. */
       if (op == "impl" || op == "iff") {
 	    Z3_ast left  = bv_to_bool(b.ctx, build_z3_atom(par, b));
+	    if (op == "impl") b.soft_guards.push_back(left);
 	    Z3_ast right = bv_to_bool(b.ctx, build_z3_atom(par, b));
+	    if (op == "impl") b.soft_guards.pop_back();
 	    par.skip_ws(); par.expect(')');
 	    if (op == "impl")
 		  return Z3_mk_implies(b.ctx, left, right);
@@ -924,6 +1264,48 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
        * record the self-determined width for the comparison to use.
        * Evaluating at the operand width instead, which is what this
        * did, wrapped `a + b == 300' mod 256 and reported UNSAT. */
+      if (op == "pow") {
+	    Z3_ast left = build_z3_atom(par, b);
+	    Z3_ast right = build_z3_atom(par, b);
+	    par.skip_ws(); par.expect(')');
+
+	    unsigned sw = b.sv_of(left);
+	    if (sw == 0) sw = 32;
+	    left = b.coerce(left, sw);
+	    Z3_sort sort = Z3_mk_bv_sort(b.ctx, sw);
+	    Z3_ast result = Z3_mk_unsigned_int64(b.ctx, 1, sort);
+
+	      /* Most constraint exponents are state constants (array widths,
+	         register widths). Use exponentiation by squaring when the AST
+	         is ground; retain a bit-select ITE form for a solver exponent. */
+	    uint64_t exponent = 0;
+	    Z3_ast simplified = Z3_simplify(b.ctx, right);
+	    if (z3_ground_uint64(b.ctx, simplified, exponent)) {
+		  Z3_ast base = left;
+		  while (exponent) {
+			if (exponent & 1)
+			      result = Z3_mk_bvmul(b.ctx, result, base);
+			exponent >>= 1;
+			if (exponent)
+			      base = Z3_mk_bvmul(b.ctx, base, base);
+		  }
+	    } else {
+		  unsigned rw = bv_width(b.ctx, right);
+		  Z3_ast base = left;
+		  for (unsigned bit = 0 ; bit < rw ; bit += 1) {
+			Z3_ast use = Z3_mk_extract(b.ctx, bit, bit, right);
+			Z3_ast one = Z3_mk_unsigned_int64(
+			      b.ctx, 1, Z3_mk_bv_sort(b.ctx, 1));
+			Z3_ast product = Z3_mk_bvmul(b.ctx, result, base);
+			result = Z3_mk_ite(b.ctx, Z3_mk_eq(b.ctx, use, one),
+					   product, result);
+			base = Z3_mk_bvmul(b.ctx, base, base);
+		  }
+	    }
+	    b.set_sv(result, sw);
+	    return result;
+      }
+
       if (op == "add" || op == "sub" || op == "mul"
 	  || op == "div" || op == "mod") {
 	    Z3_ast left  = build_z3_atom(par, b);
@@ -953,6 +1335,57 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    else                  r = Z3_mk_bvurem(b.ctx, left, right);
 	    b.set_sv(r, sv);
 	    return r;
+      }
+
+      if (op == "band" || op == "bor" || op == "bxor") {
+	    Z3_ast left = build_z3_atom(par, b);
+	    Z3_ast right = build_z3_atom(par, b);
+	    par.skip_ws(); par.expect(')');
+	    unsigned sw = b.sv_of(left);
+	    if (b.sv_of(right) > sw) sw = b.sv_of(right);
+	    left = b.coerce(left, sw);
+	    right = b.coerce(right, sw);
+	    Z3_ast out = op == "band" ? Z3_mk_bvand(b.ctx, left, right)
+		  : op == "bor" ? Z3_mk_bvor(b.ctx, left, right)
+		  : Z3_mk_bvxor(b.ctx, left, right);
+	    b.set_sv(out, sw);
+	    return out;
+      }
+
+      if (op == "shl" || op == "lshr" || op == "ashr") {
+	    Z3_ast left = build_z3_atom(par, b);
+	    Z3_ast right = build_z3_atom(par, b);
+	    par.skip_ws(); par.expect(')');
+	    unsigned lw = b.sv_of(left);
+	    left = b.coerce(left, lw);
+	    right = b.coerce(right, lw);
+	    Z3_ast out = op == "shl" ? Z3_mk_bvshl(b.ctx, left, right)
+		  : op == "lshr" ? Z3_mk_bvlshr(b.ctx, left, right)
+		  : Z3_mk_bvashr(b.ctx, left, right);
+	    b.set_sv(out, lw);
+	    return out;
+      }
+
+      if (op == "bnot") {
+	    Z3_ast arg = build_z3_atom(par, b);
+	    par.skip_ws(); par.expect(')');
+	    Z3_ast out = Z3_mk_bvnot(b.ctx, arg);
+	    b.set_sv(out, b.sv_of(arg));
+	    return out;
+      }
+
+      if (op == "redand" || op == "redor" || op == "redxor") {
+	    Z3_ast arg = build_z3_atom(par, b);
+	    par.skip_ws(); par.expect(')');
+	    unsigned aw = bv_width(b.ctx, arg);
+	    Z3_ast bit = Z3_mk_extract(b.ctx, 0, 0, arg);
+	    for (unsigned i = 1 ; i < aw ; i += 1) {
+		  Z3_ast next = Z3_mk_extract(b.ctx, i, i, arg);
+		  bit = op == "redand" ? Z3_mk_bvand(b.ctx, bit, next)
+			: op == "redor" ? Z3_mk_bvor(b.ctx, bit, next)
+			: Z3_mk_bvxor(b.ctx, bit, next);
+	    }
+	    return bit;
       }
 
       if (op == "not") {
@@ -1048,22 +1481,39 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    while (par.peek() != ')' && !par.at_end()) {
 		  if (par.peek() == '[') {
 			par.consume(); // '['
-			Z3_ast lo_raw = build_z3_atom(par, b);
+			par.skip_ws();
+			bool lo_open = par.peek() == '*';
+			Z3_ast lo_raw = 0;
+			if (lo_open) par.consume();
+			else lo_raw = build_z3_atom(par, b);
 			par.expect(',');
-			Z3_ast hi_raw = build_z3_atom(par, b);
+			par.skip_ws();
+			bool hi_open = par.peek() == '*';
+			Z3_ast hi_raw = 0;
+			if (hi_open) par.consume();
+			else hi_raw = build_z3_atom(par, b);
 			par.expect(']');
 			  // One width for the whole range test: the widest
-			  // of the subject and the two bounds.
-			unsigned rw = member_width(lo_raw);
-			if (member_width(hi_raw) > rw) rw = member_width(hi_raw);
-			Z3_ast lo = b.coerce(lo_raw, rw);
-			Z3_ast hi = b.coerce(hi_raw, rw);
+			  // of the subject and every present bound. `*' is the
+			  // open `$' endpoint from an inside/dist range.
+			unsigned rw = subj_sv;
+			if (lo_raw && member_width(lo_raw) > rw) rw = member_width(lo_raw);
+			if (hi_raw && member_width(hi_raw) > rw) rw = member_width(hi_raw);
 			Z3_ast sx = b.coerce(subject, rw);
-			// subject >= lo && subject <= hi
-			Z3_ast c1 = range_ge(sx, lo);
-			Z3_ast c2 = range_le(sx, hi);
-			Z3_ast both[2] = {c1, c2};
-			clauses.push_back(Z3_mk_and(b.ctx, 2, both));
+			Z3_ast c1 = lo_raw
+			      ? range_ge(sx, b.coerce(lo_raw, rw)) : 0;
+			Z3_ast c2 = hi_raw
+			      ? range_le(sx, b.coerce(hi_raw, rw)) : 0;
+			if (c1 && c2) {
+			      Z3_ast both[2] = {c1, c2};
+			      clauses.push_back(Z3_mk_and(b.ctx, 2, both));
+			} else if (c1) {
+			      clauses.push_back(c1);
+			} else if (c2) {
+			      clauses.push_back(c2);
+			} else {
+			      clauses.push_back(b.mk_true());
+			}
 		  } else if (par.peek() == '(') {
 			Z3_ast v = match_width(build_z3_atom(par, b));
 			clauses.push_back(Z3_mk_eq(b.ctx, subj_at(v), v));
@@ -1071,15 +1521,25 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 			// Single value token
 			string tok = par.read_token();
 			if (tok.substr(0,2) == "c:") {
-			      uint64_t v = strtoull(tok.c_str()+2, nullptr, 10);
-				// An unsized literal is 32 bits (11.6.1);
-				// the comparison then sizes both sides.
+			      const char*cs = tok.c_str() + 2;
+			      char*ce = nullptr;
+			      uint64_t v = strtoull(cs, &ce, 10);
+			      unsigned cw = 32;
+			      bool csign = false;
+			      if (ce && *ce == ':') {
+				    cw = (unsigned)strtoul(ce + 1, &ce, 10);
+				    if (cw == 0) cw = 32;
+				    csign = ce && *ce == ':' && ce[1] == 's';
+			      }
 			      Z3_ast cv = Z3_mk_unsigned_int64(b.ctx, v,
-						      Z3_mk_bv_sort(b.ctx, 32));
+						      Z3_mk_bv_sort(b.ctx, cw));
+			      if (csign) b.signed_vars.insert(cv);
 			      unsigned mw = member_width(cv);
 			      clauses.push_back(Z3_mk_eq(b.ctx,
 					    b.coerce(subject, mw),
 					    b.coerce(cv, mw)));
+			} else if (tok == "qempty") {
+			      clauses.push_back(Z3_mk_false(b.ctx));
 			} else if (tok.substr(0,2) == "q:") {
 			      // Queue/darray property container: expand the
 			      // membership set from the container's contents
@@ -1152,7 +1612,9 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    b.collect_prop_refs = saved;
 	    par.skip_ws();
 	    par.expect(')');
-	    Z3Builder::SoftAssert sa = { inner, 256, true /* from_soft_kw */, refs };
+	    Z3Builder::SoftAssert sa = {
+		  b.guard_soft_assert(inner), 256, true /* from_soft_kw */, refs
+	    };
 	    b.pending_soft.push_back(sa);
 	    return b.mk_true();
       }
@@ -1183,6 +1645,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    //   prefers higher-weight branches when feasible.
 	    Z3_ast subject = build_z3_atom(par, b);
 	    unsigned sw = b.sv_of(subject);
+	    bool subject_signed = b.is_signed(subject);
 	      // A dist branch value is an unsized literal: 32 bits, or 64
 	      // when it needs them (11.6.1). Building it at the SUBJECT's
 	      // width, which is what this did, truncated it -- `x dist
@@ -1200,6 +1663,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    Z3Builder::DistSpec dspec;
 	    dspec.subject = subject;
 	    dspec.width = sw;
+	    bool saw_branch = false;
 	    par.skip_ws();
 	    while (par.peek() != ')' && !par.at_end()) {
 		  // Each branch is `(b W <range>)`.
@@ -1217,23 +1681,58 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 			par.skip_ws();
 			continue;
 		  }
-		  string w_tok = par.read_token();
-		  unsigned weight = 1;
-		  if (!w_tok.empty()) {
-			weight = (unsigned)strtoul(w_tok.c_str()+
-				    (w_tok.substr(0,2)=="c:" ? 2 : 0), 0, 10);
-			if (weight == 0) weight = 1;
+		  saw_branch = true;
+		  uint64_t weight64 = 1;
+		  if (!eval_runtime_integral_ir(par, b, weight64)) {
+			static bool warned_weight = false;
+			if (!warned_weight) {
+			      fprintf(stderr, "Warning: dist weight expression could "
+				      "not be evaluated at randomize time; its branch "
+				      "has zero weight (further similar warnings "
+				      "suppressed).\n");
+			      warned_weight = true;
+			}
+			/* Consume the malformed weight atom so recovery always
+			 * advances to the branch value. Use a private builder to
+			 * avoid turning the ignored weight into a solver variable. */
+			const char* before = par.p;
+			Z3Builder ignored(b.ctx, b.defn, b.cobj);
+			(void) build_z3_atom(par, ignored);
+			if (par.p == before && !par.at_end()) par.consume();
+			weight64 = 0;
 		  }
+		  unsigned weight = weight64 > UINT_MAX
+			? UINT_MAX : (unsigned)weight64;
 		  Z3_ast clause = b.mk_false();
 		  par.skip_ws();
 		  if (par.peek() == '[') {
 			par.consume();
-			string lo_tok = par.read_token();
+			uint64_t lo_v = 0, hi_v = 0;
+			par.skip_ws();
+			bool lo_open = par.peek() == '*';
+			bool bounds_ok = true;
+			if (lo_open) par.consume();
+			else bounds_ok = eval_const_ir(par, lo_v);
 			par.expect(',');
-			string hi_tok = par.read_token();
+			par.skip_ws();
+			bool hi_open = par.peek() == '*';
+			if (hi_open) par.consume();
+			else bounds_ok = eval_const_ir(par, hi_v) && bounds_ok;
 			par.expect(']');
-			uint64_t lo_v = strtoull(lo_tok.c_str()+2, 0, 10);
-			uint64_t hi_v = strtoull(hi_tok.c_str()+2, 0, 10);
+			if (!bounds_ok) { lo_v = 1; hi_v = 0; }
+			if (lo_open) {
+			      lo_v = subject_signed && sw > 0
+				    ? (sw >= 64 ? (uint64_t)1 << 63
+					: (uint64_t)1 << (sw - 1))
+				    : 0;
+			}
+			if (hi_open) {
+			      hi_v = subject_signed && sw > 0
+				    ? (sw >= 64 ? UINT64_MAX >> 1
+					: ((uint64_t)1 << (sw - 1)) - 1)
+				    : (sw >= 64 ? UINT64_MAX
+					: ((uint64_t)1 << sw) - 1);
+			}
 			unsigned rw = lit_at(lo_v);
 			if (lit_at(hi_v) > rw) rw = lit_at(hi_v);
 			Z3_ast lo = Z3_mk_unsigned_int64(b.ctx, lo_v,
@@ -1241,39 +1740,60 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 			Z3_ast hi = Z3_mk_unsigned_int64(b.ctx, hi_v,
 					 Z3_mk_bv_sort(b.ctx, rw));
 			Z3_ast sx = b.coerce(subject, rw);
-			Z3_ast c1 = Z3_mk_bvuge(b.ctx, sx, lo);
-			Z3_ast c2 = Z3_mk_bvule(b.ctx, sx, hi);
+			Z3_ast c1 = subject_signed
+			      ? Z3_mk_bvsge(b.ctx, sx, lo)
+			      : Z3_mk_bvuge(b.ctx, sx, lo);
+			Z3_ast c2 = subject_signed
+			      ? Z3_mk_bvsle(b.ctx, sx, hi)
+			      : Z3_mk_bvule(b.ctx, sx, hi);
 			Z3_ast both[2] = {c1, c2};
 			clause = Z3_mk_and(b.ctx, 2, both);
-			Z3Builder::DistBranch db = { weight, true, lo_v, hi_v };
-			dspec.branches.push_back(db);
+			if (weight != 0) {
+			      Z3Builder::DistBranch db = {
+				    weight, true, lo_v, hi_v
+			      };
+			      dspec.branches.push_back(db);
+			}
 		  } else {
-			string tok = par.read_token();
-			if (tok.substr(0,2) == "c:") {
-			      uint64_t v = strtoull(tok.c_str()+2, 0, 10);
+			uint64_t v = 0;
+			if (eval_const_ir(par, v)) {
 			      unsigned vw = lit_at(v);
 			      Z3_ast cv = Z3_mk_unsigned_int64(b.ctx, v,
 					      Z3_mk_bv_sort(b.ctx, vw));
 			      clause = Z3_mk_eq(b.ctx,
 					  b.coerce(subject, vw), cv);
-			      Z3Builder::DistBranch db = { weight, false, v, v };
-			      dspec.branches.push_back(db);
+			      if (weight != 0) {
+				    Z3Builder::DistBranch db = {
+					  weight, false, v, v
+				    };
+				    dspec.branches.push_back(db);
+			      }
 			}
 		  }
 		  par.skip_ws();
 		  par.expect(')'); // close (b ...)
 		  par.skip_ws();
+		  if (weight == 0)
+			continue;
 		  hard_clauses.push_back(clause);
 		  // Queue the soft assert; caller applies it after build.
 		  // dist-branch soft assert: no `soft'-keyword property refs, so
 		  // `disable soft' never applies (empty prop_refs).
-		  Z3Builder::SoftAssert sa = { clause, weight, false /* dist */, {} };
+		  Z3Builder::SoftAssert sa = {
+			b.guard_soft_assert(clause), weight,
+			false /* dist */, {}
+		  };
 		  b.pending_soft.push_back(sa);
 	    }
 	    par.expect(')');
-	    if (!dspec.branches.empty())
+	    // Exact weighted sampling currently represents an unconditional
+	    // distribution. For a guarded dist, keep the correct guarded hard
+	    // domain and guarded optimizer preferences above instead of applying
+	    // the distribution when its condition is false.
+	    if (!dspec.branches.empty() && b.soft_guards.empty())
 		  b.dist_specs.push_back(dspec);
-	    if (hard_clauses.empty()) return b.mk_true();
+	    if (hard_clauses.empty())
+		  return saw_branch ? b.mk_false() : b.mk_true();
 	    if (hard_clauses.size() == 1) return hard_clauses[0];
 	    return Z3_mk_or(b.ctx, (unsigned)hard_clauses.size(), hard_clauses.data());
       }
@@ -1295,7 +1815,7 @@ static Z3_ast parse_constraint_ir(const string& ir, Z3Builder& b)
       vector<Z3_ast> assertions;
 
       while (!par.at_end()) {
-	    Z3_ast expr = build_z3_atom(par, b);
+	    Z3_ast expr = bv_to_bool(b.ctx, build_z3_atom(par, b));
 	    assertions.push_back(expr);
       }
 
@@ -1368,6 +1888,21 @@ static uint64_t cobj_elem_bits(vvp_cobject* cobj, unsigned idx, unsigned elem)
 		  if (vec.value(b) == BIT4_1) bits |= (1ULL << b);
 	    return bits;
       }
+      if (vvp_assoc_base*assoc = propobj.peek<vvp_assoc_base>()) {
+	    string key_text, val_str;
+	    vvp_vector4_t val_vec;
+	    double val_real = 0;
+	    int val_kind = -1;
+	    if (!assoc->peek_entry(elem, key_text, val_vec, val_real,
+				   val_str, val_kind) || val_kind != 0)
+		  return 0;
+	    uint64_t bits = 0;
+	    unsigned wid = val_vec.size();
+	    if (wid > 64) wid = 64;
+	    for (unsigned bit = 0 ; bit < wid ; bit += 1)
+		  if (val_vec.value(bit) == BIT4_1) bits |= (UINT64_C(1) << bit);
+	    return bits;
+      }
       vvp_vector4_t vec;
       cobj->get_vec4(idx, vec, elem);
       uint64_t bits = 0;
@@ -1391,6 +1926,13 @@ static void cobj_set_elem_bits(vvp_cobject* cobj, unsigned idx, unsigned elem,
 	    da->set_word(elem, vec);
 	    return;
       }
+      if (vvp_assoc_base*assoc = propobj.peek<vvp_assoc_base>()) {
+	    vvp_vector4_t vec(width ? width : 32, BIT4_0);
+	    for (unsigned bit = 0 ; bit < vec.size() && bit < 64 ; bit += 1)
+		  vec.set_bit(bit, ((bits >> bit) & 1) ? BIT4_1 : BIT4_0);
+	    (void) assoc->poke_entry(elem, vec, 0.0, string(), 0);
+	    return;
+      }
       vvp_vector4_t vec;
       cobj->get_vec4(idx, vec, elem);
       unsigned wid = vec.size();
@@ -1407,26 +1949,141 @@ static uint64_t cobj_darray_size(vvp_cobject* cobj, unsigned idx)
       cobj->get_object(idx, propobj, 0);
       if (vvp_darray*da = propobj.peek<vvp_darray>())
 	    return da->get_size();
+      if (vvp_assoc_base*assoc = propobj.peek<vvp_assoc_base>())
+	    return assoc->size();
       return 0;
 }
 
-/* Substitute "v:N:W" value-slot tokens in an IR string with "c:V". */
+/* Substitute "v:N:W[:s]" value-slot tokens with shaped constants. The
+ * runtime stack carries only raw bits, so the IR token is the authoritative
+ * SystemVerilog width/sign metadata. Retaining it also prevents a signed
+ * byte such as 8'h8d, widened by an intermediate runtime operation, from
+ * becoming the unrelated 32-bit value 0xffffff8d in the solver. */
 static string substitute_slots(const string& ir,
                                 const vector<uint64_t>& slot_vals)
 {
       if (slot_vals.empty()) return ir;
       string result;
-      const char* p = ir.c_str();
+      const char*begin = ir.c_str();
+      const char* p = begin;
       while (*p) {
-	    if (p[0]=='v' && p[1]==':') {
+	    // Match a complete value-slot token. Queue value slots use `qv:';
+	    // treating the embedded `v:' as scalar substitution rewrites qv:N:W
+	    // to the invalid token qc:V before queue expansion can see it.
+	    bool token_start = p == begin
+		  || !(isalnum((unsigned char)p[-1]) || p[-1] == '_');
+	    if (token_start && p[0]=='v' && p[1]==':') {
 		  const char*q = p + 2;
 		  unsigned slot = (unsigned)strtoul(q, const_cast<char**>(&q), 10);
-		  // skip ":W" width field
-		  if (*q == ':') { q++; while (*q && *q != ' ' && *q != ')') q++; }
+		  unsigned width = 32;
+		  bool is_signed = false;
+		  if (*q == ':') {
+			q++;
+			width = (unsigned)strtoul(q, const_cast<char**>(&q), 10);
+			if (width == 0 || width > 64) width = 32;
+			if (q[0] == ':' && q[1] == 's') {
+			      is_signed = true;
+			      q += 2;
+			}
+		  }
 		  if (slot < slot_vals.size()) {
-			result += "c:" + to_string(slot_vals[slot]);
+			uint64_t value = slot_vals[slot];
+			if (width < 64)
+			      value &= (UINT64_C(1) << width) - 1;
+			result += "c:" + to_string(value) + ":"
+			       + to_string(width) + (is_signed ? ":s" : "");
 		  } else {
-			result += "c:0";
+			result += "c:0:" + to_string(width)
+			       + (is_signed ? ":s" : "");
+		  }
+		  p = q;
+	    } else {
+		  result += *p++;
+	    }
+      }
+      return result;
+}
+
+/* Scope std::randomize may also carry queue/darray membership operands.
+ * qv:N:W[:s] expands to the current element values as ordinary inside-set
+ * tokens. Keep a distinct qempty token so membership in an empty queue is
+ * false rather than the vacuous true of an accidentally empty set. */
+static string substitute_scope_object_slots(
+      const string&ir, const vector<vector<uint64_t> >&object_vals)
+{
+      string result;
+      const char*p = ir.c_str();
+      while (*p) {
+	    if (strncmp(p, "(qfield qf:", 11) == 0) {
+		  const char*q = p + 11;
+		  unsigned slot = (unsigned)strtoul(q,
+						 const_cast<char**>(&q), 10);
+		  if (*q != ':') { result += *p++; continue; }
+		  q += 1;
+		  (void)strtoul(q, const_cast<char**>(&q), 10); // member id
+		  if (*q != ':') { result += *p++; continue; }
+		  q += 1;
+		  unsigned width = (unsigned)strtoul(q,
+						const_cast<char**>(&q), 10);
+		  if (width == 0 || width > 64) width = 32;
+		  bool is_signed = false;
+		  if (q[0] == ':' && q[1] == 's') {
+			is_signed = true;
+			q += 2;
+		  }
+		  if (*q != ' ') { result += *p++; continue; }
+		  q += 1;
+		  const char*idx_begin = q;
+		  if (*q == '(') {
+			int depth = 0;
+			do {
+			      if (*q == '(') depth += 1;
+			      else if (*q == ')') depth -= 1;
+			      q += 1;
+			} while (*q && depth > 0);
+		  } else {
+			while (*q && !isspace((unsigned char)*q) && *q != ')')
+			      q += 1;
+		  }
+		  if (*q != ')') { result += *p++; continue; }
+		  string index_ir(idx_begin, q - idx_begin);
+		  string suffix = is_signed ? ":s" : "";
+		  string expanded = "c:0:" + to_string(width) + suffix;
+		  if (slot < object_vals.size()) {
+			const vector<uint64_t>&vals = object_vals[slot];
+			for (size_t i = vals.size() ; i-- > 0 ; ) {
+			      uint64_t value = vals[i];
+			      if (width < 64)
+				    value &= (UINT64_C(1) << width) - 1;
+			      expanded = "(ite (eq " + index_ir + " c:"
+				    + to_string(i) + ":32) c:"
+				    + to_string(value) + ":" + to_string(width)
+				    + suffix + " " + expanded + ")";
+			}
+		  }
+		  result += expanded;
+		  p = q + 1;
+	    } else if (p[0] == 'q' && p[1] == 'v' && p[2] == ':') {
+		  const char*q = p + 3;
+		  unsigned slot = (unsigned)strtoul(q,
+						 const_cast<char**>(&q), 10);
+		  unsigned width = 32;
+		  bool is_signed = false;
+		  if (*q == ':') {
+			q++;
+			width = (unsigned)strtoul(q,
+						const_cast<char**>(&q), 10);
+			if (*q == ':' && q[1] == 's') { is_signed = true; q += 2; }
+		  }
+		  if (slot >= object_vals.size() || object_vals[slot].empty()) {
+			result += "qempty";
+		  } else {
+			for (size_t i = 0 ; i < object_vals[slot].size() ; i += 1) {
+			      if (i) result += " ";
+			      result += "c:" + to_string(object_vals[slot][i])
+				    + ":" + to_string(width)
+				    + (is_signed ? ":s" : "");
+			}
 		  }
 		  p = q;
 	    } else {
@@ -1528,6 +2185,52 @@ static bool z3_enumerate_domain(Z3_context ctx, Z3_solver base, Z3_ast var,
       }
       Z3_solver_pop(ctx, base, 1);
       return !out.empty();
+}
+
+/* Probe a wide property's ACTUAL feasible set up to a small cap.  Unlike
+ * z3_enumerate_domain, this is useful for a 32/64-bit property constrained to
+ * an equality or short interval (the normal shape of protocol transactions),
+ * without attempting its enormous declared domain.  Returning false after
+ * CAP+1 distinct models leaves sampling to the general fallback; returning
+ * true means the solver proved the complete feasible set was exhausted. */
+static bool z3_enumerate_sparse_wide_domain_(Z3_context ctx, Z3_solver base,
+                                             Z3_ast var, unsigned width,
+                                             vector<uint64_t>& out)
+{
+      static const size_t SPARSE_DOMAIN_CAP = 64;
+      out.clear();
+      if (width == 0 || width > 64) return false;
+
+      bool exhausted = false;
+      Z3_solver_push(ctx, base);
+      while (out.size() <= SPARSE_DOMAIN_CAP) {
+	    Z3_lbool r = Z3_solver_check(ctx, base);
+	    if (r == Z3_L_FALSE) {
+		  exhausted = true;
+		  break;
+	    }
+	    if (r != Z3_L_TRUE) break;
+
+	    Z3_model m = Z3_solver_get_model(ctx, base);
+	    Z3_model_inc_ref(ctx, m);
+	    uint64_t bits = 0;
+	    bool ok = z3_eval_uint64(ctx, m, var, bits);
+	    Z3_model_dec_ref(ctx, m);
+	    if (!ok) break;
+
+	    out.push_back(bits);
+	    Z3_ast cv = Z3_mk_unsigned_int64(ctx, bits,
+					 Z3_mk_bv_sort(ctx, width));
+	    Z3_solver_assert(ctx, base,
+			     Z3_mk_not(ctx, Z3_mk_eq(ctx, var, cv)));
+      }
+      Z3_solver_pop(ctx, base, 1);
+
+      if (!exhausted || out.empty()) {
+	    out.clear();
+	    return false;
+      }
+      return true;
 }
 
 /* Performance note on z3_enumerate_domain above: it costs one Z3 call
@@ -1731,8 +2434,24 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                       const vector<uint64_t>& slot_vals,
                       const std::map<unsigned,uint64_t>* dyn_sizes,
                       std::vector<Z3Builder::DynForeach>* dyn_out,
-                      const std::vector<bool>* prop_active)
+                      const std::vector<bool>* prop_active,
+                      bool include_class_constraints)
 {
+      if (z3_solve_trace(defn)) {
+	    fprintf(stderr,
+		    "trace z3-solve: begin class=%s props=%zu constraints=%zu extra=%zu slots=%zu dyn=%d\n",
+		    defn ? defn->class_name().c_str() : "<scope>",
+		    defn ? defn->property_count() : 0,
+		    defn ? defn->constraint_count() : 0, extra_ir.size(), slot_vals.size(),
+		    dyn_sizes ? 1 : 0);
+	    for (size_t i = 0; i < extra_ir.size(); ++i)
+		  fprintf(stderr, "trace z3-solve: extra[%zu]=%s\n",
+			  i, extra_ir[i].c_str());
+	    for (size_t i = 0; i < slot_vals.size(); ++i)
+		  fprintf(stderr, "trace z3-solve: slot[%zu]=0x%llx\n",
+			  i, (unsigned long long)slot_vals[i]);
+	    fflush(stderr);
+      }
       Z3_config cfg = Z3_mk_config();
       Z3_set_param_value(cfg, "model", "true");
       Z3_context ctx = Z3_mk_context(cfg);
@@ -1760,11 +2479,24 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       Z3_solver_inc_ref(ctx, base);
 
       // Assert hard constraints (class-level), skipping disabled ones.
-      for (size_t ci = 0; ci < defn->constraint_count(); ++ci) {
+
+      for (size_t ci = 0;
+	   include_class_constraints && ci < defn->constraint_count(); ++ci) {
 	    if (cobj && !cobj->constraint_mode(ci)) continue;
 	    const string& ir = defn->constraint_ir(ci);
 	    if (ir.empty()) continue;
+	    if (z3_solve_trace(defn)) {
+		  fprintf(stderr,
+			  "trace z3-solve: parse[%zu] begin name=%s bytes=%zu\n",
+			  ci, defn->constraint_name(ci).c_str(), ir.size());
+		  fflush(stderr);
+	    }
 	    Z3_ast assertion = parse_constraint_ir(ir, builder);
+	    if (z3_solve_trace(defn)) {
+		  fprintf(stderr, "trace z3-solve: parse[%zu] end name=%s\n",
+			  ci, defn->constraint_name(ci).c_str());
+		  fflush(stderr);
+	    }
 	    Z3_optimize_assert(ctx, opt, assertion);
 	    Z3_solver_assert(ctx, base, assertion);
       }
@@ -1894,7 +2626,22 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       {
 	    Z3_solver chk = Z3_mk_simple_solver(ctx);
 	    Z3_solver_inc_ref(ctx, chk);
-	    for (size_t ci = 0; ci < defn->constraint_count(); ++ci) {
+	      // If the current candidate satisfies every active explicit soft
+	      // constraint as well as the hard set, no other model can improve
+	      // the lexicographic soft objective.  Treat the soft expressions as
+	      // hard only in this candidate check; conflicting or unsatisfied soft
+	      // constraints still fall through to the normal Optimize solve.
+	      // This preserves 18.5.14.1 priority semantics while avoiding an
+	      // expensive Optimize context for the common UVM case where callers
+	      // pre-fill all of a transaction's preferred default values.
+	    const size_t precheck_soft_count = builder.pending_soft.size();
+	    for (size_t si = 0; si < precheck_soft_count; ++si) {
+		  const auto& sa = builder.pending_soft[si];
+		  if (!sa.from_soft_kw || soft_dropped(sa)) continue;
+		  Z3_solver_assert(ctx, chk, sa.a);
+	    }
+	    for (size_t ci = 0;
+		 include_class_constraints && ci < defn->constraint_count(); ++ci) {
 		  if (cobj && !cobj->constraint_mode(ci)) continue;
 		  const string& ir = defn->constraint_ir(ci);
 		  if (ir.empty()) continue;
@@ -1950,12 +2697,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			if (rand_active_(defn, cobj, prop_active, sv.idx))
 			      precheck = Z3_L_FALSE;
 
-	    if (precheck == Z3_L_TRUE && !builder.any_soft_kw_assert()
-		&& builder.dist_specs.empty()) {
-		  // C7/I4: only fast-path early-out when there are no
-		  // `soft`-keyword assertions queued.  Plain `soft` is
-		  // deterministic preference and must always run the
-		  // optimize check.
+	    if (precheck == Z3_L_TRUE && builder.dist_specs.empty()) {
+		  // The candidate check included every active explicit `soft`
+		  // assertion, so a true result proves the current values are
+		  // already a highest-priority soft solution.
 		  //
 		  // RANDOM-DIST fix #2: also never fast-path when a `dist`
 		  // is present.  A lucky pre-fill landing inside the dist's
@@ -1971,8 +2716,28 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    }
       }
 
+	// Resolve explicit soft constraints into the hard solution space in
+	// reverse declaration order.  IEEE 1800-2017 18.5.14.1 defines a strict
+	// priority, so each lower-priority expression is retained exactly when it
+	// remains jointly feasible with the hard set and every higher-priority
+	// soft expression already retained.  This is equivalent to the Optimize
+	// groups above, while allowing the ordinary solver to enumerate and pin
+	// the preferred solution space efficiently.
+      for (size_t si = builder.pending_soft.size() ; si-- > 0 ; ) {
+	    const auto& sa = builder.pending_soft[si];
+	    if (!sa.from_soft_kw || soft_dropped(sa)) continue;
+	    Z3_solver_push(ctx, base);
+	    Z3_solver_assert(ctx, base, sa.a);
+	    Z3_lbool feasible = Z3_solver_check(ctx, base);
+	    Z3_solver_pop(ctx, base, 1);
+	    if (feasible != Z3_L_TRUE) continue;
+	    Z3_solver_assert(ctx, base, sa.a);
+	    Z3_optimize_assert(ctx, opt, sa.a);
+      }
+
 	// solve...before staged solving (IEEE 1800-2017 18.5.10): rank
-	// the ordered properties by longest path in the before-graph,
+	// the ordered scalar properties/selected array elements by longest
+	// path in the before-graph,
 	// then for each non-final rank solve the FULL hard-constraint
 	// set with the diversity objective applied to that rank's
 	// variables alone, and pin their solved values before the next
@@ -1980,7 +2745,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	// the normal combined pass below. Pins come from a complete
 	// satisfying model, so they can never make later stages UNSAT.
       if (!builder.order_pairs.empty()) {
-	    std::map<unsigned,unsigned> rank;
+	    std::map<Z3Builder::OrderRef,unsigned> rank;
 	    for (const auto& pr : builder.order_pairs) {
 		  rank[pr.first];
 		  rank[pr.second];
@@ -2013,17 +2778,38 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			if (rv.second > max_rank) max_rank = rv.second;
 		  for (unsigned r = 0 ; r < max_rank ; r += 1) {
 			Z3_optimize_push(ctx, opt);
-			for (auto& pv : builder.prop_vars) {
-			      auto it = rank.find(pv.idx);
-			      if (it == rank.end() || it->second != r)
+			for (const auto&ranked : rank) {
+			      if (ranked.second != r) continue;
+			      const Z3Builder::OrderRef&ref = ranked.first;
+			      if (!rand_active_(defn, cobj, prop_active, ref.idx))
 				    continue;
-			      if (!rand_active_(defn, cobj, prop_active, pv.idx))
-				    continue;
-			      uint64_t rand_bits = cobj_prop_bits(cobj, pv.idx);
-			      Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
+			      Z3_ast var = nullptr;
+			      unsigned width = 0;
+			      uint64_t rand_bits = 0;
+			      if (ref.is_elem) {
+				    for (auto&ev : builder.elem_vars)
+					  if (ev.idx == ref.idx
+					      && ev.elem == ref.elem) {
+						var = ev.var;
+						width = ev.width;
+						break;
+					  }
+				    rand_bits = cobj_elem_bits(cobj, ref.idx,
+							     ref.elem);
+			      } else {
+				    for (auto&pv : builder.prop_vars)
+					  if (pv.idx == ref.idx) {
+						var = pv.var;
+						width = pv.width;
+						break;
+					  }
+				    rand_bits = cobj_prop_bits(cobj, ref.idx);
+			      }
+			      if (!var || width == 0) continue;
+			      Z3_sort sort = Z3_mk_bv_sort(ctx, width);
 			      Z3_ast rv = Z3_mk_unsigned_int64(ctx, rand_bits, sort);
 			      Z3_optimize_minimize(ctx, opt,
-				    Z3_mk_bvxor(ctx, pv.var, rv));
+				    Z3_mk_bvxor(ctx, var, rv));
 			}
 			Z3_lbool st = Z3_optimize_check(ctx, opt, 0, nullptr);
 			if (st != Z3_L_TRUE) {
@@ -2033,19 +2819,34 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			Z3_model stage_model = Z3_optimize_get_model(ctx, opt);
 			Z3_model_inc_ref(ctx, stage_model);
 			std::vector<std::pair<Z3_ast,uint64_t> > pins;
-			for (auto& pv : builder.prop_vars) {
-			      auto it = rank.find(pv.idx);
-			      if (it == rank.end() || it->second != r)
+			for (const auto&ranked : rank) {
+			      if (ranked.second != r) continue;
+			      const Z3Builder::OrderRef&ref = ranked.first;
+			      if (!rand_active_(defn, cobj, prop_active, ref.idx))
 				    continue;
-			      if (!rand_active_(defn, cobj, prop_active, pv.idx))
-				    continue;
+			      Z3_ast var = nullptr;
+			      if (ref.is_elem) {
+				    for (auto&ev : builder.elem_vars)
+					  if (ev.idx == ref.idx
+					      && ev.elem == ref.elem) {
+						var = ev.var;
+						break;
+					  }
+			      } else {
+				    for (auto&pv : builder.prop_vars)
+					  if (pv.idx == ref.idx) {
+						var = pv.var;
+						break;
+					  }
+			      }
+			      if (!var) continue;
 			      Z3_ast interp = nullptr;
 			      uint64_t bits = 0;
-			      if (Z3_model_eval(ctx, stage_model, pv.var, 1,
+			      if (Z3_model_eval(ctx, stage_model, var, 1,
 						&interp)
 				  && interp
 				  && Z3_get_numeral_uint64(ctx, interp, &bits))
-				    pins.push_back(std::make_pair(pv.var, bits));
+				    pins.push_back(std::make_pair(var, bits));
 			}
 			Z3_model_dec_ref(ctx, stage_model);
 			Z3_optimize_pop(ctx, opt);
@@ -2071,24 +2872,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       // constraint plus soft-weight preference asserted during IR parsing
       // still apply, so correctness never depends on this succeeding --
       // only true probability-proportional sampling does.
-      // RANDOM-DIST fix #1/#2 correctness guard: a property named by a
-      // live (not disabled) explicit `soft' constraint (18.5.14.1) must
-      // NOT go through the exact enumeration below. `soft' is a
-      // deterministic PRIORITY preference, not a member of the hard-
-      // constraint set `base' carries -- so enumerating that property's
-      // hard-feasible set and picking uniformly among it would treat
-      // "no conflicting hard constraint" as "value is arbitrary" and
-      // silently discard the soft preference (`soft v == 3;' with
-      // nothing else constraining v used to always answer v==3; a
-      // uniform pick among all 256 encodings of an 8-bit v answers 3
-      // only 1/256 of the time). These properties keep going through
-      // the pre-existing bvxor-minimize objective below, which Z3
-      // combines with the soft-assert groups already applied above.
-      std::set<unsigned> soft_kw_props;
-      for (const auto& sa : builder.pending_soft) {
-	    if (!sa.from_soft_kw || soft_dropped(sa)) continue;
-	    for (int r : sa.prop_refs) soft_kw_props.insert((unsigned)r);
-      }
+      // Explicit soft priorities have already been admitted greedily into
+      // `base` above.  Exact enumeration therefore samples only from the
+      // highest-priority preferred solution space instead of accidentally
+      // discarding a soft preference.
 
       std::set<unsigned> dist_resolved_idx;
       for (const auto& spec : builder.dist_specs) {
@@ -2143,14 +2930,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 
 	    vector<uint64_t> feasible;
 	    bool enumerated = false;
-	    if (!soft_kw_props.count(pv.idx)) {
-		  if (single_var_fast_ok)
-			enumerated = z3_enumerate_domain_single_var_fast_(
-			      ctx, base, pv.var, pv.width, feasible);
-		  if (!enumerated)
-			enumerated = z3_enumerate_domain(ctx, base, pv.var,
-							  pv.width, feasible);
-	    }
+	    if (single_var_fast_ok)
+		  enumerated = z3_enumerate_domain_single_var_fast_(
+			ctx, base, pv.var, pv.width, feasible);
+	    if (!enumerated)
+		  enumerated = z3_enumerate_domain(ctx, base, pv.var,
+						pv.width, feasible);
+	    if (!enumerated)
+		  enumerated = z3_enumerate_sparse_wide_domain_(
+			ctx, base, pv.var, pv.width, feasible);
 	    if (enumerated) {
 		  uint64_t chosen;
 		  if (defn->property_is_randc(pv.idx)) {
@@ -2180,7 +2968,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  continue;
 	    }
 
-	    if (defn->property_is_randc(pv.idx) && !soft_kw_props.count(pv.idx)) {
+	    if (defn->property_is_randc(pv.idx)) {
 		  static bool warned_randc_wide = false;
 		  if (!warned_randc_wide) {
 			fprintf(stderr, "Warning: randc property with a "
@@ -2221,7 +3009,21 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, ev.var, rv));
       }
 
+      if (z3_solve_trace(defn)) {
+	    fprintf(stderr,
+		    "trace z3-solve: check class=%s vars=%zu soft=%zu dist=%zu\n",
+		    defn ? defn->class_name().c_str() : "<scope>",
+		    builder.prop_vars.size(), builder.pending_soft.size(),
+		    builder.dist_specs.size());
+	    fflush(stderr);
+      }
       Z3_lbool result = Z3_optimize_check(ctx, opt, 0, nullptr);
+      if (z3_solve_trace(defn)) {
+	    fprintf(stderr, "trace z3-solve: end class=%s result=%d\n",
+		    defn ? defn->class_name().c_str() : "<scope>",
+		    (int)result);
+	    fflush(stderr);
+      }
       if (result != Z3_L_TRUE) {
 	    Z3_solver_dec_ref(ctx, base);
 	    Z3_optimize_dec_ref(ctx, opt);
@@ -2308,15 +3110,18 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
                       const vector<string>& extra_ir,
                       const vector<uint64_t>& slot_vals,
-                      const std::vector<bool>* prop_active)
+                      const std::vector<bool>* prop_active,
+                      bool include_class_constraints)
 {
-      if (defn->constraint_count() == 0 && extra_ir.empty()) return true;
+      if ((!include_class_constraints || defn->constraint_count() == 0)
+	  && extra_ir.empty()) return true;
 
 	// Size pass: dynamic-foreach bodies deferred; sizes solved and
 	// written back.
       std::vector<Z3Builder::DynForeach> dyn;
       int r1 = z3_solve_pass_(defn, cobj, extra_ir, slot_vals,
-			      nullptr, &dyn, prop_active);
+			      nullptr, &dyn, prop_active,
+			      include_class_constraints);
       if (dyn.empty())
 	    return r1 != Z3PASS_UNSAT;
 
@@ -2329,15 +3134,17 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
       for (const auto& d : dyn)
 	    sizes[d.pidx] = cobj_darray_size(cobj, d.pidx);
       int r2 = z3_solve_pass_(defn, cobj, extra_ir, slot_vals,
-			      &sizes, nullptr, prop_active);
+			      &sizes, nullptr, prop_active,
+			      include_class_constraints);
       return r1 != Z3PASS_UNSAT && r2 != Z3PASS_UNSAT;
 }
 
 bool vvp_z3_randomize_scope(const string&ir,
-			    const vector<uint64_t>&targets,
+			    const vector<string>&targets,
 			    const vector<unsigned>&widths,
 			    const vector<uint64_t>&slot_vals,
-			    vector<uint64_t>&values)
+			    const vector<vector<uint64_t> >&object_vals,
+			    vector<string>&values)
 {
       values.clear();
       if (targets.size() != widths.size())
@@ -2354,7 +3161,16 @@ bool vvp_z3_randomize_scope(const string&ir,
       builder.opt = opt;
 
       string sub = substitute_slots(ir, slot_vals);
+      sub = substitute_scope_object_slots(sub, object_vals);
       Z3_ast assertion = parse_constraint_ir(sub, builder);
+      if (z3_dyndbg()) {
+	    fprintf(stderr, "Z3 scope IR: %s\n", sub.c_str());
+	    fprintf(stderr, "Z3 scope hard: %s\n",
+		    Z3_ast_to_string(ctx, assertion));
+	    for (size_t i = 0 ; i < builder.pending_soft.size() ; i += 1)
+		  fprintf(stderr, "Z3 scope soft[%zu]: %s\n", i,
+			  Z3_ast_to_string(ctx, builder.pending_soft[i].a));
+      }
       Z3_optimize_assert(ctx, opt, assertion);
 
 	// Ensure even a variable absent from the constraint is represented:
@@ -2389,10 +3205,32 @@ bool vvp_z3_randomize_scope(const string&ir,
 				   Z3_mk_string_symbol(ctx, group));
       }
 
+      auto binary_bv = [&](const string&bits) -> Z3_ast {
+	    size_t pos = 0;
+	    unsigned first = (unsigned)(bits.size() % 64);
+	    if (first == 0) first = 64;
+	    Z3_ast out = nullptr;
+	    while (pos < bits.size()) {
+		  unsigned take = pos == 0 ? first : 64;
+		  uint64_t chunk = 0;
+		  for (unsigned i = 0 ; i < take ; i += 1)
+			chunk = (chunk << 1) | (bits[pos + i] == '1' ? 1 : 0);
+		  Z3_ast atom = Z3_mk_unsigned_int64(ctx, chunk,
+						 Z3_mk_bv_sort(ctx, take));
+		  out = out ? Z3_mk_concat(ctx, out, atom) : atom;
+		  pos += take;
+	    }
+	    return out;
+      };
+
       for (auto&pv : builder.prop_vars) {
-	    uint64_t target = pv.idx < targets.size() ? targets[pv.idx] : 0;
-	    Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
-	    Z3_ast rv = Z3_mk_unsigned_int64(ctx, target, sort);
+	    string target = pv.idx < targets.size() ? targets[pv.idx] : "0";
+	    if (target.empty()) target = "0";
+	    if (target.size() < pv.width)
+		  target.insert(target.begin(), pv.width - target.size(), '0');
+	    else if (target.size() > pv.width)
+		  target.erase(0, target.size() - pv.width);
+	    Z3_ast rv = binary_bv(target);
 	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, pv.var, rv));
       }
 
@@ -2407,11 +3245,23 @@ bool vvp_z3_randomize_scope(const string&ir,
       if (result == Z3_L_TRUE) {
 	    Z3_model model = Z3_optimize_get_model(ctx, opt);
 	    Z3_model_inc_ref(ctx, model);
+	    if (z3_dyndbg())
+		  fprintf(stderr, "Z3 scope model: %s\n",
+			  Z3_model_to_string(ctx, model));
 	    for (auto&pv : builder.prop_vars) {
-		  uint64_t bits = 0;
+		  Z3_ast val = nullptr;
 		  if (pv.idx < values.size()
-		      && z3_eval_uint64(ctx, model, pv.var, bits))
-			values[pv.idx] = bits;
+		      && Z3_model_eval(ctx, model, pv.var, true, &val)) {
+			const char*raw = Z3_get_numeral_binary_string(ctx, val);
+			if (raw) {
+			      string bits(raw);
+			      if (bits.size() < pv.width)
+				    bits.insert(bits.begin(), pv.width - bits.size(), '0');
+			      else if (bits.size() > pv.width)
+				    bits.erase(0, bits.size() - pv.width);
+			      values[pv.idx] = bits;
+			}
+		  }
 	    }
 	    Z3_model_dec_ref(ctx, model);
       } else {

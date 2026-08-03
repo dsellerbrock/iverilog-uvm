@@ -53,6 +53,15 @@ struct sva_nfa_t {
       { sva_nfa_edge_t e; e.from=f; e.to=t; e.epsilon=true; edges.push_back(e); }
 };
 
+/* One way an implication antecedent can finish on a tick. The synthesis
+   layer uses these probes to set the obligation bit even when an overlapped
+   consequent fails on that same tick. Guard pointers are borrowed from the
+   antecedent tree, just like ordinary NFA edge guards. */
+struct sva_nfa_boundary_t {
+      unsigned from = 0;
+      std::vector<PExpr*> guards;
+};
+
 /* IVL_SVA_NFA / IVL_SVA_NFA_DUMP environment flags. */
 extern bool pform_sva_nfa_enabled();
 extern bool pform_sva_nfa_dump_enabled();
@@ -67,6 +76,14 @@ extern bool pform_sva_nfa_build_from_chain(sva_nfa_t&nfa,
    intersect over chains). */
 extern bool pform_sva_nfa_build_from_tree(sva_nfa_t&nfa,
 					  const sva_stree_t*tree);
+
+/* Compose an arbitrary sequence-tree antecedent with an arbitrary
+   sequence-tree consequent using |-> (overlapped) or |=> (nonoverlapped)
+   timing. `boundary' receives the antecedent-completion probes. */
+extern bool pform_sva_nfa_build_implication(
+				sva_nfa_t&nfa, const sva_stree_t*ante,
+				const sva_stree_t*conseq, bool nonoverlap,
+				std::vector<sva_nfa_boundary_t>&boundary);
 
 extern void pform_sva_nfa_dump(const struct vlltype&loc, const char*what,
 			       const sva_nfa_t&nfa);

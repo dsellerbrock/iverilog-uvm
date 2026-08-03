@@ -29,6 +29,9 @@ class constraint_mode_test extends uvm_test;
 
     item = bounded_item::type_id::create("item");
 
+    if (!item.valid_range.constraint_mode())
+      `uvm_error("CM_TEST", "FAIL: enabled constraint queried as disabled")
+
     // --- Test 1: constraint enabled (default) ---
     pass_count = 0;
     for (int i = 0; i < 20; i++) begin
@@ -42,6 +45,8 @@ class constraint_mode_test extends uvm_test;
 
     // --- Test 2: disable constraint, expect out-of-range values ---
     item.valid_range.constraint_mode(0);
+    if (item.valid_range.constraint_mode())
+      `uvm_error("CM_TEST", "FAIL: disabled constraint queried as enabled")
     out_of_range_count = 0;
     for (int i = 0; i < 50; i++) begin
       void'(item.randomize());
@@ -54,6 +59,8 @@ class constraint_mode_test extends uvm_test;
 
     // --- Test 3: re-enable constraint ---
     item.valid_range.constraint_mode(1);
+    if (!item.valid_range.constraint_mode())
+      `uvm_error("CM_TEST", "FAIL: re-enabled constraint queried as disabled")
     pass_count = 0;
     for (int i = 0; i < 20; i++) begin
       void'(item.randomize());

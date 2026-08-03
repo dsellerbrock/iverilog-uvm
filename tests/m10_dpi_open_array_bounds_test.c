@@ -3,7 +3,8 @@
  * Each entry point returns 0 on success or a bitmask naming the wrong
  * query, so a bad value fails the test instead of merely printing.
  * The expected values are all chosen to differ from the old hardcoded
- * answers (svIncrement -1, svSizeOfArray 0 for multidim). */
+ * answers (svIncrement used one hardcoded direction, svSizeOfArray 0 for
+ * multidim). */
 
 # include  <stdio.h>
 # include  "svdpi.h"
@@ -37,15 +38,13 @@ int c_bounds_1d(const svOpenArrayHandle h)
       bad |= chk(svHigh(h, 1),      7,  E_HIGH,  "svHigh(1)");
       bad |= chk(svLeft(h, 1),      0,  E_LEFT,  "svLeft(1)");
       bad |= chk(svRight(h, 1),     7,  E_RIGHT, "svRight(1)");
-	/* Ascending, so +1. This is the one that used to be -1. */
-      bad |= chk(svIncrement(h, 1), 1,  E_INCR,  "svIncrement(1)");
+	/* $increment/svIncrement is right-to-left: ascending is -1. */
+      bad |= chk(svIncrement(h, 1), -1, E_INCR,  "svIncrement(1)");
       bad |= chk(svSizeOfArray(h),  32, E_BYTES, "svSizeOfArray");
       return bad;
 }
 
-/* Drive the loop the way a C model would: start at svLow and step by
- * svIncrement until svHigh. With a hardcoded -1 this walked straight out
- * of the array and visited nothing. */
+/* Walk from low to high by subtracting the right-to-left increment. */
 int c_walk_by_increment(const svOpenArrayHandle h)
 {
       int lo   = svLow(h, 1);
@@ -57,7 +56,7 @@ int c_walk_by_increment(const svOpenArrayHandle h)
 
       if (incr == 0) return E_INCR;
 
-      for (i = lo ; (incr > 0) ? (i <= hi) : (i >= hi) ; i += incr) {
+      for (i = lo ; (incr < 0) ? (i <= hi) : (i >= hi) ; i -= incr) {
             int*p = (int*)svGetArrElemPtr1(h, i);
             if (!p) { bad |= E_ORDER; break; }
               /* The SV side filled element i with i*3. */
@@ -79,8 +78,8 @@ int c_bounds_2d(const svOpenArrayHandle h)
       bad |= chk(svDimensions(h), 2, E_DIMS,  "svDimensions");
       bad |= chk(svSize(h, 1),    2, E_SIZE,  "svSize(1)");
       bad |= chk(svSize(h, 2),    3, E_SIZE2, "svSize(2)");
-      bad |= chk(svIncrement(h, 1), 1, E_INCR, "svIncrement(1)");
-      bad |= chk(svIncrement(h, 2), 1, E_INCR, "svIncrement(2)");
+      bad |= chk(svIncrement(h, 1), -1, E_INCR, "svIncrement(1)");
+      bad |= chk(svIncrement(h, 2), -1, E_INCR, "svIncrement(2)");
 	/* 2 * 3 * sizeof(int). This used to be 0. */
       bad |= chk(svSizeOfArray(h), 24, E_BYTES, "svSizeOfArray");
       return bad;
@@ -91,7 +90,7 @@ int c_bounds_real(const svOpenArrayHandle h)
       int bad = 0;
       bad |= chk(svDimensions(h), 1, E_DIMS,  "svDimensions");
       bad |= chk(svSize(h, 1),    4, E_SIZE,  "svSize(1)");
-      bad |= chk(svIncrement(h, 1), 1, E_INCR, "svIncrement(1)");
+      bad |= chk(svIncrement(h, 1), -1, E_INCR, "svIncrement(1)");
       bad |= chk(svSizeOfArray(h), (int)(4 * sizeof(double)), E_BYTES,
                  "svSizeOfArray");
       return bad;

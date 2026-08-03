@@ -291,7 +291,12 @@ module main;
     // The bare and void-cast statement siblings are pinned separately
     // by sv_object_randomize_statement_with.
     p = new();
-    void'(p.randomize());
+    // Choose a state value whose required b=a+1 also satisfies b<200.
+    // A preceding unrestricted randomize made this check spuriously UNSAT
+    // whenever it happened to select a>=199, obscuring the variable-control
+    // behavior this section is meant to test.
+    p.a = 8'd100;
+    p.b = 8'd0;
     a0 = p.a;
     ok = p.randomize(b) with { b < 8'd200; };
     if (!ok) begin

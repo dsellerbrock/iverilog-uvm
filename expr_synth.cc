@@ -1147,7 +1147,38 @@ NetNet* NetESelect::synthesize(Design *des, NetScope*scope, NetExpr*root)
 
 	// Detect the special case that there is a base expression and
 	// it is constant. In this case we can generate fixed part selects.
-      if (const NetEConst*base_const = dynamic_cast<NetEConst*>(base_)) {
+	// A procedural for-loop is unrolled with its index in loop_index_tmp,
+	// so also evaluate bases whose only input is that index. Expressions
+	// such as vec[i-BASE] are constant in each synthesized iteration even
+	// though their elaborated expression tree is not a NetEConst.
+      unique_ptr<NetExpr> evaluated_base;
+      const NetEConst*base_const = dynamic_cast<NetEConst*>(base_);
+      if (!base_const && base_ && !scope->loop_index_nets_tmp.empty()) {
+	    unique_ptr<NexusSet> base_inputs(base_->nex_input());
+	    bool loop_constant = true;
+	    for (size_t idx = 0 ; idx < base_inputs->size() ; idx += 1) {
+		  bool is_loop_index = false;
+		  for (map<NetNet*,perm_string>::const_iterator cur =
+		       scope->loop_index_nets_tmp.begin();
+		       cur != scope->loop_index_nets_tmp.end(); ++cur) {
+			if ((*base_inputs)[idx].lnk.nexus()
+			      == cur->first->pin(0).nexus()) {
+			      is_loop_index = true;
+			      break;
+			}
+		  }
+		  if (!is_loop_index) {
+			loop_constant = false;
+			break;
+		  }
+	    }
+	    if (loop_constant) {
+		  evaluated_base.reset(
+			base_->evaluate_function(*this, scope->loop_index_tmp));
+		  base_const = dynamic_cast<NetEConst*>(evaluated_base.get());
+	    }
+      }
+      if (base_const) {
 	    verinum base_tmp = base_const->value();
 	    unsigned select_width = expr_width();
 
@@ -1426,8 +1457,21 @@ NetNet* NetETernary::synthesize(Design *des, NetScope*scope, NetExpr*root)
  */
 NetNet* NetESignal::synthesize(Design*des, NetScope*scope, NetExpr*root)
 {
-	// If this is a synthesis with a specific value for the
-	// signal, then replace it (here) with a constant value.
+	// If this exact signal is an active unrolled procedural-loop index,
+	// replace it with the iteration value instead of matching a possibly
+	// shadowed basename.
+      map<NetNet*,LocalVar>::const_iterator loop_value =
+	    scope->loop_index_values_tmp.find(net_);
+      if (loop_value != scope->loop_index_values_tmp.end()
+	  && loop_value->second.nwords == 0
+	  && loop_value->second.value) {
+	    NetNet*tmp = loop_value->second.value->synthesize(
+		  des, scope, loop_value->second.value);
+	    ivl_assert(*this, tmp);
+	    tmp = pad_to_width(des, tmp, net_->vector_width(), *this);
+	    return crop_to_width(des, tmp, net_->vector_width());
+      }
+
       if (net_->scope()==scope && net_->name()==scope->genvar_tmp) {
 	    const netvector_t*tmp_vec = new netvector_t(net_->data_type(),
 	                                                net_->vector_width()-1, 0);
@@ -1633,10 +1677,28 @@ NetNet* NetEUFunc::synthesize(Design*des, NetScope*scope, NetExpr*root)
 		 << ", osig->vector_width()=" << osig->vector_width() << endl;
       }
 
-        /* Connect the pins to the arguments. */
+      /* Connect the pins to the arguments. */
       const NetFuncDef*def = func_->func_def();
+      unsigned function_pin = 1;
       for (unsigned idx = 0; idx < eparms.size(); idx += 1) {
-	    unsigned width = def->port(idx)->vector_width();
+	    const NetNet*formal = def->port(idx);
+	    unsigned width = formal->vector_width();
+	    if (formal->unpacked_dimensions() > 0) {
+		  unsigned words = formal->unpacked_count();
+		  if (eparms[idx]->pin_count() != words
+		      || eparms[idx]->vector_width() != width) {
+			cerr << get_fileline() << ": error: fixed-array argument "
+			     << idx << " of call to " << func_->basename()
+			     << " does not match the formal array shape." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+		  for (unsigned word = 0 ; word < words ; word += 1)
+			connect(net->pin(function_pin++),
+				eparms[idx]->pin(word));
+		  continue;
+	    }
+
 	    NetNet*tmp;
 	    if (eparms[idx]->get_signed()) {
 		  tmp = pad_to_width_signed(des, eparms[idx], width, *this);
@@ -1644,8 +1706,9 @@ NetNet* NetEUFunc::synthesize(Design*des, NetScope*scope, NetExpr*root)
 		  tmp = pad_to_width(des, eparms[idx], width, *this);
 	    }
 	    NetNet*tmpc = crop_to_width(des, tmp, width);
-	    connect(net->pin(idx+1), tmpc->pin(0));
+	    connect(net->pin(function_pin++), tmpc->pin(0));
       }
+      ivl_assert(*this, function_pin == net->pin_count());
 
       return osig;
 }

@@ -14,6 +14,7 @@
 #ifdef USE_LIBFFI
 # include  <ffi.h>
 # include  "vvp_darray.h"
+# include  "svdpi.h"
 # include  <stdarg.h>
 #endif
 
@@ -129,7 +130,8 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 		  atypes[idx] = &ffi_type_pointer;
 		  vals[idx].ptr = arg.sval;
 		  break;
-		case 'o': // svOpenArrayHandle: opaque pointer by value
+		case 'o': // dynamic/open svOpenArrayHandle
+		case 'O': // fixed unpacked-array svOpenArrayHandle
 		  atypes[idx] = &ffi_type_pointer;
 		  vals[idx].ptr = (const char*)arg.aval;
 		  break;
@@ -149,7 +151,7 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 	      // (seeded) typed slot; the callee writes through it.
 	      // Open arrays are already handles that share storage,
 	      // so direction changes nothing about their marshaling.
-	    if (arg.is_output && arg.type != 'o'
+	    if (arg.is_output && arg.type != 'o' && arg.type != 'O'
 		&& arg.type != 'V' && arg.type != 'W') {
 		  optrs[idx] = &vals[idx];
 		  atypes[idx] = &ffi_type_pointer;
@@ -535,17 +537,17 @@ int svHigh(const void*h, int dim)
 }
 
 /*
- * H.10.2: the increment is +1 when left <= right (ascending) and -1 when
- * left > right (descending). This returned a hardcoded -1, which is wrong
- * for EVERY array that can currently be marshaled, since they are all
- * ascending -- a C model stepping an index by svIncrement walked the wrong
- * way with no diagnostic. Derive it from the bounds instead.
+ * IEEE 1800-2017 H.10.2 uses the array-query $increment semantics: this is
+ * the right-to-left increment, +1 when left >= right and -1 otherwise. A
+ * traversal from left to right therefore subtracts svIncrement. The old
+ * natural-direction interpretation happened to work for ascending arrays
+ * but disagreed with both $increment and descending open arrays.
  */
 int svIncrement(const void*h, int dim)
 {
       int left  = svLeft(h, dim);
       int right = svRight(h, dim);
-      return (left <= right) ? 1 : -1;
+      return (left >= right) ? 1 : -1;
 }
 
 /*
@@ -682,6 +684,381 @@ void* svGetArrElemPtr(const void*h, int indx1, ...)
 	    return r;
       }
       return svGetArrElemPtr1(h, indx1);
+}
+
+/*
+ * H.12.3 canonical-copy accessors.
+ *
+ * svGetArrElemPtr is only available when an element has a directly usable C
+ * layout. Packed bit/logic vectors are deliberately stored in vvp's native
+ * vector classes instead, so the standard svGet/Put*ArrElem*VecVal routines
+ * must translate between that representation and svdpi.h's canonical 32-bit
+ * words. Keeping the live container in the open-array handle also makes these
+ * accessors work for atom elements without relying on host byte order.
+ */
+static bool dpi_packed_container_(vvp_darray*array)
+{
+      if (!array || array->dpi_elem_is_real()) return false;
+      if (array->dpi_elem_bytes() > 0) return true;
+      return dynamic_cast<vvp_darray_vec2*>(array)
+	  || dynamic_cast<vvp_darray_vec4*>(array)
+	  || dynamic_cast<vvp_queue_vec4*>(array);
+}
+
+static bool dpi_element_slot_(const void*h, const vector<int>&indices,
+			      vvp_darray*&array, unsigned&word)
+{
+      const vvp_dpi_open_array_t*open =
+	  (const vvp_dpi_open_array_t*)h;
+      if (!open || indices.empty()) return false;
+
+      if (indices.size() == 1) {
+	    array = open->storage;
+	    int idx = dpi_canon_index_(open, indices[0]);
+	    if (!dpi_packed_container_(array) || idx < 0
+		|| (size_t)idx >= array->get_size())
+		  return false;
+	    word = (unsigned)idx;
+	    return true;
+      }
+
+      vvp_darray*cur = open->outer;
+      if (!cur) return false;
+      int idx = dpi_canon_index_(open, indices[0]);
+      if (idx < 0 || (size_t)idx >= cur->get_size()) return false;
+
+      for (size_t dim = 1 ; dim < indices.size() ; dim += 1) {
+	    vvp_object_t obj;
+	    cur->get_word((unsigned)idx, obj);
+	    cur = obj.peek<vvp_darray>();
+	    if (!cur) return false;
+	    idx = dpi_canon_darray_index_(cur, indices[dim]);
+	    if (idx < 0 || (size_t)idx >= cur->get_size()) return false;
+	    if (dim + 1 == indices.size()) {
+		  if (!dpi_packed_container_(cur)) return false;
+		  array = cur;
+		  word = (unsigned)idx;
+		  return true;
+	    }
+      }
+      return false;
+}
+
+static vector<int> dpi_var_indices_(const void*h, int indx1, va_list ap)
+{
+      int dims = svDimensions(h);
+      vector<int> indices;
+      if (dims <= 0) return indices;
+      indices.reserve((size_t)dims);
+      indices.push_back(indx1);
+      for (int dim = 1 ; dim < dims ; dim += 1)
+	    indices.push_back(va_arg(ap, int));
+      return indices;
+}
+
+static bool dpi_get_packed_(const void*h, const vector<int>&indices,
+			    vvp_vector4_t&value)
+{
+      vvp_darray*array = 0;
+      unsigned word = 0;
+      if (!dpi_element_slot_(h, indices, array, word)) return false;
+      array->get_word(word, value);
+      return value.size() > 0;
+}
+
+static bool dpi_put_packed_(const void*h, const vector<int>&indices,
+			    const vvp_vector4_t&value)
+{
+      vvp_darray*array = 0;
+      unsigned word = 0;
+      if (!dpi_element_slot_(h, indices, array, word)) return false;
+      array->set_word(word, value);
+      return true;
+}
+
+static void dpi_get_bit_vec_(svBitVecVal*d, const void*h,
+			     const vector<int>&indices)
+{
+      if (!d) return;
+      vvp_vector4_t value;
+      if (!dpi_get_packed_(h, indices, value)) {
+	    d[0] = 0;
+	    return;
+      }
+      unsigned words = (value.size() + 31) / 32;
+      memset(d, 0, words * sizeof(*d));
+      for (unsigned bit = 0 ; bit < value.size() ; bit += 1)
+	    if (value.value(bit) == BIT4_1)
+		  d[bit / 32] |= (uint32_t)1 << (bit % 32);
+}
+
+static void dpi_get_logic_vec_(svLogicVecVal*d, const void*h,
+			       const vector<int>&indices)
+{
+      if (!d) return;
+      vvp_vector4_t value;
+      if (!dpi_get_packed_(h, indices, value)) {
+	    d[0].aval = 0;
+	    d[0].bval = 0;
+	    return;
+      }
+      unsigned words = (value.size() + 31) / 32;
+      memset(d, 0, words * sizeof(*d));
+      for (unsigned bit = 0 ; bit < value.size() ; bit += 1) {
+	    vvp_bit4_t val = value.value(bit);
+	    uint32_t mask = (uint32_t)1 << (bit % 32);
+	    if (val == BIT4_1 || val == BIT4_X)
+		  d[bit / 32].aval |= mask;
+	    if (val == BIT4_Z || val == BIT4_X)
+		  d[bit / 32].bval |= mask;
+      }
+}
+
+static void dpi_put_bit_vec_(const void*h, const svBitVecVal*s,
+			     const vector<int>&indices)
+{
+      if (!s) return;
+      vvp_vector4_t old;
+      if (!dpi_get_packed_(h, indices, old)) return;
+      vvp_vector4_t value(old.size(), BIT4_0);
+      for (unsigned bit = 0 ; bit < value.size() ; bit += 1)
+	    if (s[bit / 32] & ((uint32_t)1 << (bit % 32)))
+		  value.set_bit(bit, BIT4_1);
+      dpi_put_packed_(h, indices, value);
+}
+
+static void dpi_put_logic_vec_(const void*h, const svLogicVecVal*s,
+			       const vector<int>&indices)
+{
+      if (!s) return;
+      vvp_vector4_t old;
+      if (!dpi_get_packed_(h, indices, old)) return;
+      vvp_vector4_t value(old.size(), BIT4_0);
+      for (unsigned bit = 0 ; bit < value.size() ; bit += 1) {
+	    uint32_t mask = (uint32_t)1 << (bit % 32);
+	    bool aval = ((uint32_t)s[bit / 32].aval & mask) != 0;
+	    bool bval = ((uint32_t)s[bit / 32].bval & mask) != 0;
+	    vvp_bit4_t val = bval ? (aval ? BIT4_X : BIT4_Z)
+				  : (aval ? BIT4_1 : BIT4_0);
+	    value.set_bit(bit, val);
+      }
+      dpi_put_packed_(h, indices, value);
+}
+
+void svGetBitArrElem1VecVal(svBitVecVal*d, const svOpenArrayHandle s,
+			    int indx1)
+{
+      dpi_get_bit_vec_(d, s, vector<int>{indx1});
+}
+
+void svGetBitArrElem2VecVal(svBitVecVal*d, const svOpenArrayHandle s,
+			    int indx1, int indx2)
+{
+      dpi_get_bit_vec_(d, s, vector<int>{indx1, indx2});
+}
+
+void svGetBitArrElem3VecVal(svBitVecVal*d, const svOpenArrayHandle s,
+			    int indx1, int indx2, int indx3)
+{
+      dpi_get_bit_vec_(d, s, vector<int>{indx1, indx2, indx3});
+}
+
+void svGetBitArrElemVecVal(svBitVecVal*d, const svOpenArrayHandle s,
+			   int indx1, ...)
+{
+      va_list ap;
+      va_start(ap, indx1);
+      vector<int> indices = dpi_var_indices_(s, indx1, ap);
+      va_end(ap);
+      dpi_get_bit_vec_(d, s, indices);
+}
+
+void svGetLogicArrElem1VecVal(svLogicVecVal*d, const svOpenArrayHandle s,
+			      int indx1)
+{
+      dpi_get_logic_vec_(d, s, vector<int>{indx1});
+}
+
+void svGetLogicArrElem2VecVal(svLogicVecVal*d, const svOpenArrayHandle s,
+			      int indx1, int indx2)
+{
+      dpi_get_logic_vec_(d, s, vector<int>{indx1, indx2});
+}
+
+void svGetLogicArrElem3VecVal(svLogicVecVal*d, const svOpenArrayHandle s,
+			      int indx1, int indx2, int indx3)
+{
+      dpi_get_logic_vec_(d, s, vector<int>{indx1, indx2, indx3});
+}
+
+void svGetLogicArrElemVecVal(svLogicVecVal*d, const svOpenArrayHandle s,
+			     int indx1, ...)
+{
+      va_list ap;
+      va_start(ap, indx1);
+      vector<int> indices = dpi_var_indices_(s, indx1, ap);
+      va_end(ap);
+      dpi_get_logic_vec_(d, s, indices);
+}
+
+void svPutBitArrElem1VecVal(const svOpenArrayHandle d, const svBitVecVal*s,
+			    int indx1)
+{
+      dpi_put_bit_vec_(d, s, vector<int>{indx1});
+}
+
+void svPutBitArrElem2VecVal(const svOpenArrayHandle d, const svBitVecVal*s,
+			    int indx1, int indx2)
+{
+      dpi_put_bit_vec_(d, s, vector<int>{indx1, indx2});
+}
+
+void svPutBitArrElem3VecVal(const svOpenArrayHandle d, const svBitVecVal*s,
+			    int indx1, int indx2, int indx3)
+{
+      dpi_put_bit_vec_(d, s, vector<int>{indx1, indx2, indx3});
+}
+
+void svPutBitArrElemVecVal(const svOpenArrayHandle d, const svBitVecVal*s,
+			   int indx1, ...)
+{
+      va_list ap;
+      va_start(ap, indx1);
+      vector<int> indices = dpi_var_indices_(d, indx1, ap);
+      va_end(ap);
+      dpi_put_bit_vec_(d, s, indices);
+}
+
+void svPutLogicArrElem1VecVal(const svOpenArrayHandle d,
+			      const svLogicVecVal*s, int indx1)
+{
+      dpi_put_logic_vec_(d, s, vector<int>{indx1});
+}
+
+void svPutLogicArrElem2VecVal(const svOpenArrayHandle d,
+			      const svLogicVecVal*s, int indx1, int indx2)
+{
+      dpi_put_logic_vec_(d, s, vector<int>{indx1, indx2});
+}
+
+void svPutLogicArrElem3VecVal(const svOpenArrayHandle d,
+			      const svLogicVecVal*s, int indx1, int indx2,
+			      int indx3)
+{
+      dpi_put_logic_vec_(d, s, vector<int>{indx1, indx2, indx3});
+}
+
+void svPutLogicArrElemVecVal(const svOpenArrayHandle d,
+			     const svLogicVecVal*s, int indx1, ...)
+{
+      va_list ap;
+      va_start(ap, indx1);
+      vector<int> indices = dpi_var_indices_(d, indx1, ap);
+      va_end(ap);
+      dpi_put_logic_vec_(d, s, indices);
+}
+
+static svBit dpi_get_bit_scalar_(const void*h, const vector<int>&indices)
+{
+      vvp_vector4_t value;
+      if (!dpi_get_packed_(h, indices, value) || value.size() == 0)
+	    return sv_0;
+      return value.value(0) == BIT4_1 ? sv_1 : sv_0;
+}
+
+static svLogic dpi_get_logic_scalar_(const void*h, const vector<int>&indices)
+{
+      vvp_vector4_t value;
+      if (!dpi_get_packed_(h, indices, value) || value.size() == 0)
+	    return sv_x;
+      switch (value.value(0)) {
+	  case BIT4_0: return sv_0;
+	  case BIT4_1: return sv_1;
+	  case BIT4_Z: return sv_z;
+	  case BIT4_X: return sv_x;
+      }
+      return sv_x;
+}
+
+static void dpi_put_bit_scalar_(const void*h, svBit bit,
+				const vector<int>&indices)
+{
+      vvp_vector4_t value;
+      if (!dpi_get_packed_(h, indices, value) || value.size() == 0) return;
+      value.set_bit(0, (bit & 1) ? BIT4_1 : BIT4_0);
+      dpi_put_packed_(h, indices, value);
+}
+
+static void dpi_put_logic_scalar_(const void*h, svLogic logic,
+				  const vector<int>&indices)
+{
+      vvp_vector4_t value;
+      if (!dpi_get_packed_(h, indices, value) || value.size() == 0) return;
+      static const vvp_bit4_t map[4] = {BIT4_0, BIT4_1, BIT4_Z, BIT4_X};
+      value.set_bit(0, map[logic & 3]);
+      dpi_put_packed_(h, indices, value);
+}
+
+svBit svGetBitArrElem1(const svOpenArrayHandle s, int indx1)
+{ return dpi_get_bit_scalar_(s, vector<int>{indx1}); }
+svBit svGetBitArrElem2(const svOpenArrayHandle s, int indx1, int indx2)
+{ return dpi_get_bit_scalar_(s, vector<int>{indx1, indx2}); }
+svBit svGetBitArrElem3(const svOpenArrayHandle s, int indx1, int indx2,
+		       int indx3)
+{ return dpi_get_bit_scalar_(s, vector<int>{indx1, indx2, indx3}); }
+svBit svGetBitArrElem(const svOpenArrayHandle s, int indx1, ...)
+{
+      va_list ap; va_start(ap, indx1);
+      vector<int> indices = dpi_var_indices_(s, indx1, ap);
+      va_end(ap);
+      return dpi_get_bit_scalar_(s, indices);
+}
+
+svLogic svGetLogicArrElem1(const svOpenArrayHandle s, int indx1)
+{ return dpi_get_logic_scalar_(s, vector<int>{indx1}); }
+svLogic svGetLogicArrElem2(const svOpenArrayHandle s, int indx1, int indx2)
+{ return dpi_get_logic_scalar_(s, vector<int>{indx1, indx2}); }
+svLogic svGetLogicArrElem3(const svOpenArrayHandle s, int indx1, int indx2,
+			   int indx3)
+{ return dpi_get_logic_scalar_(s, vector<int>{indx1, indx2, indx3}); }
+svLogic svGetLogicArrElem(const svOpenArrayHandle s, int indx1, ...)
+{
+      va_list ap; va_start(ap, indx1);
+      vector<int> indices = dpi_var_indices_(s, indx1, ap);
+      va_end(ap);
+      return dpi_get_logic_scalar_(s, indices);
+}
+
+void svPutBitArrElem1(const svOpenArrayHandle d, svBit value, int indx1)
+{ dpi_put_bit_scalar_(d, value, vector<int>{indx1}); }
+void svPutBitArrElem2(const svOpenArrayHandle d, svBit value, int indx1,
+		      int indx2)
+{ dpi_put_bit_scalar_(d, value, vector<int>{indx1, indx2}); }
+void svPutBitArrElem3(const svOpenArrayHandle d, svBit value, int indx1,
+		      int indx2, int indx3)
+{ dpi_put_bit_scalar_(d, value, vector<int>{indx1, indx2, indx3}); }
+void svPutBitArrElem(const svOpenArrayHandle d, svBit value, int indx1, ...)
+{
+      va_list ap; va_start(ap, indx1);
+      vector<int> indices = dpi_var_indices_(d, indx1, ap);
+      va_end(ap);
+      dpi_put_bit_scalar_(d, value, indices);
+}
+
+void svPutLogicArrElem1(const svOpenArrayHandle d, svLogic value, int indx1)
+{ dpi_put_logic_scalar_(d, value, vector<int>{indx1}); }
+void svPutLogicArrElem2(const svOpenArrayHandle d, svLogic value, int indx1,
+			int indx2)
+{ dpi_put_logic_scalar_(d, value, vector<int>{indx1, indx2}); }
+void svPutLogicArrElem3(const svOpenArrayHandle d, svLogic value, int indx1,
+			int indx2, int indx3)
+{ dpi_put_logic_scalar_(d, value, vector<int>{indx1, indx2, indx3}); }
+void svPutLogicArrElem(const svOpenArrayHandle d, svLogic value, int indx1, ...)
+{
+      va_list ap; va_start(ap, indx1);
+      vector<int> indices = dpi_var_indices_(d, indx1, ap);
+      va_end(ap);
+      dpi_put_logic_scalar_(d, value, indices);
 }
 
 void* svGetArrayPtr(const void*h)

@@ -154,6 +154,62 @@ module g12_streaming_dynamic_test;
     end
   end
 
+  // --- dynamic operand into a fixed unpacked-array target ----------
+  // A short stream is left-aligned and zero-filled on the right. The
+  // first stream element maps to the target's LEFT declared index, so a
+  // descending target exercises a different canonical word order.
+  initial begin
+    #7;
+    begin
+      byte d[];
+      logic [15:0] asc[0:2];
+      logic [15:0] desc[2:0];
+      d = new[5];
+      d[0] = 8'h01; d[1] = 8'h23; d[2] = 8'h45;
+      d[3] = 8'h67; d[4] = 8'h89;
+      asc = {>>byte{d}};
+      desc = {>>byte{d}};
+      if (asc[0] !== 16'h0123 || asc[1] !== 16'h4567
+          || asc[2] !== 16'h8900) begin
+        $display("FAIL t16 dynamic->fixed asc=%p", asc);
+        errors++;
+      end
+      if (desc[2] !== 16'h0123 || desc[1] !== 16'h4567
+          || desc[0] !== 16'h8900) begin
+        $display("FAIL t17 dynamic->fixed desc=%p", desc);
+        errors++;
+      end
+    end
+  end
+
+  // --- nested container/aggregate dynamic operand -----------------
+  // Mirrors OpenTitan HMAC's associative-array -> dynamic-array ->
+  // unpacked-struct dynamic member path.
+  typedef struct {
+    byte payload[];
+  } stream_record_t;
+  stream_record_t records[string][];
+
+  initial begin
+    #8;
+    begin
+      logic [15:0] words[0:1];
+      byte dyn_bytes[];
+      stream_record_t vector_list[];
+      dyn_bytes = new[4];
+      dyn_bytes[0] = 8'hDE; dyn_bytes[1] = 8'hAD;
+      dyn_bytes[2] = 8'hBE; dyn_bytes[3] = 8'hEF;
+      vector_list = new[1];
+      vector_list[0].payload = dyn_bytes;
+      records["nist"] = vector_list;
+      words = {>>byte{records["nist"][0].payload}};
+      if (words[0] !== 16'hDEAD || words[1] !== 16'hBEEF) begin
+        $display("FAIL t18 nested dynamic stream=%p", words);
+        errors++;
+      end
+    end
+  end
+
   initial begin
     #10;
     if (errors == 0) $display("PASS");

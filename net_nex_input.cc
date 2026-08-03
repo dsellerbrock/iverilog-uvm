@@ -185,29 +185,39 @@ NexusSet* NetEScope::nex_input(bool, bool, bool) const
       return new NexusSet;
 }
 
+static bool select_reads_only_constant_data(const NetExpr*expr)
+{
+      if (dynamic_cast<const NetEConst*>(expr))
+	    return true;
+
+      const NetESelect*select = dynamic_cast<const NetESelect*>(expr);
+      if (!select)
+	    return false;
+
+        // Struct/array member access is lowered as nested selects. If the
+        // innermost data expression is constant, the nested select's only
+        // runtime dependencies are its index/base expressions, which its
+        // nex_input walk already includes exactly.
+      return select_reads_only_constant_data(select->sub_expr());
+}
+
 NexusSet* NetESelect::nex_input(bool rem_out, bool always_sens, bool nested_func) const
 {
       NexusSet*result = base_? base_->nex_input(rem_out, always_sens, nested_func) : new NexusSet();
       NexusSet*tmp = expr_->nex_input(rem_out, always_sens, nested_func);
       bool const_select = result->size() == 0;
       if (always_sens && const_select) {
-	    if (/* const NetEConst *val = */ dynamic_cast <NetEConst*> (base_)) {
+	    if (const NetEConst *val = dynamic_cast <NetEConst*> (base_)) {
 		  assert(select_type() == IVL_SEL_OTHER);
 		  if (const NetESignal *sig = dynamic_cast<NetESignal*> (expr_)) {
-			cerr << get_fileline() << ": sorry: constant selects "
-			        "in always_* processes are not fully supported "
-			        "(the process will be sensitive to all bits in '"
-                             << *sig << "')." << endl;
-#if 0
-// Enable this code once PEventStatement::elaborate_st() has been enhanced to
-// support bit/part select sensitivity.
 			delete tmp;
 			tmp = sig->nex_input_base(rem_out, always_sens, nested_func,
                                                   val->value().as_unsigned(), expr_width());
-#endif
-		  } else {
-			cerr << get_fileline() << ": Sorry, cannot determine the sensitivity "
-			     << "for the select of " << *expr_ << ", using all bits." << endl;
+		  } else if (!select_reads_only_constant_data(expr_)) {
+			cerr << get_fileline() << ": warning: cannot determine the "
+			     << "precise sensitivity for the select of " << *expr_
+			     << "; using conservative whole-expression sensitivity."
+			     << endl;
 		  }
 	    }
       }
@@ -489,9 +499,14 @@ NexusSet* NetBlock::nex_input(bool rem_out, bool always_sens, bool nested_func) 
 	       * whole-signal answer it depends on. */
 	    if (rem_out) {
 		  bool saved = nex_output_precise_partsel;
-		  if (always_sens) nex_output_precise_partsel = true;
+		  bool saved_array_word = nex_output_precise_array_word;
+		  if (always_sens) {
+			nex_output_precise_partsel = true;
+			nex_output_precise_array_word = true;
+		  }
 		  cur->nex_output(*prev);
 		  nex_output_precise_partsel = saved;
+		  nex_output_precise_array_word = saved_array_word;
 	    }
 
 	    cur = cur->next_;
@@ -504,6 +519,20 @@ NexusSet* NetBlock::nex_input(bool rem_out, bool always_sens, bool nested_func) 
       delete prev;
 
       return result;
+}
+
+/* break/continue only redirect procedural control flow. They read no design
+ * object and therefore add nothing to an implicit always_comb/@* sensitivity
+ * set. Explicit leaf implementations also avoid the generic NetProc fallback
+ * reporting a false internal compiler error. */
+NexusSet* NetBreak::nex_input(bool, bool, bool) const
+{
+      return new NexusSet;
+}
+
+NexusSet* NetContinue::nex_input(bool, bool, bool) const
+{
+      return new NexusSet;
 }
 
 /*

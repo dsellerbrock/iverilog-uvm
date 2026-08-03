@@ -56,7 +56,7 @@ bool PExpr::has_aa_term(Design*, NetScope*) const
       return false;
 }
 
-void PExpr::reloc_lexical_pos_bind()
+void PExpr::reloc_lexical_pos_bind(bool)
 {
 }
 
@@ -131,10 +131,10 @@ PEBinary::PEBinary(char op, PExpr*l, PExpr*r)
 {
 }
 
-void PEBinary::reloc_lexical_pos_bind()
+void PEBinary::reloc_lexical_pos_bind(bool parameter_context)
 {
-      if (left_) left_->reloc_lexical_pos_bind();
-      if (right_) right_->reloc_lexical_pos_bind();
+      if (left_) left_->reloc_lexical_pos_bind(parameter_context);
+      if (right_) right_->reloc_lexical_pos_bind(parameter_context);
 }
 
 PEBinary::~PEBinary()
@@ -298,14 +298,16 @@ PECallFunction::~PECallFunction()
       delete receiver_;
 }
 
-void PECallFunction::reloc_lexical_pos_bind()
+void PECallFunction::reloc_lexical_pos_bind(bool parameter_context)
 {
-      if (receiver_) receiver_->reloc_lexical_pos_bind();
+      if (receiver_) receiver_->reloc_lexical_pos_bind(parameter_context);
       for (unsigned idx = 0 ; idx < parms_.size() ; idx += 1) {
-	    if (parms_[idx].parm) parms_[idx].parm->reloc_lexical_pos_bind();
+	    if (parms_[idx].parm)
+		  parms_[idx].parm->reloc_lexical_pos_bind(parameter_context);
       }
       for (unsigned idx = 0 ; idx < with_constraints_.size() ; idx += 1) {
-	    if (with_constraints_[idx]) with_constraints_[idx]->reloc_lexical_pos_bind();
+	    if (with_constraints_[idx])
+		  with_constraints_[idx]->reloc_lexical_pos_bind(parameter_context);
       }
 }
 
@@ -338,11 +340,12 @@ PEConcat::PEConcat(const list<PExpr*>&p, PExpr*r)
       repeat_count_ = 1;
 }
 
-void PEConcat::reloc_lexical_pos_bind()
+void PEConcat::reloc_lexical_pos_bind(bool parameter_context)
 {
-      if (repeat_) repeat_->reloc_lexical_pos_bind();
+      if (repeat_) repeat_->reloc_lexical_pos_bind(parameter_context);
       for (unsigned idx = 0 ; idx < parms_.size() ; idx += 1) {
-	    if (parms_[idx]) parms_[idx]->reloc_lexical_pos_bind();
+	    if (parms_[idx])
+		  parms_[idx]->reloc_lexical_pos_bind(parameter_context);
       }
 }
 
@@ -466,15 +469,18 @@ static bool find_enum_constant(LexicalScope*scope, perm_string name)
       });
 }
 
-void PEIdent::reloc_lexical_pos_bind()
+void PEIdent::reloc_lexical_pos_bind(bool parameter_context)
 {
       lexical_pos_ = UINT_MAX;
+      bind_parameter_expr_ = parameter_context;
       for (pform_name_t::iterator name = path_.name.begin()
 		 ; name != path_.name.end() ; ++name) {
 	    for (std::list<index_component_t>::iterator idx = name->index.begin()
 		       ; idx != name->index.end() ; ++idx) {
-		  if (idx->msb) idx->msb->reloc_lexical_pos_bind();
-		  if (idx->lsb) idx->lsb->reloc_lexical_pos_bind();
+		  if (idx->msb)
+			idx->msb->reloc_lexical_pos_bind(parameter_context);
+		  if (idx->lsb)
+			idx->lsb->reloc_lexical_pos_bind(parameter_context);
 	    }
       }
 }
@@ -504,6 +510,15 @@ void PEIdent::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
                         return;
                   if (find_enum_constant(ss, name))
                         return;
+		  // An explicitly imported package symbol is already a
+		  // declaration visible in this scope (IEEE 1800-2017 26.3).
+		  // Do not manufacture an implicit wire with the same name.
+		  // In particular, enum literals imported in a module body and
+		  // then used as parameter actuals were shadowed by such a wire;
+		  // constant elaboration consequently rejected the literal as a
+		  // net instead of reading its package enum value.
+		  if (ss->explicit_imports.find(name) != ss->explicit_imports.end())
+			return;
                   /* Strictly speaking, we should also check for name clashes
                      with tasks, functions, named blocks, and generate
                      blocks. However, this information is not readily
@@ -641,11 +656,11 @@ PETernary::PETernary(PExpr*e, PExpr*t, PExpr*f)
 {
 }
 
-void PETernary::reloc_lexical_pos_bind()
+void PETernary::reloc_lexical_pos_bind(bool parameter_context)
 {
-      if (expr_) expr_->reloc_lexical_pos_bind();
-      if (tru_) tru_->reloc_lexical_pos_bind();
-      if (fal_) fal_->reloc_lexical_pos_bind();
+      if (expr_) expr_->reloc_lexical_pos_bind(parameter_context);
+      if (tru_) tru_->reloc_lexical_pos_bind(parameter_context);
+      if (fal_) fal_->reloc_lexical_pos_bind(parameter_context);
 }
 
 PETernary::~PETernary()
@@ -682,9 +697,9 @@ PEUnary::PEUnary(char op, PExpr*ex)
 {
 }
 
-void PEUnary::reloc_lexical_pos_bind()
+void PEUnary::reloc_lexical_pos_bind(bool parameter_context)
 {
-      if (expr_) expr_->reloc_lexical_pos_bind();
+      if (expr_) expr_->reloc_lexical_pos_bind(parameter_context);
 }
 
 PEUnary::~PEUnary()
@@ -885,9 +900,11 @@ void PEInside::dump(std::ostream& out) const
 	    if (i > 0) out << ", ";
 	    if (ranges_[i].is_range) {
 		  out << "[";
-		  ranges_[i].lo->dump(out);
+		  if (ranges_[i].lo) ranges_[i].lo->dump(out);
+		  else out << "$";
 		  out << ":";
-		  ranges_[i].hi->dump(out);
+		  if (ranges_[i].hi) ranges_[i].hi->dump(out);
+		  else out << "$";
 		  out << "]";
 	    } else {
 		  ranges_[i].hi->dump(out);

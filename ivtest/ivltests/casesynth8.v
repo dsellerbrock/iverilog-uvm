@@ -1,6 +1,6 @@
-// We don't (currently) support a case statement where both the case select
-// and one or more case items are variables in asynchronous logic synthesis.
-// Check the compiler handles and rejects this code.
+// A case statement where both the case select and one or more case items are
+// variables lowers through exact comparisons in asynchronous logic synthesis.
+// Check that accepting this shape does not regress the synthesis pass.
 module mux(
 
 input wire [2:0] sel,

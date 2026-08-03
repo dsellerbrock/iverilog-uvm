@@ -1100,27 +1100,7 @@ NetProcTop::~NetProcTop()
 	    delete statement_;
 	    return;
       }
-
-      NexusSet nex_set;
-      statement_->nex_output(nex_set);
-
       delete statement_;
-
-      bool flag = false;
-      for (unsigned idx = 0 ;  idx < nex_set.size() ;  idx += 1) {
-
-	    const NetNet*net = nex_set[idx].lnk.nexus()->pick_any_net();
-	    if (net->peek_lref() > 0) {
-		  cerr << get_fileline() << ": warning: '" << net->name()
-		       << "' is driven by more than one process." << endl;
-		  flag = true;
-	    }
-      }
-      if (flag) {
-	    cerr << get_fileline() << ": sorry: Cannot synthesize signals "
-		    "that are driven by more than one process." << endl;
-	    synthesized_design_->errors += 1;
-      }
 }
 
 NetProc* NetProcTop::statement()
@@ -2134,6 +2114,16 @@ NetProc* NetCondit::else_clause()
       return else_;
 }
 
+const NetProc* NetCondit::if_clause() const
+{
+      return if_;
+}
+
+const NetProc* NetCondit::else_clause() const
+{
+      return else_;
+}
+
 NetConst::NetConst(NetScope*s, perm_string n, verinum::V v)
 : NetNode(s, n, 1), value_(v, 1)
 {
@@ -2736,6 +2726,16 @@ NetEUReduce::NetEUReduce(char op__, NetExpr*ex)
 
 NetEUReduce::~NetEUReduce()
 {
+}
+
+ivl_variable_type_t NetEUReduce::expr_type() const
+{
+      /* Logical NOT and reduction operators produce a one-bit unsigned
+       * integral result; they do not retain an object/container operand's
+       * type. A four-state operand can still produce X, while every other
+       * accepted operand shape has a two-state result. */
+      return expr_->expr_type() == IVL_VT_LOGIC
+	    ? IVL_VT_LOGIC : IVL_VT_BOOL;
 }
 
 NetECast::NetECast(char op__, NetExpr*ex, unsigned wid, bool signed_flag)

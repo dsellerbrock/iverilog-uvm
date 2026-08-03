@@ -190,6 +190,7 @@ NetScope::NetScope(NetScope*up, const hname_t&n, NetScope::TYPE t, NetScope*in_u
       lineno_ = 0;
       def_lineno_ = 0;
       genvar_tmp_val = 0;
+      loop_index_net_tmp = 0;
       tie_hi_ = 0;
       tie_lo_ = 0;
 }

@@ -147,7 +147,8 @@ class class_type : public __vpiHandle {
 	    uint64_t lo;         // wildcard: value
 	    uint64_t hi;         // wildcard: care mask
 	    // kind & 7: 0=normal, 1=ignore, 2=illegal, 3=default,
-	    //           4=transition step (tuple = (seq<<8)|step)
+	    //           4=transition step (tuple = (seq<<8)|step),
+	    //           5=illegal default, 6=ignore default
 	    // kind & 8: wildcard match ((v ^ lo) & hi == 0)
 	    unsigned kind = 0;
 	    unsigned tuple = 0;
@@ -156,26 +157,55 @@ class class_type : public __vpiHandle {
       struct cov_item_t {
 	    unsigned at_least = 1;
 	    unsigned weight = 1;
+	    std::string weight_ir;
 	    bool is_cross = false;
 	    std::string name;   // M12-7: coverpoint/cross label
+      };
+      struct cov_dyn_bin_t {
+	    unsigned cp_idx = 0;
+	    unsigned item_idx = 0;
+	    unsigned kind = 0;
+	    unsigned family = 0;
+	    uint64_t array_size = 0;
+	    std::string name;
+	    std::string lo_ir;
+	    std::string hi_ir;
       };
       static const unsigned COV_NO_PROP = 0xFFFFFFFFu;
       void add_covgrp_bin(unsigned cp_idx, unsigned prop_idx, uint64_t lo, uint64_t hi,
 			  unsigned kind = 0, unsigned tuple = 0,
 			  unsigned item_idx = 0);
       void add_covgrp_item(unsigned at_least, unsigned weight, bool is_cross,
-			   const std::string&name = std::string())
+			   const std::string&name = std::string(),
+			   const std::string&weight_ir = std::string())
       { cov_item_t it;
 	it.at_least = at_least;
 	it.weight = weight;
+	it.weight_ir = weight_ir;
 	it.is_cross = is_cross;
 	it.name = name;
 	covgrp_items_.push_back(it); }
       size_t covgrp_bin_count() const { return covgrp_bins_.size(); }
       const cov_bin_t& covgrp_bin(size_t idx) const { return covgrp_bins_[idx]; }
+      void add_covgrp_dyn_bin(unsigned cp, unsigned item, unsigned kind,
+			      unsigned family, uint64_t array_size,
+			      const std::string&name,
+			      const std::string&lo_ir,
+			      const std::string&hi_ir)
+      { cov_dyn_bin_t b;
+	b.cp_idx = cp; b.item_idx = item; b.kind = kind; b.family = family;
+	b.array_size = array_size; b.name = name; b.lo_ir = lo_ir; b.hi_ir = hi_ir;
+	covgrp_dyn_bins_.push_back(b); }
+      size_t covgrp_dyn_bin_count() const { return covgrp_dyn_bins_.size(); }
+      const cov_dyn_bin_t& covgrp_dyn_bin(size_t idx) const
+      { return covgrp_dyn_bins_[idx]; }
       size_t covgrp_item_count() const { return covgrp_items_.size(); }
       const cov_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
-      bool is_covergroup() const { return !covgrp_bins_.empty(); }
+      unsigned covgrp_item_weight(class vvp_cobject*obj, size_t idx) const;
+      bool covgrp_eval_ir(class vvp_cobject*obj, const std::string&ir,
+			  uint64_t&value) const;
+      bool is_covergroup() const
+      { return !covgrp_bins_.empty() || !covgrp_dyn_bins_.empty(); }
 
 	// M11: TYPE-level (merged across all instances) hit counters
 	// indexed by counter property, and the type coverage computed
@@ -183,7 +213,12 @@ class class_type : public __vpiHandle {
 	// coverage.
       void type_bump(unsigned prop) const;
       uint32_t type_count(unsigned prop) const;
-      double type_coverage() const;
+      void dyn_type_bump(unsigned family, uint64_t bin) const
+      { covgrp_dyn_type_counts_[std::make_pair(family, bin)] += 1; }
+      uint32_t dyn_type_count(unsigned family, uint64_t bin) const
+      { auto it = covgrp_dyn_type_counts_.find(std::make_pair(family, bin));
+	return it == covgrp_dyn_type_counts_.end() ? 0 : it->second; }
+      double type_coverage(class vvp_cobject*context = 0) const;
 
 	// M11: registry of covergroup types for $get_coverage and the
 	// end-of-simulation report.
@@ -220,8 +255,11 @@ class class_type : public __vpiHandle {
 
     private:
       std::vector<cov_bin_t> covgrp_bins_;
+      std::vector<cov_dyn_bin_t> covgrp_dyn_bins_;
       std::vector<cov_item_t> covgrp_items_;
       mutable std::vector<uint32_t> type_counts_;
+      mutable std::map<std::pair<unsigned,uint64_t>,uint32_t>
+	    covgrp_dyn_type_counts_;
       int covgrp_parent_prop_ = -1;
       std::vector<int> covgrp_srcprops_;
       std::vector<int> covgrp_guardsrcs_;

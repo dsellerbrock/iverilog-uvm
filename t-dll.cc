@@ -968,6 +968,16 @@ bool dll_target::class_type(const NetScope*in_scope, netclass_t*net)
 bool dll_target::enumeration(const NetScope*in_scope, netenum_t*net)
 {
       ivl_scope_t use_scope = find_scope(des_, in_scope);
+	// A scope can be reached through more than one type-emission path
+	// (notably a class method and its owning specialization). The enum
+	// typespec is identified by NET, so emitting that same object twice
+	// creates duplicate labels in the VVP program. Keep one entry per
+	// typespec while preserving declaration order.
+      for (std::vector<ivl_enumtype_t>::const_iterator cur =
+		 use_scope->enumerations_.begin()
+		 ; cur != use_scope->enumerations_.end() ; ++cur)
+	    if (*cur == net)
+		  return true;
       use_scope->enumerations_.push_back(net);
       return true;
 }
@@ -999,6 +1009,11 @@ void dll_target::event(const NetEvent*net)
       obj->vif_N = 0;
       obj->vif_M = 0;
       obj->vif_pre_N = UINT_MAX;
+      obj->vif_root_pin = 0;
+      obj->is_obj_mutation = false;
+      obj->obj_N = UINT_MAX;
+      obj->obj_pre_N = UINT_MAX;
+      obj->obj_mutation_paths.clear();
       obj->is_array = net->is_event_array();
       obj->array_base = net->array_base_slot();
       obj->array_count = net->array_count();
@@ -1007,6 +1022,37 @@ void dll_target::event(const NetEvent*net)
 
 	    for (unsigned idx = 0 ;  idx < net->nprobe() ;  idx += 1) {
 		  const NetEvProbe*pr = net->probe(idx);
+		  if (pr->is_obj_mutation()) {
+			assert(pr->edge() == NetEvProbe::ANYEDGE);
+			for (unsigned pidx = 0 ; pidx < pr->obj_mutation_count();
+			     pidx += 1) {
+			      ivl_obj_mutation_path_s path;
+			      path.obj_N = pr->obj_mutation_N(pidx);
+			      path.obj_pre_N = pr->obj_mutation_pre_N(pidx);
+			      path.root_pin = obj->nany
+				    + pr->obj_mutation_root_pin(pidx);
+			      bool duplicate = false;
+			      for (unsigned old = 0 ; old < obj->obj_mutation_paths.size();
+				   old += 1) {
+				    const ivl_obj_mutation_path_s&prior =
+					  obj->obj_mutation_paths[old];
+				    if (prior.obj_N == path.obj_N
+					&& prior.obj_pre_N == path.obj_pre_N
+					&& prior.root_pin == path.root_pin) {
+					  duplicate = true;
+					  break;
+				    }
+			      }
+			      if (!duplicate)
+				    obj->obj_mutation_paths.push_back(path);
+			}
+			obj->is_obj_mutation = !obj->obj_mutation_paths.empty();
+			if (obj->is_obj_mutation) {
+			      obj->obj_N = obj->obj_mutation_paths.front().obj_N;
+			      obj->obj_pre_N =
+				    obj->obj_mutation_paths.front().obj_pre_N;
+			}
+		  }
 		  switch (pr->edge()) {
 		      case NetEvProbe::ANYEDGE:
 			obj->nany += pr->pin_count();
@@ -1015,6 +1061,8 @@ void dll_target::event(const NetEvent*net)
 			      obj->vif_N = pr->vif_N();
 			      obj->vif_M = pr->vif_M();
 			      obj->vif_pre_N = pr->vif_pre_N();
+			      obj->vif_path = pr->vif_path();
+			      obj->vif_root_pin = pr->vif_root_pin();
 			}
 			break;
 		      case NetEvProbe::NEGEDGE:
@@ -1024,6 +1072,8 @@ void dll_target::event(const NetEvent*net)
 			      obj->vif_N = pr->vif_N();
 			      obj->vif_M = pr->vif_M();
 			      obj->vif_pre_N = pr->vif_pre_N();
+			      obj->vif_path = pr->vif_path();
+			      obj->vif_root_pin = pr->vif_root_pin();
 			}
 			break;
 		      case NetEvProbe::POSEDGE:
@@ -1033,6 +1083,8 @@ void dll_target::event(const NetEvent*net)
 			      obj->vif_N = pr->vif_N();
 			      obj->vif_M = pr->vif_M();
 			      obj->vif_pre_N = pr->vif_pre_N();
+			      obj->vif_path = pr->vif_path();
+			      obj->vif_root_pin = pr->vif_root_pin();
 			}
 			break;
 		      case NetEvProbe::EDGE:

@@ -115,7 +115,7 @@ br605b				NI			ivltests
 br971				NI			ivltests
 br1005				NI			ivltests
 br1015a				NI			ivltests
-br1015b				NI			ivltests
+br1015b				normal			ivltests
 br_ml20150315b			NI			ivltests
 sv_darray_nest1			NI			ivltests
 sv_darray_nest2			NI			ivltests

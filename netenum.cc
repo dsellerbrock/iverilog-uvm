@@ -24,7 +24,8 @@
 using namespace std;
 
 netenum_t::netenum_t(ivl_type_t btype, size_t name_count, bool integer_flag)
-: base_type_(btype), integer_flag_(integer_flag), names_(name_count),
+: base_type_(btype), integer_flag_(integer_flag), names_closed_(false),
+  names_(name_count),
   bits_(name_count)
 {
 }
@@ -106,6 +107,7 @@ void netenum_t::insert_name_close(void)
 	    }
 	    bits_[idx] = bits_strings.make(&str[0]);
       }
+      names_closed_ = true;
 }
 
 netenum_t::iterator netenum_t::find_name(perm_string name) const

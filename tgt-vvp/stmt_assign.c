@@ -1363,6 +1363,91 @@ static int show_stmt_assign_darray_pattern(ivl_statement_t net)
       unsigned idx;
       unsigned size_reg = allocate_word();
 
+        /* An unpacked-array concatenation is represented as an array pattern
+         * whose collection operands retain the destination container type.
+         * Its size is the sum of those runtime-sized operands plus its scalar
+         * operands, not simply ivl_expr_parms(). Build it in a temporary
+         * queue, then convert the queue to the declared dynamic-array type. */
+      int has_collection_operand = 0;
+      for (idx = 0; idx < ivl_expr_parms(rval); idx += 1) {
+            if (queue_pattern_operand_is_collection_(
+                        ivl_expr_parm(rval, idx), element_type)) {
+                  has_collection_operand = 1;
+                  break;
+            }
+      }
+
+      if (has_collection_operand) {
+            char enc[32];
+            unsigned elem_wid = ivl_type_packed_width(element_type);
+            stream_elem_type_text(element_type, enc, sizeof enc);
+            fprintf(vvp_out, "    %%new/queue \"%s\"; darray concat builder\n",
+                    enc);
+
+            for (idx = 0; idx < ivl_expr_parms(rval); idx += 1) {
+                  ivl_expr_t parm = ivl_expr_parm(rval, idx);
+                  fprintf(vvp_out, "    %%dup/obj/ref; darray concat receiver\n");
+                  if (queue_pattern_operand_is_collection_(parm, element_type)) {
+                        errors += draw_eval_object(parm);
+                        switch (ivl_type_base(element_type)) {
+                            case IVL_VT_REAL:
+                              fprintf(vvp_out, "    %%append/qo/r;\n");
+                              break;
+                            case IVL_VT_STRING:
+                              fprintf(vvp_out, "    %%append/qo/str;\n");
+                              break;
+                            case IVL_VT_BOOL:
+                            case IVL_VT_LOGIC:
+                              fprintf(vvp_out, "    %%append/qo/v %u;\n",
+                                      elem_wid);
+                              break;
+                            default:
+                              fprintf(vvp_out, "    %%append/qo/obj;\n");
+                              break;
+                        }
+                        continue;
+                  }
+
+                  switch (ivl_type_base(element_type)) {
+                      case IVL_VT_REAL:
+                        draw_eval_real(parm);
+                        fprintf(vvp_out, "    %%store/qo/b/r;\n");
+                        break;
+                      case IVL_VT_STRING:
+                        draw_eval_string(parm);
+                        fprintf(vvp_out, "    %%store/qo/b/str;\n");
+                        break;
+                      case IVL_VT_BOOL:
+                      case IVL_VT_LOGIC:
+                        draw_eval_vec4(parm);
+                        if (ivl_expr_width(parm) != elem_wid)
+                              fprintf(vvp_out, "    %%pad/%c %u;\n",
+                                      (ivl_type_signed(element_type)
+                                       && ivl_expr_signed(parm)) ? 's' : 'u',
+                                      elem_wid);
+                        fprintf(vvp_out, "    %%store/qo/b/v %u;\n", elem_wid);
+                        break;
+                      default:
+                        errors += draw_eval_object_value_copy(parm, element_type);
+                        fprintf(vvp_out, "    %%store/qo/b/obj;\n");
+                        break;
+                  }
+            }
+
+            fprintf(vvp_out, "    %%queue/to/darray \"%s\";\n", enc);
+            if (ivl_type_base(element_type) == IVL_VT_NO_TYPE
+                && ivl_type_properties(element_type) > 0) {
+                  ensure_class_type_emitted(element_type);
+                  fprintf(vvp_out,
+                          "    %%new/cobj C%p; darray concat element prototype\n",
+                          element_type);
+                  fprintf(vvp_out, "    %%dar/elem/proto;\n");
+            }
+            fprintf(vvp_out, "    %%store/obj v%p_0;\n", var);
+            clr_word(size_reg);
+            return errors;
+      }
+
 #if 0
       unsigned element_width = 1;
       if (ivl_type_base(element_type) == IVL_VT_BOOL)
@@ -1403,6 +1488,23 @@ static int show_stmt_assign_darray_pattern(ivl_statement_t net)
 		  fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
 		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
 		  fprintf(vvp_out, "    %%store/dar/str v%p_0;\n", var);
+		  break;
+
+		case IVL_VT_NO_TYPE:
+		  errors += draw_eval_object_value_copy(
+			  ivl_expr_parm(rval, idx), element_type);
+		  fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
+		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+		  fprintf(vvp_out, "    %%store/dar/obj v%p_0;\n", var);
+		  break;
+
+		case IVL_VT_CLASS:
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		  errors += draw_eval_object(ivl_expr_parm(rval, idx));
+		  fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
+		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+		  fprintf(vvp_out, "    %%store/dar/obj v%p_0;\n", var);
 		  break;
 
 		default:
@@ -2798,6 +2900,13 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		  if (ivl_type_base(prop_type) == IVL_VT_BOOL &&
 		      ivl_expr_value(rval) != IVL_VT_BOOL)
 			fprintf(vvp_out, "    %%cast2;\n");
+		  /* The class-property path bypasses the generic vector
+		     assignment lowering. For a compound assignment, explicitly
+		     match the r-value to the property width before emitting the
+		     binary opcode, as the indexed and field-property paths do. */
+		  if (ivl_stmt_opcode(net) != 0)
+			fprintf(vvp_out, "    %%pad/%s %u;\n",
+				ivl_expr_signed(rval) ? "s" : "u", lwid);
 
 		  draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
 					         ivl_expr_signed(rval));
@@ -2910,7 +3019,7 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			  /* The property is a darray, and there is no mux
 			     expression to the assignment is of an entire
 			     array object. */
-			errors += draw_eval_object(rval);
+			errors += draw_eval_object_value_copy(rval, prop_type);
 			fprintf(vvp_out, "    %%store/prop/obj %d, %d; IVL_VT_DARRAY\n",
 			        prop_idx, idx);
 			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
@@ -3148,6 +3257,33 @@ int uarray_container_kind_(ivl_signal_t sig, unsigned*kind_out,
 
       *kind_out = kind;
       return 1;
+}
+
+/* Marshal a fixed unpacked-array signal to the runtime container stack.
+   This is the expression-free twin of eval_object_array(), used where a
+   synthesized subroutine body has the formal signal but no IVL_EX_ARRAY
+   node (notably fixed unpacked-array DPI imports). */
+void emit_load_arr_dar_(ivl_signal_t sig, unsigned kind)
+{
+      int left = ivl_signal_array_dim_msb(sig, 0);
+      int right = ivl_signal_array_dim_lsb(sig, 0);
+
+      if (left > right)
+	    kind |= (1u << 10);
+
+      note_array_signal_use(sig);
+      if (ivl_signal_dimensions(sig) > 1) {
+	    unsigned dim;
+	    for (dim = 0 ; dim < ivl_signal_dimensions(sig) ; dim += 1)
+		  fprintf(vvp_out, "    %%dim/push %d, %d;\n",
+			  ivl_signal_array_dim_msb(sig, dim),
+			  ivl_signal_array_dim_lsb(sig, dim));
+	    fprintf(vvp_out, "    %%load/arr/dar/md v%p, %u;\n", sig, kind);
+	    return;
+      }
+
+      fprintf(vvp_out, "    %%load/arr/dar v%p, %u, %d;\n",
+	      sig, kind, left);
 }
 
 /* Emit the container -> fixed-array store for one signal. A

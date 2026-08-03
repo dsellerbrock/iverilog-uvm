@@ -1176,6 +1176,7 @@ class vvp_fun_arrayport  : public vvp_net_fun_t {
       ~vvp_fun_arrayport() override;
 
       virtual void check_word_change(unsigned long addr) = 0;
+      void store_word(const vvp_vector4_t&value);
 
     protected:
       vvp_array_t arr_;
@@ -1201,6 +1202,26 @@ vvp_fun_arrayport::vvp_fun_arrayport(vvp_array_t mem, vvp_net_t*net, long addr)
 
 vvp_fun_arrayport::~vvp_fun_arrayport()
 {
+}
+
+void vvp_fun_arrayport::store_word(const vvp_vector4_t&value)
+{
+      if (value.size() == 0) {
+	    vvp_vector4_t xxx(arr_->get_word_size(), BIT4_X);
+	    arr_->set_word(addr_, 0, xxx);
+      } else {
+	    arr_->set_word(addr_, 0, value);
+      }
+}
+
+bool vvp_array_port_store(vvp_net_t*net, const vvp_vector4_t&value)
+{
+      vvp_fun_arrayport*port = dynamic_cast<vvp_fun_arrayport*>(net->fun);
+      if (port == 0)
+	    return false;
+
+      port->store_word(value);
+      return true;
 }
 
 class vvp_fun_arrayport_sa  : public vvp_fun_arrayport {

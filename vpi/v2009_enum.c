@@ -82,6 +82,7 @@ static PLI_INT32 ivl_enum_method_next_prev_compiletf(ICARUS_VPI_CONST PLI_BYTE8*
 	case vpiLongIntVar:
 	case vpiReg:
 	case vpiShortIntVar:
+	case vpiPartSelect:
 	case vpiConstant:
 	case vpiParameter:
 	    break;
@@ -421,6 +422,7 @@ static PLI_INT32 ivl_enum_method_name_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	case vpiLongIntVar:
 	case vpiReg:
 	case vpiShortIntVar:
+	case vpiPartSelect:
 	case vpiConstant:
 	case vpiParameter:
 	    break;

@@ -49,11 +49,24 @@ void NetAlloc::nex_output(NexusSet&)
  * on, and only around its own walk.
  */
 bool nex_output_precise_partsel = false;
+bool nex_output_precise_array_word = false;
 
 void NetAssign_::nex_output(NexusSet&out)
 {
       assert(! nest_);
       assert(sig_);
+
+	// A whole unpacked-array assignment writes every word. Treating it as
+	// word zero leaves the remaining words out of the process output map and
+	// makes synthesis size the aggregate as though it were one packed word.
+      if (sig_->unpacked_dimensions() && !word_) {
+	    for (unsigned idx = 0; idx < sig_->pin_count(); idx += 1) {
+		  Nexus*word_nex = sig_->pin(idx).nexus();
+		  out.add(word_nex, 0, word_nex->vector_width());
+	    }
+	    return;
+      }
+
       unsigned use_word = 0;
       unsigned use_base = 0;
       unsigned use_wid = lwidth();
@@ -63,13 +76,18 @@ void NetAssign_::nex_output(NexusSet&out)
 		    // A constant word select, so add the selected word.
 		  use_word = tmp;
 	    } else {
-		    // A variable word select. The obvious thing to do
-		    // is to add the whole array, but this could cause
-		    // NetBlock::nex_input() to overprune the input set.
-		    // As array access is not yet handled in synthesis,
-		    // I'll leave this as TBD - the output set is not
-		    // otherwise used when elaborating an always @*
-		    // block.
+		    // For always_comb sensitivity subtraction, claiming the
+		    // whole array could remove words that the block only reads.
+		    // Synthesis, however, needs every possible word in the output
+		    // map before it unrolls a loop and contextually evaluates the
+		    // word expression. Keep the precise walk conservative and
+		    // expose all words to the default synthesis walk.
+		  if (!nex_output_precise_array_word) {
+			for (unsigned idx = 0; idx < sig_->pin_count(); idx += 1) {
+			      Nexus*word_nex = sig_->pin(idx).nexus();
+			      out.add(word_nex, 0, word_nex->vector_width());
+			}
+		  }
 		  return;
 	    }
       }
@@ -101,18 +119,25 @@ void NetAssign_::nex_output(NexusSet&out)
 	      // once at time 0 and simulated a stale value thereafter.
 	      // That caller turns the flag on around its own walk.
 	      //
-	      // Even then, only a CONSTANT in-range base is narrowed: a
-	      // run-time base can land anywhere.
+	      // Even then, only a CONSTANT base is narrowed: a run-time base
+	      // can land anywhere. Clamp a constant select to the bits that
+	      // actually overlap the signal; a completely out-of-range write
+	      // contributes no output bits.
 	    bool narrow = false;
 	    if (nex_output_precise_partsel) {
 		  const NetEConst*base_c = dynamic_cast<const NetEConst*>(base_);
 		  if (base_c && base_c->value().is_defined()) {
 			long off = base_c->value().as_long();
-			if (off >= 0 && (unsigned long)off + use_wid
-					<= nex->vector_width()) {
-			      use_base = (unsigned)off;
-			      narrow = true;
-			}
+			long end = off + use_wid;
+			long overlap_base = std::max(off, 0L);
+			long overlap_end = std::min(
+			      end, static_cast<long>(nex->vector_width()));
+			if (overlap_end <= overlap_base)
+			      return;
+			use_base = static_cast<unsigned>(overlap_base);
+			use_wid = static_cast<unsigned>(overlap_end
+						    - overlap_base);
+			narrow = true;
 		  }
 	    }
 	    if (!narrow) {
@@ -143,6 +168,14 @@ void NetBlock::nex_output(NexusSet&out)
 	    cur = cur->next_;
 	    cur->nex_output(out);
       } while (cur != last_);
+}
+
+void NetBreak::nex_output(NexusSet&)
+{
+}
+
+void NetContinue::nex_output(NexusSet&)
+{
 }
 
 void NetCase::nex_output(NexusSet&out)

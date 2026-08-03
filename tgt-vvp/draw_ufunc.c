@@ -107,6 +107,17 @@ static void draw_eval_function_argument(ivl_signal_t port, ivl_expr_t expr)
 	   evaluated, since evaluating one may call another function). */
       if (ivl_signal_port(port) == IVL_SIP_REF)
 	    return;
+
+	/* An unpacked fixed-array formal can retain its element data type
+	 * (notably an implicitly typed `input a[3:0]') while still having
+	 * signal dimensions. It is passed through the same temporary open-array
+	 * object used by explicitly typed fixed-array formals. Treating it as a
+	 * scalar reaches function_argument_logic's no-dimensions invariant and
+	 * aborts the target. */
+      if (ivl_signal_dimensions(port) > 0) {
+	    vvp_errors += draw_eval_object(expr);
+	    return;
+      }
       if (port_is_unsupported_aggregate_formal_(port)) {
 	    if (!warned_aggregate_arg_skip) {
 		  fprintf(stderr,
@@ -167,6 +178,17 @@ static void draw_send_function_argument(ivl_signal_t port, ivl_expr_t actual)
 
       if (ivl_signal_port(port) == IVL_SIP_REF)
 	    return;
+
+      if (ivl_signal_dimensions(port) > 0) {
+	    unsigned kind;
+	    if (uarray_container_kind_(port, &kind,
+				       ivl_signal_file(port),
+				       ivl_signal_lineno(port)))
+		  emit_store_arr_dar_(port, kind);
+	    else
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    return;
+      }
 
       if (port_is_unsupported_aggregate_formal_(port)) {
 	    if (!warned_aggregate_send_skip) {
@@ -272,6 +294,28 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 
       if (port_is_unsupported_aggregate_formal_(port))
 	    return;
+
+	/* Whole fixed-array output/inout copy-back. Both sides use inline
+	   word storage, so marshal the formal through the same temporary
+	   container used by fixed<->dynamic assignment. This also covers a
+	   fixed unpacked-array DPI formal called from an SV wrapper. */
+      if (ivl_signal_dimensions(port) > 0
+	  && ivl_expr_type(actual) == IVL_EX_ARRAY
+	  && ivl_expr_signal(actual)
+	  && ivl_signal_dimensions(ivl_expr_signal(actual)) > 0) {
+	    ivl_signal_t asig = ivl_expr_signal(actual);
+	    unsigned pkind, akind;
+	    if (uarray_container_kind_(port, &pkind,
+				       ivl_expr_file(actual),
+				       ivl_expr_lineno(actual))
+		&& uarray_container_kind_(asig, &akind,
+					 ivl_expr_file(actual),
+					 ivl_expr_lineno(actual))) {
+		  emit_load_arr_dar_(port, pkind);
+		  emit_store_arr_dar_(asig, akind);
+	    }
+	    return;
+      }
 
       /* Phase 63b/B6 (gap close): unwrap a single-level IVL_EX_SELECT
          that's just a width/sign cast wrapping an IVL_EX_PROPERTY.
@@ -651,10 +695,30 @@ static void draw_ufunc_preamble(ivl_expr_t expr)
 {
       ivl_scope_t def = ivl_expr_def(expr);
       unsigned idx;
+      unsigned first_unbound_parm = 0;
 
         /* If this is an automatic function, allocate the local storage. */
       if (ivl_scope_is_auto(def)) {
             fprintf(vvp_out, "    %%alloc S_%p;\n", def);
+      }
+
+	/* A class method's first actual is its implicit `this' handle.  Bind
+	 * that handle before evaluating user arguments.  A default argument is
+	 * elaborated in the method's scope and may call another method or read a
+	 * property through `this' (IEEE 1800-2017 13.5.3).  The old generic
+	 * two-pass sequence evaluated every argument first and did not store
+	 * `this' until afterwards, so such a default read a stale/null object
+	 * from the callee frame.  Automatic class-method frames make this early
+	 * store safe from nested calls; explicit actuals retain their existing
+	 * left-to-right evaluation order. */
+      if (ivl_expr_parms(expr) > 0 && ivl_scope_ports(def) > 1) {
+	    ivl_signal_t this_port = ivl_scope_port(def, 1);
+	    const char*name = this_port ? ivl_signal_basename(this_port) : 0;
+	    if (name && strcmp(name, "@") == 0) {
+		  draw_eval_function_argument(this_port, ivl_expr_parm(expr, 0));
+		  draw_send_function_argument(this_port, ivl_expr_parm(expr, 0));
+		  first_unbound_parm = 1;
+	    }
       }
 
 	/* Evaluate the expressions and send the results to the
@@ -664,11 +728,13 @@ static void draw_ufunc_preamble(ivl_expr_t expr)
 	   is called in one of the expressions. */
 
       assert(ivl_expr_parms(expr) == (ivl_scope_ports(def)-1));
-      for (idx = 0 ;  idx < ivl_expr_parms(expr) ;  idx += 1) {
+      for (idx = first_unbound_parm ;
+	   idx < ivl_expr_parms(expr) ; idx += 1) {
 	    ivl_signal_t port = ivl_scope_port(def, idx+1);
 	    draw_eval_function_argument(port, ivl_expr_parm(expr, idx));
       }
-      for (idx = ivl_expr_parms(expr) ;  idx > 0 ;  idx -= 1) {
+	for (idx = ivl_expr_parms(expr) ;
+	     idx > first_unbound_parm ; idx -= 1) {
 	    ivl_signal_t port = ivl_scope_port(def, idx);
 	    draw_send_function_argument(port, ivl_expr_parm(expr, idx-1));
       }
@@ -676,7 +742,8 @@ static void draw_ufunc_preamble(ivl_expr_t expr)
 	/* Bind the ref formals last, so that evaluating any argument --
 	   which may itself call a function, allocating and freeing
 	   frames -- is finished before this frame's bindings are set. */
-      for (idx = 0 ;  idx < ivl_expr_parms(expr) ;  idx += 1) {
+      for (idx = first_unbound_parm ;
+	   idx < ivl_expr_parms(expr) ; idx += 1) {
 	    ivl_signal_t port = ivl_scope_port(def, idx+1);
 	    if (ivl_signal_port(port) == IVL_SIP_REF)
 		  draw_bind_function_ref_argument(port, ivl_expr_parm(expr, idx));

@@ -51,6 +51,8 @@ void Nexus::connect(Link&r)
 		  driven_ = NO_GUESS;
 	    } else {
 		  driven_ = r_nexus->driven_;
+		  synthesized_process_driver_mask_.swap(
+			r_nexus->synthesized_process_driver_mask_);
 		  list_ = r_nexus->list_;
 		  list_->nexus_ = this;
 		  r_nexus->list_ = 0;
@@ -76,6 +78,16 @@ void Nexus::connect(Link&r)
 
       if (r_nexus->driven_ != Vz)
 	    driven_ = NO_GUESS;
+
+      if (synthesized_process_driver_mask_.size()
+		  < r_nexus->synthesized_process_driver_mask_.size())
+	    synthesized_process_driver_mask_.resize(
+		  r_nexus->synthesized_process_driver_mask_.size(), false);
+      for (unsigned bit = 0;
+	   bit < r_nexus->synthesized_process_driver_mask_.size(); bit += 1)
+	    synthesized_process_driver_mask_[bit] =
+		  synthesized_process_driver_mask_[bit]
+		  || r_nexus->synthesized_process_driver_mask_[bit];
 
 	// Splice the list of links from the "tmp" nexus to the end of
 	// this nexus. Adjust the nexus pointers as needed.
@@ -266,6 +278,8 @@ Nexus::Nexus(Link&that)
 	    list_->nexus_ = this;
 	    driven_ = tmp->driven_;
 	    name_ = tmp->name_;
+	    synthesized_process_driver_mask_.swap(
+		  tmp->synthesized_process_driver_mask_);
 
 	    tmp->list_ = 0;
 	    tmp->name_ = 0;
@@ -277,6 +291,30 @@ Nexus::~Nexus()
 {
       assert(list_ == 0);
       delete[] name_;
+}
+
+bool Nexus::claim_synthesized_process_driver(unsigned base, unsigned wid)
+{
+      if (synthesized_process_driver_mask_.size() < base + wid)
+	    synthesized_process_driver_mask_.resize(base + wid, false);
+
+      bool overlap = false;
+      for (unsigned bit = base; bit < base + wid; bit += 1) {
+	    if (synthesized_process_driver_mask_[bit])
+		  overlap = true;
+	    synthesized_process_driver_mask_[bit] = true;
+      }
+      return overlap;
+}
+
+bool Nexus::has_synthesized_process_driver() const
+{
+      for (unsigned bit = 0; bit < synthesized_process_driver_mask_.size();
+	   bit += 1) {
+	    if (synthesized_process_driver_mask_[bit])
+		  return true;
+      }
+      return false;
 }
 
 bool Nexus::assign_lval() const

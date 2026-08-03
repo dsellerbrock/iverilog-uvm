@@ -35,7 +35,8 @@ class vvp_cobject;
 bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
                       const std::vector<std::string>& extra_ir   = {},
                       const std::vector<uint64_t>&    slot_vals  = {},
-                      const std::vector<bool>*        prop_active = nullptr);
+                      const std::vector<bool>*        prop_active = nullptr,
+                      bool include_class_constraints = true);
 
 /*
  * Solve a scope-form std::randomize(vars) with-clause. Variable N is
@@ -46,9 +47,10 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
  * destination as required by 18.12/18.6.1.
  */
 bool vvp_z3_randomize_scope(const std::string&ir,
-			    const std::vector<uint64_t>&targets,
+			    const std::vector<std::string>&targets,
 			    const std::vector<unsigned>&widths,
 			    const std::vector<uint64_t>&slot_vals,
-			    std::vector<uint64_t>&values);
+			    const std::vector<std::vector<uint64_t> >&object_vals,
+			    std::vector<std::string>&values);
 
 #endif /* IVL_vvp_z3_H */

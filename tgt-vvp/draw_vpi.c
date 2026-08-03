@@ -220,6 +220,23 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 		    result->text = strdup(buffer);
 		    return 1;
 	      }
+	      /* Integral class properties need the same property-aware VPI
+	         lvalue treatment as strings. In particular,
+	         $value$plusargs("N=%d", obj.n) must update obj.n rather than
+	         a discarded vec4 stack temporary. Encode the property index,
+	         width, and signedness for the runtime handle. */
+	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
+		  && (ivl_expr_value(expr) == IVL_VT_LOGIC
+		      || ivl_expr_value(expr) == IVL_VT_BOOL)
+		  && ivl_expr_signal(expr)
+		  && !ivl_expr_oper1(expr)) {
+		    unsigned pidx = (unsigned)ivl_expr_property_idx(expr);
+		    snprintf(buffer, sizeof buffer, "&CPV<v%p_0, %u, %u, %u>",
+			     (void*)ivl_expr_signal(expr), pidx,
+			     ivl_expr_width(expr), ivl_expr_signed(expr) ? 1 : 0);
+		    result->text = strdup(buffer);
+		    return 1;
+	      }
 	      /* Nested or array-indexed string property: fall back so the
 	         caller dispatches to draw_eval_string (rvalue-only). */
 	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
@@ -749,6 +766,21 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 	    ivl_expr_t expr = tnet
 		  ? ivl_stmt_parm(tnet, idx)
 		  : ivl_expr_parm(fnet, idx);
+
+	      /* A selected instance-array scope can arrive as a zero-extension
+	       * select around IVL_EX_SCOPE. System-task arguments use the scope as
+	       * a VPI handle (for example `$asserton(0, ifs[0])'); evaluating this
+	       * wrapper as a vector loses the scope and produces a zero fallback.
+	       * Strip only a padding select -- a real part-select has oper2. */
+	    if (ivl_expr_type(expr) == IVL_EX_SELECT
+		&& ivl_expr_oper2(expr) == 0
+		&& ivl_expr_oper1(expr)
+		&& ivl_expr_type(ivl_expr_oper1(expr)) == IVL_EX_SCOPE) {
+		  snprintf(buffer, sizeof buffer, "S_%p",
+		           ivl_expr_scope(ivl_expr_oper1(expr)));
+		  args[idx].text = strdup(buffer);
+		  continue;
+	    }
 
 	    if (tf_name && strcmp(tf_name, "$cast") == 0 && idx == 0) {
 		  if (get_vpi_taskfunc_lvalue_arg(&args[idx], expr))

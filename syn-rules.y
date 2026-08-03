@@ -300,20 +300,25 @@ struct tokenize : public proc_match_t {
       }
 };
 
-static void syn_start_process(NetProcTop*t)
+static bool syn_start_process(NetProcTop*t)
 {
-      first_ = new syn_token_t;
-      last_ = first_;
-      ptr_ = first_;
-
-	// Can the following be converted into S_ALWAYS?
+      // The primary synth2 pass owns the SystemVerilog always_* process
+      // kinds. If one survives that pass, its unsupported shape has already
+      // been diagnosed (or synth2 found an internal limitation). The legacy
+      // token matcher cannot lower it, but it must not abort the compiler.
       if ((t->type() == IVL_PR_ALWAYS_COMB) ||
           (t->type() == IVL_PR_ALWAYS_FF) ||
           (t->type() == IVL_PR_ALWAYS_LATCH)) {
-	    cerr << t->get_fileline() << ": internal error: "
-		 << " Need to check if this can be synthesized." << endl;
-	    assert(0);
+	    cerr << t->get_fileline() << ": sorry: SystemVerilog always_* "
+		 << "process was not synthesized by the primary synthesis pass."
+		 << endl;
+	    des_->errors += 1;
+	    return false;
       }
+
+      first_ = new syn_token_t;
+      last_ = first_;
+      ptr_ = first_;
 
       first_->token = (t->type() == IVL_PR_ALWAYS)? S_ALWAYS : S_INITIAL;
       first_->top = t;
@@ -321,6 +326,7 @@ static void syn_start_process(NetProcTop*t)
 
       tokenize go;
       t -> statement() -> match_proc(&go);
+      return true;
 }
 
 static void syn_done_process()
@@ -354,7 +360,8 @@ struct syn_rules_f  : public functor_t {
 	    if (top->scope()->attribute(perm_string::literal("ivl_synthesis_cell")).len() > 0)
 		  return;
 
-	    syn_start_process(top);
+	    if (!syn_start_process(top))
+		  return;
 	    yyparse();
 	    syn_done_process();
       }

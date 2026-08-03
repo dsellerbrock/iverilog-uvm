@@ -95,6 +95,13 @@ void ufunc_core::assign_bits_to_ports(vvp_context_t context)
       for (unsigned idx = 0 ; idx < port_count() ;  idx += 1) {
 	    vvp_net_t*net = ports_[idx];
 	    vvp_net_ptr_t pp (net, 0);
+	    const vvp_vector4_t&tmp_val = value(idx);
+
+	      // A fixed unpacked-array formal is flattened into one input and
+	      // one fixed-address array port per word. Store through that port
+	      // into the callee's current (possibly automatic) array context.
+	    if (vvp_array_port_store(net, tmp_val))
+		  continue;
 
 	      // If the port is a real variable, then simply copy the
 	      // propagated input to the port variable.
@@ -109,7 +116,6 @@ void ufunc_core::assign_bits_to_ports(vvp_context_t context)
 	      // startup case where the input values have not
 	      // propagated useful values yet.
 	    if (vvp_fun_signal_vec*tmp = dynamic_cast<vvp_fun_signal_vec*>(net->fun)) {
-		  const vvp_vector4_t&tmp_val = value(idx);
 		  if (tmp_val.size() == 0) {
 			const vvp_vector4_t&ref = tmp->vec4_unfiltered_value();
 			vvp_vector4_t xxx (ref.size(), BIT4_X);

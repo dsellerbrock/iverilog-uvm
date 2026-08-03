@@ -66,6 +66,8 @@ static void draw_enum4_value(ivl_enumtype_t enumtype, unsigned idx)
 void draw_enumeration_in_scope(ivl_enumtype_t enumtype)
 {
       unsigned idx;
+      unsigned emitted = 0;
+      unsigned incomplete = 0;
       unsigned name_count = ivl_enum_names(enumtype);
       const char*dtype = ivl_enum_type(enumtype)==IVL_VT_BOOL? "2" : "4";
       const char*stype = ivl_enum_signed(enumtype) ? "/s" : "";
@@ -74,7 +76,22 @@ void draw_enumeration_in_scope(ivl_enumtype_t enumtype)
                        ivl_enum_width(enumtype));
 
       for (idx = 0 ; idx < name_count ; idx += 1) {
-	    fprintf(vvp_out, "   \"%s\" ", ivl_enum_name(enumtype, idx));
+	    const char*name = ivl_enum_name(enumtype, idx);
+	    const char*bits = ivl_enum_bits(enumtype, idx);
+	      /* The core deliberately leaves a slot empty when an enum
+	       * literal failed to elaborate. A target must not pass that
+	       * null metadata to strlen/%s: doing so turns an earlier
+	       * recoverable diagnostic into a compiler crash. Omit the
+	       * incomplete literal and keep emitting every valid one. */
+	    if (!name || !bits) {
+		  fprintf(stderr, "vvp.tgt warning: incomplete enumeration "
+			  "literal %u omitted from generated code.\n", idx);
+		  incomplete += 1;
+		  continue;
+	    }
+
+	    if (emitted) fputs(",\n", vvp_out);
+	    fprintf(vvp_out, "   \"%s\" ", name);
 
 	    switch (ivl_enum_type(enumtype)) {
 		case IVL_VT_BOOL:
@@ -87,10 +104,15 @@ void draw_enumeration_in_scope(ivl_enumtype_t enumtype)
 		  assert(0);
 	    }
 
-	    if ((idx+1) < name_count)
-		  fputc(',', vvp_out);
-	    fputc('\n', vvp_out);
+	    emitted += 1;
       }
 
-      fprintf(vvp_out, " ;\n");
+      fprintf(vvp_out, "\n ;\n");
+
+	/* An incomplete type is never a successful output. Keep the emitted
+	 * program syntactically readable for diagnostics, but make target
+	 * generation fail loudly instead of producing an exit-0 image whose
+	 * enum reflection is silently wrong. */
+      if (incomplete)
+	    vvp_errors += 1;
 }

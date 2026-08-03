@@ -822,6 +822,16 @@ extern int         ivl_event_is_vif_anyedge(ivl_event_t net);
 extern unsigned    ivl_event_vif_N(ivl_event_t net);
 extern unsigned    ivl_event_vif_M(ivl_event_t net);
 extern unsigned    ivl_event_vif_pre_N(ivl_event_t net); /* UINT_MAX = 2-level, else extra prop idx */
+extern unsigned    ivl_event_vif_path_count(ivl_event_t net);
+extern unsigned    ivl_event_vif_path_index(ivl_event_t net, unsigned idx);
+extern unsigned    ivl_event_vif_root_pin(ivl_event_t net);
+extern int         ivl_event_is_obj_mutation(ivl_event_t net);
+extern unsigned    ivl_event_obj_N(ivl_event_t net); /* UINT_MAX = root object */
+extern unsigned    ivl_event_obj_pre_N(ivl_event_t net);
+extern unsigned    ivl_event_obj_mutation_count(ivl_event_t net);
+extern unsigned    ivl_event_obj_mutation_N(ivl_event_t net, unsigned idx);
+extern unsigned    ivl_event_obj_mutation_pre_N(ivl_event_t net, unsigned idx);
+extern unsigned    ivl_event_obj_mutation_root_pin(ivl_event_t net, unsigned idx);
 
 extern const char*ivl_event_file(ivl_event_t net);
 extern unsigned ivl_event_lineno(ivl_event_t net);
@@ -2528,9 +2538,19 @@ extern unsigned ivl_type_covgrp_bin_kind(ivl_type_t net, int idx);
  * option table (at_least/weight, cross flag). */
 extern unsigned ivl_type_covgrp_bin_tuple(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_bin_item(ivl_type_t net, int idx);
+extern int      ivl_type_covgrp_dyn_bins(ivl_type_t net);
+extern unsigned ivl_type_covgrp_dyn_bin_cp(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_dyn_bin_item(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_dyn_bin_kind(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_dyn_bin_family(ivl_type_t net, int idx);
+extern uint64_t ivl_type_covgrp_dyn_bin_array_size(ivl_type_t net, int idx);
+extern const char* ivl_type_covgrp_dyn_bin_name(ivl_type_t net, int idx);
+extern const char* ivl_type_covgrp_dyn_bin_lo_ir(ivl_type_t net, int idx);
+extern const char* ivl_type_covgrp_dyn_bin_hi_ir(ivl_type_t net, int idx);
 extern int      ivl_type_covgrp_items(ivl_type_t net);
 extern unsigned ivl_type_covgrp_item_at_least(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_item_weight(ivl_type_t net, int idx);
+extern const char* ivl_type_covgrp_item_weight_ir(ivl_type_t net, int idx);
 extern int      ivl_type_covgrp_item_is_cross(ivl_type_t net, int idx);
   /* M12-7: coverpoint/cross label ("" when unnamed). */
 extern const char* ivl_type_covgrp_item_name(ivl_type_t net, int idx);

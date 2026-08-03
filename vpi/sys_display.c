@@ -1452,7 +1452,8 @@ static PLI_INT32 sys_display_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 		  vpi_free_object(argv);
 		  return 0;
 	    }
-      } else if (strncmp(name, "$sformatf", 9) == 0) {
+      } else if (strncmp(name, "$sformatf", 9) == 0
+		 || strncmp(name, "$psprintf", 9) == 0) {
 	      /* return as a string */
 	    fd_mcd = 0;
       } else {
@@ -2839,6 +2840,19 @@ void sys_display_register(void)
       tf_data.compiletf = sys_sformatf_compiletf;
       tf_data.sizetf    = 0;
       tf_data.user_data = "$sformatf";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      /* Historical PLI/SystemVerilog formatting alias retained by UVM
+       * environments and supported by commercial simulators. It has the
+       * same string return type and formatting semantics as $sformatf. */
+      tf_data.type      = vpiSysFunc;
+      tf_data.sysfunctype = vpiStringFunc;
+      tf_data.tfname    = "$psprintf";
+      tf_data.calltf    = sys_display_calltf;
+      tf_data.compiletf = sys_sformatf_compiletf;
+      tf_data.sizetf    = 0;
+      tf_data.user_data = "$psprintf";
       res = vpi_register_systf(&tf_data);
       vpip_make_systf_system_defined(res);
 

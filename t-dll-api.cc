@@ -468,6 +468,71 @@ extern "C" unsigned ivl_event_vif_pre_N(ivl_event_t net)
       return net->vif_pre_N;
 }
 
+extern "C" unsigned ivl_event_vif_path_count(ivl_event_t net)
+{
+      assert(net);
+      return net->vif_path.size();
+}
+
+extern "C" unsigned ivl_event_vif_path_index(ivl_event_t net, unsigned idx)
+{
+      assert(net);
+      assert(idx < net->vif_path.size());
+      return net->vif_path[idx];
+}
+
+extern "C" unsigned ivl_event_vif_root_pin(ivl_event_t net)
+{
+      assert(net);
+      return net->vif_root_pin;
+}
+
+extern "C" int ivl_event_is_obj_mutation(ivl_event_t net)
+{
+      assert(net);
+      return net->is_obj_mutation ? 1 : 0;
+}
+
+extern "C" unsigned ivl_event_obj_N(ivl_event_t net)
+{
+      assert(net);
+      return net->obj_N;
+}
+
+extern "C" unsigned ivl_event_obj_pre_N(ivl_event_t net)
+{
+      assert(net);
+      return net->obj_pre_N;
+}
+
+extern "C" unsigned ivl_event_obj_mutation_count(ivl_event_t net)
+{
+      assert(net);
+      return net->obj_mutation_paths.size();
+}
+
+extern "C" unsigned ivl_event_obj_mutation_N(ivl_event_t net, unsigned idx)
+{
+      assert(net);
+      assert(idx < net->obj_mutation_paths.size());
+      return net->obj_mutation_paths[idx].obj_N;
+}
+
+extern "C" unsigned ivl_event_obj_mutation_pre_N(ivl_event_t net, unsigned idx)
+{
+      assert(net);
+      assert(idx < net->obj_mutation_paths.size());
+      return net->obj_mutation_paths[idx].obj_pre_N;
+}
+
+extern "C" unsigned ivl_event_obj_mutation_root_pin(ivl_event_t net,
+                                                      unsigned idx)
+{
+      assert(net);
+      assert(idx < net->obj_mutation_paths.size());
+      return net->obj_mutation_paths[idx].root_pin;
+}
+
 extern "C" const char* ivl_expr_bits(ivl_expr_t net)
 {
       assert(net);
@@ -3777,6 +3842,40 @@ extern "C" unsigned ivl_type_covgrp_bin_item(ivl_type_t net, int idx)
       return 0;
 }
 
+extern "C" int ivl_type_covgrp_dyn_bins(ivl_type_t net)
+{
+      const netclass_t*ct = dynamic_cast<const netclass_t*>(net);
+      return ct ? (int)ct->covgrp_dyn_bin_count() : 0;
+}
+
+#define IVL_DYN_BIN_UINT_API(NAME, FIELD) \
+extern "C" unsigned NAME(ivl_type_t net, int idx) \
+{ const netclass_t*ct = dynamic_cast<const netclass_t*>(net); \
+  return (ct && idx >= 0) ? ct->covgrp_dyn_bin((size_t)idx).FIELD : 0; }
+
+IVL_DYN_BIN_UINT_API(ivl_type_covgrp_dyn_bin_cp, cp_idx)
+IVL_DYN_BIN_UINT_API(ivl_type_covgrp_dyn_bin_item, item_idx)
+IVL_DYN_BIN_UINT_API(ivl_type_covgrp_dyn_bin_kind, kind)
+IVL_DYN_BIN_UINT_API(ivl_type_covgrp_dyn_bin_family, family)
+#undef IVL_DYN_BIN_UINT_API
+
+extern "C" uint64_t ivl_type_covgrp_dyn_bin_array_size(ivl_type_t net, int idx)
+{
+      const netclass_t*ct = dynamic_cast<const netclass_t*>(net);
+      return (ct && idx >= 0)
+	   ? ct->covgrp_dyn_bin((size_t)idx).array_size : 0;
+}
+
+#define IVL_DYN_BIN_STR_API(NAME, FIELD) \
+extern "C" const char* NAME(ivl_type_t net, int idx) \
+{ const netclass_t*ct = dynamic_cast<const netclass_t*>(net); \
+  return (ct && idx >= 0) ? ct->covgrp_dyn_bin((size_t)idx).FIELD.c_str() : ""; }
+
+IVL_DYN_BIN_STR_API(ivl_type_covgrp_dyn_bin_name, name)
+IVL_DYN_BIN_STR_API(ivl_type_covgrp_dyn_bin_lo_ir, lo_ir)
+IVL_DYN_BIN_STR_API(ivl_type_covgrp_dyn_bin_hi_ir, hi_ir)
+#undef IVL_DYN_BIN_STR_API
+
 extern "C" int ivl_type_covgrp_items(ivl_type_t net)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
@@ -3799,6 +3898,15 @@ extern "C" unsigned ivl_type_covgrp_item_weight(ivl_type_t net, int idx)
       if (class_type && idx >= 0)
 	    return class_type->covgrp_item((size_t)idx).weight;
       return 1;
+}
+
+extern "C" const char* ivl_type_covgrp_item_weight_ir(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count())
+	    return class_type->covgrp_item((size_t)idx).weight_ir.c_str();
+      return "";
 }
 
 extern "C" int ivl_type_covgrp_item_is_cross(ivl_type_t net, int idx)

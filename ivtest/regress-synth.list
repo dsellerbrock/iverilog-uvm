@@ -100,6 +100,8 @@ case5-syn-fail		CE			ivltests
 case6			normal			ivltests
 case7			normal			ivltests
 case_wo_default		normal			ivltests
+synth_case_wide_select_fallback normal,-g2012	ivltests
+synth_constant_array_select_sensitivity normal,-g2012	ivltests
 casesynth1		normal			ivltests
 casesynth2		normal			ivltests
 casesynth3		normal			ivltests
@@ -107,7 +109,7 @@ casesynth4		normal			ivltests
 casesynth5		normal			ivltests
 casesynth6		normal			ivltests
 casesynth7		normal			ivltests gold=casesynth7.gold
-casesynth8		CE			ivltests
+casesynth8		normal			ivltests
 casesynth9		normal			ivltests
 condit1			normal			ivltests
 conditsynth1		normal			ivltests
@@ -116,6 +118,15 @@ conditsynth3		normal			ivltests
 ff_dual_enable		normal			ivltests
 for_loop_synth		normal			ivltests
 for_loop_synth2		normal			ivltests
+synth_for_loop_descending normal,-g2012	ivltests
+synth_for_loop_index_select normal,-g2012	ivltests
+synth_nested_for_loop_select normal,-g2012	ivltests
+synth_nested_loop_shadow_index normal,-g2012	ivltests
+synth_nested_loop_same_index_reject CE,-g2012	ivltests gold=synth_nested_loop_same_index_reject.gold
+synth_process_alias_boundary normal,-g2012	ivltests
+synth_process_overlap_reject CE,-g2012	ivltests
+synth_sparse_case	normal,-g2012	ivltests
+synth_unpacked_array_whole_assign normal,-g2012	ivltests
 if_part_no_else		normal			ivltests
 if_part_no_else2	normal			ivltests
 inside_synth		normal			ivltests
@@ -135,5 +146,25 @@ sqrt32synth		normal			ivltests
 ssetclr1		normal			ivltests
 ssetclr2		normal			ivltests
 ssetclr3		normal			ivltests
+synth_always_comb_constant normal,-g2012	ivltests
+synth_always_latch_intent normal,-g2012	ivltests
+synth_common_latch_enable normal,-g2012	ivltests
+synth_disjoint_partial_async_reset normal,-g2012	ivltests
+synth_disjoint_packed_processes normal,-g2012	ivltests
+synth_inert_initial normal,-g2012	ivltests
+synth_loop_constant_async_reset normal,-g2012	ivltests
+synth_loop_unknown_async_reset CE,-g2012	ivltests gold=synth_loop_unknown_async_reset.gold
+synth_mixed_async_reset_outputs normal,-g2012	ivltests
+synth_clipped_constant_part_select normal,-g2012	ivltests
+synth_concat_select_write_masks normal,-g2012	ivltests
+synth_noop_packed_write normal,-g2012	ivltests
+synth_packed_loop_disjoint_fields normal,-g2012	ivltests
+synth_partial_async_reset_reject CE,-g2012	ivltests
+synth_contextual_array_word normal,-g2012	ivltests
+synth_runtime_memory_partial_reject CE,-g2012	ivltests
+synth_runtime_memory_word normal,-g2012	ivltests
+synth_runtime_async_load_reject CE,-g2012	ivltests gold=synth_runtime_async_load_reject.gold
+synth_typed_assignment_pattern normal,-g2012	ivltests
+synth_variable_packed_lvalue normal,-g2012	ivltests
 synth_if_no_else	normal			ivltests
 ufuncsynth1		normal			ivltests

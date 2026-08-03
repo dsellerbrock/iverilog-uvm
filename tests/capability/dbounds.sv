@@ -1,9 +1,8 @@
 // Dynamic arrays DO marshal, so the bounds accessors are observable here.
 // A dynamic array is always 0-based ascending with size N, so the correct
-// answers are: low 0, high N-1, left 0, right N-1, increment +1
-// (left <= right => increment is +1, IEEE 1800-2017 H.10.2).
-// svIncrement returning a hardcoded -1 is therefore wrong for every
-// dynamic array, and svSizeOfArray must be the TOTAL byte size.
+// answers are: low 0, high N-1, left 0, right N-1, increment -1.
+// H.10.2 uses $increment's right-to-left convention; a left-to-right
+// traversal subtracts the result. svSizeOfArray is the TOTAL byte size.
 module top;
   import "DPI-C" function void probe1(input int a[]);
   import "DPI-C" function void probe2(input int a[][]);

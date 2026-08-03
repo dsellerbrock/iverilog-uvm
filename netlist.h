@@ -421,6 +421,11 @@ class Nexus {
 	   special cases it may be a blend. */
       std::vector<bool> driven_mask(void)const;
 
+	/* Claim bits written by a synthesized procedural process. Return true
+	   if any claimed bit already belongs to another synthesized process. */
+      bool claim_synthesized_process_driver(unsigned base, unsigned wid);
+      bool has_synthesized_process_driver() const;
+
 	/* The code generator sets an ivl_nexus_t to attach code
 	   generation details to the nexus. */
       ivl_nexus_t t_cookie() const { return t_cookie_; }
@@ -435,6 +440,8 @@ class Nexus {
 
       enum VALUE { NO_GUESS, V0, V1, Vx, Vz, VAR };
       mutable VALUE driven_;
+
+      std::vector<bool> synthesized_process_driver_mask_;
 
     private: // not implemented
       Nexus(const Nexus&);
@@ -1401,6 +1408,9 @@ class NetScope : public Definitions, public Attrib {
       long genvar_tmp_val;
 
       std::map<perm_string,LocalVar> loop_index_tmp;
+      NetNet*loop_index_net_tmp;
+      std::map<NetNet*,perm_string> loop_index_nets_tmp;
+      std::map<NetNet*,LocalVar> loop_index_values_tmp;
 
     private:
       void class_definitions_changed_() override;
@@ -2273,6 +2283,8 @@ class NetEArrayPattern  : public NetExpr {
       void dump(std::ostream&) const override;
 
       NetEArrayPattern* dup_expr() const override;
+      NetExpr*evaluate_function(const LineInfo&loc,
+				std::map<perm_string,LocalVar>&context_map) const override;
       NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
                           bool nested_func = false) const override;
       NetNet* synthesize(Design *des, NetScope *scope, NetExpr *root) override;
@@ -3257,6 +3269,10 @@ class NetBlock  : public NetProc {
 
 class NetBreak : public NetProc {
     public:
+      virtual NexusSet* nex_input(bool rem_out = true,
+				  bool always_sens = false,
+				  bool nested_func = false) const override;
+      virtual void nex_output(NexusSet&) override;
       virtual void dump(std::ostream&, unsigned ind) const override;
       virtual bool emit_proc(struct target_t*) const override;
       bool evaluate_function(const LineInfo &loc,
@@ -3372,6 +3388,8 @@ class NetCondit  : public NetProc {
 
       NetProc* if_clause();
       NetProc* else_clause();
+      const NetProc* if_clause() const;
+      const NetProc* else_clause() const;
 
 	// Replace the condition expression.
       void set_expr(NetExpr*ex);
@@ -3412,6 +3430,10 @@ class NetCondit  : public NetProc {
 
 class NetContinue : public NetProc {
     public:
+      virtual NexusSet* nex_input(bool rem_out = true,
+				  bool always_sens = false,
+				  bool nested_func = false) const override;
+      virtual void nex_output(NexusSet&) override;
       virtual void dump(std::ostream&, unsigned ind) const override;
       virtual bool emit_proc(struct target_t*) const override;
       bool evaluate_function(const LineInfo &loc,
@@ -3942,6 +3964,9 @@ class NetEvProbe  : public NetNode {
       void set_vif_posedge(unsigned N, unsigned M, unsigned pre_N = UINT_MAX);
       void set_vif_negedge(unsigned N, unsigned M, unsigned pre_N = UINT_MAX);
       void set_vif_anyedge(unsigned N, unsigned M, unsigned pre_N = UINT_MAX);
+      void set_vif_posedge_path(const std::vector<unsigned>&path, unsigned M);
+      void set_vif_negedge_path(const std::vector<unsigned>&path, unsigned M);
+      void set_vif_anyedge_path(const std::vector<unsigned>&path, unsigned M);
       bool is_vif_posedge() const { return is_vif_posedge_; }
       bool is_vif_negedge() const { return is_vif_negedge_; }
       bool is_vif_anyedge() const { return is_vif_anyedge_; }
@@ -3949,6 +3974,28 @@ class NetEvProbe  : public NetNode {
       unsigned vif_M() const { return vif_M_; }
       unsigned vif_pre_N() const { return vif_pre_N_; }
       bool has_vif_pre_N() const { return vif_pre_N_ != UINT_MAX; }
+      const std::vector<unsigned>& vif_path() const { return vif_path_; }
+      void set_vif_root_pin(unsigned pin) { vif_root_pin_ = pin; }
+      unsigned vif_root_pin() const { return vif_root_pin_; }
+
+      // Dynamic class-object mutation sensitivity. For a direct property of
+      // the root object obj_N is UINT_MAX. For `base.owner[N].field`, obj_N
+      // selects the owner object that must wake the wait expression.
+      void set_obj_mutation(unsigned N, unsigned pre_N = UINT_MAX,
+                            unsigned root_pin = 0);
+      void add_obj_mutation(unsigned N, unsigned pre_N = UINT_MAX,
+                            unsigned root_pin = 0);
+      bool is_obj_mutation() const { return is_obj_mutation_; }
+      unsigned obj_N() const { return obj_N_; }
+      unsigned obj_pre_N() const { return obj_pre_N_; }
+      unsigned obj_root_pin() const { return obj_root_pin_; }
+      unsigned obj_mutation_count() const { return obj_mutation_N_.size(); }
+      unsigned obj_mutation_N(unsigned idx) const
+            { return obj_mutation_N_.at(idx); }
+      unsigned obj_mutation_pre_N(unsigned idx) const
+            { return obj_mutation_pre_N_.at(idx); }
+      unsigned obj_mutation_root_pin(unsigned idx) const
+            { return obj_mutation_root_pin_.at(idx); }
 
       virtual bool emit_node(struct target_t*) const override;
       virtual void dump_node(std::ostream&, unsigned ind) const override;
@@ -3964,6 +4011,15 @@ class NetEvProbe  : public NetNode {
       unsigned vif_N_ = 0;
       unsigned vif_M_ = 0;
       unsigned vif_pre_N_ = UINT_MAX;
+      std::vector<unsigned> vif_path_;
+      unsigned vif_root_pin_ = 0;
+      bool is_obj_mutation_ = false;
+      unsigned obj_N_ = UINT_MAX;
+      unsigned obj_pre_N_ = UINT_MAX;
+      unsigned obj_root_pin_ = 0;
+      std::vector<unsigned> obj_mutation_N_;
+      std::vector<unsigned> obj_mutation_pre_N_;
+      std::vector<unsigned> obj_mutation_root_pin_;
 };
 
 /*
@@ -4448,7 +4504,10 @@ class NetProcTop  : public LineInfo, public Attrib {
       bool tie_off_floating_inputs_(Design*des,
 				    NexusSet&nex_map, NetBus&nex_in,
 				    const std::vector<NetProc::mask_t>&bitmasks,
-				    bool is_ff_input);
+				    bool is_ff_input,
+				    NetBus*process_enables = 0,
+				    const std::vector<NetProc::mask_t>*
+					  process_write_masks = 0);
 
       const ivl_process_type_t type_;
       NetProc*const statement_;
@@ -5307,6 +5366,7 @@ class NetEUReduce : public NetEUnary {
 
       virtual NetNet* synthesize(Design*, NetScope*scope, NetExpr*root) override;
       virtual NetEUReduce* dup_expr() const override;
+      virtual ivl_variable_type_t expr_type() const override;
 
     private:
       virtual NetEConst* eval_arguments_(const NetExpr*ex) const override;

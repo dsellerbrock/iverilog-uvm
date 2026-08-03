@@ -269,7 +269,14 @@ static void string_ex_select(ivl_expr_t expr)
       }
 
       if (ivl_expr_type(sube) == IVL_EX_PROPERTY) {
-	    if (expr_is_queue_container_(sube)) {
+	    ivl_type_t prop_type = property_expr_type_(sube);
+	    int positional_container = expr_is_dynarray_container_(sube);
+	    if (prop_type
+		&& (ivl_type_base(prop_type) == IVL_VT_DARRAY
+		    || (ivl_type_base(prop_type) == IVL_VT_QUEUE
+			&& !ivl_type_queue_assoc_compat(prop_type))))
+		  positional_container = 1;
+	    if (positional_container) {
 		  draw_eval_object(sube);
 		  draw_eval_expr_into_integer(shift, 3);
 		  fprintf(vvp_out, "    %%load/qo/str;\n");
@@ -368,6 +375,17 @@ static void draw_sfunc_string(ivl_expr_t expr)
 	   message and exit 134 instead of diagnosing the source. Report
 	   it and emit an empty string so the rest of the run can still
 	   produce diagnostics. */
+	/* IEEE 1800-2017 6.24.3 permits an integral expression to be
+	   explicitly converted to string (and string assignment uses the
+	   same byte conversion). Preserve the system-function evaluation
+	   and convert its packed bytes instead of diagnosing the function's
+	   underlying integral return type. */
+      if (ivl_expr_value(expr) == IVL_VT_BOOL
+	  || ivl_expr_value(expr) == IVL_VT_LOGIC) {
+	    draw_eval_vec4(expr);
+	    fprintf(vvp_out, "    %%pushv/str;\n");
+	    return;
+      }
       if (ivl_expr_value(expr) != IVL_VT_STRING) {
 	    fprintf(stderr, "%s:%u: vvp.tgt error: system function %s does "
 		    "not return a string, but is used where a string is "

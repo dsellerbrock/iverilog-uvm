@@ -175,10 +175,15 @@ class netclass_t : public ivl_type_s {
 		 int(NetNet::PortType) — this header cannot see NetNet.
 		 Signals missing from the map behave as inout. */
 	    std::map<perm_string,int> directions;
+	      /* Simple signal-path clocking_decl_assign aliases. This is
+		 sufficient for virtual-interface rewrites; complex paths retain
+		 the defining-scope resolver. */
+	    std::map<perm_string,perm_string> aliases;
       };
       bool add_clocking_block(perm_string name, const PEventStatement*event,
 			      const std::vector<perm_string>&signals,
-			      const std::map<perm_string,int>&directions);
+			      const std::map<perm_string,int>&directions,
+			      const std::map<perm_string,perm_string>&aliases);
       const clocking_block_t* find_clocking_block(perm_string name) const;
 
     protected:
@@ -261,16 +266,35 @@ class netclass_t : public ivl_type_s {
 	    //               bin of the item matched; excluded from %)
 	    //           4 = transition step (M11-2; tuple encodes
 	    //               (seq_id << 8) | step_pos, lo/hi the step)
+	    //           5 = illegal_bins default (complement of normal bins)
+	    //           6 = ignore_bins default (complement of normal bins)
 	    // kind & 8: wildcard match ((v ^ lo) & hi == 0)
 	    unsigned kind = 0;
 	    unsigned tuple = 0;
 	    unsigned item_idx = 0;
       };
 
+	// A bin whose endpoints depend on constructor formals. Records with
+	// the same family identify the ranges of one source-language bin
+	// declaration. array_size==0 means an unsized [] family (one logical
+	// bin per value), UINT64_MAX means a non-arrayed bin, and any other
+	// value partitions the union into that many logical bins.
+      struct covgrp_dyn_bin_t {
+	    unsigned cp_idx = 0;
+	    unsigned item_idx = 0;
+	    unsigned kind = 0;
+	    unsigned family = 0;
+	    uint64_t array_size = 0;
+	    std::string name;
+	    std::string lo_ir;
+	    std::string hi_ir;
+      };
+
 	// M11: per-item (coverpoint or cross) coverage options.
       struct covgrp_item_t {
 	    unsigned at_least = 1;
 	    unsigned weight = 1;
+	    std::string weight_ir; // per-instance constructor expression
 	    bool is_cross = false;
 	    perm_string name;   // M12-7: coverpoint/cross label
       };
@@ -282,11 +306,25 @@ class netclass_t : public ivl_type_s {
 			  unsigned item_idx = 0);
       size_t covgrp_bin_count() const { return covgrp_bins_.size(); }
       const covgrp_bin_t& covgrp_bin(size_t idx) const { return covgrp_bins_[idx]; }
+      void add_covgrp_dyn_bin(unsigned cp, unsigned item, unsigned kind,
+			      unsigned family, uint64_t array_size,
+			      const std::string&name,
+			      const std::string&lo_ir,
+			      const std::string&hi_ir)
+      { covgrp_dyn_bin_t b;
+	b.cp_idx = cp; b.item_idx = item; b.kind = kind; b.family = family;
+	b.array_size = array_size; b.name = name; b.lo_ir = lo_ir; b.hi_ir = hi_ir;
+	covgrp_dyn_bins_.push_back(b); }
+      size_t covgrp_dyn_bin_count() const { return covgrp_dyn_bins_.size(); }
+      const covgrp_dyn_bin_t& covgrp_dyn_bin(size_t idx) const
+      { return covgrp_dyn_bins_[idx]; }
       void add_covgrp_item(unsigned at_least, unsigned weight, bool is_cross,
-			   perm_string name = perm_string())
+			   perm_string name = perm_string(),
+			   const std::string&weight_ir = std::string())
       { covgrp_item_t it;
 	it.at_least = at_least;
 	it.weight = weight;
+	it.weight_ir = weight_ir;
 	it.is_cross = is_cross;
 	it.name = name;
 	covgrp_items_.push_back(it); }
@@ -294,6 +332,21 @@ class netclass_t : public ivl_type_s {
       const covgrp_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
       bool is_covergroup() const { return is_covergroup_; }
       void set_is_covergroup(bool f) { is_covergroup_ = f; }
+	// Covergroup constructor formals are stored as leading properties
+	// on the synthesized covergroup object. `new(args)` initializes
+	// these slots once, and dynamic coverage metadata reads them from
+	// the particular instance being sampled.
+      void add_covgrp_ctor_formal(perm_string name, unsigned prop,
+				   ivl_type_t type, PExpr*defe)
+      { covgrp_ctor_names_.push_back(name);
+	covgrp_ctor_props_.push_back(prop);
+	covgrp_ctor_types_.push_back(type);
+	covgrp_ctor_defaults_.push_back(defe); }
+      size_t covgrp_ctor_formal_count() const { return covgrp_ctor_names_.size(); }
+      perm_string covgrp_ctor_formal_name(size_t i) const { return covgrp_ctor_names_[i]; }
+      unsigned covgrp_ctor_formal_prop(size_t i) const { return covgrp_ctor_props_[i]; }
+      ivl_type_t covgrp_ctor_formal_type(size_t i) const { return covgrp_ctor_types_[i]; }
+      PExpr* covgrp_ctor_formal_default(size_t i) const { return covgrp_ctor_defaults_[i]; }
       bool has_embedded_covergroups() const { return has_embedded_cgs_; }
       void set_has_embedded_covergroups(bool f) { has_embedded_cgs_ = f; }
       unsigned covgrp_ncoverpoints() const { return covgrp_ncoverpoints_; }
@@ -315,11 +368,28 @@ class netclass_t : public ivl_type_s {
 	// (module/package-scope) covergroups sample scope signals, and
 	// the expression elaborates in the CALLER's scope.
       void add_covgrp_cp_expr(PExpr*e) { covgrp_cp_exprs_.push_back(e); }
-	// M11-4: `with function sample(...)` formal names, in
-	// declaration order — sample() call arguments bind to them.
-      void add_covgrp_sample_formal(perm_string n) { covgrp_sample_formals_.push_back(n); }
-      size_t covgrp_sample_formal_count() const { return covgrp_sample_formals_.size(); }
-      perm_string covgrp_sample_formal(size_t i) const { return covgrp_sample_formals_[i]; }
+	// M11-4: `with function sample(...)` formals, in declaration
+	// order. Keep the declared type as well as the name: an actual
+	// expression is assignment-compatible with the formal and need not
+	// have the same type itself (for example a packed vector passed to a
+	// packed-struct formal). Coverpoint member lookup must use the
+	// formal's declared type after that conversion.
+	void add_covgrp_sample_formal(perm_string n, ivl_type_t t, PExpr*d)
+	{ covgrp_sample_formals_.push_back(n);
+	  covgrp_sample_formal_types_.push_back(t);
+	  covgrp_sample_formal_defaults_.push_back(d); }
+	size_t covgrp_sample_formal_count() const { return covgrp_sample_formals_.size(); }
+	perm_string covgrp_sample_formal(size_t i) const { return covgrp_sample_formals_[i]; }
+	ivl_type_t covgrp_sample_formal_type(size_t i) const {
+	    if (i < covgrp_sample_formal_types_.size())
+		  return covgrp_sample_formal_types_[i];
+	    return nullptr;
+	}
+	PExpr* covgrp_sample_formal_default(size_t i) const {
+	    if (i < covgrp_sample_formal_defaults_.size())
+		  return covgrp_sample_formal_defaults_[i];
+	    return nullptr;
+	}
       PExpr* covgrp_cp_expr(unsigned cp_idx) const {
 	    if (cp_idx < covgrp_cp_exprs_.size()) return covgrp_cp_exprs_[cp_idx];
 	    return 0;
@@ -351,7 +421,14 @@ class netclass_t : public ivl_type_s {
     private:
       std::vector<PExpr*> covgrp_cp_exprs_;
       std::vector<perm_string> covgrp_sample_formals_;
+      std::vector<ivl_type_t> covgrp_sample_formal_types_;
+      std::vector<PExpr*> covgrp_sample_formal_defaults_;
+	std::vector<perm_string> covgrp_ctor_names_;
+	std::vector<unsigned> covgrp_ctor_props_;
+	std::vector<ivl_type_t> covgrp_ctor_types_;
+	std::vector<PExpr*> covgrp_ctor_defaults_;
       std::vector<covgrp_bin_t> covgrp_bins_;
+      std::vector<covgrp_dyn_bin_t> covgrp_dyn_bins_;
       std::vector<covgrp_item_t> covgrp_items_;
       std::vector<int> covgrp_cp_parent_props_;
       std::vector<PExpr*> covgrp_cp_guards_;

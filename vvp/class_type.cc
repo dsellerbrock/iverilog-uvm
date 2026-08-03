@@ -25,7 +25,9 @@
 # include  "vvp_darray.h"
 # include  "config.h"
 # include  <cinttypes>
+# include  <cctype>
 # include  <cstring>
+# include  <limits>
 # include  <map>
 # include  <set>
 # include  <iostream>
@@ -1552,14 +1554,31 @@ void compile_class_covgrp_bin(uint64_t cp_idx, uint64_t prop_idx,
 				    (unsigned)tuple, (unsigned)item_idx);
 }
 
+void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
+				  uint64_t kind, uint64_t family,
+				  uint64_t array_size, char*name,
+				  char*lo_ir, char*hi_ir)
+{
+      assert(compile_class);
+      compile_class->add_covgrp_dyn_bin((unsigned)cp_idx, (unsigned)item_idx,
+					(unsigned)kind, (unsigned)family,
+					array_size, name ? name : "",
+					lo_ir ? lo_ir : "", hi_ir ? hi_ir : "");
+      free(name);
+      free(lo_ir);
+      free(hi_ir);
+}
+
 void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
-			       uint64_t is_cross, char*name)
+			       uint64_t is_cross, char*name, char*weight_ir)
 {
       assert(compile_class);
       compile_class->add_covgrp_item((unsigned)at_least, (unsigned)weight,
 				     is_cross != 0,
-				     name ? std::string(name) : std::string());
+				     name ? std::string(name) : std::string(),
+				     weight_ir ? std::string(weight_ir) : std::string());
       free(name);
+      free(weight_ir);
 }
 
 /* M11-3: event-driven sampling metadata. The .covgrp_src property
@@ -1586,6 +1605,139 @@ void class_type::type_bump(unsigned prop) const
       type_counts_[prop] += 1;
 }
 
+/* Evaluate the deliberately small arithmetic subset used by dynamic
+ * covergroup options and bounds.  The compiler emits the same prefix IR as
+ * class constraints: c:V atoms, p:PID:WIDTH property atoms, and parenthesized
+ * arithmetic.  Keeping this evaluator independent of Z3 is important: a
+ * coverage sample must be cheap and must also work in builds without the
+ * optional solver. */
+class covgrp_ir_eval_t {
+    public:
+      covgrp_ir_eval_t(const string&text, vvp_cobject*obj)
+      : text_(text), obj_(obj), pos_(0) { }
+
+      bool eval(uint64_t&out)
+      {
+	    if (!expr_(out)) return false;
+	    skip_();
+	    return pos_ == text_.size();
+      }
+
+    private:
+      void skip_()
+      {
+	    while (pos_ < text_.size()
+		   && isspace(static_cast<unsigned char>(text_[pos_])))
+		  pos_ += 1;
+      }
+
+      string atom_()
+      {
+	    skip_();
+	    size_t begin = pos_;
+	    while (pos_ < text_.size() && text_[pos_] != ')'
+		   && !isspace(static_cast<unsigned char>(text_[pos_])))
+		  pos_ += 1;
+	    return text_.substr(begin, pos_ - begin);
+      }
+
+      bool expr_(uint64_t&out)
+      {
+	    skip_();
+	    if (pos_ >= text_.size()) return false;
+	    if (text_[pos_] != '(') {
+		  string tok = atom_();
+		  if (tok.compare(0, 2, "c:") == 0) {
+			char*end = 0;
+			out = strtoull(tok.c_str() + 2, &end, 10);
+			return end != tok.c_str() + 2;
+		  }
+		  if (tok.compare(0, 2, "p:") == 0 && obj_) {
+			char*end = 0;
+			uint64_t pid = strtoull(tok.c_str() + 2, &end, 10);
+			if (end == tok.c_str() + 2 || *end != ':') return false;
+			vvp_vector4_t val;
+			obj_->get_vec4((size_t)pid, val);
+			out = 0;
+			for (unsigned bit = 0; bit < val.size() && bit < 64; bit += 1)
+			      if (val.value(bit) == BIT4_1)
+				    out |= (uint64_t)1 << bit;
+			return true;
+		  }
+		  return false;
+	    }
+
+	    pos_ += 1;
+	    string op = atom_();
+	    uint64_t a = 0, b = 0, c = 0;
+	    if (!expr_(a)) return false;
+	    bool unary = op == "not" || op == "bnot" || op == "redand"
+		       || op == "redor" || op == "redxor";
+	    if (!unary && !expr_(b)) return false;
+	    if (op == "ite" && !expr_(c)) return false;
+	    skip_();
+	    if (pos_ >= text_.size() || text_[pos_] != ')') return false;
+	    pos_ += 1;
+
+	    if (op == "add") out = a + b;
+	    else if (op == "sub") out = a - b;
+	    else if (op == "mul") out = a * b;
+	    else if (op == "div") out = b ? a / b : 0;
+	    else if (op == "mod") out = b ? a % b : 0;
+	    else if (op == "band") out = a & b;
+	    else if (op == "bor") out = a | b;
+	    else if (op == "bxor") out = a ^ b;
+	    else if (op == "shl") out = b < 64 ? a << b : 0;
+	    else if (op == "lshr") out = b < 64 ? a >> b : 0;
+	    else if (op == "ashr")
+		  out = b < 64 ? (uint64_t)((int64_t)a >> b)
+			       : ((int64_t)a < 0 ? ~(uint64_t)0 : 0);
+	    else if (op == "eq") out = a == b;
+	    else if (op == "ne") out = a != b;
+	    else if (op == "lt") out = a < b;
+	    else if (op == "le") out = a <= b;
+	    else if (op == "gt") out = a > b;
+	    else if (op == "ge") out = a >= b;
+	    else if (op == "and") out = (a != 0) && (b != 0);
+	    else if (op == "or") out = (a != 0) || (b != 0);
+	    else if (op == "impl") out = (a == 0) || (b != 0);
+	    else if (op == "iff") out = (a != 0) == (b != 0);
+	    else if (op == "not") out = a == 0;
+	    else if (op == "bnot") out = ~a;
+	    else if (op == "redand") out = a == ~(uint64_t)0;
+	    else if (op == "redor") out = a != 0;
+	    else if (op == "redxor") {
+		  out = 0;
+		  while (a) { out ^= 1; a &= a - 1; }
+	    } else if (op == "ite") out = a ? b : c;
+	    else return false;
+	    return true;
+      }
+
+      const string&text_;
+      vvp_cobject*obj_;
+      size_t pos_;
+};
+
+unsigned class_type::covgrp_item_weight(vvp_cobject*obj, size_t idx) const
+{
+      if (idx >= covgrp_items_.size()) return 1;
+      const cov_item_t&item = covgrp_items_[idx];
+      if (item.weight_ir.empty()) return item.weight;
+      uint64_t val = item.weight;
+      if (!covgrp_ir_eval_t(item.weight_ir, obj).eval(val))
+	    return item.weight;
+      if (val > numeric_limits<unsigned>::max())
+	    return numeric_limits<unsigned>::max();
+      return (unsigned)val;
+}
+
+bool class_type::covgrp_eval_ir(vvp_cobject*obj, const string&ir,
+				uint64_t&value) const
+{
+      return covgrp_ir_eval_t(ir, obj).eval(value);
+}
+
 uint32_t class_type::type_count(unsigned prop) const
 {
       if (prop >= type_counts_.size())
@@ -1593,7 +1745,7 @@ uint32_t class_type::type_count(unsigned prop) const
       return type_counts_[prop];
 }
 
-double class_type::type_coverage() const
+double class_type::type_coverage(vvp_cobject*context) const
 {
 	// Same per-item weighted model as instance coverage, computed
 	// over the type-level counters.
@@ -1601,7 +1753,7 @@ double class_type::type_coverage() const
       for (size_t bi = 0 ; bi < covgrp_bins_.size() ; bi += 1) {
 	    const cov_bin_t&bin = covgrp_bins_[bi];
 	    unsigned k = bin.kind & 7;
-	    if (k == 1 || k == 2 || k == 3) continue;
+	    if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6) continue;
 	    if (bin.prop_idx == COV_NO_PROP) continue;
 	    item_props[bin.item_idx].insert(bin.prop_idx);
       }
@@ -1610,7 +1762,7 @@ double class_type::type_coverage() const
 	    unsigned at_least = 1, weight = 1;
 	    if (ip.first < covgrp_items_.size()) {
 		  at_least = covgrp_items_[ip.first].at_least;
-		  weight = covgrp_items_[ip.first].weight;
+		  weight = covgrp_item_weight(context, ip.first);
 	    }
 	    if (ip.second.empty()) continue;
 	    unsigned hits = 0;
@@ -1682,8 +1834,8 @@ void class_type::covgrp_report(FILE*fd)
 			  at_least, weight);
 		  for (unsigned prop : ip.second) {
 			unsigned k = prop_kind[prop];
-			const char*tag = (k == 2) ? "illegal"
-				       : (k == 3) ? "default"
+			const char*tag = (k == 2 || k == 5) ? "illegal"
+				       : (k == 3 || k == 6) ? "default"
 				       : "bin";
 			uint32_t cnt = ct->type_count(prop);
 			fprintf(fd, "    %s %s count %u %s\n", tag,

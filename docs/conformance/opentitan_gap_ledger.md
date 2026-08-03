@@ -9,9 +9,42 @@ Narrative, toolchain recipe and per-IP measurements live in
 is the flat list: what is wrong, why, whether it is fixed, and the smallest
 input that shows it.
 
+The current upstream campaign is driven by the reproducible synthesis/SVA/UVM/
+runtime census in [`opentitan_matrix.md`](opentitan_matrix.md); its JSON output
+keeps build/topology failures separate from compiler conformance defects.
+
 Every entry is an **IEEE 1800 conformance gap or a compiler defect**, not an
 OpenTitan-specific accommodation. Several break ordinary RTL that has nothing
 to do with OpenTitan; those are marked **[general]**.
+
+## Current upstream closure campaign
+
+The newer upstream witness at OpenTitan revision
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` is being measured independently
+from the historical `ef575385` ledger below. The generated `adc_ctrl` simulation
+graph now reaches VVP code generation with **zero hard errors**. That milestone
+closed, among other items, class-handle dynamic-array assignment patterns and
+selected interface-array scopes used by `$asserton`, `$assertoff` and
+`$assertkill`.
+
+It is not yet a clean UVM result: the log still contains explicit
+compile-progress/degradation warnings for unresolved UVM specialization and
+method calls, constraint loss, interface typing, covergroup members, queue/ref
+semantics, assertion binding and NBA scheduling. Each is a ledger item to fix or
+turn into a strict error; none may be ignored for the final zero-debt gate. The
+canonical post-corpus plan is M14B in [`ROADMAP.md`](ROADMAP.md).
+
+The first durable matrix inventory at this revision contains 267 RTL candidates,
+109 standalone SVA/formal jobs and 80 UVM simulation jobs (plus the same 80 as
+runtime jobs). Package/fileset providers with no standalone top are recorded as
+dependency-covered rather than false failures. The ADC-control witness
+currently reports RTL `DEBT`, SVA
+`FAIL`, and UVM `DEBT`; details and exact pass criteria are recorded in
+[`opentitan_matrix.md`](opentitan_matrix.md). The SVA hard error is currently a
+corpus topology mismatch: the formal target elaborates `adc_ctrl` while its SVA
+source directly names `tb.dut`. It is not being counted as an IEEE compiler gap
+unless an equivalent standard-valid, self-contained reproducer demonstrates
+one.
 
 ## How to read the status column
 
@@ -358,6 +391,817 @@ requires a constant index. The dominant blocker for `hmac` (81 errors).
 
 38 × "cannot have multiple drivers" plus 10 × "also continuously assigned" in
 `otbn`. Not yet diagnosed; may be several distinct causes.
+
+## G18 — run-time selected packed l-value in synthesis — **fixed** (current upstream campaign)
+
+*11.5.1 / 11.5.2. [general] — compiler abort and unsupported legal RTL.*
+
+```systemverilog
+always_comb begin
+  class_masks = '0;
+  for (int unsigned k = 0; k < N_ALERTS; k++)
+    class_masks[alert_class[k]][k] = 1'b1;
+end
+```
+
+Synthesis tried to constant-fold the whole flattened l-value base because `k`
+was an unrolled loop index, even though another packed dimension still depended
+on the run-time value `alert_class[k]`. Constant-function evaluation reported
+an error and then aborted in `NetESelect::evaluate_function`. This blocked both
+Darjeeling and Earl Grey alert-handler synthesis.
+
+The synthesis path now distinguishes expressions foldable in the loop context
+from genuinely dynamic bases. Dynamic writes use a case-equality decoder and
+bit-level mux network, preserving the required no-write behavior for X/Z and
+out-of-range indices, including partially overlapping signed and unsigned
+indexed part selects. The regression checks values after synthesis, not merely
+successful compilation: `ivtest/ivltests/synth_variable_packed_lvalue.v`.
+
+The exact Darjeeling alert-handler target now returns zero with no hard error;
+its remaining matrix status is `DEBT` solely because of the separately tracked
+conservative `always_*` sensitivity warning.
+
+## G19 — constant-only `always_comb` misclassified as synchronous — **fixed** (current upstream campaign)
+
+*9.2.2.2.2 / synthesis contextualization [general] — compiler abort.*
+
+```systemverilog
+always_comb begin
+  attr = '0;
+  attr.mode = 3'b101;
+  attr.enable = 1'b1;
+end
+```
+
+Elaboration correctly creates an empty implicit event wait and reports that
+the process has no sensitivities. Synthesis previously treated an empty event
+list as proof that the process was synchronous, then entered the clocked
+process path and asserted that exactly one event existed. OpenTitan's
+`prim_pad_attr` triggered this abort while synthesizing pinmux.
+
+An empty event wait is now classified as combinational. The regression checks
+the packed-struct value after both ordinary and synthesized compilation. The
+exact Darjeeling pinmux target now exits zero with no hard errors; its two
+remaining debts are the explicit no-sensitivities warning and the separately
+tracked conservative `always_*` sensitivity warning.
+
+## G20 — contextually constant unpacked-array word in synthesis — **fixed** (current upstream campaign)
+
+*7.4 / 12.7.1 / synthesis contextualization [general] — unsupported legal RTL.*
+
+```systemverilog
+always_comb begin
+  for (int i = 0; i < NumPolicies; i++)
+    combined_racl_error[i] = policy_error[i] | range_error[i];
+end
+```
+
+The l-value word expression is syntactically variable, but `i` is a constant in
+each unrolled synthesis iteration. The output-discovery pass returned no output
+for such a word and the assignment pass rejected it as a run-time memory write.
+That conflated two different cases: an unrolled array word, which must lower to
+one ordinary vector assignment per iteration, and a true run-time RAM address,
+which still requires RAM-write lowering.
+
+Default synthesis output discovery now exposes every possible unpacked word,
+and the assignment pass evaluates the word with the loop's constant context and
+selects the exact word nexus. The always_comb sensitivity-pruning walk remains
+conservative so it does not remove words that are only read. Part-select stores
+first size the replacement to the selected width and preserve the untouched
+bits through `NetSubstitute`; this closed a wrong synthesized value found by the
+new value-checking regression.
+
+`ivtest/ivltests/synth_contextual_array_word.v` checks whole-word writes,
+part-select writes, fields of an unpacked array of packed structs, and a
+contextually constant packed select that lies completely outside the target in
+both ordinary and `-S` execution. The out-of-range case is a no-op; previously
+its negative base was still written into the synthesis bit mask and could
+segfault the compiler. The exact Darjeeling RACL target no longer reports any
+variable-memory-word diagnostic. After G23 and G24, the same pinned target is a
+zero-error, zero-debt `PASS` in 0.334 seconds on the final tested compiler.
+
+True run-time RAM writes such as `mem[addr_i] <= wdata` remain loud unsupported
+synthesis debt and are not claimed by this fix.
+
+## G21 — legacy synthesis fallback aborted on rejected `always_*` — **fixed** (current upstream campaign)
+
+*[general] — compiler robustness, not feature completion.*
+
+When synth2 rejected an `always_comb`, `always_ff` or `always_latch` process,
+the unchanged process fell through to the legacy `syn-rules` matcher. That
+matcher asserted that modern process kinds should never reach it, converting a
+useful unsupported-feature diagnostic into exit 134 or a segfault cascade.
+
+The legacy pass now emits a normal `sorry`, increments the compiler error count
+and skips the process. `synth_modern_process_reject.v` verifies that a partial
+asynchronous reset is rejected with an ordinary nonzero exit rather than a
+signal. This does not implement partial resets or bit-level latch enables; it
+makes their current boundary deterministic and non-crashing.
+
+## G22 — Ibex synthesis lowering exceeds its declared resource bound — **fixed** (current upstream campaign)
+
+*[general] — bounded-termination/performance defect, not a cybersecurity finding.*
+
+The first whole-RTL checkpoint left four Ibex compiler engines running after
+their 1800-second drivers timed out. Process-session cleanup now proves that a
+timeout cannot leak those descendants, and the compile bound is 600 seconds,
+but the underlying lowering cost remains open.
+
+An exact post-G20 run of `lowrisc:ibex:ibex_core:0.1` at OpenTitan
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` no longer hits the former
+out-of-range bit-mask segfault. It reaches the 600.085-second bound and exits as
+`COMPILE_TIMEOUT`; the complete compiler process session is reaped. A process
+sample spends 663 of 685 samples in `connect()` below
+`NetESelect::synthesize`, inside a condition nested in an unrolled `for` loop.
+The same run had already diagnosed the separate bit-level latch-enable limit in
+`ibex_alu.sv` and three unsynthesized `ibex_multdiv_fast.sv` processes.
+
+After G23 was generalized from a syntactic no-condition test to its real
+semantic invariant (owned bits written on every path and a constant-high
+process enable), the exact `ibex-disjoint-precise-v2` replay removes the
+`ibex_alu.sv` `shift_amt[4:0]` latch diagnostic. The independently driven bit 5
+and complete `if/else` lower field are now recognized as disjoint,
+latch-free owners. The run still reaches `COMPILE_TIMEOUT` after 600.078 seconds
+and leaves no descendant. Its only emitted semantic-debt line was the legal
+constant-only `always_comb` warning in `ibex_cs_registers.sv`; that warning is
+removed immediately afterward under G26. The termination hot path therefore
+remains independent of both semantic fixes.
+
+G27 through G29 close the independent causes hidden by that timeout: sparse
+ordinary cases were expanded into dense muxes with quadratic nexus searches;
+loop-context select arithmetic was not folded; descending loop subtraction was
+reversed and then lost the signed loop-variable context; and an empty default
+clause was not recorded as a default when reducing a wide selector.
+
+The final exact `ibex-case-fallback-v8` replay of
+`lowrisc:ibex:ibex_core:0.1` at the same pinned OpenTitan revision is `PASS` in
+0.761 seconds: exit 0, 0 hard errors, 0 semantic-debt diagnostics, no timeout
+and no leaked descendant. This is bounded-termination and synthesis-conformance
+closure, not a cybersecurity vulnerability.
+
+## G23 — disjoint packed fields looked like conflicting whole-vector processes — **fixed** (current upstream campaign)
+
+*9.2 / synthesis process ownership [general] — false latch and false conflict.*
+
+OpenTitan's generated arbitration trees use separate unconditional
+`always_comb` processes for disjoint bits or fields of packed tree vectors.
+Synthesis already computed a per-process write mask, but treated every false
+bit as a latch and later used a whole-net l-value reference count to reject the
+other disjoint processes as conflicting writers.
+
+An asynchronous process consisting only of unconditional assignments now
+drives `Z` outside its write mask, so independently synthesized fields compose
+without state. Synthesized procedural ownership is claimed per nexus bit, not
+per `NetNet`: a second process may claim a disjoint field, while a real overlap
+still produces a local hard diagnostic naming the exact bit.
+
+Ownership is the union of exact constant ranges written anywhere in a process,
+including conditional clocked branches. After the complete synthesis walk, a
+second validation pass also rejects a packed signal that retains a behavioral
+procedural l-value while carrying any synthesized process driver. That keeps
+the pre-existing `case5-syn-fail` safety boundary loud instead of accepting a
+mixed behavioral/structural variable that would simulate incorrectly.
+
+`synth_disjoint_packed_processes.v` checks generated one-bit and two-bit writers
+with two changing values in ordinary and `-S` execution.
+`synth_overlapping_packed_processes.v` proves that two fields sharing bit 1 are
+still rejected, and `synth_overlapping_conditional_packed_processes.v` proves a
+conditional `always_ff` write remains owned and conflicts correctly.
+Complete conditional branches over the same partial field are included because
+their synthesized enable is constant high. Incomplete conditional
+combinational/latch writes are not; G25 keeps that stateful case loud.
+
+## G24 — constant part-select `always_comb` sensitivity was widened — **fixed** (current upstream campaign)
+
+*9.2.2.2.1 [general] — extra scheduling and explicit semantic debt.*
+
+The input walk could already represent a constant select as a nexus plus exact
+base and width, but the implicit-event elaborator ignored that range. It
+therefore monitored the entire vector and emitted a debt warning for every
+such `always_comb` process.
+
+Implicit event elaboration now inserts a `NetPartSelect` probe through a
+one-pin carrier, preserving the selected unpacked-array word as well as the
+packed base/width. Event analysis traces that probe back to its source range,
+and compiler-generated `always_comb`/`always_latch` events retain their
+time-zero asynchronous classification.
+
+`sv_always_comb_precise_select_sens.v` counts evaluations: selected-bit changes
+wake the process, while two different unselected-bit changes do not. The older
+read-one-field/write-another regression remains value-clean.
+
+Together, G20, G23 and G24 move the exact pinned Darjeeling RACL synthesis job
+to `PASS`: exit 0, 0 hard errors, 0 semantic-debt lines, no timeout, 0.334
+seconds on the final tested compiler.
+
+## G25 — incomplete conditional partial packed writes need independent latch enables — **open**
+
+*[general] — real stateful synthesis boundary.*
+
+Unlike G23's fully assigned disjoint owners, `always_latch if (en) q[0] = d`
+must retain the prior value of one field without claiming untouched fields.
+The current synthesis interface carries a vector-wide enable plus a write mask,
+not one enable expression per bit. `synth_partial_latch_reject.v` permanently
+requires a normal nonzero diagnostic rather than a crash or a silent `Z`
+substitution. `synth_branch_disjoint_partial_latch_reject.v` covers the less
+obvious adversarial case: each `if/else` branch writes a different bit, so the
+vector-wide enable is high even though each individual bit still needs state.
+The safe disjoint lowering now additionally proves that every bit written
+anywhere is written on every path before using `Z` outside the owned field.
+Closing this row requires per-bit enable propagation through if/case/loop
+lowering and value-checked hold/update behavior.
+
+## G26 — constant-only `always_comb` was warned as sensitivity debt — **fixed** (current upstream campaign)
+
+*9.2.2.2.2 [general] — legal time-zero process, false semantic debt.*
+
+An `always_comb` whose right-hand sides are all constants has no event probes,
+but IEEE semantics still execute it once at time zero. The compiler already
+implemented that behavior and synthesis already classified the empty implicit
+event as combinational; a later validation pass nevertheless warned that the
+process had no sensitivities. OpenTitan's constant `mhpmevent` construction in
+`ibex_cs_registers.sv` was the final Ibex debt line.
+
+The warning is removed for `always_comb` only. The existing regression now
+checks the time-zero value without expecting a diagnostic. A sensitivity-free
+`always_latch` remains an error, and legacy `always @*` retains its warning
+because it has no mandatory time-zero execution.
+
+## G27 — sparse ordinary cases expanded into dense muxes — **fixed** (current upstream campaign)
+
+*12.5 / synthesis lowering [general] — bounded termination and exact matching.*
+
+Ibex's CSR write decoder has 77 explicit values over a 12-bit selector and 19
+outputs. The old lowering allocated a 4,096-input data mux and enable mux for
+every output. Missing selections all shared the same default nexus, but every
+connection searched that growing circular list again and every selector value
+rescanned the same default enable. This made a finite decode effectively
+quadratic and consumed the complete 600-second bound.
+
+Sparse ordinary cases now lower as exact case-equality comparisons followed by
+binary muxes, so the circuit scales with explicit clauses. Undefined and
+variable ordinary guards take the same exact-comparison path instead of being
+coerced to unsigned mux indices. Dense cases retain their compact mux lowering,
+with cached default nexuses and one invariant default-enable check so their
+construction is linear. `synth_sparse_case.v` checks the Ibex-shaped 12-bit
+decode and an empty default in ordinary and `-S` execution. The pre-existing
+`casesynth8.v` regression is now a passing synthesis case for a variable guard,
+rather than an expected compile error.
+
+## G28 — procedural loop context lost constant indices and signed decrement semantics — **fixed** (current upstream campaign)
+
+*11.5 / 12.7 [general] — contextualization and bounded termination.*
+
+The synthesis unroller knew each procedural `for` index value, but expressions
+such as `matrix[i][i-BASE]` remained dynamic selects because only a literal
+`NetEConst` base selected the fixed lowering. Loop-only base expressions are
+now evaluated in the current iteration context and become fixed selects.
+
+Ibex also exposed two basic descending-loop defects in
+`for (int i = 14; i >= 0; i--)`: subtract-assignment constructed `step-current`
+instead of `current-step`, producing `14,-13,14,...`; after correcting the
+operand order, constant folding dropped the declared signed `int` context, so
+`-1` became unsigned `32'hffff_ffff` and still satisfied `i >= 0`. Initializers
+and step results now retain the loop variable's declared signedness.
+`synth_for_loop_index_select.v` checks the packed-matrix selection shape;
+`synth_for_loop_descending.v` checks both `i--` and `i -= 2` with a signed
+termination comparison.
+
+## G29 — empty case default was lost during selector reduction — **fixed** (current upstream campaign)
+
+*12.5.3 [general] — incorrect fallback selection and compiler assertion.*
+
+An empty `default: ;` has a null statement pointer but is still a present
+default clause. Dense case lowering used the pointer itself as the presence
+test, reduced Ibex's 3-bit selector for explicit values 0 and 1 to one bit, and
+asserted because the reduction helper requires a fallback selector bit.
+
+Default presence is now tracked independently of the statement body. A wide
+case with no written default uses the exact comparison chain when narrowing
+would fold unmatched high values onto an explicit arm. The
+`synth_case_wide_select_fallback.v` regression value-checks both an empty
+default and the implicit no-default fallback for selector values 0, 1, 2 and 7.
+
+## G30 — synthesized process ownership flowed backward through direct assignments — **fixed** (current upstream campaign)
+
+*6.5 / synthesis lowering [general] — process ownership and structural direction.*
+
+An asynchronous procedural assignment previously connected its synthesized
+result directly to the r-value nexus. Ownership was recorded afterward. For a
+hierarchical chain such as `always_comb d_o = d_i`, the connection therefore
+merged the output variable with its input before the ownership walk and made a
+legal upstream process appear to be a second writer of the same variable.
+OpenTitan's generic synchronizer and flop wrappers amplified that false overlap
+across clock, reset, power, alert and OTP blocks.
+
+Each non-latch synthesized process output now crosses a transparent structural
+buffer before reaching its owned variable. The buffer preserves direction,
+four-state values and disjoint-field Z composition while preventing ownership
+from propagating backward into an input. Genuine same-bit procedural overlaps
+remain errors. `synth_process_alias_boundary.v` reproduces a two-instance port
+chain and value-checks 0, 1 and X in ordinary and `-S` execution.
+
+In the fresh `process-boundary-v12` replay, the formerly failing Darjeeling
+`alert_handler`, `pwrmgr` and `rstmgr` cores are `PASS` with zero hard errors and
+zero semantic debt in 46.750, 0.403 and 0.594 seconds respectively. The change
+also removes the false multi-process hard errors from `clkmgr` and `otp_ctrl`;
+their independent diagnostic debt is recorded separately. Every witness has
+`security_vulnerability=false`.
+
+## G31 — explicit always_latch intent was reported as accidental inference — **fixed** (current upstream campaign)
+
+*9.2.2.3 / synthesis diagnostics [general] — diagnostic precision.*
+
+The synthesizer correctly built a latch for `always_latch`, then emitted the
+same inferred-latch and synthesized-enable warnings used for an accidental
+incomplete `always_comb` or legacy combinational process. This made OpenTitan's
+intentional generic clock-gating latch semantic debt even though the construct
+explicitly requests that storage behavior.
+
+Explicit `always_latch` processes now synthesize the intended latch without
+those inference warnings. Accidental latch inference retains both diagnostics;
+`basiclatch.v` verifies that boundary, while `synth_always_latch_intent.v`
+value-checks capture and hold behavior in ordinary and `-S` execution. The
+exact `clkmgr-latch-intent-v13` Darjeeling replay is `PASS` in 0.456 seconds,
+with exit 0, zero hard errors, zero semantic debt and
+`security_vulnerability=false`.
+
+## G32 — constant aggregate member selects emitted false sensitivity debt — **fixed** (current upstream campaign)
+
+*9.2.2.2.1 / 11.5 [general] — implicit sensitivity and nested selects.*
+
+OpenTitan indexes the constant packed `PartInfo` partition table with a runtime
+partition index and then selects individual struct fields. Elaboration lowers
+that shape to nested selects. The sensitivity walk correctly included the
+runtime index and found no signal dependency in the constant data, but the
+outer constant member select only recognized a direct signal as precise and
+emitted a conservative-sensitivity warning for every use. Darjeeling OTP
+therefore compiled successfully with 37 identical debt diagnostics.
+
+The sensitivity walk now recognizes nested selects whose innermost data source
+is constant. Their runtime dependencies are exactly the nested base/index
+expressions already collected by the walk, so no conservative fallback or
+warning is needed. `synth_constant_array_select_sensitivity.v` value-checks a
+runtime index followed by a constant member-field select in ordinary and `-S`
+execution. The exact `otp-constant-sensitivity-v15` Darjeeling replay is `PASS`
+in 21.432 seconds, with exit 0, zero hard errors, zero semantic debt and
+`security_vulnerability=false`.
+
+## G33 — whole unpacked-array assignments were mapped as one packed word — **fixed** (current upstream campaign)
+
+*7.4 / 10.9 / synthesis lowering [general] — unpacked arrays and assignment patterns.*
+
+A whole unpacked-array l-value contributed only word zero to the process
+output map. Its array-pattern r-value correctly synthesized to one net pin per
+word, but the packed-vector assignment path then compared the map's aggregate
+width with one element's packed width and aborted. This was the common
+`nex_map[ptr].wid == lsig_width` assertion in Ibex, SHA3, KMAC and OTBN-family
+cores.
+
+Whole unpacked-array assignments now claim every destination word and lower
+each r-value pin to the corresponding word nexus with its own vector width,
+enable and driven mask. `synth_unpacked_array_whole_assign.v` value-checks a
+two-word array pattern through two input updates in ordinary and `-S`
+execution. A fresh Darjeeling `rv_core_ibex` replay advances past the former
+Ibex ALU abort to the separately tracked partial-reset and run-time memory-word
+gaps; the old whole-array assertion is absent and
+`security_vulnerability=false`.
+
+## G34 — nested synthesized procedural loops discarded the outer index — **fixed** (current upstream campaign)
+
+*12.7 / 11.5 / synthesis lowering [general] — nested loop contextualization.*
+
+The procedural-loop unroller required its contextual index map to be empty at
+entry, so an inner loop aborted while an outer loop index was active. Merely
+removing that assertion would still be wrong: signal and select synthesis only
+recognized the most recent index, so an outer unpacked-array word select could
+remain a run-time net instead of the constant for the current unrolled
+iteration.
+
+Nested loops now inherit and restore their enclosing index values, index-net
+identities and generate scratch state. Constant substitution is keyed by the
+exact loop-index net rather than by a possibly shadowed name, and select-base
+folding accepts expressions whose inputs are any combination of active loop
+indices. `synth_nested_for_loop_select.v` combines a whole unpacked-array
+assignment with outer word and inner packed-field selects and value-checks two
+updates in ordinary and `-S` execution. The exact `nested-sha3-v20` OpenTitan
+replay is `PASS` in 0.263 seconds, with exit 0, zero hard errors, zero semantic
+debt, no timeout and `security_vulnerability=false`.
+
+## G35 — asynchronous-reset synthesis required every bit of a shared packed variable — **fixed** (current upstream campaign)
+
+*9.2.2.4 / synthesis lowering [general] — disjoint sequential ownership and mixed reset behavior.*
+
+The synchronous-process pass created one full-width flip-flop for every
+process touching a packed variable and required each asynchronous branch to
+assign every bit of that variable. OpenTitan legitimately uses generated
+`always_ff` processes that own disjoint static fields, and also groups reset
+and unreset flops in one process. The first shape was rejected as a partial
+reset even when every bit owned by that process was reset. The second was
+rejected when an output was intentionally omitted from the reset branch.
+
+Reset coverage is now checked against the exact static bits written by the
+conditional process. A synthesized flip-flop output is masked to Z outside
+its process-owned fields, so disjoint sequential drivers compose without
+claiming or changing neighboring fields. An output wholly omitted from the
+asynchronous branch is modeled as an unreset flip-flop whose clock enable is
+qualified by reset deassertion; it therefore holds both on the reset edge and
+on clocks while reset remains asserted. A nonempty reset that covers only
+some bits owned by the same process remains an explicit error.
+
+`synth_disjoint_partial_async_reset.v` value-checks two field owners through
+reset, simultaneous updates and an enabled/held split.
+`synth_mixed_async_reset_outputs.v` checks a reset and unreset output in one
+process, including a clock while reset is active.
+`synth_partial_async_reset_reject.v` preserves the genuine partial-reset
+negative boundary. All positive checks pass in ordinary and `-S` execution.
+The exact `partial-reset-gpio-v22` and `mixed-reset-edn-v25` OpenTitan replays
+are `PASS` in 0.478 and 1.463 seconds respectively, with exit 0, zero hard
+errors, zero semantic debt, no timeout and `security_vulnerability=false`.
+The Darjeeling `rv_core_ibex` witness drops from 11 hard diagnostics to the two
+separately tracked run-time RAM-word diagnostics.
+
+## G36 — run-time-selected memory-word writes were rejected by synthesis — **fixed** (current upstream campaign)
+
+*7.4 / 10.6 / synthesis lowering [general] — unpacked-array word selection and procedural assignment.*
+
+A procedural assignment to an unpacked-array word was synthesizable only when
+the canonical word index was constant. OpenTitan's generic single-port RAM
+uses a request-qualified whole-word write, `mem[addr_i] <= wdata`, so the
+Darjeeling Ibex wrapper stopped after otherwise completing its synthesis
+lowering.
+
+The run-time word select is now lowered to one shared data path and an exact
+per-word address decoder. The ordinary conditional-enable machinery combines
+the decoder with enclosing request and write guards, producing a distinct
+enable for every possible destination word. An out-of-range address, or an
+address containing X or Z, matches no word and therefore performs no write.
+Synthesis ownership walks conservatively claim every possible destination,
+while the separate `always_comb` sensitivity-subtraction walk retains its
+word-precise behavior. A packed partial write through a run-time word select
+remains a separate, explicit unsupported boundary rather than being widened
+silently to a whole-word write.
+
+`synth_runtime_memory_word.v` value-checks the OpenTitan-shaped shared
+synchronous read/write process, repeated writes, request holds, a non-power-of-
+two depth, an out-of-range address and a four-state unknown address in ordinary
+and `-S` execution. `synth_runtime_memory_partial_reject.v` pins the distinct
+packed-partial-write diagnostic.
+
+## G37 — a statically empty memory-preload initial process remained semantic debt — **fixed** (current upstream campaign)
+
+*9.2.1 / constant folding / synthesis classification [general] — initial procedures.*
+
+OpenTitan's memory preload helper retains an `initial` process under
+`SYNTHESIS`, but with the default empty `MemInitFile` its only conditional path
+contains no live statement. The synthesis classifier warned about the process
+without first following the already folded constant condition, leaving a
+false semantic-debt result after the RAM itself compiled cleanly.
+
+Synthesis now removes an initial process only when recursively following its
+statically selected block/conditional path proves that path empty. A live
+preload path is not suppressed and still reports `Process not synthesized`.
+`synth_inert_initial.v` covers the empty-file shape and the focused override
+check preserves the live-path diagnostic.
+
+Together, G36 and G37 move the final exact `runtime-memory-rv-core-v28`
+Darjeeling `rv_core_ibex` replay to `PASS` in 11.985 seconds, with exit 0, zero hard
+errors, zero semantic debt, no timeout and `security_vulnerability=false`.
+
+## G38 — loop-expanded packed-field writes were widened after synthesis — **fixed** (current upstream campaign)
+
+*9.2.2.2 / 10.6 / 11.5 / synthesis lowering [general] — exact write coverage and process ownership.*
+
+The v29 whole-RTL census completed all 267 candidates at the pinned upstream
+revision: 58 `PASS`, 153 `DEPENDENCY_ONLY`, 39 `FAIL`, 8
+`COMPILE_TIMEOUT`, 6 `SETUP_FAIL`, and 3 `DEBT`. Its 209 non-pass records
+partition exhaustively into 11 compiler/IEEE defects, 12 synthesis-lowering
+defects, 3 semantic-debt records, 8 bounded timeouts, 22 provider/source-list/
+top-selection harness defects, and 153 dependency-only cores. The highest-
+multiplicity synthesis family was a false bit-level-latch rejection in eight
+standalone cores and three larger top-level witnesses. Every record retains
+`security_vulnerability=false`.
+
+Generated OpenTitan register interfaces assign disjoint packed fields in
+separate `always_comb` processes, often inside procedural loops. The loop
+unroller resolved every index and produced the right data substitutions and
+per-bit driven masks. Process ownership was nevertheless collected later by
+walking the original statement after the loop context had been restored, so a
+field such as `aggregate.fields[i].d` conservatively expanded to the complete
+packed nexus. The top-level latch check then mistook legal unconditional field
+writes for independently enabled partial writes.
+
+Synthesis now records a separate may-write mask while each assignment is
+lowered, when loop indices, unpacked words, and packed bases have their actual
+contextual values. The same exact mask controls floating-input tie-off,
+process-output Z masking, and global same-bit ownership claims. Guaranteed-
+write masks remain deliberately stricter: sequential statements with the same
+enable can union their bits, distinct enables retain only their intersection,
+and an unconditional statement contributes only its own guaranteed bits.
+Run-time packed selects therefore still require unsupported bit-level latch
+enables unless a whole-vector default covers them.
+
+Boundary handling is exact rather than width-based. A syntactic packed select
+is recognized from its base expression even when its width equals the target;
+constant partial overlaps are clipped, wholly out-of-range selects are no-ops,
+and run-time selects contribute no guaranteed bits. A selected part may be
+wider than its target, including a four-bit write clipped into a two-bit
+vector. Decoder constants preserve negative values for signed selectors wider
+than 64 bits. Contextually constant X/Z packed indices and unpacked-memory word
+indices are exact no-ops rather than being converted to index zero; the memory
+path still performs the l-value release bookkeeping needed to preserve earlier
+real writes. Concatenated l-values preserve earlier output, enable, and mask
+state when a later element is a no-op or run-time select.
+
+`synth_packed_loop_disjoint_fields.v`,
+`synth_clipped_constant_part_select.v`,
+`synth_concat_select_write_masks.v`,
+`synth_common_latch_enable.v`, `synth_noop_packed_write.v`, and the expanded
+`synth_variable_packed_lvalue.v` value-check the positive shapes in ordinary
+and `-S` execution. The no-op test includes fully out-of-range four-bit
+combinational and flip-flop writes plus constant X/Z packed and memory indices,
+both after defaults and in standalone processes. The variable-select test
+includes a 65-bit signed negative index. `synth_packed_loop_overlap_reject.v`,
+`synth_sequential_partial_latch_reject.v`,
+`synth_variable_partial_latch_reject.v`,
+`synth_variable_full_width_latch_reject.v`, and
+`synth_noop_partial_latch_reject.v` preserve genuine overlap and bit-level-
+latch rejection boundaries.
+
+Final local validation passed `make check` and the complete vendored regression
+with `Total=3351`, `Passed=3346`, `Failed=0`, `Not Implemented=2`, and
+`Expected Fail=3`.
+
+The frozen-binary seven-core `packed-loop-write-masks-v32-quick` replay removes
+the false latch diagnostic from every focused family witness. HMAC, full and
+reduced KMAC, USBDEV, and Earl Grey sensor control are `PASS`; AES reaches only
+its independent `uwire` ownership debt, and DMA reaches only its independent
+`wdata_intg_i` width debt. All seven compiles exit 0 without timeout or hard
+error, and every result has `security_vulnerability=false`. The compiler engine
+fingerprint is
+`287c40f65ff77e90c2c7c50521fa6d2ea0f95587f6461f70e09c510b4cae8cd0`.
+
+The companion exact replays remain bounded non-pass evidence, not clean-corpus
+claims. CSRNG 0.1 produces no diagnostic before its 600.077-second compile
+timeout. Darjeeling and Earl Grey likewise time out after 600.566 and 600.261
+seconds; English Breakfast advances to the separately classified `pinmux`
+asynchronous-load synthesis rejection in 253.606 seconds. None of those four
+logs contains the former packed-loop/latch diagnostic, and every record retains
+`security_vulnerability=false`.
+
+## G39 — loop-index-constant reset branches were mistaken for asynchronous data loads — **fixed** (current upstream campaign)
+
+*9.2.2.4 / constant folding / synthesis lowering [general] — contextually constant reset selection in unrolled procedural loops.*
+
+The v33 whole-RTL census completed all 267 candidates at OpenTitan revision
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19`: 63 `PASS`, 153
+`DEPENDENCY_ONLY`, 31 `FAIL`, 9 `COMPILE_TIMEOUT`, 6 `SETUP_FAIL`, and 5
+`DEBT`. Its 204 non-pass records partition exhaustively into 11 compiler/IEEE
+defects, 4 synthesis-lowering defects, 5 semantic-debt records, 9 bounded
+timeouts, 22 provider/source-list/top-selection harness defects, and 153
+dependency-only cores. Every record explicitly has
+`security_vulnerability=false`.
+
+The v33 evidence is under
+`matrix/full-7a3ad34/rtl-v33/opentitan-matrix.json` and
+`matrix/full-7a3ad34/rtl-v33/opentitan-matrix.md`. Their SHA-256 fingerprints
+are respectively
+`89d8f1f7c64ca2b58ab934379801345d5f2b0c3cce1adef2ae524557cd003df2`
+and
+`5e95e46ebbe1525d8ae25ca99f5a627bb36c0e9fb30cd235520a1afaf344ee18`.
+The frozen compiler engine fingerprint is
+`287c40f65ff77e90c2c7c50521fa6d2ea0f95587f6461f70e09c510b4cae8cd0`.
+The report metadata records the OpenTitan worktree as dirty, so this is pinned
+revision and binary evidence rather than a pristine-source claim.
+
+Two of the four v33 synthesis-lowering failures were the Earl Grey and English
+Breakfast `pinmux` cores. Both stopped at the generated reset process with
+`Asynchronous load is not currently supported in synthesis`, followed by the
+synchronous-process and `always_*` fallback diagnostics. Earl Grey exited 3
+after 89.996 seconds with three hard diagnostics; English Breakfast exited 3
+after 69.643 seconds with the same three diagnostics. Neither result timed out
+or carried semantic debt.
+
+The asynchronous reset branch initializes each packed pad attribute inside a
+procedural loop. Its condition compares the unrolled loop index against a
+packed-structure parameter, so the selected reset value is constant in every
+iteration. The loop synthesizer already retained the contextual value of the
+index, but conditional synthesis still built a run-time mux between the two
+constant reset clauses. The asynchronous-storage recognizer did not treat that
+mux as a constant reset driver and consequently misclassified it as an
+asynchronous data load.
+
+Conditional synthesis now checks whether the condition can be folded using
+constants and the active unrolled-loop context. Loop locals are recognized by
+the identity of their elaborated `NetNet`, then mapped to the corresponding
+context value; matching a signal merely by basename is insufficient. The
+aggregate identity map remains on the process synthesis scope, while a scoped
+guard mirrors the active entry into the index declaration scope for expression
+evaluation and restores it before the iteration value is replaced. This covers
+both a loop local declared below the process scope and an ancestor-declared
+index used by a process in a generate child. When evaluation produces a defined
+constant, synthesis follows only the selected clause instead of retaining a
+mux. A run-time signal, an unknown result, or an unsupported expression form
+retains the existing run-time path and its asynchronous-load rejection
+boundary.
+
+`synth_loop_constant_async_reset.v` models the OpenTitan packed configuration
+parameter, packed pad-attribute array, assignment-pattern reset value, and
+loop-index comparison. It value-checks the selected reset element and
+independently enabled updates. `synth_runtime_async_load_reject.v` deliberately
+gives a module input and the procedural loop local the same basename,
+`index`, then references the run-time input as `main.index`. Signal-identity
+matching keeps that reference dynamic and preserves the expected
+asynchronous-data-load compile rejection.
+
+`synth_nested_loop_shadow_index.v` exercises two distinct active loop variables
+with the same basename. It value-checks both scope directions: an outer local
+declared below the process synthesis scope, and a module-scope outer index used
+by an `always_comb` in a generate child. The latter was an independently
+confirmed silent counterexample before the declaration-scope guard: ordinary
+execution produced `1010`, while `-S` produced `1000`. The same test also
+reuses the module-scope index in a later, non-nested loop to prove restoration.
+`synth_loop_unknown_async_reset.v` makes a context-only condition evaluate to
+X and preserves the expected asynchronous-load rejection rather than choosing
+a branch accidentally.
+
+Final local validation passed `make check` and the complete vendored regression
+with `Total=3356`, `Passed=3351`, `Failed=0`, `Not Implemented=2`, and
+`Expected Fail=3`.
+
+The final frozen-binary two-core `context-constant-pinmux-v38` replay is
+`PASS=2`. Earl Grey compiles in 65.029 seconds and English Breakfast in 55.806
+seconds; both exit 0 with zero hard errors, zero semantic debt, no timeout, and
+`security_vulnerability=false`. The compiler engine fingerprint is
+`00650942adb5412768247ddc0f3c134bc5ec1690aaae623ec22a8b69bfdfc35c`;
+the driver fingerprint is
+`1fa9b330b6aefd694e41b2699db956b208ffedcf60b5c615d38084aa47e60500`.
+
+The focused evidence is under
+`matrix/full-7a3ad34/context-constant-pinmux-v38/opentitan-matrix.json` and
+`matrix/full-7a3ad34/context-constant-pinmux-v38/opentitan-matrix.md`, whose
+SHA-256 fingerprints are respectively
+`c08d35fa16d513ba88a67bd933e8b8e5aaca3729e629480a9e4e3dd2f935fd81`
+and
+`91ed8cab38a9456f314722b718572da128973f03e96a67c0baffc7d4fc98dd48`.
+
+The companion final-engine English Breakfast top replay completes rather than
+failing at `pinmux` or timing out. It exits 0 after 186.627 seconds with no hard
+error and no timeout, but remains `DEBT` because of four independent findings:
+two `sram_ctrl` configuration-port width mismatches (416 versus 13 and 32
+versus 1), one unsynthesized Ibex process, and the AES `hw2reg` `uwire` with 28
+drivers. The record has `security_vulnerability=false` and contains no pinmux
+asynchronous-load diagnostic. Its JSON and Markdown evidence are under
+`matrix/full-7a3ad34/context-constant-pinmux-v38-eb-top/`; their SHA-256
+fingerprints are respectively
+`d811ecf7df4346369f8a48730944a025674fda6aa57c53b833abfc633dcb8000`
+and
+`b735c86af35bfb7c8df2653b63f5630193343584003388cd1c0c7edc0633bade`.
+
+The fresh final-engine v39 whole-RTL census confirms those transitions across
+all 267 candidates: 65 `PASS`, 153 `DEPENDENCY_ONLY`, 29 `FAIL`, 9
+`COMPILE_TIMEOUT`, 6 `SETUP_FAIL`, and 5 `DEBT`. The Earl Grey and English
+Breakfast pinmux records are the only two status changes from v33; all other
+265 records retain the same status. The 202 non-pass records partition
+exhaustively into 11 compiler/IEEE defects, 2 synthesis-lowering defects, 5
+semantic-debt records, 9 bounded timeouts, 22 provider/source-list/top-selection
+harness defects, and 153 dependency-only cores. Every result again has
+`security_vulnerability=false`.
+
+The v39 evidence is under
+`matrix/full-7a3ad34/rtl-v39/opentitan-matrix.json` and
+`matrix/full-7a3ad34/rtl-v39/opentitan-matrix.md`. Their SHA-256 fingerprints
+are respectively
+`5af606030d0ca8a87d0375c0398354a55b0ab894bb70160647e07c6a6c940623`
+and
+`ae53cc264ea810197f97981ec88b029044584e6cb4c1da67d9453abd12a5aaee`.
+The report records the final driver fingerprint
+`1fa9b330b6aefd694e41b2699db956b208ffedcf60b5c615d38084aa47e60500`
+and compiler-engine fingerprint
+`00650942adb5412768247ddc0f3c134bc5ec1690aaae623ec22a8b69bfdfc35c`.
+It remains pinned-revision evidence from a deliberately preserved dirty
+OpenTitan worktree. The census does not reclassify the remaining OTBN width
+assertion or RRAM array-parameter part-select defects.
+
+## G40 — nested synthesis loops sharing one index require shared-state propagation — **diagnosed; explicit rejection remains** (current upstream campaign)
+
+*12.7 / procedural loops / synthesis lowering [general] — one variable reused
+as the control variable of active nested loops.*
+
+A legal nested loop can reuse the exact same `integer` as both control
+variables. The inner loop then changes the outer loop's state, but the current
+unroller represents the two active iterations independently. During the G39
+identity review, an intermediate exact-identity implementation made that
+divergence observable as a silent X result. A first local rejection also
+exposed that `NetForLoop::synth_async` ignored a false return from a nested body
+and allowed code generation to reach an internal assertion.
+
+Synthesis now detects an already-active exact `NetNet` before evaluating the
+nested loop initializer or condition and emits an explicit unsupported
+diagnostic. A failed nested body is propagated after restoring all loop and
+genvar context, so compilation terminates normally instead of asserting.
+`synth_nested_loop_same_index_reject.v` documents the ordinary language
+behavior and proves the expected `-S` compile rejection. This is not an IEEE
+conformance pass: full modeling of the inner loop's terminal value as the
+enclosing loop's live state remains open.
+
+## G41 — a package-qualified assignment-pattern expression type was rejected or discarded — **fixed** (current upstream campaign)
+
+*6.24 / 10.9.1 / A.6.7.1 [general] — typed assignment-pattern parsing,
+contextual typing, and self-determined width.*
+
+The v39 census exposed one parser family in eight records: the three
+standalone `top_{darjeeling,earlgrey,englishbreakfast}_ast` cores plus five
+chip wrappers. Every record exited 10 with ten hard diagnostics, for 80 hard
+diagnostics in total. The first error was `ast.sv:757` for Darjeeling or
+`ast.sv:293` for Earl Grey and English Breakfast. All five replicated memory-
+configuration expressions in each AST source used the legal shape
+
+```systemverilog
+{N{prim_ram_1p_pkg::ram_1p_cfg_req_t'{req: spram_rm.cfg}}}
+```
+
+The lexer already returns `'{` as the single `K_LP` token. The expression
+grammar nevertheless accepted only an unqualified `TYPE_IDENTIFIER` directly
+before an assignment pattern; a `package_scope TYPE_IDENTIFIER` could not
+reach that production. Worse, the accepted production deleted the type and
+returned only the untyped pattern. That loses required semantics even when
+parsing succeeds: an assignment pattern has no self-determined type or width,
+while its explicit prefix must shape it before it participates in the enclosing
+replication concatenation.
+
+The grammar now implements the supported forms of
+`assignment_pattern_expression_type` directly: `ps_type_identifier`, the six
+integer atom types (`byte`, `shortint`, `int`, `longint`, `integer`, and
+`time`), and `type(expression)`. The result is represented as `PECastType`
+around the pattern instead of dropping the prefix. Package-qualified typedefs,
+local typedefs, type parameters, atom types, and type references therefore all
+carry their target into elaboration. Parse-form dumping also emits the original
+`T'{...}` shape rather than the ordinary `T'(...)` cast punctuation.
+
+Typed-pattern elaboration resolves the cast target before the generic
+width-driven path and gives that type directly to `PEAssignPattern`. This is
+required for packed aggregates inside replications and for unpacked structs,
+static arrays, dynamic arrays, and queues; it also avoids the generic dynamic-
+container cast path trying the deliberately invalid context-free pattern
+overload. A parse-form expression is shared by all specializations of a module,
+so a direct pattern using `parameter type T` refreshes the target in each
+instance scope rather than reusing `PECastType`'s earlier cached type.
+
+`synth_typed_assignment_pattern.v` value-checks package-qualified and local-
+typedef packed structs inside concatenation replication, reversed named
+members, integer-atom and `type(expression)` prefixes, a static unpacked array,
+a dynamic array, a queue, and default and overridden type parameters. The two
+packed type-parameter specializations reverse member declaration order. Two
+additional nonpacked specializations exercise the direct typed-rvalue path
+without a preceding concatenation width test, proving that scope-specific
+target resolution is not cached across instances. Ordinary and `-S` execution
+both print `PASSED`.
+
+An exact Bison 3.8.2 comparison against `HEAD` reports no parser-ambiguity
+growth: both grammars have 504 shift/reduce conflicts, 1186 reduce/reduce
+conflicts, and 209 conflict states. Final local validation passed `make check`
+and the complete installed-backend regression with `Total=3357`,
+`Passed=3352`, `Failed=0`, `Not Implemented=2`, and `Expected Fail=3`.
+
+The pinned-revision eight-core v40 replay removes every former `ast.sv` typed-
+pattern syntax diagnostic. Four chip wrappers advance from immediate `FAIL` to
+the explicit 600-second `COMPILE_TIMEOUT` bound without a recognized hard
+diagnostic. The English Breakfast Verilator wrapper advances from ten syntax
+errors to one independent explicit-cast error after 29.542 seconds. The three
+standalone AST cores compile past their typed patterns in under half a second
+and reach the separately classified multiple-asynchronous-set/reset synthesis
+gap, each with six unique hard diagnostics after deduplication. All eight
+records retain `security_vulnerability=false`; this focused replay proves the
+parser family is retired, not that the larger cores are clean.
+
+The v40 evidence is under
+`matrix/full-7a3ad34/typed-assignment-pattern-ast-v40/opentitan-matrix.json`
+and `opentitan-matrix.md`. Their SHA-256 fingerprints are respectively
+`49c42bcb85c526c21ec55bf0e794eb2502d72ac9110bcb218425ff6ef77bb30a`
+and
+`4b75a2b908b9da50c7d54adfda8ff19b4f83eaaa6116fd9d6d7c10b817e2da37`.
+The isolated replay wrapper fingerprint is
+`e25b50fb9d7a07fcecdb693bb984dd965d143444aebc4936a9306f0d4893d23c`,
+and its compiler-engine fingerprint is
+`0bca372584e8bcc851abda4361775ebb35f59f44f266ac353182132e210317b1`.
+The report records the OpenTitan worktree as deliberately dirty at revision
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19`.
+
+## G42 — a value-parameter assignment-pattern prefix remains unsupported — **open** (current upstream campaign)
+
+*10.9.1 / A.6.7.1 [general] — `ps_parameter_identifier` as an assignment-
+pattern expression type.*
+
+The standard grammar also permits `ps_parameter_identifier` before an
+assignment pattern, including a value parameter in a form such as
+`W'{default: value}`. A type parameter is already covered by G41 because the
+scope registers it as a type identifier. A value parameter is semantically
+different: it supplies size-cast context and must follow the `PECastSize`
+constant-width rules, not be accepted blindly as a `PECastType`. Generic
+`IDENTIFIER assignment_pattern` would also introduce incorrect parses in the
+already ambiguous expression grammar. This form remains a distinct open gap;
+G41 does not claim complete A.6.7.1 coverage.
 
 ---
 

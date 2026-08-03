@@ -393,6 +393,17 @@ void vvp_darray_vec2::shallow_copy(const vvp_object*obj)
       touch();
 }
 
+vvp_object* vvp_darray_vec2::duplicate(void) const
+{
+      vvp_darray_vec2*that = new vvp_darray_vec2(array_.size(), word_wid_);
+
+      for (size_t idx = 0 ; idx < array_.size() ; idx += 1)
+	    that->array_[idx] = array_[idx];
+
+      copy_value_metadata_(that);
+      return that;
+}
+
 vvp_vector4_t vvp_darray_vec2::get_bitstream(bool)
 {
       vvp_vector4_t vec(array_.size() * word_wid_, BIT4_0);

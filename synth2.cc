@@ -48,22 +48,16 @@ using namespace std;
  * as a clock enable for the flip-flop. This saves us explicitly feeding
  * back the flip-flop output to undriven inputs of any synthesised muxes.
  *
- * The strategy described above is not sufficient when not all bits in
- * a nexus are treated identically (i.e. different conditional clauses
- * drive differing parts of the same vector). To handle this properly,
- * we would (potentially) need to generate a separate enable signal for
- * each bit in the vector. This would be a lot of work, particularly if
- * we wanted to eliminate duplicates. For now, the strategy employed is
- * to maintain a bitmask for each output nexus that identifies which bits
- * in the nexus are unconditionally driven (driven by every clause). When
- * we finish synthesising an asynchronous process, if the bitmask is not
- * all ones, we must infer a latch. This currently results in an error,
- * because to safely synthesise such a latch we would need the bit-level
- * gate enables. When we finish synthesising a synchronous process, if
- * the bitmask is not all ones, we explicitly feed the flip-flop outputs
- * back to undriven inputs of any synthesised muxes to ensure undriven
- * parts of the vector retain their previous state when the flip-flop is
- * clocked.
+ * A bitmask accompanies each output nexus when different statements drive
+ * different parts of a vector. A true bit is unconditionally written along
+ * the paths represented by that mask. If an asynchronous process has a
+ * constant-high process enable and every bit written anywhere is true in the
+ * unconditional mask, false bits are outside its ownership and are driven
+ * with Z. This allows disjoint generated processes to compose one packed
+ * vector without inventing state. Other conditional partial writes still need
+ * independent bit-level latch enables and remain a loud unsupported case. A
+ * synchronous process can feed the complete flip-flop output back to undriven
+ * mux inputs because it owns the complete registered vector.
  *
  * The enable signals are passed as links to the current output nexus
  * for each signal. If an enable signal is not linked, this is treated
@@ -174,6 +168,10 @@ static void merge_sequential_enables(Design*des, NetScope*scope,
       if (sub_enable.is_linked(scope->tie_hi()))
 	    top_enable.unlink();
 
+      if (top_enable.is_linked() && sub_enable.is_linked()
+	  && top_enable.nexus() == sub_enable.nexus())
+	    return;
+
       if (top_enable.is_linked()) {
 	    NetLogic*gate = new NetLogic(scope, scope->local_symbol(),
 					 3, NetLogic::OR, 1);
@@ -192,7 +190,10 @@ static void merge_sequential_enables(Design*des, NetScope*scope,
       }
 }
 
-static void merge_sequential_masks(NetProc::mask_t&top_mask, const NetProc::mask_t&sub_mask)
+static void merge_sequential_masks(NetScope*scope,
+				   Link&top_enable, Link&sub_enable,
+				   NetProc::mask_t&top_mask,
+				   const NetProc::mask_t&sub_mask)
 {
       if (sub_mask.size() == 0)
 	    return;
@@ -203,9 +204,40 @@ static void merge_sequential_masks(NetProc::mask_t&top_mask, const NetProc::mask
       }
 
       assert(top_mask.size() == sub_mask.size());
+
+	// The vector enable accumulated for sequential statements is their OR.
+	// Bits written under different enables are not necessarily written every
+	// time that OR is active. Preserve only the bits whose data path is valid
+	// for the combined enable; otherwise the top-level latch check must reject
+	// the process until independent bit-level enables are available.
+      bool top_linked = top_enable.is_linked()
+	    && !top_enable.is_linked(scope->tie_lo());
+      bool sub_linked = sub_enable.is_linked()
+	    && !sub_enable.is_linked(scope->tie_lo());
+      if (!top_linked) {
+	    top_mask = sub_mask;
+	    return;
+      }
+      if (!sub_linked)
+	    return;
+
+      bool top_high = top_enable.is_linked(scope->tie_hi());
+      bool sub_high = sub_enable.is_linked(scope->tie_hi());
+      if (top_high && !sub_high)
+	    return;
+      if (sub_high && !top_high) {
+	    top_mask = sub_mask;
+	    return;
+      }
+
+      bool same_enable = top_enable.nexus() == sub_enable.nexus();
       for (unsigned idx = 0 ; idx < top_mask.size() ; idx += 1) {
-	    if (sub_mask[idx] == true)
-		  top_mask[idx] = true;
+	    if (top_high || same_enable) {
+		  if (sub_mask[idx])
+			top_mask[idx] = true;
+	    } else if (!sub_mask[idx]) {
+		  top_mask[idx] = false;
+	    }
       }
 }
 
@@ -238,13 +270,349 @@ static bool all_bits_driven(const NetProc::mask_t&mask)
       return true;
 }
 
+static bool any_bits_driven(const NetProc::mask_t&mask)
+{
+      for (unsigned idx = 0; idx < mask.size(); idx += 1) {
+	    if (mask[idx])
+		  return true;
+      }
+      return false;
+}
+
+static void collect_process_write_masks(
+		NetProc*statement, NexusSet&output_map,
+		vector<NetProc::mask_t>&write_masks)
+{
+      ivl_assert(*statement, write_masks.size() == output_map.size());
+
+      NexusSet precise_outputs;
+      bool saved_precise_partsel = nex_output_precise_partsel;
+      nex_output_precise_partsel = true;
+      statement->nex_output(precise_outputs);
+      nex_output_precise_partsel = saved_precise_partsel;
+
+      for (unsigned out = 0; out < precise_outputs.size(); out += 1) {
+	    unsigned precise_base = precise_outputs[out].base;
+	    unsigned precise_end = precise_base + precise_outputs[out].wid;
+	    Nexus*nexus = precise_outputs[out].lnk.nexus();
+
+	    for (unsigned idx = 0; idx < output_map.size(); idx += 1) {
+		  if (output_map[idx].lnk.nexus() != nexus)
+			continue;
+
+		  unsigned map_base = output_map[idx].base;
+		  unsigned map_end = map_base + output_map[idx].wid;
+		  unsigned overlap_base = max(precise_base, map_base);
+		  unsigned overlap_end = min(precise_end, map_end);
+		  if (overlap_end <= overlap_base)
+			continue;
+
+		  NetProc::mask_t&mask = write_masks[idx];
+		  if (mask.size() < output_map[idx].wid)
+			mask.resize(output_map[idx].wid, false);
+		  for (unsigned bit = overlap_base; bit < overlap_end;
+		       bit += 1)
+			mask[bit - map_base] = true;
+	    }
+      }
+}
+
+static bool all_process_writes_are_driven(
+		const NetProc::mask_t&driven_mask,
+		const NetProc::mask_t&write_mask)
+{
+      for (unsigned bit = 0; bit < write_mask.size(); bit += 1) {
+	    if (write_mask[bit]
+		  && (bit >= driven_mask.size() || !driven_mask[bit]))
+		  return false;
+      }
+      return true;
+}
+
+struct synth_write_mask_context_t {
+      NexusSet*output_map;
+      vector<NetProc::mask_t>*write_masks;
+};
+
+static synth_write_mask_context_t*active_synth_write_mask_context = 0;
+
+class synth_write_mask_guard_t {
+
+    public:
+      explicit synth_write_mask_guard_t(synth_write_mask_context_t*context)
+      : saved_(active_synth_write_mask_context)
+      {
+	    active_synth_write_mask_context = context;
+      }
+
+      ~synth_write_mask_guard_t()
+      {
+	    active_synth_write_mask_context = saved_;
+      }
+
+    private:
+      synth_write_mask_context_t*saved_;
+};
+
+// NetESignal::evaluate_function starts at the referenced signal's declaration
+// scope. A synthesis process may live in a descendant generate scope, so keep
+// the active loop value reachable at both scopes without copying or owning the
+// expression itself. Exact NetNet keys preserve shadowed loop identities.
+class synth_loop_index_decl_guard_t {
+
+    public:
+      synth_loop_index_decl_guard_t(NetScope*process_scope, NetNet*index,
+				    const LocalVar&value)
+      : decl_scope_(index->scope()), index_(index),
+	active_(decl_scope_ != process_scope), had_saved_(false)
+      {
+	    if (!active_)
+		  return;
+
+	    map<NetNet*,LocalVar>&values =
+		  decl_scope_->loop_index_values_tmp;
+	    map<NetNet*,LocalVar>::iterator cur = values.find(index_);
+	    had_saved_ = cur != values.end();
+	    if (had_saved_)
+		  saved_ = cur->second;
+	    values[index_] = value;
+      }
+
+      ~synth_loop_index_decl_guard_t()
+      {
+	    if (!active_)
+		  return;
+
+	    map<NetNet*,LocalVar>&values =
+		  decl_scope_->loop_index_values_tmp;
+	    if (had_saved_)
+		  values[index_] = saved_;
+	    else
+		  values.erase(index_);
+      }
+
+    private:
+      NetScope*decl_scope_;
+      NetNet*index_;
+      bool active_;
+      bool had_saved_;
+      LocalVar saved_;
+};
+
+static void record_synthesized_write(const LineInfo&loc, Nexus*nexus,
+				     unsigned base, unsigned width)
+{
+      if (!active_synth_write_mask_context || width == 0)
+	    return;
+
+      NexusSet&output_map = *active_synth_write_mask_context->output_map;
+      vector<NetProc::mask_t>&write_masks =
+	    *active_synth_write_mask_context->write_masks;
+      ivl_assert(loc, write_masks.size() == output_map.size());
+
+      unsigned write_end = base + width;
+      bool found = false;
+      for (unsigned idx = 0; idx < output_map.size(); idx += 1) {
+	    if (output_map[idx].lnk.nexus() != nexus)
+		  continue;
+
+	    unsigned map_base = output_map[idx].base;
+	    unsigned map_end = map_base + output_map[idx].wid;
+	    unsigned overlap_base = max(base, map_base);
+	    unsigned overlap_end = min(write_end, map_end);
+	    if (overlap_end <= overlap_base)
+		  continue;
+
+	    NetProc::mask_t&mask = write_masks[idx];
+	    ivl_assert(loc, mask.size() == output_map[idx].wid);
+	    for (unsigned bit = overlap_base; bit < overlap_end; bit += 1)
+		  mask[bit - map_base] = true;
+	    found = true;
+      }
+      ivl_assert(loc, found);
+}
+
+static void claim_synthesized_process_outputs(
+		Design*des, const LineInfo&loc, NexusSet&outputs,
+		const vector<NetProc::mask_t>&write_masks)
+{
+      ivl_assert(loc, write_masks.size() == outputs.size());
+
+        // A process may mention the same nexus in several branches or
+        // assignments. Union those ranges locally before making global
+        // claims so repeated writes within one process are not mistaken for
+        // multiple-process ownership.
+      map<Nexus*, NetProc::mask_t> process_masks;
+      for (unsigned idx = 0; idx < outputs.size(); idx += 1) {
+	    Nexus*nexus = outputs[idx].lnk.nexus();
+	    NetProc::mask_t&mask = process_masks[nexus];
+	    const NetProc::mask_t&write_mask = write_masks[idx];
+	    ivl_assert(loc, write_mask.size() == outputs[idx].wid);
+	    unsigned end = outputs[idx].base + write_mask.size();
+	    if (mask.size() < end)
+		  mask.resize(end, false);
+	    for (unsigned bit = 0; bit < write_mask.size(); bit += 1) {
+		  if (write_mask[bit])
+			mask[outputs[idx].base + bit] = true;
+	    }
+      }
+
+      bool any_overlap = false;
+      for (map<Nexus*, NetProc::mask_t>::iterator cur = process_masks.begin();
+	   cur != process_masks.end(); ++cur) {
+	    Nexus*nexus = cur->first;
+	    const NetProc::mask_t&mask = cur->second;
+	    for (unsigned bit = 0; bit < mask.size(); bit += 1) {
+		  if (!mask[bit])
+			continue;
+
+		  if (!nexus->claim_synthesized_process_driver(bit, 1))
+			continue;
+
+		  NetNet*net = nexus->pick_any_net();
+		  cerr << loc.get_fileline() << ": warning: '"
+		       << (net ? net->name() : perm_string::literal("<unnamed>"))
+		       << "' bit " << bit
+		       << " is driven by more than one process." << endl;
+		  any_overlap = true;
+	    }
+      }
+
+      if (any_overlap) {
+	    cerr << loc.get_fileline() << ": sorry: Cannot synthesize packed bits "
+		    "that are driven by more than one process." << endl;
+	    des->errors += 1;
+      }
+}
+
+static void connect_synthesized_process_output(
+		Design*des, NetScope*scope, const LineInfo&loc,
+		unsigned width, Link&output, Link&input)
+{
+        // Keep the variable owned by this process on the output side of a
+        // structural device. A direct nexus merge makes ownership propagate
+        // backward through module inputs and into an upstream process, so a
+        // legal chain such as `always_comb d_o = d_i' is misdiagnosed as
+        // multiple procedural drivers. A transparent buffer preserves the
+        // synthesized value and four-state behavior while retaining the
+        // directional process boundary.
+      NetBUFZ*driver = new NetBUFZ(scope, scope->local_symbol(), width, true);
+      driver->set_line(loc);
+      des->add_node(driver);
+      connect(driver->pin(0), output);
+      connect(driver->pin(1), input);
+}
+
+static NetNet*mask_synthesized_process_output(
+		Design*des, NetScope*scope, const LineInfo&loc,
+		NetNet*source, const NetProc::mask_t&write_mask)
+{
+      unsigned width = source->vector_width();
+      ivl_assert(loc, write_mask.size() == width);
+      if (all_bits_driven(write_mask))
+	    return source;
+
+	// A process that owns only part of a packed variable must drive Z on
+	// every other bit so disjoint synthesized processes compose. Build the
+	// masked vector from contiguous owned ranges to avoid one node per bit.
+      NetNet*result = make_const_z(des, scope, width);
+      for (unsigned base = 0; base < width;) {
+	    while (base < width && !write_mask[base])
+		  base += 1;
+	    if (base == width)
+		  break;
+
+	    unsigned end = base + 1;
+	    while (end < width && write_mask[end])
+		  end += 1;
+	    unsigned part_width = end - base;
+
+	    NetPartSelect*select = new NetPartSelect(
+		  source, base, part_width, NetPartSelect::VP);
+	    select->set_line(loc);
+	    des->add_node(select);
+
+	    const netvector_t*part_type = new netvector_t(
+		  source->data_type(), part_width-1, 0);
+	    NetNet*part = new NetNet(scope, scope->local_symbol(),
+			       NetNet::WIRE, part_type);
+	    part->local_flag(true);
+	    part->set_line(loc);
+	    connect(part->pin(0), select->pin(0));
+
+	    const netvector_t*result_type = new netvector_t(
+		  source->data_type(), width-1, 0);
+	    NetNet*next = new NetNet(scope, scope->local_symbol(),
+			       NetNet::WIRE, result_type);
+	    next->local_flag(true);
+	    next->set_line(loc);
+	    NetSubstitute*substitute = new NetSubstitute(
+		  result, part, width, base);
+	    substitute->set_line(loc);
+	    des->add_node(substitute);
+	    connect(next->pin(0), substitute->pin(0));
+	    result = next;
+	    base = end;
+      }
+
+      return result;
+}
+
+static NetNet*synthesize_array_word_match(
+		Design*des, NetScope*scope, const LineInfo&loc,
+		NetNet*word_select, unsigned long word)
+{
+      unsigned width = word_select->vector_width();
+      ivl_assert(loc, width > 0);
+
+      NetConst*constant = new NetConst(scope, scope->local_symbol(),
+				      verinum(static_cast<uint64_t>(word), width));
+      constant->set_line(loc);
+      des->add_node(constant);
+
+      const netvector_t*constant_type = new netvector_t(
+		IVL_VT_LOGIC, width-1, 0);
+      NetNet*constant_signal = new NetNet(
+		scope, scope->local_symbol(), NetNet::WIRE, constant_type);
+      constant_signal->local_flag(true);
+      constant_signal->set_line(loc);
+      connect(constant_signal->pin(0), constant->pin(0));
+
+	// A run-time array index containing X or Z selects no word for an
+	// l-value update. Case equality makes every decoder output a definite
+	// zero in that case instead of propagating X into a flip-flop enable.
+      NetCaseCmp*compare = new NetCaseCmp(scope, scope->local_symbol(),
+					 width, NetCaseCmp::EEQ);
+      compare->set_line(loc);
+      des->add_node(compare);
+      connect(compare->pin(1), word_select->pin(0));
+      connect(compare->pin(2), constant_signal->pin(0));
+
+      NetNet*match = new NetNet(scope, scope->local_symbol(), NetNet::WIRE,
+				&netvector_t::scalar_logic);
+      match->local_flag(true);
+      match->set_line(loc);
+      connect(match->pin(0), compare->pin(0));
+      return match;
+}
+
 bool NetProcTop::tie_off_floating_inputs_(Design*des,
 					  NexusSet&nex_map, NetBus&nex_in,
 					  const vector<NetProc::mask_t>&bitmasks,
-					  bool is_ff_input)
+					  bool is_ff_input,
+					  NetBus*process_enables,
+					  const vector<NetProc::mask_t>*
+						process_write_masks)
 {
       bool flag = true;
+      if (process_write_masks)
+	    ivl_assert(*this,
+		  process_write_masks->size() == nex_in.pin_count());
       for (unsigned idx = 0 ; idx < nex_in.pin_count() ; idx += 1) {
+	    if (process_write_masks
+		&& !any_bits_driven((*process_write_masks)[idx]))
+		  continue;
+
 	    if (nex_in.pin(idx).nexus()->has_floating_input()) {
 		  if (all_bits_driven(bitmasks[idx])) {
 			  // If all bits are unconditionally driven, we can
@@ -271,15 +639,23 @@ bool NetProcTop::tie_off_floating_inputs_(Design*des,
 			  // to ensure undriven bits hold their last value.
 			connect(nex_in.pin(idx), nex_map[idx].lnk);
 		  } else {
-			  // This infers a latch, but without generating
-			  // gate enable signals at the bit-level, we
-			  // can't safely latch the undriven bits (we
-			  // shouldn't generate combinatorial loops).
+			bool fully_enabled = process_enables
+			      && process_enables->pin(idx).is_linked(
+				    scope()->tie_hi());
+			bool every_write_is_driven = process_write_masks
+			      && all_process_writes_are_driven(
+				    bitmasks[idx], (*process_write_masks)[idx]);
+			if (fully_enabled && every_write_is_driven) {
+			      NetNet*z_value =
+				    make_const_z(des, scope(), nex_map[idx].wid);
+			      connect(nex_in.pin(idx), z_value->pin(0));
+			      continue;
+			}
+
 			cerr << get_fileline() << ": warning: A latch "
 			     << "has been inferred for some bits of '"
 			     << nex_map[idx].lnk.nexus()->pick_any_net()->name()
 			     << "'." << endl;
-
 			cerr << get_fileline() << ": sorry: Bit-level "
 				"latch gate enables are not currently "
 				"supported in synthesis." << endl;
@@ -294,6 +670,186 @@ bool NetProcTop::tie_off_floating_inputs_(Design*des,
 bool NetProc::synth_async(Design*, NetScope*, NexusSet&, NetBus&, NetBus&, vector<mask_t>&)
 {
       return false;
+}
+
+/* Return true when constant-function evaluation can fold this expression
+ * without encountering a run-time signal. This lets synthesis substitute an
+ * unrolled loop index quietly, while preserving a dynamic l-value index such
+ * as vec[index_signal][loop_index]. */
+static bool synth_context_constant(const NetExpr*expr,
+				   const map<NetNet*,LocalVar>&context)
+{
+      if (dynamic_cast<const NetEConst*>(expr))
+	    return true;
+
+      if (const NetESignal*sig = dynamic_cast<const NetESignal*>(expr)) {
+	    map<NetNet*,LocalVar>::const_iterator loop_net = context.end();
+	    for (map<NetNet*,LocalVar>::const_iterator cur = context.begin();
+		 cur != context.end(); ++cur) {
+		  if (cur->first == sig->sig()) {
+			loop_net = cur;
+			break;
+		  }
+	    }
+	    if (loop_net == context.end())
+		  return false;
+	    return !sig->word_index()
+		  || synth_context_constant(sig->word_index(), context);
+      }
+
+      if (const NetEBinary*binary = dynamic_cast<const NetEBinary*>(expr))
+	    return synth_context_constant(binary->left(), context)
+		&& synth_context_constant(binary->right(), context);
+
+      if (const NetEUnary*unary = dynamic_cast<const NetEUnary*>(expr))
+	    return synth_context_constant(unary->expr(), context);
+
+      if (const NetESelect*select = dynamic_cast<const NetESelect*>(expr))
+	    return synth_context_constant(select->sub_expr(), context)
+		&& (!select->select()
+		    || synth_context_constant(select->select(), context));
+
+      if (const NetETernary*ternary = dynamic_cast<const NetETernary*>(expr))
+	    return synth_context_constant(ternary->cond_expr(), context)
+		&& synth_context_constant(ternary->true_expr(), context)
+		&& synth_context_constant(ternary->false_expr(), context);
+
+      return false;
+}
+
+/* Synthesize a procedural write to a run-time selected packed part. Build one
+ * case-equality decoder per legal canonical base, then mux only the affected
+ * scalar bits and concatenate them back into a vector. Case equality is
+ * intentional: an index containing X/Z, or an out-of-range index, matches no
+ * legal base and therefore leaves the value unchanged, as a procedural packed
+ * write must. */
+static NetNet*synth_variable_part_update(Design*des, NetScope*scope,
+					 const LineInfo&loc,
+					 const NetExpr*base_expr,
+					 NetNet*prior, NetNet*replacement,
+					 unsigned full_width,
+					 unsigned part_width)
+{
+      NetExpr*base_copy = base_expr->dup_expr();
+      NetNet*base_sig = base_copy->synthesize(des, scope, base_copy);
+      delete base_copy;
+      if (!base_sig)
+	    return 0;
+
+      unsigned select_width = base_sig->vector_width();
+      if (select_width == 0 || part_width == 0)
+	    return 0;
+      if (debug_synth2) {
+	    cerr << loc.get_fileline() << ": synth_variable_part_update: selector "
+		 << "width=" << select_width
+		 << ", signed=" << base_sig->get_signed()
+		 << ", full_width=" << full_width
+		 << ", part_width=" << part_width << endl;
+      }
+
+      long first_base = 1 - static_cast<long>(part_width);
+      long last_base = static_cast<long>(full_width) - 1;
+      if (select_width < 8 * sizeof(long)) {
+	    if (base_sig->get_signed()) {
+		  const long representable_min = -(1L << (select_width - 1));
+		  const long representable_max = (1L << (select_width - 1)) - 1;
+		  first_base = max(first_base, representable_min);
+		  last_base = min(last_base, representable_max);
+	    } else {
+		  first_base = max(first_base, 0L);
+		  const unsigned long representable_max =
+			(1UL << select_width) - 1;
+		  if (static_cast<unsigned long>(last_base) > representable_max)
+			last_base = static_cast<long>(representable_max);
+	    }
+      } else if (!base_sig->get_signed()) {
+	    first_base = max(first_base, 0L);
+      }
+      ivl_assert(loc, first_base <= last_base);
+
+      vector<NetNet*>base_selected(last_base - first_base + 1,
+					  static_cast<NetNet*>(0));
+      for (long base = first_base; base <= last_base; base += 1) {
+	    verinum base_value = cast_to_width(
+		  verinum(static_cast<int64_t>(base)), select_width);
+	    NetEConst base_constant(base_value);
+	    base_constant.set_line(loc);
+	    NetNet*constant_sig =
+		  base_constant.synthesize(des, scope, &base_constant);
+	    ivl_assert(loc, constant_sig);
+
+	    NetCaseCmp*compare = new NetCaseCmp(scope, scope->local_symbol(),
+						 select_width, NetCaseCmp::EEQ);
+	    compare->set_line(loc);
+	    des->add_node(compare);
+	    connect(compare->pin(1), base_sig->pin(0));
+	    connect(compare->pin(2), constant_sig->pin(0));
+
+	    const unsigned decoder_index = base - first_base;
+	    base_selected[decoder_index] =
+		  new NetNet(scope, scope->local_symbol(), NetNet::WIRE,
+			     &netvector_t::scalar_logic);
+	    base_selected[decoder_index]->local_flag(true);
+	    base_selected[decoder_index]->set_line(loc);
+	    connect(base_selected[decoder_index]->pin(0), compare->pin(0));
+      }
+
+      auto select_bit = [des, scope, &loc](NetNet*vector,
+						  unsigned bit) -> NetNet* {
+	    NetPartSelect*select =
+		  new NetPartSelect(vector, bit, 1, NetPartSelect::VP);
+	    select->set_line(loc);
+	    des->add_node(select);
+	    NetNet*result = new NetNet(scope, scope->local_symbol(),
+					NetNet::WIRE, &netvector_t::scalar_logic);
+	    result->local_flag(true);
+	    result->set_line(loc);
+	    connect(result->pin(0), select->pin(0));
+	    return result;
+      };
+
+      vector<NetNet*>replacement_bits(part_width, static_cast<NetNet*>(0));
+      for (unsigned bit = 0; bit < part_width; bit += 1)
+	    replacement_bits[bit] = select_bit(replacement, bit);
+
+      NetConcat*concat = new NetConcat(scope, scope->local_symbol(),
+				      full_width, full_width, false);
+      concat->set_line(loc);
+      des->add_node(concat);
+      for (unsigned dst_bit = 0; dst_bit < full_width; dst_bit += 1) {
+	    NetNet*current = select_bit(prior, dst_bit);
+	    for (unsigned src_bit = 0; src_bit < part_width; src_bit += 1) {
+		  const long base = static_cast<long>(dst_bit) - src_bit;
+		  if (base < first_base || base > last_base)
+			continue;
+
+		  NetMux*mux = new NetMux(scope, scope->local_symbol(), 1, 2, 1);
+		  mux->set_line(loc);
+		  des->add_node(mux);
+		  connect(mux->pin_Sel(),
+			  base_selected[base - first_base]->pin(0));
+		  connect(mux->pin_Data(0), current->pin(0));
+		  connect(mux->pin_Data(1), replacement_bits[src_bit]->pin(0));
+
+		  NetNet*next = new NetNet(scope, scope->local_symbol(),
+					    NetNet::WIRE,
+					    &netvector_t::scalar_logic);
+		  next->local_flag(true);
+		  next->set_line(loc);
+		  connect(next->pin(0), mux->pin_Result());
+		  current = next;
+	    }
+	    connect(concat->pin(dst_bit + 1), current->pin(0));
+      }
+
+      const netvector_t*result_type =
+	    new netvector_t(replacement->data_type(), full_width-1, 0);
+      NetNet*result = new NetNet(scope, scope->local_symbol(),
+				NetNet::WIRE, result_type);
+      result->local_flag(true);
+      result->set_line(loc);
+      connect(result->pin(0), concat->pin(0));
+      return result;
 }
 
 /*
@@ -352,14 +908,6 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
       NetNet*rsig = rval_->synthesize(des, scope, rval_);
       assert(rsig);
 
-      if (lval_->word() && ! dynamic_cast<NetEConst*>(lval_->word())) {
-	    cerr << get_fileline() << ": sorry: Assignment to variable "
-		    "location in memory is not currently supported in "
-		    "synthesis." << endl;
-	    des->errors += 1;
-	    return false;
-      }
-
       NetNet*lsig = lval_->sig();
       if (!lsig) {
 	    cerr << get_fileline() << ": error: "
@@ -368,6 +916,135 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 	    cerr << endl;
 	    des->errors += 1;
 	    return false;
+      }
+
+	// Array patterns and whole-array expressions synthesize to one NetNet
+	// pin per unpacked word. Lower the assignment word-by-word so each word
+	// is matched to its own process-output nexus. The vector assignment path
+	// below intentionally handles a single packed word and cannot infer this
+	// mapping from lwidth(), which is the packed width of the array element.
+      if (lsig->unpacked_dimensions() && !lval_->word()) {
+	    if (rsig->pin_count() != lsig->pin_count()) {
+		  cerr << get_fileline() << ": error: Whole unpacked-array "
+		       << "assignment has " << rsig->pin_count()
+		       << " source words but " << lsig->pin_count()
+		       << " destination words." << endl;
+		  des->errors += 1;
+		  return false;
+	    }
+
+	    for (unsigned word = 0; word < lsig->pin_count(); word += 1) {
+		  Nexus*word_nex = lsig->pin(word).nexus();
+		  NexusSet word_set;
+		  word_set.add(word_nex, 0, word_nex->vector_width());
+		  unsigned ptr = nex_map.find_nexus(word_set[0]);
+		  ivl_assert(*this, ptr < nex_out.pin_count());
+		  ivl_assert(*this, ptr < enables.pin_count());
+		  ivl_assert(*this, ptr < bitmasks.size());
+		  ivl_assert(*this, nex_map[ptr].wid == word_nex->vector_width());
+		  ivl_assert(*this,
+			     rsig->pin(word).nexus()->vector_width()
+				   == word_nex->vector_width());
+
+		  nex_out.pin(ptr).unlink();
+		  enables.pin(ptr).unlink();
+		  connect(nex_out.pin(ptr), rsig->pin(word));
+		  connect(enables.pin(ptr), scope->tie_hi());
+		  bitmasks[ptr] = mask_t(word_nex->vector_width(), true);
+		  record_synthesized_write(*this, word_nex, 0,
+					   word_nex->vector_width());
+	    }
+
+	    lval_->turn_sig_to_wire_on_release();
+	    return true;
+      }
+
+      bool lval_has_word = lval_->word() != 0;
+      unsigned lval_word = 0;
+      if (lval_has_word) {
+	    NetExpr*word_expr = lval_->word();
+	    NetExpr*word_result = 0;
+	    const NetExpr*word_value = word_expr;
+	    if (!dynamic_cast<const NetEConst*>(word_expr)
+		&& synth_context_constant(word_expr,
+					  scope->loop_index_values_tmp)) {
+		  word_result = word_expr->evaluate_function(*this,
+						 scope->loop_index_tmp);
+		  word_value = word_result;
+	    }
+
+	    long word_index = 0;
+	    const NetEConst*word_constant =
+		  dynamic_cast<const NetEConst*>(word_value);
+	    bool undefined_constant_word = word_constant
+		  && !word_constant->value().is_defined();
+	    bool constant_word = !undefined_constant_word
+		  && eval_as_long(word_index, word_value);
+	    delete word_result;
+	    if (undefined_constant_word) {
+		    // A compile-time X/Z memory index selects no word.
+		  lval_->turn_sig_to_wire_on_release();
+		  return true;
+	    }
+	    if (!constant_word) {
+		  if (lval_->get_base()
+		      || lval_->lwidth() != lsig->vector_width()) {
+			cerr << get_fileline() << ": sorry: Assignment to a "
+				  "packed select of a run-time selected memory "
+				  "word is not currently supported in synthesis."
+			     << endl;
+			des->errors += 1;
+			return false;
+		  }
+
+		  NetNet*word_select = word_expr->synthesize(des, scope,
+							 word_expr);
+		  if (!word_select || word_select->pin_count() != 1) {
+			cerr << get_fileline() << ": error: unable to synthesize "
+				  "run-time memory word select." << endl;
+			des->errors += 1;
+			return false;
+		  }
+
+		    // Lower a variable word write to one data input per possible
+		    // array word and a decoded enable. In synchronous logic the
+		    // enables become per-word flip-flop enables; enclosing if/case
+		    // conditions are combined by the ordinary enable machinery.
+		  ivl_assert(*this, rsig->pin_count() == 1);
+		  for (unsigned word = 0; word < lsig->pin_count(); word += 1) {
+			Nexus*word_nex = lsig->pin(word).nexus();
+			NexusSet word_set;
+			word_set.add(word_nex, 0, word_nex->vector_width());
+			unsigned ptr = nex_map.find_nexus(word_set[0]);
+			ivl_assert(*this, ptr < nex_out.pin_count());
+			ivl_assert(*this, ptr < enables.pin_count());
+			ivl_assert(*this, ptr < bitmasks.size());
+			ivl_assert(*this,
+				   nex_map[ptr].wid == word_nex->vector_width());
+
+			NetNet*match = synthesize_array_word_match(
+			      des, scope, *this, word_select, word);
+			nex_out.pin(ptr).unlink();
+			enables.pin(ptr).unlink();
+			connect(nex_out.pin(ptr), rsig->pin(0));
+			connect(enables.pin(ptr), match->pin(0));
+			bitmasks[ptr] = mask_t(word_nex->vector_width(), true);
+			record_synthesized_write(*this, word_nex, 0,
+						 word_nex->vector_width());
+		  }
+
+		  lval_->turn_sig_to_wire_on_release();
+		  return true;
+	    }
+	    if (word_index < 0
+		|| static_cast<unsigned long>(word_index) >= lsig->pin_count()) {
+		  cerr << get_fileline() << ": error: Contextually constant memory "
+			  "word index " << word_index << " is out of range for "
+			  << lsig->name() << "." << endl;
+		  des->errors += 1;
+		  return false;
+	    }
+	    lval_word = static_cast<unsigned>(word_index);
       }
 
       if (debug_synth2) {
@@ -390,7 +1067,12 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
       unsigned ptr = 0;
       if (nex_out.pin_count() > 1) {
 	    NexusSet tmp_set;
-	    nex_output(tmp_set);
+	    if (lval_has_word) {
+		  Nexus*word_nex = lsig->pin(lval_word).nexus();
+		  tmp_set.add(word_nex, 0, word_nex->vector_width());
+	    } else {
+		  nex_output(tmp_set);
+	    }
 	    ivl_assert(*this, tmp_set.size() == 1);
 	    ptr = nex_map.find_nexus(tmp_set[0]);
 	    ivl_assert(*this, nex_out.pin_count() > ptr);
@@ -406,107 +1088,158 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
       unsigned lsig_width = lsig->vector_width();
       ivl_assert(*this, nex_map[ptr].wid == lsig_width);
 
-	// Here we note if the l-value is actually a bit/part
-	// select. If so, generate a NetPartSelect to perform the select.
-      bool is_part_select = lval_width != lsig_width;
+      // Here we note if the l-value is actually a bit/part
+      // select. If so, generate a NetPartSelect to perform the select.
+      bool is_part_select = lval_->get_base() != 0;
+	// The unrolled-loop path can retain the expression's wider natural
+	// width; size it to the selected l-value before substitution. Preserve
+	// the established non-loop lowering, where an otherwise undriven part
+	// of a synthesized register remains undriven rather than stateful.
+      if (is_part_select && !scope->loop_index_tmp.empty())
+	    rsig = crop_to_width(des, rsig, lval_width);
 
       long base_off = 0;
-      if (is_part_select && !scope->loop_index_tmp.empty()) {
-	      // If we are within a NetForLoop, there may be an index
-	      // value. That is collected from the scope member
-	      // loop_index_tmp, and the evaluate_function method
-	      // knows how to apply it.
-	    ivl_assert(*this, !scope->loop_index_tmp.empty());
-	    ivl_assert(*this, lval_width < lsig_width);
-
-	      // Evaluate the index expression to a constant.
+      bool variable_part_select = false;
+      bool clipped_constant_part_select = false;
+      unsigned clipped_base = 0;
+      unsigned clipped_width = 0;
+      bool no_op_part_select = false;
+      if (is_part_select) {
 	    const NetExpr*base_expr_raw = lval_->get_base();
 	    ivl_assert(*this, base_expr_raw);
-	    const NetExpr*base_expr = base_expr_raw->evaluate_function(*this, scope->loop_index_tmp);
-	    if (! eval_as_long(base_off, base_expr)) {
-		  ivl_assert(*this, 0);
-	    }
-	    ivl_assert(*this, base_off >= 0);
 
-	    ivl_variable_type_t tmp_data_type = rsig->data_type();
-	    const netvector_t*tmp_type = new netvector_t(tmp_data_type, lsig_width-1,0);
+	    NetExpr*base_expr = 0;
+	    if (synth_context_constant(base_expr_raw,
+					 scope->loop_index_values_tmp))
+		  base_expr = base_expr_raw->evaluate_function(*this,
+							 scope->loop_index_tmp);
 
-	    NetNet*tmp = new NetNet(scope, scope->local_symbol(),
-				    NetNet::WIRE, tmp_type);
-	    tmp->local_flag(true);
-	    tmp->set_line(*this);
-
-	    NetPartSelect*ps = new NetPartSelect(tmp, base_off, lval_width, NetPartSelect::PV);
-	    ps->set_line(*this);
-	    des->add_node(ps);
-
-	    connect(ps->pin(0), rsig->pin(0));
-	    rsig = tmp;
-
-      } else if (is_part_select) {
-	      // In this case, there is no loop_index_tmp, so we are
-	      // not within a NetForLoop. Generate a NetSubstitute
-	      // object to handle the bit/part-select in the l-value.
-	    ivl_assert(*this, scope->loop_index_tmp.empty());
-	    ivl_assert(*this, lval_width < lsig_width);
-
-	    const NetExpr*base_expr_raw = lval_->get_base();
-	    ivl_assert(*this, base_expr_raw);
-	    const NetExpr*base_expr = base_expr_raw->evaluate_function(*this, scope->loop_index_tmp);
-	    if (! eval_as_long(base_off, base_expr)) {
-		  cerr << get_fileline() << ": sorry: assignment to variable "
-			  "bit location is not currently supported in "
-			  "synthesis." << endl;
-		  des->errors += 1;
-		  return false;
-	    }
-	    ivl_assert(*this, base_off >= 0);
-
-	    ivl_variable_type_t tmp_data_type = rsig->data_type();
-	    const netvector_t*tmp_type = new netvector_t(tmp_data_type, lsig_width-1,0);
-
-	    NetNet*tmp = new NetNet(scope, scope->local_symbol(),
-				    NetNet::WIRE, tmp_type);
-	    tmp->local_flag(true);
-	    tmp->set_line(*this);
-
-	    NetNet*isig = nex_out.pin(ptr).nexus()->pick_any_net();
-	    if (isig) {
-		  if (debug_synth2) {
-			cerr << get_fileline() << ": NetAssignBase::synth_async: "
-			     << " Found an isig:" << endl;
-			nex_out.pin(ptr).dump_link(cerr, 8);
+	    const NetEConst*base_constant =
+		  dynamic_cast<const NetEConst*>(base_expr);
+	    bool undefined_constant_base = base_constant
+		  && !base_constant->value().is_defined();
+	    bool constant_base = !undefined_constant_base
+		  && eval_as_long(base_off, base_expr);
+	    delete base_expr;
+	    if (undefined_constant_base) {
+		    // A compile-time X/Z packed index selects no bit. Preserve the
+		    // accumulated value and write mask exactly as for an out-of-range
+		    // constant select.
+		  rsig = nex_out.pin(ptr).nexus()->pick_any_net();
+		  if (!rsig) {
+			const netvector_t*tmp_type =
+			      new netvector_t(lsig->data_type(), lsig_width-1, 0);
+			rsig = new NetNet(scope, scope->local_symbol(),
+					  NetNet::WIRE, tmp_type);
+			rsig->local_flag(true);
+			rsig->set_line(*this);
+			connect(rsig->pin(0), nex_out.pin(ptr));
 		  }
+		  no_op_part_select = true;
+	    } else if (constant_base && base_off >= 0
+		&& static_cast<unsigned long>(base_off) + lval_width <= lsig_width) {
+		  ivl_variable_type_t tmp_data_type = rsig->data_type();
+		  const netvector_t*tmp_type =
+			new netvector_t(tmp_data_type, lsig_width-1, 0);
+		  NetNet*tmp = new NetNet(scope, scope->local_symbol(),
+					  NetNet::WIRE, tmp_type);
+		  tmp->local_flag(true);
+		  tmp->set_line(*this);
+
+		  NetNet*isig = nex_out.pin(ptr).nexus()->pick_any_net();
+		  if (!isig) {
+			isig = new NetNet(scope, scope->local_symbol(),
+					  NetNet::WIRE, tmp_type);
+			isig->local_flag(true);
+			isig->set_line(*this);
+			connect(isig->pin(0), nex_out.pin(ptr));
+		  }
+		  NetSubstitute*ps =
+			new NetSubstitute(isig, rsig, lsig_width, base_off);
+		  ps->set_line(*this);
+		  des->add_node(ps);
+		  connect(ps->pin(0), tmp->pin(0));
+		  rsig = tmp;
+	    } else if (constant_base
+		       && (base_off >= static_cast<long>(lsig_width)
+			   || base_off + static_cast<long>(lval_width) <= 0)) {
+		    // A statically non-overlapping procedural select writes no bits.
+		  rsig = nex_out.pin(ptr).nexus()->pick_any_net();
+		  if (!rsig) {
+			const netvector_t*tmp_type =
+			      new netvector_t(lsig->data_type(), lsig_width-1, 0);
+			rsig = new NetNet(scope, scope->local_symbol(),
+					  NetNet::WIRE, tmp_type);
+			rsig->local_flag(true);
+			rsig->set_line(*this);
+			connect(rsig->pin(0), nex_out.pin(ptr));
+		  }
+		  no_op_part_select = true;
 	    } else {
-		  if (debug_synth2) {
-			cerr << get_fileline() << ": NetAssignBase::synth_async: "
-			     << " Found no isig, resorting to lsig." << endl;
+		  const netvector_t*tmp_type =
+			new netvector_t(lsig->data_type(), lsig_width-1, 0);
+		  NetNet*isig = nex_out.pin(ptr).nexus()->pick_any_net();
+		  if (!isig) {
+			isig = new NetNet(scope, scope->local_symbol(),
+					  NetNet::WIRE, tmp_type);
+			isig->local_flag(true);
+			isig->set_line(*this);
+			connect(isig->pin(0), nex_out.pin(ptr));
 		  }
-		  isig = new NetNet(scope, scope->local_symbol(),
-				    NetNet::WIRE, tmp_type);
-		  isig->local_flag(true);
-		  isig->set_line(*this);
-		  connect(isig->pin(0), nex_out.pin(ptr));
+		  rsig = synth_variable_part_update(des, scope, *this,
+						    base_expr_raw, isig, rsig,
+						    lsig_width, lval_width);
+		  if (!rsig) {
+			cerr << get_fileline() << ": error: unable to synthesize "
+				  "variable packed l-value select." << endl;
+			des->errors += 1;
+			return false;
+		  }
+		  if (constant_base) {
+			long overlap_base = max(base_off, 0L);
+			long overlap_end = min(
+			      base_off + static_cast<long>(lval_width),
+			      static_cast<long>(lsig_width));
+			ivl_assert(*this, overlap_end > overlap_base);
+			clipped_constant_part_select = true;
+			clipped_base = static_cast<unsigned>(overlap_base);
+			clipped_width = static_cast<unsigned>(overlap_end
+						       - overlap_base);
+		  } else {
+			variable_part_select = true;
+		  }
 	    }
-	    ivl_assert(*this, isig);
-	    NetSubstitute*ps = new NetSubstitute(isig, rsig, lsig_width, base_off);
-	    ps->set_line(*this);
-	    des->add_node(ps);
-
-	    connect(ps->pin(0), tmp->pin(0));
-	    rsig = tmp;
       }
 
       rsig = crop_to_width(des, rsig, lsig_width);
 
       ivl_assert(*this, rsig->pin_count()==1);
-      nex_out.pin(ptr).unlink();
-      enables.pin(ptr).unlink();
-      connect(nex_out.pin(ptr), rsig->pin(0));
-      connect(enables.pin(ptr), scope->tie_hi());
+      if (!no_op_part_select) {
+	    nex_out.pin(ptr).unlink();
+	    enables.pin(ptr).unlink();
+	    connect(nex_out.pin(ptr), rsig->pin(0));
+	    connect(enables.pin(ptr), scope->tie_hi());
+	}
 
       mask_t&bitmask = bitmasks[ptr];
-      if (is_part_select) {
+      if (no_op_part_select) {
+	    // Preserve the accumulated mask: a statically non-overlapping
+	    // procedural select writes no bits.
+      } else if (variable_part_select) {
+	    // A run-time select can potentially write every bit, but no bit is
+	    // guaranteed to be written on every activation (and an X/Z or wholly
+	    // out-of-range base writes none). A preceding whole-vector default
+	    // assignment can still make the accumulated sequential mask complete.
+	    if (bitmask.size() == 0)
+		  bitmask = mask_t(lsig_width, false);
+	    ivl_assert(*this, bitmask.size() == lsig_width);
+      } else if (clipped_constant_part_select) {
+	    if (bitmask.size() == 0)
+		  bitmask = mask_t(lsig_width, false);
+	    ivl_assert(*this, bitmask.size() == lsig_width);
+	    for (unsigned idx = 0; idx < clipped_width; idx += 1)
+		  bitmask[clipped_base + idx] = true;
+      } else if (is_part_select) {
 	    if (bitmask.size() == 0) {
 		  bitmask = mask_t (lsig_width, false);
 	    }
@@ -520,6 +1253,23 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 	    }
       } else {
 	    bitmask = mask_t (lsig_width, true);
+      }
+
+      if (!no_op_part_select) {
+	    Nexus*write_nexus = lsig->pin(lval_has_word ? lval_word : 0).nexus();
+	    if (variable_part_select) {
+		  record_synthesized_write(*this, write_nexus, 0, lsig_width);
+	    } else if (clipped_constant_part_select) {
+		  record_synthesized_write(*this, write_nexus,
+					   clipped_base, clipped_width);
+	    } else if (is_part_select) {
+		  ivl_assert(*this, base_off >= 0);
+		  record_synthesized_write(*this, write_nexus,
+					   static_cast<unsigned>(base_off),
+					   lval_width);
+	    } else {
+		  record_synthesized_write(*this, write_nexus, 0, lsig_width);
+	    }
       }
 
 	/* This lval_ represents a reg that is a WIRE in the
@@ -611,9 +1361,9 @@ bool NetProc::synth_async_block_substatement_(Design*des, NetScope*scope,
 	    }
 	    connect(nex_out.pin(ptr), tmp_out.pin(idx));
 
+	    merge_sequential_masks(scope, enables.pin(ptr), tmp_ena.pin(idx),
+				   bitmasks[ptr], tmp_masks[idx]);
 	    merge_sequential_enables(des, scope, enables.pin(ptr), tmp_ena.pin(idx));
-
-	    merge_sequential_masks(bitmasks[ptr], tmp_masks[idx]);
       }
 
       return true;
@@ -752,6 +1502,45 @@ bool NetCase::synth_async(Design*des, NetScope*scope,
 	    return synth_async_casez_(des, scope, nex_map, nex_out,
 				      enables, bitmasks);
 
+	// A dense mux is a good representation for compact ordinary cases, but
+	// sparse constant values make its input count proportional to the largest
+	// guard rather than the number of clauses. Lower those cases as a chain of
+	// exact case-equality comparisons and binary muxes, just as casez/casex are
+	// lowered below. Undefined and variable guards also require comparisons to
+	// preserve ordinary case matching instead of coercing them through an
+	// unsigned mux index.
+      bool use_comparison_chain = false;
+      bool chain_has_default = false;
+      size_t guard_count = 0;
+      unsigned long chain_max_guard = 0;
+      for (size_t item = 0 ; item < items_.size() ; item += 1) {
+	    if (!items_[item].guard) {
+		  chain_has_default = true;
+		  continue;
+	    }
+	    guard_count += 1;
+	    const NetEConst*guard =
+		  dynamic_cast<const NetEConst*>(items_[item].guard);
+	    if (!guard || !guard->value().is_defined()) {
+		  use_comparison_chain = true;
+		  break;
+	    }
+	    unsigned long guard_value = guard->value().as_ulong();
+	    if (guard_value > chain_max_guard)
+		  chain_max_guard = guard_value;
+      }
+      if (!use_comparison_chain && guard_count > 0
+	  && chain_max_guard / guard_count >= 4)
+	    use_comparison_chain = true;
+      unsigned chain_sel_need =
+	    max(ceil(log2(chain_max_guard + 1)), 1.0);
+      if (!use_comparison_chain && !chain_has_default && guard_count > 0
+	  && expr_->expr_width() > chain_sel_need)
+	    use_comparison_chain = true;
+      if (use_comparison_chain)
+	    return synth_async_casez_(des, scope, nex_map, nex_out,
+				      enables, bitmasks);
+
 	// Special case: If the case expression is constant, then this
 	// is a pattern where the guards are non-constant and tested
 	// against a constant case. Handle this as chained conditions
@@ -812,10 +1601,12 @@ bool NetCase::synth_async(Design*des, NetScope*scope,
 
       unsigned long max_guard_value = 0;
       map<unsigned long,NetProc*>statement_map;
+      bool has_default_clause = false;
       NetProc*default_statement = 0;
 
       for (size_t item = 0 ;  item < items_.size() ;  item += 1) {
 	    if (items_[item].guard == 0) {
+		  has_default_clause = true;
 		  default_statement = items_[item].statement;
 		  continue;
 	    }
@@ -862,7 +1653,7 @@ bool NetCase::synth_async(Design*des, NetScope*scope,
 	// If the sel_width can select more than just the explicit
 	// guard values, and there is a default statement, then adjust
 	// the sel_need to allow for the implicit selections.
-      if (default_statement && (sel_width > sel_need))
+	if (has_default_clause && (sel_width > sel_need))
 	    sel_need += 1;
 
 	// The mux size is always an exact power of 2.
@@ -958,16 +1749,33 @@ bool NetCase::synth_async(Design*des, NetScope*scope,
 	    full_case[mdx] = true;
       }
 
+	// Sparse case values can make mux_size much larger than the number of
+	// explicit clauses. Most mux inputs then share the same default nexuses.
+	// Cache those nexuses so connecting each input remains constant-time
+	// instead of repeatedly walking an ever-growing circular link list. The
+	// default enable is also invariant across all missing selector values.
+      vector<Nexus*> default_out_nex (nex_out.pin_count());
+      vector<Nexus*> default_ena_nex (nex_out.pin_count());
+      vector<bool> default_full_case (nex_out.pin_count());
+      for (size_t mdx = 0 ; mdx < nex_out.pin_count() ; mdx += 1) {
+	    default_out_nex[mdx] = default_out.pin(mdx).nexus();
+	    default_ena_nex[mdx] = default_ena.pin(mdx).nexus();
+	    default_full_case[mdx] =
+		  default_ena.pin(mdx).is_linked(scope->tie_hi());
+      }
+
       for (unsigned idx = 0 ;  idx < mux_size ;  idx += 1) {
 
-	    NetProc*stmt = statement_map[idx];
+	    map<unsigned long,NetProc*>::const_iterator stmt_it =
+		  statement_map.find(idx);
+	    NetProc*stmt = stmt_it == statement_map.end()? 0 : stmt_it->second;
 	    if (stmt==0) {
 		  ivl_assert(*this, default_out.pin_count() == out_mux.size());
 		  for (unsigned mdx = 0 ; mdx < nex_out.pin_count() ; mdx += 1) {
-			connect(out_mux[mdx]->pin_Data(idx), default_out.pin(mdx));
-			connect(ena_mux[mdx]->pin_Data(idx), default_ena.pin(mdx));
+			connect(default_out_nex[mdx], out_mux[mdx]->pin_Data(idx));
+			connect(default_ena_nex[mdx], ena_mux[mdx]->pin_Data(idx));
 			merge_parallel_masks(bitmasks[mdx], default_masks[mdx]);
-			if (!default_ena.pin(mdx).is_linked(scope->tie_hi()))
+			if (!default_full_case[mdx])
 			      full_case[mdx] = false;
 		  }
 		  continue;
@@ -1135,7 +1943,6 @@ bool NetCase::synth_async_casez_(Design*des, NetScope*scope,
 		  continue;
 
 	    NetProc*stmt = items_[item].statement;
-	    ivl_assert(*this, stmt);
 
 	    NetExpr*guard_expr = items_[item].guard;
 	    NetNet*guard = guard_expr->synthesize(des, scope, guard_expr);
@@ -1164,8 +1971,12 @@ bool NetCase::synth_async_casez_(Design*des, NetScope*scope,
 	    for (unsigned pdx = 0 ; pdx < nex_out.pin_count() ; pdx += 1)
 		  connect(tmp_out.pin(pdx), statement_input.pin(pdx));
 
-	    synth_async_block_substatement_(des, scope, nex_map, tmp_out,
-					    tmp_ena, tmp_masks, stmt);
+	    if (stmt) {
+		  bool flag = synth_async_block_substatement_(des, scope, nex_map,
+						  tmp_out, tmp_ena, tmp_masks,
+						  stmt);
+		  if (!flag) return false;
+	    }
 
 	    NetBus prev_ena (scope, nex_out.pin_count());
 	    for (unsigned mdx = 0 ; mdx < nex_out.pin_count() ; mdx += 1) {
@@ -1231,6 +2042,30 @@ bool NetCondit::synth_async(Design*des, NetScope*scope,
       ivl_assert(*this, nex_map.size() == nex_out.pin_count());
       ivl_assert(*this, nex_map.size() == enables.pin_count());
       ivl_assert(*this, nex_map.size() == bitmasks.size());
+
+	// A procedural for-loop is unrolled during synthesis, so a condition
+	// that refers only to its index and parameters has one constant value in
+	// each iteration. Select that clause now instead of retaining a mux. In
+	// particular, a mux between two constant asynchronous-reset values is not
+	// itself recognized as a constant driver and is consequently mistaken for
+	// an unsupported asynchronous data load.
+      if (synth_context_constant(expr_, scope->loop_index_values_tmp)) {
+	    NetExpr*constant_expr =
+		  expr_->evaluate_function(*this, scope->loop_index_tmp);
+	    const NetEConst*constant =
+		  dynamic_cast<const NetEConst*>(constant_expr);
+	    if (constant && constant->value().is_defined()) {
+		  const bool take_if = !constant->value().is_zero();
+		  delete constant_expr;
+		  NetProc*selected = take_if ? if_ : else_;
+		  if (!selected)
+			return true;
+		  return synth_async_block_substatement_(des, scope, nex_map,
+						     nex_out, enables,
+						     bitmasks, selected);
+	    }
+	    delete constant_expr;
+      }
 
 	// Synthesize the condition. This will act as a select signal
 	// for a binary mux.
@@ -1464,6 +2299,18 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
 	    return false;
       }
 
+	// Re-entering an active loop with the exact same index variable changes
+	// that variable's value for the enclosing loop as well. The current
+	// unroller keeps independent iteration values, so reject this legal but
+	// unsupported case explicitly instead of silently using the outer value.
+      if (index_->scope()->loop_index_values_tmp.find(index_)
+	  != index_->scope()->loop_index_values_tmp.end()) {
+	    cerr << get_fileline() << ": sorry: Nested procedural "
+		 << "for-loops that reuse the same index variable are "
+		 << "not currently supported in synthesis." << endl;
+	    return false;
+      }
+
       ivl_assert(*this, index_ && init_expr_);
       if (debug_synth2) {
 	    cerr << get_fileline() << ": NetForLoop::synth_async: "
@@ -1484,11 +2331,25 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
       LocalVar index_var;
       index_var.nwords = 0;
 
-      map<perm_string,LocalVar> index_args;
+        // A nested procedural loop inherits the already-unrolled values of
+        // its enclosing loop indices. Keep the outer context live while the
+        // inner loop adds and advances its own index.
+      map<perm_string,LocalVar> saved_index_args = scope->loop_index_tmp;
+      NetNet*saved_index_net = scope->loop_index_net_tmp;
+      map<NetNet*,perm_string> saved_index_nets =
+	    scope->loop_index_nets_tmp;
+      map<NetNet*,LocalVar> saved_index_values =
+	    scope->loop_index_values_tmp;
+      perm_string saved_genvar = scope->genvar_tmp;
+      long saved_genvar_value = scope->genvar_tmp_val;
+      map<perm_string,LocalVar> index_args = saved_index_args;
 
 	// Calculate the initial value for the index.
       index_var.value = init_expr_->evaluate_function(*this, index_args);
       ivl_assert(*this, index_var.value);
+	// The declaration supplies the assignment context for the initializer.
+	// Preserve it when constant evaluation returns a self-determined literal.
+      index_var.value->cast_signed(index_->get_signed());
       index_args[index_->name()] = index_var;
 
       for (;;) {
@@ -1516,21 +2377,45 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
 	      // Synthesize the iterated expression. Stash the loop
 	      // index value so that the substatements can see this
 	      // value and use it during its own synthesis.
-	    ivl_assert(*this, scope->loop_index_tmp.empty());
 	    scope->loop_index_tmp = index_args;
+	    scope->loop_index_net_tmp = index_;
+	    scope->loop_index_nets_tmp[index_] = index_->name();
+	    scope->loop_index_values_tmp[index_] = index_var;
 
 	    NetBus tmp_ena (scope, nex_out.pin_count());
 	    vector<mask_t> tmp_masks (nex_out.pin_count());
 
-	    rc = synth_async_block_substatement_(des, scope, nex_map, nex_out,
-						 tmp_ena, tmp_masks, statement_);
-
-	    for (unsigned idx = 0 ; idx < nex_out.pin_count() ; idx += 1) {
-		  merge_sequential_enables(des, scope, enables.pin(idx), tmp_ena.pin(idx));
-		  merge_sequential_masks(bitmasks[idx], tmp_masks[idx]);
+	    {
+		  synth_loop_index_decl_guard_t decl_guard(scope, index_,
+						       index_var);
+		  rc = synth_async_block_substatement_(des, scope, nex_map,
+						       nex_out, tmp_ena,
+						       tmp_masks, statement_);
+	    }
+	    if (!rc) {
+		  scope->loop_index_tmp = saved_index_args;
+		  scope->loop_index_net_tmp = saved_index_net;
+		  scope->loop_index_nets_tmp = saved_index_nets;
+		  scope->loop_index_values_tmp = saved_index_values;
+		  scope->genvar_tmp = saved_genvar;
+		  scope->genvar_tmp_val = saved_genvar_value;
+		  delete index_var.value;
+		  return false;
 	    }
 
-	    scope->loop_index_tmp.clear();
+	    for (unsigned idx = 0 ; idx < nex_out.pin_count() ; idx += 1) {
+		  merge_sequential_masks(scope, enables.pin(idx), tmp_ena.pin(idx),
+					 bitmasks[idx], tmp_masks[idx]);
+		  merge_sequential_enables(
+			des, scope, enables.pin(idx), tmp_ena.pin(idx));
+	    }
+
+	    scope->loop_index_tmp = saved_index_args;
+	    scope->loop_index_net_tmp = saved_index_net;
+	    scope->loop_index_nets_tmp = saved_index_nets;
+	    scope->loop_index_values_tmp = saved_index_values;
+	    scope->genvar_tmp = saved_genvar;
+	    scope->genvar_tmp_val = saved_genvar_value;
 
 	      // Evaluate the step_expr to generate the next index value.
 	    tmp = step_expr->evaluate_function(*this, index_args);
@@ -1546,8 +2431,16 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
 		case 0:
 		  break;
 		case '+':
+		  index_var.value = new NetEBAdd('+', tmp, index_var.value,
+					    32, true);
+		  tmp = index_var.value->evaluate_function(*this, index_args);
+		  break;
 		case '-':
-		  index_var.value = new NetEBAdd(assign_operator, tmp, index_var.value, 32, true);
+		    // Subtraction is not commutative: i -= step and i-- mean
+		    // next = current - step, not step - current. Reversing these
+		    // operands makes descending loops alternate forever.
+		  index_var.value = new NetEBAdd('-', index_var.value, tmp,
+					    32, true);
 		  tmp = index_var.value->evaluate_function(*this, index_args);
 		  break;
 
@@ -1556,12 +2449,27 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
 		       << "NetForLoop::synth_async: What to do with assign_operator=" << assign_operator << endl;
 		  ivl_assert(*this, 0);
 	    }
+	    ivl_assert(*this, tmp);
+	      // Constant binary evaluation returns a value-sized expression, but
+	      // the loop variable's declared signedness is the context for the
+	      // next condition. Without restoring it, -1 from a signed int loop
+	      // becomes 32'hffff_ffff and `i >= 0' never terminates.
+	    tmp->cast_signed(index_->get_signed());
 	    delete index_var.value;
 	    index_var.value = tmp;
 	    index_args[index_->name()] = index_var;
       }
 
       delete index_var.value;
+
+	// The loop may have zero iterations, so restore the enclosing context
+	// here as well as after each synthesized iteration.
+      scope->loop_index_tmp = saved_index_args;
+      scope->loop_index_net_tmp = saved_index_net;
+      scope->loop_index_nets_tmp = saved_index_nets;
+      scope->loop_index_values_tmp = saved_index_values;
+      scope->genvar_tmp = saved_genvar;
+      scope->genvar_tmp_val = saved_genvar_value;
 
       return true;
 }
@@ -1587,6 +2495,9 @@ bool NetProcTop::synth_async(Design*des)
       NetBus nex_out (scope(), nex_set.size());
       NetBus enables (scope(), nex_set.size());
       vector<NetProc::mask_t> bitmasks (nex_set.size());
+      vector<NetProc::mask_t> process_write_masks(nex_set.size());
+      for (unsigned idx = 0; idx < nex_set.size(); idx += 1)
+	    process_write_masks[idx].resize(nex_set[idx].wid, false);
 
 	// Save links to the initial nex_out. These will be used later
 	// to detect floating part-substitute and mux inputs that need
@@ -1595,23 +2506,51 @@ bool NetProcTop::synth_async(Design*des)
       for (unsigned idx = 0 ; idx < nex_out.pin_count() ; idx += 1)
 	    connect(nex_in.pin(idx), nex_out.pin(idx));
 
-      bool flag = statement_->synth_async(des, scope(), nex_set, nex_out, enables, bitmasks);
+      bool flag = false;
+      {
+	    synth_write_mask_context_t context = {
+		  &nex_set, &process_write_masks
+	    };
+	    synth_write_mask_guard_t guard(&context);
+	    flag = statement_->synth_async(
+		  des, scope(), nex_set, nex_out, enables, bitmasks);
+      }
       if (!flag) return false;
 
-      flag = tie_off_floating_inputs_(des, nex_set, nex_in, bitmasks, false);
+      flag = tie_off_floating_inputs_(des, nex_set, nex_in, bitmasks, false,
+				      &enables, &process_write_masks);
       if (!flag) return false;
 
       for (unsigned idx = 0 ;  idx < nex_set.size() ;  idx += 1) {
+	    if (!any_bits_driven(process_write_masks[idx]))
+		  continue;
+
+	    if (!all_bits_driven(bitmasks[idx])) {
+		  ivl_assert(*this,
+			enables.pin(idx).is_linked(scope()->tie_hi())
+			&& all_process_writes_are_driven(
+			      bitmasks[idx], process_write_masks[idx]));
+		  connect_synthesized_process_output(
+			des, scope(), *this, nex_set[idx].wid,
+			nex_set[idx].lnk, nex_out.pin(idx));
+		  continue;
+	    }
 
 	    if (enables.pin(idx).is_linked(scope()->tie_hi())) {
-		  connect(nex_set[idx].lnk, nex_out.pin(idx));
+		  connect_synthesized_process_output(
+			des, scope(), *this, nex_set[idx].wid,
+			nex_set[idx].lnk, nex_out.pin(idx));
 	    } else {
-		  cerr << get_fileline() << ": warning: "
-		       << "A latch has been inferred for '"
-		       << nex_set[idx].lnk.nexus()->pick_any_net()->name()
-		       << "'." << endl;
+		  bool intentional_latch = type() == IVL_PR_ALWAYS_LATCH;
+		  if (!intentional_latch) {
+			cerr << get_fileline() << ": warning: "
+			     << "A latch has been inferred for '"
+			     << nex_set[idx].lnk.nexus()->pick_any_net()->name()
+			     << "'." << endl;
+		  }
 
-		  if (enables.pin(idx).nexus()->pick_any_net()->local_flag()) {
+		  if (!intentional_latch
+		      && enables.pin(idx).nexus()->pick_any_net()->local_flag()) {
 			cerr << get_fileline() << ": warning: The latch "
 			        "enable is connected to a synthesized "
 			        "expression. The latch may be sensitive "
@@ -1645,6 +2584,8 @@ bool NetProcTop::synth_async(Design*des)
 	    }
       }
 
+      claim_synthesized_process_outputs(
+	    des, *this, nex_set, process_write_masks);
       synthesized_design_ = des;
       return true;
 }
@@ -1752,9 +2693,10 @@ bool NetBlock::synth_sync(Design*des, NetScope*scope,
 		  ivl_assert(*this, ptr < nex_out.pin_count());
 		  connect(nex_out.pin(ptr), tmp_out.pin(idx));
 
-		  merge_sequential_enables(des, scope, ff_ce.pin(ptr), tmp_ce.pin(idx));
-
-		  merge_sequential_masks(bitmasks[ptr], tmp_masks[idx]);
+		  merge_sequential_masks(scope, ff_ce.pin(ptr), tmp_ce.pin(idx),
+					 bitmasks[ptr], tmp_masks[idx]);
+		  merge_sequential_enables(
+			des, scope, ff_ce.pin(ptr), tmp_ce.pin(idx));
 	    }
 
       } while (cur != last_);
@@ -1848,23 +2790,46 @@ bool NetCondit::synth_sync(Design*des, NetScope*scope,
 	    ivl_assert(*this, if_);
 	    NetBus tmp_out(scope, nex_out.pin_count());
 	    NetBus tmp_ena(scope, nex_out.pin_count());
+	    NetBus tmp_in(scope, nex_out.pin_count());
+	    for (unsigned pin = 0; pin < tmp_in.pin_count(); pin += 1)
+		  connect(tmp_in.pin(pin), tmp_out.pin(pin));
 	    vector<mask_t> tmp_masks (nex_out.pin_count());
 	    bool flag = if_->synth_async(des, scope, nex_map, tmp_out, tmp_ena, tmp_masks);
 	    if (!flag) return false;
+	    vector<mask_t> conditional_write_masks(nex_map.size());
+	    collect_process_write_masks(this, nex_map,
+				    conditional_write_masks);
 
 	    ivl_assert(*this, tmp_out.pin_count() == ff_aclr.pin_count());
 	    ivl_assert(*this, tmp_out.pin_count() == ff_aset.pin_count());
+	    vector<bool> unreset_outputs(tmp_out.pin_count(), false);
 
 	    for (unsigned pin = 0 ; pin < tmp_out.pin_count() ; pin += 1) {
 		  const Nexus*rst_nex = tmp_out.pin(pin).nexus();
+		  if (!any_bits_driven(tmp_masks[pin])) {
+			unreset_outputs[pin] = true;
+			continue;
+		  }
 
-		  if (!all_bits_driven(tmp_masks[pin])) {
-			cerr << get_fileline() << ": sorry: Not all bits of '"
+		  if (!all_process_writes_are_driven(
+			tmp_masks[pin], conditional_write_masks[pin])) {
+			cerr << get_fileline() << ": sorry: Not all bits written "
+			     << "by this process to '"
 			     << nex_map[pin].lnk.nexus()->pick_any_net()->name()
 			     << "' are asynchronously set or reset. This is "
 			     << "not currently supported in synthesis." << endl;
 			des->errors += 1;
 			return false;
+		  }
+
+		    // A partial packed write is represented by a substitute node
+		    // whose untouched input starts floating. Tie that input low so
+		    // the complete reset vector is constant; the process-output mask
+		    // later hides these non-owned bits from the shared variable.
+		  if (!all_bits_driven(tmp_masks[pin])
+		      && tmp_in.pin(pin).nexus()->has_floating_input()) {
+			NetNet*zero = make_const_0(des, scope, nex_map[pin].wid);
+			connect(tmp_in.pin(pin), zero->pin(0));
 		  }
 
 		  if (! rst_nex->drivers_constant() ||
@@ -1915,10 +2880,27 @@ bool NetCondit::synth_sync(Design*des, NetScope*scope,
 		  if (jdx != idx)
 			events.push_back(events_in[jdx]);
 	    }
-	    return else_->synth_sync(des, scope,
-				     ff_negedge, ff_clk, ff_ce,
-				     ff_aclr, ff_aset, ff_aset_value,
-				     nex_map, nex_out, bitmasks, events);
+	    bool else_flag = else_->synth_sync(des, scope,
+					 ff_negedge, ff_clk, ff_ce,
+					 ff_aclr, ff_aset, ff_aset_value,
+					 nex_map, nex_out, bitmasks, events);
+	    if (!else_flag)
+		  return false;
+
+	      // An output omitted from the asynchronous branch is an ordinary
+	      // unreset flip-flop in the same process. It may update only while
+	      // the reset condition is false, including clocks that occur while
+	      // reset remains asserted.
+	    NetBus qualified_ce(scope, ff_ce.pin_count());
+	    for (unsigned pin = 0; pin < ff_ce.pin_count(); pin += 1) {
+		  if (!unreset_outputs[pin] || !ff_ce.pin(pin).is_linked())
+			continue;
+		  qualify_enable(des, scope, rst, false, NetLogic::AND,
+				 ff_ce.pin(pin), qualified_ce.pin(pin));
+		  ff_ce.pin(pin).unlink();
+		  connect(ff_ce.pin(pin), qualified_ce.pin(pin));
+	    }
+	    return true;
       }
 
       delete expr_input;
@@ -2112,6 +3094,9 @@ bool NetProcTop::synth_sync(Design*des)
       NexusSet nex_set;
       statement_->nex_output(nex_set);
       vector<verinum> aset_value(nex_set.size());
+      vector<NetProc::mask_t> process_write_masks(nex_set.size());
+      for (unsigned idx = 0; idx < nex_set.size(); idx += 1)
+	    process_write_masks[idx].resize(nex_set[idx].wid, false);
 
 	/* Make a model FF that will connect to the first item in the
 	   set, and will also take the initial connection of clocks
@@ -2144,22 +3129,32 @@ bool NetProcTop::synth_sync(Design*des)
 
 	// Connect the D of the NetFF devices later.
 
-	/* Synthesize the input to the DFF. */
+      /* Synthesize the input to the DFF. */
       bool negedge = false;
-      bool flag = statement_->synth_sync(des, scope(),
-					 negedge, clock, ce,
-					 aclr, aset, aset_value,
-					 nex_set, nex_d, bitmasks,
-					 vector<NetEvProbe*>());
+      bool flag = false;
+      {
+	    synth_write_mask_context_t context = {
+		  &nex_set, &process_write_masks
+	    };
+	    synth_write_mask_guard_t guard(&context);
+	    flag = statement_->synth_sync(des, scope(),
+					    negedge, clock, ce,
+					    aclr, aset, aset_value,
+					    nex_set, nex_d, bitmasks,
+					    vector<NetEvProbe*>());
+      }
       if (! flag) {
 	    delete clock;
 	    return false;
       }
 
-      flag = tie_off_floating_inputs_(des, nex_set, nex_in, bitmasks, true);
+      flag = tie_off_floating_inputs_(des, nex_set, nex_in, bitmasks, true,
+				      0, &process_write_masks);
       if (!flag) return false;
 
       for (unsigned idx = 0 ;  idx < nex_set.size() ;  idx += 1) {
+	    if (!any_bits_driven(process_write_masks[idx]))
+		  continue;
 
 	      //ivl_assert(*this, nex_set[idx].nex);
 	    if (debug_synth2) {
@@ -2181,7 +3176,17 @@ bool NetProcTop::synth_sync(Design*des)
 
 	    tmp = crop_to_width(des, tmp, ff2->width());
 
-	    connect(nex_q.pin(idx), ff2->pin_Q());
+	    const netvector_t*q_type = new netvector_t(
+		  nex_set[idx].lnk.nexus()->pick_any_net()->data_type(),
+		  ff2->width()-1, 0);
+	    NetNet*q_value = new NetNet(scope(), scope()->local_symbol(),
+				   NetNet::WIRE, q_type);
+	    q_value->local_flag(true);
+	    q_value->set_line(*this);
+	    connect(q_value->pin(0), ff2->pin_Q());
+	    NetNet*process_output = mask_synthesized_process_output(
+		  des, scope(), *this, q_value, process_write_masks[idx]);
+	    connect(nex_q.pin(idx), process_output->pin(0));
 	    connect(tmp->pin(0),    ff2->pin_Data());
 
 	    connect(clock->pin(0),  ff2->pin_Clock());
@@ -2204,6 +3209,8 @@ bool NetProcTop::synth_sync(Design*des)
 	// persist.
       delete clock;
 
+      claim_synthesized_process_outputs(
+	    des, *this, nex_set, process_write_masks);
       synthesized_design_ = des;
       return true;
 }
@@ -2216,6 +3223,64 @@ class synth2_f	: public functor_t {
     private:
 };
 
+class synth2_validate_f : public functor_t {
+
+    public:
+      void signal(Design*, NetNet*) override;
+
+    private:
+      set<Nexus*> reported_nexuses_;
+};
+
+static bool synth_constant_boolean(const NetExpr*expr, bool&value)
+{
+      verinum constant;
+      if (const NetEConst*number = dynamic_cast<const NetEConst*>(expr)) {
+	    constant = number->value();
+      } else if (const NetESignal*signal =
+		       dynamic_cast<const NetESignal*>(expr)) {
+	    if (signal->word_index() || signal->sig()->pin_count() != 1)
+		  return false;
+	    const Nexus*nexus = signal->sig()->pin(0).nexus();
+	    if (!nexus->drivers_constant())
+		  return false;
+	    constant = nexus->driven_vector();
+      } else {
+	    return false;
+      }
+
+      if (!constant.is_defined())
+	    return false;
+      value = !constant.is_zero();
+      return true;
+}
+
+static bool process_is_statically_inert(const NetProc*statement)
+{
+      if (!statement)
+	    return true;
+
+      if (const NetBlock*block = dynamic_cast<const NetBlock*>(statement)) {
+	    for (const NetProc*cur = block->proc_first(); cur;
+		 cur = block->proc_next(cur)) {
+		  if (!process_is_statically_inert(cur))
+			return false;
+	    }
+	    return true;
+      }
+
+      if (const NetCondit*condition =
+		       dynamic_cast<const NetCondit*>(statement)) {
+	    bool take_true = false;
+	    if (!synth_constant_boolean(condition->expr(), take_true))
+		  return false;
+	    return process_is_statically_inert(
+		  take_true ? condition->if_clause() : condition->else_clause());
+      }
+
+      return false;
+}
+
 
 /*
  * Look at a process. If it is asynchronous, then synthesize it as an
@@ -2225,6 +3290,17 @@ void synth2_f::process(Design*des, NetProcTop*top)
 {
       if (top->attribute(perm_string::literal("ivl_synthesis_off")).as_ulong() != 0)
 	    return;
+
+	// A generate/preprocessor-surviving initial block can become an empty
+	// hardware process after parameter folding, as in OpenTitan's optional
+	// memory preload helper when MemInitFile is empty. Drop only a process
+	// whose statically chosen path contains no statement; a live initial
+	// block (including a nonempty $readmemh path) remains diagnosed.
+      if (top->type() == IVL_PR_INITIAL
+	  && process_is_statically_inert(top->statement())) {
+	    des->delete_process(top);
+	    return;
+      }
 
 	/* If the scope that contains this process as a cell attribute
 	   attached to it, then skip synthesis. */
@@ -2285,8 +3361,38 @@ void synth2_f::process(Design*des, NetProcTop*top)
       des->delete_process(top);
 }
 
+void synth2_validate_f::signal(Design*des, NetNet*net)
+{
+        // Process destructors release their procedural l-value references.
+        // Wait until the complete synthesis walk has finished so other
+        // synthesizable disjoint writers have also been removed. A remaining
+        // l-value reference belongs to a behavioral process that cannot share
+        // this packed variable with a synthesized structural driver.
+      if (net->peek_lref() == 0)
+	    return;
+
+      for (unsigned pin = 0; pin < net->pin_count(); pin += 1) {
+	    Nexus*nexus = net->pin(pin).nexus();
+	    if (!nexus->has_synthesized_process_driver())
+		  continue;
+	    if (!reported_nexuses_.insert(nexus).second)
+		  continue;
+
+	    cerr << net->get_fileline() << ": warning: '" << net->name()
+		 << "' retains a behavioral procedural driver after synthesis."
+		 << endl;
+	    cerr << net->get_fileline() << ": sorry: Cannot combine behavioral "
+		    "and synthesized process drivers on one packed signal."
+		 << endl;
+	    des->errors += 1;
+      }
+}
+
 void synth2(Design*des)
 {
       synth2_f synth_obj;
       des->functor(&synth_obj);
+
+      synth2_validate_f validate_obj;
+      des->functor(&validate_obj);
 }

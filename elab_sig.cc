@@ -1727,11 +1727,11 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 			des->errors += 1;
 		  }
 	    }
-	    if (tmp->unpacked_dimensions() != 0) {
-		  cerr << get_fileline() << ": sorry: Subroutine ports with "
-			  "unpacked dimensions are not yet supported." << endl;
-		 des->errors += 1;
-	    }
+	      // Fixed unpacked arrays use the ordinary subroutine
+	      // copy-in/copy-out lowering for every direction. Keeping a
+	      // declaration-time rejection here made legal output/inout/ref
+	      // formals fail even though the caller retains the complete
+	      // array type and the target already carries word-array stores.
       }
 }
 

@@ -28,6 +28,8 @@
 
 using namespace std;
 
+const unsigned netclass_t::COVGRP_NO_PROP;
+
 namespace {
 
 static bool method_scope_has_concrete_body_(const NetScope*scope)
@@ -163,7 +165,8 @@ void netclass_t::repair_property_type(perm_string pname, ivl_type_t new_type)
 bool netclass_t::add_clocking_block(perm_string name,
 				    const PEventStatement*event,
 				    const vector<perm_string>&signals,
-				    const map<perm_string,int>&directions)
+				    const map<perm_string,int>&directions,
+				    const map<perm_string,perm_string>&aliases)
 {
       if (clocking_blocks_.find(name) != clocking_blocks_.end())
 	    return false;
@@ -173,6 +176,7 @@ bool netclass_t::add_clocking_block(perm_string name,
       tmp.event = event;
       tmp.signals = signals;
       tmp.directions = directions;
+      tmp.aliases = aliases;
       clocking_table_.push_back(tmp);
       clocking_blocks_[name] = clocking_table_.size() - 1;
       return true;

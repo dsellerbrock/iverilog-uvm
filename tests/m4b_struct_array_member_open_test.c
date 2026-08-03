@@ -32,7 +32,7 @@ static int shape1(const svOpenArrayHandle h, int left, int right)
       bad |= chk(svRight(h, 1), right, E_RIGHT, "right");
       bad |= chk(svLow(h, 1), low, E_LOW, "low");
       bad |= chk(svHigh(h, 1), high, E_HIGH, "high");
-      bad |= chk(svIncrement(h, 1), left <= right ? 1 : -1,
+      bad |= chk(svIncrement(h, 1), left >= right ? 1 : -1,
                  E_INCR, "increment");
       return bad;
 }
@@ -58,13 +58,13 @@ int c_member_md(const svOpenArrayHandle h)
       bad |= chk(svSize(h, 1), 2, E_SIZE, "md size 1");
       bad |= chk(svLeft(h, 1), 1, E_LEFT, "md left 1");
       bad |= chk(svRight(h, 1), 2, E_RIGHT, "md right 1");
-      bad |= chk(svIncrement(h, 1), 1, E_INCR, "md increment 1");
+      bad |= chk(svIncrement(h, 1), -1, E_INCR, "md increment 1");
       bad |= chk(svSize(h, 2), 3, E_SIZE2, "md size 2");
       bad |= chk(svLeft(h, 2), 7, E_LEFT, "md left 2");
       bad |= chk(svRight(h, 2), 5, E_RIGHT, "md right 2");
       bad |= chk(svLow(h, 2), 5, E_LOW, "md low 2");
       bad |= chk(svHigh(h, 2), 7, E_HIGH, "md high 2");
-      bad |= chk(svIncrement(h, 2), -1, E_INCR, "md increment 2");
+      bad |= chk(svIncrement(h, 2), 1, E_INCR, "md increment 2");
       bad |= chk(svSizeOfArray(h), 6*(int)sizeof(int32_t),
                  E_BYTES, "md bytes");
       for (i = 1; i <= 2; i += 1)

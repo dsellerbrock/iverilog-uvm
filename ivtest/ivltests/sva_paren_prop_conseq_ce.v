@@ -1,17 +1,17 @@
 // IEEE 1800-2017 A.2.10 makes `( property_expr )' a property_expr, so a
-// parenthesized property is a legal implication consequent. This fork's
-// sva_property_t holds the consequent in a flat step chain and cannot
-// represent `throughout'/`within'/nested-implication structure there, so
-// each of these assertions is refused BY NAME -- one `sorry', dropped.
+// parenthesized property is a legal implication consequent. The recursive
+// property representation now carries `throughout', `within', and nested
+// implication structure through the consequent without dropping it.
 //
-// What this test pins is the SECOND-ORDER behaviour. Before the shape
+// What this test pins is the parser/acceptance behaviour. Before the shape
 // had any parse at all it died as a bare `syntax error' and the parser
 // desynchronized: inside the generate wrapper that an assertion macro
 // expands to, the recovery point lands past the block's own `end', so
-// the NEXT module item is misparsed too. The gold file therefore holds
-// exactly three `sorry' lines and says nothing at all about the
-// perfectly ordinary code below them -- no spurious "syntax error" on a
-// bare `end', no "Invalid module item" on a correct wire declaration.
+// the NEXT module item is misparsed too. This case now has no gold-file
+// exception: these assertions and the perfectly ordinary code below them
+// must all compile. Their runtime semantics are checked by
+// tests/sva_recursive_consequent_test.sv and the dual-engine tree-
+// implication SVA tests.
 //
 // The two nested shapes are verbatim from OpenTitan, macro wrapper and
 // all:
@@ -62,7 +62,7 @@ module sva_paren_prop_conseq_ce;
 
   initial begin
     #100;
-    $display("FAILED -- should not have compiled");
+    $display("PASSED");
     $finish;
   end
 

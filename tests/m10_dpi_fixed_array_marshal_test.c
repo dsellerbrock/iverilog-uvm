@@ -60,12 +60,12 @@ static int check_range(const svOpenArrayHandle h,
       }
       bad |= chk(seen, high - low + 1, E_ELEM, "elements read");
 
-        /* Walk the way a C model would, from svLeft by svIncrement. This
-         * is the loop that breaks if bounds and element access disagree. */
+        /* svIncrement is the right-to-left increment. Walk from the left
+         * bound to the right bound by SUBTRACTING it. */
       seen = 0;
       for (i = svLeft(h, 1);
-           (incr > 0) ? (i <= svRight(h, 1)) : (i >= svRight(h, 1));
-           i += incr) {
+           (incr < 0) ? (i <= svRight(h, 1)) : (i >= svRight(h, 1));
+           i -= incr) {
             int*p = (int*)svGetArrElemPtr1(h, i);
             if (!p || *p != i * 100) { bad |= E_WALK; break; }
             seen += 1;
@@ -83,14 +83,14 @@ static int check_range(const svOpenArrayHandle h,
 int c_fixed_asc(const svOpenArrayHandle h)
 {
       return check_range(h, /*left*/3, /*right*/10, /*low*/3, /*high*/10,
-                         /*incr*/1);
+                         /*incr*/-1);
 }
 
-/* int a[10:3] -- descending: left/right swap and the increment is -1. */
+/* int a[10:3] -- descending: left/right swap and increment is +1. */
 int c_fixed_desc(const svOpenArrayHandle h)
 {
       return check_range(h, /*left*/10, /*right*/3, /*low*/3, /*high*/10,
-                         /*incr*/-1);
+                         /*incr*/1);
 }
 
 /* An ordinary dynamic array has no declared range: 0-based, and the
@@ -105,7 +105,7 @@ int c_dyn_plain(const svOpenArrayHandle h)
       bad |= chk(svHigh(h, 1),      4, E_HIGH,  "svHigh(1)");
       bad |= chk(svLeft(h, 1),      0, E_LEFT,  "svLeft(1)");
       bad |= chk(svRight(h, 1),     4, E_RIGHT, "svRight(1)");
-      bad |= chk(svIncrement(h, 1), 1, E_INCR,  "svIncrement(1)");
+      bad |= chk(svIncrement(h, 1), -1, E_INCR,  "svIncrement(1)");
 
       for (i = 0; i < 5; i++) {
             int*p = (int*)svGetArrElemPtr1(h, i);
@@ -113,4 +113,13 @@ int c_dyn_plain(const svOpenArrayHandle h)
             bad |= chk(*p, i * 7, E_ELEM, "element value");
       }
       return bad;
+}
+
+void c_fixed_fill(const svOpenArrayHandle h)
+{
+      int i;
+      for (i = svLow(h, 1); i <= svHigh(h, 1); i++) {
+            unsigned*p = (unsigned*)svGetArrElemPtr1(h, i);
+            if (p) *p = (unsigned)(i * 11);
+      }
 }

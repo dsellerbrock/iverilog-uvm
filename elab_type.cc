@@ -291,6 +291,14 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
 		  iface_scope->set_parameter(kv.first, false, *kv.second, nullptr);
       }
 
+      // Named package imports declared in the interface body participate in
+      // member dimensions and types just like interface parameters do. The
+      // regular instantiated/root interface scopes receive these imports in
+      // elaborate_scope; the temporary scope used to construct a virtual-
+      // interface type must mirror them as well (for example,
+      // `import pkg::Width; logic [Width-1:0] data;`).
+      iface_scope->add_imports(&mod->explicit_imports);
+
       // Interface-local typedefs (e.g. `typedef struct packed {...} pkt_t;`
       // declared inside the interface, then used as a member type) must be
       // resolvable when the member property types are elaborated below. A
@@ -311,11 +319,20 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
       for (map<perm_string,Module::PClocking*>::const_iterator cur = mod->clocking_blocks.begin()
 		 ; cur != mod->clocking_blocks.end() ; ++cur) {
 	    map<perm_string,int> dirs;
+	    map<perm_string,perm_string> aliases;
 	    for (map<perm_string,NetNet::PortType>::const_iterator dir = cur->second->directions.begin()
 		       ; dir != cur->second->directions.end() ; ++dir)
 		  dirs[dir->first] = static_cast<int>(dir->second);
+	    for (map<perm_string,PExpr*>::const_iterator da =
+		       cur->second->decl_assigns.begin()
+		 ; da != cur->second->decl_assigns.end() ; ++da) {
+		  const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
+		  if (id && !id->path().package && id->path().name.size() == 1
+		      && id->path().name.front().index.empty())
+			aliases[da->first] = id->path().name.front().name;
+	    }
 	    iface_type->add_clocking_block(cur->first, cur->second->event,
-					   cur->second->signals, dirs);
+					   cur->second->signals, dirs, aliases);
 
 	      /* M8-2a-4: register the hidden clocking sample variables
 		 (and the sampler tick bit) as interface properties, so

@@ -1,0 +1,4 @@
+./ivltests/synth_runtime_async_load_reject.v:22: sorry: Asynchronous load is not currently supported in synthesis.
+./ivltests/synth_runtime_async_load_reject.v:21: error: Unable to synthesize synchronous process.
+./ivltests/synth_runtime_async_load_reject.v:21: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+3 error(s) in post-elaboration processing.

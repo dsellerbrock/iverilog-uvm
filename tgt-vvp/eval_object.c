@@ -345,6 +345,45 @@ static int eval_class_new(ivl_expr_t ex)
       ensure_class_type_emitted(class_type);
 
       fprintf(vvp_out, "    %%new/cobj C%p;\n", class_type);
+
+	/* A class-new initializer array is used by synthesized covergroup
+	 * constructors. Its heterogeneous elements map positionally to the
+	 * leading constructor-formal properties. The new object remains on
+	 * the object stack while each typed property store consumes only its
+	 * value stack. */
+      ivl_expr_t init = ivl_expr_oper2(ex);
+      if (init && ivl_expr_type(init) == IVL_EX_ARRAY_PATTERN) {
+	    unsigned ninit = ivl_expr_parms(init);
+	    unsigned nprops = (unsigned)ivl_type_properties(class_type);
+	    if (ninit > nprops) ninit = nprops;
+	    for (unsigned idx = 0; idx < ninit; idx += 1) {
+		  ivl_expr_t value = ivl_expr_parm(init, idx);
+		  ivl_type_t ptype = ivl_type_prop_type(class_type, idx);
+		  switch (ivl_type_base(ptype)) {
+		      case IVL_VT_BOOL:
+		      case IVL_VT_LOGIC:
+			draw_eval_vec4(value);
+			fprintf(vvp_out, "    %%store/prop/v %u, %u; covergroup ctor\n",
+				idx, ivl_expr_width(value));
+			break;
+		      case IVL_VT_REAL:
+			draw_eval_real(value);
+			fprintf(vvp_out, "    %%store/prop/r %u; covergroup ctor\n",
+				idx);
+			break;
+		      case IVL_VT_STRING:
+			draw_eval_string(value);
+			fprintf(vvp_out, "    %%store/prop/str %u; covergroup ctor\n",
+				idx);
+			break;
+		      default:
+			fprintf(stderr, "Warning: unsupported covergroup constructor "
+				"property type %d at index %u; leaving default value\n",
+				(int)ivl_type_base(ptype), idx);
+			break;
+		  }
+	    }
+      }
       return 0;
 }
 
@@ -1978,6 +2017,17 @@ int draw_eval_object_value_copy(ivl_expr_t ex, ivl_type_t element_type)
       int is_value_struct = element_type
 			    && ivl_type_base(element_type) == IVL_VT_NO_TYPE
 			    && ivl_type_properties(element_type) > 0;
+
+        /* An unpacked-array value can reach the target as an array pattern
+         * whose own net type describes the fixed source rather than the
+         * dynamic/queue destination. The assignment context supplies the
+         * required container type (7.6), so construct and populate that
+         * container instead of letting the object evaluator degrade the
+         * pattern to its first element. */
+      if (rvt == IVL_EX_ARRAY_PATTERN && element_type
+	  && (ivl_type_base(element_type) == IVL_VT_DARRAY
+	      || ivl_type_base(element_type) == IVL_VT_QUEUE))
+	    return eval_object_container_pattern_(ex, element_type);
 
       if (is_value_struct && rval_aliases) {
 	    ensure_class_type_emitted(element_type);

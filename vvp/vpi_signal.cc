@@ -1500,6 +1500,16 @@ static void PV_get_value(vpiHandle ref, p_vpi_value vp)
 	    format_vpiRealVal(sig, PV_get_base(rfp), rfp->width, 0, vp);
 	    break;
 
+	  case vpiObjTypeVal:
+	    if (rfp->width == 1) {
+		  vp->format = vpiScalarVal;
+		  format_vpiScalarVal(sig, PV_get_base(rfp), vp);
+	    } else {
+		  vp->format = vpiVectorVal;
+		  format_vpiVectorVal(sig, PV_get_base(rfp), rfp->width, vp);
+	    }
+	    break;
+
 	  default:
 	    fprintf(stderr, "vvp internal error: PV_get_value: "
 		    "value type %d not implemented. Signal is %s.\n",

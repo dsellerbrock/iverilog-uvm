@@ -56,6 +56,16 @@ bool NetEvWait::is_asynchronous()
 	    delete tmp;
       }
 
+        /* An always_comb/always_latch event is compiler-generated directly
+           from the statement's input walk and carries the time-zero trigger.
+           The probes above have already proved that every event is ANYEDGE;
+           precise part-select probes need not be widened again merely to
+           re-prove the dependency set used to create them. */
+      if (has_t0_trigger_) {
+	    delete sense;
+	    return true;
+      }
+
       NexusSet*inputs = statement_->nex_input();
 
       if (! sense->contains(*inputs)) {

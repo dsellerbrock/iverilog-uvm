@@ -22,6 +22,7 @@
 # include  "compiler.h"
 # include  <typeinfo>
 # include  <cstring>
+# include  <functional>
 # include  "ivl_assert.h"
 
 using namespace std;
@@ -82,12 +83,49 @@ NetExpr* NetFuncDef::evaluate_function(const LineInfo&loc, const std::vector<Net
 	    const NetNet*pnet = port(idx);
 	    perm_string aname = pnet->name();
 	    LocalVar&input_var = context_map[aname];
-	    input_var.nwords = 0;
-	    input_var.value  = fix_assign_value(pnet, args[idx]);
 
+	    /* The scalar path below transfers ownership of args[idx] to the
+	       evaluation context, while the array path clones its pattern leaves
+	       and then releases the pattern.  Trace the argument before either
+	       operation so debug builds never inspect a transferred/freed node. */
 	    if (debug_eval_tree) {
 		  cerr << loc.get_fileline() << ": NetFuncDef::evaluate_function: "
-		       << "   input " << aname << " = " << *args[idx] << endl;
+		       << "   input " << aname << " = ";
+		  if (args[idx]) cerr << *args[idx];
+		  else cerr << "<nil>";
+		  cerr << endl;
+	    }
+
+	    if (pnet->unpacked_dimensions() > 0) {
+		  const NetEArrayPattern*pat =
+			dynamic_cast<const NetEArrayPattern*>(args[idx]);
+		  std::vector<const NetExpr*>leaves;
+		  std::function<void(const NetEArrayPattern*)>flatten =
+			[&](const NetEArrayPattern*cur) {
+			      for (size_t k = 0 ; k < cur->item_size() ; k += 1) {
+				    const NetExpr*item = cur->item(k);
+				    if (const NetEArrayPattern*sub =
+					dynamic_cast<const NetEArrayPattern*>(item))
+					  flatten(sub);
+				    else
+					  leaves.push_back(item);
+			      }
+			};
+		  if (pat)
+			flatten(pat);
+		  unsigned nwords = pnet->unpacked_count();
+		  input_var.nwords = nwords;
+		  input_var.array = new NetExpr*[nwords];
+		  for (unsigned word = 0 ; word < nwords ; word += 1) {
+			if (word < leaves.size() && leaves[word])
+			      input_var.array[word] = leaves[word]->dup_expr();
+			else
+			      input_var.array[word] = make_const_x(pnet->vector_width());
+		  }
+		  delete args[idx];
+	    } else {
+		  input_var.nwords = 0;
+		  input_var.value  = fix_assign_value(pnet, args[idx]);
 	    }
       }
 
@@ -253,6 +291,26 @@ NetExpr* NetExpr::evaluate_function(const LineInfo&,
       }
 
       return 0;
+}
+
+NetExpr* NetEArrayPattern::evaluate_function(
+		const LineInfo&loc, map<perm_string,LocalVar>&context_map) const
+{
+      vector<NetExpr*>items(item_size(), nullptr);
+      for (size_t idx = 0 ; idx < item_size() ; idx += 1) {
+	    const NetExpr*src = item(idx);
+	    if (!src)
+		  continue;
+	    items[idx] = src->evaluate_function(loc, context_map);
+	    if (!items[idx]) {
+		  for (NetExpr*item_expr : items)
+			delete item_expr;
+		  return nullptr;
+	    }
+      }
+      NetEArrayPattern*res = new NetEArrayPattern(net_type(), items);
+      res->set_line(*this);
+      return res;
 }
 
 bool NetProc::evaluate_function(const LineInfo&,
@@ -1287,37 +1345,53 @@ NetExpr* NetESignal::evaluate_function(const LineInfo&loc,
 	    }
       };
 
-      map<perm_string,LocalVar>::iterator ptr = context_map.find(name());
-      if (ptr == context_map.end()) {
-	    if (gn_system_verilog() && strcmp(name(), "@") == 0) {
-		  NetExpr*res = make_type_default();
-		  if (res) {
-			res->set_line(*this);
-			return res;
+      const LocalVar*var = 0;
+	// Synthesis may have multiple active procedural-loop indices with the
+	// same basename. Prefer their exact signal identities to the ordinary
+	// name-keyed constant-function context so a qualified outer reference is
+	// not evaluated with a shadowing inner value. NetForLoop mirrors its exact
+	// entry into the declaration scope while the iteration body is active.
+      for (const NetScope*cur_scope = net_ ? net_->scope() : 0;
+	   cur_scope && !var; cur_scope = cur_scope->parent()) {
+	    map<NetNet*,LocalVar>::const_iterator exact =
+		  cur_scope->loop_index_values_tmp.find(net_);
+	    if (exact != cur_scope->loop_index_values_tmp.end())
+		  var = &exact->second;
+      }
+
+      if (!var) {
+	    map<perm_string,LocalVar>::iterator ptr = context_map.find(name());
+	    if (ptr == context_map.end()) {
+		  if (gn_system_verilog() && strcmp(name(), "@") == 0) {
+			NetExpr*res = make_type_default();
+			if (res) {
+			      res->set_line(*this);
+			      return res;
+			}
 		  }
+		  const NetScope*sig_scope = net_ ? net_->scope() : nullptr;
+		  if (gn_system_verilog() && sig_scope
+		      && (sig_scope->type() == NetScope::CLASS
+			  || sig_scope->type() == NetScope::PACKAGE)) {
+			// Compile-progress fallback for static class/package variables
+			// referenced from constant-function evaluation (e.g. UVM
+			// singleton/static handles). These are not in the local eval
+			// context map, but returning a typed placeholder preserves
+			// forward progress and exposes later semantic diagnostics.
+			NetExpr*res = make_type_default();
+			if (res) {
+			      res->set_line(*this);
+			      return res;
+			}
+		  }
+		  cerr << get_fileline() << ": error: Cannot evaluate " << name()
+		       << " in this context." << endl;
+		  return 0;
 	    }
-	    const NetScope*sig_scope = net_ ? net_->scope() : nullptr;
-	    if (gn_system_verilog() && sig_scope
-		&& (sig_scope->type() == NetScope::CLASS
-		    || sig_scope->type() == NetScope::PACKAGE)) {
-		  // Compile-progress fallback for static class/package variables
-		  // referenced from constant-function evaluation (e.g. UVM
-		  // singleton/static handles). These are not in the local eval
-		  // context map, but returning a typed placeholder preserves
-		  // forward progress and exposes later semantic diagnostics.
-			  NetExpr*res = make_type_default();
-			  if (res) {
-				res->set_line(*this);
-				return res;
-			  }
-		    }
-		    cerr << get_fileline() << ": error: Cannot evaluate " << name()
-			 << " in this context." << endl;
-	    return 0;
+	    var = &ptr->second;
       }
 
 	// Follow indirect references to the actual variable.
-      LocalVar*var = & ptr->second;
       while (var->nwords == -1) {
 	    ivl_assert(*this, var->ref);
 	    var = var->ref;

@@ -162,8 +162,9 @@ struct pform_clocking_skew_t {
 };
 
 struct name_component_t {
-      inline name_component_t() { }
-      inline explicit name_component_t(perm_string n) : name(n) { }
+      inline name_component_t() : local_scope(false) { }
+      inline explicit name_component_t(perm_string n)
+      : name(n), local_scope(false) { }
       ~name_component_t() { }
 
       // Return true if this component is nil.
@@ -171,6 +172,12 @@ struct name_component_t {
 
       perm_string name;
       std::list<index_component_t>index;
+
+      // IEEE 1800-2017 18.7.1: local:: selects a name in the scope
+      // containing randomize(), rather than a property of the object
+      // being randomized. Preserve the qualifier through parsing so the
+      // constraint IR can distinguish otherwise-identical names.
+      bool local_scope;
 };
 
 struct decl_assignment_t {
@@ -574,6 +581,17 @@ struct class_type_t : public data_type_t {
 	      // M11: "with (expr)" filter — keep only values where the
 	      // expression (over 'item') evaluates true.
 	    PExpr* with_expr = nullptr;
+	      // IEEE 1800-2017 19.5.1.1 set-covergroup expression.  The
+	      // expression yields an unpacked array/queue whose elements form
+	      // the value set for this declaration.
+	    PExpr* set_expr = nullptr;
+	      // IEEE 1800-2017 19.5.1.2 coverpoint-derived bin set:
+	      //   bins b = source_cp with (item_predicate);
+	    perm_string source_coverpoint;
+	      // `default' composes with bins/ignore_bins/illegal_bins.  Keep it
+	      // orthogonal to kind so illegal_bins x = default is not silently
+	      // downgraded or dropped.
+	    bool is_default = false;
 	      // M11-2: transition sequences — each sequence is an
 	      // ordered list of [lo:hi] steps; a bin may carry several
 	      // (comma-separated) sequences.
@@ -616,6 +634,11 @@ struct class_type_t : public data_type_t {
       };
       struct pform_covergroup_t {
 	    perm_string name;   // covergroup instance name (e.g., "cg")
+	      // Per-instance constructor formals (19.3), distinct from
+	      // `with function sample` formals.
+	    std::vector<perm_string> ctor_formals;
+	    std::vector<data_type_t*> ctor_formal_types;
+	    std::vector<PExpr*> ctor_defaults;
 	      // M11-2: the declaration's sampling event
 	      // (`covergroup cg @(posedge clk);`) — instances get a
 	      // synthesized `always @(ev) inst.sample();` process.
@@ -627,6 +650,7 @@ struct class_type_t : public data_type_t {
 	      // declared type, used to size automatic bins (M11-5).
 	    std::vector<perm_string> sample_formals;
 	    std::vector<data_type_t*> sample_formal_types;
+	    std::vector<PExpr*> sample_formal_defaults;
 	    std::vector<pform_coverpoint_t> coverpoints;
 	    std::vector<pform_cross_t> crosses;  // I1: cross declarations
 	      // M11: covergroup options (option.name = const_expr)

@@ -73,9 +73,11 @@ struct sva_seq_step_t {
       // M9-NFA stage C.1: goto/nonconsecutive repetition of the boolean
       // `expr' (IEEE 1800-2017 16.9.2). rep_kind 0 = none; 1 = goto
       // `[->m:n]' (match ends ON the n-th occurrence); 2 = nonconsecutive
-      // `[=m:n]' (match may extend past the last occurrence). rep_hi ==
-      // -1 encodes an unbounded upper `[->m:$]'/`[=m:$]'. delay_lo/hi is
-      // the leading cycle gap before the repetition begins.
+      // `[=m:n]' (match may extend past the last occurrence); 3 =
+      // consecutive repetition with a zero lower bound (`[*0:n]'), whose
+      // empty match cannot use rep_tail's concrete-first-step encoding.
+      // rep_hi == -1 encodes an unbounded upper. delay_lo/hi is the leading
+      // cycle gap before the repetition begins.
       int rep_kind = 0;
       long rep_lo = 0;
       long rep_hi = 0;
@@ -142,6 +144,12 @@ struct sva_property_t {
       PExpr* disable_iff_expr = nullptr;    // disable iff expr (may be null)
       std::vector<sva_seq_step_t>* antecedent = nullptr;  // null for op 0
       std::vector<sva_seq_step_t>* seq = nullptr;         // consequent / plain sequence
+      // A sequence combinator used as an implication antecedent cannot be
+      // flattened without changing its match language. Keep it as a tree and
+      // let the automaton implication builder compose it with `tree' (the
+      // consequent). Null for ordinary flat implications and for standalone
+      // combinator properties.
+      sva_stree_t* ante_tree = nullptr;
       sva_stree_t* tree = nullptr;          // stage B combinator tree
 					    // (seq/antecedent null when set)
       int tree_sorry = 0;                   // deferred no-NFA sorry text:
@@ -155,13 +163,16 @@ struct sva_property_t {
       // 0=plain sequence, 1=|->, 2=|=>; 4..17 the temporal/liveness/
       // abort operators (see pform_make_temporal_assertion_).
       // IEEE 1800-2017 A.2.10 makes an implication CONSEQUENT a full
-      // property_expr, not just a sequence. This struct still models the
-      // consequent as a flat step chain, so the property-consequent forms
-      // are encoded as dedicated op_types rather than a nested property:
-      //   18 = `a |-> s_eventually(b)', 19 = `a |=> s_eventually(b)'.
-      // Adding a real nested-consequent field is what the remaining forms
-      // (`a |-> always b', nested implications) will need.
+      // property_expr. Recursive consequents are contextualized by
+      // pform_sva_paren_conseq: ordinary/nested implications become a
+      // composite automaton, while safety properties become a forbidden-
+      // sequence automaton. 18/19 retain the compact s_eventually lowering.
       int op_type = 0;
+      // The implication consequence is a forbidden sequence: accepting it
+      // is a property failure, while its death after the antecedent matched
+      // discharges the obligation. This is the exact automaton dual used by
+      // `a |-> not(s)', `a |-> always p', and the `until' family.
+      bool forbidden_consequent = false;
       // IEEE 1800-2017 16.12.2/16.12.5: bounded liveness window for the
       // unary liveness ops (nexttime[n]/s_nexttime[n]: win_lo==win_hi==n;
       // s_eventually[m:n]/eventually[m:n]: win_lo==m, win_hi==n). -1 on

@@ -35,10 +35,10 @@ extern void* vvp_dpi_find_symbol(const char*name);
  * next DPI call).
  */
 /*
- * The concrete object behind an svOpenArrayHandle ('o' arguments):
- * a one-dimensional, zero-based view of contiguous element storage
- * shared with the simulator's dynamic array. C-side writes through
- * svGetArrElemPtr land directly in simulation storage.
+ * The concrete object behind an svOpenArrayHandle ('o' arguments).
+ * Directly representable one-dimensional elements expose shared storage;
+ * packed and multidimensional elements retain their live container for the
+ * standard canonical-copy accessors.
  */
 class vvp_darray;
 
@@ -47,6 +47,10 @@ struct vvp_dpi_open_array_t {
       unsigned length;
       unsigned elem_bytes;
       bool elem_is_real;
+	// The live simulator container. Unlike data, this is also available
+	// for packed vector elements whose canonical DPI representation must
+	// be copied with svGet/Put{Bit,Logic}ArrElem*VecVal.
+      vvp_darray* storage;
 	// M10B-md: for a MULTI-dimensional open array (an object array
 	// whose words are inner dynamic arrays), the accessors walk the
 	// live object tree from here instead of using data/elem_bytes

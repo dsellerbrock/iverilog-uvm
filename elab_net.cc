@@ -629,6 +629,10 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 	// The same pattern in an always_comb was accepted, because the
 	// procedural l-value keeps the member type.
       ivl_type_t member_net_type = 0;
+	// True when a packed-array member branch has already translated the
+	// final component's indices into member_off/member_width. The generic
+	// trailing vector select must not apply those same indices again.
+      bool trailing_member_index_consumed = false;
 
       const netstruct_t*struct_type = 0;
       if ((struct_type = sig->struct_type()) && !member_path.empty()) {
@@ -742,6 +746,7 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 	    pform_name_t use_path = member_path;
 
 	    while (! use_path.empty()) {
+	          trailing_member_index_consumed = false;
 	          const name_component_t member_comp = use_path.front();
 	          const perm_string&member_name = member_comp.name;
 
@@ -836,10 +841,40 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 
 			member_off += loff * element_width;
 			member_width = lwid * element_width;
+			trailing_member_index_consumed = true;
 
 			  // Step to the element type so the rest of the path
 			  // (if any) resolves against it.
 			struct_type = dynamic_cast<const netstruct_t*> (element_type);
+			if (ivl_type_t selected = packed_type_after_dims(
+				      member->net_type, member_comp.index.size()))
+			      member_net_type = selected;
+
+		  } else if (const netvector_t*member_vec =
+			       dynamic_cast<const netvector_t*>(member->net_type)) {
+			if (!member_comp.index.empty()) {
+			      NetExpr*member_base = 0;
+			      unsigned long member_slice_width = 0;
+			      if (!collapse_packed_member_indices(
+					des, scope, this, member_vec->packed_dims(),
+					member_comp.index, member_base,
+					member_slice_width))
+				    return 0;
+			      long member_base_value = 0;
+			      if (!eval_as_long(member_base_value, member_base)) {
+				    cerr << get_fileline() << ": error: packed-vector "
+					 << "member index must be constant in a "
+					 << "continuous-assignment l-value." << endl;
+				    des->errors += 1;
+				    delete member_base;
+				    return 0;
+			      }
+			      delete member_base;
+			      member_off += member_base_value;
+			      member_width = member_slice_width;
+			      trailing_member_index_consumed = true;
+			}
+			struct_type = 0;
 
 		  } else if (const netstruct_t*tmp_struct = dynamic_cast<const netstruct_t*> (member->net_type)) {
 		        struct_type = tmp_struct;
@@ -865,7 +900,8 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 	    // have an index that needs to be handled.
 	    // For now, assume there is unly a single part/bit select, and
 	    // assume it's constant.
-	    if (member_path.back().index.size() > 0) {
+	    if (member_path.back().index.size() > 0
+		&& !trailing_member_index_consumed) {
 		  list<index_component_t>tmp_index = member_path.back().index;
 		  if (debug_elaborate) {
 		        cerr << get_fileline() << ": " << __func__ << ": "
@@ -1069,6 +1105,38 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 
       unsigned subnet_wid = midx-lidx+1;
 
+	/* A select through every outer dimension of a packed array can leave
+	   a declared struct/enum element type. Keep that type on the temporary
+	   l-value net, just as the procedural l-value path does. Otherwise a
+	   continuous assignment such as `assign table[i] = '{member: value}'
+	   gives the assignment pattern only a flattened bit-vector context. */
+      if (!member_net_type && member_path.empty()
+	  && !path_tail.index.empty()) {
+	    size_t skip = sig->unpacked_dimensions();
+	    size_t packed_used = 0;
+	    bool exact_elements = true;
+	    for (list<index_component_t>::const_iterator cur =
+		       path_tail.index.begin(); cur != path_tail.index.end(); ++cur) {
+		  if (skip > 0) {
+			skip -= 1;
+			continue;
+		  }
+		  if (cur->sel != index_component_t::SEL_BIT) {
+			exact_elements = false;
+			break;
+		  }
+		  packed_used += 1;
+	    }
+	    if (exact_elements && packed_used > 0) {
+		  ivl_type_t elem = packed_type_after_dims(sig->net_type(),
+							 packed_used);
+		  if (elem && elem->packed()
+		      && elem->packed_width() == (long)subnet_wid
+		      && dynamic_cast<const netvector_t*>(elem) == 0)
+			member_net_type = elem;
+	    }
+      }
+
 	/* Now that the driven bits are known, decide whether this
 	   variable can become an unresolved wire (see the note where
 	   this test used to live). A behavioural l-value only blocks the
@@ -1129,7 +1197,7 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 	    }
       }
 
-      if (sig->pin_count() > 1 && widx_flag) {
+      if (sig->unpacked_dimensions() > 0 && widx_flag) {
 	    if (widx < 0 || widx >= (long) sig->pin_count())
 		  return 0;
 	    NetNet*tmp = new NetNet(scope, scope->local_symbol(),
@@ -1139,7 +1207,7 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 	    connect(sig->pin(widx), tmp->pin(0));
 	    sig = tmp;
 
-      } else if (sig->pin_count() > 1) {
+	  } else if (sig->unpacked_dimensions() > 0) {
 
 	      // If this turns out to be an l-value unpacked array,
 	      // then let the caller handle it. It will probably be
@@ -1367,10 +1435,19 @@ NetNet* PEIdent::elaborate_subport(Design*des, NetScope*scope) const
       return sig;
 }
 
-NetNet*PEIdent::elaborate_unpacked_net(Design*des, NetScope*scope) const
+NetNet*PEIdent::elaborate_unpacked_net(Design*des, NetScope*scope,
+				       ivl_type_t target_type) const
 {
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+      if (!sr.net && sr.par_val && target_type) {
+	    NetExpr*value = elaborate_expr(des, scope, target_type, NO_FLAGS);
+	    if (!value)
+		  return nullptr;
+	    NetNet*result = value->synthesize(des, scope, value);
+	    delete value;
+	    return result;
+      }
       if (!sr.net) {
 	    cerr << get_fileline() << ": error: Net " << path_
 		 << " is not defined in this context." << endl;
@@ -1389,6 +1466,53 @@ NetNet*PEIdent::elaborate_unpacked_net(Design*des, NetScope*scope) const
 
       const name_component_t&name_tail = path_.back();
       if (!name_tail.index.empty()) {
+	    const netuarray_t*target_array =
+		  dynamic_cast<const netuarray_t*>(target_type);
+	    const netranges_t&source_dims = sr.net->unpacked_dims();
+	    unsigned used_dims = name_tail.index.size();
+	    if (target_array && used_dims > 0
+		&& used_dims < source_dims.size()
+		&& target_array->static_dimensions().size()
+		     == source_dims.size() - used_dims) {
+		  list<NetExpr*>index_exprs;
+		  list<long>index_consts;
+		  indices_flags flags;
+		  indices_to_expressions(des, scope, this, name_tail.index,
+					 used_dims, true, flags,
+					 index_exprs, index_consts);
+		  if (!flags.invalid && !flags.undefined && !flags.variable) {
+			NetExpr*base_expr = normalize_variable_unpacked(
+			      sr.net, index_consts);
+			const NetEConst*base_const =
+			      dynamic_cast<const NetEConst*>(base_expr);
+			if (base_const) {
+			      long base = base_const->value().as_long();
+			      netranges_t slice_dims;
+			      for (size_t dim = used_dims ; dim < source_dims.size();
+				   dim += 1)
+				slice_dims.push_back(source_dims[dim]);
+			      bool shape_ok = netrange_equivalent(
+				    slice_dims, target_array->static_dimensions());
+			      bool type_ok = sr.net->net_type()->type_equivalent(
+				    target_array->element_type());
+			      if (shape_ok && type_ok) {
+				    NetNet*view = new NetNet(
+					  scope, scope->local_symbol(),
+					  NetNet::IMPLICIT, slice_dims,
+					  sr.net->net_type());
+				    view->set_line(*this);
+				    view->local_flag(true);
+				    for (unsigned pin = 0 ; pin < view->pin_count();
+					 pin += 1)
+					  connect(view->pin(pin),
+						  sr.net->pin(base + pin));
+				    delete base_expr;
+				    return view;
+			      }
+			}
+			delete base_expr;
+		  }
+	    }
 	    cerr << get_fileline() << ": sorry: Array slices are not yet "
 	         << "supported for continuous assignment." << endl;
 	    des->errors += 1;
