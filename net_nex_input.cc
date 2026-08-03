@@ -499,9 +499,14 @@ NexusSet* NetBlock::nex_input(bool rem_out, bool always_sens, bool nested_func) 
 	       * whole-signal answer it depends on. */
 	    if (rem_out) {
 		  bool saved = nex_output_precise_partsel;
-		  if (always_sens) nex_output_precise_partsel = true;
+		  bool saved_array_word = nex_output_precise_array_word;
+		  if (always_sens) {
+			nex_output_precise_partsel = true;
+			nex_output_precise_array_word = true;
+		  }
 		  cur->nex_output(*prev);
 		  nex_output_precise_partsel = saved;
+		  nex_output_precise_array_word = saved_array_word;
 	    }
 
 	    cur = cur->next_;

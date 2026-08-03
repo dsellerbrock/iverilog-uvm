@@ -2114,6 +2114,16 @@ NetProc* NetCondit::else_clause()
       return else_;
 }
 
+const NetProc* NetCondit::if_clause() const
+{
+      return if_;
+}
+
+const NetProc* NetCondit::else_clause() const
+{
+      return else_;
+}
+
 NetConst::NetConst(NetScope*s, perm_string n, verinum::V v)
 : NetNode(s, n, 1), value_(v, 1)
 {

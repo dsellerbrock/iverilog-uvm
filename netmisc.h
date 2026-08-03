@@ -526,6 +526,12 @@ extern void collapse_partselect_pv_to_concat(Design*des, NetNet*sig);
    on, and only around its own walk. */
 extern bool nex_output_precise_partsel;
 
+/* When true, a run-time-selected unpacked-array l-value contributes no
+   words to the output set used for always_comb sensitivity subtraction.
+   A synthesis ownership walk leaves this false because the write may land
+   on any word and therefore must claim every possible destination. */
+extern bool nex_output_precise_array_word;
+
 /* Collapse the leading indices of a packed select into constants. With
    quiet=true a non-constant prefix simply returns false with no
    diagnostic, so the caller can fall back to collapse_packed_base(). */

@@ -821,6 +821,53 @@ errors, zero semantic debt, no timeout and `security_vulnerability=false`.
 The Darjeeling `rv_core_ibex` witness drops from 11 hard diagnostics to the two
 separately tracked run-time RAM-word diagnostics.
 
+## G36 — run-time-selected memory-word writes were rejected by synthesis — **fixed** (current upstream campaign)
+
+*7.4 / 10.6 / synthesis lowering [general] — unpacked-array word selection and procedural assignment.*
+
+A procedural assignment to an unpacked-array word was synthesizable only when
+the canonical word index was constant. OpenTitan's generic single-port RAM
+uses a request-qualified whole-word write, `mem[addr_i] <= wdata`, so the
+Darjeeling Ibex wrapper stopped after otherwise completing its synthesis
+lowering.
+
+The run-time word select is now lowered to one shared data path and an exact
+per-word address decoder. The ordinary conditional-enable machinery combines
+the decoder with enclosing request and write guards, producing a distinct
+enable for every possible destination word. An out-of-range address, or an
+address containing X or Z, matches no word and therefore performs no write.
+Synthesis ownership walks conservatively claim every possible destination,
+while the separate `always_comb` sensitivity-subtraction walk retains its
+word-precise behavior. A packed partial write through a run-time word select
+remains a separate, explicit unsupported boundary rather than being widened
+silently to a whole-word write.
+
+`synth_runtime_memory_word.v` value-checks the OpenTitan-shaped shared
+synchronous read/write process, repeated writes, request holds, a non-power-of-
+two depth, an out-of-range address and a four-state unknown address in ordinary
+and `-S` execution. `synth_runtime_memory_partial_reject.v` pins the distinct
+packed-partial-write diagnostic.
+
+## G37 — a statically empty memory-preload initial process remained semantic debt — **fixed** (current upstream campaign)
+
+*9.2.1 / constant folding / synthesis classification [general] — initial procedures.*
+
+OpenTitan's memory preload helper retains an `initial` process under
+`SYNTHESIS`, but with the default empty `MemInitFile` its only conditional path
+contains no live statement. The synthesis classifier warned about the process
+without first following the already folded constant condition, leaving a
+false semantic-debt result after the RAM itself compiled cleanly.
+
+Synthesis now removes an initial process only when recursively following its
+statically selected block/conditional path proves that path empty. A live
+preload path is not suppressed and still reports `Process not synthesized`.
+`synth_inert_initial.v` covers the empty-file shape and the focused override
+check preserves the live-path diagnostic.
+
+Together, G36 and G37 move the final exact `runtime-memory-rv-core-v28`
+Darjeeling `rv_core_ibex` replay to `PASS` in 11.985 seconds, with exit 0, zero hard
+errors, zero semantic debt, no timeout and `security_vulnerability=false`.
+
 ---
 
 ## Two measurement traps worth remembering

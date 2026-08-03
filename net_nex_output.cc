@@ -49,6 +49,7 @@ void NetAlloc::nex_output(NexusSet&)
  * on, and only around its own walk.
  */
 bool nex_output_precise_partsel = false;
+bool nex_output_precise_array_word = false;
 
 void NetAssign_::nex_output(NexusSet&out)
 {
@@ -81,7 +82,7 @@ void NetAssign_::nex_output(NexusSet&out)
 		    // map before it unrolls a loop and contextually evaluates the
 		    // word expression. Keep the precise walk conservative and
 		    // expose all words to the default synthesis walk.
-		  if (!nex_output_precise_partsel) {
+		  if (!nex_output_precise_array_word) {
 			for (unsigned idx = 0; idx < sig_->pin_count(); idx += 1) {
 			      Nexus*word_nex = sig_->pin(idx).nexus();
 			      out.add(word_nex, 0, word_nex->vector_width());

@@ -3387,6 +3387,8 @@ class NetCondit  : public NetProc {
 
       NetProc* if_clause();
       NetProc* else_clause();
+      const NetProc* if_clause() const;
+      const NetProc* else_clause() const;
 
 	// Replace the condition expression.
       void set_expr(NetExpr*ex);

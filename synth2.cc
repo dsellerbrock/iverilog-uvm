@@ -416,6 +416,44 @@ static NetNet*mask_synthesized_process_output(
       return result;
 }
 
+static NetNet*synthesize_array_word_match(
+		Design*des, NetScope*scope, const LineInfo&loc,
+		NetNet*word_select, unsigned long word)
+{
+      unsigned width = word_select->vector_width();
+      ivl_assert(loc, width > 0);
+
+      NetConst*constant = new NetConst(scope, scope->local_symbol(),
+				      verinum(static_cast<uint64_t>(word), width));
+      constant->set_line(loc);
+      des->add_node(constant);
+
+      const netvector_t*constant_type = new netvector_t(
+		IVL_VT_LOGIC, width-1, 0);
+      NetNet*constant_signal = new NetNet(
+		scope, scope->local_symbol(), NetNet::WIRE, constant_type);
+      constant_signal->local_flag(true);
+      constant_signal->set_line(loc);
+      connect(constant_signal->pin(0), constant->pin(0));
+
+	// A run-time array index containing X or Z selects no word for an
+	// l-value update. Case equality makes every decoder output a definite
+	// zero in that case instead of propagating X into a flip-flop enable.
+      NetCaseCmp*compare = new NetCaseCmp(scope, scope->local_symbol(),
+					 width, NetCaseCmp::EEQ);
+      compare->set_line(loc);
+      des->add_node(compare);
+      connect(compare->pin(1), word_select->pin(0));
+      connect(compare->pin(2), constant_signal->pin(0));
+
+      NetNet*match = new NetNet(scope, scope->local_symbol(), NetNet::WIRE,
+				&netvector_t::scalar_logic);
+      match->local_flag(true);
+      match->set_line(loc);
+      connect(match->pin(0), compare->pin(0));
+      return match;
+}
+
 bool NetProcTop::tie_off_floating_inputs_(Design*des,
 					  NexusSet&nex_map, NetBus&nex_in,
 					  const vector<NetProc::mask_t>&bitmasks,
@@ -764,7 +802,7 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
       bool lval_has_word = lval_->word() != 0;
       unsigned lval_word = 0;
       if (lval_has_word) {
-	    const NetExpr*word_expr = lval_->word();
+	    NetExpr*word_expr = lval_->word();
 	    NetExpr*word_result = 0;
 	    const NetExpr*word_value = word_expr;
 	    if (!dynamic_cast<const NetEConst*>(word_expr)
@@ -778,11 +816,52 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 	    bool constant_word = eval_as_long(word_index, word_value);
 	    delete word_result;
 	    if (!constant_word) {
-		  cerr << get_fileline() << ": sorry: Assignment to run-time "
-			  "selected memory word is not currently supported in "
-			  "synthesis." << endl;
-		  des->errors += 1;
-		  return false;
+		  if (lval_->get_base()
+		      || lval_->lwidth() != lsig->vector_width()) {
+			cerr << get_fileline() << ": sorry: Assignment to a "
+				  "packed select of a run-time selected memory "
+				  "word is not currently supported in synthesis."
+			     << endl;
+			des->errors += 1;
+			return false;
+		  }
+
+		  NetNet*word_select = word_expr->synthesize(des, scope,
+							 word_expr);
+		  if (!word_select || word_select->pin_count() != 1) {
+			cerr << get_fileline() << ": error: unable to synthesize "
+				  "run-time memory word select." << endl;
+			des->errors += 1;
+			return false;
+		  }
+
+		    // Lower a variable word write to one data input per possible
+		    // array word and a decoded enable. In synchronous logic the
+		    // enables become per-word flip-flop enables; enclosing if/case
+		    // conditions are combined by the ordinary enable machinery.
+		  ivl_assert(*this, rsig->pin_count() == 1);
+		  for (unsigned word = 0; word < lsig->pin_count(); word += 1) {
+			Nexus*word_nex = lsig->pin(word).nexus();
+			NexusSet word_set;
+			word_set.add(word_nex, 0, word_nex->vector_width());
+			unsigned ptr = nex_map.find_nexus(word_set[0]);
+			ivl_assert(*this, ptr < nex_out.pin_count());
+			ivl_assert(*this, ptr < enables.pin_count());
+			ivl_assert(*this, ptr < bitmasks.size());
+			ivl_assert(*this,
+				   nex_map[ptr].wid == word_nex->vector_width());
+
+			NetNet*match = synthesize_array_word_match(
+			      des, scope, *this, word_select, word);
+			nex_out.pin(ptr).unlink();
+			enables.pin(ptr).unlink();
+			connect(nex_out.pin(ptr), rsig->pin(0));
+			connect(enables.pin(ptr), match->pin(0));
+			bitmasks[ptr] = mask_t(word_nex->vector_width(), true);
+		  }
+
+		  lval_->turn_sig_to_wire_on_release();
+		  return true;
 	    }
 	    if (word_index < 0
 		|| static_cast<unsigned long>(word_index) >= lsig->pin_count()) {
@@ -2832,6 +2911,55 @@ class synth2_validate_f : public functor_t {
       set<Nexus*> reported_nexuses_;
 };
 
+static bool synth_constant_boolean(const NetExpr*expr, bool&value)
+{
+      verinum constant;
+      if (const NetEConst*number = dynamic_cast<const NetEConst*>(expr)) {
+	    constant = number->value();
+      } else if (const NetESignal*signal =
+		       dynamic_cast<const NetESignal*>(expr)) {
+	    if (signal->word_index() || signal->sig()->pin_count() != 1)
+		  return false;
+	    const Nexus*nexus = signal->sig()->pin(0).nexus();
+	    if (!nexus->drivers_constant())
+		  return false;
+	    constant = nexus->driven_vector();
+      } else {
+	    return false;
+      }
+
+      if (!constant.is_defined())
+	    return false;
+      value = !constant.is_zero();
+      return true;
+}
+
+static bool process_is_statically_inert(const NetProc*statement)
+{
+      if (!statement)
+	    return true;
+
+      if (const NetBlock*block = dynamic_cast<const NetBlock*>(statement)) {
+	    for (const NetProc*cur = block->proc_first(); cur;
+		 cur = block->proc_next(cur)) {
+		  if (!process_is_statically_inert(cur))
+			return false;
+	    }
+	    return true;
+      }
+
+      if (const NetCondit*condition =
+		       dynamic_cast<const NetCondit*>(statement)) {
+	    bool take_true = false;
+	    if (!synth_constant_boolean(condition->expr(), take_true))
+		  return false;
+	    return process_is_statically_inert(
+		  take_true ? condition->if_clause() : condition->else_clause());
+      }
+
+      return false;
+}
+
 
 /*
  * Look at a process. If it is asynchronous, then synthesize it as an
@@ -2841,6 +2969,17 @@ void synth2_f::process(Design*des, NetProcTop*top)
 {
       if (top->attribute(perm_string::literal("ivl_synthesis_off")).as_ulong() != 0)
 	    return;
+
+	// A generate/preprocessor-surviving initial block can become an empty
+	// hardware process after parameter folding, as in OpenTitan's optional
+	// memory preload helper when MemInitFile is empty. Drop only a process
+	// whose statically chosen path contains no statement; a live initial
+	// block (including a nonempty $readmemh path) remains diagnosed.
+      if (top->type() == IVL_PR_INITIAL
+	  && process_is_statically_inert(top->statement())) {
+	    des->delete_process(top);
+	    return;
+      }
 
 	/* If the scope that contains this process as a cell attribute
 	   attached to it, then skip synthesis. */
