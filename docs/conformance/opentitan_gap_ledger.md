@@ -949,6 +949,144 @@ asynchronous-load synthesis rejection in 253.606 seconds. None of those four
 logs contains the former packed-loop/latch diagnostic, and every record retains
 `security_vulnerability=false`.
 
+## G39 — loop-index-constant reset branches were mistaken for asynchronous data loads — **fixed** (current upstream campaign)
+
+*9.2.2.4 / constant folding / synthesis lowering [general] — contextually constant reset selection in unrolled procedural loops.*
+
+The v33 whole-RTL census completed all 267 candidates at OpenTitan revision
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19`: 63 `PASS`, 153
+`DEPENDENCY_ONLY`, 31 `FAIL`, 9 `COMPILE_TIMEOUT`, 6 `SETUP_FAIL`, and 5
+`DEBT`. Its 204 non-pass records partition exhaustively into 11 compiler/IEEE
+defects, 4 synthesis-lowering defects, 5 semantic-debt records, 9 bounded
+timeouts, 22 provider/source-list/top-selection harness defects, and 153
+dependency-only cores. Every record explicitly has
+`security_vulnerability=false`.
+
+The v33 evidence is under
+`matrix/full-7a3ad34/rtl-v33/opentitan-matrix.json` and
+`matrix/full-7a3ad34/rtl-v33/opentitan-matrix.md`. Their SHA-256 fingerprints
+are respectively
+`89d8f1f7c64ca2b58ab934379801345d5f2b0c3cce1adef2ae524557cd003df2`
+and
+`5e95e46ebbe1525d8ae25ca99f5a627bb36c0e9fb30cd235520a1afaf344ee18`.
+The frozen compiler engine fingerprint is
+`287c40f65ff77e90c2c7c50521fa6d2ea0f95587f6461f70e09c510b4cae8cd0`.
+The report metadata records the OpenTitan worktree as dirty, so this is pinned
+revision and binary evidence rather than a pristine-source claim.
+
+Two of the four v33 synthesis-lowering failures were the Earl Grey and English
+Breakfast `pinmux` cores. Both stopped at the generated reset process with
+`Asynchronous load is not currently supported in synthesis`, followed by the
+synchronous-process and `always_*` fallback diagnostics. Earl Grey exited 3
+after 89.996 seconds with three hard diagnostics; English Breakfast exited 3
+after 69.643 seconds with the same three diagnostics. Neither result timed out
+or carried semantic debt.
+
+The asynchronous reset branch initializes each packed pad attribute inside a
+procedural loop. Its condition compares the unrolled loop index against a
+packed-structure parameter, so the selected reset value is constant in every
+iteration. The loop synthesizer already retained the contextual value of the
+index, but conditional synthesis still built a run-time mux between the two
+constant reset clauses. The asynchronous-storage recognizer did not treat that
+mux as a constant reset driver and consequently misclassified it as an
+asynchronous data load.
+
+Conditional synthesis now checks whether the condition can be folded using
+constants and the active unrolled-loop context. Loop locals are recognized by
+the identity of their elaborated `NetNet`, then mapped to the corresponding
+context value; matching a signal merely by basename is insufficient. The
+aggregate identity map remains on the process synthesis scope, while a scoped
+guard mirrors the active entry into the index declaration scope for expression
+evaluation and restores it before the iteration value is replaced. This covers
+both a loop local declared below the process scope and an ancestor-declared
+index used by a process in a generate child. When evaluation produces a defined
+constant, synthesis follows only the selected clause instead of retaining a
+mux. A run-time signal, an unknown result, or an unsupported expression form
+retains the existing run-time path and its asynchronous-load rejection
+boundary.
+
+`synth_loop_constant_async_reset.v` models the OpenTitan packed configuration
+parameter, packed pad-attribute array, assignment-pattern reset value, and
+loop-index comparison. It value-checks the selected reset element and
+independently enabled updates. `synth_runtime_async_load_reject.v` deliberately
+gives a module input and the procedural loop local the same basename,
+`index`, then references the run-time input as `main.index`. Signal-identity
+matching keeps that reference dynamic and preserves the expected
+asynchronous-data-load compile rejection.
+
+`synth_nested_loop_shadow_index.v` exercises two distinct active loop variables
+with the same basename. It value-checks both scope directions: an outer local
+declared below the process synthesis scope, and a module-scope outer index used
+by an `always_comb` in a generate child. The latter was an independently
+confirmed silent counterexample before the declaration-scope guard: ordinary
+execution produced `1010`, while `-S` produced `1000`. The same test also
+reuses the module-scope index in a later, non-nested loop to prove restoration.
+`synth_loop_unknown_async_reset.v` makes a context-only condition evaluate to
+X and preserves the expected asynchronous-load rejection rather than choosing
+a branch accidentally.
+
+Final local validation passed `make check` and the complete vendored regression
+with `Total=3356`, `Passed=3351`, `Failed=0`, `Not Implemented=2`, and
+`Expected Fail=3`.
+
+The final frozen-binary two-core `context-constant-pinmux-v38` replay is
+`PASS=2`. Earl Grey compiles in 65.029 seconds and English Breakfast in 55.806
+seconds; both exit 0 with zero hard errors, zero semantic debt, no timeout, and
+`security_vulnerability=false`. The compiler engine fingerprint is
+`00650942adb5412768247ddc0f3c134bc5ec1690aaae623ec22a8b69bfdfc35c`;
+the driver fingerprint is
+`1fa9b330b6aefd694e41b2699db956b208ffedcf60b5c615d38084aa47e60500`.
+
+The focused evidence is under
+`matrix/full-7a3ad34/context-constant-pinmux-v38/opentitan-matrix.json` and
+`matrix/full-7a3ad34/context-constant-pinmux-v38/opentitan-matrix.md`, whose
+SHA-256 fingerprints are respectively
+`c08d35fa16d513ba88a67bd933e8b8e5aaca3729e629480a9e4e3dd2f935fd81`
+and
+`91ed8cab38a9456f314722b718572da128973f03e96a67c0baffc7d4fc98dd48`.
+
+The companion final-engine English Breakfast top replay completes rather than
+failing at `pinmux` or timing out. It exits 0 after 186.627 seconds with no hard
+error and no timeout, but remains `DEBT` because of four independent findings:
+two `sram_ctrl` configuration-port width mismatches (416 versus 13 and 32
+versus 1), one unsynthesized Ibex process, and the AES `hw2reg` `uwire` with 28
+drivers. The record has `security_vulnerability=false` and contains no pinmux
+asynchronous-load diagnostic. Its JSON and Markdown evidence are under
+`matrix/full-7a3ad34/context-constant-pinmux-v38-eb-top/`; their SHA-256
+fingerprints are respectively
+`d811ecf7df4346369f8a48730944a025674fda6aa57c53b833abfc633dcb8000`
+and
+`b735c86af35bfb7c8df2653b63f5630193343584003388cd1c0c7edc0633bade`.
+
+These focused transitions retire two of the four v33 synthesis-lowering
+records. Applying only those transitions arithmetically would produce 65
+`PASS` and 29 `FAIL`, with the other v33 counts unchanged, but that projection
+is not a replacement for a fresh whole-corpus census. It also does not
+reclassify the remaining OTBN width assertion and RRAM array-parameter
+part-select defects.
+
+## G40 — nested synthesis loops sharing one index require shared-state propagation — **diagnosed; explicit rejection remains** (current upstream campaign)
+
+*12.7 / procedural loops / synthesis lowering [general] — one variable reused
+as the control variable of active nested loops.*
+
+A legal nested loop can reuse the exact same `integer` as both control
+variables. The inner loop then changes the outer loop's state, but the current
+unroller represents the two active iterations independently. During the G39
+identity review, an intermediate exact-identity implementation made that
+divergence observable as a silent X result. A first local rejection also
+exposed that `NetForLoop::synth_async` ignored a false return from a nested body
+and allowed code generation to reach an internal assertion.
+
+Synthesis now detects an already-active exact `NetNet` before evaluating the
+nested loop initializer or condition and emits an explicit unsupported
+diagnostic. A failed nested body is propagated after restoring all loop and
+genvar context, so compilation terminates normally instead of asserting.
+`synth_nested_loop_same_index_reject.v` documents the ordinary language
+behavior and proves the expected `-S` compile rejection. This is not an IEEE
+conformance pass: full modeling of the inner loop's terminal value as the
+enclosing loop's live state remains open.
+
 ---
 
 ## Two measurement traps worth remembering

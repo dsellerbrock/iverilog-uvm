@@ -1410,6 +1410,7 @@ class NetScope : public Definitions, public Attrib {
       std::map<perm_string,LocalVar> loop_index_tmp;
       NetNet*loop_index_net_tmp;
       std::map<NetNet*,perm_string> loop_index_nets_tmp;
+      std::map<NetNet*,LocalVar> loop_index_values_tmp;
 
     private:
       void class_definitions_changed_() override;

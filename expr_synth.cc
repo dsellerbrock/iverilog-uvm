@@ -1457,15 +1457,12 @@ NetNet* NetETernary::synthesize(Design *des, NetScope*scope, NetExpr*root)
  */
 NetNet* NetESignal::synthesize(Design*des, NetScope*scope, NetExpr*root)
 {
-	// If this is a synthesis with a specific value for the
-	// signal, then replace it (here) with a constant value.
-      map<NetNet*,perm_string>::const_iterator loop_net =
-	    scope->loop_index_nets_tmp.find(net_);
-      map<perm_string,LocalVar>::const_iterator loop_value =
-	    loop_net == scope->loop_index_nets_tmp.end()
-		  ? scope->loop_index_tmp.end()
-		  : scope->loop_index_tmp.find(loop_net->second);
-      if (loop_value != scope->loop_index_tmp.end()
+	// If this exact signal is an active unrolled procedural-loop index,
+	// replace it with the iteration value instead of matching a possibly
+	// shadowed basename.
+      map<NetNet*,LocalVar>::const_iterator loop_value =
+	    scope->loop_index_values_tmp.find(net_);
+      if (loop_value != scope->loop_index_values_tmp.end()
 	  && loop_value->second.nwords == 0
 	  && loop_value->second.value) {
 	    NetNet*tmp = loop_value->second.value->synthesize(

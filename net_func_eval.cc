@@ -1345,37 +1345,53 @@ NetExpr* NetESignal::evaluate_function(const LineInfo&loc,
 	    }
       };
 
-      map<perm_string,LocalVar>::iterator ptr = context_map.find(name());
-      if (ptr == context_map.end()) {
-	    if (gn_system_verilog() && strcmp(name(), "@") == 0) {
-		  NetExpr*res = make_type_default();
-		  if (res) {
-			res->set_line(*this);
-			return res;
+      const LocalVar*var = 0;
+	// Synthesis may have multiple active procedural-loop indices with the
+	// same basename. Prefer their exact signal identities to the ordinary
+	// name-keyed constant-function context so a qualified outer reference is
+	// not evaluated with a shadowing inner value. NetForLoop mirrors its exact
+	// entry into the declaration scope while the iteration body is active.
+      for (const NetScope*cur_scope = net_ ? net_->scope() : 0;
+	   cur_scope && !var; cur_scope = cur_scope->parent()) {
+	    map<NetNet*,LocalVar>::const_iterator exact =
+		  cur_scope->loop_index_values_tmp.find(net_);
+	    if (exact != cur_scope->loop_index_values_tmp.end())
+		  var = &exact->second;
+      }
+
+      if (!var) {
+	    map<perm_string,LocalVar>::iterator ptr = context_map.find(name());
+	    if (ptr == context_map.end()) {
+		  if (gn_system_verilog() && strcmp(name(), "@") == 0) {
+			NetExpr*res = make_type_default();
+			if (res) {
+			      res->set_line(*this);
+			      return res;
+			}
 		  }
+		  const NetScope*sig_scope = net_ ? net_->scope() : nullptr;
+		  if (gn_system_verilog() && sig_scope
+		      && (sig_scope->type() == NetScope::CLASS
+			  || sig_scope->type() == NetScope::PACKAGE)) {
+			// Compile-progress fallback for static class/package variables
+			// referenced from constant-function evaluation (e.g. UVM
+			// singleton/static handles). These are not in the local eval
+			// context map, but returning a typed placeholder preserves
+			// forward progress and exposes later semantic diagnostics.
+			NetExpr*res = make_type_default();
+			if (res) {
+			      res->set_line(*this);
+			      return res;
+			}
+		  }
+		  cerr << get_fileline() << ": error: Cannot evaluate " << name()
+		       << " in this context." << endl;
+		  return 0;
 	    }
-	    const NetScope*sig_scope = net_ ? net_->scope() : nullptr;
-	    if (gn_system_verilog() && sig_scope
-		&& (sig_scope->type() == NetScope::CLASS
-		    || sig_scope->type() == NetScope::PACKAGE)) {
-		  // Compile-progress fallback for static class/package variables
-		  // referenced from constant-function evaluation (e.g. UVM
-		  // singleton/static handles). These are not in the local eval
-		  // context map, but returning a typed placeholder preserves
-		  // forward progress and exposes later semantic diagnostics.
-			  NetExpr*res = make_type_default();
-			  if (res) {
-				res->set_line(*this);
-				return res;
-			  }
-		    }
-		    cerr << get_fileline() << ": error: Cannot evaluate " << name()
-			 << " in this context." << endl;
-	    return 0;
+	    var = &ptr->second;
       }
 
 	// Follow indirect references to the actual variable.
-      LocalVar*var = & ptr->second;
       while (var->nwords == -1) {
 	    ivl_assert(*this, var->ref);
 	    var = var->ref;

@@ -1,0 +1,4 @@
+./ivltests/synth_loop_unknown_async_reset.v:17: sorry: Asynchronous load is not currently supported in synthesis.
+./ivltests/synth_loop_unknown_async_reset.v:16: error: Unable to synthesize synchronous process.
+./ivltests/synth_loop_unknown_async_reset.v:16: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+3 error(s) in post-elaboration processing.

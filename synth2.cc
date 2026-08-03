@@ -354,6 +354,51 @@ class synth_write_mask_guard_t {
       synth_write_mask_context_t*saved_;
 };
 
+// NetESignal::evaluate_function starts at the referenced signal's declaration
+// scope. A synthesis process may live in a descendant generate scope, so keep
+// the active loop value reachable at both scopes without copying or owning the
+// expression itself. Exact NetNet keys preserve shadowed loop identities.
+class synth_loop_index_decl_guard_t {
+
+    public:
+      synth_loop_index_decl_guard_t(NetScope*process_scope, NetNet*index,
+				    const LocalVar&value)
+      : decl_scope_(index->scope()), index_(index),
+	active_(decl_scope_ != process_scope), had_saved_(false)
+      {
+	    if (!active_)
+		  return;
+
+	    map<NetNet*,LocalVar>&values =
+		  decl_scope_->loop_index_values_tmp;
+	    map<NetNet*,LocalVar>::iterator cur = values.find(index_);
+	    had_saved_ = cur != values.end();
+	    if (had_saved_)
+		  saved_ = cur->second;
+	    values[index_] = value;
+      }
+
+      ~synth_loop_index_decl_guard_t()
+      {
+	    if (!active_)
+		  return;
+
+	    map<NetNet*,LocalVar>&values =
+		  decl_scope_->loop_index_values_tmp;
+	    if (had_saved_)
+		  values[index_] = saved_;
+	    else
+		  values.erase(index_);
+      }
+
+    private:
+      NetScope*decl_scope_;
+      NetNet*index_;
+      bool active_;
+      bool had_saved_;
+      LocalVar saved_;
+};
+
 static void record_synthesized_write(const LineInfo&loc, Nexus*nexus,
 				     unsigned base, unsigned width)
 {
@@ -632,13 +677,21 @@ bool NetProc::synth_async(Design*, NetScope*, NexusSet&, NetBus&, NetBus&, vecto
  * unrolled loop index quietly, while preserving a dynamic l-value index such
  * as vec[index_signal][loop_index]. */
 static bool synth_context_constant(const NetExpr*expr,
-				   const map<perm_string,LocalVar>&context)
+				   const map<NetNet*,LocalVar>&context)
 {
       if (dynamic_cast<const NetEConst*>(expr))
 	    return true;
 
       if (const NetESignal*sig = dynamic_cast<const NetESignal*>(expr)) {
-	    if (context.find(sig->name()) == context.end())
+	    map<NetNet*,LocalVar>::const_iterator loop_net = context.end();
+	    for (map<NetNet*,LocalVar>::const_iterator cur = context.begin();
+		 cur != context.end(); ++cur) {
+		  if (cur->first == sig->sig()) {
+			loop_net = cur;
+			break;
+		  }
+	    }
+	    if (loop_net == context.end())
 		  return false;
 	    return !sig->word_index()
 		  || synth_context_constant(sig->word_index(), context);
@@ -913,7 +966,8 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 	    NetExpr*word_result = 0;
 	    const NetExpr*word_value = word_expr;
 	    if (!dynamic_cast<const NetEConst*>(word_expr)
-		&& synth_context_constant(word_expr, scope->loop_index_tmp)) {
+		&& synth_context_constant(word_expr,
+					  scope->loop_index_values_tmp)) {
 		  word_result = word_expr->evaluate_function(*this,
 						 scope->loop_index_tmp);
 		  word_value = word_result;
@@ -1055,7 +1109,8 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 	    ivl_assert(*this, base_expr_raw);
 
 	    NetExpr*base_expr = 0;
-	    if (synth_context_constant(base_expr_raw, scope->loop_index_tmp))
+	    if (synth_context_constant(base_expr_raw,
+					 scope->loop_index_values_tmp))
 		  base_expr = base_expr_raw->evaluate_function(*this,
 							 scope->loop_index_tmp);
 
@@ -1988,6 +2043,30 @@ bool NetCondit::synth_async(Design*des, NetScope*scope,
       ivl_assert(*this, nex_map.size() == enables.pin_count());
       ivl_assert(*this, nex_map.size() == bitmasks.size());
 
+	// A procedural for-loop is unrolled during synthesis, so a condition
+	// that refers only to its index and parameters has one constant value in
+	// each iteration. Select that clause now instead of retaining a mux. In
+	// particular, a mux between two constant asynchronous-reset values is not
+	// itself recognized as a constant driver and is consequently mistaken for
+	// an unsupported asynchronous data load.
+      if (synth_context_constant(expr_, scope->loop_index_values_tmp)) {
+	    NetExpr*constant_expr =
+		  expr_->evaluate_function(*this, scope->loop_index_tmp);
+	    const NetEConst*constant =
+		  dynamic_cast<const NetEConst*>(constant_expr);
+	    if (constant && constant->value().is_defined()) {
+		  const bool take_if = !constant->value().is_zero();
+		  delete constant_expr;
+		  NetProc*selected = take_if ? if_ : else_;
+		  if (!selected)
+			return true;
+		  return synth_async_block_substatement_(des, scope, nex_map,
+						     nex_out, enables,
+						     bitmasks, selected);
+	    }
+	    delete constant_expr;
+      }
+
 	// Synthesize the condition. This will act as a select signal
 	// for a binary mux.
       NetNet*ssig = expr_->synthesize(des, scope, expr_);
@@ -2220,6 +2299,18 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
 	    return false;
       }
 
+	// Re-entering an active loop with the exact same index variable changes
+	// that variable's value for the enclosing loop as well. The current
+	// unroller keeps independent iteration values, so reject this legal but
+	// unsupported case explicitly instead of silently using the outer value.
+      if (index_->scope()->loop_index_values_tmp.find(index_)
+	  != index_->scope()->loop_index_values_tmp.end()) {
+	    cerr << get_fileline() << ": sorry: Nested procedural "
+		 << "for-loops that reuse the same index variable are "
+		 << "not currently supported in synthesis." << endl;
+	    return false;
+      }
+
       ivl_assert(*this, index_ && init_expr_);
       if (debug_synth2) {
 	    cerr << get_fileline() << ": NetForLoop::synth_async: "
@@ -2247,6 +2338,8 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
       NetNet*saved_index_net = scope->loop_index_net_tmp;
       map<NetNet*,perm_string> saved_index_nets =
 	    scope->loop_index_nets_tmp;
+      map<NetNet*,LocalVar> saved_index_values =
+	    scope->loop_index_values_tmp;
       perm_string saved_genvar = scope->genvar_tmp;
       long saved_genvar_value = scope->genvar_tmp_val;
       map<perm_string,LocalVar> index_args = saved_index_args;
@@ -2287,12 +2380,28 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
 	    scope->loop_index_tmp = index_args;
 	    scope->loop_index_net_tmp = index_;
 	    scope->loop_index_nets_tmp[index_] = index_->name();
+	    scope->loop_index_values_tmp[index_] = index_var;
 
 	    NetBus tmp_ena (scope, nex_out.pin_count());
 	    vector<mask_t> tmp_masks (nex_out.pin_count());
 
-	    rc = synth_async_block_substatement_(des, scope, nex_map, nex_out,
-						 tmp_ena, tmp_masks, statement_);
+	    {
+		  synth_loop_index_decl_guard_t decl_guard(scope, index_,
+						       index_var);
+		  rc = synth_async_block_substatement_(des, scope, nex_map,
+						       nex_out, tmp_ena,
+						       tmp_masks, statement_);
+	    }
+	    if (!rc) {
+		  scope->loop_index_tmp = saved_index_args;
+		  scope->loop_index_net_tmp = saved_index_net;
+		  scope->loop_index_nets_tmp = saved_index_nets;
+		  scope->loop_index_values_tmp = saved_index_values;
+		  scope->genvar_tmp = saved_genvar;
+		  scope->genvar_tmp_val = saved_genvar_value;
+		  delete index_var.value;
+		  return false;
+	    }
 
 	    for (unsigned idx = 0 ; idx < nex_out.pin_count() ; idx += 1) {
 		  merge_sequential_masks(scope, enables.pin(idx), tmp_ena.pin(idx),
@@ -2304,6 +2413,7 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
 	    scope->loop_index_tmp = saved_index_args;
 	    scope->loop_index_net_tmp = saved_index_net;
 	    scope->loop_index_nets_tmp = saved_index_nets;
+	    scope->loop_index_values_tmp = saved_index_values;
 	    scope->genvar_tmp = saved_genvar;
 	    scope->genvar_tmp_val = saved_genvar_value;
 
@@ -2357,6 +2467,7 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
       scope->loop_index_tmp = saved_index_args;
       scope->loop_index_net_tmp = saved_index_net;
       scope->loop_index_nets_tmp = saved_index_nets;
+      scope->loop_index_values_tmp = saved_index_values;
       scope->genvar_tmp = saved_genvar;
       scope->genvar_tmp_val = saved_genvar_value;
 

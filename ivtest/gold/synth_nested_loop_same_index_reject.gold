@@ -1,0 +1,4 @@
+./ivltests/synth_nested_loop_same_index_reject.v:15: sorry: Nested procedural for-loops that reuse the same index variable are not currently supported in synthesis.
+./ivltests/synth_nested_loop_same_index_reject.v:12: error: Unable to synthesize asynchronous process.
+./ivltests/synth_nested_loop_same_index_reject.v:12: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+2 error(s) in post-elaboration processing.
