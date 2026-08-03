@@ -14,6 +14,9 @@ module main;
   logic [7:0] down_part_out;
   logic signed [3:0] signed_part_index;
   logic [7:0] signed_part_out;
+  logic signed [64:0] wide_signed_part_index;
+  logic [3:0] wide_part_data;
+  logic [1:0] wide_signed_part_out;
   logic [3:0] ranged_index;
   logic [15:8] ranged_out;
   logic [2:0] ascending_index;
@@ -39,6 +42,11 @@ module main;
   always_comb begin
     signed_part_out = 8'ha5;
     signed_part_out[signed_part_index +: 2] = 2'b01;
+  end
+
+  always_comb begin
+    wide_signed_part_out = '0;
+    wide_signed_part_out[wide_signed_part_index +: 4] = wide_part_data;
   end
 
   always_comb begin
@@ -94,6 +102,18 @@ module main;
     #1;
     if (signed_part_out !== 8'ha4)
       fail("partially negative out-of-range indexed part select");
+
+    wide_signed_part_index = -1;
+    wide_part_data = 4'b0110;
+    #1;
+    if (wide_signed_part_out !== 2'b11)
+      fail("wide signed negative indexed part select");
+
+    wide_signed_part_index = 0;
+    wide_part_data = 4'b0101;
+    #1;
+    if (wide_signed_part_out !== 2'b01)
+      fail("wide signed indexed part select");
 
     ranged_index = 4'd11;
     ascending_index = 3'd3;

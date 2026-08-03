@@ -868,6 +868,87 @@ Together, G36 and G37 move the final exact `runtime-memory-rv-core-v28`
 Darjeeling `rv_core_ibex` replay to `PASS` in 11.985 seconds, with exit 0, zero hard
 errors, zero semantic debt, no timeout and `security_vulnerability=false`.
 
+## G38 — loop-expanded packed-field writes were widened after synthesis — **fixed** (current upstream campaign)
+
+*9.2.2.2 / 10.6 / 11.5 / synthesis lowering [general] — exact write coverage and process ownership.*
+
+The v29 whole-RTL census completed all 267 candidates at the pinned upstream
+revision: 58 `PASS`, 153 `DEPENDENCY_ONLY`, 39 `FAIL`, 8
+`COMPILE_TIMEOUT`, 6 `SETUP_FAIL`, and 3 `DEBT`. Its 209 non-pass records
+partition exhaustively into 11 compiler/IEEE defects, 12 synthesis-lowering
+defects, 3 semantic-debt records, 8 bounded timeouts, 22 provider/source-list/
+top-selection harness defects, and 153 dependency-only cores. The highest-
+multiplicity synthesis family was a false bit-level-latch rejection in eight
+standalone cores and three larger top-level witnesses. Every record retains
+`security_vulnerability=false`.
+
+Generated OpenTitan register interfaces assign disjoint packed fields in
+separate `always_comb` processes, often inside procedural loops. The loop
+unroller resolved every index and produced the right data substitutions and
+per-bit driven masks. Process ownership was nevertheless collected later by
+walking the original statement after the loop context had been restored, so a
+field such as `aggregate.fields[i].d` conservatively expanded to the complete
+packed nexus. The top-level latch check then mistook legal unconditional field
+writes for independently enabled partial writes.
+
+Synthesis now records a separate may-write mask while each assignment is
+lowered, when loop indices, unpacked words, and packed bases have their actual
+contextual values. The same exact mask controls floating-input tie-off,
+process-output Z masking, and global same-bit ownership claims. Guaranteed-
+write masks remain deliberately stricter: sequential statements with the same
+enable can union their bits, distinct enables retain only their intersection,
+and an unconditional statement contributes only its own guaranteed bits.
+Run-time packed selects therefore still require unsupported bit-level latch
+enables unless a whole-vector default covers them.
+
+Boundary handling is exact rather than width-based. A syntactic packed select
+is recognized from its base expression even when its width equals the target;
+constant partial overlaps are clipped, wholly out-of-range selects are no-ops,
+and run-time selects contribute no guaranteed bits. A selected part may be
+wider than its target, including a four-bit write clipped into a two-bit
+vector. Decoder constants preserve negative values for signed selectors wider
+than 64 bits. Contextually constant X/Z packed indices and unpacked-memory word
+indices are exact no-ops rather than being converted to index zero; the memory
+path still performs the l-value release bookkeeping needed to preserve earlier
+real writes. Concatenated l-values preserve earlier output, enable, and mask
+state when a later element is a no-op or run-time select.
+
+`synth_packed_loop_disjoint_fields.v`,
+`synth_clipped_constant_part_select.v`,
+`synth_concat_select_write_masks.v`,
+`synth_common_latch_enable.v`, `synth_noop_packed_write.v`, and the expanded
+`synth_variable_packed_lvalue.v` value-check the positive shapes in ordinary
+and `-S` execution. The no-op test includes fully out-of-range four-bit
+combinational and flip-flop writes plus constant X/Z packed and memory indices,
+both after defaults and in standalone processes. The variable-select test
+includes a 65-bit signed negative index. `synth_packed_loop_overlap_reject.v`,
+`synth_sequential_partial_latch_reject.v`,
+`synth_variable_partial_latch_reject.v`,
+`synth_variable_full_width_latch_reject.v`, and
+`synth_noop_partial_latch_reject.v` preserve genuine overlap and bit-level-
+latch rejection boundaries.
+
+Final local validation passed `make check` and the complete vendored regression
+with `Total=3351`, `Passed=3346`, `Failed=0`, `Not Implemented=2`, and
+`Expected Fail=3`.
+
+The frozen-binary seven-core `packed-loop-write-masks-v32-quick` replay removes
+the false latch diagnostic from every focused family witness. HMAC, full and
+reduced KMAC, USBDEV, and Earl Grey sensor control are `PASS`; AES reaches only
+its independent `uwire` ownership debt, and DMA reaches only its independent
+`wdata_intg_i` width debt. All seven compiles exit 0 without timeout or hard
+error, and every result has `security_vulnerability=false`. The compiler engine
+fingerprint is
+`287c40f65ff77e90c2c7c50521fa6d2ea0f95587f6461f70e09c510b4cae8cd0`.
+
+The companion exact replays remain bounded non-pass evidence, not clean-corpus
+claims. CSRNG 0.1 produces no diagnostic before its 600.077-second compile
+timeout. Darjeeling and Earl Grey likewise time out after 600.566 and 600.261
+seconds; English Breakfast advances to the separately classified `pinmux`
+asynchronous-load synthesis rejection in 253.606 seconds. None of those four
+logs contains the former packed-loop/latch diagnostic, and every record retains
+`security_vulnerability=false`.
+
 ---
 
 ## Two measurement traps worth remembering

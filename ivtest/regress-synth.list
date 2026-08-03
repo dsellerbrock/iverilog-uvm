@@ -146,10 +146,15 @@ ssetclr2		normal			ivltests
 ssetclr3		normal			ivltests
 synth_always_comb_constant normal,-g2012	ivltests
 synth_always_latch_intent normal,-g2012	ivltests
+synth_common_latch_enable normal,-g2012	ivltests
 synth_disjoint_partial_async_reset normal,-g2012	ivltests
 synth_disjoint_packed_processes normal,-g2012	ivltests
 synth_inert_initial normal,-g2012	ivltests
 synth_mixed_async_reset_outputs normal,-g2012	ivltests
+synth_clipped_constant_part_select normal,-g2012	ivltests
+synth_concat_select_write_masks normal,-g2012	ivltests
+synth_noop_packed_write normal,-g2012	ivltests
+synth_packed_loop_disjoint_fields normal,-g2012	ivltests
 synth_partial_async_reset_reject CE,-g2012	ivltests
 synth_contextual_array_word normal,-g2012	ivltests
 synth_runtime_memory_partial_reject CE,-g2012	ivltests
