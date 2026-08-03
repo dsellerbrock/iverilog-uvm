@@ -232,6 +232,15 @@ static bool all_bits_driven(const NetProc::mask_t&mask)
       return true;
 }
 
+static bool any_bits_driven(const NetProc::mask_t&mask)
+{
+      for (unsigned idx = 0; idx < mask.size(); idx += 1) {
+	    if (mask[idx])
+		  return true;
+      }
+      return false;
+}
+
 static void collect_process_write_masks(
 		NetProc*statement, NexusSet&output_map,
 		vector<NetProc::mask_t>&write_masks)
@@ -350,6 +359,61 @@ static void connect_synthesized_process_output(
       des->add_node(driver);
       connect(driver->pin(0), output);
       connect(driver->pin(1), input);
+}
+
+static NetNet*mask_synthesized_process_output(
+		Design*des, NetScope*scope, const LineInfo&loc,
+		NetNet*source, const NetProc::mask_t&write_mask)
+{
+      unsigned width = source->vector_width();
+      ivl_assert(loc, write_mask.size() == width);
+      if (all_bits_driven(write_mask))
+	    return source;
+
+	// A process that owns only part of a packed variable must drive Z on
+	// every other bit so disjoint synthesized processes compose. Build the
+	// masked vector from contiguous owned ranges to avoid one node per bit.
+      NetNet*result = make_const_z(des, scope, width);
+      for (unsigned base = 0; base < width;) {
+	    while (base < width && !write_mask[base])
+		  base += 1;
+	    if (base == width)
+		  break;
+
+	    unsigned end = base + 1;
+	    while (end < width && write_mask[end])
+		  end += 1;
+	    unsigned part_width = end - base;
+
+	    NetPartSelect*select = new NetPartSelect(
+		  source, base, part_width, NetPartSelect::VP);
+	    select->set_line(loc);
+	    des->add_node(select);
+
+	    const netvector_t*part_type = new netvector_t(
+		  source->data_type(), part_width-1, 0);
+	    NetNet*part = new NetNet(scope, scope->local_symbol(),
+			       NetNet::WIRE, part_type);
+	    part->local_flag(true);
+	    part->set_line(loc);
+	    connect(part->pin(0), select->pin(0));
+
+	    const netvector_t*result_type = new netvector_t(
+		  source->data_type(), width-1, 0);
+	    NetNet*next = new NetNet(scope, scope->local_symbol(),
+			       NetNet::WIRE, result_type);
+	    next->local_flag(true);
+	    next->set_line(loc);
+	    NetSubstitute*substitute = new NetSubstitute(
+		  result, part, width, base);
+	    substitute->set_line(loc);
+	    des->add_node(substitute);
+	    connect(next->pin(0), substitute->pin(0));
+	    result = next;
+	    base = end;
+      }
+
+      return result;
 }
 
 bool NetProcTop::tie_off_floating_inputs_(Design*des,
@@ -2338,23 +2402,46 @@ bool NetCondit::synth_sync(Design*des, NetScope*scope,
 	    ivl_assert(*this, if_);
 	    NetBus tmp_out(scope, nex_out.pin_count());
 	    NetBus tmp_ena(scope, nex_out.pin_count());
+	    NetBus tmp_in(scope, nex_out.pin_count());
+	    for (unsigned pin = 0; pin < tmp_in.pin_count(); pin += 1)
+		  connect(tmp_in.pin(pin), tmp_out.pin(pin));
 	    vector<mask_t> tmp_masks (nex_out.pin_count());
 	    bool flag = if_->synth_async(des, scope, nex_map, tmp_out, tmp_ena, tmp_masks);
 	    if (!flag) return false;
+	    vector<mask_t> conditional_write_masks(nex_map.size());
+	    collect_process_write_masks(this, nex_map,
+				    conditional_write_masks);
 
 	    ivl_assert(*this, tmp_out.pin_count() == ff_aclr.pin_count());
 	    ivl_assert(*this, tmp_out.pin_count() == ff_aset.pin_count());
+	    vector<bool> unreset_outputs(tmp_out.pin_count(), false);
 
 	    for (unsigned pin = 0 ; pin < tmp_out.pin_count() ; pin += 1) {
 		  const Nexus*rst_nex = tmp_out.pin(pin).nexus();
+		  if (!any_bits_driven(tmp_masks[pin])) {
+			unreset_outputs[pin] = true;
+			continue;
+		  }
 
-		  if (!all_bits_driven(tmp_masks[pin])) {
-			cerr << get_fileline() << ": sorry: Not all bits of '"
+		  if (!all_process_writes_are_driven(
+			tmp_masks[pin], conditional_write_masks[pin])) {
+			cerr << get_fileline() << ": sorry: Not all bits written "
+			     << "by this process to '"
 			     << nex_map[pin].lnk.nexus()->pick_any_net()->name()
 			     << "' are asynchronously set or reset. This is "
 			     << "not currently supported in synthesis." << endl;
 			des->errors += 1;
 			return false;
+		  }
+
+		    // A partial packed write is represented by a substitute node
+		    // whose untouched input starts floating. Tie that input low so
+		    // the complete reset vector is constant; the process-output mask
+		    // later hides these non-owned bits from the shared variable.
+		  if (!all_bits_driven(tmp_masks[pin])
+		      && tmp_in.pin(pin).nexus()->has_floating_input()) {
+			NetNet*zero = make_const_0(des, scope, nex_map[pin].wid);
+			connect(tmp_in.pin(pin), zero->pin(0));
 		  }
 
 		  if (! rst_nex->drivers_constant() ||
@@ -2405,10 +2492,27 @@ bool NetCondit::synth_sync(Design*des, NetScope*scope,
 		  if (jdx != idx)
 			events.push_back(events_in[jdx]);
 	    }
-	    return else_->synth_sync(des, scope,
-				     ff_negedge, ff_clk, ff_ce,
-				     ff_aclr, ff_aset, ff_aset_value,
-				     nex_map, nex_out, bitmasks, events);
+	    bool else_flag = else_->synth_sync(des, scope,
+					 ff_negedge, ff_clk, ff_ce,
+					 ff_aclr, ff_aset, ff_aset_value,
+					 nex_map, nex_out, bitmasks, events);
+	    if (!else_flag)
+		  return false;
+
+	      // An output omitted from the asynchronous branch is an ordinary
+	      // unreset flip-flop in the same process. It may update only while
+	      // the reset condition is false, including clocks that occur while
+	      // reset remains asserted.
+	    NetBus qualified_ce(scope, ff_ce.pin_count());
+	    for (unsigned pin = 0; pin < ff_ce.pin_count(); pin += 1) {
+		  if (!unreset_outputs[pin] || !ff_ce.pin(pin).is_linked())
+			continue;
+		  qualify_enable(des, scope, rst, false, NetLogic::AND,
+				 ff_ce.pin(pin), qualified_ce.pin(pin));
+		  ff_ce.pin(pin).unlink();
+		  connect(ff_ce.pin(pin), qualified_ce.pin(pin));
+	    }
+	    return true;
       }
 
       delete expr_input;
@@ -2602,6 +2706,8 @@ bool NetProcTop::synth_sync(Design*des)
       NexusSet nex_set;
       statement_->nex_output(nex_set);
       vector<verinum> aset_value(nex_set.size());
+      vector<NetProc::mask_t> process_write_masks(nex_set.size());
+      collect_process_write_masks(statement_, nex_set, process_write_masks);
 
 	/* Make a model FF that will connect to the first item in the
 	   set, and will also take the initial connection of clocks
@@ -2671,7 +2777,17 @@ bool NetProcTop::synth_sync(Design*des)
 
 	    tmp = crop_to_width(des, tmp, ff2->width());
 
-	    connect(nex_q.pin(idx), ff2->pin_Q());
+	    const netvector_t*q_type = new netvector_t(
+		  nex_set[idx].lnk.nexus()->pick_any_net()->data_type(),
+		  ff2->width()-1, 0);
+	    NetNet*q_value = new NetNet(scope(), scope()->local_symbol(),
+				   NetNet::WIRE, q_type);
+	    q_value->local_flag(true);
+	    q_value->set_line(*this);
+	    connect(q_value->pin(0), ff2->pin_Q());
+	    NetNet*process_output = mask_synthesized_process_output(
+		  des, scope(), *this, q_value, process_write_masks[idx]);
+	    connect(nex_q.pin(idx), process_output->pin(0));
 	    connect(tmp->pin(0),    ff2->pin_Data());
 
 	    connect(clock->pin(0),  ff2->pin_Clock());

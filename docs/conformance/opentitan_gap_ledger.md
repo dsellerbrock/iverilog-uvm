@@ -788,6 +788,39 @@ updates in ordinary and `-S` execution. The exact `nested-sha3-v20` OpenTitan
 replay is `PASS` in 0.263 seconds, with exit 0, zero hard errors, zero semantic
 debt, no timeout and `security_vulnerability=false`.
 
+## G35 — asynchronous-reset synthesis required every bit of a shared packed variable — **fixed** (current upstream campaign)
+
+*9.2.2.4 / synthesis lowering [general] — disjoint sequential ownership and mixed reset behavior.*
+
+The synchronous-process pass created one full-width flip-flop for every
+process touching a packed variable and required each asynchronous branch to
+assign every bit of that variable. OpenTitan legitimately uses generated
+`always_ff` processes that own disjoint static fields, and also groups reset
+and unreset flops in one process. The first shape was rejected as a partial
+reset even when every bit owned by that process was reset. The second was
+rejected when an output was intentionally omitted from the reset branch.
+
+Reset coverage is now checked against the exact static bits written by the
+conditional process. A synthesized flip-flop output is masked to Z outside
+its process-owned fields, so disjoint sequential drivers compose without
+claiming or changing neighboring fields. An output wholly omitted from the
+asynchronous branch is modeled as an unreset flip-flop whose clock enable is
+qualified by reset deassertion; it therefore holds both on the reset edge and
+on clocks while reset remains asserted. A nonempty reset that covers only
+some bits owned by the same process remains an explicit error.
+
+`synth_disjoint_partial_async_reset.v` value-checks two field owners through
+reset, simultaneous updates and an enabled/held split.
+`synth_mixed_async_reset_outputs.v` checks a reset and unreset output in one
+process, including a clock while reset is active.
+`synth_partial_async_reset_reject.v` preserves the genuine partial-reset
+negative boundary. All positive checks pass in ordinary and `-S` execution.
+The exact `partial-reset-gpio-v22` and `mixed-reset-edn-v25` OpenTitan replays
+are `PASS` in 0.478 and 1.463 seconds respectively, with exit 0, zero hard
+errors, zero semantic debt, no timeout and `security_vulnerability=false`.
+The Darjeeling `rv_core_ibex` witness drops from 11 hard diagnostics to the two
+separately tracked run-time RAM-word diagnostics.
+
 ---
 
 ## Two measurement traps worth remembering
