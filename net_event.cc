@@ -280,7 +280,21 @@ NexusSet* NetEvent::nex_async_()
 
 	    for (unsigned idx = 0 ;  idx < cur->pin_count() ;  idx += 1) {
 		  Nexus*nex = cur->pin(idx).nexus();
-		  tmp->add(nex, 0, nex->vector_width());
+		  bool precise_part = false;
+		  for (Link*link = nex->first_nlink(); link;
+		       link = link->next_nlink()) {
+			NetPartSelect*select =
+			      dynamic_cast<NetPartSelect*>(link->get_obj());
+			if (!select || select->dir() != NetPartSelect::VP
+			    || link->get_pin() != 0)
+			      continue;
+			tmp->add(select->pin(1).nexus(), select->base(),
+				 select->width());
+			precise_part = true;
+			break;
+		  }
+		  if (!precise_part)
+			tmp->add(nex, 0, nex->vector_width());
 	    }
       }
 

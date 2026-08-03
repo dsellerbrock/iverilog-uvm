@@ -106,18 +106,25 @@ void NetAssign_::nex_output(NexusSet&out)
 	      // once at time 0 and simulated a stale value thereafter.
 	      // That caller turns the flag on around its own walk.
 	      //
-	      // Even then, only a CONSTANT in-range base is narrowed: a
-	      // run-time base can land anywhere.
+	      // Even then, only a CONSTANT base is narrowed: a run-time base
+	      // can land anywhere. Clamp a constant select to the bits that
+	      // actually overlap the signal; a completely out-of-range write
+	      // contributes no output bits.
 	    bool narrow = false;
 	    if (nex_output_precise_partsel) {
 		  const NetEConst*base_c = dynamic_cast<const NetEConst*>(base_);
 		  if (base_c && base_c->value().is_defined()) {
 			long off = base_c->value().as_long();
-			if (off >= 0 && (unsigned long)off + use_wid
-					<= nex->vector_width()) {
-			      use_base = (unsigned)off;
-			      narrow = true;
-			}
+			long end = off + use_wid;
+			long overlap_base = std::max(off, 0L);
+			long overlap_end = std::min(
+			      end, static_cast<long>(nex->vector_width()));
+			if (overlap_end <= overlap_base)
+			      return;
+			use_base = static_cast<unsigned>(overlap_base);
+			use_wid = static_cast<unsigned>(overlap_end
+						    - overlap_base);
+			narrow = true;
 		  }
 	    }
 	    if (!narrow) {

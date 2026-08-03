@@ -477,8 +477,8 @@ contextually constant packed select that lies completely outside the target in
 both ordinary and `-S` execution. The out-of-range case is a no-op; previously
 its negative base was still written into the synthesis bit mask and could
 segfault the compiler. The exact Darjeeling RACL target no longer reports any
-variable-memory-word diagnostic and compiles in 0.24 seconds. Its remaining
-failure is the separate bit-level latch-enable limitation.
+variable-memory-word diagnostic. After G23 and G24, the same pinned target is a
+zero-error, zero-debt `PASS` in 0.334 seconds on the final tested compiler.
 
 True run-time RAM writes such as `mem[addr_i] <= wdata` remain loud unsupported
 synthesis debt and are not claimed by this fix.
@@ -516,9 +516,108 @@ sample spends 663 of 685 samples in `connect()` below
 The same run had already diagnosed the separate bit-level latch-enable limit in
 `ibex_alu.sv` and three unsynthesized `ibex_multdiv_fast.sv` processes.
 
+After G23 was generalized from a syntactic no-condition test to its real
+semantic invariant (owned bits written on every path and a constant-high
+process enable), the exact `ibex-disjoint-precise-v2` replay removes the
+`ibex_alu.sv` `shift_amt[4:0]` latch diagnostic. The independently driven bit 5
+and complete `if/else` lower field are now recognized as disjoint,
+latch-free owners. The run still reaches `COMPILE_TIMEOUT` after 600.078 seconds
+and leaves no descendant. Its only emitted semantic-debt line was the legal
+constant-only `always_comb` warning in `ibex_cs_registers.sv`; that warning is
+removed immediately afterward under G26. The termination hot path therefore
+remains independent of both semantic fixes.
+
 Pass criterion: the pinned core must terminate comfortably below the declared
 bound, with no crash, leaked descendant, fallback process or hard diagnostic.
 Crash removal and cleanup are robustness progress, not a conformance pass.
+
+## G23 — disjoint packed fields looked like conflicting whole-vector processes — **fixed** (current upstream campaign)
+
+*9.2 / synthesis process ownership [general] — false latch and false conflict.*
+
+OpenTitan's generated arbitration trees use separate unconditional
+`always_comb` processes for disjoint bits or fields of packed tree vectors.
+Synthesis already computed a per-process write mask, but treated every false
+bit as a latch and later used a whole-net l-value reference count to reject the
+other disjoint processes as conflicting writers.
+
+An asynchronous process consisting only of unconditional assignments now
+drives `Z` outside its write mask, so independently synthesized fields compose
+without state. Synthesized procedural ownership is claimed per nexus bit, not
+per `NetNet`: a second process may claim a disjoint field, while a real overlap
+still produces a local hard diagnostic naming the exact bit.
+
+Ownership is the union of exact constant ranges written anywhere in a process,
+including conditional clocked branches. After the complete synthesis walk, a
+second validation pass also rejects a packed signal that retains a behavioral
+procedural l-value while carrying any synthesized process driver. That keeps
+the pre-existing `case5-syn-fail` safety boundary loud instead of accepting a
+mixed behavioral/structural variable that would simulate incorrectly.
+
+`synth_disjoint_packed_processes.v` checks generated one-bit and two-bit writers
+with two changing values in ordinary and `-S` execution.
+`synth_overlapping_packed_processes.v` proves that two fields sharing bit 1 are
+still rejected, and `synth_overlapping_conditional_packed_processes.v` proves a
+conditional `always_ff` write remains owned and conflicts correctly.
+Complete conditional branches over the same partial field are included because
+their synthesized enable is constant high. Incomplete conditional
+combinational/latch writes are not; G25 keeps that stateful case loud.
+
+## G24 — constant part-select `always_comb` sensitivity was widened — **fixed** (current upstream campaign)
+
+*9.2.2.2.1 [general] — extra scheduling and explicit semantic debt.*
+
+The input walk could already represent a constant select as a nexus plus exact
+base and width, but the implicit-event elaborator ignored that range. It
+therefore monitored the entire vector and emitted a debt warning for every
+such `always_comb` process.
+
+Implicit event elaboration now inserts a `NetPartSelect` probe through a
+one-pin carrier, preserving the selected unpacked-array word as well as the
+packed base/width. Event analysis traces that probe back to its source range,
+and compiler-generated `always_comb`/`always_latch` events retain their
+time-zero asynchronous classification.
+
+`sv_always_comb_precise_select_sens.v` counts evaluations: selected-bit changes
+wake the process, while two different unselected-bit changes do not. The older
+read-one-field/write-another regression remains value-clean.
+
+Together, G20, G23 and G24 move the exact pinned Darjeeling RACL synthesis job
+to `PASS`: exit 0, 0 hard errors, 0 semantic-debt lines, no timeout, 0.334
+seconds on the final tested compiler.
+
+## G25 — incomplete conditional partial packed writes need independent latch enables — **open**
+
+*[general] — real stateful synthesis boundary.*
+
+Unlike G23's fully assigned disjoint owners, `always_latch if (en) q[0] = d`
+must retain the prior value of one field without claiming untouched fields.
+The current synthesis interface carries a vector-wide enable plus a write mask,
+not one enable expression per bit. `synth_partial_latch_reject.v` permanently
+requires a normal nonzero diagnostic rather than a crash or a silent `Z`
+substitution. `synth_branch_disjoint_partial_latch_reject.v` covers the less
+obvious adversarial case: each `if/else` branch writes a different bit, so the
+vector-wide enable is high even though each individual bit still needs state.
+The safe disjoint lowering now additionally proves that every bit written
+anywhere is written on every path before using `Z` outside the owned field.
+Closing this row requires per-bit enable propagation through if/case/loop
+lowering and value-checked hold/update behavior.
+
+## G26 — constant-only `always_comb` was warned as sensitivity debt — **fixed** (current upstream campaign)
+
+*9.2.2.2.2 [general] — legal time-zero process, false semantic debt.*
+
+An `always_comb` whose right-hand sides are all constants has no event probes,
+but IEEE semantics still execute it once at time zero. The compiler already
+implemented that behavior and synthesis already classified the empty implicit
+event as combinational; a later validation pass nevertheless warned that the
+process had no sensitivities. OpenTitan's constant `mhpmevent` construction in
+`ibex_cs_registers.sv` was the final Ibex debt line.
+
+The warning is removed for `always_comb` only. The existing regression now
+checks the time-zero value without expecting a diagnostic. A sensitivity-free
+`always_latch` remains an error, and legacy `always @*` retains its warning
+because it has no mandatory time-zero execution.
 
 ---
 

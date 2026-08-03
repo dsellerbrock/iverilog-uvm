@@ -48,22 +48,16 @@ using namespace std;
  * as a clock enable for the flip-flop. This saves us explicitly feeding
  * back the flip-flop output to undriven inputs of any synthesised muxes.
  *
- * The strategy described above is not sufficient when not all bits in
- * a nexus are treated identically (i.e. different conditional clauses
- * drive differing parts of the same vector). To handle this properly,
- * we would (potentially) need to generate a separate enable signal for
- * each bit in the vector. This would be a lot of work, particularly if
- * we wanted to eliminate duplicates. For now, the strategy employed is
- * to maintain a bitmask for each output nexus that identifies which bits
- * in the nexus are unconditionally driven (driven by every clause). When
- * we finish synthesising an asynchronous process, if the bitmask is not
- * all ones, we must infer a latch. This currently results in an error,
- * because to safely synthesise such a latch we would need the bit-level
- * gate enables. When we finish synthesising a synchronous process, if
- * the bitmask is not all ones, we explicitly feed the flip-flop outputs
- * back to undriven inputs of any synthesised muxes to ensure undriven
- * parts of the vector retain their previous state when the flip-flop is
- * clocked.
+ * A bitmask accompanies each output nexus when different statements drive
+ * different parts of a vector. A true bit is unconditionally written along
+ * the paths represented by that mask. If an asynchronous process has a
+ * constant-high process enable and every bit written anywhere is true in the
+ * unconditional mask, false bits are outside its ownership and are driven
+ * with Z. This allows disjoint generated processes to compose one packed
+ * vector without inventing state. Other conditional partial writes still need
+ * independent bit-level latch enables and remain a loud unsupported case. A
+ * synchronous process can feed the complete flip-flop output back to undriven
+ * mux inputs because it owns the complete registered vector.
  *
  * The enable signals are passed as links to the current output nexus
  * for each signal. If an enable signal is not linked, this is treated
@@ -238,10 +232,115 @@ static bool all_bits_driven(const NetProc::mask_t&mask)
       return true;
 }
 
+static void collect_process_write_masks(
+		NetProc*statement, NexusSet&output_map,
+		vector<NetProc::mask_t>&write_masks)
+{
+      ivl_assert(*statement, write_masks.size() == output_map.size());
+
+      NexusSet precise_outputs;
+      bool saved_precise_partsel = nex_output_precise_partsel;
+      nex_output_precise_partsel = true;
+      statement->nex_output(precise_outputs);
+      nex_output_precise_partsel = saved_precise_partsel;
+
+      for (unsigned out = 0; out < precise_outputs.size(); out += 1) {
+	    unsigned precise_base = precise_outputs[out].base;
+	    unsigned precise_end = precise_base + precise_outputs[out].wid;
+	    Nexus*nexus = precise_outputs[out].lnk.nexus();
+
+	    for (unsigned idx = 0; idx < output_map.size(); idx += 1) {
+		  if (output_map[idx].lnk.nexus() != nexus)
+			continue;
+
+		  unsigned map_base = output_map[idx].base;
+		  unsigned map_end = map_base + output_map[idx].wid;
+		  unsigned overlap_base = max(precise_base, map_base);
+		  unsigned overlap_end = min(precise_end, map_end);
+		  if (overlap_end <= overlap_base)
+			continue;
+
+		  NetProc::mask_t&mask = write_masks[idx];
+		  if (mask.size() < output_map[idx].wid)
+			mask.resize(output_map[idx].wid, false);
+		  for (unsigned bit = overlap_base; bit < overlap_end;
+		       bit += 1)
+			mask[bit - map_base] = true;
+	    }
+      }
+}
+
+static bool all_process_writes_are_driven(
+		const NetProc::mask_t&driven_mask,
+		const NetProc::mask_t&write_mask)
+{
+      for (unsigned bit = 0; bit < write_mask.size(); bit += 1) {
+	    if (write_mask[bit]
+		  && (bit >= driven_mask.size() || !driven_mask[bit]))
+		  return false;
+      }
+      return true;
+}
+
+static void claim_synthesized_process_outputs(
+		Design*des, const LineInfo&loc, NetProc*statement)
+{
+      NexusSet outputs;
+      bool saved_precise_partsel = nex_output_precise_partsel;
+      nex_output_precise_partsel = true;
+      statement->nex_output(outputs);
+      nex_output_precise_partsel = saved_precise_partsel;
+
+        // A process may mention the same nexus in several branches or
+        // assignments. Union those ranges locally before making global
+        // claims so repeated writes within one process are not mistaken for
+        // multiple-process ownership.
+      map<Nexus*, NetProc::mask_t> process_masks;
+      for (unsigned idx = 0; idx < outputs.size(); idx += 1) {
+	    Nexus*nexus = outputs[idx].lnk.nexus();
+	    NetProc::mask_t&mask = process_masks[nexus];
+	    unsigned end = outputs[idx].base + outputs[idx].wid;
+	    if (mask.size() < end)
+		  mask.resize(end, false);
+	    for (unsigned bit = outputs[idx].base; bit < end; bit += 1)
+		  mask[bit] = true;
+      }
+
+      bool any_overlap = false;
+      for (map<Nexus*, NetProc::mask_t>::iterator cur = process_masks.begin();
+	   cur != process_masks.end(); ++cur) {
+	    Nexus*nexus = cur->first;
+	    const NetProc::mask_t&mask = cur->second;
+	    for (unsigned bit = 0; bit < mask.size(); bit += 1) {
+		  if (!mask[bit])
+			continue;
+
+		  if (!nexus->claim_synthesized_process_driver(bit, 1))
+			continue;
+
+		  NetNet*net = nexus->pick_any_net();
+		  cerr << loc.get_fileline() << ": warning: '"
+		       << (net ? net->name() : perm_string::literal("<unnamed>"))
+		       << "' bit " << bit
+		       << " is driven by more than one process." << endl;
+		  any_overlap = true;
+	    }
+      }
+
+      if (any_overlap) {
+	    cerr << loc.get_fileline() << ": sorry: Cannot synthesize packed bits "
+		    "that are driven by more than one process." << endl;
+	    des->errors += 1;
+      }
+}
+
 bool NetProcTop::tie_off_floating_inputs_(Design*des,
 					  NexusSet&nex_map, NetBus&nex_in,
 					  const vector<NetProc::mask_t>&bitmasks,
-					  bool is_ff_input)
+					  bool is_ff_input,
+					  NetBus*process_enables,
+					  const vector<NetProc::mask_t>*
+						process_write_masks)
 {
       bool flag = true;
       for (unsigned idx = 0 ; idx < nex_in.pin_count() ; idx += 1) {
@@ -271,15 +370,23 @@ bool NetProcTop::tie_off_floating_inputs_(Design*des,
 			  // to ensure undriven bits hold their last value.
 			connect(nex_in.pin(idx), nex_map[idx].lnk);
 		  } else {
-			  // This infers a latch, but without generating
-			  // gate enable signals at the bit-level, we
-			  // can't safely latch the undriven bits (we
-			  // shouldn't generate combinatorial loops).
+			bool fully_enabled = process_enables
+			      && process_enables->pin(idx).is_linked(
+				    scope()->tie_hi());
+			bool every_write_is_driven = process_write_masks
+			      && all_process_writes_are_driven(
+				    bitmasks[idx], (*process_write_masks)[idx]);
+			if (fully_enabled && every_write_is_driven) {
+			      NetNet*z_value =
+				    make_const_z(des, scope(), nex_map[idx].wid);
+			      connect(nex_in.pin(idx), z_value->pin(0));
+			      continue;
+			}
+
 			cerr << get_fileline() << ": warning: A latch "
 			     << "has been inferred for some bits of '"
 			     << nex_map[idx].lnk.nexus()->pick_any_net()->name()
 			     << "'." << endl;
-
 			cerr << get_fileline() << ": sorry: Bit-level "
 				"latch gate enables are not currently "
 				"supported in synthesis." << endl;
@@ -1804,10 +1911,23 @@ bool NetProcTop::synth_async(Design*des)
       bool flag = statement_->synth_async(des, scope(), nex_set, nex_out, enables, bitmasks);
       if (!flag) return false;
 
-      flag = tie_off_floating_inputs_(des, nex_set, nex_in, bitmasks, false);
+      vector<NetProc::mask_t> process_write_masks(nex_set.size());
+      collect_process_write_masks(statement_, nex_set, process_write_masks);
+
+      flag = tie_off_floating_inputs_(des, nex_set, nex_in, bitmasks, false,
+				      &enables, &process_write_masks);
       if (!flag) return false;
 
       for (unsigned idx = 0 ;  idx < nex_set.size() ;  idx += 1) {
+
+	    if (!all_bits_driven(bitmasks[idx])) {
+		  ivl_assert(*this,
+			enables.pin(idx).is_linked(scope()->tie_hi())
+			&& all_process_writes_are_driven(
+			      bitmasks[idx], process_write_masks[idx]));
+		  connect(nex_set[idx].lnk, nex_out.pin(idx));
+		  continue;
+	    }
 
 	    if (enables.pin(idx).is_linked(scope()->tie_hi())) {
 		  connect(nex_set[idx].lnk, nex_out.pin(idx));
@@ -1851,6 +1971,7 @@ bool NetProcTop::synth_async(Design*des)
 	    }
       }
 
+      claim_synthesized_process_outputs(des, *this, statement_);
       synthesized_design_ = des;
       return true;
 }
@@ -2410,6 +2531,7 @@ bool NetProcTop::synth_sync(Design*des)
 	// persist.
       delete clock;
 
+      claim_synthesized_process_outputs(des, *this, statement_);
       synthesized_design_ = des;
       return true;
 }
@@ -2420,6 +2542,15 @@ class synth2_f	: public functor_t {
       void process(Design*, NetProcTop*) override;
 
     private:
+};
+
+class synth2_validate_f : public functor_t {
+
+    public:
+      void signal(Design*, NetNet*) override;
+
+    private:
+      set<Nexus*> reported_nexuses_;
 };
 
 
@@ -2491,8 +2622,38 @@ void synth2_f::process(Design*des, NetProcTop*top)
       des->delete_process(top);
 }
 
+void synth2_validate_f::signal(Design*des, NetNet*net)
+{
+        // Process destructors release their procedural l-value references.
+        // Wait until the complete synthesis walk has finished so other
+        // synthesizable disjoint writers have also been removed. A remaining
+        // l-value reference belongs to a behavioral process that cannot share
+        // this packed variable with a synthesized structural driver.
+      if (net->peek_lref() == 0)
+	    return;
+
+      for (unsigned pin = 0; pin < net->pin_count(); pin += 1) {
+	    Nexus*nexus = net->pin(pin).nexus();
+	    if (!nexus->has_synthesized_process_driver())
+		  continue;
+	    if (!reported_nexuses_.insert(nexus).second)
+		  continue;
+
+	    cerr << net->get_fileline() << ": warning: '" << net->name()
+		 << "' retains a behavioral procedural driver after synthesis."
+		 << endl;
+	    cerr << net->get_fileline() << ": sorry: Cannot combine behavioral "
+		    "and synthesized process drivers on one packed signal."
+		 << endl;
+	    des->errors += 1;
+      }
+}
+
 void synth2(Design*des)
 {
       synth2_f synth_obj;
       des->functor(&synth_obj);
+
+      synth2_validate_f validate_obj;
+      des->functor(&validate_obj);
 }

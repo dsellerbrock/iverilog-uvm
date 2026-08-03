@@ -421,6 +421,11 @@ class Nexus {
 	   special cases it may be a blend. */
       std::vector<bool> driven_mask(void)const;
 
+	/* Claim bits written by a synthesized procedural process. Return true
+	   if any claimed bit already belongs to another synthesized process. */
+      bool claim_synthesized_process_driver(unsigned base, unsigned wid);
+      bool has_synthesized_process_driver() const;
+
 	/* The code generator sets an ivl_nexus_t to attach code
 	   generation details to the nexus. */
       ivl_nexus_t t_cookie() const { return t_cookie_; }
@@ -435,6 +440,8 @@ class Nexus {
 
       enum VALUE { NO_GUESS, V0, V1, Vx, Vz, VAR };
       mutable VALUE driven_;
+
+      std::vector<bool> synthesized_process_driver_mask_;
 
     private: // not implemented
       Nexus(const Nexus&);
@@ -4493,7 +4500,10 @@ class NetProcTop  : public LineInfo, public Attrib {
       bool tie_off_floating_inputs_(Design*des,
 				    NexusSet&nex_map, NetBus&nex_in,
 				    const std::vector<NetProc::mask_t>&bitmasks,
-				    bool is_ff_input);
+				    bool is_ff_input,
+				    NetBus*process_enables = 0,
+				    const std::vector<NetProc::mask_t>*
+					  process_write_masks = 0);
 
       const ivl_process_type_t type_;
       NetProc*const statement_;

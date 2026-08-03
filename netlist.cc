@@ -1100,27 +1100,7 @@ NetProcTop::~NetProcTop()
 	    delete statement_;
 	    return;
       }
-
-      NexusSet nex_set;
-      statement_->nex_output(nex_set);
-
       delete statement_;
-
-      bool flag = false;
-      for (unsigned idx = 0 ;  idx < nex_set.size() ;  idx += 1) {
-
-	    const NetNet*net = nex_set[idx].lnk.nexus()->pick_any_net();
-	    if (net->peek_lref() > 0) {
-		  cerr << get_fileline() << ": warning: '" << net->name()
-		       << "' is driven by more than one process." << endl;
-		  flag = true;
-	    }
-      }
-      if (flag) {
-	    cerr << get_fileline() << ": sorry: Cannot synthesize signals "
-		    "that are driven by more than one process." << endl;
-	    synthesized_design_->errors += 1;
-      }
 }
 
 NetProc* NetProcTop::statement()

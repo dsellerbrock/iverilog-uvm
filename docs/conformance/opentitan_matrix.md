@@ -138,6 +138,31 @@ new 600-second limit. It was recorded as `COMPILE_TIMEOUT` after 600.085 seconds
 and left no driver, preprocessor or compiler descendant. The bounded cleanup is
 therefore verified; the hot synthesis path remains an open G22 compiler gap.
 
+The later `ibex-disjoint-precise-v2` replay reaches the same independent hot
+path and times out after 600.078 seconds with no orphan. It no longer reports
+the `ibex_alu.sv` partial-field latch error: the lower field is fully assigned
+on both `if/else` paths and now composes with its independently driven upper
+bit. The sole remaining warning in that exact log is the legal constant-only
+`always_comb` in `ibex_cs_registers.sv`; G26 removes that false debt after the
+replay. The timeout itself remains open and is not a cybersecurity finding.
+
+The subsequent disjoint-packed-process and precise-select-sensitivity fixes
+move the exact Darjeeling RACL target to a clean result at the same pinned
+OpenTitan revision: `PASS`, exit 0, no hard errors, no semantic-debt lines, no
+timeout, and 0.304 seconds. This is one exact core witness, not a whole-suite
+claim; its compiler fingerprint must remain separate from earlier `FAIL` and
+`DEBT` reports.
+
+The final ownership-union and retained-behavioral-driver validation was replayed
+in `racl-disjoint-precise-v4`: the result remains `PASS` with the same zero-error,
+zero-debt disposition and a 0.357-second compile.
+
+After the complete-branch refinement and G26 warning cleanup,
+`racl-disjoint-precise-v6` is the final witness: `PASS`, exit 0, zero hard
+errors, zero semantic-debt lines, no timeout, `security_vulnerability=false`,
+and a 0.334-second compile. This replay includes the adversarial per-bit-state
+guard added after v5.
+
 ## First ADC-control matrix witness
 
 The first three-lane run exposed the intended distinction immediately:

@@ -11700,29 +11700,38 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  unsigned vwid = nset->at(idx).lnk.nexus()->vector_width();
 		    // Is this a part select?
 		  if (always_sens_ && (wid != vwid)) {
-# if 0
-// Once this is fixed, enable constant bit/part select sensitivity in
-// NetESelect::nex_input().
 			unsigned base = nset->at(idx).base;
-cerr << get_fileline() << ": base = " << base << endl;
-// FIXME: make this work with selects that go before the base.
 			ivl_assert(*this, base < vwid);
 			if (base + wid > vwid) wid = vwid - base;
-cerr << get_fileline() << ": base = " << base << ", width = " << wid
-     << ", expr width = " << vwid << endl;
-nset->at(idx).lnk.dump_link(cerr, 4);
-cerr << endl;
-// FIXME: Convert the link to the appropriate NetNet
-			netvector_t*tmp_vec = new netvector_t(IVL_VT_BOOL, vwid, 0);
-			NetNet*sig = new NetNet(scope, scope->local_symbol(), NetNet::IMPLICIT, tmp_vec);
-			NetPartSelect*tmp = new NetPartSelect(sig, base, wid, NetPartSelect::VP);
-			des->add_node(tmp);
-			tmp->set_line(*this);
-// FIXME: create a part select to get the correct bits to connect.
-			connect(tmp->pin(1), nset->at(idx).lnk);
-			connect(tmp->pin(0), pr->pin(idx));
-# endif
-			connect(nset->at(idx).lnk, pr->pin(idx));
+
+			  // A NexusSet element identifies a nexus plus an exact
+			  // base/width. Create a one-pin carrier for that nexus so
+			  // this also works for a selected word of an unpacked array;
+			  // pick_any_net() alone would lose the word pin.
+			const netvector_t*carrier_type =
+			      new netvector_t(IVL_VT_LOGIC, vwid - 1, 0);
+			NetNet*carrier =
+			      new NetNet(scope, scope->local_symbol(),
+					 NetNet::IMPLICIT, carrier_type);
+			carrier->local_flag(true);
+			carrier->set_line(*this);
+			connect(carrier->pin(0), nset->at(idx).lnk);
+
+			NetPartSelect*select =
+			      new NetPartSelect(carrier, base, wid,
+						NetPartSelect::VP);
+			select->set_line(*this);
+			des->add_node(select);
+
+			const netvector_t*selected_type =
+			      new netvector_t(IVL_VT_LOGIC, wid - 1, 0);
+			NetNet*selected =
+			      new NetNet(scope, scope->local_symbol(),
+					 NetNet::IMPLICIT, selected_type);
+			selected->local_flag(true);
+			selected->set_line(*this);
+			connect(selected->pin(0), select->pin(0));
+			connect(selected->pin(0), pr->pin(idx));
 		  } else {
 			connect(nset->at(idx).lnk, pr->pin(idx));
 		  }
@@ -19013,9 +19022,10 @@ bool Design::check_proc_delay() const
 			      result = true;
 			} else {
 			      ivl_assert(*pr, pr->type() == IVL_PR_ALWAYS_COMB);
-			      cerr << pr->get_fileline() << ": warning: "
-			              "always_comb process has no "
-			              "sensitivities." << endl;
+			        // A constant-only always_comb has no event probes,
+			        // but its mandatory time-zero execution still gives
+			        // the construct complete and useful semantics. It is
+			        // legal and needs no warning.
 			}
 		  }
 	    }
