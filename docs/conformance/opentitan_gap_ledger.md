@@ -1058,12 +1058,30 @@ fingerprints are respectively
 and
 `b735c86af35bfb7c8df2653b63f5630193343584003388cd1c0c7edc0633bade`.
 
-These focused transitions retire two of the four v33 synthesis-lowering
-records. Applying only those transitions arithmetically would produce 65
-`PASS` and 29 `FAIL`, with the other v33 counts unchanged, but that projection
-is not a replacement for a fresh whole-corpus census. It also does not
-reclassify the remaining OTBN width assertion and RRAM array-parameter
-part-select defects.
+The fresh final-engine v39 whole-RTL census confirms those transitions across
+all 267 candidates: 65 `PASS`, 153 `DEPENDENCY_ONLY`, 29 `FAIL`, 9
+`COMPILE_TIMEOUT`, 6 `SETUP_FAIL`, and 5 `DEBT`. The Earl Grey and English
+Breakfast pinmux records are the only two status changes from v33; all other
+265 records retain the same status. The 202 non-pass records partition
+exhaustively into 11 compiler/IEEE defects, 2 synthesis-lowering defects, 5
+semantic-debt records, 9 bounded timeouts, 22 provider/source-list/top-selection
+harness defects, and 153 dependency-only cores. Every result again has
+`security_vulnerability=false`.
+
+The v39 evidence is under
+`matrix/full-7a3ad34/rtl-v39/opentitan-matrix.json` and
+`matrix/full-7a3ad34/rtl-v39/opentitan-matrix.md`. Their SHA-256 fingerprints
+are respectively
+`5af606030d0ca8a87d0375c0398354a55b0ab894bb70160647e07c6a6c940623`
+and
+`ae53cc264ea810197f97981ec88b029044584e6cb4c1da67d9453abd12a5aaee`.
+The report records the final driver fingerprint
+`1fa9b330b6aefd694e41b2699db956b208ffedcf60b5c615d38084aa47e60500`
+and compiler-engine fingerprint
+`00650942adb5412768247ddc0f3c134bc5ec1690aaae623ec22a8b69bfdfc35c`.
+It remains pinned-revision evidence from a deliberately preserved dirty
+OpenTitan worktree. The census does not reclassify the remaining OTBN width
+assertion or RRAM array-parameter part-select defects.
 
 ## G40 — nested synthesis loops sharing one index require shared-state propagation — **diagnosed; explicit rejection remains** (current upstream campaign)
 
@@ -1086,6 +1104,104 @@ genvar context, so compilation terminates normally instead of asserting.
 behavior and proves the expected `-S` compile rejection. This is not an IEEE
 conformance pass: full modeling of the inner loop's terminal value as the
 enclosing loop's live state remains open.
+
+## G41 — a package-qualified assignment-pattern expression type was rejected or discarded — **fixed** (current upstream campaign)
+
+*6.24 / 10.9.1 / A.6.7.1 [general] — typed assignment-pattern parsing,
+contextual typing, and self-determined width.*
+
+The v39 census exposed one parser family in eight records: the three
+standalone `top_{darjeeling,earlgrey,englishbreakfast}_ast` cores plus five
+chip wrappers. Every record exited 10 with ten hard diagnostics, for 80 hard
+diagnostics in total. The first error was `ast.sv:757` for Darjeeling or
+`ast.sv:293` for Earl Grey and English Breakfast. All five replicated memory-
+configuration expressions in each AST source used the legal shape
+
+```systemverilog
+{N{prim_ram_1p_pkg::ram_1p_cfg_req_t'{req: spram_rm.cfg}}}
+```
+
+The lexer already returns `'{` as the single `K_LP` token. The expression
+grammar nevertheless accepted only an unqualified `TYPE_IDENTIFIER` directly
+before an assignment pattern; a `package_scope TYPE_IDENTIFIER` could not
+reach that production. Worse, the accepted production deleted the type and
+returned only the untyped pattern. That loses required semantics even when
+parsing succeeds: an assignment pattern has no self-determined type or width,
+while its explicit prefix must shape it before it participates in the enclosing
+replication concatenation.
+
+The grammar now implements the supported forms of
+`assignment_pattern_expression_type` directly: `ps_type_identifier`, the six
+integer atom types (`byte`, `shortint`, `int`, `longint`, `integer`, and
+`time`), and `type(expression)`. The result is represented as `PECastType`
+around the pattern instead of dropping the prefix. Package-qualified typedefs,
+local typedefs, type parameters, atom types, and type references therefore all
+carry their target into elaboration. Parse-form dumping also emits the original
+`T'{...}` shape rather than the ordinary `T'(...)` cast punctuation.
+
+Typed-pattern elaboration resolves the cast target before the generic
+width-driven path and gives that type directly to `PEAssignPattern`. This is
+required for packed aggregates inside replications and for unpacked structs,
+static arrays, dynamic arrays, and queues; it also avoids the generic dynamic-
+container cast path trying the deliberately invalid context-free pattern
+overload. A parse-form expression is shared by all specializations of a module,
+so a direct pattern using `parameter type T` refreshes the target in each
+instance scope rather than reusing `PECastType`'s earlier cached type.
+
+`synth_typed_assignment_pattern.v` value-checks package-qualified and local-
+typedef packed structs inside concatenation replication, reversed named
+members, integer-atom and `type(expression)` prefixes, a static unpacked array,
+a dynamic array, a queue, and default and overridden type parameters. The two
+packed type-parameter specializations reverse member declaration order. Two
+additional nonpacked specializations exercise the direct typed-rvalue path
+without a preceding concatenation width test, proving that scope-specific
+target resolution is not cached across instances. Ordinary and `-S` execution
+both print `PASSED`.
+
+An exact Bison 3.8.2 comparison against `HEAD` reports no parser-ambiguity
+growth: both grammars have 504 shift/reduce conflicts, 1186 reduce/reduce
+conflicts, and 209 conflict states. Final local validation passed `make check`
+and the complete installed-backend regression with `Total=3357`,
+`Passed=3352`, `Failed=0`, `Not Implemented=2`, and `Expected Fail=3`.
+
+The pinned-revision eight-core v40 replay removes every former `ast.sv` typed-
+pattern syntax diagnostic. Four chip wrappers advance from immediate `FAIL` to
+the explicit 600-second `COMPILE_TIMEOUT` bound without a recognized hard
+diagnostic. The English Breakfast Verilator wrapper advances from ten syntax
+errors to one independent explicit-cast error after 29.542 seconds. The three
+standalone AST cores compile past their typed patterns in under half a second
+and reach the separately classified multiple-asynchronous-set/reset synthesis
+gap, each with six unique hard diagnostics after deduplication. All eight
+records retain `security_vulnerability=false`; this focused replay proves the
+parser family is retired, not that the larger cores are clean.
+
+The v40 evidence is under
+`matrix/full-7a3ad34/typed-assignment-pattern-ast-v40/opentitan-matrix.json`
+and `opentitan-matrix.md`. Their SHA-256 fingerprints are respectively
+`49c42bcb85c526c21ec55bf0e794eb2502d72ac9110bcb218425ff6ef77bb30a`
+and
+`4b75a2b908b9da50c7d54adfda8ff19b4f83eaaa6116fd9d6d7c10b817e2da37`.
+The isolated replay wrapper fingerprint is
+`e25b50fb9d7a07fcecdb693bb984dd965d143444aebc4936a9306f0d4893d23c`,
+and its compiler-engine fingerprint is
+`0bca372584e8bcc851abda4361775ebb35f59f44f266ac353182132e210317b1`.
+The report records the OpenTitan worktree as deliberately dirty at revision
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19`.
+
+## G42 — a value-parameter assignment-pattern prefix remains unsupported — **open** (current upstream campaign)
+
+*10.9.1 / A.6.7.1 [general] — `ps_parameter_identifier` as an assignment-
+pattern expression type.*
+
+The standard grammar also permits `ps_parameter_identifier` before an
+assignment pattern, including a value parameter in a form such as
+`W'{default: value}`. A type parameter is already covered by G41 because the
+scope registers it as a type identifier. A value parameter is semantically
+different: it supplies size-cast context and must follow the `PECastSize`
+constant-width rules, not be accepted blindly as a `PECastType`. Generic
+`IDENTIFIER assignment_pattern` would also introduce incorrect parses in the
+already ambiguous expression grammar. This form remains a distinct open gap;
+G41 does not claim complete A.6.7.1 coverage.
 
 ---
 

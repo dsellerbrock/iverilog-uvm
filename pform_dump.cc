@@ -455,6 +455,10 @@ void PECastSize::dump(ostream &out) const
 void PECastType::dump(ostream &out) const
 {
       target_->pform_dump(out, 0);
+      if (dynamic_cast<const PEAssignPattern*>(base_)) {
+	    base_->dump(out);
+	    return;
+      }
       out << "'(";
       base_->dump(out);
       out << ")";

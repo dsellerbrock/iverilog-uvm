@@ -164,6 +164,7 @@ synth_contextual_array_word normal,-g2012	ivltests
 synth_runtime_memory_partial_reject CE,-g2012	ivltests
 synth_runtime_memory_word normal,-g2012	ivltests
 synth_runtime_async_load_reject CE,-g2012	ivltests gold=synth_runtime_async_load_reject.gold
+synth_typed_assignment_pattern normal,-g2012	ivltests
 synth_variable_packed_lvalue normal,-g2012	ivltests
 synth_if_no_else	normal			ivltests
 ufuncsynth1		normal			ivltests

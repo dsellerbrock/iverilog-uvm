@@ -11715,6 +11715,14 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
     const netdarray_t*darray = NULL;
     const netvector_t*vector = NULL;
 
+    // A typed assignment pattern is already an explicit cast expression. Its
+    // own target, rather than an enclosing assignment's darray/queue type,
+    // must shape the pattern. In particular, do this before the generic
+    // packed-vector-to-darray conversion below tries the pattern's width-only
+    // elaborator.
+    if (dynamic_cast<const PEAssignPattern*>(base_))
+          return elaborate_expr(des, scope, (unsigned) 0, flags);
+
     // A streaming concatenation with dynamically sized operands cast
     // to a dynamically sized type elaborates as a runtime stream with
     // the cast's target type (IEEE 1800-2017 11.4.14 / 6.24.3).
@@ -11757,15 +11765,45 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 {
       flags &= ~SYS_TASK_ARG; // don't propagate the SYS_TASK_ARG flag
 
-	// A cast behaves exactly like an assignment to a temporary variable,
-	// so the temporary result size may affect the sub-expression width.
-      unsigned cast_width = base_->expr_width();
-      if (type_is_vectorable(base_->expr_type()) && (cast_width < expr_width_))
-	    cast_width = expr_width_;
+	/* An assignment pattern has no self-determined width or type. A typed
+	   pattern such as T'{...} is represented by this cast, so elaborate its
+	   base with T as the target context instead of calling the width-driven
+	   overload (which correctly rejects an untyped pattern). The cast itself
+	   retains T's width and type, including when it is an operand of a
+	   concatenation replication. */
+      NetExpr*sub = nullptr;
+      if (const PEAssignPattern*pat =
+	      dynamic_cast<const PEAssignPattern*>(base_)) {
+	    /* A parse-form expression is shared by every elaboration of a
+	       parameterized module, but a type parameter can resolve differently
+	       in each instance scope. Do not use resolve_target_type()'s cached
+	       answer here: refresh both the local target and the cache for this
+	       scope before shaping the pattern. */
+	    ivl_type_t use_type = target_
+		  ? target_->elaborate_type(des, scope) : nullptr;
+	    target_type_ = use_type;
+	    if (use_type)
+		  sub = pat->elaborate_expr(des, scope, use_type, flags);
+      } else {
+	    // A cast behaves exactly like an assignment to a temporary variable,
+	    // so the temporary result size may affect the sub-expression width.
+	    unsigned cast_width = base_->expr_width();
+	    if (type_is_vectorable(base_->expr_type()) &&
+		(cast_width < expr_width_))
+		  cast_width = expr_width_;
 
-      NetExpr*sub = base_->elaborate_expr(des, scope, cast_width, flags);
+	    sub = base_->elaborate_expr(des, scope, cast_width, flags);
+      }
       if (sub == 0)
 	    return 0;
+
+	/* The typed assignment-pattern elaborator already constructs the
+	   aggregate expression with the requested non-packed type. There is no
+	   scalar cast left to perform, and routing it through the generic cast
+	   fallback would emit a spurious "not fully supported" warning. */
+      if (dynamic_cast<const PEAssignPattern*>(base_) && target_type_ &&
+	  !target_type_->packed())
+	    return sub;
 
       NetExpr*tmp = 0;
       if (dynamic_cast<const netreal_t*>(target_type_)) {

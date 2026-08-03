@@ -1372,6 +1372,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <data_type>  data_type data_type_opt data_type_or_implicit data_type_or_implicit_or_void
 %type <data_type>  data_type_or_implicit_no_opt
 %type <data_type>  simple_type_or_string let_formal_type
+%type <data_type>  assignment_pattern_expression_type
 %type <data_type>  packed_array_data_type
 %type <data_type>  ps_type_identifier
 %type <data_type>  virtual_interface_type
@@ -6605,6 +6606,53 @@ simple_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
       }
   ;
 
+/* IEEE 1800-2017 A.6.7.1: types that can directly prefix an assignment
+   pattern expression. Keep this narrower than simple_type_or_string: using
+   that shared nonterminal here duplicates its ps_type_identifier reduction
+   in a heavily ambiguous expression state. */
+assignment_pattern_expression_type
+  : K_byte
+      { atom_type_t*tmp = new atom_type_t(atom_type_t::BYTE, true);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_shortint
+      { atom_type_t*tmp = new atom_type_t(atom_type_t::SHORTINT, true);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_int
+      { atom_type_t*tmp = new atom_type_t(atom_type_t::INT, true);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_longint
+      { atom_type_t*tmp = new atom_type_t(atom_type_t::LONGINT, true);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_integer
+      { atom_type_t*tmp = new atom_type_t(atom_type_t::INTEGER, true);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_time
+      { atom_type_t*tmp = new atom_type_t(atom_type_t::TIME, false);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_type '(' expression ')'
+      { data_type_t*tmp;
+	if (PETypename*tn = dynamic_cast<PETypename*>($3))
+	      tmp = new type_reference_t(tn->get_type());
+	else
+	      tmp = new type_reference_t($3);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | ps_type_identifier
+  ;
+
 simple_type_or_string /* IEEE1800-2005: A.2.2.1 */
   : integer_vector_type
       { vector_type_t*tmp = new vector_type_t($1, false, 0);
@@ -10069,19 +10117,15 @@ expr_primary
       }
 
   /* Type-prefixed assignment pattern: T'{expr, expr, ...} or T'{key: val, ...}.
-     IEEE 1800-2012 §10.9. Treat identically to the untyped form — the type
-     prefix guides structural matching which we do not enforce at this level.
-     NOTE: The lexer tokenizes '{  as K_LP (a single two-char token), so the
-     type-prefixed form is TYPE '\'' K_LP... — but K_LP IS the start of
-     assignment_pattern. The standalone-tick form (simple_type_or_string '\''
-     assignment_pattern) handles things like 'signed' '(...)' — a different
-     path. For TYPE_IDENTIFIER, we add two sub-rules:
-       - TYPE_IDENTIFIER assignment_pattern: matches TYPE_IDENTIFIER K_LP...
-         (i.e., my_struct_t'{1,2}) — no tick, K_LP immediately follows type */
-  | simple_type_or_string '\'' assignment_pattern
-      { delete $1; $$ = $3; }
-  | TYPE_IDENTIFIER assignment_pattern
-      { delete[] $1.text; $$ = $2; }
+     IEEE 1800-2012 §10.9. Preserve the prefix as a type cast so elaboration
+     can use it as the assignment pattern's required target-type context.
+     The lexer token K_LP already includes the apostrophe and opening brace,
+     so assignment_pattern immediately follows its expression type. */
+  | assignment_pattern_expression_type assignment_pattern
+      { PECastType*tmp = new PECastType($1, $2);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
 
   /* SystemVerilog supports streaming concatenation */
   | streaming_concatenation
