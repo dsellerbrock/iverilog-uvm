@@ -120,9 +120,11 @@ for_loop_synth		normal			ivltests
 for_loop_synth2		normal			ivltests
 synth_for_loop_descending normal,-g2012	ivltests
 synth_for_loop_index_select normal,-g2012	ivltests
+synth_nested_for_loop_select normal,-g2012	ivltests
 synth_process_alias_boundary normal,-g2012	ivltests
 synth_process_overlap_reject CE,-g2012	ivltests
 synth_sparse_case	normal,-g2012	ivltests
+synth_unpacked_array_whole_assign normal,-g2012	ivltests
 if_part_no_else		normal			ivltests
 if_part_no_else2	normal			ivltests
 inside_synth		normal			ivltests

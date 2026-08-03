@@ -54,6 +54,18 @@ void NetAssign_::nex_output(NexusSet&out)
 {
       assert(! nest_);
       assert(sig_);
+
+	// A whole unpacked-array assignment writes every word. Treating it as
+	// word zero leaves the remaining words out of the process output map and
+	// makes synthesis size the aggregate as though it were one packed word.
+      if (sig_->unpacked_dimensions() && !word_) {
+	    for (unsigned idx = 0; idx < sig_->pin_count(); idx += 1) {
+		  Nexus*word_nex = sig_->pin(idx).nexus();
+		  out.add(word_nex, 0, word_nex->vector_width());
+	    }
+	    return;
+      }
+
       unsigned use_word = 0;
       unsigned use_base = 0;
       unsigned use_wid = lwidth();

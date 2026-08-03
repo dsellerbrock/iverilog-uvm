@@ -1153,12 +1153,21 @@ NetNet* NetESelect::synthesize(Design *des, NetScope*scope, NetExpr*root)
 	// though their elaborated expression tree is not a NetEConst.
       unique_ptr<NetExpr> evaluated_base;
       const NetEConst*base_const = dynamic_cast<NetEConst*>(base_);
-      if (!base_const && base_ && scope->loop_index_net_tmp) {
+      if (!base_const && base_ && !scope->loop_index_nets_tmp.empty()) {
 	    unique_ptr<NexusSet> base_inputs(base_->nex_input());
-	    Nexus*loop_index_nex = scope->loop_index_net_tmp->pin(0).nexus();
 	    bool loop_constant = true;
 	    for (size_t idx = 0 ; idx < base_inputs->size() ; idx += 1) {
-		  if ((*base_inputs)[idx].lnk.nexus() != loop_index_nex) {
+		  bool is_loop_index = false;
+		  for (map<NetNet*,perm_string>::const_iterator cur =
+		       scope->loop_index_nets_tmp.begin();
+		       cur != scope->loop_index_nets_tmp.end(); ++cur) {
+			if ((*base_inputs)[idx].lnk.nexus()
+			      == cur->first->pin(0).nexus()) {
+			      is_loop_index = true;
+			      break;
+			}
+		  }
+		  if (!is_loop_index) {
 			loop_constant = false;
 			break;
 		  }
@@ -1450,8 +1459,23 @@ NetNet* NetESignal::synthesize(Design*des, NetScope*scope, NetExpr*root)
 {
 	// If this is a synthesis with a specific value for the
 	// signal, then replace it (here) with a constant value.
-      if (net_ == scope->loop_index_net_tmp
-	  || (net_->scope()==scope && net_->name()==scope->genvar_tmp)) {
+      map<NetNet*,perm_string>::const_iterator loop_net =
+	    scope->loop_index_nets_tmp.find(net_);
+      map<perm_string,LocalVar>::const_iterator loop_value =
+	    loop_net == scope->loop_index_nets_tmp.end()
+		  ? scope->loop_index_tmp.end()
+		  : scope->loop_index_tmp.find(loop_net->second);
+      if (loop_value != scope->loop_index_tmp.end()
+	  && loop_value->second.nwords == 0
+	  && loop_value->second.value) {
+	    NetNet*tmp = loop_value->second.value->synthesize(
+		  des, scope, loop_value->second.value);
+	    ivl_assert(*this, tmp);
+	    tmp = pad_to_width(des, tmp, net_->vector_width(), *this);
+	    return crop_to_width(des, tmp, net_->vector_width());
+      }
+
+      if (net_->scope()==scope && net_->name()==scope->genvar_tmp) {
 	    const netvector_t*tmp_vec = new netvector_t(net_->data_type(),
 	                                                net_->vector_width()-1, 0);
 	    NetNet*tmp = new NetNet(scope, scope->local_symbol(),

@@ -658,6 +658,45 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 	    return false;
       }
 
+	// Array patterns and whole-array expressions synthesize to one NetNet
+	// pin per unpacked word. Lower the assignment word-by-word so each word
+	// is matched to its own process-output nexus. The vector assignment path
+	// below intentionally handles a single packed word and cannot infer this
+	// mapping from lwidth(), which is the packed width of the array element.
+      if (lsig->unpacked_dimensions() && !lval_->word()) {
+	    if (rsig->pin_count() != lsig->pin_count()) {
+		  cerr << get_fileline() << ": error: Whole unpacked-array "
+		       << "assignment has " << rsig->pin_count()
+		       << " source words but " << lsig->pin_count()
+		       << " destination words." << endl;
+		  des->errors += 1;
+		  return false;
+	    }
+
+	    for (unsigned word = 0; word < lsig->pin_count(); word += 1) {
+		  Nexus*word_nex = lsig->pin(word).nexus();
+		  NexusSet word_set;
+		  word_set.add(word_nex, 0, word_nex->vector_width());
+		  unsigned ptr = nex_map.find_nexus(word_set[0]);
+		  ivl_assert(*this, ptr < nex_out.pin_count());
+		  ivl_assert(*this, ptr < enables.pin_count());
+		  ivl_assert(*this, ptr < bitmasks.size());
+		  ivl_assert(*this, nex_map[ptr].wid == word_nex->vector_width());
+		  ivl_assert(*this,
+			     rsig->pin(word).nexus()->vector_width()
+				   == word_nex->vector_width());
+
+		  nex_out.pin(ptr).unlink();
+		  enables.pin(ptr).unlink();
+		  connect(nex_out.pin(ptr), rsig->pin(word));
+		  connect(enables.pin(ptr), scope->tie_hi());
+		  bitmasks[ptr] = mask_t(word_nex->vector_width(), true);
+	    }
+
+	    lval_->turn_sig_to_wire_on_release();
+	    return true;
+      }
+
       bool lval_has_word = lval_->word() != 0;
       unsigned lval_word = 0;
       if (lval_has_word) {
@@ -1874,7 +1913,16 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
       LocalVar index_var;
       index_var.nwords = 0;
 
-      map<perm_string,LocalVar> index_args;
+        // A nested procedural loop inherits the already-unrolled values of
+        // its enclosing loop indices. Keep the outer context live while the
+        // inner loop adds and advances its own index.
+      map<perm_string,LocalVar> saved_index_args = scope->loop_index_tmp;
+      NetNet*saved_index_net = scope->loop_index_net_tmp;
+      map<NetNet*,perm_string> saved_index_nets =
+	    scope->loop_index_nets_tmp;
+      perm_string saved_genvar = scope->genvar_tmp;
+      long saved_genvar_value = scope->genvar_tmp_val;
+      map<perm_string,LocalVar> index_args = saved_index_args;
 
 	// Calculate the initial value for the index.
       index_var.value = init_expr_->evaluate_function(*this, index_args);
@@ -1909,9 +1957,9 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
 	      // Synthesize the iterated expression. Stash the loop
 	      // index value so that the substatements can see this
 	      // value and use it during its own synthesis.
-	    ivl_assert(*this, scope->loop_index_tmp.empty());
 	    scope->loop_index_tmp = index_args;
 	    scope->loop_index_net_tmp = index_;
+	    scope->loop_index_nets_tmp[index_] = index_->name();
 
 	    NetBus tmp_ena (scope, nex_out.pin_count());
 	    vector<mask_t> tmp_masks (nex_out.pin_count());
@@ -1924,8 +1972,11 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
 		  merge_sequential_masks(bitmasks[idx], tmp_masks[idx]);
 	    }
 
-	    scope->loop_index_tmp.clear();
-	    scope->loop_index_net_tmp = 0;
+	    scope->loop_index_tmp = saved_index_args;
+	    scope->loop_index_net_tmp = saved_index_net;
+	    scope->loop_index_nets_tmp = saved_index_nets;
+	    scope->genvar_tmp = saved_genvar;
+	    scope->genvar_tmp_val = saved_genvar_value;
 
 	      // Evaluate the step_expr to generate the next index value.
 	    tmp = step_expr->evaluate_function(*this, index_args);
@@ -1971,6 +2022,14 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
       }
 
       delete index_var.value;
+
+	// The loop may have zero iterations, so restore the enclosing context
+	// here as well as after each synthesized iteration.
+      scope->loop_index_tmp = saved_index_args;
+      scope->loop_index_net_tmp = saved_index_net;
+      scope->loop_index_nets_tmp = saved_index_nets;
+      scope->genvar_tmp = saved_genvar;
+      scope->genvar_tmp_val = saved_genvar_value;
 
       return true;
 }

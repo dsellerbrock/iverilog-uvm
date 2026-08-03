@@ -747,6 +747,47 @@ execution. The exact `otp-constant-sensitivity-v15` Darjeeling replay is `PASS`
 in 21.432 seconds, with exit 0, zero hard errors, zero semantic debt and
 `security_vulnerability=false`.
 
+## G33 — whole unpacked-array assignments were mapped as one packed word — **fixed** (current upstream campaign)
+
+*7.4 / 10.9 / synthesis lowering [general] — unpacked arrays and assignment patterns.*
+
+A whole unpacked-array l-value contributed only word zero to the process
+output map. Its array-pattern r-value correctly synthesized to one net pin per
+word, but the packed-vector assignment path then compared the map's aggregate
+width with one element's packed width and aborted. This was the common
+`nex_map[ptr].wid == lsig_width` assertion in Ibex, SHA3, KMAC and OTBN-family
+cores.
+
+Whole unpacked-array assignments now claim every destination word and lower
+each r-value pin to the corresponding word nexus with its own vector width,
+enable and driven mask. `synth_unpacked_array_whole_assign.v` value-checks a
+two-word array pattern through two input updates in ordinary and `-S`
+execution. A fresh Darjeeling `rv_core_ibex` replay advances past the former
+Ibex ALU abort to the separately tracked partial-reset and run-time memory-word
+gaps; the old whole-array assertion is absent and
+`security_vulnerability=false`.
+
+## G34 — nested synthesized procedural loops discarded the outer index — **fixed** (current upstream campaign)
+
+*12.7 / 11.5 / synthesis lowering [general] — nested loop contextualization.*
+
+The procedural-loop unroller required its contextual index map to be empty at
+entry, so an inner loop aborted while an outer loop index was active. Merely
+removing that assertion would still be wrong: signal and select synthesis only
+recognized the most recent index, so an outer unpacked-array word select could
+remain a run-time net instead of the constant for the current unrolled
+iteration.
+
+Nested loops now inherit and restore their enclosing index values, index-net
+identities and generate scratch state. Constant substitution is keyed by the
+exact loop-index net rather than by a possibly shadowed name, and select-base
+folding accepts expressions whose inputs are any combination of active loop
+indices. `synth_nested_for_loop_select.v` combines a whole unpacked-array
+assignment with outer word and inner packed-field selects and value-checks two
+updates in ordinary and `-S` execution. The exact `nested-sha3-v20` OpenTitan
+replay is `PASS` in 0.263 seconds, with exit 0, zero hard errors, zero semantic
+debt, no timeout and `security_vulnerability=false`.
+
 ---
 
 ## Two measurement traps worth remembering
