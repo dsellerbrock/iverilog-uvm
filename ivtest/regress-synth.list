@@ -101,6 +101,7 @@ case6			normal			ivltests
 case7			normal			ivltests
 case_wo_default		normal			ivltests
 synth_case_wide_select_fallback normal,-g2012	ivltests
+synth_constant_array_select_sensitivity normal,-g2012	ivltests
 casesynth1		normal			ivltests
 casesynth2		normal			ivltests
 casesynth3		normal			ivltests
@@ -119,6 +120,8 @@ for_loop_synth		normal			ivltests
 for_loop_synth2		normal			ivltests
 synth_for_loop_descending normal,-g2012	ivltests
 synth_for_loop_index_select normal,-g2012	ivltests
+synth_process_alias_boundary normal,-g2012	ivltests
+synth_process_overlap_reject CE,-g2012	ivltests
 synth_sparse_case	normal,-g2012	ivltests
 if_part_no_else		normal			ivltests
 if_part_no_else2	normal			ivltests
@@ -140,6 +143,7 @@ ssetclr1		normal			ivltests
 ssetclr2		normal			ivltests
 ssetclr3		normal			ivltests
 synth_always_comb_constant normal,-g2012	ivltests
+synth_always_latch_intent normal,-g2012	ivltests
 synth_disjoint_packed_processes normal,-g2012	ivltests
 synth_contextual_array_word normal,-g2012	ivltests
 synth_variable_packed_lvalue normal,-g2012	ivltests

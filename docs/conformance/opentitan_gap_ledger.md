@@ -682,6 +682,71 @@ would fold unmatched high values onto an explicit arm. The
 `synth_case_wide_select_fallback.v` regression value-checks both an empty
 default and the implicit no-default fallback for selector values 0, 1, 2 and 7.
 
+## G30 — synthesized process ownership flowed backward through direct assignments — **fixed** (current upstream campaign)
+
+*6.5 / synthesis lowering [general] — process ownership and structural direction.*
+
+An asynchronous procedural assignment previously connected its synthesized
+result directly to the r-value nexus. Ownership was recorded afterward. For a
+hierarchical chain such as `always_comb d_o = d_i`, the connection therefore
+merged the output variable with its input before the ownership walk and made a
+legal upstream process appear to be a second writer of the same variable.
+OpenTitan's generic synchronizer and flop wrappers amplified that false overlap
+across clock, reset, power, alert and OTP blocks.
+
+Each non-latch synthesized process output now crosses a transparent structural
+buffer before reaching its owned variable. The buffer preserves direction,
+four-state values and disjoint-field Z composition while preventing ownership
+from propagating backward into an input. Genuine same-bit procedural overlaps
+remain errors. `synth_process_alias_boundary.v` reproduces a two-instance port
+chain and value-checks 0, 1 and X in ordinary and `-S` execution.
+
+In the fresh `process-boundary-v12` replay, the formerly failing Darjeeling
+`alert_handler`, `pwrmgr` and `rstmgr` cores are `PASS` with zero hard errors and
+zero semantic debt in 46.750, 0.403 and 0.594 seconds respectively. The change
+also removes the false multi-process hard errors from `clkmgr` and `otp_ctrl`;
+their independent diagnostic debt is recorded separately. Every witness has
+`security_vulnerability=false`.
+
+## G31 — explicit always_latch intent was reported as accidental inference — **fixed** (current upstream campaign)
+
+*9.2.2.3 / synthesis diagnostics [general] — diagnostic precision.*
+
+The synthesizer correctly built a latch for `always_latch`, then emitted the
+same inferred-latch and synthesized-enable warnings used for an accidental
+incomplete `always_comb` or legacy combinational process. This made OpenTitan's
+intentional generic clock-gating latch semantic debt even though the construct
+explicitly requests that storage behavior.
+
+Explicit `always_latch` processes now synthesize the intended latch without
+those inference warnings. Accidental latch inference retains both diagnostics;
+`basiclatch.v` verifies that boundary, while `synth_always_latch_intent.v`
+value-checks capture and hold behavior in ordinary and `-S` execution. The
+exact `clkmgr-latch-intent-v13` Darjeeling replay is `PASS` in 0.456 seconds,
+with exit 0, zero hard errors, zero semantic debt and
+`security_vulnerability=false`.
+
+## G32 — constant aggregate member selects emitted false sensitivity debt — **fixed** (current upstream campaign)
+
+*9.2.2.2.1 / 11.5 [general] — implicit sensitivity and nested selects.*
+
+OpenTitan indexes the constant packed `PartInfo` partition table with a runtime
+partition index and then selects individual struct fields. Elaboration lowers
+that shape to nested selects. The sensitivity walk correctly included the
+runtime index and found no signal dependency in the constant data, but the
+outer constant member select only recognized a direct signal as precise and
+emitted a conservative-sensitivity warning for every use. Darjeeling OTP
+therefore compiled successfully with 37 identical debt diagnostics.
+
+The sensitivity walk now recognizes nested selects whose innermost data source
+is constant. Their runtime dependencies are exactly the nested base/index
+expressions already collected by the walk, so no conservative fallback or
+warning is needed. `synth_constant_array_select_sensitivity.v` value-checks a
+runtime index followed by a constant member-field select in ordinary and `-S`
+execution. The exact `otp-constant-sensitivity-v15` Darjeeling replay is `PASS`
+in 21.432 seconds, with exit 0, zero hard errors, zero semantic debt and
+`security_vulnerability=false`.
+
 ---
 
 ## Two measurement traps worth remembering

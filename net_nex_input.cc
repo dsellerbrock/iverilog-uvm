@@ -185,6 +185,22 @@ NexusSet* NetEScope::nex_input(bool, bool, bool) const
       return new NexusSet;
 }
 
+static bool select_reads_only_constant_data(const NetExpr*expr)
+{
+      if (dynamic_cast<const NetEConst*>(expr))
+	    return true;
+
+      const NetESelect*select = dynamic_cast<const NetESelect*>(expr);
+      if (!select)
+	    return false;
+
+        // Struct/array member access is lowered as nested selects. If the
+        // innermost data expression is constant, the nested select's only
+        // runtime dependencies are its index/base expressions, which its
+        // nex_input walk already includes exactly.
+      return select_reads_only_constant_data(select->sub_expr());
+}
+
 NexusSet* NetESelect::nex_input(bool rem_out, bool always_sens, bool nested_func) const
 {
       NexusSet*result = base_? base_->nex_input(rem_out, always_sens, nested_func) : new NexusSet();
@@ -197,7 +213,7 @@ NexusSet* NetESelect::nex_input(bool rem_out, bool always_sens, bool nested_func
 			delete tmp;
 			tmp = sig->nex_input_base(rem_out, always_sens, nested_func,
                                                   val->value().as_unsigned(), expr_width());
-		  } else {
+		  } else if (!select_reads_only_constant_data(expr_)) {
 			cerr << get_fileline() << ": warning: cannot determine the "
 			     << "precise sensitivity for the select of " << *expr_
 			     << "; using conservative whole-expression sensitivity."

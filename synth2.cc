@@ -334,6 +334,24 @@ static void claim_synthesized_process_outputs(
       }
 }
 
+static void connect_synthesized_process_output(
+		Design*des, NetScope*scope, const LineInfo&loc,
+		unsigned width, Link&output, Link&input)
+{
+        // Keep the variable owned by this process on the output side of a
+        // structural device. A direct nexus merge makes ownership propagate
+        // backward through module inputs and into an upstream process, so a
+        // legal chain such as `always_comb d_o = d_i' is misdiagnosed as
+        // multiple procedural drivers. A transparent buffer preserves the
+        // synthesized value and four-state behavior while retaining the
+        // directional process boundary.
+      NetBUFZ*driver = new NetBUFZ(scope, scope->local_symbol(), width, true);
+      driver->set_line(loc);
+      des->add_node(driver);
+      connect(driver->pin(0), output);
+      connect(driver->pin(1), input);
+}
+
 bool NetProcTop::tie_off_floating_inputs_(Design*des,
 					  NexusSet&nex_map, NetBus&nex_in,
 					  const vector<NetProc::mask_t>&bitmasks,
@@ -2003,19 +2021,27 @@ bool NetProcTop::synth_async(Design*des)
 			enables.pin(idx).is_linked(scope()->tie_hi())
 			&& all_process_writes_are_driven(
 			      bitmasks[idx], process_write_masks[idx]));
-		  connect(nex_set[idx].lnk, nex_out.pin(idx));
+		  connect_synthesized_process_output(
+			des, scope(), *this, nex_set[idx].wid,
+			nex_set[idx].lnk, nex_out.pin(idx));
 		  continue;
 	    }
 
 	    if (enables.pin(idx).is_linked(scope()->tie_hi())) {
-		  connect(nex_set[idx].lnk, nex_out.pin(idx));
+		  connect_synthesized_process_output(
+			des, scope(), *this, nex_set[idx].wid,
+			nex_set[idx].lnk, nex_out.pin(idx));
 	    } else {
-		  cerr << get_fileline() << ": warning: "
-		       << "A latch has been inferred for '"
-		       << nex_set[idx].lnk.nexus()->pick_any_net()->name()
-		       << "'." << endl;
+		  bool intentional_latch = type() == IVL_PR_ALWAYS_LATCH;
+		  if (!intentional_latch) {
+			cerr << get_fileline() << ": warning: "
+			     << "A latch has been inferred for '"
+			     << nex_set[idx].lnk.nexus()->pick_any_net()->name()
+			     << "'." << endl;
+		  }
 
-		  if (enables.pin(idx).nexus()->pick_any_net()->local_flag()) {
+		  if (!intentional_latch
+		      && enables.pin(idx).nexus()->pick_any_net()->local_flag()) {
 			cerr << get_fileline() << ": warning: The latch "
 			        "enable is connected to a synthesized "
 			        "expression. The latch may be sensitive "
