@@ -102,11 +102,41 @@ python3 scripts/opentitan_matrix.py \
 
 `--core` selects an exact VLNV; `--ip` is a repeatable case-insensitive name or
 description filter.  Runtime plusargs can be repeated with `--runtime-arg`.
-Timeouts are independently configurable for setup, compile, and runtime.
+Timeouts are independently configurable for setup, compile, and runtime. The
+defaults are 600 seconds for setup, 600 seconds for compile, and 300 seconds for
+runtime. Each command starts in its own process session; a timeout terminates
+the whole session, including compiler/preprocessor descendants, before the next
+job starts. Interrupting a census cancels queued jobs, terminates all active
+command sessions, and preserves the last atomic JSON/Markdown checkpoint.
+This makes bounded termination part of the evidence instead of allowing a hung
+lowering pass or an orphan compiler to consume the remainder of the campaign.
 
 The default reports are `opentitan-matrix.json` and `opentitan-matrix.md` under
 the build root.  `DEBT` and all failure/timeout statuses make the runner return
 nonzero, allowing the matrix to become a genuine zero-debt gate.
+
+## First whole-RTL checkpoint
+
+A pinned pre-G20 run at OpenTitan `7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19`
+completed 113 of 267 RTL jobs before deliberate interruption: 4
+`COMPILE_TIMEOUT`, 16 `DEBT`, 59 `DEPENDENCY_ONLY`, 30 `FAIL`, and 4
+`SETUP_FAIL`. All four timeouts were independent Ibex cores and each spent the
+then-configured 1800 seconds in synthesis lowering. A process sample located the
+hot path under `NetProcTop::synth_async`, dominated by repeated nexus connects.
+This is a partial root-cause census, not a pass-rate claim.
+
+That checkpoint exposed two infrastructure defects now fixed in the runner:
+the 1800-second default made iteration needlessly slow, and a timed-out driver
+could leave its compiler descendants running. The default is now 600 seconds
+and timeout/interrupt cleanup covers the complete command session. The next
+whole-RTL run must start from a new build root and compiler fingerprint; results
+from the partial checkpoint must not be merged with the post-G20 compiler.
+
+The first exact post-G20 Ibex-core rerun removed the immediate synthesis
+segfault exposed by a statically non-overlapping packed write, then reached the
+new 600-second limit. It was recorded as `COMPILE_TIMEOUT` after 600.085 seconds
+and left no driver, preprocessor or compiler descendant. The bounded cleanup is
+therefore verified; the hot synthesis path remains an open G22 compiler gap.
 
 ## First ADC-control matrix witness
 

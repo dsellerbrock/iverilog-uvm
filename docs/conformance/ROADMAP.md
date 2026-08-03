@@ -382,9 +382,10 @@ legacy-engine retirement.
 | M14B-5 | Freeze the clean OpenTitan and Caliptra corpora as replayable conformance witnesses | K | OPEN | OpenTitan + Caliptra zero-debt gates | pinned revisions, dependency choices, command manifests and expected results replay in CI |
 | M14B-6 | Complete grammar-production and semantic-rule census | K | OPEN | M14B-5 | every 1800-2017 production/subclause is implemented, deliberately diagnosed, or linked to a failing permanent test; no unmeasured row |
 | M14B-7 | Cross-context typing/lowering matrix | A | OPEN | M14B-5 | the same legal construct agrees across expression, declaration, assignment, argument, return, property/sequence, covergroup and DPI contexts |
-| M14B-8 | Parentheses-preserving and other metamorphic equivalence campaign | A | OPEN | M14B-5 | generated equivalent programs agree in acceptance, type, result, scheduling and diagnostics; reference-simulator differential is clean where available |
+| M14B-8 | Parentheses-preserving and other metamorphic equivalence campaign | A | OPEN | M14B-5 | generated equivalent programs agree in acceptance, type, result, scheduling and diagnostics |
 | M14B-9 | Exhaustive DPI signature/runtime matrix | K | OPEN | M14B-5 | imports/exports, tasks/functions, directions, lifetimes, context/pure, scalar/packed/string/chandle/open arrays and re-entry have positive, negative and concurrent-runtime evidence |
-| M14B-10 | Final zero-debt evidence gate | K | OPEN | M14B-1…M14B-9 | no error, fallback/degradation warning, crash, silent mismatch or unlinked matrix row across permanent suites and frozen corpora |
+| M14B-10 | Pinned Slang and sv-tests differential campaign | K | OPEN | M14B-5 | every applicable sv-tests case and generated M14B witness has a reproducible Icarus/Slang disposition; every disagreement is minimized, resolved against IEEE 1800-2017 and linked to a permanent test |
+| M14B-11 | Final zero-debt evidence gate | K | OPEN | M14B-1…M14B-10 | no error, fallback/degradation warning, crash, timeout, silent mismatch, unresolved differential or unlinked matrix cell across permanent suites and frozen corpora |
 
 #### Post-OpenTitan/Caliptra closure protocol
 
@@ -410,31 +411,44 @@ After both corpora meet that gate, execute M14B in this fixed order:
    virtual-provider selections, generated file lists, compiler flags, DPI link
    commands, test seeds and output fingerprints. CI must be able to recreate the
    same lanes without a developer's cache deciding the result.
-2. **Measure the whole standard (M14B-1/2/3/6).** Replace top-level clause
-   labels with a subclause and grammar-production ledger. Every row links to a
-   positive test, a negative diagnostic test, a runtime test where semantics are
-   observable, and at least one interaction test for nontrivial features.
-3. **Attack the basic context gaps (M14B-7).** Generate a cross product over
+2. **Establish independent baselines (M14B-10).** Pin a Slang revision and an
+   sv-tests revision, record their build options, and run the complete applicable
+   suites. Slang is a parsing, elaboration and static-semantics comparator, not a
+   substitute runtime oracle. Every disagreement is minimized and decided from
+   IEEE 1800-2017 before either implementation is called correct.
+3. **Measure the whole standard (M14B-1/2/3/6).** Replace each top-level clause
+   label with subclause/production rows and separate columns for parsing,
+   elaboration/name resolution, contextual type/width/sign, simulation value,
+   scheduling, synthesis lowering, SVA, UVM/class runtime, DPI/VPI, diagnostics,
+   bounded termination and differential evidence. `FULL` is allowed only when
+   every applicable cell is evidenced; an unknown cell is not a pass. Every row
+   links to a positive test, a negative diagnostic test, a runtime test where
+   semantics are observable, and at least one interaction test for nontrivial
+   features.
+4. **Attack the basic context gaps (M14B-7).** Generate a cross product over
    scalar, enum, struct, union, class, interface, fixed array, dynamic array,
    queue and associative-array types, then place each in declarations,
    initializers, assignments, calls, returns, constraints, covergroups,
-   properties/sequences and DPI boundaries. This catches the recurring defect
-   class where syntax works in one context but contextual typing or lowering is
-   missing in another.
-4. **Prove equivalent syntax remains equivalent (M14B-4/8).** Add/remove legal
+   properties/sequences, synthesis lvalues and DPI boundaries. This catches the
+   recurring defect class where syntax works in one context but contextual
+   typing, constant evaluation or lowering is missing in another. Fixes are
+   grouped by shared compiler subsystem and IEEE rule, never by product file.
+5. **Prove equivalent syntax remains equivalent (M14B-4/8).** Add/remove legal
    parentheses; introduce typedefs; replace literals with parameters; switch
    between named and positional arguments; move equivalent declarations among
    legal locations; and specialize widths/types. Compare acceptance,
-   diagnostics, elaborated type/width, runtime value and scheduler trace. Run
-   the same minimized cases against independent IEEE implementations when they
-   are available; disagreements stay open until the standard resolves them.
-5. **Close the interop boundary (M14B-9).** Exhaust the DPI signature matrix and
+   diagnostics, elaborated type/width, synthesized structure, runtime value and
+   scheduler trace. Feed the generated/minimized cases through the pinned Slang
+   and sv-tests harness; disagreements stay open until the standard resolves
+   them.
+6. **Close the interop boundary (M14B-9).** Exhaust the DPI signature matrix and
    combine it with automatic/static lifetime, concurrency, recursion, C-to-SV
    re-entry, open-array bounds and 2-state/4-state conversion checks.
-6. **Apply the final gate (M14B-10).** Require zero unknown/suppressed
-   diagnostics, zero compile-progress behavior, zero crashes, zero differential
-   mismatches and zero ledger rows without permanent evidence. Only this gate,
-   not corpus compatibility alone, supports a full IEEE 1800-2017 claim.
+7. **Apply the final gate (M14B-11).** Require zero unknown/suppressed
+   diagnostics, zero compile-progress behavior, zero crashes or timeouts, zero
+   unresolved differential mismatches and zero applicable matrix cells without
+   permanent evidence. Only this gate, not corpus compatibility alone, supports
+   a full IEEE 1800-2017 claim.
 
 ### M15 — IEEE 1800-2023 delta  (2023 spec)
 

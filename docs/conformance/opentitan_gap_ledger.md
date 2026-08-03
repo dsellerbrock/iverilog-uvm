@@ -445,6 +445,81 @@ exact Darjeeling pinmux target now exits zero with no hard errors; its two
 remaining debts are the explicit no-sensitivities warning and the separately
 tracked conservative `always_*` sensitivity warning.
 
+## G20 — contextually constant unpacked-array word in synthesis — **fixed** (current upstream campaign)
+
+*7.4 / 12.7.1 / synthesis contextualization [general] — unsupported legal RTL.*
+
+```systemverilog
+always_comb begin
+  for (int i = 0; i < NumPolicies; i++)
+    combined_racl_error[i] = policy_error[i] | range_error[i];
+end
+```
+
+The l-value word expression is syntactically variable, but `i` is a constant in
+each unrolled synthesis iteration. The output-discovery pass returned no output
+for such a word and the assignment pass rejected it as a run-time memory write.
+That conflated two different cases: an unrolled array word, which must lower to
+one ordinary vector assignment per iteration, and a true run-time RAM address,
+which still requires RAM-write lowering.
+
+Default synthesis output discovery now exposes every possible unpacked word,
+and the assignment pass evaluates the word with the loop's constant context and
+selects the exact word nexus. The always_comb sensitivity-pruning walk remains
+conservative so it does not remove words that are only read. Part-select stores
+first size the replacement to the selected width and preserve the untouched
+bits through `NetSubstitute`; this closed a wrong synthesized value found by the
+new value-checking regression.
+
+`ivtest/ivltests/synth_contextual_array_word.v` checks whole-word writes,
+part-select writes, fields of an unpacked array of packed structs, and a
+contextually constant packed select that lies completely outside the target in
+both ordinary and `-S` execution. The out-of-range case is a no-op; previously
+its negative base was still written into the synthesis bit mask and could
+segfault the compiler. The exact Darjeeling RACL target no longer reports any
+variable-memory-word diagnostic and compiles in 0.24 seconds. Its remaining
+failure is the separate bit-level latch-enable limitation.
+
+True run-time RAM writes such as `mem[addr_i] <= wdata` remain loud unsupported
+synthesis debt and are not claimed by this fix.
+
+## G21 — legacy synthesis fallback aborted on rejected `always_*` — **fixed** (current upstream campaign)
+
+*[general] — compiler robustness, not feature completion.*
+
+When synth2 rejected an `always_comb`, `always_ff` or `always_latch` process,
+the unchanged process fell through to the legacy `syn-rules` matcher. That
+matcher asserted that modern process kinds should never reach it, converting a
+useful unsupported-feature diagnostic into exit 134 or a segfault cascade.
+
+The legacy pass now emits a normal `sorry`, increments the compiler error count
+and skips the process. `synth_modern_process_reject.v` verifies that a partial
+asynchronous reset is rejected with an ordinary nonzero exit rather than a
+signal. This does not implement partial resets or bit-level latch enables; it
+makes their current boundary deterministic and non-crashing.
+
+## G22 — Ibex synthesis lowering exceeds its declared resource bound — **open** (current upstream campaign)
+
+*[general] — bounded-termination/performance defect, not a cybersecurity finding.*
+
+The first whole-RTL checkpoint left four Ibex compiler engines running after
+their 1800-second drivers timed out. Process-session cleanup now proves that a
+timeout cannot leak those descendants, and the compile bound is 600 seconds,
+but the underlying lowering cost remains open.
+
+An exact post-G20 run of `lowrisc:ibex:ibex_core:0.1` at OpenTitan
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` no longer hits the former
+out-of-range bit-mask segfault. It reaches the 600.085-second bound and exits as
+`COMPILE_TIMEOUT`; the complete compiler process session is reaped. A process
+sample spends 663 of 685 samples in `connect()` below
+`NetESelect::synthesize`, inside a condition nested in an unrolled `for` loop.
+The same run had already diagnosed the separate bit-level latch-enable limit in
+`ibex_alu.sv` and three unsynthesized `ibex_multdiv_fast.sv` processes.
+
+Pass criterion: the pinned core must terminate comfortably below the declared
+bound, with no crash, leaked descendant, fallback process or hard diagnostic.
+Crash removal and cleanup are robustness progress, not a conformance pass.
+
 ---
 
 ## Two measurement traps worth remembering

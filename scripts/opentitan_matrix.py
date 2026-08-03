@@ -18,10 +18,12 @@ import json
 import os
 from pathlib import Path
 import re
+import signal
 import shlex
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from typing import Iterable, Sequence
 
@@ -110,6 +112,31 @@ class CommandResult:
     timed_out: bool = False
 
 
+ACTIVE_PROCESSES: set[subprocess.Popen[str]] = set()
+ACTIVE_PROCESSES_LOCK = threading.Lock()
+
+
+def signal_command_tree(process: subprocess.Popen[str], sig: int) -> None:
+    """Signal a command and every child in the session created for it."""
+    if process.poll() is not None:
+        return
+    try:
+        if os.name == "posix":
+            os.killpg(process.pid, sig)
+        else:
+            process.send_signal(sig)
+    except ProcessLookupError:
+        pass
+
+
+def terminate_active_commands() -> None:
+    """Stop in-flight command trees when the matrix itself is interrupted."""
+    with ACTIVE_PROCESSES_LOCK:
+        processes = tuple(ACTIVE_PROCESSES)
+    for process in processes:
+        signal_command_tree(process, signal.SIGTERM)
+
+
 def command_result(
     command: Sequence[str],
     *,
@@ -118,30 +145,46 @@ def command_result(
     timeout: int,
 ) -> CommandResult:
     started = time.monotonic()
+    process = subprocess.Popen(
+        list(command),
+        cwd=cwd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        start_new_session=os.name == "posix",
+    )
+    with ACTIVE_PROCESSES_LOCK:
+        ACTIVE_PROCESSES.add(process)
     try:
-        completed = subprocess.run(
-            list(command),
-            cwd=cwd,
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            timeout=timeout,
-            check=False,
-        )
+        output, _ = process.communicate(timeout=timeout)
         return CommandResult(
             list(command),
-            completed.returncode,
-            completed.stdout,
+            process.returncode,
+            output,
             time.monotonic() - started,
         )
-    except subprocess.TimeoutExpired as exc:
-        output = exc.stdout or ""
-        if isinstance(output, bytes):
-            output = output.decode(errors="replace")
+    except subprocess.TimeoutExpired:
+        signal_command_tree(process, signal.SIGTERM)
+        try:
+            output, _ = process.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            signal_command_tree(process, signal.SIGKILL)
+            output, _ = process.communicate()
         return CommandResult(
             list(command), 124, output, time.monotonic() - started, True
         )
+    except KeyboardInterrupt:
+        signal_command_tree(process, signal.SIGTERM)
+        try:
+            process.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            signal_command_tree(process, signal.SIGKILL)
+            process.communicate()
+        raise
+    finally:
+        with ACTIVE_PROCESSES_LOCK:
+            ACTIVE_PROCESSES.discard(process)
 
 
 def short_command(command: Sequence[str]) -> str:
@@ -708,6 +751,30 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         "WARNING: No trustfile configured (ssh-trustfile in fusesoc.conf), "
         "signatures will not be checked."
     )
+    if os.name == "posix":
+        timeout_probe = command_result(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import subprocess,sys,time; "
+                    "p=subprocess.Popen([sys.executable,'-c',"
+                    "'import time; time.sleep(30)']); "
+                    "print(p.pid,flush=True); time.sleep(30)"
+                ),
+            ],
+            cwd=Path.cwd(),
+            env=os.environ.copy(),
+            timeout=1,
+        )
+        assert timeout_probe.timed_out
+        descendant_pid = int(timeout_probe.output.strip().splitlines()[0])
+        try:
+            os.kill(descendant_pid, 0)
+        except ProcessLookupError:
+            pass
+        else:
+            raise AssertionError("timed-out command left a descendant running")
     print("opentitan_matrix self-test: PASS")
 
 
@@ -737,7 +804,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--list", action="store_true")
     result.add_argument("--setup-only", action="store_true")
     result.add_argument("--setup-timeout", type=int, default=600)
-    result.add_argument("--compile-timeout", type=int, default=1800)
+    result.add_argument("--compile-timeout", type=int, default=600)
     result.add_argument("--runtime-timeout", type=int, default=300)
     result.add_argument("--runtime-arg", action="append", default=[])
     result.add_argument("--diagnostic-limit", type=int, default=100)
@@ -832,19 +899,36 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     indexed_results: list[tuple[int, dict[str, object]]] = []
     if args.jobs == 1:
-        for index, job in enumerate(jobs, 1):
-            print(f"[{index}/{len(jobs)}] {job.lane} {job.core.vlnv}", flush=True)
-            record = execute(job)
-            indexed_results.append((index - 1, record))
+        try:
+            for index, job in enumerate(jobs, 1):
+                print(f"[{index}/{len(jobs)}] {job.lane} {job.core.vlnv}", flush=True)
+                record = execute(job)
+                indexed_results.append((index - 1, record))
+                save_report(
+                    metadata,
+                    [item for _, item in sorted(indexed_results)],
+                    json_path,
+                    md_path,
+                )
+                print(f"  -> {record['status']}", flush=True)
+        except KeyboardInterrupt:
+            terminate_active_commands()
             save_report(
                 metadata,
                 [item for _, item in sorted(indexed_results)],
                 json_path,
                 md_path,
             )
-            print(f"  -> {record['status']}", flush=True)
+            print(
+                f"Interrupted after {len(indexed_results)}/{len(jobs)} jobs; "
+                f"partial report preserved at {json_path}",
+                file=sys.stderr,
+            )
+            return 130
     else:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as executor:
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs)
+        pending: dict[concurrent.futures.Future[dict[str, object]], tuple[int, Job]] = {}
+        try:
             pending = {
                 executor.submit(execute, job): (index, job)
                 for index, job in enumerate(jobs)
@@ -873,6 +957,25 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f" -> {record['status']}",
                     flush=True,
                 )
+        except KeyboardInterrupt:
+            for future in pending:
+                future.cancel()
+            terminate_active_commands()
+            executor.shutdown(wait=True, cancel_futures=True)
+            save_report(
+                metadata,
+                [item for _, item in sorted(indexed_results)],
+                json_path,
+                md_path,
+            )
+            print(
+                f"Interrupted after {len(indexed_results)}/{len(jobs)} jobs; "
+                f"partial report preserved at {json_path}",
+                file=sys.stderr,
+            )
+            return 130
+        else:
+            executor.shutdown(wait=True)
     results = [record for _, record in sorted(indexed_results)]
     save_report(metadata, results, json_path, md_path)
     print(f"JSON: {json_path}")

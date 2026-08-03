@@ -1,21 +1,48 @@
 # IEEE 1800-2017 Clause Conformance Matrix
 
-Governing milestone: **M14 — IEEE 1800-2017 clause matrix with complete
-disposition.** This is the authoritative clause-by-clause disposition of
-the `dsellerbrock/iverilog-uvm` fork against IEEE 1800-2017.
+Governing milestone: **M14B — exhaustive subclause campaign.** The table below
+is the retained M14 simulation-led snapshot. It is useful evidence, but it is
+**not** a full-compliance certificate and its `FULL` labels are provisional
+until M14B replaces them with the multidimensional matrix described below.
 
-Every disposition here is **empirical** — established by compiling and
-running representative constructs against the installed simulator, not
-from documentation or memory (manifesto principle 1/3). The audit that
-produced it exercised each clause with positive constructs (checking
-computed-vs-expected results, not merely that they compiled) and probed
-for the failure modes the manifesto forbids.
+Every disposition here is **empirical** — established by compiling and running
+representative constructs against the installed simulator, not from
+documentation or memory (manifesto principle 1/3). The original audit checked
+computed values on representative constructs. It did not exhaust every
+subclause or separately prove synthesis, SVA, UVM/DPI, diagnostic and bounded-
+termination behavior. OpenTitan has since demonstrated why those dimensions
+cannot be inferred from a small simulation probe.
+
+## M14B replacement gate
+
+Each subclause/grammar-production row will have separate evidence cells for:
+
+| Dimension | Required evidence |
+|---|---|
+| Parse | legal forms accepted; illegal forms rejected at the right boundary |
+| Elaborate | names, hierarchy, parameters and overload/specialization choices resolve correctly |
+| Contextual type | width, sign, 2/4-state, enum and aggregate identity preserved in every legal context |
+| Simulation | computed values and object/container effects match an explicit oracle |
+| Scheduling | region, lifetime, race boundary and end-of-simulation traces match the standard |
+| Synthesis | legal synthesizable forms lower without process fallback, crash or semantic debt |
+| SVA | grammar, attempts, sampling, scheduling, actions and assertion VPI are verified |
+| UVM/class runtime | class, constraint, coverage and reusable-library behavior executes, not merely compiles |
+| DPI/VPI | ABI, directions, lifetime, concurrency, re-entry and data round trips are verified |
+| Diagnostics | unsupported/illegal forms fail loudly and locally; no compile-progress stub or dropped construct |
+| Termination | permanent probes and frozen corpora finish within a declared resource bound |
+| Differential | pinned Slang and sv-tests results are recorded; disagreements are resolved against IEEE 1800-2017 |
+
+`FULL` in the replacement matrix means every applicable cell has permanent
+positive, negative, semantic and interaction evidence. `UNKNOWN` is not a pass,
+and parser acceptance cannot stand in for lowering or runtime behavior. Slang
+is used for parsing/elaboration/static-semantics comparison; it is not treated
+as a simulator or as the definition of the standard.
 
 ## Legend
 
 | Code | Meaning |
 |------|---------|
-| **FULL** | Legal syntax parses; names resolve; types preserved; runtime behaviour correct on the probed constructs. |
+| **FULL** | Legacy M14 label: legal syntax, resolution, typing and runtime behaviour were correct on the probed simulation constructs; provisional until M14B. |
 | **PARTIAL** | Core behaviour correct; specific sub-features are recorded corners (listed). |
 | **DIAGNOSED** | Not implemented, but rejected with an explicit, loud diagnostic (error/sorry/one-time warning). No silent miscompile. |
 | **N/A** | Clause is informative/organizational or not applicable to a simulation tool. |

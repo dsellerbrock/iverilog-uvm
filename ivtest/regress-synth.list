@@ -136,6 +136,7 @@ ssetclr1		normal			ivltests
 ssetclr2		normal			ivltests
 ssetclr3		normal			ivltests
 synth_always_comb_constant normal,-g2012	ivltests
+synth_contextual_array_word normal,-g2012	ivltests
 synth_variable_packed_lvalue normal,-g2012	ivltests
 synth_if_no_else	normal			ivltests
 ufuncsynth1		normal			ivltests

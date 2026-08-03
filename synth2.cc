@@ -523,14 +523,6 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
       NetNet*rsig = rval_->synthesize(des, scope, rval_);
       assert(rsig);
 
-      if (lval_->word() && ! dynamic_cast<NetEConst*>(lval_->word())) {
-	    cerr << get_fileline() << ": sorry: Assignment to variable "
-		    "location in memory is not currently supported in "
-		    "synthesis." << endl;
-	    des->errors += 1;
-	    return false;
-      }
-
       NetNet*lsig = lval_->sig();
       if (!lsig) {
 	    cerr << get_fileline() << ": error: "
@@ -539,6 +531,40 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 	    cerr << endl;
 	    des->errors += 1;
 	    return false;
+      }
+
+      bool lval_has_word = lval_->word() != 0;
+      unsigned lval_word = 0;
+      if (lval_has_word) {
+	    const NetExpr*word_expr = lval_->word();
+	    NetExpr*word_result = 0;
+	    const NetExpr*word_value = word_expr;
+	    if (!dynamic_cast<const NetEConst*>(word_expr)
+		&& synth_context_constant(word_expr, scope->loop_index_tmp)) {
+		  word_result = word_expr->evaluate_function(*this,
+						 scope->loop_index_tmp);
+		  word_value = word_result;
+	    }
+
+	    long word_index = 0;
+	    bool constant_word = eval_as_long(word_index, word_value);
+	    delete word_result;
+	    if (!constant_word) {
+		  cerr << get_fileline() << ": sorry: Assignment to run-time "
+			  "selected memory word is not currently supported in "
+			  "synthesis." << endl;
+		  des->errors += 1;
+		  return false;
+	    }
+	    if (word_index < 0
+		|| static_cast<unsigned long>(word_index) >= lsig->pin_count()) {
+		  cerr << get_fileline() << ": error: Contextually constant memory "
+			  "word index " << word_index << " is out of range for "
+			  << lsig->name() << "." << endl;
+		  des->errors += 1;
+		  return false;
+	    }
+	    lval_word = static_cast<unsigned>(word_index);
       }
 
       if (debug_synth2) {
@@ -561,7 +587,12 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
       unsigned ptr = 0;
       if (nex_out.pin_count() > 1) {
 	    NexusSet tmp_set;
-	    nex_output(tmp_set);
+	    if (lval_has_word) {
+		  Nexus*word_nex = lsig->pin(lval_word).nexus();
+		  tmp_set.add(word_nex, 0, word_nex->vector_width());
+	    } else {
+		  nex_output(tmp_set);
+	    }
 	    ivl_assert(*this, tmp_set.size() == 1);
 	    ptr = nex_map.find_nexus(tmp_set[0]);
 	    ivl_assert(*this, nex_out.pin_count() > ptr);
@@ -577,12 +608,19 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
       unsigned lsig_width = lsig->vector_width();
       ivl_assert(*this, nex_map[ptr].wid == lsig_width);
 
-	// Here we note if the l-value is actually a bit/part
-	// select. If so, generate a NetPartSelect to perform the select.
+      // Here we note if the l-value is actually a bit/part
+      // select. If so, generate a NetPartSelect to perform the select.
       bool is_part_select = lval_width != lsig_width;
+	// The unrolled-loop path can retain the expression's wider natural
+	// width; size it to the selected l-value before substitution. Preserve
+	// the established non-loop lowering, where an otherwise undriven part
+	// of a synthesized register remains undriven rather than stateful.
+      if (is_part_select && !scope->loop_index_tmp.empty())
+	    rsig = crop_to_width(des, rsig, lval_width);
 
       long base_off = 0;
       bool variable_part_select = false;
+      bool no_op_part_select = false;
       if (is_part_select) {
 	    ivl_assert(*this, lval_width < lsig_width);
 	    const NetExpr*base_expr_raw = lval_->get_base();
@@ -605,27 +643,19 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 		  tmp->local_flag(true);
 		  tmp->set_line(*this);
 
-		  if (!scope->loop_index_tmp.empty()) {
-			NetPartSelect*ps = new NetPartSelect(tmp, base_off, lval_width,
-							NetPartSelect::PV);
-			ps->set_line(*this);
-			des->add_node(ps);
-			connect(ps->pin(0), rsig->pin(0));
-		  } else {
-			NetNet*isig = nex_out.pin(ptr).nexus()->pick_any_net();
-			if (!isig) {
-			      isig = new NetNet(scope, scope->local_symbol(),
-						NetNet::WIRE, tmp_type);
-			      isig->local_flag(true);
-			      isig->set_line(*this);
-			      connect(isig->pin(0), nex_out.pin(ptr));
-			}
-			NetSubstitute*ps =
-			      new NetSubstitute(isig, rsig, lsig_width, base_off);
-			ps->set_line(*this);
-			des->add_node(ps);
-			connect(ps->pin(0), tmp->pin(0));
+		  NetNet*isig = nex_out.pin(ptr).nexus()->pick_any_net();
+		  if (!isig) {
+			isig = new NetNet(scope, scope->local_symbol(),
+					  NetNet::WIRE, tmp_type);
+			isig->local_flag(true);
+			isig->set_line(*this);
+			connect(isig->pin(0), nex_out.pin(ptr));
 		  }
+		  NetSubstitute*ps =
+			new NetSubstitute(isig, rsig, lsig_width, base_off);
+		  ps->set_line(*this);
+		  des->add_node(ps);
+		  connect(ps->pin(0), tmp->pin(0));
 		  rsig = tmp;
 	    } else if (constant_base
 		       && (base_off >= static_cast<long>(lsig_width)
@@ -641,6 +671,7 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 			rsig->set_line(*this);
 			connect(rsig->pin(0), nex_out.pin(ptr));
 		  }
+		  no_op_part_select = true;
 	    } else {
 		  const netvector_t*tmp_type =
 			new netvector_t(lsig->data_type(), lsig_width-1, 0);
@@ -674,7 +705,10 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
       connect(enables.pin(ptr), scope->tie_hi());
 
       mask_t&bitmask = bitmasks[ptr];
-      if (variable_part_select) {
+      if (no_op_part_select) {
+	    // Preserve the accumulated mask: a statically non-overlapping
+	    // procedural select writes no bits.
+      } else if (variable_part_select) {
 	    bitmask = mask_t (lsig_width, true);
       } else if (is_part_select) {
 	    if (bitmask.size() == 0) {

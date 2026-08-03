@@ -63,13 +63,18 @@ void NetAssign_::nex_output(NexusSet&out)
 		    // A constant word select, so add the selected word.
 		  use_word = tmp;
 	    } else {
-		    // A variable word select. The obvious thing to do
-		    // is to add the whole array, but this could cause
-		    // NetBlock::nex_input() to overprune the input set.
-		    // As array access is not yet handled in synthesis,
-		    // I'll leave this as TBD - the output set is not
-		    // otherwise used when elaborating an always @*
-		    // block.
+		    // For always_comb sensitivity subtraction, claiming the
+		    // whole array could remove words that the block only reads.
+		    // Synthesis, however, needs every possible word in the output
+		    // map before it unrolls a loop and contextually evaluates the
+		    // word expression. Keep the precise walk conservative and
+		    // expose all words to the default synthesis walk.
+		  if (!nex_output_precise_partsel) {
+			for (unsigned idx = 0; idx < sig_->pin_count(); idx += 1) {
+			      Nexus*word_nex = sig_->pin(idx).nexus();
+			      out.add(word_nex, 0, word_nex->vector_width());
+			}
+		  }
 		  return;
 	    }
       }
