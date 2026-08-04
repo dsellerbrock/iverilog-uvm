@@ -22,15 +22,16 @@ extern void* vvp_dpi_find_symbol(const char*name);
 /*
  * One marshaled DPI argument. "type" is the base letter from the
  * compiler-emitted signature string:
- *   'b' int8   'h' int16   'i' int32   'l' int64 (longint/chandle)
+ *   'b' int8   'h' int16   'i' int32   'l' int64 (longint)
+ *   'p' void* (chandle)
  *   'g' svLogic scalar (unsigned char, 4-state encoding 0/1/2=x/3=z)
  *   'r' double 's' const char*
  * is_unsigned selects the unsigned variant of the integer letters.
  * is_output marks output/inout arguments: they are passed by pointer
  * (seeded with the incoming payload) and the callee-written value is
  * stored back into this struct after the call.
- * Integer payloads (including 'g') travel in ival; 'r' in rval; 's'
- * in sval (storage owned by the caller, must outlive the call; for
+ * Integer payloads (including 'g') travel in ival; 'p' in pval; 'r' in
+ * rval; 's' in sval (storage owned by the caller, must outlive the call; for
  * outputs the returned pointer is callee-owned — copy it before the
  * next DPI call).
  */
@@ -71,8 +72,9 @@ struct vvp_dpi_arg_t {
       int64_t ival;
       double rval;
       const char* sval;
+      void* pval;                    // 'p': chandle / C void*
       vvp_dpi_open_array_t* aval; // 'o' only: the open-array handle
-      uint32_t* vbuf;             // 'V'/'W': packed vector buffer
+      uint32_t* vbuf;             // 'V'/'W': packed vector buffer (any width)
 				  //   'V' svBitVecVal[]  (2-state, one word/32 bits)
 				  //   'W' svLogicVecVal[] (4-state, aval,bval pairs)
       unsigned  vwid;             // 'V'/'W': vector width in bits
@@ -80,8 +82,8 @@ struct vvp_dpi_arg_t {
 
 /*
  * Call the C function at sym with the marshaled argument list.
- * ret_type is one of 'i' (int32), 'l' (int64), 'r' (double),
- * 's' (const char*), 'v' (void); the result is written through the
+ * ret_type is one of 'i' (int32), 'l' (int64), 'p' (void*),
+ * 'r' (double), 's' (const char*), 'v' (void); the result is written through the
  * matching ret_* pointer. Output arguments are updated in args[].
  * Returns false (with a diagnostic naming c_name) if the signature
  * cannot be marshaled on this build.

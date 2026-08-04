@@ -126,6 +126,16 @@ PEAssignPattern::~PEAssignPattern()
 {
 }
 
+void PEAssignPattern::reloc_lexical_pos_bind(bool parameter_context)
+{
+      if (replication_)
+	    replication_->reloc_lexical_pos_bind(parameter_context);
+      for (size_t idx = 0 ; idx < parms_.size() ; idx += 1) {
+	    if (parms_[idx])
+		  parms_[idx]->reloc_lexical_pos_bind(parameter_context);
+      }
+}
+
 PEBinary::PEBinary(char op, PExpr*l, PExpr*r)
 : op_(op), left_(l), right_(r)
 {

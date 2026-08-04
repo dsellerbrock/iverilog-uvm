@@ -1,0 +1,9 @@
+{
+    "type"   : "CE",
+    "source" : "synth_single_async_fpga_reject.v",
+    "iverilog-args" : [ "-g2012", "-tfpga", "-parch=generic-xnf" ],
+    "gold" : "synth_single_async_fpga_reject",
+    "vlog95" : {
+        "type" : "NI"
+    }
+}

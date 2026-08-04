@@ -380,7 +380,7 @@ void dll_target::expr_last(const NetELast*net)
 
       expr->u_.sfunc_.name_ = "$high";
 
-      ivl_signal_t sig = find_signal(des_, net->sig());
+      ivl_signal_t sig = find_signal(net->sig());
 
       ivl_expr_t esig = new struct ivl_expr_s;
       esig->type_   = IVL_EX_SIGNAL;
@@ -472,7 +472,7 @@ void dll_target::expr_property(const NetEProperty*net)
       expr_->value_  = net->expr_type();
       expr_->net_type= net->net_type();
       if (net->get_sig()) {
-	    expr_->u_.property_.sig = find_signal(des_, net->get_sig());
+	    expr_->u_.property_.sig = find_signal(net->get_sig());
 	    expr_->u_.property_.base = 0;
       } else {
 	    expr_->u_.property_.sig = 0;
@@ -647,7 +647,7 @@ void dll_target::expr_ternary(const NetETernary*net)
 
 void dll_target::expr_signal(const NetESignal*net)
 {
-      ivl_signal_t sig = find_signal(des_, net->sig());
+      ivl_signal_t sig = find_signal(net->sig());
 
       assert(expr_ == 0);
 

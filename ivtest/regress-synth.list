@@ -127,6 +127,7 @@ synth_process_alias_boundary normal,-g2012	ivltests
 synth_process_overlap_reject CE,-g2012	ivltests
 synth_sparse_case	normal,-g2012	ivltests
 synth_unpacked_array_whole_assign normal,-g2012	ivltests
+synth_unpacked_array_slice_assign normal,-g2012	ivltests
 if_part_no_else		normal			ivltests
 if_part_no_else2	normal			ivltests
 inside_synth		normal			ivltests
@@ -150,21 +151,36 @@ synth_always_comb_constant normal,-g2012	ivltests
 synth_always_latch_intent normal,-g2012	ivltests
 synth_common_latch_enable normal,-g2012	ivltests
 synth_disjoint_partial_async_reset normal,-g2012	ivltests
+synth_duplicate_async_control_reject CE,-g2012	ivltests gold=synth_duplicate_async_control_reject.gold
+synth_duplicate_async_set_reject CE,-g2012	ivltests gold=synth_duplicate_async_set_reject.gold
+synth_dual_async_initial_events normal,-g2012	ivltests
+synth_dual_async_priority normal,-g2012	ivltests
 synth_disjoint_packed_processes normal,-g2012	ivltests
+sv_case_inside_concat_selector normal,-g2012	ivltests
+sv_enum_unbased_fill normal,-g2012	ivltests
 synth_inert_initial normal,-g2012	ivltests
 synth_loop_constant_async_reset normal,-g2012	ivltests
 synth_loop_unknown_async_reset CE,-g2012	ivltests gold=synth_loop_unknown_async_reset.gold
+synth_lower_async_after_omitted_output_reject CE,-g2012	ivltests gold=synth_lower_async_after_omitted_output_reject.gold
 synth_mixed_async_reset_outputs normal,-g2012	ivltests
 synth_clipped_constant_part_select normal,-g2012	ivltests
 synth_concat_select_write_masks normal,-g2012	ivltests
 synth_noop_packed_write normal,-g2012	ivltests
 synth_packed_loop_disjoint_fields normal,-g2012	ivltests
+synth_parameter_member_width normal,-g2012	ivltests
 synth_partial_async_reset_reject CE,-g2012	ivltests
 synth_contextual_array_word normal,-g2012	ivltests
+synth_dead_declaration_initializer normal,-g2012	ivltests
+synth_runtime_for_bound normal,-g2012	ivltests
+synth_runtime_memory_output_set normal,-g2012	ivltests
 synth_runtime_memory_partial_reject CE,-g2012	ivltests
 synth_runtime_memory_word normal,-g2012	ivltests
+synth_scalar_part_select_dff normal,-g2012	ivltests
+synth_sequential_async_control_reject CE,-g2012	ivltests gold=synth_sequential_async_control_reject.gold
 synth_runtime_async_load_reject CE,-g2012	ivltests gold=synth_runtime_async_load_reject.gold
 synth_typed_assignment_pattern normal,-g2012	ivltests
+synth_third_async_control_reject CE,-g2012	ivltests gold=synth_third_async_control_reject.gold
+synth_unwritten_packed_initialization normal,-g2012	ivltests
 synth_variable_packed_lvalue normal,-g2012	ivltests
 synth_if_no_else	normal			ivltests
 ufuncsynth1		normal			ivltests

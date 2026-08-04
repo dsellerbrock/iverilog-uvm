@@ -59,8 +59,28 @@ struct pal_bind_s* bind_pin = 0;
 int target_design(ivl_design_t des)
 {
       unsigned idx;
+      unsigned module_roots = 0;
+      unsigned nroots;
       const char*part;
-      ivl_scope_t root;
+      ivl_scope_t root = 0;
+      ivl_scope_t*roots;
+
+	/* A PAL target describes one physical device. Combining unrelated root
+	   modules would silently fit them into the same global pin and macrocell
+	   tables, so require the caller to select one top module explicitly. */
+      ivl_design_roots(des, &roots, &nroots);
+      for (idx = 0 ; idx < nroots ; idx += 1) {
+	    if (ivl_scope_type(roots[idx]) != IVL_SCT_MODULE)
+		  continue;
+	    root = roots[idx];
+	    module_roots += 1;
+      }
+      if (module_roots != 1) {
+	    fprintf(stderr, "error: PAL target requires exactly one top-level "
+	                    "module; found %u. Use -s to select the PAL top.\n",
+	                    module_roots);
+	    return -1;
+      }
 
 	/* Get the part type from the design, using the "part"
 	   key. Given the part type, try to open the pal description
@@ -104,7 +124,6 @@ int target_design(ivl_design_t des)
 	/* Get pin assignments from the user. This is the first and
 	   most constrained step. Everything else must work around the
 	   results of these bindings. */
-      root = ivl_design_root(des);
       get_pad_bindings(root, 0);
 
       if (pal_errors) {
@@ -119,7 +138,6 @@ int target_design(ivl_design_t des)
 
 	/* Scan all the registers, and assign them to
 	   macro-cells. */
-      root = ivl_design_root(des);
       fit_registers(root, 0);
       if (pal_errors) {
 	    fprintf(stderr, "Register fitting failed.\n");

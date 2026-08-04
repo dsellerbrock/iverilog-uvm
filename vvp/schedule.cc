@@ -55,14 +55,16 @@ static vvp_time64_t schedule_time;
 /*
  * Scheduler event regions (IEEE 1800-2017 clause 4.4.2 stratified
  * event queue).  The enum order is the drain/promotion order within a
- * time slot: Start, then the design region loop (Active, Inactive,
- * NBA), then the reactive region loop (Reactive, Re-Inactive, Re-NBA),
+ * time slot: Start, then the design region loop (Active, the internal
+ * ActiveSync settling queue, Inactive, NBA), then the reactive region loop
+ * (Reactive, Re-Inactive, Re-NBA),
  * then Pre-Postponed (RWSync) and Postponed (ROSync), with thread
  * reaping last.  schedule_event_ stamps each event with its region so
  * the run loop can trace region sequencing and enforce region-transition
  * invariants (M6 remediation item 1).
  */
-typedef enum event_queue_e { SEQ_START, SEQ_PREPONED, SEQ_ACTIVE, SEQ_INACTIVE,
+typedef enum event_queue_e { SEQ_START, SEQ_PREPONED, SEQ_ACTIVE,
+                             SEQ_ACTIVE_SYNC, SEQ_INACTIVE,
 			     SEQ_NBASSIGN, SEQ_NBASYNC, SEQ_OBSERVED,
 			     SEQ_REACTIVE, SEQ_RE_INACTIVE, SEQ_RE_NBASSIGN,
 			     SEQ_RWSYNC, SEQ_ROSYNC, DEL_THREAD } event_queue_t;
@@ -106,6 +108,7 @@ struct event_time_s {
 	    start = 0;
 	    preponed = 0;
 	    active = 0;
+	    active_sync = 0;
 	    inactive = 0;
 	    nbassign = 0;
 	    nbasync = 0;
@@ -123,6 +126,7 @@ struct event_time_s {
       struct event_s*start;
       struct event_s*preponed;
       struct event_s*active;
+      struct event_s*active_sync;
       struct event_s*inactive;
       struct event_s*nbassign;
       struct event_s*nbasync;
@@ -746,6 +750,7 @@ static const char* region_name_(event_queue_t r)
 	  case SEQ_START:       return "Start";
 	  case SEQ_PREPONED:    return "Preponed";
 	  case SEQ_ACTIVE:      return "Active";
+	  case SEQ_ACTIVE_SYNC: return "ActiveSync";
 	  case SEQ_INACTIVE:    return "Inactive";
 	  case SEQ_NBASSIGN:    return "NBA";
 	  case SEQ_NBASYNC:     return "NBASync";
@@ -913,6 +918,11 @@ static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
 
 	  case SEQ_ACTIVE:
 	    q = &ctim->active;
+	    break;
+
+	  case SEQ_ACTIVE_SYNC:
+	    assert(delay == 0);
+	    q = &ctim->active_sync;
 	    break;
 
 	  case SEQ_INACTIVE:
@@ -1248,6 +1258,11 @@ void schedule_generic(vvp_gen_event_t obj, vvp_time64_t delay,
 
 static bool sim_started;
 
+bool schedule_simulation_started(void)
+{
+      return sim_started;
+}
+
 void schedule_functor(vvp_gen_event_t obj)
 {
       struct generic_event_s*cur = new generic_event_s;
@@ -1258,6 +1273,19 @@ void schedule_functor(vvp_gen_event_t obj)
             schedule_init_event(cur);
       } else {
             schedule_event_(cur, 0, SEQ_ACTIVE);
+      }
+}
+
+void schedule_at_active_sync(vvp_gen_event_t obj)
+{
+      struct generic_event_s*cur = new generic_event_s;
+
+      cur->obj = obj;
+      cur->delete_obj_when_done = false;
+      if (!sim_started) {
+            schedule_init_event(cur);
+      } else {
+            schedule_event_(cur, 0, SEQ_ACTIVE_SYNC);
       }
 }
 
@@ -1411,7 +1439,8 @@ static void run_rosync(struct event_time_s*ctim)
       }
       sched_current_region = SEQ_START;
 
-      if (ctim->preponed || ctim->active || ctim->inactive || ctim->nbassign
+      if (ctim->preponed || ctim->active || ctim->active_sync
+          || ctim->inactive || ctim->nbassign
 	  || ctim->nbasync
 	  || ctim->observed || ctim->reactive || ctim->re_inactive
 	  || ctim->re_nbassign || ctim->rwsync) {
@@ -1624,12 +1653,16 @@ void schedule_simulate(void)
 		 queues. If there are not events at all, then release
 		 the event_time object. */
 	    if (ctim->active == 0) {
-		  ctim->active = ctim->inactive;
-		  ctim->inactive = 0;
+		  ctim->active = ctim->active_sync;
+		  ctim->active_sync = 0;
 
 		  if (ctim->active == 0) {
-			ctim->active = ctim->nbassign;
-			ctim->nbassign = 0;
+			ctim->active = ctim->inactive;
+			ctim->inactive = 0;
+
+			if (ctim->active == 0) {
+			      ctim->active = ctim->nbassign;
+			      ctim->nbassign = 0;
 
 			  /* Post-NBA callback point (cbNBASynch, IEEE
 			     1800-2017 clause 38): every nonblocking
@@ -1684,6 +1717,7 @@ void schedule_simulate(void)
 				    delete ctim;
 				    continue;
 			      }
+			}
 			}
 		  }
 	    }

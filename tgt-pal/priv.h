@@ -25,7 +25,7 @@
 
 extern pal_t pal;
 
-extern unsigned error_count;
+extern unsigned pal_errors;
 
 /*
  * A device has an array of pins, that are bound to the netlist either

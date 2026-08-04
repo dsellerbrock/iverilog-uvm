@@ -300,6 +300,7 @@ repeat2       normal  ivltests
 decl_assign1  normal  ivltests
 
 shift2        normal  ivltests
+synth_vhdl_ff_reject CE,-S,-g2012 ivltests
 
 
 # Out of order from here

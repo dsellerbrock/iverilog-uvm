@@ -292,6 +292,16 @@ NetESignal* NetESignal::dup_expr() const
 {
       NetESignal*tmp = new NetESignal(net_, word_);
       ivl_assert(*this, tmp);
+	/* The two-argument constructor interprets a null word index as a
+	   whole-array reference and therefore takes its type from
+	   net_->array_type(). That is correct when the original expression was
+	   a whole array, but a scalar class handle also has word_ == nullptr and
+	   no array_type(). In that case duplication silently erased the class
+	   type; duplicating `this.property' subsequently erased the property's
+	   container type as well. Preserve the exact elaborated expression type,
+	   just as the other expression duplicators do. */
+      if (net_type() != tmp->net_type())
+	    tmp->set_net_type(net_type());
       tmp->expr_width(expr_width());
       tmp->cast_signed(has_sign());
       tmp->set_line(*this);

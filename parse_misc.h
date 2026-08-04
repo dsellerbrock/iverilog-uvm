@@ -54,14 +54,21 @@ struct rs_production_t {
  * a boolean expression preceded by a cycle-delay range. delay_lo ==
  * delay_hi encodes a fixed ##N; delay_lo < delay_hi encodes ##[m:n].
  * delay_lo == -1 marks an unbounded ##[m:$] (diagnosed sorry at
- * lowering); delay_lo == -2 marks a non-constant delay expression
- * (also a sorry). The first step's delay is relative to the sequence
- * start (0 for a plain leading boolean).
+ * lowering); delay_lo == -2 marks a non-constant delay expression;
+ * delay_lo == -4 with delay_genvar non-nil marks a fixed delay whose
+ * value is the implicit localparam of a generated scope. The first
+ * step's delay is relative to the sequence start (0 for a plain leading
+ * boolean).
  */
 struct sva_seq_step_t {
       long delay_lo = 0;    // -1: ##[m:$]; -2: non-constant; -3: an
 			    // unsupported repetition shape (diagnosed)
       long delay_hi = 0;
+      perm_string delay_genvar; // delay_lo/hi == -4: per-generate fixed ##n
+      // delay_lo/hi == -5: bounded ##[lo:hi] expressions that depend on
+      // overridable parameters and must be resolved per instance.
+      PExpr* delay_lo_expr = nullptr;
+      PExpr* delay_hi_expr = nullptr;
       long rep_tail = 0;    // e[*m:n] expands to [*m]; the final
 			    // expanded step carries n-m here. Valid
 			    // only in the last chain position
@@ -81,6 +88,15 @@ struct sva_seq_step_t {
       int rep_kind = 0;
       long rep_lo = 0;
       long rep_hi = 0;
+      // rep_kind 4 is a consecutive repetition whose bound depends on an
+      // overridable module parameter.  Parse-time numeric folding would use
+      // the declaration default, before an instance parameter override has
+      // been applied.  Keep the original constant expressions owned by this
+      // step so a focused checker lowering can put them in ordinary packed
+      // ranges/expressions and let elaboration resolve each instance.
+      // rep_hi_expr == nullptr with rep_hi == -1 denotes `[*lo:$]'.
+      PExpr* rep_lo_expr = nullptr;
+      PExpr* rep_hi_expr = nullptr;
 };
 
 /*

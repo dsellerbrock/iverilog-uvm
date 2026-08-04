@@ -628,6 +628,7 @@ struct class_type_t : public data_type_t {
 	    };
 	    perm_string label;                 // cross label (or auto)
 	    std::vector<perm_string> cp_labels; // names of contributing coverpoints
+	    PExpr* iff_expr = nullptr;         // IEEE 19.6: cross iff sample gate
 	    std::vector<cross_bin_t> bins;      // M11-3: named cross bins
 	      // M11: cross-level options (option.name = const_expr)
 	    std::map<perm_string, PExpr*> options;

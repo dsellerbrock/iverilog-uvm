@@ -175,9 +175,10 @@ struct dll_target  : public target_t, public expr_scan_t {
 
     private:
       StringHeap strings_;
+      std::map<const NetNet*, ivl_signal_t> signal_map_;
 
       static ivl_scope_t find_scope(ivl_design_s &des, const NetScope*cur);
-      static ivl_signal_t find_signal(ivl_design_s &des, const NetNet*net);
+      ivl_signal_t find_signal(const NetNet*net);
       static ivl_parameter_t scope_find_param(ivl_scope_t scope,
 					      const char*name);
 
@@ -407,6 +408,7 @@ struct ivl_lpm_s {
       union {
 	    struct ivl_lpm_ff_s {
 		  unsigned negedge_flag :1;
+		  unsigned aset_priority_flag :1;
 		  ivl_nexus_t clk;
 		  ivl_nexus_t we;
 		  ivl_nexus_t aclr;
@@ -457,7 +459,9 @@ struct ivl_lpm_s {
 	    struct ivl_lpm_array_s {
 		  ivl_signal_t sig;
 		  unsigned swid;
-		  ivl_nexus_t q,  a;
+		  unsigned negedge_flag :1;
+		  unsigned write_flag :1;
+		  ivl_nexus_t q, a, d, clk, we;
 	    } array;
 
 	    struct ivl_concat_s {
@@ -490,7 +494,8 @@ struct ivl_lpm_s {
 
 	    struct ivl_lpm_substitute {
 		  unsigned base;
-		  ivl_nexus_t q, a, s;
+		  unsigned signed_flag :1;
+		  ivl_nexus_t q, a, s, b;
 	    } substitute;
 
 	    struct ivl_lpm_ufunc_s {

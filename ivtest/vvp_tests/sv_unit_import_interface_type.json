@@ -1,0 +1,8 @@
+{
+    "type"   : "normal",
+    "source" : "sv_unit_import_interface_type.v",
+    "iverilog-args" : [ "-g2012" ],
+    "vlog95" : {
+        "type" : "NI"
+    }
+}

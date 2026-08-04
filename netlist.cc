@@ -1064,13 +1064,28 @@ unsigned NetPartSelect::base() const
 }
 
 NetSubstitute::NetSubstitute(NetNet*sig, NetNet*sub, unsigned wid, unsigned off)
-: NetNode(sig->scope(), sig->scope()->local_symbol(), 3), wid_(wid), off_(off)
+: NetNode(sig->scope(), sig->scope()->local_symbol(), 3), wid_(wid), off_(off),
+  signed_flag_(false)
 {
       pin(0).set_dir(Link::OUTPUT);
       pin(1).set_dir(Link::INPUT);
       pin(2).set_dir(Link::INPUT);
       connect(pin(1), sig->pin(0));
       connect(pin(2), sub->pin(0));
+}
+
+NetSubstitute::NetSubstitute(NetNet*sig, NetNet*sub, NetNet*sel,
+			     unsigned wid, bool signed_flag)
+: NetNode(sig->scope(), sig->scope()->local_symbol(), 4), wid_(wid), off_(0),
+  signed_flag_(signed_flag)
+{
+      pin(0).set_dir(Link::OUTPUT);
+      pin(1).set_dir(Link::INPUT);
+      pin(2).set_dir(Link::INPUT);
+      pin(3).set_dir(Link::INPUT);
+      connect(pin(1), sig->pin(0));
+      connect(pin(2), sub->pin(0));
+      connect(pin(3), sel->pin(0));
 }
 
 NetSubstitute::~NetSubstitute()
@@ -1229,7 +1244,8 @@ unsigned NetReplicate::repeat() const
  */
 
 NetFF::NetFF(NetScope*s, perm_string n, bool negedge__, unsigned width__)
-: NetNode(s, n, 8), negedge_(negedge__), width_(width__)
+: NetNode(s, n, 8), negedge_(negedge__), width_(width__),
+  async_set_priority_(false)
 {
       pin_Clock().set_dir(Link::INPUT);
       pin_Enable().set_dir(Link::INPUT);
@@ -1343,6 +1359,16 @@ void NetFF::aset_value(const verinum&val)
 const verinum& NetFF::aset_value() const
 {
       return aset_value_;
+}
+
+void NetFF::async_set_priority(bool flag)
+{
+      async_set_priority_ = flag;
+}
+
+bool NetFF::async_set_priority() const
+{
+      return async_set_priority_;
 }
 
 void NetFF::sset_value(const verinum&val)
@@ -1492,12 +1518,18 @@ const Link& NetAddSub::pin_Result() const
       return pin(3);
 }
 
-NetArrayDq::NetArrayDq(NetScope*s, perm_string n, NetNet*mem__, unsigned awid)
-: NetNode(s, n, 2),
-  mem_(mem__), awidth_(awid)
+NetArrayDq::NetArrayDq(NetScope*s, perm_string n, NetNet*mem__, unsigned awid,
+		       bool write_port, bool negedge)
+: NetNode(s, n, 5),
+  mem_(mem__), awidth_(awid), write_port_(write_port), negedge_(negedge)
 {
       pin(0).set_dir(Link::OUTPUT); // Result
       pin(1).set_dir(Link::INPUT);  // Address
+	// A read port leaves these unconnected. A synthesized synchronous
+	// array-write port uses Data, Clock and Enable and leaves Result open.
+      pin(2).set_dir(Link::INPUT);  // Data
+      pin(3).set_dir(Link::INPUT);  // Clock
+      pin(4).set_dir(Link::INPUT);  // Enable
 	// Increment the expression reference count for the target
 	// memory so that it is not deleted underneath me.
       mem_->incr_eref();
@@ -1517,9 +1549,29 @@ unsigned NetArrayDq::awidth() const
       return awidth_;
 }
 
+unsigned NetArrayDq::size() const
+{
+      return mem_->pin_count();
+}
+
 const NetNet* NetArrayDq::mem() const
 {
       return mem_;
+}
+
+bool NetArrayDq::is_write_port() const
+{
+      return write_port_;
+}
+
+bool NetArrayDq::is_negedge() const
+{
+      return negedge_;
+}
+
+void NetArrayDq::is_negedge(bool flag)
+{
+      negedge_ = flag;
 }
 
 Link& NetArrayDq::pin_Result()
@@ -1532,6 +1584,21 @@ Link& NetArrayDq::pin_Address()
       return pin(1);
 }
 
+Link& NetArrayDq::pin_Data()
+{
+      return pin(2);
+}
+
+Link& NetArrayDq::pin_Clock()
+{
+      return pin(3);
+}
+
+Link& NetArrayDq::pin_Enable()
+{
+      return pin(4);
+}
+
 const Link& NetArrayDq::pin_Result() const
 {
       return pin(0);
@@ -1540,6 +1607,21 @@ const Link& NetArrayDq::pin_Result() const
 const Link& NetArrayDq::pin_Address() const
 {
       return pin(1);
+}
+
+const Link& NetArrayDq::pin_Data() const
+{
+      return pin(2);
+}
+
+const Link& NetArrayDq::pin_Clock() const
+{
+      return pin(3);
+}
+
+const Link& NetArrayDq::pin_Enable() const
+{
+      return pin(4);
 }
 
 /*
@@ -2114,6 +2196,13 @@ NetProc* NetCondit::else_clause()
       return else_;
 }
 
+NetProc* NetCondit::release_if_clause()
+{
+      NetProc*res = if_;
+      if_ = 0;
+      return res;
+}
+
 const NetProc* NetCondit::if_clause() const
 {
       return if_;
@@ -2671,6 +2760,21 @@ ivl_variable_type_t NetETernary::expr_type() const
 {
       ivl_assert(*this, true_val_);
       ivl_assert(*this, false_val_);
+
+	// IEEE 1800-2017 11.4.11: two operands of the same enumeration
+	// type make the conditional expression that enumeration type.  In
+	// particular, a 4-state condition does not change a default-base
+	// (2-state int) enum into an untyped 4-state vector.  Returning LOGIC
+	// here caused the generic context conversion to wrap the expression in
+	// NetECast('2'), which preserved the value conversion but discarded the
+	// enumeration identity reported by enumeration().  The subsequent
+	// assignment check then incorrectly required an explicit cast for the
+	// common `state = cond ? A : B' form.  Keep the enum's base type here;
+	// enumeration() remains strict and returns null unless both arms name
+	// the exact same enum type.
+	if (const netenum_t*enum_type = enumeration())
+	      return enum_type->base_type();
+
       ivl_variable_type_t tru = true_val_->expr_type();
       ivl_variable_type_t fal = false_val_->expr_type();
       ivl_variable_type_t sel = cond_->expr_type();
@@ -3412,7 +3516,8 @@ static void check_for_const_synth(const NetExpr*expr, const NetProc*proc,
 static void check_for_bin_synth(const NetExpr*left,const NetExpr*right,
                                 const char*str, const char*check,
                                 const NetProc*proc,
-                                ivl_process_type_t pr_type, const NetNet*index)
+                                ivl_process_type_t pr_type, const NetNet*index,
+				bool allow_runtime_bound = false)
 {
       const NetESignal*lsig = dynamic_cast<const NetESignal*>(left);
       const NetESignal*rsig = dynamic_cast<const NetESignal*>(right);
@@ -3429,9 +3534,11 @@ static void check_for_bin_synth(const NetExpr*left,const NetExpr*right,
       }
 
       if (lsig && (lsig->sig() == index)) {
-	    check_for_const_synth(right, proc, str, pr_type);
+	    if (!allow_runtime_bound)
+		  check_for_const_synth(right, proc, str, pr_type);
       } else if (rsig && (rsig->sig() == index)) {
-	    check_for_const_synth(left, proc, str, pr_type);
+	    if (!allow_runtime_bound)
+		  check_for_const_synth(left, proc, str, pr_type);
       } else {
 	    print_for_idx_warning(proc, check, pr_type, index);
       }
@@ -3527,7 +3634,7 @@ bool NetForLoop::check_synth(ivl_process_type_t pr_type,
       } else if (const NetEBComp*cmp = dynamic_cast<const NetEBComp*>(condition_)) {
 	    check_for_bin_synth(cmp->left(), cmp->right(),
                                 "compare against a constant", "condition",
-	                        this, pr_type, index_);
+	                        this, pr_type, index_, true);
       } else {
 	    print_for_idx_warning(this, "condition", pr_type, index_);
       }
@@ -3586,6 +3693,9 @@ bool NetScope::check_synth(ivl_process_type_t pr_type,
 bool NetSTask::check_synth(ivl_process_type_t pr_type,
                            const NetScope* /* scope */) const
 {
+      if (assertion_action_)
+	    return false;
+
       if (strcmp(name(), "$ivl_darray_method$delete") == 0) {
 	    cerr << get_fileline() << ": warning: Dynamic array "
 	            "delete method cannot be synthesized "

@@ -160,6 +160,7 @@ class class_type : public __vpiHandle {
 	    std::string weight_ir;
 	    bool is_cross = false;
 	    std::string name;   // M12-7: coverpoint/cross label
+	    int iff_src = -1;   // parent property for event-driven cross iff
       };
       struct cov_dyn_bin_t {
 	    unsigned cp_idx = 0;
@@ -177,13 +178,15 @@ class class_type : public __vpiHandle {
 			  unsigned item_idx = 0);
       void add_covgrp_item(unsigned at_least, unsigned weight, bool is_cross,
 			   const std::string&name = std::string(),
-			   const std::string&weight_ir = std::string())
+			   const std::string&weight_ir = std::string(),
+			   int iff_src = -1)
       { cov_item_t it;
 	it.at_least = at_least;
 	it.weight = weight;
 	it.weight_ir = weight_ir;
 	it.is_cross = is_cross;
 	it.name = name;
+	it.iff_src = iff_src;
 	covgrp_items_.push_back(it); }
       size_t covgrp_bin_count() const { return covgrp_bins_.size(); }
       const cov_bin_t& covgrp_bin(size_t idx) const { return covgrp_bins_[idx]; }

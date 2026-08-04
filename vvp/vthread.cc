@@ -2838,6 +2838,8 @@ struct rand_saved_prop_s {
       size_t pid;
       uint64_t adr;
       vvp_vector4_t val;
+      bool object_value = false;
+      vvp_object_t object;
 };
 
 /*
@@ -2860,16 +2862,24 @@ static bool rand_call_active_(const class_type*defn, vvp_cobject*cobj,
       return cobj->rand_mode(pid);
 }
 
-/* Does this property hold an OBJECT rather than bits -- a dynamic
- * array, a class handle, an unpacked struct? Answered from the declared
- * property type code so it is true even while the property is still
- * nil. Queue and assoc codes are deliberately excluded: those have
- * their own pre-fill paths above. */
+/* Does this property hold an OBJECT rather than bits -- a dynamic array,
+ * queue, class handle, or unpacked struct? Answered from the declared type
+ * code so it remains true while the property is nil. Associative arrays keep
+ * their separate entry-wise pre-fill paths above. */
 static bool rand_prop_is_container_(const class_type*defn, size_t pid)
 {
       const std::string&bt = defn->property_base_type(pid);
       return bt == "o" || bt.compare(0, 3, "oc:") == 0
-	  || (!bt.empty() && bt[0] == 'D');
+	  || (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q'));
+}
+
+/* Dynamic arrays and queues are VALUE containers. A failed two-pass solve
+ * must restore their complete pre-call size and contents, not the one-bit
+ * existence image returned by get_vec4(). */
+static bool rand_prop_is_value_container_(const class_type*defn, size_t pid)
+{
+      const std::string&bt = defn->property_base_type(pid);
+      return !bt.empty() && (bt[0] == 'D' || bt[0] == 'Q');
 }
 
 static void randomize_snapshot_(vvp_cobject*cobj, const class_type*defn,
@@ -2884,6 +2894,15 @@ static void randomize_snapshot_(vvp_cobject*cobj, const class_type*defn,
 		  rand_saved_prop_s s;
 		  s.pid = pid;
 		  s.adr = adr;
+		  if (rand_prop_is_value_container_(defn, pid)) {
+			s.object_value = true;
+			vvp_object_t current;
+			cobj->get_object(pid, current, adr);
+			if (!current.test_nil())
+			      s.object = current.duplicate();
+			saved.push_back(s);
+			continue;
+		  }
 		  cobj->get_vec4(pid, s.val, adr);
 		  if (s.val.size() == 0) break;
 		  saved.push_back(s);
@@ -2894,8 +2913,12 @@ static void randomize_snapshot_(vvp_cobject*cobj, const class_type*defn,
 static void randomize_restore_(vvp_cobject*cobj,
 			       const std::vector<rand_saved_prop_s>&saved)
 {
-      for (const rand_saved_prop_s&s : saved)
-	    cobj->set_vec4(s.pid, s.val, s.adr);
+	for (const rand_saved_prop_s&s : saved) {
+	    if (s.object_value)
+		  cobj->set_object(s.pid, s.object, s.adr);
+	    else
+		  cobj->set_vec4(s.pid, s.val, s.adr);
+	}
 }
 
 /*
@@ -4237,10 +4260,15 @@ static bool covgrp_dyn_match_(const covgrp_dyn_state_t&state, uint64_t value,
       return true;
 }
 
-/* %covgrp/sample ncp, has_guards
+/* %covgrp/sample ncp, guard_flags
+ *
+ * guard_flags bit 0 records whether ncp coverpoint guards are present;
+ * bits 1.. contain the number of trailing cross guards. This preserves
+ * the original two-operand encoding (whose second operand was 0/1).
  *
  * Stack on entry: obj-stack top = cg_obj; vec4 stack holds ncp
- * coverpoint values then (when has_guards) ncp guard values on top.
+ * coverpoint values, ncp coverpoint guards, then one cross-level iff
+ * guard per cross item on top.
  *
  * Record semantics (M11): records sharing (prop, tuple) AND together
  * (cross product tuples); distinct tuples of one prop OR together
@@ -4258,15 +4286,26 @@ static bool covgrp_dyn_match_(const covgrp_dyn_state_t&state, uint64_t value,
  */
 static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 				const vector<uint64_t>&cp_vals,
-				const vector<uint64_t>&guards);
+				const vector<uint64_t>&guards,
+				const vector<uint64_t>&cross_guards);
 
 bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 {
       unsigned ncp = cp->number;
-      unsigned has_guards = cp->bit_idx[0];
+      unsigned guard_flags = cp->bit_idx[0];
+      unsigned has_cp_guards = guard_flags & 1;
+      unsigned ncross_guards = guard_flags >> 1;
+
+      vector<uint64_t> cross_guards(ncross_guards, 1);
+      for (int ii = (int)ncross_guards - 1 ; ii >= 0 ; ii -= 1) {
+	    vvp_vector4_t g = thr->pop_vec4();
+	      // As for coverpoint iff, X/Z is not true.
+	    cross_guards[ii] =
+		  (g.size() > 0 && g.value(0) == BIT4_1) ? 1 : 0;
+      }
 
       vector<uint64_t> guards(ncp, 1);
-      if (has_guards) {
+      if (has_cp_guards) {
 	    for (int ii = (int)ncp - 1 ; ii >= 0 ; ii -= 1) {
 		  vvp_vector4_t g = thr->pop_vec4();
 		    // Guard is true only when it evaluates to exactly 1
@@ -4298,7 +4337,7 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
       if (!cobj) return true;
       if (!cobj->cov_enabled()) return true;
 
-      covgrp_sample_core_(cobj, ncp, cp_vals, guards);
+      covgrp_sample_core_(cobj, ncp, cp_vals, guards, cross_guards);
       return true;
 }
 
@@ -4306,7 +4345,8 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
  * %covgrp/sample/all (M11-3 event-driven sampling). */
 static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 				const vector<uint64_t>&cp_vals,
-				const vector<uint64_t>&guards)
+				const vector<uint64_t>&guards,
+				const vector<uint64_t>&cross_guards)
 {
       const class_type*defn = cobj->get_defn();
       size_t nbins = defn->covgrp_bin_count();
@@ -4319,6 +4359,14 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
       vector<bool> cp_sampled(ncp, false);
       for (unsigned ci = 0 ; ci < ncp ; ci += 1)
 	    cp_sampled[ci] = (guards[ci] != 0);
+
+	// Cross iff is an item-local gate. A false/X guard suppresses the
+	// cross item only; its contributing coverpoints remain sampled.
+      auto item_enabled = [&](unsigned item) -> bool {
+	    if (item < ncp) return true;
+	    unsigned gi = item - ncp;
+	    return gi >= cross_guards.size() || cross_guards[gi] != 0;
+      };
 
 	// Illegal precedence: any illegal record group matching fires
 	// an error and suppresses the coverpoint.
@@ -4343,6 +4391,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    if (recs.empty()) continue;
 	    unsigned k = defn->covgrp_bin(recs[0]).kind & 7;
 	    if (k != 2) continue;
+	    if (!item_enabled(defn->covgrp_bin(recs[0]).item_idx)) continue;
 	      // tuples OR; records in one tuple AND.
 	    std::map<unsigned, bool> tuple_ok;
 	    for (size_t bi : recs) {
@@ -4391,6 +4440,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	// the whole coverpoint inert for this sample.
       for (size_t bi : ignore_recs) {
 	    const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+	    if (!item_enabled(bin.item_idx)) continue;
 	    if (bin.cp_idx >= ncp || !cp_sampled[bin.cp_idx])
 		  continue;
 	    if (covgrp_rec_match_(bin, cp_vals[bin.cp_idx]))
@@ -4411,6 +4461,10 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	// track per-item "any normal bin matched" for default bins.
       std::map<unsigned, bool> item_matched;
       std::vector<std::pair<unsigned, unsigned>> default_props; // (prop,item)
+	// Source transition-bin properties that completed on THIS sample.
+	// Cross records tagged with kind bit 16 match against this set instead
+	// of treating the transition's final value as an ordinary value bin.
+      std::set<unsigned> transition_hits;
       struct default_special_t {
 	    unsigned prop;
 	    unsigned item;
@@ -4423,6 +4477,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    const std::vector<size_t>&recs = kv.second;
 	    if (recs.empty()) continue;
 	    const class_type::cov_bin_t&first = defn->covgrp_bin(recs[0]);
+	    if (!item_enabled(first.item_idx)) continue;
 	    unsigned k = first.kind & 7;
 	    if (k == 2) continue; // illegal handled above
 	    if (k == 3) {
@@ -4467,18 +4522,20 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 			if (len == 0 || len > 63) continue;
 			  // fresh attempt from step 0
 			if (steps[0] && covgrp_rec_match_(*steps[0], val)) {
-			      if (len == 1)
+			      if (len == 1) {
 				    covgrp_bump_count_(cobj, kv.first);
-			      else
+				    transition_hits.insert(kv.first);
+			      } else
 				    newmask |= ((uint64_t)1 << 1);
 			}
 			  // in-flight attempts
 			for (unsigned pos = 1 ; pos < len ; pos += 1) {
 			      if (!((mask >> pos) & 1)) continue;
 			      if (steps[pos] && covgrp_rec_match_(*steps[pos], val)) {
-				    if (pos + 1 == len)
+				    if (pos + 1 == len) {
 					  covgrp_bump_count_(cobj, kv.first);
-				    else
+					  transition_hits.insert(kv.first);
+				    } else
 					  newmask |= ((uint64_t)1 << (pos+1));
 			      }
 			}
@@ -4495,7 +4552,10 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    for (size_t bi : recs) {
 		  const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
 		  bool m;
-		  if (bin.cp_idx >= ncp || !cp_sampled[bin.cp_idx]
+		  if (bin.kind & 16) {
+			// `lo' is the source transition-bin property index.
+			m = transition_hits.count((unsigned)bin.lo) != 0;
+		  } else if (bin.cp_idx >= ncp || !cp_sampled[bin.cp_idx]
 		      || cp_suppressed[bin.cp_idx])
 			m = false;
 		  else
@@ -4530,6 +4590,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	// bins in its item.  Evaluate that complement only after all ordinary
 	// (including dynamic) bins have had a chance to match.
       for (auto&di : default_illegal) {
+	    if (!item_enabled(di.item)) continue;
 	    if (item_matched.count(di.item) && item_matched[di.item])
 		  continue;
 	    if (di.cp >= ncp || !cp_sampled[di.cp] || cp_suppressed[di.cp])
@@ -4540,6 +4601,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    cp_suppressed[di.cp] = true;
       }
       for (auto&di : default_ignore) {
+	    if (!item_enabled(di.item)) continue;
 	    if (item_matched.count(di.item) && item_matched[di.item])
 		  continue;
 	    if (di.cp < ncp && cp_sampled[di.cp] && !cp_suppressed[di.cp])
@@ -4550,6 +4612,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	// and its coverpoint was sampled and not carved out.
       for (auto&dp : default_props) {
 	    unsigned item = dp.second;
+	    if (!item_enabled(item)) continue;
 	    if (item_matched.count(item) && item_matched[item])
 		  continue;
 	    if (item < ncp && (!cp_sampled[item] || cp_suppressed[item]))
@@ -4607,7 +4670,16 @@ bool of_COVGRP_SAMPLE_ALL(vthread_t, vvp_code_t cp)
 			guards[ci] = low ? 1 : 0;
 		  }
 	    }
-	    covgrp_sample_core_(cg, ncp, vals, guards);
+	    size_t nitems = defn->covgrp_item_count();
+	    vector<uint64_t> cross_guards(nitems > ncp ? nitems - ncp : 0, 1);
+	    for (size_t item = ncp; item < nitems; item += 1) {
+		  int gp = defn->covgrp_item(item).iff_src;
+		  if (gp < 0) continue;
+		  uint64_t v; bool low;
+		  read_u64(parent, (unsigned)gp, v, low);
+		  cross_guards[item - ncp] = low ? 1 : 0;
+	    }
+	    covgrp_sample_core_(cg, ncp, vals, guards, cross_guards);
       }
       return true;
 }
@@ -9801,6 +9873,7 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 	    arg.ival = 0;
 	    arg.rval = 0.0;
 	    arg.sval = 0;
+	    arg.pval = 0;
 	    arg.aval = 0;
 	    arg.vbuf = 0;
 	    arg.vwid = 0;
@@ -9814,6 +9887,9 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		  break;
 		case 'g':
 		  arg.ival = dpi_pop_logic_(thr);
+		  break;
+		case 'p':
+		  arg.pval = (void*)(uintptr_t)dpi_pop_int64(thr);
 		  break;
 		case 'o':
 		case 'O': {
@@ -9880,7 +9956,7 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		}
 		case 'V':
 		case 'W': {
-			/* Wide (>64-bit) packed vector: marshal to an
+			/* Packed vector of any width: marshal to an
 			   svBitVecVal[] ('V', 2-state) or svLogicVecVal[]
 			   ('W', 4-state) buffer and pass a pointer. */
 		      const vvp_vector4_t&v = thr->peek_vec4(0);
@@ -9949,6 +10025,7 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
       switch (ret_type) {
 	  case 'i':
 	  case 'l':
+	  case 'p':
 	    dpi_push_int64(thr, ret_i, wid);
 	    break;
 	  case 'r':
@@ -9973,6 +10050,9 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		case 'h': dpi_push_int64(thr, args[ii].ival, 16); break;
 		case 'i': dpi_push_int64(thr, args[ii].ival, 32); break;
 		case 'l': dpi_push_int64(thr, args[ii].ival, 64); break;
+		case 'p': dpi_push_int64(thr,
+				       (int64_t)(uintptr_t)args[ii].pval, 64);
+		          break;
 		case 'g': dpi_push_logic_(thr, args[ii].ival);    break;
 		case 'r': thr->push_real(args[ii].rval);          break;
 		case 's': thr->push_str(args[ii].sval ? args[ii].sval : "");
@@ -10018,12 +10098,24 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
  *
  * Pops nargs args (per the types signature) from their stacks, calls
  * the named C function, pushes the integer result as a wid-bit vec4.
- * Returns wider than 32 bits (longint/chandle) use the int64 ABI.
+ * Returns wider than 32 bits use the int64 ABI. Chandle uses the separate
+ * pointer-return opcode below.
  */
 bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t cp)
 {
       unsigned wid = cp->bit_idx[1];
       return dpi_call_common_(thr, cp, (wid > 32)? 'l' : 'i', wid, 'i');
+}
+
+/*
+ * %dpi/call/ptr "c_name|types" nargs
+ *
+ * Calls a C function returning void* (SystemVerilog chandle) and pushes
+ * the pointer bits as the simulator's 64-bit chandle value.
+ */
+bool of_DPI_CALL_PTR(vthread_t thr, vvp_code_t cp)
+{
+      return dpi_call_common_(thr, cp, 'p', 64, 'i');
 }
 
 /*
@@ -11580,7 +11672,10 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 		    vthread_run(child);
 		    running_thread = thr;
 	      } else {
-		    schedule_vthread(child, 0, true);
+		      /* A child inherits its parent's program/Reactive affinity.
+			 The front-push path is hard-wired to SEQ_ACTIVE, so use it
+			 only for an ordinary design thread. */
+		    schedule_vthread(child, 0, !vthread_is_reactive(child));
 	      }
 	    }
 	      return true;
@@ -11646,7 +11741,10 @@ bool of_FORK_V(vthread_t thr, vvp_code_t cp)
 		    vthread_run(child);
 		    running_thread = thr;
 	      } else {
-		    schedule_vthread(child, 0, true);
+		      /* Keep a program/Reactive continuation in the Reactive
+			 region from its first instruction (not merely after its
+			 first timing control). */
+		    schedule_vthread(child, 0, !vthread_is_reactive(child));
 	      }
 	    }
 	      return true;

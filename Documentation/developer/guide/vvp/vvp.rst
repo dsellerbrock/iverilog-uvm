@@ -212,6 +212,10 @@ common device. Thus, there is the DFF statement to create DFF devices::
         <label> .dff/n/aclr <width> <d>, <clk>, <ce>, <async-input>;
         <label> .dff/p/aset <width> <d>, <clk>, <ce>, <async-input>[, <set-value>];
         <label> .dff/n/aset <width> <d>, <clk>, <ce>, <async-input>[, <set-value>];
+        <label> .dff/p/aclr/aset <width> <d>, <clk>, <ce>, <clear>, <set>[, <set-value>];
+        <label> .dff/n/aclr/aset <width> <d>, <clk>, <ce>, <clear>, <set>[, <set-value>];
+        <label> .dff/p/aset/aclr <width> <d>, <clk>, <ce>, <clear>, <set>[, <set-value>];
+        <label> .dff/n/aset/aclr <width> <d>, <clk>, <ce>, <clear>, <set>[, <set-value>];
 
 The /p variants simulate positive-edge triggered flip-flops and the
 /n variants simulate negative-edge triggered flip-flops. The generated
@@ -223,6 +227,14 @@ clock. The <async-input> is a special asynchronous input that on the
 rising edge causes the device to clear/set, forces the output to
 propagate, and disables the clock until the aynchronous input is
 deasserted. Thus, they implement DFF with asynchronous clr or set.
+
+The two-control variants always take the clear operand before the set
+operand; the suffix records source priority, not operand order.
+``/aclr/aset`` gives clear priority and ``/aset/aclr`` gives set priority.
+An assertion or active clock edge evaluates both controls in that order.
+Releasing a control alone does not change the output. The optional
+``<set-value>`` is a width-bit four-state vector; if omitted, it defaults to
+all ones.
 
 Similarly, synthesis creates D-type latches, so there is the LATCH
 statement to support this::

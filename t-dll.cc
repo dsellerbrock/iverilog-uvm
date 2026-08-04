@@ -292,21 +292,23 @@ ivl_scope_t dll_target::lookup_scope_(const NetScope*cur)
  * This is a convenience function to locate an ivl_signal_t object
  * given the NetESignal that has the signal name.
  */
-ivl_signal_t dll_target::find_signal(ivl_design_s &des, const NetNet*net)
+ivl_signal_t dll_target::find_signal(const NetNet*net)
 {
-      ivl_scope_t scop = find_scope(des, net->scope());
+      map<const NetNet*, ivl_signal_t>::const_iterator cached =
+	    signal_map_.find(net);
+      if (cached != signal_map_.end())
+	    return cached->second;
+
+      ivl_scope_t scop = find_scope(des_, net->scope());
       assert(scop);
 
       perm_string nname = net->name();
 
       for (unsigned idx = 0 ;  idx < scop->sigs_.size() ;  idx += 1) {
-	    if (scop->sigs_[idx]->net_ == net)
+	    if (strcmp(scop->sigs_[idx]->name_, nname) == 0) {
+		  signal_map_[net] = scop->sigs_[idx];
 		  return scop->sigs_[idx];
-      }
-
-      for (unsigned idx = 0 ;  idx < scop->sigs_.size() ;  idx += 1) {
-	    if (strcmp(scop->sigs_[idx]->name_, nname) == 0)
-		  return scop->sigs_[idx];
+	    }
       }
 
       assert(0);
@@ -590,6 +592,15 @@ void dll_target::make_scope_param_expr(ivl_parameter_t cur_par, NetExpr*etmp)
 	    assert(expr_->type_ == IVL_EX_REALNUM);
 	    expr_->u_.real_.parameter = cur_par;
 
+      } else if (const NetEArrayPattern*ap =
+		       dynamic_cast<const NetEArrayPattern*>(etmp)) {
+
+	      /* Keep constant aggregate parameters visible to targets as an
+		 IVL_EX_ARRAY_PATTERN. Targets that expose aggregate parameters can
+		 consume every typed item; scalar-only targets may omit the runtime
+		 parameter object while all compile-time member uses remain exact. */
+	    ap->expr_scan(this);
+
       }
 
       if (expr_ == 0) {
@@ -721,6 +732,8 @@ void dll_target::add_root(const NetScope *s)
 bool dll_target::start_design(const Design*des)
 {
       const char*dll_path_ = des->get_flag("DLL");
+
+      signal_map_.clear();
 
       dll_ = ivl_dlopen(dll_path_);
 
@@ -1278,13 +1291,19 @@ bool dll_target::substitute(const NetSubstitute*net)
 
       obj->width = net->width();
       obj->u_.substitute.base = net->base();
+      obj->u_.substitute.signed_flag = net->signed_flag();
 
       obj->u_.substitute.q = net->pin(0).nexus()->t_cookie();
       obj->u_.substitute.a = net->pin(1).nexus()->t_cookie();
       obj->u_.substitute.s = net->pin(2).nexus()->t_cookie();
+      obj->u_.substitute.b = net->has_variable_base()
+	    ? net->pin(3).nexus()->t_cookie() : 0;
       nexus_lpm_add(obj->u_.substitute.q, obj, 0, IVL_DR_STRONG, IVL_DR_STRONG);
       nexus_lpm_add(obj->u_.substitute.a, obj, 0, IVL_DR_HiZ,    IVL_DR_HiZ);
       nexus_lpm_add(obj->u_.substitute.s, obj, 0, IVL_DR_HiZ,    IVL_DR_HiZ);
+      if (obj->u_.substitute.b)
+	    nexus_lpm_add(obj->u_.substitute.b, obj, 0,
+			  IVL_DR_HiZ, IVL_DR_HiZ);
 
       make_lpm_delays_(obj, net);
       scope_add_lpm(obj->scope, obj);
@@ -1750,13 +1769,19 @@ bool dll_target::lpm_array_dq(const NetArrayDq*net)
       ivl_lpm_t obj = new struct ivl_lpm_s;
       obj->type = IVL_LPM_ARRAY;
       obj->name = net->name();
-      obj->u_.array.sig = find_signal(des_, net->mem());
+      obj->u_.array.sig = find_signal(net->mem());
       assert(obj->u_.array.sig);
       obj->scope = find_scope(des_, net->scope());
       assert(obj->scope);
       FILE_NAME(obj, net);
       obj->width = net->width();
       obj->u_.array.swid = net->awidth();
+      obj->u_.array.write_flag = net->is_write_port();
+      obj->u_.array.negedge_flag = net->is_negedge();
+      obj->u_.array.q = 0;
+      obj->u_.array.d = 0;
+      obj->u_.array.clk = 0;
+      obj->u_.array.we = 0;
 
       make_lpm_delays_(obj, net);
 
@@ -1769,10 +1794,31 @@ bool dll_target::lpm_array_dq(const NetArrayDq*net)
       obj->u_.array.a = nex->t_cookie();
       nexus_lpm_add(obj->u_.array.a, obj, 0, IVL_DR_HiZ, IVL_DR_HiZ);
 
-      nex = net->pin_Result().nexus();
-      assert(nex->t_cookie());
-      obj->u_.array.q = nex->t_cookie();
-      nexus_lpm_add(obj->u_.array.q, obj, 0, IVL_DR_STRONG, IVL_DR_STRONG);
+      if (!net->is_write_port()) {
+	    nex = net->pin_Result().nexus();
+	    assert(nex->t_cookie());
+	    obj->u_.array.q = nex->t_cookie();
+	    nexus_lpm_add(obj->u_.array.q, obj, 0,
+			  IVL_DR_STRONG, IVL_DR_STRONG);
+      } else {
+	    nex = net->pin_Data().nexus();
+	    assert(nex->t_cookie());
+	    obj->u_.array.d = nex->t_cookie();
+	    nexus_lpm_add(obj->u_.array.d, obj, 2,
+			  IVL_DR_HiZ, IVL_DR_HiZ);
+
+	    nex = net->pin_Clock().nexus();
+	    assert(nex->t_cookie());
+	    obj->u_.array.clk = nex->t_cookie();
+	    nexus_lpm_add(obj->u_.array.clk, obj, 3,
+			  IVL_DR_HiZ, IVL_DR_HiZ);
+
+	    nex = net->pin_Enable().nexus();
+	    assert(nex->t_cookie());
+	    obj->u_.array.we = nex->t_cookie();
+	    nexus_lpm_add(obj->u_.array.we, obj, 4,
+			  IVL_DR_HiZ, IVL_DR_HiZ);
+      }
 
       return true;
 }
@@ -2083,6 +2129,7 @@ void dll_target::lpm_ff(const NetFF*net)
 
 	/* Set the clock polarity. */
       obj->u_.ff.negedge_flag = net->is_negedge();
+      obj->u_.ff.aset_priority_flag = net->async_set_priority();
 
 	/* Set the clk signal to point to the nexus, and the nexus to
 	   point back to this device. */
@@ -2728,7 +2775,7 @@ void dll_target::convert_module_ports(const NetScope*net)
 	    NetNet**nets = scop->u_.net;
 	    scop->u_.nex = new ivl_nexus_t[scop->ports];
 	    for (unsigned idx = 0; idx < scop->ports; idx += 1) {
-		  ivl_signal_t sig = find_signal(des_, nets[idx]);
+		  ivl_signal_t sig = find_signal(nets[idx]);
 		  scop->u_.nex[idx] = nexus_sig_make(sig, 0);
 	    }
 	    delete [] nets;
@@ -2737,12 +2784,11 @@ void dll_target::convert_module_ports(const NetScope*net)
 
 void dll_target::signal(const NetNet*net)
 {
+      if (signal_map_.find(net) != signal_map_.end())
+	    return;
+
       ivl_scope_t scope = find_scope(des_, net->scope());
       assert(scope);
-      for (unsigned idx = 0 ; idx < scope->sigs_.size() ; idx += 1) {
-	    if (scope->sigs_[idx]->net_ == net)
-		  return;
-      }
 
       ivl_signal_t obj = new struct ivl_signal_s;
 
@@ -2757,6 +2803,7 @@ void dll_target::signal(const NetNet*net)
       FILE_NAME(obj, net);
 
       obj->scope_->sigs_.push_back(obj);
+      signal_map_[net] = obj;
 
 
 	/* Save the primitive properties of the signal in the
@@ -2972,7 +3019,7 @@ bool dll_target::signal_paths(const NetNet*net)
       if (net->delay_paths() == 0)
 	    return true;
 
-      ivl_signal_t obj = find_signal(des_, net);
+      ivl_signal_t obj = find_signal(net);
       assert(obj);
 
 	/* We cannot have already set up the paths for this signal. */

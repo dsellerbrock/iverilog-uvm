@@ -1,0 +1,8 @@
+{
+    "type"   : "normal",
+    "source" : "sv_case_inside_concat_selector.v",
+    "iverilog-args" : [ "-S", "-g2012" ],
+    "vlog95" : {
+        "type" : "NI"
+    }
+}

@@ -488,6 +488,16 @@ class PCondit  : public Statement {
       Statement* if_clause() const { return if_; }
       Statement* else_clause() const { return else_; }
 
+	/* A simple/deferred immediate assertion is represented by a
+	   conditional whose branches are assertion action blocks. Keep that
+	   provenance through elaboration: system tasks in an assertion action
+	   are verification behavior, not logic to synthesize from the
+	   containing always_comb/always_ff process. */
+      void immediate_assertion(bool flag = true)
+	{ immediate_assertion_ = flag; }
+      bool is_immediate_assertion() const
+	{ return immediate_assertion_; }
+
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
@@ -498,6 +508,7 @@ class PCondit  : public Statement {
       PExpr*expr_;
       Statement*if_;
       Statement*else_;
+      bool immediate_assertion_ = false;
 
     private: // not implemented
       PCondit(const PCondit&);

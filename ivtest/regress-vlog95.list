@@ -773,10 +773,11 @@ shiftl			TE,-S			ivltests
 ufuncsynth1		TE,-S			ivltests
 pr685			TE,-S			ivltests
 
-# The translator doesn't currently support multi-bit asynchronous set values.
-# These are created in the synthesis process.
-dffsynth7		CE,-S			ivltests
-dffsynth11		CE,-S			ivltests
+# Synthesis-created multi-bit asynchronous set values are translated per FF
+# bit so each scalar Verilog-95 library element receives the exact value.
+dffsynth7		normal,-S		ivltests
+dffsynth11		normal,-S		ivltests
+synth_dual_async_priority normal,-S,-g2012,-DIVL_VLOG95_SIMPLE ivltests
 sqrt32synth		CE,-S			ivltests
 
 # The translator doesn't currently support incomplete for statements and
