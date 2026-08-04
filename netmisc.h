@@ -532,6 +532,12 @@ extern bool nex_output_precise_partsel;
    on any word and therefore must claim every possible destination. */
 extern bool nex_output_precise_array_word;
 
+/* During synchronous synthesis, intercept eligible unpacked-array writes so
+   the process output/enable machinery can use one synthetic token instead of
+   materializing every possible word. Returns true when the active compact
+   write pass handled this l-value (including its counting-only prepass). */
+extern bool synth_array_write_nex_output(NetAssign_*lval, NexusSet&out);
+
 /* Collapse the leading indices of a packed select into constants. With
    quiet=true a non-constant prefix simply returns false with no
    diagnostic, so the caller can fall back to collapse_packed_base(). */

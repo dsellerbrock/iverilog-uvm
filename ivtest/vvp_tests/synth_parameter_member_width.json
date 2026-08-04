@@ -1,0 +1,8 @@
+{
+    "type"   : "normal",
+    "source" : "synth_parameter_member_width.v",
+    "iverilog-args" : [ "-g2012" ],
+    "vlog95" : {
+        "type" : "NI"
+    }
+}

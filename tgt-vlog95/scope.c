@@ -321,6 +321,39 @@ static int find_process(ivl_process_t proc, ivl_scope_t scope)
       return 0;
 }
 
+/* Unpacked array parameters are represented in the target API by a sentinel
+ * parameter named "name" and one scalar parameter per element named
+ * "name[index]". Verilog-1995 cannot declare the array, so only emit the
+ * already-flattened element parameters. */
+static bool parameter_has_flattened_elements(ivl_scope_t scope,
+                                             ivl_parameter_t par)
+{
+      const char*base = ivl_parameter_basename(par);
+      ivl_expr_t value = ivl_parameter_expr(par);
+      size_t base_len = strlen(base);
+      unsigned int count = ivl_scope_params(scope);
+
+      /* The compiler gives the aggregate sentinel this exact value. This
+       * avoids scanning the parameter table for ordinary parameters. */
+      if (ivl_expr_type(value) != IVL_EX_NUMBER ||
+	  ivl_expr_width(value) != 1 || ivl_expr_bits(value)[0] != 'x')
+	    return false;
+
+      for (unsigned int idx = 0; idx < count; idx += 1) {
+	    ivl_parameter_t elem = ivl_scope_param(scope, idx);
+	    const char*elem_name;
+
+	    if (elem == par)
+		  continue;
+	    elem_name = ivl_parameter_basename(elem);
+	    if (strncmp(elem_name, base, base_len) == 0 &&
+	        elem_name[base_len] == '[')
+		  return true;
+      }
+
+      return false;
+}
+
 void emit_scope_variables(ivl_scope_t scope)
 {
       unsigned idx, count;
@@ -334,6 +367,10 @@ void emit_scope_variables(ivl_scope_t scope)
 	      // type that the module was instantiated with. Similar to
 	      // typedefs.
 	    if (ivl_parameter_is_type(par))
+		  continue;
+	      /* The scalar element parameters immediately below are the
+	       * Verilog-1995-compatible form of an unpacked array parameter. */
+	    if (parameter_has_flattened_elements(scope, par))
 		  continue;
 
 	    ivl_expr_t pex = ivl_parameter_expr(par);

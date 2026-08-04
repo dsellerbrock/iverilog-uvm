@@ -22,36 +22,144 @@
 # include  <stdlib.h>
 # include  "ivl_alloc.h"
 
-static size_t xnf_mangle_scope_name(ivl_scope_t net, char*buf, size_t nbuf)
+/* XNF records are comma-separated and provide no quoting mechanism for
+ * identifiers. Preserve ordinary Verilog names, but encode an entire name
+ * component when it contains XNF delimiters (or any other character that
+ * requires a Verilog escaped identifier). Encoding the reserved prefix too
+ * keeps the mapping one-to-one. */
+# define XNF_ESCAPE_PREFIX "__ivl_xnf_"
+
+static void xnf_name_size_error(void)
 {
-      unsigned cnt = 0;
+      fprintf(stderr, "fpga.tgt error: XNF identifier is too long.\n");
+      exit(1);
+}
+
+static int xnf_plain_component(const char*name)
+{
+      const unsigned char*cp = (const unsigned char*)name;
+
+      if (strncmp(name, XNF_ESCAPE_PREFIX,
+		  sizeof XNF_ESCAPE_PREFIX - 1) == 0)
+	    return 0;
+
+      if (!((*cp >= 'A' && *cp <= 'Z') ||
+	    (*cp >= 'a' && *cp <= 'z') || *cp == '_'))
+	    return 0;
+
+      for (cp += 1 ; *cp ; cp += 1) {
+	    if ((*cp >= 'A' && *cp <= 'Z') ||
+		(*cp >= 'a' && *cp <= 'z') ||
+		(*cp >= '0' && *cp <= '9') || *cp == '_' || *cp == '$')
+		  continue;
+	    return 0;
+      }
+
+      return 1;
+}
+
+static size_t xnf_component_size(const char*name)
+{
+      size_t len = strlen(name);
+
+      if (xnf_plain_component(name))
+	    return len;
+
+      if (len > ((size_t)-1 - (sizeof XNF_ESCAPE_PREFIX - 1)) / 2)
+	    xnf_name_size_error();
+      return sizeof XNF_ESCAPE_PREFIX - 1 + 2 * len;
+}
+
+static char*xnf_copy_component(char*dst, const char*name)
+{
+      static const char hex[] = "0123456789ABCDEF";
+      const unsigned char*cp;
+
+      if (xnf_plain_component(name)) {
+	    size_t len = strlen(name);
+	    memcpy(dst, name, len);
+	    return dst + len;
+      }
+
+      memcpy(dst, XNF_ESCAPE_PREFIX, sizeof XNF_ESCAPE_PREFIX - 1);
+      dst += sizeof XNF_ESCAPE_PREFIX - 1;
+      for (cp = (const unsigned char*)name ; *cp ; cp += 1) {
+	    *dst++ = hex[*cp >> 4];
+	    *dst++ = hex[*cp & 15];
+      }
+
+      return dst;
+}
+
+char*xnf_mangle_identifier(const char*name)
+{
+      size_t len = xnf_component_size(name);
+      char*res;
+      char*end;
+
+      if (len == (size_t)-1)
+	    xnf_name_size_error();
+      res = malloc(len + 1);
+      end = xnf_copy_component(res, name);
+      *end = 0;
+      return res;
+}
+
+static size_t xnf_scope_name_size(ivl_scope_t net)
+{
+      size_t len = xnf_component_size(ivl_scope_basename(net));
       ivl_scope_t parent = ivl_scope_parent(net);
 
       if (parent) {
-	    cnt = xnf_mangle_scope_name(parent, buf, nbuf);
-	    buf += cnt;
-	    *buf++ = '/';
-	    cnt += 1;
+	    size_t parent_len = xnf_scope_name_size(parent);
+	    if (len == (size_t)-1 || parent_len > (size_t)-1 - len - 1)
+		  xnf_name_size_error();
+	    len += parent_len + 1;
       }
 
-      strcpy(buf, ivl_scope_basename(net));
-      cnt += strlen(buf);
-
-      return cnt;
+      return len;
 }
 
-void xnf_mangle_logic_name(ivl_net_logic_t net, char*buf, size_t nbuf)
+static char*xnf_copy_scope_name(char*dst, ivl_scope_t net)
 {
-      size_t cnt = xnf_mangle_scope_name(ivl_logic_scope(net), buf, nbuf);
-      buf[cnt++] = '/';
-      strcpy(buf+cnt, ivl_logic_basename(net));
+      ivl_scope_t parent = ivl_scope_parent(net);
+
+      if (parent) {
+	    dst = xnf_copy_scope_name(dst, parent);
+	    *dst++ = '/';
+      }
+
+      return xnf_copy_component(dst, ivl_scope_basename(net));
 }
 
-void xnf_mangle_lpm_name(ivl_lpm_t net, char*buf, size_t nbuf)
+static char*xnf_mangle_object_name(ivl_scope_t scope, const char*basename)
 {
-      size_t cnt = xnf_mangle_scope_name(ivl_lpm_scope(net), buf, nbuf);
-      buf[cnt++] = '/';
-      strcpy(buf+cnt, ivl_lpm_basename(net));
+      size_t scope_len = xnf_scope_name_size(scope);
+      size_t base_len = xnf_component_size(basename);
+      char*res;
+      char*end;
+
+      if (base_len > (size_t)-1 - 2 ||
+	  scope_len > (size_t)-1 - base_len - 2)
+	    xnf_name_size_error();
+      res = malloc(scope_len + base_len + 2);
+      end = xnf_copy_scope_name(res, scope);
+      *end++ = '/';
+      end = xnf_copy_component(end, basename);
+      *end = 0;
+      return res;
+}
+
+char*xnf_mangle_logic_name(ivl_net_logic_t net)
+{
+      return xnf_mangle_object_name(ivl_logic_scope(net),
+				    ivl_logic_basename(net));
+}
+
+char*xnf_mangle_lpm_name(ivl_lpm_t net)
+{
+      return xnf_mangle_object_name(ivl_lpm_scope(net),
+				    ivl_lpm_basename(net));
 }
 
 /*
@@ -67,23 +175,12 @@ void xnf_mangle_lpm_name(ivl_lpm_t net, char*buf, size_t nbuf)
 const char* xnf_mangle_nexus_name(ivl_nexus_t net)
 {
       char*name = ivl_nexus_get_private(net);
-      char*cp;
 
       if (name != 0) {
 	    return name;
       }
 
-      name = malloc(strlen(ivl_nexus_name(net)) + 1);
-      strcpy(name, ivl_nexus_name(net));
-
-      for (cp = name ;  *cp ;  cp += 1) switch (*cp) {
-
-	  case '.':
-	    *cp = '/';
-	    break;
-	  default:
-	    break;
-      }
+      name = xnf_mangle_identifier(ivl_nexus_name(net));
 
       ivl_nexus_set_private(net, name);
       return name;

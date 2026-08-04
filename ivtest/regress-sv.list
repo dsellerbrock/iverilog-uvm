@@ -994,6 +994,7 @@ packed_dims_invalid_module CE,-g2005-sv		ivltests
 ushortint_test		normal,-g2005-sv	ivltests
 vvp_recv_vec4_pv	normal,-g2005-sv	ivltests
 wait_fork		normal,-g2009		ivltests
+sv_wait_literal_false_suspend normal,-g2012 ivltests
 sf1289			normal,-g2012		ivltests
 wild_cmp_const		normal,-g2009		ivltests
 wild_cmp_net		normal,-g2009		ivltests
@@ -1048,6 +1049,7 @@ sv_assoc_obj_key_bit_copy1 normal,-g2012 ivltests
 sv_assoc_obj_key_delete1 normal,-g2012 ivltests
 sv_assoc_obj_graph_mutation1 normal,-g2012 ivltests
 sv_assoc_nested_member_foreach1 normal,-g2012 ivltests
+sv_class_nested_assoc_foreach normal,-g2012 ivltests
 sv_class_event_member1 normal,-g2012 ivltests
 sv_class_event_per_instance normal,-g2012 ivltests
 sv_class_prop_assoc_find1 normal,-g2012 ivltests
@@ -1080,6 +1082,7 @@ sv_class_assoc_recursive_find1 normal,-g2012 ivltests
 sv_darray_obj_duplicate1 normal,-g2012 ivltests
 sv_class_prop_wait_wakeup1 normal,-g2012 ivltests
 sv_class_method_prop_wait_wakeup1 normal,-g2012 ivltests
+sv_object_alias_rebind_wait normal,-g2012 ivltests
 sv_class_extern_task1 normal,-g2012 ivltests
 sv_class_extern_ctor_const_init1 normal,-g2012 ivltests
 sv_class_queue_wait_wakeup1 normal,-g2012 ivltests
@@ -1089,6 +1092,7 @@ sv_class_packed_prop2d1 normal,-g2012 ivltests
 sv_class_method_receiver_copy1 normal,-g2012 ivltests
 sv_class_case_wait_wakeup1 normal,-g2012 ivltests
 sv_class_forward_typeparam_cb1 normal,-g2012 ivltests
+sv_class_inherited_enum_extern normal,-g2012 ivltests
 sv_class_assoc_prop_copy_isolation1 normal,-g2012 ivltests
 sv_class_derived_ctor_state1 normal,-g2012 ivltests
 sv_class_recursive_ctor_add1 normal,-g2012 ivltests
@@ -1118,15 +1122,21 @@ sv_modport_visibility_fail CE,-g2012 ivltests
 sv_modport_read_visibility_fail CE,-g2012 ivltests
 sv_interface_member_sensitivity normal,-g2012 ivltests
 sv_vif_dispatch_many normal,-g2012 ivltests
+sv_vif_named_default_args normal,-g2012 ivltests
+sv_interface_initial_event_start_order normal,-g2012 ivltests
 sv_vif_nested_interface_method normal,-g2012 ivltests
 sv_auto_complex_class_property_event normal,-g2012 ivltests
 sv_auto_complex_vif_event normal,-g2012 ivltests
 sv_class_array_method_dispatch normal,-g2012 ivltests
 sv_typeparam_formal_member normal,-g2012 ivltests
+sv_typeparam_receiver_method normal,-g2012 ivltests
+sv_typeparam_receiver_method_fail CE,-g2012 ivltests
 sv_randcase normal,-g2012 ivltests
+sv_scope_randomize_unqualified normal,-g2012 ivltests
 sv_std_randomize_scope normal,-g2012 ivltests
 sv_std_randomize_with_solver normal,-g2012 ivltests
 sv_constraint_unique normal,-g2012 ivltests
+sv_constraint_small_domain_probe normal,-g2012 ivltests
 sv_assoc_wildcard_index normal,-g2012 ivltests
 sv_process_status_transitions normal,-g2012 ivltests
 sv_display_p_signed normal,-g2012 ivltests
@@ -1160,14 +1170,19 @@ sv_struct_member_partial_read normal,-g2012 ivltests
 sv_container_elem_read_defaults normal,-g2012 ivltests
 sv_array_word_part_compound normal,-g2012 ivltests
 sv_nba_class_property normal,-g2012 ivltests
+sv_class_vif_property_assignment_width normal,-g2012 ivltests
 sv_assoc_elem_partial_write normal,-g2012 ivltests
 sv_multidim_oob_write normal,-g2012 ivltests
 sv_cast_enum_check normal,-g2012 ivltests
 sv_covergroup_chained_sample normal,-g2012 ivltests
 sv_inside_property_container normal,-g2012 ivltests
 sv_constraint_inside_container normal,-g2012 ivltests
+sv_constraint_nonrand_queue_size normal,-g2012 ivltests
+sv_constraint_rand_queue_size normal,-g2012 ivltests
 sv_queue_of_queues normal,-g2012 ivltests
 sv_queue_slice_p normal,-g2012 ivltests
+sv_queue_slice_to_last normal,-g2012 ivltests
+sv_class_queue_slice_to_last normal,-g2012 ivltests
 sv_assoc_queue_property normal,-g2012 ivltests
 sv_mailbox_string_real normal,-g2012 ivltests
 sv_stream_unpacked_array normal,-g2012 ivltests
@@ -1181,13 +1196,18 @@ sv_covergroup_with_sample normal,-g2012 ivltests
 sv_covergroup_options normal,-g2012 ivltests
 sv_covergroup_adversarial normal,-g2012 ivltests
 sv_covergroup_class_event normal,-g2012 ivltests
+sv_covergroup_cross_iff normal,-g2012 ivltests
+sv_covergroup_cross_variable normal,-g2012 ivltests
+sv_covergroup_transition_cross normal,-g2012 ivltests
 sv_struct_value_copy_args normal,-g2012 ivltests
 sv_timing_check_edge_descriptor normal,-g2012,-gspecify ivltests gold=sv_timing_check_edge_descriptor.gold
 sv_class_array_element_index normal,-g2012 ivltests
 sv_class_arrayprop_elem_select normal,-g2012 ivltests
 sv_assert_in_procedural_block normal,-g2012 ivltests
+sv_immediate_assert_action_synth_warning normal,-g2012 ivltests gold=sv_immediate_assert_action_synth_warning.gold
 sv_assert_procedural_implicit_clock normal,-g2012 ivltests
 sv_assert_select_preponed_sample normal,-g2012 ivltests
+sv_assert_parameterized_unpacked_array_sample normal,-g2012 ivltests
 sv_assert_multiclock_cover_disable normal,-g2012 ivltests
 sv_assert_multiclock_action_blocks normal,-g2012 ivltests
 sv_assert_multiclock_clock_flow normal,-g2012 ivltests
@@ -1195,6 +1215,18 @@ sv_assert_multiclock_multiplicity normal,-g2012 ivltests
 sv_assert_multiclock_nested_flow normal,-g2012 ivltests
 sv_assert_multiclock_sampled_values normal,-g2012 ivltests
 sv_assert_multiclock_varlen normal,-g2012 ivltests
+sv_assert_wildcard_parameter_delay normal,-g2012 ivltests
+sv_assert_genvar_cycle_delay normal,-g2012 ivltests
+sv_assert_struct_parameter_delay normal,-g2012 ivltests
+sv_assert_unpacked_struct_parameter_delay normal,-g2012 ivltests
+sv_assert_struct_variable_delay_fail CE,-g2012 ivltests
+sv_assert_named_parameter_repeat_window normal,-g2012 ivltests
+sv_assert_parameter_window_fixed_tree normal,-g2012 ivltests
+sv_assert_repeat_parameter_smoke normal,-g2012 ivltests
+sv_assert_repeat_parameter_override normal,-g2012 ivltests
+sv_assert_disable_iff_nba_parameter_repeat normal,-g2012 ivltests
+sv_assert_disable_iff_async_parameter_repeat normal,-g2012 ivltests
+sv_assert_repeat_parameter_direct normal,-g2012 ivltests
 sv_assert_multiclock_chain3 normal,-g2012 ivltests
 sv_process_self_named_block normal,-g2012 ivltests
 sv_assert_observed_region normal,-g2012 ivltests
@@ -1246,7 +1278,10 @@ sv_type_operator1 normal,-g2012 ivltests
 sv_param_type_identity1 normal,-g2012 ivltests
 sv_assert_paren_property normal,-g2012 ivltests
 sv_assert_paren_boolean normal,-g2012 ivltests
+sv_case_inside_concat_selector normal,-g2012 ivltests
+sv_generate_inside_constant normal,-g2012 ivltests
 sv_enum_ternary_type normal,-g2012 ivltests
+sv_enum_unbased_fill normal,-g2012 ivltests
 sv_cast_size_string_literal normal,-g2012 ivltests
 sv_lnet_parray_struct_member normal,-g2012 ivltests
 sv_for_multi_var_decl normal,-g2012 ivltests
@@ -1256,7 +1291,12 @@ sv_rand_conformance_pin1 normal,-g2012 ivltests
 sv_rand_conformance_pin2 normal,-g2012 ivltests
 sv_packed_multidim_var_index normal,-g2012 ivltests
 sv_param_multidim_packed_select normal,-g2012 ivltests
+sv_param_pattern_override_import normal,-g2012 ivltests
+sv_param_unpacked_default_pattern normal,-g2012 ivltests
 sv_param_unpacked_array_select normal,-g2012 ivltests
+sv_param_unpacked_array_slice_port normal,-g2012 ivltests
+sv_string_concat_packed_param normal,-g2012 ivltests
+sv_string_localparam_sformatf_scope normal,-g2012 ivltests
 sv_edition_stacktrace_old CE,-g2012 ivltests gold=sv_edition_stacktrace_old.gold
 sv_edition_stacktrace_def normal,-g2023 ivltests
 sv_edition_stacktrace_latest normal,-glatest ivltests
@@ -1296,3 +1336,6 @@ sv_uparam_multi_dim normal,-g2012 ivltests
 sv_import_unknown_pkg_diag CE,-g2012 ivltests gold=sv_import_unknown_pkg_diag.gold
 sv_darray_queue_arg_by_value normal,-g2012 ivltests
 sv_function_repeated_calls1 normal,-g2012 ivltests
+sv_unit_import_interface_type normal,-g2012 ivltests
+sv_interface_port_array_member normal,-g2012 ivltests
+sv_unpacked_array_concat_mismatch CE,-g2012 ivltests

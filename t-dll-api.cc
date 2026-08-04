@@ -26,6 +26,7 @@
 # include  "netclass.h"
 # include  "netdarray.h"
 # include  "netenum.h"
+# include  "netparray.h"
 # include  "netqueue.h"
 # include  "netstruct.h"
 # include  "netvector.h"
@@ -1251,6 +1252,18 @@ extern "C" ivl_nexus_t ivl_lpm_async_set(ivl_lpm_t net)
       }
 }
 
+extern "C" unsigned ivl_lpm_async_set_priority(ivl_lpm_t net)
+{
+      assert(net);
+      switch(net->type) {
+	  case IVL_LPM_FF:
+	    return net->u_.ff.aset_priority_flag;
+	  default:
+	    assert(0);
+	    return 0;
+      }
+}
+
 extern "C" ivl_nexus_t ivl_lpm_sync_set(ivl_lpm_t net)
 {
       assert(net);
@@ -1296,6 +1309,8 @@ extern "C" unsigned ivl_lpm_negedge(ivl_lpm_t net)
       switch (net->type) {
 	  case IVL_LPM_FF:
 	    return net->u_.ff.negedge_flag;
+	  case IVL_LPM_ARRAY:
+	    return net->u_.array.negedge_flag;
 	  default:
 	    assert(0);
 	    return 0;
@@ -1308,6 +1323,8 @@ extern "C" ivl_nexus_t ivl_lpm_clk(ivl_lpm_t net)
       switch (net->type) {
 	  case IVL_LPM_FF:
 	    return net->u_.ff.clk;
+	  case IVL_LPM_ARRAY:
+	    return net->u_.array.clk;
 	  default:
 	    assert(0);
 	    return 0;
@@ -1357,6 +1374,8 @@ extern "C" ivl_nexus_t ivl_lpm_enable(ivl_lpm_t net)
 	    return net->u_.ff.we;
 	  case IVL_LPM_LATCH:
 	    return net->u_.latch.e;
+	  case IVL_LPM_ARRAY:
+	    return net->u_.array.we;
 	  default:
 	    assert(0);
 	    return 0;
@@ -1436,6 +1455,9 @@ extern "C" ivl_nexus_t ivl_lpm_data(ivl_lpm_t net, unsigned idx)
 	  case IVL_LPM_LATCH:
 	    assert(idx == 0);
 	    return net->u_.latch.d.pin;
+	  case IVL_LPM_ARRAY:
+	    assert(idx == 0);
+	    return net->u_.array.d;
 
 	  case IVL_LPM_CONCAT:
 	  case IVL_LPM_CONCATZ:
@@ -1460,11 +1482,13 @@ extern "C" ivl_nexus_t ivl_lpm_data(ivl_lpm_t net, unsigned idx)
 	    return net->u_.sfunc.pins[idx+1];
 
 	  case IVL_LPM_SUBSTITUTE:
-	    assert(idx <= 1);
+	    assert(idx <= 2);
 	    if (idx == 0)
 		  return net->u_.substitute.a;
-	    else
+	    else if (idx == 1)
 		  return net->u_.substitute.s;
+	    else
+		  return net->u_.substitute.b;
 
 	  case IVL_LPM_UFUNC:
 	      // Skip the return port.
@@ -1738,8 +1762,9 @@ extern "C" int ivl_lpm_signed(ivl_lpm_t net)
 	  case IVL_LPM_PART_PV:
 	    return net->u_.part.signed_flag;
 	  case IVL_LPM_REPEAT:
-	  case IVL_LPM_SUBSTITUTE:
 	    return 0;
+	  case IVL_LPM_SUBSTITUTE:
+	    return net->u_.substitute.signed_flag;
 	  case IVL_LPM_ARRAY: // Array ports take the signedness of the array.
 	    return net->u_.array.sig->net_type->get_signed()? 1 : 0;
 	  default:
@@ -3633,6 +3658,52 @@ extern "C" unsigned ivl_type_packed_dimensions(ivl_type_t net)
       return slice.size();
 }
 
+extern "C" int ivl_type_is_packed_vector(ivl_type_t net)
+{
+      if (!net)
+	    return 0;
+
+	/* An enum has exactly the DPI representation of its base type. */
+      const netenum_t*en = dynamic_cast<const netenum_t*>(net);
+      if (en)
+	    return ivl_type_is_packed_vector(en->base_type_obj());
+
+	/* A typedef can add packed dimensions around another type. These
+	   dimensions are represented by netparray_t, not netvector_t. */
+      if (dynamic_cast<const netparray_t*>(net))
+	    return 1;
+
+      const netstruct_t*rec = dynamic_cast<const netstruct_t*>(net);
+      if (rec)
+	    return rec->packed() ? 1 : 0;
+
+      const netvector_t*vec = dynamic_cast<const netvector_t*>(net);
+      if (!vec || vec->packed_dims().empty())
+	    return 0;
+
+	/* The elaborated representation intentionally shares netvector_t
+	   between explicit bit/logic vectors and the built-in atom types.
+	   IEEE 1800 Annex H gives byte/shortint/int/longint scalar C ABIs,
+	   while integer and time retain the canonical packed-vector ABI. */
+      if (vec == &netvector_t::atom2s64
+	  || vec == &netvector_t::atom2u64
+	  || vec == &netvector_t::atom2s32
+	  || vec == &netvector_t::atom2u32
+	  || vec == &netvector_t::atom2s16
+	  || vec == &netvector_t::atom2u16
+	  || vec == &netvector_t::atom2s8
+	  || vec == &netvector_t::atom2u8
+	  || vec == &netvector_t::chandle_type)
+	    return 0;
+
+      return 1;
+}
+
+extern "C" int ivl_type_is_chandle(ivl_type_t net)
+{
+      return net == &netvector_t::chandle_type;
+}
+
 extern "C" int ivl_type_packed_lsb(ivl_type_t net, unsigned dim)
 {
       assert(net);
@@ -3927,6 +3998,15 @@ extern "C" const char* ivl_type_covgrp_item_name(ivl_type_t net, int idx)
 	    return nm.nil() ? "" : nm.str();
       }
       return "";
+}
+
+extern "C" int ivl_type_covgrp_item_guardsrc(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count())
+	    return class_type->covgrp_item_guardsrc((size_t)idx);
+      return -1;
 }
 
 /* M11-3: event-driven sampling metadata for class-embedded

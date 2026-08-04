@@ -88,7 +88,8 @@ static struct __vpiModPath*modpath_dst = 0;
 %token K_CMP_EQ_R K_CMP_NEE K_CMP_NE K_CMP_NE_R
 %token K_CMP_GE K_CMP_GE_R K_CMP_GE_S K_CMP_GT K_CMP_GT_R K_CMP_GT_S
 %token K_CONCAT K_CONCAT8 K_DEBUG K_DELAY K_DFF_N K_DFF_N_ACLR
-%token K_DFF_N_ASET K_DFF_P K_DFF_P_ACLR K_DFF_P_ASET
+%token K_DFF_N_ACLR_ASET K_DFF_N_ASET K_DFF_N_ASET_ACLR
+%token K_DFF_P K_DFF_P_ACLR K_DFF_P_ACLR_ASET K_DFF_P_ASET K_DFF_P_ASET_ACLR
 %token K_ENUM2 K_ENUM2_S K_ENUM4 K_ENUM4_S K_EVENT K_EVENT_OR
 %token K_EXPORT K_EXTEND_S K_FUNCTOR K_IMPORT K_ISLAND K_LATCH K_MODPATH
 %token K_NET K_NET_S K_NET_R K_NET_2S K_NET_2U
@@ -98,7 +99,7 @@ static struct __vpiModPath*modpath_dst = 0;
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1
 %token K_SCOPE K_SFUNC K_SFUNC_E K_SHIFTL K_SHIFTR K_SHIFTRS
-%token K_SUBSTITUTE
+%token K_SUBSTITUTE K_SUBSTITUTE_V
 %token K_THREAD K_TIMESCALE K_TRAN K_TRANIF0 K_TRANIF1 K_TRANVP
 %token K_UFUNC_REAL K_UFUNC_VEC4 K_UFUNC_E K_UDP K_UDP_C K_UDP_S
 %token K_VAR K_VAR_COBJECT K_VAR_DARRAY
@@ -266,6 +267,9 @@ statement
         | T_LABEL K_ARRAY_PORT T_SYMBOL ',' T_NUMBER ';'
 		{ compile_array_port($1, $3, $5); }
 
+	| T_LABEL K_ARRAY_PORT T_SYMBOL ',' T_SYMBOL ',' T_SYMBOL ',' T_SYMBOL ',' T_SYMBOL ',' T_NUMBER ';'
+		{ compile_array_port($1, $3, $5, $7, $9, $11, $13); }
+
         | T_LABEL K_ARRAY T_STRING ',' T_SYMBOL ';'
                 { compile_array_alias($1, $3, $5); }
 
@@ -321,6 +325,8 @@ statement
   /* Substitutions (similar to concatenations) */
   | T_LABEL K_SUBSTITUTE T_NUMBER ',' T_NUMBER T_NUMBER ',' symbols ';'
       { compile_substitute($1, $3, $5, $6, $8.cnt, $8.vect); }
+  | T_LABEL K_SUBSTITUTE_V T_NUMBER ',' T_NUMBER T_NUMBER ',' symbols ';'
+      { compile_substitute_var($1, $3, $5, $6, $8.cnt, $8.vect); }
 
   /* The ABS statement is a special arithmetic node that takes 1
      input. Re-use the symbols rule. */
@@ -554,6 +560,38 @@ statement
 
   | T_LABEL K_DFF_P_ASET T_NUMBER symbol ',' symbol ',' symbol ',' symbol ',' T_SYMBOL ';'
       { compile_dff_aset($1, $3, false, $4, $6, $8, $10, $12); }
+
+  | T_LABEL K_DFF_N_ACLR_ASET T_NUMBER symbol ',' symbol ',' symbol ',' symbol ',' symbol ';'
+      { compile_dff_aclr_aset($1, $3, true, false,
+			      $4, $6, $8, $10, $12, 0); }
+
+  | T_LABEL K_DFF_P_ACLR_ASET T_NUMBER symbol ',' symbol ',' symbol ',' symbol ',' symbol ';'
+      { compile_dff_aclr_aset($1, $3, false, false,
+			      $4, $6, $8, $10, $12, 0); }
+
+  | T_LABEL K_DFF_N_ASET_ACLR T_NUMBER symbol ',' symbol ',' symbol ',' symbol ',' symbol ';'
+      { compile_dff_aclr_aset($1, $3, true, true,
+			      $4, $6, $8, $10, $12, 0); }
+
+  | T_LABEL K_DFF_P_ASET_ACLR T_NUMBER symbol ',' symbol ',' symbol ',' symbol ',' symbol ';'
+      { compile_dff_aclr_aset($1, $3, false, true,
+			      $4, $6, $8, $10, $12, 0); }
+
+  | T_LABEL K_DFF_N_ACLR_ASET T_NUMBER symbol ',' symbol ',' symbol ',' symbol ',' symbol ',' T_SYMBOL ';'
+      { compile_dff_aclr_aset($1, $3, true, false,
+			      $4, $6, $8, $10, $12, $14); }
+
+  | T_LABEL K_DFF_P_ACLR_ASET T_NUMBER symbol ',' symbol ',' symbol ',' symbol ',' symbol ',' T_SYMBOL ';'
+      { compile_dff_aclr_aset($1, $3, false, false,
+			      $4, $6, $8, $10, $12, $14); }
+
+  | T_LABEL K_DFF_N_ASET_ACLR T_NUMBER symbol ',' symbol ',' symbol ',' symbol ',' symbol ',' T_SYMBOL ';'
+      { compile_dff_aclr_aset($1, $3, true, true,
+			      $4, $6, $8, $10, $12, $14); }
+
+  | T_LABEL K_DFF_P_ASET_ACLR T_NUMBER symbol ',' symbol ',' symbol ',' symbol ',' symbol ',' T_SYMBOL ';'
+      { compile_dff_aclr_aset($1, $3, false, true,
+			      $4, $6, $8, $10, $12, $14); }
 
   /* LATCH nodes have an output and take 2 inputs. */
 
@@ -1054,6 +1092,8 @@ class_property
       { compile_class_covgrp_item($2, $3, $4, $5); }
   | K_COVGRP_ITEM T_NUMBER T_NUMBER T_NUMBER T_STRING T_STRING
       { compile_class_covgrp_item($2, $3, $4, $5, $6); }
+  | K_COVGRP_ITEM T_NUMBER T_NUMBER T_NUMBER T_STRING T_STRING T_NUMBER
+      { compile_class_covgrp_item($2, $3, $4, $5, $6, $7); }
   | K_COVGRP_PARENT T_NUMBER
       { compile_class_covgrp_parent($2); }
   | K_COVGRP_SRC T_NUMBER T_NUMBER

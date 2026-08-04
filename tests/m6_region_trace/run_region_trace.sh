@@ -7,7 +7,9 @@
 #      (an event promoted wholesale into the active queue still reports
 #      the region it was scheduled into — e.g. Inactive, not Active);
 #   2. the regions appear in the stratified drain order within the slot
-#      (Active/Inactive design regions, then NBA, then Postponed).
+#      (Active/Inactive design regions, then NBA, then Postponed);
+#   3. the first instruction of a child forked by a program process stays
+#      in the Reactive region inherited from its parent.
 # This is the durable regression for the region-tag machinery itself;
 # behavioral ordering is covered by tests/m6_sched_litmus_test.sv.
 #
@@ -84,9 +86,50 @@ seq2=$(grep -E 'REGION.*selftest' "$WORK/trace2" \
         | sed -E 's/.* ps ([A-Za-z-]+): selftest.*/\1/' | tr '\n' ' ')
 echo "  selftest region order: $seq2"
 
-expected="Preponed Active NBA Observed Reactive Re-NBA RWSync ROSync "
+expected="Preponed Active NBA NBASync Observed Reactive Re-NBA RWSync ROSync "
 if [ "$seq2" != "$expected" ]; then
     echo "  FAIL: expected '$expected' got '$seq2'"; fail=1
+fi
+
+# --- Part 3: program fork first-instruction region -----------------------
+# A program initial process starts in Reactive.  Its fork child must inherit
+# that affinity before the child's FIRST instruction runs; checking only a
+# continuation after a delay would miss a schedule_vthread(..., push=true)
+# bug that briefly puts the new child into Active.
+cat > "$WORK/reactive_fork.sv" <<'EOF'
+module fork_region_top;
+  bit child_ran;
+  initial #10 $finish;
+endmodule
+
+program fork_region_prog;
+  initial begin
+    fork : reactive_first_instruction
+      fork_region_top.child_ran = 1'b1;
+    join
+    if (!fork_region_top.child_ran)
+      $fatal(1, "fork child did not run");
+    $finish;
+  end
+endprogram
+EOF
+if ! "$BIN" -g2012 -o "$WORK/reactive_fork.vvp" \
+        "$WORK/reactive_fork.sv" 2>"$WORK/cerr3"; then
+    echo "FAIL: compile error (part 3)"; cat "$WORK/cerr3"; exit 1
+fi
+IVL_REGION_TRACE=1 "$VVP" "$WORK/reactive_fork.vvp" \
+    2>"$WORK/trace3" >/dev/null
+fork_resume=$(grep -m1 -E \
+    'REGION @ .* ps [A-Za-z-]+: vthread_event: Resume thread scope=.*reactive_first_instruction' \
+    "$WORK/trace3")
+fork_region=$(echo "$fork_resume" \
+    | sed -E 's/.* ps ([A-Za-z-]+): vthread_event.*/\1/')
+echo "  program fork first-instruction region: ${fork_region:-<missing>}"
+if [ -z "$fork_resume" ]; then
+    echo "  FAIL: no resume trace found for program fork child"; fail=1
+elif [ "$fork_region" != "Reactive" ]; then
+    echo "  FAIL: program fork child first ran in '$fork_region', expected 'Reactive'"
+    fail=1
 fi
 
 if [ "$fail" -eq 0 ]; then
@@ -95,4 +138,5 @@ if [ "$fail" -eq 0 ]; then
 fi
 echo "--- trace ---"; cat "$WORK/trace"
 echo "--- trace2 ---"; cat "$WORK/trace2"
+echo "--- trace3 ---"; cat "$WORK/trace3"
 exit 1

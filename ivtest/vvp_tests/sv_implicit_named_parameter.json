@@ -1,0 +1,8 @@
+{
+    "type"   : "normal",
+    "source" : "sv_implicit_named_parameter.v",
+    "iverilog-args" : [ "-g2012" ],
+    "vlog95" : {
+        "type" : "NI"
+    }
+}

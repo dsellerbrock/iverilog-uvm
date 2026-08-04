@@ -1267,7 +1267,8 @@ NetExpr* NetESelect::evaluate_function(const LineInfo&loc,
 				map<perm_string,LocalVar>&context_map) const
 {
       NetExpr*sub_exp = expr_->evaluate_function(loc, context_map);
-      ivl_assert(loc, sub_exp);
+      if (!sub_exp)
+	    return 0;
 
       const NetEConst*sub_const = dynamic_cast<NetEConst*> (sub_exp);
       if (sub_const == 0) {

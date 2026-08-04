@@ -1,0 +1,4 @@
+./ivltests/synth_third_async_control_reject.v:17: sorry: More than two asynchronous set/reset clauses are not currently supported in synthesis.
+./ivltests/synth_third_async_control_reject.v:11: error: Unable to synthesize synchronous process.
+./ivltests/synth_third_async_control_reject.v:11: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+3 error(s) in post-elaboration processing.

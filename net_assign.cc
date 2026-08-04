@@ -26,6 +26,7 @@
 # include  "netqueue.h"
 # include  "netstruct.h"
 # include  "netenum.h"
+# include  "netvector.h"
 # include  "ivl_assert.h"
 
 using namespace std;
@@ -266,6 +267,34 @@ void NetAssign_::set_property(const perm_string&mname, unsigned idx)
 void NetAssign_::turn_sig_to_wire_on_release()
 {
       turn_sig_to_wire_on_release_ = true;
+}
+
+NetNet* NetAssign_::synth_array_write_token()
+{
+      if (synth_array_write_token_)
+	    return synth_array_write_token_;
+
+      ivl_assert(*this, sig_);
+      ivl_assert(*this, sig_->unpacked_dimensions());
+      unsigned width = sig_->vector_width();
+      const netvector_t*type = new netvector_t(sig_->data_type(), width-1, 0);
+      synth_array_write_token_ = new NetNet(
+	    sig_->scope(), sig_->scope()->local_symbol(), NetNet::WIRE, type);
+      synth_array_write_token_->local_flag(true);
+      synth_array_write_token_->set_line(*sig_);
+      return synth_array_write_token_;
+}
+
+NetArrayDq* NetAssign_::synth_array_write_port() const
+{
+      return synth_array_write_port_;
+}
+
+void NetAssign_::synth_array_write_port(NetArrayDq*port)
+{
+      ivl_assert(*this, !synth_array_write_port_);
+      ivl_assert(*this, port);
+      synth_array_write_port_ = port;
 }
 
 NetAssignBase::NetAssignBase(NetAssign_*lv, NetExpr*rv)

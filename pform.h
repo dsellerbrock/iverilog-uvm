@@ -346,6 +346,12 @@ extern void pform_sva_sorry(const struct vlltype&loc, const char*what);
 /* Evaluate the integral constant-expression subset used by SVA
    repetition and cycle-delay bounds while the module is being parsed. */
 extern bool pform_sva_const_long(PExpr*expr, long&value);
+extern bool pform_sva_overridable_bound(PExpr*expr);
+/* A bare genvar is a constant expression only after its generate loop is
+   unrolled and each generated scope receives the implicit localparam value.
+   Preserve that name through the parse-time SVA lowering instead of treating
+   it as a run-time variable or folding every instance to the loop initializer. */
+extern bool pform_sva_deferred_genvar(PExpr*expr, perm_string&name);
 extern void pform_sva_module_done(void);
 
 /* M9-2: consecutive repetition e[*lo] / e[*lo:hi] — expands the step

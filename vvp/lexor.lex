@@ -188,10 +188,14 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".delay"        { return K_DELAY; }
 ".dff/n"        { return K_DFF_N; }
 ".dff/n/aclr"   { return K_DFF_N_ACLR; }
+".dff/n/aclr/aset" { return K_DFF_N_ACLR_ASET; }
 ".dff/n/aset"   { return K_DFF_N_ASET; }
+".dff/n/aset/aclr" { return K_DFF_N_ASET_ACLR; }
 ".dff/p"        { return K_DFF_P; }
 ".dff/p/aclr"   { return K_DFF_P_ACLR; }
+".dff/p/aclr/aset" { return K_DFF_P_ACLR_ASET; }
 ".dff/p/aset"   { return K_DFF_P_ASET; }
+".dff/p/aset/aclr" { return K_DFF_P_ASET_ACLR; }
 ".enum2"        { return K_ENUM2; }
 ".enum2/s"      { return K_ENUM2_S; }
 ".enum4"        { return K_ENUM4; }
@@ -240,6 +244,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".shift/l"      { return K_SHIFTL; }
 ".shift/r"      { return K_SHIFTR; }
 ".shift/rs"     { return K_SHIFTRS; }
+".substitute/v" { return K_SUBSTITUTE_V; }
 ".substitute"   { return K_SUBSTITUTE; }
 ".thread"       { return K_THREAD; }
 ".timescale"    { return K_TIMESCALE; }

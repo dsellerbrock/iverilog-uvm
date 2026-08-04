@@ -216,6 +216,130 @@ static void order_normal_initials_lexically(struct process_list_s*list)
       free(by_line);
 }
 
+/* IEEE 1800 deliberately leaves the order of evaluation events within the
+ * Active region unspecified. Choose a deterministic hierarchy-ready order
+ * for ordinary time-zero processes: an instantiated interface gets a chance
+ * to arm event controls before the containing module can call its startup
+ * methods. This is a compatibility policy, not an additional event region or
+ * an IEEE-mandated precedence rule.
+ *
+ * Keep pre-simulation static initializers out of this ordering, just as the
+ * lexical pass above does. Within each category retain the process order
+ * already established by elaboration and the lexical pass.
+ */
+struct hierarchy_process_s {
+      ivl_process_t process;
+      ivl_scope_t module;
+      size_t position;
+      int in_interface;
+};
+
+static int process_is_in_interface(ivl_process_t net)
+{
+      ivl_scope_t scope = ivl_process_scope(net);
+      while (scope) {
+            if (ivl_scope_type(scope) == IVL_SCT_MODULE)
+                  return ivl_scope_is_interface(scope) ? 1 : 0;
+            scope = ivl_scope_parent(scope);
+      }
+      return 0;
+}
+
+static ivl_scope_t process_containing_design_module(ivl_process_t net)
+{
+      ivl_scope_t scope = ivl_process_scope(net);
+      while (scope) {
+            if (ivl_scope_type(scope) == IVL_SCT_MODULE
+                && !ivl_scope_is_interface(scope))
+                  return scope;
+            scope = ivl_scope_parent(scope);
+      }
+      return NULL;
+}
+
+static int compare_hierarchy_position(const void*left_arg,
+                                      const void*right_arg)
+{
+      const struct hierarchy_process_s*left =
+            (const struct hierarchy_process_s*)left_arg;
+      const struct hierarchy_process_s*right =
+            (const struct hierarchy_process_s*)right_arg;
+      uintptr_t left_module = (uintptr_t)left->module;
+      uintptr_t right_module = (uintptr_t)right->module;
+      if (left_module < right_module) return -1;
+      if (left_module > right_module) return 1;
+      if (left->position < right->position) return -1;
+      if (left->position > right->position) return 1;
+      return 0;
+}
+
+static void order_interface_initials_before_parent(struct process_list_s*list)
+{
+      struct hierarchy_process_s*by_position;
+      struct hierarchy_process_s*partitioned;
+      size_t eligible_count = 0;
+      size_t idx;
+
+      if (list->count < 2)
+            return;
+
+      by_position = (struct hierarchy_process_s*)malloc(
+            list->count * sizeof(struct hierarchy_process_s));
+      assert(by_position);
+
+      for (idx = 0; idx < list->count; idx += 1) {
+            ivl_process_t process = list->items[idx];
+            ivl_scope_t module;
+            if (!process_is_normal_initial(process))
+                  continue;
+            module = process_containing_design_module(process);
+            if (!module || ivl_scope_program(module))
+                  continue;
+            by_position[eligible_count].process = process;
+            by_position[eligible_count].module = module;
+            by_position[eligible_count].position = idx;
+            by_position[eligible_count].in_interface =
+                  process_is_in_interface(process);
+            eligible_count += 1;
+      }
+
+      if (eligible_count < 2) {
+            free(by_position);
+            return;
+      }
+
+      qsort(by_position, eligible_count, sizeof(struct hierarchy_process_s),
+            compare_hierarchy_position);
+      partitioned = (struct hierarchy_process_s*)malloc(
+            eligible_count * sizeof(struct hierarchy_process_s));
+      assert(partitioned);
+
+      for (idx = 0; idx < eligible_count; ) {
+            size_t end = idx + 1;
+            size_t out = idx;
+            size_t cur;
+            while (end < eligible_count
+                   && by_position[end].module == by_position[idx].module)
+                  end += 1;
+
+            for (cur = idx; cur < end; cur += 1)
+                  if (by_position[cur].in_interface)
+                        partitioned[out++] = by_position[cur];
+            for (cur = idx; cur < end; cur += 1)
+                  if (!by_position[cur].in_interface)
+                        partitioned[out++] = by_position[cur];
+            assert(out == end);
+
+            for (cur = idx; cur < end; cur += 1)
+                  list->items[by_position[cur].position] =
+                        partitioned[cur].process;
+            idx = end;
+      }
+
+      free(partitioned);
+      free(by_position);
+}
+
 static int draw_processes(ivl_design_t des)
 {
       struct process_list_s list = { 0, 0, 0 };
@@ -229,6 +353,7 @@ static int draw_processes(ivl_design_t des)
       }
 
       order_normal_initials_lexically(&list);
+      order_interface_initials_before_parent(&list);
       for (idx = 0; idx < list.count; idx += 1) {
             rc = draw_process(list.items[idx], 0);
             if (rc != 0)

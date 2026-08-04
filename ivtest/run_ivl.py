@@ -154,10 +154,12 @@ def run_CE(options: dict, cfg: dict) -> list:
 
     if res.returncode == 0:
         return [1, "Failed - CE (no error reported)."]
-    if res.returncode >= 256:
+    if res.returncode < 0 or res.returncode >= 256:
         return [1, "Failed - CE (execution error)."]
-    if options['gold'] is not None and not check_gold(options, log_list):
-        return [1, "Failed - CE (Gold file doesn't match output)."]
+    if options['gold'] is not None:
+        gold_result = check_gold(options, log_list)
+        if gold_result[0] != 0:
+            return [1, "Failed - CE (Gold file doesn't match output)."]
     return [0, "Passed - CE."]
 
 

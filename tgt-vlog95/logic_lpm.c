@@ -937,8 +937,10 @@ static void emit_lpm_part_select(ivl_scope_t scope, ivl_lpm_t lpm,
       unsigned array_word = 0;
       int base = ivl_lpm_base(lpm);
       int msb = 0, lsb = 0;
+      ivl_net_const_t net_const = 0;
       ivl_signal_t sig = nexus_is_signal(scope, ivl_lpm_data(lpm, 0),
-                                         &msb, &lsb, &array_word, 0);
+                                         &msb, &lsb, &array_word,
+                                         &net_const);
 
       if (sign_extend && !allow_signed) {
 	    fprintf(stderr, "%s:%u: vlog95 error: >>> operator is not "
@@ -949,6 +951,19 @@ static void emit_lpm_part_select(ivl_scope_t scope, ivl_lpm_t lpm,
 
 // HERE: variable parameter select needs to be rebuilt.
       if (! sig) {
+	      /* A fixed part select of a constant must emit only the selected
+	       * bits. Emitting the complete constant happened to work when a
+	       * surrounding expression truncated it, but changes the width of
+	       * concatenations (for example {3'bz, 4'bx} instead of
+	       * {3'bz, 1'bx}). */
+	    if (net_const && !ivl_lpm_data(lpm, 1)) {
+		  assert(base >= 0);
+		  assert((unsigned)base + width <= ivl_const_width(net_const));
+		  emit_number(ivl_const_bits(net_const) + base, width, 0,
+			      ivl_const_file(net_const),
+			      ivl_const_lineno(net_const));
+		  return;
+	    }
 	      /* Check if the compiler used a select for a shift. */
 	    assert(base >= 0);
 	    if (base) fprintf(vlog_out, "(");
@@ -1103,6 +1118,19 @@ static void emit_lpm_substitute(ivl_scope_t scope, ivl_lpm_t lpm)
       unsigned width;
       int psb;
       int wid;
+
+	/* A variable-base substitution has four-state clipping semantics that
+	 * cannot be represented by this target's fixed concatenation. Reject it
+	 * explicitly instead of silently treating its base as zero. Keep the
+	 * generated expression valid so the diagnostic is the only failure. */
+      if (ivl_lpm_data(lpm, 2)) {
+	    fprintf(stderr, "%s:%u: vlog95 error: variable-base synthesized "
+		    "substitution is not supported.\n",
+		    ivl_lpm_file(lpm), ivl_lpm_lineno(lpm));
+	    vlog_errors += 1;
+	    emit_nexus_as_ca(scope, ivl_lpm_data(lpm, 0), 0, 0);
+	    return;
+      }
 
 	/* Find the wider signal. Accept a constant if there's no signal. */
       ivl_net_const_t net_const = 0;
@@ -1546,6 +1574,39 @@ static void emit_negedge_dff_prim(void)
       fprintf(vlog_out, "endprimitive\n");
 }
 
+static void emit_dual_async_dff_module(const char*name, unsigned negedge,
+				       unsigned set_priority)
+{
+      fprintf(vlog_out, "\n");
+      fprintf(vlog_out, "/* Icarus generated module to represent a "
+			"synthesized D-FF with source-ordered asynchronous "
+			"clear and set. */\n");
+      fprintf(vlog_out, "module %s (q, clk, en, d, clr, set, set_value);\n",
+	      name);
+      fprintf(vlog_out, "%*coutput q;\n", indent_incr, ' ');
+      fprintf(vlog_out, "%*cinput clk, en, d, clr, set, set_value;\n",
+	      indent_incr, ' ');
+      fprintf(vlog_out, "%*creg q;\n", indent_incr, ' ');
+      fprintf(vlog_out, "%*calways @(%s clk or posedge clr or posedge set)\n",
+	      indent_incr, ' ', negedge ? "negedge" : "posedge");
+      fprintf(vlog_out, "%*cbegin\n", indent_incr, ' ');
+      if (set_priority) {
+	    fprintf(vlog_out, "%*cif (set) q <= set_value;\n",
+		    2*indent_incr, ' ');
+	    fprintf(vlog_out, "%*celse if (clr) q <= 1'b0;\n",
+		    2*indent_incr, ' ');
+      } else {
+	    fprintf(vlog_out, "%*cif (clr) q <= 1'b0;\n",
+		    2*indent_incr, ' ');
+	    fprintf(vlog_out, "%*celse if (set) q <= set_value;\n",
+		    2*indent_incr, ' ');
+      }
+      fprintf(vlog_out, "%*celse if (en) q <= d;\n",
+	      2*indent_incr, ' ');
+      fprintf(vlog_out, "%*cend\n", indent_incr, ' ');
+      fprintf(vlog_out, "endmodule\n");
+}
+
 static void emit_latch_prim(void)
 {
       fprintf(vlog_out, "\n");
@@ -1566,12 +1627,52 @@ static void emit_latch_prim(void)
 
 static unsigned need_posedge_dff_prim = 0;
 static unsigned need_negedge_dff_prim = 0;
+static unsigned need_posedge_dff_aclr_aset_module = 0;
+static unsigned need_posedge_dff_aset_aclr_module = 0;
+static unsigned need_negedge_dff_aclr_aset_module = 0;
+static unsigned need_negedge_dff_aset_aclr_module = 0;
 static unsigned need_latch_prim = 0;
+
+static void emit_lpm_ff_bit(ivl_scope_t scope, ivl_nexus_t nex,
+			    unsigned width, unsigned bit, unsigned lvalue)
+{
+      unsigned array_word = 0;
+      int msb = 0, lsb = 0;
+      ivl_signal_t sig = nexus_is_signal(scope, nex, &msb, &lsb,
+					 &array_word, 0);
+
+      if (sig) {
+	    emit_part_name(scope, sig, array_word);
+	    if (width > 1 || ivl_signal_width(sig) > 1) {
+		  int select = msb >= lsb ? lsb + (int)bit : lsb - (int)bit;
+		  fprintf(vlog_out, "[%d]", select);
+	    }
+	    return;
+      }
+
+      if (lvalue) {
+	    fprintf(stderr, "?:?: vlog95 error: Could not name a DFF output "
+		    "bit.\n");
+	    vlog_errors += 1;
+	    fprintf(vlog_out, "/* Missing DFF output */");
+	    return;
+      }
+
+	/* A scalar port connection truncates a right-shifted vector to its
+	 * least-significant bit. Unlike a mask or reduction, this preserves a
+	 * selected Z value instead of converting it to X. */
+	  fprintf(vlog_out, "((");
+	  emit_nexus_as_ca(scope, nex, 0, 0);
+	  if (bit)
+		fprintf(vlog_out, " >> %u", bit);
+	  fprintf(vlog_out, "))");
+}
 
 /*
  * Synthesis creates a D-FF LPM object. To allow this to be simulated as
- * Verilog we need to generate a D-FF UDP that is used to represent this
- * LPM. Since this must be included with user derived code it must be
+ * Verilog we need to generate a D-FF UDP or behavioral library module that
+ * is used to represent this LPM. Since this must be included with user
+ * derived code it must be
  * licensed using the lesser GPL to avoid the requirement that their code
  * also be licensed under the GPL. We print a note that LGPL code is
  * being included in the output so the user can remove it if desired.
@@ -1582,14 +1683,21 @@ static unsigned need_latch_prim = 0;
  */
 void emit_icarus_generated_udps(void)
 {
+	unsigned need_dual_async_module =
+	      need_posedge_dff_aclr_aset_module ||
+	      need_posedge_dff_aset_aclr_module ||
+	      need_negedge_dff_aclr_aset_module ||
+	      need_negedge_dff_aset_aclr_module;
+
 	/* Emit the copyright information and LGPL note and then emit any
-	 * needed primitives. */
-      if (need_posedge_dff_prim || need_negedge_dff_prim || need_latch_prim) {
+	 * needed library elements. */
+      if (need_posedge_dff_prim || need_negedge_dff_prim ||
+	  need_dual_async_module || need_latch_prim) {
 	    fprintf(vlog_out,
 "\n"
 "/*\n"
-" * This is the copyright information for the following primitive(s)\n"
-" * (library elements).\n"
+" * This is the copyright information for the following %s\n"
+" * %s\n"
 " *\n"
 " * Copyright (C) 2011-2016 Cary R. (cygcary@yahoo.com)\n"
 " *\n"
@@ -1606,133 +1714,228 @@ void emit_icarus_generated_udps(void)
 " * You should have received a copy of the GNU Lesser General Public\n"
 " * License along with this library; if not, write to the Free Software\n"
 " * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA\n"
-" */\n");
-	    fprintf(stderr,
-"NOTE: vlog95: Adding LGPL 2.1 primitive(s) at the end of the output file.\n");
+" */\n",
+		    need_dual_async_module ? "generated" : "primitive(s)",
+		    need_dual_async_module ? "library element(s)." :
+					     "(library elements).");
+	    if (need_dual_async_module)
+		  fprintf(stderr, "NOTE: vlog95: Adding LGPL 2.1 library "
+			  "element(s) at the end of the output file.\n");
+	    else
+		  fprintf(stderr, "NOTE: vlog95: Adding LGPL 2.1 primitive(s) "
+			  "at the end of the output file.\n");
       }
       if (need_posedge_dff_prim) emit_posedge_dff_prim();
       if (need_negedge_dff_prim) emit_negedge_dff_prim();
+      if (need_posedge_dff_aclr_aset_module)
+	    emit_dual_async_dff_module("IVL_posedge_DFF_aclr_aset", 0, 0);
+      if (need_posedge_dff_aset_aclr_module)
+	    emit_dual_async_dff_module("IVL_posedge_DFF_aset_aclr", 0, 1);
+      if (need_negedge_dff_aclr_aset_module)
+	    emit_dual_async_dff_module("IVL_negedge_DFF_aclr_aset", 1, 0);
+      if (need_negedge_dff_aset_aclr_module)
+	    emit_dual_async_dff_module("IVL_negedge_DFF_aset_aclr", 1, 1);
       if (need_latch_prim) emit_latch_prim();
 }
 
 static void emit_lpm_ff(ivl_scope_t scope, ivl_lpm_t lpm)
 {
       unsigned negedge = ivl_lpm_negedge(lpm);
+      ivl_nexus_t async_clr = ivl_lpm_async_clr(lpm);
+      ivl_nexus_t async_set = ivl_lpm_async_set(lpm);
+      unsigned dual_async = async_clr && async_set;
+      unsigned set_priority = dual_async && ivl_lpm_async_set_priority(lpm);
       ivl_expr_t aset_expr = ivl_lpm_aset_value(lpm);
       ivl_expr_t sset_expr = ivl_lpm_sset_value(lpm);
-      ivl_nexus_t nex;
-      unsigned emitted, have_data, have_sset;
+      ivl_nexus_t data_nex, nex;
+      unsigned bit, emitted, have_data, have_sset;
+      unsigned data_needs_temp = 0;
+      unsigned width = ivl_lpm_width(lpm);
       const char *aset_bits = 0;
       const char *sset_bits = 0;
-	/* For now we only support a width of 1 for these bits. */
       if (aset_expr) {
-	    if (ivl_expr_width(aset_expr) != 1) {
-		  fprintf(stderr, "%s:%u: vlog95 sorry: FF LPMs with "
-			  "multi-bit asynchronous set values are not "
-			  "currently translated.\n",
+	    unsigned idx;
+	    if (ivl_expr_width(aset_expr) != width) {
+		  fprintf(stderr, "%s:%u: vlog95 error: FF LPM asynchronous "
+			  "set-value width does not match the FF width.\n",
 			  ivl_lpm_file(lpm), ivl_lpm_lineno(lpm));
 		  vlog_errors += 1;
+	    } else {
+		  aset_bits = ivl_expr_bits(aset_expr);
+		  for (idx = 0; idx < width; idx += 1) {
+			if (aset_bits[idx] == '0' || aset_bits[idx] == '1')
+			      continue;
+			fprintf(stderr, "%s:%u: vlog95 sorry: FF LPM "
+				"asynchronous set values containing X or Z are "
+				"not currently translated.\n",
+				ivl_lpm_file(lpm), ivl_lpm_lineno(lpm));
+			vlog_errors += 1;
+			break;
+		  }
 	    }
-	    aset_bits = ivl_expr_bits(aset_expr);
       }
       if (sset_expr) {
 	    assert(ivl_expr_width(sset_expr) == 1);
 	    sset_bits = ivl_expr_bits(sset_expr);
       }
 
-      fprintf(vlog_out, "%*c", indent, ' ');
-      if (negedge) {
-	    fprintf(vlog_out, "IVL_negedge_DFF");
-      } else {
-	    fprintf(vlog_out, "IVL_posedge_DFF");
+	/* Verilog-95 cannot bit-select an arbitrary expression. Materialize an
+	 * expression-driven D input as a vector net so every scalar FF instance
+	 * can select one exact four-state bit without a width mismatch or a
+	 * Z-destroying reduction. Direct signal connections need no temporary. */
+      data_nex = ivl_lpm_data(lpm, 0);
+      if (data_nex) {
+	    unsigned array_word = 0;
+	    int msb = 0, lsb = 0;
+	    data_needs_temp = nexus_is_signal(scope, data_nex, &msb, &lsb,
+					&array_word, 0) == 0;
       }
-      emit_lpm_strength(lpm);
-	/* The lpm FF does not support any delays. */
-	/* The FF name is a temporary so we don't bother to print it unless
-	 * we have a range. Then we need to use a made up name. */
-      if (ivl_lpm_width(lpm) > 1) {
-	    fprintf(vlog_out, " synth_%p [%u:0]", lpm, ivl_lpm_width(lpm)-1U);
+      if (data_needs_temp) {
+	    fprintf(vlog_out, "%*cwire ", indent, ' ');
+	    if (width > 1)
+		  fprintf(vlog_out, "[%u:0] ", width - 1);
+	    fprintf(vlog_out, "synth_%p_data;\n", lpm);
+	    fprintf(vlog_out, "%*cassign synth_%p_data = ", indent, ' ', lpm);
+	    emit_nexus_as_ca(scope, data_nex, 0, 0);
+	    fprintf(vlog_out, ";\n");
       }
-      fprintf(vlog_out, " (");
-	/* Emit the q pin. */
-      emit_name_of_nexus(scope, ivl_lpm_q(lpm), 0);
-      fprintf(vlog_out, ", ");
-	/* Emit the clock pin. */
-      emit_nexus_as_ca(scope, ivl_lpm_clk(lpm), 0, 0);
-      fprintf(vlog_out, ", ");
-	/* Emit the enable pin expression(s) if needed. */
-      emitted = 0;
-      nex = ivl_lpm_enable(lpm);
-      if (nex) {
-	    emit_nexus_as_ca(scope, nex, 0, 0);
-	    emitted = 1;
-      }
-      nex = ivl_lpm_sync_clr(lpm);
-      if (nex) {
-	    if (emitted) fprintf(vlog_out, " | ");
-	    emit_nexus_as_ca(scope, nex, 0, 0);
-	    emitted = 1;
-      }
-      have_sset = 0;
-      nex = ivl_lpm_sync_set(lpm);
-      if (nex) {
-	    if (emitted) fprintf(vlog_out, " | ");
-	    emit_nexus_as_ca(scope, nex, 0, 0);
-	    emitted = 1;
-	    have_sset = 1;
-      }
-      if (!emitted) fprintf(vlog_out, "1'b1");
-      fprintf(vlog_out, ", ");
-	/* Emit the data pin expression(s). */
-      have_data = ivl_lpm_data(lpm, 0) != 0;
-      nex = ivl_lpm_sync_clr(lpm);
-      if (nex) {
-	    emit_nexus_as_ca(scope, nex, 0, 0);
-	    if (have_data | have_sset) fprintf(vlog_out, " & ");
-	    if (have_data & have_sset) fprintf(vlog_out, "(");
-      }
-      nex = ivl_lpm_sync_set(lpm);
-      if (nex) {
-	    if (! sset_bits || (sset_bits[0] == '1')) {
-		  emit_nexus_as_ca(scope, nex, 0, 0);
-		  if (have_data) fprintf(vlog_out, " | ");
+
+	/* Verilog-95 permits scalar UDP instances but Icarus cannot consume
+	 * ranged UDP instances. Emit one instance per FF bit. Dual-control FFs
+	 * use behavioral modules so their event and source-priority semantics
+	 * are retained for simultaneous and four-state control transitions. */
+      for (bit = 0; bit < width; bit += 1) {
+	    const char aset_bit = aset_bits ? aset_bits[bit] : '1';
+
+	    fprintf(vlog_out, "%*c", indent, ' ');
+	    if (negedge) {
+		  if (dual_async)
+			fprintf(vlog_out, "%s", set_priority ?
+				"IVL_negedge_DFF_aset_aclr" :
+				"IVL_negedge_DFF_aclr_aset");
+		  else
+			fprintf(vlog_out, "IVL_negedge_DFF");
 	    } else {
-		  fprintf(vlog_out, "~");
-		  emit_nexus_as_ca(scope, nex, 0, 0);
-		  if (have_data) fprintf(vlog_out, " & ");
+		  if (dual_async)
+			fprintf(vlog_out, "%s", set_priority ?
+				"IVL_posedge_DFF_aset_aclr" :
+				"IVL_posedge_DFF_aclr_aset");
+		  else
+			fprintf(vlog_out, "IVL_posedge_DFF");
 	    }
+	    if (!dual_async) emit_lpm_strength(lpm);
+	      /* The LPM FF does not support any delays. */
+	    if (dual_async || width > 1)
+		  fprintf(vlog_out, " synth_%p_%u", lpm, bit);
+	    fprintf(vlog_out, " (");
+
+	      /* Emit Q, clock, and the combined enable. */
+	    emit_lpm_ff_bit(scope, ivl_lpm_q(lpm), width, bit, 1);
+	    fprintf(vlog_out, ", ");
+	    emit_nexus_as_ca(scope, ivl_lpm_clk(lpm), 0, 0);
+	    fprintf(vlog_out, ", ");
+	    emitted = 0;
+	    nex = ivl_lpm_enable(lpm);
+	    if (nex) {
+		  emit_nexus_as_ca(scope, nex, 0, 0);
+		  emitted = 1;
+	    }
+	    nex = ivl_lpm_sync_clr(lpm);
+	    if (nex) {
+		  if (emitted) fprintf(vlog_out, " | ");
+		  emit_nexus_as_ca(scope, nex, 0, 0);
+		  emitted = 1;
+	    }
+	    have_sset = 0;
+	    nex = ivl_lpm_sync_set(lpm);
+	    if (nex) {
+		  if (emitted) fprintf(vlog_out, " | ");
+		  emit_nexus_as_ca(scope, nex, 0, 0);
+		  emitted = 1;
+		  have_sset = 1;
+	    }
+	    if (!emitted) fprintf(vlog_out, "1'b1");
+	    fprintf(vlog_out, ", ");
+
+	      /* Emit the selected data bit with any synchronous controls. */
+	    have_data = data_nex != 0;
+	    nex = ivl_lpm_sync_clr(lpm);
+	    if (nex) {
+		  emit_nexus_as_ca(scope, nex, 0, 0);
+		  if (have_data | have_sset) fprintf(vlog_out, " & ");
+		  if (have_data & have_sset) fprintf(vlog_out, "(");
+	    }
+	    nex = ivl_lpm_sync_set(lpm);
+	    if (nex) {
+		  if (!sset_bits || sset_bits[0] == '1') {
+			emit_nexus_as_ca(scope, nex, 0, 0);
+			if (have_data) fprintf(vlog_out, " | ");
+		  } else {
+			fprintf(vlog_out, "~");
+			emit_nexus_as_ca(scope, nex, 0, 0);
+			if (have_data) fprintf(vlog_out, " & ");
+		  }
+	    }
+	    nex = data_nex;
+	    if (nex) {
+		  if (data_needs_temp) {
+			fprintf(vlog_out, "synth_%p_data", lpm);
+			if (width > 1)
+			      fprintf(vlog_out, "[%u]", bit);
+		  } else {
+			emit_lpm_ff_bit(scope, nex, width, bit, 0);
+		  }
+	    }
+	    if (have_data & have_sset) fprintf(vlog_out, ")");
+	    fprintf(vlog_out, ", ");
+
+	    if (dual_async) {
+		    /* Keep the controls distinct so the helper can evaluate the
+		     * source conditional on every triggering event. */
+		  emit_nexus_as_ca(scope, async_clr, 0, 0);
+		  fprintf(vlog_out, ", ");
+		  emit_nexus_as_ca(scope, async_set, 0, 0);
+		  fprintf(vlog_out, ", 1'b%c", aset_bit);
+	    } else {
+		    /* A zero-valued asynchronous set joins the clear input for
+		     * this bit; a one-valued set joins the legacy UDP set input. */
+		  emitted = 0;
+		  if (async_clr) {
+			emit_nexus_as_ca(scope, async_clr, 0, 0);
+			emitted = 1;
+		  }
+		  if (async_set && aset_bit == '0') {
+			if (emitted) fprintf(vlog_out, " | ");
+			emit_nexus_as_ca(scope, async_set, 0, 0);
+			emitted = 1;
+		  }
+		  if (!emitted) fprintf(vlog_out, "1'b0");
+		  fprintf(vlog_out, ", ");
+		  if (async_set && aset_bit == '1')
+			emit_nexus_as_ca(scope, async_set, 0, 0);
+		  else
+			fprintf(vlog_out, "1'b0");
+	    }
+	    fprintf(vlog_out, ");\n");
       }
-      nex = ivl_lpm_data(lpm, 0);
-      if (nex) emit_nexus_as_ca(scope, nex, 0, 0);
-      if (have_data & have_sset) fprintf(vlog_out, ")");
-      fprintf(vlog_out, ", ");
-	/* Emit the clear pin expression(s) if needed. */
-      emitted = 0;
-      nex = ivl_lpm_async_clr(lpm);
-      if (nex) {
-	    emit_nexus_as_ca(scope, nex, 0, 0);
-	    emitted = 1;
-      }
-      nex = ivl_lpm_async_set(lpm);
-      if (!aset_bits || (aset_bits[0] != '0')) nex = 0;
-      if (nex) {
-	    if (emitted) fprintf(vlog_out, " | ");
-	    emit_nexus_as_ca(scope, nex, 0, 0);
-	    emitted = 1;
-      }
-      if (!emitted) fprintf(vlog_out, "1'b0");
-      fprintf(vlog_out, ", ");
-	/* Emit the set pin expression(s) if needed. */
-      nex = ivl_lpm_async_set(lpm);
-      if (aset_bits && (aset_bits[0] != '1')) nex = 0;
-      if (nex) emit_nexus_as_ca(scope, nex, 0, 0);
-      else fprintf(vlog_out, "1'b0");
-      fprintf(vlog_out, ");\n");
-	/* We need to emit a primitive for this instance. */
-      if (negedge)
+	/* We need to emit a library element for this instance. */
+      if (dual_async) {
+	    if (negedge) {
+		  if (set_priority)
+			need_negedge_dff_aset_aclr_module = 1;
+		  else
+			need_negedge_dff_aclr_aset_module = 1;
+	    } else {
+		  if (set_priority)
+			need_posedge_dff_aset_aclr_module = 1;
+		  else
+			need_posedge_dff_aclr_aset_module = 1;
+	    }
+      } else if (negedge) {
 	    need_negedge_dff_prim = 1;
-      else
+      } else {
 	    need_posedge_dff_prim = 1;
+      }
 }
 
 static void emit_lpm_latch(ivl_scope_t scope, ivl_lpm_t lpm)

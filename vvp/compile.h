@@ -165,6 +165,9 @@ extern void compile_concat8(char*label, unsigned w0, unsigned w1,
 extern void compile_substitute(char*label, unsigned width,
 			       unsigned soff, unsigned swidth,
 			       unsigned argc, struct symb_s*argv);
+extern void compile_substitute_var(char*label, unsigned width,
+				   unsigned swidth, bool signed_flag,
+				   unsigned argc, struct symb_s*argv);
 
 /*
  * Arrange for the system task/function call to have its compiletf
@@ -266,6 +269,14 @@ extern void compile_dff_aset(char*label, unsigned width, bool negedge,
 			     struct symb_s arg_e,
 			     struct symb_s arg_a,
 			     char*asc_value);
+extern void compile_dff_aclr_aset(char*label, unsigned width, bool negedge,
+				  bool aset_priority,
+				  struct symb_s arg_d,
+				  struct symb_s arg_c,
+				  struct symb_s arg_e,
+				  struct symb_s arg_aclr,
+				  struct symb_s arg_aset,
+				  char*aset_value);
 
 extern void compile_latch(char*label, unsigned width,
 			  struct symb_s arg_d,
@@ -441,6 +452,9 @@ extern void compile_array_alias(char*label, char*name, char*src);
 
   /* Index is a net. */
 extern void compile_array_port(char*label, char*name, char*addr);
+extern void compile_array_port(char*label, char*name, char*addr,
+			       char*clock, char*enable, char*data,
+			       long negedge);
   /* Index is a constant address */
 extern void compile_array_port(char*label, char*name, long addr);
 
@@ -650,8 +664,9 @@ extern void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 					 uint64_t array_size, char*name,
 					 char*lo_ir, char*hi_ir);
 extern void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
-				      uint64_t is_cross, char*name = 0,
-				      char*weight_ir = 0);
+			      uint64_t is_cross, char*name = 0,
+			      char*weight_ir = 0,
+			      uint64_t guardsrc = 0);
 extern void compile_class_covgrp_parent(uint64_t prop);
 extern void compile_class_covgrp_src(uint64_t srcprop, uint64_t guardsrc);
 extern void compile_class_done(void);

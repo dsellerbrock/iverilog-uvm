@@ -1,0 +1,8 @@
+{
+    "type"   : "normal",
+    "source" : "sv_string_concat_packed_param.v",
+    "iverilog-args" : [ "-g2012" ],
+    "vlog95" : {
+        "type" : "NI"
+    }
+}

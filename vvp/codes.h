@@ -199,6 +199,7 @@ extern bool of_DEASSIGN(vthread_t thr, vvp_code_t code);
 extern bool of_DEASSIGN_WR(vthread_t thr, vvp_code_t code);
 extern bool of_DEBUG_THR(vthread_t thr, vvp_code_t code);
 extern bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t code);
+extern bool of_DPI_CALL_PTR(vthread_t thr, vvp_code_t code);
 extern bool of_DPI_CALL_REAL(vthread_t thr, vvp_code_t code);
 extern bool of_DPI_CALL_STR(vthread_t thr, vvp_code_t code);
 extern bool of_DPI_CALL_VOID(vthread_t thr, vvp_code_t code);

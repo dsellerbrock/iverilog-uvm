@@ -425,6 +425,15 @@ class Nexus {
 	   if any claimed bit already belongs to another synthesized process. */
       bool claim_synthesized_process_driver(unsigned base, unsigned wid);
       bool has_synthesized_process_driver() const;
+      bool has_synthesized_process_driver(unsigned bit) const;
+      void synthesized_process_variable_type(ivl_variable_type_t type);
+      ivl_variable_type_t synthesized_process_variable_type() const;
+
+	/* Snapshot structural drivers that existed before process synthesis.
+	   Final process-output initialization uses this to avoid placing an
+	   X/zero filler on bits already owned by a continuous driver. */
+      void capture_pre_synthesis_driver_mask();
+      bool has_pre_synthesis_driver(unsigned bit) const;
 
 	/* The code generator sets an ivl_nexus_t to attach code
 	   generation details to the nexus. */
@@ -442,6 +451,8 @@ class Nexus {
       mutable VALUE driven_;
 
       std::vector<bool> synthesized_process_driver_mask_;
+      std::vector<bool> pre_synthesis_driver_mask_;
+      ivl_variable_type_t synthesized_process_variable_type_;
 
     private: // not implemented
       Nexus(const Nexus&);
@@ -506,7 +517,15 @@ class NexusSet {
 	// NexSet items are canonical part selects of vectors.
       std::vector<struct elem_t*> items_;
 
+	// Large sets use a lazily allocated exact-match index. Keep the
+	// implementation out of this widely included header so that the common
+	// small NexusSet remains cheap.
+      struct index_t;
+      mutable index_t* index_;
+
       size_t bsearch_(const struct elem_t&that) const;
+      size_t bsearch_(const Nexus*that, unsigned base, unsigned wid) const;
+      void invalidate_index_() const;
       void rem_(const struct elem_t*that);
       bool contains_(const elem_t&that) const;
 
@@ -1558,7 +1577,8 @@ class NetAddSub  : public NetNode {
 class NetArrayDq  : public NetNode {
 
     public:
-      NetArrayDq(NetScope*s, perm_string name, NetNet*mem, unsigned awid);
+      NetArrayDq(NetScope*s, perm_string name, NetNet*mem, unsigned awid,
+		 bool write_port = false, bool negedge = false);
       ~NetArrayDq() override;
 
       unsigned width() const;
@@ -1566,11 +1586,21 @@ class NetArrayDq  : public NetNode {
       unsigned size() const;
       const NetNet*mem() const;
 
+      bool is_write_port() const;
+      bool is_negedge() const;
+      void is_negedge(bool flag);
+
       Link& pin_Address();
       Link& pin_Result();
+      Link& pin_Data();
+      Link& pin_Clock();
+      Link& pin_Enable();
 
       const Link& pin_Address() const;
       const Link& pin_Result() const;
+      const Link& pin_Data() const;
+      const Link& pin_Clock() const;
+      const Link& pin_Enable() const;
 
       virtual void dump_node(std::ostream&, unsigned ind) const override;
       virtual bool emit_node(struct target_t*) const override;
@@ -1578,6 +1608,8 @@ class NetArrayDq  : public NetNode {
     private:
       NetNet*mem_;
       unsigned awidth_;
+      bool write_port_;
+      bool negedge_;
 
 };
 
@@ -1881,6 +1913,9 @@ class NetFF  : public NetNode {
       void aset_value(const verinum&val);
       const verinum& aset_value() const;
 
+      void async_set_priority(bool flag);
+      bool async_set_priority() const;
+
       void sset_value(const verinum&val);
       const verinum& sset_value() const;
 
@@ -1893,6 +1928,7 @@ class NetFF  : public NetNode {
       unsigned width_;
       verinum aset_value_;
       verinum sset_value_;
+      bool async_set_priority_;
 };
 
 
@@ -2507,10 +2543,14 @@ class NetSubstitute : public NetNode {
 
     public:
       NetSubstitute(NetNet*sig, NetNet*sub, unsigned wid, unsigned off);
+      NetSubstitute(NetNet*sig, NetNet*sub, NetNet*sel,
+		    unsigned wid, bool signed_flag);
       ~NetSubstitute() override;
 
       inline unsigned width() const { return wid_; }
       inline unsigned base() const  { return off_; }
+      inline bool has_variable_base() const { return pin_count() == 4; }
+      inline bool signed_flag() const { return signed_flag_; }
 
       virtual void dump_node(std::ostream&, unsigned ind) const override;
       virtual bool emit_node(struct target_t*tgt) const override;
@@ -2519,6 +2559,7 @@ class NetSubstitute : public NetNode {
     private:
       unsigned wid_;
       unsigned off_;
+      bool signed_flag_;
 };
 
 /*
@@ -2915,10 +2956,11 @@ class NetProc : public virtual LineInfo {
 	// asynchronous set/reset inputs to the flipflop being generated.
       virtual bool synth_sync(Design*des, NetScope*scope,
 			      bool&ff_negedge,
-			      NetNet*ff_clock, NetBus&ff_ce,
-			      NetBus&ff_aclr,  NetBus&ff_aset,
-			      std::vector<verinum>&ff_aset_value,
-			      NexusSet&nex_map, NetBus&nex_out,
+		      NetNet*ff_clock, NetBus&ff_ce,
+		      NetBus&ff_aclr,  NetBus&ff_aset,
+		      std::vector<verinum>&ff_aset_value,
+		      std::vector<bool>&ff_aset_priority,
+		      NexusSet&nex_map, NetBus&nex_out,
 			      std::vector<mask_t>&bitmasks,
 			      const std::vector<NetEvProbe*>&events);
 
@@ -3069,6 +3111,16 @@ class NetAssign_ {
       NetNet* sig() const;
       inline const NetAssign_* nest() const { return nest_; }
 
+	// A synchronous synthesis pass may represent one run-time-selected
+	// whole-word array write by a compact structural array port. The token
+	// is the synthetic process output used by the ordinary condition/enable
+	// machinery; the port is filled in when the assignment is lowered.
+      NetNet* synth_array_write_token();
+      bool has_synth_array_write_token() const
+	{ return synth_array_write_token_ != nullptr; }
+      NetArrayDq* synth_array_write_port() const;
+      void synth_array_write_port(NetArrayDq*port);
+
 	// Mark that the synthesizer has worked with this l-value, so
 	// when it is released, the l-value signal should be turned
 	// into a wire.
@@ -3102,6 +3154,10 @@ class NetAssign_ {
 
       bool signed_;
       bool turn_sig_to_wire_on_release_;
+	// These are synthesis-only carriers. They are scope/design owned and
+	// deliberately survive deletion of the behavioral assignment.
+      NetNet*synth_array_write_token_ = nullptr;
+      NetArrayDq*synth_array_write_port_ = nullptr;
 	// indexed part select base
       NetExpr*base_;
       unsigned lwid_;
@@ -3242,6 +3298,7 @@ class NetBlock  : public NetProc {
 		      NetNet*ff_clk, NetBus&ff_ce,
 		      NetBus&ff_aclr,NetBus&ff_aset,
 		      std::vector<verinum>&ff_aset_value,
+		      std::vector<bool>&ff_aset_priority,
 		      NexusSet&nex_map, NetBus&nex_out,
 		      std::vector<mask_t>&bitmasks,
 		      const std::vector<NetEvProbe*>&events) override;
@@ -3390,6 +3447,9 @@ class NetCondit  : public NetProc {
       NetProc* else_clause();
       const NetProc* if_clause() const;
       const NetProc* else_clause() const;
+	// Transfer the if-clause without deleting it. Synthesis uses this to
+	// apply a temporary conditional guard to a shared unrolled-loop body.
+      NetProc* release_if_clause();
 
 	// Replace the condition expression.
       void set_expr(NetExpr*ex);
@@ -3410,6 +3470,7 @@ class NetCondit  : public NetProc {
                       NetNet*ff_clk, NetBus&ff_ce,
                       NetBus&ff_aclr,NetBus&ff_aset,
                       std::vector<verinum>&ff_aset_value,
+                      std::vector<bool>&ff_aset_priority,
                       NexusSet&nex_map, NetBus&nex_out,
                       std::vector<mask_t>&bitmasks,
                       const std::vector<NetEvProbe*>&events) override;
@@ -3919,10 +3980,11 @@ class NetEvWait  : public NetProc {
 
       virtual bool synth_sync(Design*des, NetScope*scope,
 			      bool&ff_negedge,
-			      NetNet*ff_clk, NetBus&ff_ce,
-			      NetBus&ff_aclr,NetBus&ff_aset,
-			      std::vector<verinum>&ff_aset_value,
-			      NexusSet&nex_map, NetBus&nex_out,
+		      NetNet*ff_clk, NetBus&ff_ce,
+		      NetBus&ff_aclr,NetBus&ff_aset,
+		      std::vector<verinum>&ff_aset_value,
+		      std::vector<bool>&ff_aset_priority,
+		      NexusSet&nex_map, NetBus&nex_out,
 			      std::vector<mask_t>&bitmasks,
 			      const std::vector<NetEvProbe*>&events) override;
 
@@ -4268,6 +4330,13 @@ class NetSTask  : public NetProc {
 
       const NetExpr* parm(unsigned idx) const;
 
+	/* This call came from an immediate-assertion action block. It remains
+	   executable in simulation, but it is verification-only and must not
+	   be diagnosed as logic that the containing procedural block needs to
+	   synthesize. */
+      void assertion_action(bool flag = true) { assertion_action_ = flag; }
+      bool is_assertion_action() const { return assertion_action_; }
+
       virtual NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
                                   bool nested_func = false) const override;
       virtual void nex_output(NexusSet&) override;
@@ -4281,6 +4350,7 @@ class NetSTask  : public NetProc {
       const char* name_;
       ivl_sfunc_as_task_t sfunc_as_task_;
       std::vector<NetExpr*>parms_;
+      bool assertion_action_ = false;
 };
 
 /*

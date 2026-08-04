@@ -538,6 +538,44 @@ const char*draw_input_from_net(ivl_nexus_t nex, ivl_scope_t scope)
       return result;
 }
 
+void draw_object_from_net(ivl_nexus_t nex, ivl_scope_t scope)
+{
+      ivl_signal_t sig = 0;
+      unsigned word = 0;
+      unsigned idx;
+
+      /* Prefer the class signal in the lexical scope (or one of its
+         parents), matching draw_input_from_net(). This matters when a port
+         nexus also contains the actual interface instance handle. */
+      if (scope != 0) {
+            ivl_scope_t cur;
+            for (cur = scope ; (sig == 0) && cur ; cur = ivl_scope_parent(cur))
+                  sig = signal_of_nexus_in_scope(nex, cur, &word, IVL_VT_CLASS);
+      }
+      for (idx = 0 ; (sig == 0) && (idx < ivl_nexus_ptrs(nex)) ; idx += 1) {
+            ivl_nexus_ptr_t ptr = ivl_nexus_ptr(nex, idx);
+            ivl_signal_t candidate = ivl_nexus_ptr_sig(ptr);
+            if (!candidate || ivl_signal_data_type(candidate) != IVL_VT_CLASS)
+                  continue;
+            sig = candidate;
+            word = ivl_nexus_ptr_pin(ptr);
+      }
+
+      if (sig && ivl_signal_dimensions(sig) > 0) {
+            int index_reg = allocate_word();
+            long source_word = (long)ivl_signal_array_base(sig) + (long)word;
+            fprintf(vvp_out, "    %%ix/load %d, %ld, 0; vif array word\n",
+                    index_reg, source_word);
+            note_array_signal_use(sig);
+            fprintf(vvp_out, "    %%load/obja v%p, %d;\n", sig, index_reg);
+            clr_word(index_reg);
+            return;
+      }
+
+      fprintf(vvp_out, "    %%load/obj %s;\n",
+              draw_input_from_net(nex, scope));
+}
+
 
 static const char *local_flag_str( ivl_signal_t sig )
 {
@@ -1885,7 +1923,18 @@ static void draw_lpm_array(ivl_lpm_t net)
       nex = ivl_lpm_select(net);
       tmp = draw_net_input(nex);
 
-      fprintf(vvp_out, "L_%p .array/port v%p, %s;\n", net, mem, tmp);
+      if (ivl_lpm_clk(net)) {
+	    const char*address = tmp;
+	    const char*clock = draw_net_input(ivl_lpm_clk(net));
+	    const char*enable = draw_net_input(ivl_lpm_enable(net));
+	    const char*data = draw_net_input(ivl_lpm_data(net, 0));
+	    fprintf(vvp_out,
+		    "L_%p .array/port v%p, %s, %s, %s, %s, %u;\n",
+		    net, mem, address, clock, enable, data,
+		    ivl_lpm_negedge(net));
+      } else {
+	    fprintf(vvp_out, "L_%p .array/port v%p, %s;\n", net, mem, tmp);
+      }
 }
 
 static void draw_lpm_cmp(ivl_lpm_t net)
@@ -2141,7 +2190,8 @@ static void draw_lpm_concat(ivl_lpm_t net)
 /*
  * Emit a DFF primitive. This uses the following syntax:
  *
- * .dff<variant> <width> <data>, <clock>, <enable>[, <async>[, <async-value>]];
+ * .dff<variant> <width> <data>, <clock>, <enable>
+ *     [, <async-clear>[, <async-set>[, <async-set-value>]]];
  */
 static void draw_lpm_ff(ivl_lpm_t net)
 {
@@ -2198,19 +2248,14 @@ static void draw_lpm_ff(ivl_lpm_t net)
 	    set_in = 0;
       }
 
-      if (clr_in) {
-	      /* Synthesis doesn't currently support both set and clear.
-		 If it ever does, it might be better to implement the
-		 flip-flop as a UDP. See tgt-vlog95 for an example of
-		 how to do this. */
-	    if (set_in) {
-		  fprintf(stderr, "%s:%u:vvp.tgt: sorry: No support for a DFF "
-		                  "with both an async. set and clear.\n",
-		                  ivl_lpm_file(net), ivl_lpm_lineno(net));
-		  vvp_errors += 1;
-	    }
+      if (clr_in && set_in) {
+	    const char*async_order = ivl_lpm_async_set_priority(net)
+				    ? "aset/aclr" : "aclr/aset";
+	    fprintf(vvp_out, "L_%p .dff/%s/%s %u ", net, edge,
+		    async_order, width);
+      } else if (clr_in) {
 	    fprintf(vvp_out, "L_%p .dff/%s/aclr %u ", net, edge, width);
-      } else if (ivl_lpm_async_set(net)) {
+      } else if (set_in) {
 	    fprintf(vvp_out, "L_%p .dff/%s/aset %u ", net, edge, width);
       } else {
 	    fprintf(vvp_out, "L_%p .dff/%s %u ", net, edge, width);

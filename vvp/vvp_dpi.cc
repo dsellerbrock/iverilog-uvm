@@ -91,7 +91,8 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 	    int32_t     i32; uint32_t u32;
 	    int64_t     i64; uint64_t u64;
 	    double      dbl;
-	    const char* ptr;
+	    const char* str;
+	    void*       ptr;
       };
       vector<scratch_t> vals(nargs);
 
@@ -122,23 +123,27 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 		  atypes[idx] = &ffi_type_uint8;
 		  vals[idx].u8 = (uint8_t)arg.ival;
 		  break;
+		case 'p': // chandle: C void*
+		  atypes[idx] = &ffi_type_pointer;
+		  vals[idx].ptr = arg.pval;
+		  break;
 		case 'r':
 		  atypes[idx] = &ffi_type_double;
 		  vals[idx].dbl = arg.rval;
 		  break;
 		case 's':
 		  atypes[idx] = &ffi_type_pointer;
-		  vals[idx].ptr = arg.sval;
+		  vals[idx].str = arg.sval;
 		  break;
 		case 'o': // dynamic/open svOpenArrayHandle
 		case 'O': // fixed unpacked-array svOpenArrayHandle
 		  atypes[idx] = &ffi_type_pointer;
-		  vals[idx].ptr = (const char*)arg.aval;
+		  vals[idx].ptr = arg.aval;
 		  break;
 		case 'V': // svBitVecVal*  (wide 2-state packed vector)
 		case 'W': // svLogicVecVal* (wide 4-state packed vector)
 		  atypes[idx] = &ffi_type_pointer;
-		  vals[idx].ptr = (const char*)arg.vbuf;
+		  vals[idx].ptr = arg.vbuf;
 		  break;
 		default:
 		  fprintf(stderr, "DPI error: '%s': unsupported argument "
@@ -163,6 +168,7 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
       switch (ret_type) {
 	  case 'i': rtype = &ffi_type_sint32;  break;
 	  case 'l': rtype = &ffi_type_sint64;  break;
+	  case 'p': rtype = &ffi_type_pointer; break;
 	  case 'r': rtype = &ffi_type_double;  break;
 	  case 's': rtype = &ffi_type_pointer; break;
 	  case 'v': rtype = &ffi_type_void;    break;
@@ -186,6 +192,7 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 	    int64_t     as_i64;
 	    double      as_dbl;
 	    const char* as_str;
+	    void*       as_ptr;
       } rbuf;
       rbuf.as_i64 = 0;
 
@@ -214,11 +221,14 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 		case 'g':
 		  args[idx].ival = (int64_t)vals[idx].u8;
 		  break;
+		case 'p':
+		  args[idx].pval = vals[idx].ptr;
+		  break;
 		case 'r':
 		  args[idx].rval = vals[idx].dbl;
 		  break;
 		case 's':
-		  args[idx].sval = vals[idx].ptr;
+		  args[idx].sval = vals[idx].str;
 		  break;
 	    }
       }
@@ -226,6 +236,7 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
       switch (ret_type) {
 	  case 'i': *ret_i = (int32_t)rbuf.as_arg; break;
 	  case 'l': *ret_i = rbuf.as_i64;          break;
+	  case 'p': *ret_i = (int64_t)(uintptr_t)rbuf.as_ptr; break;
 	  case 'r': *ret_r = rbuf.as_dbl;          break;
 	  case 's': *ret_s = rbuf.as_str;          break;
 	  default: break;
@@ -317,7 +328,8 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 	    int16_t i16; uint16_t u16;
 	    int32_t i32; uint32_t u32;
 	    int64_t i64;
-	    const char* ptr;
+	    const char* str;
+	    void* ptr;
       };
       scratch_t oval[8];
       memset(oval, 0, sizeof oval);
@@ -331,11 +343,14 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 		      case 'i': oval[idx].i32 = (int32_t)args[idx].ival; break;
 		      case 'l': oval[idx].i64 = args[idx].ival;          break;
 		      case 'g': oval[idx].u8  = (uint8_t)args[idx].ival; break;
-		      case 's': oval[idx].ptr = args[idx].sval;          break;
+		      case 'p': oval[idx].ptr = args[idx].pval;          break;
+		      case 's': oval[idx].str = args[idx].sval;          break;
 		  }
 		  a[idx] = (intptr_t)&oval[idx];
 	    } else if (args[idx].type == 's')
 		  a[idx] = (intptr_t)args[idx].sval;
+	    else if (args[idx].type == 'p')
+		  a[idx] = (intptr_t)args[idx].pval;
 	    else if (args[idx].type == 'o')
 		  a[idx] = (intptr_t)args[idx].aval;
 	    else if (args[idx].type == 'V' || args[idx].type == 'W')
@@ -398,13 +413,15 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 		  break;
 		case 'l': args[idx].ival = oval[idx].i64;          break;
 		case 'g': args[idx].ival = (int64_t)oval[idx].u8;  break;
-		case 's': args[idx].sval = oval[idx].ptr;          break;
+		case 'p': args[idx].pval = oval[idx].ptr;          break;
+		case 's': args[idx].sval = oval[idx].str;          break;
 	    }
       }
 
       switch (ret_type) {
 	  case 'i': *ret_i = (int32_t)result;      break;
 	  case 'l': *ret_i = (int64_t)result;      break;
+	  case 'p': *ret_i = (int64_t)(uintptr_t)result; break;
 	  case 's': *ret_s = (const char*)result;  break;
 	  default: break;
       }

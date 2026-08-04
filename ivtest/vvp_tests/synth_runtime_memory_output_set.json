@@ -1,0 +1,8 @@
+{
+    "type"   : "normal",
+    "source" : "synth_runtime_memory_output_set.v",
+    "iverilog-args" : [ "-g2012" ],
+    "vlog95" : {
+        "type" : "NI"
+    }
+}

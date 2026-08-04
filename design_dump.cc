@@ -584,8 +584,12 @@ void NetAddSub::dump_node(ostream&o, unsigned ind) const
 void NetArrayDq::dump_node(ostream&o, unsigned ind) const
 {
       o << setw(ind) << "" << "NetArrayDq: " << name()
-	<< " array=" << mem_->name()
-	<< endl;
+	<< " array=" << mem_->name();
+      if (is_write_port())
+	    o << " write=" << (is_negedge() ? "negedge" : "posedge");
+      else
+	    o << " read";
+      o << endl;
       dump_node_pins(o, ind+4);
       dump_obj_attr(o, ind+4);
 }
@@ -877,7 +881,12 @@ void NetSubstitute::dump_node(ostream&fd, unsigned ind) const
 	       << "," << *decay_time() << ")";
       else
 	    fd << " #(.,.,.)";
-      fd << " width=" << wid_ << " base=" << off_ <<endl;
+      fd << " width=" << wid_;
+      if (has_variable_base())
+	    fd << " variable-base" << (signed_flag_ ? " signed" : " unsigned");
+      else
+	    fd << " base=" << off_;
+      fd << endl;
       dump_node_pins(fd, ind+4);
       dump_obj_attr(fd, ind+4);
 }

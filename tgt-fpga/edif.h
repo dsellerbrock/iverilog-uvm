@@ -99,6 +99,16 @@ typedef struct edif_cellref_s* edif_cellref_t;
    object, of stand along. */
 typedef struct edif_joint_s* edif_joint_t;
 
+/* Return nonzero when text is in the conservative EDIF identifier subset
+   emitted directly by this target. Other source names require a rename. */
+extern int edif_name_is_valid(const char*text);
+
+/* Print an EDIF stringToken, including quotes and required decimal escapes. */
+extern void edif_print_string(FILE*fd, const char*text);
+
+/* Allocate a source display name in the form base[bit]. */
+extern char* edif_vector_name(const char*base, unsigned bit);
+
 /* This structure defines a table that can be attached to an xlibrary
    to incorporate black-box cells to the library. The cell_name is the
    name that may be passed to the edif_xlibrary_findcell function, and
@@ -186,6 +196,14 @@ extern void edif_cell_pinteger(edif_cell_t cell, const char*name,
    forget what that number is, this function can look it up by name. */
 extern unsigned edif_cell_port_byname(edif_cell_t cell, const char*name);
 
+/* Return the number of declared ports in a cell. A name lookup that returns
+   this value did not find a matching port. */
+extern unsigned edif_cell_port_count(edif_cell_t cell);
+
+/* Return the declared direction of a cell port. */
+extern ivl_signal_port_t edif_cell_port_direction(edif_cell_t cell,
+					   unsigned port);
+
 
 /* Create and instance from a cell. The instance refers to the cell,
    which is a type, and contains pips for pins. */
@@ -207,6 +225,17 @@ extern void edif_cellref_pinteger(edif_cellref_t ref, const char*name,
    create a joint if necessary. */
 extern edif_joint_t edif_joint_of_nexus(edif_t edf, ivl_nexus_t nex);
 
+/*
+ * The target API carries packed vectors on a single nexus. FPGA
+ * primitives are scalar, so retain a distinct EDIF joint for every
+ * canonical bit of a vector nexus.
+ */
+extern edif_joint_t edif_joint_of_nexus_bit(edif_t edf, ivl_nexus_t nex,
+					    unsigned bit);
+
+/* Return the packed width carried by a nexus. */
+extern unsigned edif_nexus_width(ivl_nexus_t nex);
+
 /* For linking cells outside the ivl netlist, this function creates an
    anonymous joint. */
 extern edif_joint_t edif_joint_create(edif_t edf);
@@ -219,6 +248,9 @@ extern void edif_joint_rename(edif_joint_t jnt, const char*name);
 extern void edif_add_to_joint(edif_joint_t jnt,
 			      edif_cellref_t cell,
 			      unsigned port);
+
+/* Return structural connectivity errors detected while assembling EDIF. */
+extern unsigned edif_error_count(edif_t design);
 
 /*
  * Print the entire design. This should only be done after the design

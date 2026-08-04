@@ -119,6 +119,7 @@ ivl_lpm_array
 ivl_lpm_aset_value
 ivl_lpm_async_clr
 ivl_lpm_async_set
+ivl_lpm_async_set_priority
 ivl_lpm_base
 ivl_lpm_basename
 ivl_lpm_clk
@@ -351,6 +352,8 @@ ivl_switch_width
 
 ivl_type_base
 ivl_type_element
+ivl_type_is_chandle
+ivl_type_is_packed_vector
 ivl_type_name
 ivl_type_packed_dimensions
 ivl_type_packed_lsb
@@ -391,6 +394,7 @@ ivl_type_covgrp_item_weight
 ivl_type_covgrp_item_weight_ir
 ivl_type_covgrp_item_is_cross
 ivl_type_covgrp_item_name
+ivl_type_covgrp_item_guardsrc
 ivl_type_covgrp_parent_prop
 ivl_type_covgrp_srcprop
 ivl_type_covgrp_guardsrc
