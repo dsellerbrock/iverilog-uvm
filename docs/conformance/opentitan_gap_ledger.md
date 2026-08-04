@@ -1706,6 +1706,43 @@ Two UVM-lane parser/elaboration gaps, both hit by every OpenTitan
    already-correct explicit-argument path, which was never broken).
    Value-checked test: `sv_default_arg_assign_pattern`.
 
+## G62 — the symbol-search cache outlived a transient iterator-name alias — **fixed** [general] (regression in G54)
+
+G54's content-keyed symbol-search cache fixed a freed-AST-pointer
+staleness bug, but it introduced a narrower one of the same species:
+`NetScope::set_signal_alias()` temporarily rebinds a name (e.g. the
+default `item` iterator of an IEEE 1800-2017 7.12.4
+array-manipulation-method `with` clause) directly in a scope's live
+signal map for the duration of one predicate's elaboration, then
+`restore_signal_alias()` puts back whatever was there before. The
+cache has no visibility into that mutation, so a resolution of `item`
+computed and cached during one `with` clause survived into a second,
+unrelated `with` clause later in the SAME enclosing scope that reused
+the same default iterator name — handing it the first clause's
+already-popped iterator net. The call form of the index query
+(`item.index()`/`item.index(1)`, which looks its net up by exact
+identity in a small context stack) failed outright on the stale net
+("Object ... has no method \"index(...)\""); this was caught by CI's
+UVM regression count dropping from 337 to 336 (`g10_iter_index_test`),
+not by `ivtest`, which has no test that reuses a `with`-clause
+iterator name twice in one scope.
+
+`set_signal_alias()`/`restore_signal_alias()` now call
+`symbol_search_cache_clear()` on every alias install and restore.
+Aliasing is rare relative to ordinary elaboration, so an unconditional
+full clear is cheap and — unlike trying to identify exactly which
+cache entries an alias could have touched — always correct. Value-
+checked test: `sv_iter_ctx_cache_stale`, reduced from
+`tests/g10_iter_index_test.sv`. `sv_method_call_cache_identity` and
+`sv_class_var_shadows_type` (G54/G60, the fixes this cache also
+serves) re-verified passing.
+
+**Lesson for this codebase**: any cache keyed on scope/name resolution
+must be invalidated by every mechanism that mutates a scope's binding
+table out from under ordinary declaration order — `signals_map_`
+aliasing is one; there may be others (parameter overrides, generate-
+scope rebinding) worth auditing before the next cache is added here.
+
 ---
 
 ## Two measurement traps worth remembering

@@ -58,6 +58,19 @@ struct symbol_search_cache_key_t {
 static std::map<symbol_search_cache_key_t,symbol_search_results>
       symbol_search_cache_;
 
+// See the declaration in netmisc.h: NetScope::set_signal_alias() /
+// restore_signal_alias() call this so a transient name rebinding
+// (IEEE 1800-2017 7.12.4 array-manipulation-method iterator names)
+// cannot leave a stale cached resolution behind for the next query
+// under the same (scope, name) pair. Aliasing is rare relative to
+// ordinary elaboration, so an unconditional full clear is cheap and
+// always correct -- no need to reason about which cache entries an
+// alias could have touched.
+void symbol_search_cache_clear()
+{
+      symbol_search_cache_.clear();
+}
+
 static const netclass_t* resolve_prefix_class_type_(Design*des,
 						    NetScope*scope,
 						    perm_string name)
