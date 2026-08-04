@@ -10,6 +10,7 @@
 
 # Local build/install output
 install/
+local-install/
 
 # Top level generic files
 tags
