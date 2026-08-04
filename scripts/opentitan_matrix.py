@@ -384,6 +384,17 @@ KNOWN_UPSTREAM_DEFECTS = (
         "the reference.",
     ),
     UpstreamDefect(
+        "lowrisc:fpv:keccak_round_fpv",
+        "compile",
+        re.compile(r"of module keccak_round expects 4 bit\(s\), given 1"),
+        "keccak_round_fpv.sv still drives the 1-bit clear signal it was "
+        "written for, but the pinned keccak_round.sv converted clear_i "
+        "to prim_mubi_pkg::mubi4_t (a 4-bit enum). The padded value is "
+        "never a valid mubi constant and slang rejects the implicit "
+        "logic-to-enum port conversion; the FPV testbench is stale "
+        "against the RTL.",
+    ),
+    UpstreamDefect(
         "lowrisc:fpv:keccak_2share_fpv",
         "compile",
         re.compile(
