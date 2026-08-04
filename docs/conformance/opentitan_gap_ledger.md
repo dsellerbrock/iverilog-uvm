@@ -1440,6 +1440,76 @@ census is authoritative.
 
 ---
 
+## G52 — concat operand "indefinite width" false positive for unsized-literal expressions — **fixed** [general]
+
+`PEConcat::elaborate_expr` rejected every concatenation operand whose
+width mode was not `SIZED`, so any expression *containing* an unsized
+literal — `{1'b0, 32-BlockAw}`, `{4'hF, -1}`, `{1'b0, 2**34}`, an
+untyped-parameter operand, or OpenTitan `aes_wrap.sv`'s
+`{{{32-BlockAw}{1'b0}}, AES_STATUS_OFFSET}` — failed with
+`Concatenation operand ... has indefinite width.` IEEE 1800-2017
+11.4.12.1 only forbids bare unsized constant *numbers* as concatenation
+operands; expressions take their self-determined width (11.6/11.8), and
+slang 11.0 accepts all of the above shapes.
+
+Now a non-`SIZED` operand that is not a bare `PENumber` literal is
+re-tested with strict IEEE sizing (32-bit integer arithmetic, so
+`{1'b1, 2**34}` truncates to `33'h1_0000_0000` exactly like the
+reference tools) and elaborated at that width. A bare unsized literal
+(`{1'b0, 5}`) still gets the 11.4.12.1 error. Value-checked tests:
+`ivtest/ivltests/concat_unsized_expr_operand.v`,
+`synth_concat_unsized_expr.v` (through `-S`), and the expected-error
+`concat_unsized_literal_reject.v`.
+
+## G53 — rtl census misclassified stale-metadata and sim-harness cores — **fixed** (matrix driver)
+
+Four census defects hid the true compiler state of the rtl lane:
+
+1. Cores whose CAPI `toplevel` names a module absent from their own
+   fileset (upstream copy-paste: `lc_ctrl_pkg.core`,
+   `lc_ctrl_state_pkg.core`, `otp_ctrl_pkg.core` all name `lc_ctrl`;
+   `prim_ascon.core` names `ascon`; `trans_intg.core` names
+   `tlul_payload_chk`) failed elaboration as
+   `Unable to find the root module`. The driver now validates `-s`
+   roots against the generated source list, substitutes the core's own
+   module when one matches, roots the core's own-directory modules
+   otherwise, and gives package-only lists a synthetic empty root so
+   the packages still compile. All five cores now `PASS`.
+2. Simulation harness cores (`ibex_top_tracing` with its `$fwrite`
+   tracer, `prim_crc32_sim`) were pushed through `-S` and failed as
+   unsynthesizable. They are now elaborated without `-S` and marked
+   `synthesis_skipped`.
+3. Pinned-revision upstream source/metadata defects are now classified
+   `UPSTREAM_INVALID` with an evidence note, and only when *every*
+   hard diagnostic matches the recorded fingerprint — any new failure
+   mode still surfaces as `FAIL`. The sixteen records at
+   `7a3ad34`: `ascon` (enum assignment without cast, IEEE 6.19.3,
+   slang rejects identically), `aes_wrap` (overlapping continuous
+   drives of `h2d_intg`, IEEE 10.3, slang rejects identically),
+   `otp_ctrl_top_specific_pkg` ×2 (fileset omits
+   `otp_ctrl_macro_pkg`), `englishbreakfast rstmgr` (fileset omits
+   `alert_handler_pkg`), `flash_ctrl_prim_reg_top` ×2 (fileset omits
+   tlul adapter/integrity and `prim_reg_we_check`),
+   `prim_dom_and_2share` (fileset omits prim `xor2`/`flop_en`),
+   `tlul_lc_gate`, `tlul_request_loopback` (fileset omits instantiated
+   tlul/prim providers), `otbn_top_sim` (default target omits its dv
+   tracer/model sources), and six setup-phase records whose
+   dependencies or targets do not exist at the pinned revision
+   (`ibex_riscv_compliance`, `tb_cs_registers`,
+   `ibex_simple_system_cosim`, `i3c`, `chip_earlgrey_cw340`,
+   `chip_englishbreakfast_cw305`).
+4. The eight `COMPILE_TIMEOUT` and three `DEBT` records of census
+   rtl-v29, and the entire `always_*`/latch/async-process and
+   chip/ast typed-assignment-pattern failure families, were already
+   closed by the dual-control DFF work (PR #150); the census binaries
+   predated it.
+
+None of this is a compiler accommodation: every `UPSTREAM_INVALID`
+fingerprint records a defect other tools reproduce or a fileset that
+cannot elaborate anywhere.
+
+---
+
 ## Two measurement traps worth remembering
 
 **The error count is not a progress metric while the parser can still give

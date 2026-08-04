@@ -12544,6 +12544,29 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 
 	    ivl_assert(*this, parms_[idx]);
             unsigned wid = parms_[idx]->expr_width();
+
+	      // IEEE 1800-2017 11.4.12.1 forbids unsized constant
+	      // numbers as concatenation operands. An expression that
+	      // merely contains unsized literals (e.g. 32-P) is legal
+	      // and takes its self-determined width, so re-test such
+	      // operands with strict (IEEE) sizing rules instead of
+	      // rejecting them.
+	    if (width_modes_[idx] != SIZED) {
+		  if (dynamic_cast<PENumber*>(parms_[idx])) {
+			cerr << parms_[idx]->get_fileline() << ": error: "
+			     << "Concatenation operand \"" << *parms_[idx]
+			     << "\" has indefinite width." << endl;
+			des->errors += 1;
+			parm_errors += 1;
+			continue;
+		  }
+		  bool save_strict = gn_strict_expr_width_flag;
+		  gn_strict_expr_width_flag = true;
+		  width_mode_t strict_mode = SIZED;
+		  wid = parms_[idx]->test_width(des, scope, strict_mode);
+		  gn_strict_expr_width_flag = save_strict;
+	    }
+
 	    NetExpr*ex = parms_[idx]->elaborate_expr(des, scope, wid, flags);
 	    if (ex == 0) continue;
 
@@ -12555,15 +12578,6 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 		  cerr << ex->get_fileline() << ": error: "
 		       << "Concatenation operand can not be real: "
 		       << *parms_[idx] << endl;
-		  des->errors += 1;
-                  parm_errors += 1;
-		  continue;
-	    }
-
-	    if (width_modes_[idx] != SIZED) {
-		  cerr << ex->get_fileline() << ": error: "
-		       << "Concatenation operand \"" << *parms_[idx]
-		       << "\" has indefinite width." << endl;
 		  des->errors += 1;
                   parm_errors += 1;
 		  continue;
