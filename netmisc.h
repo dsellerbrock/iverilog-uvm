@@ -482,12 +482,22 @@ bool eval_as_double(double&value, NetExpr*expr);
 
 /*
  * Evaluate an entire scope path in the context of the given scope.
+ *
+ * `quiet', when true, suppresses the diagnostic and the des->errors
+ * increment for a non-constant scope index -- for a caller that is
+ * only PROBING whether a path names a scope (its own contract is
+ * already "0/empty means try something else", e.g.
+ * Design::find_signal()), a failed probe must not be reported as a
+ * compile error out from under it. `error_flag' (out) still reports
+ * the failure either way so the caller can tell success from failure.
  */
 extern std::list<hname_t> eval_scope_path(Design*des, NetScope*scope,
-					  const pform_name_t&path);
+					  const pform_name_t&path,
+					  bool quiet = false);
 extern hname_t eval_path_component(Design*des, NetScope*scope,
 				   const name_component_t&comp,
-				   bool&error_flag);
+				   bool&error_flag,
+				   bool quiet = false);
 
 /*
  * If this scope is contained within a class scope (i.e. a method of a

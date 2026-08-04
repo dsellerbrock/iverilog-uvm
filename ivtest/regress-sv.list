@@ -1351,4 +1351,5 @@ sv_default_arg_assign_pattern normal,-g2012 ivltests
 sv_iter_ctx_cache_stale normal,-g2023 ivltests
 sv_randomize_with_unresolvable_dropped normal,-g2012 ivltests
 sv_queue_dollar_arithmetic normal,-g2012 ivltests
+sv_foreach_hierarchical_dual_dim normal,-g2012 ivltests
 concat_unsized_literal_reject CE,-g2012 ivltests

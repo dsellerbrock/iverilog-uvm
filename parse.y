@@ -4627,9 +4627,16 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	$$ = tmp_blk;
       }
 
-      // Support nested indexed targets such as foreach(a[i].b[j]) without
-      // changing the generic foreach target grammar. These still elaborate as
-      // hierarchical targets and currently fall back to the existing warning.
+      // foreach(a[k1,...].b[i1,...]): IEEE 1800-2017 11.7 extended to a
+      // hierarchical target. Lowered to nested foreach statements --
+      // foreach (a[k1,...]) foreach (a[k1,...].b[i1,...]) BODY -- so
+      // each level reuses the already-correct single-target
+      // elaboration path (pform_make_foreach/PForeach) rather than
+      // adding a second one. This used to be a stub: it built no
+      // PForeach node at all and discarded the loop body outright,
+      // with no diagnostic in the common case (pform_requires_sv() is
+      // a silent no-op once SystemVerilog mode is active, which it is
+      // for virtually all real input).
   | K_foreach '(' foreach_array_identifier '[' loop_variables ']' '.'
     foreach_array_identifier '[' loop_variables ']' ')'
       {
@@ -4640,40 +4647,65 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
 	current_block_stack.push(tmp);
 
-	pform_make_foreach_declarations(@1, 0, $10);
+	  // Outer loop variables (one per dimension of $3) take their
+	  // index type from $3's own declared dimensions.
+	pform_make_foreach_declarations(@1, $3, $5);
+
+	  // Inner loop variables (one per dimension of the hierarchical
+	  // member $8) take their index type from the combined,
+	  // UNINDEXED path $3.$8 -- a dimension's shape does not depend
+	  // on which element of $3 is selected.
+	pform_name_t inner_shape_path(*$3);
+	inner_shape_path.splice(inner_shape_path.end(), pform_name_t(*$8));
+	pform_make_foreach_declarations(@1, &inner_shape_path, $10);
       }
     statement_or_null
-      { pform_name_t*tmp_name = $3;
-	name_component_t&tail = tmp_name->back();
-	bool prefix_ok = true;
+      { bool prefix_ok = true;
 	for (std::list<perm_string>::const_iterator cur = $5->begin()
 		   ; cur != $5->end() ; ++cur) {
 	      if (cur->nil()) {
 		    yyerror(@5, "error: Errors in foreach loop variables list.");
 		    prefix_ok = false;
-		    continue;
 	      }
-	      index_component_t itmp;
-	      itmp.sel = index_component_t::SEL_BIT;
-	      itmp.msb = new PEIdent(*cur, 0);
-	      itmp.lsb = 0;
-	      tail.index.push_back(itmp);
 	}
-	delete $5;
-	tmp_name->splice(tmp_name->end(), *$8);
-	delete $8;
 
-		if (prefix_ok) {
-		      pform_requires_sv(@1, "foreach over hierarchical array target");
-		      warn_count += 1;
-		}
-	delete $10;
-	delete $14;
-	delete tmp_name;
+	PForeach*tmp_for = 0;
+	if (prefix_ok) {
+		// Inner target path: a copy of $3 with one SEL_BIT index
+		// component per outer loop variable (referencing that
+		// variable, declared above), followed by $8's components.
+	      pform_name_t*inner_path = new pform_name_t(*$3);
+	      name_component_t&inner_tail = inner_path->back();
+	      for (std::list<perm_string>::const_iterator cur = $5->begin()
+			 ; cur != $5->end() ; ++cur) {
+		    index_component_t itmp;
+		    itmp.sel = index_component_t::SEL_BIT;
+		    itmp.msb = new PEIdent(*cur, 0);
+		    itmp.lsb = 0;
+		    inner_tail.index.push_back(itmp);
+	      }
+	      inner_path->splice(inner_path->end(), pform_name_t(*$8));
+
+	      PForeach*inner_for = pform_make_foreach(@1, *inner_path, $10, $14);
+	      delete inner_path;
+
+	      tmp_for = pform_make_foreach(@1, *$3, $5, inner_for);
+	} else {
+	      delete $5;
+	      delete $10;
+	      delete $14;
+	}
+	delete $8;
+	delete $3;
 
 	pform_pop_scope();
 	PBlock*tmp_blk = current_block_stack.top();
 	current_block_stack.pop();
+	if (tmp_for) {
+	      vector<Statement*>tmp_for_list(1);
+	      tmp_for_list[0] = tmp_for;
+	      tmp_blk->set_statement(tmp_for_list);
+	}
 	$$ = tmp_blk;
       }
 
