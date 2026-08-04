@@ -37,6 +37,12 @@ SVA_UVM_CORES = {
     "lowrisc:dv:adc_ctrl_sva:0.1",
     "lowrisc:dv:spi_host_sva:0.1",
 }
+# Build-mode defines that dvsim's sim cfgs pass with +define+ and the
+# fusesoc targets never carry. Values mirror the DUT's default RTL
+# parameterization (aes.sv elaborates with SecMasking = 1).
+SVA_EXTRA_DEFINES = {
+    "lowrisc:dv:aes_sva:0.1": ("-DEN_MASKING=1",),
+}
 DEFAULT_TOPS = {
     "earlgrey": "lowrisc:systems:top_earlgrey:0.1",
     "darjeeling": "lowrisc:systems:top_darjeeling:0.1",
@@ -1510,6 +1516,7 @@ def compile_command(
         # cover semantics in prim_assert.sv as well as FPV-specific RTL; the
         # tree has no ASSERT_ON consumer.
         command.extend(["-gassertions", "-DFPV_ON"])
+        command.extend(SVA_EXTRA_DEFINES.get(job.core.vlnv, ()))
         # Only these two formal source graphs import UVM. Injecting the package
         # into every *_sva job attributes unrelated UVM fallback diagnostics to
         # otherwise-clean assertion cores and also changes ASSERT_ERROR macros.
