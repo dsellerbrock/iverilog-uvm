@@ -1308,6 +1308,19 @@ typedef_t* pform_test_type_identifier(const struct vlltype&loc, const char*txt)
 	    if (cur != cur_scope->typedefs.end())
 		  return cur->second;
 
+	      // IEEE 1800-2017 6.18: a nearer non-type declaration
+	      // shadows an outer type name. A data declaration such as
+	      // `max_delay_cg_obj max_delay_cg_obj[string];` makes later
+	      // bare references to the name a variable, not a type.
+	    if (cur_scope->wires.find(name) != cur_scope->wires.end())
+		  return 0;
+	    if (PClass*shadow_class = dynamic_cast<PClass*>(cur_scope)) {
+		  if (shadow_class->type
+		      && shadow_class->type->properties.find(name)
+			 != shadow_class->type->properties.end())
+			return 0;
+	    }
+
 	    if (typedef_t*imported_type =
 		    pform_find_potential_imported_type(loc, cur_scope, name))
 		  return imported_type;
