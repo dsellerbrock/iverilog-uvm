@@ -226,6 +226,12 @@ void virtex_logic(ivl_net_logic_t net)
 	    if (ivl_logic_pins(net) <= 5) {
 		  xilinx_logic(net);
 
+	    } else if (ivl_logic_width(net) != 1) {
+		  fprintf(stderr, "%s:%u: error: architecture %s cannot "
+			  "represent a %u-bit-wide gate with %u inputs.\n",
+			  ivl_logic_file(net), ivl_logic_lineno(net), arch,
+			  ivl_logic_width(net), ivl_logic_pins(net)-1);
+		  fpga_errors += 1;
 	    } else {
 		  virtex_or_wide(net);
 	    }
@@ -235,6 +241,103 @@ void virtex_logic(ivl_net_logic_t net)
 	    xilinx_logic(net);
 	    break;
       }
+}
+
+static int virtex_nexus_has_re_nor(ivl_lpm_t owner, ivl_nexus_t nex)
+{
+      unsigned idx;
+
+      for (idx = 0 ; idx < ivl_nexus_ptrs(nex) ; idx += 1) {
+	    ivl_lpm_t lpm = ivl_nexus_ptr_lpm(ivl_nexus_ptr(nex, idx));
+	    if (lpm && lpm != owner && ivl_lpm_type(lpm) == IVL_LPM_RE_NOR
+		&& ivl_lpm_q(lpm) == nex)
+		  return 1;
+      }
+
+      return 0;
+}
+
+static int virtex_validate_dff(ivl_lpm_t net, const char**abits)
+{
+      ivl_expr_t avalue;
+      ivl_nexus_t aclr = ivl_lpm_async_clr(net);
+      ivl_nexus_t aset = ivl_lpm_async_set(net);
+      unsigned idx;
+
+      *abits = 0;
+
+      if (ivl_lpm_negedge(net)) {
+	    fprintf(stderr, "%s:%u: fpga.tgt error: architecture %s only "
+		    "supports positive-edge flip-flops.\n",
+		    ivl_lpm_file(net), ivl_lpm_lineno(net), arch);
+	    fpga_errors += 1;
+	    return 0;
+      }
+
+      if (ivl_lpm_sync_set(net)) {
+	    fprintf(stderr, "%s:%u: fpga.tgt error: architecture %s does not "
+		    "support synchronous set controls.\n",
+		    ivl_lpm_file(net), ivl_lpm_lineno(net), arch);
+	    fpga_errors += 1;
+	    return 0;
+      }
+
+      if ((aclr || aset) && ivl_lpm_sync_clr(net)) {
+	    fprintf(stderr, "%s:%u: fpga.tgt error: architecture %s cannot "
+		    "combine asynchronous and synchronous controls in one "
+		    "flip-flop.\n",
+		    ivl_lpm_file(net), ivl_lpm_lineno(net), arch);
+	    fpga_errors += 1;
+	    return 0;
+      }
+
+      if (aclr && virtex_nexus_has_re_nor(net, aclr)) {
+	    fprintf(stderr, "%s:%u: fpga.tgt error: architecture %s does not "
+		    "support active-low asynchronous clear controls.\n",
+		    ivl_lpm_file(net), ivl_lpm_lineno(net), arch);
+	    fpga_errors += 1;
+	    return 0;
+      }
+
+      if (aset && virtex_nexus_has_re_nor(net, aset)) {
+	    fprintf(stderr, "%s:%u: fpga.tgt error: architecture %s does not "
+		    "support active-low asynchronous set controls.\n",
+		    ivl_lpm_file(net), ivl_lpm_lineno(net), arch);
+	    fpga_errors += 1;
+	    return 0;
+      }
+
+      if (aset == 0)
+	    return 1;
+
+	/* A null set-value is the API representation of the all-ones
+	 * default. Only non-default values have an expression. */
+      avalue = ivl_lpm_aset_value(net);
+      if (avalue == 0)
+	    return 1;
+
+      if (ivl_expr_type(avalue) != IVL_EX_NUMBER
+	  || ivl_expr_width(avalue) != ivl_lpm_width(net)) {
+	    fprintf(stderr, "%s:%u: fpga.tgt error: architecture %s received "
+		    "an invalid asynchronous set value.\n",
+		    ivl_lpm_file(net), ivl_lpm_lineno(net), arch);
+	    fpga_errors += 1;
+	    return 0;
+      }
+
+      *abits = ivl_expr_bits(avalue);
+      for (idx = 0 ; idx < ivl_lpm_width(net) ; idx += 1) {
+	    if ((*abits)[idx] == '0' || (*abits)[idx] == '1')
+		  continue;
+
+	    fprintf(stderr, "%s:%u: fpga.tgt error: architecture %s does not "
+		    "support asynchronous set values containing X or Z.\n",
+		    ivl_lpm_file(net), ivl_lpm_lineno(net), arch);
+	    fpga_errors += 1;
+	    return 0;
+      }
+
+      return 1;
 }
 
 void virtex_generic_dff(ivl_lpm_t net)
@@ -247,17 +350,10 @@ void virtex_generic_dff(ivl_lpm_t net)
       ivl_nexus_t sset = ivl_lpm_sync_set(net);
       const char*abits = 0;
 
-      if (aset) {
-	    ivl_expr_t avalue = ivl_lpm_aset_value(net);
-	    assert(avalue);
-	    abits = ivl_expr_bits(avalue);
-	    assert(abits);
-      }
+      if (!virtex_validate_dff(net, &abits))
+	    return;
 
-	/* XXXX Can't handle both synchronous and asynchronous clear. */
-      assert( ! (aclr && sclr) );
-	/* XXXX Can't handle synchronous set at all. */
-      assert( ! sset );
+      (void)sset;
 
       for (idx = 0 ;  idx < ivl_lpm_width(net) ;  idx += 1) {
 	    edif_cellref_t obj;
@@ -266,7 +362,7 @@ void virtex_generic_dff(ivl_lpm_t net)
 
 	      /* If there is a preset, then select an FDCPE instead of
 		 an FDCE device. */
-	    if (aset && (abits[idx] == '1')) {
+	    if (aset && (abits == 0 || abits[idx] == '1')) {
 		  obj = edif_cellref_create(edf, xilinx_cell_fdcpe(xlib));
 	    } else if (aclr) {
 		  obj = edif_cellref_create(edf, xilinx_cell_fdce(xlib));
@@ -277,10 +373,10 @@ void virtex_generic_dff(ivl_lpm_t net)
 	    }
 
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_q(net, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_q(net), idx);
 	    edif_add_to_joint(jnt, obj, FDCE_Q);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_data(net, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 0), idx);
 	    edif_add_to_joint(jnt, obj, FDCE_D);
 
 	    jnt = edif_joint_of_nexus(edf, ivl_lpm_clk(net));
@@ -300,7 +396,7 @@ void virtex_generic_dff(ivl_lpm_t net)
 	    }
 
 	    if (aset) {
-		  if (abits[idx] == '1') {
+		  if (abits == 0 || abits[idx] == '1') {
 			jnt = edif_joint_of_nexus(edf, aset);
 			edif_add_to_joint(jnt, obj, FDCE_PRE);
 		  } else {
@@ -369,13 +465,13 @@ void virtex_eq(ivl_lpm_t net)
 	    lut = edif_cellref_create(edf, xilinx_cell_lut2(xlib));
 	    edif_cellref_pstring(lut, "INIT", eq? "9" : "6");
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_q(net, 0));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_q(net), 0);
 	    edif_add_to_joint(jnt, lut, LUT_O);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_data(net, 0));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 0), 0);
 	    edif_add_to_joint(jnt, lut, LUT_I0);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_datab(net, 0));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 1), 0);
 	    edif_add_to_joint(jnt, lut, LUT_I1);
 	    return;
 
@@ -383,19 +479,19 @@ void virtex_eq(ivl_lpm_t net)
 	    lut = edif_cellref_create(edf, xilinx_cell_lut4(xlib));
 	    edif_cellref_pstring(lut, "INIT", eq? "9009" : "6FF6");
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_q(net, 0));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_q(net), 0);
 	    edif_add_to_joint(jnt, lut, LUT_O);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_data(net, 0));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 0), 0);
 	    edif_add_to_joint(jnt, lut, LUT_I0);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_datab(net, 0));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 1), 0);
 	    edif_add_to_joint(jnt, lut, LUT_I1);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_data(net, 1));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 0), 1);
 	    edif_add_to_joint(jnt, lut, LUT_I2);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_datab(net, 1));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 1), 1);
 	    edif_add_to_joint(jnt, lut, LUT_I3);
 	    return;
 
@@ -425,19 +521,19 @@ void virtex_eq(ivl_lpm_t net)
 		  edif_add_to_joint(jnt, lut, LUT_O);
 		  edif_add_to_joint(jnt, mux, MUXCY_S);
 
-		  jnt = edif_joint_of_nexus(edf, ivl_lpm_data(net, idx));
+		  jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 0), idx);
 		  edif_add_to_joint(jnt, lut, LUT_I0);
 
-		  jnt = edif_joint_of_nexus(edf, ivl_lpm_datab(net, idx));
+		  jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 1), idx);
 		  edif_add_to_joint(jnt, lut, LUT_I1);
 
 		  if (subwid > 1) {
-			jnt = edif_joint_of_nexus(edf,
-					       ivl_lpm_data(net, idx+1));
+			jnt = edif_joint_of_nexus_bit(edf,
+						   ivl_lpm_data(net, 0), idx+1);
 			edif_add_to_joint(jnt, lut, LUT_I2);
 
-			jnt = edif_joint_of_nexus(edf,
-					       ivl_lpm_datab(net, idx+1));
+			jnt = edif_joint_of_nexus_bit(edf,
+						   ivl_lpm_data(net, 1), idx+1);
 			edif_add_to_joint(jnt, lut, LUT_I3);
 		  }
 
@@ -458,7 +554,7 @@ void virtex_eq(ivl_lpm_t net)
 		  mux_prev = mux;
 	    }
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_q(net, 0));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_q(net), 0);
 	    edif_add_to_joint(jnt, mux_prev, MUXCY_O);
 	    return;
       }
@@ -493,13 +589,13 @@ void virtex_ge(ivl_lpm_t net)
 	    lut = edif_cellref_create(edf, xilinx_cell_lut2(xlib));
 	    edif_cellref_pstring(lut, "INIT", "D");
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_q(net, 0));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_q(net), 0);
 	    edif_add_to_joint(jnt, lut, LUT_O);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_data(net, 0));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 0), 0);
 	    edif_add_to_joint(jnt, lut, LUT_I1);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_datab(net, 0));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 1), 0);
 	    edif_add_to_joint(jnt, lut, LUT_I2);
 	    return;
       }
@@ -531,21 +627,21 @@ void virtex_ge(ivl_lpm_t net)
       lut = edif_cellref_create(edf, xilinx_cell_lut4(xlib));
       edif_cellref_pstring(lut, "INIT", "F731");
 
-      jnt = edif_joint_of_nexus(edf, ivl_lpm_data(net, 0));
+      jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 0), 0);
       edif_add_to_joint(jnt, lut, LUT_I2);
 
-      jnt = edif_joint_of_nexus(edf, ivl_lpm_datab(net, 0));
+      jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 1), 0);
       edif_add_to_joint(jnt, lut, LUT_I0);
 
-      jnt = edif_joint_of_nexus(edf, ivl_lpm_data(net, 1));
+      jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 0), 1);
       edif_add_to_joint(jnt, lut, LUT_I3);
 
-      jnt = edif_joint_of_nexus(edf, ivl_lpm_datab(net, 1));
+      jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 1), 1);
       edif_add_to_joint(jnt, lut, LUT_I1);
 
 	/* There are only two slices, so this is all we need. */
       if (ivl_lpm_width(net) == 2) {
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_q(net, 0));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_q(net), 0);
 	    edif_add_to_joint(jnt, lut, LUT_O);
 	    return;
       }
@@ -610,17 +706,17 @@ void virtex_ge(ivl_lpm_t net)
 	    edif_add_to_joint(jnt, muxcy, MUXCY_CI);
 	    edif_add_to_joint(jnt, muxcy_prev, MUXCY_O);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_data(net, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 0), idx);
 	    edif_add_to_joint(jnt, lut, LUT_I0);
 	    edif_add_to_joint(jnt, muxcy, MUXCY_DI);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_datab(net, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 1), idx);
 	    edif_add_to_joint(jnt, lut, LUT_I1);
 
 	    muxcy_prev = muxcy;
       }
 
-      jnt = edif_joint_of_nexus(edf, ivl_lpm_q(net, 0));
+      jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_q(net), 0);
       edif_add_to_joint(jnt, muxcy_prev, MUXCY_O);
 }
 
@@ -648,19 +744,19 @@ static void virtex_mux4(ivl_lpm_t net)
 
 	    muxf5 = edif_cellref_create(edf, xilinx_cell_muxf5(xlib));
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_data2(net, 0, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 0), idx);
 	    edif_add_to_joint(jnt, lut01, LUT_I0);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_data2(net, 1, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 1), idx);
 	    edif_add_to_joint(jnt, lut01, LUT_I1);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_data2(net, 2, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 2), idx);
 	    edif_add_to_joint(jnt, lut23, LUT_I0);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_data2(net, 3, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 3), idx);
 	    edif_add_to_joint(jnt, lut23, LUT_I1);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_select(net, 0));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_select(net), 0);
 	    edif_add_to_joint(jnt, lut01, LUT_I2);
 	    edif_add_to_joint(jnt, lut23, LUT_I2);
 
@@ -672,10 +768,10 @@ static void virtex_mux4(ivl_lpm_t net)
 	    edif_add_to_joint(jnt, muxf5, MUXF_I1);
 	    edif_add_to_joint(jnt, lut23, LUT_O);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_q(net, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_q(net), idx);
 	    edif_add_to_joint(jnt, muxf5, MUXF_O);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_select(net, 1));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_select(net), 1);
 	    edif_add_to_joint(jnt, muxf5, MUXF_S);
       }
 }
@@ -765,7 +861,7 @@ void virtex_add(ivl_lpm_t net)
       edif_add_to_joint(jnt, muxcy, MUXCY_CI);
       edif_add_to_joint(jnt, xorcy, XORCY_CI);
 
-      jnt = edif_joint_of_nexus(edf, ivl_lpm_q(net, 0));
+      jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_q(net), 0);
       edif_add_to_joint(jnt, xorcy, XORCY_O);
 
       jnt = edif_joint_create(edf);
@@ -773,11 +869,11 @@ void virtex_add(ivl_lpm_t net)
       edif_add_to_joint(jnt, muxcy, MUXCY_S);
       edif_add_to_joint(jnt, lut,   LUT_O);
 
-      jnt = edif_joint_of_nexus(edf, ivl_lpm_data(net, 0));
+      jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 0), 0);
       edif_add_to_joint(jnt, lut,   LUT_I0);
       edif_add_to_joint(jnt, muxcy, MUXCY_DI);
 
-      jnt = edif_joint_of_nexus(edf, ivl_lpm_datab(net, 0));
+      jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 1), 0);
       edif_add_to_joint(jnt, lut, LUT_I1);
 
       for (idx = 1 ;  idx < ivl_lpm_width(net) ;  idx += 1) {
@@ -800,7 +896,7 @@ void virtex_add(ivl_lpm_t net)
 	    edif_add_to_joint(jnt, xorcy, XORCY_CI);
 	    if (muxcy) edif_add_to_joint(jnt, muxcy, MUXCY_CI);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_q(net, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_q(net), idx);
 	    edif_add_to_joint(jnt, xorcy, XORCY_O);
 
 	    jnt = edif_joint_create(edf);
@@ -808,11 +904,11 @@ void virtex_add(ivl_lpm_t net)
 	    if (muxcy) edif_add_to_joint(jnt, muxcy, MUXCY_S);
 	    edif_add_to_joint(jnt, lut,   LUT_O);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_data(net, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 0), idx);
 	    edif_add_to_joint(jnt, lut,   LUT_I0);
 	    if (muxcy) edif_add_to_joint(jnt, muxcy, MUXCY_DI);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_datab(net, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 1), idx);
 	    edif_add_to_joint(jnt, lut, LUT_I1);
       }
 
@@ -834,5 +930,7 @@ const struct device_s d_virtex_edif = {
       virtex_add,
       virtex_add,
       xilinx_shiftl,
-      0  /* show_shiftr */
+      0, /* show_shiftr */
+      0, /* show_mult */
+      0  /* show_constant */
 };

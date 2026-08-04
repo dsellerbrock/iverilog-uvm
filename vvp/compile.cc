@@ -285,6 +285,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%div",      of_DIV,     0, {OA_NONE,   OA_NONE,     OA_NONE} },
       { "%div/s",    of_DIV_S,   0, {OA_NONE,   OA_NONE,     OA_NONE} },
       { "%div/wr",   of_DIV_WR,  0, {OA_NONE,   OA_NONE,     OA_NONE} },
+      { "%dpi/call/ptr",  of_DPI_CALL_PTR,  2,{OA_STRING, OA_BIT1,   OA_NONE} },
       { "%dpi/call/real", of_DPI_CALL_REAL, 2,{OA_STRING, OA_BIT1,   OA_NONE} },
       { "%dpi/call/str",  of_DPI_CALL_STR,  2,{OA_STRING, OA_BIT1,   OA_NONE} },
       { "%dpi/call/task", of_DPI_CALL_TASK, 2,{OA_STRING, OA_BIT1,   OA_NONE} },

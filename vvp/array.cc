@@ -1229,6 +1229,7 @@ class vvp_fun_arrayport_sa  : public vvp_fun_arrayport {
     public:
       explicit vvp_fun_arrayport_sa(vvp_array_t mem, vvp_net_t*net);
       explicit vvp_fun_arrayport_sa(vvp_array_t mem, vvp_net_t*net, long addr);
+      vvp_fun_arrayport_sa(vvp_array_t mem, vvp_net_t*net, bool negedge);
       ~vvp_fun_arrayport_sa() override;
 
       void check_word_change(unsigned long addr) override;
@@ -1237,15 +1238,30 @@ class vvp_fun_arrayport_sa  : public vvp_fun_arrayport {
                      vvp_context_t) override;
 
     private:
+      bool write_port_;
+      bool negedge_;
+      bool clock_seen_;
+      vvp_bit4_t clock_;
+      vvp_bit4_t enable_;
+      vvp_vector4_t data_;
 };
 
 vvp_fun_arrayport_sa::vvp_fun_arrayport_sa(vvp_array_t mem, vvp_net_t*net)
-: vvp_fun_arrayport(mem, net)
+: vvp_fun_arrayport(mem, net), write_port_(false), negedge_(false),
+  clock_seen_(false), clock_(BIT4_X), enable_(BIT4_X)
 {
 }
 
 vvp_fun_arrayport_sa::vvp_fun_arrayport_sa(vvp_array_t mem, vvp_net_t*net, long addr)
-: vvp_fun_arrayport(mem, net, addr)
+: vvp_fun_arrayport(mem, net, addr), write_port_(false), negedge_(false),
+  clock_seen_(false), clock_(BIT4_X), enable_(BIT4_X)
+{
+}
+
+vvp_fun_arrayport_sa::vvp_fun_arrayport_sa(vvp_array_t mem, vvp_net_t*net,
+					   bool negedge)
+: vvp_fun_arrayport(mem, net), write_port_(true), negedge_(negedge),
+  clock_seen_(false), clock_(BIT4_X), enable_(BIT4_X)
 {
 }
 
@@ -1271,8 +1287,41 @@ void vvp_fun_arrayport_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit
 
 	    break;
 
+	  case 1: { // Write clock
+	    assert(write_port_);
+	    assert(bit.size() == 1);
+	    vvp_bit4_t previous = clock_;
+	    clock_ = bit.value(0);
+	    if (!clock_seen_) {
+		  clock_seen_ = true;
+		  break;
+	    }
+
+	    int wanted_edge = negedge_ ? -1 : 1;
+	    if (edge(previous, clock_) != wanted_edge)
+		  break;
+	    if (enable_ != BIT4_1 || addr_ >= arr_->get_size()
+		|| data_.size() == 0)
+		  break;
+
+	      // The source assignment is nonblocking in synthesized clocked
+	      // logic. Capture address/data now and apply the store in NBA.
+	    schedule_assign_array_word(arr_, addr_, 0, data_, 0);
+	    break;
+      }
+
+	  case 2: // Write enable
+	    assert(write_port_);
+	    assert(bit.size() == 1);
+	    enable_ = bit.value(0);
+	    break;
+
+	  case 3: // Write data
+	    assert(write_port_);
+	    data_ = bit;
+	    break;
+
 	  default:
-	    fprintf(stdout, "XXXX write ports not implemented.\n");
 	    assert(0);
       }
 }
@@ -1558,20 +1607,25 @@ class array_port_resolv_list_t : public resolv_list_s {
 
     public:
       explicit array_port_resolv_list_t(char* lab, bool use_addr__,
-                                        long addr__);
+					long addr__, bool write_port__ = false,
+					bool negedge__ = false);
 
       __vpiScope*context_scope;
       vvp_net_t*ptr;
       bool use_addr;
       long addr;
+      bool write_port;
+      bool negedge;
       bool resolve(bool mes) override;
 
     private:
 };
 
 array_port_resolv_list_t::array_port_resolv_list_t(char *lab, bool use_addr__,
-                                                   long addr__)
-: resolv_list_s(lab), use_addr(use_addr__), addr(addr__)
+						   long addr__, bool write_port__,
+						   bool negedge__)
+: resolv_list_s(lab), use_addr(use_addr__), addr(addr__),
+  write_port(write_port__), negedge(negedge__)
 {
       if (vpip_peek_current_scope()->is_automatic())
             context_scope = vpip_peek_context_scope();
@@ -1589,7 +1643,14 @@ bool array_port_resolv_list_t::resolve(bool mes)
       }
 
       vvp_fun_arrayport*fun;
-      if (use_addr)
+      if (write_port) {
+	    // Synthesizable storage belongs to a static module/interface scope.
+	    // Keep an explicit boundary instead of sharing write-port state across
+	    // live instances of an automatic scope.
+	    assert(!context_scope);
+	    assert(!use_addr);
+	    fun = new vvp_fun_arrayport_sa(mem, ptr, negedge);
+      } else if (use_addr)
             if (context_scope)
                   fun = new vvp_fun_arrayport_aa(context_scope, mem, ptr, addr);
             else
@@ -1779,6 +1840,23 @@ void compile_array_port(char*label, char*array, char*addr)
       free(label);
 	// Connect the port-0 input as the address.
       input_connect(resolv_mem->ptr, 0, addr);
+
+      resolv_submit(resolv_mem);
+}
+
+void compile_array_port(char*label, char*array, char*addr,
+			char*clock, char*enable, char*data, long negedge)
+{
+      array_port_resolv_list_t*resolv_mem =
+	    new array_port_resolv_list_t(array, false, 0, true, negedge != 0);
+
+      define_functor_symbol(label, resolv_mem->ptr);
+      free(label);
+	// Address, clock, scalar write enable and packed write data.
+      input_connect(resolv_mem->ptr, 0, addr);
+      input_connect(resolv_mem->ptr, 1, clock);
+      input_connect(resolv_mem->ptr, 2, enable);
+      input_connect(resolv_mem->ptr, 3, data);
 
       resolv_submit(resolv_mem);
 }

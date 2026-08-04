@@ -1,0 +1,8 @@
+{
+    "type"   : "normal",
+    "source" : "synth_dual_async_priority.v",
+    "iverilog-args" : [ "-S", "-g2012" ],
+    "vlog95" : {
+        "iverilog-args" : [ "-DIVL_VLOG95_SIMPLE" ]
+    }
+}

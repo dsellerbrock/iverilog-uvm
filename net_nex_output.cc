@@ -56,12 +56,34 @@ void NetAssign_::nex_output(NexusSet&out)
       assert(! nest_);
       assert(sig_);
 
-	// A whole unpacked-array assignment writes every word. Treating it as
-	// word zero leaves the remaining words out of the process output map and
-	// makes synthesis size the aggregate as though it were one packed word.
-      if (sig_->unpacked_dimensions() && !word_) {
-	    for (unsigned idx = 0; idx < sig_->pin_count(); idx += 1) {
-		  Nexus*word_nex = sig_->pin(idx).nexus();
+	// A synchronous synthesis pass may replace a single run-time-selected
+	// whole-word write by one structural array write port. Let that pass
+	// collect all writes first, then substitute its compact output token.
+      if (synth_array_write_nex_output(this, out))
+	    return;
+
+	// A whole unpacked-array assignment writes every word, and an
+	// unpacked-array slice writes every word in its contiguous canonical
+	// sub-array. Treating either as one selected word leaves words out of the
+	// process output map; a slice additionally reports lwidth()==1 because
+	// its netuarray_t is unpacked, creating an overlapping one-bit map entry.
+      if (sig_->unpacked_dimensions() && (!word_ || is_array_slice())) {
+	    unsigned long first_word = 0;
+	    unsigned long word_count = sig_->pin_count();
+
+	    if (is_array_slice()) {
+		  long base = 0;
+		  if (!eval_as_long(base, word_) || base < 0)
+			return;
+		  first_word = static_cast<unsigned long>(base);
+		  word_count = netrange_width(net_type()->slice_dimensions());
+		  if (word_count == 0 || first_word >= sig_->pin_count()
+		      || word_count > sig_->pin_count() - first_word)
+			return;
+	    }
+
+	    for (unsigned long idx = 0; idx < word_count; idx += 1) {
+		  Nexus*word_nex = sig_->pin(first_word + idx).nexus();
 		  out.add(word_nex, 0, word_nex->vector_width());
 	    }
 	    return;

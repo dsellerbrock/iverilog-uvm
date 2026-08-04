@@ -42,6 +42,7 @@ class netenum_t : public LineInfo, public ivl_type_s {
       netranges_t slice_dimensions() const override;
       bool get_signed() const override;
       bool get_isint() const;
+      ivl_type_t base_type_obj() const;
 
 	// The size() is the number of enumeration literals.
       size_t size() const;
@@ -83,6 +84,9 @@ class netenum_t : public LineInfo, public ivl_type_s {
 
 inline ivl_variable_type_t netenum_t::base_type() const
 { return base_type_->base_type(); }
+
+inline ivl_type_t netenum_t::base_type_obj() const
+{ return base_type_; }
 
 inline size_t netenum_t::size() const { return names_.size(); }
 

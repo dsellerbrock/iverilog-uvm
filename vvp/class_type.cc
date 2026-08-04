@@ -1570,13 +1570,15 @@ void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 }
 
 void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
-			       uint64_t is_cross, char*name, char*weight_ir)
+			       uint64_t is_cross, char*name, char*weight_ir,
+			       uint64_t guardsrc)
 {
       assert(compile_class);
       compile_class->add_covgrp_item((unsigned)at_least, (unsigned)weight,
-				     is_cross != 0,
-				     name ? std::string(name) : std::string(),
-				     weight_ir ? std::string(weight_ir) : std::string());
+			     is_cross != 0,
+			     name ? std::string(name) : std::string(),
+			     weight_ir ? std::string(weight_ir) : std::string(),
+			     guardsrc ? (int)guardsrc - 1 : -1);
       free(name);
       free(weight_ir);
 }

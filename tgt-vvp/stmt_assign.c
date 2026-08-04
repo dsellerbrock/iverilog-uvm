@@ -2653,6 +2653,18 @@ static int show_stmt_assign_nested_index_object(ivl_statement_t net)
       return errors;
 }
 
+/* A class/VIF property expression can have a run-time width that differs
+   from ivl_expr_width(). In particular, a virtual handle to a parameterized
+   interface currently carries the default-specialization netclass while the
+   bound member produces the instance's actual width. Property store opcodes
+   consume the l-value width, so do not statically elide this assignment-size
+   conversion as resize_vec4_wid() normally does. */
+static void resize_property_vec4_wid(ivl_expr_t expr, unsigned wid)
+{
+      fprintf(vvp_out, "    %%pad/%s %u; property assignment width\n",
+	      ivl_expr_signed(expr) ? "s" : "u", wid);
+}
+
 /* Nonblocking assignment to a vec4 class-object / virtual-interface
    property: `obj.prop <= [#d] value` (IEEE 1800-2017 10.4.2). Evaluates
    the receiver and the r-value NOW and schedules the store in the NBA
@@ -2688,6 +2700,7 @@ int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
       }
 
       draw_eval_vec4(rval);
+      resize_property_vec4_wid(rval, lwid);
       if (ivl_type_base(prop_type) == IVL_VT_BOOL &&
 	  ivl_expr_value(rval) != IVL_VT_BOOL)
 	    fprintf(vvp_out, "    %%cast2;\n");
@@ -2779,12 +2792,10 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 				      lwid, bitoff);
 			}
 			draw_eval_vec4(rval);
-			/* For a compound op the r-value must match the field
-			   width (lwid) so the binary opcode's operands agree;
-			   the plain store truncates on its own. */
-			if (ivl_stmt_opcode(net) != 0)
-			      fprintf(vvp_out, "    %%pad/%s %u;\n",
-				      ivl_expr_signed(rval) ? "s" : "u", lwid);
+			/* %store/prop/v/bits pops lwid bits. Force the run-time
+			   value to that width even when the static expression width
+			   happens to match (a specialized VIF can still differ). */
+			resize_property_vec4_wid(rval, lwid);
 			draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
 						       ivl_expr_signed(rval));
 			fprintf(vvp_out,
@@ -2825,10 +2836,7 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			      draw_eval_expr_into_integer(part_off_ex, off_reg);
 			}
 			draw_eval_vec4(rval);
-			/* Match r-value width to the field for a compound op. */
-			if (ivl_stmt_opcode(net) != 0)
-			      fprintf(vvp_out, "    %%pad/%s %u;\n",
-				      ivl_expr_signed(rval) ? "s" : "u", lwid);
+			resize_property_vec4_wid(rval, lwid);
 			draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
 						       ivl_expr_signed(rval));
 			fprintf(vvp_out,
@@ -2860,6 +2868,7 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 				prop_idx, prop_word_idx);
 			if (ivl_expr_type(part_off_ex) == IVL_EX_NUMBER) {
 			      draw_eval_vec4(rval);
+			      resize_property_vec4_wid(rval, lwid);
 			      fprintf(vvp_out, "    %%setbits/vec4 %lu, %u;\n",
 				      (unsigned long)ivl_expr_uvalue(part_off_ex),
 				      lwid);
@@ -2867,6 +2876,7 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			      int off_word = allocate_word();
 			      draw_eval_expr_into_integer(part_off_ex, off_word);
 			      draw_eval_vec4(rval);
+			      resize_property_vec4_wid(rval, lwid);
 			      fprintf(vvp_out, "    %%setbits/vec4/x %d, %u;\n",
 				      off_word, lwid);
 			      clr_word(off_word);
@@ -2894,19 +2904,15 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			      fprintf(vvp_out, "    %%prop/v/i %d, %d;\n", prop_idx, prop_word_idx);
 			else
 			      fprintf(vvp_out, "    %%prop/v %d;\n", prop_idx);
+			fprintf(vvp_out, "    %%pad/%s %u; property l-value width\n",
+				ivl_type_signed(prop_type) ? "s" : "u", lwid);
 		  }
 
 		  draw_eval_vec4(rval);
+		  resize_property_vec4_wid(rval, lwid);
 		  if (ivl_type_base(prop_type) == IVL_VT_BOOL &&
 		      ivl_expr_value(rval) != IVL_VT_BOOL)
 			fprintf(vvp_out, "    %%cast2;\n");
-		  /* The class-property path bypasses the generic vector
-		     assignment lowering. For a compound assignment, explicitly
-		     match the r-value to the property width before emitting the
-		     binary opcode, as the indexed and field-property paths do. */
-		  if (ivl_stmt_opcode(net) != 0)
-			fprintf(vvp_out, "    %%pad/%s %u;\n",
-				ivl_expr_signed(rval) ? "s" : "u", lwid);
 
 		  draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
 					         ivl_expr_signed(rval));

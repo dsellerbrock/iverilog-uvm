@@ -166,6 +166,16 @@ extern void schedule_generic(vvp_gen_event_t obj, vvp_time64_t delay,
 */
 extern void schedule_functor(vvp_gen_event_t obj);
 
+/*
+ * Coalesce derived-net delivery at the end of the current Active iteration,
+ * before Inactive (#0) and NBA work. This is an internal simulator phase,
+ * not an additional IEEE event region.
+ */
+extern void schedule_at_active_sync(vvp_gen_event_t obj);
+
+/* True after all pre-simulation initialization events have drained. */
+extern bool schedule_simulation_started(void);
+
 extern void schedule_at_start_of_simtime(vvp_gen_event_t obj, vvp_time64_t delay);
 extern void schedule_at_end_of_simtime(vvp_gen_event_t obj, vvp_time64_t delay);
 

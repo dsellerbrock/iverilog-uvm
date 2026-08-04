@@ -25,6 +25,16 @@
 void draw_lpm_substitute(ivl_lpm_t net)
 {
       unsigned swidth = width_of_nexus(ivl_lpm_data(net,1));
+      ivl_nexus_t base = ivl_lpm_data(net,2);
+      if (base) {
+	    fprintf(vvp_out, "L_%p .substitute/v %u, %u %u",
+		    net, ivl_lpm_width(net), swidth, ivl_lpm_signed(net));
+	    fprintf(vvp_out, ", %s", draw_net_input(ivl_lpm_data(net,0)));
+	    fprintf(vvp_out, ", %s", draw_net_input(ivl_lpm_data(net,1)));
+	    fprintf(vvp_out, ", %s;\n", draw_net_input(base));
+	    return;
+      }
+
       fprintf(vvp_out, "L_%p .substitute %u, %u %u",
 	      net, ivl_lpm_width(net), ivl_lpm_base(net), swidth);
       fprintf(vvp_out, ", %s", draw_net_input(ivl_lpm_data(net,0)));

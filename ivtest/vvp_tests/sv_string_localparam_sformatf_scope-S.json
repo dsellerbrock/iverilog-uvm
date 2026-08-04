@@ -1,0 +1,8 @@
+{
+    "type"   : "normal",
+    "source" : "sv_string_localparam_sformatf_scope.v",
+    "iverilog-args" : [ "-S", "-g2012" ],
+    "vlog95" : {
+        "type" : "NI"
+    }
+}

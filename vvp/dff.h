@@ -19,6 +19,7 @@
  *    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
+# include  "schedule.h"
 # include  "vvp_net.h"
 
 /*
@@ -96,6 +97,44 @@ class vvp_dff_asc : public vvp_dff {
       void recv_async(vvp_net_ptr_t port) override;
 
       vvp_vector4_t asc_value_;
+};
+
+/*
+ * This variant implements independent asynchronous clear and set inputs.
+ * The source order of the two controls is retained so that an active edge on
+ * either input evaluates both controls with the same priority as the source
+ * process. A wide functor is needed because the two controls bring the total
+ * input count to five.
+ */
+class vvp_dff_aclr_aset : public vvp_wide_fun_core,
+			  private vvp_gen_event_s {
+
+    public:
+      vvp_dff_aclr_aset(vvp_net_t*net, unsigned width, bool negedge,
+			bool aset_priority, const char*aset_value);
+
+    private:
+      void recv_vec4_from_inputs(unsigned port) override;
+      void run_run() override;
+      void schedule_evaluation();
+      void evaluate_triggered_event();
+      bool propagate_async_value();
+
+      vvp_net_t*net_;
+      vvp_bit4_t clk_        : 8;
+      vvp_bit4_t ena_        : 8;
+      vvp_bit4_t aclr_       : 8;
+      vvp_bit4_t aset_       : 8;
+      int clk_edge_;
+      bool clk_seen_;
+      bool aclr_seen_;
+      bool aset_seen_;
+      bool output_initialized_;
+      bool aset_priority_;
+      bool event_pending_;
+      bool evaluation_scheduled_;
+      vvp_vector4_t d_;
+      vvp_vector4_t aset_value_;
 };
 
 #endif /* IVL_dff_H */

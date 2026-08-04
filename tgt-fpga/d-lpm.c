@@ -70,6 +70,23 @@ static edif_cell_t lpm_cell_inv(void)
       return tmp;
 }
 
+static edif_cell_t lpm_cell_constant(unsigned value)
+{
+      static edif_cell_t cell0 = 0;
+      static edif_cell_t cell1 = 0;
+      edif_cell_t*cell = value ? &cell1 : &cell0;
+
+      if (*cell != 0)
+	    return *cell;
+
+      *cell = edif_xcell_create(xlib, value ? "LOGIC1" : "LOGIC0", 1);
+      edif_cell_portconfig(*cell, 0, "Result", IVL_SIP_OUTPUT);
+      edif_cell_pstring(*cell, "LPM_Type", "LPM_CONSTANT");
+      edif_cell_pinteger(*cell, "LPM_Width", 1);
+      edif_cell_pinteger(*cell, "LPM_CValue", value);
+      return *cell;
+}
+
 static edif_cell_t lpm_cell_bufif0(void)
 {
       static edif_cell_t tmp = 0;
@@ -77,7 +94,7 @@ static edif_cell_t lpm_cell_bufif0(void)
       if (tmp != 0)
 	    return tmp;
 
-      tmp = edif_xcell_create(xlib, "BUFIF1", 3);
+	  tmp = edif_xcell_create(xlib, "BUFIF0", 3);
       edif_cell_portconfig(tmp, 0, "TriData",  IVL_SIP_OUTPUT);
       edif_cell_portconfig(tmp, 1, "Data",     IVL_SIP_INPUT);
       edif_cell_portconfig(tmp, 2, "EnableDT", IVL_SIP_INPUT);
@@ -222,7 +239,7 @@ static edif_cell_t lpm_cell_nor(unsigned siz)
 static void lpm_show_header(ivl_design_t des)
 {
       unsigned idx;
-      ivl_scope_t root = ivl_design_root(des);
+      ivl_scope_t root = fpga_design_root(des);
       unsigned sig_cnt = ivl_scope_sigs(root);
       unsigned nports = 0, pidx;
 
@@ -236,7 +253,7 @@ static void lpm_show_header(ivl_design_t des)
 	    if (ivl_signal_attr(sig, "PAD") != 0)
 		  continue;
 
-	    nports += ivl_signal_pins(sig);
+	    nports += ivl_signal_width(sig);
       }
 
 	/* Create the base edf object. */
@@ -254,31 +271,29 @@ static void lpm_show_header(ivl_design_t des)
 	    if (ivl_signal_attr(sig, "PAD") != 0)
 		  continue;
 
-	    if (ivl_signal_pins(sig) == 1) {
+	    if (ivl_signal_width(sig) == 1) {
 		  edif_portconfig(edf, pidx, ivl_signal_basename(sig),
 				  ivl_signal_port(sig));
 
-		  assert(ivl_signal_pins(sig) == 1);
-		  jnt = edif_joint_of_nexus(edf, ivl_signal_pin(sig, 0));
+		  assert(ivl_signal_width(sig) == 1);
+		  jnt = edif_joint_of_nexus_bit(edf, ivl_signal_nex(sig, 0), 0);
 		  edif_port_to_joint(jnt, edf, pidx);
 
 	    } else {
 		  const char*name = ivl_signal_basename(sig);
 		  ivl_signal_port_t dir = ivl_signal_port(sig);
-		  char buf[128];
 		  unsigned bit;
-		  for (bit = 0 ;  bit < ivl_signal_pins(sig) ; bit += 1) {
-			const char*tmp;
-			sprintf(buf, "%s[%u]", name, bit);
-			tmp = strdup(buf);
+		  for (bit = 0 ;  bit < ivl_signal_width(sig) ; bit += 1) {
+			const char*tmp = edif_vector_name(name, bit);
 			edif_portconfig(edf, pidx+bit, tmp, dir);
 
-			jnt = edif_joint_of_nexus(edf,ivl_signal_pin(sig,bit));
+			jnt = edif_joint_of_nexus_bit(edf,
+						      ivl_signal_nex(sig, 0), bit);
 			edif_port_to_joint(jnt, edf, pidx+bit);
 		  }
 	    }
 
-	    pidx += ivl_signal_pins(sig);
+	    pidx += ivl_signal_width(sig);
       }
 
       assert(pidx == nports);
@@ -288,35 +303,58 @@ static void lpm_show_header(ivl_design_t des)
 
 static void lpm_show_footer(ivl_design_t des)
 {
+      (void)des;
+      if (edif_error_count(edf)) {
+	    fpga_errors += edif_error_count(edf);
+	    return;
+      }
       edif_print(xnf, edf);
 }
 
 static void hookup_logic_gate(ivl_net_logic_t net, edif_cell_t cell)
 {
-      unsigned pin, idx;
+      unsigned bit, pin, idx;
 
       edif_joint_t jnt;
-      edif_cellref_t ref = edif_cellref_create(edf, cell);
+      for (bit = 0 ; bit < ivl_logic_width(net) ; bit += 1) {
+	    edif_cellref_t ref = edif_cellref_create(edf, cell);
 
-      jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 0));
-      pin = edif_cell_port_byname(cell, "Result0");
-      edif_add_to_joint(jnt, ref, pin);
-
-      for (idx = 1 ;  idx < ivl_logic_pins(net) ;  idx += 1) {
-	    char name[32];
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, idx));
-	    sprintf(name, "Data%ux0", idx-1);
-	    pin = edif_cell_port_byname(cell, name);
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_logic_pin(net, 0), bit);
+	    pin = edif_cell_port_byname(cell, "Result0");
 	    edif_add_to_joint(jnt, ref, pin);
+
+	    for (idx = 1 ; idx < ivl_logic_pins(net) ; idx += 1) {
+		  char name[32];
+
+		  jnt = edif_joint_of_nexus_bit(edf, ivl_logic_pin(net, idx),
+					 bit);
+		  sprintf(name, "Data%ux0", idx-1);
+		  pin = edif_cell_port_byname(cell, name);
+		  edif_add_to_joint(jnt, ref, pin);
+	    }
+      }
+}
+
+static void hookup_simple_logic(ivl_net_logic_t net, edif_cell_t cell)
+{
+      unsigned bit, pin;
+
+	/* The scalar cells configure ports in ivl logic-pin order. */
+      for (bit = 0 ; bit < ivl_logic_width(net) ; bit += 1) {
+	    edif_cellref_t ref = edif_cellref_create(edf, cell);
+
+	    for (pin = 0 ; pin < ivl_logic_pins(net) ; pin += 1) {
+		  edif_joint_t jnt = edif_joint_of_nexus_bit(
+					 edf, ivl_logic_pin(net, pin), bit);
+		  edif_add_to_joint(jnt, ref, pin);
+	    }
       }
 }
 
 static void lpm_logic(ivl_net_logic_t net)
 {
       edif_cell_t cell;
-      edif_cellref_t ref;
-      edif_joint_t jnt;
+      unsigned bit;
 
       switch (ivl_logic_type(net)) {
 
@@ -324,55 +362,25 @@ static void lpm_logic(ivl_net_logic_t net)
 	  case IVL_LO_BUF:
 	    assert(ivl_logic_pins(net) == 2);
 	    cell = lpm_cell_buf();
-	    ref = edif_cellref_create(edf, cell);
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 0));
-	    edif_add_to_joint(jnt, ref, 0);
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 1));
-	    edif_add_to_joint(jnt, ref, 1);
+	    hookup_simple_logic(net, cell);
 	    break;
 
 	  case IVL_LO_BUFIF0:
 	    assert(ivl_logic_pins(net) == 3);
 	    cell = lpm_cell_bufif0();
-	    ref = edif_cellref_create(edf, cell);
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 0));
-	    edif_add_to_joint(jnt, ref, 0);
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 1));
-	    edif_add_to_joint(jnt, ref, 1);
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 2));
-	    edif_add_to_joint(jnt, ref, 2);
+	    hookup_simple_logic(net, cell);
 	    break;
 
 	  case IVL_LO_BUFIF1:
 	    assert(ivl_logic_pins(net) == 3);
 	    cell = lpm_cell_bufif1();
-	    ref = edif_cellref_create(edf, cell);
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 0));
-	    edif_add_to_joint(jnt, ref, 0);
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 1));
-	    edif_add_to_joint(jnt, ref, 1);
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 2));
-	    edif_add_to_joint(jnt, ref, 2);
+	    hookup_simple_logic(net, cell);
 	    break;
 
 	  case IVL_LO_NOT:
 	    assert(ivl_logic_pins(net) == 2);
 	    cell = lpm_cell_inv();
-	    ref = edif_cellref_create(edf, cell);
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 0));
-	    edif_add_to_joint(jnt, ref, 0);
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 1));
-	    edif_add_to_joint(jnt, ref, 1);
+	    hookup_simple_logic(net, cell);
 	    break;
 
 	  case IVL_LO_OR:
@@ -395,9 +403,23 @@ static void lpm_logic(ivl_net_logic_t net)
 	    hookup_logic_gate( net, cell);
 	    break;
 
+	  case IVL_LO_PULLDOWN:
+	  case IVL_LO_PULLUP:
+	    assert(ivl_logic_pins(net) == 1);
+	    cell = lpm_cell_constant(ivl_logic_type(net) == IVL_LO_PULLUP);
+	    for (bit = 0 ; bit < ivl_logic_width(net) ; bit += 1) {
+		  edif_cellref_t ref = edif_cellref_create(edf, cell);
+		  edif_joint_t jnt = edif_joint_of_nexus_bit(
+				      edf, ivl_logic_pin(net, 0), bit);
+		  edif_add_to_joint(jnt, ref, 0);
+	    }
+	    break;
+
 	  default:
-	    fprintf(stderr, "UNSUPPORTED LOGIC TYPE: %d\n",
-		    ivl_logic_type(net));
+	    fprintf(stderr, "%s:%u: error: lpm does not support logic "
+		    "type %d.\n", ivl_logic_file(net),
+		    ivl_logic_lineno(net), ivl_logic_type(net));
+	    fpga_errors += 1;
 	    break;
       }
 }
@@ -406,12 +428,85 @@ static void lpm_logic(ivl_net_logic_t net)
 static void lpm_show_dff(ivl_lpm_t net)
 {
       char name[64];
+      char avalue_text[32];
       edif_cell_t cell;
       edif_cellref_t ref;
       edif_joint_t jnt;
+      ivl_expr_t avalue = 0;
+      const char*abits;
 
       unsigned idx;
       unsigned pin, wid = ivl_lpm_width(net);
+
+      for (idx = 0 ; idx < 2 ; idx += 1) {
+	    ivl_nexus_t control = idx ? ivl_lpm_async_set(net)
+				      : ivl_lpm_async_clr(net);
+	    unsigned ptr;
+
+	    if (control == 0)
+		  continue;
+
+	    for (ptr = 0 ; ptr < ivl_nexus_ptrs(control) ; ptr += 1) {
+		  ivl_lpm_t lpm = ivl_nexus_ptr_lpm(
+					    ivl_nexus_ptr(control, ptr));
+		  if (lpm == 0 || lpm == net
+		      || ivl_lpm_type(lpm) != IVL_LPM_RE_NOR
+		      || ivl_lpm_q(lpm) != control)
+			continue;
+
+		  fprintf(stderr, "%s:%u: fpga.tgt error: architecture %s "
+			  "does not support active-low asynchronous %s "
+			  "controls.\n",
+			  ivl_lpm_file(net), ivl_lpm_lineno(net), arch,
+			  idx ? "set" : "clear");
+		  fpga_errors += 1;
+		  return;
+	    }
+      }
+
+      if (ivl_lpm_negedge(net)) {
+	    fprintf(stderr, "%s:%u: fpga.tgt error: architecture %s only "
+		    "supports positive-edge flip-flops.\n",
+		    ivl_lpm_file(net), ivl_lpm_lineno(net), arch);
+	    fpga_errors += 1;
+	    return;
+      }
+
+      if (ivl_lpm_async_set(net)) {
+	    avalue = ivl_lpm_aset_value(net);
+	    if (avalue) {
+		  if (ivl_expr_type(avalue) != IVL_EX_NUMBER
+		      || ivl_expr_width(avalue) != wid) {
+			fprintf(stderr, "%s:%u: fpga.tgt error: architecture %s "
+				"received an invalid asynchronous set value.\n",
+				ivl_lpm_file(net), ivl_lpm_lineno(net), arch);
+			fpga_errors += 1;
+			return;
+		  }
+
+		  abits = ivl_expr_bits(avalue);
+		  for (idx = 0 ; idx < wid ; idx += 1) {
+			if (abits[idx] == '0' || abits[idx] == '1')
+			      continue;
+
+			fprintf(stderr, "%s:%u: fpga.tgt error: architecture %s "
+				"does not support asynchronous set values "
+				"containing X or Z.\n",
+				ivl_lpm_file(net), ivl_lpm_lineno(net), arch);
+			fpga_errors += 1;
+			return;
+		  }
+
+		  if (wid > 32) {
+			fprintf(stderr, "%s:%u: fpga.tgt error: architecture %s "
+				"cannot represent a non-default asynchronous set "
+				"value wider than 32 bits.\n",
+				ivl_lpm_file(net), ivl_lpm_lineno(net), arch);
+			fpga_errors += 1;
+			return;
+		  }
+	    }
+      }
 
       sprintf(name, "fd%s%s%s%s%s%u",
 	      ivl_lpm_enable(net)? "ce" : "",
@@ -487,6 +582,13 @@ static void lpm_show_dff(ivl_lpm_t net)
 
       ref = edif_cellref_create(edf, cell);
 
+	/* The LPM default is all ones, represented by a null API value. */
+      if (avalue) {
+	    snprintf(avalue_text, sizeof avalue_text, "%lu",
+		     ivl_expr_uvalue(avalue));
+	    edif_cellref_pstring(ref, "LPM_Avalue", strdup(avalue_text));
+      }
+
       pin = edif_cell_port_byname(cell, "Clock");
 
       jnt = edif_joint_of_nexus(edf, ivl_lpm_clk(net));
@@ -536,13 +638,13 @@ static void lpm_show_dff(ivl_lpm_t net)
 	    sprintf(name, "Q%u", idx);
 	    pin = edif_cell_port_byname(cell, name);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_q(net, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_q(net), idx);
 	    edif_add_to_joint(jnt, ref, pin);
 
 	    sprintf(name, "Data%u", idx);
 	    pin = edif_cell_port_byname(cell, name);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_data(net, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 0), idx);
 	    edif_add_to_joint(jnt, ref, pin);
       }
 }
@@ -611,7 +713,7 @@ static void lpm_show_mux(ivl_lpm_t net)
 	    sprintf(cellname, "Result%u", idx);
 	    pin = edif_cell_port_byname(cell, cellname);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_q(net, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_q(net), idx);
 	    edif_add_to_joint(jnt, ref, pin);
       }
 
@@ -621,7 +723,7 @@ static void lpm_show_mux(ivl_lpm_t net)
 	    sprintf(cellname, "Sel%u", idx);
 	    pin = edif_cell_port_byname(cell, cellname);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_select(net, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_select(net), idx);
 	    edif_add_to_joint(jnt, ref, pin);
       }
 
@@ -633,7 +735,8 @@ static void lpm_show_mux(ivl_lpm_t net)
 		  sprintf(cellname, "Data%ux%u", idx, rdx);
 		  pin = edif_cell_port_byname(cell, cellname);
 
-		  jnt = edif_joint_of_nexus(edf, ivl_lpm_data2(net, idx, rdx));
+		  jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, idx),
+						    rdx);
 		  edif_add_to_joint(jnt, ref, pin);
 	    }
       }
@@ -658,8 +761,8 @@ static void lpm_show_add(ivl_lpm_t net)
 	   unconnected, then we really have a width one less, and we
 	   can use the cout to fill out the output width. */
       cell_width = ivl_lpm_width(net);
-      if ( (ivl_lpm_data(net,cell_width-1) == 0)
-	   && (ivl_lpm_datab(net,cell_width-1) == 0) )
+      if ( (edif_nexus_width(ivl_lpm_data(net, 0)) < cell_width)
+	   && (edif_nexus_width(ivl_lpm_data(net, 1)) < cell_width) )
 	    cell_width -= 1;
 
 	/* Find the correct ADD/SUB device in the library, search by
@@ -705,26 +808,26 @@ static void lpm_show_add(ivl_lpm_t net)
 	    sprintf(cellname, "Result%u", idx);
 	    pin = edif_cell_port_byname(cell, cellname);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_q(net, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_q(net), idx);
 	    edif_add_to_joint(jnt, ref, pin);
 
 	    sprintf(cellname, "DataA%u", idx);
 	    pin = edif_cell_port_byname(cell, cellname);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_data(net, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 0), idx);
 	    edif_add_to_joint(jnt, ref, pin);
 
 	    sprintf(cellname, "DataB%u", idx);
 	    pin = edif_cell_port_byname(cell, cellname);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_datab(net, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 1), idx);
 	    edif_add_to_joint(jnt, ref, pin);
       }
 
       if (cell_width < ivl_lpm_width(net)) {
 	    unsigned pin = edif_cell_port_byname(cell, "Cout");
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_q(net, cell_width));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_q(net), cell_width);
 	    edif_add_to_joint(jnt, ref, pin);
       }
 }
@@ -734,80 +837,103 @@ static void lpm_show_mult(ivl_lpm_t net)
       char name[64];
       unsigned idx;
 
+      ivl_nexus_t data_a = ivl_lpm_data(net, 0);
+      ivl_nexus_t data_b = ivl_lpm_data(net, 1);
+      unsigned width_p = ivl_lpm_width(net);
+      unsigned width_a = edif_nexus_width(data_a);
+      unsigned width_b = edif_nexus_width(data_b);
+
       edif_cell_t cell;
       edif_cellref_t ref;
 
-      sprintf(name, "mult%u", ivl_lpm_width(net));
+      sprintf(name, "mult%u_%u_%u", width_p, width_a, width_b);
       cell = edif_xlibrary_findcell(xlib, name);
 
       if (cell == 0) {
 	    cell = edif_xcell_create(xlib, strdup(name),
-				     3 * ivl_lpm_width(net));
+				     width_p + width_a + width_b);
 
-	    for (idx = 0 ;  idx < ivl_lpm_width(net) ;  idx += 1) {
+	    for (idx = 0 ; idx < width_p ; idx += 1) {
 
 		  sprintf(name, "Result%u", idx);
-		  edif_cell_portconfig(cell, idx*3+0,
+		  edif_cell_portconfig(cell, idx,
 				       strdup(name),
 				       IVL_SIP_OUTPUT);
+	    }
 
+	    for (idx = 0 ; idx < width_a ; idx += 1) {
 		  sprintf(name, "DataA%u", idx);
-		  edif_cell_portconfig(cell, idx*3+1,
+		  edif_cell_portconfig(cell, width_p + idx,
 				       strdup(name),
 				       IVL_SIP_INPUT);
+	    }
 
+	    for (idx = 0 ; idx < width_b ; idx += 1) {
 		  sprintf(name, "DataB%u", idx);
-		  edif_cell_portconfig(cell, idx*3+2,
+		  edif_cell_portconfig(cell, width_p + width_a + idx,
 				       strdup(name),
 				       IVL_SIP_INPUT);
 	    }
 
 	    edif_cell_pstring(cell,  "LPM_Type",  "LPM_MULT");
-	    edif_cell_pinteger(cell, "LPM_WidthP", ivl_lpm_width(net));
-	    edif_cell_pinteger(cell, "LPM_WidthA", ivl_lpm_width(net));
-	    edif_cell_pinteger(cell, "LPM_WidthB", ivl_lpm_width(net));
+	    edif_cell_pinteger(cell, "LPM_WidthP", width_p);
+	    edif_cell_pinteger(cell, "LPM_WidthA", width_a);
+	    edif_cell_pinteger(cell, "LPM_WidthB", width_b);
       }
 
       ref = edif_cellref_create(edf, cell);
 
-      for (idx = 0 ;  idx < ivl_lpm_width(net) ;  idx += 1) {
+      for (idx = 0 ; idx < width_p ; idx += 1) {
 	    unsigned pin;
-	    ivl_nexus_t nex;
 	    edif_joint_t jnt;
 
 	    sprintf(name, "Result%u", idx);
 	    pin = edif_cell_port_byname(cell, name);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_q(net, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_q(net), idx);
 	    edif_add_to_joint(jnt, ref, pin);
+	  }
 
-	    if ( (nex = ivl_lpm_data(net, idx)) ) {
-		  sprintf(name, "DataA%u", idx);
-		  pin = edif_cell_port_byname(cell, name);
+      for (idx = 0 ; idx < width_a ; idx += 1) {
+	    unsigned pin;
+	    edif_joint_t jnt;
 
-		  jnt = edif_joint_of_nexus(edf, nex);
-		  edif_add_to_joint(jnt, ref, pin);
-	    }
+	    sprintf(name, "DataA%u", idx);
+	    pin = edif_cell_port_byname(cell, name);
+	    jnt = edif_joint_of_nexus_bit(edf, data_a, idx);
+	    edif_add_to_joint(jnt, ref, pin);
+	  }
 
-	    if ( (nex = ivl_lpm_datab(net, idx)) ) {
-		  sprintf(name, "DataB%u", idx);
-		  pin = edif_cell_port_byname(cell, name);
+      for (idx = 0 ; idx < width_b ; idx += 1) {
+	    unsigned pin;
+	    edif_joint_t jnt;
 
-		  jnt = edif_joint_of_nexus(edf, nex);
-		  edif_add_to_joint(jnt, ref, pin);
-	    }
+	    sprintf(name, "DataB%u", idx);
+	    pin = edif_cell_port_byname(cell, name);
+	    jnt = edif_joint_of_nexus_bit(edf, data_b, idx);
+	    edif_add_to_joint(jnt, ref, pin);
       }
-
 }
 
 static void lpm_show_constant(ivl_net_const_t net)
 {
       edif_cell_t cell0 = edif_xlibrary_findcell(xlib, "cell0");
       edif_cell_t cell1 = edif_xlibrary_findcell(xlib, "cell1");
-      edif_cellref_t ref0 = 0, ref1 = 0;
 
       const char*bits;
       unsigned idx;
+
+      bits = ivl_const_bits(net);
+      for (idx = 0 ; idx < ivl_const_width(net) ; idx += 1) {
+	    if (bits[idx] == '0' || bits[idx] == '1')
+		  continue;
+
+	    fprintf(stderr, "%s:%u: error: lpm cannot represent constant "
+		    "bit '%c'.\n", ivl_const_file(net),
+		    ivl_const_lineno(net), bits[idx]);
+	    fpga_errors += 1;
+	    return;
+      }
 
       if (cell0 == 0) {
 	    cell0 = edif_xcell_create(xlib, "cell0", 1);
@@ -827,26 +953,13 @@ static void lpm_show_constant(ivl_net_const_t net)
 	    edif_cell_pinteger(cell1, "LPM_CValue", 1);
       }
 
-      bits = ivl_const_bits(net);
-      for (idx = 0 ;  idx < ivl_const_pins(net) ;  idx += 1) {
-	    if (bits[idx] == '1') {
-		  if (ref1 == 0)
-			ref1 = edif_cellref_create(edf, cell1);
-
-	    } else {
-		  if (ref0 == 0)
-			ref0 = edif_cellref_create(edf, cell0);
-	    }
-      }
-
-      for (idx = 0 ;  idx < ivl_const_pins(net) ;  idx += 1) {
+      for (idx = 0 ;  idx < ivl_const_width(net) ;  idx += 1) {
+	    edif_cellref_t ref;
 	    edif_joint_t jnt;
 
-	    jnt = edif_joint_of_nexus(edf, ivl_const_pin(net,idx));
-	    if (bits[idx] == '1')
-		  edif_add_to_joint(jnt, ref1, 0);
-	    else
-		  edif_add_to_joint(jnt, ref0, 0);
+	    ref = edif_cellref_create(edf, bits[idx] == '1' ? cell1 : cell0);
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_const_nex(net), idx);
+	    edif_add_to_joint(jnt, ref, 0);
       }
 
 }

@@ -285,7 +285,7 @@ Currently the **first** diagnostic in the OpenTitan DV build
 G8 deliberately sidesteps the general case with dedicated op types; these need
 the real nested-consequent field in `sva_property_t`.
 
-## G13 — non-literal cycle-delay bounds — **open**
+## G13 — non-literal cycle-delay bounds — **fixed** (current upstream campaign)
 
 *16.9.2.* `##[SkewCycles+2:SkewCycles+3]` where the bounds are parameters
 rather than literals:
@@ -294,7 +294,15 @@ rather than literals:
 sorry: sequence cycle delays must be literal constants
 ```
 
-8 occurrences in the OpenTitan DV build.
+The early SVA constant folder already handled local and explicitly imported
+parameters, but it ran before ordinary wildcard-import pinning and did not
+fold integral exponentiation. It now resolves an unambiguous parameter or enum
+through `potential_imports` (including package re-exports) and folds `**` with
+defined machine-width arithmetic. `sv_assert_wildcard_parameter_delay.v`
+checks a wildcard-imported package parameter used through a localparam and
+exponentiation, including the exact upper-window runtime boundary. The exact
+Earl Grey and Darjeeling `alert_handler_ping_timer_fpv` jobs now compile with
+zero diagnostics and are `PASS`.
 
 ## G14 — select on a multi-dimensional packed PARAMETER — **fixed** (recovery campaign 1, 2026-07-29)
 
@@ -803,7 +811,11 @@ rejected when an output was intentionally omitted from the reset branch.
 Reset coverage is now checked against the exact static bits written by the
 conditional process. A synthesized flip-flop output is masked to Z outside
 its process-owned fields, so disjoint sequential drivers compose without
-claiming or changing neighboring fields. An output wholly omitted from the
+claiming or changing neighboring fields. After every process has claimed its
+fields, one masked baseline preserves the source variable's globally unwritten
+bits as X for four-state types or zero for two-state types; it remains absent
+when a pre-existing structural driver gives the object net semantics. An
+output wholly omitted from the
 asynchronous branch is modeled as an unreset flip-flop whose clock enable is
 qualified by reset deassertion; it therefore holds both on the reset edge and
 on clocks while reset remains asserted. A nonempty reset that covers only
@@ -813,6 +825,10 @@ some bits owned by the same process remains an explicit error.
 reset, simultaneous updates and an enabled/held split.
 `synth_mixed_async_reset_outputs.v` checks a reset and unreset output in one
 process, including a clock while reset is active.
+`synth_unwritten_packed_initialization.v` differentially checks raw and `-S`
+behavior for four-state holes, two-state zero initialization, reversed process
+order, ascending packed ranges, a logic-typed child alias, and a disjoint
+continuous driver.
 `synth_partial_async_reset_reject.v` preserves the genuine partial-reset
 negative boundary. All positive checks pass in ordinary and `-S` execution.
 The exact `partial-reset-gpio-v22` and `mixed-reset-edn-v25` OpenTitan replays
@@ -1188,20 +1204,239 @@ and its compiler-engine fingerprint is
 The report records the OpenTitan worktree as deliberately dirty at revision
 `7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19`.
 
-## G42 — a value-parameter assignment-pattern prefix remains unsupported — **open** (current upstream campaign)
+## G42 — a value-parameter assignment-pattern prefix — **retired; incorrect premise** (current upstream campaign)
 
-*10.9.1 / A.6.7.1 [general] — `ps_parameter_identifier` as an assignment-
-pattern expression type.*
+*6.24.1 / 10.9 / A.6.7.1 / A.9.3 [general] — assignment-pattern expression
+types versus size casts.*
 
-The standard grammar also permits `ps_parameter_identifier` before an
-assignment pattern, including a value parameter in a form such as
-`W'{default: value}`. A type parameter is already covered by G41 because the
-scope registers it as a type identifier. A value parameter is semantically
-different: it supplies size-cast context and must follow the `PECastSize`
-constant-width rules, not be accepted blindly as a `PECastType`. Generic
-`IDENTIFIER assignment_pattern` would also introduce incorrect parses in the
-already ambiguous expression grammar. This form remains a distinct open gap;
-G41 does not claim complete A.6.7.1 coverage.
+The earlier entry incorrectly treated `W'{default: value}` as a size-cast form
+when `W` is an ordinary value parameter. Clause 10.9 requires an explicit
+assignment-pattern prefix to name a data type. Clause 6.24.1 applies size-cast
+semantics to `casting_type'(expression)`; it does not extend them to an
+assignment pattern. The legal value-parameter size cast is therefore
+`W'(expression)`, not `W'{...}`. The `ps_parameter_identifier` grammar route
+can denote a parameter that is itself a type; it does not turn an ordinary
+value parameter into an assignment-pattern type.
+
+A differential probe confirms the corrected interpretation. The current
+compiler, Slang `11.0.415+8acc660a2`, and Verilator `5.050` all reject an
+ordinary value-parameter prefix, while all accept the legal `W'(8'b1010_1100)`
+control. The current compiler value-checks that control as `4'b1100`. No
+`PECastSize` assignment-pattern implementation is required, and G42 is retired
+rather than counted as an open conformance gap.
+
+## G43 — class-scoped assignment-pattern expression types are rejected — **fixed** (current upstream campaign)
+
+*6.20.3 / 8.23 / 10.9 / A.6.7.1 / A.9.3 [general] — class-scoped typedef and
+type-parameter prefixes.*
+
+A class-scoped data type is legal as an assignment-pattern expression type.
+Both `C::typedef_t'{...}` and `C::type_parameter_t'{...}` are accepted by the
+independent pinned Slang and Verilator baselines. The current compiler accepts
+the same `C::T` as a declaration type and value-checks an untyped pattern in
+that context, but rejects `C::T'{...}` during parsing. A package-scoped type
+parameter already parses and value-checks correctly.
+
+The isolation was exact: the typed assignment-pattern production used the
+narrowed `ps_type_identifier` route, while a working
+`class_scoped_type_identifier` production already existed elsewhere in the
+grammar. The typed-pattern production now admits that existing class-scoped
+data-type form without broadening ordinary identifiers into ambiguous or
+invalid assignment-pattern prefixes.
+
+`synth_typed_assignment_pattern.v` now value-checks both a class-scoped typedef
+and a class-scoped type localparam. The two types deliberately use different
+packed-struct member declaration orders, and the test changes the source values
+after time zero, so a context-width fallback or cached wrong type cannot pass.
+Ordinary and `-S` execution both print `PASSED`.
+
+## G44 — unpacked-array parameter values lost slices or declaration direction — **fixed** (current upstream campaign)
+
+*7.4.2 / 7.4.6 / 10.8 [general and synthesis] — unpacked-array assignment,
+array slices, and left-to-left element correspondence.*
+
+Whole unpacked-array parameters were materialized only for one exact target
+shape. A partially indexed parameter or array slice could not become a typed
+array value, and copying between ascending and descending declarations risked
+using numeric-index order rather than the standard's left-to-left assignment
+order.
+
+Parameter expression elaboration now materializes whole arrays, partial
+indices, and slices against the target array type. Source and destination
+bounds and directions are tracked independently, with elements paired from
+the left bound of each dimension. `sv_param_unpacked_array_slice_port.v`
+value-checks all four ascending/descending whole-array combinations plus slices
+in both directions. `synth_unpacked_array_slice_assign.v` covers the equivalent
+synthesis path. Every ordinary and `-S` variant passes.
+
+## G45 — a finite run-time loop bound was rejected by synthesis — **fixed** (current upstream campaign)
+
+*12.7 [synthesis] — finite-width run-time loop limits.*
+
+OpenTitan's RRAM controller copies a run-time-selected number of fixed-width
+chunks. The loop starts at a constant, has a constant monotonic step, and its
+limit is a finite-width signal, but synthesis required the comparison operand
+itself to be constant.
+
+The loop synthesizer now expands the finite representable iteration domain and
+guards each iteration with the original run-time comparison. It retains the
+existing rejection for a nonconstant initializer or step and for conditions
+that do not establish a finite monotonic bound. `synth_runtime_for_bound.v`
+checks limits zero through three, a run-time destination offset, and both
+ordinary and synthesized execution. The three legacy diagnostic gold files for
+`always_comb`, `always_ff`, and `always_latch` no longer expect the retired
+"compare against a constant" warning; their focused replay is `3/3` clean.
+
+The exact pinned RRAM controller synthesis job now exits zero with no output.
+
+## G46 — packed string concatenation lost contextual conversion; int2 casts regressed — **fixed** (current upstream campaign)
+
+*5.9 / 6.11 / 10.8 [general and synthesis] — string bit sequences,
+context-determined packed assignment, and two-state conversion.*
+
+A concatenation of string literals assigned to a packed integral parameter did
+not retain its constant packed value through contextual casting. Extending the
+four-state cast evaluator to accept constant bit sequences initially exposed a
+second bug: the intentional `int2`-to-vector fallthrough overwrote an already
+coerced two-state result with the original X/Z value.
+
+The vector cast now preserves the constant string bit ordering and target
+width. The two-state case stops after `cast_to_int2`; only a real source falls
+through to the real-to-vector conversion. `sv_string_concat_packed_param.v`
+checks three four-byte strings in ordinary and `-S` execution. Existing
+`br_gh1074a` and `br_gh1074b` independently prove that X and Z driven into
+`bit` nets become zero. The exact `bkdr_loader` synthesis job is clean.
+
+## G47 — an unobservable declaration initializer produced Ibex synthesis debt — **fixed** (current upstream campaign)
+
+*6.8 / synthesis dead-process elimination [synthesis] — declaration
+initializers whose results have no observable consumer.*
+
+The last Ibex `Process not synthesized` warning was an `initial` process made
+from a declaration initializer in a disabled scramble generate branch. Its
+single destination existed only to consume otherwise unused inputs and had no
+port, structural, passive, bidirectional, or behavioral read consumer.
+
+Synthesis now drops an `initial` process only when it has at least one output
+and every output is proven unobservable by all of those consumer classes. Live
+initial values remain untouched. `synth_dead_declaration_initializer.v`
+passes normally and under `-S`, and exact `ibex_core`, `ibex_formal`, and
+`ibex_top` jobs now exit zero without diagnostics.
+
+## G48 — fresh whole-RTL census separates compiler failures from invalid standalone jobs — **classified; corrected replay complete** (current upstream campaign)
+
+The pinned-revision v51 census completed all 267 selected records without a
+setup or compile timeout: 88 `PASS`, 153 `DEPENDENCY_ONLY`, 18 `FAIL`, 6
+`SETUP_FAIL`, and 2 `DEBT`. Four exact status changes from v47 are all real
+compiler progress: `ibex_formal`, `ibex_top`, `bkdr_loader`, and `rram_ctrl`
+are now `PASS`.
+
+The 18 failures do not represent 18 remaining RTL compiler defects. Three are
+simulation wrappers that the RTL selector admitted only because their library
+names also matched synthesizable libraries: `ibex_top_tracing`,
+`otbn_top_sim`, and `prim:crc32_sim`. The matrix now excludes names ending in
+`_sim` or `_tracing` from the RTL lane, with self-tests for all three exact
+cores.
+
+Thirteen further failures are provider, source-list, or top-selection defects:
+missing `otp_ctrl_macro_pkg`; missing `alert_handler_pkg` in the generated
+English Breakfast `rstmgr.core`; roots named `lc_ctrl`, `ascon`, or
+`tlul_payload_chk` that are absent from the generated list; and standalone
+TLUL/primitive records missing their structural child dependencies. Comparing
+the English Breakfast `rstmgr.core` with the Earl Grey and Darjeeling versions
+proves the omitted `alert_handler_pkg` dependency directly.
+
+The remaining two failures, standalone `aes_wrap` and `ascon`, are rejected by
+the independent strict Slang baseline as well; they are upstream-invalid
+standalone source shapes, not grounds for weakening Icarus type or driver
+rules. The six setup failures are FuseSoC/external-system jobs rather than HDL
+compile witnesses.
+
+The only two semantic-debt records are the English Breakfast top and chip
+wrapper. Their SRAM configuration supplies one 13-bit request and one response
+bit to a nested RAM primitive that derives 32 instances, hence formal widths
+416 and 32. Verilator reports the same two width expansions, while Slang's AST
+confirms `NumRamInst=32`. This is generated English Breakfast configuration
+debt, not an Icarus width calculation defect.
+
+The corrected v52 census completed all 264 RTL records without a setup or
+compile timeout: 88 `PASS`, 153 `DEPENDENCY_ONLY`, 15 `FAIL`, 6 `SETUP_FAIL`,
+and 2 `DEBT`. Removing the three simulation wrappers from the v51 inventory is
+the only status-count change, so the classifications above are stable. The
+final JSON and Markdown reports are under
+`opentitan-upstream-build/matrix/full-7a3ad34/rtl-v52/`. Their SHA-256
+fingerprints are respectively
+`d1659ee3e4599d85b3bcb6e3d708615b56958c339d14df8a619e9bf730d05405`
+and
+`c95c6abd0930ddfd111ca44d9815be4ef4142facd745c5f9a375d1a4344cb118`.
+
+## G49 — the standalone OTBN wrapper uses Verilator compatibility extensions — **runtime compatibility open; not an RTL blocker** (current upstream campaign)
+
+OpenTitan's standalone OTBN simulation binds an interface with
+`#(.ImemAddrWidth, .DmemAddrWidth)` and lists the tracer before the interface
+declaration. Icarus now has isolated compatibility grammar for the implicit
+named-parameter form and a forward-referenced unqualified interface port.
+`sv_implicit_named_parameter.v` checks both ordinary instantiation and bind
+target-scope lookup; `sv_forward_interface_port.v` checks the source ordering.
+
+This syntax is not a clean IEEE differential. Slang
+`11.0.415+8acc660a2` rejects the two implicit parameter items and then reports
+ten additional errors in this Verilator-specific wrapper, including
+declaration-after-use, procedural writes to implicit output nets, and a
+hierarchical `$bits` call. Verilator `5.050` accepts the same exact fileset and
+exits zero, with only two independent width warnings in `otbn_lsu`.
+
+The two Icarus compatibility additions advance the real OTBN compile past both
+parser failures, but it then reaches four of those source-level/runtime
+compatibility errors. The target therefore belongs in the future runtime/tool-
+compatibility audit, not in the synthesizable RTL census. Factoring optional
+ANSI-port attributes into explicit empty and nonempty productions removed both
+new ambiguities and one older one: the generated parser is now at 503
+shift/reduce and 1186 reduce/reduce conflicts, versus the historical
+504/1186 baseline.
+
+## G50 — the SVA inventory and formal-mode defines were not authoritative — **harness fixed; 128-job census pending** (current upstream campaign)
+
+Suffix selection found 109 apparent SVA jobs, but FuseSoC's loaded core
+database exposes 127 actual `formal` targets. Nineteen valid formal targets do
+not end in `_sva` or `_fpv`; conversely `prim_keccak_fpv` has no `formal`
+target and must use `default`. The matrix now queries the pinned FuseSoC Python
+API once, selects all 127 target-backed jobs plus that one default-target job,
+and records a hash of the discovered target set. The resulting inventory is
+128, not 109.
+
+The prior command also defined `ASSERT_ON`, which has no consumer in the
+pinned OpenTitan tree. OpenTitan's JasperGold and VC Formal modes define
+`FPV_ON`; `prim_assert.sv` uses it to select assumptions, covers, and
+formal-specific RTL. The SVA lane now defines `FPV_ON`. Only
+`adc_ctrl_sva` and `spi_host_sva` transitively import UVM, so only those two
+jobs receive `-uvm --uvm-no-dpi -DUVM`; injecting UVM into every formal job
+had created unrelated semantic debt.
+
+One pure-FPV probe demonstrates the measurement correction directly:
+`prim_count_fpv` changed from `DEBT` with 41 unrelated UVM diagnostics to a
+clean `PASS`. A preliminary 55-core suffix-only FPV census, run before the
+`FPV_ON` correction, is retained only as gap-discovery evidence and is not a
+closure result.
+
+## G51 — runtime status could false-pass a UVM fatal or an empty job — **false-pass gate fixed; job model open** (current upstream campaign)
+
+The runtime lane previously treated a zero `vvp` exit with no generic
+`error:` line as success. It did not match OpenTitan's `UVM_ERROR`,
+`UVM_FATAL`, `TEST FAILED`, or assertion-failure patterns and required no pass
+marker, so `run_test()` with no selected test could emit `UVM_FATAL NOCOMP`
+and still be recorded as `PASS`. Runtime classification now imports the exact
+pass/fail contract from `common_sim_cfg.hjson`: an OpenTitan runtime must print
+`TEST PASSED CHECKS` or `TEST PASSED UVM_CHECKS`, and any OpenTitan failure
+pattern is fatal.
+
+The larger runtime inventory remains open. There are 91 literal `sim` targets,
+not the 80 suffix-selected jobs: 61 UVM, 16 finite directed-SV, 8
+Verilator/native, and 6 elaboration-only targets. Twenty-five use OpenTitan
+user DPI and 24 contain native C/C++ that Edalize's Icarus backend currently
+drops. Per-test Dvsim arguments, build modes, pre-run commands, software
+images, and native-library loading must be represented before a full runtime
+census is authoritative.
 
 ---
 

@@ -2211,10 +2211,8 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 		  if (ivl_event_npos(ev) > root_pin) this_nex = ivl_event_pos(ev, root_pin);
 		  else if (ivl_event_nneg(ev) > root_pin) this_nex = ivl_event_neg(ev, root_pin);
 		  else if (ivl_event_nany(ev) > root_pin) this_nex = ivl_event_any(ev, root_pin);
-		  const char*this_var = draw_input_from_net(this_nex,
-							    ivl_event_scope(ev));
 		  unsigned path_count = ivl_event_vif_path_count(ev);
-		  fprintf(vvp_out, "    %%load/obj %s;\n", this_var);
+		  draw_object_from_net(this_nex, ivl_event_scope(ev));
 		  if (path_count == 0 && ivl_event_vif_N(ev) == UINT_MAX) {
 			/* Direct interface-port member `@(edge p.sig)`: the base
 			   object loaded above IS the virtual interface, so there
@@ -2267,10 +2265,8 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 			unsigned root_pin = ivl_event_vif_root_pin(ev);
 			ivl_nexus_t this_nex = ivl_event_nany(ev) > root_pin
 			      ? ivl_event_any(ev, root_pin) : 0;
-			const char*this_var = draw_input_from_net(
-			      this_nex, ivl_event_scope(ev));
 			unsigned path_count = ivl_event_vif_path_count(ev);
-			fprintf(vvp_out, "    %%load/obj %s;\n", this_var);
+			draw_object_from_net(this_nex, ivl_event_scope(ev));
 			if (path_count > 0) {
 			      for (unsigned path = 0 ; path < path_count ; path += 1)
 				    fprintf(vvp_out, "    %%prop/obj %u, 0;\n",
@@ -3249,6 +3245,7 @@ static void emit_iface_method_call_(ivl_statement_t net, ivl_scope_t method,
                 case IVL_VT_BOOL:
                 case IVL_VT_LOGIC:
                   draw_eval_vec4(pe);
+                  resize_vec4_wid(pe, ivl_signal_width(port));
                   fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
                           port, ivl_signal_width(port));
                   break;
@@ -3586,6 +3583,7 @@ static int show_iface_late_call(ivl_statement_t net)
                 case IVL_VT_BOOL:
                 case IVL_VT_LOGIC:
                   draw_eval_vec4(pe);
+                  resize_vec4_wid(pe, ivl_signal_width(port));
                   fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
                           port, ivl_signal_width(port));
                   break;
@@ -4471,23 +4469,53 @@ static int show_system_task_call(ivl_statement_t net)
 	    return 0;
       }
 
-      /* $ivl_class_method$covgrp_sample(cg_obj, cp values..., guards...)
+      /* $ivl_class_method$covgrp_sample(cg_obj, cp values..., cp guards...,
+       *                                cross guards...)
        * argv[0] = cg object, argv[1..N] = coverpoint values,
-       * argv[N+1..2N] = iff guard values (M11).
-       * Emit: push values then guards onto vec4 stack, push cg obj,
-       * %covgrp/sample N, 1 */
+       * argv[N+1..2N] = coverpoint iff guard values, followed by one
+       * value per cross item for cross-level iff (M11/IEEE 19.6). The
+       * final two internal constant arguments are ncp and ncross.
+       * Emit all vector arguments in order, then the cg object. */
       if (strcmp(stmt_name, "$ivl_class_method$covgrp_sample") == 0) {
 	    unsigned nparms = ivl_stmt_parm_count(net);
-	    unsigned ncp = (nparms > 0) ? (nparms - 1) / 2 : 0;
-	    unsigned has_guards = (nparms == 1 + 2*ncp) && (nparms > 1);
-	    for (unsigned ii = 1 ; ii < nparms ; ii += 1) {
+	    if (nparms < 3) {
+		  fprintf(stderr, "internal error: covergroup sample payload "
+			  "is missing its dimension sentinels\n");
+		  return -1;
+	    }
+	    ivl_expr_t ncp_arg = ivl_stmt_parm(net, nparms - 2);
+	    ivl_expr_t ncross_arg = ivl_stmt_parm(net, nparms - 1);
+	    if (!ncp_arg || !ncross_arg
+		|| ivl_expr_type(ncp_arg) != IVL_EX_NUMBER
+		|| ivl_expr_type(ncross_arg) != IVL_EX_NUMBER) {
+		  fprintf(stderr, "internal error: covergroup sample dimensions "
+			  "are not constants\n");
+		  return -1;
+	    }
+	    unsigned ncp = (unsigned)ivl_expr_uvalue(ncp_arg);
+	    unsigned ncross_guards = (unsigned)ivl_expr_uvalue(ncross_arg);
+	    unsigned payload_end = nparms - 2;
+	    unsigned expected_end = 1 + 2*ncp + ncross_guards;
+	    if (payload_end != expected_end) {
+		  fprintf(stderr, "internal error: covergroup sample payload has "
+			  "%u vector arguments, expected %u for %u coverpoints "
+			  "and %u crosses\n", payload_end - 1,
+			  expected_end - 1, ncp, ncross_guards);
+		  return -1;
+	    }
+	    ivl_expr_t obj_arg = ivl_stmt_parm(net, 0);
+	    unsigned has_cp_guards = ncp ? 1 : 0;
+	    unsigned guard_flags = has_cp_guards | (ncross_guards << 1);
+	    for (unsigned ii = 1 ; ii < payload_end ; ii += 1) {
 		  ivl_expr_t cp_arg = ivl_stmt_parm(net, ii);
 		  if (cp_arg) draw_eval_vec4(cp_arg);
 		  else fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
 	    }
-	    ivl_expr_t obj_arg = ivl_stmt_parm(net, 0);
 	    if (obj_arg) draw_eval_object(obj_arg);
-	    fprintf(vvp_out, "    %%covgrp/sample %u, %u;\n", ncp, has_guards);
+	      /* Keep the established two-operand VVP encoding: bit 0 says
+	         coverpoint guards are present, bits 1.. carry the number of
+	         cross guards. Old streams that use 0/1 remain valid. */
+	    fprintf(vvp_out, "    %%covgrp/sample %u, %u;\n", ncp, guard_flags);
 	    return 0;
       }
 
@@ -5295,8 +5323,9 @@ int draw_task_definition(ivl_scope_t scope)
  * argument onto its stack, then a %dpi/call opcode carrying the
  * per-argument signature string the runtime marshaler consumes. Each
  * signature token is [+][u]<letter>: '+' output direction (reserved),
- * 'u' unsigned, letter 'b'/'h'/'i'/'l' by width for 2-state integers
- * (byte/shortint/int/longint/chandle), 'g' 4-state scalar (svLogic),
+ * 'u' unsigned, letter 'b'/'h'/'i'/'l' by width for 2-state integer
+ * atoms (byte/shortint/int/longint), 'p' chandle (void*), 'V'/'W'
+ * canonical packed bit/logic vectors, 'g' 4-state scalar (svLogic),
  * 'r' real, 's' string.
  *
  * Unsupported argument shapes are diagnosed loudly (never silent) and
@@ -5313,6 +5342,11 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
       unsigned ncp = (nports >= first_port) ? (nports - first_port) : 0;
       ivl_variable_type_t rtype = is_task ? IVL_VT_VOID
                                           : ivl_scope_func_type(scope);
+      ivl_signal_t return_port = (!is_task && nports > 0)
+	                       ? ivl_scope_port(scope, 0) : 0;
+      ivl_type_t return_nt = return_port
+	                  ? ivl_signal_net_type(return_port) : 0;
+      int return_is_chandle = ivl_type_is_chandle(return_nt);
       unsigned rwid = (rtype == IVL_VT_LOGIC || rtype == IVL_VT_BOOL)
                     ? ivl_scope_func_width(scope) : 0;
       int unsupported = 0;
@@ -5409,16 +5443,19 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  }
 		  letter = 'o';
 	    } else if (ptype == IVL_VT_LOGIC || ptype == IVL_VT_BOOL) {
-		  if (pwid == 1) {
+		  ivl_type_t nt = ivl_signal_net_type(port);
+		  if (nt && ivl_type_is_chandle(nt)) {
+			/* IEEE 1800 Annex H maps chandle to void*. */
+			letter = 'p';
+		  } else if (nt && ivl_type_is_packed_vector(nt)) {
+			  /* Explicit vectors, integer/time, enums with vector
+			     bases, and packed aggregates use the canonical
+			     svBitVecVal/svLogicVecVal pointer ABI. */
+			letter = (ptype == IVL_VT_LOGIC) ? 'W' : 'V';
+		  } else if (pwid == 1) {
 			  /* svBit/svLogic scalar: unsigned char both
 			     ways, 4-state encoding for logic. */
 			letter = 'g';
-		  } else if (pwid > 64) {
-			  /* M10: wide (>64-bit) packed vector — marshal to
-			     svLogicVecVal (4-state logic) or svBitVecVal
-			     (2-state bit), passed as a pointer; supports
-			     input, output and inout of any width. */
-			letter = (ptype == IVL_VT_LOGIC) ? 'W' : 'V';
 		  } else if (is_out
 			     && pwid != 8 && pwid != 16
 			     && pwid != 32 && pwid != 64) {
@@ -5525,6 +5562,9 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		    c_name, arg_types, ncp);
       } else if (rtype == IVL_VT_STRING) {
 	    fprintf(vvp_out, "    %%dpi/call/str \"%s|%s\", %u;\n",
+		    c_name, arg_types, ncp);
+      } else if (return_is_chandle) {
+	    fprintf(vvp_out, "    %%dpi/call/ptr \"%s|%s\", %u;\n",
 		    c_name, arg_types, ncp);
       } else if (rtype == IVL_VT_VOID) {
 	      /* A DPI import *task* (35.5) may be time-consuming — its C

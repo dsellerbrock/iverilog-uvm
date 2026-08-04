@@ -274,7 +274,7 @@ edif_cell_t xilinx_cell_xorcy(edif_xlibrary_t xlib)
 void xilinx_common_header(ivl_design_t des)
 {
       unsigned idx;
-      ivl_scope_t root = ivl_design_root(des);
+      ivl_scope_t root = fpga_design_root(des);
       unsigned sig_cnt = ivl_scope_sigs(root);
       unsigned nports = 0, pidx;
 
@@ -288,7 +288,7 @@ void xilinx_common_header(ivl_design_t des)
 	    if (ivl_signal_attr(sig, "PAD") != 0)
 		  continue;
 
-	    nports += ivl_signal_pins(sig);
+	    nports += ivl_signal_width(sig);
       }
 
       edf = edif_create(ivl_scope_basename(root), nports);
@@ -304,31 +304,29 @@ void xilinx_common_header(ivl_design_t des)
 	    if (ivl_signal_attr(sig, "PAD") != 0)
 		  continue;
 
-	    if (ivl_signal_pins(sig) == 1) {
+	    if (ivl_signal_width(sig) == 1) {
 		  edif_portconfig(edf, pidx, ivl_signal_basename(sig),
 				  ivl_signal_port(sig));
 
-		  assert(ivl_signal_pins(sig) == 1);
-		  jnt = edif_joint_of_nexus(edf, ivl_signal_pin(sig, 0));
+		  assert(ivl_signal_width(sig) == 1);
+		  jnt = edif_joint_of_nexus_bit(edf, ivl_signal_nex(sig, 0), 0);
 		  edif_port_to_joint(jnt, edf, pidx);
 
 	    } else {
 		  const char*name = ivl_signal_basename(sig);
 		  ivl_signal_port_t dir = ivl_signal_port(sig);
-		  char buf[128];
 		  unsigned bit;
-		  for (bit = 0 ;  bit < ivl_signal_pins(sig) ; bit += 1) {
-			const char*tmp;
-			sprintf(buf, "%s[%u]", name, bit);
-			tmp = strdup(buf);
+		  for (bit = 0 ;  bit < ivl_signal_width(sig) ; bit += 1) {
+			const char*tmp = edif_vector_name(name, bit);
 			edif_portconfig(edf, pidx+bit, tmp, dir);
 
-			jnt = edif_joint_of_nexus(edf,ivl_signal_pin(sig,bit));
+			jnt = edif_joint_of_nexus_bit(edf,
+						      ivl_signal_nex(sig, 0), bit);
 			edif_port_to_joint(jnt, edf, pidx+bit);
 		  }
 	    }
 
-	    pidx += ivl_signal_pins(sig);
+	    pidx += ivl_signal_width(sig);
       }
 
       assert(pidx == nports);
@@ -343,11 +341,24 @@ void xilinx_show_footer(ivl_design_t des)
 	    ivl_net_const_t net = ivl_design_const(des, idx);
 	    const char*val = ivl_const_bits(net);
 
-	    for (pin = 0 ;  pin < ivl_const_pins(net) ;  pin += 1) {
+	    for (pin = 0 ; pin < ivl_const_width(net) ; pin += 1) {
+		  if (val[pin] == '0' || val[pin] == '1')
+			continue;
+
+		  fprintf(stderr, "%s:%u: error: architecture %s cannot "
+			  "represent constant bit '%c'.\n", ivl_const_file(net),
+			  ivl_const_lineno(net), arch, val[pin]);
+		  fpga_errors += 1;
+		  break;
+	    }
+	    if (pin < ivl_const_width(net))
+		  continue;
+
+	    for (pin = 0 ;  pin < ivl_const_width(net) ;  pin += 1) {
 		  edif_joint_t jnt;
 		  edif_cellref_t pad;
 
-		  jnt = edif_joint_of_nexus(edf, ivl_const_pin(net, pin));
+		  jnt = edif_joint_of_nexus_bit(edf, ivl_const_nex(net), pin);
 		  switch (val[pin]) {
 		      case '0':
 			pad = edif_cellref_create(edf, cell_0);
@@ -364,6 +375,10 @@ void xilinx_show_footer(ivl_design_t des)
 	    }
       }
 
+      if (edif_error_count(edf)) {
+	    fpga_errors += edif_error_count(edf);
+	    return;
+      }
       edif_print(xnf, edf);
 }
 
@@ -382,15 +397,39 @@ void xilinx_show_scope(ivl_scope_t scope)
       ref = edif_cellref_create(edf, cell);
 
       for (idx = 0 ;  idx < ivl_scope_sigs(scope) ;  idx += 1) {
-	    edif_joint_t jnt;
 	    ivl_signal_t sig = ivl_scope_sig(scope, idx);
+	    unsigned bit;
 
 	    if (ivl_signal_port(sig) == IVL_SIP_NONE)
 		  continue;
 
-	    port = edif_cell_port_byname(cell, ivl_signal_basename(sig));
-	    jnt = edif_joint_of_nexus(edf, ivl_signal_pin(sig, 0));
-	    edif_add_to_joint(jnt, ref, port);
+	    for (bit = 0 ; bit < ivl_signal_width(sig) ; bit += 1) {
+		  const char*name;
+		  char*allocated_name = 0;
+		  edif_joint_t jnt;
+
+		  if (ivl_signal_width(sig) == 1)
+			name = ivl_signal_basename(sig);
+		  else {
+			allocated_name = edif_vector_name(ivl_signal_basename(sig),
+						  bit);
+			name = allocated_name;
+		  }
+
+		  port = edif_cell_port_byname(cell, name);
+		  if (port >= edif_cell_port_count(cell)) {
+			fprintf(stderr, "%s:%u: error: synthesis cell '%s' has no "
+				"port named '%s'.\n", ivl_scope_file(scope),
+				ivl_scope_lineno(scope), ivl_scope_tname(scope), name);
+			fpga_errors += 1;
+			free(allocated_name);
+			return;
+		  }
+		  jnt = edif_joint_of_nexus_bit(edf, ivl_signal_nex(sig, 0),
+					 bit);
+		  edif_add_to_joint(jnt, ref, port);
+		  free(allocated_name);
+	    }
       }
 }
 
@@ -417,8 +456,8 @@ void xilinx_pad(ivl_signal_t sig, const char*str)
 	/* Collect an array of pin assignments from the attribute
 	   string passed in as str. The format is a comma separated
 	   list of location names. */
-      pins = calloc(ivl_signal_pins(sig), sizeof(char*));
-      for (idx = 0 ;  idx < ivl_signal_pins(sig) ;  idx += 1) {
+      pins = calloc(ivl_signal_width(sig), sizeof(char*));
+      for (idx = 0 ;  idx < ivl_signal_width(sig) ;  idx += 1) {
 	    const char*tmp = strchr(str, ',');
 	    if (tmp == 0) tmp = str+strlen(str);
 
@@ -434,15 +473,13 @@ void xilinx_pad(ivl_signal_t sig, const char*str)
 
 	/* Now go through the pins of the signal, creating pads and
 	   bufs and joining them to the signal nexus. */
-      for (idx = 0 ;  idx < ivl_signal_pins(sig) ;  idx += 1) {
+      for (idx = 0 ;  idx < ivl_signal_width(sig) ;  idx += 1) {
 	    edif_joint_t jnt;
 	    edif_cellref_t pad, buf;
 
 	    const char*name_str = ivl_signal_basename(sig);
-	    if (ivl_signal_pins(sig) > 1) {
-		  char name_buf[128];
-		  sprintf(name_buf, "%s[%u]", name_str, idx);
-		  name_str = strdup(name_buf);
+	    if (ivl_signal_width(sig) > 1) {
+		  name_str = edif_vector_name(name_str, idx);
 	    }
 
 	    switch (ivl_signal_port(sig)) {
@@ -455,7 +492,7 @@ void xilinx_pad(ivl_signal_t sig, const char*str)
 		  edif_add_to_joint(jnt, pad, 0);
 		  edif_add_to_joint(jnt, buf, BUF_I);
 
-		  jnt = edif_joint_of_nexus(edf, ivl_signal_pin(sig, idx));
+		  jnt = edif_joint_of_nexus_bit(edf, ivl_signal_nex(sig, 0), idx);
 		  edif_add_to_joint(jnt, buf, BUF_O);
 		  break;
 
@@ -468,14 +505,14 @@ void xilinx_pad(ivl_signal_t sig, const char*str)
 		  edif_add_to_joint(jnt, pad, 0);
 		  edif_add_to_joint(jnt, buf, BUF_O);
 
-		  jnt = edif_joint_of_nexus(edf, ivl_signal_pin(sig, idx));
+		  jnt = edif_joint_of_nexus_bit(edf, ivl_signal_nex(sig, 0), idx);
 		  edif_add_to_joint(jnt, buf, BUF_I);
 		  break;
 
 		case IVL_SIP_INOUT:
 		  pad = edif_cellref_create(edf, cell_iopad);
 
-		  jnt = edif_joint_of_nexus(edf, ivl_signal_pin(sig, idx));
+		  jnt = edif_joint_of_nexus_bit(edf, ivl_signal_nex(sig, 0), idx);
 		  edif_add_to_joint(jnt, pad, 0);
 		  break;
 
@@ -499,99 +536,227 @@ void xilinx_pad(ivl_signal_t sig, const char*str)
  * This function handles the case where the user specifies the cell to
  * use by attribute.
  */
+static char*decode_cellref_attribute(const char*def, int*bad_delimiter)
+{
+      const char*src = def;
+      char*res = malloc(strlen(def) + 1);
+      char*dst = res;
+
+      *bad_delimiter = 0;
+      while (*src) {
+	    if (src[0] == '\\'
+		&& src[1] >= '0' && src[1] <= '7'
+		&& src[2] >= '0' && src[2] <= '7'
+		&& src[3] >= '0' && src[3] <= '7') {
+		  unsigned value = ((unsigned)(src[1] - '0') << 6)
+				 | ((unsigned)(src[2] - '0') << 3)
+				 |  (unsigned)(src[3] - '0');
+		  if (value == 0 || value == ':' || value == ',')
+			*bad_delimiter = 1;
+		  *dst++ = (char)value;
+		  src += 4;
+		  continue;
+	    }
+	    *dst++ = *src++;
+      }
+      *dst = 0;
+      return res;
+}
+
 static void edif_cellref_logic(ivl_net_logic_t net, const char*def)
 {
-      char*str = strdup(def);
+      int bad_delimiter;
+      char*str = decode_cellref_attribute(def, &bad_delimiter);
       char*pins;
       edif_cell_t cell;
-      edif_cellref_t ref;
-      unsigned idx;
+      unsigned bit, idx;
+      unsigned*ports;
+
+      if (bad_delimiter) {
+	    fprintf(stderr, "%s:%u: error: cellref attribute '%s' cannot "
+		    "represent escaped NUL, colon, or comma characters in cell "
+		    "or port names.\n", ivl_logic_file(net),
+		    ivl_logic_lineno(net), def);
+	    fpga_errors += 1;
+	    free(str);
+	    return;
+      }
 
       pins = strchr(str, ':');
-      assert(pins);
+      if (pins == 0) {
+	    fprintf(stderr, "%s:%u: error: malformed cellref attribute '%s'.\n",
+		    ivl_logic_file(net), ivl_logic_lineno(net), def);
+	    fpga_errors += 1;
+	    free(str);
+	    return;
+      }
       *pins++ = 0;
 
 	/* Locate the cell in the library, lookup by name. */
       cell = edif_xlibrary_findcell(xlib, str);
-      assert(cell);
+      if (cell == 0) {
+	    fprintf(stderr, "%s:%u: error: unknown cellref cell '%s'.\n",
+		    ivl_logic_file(net), ivl_logic_lineno(net), str);
+	    fpga_errors += 1;
+	    free(str);
+	    return;
+      }
 
-      ref = edif_cellref_create(edf, cell);
+	/* Parse the scalar cell's port mapping once, then instantiate it
+	   independently for every bit of the vector logic object. */
+      ports = calloc(ivl_logic_pins(net), sizeof(unsigned));
 
       for (idx = 0 ;  idx < ivl_logic_pins(net) ;  idx += 1) {
 	    char*tmp;
-	    edif_joint_t jnt;
-	    unsigned port;
 
-	    assert(pins);
+	    if (pins == 0 || *pins == 0) {
+		  fprintf(stderr, "%s:%u: error: cellref attribute '%s' has "
+			  "too few port names.\n", ivl_logic_file(net),
+			  ivl_logic_lineno(net), def);
+		  fpga_errors += 1;
+		  free(ports);
+		  free(str);
+		  return;
+	    }
 	    tmp = strchr(pins,',');
 	    if (tmp != 0)
 		  *tmp++ = 0;
 	    else
 		  tmp = 0;
 
-	    port = edif_cell_port_byname(cell, pins);
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, idx));
-	    edif_add_to_joint(jnt, ref, port);
-
+	    ports[idx] = edif_cell_port_byname(cell, pins);
+	    if (ports[idx] >= edif_cell_port_count(cell)) {
+		  fprintf(stderr, "%s:%u: error: cellref cell '%s' has no "
+			  "port named '%s'.\n", ivl_logic_file(net),
+			  ivl_logic_lineno(net), str, pins);
+		  fpga_errors += 1;
+		  free(ports);
+		  free(str);
+		  return;
+	    }
+	    { unsigned prior;
+	      for (prior = 0 ; prior < idx ; prior += 1) {
+		    if (ports[prior] != ports[idx])
+			  continue;
+		    fprintf(stderr, "%s:%u: error: cellref attribute '%s' maps "
+			    "port '%s' more than once.\n", ivl_logic_file(net),
+			    ivl_logic_lineno(net), def, pins);
+		    fpga_errors += 1;
+		    free(ports);
+		    free(str);
+		    return;
+	      }
+	    }
+	    { ivl_signal_port_t dir = edif_cell_port_direction(cell, ports[idx]);
+	      int valid = idx == 0
+			? (dir == IVL_SIP_OUTPUT || dir == IVL_SIP_INOUT)
+			: (dir == IVL_SIP_INPUT || dir == IVL_SIP_INOUT);
+	      if (!valid) {
+		    fprintf(stderr, "%s:%u: error: cellref port '%s' has the "
+			    "wrong direction for logic pin %u.\n",
+			    ivl_logic_file(net), ivl_logic_lineno(net), pins, idx);
+		    fpga_errors += 1;
+		    free(ports);
+		    free(str);
+		    return;
+	      }
+	    }
 	    pins = tmp;
       }
 
+      if (pins != 0) {
+	    fprintf(stderr, "%s:%u: error: cellref attribute '%s' has too "
+		    "many port names.\n", ivl_logic_file(net),
+		    ivl_logic_lineno(net), def);
+	    fpga_errors += 1;
+	    free(ports);
+	    free(str);
+	    return;
+      }
+
+      for (bit = 0 ; bit < ivl_logic_width(net) ; bit += 1) {
+	    edif_cellref_t ref = edif_cellref_create(edf, cell);
+
+	    for (idx = 0 ; idx < ivl_logic_pins(net) ; idx += 1) {
+		  edif_joint_t jnt = edif_joint_of_nexus_bit(
+					 edf, ivl_logic_pin(net, idx), bit);
+		  edif_add_to_joint(jnt, ref, ports[idx]);
+	    }
+      }
+
+      free(ports);
       free(str);
 }
 
 static void lut_logic(ivl_net_logic_t net, const char*init3,
 		      const char*init4, const char*init5)
 {
-      edif_cellref_t lut = NULL;  /* initialization shuts up gcc -Wall */
-      edif_joint_t jnt;
-      const char* init = NULL;    /* ditto */
+      unsigned bit;
 
       assert(ivl_logic_pins(net) <= 5);
       assert(ivl_logic_pins(net) >= 3);
 
-      switch (ivl_logic_pins(net)) {
-	  case 3:
-	    lut = edif_cellref_create(edf, xilinx_cell_lut2(xlib));
-	    init = init3;
-	    break;
+      for (bit = 0 ; bit < ivl_logic_width(net) ; bit += 1) {
+	    edif_cellref_t lut = NULL;
+	    edif_joint_t jnt;
+	    const char*init = NULL;
 
-	  case 4:
-	    lut = edif_cellref_create(edf, xilinx_cell_lut3(xlib));
-	    init = init4;
-	    break;
+	    switch (ivl_logic_pins(net)) {
+		case 3:
+		  lut = edif_cellref_create(edf, xilinx_cell_lut2(xlib));
+		  init = init3;
+		  break;
+		case 4:
+		  lut = edif_cellref_create(edf, xilinx_cell_lut3(xlib));
+		  init = init4;
+		  break;
+		case 5:
+		  lut = edif_cellref_create(edf, xilinx_cell_lut4(xlib));
+		  init = init5;
+		  break;
+	    }
 
-	  case 5:
-	    lut = edif_cellref_create(edf, xilinx_cell_lut4(xlib));
-	    init = init5;
-	    break;
+	    edif_cellref_pstring(lut, "INIT", init);
+	    switch (ivl_logic_pins(net)) {
+		case 5:
+		  jnt = edif_joint_of_nexus_bit(edf, ivl_logic_pin(net, 4), bit);
+		  edif_add_to_joint(jnt, lut, LUT_I3);
+		  /* fall through */
+		case 4:
+		  jnt = edif_joint_of_nexus_bit(edf, ivl_logic_pin(net, 3), bit);
+		  edif_add_to_joint(jnt, lut, LUT_I2);
+		  /* fall through */
+		case 3:
+		  jnt = edif_joint_of_nexus_bit(edf, ivl_logic_pin(net, 2), bit);
+		  edif_add_to_joint(jnt, lut, LUT_I1);
+	    }
+
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_logic_pin(net, 1), bit);
+	    edif_add_to_joint(jnt, lut, LUT_I0);
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_logic_pin(net, 0), bit);
+	    edif_add_to_joint(jnt, lut, LUT_O);
       }
+}
 
-      edif_cellref_pstring(lut, "INIT", init);
+static void hookup_xilinx_logic(ivl_net_logic_t net, edif_cell_t cell)
+{
+      unsigned bit, pin;
 
-      switch (ivl_logic_pins(net)) {
-	  case 5:
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 4));
-	    edif_add_to_joint(jnt, lut, LUT_I3);
-	  case 4:
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 3));
-	    edif_add_to_joint(jnt, lut, LUT_I2);
-	  case 3:
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 2));
-	    edif_add_to_joint(jnt, lut, LUT_I1);
+      for (bit = 0 ; bit < ivl_logic_width(net) ; bit += 1) {
+	    edif_cellref_t obj = edif_cellref_create(edf, cell);
+
+	    for (pin = 0 ; pin < ivl_logic_pins(net) ; pin += 1) {
+		  edif_joint_t jnt = edif_joint_of_nexus_bit(
+					 edf, ivl_logic_pin(net, pin), bit);
+		  edif_add_to_joint(jnt, obj, pin);
+	    }
       }
-
-      jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 1));
-      edif_add_to_joint(jnt, lut, LUT_I0);
-
-      jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 0));
-      edif_add_to_joint(jnt, lut, LUT_O);
 }
 
 
 void xilinx_logic(ivl_net_logic_t net)
 {
-      edif_cellref_t obj;
-      edif_joint_t   jnt;
+      unsigned bit;
 
       { const char*cellref_attribute = ivl_logic_attr(net, "cellref");
         if (cellref_attribute != 0) {
@@ -601,18 +766,29 @@ void xilinx_logic(ivl_net_logic_t net)
       }
 
       switch (ivl_logic_type(net)) {
+	  case IVL_LO_AND:
+	  case IVL_LO_NOR:
+	  case IVL_LO_OR:
+	  case IVL_LO_XNOR:
+	  case IVL_LO_XOR:
+	    if (ivl_logic_pins(net) < 3 || ivl_logic_pins(net) > 5) {
+		  fprintf(stderr, "%s:%u: error: architecture %s only supports "
+			  "two- through four-input gates of logic type %d.\n",
+			  ivl_logic_file(net), ivl_logic_lineno(net), arch,
+			  ivl_logic_type(net));
+		  fpga_errors += 1;
+		  return;
+	    }
+	    break;
+	  default:
+	    break;
+      }
+      switch (ivl_logic_type(net)) {
 
 	  case IVL_LO_BUF:
 	  case IVL_LO_BUFZ:
 	    assert(ivl_logic_pins(net) == 2);
-
-	    obj = edif_cellref_create(edf, xilinx_cell_buf(xlib));
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 0));
-	    edif_add_to_joint(jnt, obj, BUF_O);
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 1));
-	    edif_add_to_joint(jnt, obj, BUF_I);
+	    hookup_xilinx_logic(net, xilinx_cell_buf(xlib));
 	    break;
 
 	  case IVL_LO_BUFIF0:
@@ -621,16 +797,7 @@ void xilinx_logic(ivl_net_logic_t net)
 		 1. In other words, it acts just like bufif0. */
 	    assert(ivl_logic_pins(net) == 3);
 
-	    obj = edif_cellref_create(edf, xilinx_cell_buft(xlib));
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 0));
-	    edif_add_to_joint(jnt, obj, BUF_O);
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 1));
-	    edif_add_to_joint(jnt, obj, BUF_I);
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 2));
-	    edif_add_to_joint(jnt, obj, BUF_T);
+	    hookup_xilinx_logic(net, xilinx_cell_buft(xlib));
 	    break;
 
 	  case IVL_LO_BUFIF1:
@@ -639,28 +806,13 @@ void xilinx_logic(ivl_net_logic_t net)
 		 In other words, it acts just like bufif1. */
 	    assert(ivl_logic_pins(net) == 3);
 
-	    obj = edif_cellref_create(edf, xilinx_cell_bufe(xlib));
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 0));
-	    edif_add_to_joint(jnt, obj, BUF_O);
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 1));
-	    edif_add_to_joint(jnt, obj, BUF_I);
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 2));
-	    edif_add_to_joint(jnt, obj, BUF_T);
+	    hookup_xilinx_logic(net, xilinx_cell_bufe(xlib));
 	    break;
 
 	  case IVL_LO_NOT:
 	    assert(ivl_logic_pins(net) == 2);
 
-	    obj = edif_cellref_create(edf, xilinx_cell_inv(xlib));
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 0));
-	    edif_add_to_joint(jnt, obj, BUF_O);
-
-	    jnt = edif_joint_of_nexus(edf, ivl_logic_pin(net, 1));
-	    edif_add_to_joint(jnt, obj, BUF_I);
+	    hookup_xilinx_logic(net, xilinx_cell_inv(xlib));
 	    break;
 
 	  case IVL_LO_AND:
@@ -693,9 +845,24 @@ void xilinx_logic(ivl_net_logic_t net)
 	    lut_logic(net, "6", "96", "6996");
 	    break;
 
+	  case IVL_LO_PULLDOWN:
+	  case IVL_LO_PULLUP:
+	    assert(ivl_logic_pins(net) == 1);
+	    for (bit = 0 ; bit < ivl_logic_width(net) ; bit += 1) {
+		  edif_cellref_t obj = edif_cellref_create(
+				edf, ivl_logic_type(net) == IVL_LO_PULLUP
+				? cell_1 : cell_0);
+		  edif_joint_t jnt = edif_joint_of_nexus_bit(
+				      edf, ivl_logic_pin(net, 0), bit);
+		  edif_add_to_joint(jnt, obj, 0);
+	    }
+	    break;
+
 	  default:
-	    fprintf(stderr, "UNSUPPORTED LOGIC TYPE: %d\n",
-		    ivl_logic_type(net));
+	    fprintf(stderr, "%s:%u: error: architecture %s does not support "
+		    "logic type %d.\n", ivl_logic_file(net),
+		    ivl_logic_lineno(net), arch, ivl_logic_type(net));
+	    fpga_errors += 1;
 	    break;
       }
 }
@@ -708,7 +875,13 @@ void xilinx_mux(ivl_lpm_t net)
 {
       unsigned idx;
 
-      assert(ivl_lpm_selects(net) == 1);
+      if (ivl_lpm_selects(net) != 1) {
+	    fprintf(stderr, "%s:%u: error: architecture %s does not support "
+		    "muxes with %u select bits.\n", ivl_lpm_file(net),
+		    ivl_lpm_lineno(net), arch, ivl_lpm_selects(net));
+	    fpga_errors += 1;
+	    return;
+      }
 
 	/* A/B Mux devices are made from LUT3 devices. I0 is connected
 	   to A, I1 to B, and I2 to the Select input. Create as many
@@ -733,16 +906,16 @@ void xilinx_mux(ivl_lpm_t net)
 
 	    lut = edif_cellref_create(edf, xilinx_cell_lut3(xlib));
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_q(net, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_q(net), idx);
 	    edif_add_to_joint(jnt, lut, LUT_O);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_data2(net, 0, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 0), idx);
 	    edif_add_to_joint(jnt, lut, LUT_I0);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_data2(net, 1, idx));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 1), idx);
 	    edif_add_to_joint(jnt, lut, LUT_I1);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_select(net, 0));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_select(net), 0);
 	    edif_add_to_joint(jnt, lut, LUT_I2);
 
 	    edif_cellref_pstring(lut, "INIT", "CA");
@@ -777,13 +950,13 @@ void xilinx_add(ivl_lpm_t net)
 
 	    lut = edif_cellref_create(edf, xilinx_cell_lut2(xlib));
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_q(net, 0));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_q(net), 0);
 	    edif_add_to_joint(jnt, lut, LUT_O);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_data(net, 0));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 0), 0);
 	    edif_add_to_joint(jnt, lut, LUT_I0);
 
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_datab(net, 0));
+	    jnt = edif_joint_of_nexus_bit(edf, ivl_lpm_data(net, 1), 0);
 	    edif_add_to_joint(jnt, lut, LUT_I1);
 
 	    edif_cellref_pstring(lut, "INIT", ha_init);
@@ -801,6 +974,8 @@ void xilinx_add(ivl_lpm_t net)
 void xilinx_shiftl(ivl_lpm_t net)
 {
       unsigned width = ivl_lpm_width(net);
+      ivl_nexus_t select = ivl_lpm_data(net, 1);
+      unsigned select_width = edif_nexus_width(select);
       unsigned nsel = 0;
       unsigned sdx, qdx;
 
@@ -817,7 +992,7 @@ void xilinx_shiftl(ivl_lpm_t net)
 	   enable for the last column. When disabled, the last column
 	   emits zeros. */
 
-      while (nsel < ivl_lpm_selects(net)) {
+      while (nsel < select_width) {
 	    unsigned swid;
 
 	    nsel += 1;
@@ -827,7 +1002,14 @@ void xilinx_shiftl(ivl_lpm_t net)
 		  break;
       }
 
-      assert(nsel > 0);
+      if (nsel == 0 || select_width > nsel + 1) {
+	    fprintf(stderr, "%s:%u: error: architecture %s cannot represent "
+		    "a %u-bit shift selector for a %u-bit result.\n",
+		    ivl_lpm_file(net), ivl_lpm_lineno(net), arch,
+		    select_width, width);
+	    fpga_errors += 1;
+	    return;
+      }
 
 	/* Allocate a matrix of edif_cellref_t variables. A devices
 	   will be addressed by the expression table[sdx][qdx];
@@ -853,12 +1035,12 @@ void xilinx_shiftl(ivl_lpm_t net)
 	   select inputs to I2 of all the devices of the column. */
       for (sdx = 0 ;  sdx < nsel ;  sdx += 1) {
 	    const char*init_string = 0;
-	    ivl_nexus_t nex = ivl_lpm_select(net,sdx);
-	    edif_joint_t sdx_jnt = edif_joint_of_nexus(edf, nex);
+	    ivl_nexus_t nex = select;
+	    edif_joint_t sdx_jnt = edif_joint_of_nexus_bit(edf, nex, sdx);
 
 	    edif_cell_t lut;
 
-	    if (((sdx+1) == nsel) && (nsel < ivl_lpm_selects(net))) {
+	    if (((sdx+1) == nsel) && (nsel < select_width)) {
 		  lut = xilinx_cell_lut4(xlib);
 		  init_string = "00CA";
 	    } else {
@@ -882,13 +1064,13 @@ void xilinx_shiftl(ivl_lpm_t net)
 	    edif_joint_t jnt0;
 	    edif_joint_t jnt1;
 
-	    nex0 = ivl_lpm_data(net,qdx);
-	    jnt0 = edif_joint_of_nexus(edf, nex0);
+	    nex0 = ivl_lpm_data(net, 0);
+	    jnt0 = edif_joint_of_nexus_bit(edf, nex0, qdx);
 
 	    if (qdx > 0) {
 		  ivl_nexus_t nex1;
-		  nex1 = ivl_lpm_data(net,qdx-1);
-		  jnt1 = edif_joint_of_nexus(edf, nex1);
+		  nex1 = ivl_lpm_data(net, 0);
+		  jnt1 = edif_joint_of_nexus_bit(edf, nex1, qdx-1);
 	    } else {
 		  jnt1 = pad0;
 	    }
@@ -902,41 +1084,39 @@ void xilinx_shiftl(ivl_lpm_t net)
 	   the column value. If the shifted input falls off the end,
 	   then pad with zero. */
       for (sdx = 1 ;  sdx < nsel ;  sdx += 1) {
+	    unsigned shift = 1 << sdx;
 
+	      /* Each output of the previous column is a single EDIF net
+		 that may fan out to two inputs in this column. Build the net
+		 from its source so the output port is emitted exactly once. */
 	    for (qdx = 0 ;  qdx < width ;  qdx += 1) {
-		  unsigned shift = 1 << sdx;
-		  edif_joint_t jnt0 = edif_joint_create(edf);
-		  edif_joint_t jnt1 = (qdx >= shift)
-			? edif_joint_create(edf)
-			: pad0;
+		  edif_joint_t jnt = edif_joint_create(edf);
 
-		  edif_add_to_joint(jnt0, table[sdx][qdx], LUT_I0);
-		  edif_add_to_joint(jnt1, table[sdx][qdx], LUT_I1);
-
-		  edif_add_to_joint(jnt0, table[sdx-1][qdx], LUT_O);
-		  if (qdx >= shift)
-		       edif_add_to_joint(jnt1, table[sdx-1][qdx-shift], LUT_O);
+		  edif_add_to_joint(jnt, table[sdx-1][qdx], LUT_O);
+		  edif_add_to_joint(jnt, table[sdx][qdx], LUT_I0);
+		  if (qdx + shift < width)
+		       edif_add_to_joint(jnt, table[sdx][qdx+shift], LUT_I1);
 	    }
+
+	    for (qdx = 0 ; qdx < shift && qdx < width ; qdx += 1)
+		  edif_add_to_joint(pad0, table[sdx][qdx], LUT_I1);
       }
 
 	/* Connect the output of the last column to the output of the
 	   SHIFTL device. */
       for (qdx = 0 ; qdx < width ;  qdx += 1) {
-	    ivl_nexus_t nex = ivl_lpm_q(net,qdx);
-	    edif_joint_t jnt = edif_joint_of_nexus(edf, nex);
+	    ivl_nexus_t nex = ivl_lpm_q(net);
+	    edif_joint_t jnt = edif_joint_of_nexus_bit(edf, nex, qdx);
 
 	    edif_add_to_joint(jnt, table[nsel-1][qdx], LUT_O);
       }
 
 	/* Connect the excess select inputs to the enable inputs of
 	   the LUT4 devices in the last column. */
-      if (nsel < ivl_lpm_selects(net)) {
+      if (nsel < select_width) {
 	    edif_joint_t jnt;
 
-	      /* XXXX Only support 1 excess bit for now. */
-	    assert((nsel + 1) == ivl_lpm_selects(net));
-
-	    jnt = edif_joint_of_nexus(edf, ivl_lpm_select(net,nsel));
+	    jnt = edif_joint_of_nexus_bit(edf, select, nsel);
 	    for (qdx = 0 ;  qdx < width ;  qdx += 1)
 		  edif_add_to_joint(jnt, table[nsel-1][qdx], LUT_I3);
       }

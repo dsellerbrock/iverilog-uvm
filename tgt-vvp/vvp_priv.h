@@ -199,6 +199,11 @@ extern const char* draw_island_net_input(ivl_island_t island, ivl_nexus_t nex);
  */
 extern const char*draw_input_from_net(ivl_nexus_t nex, ivl_scope_t scope);
 
+/* Load the class/interface object carried by a nexus. Unlike
+   draw_input_from_net(), this handles one word of a fixed unpacked object
+   array with %load/obja instead of inventing a nonexistent scalar label. */
+extern void draw_object_from_net(ivl_nexus_t nex, ivl_scope_t scope);
+
 /*
  * This evaluates an expression and leaves the result in the numbered
  * integer index register. It also will set bit-4 to 1 if the value is

@@ -23,6 +23,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from typing import Iterable, Sequence
@@ -30,6 +31,12 @@ from typing import Iterable, Sequence
 
 LANES = ("rtl", "sva", "uvm", "runtime")
 TARGETS = {"rtl": "default", "sva": "formal", "uvm": "sim", "runtime": "sim"}
+SIMULATION_CATEGORIES = ("uvm", "directed", "verilator", "elaboration")
+SVA_DEFAULT_TARGETS = {"lowrisc:fpv:prim_keccak_fpv:0.1"}
+SVA_UVM_CORES = {
+    "lowrisc:dv:adc_ctrl_sva:0.1",
+    "lowrisc:dv:spi_host_sva:0.1",
+}
 DEFAULT_TOPS = {
     "earlgrey": "lowrisc:systems:top_earlgrey:0.1",
     "darjeeling": "lowrisc:systems:top_darjeeling:0.1",
@@ -70,6 +77,25 @@ DEBT_PATTERNS = (
     re.compile(r"\bunknown (?:task|function|method)\b", re.I),
     re.compile(r"nonblocking .* blocking", re.I),
 )
+OPENTITAN_RUNTIME_PASS_RE = re.compile(
+    r"^TEST PASSED (?:UVM_)?CHECKS$", re.I | re.M
+)
+OPENTITAN_RUNTIME_FAIL_PATTERNS = (
+    re.compile(r"^UVM_ERROR\s[^:].*$", re.I),
+    re.compile(r"^UVM_FATAL\s[^:].*$", re.I),
+    re.compile(r"^UVM_WARNING\s[^:].*$", re.I),
+    re.compile(r"^Assert failed: ", re.I),
+    re.compile(r"^\s*Offending '.*'", re.I),
+    re.compile(r"^TEST FAILED (?:UVM_)?CHECKS$", re.I),
+    re.compile(r"^Error:.*$", re.I),
+)
+RUNTIME_DEBT_ALLOWLIST = (
+    # IEEE 1800 permits a function call as a statement with its return value
+    # discarded. Icarus deliberately emits this optional diagnostic from its
+    # VPI runtime; Slang and Verilator accept the same call without warning.
+    re.compile(r"Warning: Calling system function \$system\(\) as a task\.", re.I),
+    re.compile(r"The functions return value will be ignored\.", re.I),
+)
 SETUP_ALLOWLIST = (
     re.compile(r"No trustfile configured .* signatures will not be checked", re.I),
     # This is an Edalize API-lifecycle notice.  It does not change the selected
@@ -94,12 +120,45 @@ class Core:
 
 
 @dataclasses.dataclass(frozen=True)
+class SimulationTarget:
+    """Authoritative metadata for one literal FuseSoC `sim` target."""
+
+    vlnv: str
+    category: str
+    default_tool: str
+    toplevels: tuple[str, ...]
+    core_file: str
+    runtime_args: tuple[str, ...] = ()
+    dvsim_config: str | None = None
+    dvsim_test: str | None = None
+    uvm_test: str | None = None
+    uvm_test_seq: str | None = None
+    dvsim_regression: str | None = None
+    build_mode: str | None = None
+    build_options: tuple[str, ...] = ()
+    native_dependencies: tuple[str, ...] = ()
+    dpi_dependencies: tuple[str, ...] = ()
+    orchestration_requirements: tuple[str, ...] = ()
+    unresolved_runtime_options: tuple[str, ...] = ()
+    metadata_warnings: tuple[str, ...] = ()
+    timescale: str | None = None
+    requires_uvm_library: bool = False
+
+    @property
+    def uvm_runtime_configured(self) -> bool:
+        return bool(self.uvm_test and self.uvm_test_seq)
+
+
+@dataclasses.dataclass(frozen=True)
 class Job:
     lane: str
     core: Core
+    simulation: SimulationTarget | None = None
 
     @property
     def target(self) -> str:
+        if self.lane == "sva" and self.core.vlnv in SVA_DEFAULT_TARGETS:
+            return "default"
         return TARGETS[self.lane]
 
 
@@ -286,16 +345,574 @@ def discover_cores(
     return cores
 
 
-def core_supports_lane(core: Core, lane: str) -> bool:
+def discover_formal_targets(
+    fusesoc: Path, opentitan_root: Path, env: dict[str, str], timeout: int
+) -> set[str]:
+    """Ask the loaded FuseSoC core database which cores expose `formal`.
+
+    Core-name suffixes are not authoritative: this OpenTitan revision has 19
+    formal targets whose names do not end in `_fpv`/`_sva`, and one `_fpv`
+    core whose usable target is `default`. Loading the database once is both
+    exact and much faster than hundreds of `fusesoc core show` subprocesses.
+    """
+    python = fusesoc.with_name("python")
+    if not python.is_file():
+        raise RuntimeError(
+            "FuseSoC target discovery needs the Python interpreter adjacent "
+            f"to the FuseSoC executable; not found: {python}"
+        )
+    marker = "FUSESOC_FORMAL_TARGETS_JSON="
+    probe = r"""
+import json
+import sys
+from fusesoc.config import Config
+from fusesoc.coremanager import CoreManager
+from fusesoc.librarymanager import Library
+
+root = sys.argv[1]
+manager = CoreManager(Config())
+manager.add_library(Library("opentitan-matrix", root), [])
+formal = []
+for name, core in manager.get_cores().items():
+    try:
+        core.get_flags("formal")
+    except RuntimeError:
+        continue
+    formal.append(str(name))
+print("FUSESOC_FORMAL_TARGETS_JSON=" + json.dumps(sorted(formal)))
+"""
+    result = command_result(
+        [str(python), "-c", probe, str(opentitan_root)],
+        cwd=opentitan_root,
+        env=env,
+        timeout=timeout,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            "FuseSoC formal-target discovery failed:\n" + result.output.rstrip()
+        )
+    for line in reversed(result.output.splitlines()):
+        if line.startswith(marker):
+            return set(json.loads(line[len(marker) :]))
+    raise RuntimeError(
+        "FuseSoC formal-target discovery produced no machine-readable result:\n"
+        + result.output.rstrip()
+    )
+
+
+def discover_simulation_targets(
+    fusesoc: Path, opentitan_root: Path, env: dict[str, str], timeout: int
+) -> dict[str, SimulationTarget]:
+    """Inventory every literal FuseSoC `sim` target and its execution model.
+
+    The public FuseSoC API resolves a named target into flags but does not expose
+    the literal target table. The probe therefore reads FuseSoC's already parsed
+    CAPI data, walks dependency closures, and classifies the actual source graph.
+    It also reads local dvsim HJSON with the same Python environment OpenTitan
+    uses, so a UVM runtime is never launched without a known test and sequence.
+    """
+    python = fusesoc.with_name("python")
+    if not python.is_file():
+        raise RuntimeError(
+            "FuseSoC simulation-target discovery needs the Python interpreter "
+            f"adjacent to the FuseSoC executable; not found: {python}"
+        )
+    marker = "FUSESOC_SIM_TARGETS_JSON="
+    probe = r"""
+import json
+from pathlib import Path
+import re
+import sys
+
+import hjson
+from fusesoc.config import Config
+from fusesoc.coremanager import CoreManager
+from fusesoc.librarymanager import Library
+
+root = Path(sys.argv[1]).resolve()
+manager = CoreManager(Config())
+manager.add_library(Library("opentitan-matrix", str(root)), [])
+cores = {str(name): core for name, core in manager.get_cores().items()}
+by_triple = {":".join(name.split(":")[:3]): name for name in cores}
+
+
+def normalize_reference(value):
+    value = str(value)
+    if "?" in value:
+        value = value.rsplit("?", 1)[1]
+    return value.strip().strip("()").strip()
+
+
+def resolve_dependency(value):
+    value = normalize_reference(value)
+    if value in cores:
+        return value
+    return by_triple.get(":".join(value.split(":")[:3]))
+
+
+def relative(path):
+    path = Path(path).resolve()
+    try:
+        return path.relative_to(root).as_posix()
+    except ValueError:
+        return str(path)
+
+
+core_metadata = {}
+for name, core in cores.items():
+    fileset_metadata = {}
+    for fileset_name, fileset in core._capi_data.get("filesets", {}).items():
+        dependencies = set()
+        hdl_text = []
+        has_native = False
+        has_dpi = False
+        for dependency in fileset.get("depend", []) or []:
+            resolved = resolve_dependency(dependency)
+            if resolved:
+                dependencies.add(resolved)
+        default_type = str(fileset.get("file_type", ""))
+        for entry in fileset.get("files", []) or []:
+            attributes = {}
+            if isinstance(entry, dict):
+                source_name = next(iter(entry))
+                if isinstance(entry[source_name], dict):
+                    attributes = entry[source_name]
+            else:
+                source_name = str(entry)
+            source_name = normalize_reference(source_name)
+            source = Path(core.core_root) / source_name
+            if not source.is_file():
+                continue
+            file_type = str(attributes.get("file_type", default_type)).casefold()
+            suffix = source.suffix.casefold()
+            native = (
+                "csource" in file_type
+                or "cppsource" in file_type
+                or suffix in {".c", ".cc", ".cpp", ".cxx"}
+            )
+            has_native = has_native or native
+            if suffix in {".v", ".vh", ".sv", ".svh"}:
+                text = source.read_text(errors="replace")
+                hdl_text.append(text)
+                has_dpi = has_dpi or "DPI-C" in text
+        fileset_metadata[fileset_name] = {
+            "dependencies": sorted(dependencies),
+            "text": "\n".join(hdl_text),
+            "native": has_native,
+            "dpi": has_dpi,
+        }
+    core_metadata[name] = {"filesets": fileset_metadata}
+
+
+def selected_filesets(name, target_name):
+    core = cores[name]
+    targets = core._capi_data.get("targets", {})
+    target = targets.get(target_name)
+    if not isinstance(target, dict):
+        target = targets.get("default")
+    available = core_metadata[name]["filesets"]
+    if not isinstance(target, dict):
+        return list(available)
+    selected = [
+        normalize_reference(fileset)
+        for fileset in target.get("filesets", []) or []
+    ]
+    selected = [fileset for fileset in selected if fileset in available]
+    return selected or list(available)
+
+
+def source_closure(root_name):
+    seen_nodes = set()
+    seen_cores = set()
+    pending = [(root_name, "sim")]
+    hdl_text = []
+    native_cores = set()
+    dpi_cores = set()
+    while pending:
+        name, target_name = pending.pop()
+        node = (name, target_name)
+        if node in seen_nodes:
+            continue
+        seen_nodes.add(node)
+        seen_cores.add(name)
+        for fileset_name in selected_filesets(name, target_name):
+            metadata = core_metadata[name]["filesets"][fileset_name]
+            hdl_text.append(metadata["text"])
+            if metadata["native"]:
+                native_cores.add(name)
+            if metadata["dpi"]:
+                dpi_cores.add(name)
+            pending.extend(
+                (dependency, "default")
+                for dependency in metadata["dependencies"]
+            )
+    return seen_cores, "\n".join(hdl_text), native_cores, dpi_cores
+
+
+def substitute(value, context):
+    value = str(value)
+    for _ in range(8):
+        replaced = re.sub(
+            r"\{([A-Za-z_][A-Za-z0-9_]*)\}",
+            lambda match: str(context.get(match.group(1), match.group(0))),
+            value,
+        )
+        if replaced == value:
+            break
+        value = replaced
+    return value
+
+
+def merge_configs(base, addition):
+    merged = dict(base)
+    for key, value in addition.items():
+        if key == "import_cfgs":
+            continue
+        if isinstance(value, list) and isinstance(merged.get(key), list):
+            merged[key] = [*merged[key], *value]
+        elif isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = {**merged[key], **value}
+        else:
+            merged[key] = value
+    return merged
+
+
+def load_config(config_path, inherited=None, stack=()):
+    config_path = Path(config_path).resolve()
+    if config_path in stack or not config_path.is_file():
+        return {}
+    try:
+        local = hjson.loads(config_path.read_text())
+    except Exception:
+        return {}
+    inherited = dict(inherited or {})
+    local_context = {
+        **inherited,
+        **{
+            key: value
+            for key, value in local.items()
+            if isinstance(value, (str, int, float, bool))
+        },
+        "proj_root": str(root),
+        "self_dir": str(config_path.parent),
+    }
+    merged = {}
+    for imported in local.get("import_cfgs", []) or []:
+        # Simulator backends describe VCS/Xcelium command syntax, not portable
+        # test metadata. The matrix consumes the common and test configs only.
+        if "{tool}" in str(imported):
+            continue
+        imported_path = substitute(imported, local_context)
+        if "{" in imported_path or "}" in imported_path:
+            continue
+        imported_path = Path(imported_path)
+        if not imported_path.is_absolute():
+            imported_path = config_path.parent / imported_path
+        merged = merge_configs(
+            merged,
+            load_config(
+                imported_path,
+                local_context,
+                (*stack, config_path),
+            ),
+        )
+    return merge_configs(merged, local)
+
+
+def unique(values):
+    return list(dict.fromkeys(values))
+
+
+configs = {}
+for config_path in sorted(root.rglob("*sim_cfg.hjson")):
+    config = load_config(config_path)
+    context = {
+        **{
+            key: value
+            for key, value in config.items()
+            if isinstance(value, (str, int, float, bool))
+        },
+        "proj_root": str(root),
+        "self_dir": str(config_path.parent),
+    }
+    override_core = None
+    for override in config.get("overrides", []) or []:
+        if isinstance(override, dict) and override.get("name") == "fusesoc_core":
+            override_core = override.get("value")
+    core_value = override_core or config.get("fi_core") or config.get("fusesoc_core")
+    if not isinstance(core_value, str):
+        continue
+    core_name = substitute(core_value, context)
+    if "{" in core_name or core_name not in cores:
+        continue
+    tests = [test for test in config.get("tests", []) or [] if isinstance(test, dict)]
+    smoke_tests = [
+        test for test in tests if "smoke" in str(test.get("name", "")).casefold()
+    ]
+    expected_smoke = str(config.get("name", "")) + "_smoke"
+    selected = next(
+        (test for test in smoke_tests if test.get("name") == expected_smoke),
+        smoke_tests[0] if smoke_tests else (tests[0] if len(tests) == 1 else {}),
+    )
+    uvm_test = substitute(
+        selected.get("uvm_test", config.get("uvm_test", "")), context
+    ) or None
+    uvm_test_seq = substitute(
+        selected.get("uvm_test_seq", config.get("uvm_test_seq", "")), context
+    ) or None
+    smoke_regressions = [
+        regression
+        for regression in config.get("regressions", []) or []
+        if isinstance(regression, dict) and regression.get("name") == "smoke"
+    ]
+    run_options = [
+        *(config.get("run_opts", []) or []),
+        *(selected.get("run_opts", []) or []),
+        *(
+            option
+            for regression in smoke_regressions
+            for option in regression.get("run_opts", []) or []
+        ),
+    ]
+    runtime_options = []
+    unresolved_runtime_options = []
+    for option in run_options:
+        option = substitute(option, context)
+        if "{" in option or "}" in option or not option.startswith("+"):
+            unresolved_runtime_options.append(option)
+        else:
+            runtime_options.append(option)
+
+    build_mode = selected.get("build_mode", config.get("primary_build_mode"))
+    build_options = [
+        substitute(option, context) for option in config.get("build_opts", []) or []
+    ]
+    if build_mode:
+        for mode in config.get("build_modes", []) or []:
+            if isinstance(mode, dict) and mode.get("name") == build_mode:
+                build_options.extend(
+                    substitute(option, context)
+                    for option in mode.get("build_opts", []) or []
+                )
+                runtime_options.extend(
+                    substitute(option, context)
+                    for option in mode.get("run_opts", []) or []
+                    if str(option).startswith("+") and "{" not in str(option)
+                )
+                break
+    build_options.extend(
+        substitute(option, context) for option in selected.get("build_opts", []) or []
+    )
+
+    orchestration_requirements = []
+    for key in (
+        "pre_build_cmds",
+        "post_build_cmds",
+        "pre_run_cmds",
+        "post_run_cmds",
+        "sw_images",
+        "en_build_modes",
+        "en_run_modes",
+    ):
+        if (
+            config.get(key)
+            or selected.get(key)
+            or any(regression.get(key) for regression in smoke_regressions)
+        ):
+            orchestration_requirements.append(key)
+    candidate = {
+        "dvsim_config": relative(config_path),
+        "dvsim_test": selected.get("name"),
+        "uvm_test": uvm_test,
+        "uvm_test_seq": uvm_test_seq,
+        "dvsim_regression": "smoke" if smoke_regressions else None,
+        "runtime_options": unique(runtime_options),
+        "unresolved_runtime_options": unique(unresolved_runtime_options),
+        "build_mode": build_mode,
+        "build_options": unique(build_options),
+        "timescale": substitute(config.get("timescale", ""), context) or None,
+        "orchestration_requirements": orchestration_requirements,
+    }
+    previous = configs.get(core_name)
+    candidate_score = (
+        bool(uvm_test and uvm_test_seq),
+        bool(selected),
+        -len(candidate["unresolved_runtime_options"]),
+    )
+    previous_score = (
+        bool(previous and previous.get("uvm_test") and previous.get("uvm_test_seq")),
+        bool(previous and previous.get("dvsim_test")),
+        -len(previous.get("unresolved_runtime_options", [])) if previous else 0,
+    )
+    if previous is None or candidate_score > previous_score:
+        configs[core_name] = candidate
+
+
+simulation_targets = []
+for name, core in cores.items():
+    target = core._capi_data.get("targets", {}).get("sim")
+    if not isinstance(target, dict):
+        continue
+    closure, closure_text, native_cores, dpi_cores = source_closure(name)
+    requires_uvm_library = bool(
+        re.search(r"\bimport\s+uvm_pkg\s*::", closure_text)
+        or re.search(r"[`\"]uvm_macros\.svh", closure_text)
+    )
+    default_tool = str(target.get("default_tool", ""))
+    if default_tool == "verilator":
+        category = "verilator"
+    elif re.search(r"\brun_test\s*\(", closure_text):
+        category = "uvm"
+    elif "$finish" in closure_text:
+        category = "directed"
+    else:
+        category = "elaboration"
+
+    toplevels = target.get("toplevel", [])
+    if isinstance(toplevels, str):
+        toplevels = [toplevels]
+    config = configs.get(name, {})
+    synthesized_uvm_keys = {
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY",
+        "+UVM_TESTNAME",
+        "+UVM_TEST_SEQ",
+    }
+    runtime_args = [
+        option
+        for option in config.get("runtime_options", [])
+        if option.split("=", 1)[0] not in synthesized_uvm_keys
+    ]
+    if category == "uvm":
+        runtime_args[:0] = ["+UVM_NO_RELNOTES", "+UVM_VERBOSITY=UVM_LOW"]
+        if config.get("uvm_test"):
+            runtime_args.append("+UVM_TESTNAME=" + str(config["uvm_test"]))
+        if config.get("uvm_test_seq"):
+            runtime_args.append("+UVM_TEST_SEQ=" + str(config["uvm_test_seq"]))
+
+    metadata_warnings = []
+    if category != "uvm" and (config.get("uvm_test") or config.get("uvm_test_seq")):
+        metadata_warnings.append(
+            "dvsim declares UVM test metadata but the FuseSoC source closure "
+            "contains no run_test()"
+        )
+    if category == "uvm" and not (
+        config.get("uvm_test") and config.get("uvm_test_seq")
+    ):
+        metadata_warnings.append(
+            "UVM source closure has no authoritative dvsim test/sequence pair"
+        )
+    native_dependencies = sorted(native_cores)
+    if native_dependencies:
+        metadata_warnings.append(
+            "native C/C++ dependencies require a DPI/VPI build outside the "
+            "Edalize Icarus source-list backend"
+        )
+
+    simulation_targets.append({
+        "vlnv": name,
+        "category": category,
+        "default_tool": default_tool,
+        "toplevels": list(toplevels or []),
+        "core_file": relative(core.core_file),
+        "runtime_args": runtime_args,
+        "dvsim_config": config.get("dvsim_config"),
+        "dvsim_test": config.get("dvsim_test"),
+        "uvm_test": config.get("uvm_test"),
+        "uvm_test_seq": config.get("uvm_test_seq"),
+        "dvsim_regression": config.get("dvsim_regression"),
+        "build_mode": config.get("build_mode"),
+        "build_options": config.get("build_options", []),
+        "timescale": config.get("timescale"),
+        "native_dependencies": native_dependencies,
+        "dpi_dependencies": sorted(
+            native_cores | dpi_cores
+        ),
+        "orchestration_requirements": config.get("orchestration_requirements", []),
+        "unresolved_runtime_options": config.get("unresolved_runtime_options", []),
+        "metadata_warnings": metadata_warnings,
+        "requires_uvm_library": requires_uvm_library,
+    })
+
+print("FUSESOC_SIM_TARGETS_JSON=" + json.dumps(sorted(
+    simulation_targets, key=lambda item: item["vlnv"]
+)))
+"""
+    result = command_result(
+        [str(python), "-c", probe, str(opentitan_root)],
+        cwd=opentitan_root,
+        env=env,
+        timeout=timeout,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            "FuseSoC simulation-target discovery failed:\n" + result.output.rstrip()
+        )
+    payload: list[dict[str, object]] | None = None
+    for line in reversed(result.output.splitlines()):
+        if line.startswith(marker):
+            payload = json.loads(line[len(marker) :])
+            break
+    if payload is None:
+        raise RuntimeError(
+            "FuseSoC simulation-target discovery produced no machine-readable "
+            "result:\n" + result.output.rstrip()
+        )
+
+    targets: dict[str, SimulationTarget] = {}
+    tuple_fields = {
+        "toplevels",
+        "runtime_args",
+        "build_options",
+        "native_dependencies",
+        "dpi_dependencies",
+        "orchestration_requirements",
+        "unresolved_runtime_options",
+        "metadata_warnings",
+    }
+    for item in payload:
+        normalized = dict(item)
+        for field in tuple_fields:
+            normalized[field] = tuple(normalized.get(field, []))
+        target = SimulationTarget(**normalized)
+        if target.category not in SIMULATION_CATEGORIES:
+            raise RuntimeError(
+                f"unknown simulation category {target.category!r} for {target.vlnv}"
+            )
+        if target.vlnv in targets:
+            raise RuntimeError(f"duplicate FuseSoC sim target: {target.vlnv}")
+        targets[target.vlnv] = target
+    if not targets:
+        raise RuntimeError("FuseSoC returned no literal simulation targets")
+    return targets
+
+
+def core_supports_lane(
+    core: Core,
+    lane: str,
+    formal_targets: set[str] | None = None,
+    simulation_targets: dict[str, SimulationTarget] | None = None,
+) -> bool:
     dv_library = core.library == "dv" or core.library.endswith("_dv")
     fpv_core = core.name.endswith("_fpv")
+    simulation_core = core.name.endswith("_sim") or core.name.endswith("_tracing")
+    if simulation_targets is not None and lane in ("uvm", "runtime"):
+        simulation = simulation_targets.get(core.vlnv)
+        if simulation is None:
+            return False
+        if lane == "uvm":
+            return simulation.category == "uvm"
+        return simulation.category in {"uvm", "directed"}
     if lane in ("uvm", "runtime"):
         return dv_library and core.name.endswith("_sim")
     if lane == "sva":
+        if formal_targets is not None:
+            return core.vlnv in formal_targets or core.vlnv in SVA_DEFAULT_TARGETS
         return (dv_library and core.name.endswith("_sva")) or fpv_core
     if lane == "rtl":
         return (
             not fpv_core
+            and not simulation_core
             and (
                 core.library in {"ip", "prim", "tlul", "ibex", "systems"}
                 or core.library.endswith("_ip")
@@ -310,7 +927,12 @@ def requested_lanes(values: Sequence[str]) -> list[str]:
     return [lane for lane in LANES if lane in values]
 
 
-def select_jobs(cores: Iterable[Core], args: argparse.Namespace) -> list[Job]:
+def select_jobs(
+    cores: Iterable[Core],
+    args: argparse.Namespace,
+    formal_targets: set[str] | None = None,
+    simulation_targets: dict[str, SimulationTarget] | None = None,
+) -> list[Job]:
     lanes = requested_lanes(args.lane)
     exact_cores = set(args.core)
     filters = [value.casefold() for value in args.ip]
@@ -322,8 +944,16 @@ def select_jobs(cores: Iterable[Core], args: argparse.Namespace) -> list[Job]:
             haystack = f"{core.vlnv} {core.description}".casefold()
             if filters and not any(value in haystack for value in filters):
                 continue
-            if core_supports_lane(core, lane):
-                jobs.append(Job(lane, core))
+            if core_supports_lane(core, lane, formal_targets, simulation_targets):
+                jobs.append(
+                    Job(
+                        lane,
+                        core,
+                        simulation_targets.get(core.vlnv)
+                        if simulation_targets is not None
+                        else None,
+                    )
+                )
     jobs.sort(key=lambda job: (LANES.index(job.lane), job.core.vlnv))
     if args.max_cores:
         jobs = jobs[: args.max_cores]
@@ -374,16 +1004,37 @@ def actionable_setup_lines(output: str) -> list[str]:
     return findings
 
 
-def matching_lines(output: str, patterns: Sequence[re.Pattern[str]]) -> list[str]:
+def matching_lines(
+    output: str,
+    patterns: Sequence[re.Pattern[str]],
+    allowlist: Sequence[re.Pattern[str]] = (),
+) -> list[str]:
     findings: list[str] = []
     seen: set[str] = set()
     for line in output.splitlines():
         if any(pattern.search(line) for pattern in patterns):
             normalized = line.strip()
+            if any(pattern.search(normalized) for pattern in allowlist):
+                continue
             if normalized and normalized not in seen:
                 findings.append(normalized)
                 seen.add(normalized)
     return findings
+
+
+def merge_runtime_arguments(
+    configured: Sequence[str], requested: Sequence[str]
+) -> list[str]:
+    """Let explicit CLI plusargs replace dvsim defaults without duplicates."""
+
+    def key(argument: str) -> str:
+        return argument.split("=", 1)[0] if argument.startswith("+") else argument
+
+    requested_keys = {key(argument) for argument in requested}
+    return [
+        *requested,
+        *(argument for argument in configured if key(argument) not in requested_keys),
+    ]
 
 
 def parse_makefile(work_root: Path) -> tuple[Path, list[str]]:
@@ -438,31 +1089,62 @@ def compile_command(
     if job.lane == "rtl":
         command.extend(["-S", "-DSYNTHESIS"])
     elif job.lane == "sva":
-        # OpenTitan SVA cores deliberately depend on DV interfaces that include
-        # and import UVM.  Supplying the package is therefore part of compiling
-        # the unmodified formal fileset, even though this lane does not run DPI.
-        command.extend(
-            ["-gassertions", "-DASSERT_ON", "-uvm", "--uvm-no-dpi", "-DUVM"]
-        )
+        # OpenTitan's formal flows define FPV_ON. This controls assumption and
+        # cover semantics in prim_assert.sv as well as FPV-specific RTL; the
+        # tree has no ASSERT_ON consumer.
+        command.extend(["-gassertions", "-DFPV_ON"])
+        # Only these two formal source graphs import UVM. Injecting the package
+        # into every *_sva job attributes unrelated UVM fallback diagnostics to
+        # otherwise-clean assertion cores and also changes ASSERT_ERROR macros.
+        if job.core.vlnv in SVA_UVM_CORES:
+            command.extend(["-uvm", "--uvm-no-dpi", "-DUVM"])
     else:
-        command.extend(
-            [
-                "-uvm",
-                "-DUVM",
-                "-DUVM_NO_DEPRECATED",
-                "-DUVM_REG_ADDR_WIDTH=32",
-                "-DUVM_REG_DATA_WIDTH=32",
-                "-DUVM_REG_BYTENABLE_WIDTH=4",
-                "-DSIMULATION",
-                "-DDUT_HIER=tb.dut",
-            ]
-        )
+        if job.simulation is not None and (
+            job.simulation.category == "uvm"
+            or job.simulation.requires_uvm_library
+        ):
+            command.extend(
+                [
+                    "-uvm",
+                    "-DUVM",
+                    "-DUVM_NO_DEPRECATED",
+                    "-DUVM_REG_ADDR_WIDTH=32",
+                    "-DUVM_REG_DATA_WIDTH=32",
+                    "-DUVM_REG_BYTENABLE_WIDTH=4",
+                ]
+            )
+        command.extend(["-DSIMULATION", "-DDUT_HIER=tb.dut"])
     command.extend(["-o", str(output), "-c", str(source_list)])
     return command
 
 
+TIMESCALE_RE = re.compile(
+    r"^(?:1|10|100)(?:s|ms|us|ns|ps|fs)/(?:1|10|100)(?:s|ms|us|ns|ps|fs)$"
+)
+
+
+def simulation_source_list(job: Job, source_list: Path, work_root: Path) -> Path:
+    """Apply the project-declared default timescale to Icarus simulations.
+
+    Icarus accepts ``+timescale+`` in command files, while Edalize's Icarus
+    backend does not translate dvsim's simulator-independent ``timescale``
+    setting.  Use a nested command file so the generated FuseSoC list remains
+    an unmodified, auditable input.
+    """
+    timescale = job.simulation.timescale if job.simulation is not None else None
+    if job.lane not in {"uvm", "runtime"} or not timescale:
+        return source_list
+    if not TIMESCALE_RE.fullmatch(timescale):
+        raise ValueError(
+            f"invalid dvsim timescale {timescale!r} for {job.core.vlnv}"
+        )
+    wrapper = work_root / "matrix-iverilog.scr"
+    wrapper.write_text(f"+timescale+{timescale}\n-c {source_list}\n")
+    return wrapper
+
+
 def result_base(job: Job, work_root: Path, mappings: list[str]) -> dict[str, object]:
-    return {
+    result: dict[str, object] = {
         "lane": job.lane,
         "core": job.core.vlnv,
         "description": job.core.description,
@@ -472,6 +1154,34 @@ def result_base(job: Job, work_root: Path, mappings: list[str]) -> dict[str, obj
         "status": "NOT_RUN",
         "security_vulnerability": False,
     }
+    if job.simulation is not None:
+        result.update(
+            {
+                "simulation_category": job.simulation.category,
+                "simulation_default_tool": job.simulation.default_tool,
+                "simulation_toplevels": job.simulation.toplevels,
+                "simulation_core_file": job.simulation.core_file,
+                "dvsim_config": job.simulation.dvsim_config,
+                "dvsim_test": job.simulation.dvsim_test,
+                "uvm_test": job.simulation.uvm_test,
+                "uvm_test_seq": job.simulation.uvm_test_seq,
+                "dvsim_regression": job.simulation.dvsim_regression,
+                "dvsim_runtime_args": job.simulation.runtime_args,
+                "dvsim_build_mode": job.simulation.build_mode,
+                "dvsim_build_options": job.simulation.build_options,
+                "dvsim_timescale": job.simulation.timescale,
+                "native_dependencies": job.simulation.native_dependencies,
+                "dpi_dependencies": job.simulation.dpi_dependencies,
+                "orchestration_requirements": (
+                    job.simulation.orchestration_requirements
+                ),
+                "unresolved_runtime_options": (
+                    job.simulation.unresolved_runtime_options
+                ),
+                "simulation_metadata_warnings": job.simulation.metadata_warnings,
+            }
+        )
+    return result
 
 
 def write_log(path: Path, heading: str, result: CommandResult) -> None:
@@ -549,13 +1259,16 @@ def run_job(
 
     try:
         source_list, top_options = parse_makefile(work_root)
+        compiler_source_list = simulation_source_list(job, source_list, work_root)
     except (FileNotFoundError, OSError, ValueError) as exc:
         record.update({"status": "SETUP_FAIL", "matrix_error": str(exc)})
         return record
 
     executable = work_root / f"matrix-{job.lane}.vvp"
     compile_result = command_result(
-        compile_command(job, iverilog, source_list, top_options, executable),
+        compile_command(
+            job, iverilog, compiler_source_list, top_options, executable
+        ),
         cwd=source_list.parent,
         env=env,
         timeout=args.compile_timeout,
@@ -573,6 +1286,7 @@ def run_job(
     record.update(
         {
             "source_list": str(source_list),
+            "compiler_source_list": str(compiler_source_list),
             "top_options": top_options,
             "compile_command": short_command(compile_result.command),
             "compile_returncode": compile_result.returncode,
@@ -602,7 +1316,36 @@ def run_job(
     if job.lane != "runtime":
         return record
 
-    runtime_command = [str(vvp), "-n", str(executable), *args.runtime_arg]
+    if (
+        job.simulation is not None
+        and job.simulation.category == "uvm"
+        and not job.simulation.uvm_runtime_configured
+    ):
+        record.update(
+            {
+                "status": "RUNTIME_CONFIG_MISSING",
+                "runtime_blockers": [
+                    "No authoritative dvsim uvm_test/uvm_test_seq pair is "
+                    "available for this UVM target"
+                ],
+            }
+        )
+        return record
+
+    configured_arguments = (
+        job.simulation.runtime_args if job.simulation is not None else ()
+    )
+    runtime_arguments = merge_runtime_arguments(
+        configured_arguments, args.runtime_arg
+    )
+    dpi_options = [
+        option
+        for library in args.dpi_library
+        for option in ("-d", str(library))
+    ]
+    runtime_command = [
+        str(vvp), "-n", *dpi_options, str(executable), *runtime_arguments
+    ]
     runtime_result = command_result(
         runtime_command,
         cwd=source_list.parent,
@@ -611,19 +1354,38 @@ def run_job(
     )
     runtime_log = work_root / "matrix-runtime.log"
     write_log(runtime_log, "OpenTitan UVM runtime", runtime_result)
-    runtime_errors = matching_lines(runtime_result.output, HARD_ERROR_PATTERNS)
-    runtime_debt = matching_lines(runtime_result.output, DEBT_PATTERNS)
+    runtime_errors = matching_lines(
+        runtime_result.output,
+        (*HARD_ERROR_PATTERNS, *OPENTITAN_RUNTIME_FAIL_PATTERNS),
+    )
+    runtime_pass_banner = bool(OPENTITAN_RUNTIME_PASS_RE.search(runtime_result.output))
+    if not runtime_pass_banner:
+        runtime_errors.append(
+            "OpenTitan runtime produced no `TEST PASSED [UVM_]CHECKS` banner"
+        )
+    runtime_debt = matching_lines(
+        runtime_result.output, DEBT_PATTERNS, RUNTIME_DEBT_ALLOWLIST
+    )
+    runtime_benign_diagnostics = matching_lines(
+        runtime_result.output, RUNTIME_DEBT_ALLOWLIST
+    )
     record.update(
         {
             "runtime_command": short_command(runtime_command),
+            "runtime_dpi_libraries": [str(path) for path in args.dpi_library],
             "runtime_returncode": runtime_result.returncode,
             "runtime_duration_seconds": round(runtime_result.duration_seconds, 3),
             "runtime_timed_out": runtime_result.timed_out,
             "runtime_log": str(runtime_log),
             "runtime_error_count": len(runtime_errors),
             "runtime_errors": runtime_errors[: args.diagnostic_limit],
+            "runtime_pass_banner": runtime_pass_banner,
             "runtime_debt_count": len(runtime_debt),
             "runtime_debt": runtime_debt[: args.diagnostic_limit],
+            "runtime_benign_diagnostic_count": len(runtime_benign_diagnostics),
+            "runtime_benign_diagnostics": runtime_benign_diagnostics[
+                : args.diagnostic_limit
+            ],
         }
     )
     if runtime_result.timed_out:
@@ -702,14 +1464,37 @@ def save_report(
     md_temporary.replace(md_path)
 
 
-def print_inventory(jobs: Sequence[Job]) -> None:
+def print_inventory(
+    jobs: Sequence[Job],
+    simulation_targets: dict[str, SimulationTarget] | None = None,
+) -> None:
     counts = {lane: 0 for lane in LANES}
     for job in jobs:
         counts[job.lane] += 1
     print("OpenTitan matrix candidate inventory")
     print(" ".join(f"{lane}={counts[lane]}" for lane in LANES))
+    if simulation_targets is not None:
+        category_counts = {category: 0 for category in SIMULATION_CATEGORIES}
+        for target in simulation_targets.values():
+            category_counts[target.category] += 1
+        configured_uvm = sum(
+            target.category == "uvm" and target.uvm_runtime_configured
+            for target in simulation_targets.values()
+        )
+        print(
+            "FuseSoC literal sim targets: "
+            + " ".join(
+                f"{category}={category_counts[category]}"
+                for category in SIMULATION_CATEGORIES
+            )
+            + f" uvm_runtime_configured={configured_uvm}"
+        )
     for job in jobs:
-        print(f"{job.lane:7} {job.target:7} {job.core.vlnv}  {job.core.description}")
+        category = job.simulation.category if job.simulation is not None else "-"
+        print(
+            f"{job.lane:7} {job.target:7} {category:11} "
+            f"{job.core.vlnv}  {job.core.description}"
+        )
 
 
 def self_test() -> None:
@@ -731,9 +1516,173 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     assert core_supports_lane(Core(parsed[0], ""), "uvm")
     assert core_supports_lane(Core(parsed[1], ""), "sva")
     assert core_supports_lane(Core(parsed[2], ""), "rtl")
+    uvm_target = SimulationTarget(
+        parsed[0],
+        "uvm",
+        "vcs",
+        ("tb",),
+        "hw/ip/adc_ctrl/dv/adc_ctrl_sim.core",
+        (
+            "+UVM_NO_RELNOTES",
+            "+UVM_VERBOSITY=UVM_LOW",
+            "+UVM_TESTNAME=adc_ctrl_base_test",
+            "+UVM_TEST_SEQ=adc_ctrl_smoke_vseq",
+        ),
+        "hw/ip/adc_ctrl/dv/adc_ctrl_sim_cfg.hjson",
+        "adc_ctrl_smoke",
+        "adc_ctrl_base_test",
+        "adc_ctrl_smoke_vseq",
+        timescale="1ns/1ps",
+    )
+    directed_core = Core("lowrisc:dv:prim_flop_2sync_sim:0.1", "")
+    directed_target = SimulationTarget(
+        directed_core.vlnv,
+        "directed",
+        "vcs",
+        ("tb",),
+        "hw/ip/prim/pre_dv/prim_flop_2sync/prim_flop_2sync_sim.core",
+    )
+    verilator_core = Core("lowrisc:prim:crc32_sim:0", "")
+    elaboration_core = Core("lowrisc:systems:top_earlgrey_ast:0.1", "")
+    simulation_targets = {
+        uvm_target.vlnv: uvm_target,
+        directed_target.vlnv: directed_target,
+        verilator_core.vlnv: SimulationTarget(
+            verilator_core.vlnv,
+            "verilator",
+            "verilator",
+            ("sim_main",),
+            "hw/ip/prim/dv/prim_crc32/crc32_sim.core",
+        ),
+        elaboration_core.vlnv: SimulationTarget(
+            elaboration_core.vlnv,
+            "elaboration",
+            "vcs",
+            ("top_earlgrey",),
+            "hw/top_earlgrey/top_earlgrey_ast.core",
+        ),
+    }
+    assert core_supports_lane(
+        Core(parsed[0], ""), "uvm", simulation_targets=simulation_targets
+    )
+    assert not core_supports_lane(
+        directed_core, "uvm", simulation_targets=simulation_targets
+    )
+    assert core_supports_lane(
+        directed_core, "runtime", simulation_targets=simulation_targets
+    )
+    assert not core_supports_lane(
+        verilator_core, "runtime", simulation_targets=simulation_targets
+    )
+    selection_args = argparse.Namespace(
+        lane=["uvm", "runtime"], core=[], ip=[], max_cores=0
+    )
+    selected = select_jobs(
+        [Core(parsed[0], ""), directed_core, verilator_core, elaboration_core],
+        selection_args,
+        simulation_targets=simulation_targets,
+    )
+    assert [(job.lane, job.core.vlnv) for job in selected] == [
+        ("uvm", parsed[0]),
+        ("runtime", parsed[0]),
+        ("runtime", directed_core.vlnv),
+    ]
+    assert merge_runtime_arguments(
+        uvm_target.runtime_args,
+        ["+UVM_VERBOSITY=UVM_HIGH", "+seed=9"],
+    ) == [
+        "+UVM_VERBOSITY=UVM_HIGH",
+        "+seed=9",
+        "+UVM_NO_RELNOTES",
+        "+UVM_TESTNAME=adc_ctrl_base_test",
+        "+UVM_TEST_SEQ=adc_ctrl_smoke_vseq",
+    ]
+    with tempfile.TemporaryDirectory() as directory:
+        test_root = Path(directory)
+        generated = test_root / "generated.scr"
+        generated.write_text("test.sv\n")
+        wrapper = simulation_source_list(
+            Job("uvm", Core(parsed[0], ""), uvm_target), generated, test_root
+        )
+        assert wrapper != generated
+        assert wrapper.read_text() == f"+timescale+1ns/1ps\n-c {generated}\n"
+    uvm_runtime_compile = compile_command(
+        Job("runtime", Core(parsed[0], ""), uvm_target),
+        Path("iverilog"),
+        Path("uvm.scr"),
+        [],
+        Path("uvm.vvp"),
+    )
+    assert "-uvm" in uvm_runtime_compile
+    assert "-DUVM" in uvm_runtime_compile
+    directed_runtime_compile = compile_command(
+        Job("runtime", directed_core, directed_target),
+        Path("iverilog"),
+        Path("directed.scr"),
+        [],
+        Path("directed.vvp"),
+    )
+    assert "-uvm" not in directed_runtime_compile
+    assert not any(option.startswith("-DUVM") for option in directed_runtime_compile)
+    assert "-DSIMULATION" in directed_runtime_compile
+    directed_with_uvm_import = dataclasses.replace(
+        directed_target, requires_uvm_library=True
+    )
+    directed_uvm_library_compile = compile_command(
+        Job("runtime", directed_core, directed_with_uvm_import),
+        Path("iverilog"),
+        Path("directed-uvm-import.scr"),
+        [],
+        Path("directed-uvm-import.vvp"),
+    )
+    assert "-uvm" in directed_uvm_library_compile
+    assert "-DUVM" in directed_uvm_library_compile
+    assert not core_supports_lane(
+        Core("lowrisc:ip:otbn_top_sim:0.1", "Verilator simulation"), "rtl"
+    )
+    assert not core_supports_lane(
+        Core("lowrisc:prim:crc32_sim:0", "Verilator simulation"), "rtl"
+    )
+    assert not core_supports_lane(
+        Core("lowrisc:ibex:ibex_top_tracing:0.1", "Tracing simulation"), "rtl"
+    )
     fpv = Core("lowrisc:darjeeling_ip:rv_plic_fpv:0.1", "")
     assert core_supports_lane(fpv, "sva")
     assert not core_supports_lane(fpv, "rtl")
+    fpv_compile = compile_command(
+        Job("sva", fpv), Path("iverilog"), Path("fpv.scr"), [], Path("fpv.vvp")
+    )
+    assert "-gassertions" in fpv_compile
+    assert "-DFPV_ON" in fpv_compile
+    assert "-DASSERT_ON" not in fpv_compile
+    assert "-uvm" not in fpv_compile
+    sva_compile = compile_command(
+        Job("sva", Core(parsed[1], "")),
+        Path("iverilog"),
+        Path("sva.scr"),
+        [],
+        Path("sva.vvp"),
+    )
+    assert "-uvm" in sva_compile
+    assert "--uvm-no-dpi" in sva_compile
+    pure_sva = Core("lowrisc:dv:aes_sva:0.1", "")
+    pure_sva_compile = compile_command(
+        Job("sva", pure_sva),
+        Path("iverilog"),
+        Path("aes-sva.scr"),
+        [],
+        Path("aes-sva.vvp"),
+    )
+    assert "-uvm" not in pure_sva_compile
+    formal_targets = {"lowrisc:ip:keymgr:0.1", fpv.vlnv}
+    assert core_supports_lane(
+        Core("lowrisc:ip:keymgr:0.1", ""), "sva", formal_targets
+    )
+    assert not core_supports_lane(pure_sva, "sva", formal_targets)
+    prim_keccak = Job(
+        "sva", Core("lowrisc:fpv:prim_keccak_fpv:0.1", "")
+    )
+    assert prim_keccak.target == "default"
     englishbreakfast = Job(
         "rtl", Core("lowrisc:englishbreakfast_ip:flash_ctrl:0.1", "")
     )
@@ -743,9 +1692,30 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         ENGLISHBREAKFAST_MAPPING,
     ]
     assert matching_lines("x: warning: compile-progress fallback", DEBT_PATTERNS)
+    discarded_system_result = (
+        "x.sv:3: Warning: Calling system function $system() as a task.\n"
+        "x.sv:3:          The functions return value will be ignored.\n"
+    )
+    assert not matching_lines(
+        discarded_system_result, DEBT_PATTERNS, RUNTIME_DEBT_ALLOWLIST
+    )
+    assert len(matching_lines(discarded_system_result, RUNTIME_DEBT_ALLOWLIST)) == 2
     assert matching_lines("foo.sv:4: syntax error", HARD_ERROR_PATTERNS)
     assert matching_lines("ivl: synth2.cc:1: failed assertion x", HARD_ERROR_PATTERNS)
     assert matching_lines("Abort trap: 6", HARD_ERROR_PATTERNS)
+    assert OPENTITAN_RUNTIME_PASS_RE.search("TEST PASSED CHECKS\n")
+    assert OPENTITAN_RUNTIME_PASS_RE.search("TEST PASSED UVM_CHECKS\n")
+    assert not OPENTITAN_RUNTIME_PASS_RE.search("UVM_INFO test ended\n")
+    assert matching_lines(
+        "UVM_FATAL @ 0: reporter [NOCOMP] No components instantiated",
+        OPENTITAN_RUNTIME_FAIL_PATTERNS,
+    )
+    assert not matching_lines(
+        "UVM_FATAL :    0", OPENTITAN_RUNTIME_FAIL_PATTERNS
+    )
+    assert matching_lines(
+        "TEST FAILED UVM_CHECKS", OPENTITAN_RUNTIME_FAIL_PATTERNS
+    )
     assert NO_TOPLEVEL_RE.search("ERROR: x:y:z:0 : Target 'default' has no toplevel")
     assert not actionable_setup_lines(
         "WARNING: No trustfile configured (ssh-trustfile in fusesoc.conf), "
@@ -807,6 +1777,13 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--compile-timeout", type=int, default=600)
     result.add_argument("--runtime-timeout", type=int, default=300)
     result.add_argument("--runtime-arg", action="append", default=[])
+    result.add_argument(
+        "--dpi-library",
+        action="append",
+        type=Path,
+        default=[],
+        help="repeat to load a native DPI shared library with vvp -d",
+    )
     result.add_argument("--diagnostic-limit", type=int, default=100)
     result.add_argument("--result-json", type=Path)
     result.add_argument("--result-md", type=Path)
@@ -833,6 +1810,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser().error("--opentitan-root, --build-root, and --iverilog are required")
     if args.jobs < 1:
         parser().error("--jobs must be at least 1")
+    dpi_libraries = [path.expanduser().resolve() for path in args.dpi_library]
+    missing_dpi_libraries = [path for path in dpi_libraries if not path.is_file()]
+    if missing_dpi_libraries:
+        parser().error(
+            "DPI shared library does not exist: "
+            + ", ".join(str(path) for path in missing_dpi_libraries)
+        )
+    args.dpi_library = dpi_libraries
 
     opentitan_root = args.opentitan_root.expanduser().resolve()
     build_root = args.build_root.expanduser().resolve()
@@ -851,12 +1836,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     try:
         cores = discover_cores(fusesoc, opentitan_root, env, args.setup_timeout)
+        lanes = requested_lanes(args.lane)
+        formal_targets = None
+        simulation_targets = None
+        if "sva" in lanes:
+            formal_targets = discover_formal_targets(
+                fusesoc, opentitan_root, env, args.setup_timeout
+            )
+        if {"uvm", "runtime"}.intersection(lanes):
+            simulation_targets = discover_simulation_targets(
+                fusesoc, opentitan_root, env, args.setup_timeout
+            )
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
         return 2
-    jobs = select_jobs(cores, args)
+    jobs = select_jobs(cores, args, formal_targets, simulation_targets)
     if args.list:
-        print_inventory(jobs)
+        print_inventory(jobs, simulation_targets)
         return 0
     if not jobs:
         print("No OpenTitan cores matched the requested lanes and filters", file=sys.stderr)
@@ -880,6 +1876,37 @@ def main(argv: Sequence[str] | None = None) -> int:
             ENGLISHBREAKFAST_MAPPING_CORE.encode()
         ).hexdigest(),
     }
+    if formal_targets is not None:
+        formal_listing = "\n".join(sorted(formal_targets)) + "\n"
+        metadata["fusesoc_formal_target_count"] = len(formal_targets)
+        metadata["fusesoc_formal_targets_sha256"] = hashlib.sha256(
+            formal_listing.encode()
+        ).hexdigest()
+    if simulation_targets is not None:
+        simulation_inventory = [
+            dataclasses.asdict(simulation_targets[name])
+            for name in sorted(simulation_targets)
+        ]
+        simulation_listing = json.dumps(
+            simulation_inventory, sort_keys=True, separators=(",", ":")
+        )
+        category_counts = {category: 0 for category in SIMULATION_CATEGORIES}
+        for target in simulation_targets.values():
+            category_counts[target.category] += 1
+        metadata.update(
+            {
+                "fusesoc_sim_target_count": len(simulation_targets),
+                "fusesoc_sim_category_counts": category_counts,
+                "fusesoc_sim_targets_sha256": hashlib.sha256(
+                    simulation_listing.encode()
+                ).hexdigest(),
+                "fusesoc_sim_targets": simulation_inventory,
+                "uvm_runtime_configured_target_count": sum(
+                    target.category == "uvm" and target.uvm_runtime_configured
+                    for target in simulation_targets.values()
+                ),
+            }
+        )
     json_path = (args.result_json or (build_root / "opentitan-matrix.json")).resolve()
     md_path = (args.result_md or (build_root / "opentitan-matrix.md")).resolve()
     save_report(metadata, [], json_path, md_path)
@@ -988,6 +2015,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "FAIL",
         "RUNTIME_TIMEOUT",
         "RUNTIME_FAIL",
+        "RUNTIME_CONFIG_MISSING",
         "MATRIX_ERROR",
         "DEBT",
         "SETUP_DEBT",

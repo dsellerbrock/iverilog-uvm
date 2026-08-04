@@ -364,7 +364,38 @@ void pform_class_constraint(const struct vlltype& /*loc*/,
 extern std::vector<class_type_t::pform_cross_t> pending_crosses_;
 extern std::map<perm_string, PExpr*> pending_cg_options_;
 
-void pform_class_covergroup(const struct vlltype& /*loc*/,
+/* IEEE 1800-2017 19.6. A cross item may name either an explicitly declared
+ * coverpoint or an integral variable. In the latter case the language creates
+ * an implicit coverpoint equivalent to `coverpoint variable'. Do this after
+ * the complete covergroup body has been parsed so a cross can precede the
+ * explicit coverpoint that it names. Reuse one implicit coverpoint when the
+ * same variable contributes to more than one cross. */
+static void pform_covergroup_implicit_cross_coverpoints_(
+      const struct vlltype&loc, class_type_t::pform_covergroup_t*cg)
+{
+      if (!cg) return;
+
+      for (const auto&cross : cg->crosses) {
+	    for (perm_string item : cross.cp_labels) {
+		  bool declared = false;
+		  for (const auto&cp : cg->coverpoints) {
+			if (cp.label == item) {
+			      declared = true;
+			      break;
+			}
+		  }
+		  if (declared) continue;
+
+		  class_type_t::pform_coverpoint_t cp;
+		  cp.label = item;
+		  cp.expr = new PEIdent(item, loc.lexical_pos);
+		  FILE_NAME(cp.expr, loc);
+		  cg->coverpoints.push_back(std::move(cp));
+	    }
+      }
+}
+
+void pform_class_covergroup(const struct vlltype&loc,
 			     const char*name,
 			     std::list<class_type_t::pform_coverpoint_t*>*coverpoints,
 			     std::vector<perm_string>*sample_formals,
@@ -412,6 +443,7 @@ void pform_class_covergroup(const struct vlltype& /*loc*/,
       // I1: move accumulated cross declarations onto the covergroup.
       cg->crosses = std::move(pending_crosses_);
       pending_crosses_.clear();
+      pform_covergroup_implicit_cross_coverpoints_(loc, cg);
       // M11: move accumulated covergroup-level options.
       cg->options = std::move(pending_cg_options_);
       pending_cg_options_.clear();

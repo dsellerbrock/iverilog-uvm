@@ -292,16 +292,23 @@ static void show_lpm_array(ivl_lpm_t net)
       fprintf(out, "  LPM_ARRAY: <width=%u, signal=%s>\n",
 	      width, ivl_signal_basename(array));
       nex = ivl_lpm_q(net);
-      assert(nex);
-      fprintf(out, "    Q: %p\n", nex);
+      if (nex) {
+	    fprintf(out, "    Q: %p\n", nex);
+      } else {
+	    fprintf(out, "    D: %p\n", ivl_lpm_data(net, 0));
+	    fprintf(out, "    Clock: %p (%s)\n", ivl_lpm_clk(net),
+		    ivl_lpm_negedge(net) ? "negedge" : "posedge");
+	    fprintf(out, "    Enable: %p\n", ivl_lpm_enable(net));
+      }
       nex = ivl_lpm_select(net);
       assert(nex);
       fprintf(out, "    Address: %p (address width=%u)\n",
 	      nex, ivl_lpm_selects(net));
 
-      if (width_of_nexus(ivl_lpm_q(net)) != width) {
+      nex = ivl_lpm_q(net) ? ivl_lpm_q(net) : ivl_lpm_data(net, 0);
+      if (width_of_nexus(nex) != width) {
 	    fprintf(out, "    ERROR: Data Q width doesn't match "
-		    "nexus width=%u\n", width_of_nexus(ivl_lpm_q(net)));
+		    "nexus width=%u\n", width_of_nexus(nex));
 	    stub_errors += 1;
       }
 
@@ -546,6 +553,10 @@ static void show_lpm_ff(ivl_lpm_t net)
 		  stub_errors += 1;
 	    }
       }
+
+      if (ivl_lpm_async_clr(net) && ivl_lpm_async_set(net))
+	    fprintf(out, "   Async priority: %s\n",
+		    ivl_lpm_async_set_priority(net) ? "set" : "clear");
 
       nex = ivl_lpm_data(net,0);
       fprintf(out, "      D: %p\n", nex);
@@ -909,12 +920,21 @@ static void show_lpm_substitute(ivl_lpm_t net)
       ivl_nexus_t nex_q = ivl_lpm_q(net);
       ivl_nexus_t nex_a = ivl_lpm_data(net,0);
       ivl_nexus_t nex_s = ivl_lpm_data(net,1);
+      ivl_nexus_t nex_b = ivl_lpm_data(net,2);
 
       unsigned sbase  = ivl_lpm_base(net);
       unsigned swidth = width_of_nexus(nex_s);
 
-      fprintf(out, "  LPM_SUBSTITUTE %s: <width=%u, sbase=%u, swidth=%u>\n",
-	      ivl_lpm_basename(net), width, sbase, swidth);
+      if (nex_b) {
+	    fprintf(out, "  LPM_SUBSTITUTE %s: <width=%u, variable-base, "
+		    "swidth=%u, signed=%u>\n",
+		    ivl_lpm_basename(net), width, swidth,
+		    ivl_lpm_signed(net));
+      } else {
+	    fprintf(out, "  LPM_SUBSTITUTE %s: <width=%u, sbase=%u, "
+		    "swidth=%u>\n",
+		    ivl_lpm_basename(net), width, sbase, swidth);
+      }
       fprintf(out, "    Q: %p\n", nex_q);
       if (width != width_of_nexus(nex_q)) {
 	    fprintf(out, "    ERROR: Width of Q is %u, expecting %u\n",
@@ -928,10 +948,13 @@ static void show_lpm_substitute(ivl_lpm_t net)
 	    stub_errors += 1;
       }
       fprintf(out, "    S: %p\n", nex_s);
-      if (sbase + swidth > width) {
+      if (!nex_b && sbase + swidth > width) {
 	    fprintf(out, "    ERROR: S part is out of bounds\n");
 	    stub_errors += 1;
       }
+      if (nex_b)
+	    fprintf(out, "    B: %p <width=%u>\n", nex_b,
+		    width_of_nexus(nex_b));
 }
 
 static void show_lpm_sfunc(ivl_lpm_t net)
