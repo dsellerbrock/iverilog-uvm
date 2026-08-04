@@ -667,9 +667,16 @@ NetExpr* normalize_variable_unpacked(const LineInfo&loc, const netranges_t&dims,
 	    } else {
 		  bool expr_has_sign = canonical_expr->has_sign() &&
 		                        tmp_scaled->has_sign();
-		  canonical_expr = new NetEBAdd('+', canonical_expr, tmp_scaled,
-						canonical_expr->expr_width()+1,
-		                                expr_has_sign);
+		  unsigned sum_wid = canonical_expr->expr_width();
+		  if (tmp_scaled->expr_width() > sum_wid)
+			sum_wid = tmp_scaled->expr_width();
+		  sum_wid += 1;
+		  canonical_expr = pad_to_width(canonical_expr, sum_wid, loc);
+		  tmp_scaled = pad_to_width(tmp_scaled, sum_wid, loc);
+		  NetEBAdd*sum = new NetEBAdd('+', canonical_expr, tmp_scaled,
+					      sum_wid, expr_has_sign);
+		  sum->set_line(loc);
+		  canonical_expr = sum;
 	    }
       }
 

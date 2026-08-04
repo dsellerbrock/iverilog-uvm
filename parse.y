@@ -1295,7 +1295,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <tf_ports> tf_port_declaration tf_port_item tf_port_item_list
 %type <tf_ports> tf_port_list tf_port_list_opt tf_port_list_parens_opt
 
-%type <named_pexpr> named_expression named_expression_opt port_name
+%type <named_pexpr> named_expression named_expression_opt
+%type <named_pexpr> parameter_value_byname_item port_name
 %type <named_pexprs> port_name_list parameter_value_byname_list
 %type <int_val> stream_operator
 %type <expr> stream_expression
@@ -2970,10 +2971,11 @@ covergroup_item
   /* cross declaration.  I1 (Phase 62g): captures the contributing coverpoint
      names into pending_crosses_ for the surrounding covergroup to pick up.
      M11-3: named cross-body bins (binsof selects) are captured too. */
-  | K_cross cross_item_list ';'
+  | K_cross cross_item_list coverpoint_iff_opt ';'
       { class_type_t::pform_cross_t cx;
 	cx.label = perm_string();
 	if ($2) for (const auto& l : *$2) cx.cp_labels.push_back(l);
+	cx.iff_expr = $3;
 	cx.bins = std::move(pending_cross_bins_);
 	pending_cross_bins_.clear();
 	cx.options = std::move(pending_cp_options_);
@@ -2981,9 +2983,10 @@ covergroup_item
 	pending_crosses_.push_back(std::move(cx));
 	delete $2;
 	$$ = nullptr; }
-  | K_cross cross_item_list '{' cross_body_opt '}' semicolon_opt
+  | K_cross cross_item_list coverpoint_iff_opt '{' cross_body_opt '}' semicolon_opt
       { class_type_t::pform_cross_t cx;
 	if ($2) for (const auto& l : *$2) cx.cp_labels.push_back(l);
+	cx.iff_expr = $3;
 	cx.bins = std::move(pending_cross_bins_);
 	pending_cross_bins_.clear();
 	cx.options = std::move(pending_cp_options_);
@@ -2991,10 +2994,11 @@ covergroup_item
 	pending_crosses_.push_back(std::move(cx));
 	delete $2;
 	$$ = nullptr; }
-  | IDENTIFIER ':' K_cross cross_item_list ';'
+  | IDENTIFIER ':' K_cross cross_item_list coverpoint_iff_opt ';'
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1);
 	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	cx.iff_expr = $5;
 	cx.bins = std::move(pending_cross_bins_);
 	pending_cross_bins_.clear();
 	cx.options = std::move(pending_cp_options_);
@@ -3002,10 +3006,11 @@ covergroup_item
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1; delete $4;
 	$$ = nullptr; }
-  | TYPE_IDENTIFIER ':' K_cross cross_item_list ';'
+  | TYPE_IDENTIFIER ':' K_cross cross_item_list coverpoint_iff_opt ';'
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1.text);
 	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	cx.iff_expr = $5;
 	cx.bins = std::move(pending_cross_bins_);
 	pending_cross_bins_.clear();
 	cx.options = std::move(pending_cp_options_);
@@ -3013,10 +3018,11 @@ covergroup_item
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1.text; delete $4;
 	$$ = nullptr; }
-  | IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}' semicolon_opt
+  | IDENTIFIER ':' K_cross cross_item_list coverpoint_iff_opt '{' cross_body_opt '}' semicolon_opt
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1);
 	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	cx.iff_expr = $5;
 	cx.bins = std::move(pending_cross_bins_);
 	pending_cross_bins_.clear();
 	cx.options = std::move(pending_cp_options_);
@@ -3024,10 +3030,11 @@ covergroup_item
 	pending_crosses_.push_back(std::move(cx));
 	delete[] $1; delete $4;
 	$$ = nullptr; }
-  | TYPE_IDENTIFIER ':' K_cross cross_item_list '{' cross_body_opt '}' semicolon_opt
+  | TYPE_IDENTIFIER ':' K_cross cross_item_list coverpoint_iff_opt '{' cross_body_opt '}' semicolon_opt
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1.text);
 	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	cx.iff_expr = $5;
 	cx.bins = std::move(pending_cross_bins_);
 	pending_cross_bins_.clear();
 	cx.options = std::move(pending_cp_options_);
@@ -6379,10 +6386,15 @@ sva_seq_expr
   /* Leading cycle delay: `|-> ##2 b`, `|-> ##[1:3] b`. */
   | K_CYCLE_DELAY delay_value_simple sva_seq_atom
       { long val = 0;
+	perm_string genvar_name;
 	sva_seq_step_t&f0 = (*$3)[0];
 	if (pform_sva_const_long($2, val) && f0.delay_lo >= 0) {
 	      f0.delay_lo += val;
 	      f0.delay_hi += val;
+	} else if (pform_sva_deferred_genvar($2, genvar_name)
+		   && f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = -4; f0.delay_hi = -4;
+	      f0.delay_genvar = genvar_name;
 	} else if (f0.delay_lo != -3) {
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
@@ -6391,14 +6403,19 @@ sva_seq_expr
   | K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
       { long lo = 0, hi = 0;
 	sva_seq_step_t&f0 = (*$7)[0];
-	if (pform_sva_const_long($3, lo) && pform_sva_const_long($5, hi)
+	if ((pform_sva_overridable_bound($3)
+	     || pform_sva_overridable_bound($5))
+	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = -5; f0.delay_hi = -5;
+	      f0.delay_lo_expr = $3; f0.delay_hi_expr = $5;
+	} else if (pform_sva_const_long($3, lo) && pform_sva_const_long($5, hi)
 	    && f0.delay_lo >= 0) {
 	      f0.delay_lo += lo;
 	      f0.delay_hi += hi;
 	} else if (f0.delay_lo != -3) {
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
-	delete $3; delete $5;
+	if (f0.delay_lo != -5) { delete $3; delete $5; }
 	$$ = $7; }
   /* Unbounded window ##[m:$] — weak eventually (16.9.2). */
   | K_CYCLE_DELAY '[' expression ':' '$' ']' sva_seq_atom
@@ -6433,10 +6450,15 @@ sva_seq_expr
 	$$ = $5; }
   | sva_seq_expr K_CYCLE_DELAY delay_value_simple sva_seq_atom
       { long val = 0;
+	perm_string genvar_name;
 	sva_seq_step_t&f0 = (*$4)[0];
 	if (pform_sva_const_long($3, val) && f0.delay_lo >= 0) {
 	      f0.delay_lo += val;
 	      f0.delay_hi += val;
+	} else if (pform_sva_deferred_genvar($3, genvar_name)
+		   && f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = -4; f0.delay_hi = -4;
+	      f0.delay_genvar = genvar_name;
 	} else if (f0.delay_lo != -3) {
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
@@ -6447,14 +6469,19 @@ sva_seq_expr
   | sva_seq_expr K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
       { long lo = 0, hi = 0;
 	sva_seq_step_t&f0 = (*$8)[0];
-	if (pform_sva_const_long($4, lo) && pform_sva_const_long($6, hi)
+	if ((pform_sva_overridable_bound($4)
+	     || pform_sva_overridable_bound($6))
+	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = -5; f0.delay_hi = -5;
+	      f0.delay_lo_expr = $4; f0.delay_hi_expr = $6;
+	} else if (pform_sva_const_long($4, lo) && pform_sva_const_long($6, hi)
 	    && f0.delay_lo >= 0) {
 	      f0.delay_lo += lo;
 	      f0.delay_hi += hi;
 	} else if (f0.delay_lo != -3) {
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
-	delete $4; delete $6;
+	if (f0.delay_lo != -5) { delete $4; delete $6; }
 	$1->insert($1->end(), $8->begin(), $8->end());
 	delete $8;
 	$$ = $1; }
@@ -6548,6 +6575,7 @@ simple_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
 	      PCallTask*tmp1 = new PCallTask(lex_strings.make("$error"), arg_list);
 	      FILE_NAME(tmp1, @1);
 	      PCondit*tmp2 = new PCondit($3, $5, tmp1);
+	      tmp2->immediate_assertion();
 	      FILE_NAME(tmp2, @1);
 	      $$ = tmp2;
 	} else {
@@ -6560,6 +6588,7 @@ simple_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
       {
 	if (gn_supported_assertions_flag) {
 	      PCondit*tmp = new PCondit($3, 0, $6);
+	      tmp->immediate_assertion();
 	      FILE_NAME(tmp, @1);
 	      $$ = tmp;
 	} else {
@@ -6572,6 +6601,7 @@ simple_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
       {
 	if (gn_supported_assertions_flag) {
 	      PCondit*tmp = new PCondit($3, $5, $7);
+	      tmp->immediate_assertion();
 	      FILE_NAME(tmp, @1);
 	      $$ = tmp;
 	} else {
@@ -6651,6 +6681,7 @@ assignment_pattern_expression_type
 	$$ = tmp;
       }
   | ps_type_identifier
+  | class_scoped_type_identifier
   ;
 
 simple_type_or_string /* IEEE1800-2005: A.2.2.1 */
@@ -10677,7 +10708,18 @@ list_of_port_declarations
 	tmp->push_back($3);
 	$$ = tmp;
       }
-  | list_of_port_declarations ',' attribute_list_opt IDENTIFIER dimensions_opt initializer_opt
+  | list_of_port_declarations ',' IDENTIFIER dimensions_opt initializer_opt
+      { std::vector<Module::port_t*> *ports = $1;
+
+	Module::port_t* port;
+	port = module_declare_port(@3, $3, port_declaration_context.port_type,
+				   port_declaration_context.port_net_type,
+				   port_declaration_context.data_type,
+				   $4, $5, nullptr);
+	ports->push_back(port);
+	$$ = ports;
+      }
+  | list_of_port_declarations ',' attribute_instance_list IDENTIFIER dimensions_opt initializer_opt
       { std::vector<Module::port_t*> *ports = $1;
 
 	Module::port_t* port;
@@ -10717,25 +10759,74 @@ class_scoped_type_identifier
   // All of port direction, port kind and data type are optional, but at least
   // one has to be specified, so we need multiple rules.
 port_declaration
-  : attribute_list_opt port_direction net_type_or_var_opt data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
+  : port_direction net_type_or_var_opt data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
+      { $$ = module_declare_port(@4, $4, $1, $2, $3, $5, $6, nullptr);
+      }
+  | attribute_instance_list port_direction net_type_or_var_opt data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
       { $$ = module_declare_port(@5, $5, $2, $3, $4, $6, $7, $1);
       }
-  | attribute_list_opt net_type_or_var data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
+  | net_type_or_var data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
+      { pform_requires_sv(@3, "Partial ANSI port declaration");
+	$$ = module_declare_port(@3, $3, port_declaration_context.port_type,
+			         $1, $2, $4, $5, nullptr);
+      }
+  | attribute_instance_list net_type_or_var data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
       { pform_requires_sv(@4, "Partial ANSI port declaration");
 	$$ = module_declare_port(@4, $4, port_declaration_context.port_type,
 			         $2, $3, $5, $6, $1);
       }
-  | attribute_list_opt data_type_or_implicit_no_opt IDENTIFIER dimensions_opt initializer_opt
+  | data_type_or_implicit_no_opt IDENTIFIER dimensions_opt initializer_opt
+      { pform_requires_sv(@2, "Partial ANSI port declaration");
+	$$ = module_declare_port(@2, $2, port_declaration_context.port_type,
+			         NetNet::IMPLICIT, $1, $3, $4, nullptr);
+      }
+  | attribute_instance_list data_type_or_implicit_no_opt IDENTIFIER dimensions_opt initializer_opt
       { pform_requires_sv(@3, "Partial ANSI port declaration");
 	$$ = module_declare_port(@3, $3, port_declaration_context.port_type,
 			         NetNet::IMPLICIT, $2, $4, $5, $1);
+      }
+  /* An interface can be declared later in the same compilation unit, so
+     its name is still an ordinary IDENTIFIER while this ANSI port is
+     parsed. Treat the two-identifier form as an interface port; a visible
+     typedef or interface is returned as TYPE_IDENTIFIER and follows the
+     ordinary data-type rule above. */
+  | IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
+      { interface_type_t*it = new interface_type_t(lex_strings.make($1));
+	FILE_NAME(it, @1);
+	delete[] $1;
+	pform_requires_sv(@2, "forward-referenced interface port");
+	$$ = module_declare_port(@2, $2, NetNet::PINPUT,
+			         NetNet::IMPLICIT, it, $3, $4, nullptr);
+      }
+  | attribute_instance_list IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
+      { interface_type_t*it = new interface_type_t(lex_strings.make($2));
+	FILE_NAME(it, @2);
+	delete[] $2;
+	pform_requires_sv(@3, "forward-referenced interface port");
+	$$ = module_declare_port(@3, $3, NetNet::PINPUT,
+			         NetNet::IMPLICIT, it, $4, $5, $1);
       }
   /* Phase 63a/A1: interface_port_header form per IEEE 1800 A.2.2.3.
      `counter_if.master dut_if` — interface_identifier '.' modport_identifier port_identifier.
      The modport name is recorded for elaboration; a forward-declared
      interface (IDENTIFIER not yet visible as TYPE_IDENTIFIER) goes
      through the same path. */
-  | attribute_list_opt TYPE_IDENTIFIER '.' IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
+  | TYPE_IDENTIFIER '.' IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
+      { perm_string ifname = lex_strings.make($1.text);
+	interface_type_t*it = new interface_type_t(ifname);
+	it->modport = lex_strings.make($3);
+	FILE_NAME(it, @1);
+	delete[] $1.text;
+	delete[] $3;
+	pform_requires_sv(@4, "interface_port_header");
+	// An interface port is a handle whose member directions come from
+	// the selected modport. Do not inherit the previous ANSI port's
+	// scalar direction (or the initial inout default) for the handle
+	// placeholder; in particular, interface-port arrays are legal.
+	$$ = module_declare_port(@4, $4, NetNet::PINPUT,
+				 NetNet::IMPLICIT, it, $5, $6, nullptr);
+      }
+  | attribute_instance_list TYPE_IDENTIFIER '.' IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
       { perm_string ifname = lex_strings.make($2.text);
 	interface_type_t*it = new interface_type_t(ifname);
 	it->modport = lex_strings.make($4);
@@ -10743,10 +10834,21 @@ port_declaration
 	delete[] $2.text;
 	delete[] $4;
 	pform_requires_sv(@5, "interface_port_header");
-	$$ = module_declare_port(@5, $5, port_declaration_context.port_type,
+	$$ = module_declare_port(@5, $5, NetNet::PINPUT,
 				 NetNet::IMPLICIT, it, $6, $7, $1);
       }
-  | attribute_list_opt IDENTIFIER '.' IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
+  | IDENTIFIER '.' IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
+      { perm_string ifname = lex_strings.make($1);
+	interface_type_t*it = new interface_type_t(ifname);
+	it->modport = lex_strings.make($3);
+	FILE_NAME(it, @1);
+	delete[] $1;
+	delete[] $3;
+	pform_requires_sv(@4, "interface_port_header");
+	$$ = module_declare_port(@4, $4, NetNet::PINPUT,
+				 NetNet::IMPLICIT, it, $5, $6, nullptr);
+      }
+  | attribute_instance_list IDENTIFIER '.' IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
       { perm_string ifname = lex_strings.make($2);
 	interface_type_t*it = new interface_type_t(ifname);
 	it->modport = lex_strings.make($4);
@@ -10754,10 +10856,16 @@ port_declaration
 	delete[] $2;
 	delete[] $4;
 	pform_requires_sv(@5, "interface_port_header");
-	$$ = module_declare_port(@5, $5, port_declaration_context.port_type,
+	$$ = module_declare_port(@5, $5, NetNet::PINPUT,
 				 NetNet::IMPLICIT, it, $6, $7, $1);
       }
-  | attribute_list_opt port_direction K_wreal IDENTIFIER
+  | port_direction K_wreal IDENTIFIER
+      { real_type_t*real_type = new real_type_t(real_type_t::REAL);
+	FILE_NAME(real_type, @2);
+	$$ = module_declare_port(@3, $3, $1, NetNet::WIRE,
+				 real_type, nullptr, nullptr, nullptr);
+      }
+  | attribute_instance_list port_direction K_wreal IDENTIFIER
       { real_type_t*real_type = new real_type_t(real_type_t::REAL);
 	FILE_NAME(real_type, @3);
 	$$ = module_declare_port(@4, $4, $2, NetNet::WIRE,
@@ -10768,7 +10876,16 @@ port_declaration
      type comes from the connected instance at each instantiation, so
      the pform records an interface_type_t with a NIL name; the type
      is resolved per instance at port-binding time from the actual. */
-  | attribute_list_opt K_interface IDENTIFIER dimensions_opt initializer_opt
+  | K_interface IDENTIFIER dimensions_opt initializer_opt
+      { interface_type_t*it = new interface_type_t(perm_string());
+	FILE_NAME(it, @1);
+	pform_requires_sv(@2, "generic interface port");
+	  /* An interface port is a handle, not a wire: input-kind
+	     avoids the inout-vs-variable check on the placeholder. */
+	$$ = module_declare_port(@2, $2, NetNet::PINPUT,
+				 NetNet::IMPLICIT, it, $3, $4, nullptr);
+      }
+  | attribute_instance_list K_interface IDENTIFIER dimensions_opt initializer_opt
       { interface_type_t*it = new interface_type_t(perm_string());
 	FILE_NAME(it, @2);
 	pform_requires_sv(@3, "generic interface port");
@@ -10777,7 +10894,16 @@ port_declaration
 	$$ = module_declare_port(@3, $3, NetNet::PINPUT,
 				 NetNet::IMPLICIT, it, $4, $5, $1);
       }
-  | attribute_list_opt K_interface '.' IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
+  | K_interface '.' IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
+      { interface_type_t*it = new interface_type_t(perm_string());
+	it->modport = lex_strings.make($3);
+	FILE_NAME(it, @1);
+	delete[] $3;
+	pform_requires_sv(@4, "generic interface port");
+	$$ = module_declare_port(@4, $4, NetNet::PINPUT,
+				 NetNet::IMPLICIT, it, $5, $6, nullptr);
+      }
+  | attribute_instance_list K_interface '.' IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
       { interface_type_t*it = new interface_type_t(perm_string());
 	it->modport = lex_strings.make($4);
 	FILE_NAME(it, @2);
@@ -12220,14 +12346,41 @@ named_expression_opt
       }
   ;
 
-parameter_value_byname_list
+parameter_value_byname_item
   : named_expression_opt
+      { $$ = $1;
+      }
+  | '.' IDENTIFIER
+      { pform_requires_sv(@2, "Implicit named parameter assignments");
+	named_pexpr_t*tmp = new named_pexpr_t;
+	FILE_NAME(tmp, @$);
+	tmp->name = lex_strings.make($2);
+	tmp->parm = new PEIdent(tmp->name, @2.lexical_pos, true);
+	FILE_NAME(tmp->parm, @2);
+	delete[]$2;
+	$$ = tmp;
+      }
+  /* Allow TYPE_IDENTIFIER as an implicit named parameter key. */
+  | '.' TYPE_IDENTIFIER
+      { pform_requires_sv(@2, "Implicit named parameter assignments");
+	named_pexpr_t*tmp = new named_pexpr_t;
+	FILE_NAME(tmp, @$);
+	tmp->name = lex_strings.make($2.text);
+	tmp->parm = new PEIdent(tmp->name, @2.lexical_pos, true);
+	FILE_NAME(tmp->parm, @2);
+	delete[]$2.text;
+	$$ = tmp;
+      }
+  ;
+
+parameter_value_byname_list
+  : parameter_value_byname_item
       { std::list<named_pexpr_t>*tmp = new std::list<named_pexpr_t>;
 	tmp->push_back(*$1);
 	delete $1;
 	$$ = tmp;
       }
-  | parameter_value_byname_list ',' named_expression_opt
+  | parameter_value_byname_list ',' parameter_value_byname_item
       { std::list<named_pexpr_t>*tmp = $1;
 	tmp->push_back(*$3);
 	delete $3;

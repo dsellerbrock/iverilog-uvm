@@ -31,6 +31,7 @@
 /* This is the opened xnf file descriptor. It is the output that this
    code generator writes to. */
 FILE*xnf = 0;
+unsigned fpga_errors = 0;
 
 const char*part = 0;
 const char*arch = 0;
@@ -51,14 +52,45 @@ static int show_process(ivl_process_t net, void*x)
 {
       ivl_scope_t scope = ivl_process_scope(net);
 
+      (void)x;
+
 	/* Ignore processes that are within scopes that are cells. The
 	   cell_scope will generate a cell to represent the entire
 	   scope. */
       if (scope_has_attribute(scope, "ivl_synthesis_cell"))
 	    return 0;
 
-      fprintf(stderr, "fpga target: unsynthesized behavioral code\n");
+      fprintf(stderr, "%s:%u: fpga.tgt error: unsynthesized behavioral "
+	      "code is not supported.\n",
+	      ivl_process_file(net), ivl_process_lineno(net));
+      fpga_errors += 1;
       return 0;
+}
+
+ivl_scope_t fpga_design_root(ivl_design_t des)
+{
+      ivl_scope_t*roots = 0;
+      ivl_scope_t root = 0;
+      unsigned nroots = 0;
+      unsigned idx;
+
+      ivl_design_roots(des, &roots, &nroots);
+      for (idx = 0 ; idx < nroots ; idx += 1) {
+	    if (ivl_scope_type(roots[idx]) != IVL_SCT_MODULE)
+		  continue;
+
+	    if (root == 0) {
+		  root = roots[idx];
+		  continue;
+	    }
+
+	    fprintf(stderr, "fpga.tgt error: multiple module roots '%s' and "
+		    "'%s' are not supported; select one top with -s.\n",
+		    ivl_scope_name(root), ivl_scope_name(roots[idx]));
+	    fpga_errors += 1;
+      }
+
+      return root;
 }
 
 static void show_pads(ivl_scope_t scope)
@@ -103,12 +135,15 @@ static void show_constants(ivl_design_t des)
  */
 int target_design(ivl_design_t des)
 {
-      ivl_scope_t root = ivl_design_root(des);
+      ivl_scope_t root;
       const char*path = ivl_design_flag(des, "-o");
 
-      xnf = fopen(path, "w");
-      if (xnf == 0) {
-	    perror(path);
+      fpga_errors = 0;
+      root = fpga_design_root(des);
+      if (fpga_errors)
+	    return fpga_errors;
+      if (root == 0) {
+	    fprintf(stderr, "fpga.tgt error: design has no module root.\n");
 	    return -1;
       }
 
@@ -129,27 +164,40 @@ int target_design(ivl_design_t des)
 	    return -1;
       }
 
+      xnf = fopen(path, "w");
+      if (xnf == 0) {
+	    perror(path);
+	    return -1;
+      }
+
 	/* Call the device driver to generate the netlist header. */
       device->show_header(des);
 
 	/* Catch any behavioral code that is left, and write warnings
 	   that it is not supported. */
-      ivl_design_process(des, show_process, 0);
+      if (fpga_errors == 0)
+	    ivl_design_process(des, show_process, 0);
 
 	/* Get the pads from the design, and draw them to connect to
 	   the associated signals. */
-      show_pads(root);
+      if (fpga_errors == 0)
+	    show_pads(root);
 
 	/* Scan the scopes, looking for gates to draw into the output
 	   netlist. */
-      show_scope_gates(root, 0);
+      if (fpga_errors == 0)
+	    show_scope_gates(root, 0);
 
-      show_constants(des);
+      if (fpga_errors == 0)
+	    show_constants(des);
 
 	/* Call the device driver to close out the file. */
-      device->show_footer(des);
+      if (fpga_errors == 0)
+	    device->show_footer(des);
 
       fclose(xnf);
       xnf = 0;
-      return 0;
+      if (fpga_errors != 0)
+	    remove(path);
+      return fpga_errors;
 }

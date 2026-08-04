@@ -118,6 +118,10 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
       long lo = st.delay_lo;
       long hi = st.delay_hi;
 
+      /* Parameter-valued consecutive repetition is intentionally lowered
+	 outside the parse-time NFA: its state width must be resolved after
+	 instance parameter overrides, not from a declaration default. */
+      if (st.rep_kind == 4) return ~0u;
       if (lo < 0 || hi == -2 || hi == -3)
 	    return ~0u;
 
@@ -126,6 +130,23 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 	// stale; the parser rules at K_CYCLE_DELAY '[' e ':' '$' ']'
 	// are the authority.)
       bool unbounded = (hi == -1);
+
+	/* The parse-form SVA IR is currently constructed before module
+	   parameter overrides are applied.  In particular, a checker whose
+	   default bound is `2**32' can be instantiated with a small override,
+	   but the early constant folder still sees the default.  Never let that
+	   staging limitation turn into an unbounded compiler allocation while
+	   building an NFA.  The synthesizer below already refuses automata whose
+	   state/attempt product exceeds 1024, so no shape that it could formerly
+	   commit is lost by declining an individual linear expansion beyond this
+	   bound.  Parameter-valued repetitions need the symbolic/elaboration-time
+	   lowering rather than allocating their default-sized automaton here. */
+      static const long construction_limit = 1024;
+      if (lo > construction_limit
+	  || (!unbounded && hi > construction_limit)
+	  || st.rep_tail > construction_limit
+	  || (st.rep_kind != 0 && st.rep_hi > construction_limit))
+	    return ~0u;
 
 	// First step with no explicit delay consumes the anchor tick
 	// itself: model as delay 0 -> the expr guards the very first

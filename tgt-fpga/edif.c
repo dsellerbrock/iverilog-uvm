@@ -20,6 +20,8 @@
 # include  "edif.h"
 # include  <stdlib.h>
 # include  <string.h>
+# include  <strings.h>
+# include  <ctype.h>
 # include  <assert.h>
 # include  "ivl_alloc.h"
 
@@ -41,9 +43,13 @@ struct cellref_property_ {
 
 struct edif_s {
       const char*name;
+	/* Safe identifier used by definitions/references when name needs an
+	   EDIF rename expression. */
+      const char*ename;
 	/* List the ports of the design. */
       unsigned nports;
       struct __cell_port*ports;
+      edif_joint_t*port_joints;
 	/* All the external libraries attached to me. */
       edif_xlibrary_t xlibs;
 	/* list the cellref instances. */
@@ -52,6 +58,7 @@ struct edif_s {
       struct cellref_property_*property;
 	/* Keep a list of all the nexa */
       struct edif_joint_s*nexa;
+      unsigned errors;
 };
 
 struct edif_xlibrary_s {
@@ -59,6 +66,8 @@ struct edif_xlibrary_s {
       const char*name;
 	/* The cells that are contained in this library. */
       struct edif_cell_s*cells;
+	/* Next generated alias for a user-defined synthesis cell. */
+      unsigned next_cell_alias;
 	/* point to the optional celltable. */
       const struct edif_xlib_celltable*celltable;
 	/* used to list libraries in an edif_t. */
@@ -75,6 +84,7 @@ struct __cell_port {
 
 struct edif_cell_s {
       const char*name;
+      const char*ename;
       edif_xlibrary_t xlib;
 
       unsigned nports;
@@ -86,6 +96,8 @@ struct edif_cell_s {
 
 struct edif_cellref_s {
       struct edif_cell_s* cell;
+      edif_t edf;
+      edif_joint_t*port_joints;
       unsigned u;
       struct cellref_property_*property;
       struct edif_cellref_s* next;
@@ -103,13 +115,42 @@ struct edif_joint_s {
       struct edif_joint_s*next;
 };
 
+struct edif_nexus_s {
+      unsigned count;
+      edif_joint_t*bits;
+};
 
-static int is_edif_name(const char*text)
+
+int edif_name_is_valid(const char*text)
 {
       static const char*edif_name_chars = "abcdefghijklmnopqrstuvwxyz"
                                           "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                                           "0123456789";
+      if (text == 0 || !isalpha((unsigned char)text[0]))
+	    return 0;
       return (strspn(text, edif_name_chars) == strlen(text));
+}
+
+void edif_print_string(FILE*fd, const char*text)
+{
+      const unsigned char*cp = (const unsigned char*)text;
+
+      fputc('"', fd);
+      for ( ; *cp ; cp += 1) {
+	    if (*cp == '"' || *cp == '%' || *cp < 32 || *cp > 126)
+		  fprintf(fd, "%%%u%%", (unsigned)*cp);
+	    else
+		  fputc(*cp, fd);
+      }
+      fputc('"', fd);
+}
+
+char* edif_vector_name(const char*base, unsigned bit)
+{
+      size_t size = strlen(base) + 32;
+      char*name = malloc(size);
+      snprintf(name, size, "%s[%u]", base, bit);
+      return name;
 }
 
 edif_t edif_create(const char*design_name, unsigned nports)
@@ -117,12 +158,15 @@ edif_t edif_create(const char*design_name, unsigned nports)
       edif_t edf = malloc(sizeof(struct edif_s));
 
       edf->name  = design_name;
+      edf->ename = "TOP";
       edf->nports= nports;
       edf->ports = nports? calloc(nports, sizeof(struct __cell_port)) : 0;
+      edf->port_joints = nports? calloc(nports, sizeof(edif_joint_t)) : 0;
       edf->celref= 0;
       edf->xlibs = 0;
       edf->property = 0;
       edf->nexa  = 0;
+      edf->errors = 0;
 
       return edf;
 }
@@ -133,13 +177,9 @@ void edif_portconfig(edif_t edf, unsigned idx,
       assert(idx < edf->nports);
 
       edf->ports[idx].name = name;
-      if (is_edif_name(name)) {
-	    edf->ports[idx].ename = 0;
-
-      } else {
-	    char buf[16];
-	    sprintf(buf, "PORT%u", idx);
-	    edf->ports[idx].ename = strdup(buf);
+      { char buf[32];
+	snprintf(buf, sizeof buf, "PORT%u", idx);
+	edf->ports[idx].ename = strdup(buf);
       }
 
       edf->ports[idx].dir  = dir;
@@ -148,6 +188,25 @@ void edif_portconfig(edif_t edf, unsigned idx,
 void edif_port_to_joint(edif_joint_t jnt, edif_t edf, unsigned port)
 {
       struct joint_cell_* jc = malloc(sizeof(struct joint_cell_));
+
+      if (port >= edf->nports) {
+	    fprintf(stderr, "fpga.tgt error: EDIF root port %u is out of range.\n",
+		    port);
+	    edf->errors += 1;
+	    free(jc);
+	    return;
+      }
+      if (edf->port_joints[port]) {
+	    if (edf->port_joints[port] != jnt) {
+		  fprintf(stderr, "fpga.tgt error: EDIF root port '%s' is "
+			  "connected to more than one net.\n",
+			  edf->ports[port].name);
+		  edf->errors += 1;
+	    }
+	    free(jc);
+	    return;
+      }
+      edf->port_joints[port] = jnt;
 
       jc->cell = 0;
       jc->port = port;
@@ -171,6 +230,7 @@ edif_xlibrary_t edif_xlibrary_create(edif_t edf, const char*name)
 
       xlib->name  = name;
       xlib->cells = 0;
+      xlib->next_cell_alias = 0;
       xlib->celltable = 0;
       xlib->next = edf->xlibs;
       edf->xlibs = xlib;
@@ -225,10 +285,29 @@ edif_cell_t edif_xlibrary_scope_cell(edif_xlibrary_t xlib,
 	    if (ivl_signal_port(sig) == IVL_SIP_NONE)
 		  continue;
 
-	    port_count += 1;
+	    port_count += ivl_signal_width(sig);
       }
 
       cur = edif_xcell_create(xlib, ivl_scope_tname(scope), port_count);
+
+      do {
+	    char buf[32];
+	    edif_cell_t scan;
+	    int collision = 0;
+
+	    snprintf(buf, sizeof buf, "IVLCELL%u", xlib->next_cell_alias++);
+	    for (scan = xlib->cells ; scan ; scan = scan->next) {
+		  const char*ref = scan->ename? scan->ename : scan->name;
+		  if (scan != cur && strcasecmp(ref, buf) == 0) {
+			collision = 1;
+			break;
+		  }
+	    }
+	    if (!collision) {
+		  cur->ename = strdup(buf);
+		  break;
+	    }
+      } while (1);
 
       port_count = 0;
       for (idx = 0 ;  idx < ivl_scope_sigs(scope) ;  idx += 1) {
@@ -237,10 +316,30 @@ edif_cell_t edif_xlibrary_scope_cell(edif_xlibrary_t xlib,
 	    if (ivl_signal_port(sig) == IVL_SIP_NONE)
 		  continue;
 
-	    edif_cell_portconfig(cur, port_count,
-				 ivl_signal_basename(sig),
-				 ivl_signal_port(sig));
-	    port_count += 1;
+	    if (ivl_signal_width(sig) == 1) {
+		  edif_cell_portconfig(cur, port_count,
+				   ivl_signal_basename(sig),
+				   ivl_signal_port(sig));
+		  free((char*)cur->ports[port_count].ename);
+		  { char buf[32];
+		    snprintf(buf, sizeof buf, "PORT%u", port_count);
+		    cur->ports[port_count].ename = strdup(buf);
+		  }
+		  port_count += 1;
+	    } else {
+		  unsigned bit;
+		  for (bit = 0 ; bit < ivl_signal_width(sig) ; bit += 1) {
+			char*name = edif_vector_name(ivl_signal_basename(sig), bit);
+			edif_cell_portconfig(cur, port_count, name,
+					 ivl_signal_port(sig));
+			free((char*)cur->ports[port_count].ename);
+			{ char buf[32];
+			  snprintf(buf, sizeof buf, "PORT%u", port_count);
+			  cur->ports[port_count].ename = strdup(buf);
+			}
+			port_count += 1;
+		  }
+	    }
       }
 
       return cur;
@@ -253,6 +352,7 @@ edif_cell_t edif_xcell_create(edif_xlibrary_t xlib, const char*name,
       edif_cell_t cell = malloc(sizeof(struct edif_cell_s));
 
       cell->name = name;
+      cell->ename = 0;
       cell->xlib = xlib;
       cell->nports = nports;
       cell->ports  = calloc(nports, sizeof(struct __cell_port));
@@ -260,6 +360,7 @@ edif_cell_t edif_xcell_create(edif_xlibrary_t xlib, const char*name,
 
       for (idx = 0 ;  idx < nports ;  idx += 1) {
 	    cell->ports[idx].name = "?";
+	    cell->ports[idx].ename = 0;
 	    cell->ports[idx].dir = IVL_SIP_NONE;
 	    cell->ports[idx].property = 0;
       }
@@ -276,6 +377,13 @@ void edif_cell_portconfig(edif_cell_t cell, unsigned idx,
       assert(idx < cell->nports);
 
       cell->ports[idx].name = name;
+      if (edif_name_is_valid(name)) {
+	    cell->ports[idx].ename = 0;
+      } else {
+	    char buf[16];
+	    sprintf(buf, "PORT%u", idx);
+	    cell->ports[idx].ename = strdup(buf);
+      }
       cell->ports[idx].dir  = dir;
 }
 
@@ -298,6 +406,17 @@ unsigned edif_cell_port_byname(edif_cell_t cell, const char*name)
 		  break;
 
       return idx;
+}
+
+unsigned edif_cell_port_count(edif_cell_t cell)
+{
+      return cell->nports;
+}
+
+ivl_signal_port_t edif_cell_port_direction(edif_cell_t cell, unsigned port)
+{
+      assert(port < cell->nports);
+      return cell->ports[port].dir;
 }
 
 void edif_cell_pstring(edif_cell_t cell, const char*name,
@@ -334,6 +453,9 @@ edif_cellref_t edif_cellref_create(edif_t edf, edif_cell_t cell)
 
       ref->u = u_number;
       ref->cell = cell;
+      ref->edf = edf;
+      ref->port_joints = cell->nports
+				? calloc(cell->nports, sizeof(edif_joint_t)) : 0;
       ref->property = 0;
       ref->next = edf->celref;
       edf->celref = ref;
@@ -375,17 +497,44 @@ edif_joint_t edif_joint_create(edif_t edf)
 
 edif_joint_t edif_joint_of_nexus(edif_t edf, ivl_nexus_t nex)
 {
-      void*tmp = ivl_nexus_get_private(nex);
-      edif_joint_t jnt;
+      return edif_joint_of_nexus_bit(edf, nex, 0);
+}
 
-      if (tmp == 0) {
-	    jnt = edif_joint_create(edf);
-	    ivl_nexus_set_private(nex, jnt);
-	    return jnt;
+edif_joint_t edif_joint_of_nexus_bit(edif_t edf, ivl_nexus_t nex,
+				      unsigned bit)
+{
+      struct edif_nexus_s*map = ivl_nexus_get_private(nex);
+
+      if (map == 0) {
+	    map = calloc(1, sizeof(struct edif_nexus_s));
+	    ivl_nexus_set_private(nex, map);
       }
 
-      jnt = (edif_joint_t) tmp;
-      return jnt;
+      if (bit >= map->count) {
+	    unsigned old_count = map->count;
+	    map->count = bit + 1;
+	    map->bits = realloc(map->bits, map->count * sizeof(edif_joint_t));
+	    while (old_count < map->count)
+		  map->bits[old_count++] = 0;
+      }
+
+      if (map->bits[bit] == 0)
+	    map->bits[bit] = edif_joint_create(edf);
+
+      return map->bits[bit];
+}
+
+unsigned edif_nexus_width(ivl_nexus_t nex)
+{
+      unsigned idx;
+
+      for (idx = 0 ; idx < ivl_nexus_ptrs(nex) ; idx += 1) {
+	    ivl_signal_t sig = ivl_nexus_ptr_sig(ivl_nexus_ptr(nex, idx));
+	    if (sig)
+		  return ivl_signal_width(sig);
+      }
+
+      return 0;
 }
 
 void edif_joint_rename(edif_joint_t jnt, const char*name)
@@ -398,10 +547,35 @@ void edif_add_to_joint(edif_joint_t jnt, edif_cellref_t cell, unsigned port)
 {
       struct joint_cell_* jc = malloc(sizeof(struct joint_cell_));
 
+      if (port >= cell->cell->nports) {
+	    fprintf(stderr, "fpga.tgt error: EDIF instance U%u port %u is out "
+		    "of range for cell '%s'.\n", cell->u, port,
+		    cell->cell->name);
+	    cell->edf->errors += 1;
+	    free(jc);
+	    return;
+      }
+      if (cell->port_joints[port]) {
+	    if (cell->port_joints[port] != jnt) {
+		  fprintf(stderr, "fpga.tgt error: EDIF instance U%u port '%s' "
+			  "is connected to more than one net.\n", cell->u,
+			  cell->cell->ports[port].name);
+		  cell->edf->errors += 1;
+	    }
+	    free(jc);
+	    return;
+      }
+      cell->port_joints[port] = jnt;
+
       jc->cell = cell;
       jc->port = port;
       jc->next = jnt->links;
       jnt->links = jc;
+}
+
+unsigned edif_error_count(edif_t edf)
+{
+      return edf->errors;
 }
 
 static void fprint_property(FILE*fd, const struct cellref_property_*prp)
@@ -411,13 +585,27 @@ static void fprint_property(FILE*fd, const struct cellref_property_*prp)
 	  case PRP_NONE:
 	    break;
 	  case PRP_STRING:
-	    fprintf(fd, "(string \"%s\")", prp->value_.str);
+	    fprintf(fd, "(string ");
+	    edif_print_string(fd, prp->value_.str);
+	    fprintf(fd, ")");
 	    break;
 	  case PRP_INTEGER:
 	    fprintf(fd, "(integer %ld)", prp->value_.num);
 	    break;
       }
       fprintf(fd, ")");
+}
+
+static void fprint_name_definition(FILE*fd, const char*name,
+				    const char*ename)
+{
+      if (ename) {
+	    fprintf(fd, "(rename %s ", ename);
+	    edif_print_string(fd, name);
+	    fprintf(fd, ")");
+      } else {
+	    fprintf(fd, "%s", name);
+      }
 }
 
 /*
@@ -434,7 +622,9 @@ void edif_print(FILE*fd, edif_t edf)
       const struct cellref_property_*prp;
       unsigned idx;
 
-      fprintf(fd, "(edif %s\n", edf->name);
+      fprintf(fd, "(edif ");
+      fprint_name_definition(fd, edf->name, edf->ename);
+      fprintf(fd, "\n");
       fprintf(fd, "    (edifVersion 2 0 0)\n");
       fprintf(fd, "    (edifLevel 0)\n");
       fprintf(fd, "    (keywordMap (keywordLevel 0))\n");
@@ -453,15 +643,23 @@ void edif_print(FILE*fd, edif_t edf)
 		    xlib->name);
 
 	    for (cell = xlib->cells ;  cell ;  cell = cell->next) {
-		  fprintf(fd, "      (cell %s (cellType GENERIC)\n",
-			  cell->name);
+		  fprintf(fd, "      (cell ");
+		  fprint_name_definition(fd, cell->name, cell->ename);
+		  fprintf(fd, " (cellType GENERIC)\n");
 		  fprintf(fd, "            (view net\n"
 			      "              (viewType NETLIST)\n"
 			      "              (interface");
 
 		  for (idx = 0 ;  idx < cell->nports ;  idx += 1) {
 			const struct __cell_port*pp = cell->ports + idx;
-			fprintf(fd, "\n                (port %s", pp->name);
+			fprintf(fd, "\n                (port ");
+			if (pp->ename) {
+			      fprintf(fd, "(rename %s ", pp->ename);
+			      edif_print_string(fd, pp->name);
+			      fprintf(fd, ")");
+			} else {
+			      fprintf(fd, "%s", pp->name);
+			}
 			switch (pp->dir) {
 			    case IVL_SIP_INPUT:
 			      fprintf(fd, " (direction INPUT)");
@@ -501,7 +699,9 @@ void edif_print(FILE*fd, edif_t edf)
       fprintf(fd, "      (technology (numberDefinition))\n");
 
 	/* The root module is a cell in the library. */
-      fprintf(fd, "      (cell %s\n", edf->name);
+      fprintf(fd, "      (cell ");
+      fprint_name_definition(fd, edf->name, edf->ename);
+      fprintf(fd, "\n");
       fprintf(fd, "        (cellType GENERIC)\n");
       fprintf(fd, "        (view net\n");
       fprintf(fd, "          (viewType NETLIST)\n");
@@ -511,10 +711,11 @@ void edif_print(FILE*fd, edif_t edf)
 	    fprintf(fd, "            (port ");
 	    if (edf->ports[idx].ename == 0)
 		  fprintf(fd, "%s ", edf->ports[idx].name);
-	    else
-		  fprintf(fd, "(rename %s \"%s\") ",
-			  edf->ports[idx].ename,
-			  edf->ports[idx].name);
+	    else {
+		  fprintf(fd, "(rename %s ", edf->ports[idx].ename);
+		  edif_print_string(fd, edf->ports[idx].name);
+		  fprintf(fd, ") ");
+	    }
 
 	    switch (edf->ports[idx].dir) {
 		case IVL_SIP_INPUT:
@@ -544,7 +745,9 @@ void edif_print(FILE*fd, edif_t edf)
 
 	    fprintf(fd, "(instance U%u (viewRef net "
 		    "(cellRef %s (libraryRef %s)))",
-		    ref->u, ref->cell->name, ref->cell->xlib->name);
+		    ref->u,
+		    ref->cell->ename? ref->cell->ename : ref->cell->name,
+		    ref->cell->xlib->name);
 
 	    for (prp = ref->property ;  prp ;  prp = prp->next) {
 		  fprintf(fd, " ");
@@ -562,16 +765,21 @@ void edif_print(FILE*fd, edif_t edf)
 	    const struct joint_cell_*jc;
 
 	    fprintf(fd, "(net ");
-	    if (jnt->name != 0)
-		  fprintf(fd, "(rename N%u \"%s\")", idx, jnt->name);
-	    else
+	    if (jnt->name != 0) {
+		  fprintf(fd, "(rename N%u ", idx);
+		  edif_print_string(fd, jnt->name);
+		  fprintf(fd, ")");
+	    } else {
 		  fprintf(fd, "N%u", idx);
+	    }
 	    fprintf(fd, " (joined");
 
 	    for (jc = jnt->links ;  jc ;  jc = jc->next) {
 		  if (jc->cell) {
 			fprintf(fd, " (portRef %s (instanceRef U%u))",
-				jc->cell->cell->ports[jc->port].name,
+				jc->cell->cell->ports[jc->port].ename
+				? jc->cell->cell->ports[jc->port].ename
+				: jc->cell->cell->ports[jc->port].name,
 				jc->cell->u);
 		  } else {
 			  /* Reference to a port of the main cell. */
@@ -593,8 +801,11 @@ void edif_print(FILE*fd, edif_t edf)
       fprintf(fd, "    )\n"); /* end the (library DESIGN) sexp */
 
 	/* Make an instance of the defined object */
-      fprintf(fd, "    (design %s\n", edf->name);
-      fprintf(fd, "      (cellRef %s (libraryRef DESIGN))\n", edf->name);
+      fprintf(fd, "    (design ");
+      fprint_name_definition(fd, edf->name, edf->ename);
+      fprintf(fd, "\n");
+      fprintf(fd, "      (cellRef %s (libraryRef DESIGN))\n",
+	      edf->ename? edf->ename : edf->name);
 
       for (prp = edf->property ;  prp ;  prp = prp->next) {
 	    fprintf(fd, "       ");

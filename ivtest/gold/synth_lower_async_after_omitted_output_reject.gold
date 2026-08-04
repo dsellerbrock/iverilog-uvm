@@ -1,0 +1,4 @@
+./ivltests/synth_lower_async_after_omitted_output_reject.v:12: sorry: An output omitted from a higher-priority asynchronous clause cannot have a lower-priority asynchronous control in synthesis.
+./ivltests/synth_lower_async_after_omitted_output_reject.v:11: error: Unable to synthesize synchronous process.
+./ivltests/synth_lower_async_after_omitted_output_reject.v:11: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+3 error(s) in post-elaboration processing.

@@ -1,0 +1,8 @@
+{
+    "type"   : "normal",
+    "source" : "synth_dead_declaration_initializer.v",
+    "iverilog-args" : [ "-S", "-g2012" ],
+    "vlog95" : {
+        "type" : "NI"
+    }
+}

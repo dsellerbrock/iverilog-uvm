@@ -583,11 +583,12 @@ static void declare_one_signal(vhdl_entity *ent, ivl_signal_t sig,
          vhdl_decl *decl = new vhdl_signal_decl(name, sig_type);
 
          ostringstream ss;
+         const char*file = ivl_signal_file(sig);
          if (ivl_signal_local(sig)) {
-               ss << "Temporary created at " << ivl_signal_file(sig) << ":"
+               ss << "Temporary created at " << (file ? file : "<synthesized>") << ":"
                   << ivl_signal_lineno(sig);
          } else {
-            ss << "Declared at " << ivl_signal_file(sig) << ":"
+            ss << "Declared at " << (file ? file : "<synthesized>") << ":"
                << ivl_signal_lineno(sig);
          }
          decl->set_comment(ss.str());

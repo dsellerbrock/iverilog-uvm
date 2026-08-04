@@ -1362,6 +1362,14 @@ extern unsigned    ivl_lpm_lineno(ivl_lpm_t net);
  * indeed the width of the part, even though it is written to a wider
  * gate. The target will need to handle this case specially.
  *
+ * - Substitute (IVL_LPM_SUBSTITUTE)
+ * This device copies ivl_lpm_data(0) to the full-width output, replacing
+ * a part with ivl_lpm_data(1). If ivl_lpm_data(2) is nil, ivl_lpm_base()
+ * is the constant canonical base. Otherwise data(2) is the run-time base
+ * and ivl_lpm_signed() gives its signedness. An X/Z or wholly out-of-range
+ * run-time base leaves data(0) unchanged; a partially overlapping part is
+ * clipped to the output vector.
+ *
  * - Bi-directional Part Select (IVL_LPM_PART_BI)
  * This is not exactly a part select but a bi-directional partial link
  * of two nexa with different widths. This is used to implement tran
@@ -1408,15 +1416,15 @@ extern unsigned    ivl_lpm_lineno(ivl_lpm_t net);
  * single ivl_lpm_data input are the same width, ivl_lpm_width. This
  * device carries a vector like other LPM devices.
  *
- * - Memory port (IVL_LPM_RAM) (deprecated in favor of IVL_LPM_ARRAY)
+ * - Array port (IVL_LPM_ARRAY)
  * These are structural ports into a memory device. They represent
  * address/data ports of a memory device that the context can hook to
  * for read or write. Read devices have an ivl_lpm_q output port that
  * is the data being read.
  *
- * The ivl_lpm_memory function returns the ivl_memory_t for the memory
- * that the port access. The ivl_lpm_width for the port then must
- * match the ivl_memory_width of the memory device.
+ * The ivl_lpm_array function returns the ivl_signal_t for the unpacked
+ * array that the port accesses. The ivl_lpm_width for the port matches
+ * the packed word width of that signal.
  *
  * Read or write, the ivl_lpm_select nexus is the address. The
  * ivl_lpm_selects function returns the vector width of the
@@ -1424,9 +1432,11 @@ extern unsigned    ivl_lpm_lineno(ivl_lpm_t net);
  * size-1 -- the canonical form. It is up to the compiler to generate
  * offsets to correct for a range declaration.
  *
- * Read ports use the ivl_lpm_q as the data output, and write ports
- * use the ivl_lpm_data(0) as the input. In either case the width of
- * the vector matches the width of the memory itself.
+ * Read ports use ivl_lpm_q as the data output and have no clock. A
+ * synchronous write port has a null ivl_lpm_q, uses ivl_lpm_data(0) as
+ * the input, ivl_lpm_clk as its edge clock, and ivl_lpm_enable as its
+ * scalar write enable. ivl_lpm_negedge selects the active edge. In
+ * either case the data vector width matches the packed array word.
  *
  * - Reduction operators (IVL_LPM_RE_*)
  * These devices have one input, a vector, and generate a single bit
@@ -1510,6 +1520,9 @@ extern ivl_event_t    ivl_lpm_trigger(ivl_lpm_t net);
   /* IVL_LPM_FF */
 extern ivl_nexus_t ivl_lpm_async_clr(ivl_lpm_t net);
 extern ivl_nexus_t ivl_lpm_async_set(ivl_lpm_t net);
+  /* When both asynchronous controls are present, return nonzero if
+     async set has priority over async clear. */
+extern unsigned    ivl_lpm_async_set_priority(ivl_lpm_t net);
 extern ivl_expr_t  ivl_lpm_aset_value(ivl_lpm_t net);
 extern ivl_nexus_t ivl_lpm_sync_clr(ivl_lpm_t net);
 extern ivl_nexus_t ivl_lpm_sync_set(ivl_lpm_t net);
@@ -1518,16 +1531,17 @@ extern ivl_expr_t  ivl_lpm_sset_value(ivl_lpm_t net);
 extern ivl_signal_t ivl_lpm_array(ivl_lpm_t net);
   /* IVL_LPM_PART IVL_LPM_SUBSTITUTE */
 extern unsigned ivl_lpm_base(ivl_lpm_t net);
-  /* IVL_LPM_FF */
+  /* IVL_LPM_FF IVL_LPM_ARRAY (write port) */
 extern unsigned    ivl_lpm_negedge(ivl_lpm_t net);
 extern ivl_nexus_t ivl_lpm_clk(ivl_lpm_t net);
   /* IVL_LPM_UFUNC */
 extern ivl_scope_t  ivl_lpm_define(ivl_lpm_t net);
-  /* IVL_LPM_FF IVL_LPM_LATCH*/
+  /* IVL_LPM_FF IVL_LPM_LATCH IVL_LPM_ARRAY (write port) */
 extern ivl_nexus_t ivl_lpm_enable(ivl_lpm_t net);
   /* IVL_LPM_ADD IVL_LPM_CONCAT IVL_LPM_FF IVL_LPM_PART IVL_LPM_MULT
      IVL_LPM_MUX IVL_LPM_POW IVL_LPM_SHIFTL IVL_LPM_SHIFTR IVL_LPM_SUB
-     IVL_LPM_UFUNC IVL_LPM_SUBSTITUTE IVL_LPM_LATCH */
+     IVL_LPM_UFUNC IVL_LPM_SUBSTITUTE IVL_LPM_LATCH
+     IVL_LPM_ARRAY (write port) */
 extern ivl_nexus_t ivl_lpm_data(ivl_lpm_t net, unsigned idx);
   /* IVL_LPM_ADD IVL_LPM_MULT IVL_LPM_POW IVL_LPM_SUB IVL_LPM_CMP_EQ
      IVL_LPM_CMP_EEQ IVL_LPM_CMP_EQX IVL_LPM_CMP_EQZ IVL_LPM_CMP_NEE */
@@ -2492,6 +2506,17 @@ extern unsigned ivl_switch_lineno(ivl_switch_t net);
  * ivl_type_packed_width
  *    Returns the total width of all packed dimensions.
  *
+ * ivl_type_is_packed_vector
+ *    Returns TRUE when the type uses the canonical packed-vector ABI at
+ *    foreign-language boundaries. This includes explicit packed bit/logic
+ *    vectors (even [0:0]), integer, time, packed arrays/structs/unions, and
+ *    enums whose base type has that representation. It returns FALSE for
+ *    scalar bit/logic and the byte/shortint/int/longint atom types.
+ *
+ * ivl_type_is_chandle
+ *    Returns TRUE when the type is chandle. DPI maps this type to void*,
+ *    which must remain distinct from a 64-bit integer on all host ABIs.
+ *
  * ivl_type_signed
  *    Return TRUE if the type represents a signed packed vector or
  *    signed atomic type, and FALSE otherwise.
@@ -2506,6 +2531,8 @@ extern unsigned ivl_type_packed_dimensions(ivl_type_t net);
 extern int ivl_type_packed_lsb(ivl_type_t net, unsigned dim);
 extern int ivl_type_packed_msb(ivl_type_t net, unsigned dim);
 extern unsigned ivl_type_packed_width(ivl_type_t net);
+extern int ivl_type_is_packed_vector(ivl_type_t net);
+extern int ivl_type_is_chandle(ivl_type_t net);
 extern int ivl_type_signed(ivl_type_t net);
 extern const char* ivl_type_name(ivl_type_t net);
 extern ivl_type_t ivl_type_super(ivl_type_t net);
@@ -2554,6 +2581,9 @@ extern const char* ivl_type_covgrp_item_weight_ir(ivl_type_t net, int idx);
 extern int      ivl_type_covgrp_item_is_cross(ivl_type_t net, int idx);
   /* M12-7: coverpoint/cross label ("" when unnamed). */
 extern const char* ivl_type_covgrp_item_name(ivl_type_t net, int idx);
+  /* Parent-property source of a cross iff guard for event-driven
+     sampling (-1 when unguarded or not property-backed). */
+extern int      ivl_type_covgrp_item_guardsrc(ivl_type_t net, int idx);
   /* M11-3: event-driven sampling of class-embedded covergroups —
      hidden parent-handle property and per-coverpoint parent source /
      guard property indexes (-1 = none). */

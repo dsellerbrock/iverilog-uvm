@@ -1,0 +1,2 @@
+ivltests/synth_single_async_fpga_reject.v:9: fpga.tgt error: architecture generic-xnf does not support asynchronous clear controls.
+error: Code generation had 1 error(s).

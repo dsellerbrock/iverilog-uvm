@@ -1860,13 +1860,14 @@ void vvp_fun_signal_object_sa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
       assert(ptr.port() == 0);
       attached_net_ = ptr.ptr();
       uint64_t bit_epoch = bit.mutation_epoch();
+      bool handle_changed = needs_init_ || value_ != bit;
 
-      if (needs_init_ || value_ != bit || value_epoch_ != bit_epoch) {
-            if (attached_net_ && !value_.test_nil())
+      if (handle_changed || value_epoch_ != bit_epoch) {
+            if (handle_changed && attached_net_ && !value_.test_nil())
                   value_.unregister_signal_alias(attached_net_, 0);
 	    value_ = bit;
 	    value_epoch_ = bit_epoch;
-            if (attached_net_ && !value_.test_nil())
+            if (handle_changed && attached_net_ && !value_.test_nil())
                   value_.register_signal_alias(attached_net_, 0);
 	    needs_init_ = false;
 
@@ -2071,13 +2072,14 @@ void vvp_fun_signal_object_aa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
 	    signal_object_aa_slot*slot =
 		  signal_object_aa_get_or_make_slot(context, context_idx_);
 	    uint64_t bit_epoch = bit.mutation_epoch();
+	    bool handle_changed = slot->value != bit;
 
-	    if (slot->value != bit || slot->epoch != bit_epoch) {
-		  if (attached_net_ && !slot->value.test_nil())
+	    if (handle_changed || slot->epoch != bit_epoch) {
+		  if (handle_changed && attached_net_ && !slot->value.test_nil())
 			slot->value.unregister_signal_alias(attached_net_, context);
 		  slot->value = bit;
 		  slot->epoch = bit_epoch;
-		  if (attached_net_ && !slot->value.test_nil())
+		  if (handle_changed && attached_net_ && !slot->value.test_nil())
 			slot->value.register_signal_alias(attached_net_, context);
 		  ptr.ptr()->send_object(bit, context);
 	    }

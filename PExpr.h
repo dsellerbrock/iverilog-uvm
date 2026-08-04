@@ -229,6 +229,7 @@ class PEAssignPattern : public PExpr {
       virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
 				     unsigned expr_wid,
                                      unsigned flags) const override;
+      void reloc_lexical_pos_bind(bool parameter_context) override;
       const std::vector<PExpr*>& parms() const { return parms_; }
       const std::vector<perm_string>& parm_names() const { return parm_names_; }
 	// Non-null when the pattern is exactly `'{default: value}'.
@@ -604,14 +605,16 @@ class PEIdent : public PExpr {
 					  const NetScope*found_in,
 					  ivl_type_t par_type,
 					  bool need_const) const;
-	// Materialize a whole unpacked array parameter as a typed array
-	// pattern, for assignments and fixed-array subroutine arguments.
-      NetExpr*elaborate_expr_param_array_whole_(Design*des,
+	// Materialize a whole, partially indexed, or sliced unpacked array
+	// parameter as a typed array value. Source and target dimensions may
+	// have different index bounds/directions; assignment is left-to-left.
+      NetExpr*elaborate_expr_param_array_value_(Design*des,
 						NetScope*scope,
 						const NetScope*found_in,
 						perm_string name,
 						ivl_type_t par_type,
-						ivl_type_t target_type) const;
+						ivl_type_t target_type,
+						bool need_const) const;
 	// Select packed-struct members after resolving a scalar parameter or
 	// an element of an unpacked array parameter (P[i].member).
       NetExpr*elaborate_expr_param_member_(Design*des,

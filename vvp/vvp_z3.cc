@@ -462,13 +462,13 @@ struct Z3Builder {
             return false;
       }
 
-	// Dynamic-array size variables ("s:N:T"): one 32-bit BV per
-	// property index. T is the %new/darray type text used to create
-	// the array at write-back (IEEE 1800-2017 18.4: the size of a
-	// rand dynamic array is itself randomized subject to constraints).
+	// Dynamic-container size variables ("s:N:T"): one 32-bit BV per
+	// property index. T is either %new/darray-style element type text,
+	// or Q<MAX>:<element-type> for a queue (MAX=0 means unbounded).
+	// IEEE 1800-2017 18.4 randomizes the size before the elements.
       struct SizeVar {
 	    unsigned idx;
-	    string darray_type;
+	    string container_type;
 	    Z3_ast var;
       };
       vector<SizeVar> size_vars;
@@ -491,7 +491,7 @@ struct Z3Builder {
 	    snprintf(name, sizeof(name), "s%u", idx);
 	    Z3_sort sort = Z3_mk_bv_sort(ctx, 32);
 	    Z3_ast var = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, name), sort);
-	    SizeVar sv; sv.idx = idx; sv.darray_type = dtype; sv.var = var;
+	    SizeVar sv; sv.idx = idx; sv.container_type = dtype; sv.var = var;
 	    size_vars.push_back(sv);
 	    return var;
       }
@@ -1872,6 +1872,59 @@ static vvp_darray* make_darray_for_type(const string&text, size_t size)
       return new vvp_darray_vec4(size, 32);
 }
 
+/* Decode the size-variable container descriptor. Dynamic arrays retain the
+ * historical bare element encoding. A queue is Q<MAX>:<ENC>, where MAX is
+ * its declared maximum element count (0 for an unbounded queue). Rand queue
+ * lowering currently admits only integral elements, so every queue created
+ * here is the vec4 flavor and elem_width is exact. */
+struct random_container_desc_t {
+      bool is_queue = false;
+      uint64_t max_size = 0;
+      string elem_type;
+      unsigned elem_width = 32;
+};
+
+static random_container_desc_t random_container_desc_(const string&text)
+{
+      random_container_desc_t desc;
+      desc.elem_type = text;
+      if (!text.empty() && text[0] == 'Q') {
+	    char*end = nullptr;
+	    desc.max_size = strtoull(text.c_str() + 1, &end, 10);
+	    if (end != text.c_str() + 1 && end && *end == ':') {
+		  desc.is_queue = true;
+		  desc.elem_type = string(end + 1);
+	    }
+      }
+
+      unsigned width = 0;
+      size_t n = 0;
+      const char*elem = desc.elem_type.c_str();
+      if ((1 == sscanf(elem, "b%u%zn", &width, &n) && n == desc.elem_type.size())
+	  || (1 == sscanf(elem, "sb%u%zn", &width, &n) && n == desc.elem_type.size())
+	  || (1 == sscanf(elem, "v%u%zn", &width, &n) && n == desc.elem_type.size())
+	  || (1 == sscanf(elem, "sv%u%zn", &width, &n) && n == desc.elem_type.size()))
+	    desc.elem_width = width ? width : 32;
+      return desc;
+}
+
+static uint64_t random_container_size_cap_(const string&text)
+{
+      random_container_desc_t desc = random_container_desc_(text);
+      uint64_t cap = 65536;
+      if (desc.is_queue && desc.max_size && desc.max_size < cap)
+	    cap = desc.max_size;
+      return cap;
+}
+
+static vvp_darray* make_random_container_(const random_container_desc_t&desc,
+					  size_t size)
+{
+      if (desc.is_queue)
+	    return new vvp_queue_vec4;
+      return make_darray_for_type(desc.elem_type, size);
+}
+
 /* Read the current bits of an array-property element (darray object or
  * static array), for the satisfied-already pre-check and xor targets. */
 static uint64_t cobj_elem_bits(vvp_cobject* cobj, unsigned idx, unsigned elem)
@@ -2153,13 +2206,21 @@ static bool rand_active_(const class_type* defn, vvp_cobject* cobj,
 static const uint64_t ENUM_DOMAIN_CAP = 1024;
 
 /* Enumerate every value `var` (a WIDTH-bit bitvector constant) can take
- * while `base` remains satisfiable, via repeated SAT checks with
- * blocking (var != each value found so far). `base` already carries
- * every hard constraint/pin relevant to this solve -- callers push/pop
- * around this so it is safe to call repeatedly as more variables get
- * pinned. Returns false (leaving `out` empty) when the type's full
- * domain is bigger than ENUM_DOMAIN_CAP -- not worth the SAT-call
- * budget, and the caller should fall back to the approximate method. */
+ * while `base` remains satisfiable. `base` already carries every hard
+ * constraint/pin relevant to this solve.
+ *
+ * Do NOT enumerate by repeatedly asking Z3 for a complete model and then
+ * blocking the value it chose. A dense 10-bit field needs 1024 models that
+ * way, and constructing each model materializes values for every other free
+ * variable too. OpenTitan's adc_ctrl_filter_cfg has two such fields and 16
+ * instances; model construction alone consumed most of its startup time.
+ *
+ * Probe each candidate with a temporary equality assumption instead. This
+ * has the same bounded <=ENUM_DOMAIN_CAP SAT-check count, discovers exactly
+ * the same feasible set, and leaves the solver assertion stack untouched,
+ * but never builds the irrelevant full models. An UNKNOWN result makes the
+ * exact enumeration fail as a whole so the caller uses its documented
+ * fallback rather than sampling an incomplete set. */
 static bool z3_enumerate_domain(Z3_context ctx, Z3_solver base, Z3_ast var,
                                  unsigned width, vector<uint64_t>& out)
 {
@@ -2168,22 +2229,18 @@ static bool z3_enumerate_domain(Z3_context ctx, Z3_solver base, Z3_ast var,
       uint64_t domain = (uint64_t)1 << width;
       if (domain > ENUM_DOMAIN_CAP) return false;
 
-      Z3_solver_push(ctx, base);
-      while (out.size() < domain) {
-	    Z3_lbool r = Z3_solver_check(ctx, base);
-	    if (r != Z3_L_TRUE) break;
-	    Z3_model m = Z3_solver_get_model(ctx, base);
-	    Z3_model_inc_ref(ctx, m);
-	    uint64_t bits = 0;
-	    bool ok = z3_eval_uint64(ctx, m, var, bits);
-	    Z3_model_dec_ref(ctx, m);
-	    if (!ok) break;
-	    out.push_back(bits);
-	    Z3_sort sort = Z3_mk_bv_sort(ctx, width);
+      Z3_sort sort = Z3_mk_bv_sort(ctx, width);
+      for (uint64_t bits = 0 ; bits < domain ; bits += 1) {
 	    Z3_ast cv = Z3_mk_unsigned_int64(ctx, bits, sort);
-	    Z3_solver_assert(ctx, base, Z3_mk_not(ctx, Z3_mk_eq(ctx, var, cv)));
+	    Z3_ast eq = Z3_mk_eq(ctx, var, cv);
+	    Z3_lbool r = Z3_solver_check_assumptions(ctx, base, 1, &eq);
+	    if (r == Z3_L_TRUE) {
+		  out.push_back(bits);
+	    } else if (r == Z3_L_UNDEF) {
+		  out.clear();
+		  return false;
+	    }
       }
-      Z3_solver_pop(ctx, base, 1);
       return !out.empty();
 }
 
@@ -2233,12 +2290,11 @@ static bool z3_enumerate_sparse_wide_domain_(Z3_context ctx, Z3_solver base,
       return true;
 }
 
-/* Performance note on z3_enumerate_domain above: it costs one Z3 call
- * PER FEASIBLE VALUE (plus one to prove exhaustion) -- fine for a small
- * or sparse feasible set, but a dense contiguous range close to the
- * ENUM_DOMAIN_CAP (e.g. `x inside {[0:99]}`) costs on the order of 100
- * Z3 round-trips, measurably slower per randomize() call than the old
- * single-objective minimize. The function below discovers the SAME
+/* Performance note on z3_enumerate_domain above: it costs one cheap SAT
+ * probe per value in the declared domain. That bounded exhaustive scan is
+ * necessary when other free variables make `var == value` an existential
+ * question, but it is still more round-trips than a dense single-variable
+ * range needs. The function below discovers the SAME
  * feasible set as a small list of maximal intervals via binary search
  * -- O(log(domain)) Z3 calls per interval rather than one per value,
  * e.g. ~14 calls instead of ~100 for a single 100-value contiguous
@@ -2548,13 +2604,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_solver_assert(ctx, base, eq);
       }
 
-      // Dynamic-array size variables are bounded by a pragmatic hard cap
-      // so an under-constrained `arr.size() > k` cannot demand a huge
-      // allocation. (IEEE places no bound; this is an implementation
-      // limit, matching typical simulator behavior.)
+      // Dynamic-container size variables are bounded by a pragmatic hard cap
+      // so an under-constrained `.size() > k` cannot demand a huge
+      // allocation. A bounded queue additionally carries its declared
+      // maximum count in the Q descriptor; violating that bound is UNSAT.
       for (auto& sv : builder.size_vars) {
 	    Z3_sort s32 = Z3_mk_bv_sort(ctx, 32);
-	    Z3_ast cap = Z3_mk_unsigned_int64(ctx, 65536, s32);
+	    uint64_t cap_value =
+		  random_container_size_cap_(sv.container_type);
+	    Z3_ast cap = Z3_mk_unsigned_int64(ctx, cap_value, s32);
 	    Z3_ast le = Z3_mk_bvule(ctx, sv.var, cap);
 	    Z3_optimize_assert(ctx, opt, le);
 	    Z3_solver_assert(ctx, base, le);
@@ -3058,28 +3116,43 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    }
       }
 
-	// Apply solved dynamic-array sizes: create (or replace) the
-	// property's darray with the solved element count and fill the
-	// elements with random bits. Element constraints, when present,
-	// overwrite specific entries below.
+	// Apply solved dynamic-array/queue sizes: create (or replace) the
+	// property's correctly typed container with the solved element count
+	// and fill integral elements with random bits. Element constraints,
+	// when present, overwrite specific entries below.
       for (auto& sv : builder.size_vars) {
 	    if (!rand_active_(defn, cobj, prop_active, sv.idx)) continue;
 	    uint64_t new_size = 0;
 	    if (!z3_eval_uint64(ctx, model, sv.var, new_size))
 		  continue;
-	    if (new_size > 65536) new_size = 65536;
+	    uint64_t cap = random_container_size_cap_(sv.container_type);
+	    if (new_size > cap) new_size = cap;
 
-	    vvp_darray*da = make_darray_for_type(sv.darray_type,
-						 (size_t)new_size);
-	    for (uint64_t adr = 0 ; adr < new_size ; adr += 1) {
-		  vvp_vector4_t word;
-		  da->get_word((unsigned)adr, word);
-		  unsigned wid = word.size();
-		  if (wid == 0) wid = 32;
-		  vvp_vector4_t nv(wid, BIT4_0);
-		  for (unsigned b = 0 ; b < wid ; b += 1)
-			nv.set_bit(b, (rand() & 1) ? BIT4_1 : BIT4_0);
-		  da->set_word((unsigned)adr, nv);
+	    random_container_desc_t desc =
+		  random_container_desc_(sv.container_type);
+	    vvp_darray*da = make_random_container_(desc, (size_t)new_size);
+	    if (desc.is_queue) {
+		  vvp_queue*queue = dynamic_cast<vvp_queue*>(da);
+		  unsigned queue_max = desc.max_size <= UINT_MAX
+			? (unsigned)desc.max_size : 0;
+		  for (uint64_t adr = 0 ; queue && adr < new_size ; adr += 1) {
+			vvp_vector4_t nv(desc.elem_width, BIT4_0);
+			for (unsigned b = 0 ; b < desc.elem_width ; b += 1)
+			      nv.set_bit(b, (cobj->rng_next() & 1)
+					    ? BIT4_1 : BIT4_0);
+			queue->set_word_max((unsigned)adr, nv, queue_max);
+		  }
+	    } else {
+		  for (uint64_t adr = 0 ; adr < new_size ; adr += 1) {
+			vvp_vector4_t word;
+			da->get_word((unsigned)adr, word);
+			unsigned wid = word.size();
+			if (wid == 0) wid = 32;
+			vvp_vector4_t nv(wid, BIT4_0);
+			for (unsigned b = 0 ; b < wid ; b += 1)
+			      nv.set_bit(b, (rand() & 1) ? BIT4_1 : BIT4_0);
+			da->set_word((unsigned)adr, nv);
+		  }
 	    }
 	    vvp_object_t obj(da);
 	    cobj->set_object(sv.idx, obj, 0);

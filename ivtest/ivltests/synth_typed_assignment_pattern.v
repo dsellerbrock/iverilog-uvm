@@ -22,6 +22,11 @@ package p;
   typedef logic [7:0] byte_queue_t [$];
 endpackage
 
+class scoped_pattern_types;
+  typedef p::cfg_t typedef_t;
+  localparam type parameter_t = p::override_cfg_t;
+endclass
+
 module typed_parameter_pattern #(
   parameter type T = p::cfg_t
 ) (
@@ -66,6 +71,8 @@ module synth_typed_assignment_pattern;
   logic [7:0] alias_lo;
   logic [31:0] scoped_value;
   logic [31:0] alias_value;
+  logic [31:0] class_typedef_value;
+  logic [31:0] class_parameter_value;
   logic        atom_fill;
   logic [31:0] atom_value;
   logic [15:0] type_ref_source;
@@ -82,6 +89,10 @@ module synth_typed_assignment_pattern;
       {2{p::cfg_t'{lo: scoped_lo, hi: scoped_hi}}};
   assign alias_value =
       {2{cfg_alias_t'{lo: alias_lo, hi: alias_hi}}};
+  assign class_typedef_value =
+      {2{scoped_pattern_types::typedef_t'{lo: alias_lo, hi: alias_hi}}};
+  assign class_parameter_value =
+      {2{scoped_pattern_types::parameter_t'{hi: scoped_hi, lo: scoped_lo}}};
   assign atom_value = int'{default: atom_fill};
   assign type_ref_value = type(type_ref_source)'{default: atom_fill};
 
@@ -135,6 +146,19 @@ module synth_typed_assignment_pattern;
     end
     if (alias_value !== 32'ha53c_a53c) begin
       $display("FAILED -- alias typed pattern = %h", alias_value);
+      $finish;
+    end
+    if (class_typedef_value !== 32'ha53c_a53c) begin
+      $display("FAILED -- class-scoped typedef pattern = %h",
+               class_typedef_value);
+      $finish;
+    end
+    // parameter_t resolves to override_cfg_t, whose declaration order is
+    // lo then hi. This distinguishes its class-scoped type context from the
+    // surrounding 32-bit replication result.
+    if (class_parameter_value !== 32'h44bb_44bb) begin
+      $display("FAILED -- class-scoped type-parameter pattern = %h",
+               class_parameter_value);
       $finish;
     end
     if (unpacked_value[0] !== 8'hbb || unpacked_value[1] !== 8'h44) begin
@@ -200,6 +224,16 @@ module synth_typed_assignment_pattern;
     end
     if (alias_value !== 32'hc609_c609) begin
       $display("FAILED -- updated alias typed pattern = %h", alias_value);
+      $finish;
+    end
+    if (class_typedef_value !== 32'hc609_c609) begin
+      $display("FAILED -- updated class-scoped typedef pattern = %h",
+               class_typedef_value);
+      $finish;
+    end
+    if (class_parameter_value !== 32'he712_e712) begin
+      $display("FAILED -- updated class-scoped type-parameter pattern = %h",
+               class_parameter_value);
       $finish;
     end
     if (unpacked_value[0] !== 8'h12 || unpacked_value[1] !== 8'he7) begin

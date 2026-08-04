@@ -20,12 +20,14 @@
 # include  <ivl_target.h>
 # include  "fpga_priv.h"
 # include  <assert.h>
+# include  <string.h>
 
 static void show_cell_scope(ivl_scope_t scope)
 {
       if (device->show_cell_scope == 0) {
 	    fprintf(stderr, "fpga.tgt: ivl_synthesis_cell(scope)"
 		    " not supported by this target.\n");
+	    fpga_errors += 1;
 	    return;
       }
 
@@ -37,6 +39,7 @@ static void show_gate_logic(ivl_net_logic_t net)
       if (device->show_logic == 0) {
 	    fprintf(stderr, "fpga.tgt: IVL LOGIC not supported"
 		    " by this target.\n");
+	    fpga_errors += 1;
 	    return;
       }
 
@@ -52,6 +55,7 @@ static void show_gate_lpm(ivl_lpm_t net)
 	    if (device->show_add == 0) {
 		  fprintf(stderr, "fpga.tgt: IVL_LPM_ADD not supported"
 			  " by this target.\n");
+		  fpga_errors += 1;
 		  return;
 	    }
 	    device->show_add(net);
@@ -61,6 +65,7 @@ static void show_gate_lpm(ivl_lpm_t net)
 	    if (device->show_sub == 0) {
 		  fprintf(stderr, "fpga.tgt: IVL_LPM_SUB not supported"
 			  " by this target.\n");
+		  fpga_errors += 1;
 		  return;
 	    }
 	    device->show_sub(net);
@@ -70,6 +75,7 @@ static void show_gate_lpm(ivl_lpm_t net)
 	    if (device->show_cmp_eq == 0) {
 		  fprintf(stderr, "fpga.tgt: IVL_LPM_CMP_EQ not supported"
 			  " by this target.\n");
+		  fpga_errors += 1;
 		  return;
 	    }
 	    device->show_cmp_eq(net);
@@ -79,6 +85,7 @@ static void show_gate_lpm(ivl_lpm_t net)
 	    if (device->show_cmp_ne == 0) {
 		  fprintf(stderr, "fpga.tgt: IVL_LPM_CMP_NE not supported"
 			  " by this target.\n");
+		  fpga_errors += 1;
 		  return;
 	    }
 	    device->show_cmp_ne(net);
@@ -88,6 +95,7 @@ static void show_gate_lpm(ivl_lpm_t net)
 	    if (device->show_cmp_ge == 0) {
 		  fprintf(stderr, "fpga.tgt: IVL_LPM_CMP_GE not supported"
 			  " by this target.\n");
+		  fpga_errors += 1;
 		  return;
 	    }
 	    device->show_cmp_ge(net);
@@ -97,24 +105,50 @@ static void show_gate_lpm(ivl_lpm_t net)
 	    if (device->show_cmp_gt == 0) {
 		  fprintf(stderr, "fpga.tgt: IVL_LPM_CMP_GT not supported"
 			  " by this target.\n");
+		  fpga_errors += 1;
 		  return;
 	    }
 	    device->show_cmp_gt(net);
 	    break;
 
-	  case IVL_LPM_FF:
+	  case IVL_LPM_FF: {
+	    ivl_nexus_t aclr = ivl_lpm_async_clr(net);
+	    ivl_nexus_t aset = ivl_lpm_async_set(net);
+
+	    if (aclr && aset) {
+		  fprintf(stderr, "%s:%u: fpga.tgt error: architecture %s "
+			  "cannot preserve %s-priority dual asynchronous "
+			  "clear/set event semantics.\n",
+			  ivl_lpm_file(net), ivl_lpm_lineno(net), arch,
+			  ivl_lpm_async_set_priority(net) ? "set" : "clear");
+		  fpga_errors += 1;
+		  return;
+	    }
+
+	    if ((aclr || aset) && strcmp(arch, "generic-xnf") == 0) {
+		  fprintf(stderr, "%s:%u: fpga.tgt error: architecture %s "
+			  "does not support asynchronous %s controls.\n",
+			  ivl_lpm_file(net), ivl_lpm_lineno(net), arch,
+			  aclr ? "clear" : "set");
+		  fpga_errors += 1;
+		  return;
+	    }
+
 	    if (device->show_dff == 0) {
 		  fprintf(stderr, "fpga.tgt: IVL_LPM_FF not supported"
 			  " by this target.\n");
+		  fpga_errors += 1;
 		  return;
 	    }
 	    device->show_dff(net);
 	    break;
+	  }
 
 	  case IVL_LPM_MUX:
 	    if (device->show_mux == 0) {
 		  fprintf(stderr, "fpga.tgt: IVL_LPM_MUX not supported"
 			  " by this target.\n");
+		  fpga_errors += 1;
 		  return;
 	    }
 	    device->show_mux(net);
@@ -124,6 +158,7 @@ static void show_gate_lpm(ivl_lpm_t net)
 	    if (device->show_mult == 0) {
 		  fprintf(stderr, "fpga.tgt: IVL_LPM_MULT not supported"
 			  " by this target.\n");
+		  fpga_errors += 1;
 		  return;
 	    }
 	    device->show_mult(net);
@@ -133,6 +168,7 @@ static void show_gate_lpm(ivl_lpm_t net)
 	    if (device->show_shiftl == 0) {
 		  fprintf(stderr, "fpga.tgt: IVL_LPM_SHIFTL not supported"
 			  " by this target.\n");
+		  fpga_errors += 1;
 		  return;
 	    }
 	    device->show_shiftl(net);
@@ -142,6 +178,7 @@ static void show_gate_lpm(ivl_lpm_t net)
 	    if (device->show_shiftr == 0) {
 		  fprintf(stderr, "fpga.tgt: IVL_LPM_SHIFTR not supported"
 			  " by this target.\n");
+		  fpga_errors += 1;
 		  return;
 	    }
 	    device->show_shiftr(net);
@@ -150,6 +187,7 @@ static void show_gate_lpm(ivl_lpm_t net)
 	  default:
 	    fprintf(stderr, "fpga.tgt: unknown LPM type %d\n",
 		    ivl_lpm_type(net));
+	    fpga_errors += 1;
 	    break;
       }
 }
@@ -157,6 +195,8 @@ static void show_gate_lpm(ivl_lpm_t net)
 int show_scope_gates(ivl_scope_t net, void*x)
 {
       unsigned idx;
+
+      (void)x;
 
       if (scope_has_attribute(net, "ivl_synthesis_cell")) {
 	    show_cell_scope(net);

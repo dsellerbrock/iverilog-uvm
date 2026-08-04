@@ -34,6 +34,7 @@
 # include  "netlist.h"
 # include  "netscalar.h"
 # include  "netclass.h"
+# include  "netstruct.h"
 # include  "netvector.h"
 # include  "util.h"
 # include  "compiler.h"
@@ -983,7 +984,7 @@ void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 	    size_t depth = pos.size();
 	    if (bounds_known && depth == ndims) {
 		  make_elem(array_param_elem_suffix(dims, pos), e,
-			    nullptr, this);
+			    nullptr, cur->second.val_scope);
 		  return;
 	    }
 	    PEAssignPattern* pat = dynamic_cast<PEAssignPattern*>(e);
@@ -997,6 +998,36 @@ void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 		  failed = true;
 		  return;
 	    }
+
+	    /* A lone default names every element in the current and all
+	       remaining unpacked dimensions. It is not a one-element
+	       positional pattern. Elaborate a separately owned scalar value
+	       for every leaf so parameter cleanup never shares a PExpr. */
+	    if (bounds_known && pat) {
+		  if (PExpr*dflt = pat->lone_default_()) {
+			for (unsigned i = 0 ; i < dims[depth].width() ; i += 1) {
+			      pos.push_back((long)i);
+			      if (depth + 1 < ndims) {
+				    walk(e);
+			      } else {
+				    NetExpr*val = elab_and_eval(
+					  des, cur->second.val_scope, dflt,
+					  cur->second.ivl_type, true);
+				    if (!val) {
+					  failed = true;
+				    } else {
+					  make_elem(array_param_elem_suffix(dims, pos),
+						    nullptr, val, this,
+						    cur->second.ivl_type);
+				    }
+			      }
+			      pos.pop_back();
+			      if (failed) return;
+			}
+			return;
+		  }
+	    }
+
 	    std::vector<PExpr*> elems;
 	    if (pat) {
 		  if (!pat->expand_replication_(des, cur->second.val_scope, elems)) {
@@ -1066,7 +1097,7 @@ void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 	    for (size_t i = 0 ; i < elems.size() ; i += 1) {
 		  char buf[64];
 		  snprintf(buf, sizeof(buf), "[%zu]", i);
-		  make_elem(buf, elems[i], nullptr, this);
+		  make_elem(buf, elems[i], nullptr, cur->second.val_scope);
 	    }
 	    give_up();
 	    return;
@@ -1196,6 +1227,19 @@ void NetScope::evaluate_parameter_logic_(Design*des, param_ref_t cur)
 		  expr = pad_to_width(expr, integer_width, *expr);
 	    }
 	    break;
+
+	  case IVL_VT_NO_TYPE:
+	      /* An unpacked struct has no scalar ivl_variable_type. Its
+		 assignment-pattern value is nevertheless a fully elaborated,
+		 constant aggregate whose member types are carried by netstruct_t.
+		 Keep that NetEArrayPattern as the parameter value; member reads
+		 select and duplicate its constant items later. */
+	    if (param_type
+		&& dynamic_cast<const netstruct_t*>(param_type)
+		&& !param_type->packed()
+		&& dynamic_cast<const NetEArrayPattern*>(expr))
+		  break;
+	      /* fall through */
 
 	  default:
 	    cerr << expr->get_fileline()

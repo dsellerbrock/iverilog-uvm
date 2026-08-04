@@ -1609,23 +1609,36 @@ NetExpr* NetECast::eval_arguments_(const NetExpr*ex) const
       NetExpr*res = 0;
       switch (op_) {
 	  case 'r':
-	    if (const NetEConst*val = dynamic_cast<const NetEConst*>(ex)) {
-		  verireal res_val(val->value().as_double());
+	    if (const NetEConst*real_source = dynamic_cast<const NetEConst*>(ex)) {
+		  verireal res_val(real_source->value().as_double());
 		  res = new NetECReal(res_val);
 	    }
 	    break;
 	  case '2':
-	    if (const NetEConst*val = dynamic_cast<const NetEConst*>(ex)) {
-		  verinum res_val(val->value());
+	    if (const NetEConst*int2_source = dynamic_cast<const NetEConst*>(ex)) {
+		  verinum res_val(int2_source->value());
 		  res_val.cast_to_int2();
 		  if (expr_width() > 0)
 			res_val = cast_to_width(res_val, expr_width());
 		  res = new NetEConst(res_val);
+		  break;
 	    }
+	    // A real-to-int2 cast can use the real-to-vector conversion below.
+	    // The result contains only zero/one bits, so no second int2 coercion
+	    // is needed.
 	    // fallthrough
 	  case 'v':
-	    if (const NetECReal*val = dynamic_cast<const NetECReal*>(ex)) {
-		  verinum res_val(val->value().as_double(), false);
+	    if (const NetEConst*logic_source = dynamic_cast<const NetEConst*>(ex)) {
+		  /* A string literal is also a constant bit sequence. Contextual
+		   * conversion to a packed logic type changes the expression type,
+		   * not its byte ordering. This is how packed tables such as
+		   * logic [N:0][31:0] = {"ABCD", ...} become constants. */
+		  verinum res_val(logic_source->value());
+		  if (expr_width() > 0)
+			res_val = cast_to_width(res_val, expr_width());
+		  res = new NetEConst(res_val);
+	    } else if (const NetECReal*real_val = dynamic_cast<const NetECReal*>(ex)) {
+		  verinum res_val(real_val->value().as_double(), false);
 		  if (expr_width() > 0)
 			res_val = cast_to_width(res_val, expr_width());
 		  res = new NetEConst(res_val);

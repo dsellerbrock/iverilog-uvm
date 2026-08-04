@@ -1,0 +1,4 @@
+./ivltests/synth_sequential_async_control_reject.v:12: sorry: Asynchronous controls for one output in separate sequential statements are not currently supported in synthesis.
+./ivltests/synth_sequential_async_control_reject.v:9: error: Unable to synthesize synchronous process.
+./ivltests/synth_sequential_async_control_reject.v:9: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+3 error(s) in post-elaboration processing.

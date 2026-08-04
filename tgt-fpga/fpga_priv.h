@@ -26,6 +26,9 @@
    code generator writes to, whether the format is XNF or EDIF. */
 extern FILE*xnf;
 
+/* Count errors that make the generated FPGA netlist unusable. */
+extern unsigned fpga_errors;
+
 extern int show_scope_gates(ivl_scope_t net, void*x);
 
 
@@ -33,6 +36,9 @@ extern device_t device;
 
 extern const char*part;
 extern const char*arch;
+
+/* Return the first module root, excluding package roots. */
+extern ivl_scope_t fpga_design_root(ivl_design_t des);
 
 /*
  * Attribute lookup, should this be provided in ivl_target.h?
@@ -42,8 +48,9 @@ int scope_has_attribute(ivl_scope_t s, const char *name);
 /*
  * These are mangle functions.
  */
-extern void xnf_mangle_logic_name(ivl_net_logic_t net, char*buf, size_t nbuf);
-extern void xnf_mangle_lpm_name(ivl_lpm_t net, char*buf, size_t nbuf);
+extern char*xnf_mangle_identifier(const char*name);
+extern char*xnf_mangle_logic_name(ivl_net_logic_t net);
+extern char*xnf_mangle_lpm_name(ivl_lpm_t net);
 
 extern const char*xnf_mangle_nexus_name(ivl_nexus_t net);
 

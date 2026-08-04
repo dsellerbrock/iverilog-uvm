@@ -83,5 +83,7 @@ const struct device_s d_virtex2_edif = {
       virtex_add,
       virtex_add,
       xilinx_shiftl, /* show_shiftl */
-      0  /* show_shiftr */
+      0, /* show_shiftr */
+      0, /* show_mult */
+      0  /* show_constant */
 };

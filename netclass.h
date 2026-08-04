@@ -297,6 +297,8 @@ class netclass_t : public ivl_type_s {
 	    std::string weight_ir; // per-instance constructor expression
 	    bool is_cross = false;
 	    perm_string name;   // M12-7: coverpoint/cross label
+	    PExpr* iff_expr = nullptr; // cross-level iff, evaluated per sample
+	    int iff_src = -1;          // parent property for sample/all
       };
 
       static const unsigned COVGRP_NO_PROP = 0xFFFFFFFF;
@@ -320,16 +322,25 @@ class netclass_t : public ivl_type_s {
       { return covgrp_dyn_bins_[idx]; }
       void add_covgrp_item(unsigned at_least, unsigned weight, bool is_cross,
 			   perm_string name = perm_string(),
-			   const std::string&weight_ir = std::string())
+			   const std::string&weight_ir = std::string(),
+			   PExpr*iff_expr = nullptr, int iff_src = -1)
       { covgrp_item_t it;
 	it.at_least = at_least;
 	it.weight = weight;
 	it.weight_ir = weight_ir;
 	it.is_cross = is_cross;
 	it.name = name;
+	it.iff_expr = iff_expr;
+	it.iff_src = iff_src;
 	covgrp_items_.push_back(it); }
       size_t covgrp_item_count() const { return covgrp_items_.size(); }
       const covgrp_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
+      PExpr* covgrp_item_guard(size_t idx) const {
+	    return idx < covgrp_items_.size() ? covgrp_items_[idx].iff_expr : nullptr;
+      }
+      int covgrp_item_guardsrc(size_t idx) const {
+	    return idx < covgrp_items_.size() ? covgrp_items_[idx].iff_src : -1;
+      }
       bool is_covergroup() const { return is_covergroup_; }
       void set_is_covergroup(bool f) { is_covergroup_ = f; }
 	// Covergroup constructor formals are stored as leading properties

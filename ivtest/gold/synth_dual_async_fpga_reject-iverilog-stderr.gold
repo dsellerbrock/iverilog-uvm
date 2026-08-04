@@ -1,0 +1,2 @@
+ivltests/synth_dual_async_fpga_reject.v:10: fpga.tgt error: architecture generic-edif cannot preserve clear-priority dual asynchronous clear/set event semantics.
+error: Code generation had 1 error(s).

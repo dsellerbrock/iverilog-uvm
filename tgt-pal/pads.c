@@ -52,25 +52,25 @@ int get_pad_bindings(ivl_scope_t net, void*x)
 	    if ((pin == 0) || (pin > pins)) {
 		  printf("%s: Invalid PAD assignment: %s\n",
 			 ivl_signal_name(sig), pad);
-		  error_count += 1;
+		  pal_errors += 1;
 		  continue;
 	    }
 
-	    assert(ivl_signal_pins(sig) == 1);
+	    assert(ivl_signal_width(sig) == 1);
 
 	    if (bind_pin[pin-1].nexus) {
 
-		  if (bind_pin[pin-1].nexus != ivl_signal_pin(sig, 0)) {
+		  if (bind_pin[pin-1].nexus != ivl_signal_nex(sig, 0)) {
 
 			printf("%s: Unconnected signals share pin %d\n",
 			       ivl_signal_name(sig), pin);
-			error_count += 1;
+			pal_errors += 1;
 		  }
 
 		  continue;
 	    }
 
-	    bind_pin[pin-1].nexus = ivl_signal_pin(sig, 0);
+	    bind_pin[pin-1].nexus = ivl_signal_nex(sig, 0);
       }
 
       return 0;

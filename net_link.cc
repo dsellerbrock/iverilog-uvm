@@ -20,6 +20,9 @@
 # include "config.h"
 
 # include  <iostream>
+# include  <algorithm>
+# include  <cstdint>
+# include  <unordered_map>
 
 # include  "netlist.h"
 # include  <sstream>
@@ -28,8 +31,19 @@
 # include  <typeinfo>
 # include  <cstdlib>
 # include  "ivl_alloc.h"
+# include  "ivl_assert.h"
 
 using namespace std;
+
+namespace {
+
+// A Nexus identity can change when two link rings are joined. Such a join
+// always deletes the superseded Nexus, so this generation lets auxiliary
+// indexes notice stale identities without adding bookkeeping to every
+// connect path.
+uint64_t nexus_identity_generation = 0;
+
+}
 
 void Nexus::connect(Link&r)
 {
@@ -53,6 +67,10 @@ void Nexus::connect(Link&r)
 		  driven_ = r_nexus->driven_;
 		  synthesized_process_driver_mask_.swap(
 			r_nexus->synthesized_process_driver_mask_);
+		  pre_synthesis_driver_mask_.swap(
+			r_nexus->pre_synthesis_driver_mask_);
+		  synthesized_process_variable_type_ =
+			r_nexus->synthesized_process_variable_type_;
 		  list_ = r_nexus->list_;
 		  list_->nexus_ = this;
 		  r_nexus->list_ = 0;
@@ -88,6 +106,25 @@ void Nexus::connect(Link&r)
 	    synthesized_process_driver_mask_[bit] =
 		  synthesized_process_driver_mask_[bit]
 		  || r_nexus->synthesized_process_driver_mask_[bit];
+
+      if (pre_synthesis_driver_mask_.size()
+		  < r_nexus->pre_synthesis_driver_mask_.size())
+	    pre_synthesis_driver_mask_.resize(
+		  r_nexus->pre_synthesis_driver_mask_.size(), false);
+      for (unsigned bit = 0;
+	   bit < r_nexus->pre_synthesis_driver_mask_.size(); bit += 1)
+	    pre_synthesis_driver_mask_[bit] =
+		  pre_synthesis_driver_mask_[bit]
+		  || r_nexus->pre_synthesis_driver_mask_[bit];
+
+      if (synthesized_process_variable_type_ == IVL_VT_NO_TYPE) {
+	    synthesized_process_variable_type_ =
+		  r_nexus->synthesized_process_variable_type_;
+      } else if (r_nexus->synthesized_process_variable_type_
+		       != IVL_VT_NO_TYPE) {
+	    assert(synthesized_process_variable_type_
+		  == r_nexus->synthesized_process_variable_type_);
+      }
 
 	// Splice the list of links from the "tmp" nexus to the end of
 	// this nexus. Adjust the nexus pointers as needed.
@@ -265,6 +302,7 @@ Nexus::Nexus(Link&that)
       name_ = 0;
       driven_ = NO_GUESS;
       t_cookie_ = 0;
+      synthesized_process_variable_type_ = IVL_VT_NO_TYPE;
 
       if (that.next_ == 0) {
 	    list_ = &that;
@@ -280,6 +318,10 @@ Nexus::Nexus(Link&that)
 	    name_ = tmp->name_;
 	    synthesized_process_driver_mask_.swap(
 		  tmp->synthesized_process_driver_mask_);
+	    pre_synthesis_driver_mask_.swap(
+		  tmp->pre_synthesis_driver_mask_);
+	    synthesized_process_variable_type_ =
+		  tmp->synthesized_process_variable_type_;
 
 	    tmp->list_ = 0;
 	    tmp->name_ = 0;
@@ -291,6 +333,7 @@ Nexus::~Nexus()
 {
       assert(list_ == 0);
       delete[] name_;
+      nexus_identity_generation += 1;
 }
 
 bool Nexus::claim_synthesized_process_driver(unsigned base, unsigned wid)
@@ -315,6 +358,95 @@ bool Nexus::has_synthesized_process_driver() const
 		  return true;
       }
       return false;
+}
+
+bool Nexus::has_synthesized_process_driver(unsigned bit) const
+{
+      return bit < synthesized_process_driver_mask_.size()
+	    && synthesized_process_driver_mask_[bit];
+}
+
+void Nexus::synthesized_process_variable_type(ivl_variable_type_t type)
+{
+      assert(type != IVL_VT_NO_TYPE);
+      if (synthesized_process_variable_type_ == IVL_VT_NO_TYPE) {
+	    synthesized_process_variable_type_ = type;
+	    return;
+      }
+      assert(synthesized_process_variable_type_ == type);
+}
+
+ivl_variable_type_t Nexus::synthesized_process_variable_type() const
+{
+      return synthesized_process_variable_type_;
+}
+
+void Nexus::capture_pre_synthesis_driver_mask()
+{
+      pre_synthesis_driver_mask_.assign(vector_width(), false);
+
+      for (const Link*cur = first_nlink(); cur; cur = cur->next_nlink()) {
+	    const NetPins*obj = cur->get_obj();
+	    if (dynamic_cast<const NetTran*>(obj)) {
+		  fill(pre_synthesis_driver_mask_.begin(),
+		       pre_synthesis_driver_mask_.end(), true);
+		  return;
+	    }
+
+	    if (cur->get_dir() == Link::PASSIVE) {
+		  const NetNet*root_port = dynamic_cast<const NetNet*>(obj);
+		  if (root_port && root_port->scope()->parent() == 0
+		      && root_port->port_type() != NetNet::NOT_A_PORT
+		      && root_port->port_type() != NetNet::POUTPUT) {
+			fill(pre_synthesis_driver_mask_.begin(),
+			     pre_synthesis_driver_mask_.end(), true);
+			return;
+		  }
+		  continue;
+	    }
+	    if (cur->get_dir() != Link::OUTPUT)
+		  continue;
+
+	    if (const NetNet*sig = dynamic_cast<const NetNet*>(obj)) {
+		  NetNet::Type type = sig->type();
+		  if (type == NetNet::REG || type == NetNet::IMPLICIT_REG)
+			continue;
+
+		  fill(pre_synthesis_driver_mask_.begin(),
+		       pre_synthesis_driver_mask_.end(), true);
+		  return;
+	    }
+
+	    const NetPartSelect*part =
+		  dynamic_cast<const NetPartSelect*>(obj);
+	    if (!part) {
+		  fill(pre_synthesis_driver_mask_.begin(),
+		       pre_synthesis_driver_mask_.end(), true);
+		  return;
+	    }
+
+	    if (part->dir() == NetPartSelect::VP) {
+		  if (cur->get_pin() != 0)
+			continue;
+		  fill(pre_synthesis_driver_mask_.begin(),
+		       pre_synthesis_driver_mask_.end(), true);
+		  return;
+	    }
+
+	    if (cur->get_pin() != 1)
+		  continue;
+	    for (unsigned idx = 0; idx < part->width(); idx += 1) {
+		  unsigned bit = part->base() + idx;
+		  ivl_assert(*part, bit < pre_synthesis_driver_mask_.size());
+		  pre_synthesis_driver_mask_[bit] = true;
+	    }
+      }
+}
+
+bool Nexus::has_pre_synthesis_driver(unsigned bit) const
+{
+      return bit < pre_synthesis_driver_mask_.size()
+	    && pre_synthesis_driver_mask_[bit];
 }
 
 bool Nexus::assign_lval() const
@@ -622,12 +754,46 @@ const char* Nexus::name() const
 }
 
 
+struct NexusSet::index_t {
+      struct key_t {
+	    const Nexus*nexus;
+	    unsigned base;
+	    unsigned wid;
+
+	    bool operator == (const key_t&that) const
+	    {
+		  return nexus == that.nexus
+		      && base == that.base && wid == that.wid;
+	    }
+      };
+
+      struct hash_t {
+	    size_t operator () (const key_t&key) const
+	    {
+		  size_t val = hash<const Nexus*>()(key.nexus);
+		  val ^= hash<unsigned>()(key.base)
+		       + static_cast<size_t>(0x9e3779b9U)
+		       + (val << 6) + (val >> 2);
+		  val ^= hash<unsigned>()(key.wid)
+		       + static_cast<size_t>(0x9e3779b9U)
+		       + (val << 6) + (val >> 2);
+		  return val;
+	    }
+      };
+
+      uint64_t generation;
+      unordered_map<key_t, size_t, hash_t> exact;
+};
+
 NexusSet::NexusSet()
+: index_(0)
 {
 }
 
 NexusSet::~NexusSet()
 {
+      delete index_;
+      index_ = 0;
       for (size_t idx = 0 ; idx < items_.size() ; idx += 1)
 	    delete items_[idx];
 }
@@ -640,29 +806,29 @@ size_t NexusSet::size() const
 void NexusSet::add(Nexus*that, unsigned base, unsigned wid)
 {
       assert(that);
-      elem_t*cur = new elem_t(that, base, wid);
-
-      if (items_.size() == 0) {
-	    items_.resize(1);
-	    items_[0] = cur;
-	    return;
-      }
-
-      unsigned ptr = bsearch_(*cur);
+      size_t ptr = bsearch_(that, base, wid);
       if (ptr < items_.size()) {
-	    delete cur;
 	    return;
       }
 
       assert(ptr == items_.size());
 
-      items_.push_back(cur);
+      items_.push_back(new elem_t(that, base, wid));
+      if (index_ && index_->generation == nexus_identity_generation) {
+	    index_t::key_t key = { that, base, wid };
+	    index_->exact.emplace(key, items_.size()-1);
+      }
 }
 
 void NexusSet::add(const NexusSet&that)
 {
-      for (size_t idx = 0 ;  idx < that.items_.size() ;  idx += 1)
-	    add(that.items_[idx]->lnk.nexus(), that.items_[idx]->base, that.items_[idx]->wid);
+      if (this == &that)
+	    return;
+
+      for (size_t idx = 0 ; idx < that.items_.size() ; idx += 1) {
+	    elem_t*cur = that.items_[idx];
+	    add(cur->lnk.nexus(), cur->base, cur->wid);
+      }
 }
 
 void NexusSet::rem_(const NexusSet::elem_t*that)
@@ -673,6 +839,8 @@ void NexusSet::rem_(const NexusSet::elem_t*that)
       unsigned ptr = bsearch_(*that);
       if (ptr >= items_.size())
 	    return;
+
+      invalidate_index_();
 
       if (items_.size() == 1) {
 	    delete items_[0];
@@ -706,8 +874,49 @@ NexusSet::elem_t& NexusSet::at (unsigned idx)
 
 size_t NexusSet::bsearch_(const NexusSet::elem_t&that) const
 {
+      return bsearch_(that.lnk.nexus(), that.base, that.wid);
+}
+
+void NexusSet::invalidate_index_() const
+{
+      delete index_;
+      index_ = 0;
+}
+
+size_t NexusSet::bsearch_(const Nexus*that, unsigned base, unsigned wid) const
+{
+	// Linear search is faster for the many small temporary sets. Once a set
+	// is large, retain an exact-key index across lookups. Nexus merges are
+	// detected by the identity generation and cause a complete rebuild.
+      static const size_t index_threshold = 64;
+      if (items_.size() >= index_threshold) {
+	    if (!index_ || index_->generation != nexus_identity_generation) {
+		  invalidate_index_();
+		  index_ = new index_t;
+		  index_->generation = nexus_identity_generation;
+		  index_->exact.reserve(items_.size());
+		  for (size_t idx = 0 ; idx < items_.size() ; idx += 1) {
+			elem_t*cur = items_[idx];
+			index_t::key_t key = {
+			      cur->lnk.nexus(), cur->base, cur->wid
+			};
+			// Preserve the old linear search's first-match behavior if
+			// a later Nexus merge has made two entries aliases.
+			index_->exact.emplace(key, idx);
+		  }
+	    }
+
+	    index_t::key_t key = { that, base, wid };
+	    unordered_map<index_t::key_t, size_t,
+		  index_t::hash_t>::const_iterator found =
+		  index_->exact.find(key);
+	    return found == index_->exact.end()? items_.size() : found->second;
+      }
+
       for (unsigned idx = 0 ;  idx < items_.size() ;  idx += 1) {
-	    if (*items_[idx] == that)
+	    elem_t*cur = items_[idx];
+	    if (cur->lnk.nexus() == that
+		&& cur->base == base && cur->wid == wid)
 		  return idx;
       }
 

@@ -108,8 +108,8 @@ int fit_logic(void)
 	      /* If there is a reg, then the input to the cell is
 		 really the D input to the ff. */
 	    if (pin->reg) {
-		  assert(cell == ivl_lpm_q(pin->reg, pin->reg_q));
-		  cell = ivl_lpm_data(pin->reg, pin->reg_q);
+		  assert(cell == ivl_lpm_q(pin->reg));
+		  cell = ivl_lpm_data(pin->reg, 0);
 	    }
 
 	    assert(cell);

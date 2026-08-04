@@ -1176,29 +1176,51 @@ static void collect_pform_reads_(PExpr*e, std::vector<PExpr*>&out)
       // PENumber / PEString / function calls / etc. contribute no simple read.
 }
 
-static void elaborate_vif_member_assign_(Design*des, NetScope*scope,
-					 const PGAssign*ga)
+static bool reads_interface_member_(const LineInfo*li, Design*des,
+				     NetScope*scope, PExpr*expr)
 {
-      const PEIdent*lid = dynamic_cast<const PEIdent*>(ga->pin(0));
-      PAssign*ast0 = new PAssign(const_cast<PExpr*>(ga->pin(0)),
-				 const_cast<PExpr*>(ga->pin(1)));
-      ast0->set_line(*ga);
+      std::vector<PExpr*> reads;
+      collect_pform_reads_(expr, reads);
+      for (PExpr*read : reads) {
+	    PEIdent*id = dynamic_cast<PEIdent*>(read);
+	    if (!id || id->path().package || id->path().name.size() < 2)
+		  continue;
+
+	    symbol_search_results sr;
+	    symbol_search(li, des, scope, id->path(), UINT_MAX, &sr);
+	    const netclass_t*base_type = sr.net
+		  ? dynamic_cast<const netclass_t*>(sr.net->net_type()) : nullptr;
+	    if (base_type && base_type->is_interface() && !sr.path_tail.empty())
+		  return true;
+      }
+      return false;
+}
+
+static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
+					 const LineInfo*li, PExpr*lval,
+					 PExpr*rval)
+{
+      const PEIdent*lid = dynamic_cast<const PEIdent*>(lval);
+      PAssign*ast0 = new PAssign(lval, rval);
+      ast0->set_line(*li);
       NetProc*cur0 = ast0->elaborate(des, scope);
       if (cur0 == 0) {
-	    cerr << ga->get_fileline() << ": error: Unable to elaborate "
-		 << "continuous assignment to interface member `"
-		 << lid->path() << "`." << endl;
+	    cerr << li->get_fileline() << ": error: Unable to elaborate "
+		 << "continuous assignment involving an interface member";
+	    if (lid)
+		  cerr << " `" << lid->path() << "`";
+	    cerr << "." << endl;
 	    des->errors += 1;
-	    return;
+	    return false;
       }
       NetProcTop*t0 = new NetProcTop(scope, IVL_PR_INITIAL, cur0);
-      t0->set_line(*ga);
+      t0->set_line(*li);
       des->add_process(t0);
 
-      bool const_rhs = dynamic_cast<const PENumber*>(ga->pin(1)) != 0
-	    || dynamic_cast<const PEString*>(ga->pin(1)) != 0;
+      bool const_rhs = dynamic_cast<const PENumber*>(rval) != 0
+	    || dynamic_cast<const PEString*>(rval) != 0;
       if (const_rhs)
-	    return;
+	    return true;
 
 	// Build the re-apply process(es) with explicit sensitivity rather than
 	// `@*`. An `@*` implicit list collects its sensitivity via
@@ -1215,7 +1237,7 @@ static void elaborate_vif_member_assign_(Design*des, NetScope*scope,
 	// (`p.a & p.c`, `p.a & enable`) cannot share one combined event — each
 	// process re-applies the whole assignment when its own source changes.
       std::vector<PExpr*> reads;
-      collect_pform_reads_(const_cast<PExpr*>(ga->pin(1)), reads);
+      collect_pform_reads_(rval, reads);
 
 	// Keep only reads that resolve to a signal (net / interface member),
 	// de-duplicated by name, so constants and parameters do not spawn
@@ -1226,7 +1248,7 @@ static void elaborate_vif_member_assign_(Design*des, NetScope*scope,
 	    PEIdent*id = dynamic_cast<PEIdent*>(r);
 	    if (!id) continue;
 	    symbol_search_results sr;
-	    symbol_search(ga, des, scope, id->path(), UINT_MAX, &sr);
+	    symbol_search(li, des, scope, id->path(), UINT_MAX, &sr);
 	    if (!sr.net) continue;
 	    ostringstream key;
 	    key << id->path();
@@ -1237,29 +1259,39 @@ static void elaborate_vif_member_assign_(Design*des, NetScope*scope,
 	// Fall back to `@(<rhs>)` when no simple signal read was found (e.g. a
 	// function-call r-value): preserves the previous behavior.
       if (sources.empty())
-	    sources.push_back(const_cast<PExpr*>(ga->pin(1)));
+	    sources.push_back(rval);
 
       for (PExpr*src : sources) {
-	    PAssign*ast1 = new PAssign(const_cast<PExpr*>(ga->pin(0)),
-				       const_cast<PExpr*>(ga->pin(1)));
-	    ast1->set_line(*ga);
+	    PAssign*ast1 = new PAssign(lval, rval);
+	    ast1->set_line(*li);
 	    PEEvent*rhs_ev = new PEEvent(PEEvent::ANYEDGE, src);
-	    rhs_ev->set_line(*ga);
+	    rhs_ev->set_line(*li);
 	    PEventStatement*wait = new PEventStatement(rhs_ev);
-	    wait->set_line(*ga);
+	    wait->set_line(*li);
 	    wait->set_statement(ast1);
 	    NetProc*cur1 = wait->elaborate(des, scope);
 	    if (cur1 == 0) {
-		  cerr << ga->get_fileline() << ": error: Unable to elaborate "
-		       << "continuous assignment to interface member `"
-		       << lid->path() << "`." << endl;
+		  cerr << li->get_fileline() << ": error: Unable to elaborate "
+		       << "continuous assignment involving an interface member";
+		  if (lid)
+			cerr << " `" << lid->path() << "`";
+		  cerr << "." << endl;
 		  des->errors += 1;
-		  return;
+		  return false;
 	    }
 	    NetProcTop*t1 = new NetProcTop(scope, IVL_PR_ALWAYS, cur1);
-	    t1->set_line(*ga);
+	    t1->set_line(*li);
 	    des->add_process(t1);
       }
+      return true;
+}
+
+static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
+					 const PGAssign*ga)
+{
+      return elaborate_vif_member_assign_(
+	    des, scope, ga, const_cast<PExpr*>(ga->pin(0)),
+	    const_cast<PExpr*>(ga->pin(1)));
 }
 
 void PGAssign::elaborate(Design*des, NetScope*scope) const
@@ -1297,6 +1329,18 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 			return;
 		  }
 	    }
+      }
+
+	/* An interface-member read is also represented by NetEProperty and
+	   cannot be turned into a gate net. Lower the continuous assignment
+	   to the same event-driven behavioral equivalent used for an interface
+	   member l-value. This is especially important for arrays of modport
+	   ports, where each constant word/member read remains a handle access. */
+      if (dynamic_cast<const PEIdent*>(pin(0))
+	  && reads_interface_member_(this, des, scope,
+				     const_cast<PExpr*>(pin(1)))) {
+	    elaborate_vif_member_assign_(des, scope, this);
+	    return;
       }
 
 	/* Elaborate the l-value. */
@@ -1488,13 +1532,14 @@ NetNet *elaborate_unpacked_array(Design *des, NetScope *scope, const LineInfo &l
 
       const PEIdent* ident = dynamic_cast<PEIdent*> (expr);
       if (!ident) {
-	    if (dynamic_cast<PEConcat*> (expr)) {
-		  cout << loc.get_fileline() << ": sorry: Continuous assignment"
-		       << " of array concatenation is not yet supported."
-		       << endl;
-		  des->errors++;
-		  return nullptr;
-	    } else if (dynamic_cast<PEAssignPattern*> (expr)) {
+	    /* IEEE 1800-2017 10.10: in an unpacked-array assignment
+	       context, an unpacked array concatenation is elaborated one
+	       element at a time using the destination array's element type.
+	       PEConcat's typed elaboration produces the same structural
+	       NetEArrayPattern representation as the apostrophe spelling,
+	       so both forms can use the existing per-word continuous drivers. */
+	    if (dynamic_cast<PEConcat*> (expr)
+		|| dynamic_cast<PEAssignPattern*> (expr)) {
 		  auto net_expr = elaborate_rval_expr(des, scope, lval->array_type(), expr);
 		  if (! net_expr) return nullptr;
 		  expr_net = net_expr->synthesize(des, scope, net_expr);
@@ -2865,6 +2910,72 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			      des->errors += 1;
 			      continue;
 			}
+
+			// Bind a whole unpacked array of interface instances to
+			// an equally sized interface-port array. Instance arrays are
+			// stored in canonical LSB-to-MSB order, matching NetNet word
+			// pins, so each formal handle word receives the corresponding
+			// actual interface scope.
+			if (prts[0]->unpacked_dimensions() > 0) {
+			      bool bound_array = false;
+			      const PEIdent*aid =
+				    dynamic_cast<const PEIdent*>(pins[idx]);
+			      if (instance.size() == 1 && aid
+				  && aid->path().name.size() == 1
+				  && aid->path().name.front().index.empty()) {
+				    perm_string actual_name =
+					  aid->path().name.front().name;
+				    map<perm_string,NetScope::scope_vec_t>::const_iterator
+					  actual = scope->instance_arrays.find(actual_name);
+				    if (actual != scope->instance_arrays.end()
+					&& actual->second.size() == prts[0]->pin_count()) {
+					  bool types_ok = true;
+					  for (NetScope*actual_scope : actual->second) {
+						if (!actual_scope
+						    || actual_scope->module_name()
+						       != ifc->get_name()) {
+						      types_ok = false;
+						      break;
+						}
+					  }
+					  if (types_ok) {
+						for (size_t word = 0;
+						     word < actual->second.size(); word += 1) {
+						      NetEScope*se = new NetEScope(
+							    actual->second[word],
+							    static_cast<ivl_type_t>(ifc));
+						      se->set_line(*aid);
+						      NetAssign_*lv = new NetAssign_(prts[0]);
+						      NetEConst*word_expr =
+							    make_const_val_s(word);
+						      word_expr->set_line(*aid);
+						      lv->set_word(word_expr);
+						      NetAssign*as = new NetAssign(lv, se);
+						      as->set_line(*this);
+						      NetProcTop*top = new NetProcTop(
+							    instance[0], IVL_PR_INITIAL, as);
+						      top->set_line(*this);
+						      top->attribute(perm_string::literal(
+							    "_ivl_schedule_init"), verinum(1));
+						      des->add_process_at_tail(top);
+						}
+						bound_array = true;
+					  }
+				    }
+			      }
+			      if (!bound_array) {
+				    cerr << pins[idx]->get_fileline()
+					 << ": error: Cannot bind interface-port array `"
+					 << port_name << "' of module `"
+					 << rmod->mod_name() << "' to `"
+					 << *pins[idx] << "': expected "
+					 << prts[0]->pin_count()
+					 << " instances of interface `"
+					 << ifc->get_name() << "'." << endl;
+				    des->errors += 1;
+			      }
+			      continue;
+			}
 			for (unsigned inst = 0; inst < instance.size(); inst += 1) {
 			      NetNet*port_var = prts[inst];
 			      if (!port_var) continue;
@@ -3003,7 +3114,45 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		   ptype = NetNet::NOT_A_PORT;
 	    else
 		   ptype = prts[0]->port_type();
-	    if (prts.empty() || (ptype == NetNet::PINPUT)) {
+
+	      /* An interface member is a run-time object property, not a
+	         structural nexus. Bridge a scalar module port through an ordinary
+	         signal and use the same event-driven member assignment as a source
+	         `assign'. This covers both directions:
+
+	             input  formal <- bridge <- interface.member
+	             output formal -> bridge -> interface.member
+
+	         Trying to synthesize the property directly loses its dynamic
+	         interface handle; treating an output member as an lnet also marks
+	         the handle variable itself as driven. */
+	    bool member_port_bridge = false;
+	    if (gn_system_verilog() && prts.size() == 1 && instance.size() == 1
+		&& (ptype == NetNet::PINPUT || ptype == NetNet::POUTPUT)
+		&& reads_interface_member_(this, des, scope, pins[idx])) {
+		  NetNet::Type bridge_type = ptype == NetNet::PINPUT
+			? NetNet::REG : NetNet::WIRE;
+		  NetNet*bridge = new NetNet(scope, scope->local_symbol(),
+					  bridge_type, prts[0]->net_type());
+		  bridge->local_flag(true);
+		  bridge->set_line(*pins[idx]);
+		  PEIdent*bridge_id = new PEIdent(bridge->name(), UINT_MAX, true);
+		  bridge_id->set_line(*pins[idx]);
+		  bool ok = ptype == NetNet::PINPUT
+			? elaborate_vif_member_assign_(des, scope, pins[idx],
+						       bridge_id, pins[idx])
+			: elaborate_vif_member_assign_(des, scope, pins[idx],
+						       pins[idx], bridge_id);
+		  if (!ok)
+			continue;
+		  sig = bridge;
+		  member_port_bridge = true;
+	    }
+
+	    if (member_port_bridge) {
+		  /* The common width adjustment and per-instance connection code
+		     below connects the bridge to the formal port. */
+	    } else if (prts.empty() || (ptype == NetNet::PINPUT)) {
 
 		    // Special case: If the input port is an unpacked
 		    // array, then there should be no sub-ports and
@@ -6622,6 +6771,33 @@ NetProc* PChainConstructor::elaborate(Design*des, NetScope*scope) const
       return tmp;
 }
 
+/* System tasks in an immediate-assertion action block are executable
+ * verification behavior, even when the assertion is lexically inside an
+ * always_comb/always_ff process. Track that provenance while recursively
+ * elaborating an action branch so the resulting NetSTask can retain it.
+ * Elaboration is single-threaded, and RAII also keeps recovery returns from
+ * leaking the context into the following statement. */
+static unsigned immediate_assertion_action_depth_ = 0;
+
+class immediate_assertion_action_scope_t {
+    public:
+      explicit immediate_assertion_action_scope_t(bool active)
+      : active_(active)
+      {
+	    if (active_)
+		  immediate_assertion_action_depth_ += 1;
+      }
+
+      ~immediate_assertion_action_scope_t()
+      {
+	    if (active_ && immediate_assertion_action_depth_ > 0)
+		  immediate_assertion_action_depth_ -= 1;
+      }
+
+    private:
+      bool active_;
+};
+
 NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -6639,7 +6815,15 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
       if (debug_elaborate)
 	    cerr << get_fileline() << ":  PCondit::elaborate: "
 		 << "Elaborate condition statement"
-		 << " with conditional: " << *expr_ << endl;
+		     << " with conditional: " << *expr_ << endl;
+
+      auto elaborate_clause = [this, des, scope](Statement*stmt) -> NetProc* {
+	    if (stmt == 0)
+		  return 0;
+	    immediate_assertion_action_scope_t action_scope(
+		  is_immediate_assertion());
+	    return stmt->elaborate(des, scope);
+      };
 
 	// Elaborate and try to evaluate the conditional expression.
       NetExpr*expr = elab_and_eval(des, scope, expr_, -1);
@@ -6677,7 +6861,7 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 		       << "matters." << endl;
 		  // Elaborate only the else branch (if present) or return empty block
 		  if (else_)
-			return else_->elaborate(des, scope);
+			return elaborate_clause(else_);
 		  else {
 			NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
 			tmp->set_line(*this);
@@ -6708,14 +6892,14 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 	    delete expr;
 	    if (reduced == verinum::V1)
 		  if (if_) {
-			return if_->elaborate(des, scope);
+			return elaborate_clause(if_);
 		  } else {
 			NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
 			tmp->set_line(*this);
 			return tmp;
 		  }
 	    else if (else_)
-		  return else_->elaborate(des, scope);
+		  return elaborate_clause(else_);
 	    else
 		  return new NetBlock(NetBlock::SEQU, 0);
       }
@@ -6746,8 +6930,8 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 
 	// Well, I actually need to generate code to handle the
 	// conditional, so elaborate.
-      NetProc*i = if_? if_->elaborate(des, scope) : NULL;
-      NetProc*e = else_? else_->elaborate(des, scope) : NULL;
+      NetProc*i = elaborate_clause(if_);
+      NetProc*e = elaborate_clause(else_);
 
 	// Detect the special cases that the if or else statements are
 	// empty blocks. If this is the case, remove the blocks as
@@ -6905,6 +7089,8 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
       scope->calls_sys_task(true);
 
       NetSTask*cur = new NetSTask(name, def_sfunc_as_task, eparms);
+      if (immediate_assertion_action_depth_ != 0)
+	    cur->assertion_action();
       cur->set_line(*this);
       return cur;
 }
@@ -6970,50 +7156,60 @@ static bool open_array_formal_needs_copy_in_(const NetNet*port)
       return pt && (dynamic_cast<const netdarray_t*>(pt) != 0);
 }
 
+/* Lower the statement form of the IEEE 1800-2017 18.12 scope randomize
+ * function. The same payload is used for both the optional `std::` spelling
+ * and the unqualified spelling. In particular, do not synthesize one
+ * 32-bit $random assignment per argument: a scope-randomize destination can
+ * be wider than 32 bits (OpenTitan's PRESENT key is 128 bits), and the VPI
+ * implementation of $ivl_std_randomize fills the complete destination. */
+static NetProc* elaborate_scope_randomize_task_(
+      const PCallTask*call, Design*des, NetScope*scope)
+{
+      const vector<named_pexpr_t>&parms = call->parms();
+      const vector<PExpr*>&constraints = call->with_constraints();
+
+      if (!constraints.empty()) {
+	    NetESFunc*fun = make_std_randomize_with_expr(
+		  parms, constraints, des, scope, call);
+	    if (!fun) return nullptr;
+
+	    vector<NetExpr*> argv(fun->nparms());
+	    for (unsigned idx = 0 ; idx < fun->nparms() ; idx += 1)
+		  argv[idx] = fun->parm(idx)->dup_expr();
+	    NetSTask*sys = new NetSTask(fun->name(),
+				      IVL_SFUNC_AS_TASK_IGNORE, argv);
+	    sys->set_line(*call);
+	    delete fun;
+	    return sys;
+      }
+
+      vector<NetExpr*> argv(parms.size(), nullptr);
+      for (size_t idx = 0 ; idx < parms.size() ; idx += 1) {
+	    if (parms[idx].parm)
+		  argv[idx] = elab_and_eval(
+			des, scope, parms[idx].parm, -1, false);
+	    if (!argv[idx]) {
+		  for (NetExpr*arg : argv) delete arg;
+		  return nullptr;
+	    }
+      }
+
+      NetSTask*sys = new NetSTask("$ivl_std_randomize",
+				  IVL_SFUNC_AS_TASK_IGNORE, argv);
+      sys->set_line(*call);
+      return sys;
+}
+
 NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
 
-      /* Phase 63b/B8 (real impl): lower `std::randomize(args);' to a
-	 sequential block of NetAssign(arg, $random).  Catches both the
-	 plain statement form and the void'(std::randomize(...)) form,
-	 since both arrive here as PCallTask with path `std.randomize`.
-	 The with-clause variant is handled at parse time (see parse.y);
-	 this catches the without-with form. */
+      /* Explicit `std::randomize(...)` cannot collide with a user subroutine,
+	 so it can be recognized before ordinary task/function lookup. */
       if (gn_system_verilog() && path_.size() == 2
 	  && path_.front().name == perm_string::literal("std")
-	  && path_.back().name == perm_string::literal("randomize")
-	  && !parms_.empty()) {
-	    if (!with_constraints_.empty()) {
-		  NetESFunc*fun = make_std_randomize_with_expr(
-			parms_, with_constraints_, des, scope, this);
-		  if (!fun) return nullptr;
-		  vector<NetExpr*> argv(fun->nparms());
-		  for (unsigned i = 0 ; i < fun->nparms() ; i += 1)
-			argv[i] = fun->parm(i)->dup_expr();
-		  NetSTask*sys = new NetSTask(fun->name(),
-					      IVL_SFUNC_AS_TASK_IGNORE,
-					      argv);
-		  sys->set_line(*this);
-		  delete fun;
-		  return sys;
-	    }
-	    NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
-	    blk->set_line(*this);
-	    for (unsigned i = 0; i < parms_.size(); i++) {
-		  PExpr*lvexpr = parms_[i].parm;
-		  if (!lvexpr) continue;
-		  NetAssign_*lv = lvexpr->elaborate_lval(des, scope, false, false);
-		  if (!lv) continue;
-		  NetESFunc*rhs = new NetESFunc(
-			"$random", IVL_VT_LOGIC, 32, 0);
-		  rhs->set_line(*this);
-		  NetAssign*as = new NetAssign(lv, rhs);
-		  as->set_line(*this);
-		  blk->append(as);
-	    }
-	    return blk;
-      }
+	  && path_.back().name == perm_string::literal("randomize"))
+	    return elaborate_scope_randomize_task_(this, des, scope);
 
       /* A virtual interface may expose a statically named nested interface,
 	 for example cfg.vif.clk_rst_async_if.set_active().  The ordinary
@@ -7287,6 +7483,17 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		  tmp = elaborate_function_(des, scope);
 		  if (tmp) return tmp;
 	    }
+
+	    /* IEEE 1800-2017 18.12, Syntax 18-11 makes the `std::` prefix
+	       optional for scope randomize. Wait until ordinary task, method,
+	       and function lookup has failed so a user-declared subroutine named
+	       randomize retains normal lexical precedence. Within a class the
+	       unqualified spelling denotes the built-in object method; callers
+	       can still select scope randomization there with std::randomize. */
+	    if (gn_system_verilog() && path_.size() == 1
+		&& path_.front().name == perm_string::literal("randomize")
+		&& !scope->get_class_scope())
+		  return elaborate_scope_randomize_task_(this, des, scope);
 
 	    if (gn_system_verilog() && is_uvm_compile_progress_task_stub_candidate_(path_)) {
 		  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
@@ -9030,6 +9237,62 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 						gval = new NetEConst(verinum((uint64_t)1, 32));
 					  argv.push_back(gval);
 				    }
+				      // Cross-level iff GUARDS (19.6), in cross-item
+				      // order. Unlike a coverpoint iff, a false cross
+				      // guard must suppress only that cross: the source
+				      // coverpoints are still sampled. Keep these as a
+				      // separate argument tail so the runtime can gate the
+				      // cross item without perturbing cp_sampled[].
+				    for (size_t item = ncp;
+					 item < cgtype->covgrp_item_count(); ++item) {
+					  PExpr*gexpr = cgtype->covgrp_item_guard(item);
+					  NetExpr*gval = nullptr;
+					  if (gexpr) {
+						gval = elab_and_eval(des, scope, gexpr, -1,
+							     false, false);
+						if (!gval)
+						if (const PEIdent*gid =
+						      dynamic_cast<const PEIdent*>(gexpr)) {
+						      perm_string gnm = peek_head_name(gid->path());
+						      int gp = parent_cls
+							    ? parent_cls->property_idx_from_name(gnm)
+							    : -1;
+						      if (gp >= 0) {
+							    NetEProperty*gprop = new NetEProperty(
+								  make_parent_expr(), gp, nullptr);
+							    gprop->set_line(*this);
+							    gval = gprop;
+						      }
+						}
+						if (!gval)
+						      cerr << get_fileline()
+							   << ": sorry: cross iff guard for '"
+							   << cgtype->covgrp_item(item).name
+							   << "' cannot be evaluated at this "
+							   << "sample() site; the guard is "
+							   << "treated as enabled." << endl;
+					  }
+					  if (!gval) {
+						gval = new NetEConst(verinum((uint64_t)1, 32));
+						gval->set_line(*this);
+					  }
+					  argv.push_back(gval);
+				    }
+				      // Internal target protocol sentinels. The target cannot
+				      // reliably recover a class type from every object-expression
+				      // shape, so carry the two payload dimensions explicitly and
+				      // strip them before emitting VVP stack operations.
+				    unsigned ncross = cgtype->covgrp_item_count() > ncp
+					  ? static_cast<unsigned>(cgtype->covgrp_item_count() - ncp)
+					  : 0;
+				    NetEConst*ncp_arg = new NetEConst(
+					  verinum((uint64_t)ncp, 32));
+				    ncp_arg->set_line(*this);
+				    argv.push_back(ncp_arg);
+				    NetEConst*ncross_arg = new NetEConst(
+					  verinum((uint64_t)ncross, 32));
+				    ncross_arg->set_line(*this);
+				    argv.push_back(ncross_arg);
 			      }
 			      for (unsigned k = 0; k < nformals; k += 1)
 				    scope->restore_signal_alias(
@@ -9229,30 +9492,24 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			call_name += method_name.str();
 			std::vector<NetExpr*> argv;
 			argv.push_back(obj_expr);
-			for (size_t pi = 0 ; pi < parms_.size() ; pi += 1) {
-			      if (!parms_[pi].parm) {
-				    argv.push_back(0);
-				    continue;
-			      }
-			      NetExpr*ev = elab_sys_task_arg(des, scope,
-							     method_name, pi,
-							     parms_[pi].parm);
-			      argv.push_back(ev);
-			}
-			  // Pad unsupplied trailing args with the declared
-			  // pform defaults (evaluated in the caller scope).
 			if (pports) {
-			      for (size_t pi = parms_.size() ;
-				   pi < pports->size() ; pi += 1) {
+			      std::vector<perm_string> port_names;
+			      for (const pform_tf_port_t&pp : *pports)
+				    port_names.push_back(pp.port
+					  ? pp.port->basename() : perm_string());
+			      std::vector<PExpr*> args = map_named_args(
+				    des, port_names, parms_);
+			      for (size_t pi = 0 ; pi < pports->size() ; pi += 1) {
 				    const pform_tf_port_t&pp = (*pports)[pi];
-				    if (pp.defe) {
-					  NetExpr*ev = elab_sys_task_arg(
-						des, scope, method_name,
-						pi, pp.defe);
-					  argv.push_back(ev);
-				    } else {
-					  argv.push_back(0);
-				    }
+				    PExpr*arg = args[pi] ? args[pi] : pp.defe;
+				    argv.push_back(arg ? elab_sys_task_arg(
+					  des, scope, method_name, pi, arg) : nullptr);
+			      }
+			} else {
+			      for (size_t pi = 0 ; pi < parms_.size() ; pi += 1) {
+				    PExpr*arg = parms_[pi].parm;
+				    argv.push_back(arg ? elab_sys_task_arg(
+					  des, scope, method_name, pi, arg) : nullptr);
 			      }
 			}
 			perm_string cn = lex_strings.make(call_name.c_str());
@@ -11029,6 +11286,7 @@ static void collect_iface_member_props_(const NetExpr*e,
    detector, this has no fixed class-depth limit. */
 struct vif_member_path_t {
       const NetNet*root = nullptr;
+      unsigned root_word = 0;
       std::vector<unsigned> path;
       unsigned member = UINT_MAX;
 };
@@ -11042,6 +11300,7 @@ static bool decode_vif_member_path_(const NetEProperty*leaf,
       std::vector<unsigned> leaf_to_root;
       const NetEProperty*cur = leaf;
       const NetNet*root = nullptr;
+      unsigned root_word = 0;
       while (cur) {
 	    leaf_to_root.push_back(cur->property_idx());
 	    if (cur->get_sig()) {
@@ -11055,12 +11314,20 @@ static bool decode_vif_member_path_(const NetEProperty*leaf,
 		  cur = base_prop;
 		  continue;
 	    }
-	    if (const NetESignal*base_sig = dynamic_cast<const NetESignal*>(base))
+	    if (const NetESignal*base_sig = dynamic_cast<const NetESignal*>(base)) {
 		  root = base_sig->sig();
+		  if (const NetExpr*word_expr = base_sig->word_index()) {
+			const NetEConst*word_const =
+			      dynamic_cast<const NetEConst*>(word_expr);
+			if (!word_const || !word_const->value().is_defined())
+			      return false;
+			root_word = word_const->value().as_unsigned();
+		  }
+	    }
 	    break;
       }
 
-      if (!root || leaf_to_root.empty())
+      if (!root || root_word >= root->pin_count() || leaf_to_root.empty())
 	    return false;
 
       const netclass_t*cls = dynamic_cast<const netclass_t*>(root->net_type());
@@ -11080,6 +11347,7 @@ static bool decode_vif_member_path_(const NetEProperty*leaf,
 	    return false;
 
       out.root = root;
+      out.root_word = root_word;
       out.path.swap(path);
       out.member = leaf_to_root.front();
       return true;
@@ -11124,7 +11392,8 @@ static void add_vif_member_path_(std::vector<vif_member_path_t>&paths,
                                  const vif_member_path_t&path)
 {
       for (const vif_member_path_t&prior : paths) {
-            if (prior.root == path.root && prior.path == path.path
+            if (prior.root == path.root && prior.root_word == path.root_word
+                && prior.path == path.path
                 && prior.member == path.member)
                   return;
       }
@@ -11877,7 +12146,7 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
                               if (!(path.root && path.root->pin_count() > 0))
                                     continue;
                               Nexus*root_nexus = const_cast<Nexus*>(
-                                    path.root->pin(0).nexus());
+                                    path.root->pin(path.root_word).nexus());
                               unsigned root_pin = UINT_MAX;
                               for (unsigned pin = 0 ; pin < vif_set->size() ; pin += 1) {
                                     if (vif_set->at(pin).lnk.nexus() == root_nexus) {
@@ -12387,9 +12656,11 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 	/* precalculate as much as possible of the wait expression. */
       eval_expr(expr);
 
-	/* Detect the unusual case that the wait expression is
-	   constant. Constant true is OK (it becomes transparent) but
-	   constant false is almost certainly not what is intended. */
+	/* Detect the unusual case that the wait expression is constant.
+	   Constant true is transparent. A folded-false parameter or compound
+	   expression is suspicious and retains the historical warning, but an
+	   explicit zero literal is the standard idiom for an intentional,
+	   disable-able permanent suspension (UVM uses it for phase guards). */
       ivl_assert(*this, expr->expr_width() == 1);
       if (const NetEConst*ce = dynamic_cast<NetEConst*>(expr)) {
 	    verinum val = ce->value();
@@ -12404,10 +12675,15 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 
 	      /* Otherwise, false. wait(0) blocks permanently. */
 
-	    cerr << get_fileline() << ": warning: wait expression is "
-		 << "constant false." << endl;
-	    cerr << get_fileline() << ":        : The statement will "
-		 << "block permanently." << endl;
+	    const PENumber*literal = dynamic_cast<const PENumber*>(pe);
+	    bool explicit_zero = literal && literal->value().is_defined()
+		  && literal->value().is_zero();
+	    if (!explicit_zero) {
+		  cerr << get_fileline() << ": warning: wait expression is "
+		       << "constant false." << endl;
+		  cerr << get_fileline() << ":        : The statement will "
+		       << "block permanently." << endl;
+	    }
 
 	      /* Create an event wait and an otherwise unreferenced
 		 event variable to force a perpetual wait. */
@@ -16311,8 +16587,24 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			ivl_type_t ptype = cls->get_prop_type((size_t)idx);
 			const netdarray_t*da =
 			      dynamic_cast<const netdarray_t*>(ptype);
-			if (da && !dynamic_cast<const netqueue_t*>(ptype)) {
-			      ivl_type_t etype = da->element_type();
+			const netqueue_t*queue =
+			      dynamic_cast<const netqueue_t*>(ptype);
+			property_qualifier_t qual =
+			      cls->get_prop_qual((size_t)idx);
+			bool rand_container = qual.test_rand() || qual.test_randc();
+			ivl_type_t etype = da ? da->element_type() : nullptr;
+			ivl_variable_type_t ebase = etype
+			      ? etype->base_type() : IVL_VT_NO_TYPE;
+			bool integral_queue = ebase == IVL_VT_BOOL
+			      || ebase == IVL_VT_LOGIC
+			      || dynamic_cast<const netenum_t*>(etype);
+			  // Associative arrays currently share netqueue_t as an
+			  // elaboration representation, but their key set is state,
+			  // not a randomizable queue size. Likewise, the bitvector
+			  // solver cannot fill a rand queue of non-integral elements.
+			bool unsupported_rand_queue = queue && rand_container
+			      && (queue->assoc_compat() || !integral_queue);
+			if (da && !unsupported_rand_queue) {
 			      unsigned ewid = etype ? etype->packed_width() : 32;
 			      if (ewid == 0) ewid = 32;
 			      bool esigned = etype && etype->get_signed();
@@ -16324,6 +16616,14 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      else
 				    ttext = (esigned ? "sv" : "v")
 					  + to_string(ewid);
+				// Q<MAX>:<ENC> distinguishes queue construction from
+				// dynamic-array construction at solver write-back. MAX is
+				// the maximum element count (0 means unbounded).
+			      if (queue && !queue->assoc_compat()) {
+				    uint64_t max_size = queue->max_idx() < 0 ? 0
+					  : (uint64_t)queue->max_idx() + 1;
+				    ttext = "Q" + to_string(max_size) + ":" + ttext;
+			      }
 			      return "s:" + to_string(idx) + ":" + ttext;
 			}
 		  }
@@ -17160,8 +17460,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    struct xbin_desc_t {
 			  perm_string name;
 			  std::vector<std::pair<uint64_t,uint64_t>> ranges;
-			  bool wildcard;
+			  bool wildcard = false;
 			  int dyn_family = -1;
+			    // A transition coverpoint contributes the bin that
+			    // COMPLETED on this sample, not a range of its current
+			    // value. The property index identifies that source bin.
+			  int transition_prop = -1;
 		    };
 		    std::vector<std::vector<xbin_desc_t>> cp_value_bins;
 
@@ -17582,9 +17886,23 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							stepv[st].first, stepv[st].second,
 							4u, (sq << 8) | st, cp_idx);
 					    }
-				      }
-				      has_value_bins = true;
-				      continue;
+					    if (split) {
+						  xbin_desc_t d;
+						  d.name = lex_strings.make(
+							(std::string(bin.name.str()) + "["
+							 + std::to_string(sq) + "]").c_str());
+						  d.transition_prop = (int)use_prop;
+						  vbins.push_back(d);
+					    }
+					  }
+					  if (!split && !bad) {
+						xbin_desc_t d;
+						d.name = bin.name;
+						d.transition_prop = (int)prop_first;
+						vbins.push_back(d);
+					  }
+					  has_value_bins = true;
+					  continue;
 				}
 
 				if (bin.is_default || base_kind == 3) {
@@ -18230,7 +18548,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		      // product of the contributing coverpoints' value
 		      // bins.  Named cross bins (binsof selects) land in
 		      // M11-3; their pform is captured already.
-		    unsigned cross_no = 0;
 		    for (auto& cross : cgdef->crosses) {
 			  std::vector<unsigned> cp_indexes;
 			  cp_indexes.reserve(cross.cp_labels.size());
@@ -18254,7 +18571,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							   : cross.label.str())
 				     << "' references an unknown coverpoint; "
 				     << "the cross is dropped." << endl;
-				cross_no++;
 				continue;
 			  }
 
@@ -18262,9 +18578,27 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  unsigned x_at_least = opt_uint(cross.options, "at_least", cg_at_least);
 			  std::pair<unsigned,std::string> x_weight =
 				opt_weight(cross.options, 1);
-			  unsigned item_idx = cp_idx + cross_no;
+			    // Keep the runtime item index identical to the item-table
+			    // index even if an earlier malformed cross was dropped.
+			  unsigned item_idx =
+				static_cast<unsigned>(cg_class->covgrp_item_count());
+			  int x_guard_src = -1;
+			  if (!cg_standalone && cross.iff_expr)
+			  if (const PEIdent*gpe =
+				dynamic_cast<const PEIdent*>(cross.iff_expr)) {
+				perm_string gname = peek_head_name(gpe->path());
+				bool is_formal = false;
+				for (auto&fn : cgdef->sample_formals)
+				      if (fn == gname) {
+					    is_formal = true;
+					    break;
+				      }
+				if (!is_formal && gpe->path().size() == 1)
+				      x_guard_src = property_idx_from_name(gname);
+			  }
 			  cg_class->add_covgrp_item(x_at_least, x_weight.first, true,
-						    cross.label, x_weight.second);
+					    cross.label, x_weight.second,
+					    cross.iff_expr, x_guard_src);
 
 			    // M11-3: named cross bins — per product
 			    // tuple, evaluate each user bin's binsof
@@ -18382,7 +18716,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				     << " bins (limit " << cross_bin_limit
 				     << "); the cross is "
 				     << "dropped." << endl;
-				cross_no++;
 				continue;
 			  }
 
@@ -18474,9 +18807,19 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    for (uint64_t t = 0; t < nrt; t++) {
 						  unsigned tup = prop_tuple_next[tgt.first]++;
 						  for (size_t k = 0; k < idx.size(); k++) {
-							const xbin_desc_t&d =
-							      cp_value_bins[cp_indexes[k]][idx[k]];
-							if (d.ranges.empty()) continue;
+								const xbin_desc_t&d =
+								      cp_value_bins[cp_indexes[k]][idx[k]];
+								if (d.transition_prop >= 0) {
+								      // kind bit 16 is a cross predicate over a
+								      // transition-bin completion. `lo' carries
+								      // the source bin's counter property.
+								      cg_class->add_covgrp_bin(cp_indexes[k],
+									tgt.first,
+									(uint64_t)d.transition_prop, 0,
+									tgt.second | 16u, tup, item_idx);
+								      continue;
+								}
+								if (d.ranges.empty()) continue;
 							auto&r = d.ranges[ridx[k]];
 							unsigned kv = tgt.second
 							    | (d.wildcard ? 8u : 0u);
@@ -18503,7 +18846,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				}
 				if (k == idx.size()) done = true;
 			  }
-			  cross_no++;
 		    }
 
 		    // M11-3: a class-embedded covergroup with a declaration
@@ -18535,6 +18877,17 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						 << " is not backed by a parent-class "
 						 << "property; event-driven sampling "
 						 << "records constant 0 for it." << endl;
+				}
+				for (size_t item = cg_class->covgrp_ncoverpoints();
+				     item < cg_class->covgrp_item_count(); item++) {
+				      if (cg_class->covgrp_item_guard(item)
+					  && cg_class->covgrp_item_guardsrc(item) < 0)
+					    cerr << "sorry: covergroup '" << cgdef->name
+						 << "' cross '"
+						 << cg_class->covgrp_item(item).name
+						 << "' iff guard is not backed by a "
+						 << "parent-class property; event-driven "
+						 << "sampling treats it as enabled." << endl;
 				}
 			  }
 		    }

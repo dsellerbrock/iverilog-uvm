@@ -280,10 +280,20 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
       NetScope*temp_scope = nullptr;
       if (!iface_scope || (iface_scope->parameters.empty() && !mod->parameters.empty())) {
 	    if (!iface_scope) {
+		  // Preserve the interface definition's compilation-unit
+		  // visibility. A wildcard import at $unit may be the source of
+		  // constants used by member dimensions, and the disposable type
+		  // scope must search that same unit just like an instantiated or
+		  // root interface scope does.
+		  NetScope*unit_scope = nullptr;
+		  if (const PScope*lexical_parent =
+			dynamic_cast<const PScope*>(mod->parent_scope()))
+			unit_scope = des->find_package(
+			      lexical_parent->pscope_name());
 		  // Interface is NOT a root — create a disposable scope.
 		  temp_scope = new NetScope(nullptr, hname_t(mod->mod_name()),
-					   NetScope::MODULE, nullptr,
-					   false, false, true, false);
+				   NetScope::MODULE, unit_scope,
+				   false, false, true, false);
 		  iface_scope = temp_scope;
 	    }
 	    // Pre-populate default parameters so dimension expressions resolve.

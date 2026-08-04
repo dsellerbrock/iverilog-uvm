@@ -1,0 +1,8 @@
+{
+    "type"   : "normal",
+    "source" : "sv_param_unpacked_array_slice_port.v",
+    "iverilog-args" : [ "-S", "-g2012" ],
+    "vlog95" : {
+        "type" : "NI"
+    }
+}
