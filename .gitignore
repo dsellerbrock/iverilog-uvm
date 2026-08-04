@@ -122,3 +122,4 @@ ivlpp/lex.yy.c
 
 # Ephemeral subagent worktrees
 .claude/worktrees/
+*.dSYM/
