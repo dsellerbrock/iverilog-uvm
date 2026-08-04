@@ -1789,6 +1789,42 @@ Adding another similar production for the constraint context risks the
 same failure mode. Both gaps are tracked for a dedicated pass (bison
 `-Wcounterexamples` analysis first) rather than a rushed fix.
 
+## G64 — `q[$-N]` queue index arithmetic unsupported — **fixed** [general]
+
+IEEE 1800-2017 7.10.1: within a queue index expression, `$` stands for
+the queue's top bound (`size()-1`) and may be combined with ordinary
+arithmetic — `q[$-1]` names the second-to-last element, `q[$-N]` for a
+variable `N` the `(N+1)`-th from the end. Only the bare `q[$]` form was
+supported (`SEL_BIT_LAST`, parse.y ~10549); `q[$-N]` fell straight
+through to a syntax error. Reduced from OpenTitan
+`gpio_scoreboard.sv`'s `data_in_update_queue[$ - 1].needs_update`.
+
+`SEL_BIT_LAST` has 17 separate consumer sites across
+elab_expr.cc/elab_lval.cc/elaborate.cc (lvalue, rvalue, and sizing
+paths). Rather than teach every one of them a second "relative to
+last" selector kind — a wide, easy-to-miss-one surface, and this
+session already spent real effort recovering from one under-scoped
+change (G62) — the new grammar production
+(`hierarchy_identifier '[' '$' '-' expression ']'`) rewrites the index
+at PARSE TIME into the exactly equivalent ordinary index
+`q[q.size()-1-<offset>]`, built on a duplicated copy of the base path
+so the original indexed path is untouched. This reuses the
+already-correct plain-`SEL_BIT` machinery instead of adding a new one,
+touching zero elaboration sites. Verified the new production adds no
+grammar conflicts (`bison -Wconflicts-sr -Wconflicts-rr`: 551
+shift/reduce, 1186 reduce/reduce, identical before and after — unlike
+the untouched G63 gap, this one was checked before committing to it,
+given the direct evidence from this same file that this grammar can
+silently swallow a structurally similar production).
+
+Confirmed on the real OpenTitan job: `gpio_scoreboard.sv`'s `[$-1]`
+error is gone; the file now advances to later, unrelated gaps
+(multidimensional associative-array indexing in the same scoreboard,
+`Got 2 indices, expecting 1`). Value-checked test:
+`sv_queue_dollar_arithmetic` (literal and variable offsets, a compound
+offset expression `$-(i+1)`, both read and lvalue-write forms, and
+confirms the pre-existing bare `q[$]` form is unaffected).
+
 ---
 
 ## Two measurement traps worth remembering

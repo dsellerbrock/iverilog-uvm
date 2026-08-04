@@ -10557,6 +10557,39 @@ hierarchy_identifier
 	tail.index.push_back(itmp);
 	$$ = tmp;
       }
+      /* IEEE 1800-2017 7.10.1: within an index expression, `$' stands
+	 for the queue's top bound (size()-1) and may be combined with
+	 ordinary arithmetic, e.g. `q[$-1]' for the second-to-last
+	 element. Rather than teach the many SEL_BIT_LAST consumers
+	 (lvalue, rvalue, sizing -- elab_expr.cc/elab_lval.cc/
+	 elaborate.cc each have several) a second "relative to last"
+	 selector kind, rewrite this at parse time into the exactly
+	 equivalent ordinary index `q[q.size()-1-<offset>]', built on a
+	 COPY of the base path so the original `q[...]' path is left
+	 untouched for the actual index. This reuses the already-correct
+	 plain-SEL_BIT machinery instead of adding a new one. */
+  | hierarchy_identifier '[' '$' '-' expression ']'
+      { pform_requires_sv(@3, "Last element expression ($)");
+        pform_name_t * tmp = $1;
+	pform_name_t * size_path = new pform_name_t(*tmp);
+	size_path->push_back(name_component_t(lex_strings.make("size")));
+	std::vector<named_pexpr_t> no_args;
+	PECallFunction*size_call = new PECallFunction(*size_path, no_args);
+	FILE_NAME(size_call, @3);
+	delete size_path;
+	PENumber*one = new PENumber(new verinum((uint64_t)1, integer_width));
+	FILE_NAME(one, @3);
+	PEBinary*last_idx = new PEBinary('-', size_call, one);
+	FILE_NAME(last_idx, @3);
+	PEBinary*offset_idx = new PEBinary('-', last_idx, $5);
+	FILE_NAME(offset_idx, @4);
+	name_component_t&tail = tmp->back();
+	index_component_t itmp;
+	itmp.sel = index_component_t::SEL_BIT;
+	itmp.msb = offset_idx;
+	tail.index.push_back(itmp);
+	$$ = tmp;
+      }
   | hierarchy_identifier '[' expression ':' expression ']'
       { pform_name_t * tmp = $1;
 	name_component_t&tail = tmp->back();
