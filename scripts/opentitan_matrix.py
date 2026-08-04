@@ -220,6 +220,20 @@ KNOWN_UPSTREAM_DEFECTS = (
         "cannot elaborate with any tool.",
     ),
     UpstreamDefect(
+        "lowrisc:fpv:prim_lfsr_fpv",
+        "compile",
+        re.compile(
+            r"Variable 'state_o' cannot have multiple drivers"
+            r"|Output port expression must support a continuous assignment"
+        ),
+        "prim_lfsr_tb.sv's gen_gal_xor_duts_nonlinear loop reuses the "
+        "linear loop's index (Idx = k - GalXorMinLfsrDw), so both "
+        "generate blocks drive state_o[Idx] for every power-of-two "
+        "width. IEEE 1800-2017 10.3 forbids overlapping continuous "
+        "drives of one variable; the FPV testbench is only tolerated by "
+        "JasperGold's net resolution.",
+    ),
+    UpstreamDefect(
         "lowrisc:earlgrey_fpv:pinmux_fpv",
         "compile",
         re.compile(
