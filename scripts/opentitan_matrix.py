@@ -53,6 +53,7 @@ mapping:
   "lowrisc:virtual_ip:flash_ctrl_prim_reg_top": "lowrisc:englishbreakfast_ip:flash_ctrl_prim_reg_top"
   "lowrisc:virtual_ip:flash_ctrl_top_specific_pkg": "lowrisc:englishbreakfast_ip:flash_ctrl_top_specific_pkg"
   "lowrisc:virtual_constants:rnd_cnst_pkg": "lowrisc:englishbreakfast_constants:testing_rnd_cnst_pkg"
+  "lowrisc:virtual_constants:lc_ctrl_token_pkg": "lowrisc:earlgrey_constants:testing_lc_ctrl_token_pkg"
 """
 
 CORE_LINE_RE = re.compile(r"^(?P<core>[^\s:]+:[^\s:]+:[^\s:]+:[^\s]+)\s+:\s+")
@@ -107,15 +108,6 @@ MODULE_DECL_RE = re.compile(
     r"^\s*(?:module|macromodule)\s+(?:automatic\s+|static\s+)?([A-Za-z_][\w$]*)",
     re.M,
 )
-
-# Simulation harnesses that reach the rtl lane but are not synthesis
-# subjects: they exercise $fwrite tracers or testbench control flow that
-# no synthesis flow consumes. They are compiled without -S so their RTL
-# is still fully elaborated.
-NON_SYNTH_RTL_CORES = {
-    "lowrisc:ibex:ibex_top_tracing",
-    "lowrisc:prim:crc32_sim",
-}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -204,15 +196,6 @@ KNOWN_UPSTREAM_DEFECTS = (
         "socket_1n core it instantiates.",
     ),
     UpstreamDefect(
-        "lowrisc:ip:otbn_top_sim",
-        "compile",
-        re.compile(
-            r"Unknown module type: otbn_(?:trace_if|tracer|core_model)"
-        ),
-        "otbn_top_sim's default target omits the dv tracer/model sources "
-        "it instantiates; the core is a Verilator simulation harness.",
-    ),
-    UpstreamDefect(
         "lowrisc:earlgrey_ip:flash_ctrl_prim_reg_top",
         "compile",
         re.compile(
@@ -235,6 +218,28 @@ KNOWN_UPSTREAM_DEFECTS = (
         "and omits the tlul adapter / integrity and prim_reg_we_check "
         "dependencies its reg_top instantiates; the standalone fileset "
         "cannot elaborate with any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:systems:top_englishbreakfast",
+        "compile",
+        re.compile(r"of module prim_ram_1p_scr expects \d+ bit"),
+        "top_englishbreakfast.sv autogen declares SramCtrlMainInstSize "
+        "= 4096 with SramCtrlMainNumRamInst = 1, which is internally "
+        "inconsistent for its main SRAM (32 instances would be needed); "
+        "only an ASSERT_INIT that -DSYNTHESIS strips guards it, so the "
+        "sram_ctrl/prim_ram_1p_scr cfg ports genuinely mismatch. "
+        "Earlgrey's autogen uses InstSize = 131072 and is consistent.",
+    ),
+    UpstreamDefect(
+        "lowrisc:systems:chip_englishbreakfast_verilator",
+        "compile",
+        re.compile(r"of module prim_ram_1p_scr expects \d+ bit"),
+        "top_englishbreakfast.sv autogen declares SramCtrlMainInstSize "
+        "= 4096 with SramCtrlMainNumRamInst = 1, which is internally "
+        "inconsistent for its main SRAM (32 instances would be needed); "
+        "only an ASSERT_INIT that -DSYNTHESIS strips guards it, so the "
+        "sram_ctrl/prim_ram_1p_scr cfg ports genuinely mismatch. "
+        "Earlgrey's autogen uses InstSize = 131072 and is consistent.",
     ),
     UpstreamDefect(
         "lowrisc:ibex:ibex_riscv_compliance",
@@ -1362,11 +1367,7 @@ def compile_command(
 ) -> list[str]:
     command = [str(iverilog), "-g2012", *top_options]
     if job.lane == "rtl":
-        if job.core.vlnv.rsplit(":", 1)[0] in NON_SYNTH_RTL_CORES:
-            # Simulation harness cores are elaborated but not synthesized.
-            pass
-        else:
-            command.extend(["-S", "-DSYNTHESIS"])
+        command.extend(["-S", "-DSYNTHESIS"])
     elif job.lane == "sva":
         # OpenTitan's formal flows define FPV_ON. This controls assumption and
         # cover semantics in prim_assert.sv as well as FPV-specific RTL; the
@@ -1554,13 +1555,6 @@ def run_job(
         return record
     if top_notes:
         record["top_selection_notes"] = top_notes
-    if (
-        job.lane == "rtl"
-        and job.core.vlnv.rsplit(":", 1)[0] in NON_SYNTH_RTL_CORES
-    ):
-        record["synthesis_skipped"] = (
-            "simulation harness core; elaborated without -S"
-        )
 
     executable = work_root / f"matrix-{job.lane}.vvp"
     compile_result = command_result(
@@ -1612,7 +1606,16 @@ def run_job(
             record["status"] = "FAIL"
         return record
     if setup_findings or semantic_debt:
-        record["status"] = "DEBT"
+        defect = (
+            upstream_defect_for(job.core.vlnv, "compile", semantic_debt)
+            if semantic_debt and not setup_findings
+            else None
+        )
+        if defect is not None:
+            record["status"] = "UPSTREAM_INVALID"
+            record["upstream_defect"] = defect.note
+        else:
+            record["status"] = "DEBT"
     else:
         record["status"] = "PASS"
 

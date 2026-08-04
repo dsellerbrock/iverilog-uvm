@@ -1476,9 +1476,11 @@ Four census defects hid the true compiler state of the rtl lane:
    otherwise, and gives package-only lists a synthetic empty root so
    the packages still compile. All five cores now `PASS`.
 2. Simulation harness cores (`ibex_top_tracing` with its `$fwrite`
-   tracer, `prim_crc32_sim`) were pushed through `-S` and failed as
-   unsynthesizable. They are now elaborated without `-S` and marked
-   `synthesis_skipped`.
+   tracer, `prim_crc32_sim`, `otbn_top_sim`) were pushed through `-S`
+   in rtl-v29 and failed as unsynthesizable. The driver's inventory
+   predicate (landed with PR #150) now excludes `*_sim`/`*_tracing`
+   cores from the synthesis lane; they are exercised by the simulation
+   lanes instead.
 3. Pinned-revision upstream source/metadata defects are now classified
    `UPSTREAM_INVALID` with an evidence note, and only when *every*
    hard diagnostic matches the recorded fingerprint — any new failure
@@ -1492,8 +1494,7 @@ Four census defects hid the true compiler state of the rtl lane:
    tlul adapter/integrity and `prim_reg_we_check`),
    `prim_dom_and_2share` (fileset omits prim `xor2`/`flop_en`),
    `tlul_lc_gate`, `tlul_request_loopback` (fileset omits instantiated
-   tlul/prim providers), `otbn_top_sim` (default target omits its dv
-   tracer/model sources), and six setup-phase records whose
+   tlul/prim providers), and six setup-phase records whose
    dependencies or targets do not exist at the pinned revision
    (`ibex_riscv_compliance`, `tb_cs_registers`,
    `ibex_simple_system_cosim`, `i3c`, `chip_earlgrey_cw340`,
@@ -1504,9 +1505,29 @@ Four census defects hid the true compiler state of the rtl lane:
    closed by the dual-control DFF work (PR #150); the census binaries
    predated it.
 
+Follow-up findings at the same revision: the englishbreakfast autogen
+top declares `SramCtrlMainInstSize = 4096` with
+`SramCtrlMainNumRamInst = 1`, which is internally inconsistent for its
+main SRAM (32 instances would be needed; earlgrey uses
+`InstSize = 131072` and is consistent). Only an `ASSERT_INIT` that
+`-DSYNTHESIS` strips guards the relation, so the
+`sram_ctrl`/`prim_ram_1p_scr` cfg ports genuinely mismatch
+(416 vs 13 bits) — classified `UPSTREAM_INVALID` on both
+`top_englishbreakfast` and `chip_englishbreakfast_verilator`. The
+driver's englishbreakfast mapping core now also pins
+`lc_ctrl_token_pkg` to the earlgrey testing constants so FuseSoC's
+virtual-core selection is deterministic (it previously grabbed the
+darjeeling variant and emitted a non-determinism warning that polluted
+those records with `DEBT`).
+
 None of this is a compiler accommodation: every `UPSTREAM_INVALID`
 fingerprint records a defect other tools reproduce or a fileset that
 cannot elaborate anywhere.
+
+With these classifications the full rtl census at `7a3ad34` reports
+**zero FAIL, zero DEBT, zero timeouts**: every one of the 264 rtl
+records is `PASS` (93), `DEPENDENCY_ONLY` (153), or an evidence-backed
+`UPSTREAM_INVALID` (18).
 
 ---
 
