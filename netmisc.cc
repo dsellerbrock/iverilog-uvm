@@ -1644,7 +1644,8 @@ bool eval_as_double(double&value, NetExpr*expr)
  */
 hname_t eval_path_component(Design*des, NetScope*scope,
 			    const name_component_t&comp,
-			    bool&error_flag)
+			    bool&error_flag,
+			    bool quiet)
 {
 	// No index expression, so the path component is an undecorated
 	// name, for example "foo".
@@ -1658,9 +1659,12 @@ hname_t eval_path_component(Design*des, NetScope*scope,
 	    const index_component_t&index = *cur;
 
 	    if (index.sel != index_component_t::SEL_BIT) {
-		  cerr << index.msb->get_fileline() << ": error: "
-		       << "Part select is not valid for this kind of object." << endl;
-		  des->errors += 1;
+		  if (!quiet) {
+			cerr << index.msb->get_fileline() << ": error: "
+			     << "Part select is not valid for this kind of object." << endl;
+			des->errors += 1;
+		  }
+		  error_flag = true;
 		  return hname_t(comp.name, 0);
 	    }
 
@@ -1678,15 +1682,19 @@ hname_t eval_path_component(Design*des, NetScope*scope,
 		  delete ctmp;
 		  continue;
 	    }
-#if 1
-	      // Darn, the expression doesn't evaluate to a constant. That's
-	      // an error to be reported. And make up a fake index value to
-	      // return to the caller.
-	    cerr << index.msb->get_fileline() << ": error: "
-		 << "Scope index expression is not constant: "
-		 << *index.msb << endl;
-	    des->errors += 1;
-#endif
+	      // Darn, the expression doesn't evaluate to a constant. A
+	      // quiet probe (e.g. Design::find_signal() checking whether a
+	      // path names a scope) reports this only through error_flag,
+	      // exactly like every other kind of "this path is not a
+	      // scope" miss that function already handles silently; a
+	      // caller resolving a GENUINE scope reference still gets the
+	      // diagnostic and the error is still counted.
+	    if (!quiet) {
+		  cerr << index.msb->get_fileline() << ": error: "
+		       << "Scope index expression is not constant: "
+		       << *index.msb << endl;
+		  des->errors += 1;
+	    }
 	    error_flag = true;
 
 	    delete tmp;
@@ -1696,7 +1704,8 @@ hname_t eval_path_component(Design*des, NetScope*scope,
 }
 
 std::list<hname_t> eval_scope_path(Design*des, NetScope*scope,
-				   const pform_name_t&path)
+				   const pform_name_t&path,
+				   bool quiet)
 {
       bool path_error_flag = false;
       list<hname_t> res;
@@ -1705,7 +1714,7 @@ std::list<hname_t> eval_scope_path(Design*des, NetScope*scope,
 
       for (pform_path_it cur = path.begin() ; cur != path.end(); ++ cur ) {
 	    const name_component_t&comp = *cur;
-	    res.push_back( eval_path_component(des,scope,comp,path_error_flag) );
+	    res.push_back( eval_path_component(des,scope,comp,path_error_flag,quiet) );
       }
 #if 0
       if (path_error_flag) {

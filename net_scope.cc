@@ -24,6 +24,7 @@
 # include  "netlist.h"
 # include  "netclass.h"
 # include  "netenum.h"
+# include  "netmisc.h"
 # include  "netvector.h"
 # include  "PExpr.h"
 # include  "PPackage.h"
@@ -912,6 +913,11 @@ NetNet* NetScope::set_signal_alias(perm_string name, NetNet*net)
 {
       NetNet*prev = find_signal(name);
       signals_map_[name] = net;
+	// The symbol_search() cache assumes ordinary declarations, which
+	// are stable once found; this alias is deliberately transient
+	// (see the comment at the declaration), so any cached resolution
+	// of this name is now stale.
+      symbol_search_cache_clear();
       return prev;
 }
 
@@ -921,6 +927,9 @@ void NetScope::restore_signal_alias(perm_string name, NetNet*prev)
 	    signals_map_[name] = prev;
       else
 	    signals_map_.erase(name);
+	// Undoes the alias installed above; the cache may again hold
+	// resolutions computed while it was in effect.
+      symbol_search_cache_clear();
 }
 
 typedef_t* NetScope::find_typedef(const Design*des, perm_string name)

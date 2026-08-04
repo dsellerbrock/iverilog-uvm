@@ -163,7 +163,20 @@ NetESFunc* make_randomize_with_expr(
 		  : pexpr_to_rooted_class_constraint_ir(
 			wc, class_type, std_object_root,
 			&value_slots, des, scope);
-	    if (ir.empty()) continue;
+	    if (ir.empty()) {
+		    // A top-level `with' constraint item this pass could not
+		    // translate to solver IR is silently dropped -- the
+		    // randomize() call still succeeds, just without that
+		    // constraint in effect. That is a real behavioral gap
+		    // (the LRM has no notion of a partially-applied
+		    // constraint), so make it loud instead of silent.
+		  ostringstream item_text;
+		  wc->dump(item_text);
+		  cerr << wc->get_fileline() << ": warning: constraint `"
+		       << item_text.str() << "' could not be translated and "
+		       << "is being ignored (compile-progress fallback)." << endl;
+		  continue;
+	    }
 	    if (!combined_ir.empty()) combined_ir += " ";
 	    combined_ir += ir;
       }
@@ -10742,7 +10755,8 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 	    cerr << get_fileline() << ": error: "
 		 << "Too many arguments (" << actual_count
 		 << ", expecting " << parm_count << ")"
-		 << " in call to function." << endl;
+		 << " in call to function "
+		 << scope_path(def->scope()) << "." << endl;
 	    des->errors += 1;
       }
 
@@ -12544,6 +12558,29 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 
 	    ivl_assert(*this, parms_[idx]);
             unsigned wid = parms_[idx]->expr_width();
+
+	      // IEEE 1800-2017 11.4.12.1 forbids unsized constant
+	      // numbers as concatenation operands. An expression that
+	      // merely contains unsized literals (e.g. 32-P) is legal
+	      // and takes its self-determined width, so re-test such
+	      // operands with strict (IEEE) sizing rules instead of
+	      // rejecting them.
+	    if (width_modes_[idx] != SIZED) {
+		  if (dynamic_cast<PENumber*>(parms_[idx])) {
+			cerr << parms_[idx]->get_fileline() << ": error: "
+			     << "Concatenation operand \"" << *parms_[idx]
+			     << "\" has indefinite width." << endl;
+			des->errors += 1;
+			parm_errors += 1;
+			continue;
+		  }
+		  bool save_strict = gn_strict_expr_width_flag;
+		  gn_strict_expr_width_flag = true;
+		  width_mode_t strict_mode = SIZED;
+		  wid = parms_[idx]->test_width(des, scope, strict_mode);
+		  gn_strict_expr_width_flag = save_strict;
+	    }
+
 	    NetExpr*ex = parms_[idx]->elaborate_expr(des, scope, wid, flags);
 	    if (ex == 0) continue;
 
@@ -12555,15 +12592,6 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 		  cerr << ex->get_fileline() << ": error: "
 		       << "Concatenation operand can not be real: "
 		       << *parms_[idx] << endl;
-		  des->errors += 1;
-                  parm_errors += 1;
-		  continue;
-	    }
-
-	    if (width_modes_[idx] != SIZED) {
-		  cerr << ex->get_fileline() << ": error: "
-		       << "Concatenation operand \"" << *parms_[idx]
-		       << "\" has indefinite width." << endl;
 		  des->errors += 1;
                   parm_errors += 1;
 		  continue;

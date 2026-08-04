@@ -170,6 +170,7 @@ synth_packed_loop_disjoint_fields normal,-g2012	ivltests
 synth_parameter_member_width normal,-g2012	ivltests
 synth_partial_async_reset_reject CE,-g2012	ivltests
 synth_contextual_array_word normal,-g2012	ivltests
+synth_concat_unsized_expr normal,-g2012	ivltests
 synth_dead_declaration_initializer normal,-g2012	ivltests
 synth_runtime_for_bound normal,-g2012	ivltests
 synth_runtime_memory_output_set normal,-g2012	ivltests

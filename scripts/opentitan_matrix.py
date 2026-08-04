@@ -37,6 +37,19 @@ SVA_UVM_CORES = {
     "lowrisc:dv:adc_ctrl_sva:0.1",
     "lowrisc:dv:spi_host_sva:0.1",
 }
+# Build-mode defines that dvsim's sim cfgs pass with +define+ and the
+# fusesoc targets never carry. Values mirror the DUT's default RTL
+# parameterization (aes.sv elaborates with SecMasking = 1).
+SVA_EXTRA_DEFINES = {
+    "lowrisc:dv:aes_sva:0.1": ("-DEN_MASKING=1",),
+}
+# Same idea for the uvm/runtime lanes: dvsim's per-core sim cfgs pass
+# +define+ build options the fusesoc sim target never carries. Values
+# mirror the DUT's default RTL parameterization (lc_ctrl.sv elaborates
+# with SecVolatileRawUnlockEn = 0).
+UVM_EXTRA_DEFINES = {
+    "lowrisc:dv:lc_ctrl_sim:0.1": ("-DSEC_VOLATILE_RAW_UNLOCK_EN=0",),
+}
 DEFAULT_TOPS = {
     "earlgrey": "lowrisc:systems:top_earlgrey:0.1",
     "darjeeling": "lowrisc:systems:top_darjeeling:0.1",
@@ -53,6 +66,7 @@ mapping:
   "lowrisc:virtual_ip:flash_ctrl_prim_reg_top": "lowrisc:englishbreakfast_ip:flash_ctrl_prim_reg_top"
   "lowrisc:virtual_ip:flash_ctrl_top_specific_pkg": "lowrisc:englishbreakfast_ip:flash_ctrl_top_specific_pkg"
   "lowrisc:virtual_constants:rnd_cnst_pkg": "lowrisc:englishbreakfast_constants:testing_rnd_cnst_pkg"
+  "lowrisc:virtual_constants:lc_ctrl_token_pkg": "lowrisc:earlgrey_constants:testing_lc_ctrl_token_pkg"
 """
 
 CORE_LINE_RE = re.compile(r"^(?P<core>[^\s:]+:[^\s:]+:[^\s:]+:[^\s]+)\s+:\s+")
@@ -103,6 +117,507 @@ SETUP_ALLOWLIST = (
     re.compile(r"This backend is deprecated .* migrate to the flow API", re.I),
 )
 NO_TOPLEVEL_RE = re.compile(r"Target '[^']+' has no toplevel", re.I)
+MODULE_DECL_RE = re.compile(
+    r"^\s*(?:module|macromodule)\s+(?:automatic\s+|static\s+)?([A-Za-z_][\w$]*)",
+    re.M,
+)
+
+
+@dataclasses.dataclass(frozen=True)
+class UpstreamDefect:
+    """A pinned-revision OpenTitan source or metadata defect.
+
+    A record is reclassified only when the phase matches and every hard
+    diagnostic matches the fingerprint, so any new failure mode still
+    surfaces as FAIL.
+    """
+
+    core: str  # VLNV without the version component
+    phase: str  # "setup" or "compile"
+    fingerprint: re.Pattern[str]
+    note: str
+
+
+KNOWN_UPSTREAM_DEFECTS = (
+    UpstreamDefect(
+        "lowrisc:ip:ascon",
+        "compile",
+        re.compile(r"This assignment requires an explicit cast"),
+        "ascon_core.sv assigns plain logic vectors to enum-typed signals "
+        "(duplex_op_e and friends). IEEE 1800-2017 6.19.3 requires an "
+        "explicit cast; slang 11.0 rejects the same lines.",
+    ),
+    UpstreamDefect(
+        "lowrisc:ip:aes_wrap",
+        "compile",
+        re.compile(
+            r"cannot have multiple drivers"
+            r"|must support a continuous assignment"
+        ),
+        "aes_wrap.sv drives all of h2d_intg from tlul_cmd_intg_gen and "
+        "separately drives h2d_intg.a_user.data_intg from "
+        "prim_secded_inv_39_32_enc. IEEE 1800-2017 10.3 forbids "
+        "overlapping continuous drives of one variable; slang rejects "
+        "the same overlap.",
+    ),
+    UpstreamDefect(
+        "lowrisc:darjeeling_ip:otp_ctrl_top_specific_pkg",
+        "compile",
+        re.compile(r"Unknown package `otp_ctrl_macro_pkg'"),
+        "otp_ctrl_top_specific_pkg.core omits the otp_ctrl_macro_pkg "
+        "dependency its own package imports, so the standalone fileset "
+        "cannot compile with any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:earlgrey_ip:otp_ctrl_top_specific_pkg",
+        "compile",
+        re.compile(r"Unknown package `otp_ctrl_macro_pkg'"),
+        "otp_ctrl_top_specific_pkg.core omits the otp_ctrl_macro_pkg "
+        "dependency its own package imports, so the standalone fileset "
+        "cannot compile with any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:englishbreakfast_ip:rstmgr",
+        "compile",
+        re.compile(r"rstmgr\.sv:\d+: (?:syntax error|error:)"),
+        "englishbreakfast rstmgr.sv references alert_handler_pkg but the "
+        "core fileset never provides it (englishbreakfast has no alert "
+        "handler), so the standalone compile fails on the unresolved "
+        "package type.",
+    ),
+    UpstreamDefect(
+        "lowrisc:prim:prim_dom_and_2share",
+        "compile",
+        re.compile(r"Unknown module type: prim_(?:xor2|flop_en)"),
+        "prim_dom_and_2share.core does not depend on the prim xor2 / "
+        "flop_en abstraction cores its RTL instantiates.",
+    ),
+    UpstreamDefect(
+        "lowrisc:tlul:lc_gate",
+        "compile",
+        re.compile(
+            r"Unknown module type: (?:tlul_err_resp|prim_sec_anchor_buf)"
+        ),
+        "tlul_lc_gate.core does not depend on the tlul err_resp and prim "
+        "sec_anchor_buf providers its RTL instantiates.",
+    ),
+    UpstreamDefect(
+        "lowrisc:tlul:request_loopback",
+        "compile",
+        re.compile(r"Unknown module type: tlul_socket_1n"),
+        "tlul_request_loopback.core does not depend on the tlul "
+        "socket_1n core it instantiates.",
+    ),
+    UpstreamDefect(
+        "lowrisc:earlgrey_ip:flash_ctrl_prim_reg_top",
+        "compile",
+        re.compile(
+            r"Unknown module type: (?:tlul_cmd_intg_chk|tlul_rsp_intg_gen"
+            r"|tlul_adapter_reg|prim_reg_we_check)"
+        ),
+        "flash_ctrl_prim_reg_top.core declares a stale lc_ctrl toplevel "
+        "and omits the tlul adapter / integrity and prim_reg_we_check "
+        "dependencies its reg_top instantiates; the standalone fileset "
+        "cannot elaborate with any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:englishbreakfast_ip:flash_ctrl_prim_reg_top",
+        "compile",
+        re.compile(
+            r"Unknown module type: (?:tlul_cmd_intg_chk|tlul_rsp_intg_gen"
+            r"|tlul_adapter_reg|prim_reg_we_check)"
+        ),
+        "flash_ctrl_prim_reg_top.core declares a stale lc_ctrl toplevel "
+        "and omits the tlul adapter / integrity and prim_reg_we_check "
+        "dependencies its reg_top instantiates; the standalone fileset "
+        "cannot elaborate with any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:fpv:prim_alert_rxtx_fatal_fpv",
+        "compile",
+        re.compile(
+            r"bind target module/interface 'prim_alert_rxtx(?:_async)?_tb' "
+            r"is not defined"
+        ),
+        "The fatal-variant FPV core binds assertions into "
+        "prim_alert_rxtx_tb, but its fileset never provides that "
+        "testbench module (it lives in the non-fatal prim_alert_rxtx_fpv "
+        "core); the bind target is absent from the compilation.",
+    ),
+    UpstreamDefect(
+        "lowrisc:fpv:prim_alert_rxtx_async_fatal_fpv",
+        "compile",
+        re.compile(
+            r"bind target module/interface 'prim_alert_rxtx(?:_async)?_tb' "
+            r"is not defined"
+        ),
+        "The fatal-variant FPV core binds assertions into "
+        "prim_alert_rxtx_async_tb, but its fileset never provides that "
+        "testbench module (it lives in the non-fatal FPV core); the "
+        "bind target is absent from the compilation.",
+    ),
+    UpstreamDefect(
+        "lowrisc:darjeeling_systems:pinmux_chip_fpv",
+        "compile",
+        re.compile(r"Unknown package `top_darjeeling_pkg'"),
+        "pinmux_chip_fpv imports the full chip package but its fileset "
+        "does not depend on the top package core; the standalone "
+        "compile cannot resolve the import with any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:earlgrey_systems:pinmux_chip_fpv",
+        "compile",
+        re.compile(r"Unknown package `top_earlgrey_pkg'"),
+        "pinmux_chip_fpv imports the full chip package but its fileset "
+        "does not depend on the top package core; the standalone "
+        "compile cannot resolve the import with any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:englishbreakfast_systems:pinmux_chip_fpv",
+        "compile",
+        re.compile(r"Unknown package `top_englishbreakfast_pkg'"),
+        "pinmux_chip_fpv imports the full chip package but its fileset "
+        "does not depend on the top package core; the standalone "
+        "compile cannot resolve the import with any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:englishbreakfast_dv:rstmgr_sva",
+        "compile",
+        re.compile(r"rstmgr\.sv:\d+: (?:syntax error|error: )"),
+        "englishbreakfast rstmgr.sv references alert_handler_pkg but "
+        "the fileset never provides it (englishbreakfast has no alert "
+        "handler), so the standalone compile fails on the unresolved "
+        "package type.",
+    ),
+    UpstreamDefect(
+        "lowrisc:englishbreakfast_dv:clkmgr_sva",
+        "compile",
+        re.compile(
+            r"Failed to elaborate .*port .*clk_hints"
+            r"|Member clk_main_aes_\w+ is not a member"
+        ),
+        "The shared clkmgr SVA collateral connects "
+        "reg2hw.clk_hints.clk_main_aes_hint and the matching status "
+        "field, but englishbreakfast's autogen clkmgr_reg_pkg declares "
+        "no such registers; the bind expressions cannot elaborate "
+        "against this top's RTL with any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:darjeeling_dv:otp_ctrl_sva",
+        "compile",
+        re.compile(
+            r"bind target module/interface 'otp_macro' is not defined"
+        ),
+        "otp_ctrl_bind.sv binds tlul_assert into otp_macro, but the "
+        "otp_ctrl_sva fileset only depends on otp_macro_pkg, never the "
+        "otp_macro module; the bind target is absent from the "
+        "compilation, so the standalone fileset cannot elaborate with "
+        "any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:earlgrey_dv:otp_ctrl_sva",
+        "compile",
+        re.compile(
+            r"bind target module/interface 'otp_macro' is not defined"
+        ),
+        "otp_ctrl_bind.sv binds tlul_assert into otp_macro, but the "
+        "otp_ctrl_sva fileset only depends on otp_macro_pkg, never the "
+        "otp_macro module; the bind target is absent from the "
+        "compilation, so the standalone fileset cannot elaborate with "
+        "any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:fpv:sha3_fpv",
+        "compile",
+        re.compile(
+            r"Wildcard named port connection \(\.\*\) did not find a "
+            r"matching identifier for port"
+        ),
+        "sha3_fpv.sv instantiates sha3 with .* but declares no "
+        "rand_update_o (and related entropy ports) in its own port "
+        "list; IEEE 1800-2017 23.3.2.4 requires a matching identifier "
+        "for every port, so the stale FPV wrapper cannot elaborate "
+        "against the pinned RTL with any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:fpv:sha3pad_fpv",
+        "compile",
+        re.compile(
+            r"Wildcard named port connection \(\.\*\) did not find a "
+            r"matching identifier for port"
+        ),
+        "sha3pad_fpv.sv instantiates its DUT with .* but does not "
+        "declare the rand/entropy ports the pinned RTL added; "
+        "IEEE 1800-2017 23.3.2.4 requires a matching identifier for "
+        "every port, so the stale FPV wrapper cannot elaborate with "
+        "any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:systems:chip_earlgrey_asic",
+        "compile",
+        re.compile(r"Unable to bind wire/reg/memory `u_state_regs\.err_o'"),
+        "otp_macro.sv's PrimRegWeOneHotCheck ASSUME_FPV references "
+        "u_state_regs.err_o, but prim_sparse_fsm_flop declares only "
+        "unused_err_o (the sibling assumptions use it); the signal does "
+        "not exist, so no tool can bind the reference.",
+    ),
+    UpstreamDefect(
+        "lowrisc:systems:chip_darjeeling_asic",
+        "compile",
+        re.compile(r"Unable to bind wire/reg/memory `u_state_regs\.err_o'"),
+        "otp_macro.sv's PrimRegWeOneHotCheck ASSUME_FPV references "
+        "u_state_regs.err_o, but prim_sparse_fsm_flop declares only "
+        "unused_err_o (the sibling assumptions use it); the signal does "
+        "not exist, so no tool can bind the reference.",
+    ),
+    UpstreamDefect(
+        "lowrisc:systems:top_earlgrey",
+        "compile",
+        re.compile(r"Unable to bind wire/reg/memory `.*u_otp_macro"
+                   r"|Unable to bind wire/reg/memory `u_state_regs\.err_o'"),
+        "otp_macro.sv's PrimRegWeOneHotCheck ASSUME_FPV references "
+        "u_state_regs.err_o, but prim_sparse_fsm_flop declares only "
+        "unused_err_o; the signal does not exist, so no tool can bind "
+        "the reference.",
+    ),
+    UpstreamDefect(
+        "lowrisc:systems:top_darjeeling",
+        "compile",
+        re.compile(r"Unable to bind wire/reg/memory `.*u_otp_macro"
+                   r"|Unable to bind wire/reg/memory `u_state_regs\.err_o'"),
+        "otp_macro.sv's PrimRegWeOneHotCheck ASSUME_FPV references "
+        "u_state_regs.err_o, but prim_sparse_fsm_flop declares only "
+        "unused_err_o; the signal does not exist, so no tool can bind "
+        "the reference.",
+    ),
+    UpstreamDefect(
+        "lowrisc:fpv:keccak_round_fpv",
+        "compile",
+        re.compile(r"of module keccak_round expects 4 bit\(s\), given 1"),
+        "keccak_round_fpv.sv still drives the 1-bit clear signal it was "
+        "written for, but the pinned keccak_round.sv converted clear_i "
+        "to prim_mubi_pkg::mubi4_t (a 4-bit enum). The padded value is "
+        "never a valid mubi constant and slang rejects the implicit "
+        "logic-to-enum port conversion; the FPV testbench is stale "
+        "against the RTL.",
+    ),
+    UpstreamDefect(
+        "lowrisc:fpv:keccak_2share_fpv",
+        "compile",
+        re.compile(
+            r"keccak_2share_fpv\.sv:\d+: (?:syntax error|error: )"
+        ),
+        "keccak_2share_fpv.sv's StPhase1 case item is missing an `end` "
+        "(the else-begin block and the case-item begin share one), so "
+        "the file cannot parse. slang 11.0 reports the same "
+        "\"expected 'end'\"; the FPV testbench is syntactically broken "
+        "at the pinned revision.",
+    ),
+    UpstreamDefect(
+        "lowrisc:fpv:rv_timer_fpv",
+        "compile",
+        re.compile(
+            r"Variable '\w+' cannot be driven by a continuous assignment"
+            r"|Output port expression must support a continuous assignment"
+        ),
+        "rv_timer_interrupts_assert_fpv is an empty 'TODO: populate me' "
+        "stub that declares intr_o and the hw2reg_intr_state ports as "
+        "outputs; the wildcard bind into prim_intr_hw therefore drives "
+        "the target's own outputs a second time (IEEE 1800-2017 10.3). "
+        "The checker's port directions are wrong upstream.",
+    ),
+    UpstreamDefect(
+        "lowrisc:fpv:prim_packer_fpv",
+        "compile",
+        re.compile(
+            r"Variable '\w+' cannot have multiple drivers"
+            r"|Output port expression must support a continuous assignment"
+        ),
+        "prim_packer_tb.sv instantiates sixteen prim_packer DUTs in one "
+        "generate loop, all driving the same valid_o/ready_o/"
+        "flush_done_o/err_o scalars and overlapping data_o/mask_o "
+        "slices. IEEE 1800-2017 10.3 forbids overlapping continuous "
+        "drives of one variable; the FPV testbench relies on formal-tool "
+        "net resolution.",
+    ),
+    UpstreamDefect(
+        "lowrisc:fpv:prim_lfsr_fpv",
+        "compile",
+        re.compile(
+            r"Variable 'state_o' cannot have multiple drivers"
+            r"|Output port expression must support a continuous assignment"
+        ),
+        "prim_lfsr_tb.sv's gen_gal_xor_duts_nonlinear loop reuses the "
+        "linear loop's index (Idx = k - GalXorMinLfsrDw), so both "
+        "generate blocks drive state_o[Idx] for every power-of-two "
+        "width. IEEE 1800-2017 10.3 forbids overlapping continuous "
+        "drives of one variable; the FPV testbench is only tolerated by "
+        "JasperGold's net resolution.",
+    ),
+    UpstreamDefect(
+        "lowrisc:earlgrey_fpv:pinmux_fpv",
+        "compile",
+        re.compile(
+            r"An assignment pattern needs a context that gives it a type"
+        ),
+        "pinmux_assert_fpv.sv compares mio_attr_o entries against bare "
+        "assignment patterns ('{schmitt_en: 1'b1, default: '0}') inside "
+        "property expressions. IEEE 1800-2017 10.9 gives assignment "
+        "patterns no self-determined type in an equality operand; slang "
+        "11.0 rejects the same construct ('assignment pattern target "
+        "type cannot be deduced in this context').",
+    ),
+    UpstreamDefect(
+        "lowrisc:englishbreakfast_fpv:pinmux_fpv",
+        "compile",
+        re.compile(
+            r"An assignment pattern needs a context that gives it a type"
+        ),
+        "pinmux_assert_fpv.sv compares mio_attr_o entries against bare "
+        "assignment patterns ('{schmitt_en: 1'b1, default: '0}') inside "
+        "property expressions. IEEE 1800-2017 10.9 gives assignment "
+        "patterns no self-determined type in an equality operand; slang "
+        "11.0 rejects the same construct ('assignment pattern target "
+        "type cannot be deduced in this context').",
+    ),
+    UpstreamDefect(
+        "lowrisc:darjeeling_dv:rv_core_ibex_sva",
+        "compile",
+        re.compile(
+            r"Failed to elaborate .*port .* in instance "
+            r"dut\.tlul_assert_host_(?:instr|data)"
+        ),
+        "rv_core_ibex_bind.sv connects tlul_assert to rv_core_ibex "
+        "signals tl_i_o/tl_i_i/tl_d_o/tl_d_i that do not exist in the "
+        "pinned rv_core_ibex.sv (its TL ports are cfg_tl_d_i/cfg_tl_d_o); "
+        "the bind collateral is stale against the RTL.",
+    ),
+    UpstreamDefect(
+        "lowrisc:earlgrey_dv:rv_core_ibex_sva",
+        "compile",
+        re.compile(
+            r"Failed to elaborate .*port .* in instance "
+            r"dut\.tlul_assert_host_(?:instr|data)"
+        ),
+        "rv_core_ibex_bind.sv connects tlul_assert to rv_core_ibex "
+        "signals tl_i_o/tl_i_i/tl_d_o/tl_d_i that do not exist in the "
+        "pinned rv_core_ibex.sv (its TL ports are cfg_tl_d_i/cfg_tl_d_o); "
+        "the bind collateral is stale against the RTL.",
+    ),
+    UpstreamDefect(
+        "lowrisc:englishbreakfast_dv:rv_core_ibex_sva",
+        "compile",
+        re.compile(
+            r"Failed to elaborate .*port .* in instance "
+            r"dut\.tlul_assert_host_(?:instr|data)"
+        ),
+        "rv_core_ibex_bind.sv connects tlul_assert to rv_core_ibex "
+        "signals tl_i_o/tl_i_i/tl_d_o/tl_d_i that do not exist in the "
+        "pinned rv_core_ibex.sv (its TL ports are cfg_tl_d_i/cfg_tl_d_o); "
+        "the bind collateral is stale against the RTL.",
+    ),
+    UpstreamDefect(
+        "lowrisc:systems:top_englishbreakfast",
+        "compile",
+        re.compile(r"of module prim_ram_1p_scr expects \d+ bit"),
+        "top_englishbreakfast.sv autogen declares SramCtrlMainInstSize "
+        "= 4096 with SramCtrlMainNumRamInst = 1, which is internally "
+        "inconsistent for its main SRAM (32 instances would be needed); "
+        "only an ASSERT_INIT that -DSYNTHESIS strips guards it, so the "
+        "sram_ctrl/prim_ram_1p_scr cfg ports genuinely mismatch. "
+        "Earlgrey's autogen uses InstSize = 131072 and is consistent.",
+    ),
+    UpstreamDefect(
+        "lowrisc:systems:chip_englishbreakfast_verilator",
+        "compile",
+        re.compile(r"of module prim_ram_1p_scr expects \d+ bit"),
+        "top_englishbreakfast.sv autogen declares SramCtrlMainInstSize "
+        "= 4096 with SramCtrlMainNumRamInst = 1, which is internally "
+        "inconsistent for its main SRAM (32 instances would be needed); "
+        "only an ASSERT_INIT that -DSYNTHESIS strips guards it, so the "
+        "sram_ctrl/prim_ram_1p_scr cfg ports genuinely mismatch. "
+        "Earlgrey's autogen uses InstSize = 131072 and is consistent.",
+    ),
+    UpstreamDefect(
+        "lowrisc:darjeeling_fpv:pinmux_fpv",
+        "compile",
+        re.compile(r"parameter `SecVolatileRawUnlockEn` not found"
+                   r"|Unable to bind parameter `SecVolatileRawUnlockEn'"),
+        "darjeeling's pinmux_tb.sv overrides SecVolatileRawUnlockEn, "
+        "but darjeeling's autogen pinmux.sv no longer declares that "
+        "parameter; IEEE 1800-2017 23.10 makes overriding a "
+        "nonexistent parameter an error, so the FPV testbench is stale "
+        "against the RTL.",
+    ),
+    UpstreamDefect(
+        "lowrisc:dv:spi_host_sva",
+        "setup",
+        re.compile(
+            r"Fileset 'files_formal', requested by target 'formal', "
+            r"was not found"
+        ),
+        "spi_host_sva.core's formal target requests a files_formal "
+        "fileset the core never defines; FuseSoC cannot set the job up "
+        "at the pinned revision.",
+    ),
+    UpstreamDefect(
+        "lowrisc:ibex:ibex_riscv_compliance",
+        "setup",
+        re.compile(r"has no target 'default'"),
+        "The vendored ibex core defines no default target at this "
+        "revision.",
+    ),
+    UpstreamDefect(
+        "lowrisc:ibex:tb_cs_registers",
+        "setup",
+        re.compile(r"has no target 'default'"),
+        "The vendored ibex core defines no default target at this "
+        "revision.",
+    ),
+    UpstreamDefect(
+        "lowrisc:ibex:ibex_simple_system_cosim",
+        "setup",
+        re.compile(r"depends on missing packages"),
+        "The core depends on packages absent from the pinned OpenTitan "
+        "revision.",
+    ),
+    UpstreamDefect(
+        "lowrisc:ip:i3c",
+        "setup",
+        re.compile(r"depends on missing packages"),
+        "The core depends on packages absent from the pinned OpenTitan "
+        "revision (lowrisc:ip:i3c_pkg is not in the tree).",
+    ),
+    UpstreamDefect(
+        "lowrisc:systems:chip_earlgrey_cw340",
+        "setup",
+        re.compile(r"Conflicting requirements"),
+        "The core depends on board/support packages absent from the "
+        "pinned OpenTitan revision.",
+    ),
+    UpstreamDefect(
+        "lowrisc:systems:chip_englishbreakfast_cw305",
+        "setup",
+        re.compile(r"Conflicting requirements"),
+        "The core depends on board/support packages absent from the "
+        "pinned OpenTitan revision.",
+    ),
+)
+
+
+def upstream_defect_for(
+    core_vlnv: str, phase: str, diagnostics: Sequence[str]
+) -> UpstreamDefect | None:
+    """Match a known upstream defect; every diagnostic must fit."""
+    base = core_vlnv.rsplit(":", 1)[0]
+    for defect in KNOWN_UPSTREAM_DEFECTS:
+        if defect.core != base or defect.phase != phase:
+            continue
+        if diagnostics and all(
+            defect.fingerprint.search(line) for line in diagnostics
+        ):
+            return defect
+    return None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1054,6 +1569,124 @@ def parse_makefile(work_root: Path) -> tuple[Path, list[str]]:
     raise FileNotFoundError(f"no generated Icarus Makefile/source list below {work_root}")
 
 
+def declared_modules(source_list: Path) -> dict[str, str]:
+    """Map module names declared by a generated source list to their entry."""
+    modules: dict[str, str] = {}
+    base = source_list.parent
+    for raw in source_list.read_text(errors="replace").splitlines():
+        entry = raw.strip()
+        if not entry or entry.startswith("+") or entry.startswith("-"):
+            continue
+        try:
+            text = (base / entry).read_text(errors="replace")
+        except OSError:
+            continue
+        for name in MODULE_DECL_RE.findall(text):
+            modules.setdefault(name, entry)
+    return modules
+
+
+def validated_top_options(
+    job: Job,
+    source_list: Path,
+    top_options: Sequence[str],
+    work_root: Path,
+) -> tuple[list[str], list[str], Path | None]:
+    """Drop ``-s`` roots that name modules absent from the source list.
+
+    Several upstream cores declare a stale ``toplevel`` (for example
+    lc_ctrl_pkg.core names ``lc_ctrl``, which is not in its fileset).
+    Substitute the core's own module when one matches, otherwise let the
+    compiler select the roots. A package-only list gets a synthetic empty
+    root module so its packages are still compiled and checked.
+
+    Returns (top options, notes, replacement source list or None).
+    """
+    missing = [
+        option[2:]
+        for option in top_options
+        if option.startswith("-s") and option[2:]
+    ]
+    if not missing:
+        return list(top_options), [], None
+    modules = declared_modules(source_list)
+    kept: list[str] = []
+    notes: list[str] = []
+    for option in top_options:
+        if not option.startswith("-s") or option[2:] in modules:
+            kept.append(option)
+            continue
+        fallback = job.core.name
+        own_prefix = f"src/{job.core.vlnv.replace(':', '_')}/"
+        own_modules = sorted(
+            name for name, entry in modules.items()
+            if entry.startswith(own_prefix)
+        )
+        if fallback in modules:
+            kept.append(f"-s{fallback}")
+            notes.append(
+                f"declared toplevel {option[2:]!r} is not in the source "
+                f"list; substituted the core's own module {fallback!r}"
+            )
+        elif own_modules:
+            kept.extend(f"-s{name}" for name in own_modules)
+            notes.append(
+                f"declared toplevel {option[2:]!r} is not in the source "
+                f"list; rooting the core's own modules {own_modules!r}"
+            )
+        else:
+            notes.append(
+                f"declared toplevel {option[2:]!r} is not in the source "
+                "list; letting the compiler select the root modules"
+            )
+    wrapper: Path | None = None
+    if not kept and not modules:
+        stub = work_root / "matrix-package-root.sv"
+        stub.write_text("module matrix_package_root;\nendmodule\n")
+        wrapper = work_root / "matrix-package.scr"
+        wrapper.write_text(f"-c {source_list}\n{stub}\n")
+        kept = ["-smatrix_package_root"]
+        notes.append(
+            "source list declares no modules; added a synthetic empty "
+            "root so the packages are still compiled"
+        )
+    return kept, notes, wrapper
+
+
+def sva_testbench_wrapper(
+    job: Job,
+    source_list: Path,
+    top_options: Sequence[str],
+    work_root: Path,
+    compiler_source_list: Path,
+) -> tuple[list[str], list[str], Path | None]:
+    """Reproduce the dvsim testbench topology for standalone SVA jobs.
+
+    OpenTitan SVA collateral is written for the DV simulation topology
+    (a ``tb`` module containing the IP instance ``dut``); assertion
+    interfaces reference ``tb.dut...`` hierarchically, so elaborating
+    the bare IP as the root cannot bind them. Wrap the declared top in
+    a generated ``tb``/``dut`` pair unless the sources already provide
+    a ``tb`` module.
+    """
+    if job.lane != "sva":
+        return list(top_options), [], None
+    tops = [opt[2:] for opt in top_options if opt.startswith("-s") and opt[2:]]
+    if len(tops) != 1 or tops[0] == "tb":
+        return list(top_options), [], None
+    if "tb" in declared_modules(source_list):
+        return list(top_options), [], None
+    stub = work_root / "matrix-sva-tb.sv"
+    stub.write_text(f"module tb;\n  {tops[0]} dut();\nendmodule\n")
+    wrapper = work_root / "matrix-sva-tb.scr"
+    wrapper.write_text(f"-c {compiler_source_list}\n{stub}\n")
+    notes = [
+        f"wrapped declared top {tops[0]!r} in a generated tb/dut pair "
+        "to reproduce the dvsim testbench topology"
+    ]
+    return ["-stb"], notes, wrapper
+
+
 def setup_command(
     job: Job,
     fusesoc: Path,
@@ -1093,6 +1726,7 @@ def compile_command(
         # cover semantics in prim_assert.sv as well as FPV-specific RTL; the
         # tree has no ASSERT_ON consumer.
         command.extend(["-gassertions", "-DFPV_ON"])
+        command.extend(SVA_EXTRA_DEFINES.get(job.core.vlnv, ()))
         # Only these two formal source graphs import UVM. Injecting the package
         # into every *_sva job attributes unrelated UVM fallback diagnostics to
         # otherwise-clean assertion cores and also changes ASSERT_ERROR macros.
@@ -1114,6 +1748,7 @@ def compile_command(
                 ]
             )
         command.extend(["-DSIMULATION", "-DDUT_HIER=tb.dut"])
+        command.extend(UVM_EXTRA_DEFINES.get(job.core.vlnv, ()))
     command.extend(["-o", str(output), "-c", str(source_list)])
     return command
 
@@ -1251,7 +1886,12 @@ def run_job(
                 }
             )
             return record
-        record["status"] = "SETUP_FAIL"
+        defect = upstream_defect_for(job.core.vlnv, "setup", [setup.output])
+        if defect is not None:
+            record["status"] = "UPSTREAM_INVALID"
+            record["upstream_defect"] = defect.note
+        else:
+            record["status"] = "SETUP_FAIL"
         return record
     if args.setup_only:
         record["status"] = "SETUP_DEBT" if setup_findings else "SETUP_ONLY"
@@ -1259,10 +1899,24 @@ def run_job(
 
     try:
         source_list, top_options = parse_makefile(work_root)
+        top_options, top_notes, package_wrapper = validated_top_options(
+            job, source_list, top_options, work_root
+        )
         compiler_source_list = simulation_source_list(job, source_list, work_root)
+        if package_wrapper is not None:
+            compiler_source_list = package_wrapper
+        top_options, sva_notes, sva_wrapper = sva_testbench_wrapper(
+            job, source_list, top_options, work_root, compiler_source_list
+        )
+        if sva_wrapper is not None:
+            compiler_source_list = sva_wrapper
     except (FileNotFoundError, OSError, ValueError) as exc:
         record.update({"status": "SETUP_FAIL", "matrix_error": str(exc)})
         return record
+    if top_notes:
+        record["top_selection_notes"] = top_notes
+    if sva_notes:
+        record["sva_topology_notes"] = sva_notes
 
     executable = work_root / f"matrix-{job.lane}.vvp"
     compile_result = command_result(
@@ -1306,10 +1960,24 @@ def run_job(
         record["status"] = "COMPILE_TIMEOUT"
         return record
     if compile_result.returncode != 0 or hard_errors:
-        record["status"] = "FAIL"
+        defect = upstream_defect_for(job.core.vlnv, "compile", hard_errors)
+        if defect is not None:
+            record["status"] = "UPSTREAM_INVALID"
+            record["upstream_defect"] = defect.note
+        else:
+            record["status"] = "FAIL"
         return record
     if setup_findings or semantic_debt:
-        record["status"] = "DEBT"
+        defect = (
+            upstream_defect_for(job.core.vlnv, "compile", semantic_debt)
+            if semantic_debt and not setup_findings
+            else None
+        )
+        if defect is not None:
+            record["status"] = "UPSTREAM_INVALID"
+            record["upstream_defect"] = defect.note
+        else:
+            record["status"] = "DEBT"
     else:
         record["status"] = "PASS"
 
@@ -1717,6 +2385,27 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         "TEST FAILED UVM_CHECKS", OPENTITAN_RUNTIME_FAIL_PATTERNS
     )
     assert NO_TOPLEVEL_RE.search("ERROR: x:y:z:0 : Target 'default' has no toplevel")
+    assert MODULE_DECL_RE.findall("module foo;\nendmodule\n  module bar #(p) (x);\n") == [
+        "foo",
+        "bar",
+    ]
+    assert upstream_defect_for(
+        "lowrisc:ip:ascon:0.1",
+        "compile",
+        ["x.sv:1: error: This assignment requires an explicit cast."],
+    )
+    assert (
+        upstream_defect_for(
+            "lowrisc:ip:ascon:0.1",
+            "compile",
+            [
+                "x.sv:1: error: This assignment requires an explicit cast.",
+                "x.sv:9: error: some new unrelated failure",
+            ],
+        )
+        is None
+    )
+    assert upstream_defect_for("lowrisc:ip:ascon:0.1", "setup", ["anything"]) is None
     assert not actionable_setup_lines(
         "WARNING: No trustfile configured (ssh-trustfile in fusesoc.conf), "
         "signatures will not be checked."

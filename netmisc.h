@@ -132,6 +132,20 @@ extern bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 			  struct symbol_search_results*res);
 
 /*
+ * symbol_search() caches resolved (scope, name-path) lookups. That
+ * cache assumes ordinary declarations, which are stable for the rest
+ * of elaboration once found. NetScope::set_signal_alias() breaks that
+ * assumption: it transiently overwrites a scope's signals_map_ entry
+ * (e.g. binding the name "item" to a fresh per-with-clause iterator
+ * net for IEEE 1800-2017 7.12.4 array-manipulation-method predicates,
+ * then restoring whatever was there before). Call this whenever an
+ * alias is installed or restored so a later, unrelated query for the
+ * same name in the same scope cannot be served a stale cached net
+ * left over from a previous alias window.
+ */
+extern void symbol_search_cache_clear();
+
+/*
  * IEEE 1800-2017 clause 14 — clocking-block member path rewrites.
  * The current clocking-block model aliases cb.sig to the underlying
  * signal (sample/drive skew semantics are not implemented yet): these
@@ -468,12 +482,22 @@ bool eval_as_double(double&value, NetExpr*expr);
 
 /*
  * Evaluate an entire scope path in the context of the given scope.
+ *
+ * `quiet', when true, suppresses the diagnostic and the des->errors
+ * increment for a non-constant scope index -- for a caller that is
+ * only PROBING whether a path names a scope (its own contract is
+ * already "0/empty means try something else", e.g.
+ * Design::find_signal()), a failed probe must not be reported as a
+ * compile error out from under it. `error_flag' (out) still reports
+ * the failure either way so the caller can tell success from failure.
  */
 extern std::list<hname_t> eval_scope_path(Design*des, NetScope*scope,
-					  const pform_name_t&path);
+					  const pform_name_t&path,
+					  bool quiet = false);
 extern hname_t eval_path_component(Design*des, NetScope*scope,
 				   const name_component_t&comp,
-				   bool&error_flag);
+				   bool&error_flag,
+				   bool quiet = false);
 
 /*
  * If this scope is contained within a class scope (i.e. a method of a

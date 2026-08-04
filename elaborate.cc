@@ -2048,11 +2048,25 @@ void PGBuiltin::elaborate(Design*des, NetScope*scope) const
 		  des->errors += 1;
 		  return;
 	    }
-	      // Gates can never have variable output ports.
+	      // A bidirectional gate terminal can never be a variable.
+	      // A plain gate output may drive a variable in
+	      // SystemVerilog: IEEE 1800-2017 6.5 allows one primitive
+	      // output as a variable's single continuous source (the
+	      // shared lnet path re-checks for procedural conflicts).
             if (lval_count > gate_count)
 	          lval_sigs[idx] = pin(idx)->elaborate_bi_net(des, scope, false);
             else
-	          lval_sigs[idx] = pin(idx)->elaborate_lnet(des, scope, false);
+	          lval_sigs[idx] = pin(idx)->elaborate_lnet(des, scope,
+	                                                    gn_system_verilog());
+
+	      // A gate output is a 4-state driver; a real-typed target
+	      // can never receive it, whether net or promoted variable.
+	    if (lval_sigs[idx] && lval_sigs[idx]->data_type() == IVL_VT_REAL) {
+		  cerr << get_fileline() << ": error: "
+		       << "Gate output terminals cannot be real." << endl;
+		  des->errors += 1;
+		  return;
+	    }
 
 	      // The only way this should return zero is if an error
 	      // happened, so for that case just return.
@@ -10420,7 +10434,13 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			des->errors += 1;
 		  }
 		  rv = def->port_defe(idx)->dup_expr();
-		  if (lv_type==IVL_VT_BOOL||lv_type==IVL_VT_LOGIC)
+		    // `wid'/`lv_type' above describe the port's ELEMENT
+		    // type; padding a whole-array default pattern to that
+		    // scalar width would corrupt it (the vvp target's
+		    // whole-array store then mismatches the port's actual
+		    // declared width -- store_vec4_to_lval assertion).
+		  if (port->unpacked_dimensions() == 0
+		      && (lv_type==IVL_VT_BOOL||lv_type==IVL_VT_LOGIC))
 			rv = pad_to_width(rv, wid, *this);
 
 	    } else {
@@ -16715,6 +16735,24 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       if (const PEConstraintForeach*cfe =
 	  dynamic_cast<const PEConstraintForeach*>(expr)) {
 	    if (cfe->loop_vars().size() != 1 || cfe->loop_vars()[0].nil())
+		  return "";
+
+	      /* foreach (array_name[prefix_index].member_name[loop_var]):
+	         resolving `array_name' when it is not a rand property of
+	         the object being randomized -- the common real case,
+	         e.g. a package-scope lookup table referenced from an
+	         enclosing method's `with' block -- needs hierarchical
+	         path storage plus enclosing-scope/package property
+	         resolution this generator does not have. Do not fall
+	         through to the single-level `array_name()' lookup below:
+	         if `array_name' happens to also name an unrelated rand
+	         property of `cls', that lookup would silently succeed
+	         and iterate the WRONG array, ignoring `.member_name'
+	         entirely -- a wrong answer, not just an incomplete one.
+	         Reported loudly by the caller (make_randomize_with_expr
+	         / this function's other callers all already warn on an
+	         empty IR result here). */
+	    if (cfe->has_hierarchical_target())
 		  return "";
 
 	      /* Scope-form std::randomize() may iterate a packed local/state

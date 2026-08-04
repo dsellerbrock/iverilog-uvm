@@ -1745,7 +1745,19 @@ NetNet* Design::find_signal(NetScope*scope, pform_name_t path)
       perm_string key = peek_tail_name(path);
       path.pop_back();
       if (! path.empty()) {
-	    list<hname_t> eval_path = eval_scope_path(this, scope, path);
+	      // This function's own contract for every other kind of miss
+	      // is "return 0, say nothing" (see the fall-through at the
+	      // end below) -- callers use it to PROBE whether a
+	      // hierarchical name is a signal at all, most commonly a
+	      // foreach loop target that falls back to ordinary expression
+	      // elaboration when the answer is no (PForeach::elaborate()).
+	      // A prefix that merely doesn't evaluate to a constant scope
+	      // index (e.g. h[k].v where h is an ordinary array-of-struct
+	      // variable and k is a foreach loop variable, not a
+	      // module/generate-block instance selector) is exactly such a
+	      // "no" and must not report a compile error out from under a
+	      // caller that is only asking, not asserting.
+	    list<hname_t> eval_path = eval_scope_path(this, scope, path, true);
 	    scope = find_scope(scope, eval_path);
       }
 

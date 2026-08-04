@@ -1440,6 +1440,515 @@ census is authoritative.
 
 ---
 
+## G52 — concat operand "indefinite width" false positive for unsized-literal expressions — **fixed** [general]
+
+`PEConcat::elaborate_expr` rejected every concatenation operand whose
+width mode was not `SIZED`, so any expression *containing* an unsized
+literal — `{1'b0, 32-BlockAw}`, `{4'hF, -1}`, `{1'b0, 2**34}`, an
+untyped-parameter operand, or OpenTitan `aes_wrap.sv`'s
+`{{{32-BlockAw}{1'b0}}, AES_STATUS_OFFSET}` — failed with
+`Concatenation operand ... has indefinite width.` IEEE 1800-2017
+11.4.12.1 only forbids bare unsized constant *numbers* as concatenation
+operands; expressions take their self-determined width (11.6/11.8), and
+slang 11.0 accepts all of the above shapes.
+
+Now a non-`SIZED` operand that is not a bare `PENumber` literal is
+re-tested with strict IEEE sizing (32-bit integer arithmetic, so
+`{1'b1, 2**34}` truncates to `33'h1_0000_0000` exactly like the
+reference tools) and elaborated at that width. A bare unsized literal
+(`{1'b0, 5}`) still gets the 11.4.12.1 error. Value-checked tests:
+`ivtest/ivltests/concat_unsized_expr_operand.v`,
+`synth_concat_unsized_expr.v` (through `-S`), and the expected-error
+`concat_unsized_literal_reject.v`.
+
+## G53 — rtl census misclassified stale-metadata and sim-harness cores — **fixed** (matrix driver)
+
+Four census defects hid the true compiler state of the rtl lane:
+
+1. Cores whose CAPI `toplevel` names a module absent from their own
+   fileset (upstream copy-paste: `lc_ctrl_pkg.core`,
+   `lc_ctrl_state_pkg.core`, `otp_ctrl_pkg.core` all name `lc_ctrl`;
+   `prim_ascon.core` names `ascon`; `trans_intg.core` names
+   `tlul_payload_chk`) failed elaboration as
+   `Unable to find the root module`. The driver now validates `-s`
+   roots against the generated source list, substitutes the core's own
+   module when one matches, roots the core's own-directory modules
+   otherwise, and gives package-only lists a synthetic empty root so
+   the packages still compile. All five cores now `PASS`.
+2. Simulation harness cores (`ibex_top_tracing` with its `$fwrite`
+   tracer, `prim_crc32_sim`, `otbn_top_sim`) were pushed through `-S`
+   in rtl-v29 and failed as unsynthesizable. The driver's inventory
+   predicate (landed with PR #150) now excludes `*_sim`/`*_tracing`
+   cores from the synthesis lane; they are exercised by the simulation
+   lanes instead.
+3. Pinned-revision upstream source/metadata defects are now classified
+   `UPSTREAM_INVALID` with an evidence note, and only when *every*
+   hard diagnostic matches the recorded fingerprint — any new failure
+   mode still surfaces as `FAIL`. The sixteen records at
+   `7a3ad34`: `ascon` (enum assignment without cast, IEEE 6.19.3,
+   slang rejects identically), `aes_wrap` (overlapping continuous
+   drives of `h2d_intg`, IEEE 10.3, slang rejects identically),
+   `otp_ctrl_top_specific_pkg` ×2 (fileset omits
+   `otp_ctrl_macro_pkg`), `englishbreakfast rstmgr` (fileset omits
+   `alert_handler_pkg`), `flash_ctrl_prim_reg_top` ×2 (fileset omits
+   tlul adapter/integrity and `prim_reg_we_check`),
+   `prim_dom_and_2share` (fileset omits prim `xor2`/`flop_en`),
+   `tlul_lc_gate`, `tlul_request_loopback` (fileset omits instantiated
+   tlul/prim providers), and six setup-phase records whose
+   dependencies or targets do not exist at the pinned revision
+   (`ibex_riscv_compliance`, `tb_cs_registers`,
+   `ibex_simple_system_cosim`, `i3c`, `chip_earlgrey_cw340`,
+   `chip_englishbreakfast_cw305`).
+4. The eight `COMPILE_TIMEOUT` and three `DEBT` records of census
+   rtl-v29, and the entire `always_*`/latch/async-process and
+   chip/ast typed-assignment-pattern failure families, were already
+   closed by the dual-control DFF work (PR #150); the census binaries
+   predated it.
+
+Follow-up findings at the same revision: the englishbreakfast autogen
+top declares `SramCtrlMainInstSize = 4096` with
+`SramCtrlMainNumRamInst = 1`, which is internally inconsistent for its
+main SRAM (32 instances would be needed; earlgrey uses
+`InstSize = 131072` and is consistent). Only an `ASSERT_INIT` that
+`-DSYNTHESIS` strips guards the relation, so the
+`sram_ctrl`/`prim_ram_1p_scr` cfg ports genuinely mismatch
+(416 vs 13 bits) — classified `UPSTREAM_INVALID` on both
+`top_englishbreakfast` and `chip_englishbreakfast_verilator`. The
+driver's englishbreakfast mapping core now also pins
+`lc_ctrl_token_pkg` to the earlgrey testing constants so FuseSoC's
+virtual-core selection is deterministic (it previously grabbed the
+darjeeling variant and emitted a non-determinism warning that polluted
+those records with `DEBT`).
+
+None of this is a compiler accommodation: every `UPSTREAM_INVALID`
+fingerprint records a defect other tools reproduce or a fileset that
+cannot elaborate anywhere.
+
+With these classifications the full rtl census at `7a3ad34` reports
+**zero FAIL, zero DEBT, zero timeouts**: every one of the 264 rtl
+records is `PASS` (93), `DEPENDENCY_ONLY` (153), or an evidence-backed
+`UPSTREAM_INVALID` (18).
+
+---
+
+## G54 — symbol-search cache keyed on AST node address caused silent method mis-dispatch — **fixed** [general] (was ⚠ silent)
+
+The elaboration symbol-search cache keyed its entries on the ADDRESS of
+the caller's `pform_scoped_name_t` path object. PExpr nodes are created
+and deleted during elaboration, so a later AST node can be allocated at
+a freed node's address; the cache then returned the earlier, unrelated
+query's result. Observed in the OpenTitan `adc_ctrl` SVA graph:
+`intr_state_fld.predict(predict_val, .kind(UVM_PREDICT_READ))` in
+`dv_base_reg_field.sv` resolved to the neighboring
+`uvm_reg_field::get_access` (looked up seven lines earlier), producing
+`Too many arguments (2, expecting 1)` / ``No argument called `kind` ``.
+The failure was input-layout dependent — the 261-file source list
+reproduced it deterministically, but no 1-minimal subset did, because
+removing any file shifted heap reuse — and the same mechanism could
+just as well have bound a WRONG method silently with a compatible
+arity, making this the worst diagnostic class.
+
+The cache key is now the query content: scope, prefix flag, and the
+interned component names of the path. Paths carrying index expressions
+are not cached at all, because their results embed expression pointers
+whose lifetime a content key cannot guarantee. Only positive results
+were and are cached. Compile time on the 261-file SVA graph is
+unchanged (~3 s). The `Too many arguments` diagnostic now names the
+resolved function scope, which is what exposed the mis-dispatch.
+Witness: `sv_method_call_cache_identity` plus the adc_ctrl SVA census
+record going from FAIL to zero hard errors.
+
+## G55 — standalone SVA jobs cannot bind `tb.dut` references — **fixed** (matrix driver)
+
+OpenTitan SVA collateral is written for the dvsim simulation topology
+(`module tb` containing the IP instance `dut`); assertion interfaces
+reference `tb.dut...` hierarchically, and upstream's own `formal`
+fusesoc targets mix those DV files with `toplevel: <ip>`, which no
+strict elaborator can satisfy. The census driver now wraps the declared
+SVA top in a generated `tb`/`dut` pair (unless the sources already
+declare `tb`), reproducing the topology the collateral was written for.
+`adc_ctrl_sva` goes from a hard bind failure to zero errors (its
+remaining 133 UVM compile-progress warnings are the M14B debt), and
+`prim_keccak_fpv` stays PASS under the wrapper.
+
+First full SVA census (sva-v1, 128 records): 92 PASS, 28 FAIL, 4
+DEPENDENCY_ONLY, 2 DEBT, 1 SETUP_FAIL, 1 UPSTREAM_INVALID. First
+classified family: the three `rv_core_ibex_sva` cores connect
+`tlul_assert` to `tl_i_o`/`tl_i_i`/`tl_d_o`/`tl_d_i`, signals that do
+not exist in the pinned `rv_core_ibex.sv` (its TL ports are
+`cfg_tl_d_i`/`cfg_tl_d_o`) — stale upstream bind collateral, now
+`UPSTREAM_INVALID`. The remaining families (fpv wrapper multi-drivers,
+pinmux_fpv assignment-pattern typing, aes_sva property grammar,
+keccak_2share case grammar, i2c_sva `$root()` r-values, otp_macro /
+top_*_pkg / prim_alert-tb source gaps, sha3 `.*` port skew) are the
+open SVA work queue, each to be slang-differentialed before
+classification.
+
+---
+
+## G56 — `$root`-prefixed hierarchical references unsupported — **fixed** [general]
+
+The front end had no `$root` handling (IEEE 1800-2017 23.8): in
+expression position the lexer's SYSTEM_IDENTIFIER made
+`$root.tb.dut...q` parse as a system function call `$root()` followed
+by member access. A new primary rule maps `$root '.'
+hierarchy_identifier` onto the ordinary hierarchical-reference path.
+OpenTitan `i2c_sva` (`` `define I2C_HIER $root.tb.dut.i2c_core ``)
+goes from FAIL to PASS with zero errors and zero debt. Test:
+`sv_root_hierarchical_ref`.
+
+## G57 — statement attributes and gate outputs driving variables — **fixed** [general]
+
+Two elaboration-blocking gaps exposed by the chip-level SVA graphs:
+
+1. `always (* xprop_off *) @( * )` failed to parse. IEEE A.6.4 puts
+   `{attribute_instance}` in front of every statement_item; the plain
+   `always` spelling now consumes them like `always_comb`/`always_ff`
+   already did. Test: `sv_always_stmt_attribute`.
+2. A gate primitive output could never drive a variable ("Gates can
+   never have variable output ports"), rejecting the OpenTitan AST
+   models' `buf #(RDLY, FDLY) b1 (logic_var, expr)`. IEEE 6.5 allows
+   one primitive output as a variable's single continuous source;
+   slang accepts the same shape. The gate-output path now uses the
+   same variable-to-uwire promotion as continuous assignments, so
+   procedural conflicts still error. Value-checked test:
+   `sv_gate_output_variable`.
+
+## G58 — `bind` to a bare target instance unsupported — **fixed** [general]
+
+`bind i_nopass1 prim_fifo_sync_assert_fpv ...` (IEEE 23.11
+bind_target_instance) was rejected with "bind target
+module/interface 'i_nopass1' is not defined". When the target names no
+module, `pform_apply_binds` now searches the parsed instantiations for
+that instance name, derives the target module from the unique match,
+and binds through the existing plain-name instance filter (ambiguous
+names across different module types are an explicit error). OpenTitan
+`prim_fifo_sync_fpv` goes from FAIL to PASS with zero errors and zero
+debt. Value-checked test: `sv_bind_target_instance` (asserts the
+checker lands only in the named instance).
+
+## G59 — SVA census closure: build-mode defines and 24 upstream-invalid records
+
+`aes_sva` needs the `EN_MASKING` build-mode define that dvsim passes
+with `+define+`; the census now carries a per-core `SVA_EXTRA_DEFINES`
+table mirroring the DUT's default parameterization, and `aes_sva` goes
+from FAIL to PASS. Every remaining sva-v1 failure was classified
+`UPSTREAM_INVALID` under an exact, per-record-validated diagnostic
+fingerprint: stale rv_core_ibex bind collateral (×3), pinmux_fpv
+assignment patterns in equality (×2, slang concurs), overlapping FPV
+testbench drivers (`prim_lfsr_fpv`, `prim_packer_fpv`,
+`rv_timer_fpv`), the syntactically broken `keccak_2share_fpv` (slang
+concurs), `otp_macro.sv`'s reference to the nonexistent
+`u_state_regs.err_o` (4 system cores), stale `.*` FPV wrappers
+(`sha3_fpv`, `sha3pad_fpv`), missing bind-target filesets
+(`otp_ctrl_sva` ×2, `prim_alert_rxtx_*_fatal_fpv` ×2), missing
+top-package dependencies (`pinmux_chip_fpv` ×3), englishbreakfast
+collateral referencing registers its autogen tops lack (`rstmgr_sva`,
+`clkmgr_sva`), darjeeling `pinmux_tb` overriding a parameter its
+pinmux no longer declares, and `spi_host_sva`'s formal target
+requesting a fileset the core never defines (setup phase).
+
+## G60 — a nearer class property could not shadow an outer class-typed name — **fixed** [general]
+
+`pform_test_type_identifier()` walked scopes checking only typedefs and
+package imports; a class property or local variable whose name matches
+an outer class name (a self-named wrapper, e.g. `max_delay_cg_obj
+max_delay_cg_obj[string]`) was never checked for shadowing, so every
+later use of the name kept resolving as a type reference instead of
+the property. IEEE 1800-2017 6.18 says a nearer declaration of any
+kind hides an outer one with the same name. OpenTitan
+`xbar_env_cov.sv`'s `max_delay_cg_obj[key] = new(...)` parsed as a
+type-cast/declaration attempt instead of an indexed variable
+reference, producing a cascade of syntax errors through the class
+body. `pform_test_type_identifier()` now checks the current scope's
+wires and (for a class scope) its declared properties before
+consulting typedefs and imports. Test: `sv_class_var_shadows_type`.
+
+## G61 — `const` declarations after the first block item, and assignment-pattern defaults — **fixed** [general]
+
+Two UVM-lane parser/elaboration gaps, both hit by every OpenTitan
+`dv`/`env` package in the first full uvm-v1 census:
+
+1. `statement_item` had plain (non-`const`) alternatives for a
+   `data_type` declaration appearing after another declaration or
+   statement in a procedural block, but the only `const` alternative
+   in that position required a user-defined `TYPE_IDENTIFIER` — a
+   `const` of a keyword-spelled type (`const int`, `const string`) or
+   a package-scoped type never matched that rule and fell through to
+   "Syntax in assignment statement l-value." A `const` declared FIRST
+   in a block was fine (it still matched via `block_item_decl` before
+   the parser committed to the statement-list path); only a `const`
+   after some other declaration or statement needed a rule. Two new
+   `K_const` alternatives mirror the existing non-`const` ones.
+   `lc_ctrl_scoreboard.sv`'s `process_otp_prog_rsp()` task (three
+   ordinary locals, then `const string MsgFmt = ...`) goes from a
+   syntax error to compiling clean.
+2. IEEE 1800-2017 10.9: an assignment pattern has no self-determined
+   type — it takes its type from context. A default port/argument
+   value (`= '{...}` in a formal declaration) has no surrounding
+   expression to supply that context. The packed case
+   (`check_lc_outputs(lc_outputs_t exp_o = '{default: lc_ctrl_pkg::Off},
+   ...)`) failed outright ("An assignment pattern needs a context that
+   gives it a type"). The unpacked-array case
+   (`set_nvm_rma_ack(lc_tx_t val, int delay_lens[NumRmaAckSigs] =
+   '{default: 0})`) was worse: a fixed unpacked-array port's
+   `NetNet::net_type()` returns only its ELEMENT type (the complete
+   type including dimensions is `array_type()` — the same distinction
+   the existing explicit-argument path at the call site already
+   documented), so elaborating the default against `net_type()` built
+   a scalar value; the call-site default-argument path then
+   unconditionally padded that value to the port's scalar element
+   width, corrupting the resulting array pattern and crashing the vvp
+   code generator (`store_vec4_to_lval` assertion) the first call that
+   actually used the default. Port defaults are now elaborated against
+   `array_type()` when the port has unpacked dimensions, and the
+   call-site padding is skipped for such ports (matching the
+   already-correct explicit-argument path, which was never broken).
+   Value-checked test: `sv_default_arg_assign_pattern`.
+
+## G62 — the symbol-search cache outlived a transient iterator-name alias — **fixed** [general] (regression in G54)
+
+G54's content-keyed symbol-search cache fixed a freed-AST-pointer
+staleness bug, but it introduced a narrower one of the same species:
+`NetScope::set_signal_alias()` temporarily rebinds a name (e.g. the
+default `item` iterator of an IEEE 1800-2017 7.12.4
+array-manipulation-method `with` clause) directly in a scope's live
+signal map for the duration of one predicate's elaboration, then
+`restore_signal_alias()` puts back whatever was there before. The
+cache has no visibility into that mutation, so a resolution of `item`
+computed and cached during one `with` clause survived into a second,
+unrelated `with` clause later in the SAME enclosing scope that reused
+the same default iterator name — handing it the first clause's
+already-popped iterator net. The call form of the index query
+(`item.index()`/`item.index(1)`, which looks its net up by exact
+identity in a small context stack) failed outright on the stale net
+("Object ... has no method \"index(...)\""); this was caught by CI's
+UVM regression count dropping from 337 to 336 (`g10_iter_index_test`),
+not by `ivtest`, which has no test that reuses a `with`-clause
+iterator name twice in one scope.
+
+`set_signal_alias()`/`restore_signal_alias()` now call
+`symbol_search_cache_clear()` on every alias install and restore.
+Aliasing is rare relative to ordinary elaboration, so an unconditional
+full clear is cheap and — unlike trying to identify exactly which
+cache entries an alias could have touched — always correct. Value-
+checked test: `sv_iter_ctx_cache_stale`, reduced from
+`tests/g10_iter_index_test.sv`. `sv_method_call_cache_identity` and
+`sv_class_var_shadows_type` (G54/G60, the fixes this cache also
+serves) re-verified passing.
+
+**Lesson for this codebase**: any cache keyed on scope/name resolution
+must be invalidated by every mechanism that mutates a scope's binding
+table out from under ordinary declaration order — `signals_map_`
+aliasing is one; there may be others (parameter overrides, generate-
+scope rebinding) worth auditing before the next cache is added here.
+
+## G63 — a `randomize() with {...}` item that could not be translated was dropped with zero diagnostic — **fixed** [general] (was ⚠ silent)
+
+`make_randomize_with_expr()`'s loop over top-level `with` block items
+did `if (ir.empty()) continue;` whenever `pexpr_to_class_constraint_ir`
+could not translate one item to solver IR — for example a `foreach`
+constraint whose target is a plain (non-`rand`) property of the
+*enclosing* class rather than the randomized object's own class (IEEE
+1800-2017 permits a `with` block to reference enclosing-scope state;
+resolving such a foreach target is not implemented). The `randomize()`
+call still reported success, silently applying only the constraints it
+could translate — no diagnostic anywhere. Found while investigating
+OpenTitan `xbar_tl_host_seq.sv`'s
+`req.randomize() with {... foreach (xbar_devices[device_id].addr_ranges[i])
+{...} ...}` (a currently-unsupported hierarchical/indexed foreach
+target — that specific shape remains a syntax error, intentionally
+left loud rather than risking a new silent failure in a grammar that
+`bison -Wconflicts-sr -Wconflicts-rr` already reports 500+ shift/reduce
+and 1186 reduce/reduce conflicts for; see the note below).
+
+Every dropped item now emits `warning: constraint '...' could not be
+translated and is being ignored (compile-progress fallback)` at the
+constraint's own line. This is a general fix: it covers every current
+and future case where constraint-IR generation fails, not just the
+foreach-target gap that surfaced it. Value-checked test:
+`sv_randomize_with_unresolvable_dropped` (confirms the warning fires,
+the call still completes, and the resolvable sibling constraint is
+still enforced).
+
+**Note on the still-open gap**: fully supporting hierarchical/indexed
+constraint-`foreach` targets needs more than a grammar change —
+`PEConstraintForeach` stores a bare property name and its IR generator
+(`elaborate.cc` ~16735) resolves it only against the randomized
+object's own class via `property_idx_from_name()`; the enclosing-scope
+case needs real hierarchical-path storage and cross-scope property
+resolution. A minimal PARSE-only fix was considered and deliberately
+not attempted: a debug-instrumented trace this session found that a
+structurally similar existing production for *ordinary* (non-
+constraint) `foreach` statements with a mid-chain index
+(`foreach (h[idx].v[i])`, parse.y ~4594) compiles clean but the
+resulting `PForeach` node never reaches `elaborate_scope()` or
+`elaborate()` at all — a silent zero-iteration bug, most likely from
+this exact grammar's conflict density swallowing that alternative.
+Adding another similar production for the constraint context risks the
+same failure mode. Both gaps are tracked for a dedicated pass (bison
+`-Wcounterexamples` analysis first) rather than a rushed fix.
+
+## G64 — `q[$-N]` queue index arithmetic unsupported — **fixed** [general]
+
+IEEE 1800-2017 7.10.1: within a queue index expression, `$` stands for
+the queue's top bound (`size()-1`) and may be combined with ordinary
+arithmetic — `q[$-1]` names the second-to-last element, `q[$-N]` for a
+variable `N` the `(N+1)`-th from the end. Only the bare `q[$]` form was
+supported (`SEL_BIT_LAST`, parse.y ~10549); `q[$-N]` fell straight
+through to a syntax error. Reduced from OpenTitan
+`gpio_scoreboard.sv`'s `data_in_update_queue[$ - 1].needs_update`.
+
+`SEL_BIT_LAST` has 17 separate consumer sites across
+elab_expr.cc/elab_lval.cc/elaborate.cc (lvalue, rvalue, and sizing
+paths). Rather than teach every one of them a second "relative to
+last" selector kind — a wide, easy-to-miss-one surface, and this
+session already spent real effort recovering from one under-scoped
+change (G62) — the new grammar production
+(`hierarchy_identifier '[' '$' '-' expression ']'`) rewrites the index
+at PARSE TIME into the exactly equivalent ordinary index
+`q[q.size()-1-<offset>]`, built on a duplicated copy of the base path
+so the original indexed path is untouched. This reuses the
+already-correct plain-`SEL_BIT` machinery instead of adding a new one,
+touching zero elaboration sites. Verified the new production adds no
+grammar conflicts (`bison -Wconflicts-sr -Wconflicts-rr`: 551
+shift/reduce, 1186 reduce/reduce, identical before and after — unlike
+the untouched G63 gap, this one was checked before committing to it,
+given the direct evidence from this same file that this grammar can
+silently swallow a structurally similar production).
+
+Confirmed on the real OpenTitan job: `gpio_scoreboard.sv`'s `[$-1]`
+error is gone; the file now advances to later, unrelated gaps
+(multidimensional associative-array indexing in the same scoreboard,
+`Got 2 indices, expecting 1`). Value-checked test:
+`sv_queue_dollar_arithmetic` (literal and variable offsets, a compound
+offset expression `$-(i+1)`, both read and lvalue-write forms, and
+confirms the pre-existing bare `q[$]` form is unaffected).
+
+## G65 — `foreach (a[k].b[i])` was a stub that silently discarded the loop body — **fixed** [general] (was ⚠ silent)
+
+IEEE 1800-2017 11.7 extended to a hierarchical target:
+`foreach (a[k1,...].b[i1,...])` declares a FRESH loop variable per
+bracket group and iterates every combination — there is no standard
+"fixed outer index, loop the inner dimension" reading for a bare
+identifier in the outer bracket (that needs a genuine expression,
+e.g. `a[k+0].b[i]`, to disambiguate from a loop-variable declaration;
+confirmed against slang, which accepts `h[idx].v[i]` and — per the
+LRM, the only legal reading — treats `idx` as a fresh loop variable
+shadowing any outer one of the same name).
+
+The grammar production for this shape (parse.y, `K_foreach '('
+foreach_array_identifier '[' loop_variables ']' '.'
+foreach_array_identifier '[' loop_variables ']' ')'`) was a
+DOCUMENTED STUB: its comment read "these still elaborate as
+hierarchical targets and currently fall back to the existing warning",
+but the action built no `PForeach` node at all and did
+`delete $14;` — unconditionally discarding the parsed loop body — then
+called `pform_requires_sv()`, which is a **silent no-op** once
+SystemVerilog mode is active (true for virtually all real input), and
+incremented an internal `warn_count` that is never printed anywhere.
+Net effect: the construct compiled clean and executed zero times, with
+no diagnostic in the common case. Reduced from OpenTitan
+`xbar_env_pkg.sv`'s `foreach (xbar_devices[i].addr_ranges[j])`.
+
+Implemented for real by lowering to nested `foreach` statements —
+`foreach (a[k1,...]) foreach (a[k1,...].b[i1,...]) BODY` — so each
+level reuses the already-correct single-target elaboration path
+(`pform_make_foreach`/`PForeach`) instead of adding a second one. The
+outer loop variables are declared with `pform_make_foreach_declarations`
+typed against `a`'s own dimensions (as usual); the inner loop
+variables are typed against the combined, unindexed path `a.b` (a
+dimension's shape does not depend on which element of `a` is
+selected); the inner target is built by appending one `SEL_BIT` index
+component per outer loop variable — each referencing that
+variable — to a copy of `a`'s path, followed by `b`'s own components.
+
+This exposed a second, general bug: `Design::find_signal()` — whose
+own contract for every other kind of miss is "return 0, say nothing"
+(callers, prominently `PForeach::elaborate()`, use it to PROBE whether
+a hierarchical name is a signal, falling back to ordinary expression
+elaboration when it is not) — hard-errored
+("Scope index expression is not constant") when a path prefix's index
+was a plain runtime variable rather than a module/generate-block
+instance selector, because it unconditionally tries `eval_scope_path`
+first. `eval_scope_path`/`eval_path_component` now take an optional
+`quiet` parameter (default `false`, preserving the diagnostic for
+every genuine scope-path caller) that `find_signal` passes as `true`,
+matching its own established silent-miss contract.
+
+Verified the new grammar production changes bison's conflict counts by
+zero (551 shift/reduce, 1186 reduce/reduce, identical before and
+after) before committing to this approach. Confirmed on the real
+OpenTitan job: `xbar_env_pkg.sv`'s errors are gone;
+`top_darjeeling_xbar_dbg_sim` advances to the unrelated `xbar_tl_host_seq.sv`
+constraint-`foreach` gap (G66) and an unrelated `xbar_error_test.sv`
+parse error. Value-checked test: `sv_foreach_hierarchical_dual_dim`
+(all six iterations of a real 2×3 double-dimension case, plus a
+loop-variable-name-shadows-an-outer-variable case confirming the outer
+variable is genuinely unaffected).
+
+---
+
+## G66 — `foreach` over a hierarchical target inside a `randomize() with {...}` constraint — **fixed** [general] (was a hard syntax error)
+
+`foreach (array_name[prefix].member_name[loop_var])` as a constraint
+item — the same hierarchical-target shape G65 fixed for an ordinary
+statement — was a hard syntax error inside a `constraint`/`with`
+block. Reduced from OpenTitan's auto-generated
+`xbar_env_pkg__params.sv` / `xbar_tl_host_seq.sv`:
+`foreach (xbar_devices[device_id].addr_ranges[i]) { ... }` inside a
+`randomize() with {...}` call, where `device_id` is itself a `rand`
+property of the class being randomized, not a fresh loop variable.
+
+Root cause was the exact same LALR(1) lookahead ambiguity as G65: the
+grammar production's prefix bracket was originally typed as
+`expression` (to parse an index like `device_id`), but a bare
+`IDENTIFIER` there is indistinguishable — with one token of lookahead
+— from a fresh loop-variable declaration via the `loop_variables`
+nonterminal, and bison always wins that race by reducing to
+`loop_variables` before it can see the following `.` that would
+disambiguate. Confirmed definitively with `IVL_PARSE_TRACE=1` on a
+minimal repro (`foreach (lookup[idx].size[i])`): the parser reduces
+the bare `idx` to `loop_variables` (rule 499) immediately on seeing
+`]`, so the `expression` alternative was dead grammar — never
+reachable for exactly the real-world case (a bare identifier prefix)
+that matters.
+
+Fixed the same way as G65: the prefix bracket is now parsed through
+`loop_variables` for both positions, and `PEConstraintForeach`
+(PExpr.h/PExpr.cc) stores the prefix as `std::vector<perm_string>
+prefix_names_` — names that reference already-declared variables, not
+fresh declarations — instead of a single `PExpr*` index. Verified the
+new grammar production changes bison's conflict counts by zero (551
+shift/reduce, 1186 reduce/reduce, identical before and after) before
+committing to this approach.
+
+Full semantic resolution of the iterated array when it is not a rand
+property of the object being randomized (the real OpenTitan case:
+`xbar_devices` lives in an enclosing package, not in the class doing
+`randomize()`) remains a separate, larger gap — the constraint-IR
+generator's `foreach` lowering fundamentally requires the array's
+element count to be a compile-time constant it can resolve from
+either the scope-form or the object's own rand-property table, and
+neither currently walks out to package or enclosing-object scope.
+Rather than guess, `elaborate.cc`'s `PEConstraintForeach` IR-generator
+branch now checks `cfe->has_hierarchical_target()` and returns `""`
+unconditionally in that case — which the caller
+(`make_randomize_with_expr`, fixed to warn rather than silently drop
+in G63) already reports as a loud compile-progress warning naming the
+dropped constraint text, rather than either a syntax error or a
+silent semantic no-op. `randomize()` still completes normally with
+the rest of the constraint block intact.
+
+Value-checked test: `sv_constraint_foreach_hierarchical` (parses and
+runs to completion with the expected drop-warning; a class-scoped
+`rand` selector, `device_id`, selects one element of an array of
+class-typed handles before iterating a `rand` array member of the
+selected element — the same two-level shape as the real OpenTitan
+constraint).
+
+---
+
 ## Two measurement traps worth remembering
 
 **The error count is not a progress metric while the parser can still give

@@ -9,8 +9,8 @@ module top;
   assign (strong1, strong0) rout_valid = in; // Ok, real cannot be in a concatenation
   assign (strong1, strong0) {lout_valid1, lout_valid2} = in; // Ok, default strength
 
-  and (rout_gt, in, in); // Gates must drive a net
-  and (lout_gt, in, in); // Gates must drive a net
+  and (rout_gt, in, in); // Invalid, a gate output is 4-state and cannot drive a real
+  and (lout_gt, in, in); // Ok in SystemVerilog, single primitive driver of a variable
 
   // When strength is added it should only be for the default strength!
   udp_inv (rout_udp, in); // A UDP is like a module and can drive a variable

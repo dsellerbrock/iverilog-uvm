@@ -2784,6 +2784,39 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
 	delete[] $3;
 	$$ = tmp;
       }
+  /* Iterative constraint over a hierarchical target:
+     foreach (array_name[prefix_names].member_name[loop_vars]).
+     `prefix_names' select one element of `array_name' PER already-
+     declared variable named (NOT fresh loop-variable declarations),
+     then `member_name's own dimension is iterated.
+
+     The prefix positions are parsed through `loop_variables' -- the
+     same nonterminal as an ordinary loop-variable list -- rather
+     than `expression': a bare identifier there is indistinguishable
+     from a loop-variable declaration with only one token of
+     lookahead (confirmed with a bison parse trace), so a dedicated
+     `expression' alternative would simply never be reached, losing
+     that reduce/reduce race every time; the plain-statement foreach
+     of the same shape (PForeach in Statement.h) has the identical
+     constraint (ledger G65). The action below treats the resulting
+     names as references, not declarations.
+
+     Resolving `array_name' when it is not a rand property of the
+     object being randomized (e.g. a package-scope or
+     enclosing-object lookup table used only to bound the
+     constraint) is not yet implemented; the constraint-IR generator
+     reports that loudly (a compile-progress warning, not a silent
+     drop -- see make_randomize_with_expr()) rather than guessing. */
+  | K_foreach '(' IDENTIFIER '[' loop_variables ']' '.' IDENTIFIER
+    '[' loop_variables ']' ')' constraint_set
+      { PEConstraintForeach*tmp =
+	      new PEConstraintForeach(lex_strings.make($3), $5,
+				      lex_strings.make($8), $10, $13);
+	FILE_NAME(tmp, @1);
+	delete[] $3;
+	delete[] $8;
+	$$ = tmp;
+      }
   /* I4 (Phase 62c): soft constraint — wrap in PESoft so the IR emitter
      marks it for Z3_optimize_assert_soft (default weight 1).  Other
      contexts (non-constraint elaboration) delegate through to the inner
@@ -4627,9 +4660,16 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	$$ = tmp_blk;
       }
 
-      // Support nested indexed targets such as foreach(a[i].b[j]) without
-      // changing the generic foreach target grammar. These still elaborate as
-      // hierarchical targets and currently fall back to the existing warning.
+      // foreach(a[k1,...].b[i1,...]): IEEE 1800-2017 11.7 extended to a
+      // hierarchical target. Lowered to nested foreach statements --
+      // foreach (a[k1,...]) foreach (a[k1,...].b[i1,...]) BODY -- so
+      // each level reuses the already-correct single-target
+      // elaboration path (pform_make_foreach/PForeach) rather than
+      // adding a second one. This used to be a stub: it built no
+      // PForeach node at all and discarded the loop body outright,
+      // with no diagnostic in the common case (pform_requires_sv() is
+      // a silent no-op once SystemVerilog mode is active, which it is
+      // for virtually all real input).
   | K_foreach '(' foreach_array_identifier '[' loop_variables ']' '.'
     foreach_array_identifier '[' loop_variables ']' ')'
       {
@@ -4640,40 +4680,65 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
 	current_block_stack.push(tmp);
 
-	pform_make_foreach_declarations(@1, 0, $10);
+	  // Outer loop variables (one per dimension of $3) take their
+	  // index type from $3's own declared dimensions.
+	pform_make_foreach_declarations(@1, $3, $5);
+
+	  // Inner loop variables (one per dimension of the hierarchical
+	  // member $8) take their index type from the combined,
+	  // UNINDEXED path $3.$8 -- a dimension's shape does not depend
+	  // on which element of $3 is selected.
+	pform_name_t inner_shape_path(*$3);
+	inner_shape_path.splice(inner_shape_path.end(), pform_name_t(*$8));
+	pform_make_foreach_declarations(@1, &inner_shape_path, $10);
       }
     statement_or_null
-      { pform_name_t*tmp_name = $3;
-	name_component_t&tail = tmp_name->back();
-	bool prefix_ok = true;
+      { bool prefix_ok = true;
 	for (std::list<perm_string>::const_iterator cur = $5->begin()
 		   ; cur != $5->end() ; ++cur) {
 	      if (cur->nil()) {
 		    yyerror(@5, "error: Errors in foreach loop variables list.");
 		    prefix_ok = false;
-		    continue;
 	      }
-	      index_component_t itmp;
-	      itmp.sel = index_component_t::SEL_BIT;
-	      itmp.msb = new PEIdent(*cur, 0);
-	      itmp.lsb = 0;
-	      tail.index.push_back(itmp);
 	}
-	delete $5;
-	tmp_name->splice(tmp_name->end(), *$8);
-	delete $8;
 
-		if (prefix_ok) {
-		      pform_requires_sv(@1, "foreach over hierarchical array target");
-		      warn_count += 1;
-		}
-	delete $10;
-	delete $14;
-	delete tmp_name;
+	PForeach*tmp_for = 0;
+	if (prefix_ok) {
+		// Inner target path: a copy of $3 with one SEL_BIT index
+		// component per outer loop variable (referencing that
+		// variable, declared above), followed by $8's components.
+	      pform_name_t*inner_path = new pform_name_t(*$3);
+	      name_component_t&inner_tail = inner_path->back();
+	      for (std::list<perm_string>::const_iterator cur = $5->begin()
+			 ; cur != $5->end() ; ++cur) {
+		    index_component_t itmp;
+		    itmp.sel = index_component_t::SEL_BIT;
+		    itmp.msb = new PEIdent(*cur, 0);
+		    itmp.lsb = 0;
+		    inner_tail.index.push_back(itmp);
+	      }
+	      inner_path->splice(inner_path->end(), pform_name_t(*$8));
+
+	      PForeach*inner_for = pform_make_foreach(@1, *inner_path, $10, $14);
+	      delete inner_path;
+
+	      tmp_for = pform_make_foreach(@1, *$3, $5, inner_for);
+	} else {
+	      delete $5;
+	      delete $10;
+	      delete $14;
+	}
+	delete $8;
+	delete $3;
 
 	pform_pop_scope();
 	PBlock*tmp_blk = current_block_stack.top();
 	current_block_stack.pop();
+	if (tmp_for) {
+	      vector<Statement*>tmp_for_list(1);
+	      tmp_for_list[0] = tmp_for;
+	      tmp_blk->set_statement(tmp_for_list);
+	}
 	$$ = tmp_blk;
       }
 
@@ -8787,6 +8852,22 @@ expr_primary
 	delete[]$1;
       }
 
+  /* IEEE 1800-2017 23.8: $root names the root of the instantiation
+     hierarchy. Resolve the remainder as a hierarchical path; the
+     search starts in the referencing scope and walks up to the root
+     scopes, which matches $root's intent for a root-level testbench
+     instance. */
+  | SYSTEM_IDENTIFIER '.' hierarchy_identifier
+      { if (strcmp($1, "$root") != 0) {
+	      yyerror(@1, "error: Only $root may prefix a hierarchical path.");
+	}
+	PEIdent*tmp = pform_new_ident(@3, *$3);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+	delete[]$1;
+	delete $3;
+      }
+
   /* The hierarchy_identifier rule matches simple identifiers as well as
      indexed arrays and part selects */
 
@@ -10541,6 +10622,39 @@ hierarchy_identifier
 	tail.index.push_back(itmp);
 	$$ = tmp;
       }
+      /* IEEE 1800-2017 7.10.1: within an index expression, `$' stands
+	 for the queue's top bound (size()-1) and may be combined with
+	 ordinary arithmetic, e.g. `q[$-1]' for the second-to-last
+	 element. Rather than teach the many SEL_BIT_LAST consumers
+	 (lvalue, rvalue, sizing -- elab_expr.cc/elab_lval.cc/
+	 elaborate.cc each have several) a second "relative to last"
+	 selector kind, rewrite this at parse time into the exactly
+	 equivalent ordinary index `q[q.size()-1-<offset>]', built on a
+	 COPY of the base path so the original `q[...]' path is left
+	 untouched for the actual index. This reuses the already-correct
+	 plain-SEL_BIT machinery instead of adding a new one. */
+  | hierarchy_identifier '[' '$' '-' expression ']'
+      { pform_requires_sv(@3, "Last element expression ($)");
+        pform_name_t * tmp = $1;
+	pform_name_t * size_path = new pform_name_t(*tmp);
+	size_path->push_back(name_component_t(lex_strings.make("size")));
+	std::vector<named_pexpr_t> no_args;
+	PECallFunction*size_call = new PECallFunction(*size_path, no_args);
+	FILE_NAME(size_call, @3);
+	delete size_path;
+	PENumber*one = new PENumber(new verinum((uint64_t)1, integer_width));
+	FILE_NAME(one, @3);
+	PEBinary*last_idx = new PEBinary('-', size_call, one);
+	FILE_NAME(last_idx, @3);
+	PEBinary*offset_idx = new PEBinary('-', last_idx, $5);
+	FILE_NAME(offset_idx, @4);
+	name_component_t&tail = tmp->back();
+	index_component_t itmp;
+	itmp.sel = index_component_t::SEL_BIT;
+	itmp.msb = offset_idx;
+	tail.index.push_back(itmp);
+	$$ = tmp;
+      }
   | hierarchy_identifier '[' expression ':' expression ']'
       { pform_name_t * tmp = $1;
 	name_component_t&tail = tmp->back();
@@ -11656,6 +11770,15 @@ module_item
   | attribute_list_opt K_always statement_item
       { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS, $3, $1);
 	FILE_NAME(tmp, @2);
+      }
+  /* Attributes between always and the body (IEEE 1800-2017 A.6.4:
+     statement ::= {attribute_instance} statement_item), e.g. the
+     OpenTitan AST models' always (* xprop_off *) @( * ). Consume and
+     ignore, as for the always_comb/always_ff spellings below. */
+  | attribute_list_opt K_always attribute_instance_list statement_item
+      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS, $4, $1);
+	FILE_NAME(tmp, @2);
+	if ($3) delete $3;
       }
   | attribute_list_opt K_always_comb statement_item
       { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_COMB, $3, $1);
@@ -13839,6 +13962,28 @@ statement_item /* This is roughly statement_item in the LRM */
       }
   | data_type list_of_variable_decl_assignments ';'
       { if ($1) pform_make_var(@1, $2, $1, nullptr, false);
+	$$ = nullptr;
+      }
+
+  /* `const <data_type> name = init;` intermixed with statements (not
+     the first declaration in the block). The K_const TYPE_IDENTIFIER
+     rule above only covers a user-defined type name; a `const` of a
+     keyword-spelled type (`const int`, `const string`) or a
+     package-scoped type (`const otp_ctrl_pkg::x_t`) never lexes as
+     TYPE_IDENTIFIER, so it fell through to no rule at all here and
+     was misparsed as the start of an ordinary (non-declaration)
+     statement -- "Syntax in assignment statement l-value." A `const`
+     declared FIRST in a block matched fine via block_item_decl before
+     the parser committed to the statement-list path; only a `const`
+     appearing after some other declaration or statement needed this
+     alternative. Mirrors the two non-const rules just above. */
+  | K_const variable_lifetime_opt data_type list_of_variable_decl_assignments ';'
+      { if ($3) pform_make_var(@3, $4, $3, nullptr, true);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	$$ = nullptr;
+      }
+  | K_const data_type list_of_variable_decl_assignments ';'
+      { if ($2) pform_make_var(@2, $3, $2, nullptr, true);
 	$$ = nullptr;
       }
 

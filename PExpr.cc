@@ -801,6 +801,27 @@ PEConstraintForeach::PEConstraintForeach(perm_string array_name,
       }
 }
 
+PEConstraintForeach::PEConstraintForeach(perm_string array_name,
+					 std::list<perm_string>*prefix_names,
+					 perm_string member_name,
+					 std::list<perm_string>*loop_vars,
+					 std::list<PExpr*>*items)
+: array_name_(array_name), member_name_(member_name)
+{
+      if (prefix_names) {
+	    prefix_names_.assign(prefix_names->begin(), prefix_names->end());
+	    delete prefix_names;
+      }
+      if (loop_vars) {
+	    loop_vars_.assign(loop_vars->begin(), loop_vars->end());
+	    delete loop_vars;
+      }
+      if (items) {
+	    items_.assign(items->begin(), items->end());
+	    delete items;
+      }
+}
+
 PEConstraintForeach::~PEConstraintForeach()
 {
       for (PExpr*item : items_)
@@ -809,7 +830,10 @@ PEConstraintForeach::~PEConstraintForeach()
 
 void PEConstraintForeach::dump(std::ostream&out) const
 {
-      out << "foreach (" << array_name_ << "[...]) { ... }";
+      out << "foreach (" << array_name_;
+      if (has_hierarchical_target())
+	    out << "[...]." << member_name_;
+      out << "[...]) { ... }";
 }
 
 unsigned PEConstraintForeach::test_width(Design*, NetScope*, width_mode_t&)
