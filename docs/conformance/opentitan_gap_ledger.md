@@ -1889,6 +1889,66 @@ variable is genuinely unaffected).
 
 ---
 
+## G66 — `foreach` over a hierarchical target inside a `randomize() with {...}` constraint — **fixed** [general] (was a hard syntax error)
+
+`foreach (array_name[prefix].member_name[loop_var])` as a constraint
+item — the same hierarchical-target shape G65 fixed for an ordinary
+statement — was a hard syntax error inside a `constraint`/`with`
+block. Reduced from OpenTitan's auto-generated
+`xbar_env_pkg__params.sv` / `xbar_tl_host_seq.sv`:
+`foreach (xbar_devices[device_id].addr_ranges[i]) { ... }` inside a
+`randomize() with {...}` call, where `device_id` is itself a `rand`
+property of the class being randomized, not a fresh loop variable.
+
+Root cause was the exact same LALR(1) lookahead ambiguity as G65: the
+grammar production's prefix bracket was originally typed as
+`expression` (to parse an index like `device_id`), but a bare
+`IDENTIFIER` there is indistinguishable — with one token of lookahead
+— from a fresh loop-variable declaration via the `loop_variables`
+nonterminal, and bison always wins that race by reducing to
+`loop_variables` before it can see the following `.` that would
+disambiguate. Confirmed definitively with `IVL_PARSE_TRACE=1` on a
+minimal repro (`foreach (lookup[idx].size[i])`): the parser reduces
+the bare `idx` to `loop_variables` (rule 499) immediately on seeing
+`]`, so the `expression` alternative was dead grammar — never
+reachable for exactly the real-world case (a bare identifier prefix)
+that matters.
+
+Fixed the same way as G65: the prefix bracket is now parsed through
+`loop_variables` for both positions, and `PEConstraintForeach`
+(PExpr.h/PExpr.cc) stores the prefix as `std::vector<perm_string>
+prefix_names_` — names that reference already-declared variables, not
+fresh declarations — instead of a single `PExpr*` index. Verified the
+new grammar production changes bison's conflict counts by zero (551
+shift/reduce, 1186 reduce/reduce, identical before and after) before
+committing to this approach.
+
+Full semantic resolution of the iterated array when it is not a rand
+property of the object being randomized (the real OpenTitan case:
+`xbar_devices` lives in an enclosing package, not in the class doing
+`randomize()`) remains a separate, larger gap — the constraint-IR
+generator's `foreach` lowering fundamentally requires the array's
+element count to be a compile-time constant it can resolve from
+either the scope-form or the object's own rand-property table, and
+neither currently walks out to package or enclosing-object scope.
+Rather than guess, `elaborate.cc`'s `PEConstraintForeach` IR-generator
+branch now checks `cfe->has_hierarchical_target()` and returns `""`
+unconditionally in that case — which the caller
+(`make_randomize_with_expr`, fixed to warn rather than silently drop
+in G63) already reports as a loud compile-progress warning naming the
+dropped constraint text, rather than either a syntax error or a
+silent semantic no-op. `randomize()` still completes normally with
+the rest of the constraint block intact.
+
+Value-checked test: `sv_constraint_foreach_hierarchical` (parses and
+runs to completion with the expected drop-warning; a class-scoped
+`rand` selector, `device_id`, selects one element of an array of
+class-typed handles before iterating a `rand` array member of the
+selected element — the same two-level shape as the real OpenTitan
+constraint).
+
+---
+
 ## Two measurement traps worth remembering
 
 **The error count is not a progress metric while the parser can still give

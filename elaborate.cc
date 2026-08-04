@@ -16737,6 +16737,24 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (cfe->loop_vars().size() != 1 || cfe->loop_vars()[0].nil())
 		  return "";
 
+	      /* foreach (array_name[prefix_index].member_name[loop_var]):
+	         resolving `array_name' when it is not a rand property of
+	         the object being randomized -- the common real case,
+	         e.g. a package-scope lookup table referenced from an
+	         enclosing method's `with' block -- needs hierarchical
+	         path storage plus enclosing-scope/package property
+	         resolution this generator does not have. Do not fall
+	         through to the single-level `array_name()' lookup below:
+	         if `array_name' happens to also name an unrelated rand
+	         property of `cls', that lookup would silently succeed
+	         and iterate the WRONG array, ignoring `.member_name'
+	         entirely -- a wrong answer, not just an incomplete one.
+	         Reported loudly by the caller (make_randomize_with_expr
+	         / this function's other callers all already warn on an
+	         empty IR result here). */
+	    if (cfe->has_hierarchical_target())
+		  return "";
+
 	      /* Scope-form std::randomize() may iterate a packed local/state
 	         vector (OpenTitan uses foreach(valid_mask[i])). Unlike a class
 	         unpacked array, this is a fixed packed domain, so unroll its

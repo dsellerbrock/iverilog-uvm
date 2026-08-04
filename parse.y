@@ -2784,6 +2784,39 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
 	delete[] $3;
 	$$ = tmp;
       }
+  /* Iterative constraint over a hierarchical target:
+     foreach (array_name[prefix_names].member_name[loop_vars]).
+     `prefix_names' select one element of `array_name' PER already-
+     declared variable named (NOT fresh loop-variable declarations),
+     then `member_name's own dimension is iterated.
+
+     The prefix positions are parsed through `loop_variables' -- the
+     same nonterminal as an ordinary loop-variable list -- rather
+     than `expression': a bare identifier there is indistinguishable
+     from a loop-variable declaration with only one token of
+     lookahead (confirmed with a bison parse trace), so a dedicated
+     `expression' alternative would simply never be reached, losing
+     that reduce/reduce race every time; the plain-statement foreach
+     of the same shape (PForeach in Statement.h) has the identical
+     constraint (ledger G65). The action below treats the resulting
+     names as references, not declarations.
+
+     Resolving `array_name' when it is not a rand property of the
+     object being randomized (e.g. a package-scope or
+     enclosing-object lookup table used only to bound the
+     constraint) is not yet implemented; the constraint-IR generator
+     reports that loudly (a compile-progress warning, not a silent
+     drop -- see make_randomize_with_expr()) rather than guessing. */
+  | K_foreach '(' IDENTIFIER '[' loop_variables ']' '.' IDENTIFIER
+    '[' loop_variables ']' ')' constraint_set
+      { PEConstraintForeach*tmp =
+	      new PEConstraintForeach(lex_strings.make($3), $5,
+				      lex_strings.make($8), $10, $13);
+	FILE_NAME(tmp, @1);
+	delete[] $3;
+	delete[] $8;
+	$$ = tmp;
+      }
   /* I4 (Phase 62c): soft constraint — wrap in PESoft so the IR emitter
      marks it for Z3_optimize_assert_soft (default weight 1).  Other
      contexts (non-constraint elaboration) delegate through to the inner

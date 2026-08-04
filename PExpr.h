@@ -1591,9 +1591,32 @@ class PEConstraintForeach : public PExpr {
       PEConstraintForeach(perm_string array_name,
 			  std::list<perm_string>*loop_vars,
 			  std::list<PExpr*>*items);
+	// `foreach (array_name[prefix_names].member_name[loop_vars])':
+	// IEEE 1800-2017 18.5.8 extended to a hierarchical target,
+	// analogous to the plain-statement foreach of the same shape
+	// (Statement.h PForeach). Unlike `loop_vars', `prefix_names' are
+	// NOT fresh declarations -- each names an ALREADY-DECLARED
+	// variable that selects one element of `array_name' along that
+	// dimension, before `member_name's own dimension is iterated.
+	// (Grammar note: the prefix positions are parsed through the
+	// same `loop_variables' nonterminal as an ordinary loop-variable
+	// list, not `expression' -- a bare identifier there is
+	// indistinguishable from a loop-variable declaration with one
+	// token of lookahead, so a dedicated `expression' alternative
+	// only ever loses that reduce/reduce race and is simply never
+	// reached; see ledger G65's identical finding for the
+	// plain-statement form.)
+      PEConstraintForeach(perm_string array_name,
+			  std::list<perm_string>*prefix_names,
+			  perm_string member_name,
+			  std::list<perm_string>*loop_vars,
+			  std::list<PExpr*>*items);
       ~PEConstraintForeach() override;
 
       perm_string array_name() const { return array_name_; }
+      bool has_hierarchical_target() const { return !prefix_names_.empty(); }
+      const std::vector<perm_string>& prefix_names() const { return prefix_names_; }
+      perm_string member_name() const { return member_name_; }
       const std::vector<perm_string>& loop_vars() const { return loop_vars_; }
       const std::list<PExpr*>& items() const { return items_; }
 
@@ -1605,6 +1628,8 @@ class PEConstraintForeach : public PExpr {
 
     private:
       perm_string array_name_;
+      std::vector<perm_string> prefix_names_;
+      perm_string member_name_;
       std::vector<perm_string> loop_vars_;
       std::list<PExpr*> items_;
 };
