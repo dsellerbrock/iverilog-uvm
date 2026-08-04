@@ -220,6 +220,32 @@ KNOWN_UPSTREAM_DEFECTS = (
         "cannot elaborate with any tool.",
     ),
     UpstreamDefect(
+        "lowrisc:earlgrey_fpv:pinmux_fpv",
+        "compile",
+        re.compile(
+            r"An assignment pattern needs a context that gives it a type"
+        ),
+        "pinmux_assert_fpv.sv compares mio_attr_o entries against bare "
+        "assignment patterns ('{schmitt_en: 1'b1, default: '0}') inside "
+        "property expressions. IEEE 1800-2017 10.9 gives assignment "
+        "patterns no self-determined type in an equality operand; slang "
+        "11.0 rejects the same construct ('assignment pattern target "
+        "type cannot be deduced in this context').",
+    ),
+    UpstreamDefect(
+        "lowrisc:englishbreakfast_fpv:pinmux_fpv",
+        "compile",
+        re.compile(
+            r"An assignment pattern needs a context that gives it a type"
+        ),
+        "pinmux_assert_fpv.sv compares mio_attr_o entries against bare "
+        "assignment patterns ('{schmitt_en: 1'b1, default: '0}') inside "
+        "property expressions. IEEE 1800-2017 10.9 gives assignment "
+        "patterns no self-determined type in an equality operand; slang "
+        "11.0 rejects the same construct ('assignment pattern target "
+        "type cannot be deduced in this context').",
+    ),
+    UpstreamDefect(
         "lowrisc:darjeeling_dv:rv_core_ibex_sva",
         "compile",
         re.compile(
