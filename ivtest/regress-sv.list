@@ -1346,4 +1346,6 @@ sv_always_stmt_attribute normal,-g2012 ivltests
 sv_gate_output_variable normal,-g2012 ivltests
 sv_bind_target_instance normal,-g2012 ivltests
 sv_class_var_shadows_type normal,-g2012 ivltests
+sv_const_decl_not_first normal,-g2012 ivltests
+sv_default_arg_assign_pattern normal,-g2012 ivltests
 concat_unsized_literal_reject CE,-g2012 ivltests

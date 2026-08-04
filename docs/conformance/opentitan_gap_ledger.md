@@ -1648,6 +1648,64 @@ collateral referencing registers its autogen tops lack (`rstmgr_sva`,
 pinmux no longer declares, and `spi_host_sva`'s formal target
 requesting a fileset the core never defines (setup phase).
 
+## G60 — a nearer class property could not shadow an outer class-typed name — **fixed** [general]
+
+`pform_test_type_identifier()` walked scopes checking only typedefs and
+package imports; a class property or local variable whose name matches
+an outer class name (a self-named wrapper, e.g. `max_delay_cg_obj
+max_delay_cg_obj[string]`) was never checked for shadowing, so every
+later use of the name kept resolving as a type reference instead of
+the property. IEEE 1800-2017 6.18 says a nearer declaration of any
+kind hides an outer one with the same name. OpenTitan
+`xbar_env_cov.sv`'s `max_delay_cg_obj[key] = new(...)` parsed as a
+type-cast/declaration attempt instead of an indexed variable
+reference, producing a cascade of syntax errors through the class
+body. `pform_test_type_identifier()` now checks the current scope's
+wires and (for a class scope) its declared properties before
+consulting typedefs and imports. Test: `sv_class_var_shadows_type`.
+
+## G61 — `const` declarations after the first block item, and assignment-pattern defaults — **fixed** [general]
+
+Two UVM-lane parser/elaboration gaps, both hit by every OpenTitan
+`dv`/`env` package in the first full uvm-v1 census:
+
+1. `statement_item` had plain (non-`const`) alternatives for a
+   `data_type` declaration appearing after another declaration or
+   statement in a procedural block, but the only `const` alternative
+   in that position required a user-defined `TYPE_IDENTIFIER` — a
+   `const` of a keyword-spelled type (`const int`, `const string`) or
+   a package-scoped type never matched that rule and fell through to
+   "Syntax in assignment statement l-value." A `const` declared FIRST
+   in a block was fine (it still matched via `block_item_decl` before
+   the parser committed to the statement-list path); only a `const`
+   after some other declaration or statement needed a rule. Two new
+   `K_const` alternatives mirror the existing non-`const` ones.
+   `lc_ctrl_scoreboard.sv`'s `process_otp_prog_rsp()` task (three
+   ordinary locals, then `const string MsgFmt = ...`) goes from a
+   syntax error to compiling clean.
+2. IEEE 1800-2017 10.9: an assignment pattern has no self-determined
+   type — it takes its type from context. A default port/argument
+   value (`= '{...}` in a formal declaration) has no surrounding
+   expression to supply that context. The packed case
+   (`check_lc_outputs(lc_outputs_t exp_o = '{default: lc_ctrl_pkg::Off},
+   ...)`) failed outright ("An assignment pattern needs a context that
+   gives it a type"). The unpacked-array case
+   (`set_nvm_rma_ack(lc_tx_t val, int delay_lens[NumRmaAckSigs] =
+   '{default: 0})`) was worse: a fixed unpacked-array port's
+   `NetNet::net_type()` returns only its ELEMENT type (the complete
+   type including dimensions is `array_type()` — the same distinction
+   the existing explicit-argument path at the call site already
+   documented), so elaborating the default against `net_type()` built
+   a scalar value; the call-site default-argument path then
+   unconditionally padded that value to the port's scalar element
+   width, corrupting the resulting array pattern and crashing the vvp
+   code generator (`store_vec4_to_lval` assertion) the first call that
+   actually used the default. Port defaults are now elaborated against
+   `array_type()` when the port has unpacked dimensions, and the
+   call-site padding is skipped for such ports (matching the
+   already-correct explicit-argument path, which was never broken).
+   Value-checked test: `sv_default_arg_assign_pattern`.
+
 ---
 
 ## Two measurement traps worth remembering

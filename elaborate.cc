@@ -10434,7 +10434,13 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			des->errors += 1;
 		  }
 		  rv = def->port_defe(idx)->dup_expr();
-		  if (lv_type==IVL_VT_BOOL||lv_type==IVL_VT_LOGIC)
+		    // `wid'/`lv_type' above describe the port's ELEMENT
+		    // type; padding a whole-array default pattern to that
+		    // scalar width would corrupt it (the vvp target's
+		    // whole-array store then mismatches the port's actual
+		    // declared width -- store_vec4_to_lval assertion).
+		  if (port->unpacked_dimensions() == 0
+		      && (lv_type==IVL_VT_BOOL||lv_type==IVL_VT_LOGIC))
 			rv = pad_to_width(rv, wid, *this);
 
 	    } else {

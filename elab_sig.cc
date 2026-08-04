@@ -1681,6 +1681,36 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				                              ports_->at(idx).defe,
 			                              tmp->net_type(),
 			                              scope->need_const_func());
+			} else
+				  // IEEE 1800-2017 10.9: an assignment pattern has
+				  // no self-determined type; it takes its type from
+				  // the context. A default port/argument value has
+				  // no surrounding expression to supply one, so
+				  // elaborate it directly against the port's own
+				  // type, the same way the class-default branch
+				  // above already does. For a fixed unpacked-array
+				  // port, NetNet::net_type() is only the ELEMENT
+				  // type (see the identical comment at the
+				  // task-call-site default-argument handling in
+				  // elaborate.cc); the complete type including
+				  // dimensions is array_type(), and that is what
+				  // the PEAssignPattern typed elaborator dispatches
+				  // on to build a whole-array pattern instead of a
+				  // single scalar element.
+				if (dynamic_cast<const PEAssignPattern*>(ports_->at(idx).defe)
+				    && tmp->unpacked_dimensions() > 0
+				    && tmp->array_type() != 0) {
+				      tmp_def = elab_and_eval(des, scope,
+				                              ports_->at(idx).defe,
+			                              tmp->array_type(),
+			                              scope->need_const_func());
+			} else
+				if (dynamic_cast<const PEAssignPattern*>(ports_->at(idx).defe)
+				    && tmp->net_type() != 0) {
+				      tmp_def = elab_and_eval(des, scope,
+				                              ports_->at(idx).defe,
+			                              tmp->net_type(),
+			                              scope->need_const_func());
 			} else {
 			      tmp_def = elab_and_eval(des, scope,
 			                              ports_->at(idx).defe,

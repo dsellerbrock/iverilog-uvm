@@ -13867,6 +13867,28 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = nullptr;
       }
 
+  /* `const <data_type> name = init;` intermixed with statements (not
+     the first declaration in the block). The K_const TYPE_IDENTIFIER
+     rule above only covers a user-defined type name; a `const` of a
+     keyword-spelled type (`const int`, `const string`) or a
+     package-scoped type (`const otp_ctrl_pkg::x_t`) never lexes as
+     TYPE_IDENTIFIER, so it fell through to no rule at all here and
+     was misparsed as the start of an ordinary (non-declaration)
+     statement -- "Syntax in assignment statement l-value." A `const`
+     declared FIRST in a block matched fine via block_item_decl before
+     the parser committed to the statement-list path; only a `const`
+     appearing after some other declaration or statement needed this
+     alternative. Mirrors the two non-const rules just above. */
+  | K_const variable_lifetime_opt data_type list_of_variable_decl_assignments ';'
+      { if ($3) pform_make_var(@3, $4, $3, nullptr, true);
+	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+	$$ = nullptr;
+      }
+  | K_const data_type list_of_variable_decl_assignments ';'
+      { if ($2) pform_make_var(@2, $3, $2, nullptr, true);
+	$$ = nullptr;
+      }
+
   /* An event declaration intermixed with statements. Leading variable
      declarations in a task/function/block body reduce out of the
      declaration section (the empty-K_const_opt vs empty-list conflict

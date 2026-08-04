@@ -43,6 +43,13 @@ SVA_UVM_CORES = {
 SVA_EXTRA_DEFINES = {
     "lowrisc:dv:aes_sva:0.1": ("-DEN_MASKING=1",),
 }
+# Same idea for the uvm/runtime lanes: dvsim's per-core sim cfgs pass
+# +define+ build options the fusesoc sim target never carries. Values
+# mirror the DUT's default RTL parameterization (lc_ctrl.sv elaborates
+# with SecVolatileRawUnlockEn = 0).
+UVM_EXTRA_DEFINES = {
+    "lowrisc:dv:lc_ctrl_sim:0.1": ("-DSEC_VOLATILE_RAW_UNLOCK_EN=0",),
+}
 DEFAULT_TOPS = {
     "earlgrey": "lowrisc:systems:top_earlgrey:0.1",
     "darjeeling": "lowrisc:systems:top_darjeeling:0.1",
@@ -1741,6 +1748,7 @@ def compile_command(
                 ]
             )
         command.extend(["-DSIMULATION", "-DDUT_HIER=tb.dut"])
+        command.extend(UVM_EXTRA_DEFINES.get(job.core.vlnv, ()))
     command.extend(["-o", str(output), "-c", str(source_list)])
     return command
 
