@@ -226,6 +226,18 @@ KNOWN_UPSTREAM_DEFECTS = (
         "cannot elaborate with any tool.",
     ),
     UpstreamDefect(
+        "lowrisc:fpv:keccak_2share_fpv",
+        "compile",
+        re.compile(
+            r"keccak_2share_fpv\.sv:\d+: (?:syntax error|error: )"
+        ),
+        "keccak_2share_fpv.sv's StPhase1 case item is missing an `end` "
+        "(the else-begin block and the case-item begin share one), so "
+        "the file cannot parse. slang 11.0 reports the same "
+        "\"expected 'end'\"; the FPV testbench is syntactically broken "
+        "at the pinned revision.",
+    ),
+    UpstreamDefect(
         "lowrisc:fpv:rv_timer_fpv",
         "compile",
         re.compile(
