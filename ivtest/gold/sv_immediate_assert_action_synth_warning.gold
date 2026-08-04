@@ -1,1 +1,3 @@
 ./ivltests/sv_immediate_assert_action_synth_warning.v:18: warning: System task ($display) cannot be synthesized in an always_comb process.
+assertion action ran
+PASSED
