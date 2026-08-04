@@ -1531,6 +1531,48 @@ records is `PASS` (93), `DEPENDENCY_ONLY` (153), or an evidence-backed
 
 ---
 
+## G54 — symbol-search cache keyed on AST node address caused silent method mis-dispatch — **fixed** [general] (was ⚠ silent)
+
+The elaboration symbol-search cache keyed its entries on the ADDRESS of
+the caller's `pform_scoped_name_t` path object. PExpr nodes are created
+and deleted during elaboration, so a later AST node can be allocated at
+a freed node's address; the cache then returned the earlier, unrelated
+query's result. Observed in the OpenTitan `adc_ctrl` SVA graph:
+`intr_state_fld.predict(predict_val, .kind(UVM_PREDICT_READ))` in
+`dv_base_reg_field.sv` resolved to the neighboring
+`uvm_reg_field::get_access` (looked up seven lines earlier), producing
+`Too many arguments (2, expecting 1)` / ``No argument called `kind` ``.
+The failure was input-layout dependent — the 261-file source list
+reproduced it deterministically, but no 1-minimal subset did, because
+removing any file shifted heap reuse — and the same mechanism could
+just as well have bound a WRONG method silently with a compatible
+arity, making this the worst diagnostic class.
+
+The cache key is now the query content: scope, prefix flag, and the
+interned component names of the path. Paths carrying index expressions
+are not cached at all, because their results embed expression pointers
+whose lifetime a content key cannot guarantee. Only positive results
+were and are cached. Compile time on the 261-file SVA graph is
+unchanged (~3 s). The `Too many arguments` diagnostic now names the
+resolved function scope, which is what exposed the mis-dispatch.
+Witness: `sv_method_call_cache_identity` plus the adc_ctrl SVA census
+record going from FAIL to zero hard errors.
+
+## G55 — standalone SVA jobs cannot bind `tb.dut` references — **fixed** (matrix driver)
+
+OpenTitan SVA collateral is written for the dvsim simulation topology
+(`module tb` containing the IP instance `dut`); assertion interfaces
+reference `tb.dut...` hierarchically, and upstream's own `formal`
+fusesoc targets mix those DV files with `toplevel: <ip>`, which no
+strict elaborator can satisfy. The census driver now wraps the declared
+SVA top in a generated `tb`/`dut` pair (unless the sources already
+declare `tb`), reproducing the topology the collateral was written for.
+`adc_ctrl_sva` goes from a hard bind failure to zero errors (its
+remaining 133 UVM compile-progress warnings are the M14B debt), and
+`prim_keccak_fpv` stays PASS under the wrapper.
+
+---
+
 ## Two measurement traps worth remembering
 
 **The error count is not a progress metric while the parser can still give

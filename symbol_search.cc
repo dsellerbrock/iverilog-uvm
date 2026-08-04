@@ -31,26 +31,27 @@
 
 using namespace std;
 
+// The cache key must be the CONTENT of the query, never the address of
+// the AST path object: PExpr nodes are created and deleted during
+// elaboration, so a later node can reuse a freed node's address and a
+// pointer-keyed cache then returns a stale, unrelated result (observed
+// as `obj.predict(...)` resolving to a neighboring `obj.get_access`).
+// Component names are interned perm_strings, so equal text implies
+// equal pointer and a vector of them is a stable value key. Paths that
+// carry index expressions are not cached at all -- their results embed
+// expression pointers whose lifetime the cache cannot guarantee.
 struct symbol_search_cache_key_t {
       const NetScope*scope;
-      const NetScope*start_scope;
-      const pform_scoped_name_t*path_ref;
-      unsigned lexical_pos;
       bool prefix_scope;
+      std::vector<perm_string> path_names;
 
       bool operator<(const symbol_search_cache_key_t&that) const
       {
 	    if (scope != that.scope)
 		  return scope < that.scope;
-	    if (start_scope != that.start_scope)
-		  return start_scope < that.start_scope;
-	    if (path_ref != that.path_ref)
-		  return path_ref < that.path_ref;
-	    if (lexical_pos != that.lexical_pos)
-		  return lexical_pos < that.lexical_pos;
 	    if (prefix_scope != that.prefix_scope)
 		  return prefix_scope < that.prefix_scope;
-	    return false;
+	    return path_names < that.path_names;
       }
 };
 
@@ -620,12 +621,19 @@ bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 	    prefix_scope = true;
       }
 
+      for (list<name_component_t>::const_iterator cur = path.name.begin()
+		 ; use_cache && cur != path.name.end() ; ++cur) {
+	    if (! cur->index.empty())
+		  use_cache = false;
+      }
+
       if (use_cache) {
 	    cache_key.scope = search_scope;
-	    cache_key.start_scope = search_scope;
-	    cache_key.path_ref = &path;
-	    cache_key.lexical_pos = lexical_pos;
 	    cache_key.prefix_scope = prefix_scope;
+	    cache_key.path_names.reserve(path.name.size());
+	    for (list<name_component_t>::const_iterator cur = path.name.begin()
+		       ; cur != path.name.end() ; ++cur)
+		  cache_key.path_names.push_back(cur->name);
 
 	    std::map<symbol_search_cache_key_t,symbol_search_results>::const_iterator cached =
 		  symbol_search_cache_.find(cache_key);

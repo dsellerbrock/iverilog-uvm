@@ -1340,4 +1340,5 @@ sv_unit_import_interface_type normal,-g2012 ivltests
 sv_interface_port_array_member normal,-g2012 ivltests
 sv_unpacked_array_concat_mismatch CE,-g2012 ivltests
 concat_unsized_expr_operand normal,-g2012 ivltests
+sv_method_call_cache_identity normal,-g2012 ivltests
 concat_unsized_literal_reject CE,-g2012 ivltests

@@ -1334,6 +1334,40 @@ def validated_top_options(
     return kept, notes, wrapper
 
 
+def sva_testbench_wrapper(
+    job: Job,
+    source_list: Path,
+    top_options: Sequence[str],
+    work_root: Path,
+    compiler_source_list: Path,
+) -> tuple[list[str], list[str], Path | None]:
+    """Reproduce the dvsim testbench topology for standalone SVA jobs.
+
+    OpenTitan SVA collateral is written for the DV simulation topology
+    (a ``tb`` module containing the IP instance ``dut``); assertion
+    interfaces reference ``tb.dut...`` hierarchically, so elaborating
+    the bare IP as the root cannot bind them. Wrap the declared top in
+    a generated ``tb``/``dut`` pair unless the sources already provide
+    a ``tb`` module.
+    """
+    if job.lane != "sva":
+        return list(top_options), [], None
+    tops = [opt[2:] for opt in top_options if opt.startswith("-s") and opt[2:]]
+    if len(tops) != 1 or tops[0] == "tb":
+        return list(top_options), [], None
+    if "tb" in declared_modules(source_list):
+        return list(top_options), [], None
+    stub = work_root / "matrix-sva-tb.sv"
+    stub.write_text(f"module tb;\n  {tops[0]} dut();\nendmodule\n")
+    wrapper = work_root / "matrix-sva-tb.scr"
+    wrapper.write_text(f"-c {compiler_source_list}\n{stub}\n")
+    notes = [
+        f"wrapped declared top {tops[0]!r} in a generated tb/dut pair "
+        "to reproduce the dvsim testbench topology"
+    ]
+    return ["-stb"], notes, wrapper
+
+
 def setup_command(
     job: Job,
     fusesoc: Path,
@@ -1550,11 +1584,18 @@ def run_job(
         compiler_source_list = simulation_source_list(job, source_list, work_root)
         if package_wrapper is not None:
             compiler_source_list = package_wrapper
+        top_options, sva_notes, sva_wrapper = sva_testbench_wrapper(
+            job, source_list, top_options, work_root, compiler_source_list
+        )
+        if sva_wrapper is not None:
+            compiler_source_list = sva_wrapper
     except (FileNotFoundError, OSError, ValueError) as exc:
         record.update({"status": "SETUP_FAIL", "matrix_error": str(exc)})
         return record
     if top_notes:
         record["top_selection_notes"] = top_notes
+    if sva_notes:
+        record["sva_topology_notes"] = sva_notes
 
     executable = work_root / f"matrix-{job.lane}.vvp"
     compile_result = command_result(

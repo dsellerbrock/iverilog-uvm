@@ -10742,7 +10742,8 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 	    cerr << get_fileline() << ": error: "
 		 << "Too many arguments (" << actual_count
 		 << ", expecting " << parm_count << ")"
-		 << " in call to function." << endl;
+		 << " in call to function "
+		 << scope_path(def->scope()) << "." << endl;
 	    des->errors += 1;
       }
 
