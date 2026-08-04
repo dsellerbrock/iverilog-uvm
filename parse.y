@@ -8787,6 +8787,22 @@ expr_primary
 	delete[]$1;
       }
 
+  /* IEEE 1800-2017 23.8: $root names the root of the instantiation
+     hierarchy. Resolve the remainder as a hierarchical path; the
+     search starts in the referencing scope and walks up to the root
+     scopes, which matches $root's intent for a root-level testbench
+     instance. */
+  | SYSTEM_IDENTIFIER '.' hierarchy_identifier
+      { if (strcmp($1, "$root") != 0) {
+	      yyerror(@1, "error: Only $root may prefix a hierarchical path.");
+	}
+	PEIdent*tmp = pform_new_ident(@3, *$3);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+	delete[]$1;
+	delete $3;
+      }
+
   /* The hierarchy_identifier rule matches simple identifiers as well as
      indexed arrays and part selects */
 
