@@ -1743,6 +1743,52 @@ table out from under ordinary declaration order — `signals_map_`
 aliasing is one; there may be others (parameter overrides, generate-
 scope rebinding) worth auditing before the next cache is added here.
 
+## G63 — a `randomize() with {...}` item that could not be translated was dropped with zero diagnostic — **fixed** [general] (was ⚠ silent)
+
+`make_randomize_with_expr()`'s loop over top-level `with` block items
+did `if (ir.empty()) continue;` whenever `pexpr_to_class_constraint_ir`
+could not translate one item to solver IR — for example a `foreach`
+constraint whose target is a plain (non-`rand`) property of the
+*enclosing* class rather than the randomized object's own class (IEEE
+1800-2017 permits a `with` block to reference enclosing-scope state;
+resolving such a foreach target is not implemented). The `randomize()`
+call still reported success, silently applying only the constraints it
+could translate — no diagnostic anywhere. Found while investigating
+OpenTitan `xbar_tl_host_seq.sv`'s
+`req.randomize() with {... foreach (xbar_devices[device_id].addr_ranges[i])
+{...} ...}` (a currently-unsupported hierarchical/indexed foreach
+target — that specific shape remains a syntax error, intentionally
+left loud rather than risking a new silent failure in a grammar that
+`bison -Wconflicts-sr -Wconflicts-rr` already reports 500+ shift/reduce
+and 1186 reduce/reduce conflicts for; see the note below).
+
+Every dropped item now emits `warning: constraint '...' could not be
+translated and is being ignored (compile-progress fallback)` at the
+constraint's own line. This is a general fix: it covers every current
+and future case where constraint-IR generation fails, not just the
+foreach-target gap that surfaced it. Value-checked test:
+`sv_randomize_with_unresolvable_dropped` (confirms the warning fires,
+the call still completes, and the resolvable sibling constraint is
+still enforced).
+
+**Note on the still-open gap**: fully supporting hierarchical/indexed
+constraint-`foreach` targets needs more than a grammar change —
+`PEConstraintForeach` stores a bare property name and its IR generator
+(`elaborate.cc` ~16735) resolves it only against the randomized
+object's own class via `property_idx_from_name()`; the enclosing-scope
+case needs real hierarchical-path storage and cross-scope property
+resolution. A minimal PARSE-only fix was considered and deliberately
+not attempted: a debug-instrumented trace this session found that a
+structurally similar existing production for *ordinary* (non-
+constraint) `foreach` statements with a mid-chain index
+(`foreach (h[idx].v[i])`, parse.y ~4594) compiles clean but the
+resulting `PForeach` node never reaches `elaborate_scope()` or
+`elaborate()` at all — a silent zero-iteration bug, most likely from
+this exact grammar's conflict density swallowing that alternative.
+Adding another similar production for the constraint context risks the
+same failure mode. Both gaps are tracked for a dedicated pass (bison
+`-Wcounterexamples` analysis first) rather than a rushed fix.
+
 ---
 
 ## Two measurement traps worth remembering

@@ -163,7 +163,20 @@ NetESFunc* make_randomize_with_expr(
 		  : pexpr_to_rooted_class_constraint_ir(
 			wc, class_type, std_object_root,
 			&value_slots, des, scope);
-	    if (ir.empty()) continue;
+	    if (ir.empty()) {
+		    // A top-level `with' constraint item this pass could not
+		    // translate to solver IR is silently dropped -- the
+		    // randomize() call still succeeds, just without that
+		    // constraint in effect. That is a real behavioral gap
+		    // (the LRM has no notion of a partially-applied
+		    // constraint), so make it loud instead of silent.
+		  ostringstream item_text;
+		  wc->dump(item_text);
+		  cerr << wc->get_fileline() << ": warning: constraint `"
+		       << item_text.str() << "' could not be translated and "
+		       << "is being ignored (compile-progress fallback)." << endl;
+		  continue;
+	    }
 	    if (!combined_ir.empty()) combined_ir += " ";
 	    combined_ir += ir;
       }
