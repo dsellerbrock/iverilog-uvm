@@ -11673,6 +11673,15 @@ module_item
       { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS, $3, $1);
 	FILE_NAME(tmp, @2);
       }
+  /* Attributes between always and the body (IEEE 1800-2017 A.6.4:
+     statement ::= {attribute_instance} statement_item), e.g. the
+     OpenTitan AST models' always (* xprop_off *) @( * ). Consume and
+     ignore, as for the always_comb/always_ff spellings below. */
+  | attribute_list_opt K_always attribute_instance_list statement_item
+      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS, $4, $1);
+	FILE_NAME(tmp, @2);
+	if ($3) delete $3;
+      }
   | attribute_list_opt K_always_comb statement_item
       { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_COMB, $3, $1);
 	FILE_NAME(tmp, @2);

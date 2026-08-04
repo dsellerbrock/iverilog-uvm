@@ -1342,4 +1342,7 @@ sv_unpacked_array_concat_mismatch CE,-g2012 ivltests
 concat_unsized_expr_operand normal,-g2012 ivltests
 sv_method_call_cache_identity normal,-g2012 ivltests
 sv_root_hierarchical_ref normal,-g2012 ivltests
+sv_always_stmt_attribute normal,-g2012 ivltests
+sv_gate_output_variable normal,-g2012 ivltests
+sv_bind_target_instance normal,-g2012 ivltests
 concat_unsized_literal_reject CE,-g2012 ivltests

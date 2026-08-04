@@ -1586,6 +1586,70 @@ classification.
 
 ---
 
+## G56 — `$root`-prefixed hierarchical references unsupported — **fixed** [general]
+
+The front end had no `$root` handling (IEEE 1800-2017 23.8): in
+expression position the lexer's SYSTEM_IDENTIFIER made
+`$root.tb.dut...q` parse as a system function call `$root()` followed
+by member access. A new primary rule maps `$root '.'
+hierarchy_identifier` onto the ordinary hierarchical-reference path.
+OpenTitan `i2c_sva` (`` `define I2C_HIER $root.tb.dut.i2c_core ``)
+goes from FAIL to PASS with zero errors and zero debt. Test:
+`sv_root_hierarchical_ref`.
+
+## G57 — statement attributes and gate outputs driving variables — **fixed** [general]
+
+Two elaboration-blocking gaps exposed by the chip-level SVA graphs:
+
+1. `always (* xprop_off *) @( * )` failed to parse. IEEE A.6.4 puts
+   `{attribute_instance}` in front of every statement_item; the plain
+   `always` spelling now consumes them like `always_comb`/`always_ff`
+   already did. Test: `sv_always_stmt_attribute`.
+2. A gate primitive output could never drive a variable ("Gates can
+   never have variable output ports"), rejecting the OpenTitan AST
+   models' `buf #(RDLY, FDLY) b1 (logic_var, expr)`. IEEE 6.5 allows
+   one primitive output as a variable's single continuous source;
+   slang accepts the same shape. The gate-output path now uses the
+   same variable-to-uwire promotion as continuous assignments, so
+   procedural conflicts still error. Value-checked test:
+   `sv_gate_output_variable`.
+
+## G58 — `bind` to a bare target instance unsupported — **fixed** [general]
+
+`bind i_nopass1 prim_fifo_sync_assert_fpv ...` (IEEE 23.11
+bind_target_instance) was rejected with "bind target
+module/interface 'i_nopass1' is not defined". When the target names no
+module, `pform_apply_binds` now searches the parsed instantiations for
+that instance name, derives the target module from the unique match,
+and binds through the existing plain-name instance filter (ambiguous
+names across different module types are an explicit error). OpenTitan
+`prim_fifo_sync_fpv` goes from FAIL to PASS with zero errors and zero
+debt. Value-checked test: `sv_bind_target_instance` (asserts the
+checker lands only in the named instance).
+
+## G59 — SVA census closure: build-mode defines and 24 upstream-invalid records
+
+`aes_sva` needs the `EN_MASKING` build-mode define that dvsim passes
+with `+define+`; the census now carries a per-core `SVA_EXTRA_DEFINES`
+table mirroring the DUT's default parameterization, and `aes_sva` goes
+from FAIL to PASS. Every remaining sva-v1 failure was classified
+`UPSTREAM_INVALID` under an exact, per-record-validated diagnostic
+fingerprint: stale rv_core_ibex bind collateral (×3), pinmux_fpv
+assignment patterns in equality (×2, slang concurs), overlapping FPV
+testbench drivers (`prim_lfsr_fpv`, `prim_packer_fpv`,
+`rv_timer_fpv`), the syntactically broken `keccak_2share_fpv` (slang
+concurs), `otp_macro.sv`'s reference to the nonexistent
+`u_state_regs.err_o` (4 system cores), stale `.*` FPV wrappers
+(`sha3_fpv`, `sha3pad_fpv`), missing bind-target filesets
+(`otp_ctrl_sva` ×2, `prim_alert_rxtx_*_fatal_fpv` ×2), missing
+top-package dependencies (`pinmux_chip_fpv` ×3), englishbreakfast
+collateral referencing registers its autogen tops lack (`rstmgr_sva`,
+`clkmgr_sva`), darjeeling `pinmux_tb` overriding a parameter its
+pinmux no longer declares, and `spi_host_sva`'s formal target
+requesting a fileset the core never defines (setup phase).
+
+---
+
 ## Two measurement traps worth remembering
 
 **The error count is not a progress metric while the parser can still give

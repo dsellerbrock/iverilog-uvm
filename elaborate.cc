@@ -2048,11 +2048,25 @@ void PGBuiltin::elaborate(Design*des, NetScope*scope) const
 		  des->errors += 1;
 		  return;
 	    }
-	      // Gates can never have variable output ports.
+	      // A bidirectional gate terminal can never be a variable.
+	      // A plain gate output may drive a variable in
+	      // SystemVerilog: IEEE 1800-2017 6.5 allows one primitive
+	      // output as a variable's single continuous source (the
+	      // shared lnet path re-checks for procedural conflicts).
             if (lval_count > gate_count)
 	          lval_sigs[idx] = pin(idx)->elaborate_bi_net(des, scope, false);
             else
-	          lval_sigs[idx] = pin(idx)->elaborate_lnet(des, scope, false);
+	          lval_sigs[idx] = pin(idx)->elaborate_lnet(des, scope,
+	                                                    gn_system_verilog());
+
+	      // A gate output is a 4-state driver; a real-typed target
+	      // can never receive it, whether net or promoted variable.
+	    if (lval_sigs[idx] && lval_sigs[idx]->data_type() == IVL_VT_REAL) {
+		  cerr << get_fileline() << ": error: "
+		       << "Gate output terminals cannot be real." << endl;
+		  des->errors += 1;
+		  return;
+	    }
 
 	      // The only way this should return zero is if an error
 	      // happened, so for that case just return.

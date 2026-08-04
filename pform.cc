@@ -3493,12 +3493,48 @@ void pform_apply_binds(void)
 		  map<perm_string,Module*>::iterator match
 			= pform_modules.find(cur->target);
 		  if (match == pform_modules.end()) {
-			cerr << cur->li.get_fileline() << ": error: "
-			     << "bind target module/interface '" << cur->target
-			     << "' is not defined in this compilation." << endl;
-			error_count += 1;
-			continue;
-		  }
+			  // IEEE 1800-2017 23.11: a target that names no
+			  // module may be a bind_target_instance. Search
+			  // the parsed modules for an instantiation with
+			  // this instance name; when every such instance
+			  // has one module type, bind into those
+			  // instances via the plain-name filter.
+			perm_string inst_type;
+			bool ambiguous = false;
+			for (map<perm_string,Module*>::iterator mod = pform_modules.begin()
+				   ; mod != pform_modules.end() ; ++mod) {
+			      PGModule*modgate = dynamic_cast<PGModule*>
+				    (mod->second->get_gate(cur->target));
+			      if (modgate == 0)
+				    continue;
+			      if (!inst_type.nil()
+				  && inst_type != modgate->get_type())
+				    ambiguous = true;
+			      inst_type = modgate->get_type();
+			}
+			if (!inst_type.nil() && !ambiguous) {
+			      map<perm_string,Module*>::iterator tmatch
+				    = pform_modules.find(inst_type);
+			      if (tmatch != pform_modules.end()) {
+				    target_mod = tmatch->second;
+				    inst_filter.push_back(string(cur->target));
+			      }
+			}
+			if (target_mod == 0) {
+			      if (ambiguous) {
+				    cerr << cur->li.get_fileline() << ": error: "
+					 << "bind target instance '" << cur->target
+					 << "' matches instances of different "
+					 << "module types; qualify the path." << endl;
+			      } else {
+				    cerr << cur->li.get_fileline() << ": error: "
+					 << "bind target module/interface '" << cur->target
+					 << "' is not defined in this compilation." << endl;
+			      }
+			      error_count += 1;
+			      continue;
+			}
+		  } else {
 		  target_mod = match->second;
 
 		  if (cur->inst_paths) {
@@ -3546,6 +3582,7 @@ void pform_apply_binds(void)
 			if (bad)
 			      continue;
 		  }
+	    }
 	    }
 
 	    if (cur->type == target_mod->mod_name()) {

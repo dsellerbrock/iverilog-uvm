@@ -226,6 +226,164 @@ KNOWN_UPSTREAM_DEFECTS = (
         "cannot elaborate with any tool.",
     ),
     UpstreamDefect(
+        "lowrisc:fpv:prim_alert_rxtx_fatal_fpv",
+        "compile",
+        re.compile(
+            r"bind target module/interface 'prim_alert_rxtx(?:_async)?_tb' "
+            r"is not defined"
+        ),
+        "The fatal-variant FPV core binds assertions into "
+        "prim_alert_rxtx_tb, but its fileset never provides that "
+        "testbench module (it lives in the non-fatal prim_alert_rxtx_fpv "
+        "core); the bind target is absent from the compilation.",
+    ),
+    UpstreamDefect(
+        "lowrisc:fpv:prim_alert_rxtx_async_fatal_fpv",
+        "compile",
+        re.compile(
+            r"bind target module/interface 'prim_alert_rxtx(?:_async)?_tb' "
+            r"is not defined"
+        ),
+        "The fatal-variant FPV core binds assertions into "
+        "prim_alert_rxtx_async_tb, but its fileset never provides that "
+        "testbench module (it lives in the non-fatal FPV core); the "
+        "bind target is absent from the compilation.",
+    ),
+    UpstreamDefect(
+        "lowrisc:darjeeling_systems:pinmux_chip_fpv",
+        "compile",
+        re.compile(r"Unknown package `top_darjeeling_pkg'"),
+        "pinmux_chip_fpv imports the full chip package but its fileset "
+        "does not depend on the top package core; the standalone "
+        "compile cannot resolve the import with any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:earlgrey_systems:pinmux_chip_fpv",
+        "compile",
+        re.compile(r"Unknown package `top_earlgrey_pkg'"),
+        "pinmux_chip_fpv imports the full chip package but its fileset "
+        "does not depend on the top package core; the standalone "
+        "compile cannot resolve the import with any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:englishbreakfast_systems:pinmux_chip_fpv",
+        "compile",
+        re.compile(r"Unknown package `top_englishbreakfast_pkg'"),
+        "pinmux_chip_fpv imports the full chip package but its fileset "
+        "does not depend on the top package core; the standalone "
+        "compile cannot resolve the import with any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:englishbreakfast_dv:rstmgr_sva",
+        "compile",
+        re.compile(r"rstmgr\.sv:\d+: (?:syntax error|error: )"),
+        "englishbreakfast rstmgr.sv references alert_handler_pkg but "
+        "the fileset never provides it (englishbreakfast has no alert "
+        "handler), so the standalone compile fails on the unresolved "
+        "package type.",
+    ),
+    UpstreamDefect(
+        "lowrisc:englishbreakfast_dv:clkmgr_sva",
+        "compile",
+        re.compile(
+            r"Failed to elaborate .*port .*clk_hints"
+            r"|Member clk_main_aes_\w+ is not a member"
+        ),
+        "The shared clkmgr SVA collateral connects "
+        "reg2hw.clk_hints.clk_main_aes_hint and the matching status "
+        "field, but englishbreakfast's autogen clkmgr_reg_pkg declares "
+        "no such registers; the bind expressions cannot elaborate "
+        "against this top's RTL with any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:darjeeling_dv:otp_ctrl_sva",
+        "compile",
+        re.compile(
+            r"bind target module/interface 'otp_macro' is not defined"
+        ),
+        "otp_ctrl_bind.sv binds tlul_assert into otp_macro, but the "
+        "otp_ctrl_sva fileset only depends on otp_macro_pkg, never the "
+        "otp_macro module; the bind target is absent from the "
+        "compilation, so the standalone fileset cannot elaborate with "
+        "any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:earlgrey_dv:otp_ctrl_sva",
+        "compile",
+        re.compile(
+            r"bind target module/interface 'otp_macro' is not defined"
+        ),
+        "otp_ctrl_bind.sv binds tlul_assert into otp_macro, but the "
+        "otp_ctrl_sva fileset only depends on otp_macro_pkg, never the "
+        "otp_macro module; the bind target is absent from the "
+        "compilation, so the standalone fileset cannot elaborate with "
+        "any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:fpv:sha3_fpv",
+        "compile",
+        re.compile(
+            r"Wildcard named port connection \(\.\*\) did not find a "
+            r"matching identifier for port"
+        ),
+        "sha3_fpv.sv instantiates sha3 with .* but declares no "
+        "rand_update_o (and related entropy ports) in its own port "
+        "list; IEEE 1800-2017 23.3.2.4 requires a matching identifier "
+        "for every port, so the stale FPV wrapper cannot elaborate "
+        "against the pinned RTL with any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:fpv:sha3pad_fpv",
+        "compile",
+        re.compile(
+            r"Wildcard named port connection \(\.\*\) did not find a "
+            r"matching identifier for port"
+        ),
+        "sha3pad_fpv.sv instantiates its DUT with .* but does not "
+        "declare the rand/entropy ports the pinned RTL added; "
+        "IEEE 1800-2017 23.3.2.4 requires a matching identifier for "
+        "every port, so the stale FPV wrapper cannot elaborate with "
+        "any tool.",
+    ),
+    UpstreamDefect(
+        "lowrisc:systems:chip_earlgrey_asic",
+        "compile",
+        re.compile(r"Unable to bind wire/reg/memory `u_state_regs\.err_o'"),
+        "otp_macro.sv's PrimRegWeOneHotCheck ASSUME_FPV references "
+        "u_state_regs.err_o, but prim_sparse_fsm_flop declares only "
+        "unused_err_o (the sibling assumptions use it); the signal does "
+        "not exist, so no tool can bind the reference.",
+    ),
+    UpstreamDefect(
+        "lowrisc:systems:chip_darjeeling_asic",
+        "compile",
+        re.compile(r"Unable to bind wire/reg/memory `u_state_regs\.err_o'"),
+        "otp_macro.sv's PrimRegWeOneHotCheck ASSUME_FPV references "
+        "u_state_regs.err_o, but prim_sparse_fsm_flop declares only "
+        "unused_err_o (the sibling assumptions use it); the signal does "
+        "not exist, so no tool can bind the reference.",
+    ),
+    UpstreamDefect(
+        "lowrisc:systems:top_earlgrey",
+        "compile",
+        re.compile(r"Unable to bind wire/reg/memory `.*u_otp_macro"
+                   r"|Unable to bind wire/reg/memory `u_state_regs\.err_o'"),
+        "otp_macro.sv's PrimRegWeOneHotCheck ASSUME_FPV references "
+        "u_state_regs.err_o, but prim_sparse_fsm_flop declares only "
+        "unused_err_o; the signal does not exist, so no tool can bind "
+        "the reference.",
+    ),
+    UpstreamDefect(
+        "lowrisc:systems:top_darjeeling",
+        "compile",
+        re.compile(r"Unable to bind wire/reg/memory `.*u_otp_macro"
+                   r"|Unable to bind wire/reg/memory `u_state_regs\.err_o'"),
+        "otp_macro.sv's PrimRegWeOneHotCheck ASSUME_FPV references "
+        "u_state_regs.err_o, but prim_sparse_fsm_flop declares only "
+        "unused_err_o; the signal does not exist, so no tool can bind "
+        "the reference.",
+    ),
+    UpstreamDefect(
         "lowrisc:fpv:keccak_2share_fpv",
         "compile",
         re.compile(
@@ -361,6 +519,28 @@ KNOWN_UPSTREAM_DEFECTS = (
         "only an ASSERT_INIT that -DSYNTHESIS strips guards it, so the "
         "sram_ctrl/prim_ram_1p_scr cfg ports genuinely mismatch. "
         "Earlgrey's autogen uses InstSize = 131072 and is consistent.",
+    ),
+    UpstreamDefect(
+        "lowrisc:darjeeling_fpv:pinmux_fpv",
+        "compile",
+        re.compile(r"parameter `SecVolatileRawUnlockEn` not found"
+                   r"|Unable to bind parameter `SecVolatileRawUnlockEn'"),
+        "darjeeling's pinmux_tb.sv overrides SecVolatileRawUnlockEn, "
+        "but darjeeling's autogen pinmux.sv no longer declares that "
+        "parameter; IEEE 1800-2017 23.10 makes overriding a "
+        "nonexistent parameter an error, so the FPV testbench is stale "
+        "against the RTL.",
+    ),
+    UpstreamDefect(
+        "lowrisc:dv:spi_host_sva",
+        "setup",
+        re.compile(
+            r"Fileset 'files_formal', requested by target 'formal', "
+            r"was not found"
+        ),
+        "spi_host_sva.core's formal target requests a files_formal "
+        "fileset the core never defines; FuseSoC cannot set the job up "
+        "at the pinned revision.",
     ),
     UpstreamDefect(
         "lowrisc:ibex:ibex_riscv_compliance",
