@@ -220,6 +220,20 @@ KNOWN_UPSTREAM_DEFECTS = (
         "cannot elaborate with any tool.",
     ),
     UpstreamDefect(
+        "lowrisc:fpv:prim_packer_fpv",
+        "compile",
+        re.compile(
+            r"Variable '\w+' cannot have multiple drivers"
+            r"|Output port expression must support a continuous assignment"
+        ),
+        "prim_packer_tb.sv instantiates sixteen prim_packer DUTs in one "
+        "generate loop, all driving the same valid_o/ready_o/"
+        "flush_done_o/err_o scalars and overlapping data_o/mask_o "
+        "slices. IEEE 1800-2017 10.3 forbids overlapping continuous "
+        "drives of one variable; the FPV testbench relies on formal-tool "
+        "net resolution.",
+    ),
+    UpstreamDefect(
         "lowrisc:fpv:prim_lfsr_fpv",
         "compile",
         re.compile(
