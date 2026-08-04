@@ -220,6 +220,19 @@ KNOWN_UPSTREAM_DEFECTS = (
         "cannot elaborate with any tool.",
     ),
     UpstreamDefect(
+        "lowrisc:fpv:rv_timer_fpv",
+        "compile",
+        re.compile(
+            r"Variable '\w+' cannot be driven by a continuous assignment"
+            r"|Output port expression must support a continuous assignment"
+        ),
+        "rv_timer_interrupts_assert_fpv is an empty 'TODO: populate me' "
+        "stub that declares intr_o and the hw2reg_intr_state ports as "
+        "outputs; the wildcard bind into prim_intr_hw therefore drives "
+        "the target's own outputs a second time (IEEE 1800-2017 10.3). "
+        "The checker's port directions are wrong upstream.",
+    ),
+    UpstreamDefect(
         "lowrisc:fpv:prim_packer_fpv",
         "compile",
         re.compile(
