@@ -1571,6 +1571,19 @@ declare `tb`), reproducing the topology the collateral was written for.
 remaining 133 UVM compile-progress warnings are the M14B debt), and
 `prim_keccak_fpv` stays PASS under the wrapper.
 
+First full SVA census (sva-v1, 128 records): 92 PASS, 28 FAIL, 4
+DEPENDENCY_ONLY, 2 DEBT, 1 SETUP_FAIL, 1 UPSTREAM_INVALID. First
+classified family: the three `rv_core_ibex_sva` cores connect
+`tlul_assert` to `tl_i_o`/`tl_i_i`/`tl_d_o`/`tl_d_i`, signals that do
+not exist in the pinned `rv_core_ibex.sv` (its TL ports are
+`cfg_tl_d_i`/`cfg_tl_d_o`) — stale upstream bind collateral, now
+`UPSTREAM_INVALID`. The remaining families (fpv wrapper multi-drivers,
+pinmux_fpv assignment-pattern typing, aes_sva property grammar,
+keccak_2share case grammar, i2c_sva `$root()` r-values, otp_macro /
+top_*_pkg / prim_alert-tb source gaps, sha3 `.*` port skew) are the
+open SVA work queue, each to be slang-differentialed before
+classification.
+
 ---
 
 ## Two measurement traps worth remembering

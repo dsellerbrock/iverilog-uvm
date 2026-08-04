@@ -220,6 +220,42 @@ KNOWN_UPSTREAM_DEFECTS = (
         "cannot elaborate with any tool.",
     ),
     UpstreamDefect(
+        "lowrisc:darjeeling_dv:rv_core_ibex_sva",
+        "compile",
+        re.compile(
+            r"Failed to elaborate .*port .* in instance "
+            r"dut\.tlul_assert_host_(?:instr|data)"
+        ),
+        "rv_core_ibex_bind.sv connects tlul_assert to rv_core_ibex "
+        "signals tl_i_o/tl_i_i/tl_d_o/tl_d_i that do not exist in the "
+        "pinned rv_core_ibex.sv (its TL ports are cfg_tl_d_i/cfg_tl_d_o); "
+        "the bind collateral is stale against the RTL.",
+    ),
+    UpstreamDefect(
+        "lowrisc:earlgrey_dv:rv_core_ibex_sva",
+        "compile",
+        re.compile(
+            r"Failed to elaborate .*port .* in instance "
+            r"dut\.tlul_assert_host_(?:instr|data)"
+        ),
+        "rv_core_ibex_bind.sv connects tlul_assert to rv_core_ibex "
+        "signals tl_i_o/tl_i_i/tl_d_o/tl_d_i that do not exist in the "
+        "pinned rv_core_ibex.sv (its TL ports are cfg_tl_d_i/cfg_tl_d_o); "
+        "the bind collateral is stale against the RTL.",
+    ),
+    UpstreamDefect(
+        "lowrisc:englishbreakfast_dv:rv_core_ibex_sva",
+        "compile",
+        re.compile(
+            r"Failed to elaborate .*port .* in instance "
+            r"dut\.tlul_assert_host_(?:instr|data)"
+        ),
+        "rv_core_ibex_bind.sv connects tlul_assert to rv_core_ibex "
+        "signals tl_i_o/tl_i_i/tl_d_o/tl_d_i that do not exist in the "
+        "pinned rv_core_ibex.sv (its TL ports are cfg_tl_d_i/cfg_tl_d_o); "
+        "the bind collateral is stale against the RTL.",
+    ),
+    UpstreamDefect(
         "lowrisc:systems:top_englishbreakfast",
         "compile",
         re.compile(r"of module prim_ram_1p_scr expects \d+ bit"),
