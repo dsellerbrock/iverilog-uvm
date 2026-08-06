@@ -6073,7 +6073,25 @@ sva_mc_tail
   ;
 
 property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
-  : sva_seq_expr
+  /* G11/G12: parenthesized sequence combinators enter the grammar here.
+     IEEE 1800-2017 16.9.5-7 makes `(a or b) |-> c' legal, and
+     16.12 makes the consequent a full property_expr.  Without these
+     alternatives the form has no parse and dies as a bare syntax error
+     (see the later sva_seq_comb implication productions for rationale).
+     The bare `(' sva_seq_comb ')' form turns a parenthesized combinator
+     into a property so that existing sva_seq_expr |-> property_expr
+     can pick it up as a consequent. */
+  : '(' sva_seq_comb ')' K_PIPE_IMPL_OV sva_seq_expr
+      { $$ = pform_sva_comb_antecedent_sorry(@4, 1, $2, $5); }
+  | '(' sva_seq_comb ')' K_PIPE_IMPL_NOV sva_seq_expr
+      { $$ = pform_sva_comb_antecedent_sorry(@4, 2, $2, $5); }
+  | '(' sva_seq_comb ')' K_PIPE_IMPL_OV K_s_eventually '(' sva_seq_expr ')'
+      { $$ = pform_sva_comb_antecedent_sorry(@4, 1, $2, $7, true); }
+  | '(' sva_seq_comb ')' K_PIPE_IMPL_NOV K_s_eventually '(' sva_seq_expr ')'
+      { $$ = pform_sva_comb_antecedent_sorry(@4, 2, $2, $7, true); }
+  | '(' sva_seq_comb ')'
+      { $$ = $2; }
+  | sva_seq_expr
       { sva_property_t*p = new sva_property_t;
 	p->seq = $1; p->op_type = 0;
 	$$ = p; }
@@ -6361,7 +6379,9 @@ sva_or_has_op
   ;
 
 sva_seq_comb
-  : sva_and_has_op
+  : sva_comb_atom
+      { $$ = $1; }
+  | sva_and_has_op
       { $$ = $1; }
   | sva_or_has_op
       { $$ = $1; }
