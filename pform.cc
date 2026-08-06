@@ -12003,23 +12003,47 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       std::vector<sva_seq_step_t> chain;
       long ante_edges = 0;
       long ante_delay_sum = 0;
+      // G10: variable-length implication antecedents are lowered as
+      // automaton leaf trees so the existing implication builder can
+      // compose them.  Storage lives until the builder runs below.
+      sva_stree_t ante_leaf, cons_leaf;
+      std::vector<sva_seq_step_t> cons_adj;
       if (have_tree) {
 	      /* no chain: the tree is the source */
       } else if (implication) {
 	    if (!prop->antecedent || prop->antecedent->empty()) return false;
-	    if (!sva_nfa_chain_fixed_(*prop->antecedent,
-				      ante_edges, ante_delay_sum))
-		  return false;
-	    std::vector<sva_seq_step_t> conseq = *prop->seq;
-	    if (prop->op_type == 2) {
-		  conseq[0].delay_lo += 1;
-		  if (conseq[0].delay_hi >= 0) conseq[0].delay_hi += 1;
+	    if (sva_nfa_chain_fixed_(*prop->antecedent,
+				      ante_edges, ante_delay_sum)) {
+		  std::vector<sva_seq_step_t> conseq = *prop->seq;
+		  if (prop->op_type == 2) {
+			conseq[0].delay_lo += 1;
+			if (conseq[0].delay_hi >= 0) conseq[0].delay_hi += 1;
+		  }
+		    /* An overlapped (##0) consequent start fuses onto the
+		       antecedent's final tick edge in the construction
+		       (conjunction guards). */
+		  chain = *prop->antecedent;
+		  chain.insert(chain.end(), conseq.begin(), conseq.end());
+	    } else {
+		  // G10: variable-length antecedent — build as automaton
+		  // leaf trees and compose with the implication builder.
+		  ante_leaf.kind = sva_stree_t::LEAF;
+		  ante_leaf.chain = prop->antecedent;
+		  cons_adj = *prop->seq;
+		  if (prop->op_type == 2) {
+			cons_adj[0].delay_lo += 1;
+			if (cons_adj[0].delay_hi >= 0)
+			      cons_adj[0].delay_hi += 1;
+		  }
+		  cons_leaf.kind = sva_stree_t::LEAF;
+		  cons_leaf.chain = &cons_adj;
+		  have_tree = true;
+		  // Register the G10 leaf chains for splice/lv/tree processing.
+		  tree_leaves.push_back(ante_leaf.chain);
+		  tree_leaves.push_back(cons_leaf.chain);
+		  sva_splice_sequences_(loc, *ante_leaf.chain);
+		  sva_splice_sequences_(loc, *cons_leaf.chain);
 	    }
-	      /* An overlapped (##0) consequent start fuses onto the
-		 antecedent's final tick edge in the construction
-		 (conjunction guards). */
-	    chain = *prop->antecedent;
-	    chain.insert(chain.end(), conseq.begin(), conseq.end());
       } else {
 	    chain = *prop->seq;
       }
@@ -12069,9 +12093,14 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 
       sva_nfa_t nfa;
       std::vector<sva_nfa_boundary_t> tree_boundary;
+      bool g10_leaf_impl = (!prop->tree && ante_leaf.chain && cons_leaf.chain);
       bool built = tree_implication
 	    ? pform_sva_nfa_build_implication(
 			nfa, prop->ante_tree, prop->tree,
+			prop->op_type == 2, tree_boundary)
+	    : g10_leaf_impl
+	    ? pform_sva_nfa_build_implication(
+			nfa, &ante_leaf, &cons_leaf,
 			prop->op_type == 2, tree_boundary)
 	    : have_tree
 	    ? pform_sva_nfa_build_from_tree(nfa, prop->tree)

@@ -234,7 +234,23 @@ This is the `aes_transpose` idiom in `aes_pkg`.
 Test: `sv_packed_multidim_var_index.v` (checks values — a mis-scaled offset
 would still elaborate but read the wrong element).
 
-## G10 — variable-length implication antecedents — **open** (architectural)
+## G10 — variable-length implication antecedents — **fixed** (G10 NFA routing, 2026-08-06)
+
+**Status:** Variable-length antecedents are now lowered through the automaton
+engine. When the antecedent has non-fixed delays (`##[m:n]`, `[*m:n]`,
+`##[m:$]`, `[*m:$]`), both antecedent and consequent are wrapped as
+automaton leaf trees and composed via `pform_sva_nfa_build_implication`,
+the same path used by combinator-tree implications. Fixed-delay
+antecedents continue on the legacy chain path unchanged.
+
+Supported shapes:
+- `a ##[1:3] b |=> c`
+- `a[*1:3] ##1 b |=> c`
+- `a ##[1:$] b |=> c` (unbounded)
+- `a[*1:$] ##1 b |=> c` (unbounded repetition)
+- `a ##[1:2] b |-> c` (overlapped implication)
+
+Unblocks `prim_alert_receiver`, `prim_diff_decode`.
 
 *16.9.2 / A.2.10. [general]*
 
