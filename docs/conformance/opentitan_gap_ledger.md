@@ -234,7 +234,7 @@ This is the `aes_transpose` idiom in `aes_pkg`.
 Test: `sv_packed_multidim_var_index.v` (checks values — a mis-scaled offset
 would still elaborate but read the wrong element).
 
-## G10 — variable-length implication antecedents — **open**
+## G10 — variable-length implication antecedents — **open** (architectural)
 
 *16.9.2 / A.2.10. [general]*
 
@@ -261,7 +261,7 @@ it. **Architectural — wants a design pass.**
 
 Blocks `prim_alert_receiver`, `prim_diff_decode`.
 
-## G11 — sequence combinators as an implication operand — **open**
+## G11 — sequence combinators as an implication operand — **partial** (G11/G12 parser fix, 2026-08-06)
 
 *A.2.10. [general]*
 
@@ -279,7 +279,17 @@ combination. The antecedent side additionally needs the automaton engine.
 Currently the **first** diagnostic in the OpenTitan DV build
 (`prim_alert_sender.sv:324`).
 
-## G12 — the other property-expression consequents — **open**
+## G12 — the other property-expression consequents — **partial** (G11/G12 parser fix, 2026-08-06)
+
+**Status:** The parser now accepts parenthesized combinator antecedents
+`(a or b) |-> c` and `(a and b) |-> c`, routing them through the existing
+`pform_sva_comb_antecedent_sorry` for loud diagnostics. Combinator
+consequents `a |-> (b or c)` and property-operator consequents
+`a |-> always b`, `a |-> nexttime b`, `a |-> not(b)`, and nested
+`a |-> (b |-> c)` also parse and reach their already-implemented
+lowering paths (forbidden-consequent, delay-window, and AND-expansion in
+`pform_sva_paren_conseq`). Full combinator lowering through the
+automaton engine remains open.
 
 *A.2.10.* `a |-> always b`, `a |-> nexttime b`, nested `a |-> (b |-> c)`.
 G8 deliberately sidesteps the general case with dedicated op types; these need
@@ -378,7 +388,14 @@ Not introduced by any change here — single-index selects never reach the G9
 code. **This is the highest-priority item in the ledger** despite blocking
 nothing, because a wrong answer with no diagnostic is worse than any refusal.
 
-## G16 — variable index into a struct-member packed array — **open**
+## G16 — variable index into a struct-member packed array — **partial** (G16 fix, 2026-08-06)
+
+**Status:** Variable indices into a struct-member packed array in
+continuous-assignment l-values are now detected before constant
+evaluation and reported as a `sorry` with an `always_comb` workaround
+suggestion, rather than emitting a hard error or aborting. Constant-index
+and procedural (`always_comb`) paths are unaffected. Full variable-index
+support in continuous assignments remains open.
 
 *11.5.2.* 
 
