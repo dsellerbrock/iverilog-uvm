@@ -802,6 +802,29 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 			      return 0;
 			}
 
+			  // G16: detect non-constant indices into a packed-array
+			  // struct member. The continuous-assignment l-value path
+			  // requires a constant bit range; variable indices need a
+			  // different mechanism (use always_comb as a workaround).
+			{
+			      bool has_var_idx = false;
+			      for (const auto&ic : member_comp.index) {
+				    if (ic.msb && !dynamic_cast<PENumber*>(ic.msb))
+					  has_var_idx = true;
+				    if (ic.lsb && !dynamic_cast<PENumber*>(ic.lsb))
+					  has_var_idx = true;
+			      }
+			      if (has_var_idx) {
+				    cerr << get_fileline() << ": sorry: "
+					 << "variable index into packed-array "
+					 << "struct member `" << member_name
+					 << "' is not yet supported in a "
+					 << "continuous-assignment l-value "
+					 << "(use always_comb instead)." << endl;
+				    return 0;
+			      }
+			}
+
 			  // Evaluate all but the last index into prefix_indices.
 			list<long>prefix_indices;
 			if (! evaluate_index_prefix(des, scope, prefix_indices,
@@ -853,6 +876,24 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 		  } else if (const netvector_t*member_vec =
 			       dynamic_cast<const netvector_t*>(member->net_type)) {
 			if (!member_comp.index.empty()) {
+			      // G16: detect non-constant indices before
+			      // attempting constant-only evaluation.
+			      bool has_var_idx = false;
+			      for (const auto&ic : member_comp.index) {
+				    if (ic.msb && !dynamic_cast<PENumber*>(ic.msb))
+					  has_var_idx = true;
+				    if (ic.lsb && !dynamic_cast<PENumber*>(ic.lsb))
+					  has_var_idx = true;
+			      }
+			      if (has_var_idx) {
+				    cerr << get_fileline() << ": sorry: "
+					 << "variable index into packed-vector "
+					 << "struct member `" << member_name
+					 << "' is not yet supported in a "
+					 << "continuous-assignment l-value "
+					 << "(use always_comb instead)." << endl;
+				    return 0;
+			      }
 			      NetExpr*member_base = 0;
 			      unsigned long member_slice_width = 0;
 			      if (!collapse_packed_member_indices(
@@ -862,10 +903,12 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 				    return 0;
 			      long member_base_value = 0;
 			      if (!eval_as_long(member_base_value, member_base)) {
-				    cerr << get_fileline() << ": error: packed-vector "
-					 << "member index must be constant in a "
-					 << "continuous-assignment l-value." << endl;
-				    des->errors += 1;
+				    cerr << get_fileline() << ": sorry: "
+					 << "variable index into packed-vector "
+					 << "struct member `" << member_name
+					 << "' is not yet supported in a "
+					 << "continuous-assignment l-value "
+					 << "(use always_comb instead)." << endl;
 				    delete member_base;
 				    return 0;
 			      }
