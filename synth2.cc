@@ -780,7 +780,16 @@ bool NetProcTop::tie_off_floating_inputs_(Design*des,
 			     << "'." << endl;
 			cerr << get_fileline() << ": sorry: Bit-level "
 				"latch gate enables are not currently "
-				"supported in synthesis." << endl;
+				"supported in synthesis. "
+				"Each bit of a packed signal needs an "
+				"independent latch enable, but the synthesis "
+				"interface carries only a vector-wide enable. "
+				"Workarounds: (1) split into separate signals "
+				"per independently-enabled field, "
+				"(2) use always_comb with a complete if/else "
+				"(every field written on every path), or "
+				"(3) keep the fields in one always_latch "
+				"domain with a shared enable." << endl;
 			des->errors += 1;
 			flag = false;
 		  }

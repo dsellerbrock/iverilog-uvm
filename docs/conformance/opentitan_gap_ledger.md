@@ -428,10 +428,23 @@ A different code path from G9 — the struct-member walk in `elab_expr.cc`
 (~7415), `elab_lval.cc` (~2735) and `elab_net.cc` (~726), each of which
 requires a constant index. The dominant blocker for `hmac` (81 errors).
 
-## G17 — multiple-driver analysis on `otbn` — **open**
+## G17 — multiple-driver analysis on `otbn` — **open; requires full OpenTitan build harness**
 
-38 × "cannot have multiple drivers" plus 10 × "also continuously assigned" in
-`otbn`. Not yet diagnosed; may be several distinct causes.
+**Status (2026-08-06):** Cannot reproduce without the full OpenTitan FuseSoC build
+harness. OTBN depends on 14+ vendor primitives (prim_assert, prim_util, prim_trivium,
+keymgr_pkg, edn_pkg, otbn_pkg, kmac_pkg, sha3, etc.) that must be resolved in order
+by the build system. The error paths are known:
+
+- `elab_net.cc:1219-1241` — `"cannot have multiple drivers"` from
+  `test_and_set_part_driver()` when two continuous assignments overlap
+- `elab_lval.cc:82-88` — `"also continuously assigned"` when a procedural
+  assignment writes a variable that was already promoted to UNRESOLVED_WIRE
+  due to a continuous assignment
+
+Likely causes include: generated register-file code mixing assigns and procedural
+writes, port connections creating implicit continuous assignments, or generate-block
+fan-out. Next step: build OTBN via FuseSoC with the iverilog backend to collect the
+exact diagnostic set.
 
 ## G18 — run-time selected packed l-value in synthesis — **fixed** (current upstream campaign)
 
@@ -635,9 +648,14 @@ Together, G20, G23 and G24 move the exact pinned Darjeeling RACL synthesis job
 to `PASS`: exit 0, 0 hard errors, 0 semantic-debt lines, no timeout, 0.334
 seconds on the final tested compiler.
 
-## G25 — incomplete conditional partial packed writes need independent latch enables — **open**
+## G25 — incomplete conditional partial packed writes need independent latch enables — **diagnosed; improved diagnostic (2026-08-06)**
 
 *[general] — real stateful synthesis boundary.*
+
+**Status:** The rejection diagnostic now includes concrete workarounds:
+(1) split into separate signals per independently-enabled field,
+(2) use `always_comb` with a complete if/else (every field written on every path), or
+(3) keep the fields in one `always_latch` domain with a shared enable.
 
 Unlike G23's fully assigned disjoint owners, `always_latch if (en) q[0] = d`
 must retain the prior value of one field without claiming untouched fields.
