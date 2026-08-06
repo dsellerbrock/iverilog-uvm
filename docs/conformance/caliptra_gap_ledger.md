@@ -1,9 +1,50 @@
 # Caliptra gap ledger
 
 One row per distinct defect found while making the iverilog-uvm fork run
-[Caliptra](https://github.com/chipsalliance/caliptra-rtl). 
+[Caliptra](https://github.com/chipsalliance/caliptra-rtl).
 
-## Status: Initial compilation census (2026-08-06)
+## UVM Assessment (2026-08-06)
+
+**Caliptra has a massive UVM presence: 741 files across 7 IP blocks plus the
+integration top (caliptra_top).** The UVM infrastructure includes:
+
+| IP | UVM Files | UVM Components |
+|----|-----------|----------------|
+| sha512 | 56 | env, in/out_if, sequences, scoreboard |
+| hmac | 62 | env, in/out_if, sequences, scoreboard |
+| keyvault | 115 | env, if packages, sequences, tests |
+| pcrvault | 96 | env, if packages, sequences, tests |
+| soc_ifc | 307 | env, if packages, sequences, tests, coverage |
+| ecc | 60 | env, if packages, sequences |
+| integration | 26 | caliptra_top env, sequences |
+| libs/uvmf | 19 | shared UVM Framework infrastructure |
+
+**Total**: 741 SV/SVH files, 295 sequence files, 29 scoreboards, 19 interface packages.
+
+### UVM compilation status
+
+✅ **Minimal UVM test compiles and runs** on iverilog-uvm (compile-progress
+warnings only, expected for the iverilog UVM fork).
+
+⛔ **Caliptra UVM environments depend on external libraries** not in the tree:
+- `uvmf_base_pkg` / `uvmf_base_pkg_hdl` — UVM Framework base packages
+  (referenced as `${UVMF_HOME}/uvmf_base_pkg` in filelists)
+- Questa MVC AHB VIP (`${QUESTA_MVC_HOME}`) — Mentor-specific, won't work
+  with iverilog
+
+### What's needed to make Caliptra UVM work on iverilog
+
+1. **C1 (blocker)**: `pkg::type` in module port declarations (65+ files)
+2. **UVMF dependency**: Either clone the UVM Framework repository or create
+   stub packages that satisfy the UVMF base package imports
+3. **Questa MVC replacement**: Replace Mentor AHB VIP with a simple
+   behavioral AHB model or stub
+4. **Filelist-based compilation**: Create iverilog-compatible filelists
+   that resolve all dependencies
+
+---
+
+## Initial compilation census (2026-08-06)
 
 The Caliptra RTL tree contains 732 SystemVerilog files across 30+ IP blocks
 (aes, sha256, sha512, sha3, kmac, hmac, ecc, mldsa, keyvault, pcrvault,
@@ -77,17 +118,24 @@ doe, entropy_src, soc_ifc).
 **Fix path:** Extend `parse.y` port declaration rules to accept
 `package_scope::identifier` as a valid type in port lists.
 
-### C2 — Verilator-native build system — **infrastructure gap**
+### C2 — Caliptra build system — **infrastructure gap**
 
 Caliptra uses Verilator + RISC-V GCC for simulation, not FuseSoC.
-The `.github/workflows/build-test-verilator.yml` CI invokes Verilator
-v5.044 with a RISC-V firmware co-simulation flow. Register packages
-are generated from RDL files using `peakrdl-regblock`.
+CI: `.github/workflows/build-test-verilator.yml` with Verilator v5.044.
 
-To integrate iverilog with Caliptra:
+To integrate iverilog with Caliptra RTL:
 1. Fix C1 (pkg::type in ports)
 2. Generate register packages with `reg_gen.py` (already in tree)
-3. Create a FuseSoC `.core` wrapper or a simple Makefile-based
-   iverilog compilation flow
+3. Create a FuseSoC `.core` wrapper or a simple Makefile-based flow
 4. Handle Caliptra-specific primitives (caliptra_prim_generic, etc.)
-   which are already known to compile from OpenTitan fixes.
+
+### C3 — UVM dependency on external UVM Framework — **infrastructure gap**
+
+Caliptra UVM environments depend on:
+- `uvmf_base_pkg` — UVM Framework base package (external, `${UVMF_HOME}`)
+- Questa MVC AHB VIP — Mentor-specific (external, `${QUESTA_MVC_HOME}`)
+
+To run Caliptra UVM on iverilog:
+1. Clone/integrate the UVM Framework repository
+2. Replace Questa MVC AHB VIP with a behavioral model or stub
+3. Create iverilog-compatible filelists
