@@ -259,6 +259,13 @@ class Iverilog_uvm(Edatool):
                 )
 
     def run_main(self):
+        # If compile_only is set, just do "make" (compile) without "make run"
+        # This is used for synthesis verification where no testbench exists
+        if self.tool_options.get("compile_only"):
+            logger.info("compile_only set: running 'make' (compilation-only)")
+            self._run_tool("make", [])
+            return
+
         args = ["run"]
 
         # Set plusargs

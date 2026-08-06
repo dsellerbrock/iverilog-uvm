@@ -369,9 +369,11 @@ class synth_loop_index_decl_guard_t {
 
     public:
       synth_loop_index_decl_guard_t(NetScope*process_scope, NetNet*index,
-				    const LocalVar&value)
+				    const LocalVar&value,
+				    bool skip_restore = false)
       : decl_scope_(index->scope()), index_(index),
-	active_(decl_scope_ != process_scope), had_saved_(false)
+	active_(decl_scope_ != process_scope), had_saved_(false),
+	skip_restore_(skip_restore && active_)
       {
 	    if (!active_)
 		  return;
@@ -389,6 +391,8 @@ class synth_loop_index_decl_guard_t {
       {
 	    if (!active_)
 		  return;
+	    if (skip_restore_)
+		  return;
 
 	    map<NetNet*,LocalVar>&values =
 		  decl_scope_->loop_index_values_tmp;
@@ -403,6 +407,7 @@ class synth_loop_index_decl_guard_t {
       NetNet*index_;
       bool active_;
       bool had_saved_;
+      bool skip_restore_;
       LocalVar saved_;
 };
 
@@ -774,24 +779,25 @@ bool NetProcTop::tie_off_floating_inputs_(Design*des,
 			      continue;
 			}
 
-			cerr << get_fileline() << ": warning: A latch "
-			     << "has been inferred for some bits of '"
-			     << nex_map[idx].lnk.nexus()->pick_any_net()->name()
-			     << "'." << endl;
-			cerr << get_fileline() << ": sorry: Bit-level "
-				"latch gate enables are not currently "
-				"supported in synthesis. "
-				"Each bit of a packed signal needs an "
-				"independent latch enable, but the synthesis "
-				"interface carries only a vector-wide enable. "
-				"Workarounds: (1) split into separate signals "
-				"per independently-enabled field, "
-				"(2) use always_comb with a complete if/else "
-				"(every field written on every path), or "
-				"(3) keep the fields in one always_latch "
-				"domain with a shared enable." << endl;
-			des->errors += 1;
-			flag = false;
+			// G25: Per-bit latch support. Tie off floating inputs
+			// per bit: driven bits get pulldown (the enable
+			// gates updates), undriven bits are left floating
+			// (their per-bit latches are permanently opaque).
+			unsigned width = nex_map[idx].wid;
+			NetLogic*gate = new NetLogic(scope(), scope()->local_symbol(),
+						     1, NetLogic::PULLDOWN, width);
+			des->add_node(gate);
+			connect(nex_in.pin(idx), gate->pin(0));
+
+			if (!nex_in.pin(idx).nexus()->pick_any_net()) {
+			      ivl_variable_type_t data_type = IVL_VT_LOGIC;
+			      const netvector_t*tmp_vec =
+				    new netvector_t(data_type, width-1,0);
+			      NetNet*sig = new NetNet(scope(), scope()->local_symbol(),
+						      NetNet::WIRE, tmp_vec);
+			      sig->local_flag(true);
+			      connect(sig->pin(0), gate->pin(0));
+			}
 		  }
 	    }
       }
@@ -2685,15 +2691,13 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
       }
 
 	// Re-entering an active loop with the exact same index variable changes
-	// that variable's value for the enclosing loop as well. The current
-	// unroller keeps independent iteration values, so reject this legal but
-	// unsupported case explicitly instead of silently using the outer value.
+	// that variable's value for the enclosing loop as well. The inner loop's
+	// terminal value is propagated back to the outer loop context below
+	// (after the for(;;) unroll completes).
+      bool shared_index = false;
       if (index_->scope()->loop_index_values_tmp.find(index_)
 	  != index_->scope()->loop_index_values_tmp.end()) {
-	    cerr << get_fileline() << ": sorry: Nested procedural "
-		 << "for-loops that reuse the same index variable are "
-		 << "not currently supported in synthesis." << endl;
-	    return false;
+	    shared_index = true;
       }
 
       ivl_assert(*this, index_ && init_expr_);
@@ -2854,7 +2858,8 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
 
 	    {
 		  synth_loop_index_decl_guard_t decl_guard(scope, index_,
-						       index_var);
+						       index_var,
+						       shared_index);
 	      if (runtime_condition) {
 		    NetCondit guarded_iteration(condition_->dup_expr(),
 					 statement_, 0);
@@ -2888,12 +2893,38 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
 			des, scope, enables.pin(idx), tmp_ena.pin(idx));
 	    }
 
+	      // For a shared-index inner loop, the terminal value is still in
+	      // scope->loop_index_values_tmp (the guard skipped its restore).
+	      // Deep-copy it before the full-map restore overwrites it and
+	      // before delete index_var.value frees the original.
+	    LocalVar saved_terminal;
+	    bool have_terminal = false;
+	    if (shared_index) {
+		  map<NetNet*,LocalVar>::iterator terminal =
+			scope->loop_index_values_tmp.find(index_);
+		  if (terminal != scope->loop_index_values_tmp.end()) {
+			saved_terminal.nwords = terminal->second.nwords;
+			saved_terminal.value =
+				  terminal->second.value->dup_expr();
+			have_terminal = true;
+		  }
+	    }
+
 	    scope->loop_index_tmp = saved_index_args;
 	    scope->loop_index_net_tmp = saved_index_net;
 	    scope->loop_index_nets_tmp = saved_index_nets;
 	    scope->loop_index_values_tmp = saved_index_values;
 	    scope->genvar_tmp = saved_genvar;
 	    scope->genvar_tmp_val = saved_genvar_value;
+
+	    if (have_terminal) {
+		    // Propagate the shared index's terminal value to the outer
+		    // loop's saved state so subsequent iterations see it.
+		  saved_index_values[index_] = saved_terminal;
+		  saved_index_args[index_->name()] = saved_terminal;
+		  index_args[index_->name()] = saved_terminal;
+		  scope->loop_index_values_tmp[index_] = saved_terminal;
+	    }
 
 	      // Evaluate the step_expr to generate the next index value.
 	    tmp = step_expr->evaluate_function(*this, index_args);
@@ -2936,6 +2967,18 @@ bool NetForLoop::synth_async(Design*des, NetScope*scope,
 	    delete index_var.value;
 	    index_var.value = tmp;
 	    index_args[index_->name()] = index_var;
+      }
+
+	// Propagate the shared index's terminal value to the outer loop.
+      if (shared_index) {
+	    map<NetNet*,LocalVar>::iterator saved =
+		  saved_index_values.find(index_);
+	    if (saved != saved_index_values.end()) {
+		  LocalVar terminal;
+		  terminal.nwords = index_var.nwords;
+		  terminal.value = index_var.value->dup_expr();
+		  saved->second = terminal;
+	    }
       }
 
       delete index_var.value;
@@ -3004,17 +3047,22 @@ bool NetProcTop::synth_async(Design*des)
 		  continue;
 
 	    if (!all_bits_driven(bitmasks[idx])) {
-		  ivl_assert(*this,
-			enables.pin(idx).is_linked(scope()->tie_hi())
-			&& all_process_writes_are_driven(
-			      bitmasks[idx], process_write_masks[idx]));
-		  connect_synthesized_process_output(
-			des, scope(), *this, nex_set[idx].wid,
-			nex_set[idx].lnk, nex_out.pin(idx));
-		  continue;
+		  // G23: Disjoint process writing some bits unconditionally
+		  // with a constant-high enable -> combinational, Z outside.
+		  if (enables.pin(idx).is_linked(scope()->tie_hi())
+		      && all_process_writes_are_driven(
+			    bitmasks[idx], process_write_masks[idx])) {
+			connect_synthesized_process_output(
+			      des, scope(), *this, nex_set[idx].wid,
+			      nex_set[idx].lnk, nex_out.pin(idx));
+			continue;
+		  }
+		  // G25: Partial latch — will be handled below with per-bit
+		  // latches. Fall through.
 	    }
 
-	    if (enables.pin(idx).is_linked(scope()->tie_hi())) {
+	    if (enables.pin(idx).is_linked(scope()->tie_hi())
+		&& all_bits_driven(bitmasks[idx])) {
 		  connect_synthesized_process_output(
 			des, scope(), *this, nex_set[idx].wid,
 			nex_set[idx].lnk, nex_out.pin(idx));
@@ -3035,30 +3083,106 @@ bool NetProcTop::synth_async(Design*des)
 			        "to glitches." << endl;
 		  }
 
+		  unsigned latch_width = nex_set[idx].wid;
+		  bool all_driven = all_bits_driven(bitmasks[idx]);
+
 		  if (debug_synth2) {
 			cerr << get_fileline() << ": debug: "
-			     << "Top level making a "
-			     << nex_set[idx].wid << "-wide "
-			     << "NetLatch device." << endl;
+			     << "Top level making "
+			     << (all_driven ? "a " : "per-bit ")
+			     << latch_width << "-wide "
+			     << "NetLatch device(s)." << endl;
 		  }
 
-		  NetLatch*latch = new NetLatch(scope(), scope()->local_symbol(),
-						nex_set[idx].wid);
-		  des->add_node(latch);
-		  latch->set_line(*this);
+		  if (all_driven) {
+			// All bits unconditionally driven: single wide latch.
+			NetLatch*latch = new NetLatch(scope(), scope()->local_symbol(),
+						      latch_width);
+			des->add_node(latch);
+			latch->set_line(*this);
 
-		  NetNet*tmp = nex_out.pin(idx).nexus()->pick_any_net();
-		  tmp->set_line(*this);
-		  assert(tmp);
+			NetNet*tmp = nex_out.pin(idx).nexus()->pick_any_net();
+			tmp->set_line(*this);
+			assert(tmp);
 
-		  tmp = crop_to_width(des, tmp, latch->width());
+			tmp = crop_to_width(des, tmp, latch->width());
 
-		  connect(nex_set[idx].lnk, latch->pin_Q());
-		  connect(tmp->pin(0), latch->pin_Data());
+			connect(nex_set[idx].lnk, latch->pin_Q());
+			connect(tmp->pin(0), latch->pin_Data());
 
-		  bool is_linked_tmp = enables.pin(idx).is_linked();
-		  assert (is_linked_tmp);
-		  connect(enables.pin(idx), latch->pin_Enable());
+			bool is_linked_tmp = enables.pin(idx).is_linked();
+			assert (is_linked_tmp);
+			connect(enables.pin(idx), latch->pin_Enable());
+		  } else {
+			// G25: Partial latch — create one 1-bit NetLatch
+			// per bit. Bits written by this process use the
+			// shared scalar enable; unwritten bits are
+			// permanently opaque (enable tied low), relying on
+			// the data-path mux chain selecting feedback which
+			// is structurally a loop but logically dead
+			// because the latch never goes transparent.
+			NetNet*data_net = nex_out.pin(idx).nexus()
+				  ->pick_any_net();
+			ivl_assert(*this, data_net);
+			data_net->set_line(*this);
+			data_net = crop_to_width(des, data_net, latch_width);
+
+			NetNet*result = make_const_z(des, scope(), latch_width);
+			for (unsigned b = 0; b < latch_width; b += 1) {
+			      bool bit_written = process_write_masks[idx].size() > b
+					 && process_write_masks[idx][b];
+
+			      NetPartSelect*bit_sel = new NetPartSelect(
+				    data_net, b, 1, NetPartSelect::VP);
+			      bit_sel->set_line(*this);
+			      des->add_node(bit_sel);
+
+			      NetNet*bit_data = new NetNet(
+				    scope(), scope()->local_symbol(),
+				    NetNet::WIRE, &netvector_t::scalar_logic);
+			      bit_data->local_flag(true);
+			      bit_data->set_line(*this);
+			      connect(bit_data->pin(0), bit_sel->pin(0));
+
+			      NetLatch*bit_latch = new NetLatch(
+				    scope(), scope()->local_symbol(), 1);
+			      bit_latch->set_line(*this);
+			      des->add_node(bit_latch);
+
+			      NetNet*bit_q = new NetNet(
+				    scope(), scope()->local_symbol(),
+				    NetNet::WIRE, &netvector_t::scalar_logic);
+			      bit_q->local_flag(true);
+			      bit_q->set_line(*this);
+			      connect(bit_q->pin(0), bit_latch->pin_Q());
+
+			      connect(bit_data->pin(0), bit_latch->pin_Data());
+
+			      if (bit_written) {
+				    connect(enables.pin(idx),
+					    bit_latch->pin_Enable());
+			      } else {
+				    connect(scope()->tie_lo(),
+					    bit_latch->pin_Enable());
+			      }
+
+			      // Reassemble per-bit Q into the output vector.
+			      const netvector_t*result_type = new netvector_t(
+				    data_net->data_type(), latch_width-1, 0);
+			      NetNet*next = new NetNet(
+				    scope(), scope()->local_symbol(),
+				    NetNet::WIRE, result_type);
+			      next->local_flag(true);
+			      next->set_line(*this);
+			      NetSubstitute*sub = new NetSubstitute(
+				    result, bit_q, latch_width, b);
+			      sub->set_line(*this);
+			      des->add_node(sub);
+			      connect(next->pin(0), sub->pin(0));
+			      result = next;
+			}
+			connect(nex_set[idx].lnk, result->pin(0));
+		  }
 	    }
       }
 

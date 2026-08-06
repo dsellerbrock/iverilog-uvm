@@ -809,10 +809,18 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 			{
 			      bool has_var_idx = false;
 			      for (const auto&ic : member_comp.index) {
-				    if (ic.msb && !dynamic_cast<PENumber*>(ic.msb))
+				    PExpr*idx = ic.msb ? ic.msb : ic.lsb;
+				    if (!idx || dynamic_cast<PENumber*>(idx))
+					  continue;
+				      // Also accept named constants (enum literals,
+				      // parameters) that evaluate at compile time.
+				    NetExpr*tmp = elab_and_eval(des, scope, idx, -1, true);
+				    bool is_const = dynamic_cast<NetEConst*>(tmp);
+				    delete tmp;
+				    if (!is_const) {
 					  has_var_idx = true;
-				    if (ic.lsb && !dynamic_cast<PENumber*>(ic.lsb))
-					  has_var_idx = true;
+					  break;
+				    }
 			      }
 			      if (has_var_idx) {
 				    cerr << get_fileline() << ": sorry: "
@@ -880,10 +888,18 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 			      // attempting constant-only evaluation.
 			      bool has_var_idx = false;
 			      for (const auto&ic : member_comp.index) {
-				    if (ic.msb && !dynamic_cast<PENumber*>(ic.msb))
+				    PExpr*idx = ic.msb ? ic.msb : ic.lsb;
+				    if (!idx || dynamic_cast<PENumber*>(idx))
+					  continue;
+				      // Also accept named constants (enum literals,
+				      // parameters) that evaluate at compile time.
+				    NetExpr*tmp = elab_and_eval(des, scope, idx, -1, true);
+				    bool is_const = dynamic_cast<NetEConst*>(tmp);
+				    delete tmp;
+				    if (!is_const) {
 					  has_var_idx = true;
-				    if (ic.lsb && !dynamic_cast<PENumber*>(ic.lsb))
-					  has_var_idx = true;
+					  break;
+				    }
 			      }
 			      if (has_var_idx) {
 				    cerr << get_fileline() << ": sorry: "

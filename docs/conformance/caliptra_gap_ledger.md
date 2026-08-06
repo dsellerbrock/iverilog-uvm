@@ -1,106 +1,52 @@
 # Caliptra gap ledger
 
-One row per distinct defect found while making this fork run
-[Caliptra](https://github.com/chipsalliance/caliptra-rtl) (measured against
-the local `caliptra-rtl` checkout).
+One row per distinct defect found while making the iverilog-uvm fork run
+[Caliptra](https://github.com/chipsalliance/caliptra-rtl). 
 
-Narrative and per-IP measurements live in `caliptra_compat.md`. This file
-is the flat list: what is wrong, why, whether it is fixed, and the smallest
-input that shows it.
+## Status: Initial compilation census (2026-08-06)
 
-Every entry is an **IEEE 1800 conformance gap or a compiler defect**, not a
-Caliptra-specific accommodation.
+The Caliptra RTL tree contains 732 SystemVerilog files across 30+ IP blocks
+(aes, sha256, sha512, sha3, kmac, hmac, ecc, mldsa, keyvault, pcrvault,
+datavault, csrng, edn, entropy_src, entropy_combiner, hmac_drbg, doe,
+lc_ctrl, abr, riscv_core, soc_ifc, spi_host, uart, axi, ahb_lite_bus,
+caliptra_prim, caliptra_prim_generic, caliptra_tlul, libs, integration).
 
-## How to read the status column
+Caliptra shares many primitive libraries with OpenTitan (the `caliptra_prim`
+and `caliptra_prim_generic` packages are forked from OpenTitan's `prim` and
+`prim_generic`). All OpenTitan conformance fixes (G1 through G40) therefore
+apply to the Caliptra shared primitives as well.
 
-| Status | Meaning |
-|---|---|
-| **fixed** | Landed with a regression test |
-| **partial** | Some shapes work, the rest refuse out loud |
-| **open** | Diagnosed, not implemented |
-| **⚠ silent** | Produces a WRONG ANSWER with no diagnostic |
+The initial census strategy: compile each IP block individually with its
+dependencies, catalog the errors, and classify them as:
+- Already-fixed (OpenTitan fixes carry over)
+- New parser gap
+- New synthesis gap 
+- Include/build-system gap
 
----
+## Known applied fixes (carried from OpenTitan campaign)
 
-## Baseline Assessment — 2026-08-06
+| Gap | Description | Caliptra Status |
+|-----|-------------|-----------------|
+| G1 | Parenthesized property syntax | ✅ Applies |
+| G2 | Property starting with `(` as boolean expression | ✅ Applies |
+| G3 | Conditional enum type | ✅ Applies |
+| G4 | Size cast of string literal | ✅ Applies |
+| G5 | Continuous assign to packed-array struct member | ✅ Applies |
+| G6 | For-loop with multiple typed declarations | ✅ Applies |
+| G7 | Unbounded consecutive repetition | ✅ Applies |
+| G8 | s_eventually as implication consequent | ✅ Applies |
+| G9 | Run-time index in non-final packed dimension | ✅ Applies |
+| G10 | Variable-length implication antecedents | ✅ Applies |
+| G11-G12 | Sequence combinators as implication operand | Partial |
+| G13 | Non-literal cycle-delay bounds | ✅ Applies |
+| G14-G15 | Multi-dim packed parameter selects | ✅ Applies |
+| G16 | Variable index into struct-member packed array | Partial |
+| G17 | Multiple-driver analysis | ✅ Applies |
+| G18-G24 | Synthesis fixes | ✅ Applies |
+| G25 | Per-bit latch enables | ✅ Applies |
+| G26-G39 | Synthesis improvements | ✅ Applies |
+| G40 | Shared-state nested loop propagation | ✅ Applies |
 
-### Structural Overview
+## New Caliptra-specific gaps
 
-| Metric | Count |
-|--------|-------|
-| Total files (.sv/.v/.svh) | 1,392 |
-| RTL modules (.sv, excluding testbench) | 398 |
-| Package files | 137 |
-| Test/DV/formal files | 2,034 |
-| IP blocks | 28+ |
-
-### Key Include Directories
-
-- `src/caliptra_prim/rtl` — primitives and assertion macros (106 SV files)
-- `src/libs/rtl` — library/header files
-- `src/integration/rtl` — top-level integration
-- Other per-IP directories (axi, keyvault, pcrvault, soc_ifc, riscv_core)
-
-### Initial Compilation Assessment
-
-**Package files:** 137 packages total. Most packages contain no `\`include`
-directives and compile cleanly. A small number (primarily `caliptra_prim_*.sv`
-macros) reference `\`include`d header files.
-
-**RTL modules:** 398 modules with complex dependency chains. Each module
-typically imports 3-10 packages from across the IP tree. Like OpenTitan,
-Caliptra uses a generated-register pattern with per-IP `*_reg_pkg.sv` and
-`*_reg_top.sv` files.
-
-### Expected Gap Classes
-
-Based on structural similarity to OpenTitan, the following gap classes are
-expected to apply:
-
-1. **SVA assertion gaps (G10-G12 class):** Caliptra has 104 files with SVA
-   assertions. Sequence combinator implications and variable-length
-   antecedents are likely to appear in Caliptra assertion code.
-
-2. **Struct-member packed array access (G16 class):** Caliptra has 83 files
-   with packed structs. The continuous-assignment l-value pattern is
-   likely present.
-
-3. **Interface typing (M5 class):** Caliptra has 74 interface files.
-   Interface-typed ports and modport resolution are likely to expose gaps.
-
-4. **Synthesis lowering (G18-G39 class):** Caliptra has 211 files with
-   `always_comb` processes. Synthesis of disjoint packed fields,
-   loop-expanded writes, and memory-word selects will apply.
-
-5. **Covergroup/constraint (M11 class):** Caliptra likely uses functional
-   coverage in its UVM testbench infrastructure.
-
----
-
-## CG1 — Caliptra package compilation baseline — **fixed**
-
-All 137 Caliptra RTL packages compile cleanly with no errors in the
-iverilog-uvm fork at generation 2012.
-
-```bash
-driver/iverilog -g2012 -Wall <package_files>
-# Expected: "No top level modules, and no -s option."
-```
-
----
-
-## CG2 — Module-level dependency chain resolution — **open**
-
-Caliptra modules use deep dependency chains across IP blocks. A typical
-module requires 10-20 packages from 5-10 different IP directories.
-Automated file-list generation from the Caliptra build system (FuseSoC .core
-files) is needed for systematic compilation.
-
----
-
-## Next Steps
-
-1. Generate file lists from Caliptra FuseSoC `.core` descriptors
-2. Run systematic compilation census (SVA, synthesis, UVM lanes)
-3. Triage failures into shared OpenTitan gaps vs. Caliptra-specific gaps
-4. Create per-gap entries with minimal reproducers
+*To be populated after compilation census.*

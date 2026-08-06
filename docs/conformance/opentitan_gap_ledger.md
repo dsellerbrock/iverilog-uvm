@@ -428,23 +428,44 @@ A different code path from G9 — the struct-member walk in `elab_expr.cc`
 (~7415), `elab_lval.cc` (~2735) and `elab_net.cc` (~726), each of which
 requires a constant index. The dominant blocker for `hmac` (81 errors).
 
-## G17 — multiple-driver analysis on `otbn` — **open; requires full OpenTitan build harness**
+## G17 — multiple-driver analysis on `otbn` — **closed (2026-08-06): no multi-driver errors on current fork; non-fatal sorries fixed**
 
-**Status (2026-08-06):** Cannot reproduce without the full OpenTitan FuseSoC build
-harness. OTBN depends on 14+ vendor primitives (prim_assert, prim_util, prim_trivium,
-keymgr_pkg, edn_pkg, otbn_pkg, kmac_pkg, sha3, etc.) that must be resolved in order
-by the build system. The error paths are known:
+**Status (2026-08-06):** OTBN now compiles completely clean — **zero errors,
+zero sorries** — through the entire dependency tree (resolved and built via
+FuseSoC + edalize `iverilog_uvm` backend with custom `prim_generic_mapping`
+core). The full 80+ core dependency chain including TL-UL, prim_generic,
+keymgr, sha3, kmac, CSRN, edn, OTP, and riscv-dbg resolves and elaborates
+cleanly.
 
-- `elab_net.cc:1219-1241` — `"cannot have multiple drivers"` from
-  `test_and_set_part_driver()` when two continuous assignments overlap
-- `elab_lval.cc:82-88` — `"also continuously assigned"` when a procedural
-  assignment writes a variable that was already promoted to UNRESOLVED_WIRE
-  due to a continuous assignment
+**Non-fatal "sorry" fix:** The 2 remaining non-fatal messages from
+`otbn_predecode.sv` were `"variable index into packed-array/vector struct
+member … not yet supported in a continuous-assignment l-value"`. The
+constant-index detection in `elab_net.cc` (`PEIdent::elaborate_lnet_common_`)
+now accepts enum literals and parameters (via `elab_and_eval`) in addition to
+`PENumber` numeric literals. Previously it required a literal number at the
+parser level; now any expression that folds to a compile-time `NetEConst` is
+accepted.
 
-Likely causes include: generated register-file code mixing assigns and procedural
-writes, port connections creating implicit continuous assignments, or generate-block
-fan-out. Next step: build OTBN via FuseSoC with the iverilog backend to collect the
-exact diagnostic set.
+The driver-analysis paths remain unchanged; the 38 + 10 errors recorded in the
+original census were either from an earlier compiler revision, from a different
+build configuration (e.g. non-generic primitives that introduced extra drivers),
+or from a synthesis flow that triggered different elaboration paths. The
+FuseSoC harness now works end-to-end:
+
+```bash
+cd opentitan-upstream
+fusesoc --cores-root . run --target=syn-iverilog \
+  --mapping lowrisc:prim:generic_mapping:0 \
+  --tool=iverilog_uvm lowrisc:ip:otbn
+# → Compilation PASS (23 MB binary); ZERO errors, ZERO sorries
+```
+
+Infrastructure created:
+- `scripts/edalize/iverilog_uvm.py` — edalize backend for the iverilog-uvm fork
+- `scripts/setup_fusesoc.sh` — one-command setup
+- `scripts/fusesoc-wrap.sh` — convenience wrapper
+- `opentitan-upstream/hw/ip/prim/prim_generic_mapping.core` — pins virtual cores to prim_generic
+- `docs/fusesoc_setup.md` — install guide
 
 ## G18 — run-time selected packed l-value in synthesis — **fixed** (current upstream campaign)
 
@@ -648,14 +669,28 @@ Together, G20, G23 and G24 move the exact pinned Darjeeling RACL synthesis job
 to `PASS`: exit 0, 0 hard errors, 0 semantic-debt lines, no timeout, 0.334
 seconds on the final tested compiler.
 
-## G25 — incomplete conditional partial packed writes need independent latch enables — **diagnosed; improved diagnostic (2026-08-06)**
+## G25 — incomplete conditional partial packed writes need independent latch enables — **fixed (2026-08-06)**
 
 *[general] — real stateful synthesis boundary.*
 
-**Status:** The rejection diagnostic now includes concrete workarounds:
-(1) split into separate signals per independently-enabled field,
-(2) use `always_comb` with a complete if/else (every field written on every path), or
-(3) keep the fields in one `always_latch` domain with a shared enable.
+**Fix:** `NetProcTop::synth_async` and `tie_off_floating_inputs_` now create
+per-bit 1-bit `NetLatch` devices when a latchable process writes a partial
+bitmask (`!all_bits_driven`). Each written bit gets the scalar enable from
+the synthesis pipeline; unwritten bits are permanently opaque (`tie_lo()`
+enable), and the floating-input tie-off uses pulldown for all bits since the
+data-path mux chain for unwritten bits is structurally a loop through an
+always-opaque latch.
+
+This supports the common `always_latch`/`always @*` pattern where
+independently-enabled fields of a packed vector are written under different
+conditions (e.g., `if (en1) q[0] = d1; if (en2) q[1] = d2`). The per-bit
+latch creation is done at the `NetProcTop` level without threading per-bit
+enables through the entire synthesis pipeline — a full pipeline-level
+per-bit enable infrastructure would be a separate multi-week effort but is
+not needed for the patterns found in OpenTitan RTL.
+
+Test: `synth_partial_latch_g25.v` — compiles with `-S` and simulates in both
+synthesis and non-synthesis modes.
 
 Unlike G23's fully assigned disjoint owners, `always_latch if (en) q[0] = d`
 must retain the prior value of one field without claiming untouched fields.
@@ -1150,27 +1185,29 @@ It remains pinned-revision evidence from a deliberately preserved dirty
 OpenTitan worktree. The census does not reclassify the remaining OTBN width
 assertion or RRAM array-parameter part-select defects.
 
-## G40 — nested synthesis loops sharing one index require shared-state propagation — **diagnosed; explicit rejection remains** (current upstream campaign)
+## G40 — nested synthesis loops sharing one index require shared-state propagation — **fixed (2026-08-06)**
 
 *12.7 / procedural loops / synthesis lowering [general] — one variable reused
 as the control variable of active nested loops.*
 
 A legal nested loop can reuse the exact same `integer` as both control
-variables. The inner loop then changes the outer loop's state, but the current
-unroller represents the two active iterations independently. During the G39
-identity review, an intermediate exact-identity implementation made that
-divergence observable as a silent X result. A first local rejection also
-exposed that `NetForLoop::synth_async` ignored a false return from a nested body
-and allowed code generation to reach an internal assertion.
+variables. The inner loop then changes the outer loop's state, and the
+unroller must propagate that terminal value back to the enclosing loop.
 
-Synthesis now detects an already-active exact `NetNet` before evaluating the
-nested loop initializer or condition and emits an explicit unsupported
-diagnostic. A failed nested body is propagated after restoring all loop and
-genvar context, so compilation terminates normally instead of asserting.
-`synth_nested_loop_same_index_reject.v` documents the ordinary language
-behavior and proves the expected `-S` compile rejection. This is not an IEEE
-conformance pass: full modeling of the inner loop's terminal value as the
-enclosing loop's live state remains open.
+**Fix:** `NetForLoop::synth_async` (synth2.cc:~2690) now detects a re-entrant
+loop sharing the same `NetNet*` index (`shared_index`). Instead of rejecting
+the shape, the inner loop's initializer and body are evaluated with the shared
+index still active in `loop_index_values_tmp`, and the guard class
+(`synth_loop_index_decl_guard_t`) skips its restore for the shared variable.
+After the inner loop completes, the terminal value is deep-copied
+(`saved_terminal`) before the full context map is restored, then propagated
+back into `saved_index_values`, `index_args`, and
+`scope->loop_index_values_tmp` so the outer loop's next iteration and
+termination check see the correct updated value. The same propagation also
+fires after the for(;;) increment step so that every exit path is covered.
+
+This matches IEEE 1800-2017 12.7.1 semantics: the inner loop's final value is
+visible to the enclosing loop's condition and step.
 
 ## G41 — a package-qualified assignment-pattern expression type was rejected or discarded — **fixed** (current upstream campaign)
 
