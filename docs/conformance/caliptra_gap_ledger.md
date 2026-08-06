@@ -49,4 +49,45 @@ dependencies, catalog the errors, and classify them as:
 
 ## New Caliptra-specific gaps
 
-*To be populated after compilation census.*
+### C1 — `pkg::type` in module port declarations — **open**
+
+*23.2.1 / A.1.3 [Caliptra-specific] — 65+ files affected.*
+
+Caliptra uses package-qualified type references in module port declarations:
+
+```systemverilog
+module aes (
+  output caliptra_prim_mubi_pkg::mubi4_t  idle_o,
+  input  lc_ctrl_pkg::lc_tx_t            lc_escalate_en_i,
+  input  entropy_src_pkg::cs_aes_halt_req_t cs_aes_halt_i
+);
+```
+
+iverilog currently rejects `pkg::type` syntax in port declarations with
+`syntax error` / `Errors in port declarations`. The type reference is
+in a different syntactic position than ordinary `pkg::type` in variable
+declarations; the parser's port production (`parse.y`) does not accept
+a package-scoped type in the `list_of_port_declarations` rule.
+
+**Scope:** Used pervasively in Caliptra's generated register interfaces
+(`*_reg.sv`, `*_reg_top.sv`) and in crypto core wrappers (aes, csrng,
+hmac, sha512, sha256, kmac, keyvault, pcrvault, datavault, ecc, mldsa,
+doe, entropy_src, soc_ifc).
+
+**Fix path:** Extend `parse.y` port declaration rules to accept
+`package_scope::identifier` as a valid type in port lists.
+
+### C2 — Verilator-native build system — **infrastructure gap**
+
+Caliptra uses Verilator + RISC-V GCC for simulation, not FuseSoC.
+The `.github/workflows/build-test-verilator.yml` CI invokes Verilator
+v5.044 with a RISC-V firmware co-simulation flow. Register packages
+are generated from RDL files using `peakrdl-regblock`.
+
+To integrate iverilog with Caliptra:
+1. Fix C1 (pkg::type in ports)
+2. Generate register packages with `reg_gen.py` (already in tree)
+3. Create a FuseSoC `.core` wrapper or a simple Makefile-based
+   iverilog compilation flow
+4. Handle Caliptra-specific primitives (caliptra_prim_generic, etc.)
+   which are already known to compile from OpenTitan fixes.
