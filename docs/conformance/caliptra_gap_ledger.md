@@ -154,3 +154,52 @@ SHA512_parameters_pkg.sv + SHA512_sequences_pkg.sv + SHA512_tests_pkg.sv
 hdl_top.sv + hvl_top.sv
 ```
 **Result: 0 errors, 0 sorries across ~30 files.**
+
+---
+
+## Complete DV + Synthesis Census (2026-08-06)
+
+### Synthesis: ✅ ZERO ERRORS
+
+421 RTL files (68 packages + 353 modules) across all Caliptra IPs compile
+with `-S` and dependency-ordered compilation. All errors in earlier attempts
+were alphabetical ordering issues, not compiler bugs.
+
+### UVM per-IP status
+
+| IP | Packages+Env | Full Testbench | Errors | Root Cause |
+|----|-------------|----------------|--------|------------|
+| **sha512** | ✅ ZERO | ✅ ZERO | 0 | Full pipeline working |
+| **hmac** | 🟡 2 | - | 2 | `initialize()` stub mismatch |
+| **ecc** | 🟡 2 | - | 2 | `initialize()` stub mismatch |
+| **keyvault** | 🔴 34 | - | 34 | MVC deps + stub gaps |
+| **pcrvault** | 🔴 34 | - | 34 | MVC deps + stub gaps |
+| **soc_ifc** | 🔴 29 | - | 29 | MVC deps + stub gaps |
+
+### C6 — `initialize()` function signature mismatch (HMAC, ECC)
+
+The UVMF-generated `initialize()` function expects array parameters
+(`string interface_names[]`, `uvmf_active_passive_t interface_activity[]`)
+but the current UVMF stubs use a different signature. Fix requires updating
+the stub `initialize()` to match the generated code.
+
+### C7 — Questa MVC VIP dependencies (Keyvault, PCRvault, SOC_IFC)
+
+These IPs import Mentor Questa MVC packages:
+- `mvc_pkg`, `mgc_ahb_v2_0_pkg`, `mgc_ahb_seq_pkg`
+- `qvip_ahb_lite_slave_pkg`, `qvip_ahb_lite_slave_params_pkg`
+- `rw_txn_pkg`, `addr_map_pkg`
+
+To compile on iverilog, minimal stub packages must be created for each.
+The AHB VIP stubs need to provide typedefs and base classes that satisfy
+UVM environment imports.
+
+### Infrastructure delivered
+
+1. **UVMF stubs** (`/tmp/uvmf_stub/`): `uvmf_base_pkg.sv` + `uvmf_base_pkg_hdl.sv`
+2. **Real UVMF cloned**: `muneeb-mbytes/UVMF` (UVMF_2022.3) at `/tmp/uvmf-test/`
+3. **BFM proxy patch**: All 34 BFM files across all IPs patched to comment out
+   Veloce-only `pkg::class #(...) proxy;` declarations
+4. **Synthesis ordering fix**: 5 packages require manual ordering
+   (caliptra_prim_util_pkg, kv_defines_pkg, lc_ctrl_state_pkg, pv_defines_pkg,
+   ot_sha3_pkg) before alphabetical PKG+RTL list
