@@ -170,36 +170,33 @@ were alphabetical ordering issues, not compiler bugs.
 | IP | Packages+Env | Full Testbench | Errors | Root Cause |
 |----|-------------|----------------|--------|------------|
 | **sha512** | ✅ ZERO | ✅ ZERO | 0 | Full pipeline working |
-| **hmac** | 🟡 2 | - | 2 | `initialize()` stub mismatch |
-| **ecc** | 🟡 2 | - | 2 | `initialize()` stub mismatch |
-| **keyvault** | 🔴 34 | - | 34 | MVC deps + stub gaps |
-| **pcrvault** | 🔴 34 | - | 34 | MVC deps + stub gaps |
-| **soc_ifc** | 🔴 29 | - | 29 | MVC deps + stub gaps |
+| **hmac** | ✅ ZERO | - | 0 | Fixed initialize + enums |
+| **ecc** | ✅ ZERO | - | 0 | Fixed initialize + enums |
+| **keyvault** | ✅ ZERO | - | 0 | MVC stubs + reg pkgs |
+| **pcrvault** | ✅ ZERO | - | 0 | MVC stubs + reg pkgs |
+| **soc_ifc** | ✅ ZERO | - | 0 | MVC stubs + reg pkgs |
 
-### C6 — `initialize()` function signature mismatch (HMAC, ECC)
+**ALL 6 Caliptra UVM IPs: packages+env compile with ZERO errors!**
 
-The UVMF-generated `initialize()` function expects array parameters
-(`string interface_names[]`, `uvmf_active_passive_t interface_activity[]`)
-but the current UVMF stubs use a different signature. Fix requires updating
-the stub `initialize()` to match the generated code.
+### C6 — `initialize()` function resolved
 
-### C7 — Questa MVC VIP dependencies (Keyvault, PCRvault, SOC_IFC)
+Enums (`uvmf_active_passive_t`, `uvmf_initiator_responder_t`) moved to
+`uvmf_base_pkg` directly. `initialize()` signature updated to match
+generated code (array parameters with `{}` defaults).
 
-These IPs import Mentor Questa MVC packages:
-- `mvc_pkg`, `mgc_ahb_v2_0_pkg`, `mgc_ahb_seq_pkg`
-- `qvip_ahb_lite_slave_pkg`, `qvip_ahb_lite_slave_params_pkg`
-- `rw_txn_pkg`, `addr_map_pkg`
+### C7 — Questa MVC VIP stubs created
 
-To compile on iverilog, minimal stub packages must be created for each.
-The AHB VIP stubs need to provide typedefs and base classes that satisfy
-UVM environment imports.
+5 stub packages in `/tmp/mvc_stubs/`:
+- `mvc_pkg.sv`: `mvc_sequence_item_base`, `mvc_sequencer`
+- `mgc_ahb_v2_0_pkg.sv`: `ahb_master_burst_transfer_s` typedef
+- `rw_txn_pkg.sv`: empty stub
+- `qvip_ahb_lite_slave_pkg.sv`: `qvip_ahb_lite_slave_subenv_config`, `qvip_ahb_lite_slave`, `qvip_ahb_lite_slave_subenv`
+- `qvip_ahb_lite_slave_params_pkg.sv`: AHB_NUM_MASTERS etc.
 
 ### Infrastructure delivered
 
 1. **UVMF stubs** (`/tmp/uvmf_stub/`): `uvmf_base_pkg.sv` + `uvmf_base_pkg_hdl.sv`
-2. **Real UVMF cloned**: `muneeb-mbytes/UVMF` (UVMF_2022.3) at `/tmp/uvmf-test/`
-3. **BFM proxy patch**: All 34 BFM files across all IPs patched to comment out
-   Veloce-only `pkg::class #(...) proxy;` declarations
-4. **Synthesis ordering fix**: 5 packages require manual ordering
-   (caliptra_prim_util_pkg, kv_defines_pkg, lc_ctrl_state_pkg, pv_defines_pkg,
-   ot_sha3_pkg) before alphabetical PKG+RTL list
+2. **MVC stubs** (`/tmp/mvc_stubs/`): 5 Questa VIP package stubs
+3. **Real UVMF cloned**: `muneeb-mbytes/UVMF` (UVMF_2022.3) at `/tmp/uvmf-test/`
+4. **BFM proxy patch**: All 34 BFM files across all IPs patched
+5. **Synthesis ordering**: 5 packages require manual ordering for clean census
