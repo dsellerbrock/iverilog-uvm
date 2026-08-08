@@ -32,3 +32,14 @@ initial begin
 end
 
 endmodule
+
+// The multidimensional companion: outer slice [3:1] includes element 1,
+// so it must still conflict with a continuous driver on that element after
+// both selections are converted to the signal's flattened bit numbering.
+module test_multidim;
+  logic clk;
+  logic [3:0][6:0] m;
+  assign m[1] = 7'h00;
+  always_ff @(posedge clk)
+    m[3:1] <= '0;
+endmodule

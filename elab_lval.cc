@@ -1357,15 +1357,6 @@ bool PEIdent::elaborate_lval_net_part_(Design*des,
 	    return true;
       }
 
-      if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
-	    ivl_assert(*this, reg->coerced_to_uwire());
-	    if (reg->test_part_driven(msb, lsb)) {
-		  report_mixed_assignment_conflict_("part select");
-		  des->errors += 1;
-		  return false;
-	    }
-      }
-
       const netranges_t&packed = reg->packed_dims();
 
       long loff, moff;
@@ -1400,6 +1391,26 @@ bool PEIdent::elaborate_lval_net_part_(Design*des,
 		 << " is reversed." << endl;
 	    des->errors += 1;
 	    return false;
+      }
+
+	/* The driver mask uses the signal's flattened, LSB-zero bit
+	   numbering. For a multidimensional packed part select, msb/lsb
+	   above are indices in the selected source dimension and are not
+	   comparable with that mask. Check only after sb_to_slice/sb_to_idx
+	   has produced canonical loff/moff. Clip an out-of-range select to
+	   the physical bits it can actually drive. */
+      if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
+	    ivl_assert(*this, reg->coerced_to_uwire());
+	    long driven_lo = std::max<long>(loff, 0);
+	    long driven_hi = std::min<long>(moff,
+					     (long)reg->vector_width() - 1);
+	    if (driven_lo <= driven_hi
+		&& reg->test_part_driven((unsigned)driven_hi,
+					 (unsigned)driven_lo)) {
+		  report_mixed_assignment_conflict_("part select");
+		  des->errors += 1;
+		  return false;
+	    }
       }
 
       unsigned long wid = moff - loff + 1;
