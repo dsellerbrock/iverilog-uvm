@@ -1121,19 +1121,11 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 
 	    lv->set_part(mux, 1);
 
-      } else if (reg->vector_width() == 1 && reg->sb_is_valid(prefix_indices,lsb)) {
-	      // Constant bit mux that happens to select the only bit
-	      // of the l-value. Don't bother with any select at all.
-	      // If there's a continuous assignment, it must be a conflict.
-	    if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
-		  ivl_assert(*this, reg->coerced_to_uwire());
-		  report_mixed_assignment_conflict_("bit select");
-		  des->errors += 1;
-		  return false;
-	    }
-
       } else {
-	      // Constant bit select that does something useful.
+	      // Keep an explicitly written bit select even when it happens
+	      // to cover the signal's only bit. A select has the type of the
+	      // selected bit, not the named type of the whole object (notably
+	      // for a one-bit enum), so erasing it changes assignment typing.
 	    long loff = reg->sb_to_idx(prefix_indices,lsb);
 
 	    if (warn_ob_select && (loff < 0 || loff >= (long)reg->vector_width())) {
@@ -1412,11 +1404,12 @@ bool PEIdent::elaborate_lval_net_part_(Design*des,
 
       unsigned long wid = moff - loff + 1;
 
-	// Special case: The range winds up selecting the entire
-	// vector. Treat this as no part select at all.
-      if (loff == 0 && wid == reg->vector_width()) {
-	    return true;
-      }
+	/* Preserve an explicitly written part select even when its range
+	   spans the entire vector. IEEE 1800-2017 gives a part select the
+	   type of an unsigned packed vector, not the named type of the whole
+	   object. Erasing a full-width select therefore makes, for example,
+	   `enum_var[3:0] = bits' look like the illegal implicit assignment
+	   `enum_var = bits'. */
 
 	/* If the part select extends beyond the extremes of the
 	   variable, then output a warning. Note that loff is
@@ -1567,8 +1560,10 @@ bool PEIdent::elaborate_lval_net_idx_(Design*des,
 			      return false;
 			}
 		  }
-		    /* If we cover the entire lvalue just skip the select. */
-		  if (rel_base == 0 && wid == reg->vector_width()) return true;
+		    /* Keep an explicitly written indexed select even when it
+		       spans the complete object. Like a fixed part select, it has
+		       plain packed-vector typing rather than the named type of the
+		       unselected object (notably an enum). */
 		  base = new NetEConst(verinum(rel_base));
 		  if (warn_ob_select) {
 			if (rel_base < 0) {

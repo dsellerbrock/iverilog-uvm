@@ -4593,7 +4593,8 @@ static NetExpr* elaborate_assoc_array_compat_method_(Design*des, NetScope*scope,
 	     * vvp_assoc_base (AA), vvp_darray, and vvp_queue objects.
 	     * Using $size goes through VPI which doesn't support AAs
 	     * and always returns 0 or 'x' for class-property AAs. */
-	    NetESFunc*sys_expr = new NetESFunc("$ivl_assoc_method$num", &netvector_t::atom2u32, 1);
+	    NetESFunc*sys_expr = new NetESFunc("$ivl_assoc_method$num",
+					    &netvector_t::atom2s32, 1);
 	    sys_expr->set_line(*li);
 	    sys_expr->parm(0, sub_expr);
 	    return sys_expr;
@@ -9355,11 +9356,11 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		// Built-in array method on a class-property darray/queue
 		if (tail_comp.name == "size" || tail_comp.name == "num") {
 		      NetESFunc*sys_expr = new NetESFunc("$ivl_assoc_method$num",
-							&netvector_t::atom2u32, 1);
+							&netvector_t::atom2s32, 1);
 		      sys_expr->set_line(*this);
 		      sys_expr->parm(0, base_expr);
 		      base_expr = sys_expr;
-		      cur_type = &netvector_t::atom2u32;
+		      cur_type = &netvector_t::atom2s32;
 		      continue;
 		}
 		// IEEE 1800-2017 7.12 reduction and min/max methods in
@@ -11283,7 +11284,7 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 			des->errors += 1;
 		  }
 		  NetESFunc*sys_expr = new NetESFunc("$ivl_queue_method$size",
-						     &netvector_t::atom2u32, 1);
+						     &netvector_t::atom2s32, 1);
 		  sys_expr->set_line(*this);
 		  sys_expr->parm(0, sub_expr);
 		  return sys_expr;
@@ -11442,7 +11443,7 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 			des->errors += 1;
 		  }
 		  NetESFunc*sys_expr = new NetESFunc("$ivl_queue_method$size",
-						     &netvector_t::atom2u32, 1);
+						     &netvector_t::atom2s32, 1);
 		  sys_expr->set_line(*this);
 		  sys_expr->parm(0, sub_expr);
 		  return sys_expr;
@@ -14654,6 +14655,25 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		  }
 		  const name_component_t member_comp = sr.path_tail.front();
 		  if (member_comp.name == "size") {
+			/* Associative arrays are represented by netqueue_t with
+			 * assoc_compat() set. The ordinary $size lowering goes
+			 * through VPI's dynamic-array query path, which intentionally
+			 * rejects associative arrays. IEEE 1800-2017 7.9.1 defines
+			 * the no-parentheses `.size' spelling as the same live entry
+			 * count as `.num'; use the associative runtime object path. */
+			const netqueue_t*aq =
+			      dynamic_cast<const netqueue_t*>(sr.net->darray_type());
+			if (aq && aq->assoc_compat()) {
+			      NetESFunc*fun = new NetESFunc(
+				    "$ivl_assoc_method$num",
+				    &netvector_t::atom2s32, 1);
+			      fun->set_line(*this);
+			      NetESignal*arg = new NetESignal(sr.net);
+			      arg->set_line(*sr.net);
+			      fun->parm(0, arg);
+			      return fun;
+			}
+
 			NetESFunc*fun = new NetESFunc("$size",
 						      &netvector_t::atom2s32,
 						      1);
@@ -14664,6 +14684,21 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 
 			fun->parm(0, arg);
 			return fun;
+		  } else if (member_comp.name == "num") {
+			/* `.num' is an associative-array property, not a general
+			 * alias for queue/dynamic-array `.size'. */
+			const netqueue_t*aq =
+			      dynamic_cast<const netqueue_t*>(sr.net->darray_type());
+			if (aq && aq->assoc_compat()) {
+			      NetESFunc*fun = new NetESFunc(
+				    "$ivl_assoc_method$num",
+				    &netvector_t::atom2s32, 1);
+			      fun->set_line(*this);
+			      NetESignal*arg = new NetESignal(sr.net);
+			      arg->set_line(*sr.net);
+			      fun->parm(0, arg);
+			      return fun;
+			}
 		  } else if (member_comp.name == "find"
 			     || member_comp.name == "find_index"
 			     || member_comp.name == "find_first"
@@ -17462,13 +17497,10 @@ NetExpr* PEIdent::elaborate_expr_net_part_(Design*des, NetScope*scope,
 
       unsigned long wid = sb_msb - sb_lsb + 1;
 
-	// If the part select covers exactly the entire
-	// vector, then do not bother with it. Return the
-	// signal itself, casting to unsigned if necessary.
-      if (sb_lsb == 0 && wid == net->vector_width()) {
-	    net->cast_signed(false);
-	    return net;
-      }
+	/* Do not erase a full-width part select. Besides being unsigned, a
+	   select loses the named type of the whole object; returning `net'
+	   here made `enum_dst = enum_src[3:0]' look like an enum-to-enum
+	   assignment instead of the integral-to-enum cast violation it is. */
 
 	// If the part select covers NONE of the vector, then return a
 	// constant X.
@@ -17584,15 +17616,6 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 			      offset = -wid + 1;
 		        }
 		        rel_base = net->sig()->sb_to_idx(prefix_indices, lsv) + offset;
-		  }
-
-		    // If the part select covers exactly the entire
-		    // vector, then do not bother with it. Return the
-		    // signal itself.
-		  if (rel_base == 0 && wid == net->vector_width()) {
-			delete base;
-			net->cast_signed(false);
-			return net;
 		  }
 
 		    // Otherwise, make a part select that covers the right
@@ -17752,15 +17775,6 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 		        }
 		        rel_base = net->sig()->sb_to_idx(prefix_indices, lsv) + offset;
                   }
-
-		    // If the part select covers exactly the entire
-		    // vector, then do not bother with it. Return the
-		    // signal itself.
-		  if (rel_base == (long)(wid-1) && wid == net->vector_width()) {
-			delete base;
-			net->cast_signed(false);
-			return net;
-		  }
 
 		    // Otherwise, make a part select that covers the right
 		    // range.
@@ -18017,11 +18031,6 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
 		  delete mux;
 		  return tmp;
 	    }
-
-	      // If the vector is only one bit, we are done. The
-	      // bit select will return the scalar itself.
-	    if (net->vector_width() == 1)
-		  return net;
 
 	    if (debug_elaborate) {
 		  cerr << get_fileline() << ": PEIdent::elaborate_expr_net_bit_: "

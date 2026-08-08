@@ -1045,6 +1045,7 @@ sv_assoc_obj_methods1 normal,-g2012 ivltests
 sv_assoc_obj_foreach1 normal,-g2012 ivltests
 sv_assoc_obj_foreach_key1 normal,-g2012 ivltests
 sv_assoc_obj_key_size1 normal,-g2012 ivltests
+sv_assoc_size_num_properties normal,-g2012 ivltests
 sv_assoc_obj_key_bit_copy1 normal,-g2012 ivltests
 sv_assoc_obj_key_delete1 normal,-g2012 ivltests
 sv_assoc_obj_graph_mutation1 normal,-g2012 ivltests
@@ -1313,6 +1314,12 @@ sv_uparam_dim_decl_scope normal,-g2012 ivltests sv_uparam_dim_decl_scope
 sv_nb_uarray_copy normal,-g2012 ivltests
 sv_packed_runtime_idx_part normal,-g2012 ivltests
 sv_enum_packed_array_sel normal,-g2012 ivltests
+sv_enum_full_width_lval_select normal,-g2012 ivltests
+sv_enum_whole_continuous_assign_fail CE,-g2012 ivltests
+sv_enum_packed_element_integral_assign_fail CE,-g2012 ivltests
+sv_enum_select_rhs_to_whole_fail CE,-g2012 ivltests
+sv_enum_indexed_select_rhs_to_whole_fail CE,-g2012 ivltests
+sv_enum_indexed_down_select_rhs_to_whole_fail CE,-g2012 ivltests
 sv_pkg_export_resolve normal,-g2012 ivltests
 sv_packed_struct_array_pattern normal,-g2012 ivltests
 sv_net_member_nested_pattern normal,-g2012 ivltests

@@ -873,6 +873,10 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 			      member_off += member_base_value;
 			      member_width = member_slice_width;
 			      trailing_member_index_consumed = true;
+				// A bit/part select of a vector member has the
+				// select's plain packed-vector type, even if it
+				// happens to cover the member's full width.
+			      member_net_type = 0;
 			}
 			struct_type = 0;
 
@@ -918,6 +922,9 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 		  ivl_assert(*this, rc);
 		  member_off += tmp_off;
 		  member_width = tmp_wid;
+		    // The declared member type belongs to `s.member', not to
+		    // the explicit `s.member[... ]' selection.
+		  member_net_type = 0;
 	    }
 
 	    if (debug_elaborate) {
@@ -1105,6 +1112,14 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 
       unsigned subnet_wid = midx-lidx+1;
 
+	/* A select is semantically significant even when it spans every bit
+	   of the physical signal. In particular, a bit/part select of an enum
+	   is an unsigned packed vector, while the unselected object retains
+	   its enum type. Count indices beyond the unpacked word selectors as
+	   packed selects; a member path is likewise an explicit selection. */
+      bool explicit_vector_select = !member_path.empty()
+	    || path_tail.index.size() > sig->unpacked_dimensions();
+
 	/* A select through every outer dimension of a packed array can leave
 	   a declared struct/enum element type. Keep that type on the temporary
 	   l-value net, just as the procedural l-value path does. Otherwise a
@@ -1215,13 +1230,13 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 	    return sig;
       }
 
-	/* If the desired l-value vector is narrower than the
-	   signal itself, then use a NetPartSelect node to
-	   arrange for connection to the desired bits. All this
-	   can be skipped if the desired width matches the
-	   original vector. */
+	/* Use a NetPartSelect node when the desired l-value is narrower or
+	   when the source spelling explicitly selected a packed range/member.
+	   The latter must not be skipped merely because its width matches the
+	   original vector: doing so leaks the whole object's named type into
+	   the r-value assignment context. */
 
-      if (subnet_wid != sig->vector_width()) {
+      if (subnet_wid != sig->vector_width() || explicit_vector_select) {
 	      /* If we are processing a tran or inout, then the
 		 partselect is bi-directional. Otherwise, it is a
 		 Part-to-Vector select. */
