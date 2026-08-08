@@ -285,9 +285,12 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
       }
 
       ivl_assert(*this, !sr.path_head.empty());
-      return elaborate_lval_var_(des, scope, is_force, is_cassign, reg,
-			         sr.type, member_path,
-			         sr.path_head.back().index);
+      NetAssign_*res = elaborate_lval_var_(des, scope, is_force, is_cassign,
+					 reg, sr.type, member_path,
+					 sr.path_head.back().index);
+      if (is_force && res)
+	    res->mark_force_lval();
+      return res;
 }
 
 NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
@@ -706,7 +709,7 @@ NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
 		  cerr << get_fileline() << ": warning: ignoring out of bounds"
 			  " l-value array slice access " << reg->name()
 			 << "." << endl;
-		  base = new NetEConst(verinum(verinum::Vx));
+		  return 0;
 	    }
 	    base->set_line(*this);
 
@@ -716,6 +719,26 @@ NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
 		  sub_dims.push_back(dims[d]);
 	    ivl_type_t slice_type =
 		  new netuarray_t(sub_dims, full_arr->element_type());
+
+	    if ((reg->type() == NetNet::UNRESOLVED_WIRE) && !is_force) {
+		  ivl_assert(*this, reg->coerced_to_uwire());
+		  long first_word = 0;
+		  bool have_base = eval_as_long(first_word, base);
+		  unsigned long word_count = netrange_width(sub_dims);
+		  bool overlap = !have_base || first_word < 0 || word_count == 0;
+		  for (unsigned long word = 0; !overlap && word < word_count;
+		       word += 1) {
+			if (reg->test_part_driven(reg->vector_width()-1, 0,
+					  first_word + word))
+			      overlap = true;
+		  }
+		  if (overlap) {
+			report_mixed_assignment_conflict_("array slice");
+			des->errors += 1;
+			delete base;
+			return 0;
+		  }
+	    }
 
 	    NetAssign_*lv = new NetAssign_(reg);
 	    lv->set_array_slice(base, slice_type);

@@ -128,6 +128,7 @@ synth_process_overlap_reject CE,-g2012	ivltests
 synth_sparse_case	normal,-g2012	ivltests
 synth_unpacked_array_whole_assign normal,-g2012	ivltests
 synth_unpacked_array_slice_assign normal,-g2012	ivltests
+synth_uarray_partial_index_caliptra normal,-g2012 ivltests
 if_part_no_else		normal			ivltests
 if_part_no_else2	normal			ivltests
 inside_synth		normal			ivltests

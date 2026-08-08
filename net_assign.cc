@@ -242,6 +242,15 @@ NetNet* NetAssign_::sig() const
       return sig_;
 }
 
+void NetAssign_::mark_force_lval()
+{
+      force_lval_ = true;
+      if (nest_)
+	    nest_->mark_force_lval();
+      if (more)
+	    more->mark_force_lval();
+}
+
 void NetAssign_::set_part(NetExpr*base, unsigned wid,
                           ivl_select_type_t sel_type)
 {

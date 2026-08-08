@@ -4439,11 +4439,12 @@ static NetProc*build_tagged_union_companion_set_(Design*des, NetScope*scope,
  * Whole unpacked-array assignment (IEEE 1800-2017 7.6): the vvp code
  * generator has no whole-array store, so lower "dst = src" between
  * one-dimensional static unpacked arrays into an element-by-element
- * copy loop over canonical indexes. Canonical-to-canonical copy
- * implements the left-to-right element correspondence of 7.6
- * regardless of the declared index directions. The element
- * assignments reuse the existing word-indexed l-value and
- * word-indexed property/signal read machinery.
+ * copy loop over canonical indexes. Canonical indexes count from each
+ * declaration's numeric low bound, so opposite source/destination
+ * directions require reversing the source index to implement 7.6's
+ * left-to-right element correspondence. The element assignments reuse
+ * the existing word-indexed l-value and word-indexed property/signal read
+ * machinery.
  *
  * The lv is adopted on success (word select attached); the caller
  * must not reuse it. elem_rval must be an expression template
@@ -4457,7 +4458,8 @@ static NetProc* make_uarray_copy_loop_(Design*des, NetScope*scope,
 				       const NetEProperty*src_prop,
 				       bool nonblocking = false,
 				       long dst_base = 0,
-				       long src_base = 0)
+				       long src_base = 0,
+				       bool reverse_src = false)
 {
       (void)des;
 
@@ -4481,9 +4483,16 @@ static NetProc* make_uarray_copy_loop_(Design*des, NetScope*scope,
       NetAssign*step = new NetAssign(step_lv, '+', step_val);
       step->set_line(loc);
 
-      auto word_index = [&](long base) -> NetExpr* {
+	      auto word_index = [&](long base, bool reverse = false) -> NetExpr* {
 	    NetESignal*idx = new NetESignal(idx_sig);
 	    idx->set_line(loc);
+	    if (reverse) {
+		  NetEConst*last = make_const_val_s(base + (long)count - 1);
+		  last->set_line(loc);
+		  NetEBAdd*rev = new NetEBAdd('-', last, idx, 32, true);
+		  rev->set_line(loc);
+		  return rev;
+	    }
 	    if (base == 0)
 		  return idx;
 	    NetEConst*off = make_const_val_s(base);
@@ -4497,13 +4506,13 @@ static NetProc* make_uarray_copy_loop_(Design*des, NetScope*scope,
 
       NetExpr*elem_rv = 0;
       if (src_sig) {
-	    NetExpr*rv_word = word_index(src_base);
+	    NetExpr*rv_word = word_index(src_base, reverse_src);
 	    NetESignal*tmp = new NetESignal(src_sig, rv_word);
 	    tmp->set_line(loc);
 	    elem_rv = tmp;
       } else {
 	    ivl_assert(loc, src_prop);
-	    NetExpr*rv_word = word_index(src_base);
+	    NetExpr*rv_word = word_index(src_base, reverse_src);
 	    NetEProperty*tmp;
 	    if (const NetExpr*base = src_prop->get_base())
 		  tmp = new NetEProperty(base->dup_expr(),
@@ -4537,6 +4546,49 @@ static NetProc* make_uarray_copy_loop_(Design*des, NetScope*scope,
 				       body, step);
       loop->set_line(loc);
       return loop;
+}
+
+/* A fixed partial-prefix source and destination have compile-time word
+ * bounds. Emit one constant-word assignment per element instead of a loop
+ * with a run-time memory index. Besides being exact, this shape is directly
+ * consumable by the synthesis pass. */
+static NetProc* make_uarray_prefix_copy_block_(const LineInfo&loc,
+					       NetNet*dst_sig, long dst_base,
+					       NetNet*src_sig, long src_base,
+					       unsigned long count,
+					       bool reverse_src,
+					       bool nonblocking)
+{
+      NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
+      block->set_line(loc);
+
+      for (unsigned long idx = 0; idx < count; idx += 1) {
+	    long src_off = reverse_src ? (long)count - 1 - (long)idx
+				       : (long)idx;
+	    NetEConst*dst_word = make_const_val_s(dst_base + (long)idx);
+	    dst_word->set_line(loc);
+	    NetAssign_*lv = new NetAssign_(dst_sig);
+	    lv->set_word(dst_word);
+
+	    NetEConst*src_word = make_const_val_s(src_base + src_off);
+	    src_word->set_line(loc);
+	    NetESignal*rv = new NetESignal(src_sig, src_word);
+	    rv->set_line(loc);
+
+	    NetProc*assignment;
+	    if (nonblocking) {
+		  NetAssignNB*nb = new NetAssignNB(lv, rv, 0, 0);
+		  nb->set_line(loc);
+		  assignment = nb;
+	    } else {
+		  NetAssign*bl = new NetAssign(lv, rv);
+		  bl->set_line(loc);
+		  assignment = bl;
+	    }
+	    block->append(assignment);
+      }
+
+      return block;
 }
 
 /* Copy a contiguous run of canonical words between two fixed unpacked
@@ -4795,6 +4847,118 @@ static bool uarray_copy_shapes_compatible_(const netuarray_t*dst,
       return dst_vt == src_vt;
 }
 
+/* A direct identifier with a constant partial prefix of a fixed unpacked
+ * array denotes the remaining subarray. The procedural expression IR has no
+ * aggregate NetExpr for this value, so decode the source before ordinary
+ * typed r-value elaboration and let the array-copy loop read the original
+ * words directly. */
+struct uarray_prefix_source_t {
+      NetNet*sig = nullptr;          // Borrowed from the design.
+      long canonical_base = 0;
+      unsigned long count = 0;
+      netranges_t remaining_dims;
+      ivl_type_t element_type = nullptr; // Borrowed from sig.
+};
+
+/* Return 0 when pe is not this shape, 1 on success, and -1 after diagnosing
+ * a recognized but invalid/unsupported partial-prefix source. */
+static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
+					const LineInfo&loc, const PExpr*pe,
+					uarray_prefix_source_t&out)
+{
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(pe);
+      if (!ident)
+	    return 0;
+
+      symbol_search_results sr;
+      bool found = symbol_search(&loc, des, scope, ident->path(),
+				 ident->lexical_pos(), &sr);
+      if (!found || !sr.net || !sr.path_tail.empty())
+	    return 0;
+
+      const list<index_component_t>&indices =
+	    ident->path().name.back().index;
+      unsigned used_dims = indices.size();
+      unsigned total_dims = sr.net->unpacked_dimensions();
+      if (used_dims == 0 || used_dims >= total_dims)
+	    return 0;
+
+      if (total_dims - used_dims != 1) {
+	    cerr << loc.get_fileline() << ": sorry: a procedural unpacked"
+		 << " subarray source with more than one remaining dimension"
+		 << " is not yet supported." << endl;
+	    des->errors += 1;
+	    return -1;
+      }
+
+      for (const index_component_t&idx : indices) {
+	    if (idx.sel != index_component_t::SEL_BIT) {
+		  cerr << loc.get_fileline() << ": error: an unpacked-array"
+		       << " subarray prefix must use integral element indices."
+		       << endl;
+		  des->errors += 1;
+		  return -1;
+	    }
+      }
+
+      list<NetExpr*>index_exprs;
+      list<long>index_consts;
+      indices_flags flags;
+      indices_to_expressions(des, scope, &loc, indices, used_dims, false,
+			     flags, index_exprs, index_consts);
+      for (NetExpr*idx : index_exprs)
+	    delete idx;
+
+      if (flags.invalid)
+	    return -1;
+      if (flags.variable || flags.undefined) {
+	    cerr << loc.get_fileline() << ": sorry: a run-time selected"
+		 << " procedural unpacked subarray is not yet supported."
+		 << endl;
+	    des->errors += 1;
+	    return -1;
+      }
+
+      NetExpr*base_expr = normalize_variable_unpacked(sr.net, index_consts);
+      const NetEConst*base_const = dynamic_cast<const NetEConst*>(base_expr);
+      if (!base_const || !base_const->value().is_defined()) {
+	    cerr << loc.get_fileline() << ": error: unpacked-subarray prefix is"
+		 << " outside the declared array bounds." << endl;
+	    des->errors += 1;
+	    delete base_expr;
+	    return -1;
+      }
+
+      out.canonical_base = base_const->value().as_long();
+      delete base_expr;
+      const netranges_t&dims = sr.net->unpacked_dims();
+      for (size_t dim = used_dims; dim < dims.size(); dim += 1)
+	    out.remaining_dims.push_back(dims[dim]);
+      out.count = netrange_width(out.remaining_dims);
+      if (out.canonical_base < 0
+	  || out.canonical_base >= (long)sr.net->pin_count()
+	  || out.count == 0
+	  || out.count > sr.net->pin_count()
+			  - (unsigned long)out.canonical_base) {
+	    cerr << loc.get_fileline() << ": error: unpacked-subarray prefix is"
+		 << " outside the declared array bounds." << endl;
+	    des->errors += 1;
+	    return -1;
+      }
+
+      out.sig = sr.net;
+      out.element_type = sr.net->net_type();
+      return 1;
+}
+
+static bool uarray_ranges_need_reverse_(const netrange_t&dst,
+					const netrange_t&src)
+{
+      bool dst_ascending = dst.get_msb() < dst.get_lsb();
+      bool src_ascending = src.get_msb() < src.get_lsb();
+      return dst_ascending != src_ascending;
+}
+
 NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -5041,18 +5205,69 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 			     << "lv->word() = <nil>" << endl;
 	    }
 
-	      // Whole static-array copy (IEEE 1800-2017 7.6). Handle
-	      // "dst = src" where src is a one-dimensional unpacked
-	      // array signal before general r-value elaboration (the
-	      // typed r-value path has no whole-array representation
-	      // for word-array signals). Property sources are handled
-	      // after r-value elaboration below.
+	      // Whole and fixed-prefix static-array copies (IEEE 1800-2017
+	      // 7.6). Handle them before general r-value elaboration: the
+	      // expression IR has no aggregate value for word-array signals.
 	    bool simple_blocking = (delay_ == 0) && (event_ == 0)
-		  && (count_ == 0) && !lv->word()
+		  && (count_ == 0)
+		  && (!lv->word() || lv->is_array_slice())
 		  && lv_uarray->static_dimensions().size() == 1;
 
 	    if (simple_blocking) {
 		  const PExpr*rsrc = see_through_const_ternary_(des, scope, rval());
+		  uarray_prefix_source_t src;
+		  int decoded = decode_uarray_prefix_source_(des, scope, *this,
+						       rsrc, src);
+		  if (decoded < 0) {
+			delete lv;
+			return 0;
+		  }
+		  if (decoded > 0) {
+			bool plain_signal_dst = lv->nest() == nullptr
+			      && lv->get_property_idx() < 0 && lv->sig();
+			if (!plain_signal_dst) {
+			      cerr << get_fileline() << ": sorry: a fixed-prefix"
+				   << " unpacked-subarray source assigned to a"
+				   << " class or aggregate member is not yet"
+				   << " supported." << endl;
+			      des->errors += 1;
+			      delete lv;
+			      return 0;
+			}
+			netuarray_t src_type(src.remaining_dims, src.element_type);
+			if (!lv_uarray->type_equivalent(&src_type)) {
+			      cerr << get_fileline() << ": error: unpacked subarray"
+				   << " types are not equivalent in assignment."
+				   << endl;
+			      des->errors += 1;
+			      delete lv;
+			      return 0;
+			}
+
+			bool reverse_src = uarray_ranges_need_reverse_(
+			      lv_uarray->static_dimensions()[0],
+			      src.remaining_dims[0]);
+			long dst_base = 0;
+			NetNet*dst_sig = lv->sig();
+			if (lv->is_array_slice()) {
+			      if (!eval_as_long(dst_base, lv->word())) {
+				    cerr << get_fileline() << ": error:"
+					 << " invalid fixed subarray l-value base."
+					 << endl;
+				    des->errors += 1;
+				    delete lv;
+				    return 0;
+			      }
+			}
+			delete lv;
+			return make_uarray_prefix_copy_block_(
+			      *this, dst_sig, dst_base, src.sig,
+			      src.canonical_base, src.count, reverse_src, false);
+		  }
+
+		  // A whole one-dimensional signal can also feed a fixed destination
+		  // slice. Keep the legacy whole-destination loop because it accepts
+		  // class-property sources below.
 		  if (const PEIdent*rid = dynamic_cast<const PEIdent*>(rsrc)) {
 			symbol_search_results sr;
 			bool found = symbol_search(this, des, scope, rid->path(),
@@ -5060,6 +5275,49 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 			if (found && sr.net && sr.path_tail.empty()
 			    && rid->path().name.back().index.empty()
 			    && sr.net->unpacked_dimensions() == 1) {
+			      if (lv->is_array_slice()) {
+				    bool plain_signal_dst = lv->nest() == nullptr
+					  && lv->get_property_idx() < 0 && lv->sig();
+				    const netuarray_t*src_type =
+					  dynamic_cast<const netuarray_t*>(
+						sr.net->array_type());
+				    if (!plain_signal_dst) {
+					  cerr << get_fileline() << ": sorry: a fixed"
+					       << " unpacked-array source assigned to a"
+					       << " class or aggregate-member subarray is"
+					       << " not yet supported." << endl;
+					  des->errors += 1;
+					  delete lv;
+					  return 0;
+				    }
+				    if (!src_type
+					|| !lv_uarray->type_equivalent(src_type)) {
+					  cerr << get_fileline() << ": error: unpacked"
+					       << " array slice types are not equivalent"
+					       << " in assignment." << endl;
+					  des->errors += 1;
+					  delete lv;
+					  return 0;
+				    }
+				    long dst_base = 0;
+				    if (!eval_as_long(dst_base, lv->word())) {
+					  cerr << get_fileline() << ": error: invalid"
+					       << " fixed subarray l-value base." << endl;
+					  des->errors += 1;
+					  delete lv;
+					  return 0;
+				    }
+				    bool reverse_src = uarray_ranges_need_reverse_(
+					  lv_uarray->static_dimensions()[0],
+					  src_type->static_dimensions()[0]);
+				    NetNet*dst_sig = lv->sig();
+				    unsigned long count = sr.net->unpacked_count();
+				    delete lv;
+				    return make_uarray_prefix_copy_block_(
+					  *this, dst_sig, dst_base, sr.net, 0,
+					  count, reverse_src, false);
+			      }
+
 			      if (!uarray_copy_shapes_compatible_(
 					lv_uarray, sr.net->unpacked_count(),
 					sr.net->net_type())) {
@@ -5072,9 +5330,13 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 				    delete lv;
 				    return 0;
 			      }
+			      bool reverse_src = uarray_ranges_need_reverse_(
+				    lv_uarray->static_dimensions()[0],
+				    sr.net->unpacked_dims()[0]);
 			      return make_uarray_copy_loop_(des, scope, *this,
-							    lv, sr.net->unpacked_count(),
-							    sr.net, 0);
+						    lv, sr.net->unpacked_count(),
+					    sr.net, 0, false, 0, 0,
+					    reverse_src);
 			}
 		  }
 	    }
@@ -5083,20 +5345,18 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 	    ivl_assert(*this, lv_net_type);
 	    rv = elaborate_rval_(des, scope, lv_net_type);
 
-	      // An unpacked-array slice l-value (a partial index such as
-	      // `m[i]` into int[2][3]) is currently supported only as the
-	      // target of an assignment pattern or of a call to a function
-	      // returning an unpacked array; the code generator writes those
-	      // element-by-element at the slice's base offset. Diagnose other
-	      // r-values (whole-array copy into a slice) cleanly rather than
-	      // miscompiling them into a single-word store.
+	      // Supported array/subarray signals, assignment patterns and
+	      // unpacked-array function calls have all been lowered above (or
+	      // carry their own aggregate IR). Refuse any remaining slice r-value
+	      // cleanly rather than miscompiling it into a single-word store.
 	    if (lv->is_array_slice() && rv
 		&& dynamic_cast<NetEArrayPattern*>(rv) == 0
 		&& dynamic_cast<NetEUFunc*>(rv) == 0) {
-		  cerr << get_fileline() << ": sorry: assignment to an unpacked"
-			  " array slice is currently supported only from an"
-			  " assignment pattern ('{...}) or an unpacked-array"
-			  " function call." << endl;
+		  cerr << get_fileline() << ": sorry: this assignment to an"
+			  " unpacked array slice is not yet supported; fixed"
+			  " array/subarray signals, assignment patterns ('{...}),"
+			  " and unpacked-array function calls are supported."
+			  << endl;
 		  des->errors += 1;
 		  delete lv;
 		  delete rv;
@@ -5107,7 +5367,7 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 	      // (e.g. the UVM field-macro COPY path "arr = rhs.arr").
 	      // Without this, code generation degrades the property
 	      // read/store to a 1-bit vector - a silent miscompile.
-	    if (simple_blocking && rv) {
+	    if (simple_blocking && !lv->word() && rv) {
 		  if (NetEProperty*rprop = dynamic_cast<NetEProperty*>(rv)) {
 			const netuarray_t*src_ua =
 			      dynamic_cast<const netuarray_t*>(rprop->net_type());
@@ -5128,9 +5388,12 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 				    delete rv;
 				    return 0;
 			      }
-			      NetProc*loop = make_uarray_copy_loop_(des, scope, *this,
-								    lv, src_count,
-								    0, rprop);
+			      bool reverse_src = uarray_ranges_need_reverse_(
+				    lv_uarray->static_dimensions()[0],
+				    src_ua->static_dimensions()[0]);
+			      NetProc*loop = make_uarray_copy_loop_(
+				    des, scope, *this, lv, src_count, 0, rprop,
+				    false, 0, 0, reverse_src);
 			      delete rv;
 			      return loop;
 			}
@@ -5147,9 +5410,10 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 	    if (rv) {
 		  if (NetEUFunc*ufn = dynamic_cast<NetEUFunc*>(rv)) {
 			const NetESignal*rsig = ufn->result_sig();
-			const netuarray_t*ret_ua = rsig
-			      ? dynamic_cast<const netuarray_t*>(rsig->net_type())
-			      : 0;
+			const NetNet*result_net = rsig ? rsig->sig() : 0;
+			const netuarray_t*ret_ua = result_net
+			      ? dynamic_cast<const netuarray_t*>(
+				    result_net->array_type()) : 0;
 			if (ret_ua) {
 			      unsigned long lv_count = 1, ret_count = 1;
 			      for (const netrange_t&r
@@ -5732,9 +5996,58 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       if (const netuarray_t*lv_uarray =
 	  dynamic_cast<const netuarray_t*>(lv->net_type())) {
 	    if (lv->more == 0 && delay_ == 0 && event_ == 0 && count_ == 0
-		&& !lv->word()
+		&& (!lv->word() || lv->is_array_slice())
 		&& lv_uarray->static_dimensions().size() == 1) {
 		  const PExpr*rsrc = see_through_const_ternary_(des, scope, rval());
+		  uarray_prefix_source_t src;
+		  int decoded = decode_uarray_prefix_source_(des, scope, *this,
+						       rsrc, src);
+		  if (decoded < 0) {
+			delete lv;
+			return 0;
+		  }
+		  if (decoded > 0) {
+			bool plain_signal_dst = lv->nest() == nullptr
+			      && lv->get_property_idx() < 0 && lv->sig();
+			if (!plain_signal_dst) {
+			      cerr << get_fileline() << ": sorry: a fixed-prefix"
+				   << " unpacked-subarray source assigned to a"
+				   << " class or aggregate member is not yet"
+				   << " supported." << endl;
+			      des->errors += 1;
+			      delete lv;
+			      return 0;
+			}
+			netuarray_t src_type(src.remaining_dims, src.element_type);
+			if (!lv_uarray->type_equivalent(&src_type)) {
+			      cerr << get_fileline() << ": error: unpacked subarray"
+				   << " types are not equivalent in assignment."
+				   << endl;
+			      des->errors += 1;
+			      delete lv;
+			      return 0;
+			}
+			bool reverse_src = uarray_ranges_need_reverse_(
+			      lv_uarray->static_dimensions()[0],
+			      src.remaining_dims[0]);
+			long dst_base = 0;
+			NetNet*dst_sig = lv->sig();
+			if (lv->is_array_slice()) {
+			      if (!eval_as_long(dst_base, lv->word())) {
+				    cerr << get_fileline() << ": error:"
+					 << " invalid fixed subarray l-value base."
+					 << endl;
+				    des->errors += 1;
+				    delete lv;
+				    return 0;
+			      }
+			}
+			delete lv;
+			return make_uarray_prefix_copy_block_(
+			      *this, dst_sig, dst_base, src.sig,
+			      src.canonical_base, src.count, reverse_src, true);
+		  }
+
 		  if (const PEIdent*rid = dynamic_cast<const PEIdent*>(rsrc)) {
 			symbol_search_results sr;
 			bool found = symbol_search(this, des, scope, rid->path(),
@@ -5742,6 +6055,49 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 			if (found && sr.net && sr.path_tail.empty()
 			    && rid->path().name.back().index.empty()
 			    && sr.net->unpacked_dimensions() == 1) {
+			      if (lv->is_array_slice()) {
+				    bool plain_signal_dst = lv->nest() == nullptr
+					  && lv->get_property_idx() < 0 && lv->sig();
+				    const netuarray_t*src_type =
+					  dynamic_cast<const netuarray_t*>(
+						sr.net->array_type());
+				    if (!plain_signal_dst) {
+					  cerr << get_fileline() << ": sorry: a fixed"
+					       << " unpacked-array source assigned to a"
+					       << " class or aggregate-member subarray is"
+					       << " not yet supported." << endl;
+					  des->errors += 1;
+					  delete lv;
+					  return 0;
+				    }
+				    if (!src_type
+					|| !lv_uarray->type_equivalent(src_type)) {
+					  cerr << get_fileline() << ": error: unpacked"
+					       << " array slice types are not equivalent"
+					       << " in assignment." << endl;
+					  des->errors += 1;
+					  delete lv;
+					  return 0;
+				    }
+				    long dst_base = 0;
+				    if (!eval_as_long(dst_base, lv->word())) {
+					  cerr << get_fileline() << ": error: invalid"
+					       << " fixed subarray l-value base." << endl;
+					  des->errors += 1;
+					  delete lv;
+					  return 0;
+				    }
+				    bool reverse_src = uarray_ranges_need_reverse_(
+					  lv_uarray->static_dimensions()[0],
+					  src_type->static_dimensions()[0]);
+				    NetNet*dst_sig = lv->sig();
+				    unsigned long count = sr.net->unpacked_count();
+				    delete lv;
+				    return make_uarray_prefix_copy_block_(
+					  *this, dst_sig, dst_base, sr.net, 0,
+					  count, reverse_src, true);
+			      }
+
 			      if (!uarray_copy_shapes_compatible_(
 					lv_uarray, sr.net->unpacked_count(),
 					sr.net->net_type())) {
@@ -5754,9 +6110,12 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 				    delete lv;
 				    return 0;
 			      }
-			      return make_uarray_copy_loop_(des, scope, *this,
-							    lv, sr.net->unpacked_count(),
-							    sr.net, 0, true);
+			      bool reverse_src = uarray_ranges_need_reverse_(
+				    lv_uarray->static_dimensions()[0],
+				    sr.net->unpacked_dims()[0]);
+			      return make_uarray_copy_loop_(
+				    des, scope, *this, lv, sr.net->unpacked_count(),
+				    sr.net, 0, true, 0, 0, reverse_src);
 			}
 		  }
 	    }
@@ -5765,6 +6124,29 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       unsigned errors_before_rval = des->errors;
       NetExpr*rv = elaborate_rval_(des, scope, lv->net_type(), lv->expr_type(), count_lval_width(lv));
       if (rv == 0) return 0;
+
+	/* A blocking unpacked-array function call is copied directly from the
+	   callee's return-array storage by the vvp target. A non-blocking
+	   assignment additionally needs an independent per-word snapshot before
+	   the NBA update; the generic vector NBA representation cannot carry it.
+	   Refuse this legal residual loudly until that aggregate snapshot exists,
+	   rather than silently spreading a scalar/vector fallback over the array. */
+      if (lv->more == 0
+	  && dynamic_cast<const netuarray_t*>(lv->net_type())) {
+	    if (const NetEUFunc*ufn = dynamic_cast<const NetEUFunc*>(rv)) {
+		  const NetESignal*result = ufn->result_sig();
+		  const NetNet*result_net = result ? result->sig() : 0;
+		  if (result_net && result_net->unpacked_dimensions() > 0) {
+			cerr << get_fileline() << ": sorry: non-blocking assignment"
+			     << " of an unpacked-array function return is not yet"
+			     << " supported." << endl;
+			des->errors += 1;
+			delete lv;
+			delete rv;
+			return 0;
+		  }
+	    }
+      }
 
 	/* An assignment pattern written non-blocking into a whole
 	   unpacked array (or a slice of one) is lowered to one

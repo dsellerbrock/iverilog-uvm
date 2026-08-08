@@ -1111,6 +1111,7 @@ sv_unit_class_timescale normal,-g2012 ivltests
 sv_unpacked_array_packed_struct_member normal,-g2012 ivltests
 sv_class_prop_array_pattern normal,-g2012 ivltests
 sv_uarray_func_return_fail CE,-g2012 ivltests
+sv_uarray_func_return_nb_fail CE,-g2012 ivltests gold=sv_uarray_func_return_nb_fail.gold
 sv_uarray_func_return normal,-g2012 ivltests
 sv_class_prop_real_string_array normal,-g2012 ivltests
 sv_fork_call_arg_capture normal,-g2012 ivltests
@@ -1363,6 +1364,12 @@ sva_paren_seq_conseq normal,-g2012 ivltests
 sva_paren_prop_conseq_ce normal,-g2012 ivltests
 sv_uarray_nb_pattern normal,-g2012 ivltests
 sv_uarray_nb_pattern_slice normal,-g2012 ivltests
+sv_uarray_partial_index_copy normal,-g2012 ivltests
+sv_uarray_partial_index_boundary_fail CE,-g2012 ivltests gold=sv_uarray_partial_index_boundary_fail.gold
+sv_uarray_partial_index_driver_fail CE,-g2012 ivltests gold=sv_uarray_partial_index_driver_fail.gold
+sv_uarray_partial_index_type_fail CE,-g2012 ivltests gold=sv_uarray_partial_index_type_fail.gold
+sv_force_continuous_driver_order normal,-g2012 ivltests
+sv_uarray_partial_index_oob normal,-g2012 ivltests
 sv_packed_array_elem_pattern normal,-g2012 ivltests
 sv_param_uarray_packed_elem normal,-g2012 ivltests
 sv_uparam_multi_dim normal,-g2012 ivltests
