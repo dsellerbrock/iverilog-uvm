@@ -532,7 +532,9 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	  && (use_sel == index_component_t::SEL_PART
 	      || use_sel == index_component_t::SEL_IDX_UP
 	      || use_sel == index_component_t::SEL_IDX_DO)
-	  && packed_base_needs_expr_(des, scope, reg)) {
+	  && reg->unpacked_dimensions() == 0
+	  && packed_base_needs_expr_(des, scope, reg,
+				     path_.back().index)) {
 	    unsigned long sel_wid = 0;
 	    NetExpr*pbase = collapse_packed_base(des, scope, this, reg,
 						 path_.back().index, sel_wid);
@@ -727,6 +729,10 @@ NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
       return 0;
 }
 
+static void set_packed_slice_part_(NetAssign_*lv, NetExpr*base,
+				   const NetNet*reg, size_t dims_used,
+				   unsigned long lwid);
+
 NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 					      NetScope*scope,
 					      NetNet*reg,
@@ -829,6 +835,26 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 
       if (debug_elaborate)
 	    cerr << get_fileline() << ": debug: Set array word=" << *canon_index << endl;
+
+	/* set_word() preserves the unpacked address. Collapse any remaining
+	   packed suffix relative to that word, including a run-time index in
+	   a non-final packed dimension. */
+      list<index_component_t> packed_indices = name_tail.index;
+      for (size_t idx = 0 ; idx < reg->unpacked_dimensions() ; idx += 1)
+	    packed_indices.pop_front();
+      if (!need_const_idx
+	  && packed_base_needs_expr_(des, scope, reg, packed_indices)) {
+	    unsigned long sel_wid = 0;
+	    NetExpr*pbase = collapse_packed_base(des, scope, this, reg,
+					  packed_indices, sel_wid);
+	    if (pbase && sel_wid > 0) {
+		  pbase->set_line(*this);
+		  set_packed_slice_part_(lv, pbase, reg,
+					 packed_indices.size(), sel_wid);
+		  return lv;
+	    }
+	    delete pbase;
+      }
 
 
 	/* An array word may also have part selects applied to them. */
@@ -936,7 +962,9 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 	// leading indices into a slice offset, so that shape needs the
 	// general computed base. False for everything the prefix path
 	// already handles, which keeps it in charge of those.
-      if (!need_const_idx && packed_base_needs_expr_(des, scope, lv->sig())) {
+      if (!need_const_idx && lv->sig()->unpacked_dimensions() == 0
+	  && packed_base_needs_expr_(des, scope, lv->sig(),
+				     path_.back().index)) {
 	    NetNet*preg = lv->sig();
 	    unsigned long sel_wid = 0;
 	    NetExpr*pbase = collapse_packed_base(des, scope, this, preg,

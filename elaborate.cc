@@ -1138,7 +1138,7 @@ unsigned PGate::calculate_array_size_(Design*des, NetScope*scope,
  * borrow the gate's pin expressions; pform objects live for the whole
  * compilation, so sharing is safe. */
 /* Collect the leaf signal-read sub-expressions (PEIdent nodes) of a pform
-   r-value, recursing through the common operator nodes. Used to fan a
+   r-value, recursing through the common operator and cast nodes. Used to fan a
    continuous assign whose l-value is an interface member into one
    `always @(read) (lhs = rhs)` process per distinct read: %wait/vif waits on
    a single signal per event, so a multi-member or mixed r-value
@@ -1151,6 +1151,18 @@ static void collect_pform_reads_(PExpr*e, std::vector<PExpr*>&out)
       if (!e) return;
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
 	    out.push_back(id);
+	    return;
+      }
+      if (PECastType*cast = dynamic_cast<PECastType*>(e)) {
+	    collect_pform_reads_(cast->cast_base(), out);
+	    return;
+      }
+      if (PECastSize*cast = dynamic_cast<PECastSize*>(e)) {
+	    collect_pform_reads_(cast->cast_base(), out);
+	    return;
+      }
+      if (PECastSign*cast = dynamic_cast<PECastSign*>(e)) {
+	    collect_pform_reads_(cast->cast_base(), out);
 	    return;
       }
       if (PEBinary*b = dynamic_cast<PEBinary*>(e)) {

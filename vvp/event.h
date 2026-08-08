@@ -260,6 +260,7 @@ class vvp_fun_anyedge_sa : public vvp_fun_anyedge {
       virtual ~vvp_fun_anyedge_sa() override;
 
       vthread_t add_waiting_thread(vthread_t thread) override;
+      void add_multi_waiting_thread(vthread_t thread);
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t context) override;
@@ -275,7 +276,9 @@ class vvp_fun_anyedge_sa : public vvp_fun_anyedge {
 		       vvp_context_t context) override;
 
     private:
+      void run_multi_waiting_threads_();
       vthread_t threads_;
+      std::set<vthread_t>multi_threads_;
 };
 
 /*

@@ -1122,6 +1122,7 @@ sv_uarray_slice_pattern_assign normal,-g2012 ivltests
 sv_modport_visibility_fail CE,-g2012 ivltests
 sv_modport_read_visibility_fail CE,-g2012 ivltests
 sv_interface_member_sensitivity normal,-g2012 ivltests
+sv_interface_member_cast_sensitivity normal,-g2012 ivltests
 sv_vif_dispatch_many normal,-g2012 ivltests
 sv_vif_named_default_args normal,-g2012 ivltests
 sv_interface_initial_event_start_order normal,-g2012 ivltests
@@ -1315,6 +1316,7 @@ sv_assert_impl_s_eventually normal,-g2012 ivltests
 sv_rand_conformance_pin1 normal,-g2012 ivltests
 sv_rand_conformance_pin2 normal,-g2012 ivltests
 sv_packed_multidim_var_index normal,-g2012 ivltests
+sv_unpacked_word_packed_multidim_var_index normal,-g2012 ivltests
 sv_param_multidim_packed_select normal,-g2012 ivltests
 sv_param_pattern_override_import normal,-g2012 ivltests
 sv_param_unpacked_default_pattern normal,-g2012 ivltests

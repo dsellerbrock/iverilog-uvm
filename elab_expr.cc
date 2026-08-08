@@ -12742,14 +12742,18 @@ bool PEIdent::calculate_packed_indices_(Design*des, NetScope*scope, const NetNet
 }
 
 bool PEIdent::packed_base_needs_expr_(Design*des, NetScope*scope,
-				      const NetNet*net) const
+				      const NetNet*net,
+				      const list<index_component_t>&idx) const
 {
       if (!gn_system_verilog())
 	    return false;
-      if (!net || net->unpacked_dimensions() > 0)
+	/* The caller supplies PACKED indices only. Array-word paths first
+	   remove the unpacked prefix, so the same decision and collapse logic
+	   applies to both a pure packed signal and the packed element of an
+	   unpacked array. */
+      if (!net)
 	    return false;
 
-      const list<index_component_t>&idx = path_.back().index;
 	// A single index is already handled: it IS the final one.
       if (idx.size() < 2)
 	    return false;
@@ -12792,6 +12796,24 @@ bool PEIdent::packed_base_needs_expr_(Design*des, NetScope*scope,
 	    return false;
 
       return true;
+}
+
+static ivl_type_t packed_select_type_(const NetNet*net,
+				       const list<index_component_t>&indices,
+				       unsigned long select_width)
+{
+      for (list<index_component_t>::const_iterator cur = indices.begin()
+		 ; cur != indices.end() ; ++cur) {
+	    if (cur->sel != index_component_t::SEL_BIT)
+		  return 0;
+      }
+
+      ivl_type_t selected = packed_type_after_dims(net->net_type(),
+						    indices.size());
+      if (!selected || !selected->packed()
+	  || selected->packed_width() != (long)select_width)
+	    return 0;
+      return selected;
 }
 
 
@@ -17321,6 +17343,31 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
       NetESignal*res = new NetESignal(net, canon_index);
       res->set_line(*this);
 
+	/* The unpacked word is now represented by res. Apply the remaining
+	   packed suffix relative to that word. In particular, a run-time
+	   index in a non-final packed dimension (a[word][i][j]) needs the
+	   general computed-base path just like a pure packed a[i][j]. */
+      list<index_component_t> packed_indices = name_tail.index;
+      for (size_t idx = 0 ; idx < net->unpacked_dimensions() ; idx += 1)
+	    packed_indices.pop_front();
+      if (!need_const
+	  && packed_base_needs_expr_(des, scope, net, packed_indices)) {
+	    unsigned long sel_wid = 0;
+	    NetExpr*base = collapse_packed_base(des, scope, this, net,
+					 packed_indices, sel_wid);
+	    if (base && sel_wid > 0) {
+		  base->set_line(*this);
+		  ivl_type_t selected = packed_select_type_(net,
+							 packed_indices, sel_wid);
+		  NetESelect*sel = selected
+			? new NetESelect(res, base, sel_wid, selected)
+			: new NetESelect(res, base, sel_wid);
+		  sel->set_line(*this);
+		  return sel;
+	    }
+	    delete base;
+      }
+
 	// Detect that the word has a bit/part select as well.
 
       index_component_t::ctype_t word_sel = index_component_t::SEL_NONE;
@@ -17843,13 +17890,20 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
 	// Try the constant path quietly first; it stays the path for every
 	// shape that already worked, and this only engages where that path
 	// would previously have failed.
-      if (!need_const && packed_base_needs_expr_(des, scope, net->sig())) {
+      if (!need_const && net->sig()->unpacked_dimensions() == 0
+	  && packed_base_needs_expr_(des, scope, net->sig(),
+				     path_.back().index)) {
 	    unsigned long sel_wid = 0;
 	    NetExpr*base = collapse_packed_base(des, scope, this, net->sig(),
 						path_.back().index, sel_wid);
 	    if (base && sel_wid > 0) {
 		  base->set_line(*this);
-		  NetESelect*res = new NetESelect(net, base, sel_wid);
+		  ivl_type_t selected = packed_select_type_(net->sig(),
+							 path_.back().index,
+							 sel_wid);
+		  NetESelect*res = selected
+			? new NetESelect(net, base, sel_wid, selected)
+			: new NetESelect(net, base, sel_wid);
 		  res->set_line(*this);
 		  return res;
 	    }
@@ -18332,13 +18386,20 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 	// i has to take the general computed-base path. This test is false
 	// for every shape the prefix path already handles, so that path
 	// stays in charge of them.
-      if (packed_base_needs_expr_(des, scope, node->sig())) {
+      if (node->sig()->unpacked_dimensions() == 0
+	  && packed_base_needs_expr_(des, scope, node->sig(),
+				 path_.back().index)) {
 	    unsigned long sel_wid = 0;
 	    NetExpr*pbase = collapse_packed_base(des, scope, this, node->sig(),
 						 path_.back().index, sel_wid);
 	    if (pbase && sel_wid > 0) {
 		  pbase->set_line(*this);
-		  NetESelect*res = new NetESelect(node, pbase, sel_wid);
+		  ivl_type_t selected = packed_select_type_(node->sig(),
+							 path_.back().index,
+							 sel_wid);
+		  NetESelect*res = selected
+			? new NetESelect(node, pbase, sel_wid, selected)
+			: new NetESelect(node, pbase, sel_wid);
 		  res->set_line(*this);
 		  return res;
 	    }

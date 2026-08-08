@@ -21136,7 +21136,7 @@ bool of_WAIT_VIF_ANYEDGE(vthread_t thr, vvp_code_t cp)
 	    assert(vif);
       }
 
-      vvp_fun_edge_sa*edge = vif->get_anyedge_functor(cp->number);
+      vvp_fun_anyedge_sa*edge = vif->get_anyedge_functor(cp->number);
 
       thr->waiting_for_event = 1;
       thr->wait_next = edge->add_waiting_thread(thr);
@@ -21151,7 +21151,7 @@ bool of_WAIT_VIF_ANYEDGE(vthread_t thr, vvp_code_t cp)
  * the first edge removes every sibling registration before scheduling it. */
 bool of_WAIT_VIF_ANYEDGE_MULTI(vthread_t thr, vvp_code_t cp)
 {
-      std::set<vvp_fun_edge_sa*>edges;
+      std::set<vvp_fun_anyedge_sa*>edges;
       for (unsigned idx = 0 ; idx < cp->number ; idx += 1) {
             vvp_vector4_t member_vec = thr->pop_vec4();
             unsigned member = 0;
@@ -21182,7 +21182,7 @@ bool of_WAIT_VIF_ANYEDGE_MULTI(vthread_t thr, vvp_code_t cp)
 
       thr->waiting_for_event = 1;
       thr->wait_next = 0;
-      for (std::set<vvp_fun_edge_sa*>::const_iterator edge = edges.begin();
+      for (std::set<vvp_fun_anyedge_sa*>::const_iterator edge = edges.begin();
            edge != edges.end(); ++edge)
             (*edge)->add_multi_waiting_thread(thr);
       return false;

@@ -65,6 +65,17 @@ static vvp_signal_value* get_signal_value_(__vpiSignal*sig)
       return vsig;
 }
 
+static void seed_signal_functor_(__vpiSignal*sig, vvp_net_t*probe_net)
+{
+      vvp_signal_value*vsig = get_signal_value_(sig);
+      if (!vsig || !probe_net || !probe_net->fun)
+	    return;
+
+      vvp_vector4_t cur;
+      vsig->vec4_value(cur);
+      probe_net->fun->recv_vec4(vvp_net_ptr_t(probe_net, 0), cur, 0);
+}
+
 static __vpiSignal* resolve_signal_index_(__vpiSignal*sig, size_t idx)
 {
       if (!sig || idx == 0)
@@ -427,6 +438,7 @@ vvp_fun_edge_sa* vvp_vinterface::get_posedge_functor(size_t M)
 	    vvp_net_t*edge_net = new vvp_net_t;
 	    edge_net->fun = fun;
 
+	    seed_signal_functor_(sig, edge_net);
 	    sig->node->link(vvp_net_ptr_t(edge_net, 0));
 	    posedge_functors_[M] = fun;
       }
@@ -449,6 +461,7 @@ vvp_fun_edge_sa* vvp_vinterface::get_negedge_functor(size_t M)
 	    vvp_net_t*edge_net = new vvp_net_t;
 	    edge_net->fun = fun;
 
+	    seed_signal_functor_(sig, edge_net);
 	    sig->node->link(vvp_net_ptr_t(edge_net, 0));
 	    negedge_functors_[M] = fun;
       }
@@ -456,7 +469,7 @@ vvp_fun_edge_sa* vvp_vinterface::get_negedge_functor(size_t M)
       return negedge_functors_[M];
 }
 
-vvp_fun_edge_sa* vvp_vinterface::get_anyedge_functor(size_t M)
+vvp_fun_anyedge_sa* vvp_vinterface::get_anyedge_functor(size_t M)
 {
       if (M >= anyedge_functors_.size())
 	    anyedge_functors_.resize(M + 1, nullptr);
@@ -467,10 +480,11 @@ vvp_fun_edge_sa* vvp_vinterface::get_anyedge_functor(size_t M)
 	    __vpiSignal*sig = dynamic_cast<__vpiSignal*>(slot.handle);
 	    assert(sig && sig->node);
 
-	    vvp_fun_edge_sa*fun = new vvp_fun_edge_sa(vvp_edge_edge);
+	    vvp_fun_anyedge_sa*fun = new vvp_fun_anyedge_sa;
 	    vvp_net_t*edge_net = new vvp_net_t;
 	    edge_net->fun = fun;
 
+	    seed_signal_functor_(sig, edge_net);
 	    sig->node->link(vvp_net_ptr_t(edge_net, 0));
 	    anyedge_functors_[M] = fun;
       }

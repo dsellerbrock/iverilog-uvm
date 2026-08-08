@@ -682,8 +682,21 @@ vvp_fun_anyedge_sa::vvp_fun_anyedge_sa()
 {
 }
 
+static std::map<vthread_t, std::set<vvp_fun_anyedge_sa*> >
+      vif_multi_wait_anyedges_;
+
 vvp_fun_anyedge_sa::~vvp_fun_anyedge_sa()
 {
+      for (std::set<vthread_t>::const_iterator cur = multi_threads_.begin();
+           cur != multi_threads_.end(); ++cur) {
+            std::map<vthread_t, std::set<vvp_fun_anyedge_sa*> >::iterator found =
+                  vif_multi_wait_anyedges_.find(*cur);
+            if (found == vif_multi_wait_anyedges_.end())
+                  continue;
+            found->second.erase(this);
+            if (found->second.empty())
+                  vif_multi_wait_anyedges_.erase(found);
+      }
 }
 
 vthread_t vvp_fun_anyedge_sa::add_waiting_thread(vthread_t thread)
@@ -694,6 +707,34 @@ vthread_t vvp_fun_anyedge_sa::add_waiting_thread(vthread_t thread)
       return tmp;
 }
 
+void vvp_fun_anyedge_sa::add_multi_waiting_thread(vthread_t thread)
+{
+      if (!thread)
+            return;
+      multi_threads_.insert(thread);
+      vif_multi_wait_anyedges_[thread].insert(this);
+}
+
+void vvp_fun_anyedge_sa::run_multi_waiting_threads_()
+{
+      std::set<vthread_t>waiters;
+      waiters.swap(multi_threads_);
+      for (std::set<vthread_t>::const_iterator cur = waiters.begin();
+           cur != waiters.end(); ++cur) {
+            vthread_t thread = *cur;
+            std::map<vthread_t, std::set<vvp_fun_anyedge_sa*> >::iterator found =
+                  vif_multi_wait_anyedges_.find(thread);
+            if (found != vif_multi_wait_anyedges_.end()) {
+                  std::set<vvp_fun_anyedge_sa*> siblings = found->second;
+                  vif_multi_wait_anyedges_.erase(found);
+                  for (std::set<vvp_fun_anyedge_sa*>::const_iterator edge =
+                       siblings.begin(); edge != siblings.end(); ++edge)
+                        (*edge)->multi_threads_.erase(thread);
+            }
+            vthread_schedule_mutation_waiter(thread);
+      }
+}
+
 void vvp_fun_anyedge_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                    vvp_context_t)
 {
@@ -701,6 +742,7 @@ void vvp_fun_anyedge_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
       assert(value);
       if (value->recv_vec4(bit)) {
 	    run_waiting_threads_(threads_);
+	    run_multi_waiting_threads_();
 	    vvp_net_t*net = port.ptr();
 	    net->send_vec4(bit, 0);
       }
@@ -713,6 +755,7 @@ void vvp_fun_anyedge_sa::recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&bi
       assert(value);
       if (value->recv_vec4_pv(bit, base, vwid)) {
 	    run_waiting_threads_(threads_);
+	    run_multi_waiting_threads_();
 	    vvp_net_t*net = port.ptr();
 	    net->send_vec4(bit, 0);
       }
@@ -725,6 +768,7 @@ void vvp_fun_anyedge_sa::recv_real(vvp_net_ptr_t port, double bit,
       assert(value);
       if (value->recv_real(bit)) {
 	    run_waiting_threads_(threads_);
+	    run_multi_waiting_threads_();
 	    vvp_net_t*net = port.ptr();
 	    net->send_vec4(vvp_vector4_t(), 0);
       }
@@ -737,6 +781,7 @@ void vvp_fun_anyedge_sa::recv_string(vvp_net_ptr_t port, const std::string&bit,
       assert(value);
       if (value->recv_string(bit)) {
 	    run_waiting_threads_(threads_);
+	    run_multi_waiting_threads_();
 	    vvp_net_t*net = port.ptr();
 	    net->send_vec4(vvp_vector4_t(), 0);
       }
@@ -753,6 +798,7 @@ void vvp_fun_anyedge_sa::recv_object(vvp_net_ptr_t port, vvp_object_t,
             fprintf(stderr, "trace anyedge-sa recv_object net=%p\n", (void*)port.ptr());
       }
       run_waiting_threads_(threads_);
+      run_multi_waiting_threads_();
       vvp_net_t*net = port.ptr();
       net->send_vec4(vvp_vector4_t(), 0);
 }
