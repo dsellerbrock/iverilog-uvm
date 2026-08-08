@@ -573,6 +573,17 @@ bool PEIdent::has_aa_term(Design*des, NetScope*scope) const
       if (!sr.path_tail.empty() && sr.net && sr.net->class_type())
 	    return false;
 
+      if (sr.net) {
+	    switch (sr.net->lifetime_override()) {
+		case IVL_VLT_AUTOMATIC:
+		      return true;
+		case IVL_VLT_STATIC:
+		      return false;
+		case IVL_VLT_INHERITED:
+		      break;
+	    }
+      }
+
       return sr.scope->is_auto();
 }
 

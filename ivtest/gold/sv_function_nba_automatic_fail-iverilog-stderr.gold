@@ -1,0 +1,3 @@
+ivltests/sv_function_nba_automatic_fail.v:6: error: automatically allocated variables may not be assigned values using non-blocking assignments.
+ivltests/sv_function_nba_automatic_fail.v:6: error: Unable to elaborate statement in function bad.
+2 error(s) during elaboration.

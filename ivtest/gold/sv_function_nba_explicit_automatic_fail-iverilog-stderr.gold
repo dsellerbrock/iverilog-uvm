@@ -1,0 +1,7 @@
+ivltests/sv_function_nba_explicit_automatic_fail.v:10: error: automatically allocated variables may not be assigned values using non-blocking assignments.
+ivltests/sv_function_nba_explicit_automatic_fail.v:10: error: Unable to elaborate statement in function bad.
+ivltests/sv_function_nba_explicit_automatic_fail.v:15: error: automatically allocated variables may not be referenced in intra-assignment event controls of non-blocking assignments.
+ivltests/sv_function_nba_explicit_automatic_fail.v:15: error: Unable to elaborate statement in function bad_count.
+ivltests/sv_function_nba_explicit_automatic_fail.v:20: error: automatically allocated variables may not be referenced in intra-assignment event controls of non-blocking assignments.
+ivltests/sv_function_nba_explicit_automatic_fail.v:20: error: Unable to elaborate statement in function bad_event.
+6 error(s) during elaboration.

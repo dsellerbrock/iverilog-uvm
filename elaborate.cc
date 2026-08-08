@@ -5953,29 +5953,32 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
 
-      if (scope->in_func()) {
-	    if (gn_system_verilog()) {
-		  // SV compile-progress: some tools allow non-blocking assignments
-		  // in functions for interface signal driving. Treat as blocking.
-		  cerr << get_fileline() << ": warning: non-blocking assignment in "
-			  "function (compile-progress: treated as blocking)." << endl;
-		  // Actually elaborate as blocking assignment to avoid NB-in-function assert.
-		  NetAssign_*lv_blk = elaborate_lval(des, scope);
-		  if (lv_blk == 0) return 0;
-		  NetExpr*rv_blk = elaborate_rval_(des, scope, lv_blk->net_type(),
-						   lv_blk->expr_type(),
-						   count_lval_width(lv_blk));
-		  if (rv_blk == 0) return 0;
-		  NetAssign*cur_blk = new NetAssign(lv_blk, rv_blk);
-		  cur_blk->set_line(*this);
-		  return cur_blk;
-	    } else {
+      NetScope*function_scope = scope;
+      while (function_scope
+	     && (function_scope->type() == NetScope::BEGIN_END
+	         || function_scope->type() == NetScope::FORK_JOIN))
+	    function_scope = function_scope->parent();
+
+      if (function_scope && function_scope->in_func()) {
+	    if (!gn_system_verilog()) {
 		  cerr << get_fileline() << ": error: functions cannot have non "
 			  "blocking assignment statements." << endl;
 		  des->errors += 1;
 		  return 0;
 	    }
+
+	      // A scheduled background update is never a constant-function
+	      // operation. Mark this before any early return from elaboration so
+	      // compile-time evaluation cannot silently treat the NBA as a no-op.
+	    function_scope->is_const_func(false);
       }
+
+	/* IEEE 1800-2017 13.4.4 permits a SystemVerilog function to
+	   schedule a nonblocking assignment because the function itself does
+	   not suspend. Do not turn that assignment into an immediate blocking
+	   store. The ordinary NBA path below captures the RHS and persistent
+	   target now and schedules the update; its automatic-allocation check
+	   still rejects an automatic variable as required by 10.4.2. */
 
       if (scope->in_final()) {
 	    cerr << get_fileline() << ": error: final procedures cannot have "
@@ -5984,7 +5987,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 	    return 0;
       }
 
-      if (scope->is_auto() && lval()->has_aa_term(des, scope)) {
+      if (lval()->has_aa_term(des, scope)) {
 	    cerr << get_fileline() << ": error: automatically allocated "
                     "variables may not be assigned values using non-blocking "
 	            "assignments." << endl;
@@ -6229,7 +6232,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       NetEvWait*event = 0;
       if (count_ != 0 || event_ != 0) {
 	    if (count_ != 0) {
-                  if (scope->is_auto() && count_->has_aa_term(des, scope)) {
+		  if (count_->has_aa_term(des, scope)) {
                         cerr << get_fileline() << ": error: automatically "
                                 "allocated variables may not be referenced "
                                 "in intra-assignment event controls of "
@@ -6248,7 +6251,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 		  }
 	    }
 
-            if (scope->is_auto() && event_->has_aa_term(des, scope)) {
+            if (event_->has_aa_term(des, scope)) {
                   cerr << get_fileline() << ": error: automatically "
                           "allocated variables may not be referenced "
                           "in intra-assignment event controls of "

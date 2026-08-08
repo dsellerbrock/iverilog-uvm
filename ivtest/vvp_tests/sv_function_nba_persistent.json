@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_function_nba_persistent.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_function_nba_persistent"
+}

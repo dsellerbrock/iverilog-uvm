@@ -1,0 +1,2 @@
+ivltests/function_nba_verilog_fail.v:9: error: functions cannot have non blocking assignment statements.
+1 error(s) during elaboration.

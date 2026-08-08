@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_function_nba_explicit_automatic_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_function_nba_explicit_automatic_fail"
+}

@@ -2060,6 +2060,73 @@ nonconformant no-op behavior.
 
 ---
 
+## G69 — function-contained persistent-target NBAs executed as blocking assignments — **fixed subset** [general] (was a loud semantic fallback)
+
+The clean G68 `tl_agent_sim` compile retained nine frontend warnings at
+`tl_device_driver.sv:111-119`. They are legal SystemVerilog nonblocking
+assignments inside `invalidate_d_channel()`, a function whose targets are
+constant packed fields of the persistent virtual-interface property
+`cfg.vif.d2h_int`. IEEE 1800-2017 13.4.4 permits a function to schedule
+background work because the function does not suspend; 10.4.2 forbids an NBA
+to an automatic variable, not an NBA reached through a captured class or
+virtual-interface receiver. The inherited fallback instead constructed
+blocking `NetAssign` nodes and updated those fields in Active.
+
+SystemVerilog function bodies now retain `NetAssignNB` and use the normal NBA
+lowering, including M4C-8's receiver/RHS capture and event-time packed-field
+merge. For direct vec4 locals and intra-assignment controls, the frontend
+distinguishes inherited, explicit `static`, and explicit `automatic`
+declaration lifetime before accepting a target/reference. It also marks any
+function containing an NBA nonconstant before later elaboration can return, so
+constant evaluation rejects the function rather than silently treating the
+scheduled update as a no-op. IEEE-1364 function NBAs remain compile errors.
+
+`sv_function_nba_persistent` value-checks Active and Inactive invisibility,
+the eventual NBA value, two disjoint packed-field updates, receiver and input
+snapshots across `cfg.vif` rebinding, an ordinary module target, and an
+explicit-static local inside an automatic function. Exact diagnostic tests
+retain rejection of inherited and explicit automatic locals, use of an
+NBA-bearing function in a constant expression, and an IEEE-1364 function NBA
+hidden under a named block. Slang 11.0.415 accepts the positive runtime shape
+and rejects the illegal controls under IEEE 1800-2017. The durable differential
+summary is workspace-root-relative
+`evidence/function-nba-slang-20260808/SUMMARY.md`, SHA-256
+`c52ce25981214f0986ce6aa4ce81c219f117dca3a47c6287bf6ed0ead3f64ae3`.
+
+A serial replay from the clean detached OpenTitan worktree at
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` stayed at compiler exit 0 and zero
+hard errors while semantic debt fell exactly 50→41. The matrix runner exits 1
+because the job remains **DEBT**; this is compile/elaboration evidence only,
+not UVM runtime closure. The compile log contains 52 warning lines, zero error,
+`sorry`, internal-error, or crash lines. The nine removed diagnostics are
+exactly `tl_device_driver.sv:111-119`, with no additions. Report JSON SHA-256:
+`2ffcb09c35d32cd8ddd0dc6c0a03c3b4a315788e88602de7604a97ee5357c7a5`;
+compile-log SHA-256:
+`709d4df75d691b284a9b1dd58b57306e157356be2e0e3da3e561c4bedd38886e`;
+compiler source-list SHA-256:
+`8731d9ab6a3959bd85cd930a07a50db463613b895fe3341b42a97aec1a732fc5`
+(the raw generated list embeds its evidence-directory name); underlying
+FuseSoC source-list SHA-256:
+`9555d7985b5266b54399c22dc97e0f42d04fbe23793475313c78dfd126ac99f3`;
+installed compiler-engine SHA-256:
+`c1c3e9b251d116d8c226bf9cbd2aad134a32618e2bcad0b8caadf3fbee1a9346`.
+Corpus status including ignored paths was empty before and after the run;
+compiler diff/status fingerprints and every installed compiler component were
+unchanged across it. The hashed JSON records the exact setup/compile commands
+and complete driver/compiler/target/runtime fingerprints; evidence root:
+workspace-root-relative
+`evidence/opentitan-7a3ad34-a179a1010/uvm-tl-agent-function-nba`. Its exact
+runner-command/provenance summary has SHA-256
+`013f5c3fee8fd81d3cffc676a3888442d1bc68b8466db74a9510ae825f284310`.
+
+This is not full 10.4.2/13.4.4 closure. Remaining work includes enforcing
+eligible call origins beyond constant-expression use, dynamically sized array
+and queue targets, legal automatic aggregates containing captured class/VIF
+handles, and runtime evidence for program/Re-NBA and freshly allocated
+function-local object receivers.
+
+---
+
 ## Two measurement traps worth remembering
 
 **The error count is not a progress metric while the parser can still give
