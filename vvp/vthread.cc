@@ -19773,12 +19773,40 @@ bool of_ASSIGN_PROP_V(vthread_t thr, vvp_code_t cp)
       vvp_vector4_t val;
       pop_prop_val(thr, val, wid);
 
+      vvp_object_t root_obj = thr->peek_object_root(0);
       vvp_object_t obj;
       thr->pop_object(obj);
       if (obj.test_nil())
 	    return true;
 
-      schedule_assign_prop_vec4(obj, pid, val, delay);
+      schedule_assign_prop_vec4(obj, pid, val, root_obj, delay,
+				vthread_is_reactive(thr));
+      return true;
+}
+
+/*
+ * %assign/prop/v/bits <pid>, <delay>, <bitoff>
+ *
+ * Capture a constant packed field assignment now, then read-modify-write
+ * the containing vec4 property when the NBA event executes. The value's
+ * stack width is the selected-field width: code generation emits an
+ * unconditional %pad immediately before this opcode.
+ */
+bool of_ASSIGN_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
+{
+      unsigned pid = cp->number;
+      unsigned delay = cp->bit_idx[0];
+      uint64_t bitoff = cp->bit_idx[1];
+
+      vvp_vector4_t val = thr->pop_vec4();
+      vvp_object_t root_obj = thr->peek_object_root(0);
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (obj.test_nil())
+	    return true;
+
+      schedule_assign_prop_vec4_bits(obj, pid, bitoff, val, root_obj, delay,
+				     vthread_is_reactive(thr));
       return true;
 }
 

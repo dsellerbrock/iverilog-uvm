@@ -2007,6 +2007,59 @@ The detached corpus was clean before and after the serial run.
 
 ---
 
+## G68 — nested-VIF packed-field NBAs executed as blocking assignments — **fixed subset** [general] (was a loud semantic fallback)
+
+The clean G67 `tl_agent_sim` compile exposed 13 target warnings at
+`tl_device_driver.sv:26,74-82` and `tl_host_driver.sv:134,366-367`. Each
+legal nonblocking assignment targets a constant packed-struct field through a
+nested virtual-interface receiver such as `cfg.vif.d2h_int.d_valid`. Generated
+VVP used immediate `%store/prop/v/bits`, so the warning described a real
+Active-region miscompile rather than cosmetic debt. IEEE 1800-2017 10.4.2
+requires the RHS and receiver to be evaluated when the statement executes and
+the update to occur later in NBA (or Re-NBA for a program process).
+
+`%assign/prop/v/bits` now captures the selected receiver and self-sized RHS.
+Its scheduler event reads the current containing property and merges the
+constant field only when the event runs. Event-time RMW is essential: taking a
+whole-property snapshot at statement execution would make simultaneous
+disjoint field NBAs clobber one another. FIFO event order preserves later
+overlapping writes as well as whole-property/field ordering. Both the existing
+whole-property event and the new field event select NBA versus Re-NBA from the
+executing process. Unsupported dynamic/indexed, variable-delay, and
+event/repeat-controlled property forms now terminate code generation with a
+target error instead of falling back to blocking execution.
+
+`sv_nba_property_field` value-checks Active/Inactive invisibility, disjoint and
+overlapping merges, whole/field order in both directions, receiver and RHS
+snapshots, the nested `cfg.vif` task shape, constant delay, nested-class wait
+wakeup, and the underlying VIF signal event. `sv_nba_property_reactive` pins
+Re-Inactive before Re-NBA and direct class-property mutation wakeup with a
+finite watchdog. `sv_nba_property_dynamic_fail` pins one legal residual as an
+exact nonzero diagnostic; Slang 11.0.415 accepts all three source shapes under
+IEEE 1800-2017.
+
+A serial replay from the clean detached OpenTitan worktree at
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` stayed at compile exit 0 and zero
+hard errors while semantic debt fell exactly 63→50. Raw diagnostics contain 61
+warning lines, zero errors, zero `sorry`, and zero internal-error/crash lines;
+the matrix remains **DEBT** and is compile/elaboration evidence only, not UVM
+runtime closure. The report JSON SHA-256 is
+`dc3511318325d0a2080af8360e9a98f00e8d60c00f3a00633a40b8010c6efcd7`;
+the exact source-list SHA-256 is
+`86dfb7eefe8ff65072b93d1e2b18e6d71234e70150df6afa3448a7ec0fa0451a`.
+The installed driver/compiler/target/runtime hashes were unchanged before and
+after; the target hash for this checkpoint is
+`0dbc8a36e2790c8f04485ccc6a0fe5f7a44808904fd304e201bd0bfecbef38bb`.
+Compiler diff and corpus status fingerprints were also unchanged across the
+run, and the corpus remained clean including ignored-file status.
+
+This is a fixed subset, not full property-NBA closure. Dynamic/indexed and
+property-array targets remain loud, full root-net/VPI mutation callback
+propagation is not proven, and null-receiver handling retains an older
+nonconformant no-op behavior.
+
+---
+
 ## Two measurement traps worth remembering
 
 **The error count is not a progress metric while the parser can still give

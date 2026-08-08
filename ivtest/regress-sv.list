@@ -1174,6 +1174,9 @@ sv_struct_member_partial_read normal,-g2012 ivltests
 sv_container_elem_read_defaults normal,-g2012 ivltests
 sv_array_word_part_compound normal,-g2012 ivltests
 sv_nba_class_property normal,-g2012 ivltests
+sv_nba_property_field normal,-g2012 ivltests
+sv_nba_property_reactive normal,-g2012 ivltests
+sv_nba_property_dynamic_fail CE,-g2012 ivltests
 sv_class_vif_property_assignment_width normal,-g2012 ivltests
 sv_assoc_elem_partial_write normal,-g2012 ivltests
 sv_multidim_oob_write normal,-g2012 ivltests

@@ -1065,17 +1065,34 @@ void schedule_final_vthread(vthread_t thr)
 
 struct assign_prop_vec4_event_s : public event_s {
       explicit assign_prop_vec4_event_s(const vvp_object_t&o, unsigned p,
-					const vvp_vector4_t&v)
-      : obj(o), pid(p), val(v) { next = NULL; }
+					const vvp_vector4_t&v,
+					const vvp_object_t&r)
+      : obj(o), pid(p), val(v), root_obj(r) { next = NULL; }
       vvp_object_t obj;
       unsigned pid;
       vvp_vector4_t val;
+      vvp_object_t root_obj;
       void run_run(void) override
       {
+	    vvp_vector4_t current;
 	    if (vvp_cobject*cobj = obj.peek<vvp_cobject>()) {
+		  cobj->get_vec4(pid, current, 0);
+		  if (current.size() == val.size() && current.eeq(val))
+			return;
 		  cobj->set_vec4(pid, val, 0);
 	    } else if (vvp_vinterface*vif = obj.peek<vvp_vinterface>()) {
+		  vif->get_vec4(pid, current, 0);
+		  if (current.size() == val.size() && current.eeq(val))
+			return;
 		  vif->set_vec4(pid, val, 0);
+		  obj.touch();
+	    } else {
+		  return;
+	    }
+	    obj.notify_signal_aliases();
+	    if (!root_obj.test_nil() && root_obj != obj) {
+		  root_obj.touch();
+		  root_obj.notify_signal_aliases();
 	    }
       }
       void single_step_display(void) override
@@ -1083,11 +1100,80 @@ struct assign_prop_vec4_event_s : public event_s {
 };
 
 void schedule_assign_prop_vec4(const vvp_object_t&obj, unsigned pid,
-			       const vvp_vector4_t&val, vvp_time64_t delay)
+			       const vvp_vector4_t&val,
+			       const vvp_object_t&root_obj,
+			       vvp_time64_t delay, bool reactive)
 {
       struct assign_prop_vec4_event_s*cur =
-	    new assign_prop_vec4_event_s(obj, pid, val);
-      schedule_event_(cur, delay, SEQ_NBASSIGN);
+	    new assign_prop_vec4_event_s(obj, pid, val, root_obj);
+	  schedule_event_(cur, delay, reactive ? SEQ_RE_NBASSIGN
+					       : SEQ_NBASSIGN);
+}
+
+struct assign_prop_vec4_bits_event_s : public event_s {
+      explicit assign_prop_vec4_bits_event_s(const vvp_object_t&o, unsigned p,
+					     uint64_t b,
+					     const vvp_vector4_t&v,
+					     const vvp_object_t&r)
+      : obj(o), pid(p), bitoff(b), val(v), root_obj(r) { next = NULL; }
+      vvp_object_t obj;
+      unsigned pid;
+      uint64_t bitoff;
+      vvp_vector4_t val;
+      vvp_object_t root_obj;
+      void run_run(void) override
+      {
+	    vvp_vector4_t current;
+	    vvp_cobject*cobj = obj.peek<vvp_cobject>();
+	    vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+	    if (cobj)
+		  cobj->get_vec4(pid, current, 0);
+	    else if (vif)
+		  vif->get_vec4(pid, current, 0);
+	    else
+		  return;
+
+	    bool changed = false;
+	    for (uint64_t idx = 0 ; idx < val.size() ; idx += 1) {
+		  uint64_t dst = bitoff + idx;
+		  if (dst < bitoff || dst >= current.size())
+			continue;
+		  vvp_bit4_t bit = val.value((unsigned)idx);
+		  if (current.value((unsigned)dst) != bit) {
+			current.set_bit((unsigned)dst, bit);
+			changed = true;
+		  }
+	    }
+	    if (!changed)
+		  return;
+
+	    if (cobj)
+		  cobj->set_vec4(pid, current, 0);
+	    else {
+		  vif->set_vec4(pid, current, 0);
+		  obj.touch();
+	    }
+	    obj.notify_signal_aliases();
+	    if (!root_obj.test_nil() && root_obj != obj) {
+		  root_obj.touch();
+		  root_obj.notify_signal_aliases();
+	    }
+      }
+      void single_step_display(void) override
+      { std::cerr << "assign_prop_vec4_bits_event: pid=" << pid
+		  << " bitoff=" << bitoff << std::endl; }
+};
+
+void schedule_assign_prop_vec4_bits(const vvp_object_t&obj, unsigned pid,
+				    uint64_t bitoff,
+				    const vvp_vector4_t&val,
+				    const vvp_object_t&root_obj,
+				    vvp_time64_t delay, bool reactive)
+{
+      struct assign_prop_vec4_bits_event_s*cur =
+	    new assign_prop_vec4_bits_event_s(obj, pid, bitoff, val, root_obj);
+      schedule_event_(cur, delay, reactive ? SEQ_RE_NBASSIGN
+					  : SEQ_NBASSIGN);
 }
 
 void schedule_assign_vector(vvp_net_ptr_t ptr,
