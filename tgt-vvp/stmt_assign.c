@@ -2666,25 +2666,33 @@ static void resize_property_vec4_wid(ivl_expr_t expr, unsigned wid)
 }
 
 /* Nonblocking assignment to a vec4 class-object / virtual-interface
-   property: `obj.prop <= [#d] value` (IEEE 1800-2017 10.4.2). Evaluates
-   the receiver and the r-value NOW and schedules the store in the NBA
-   region via %assign/prop/v. Returns 0 on success, -1 when the l-value
-   form is not (yet) supported here so the caller can fall back (loudly).
-   Increment 1 scope: single l-value, whole-property store (no part/index),
-   vec4 property type. */
+   property: `obj.prop <= [#d] value` or a constant packed field thereof
+   (IEEE 1800-2017 10.4.2). Evaluates the receiver and the r-value NOW and
+   schedules the store in the NBA region via %assign/prop/v[/bits]. Returns
+   0 on success and -1 when the l-value form is not supported here. The
+   caller must reject that residual; executing it as a blocking assignment
+   would be a silent event-region miscompile. */
 int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
 {
       ivl_lval_t lval = ivl_stmt_lval(net, 0);
       ivl_expr_t rval = ivl_stmt_rval(net);
+      ivl_expr_t part_off_ex = ivl_lval_part_off(lval);
       unsigned lwid = ivl_lval_width(lval);
       int prop_idx = ivl_lval_property_idx(lval);
+      unsigned bitoff = 0;
 
       if (ivl_stmt_lvals(net) != 1)
 	    return -1;
       if (prop_idx < 0)
 	    return -1;
-      if (ivl_lval_idx(lval) || ivl_lval_part_off(lval))
+      if (ivl_lval_idx(lval))
 	    return -1;
+      if (part_off_ex) {
+	    if (!number_is_immediate(part_off_ex, 32, 0) ||
+	        number_is_unknown(part_off_ex))
+		  return -1;
+	    bitoff = (unsigned)ivl_expr_uvalue(part_off_ex);
+      }
       if (ivl_stmt_opcode(net) != 0)
 	    return -1;
       if (delay > 0xffffffffUL)
@@ -2705,10 +2713,17 @@ int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
 	  ivl_expr_value(rval) != IVL_VT_BOOL)
 	    fprintf(vvp_out, "    %%cast2;\n");
 
-      fprintf(vvp_out, "    %%assign/prop/v %d, %lu, %u;"
-	      " NBA store to property %s\n",
-	      prop_idx, (unsigned long)delay, lwid,
-	      ivl_type_prop_name(sig_type, prop_idx));
+      if (part_off_ex) {
+	    fprintf(vvp_out, "    %%assign/prop/v/bits %d, %lu, %u;"
+		    " NBA store to field [%u+:%u] of property %s\n",
+		    prop_idx, (unsigned long)delay, bitoff, bitoff, lwid,
+		    ivl_type_prop_name(sig_type, prop_idx));
+      } else {
+	    fprintf(vvp_out, "    %%assign/prop/v %d, %lu, %u;"
+		    " NBA store to property %s\n",
+		    prop_idx, (unsigned long)delay, lwid,
+		    ivl_type_prop_name(sig_type, prop_idx));
+      }
       return 0;
 }
 

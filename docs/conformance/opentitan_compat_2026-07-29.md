@@ -208,6 +208,14 @@ behind them. That is progress, not regression.
 
 ## Remaining gaps, in rough priority order
 
+**2026-08-08 qualification.** Item 3 is now implemented only for the focused
+instance-sized implication/cover shapes: their parameter bounds survive to
+instance elaboration and honor overrides, while invalid bounds fail loudly.
+General symbolic compositions remain open. Item 1 is now routed in additional
+NFA shapes, but its multi-endpoint implication semantics remain a correctness
+blocker rather than a closure: each antecedent endpoint needs an independent
+consequent obligation.
+
 1. **Variable-length implication antecedents** — `a ##[1:3] b |=> c` and
    friends. See the DV section. Architectural.
 2. **Sequence combinators as an implication operand** — `(a or b) |-> c`.
@@ -340,6 +348,12 @@ with its own obligation — the automaton engine can express that, but the
 assert-property lowering does not route antecedents through it.
 `prim_alert_receiver` and `prim_diff_decode` need this. It is architectural
 and wants a design pass, not a grammar line.
+
+**2026-08-08 update:** focused parameter-sized implication/cover forms now
+use an instance-sized count pipeline. General NFA-routed variable antecedents
+are still not conformant when one attempt has multiple match endpoints,
+because those endpoints are merged instead of spawning independent consequent
+obligations.
 
 ## How to reproduce
 
@@ -563,6 +577,13 @@ production that fails with a NAMED diagnostic instead of a bare syntax
 error, which stops the parser desync and collapses the cascade.
 
 ## 2. Parameterized sequence bounds (assertions compile but are DROPPED)
+
+**2026-08-08 update:** the focused direct/one-prefix implication and cover
+lowering now retains supported symbolic repetition and bounded-consequence
+expressions until instance elaboration, honors overrides, and rejects
+negative/X/Z/reversed values. Standalone symbolic repetition ranges and other
+general compositions remain loud unsupported; the historical diagnosis below
+describes the earlier parse-time lowering.
 
 ```systemverilog
 ##[0:SkewCycles] rise_o

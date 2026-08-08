@@ -1,5 +1,5 @@
-// This just tests the compiler accepts the syntax. It needs to be improved
-// when deferred assumeions are supported.
+// Supported observed-deferred assume action shapes share the assertion
+// report-queue semantics.
 module test();
 
 integer i = 1;

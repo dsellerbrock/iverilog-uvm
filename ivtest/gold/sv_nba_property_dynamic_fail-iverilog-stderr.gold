@@ -1,0 +1,2 @@
+ivltests/sv_nba_property_dynamic_fail.v:12: vvp.tgt error: this nonblocking property assignment form is not yet supported without changing its NBA semantics.
+error: Code generation had 1 error(s).

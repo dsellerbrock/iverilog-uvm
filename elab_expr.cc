@@ -4593,7 +4593,8 @@ static NetExpr* elaborate_assoc_array_compat_method_(Design*des, NetScope*scope,
 	     * vvp_assoc_base (AA), vvp_darray, and vvp_queue objects.
 	     * Using $size goes through VPI which doesn't support AAs
 	     * and always returns 0 or 'x' for class-property AAs. */
-	    NetESFunc*sys_expr = new NetESFunc("$ivl_assoc_method$num", &netvector_t::atom2u32, 1);
+	    NetESFunc*sys_expr = new NetESFunc("$ivl_assoc_method$num",
+					    &netvector_t::atom2s32, 1);
 	    sys_expr->set_line(*li);
 	    sys_expr->parm(0, sub_expr);
 	    return sys_expr;
@@ -5392,6 +5393,28 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
       }
 
       while (method_path.size() > 1) {
+	    const name_component_t comp = method_path.front();
+
+	      // A method receiver can be a class handle stored in an
+	      // unpacked struct member. The expression elaborator below
+	      // already walks this shape; width/type analysis must follow
+	      // the same member so a discarded scalar method result is not
+	      // assigned to an object-typed temporary.
+	    if (const netstruct_t*struct_type =
+		      dynamic_cast<const netstruct_t*>(target_type)) {
+		  if (!comp.index.empty())
+			return 0;
+
+		  unsigned member_idx = struct_type->member_index(comp.name);
+		  if (member_idx == static_cast<unsigned>(-1))
+			return 0;
+
+		  target_type = struct_type->members()[member_idx].net_type;
+		  target_indexed = false;
+		  method_path.pop_front();
+		  continue;
+	    }
+
 	    const netclass_t*class_type = dynamic_cast<const netclass_t*>(target_type);
 	    if (!class_type) {
 		  if (debug_elaborate) {
@@ -5402,7 +5425,6 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  return 0;
 	    }
 
-	    const name_component_t comp = method_path.front();
 	    int pidx = ensure_class_property_idx_(des, class_type, comp.name);
 	    if (pidx < 0)
 		  return 0;
@@ -9355,11 +9377,11 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		// Built-in array method on a class-property darray/queue
 		if (tail_comp.name == "size" || tail_comp.name == "num") {
 		      NetESFunc*sys_expr = new NetESFunc("$ivl_assoc_method$num",
-							&netvector_t::atom2u32, 1);
+							&netvector_t::atom2s32, 1);
 		      sys_expr->set_line(*this);
 		      sys_expr->parm(0, base_expr);
 		      base_expr = sys_expr;
-		      cur_type = &netvector_t::atom2u32;
+		      cur_type = &netvector_t::atom2s32;
 		      continue;
 		}
 		// IEEE 1800-2017 7.12 reduction and min/max methods in
@@ -11283,7 +11305,7 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 			des->errors += 1;
 		  }
 		  NetESFunc*sys_expr = new NetESFunc("$ivl_queue_method$size",
-						     &netvector_t::atom2u32, 1);
+						     &netvector_t::atom2s32, 1);
 		  sys_expr->set_line(*this);
 		  sys_expr->parm(0, sub_expr);
 		  return sys_expr;
@@ -11442,7 +11464,7 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 			des->errors += 1;
 		  }
 		  NetESFunc*sys_expr = new NetESFunc("$ivl_queue_method$size",
-						     &netvector_t::atom2u32, 1);
+						     &netvector_t::atom2s32, 1);
 		  sys_expr->set_line(*this);
 		  sys_expr->parm(0, sub_expr);
 		  return sys_expr;
@@ -12741,14 +12763,18 @@ bool PEIdent::calculate_packed_indices_(Design*des, NetScope*scope, const NetNet
 }
 
 bool PEIdent::packed_base_needs_expr_(Design*des, NetScope*scope,
-				      const NetNet*net) const
+				      const NetNet*net,
+				      const list<index_component_t>&idx) const
 {
       if (!gn_system_verilog())
 	    return false;
-      if (!net || net->unpacked_dimensions() > 0)
+	/* The caller supplies PACKED indices only. Array-word paths first
+	   remove the unpacked prefix, so the same decision and collapse logic
+	   applies to both a pure packed signal and the packed element of an
+	   unpacked array. */
+      if (!net)
 	    return false;
 
-      const list<index_component_t>&idx = path_.back().index;
 	// A single index is already handled: it IS the final one.
       if (idx.size() < 2)
 	    return false;
@@ -12791,6 +12817,24 @@ bool PEIdent::packed_base_needs_expr_(Design*des, NetScope*scope,
 	    return false;
 
       return true;
+}
+
+static ivl_type_t packed_select_type_(const NetNet*net,
+				       const list<index_component_t>&indices,
+				       unsigned long select_width)
+{
+      for (list<index_component_t>::const_iterator cur = indices.begin()
+		 ; cur != indices.end() ; ++cur) {
+	    if (cur->sel != index_component_t::SEL_BIT)
+		  return 0;
+      }
+
+      ivl_type_t selected = packed_type_after_dims(net->net_type(),
+						    indices.size());
+      if (!selected || !selected->packed()
+	  || selected->packed_width() != (long)select_width)
+	    return 0;
+      return selected;
 }
 
 
@@ -14654,6 +14698,25 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		  }
 		  const name_component_t member_comp = sr.path_tail.front();
 		  if (member_comp.name == "size") {
+			/* Associative arrays are represented by netqueue_t with
+			 * assoc_compat() set. The ordinary $size lowering goes
+			 * through VPI's dynamic-array query path, which intentionally
+			 * rejects associative arrays. IEEE 1800-2017 7.9.1 defines
+			 * the no-parentheses `.size' spelling as the same live entry
+			 * count as `.num'; use the associative runtime object path. */
+			const netqueue_t*aq =
+			      dynamic_cast<const netqueue_t*>(sr.net->darray_type());
+			if (aq && aq->assoc_compat()) {
+			      NetESFunc*fun = new NetESFunc(
+				    "$ivl_assoc_method$num",
+				    &netvector_t::atom2s32, 1);
+			      fun->set_line(*this);
+			      NetESignal*arg = new NetESignal(sr.net);
+			      arg->set_line(*sr.net);
+			      fun->parm(0, arg);
+			      return fun;
+			}
+
 			NetESFunc*fun = new NetESFunc("$size",
 						      &netvector_t::atom2s32,
 						      1);
@@ -14664,6 +14727,21 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 
 			fun->parm(0, arg);
 			return fun;
+		  } else if (member_comp.name == "num") {
+			/* `.num' is an associative-array property, not a general
+			 * alias for queue/dynamic-array `.size'. */
+			const netqueue_t*aq =
+			      dynamic_cast<const netqueue_t*>(sr.net->darray_type());
+			if (aq && aq->assoc_compat()) {
+			      NetESFunc*fun = new NetESFunc(
+				    "$ivl_assoc_method$num",
+				    &netvector_t::atom2s32, 1);
+			      fun->set_line(*this);
+			      NetESignal*arg = new NetESignal(sr.net);
+			      arg->set_line(*sr.net);
+			      fun->parm(0, arg);
+			      return fun;
+			}
 		  } else if (member_comp.name == "find"
 			     || member_comp.name == "find_index"
 			     || member_comp.name == "find_first"
@@ -17286,6 +17364,31 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
       NetESignal*res = new NetESignal(net, canon_index);
       res->set_line(*this);
 
+	/* The unpacked word is now represented by res. Apply the remaining
+	   packed suffix relative to that word. In particular, a run-time
+	   index in a non-final packed dimension (a[word][i][j]) needs the
+	   general computed-base path just like a pure packed a[i][j]. */
+      list<index_component_t> packed_indices = name_tail.index;
+      for (size_t idx = 0 ; idx < net->unpacked_dimensions() ; idx += 1)
+	    packed_indices.pop_front();
+      if (!need_const
+	  && packed_base_needs_expr_(des, scope, net, packed_indices)) {
+	    unsigned long sel_wid = 0;
+	    NetExpr*base = collapse_packed_base(des, scope, this, net,
+					 packed_indices, sel_wid);
+	    if (base && sel_wid > 0) {
+		  base->set_line(*this);
+		  ivl_type_t selected = packed_select_type_(net,
+							 packed_indices, sel_wid);
+		  NetESelect*sel = selected
+			? new NetESelect(res, base, sel_wid, selected)
+			: new NetESelect(res, base, sel_wid);
+		  sel->set_line(*this);
+		  return sel;
+	    }
+	    delete base;
+      }
+
 	// Detect that the word has a bit/part select as well.
 
       index_component_t::ctype_t word_sel = index_component_t::SEL_NONE;
@@ -17462,13 +17565,10 @@ NetExpr* PEIdent::elaborate_expr_net_part_(Design*des, NetScope*scope,
 
       unsigned long wid = sb_msb - sb_lsb + 1;
 
-	// If the part select covers exactly the entire
-	// vector, then do not bother with it. Return the
-	// signal itself, casting to unsigned if necessary.
-      if (sb_lsb == 0 && wid == net->vector_width()) {
-	    net->cast_signed(false);
-	    return net;
-      }
+	/* Do not erase a full-width part select. Besides being unsigned, a
+	   select loses the named type of the whole object; returning `net'
+	   here made `enum_dst = enum_src[3:0]' look like an enum-to-enum
+	   assignment instead of the integral-to-enum cast violation it is. */
 
 	// If the part select covers NONE of the vector, then return a
 	// constant X.
@@ -17584,15 +17684,6 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 			      offset = -wid + 1;
 		        }
 		        rel_base = net->sig()->sb_to_idx(prefix_indices, lsv) + offset;
-		  }
-
-		    // If the part select covers exactly the entire
-		    // vector, then do not bother with it. Return the
-		    // signal itself.
-		  if (rel_base == 0 && wid == net->vector_width()) {
-			delete base;
-			net->cast_signed(false);
-			return net;
 		  }
 
 		    // Otherwise, make a part select that covers the right
@@ -17753,15 +17844,6 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 		        rel_base = net->sig()->sb_to_idx(prefix_indices, lsv) + offset;
                   }
 
-		    // If the part select covers exactly the entire
-		    // vector, then do not bother with it. Return the
-		    // signal itself.
-		  if (rel_base == (long)(wid-1) && wid == net->vector_width()) {
-			delete base;
-			net->cast_signed(false);
-			return net;
-		  }
-
 		    // Otherwise, make a part select that covers the right
 		    // range.
 		  ex = new NetEConst(verinum(rel_base));
@@ -17829,13 +17911,20 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
 	// Try the constant path quietly first; it stays the path for every
 	// shape that already worked, and this only engages where that path
 	// would previously have failed.
-      if (!need_const && packed_base_needs_expr_(des, scope, net->sig())) {
+      if (!need_const && net->sig()->unpacked_dimensions() == 0
+	  && packed_base_needs_expr_(des, scope, net->sig(),
+				     path_.back().index)) {
 	    unsigned long sel_wid = 0;
 	    NetExpr*base = collapse_packed_base(des, scope, this, net->sig(),
 						path_.back().index, sel_wid);
 	    if (base && sel_wid > 0) {
 		  base->set_line(*this);
-		  NetESelect*res = new NetESelect(net, base, sel_wid);
+		  ivl_type_t selected = packed_select_type_(net->sig(),
+							 path_.back().index,
+							 sel_wid);
+		  NetESelect*res = selected
+			? new NetESelect(net, base, sel_wid, selected)
+			: new NetESelect(net, base, sel_wid);
 		  res->set_line(*this);
 		  return res;
 	    }
@@ -18017,11 +18106,6 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
 		  delete mux;
 		  return tmp;
 	    }
-
-	      // If the vector is only one bit, we are done. The
-	      // bit select will return the scalar itself.
-	    if (net->vector_width() == 1)
-		  return net;
 
 	    if (debug_elaborate) {
 		  cerr << get_fileline() << ": PEIdent::elaborate_expr_net_bit_: "
@@ -18323,13 +18407,20 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 	// i has to take the general computed-base path. This test is false
 	// for every shape the prefix path already handles, so that path
 	// stays in charge of them.
-      if (packed_base_needs_expr_(des, scope, node->sig())) {
+      if (node->sig()->unpacked_dimensions() == 0
+	  && packed_base_needs_expr_(des, scope, node->sig(),
+				 path_.back().index)) {
 	    unsigned long sel_wid = 0;
 	    NetExpr*pbase = collapse_packed_base(des, scope, this, node->sig(),
 						 path_.back().index, sel_wid);
 	    if (pbase && sel_wid > 0) {
 		  pbase->set_line(*this);
-		  NetESelect*res = new NetESelect(node, pbase, sel_wid);
+		  ivl_type_t selected = packed_select_type_(node->sig(),
+							 path_.back().index,
+							 sel_wid);
+		  NetESelect*res = selected
+			? new NetESelect(node, pbase, sel_wid, selected)
+			: new NetESelect(node, pbase, sel_wid);
 		  res->set_line(*this);
 		  return res;
 	    }

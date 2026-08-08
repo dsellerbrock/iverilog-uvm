@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "function_nba_verilog_fail.v",
+    "iverilog-args" : [ "-g2005" ],
+    "gold"          : "function_nba_verilog_fail"
+}

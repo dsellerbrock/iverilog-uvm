@@ -55,7 +55,14 @@ extern void schedule_final_vthread(vthread_t thr);
  */
 extern void schedule_assign_prop_vec4(const vvp_object_t&obj, unsigned pid,
 				      const vvp_vector4_t&val,
-				      vvp_time64_t delay);
+				      const vvp_object_t&root_obj,
+				      vvp_time64_t delay, bool reactive);
+extern void schedule_assign_prop_vec4_bits(const vvp_object_t&obj, unsigned pid,
+					   uint64_t bitoff,
+					   const vvp_vector4_t&val,
+					   const vvp_object_t&root_obj,
+					   vvp_time64_t delay,
+					   bool reactive);
 
 extern void schedule_assign_vector(vvp_net_ptr_t ptr,
 				   unsigned base, unsigned vwid,

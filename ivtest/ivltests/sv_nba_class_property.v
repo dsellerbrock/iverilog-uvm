@@ -6,8 +6,11 @@
 // %assign/prop/v opcode and an NBA-region scheduler event. Covers:
 // immediate invisibility, last-write-wins, #delay NBA, 2-state cast,
 // interleaving with plain-signal NBAs, null-handle no-op, and the clocked
-// driver pattern. Residual forms (partial-select NBA) degrade with a LOUD
-// codegen warning. Self-checking.
+// driver pattern. Constant packed-field NBAs are covered separately by
+// sv_nba_property_field; dynamic/indexed residuals now fail compilation
+// instead of executing with blocking semantics. The null-handle case below
+// is a legacy robustness check, not evidence that illegal null dereference is
+// IEEE-conformant. Self-checking.
 interface nba_if; logic [7:0] sig; endinterface
 module sv_nba_class_property;
   class C; logic [7:0] v; bit [7:0] b; endclass

@@ -56,6 +56,7 @@
 #endif
 # include  <set>
 # include  <map>
+# include  <deque>
 # include  <unordered_map>
 # include  <unordered_set>
 # include  <typeinfo>
@@ -146,6 +147,11 @@ enum builtin_process_state_t {
       PROCESS_STATE_KILLED = 4
 };
 
+struct deferred_assert_report_s {
+      vvp_code_t action_pc;
+      __vpiScope*action_scope;
+};
+
 class vvp_process : public vvp_object {
     public:
       explicit vvp_process(vthread_t owner);
@@ -163,6 +169,11 @@ class vvp_process : public vvp_object {
       void add_waiter(vthread_t thr);
       void remove_waiter(vthread_t thr);
 
+      void enqueue_deferred_assert(vvp_code_t action_pc,
+                                   __vpiScope*action_scope);
+      void flush_deferred_asserts();
+      void mature_deferred_asserts();
+
     private:
       void signal_waiters_();
 
@@ -171,6 +182,8 @@ class vvp_process : public vvp_object {
       unsigned final_status_;
       bool final_status_valid_;
       std::set<vthread_t> waiters_;
+      std::deque<deferred_assert_report_s> deferred_asserts_;
+      bool deferred_assert_observed_armed_;
 };
 
 /*
@@ -569,6 +582,10 @@ struct vthread_s {
 	// leaves is_scheduled set), so process::status() needs this flag to
 	// report a delayed process as WAITING rather than RUNNING.
       unsigned i_am_delaying :1;
+      /* Set only by a source event-control/wait wake. The LRM flush
+         point is the subsequent resume, not the earlier suspension and
+         not a procedural-delay resume. */
+      unsigned deferred_assert_flush_on_run :1;
       unsigned owns_automatic_context :1;
       unsigned owned_context_is_chain :1;
 	/* M3B-13 (IEEE 1800-2017 18.11): in-line random variable
@@ -756,7 +773,8 @@ static void logical_process_threads_(vthread_t thr,
 				     std::vector<vthread_t>&out);
 
 vvp_process::vvp_process(vthread_t owner)
-: owner_(owner), final_status_(PROCESS_STATE_RUNNING), final_status_valid_(false)
+: owner_(owner), final_status_(PROCESS_STATE_RUNNING), final_status_valid_(false),
+  deferred_assert_observed_armed_(false)
 {
 }
 
@@ -874,6 +892,83 @@ void vvp_process::remove_waiter(vthread_t thr)
 	    return;
       waiters_.erase(thr);
       thr->awaited_processes_.erase(this);
+}
+
+/*
+ * IEEE 1800-2017 16.4.1: an observed-deferred immediate assertion
+ * queues its selected report on the currently executing logical
+ * process. Reports remain tentative until an Observed-region pass;
+ * only reports still pending then are promoted to Reactive actions.
+ *
+ * The scheduler event retains the process object. This is important
+ * for a zero-time initial process that reaches %end before Observed:
+ * normal process completion is not a deferred-assertion flush point.
+ */
+struct deferred_assert_mature_event_s : public vvp_gen_event_s {
+      explicit deferred_assert_mature_event_s(vvp_process*process)
+      : process_(process) { }
+
+      vvp_object_t process_;
+
+      void run_run() override
+      {
+	    vvp_process*process = process_.peek<vvp_process>();
+	    if (process)
+		  process->mature_deferred_asserts();
+	    delete this;
+      }
+};
+
+void vvp_process::enqueue_deferred_assert(vvp_code_t action_pc,
+                                          __vpiScope*action_scope)
+{
+      deferred_assert_report_s report;
+      report.action_pc = action_pc;
+      report.action_scope = action_scope;
+      deferred_asserts_.push_back(report);
+
+      if (deferred_assert_observed_armed_)
+	    return;
+
+      deferred_assert_observed_armed_ = true;
+      schedule_at_observed(new deferred_assert_mature_event_s(this), 0);
+}
+
+void vvp_process::flush_deferred_asserts()
+{
+      deferred_asserts_.clear();
+      /* Leave the already-scheduled Observed pump armed. If this process
+         executes another deferred assertion before that pass, the same
+         pump will mature the new report. */
+}
+
+void vvp_process::mature_deferred_asserts()
+{
+      deferred_assert_observed_armed_ = false;
+
+      std::deque<deferred_assert_report_s> reports;
+      reports.swap(deferred_asserts_);
+
+      while (!reports.empty()) {
+	    deferred_assert_report_s report = reports.front();
+	    reports.pop_front();
+
+	    if (!report.action_pc || !report.action_scope)
+		  continue;
+
+	    vthread_t action = vthread_new(report.action_pc,
+	                                   report.action_scope);
+	      /* The call still needs its source scope for %m/VPI context, but a
+	         matured report is no longer flushable. Do not leave this fresh
+	         action thread in the named scope's disable set: `disable label'
+	         between Observed maturity and Reactive execution must not kill
+	         the already-confirmed report. of_END's eventual erase is safe
+	         when the entry is absent. */
+	    report.action_scope->threads.erase(action);
+	    action->is_reactive_process = 1;
+	    action->in_region_drain = 1;
+	    schedule_vthread(action, 0, false);
+      }
 }
 
 void vthread_s::debug_dump(ostream&fd, const char*label)
@@ -3876,6 +3971,15 @@ static vthread_t logical_process_thread_(vthread_t thr)
       return thr;
 }
 
+static void flush_deferred_asserts_for_thread_(vthread_t thr)
+{
+      vthread_t owner = logical_process_thread_(thr);
+      if (!owner)
+	    return;
+      if (vvp_process*process = owner->process_obj_.peek<vvp_process>())
+	    process->flush_deferred_asserts();
+}
+
 /*
  * M3B-5 (IEEE 1800-2017 18.13): per-object RNG control.
  *
@@ -5185,6 +5289,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->suspended = 0;
       thr->suspend_resched = 0;
       thr->i_am_delaying = 0;
+      thr->deferred_assert_flush_on_run = 0;
       thr->owns_automatic_context = 0;
       thr->owned_context_is_chain = 0;
       thr->rand_sel_armed = false;
@@ -5645,6 +5750,14 @@ void vthread_run(vthread_t thr)
 		  continue;
 	    }
 
+	      /* A source event-control/wait wake is a 16.4.2 flush point
+	         when the logical process actually resumes. Keep the bit set
+	         while process::suspend() prevents that resume. */
+	    if (thr->deferred_assert_flush_on_run) {
+		  thr->deferred_assert_flush_on_run = 0;
+		  flush_deferred_asserts_for_thread_(thr);
+	    }
+
 		      // Running again — no longer parked on a delay
 		      // (process::status() reads this flag).
 		    thr->i_am_delaying = 0;
@@ -5854,6 +5967,7 @@ void vthread_schedule_list(vthread_t thr)
       for (vthread_t cur = thr ;  cur ;  cur = cur->wait_next) {
 	    assert(cur->waiting_for_event);
 	    cur->waiting_for_event = 0;
+	    cur->deferred_assert_flush_on_run = 1;
       }
 
 	/* A single event functor can wake both design processes and
@@ -10180,6 +10294,40 @@ bool of_DPI_CALL_TASK(vthread_t thr, vvp_code_t cp)
 #endif
 }
 
+/*
+ * %defer/enqueue <action-code>, <scope>
+ *
+ * The frontend has already evaluated the immediate assertion expression
+ * and selected its pass or fail arm. The selected (Stage-1, argument-free
+ * or literal-only) action is an out-of-line code fragment ending in %end.
+ * Queue the fragment on the root logical process; function calls,
+ * blocking task calls and named sequential blocks deliberately share that
+ * process, while explicit fork branches retain their own queue.
+ */
+bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
+{
+      vthread_t owner = logical_process_thread_(thr);
+      if (!owner)
+	    return true;
+
+      vvp_process*process = owner->process_obj_.peek<vvp_process>();
+      __vpiScope*scope = dynamic_cast<__vpiScope*>(cp->handle);
+
+      if (!process || !cp->cptr2 || !scope) {
+	    static bool warned = false;
+	    if (!warned) {
+		  fprintf(stderr,
+		          "vvp: invalid %%defer/enqueue action or scope; "
+		          "dropping report (further warnings suppressed).\n");
+		  warned = true;
+	    }
+	    return true;
+      }
+
+      process->enqueue_deferred_assert(cp->cptr2, scope);
+      return true;
+}
+
 
 /*
  * The delay takes two 32bit numbers to make up a 64bit time.
@@ -10412,6 +10560,7 @@ static bool do_disable(vthread_t thr, vthread_t match)
 		    /* This is the last detached child; the wait fork
 		     * predicate will become true once we reap. */
 		  parent->i_am_waiting = 0;
+		  parent->deferred_assert_flush_on_run = 1;
 		  schedule_vthread(parent, 0, true);
 	    }
 	    vthread_reap(thr);
@@ -11035,6 +11184,7 @@ bool of_END(vthread_t thr, vvp_code_t)
 	       * parent to wake up when it is finished. */
 	    if (tmp->i_am_waiting && tmp->detached_children.empty()) {
 		  tmp->i_am_waiting = 0;
+		  tmp->deferred_assert_flush_on_run = 1;
 		  schedule_vthread(tmp, 0, true);
 	    }
 	      /* Fully detach this thread so it will be reaped below. */
@@ -19623,12 +19773,40 @@ bool of_ASSIGN_PROP_V(vthread_t thr, vvp_code_t cp)
       vvp_vector4_t val;
       pop_prop_val(thr, val, wid);
 
+      vvp_object_t root_obj = thr->peek_object_root(0);
       vvp_object_t obj;
       thr->pop_object(obj);
       if (obj.test_nil())
 	    return true;
 
-      schedule_assign_prop_vec4(obj, pid, val, delay);
+      schedule_assign_prop_vec4(obj, pid, val, root_obj, delay,
+				vthread_is_reactive(thr));
+      return true;
+}
+
+/*
+ * %assign/prop/v/bits <pid>, <delay>, <bitoff>
+ *
+ * Capture a constant packed field assignment now, then read-modify-write
+ * the containing vec4 property when the NBA event executes. The value's
+ * stack width is the selected-field width: code generation emits an
+ * unconditional %pad immediately before this opcode.
+ */
+bool of_ASSIGN_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
+{
+      unsigned pid = cp->number;
+      unsigned delay = cp->bit_idx[0];
+      uint64_t bitoff = cp->bit_idx[1];
+
+      vvp_vector4_t val = thr->pop_vec4();
+      vvp_object_t root_obj = thr->peek_object_root(0);
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (obj.test_nil())
+	    return true;
+
+      schedule_assign_prop_vec4_bits(obj, pid, bitoff, val, root_obj, delay,
+				     vthread_is_reactive(thr));
       return true;
 }
 
@@ -20986,7 +21164,7 @@ bool of_WAIT_VIF_ANYEDGE(vthread_t thr, vvp_code_t cp)
 	    assert(vif);
       }
 
-      vvp_fun_edge_sa*edge = vif->get_anyedge_functor(cp->number);
+      vvp_fun_anyedge_sa*edge = vif->get_anyedge_functor(cp->number);
 
       thr->waiting_for_event = 1;
       thr->wait_next = edge->add_waiting_thread(thr);
@@ -21001,7 +21179,7 @@ bool of_WAIT_VIF_ANYEDGE(vthread_t thr, vvp_code_t cp)
  * the first edge removes every sibling registration before scheduling it. */
 bool of_WAIT_VIF_ANYEDGE_MULTI(vthread_t thr, vvp_code_t cp)
 {
-      std::set<vvp_fun_edge_sa*>edges;
+      std::set<vvp_fun_anyedge_sa*>edges;
       for (unsigned idx = 0 ; idx < cp->number ; idx += 1) {
             vvp_vector4_t member_vec = thr->pop_vec4();
             unsigned member = 0;
@@ -21032,7 +21210,7 @@ bool of_WAIT_VIF_ANYEDGE_MULTI(vthread_t thr, vvp_code_t cp)
 
       thr->waiting_for_event = 1;
       thr->wait_next = 0;
-      for (std::set<vvp_fun_edge_sa*>::const_iterator edge = edges.begin();
+      for (std::set<vvp_fun_anyedge_sa*>::const_iterator edge = edges.begin();
            edge != edges.end(); ++edge)
             (*edge)->add_multi_waiting_thread(thr);
       return false;

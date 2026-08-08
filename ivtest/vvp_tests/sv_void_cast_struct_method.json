@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_void_cast_struct_method.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_void_cast_struct_method"
+}

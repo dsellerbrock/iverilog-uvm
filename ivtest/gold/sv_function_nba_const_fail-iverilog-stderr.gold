@@ -1,0 +1,2 @@
+ivltests/sv_function_nba_const_fail.v:12: error: `value' is not a constant function.
+1 error(s) during elaboration.

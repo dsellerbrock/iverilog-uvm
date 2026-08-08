@@ -3111,6 +3111,12 @@ class NetAssign_ {
       NetNet* sig() const;
       inline const NetAssign_* nest() const { return nest_; }
 
+      // Force/release targets are temporary overrides, not permanent
+      // procedural drivers. Mark the complete nested l-value chain so
+      // continuous-driver conflict analysis can distinguish them.
+      void mark_force_lval();
+      bool is_force_lval() const { return force_lval_; }
+
 	// A synchronous synthesis pass may represent one run-time-selected
 	// whole-word array write by a compact structural array port. The token
 	// is the synthetic process output used by the ordinary condition/enable
@@ -3153,6 +3159,7 @@ class NetAssign_ {
       int member_idx_ = -1;
 
       bool signed_;
+      bool force_lval_ = false;
       bool turn_sig_to_wire_on_release_;
 	// These are synthesis-only carriers. They are scope/design owned and
 	// deliberately survive deletion of the behavioral assignment.
@@ -4343,6 +4350,10 @@ class NetSTask  : public NetProc {
       virtual bool emit_proc(struct target_t*) const override;
       virtual void dump(std::ostream&, unsigned ind) const override;
       virtual bool check_synth(ivl_process_type_t pr_type, const NetScope*scope) const override;
+      virtual bool synth_async(Design*des, NetScope*scope,
+			       NexusSet&nex_map, NetBus&nex_out,
+			       NetBus&enables,
+			       std::vector<mask_t>&bitmasks) override;
       virtual bool evaluate_function(const LineInfo&loc,
                                      std::map<perm_string,LocalVar>&ctx) const override;
 

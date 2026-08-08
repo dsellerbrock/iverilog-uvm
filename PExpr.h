@@ -527,7 +527,8 @@ class PEIdent : public PExpr {
 	// prefix path above cannot express). False for every shape that
 	// path already handles, so it stays in charge of those.
       bool packed_base_needs_expr_(Design*des, NetScope*scope,
-				   const NetNet*net) const;
+				   const NetNet*net,
+				   const std::list<index_component_t>&indices) const;
 
     private:
 

@@ -46,6 +46,17 @@ source directly names `tb.dut`. It is not being counted as an IEEE compiler gap
 unless an equivalent standard-valid, self-contained reproducer demonstrates
 one.
 
+The first clean-corpus micro replay at that revision was recorded on
+2026-08-08 from a detached worktree whose pre/post status (including ignored
+files) was empty. `lowrisc:ip:soc_dbg_ctrl_decode:0.1` in the RTL lane and
+`lowrisc:prim:max_tree:0` in the SVA lane compile/elaborate with zero hard or
+debt diagnostics. Those lanes do not execute synthesis equivalence or assertion
+semantic oracles, so they are **PARTIAL frontend evidence**, not closure. The
+clean `lowrisc:dv:tl_agent_sim:0.1` UVM replay is documented in G67. All 131
+older JSON reports found in the inherited workspace record
+`opentitan_dirty=true`; they remain useful for discovery but are not
+clean-corpus evidence.
+
 ## How to read the status column
 
 | Status | Meaning |
@@ -234,11 +245,11 @@ This is the `aes_transpose` idiom in `aes_pkg`.
 Test: `sv_packed_multidim_var_index.v` (checks values — a mis-scaled offset
 would still elaborate but read the wrong element).
 
-## G10 — variable-length implication antecedents — **open**
+## G10 — variable-length implication antecedents — **partial / correctness blocker**
 
 *16.9.2 / A.2.10. [general]*
 
-**No** variable-length antecedent is supported:
+The original campaign rejected every variable-length antecedent:
 
 ```systemverilog
 assert property (@(posedge clk) a ##[1:3] b   |=> c);   // sorry
@@ -252,12 +263,13 @@ sorry: this assertion antecedent shape is not supported
        (fixed-delay sequence chains up to 128 cycles only)
 ```
 
-`pform_make_assertion` builds the antecedent as an AND of per-step booleans
-delayed through the `$past` history machinery, which models exactly one
-attempt at a fixed offset. A variable-length antecedent means several attempts
-in flight at once, each with its own obligation. The automaton engine can
-express that; the assert-property lowering does not route antecedents through
-it. **Architectural — wants a design pass.**
+**2026-08-08 audit correction:** more shapes now route through the automaton,
+and the focused parameter-sized implication/cover forms use an exact count
+pipeline. General NFA implication is still not conformant: one antecedent
+attempt may match at several endpoints, every endpoint must create a separate
+consequent obligation, and the current slot merges those paths so one passing
+consequence can mask a sibling endpoint's failure. Closure requires explicit
+endpoint-obligation fan-out and mixed-verdict tests for both `|->` and `|=>`.
 
 Blocks `prim_alert_receiver`, `prim_diff_decode`.
 
@@ -285,10 +297,16 @@ Currently the **first** diagnostic in the OpenTitan DV build
 G8 deliberately sidesteps the general case with dedicated op types; these need
 the real nested-consequent field in `sva_property_t`.
 
-## G13 — non-literal cycle-delay bounds — **fixed** (current upstream campaign)
+## G13 — non-literal cycle-delay bounds — **partial (focused subset)**
 
 *16.9.2.* `##[SkewCycles+2:SkewCycles+3]` where the bounds are parameters
 rather than literals:
+
+**2026-08-08 update:** supported focused implication/cover forms now retain
+parameter expressions to instance elaboration rather than folding declaration
+defaults. Overrides size each checker independently; negative, X/Z, and
+reversed finite bounds fail elaboration. General symbolic compositions,
+including standalone `a[*LO:HI]`, remain loud unsupported.
 
 ```
 sorry: sequence cycle delays must be literal constants
@@ -1946,6 +1964,166 @@ runs to completion with the expected drop-warning; a class-scoped
 class-typed handles before iterating a `rand` array member of the
 selected element — the same two-level shape as the real OpenTitan
 constraint).
+
+---
+
+## G67 — lazy subroutine elaboration inherited a caller's `fork` depth — **fixed** [general] (was a false hard error)
+
+A clean pinned `lowrisc:dv:tl_agent_sim:0.1` UVM compile reported nine
+primary errors in `uvm_registry.svh` saying that ordinary function/task
+`return` statements were inside a fork, followed by four secondary
+elaboration errors. The UVM subroutines contain no fork. OpenTitan first uses
+`tl_device_seq#()::type_id::create()` from a `fork ... join_none` branch;
+that nested typedef can cause the cached parameterized registry class to be
+fully elaborated only while the caller branch is being elaborated.
+
+The compiler kept fork depth as `Design` state. `PBlock::elaborate` entered
+the caller fork, the lazy class-specialization path directly elaborated every
+method body, and `PReturn::elaborate` therefore saw the caller's lexical depth.
+IEEE 1800-2017 9.3.2 prohibits a return written within a fork-join block; it
+does not move a separately declared callee body into its caller's lexical
+fork. Slang 11.0.415 accepts the 16-line reduced legal case and rejects the
+direct return-inside-fork control.
+
+`PFunction::elaborate` and `PTask::elaborate` now use a scoped guard that
+starts each definition body at fork depth zero and restores the caller depth
+on every exit. A fork written inside that body still increments normally, so
+the original illegal case remains an exact-gold compile error. The positive
+`sv_fork_lazy_param_typedef_return` test first specializes a nested registry
+typedef in a caller fork and value-checks both its function and task; the
+existing `task_return_fail2` now pins the negative diagnostic exactly.
+
+Clean-corpus replay at OpenTitan
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` changed the same
+`tl_agent_sim` job from compile exit 13 / 13 hard errors to compile exit 0 /
+zero hard errors. Its matrix status is still **DEBT**, with 63 explicit
+compile-progress/backend diagnostics exposed after code generation completed;
+this is compile/elaboration evidence only, not UVM semantic or runtime
+closure. The fixed-run JSON SHA-256 is
+`5fd7fd4141dfcde7cc5b3b0fc816c109fbd0272704cb52a5df3e10f4cea4d493`,
+and the installed `ivl` engine SHA-256 is
+`dcdb6c637c383fb8cffb5bb5251e209321017ff7a43de557d97b0074d7724116`.
+The detached corpus was clean before and after the serial run.
+
+---
+
+## G68 — nested-VIF packed-field NBAs executed as blocking assignments — **fixed subset** [general] (was a loud semantic fallback)
+
+The clean G67 `tl_agent_sim` compile exposed 13 target warnings at
+`tl_device_driver.sv:26,74-82` and `tl_host_driver.sv:134,366-367`. Each
+legal nonblocking assignment targets a constant packed-struct field through a
+nested virtual-interface receiver such as `cfg.vif.d2h_int.d_valid`. Generated
+VVP used immediate `%store/prop/v/bits`, so the warning described a real
+Active-region miscompile rather than cosmetic debt. IEEE 1800-2017 10.4.2
+requires the RHS and receiver to be evaluated when the statement executes and
+the update to occur later in NBA (or Re-NBA for a program process).
+
+`%assign/prop/v/bits` now captures the selected receiver and self-sized RHS.
+Its scheduler event reads the current containing property and merges the
+constant field only when the event runs. Event-time RMW is essential: taking a
+whole-property snapshot at statement execution would make simultaneous
+disjoint field NBAs clobber one another. FIFO event order preserves later
+overlapping writes as well as whole-property/field ordering. Both the existing
+whole-property event and the new field event select NBA versus Re-NBA from the
+executing process. Unsupported dynamic/indexed, variable-delay, and
+event/repeat-controlled property forms now terminate code generation with a
+target error instead of falling back to blocking execution.
+
+`sv_nba_property_field` value-checks Active/Inactive invisibility, disjoint and
+overlapping merges, whole/field order in both directions, receiver and RHS
+snapshots, the nested `cfg.vif` task shape, constant delay, nested-class wait
+wakeup, and the underlying VIF signal event. `sv_nba_property_reactive` pins
+Re-Inactive before Re-NBA and direct class-property mutation wakeup with a
+finite watchdog. `sv_nba_property_dynamic_fail` pins one legal residual as an
+exact nonzero diagnostic; Slang 11.0.415 accepts all three source shapes under
+IEEE 1800-2017.
+
+A serial replay from the clean detached OpenTitan worktree at
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` stayed at compile exit 0 and zero
+hard errors while semantic debt fell exactly 63→50. Raw diagnostics contain 61
+warning lines, zero errors, zero `sorry`, and zero internal-error/crash lines;
+the matrix remains **DEBT** and is compile/elaboration evidence only, not UVM
+runtime closure. The report JSON SHA-256 is
+`dc3511318325d0a2080af8360e9a98f00e8d60c00f3a00633a40b8010c6efcd7`;
+the exact source-list SHA-256 is
+`86dfb7eefe8ff65072b93d1e2b18e6d71234e70150df6afa3448a7ec0fa0451a`.
+The installed driver/compiler/target/runtime hashes were unchanged before and
+after; the target hash for this checkpoint is
+`0dbc8a36e2790c8f04485ccc6a0fe5f7a44808904fd304e201bd0bfecbef38bb`.
+Compiler diff and corpus status fingerprints were also unchanged across the
+run, and the corpus remained clean including ignored-file status.
+
+This is a fixed subset, not full property-NBA closure. Dynamic/indexed and
+property-array targets remain loud, full root-net/VPI mutation callback
+propagation is not proven, and null-receiver handling retains an older
+nonconformant no-op behavior.
+
+---
+
+## G69 — function-contained persistent-target NBAs executed as blocking assignments — **fixed subset** [general] (was a loud semantic fallback)
+
+The clean G68 `tl_agent_sim` compile retained nine frontend warnings at
+`tl_device_driver.sv:111-119`. They are legal SystemVerilog nonblocking
+assignments inside `invalidate_d_channel()`, a function whose targets are
+constant packed fields of the persistent virtual-interface property
+`cfg.vif.d2h_int`. IEEE 1800-2017 13.4.4 permits a function to schedule
+background work because the function does not suspend; 10.4.2 forbids an NBA
+to an automatic variable, not an NBA reached through a captured class or
+virtual-interface receiver. The inherited fallback instead constructed
+blocking `NetAssign` nodes and updated those fields in Active.
+
+SystemVerilog function bodies now retain `NetAssignNB` and use the normal NBA
+lowering, including M4C-8's receiver/RHS capture and event-time packed-field
+merge. For direct vec4 locals and intra-assignment controls, the frontend
+distinguishes inherited, explicit `static`, and explicit `automatic`
+declaration lifetime before accepting a target/reference. It also marks any
+function containing an NBA nonconstant before later elaboration can return, so
+constant evaluation rejects the function rather than silently treating the
+scheduled update as a no-op. IEEE-1364 function NBAs remain compile errors.
+
+`sv_function_nba_persistent` value-checks Active and Inactive invisibility,
+the eventual NBA value, two disjoint packed-field updates, receiver and input
+snapshots across `cfg.vif` rebinding, an ordinary module target, and an
+explicit-static local inside an automatic function. Exact diagnostic tests
+retain rejection of inherited and explicit automatic locals, use of an
+NBA-bearing function in a constant expression, and an IEEE-1364 function NBA
+hidden under a named block. Slang 11.0.415 accepts the positive runtime shape
+and rejects the illegal controls under IEEE 1800-2017. The durable differential
+summary is workspace-root-relative
+`evidence/function-nba-slang-20260808/SUMMARY.md`, SHA-256
+`c52ce25981214f0986ce6aa4ce81c219f117dca3a47c6287bf6ed0ead3f64ae3`.
+
+A serial replay from the clean detached OpenTitan worktree at
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` stayed at compiler exit 0 and zero
+hard errors while semantic debt fell exactly 50→41. The matrix runner exits 1
+because the job remains **DEBT**; this is compile/elaboration evidence only,
+not UVM runtime closure. The compile log contains 52 warning lines, zero error,
+`sorry`, internal-error, or crash lines. The nine removed diagnostics are
+exactly `tl_device_driver.sv:111-119`, with no additions. Report JSON SHA-256:
+`2ffcb09c35d32cd8ddd0dc6c0a03c3b4a315788e88602de7604a97ee5357c7a5`;
+compile-log SHA-256:
+`709d4df75d691b284a9b1dd58b57306e157356be2e0e3da3e561c4bedd38886e`;
+compiler source-list SHA-256:
+`8731d9ab6a3959bd85cd930a07a50db463613b895fe3341b42a97aec1a732fc5`
+(the raw generated list embeds its evidence-directory name); underlying
+FuseSoC source-list SHA-256:
+`9555d7985b5266b54399c22dc97e0f42d04fbe23793475313c78dfd126ac99f3`;
+installed compiler-engine SHA-256:
+`c1c3e9b251d116d8c226bf9cbd2aad134a32618e2bcad0b8caadf3fbee1a9346`.
+Corpus status including ignored paths was empty before and after the run;
+compiler diff/status fingerprints and every installed compiler component were
+unchanged across it. The hashed JSON records the exact setup/compile commands
+and complete driver/compiler/target/runtime fingerprints; evidence root:
+workspace-root-relative
+`evidence/opentitan-7a3ad34-a179a1010/uvm-tl-agent-function-nba`. Its exact
+runner-command/provenance summary has SHA-256
+`013f5c3fee8fd81d3cffc676a3888442d1bc68b8466db74a9510ae825f284310`.
+
+This is not full 10.4.2/13.4.4 closure. Remaining work includes enforcing
+eligible call origins beyond constant-expression use, dynamically sized array
+and queue targets, legal automatic aggregates containing captured class/VIF
+handles, and runtime evidence for program/Re-NBA and freshly allocated
+function-local object receivers.
 
 ---
 

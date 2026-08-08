@@ -604,14 +604,12 @@ static int show_stmt_assign_nb(ivl_statement_t net)
 
 	/* Nonblocking store to a class-object / virtual-interface property
 	   (`obj.prop <= v`, `vif.sig <= v`): schedule it in the NBA region
-	   (IEEE 1800-2017 10.4.2). The old code degraded these to BLOCKING
-	   assignments — the value was visible immediately, a silent
-	   event-region violation. Constant delays are supported; residual
-	   forms (partial selects, indexed properties, event/repeat
-	   controls) still degrade, but now WARN instead of staying silent. */
-      if (nevents == 0 &&
-	  (ivl_lval_nest(lval) ||
-	   (sig && ivl_signal_data_type(sig) == IVL_VT_CLASS))) {
+	   (IEEE 1800-2017 10.4.2). Whole vec4 properties and constant packed
+	   fields are supported, including constant delays. Residual property
+	   forms are rejected below; executing them as blocking assignments
+	   would silently change their event-region semantics. */
+	if (ivl_lval_property_idx(lval) >= 0 || ivl_lval_nest(lval) ||
+	    (sig && ivl_signal_data_type(sig) == IVL_VT_CLASS)) {
 	    uint64_t prop_delay = 0;
 	    int can_delay = 1;
 	    if (del && (ivl_expr_type(del) == IVL_EX_DELAY) &&
@@ -620,17 +618,15 @@ static int show_stmt_assign_nb(ivl_statement_t net)
 	    } else if (del) {
 		  can_delay = 0;
 	    }
-	    if (can_delay && show_stmt_assign_nb_cobject(net, prop_delay) == 0)
+	    if (nevents == 0 && can_delay &&
+	        show_stmt_assign_nb_cobject(net, prop_delay) == 0)
 		  return 0;
-	    if (ivl_lval_property_idx(ivl_stmt_lval(net,0)) >= 0 ||
-		ivl_lval_nest(lval)) {
-		  fprintf(stderr, "%s:%u: vvp.tgt warning: this nonblocking "
-			  "property assignment form is not yet scheduled in "
-			  "the NBA region (compile-progress: executing as a "
-			  "blocking assignment).\n",
-			  ivl_stmt_file(net), ivl_stmt_lineno(net));
-	    }
-      }
+	    fprintf(stderr, "%s:%u: vvp.tgt error: this nonblocking "
+		    "property assignment form is not yet supported without "
+		    "changing its NBA semantics.\n",
+		    ivl_stmt_file(net), ivl_stmt_lineno(net));
+	    return 1;
+	}
 
       if ((del == 0) && (nevents == 0)) {
 	    if (ivl_lval_nest(lval))
@@ -3622,9 +3618,75 @@ static int show_iface_late_call(ivl_statement_t net)
       return 0;
 }
 
-static int show_system_task_call(ivl_statement_t net)
+static int show_deferred_assert_enqueue_(ivl_statement_t net,
+                                         ivl_scope_t sscope)
+{
+      unsigned parm_count = ivl_stmt_parm_count(net);
+      ivl_expr_t kind_expr = parm_count > 0 ? ivl_stmt_parm(net, 0) : 0;
+      long kind = -1;
+      ivl_expr_t literal = 0;
+
+      if (kind_expr && ivl_expr_type(kind_expr) == IVL_EX_NUMBER
+          && number_is_immediate(kind_expr, IMM_WID, 0)
+          && !number_is_unknown(kind_expr))
+            kind = get_number_immediate(kind_expr);
+
+      if (kind == 1) {
+            if (parm_count != 1)
+                  kind = -1;
+      } else if (kind == 2) {
+            if (parm_count == 2
+                && ivl_expr_type(ivl_stmt_parm(net, 1)) == IVL_EX_STRING)
+                  literal = ivl_stmt_parm(net, 1);
+            else
+                  kind = -1;
+      } else {
+            kind = -1;
+      }
+
+      if (kind < 0 || !sscope) {
+            fprintf(stderr,
+                    "%s:%u: error: malformed internal "
+                    "$ivl_deferred_enqueue marker; expected "
+                    "kind 1 ($error) or kind 2 plus one constant string "
+                    "($display).\n",
+                    ivl_stmt_file(net), ivl_stmt_lineno(net));
+            vvp_errors += 1;
+            return 1;
+      }
+
+      unsigned action_lab = local_count++;
+      unsigned after_lab = local_count++;
+      unsigned file_idx = ivl_file_table_index(ivl_stmt_file(net));
+      unsigned lineno = ivl_stmt_lineno(net);
+
+      show_stmt_file_line(net, "Deferred immediate assertion enqueue.");
+      fprintf(vvp_out, "    %%defer/enqueue T_%u.%u, S_%p;\n",
+              thread_count, action_lab, sscope);
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, after_lab);
+
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, action_lab);
+      if (kind == 1) {
+            fprintf(vvp_out, "    %%vpi_call %u %u \"$error\" "
+                    "{0 0 0 0};\n", file_idx, lineno);
+      } else {
+            fprintf(vvp_out,
+                    "    %%vpi_call %u %u \"$display\", \"%s\" "
+                    "{0 0 0 0};\n",
+                    file_idx, lineno, ivl_expr_string(literal));
+      }
+      fprintf(vvp_out, "    %%end;\n");
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, after_lab);
+
+      return 0;
+}
+
+static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 {
       const char*stmt_name = ivl_stmt_name(net);
+
+      if (strcmp(stmt_name, "$ivl_deferred_enqueue") == 0)
+            return show_deferred_assert_enqueue_(net, sscope);
 
       if (strncmp(stmt_name, "$ivl_std_randomize_with|", 24) == 0) {
 	      /* Task-form sibling of the expression lowering in
@@ -5120,7 +5182,7 @@ int show_statement(ivl_statement_t net, ivl_scope_t sscope)
 	    break;
 
 	  case IVL_ST_STASK:
-	    rc += show_system_task_call(net);
+	    rc += show_system_task_call(net, sscope);
 	    break;
 
 	  case IVL_ST_TRIGGER:

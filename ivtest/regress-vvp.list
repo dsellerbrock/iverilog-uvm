@@ -139,6 +139,8 @@ sv_unpacked_array_concat_inside-S	vvp_tests/sv_unpacked_array_concat_inside-S.js
 synth_single_async_fpga_reject	vvp_tests/synth_single_async_fpga_reject.json
 synth_unpacked_array_slice_assign	vvp_tests/synth_unpacked_array_slice_assign.json
 synth_unpacked_array_slice_assign-S	vvp_tests/synth_unpacked_array_slice_assign-S.json
+synth_uarray_partial_index_caliptra	vvp_tests/synth_uarray_partial_index_caliptra.json
+synth_uarray_partial_index_caliptra-S	vvp_tests/synth_uarray_partial_index_caliptra-S.json
 synth_unwritten_packed_initialization-S	vvp_tests/synth_unwritten_packed_initialization-S.json
 dumpfile			vvp_tests/dumpfile.json
 early_sig_elab1			vvp_tests/early_sig_elab1.json
@@ -283,6 +285,7 @@ sv_interface			vvp_tests/sv_interface.json
 sv_literals			vvp_tests/sv_literals.json
 sv_mixed_assign1		vvp_tests/sv_mixed_assign1.json
 sv_mixed_assign2		vvp_tests/sv_mixed_assign2.json
+sv_mixed_assign_multidim	vvp_tests/sv_mixed_assign_multidim.json
 sv_mixed_assign_error1		vvp_tests/sv_mixed_assign_error1.json
 sv_mixed_assign_error2		vvp_tests/sv_mixed_assign_error2.json
 sv_mixed_assign_error3		vvp_tests/sv_mixed_assign_error3.json
@@ -291,6 +294,14 @@ sv_module_port1			vvp_tests/sv_module_port1.json
 sv_module_port2			vvp_tests/sv_module_port2.json
 sv_module_port3			vvp_tests/sv_module_port3.json
 sv_module_port4			vvp_tests/sv_module_port4.json
+sv_nba_property_dynamic_fail	vvp_tests/sv_nba_property_dynamic_fail.json
+sv_function_nba_automatic_fail	vvp_tests/sv_function_nba_automatic_fail.json
+sv_function_nba_const_fail	vvp_tests/sv_function_nba_const_fail.json
+sv_function_nba_explicit_automatic_fail	vvp_tests/sv_function_nba_explicit_automatic_fail.json
+sv_function_nba_persistent	vvp_tests/sv_function_nba_persistent.json
+function_nba_verilog_fail	vvp_tests/function_nba_verilog_fail.json
+sv_void_cast_struct_method	vvp_tests/sv_void_cast_struct_method.json
+sv_void_cast_struct_method_fail	vvp_tests/sv_void_cast_struct_method_fail.json
 sv_parameter_type		vvp_tests/sv_parameter_type.json
 sv_queue_assign_op		vvp_tests/sv_queue_assign_op.json
 sv_wildcard_import8		vvp_tests/sv_wildcard_import8.json

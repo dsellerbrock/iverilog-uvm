@@ -612,6 +612,12 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
       // used to distinguish between unpacked array assignment and
       // array word assignment.
       bool widx_flag = false;
+      // A constant prefix of a multi-dimensional unpacked array selects
+      // a contiguous run of words. Keep the remaining declared dimensions
+      // so the caller sees an array value, not merely its first element.
+      bool unpacked_slice_flag = false;
+      netranges_t unpacked_slice_dims;
+      unsigned long unpacked_slice_count = 0;
 
       // Detect the net is a structure and there was a method path
       // detected. We have already broken the path_ into the path to
@@ -873,6 +879,10 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 			      member_off += member_base_value;
 			      member_width = member_slice_width;
 			      trailing_member_index_consumed = true;
+				// A bit/part select of a vector member has the
+				// select's plain packed-vector type, even if it
+				// happens to cover the member's full width.
+			      member_net_type = 0;
 			}
 			struct_type = 0;
 
@@ -918,6 +928,9 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 		  ivl_assert(*this, rc);
 		  member_off += tmp_off;
 		  member_width = tmp_wid;
+		    // The declared member type belongs to `s.member', not to
+		    // the explicit `s.member[... ]' selection.
+		  member_net_type = 0;
 	    }
 
 	    if (debug_elaborate) {
@@ -973,17 +986,85 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 
 	    list<long> unpacked_indices_const;
 
-	      // Make sure there are enough indices to address an array element.
+	      // A constant partial prefix selects a fixed unpacked subarray.
+	      // Runtime-selected subarrays need scatter/gather machinery and are
+	      // deliberately left loud for now.
 	    if (path_tail.index.size() < sig->unpacked_dimensions()) {
-		  cerr << get_fileline() << ": error: Array " << path()
-		       << " needs " << sig->unpacked_dimensions() << " indices,"
-		       << " but got only " << path_tail.index.size() << ". (net)" << endl;
-		  cerr << get_fileline() << ":      : Assignment to a whole array requires SystemVerilog."
-		       << endl;
-		  des->errors += 1;
-		  return 0;
+		  if (!gn_system_verilog() || path_tail.index.empty()) {
+			cerr << get_fileline() << ": error: Array " << path()
+			     << " needs " << sig->unpacked_dimensions() << " indices,"
+			     << " but got only " << path_tail.index.size()
+			     << ". (net)" << endl;
+			des->errors += 1;
+			return 0;
+		  }
+
+		  for (const index_component_t&idx : path_tail.index) {
+			if (idx.sel != index_component_t::SEL_BIT) {
+			      cerr << get_fileline() << ": error: an unpacked-array"
+				   << " subarray prefix must use integral element"
+				   << " indices." << endl;
+			      des->errors += 1;
+			      return 0;
+			}
+		  }
+
+		  list<NetExpr*> unpacked_indices;
+		  indices_flags flags;
+		  indices_to_expressions(des, scope, this, path_tail.index,
+				 path_tail.index.size(), true, flags,
+				 unpacked_indices, unpacked_indices_const);
+		  for (NetExpr*idx : unpacked_indices)
+			delete idx;
+
+		  if (flags.invalid)
+			return 0;
+		  if (flags.variable) {
+			cerr << get_fileline() << ": sorry: a run-time selected"
+			     << " unpacked subarray is not yet supported in this"
+			     << " continuous-assignment l-value." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+		  if (flags.undefined) {
+			cerr << get_fileline() << ": warning: ignoring undefined"
+			     << " l-value unpacked-subarray access " << path()
+			     << "." << endl;
+			return 0;
+		  }
+
+		  NetExpr*base_expr = normalize_variable_unpacked(
+			sig, unpacked_indices_const);
+		  const NetEConst*base_const =
+			dynamic_cast<const NetEConst*>(base_expr);
+		  if (!base_const || !base_const->value().is_defined()) {
+			cerr << get_fileline() << ": warning: ignoring out of bounds"
+			     << " l-value unpacked-subarray access " << path()
+			     << "." << endl;
+			delete base_expr;
+			return 0;
+		  }
+
+		  widx = base_const->value().as_long();
+		  delete base_expr;
+		  size_t used_dims = path_tail.index.size();
+		  const netranges_t&dims = sig->unpacked_dims();
+		  for (size_t dim = used_dims; dim < dims.size(); dim += 1)
+			unpacked_slice_dims.push_back(dims[dim]);
+		  unpacked_slice_count = netrange_width(unpacked_slice_dims);
+		  if (widx < 0 || widx >= (long)sig->pin_count()
+		      || unpacked_slice_count == 0
+		      || unpacked_slice_count > sig->pin_count() - (unsigned long)widx) {
+			cerr << get_fileline() << ": warning: ignoring out of bounds"
+			     << " l-value unpacked-subarray access " << path()
+			     << "." << endl;
+			return 0;
+		  }
+		  widx_flag = true;
+		  unpacked_slice_flag = true;
 	    }
 
+	    if (!unpacked_slice_flag) {
 	      // Evaluate all the index expressions into an
 	      // "unpacked_indices" array.
 	    list<NetExpr*>unpacked_indices;
@@ -1066,6 +1147,7 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 		  midx = midx_tmp;
 		  lidx = lidx_tmp;
 	    }
+	    }
 
       } else if (!path_tail.index.empty()) {
 	    if (debug_elaborate) {
@@ -1105,6 +1187,14 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 
       unsigned subnet_wid = midx-lidx+1;
 
+	/* A select is semantically significant even when it spans every bit
+	   of the physical signal. In particular, a bit/part select of an enum
+	   is an unsigned packed vector, while the unselected object retains
+	   its enum type. Count indices beyond the unpacked word selectors as
+	   packed selects; a member path is likewise an explicit selection. */
+      bool explicit_vector_select = !member_path.empty()
+	    || path_tail.index.size() > sig->unpacked_dimensions();
+
 	/* A select through every outer dimension of a packed array can leave
 	   a declared struct/enum element type. Keep that type on the temporary
 	   l-value net, just as the procedural l-value path does. Otherwise a
@@ -1137,17 +1227,30 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 	    }
       }
 
-	/* Now that the driven bits are known, decide whether this
-	   variable can become an unresolved wire (see the note where
-	   this test used to live). A behavioural l-value only blocks the
-	   promotion if it can actually reach one of THESE bits;
-	   test_part_procedurally_driven() answers true for anything it
-	   cannot pin down, so an overlap is never missed. */
+	long selected_word_base = widx_flag ? widx : 0;
+	unsigned long selected_word_count = unpacked_slice_flag
+	      ? unpacked_slice_count : (widx_flag ? 1 : sig->pin_count());
+	bool procedural_overlap = false;
+	for (unsigned long word = 0; word < selected_word_count; word += 1) {
+	      if (sig->test_part_procedurally_driven(
+		    midx, lidx, selected_word_base + word)) {
+		    procedural_overlap = true;
+		    break;
+	      }
+	}
+	if (procedural_overlap) {
+	      cerr << get_fileline() << ": error: Variable '" << sig->name()
+		   << "' cannot have continuous and procedural drivers on the"
+		   << " same bits." << endl;
+	      des->errors += 1;
+	      return nullptr;
+	}
+
+	/* Now that the driven bits and words are known and a behavioural
+	   overlap has been rejected, decide whether this variable can become
+	   an unresolved wire (see the note where this test used to live). */
       if (gn_var_can_be_uwire() && var_allowed_in_sv
-	  && (sig->type() == NetNet::REG)
-	  && (sig->peek_lref() == 0
-	      || !sig->test_part_procedurally_driven(midx, lidx,
-						     widx_flag ? widx : 0))) {
+	  && (sig->type() == NetNet::REG)) {
 	    sig->type(NetNet::UNRESOLVED_WIRE);
       }
 
@@ -1175,9 +1278,9 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 
       if (sig->type() == NetNet::UNRESOLVED_WIRE) {
 	    ivl_assert(*this, widx_flag || (widx == 0));
-	    long wcount = widx_flag ? 1 : sig->pin_count();
-	    for (long idx = 0; idx < wcount; idx += 1) {
-		  if (sig->test_and_set_part_driver(midx, lidx, widx + idx)) {
+	    for (unsigned long idx = 0; idx < selected_word_count; idx += 1) {
+		  if (sig->test_part_driven(
+			midx, lidx, selected_word_base + idx)) {
 			cerr << get_fileline() << ": error: ";
 			if (sig->coerced_to_uwire())
 			      cerr << "Variable '";
@@ -1187,7 +1290,7 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 			if (debug_elaborate) {
 			      cerr << get_fileline() << ":	: Overlap in "
 				   << "[" << midx << ":" << lidx << "] (canonical)"
-				   << ", widx=" << (widx_flag? widx : 0)
+				   << ", widx=" << selected_word_base + idx
 				   << ", vector width=" << sig->vector_width()
 				   << endl;
 			}
@@ -1195,9 +1298,24 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 			return 0;
 		  }
 	    }
+	    for (unsigned long idx = 0; idx < selected_word_count; idx += 1) {
+		  bool overlap = sig->test_and_set_part_driver(
+			midx, lidx, selected_word_base + idx);
+		  ivl_assert(*this, !overlap);
+	    }
       }
 
-      if (sig->unpacked_dimensions() > 0 && widx_flag) {
+      if (sig->unpacked_dimensions() > 0 && unpacked_slice_flag) {
+	    NetNet*view = new NetNet(scope, scope->local_symbol(),
+				 NetNet::WIRE, unpacked_slice_dims,
+				 sig->net_type());
+	    view->set_line(*this);
+	    view->local_flag(true);
+	    for (unsigned long pin = 0; pin < view->pin_count(); pin += 1)
+		  connect(view->pin(pin), sig->pin(widx + pin));
+	    return view;
+
+      } else if (sig->unpacked_dimensions() > 0 && widx_flag) {
 	    if (widx < 0 || widx >= (long) sig->pin_count())
 		  return 0;
 	    NetNet*tmp = new NetNet(scope, scope->local_symbol(),
@@ -1215,13 +1333,13 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 	    return sig;
       }
 
-	/* If the desired l-value vector is narrower than the
-	   signal itself, then use a NetPartSelect node to
-	   arrange for connection to the desired bits. All this
-	   can be skipped if the desired width matches the
-	   original vector. */
+	/* Use a NetPartSelect node when the desired l-value is narrower or
+	   when the source spelling explicitly selected a packed range/member.
+	   The latter must not be skipped merely because its width matches the
+	   original vector: doing so leaks the whole object's named type into
+	   the r-value assignment context. */
 
-      if (subnet_wid != sig->vector_width()) {
+      if (subnet_wid != sig->vector_width() || explicit_vector_select) {
 	      /* If we are processing a tran or inout, then the
 		 partselect is bi-directional. Otherwise, it is a
 		 Part-to-Vector select. */

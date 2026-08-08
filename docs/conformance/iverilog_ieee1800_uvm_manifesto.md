@@ -448,9 +448,12 @@ Future failures belong to the underlying language/runtime subsystem unless the U
       HANDLE) matched, collapsing both to one signal's `vif_M`; a
       `vif_probes_match_` guard now blocks merging events whose vif signal
       identity (edge kind / `vif_N` / `vif_M` / `vif_pre_N`) differs. All
-      forms (bare / indexed / operator-wrapped / multi-member / mixed, both
-      edges) covered by `sv_interface_member_sensitivity`. UVM 209/0/0
-      (nested-vif clocking unaffected).)*
+      common bare / operator-wrapped / multi-member / mixed forms and a
+      posedge control are covered by `sv_interface_member_sensitivity`.
+      The later M5-2 audit added cast-transparent collection and full-vector,
+      current-value-seeded VIF any-change probes. Runtime selector dependencies
+      and the remaining wrapper/exact compound-event gaps are tracked in the
+      ROADMAP rather than being called complete here.)*
 
 ## M6A — Core scheduler/runtime repairs
 

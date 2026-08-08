@@ -128,6 +128,7 @@ synth_process_overlap_reject CE,-g2012	ivltests
 synth_sparse_case	normal,-g2012	ivltests
 synth_unpacked_array_whole_assign normal,-g2012	ivltests
 synth_unpacked_array_slice_assign normal,-g2012	ivltests
+synth_uarray_partial_index_caliptra normal,-g2012 ivltests
 if_part_no_else		normal			ivltests
 if_part_no_else2	normal			ivltests
 inside_synth		normal			ivltests
@@ -159,6 +160,7 @@ synth_disjoint_packed_processes normal,-g2012	ivltests
 sv_case_inside_concat_selector normal,-g2012	ivltests
 sv_enum_unbased_fill normal,-g2012	ivltests
 synth_inert_initial normal,-g2012	ivltests
+synth_deferred_assertion_transparent normal,-g2012	ivltests
 synth_loop_constant_async_reset normal,-g2012	ivltests
 synth_loop_unknown_async_reset CE,-g2012	ivltests gold=synth_loop_unknown_async_reset.gold
 synth_lower_async_after_omitted_output_reject CE,-g2012	ivltests gold=synth_lower_async_after_omitted_output_reject.gold

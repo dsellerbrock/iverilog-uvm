@@ -1,0 +1,7 @@
+./ivltests/sv_uarray_partial_index_boundary_fail.v:12: sorry: a fixed-prefix unpacked-subarray source assigned to a class or aggregate member is not yet supported.
+./ivltests/sv_uarray_partial_index_boundary_fail.v:24: error: Got 1 indices, expecting 2 to index the property words.
+./ivltests/sv_uarray_partial_index_boundary_fail.v:24: error: The expression 'holder.words['sd0]' cannot be implicitly cast to the target type.
+./ivltests/sv_uarray_partial_index_boundary_fail.v:31: error: the type of the variable 'src['sd0]' doesn't match the context type.
+./ivltests/sv_uarray_partial_index_boundary_fail.v:31:      : variable type=netvector_t:logic unsigned[7:0]
+./ivltests/sv_uarray_partial_index_boundary_fail.v:31:      : context type=11netuarray_t
+Elaboration failed
