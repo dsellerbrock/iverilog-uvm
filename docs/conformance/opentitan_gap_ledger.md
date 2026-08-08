@@ -234,11 +234,11 @@ This is the `aes_transpose` idiom in `aes_pkg`.
 Test: `sv_packed_multidim_var_index.v` (checks values — a mis-scaled offset
 would still elaborate but read the wrong element).
 
-## G10 — variable-length implication antecedents — **open**
+## G10 — variable-length implication antecedents — **partial / correctness blocker**
 
 *16.9.2 / A.2.10. [general]*
 
-**No** variable-length antecedent is supported:
+The original campaign rejected every variable-length antecedent:
 
 ```systemverilog
 assert property (@(posedge clk) a ##[1:3] b   |=> c);   // sorry
@@ -252,12 +252,13 @@ sorry: this assertion antecedent shape is not supported
        (fixed-delay sequence chains up to 128 cycles only)
 ```
 
-`pform_make_assertion` builds the antecedent as an AND of per-step booleans
-delayed through the `$past` history machinery, which models exactly one
-attempt at a fixed offset. A variable-length antecedent means several attempts
-in flight at once, each with its own obligation. The automaton engine can
-express that; the assert-property lowering does not route antecedents through
-it. **Architectural — wants a design pass.**
+**2026-08-08 audit correction:** more shapes now route through the automaton,
+and the focused parameter-sized implication/cover forms use an exact count
+pipeline. General NFA implication is still not conformant: one antecedent
+attempt may match at several endpoints, every endpoint must create a separate
+consequent obligation, and the current slot merges those paths so one passing
+consequence can mask a sibling endpoint's failure. Closure requires explicit
+endpoint-obligation fan-out and mixed-verdict tests for both `|->` and `|=>`.
 
 Blocks `prim_alert_receiver`, `prim_diff_decode`.
 
@@ -285,10 +286,16 @@ Currently the **first** diagnostic in the OpenTitan DV build
 G8 deliberately sidesteps the general case with dedicated op types; these need
 the real nested-consequent field in `sva_property_t`.
 
-## G13 — non-literal cycle-delay bounds — **fixed** (current upstream campaign)
+## G13 — non-literal cycle-delay bounds — **partial (focused subset)**
 
 *16.9.2.* `##[SkewCycles+2:SkewCycles+3]` where the bounds are parameters
 rather than literals:
+
+**2026-08-08 update:** supported focused implication/cover forms now retain
+parameter expressions to instance elaboration rather than folding declaration
+defaults. Overrides size each checker independently; negative, X/Z, and
+reversed finite bounds fail elaboration. General symbolic compositions,
+including standalone `a[*LO:HI]`, remain loud unsupported.
 
 ```
 sorry: sequence cycle delays must be literal constants

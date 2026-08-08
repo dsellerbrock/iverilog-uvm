@@ -3734,8 +3734,27 @@ data_type_or_implicit_or_void
 
 deferred_immediate_assertion_item /* IEEE1800-2012: A.6.10 */
   : block_identifier_opt deferred_immediate_assertion_statement
-      { delete $1;
-	delete $2;
+      { Statement*item = $2;
+	/* IEEE 1800-2017 16.3: a statement label creates a named
+	   begin-end block around the assertion. Apart from making %m and
+	   hierarchy correct, retaining this distinct scope preserves the
+	   assertion identity needed by future cancellation support. */
+	if ($1 && item) {
+	      PBlock*scope = pform_push_block_scope(@1, $1, PBlock::BL_SEQ);
+	      pform_pop_scope();
+	      std::vector<Statement*> body(1, item);
+	      scope->set_statement(body);
+	      item = scope;
+	}
+	delete[] $1;
+	/* IEEE 1800-2017 16.4: a deferred immediate assertion item is
+	   equivalent to an always_comb containing the assertion. Keep the
+	   behavior in the current Module/PGenerate scope so generate items
+	   are elaborated once per generated instance. */
+	if (item) {
+	      PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_COMB, item, 0);
+	      FILE_NAME(tmp, @2);
+	}
       }
   ;
 
@@ -3758,7 +3777,15 @@ deferred_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
   | assert_or_assume deferred_mode '(' expression ')' K_else statement_or_null
       {
 	if (gn_supported_assertions_flag) {
-	      $$ = pform_make_deferred_assertion(@1, $4, 0, $7, $2 != 0);
+	      /* Preserve an explicit null else action. A null pointer in the
+	         factory means that the else arm was omitted and therefore
+	         requests the standard default $error action. */
+	      Statement*fail = $7;
+	      if (!fail) {
+		    fail = new PNoop;
+		    FILE_NAME(fail, @6);
+	      }
+	      $$ = pform_make_deferred_assertion(@1, $4, 0, fail, $2 != 0);
 	} else {
 	      if (gn_unsupported_assertions_flag) {
 		    yyerror(@1, "sorry: Deferred assertions are not supported."
@@ -3773,7 +3800,14 @@ deferred_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
   | assert_or_assume deferred_mode '(' expression ')' statement_or_null K_else statement_or_null
       {
 	if (gn_supported_assertions_flag) {
-	      $$ = pform_make_deferred_assertion(@1, $4, $6, $8, $2 != 0);
+	      /* As above, distinguish an explicit null else arm from a
+	         syntactically absent else arm. */
+	      Statement*fail = $8;
+	      if (!fail) {
+		    fail = new PNoop;
+		    FILE_NAME(fail, @7);
+	      }
+	      $$ = pform_make_deferred_assertion(@1, $4, $6, fail, $2 != 0);
 	} else {
 	      if (gn_unsupported_assertions_flag) {
 		    yyerror(@1, "sorry: Deferred assertions are not supported."
@@ -3788,26 +3822,37 @@ deferred_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
       }
   | K_cover deferred_mode '(' expression ')' statement_or_null
       {
-	  /* Coverage collection is not currently supported. */
+	if (gn_supported_assertions_flag && gn_unsupported_assertions_flag) {
+	      yyerror(@1, "sorry: Deferred immediate cover statements are not supported yet.");
+	} else if (gn_unsupported_assertions_flag) {
+	      yyerror(@1, "sorry: Deferred assertions are not supported."
+		      " Try -gno-assertions or -gsupported-assertions"
+		      " to turn this message off.");
+	}
 	delete $4;
 	delete $6;
 	$$ = 0;
       }
   | assert_or_assume deferred_mode '(' error ')' statement_or_null %prec less_than_K_else
       { yyerror(@1, "error: Malformed conditional expression.");
-	$$ = $6;
+	delete $6;
+	$$ = 0;
       }
   | assert_or_assume deferred_mode '(' error ')' K_else statement_or_null
       { yyerror(@1, "error: Malformed conditional expression.");
-	$$ = $7;
+	delete $7;
+	$$ = 0;
       }
   | assert_or_assume deferred_mode '(' error ')' statement_or_null K_else statement_or_null
       { yyerror(@1, "error: Malformed conditional expression.");
-	$$ = $6;
+	delete $6;
+	delete $8;
+	$$ = 0;
       }
   | K_cover deferred_mode '(' error ')' statement_or_null
       { yyerror(@1, "error: Malformed conditional expression.");
-	$$ = $6;
+	delete $6;
+	$$ = 0;
       }
   ;
 
@@ -6003,7 +6048,17 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
   | block_identifier_opt simple_immediate_assertion_statement
       { $$ = $2; }
   | block_identifier_opt deferred_immediate_assertion_statement
-      { $$ = $2; }
+      { Statement*item = $2;
+	if ($1 && item) {
+	      PBlock*scope = pform_push_block_scope(@1, $1, PBlock::BL_SEQ);
+	      pform_pop_scope();
+	      std::vector<Statement*> body(1, item);
+	      scope->set_statement(body);
+	      item = scope;
+	}
+	delete[] $1;
+	$$ = item;
+      }
   /* IEEE 1800-2017 16.17: the `expect' statement blocks the process on a
      single property attempt, then runs the pass or the else action. */
   | K_expect '(' property_spec ')' statement_or_null %prec less_than_K_else

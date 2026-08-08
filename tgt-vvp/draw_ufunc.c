@@ -948,6 +948,73 @@ void draw_ufunc_object(ivl_expr_t expr)
       draw_ufunc_epilogue(expr);
 }
 
+/* Find the rightmost destination-dimension suffix that contains exactly
+ * word_count words. An unpacked-array function result can be assigned to a
+ * whole array or to a fixed-prefix slice, and the latter is represented by
+ * the original signal plus a flat base word. */
+static unsigned uarray_suffix_first_dim_(ivl_signal_t sig,
+                                         unsigned word_count)
+{
+      unsigned dims = ivl_signal_dimensions(sig);
+      unsigned long long count = 1;
+      unsigned dim = dims;
+
+      while (dim > 0) {
+            int msb;
+            int lsb;
+            unsigned long long width;
+
+            dim -= 1;
+            msb = ivl_signal_array_dim_msb(sig, dim);
+            lsb = ivl_signal_array_dim_lsb(sig, dim);
+            width = (msb >= lsb) ? (unsigned long long)(msb-lsb+1)
+                                 : (unsigned long long)(lsb-msb+1);
+            count *= width;
+            if (count == word_count)
+                  return dim;
+            if (count > word_count)
+                  break;
+      }
+
+      return dims;
+}
+
+/* Convert a left-to-right (declared-order) flat position within a dimension
+ * suffix to the canonical low-bound-based word offset used by vvp storage.
+ * Decompose from the rightmost dimension because that is the fastest-moving
+ * dimension in both orderings. */
+static unsigned uarray_decl_to_canonical_(ivl_signal_t sig,
+                                          unsigned first_dim,
+                                          unsigned declared_pos)
+{
+      unsigned dim = ivl_signal_dimensions(sig);
+      unsigned canonical = 0;
+      unsigned stride = 1;
+
+      while (dim > first_dim) {
+            int msb;
+            int lsb;
+            unsigned width;
+            unsigned declared_coord;
+            unsigned canonical_coord;
+
+            dim -= 1;
+            msb = ivl_signal_array_dim_msb(sig, dim);
+            lsb = ivl_signal_array_dim_lsb(sig, dim);
+            width = (msb >= lsb) ? (unsigned)(msb-lsb+1)
+                                 : (unsigned)(lsb-msb+1);
+            declared_coord = declared_pos % width;
+            declared_pos /= width;
+            canonical_coord = (msb > lsb)
+                  ? width-1-declared_coord : declared_coord;
+            canonical += canonical_coord * stride;
+            stride *= width;
+      }
+
+      assert(declared_pos == 0);
+      return canonical;
+}
+
 /*
  * Call a function whose return type is an unpacked array and copy the
  * result into dst_sig starting at flat word dst_base (0 for a whole-array
@@ -955,7 +1022,9 @@ void draw_ufunc_object(ivl_expr_t expr)
  * the function like a void function (see draw_ufunc_preamble); the function
  * body has stored the result words into its emitted return-array signal,
  * which remains readable here because the callee frame is not freed until
- * the epilogue below.
+ * the epilogue below. Source and destination words are mapped independently
+ * through declared order, as required when equivalent-sized ranges have
+ * opposite directions (IEEE 1800-2017 7.6).
  */
 void draw_ufunc_uarray(ivl_expr_t expr, ivl_signal_t dst_sig,
 		       unsigned dst_base)
@@ -963,37 +1032,52 @@ void draw_ufunc_uarray(ivl_expr_t expr, ivl_signal_t dst_sig,
       ivl_scope_t def = ivl_expr_def(expr);
       ivl_signal_t retval = ivl_scope_port(def, 0);
       unsigned word_count = ivl_signal_array_count(retval);
+      unsigned dst_first = uarray_suffix_first_dim_(dst_sig, word_count);
       unsigned idx;
+
+      if (dst_first == ivl_signal_dimensions(dst_sig)) {
+            fprintf(stderr, "draw_ufunc_uarray: error: return array of %s "
+                    "does not match the destination array shape\n",
+                    ivl_scope_name(def));
+            vvp_errors += 1;
+            return;
+      }
 
       draw_ufunc_preamble(expr);
 
       int ix = allocate_word();
       for (idx = 0 ; idx < word_count ; idx += 1) {
+	    unsigned src_word = uarray_decl_to_canonical_(retval, 0, idx);
+	    unsigned dst_word = uarray_decl_to_canonical_(dst_sig,
+						     dst_first, idx);
 	    switch (ivl_signal_data_type(retval)) {
 		case IVL_VT_BOOL:
 		case IVL_VT_LOGIC:
-		  fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", ix, idx);
+		  fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", ix,
+			  src_word);
 		  fprintf(vvp_out, "    %%load/vec4a v%p, %d;\n", retval, ix);
 		  fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n",
-			  ix, dst_base + idx);
+			  ix, dst_base + dst_word);
 		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
 		  fprintf(vvp_out, "    %%store/vec4a v%p, %d, 0;\n",
 			  dst_sig, ix);
 		  break;
 		case IVL_VT_REAL:
-		  fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", ix, idx);
+		  fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", ix,
+			  src_word);
 		  fprintf(vvp_out, "    %%load/ar v%p, %d;\n", retval, ix);
 		  fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n",
-			  ix, dst_base + idx);
+			  ix, dst_base + dst_word);
 		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
 		  fprintf(vvp_out, "    %%store/reala v%p, %d;\n",
 			  dst_sig, ix);
 		  break;
 		case IVL_VT_STRING:
-		  fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", ix, idx);
+		  fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", ix,
+			  src_word);
 		  fprintf(vvp_out, "    %%load/stra v%p, %d;\n", retval, ix);
 		  fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n",
-			  ix, dst_base + idx);
+			  ix, dst_base + dst_word);
 		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
 		  fprintf(vvp_out, "    %%store/stra v%p, %d;\n",
 			  dst_sig, ix);

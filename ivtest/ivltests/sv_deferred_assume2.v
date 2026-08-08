@@ -1,5 +1,5 @@
-// This just tests the compiler accepts the syntax. It needs to be improved
-// when deferred assumeions are supported.
+// `assume final` remains a deliberate compile-error guard until reports
+// mature in the Postponed region of every time step.
 module test();
 
 integer i = 1;

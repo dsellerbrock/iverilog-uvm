@@ -1,0 +1,8 @@
+./ivltests/sv_uarray_partial_index_driver_fail.v:39: error: Cannot perform procedural assignment to array slice 'a['sd0]' because it is also continuously assigned.
+./ivltests/sv_uarray_partial_index_driver_fail.v:9: error: Variable 'a' cannot have multiple drivers.
+./ivltests/sv_uarray_partial_index_driver_fail.v:48: error: Cannot perform procedural assignment to array word 'a['sd0]['sd1]' because it is also continuously assigned.
+./ivltests/sv_uarray_partial_index_driver_fail.v:17: error: Variable 'a' cannot have multiple drivers.
+./ivltests/sv_uarray_partial_index_driver_fail.v:31: error: Cannot perform procedural assignment to array slice 'a['sd0]' because it is also continuously assigned.
+./ivltests/sv_uarray_partial_index_driver_fail.v:62: error: Variable 'a' cannot have continuous and procedural drivers on the same bits.
+./ivltests/sv_uarray_partial_index_driver_fail.v:24: error: Cannot perform procedural assignment to array word 'a['sd0]['sd1]' because it is also continuously assigned.
+Elaboration failed

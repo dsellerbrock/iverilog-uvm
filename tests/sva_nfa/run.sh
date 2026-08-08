@@ -23,6 +23,20 @@ FAIL=0
 
 norm() { sed -E 's/0x[0-9a-f]+/0xPTR/g'; }
 
+# Preserve the producer's exit status without relying on a pipeline. This is
+# intentionally compatible with the macOS system Bash (3.2).
+run_norm() {
+    local out="$1"
+    local status
+    shift
+    "$@" > "$out.raw" 2>&1
+    status=$?
+    if ! norm < "$out.raw" > "$out"; then
+        return 125
+    fi
+    return "$status"
+}
+
 for sv in "$DIR"/*.sv; do
     name=$(basename "$sv" .sv)
     printf "  %-40s " "$name"
@@ -30,9 +44,13 @@ for sv in "$DIR"/*.sv; do
     *_nfa_only)
         # Legacy must reject loudly (the automaton engine is the default
         # now, so legacy is selected explicitly with IVL_SVA_LEGACY=1)...
-        loff=$(IVL_SVA_LEGACY=1 "$BIN" -g2012 -o "$TMP/$name.off.vvp" "$sv" 2>&1)
-        if ! echo "$loff" | grep -q "sorry"; then
-            echo "FAIL (legacy no longer sorries -- promote to dual-run)"
+        IVL_SVA_LEGACY=1 "$BIN" -g2012 \
+            -o "$TMP/$name.off.vvp" "$sv" > "$TMP/$name.off.cc" 2>&1
+        legacy_status=$?
+        if [ "$legacy_status" -eq 0 ] \
+           || ! grep -q "sorry" "$TMP/$name.off.cc"; then
+            echo "FAIL (legacy must fail with sorry -- promote if supported)"
+            head -3 "$TMP/$name.off.cc"
             FAIL=$((FAIL+1)); continue
         fi
         # ...and the NFA engine must match the hand-computed gold.
@@ -41,7 +59,11 @@ for sv in "$DIR"/*.sv; do
             echo "FAIL (flag-on compile failed)"
             head -3 "$TMP/$name.cmp"; FAIL=$((FAIL+1)); continue
         fi
-        vvp "$TMP/$name.vvp" 2>&1 | norm > "$TMP/$name.out"
+        if ! run_norm "$TMP/$name.out" vvp "$TMP/$name.vvp"; then
+            echo "FAIL (flag-on runtime failed)"
+            head -3 "$TMP/$name.out"
+            FAIL=$((FAIL+1)); continue
+        fi
         if diff -u "$DIR/$name.gold" "$TMP/$name.out" > "$TMP/$name.diff"; then
             echo "PASS (nfa-only vs gold)"
             PASS=$((PASS+1))
@@ -52,8 +74,10 @@ for sv in "$DIR"/*.sv; do
         ;;
     *)
         ok=1
-        IVL_SVA_LEGACY=1 "$BIN" -g2012 -o "$TMP/$name.off.vvp" "$sv" 2>&1 | norm > "$TMP/$name.off.cc" || ok=0
-        IVL_SVA_NFA=1 "$BIN" -g2012 -o "$TMP/$name.on.vvp" "$sv" 2>&1 | norm > "$TMP/$name.on.cc" || ok=0
+        run_norm "$TMP/$name.off.cc" env IVL_SVA_LEGACY=1 \
+            "$BIN" -g2012 -o "$TMP/$name.off.vvp" "$sv" || ok=0
+        run_norm "$TMP/$name.on.cc" env IVL_SVA_NFA=1 \
+            "$BIN" -g2012 -o "$TMP/$name.on.vvp" "$sv" || ok=0
         if [ $ok -ne 1 ]; then
             echo "FAIL (compile failed)"; FAIL=$((FAIL+1)); continue
         fi
@@ -72,8 +96,12 @@ for sv in "$DIR"/*.sv; do
                 FAIL=$((FAIL+1)); continue
             fi
         fi
-        vvp "$TMP/$name.off.vvp" 2>&1 | norm > "$TMP/$name.off.out"
-        vvp "$TMP/$name.on.vvp"  2>&1 | norm > "$TMP/$name.on.out"
+        ok=1
+        run_norm "$TMP/$name.off.out" vvp "$TMP/$name.off.vvp" || ok=0
+        run_norm "$TMP/$name.on.out" vvp "$TMP/$name.on.vvp" || ok=0
+        if [ $ok -ne 1 ]; then
+            echo "FAIL (runtime failed)"; FAIL=$((FAIL+1)); continue
+        fi
         if diff -u "$TMP/$name.off.cc" "$TMP/$name.on.cc" > "$TMP/$name.diff" \
            && diff -u "$TMP/$name.off.out" "$TMP/$name.on.out" >> "$TMP/$name.diff"; then
             echo "PASS (verdict parity)"

@@ -20,6 +20,7 @@ module sv_uarray_func_return;
   typedef real   rp_t[2];
   typedef string sp_t[2];
   typedef int    m2_t[2][3];
+  typedef int    down_t[3:1];
 
   int errors = 0;
 
@@ -50,11 +51,18 @@ module sv_uarray_func_return;
     make2d[1] = '{4, 5, 6};
   endfunction
 
+  function automatic down_t make_down();
+    make_down[3] = 83;
+    make_down[2] = 82;
+    make_down[1] = 81;
+  endfunction
+
   int a[4];
   real r[2];
   string s[2];
   int m[2][3];
   int mm[2][4];
+  int dir_dst[1:0][5:7];
 
   initial begin
     a = scaled(3);
@@ -83,6 +91,17 @@ module sv_uarray_func_return;
     expect_int("slice row0 untouched", mm[0][2], 0);
     expect_int("slice row1[0]", mm[1][0], 2);
     expect_int("slice row1[3]", mm[1][3], 8);
+
+    // Assignment correspondence is left-to-right, not canonical-index to
+    // canonical-index. This opposite-direction slice also has a nonzero
+    // flat destination base (row 1 of a descending outer dimension).
+    dir_dst[0] = '{90, 91, 92};
+    dir_dst[1] = make_down();
+    expect_int("direction row0[5] untouched", dir_dst[0][5], 90);
+    expect_int("direction row0[7] untouched", dir_dst[0][7], 92);
+    expect_int("direction row1[5]", dir_dst[1][5], 83);
+    expect_int("direction row1[6]", dir_dst[1][6], 82);
+    expect_int("direction row1[7]", dir_dst[1][7], 81);
 
     // Calling the same function again with a different argument reuses
     // the return storage correctly.

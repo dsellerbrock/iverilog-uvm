@@ -285,9 +285,12 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
       }
 
       ivl_assert(*this, !sr.path_head.empty());
-      return elaborate_lval_var_(des, scope, is_force, is_cassign, reg,
-			         sr.type, member_path,
-			         sr.path_head.back().index);
+      NetAssign_*res = elaborate_lval_var_(des, scope, is_force, is_cassign,
+					 reg, sr.type, member_path,
+					 sr.path_head.back().index);
+      if (is_force && res)
+	    res->mark_force_lval();
+      return res;
 }
 
 NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
@@ -532,7 +535,9 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	  && (use_sel == index_component_t::SEL_PART
 	      || use_sel == index_component_t::SEL_IDX_UP
 	      || use_sel == index_component_t::SEL_IDX_DO)
-	  && packed_base_needs_expr_(des, scope, reg)) {
+	  && reg->unpacked_dimensions() == 0
+	  && packed_base_needs_expr_(des, scope, reg,
+				     path_.back().index)) {
 	    unsigned long sel_wid = 0;
 	    NetExpr*pbase = collapse_packed_base(des, scope, this, reg,
 						 path_.back().index, sel_wid);
@@ -704,7 +709,7 @@ NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
 		  cerr << get_fileline() << ": warning: ignoring out of bounds"
 			  " l-value array slice access " << reg->name()
 			 << "." << endl;
-		  base = new NetEConst(verinum(verinum::Vx));
+		  return 0;
 	    }
 	    base->set_line(*this);
 
@@ -714,6 +719,26 @@ NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
 		  sub_dims.push_back(dims[d]);
 	    ivl_type_t slice_type =
 		  new netuarray_t(sub_dims, full_arr->element_type());
+
+	    if ((reg->type() == NetNet::UNRESOLVED_WIRE) && !is_force) {
+		  ivl_assert(*this, reg->coerced_to_uwire());
+		  long first_word = 0;
+		  bool have_base = eval_as_long(first_word, base);
+		  unsigned long word_count = netrange_width(sub_dims);
+		  bool overlap = !have_base || first_word < 0 || word_count == 0;
+		  for (unsigned long word = 0; !overlap && word < word_count;
+		       word += 1) {
+			if (reg->test_part_driven(reg->vector_width()-1, 0,
+					  first_word + word))
+			      overlap = true;
+		  }
+		  if (overlap) {
+			report_mixed_assignment_conflict_("array slice");
+			des->errors += 1;
+			delete base;
+			return 0;
+		  }
+	    }
 
 	    NetAssign_*lv = new NetAssign_(reg);
 	    lv->set_array_slice(base, slice_type);
@@ -726,6 +751,10 @@ NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
       des->errors += 1;
       return 0;
 }
+
+static void set_packed_slice_part_(NetAssign_*lv, NetExpr*base,
+				   const NetNet*reg, size_t dims_used,
+				   unsigned long lwid);
 
 NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 					      NetScope*scope,
@@ -829,6 +858,26 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 
       if (debug_elaborate)
 	    cerr << get_fileline() << ": debug: Set array word=" << *canon_index << endl;
+
+	/* set_word() preserves the unpacked address. Collapse any remaining
+	   packed suffix relative to that word, including a run-time index in
+	   a non-final packed dimension. */
+      list<index_component_t> packed_indices = name_tail.index;
+      for (size_t idx = 0 ; idx < reg->unpacked_dimensions() ; idx += 1)
+	    packed_indices.pop_front();
+      if (!need_const_idx
+	  && packed_base_needs_expr_(des, scope, reg, packed_indices)) {
+	    unsigned long sel_wid = 0;
+	    NetExpr*pbase = collapse_packed_base(des, scope, this, reg,
+					  packed_indices, sel_wid);
+	    if (pbase && sel_wid > 0) {
+		  pbase->set_line(*this);
+		  set_packed_slice_part_(lv, pbase, reg,
+					 packed_indices.size(), sel_wid);
+		  return lv;
+	    }
+	    delete pbase;
+      }
 
 
 	/* An array word may also have part selects applied to them. */
@@ -936,7 +985,9 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 	// leading indices into a slice offset, so that shape needs the
 	// general computed base. False for everything the prefix path
 	// already handles, which keeps it in charge of those.
-      if (!need_const_idx && packed_base_needs_expr_(des, scope, lv->sig())) {
+      if (!need_const_idx && lv->sig()->unpacked_dimensions() == 0
+	  && packed_base_needs_expr_(des, scope, lv->sig(),
+				     path_.back().index)) {
 	    NetNet*preg = lv->sig();
 	    unsigned long sel_wid = 0;
 	    NetExpr*pbase = collapse_packed_base(des, scope, this, preg,
@@ -1121,19 +1172,11 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 
 	    lv->set_part(mux, 1);
 
-      } else if (reg->vector_width() == 1 && reg->sb_is_valid(prefix_indices,lsb)) {
-	      // Constant bit mux that happens to select the only bit
-	      // of the l-value. Don't bother with any select at all.
-	      // If there's a continuous assignment, it must be a conflict.
-	    if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
-		  ivl_assert(*this, reg->coerced_to_uwire());
-		  report_mixed_assignment_conflict_("bit select");
-		  des->errors += 1;
-		  return false;
-	    }
-
       } else {
-	      // Constant bit select that does something useful.
+	      // Keep an explicitly written bit select even when it happens
+	      // to cover the signal's only bit. A select has the type of the
+	      // selected bit, not the named type of the whole object (notably
+	      // for a one-bit enum), so erasing it changes assignment typing.
 	    long loff = reg->sb_to_idx(prefix_indices,lsb);
 
 	    if (warn_ob_select && (loff < 0 || loff >= (long)reg->vector_width())) {
@@ -1365,15 +1408,6 @@ bool PEIdent::elaborate_lval_net_part_(Design*des,
 	    return true;
       }
 
-      if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
-	    ivl_assert(*this, reg->coerced_to_uwire());
-	    if (reg->test_part_driven(msb, lsb)) {
-		  report_mixed_assignment_conflict_("part select");
-		  des->errors += 1;
-		  return false;
-	    }
-      }
-
       const netranges_t&packed = reg->packed_dims();
 
       long loff, moff;
@@ -1410,13 +1444,34 @@ bool PEIdent::elaborate_lval_net_part_(Design*des,
 	    return false;
       }
 
+	/* The driver mask uses the signal's flattened, LSB-zero bit
+	   numbering. For a multidimensional packed part select, msb/lsb
+	   above are indices in the selected source dimension and are not
+	   comparable with that mask. Check only after sb_to_slice/sb_to_idx
+	   has produced canonical loff/moff. Clip an out-of-range select to
+	   the physical bits it can actually drive. */
+      if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
+	    ivl_assert(*this, reg->coerced_to_uwire());
+	    long driven_lo = std::max<long>(loff, 0);
+	    long driven_hi = std::min<long>(moff,
+					     (long)reg->vector_width() - 1);
+	    if (driven_lo <= driven_hi
+		&& reg->test_part_driven((unsigned)driven_hi,
+					 (unsigned)driven_lo)) {
+		  report_mixed_assignment_conflict_("part select");
+		  des->errors += 1;
+		  return false;
+	    }
+      }
+
       unsigned long wid = moff - loff + 1;
 
-	// Special case: The range winds up selecting the entire
-	// vector. Treat this as no part select at all.
-      if (loff == 0 && wid == reg->vector_width()) {
-	    return true;
-      }
+	/* Preserve an explicitly written part select even when its range
+	   spans the entire vector. IEEE 1800-2017 gives a part select the
+	   type of an unsigned packed vector, not the named type of the whole
+	   object. Erasing a full-width select therefore makes, for example,
+	   `enum_var[3:0] = bits' look like the illegal implicit assignment
+	   `enum_var = bits'. */
 
 	/* If the part select extends beyond the extremes of the
 	   variable, then output a warning. Note that loff is
@@ -1567,8 +1622,10 @@ bool PEIdent::elaborate_lval_net_idx_(Design*des,
 			      return false;
 			}
 		  }
-		    /* If we cover the entire lvalue just skip the select. */
-		  if (rel_base == 0 && wid == reg->vector_width()) return true;
+		    /* Keep an explicitly written indexed select even when it
+		       spans the complete object. Like a fixed part select, it has
+		       plain packed-vector typing rather than the named type of the
+		       unselected object (notably an enum). */
 		  base = new NetEConst(verinum(rel_base));
 		  if (warn_ob_select) {
 			if (rel_base < 0) {

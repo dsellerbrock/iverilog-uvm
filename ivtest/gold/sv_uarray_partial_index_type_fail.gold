@@ -1,0 +1,6 @@
+./ivltests/sv_uarray_partial_index_type_fail.v:20: error: unpacked subarray types are not equivalent in assignment.
+./ivltests/sv_uarray_partial_index_type_fail.v:6: error: unpacked subarray types are not equivalent in assignment.
+./ivltests/sv_uarray_partial_index_type_fail.v:32: error: Unpacked dimensions are not compatible in array assignment.
+./ivltests/sv_uarray_partial_index_type_fail.v:26: error: unpacked subarray types are not equivalent in assignment.
+./ivltests/sv_uarray_partial_index_type_fail.v:12: error: Element types are not compatible in array assignment.
+Elaboration failed

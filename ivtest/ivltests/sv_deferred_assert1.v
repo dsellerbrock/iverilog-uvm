@@ -1,5 +1,5 @@
-// This just tests the compiler accepts the syntax. It needs to be improved
-// when deferred assertions are supported.
+// Supported observed-deferred action shapes execute from the per-process
+// report queue in Reactive.
 module test();
 
 integer i = 1;

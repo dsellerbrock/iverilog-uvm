@@ -1,5 +1,5 @@
-// A deferred assertion inside a task is a (loud) named sorry for now:
-// the hidden per-instance state would need per-activation treatment.
+// A deferred assertion inside a task is a loud unsupported form until the
+// caller-process queue can retain captured arguments and activation lifetime.
 module t;
   task check(int v);
     assert #0 (v == 1) else $display("nope");

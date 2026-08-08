@@ -115,12 +115,11 @@ bool gn_supported_assertions_flag = true;
 // assertions would parse as silent no-ops. That rationale is obsolete:
 // the M9 engine implements concurrent assertions (they never reach the
 // unsupported branch while gn_supported_assertions_flag is set), and
-// with the flag false the only remaining consumers -- DEFERRED immediate
-// assertions (assert/assume #0 / final, IEEE 1800-2017 16.4), which are
-// NOT implemented -- were being deleted from the design SILENTLY.
-// Upstream's default (true) makes that a loud sorry again; R29 tracks
-// the real implementation. -gno-assertions still opts out of the
-// message (and of assertions altogether).
+// with the flag false the remaining deferred-immediate consumers were
+// being deleted from the design SILENTLY. R29 now implements a bounded
+// assert/assume #0 subset and keeps unsupported action/context/final forms
+// loud by default. -gsupported-assertions quietly retains only the supported
+// subset; -gno-assertions opts out of assertions altogether.
 bool gn_unsupported_assertions_flag = true;
 bool gn_io_range_error_flag = true;
 bool gn_strict_ca_eval_flag = false;

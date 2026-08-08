@@ -951,6 +951,7 @@ bool NetNet::test_part_procedurally_driven(unsigned msb, unsigned lsb,
 		 ; cur != lref_objs_.end() ; ++cur) {
 	    const NetAssign_*lv = *cur;
 	    if (!lv) continue;
+	    if (lv->is_force_lval()) continue;
 
 	      // An unpacked word index we cannot evaluate: assume it
 	      // could be the word being asked about.
@@ -958,7 +959,22 @@ bool NetNet::test_part_procedurally_driven(unsigned msb, unsigned lsb,
 		  const NetEConst*wc = dynamic_cast<const NetEConst*>(w);
 		  if (!wc || !wc->value().is_defined())
 			return true;
-		  if (wc->value().as_long() != (long)widx)
+
+		  long first_word = wc->value().as_long();
+		  if (lv->is_array_slice()) {
+			ivl_type_t slice_type = lv->net_type();
+			unsigned long word_count = slice_type
+			      ? netrange_width(slice_type->slice_dimensions()) : 0;
+			if (first_word < 0 || word_count == 0)
+			      return true;
+			if ((long)widx < first_word
+			    || (unsigned long)((long)widx - first_word) >= word_count)
+			      continue;
+			// A subarray l-value covers the complete selected word.
+			return true;
+		  }
+
+		  if (first_word != (long)widx)
 			continue;
 	    }
 
