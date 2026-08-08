@@ -794,6 +794,16 @@ bool NetProc::synth_async(Design*, NetScope*, NexusSet&, NetBus&, NetBus&, vecto
       return false;
 }
 
+/* Immediate-assertion actions are verification-only. Their containing RTL
+ * process must remain synthesizable, but the action itself contributes no
+ * hardware and leaves the accumulated data/enables/masks unchanged. Keep
+ * ordinary system tasks on the existing unsupported path. */
+bool NetSTask::synth_async(Design*, NetScope*, NexusSet&, NetBus&, NetBus&,
+			   vector<mask_t>&)
+{
+      return assertion_action_;
+}
+
 /* Return true when constant-function evaluation can fold this expression
  * without encountering a run-time signal. This lets synthesis substitute an
  * unrolled loop index quietly, while preserving a dynamic l-value index such

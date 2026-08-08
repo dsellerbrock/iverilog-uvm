@@ -4560,39 +4560,114 @@ PProcess* pform_make_behavior(ivl_process_type_t type, Statement*st,
       return pp;
 }
 
-/*
- * Deferred immediate assertions (IEEE 1800-2017 16.4). The condition
- * is evaluated IMMEDIATELY, in the executing process with current
- * (Active-region) values, but the action block is a deferred report:
- * the `#0' (observed-deferred) form matures in the Reactive region of
- * the current time step, the `final' form at the end of simulation,
- * and a report is FLUSHED if its process re-executes the statement
- * before maturity (16.4.4) -- only the last, settled evaluation of a
- * time step reports.
- *
- * Lowering is pure pform synthesis over existing machinery. Per
- * statement instance, three hidden statics in the enclosing module
- * scope: `verdict' (the last evaluation), `gen' (execution counter,
- * 2-state so its zero-init is a clean "never executed"), and for the
- * #0 form `ack' (last generation reported). The statement itself
- * records verdict and bumps gen, then for #0 detaches a child that
- * marks itself Reactive ($ivl_reactive_process), parks until the
- * Reactive region of this step ($ivl_reactive_wait), and reports only
- * if no sibling has (ack != gen), consuming the generation. Multiple
- * executions in one step spawn multiple children, but only the first
- * to wake reports -- with the SETTLED verdict -- and the rest die:
- * exactly the observable flush semantics. The `final' form instead
- * synthesizes one final process that reports the last recorded
- * verdict if the statement ever executed.
- *
- * Known narrowing (documented, loud below): the hidden state is
- * per-instance, not per-process, so two processes sharing one
- * statement instance in the same time step coalesce to one report;
- * and the statics must land in a module scope, so deferred
- * assertions inside named blocks, tasks, functions and classes are a
- * named sorry for now.
- */
-static unsigned deferred_assertion_count = 0;
+/* Defined with the concurrent-assertion helpers below. Deferred immediate
+ * assertions use the same global assertion-control state. */
+static PExpr* sva_enabled_expr_(const struct vlltype&loc);
+
+/* Build the internal report marker consumed by the VVP target. The source
+ * process chooses an arm now, so the runtime only has to queue the already
+ * selected call. Kind 1 is `$error()'; kind 2 is `$display(<one literal>)'.
+ * Keeping the literal as a marker argument also makes its by-value capture
+ * explicit -- no source expression is re-evaluated in Reactive. */
+static Statement* deferred_enqueue_marker_(const struct vlltype&loc,
+					    unsigned kind,
+					    const PEString*literal = 0)
+{
+      std::list<named_pexpr_t> args;
+      named_pexpr_t kind_arg;
+      kind_arg.parm = new PENumber(new verinum((uint64_t)kind, 32));
+      FILE_NAME(kind_arg.parm, loc);
+      args.push_back(kind_arg);
+
+      if (literal) {
+	    const std::string&value = literal->value();
+	    char*text = new char[value.size()+1];
+	    memcpy(text, value.c_str(), value.size()+1);
+	    named_pexpr_t text_arg;
+	    text_arg.parm = new PEString(text);
+	    text_arg.parm->set_line(*literal);
+	    args.push_back(text_arg);
+      }
+
+      PCallTask*marker = new PCallTask(
+	    lex_strings.make("$ivl_deferred_enqueue"), args);
+      FILE_NAME(marker, loc);
+      return marker;
+}
+
+/* Convert one action arm to an enqueue marker. This is intentionally a
+ * small, honest first slice: an explicit null action, `$error()' without
+ * arguments, or `$display' with exactly one positional string literal.
+ * Other subroutine calls are legal deferred actions in the language but
+ * need the general argument-capture IR, so diagnose them as unsupported.
+ * A non-call action is illegal under IEEE 1800-2017 16.4. */
+static bool deferred_action_marker_(const struct vlltype&loc,
+				    Statement*source,
+				    bool default_error,
+				    const char*arm,
+				    Statement*&marker)
+{
+      marker = 0;
+      if (source == 0) {
+	    if (default_error)
+		  marker = deferred_enqueue_marker_(loc, 1);
+	    return true;
+      }
+
+      if (dynamic_cast<PNoop*>(source)) {
+	    delete source;
+	    return true;
+      }
+
+      PCallTask*call = dynamic_cast<PCallTask*>(source);
+      if (call == 0) {
+	    VLerror(loc, "error: The %s action of a deferred immediate "
+		    "assertion must be a single subroutine call or a null "
+		    "statement (IEEE 1800-2017 16.4).", arm);
+	    delete source;
+	    return false;
+      }
+
+      if (call->is_void_cast()) {
+	    VLerror(loc, "error: The %s action of a deferred immediate "
+		    "assertion must be a direct subroutine call; a void cast "
+		    "is not an action call (IEEE 1800-2017 16.4).", arm);
+	    delete source;
+	    return false;
+      }
+
+      const pform_name_t&path = call->path();
+      const std::vector<named_pexpr_t>&parms = call->parms();
+      bool simple_name = path.size() == 1
+	    && path.front().index.empty()
+	    && call->leading_type_args() == 0
+	    && call->with_constraints().empty();
+      perm_string name = simple_name ? peek_head_name(path) : perm_string();
+
+      if (simple_name && name == perm_string::literal("$error")
+	  && parms.empty()) {
+	    marker = deferred_enqueue_marker_(loc, 1);
+	    delete source;
+	    return true;
+      }
+
+      if (simple_name && name == perm_string::literal("$display")
+	  && parms.size() == 1 && parms[0].name.nil()) {
+	    if (PEString*text = dynamic_cast<PEString*>(parms[0].parm)) {
+		  marker = deferred_enqueue_marker_(loc, 2, text);
+		  delete source;
+		  return true;
+	    }
+      }
+
+      if (gn_unsupported_assertions_flag)
+	    VLerror(loc, "sorry: The %s action of a deferred immediate "
+		  "assertion is not supported yet. This implementation currently "
+		  "accepts only null, $error() with no arguments, or $display() "
+		  "with one string literal; the assertion is dropped.", arm);
+      delete source;
+      return false;
+}
 
 Statement* pform_make_deferred_assertion(const struct vlltype&loc,
 					 PExpr*expr,
@@ -4600,186 +4675,62 @@ Statement* pform_make_deferred_assertion(const struct vlltype&loc,
 					 Statement*fail_stmt,
 					 bool is_final)
 {
-	// Find the enclosing module, walking out of any (named or
-	// unnamed) begin/fork block scopes. Task, function and class
-	// scopes are a boundary: the hidden statics would need
-	// per-activation or per-object treatment there.
-      Module*pmod = 0;
-      for (LexicalScope*sc = pform_peek_scope() ; sc ; sc = sc->parent_scope()) {
-	    if ((pmod = dynamic_cast<Module*>(sc)))
-		  break;
-	    if (!dynamic_cast<PBlock*>(sc))
-		  break;
-      }
-      if (pmod == 0) {
-	    VLerror(loc, "sorry: A deferred assertion inside a "
-		    "task, function or class is not supported yet. Move it "
-		    "to module process context.");
+      if (is_final) {
+	    if (gn_unsupported_assertions_flag)
+		  VLerror(loc, "sorry: Deferred immediate assertion mode 'final' "
+			  "is not supported yet; only the #0 form is implemented.");
 	    delete expr;
 	    delete pass_stmt;
 	    delete fail_stmt;
 	    return 0;
       }
 
-	// Default fail action: $error (16.4.3), matching the simple
-	// immediate assertion lowering.
-      if (fail_stmt == 0) {
-	    std::list<named_pexpr_t> arg_list;
-	    PCallTask*err = new PCallTask(lex_strings.make("$error"), arg_list);
-	    FILE_NAME(err, loc);
-	    fail_stmt = err;
+      bool have_static_owner = false;
+      bool routine_or_class = false;
+      for (LexicalScope*sc = pform_peek_scope(); sc; sc = sc->parent_scope()) {
+	    if (dynamic_cast<PTaskFunc*>(sc) || dynamic_cast<PClass*>(sc)) {
+		  routine_or_class = true;
+		  break;
+	    }
+	    if (dynamic_cast<Module*>(sc)) {
+		  have_static_owner = true;
+		  break;
+	    }
+      }
+      if (routine_or_class || !have_static_owner) {
+	    if (gn_unsupported_assertions_flag)
+		  VLerror(loc, "sorry: Deferred immediate assertions inside tasks, "
+			  "functions, or classes are not supported yet; the assertion "
+			  "is dropped.");
+	    delete expr;
+	    delete pass_stmt;
+	    delete fail_stmt;
+	    return 0;
       }
 
-      const unsigned id = deferred_assertion_count++;
-      const unsigned lp = loc.lexical_pos;
-      char buf[64];
-
-      snprintf(buf, sizeof buf, "_ivl_defa%u_verdict", id);
-      pform_ident_t verdict_name (lex_strings.make(buf), lp);
-      snprintf(buf, sizeof buf, "_ivl_defa%u_gen", id);
-      pform_ident_t gen_name (lex_strings.make(buf), lp);
-
-	// Declare the hidden statics in the MODULE scope so the
-	// synthesized final process (and any nesting of the statement
-	// in block scopes) resolves them.
-      LexicalScope*saved_scope = pform_peek_scope();
-      pform_push_existing_scope(pmod);
-      pform_makewire(loc, verdict_name, NetNet::REG, 0);
-      PWire*wg = pform_makewire(loc, gen_name, NetNet::REG, 0);
-      wg->set_data_type(new atom_type_t(atom_type_t::INT, true));
-      pform_push_existing_scope(saved_scope);
-
-	// verdict = <expr>;
-      PEIdent*verdict_lv = new PEIdent(verdict_name.first, lp);
-      FILE_NAME(verdict_lv, loc);
-      PAssign*rec_v = new PAssign(verdict_lv, expr);
-      FILE_NAME(rec_v, loc);
-
-	// gen = gen + 1;
-      PEIdent*gen_lv = new PEIdent(gen_name.first, lp);
-      FILE_NAME(gen_lv, loc);
-      PEIdent*gen_rd = new PEIdent(gen_name.first, lp);
-      FILE_NAME(gen_rd, loc);
-      PENumber*one = new PENumber(new verinum((uint64_t)1, 32));
-      FILE_NAME(one, loc);
-      PEBinary*inc = new PEBinary('+', gen_rd, one);
-      FILE_NAME(inc, loc);
-      PAssign*rec_g = new PAssign(gen_lv, inc);
-      FILE_NAME(rec_g, loc);
-
-	// if (verdict) <pass> else <fail>
-      PEIdent*verdict_rd = new PEIdent(verdict_name.first, lp);
-      FILE_NAME(verdict_rd, loc);
-      PCondit*act = new PCondit(verdict_rd, pass_stmt, fail_stmt);
-      act->immediate_assertion();
-      FILE_NAME(act, loc);
-
-      if (is_final) {
-	      // final if (gen != 0) <act>
-	    PEIdent*gen_rd2 = new PEIdent(gen_name.first, lp);
-	    FILE_NAME(gen_rd2, loc);
-	    PENumber*zero = new PENumber(new verinum((uint64_t)0, 32));
-	    FILE_NAME(zero, loc);
-	    PEBComp*armed = new PEBComp('n', gen_rd2, zero);
-	    FILE_NAME(armed, loc);
-	    PCondit*fin = new PCondit(armed, act, 0);
-	    FILE_NAME(fin, loc);
-	    pform_push_existing_scope(pmod);
-	    pform_make_behavior(IVL_PR_FINAL, fin, 0);
-	    pform_push_existing_scope(saved_scope);
-
-	    PBlock*rec = new PBlock(PBlock::BL_SEQ);
-	    FILE_NAME(rec, loc);
-	    std::vector<Statement*> sl (2);
-	    sl[0] = rec_v;
-	    sl[1] = rec_g;
-	    rec->set_statement(sl);
-	    return rec;
+      Statement*pass_marker = 0;
+      if (!deferred_action_marker_(loc, pass_stmt, false, "pass",
+				   pass_marker)) {
+	    delete expr;
+	    delete fail_stmt;
+	    return 0;
       }
 
-	// #0 form: one persistent per-instance dispatcher process,
-	//
-	//     initial begin
-	//        $ivl_reactive_process;   // affinity BEFORE the first wake
-	//        forever @(gen)
-	//           if (ack != gen) begin ack = gen; <act> end
-	//     end
-	//
-	// A gen bump moves the (Reactive-affine) dispatcher to the
-	// Reactive region of the bumping step, where it reads the
-	// SETTLED verdict; further bumps in the same step find it
-	// already off the wait list, so exactly one report per step,
-	// with the last evaluation -- the 16.4.4 flush behavior.
-	// Wakes enqueue in write order, so reports across instances
-	// come out in statement execution order.
-      snprintf(buf, sizeof buf, "_ivl_defa%u_ack", id);
-      pform_ident_t ack_name (lex_strings.make(buf), lp);
-      pform_push_existing_scope(pmod);
-      PWire*wa = pform_makewire(loc, ack_name, NetNet::REG, 0);
-      wa->set_data_type(new atom_type_t(atom_type_t::INT, true));
-
-      std::list<named_pexpr_t> noargs;
-      PCallTask*mark = new PCallTask(lex_strings.make("$ivl_reactive_process"), noargs);
-      FILE_NAME(mark, loc);
-
-	// if (ack != gen) begin ack = gen; <act> end
-      PEIdent*ack_rd = new PEIdent(ack_name.first, lp);
-      FILE_NAME(ack_rd, loc);
-      PEIdent*gen_rd3 = new PEIdent(gen_name.first, lp);
-      FILE_NAME(gen_rd3, loc);
-      PEBComp*fresh = new PEBComp('n', ack_rd, gen_rd3);
-      FILE_NAME(fresh, loc);
-      PEIdent*ack_lv = new PEIdent(ack_name.first, lp);
-      FILE_NAME(ack_lv, loc);
-      PEIdent*gen_rd4 = new PEIdent(gen_name.first, lp);
-      FILE_NAME(gen_rd4, loc);
-      PAssign*consume = new PAssign(ack_lv, gen_rd4);
-      FILE_NAME(consume, loc);
-
-      PBlock*guard_body = new PBlock(PBlock::BL_SEQ);
-      FILE_NAME(guard_body, loc);
-      {
-	    std::vector<Statement*> sl (2);
-	    sl[0] = consume;
-	    sl[1] = act;
-	    guard_body->set_statement(sl);
+      Statement*fail_marker = 0;
+      if (!deferred_action_marker_(loc, fail_stmt, true, "fail",
+				   fail_marker)) {
+	    delete expr;
+	    delete pass_marker;
+	    return 0;
       }
-      PCondit*guard = new PCondit(fresh, guard_body, 0);
-      FILE_NAME(guard, loc);
 
-	// forever @(gen) <guard>
-      PEIdent*gen_ev = new PEIdent(gen_name.first, lp);
-      FILE_NAME(gen_ev, loc);
-      PEEvent*ev = new PEEvent(PEEvent::ANYEDGE, gen_ev);
-      FILE_NAME(ev, loc);
-      std::vector<PEEvent*> evlist (1);
-      evlist[0] = ev;
-      PEventStatement*wake = new PEventStatement(evlist);
-      FILE_NAME(wake, loc);
-      wake->set_statement(guard);
-      PForever*loop = new PForever(wake);
-      FILE_NAME(loop, loc);
+      PCondit*result = new PCondit(expr, pass_marker, fail_marker);
+      result->immediate_assertion();
+      FILE_NAME(result, loc);
 
-      PBlock*disp = new PBlock(PBlock::BL_SEQ);
-      FILE_NAME(disp, loc);
-      {
-	    std::vector<Statement*> sl (2);
-	    sl[0] = mark;
-	    sl[1] = loop;
-	    disp->set_statement(sl);
-      }
-      pform_make_behavior(IVL_PR_INITIAL, disp, 0);
-      pform_push_existing_scope(saved_scope);
-
-      PBlock*top = new PBlock(PBlock::BL_SEQ);
-      FILE_NAME(top, loc);
-      {
-	    std::vector<Statement*> sl (2);
-	    sl[0] = rec_v;
-	    sl[1] = rec_g;
-	    top->set_statement(sl);
-      }
-      return top;
+      PCondit*enabled = new PCondit(sva_enabled_expr_(loc), result, 0);
+      FILE_NAME(enabled, loc);
+      return enabled;
 }
 
 void pform_start_modport_item(const struct vlltype&loc, const char*name)

@@ -1,0 +1,3 @@
+GEN_FAIL t.g[1].gen_a
+STATIC_FAIL t.static_a
+PASSED

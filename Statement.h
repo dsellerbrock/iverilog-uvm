@@ -285,6 +285,7 @@ class PCallTask  : public Statement {
       bool elaborate_elab(Design*des, NetScope*scope) const;
 
       void void_cast() { void_cast_ = true; }
+      bool is_void_cast() const { return void_cast_; }
       void set_leading_type_args(struct parmvalue_t*type_args)
             { leading_type_args_ = type_args; }
       const struct parmvalue_t* leading_type_args() const

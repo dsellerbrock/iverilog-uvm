@@ -20,10 +20,10 @@
 # --- 3.14.2 repeat-mismatch). R28 turned sv_class_new_fail1 +
 # --- func_empty_arg_fail4 into real diagnostics (8.7 / 13.5.3). The
 # --- deferred assert/assume quartet's recorded reason was FALSE -- the
-# --- fork never implemented deferred assertions, it silently DELETED
-# --- them; upstream flag defaults restored, the quartet passes CE
-# --- against its original golds, R29 tracks the real 16.4
-# --- implementation. br1005 (queue-in-class) reclassified normal with
+# --- fork had silently DELETED the statements. Upstream flag defaults
+# --- were restored; R29 now gives the #0 pair real queued/Reactive
+# --- behavior and makes the still-unsupported final pair explicit CE
+# --- guards. br1005 (queue-in-class) reclassified normal with
 # --- a recorded gold. br_ml20150315b (unpacked struct typedef, no
 # --- simulation content) reclassified CO. br_ml20180227 exposed R30 --
 # --- `reg = string_var' silently stored ZERO (front-end const-0

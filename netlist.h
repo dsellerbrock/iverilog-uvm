@@ -4343,6 +4343,10 @@ class NetSTask  : public NetProc {
       virtual bool emit_proc(struct target_t*) const override;
       virtual void dump(std::ostream&, unsigned ind) const override;
       virtual bool check_synth(ivl_process_type_t pr_type, const NetScope*scope) const override;
+      virtual bool synth_async(Design*des, NetScope*scope,
+			       NexusSet&nex_map, NetBus&nex_out,
+			       NetBus&enables,
+			       std::vector<mask_t>&bitmasks) override;
       virtual bool evaluate_function(const LineInfo&loc,
                                      std::map<perm_string,LocalVar>&ctx) const override;
 

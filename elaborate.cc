@@ -7033,6 +7033,28 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 
       perm_string name = peek_tail_name(path_);
 
+      if (name == perm_string::literal("$ivl_deferred_enqueue")) {
+	    bool inside_final = false;
+	    for (const NetScope*cur = scope; cur; cur = cur->parent()) {
+		  if (cur->in_final()) {
+			inside_final = true;
+			break;
+		  }
+	    }
+	    if (inside_final) {
+		  if (gn_unsupported_assertions_flag) {
+			cerr << get_fileline() << ": sorry: An observed-deferred "
+			     << "immediate assertion inside a final procedure is not "
+			     << "supported; its Observed/Reactive report regions are no "
+			     << "longer reachable." << endl;
+			des->errors += 1;
+		  }
+		  NetBlock*noop = new NetBlock(NetBlock::SEQU, scope);
+		  noop->set_line(*this);
+		  return noop;
+	    }
+      }
+
       for (unsigned idx = 0 ;  idx < parm_count ;  idx += 1) {
 	    auto &parm = parms_[idx];
 
