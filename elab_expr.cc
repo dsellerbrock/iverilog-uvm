@@ -5393,6 +5393,28 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
       }
 
       while (method_path.size() > 1) {
+	    const name_component_t comp = method_path.front();
+
+	      // A method receiver can be a class handle stored in an
+	      // unpacked struct member. The expression elaborator below
+	      // already walks this shape; width/type analysis must follow
+	      // the same member so a discarded scalar method result is not
+	      // assigned to an object-typed temporary.
+	    if (const netstruct_t*struct_type =
+		      dynamic_cast<const netstruct_t*>(target_type)) {
+		  if (!comp.index.empty())
+			return 0;
+
+		  unsigned member_idx = struct_type->member_index(comp.name);
+		  if (member_idx == static_cast<unsigned>(-1))
+			return 0;
+
+		  target_type = struct_type->members()[member_idx].net_type;
+		  target_indexed = false;
+		  method_path.pop_front();
+		  continue;
+	    }
+
 	    const netclass_t*class_type = dynamic_cast<const netclass_t*>(target_type);
 	    if (!class_type) {
 		  if (debug_elaborate) {
@@ -5403,7 +5425,6 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  return 0;
 	    }
 
-	    const name_component_t comp = method_path.front();
 	    int pidx = ensure_class_property_idx_(des, class_type, comp.name);
 	    if (pidx < 0)
 		  return 0;

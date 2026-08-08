@@ -1,0 +1,2 @@
+ivltests/sv_void_cast_struct_method_fail.v:17: error: void casting user task 'run' is not allowed.
+1 error(s) during elaboration.

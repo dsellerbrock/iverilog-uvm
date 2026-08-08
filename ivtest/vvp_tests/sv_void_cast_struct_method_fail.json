@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_void_cast_struct_method_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_void_cast_struct_method_fail"
+}
