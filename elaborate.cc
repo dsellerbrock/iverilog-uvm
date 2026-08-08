@@ -129,6 +129,30 @@ static bool warned_wait_empty_event_set = false;
 static bool warned_indexed_object_method_ignored = false;
 static bool warned_class_property_event_expr_ignored = false;
 
+// A subroutine body has its own lexical context. If lazy elaboration happens
+// while a caller's fork branch is being elaborated, that caller state must not
+// make an ordinary return in the separately declared subroutine look like a
+// return written inside the fork (IEEE 1800-2017 9.3.2). Forks within the
+// subroutine body still increment the depth normally.
+class subroutine_fork_context_guard_t {
+
+    public:
+      explicit subroutine_fork_context_guard_t(Design*des)
+      : des_(des), saved_depth_(des->fork_depth())
+      {
+	    des_->restore_fork_depth(0);
+      }
+
+      ~subroutine_fork_context_guard_t()
+      {
+	    des_->restore_fork_depth(saved_depth_);
+      }
+
+    private:
+      Design*des_;
+      unsigned saved_depth_;
+};
+
 static void elaborate_function_outside_caller_fork_(Design*des,
 						    const PFunction*pfunc,
 						    NetScope*scope)
@@ -14539,6 +14563,8 @@ void PFunction::elaborate(Design*des, NetScope*scope) const
       if (scope->elab_stage() > 2)
             return;
 
+      subroutine_fork_context_guard_t fork_context(des);
+
       NetFuncDef*def = scope->func_def();
       if (def == 0) {
 	    // On-demand function elaboration can reach here before the signal
@@ -14870,6 +14896,8 @@ void PTask::elaborate(Design*des, NetScope*task) const
 {
       if (task->elab_stage() > 2)
 	    return;
+
+      subroutine_fork_context_guard_t fork_context(des);
 
       NetTaskDef*def = task->task_def();
       if (def == 0) {

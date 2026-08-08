@@ -108,6 +108,7 @@ X=architecture, K=campaign.
 | M1B-3a | Type-parameter aggregate property unusable via methods (elaboration-order) | C | **DONE** | — | queue/darray/assoc type-parameter property usable via built-in methods |
 | M1B-4 | Adversarial parameterized-UVM specialization regressions | A | **DONE** | — | multi-spec suite (widths/truncation, class+struct type params, nesting, per-spec statics, param inheritance) all correct (sv_param_spec_audit) |
 | M1B-5 | Partial write (bit-select / part-select / struct-member) to a class property was broken | C | **DONE** | — | RMW bit/part-select + indexed part-select (`+:`/`-:`, constant & run-time offset) + packed-struct-member writes to class properties, across elaboration (typed `set_part`), codegen (`%store/prop/v/bits` + new `%store/prop/v/bits/x`) and runtime (cobject RMW). Descending vectors fully supported; ascending-variable/multi-dim loudly rejected (sorry). sv_class_property_partial_write + negative test |
+| M1B-6 | Lazy subroutine-body elaboration inherited the caller's fork context and falsely rejected legal `return` statements | C | **DONE** | — | function/task definition bodies begin with their own lexical fork depth; a fork written inside the body still rejects `return` per 9.3.2. `sv_fork_lazy_param_typedef_return` + exact `task_return_fail2` CE gold; clean pinned OpenTitan `tl_agent` hard errors 13→0, with 63 remaining debt diagnostics (compile/elaboration only) |
 
 **M1B-3 audit note (2026-07-22).** Surveyed the compile-progress /
 type-recovery fallbacks. **M1B-3a is now FIXED.** The defect was an

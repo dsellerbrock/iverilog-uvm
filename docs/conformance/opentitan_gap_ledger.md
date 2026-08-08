@@ -46,6 +46,17 @@ source directly names `tb.dut`. It is not being counted as an IEEE compiler gap
 unless an equivalent standard-valid, self-contained reproducer demonstrates
 one.
 
+The first clean-corpus micro replay at that revision was recorded on
+2026-08-08 from a detached worktree whose pre/post status (including ignored
+files) was empty. `lowrisc:ip:soc_dbg_ctrl_decode:0.1` in the RTL lane and
+`lowrisc:prim:max_tree:0` in the SVA lane compile/elaborate with zero hard or
+debt diagnostics. Those lanes do not execute synthesis equivalence or assertion
+semantic oracles, so they are **PARTIAL frontend evidence**, not closure. The
+clean `lowrisc:dv:tl_agent_sim:0.1` UVM replay is documented in G67. All 131
+older JSON reports found in the inherited workspace record
+`opentitan_dirty=true`; they remain useful for discovery but are not
+clean-corpus evidence.
+
 ## How to read the status column
 
 | Status | Meaning |
@@ -1953,6 +1964,46 @@ runs to completion with the expected drop-warning; a class-scoped
 class-typed handles before iterating a `rand` array member of the
 selected element — the same two-level shape as the real OpenTitan
 constraint).
+
+---
+
+## G67 — lazy subroutine elaboration inherited a caller's `fork` depth — **fixed** [general] (was a false hard error)
+
+A clean pinned `lowrisc:dv:tl_agent_sim:0.1` UVM compile reported nine
+primary errors in `uvm_registry.svh` saying that ordinary function/task
+`return` statements were inside a fork, followed by four secondary
+elaboration errors. The UVM subroutines contain no fork. OpenTitan first uses
+`tl_device_seq#()::type_id::create()` from a `fork ... join_none` branch;
+that nested typedef can cause the cached parameterized registry class to be
+fully elaborated only while the caller branch is being elaborated.
+
+The compiler kept fork depth as `Design` state. `PBlock::elaborate` entered
+the caller fork, the lazy class-specialization path directly elaborated every
+method body, and `PReturn::elaborate` therefore saw the caller's lexical depth.
+IEEE 1800-2017 9.3.2 prohibits a return written within a fork-join block; it
+does not move a separately declared callee body into its caller's lexical
+fork. Slang 11.0.415 accepts the 16-line reduced legal case and rejects the
+direct return-inside-fork control.
+
+`PFunction::elaborate` and `PTask::elaborate` now use a scoped guard that
+starts each definition body at fork depth zero and restores the caller depth
+on every exit. A fork written inside that body still increments normally, so
+the original illegal case remains an exact-gold compile error. The positive
+`sv_fork_lazy_param_typedef_return` test first specializes a nested registry
+typedef in a caller fork and value-checks both its function and task; the
+existing `task_return_fail2` now pins the negative diagnostic exactly.
+
+Clean-corpus replay at OpenTitan
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` changed the same
+`tl_agent_sim` job from compile exit 13 / 13 hard errors to compile exit 0 /
+zero hard errors. Its matrix status is still **DEBT**, with 63 explicit
+compile-progress/backend diagnostics exposed after code generation completed;
+this is compile/elaboration evidence only, not UVM semantic or runtime
+closure. The fixed-run JSON SHA-256 is
+`5fd7fd4141dfcde7cc5b3b0fc816c109fbd0272704cb52a5df3e10f4cea4d493`,
+and the installed `ivl` engine SHA-256 is
+`dcdb6c637c383fb8cffb5bb5251e209321017ff7a43de557d97b0074d7724116`.
+The detached corpus was clean before and after the serial run.
 
 ---
 

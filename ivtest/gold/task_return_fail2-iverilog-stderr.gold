@@ -1,0 +1,2 @@
+ivltests/task_return_fail2.v:9: error: Return statement is not allowed within fork-join block.
+1 error(s) during elaboration.
