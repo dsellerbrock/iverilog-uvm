@@ -1,0 +1,2 @@
+./ivltests/sv_array_find_last_fixed_base_fail.v:9: sorry: find_last_index() on fixed-size arrays with a nonzero declared index base is not yet implemented.
+Elaboration failed

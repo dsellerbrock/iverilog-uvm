@@ -1,0 +1,7 @@
+./ivltests/sv_array_find_last_type_fail.v:16: error: array locator result type is not assignment-compatible with the context.
+./ivltests/sv_array_find_last_type_fail.v:16:      : result type=queue of netvector_t:bool signed[31:0]
+./ivltests/sv_array_find_last_type_fail.v:16:      : context type=queue of (assoc-compat) netvector_t:bool signed[31:0]
+./ivltests/sv_array_find_last_type_fail.v:8: error: array locator result type is not assignment-compatible with the context.
+./ivltests/sv_array_find_last_type_fail.v:8:      : result type=queue of netvector_t:bool signed[31:0]
+./ivltests/sv_array_find_last_type_fail.v:8:      : context type=queue of string
+Elaboration failed

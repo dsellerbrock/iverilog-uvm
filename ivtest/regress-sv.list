@@ -567,6 +567,12 @@ sv_array_cassign_fail8	CE,-g2005-sv		ivltests
 sv_array_cassign_fail9	CE,-g2005-sv		ivltests
 sv_array_cassign_fail10	CE,-g2005-sv		ivltests
 sv_array_cassign_fail11	CE,-g2005-sv		ivltests
+sv_array_find_last	normal,-g2012		ivltests gold=sv_array_find_last.gold
+sv_array_find_last_assoc_fail CE,-g2012		ivltests gold=sv_array_find_last_assoc_fail.gold
+sv_array_find_last_fixed_base_fail CE,-g2012	ivltests gold=sv_array_find_last_fixed_base_fail.gold
+sv_array_find_last_fixed_shape_fail CE,-g2012	ivltests gold=sv_array_find_last_fixed_shape_fail.gold
+sv_array_find_last_type_fail CE,-g2012		ivltests gold=sv_array_find_last_type_fail.gold
+sv_array_find_last_with_fail CE,-g2012		ivltests gold=sv_array_find_last_with_fail.gold
 sv_array_query		normal,-g2005-sv	ivltests
 sv_cast_integer		normal,-g2005-sv	ivltests
 sv_cast_integer2		normal,-g2005-sv	ivltests

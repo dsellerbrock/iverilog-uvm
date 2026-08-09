@@ -2187,6 +2187,87 @@ with warning counts 202/202/0/89; neither is a runtime-closure claim.
 
 ---
 
+## G71 — `find_last*` returned all matches, so result `[0]` was not the last match — **verified fixed subset** [general] (silent wrong result)
+
+The clean pinned sv-tests baseline at
+`c4229f3bd5220e6d3ba8f390e5d09c87e462e9c7` contained two zero-exit silent
+failures. The dynamic-string-array `find-last` test expected one value but
+received both matches; `find-last-index` expected the singleton index `{2}`
+but received `{0, 2}`. IEEE 1800-2017 7.12/7.12.1 requires `find_last` and
+`find_last_index` to return one element/index closest to the rightmost array
+element, or an empty queue when no predicate match exists. Array-locator
+traversal order is otherwise unspecified, so the fix and tests do not impose
+a predicate call-count or side-effect order that the standard does not give.
+
+The target loop previously treated `find_last*` like `find`/`find_index` and
+appended every predicate match. It now distinguishes stop-on-match from
+replace-the-current-result behavior. Queues and dynamic arrays therefore keep
+only the last positional match; direct zero-minimum one-dimensional integral
+fixed arrays also account for canonical storage versus declared direction, so
+`find_first*` and `find_last*` retain their declared left/right meaning. The
+frontend carries the concrete queue result type through the internal function
+node and its duplication path. Direct assignment compatibility rejects an
+incompatible queue or associative-array destination while preserving the legal
+queue-result-to-fixed-array copy exception.
+
+`sv_array_find_last` checks queue and dynamic-string results, typed empty
+results, a descending fixed range, a locator queue assigned to a fixed array,
+and an extracted OpenTitan-shaped class-property queue whose consumer uses
+`[0]` of the assigned `find_last_index` result to obtain the newest pending
+write. Exact-gold tests pin
+incompatible direct result contexts and require the `with` clause plus an
+optional positional iterator identifier. Legal but unimplemented associative
+locators, nonzero-base/multidimensional/nonintegral fixed arrays, and fixed
+arrays reached through a class property fail loudly instead of returning a
+plausible wrong value.
+
+The clean OpenTitan source graph at
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` has the corresponding consumer in
+`hw/dv/sv/mem_bkdr_scb/mem_bkdr_scb.sv:69-72`: its RAW-hazard scoreboard uses
+element `[0]` of the assigned locator result as the latest write. The old
+behavior could select the oldest matching pending write, which is a DV-oracle
+integrity risk, not evidence of a DUT defect or a demonstrated security
+vulnerability. The relevant integration graph selected for this checkpoint,
+`lowrisc:dv:sram_ctrl_sim:0.1`, remained a failed clean compile gate: its
+generated Icarus command omitted upstream `INSTR_EXEC` and
+`SRAM_WORD_ADDR_WIDTH` definitions (three warnings and three hard errors), so
+no OpenTitan DV runtime executed. Evidence summary SHA-256 is
+`29d2ad19079bb07fdf63359aae39d554ef7771053d1eaeb8bd433bedea701dfa`
+at workspace-root-relative
+`evidence/opentitan-7a3ad34-a179a1010/uvm-sram-ctrl-find-last-index/SUMMARY.md`.
+
+A clean safe-harness replay of all 923 self-contained tracked sv-tests cases
+moved exactly `find-last.sv` and `find-last-index.sv` from `SEMANTIC_FAIL` to
+`VERIFIED_RUNTIME`: runtime-verified 160→162 and semantic failures 14→12, with
+all other 921 Icarus/Slang classifications unchanged. `results.json` SHA-256
+is `dd98928a606ee9013365488efe3aad6931d08f1bcdab2d6c1a8c0baecd98c56c`;
+the provenance summary at workspace-root-relative
+`evidence/sv-tests-c4229f3/core-safe-find-last-20260808/SUMMARY.md` has SHA-256
+`775decea897fa1a8a8627bb7d32be3f47aa0a8d834f8dbf2b3e023b6b633381a`.
+Serial project gates passed: `make -j1 check/install`, negative 104/104, SVA
+50/50, VPI 94/94, UVM smoke 14/14, full UVM 337/337, legacy ivtest 3,486
+passed / 0 failed (two NI and three expected-fail retained), and JSON/VVP
+333/333. Four clean Caliptra assertion-enabled `-tnull` witnesses again exited
+zero with no hard/`sorry`/internal diagnostics and warning counts 202/202/0/89;
+their summary SHA-256 is
+`c78de511bc1b7102726c21940a33135c4a0fee1bd6ddf29285c89292311cd1bf`
+at workspace-root-relative
+`evidence/caliptra-bd316141/assertions-tnull-find-last-clean-20260808/SUMMARY.md`.
+Both corpus replays used the same installed compiler artifacts as the sv-tests
+replay, and no compiler source edit occurred between those runs. The common
+source base/status/diff fingerprints are recorded in the hashed sv-tests
+summary above; the per-corpus summaries independently record unchanged
+installed-component hashes and clean corpus state before and after.
+
+This is not full locator closure. Associative keyed iteration/index typing and
+the broader fixed-array receivers above remain loud. Value-returning locators
+over object-backed/unpacked-struct elements can still alias instead of making
+the required element-value copy, and a nonconstant ternary or similar wrapper
+can still lose the locator's concrete result type. The OpenTitan `_index`
+oracle does not exercise that value-copy residual.
+
+---
+
 ## Two measurement traps worth remembering
 
 **The error count is not a progress metric while the parser can still give

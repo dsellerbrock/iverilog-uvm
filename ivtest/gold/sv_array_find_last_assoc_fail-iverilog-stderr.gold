@@ -1,0 +1,2 @@
+ivltests/sv_array_find_last_assoc_fail.v:11: sorry: find_last_index() on associative arrays is not yet implemented; associative-array locators require keyed iteration and exact index typing.
+1 error(s) during elaboration.

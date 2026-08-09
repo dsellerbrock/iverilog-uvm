@@ -269,8 +269,13 @@ NetESelect* NetESelect::dup_expr() const
 
 NetESFunc* NetESFunc::dup_expr() const
 {
-      NetESFunc*tmp = new NetESFunc(name_, type_, expr_width(), nparms(), is_overridden_);
+      NetESFunc*tmp = new NetESFunc(name_, type_, expr_width(), nparms(),
+				   is_overridden_);
       ivl_assert(*this, tmp);
+	/* The scalar constructor preserves override metadata. Restore the
+	 * separately carried aggregate/container result type as well. */
+      if (net_type())
+	    tmp->set_net_type(net_type());
 
       tmp->cast_signed(has_sign());
       for (unsigned idx = 0 ;  idx < nparms() ;  idx += 1) {

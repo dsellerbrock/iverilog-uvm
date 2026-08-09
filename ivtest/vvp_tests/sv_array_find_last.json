@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_array_find_last.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_array_find_last"
+}

@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_array_find_last_with_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_array_find_last_with_fail"
+}

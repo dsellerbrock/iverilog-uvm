@@ -1,0 +1,4 @@
+./ivltests/sv_array_find_last_fixed_shape_fail.v:28: sorry: find_last() on a fixed-size array class property is not yet implemented.
+./ivltests/sv_array_find_last_fixed_shape_fail.v:7: sorry: find_last() on multidimensional arrays is not yet implemented.
+./ivltests/sv_array_find_last_fixed_shape_fail.v:15: sorry: find_last() on fixed-size arrays of non-integral elements is not yet implemented.
+Elaboration failed

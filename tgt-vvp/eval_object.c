@@ -1421,8 +1421,10 @@ static int eval_object_sfunc(ivl_expr_t expr)
       if (strncmp(name, "$ivl_queue_method$find_with|", 28) == 0) {
 	    const char*kind = name + 28;
 	    int is_index = (strstr(kind, "index") != NULL);
-	    int stop_first = (strcmp(kind, "find_first") == 0
-			      || strcmp(kind, "find_first_index") == 0);
+	    int is_first = (strcmp(kind, "find_first") == 0
+			    || strcmp(kind, "find_first_index") == 0);
+	    int is_last = (strcmp(kind, "find_last") == 0
+			   || strcmp(kind, "find_last_index") == 0);
 
 	    if (parm_count < 5) {
 		  fprintf(vvp_out, "    %%null; ; find_with: bad parm count\n");
@@ -1451,6 +1453,12 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
 	    ivl_signal_t result_sig = ivl_expr_signal(result_arg);
 	    ivl_signal_t idx_sig = ivl_expr_signal(idx_arg);
+	    int fixed_desc = !array_receiver_is_dynamic_(q_sig)
+		  && ivl_signal_array_addr_swapped(q_sig);
+	    int stop_on_match = (is_first && !fixed_desc)
+		  || (is_last && fixed_desc);
+	    int replace_on_match = (is_first && fixed_desc)
+		  || (is_last && !fixed_desc);
 
 	    ivl_type_t iter_type = ivl_signal_net_type(iter_sig);
 	    unsigned iter_wid = ivl_type_packed_width(iter_type);
@@ -1562,6 +1570,14 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d;\n",
 		    thread_count, lab_skip, pred_flag);
 
+	      /* Canonical fixed-array storage can run opposite the declared
+	       * direction. When the requested edge is reached last in this
+	       * traversal, replace the hidden result on every match. */
+	    if (replace_on_match) {
+		  fprintf(vvp_out, "    %%new/queue \"%s\";\n", result_enc);
+		  fprintf(vvp_out, "    %%store/obj v%p_0;\n", result_sig);
+	    }
+
 	    /* Push q[idx] (or idx) into result_sig.  Index variants always
 	     * push the int32 idx onto a vec4 queue. */
 	    if (is_index) {
@@ -1583,7 +1599,7 @@ static int eval_object_sfunc(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%store/qb/obj v%p_0, 5;\n", result_sig);
 	    }
 
-	    if (stop_first)
+	    if (stop_on_match)
 		  fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_end);
 
 	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_skip);

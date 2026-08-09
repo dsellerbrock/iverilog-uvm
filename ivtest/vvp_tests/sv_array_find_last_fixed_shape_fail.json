@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_array_find_last_fixed_shape_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_array_find_last_fixed_shape_fail"
+}
