@@ -407,6 +407,27 @@ static inline bool is_array_locator_name_(perm_string method_name)
 	  || method_name == "find_last_index";
 }
 
+static inline bool is_array_minmax_name_(perm_string method_name)
+{
+      return method_name == "min" || method_name == "max";
+}
+
+/* Array locator methods return queues. Cache the concrete result type so
+ * paren-less method expressions and ordinary call expressions carry their
+ * element type through assignment/formal compatibility checks. */
+static ivl_type_t array_locator_queue_type_(ivl_type_t element_type)
+{
+      static map<ivl_type_t, ivl_type_t> cache;
+
+      map<ivl_type_t, ivl_type_t>::const_iterator cur = cache.find(element_type);
+      if (cur != cache.end())
+	    return cur->second;
+
+      ivl_type_t res = new netqueue_t(element_type, -1, false);
+      cache[element_type] = res;
+      return res;
+}
+
 /* Phase 63b/B1 (real impl): build a NetESFunc that the tgt-vvp side
  * lowers to an inline queue-walking loop applying the with-clause
  * predicate per element.
@@ -879,14 +900,14 @@ static NetExpr* make_array_minmax_expr_(
       bitem_net->set_line(*li);
       bitem_net->local_flag(true);
 
-      netqueue_t*result_qtype = new netqueue_t(element_type, -1, false);
+      ivl_type_t result_qtype = array_locator_queue_type_(element_type);
       NetNet*result_net = new NetNet(scope, scope->local_symbol(),
 				     NetNet::REG, result_qtype);
       result_net->set_line(*li);
       result_net->local_flag(true);
 
       string mangled = string("$ivl_darray_method$minmax|") + kind;
-      NetESFunc*fn = new NetESFunc(mangled.c_str(), IVL_VT_QUEUE, 1,
+      NetESFunc*fn = new NetESFunc(mangled.c_str(), result_qtype,
 				   recv_net ? 8 : 7);
       fn->parm(0, array_expr);
       NetESignal*iter_ref = new NetESignal(iter_net);
@@ -5582,6 +5603,13 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  signed_flag_= false;
 		  return expr_width_;
 	    }
+	    if (is_array_minmax_name_(method_name)) {
+		  expr_type_  = IVL_VT_QUEUE;
+		  expr_width_ = 1;
+		  min_width_  = 1;
+		  signed_flag_= false;
+		  return expr_width_;
+	    }
 
 	    return 0;
       }
@@ -5607,6 +5635,13 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  return expr_width_;
 	    }
 	    if (is_array_locator_name_(method_name)) {
+		  expr_type_  = IVL_VT_QUEUE;
+		  expr_width_ = 1;
+		  min_width_  = 1;
+		  signed_flag_= false;
+		  return expr_width_;
+	    }
+	    if (is_array_minmax_name_(method_name)) {
 		  expr_type_  = IVL_VT_QUEUE;
 		  expr_width_ = 1;
 		  min_width_  = 1;
@@ -5660,6 +5695,13 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  return expr_width_;
 	    }
 	    if (is_array_locator_name_(method_name)) {
+		  expr_type_  = IVL_VT_QUEUE;
+		  expr_width_ = 1;
+		  min_width_  = 1;
+		  signed_flag_= false;
+		  return expr_width_;
+	    }
+	    if (is_array_minmax_name_(method_name)) {
 		  expr_type_  = IVL_VT_QUEUE;
 		  expr_width_ = 1;
 		  min_width_  = 1;
@@ -13184,6 +13226,8 @@ ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
 			type = &netvector_t::atom2s32;
 		  else if (name == "pop_back" || name == "pop_front")
 			type = queue->element_type();
+		  else if (is_array_minmax_name_(name))
+			type = array_locator_queue_type_(queue->element_type());
 		  else
 			return nullptr;
 	    } else if (auto uarray = dynamic_cast<const netuarray_t*>(type)) {
@@ -13193,9 +13237,11 @@ ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
 			type = static_array_locator_result_type_(uarray->element_type());
 		  else
 			return nullptr;
-	    } else if (dynamic_cast<const netdarray_t*>(type)) {
+	    } else if (auto darray = dynamic_cast<const netdarray_t*>(type)) {
 		  if (name == "size")
 			type = &netvector_t::atom2s32;
+		  else if (is_array_minmax_name_(name))
+			type = array_locator_queue_type_(darray->element_type());
 		  else
 			return nullptr;
 	    } else if (auto netenum = dynamic_cast<const netenum_t*>(type)) {
@@ -13645,6 +13691,30 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       }
 
       NetNet *net = sr.net;
+
+      /* IEEE 1800-2017 7.12 permits the iterator argument parentheses to be
+       * omitted. In a typed aggregate context, a dynamic-array/queue `a.min'
+       * or `a.max' used to pass the container compatibility check below and
+       * return `a' itself, silently discarding the method suffix. Rebuild the
+       * same call node as the explicit `a.min()' spelling before any
+       * whole-container fallback can run. Fixed arrays retain their existing
+       * direct property lowering. */
+      if (gn_system_verilog() && !sr.path_head.empty()
+	  && sr.path_head.back().index.empty()
+	  && sr.path_tail.size() == 1
+	  && sr.path_tail.front().index.empty()
+	  && is_array_minmax_name_(sr.path_tail.front().name)
+	  && net->unpacked_dimensions() == 0
+	  && dynamic_cast<const netdarray_t*>(net->net_type())) {
+	    std::vector<named_pexpr_t> empty_parms;
+	    PECallFunction*call = path_.package
+		  ? new PECallFunction(path_.package, path_.name, empty_parms)
+		  : new PECallFunction(path_.name, empty_parms);
+	    call->set_line(*this);
+	    NetExpr*res = call->elaborate_expr(des, scope, ntype, flags);
+	    delete call;
+	    return res;
+      }
 
       if (!sr.path_tail.empty()) {
 	    bool indexed_container_member_path =

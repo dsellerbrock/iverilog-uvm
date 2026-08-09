@@ -1206,9 +1206,9 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 	 * Check that type in an assignment context instead of accepting every
 	 * queue-shaped result solely because both base types say QUEUE. */
       const NetESFunc*locator = dynamic_cast<const NetESFunc*>(tmp);
-      bool typed_locator = locator
-	    && strncmp(locator->name(), "$ivl_queue_method$find_with|", 28) == 0
-	    && tmp->net_type();
+      bool typed_locator = locator && tmp->net_type()
+	    && (strncmp(locator->name(), "$ivl_queue_method$find_with|", 28) == 0
+		|| strncmp(locator->name(), "$ivl_darray_method$minmax|", 26) == 0);
       const netqueue_t*locator_context = typed_locator
 	    ? dynamic_cast<const netqueue_t*>(lv_net_type) : nullptr;
         // For arrays we need strict type checking here. Long term strict type

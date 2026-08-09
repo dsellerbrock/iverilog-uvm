@@ -1,0 +1,4 @@
+ivltests/sv_array_minmax_residual_fail.v:21: sorry: min() on associative arrays is not yet implemented.
+ivltests/sv_array_minmax_residual_fail.v:7: sorry: min() on arrays of non-integral elements is not yet implemented.
+ivltests/sv_array_minmax_residual_fail.v:14: sorry: max() on arrays of non-integral elements is not yet implemented.
+Elaboration failed

@@ -2268,6 +2268,88 @@ oracle does not exercise that value-copy residual.
 
 ---
 
+## G72 — parentheses-free dynamic-array/queue `min` and `max` returned the receiver — **verified fixed subset** [general] (silent wrong result)
+
+The clean pinned sv-tests sources
+`tests/chapter-7/arrays/associative/locator-methods/min.sv` and `max.sv`
+(despite that directory name, both use dynamic arrays) exposed two zero-exit
+silent failures. Their legal `result = values.min` and `result = values.max`
+expressions produced the complete receiver rather than the one-element locator
+result. IEEE 1800-2017 7.12 Syntax 7-5 makes the iterator-argument parentheses
+optional, and 7.12.1 includes the corresponding parentheses-free `IA.min`
+form. Pinned Slang accepted both sources; the Icarus runtime values were wrong.
+This also corrects an earlier coverage assumption: parentheses-free reduction
+tests did not exercise queue-valued parentheses-free `min`/`max` in a typed
+aggregate context.
+
+The typed `PEIdent` path previously resolved the receiver as a compatible
+dynamic container and returned `NetESignal(values)` before consuming the
+terminal method suffix. It now recognizes only an unindexed terminal
+`min`/`max` on a direct queue or dynamic-array signal before that fallback,
+then uses the existing explicit-call lowering. Width/type resolution and the
+internal `NetESFunc` carry the concrete unbounded queue element type, and the
+direct assignment checker rejects incompatible or associative contexts rather
+than accepting every queue-shaped result. The unindexed-receiver guard is
+essential: `array[0].min` and `array[0].max` remain ordinary element-member
+accesses when those fields exist.
+
+`sv_array_minmax_parenless` checks signed and unsigned integral dynamic arrays,
+unbounded and bounded queues, empty results, explicit-call parity, compatible
+queue/dynamic/fixed destinations, source immutability, and aggregate element
+fields literally named `min`/`max`. `sv_array_minmax_type_fail` exact-golds
+wrong queue/fixed element types and an associative destination.
+`sv_array_minmax_residual_fail` exact-golds the current loud handling of legal
+real/string dynamic-array and associative-array receivers; Slang accepts those
+residual sources under IEEE 1800-2017. These tests establish only the direct
+integral parentheses-free subset, not general array-locator closure.
+
+A clean safe-harness replay of all 923 self-contained tracked sv-tests cases
+completed all 1,846 serial Icarus/Slang jobs. Exactly `min.sv` and `max.sv`
+moved from `SEMANTIC_FAIL` to `VERIFIED_RUNTIME`: runtime-verified 162→164 and
+semantic failures 12→10, with every other Icarus, Slang, and differential class
+unchanged. `results.json` SHA-256 is
+`01d81039e88e9176eb0f87c285da55bb90f08cdba7d7062bafea9420c50300fe`;
+the provenance summary at workspace-root-relative
+`evidence/sv-tests-c4229f3/core-safe-minmax-20260808/SUMMARY.md` has SHA-256
+`66db6efe7827166ea652f6fcb80a18d87c76c1b60e1a51b4f480e0f80fb493b0`.
+Focused legacy and JSON tests passed 4/4 and 3/3. Serial project gates passed:
+`make -j1 check/install`, negative 104/104, SVA NFA 50/50, VPI 94/94, real-DPI
+UVM smoke 14/14, full UVM 337/337, SystemVerilog legacy ivtest 1,334/1,334,
+and JSON/VVP 336/336. Both UVM lanes had zero skips.
+
+OpenTitan has adjacent parenthesized min/max uses in the clean
+`entropy_src` DV graph, but not the parentheses-free spelling fixed here. The
+selected clean `lowrisc:dv:entropy_src_sim:0.1` non-regression attempt therefore
+could not establish an exact corpus witness, and it also failed before those
+consumers elaborated: setup returned 0, Icarus returned 236, and the matrix
+classified 202 hard errors plus 126 debt diagnostics after required
+`RNG_BUS_WIDTH`, `RNG_BUS_BIT_SEL_WIDTH`, and `DISTR_FIFO_DEPTH` target
+macros were absent. No VVP image or UVM runtime exists. The failed-gate summary
+SHA-256 is
+`03db260db07a8e205664f3b85af073160323777f0eb50677d187edc7100c3b74`
+at workspace-root-relative
+`evidence/opentitan-7a3ad34-a179a1010/uvm-entropy-src-minmax/SUMMARY.md`.
+This is a target/configuration blocker for that invocation, not an integration
+pass and not evidence of a DUT or security defect.
+
+Four clean Caliptra assertion-enabled `-tnull` witnesses remained exit-zero
+compile/elaboration non-regressions with zero error, `sorry`, internal-error,
+or crash diagnostics. Warning counts remain 202/202/0/89; only `abr_sha3` is
+diagnostic-clean. Their summary SHA-256 is
+`e528d9fbbafe1c6e68e41ad71d28bcd274c8f4645ab44e799d6320eaa2481b13`
+at workspace-root-relative
+`evidence/caliptra-bd316141/assertions-tnull-minmax-clean-20260809/SUMMARY.md`.
+This is compile/elaboration evidence only; Caliptra has no exact source witness
+for this parentheses-free min/max bug.
+
+Remaining work includes fixed-array nominal queue-result typing, validation of
+iterator arguments and `with` variants, class/property/nested/indexed
+receivers, call-result and wrapper contexts (including nonconstant ternaries),
+and real/string/associative comparison and keyed-iteration semantics. Those
+forms are open or exact-gold loud; none is claimed implemented by G72.
+
+---
+
 ## Two measurement traps worth remembering
 
 **The error count is not a progress metric while the parser can still give

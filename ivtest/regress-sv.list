@@ -573,6 +573,9 @@ sv_array_find_last_fixed_base_fail CE,-g2012	ivltests gold=sv_array_find_last_fi
 sv_array_find_last_fixed_shape_fail CE,-g2012	ivltests gold=sv_array_find_last_fixed_shape_fail.gold
 sv_array_find_last_type_fail CE,-g2012		ivltests gold=sv_array_find_last_type_fail.gold
 sv_array_find_last_with_fail CE,-g2012		ivltests gold=sv_array_find_last_with_fail.gold
+sv_array_minmax_parenless normal,-g2012		ivltests gold=sv_array_minmax_parenless.gold
+sv_array_minmax_residual_fail CE,-g2012		ivltests gold=sv_array_minmax_residual_fail.gold
+sv_array_minmax_type_fail CE,-g2012		ivltests gold=sv_array_minmax_type_fail.gold
 sv_array_query		normal,-g2005-sv	ivltests
 sv_cast_integer		normal,-g2005-sv	ivltests
 sv_cast_integer2		normal,-g2005-sv	ivltests
