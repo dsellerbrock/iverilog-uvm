@@ -1,0 +1,4 @@
+ivltests/sv_queue_concat_type_fail.v:8: error: the type of the variable 'qs' doesn't match the context type.
+ivltests/sv_queue_concat_type_fail.v:8:      : variable type=queue of string
+ivltests/sv_queue_concat_type_fail.v:8:      : context type=queue of netvector_t:bool signed[31:0]
+1 error(s) during elaboration.

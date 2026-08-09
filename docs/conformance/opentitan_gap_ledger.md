@@ -2127,6 +2127,66 @@ function-local object receivers.
 
 ---
 
+## G70 — queue self-concatenation observed a partially overwritten destination — **verified fixed subset** [general] (silent wrong result)
+
+The clean pinned sv-tests baseline at
+`c4229f3bd5220e6d3ba8f390e5d09c87e462e9c7` exposed three silent queue
+failures: `q = {q, 4}`, `q = {4, q}`, and
+`q = {q[0:1], 10, q[2:$]}` compiled and ran with status zero, but lost most
+of the original queue. A scalar-only permutation, `q = {q[1], q[0]}`, also
+read the first newly written destination element while evaluating the second
+operand. IEEE 1800-2017 7.10.4 explicitly gives `q = {q, value}` as the
+assignment equivalent of `push_back`, and 10.10 defines the concatenated
+result from the operand values. The destination therefore cannot change while
+that right-hand value is being constructed.
+
+The VVP target previously cleared collection-pattern destinations before
+splicing operands, while its scalar-pattern path wrote each element as soon as
+that operand was evaluated. Bounded scalar patterns additionally stopped
+evaluating operands after the destination capacity was reached. Queue patterns
+now use the existing object-context builder to create an unbounded temporary,
+evaluate every operand exactly once before the destination update, append the
+results in source order, and perform one typed `%store/qobj` copy. The final
+copy applies the `[$:N]` bound, retains the leftmost `N+1` elements, warns for
+the discarded tail, uses the existing typed element-copy policy, and sends
+one completed-destination mutation notification. Existing adjacent tests pin
+class-handle identity and aggregate value copying separately; a combined
+side-effecting object-aggregate capture oracle remains residual work below.
+
+`sv_queue_concat_snapshot` checks scalar self-swap, whole and sliced
+self-splices, bounded-prefix retention, evaluation of a discarded tail
+operand, and `wait` wakeup. `sv_queue_concat_type_fail` pins an incompatible
+string-queue operand in an integer-queue concatenation as an exact compile
+error; Slang 11.0.415 accepts the positive source and rejects the negative
+under IEEE 1800-2017. The inherited vec4/real/string/packed-array bounded
+queue golds intentionally move their static-pattern warning to the common
+run-time whole-copy warning because a collection operand can make the result
+size run-time dependent.
+
+This is not full queue-reference closure. A `ref` bound to an element before
+whole assignment is still modeled as `(queue,index)` rather than a detached
+element cell and can follow the replacement element; side-effecting
+object-backed aggregate operands also need a dedicated capture-order oracle.
+A clean pinned replay of all 923 self-contained tracked sv-tests cases moved
+exactly `push_back_assign`, `push_front_assign`, and `insert_assign` from
+`SEMANTIC_FAIL` to `VERIFIED_RUNTIME`: runtime-verified 157→160 and semantic
+failures 17→14, with every other Icarus/Slang classification unchanged.
+`results.json` SHA-256 is
+`88274e0bf22a79075ee943bef4980b6fe99efab7b19d93448769fd8e76075bf4`;
+the provenance summary at workspace-root-relative
+`evidence/sv-tests-c4229f3/core-safe-queue-snapshot-a34dac77c/SUMMARY.md`
+has SHA-256
+`72e71deaf32eae65337eec0c171c9c1f9fc958f08ac125c25cba56365a366696`.
+Serial project gates passed: `make -j1 check/install`, negative 104/104, SVA
+50/50, VPI 94/94, UVM smoke 14/14, full UVM 337/337, legacy ivtest 3,480
+passed / 0 failed (two NI and three expected-fail retained), and JSON/VVP
+327/327. Clean OpenTitan `tl_agent` compile/elaboration remains DEBT at zero
+hard errors / 39 unique warnings, and the four clean Caliptra
+assertion-enabled `-tnull` witnesses remain zero-hard-error compile evidence
+with warning counts 202/202/0/89; neither is a runtime-closure claim.
+
+---
+
 ## Two measurement traps worth remembering
 
 **The error count is not a progress metric while the parser can still give

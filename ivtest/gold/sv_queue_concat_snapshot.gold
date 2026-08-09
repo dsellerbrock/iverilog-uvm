@@ -1,0 +1,2 @@
+./ivltests/sv_queue_concat_snapshot.v:57: Warning: queue<vector> is bounded to have at most 3 elements, source has 4 elements.
+PASSED

@@ -1760,163 +1760,43 @@ static int show_stmt_assign_sig_darray(ivl_statement_t net)
 
 /*
  * This function handles the special case that we assign an array
- * pattern to a queue. Handle this by assigning each element.
- * The array pattern will have a fixed size.
+ * pattern or unpacked-array concatenation to a queue. Evaluate it as a
+ * complete queue value before copying it into the destination; collection
+ * operands can make the resulting size depend on run-time state.
  */
 static int show_stmt_assign_queue_pattern(ivl_signal_t var, ivl_expr_t rval,
                                           ivl_type_t element_type, int max_idx)
 {
       int errors = 0;
-      unsigned idx;
-      unsigned max_size;
-      unsigned max_elems;
-      int use_collection_append = 0;
       assert(ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN);
-      max_size = ivl_signal_array_count(var);
-      max_elems = ivl_expr_parms(rval);
 
-      for (idx = 0 ; idx < max_elems ; idx += 1) {
-            if (queue_pattern_operand_is_collection_(
-                        ivl_expr_parm(rval, idx), element_type)) {
-                  use_collection_append = 1;
-                  break;
-            }
-      }
-
-      if (use_collection_append) {
-            /* At least one operand is a container to splice (10.10), so
-             * positions are not static: clear the queue and build it by
-             * appends. Container operands splice element-wise with
-             * %append/qobj/<k>; plain operands append as one element. */
-            unsigned elem_wid = ivl_type_packed_width(element_type);
-            fprintf(vvp_out, "    %%null;\n");
-            fprintf(vvp_out, "    %%store/obj v%p_0;\n", var);
-
-            for (idx = 0 ; idx < max_elems ; idx += 1) {
-                  ivl_expr_t parm = ivl_expr_parm(rval, idx);
-
-                  if (queue_pattern_operand_is_collection_(parm, element_type)) {
-                        errors += draw_eval_object(parm);
-                        switch (ivl_type_base(element_type)) {
-                            case IVL_VT_BOOL:
-                            case IVL_VT_LOGIC:
-                              fprintf(vvp_out, "    %%append/qobj/v v%p_0, %d, %u;\n",
-                                      var, max_idx, elem_wid);
-                              break;
-                            case IVL_VT_REAL:
-                              fprintf(vvp_out, "    %%append/qobj/r v%p_0, %d;\n",
-                                      var, max_idx);
-                              break;
-                            case IVL_VT_STRING:
-                              fprintf(vvp_out, "    %%append/qobj/str v%p_0, %d;\n",
-                                      var, max_idx);
-                              break;
-                            default:
-                              fprintf(vvp_out, "    %%append/qobj/obj v%p_0, %d;\n",
-                                      var, max_idx);
-                              break;
-                        }
-                        continue;
-                  }
-
-                  switch (ivl_type_base(element_type)) {
-                      case IVL_VT_BOOL:
-                      case IVL_VT_LOGIC:
-                        draw_eval_vec4(parm);
-                        if (ivl_expr_width(parm) != elem_wid)
-                              fprintf(vvp_out, "    %%pad/%c %u;\n",
-                                      (ivl_type_signed(element_type)
-                                       && ivl_expr_signed(parm)) ? 's' : 'u',
-                                      elem_wid);
-                        fprintf(vvp_out, "    %%store/qb/v v%p_0, %d, %u;\n",
-                                var, max_idx, elem_wid);
-                        break;
-                      case IVL_VT_REAL:
-                        draw_eval_real(parm);
-                        fprintf(vvp_out, "    %%store/qb/r v%p_0, %d;\n",
-                                var, max_idx);
-                        break;
-                      case IVL_VT_STRING:
-                        draw_eval_string(parm);
-                        fprintf(vvp_out, "    %%store/qb/str v%p_0, %d;\n",
-                                var, max_idx);
-                        break;
-                      default:
-                        /* A struct-value operand (`q = '{x, y}` with x,y
-                           struct vars) is copied by value; the helper passes
-                           class / collection operands through unchanged. */
-                        errors += draw_eval_object_value_copy(parm, element_type);
-                        fprintf(vvp_out, "    %%store/qb/obj v%p_0, %d;\n",
-                                var, max_idx);
-                        break;
-                  }
-            }
-
-            return errors;
-      }
-
-      if ((max_size != 0) && (max_elems > max_size)) {
-	    fprintf(stderr, "%s:%u: Warning: Array pattern assignment has more elements "
-	                    "(%u) than bounded queue '%s' supports (%u).\n"
-	                    "         Only using first %u elements.\n",
-	                    ivl_expr_file(rval), ivl_expr_lineno(rval),
-	                    max_elems, ivl_signal_basename(var), max_size, max_size);
-	    max_elems = max_size;
-      }
-      for (idx = 0 ; idx < max_elems ; idx += 1) {
-	    switch (ivl_type_base(element_type)) {
-		case IVL_VT_BOOL:
-		case IVL_VT_LOGIC:
-		  draw_eval_vec4(ivl_expr_parm(rval,idx));
-		  fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
-		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
-		  fprintf(vvp_out, "    %%store/qdar/v v%p_0, %d, %u;\n", var, max_idx,
-		                   ivl_type_packed_width(element_type));
-		  break;
-
-		case IVL_VT_REAL:
-		  draw_eval_real(ivl_expr_parm(rval,idx));
-		  fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
-		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
-		  fprintf(vvp_out, "    %%store/qdar/r v%p_0, %d;\n", var, max_idx);
-		  break;
-
-		case IVL_VT_STRING:
-		  draw_eval_string(ivl_expr_parm(rval,idx));
-		  fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
-		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
-		  fprintf(vvp_out, "    %%store/qdar/str v%p_0, %d;\n", var, max_idx);
-		  break;
-
-		case IVL_VT_CLASS:
-		case IVL_VT_DARRAY:
-		case IVL_VT_QUEUE:
-		case IVL_VT_NO_TYPE:
-		  draw_eval_object(ivl_expr_parm(rval,idx));
-		  fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
-		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
-		  fprintf(vvp_out, "    %%store/qdar/obj v%p_0, %d;\n", var, max_idx);
-		  break;
-
-		default:
-		  /* Compile-progress fallback: treat any remaining element kind
-		   * as object so queue pattern assignment does not silently drop
-		   * elements. */
-		  draw_eval_object(ivl_expr_parm(rval,idx));
-		  fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
-		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
-		  fprintf(vvp_out, "    %%store/qdar/obj v%p_0, %d;\n", var, max_idx);
-		  break;
-	    }
-      }
-
-      if ((max_size == 0) || (max_elems < max_size)) {
-	    int del_idx = allocate_word();
-	    assert(del_idx >= 0);
-	      /* Save the first queue element to delete. */
-	    fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", del_idx, max_elems);
-	    fprintf(vvp_out, "    %%delete/tail v%p_0, %d;\n", var, del_idx);
-	    clr_word(del_idx);
+      /* Evaluate the complete right-hand concatenation into fresh queue
+       * storage before changing the destination. This is required even
+       * when every operand is scalar: an operand may read the destination
+       * queue, and assignment must not expose partially written elements.
+       * The object-context evaluator visits every operand exactly once and
+       * appends its result in source order, splicing collection operands into
+       * the fresh builder. The final whole-queue copy applies the destination
+       * bound once. */
+      errors += draw_eval_object_value_copy(rval, ivl_signal_net_type(var));
+      switch (ivl_type_base(element_type)) {
+          case IVL_VT_BOOL:
+          case IVL_VT_LOGIC:
+            fprintf(vvp_out, "    %%store/qobj/v v%p_0, %d, %u;\n",
+                    var, max_idx, ivl_type_packed_width(element_type));
+            break;
+          case IVL_VT_REAL:
+            fprintf(vvp_out, "    %%store/qobj/r v%p_0, %d;\n",
+                    var, max_idx);
+            break;
+          case IVL_VT_STRING:
+            fprintf(vvp_out, "    %%store/qobj/str v%p_0, %d;\n",
+                    var, max_idx);
+            break;
+          default:
+            fprintf(vvp_out, "    %%store/qobj/obj v%p_0, %d;\n",
+                    var, max_idx);
+            break;
       }
 
       return errors;
