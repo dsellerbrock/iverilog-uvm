@@ -121,6 +121,7 @@ extern bool debug_synth2;
 extern bool debug_optimizer;
 
 void finalize_pending_specialized_class_elaboration(Design*des);
+void repair_specialized_class_property_types(Design*des);
 
 extern const netclass_t* elaborate_specialized_class_type(Design*des,
                                                           NetScope*call_scope,

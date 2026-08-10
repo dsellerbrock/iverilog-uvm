@@ -1,0 +1,2 @@
+./ivltests/sv_enum_default_formal_cast_fail.v:8: error: This assignment requires an explicit cast.
+1 error(s) during elaboration.

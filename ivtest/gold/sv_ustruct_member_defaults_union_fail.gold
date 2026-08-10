@@ -1,0 +1,2 @@
+./ivltests/sv_ustruct_member_defaults_union_fail.v:11: error: individual member defaults are not allowed in unpacked struct variable `typedef_union_value' because the struct contains union member `choice'.
+./ivltests/sv_ustruct_member_defaults_union_fail.v:20: error: individual member defaults are not allowed in unpacked struct variable `direct_union_value' because the struct contains union member `choice'.

@@ -1876,6 +1876,12 @@ extern "C" ivl_expr_t ivl_lval_idx(ivl_lval_t net)
       return 0x0;
 }
 
+extern "C" int ivl_lval_is_queue_slice(ivl_lval_t net)
+{
+      assert(net);
+      return net->queue_slice_ ? 1 : 0;
+}
+
 extern "C" ivl_expr_t ivl_lval_part_off(ivl_lval_t net)
 {
       assert(net);
@@ -3761,6 +3767,15 @@ extern "C" int ivl_type_queue_assoc_compat(ivl_type_t net)
       return queue_type->assoc_compat() ? 1 : 0;
 }
 
+extern "C" uint64_t ivl_type_queue_max_size(ivl_type_t net)
+{
+      const netqueue_t*queue_type = dynamic_cast<const netqueue_t*>(net);
+      if (!queue_type || queue_type->max_idx() < 0)
+	    return 0;
+
+      return (uint64_t)queue_type->max_idx() + 1;
+}
+
 extern "C" int ivl_type_properties(ivl_type_t net)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
@@ -3806,6 +3821,16 @@ extern "C" ivl_type_t ivl_type_prop_type(ivl_type_t net, int idx)
       }
 
       return 0;
+}
+
+extern "C" ivl_signal_t ivl_type_prop_signal(ivl_type_t net, int idx)
+{
+      if (idx < 0) return 0;
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (!class_type || (size_t)idx >= class_type->get_properties())
+	    return 0;
+
+      return class_type->get_prop_static_target((size_t)idx);
 }
 
 extern "C" int ivl_type_prop_qual(ivl_type_t net, int idx)

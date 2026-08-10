@@ -39,6 +39,117 @@ class box #(type T = int);
   endfunction
 endclass
 
+// The method-local typedef deliberately shadows the enclosing class type
+// formal.  The implicit named actual is represented as a PEIdent, so cache-key
+// canonicalization must retain its lexical lookup scope instead of resolving
+// it as lexical_shadow_probe::T.
+class lexical_shadow_probe #(type T = byte);
+  static function bit check();
+    check = 1'b1;
+
+    begin : local_scope
+      typedef int T;
+      box#(.T) implicit_named;
+      box#(.T(int)) explicit_named;
+      box#(int) positional;
+      box#(int) casted;
+
+      implicit_named = box#(.T)::get();
+      explicit_named = box#(.T(int))::get();
+      positional = box#(int)::get();
+
+      if (implicit_named == null || explicit_named == null ||
+          positional == null) begin
+        $display("FAILED: lexical-shadow specialization returned null");
+        check = 1'b0;
+      end else if (implicit_named !== explicit_named ||
+                   implicit_named !== positional) begin
+        $display("FAILED: implicit named lexical T did not canonicalize to explicit int forms");
+        check = 1'b0;
+      end
+
+      if (!$cast(casted, implicit_named) || casted !== positional) begin
+        $display("FAILED: lexical-shadow specialization runtime type identity mismatch");
+        check = 1'b0;
+      end
+    end
+  endfunction
+endclass
+
+class value_box #(int N = 0);
+  typedef value_box#(N) this_type;
+  logic [N:0] value;
+
+  static function this_type get();
+    static this_type m_inst;
+    if (m_inst == null) m_inst = new;
+    return m_inst;
+  endfunction
+endclass
+
+class value_lexical_probe;
+  localparam int P = 3;
+
+  static function bit check();
+    value_box#(.N(P)) via_localparam;
+    value_box#(.N(3)) via_literal;
+
+    check = 1'b1;
+    via_localparam = value_box#(.N(P))::get();
+    via_literal = value_box#(.N(3))::get();
+
+    if ($bits(via_localparam.value) != 4 ||
+        $bits(via_literal.value) != 4) begin
+      $display("FAILED: value-parameter lexical P resolved to wrong value");
+      check = 1'b0;
+    end else if (type(via_localparam) != type(via_literal)) begin
+      $display("FAILED: lexical P and literal value parameter types differ");
+      check = 1'b0;
+    end else if (via_localparam == null || via_literal == null ||
+                 via_localparam !== via_literal) begin
+      $display("FAILED: lexical P and literal value parameters did not share identity");
+      check = 1'b0;
+    end
+  endfunction
+endclass
+
+class untyped_value_box #(parameter N = 0);
+  typedef untyped_value_box#(N) this_type;
+  logic [$bits(N)-1:0] value;
+
+  static function this_type get();
+    static this_type m_inst;
+    if (m_inst == null) m_inst = new;
+    return m_inst;
+  endfunction
+endclass
+
+class untyped_value_width_probe;
+  static function bit check();
+    untyped_value_box#(8'd3) narrow;
+    untyped_value_box#(32'd3) wide;
+
+    check = 1'b1;
+    narrow = untyped_value_box#(8'd3)::get();
+    wide = untyped_value_box#(32'd3)::get();
+
+    if ($bits(narrow.value) != 8 || $bits(wide.value) != 32) begin
+      $display("FAILED: untyped value-parameter widths were not preserved");
+      check = 1'b0;
+    end else if (type(narrow) == type(wide)) begin
+      $display("FAILED: width-distinct untyped values shared one class type");
+      check = 1'b0;
+    end else if (narrow == null || wide == null || narrow === wide) begin
+      $display("FAILED: width-distinct untyped values shared one singleton");
+      check = 1'b0;
+    end
+  endfunction
+endclass
+
+// This later compilation-unit type name must not displace the nearer class
+// localparam when value_lexical_probe's method elaborates .N(P).
+typedef logic [7:0] P;
+
 module test;
   typedef int my_int_t;
   bit failed = 1'b0;
@@ -106,6 +217,17 @@ module test;
         failed = 1'b1;
       end
     end
+
+    // The outer formal is byte, while the nearer typedef is int.  A cache key
+    // that drops the method/block lexical scope will select box#(byte) here.
+    if (!lexical_shadow_probe#(byte)::check())
+      failed = 1'b1;
+
+    if (!value_lexical_probe::check())
+      failed = 1'b1;
+
+    if (!untyped_value_width_probe::check())
+      failed = 1'b1;
 
     if (!failed) $display("PASSED");
   end

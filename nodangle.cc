@@ -26,6 +26,7 @@
  * appearance of design files that are generated.
  */
 # include  "functor.h"
+# include  "netclass.h"
 # include  "netlist.h"
 # include  "compiler.h"
 
@@ -192,6 +193,23 @@ void nodangle_f::signal(Design*, NetNet*sig)
 
       if (warn_floating_nets && !sig->local_flag() && !floating_net_tested(sig)) {
 	    check_is_floating(sig);
+      }
+
+	/* A static class property is backed by its declaring class-scope
+	   signal even when no ordinary netlist expression references it. Class
+	   handles, randomization and VPI can all reach that storage indirectly,
+	   so it must survive the dangling-signal pass. Use the absolute property
+	   index and require pointer identity with the declaring signal; this
+	   avoids preserving an unrelated or hidden property that merely has the
+	   same name. */
+      if (NetScope*scope = sig->scope()) {
+	    if (const netclass_t*class_type = scope->class_def()) {
+		  int pidx = class_type->property_idx_from_name(sig->name());
+		  if (pidx >= 0
+		      && class_type->get_prop_qual(pidx).test_static()
+		      && class_type->get_prop_static_signal(pidx) == sig)
+			return;
+	    }
       }
 
 	/* Cannot delete signals referenced in an expression

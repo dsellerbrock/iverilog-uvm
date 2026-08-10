@@ -211,15 +211,24 @@ static inline bool should_lazy_specialized_class_body_(const netclass_t*cls)
 	  || class_name == perm_string::literal("uvm_typed_callbacks");
 }
 
-static const netclass_t* resolve_scoped_class_type_name_task_(Design*des,
-							      NetScope*scope,
-							      perm_string name)
+enum scoped_class_name_kind_task_t {
+      SCOPED_CLASS_NAME_TASK_NONE,
+      SCOPED_CLASS_NAME_TASK_DIRECT,
+      SCOPED_CLASS_NAME_TASK_TYPE_PARAMETER,
+      SCOPED_CLASS_NAME_TASK_TYPEDEF,
+      SCOPED_CLASS_NAME_TASK_NONCLASS_TYPEDEF
+};
+
+struct scoped_class_name_result_task_t {
+      const netclass_t*class_type = nullptr;
+      scoped_class_name_kind_task_t kind = SCOPED_CLASS_NAME_TASK_NONE;
+};
+
+static const netclass_t* resolve_scoped_class_type_parameter_task_(
+		Design*des, NetScope*scope, perm_string name)
 {
       if (!scope)
 	    return nullptr;
-
-      if (netclass_t*cls = scope->find_class(des, name))
-	    return cls;
 
       for (NetScope*cur = scope ; cur ; cur = cur->parent()) {
 	    ivl_type_t param_type = nullptr;
@@ -239,24 +248,129 @@ static const netclass_t* resolve_scoped_class_type_name_task_(Design*des,
 	    }
       }
 
+      return nullptr;
+}
+
+static scoped_class_name_result_task_t resolve_scoped_class_type_name_task_(
+		Design*des, NetScope*scope, perm_string name)
+{
+      scoped_class_name_result_task_t result;
+      if (!scope)
+	    return result;
+
       if (typedef_t*td = scope->find_typedef(des, name)) {
-	    ivl_type_t td_type = td->elaborate_type(des, scope);
-	    if (const netclass_t*cls = dynamic_cast<const netclass_t*>(td_type))
-		  return cls;
+	    const data_type_t*declared_type = td->get_data_type();
+	    if (dynamic_cast<const type_parameter_t*>(declared_type)) {
+		  result.class_type = resolve_scoped_class_type_parameter_task_(
+			des, scope, name);
+		  result.kind = SCOPED_CLASS_NAME_TASK_TYPE_PARAMETER;
+		  return result;
+	    }
+
+	    if (const class_type_t*class_pf =
+		      dynamic_cast<const class_type_t*>(declared_type)) {
+		  if (class_pf->name == name) {
+			result.class_type = scope->find_class(des, name);
+			if (!result.class_type)
+			      result.class_type = ensure_visible_class_type(
+				    des, scope, name);
+			result.kind = SCOPED_CLASS_NAME_TASK_DIRECT;
+			return result;
+		  }
+	    }
+
+	    ivl_type_t alias_type = td->elaborate_type(des, scope);
+	    if (dynamic_cast<const netclass_t*>(alias_type)) {
+		  alias_type = specialize_bare_class_at_concrete_use(
+			des, scope, declared_type, alias_type, true);
+		  result.class_type = dynamic_cast<const netclass_t*>(alias_type);
+		  result.kind = SCOPED_CLASS_NAME_TASK_TYPEDEF;
+		  return result;
+	    }
+
+	    /* A concrete non-class typedef shadows any outer class with the same
+	       spelling.  Keep null types eligible for early class-forward recovery,
+	       but never recover by name after an exact non-class type resolved. */
+	    if (alias_type) {
+		  result.kind = SCOPED_CLASS_NAME_TASK_NONCLASS_TYPEDEF;
+		  return result;
+	    }
       }
 
-      return nullptr;
+      result.class_type = scope->find_class(des, name);
+      if (!result.class_type)
+	    result.class_type = ensure_visible_class_type(des, scope, name);
+      if (result.class_type)
+	    result.kind = SCOPED_CLASS_NAME_TASK_DIRECT;
+      return result;
+}
+
+static bool scoped_class_is_unspecialized_parameterized_task_(
+		const netclass_t*class_type)
+{
+      if (!class_type || class_type->specialized_instance())
+	    return false;
+
+      const NetScope*class_scope = class_type->class_scope();
+      const PClass*pclass = class_scope ? class_scope->class_pform() : nullptr;
+      return pclass && pclass->has_parameter_port_list;
+}
+
+static const netclass_t* scoped_class_current_specialization_task_(
+		NetScope*use_scope, const netclass_t*class_type)
+{
+      if (!use_scope || !class_type)
+	    return nullptr;
+
+      const NetScope*current_scope = use_scope->get_class_scope();
+      const NetScope*resolved_scope = class_type->class_scope();
+      if (!current_scope || !resolved_scope
+	  || current_scope->class_pform() != resolved_scope->class_pform())
+	    return nullptr;
+
+      return current_scope->class_def();
+}
+
+static void report_bare_parameterized_class_scope_task_(
+		Design*des, const LineInfo*li, perm_string name)
+{
+      if (!des || !li)
+	    return;
+
+      cerr << li->get_fileline() << ": error: Parameterized class `"
+	   << name << "' requires an explicit #(...) specialization before ::."
+	   << endl;
+      des->errors += 1;
+}
+
+static void report_nonclass_typedef_class_scope_task_(
+		Design*des, const LineInfo*li, perm_string name)
+{
+      if (!des || !li)
+	    return;
+
+      cerr << li->get_fileline() << ": error: Scoped static access requires "
+	   << "a class type, but `" << name
+	   << "' resolves to a non-class typedef." << endl;
+      des->errors += 1;
 }
 
 static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
 						   const pform_name_t&type_path,
 						   perm_string method_name,
-						   const parmvalue_t*leading_type_args = 0)
+						   const parmvalue_t*leading_type_args = 0,
+						   bool*illegal_bare_generic = 0,
+						   perm_string*nonclass_typedef = 0)
 {
       if (!gn_system_verilog())
 	    return nullptr;
       if (type_path.empty())
 	    return nullptr;
+
+      if (illegal_bare_generic)
+	    *illegal_bare_generic = false;
+      if (nonclass_typedef)
+	    *nonclass_typedef = perm_string();
 
       const netclass_t*class_type = nullptr;
       bool first_comp = true;
@@ -271,7 +385,14 @@ static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
 		  comp_scope = const_cast<NetScope*>(class_type->class_scope());
 	    }
 
-	    class_type = resolve_scoped_class_type_name_task_(des, comp_scope, comp.name);
+	    scoped_class_name_result_task_t resolved =
+		  resolve_scoped_class_type_name_task_(des, comp_scope, comp.name);
+	    if (resolved.kind == SCOPED_CLASS_NAME_TASK_NONCLASS_TYPEDEF) {
+		  if (nonclass_typedef)
+			*nonclass_typedef = comp.name;
+		  return nullptr;
+	    }
+	    class_type = resolved.class_type;
             if ((!class_type || !class_type->class_scope()) && comp_scope)
                   class_type = ensure_visible_class_type(des, comp_scope, comp.name);
 	    if (!class_type)
@@ -284,6 +405,18 @@ static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
 						       class_type,
 						       leading_type_args,
 						       false);
+	    }
+	    else if (resolved.kind == SCOPED_CLASS_NAME_TASK_DIRECT) {
+		  if (const netclass_t*current_class =
+			scoped_class_current_specialization_task_(scope,
+							  class_type)) {
+			class_type = current_class;
+		  } else if (scoped_class_is_unspecialized_parameterized_task_(
+				   class_type)) {
+			if (illegal_bare_generic)
+			      *illegal_bare_generic = true;
+			return nullptr;
+		  }
 	    }
 
 	    first_comp = false;
@@ -4135,15 +4268,66 @@ NetAssign_* PAssign_::elaborate_lval(Design*des, NetScope*scope) const
       return lval_->elaborate_lval(des, scope, false, false, is_init_);
 }
 
+NetScope* PAssign_::elaborate_rval_scope_(Design*des, NetScope*scope) const
+{
+      if (!rval_typedef_)
+            return scope;
+
+      NetScope*res = scope->find_typedef_scope(des, rval_typedef_);
+      if (res)
+            return res;
+
+      cerr << get_fileline() << ": internal error: Unable to resolve the "
+            "defining scope for unpacked-struct member defaults from "
+            "typedef `" << rval_typedef_->name << "'." << endl;
+      des->errors += 1;
+      return 0;
+}
+
+/*
+ * A constant assignment is normally reduced by elab_and_eval to one of the
+ * scalar constant nodes below. Class-handle null is also a constant value,
+ * but it deliberately remains a NetENull so that object code generation can
+ * distinguish it from an integral zero. Admit that node only when the source
+ * syntax is the literal `null`: other class expressions (notably `new`) can
+ * survive NEED_CONST elaboration as non-scalar nodes and must still fail the
+ * declaration's constant-expression requirement.
+ */
+static bool assignment_rval_is_constant_(const PExpr*source,
+                                         const NetExpr*result)
+{
+      if (dynamic_cast<const NetEConst*>(result)) return true;
+      if (dynamic_cast<const NetECReal*>(result)) return true;
+      return dynamic_cast<const PENull*>(source)
+            && dynamic_cast<const NetENull*>(result);
+}
+
 NetExpr* PAssign_::elaborate_rval_(Design*des, NetScope*scope,
 				   ivl_type_t net_type) const
 {
       ivl_assert(*this, rval_);
 
-      NetExpr*rv = elaborate_rval_expr(des, scope, net_type, rval_,
+      NetScope*rval_scope = elaborate_rval_scope_(des, scope);
+      if (!rval_scope)
+            return 0;
+
+	// Borrowed rvalues are synthesized unpacked-struct member defaults.
+	// Their declarations were already checked in the defining type scope;
+	// do not elaborate an invalid expression again and emit a duplicate
+	// diagnostic for every variable that consumes the type.
+      if (!delete_rval_) {
+	    bool declaration_valid = false;
+	    if (des->get_struct_member_default_validation(
+		  rval_, rval_scope, declaration_valid) && !declaration_valid)
+		  return 0;
+      }
+
+      NetExpr*rv = elaborate_rval_expr(des, rval_scope, net_type, rval_,
 				       is_constant_);
 
       if (!is_constant_ || !rv) return rv;
+
+      if (assignment_rval_is_constant_(rval_, rv)) return rv;
 
       cerr << get_fileline() << ": error: "
             "The RHS expression must be constant." << endl;
@@ -4162,6 +4346,17 @@ NetExpr* PAssign_::elaborate_rval_(Design*des, NetScope*scope,
 {
       ivl_assert(*this, rval_);
 
+      NetScope*rval_scope = elaborate_rval_scope_(des, scope);
+      if (!rval_scope)
+            return 0;
+
+      if (!delete_rval_) {
+	    bool declaration_valid = false;
+	    if (des->get_struct_member_default_validation(
+		  rval_, rval_scope, declaration_valid) && !declaration_valid)
+		  return 0;
+      }
+
 	// Streaming concatenation in an assignment (IEEE 1800-2017
 	// 11.4.14): both directions differ from ordinary rvalue width
 	// adaptation, so dispatch directly.  Unpack (the parser
@@ -4175,23 +4370,22 @@ NetExpr* PAssign_::elaborate_rval_(Design*des, NetScope*scope,
 	    if (lv_width > 0
 		&& (lv_type == IVL_VT_LOGIC || lv_type == IVL_VT_BOOL)) {
 		  if (st->is_lval_context())
-			return st->elaborate_unpack(des, scope, lv_width);
-		  return st->elaborate_pack_into(des, scope, lv_width);
+			return st->elaborate_unpack(des, rval_scope, lv_width);
+		  return st->elaborate_pack_into(des, rval_scope, lv_width);
 	    }
 	      // String target (e.g. joining a queue of strings): the
 	      // stream materializes as a string.
 	    if (lv_type == IVL_VT_STRING)
-		  return st->elaborate_stream_sfunc(des, scope,
+		  return st->elaborate_stream_sfunc(des, rval_scope,
 						    &netstring_t::type_string, 0);
       }
 
-      NetExpr*rv = elaborate_rval_expr(des, scope, lv_net_type, lv_type, lv_width,
+      NetExpr*rv = elaborate_rval_expr(des, rval_scope, lv_net_type, lv_type, lv_width,
 				       rval(), is_constant_, force_unsigned);
 
       if (!is_constant_ || !rv) return rv;
 
-      if (dynamic_cast<NetEConst*>(rv)) return rv;
-      if (dynamic_cast<NetECReal*>(rv)) return rv;
+      if (assignment_rval_is_constant_(rval_, rv)) return rv;
 
       cerr << get_fileline() << ": error: "
             "The RHS expression must be constant." << endl;
@@ -4358,6 +4552,21 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 
       NetAssign_*lv = elaborate_lval(des, scope);
       if (lv == 0) return 0;
+
+	// IEEE 1800-2017 6.19.4: using an enum in a numerical expression
+	// converts it to its base integral type. A compound assignment is
+	// equivalent to reading the l-value, applying the binary operator and
+	// assigning the result back (while evaluating the l-value only once), so
+	// its integral result cannot be assigned to an enum without an explicit
+	// cast. The compressed-assignment IR previously skipped the ordinary enum
+	// assignment-compatibility gate and silently accepted `state += 1'.
+      if (dynamic_cast<const netenum_t*>(lv->net_type())) {
+	    cerr << get_fileline() << ": error: This assignment requires an "
+		    "explicit cast." << endl;
+	    des->errors += 1;
+	    delete lv;
+	    return 0;
+      }
 
 	// Compressed assignments should behave identically to the
 	// equivalent uncompressed assignments. This means we need
@@ -7404,6 +7613,15 @@ NetProc* PContinue::elaborate(Design*des, NetScope*) const
       return res;
 }
 
+enum type_parameter_receiver_state_t {
+      TPR_NONE,
+      TPR_DEFERRED,
+      TPR_CONCRETE
+};
+
+static type_parameter_receiver_state_t type_parameter_receiver_state_(
+		Design*des, NetScope*scope, const pform_name_t&use_path);
+
 NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
 {
 	// Method-call statement on an arbitrary receiver expression,
@@ -7610,6 +7828,13 @@ static bool open_array_formal_needs_copy_in_(const NetNet*port)
 	    return false;
 
       ivl_type_t pt = port->net_type();
+      /* The assoc-compatible netqueue_t is a keyed container, not an open
+	 array whose caller-side bounds must be imported for DPI. An output
+	 associative formal starts independently and is checked when copied back. */
+      if (const netqueue_t*queue = dynamic_cast<const netqueue_t*>(pt)) {
+	    if (queue->assoc_compat())
+		  return false;
+      }
       return pt && (dynamic_cast<const netdarray_t*>(pt) != 0);
 }
 
@@ -7818,29 +8043,101 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
       if (gn_system_verilog()
 	  && peek_tail_name(path_) == perm_string::literal("rand_mode")
 	  && path_.size() >= 2 && parms_.size() == 1) {
-	    perm_string fname = std::next(path_.end(), -2)->name;
-	    NetNet *obj_net = nullptr;
+	    const name_component_t&field_comp = *std::next(path_.end(), -2);
+	    perm_string fname = field_comp.name;
+	    NetExpr *obj_expr = nullptr;
 	    if (path_.size() == 2) {
+		  NetNet *obj_net = nullptr;
 		  for (NetScope *s = scope; s && !obj_net; s = s->parent())
 			obj_net = s->find_signal(perm_string::literal(THIS_TOKEN));
+		  if (obj_net) {
+			obj_expr = new NetESignal(obj_net);
+			obj_expr->set_line(*this);
+		  }
 	    } else {
 		  pform_name_t obj_path;
 		  auto it = path_.begin();
 		  auto end_it = std::next(path_.end(), -2);
 		  for (; it != end_it; ++it)
 			obj_path.push_back(*it);
-		  symbol_search_results sr;
-		  symbol_search(this, des, scope, obj_path, UINT_MAX, &sr);
-		  obj_net = sr.net;
+
+		  /* A bare local receiver is cheapest to preserve as its exact
+		   * signal.  A class-property receiver, however, resolves as the
+		   * implicit `this' signal plus a path tail (this.obj); elaborate
+		   * the complete prefix expression so rand_mode applies to obj's
+		   * field rather than looking for the field on the containing
+		   * class. */
+		  symbol_search_results obj_sr;
+		  symbol_search(this, des, scope, obj_path, UINT_MAX, &obj_sr);
+		  if (obj_sr.net && obj_sr.path_tail.empty()) {
+			obj_expr = new NetESignal(obj_sr.net);
+			obj_expr->set_line(*this);
+		  } else {
+			PEIdent *obj_id = new PEIdent(obj_path, /*lexical_pos*/0);
+			obj_id->set_file(get_file());
+			obj_id->set_lineno(get_lineno());
+			obj_expr = obj_id->elaborate_expr(des, scope,
+					     /*expr_wid*/0u, /*flags*/0u);
+			delete obj_id;
+		  }
 	    }
-	    if (obj_net) {
+	    if (obj_expr) {
 		  const netclass_t *ctype =
-			dynamic_cast<const netclass_t*>(obj_net->net_type());
+			dynamic_cast<const netclass_t*>(obj_expr->net_type());
 		  if (ctype) {
 			int pid = ctype->property_idx_from_name(fname);
-			if (pid >= 0) {
-			      NetExpr *obj_expr = new NetESignal(obj_net);
-			      obj_expr->set_line(*this);
+			if (pid < 0) {
+			      /* With an explicit object prefix this spelling can only
+			       * denote field-level rand_mode. A two-component call may
+			       * instead be object-level local_obj.rand_mode(), so leave
+			       * that form to ordinary method dispatch. */
+			      if (path_.size() >= 3) {
+				    cerr << get_fileline() << ": error: Class `"
+					 << ctype->get_name() << "' has no property `"
+					 << fname << "' for rand_mode()." << endl;
+				    des->errors += 1;
+				    delete obj_expr;
+				    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+				    noop->set_line(*this);
+				    return noop;
+			      }
+			} else if (!field_comp.index.empty()) {
+			      cerr << get_fileline() << ": sorry: rand_mode() on indexed "
+				   << "class property `" << fname << "' is not yet "
+				   << "supported; element-specific random modes require "
+				   << "per-element runtime state."
+				   << endl;
+			      des->errors += 1;
+			      delete obj_expr;
+			      NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+			      noop->set_line(*this);
+			      return noop;
+			} else {
+			      property_qualifier_t qual =
+				    ctype->get_prop_qual((size_t)pid);
+			      ivl_type_t prop_type =
+				    ctype->get_prop_type((size_t)pid);
+			      if (!qual.test_rand() && !qual.test_randc()) {
+				    /* A non-rand class handle is the receiver of the
+				     * object-level built-in method, not a field-control
+				     * target. Scalar non-rand properties are unambiguously
+				     * invalid and must not fall into a permissive stub. */
+				    if (dynamic_cast<const netclass_t*>(prop_type)) {
+					  delete obj_expr;
+					  obj_expr = nullptr;
+				    } else {
+					  cerr << get_fileline() << ": error: Class property `"
+					       << fname << "' is not declared rand or randc."
+					       << endl;
+					  des->errors += 1;
+					  delete obj_expr;
+					  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+					  noop->set_line(*this);
+					  return noop;
+				    }
+			      }
+			}
+			if (pid >= 0 && obj_expr) {
 			      NetExpr *mode_expr = elab_sys_task_arg(des, scope,
 				    peek_tail_name(path_), 0, parms_[0].parm);
 			      NetExpr *pid_expr = new NetEConst(
@@ -7857,6 +8154,7 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 			      return sys;
 			}
 		  }
+		  delete obj_expr;
 	    }
 	      // Not a resolvable field: fall through to normal dispatch.
       }
@@ -7903,15 +8201,32 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	      }
 
       NetScope*task = des->find_task(pscope, path_);
-      if (gn_system_verilog() && leading_type_args()
-	  && path_.size() > 1 && !has_indexed_path_component) {
+      if (gn_system_verilog() && path_.size() > 1
+	  && !has_indexed_path_component
+	  && (leading_type_args() || (task && task->get_class_scope()))) {
 	    pform_name_t type_path = path_;
 	    perm_string method_name = peek_tail_name(type_path);
 	    type_path.pop_back();
 
-	    if (NetScope*static_method = resolve_scoped_class_method_task_(des, pscope,
-								       type_path, method_name,
-								       leading_type_args())) {
+	    bool illegal_bare_generic = false;
+	    perm_string nonclass_typedef;
+	    NetScope*static_method = resolve_scoped_class_method_task_(
+		  des, pscope, type_path, method_name, leading_type_args(),
+		  &illegal_bare_generic, &nonclass_typedef);
+	    if (!nonclass_typedef.nil()) {
+		  report_nonclass_typedef_class_scope_task_(
+			des, this, nonclass_typedef);
+		  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+		  noop->set_line(*this);
+		  return noop;
+	    }
+	    if (illegal_bare_generic) {
+		  report_bare_parameterized_class_scope_task_(
+			des, this, type_path.front().name);
+		  return 0;
+	    }
+
+	    if (static_method) {
 		  if (task == 0 || task != static_method)
 			task = static_method;
 	    }
@@ -7934,8 +8249,41 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		    // This could be a method attached to a signal
 		    // or defined in this object?
 		  bool try_implicit_this = scope->get_class_scope() && path_.size() == 1;
+		  unsigned method_errors_before = des->errors;
 		  tmp = elaborate_method_(des, scope, try_implicit_this);
 		  if (tmp) return tmp;
+		  if (des->errors != method_errors_before
+		      && (peek_tail_name(path_) == "unique"
+		          || peek_tail_name(path_) == "unique_index"))
+			return 0;
+
+		    /* A call through a type parameter is deferred only in the
+		     * unspecialized template master. Once the enclosing class has a
+		     * concrete binding (including its declared default), a missing
+		     * method is a real language error, not an unknown-task
+		     * compile-progress warning. */
+		  if (des->errors == method_errors_before && path_.size() > 1) {
+			pform_name_t receiver_path = path_;
+			perm_string missing_method =
+			      peek_tail_name(receiver_path);
+			receiver_path.pop_back();
+			type_parameter_receiver_state_t receiver_state =
+			      type_parameter_receiver_state_(
+				des, scope, receiver_path);
+			if (receiver_state == TPR_DEFERRED) {
+			      NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+			      noop->set_line(*this);
+			      return noop;
+			}
+			if (receiver_state == TPR_CONCRETE) {
+			      cerr << get_fileline() << ": error: Concrete type-parameter "
+				   << "receiver " << receiver_path
+				   << " has no method `" << missing_method << "'."
+				   << endl;
+			      des->errors += 1;
+			      return 0;
+			}
+		  }
 		    // Or it could be a function call ignoring the return?
 		  tmp = elaborate_function_(des, scope);
 		  if (tmp) return tmp;
@@ -8445,40 +8793,54 @@ static bool is_multi_hop_collection_task_stub_candidate_(const pform_name_t&use_
  * class is elaborated.  OpenTitan's dv_base_test is the canonical case:
  * CFG_T cfg; cfg.initialize(); is valid for its cip/uart specializations even
  * though the CFG_T default intentionally has no initialize() method. */
-static bool is_unspecialized_type_parameter_receiver_(NetScope*scope,
-						       const pform_name_t&use_path)
+static type_parameter_receiver_state_t type_parameter_receiver_state_(
+		Design*des, NetScope*scope, const pform_name_t&use_path)
 {
       if (!scope || use_path.size() != 1 || !use_path.front().index.empty())
-	    return false;
+	    return TPR_NONE;
 
       const NetScope*class_scope = scope->get_class_scope();
-      const netclass_t*enclosing = class_scope ? class_scope->class_def() : 0;
       const PClass*pclass = class_scope ? class_scope->class_pform() : 0;
-      if (!enclosing || enclosing->specialized_instance()
-	  || !pclass || !pclass->type)
-	    return false;
+      if (!class_scope || !pclass || !pclass->type)
+	    return TPR_NONE;
 
+      const data_type_t*declared_type = 0;
       std::map<perm_string,class_type_t::prop_info_t>::const_iterator prop =
 	    pclass->type->properties.find(use_path.front().name);
-      if (prop == pclass->type->properties.end() || !prop->second.type)
-	    return false;
+      if (prop != pclass->type->properties.end() && prop->second.type)
+	    declared_type = prop->second.type.get();
 
-      const data_type_t*declared_type = prop->second.type.get();
-      if (dynamic_cast<const type_parameter_t*>(declared_type))
-	    return true;
-
-      if (const typeref_t*type_ref = dynamic_cast<const typeref_t*>(declared_type)) {
-	    typedef_t*td = type_ref->typedef_ref();
-	    if (!td) return false;
-	    std::map<perm_string,PScope::param_expr_t*>::const_iterator param =
-		  pclass->parameters.find(td->name);
-	    if (param != pclass->parameters.end() && param->second
-		&& param->second->type_flag)
-		  return true;
-	    return dynamic_cast<const type_parameter_t*>(td->get_data_type()) != 0;
+	/* Method-local variables and formals are not in the PClass property
+	 * table. Recover their parse-form declaration through the placeholder
+	 * net, just as the expression-method provenance path does. */
+      if (!declared_type) {
+	    NetNet*receiver_net = 0;
+	    for (NetScope*cur = scope; cur && !receiver_net;
+		 cur = cur->parent())
+		  receiver_net = cur->find_signal(use_path.front().name);
+	    if (receiver_net && receiver_net->scope()) {
+		  PWire*wire = receiver_net->scope()->find_signal_placeholder(
+			receiver_net->name());
+		  if (wire)
+			declared_type = wire->data_type();
+	    }
       }
+      if (!declared_type)
+	    return TPR_NONE;
 
-      return false;
+      perm_string parameter_name;
+      if (!find_class_type_parameter_reference(
+		    class_scope, declared_type, parameter_name))
+	    return TPR_NONE;
+      return class_type_parameter_is_deferred(
+	    des, class_scope, parameter_name) ? TPR_DEFERRED : TPR_CONCRETE;
+}
+
+static bool is_deferred_type_parameter_receiver_(Design*des, NetScope*scope,
+					  const pform_name_t&use_path)
+{
+      return type_parameter_receiver_state_(des, scope, use_path)
+	    == TPR_DEFERRED;
 }
 
 static bool is_uvm_compile_progress_task_stub_candidate_(const pform_name_t&path)
@@ -8555,15 +8917,48 @@ NetProc* PCallTask::elaborate_receiver_method_(Design*des, NetScope*scope) const
       ivl_assert(*this, receiver_);
       perm_string method_name = peek_tail_name(path_);
 
-      NetExpr*sub_expr = receiver_->elaborate_expr(des, scope,
-						   ivl_type_t(nullptr),
-						   PExpr::NO_FLAGS);
+      /* Method receivers are self-determined expressions.  Do not route a
+	 null ivl_type_t through the typed PEIdent overload; its compatibility
+	 checks require a real target type. */
+      PExpr::width_mode_t receiver_mode = PExpr::SIZED;
+      receiver_->test_width(des, scope, receiver_mode);
+      unsigned receiver_width = receiver_->expr_width();
+      NetExpr*sub_expr = receiver_->elaborate_expr(
+            des, scope, receiver_width, PExpr::NO_FLAGS);
       if (!sub_expr)
 	    return 0;
 
       ivl_type_t target_type = sub_expr->net_type();
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(target_type);
       if (!class_type) {
+	    const netdarray_t*darray_type =
+		  dynamic_cast<const netdarray_t*>(target_type);
+	    const netuarray_t*uarray_type =
+		  dynamic_cast<const netuarray_t*>(target_type);
+	    if ((darray_type || uarray_type)
+		&& (method_name == "unique" || method_name == "unique_index")) {
+		  /* Locator methods are functions even in statement position.
+		   * Elaborate the receiver-based expression and explicitly discard
+		   * its fresh queue result, without mutating the receiver. */
+		  delete sub_expr;
+		  list<named_pexpr_t> use_parms(parms_.begin(), parms_.end());
+		  PECallFunction*call =
+			new PECallFunction(receiver_, method_name, use_parms);
+		  call->set_with_constraints(with_constraints());
+		  call->set_file(get_file());
+		  call->set_lineno(get_lineno());
+		  NetExpr*result = call->elaborate_expr(
+			des, scope, ivl_type_t(nullptr), PExpr::NO_FLAGS);
+		  if (!result)
+			return 0;
+		  vector<NetExpr*>argv(1);
+		  argv[0] = result;
+		  NetSTask*discard = new NetSTask(
+			"$ivl_discard_object_expr",
+			IVL_SFUNC_AS_TASK_IGNORE, argv);
+		  discard->set_line(*this);
+		  return discard;
+	    }
 	    cerr << get_fileline() << ": sorry: Method-call statements on "
 		 << "receiver expressions are only supported for class-typed "
 		 << "receivers." << endl;
@@ -8640,6 +9035,32 @@ static NetNet* make_ordering_method_recv_net_(const LineInfo*li,
       return recv;
 }
 
+static const data_type_t* task_method_wire_declared_type_(NetNet*net)
+{
+      if (!net || !net->scope())
+	    return 0;
+      PWire*wire = net->scope()->find_signal_placeholder(net->name());
+      return wire ? wire->data_type() : 0;
+}
+
+static const data_type_t* task_method_property_declared_type_(
+		const netclass_t*class_type, perm_string property_name)
+{
+      for (const netclass_t*cur = class_type; cur; cur = cur->get_super()) {
+	    const NetScope*class_scope = cur->class_scope();
+	    const PClass*pclass = class_scope
+		  ? class_scope->class_pform() : 0;
+	    if (!pclass || !pclass->type)
+		  continue;
+
+	    std::map<perm_string,class_type_t::prop_info_t>::const_iterator prop =
+		  pclass->type->properties.find(property_name);
+	    if (prop != pclass->type->properties.end() && prop->second.type)
+		  return prop->second.type.get();
+      }
+      return 0;
+}
+
 NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				      bool add_this_flag) const
 {
@@ -8707,11 +9128,50 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    }
       }
 
+	/* symbol_search reaches a static property through the generic class
+	   scope and therefore cannot account for the #(...) carried separately
+	   by PCallTask. Retarget the found property to the exact specialization
+	   before any container/class method lowering consumes it. This mirrors
+	   PEIdent's expression-side recovery and leaves path_tail intact for
+	   member walks rooted at a specialized static property. */
+      if (sr.net != 0 && leading_type_args() && use_path.size() >= 2) {
+	    if (NetScope*owner = sr.net->scope()) {
+		  if (const netclass_t*base_cls = owner->class_def()) {
+			const netclass_t*spec_cls = elaborate_specialized_class_type(
+			      des, scope, base_cls, leading_type_args(), true);
+			if (spec_cls && spec_cls != base_cls) {
+			      perm_string prop = sr.path_head.empty()
+				    ? use_path.back().name
+				    : sr.path_head.back().name;
+			      if (NetNet*spec_sig = spec_cls->find_static_property(prop)) {
+				    sr.net = spec_sig;
+				    sr.type = spec_sig->net_type();
+			      }
+			}
+		  }
+	    }
+      }
+
       NetNet*net = sr.net;
       if (net == 0) {
-	    if (NetScope*static_method = resolve_scoped_class_method_task_(des, search_scope,
-								       use_path, method_name,
-								       leading_type_args())) {
+	    bool illegal_bare_generic = false;
+	    perm_string nonclass_typedef;
+	    NetScope*static_method = resolve_scoped_class_method_task_(
+		  des, search_scope, use_path, method_name, leading_type_args(),
+		  &illegal_bare_generic, &nonclass_typedef);
+	    if (!nonclass_typedef.nil()) {
+		  report_nonclass_typedef_class_scope_task_(
+			des, this, nonclass_typedef);
+		  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+		  noop->set_line(*this);
+		  return noop;
+	    }
+	    if (illegal_bare_generic) {
+		  report_bare_parameterized_class_scope_task_(
+			des, this, use_path.front().name);
+		  return 0;
+	    }
+	    if (static_method) {
 		  return elaborate_build_call_(des, scope, static_method, nullptr);
 	    }
 	    return 0;
@@ -8730,6 +9190,9 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    if (!obj_expr)
 		  return 0;
       }
+
+      obj_type = specialize_bare_class_receiver_on_use(
+	    des, scope, task_method_wire_declared_type_(net), obj_type);
 
       if (!sr.path_tail.empty()) {
 	    while (!sr.path_tail.empty()) {
@@ -8770,12 +9233,17 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			delete obj_expr;
 			return 0;
 		  }
+		  const data_type_t*prop_declared_type =
+			task_method_property_declared_type_(
+			      class_type, comp.name);
 		  obj_expr = elaborate_nested_method_target_property_task_(this, des, scope,
 									   obj_expr, class_type,
 									   comp, method_name,
 									   obj_type);
 		  if (!obj_expr)
 			return 0;
+		  obj_type = specialize_bare_class_receiver_on_use(
+			des, scope, prop_declared_type, obj_type);
 
 		  sr.path_tail.pop_front();
 	    }
@@ -8893,6 +9361,34 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 
       const netdarray_t*obj_darray = dynamic_cast<const netdarray_t*>(obj_type);
       const netuarray_t*obj_uarray = dynamic_cast<const netuarray_t*>(obj_type);
+      if (!obj_uarray && sr.path_tail.empty())
+	    obj_uarray = dynamic_cast<const netuarray_t*>(net->array_type());
+
+	/* unique/unique_index are queue-valued locator methods (7.12.1), not
+	 * in-place ordering methods. In statement position their result is
+	 * evaluated and discarded; the receiver must remain unchanged. Rebuild
+	 * the expression call and use the ordinary discard-assignment lowering. */
+      if ((obj_darray || obj_uarray)
+	  && (method_name == "unique" || method_name == "unique_index")) {
+	    delete obj_expr;
+	    PECallFunction*call = package_
+		  ? new PECallFunction(package_, path_, parms_)
+		  : new PECallFunction(path_, parms_);
+	    call->set_with_constraints(with_constraints());
+	    call->set_file(get_file());
+	    call->set_lineno(get_lineno());
+	    NetExpr*result = call->elaborate_expr(
+		  des, scope, ivl_type_t(nullptr), PExpr::NO_FLAGS);
+	    delete call;
+	    if (!result)
+		  return 0;
+	    vector<NetExpr*>argv(1);
+	    argv[0] = result;
+	    NetSTask*discard = new NetSTask(
+		  "$ivl_discard_object_expr", IVL_SFUNC_AS_TASK_IGNORE, argv);
+	    discard->set_line(*this);
+	    return discard;
+      }
 
 	// Is this a delete method for dynamic arrays or queues?
       if (obj_darray) {
@@ -8933,8 +9429,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				  delete obj_expr;
 				  return 0;
 			    } else if (method_name=="sort"
-				       || method_name=="rsort"
-				       || method_name=="unique") {
+				       || method_name=="rsort") {
 				  if (gn_system_verilog()) {
 					/* Phase 63b/Q-methods (gap close): when a with-
 					   clause is present, route through a sort_with
@@ -9016,8 +9511,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 							  }
 							  string sys_name = string("$ivl_queue_method$") +
 								(method_name == "sort"  ? "sort_with"
-								 : method_name == "rsort" ? "rsort_with"
-								 : "unique_with_kx");
+								 : "rsort_with");
 							  NetSTask*sys = new NetSTask(
 								sys_name.c_str(),
 								IVL_SFUNC_AS_TASK_IGNORE, argv);
@@ -9037,9 +9531,8 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					      argv[1] = recv_e;
 					}
 					const char*sys_name =
-					      (method_name == "sort")  ? "$ivl_queue_method$sort"  :
-					      (method_name == "rsort") ? "$ivl_queue_method$rsort" :
-					                                 "$ivl_queue_method$unique";
+					      (method_name == "sort")  ? "$ivl_queue_method$sort" :
+					                                 "$ivl_queue_method$rsort";
 					NetSTask*sys = new NetSTask(sys_name,
 								    IVL_SFUNC_AS_TASK_IGNORE,
 								    argv);
@@ -9359,7 +9852,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    if (task == 0) {
 		  pform_name_t full_path = use_path;
 		  full_path.push_back(name_component_t(method_name));
-		  if (is_unspecialized_type_parameter_receiver_(scope, use_path)) {
+		  if (is_deferred_type_parameter_receiver_(des, scope, use_path)) {
 			delete obj_expr;
 			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 			noop->set_line(*this);
@@ -10047,7 +10540,12 @@ bool PCallTask::test_task_calls_ok_(Design*des, const NetScope*scope) const
 NetProc *PCallTask::elaborate_non_void_function_(Design *des, NetScope *scope) const
 {
 	// Generate a function call version of this task call.
-      PExpr*rval = new PECallFunction(package_, path_, parms_);
+      PECallFunction*call = new PECallFunction(package_, path_, parms_);
+      /* void'(C#(...)::f()) is parsed as a PCallTask and converted back to
+	 an expression here.  Preserve the specialization arguments during that
+	 synchronous elaboration; the PCallTask remains their owner. */
+      call->set_leading_type_args(leading_type_args_);
+      PExpr*rval = call;
       rval->set_file(get_file());
       rval->set_lineno(get_lineno());
 	// Generate an assign to nothing.
@@ -10060,7 +10558,9 @@ NetProc *PCallTask::elaborate_non_void_function_(Design *des, NetScope *scope) c
       }
 
 	// Elaborate the assignment to a dummy variable.
-      return tmp->elaborate(des, scope);
+      NetProc*result = tmp->elaborate(des, scope);
+      call->set_leading_type_args(nullptr);
+      return result;
 }
 
 NetProc* PCallTask::elaborate_function_(Design*des, NetScope*scope) const
@@ -10962,11 +11462,19 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		 printed a detailed message for the latter case. */
 	    NetAssign_*lv = 0;
 	    if (args[parms_idx]) {
+		  unsigned errors_before = des->errors;
 		  lv = args[parms_idx]->elaborate_lval(des, scope, false, false);
 		  if (lv == 0) {
 			cerr << args[parms_idx]->get_fileline() << ": error: "
 			     << "I give up on task port " << (idx+1)
 			     << " expression: " << *args[parms_idx] << endl;
+			// The base PExpr l-value elaborator reports why the
+			// expression is invalid but historically did not increment
+			// the design error count.  Make every rejected output/inout
+			// actual a real compile error without double-counting the
+			// derived elaborators that already do so.
+			if (des->errors == errors_before)
+			      des->errors += 1;
 		  }
 	    } else if (port->port_type() == NetNet::POUTPUT) {
 		    // Output ports were skipped earlier, so
@@ -10981,6 +11489,47 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		  continue;
 
 	    NetNet*copy_src = copy_via[idx] ? copy_via[idx] : port;
+
+	      /* A pure output port has no copy-in, so its actual has not yet
+		 been checked against the formal type. Validate every associative
+		 component before any fixed/container copy-back special case can
+		 return early or admit it through a coarse QUEUE category. */
+	    ivl_type_t copy_src_type = copy_src->unpacked_dimensions() > 0
+		  && copy_src->array_type()
+		  ? static_cast<ivl_type_t>(copy_src->array_type())
+		  : copy_src->net_type();
+	    bool assoc_copyback = port->port_type() == NetNet::POUTPUT
+		  && (assoc_array_type_contains(lv->net_type())
+		      || assoc_array_type_contains(copy_src_type));
+	    if (assoc_copyback) {
+		  assoc_array_type_match_t match = assoc_array_type_match(
+			lv->net_type(), copy_src_type);
+		  if (match != ASSOC_ARRAY_TYPE_MATCH) {
+			cerr << get_fileline() << ": error: task output "
+			     << "associative-array ";
+			switch (match) {
+			    case ASSOC_ARRAY_TYPE_ELEMENT_MISMATCH:
+				  cerr << "formal and actual have different "
+				       << "element types.";
+				  break;
+			    case ASSOC_ARRAY_TYPE_INDEX_MISMATCH:
+				  cerr << "formal and actual have different "
+				       << "index types.";
+				  break;
+			    case ASSOC_ARRAY_TYPE_NOT_ASSOC:
+				  cerr << "copy-back requires equivalent "
+				       << "associative-containing types on both the "
+				          "formal and actual.";
+				  break;
+			    case ASSOC_ARRAY_TYPE_MATCH:
+				  ivl_assert(*this, false);
+			}
+			cerr << endl;
+			des->errors += 1;
+			delete lv;
+			continue;
+		  }
+	    }
 
 	      /* Copy-back into a FIXED unpacked array actual from an
 		 open-array (or queue) formal -- `task t(inout int q[])'
@@ -14630,7 +15179,7 @@ void PFunction::elaborate(Design*des, NetScope*scope) const
 		  bool is_static_init = false;
 		  if (const PAssign_*as = dynamic_cast<const PAssign_*>(stmt)) {
 			if (const PEIdent*id = dynamic_cast<const PEIdent*>(as->lval())) {
-			      perm_string nm = peek_tail_name(id->path());
+			      perm_string nm = peek_head_name(id->path());
 			      if (PWire*pw =
 				    const_cast<PFunction*>(this)->wires_find(nm)) {
 				    if (pw->lifetime_override() == IVL_VLT_STATIC)
@@ -16136,6 +16685,124 @@ struct dynforeach_emit_ctx_t {
 };
 static const dynforeach_emit_ctx_t*dynforeach_emit_ctx_ = nullptr;
 
+/* An array-method with expression has its own iterator scope (7.12). While
+ * translating one element of a fixed-array reduction constraint, references
+ * to that iterator become the corresponding static element leaf and
+ * iterator.index() becomes its declared index. The same value_type also lets
+ * the randc-legality source walk follow member paths through locator,
+ * min/max, and unique iterators even when those methods are not representable
+ * in the constraint IR. A pointer stack is enough: constraint IR emission is
+ * single-threaded and nested array methods save and restore the context. */
+struct constraint_source_type_t {
+      ivl_type_t type = nullptr;
+      size_t unpacked_dimensions = 0;
+      /* One declared index type for each remaining unpacked dimension,
+       * outermost first. Fixed, dynamic, and ordinary queue indices are
+       * signed int; associative arrays retain their declared key type. */
+      vector<ivl_type_t> unpacked_index_types;
+      bool qualifier_relevant = false;
+};
+
+struct constraint_reduction_iter_ctx_t {
+      perm_string name;
+      string value_ir;
+      string index_ir;
+      ivl_type_t value_type = nullptr;
+      size_t value_unpacked_dimensions = 0;
+      vector<ivl_type_t> value_unpacked_index_types;
+      ivl_type_t index_type = nullptr;
+      const constraint_reduction_iter_ctx_t*parent = nullptr;
+};
+static const constraint_reduction_iter_ctx_t*
+      constraint_reduction_iter_ctx_ = nullptr;
+
+static const constraint_reduction_iter_ctx_t*
+constraint_array_iter_ctx_find_(perm_string name)
+{
+      for (const constraint_reduction_iter_ctx_t*ctx =
+	     constraint_reduction_iter_ctx_; ctx; ctx = ctx->parent)
+	    if (ctx->name == name)
+		  return ctx;
+      return nullptr;
+}
+
+/* Normalize an unpacked array into its scalar leaf plus the number of array
+ * dimensions still surrounding that leaf. A netuarray_t stores all fixed
+ * dimensions in one node, while dynamic/queue/associative arrays contribute
+ * one node per dimension. Keeping the rank separately lets q[0] for
+ * `T q[2][2][2]' denote T[2][2], without allocating an artificial net type. */
+static constraint_source_type_t constraint_source_type_from_raw_(
+      ivl_type_t type)
+{
+      constraint_source_type_t result;
+      result.type = type;
+      while (const netarray_t*array =
+	     dynamic_cast<const netarray_t*>(result.type)) {
+	    if (array->packed())
+		  break;
+	    if (const netuarray_t*fixed =
+		dynamic_cast<const netuarray_t*>(array)) {
+		  size_t dimensions = fixed->static_dimensions().size();
+		  result.unpacked_dimensions += dimensions;
+		  result.unpacked_index_types.insert(
+			result.unpacked_index_types.end(), dimensions,
+			&netvector_t::atom2s32);
+	    } else {
+		  result.unpacked_dimensions += 1;
+		  ivl_type_t index_type = &netvector_t::atom2s32;
+		  if (const netqueue_t*queue =
+		      dynamic_cast<const netqueue_t*>(array))
+			if (queue->assoc_compat() && queue->assoc_index_type())
+			      index_type = queue->assoc_index_type();
+		  result.unpacked_index_types.push_back(index_type);
+	    }
+	    result.type = array->element_type();
+      }
+      return result;
+}
+
+/* Select one unpacked element from a normalized source type. This is also
+ * the type of an array-method iterator value. */
+static constraint_source_type_t constraint_source_type_element_(
+      constraint_source_type_t type)
+{
+      if (!type.unpacked_dimensions)
+	    return constraint_source_type_t();
+      type.unpacked_dimensions -= 1;
+      if (!type.unpacked_index_types.empty())
+	    type.unpacked_index_types.erase(type.unpacked_index_types.begin());
+      return type;
+}
+
+static ivl_type_t constraint_source_type_index_(
+      const constraint_source_type_t&type)
+{
+      if (!type.unpacked_dimensions)
+	    return nullptr;
+      return type.unpacked_index_types.empty()
+	    ? static_cast<ivl_type_t>(&netvector_t::atom2s32)
+	    : type.unpacked_index_types.front();
+}
+
+/* Apply only unpacked word selects to a normalized source type. Slices retain
+ * their dimension, and packed selects do not affect class/aggregate
+ * provenance. */
+static void constraint_source_type_apply_indices_(
+      constraint_source_type_t&type, const list<index_component_t>&indices)
+{
+      for (const index_component_t&index : indices) {
+	    if (index.sel != index_component_t::SEL_BIT
+		&& index.sel != index_component_t::SEL_BIT_LAST)
+		  continue;
+	    if (!type.unpacked_dimensions)
+		  break;
+	    type.unpacked_dimensions -= 1;
+	    if (!type.unpacked_index_types.empty())
+		  type.unpacked_index_types.erase(
+			type.unpacked_index_types.begin());
+      }
+}
+
 /* IEEE 1800-2017 18.12 scope randomization uses the same constraint IR
  * grammar as class randomization, but its solver variables are the plain
  * variables listed in std::randomize(...), not class properties.  While one
@@ -16222,6 +16889,14 @@ string pexpr_to_constraint_ir(
       const PExpr*expr, const netclass_t*cls,
       vector<const PExpr*>*value_slots, const NetScope*scope,
       const map<perm_string,uint64_t>*loop_env = nullptr);
+static bool constraint_source_references_randc_(
+      const PExpr*expr, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env);
+static void constraint_diagnose_randc_restrictions_(
+      const PExpr*expr, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env);
 
 string pexpr_to_scope_constraint_ir(
       const PExpr*expr,
@@ -16244,6 +16919,12 @@ string pexpr_to_scope_constraint_ir(
       scope_randomize_object_slots_ = object_slots;
       scope_randomize_design_ctx_ = des;
       constraint_ir_design_ctx_ = des;
+	/* Diagnose forbidden randc constructs from the complete source tree
+	 * before IR lowering. Unsupported outer shapes must not suppress a
+	 * nested soft/dist/unique/solve-before diagnostic. The recursive walker
+	 * reports each nested construct through the Design-owned source latch. */
+      constraint_diagnose_randc_restrictions_(
+	    expr, nullptr, value_slots, scope, nullptr);
       string out = pexpr_to_constraint_ir(expr, nullptr, value_slots, scope);
       out = constraint_ir_shape_value_slots_(out, value_slots, des, scope);
       scope_randomize_emit_ctx_ = save;
@@ -16262,6 +16943,11 @@ string pexpr_to_class_constraint_ir(
 {
       Design*save = constraint_ir_design_ctx_;
       constraint_ir_design_ctx_ = des;
+	/* See the scope-randomize sibling above. This prepass is semantic and
+	 * intentionally independent of whether the backend can represent the
+	 * enclosing constraint node. */
+      constraint_diagnose_randc_restrictions_(
+	    expr, cls, value_slots, scope, nullptr);
       string out = pexpr_to_constraint_ir(expr, cls, value_slots, scope);
       out = constraint_ir_shape_value_slots_(out, value_slots, des, scope);
       constraint_ir_design_ctx_ = save;
@@ -16399,16 +17085,1996 @@ static string constraint_class_state_path_ir_(
 	   + ((cur_type && cur_type->get_signed()) ? ":s" : "");
 }
 
+/* Constraint IR retains an exact absolute property index for every class
+ * property that participates in the solve. Recover the declaration qualifier
+ * from those tokens instead of guessing from a terminal source name (which
+ * would be wrong for inheritance, hiding, packed members, and nested object
+ * paths). Caller-value slots v:/qv: deliberately have no class qualifier and
+ * are therefore not classified here. */
+static bool constraint_property_is_randc_(const netclass_t*cls,
+					   unsigned long idx)
+{
+      return cls && idx < cls->get_properties()
+	    && cls->get_prop_qual((size_t)idx).test_randc();
+}
+
+static bool constraint_state_path_is_randc_(const char*path,
+					     const netclass_t*cls)
+{
+      const netclass_t*owner = cls;
+      const char*cur = path;
+      while (owner && cur && *cur) {
+	    char*end = nullptr;
+	    unsigned long idx = strtoul(cur, &end, 10);
+	    if (end == cur || idx >= owner->get_properties())
+		  return false;
+
+	    if (*end == ':')
+		  return constraint_property_is_randc_(owner, idx);
+	    if (*end != '.')
+		  return false;
+
+	    owner = dynamic_cast<const netclass_t*>(
+		  owner->get_prop_type((size_t)idx));
+	    cur = end + 1;
+      }
+      return false;
+}
+
+static bool constraint_ir_references_randc_(const string&ir,
+					    const netclass_t*cls)
+{
+      if (!cls || ir.empty())
+	    return false;
+
+      const char*begin = ir.c_str();
+      for (const char*p = begin ; *p ; ++p) {
+	    bool token_start = p == begin
+		  || !(isalnum((unsigned char)p[-1]) || p[-1] == '_');
+	    if (!token_start)
+		  continue;
+
+	    if ((p[0] == 'p' || p[0] == 'e' || p[0] == 'q'
+		 || p[0] == 's')
+		&& p[1] == ':') {
+		  char*end = nullptr;
+		  unsigned long idx = strtoul(p + 2, &end, 10);
+		  if (end != p + 2 && *end == ':'
+		      && constraint_property_is_randc_(cls, idx))
+			return true;
+		  continue;
+	    }
+
+	    if (p[0] == 'r' && p[1] == ':'
+		&& constraint_state_path_is_randc_(p + 2, cls))
+		  return true;
+
+	    if (strncmp(p, "delem ", 6) == 0) {
+		  char*end = nullptr;
+		  unsigned long idx = strtoul(p + 6, &end, 10);
+		  if (end != p + 6 && *end == ':'
+		      && constraint_property_is_randc_(cls, idx))
+			return true;
+	    }
+      }
+      return false;
+}
+
+/* A constraint can be emitted repeatedly while a foreach is unrolled or a
+ * generic class is specialized. Diagnose the source construct, not each
+ * emitted copy or each randc operand within it. */
+static void constraint_randc_reference_error_(const PExpr*site,
+					       const char*kind)
+{
+      if (!site || !constraint_ir_design_ctx_
+	  || !constraint_ir_design_ctx_->mark_constraint_randc_diagnostic(site))
+	    return;
+
+      cerr << site->get_fileline() << ": error: 'randc' variables cannot be "
+	   << "used in '" << kind << "' constraints." << endl;
+      constraint_ir_design_ctx_->errors += 1;
+}
+
+/* Some legal source paths are not yet representable in the constraint IR
+ * (notably an indexed class-handle array followed by a randc member).  A
+ * forbidden-use diagnostic must not disappear merely because lowering later
+ * returns an empty string.  While translating one of the four constructs
+ * that excludes randc, capture qualifier provenance directly from every
+ * parsed class-property path. Nested captures propagate to their parent so a
+ * nested forbidden construct can diagnose both source constructs exactly
+ * once through the Design-owned latch above. */
+struct constraint_randc_capture_t {
+      constraint_randc_capture_t(const PExpr*site_arg, const char*kind_arg);
+      ~constraint_randc_capture_t();
+
+      const PExpr*site;
+      const char*kind;
+      bool seen;
+      constraint_randc_capture_t*parent;
+};
+
+static constraint_randc_capture_t*constraint_randc_capture_ = nullptr;
+
+constraint_randc_capture_t::constraint_randc_capture_t(
+      const PExpr*site_arg, const char*kind_arg)
+: site(site_arg), kind(kind_arg), seen(false),
+  parent(constraint_randc_capture_)
+{
+      constraint_randc_capture_ = this;
+}
+
+constraint_randc_capture_t::~constraint_randc_capture_t()
+{
+      constraint_randc_capture_ = parent;
+      if (!seen)
+	    return;
+      constraint_randc_reference_error_(site, kind);
+      if (parent)
+	    parent->seen = true;
+}
+
 /* Find a plain lexical signal for a scope-randomization state operand.
  * Method locals live in the current scope while formals and class-method
  * temporaries can live in an ancestor, so walk the lexical chain. */
 static NetNet* scope_randomize_find_signal_(const NetScope*scope,
 					     perm_string name)
 {
-      for (const NetScope*cur = scope ; cur ; cur = cur->parent())
-	    if (NetNet*sig = const_cast<NetScope*>(cur)->find_signal(name))
+      for (const NetScope*cur = scope ; cur ; cur = cur->parent()) {
+	    NetScope*mutable_cur = const_cast<NetScope*>(cur);
+	    if (NetNet*sig = mutable_cur->find_signal(name))
 		  return sig;
+	    /* A wildcard/explicit package import is a lexical binding too. The
+	     * source path carries no package pointer in this spelling, so recover
+	     * the package-owned signal before falling back to an unrelated target
+	     * property of the same name. */
+	    if (constraint_ir_design_ctx_)
+		  if (NetScope*imported = mutable_cur->find_import(
+			constraint_ir_design_ctx_, name))
+			if (NetNet*sig = imported->find_signal(name))
+			      return sig;
+      }
       return nullptr;
+}
+
+/* Follow one component of a class-valued constraint path without evaluating
+ * it. A paren-less zero-argument function is a legal primary in SystemVerilog
+ * (`child.id.cyclic'), and property lookup has precedence over that method
+ * interpretation. Keeping this in the common structural walk prevents a
+ * method-returned randc member from disappearing just because the constraint
+ * IR cannot represent the call itself. */
+static bool constraint_class_component_type_(
+      const netclass_t*owner, perm_string name,
+      ivl_type_t&next_type, bool&is_randc)
+{
+      next_type = nullptr;
+      is_randc = false;
+      if (!owner)
+	    return false;
+
+      int idx = owner->property_idx_from_name(name);
+      if (idx >= 0) {
+	    is_randc = owner->get_prop_qual((size_t)idx).test_randc();
+	    next_type = owner->get_prop_type((size_t)idx);
+	    return true;
+      }
+
+      NetScope*method = owner->method_from_name(name);
+      if (!method || method->type() != NetScope::FUNC)
+	    return false;
+
+      const PFunction*pfunc = method->func_pform();
+      unsigned implicit_this = constraint_ir_design_ctx_
+	    && scope_method_uses_implicit_this(
+		  constraint_ir_design_ctx_, method) ? 1U : 0U;
+      if (pfunc && pfunc->peek_ports()
+	  && pfunc->peek_ports()->size() != implicit_this)
+	    return false;
+      const NetFuncDef*def = method->func_def();
+	/* Constraint legality runs before every method body necessarily has a
+	 * NetFuncDef. Validate against whichever representation is available. */
+      if (def && (def->is_void() || def->port_count() != implicit_this))
+	    return false;
+      const NetNet*value = def ? def->return_sig()
+	    : method->find_signal(method->basename());
+      if (!value)
+	    return false;
+      next_type = value->net_type();
+      return next_type != nullptr;
+}
+
+static bool constraint_class_path_references_randc_(
+      const pform_scoped_name_t&path, const netclass_t*cls,
+      const NetScope*scope)
+{
+	/* CLS is null for std::randomize of ordinary scope variables. The same
+	 * 18.8.1 restriction still applies to randc state reached through a
+	 * lexical, package, or enclosing-class handle, so only target-property
+	 * precedence depends on CLS. */
+      if (path.package || path.name.empty())
+	    return false;
+
+      pform_name_t::const_iterator comp = path.name.begin();
+      ivl_type_t current = cls;
+
+	/* With no randomized class object there is no implicit property root.
+	 * Resolve an ordinary lexical signal first, then an enclosing class
+	 * property (the latter is represented as implicit this + path tail by
+	 * symbol_search and is not returned by find_signal). */
+      if (!cls) {
+	    NetNet*root = scope_randomize_find_signal_(scope, comp->name);
+	    if (root) {
+		  current = root->net_type();
+		  ++comp;
+	    } else {
+		  const NetScope*caller_scope = scope
+			? scope->get_class_scope() : nullptr;
+		  const netclass_t*caller = caller_scope
+			? caller_scope->class_def() : nullptr;
+		  ivl_type_t caller_component = nullptr;
+		  bool caller_randc = false;
+		  if (!constraint_class_component_type_(
+			caller, comp->name,
+			caller_component, caller_randc))
+			return false;
+		  current = caller;
+	    }
+      } else if (!constraint_class_object_root_.nil()) {
+	    if (comp->name == constraint_class_object_root_
+		&& comp->index.empty()) {
+		  ++comp;
+	    } else {
+		  NetNet*root = scope_randomize_find_signal_(scope, comp->name);
+		  if (root) {
+			current = root->net_type();
+			++comp;
+		  } else {
+			const NetScope*caller_scope = scope
+			      ? scope->get_class_scope() : nullptr;
+			const netclass_t*caller = caller_scope
+			      ? caller_scope->class_def() : nullptr;
+			ivl_type_t caller_component = nullptr;
+			bool caller_randc = false;
+			if (!constraint_class_component_type_(
+			      caller, comp->name,
+			      caller_component, caller_randc))
+			      return false;
+			/* Keep COMP on the caller property name so the common walk
+			 * observes its qualifier and declared type. */
+			current = caller;
+		  }
+	    }
+      } else if (comp->name == perm_string::literal("this")) {
+	    ++comp;
+      } else if (comp->name == perm_string::literal("super")) {
+	    current = cls->get_super();
+	    ++comp;
+	  /* Inline constraints resolve target properties before caller scope.
+	   * If the target has no such root, follow the actual caller class handle:
+	   * IEEE 18.8.1 forbids a randc variable in these constructs regardless
+	   * of which object owns it (Slang applies the same rule). */
+      } else {
+	    ivl_type_t target_component = nullptr;
+	    bool target_randc = false;
+	    bool target_has_component = constraint_class_component_type_(
+		  cls, comp->name, target_component, target_randc);
+	    if (comp->local_scope || !target_has_component) {
+		  NetNet*root = scope_randomize_find_signal_(scope, comp->name);
+		  if (root) {
+			current = root->net_type();
+			++comp;
+		  } else {
+			const NetScope*caller_scope = scope
+			      ? scope->get_class_scope() : nullptr;
+			const netclass_t*caller = caller_scope
+			      ? caller_scope->class_def() : nullptr;
+			ivl_type_t caller_component = nullptr;
+			bool caller_randc = false;
+			if (!constraint_class_component_type_(
+			      caller, comp->name,
+			      caller_component, caller_randc))
+			      return false;
+			/* Keep COMP on the caller component name; the common walk
+			 * applies its qualifier or method-return type before following
+			 * the remaining tail. */
+			current = caller;
+		  }
+	    }
+      }
+
+      for (; comp != path.name.end(); ++comp) {
+	    /* local:: is a qualifier on the root name. At that point CURRENT has
+	     * already been redirected to caller scope above; it is not a reason
+	     * to discard the actual caller property qualifier. */
+	    if (comp != path.name.begin() && comp->local_scope)
+		  return false;
+
+	    while (const netarray_t*array =
+		   dynamic_cast<const netarray_t*>(current))
+		  current = array->element_type();
+
+	    if (const netclass_t*current_class =
+		dynamic_cast<const netclass_t*>(current)) {
+		  bool is_randc = false;
+		  if (!constraint_class_component_type_(
+			current_class, comp->name, current, is_randc))
+			return false;
+		  if (is_randc)
+			return true;
+		  continue;
+	    }
+
+	    if (const netstruct_t*record =
+		dynamic_cast<const netstruct_t*>(current)) {
+		  unsigned midx = record->member_index(comp->name);
+		  if (midx >= record->members().size())
+			return false;
+		  current = record->members()[midx].net_type;
+		  continue;
+	    }
+
+	    return false;
+      }
+      return false;
+}
+
+/* Resolve the exact class specialization at the head of a parser-marked
+ * Type::property carrier. The dependency can synchronously elaborate cached
+ * class bodies, so isolate every single-threaded constraint-translation
+ * context while doing so. */
+static const netclass_t* constraint_scoped_path_owner_(
+      const PEIdent*id, const NetScope*scope)
+{
+      if (!id || !id->has_scoped_type_prefix()
+	  || !constraint_ir_design_ctx_ || !scope)
+	    return nullptr;
+
+      const pform_scoped_name_t&path = id->path();
+      if (path.name.size() < 2 || !path.name.front().index.empty())
+	    return nullptr;
+
+      NetScope*type_scope = const_cast<NetScope*>(scope);
+      if (path.package) {
+	    type_scope = constraint_ir_design_ctx_->find_package(
+		  path.package->pscope_name());
+	    if (!type_scope)
+		  return nullptr;
+	} else {
+	    /* In a package body, self-qualified pkg::CONST can pass through the
+	     * shared scoped carrier with a null package pointer. A real package
+	     * wins for any tail depth unless the same spelling resolves as a
+	     * visible class/type. */
+	    NetScope*pkg = constraint_ir_design_ctx_->find_package(
+		  path.name.front().name);
+	    if (pkg) {
+		  scoped_class_name_result_task_t visible =
+			resolve_scoped_class_type_name_task_(
+			      constraint_ir_design_ctx_, type_scope,
+			      path.name.front().name);
+		  if (!visible.class_type)
+			return nullptr;
+	    }
+      }
+
+      scoped_class_name_result_task_t resolved =
+	    resolve_scoped_class_type_name_task_(
+		  constraint_ir_design_ctx_, type_scope,
+		  path.name.front().name);
+      const netclass_t*owner = resolved.class_type;
+      if (!owner)
+	    return nullptr;
+
+      if (id->leading_type_args()) {
+	    /* A cached specialization may elaborate its own constraint bodies
+	     * synchronously. Those are independent source sites, not children of
+	     * the forbidden construct currently being inspected. Isolate every
+	     * single-threaded constraint-translation context while the dependency
+	     * is materialized, then restore the caller's iterator/root/value state. */
+	    constraint_randc_capture_t*saved_capture = constraint_randc_capture_;
+	    const constraint_reduction_iter_ctx_t*saved_reduction =
+		  constraint_reduction_iter_ctx_;
+	    const dynforeach_emit_ctx_t*saved_dynforeach = dynforeach_emit_ctx_;
+	    const map<perm_string,string>*saved_scope_emit =
+		  scope_randomize_emit_ctx_;
+	    const map<perm_string,ivl_type_t>*saved_scope_types =
+		  scope_randomize_type_ctx_;
+	    vector<NetNet*>*saved_scope_signals = scope_randomize_signal_slots_;
+	    vector<NetExpr*>*saved_scope_objects = scope_randomize_object_slots_;
+	    Design*saved_scope_design = scope_randomize_design_ctx_;
+	    perm_string saved_object_root = constraint_class_object_root_;
+	    constraint_randc_capture_ = nullptr;
+	    constraint_reduction_iter_ctx_ = nullptr;
+	    dynforeach_emit_ctx_ = nullptr;
+	    scope_randomize_emit_ctx_ = nullptr;
+	    scope_randomize_type_ctx_ = nullptr;
+	    scope_randomize_signal_slots_ = nullptr;
+	    scope_randomize_object_slots_ = nullptr;
+	    scope_randomize_design_ctx_ = nullptr;
+	    constraint_class_object_root_ = perm_string();
+	    owner = elaborate_specialized_class_type(
+		  constraint_ir_design_ctx_, type_scope, owner,
+		  id->leading_type_args(), true);
+	    constraint_randc_capture_ = saved_capture;
+	    constraint_reduction_iter_ctx_ = saved_reduction;
+	    dynforeach_emit_ctx_ = saved_dynforeach;
+	    scope_randomize_emit_ctx_ = saved_scope_emit;
+	    scope_randomize_type_ctx_ = saved_scope_types;
+	    scope_randomize_signal_slots_ = saved_scope_signals;
+	    scope_randomize_object_slots_ = saved_scope_objects;
+	    scope_randomize_design_ctx_ = saved_scope_design;
+	    constraint_class_object_root_ = saved_object_root;
+	    if (!owner)
+		  return nullptr;
+      }
+
+      return owner;
+}
+
+/* A parser-marked Type::property carrier is deliberately not a dotted
+ * object path. Resolve its type prefix before looking at the property chain;
+ * this both recognizes an actual static randc member and prevents a same-name
+ * object property from turning S::ordinary into this.S.randc_member. */
+static bool constraint_scoped_path_references_randc_(
+      const PEIdent*id, const NetScope*scope)
+{
+      const netclass_t*owner = constraint_scoped_path_owner_(id, scope);
+      if (!owner)
+	    return false;
+
+      const pform_scoped_name_t&path = id->path();
+
+      pform_name_t::const_iterator comp = path.name.begin();
+      ++comp;
+      ivl_type_t current = owner;
+      for (; comp != path.name.end(); ++comp) {
+	    while (const netarray_t*array =
+		   dynamic_cast<const netarray_t*>(current))
+		  current = array->element_type();
+
+	    if (const netclass_t*current_class =
+		dynamic_cast<const netclass_t*>(current)) {
+		  bool is_randc = false;
+		  if (!constraint_class_component_type_(
+			current_class, comp->name, current, is_randc))
+			return false;
+		  if (is_randc)
+			return true;
+		  continue;
+	    }
+
+	    if (const netstruct_t*record =
+		dynamic_cast<const netstruct_t*>(current)) {
+		  unsigned midx = record->member_index(comp->name);
+		  if (midx >= record->members().size())
+			return false;
+		  current = record->members()[midx].net_type;
+		  continue;
+	    }
+
+	    return false;
+      }
+      return false;
+}
+
+/* Evaluation-free terminal type for a Type::property/member path. This is
+ * deliberately paired with the qualifier walk above: ordinary
+ * PEIdent::test_type_of_ident() follows symbol_search's generic class scope
+ * and therefore cannot distinguish Box#(Plain)::obj from Box#(Rand)::obj. */
+static constraint_source_type_t constraint_scoped_path_type_(
+      const PEIdent*id, const NetScope*scope)
+{
+      constraint_source_type_t result;
+      const netclass_t*owner = constraint_scoped_path_owner_(id, scope);
+      if (!owner)
+	    return result;
+
+      const pform_scoped_name_t&path = id->path();
+      pform_name_t::const_iterator comp = path.name.begin();
+      ++comp;
+      result = constraint_source_type_from_raw_(owner);
+      for (; comp != path.name.end(); ++comp) {
+	    if (result.unpacked_dimensions)
+		  return constraint_source_type_t();
+
+	    if (const netclass_t*current_class =
+		dynamic_cast<const netclass_t*>(result.type)) {
+		  bool is_randc = false;
+		  ivl_type_t component_type = nullptr;
+		  if (!constraint_class_component_type_(
+			current_class, comp->name, component_type, is_randc))
+			return constraint_source_type_t();
+		  result = constraint_source_type_from_raw_(component_type);
+	    } else if (const netstruct_t*record =
+		       dynamic_cast<const netstruct_t*>(result.type)) {
+		  unsigned idx = record->member_index(comp->name);
+		  if (idx >= record->members().size())
+			return constraint_source_type_t();
+		  result = constraint_source_type_from_raw_(
+			record->members()[idx].net_type);
+	    } else {
+		  return constraint_source_type_t();
+	    }
+
+	    if (!comp->index.empty())
+		  constraint_source_type_apply_indices_(result, comp->index);
+      }
+      return result;
+}
+
+/* Follow a package variable's class/struct tail. Package constants and type
+ * names have no root signal and therefore remain non-randc, while
+ * pkg::object.cyclic observes the qualifier on the actual package-owned
+ * object just like a lexical caller handle. */
+static bool constraint_package_path_references_randc_(const PEIdent*id)
+{
+	if (!id || !constraint_ir_design_ctx_
+	  || id->path().name.empty())
+	    return false;
+
+	const pform_scoped_name_t&path = id->path();
+      NetScope*pkg = nullptr;
+      pform_name_t::const_iterator comp = path.name.begin();
+      if (path.package) {
+	    pkg = constraint_ir_design_ctx_->find_package(
+		  path.package->pscope_name());
+	} else if (id->has_scoped_type_prefix() && comp != path.name.end()) {
+	    pkg = constraint_ir_design_ctx_->find_package(comp->name);
+	    if (pkg) {
+		  /* A visible same-named class/typedef wins over package-self
+		   * normalization, matching the parser's class/package collision
+		   * rule for P::member. */
+		  NetScope*use_scope = pkg;
+		  scoped_class_name_result_task_t visible =
+			resolve_scoped_class_type_name_task_(
+			      constraint_ir_design_ctx_, use_scope, comp->name);
+		  if (visible.class_type)
+			return false;
+		  ++comp;
+	    }
+	}
+      if (!pkg)
+	    return false;
+
+	if (comp == path.name.end())
+	    return false;
+      NetNet*root = pkg->find_signal(comp->name);
+      if (!root)
+	    return false;
+      ivl_type_t current = root->net_type();
+      ++comp;
+
+      for (; comp != id->path().name.end(); ++comp) {
+	    while (const netarray_t*array =
+		   dynamic_cast<const netarray_t*>(current))
+		  current = array->element_type();
+	    if (const netclass_t*owner = dynamic_cast<const netclass_t*>(current)) {
+		  bool is_randc = false;
+		  if (!constraint_class_component_type_(
+			owner, comp->name, current, is_randc))
+			return false;
+		  if (is_randc)
+			return true;
+		  continue;
+	    }
+	    if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(current)) {
+		  unsigned idx = record->member_index(comp->name);
+		  if (idx >= record->members().size())
+			return false;
+		  current = record->members()[idx].net_type;
+		  continue;
+	    }
+	    return false;
+      }
+      return false;
+}
+
+/* Resolve the exact source view found by symbol_search, retaining partial
+ * fixed-array selections that PEIdent::test_type_of_ident() can only return
+ * as the original netuarray_t node. This covers lexical, package, and
+ * enclosing-class roots; target-property precedence and Type#(...):: paths
+ * are applied separately by the caller. */
+static constraint_source_type_t constraint_symbol_path_type_(
+      const PEIdent*id, const NetScope*scope)
+{
+      constraint_source_type_t result;
+      if (!id || !constraint_ir_design_ctx_ || !scope)
+	    return result;
+
+      symbol_search_results found;
+      if (!symbol_search(id, constraint_ir_design_ctx_,
+	    const_cast<NetScope*>(scope), id->path(), id->lexical_pos(), &found))
+	    return result;
+
+      ivl_type_t root_type = found.type;
+      if (found.net) {
+	    if (found.net->unpacked_dimensions() && found.net->array_type())
+		  root_type = found.net->array_type();
+	    else if (!root_type)
+		  root_type = found.net->net_type();
+      }
+      if (!root_type)
+	    return result;
+
+      result = constraint_source_type_from_raw_(root_type);
+      if (!found.path_head.empty())
+	    constraint_source_type_apply_indices_(
+		  result, found.path_head.back().index);
+
+      for (const name_component_t&component : found.path_tail) {
+	    if (!result.type || result.unpacked_dimensions)
+		  return constraint_source_type_t();
+
+	    if (const netclass_t*owner =
+		dynamic_cast<const netclass_t*>(result.type)) {
+		  bool is_randc = false;
+		  ivl_type_t component_type = nullptr;
+		  if (!constraint_class_component_type_(
+			owner, component.name, component_type, is_randc))
+			return constraint_source_type_t();
+		  result = constraint_source_type_from_raw_(component_type);
+	    } else if (const netstruct_t*record =
+		       dynamic_cast<const netstruct_t*>(result.type)) {
+		  unsigned idx = record->member_index(component.name);
+		  if (idx >= record->members().size())
+			return constraint_source_type_t();
+		  result = constraint_source_type_from_raw_(
+			record->members()[idx].net_type);
+	    } else {
+		  return constraint_source_type_t();
+	    }
+	    constraint_source_type_apply_indices_(result, component.index);
+      }
+      return result;
+}
+
+struct constraint_symbol_randc_result_t {
+      bool resolved = false;
+      bool external = false;
+      bool seen = false;
+};
+
+/* Qualifier walk for a lexically or hierarchically resolved object path.
+ * This is deliberately separate from the target-class walk: an unqualified
+ * inline name still gives the randomized target property precedence, while
+ * top.obj.member, imported/package objects, local:: values, and caller state
+ * retain the qualifier of the object they actually resolve through. */
+static constraint_symbol_randc_result_t
+constraint_symbol_path_references_randc_(
+      const PEIdent*id, const NetScope*scope)
+{
+      constraint_symbol_randc_result_t result;
+      if (!id || !constraint_ir_design_ctx_ || !scope)
+	    return result;
+
+      symbol_search_results found;
+      if (!symbol_search(id, constraint_ir_design_ctx_,
+	    const_cast<NetScope*>(scope), id->path(), id->lexical_pos(), &found))
+	    return result;
+
+      ivl_type_t root_type = found.type;
+      if (found.net) {
+	    if (found.net->unpacked_dimensions() && found.net->array_type())
+		  root_type = found.net->array_type();
+	    else if (!root_type)
+		  root_type = found.net->net_type();
+      }
+      if (!root_type)
+	    return result;
+
+      result.resolved = true;
+      size_t resolved_components = found.path_head.size()
+	    + found.path_tail.size();
+      result.external = id->path().package
+	    || found.path_head.size() > 1
+	    || id->path().name.size() > resolved_components
+	    || (id->has_scoped_type_prefix() && found.scope
+		&& found.scope->type() == NetScope::PACKAGE);
+      constraint_source_type_t current =
+	    constraint_source_type_from_raw_(root_type);
+      if (!found.path_head.empty())
+	    constraint_source_type_apply_indices_(
+		  current, found.path_head.back().index);
+
+      for (const name_component_t&component : found.path_tail) {
+	    if (!current.type || current.unpacked_dimensions)
+		  return result;
+
+	    if (const netclass_t*owner =
+		dynamic_cast<const netclass_t*>(current.type)) {
+		  bool is_randc = false;
+		  ivl_type_t component_type = nullptr;
+		  if (!constraint_class_component_type_(
+			owner, component.name, component_type, is_randc))
+			return result;
+		  if (is_randc) {
+			result.seen = true;
+			return result;
+		  }
+		  current = constraint_source_type_from_raw_(component_type);
+	    } else if (const netstruct_t*record =
+		       dynamic_cast<const netstruct_t*>(current.type)) {
+		  unsigned idx = record->member_index(component.name);
+		  if (idx >= record->members().size())
+			return result;
+		  current = constraint_source_type_from_raw_(
+			record->members()[idx].net_type);
+	    } else {
+		  return result;
+	    }
+	    constraint_source_type_apply_indices_(current, component.index);
+      }
+      return result;
+}
+
+static bool constraint_target_root_precedence_(
+      const PEIdent*id, const netclass_t*cls)
+{
+      if (!id || !cls || id->path().package
+	  || id->has_scoped_type_prefix() || id->path().name.empty())
+	    return false;
+      const name_component_t&root = id->path().name.front();
+      if (root.local_scope)
+	    return false;
+      if (!constraint_class_object_root_.nil())
+	    return root.name == constraint_class_object_root_;
+      if (root.name == perm_string::literal("this")
+	  || root.name == perm_string::literal("super"))
+	    return true;
+      ivl_type_t component_type = nullptr;
+      bool is_randc = false;
+      return constraint_class_component_type_(
+	    cls, root.name, component_type, is_randc);
+}
+
+/* Resolve just enough source-expression type and ownership information to
+ * follow a member introduced by PEMemberAccess. */
+
+static bool constraint_array_value_method_(perm_string name)
+{
+      return name == perm_string::literal("find")
+	  || name == perm_string::literal("find_first")
+	  || name == perm_string::literal("find_last")
+	  || name == perm_string::literal("min")
+	  || name == perm_string::literal("max")
+	  || name == perm_string::literal("unique");
+}
+
+static bool constraint_array_index_method_(perm_string name)
+{
+      return name == perm_string::literal("find_index")
+	  || name == perm_string::literal("find_first_index")
+	  || name == perm_string::literal("find_last_index")
+	  || name == perm_string::literal("unique_index");
+}
+
+static bool constraint_array_reduction_method_(perm_string name)
+{
+      return name == perm_string::literal("sum")
+	  || name == perm_string::literal("product")
+	  || name == perm_string::literal("and")
+	  || name == perm_string::literal("or")
+	  || name == perm_string::literal("xor");
+}
+
+/* Array locator/min/max/unique methods return a queue. In the normalized
+ * source view, a value-returning method peels one receiver dimension and
+ * adds the result queue dimension, so the rank stays unchanged but the
+ * outer index becomes int. Index-returning methods produce a one-dimensional
+ * queue of the receiver's declared key (int for non-associative arrays). */
+static constraint_source_type_t constraint_array_method_result_type_(
+      const constraint_source_type_t&receiver, perm_string method)
+{
+      constraint_source_type_t result;
+      if (!receiver.type || !receiver.unpacked_dimensions)
+	    return result;
+
+      if (constraint_array_value_method_(method)) {
+	    result = receiver;
+	    if (result.unpacked_index_types.empty())
+		  result.unpacked_index_types.push_back(
+			&netvector_t::atom2s32);
+	    else
+		  result.unpacked_index_types.front() =
+			&netvector_t::atom2s32;
+	    return result;
+      }
+
+      if (constraint_array_index_method_(method)) {
+	    result = constraint_source_type_from_raw_(
+		  constraint_source_type_index_(receiver));
+	    /* Associative keys are scalar legal types. Keep this defensive in
+	     * case an invalid aggregate key reaches the diagnostic-only walk. */
+	    if (result.unpacked_dimensions)
+		  return constraint_source_type_t();
+	    result.unpacked_dimensions = 1;
+	    result.unpacked_index_types.push_back(&netvector_t::atom2s32);
+	    result.qualifier_relevant = receiver.qualifier_relevant;
+	    return result;
+      }
+
+      if (constraint_array_reduction_method_(method)) {
+	    result = constraint_source_type_element_(receiver);
+	    result.qualifier_relevant = receiver.qualifier_relevant;
+	    return result;
+      }
+
+      if (method == perm_string::literal("size")
+	  || method == perm_string::literal("num")) {
+	    result = constraint_source_type_from_raw_(
+		  &netvector_t::atom2s32);
+	    result.qualifier_relevant = receiver.qualifier_relevant;
+	  }
+      return result;
+}
+
+static constraint_source_type_t constraint_source_expr_type_(
+      const PExpr*expr, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope)
+{
+      constraint_source_type_t result;
+      if (!expr || !constraint_ir_design_ctx_ || !scope)
+	    return result;
+
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+	    /* An array-method iterator is a real typed value. Preserve that
+	     * element type through item.member and item.method() chains so a
+	     * randc qualifier on the element class cannot disappear merely
+	     * because the reduction itself is not representable by the solver. */
+	    const constraint_reduction_iter_ctx_t*iter_ctx = nullptr;
+	    if (!id->path().package && !id->path().name.empty()
+		&& !id->path().name.front().local_scope)
+		  iter_ctx = constraint_array_iter_ctx_find_(
+			id->path().name.front().name);
+	    if (iter_ctx && iter_ctx->value_type) {
+		  result.type = iter_ctx->value_type;
+		  result.unpacked_dimensions =
+			iter_ctx->value_unpacked_dimensions;
+		  result.unpacked_index_types =
+			iter_ctx->value_unpacked_index_types;
+		  pform_name_t::const_iterator comp = id->path().name.begin();
+		  constraint_source_type_apply_indices_(result, comp->index);
+		  ++comp;
+		  /* Iterator.index is a built-in view of the declared array key,
+		   * not a property of the element. Preserve associative class-key
+		   * types through both `item.index' and `item.index()' spellings. */
+		  if (comp != id->path().name.end()
+		      && comp->name == perm_string::literal("index")
+		      && comp->index.empty() && iter_ctx->index_type) {
+			result = constraint_source_type_from_raw_(
+			      iter_ctx->index_type);
+			++comp;
+		  }
+		  for (; comp != id->path().name.end() && result.type; ++comp) {
+			if (result.unpacked_dimensions) {
+			      result.type = nullptr;
+			      break;
+			}
+			if (const netclass_t*owner =
+			    dynamic_cast<const netclass_t*>(result.type)) {
+			      bool is_randc = false;
+			      ivl_type_t component_type = nullptr;
+			      if (!constraint_class_component_type_(
+				    owner, comp->name, component_type, is_randc)) {
+				    result.type = nullptr;
+			      } else {
+				    result = constraint_source_type_from_raw_(
+					  component_type);
+			      }
+			} else if (const netstruct_t*record =
+				   dynamic_cast<const netstruct_t*>(result.type)) {
+			      unsigned idx = record->member_index(comp->name);
+			      result = idx < record->members().size()
+				    ? constraint_source_type_from_raw_(
+					  record->members()[idx].net_type)
+				    : constraint_source_type_t();
+			} else {
+			      result.type = nullptr;
+			}
+			constraint_source_type_apply_indices_(result, comp->index);
+		  }
+		  result.qualifier_relevant = true;
+		  return result;
+	    }
+	    result = constraint_symbol_path_type_(id, scope);
+	    if (!result.type)
+		  result = constraint_source_type_from_raw_(id->test_type_of_ident(
+			constraint_ir_design_ctx_, const_cast<NetScope*>(scope)));
+	    if (id->path().name.empty())
+		  return result;
+
+	    const name_component_t&root = id->path().name.front();
+	    if (id->has_scoped_type_prefix()) {
+		  constraint_source_type_t exact =
+			constraint_scoped_path_type_(id, scope);
+		  if (exact.type)
+			result = exact;
+		  NetScope*pkg = !id->path().package
+			? constraint_ir_design_ctx_->find_package(root.name)
+			: nullptr;
+		  scoped_class_name_result_task_t resolved =
+			resolve_scoped_class_type_name_task_(
+			      constraint_ir_design_ctx_,
+			      const_cast<NetScope*>(scope), root.name);
+		  result.qualifier_relevant = resolved.class_type && !pkg;
+		  return result;
+	    }
+	    if (id->path().package)
+		  return result;
+	    bool resolved_external =
+		  constraint_symbol_path_references_randc_(id, scope).external;
+	    bool forced_external = resolved_external
+		  && !constraint_target_root_precedence_(id, cls);
+
+	    if (!constraint_class_object_root_.nil())
+		  result.qualifier_relevant =
+			root.name == constraint_class_object_root_;
+	    else if (root.local_scope)
+		  result.qualifier_relevant = false;
+	    else if (root.name == perm_string::literal("this")
+		     || root.name == perm_string::literal("super"))
+		  result.qualifier_relevant = true;
+	    else
+		  result.qualifier_relevant = cls
+			&& cls->property_idx_from_name(root.name) >= 0;
+
+	    /* test_type_of_ident searches the lexical caller scope, but an
+	     * unqualified name in a handle-form inline constraint resolves in the
+	     * randomized target before caller scope. Always replace that tentative
+	     * type with the target's declared path when the root is target-relevant;
+	     * otherwise same-named Caller.child can silently override Target.child.
+	     * This also recovers paths that ordinary type probing leaves unknown. */
+	    if (result.qualifier_relevant && cls && !forced_external) {
+		  pform_name_t::const_iterator comp = id->path().name.begin();
+		  const netclass_t*owner = cls;
+		  if (!constraint_class_object_root_.nil()) {
+			if (comp != id->path().name.end()
+			    && comp->name == constraint_class_object_root_)
+			      ++comp;
+		  } else if (comp != id->path().name.end()
+			     && comp->name == perm_string::literal("this")) {
+			++comp;
+		  } else if (comp != id->path().name.end()
+			     && comp->name == perm_string::literal("super")) {
+			owner = cls->get_super();
+			++comp;
+		  }
+		  constraint_source_type_t current =
+			constraint_source_type_from_raw_(owner);
+		  for (; comp != id->path().name.end() && current.type; ++comp) {
+			if (current.unpacked_dimensions) {
+			      current.type = nullptr;
+			      break;
+			}
+			if (const netclass_t*current_class =
+			    dynamic_cast<const netclass_t*>(current.type)) {
+			      bool is_randc = false;
+			      ivl_type_t component_type = nullptr;
+			      if (!constraint_class_component_type_(
+				    current_class, comp->name,
+				    component_type, is_randc))
+				    current = constraint_source_type_t();
+			      else
+				    current = constraint_source_type_from_raw_(
+					  component_type);
+			} else if (const netstruct_t*record =
+				   dynamic_cast<const netstruct_t*>(current.type)) {
+			      unsigned idx = record->member_index(comp->name);
+			      current = idx < record->members().size()
+				    ? constraint_source_type_from_raw_(
+					  record->members()[idx].net_type)
+				    : constraint_source_type_t();
+			} else {
+			      current.type = nullptr;
+			}
+			if (!comp->index.empty())
+			      constraint_source_type_apply_indices_(
+				    current, comp->index);
+		  }
+		  result.type = current.type;
+		  result.unpacked_dimensions = current.unpacked_dimensions;
+		  result.unpacked_index_types = current.unpacked_index_types;
+	    }
+	    return result;
+      }
+
+      if (const PEMemberAccess*member =
+	  dynamic_cast<const PEMemberAccess*>(expr)) {
+	    result = constraint_source_expr_type_(
+		  member->base(), cls, value_slots, scope);
+	    if (result.unpacked_dimensions) {
+		  result.type = nullptr;
+		  return result;
+	    }
+	    if (const netclass_t*owner =
+		dynamic_cast<const netclass_t*>(result.type)) {
+		  bool qualifier = result.qualifier_relevant;
+		  int idx = owner->property_idx_from_name(member->member_name());
+		  result = idx >= 0
+			? constraint_source_type_from_raw_(
+			      owner->get_prop_type((size_t)idx))
+			: constraint_source_type_t();
+		  result.qualifier_relevant = qualifier;
+		  return result;
+	    }
+	    if (const netstruct_t*record =
+		dynamic_cast<const netstruct_t*>(result.type)) {
+		  bool qualifier = result.qualifier_relevant;
+		  unsigned idx = record->member_index(member->member_name());
+		  result = idx < record->members().size()
+			? constraint_source_type_from_raw_(
+			      record->members()[idx].net_type)
+			: constraint_source_type_t();
+		  result.qualifier_relevant = qualifier;
+		  return result;
+	    }
+	    result.type = nullptr;
+	    return result;
+      }
+
+      if (const PECallFunction*call =
+	  dynamic_cast<const PECallFunction*>(expr)) {
+	    const pform_name_t&call_name = call->path().name;
+	    if (!call->receiver_expr() && !call->path().package
+		&& call_name.size() == 2
+		&& !call_name.front().local_scope
+		&& call_name.front().index.empty()
+		&& call_name.back().name == perm_string::literal("index")
+		&& call_name.back().index.empty()) {
+		  const constraint_reduction_iter_ctx_t*iter_ctx =
+			constraint_array_iter_ctx_find_(call_name.front().name);
+		  if (iter_ctx && iter_ctx->index_type) {
+			result = constraint_source_type_from_raw_(
+			      iter_ctx->index_type);
+			result.qualifier_relevant = true;
+			return result;
+		  }
+	    }
+
+	    /* Preserve an explicit Type#(...)::method specialization when this
+	     * helper asks only for the call's return type. A synthetic receiver
+	     * containing just `Type' is otherwise resolved through the generic
+	     * class scope, so Box#(Plain)::make().member can be typed as Box's
+	     * default specialization. Reuse the exact scoped-owner resolver; it
+	     * also isolates constraint-translation state while materializing a
+	     * cached specialization. */
+	    if (!call->receiver_expr() && call->has_scoped_type_prefix()
+		&& call->path().name.size() >= 2) {
+		  unique_ptr<PEIdent> scoped_call;
+		  if (call->path().package)
+			scoped_call.reset(new PEIdent(
+			      call->path().package, call->path().name, UINT_MAX));
+		  else
+			scoped_call.reset(new PEIdent(call->path().name, UINT_MAX));
+		  if (call->leading_type_args())
+			scoped_call->set_borrowed_leading_type_args(
+			      call->leading_type_args());
+		  scoped_call->set_scoped_type_prefix();
+		  if (const netclass_t*owner =
+		      constraint_scoped_path_owner_(scoped_call.get(), scope)) {
+			NetScope*method = owner->method_from_name(
+			      call->path().name.back().name);
+			if (method && method->type() == NetScope::FUNC)
+			      if (NetNet*value = method->find_signal(
+				    method->basename())) {
+				    result = constraint_source_type_from_raw_(
+					  value->net_type());
+				    result.qualifier_relevant = true;
+				    return result;
+			      }
+		  }
+	    }
+
+	    const netclass_t*receiver_class = nullptr;
+	    if (call->receiver_expr()) {
+		  result = constraint_source_expr_type_(
+			call->receiver_expr(), cls, value_slots, scope);
+		  if (!result.unpacked_dimensions)
+			receiver_class =
+			      dynamic_cast<const netclass_t*>(result.type);
+	    } else if (call->path().name.size() > 1) {
+		  pform_name_t receiver_path = call->path().name;
+		  receiver_path.pop_back();
+		  unique_ptr<PEIdent> receiver_id;
+		  if (call->path().package)
+			receiver_id.reset(new PEIdent(
+			      call->path().package, receiver_path, UINT_MAX));
+		  else
+			receiver_id.reset(new PEIdent(receiver_path, UINT_MAX));
+		  if (call->leading_type_args()) {
+			receiver_id->set_borrowed_leading_type_args(
+			      call->leading_type_args());
+		  }
+		  receiver_id->set_scoped_type_prefix(
+			call->has_scoped_type_prefix());
+		  result = constraint_source_expr_type_(
+			receiver_id.get(), cls, value_slots, scope);
+		  if (!result.unpacked_dimensions)
+			receiver_class =
+			      dynamic_cast<const netclass_t*>(result.type);
+	    }
+
+	    if (result.unpacked_dimensions && !call->path().name.empty()) {
+		  constraint_source_type_t builtin =
+			constraint_array_method_result_type_(
+			      result, call->path().name.back().name);
+		  if (builtin.type)
+			return builtin;
+	    }
+
+	    NetScope*method = nullptr;
+	    if (receiver_class && !call->path().name.empty())
+		  method = receiver_class->resolve_method_call_scope(
+			constraint_ir_design_ctx_, call->path().name.back().name);
+
+	    if (!method && !call->receiver_expr()
+		&& call->path().name.size() == 1 && cls
+		&& !call->path().name.front().local_scope
+		&& constraint_class_object_root_.nil()) {
+		  method = cls->resolve_method_call_scope(
+			constraint_ir_design_ctx_, call->path().name.back().name);
+		  if (method)
+			result.qualifier_relevant = true;
+	    }
+
+	    if (!method) {
+		  symbol_search_results found;
+		  symbol_search(call, constraint_ir_design_ctx_,
+			const_cast<NetScope*>(scope), call->path(), UINT_MAX,
+			&found);
+		  if (test_function_return_value(found)) {
+			bool qualifier = result.qualifier_relevant;
+			result = constraint_source_type_from_raw_(
+			      found.net->net_type());
+			result.qualifier_relevant = qualifier;
+			return result;
+		  }
+		  if (found.scope && found.scope->type() == NetScope::FUNC)
+			method = found.scope;
+	    }
+
+	    bool qualifier = result.qualifier_relevant;
+	    result = constraint_source_type_t();
+	    if (method && method->type() == NetScope::FUNC)
+		  if (NetNet*value = method->find_signal(method->basename()))
+			result = constraint_source_type_from_raw_(
+			      value->net_type());
+	    result.qualifier_relevant = qualifier;
+	    return result;
+      }
+
+      if (const PETernary*ternary = dynamic_cast<const PETernary*>(expr)) {
+	    constraint_source_type_t yes = constraint_source_expr_type_(
+		  ternary->get_true(), cls, value_slots, scope);
+	    constraint_source_type_t no = constraint_source_expr_type_(
+		  ternary->get_false(), cls, value_slots, scope);
+	    result.type = yes.type == no.type
+		  && yes.unpacked_dimensions == no.unpacked_dimensions
+		  ? yes.type : nullptr;
+	    if (result.type) {
+		  result.unpacked_dimensions = yes.unpacked_dimensions;
+		  result.unpacked_index_types = yes.unpacked_index_types;
+	    }
+	    if (!result.type) {
+		  const netclass_t*yes_class =
+			dynamic_cast<const netclass_t*>(yes.type);
+		  const netclass_t*no_class =
+			dynamic_cast<const netclass_t*>(no.type);
+		  if (!yes.unpacked_dimensions && !no.unpacked_dimensions
+		      && yes_class && no_class) {
+			set<const netclass_t*> yes_chain;
+			for (const netclass_t*cur = yes_class; cur;
+			     cur = cur->get_super())
+			      yes_chain.insert(cur);
+			for (const netclass_t*cur = no_class; cur;
+			     cur = cur->get_super())
+			      if (yes_chain.count(cur)) {
+				    result.type = cur;
+				    break;
+			      }
+		  } else {
+			result = yes.type ? yes : no;
+		  }
+	    }
+	    result.qualifier_relevant =
+		  yes.qualifier_relevant || no.qualifier_relevant;
+	    return result;
+      }
+
+	    if (const PECastType*cast = dynamic_cast<const PECastType*>(expr)) {
+	    constraint_source_type_t base = constraint_source_expr_type_(
+		  cast->cast_base(), cls, value_slots, scope);
+	    result = constraint_source_type_from_raw_(cast->resolve_target_type(
+		  constraint_ir_design_ctx_, const_cast<NetScope*>(scope)));
+	    result.qualifier_relevant = base.qualifier_relevant;
+	    return result;
+      }
+      if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr))
+	    return constraint_source_expr_type_(
+		  cast->cast_base(), cls, value_slots, scope);
+      if (const PECastSign*cast = dynamic_cast<const PECastSign*>(expr))
+	    return constraint_source_expr_type_(
+		  cast->cast_base(), cls, value_slots, scope);
+
+      return result;
+}
+
+/* Resolve the collection named by a constraint foreach without elaborating
+ * a value expression. The hierarchical parser form has already separated
+ * the declared prefix selectors from the fresh loop variables, so consume
+ * one unpacked dimension per prefix and then follow the member declaration. */
+static constraint_source_type_t constraint_foreach_source_type_(
+      const PEConstraintForeach*foreach, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope)
+{
+      constraint_source_type_t result;
+      if (!foreach || foreach->array_name().nil())
+	    return result;
+
+      pform_name_t root_path;
+      root_path.push_back(name_component_t(foreach->array_name()));
+      PEIdent root(root_path, UINT_MAX);
+      root.set_line(*foreach);
+      result = constraint_source_expr_type_(
+	    &root, cls, value_slots, scope);
+      if (!foreach->has_hierarchical_target())
+	    return result;
+
+      for (size_t idx = 0; idx < foreach->prefix_names().size(); ++idx) {
+	    result = constraint_source_type_element_(result);
+	    if (!result.type)
+		  return result;
+      }
+      if (result.unpacked_dimensions)
+	    return constraint_source_type_t();
+
+      if (const netclass_t*owner =
+	  dynamic_cast<const netclass_t*>(result.type)) {
+	    bool is_randc = false;
+	    ivl_type_t member_type = nullptr;
+	    if (!constraint_class_component_type_(
+		  owner, foreach->member_name(), member_type, is_randc))
+		  return constraint_source_type_t();
+	    result = constraint_source_type_from_raw_(member_type);
+      } else if (const netstruct_t*record =
+		 dynamic_cast<const netstruct_t*>(result.type)) {
+	    unsigned idx = record->member_index(foreach->member_name());
+	    if (idx >= record->members().size())
+		  return constraint_source_type_t();
+	    result = constraint_source_type_from_raw_(
+		  record->members()[idx].net_type);
+      } else {
+	    return constraint_source_type_t();
+      }
+      return result;
+}
+
+static bool constraint_source_references_randc_(
+      const PExpr*expr, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env)
+{
+      if (!expr)
+	    return false;
+
+	/* A let is an expression substitution, not a function invocation. Walk
+	 * the expanded body so an indirect randc reference remains visible, and
+	 * do not inspect an unused actual argument that the substitution drops.
+	 * Recursive lets are illegal independently; cap this diagnostic-only
+	 * walk so a malformed cycle cannot recurse forever before that error. */
+      static unsigned let_depth = 0;
+      if (let_depth < 64) {
+	    PExpr*sub = nullptr;
+	    if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr))
+		  sub = id->constraint_let_substitution(
+			constraint_ir_design_ctx_, const_cast<NetScope*>(scope));
+	    else if (const PECallFunction*call =
+		     dynamic_cast<const PECallFunction*>(expr))
+		  sub = call->constraint_let_substitution(
+			constraint_ir_design_ctx_, const_cast<NetScope*>(scope));
+	    if (sub && sub != expr) {
+		  ++let_depth;
+		  bool seen = constraint_source_references_randc_(
+			sub, cls, value_slots, scope, loop_env);
+		  --let_depth;
+		  return seen;
+	    }
+      }
+
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+	    for (const name_component_t&component : id->path().name)
+		  for (const index_component_t&index : component.index)
+			if (constraint_source_references_randc_(
+			      index.msb, cls, value_slots, scope, loop_env)
+			    || constraint_source_references_randc_(
+			      index.lsb, cls, value_slots, scope, loop_env))
+			      return true;
+
+	    if (id->has_scoped_type_prefix()) {
+		  if (constraint_package_path_references_randc_(id))
+			return true;
+		  return constraint_scoped_path_references_randc_(id, scope);
+	    }
+	    if (id->path().package)
+		  return constraint_package_path_references_randc_(id);
+	    if (id->path().name.empty())
+		  return false;
+
+	    const pform_name_t&name = id->path().name;
+	    const constraint_reduction_iter_ctx_t*ctx = !name.empty()
+		&& !name.front().local_scope
+		  ? constraint_array_iter_ctx_find_(name.front().name) : nullptr;
+	    if (ctx) {
+		  bool iterator_root = true;
+		  /* Selects such as item[0] still have the array-method iterator
+		   * as their root. Their index expressions were walked above; a
+		   * packed select must not expose a shadowed class property. */
+		  if (name.size() == 1 && iterator_root)
+			return false;
+		  if (name.size() == 2 && iterator_root
+		      && name.front().index.empty()
+		      && name.back().name == perm_string::literal("index")
+		      && name.back().index.empty())
+			return false;
+		  if (iterator_root && ctx->value_type) {
+			constraint_source_type_t current;
+			current.type = ctx->value_type;
+			current.unpacked_dimensions =
+			      ctx->value_unpacked_dimensions;
+			current.unpacked_index_types =
+			      ctx->value_unpacked_index_types;
+			pform_name_t::const_iterator comp = name.begin();
+			constraint_source_type_apply_indices_(
+			      current, comp->index);
+			++comp;
+			if (comp != name.end()
+			    && comp->name == perm_string::literal("index")
+			    && comp->index.empty() && ctx->index_type) {
+			      current = constraint_source_type_from_raw_(
+				    ctx->index_type);
+			      ++comp;
+			}
+			for (; comp != name.end(); ++comp) {
+			      if (current.unpacked_dimensions)
+				    return false;
+			      if (const netclass_t*owner =
+				  dynamic_cast<const netclass_t*>(current.type)) {
+				    bool is_randc = false;
+				    ivl_type_t component_type = nullptr;
+				    if (!constraint_class_component_type_(
+					  owner, comp->name,
+					  component_type, is_randc))
+					  return false;
+				    if (is_randc)
+					  return true;
+				    current = constraint_source_type_from_raw_(
+					  component_type);
+			      } else if (const netstruct_t*record =
+					 dynamic_cast<const netstruct_t*>(
+					       current.type)) {
+				    unsigned idx = record->member_index(comp->name);
+				    if (idx >= record->members().size())
+					  return false;
+				    current = constraint_source_type_from_raw_(
+					  record->members()[idx].net_type);
+			      } else {
+				    return false;
+			      }
+			      constraint_source_type_apply_indices_(
+				    current, comp->index);
+			}
+			return false;
+		  }
+		  /* Even when the iterator's element type is not recoverable, the
+		   * declaration still shadows any same-named class property. */
+		  return false;
+	    }
+
+	    if (loop_env && name.size() == 1 && !name.front().local_scope
+		&& loop_env->find(name.front().name) != loop_env->end())
+		  return false;
+	    if (dynforeach_emit_ctx_ && name.size() == 1
+		&& !name.front().local_scope
+		&& name.front().name == dynforeach_emit_ctx_->loop_var)
+		  return false;
+
+	    constraint_symbol_randc_result_t resolved =
+		  constraint_symbol_path_references_randc_(id, scope);
+	    if (resolved.resolved) {
+		  bool target_precedence =
+			constraint_target_root_precedence_(id, cls);
+		  if (resolved.external && !target_precedence)
+			return resolved.seen;
+		  if (!target_precedence && resolved.seen)
+			return true;
+	    }
+
+	    return constraint_class_path_references_randc_(
+		  id->path(), cls, scope);
+      }
+
+      if (const PECallFunction*call =
+	  dynamic_cast<const PECallFunction*>(expr)) {
+	    if (constraint_source_references_randc_(
+		  call->receiver_expr(), cls, value_slots, scope, loop_env))
+		  return true;
+
+	    for (const name_component_t&component : call->path().name)
+		  for (const index_component_t&index : component.index)
+			if (constraint_source_references_randc_(
+			      index.msb, cls, value_slots, scope, loop_env)
+			    || constraint_source_references_randc_(
+			      index.lsb, cls, value_slots, scope, loop_env))
+			      return true;
+
+	    const pform_name_t&name = call->path().name;
+    bool array_iter_call = false;
+    if (!name.empty()
+	&& (call->receiver_expr() || name.size() > 1)) {
+		  perm_string method = name.back().name;
+		  array_iter_call = method == perm_string::literal("sum")
+			|| method == perm_string::literal("product")
+			|| method == perm_string::literal("and")
+			|| method == perm_string::literal("or")
+			|| method == perm_string::literal("xor")
+			|| method == perm_string::literal("find")
+			|| method == perm_string::literal("find_index")
+			|| method == perm_string::literal("find_first")
+			|| method == perm_string::literal("find_first_index")
+			|| method == perm_string::literal("find_last")
+			|| method == perm_string::literal("find_last_index")
+			|| method == perm_string::literal("min")
+			|| method == perm_string::literal("max")
+			|| method == perm_string::literal("unique")
+			|| method == perm_string::literal("unique_index");
+    }
+
+	    perm_string reduction_iter;
+	    if (array_iter_call && !call->with_constraints().empty()
+		&& call->get_parms().empty())
+		  reduction_iter = perm_string::literal("item");
+	    if (array_iter_call && !call->with_constraints().empty()
+		&& !call->get_parms().empty()) {
+		  const named_pexpr_t&first = call->get_parms().front();
+		  const PEIdent*iter = dynamic_cast<const PEIdent*>(first.parm);
+		  if (first.name.nil() && iter && !iter->path().package
+		      && iter->path().size() == 1
+		      && iter->path().back().index.empty())
+			reduction_iter = iter->path().back().name;
+	    }
+
+	    for (size_t idx = 0; idx < call->get_parms().size(); ++idx) {
+		  /* The optional first argument of an array-method with call declares
+		   * its iterator; it is not a read of a same-named class member. */
+		  if (idx == 0 && !reduction_iter.nil())
+			continue;
+		  if (constraint_source_references_randc_(
+			call->get_parms()[idx].parm, cls, value_slots,
+			scope, loop_env))
+			return true;
+	    }
+
+	    constraint_reduction_iter_ctx_t source_iter_ctx;
+	    const constraint_reduction_iter_ctx_t*saved_iter_ctx =
+		  constraint_reduction_iter_ctx_;
+	    if (!reduction_iter.nil()) {
+		  source_iter_ctx.name = reduction_iter;
+		  constraint_source_type_t receiver_type;
+		  if (call->receiver_expr()) {
+			receiver_type = constraint_source_expr_type_(
+			      call->receiver_expr(), cls, value_slots, scope);
+		  } else if (name.size() > 1) {
+			pform_name_t receiver_path = name;
+			receiver_path.pop_back();
+			unique_ptr<PEIdent> receiver_id;
+			if (call->path().package)
+			      receiver_id.reset(new PEIdent(
+				    call->path().package, receiver_path, UINT_MAX));
+			else
+			      receiver_id.reset(new PEIdent(receiver_path, UINT_MAX));
+			if (call->leading_type_args()) {
+			      receiver_id->set_borrowed_leading_type_args(
+				    call->leading_type_args());
+			}
+			receiver_id->set_scoped_type_prefix(
+			      call->has_scoped_type_prefix());
+			receiver_type = constraint_source_expr_type_(
+			      receiver_id.get(), cls, value_slots, scope);
+		  }
+		  if (receiver_type.type
+		      && receiver_type.unpacked_dimensions) {
+			constraint_source_type_t element =
+			      constraint_source_type_element_(receiver_type);
+			source_iter_ctx.value_type = element.type;
+			source_iter_ctx.value_unpacked_dimensions =
+			      element.unpacked_dimensions;
+			source_iter_ctx.value_unpacked_index_types =
+			      element.unpacked_index_types;
+			source_iter_ctx.index_type =
+			      constraint_source_type_index_(receiver_type);
+		  }
+		  source_iter_ctx.parent = saved_iter_ctx;
+		  constraint_reduction_iter_ctx_ = &source_iter_ctx;
+	    }
+	    bool with_randc = false;
+	    for (const PExpr*with : call->with_constraints()) {
+		  if (constraint_source_references_randc_(
+			with, cls, value_slots, scope, loop_env)) {
+			with_randc = true;
+			break;
+		  }
+	    }
+	    constraint_reduction_iter_ctx_ = saved_iter_ctx;
+	    if (with_randc)
+		  return true;
+
+	    /* A flattened member-method call carries its receiver in every path
+	     * component except the final method name. Inspect that value path
+	     * before excluding static/package functions: p::obj.cyc.next() and
+	     * top.obj.cyc.next() read cyc, whereas p::f() and top.f() have no
+	     * value-typed receiver prefix and remain ordinary function calls. */
+	    bool direct_function_call = false;
+	    if (!call->receiver_expr() && constraint_ir_design_ctx_ && scope
+		&& name.size() > 1) {
+		  symbol_search_results resolved_call;
+		  direct_function_call = symbol_search(
+			call, constraint_ir_design_ctx_,
+			const_cast<NetScope*>(scope), call->path(), UINT_MAX,
+			&resolved_call)
+		      && resolved_call.scope
+		      && resolved_call.scope->type() == NetScope::FUNC
+		      && resolved_call.path_tail.empty();
+	    }
+	    bool resolved_external_receiver = false;
+	    if (!direct_function_call && !call->receiver_expr()
+		&& name.size() > 1) {
+		  pform_name_t receiver_path = name;
+		  receiver_path.pop_back();
+		  unique_ptr<PEIdent> receiver_id;
+		  if (call->path().package)
+			receiver_id.reset(new PEIdent(
+			      call->path().package, receiver_path, UINT_MAX));
+		  else
+			receiver_id.reset(new PEIdent(receiver_path, UINT_MAX));
+		  if (call->leading_type_args())
+			receiver_id->set_borrowed_leading_type_args(
+			      call->leading_type_args());
+		  receiver_id->set_scoped_type_prefix(
+			call->has_scoped_type_prefix());
+		  if (constraint_source_references_randc_(
+			receiver_id.get(), cls, value_slots, scope, loop_env))
+			return true;
+		  constraint_symbol_randc_result_t resolved_receiver =
+			constraint_symbol_path_references_randc_(
+			      receiver_id.get(), scope);
+		  resolved_external_receiver = resolved_receiver.resolved
+			&& resolved_receiver.external
+			&& !constraint_target_root_precedence_(
+			      receiver_id.get(), cls);
+	    }
+
+	    /* The parser preserves `::' separately from the hierarchical path.
+	     * A scoped static/package call does not read an identically named
+	     * object property; without this marker T::f() and T.f() collapse to
+	     * the same [T,f] path and the former can spuriously inherit C.T's
+	     * randc qualifier. A returned object's terminal member is handled by
+	     * constraint_source_expr_type_ when this call is a receiver. */
+	    if (call->has_scoped_type_prefix())
+		  return false;
+
+	    /* A method call rooted at the active array-method iterator is a read
+	     * of that typed local, never of a same-named class property. Its
+	     * arguments/indices were already inspected above, and a subsequent
+	     * `.member' is checked from the method's return type by the enclosing
+	     * PEMemberAccess walk. */
+	    if (!call->path().package && !name.empty()
+		&& !name.front().local_scope
+		&& constraint_array_iter_ctx_find_(name.front().name))
+		  return false;
+
+	    /* A resolved lexical/package/hierarchical function is not a dotted
+	     * path through the randomized object. This covers top.f() while still
+	     * leaving child.f() to the structural class-property walk: the latter
+	     * resolves as implicit-this plus a path tail, not as a direct FUNC
+	     * scope. */
+	    if (direct_function_call)
+		  return false;
+	    if (resolved_external_receiver)
+		  return false;
+	    if (constraint_ir_design_ctx_ && scope && name.size() > 1) {
+		  symbol_search_results resolved_call;
+		  if (symbol_search(call, constraint_ir_design_ctx_,
+			const_cast<NetScope*>(scope), call->path(), UINT_MAX,
+			&resolved_call)
+		      && resolved_call.scope
+		      && resolved_call.scope->type() == NetScope::FUNC
+		      && resolved_call.path_tail.empty())
+			return false;
+	    }
+	    return !call->path().package && name.size() > 1
+		&& constraint_class_path_references_randc_(
+		      call->path(), cls, scope);
+      }
+
+      if (const PEMemberAccess*member =
+	  dynamic_cast<const PEMemberAccess*>(expr)) {
+	    if (constraint_source_references_randc_(
+		  member->base(), cls, value_slots, scope, loop_env))
+		  return true;
+	    constraint_source_type_t receiver = constraint_source_expr_type_(
+		  member->base(), cls, value_slots, scope);
+	    ivl_type_t base = receiver.type;
+	    while (const netarray_t*array =
+		   dynamic_cast<const netarray_t*>(base))
+		  base = array->element_type();
+	    if (const netclass_t*owner = dynamic_cast<const netclass_t*>(base)) {
+		  int idx = owner->property_idx_from_name(member->member_name());
+		  return idx >= 0
+			&& owner->get_prop_qual((size_t)idx).test_randc();
+	    }
+	    return false;
+      }
+      if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr))
+	    return constraint_source_references_randc_(
+		  unary->get_expr(), cls, value_slots, scope, loop_env);
+      if (const PEBinary*binary = dynamic_cast<const PEBinary*>(expr))
+	    return constraint_source_references_randc_(
+		  binary->get_left(), cls, value_slots, scope, loop_env)
+		|| constraint_source_references_randc_(
+		  binary->get_right(), cls, value_slots, scope, loop_env);
+      if (const PETernary*ternary = dynamic_cast<const PETernary*>(expr))
+	    return constraint_source_references_randc_(
+		  ternary->get_cond(), cls, value_slots, scope, loop_env)
+		|| constraint_source_references_randc_(
+		  ternary->get_true(), cls, value_slots, scope, loop_env)
+		|| constraint_source_references_randc_(
+		  ternary->get_false(), cls, value_slots, scope, loop_env);
+      if (const PEConcat*concat = dynamic_cast<const PEConcat*>(expr)) {
+	    if (constraint_source_references_randc_(
+		  concat->repeat_expr(), cls, value_slots, scope, loop_env))
+		  return true;
+	    for (const PExpr*part : concat->stream_parms())
+		  if (constraint_source_references_randc_(
+			part, cls, value_slots, scope, loop_env))
+			return true;
+	    return false;
+      }
+      if (const PEAssignPattern*pattern =
+	  dynamic_cast<const PEAssignPattern*>(expr)) {
+	    if (constraint_source_references_randc_(
+		  pattern->replication(), cls, value_slots, scope, loop_env))
+		  return true;
+	    for (const PExpr*part : pattern->parms())
+		  if (constraint_source_references_randc_(
+			part, cls, value_slots, scope, loop_env))
+			return true;
+	    return false;
+      }
+      if (const PEStreaming*stream = dynamic_cast<const PEStreaming*>(expr))
+	    return constraint_source_references_randc_(
+		  stream->get_inner(), cls, value_slots, scope, loop_env);
+      if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr))
+	    return constraint_source_references_randc_(
+		  cast->cast_size(), cls, value_slots, scope, loop_env)
+		|| constraint_source_references_randc_(
+		  cast->cast_base(), cls, value_slots, scope, loop_env);
+      if (const PECastType*cast = dynamic_cast<const PECastType*>(expr))
+	    return constraint_source_references_randc_(
+		  cast->cast_base(), cls, value_slots, scope, loop_env);
+      if (const PECastSign*cast = dynamic_cast<const PECastSign*>(expr))
+	    return constraint_source_references_randc_(
+		  cast->cast_base(), cls, value_slots, scope, loop_env);
+      if (const PESoft*soft = dynamic_cast<const PESoft*>(expr))
+	{
+	    bool seen = constraint_source_references_randc_(
+		  soft->get_inner(), cls, value_slots, scope, loop_env);
+	    if (seen)
+		  constraint_randc_reference_error_(soft, "soft");
+	    return seen;
+	}
+      if (const PEDisableSoft*disable =
+	  dynamic_cast<const PEDisableSoft*>(expr))
+	    return constraint_source_references_randc_(
+		  disable->get_inner(), cls, value_slots, scope, loop_env);
+      if (const PEConstraintIf*conditional =
+	  dynamic_cast<const PEConstraintIf*>(expr)) {
+	    if (constraint_source_references_randc_(
+		  conditional->get_cond(), cls, value_slots, scope, loop_env))
+		  return true;
+	    for (const PExpr*item : conditional->then_items())
+		  if (constraint_source_references_randc_(
+			item, cls, value_slots, scope, loop_env))
+			return true;
+	    for (const PExpr*item : conditional->else_items())
+		  if (constraint_source_references_randc_(
+			item, cls, value_slots, scope, loop_env))
+			return true;
+	    return false;
+      }
+      if (const PEConstraintOrder*order =
+	  dynamic_cast<const PEConstraintOrder*>(expr)) {
+	    bool seen = false;
+	    for (const PExpr*item : order->before_items())
+		  if (constraint_source_references_randc_(
+			item, cls, value_slots, scope, loop_env))
+			seen = true;
+	    for (const PExpr*item : order->after_items())
+		  if (constraint_source_references_randc_(
+			item, cls, value_slots, scope, loop_env))
+			seen = true;
+	    if (seen)
+		  constraint_randc_reference_error_(order, "solve before");
+	    return seen;
+      }
+      if (const PEUnique*unique = dynamic_cast<const PEUnique*>(expr)) {
+	    bool seen = false;
+	    for (const PExpr*item : unique->items())
+		  if (constraint_source_references_randc_(
+			item, cls, value_slots, scope, loop_env))
+			seen = true;
+	    if (seen)
+		  constraint_randc_reference_error_(unique, "unique");
+	    return seen;
+      }
+      if (const PEInside*inside = dynamic_cast<const PEInside*>(expr)) {
+	    bool seen = constraint_source_references_randc_(
+		  inside->get_expr(), cls, value_slots, scope, loop_env);
+	    for (const inside_range_t&range : inside->get_ranges())
+		  if (constraint_source_references_randc_(
+			range.lo, cls, value_slots, scope, loop_env)
+		      || constraint_source_references_randc_(
+			range.hi, cls, value_slots, scope, loop_env)
+		      || constraint_source_references_randc_(
+			range.weight, cls, value_slots, scope, loop_env))
+			seen = true;
+	    if (seen && inside->is_dist())
+		  constraint_randc_reference_error_(inside, "dist");
+	    return seen;
+      }
+
+      return false;
+}
+
+/* Exhaustively visit the semantic constraint tree and attribute each
+ * forbidden randc use to the actual soft/dist/solve-before/unique source
+ * node. This is separate from IR recursion: an unsupported outer foreach,
+ * conditional, call, or member shape must not hide a nested mandatory
+ * diagnostic. The source-reference helper answers qualifier provenance for
+ * one construct; this visitor deliberately never short-circuits sibling
+ * subtrees. */
+static void constraint_diagnose_randc_restrictions_(
+      const PExpr*expr, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env)
+{
+      if (!expr)
+	    return;
+
+	/* A let is substitution, so visit only the expanded expression. An
+	 * unused actual does not participate in the resulting constraint. */
+      static unsigned let_depth = 0;
+      if (let_depth < 64) {
+	    PExpr*sub = nullptr;
+	    if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr))
+		  sub = id->constraint_let_substitution(
+			constraint_ir_design_ctx_, const_cast<NetScope*>(scope));
+	    else if (const PECallFunction*call =
+		     dynamic_cast<const PECallFunction*>(expr))
+		  sub = call->constraint_let_substitution(
+			constraint_ir_design_ctx_, const_cast<NetScope*>(scope));
+	    if (sub && sub != expr) {
+		  ++let_depth;
+		  constraint_diagnose_randc_restrictions_(
+			sub, cls, value_slots, scope, loop_env);
+		  --let_depth;
+		  return;
+	    }
+      }
+
+      if (const PESoft*soft = dynamic_cast<const PESoft*>(expr)) {
+	    if (constraint_source_references_randc_(
+		  soft->get_inner(), cls, value_slots, scope, loop_env))
+		  constraint_randc_reference_error_(soft, "soft");
+	    constraint_diagnose_randc_restrictions_(
+		  soft->get_inner(), cls, value_slots, scope, loop_env);
+	    return;
+      }
+      if (const PEConstraintOrder*order =
+	  dynamic_cast<const PEConstraintOrder*>(expr)) {
+	    if (constraint_source_references_randc_(
+		  order, cls, value_slots, scope, loop_env))
+		  constraint_randc_reference_error_(order, "solve before");
+	    for (const PExpr*item : order->before_items())
+		  constraint_diagnose_randc_restrictions_(
+			item, cls, value_slots, scope, loop_env);
+	    for (const PExpr*item : order->after_items())
+		  constraint_diagnose_randc_restrictions_(
+			item, cls, value_slots, scope, loop_env);
+	    return;
+      }
+      if (const PEUnique*unique = dynamic_cast<const PEUnique*>(expr)) {
+	    if (constraint_source_references_randc_(
+		  unique, cls, value_slots, scope, loop_env))
+		  constraint_randc_reference_error_(unique, "unique");
+	    for (const PExpr*item : unique->items())
+		  constraint_diagnose_randc_restrictions_(
+			item, cls, value_slots, scope, loop_env);
+	    return;
+      }
+      if (const PEInside*inside = dynamic_cast<const PEInside*>(expr)) {
+	    if (inside->is_dist()
+		&& constraint_source_references_randc_(
+		      inside, cls, value_slots, scope, loop_env))
+		  constraint_randc_reference_error_(inside, "dist");
+	    constraint_diagnose_randc_restrictions_(
+		  inside->get_expr(), cls, value_slots, scope, loop_env);
+	    for (const inside_range_t&range : inside->get_ranges()) {
+		  constraint_diagnose_randc_restrictions_(
+			range.lo, cls, value_slots, scope, loop_env);
+		  constraint_diagnose_randc_restrictions_(
+			range.hi, cls, value_slots, scope, loop_env);
+		  constraint_diagnose_randc_restrictions_(
+			range.weight, cls, value_slots, scope, loop_env);
+	    }
+	    return;
+      }
+      if (const PEDisableSoft*disable =
+	  dynamic_cast<const PEDisableSoft*>(expr)) {
+	    constraint_diagnose_randc_restrictions_(
+		  disable->get_inner(), cls, value_slots, scope, loop_env);
+	    return;
+      }
+      if (const PEConstraintIf*conditional =
+	  dynamic_cast<const PEConstraintIf*>(expr)) {
+	    constraint_diagnose_randc_restrictions_(
+		  conditional->get_cond(), cls, value_slots, scope, loop_env);
+	    for (const PExpr*item : conditional->then_items())
+		  constraint_diagnose_randc_restrictions_(
+			item, cls, value_slots, scope, loop_env);
+	    for (const PExpr*item : conditional->else_items())
+		  constraint_diagnose_randc_restrictions_(
+			item, cls, value_slots, scope, loop_env);
+	    return;
+      }
+      if (const PEConstraintForeach*foreach =
+	  dynamic_cast<const PEConstraintForeach*>(expr)) {
+	    map<perm_string,uint64_t> nested;
+	    if (loop_env)
+		  nested = *loop_env;
+	    for (perm_string name : foreach->loop_vars())
+		  if (!name.nil())
+			nested[name] = 0;
+
+	    /* foreach loop variables denote declared array indices. Keep their
+	     * actual types in the same lexical stack used by array-method
+	     * iterators so `i.member' follows an associative class key instead of
+	     * falling through to an unrelated class property named i. */
+	    constraint_source_type_t target =
+		  constraint_foreach_source_type_(
+			foreach, cls, value_slots, scope);
+	    const constraint_reduction_iter_ctx_t*saved_iter_ctx =
+		  constraint_reduction_iter_ctx_;
+	    vector<constraint_reduction_iter_ctx_t> foreach_contexts(
+		  foreach->loop_vars().size());
+	    const constraint_reduction_iter_ctx_t*parent = saved_iter_ctx;
+	    for (size_t idx = 0; idx < foreach->loop_vars().size(); ++idx) {
+		  perm_string name = foreach->loop_vars()[idx];
+		  if (name.nil())
+			continue;
+		  constraint_reduction_iter_ctx_t&ctx = foreach_contexts[idx];
+		  ctx.name = name;
+		  ivl_type_t index_type = idx < target.unpacked_index_types.size()
+			? target.unpacked_index_types[idx]
+			: static_cast<ivl_type_t>(&netvector_t::atom2s32);
+		  constraint_source_type_t normalized =
+			constraint_source_type_from_raw_(index_type);
+		  ctx.value_type = normalized.type;
+		  ctx.value_unpacked_dimensions =
+			normalized.unpacked_dimensions;
+		  ctx.value_unpacked_index_types =
+			normalized.unpacked_index_types;
+		  ctx.parent = parent;
+		  parent = &ctx;
+	    }
+	    constraint_reduction_iter_ctx_ = parent;
+	    for (const PExpr*item : foreach->items())
+		  constraint_diagnose_randc_restrictions_(
+			item, cls, value_slots, scope, &nested);
+	    constraint_reduction_iter_ctx_ = saved_iter_ctx;
+	    return;
+      }
+
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+	    for (const name_component_t&component : id->path().name)
+		  for (const index_component_t&index : component.index) {
+			constraint_diagnose_randc_restrictions_(
+			      index.msb, cls, value_slots, scope, loop_env);
+			constraint_diagnose_randc_restrictions_(
+			      index.lsb, cls, value_slots, scope, loop_env);
+		  }
+	    return;
+      }
+      if (const PECallFunction*call =
+	  dynamic_cast<const PECallFunction*>(expr)) {
+	    constraint_diagnose_randc_restrictions_(
+		  call->receiver_expr(), cls, value_slots, scope, loop_env);
+	    for (const name_component_t&component : call->path().name)
+		  for (const index_component_t&index : component.index) {
+			constraint_diagnose_randc_restrictions_(
+			      index.msb, cls, value_slots, scope, loop_env);
+			constraint_diagnose_randc_restrictions_(
+			      index.lsb, cls, value_slots, scope, loop_env);
+		  }
+	    for (const named_pexpr_t&parm : call->get_parms())
+		  constraint_diagnose_randc_restrictions_(
+			parm.parm, cls, value_slots, scope, loop_env);
+	    for (const PExpr*with : call->with_constraints())
+		  constraint_diagnose_randc_restrictions_(
+			with, cls, value_slots, scope, loop_env);
+	    return;
+      }
+      if (const PEMemberAccess*member =
+	  dynamic_cast<const PEMemberAccess*>(expr)) {
+	    constraint_diagnose_randc_restrictions_(
+		  member->base(), cls, value_slots, scope, loop_env);
+	    return;
+      }
+      if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr)) {
+	    constraint_diagnose_randc_restrictions_(
+		  unary->get_expr(), cls, value_slots, scope, loop_env);
+	    return;
+      }
+      if (const PEBinary*binary = dynamic_cast<const PEBinary*>(expr)) {
+	    constraint_diagnose_randc_restrictions_(
+		  binary->get_left(), cls, value_slots, scope, loop_env);
+	    constraint_diagnose_randc_restrictions_(
+		  binary->get_right(), cls, value_slots, scope, loop_env);
+	    return;
+      }
+      if (const PETernary*ternary = dynamic_cast<const PETernary*>(expr)) {
+	    constraint_diagnose_randc_restrictions_(
+		  ternary->get_cond(), cls, value_slots, scope, loop_env);
+	    constraint_diagnose_randc_restrictions_(
+		  ternary->get_true(), cls, value_slots, scope, loop_env);
+	    constraint_diagnose_randc_restrictions_(
+		  ternary->get_false(), cls, value_slots, scope, loop_env);
+	    return;
+      }
+      if (const PEConcat*concat = dynamic_cast<const PEConcat*>(expr)) {
+	    constraint_diagnose_randc_restrictions_(
+		  concat->repeat_expr(), cls, value_slots, scope, loop_env);
+	    for (const PExpr*part : concat->stream_parms())
+		  constraint_diagnose_randc_restrictions_(
+			part, cls, value_slots, scope, loop_env);
+	    return;
+      }
+      if (const PEAssignPattern*pattern =
+	  dynamic_cast<const PEAssignPattern*>(expr)) {
+	    constraint_diagnose_randc_restrictions_(
+		  pattern->replication(), cls, value_slots, scope, loop_env);
+	    for (const PExpr*part : pattern->parms())
+		  constraint_diagnose_randc_restrictions_(
+			part, cls, value_slots, scope, loop_env);
+	    return;
+      }
+      if (const PEStreaming*stream = dynamic_cast<const PEStreaming*>(expr)) {
+	    constraint_diagnose_randc_restrictions_(
+		  stream->get_inner(), cls, value_slots, scope, loop_env);
+	    return;
+      }
+      if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr)) {
+	    constraint_diagnose_randc_restrictions_(
+		  cast->cast_size(), cls, value_slots, scope, loop_env);
+	    constraint_diagnose_randc_restrictions_(
+		  cast->cast_base(), cls, value_slots, scope, loop_env);
+	    return;
+      }
+      if (const PECastType*cast = dynamic_cast<const PECastType*>(expr)) {
+	    constraint_diagnose_randc_restrictions_(
+		  cast->cast_base(), cls, value_slots, scope, loop_env);
+	    return;
+      }
+      if (const PECastSign*cast = dynamic_cast<const PECastSign*>(expr))
+	    constraint_diagnose_randc_restrictions_(
+		  cast->cast_base(), cls, value_slots, scope, loop_env);
 }
 
 /* Add a scalar caller-value slot while keeping the optional direct-signal
@@ -16459,6 +19125,29 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 
       if (!expr) return "";
 
+	/* Let declarations are semantic expression substitutions. Reuse the
+	 * cached expansion before classifying identifiers/calls so legal let
+	 * constraints lower normally and forbidden randc use is not hidden by a
+	 * surface call whose argument list alone carries no qualifier. */
+      static unsigned constraint_ir_let_depth = 0;
+      if (constraint_ir_let_depth < 64) {
+	    PExpr*sub = nullptr;
+	    if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr))
+		  sub = id->constraint_let_substitution(
+			constraint_ir_design_ctx_, const_cast<NetScope*>(scope));
+	    else if (const PECallFunction*call =
+		     dynamic_cast<const PECallFunction*>(expr))
+		  sub = call->constraint_let_substitution(
+			constraint_ir_design_ctx_, const_cast<NetScope*>(scope));
+	    if (sub && sub != expr) {
+		  ++constraint_ir_let_depth;
+		  string out = pexpr_to_constraint_ir(
+			sub, cls, value_slots, scope, loop_env);
+		  --constraint_ir_let_depth;
+		  return out;
+	    }
+      }
+
       if (const PENumber*num = dynamic_cast<const PENumber*>(expr)) {
 	    const verinum&v = num->value();
 	    uint64_t val = 0;
@@ -16482,6 +19171,60 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    bool local_qualified = !id->path().name.empty()
 		  && id->path().name.front().local_scope;
 
+	      /* The iterator declared by an array-method with clause shadows
+	       * class properties and enclosing foreach variables. Support both
+	       * the value itself and the paren-less iterator.index form here;
+	       * iterator.index() is handled in the call branch below. */
+	    const constraint_reduction_iter_ctx_t*ctx =
+		  !id->path().package && !id->path().name.empty()
+		  && !id->path().name.front().local_scope
+		  ? constraint_array_iter_ctx_find_(
+			id->path().name.front().name) : nullptr;
+	    if (ctx) {
+		  if (id->path().size() == 1
+		      && !id->path().name.front().local_scope) {
+			const list<index_component_t>&indices =
+			      id->path().name.front().index;
+			if (indices.empty())
+			      return ctx->value_ir;
+			if (indices.size() == 1)
+			      return scope_randomize_select_ir_(
+				    ctx->value_ir, indices.front(), cls,
+				    value_slots, scope, loop_env);
+			return "";
+		  }
+		  if (id->path().size() == 2
+		      && !id->path().name.front().local_scope
+		      && id->path().name.front().index.empty()
+		      && id->path().back().name == perm_string::literal("index")
+		      && id->path().back().index.empty())
+			return ctx->index_ir;
+	    }
+
+	      /* Package and Type::property carriers are not dotted paths rooted
+	       * in the randomized object. Resolve a genuine package constant
+	       * first; every other scoped value is captured at an inline call
+	       * site (or rejected as currently unrepresentable in a declaration
+	       * constraint). Randc legality is diagnosed by the source prewalk. */
+	    if (id->path().package || id->has_scoped_type_prefix()) {
+		  bool direct_package_value = id->path().package
+			&& id->path().name.size() == 1;
+		  if (!id->path().package && id->path().name.size() == 2
+		      && constraint_ir_design_ctx_
+		      && constraint_ir_design_ctx_->find_package(
+			   id->path().name.front().name))
+			direct_package_value = true;
+		  if (direct_package_value) {
+			string constant = constraint_constant_ir_(id, scope);
+			if (!constant.empty())
+			      return constant;
+		  }
+		  if (value_slots)
+			return scope_randomize_value_slot_(
+			      expr, nullptr, value_slots, 32);
+		  return "";
+	    }
+
 	      // A qualified caller expression such as rw.addr is not a
 	      // randomized-object property merely because its final component
 	      // has the same name as one. Only a path rooted at the object being
@@ -16491,27 +19234,49 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (cls && value_slots && !local_qualified
 		&& id->path().size() > 1 && !id->path().package) {
 		  perm_string root_name = id->path().name.front().name;
-		  NetNet*root_net = scope_randomize_find_signal_(scope, root_name);
-		  if (root_net && root_net->net_type() != cls)
+		  if (!constraint_class_object_root_.nil()
+		      && root_name != constraint_class_object_root_)
 			return scope_randomize_value_slot_(expr, nullptr,
-						   value_slots, 32);
+					   value_slots, 32);
+		  NetNet*root_net = scope_randomize_find_signal_(scope, root_name);
+		  if (constraint_class_object_root_.nil() && root_net
+		      && cls->property_idx_from_name(root_name) < 0)
+			return scope_randomize_value_slot_(expr, nullptr,
+					   value_slots, 32);
 	    }
 
 	      // foreach loop variables shadow properties inside the
 	      // iterated constraint set (IEEE 1800-2017 18.5.8).
 	    if (loop_env && id->path().size() == 1
-		&& id->path().back().index.empty()) {
+		&& !id->path().name.front().local_scope) {
 		  map<perm_string,uint64_t>::const_iterator lit =
 			loop_env->find(name);
-		  if (lit != loop_env->end())
-			return "c:" + to_string(lit->second);
+		  if (lit != loop_env->end()) {
+			const list<index_component_t>&indices =
+			      id->path().name.front().index;
+			string value = "c:" + to_string(lit->second) + ":32:s";
+			if (indices.empty()) return value;
+			if (indices.size() == 1)
+			      return scope_randomize_select_ir_(
+				    value, indices.front(), cls, value_slots,
+				    scope, loop_env);
+			return "";
+		  }
 	    }
 	      // Dynamic foreach loop variable: symbolic token for the
 	      // runtime expansion (18.5.8.2).
 	    if (dynforeach_emit_ctx_ && id->path().size() == 1
-		&& id->path().back().index.empty()
-		&& name == dynforeach_emit_ctx_->loop_var)
-		  return "L";
+		&& !id->path().name.front().local_scope
+		&& name == dynforeach_emit_ctx_->loop_var) {
+		  const list<index_component_t>&indices =
+			id->path().name.front().index;
+		  if (indices.empty()) return "L";
+		  if (indices.size() == 1)
+			return scope_randomize_select_ir_(
+			      "L", indices.front(), cls, value_slots,
+			      scope, loop_env);
+		  return "";
+	    }
 
 	      /* A packed-struct member of the randomized class remains a
 	       * select of the property's solver bitvector. This also handles
@@ -16963,8 +19728,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       // Z3_optimize_assert_soft (default weight 1) instead of a hard
       // conjunct.
       if (const PESoft*sf = dynamic_cast<const PESoft*>(expr)) {
+	    constraint_randc_capture_t capture(sf, "soft");
+	    capture.seen = constraint_source_references_randc_(
+		  sf->get_inner(), cls, value_slots, scope, loop_env);
 	    string s = pexpr_to_constraint_ir(sf->get_inner(), cls, value_slots, scope, loop_env);
 	    if (s.empty() || s[0] == '?') return "";
+	    if (constraint_ir_references_randc_(s, cls))
+		  constraint_randc_reference_error_(sf, "soft");
 	    return "(soft " + s + ")";
       }
 
@@ -17011,11 +19781,232 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       }
 
 	// Dynamic-array size in a constraint: `arr.size()` becomes a
-	// solver size variable s:N:T (IEEE 1800-2017 18.4: the size of a
-	// rand dynamic array is randomized subject to constraints). T is
-	// the darray type text used to construct the array at write-back.
+      // solver size variable s:N:T (IEEE 1800-2017 18.4: the size of a
+      // rand dynamic array is randomized subject to constraints). T is
+      // the darray type text used to construct the array at write-back.
       if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(expr)) {
 	    const pform_name_t&cpath = call->path().name;
+
+	      /* The parenthesized spelling of an array-method iterator's
+	       * index query is represented as a call. The paren-less spelling is
+	       * handled in the PEIdent branch above. Resolve this before looking
+	       * for another reduction so the iterator continues to shadow class
+	       * properties and enclosing foreach variables. */
+	    const constraint_reduction_iter_ctx_t*call_iter_ctx =
+		  !call->path().package && !cpath.empty()
+		  && !cpath.front().local_scope
+		  ? constraint_array_iter_ctx_find_(cpath.front().name) : nullptr;
+	    if (call_iter_ctx && cpath.size() == 2
+		&& cpath.front().index.empty()
+		&& cpath.back().name == perm_string::literal("index")
+		&& cpath.back().index.empty()
+		&& call->get_parms().empty()
+		&& call->with_constraints().empty())
+		  return call_iter_ctx->index_ir;
+
+	      /* IEEE 1800-2017 18.5.8.2 permits reduction methods in
+	       * constraints. A one-dimensional fixed-array property has a
+	       * statically known element set, so lower the reduction to the same
+	       * exact element variables used by foreach constraints. A with clause
+	       * is expanded once for each static element with its iterator bound
+	       * to that leaf and index() bound to the declared (not canonical)
+	       * index. The explicit truncation preserves the 7.12.3
+	       * self-determined result width before any surrounding context. */
+	    if (cls && !call->path().package
+		&& (cpath.size() == 2 || cpath.size() == 3)) {
+		  pform_name_t::const_iterator prop = cpath.begin();
+		  if (cpath.size() == 3) {
+			if (prop->name != perm_string::literal("this")
+			    || !prop->index.empty())
+			      prop = cpath.end();
+			else
+			      ++prop;
+		  }
+		  if (prop != cpath.end()) {
+			pform_name_t::const_iterator method = prop;
+			++method;
+			if (method != cpath.end() && !prop->index.empty())
+			      method = cpath.end();
+			if (method != cpath.end() && !method->index.empty())
+			      method = cpath.end();
+			if (method != cpath.end()) {
+			      perm_string mname = method->name;
+			      string op;
+			      if (mname == perm_string::literal("sum")) op = "add";
+			      else if (mname == perm_string::literal("product")) op = "mul";
+			      else if (mname == perm_string::literal("and")) op = "band";
+			      else if (mname == perm_string::literal("or")) op = "bor";
+			      else if (mname == perm_string::literal("xor")) op = "bxor";
+
+			      if (!op.empty()) {
+				    int pidx = cls->property_idx_from_name(prop->name);
+				    ivl_type_t ptype = pidx >= 0
+					  ? cls->get_prop_type((size_t)pidx) : nullptr;
+				    const netuarray_t*ua =
+					  dynamic_cast<const netuarray_t*>(ptype);
+				    if (!ua)
+					  return "";
+
+				    auto reduction_error = [&](const string&detail) -> string {
+					  cerr << call->get_fileline() << ": error: Array "
+					       << "reduction method " << mname << "() "
+					       << detail << endl;
+					  if (constraint_ir_design_ctx_)
+						constraint_ir_design_ctx_->errors += 1;
+					  /* Never return an empty IR here: the caller's generic
+					   * fallback would drop the item and weaken the constraint. */
+					  return "c:0";
+				    };
+
+				    const vector<named_pexpr_t>&parms = call->get_parms();
+				    const vector<PExpr*>&with_exprs =
+					  call->with_constraints();
+				    const PEIdent*iter_ident = parms.empty() ? nullptr
+					  : dynamic_cast<const PEIdent*>(parms.front().parm);
+				    if (parms.size() > 1
+					|| (!parms.empty()
+					    && (!parms.front().name.nil() || !iter_ident
+						|| iter_ident->path().size() != 1
+						|| !iter_ident->path().back().index.empty())))
+					  return reduction_error(
+						"takes at most one simple iterator identifier.");
+				    if (with_exprs.size() > 1)
+					  return reduction_error(
+						"takes exactly one with expression.");
+				    if (!parms.empty() && with_exprs.empty())
+					  return reduction_error(
+						"iterator argument requires a with clause.");
+				    if (!with_exprs.empty() && !with_exprs.front())
+					  return reduction_error(
+						"requires a nonempty with expression.");
+
+				    ivl_type_t etype = ua ? ua->element_type() : nullptr;
+				    ivl_variable_type_t ebase = etype
+					  ? etype->base_type() : IVL_VT_NO_TYPE;
+				    if (ua->static_dimensions().size() != 1)
+					  return reduction_error(
+						"requires a one-dimensional unpacked array in a "
+						"constraint; got "
+						+ to_string(ua->static_dimensions().size())
+						+ " unpacked dimensions.");
+				    if (ebase != IVL_VT_BOOL
+					&& ebase != IVL_VT_LOGIC) {
+					  return reduction_error(
+						"requires integral array elements in a constraint "
+						"(IEEE 1800-2017 7.12.3).");
+				    }
+				    property_qualifier_t qual =
+					  cls->get_prop_qual((size_t)pidx);
+				    if (!qual.test_rand() && !qual.test_randc()
+					&& !constraint_state_prop_ok_(ptype, true))
+					  return reduction_error(
+						"cannot represent this array element type as "
+						"constraint state.");
+
+				    unsigned ewid = etype->packed_width();
+				    if (ewid == 0) ewid = 32;
+				    string esfx = etype->get_signed() ? ":s" : "";
+				    unsigned result_width = ewid;
+				    bool result_signed = etype->get_signed();
+				    perm_string iter_name = perm_string::literal("item");
+
+				    if (!with_exprs.empty()) {
+					  if (iter_ident)
+						iter_name = iter_ident->path().back().name;
+					  if (!scope || !constraint_ir_design_ctx_)
+						return reduction_error(
+						      "cannot resolve its with-expression type in "
+						      "this constraint scope.");
+
+					  /* Run ordinary expression sizing with the same
+					   * iterator aliases used by procedural array-method
+					   * elaboration. This obtains the exact with-expression
+					   * width/sign rather than assuming int. */
+					  NetScope*mutable_scope = const_cast<NetScope*>(scope);
+					  NetNet*iter_net = new NetNet(
+						mutable_scope, mutable_scope->local_symbol(),
+						NetNet::REG, etype);
+					  iter_net->set_line(*call);
+					  iter_net->local_flag(true);
+					  NetNet*index_net = new NetNet(
+						mutable_scope, mutable_scope->local_symbol(),
+						NetNet::REG, &netvector_t::atom2s32);
+					  index_net->set_line(*call);
+					  index_net->local_flag(true);
+					  NetNet*previous =
+						mutable_scope->set_signal_alias(iter_name, iter_net);
+					  push_array_method_iter_ctx(iter_net, index_net);
+					  PExpr*with_expr = with_exprs.front();
+					  PExpr::width_mode_t mode = PExpr::SIZED;
+					  result_width = with_expr->test_width(
+						constraint_ir_design_ctx_, mutable_scope, mode);
+					  result_signed = with_expr->has_sign();
+					  ivl_variable_type_t result_type =
+						with_expr->expr_type();
+					  pop_array_method_iter_ctx();
+					  mutable_scope->restore_signal_alias(iter_name,
+								      previous);
+					  if ((result_type != IVL_VT_BOOL
+					       && result_type != IVL_VT_LOGIC)
+					      || result_width == 0)
+						return reduction_error(
+						      "requires an integral with expression "
+						      "(IEEE 1800-2017 7.12.3).");
+				    }
+
+				    const netrange_t&range =
+					  ua->static_dimensions().front();
+				    long range_lo = std::min(range.get_msb(),
+							     range.get_lsb());
+				    unsigned long count = range.width();
+				    string reduction;
+				    for (unsigned long elem = 0 ; elem < count;
+					 elem += 1) {
+					  string leaf = "e:" + to_string(pidx)
+						+ ":" + to_string(ewid) + ":"
+						+ to_string(elem) + esfx;
+					  string value = leaf;
+					  if (!with_exprs.empty()) {
+						long declared_index = range_lo + (long)elem;
+						constraint_reduction_iter_ctx_t iter_ctx;
+						iter_ctx.name = iter_name;
+						iter_ctx.value_ir = leaf;
+						iter_ctx.index_ir = "c:"
+						      + to_string(declared_index) + ":32:s";
+						iter_ctx.value_type = etype;
+						const constraint_reduction_iter_ctx_t*saved =
+						      constraint_reduction_iter_ctx_;
+						iter_ctx.parent = saved;
+						constraint_reduction_iter_ctx_ = &iter_ctx;
+						value = pexpr_to_constraint_ir(
+						      with_exprs.front(), cls, value_slots,
+						      scope, loop_env);
+						constraint_reduction_iter_ctx_ = saved;
+						if (value.empty())
+						      return reduction_error(
+							"has a with expression that is not "
+							"representable in the constraint solver; "
+							"the constraint was not weakened.");
+						/* Relational/logical with expressions produce a
+						 * solver Bool. This per-element boundary both turns
+						 * it back into its 1-bit integral value and preserves
+						 * all other with-expression widths before folding. */
+						value = "(trunc:" + to_string(result_width)
+						      + (result_signed ? ":s" : "")
+						      + " " + value + ")";
+					  }
+					  reduction = reduction.empty() ? value
+						: "(" + op + " " + reduction + " "
+						  + value + ")";
+				    }
+				    if (!reduction.empty())
+					  return "(trunc:" + to_string(result_width)
+						+ (result_signed ? ":s" : "")
+						+ " " + reduction + ")";
+			      }
+			}
+		  }
+	    }
 	      /* UVM register constraints commonly use get_n_bits() on a nested
 	         uvm_reg_field. It is the pure accessor for that object's m_size
 	         state property, so retain it as a runtime state path rather than
@@ -17151,6 +20142,9 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	// only distribution, never satisfiability (18.5.10).
       if (const PEConstraintOrder*co =
 	  dynamic_cast<const PEConstraintOrder*>(expr)) {
+	    constraint_randc_capture_t capture(co, "solve before");
+	    capture.seen = constraint_source_references_randc_(
+		  co, cls, value_slots, scope, loop_env);
 	    auto vars_to_ir = [&](const std::list<PExpr*>&items) -> string {
 		  string acc;
 		  for (const PExpr*item : items) {
@@ -17173,7 +20167,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    string aft = vars_to_ir(co->after_items());
 	    if (bef.empty() || aft.empty())
 		  return "";
-	    return "(order (vars " + bef + ") (vars " + aft + "))";
+	    string result = "(order (vars " + bef + ") (vars " + aft + "))";
+	    if (constraint_ir_references_randc_(result, cls))
+		  constraint_randc_reference_error_(co, "solve before");
+	    return result;
       }
 
 	// Iterative constraint over a one-dimensional static-array rand
@@ -17333,8 +20330,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	// identifiers naming a rand unpacked-array property expand to all
 	// their elements; every other operand (scalar rand property,
 	// indexed element, constant) is emitted through the ordinary
-	// expression path. The result is a conjunction of pairwise (ne).
+      // expression path. The result is a conjunction of pairwise (ne).
       if (const PEUnique*uq = dynamic_cast<const PEUnique*>(expr)) {
+	    constraint_randc_capture_t capture(uq, "unique");
+	    capture.seen = constraint_source_references_randc_(
+		  uq, cls, value_slots, scope, loop_env);
 	    vector<string> atoms;
 	    for (PExpr*item : uq->items()) {
 		  if (!item) continue;
@@ -17384,6 +20384,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			atoms.push_back(s);
 		  }
 	    }
+	    string referenced;
+	    for (const string&atom : atoms)
+		  referenced += " " + atom;
+	    if (constraint_ir_references_randc_(referenced, cls))
+		  constraint_randc_reference_error_(uq, "unique");
 	      // Fewer than two operands is trivially satisfied; emit an
 	      // always-true term so the enclosing conjunction is unharmed.
 	    if (atoms.size() < 2)
@@ -17400,12 +20405,18 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       }
 
       if (const PEInside*ins = dynamic_cast<const PEInside*>(expr)) {
+	    bool is_dist = ins->is_dist();
+	    unique_ptr<constraint_randc_capture_t> capture;
+	    if (is_dist)
+		  capture.reset(new constraint_randc_capture_t(ins, "dist"));
+	    if (capture)
+		  capture->seen = constraint_source_references_randc_(
+			ins, cls, value_slots, scope, loop_env);
 	    string s = pexpr_to_constraint_ir(ins->get_expr(), cls, value_slots, scope, loop_env);
 	    if (s.empty() || s[0] == '?') return "";
 	    // C7 (Phase 62b): dist form preserves per-branch weights as
 	    // `(dist <expr> (b W <range>) ...)` where W is the literal
 	    // weight integer.  Plain inside emits the existing form.
-	    bool is_dist = ins->is_dist();
 	    string result = is_dist ? "(dist " : "(inside ";
 	    result += s;
 	    for (auto& r : ins->get_ranges()) {
@@ -17508,6 +20519,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  }
 	    }
 	    result += ")";
+	    if (is_dist && constraint_ir_references_randc_(result, cls))
+		  constraint_randc_reference_error_(ins, "dist");
 	    return result;
       }
 
@@ -17733,12 +20746,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    string ir;
 		    for (PExpr*item : cit.second) {
 			  if (!item) continue;
+			  unsigned errors_before = des->errors;
 			  string s = pexpr_to_class_constraint_ir(
 				item, this, nullptr, des, class_scope_);
 			  if (!s.empty()) {
 				if (!ir.empty()) ir += " ";
 				ir += s;
-			  } else {
+			  } else if (des->errors == errors_before) {
 				  // Manifesto principle 4: a dropped item
 				  // silently WEAKENS the constraint. Say so.
 				static bool warned_unconvertible_constraint = false;
@@ -19693,7 +22707,13 @@ class elaborate_root_scope_t : public elaborator_work_item_t {
 		  root_repl[peek_head_name(tmp_name)] = cur->second;
 	    }
 
-	    if (! rmod_->elaborate_scope(des, scope_, root_repl))
+	    /* Module::elaborate_scope reports failure when any design error is
+	     * already present, including a diagnostic emitted earlier while
+	     * elaborating the compilation unit. Do not turn that global status
+	     * into one extra, unreported error for every later root module. */
+	    const unsigned errors_before = des->errors;
+	    if (! rmod_->elaborate_scope(des, scope_, root_repl)
+		&& errors_before == 0 && des->errors == errors_before)
 		  des->errors += 1;
       }
 
@@ -20434,10 +23454,15 @@ Design* elaborate(list<perm_string>roots)
 	// e.g. `uvm_default_table_printer = new()` compiles as
 	// "%null; %store/obj v..." (number-fallback rhs) and the
 	// assignment silently no-ops at runtime.
+      repair_specialized_class_property_types(des);
       for (NetScope*pkg : des->find_package_scopes())
 	    pkg->repair_typed_class_signals(des);
       for (NetScope*root : des->find_root_scopes())
 	    root->repair_typed_class_signals(des);
+	/* Signal repair can itself materialize a late default specialization.
+	 * Complete any classes appended to the registry before statement
+	 * expressions snapshot their property types. */
+      repair_specialized_class_property_types(des);
 
 	// Now that the structure and parameters are taken care of,
 	// run through the pform again and generate the full netlist.

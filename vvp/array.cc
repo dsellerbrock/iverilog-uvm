@@ -156,6 +156,11 @@ static bool vpi_array_is_string(const vvp_array_t arr)
       return false;
 }
 
+static bool vpi_array_is_object(const vvp_array_t arr)
+{
+      return dynamic_cast<vvp_darray_object*>(arr->vals) != 0;
+}
+
 int __vpiArray::get_word_size() const
 {
       unsigned width;
@@ -205,10 +210,13 @@ void __vpiArray::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 	// steer vpiObjTypeVal to that path; numeric fetches return 0.
       if (dynamic_cast<vvp_darray_object*>(vals)) {
 	    switch (vp->format) {
-		case vpiObjTypeVal:
-		  vp->format = vpiIntVal;
-		  vp->value.integer = 0;
+		case vpiObjTypeVal: {
+		  vvp_object_t oval;
+		  get_word_obj(index, oval);
+		  vp->value.misc = reinterpret_cast<char*>(
+			oval.peek<vvp_object>());
 		  return;
+		}
 		case vpiBinStrVal:
 		case vpiOctStrVal:
 		case vpiDecStrVal:
@@ -283,6 +291,39 @@ void __vpiArray::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 void __vpiArray::put_word_value(struct __vpiArrayWord*word, p_vpi_value vp, int)
 {
       unsigned index = word->get_index();
+	if (vpi_array_is_real(this)) {
+	      set_word(index, real_from_vpi_value(vp));
+	      return;
+	}
+	if (vpi_array_is_string(this)) {
+	      if (vp->format != vpiStringVal || !vp->value.str) {
+		    fprintf(stderr, "vpi error: fixed string-array word requires "
+			    "vpiStringVal.\n");
+		    return;
+	      }
+	      set_word(index, std::string(vp->value.str));
+	      return;
+	}
+	if (vpi_array_is_object(this)) {
+	      vvp_object_t object;
+	      if (vp->format == vpiObjTypeVal) {
+		    vvp_object*raw = reinterpret_cast<vvp_object*>(vp->value.misc);
+		    if (raw && !vvp_object::pointer_is_live(raw)) {
+			  fprintf(stderr, "vpi error: fixed object-array word put "
+				  "rejected an invalid VVP object pointer.\n");
+			  return;
+		    }
+		    object = raw;
+	      } else if (vp->format == vpiIntVal && vp->value.integer == 0) {
+		    object.reset();
+	      } else {
+		    fprintf(stderr, "vpi error: fixed object-array word put "
+			    "requires vpiObjTypeVal or integer 0 (null).\n");
+		    return;
+	      }
+	      set_word(index, object);
+	      return;
+	}
       vvp_vector4_t val = vec4_from_vpi_value(vp, vals_width);
       set_word(index, 0, val);
 }
@@ -306,6 +347,9 @@ int __vpiArray::vpi_get(int code)
 
 	  case vpiSize:
 	    return get_size();
+
+	  case vpiArrayType:
+	    return vpiStaticArray;
 
 	  case vpiAutomatic:
 	    return scope->is_automatic()? 1 : 0;
@@ -394,19 +438,7 @@ int __vpiArrayWord::as_word_t::vpi_get(int code)
             return val.value.integer;
 
 	  case vpiIndex:
-	    {
-		  int base_offset = 0;
-		  struct __vpiArray*base = dynamic_cast<__vpiArray*> (my_parent);
-		  if (base) {
-			val.format = vpiIntVal;
-			base->first_addr.vpi_get_value(&val);
-			base_offset += val.value.integer;
-		  }
-		  val.format = vpiIntVal;
-		  obj->as_index.vpi_get_value(&val);
-		  assert(val.format == vpiIntVal);
-		  return val.value.integer + base_offset;
-	    }
+	    return my_parent->get_word_declared_index(obj->get_index());
 
 	  case vpiAutomatic:
 	    return my_parent->get_scope()->is_automatic()? 1 : 0;
@@ -1528,36 +1560,14 @@ void __vpiArray::word_change(unsigned long addr)
 
 	    if (cur->cb_data.cb_rtn != 0) {
 		  if (cur->test_value_callback_ready()) {
-			if (cur->cb_data.value) {
-			      if (vpi_array_is_real(this)) {
-				    double val = 0.0;
-				    if (addr < vals->get_size())
-					  vals->get_word(addr, val);
-				    vpip_real_get_value(val, cur->cb_data.value);
-			      } else if (vals4) {
-				    vpip_vec4_get_value(vals4->get_word(addr),
-							vals_width,
-							signed_flag,
-							cur->cb_data.value);
-			      } else if (dynamic_cast<vvp_darray_atom<int8_t>*>(vals)
-				      || dynamic_cast<vvp_darray_atom<int16_t>*>(vals)
-				      || dynamic_cast<vvp_darray_atom<int32_t>*>(vals)
-				      || dynamic_cast<vvp_darray_atom<int64_t>*>(vals)
-				      || dynamic_cast<vvp_darray_atom<uint8_t>*>(vals)
-				      || dynamic_cast<vvp_darray_atom<uint16_t>*>(vals)
-				      || dynamic_cast<vvp_darray_atom<uint32_t>*>(vals)
-				      || dynamic_cast<vvp_darray_atom<uint64_t>*>(vals)
-				      || dynamic_cast<vvp_darray_vec2*>(vals)) {
-				    vvp_vector4_t val;
-				    if (addr < vals->get_size())
-					  vals->get_word(addr, val);
-				    vpip_vec4_get_value(val,
-							vals_width,
-							signed_flag,
-							cur->cb_data.value);
-			      } else {
-			            assert(0);
-			      }
+			if (cur->cb_data.value
+			    && cur->cb_data.value->format != vpiSuppressVal) {
+			      int declared = get_word_declared_index((unsigned)addr);
+			      vpiHandle changed_word = vpi_index(declared);
+			      if (changed_word)
+				    changed_word->vpi_get_value(cur->cb_data.value);
+			      else
+				    cur->cb_data.value->format = vpiSuppressVal;
 			}
 
 			callback_execute(cur);
@@ -1781,11 +1791,11 @@ class runtime_array_word_value_callback : public value_callback {
       std::string text_value_;
 };
 
-value_callback*vpip_array_word_change(p_cb_data data)
+value_callback*vpip_array_word_change_target(p_cb_data data, vpiHandle target)
 {
       struct __vpiArray*parent = 0;
       array_word_value_callback*cbh = 0;
-      if (const struct __vpiArrayWord*word = array_var_word_from_handle(data->obj)) {
+      if (const struct __vpiArrayWord*word = array_var_word_from_handle(target)) {
 	    __vpiArrayBase*base = word->get_parent();
 	    parent = dynamic_cast<__vpiArray*>(base);
 	    if (!parent) {
@@ -1803,11 +1813,11 @@ value_callback*vpip_array_word_change(p_cb_data data)
 	    unsigned addr = word->get_index();
 	    cbh = new array_word_value_callback(data, addr);
 
-      } else if (struct __vpiArrayVthrA*tword = dynamic_cast<__vpiArrayVthrA*>(data->obj)) {
+	  } else if (struct __vpiArrayVthrA*tword = dynamic_cast<__vpiArrayVthrA*>(target)) {
 	    parent = tword->array;
 	    cbh = new array_word_value_callback(data, tword->address);
 
-      } else if (struct __vpiArrayVthrAPV*apvword = dynamic_cast<__vpiArrayVthrAPV*>(data->obj)) {
+	  } else if (struct __vpiArrayVthrAPV*apvword = dynamic_cast<__vpiArrayVthrAPV*>(target)) {
 	    parent = apvword->array;
 	    cbh = new array_word_part_callback(data, apvword->word_sel);
       }
@@ -1820,15 +1830,32 @@ value_callback*vpip_array_word_change(p_cb_data data)
       return cbh;
 }
 
-value_callback* vpip_array_change(p_cb_data data)
+value_callback*vpip_array_word_change(p_cb_data data)
+{
+      return vpip_array_word_change_target(data, data->obj);
+}
+
+value_callback*vpip_array_change_target(p_cb_data data, vpiHandle target)
 {
       array_word_value_callback*cbh = new array_word_value_callback(data, -1);
-      assert(data->obj);
+      assert(target);
 
-      struct __vpiArray*arr = dynamic_cast<__vpiArray*>(data->obj);
+	struct __vpiArray*arr = dynamic_cast<__vpiArray*>(target);
+	if (!arr) {
+	      fprintf(stderr, "vpi error: canonical array callback target has "
+		      "type code %d, expected vpiMemory.\n",
+		      target->get_type_code());
+	      delete cbh;
+	      return 0;
+	}
       cbh->next = arr->vpi_callbacks;
       arr->vpi_callbacks = cbh;
       return cbh;
+}
+
+value_callback* vpip_array_change(p_cb_data data)
+{
+      return vpip_array_change_target(data, data->obj);
 }
 
 void compile_array_port(char*label, char*array, char*addr)

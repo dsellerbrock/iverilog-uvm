@@ -1,0 +1,3 @@
+./ivltests/sv_assoc_task_output_lvalue_fail.v:9: Assignment l-value too complex.
+./ivltests/sv_assoc_task_output_lvalue_fail.v:9: error: I give up on task port 1 expression: '{'sd9}
+1 error(s) during elaboration.

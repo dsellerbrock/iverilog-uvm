@@ -1,0 +1,5 @@
+./ivltests/sv_array_unique_fixed_wide_fail.v:11: sorry: unique() on a fixed array with integral element width 256 is not yet implemented; fixed-array materialization supports widths up to 255 bits.
+./ivltests/sv_array_unique_fixed_wide_fail.v:12: sorry: unique_index() on a fixed array with integral element width 256 is not yet implemented; fixed-array materialization supports widths up to 255 bits.
+./ivltests/sv_array_unique_fixed_wide_fail.v:13: sorry: unique() on a fixed array with integral element width 300 is not yet implemented; fixed-array materialization supports widths up to 255 bits.
+./ivltests/sv_array_unique_fixed_wide_fail.v:14: sorry: unique_index() on a fixed array with integral element width 300 is not yet implemented; fixed-array materialization supports widths up to 255 bits.
+4 error(s) during elaboration.

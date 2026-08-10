@@ -1,0 +1,2 @@
+./ivltests/sv_class_static_nested_property_missing_fail.v:14: error: Class payload has no property missing.
+1 error(s) during elaboration.

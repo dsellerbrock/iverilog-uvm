@@ -1,0 +1,3 @@
+ivltests/sv_class_static_const_reassign_fail.v:6: error: Assignment to const class property `marker' is not allowed.
+ivltests/sv_class_static_const_reassign_fail.v:6: error: Unable to elaborate statement in function overwrite.
+2 error(s) during elaboration.

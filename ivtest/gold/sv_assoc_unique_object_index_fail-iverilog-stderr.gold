@@ -1,0 +1,2 @@
+ivltests/sv_assoc_unique_object_index_fail.v:8: sorry: unique() supports associative index types that are integral, enum, string, or class handles; this object-backed index type requires value-key equality.
+Elaboration failed

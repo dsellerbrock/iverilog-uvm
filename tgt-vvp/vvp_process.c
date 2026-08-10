@@ -2100,11 +2100,248 @@ static int show_stmt_wait_arr(ivl_statement_t net, ivl_scope_t sscope)
       return show_statement(ivl_stmt_sub_stmt(net), sscope);
 }
 
+/*
+ * A final-deferred user-task action is emitted out of line between two
+ * internal marker statements. Keep enough state while drawing that small
+ * source block to prove that exactly one resolved task call is enclosed and
+ * that no generated statement escapes the bounded passive thunk.
+ */
+struct deferred_final_task_frame_s {
+      int active;
+      int phase; /* 0: before call, 1: after call, 2: rejected */
+      int saw_alloc;
+      int saw_free;
+      long source_id;
+      unsigned action_lab;
+      unsigned after_lab;
+      ivl_scope_t action_scope;
+      ivl_scope_t task_scope;
+      ivl_scope_t alloc_scope;
+};
+
+static struct deferred_final_task_frame_s deferred_final_task_frame_;
+
+static int deferred_final_task_is_method_(ivl_scope_t task)
+{
+      ivl_scope_t cur;
+      for (cur = ivl_scope_parent(task); cur; cur = ivl_scope_parent(cur)) {
+            ivl_scope_type_t type = ivl_scope_type(cur);
+            if (type == IVL_SCT_CLASS)
+                  return 1;
+            if (type == IVL_SCT_MODULE || type == IVL_SCT_PACKAGE)
+                  return 0;
+      }
+      return 0;
+}
+
+/* A display/error operand may read state, but it must not hide a function
+ * call, allocation, or other side effect. This conservative expression walk
+ * is deliberately narrower than ordinary VPI argument lowering. */
+static int deferred_final_task_passive_expr_(ivl_expr_t expr)
+{
+      unsigned idx;
+      if (!expr)
+            return 1;
+
+      switch (ivl_expr_type(expr)) {
+          case IVL_EX_ARRAY:
+          case IVL_EX_BACCESS:
+          case IVL_EX_ENUMTYPE:
+          case IVL_EX_EVENT:
+          case IVL_EX_NULL:
+          case IVL_EX_NUMBER:
+          case IVL_EX_REALNUM:
+          case IVL_EX_SCOPE:
+          case IVL_EX_STRING:
+          case IVL_EX_ULONG:
+            return 1;
+
+          case IVL_EX_SIGNAL:
+          case IVL_EX_MEMORY:
+            return deferred_final_task_passive_expr_(ivl_expr_oper1(expr));
+
+          case IVL_EX_PROPERTY:
+          case IVL_EX_SELECT:
+          case IVL_EX_BINARY:
+            return deferred_final_task_passive_expr_(ivl_expr_oper1(expr))
+                && deferred_final_task_passive_expr_(ivl_expr_oper2(expr));
+
+          case IVL_EX_UNARY:
+            return deferred_final_task_passive_expr_(ivl_expr_oper1(expr));
+
+          case IVL_EX_TERNARY:
+            return deferred_final_task_passive_expr_(ivl_expr_oper1(expr))
+                && deferred_final_task_passive_expr_(ivl_expr_oper2(expr))
+                && deferred_final_task_passive_expr_(ivl_expr_oper3(expr));
+
+          case IVL_EX_ARRAY_PATTERN:
+          case IVL_EX_CONCAT:
+            for (idx = 0; idx < ivl_expr_parms(expr); idx += 1)
+                  if (!deferred_final_task_passive_expr_(
+                            ivl_expr_parm(expr, idx)))
+                        return 0;
+            return 1;
+
+          case IVL_EX_DELAY:
+          case IVL_EX_NEW:
+          case IVL_EX_SFUNC:
+          case IVL_EX_SHALLOWCOPY:
+          case IVL_EX_UFUNC:
+          case IVL_EX_NONE:
+            return 0;
+      }
+      return 0;
+}
+
+static int deferred_final_task_passive_body_(ivl_statement_t stmt,
+                                              const char**reason)
+{
+      unsigned idx;
+      const char*name;
+      if (!stmt)
+            return 1;
+
+      switch (ivl_statement_type(stmt)) {
+          case IVL_ST_NOOP:
+            return 1;
+
+          case IVL_ST_BLOCK:
+            /* A named begin is itself lowered through fork/join. Keep the
+             * first slice linear and accept only an unnamed sequential list. */
+            if (ivl_stmt_block_scope(stmt)) {
+                  *reason = "a named block";
+                  return 0;
+            }
+            for (idx = 0; idx < ivl_stmt_block_count(stmt); idx += 1)
+                  if (!deferred_final_task_passive_body_(
+                            ivl_stmt_block_stmt(stmt, idx), reason))
+                        return 0;
+            return 1;
+
+          case IVL_ST_STASK:
+            name = ivl_stmt_name(stmt);
+            if (strcmp(name, "$display") != 0
+                && strcmp(name, "$error") != 0) {
+                  *reason = "a system task other than $display/$error";
+                  return 0;
+            }
+            for (idx = 0; idx < ivl_stmt_parm_count(stmt); idx += 1)
+                  if (!deferred_final_task_passive_expr_(
+                            ivl_stmt_parm(stmt, idx))) {
+                        *reason = "a side-effecting display/error argument";
+                        return 0;
+                  }
+            return 1;
+
+          case IVL_ST_UTASK:
+            *reason = "a nested user-subroutine call";
+            return 0;
+
+          case IVL_ST_DELAY:
+          case IVL_ST_DELAYX:
+          case IVL_ST_WAIT:
+          case IVL_ST_DO_WHILE:
+          case IVL_ST_FOREVER:
+          case IVL_ST_FORLOOP:
+          case IVL_ST_REPEAT:
+          case IVL_ST_WHILE:
+            *reason = "timing or iterative control";
+            return 0;
+
+          case IVL_ST_FORK:
+          case IVL_ST_FORK_JOIN_ANY:
+          case IVL_ST_FORK_JOIN_NONE:
+            *reason = "parallel control";
+            return 0;
+
+          case IVL_ST_ASSIGN:
+          case IVL_ST_ASSIGN_NB:
+          case IVL_ST_CASSIGN:
+          case IVL_ST_DEASSIGN:
+          case IVL_ST_FORCE:
+          case IVL_ST_RELEASE:
+          case IVL_ST_TRIGGER:
+          case IVL_ST_NB_TRIGGER:
+          case IVL_ST_TRIGGER_OBJ:
+          case IVL_ST_NB_TRIGGER_OBJ:
+          case IVL_ST_TRIGGER_ARR:
+          case IVL_ST_NB_TRIGGER_ARR:
+            *reason = "a state-mutating statement";
+            return 0;
+
+          default:
+            *reason = "a statement outside the passive whitelist";
+            return 0;
+      }
+}
+
+static int deferred_final_task_validate_(ivl_statement_t net,
+                                         ivl_scope_t task)
+{
+      const char*reason = 0;
+      if (!task || ivl_scope_type(task) != IVL_SCT_TASK) {
+            reason = "the resolved subroutine is not a task";
+      } else if (deferred_final_task_is_method_(task)
+                 || ivl_scope_is_virtual_method(task)) {
+            reason = "class/interface method calls are outside this slice";
+      } else if (ivl_scope_ports(task) != 0) {
+            reason = "the resolved task has formal arguments";
+      } else if (ivl_scope_is_dpi_import(task)) {
+            reason = "DPI task calls are outside this slice";
+      } else if (!ivl_scope_def(task)) {
+            reason = "the resolved task has no SystemVerilog body";
+      } else if (!deferred_final_task_passive_body_(ivl_scope_def(task),
+                                                    &reason)) {
+            /* The recursive validator supplied the first rejected shape. */
+      } else {
+            return 1;
+      }
+
+      fprintf(stderr,
+              "%s:%u: sorry: final-deferred user-task action is not "
+              "supported yet because %s; only a zero-argument direct task "
+              "with an unnamed sequential/noop body containing passive "
+              "$display/$error calls is supported.\n",
+              ivl_stmt_file(net), ivl_stmt_lineno(net),
+              reason ? reason : "its resolved shape is unsupported");
+      vvp_errors += 1;
+      return 0;
+}
+
 static int show_stmt_utask(ivl_statement_t net)
 {
       ivl_scope_t task = ivl_stmt_call(net);
 
-      show_stmt_file_line(net, "User task call.");
+      if (deferred_final_task_frame_.active) {
+            if (deferred_final_task_frame_.phase != 0) {
+                  fprintf(stderr,
+                          "%s:%u: error: malformed internal final-deferred "
+                          "user-task thunk contains more than one call.\n",
+                          ivl_stmt_file(net), ivl_stmt_lineno(net));
+                  vvp_errors += 1;
+                  deferred_final_task_frame_.phase = 2;
+                  return 1;
+            }
+            if (!deferred_final_task_validate_(net, task)) {
+                  deferred_final_task_frame_.phase = 2;
+                  return 1;
+            }
+            if (deferred_final_task_frame_.saw_alloc
+                && deferred_final_task_frame_.alloc_scope != task) {
+                  fprintf(stderr,
+                          "%s:%u: error: malformed internal final-deferred "
+                          "user-task thunk allocates a different scope from "
+                          "the resolved task.\n",
+                          ivl_stmt_file(net), ivl_stmt_lineno(net));
+                  vvp_errors += 1;
+                  deferred_final_task_frame_.phase = 2;
+                  return 1;
+            }
+            deferred_final_task_frame_.phase = 1;
+            deferred_final_task_frame_.task_scope = task;
+      } else {
+            show_stmt_file_line(net, "User task call.");
+      }
 
       /* Use virtual dispatch (/v suffix) only for virtual methods or
          when calling through an object whose static type may differ from
@@ -2665,6 +2902,19 @@ static int show_delete_method(ivl_statement_t net)
             fprintf(vvp_out, "    %%load/obj v%p_0;\n", var);
             key_kind = draw_eval_assoc_key_(ivl_stmt_parm(net, 1), 0);
             fprintf(vvp_out, "    %%aa/delete/%s;\n", key_kind);
+            fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            return 0;
+      }
+
+	/* An associative-array default is container state, not an entry.
+	   delete() removes all explicit entries but must retain that fallback;
+	   do not route through %delete/obj, which replaces the whole runtime
+	   container with nil. This mirrors the class-property path above. */
+      if ((parm_count == 1) && var_type
+          && ivl_type_base(var_type) == IVL_VT_QUEUE
+          && ivl_type_queue_assoc_compat(var_type)) {
+            fprintf(vvp_out, "    %%load/obj v%p_0;\n", var);
+            fprintf(vvp_out, "    %%aa/delete/all;\n");
             fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
             return 0;
       }
@@ -3618,41 +3868,185 @@ static int show_iface_late_call(ivl_statement_t net)
       return 0;
 }
 
+static long deferred_final_task_marker_id_(ivl_statement_t net)
+{
+      ivl_expr_t expr;
+      if (ivl_stmt_parm_count(net) != 1)
+            return -1;
+      expr = ivl_stmt_parm(net, 0);
+      if (!expr || ivl_expr_type(expr) != IVL_EX_NUMBER
+          || !number_is_immediate(expr, 32, 0)
+          || number_is_unknown(expr))
+            return -1;
+      return get_number_immediate(expr);
+}
+
+static int show_deferred_final_task_marker_(ivl_statement_t net,
+                                             ivl_scope_t sscope)
+{
+      const char*name = ivl_stmt_name(net);
+      const int is_begin = strcmp(name,
+            "$ivl_deferred_final_task_begin") == 0;
+      long source_id = deferred_final_task_marker_id_(net);
+
+      if (source_id <= 0 || !sscope) {
+            fprintf(stderr,
+                    "%s:%u: error: malformed internal %s marker; expected "
+                    "one positive source id and a lexical scope.\n",
+                    ivl_stmt_file(net), ivl_stmt_lineno(net), name);
+            vvp_errors += 1;
+            return 1;
+      }
+
+      if (is_begin) {
+            if (deferred_final_task_frame_.active) {
+                  fprintf(stderr,
+                          "%s:%u: error: malformed nested internal "
+                          "final-deferred user-task thunk.\n",
+                          ivl_stmt_file(net), ivl_stmt_lineno(net));
+                  vvp_errors += 1;
+                  deferred_final_task_frame_.phase = 2;
+                  return 1;
+            }
+
+            memset(&deferred_final_task_frame_, 0,
+                   sizeof deferred_final_task_frame_);
+            deferred_final_task_frame_.active = 1;
+            deferred_final_task_frame_.source_id = source_id;
+            deferred_final_task_frame_.action_scope = sscope;
+            deferred_final_task_frame_.action_lab = local_count++;
+            deferred_final_task_frame_.after_lab = local_count++;
+
+            show_stmt_file_line(net,
+                                "Final deferred user-task assertion pin.");
+            fprintf(vvp_out, "    %%defer/final T_%u.%u, S_%p;\n",
+                    thread_count, deferred_final_task_frame_.action_lab,
+                    sscope);
+            fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count,
+                    deferred_final_task_frame_.after_lab);
+            fprintf(vvp_out, "T_%u.%u ;\n", thread_count,
+                    deferred_final_task_frame_.action_lab);
+            fprintf(vvp_out, "    %%defer/final/taskkey %ld;\n",
+                    source_id);
+            return 0;
+      }
+
+      if (!deferred_final_task_frame_.active) {
+            fprintf(stderr,
+                    "%s:%u: error: internal final-deferred user-task end "
+                    "marker has no matching begin marker.\n",
+                    ivl_stmt_file(net), ivl_stmt_lineno(net));
+            vvp_errors += 1;
+            return 1;
+      }
+
+      int rc = 0;
+      if (deferred_final_task_frame_.source_id != source_id) {
+            fprintf(stderr,
+                    "%s:%u: error: internal final-deferred user-task marker "
+                    "source ids do not match.\n",
+                    ivl_stmt_file(net), ivl_stmt_lineno(net));
+            vvp_errors += 1;
+            rc = 1;
+      } else if (deferred_final_task_frame_.phase == 0) {
+            fprintf(stderr,
+                    "%s:%u: error: internal final-deferred user-task thunk "
+                    "contains no resolved task call.\n",
+                    ivl_stmt_file(net), ivl_stmt_lineno(net));
+            vvp_errors += 1;
+            rc = 1;
+      } else if (deferred_final_task_frame_.phase == 1
+                 && deferred_final_task_frame_.saw_alloc
+                 != deferred_final_task_frame_.saw_free) {
+            fprintf(stderr,
+                    "%s:%u: error: internal final-deferred automatic-task "
+                    "thunk has an unbalanced alloc/free pair.\n",
+                    ivl_stmt_file(net), ivl_stmt_lineno(net));
+            vvp_errors += 1;
+            rc = 1;
+      }
+
+      fprintf(vvp_out, "    %%end;\n");
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count,
+              deferred_final_task_frame_.after_lab);
+      memset(&deferred_final_task_frame_, 0,
+             sizeof deferred_final_task_frame_);
+      return rc;
+}
+
 static int show_deferred_assert_enqueue_(ivl_statement_t net,
                                          ivl_scope_t sscope)
 {
+      const char*marker_name = ivl_stmt_name(net);
+      int final_marker = strcmp(marker_name,
+                                "$ivl_deferred_final_enqueue") == 0;
       unsigned parm_count = ivl_stmt_parm_count(net);
-      ivl_expr_t kind_expr = parm_count > 0 ? ivl_stmt_parm(net, 0) : 0;
+      ivl_expr_t mode_expr = parm_count > 0 ? ivl_stmt_parm(net, 0) : 0;
+      ivl_expr_t source_expr = parm_count > 1 ? ivl_stmt_parm(net, 1) : 0;
+      ivl_expr_t kind_expr = parm_count > 2 ? ivl_stmt_parm(net, 2) : 0;
+      long mode = -1;
+      long source_id = -1;
       long kind = -1;
       ivl_expr_t literal = 0;
 
+      if (mode_expr && ivl_expr_type(mode_expr) == IVL_EX_NUMBER
+          && number_is_immediate(mode_expr, 32, 0)
+          && !number_is_unknown(mode_expr))
+            mode = get_number_immediate(mode_expr);
+
+      if (source_expr && ivl_expr_type(source_expr) == IVL_EX_NUMBER
+          && number_is_immediate(source_expr, 32, 0)
+          && !number_is_unknown(source_expr))
+            source_id = get_number_immediate(source_expr);
+
       if (kind_expr && ivl_expr_type(kind_expr) == IVL_EX_NUMBER
-          && number_is_immediate(kind_expr, IMM_WID, 0)
+          && number_is_immediate(kind_expr, 32, 0)
           && !number_is_unknown(kind_expr))
             kind = get_number_immediate(kind_expr);
 
-      if (kind == 1) {
-            if (parm_count != 1)
+      if ((final_marker && mode != 1) || (!final_marker && mode != 0))
+            kind = -1;
+
+      if (kind == 0) {
+            if (!final_marker || parm_count != 3)
+                  kind = -1;
+      } else if (kind == 1) {
+            if ((!final_marker && parm_count != 3)
+                || (final_marker && parm_count < 3))
                   kind = -1;
       } else if (kind == 2) {
-            if (parm_count == 2
-                && ivl_expr_type(ivl_stmt_parm(net, 1)) == IVL_EX_STRING)
-                  literal = ivl_stmt_parm(net, 1);
-            else
+            if (!final_marker && parm_count == 4
+                && ivl_expr_type(ivl_stmt_parm(net, 3)) == IVL_EX_STRING)
+                  literal = ivl_stmt_parm(net, 3);
+            else if (!final_marker)
                   kind = -1;
       } else {
             kind = -1;
       }
 
-      if (kind < 0 || !sscope) {
+      if ((mode != 0 && mode != 1) || source_id <= 0
+          || kind < 0 || !sscope) {
             fprintf(stderr,
                     "%s:%u: error: malformed internal "
-                    "$ivl_deferred_enqueue marker; expected "
-                    "kind 1 ($error) or kind 2 plus one constant string "
-                    "($display).\n",
-                    ivl_stmt_file(net), ivl_stmt_lineno(net));
+                    "%s marker; expected a marker-consistent "
+                    "mode, positive source id, and action kind 0 (final "
+                    "null), 1 ($error), or 2 ($display); #0 display "
+                    "requires one constant string.\n",
+                    ivl_stmt_file(net), ivl_stmt_lineno(net), marker_name);
             vvp_errors += 1;
             return 1;
+      }
+
+      /* Final action arguments must be evaluated by the source process and
+       * captured before the pending report is pinned. The shared VPI lowering
+       * emits a typed-stack action thunk and validates the complete argument
+       * list before evaluating any expression. */
+      if (final_marker && kind != 0) {
+            show_stmt_file_line(net,
+                                "Final deferred immediate assertion pin.");
+            return draw_vpi_deferred_call(net, 3,
+                                          kind == 1 ? "$error" : "$display",
+                                          source_id, sscope);
       }
 
       unsigned action_lab = local_count++;
@@ -3660,16 +4054,24 @@ static int show_deferred_assert_enqueue_(ivl_statement_t net,
       unsigned file_idx = ivl_file_table_index(ivl_stmt_file(net));
       unsigned lineno = ivl_stmt_lineno(net);
 
-      show_stmt_file_line(net, "Deferred immediate assertion enqueue.");
-      fprintf(vvp_out, "    %%defer/enqueue T_%u.%u, S_%p;\n",
-              thread_count, action_lab, sscope);
+      if (mode == 0) {
+            show_stmt_file_line(net, "Deferred immediate assertion enqueue.");
+            fprintf(vvp_out, "    %%defer/enqueue T_%u.%u, S_%p;\n",
+                    thread_count, action_lab, sscope);
+      } else {
+            show_stmt_file_line(net, "Final deferred immediate assertion pin.");
+            fprintf(vvp_out, "    %%defer/final T_%u.%u, S_%p;\n",
+                    thread_count, action_lab, sscope);
+      }
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, after_lab);
 
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, action_lab);
+      if (mode == 1)
+            fprintf(vvp_out, "    %%defer/final/key %ld;\n", source_id);
       if (kind == 1) {
             fprintf(vvp_out, "    %%vpi_call %u %u \"$error\" "
                     "{0 0 0 0};\n", file_idx, lineno);
-      } else {
+      } else if (kind == 2) {
             fprintf(vvp_out,
                     "    %%vpi_call %u %u \"$display\", \"%s\" "
                     "{0 0 0 0};\n",
@@ -3685,8 +4087,24 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 {
       const char*stmt_name = ivl_stmt_name(net);
 
-      if (strcmp(stmt_name, "$ivl_deferred_enqueue") == 0)
+	/* A queue-valued function used as a statement still evaluates the
+	 * expression, but discards its result. In particular, unique() is a
+	 * 7.12.1 locator and must not mutate its receiver. */
+      if (strcmp(stmt_name, "$ivl_discard_object_expr") == 0) {
+	    if (ivl_stmt_parm_count(net) != 1)
+		  return 0;
+	    draw_eval_object(ivl_stmt_parm(net, 0));
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    return 0;
+      }
+
+      if (strcmp(stmt_name, "$ivl_deferred_enqueue") == 0
+          || strcmp(stmt_name, "$ivl_deferred_final_enqueue") == 0)
             return show_deferred_assert_enqueue_(net, sscope);
+
+      if (strcmp(stmt_name, "$ivl_deferred_final_task_begin") == 0
+          || strcmp(stmt_name, "$ivl_deferred_final_task_end") == 0)
+            return show_deferred_final_task_marker_(net, sscope);
 
       if (strncmp(stmt_name, "$ivl_std_randomize_with|", 24) == 0) {
 	      /* Task-form sibling of the expression lowering in
@@ -5065,6 +5483,53 @@ int show_statement(ivl_statement_t net, ivl_scope_t sscope)
 {
       const ivl_statement_type_t code = ivl_statement_type(net);
       int rc = 0;
+
+      /* Nothing except the resolved call's zero-formal static/automatic
+       * plumbing may appear between the internal task markers. Diagnose the
+       * first escape and suppress the remainder of that already-failed thunk
+       * until its end marker restores the ordinary drawing state. */
+      if (deferred_final_task_frame_.active) {
+            int is_end = code == IVL_ST_STASK
+                  && strcmp(ivl_stmt_name(net),
+                            "$ivl_deferred_final_task_end") == 0;
+
+            if (deferred_final_task_frame_.phase == 2 && !is_end)
+                  return 0;
+
+            if (is_end) {
+                  /* The ordinary STASK switch below consumes the marker. */
+            } else if (code == IVL_ST_BLOCK
+                       && !ivl_stmt_block_scope(net)) {
+                  /* Automatic-task call setup is an unnamed sequence. */
+            } else if (code == IVL_ST_NOOP) {
+                  /* Recovery/noop nodes are inert. */
+            } else if (code == IVL_ST_ALLOC
+                       && deferred_final_task_frame_.phase == 0
+                       && !deferred_final_task_frame_.saw_alloc) {
+                  deferred_final_task_frame_.saw_alloc = 1;
+                  deferred_final_task_frame_.alloc_scope = ivl_stmt_call(net);
+            } else if (code == IVL_ST_UTASK
+                       && deferred_final_task_frame_.phase == 0) {
+                  /* show_stmt_utask validates the resolved task and body. */
+            } else if (code == IVL_ST_FREE
+                       && deferred_final_task_frame_.phase == 1
+                       && deferred_final_task_frame_.saw_alloc
+                       && !deferred_final_task_frame_.saw_free
+                       && ivl_stmt_call(net)
+                            == deferred_final_task_frame_.task_scope) {
+                  deferred_final_task_frame_.saw_free = 1;
+            } else {
+                  fprintf(stderr,
+                          "%s:%u: sorry: final-deferred user-task action "
+                          "generated unsupported call plumbing; task actuals, "
+                          "methods, nested/timed calls, and mutating forms "
+                          "remain unsupported.\n",
+                          ivl_stmt_file(net), ivl_stmt_lineno(net));
+                  vvp_errors += 1;
+                  deferred_final_task_frame_.phase = 2;
+                  return 1;
+            }
+      }
 
       switch (code) {
 

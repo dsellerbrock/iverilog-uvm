@@ -304,6 +304,13 @@ struct rs_production_t;
    owned by the supplied IR object. */
 extern void pform_sva_destroy_sequence(std::vector<sva_seq_step_t>*seq);
 extern void pform_sva_destroy_property(sva_property_t*prop);
+/* Apply the optional clock/disable prefix of a property_spec without
+   discarding a clock already carried by an embedded named sequence. */
+extern sva_property_t* pform_sva_apply_property_context(
+				       const struct vlltype&loc,
+				       sva_property_t*prop,
+				       PEventStatement*clk,
+				       PExpr*disable_iff);
 extern void pform_sva_destroy_mc_segments(std::vector<sva_mc_seg_t>*segs);
 extern void pform_make_assertion(const struct vlltype&loc,
 				 sva_property_t*prop,
@@ -331,6 +338,13 @@ extern void pform_sva_declare_property(const struct vlltype&loc,
 extern void pform_sva_declare_sequence(const struct vlltype&loc,
 				       const char*name,
 				       std::vector<sva_seq_step_t>*steps);
+/* A complete sequence-declaration body can carry its own clock, clock-flow
+   boundary, or regular-language combinator.  Preserve that property-shaped
+   IR while still routing a plain unclocked chain through the longstanding
+   named-sequence splice table. */
+extern void pform_sva_declare_sequence_spec(const struct vlltype&loc,
+					    const char*name,
+					    sva_property_t*body);
 /* M9D: parameterized named property/sequence declarations. `formals` is
    the ordered list of formal-argument names (may be null/empty). */
 extern void pform_sva_declare_property_p(const struct vlltype&loc,
@@ -423,6 +437,11 @@ pform_sva_tree_comb(const struct vlltype&loc, char op,
 extern sva_property_t*
 pform_sva_tree_intersect(const struct vlltype&loc,
 			 sva_property_t*a, sva_property_t*b);
+/* Continue an arbitrary sequence-combinator tree through a fixed cycle
+   delay and a linear suffix, e.g. `(a and b) ##0 c'. */
+extern sva_property_t*
+pform_sva_tree_concat(const struct vlltype&loc, sva_property_t*prefix,
+		      PExpr*delay, std::vector<sva_seq_step_t>*suffix);
 
 /* M9-NFA stage B.4: `within`. Both-fixed operands keep the legacy op-8
    lowering; a non-fixed operand builds a SEQ_WITHIN tree for the
@@ -683,6 +702,19 @@ extern void pform_set_var_lifetime(ivl_lifetime_t lifetime);
 extern void pform_make_var_init(const struct vlltype&li,
 				const pform_ident_t&name,
 				PExpr*expr);
+
+extern void pform_make_struct_member_defaults(
+				const struct vlltype&li,
+				const data_type_t*data_type,
+				decl_assignment_t*variable,
+				std::vector<Statement*>&initializers);
+extern bool pform_has_implicit_struct_member_defaults(
+				const data_type_t*data_type,
+				const decl_assignment_t*variable);
+extern bool pform_validate_struct_member_defaults(
+				const struct vlltype&li,
+				const data_type_t*data_type,
+				const decl_assignment_t*variable);
 
 /* This function is used when we have an incomplete port definition in
    a non-ansi style declaration. Look up the names of the wires, and set

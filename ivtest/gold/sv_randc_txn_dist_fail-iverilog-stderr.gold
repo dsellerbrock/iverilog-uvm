@@ -1,0 +1,2 @@
+ivltests/sv_randc_txn_dist_fail.v:4: error: 'randc' variables cannot be used in 'dist' constraints.
+1 error(s) during elaboration.

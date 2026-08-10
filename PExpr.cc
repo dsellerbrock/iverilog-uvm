@@ -304,7 +304,8 @@ PECallFunction::PECallFunction(PExpr*receiver, perm_string method_name,
 
 PECallFunction::~PECallFunction()
 {
-      delete_parmvalue(leading_type_args_);
+      if (owns_leading_type_args_)
+            delete_parmvalue(leading_type_args_);
       delete receiver_;
 }
 
@@ -417,7 +418,12 @@ PENull::~PENull()
 }
 
 PEAssocType::PEAssocType(data_type_t*index_type)
-: index_type_(index_type)
+: index_type_(index_type), wildcard_index_(false)
+{
+}
+
+PEAssocType::PEAssocType(data_type_t*index_type, bool wildcard_index)
+: index_type_(index_type), wildcard_index_(wildcard_index)
 {
 }
 
@@ -458,6 +464,30 @@ PEIdent::PEIdent(PPackage*pkg, const pform_name_t&that, unsigned lexical_pos)
 
 PEIdent::~PEIdent()
 {
+      if (owns_leading_type_args_)
+            delete_parmvalue(leading_type_args_);
+}
+
+void PEIdent::append_name(perm_string name)
+{
+      path_.name.push_back(name_component_t(name));
+}
+
+void PEIdent::append_index(const index_component_t&index)
+{
+      assert(!path_.name.empty());
+      path_.name.back().index.push_back(index);
+}
+
+PEIdent* PEIdent::clone_for_reference() const
+{
+      PEIdent*res = path_.package
+          ? new PEIdent(path_.package, path_.name, lexical_pos_)
+          : new PEIdent(path_.name, lexical_pos_);
+      res->leading_type_args_ = leading_type_args_;
+      res->owns_leading_type_args_ = false;
+      res->scoped_type_prefix_ = scoped_type_prefix_;
+      return res;
 }
 
 PEMemberAccess::PEMemberAccess(PExpr*base, perm_string member_name)
@@ -909,8 +939,9 @@ NetExpr* PEConstraintOrder::elaborate_expr(Design*des, NetScope*, unsigned,
       return 0;
 }
 
-PEInside::PEInside(PExpr* expr, std::list<inside_range_t>* ranges)
-: expr_(expr)
+PEInside::PEInside(PExpr* expr, std::list<inside_range_t>* ranges,
+		   bool is_dist)
+: expr_(expr), is_dist_(is_dist)
 {
       if (ranges) {
 	    ranges_.assign(ranges->begin(), ranges->end());
@@ -928,19 +959,11 @@ PEInside::~PEInside()
       }
 }
 
-bool PEInside::is_dist() const
-{
-      for (size_t i = 0 ; i < ranges_.size() ; i++) {
-	    if (ranges_[i].weight) return true;
-      }
-      return false;
-}
-
 void PEInside::dump(std::ostream& out) const
 {
       out << "(";
       expr_->dump(out);
-      out << " inside {";
+      out << (is_dist_ ? " dist {" : " inside {");
       for (size_t i = 0 ; i < ranges_.size() ; i++) {
 	    if (i > 0) out << ", ";
 	    if (ranges_[i].is_range) {

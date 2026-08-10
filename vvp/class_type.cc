@@ -23,9 +23,12 @@
 # include  "vvp_assoc.h"
 # include  "vvp_cobject.h"
 # include  "vvp_darray.h"
+# include  "vvp_net.h"
+# include  "vvp_net_sig.h"
 # include  "config.h"
 # include  <cinttypes>
 # include  <cctype>
+# include  <cstdlib>
 # include  <cstring>
 # include  <limits>
 # include  <map>
@@ -56,6 +59,313 @@ static bool class_trace_enabled_(const std::string&class_name)
             return true;
 
       return class_name.find(env) != string::npos;
+}
+
+namespace {
+
+static vvp_net_t* static_property_net_(vpiHandle storage)
+{
+      if (__vpiSignal*sig = dynamic_cast<__vpiSignal*>(storage))
+	    return sig->node;
+      if (__vpiRealVar*real = dynamic_cast<__vpiRealVar*>(storage))
+	    return real->net;
+      if (__vpiBaseVar*var = dynamic_cast<__vpiBaseVar*>(storage))
+	    return var->get_net();
+      return 0;
+}
+
+static vvp_signal_value* static_property_signal_value_(vvp_net_t*net)
+{
+      if (!net)
+	    return 0;
+      vvp_signal_value*value = dynamic_cast<vvp_signal_value*>(net->fil);
+      if (!value)
+	    value = dynamic_cast<vvp_signal_value*>(net->fun);
+      return value;
+}
+
+static vvp_fun_signal_real* static_property_real_fun_(vvp_net_t*net)
+{
+      if (!net)
+	    return 0;
+      vvp_fun_signal_real*fun = dynamic_cast<vvp_fun_signal_real*>(net->fun);
+      if (!fun)
+	    fun = dynamic_cast<vvp_fun_signal_real*>(net->fil);
+      return fun;
+}
+
+static vvp_fun_signal_string* static_property_string_fun_(vvp_net_t*net)
+{
+      if (!net)
+	    return 0;
+      vvp_fun_signal_string*fun = dynamic_cast<vvp_fun_signal_string*>(net->fun);
+      if (!fun)
+	    fun = dynamic_cast<vvp_fun_signal_string*>(net->fil);
+      return fun;
+}
+
+static vvp_fun_signal_object* static_property_object_fun_(vvp_net_t*net)
+{
+      if (!net)
+	    return 0;
+      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(net->fun);
+      if (!fun)
+	    fun = dynamic_cast<vvp_fun_signal_object*>(net->fil);
+      return fun;
+}
+
+static bool static_property_uses_object_api_(const string&type)
+{
+      if (type == "o" || type.compare(0, 3, "oc:") == 0)
+	    return true;
+      return !type.empty()
+	    && (type[0] == 'D' || type[0] == 'Q' || type[0] == 'M');
+}
+
+static const char*static_property_expected_kind_(const string&type,
+					  bool array)
+{
+      const char*leaf = type == "r" ? "real"
+	    : type == "S" ? "string"
+	    : static_property_uses_object_api_(type) ? "object/container"
+	    : "integral";
+      if (!array)
+	    return leaf;
+      if (strcmp(leaf, "real") == 0)
+	    return "fixed real array";
+      if (strcmp(leaf, "string") == 0)
+	    return "fixed string array";
+      if (strcmp(leaf, "object/container") == 0)
+	    return "fixed object/container array";
+      return "fixed integral array";
+}
+
+static bool static_property_integral_shape_(const string&type,
+					     unsigned&width, bool&is_signed)
+{
+      const char*text = type.c_str();
+      is_signed = text[0] == 's';
+      if (is_signed)
+	    text += 1;
+      if (text[0] != 'b' && text[0] != 'L')
+	    return false;
+      char*end = 0;
+      unsigned long parsed = strtoul(text+1, &end, 10);
+      if (!end || *end != '\0' || parsed == 0
+	  || parsed > numeric_limits<unsigned>::max())
+	    return false;
+      width = (unsigned)parsed;
+      return true;
+}
+
+static bool static_property_array_kind_matches_(const __vpiArray*array,
+						 const string&type)
+{
+      if (!array)
+	    return false;
+
+      if (type == "r") {
+	    if (dynamic_cast<vvp_darray_real*>(array->vals))
+		  return true;
+	    return array->nets && array->get_size()
+		&& dynamic_cast<__vpiRealVar*>(array->nets[0]);
+      }
+      if (type == "S")
+	    return dynamic_cast<vvp_darray_string*>(array->vals) != 0;
+      if (static_property_uses_object_api_(type))
+	    return dynamic_cast<vvp_darray_object*>(array->vals) != 0;
+
+      if (array->vals4) {
+	    unsigned width = 0;
+	    bool is_signed = false;
+	    return !static_property_integral_shape_(type, width, is_signed)
+		|| ((unsigned)array->get_word_size() == width
+		    && array->signed_flag == is_signed);
+      }
+      if (array->vals)
+	    {
+		  bool integral = !dynamic_cast<vvp_darray_real*>(array->vals)
+		&& !dynamic_cast<vvp_darray_string*>(array->vals)
+		&& !dynamic_cast<vvp_darray_object*>(array->vals);
+		  unsigned width = 0;
+		  bool is_signed = false;
+		  return integral
+			&& (!static_property_integral_shape_(type, width,
+						       is_signed)
+			    || ((unsigned)array->get_word_size() == width
+				&& array->signed_flag == is_signed));
+	    }
+      return array->nets && array->get_size()
+	    && dynamic_cast<__vpiSignal*>(array->nets[0])
+	    && ([&]() {
+		  unsigned width = 0;
+		  bool is_signed = false;
+		  __vpiSignal*sig =
+			dynamic_cast<__vpiSignal*>(array->nets[0]);
+		  return !static_property_integral_shape_(type, width, is_signed)
+			|| (vpip_size(sig) == width
+			    && (sig->signed_flag != 0) == is_signed);
+	    })();
+}
+
+static bool static_property_scalar_kind_matches_(vpiHandle storage,
+						  const string&type)
+{
+      if (type == "r")
+	    return dynamic_cast<__vpiRealVar*>(storage) != 0;
+      if (type == "S")
+	    return dynamic_cast<__vpiStringVar*>(storage) != 0;
+      if (static_property_uses_object_api_(type))
+	    return static_property_object_fun_(static_property_net_(storage)) != 0;
+      __vpiSignal*signal = dynamic_cast<__vpiSignal*>(storage);
+      if (!signal)
+	    return false;
+      unsigned width = 0;
+      bool is_signed = false;
+      return !static_property_integral_shape_(type, width, is_signed)
+	    || (vpip_size(signal) == width
+		&& (signal->signed_flag != 0) == is_signed);
+}
+
+static void static_property_set_vec4_(vpiHandle storage, size_t idx,
+				      const vvp_vector4_t&val)
+{
+      if (__vpiArray*array = dynamic_cast<__vpiArray*>(storage)) {
+	    if (idx >= array->get_size())
+		  return;
+
+	    unsigned width = (unsigned)array->get_word_size();
+	    if (width && width != val.size()) {
+		  vvp_vector4_t resized(width, BIT4_0);
+		  unsigned count = width < val.size() ? width : val.size();
+		  for (unsigned bit = 0; bit < count; bit += 1)
+			resized.set_bit(bit, val.value(bit));
+		  array->set_word((unsigned)idx, 0, resized);
+	    } else {
+		  array->set_word((unsigned)idx, 0, val);
+	    }
+	    return;
+      }
+
+      vvp_net_t*net = static_property_net_(storage);
+      if (!net)
+	    return;
+
+      vvp_signal_value*signal = static_property_signal_value_(net);
+      unsigned width = signal ? signal->value_size() : val.size();
+      if (width != val.size()) {
+	    vvp_vector4_t resized(width, BIT4_0);
+	    unsigned count = width < val.size() ? width : val.size();
+	    for (unsigned bit = 0; bit < count; bit += 1)
+		  resized.set_bit(bit, val.value(bit));
+	    vvp_send_vec4(vvp_net_ptr_t(net, 0), resized, 0);
+      } else {
+	    vvp_send_vec4(vvp_net_ptr_t(net, 0), val, 0);
+      }
+}
+
+static void static_property_get_vec4_(vpiHandle storage, size_t idx,
+				      vvp_vector4_t&val)
+{
+      if (__vpiArray*array = dynamic_cast<__vpiArray*>(storage)) {
+	    val = idx < array->get_size()
+		? array->get_word((unsigned)idx) : vvp_vector4_t();
+	    return;
+      }
+
+      vvp_signal_value*signal =
+	    static_property_signal_value_(static_property_net_(storage));
+      if (signal)
+	    signal->vec4_value(val);
+      else
+	    val = vvp_vector4_t();
+}
+
+static void static_property_set_real_(vpiHandle storage, size_t idx, double val)
+{
+      if (__vpiArray*array = dynamic_cast<__vpiArray*>(storage)) {
+	    if (idx < array->get_size())
+		  array->set_word((unsigned)idx, val);
+	    return;
+      }
+
+      vvp_net_t*net = static_property_net_(storage);
+      if (net)
+	    vvp_send_real(vvp_net_ptr_t(net, 0), val, 0);
+}
+
+static double static_property_get_real_(vpiHandle storage, size_t idx)
+{
+      if (__vpiArray*array = dynamic_cast<__vpiArray*>(storage))
+	    return idx < array->get_size() ? array->get_word_r((unsigned)idx) : 0.0;
+
+      vvp_fun_signal_real*fun =
+	    static_property_real_fun_(static_property_net_(storage));
+      return fun ? fun->real_unfiltered_value() : 0.0;
+}
+
+static void static_property_set_string_(vpiHandle storage, size_t idx,
+					const string&val)
+{
+      if (__vpiArray*array = dynamic_cast<__vpiArray*>(storage)) {
+	    if (idx < array->get_size())
+		  array->set_word((unsigned)idx, val);
+	    return;
+      }
+
+      vvp_net_t*net = static_property_net_(storage);
+      if (net)
+	    vvp_send_string(vvp_net_ptr_t(net, 0), val, 0);
+}
+
+static string static_property_get_string_(vpiHandle storage, size_t idx)
+{
+      if (__vpiArray*array = dynamic_cast<__vpiArray*>(storage))
+	    return idx < array->get_size()
+		? array->get_word_str((unsigned)idx) : string();
+
+      vvp_fun_signal_string*fun =
+	    static_property_string_fun_(static_property_net_(storage));
+      return fun ? fun->get_string() : string();
+}
+
+static void static_property_set_object_(vpiHandle storage, size_t idx,
+					const vvp_object_t&val)
+{
+      if (__vpiArray*array = dynamic_cast<__vpiArray*>(storage)) {
+	    if (idx < array->get_size())
+		  array->set_word((unsigned)idx, val);
+	    return;
+      }
+
+      vvp_net_t*net = static_property_net_(storage);
+      if (!net)
+	    return;
+
+      vvp_send_object(vvp_net_ptr_t(net, 0), val, 0);
+      if (vvp_fun_signal_object*fun = static_property_object_fun_(net))
+	    fun->set_root_provenance(net, val, 0);
+}
+
+static void static_property_get_object_(vpiHandle storage, size_t idx,
+					vvp_object_t&val)
+{
+      if (__vpiArray*array = dynamic_cast<__vpiArray*>(storage)) {
+	    if (idx < array->get_size())
+		  array->get_word_obj((unsigned)idx, val);
+	    else
+		  val.reset();
+	    return;
+      }
+
+      vvp_fun_signal_object*fun =
+	    static_property_object_fun_(static_property_net_(storage));
+      if (fun)
+	    val = fun->get_object();
+      else
+	    val.reset();
+}
+
 }
 
 /*
@@ -957,7 +1267,7 @@ void property_cobject::copy(char*dst, char*src)
 /* **** */
 
 class_type::class_type(const string&nam, size_t nprop)
-: class_name_(nam), properties_(nprop)
+: class_name_(nam), properties_(nprop), static_properties_(nprop, 0)
 {
       instance_size_ = 0;
 }
@@ -990,12 +1300,140 @@ bool class_type::property_is_randc(size_t idx) const
       return properties_[idx].randc_flag;
 }
 
+bool class_type::property_is_static(size_t idx) const
+{
+      return idx < properties_.size() && (properties_[idx].qualifier & 1);
+}
+
+void class_type::bind_static_property(size_t idx, char*storage)
+{
+      assert(idx < properties_.size());
+      assert(property_is_static(idx));
+
+	// draw_class_in_scope may emit the same runtime class record more than
+	// once. Intern by the canonical declaring-signal label so every such
+	// class_type -- and every inherited record that names that signal --
+	// points at one VALUE+mode cell instead of splitting static state.
+      static map<string, static_property_cell_t*> cells_by_storage;
+      pair<map<string, static_property_cell_t*>::iterator,bool> inserted =
+	    cells_by_storage.insert(make_pair(string(storage),
+					      (static_property_cell_t*)0));
+      if (inserted.second) {
+	    inserted.first->second = new static_property_cell_t;
+	    inserted.first->second->storage_label = storage;
+	    compile_vpi_lookup(&inserted.first->second->storage, storage);
+      } else {
+	    free(storage);
+      }
+      static_properties_[idx] = inserted.first->second;
+}
+
+class_type::static_property_cell_t*
+class_type::static_property_cell_(size_t idx) const
+{
+      if (idx >= properties_.size())
+	    return 0;
+
+      const class_type*super = runtime_super();
+      if (super && idx < super->property_count())
+	    return super->static_property_cell_(idx);
+
+      if (!property_is_static(idx))
+	    return 0;
+      return static_properties_[idx];
+}
+
+vpiHandle class_type::static_property_storage_(size_t idx) const
+{
+      static_property_cell_t*cell = static_property_cell_(idx);
+	const prop_t*prop = idx < properties_.size() ? &properties_[idx] : 0;
+	__vpiArray*array = cell && cell->storage
+	      ? dynamic_cast<__vpiArray*>(cell->storage) : 0;
+	bool wants_array = prop && !prop->dimensions.empty();
+	bool valid_storage = cell && cell->storage && prop;
+	if (valid_storage && wants_array)
+	      valid_storage = array
+		&& array->get_size() == prop->array_size
+		&& static_property_array_kind_matches_(array, prop->base_type);
+	else if (valid_storage)
+	      valid_storage = !array && static_property_net_(cell->storage)
+		&& static_property_scalar_kind_matches_(cell->storage,
+						       prop->base_type);
+      if (!valid_storage) {
+	    const char*name = idx < properties_.size()
+		  ? properties_[idx].name.c_str() : "<out-of-range>";
+	    const char*label = cell && !cell->storage_label.empty()
+		  ? cell->storage_label.c_str() : "<unbound>";
+	    int type_code = cell && cell->storage
+		  ? cell->storage->get_type_code() : vpiUndefined;
+	    const char*expected = prop
+		  ? static_property_expected_kind_(prop->base_type, wants_array)
+		  : "valid property";
+	    fprintf(stderr,
+		    "internal error: invalid canonical static class storage"
+		    " (class=%s pid=%zu name=%s label=%s base_type=%s"
+		    " expected=%s vpi_type=%d)\n",
+		    class_name_.c_str(), idx, name, label,
+		    prop ? prop->base_type.c_str() : "<none>", expected,
+		    type_code);
+	    abort();
+      }
+      return cell->storage;
+}
+
+vpiHandle class_type::static_property_storage(size_t idx) const
+{
+      return static_property_storage_(idx);
+}
+
+unsigned class_type::property_qualifier(size_t idx) const
+{
+      return idx < properties_.size() ? properties_[idx].qualifier : 0;
+}
+
+bool class_type::static_rand_mode(size_t idx) const
+{
+      if (!property_is_static(idx))
+	    return true;
+      (void)static_property_storage_(idx);
+      static_property_cell_t*cell = static_property_cell_(idx);
+      return cell->rand_mode;
+}
+
+void class_type::set_static_rand_mode(size_t idx, bool mode) const
+{
+      if (!property_is_static(idx))
+	    return;
+      (void)static_property_storage_(idx);
+      static_property_cell_t*cell = static_property_cell_(idx);
+      cell->rand_mode = mode;
+}
+
+std::vector<bool>&class_type::static_randc_history(size_t idx,
+						    size_t leaf) const
+{
+	// Reuse the storage validator here. A randc history attached to an
+	// unresolved or wrongly-typed static property would otherwise create
+	// a second, invisible state bank and make receiver-dependent cycles.
+      (void)static_property_storage_(idx);
+      static_property_cell_t*cell = static_property_cell_(idx);
+      assert(cell);
+      return cell->randc_history[leaf];
+}
+
 const std::string& class_type::property_base_type(size_t idx) const
 {
       static const std::string nil;
       if (idx >= properties_.size())
 	    return nil;
       return properties_[idx].base_type;
+}
+
+const class_type*class_type::property_declared_class_type(size_t idx) const
+{
+      if (idx >= properties_.size())
+	    return 0;
+      return dynamic_cast<class_type*>(properties_[idx].declared_class_type);
 }
 
 uint64_t class_type::property_array_size(size_t idx) const
@@ -1075,6 +1513,27 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
       assert(idx < properties_.size());
       properties_[idx].name = name;
 
+	// New class records wrap the historical type code in q<hex>: so all
+	// property qualifiers survive target export without changing the .class
+	// grammar. Old records have no wrapper and continue to decode below.
+      string encoded_type = type;
+      unsigned qualifier = 0;
+      if (encoded_type.size() > 2 && encoded_type[0] == 'q') {
+	    string::size_type colon = encoded_type.find(':', 1);
+	    if (colon != string::npos) {
+		  string text = encoded_type.substr(1, colon - 1);
+		  char*end = 0;
+		  unsigned long parsed = strtoul(text.c_str(), &end, 16);
+		  if (end && *end == '\0') {
+			qualifier = (unsigned)parsed;
+			encoded_type.erase(0, colon + 1);
+		  }
+	    }
+      }
+      properties_[idx].qualifier = qualifier;
+      properties_[idx].randc_flag = (qualifier & 16) != 0;
+      properties_[idx].rand_flag = (qualifier & (8 | 16)) != 0;
+
       uint64_t array_size = 1;
       for (const pair<int,int>&range : dimensions) {
 	    uint64_t count = range.first > range.second
@@ -1084,18 +1543,29 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
       }
 
 	// Strip rand/randc prefix ("r" or "rc") from the type string.
-      string base_type = type;
-      if (type.compare(0, 2, "rc") == 0) {
+      string base_type = encoded_type;
+      if (encoded_type.compare(0, 2, "rc") == 0) {
 	    properties_[idx].randc_flag = true;
 	    properties_[idx].rand_flag  = true;
-	    base_type = type.substr(2);
-      } else if (type.compare(0, 1, "r") == 0
-	         && type.size() > 1 && type[1] != '\0'
-	         && type[1] != 'e' && type[1] != 'a') {
+	    properties_[idx].qualifier |= 16;
+	    base_type = encoded_type.substr(2);
+      } else if (encoded_type.compare(0, 1, "r") == 0
+	         && encoded_type.size() > 1 && encoded_type[1] != '\0'
+	         && encoded_type[1] != 'e' && encoded_type[1] != 'a') {
 	      // Guard against "r" (real) and "rc" already handled above.
 	      // The "r" prefix for rand only occurs before 's', 'b', 'L', etc.
 	    properties_[idx].rand_flag = true;
-	    base_type = type.substr(1);
+	    properties_[idx].qualifier |= 8;
+	    base_type = encoded_type.substr(1);
+      }
+	/* `oh:C<label>` is an ordinary class handle with additional declared
+	 * class metadata. Resolve the metadata separately, then normalize the
+	 * storage type to historical `o` so property_object reference semantics
+	 * and existing randomization/value paths remain unchanged. */
+      if (base_type.compare(0, 3, "oh:") == 0) {
+	    compile_vpi_lookup(&properties_[idx].declared_class_type,
+			       strdup(base_type.c_str()+3));
+	    base_type = "o";
       }
       const string&type_to_use = base_type;
 
@@ -1127,6 +1597,8 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
       else if (t == "o")
 	    properties_[idx].type = new property_object(array_size);
       else if (t.compare(0,3,"oc:") == 0) {
+	    compile_vpi_lookup(&properties_[idx].declared_class_type,
+			       strdup(t.c_str()+3));
 	    property_cobject*prop = new property_cobject(array_size);
 	    compile_vpi_lookup(reinterpret_cast<vpiHandle*>(&prop->defn_),
 			       strdup(t.c_str()+3));
@@ -1236,6 +1708,10 @@ void class_type::set_vec4(class_type::inst_t obj, size_t pid,
 	    }
 	    return;
       }
+      if (property_is_static(pid)) {
+	    static_property_set_vec4_(static_property_storage_(pid), idx, val);
+	    return;
+      }
       if (class_trace_enabled_(class_name_)) {
             fprintf(stderr,
                     "trace class: set_vec4 class=%s pid=%zu name=%s idx=%zu obj=%p type=%p\n",
@@ -1260,6 +1736,10 @@ void class_type::get_vec4(class_type::inst_t obj, size_t pid,
 	    }
 	    return;
       }
+      if (property_is_static(pid)) {
+	    static_property_get_vec4_(static_property_storage_(pid), idx, val);
+	    return;
+      }
       if (class_trace_enabled_(class_name_)) {
             fprintf(stderr,
                     "trace class: get_vec4 class=%s pid=%zu name=%s idx=%zu obj=%p type=%p\n",
@@ -1282,6 +1762,10 @@ void class_type::set_real(class_type::inst_t obj, size_t pid,
 	    }
 	    return;
       }
+      if (property_is_static(pid)) {
+	    static_property_set_real_(static_property_storage_(pid), idx, val);
+	    return;
+      }
       properties_[pid].type->set_real(buf, val, idx);
 }
 
@@ -1297,6 +1781,8 @@ double class_type::get_real(class_type::inst_t obj, size_t pid, size_t idx) cons
 	    }
 	    return 0.0;
       }
+      if (property_is_static(pid))
+	    return static_property_get_real_(static_property_storage_(pid), idx);
       return properties_[pid].type->get_real(buf, idx);
 }
 
@@ -1311,6 +1797,10 @@ void class_type::set_string(class_type::inst_t obj, size_t pid,
 		                  " (further similar warnings suppressed)\n", pid, properties_.size());
 		  warned = true;
 	    }
+	    return;
+      }
+      if (property_is_static(pid)) {
+	    static_property_set_string_(static_property_storage_(pid), idx, val);
 	    return;
       }
       properties_[pid].type->set_string(buf, val, idx);
@@ -1328,6 +1818,8 @@ string class_type::get_string(class_type::inst_t obj, size_t pid, size_t idx) co
 	    }
 	    return string();
       }
+      if (property_is_static(pid))
+	    return static_property_get_string_(static_property_storage_(pid), idx);
       return properties_[pid].type->get_string(buf, idx);
 }
 
@@ -1342,6 +1834,11 @@ void class_type::set_object(class_type::inst_t obj, size_t pid,
 		                  " (further similar warnings suppressed)\n", pid, properties_.size());
 		  warned = true;
 	    }
+	    return;
+      }
+      if (property_is_static(pid)) {
+	    if (static_property_uses_object_api_(properties_[pid].base_type))
+		  static_property_set_object_(static_property_storage_(pid), idx, val);
 	    return;
       }
       if (class_trace_enabled_(class_name_)) {
@@ -1376,6 +1873,13 @@ void class_type::get_object(class_type::inst_t obj, size_t pid,
 	    val.reset();
 	    return;
       }
+      if (property_is_static(pid)) {
+	    if (static_property_uses_object_api_(properties_[pid].base_type))
+		  static_property_get_object_(static_property_storage_(pid), idx, val);
+	    else
+		  val.reset();
+	    return;
+      }
       properties_[pid].type->get_object(buf, val, idx);
       if (class_trace_enabled_(class_name_)) {
             const char*value_class = "<nil>";
@@ -1407,6 +1911,12 @@ void class_type::copy_property(class_type::inst_t dst, size_t pid, class_type::i
 	    }
 	    return;
       }
+
+	// Static state belongs to the declaring class-scope signal. A class
+	// handle copy must not copy (or overwrite) that shared value through
+	// either object's otherwise-unused instance slot.
+      if (property_is_static(pid))
+	    return;
 
       properties_[pid].type->copy(dst_buf, src_buf);
 }
@@ -1514,11 +2024,17 @@ void compile_class_property(unsigned idx, char*nam, char*typ,
 {
       assert(compile_class);
       static const vector<pair<int,int> > no_dimensions;
-      compile_class->set_property(idx, nam, typ,
+	compile_class->set_property(idx, nam, typ,
 				  dimensions ? *dimensions : no_dimensions);
       delete dimensions;
       delete[]nam;
       delete[]typ;
+}
+
+void compile_class_static_property(unsigned idx, char*storage)
+{
+      assert(compile_class);
+      compile_class->bind_static_property(idx, storage);
 }
 
 void compile_class_constraint(char*name, char*ir)

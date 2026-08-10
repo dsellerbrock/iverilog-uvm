@@ -1,6 +1,4 @@
-ivltests/sv_array_minmax_type_fail.v:20: error: array locator result type is not assignment-compatible with the context.
-ivltests/sv_array_minmax_type_fail.v:20:      : result type=queue of netvector_t:bool signed[31:0]
-ivltests/sv_array_minmax_type_fail.v:20:      : context type=queue of (assoc-compat) netvector_t:bool signed[31:0]
+ivltests/sv_array_minmax_type_fail.v:20: error: associative-array context requires an associative-array value.
 ivltests/sv_array_minmax_type_fail.v:13: error: array locator result type is not assignment-compatible with the context.
 ivltests/sv_array_minmax_type_fail.v:13:      : result type=queue of netvector_t:bool signed[31:0]
 ivltests/sv_array_minmax_type_fail.v:13:      : context type=11netuarray_t

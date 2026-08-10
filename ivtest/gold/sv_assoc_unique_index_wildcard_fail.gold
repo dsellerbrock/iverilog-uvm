@@ -1,0 +1,2 @@
+./ivltests/sv_assoc_unique_index_wildcard_fail.v:4: error: unique_index() shall not be applied to a wildcard-index associative array (IEEE 1800-2017 7.12.1).
+Elaboration failed

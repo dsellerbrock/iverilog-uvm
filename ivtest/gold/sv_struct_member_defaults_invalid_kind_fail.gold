@@ -1,0 +1,4 @@
+./ivltests/sv_struct_member_defaults_invalid_kind_fail.v:19: error: individual member defaults are not allowed in packed struct variable `packed_value'.
+./ivltests/sv_struct_member_defaults_invalid_kind_fail.v:20: error: individual member defaults are not allowed in union variable `union_value'.
+./ivltests/sv_struct_member_defaults_invalid_kind_fail.v:21: error: individual member defaults are not allowed in packed struct variable `nested_packed_value'.
+./ivltests/sv_struct_member_defaults_invalid_kind_fail.v:22: error: individual member defaults are not allowed in union variable `nested_union_value'.

@@ -81,6 +81,20 @@ class netclass_t : public ivl_type_s {
       property_qualifier_t get_prop_qual(size_t idx) const;
       ivl_type_t get_prop_type(size_t idx) const;
 
+	// Return the declaring class-scope signal for a static property.
+	// IDX is the absolute property index, so inherited properties are
+	// resolved through the superclass before any local name lookup. This
+	// is important when a derived class hides a base property with the
+	// same name.
+      NetNet*get_prop_static_signal(size_t idx) const;
+
+	// The DLL target installs the ivl_signal_t corresponding to each
+	// declaring NetNet after that signal has been converted. Targets can
+	// then recover the exact signal from the absolute property index.
+      bool bind_static_property_target(const NetNet*net,
+				       ivl_signal_t target) const;
+      ivl_signal_t get_prop_static_target(size_t idx) const;
+
 	// These methods are used by the elaborator to note the
 	// initializer for constant properties. Properties start out
 	// as not initialized, and when elaboration detects an
@@ -134,6 +148,11 @@ class netclass_t : public ivl_type_s {
       // Used by elaborate_sig to repair types that were stored as
       // integer fallbacks due to circular elaboration order.
       void repair_property_type(perm_string pname, ivl_type_t new_type);
+
+      // Revisit bare parameterized-class properties after all class scopes
+      // are visible. Forward declarations may initially leave a generic
+      // class placeholder even though the declaration denotes C#().
+      void repair_bare_class_property_types(Design*des);
 
       std::ostream& debug_dump(std::ostream&fd) const override;
       void dump_scope(std::ostream&fd) const;
@@ -205,6 +224,7 @@ class netclass_t : public ivl_type_s {
 	    property_qualifier_t qual;
 	    ivl_type_t type;
 	    mutable bool initialized_flag;
+	    mutable ivl_signal_t static_target;
       };
       std::vector<prop_t> property_table_;
 

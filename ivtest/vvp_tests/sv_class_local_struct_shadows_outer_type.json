@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_class_local_struct_shadows_outer_type.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_class_local_struct_shadows_outer_type"
+}

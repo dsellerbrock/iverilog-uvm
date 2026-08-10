@@ -1,0 +1,5 @@
+ERROR: tests/sva_nfa/concurrent_explicit_null.sv:17: 
+       Time: 5  Scope: concurrent_explicit_null
+ERROR: tests/sva_nfa/concurrent_explicit_null.sv:25: 
+       Time: 10  Scope: concurrent_explicit_null
+explicit-null control done

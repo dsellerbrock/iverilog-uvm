@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_typeparam_enum_receiver_omitted_default_inherited_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_typeparam_enum_receiver_omitted_default_inherited_fail"
+}

@@ -2351,9 +2351,15 @@ const NetExpr* NetSTask::parm(unsigned idx) const
       return parms_[idx];
 }
 
+/* A fixed unpacked function return uses the result NetNet's array_type();
+ * net_type() alone describes only one element. Keep the aggregate shape on
+ * the call expression so an immediately chained array method can dispatch on
+ * the actual return type. */
 NetEUFunc::NetEUFunc(NetScope*scope, NetScope*def, NetESignal*res,
                      vector<NetExpr*>&p, bool nc, bool super_call)
-: NetExpr(res->net_type()), scope_(scope), func_(def), result_sig_(res),
+: NetExpr(res->sig()->array_type()
+	? static_cast<ivl_type_t>(res->sig()->array_type()) : res->net_type()),
+  scope_(scope), func_(def), result_sig_(res),
   parms_(p), need_const_(nc), super_call_(super_call)
 {
 }

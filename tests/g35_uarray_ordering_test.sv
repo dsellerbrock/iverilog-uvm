@@ -4,11 +4,11 @@
 // fell to the unknown-task compile-progress warning and silently did
 // nothing. Lowered now to the in-place %uarr/order runtime op.
 //
-// Also pins G72 (found while implementing this): sort/rsort/unique on
+// Also pins G72 (found while implementing this): sort/rsort on
 // vec4-backed containers ignored the declared element SIGNEDNESS —
 // `int q[$]` with negative values sorted in unsigned word order on
-// queues and dynamic arrays alike. The %qsort/%qsort/r/%qunique ops
-// now carry the element signedness.
+// queues and dynamic arrays alike. The %qsort/%qsort/r ops now carry
+// the element signedness.
 
 module g35_uarray_ordering_test;
   int u[5];

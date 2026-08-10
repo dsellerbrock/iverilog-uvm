@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_typeparam_enum_receiver_method.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_typeparam_enum_receiver_method"
+}

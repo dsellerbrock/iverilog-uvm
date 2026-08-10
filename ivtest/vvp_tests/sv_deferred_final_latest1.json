@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_deferred_final_latest1.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_deferred_final_latest1"
+}

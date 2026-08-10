@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_enum_return_provenance_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_enum_return_provenance_fail"
+}

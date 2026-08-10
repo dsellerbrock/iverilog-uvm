@@ -1,0 +1,7 @@
+ivltests/sv_randc_constraint_iterator_provenance_fail.v:45: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_iterator_provenance_fail.v:27: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_iterator_provenance_fail.v:35: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_iterator_provenance_fail.v:38: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_iterator_provenance_fail.v:31: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_iterator_provenance_fail.v:42: error: 'randc' variables cannot be used in 'soft' constraints.
+6 error(s) during elaboration.

@@ -1,0 +1,1 @@
+ivltests/sv_ustruct_member_defaults_class_scope_fail.v:12: sorry: unpacked-struct default member initializers from typedef `record_t' outside the consuming lexical scope are not yet supported for variable `outside_value'; provide an explicit whole-variable initializer.

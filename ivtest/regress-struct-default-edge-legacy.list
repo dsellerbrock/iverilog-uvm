@@ -1,0 +1,2 @@
+sv_ustruct_member_defaults_edge normal,-g2012	ivltests gold=sv_ustruct_member_defaults_edge.gold
+sv_struct_member_defaults_invalid_kind_fail CE,-g2012	ivltests gold=sv_struct_member_defaults_invalid_kind_fail.gold

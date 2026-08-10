@@ -1,0 +1,2 @@
+ivltests/sv_assoc_cast_to_queue_fail.v:8: sorry: casts from an associative array to a non-associative type are not yet implemented.
+1 error(s) during elaboration.

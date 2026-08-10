@@ -1,0 +1,3 @@
+ivltests/sv_param_class_typedef_static_task_fail.v:7: error: Concrete type-parameter receiver imp has no method `no_such_task'.
+ivltests/sv_param_class_typedef_static_task_fail.v:7: Unable to elaborate statement in task sv_param_class_typedef_static_task_fail._ivl_0.call at ivltests/sv_param_class_typedef_static_task_fail.v:5.
+1 error(s) during elaboration.

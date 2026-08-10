@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_randomization_builtin_method_override_adversarial_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_randomization_builtin_method_override_adversarial_fail"
+}

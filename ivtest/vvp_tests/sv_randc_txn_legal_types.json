@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_randc_txn_legal_types.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_randc_txn_legal_types"
+}

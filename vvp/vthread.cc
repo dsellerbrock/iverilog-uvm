@@ -147,9 +147,17 @@ enum builtin_process_state_t {
       PROCESS_STATE_KILLED = 4
 };
 
+struct deferred_assert_args_s {
+      std::vector<vvp_vector4_t> vec4;
+      std::vector<double> real;
+      std::vector<string> str;
+      std::vector<vvp_object_t> obj;
+};
+
 struct deferred_assert_report_s {
       vvp_code_t action_pc;
       __vpiScope*action_scope;
+      deferred_assert_args_s action_args;
 };
 
 class vvp_process : public vvp_object {
@@ -173,6 +181,11 @@ class vvp_process : public vvp_object {
                                    __vpiScope*action_scope);
       void flush_deferred_asserts();
       void mature_deferred_asserts();
+      void pin_final_deferred_assert(unsigned long source_id,
+                                     vvp_code_t action_pc,
+                                     __vpiScope*action_scope,
+                                     const deferred_assert_args_s&action_args);
+      void mature_final_deferred_asserts();
 
     private:
       void signal_waiters_();
@@ -184,6 +197,10 @@ class vvp_process : public vvp_object {
       std::set<vthread_t> waiters_;
       std::deque<deferred_assert_report_s> deferred_asserts_;
       bool deferred_assert_observed_armed_;
+      std::map<unsigned long, deferred_assert_report_s>
+            final_deferred_asserts_;
+      std::deque<unsigned long> final_deferred_order_;
+      bool final_deferred_rosync_armed_;
 };
 
 /*
@@ -341,6 +358,10 @@ struct vthread_s {
 		  cnt -= 1;
 	    }
       }
+      inline size_t vec4_stack_size(void) const
+      {
+            return stack_vec4_.size();
+      }
 
 
     private:
@@ -384,6 +405,10 @@ struct vthread_s {
 		  stack_real_.pop_back();
 		  cnt -= 1;
 	    }
+      }
+      inline size_t real_stack_size(void) const
+      {
+            return stack_real_.size();
       }
 
 	/* Strings are operated on using a forth-like operator
@@ -448,6 +473,10 @@ struct vthread_s {
 		  stack_str_.pop_back();
 		  cnt -= 1;
 	    }
+      }
+      inline size_t str_stack_size(void) const
+      {
+            return stack_str_.size();
       }
 
 	/* Objects are also operated on in a stack. */
@@ -520,6 +549,10 @@ struct vthread_s {
             stack_obj_root_[stack_obj_size_].reset(0);
             stack_obj_net_[stack_obj_size_] = 0;
 	    stack_obj_size_ += 1;
+      }
+      inline size_t object_stack_size(void) const
+      {
+            return stack_obj_size_;
       }
       inline void push_object(const vvp_object_t&obj, vvp_net_t*root_net,
                               const vvp_object_t&root_obj)
@@ -774,7 +807,7 @@ static void logical_process_threads_(vthread_t thr,
 
 vvp_process::vvp_process(vthread_t owner)
 : owner_(owner), final_status_(PROCESS_STATE_RUNNING), final_status_valid_(false),
-  deferred_assert_observed_armed_(false)
+  deferred_assert_observed_armed_(false), final_deferred_rosync_armed_(false)
 {
 }
 
@@ -894,6 +927,87 @@ void vvp_process::remove_waiter(vthread_t thr)
       thr->awaited_processes_.erase(this);
 }
 
+/* Snapshot the typed stack operands consumed by a final-deferred system-task
+ * action. Argument expressions execute in the source process, but the action
+ * itself executes later in Postponed on a fresh thread. Validate every count
+ * before copying or popping anything so malformed bytecode cannot partially
+ * consume the source stacks. Object handles are copied as vvp_object_t values,
+ * which retain their payload until the postponed action has consumed it. */
+static bool capture_final_deferred_args_(vthread_t thr,
+                                         vvp_code_t action_pc,
+                                         deferred_assert_args_s&out)
+{
+      if (!thr || !action_pc) {
+            fprintf(stderr,
+                    "vvp: invalid final-deferred action while capturing "
+                    "arguments; source stacks were not consumed.\n");
+            return false;
+      }
+
+      /* An explicit null action is represented by a bare %end thunk. */
+      if (action_pc->opcode == of_END)
+            return true;
+
+      if (action_pc->opcode != of_VPI_CALL) {
+            fprintf(stderr,
+                    "vvp: unsupported final-deferred action opcode while "
+                    "capturing arguments; source stacks were not consumed.\n");
+            return false;
+      }
+
+      __vpiSysTaskCall*call =
+            dynamic_cast<__vpiSysTaskCall*>(action_pc->handle);
+      if (!call) {
+            fprintf(stderr,
+                    "vvp: malformed final-deferred VPI action handle; "
+                    "source stacks were not consumed.\n");
+            return false;
+      }
+
+      size_t vec_count = call->vec4_stack;
+      size_t real_count = call->real_stack;
+      size_t str_count = call->string_stack;
+      size_t obj_count = call->object_stack;
+      size_t stack_arg_count = vec_count + real_count + str_count + obj_count;
+
+      if (stack_arg_count < vec_count || stack_arg_count < real_count
+          || stack_arg_count < str_count || stack_arg_count < obj_count
+          || stack_arg_count > call->nargs
+          || vec_count > thr->vec4_stack_size()
+          || real_count > thr->real_stack_size()
+          || str_count > thr->str_stack_size()
+          || obj_count > thr->object_stack_size()) {
+            fprintf(stderr,
+                    "vvp: final-deferred VPI argument metadata/stack "
+                    "underflow (need %zu/%zu/%zu/%zu, have "
+                    "%zu/%zu/%zu/%zu, nargs %u); source stacks were not "
+                    "consumed.\n",
+                    vec_count, real_count, str_count, obj_count,
+                    thr->vec4_stack_size(), thr->real_stack_size(),
+                    thr->str_stack_size(), thr->object_stack_size(),
+                    call->nargs);
+            return false;
+      }
+
+      /* Preserve each type stack's bottom-to-top order so the VPI stack
+       * references compiled for the thunk keep their original depths. */
+      for (size_t idx = vec_count ; idx > 0 ; idx -= 1)
+            out.vec4.push_back(thr->peek_vec4(idx - 1));
+      for (size_t idx = real_count ; idx > 0 ; idx -= 1)
+            out.real.push_back(thr->peek_real(idx - 1));
+      for (size_t idx = str_count ; idx > 0 ; idx -= 1)
+            out.str.push_back(thr->peek_str(idx - 1));
+      for (size_t idx = obj_count ; idx > 0 ; idx -= 1)
+            out.obj.push_back(
+                  thr->peek_object(idx - 1).value_copy_element());
+
+      thr->pop_vec4(vec_count);
+      thr->pop_real(real_count);
+      thr->pop_str(str_count);
+      thr->pop_object(obj_count);
+      return true;
+}
+
 /*
  * IEEE 1800-2017 16.4.1: an observed-deferred immediate assertion
  * queues its selected report on the currently executing logical
@@ -916,6 +1030,25 @@ struct deferred_assert_mature_event_s : public vvp_gen_event_s {
 	    if (process)
 		  process->mature_deferred_asserts();
 	    delete this;
+      }
+};
+
+/* IEEE 1800-2017 16.4.2 evaluates a final-deferred assertion where it is
+ * encountered, but executes the last selected action for each source
+ * assertion and logical process in Postponed. Keeping the process object in
+ * this event also preserves pins made by a zero-time process that reaches
+ * %end (or calls $finish) before the current slot drains. */
+struct final_deferred_assert_mature_event_s : public vvp_gen_event_s {
+      explicit final_deferred_assert_mature_event_s(vvp_process*process)
+      : process_(process) { }
+
+      vvp_object_t process_;
+
+      void run_run() override
+      {
+	    vvp_process*process = process_.peek<vvp_process>();
+	    if (process)
+		  process->mature_final_deferred_asserts();
       }
 };
 
@@ -968,6 +1101,84 @@ void vvp_process::mature_deferred_asserts()
 	    action->is_reactive_process = 1;
 	    action->in_region_drain = 1;
 	    schedule_vthread(action, 0, false);
+      }
+}
+
+void vvp_process::pin_final_deferred_assert(unsigned long source_id,
+                                            vvp_code_t action_pc,
+                                            __vpiScope*action_scope,
+                                            const deferred_assert_args_s&action_args)
+{
+      deferred_assert_report_s report;
+      report.action_pc = action_pc;
+      report.action_scope = action_scope;
+      report.action_args = action_args;
+
+      std::map<unsigned long, deferred_assert_report_s>::iterator cur =
+	    final_deferred_asserts_.find(source_id);
+      if (cur == final_deferred_asserts_.end()) {
+	    final_deferred_order_.push_back(source_id);
+	    final_deferred_asserts_[source_id] = report;
+      } else {
+	    /* Re-execution replaces the selected arm but retains the source's
+	       first-pin position. IEEE does not order distinct final assertions;
+	       this stable position is the simulator's deterministic tie-break. */
+	    cur->second = report;
+      }
+
+      if (final_deferred_rosync_armed_)
+	    return;
+
+      final_deferred_rosync_armed_ = true;
+      final_deferred_assert_mature_event_s*event =
+            new final_deferred_assert_mature_event_s(this);
+      if (schedule_in_final_phase())
+            schedule_post_final(event);
+      else
+            schedule_generic(event, 0, true, true, true);
+}
+
+void vvp_process::mature_final_deferred_asserts()
+{
+      final_deferred_rosync_armed_ = false;
+
+      std::map<unsigned long, deferred_assert_report_s> reports;
+      std::deque<unsigned long> order;
+      reports.swap(final_deferred_asserts_);
+      order.swap(final_deferred_order_);
+
+      while (!order.empty()) {
+	    unsigned long source_id = order.front();
+	    order.pop_front();
+
+	    std::map<unsigned long, deferred_assert_report_s>::iterator cur =
+		  reports.find(source_id);
+	    if (cur == reports.end())
+		  continue;
+
+	    deferred_assert_report_s report = cur->second;
+	    if (!report.action_pc || !report.action_scope)
+		  continue;
+
+	    /* The action fragment is passive and ends in %end. Rebuild the
+	       captured typed stacks before running it synchronously in Postponed;
+	       marking it final also keeps a future passive user-task thunk from
+	       escaping to Active. */
+	    vthread_t action = vthread_new(report.action_pc,
+	                                   report.action_scope);
+	    report.action_scope->threads.erase(action);
+	    action->in_region_drain = 1;
+	    vthread_mark_final(action);
+	    for (size_t idx = 0 ; idx < report.action_args.vec4.size(); idx += 1)
+		  action->push_vec4(report.action_args.vec4[idx]);
+	    for (size_t idx = 0 ; idx < report.action_args.real.size(); idx += 1)
+		  action->push_real(report.action_args.real[idx]);
+	    for (size_t idx = 0 ; idx < report.action_args.str.size(); idx += 1)
+		  action->push_str(report.action_args.str[idx]);
+	    for (size_t idx = 0 ; idx < report.action_args.obj.size(); idx += 1)
+		  action->push_object(report.action_args.obj[idx]);
+	    vthread_mark_scheduled(action);
+	    vthread_run(action);
       }
 }
 
@@ -2243,7 +2454,10 @@ static bool vec4_lt_(const vvp_vector4_t&a, const vvp_vector4_t&b)
 
 static bool vec4_eq_(const vvp_vector4_t&a, const vvp_vector4_t&b)
 {
-      return !vec4_lt_(a, b) && !vec4_lt_(b, a);
+      if (a.size() != b.size()) return false;
+      for (size_t idx = 0 ; idx < a.size() ; idx += 1)
+	    if (a.value(idx) != b.value(idx)) return false;
+      return true;
 }
 
 /* Signed vec4 numeric less-than (two's complement, X/Z as 0): a
@@ -2473,11 +2687,11 @@ bool of_QSHUFFLE(vthread_t thr, vvp_code_t cp)
 /*
  * %uarr/unique <array-label>, <mode>
  *
- * Expression-form unique()/unique_index() on a STATIC unpacked array
- * (IEEE 1800-2017 7.12.1): push a fresh queue holding the
- * first-occurrence element values (mode 0) or their canonical word
- * indexes (mode 1). Vec4 word arrays only (the elaborator gates on
- * integral element types).
+ * Legacy expression-form unique()/unique_index() lowering for a static
+ * unpacked array. Push a fresh queue with one representative per distinct
+ * vec4 value (mode 0), or a corresponding declared index (mode 1).
+ * Representative choice and result order are unspecified by 7.12.1; the
+ * current frontend uses the generic materialized/keyed path instead.
  */
 bool of_UARR_UNIQUE(vthread_t thr, vvp_code_t cp)
 {
@@ -2488,7 +2702,12 @@ bool of_UARR_UNIQUE(vthread_t thr, vvp_code_t cp)
 	    unsigned sz = arr->get_size();
 	    std::vector<vvp_vector4_t> seen;
 	    for (unsigned i = 0 ; i < sz ; i += 1) {
-		  vvp_vector4_t v = arr->get_word(i);
+		    /* Static-array storage is always low-address first. For an
+		     * index result, translate a descending declaration back to a
+		     * declared index. Keep value mode's established storage walk. */
+		  unsigned storage_addr = ((mode & 1) && arr->swap_addr)
+			? sz - 1 - i : i;
+		  vvp_vector4_t v = arr->get_word(storage_addr);
 		  bool dup = false;
 		  for (size_t k = 0 ; k < seen.size() && !dup ; k += 1)
 			if (vec4_eq_(seen[k], v))
@@ -2497,9 +2716,13 @@ bool of_UARR_UNIQUE(vthread_t thr, vvp_code_t cp)
 			continue;
 		  seen.push_back(v);
 		  if (mode & 1) {
+			int declared_index = arr->swap_addr
+			      ? arr->last_addr.get_value() - (int)i
+			      : arr->first_addr.get_value() + (int)i;
+			uint32_t index_bits = (uint32_t)declared_index;
 			vvp_vector4_t iv(32, BIT4_0);
 			for (unsigned b = 0 ; b < 32 ; b += 1)
-			      if ((i >> b) & 1)
+			      if ((index_bits >> b) & 1U)
 				    iv.set_bit(b, BIT4_1);
 			dst->push_back(iv, 0);
 		  } else {
@@ -2577,9 +2800,8 @@ bool of_UARR_ORDER(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
-/* Phase 63b/Q-methods: expression-form q.unique() — return a new
- * queue (on obj stack) containing each value from q at most once,
- * in order of first appearance.  Vec4 element type only for now. */
+/* Phase 63b/Q-methods: expression-form q.unique() returns a fresh queue
+ * containing one representative per distinct value. */
 /* Copy source elements [lo..hi] into a fresh queue of the matching
  * element kind. */
 template <typename ELEM, class QTYPE>
@@ -2647,64 +2869,159 @@ bool of_QSLICE(vthread_t thr, vvp_code_t)
       return true;
 }
 
+static bool qunique_eq_(const vvp_vector4_t&a, const vvp_vector4_t&b)
+{
+      return vec4_eq_(a, b);
+}
+
+static bool qunique_eq_(const double&a, const double&b)
+{
+      return a == b;
+}
+
+static bool qunique_eq_(const string&a, const string&b)
+{
+      return a == b;
+}
+
+static bool qunique_eq_(const vvp_object_t&a, const vvp_object_t&b)
+{
+        // Class values and class-valued with expressions compare handles.
+      return a == b;
+}
+
+template <typename ELEM, class QTYPE>
+static vvp_object_t qunique_copy_typed_(vvp_darray*src)
+{
+      QTYPE*dst = new QTYPE;
+      if (!src) return vvp_object_t(dst);
+
+      vector<ELEM> seen;
+      size_t sz = src->get_size();
+      for (size_t idx = 0 ; idx < sz ; idx += 1) {
+	    ELEM value;
+	    src->get_word((unsigned)idx, value);
+	    bool duplicate = false;
+	    for (size_t seen_idx = 0 ; seen_idx < seen.size() ; seen_idx += 1) {
+		  if (qunique_eq_(value, seen[seen_idx])) {
+			duplicate = true;
+			break;
+		  }
+	    }
+	    if (!duplicate) {
+		  seen.push_back(value);
+		  dst->push_back(value, 0);
+	    }
+      }
+      return vvp_object_t(dst);
+}
+
+template <typename ELEM>
+static void qunique_index_typed_(vvp_darray*src, vvp_queue_vec4*dst)
+{
+      vector<ELEM> seen;
+      size_t sz = src->get_size();
+      for (size_t idx = 0 ; idx < sz ; idx += 1) {
+	    ELEM value;
+	    src->get_word((unsigned)idx, value);
+	    bool duplicate = false;
+	    for (size_t seen_idx = 0 ; seen_idx < seen.size() ; seen_idx += 1) {
+		  if (qunique_eq_(value, seen[seen_idx])) {
+			duplicate = true;
+			break;
+		  }
+	    }
+	    if (duplicate) continue;
+
+	    seen.push_back(value);
+	    uint32_t index_bits = (uint32_t)idx;
+	    vvp_vector4_t index_value(32, BIT4_0);
+	    for (unsigned bit = 0 ; bit < 32 ; bit += 1)
+		  if ((index_bits >> bit) & 1U)
+			index_value.set_bit(bit, BIT4_1);
+	    dst->push_back(index_value, 0);
+      }
+}
+
+static vvp_darray* qunique_source_(vvp_code_t cp, const char*opcode,
+				   vvp_object_t&src_obj)
+{
+      vvp_fun_signal_object*fun = cp->net
+	    ? dynamic_cast<vvp_fun_signal_object*>(cp->net->fun) : 0;
+      if (!fun) {
+	    fprintf(stderr, "vvp internal error: %s requires an object signal "
+		    "receiver\n", opcode);
+	    return 0;
+      }
+      src_obj = fun->get_object();
+      vvp_darray*src = src_obj.peek<vvp_darray>();
+      if (!src && !src_obj.test_nil())
+	    fprintf(stderr, "vvp internal error: %s receiver is not an unpacked "
+		    "array container\n", opcode);
+      return src;
+}
+
+/* %qunique_copy <source>, <element-kind>
+ *
+ * element-kind is 0 for vec4/integral, 1 for real, 2 for string, and 3 for
+ * class handles.
+ * Carrying the declared category in the opcode is necessary when source is
+ * a never-allocated dynamic array: there is no runtime object to inspect,
+ * but the locator must still return a fresh queue of the declared type. */
 bool of_QUNIQUE_COPY(vthread_t thr, vvp_code_t cp)
 {
-      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
-      if (!fun) {
-            thr->push_object(vvp_object_t());
-            return true;
+      vvp_object_t src_obj;
+      vvp_darray*src = qunique_source_(cp, "%qunique_copy", src_obj);
+      vvp_object_t result;
+
+      switch (cp->bit_idx[0]) {
+	  case 0:
+	    result = qunique_copy_typed_<vvp_vector4_t, vvp_queue_vec4>(src);
+	    break;
+	  case 1:
+	    result = qunique_copy_typed_<double, vvp_queue_real>(src);
+	    break;
+	  case 2:
+	    result = qunique_copy_typed_<string, vvp_queue_string>(src);
+	    break;
+	  case 3:
+	    result = qunique_copy_typed_<vvp_object_t, vvp_queue_object>(src);
+	    break;
+	  default:
+	    fprintf(stderr, "vvp internal error: %%qunique_copy has unknown "
+		    "element kind %u\n", cp->bit_idx[0]);
+	    result = vvp_object_t(new vvp_queue_vec4);
+	    break;
       }
-      vvp_object_t src_obj = fun->get_object();
-      vvp_darray*src = src_obj.peek<vvp_darray>();
-      if (!src) {
-            thr->push_object(vvp_object_t());
-            return true;
-      }
-      size_t sz = src->get_size();
-      vvp_queue_vec4*dst = new vvp_queue_vec4;
-      vector<vvp_vector4_t> seen;
-      for (size_t i = 0; i < sz; i += 1) {
-            vvp_vector4_t v;
-            src->get_word((unsigned)i, v);
-            bool found = false;
-            for (auto&s : seen) if (vec4_eq_(v, s)) { found = true; break; }
-            if (!found) { seen.push_back(v); dst->push_back(v, 0); }
-      }
-      thr->push_object(vvp_object_t(dst));
+
+      thr->push_object(result);
       return true;
 }
 
-/* Phase 63b/Q-methods: expression-form q.unique_index() — return a
- * queue of indices of unique-first elements. */
+/* Phase 63b/Q-methods: expression-form q.unique_index() returns one source
+ * index per distinct element value. */
 bool of_QUNIQUE_IDX(vthread_t thr, vvp_code_t cp)
 {
-      vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
-      if (!fun) {
-            thr->push_object(vvp_object_t());
-            return true;
-      }
-      vvp_object_t src_obj = fun->get_object();
-      vvp_darray*src = src_obj.peek<vvp_darray>();
-      if (!src) {
-            thr->push_object(vvp_object_t());
-            return true;
-      }
-      size_t sz = src->get_size();
       vvp_queue_vec4*dst = new vvp_queue_vec4;
-      vector<vvp_vector4_t> seen;
-      for (size_t i = 0; i < sz; i += 1) {
-            vvp_vector4_t v;
-            src->get_word((unsigned)i, v);
-            bool found = false;
-            for (auto&s : seen) if (vec4_eq_(v, s)) { found = true; break; }
-            if (!found) {
-                  seen.push_back(v);
-                  vvp_vector4_t idx_v(32, BIT4_0);
-                  for (unsigned b = 0; b < 32; b++)
-                        if ((i >> b) & 1) idx_v.set_bit(b, BIT4_1);
-                  dst->push_back(idx_v, 0);
-            }
+      vvp_object_t src_obj;
+      vvp_darray*src = qunique_source_(cp, "%qunique_idx", src_obj);
+      if (!src) {
+            thr->push_object(vvp_object_t(dst));
+            return true;
       }
+
+      if (dynamic_cast<vvp_queue_real*>(src)
+	  || dynamic_cast<vvp_darray_real*>(src))
+	    qunique_index_typed_<double>(src, dst);
+      else if (dynamic_cast<vvp_queue_string*>(src)
+	       || dynamic_cast<vvp_darray_string*>(src))
+	    qunique_index_typed_<string>(src, dst);
+      else if (dynamic_cast<vvp_queue_object*>(src)
+	       || dynamic_cast<vvp_darray_object*>(src))
+	    qunique_index_typed_<vvp_object_t>(src, dst);
+      else
+	    qunique_index_typed_<vvp_vector4_t>(src, dst);
+
       thr->push_object(vvp_object_t(dst));
       return true;
 }
@@ -2810,7 +3127,7 @@ bool of_QRSORT_KEYS(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
-/* unique with key extractor: keep first element with each unique key. */
+/* unique with key extractor: retain one element for each distinct key. */
 template<typename ELEM, typename KEY>
 static void qunique_keys_helper_(vvp_darray*q, vector<KEY>&keys)
 {
@@ -2821,7 +3138,12 @@ static void qunique_keys_helper_(vvp_darray*q, vector<KEY>&keys)
       vector<ELEM> kept;
       for (size_t i = 0; i < sz; i++) {
             bool found = false;
-            for (auto k : seen_keys) if (k == keys[i]) { found = true; break; }
+            for (const auto&k : seen_keys) {
+                  if (qunique_eq_(k, keys[i])) {
+                        found = true;
+                        break;
+                  }
+            }
             if (!found) { seen_keys.push_back(keys[i]); kept.push_back(qvals[i]); }
       }
       vvp_queue*qq = dynamic_cast<vvp_queue*>(q);
@@ -2880,16 +3202,20 @@ bool of_QUNIQUE_KEYS(vthread_t thr, vvp_code_t cp)
             return true;
       }
 
-      vector<int32_t> keys(sz, 0);
-      for (size_t i = 0; i < sz; i++) {
-            vvp_vector4_t kv;
-            k->get_word((unsigned)i, kv);
-            uint64_t u = 0;
-            bool overflow = false;
-            vector4_to_value(kv, overflow, u);
-            keys[i] = (int32_t)u;
+      if (dynamic_cast<vvp_queue_object*>(k)
+          || dynamic_cast<vvp_darray_object*>(k)) {
+            vector<vvp_object_t> keys(sz);
+            for (size_t i = 0; i < sz; i++)
+                  k->get_word((unsigned)i, keys[i]);
+            qunique_by_keys_elem_dispatch_<vvp_object_t>(q, keys);
+            return true;
       }
-      qunique_by_keys_elem_dispatch_<int32_t>(q, keys);
+
+      vector<vvp_vector4_t> keys(sz);
+      for (size_t i = 0; i < sz; i++) {
+            k->get_word((unsigned)i, keys[i]);
+      }
+      qunique_by_keys_elem_dispatch_<vvp_vector4_t>(q, keys);
       return true;
 }
 
@@ -3019,16 +3345,14 @@ static void randomize_restore_(vvp_cobject*cobj,
 /*
  * R3/M3B-5 (IEEE 1800-2017 18.13.1): randomize() draws from the OBJECT's
  * own generator, seeded hierarchically at construction (of_NEW_COBJ) or
- * explicitly via srandom()/set_randstate(). Every live cobject is seeded
- * from the moment it exists, so this only falls back to libc rand() in
- * the defensive case of no object at all (should not occur -- the
- * callers above only reach here inside `if (cobj) {...}').
+ * explicitly via srandom()/set_randstate(). Every caller here is an object
+ * randomize path; a missing receiver is an internal error, never permission
+ * to perturb or consume the process-global libc RNG stream.
  */
 static inline unsigned randomize_rand_(vvp_cobject*cobj)
 {
-      if (cobj)
-	    return (unsigned)cobj->rng_next();
-      return (unsigned)rand();
+      assert(cobj);
+      return (unsigned)cobj->rng_next();
 }
 
 
@@ -3082,7 +3406,9 @@ static void collect_unmerged_base_constraints_(const class_type*defn,
  * (constraint support for struct members has the same limitation --
  * see the "not representable" warning at constraint-IR build time).
  */
-static void randomize_struct_members_(vvp_cobject*subcobj, const class_type*subdefn)
+static void randomize_struct_members_(vvp_cobject*subcobj,
+				      const class_type*subdefn,
+				      const std::function<unsigned()>&next_random)
 {
       if (!subcobj || !subdefn) return;
       for (size_t mpid = 0 ; mpid < subdefn->property_count() ; mpid += 1) {
@@ -3096,7 +3422,8 @@ static void randomize_struct_members_(vvp_cobject*subcobj, const class_type*subd
 			vvp_object_t propobj;
 			subcobj->get_object(mpid, propobj, adr);
 			if (vvp_cobject*nested = propobj.peek<vvp_cobject>())
-			      randomize_struct_members_(nested, nested->get_defn());
+			      randomize_struct_members_(nested, nested->get_defn(),
+						 next_random);
 		  }
 		  continue;
 	    }
@@ -3124,7 +3451,7 @@ static void randomize_struct_members_(vvp_cobject*subcobj, const class_type*subd
 		  if (wid == 0)
 			continue;
 		  for (unsigned i = 0 ; i < wid ; i += 32) {
-			unsigned rnd = randomize_rand_(subcobj);
+			unsigned rnd = next_random();
 			for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)
 			      val.set_bit(i + b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
 		  }
@@ -3155,9 +3482,16 @@ static bool randomize_cobject_(vvp_cobject*cobj, const std::vector<bool>*sel)
       for (vvp_cobject*p : randomize_stack_)
 	    if (p == cobj) return true;
       randomize_stack_.push_back(cobj);
+	// One stack frame per entry makes tentative randc choices local to
+	// this call. Nested/reentrant entries on the same object merge into
+	// their parent only on success; a failed solve drops its own frame.
+      cobj->randc_transaction_begin();
 
       bool solve_ok = true;
       const class_type*defn = cobj->get_defn();
+      auto next_random = [cobj]() -> unsigned {
+	    return randomize_rand_(cobj);
+      };
 
       bool have_constraints = false;
       for (const class_type*walker = defn; walker; walker = walker->runtime_super())
@@ -3189,7 +3523,9 @@ static bool randomize_cobject_(vvp_cobject*cobj, const std::vector<bool>*sel)
 			      vvp_cobject*subcobj = propobj.peek<vvp_cobject>();
 			      if (!subcobj) continue;
 			      if (is_struct_prop)
-				    randomize_struct_members_(subcobj, subcobj->get_defn());
+				    randomize_struct_members_(subcobj,
+						       subcobj->get_defn(),
+						       next_random);
 			      else
 				    randomize_cobject_(subcobj, nullptr);
 			}
@@ -3307,8 +3643,8 @@ static bool randomize_cobject_(vvp_cobject*cobj, const std::vector<bool>*sel)
 	    unsigned wid = val.size();
 	    if (wid == 0)
 		  continue;
-	    // C1 (Phase 62a): cyclic randc — pick unused value in current
-	    // cycle. randc_mark resets bitmap when cycle exhausted.
+	    // Pick an unused value from committed history. randc_mark only
+	    // stages it; success commits the actual post-solve value.
 	    if (defn->property_is_randc(pid)) {
 		  uint64_t period = cobj->randc_period(pid);
 		  if (period > 0) {
@@ -3356,6 +3692,12 @@ static bool randomize_cobject_(vvp_cobject*cobj, const std::vector<bool>*sel)
 	    if (defn->constraint_count() > 0 || !extra_ir.empty())
 		  if (!vvp_z3_randomize(defn, cobj, extra_ir, {}, sel))
 			solve_ok = false;
+      }
+      if (solve_ok) {
+	    if (!cobj->randc_transaction_commit())
+		  solve_ok = false;
+      } else {
+	    cobj->randc_transaction_rollback();
       }
       if (!solve_ok)
 	    randomize_restore_(cobj, saved);
@@ -3439,6 +3781,7 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
       bool solve_ok = true;
       if (cobj) {
 	    const class_type*defn = cobj->get_defn();
+	    cobj->randc_transaction_begin();
 	    vthread_t scope_rng_owner = scope_form
 		  ? logical_process_thread_(thr) : nullptr;
 	    auto next_random = [&]() -> unsigned {
@@ -3470,7 +3813,9 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 				    vvp_cobject*subcobj = propobj.peek<vvp_cobject>();
 				    if (!subcobj) continue;
 				    if (is_struct_prop)
-					  randomize_struct_members_(subcobj, subcobj->get_defn());
+					  randomize_struct_members_(subcobj,
+							     subcobj->get_defn(),
+							     next_random);
 				    else
 					  randomize_cobject_(subcobj, nullptr);
 			      }
@@ -3503,7 +3848,7 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 		  cobj->get_vec4(pid, val);
 		  unsigned wid = val.size();
 		  if (wid == 0) continue;
-		  // C1 (Phase 62a): cyclic randc — same logic as of_RANDOMIZE.
+		  // Same transactional cyclic pre-fill as of_RANDOMIZE.
 		  if (defn->property_is_randc(pid)) {
 			uint64_t period = cobj->randc_period(pid);
 			if (period > 0) {
@@ -3553,6 +3898,12 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	    if (ir_text && *ir_text) extra_ir.push_back(string(ir_text));
 	    solve_ok = vvp_z3_randomize(defn, cobj, extra_ir, slot_vals, sel,
 				      !scope_form);
+	    if (solve_ok) {
+		  if (!cobj->randc_transaction_commit())
+			solve_ok = false;
+	    } else {
+		  cobj->randc_transaction_rollback();
+	    }
 	    if (!solve_ok)
 		  randomize_restore_(cobj, saved);
       }
@@ -3744,13 +4095,8 @@ bool of_RAND_MODE(vthread_t thr, vvp_code_t)
       thr->pop_object(obj);
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
 
-      if (cobj) {
-	    const class_type*defn = cobj->get_defn();
-	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
-		  if (defn->property_is_rand(pid))
-			cobj->set_rand_mode(pid, mode);
-	    }
-      }
+      if (cobj)
+	    cobj->set_all_rand_mode(mode);
       return true;
 }
 
@@ -10328,6 +10674,141 @@ bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/*
+ * %defer/final <tagged-action-code>, <scope>
+ *
+ * The target places a %defer/final/key or %defer/final/taskkey metadata
+ * opcode at the label, followed by the passive selected action. Validate the
+ * tag before reading its numeric payload, then pin execution after the key so
+ * metadata is never part of the action.
+ */
+static vvp_code_t deferred_final_next_code_(vvp_code_t code)
+{
+      if (!code)
+            return 0;
+      vvp_code_t next = code + 1;
+      if (next->opcode == of_CHUNK_LINK)
+            next = next->cptr;
+      return next;
+}
+
+/* A task-key is intentionally not a generic escape hatch into arbitrary VVP
+ * code. The target emits one of exactly two zero-formal call shapes:
+ *
+ *     %fork task; %join; %end
+ *     %alloc task; %fork task; %join; %free task; %end
+ *
+ * Validate that complete outer thunk before pinning it. The target separately
+ * proves the referenced SystemVerilog body contains only passive display/error
+ * statements, while marking the execution thread final keeps the fork/join
+ * synchronous in Postponed.
+ */
+static bool validate_final_deferred_task_thunk_(vvp_code_t action)
+{
+      if (!action)
+            return false;
+
+      __vpiScope*alloc_scope = 0;
+      if (action->opcode == of_ALLOC) {
+            alloc_scope = action->scope;
+            if (!alloc_scope || alloc_scope->get_type_code() != vpiTask
+                || !alloc_scope->is_automatic())
+                  return false;
+            action = deferred_final_next_code_(action);
+      }
+
+      if (!action || action->opcode != of_FORK || !action->cptr2
+          || !action->scope
+          || action->scope->get_type_code() != vpiTask)
+            return false;
+      if (alloc_scope) {
+            if (action->scope != alloc_scope)
+                  return false;
+      } else if (action->scope->is_automatic()) {
+            return false;
+      }
+
+      action = deferred_final_next_code_(action);
+      if (!action || action->opcode != of_JOIN)
+            return false;
+
+      action = deferred_final_next_code_(action);
+      if (alloc_scope) {
+            if (!action || action->opcode != of_FREE
+                || action->scope != alloc_scope)
+                  return false;
+            action = deferred_final_next_code_(action);
+      }
+
+      return action && action->opcode == of_END;
+}
+
+bool of_DEFER_FINAL(vthread_t thr, vvp_code_t cp)
+{
+      vthread_t owner = logical_process_thread_(thr);
+      if (!owner)
+	    return true;
+
+      vvp_process*process = owner->process_obj_.peek<vvp_process>();
+      __vpiScope*scope = dynamic_cast<__vpiScope*>(cp->handle);
+      vvp_code_t key = cp->cptr2;
+      bool task_key = key && key->opcode == of_DEFER_FINAL_TASK_KEY;
+
+      if (!process || !key
+          || (key->opcode != of_DEFER_FINAL_KEY && !task_key) || !scope) {
+	    static bool warned = false;
+	    if (!warned) {
+		  fprintf(stderr,
+		          "vvp: invalid %%defer/final metadata or scope; "
+		          "dropping report (further warnings suppressed).\n");
+		  warned = true;
+	    }
+	    return true;
+      }
+
+      unsigned long source_id = key->number;
+      if (source_id == 0) {
+	    static bool warned = false;
+	    if (!warned) {
+		  fprintf(stderr,
+		          "vvp: invalid %%defer/final source id; dropping report "
+		          "(further warnings suppressed).\n");
+		  warned = true;
+	    }
+	    return true;
+      }
+
+      vvp_code_t action_pc = deferred_final_next_code_(key);
+      deferred_assert_args_s action_args;
+      if (task_key) {
+            if (!validate_final_deferred_task_thunk_(action_pc)) {
+                  fprintf(stderr,
+                          "vvp: malformed final-deferred user-task thunk; "
+                          "expected a complete synchronous zero-formal "
+                          "task call and dropped the report.\n");
+                  return true;
+            }
+      } else if (!capture_final_deferred_args_(thr, action_pc, action_args)) {
+            return true;
+      }
+
+      process->pin_final_deferred_assert(source_id, action_pc, scope,
+                                         action_args);
+      return true;
+}
+
+/* Tagged out-of-line metadata is not meant to execute. Be defensive if a
+ * malformed control-flow edge nevertheless reaches it. */
+bool of_DEFER_FINAL_KEY(vthread_t, vvp_code_t)
+{
+      return true;
+}
+
+bool of_DEFER_FINAL_TASK_KEY(vthread_t, vvp_code_t)
+{
+      return true;
+}
+
 
 /*
  * The delay takes two 32bit numbers to make up a 64bit time.
@@ -13803,6 +14284,26 @@ static bool aa_store_vec(vthread_t thr, unsigned wid=0)
       return true;
 }
 
+/* IEEE 1800-2017 7.9.11: construct the complete associative-array value
+ * represented by `'{default: value}'. The default is per container, is not a
+ * key/value entry, and survives delete operations. The RHS value is already
+ * evaluated when this opcode runs; consume it, create fresh typed storage, and
+ * leave that storage on the object stack for the ordinary signal/property
+ * store. This avoids retaining a stale destination handle across RHS side
+ * effects. */
+template <typename ELEM, class ASSOC>
+static bool aa_new_default(vthread_t thr, unsigned wid=0)
+{
+      ELEM value;
+      pop_value(thr, value, wid);
+
+      ASSOC*assoc = new ASSOC;
+      assoc->replace_default(value);
+      thr->push_object(vvp_object_t(assoc));
+
+      return true;
+}
+
 template <class ASSOC>
 static bool aa_delete_str(vthread_t thr)
 {
@@ -13921,8 +14422,8 @@ static bool aa_exists_signal(vthread_t thr, vvp_net_t*net, unsigned wid)
 
 template <typename KEY>
 static bool aa_traversal_finish_(vthread_t thr, vvp_net_t*key_net,
-				 const KEY&key, bool ok,
-				 unsigned wid, const char*why)
+                                 const KEY&key, bool ok,
+                                 unsigned wid, const char*why)
 {
       if (ok && !write_signal_assoc_key_<KEY>(thr, key_net, key, why))
             ok = false;
@@ -13940,7 +14441,60 @@ static bool aa_traversal_finish_(vthread_t thr, vvp_net_t*key_net,
 }
 
 template <typename KEY, class ASSOC>
-static bool aa_first(vthread_t thr, vvp_net_t*key_net, unsigned wid)
+static bool assoc_first_key_(ASSOC*assoc, KEY&key, bool)
+{
+      return assoc && assoc->first_key(key);
+}
+
+template <class ASSOC>
+static bool assoc_first_key_(ASSOC*assoc, vvp_vector4_t&key,
+                             bool signed_order)
+{
+      return assoc && assoc->first_key(key, signed_order);
+}
+
+template <typename KEY, class ASSOC>
+static bool assoc_last_key_(ASSOC*assoc, KEY&key, bool)
+{
+      return assoc && assoc->last_key(key);
+}
+
+template <class ASSOC>
+static bool assoc_last_key_(ASSOC*assoc, vvp_vector4_t&key,
+                            bool signed_order)
+{
+      return assoc && assoc->last_key(key, signed_order);
+}
+
+template <typename KEY, class ASSOC>
+static bool assoc_next_key_(ASSOC*assoc, KEY&key, bool)
+{
+      return assoc && assoc->next_key(key);
+}
+
+template <class ASSOC>
+static bool assoc_next_key_(ASSOC*assoc, vvp_vector4_t&key,
+                            bool signed_order)
+{
+      return assoc && assoc->next_key(key, signed_order);
+}
+
+template <typename KEY, class ASSOC>
+static bool assoc_prev_key_(ASSOC*assoc, KEY&key, bool)
+{
+      return assoc && assoc->prev_key(key);
+}
+
+template <class ASSOC>
+static bool assoc_prev_key_(ASSOC*assoc, vvp_vector4_t&key,
+                            bool signed_order)
+{
+      return assoc && assoc->prev_key(key, signed_order);
+}
+
+template <typename KEY, class ASSOC>
+static bool aa_first(vthread_t thr, vvp_net_t*key_net, unsigned wid,
+                     bool signed_order = false)
 {
       KEY key;
       ASSOC*assoc = pop_assoc_receiver_<ASSOC>(thr);
@@ -13949,13 +14503,14 @@ static bool aa_first(vthread_t thr, vvp_net_t*key_net, unsigned wid)
                     scope_name_or_unknown_(thr ? thr->parent_scope : 0),
                     (void*)assoc);
       }
-      bool ok = assoc && assoc->first_key(key);
+      bool ok = assoc_first_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "first", assoc, ok, key);
       return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-first");
 }
 
 template <typename KEY, class ASSOC>
-static bool aa_last(vthread_t thr, vvp_net_t*key_net, unsigned wid)
+static bool aa_last(vthread_t thr, vvp_net_t*key_net, unsigned wid,
+                    bool signed_order = false)
 {
       KEY key;
       ASSOC*assoc = pop_assoc_receiver_<ASSOC>(thr);
@@ -13964,13 +14519,14 @@ static bool aa_last(vthread_t thr, vvp_net_t*key_net, unsigned wid)
                     scope_name_or_unknown_(thr ? thr->parent_scope : 0),
                     (void*)assoc);
       }
-      bool ok = assoc && assoc->last_key(key);
+      bool ok = assoc_last_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "last", assoc, ok, key);
       return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-last");
 }
 
 template <typename KEY, class ASSOC>
-static bool aa_next(vthread_t thr, vvp_net_t*key_net, unsigned wid)
+static bool aa_next(vthread_t thr, vvp_net_t*key_net, unsigned wid,
+                    bool signed_order = false)
 {
       KEY key;
       bool ok = read_signal_assoc_key_<KEY>(thr, key_net, key);
@@ -13980,13 +14536,14 @@ static bool aa_next(vthread_t thr, vvp_net_t*key_net, unsigned wid)
                     scope_name_or_unknown_(thr ? thr->parent_scope : 0),
                     (void*)assoc, ok ? 1 : 0);
       }
-      ok = assoc && ok && assoc->next_key(key);
+      ok = ok && assoc_next_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "next", assoc, ok, key);
       return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-next");
 }
 
 template <typename KEY, class ASSOC>
-static bool aa_prev(vthread_t thr, vvp_net_t*key_net, unsigned wid)
+static bool aa_prev(vthread_t thr, vvp_net_t*key_net, unsigned wid,
+                    bool signed_order = false)
 {
       KEY key;
       bool ok = read_signal_assoc_key_<KEY>(thr, key_net, key);
@@ -13996,53 +14553,57 @@ static bool aa_prev(vthread_t thr, vvp_net_t*key_net, unsigned wid)
                     scope_name_or_unknown_(thr ? thr->parent_scope : 0),
                     (void*)assoc, ok ? 1 : 0);
       }
-      ok = assoc && ok && assoc->prev_key(key);
+      ok = ok && assoc_prev_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "prev", assoc, ok, key);
       return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-prev");
 }
 
 template <typename KEY, class ASSOC>
 static bool aa_first_signal(vthread_t thr, vvp_net_t*recv_net,
-			    vvp_net_t*key_net, unsigned wid)
+                            vvp_net_t*key_net, unsigned wid,
+                            bool signed_order = false)
 {
       KEY key;
       ASSOC*assoc = peek_signal_assoc_<ASSOC>(recv_net);
-      bool ok = assoc && assoc->first_key(key);
+      bool ok = assoc_first_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "first-sig", assoc, ok, key);
       return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-first-sig");
 }
 
 template <typename KEY, class ASSOC>
 static bool aa_last_signal(vthread_t thr, vvp_net_t*recv_net,
-			   vvp_net_t*key_net, unsigned wid)
+                           vvp_net_t*key_net, unsigned wid,
+                           bool signed_order = false)
 {
       KEY key;
       ASSOC*assoc = peek_signal_assoc_<ASSOC>(recv_net);
-      bool ok = assoc && assoc->last_key(key);
+      bool ok = assoc_last_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "last-sig", assoc, ok, key);
       return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-last-sig");
 }
 
 template <typename KEY, class ASSOC>
 static bool aa_next_signal(vthread_t thr, vvp_net_t*recv_net,
-			   vvp_net_t*key_net, unsigned wid)
+                           vvp_net_t*key_net, unsigned wid,
+                           bool signed_order = false)
 {
       KEY key;
       bool ok = read_signal_assoc_key_<KEY>(thr, key_net, key);
       ASSOC*assoc = peek_signal_assoc_<ASSOC>(recv_net);
-      ok = assoc && ok && assoc->next_key(key);
+      ok = ok && assoc_next_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "next-sig", assoc, ok, key);
       return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-next-sig");
 }
 
 template <typename KEY, class ASSOC>
 static bool aa_prev_signal(vthread_t thr, vvp_net_t*recv_net,
-			   vvp_net_t*key_net, unsigned wid)
+                           vvp_net_t*key_net, unsigned wid,
+                           bool signed_order = false)
 {
       KEY key;
       bool ok = read_signal_assoc_key_<KEY>(thr, key_net, key);
       ASSOC*assoc = peek_signal_assoc_<ASSOC>(recv_net);
-      ok = assoc && ok && assoc->prev_key(key);
+      ok = ok && assoc_prev_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "prev-sig", assoc, ok, key);
       return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-prev-sig");
 }
@@ -14380,6 +14941,27 @@ bool of_AA_LOAD_V_V(vthread_t thr, vvp_code_t cp)
       return aa_load_vec<vvp_vector4_t, vvp_assoc_vec4>(thr, cp->bit_idx[0]);
 }
 
+bool of_AA_NEW_DEFAULT_OBJ(vthread_t thr, vvp_code_t)
+{
+      return aa_new_default<vvp_object_t, vvp_assoc_object>(thr);
+}
+
+bool of_AA_NEW_DEFAULT_R(vthread_t thr, vvp_code_t)
+{
+      return aa_new_default<double, vvp_assoc_real>(thr);
+}
+
+bool of_AA_NEW_DEFAULT_STR(vthread_t thr, vvp_code_t)
+{
+      return aa_new_default<string, vvp_assoc_string>(thr);
+}
+
+bool of_AA_NEW_DEFAULT_V(vthread_t thr, vvp_code_t cp)
+{
+      return aa_new_default<vvp_vector4_t, vvp_assoc_vec4>(
+            thr, cp->bit_idx[0]);
+}
+
 bool of_AA_STORE_OBJ_OBJ(vthread_t thr, vvp_code_t)
 {
       return aa_store_obj<vvp_object_t, vvp_assoc_object>(thr);
@@ -14522,6 +15104,12 @@ bool of_AA_FIRST_SIG_STR(vthread_t thr, vvp_code_t cp)
       return aa_first_signal<string, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
 }
 
+bool of_AA_FIRST_SIG_SV(vthread_t thr, vvp_code_t cp)
+{
+      return aa_first_signal<vvp_vector4_t, vvp_assoc_base>(
+            thr, cp->net, cp->net2, 1, true);
+}
+
 bool of_AA_FIRST_SIG_V(vthread_t thr, vvp_code_t cp)
 {
       return aa_first_signal<vvp_vector4_t, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
@@ -14530,6 +15118,12 @@ bool of_AA_FIRST_SIG_V(vthread_t thr, vvp_code_t cp)
 bool of_AA_FIRST_STR(vthread_t thr, vvp_code_t cp)
 {
       return aa_first<string, vvp_assoc_base>(thr, cp->net, cp->bit_idx[0]);
+}
+
+bool of_AA_FIRST_SV(vthread_t thr, vvp_code_t cp)
+{
+      return aa_first<vvp_vector4_t, vvp_assoc_base>(
+            thr, cp->net, cp->bit_idx[0], true);
 }
 
 bool of_AA_FIRST_V(vthread_t thr, vvp_code_t cp)
@@ -14552,6 +15146,12 @@ bool of_AA_LAST_SIG_STR(vthread_t thr, vvp_code_t cp)
       return aa_last_signal<string, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
 }
 
+bool of_AA_LAST_SIG_SV(vthread_t thr, vvp_code_t cp)
+{
+      return aa_last_signal<vvp_vector4_t, vvp_assoc_base>(
+            thr, cp->net, cp->net2, 1, true);
+}
+
 bool of_AA_LAST_SIG_V(vthread_t thr, vvp_code_t cp)
 {
       return aa_last_signal<vvp_vector4_t, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
@@ -14560,6 +15160,12 @@ bool of_AA_LAST_SIG_V(vthread_t thr, vvp_code_t cp)
 bool of_AA_LAST_STR(vthread_t thr, vvp_code_t cp)
 {
       return aa_last<string, vvp_assoc_base>(thr, cp->net, cp->bit_idx[0]);
+}
+
+bool of_AA_LAST_SV(vthread_t thr, vvp_code_t cp)
+{
+      return aa_last<vvp_vector4_t, vvp_assoc_base>(
+            thr, cp->net, cp->bit_idx[0], true);
 }
 
 bool of_AA_LAST_V(vthread_t thr, vvp_code_t cp)
@@ -14582,6 +15188,12 @@ bool of_AA_NEXT_SIG_STR(vthread_t thr, vvp_code_t cp)
       return aa_next_signal<string, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
 }
 
+bool of_AA_NEXT_SIG_SV(vthread_t thr, vvp_code_t cp)
+{
+      return aa_next_signal<vvp_vector4_t, vvp_assoc_base>(
+            thr, cp->net, cp->net2, 1, true);
+}
+
 bool of_AA_NEXT_SIG_V(vthread_t thr, vvp_code_t cp)
 {
       return aa_next_signal<vvp_vector4_t, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
@@ -14590,6 +15202,12 @@ bool of_AA_NEXT_SIG_V(vthread_t thr, vvp_code_t cp)
 bool of_AA_NEXT_STR(vthread_t thr, vvp_code_t cp)
 {
       return aa_next<string, vvp_assoc_base>(thr, cp->net, cp->bit_idx[0]);
+}
+
+bool of_AA_NEXT_SV(vthread_t thr, vvp_code_t cp)
+{
+      return aa_next<vvp_vector4_t, vvp_assoc_base>(
+            thr, cp->net, cp->bit_idx[0], true);
 }
 
 bool of_AA_NEXT_V(vthread_t thr, vvp_code_t cp)
@@ -14612,6 +15230,12 @@ bool of_AA_PREV_SIG_STR(vthread_t thr, vvp_code_t cp)
       return aa_prev_signal<string, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
 }
 
+bool of_AA_PREV_SIG_SV(vthread_t thr, vvp_code_t cp)
+{
+      return aa_prev_signal<vvp_vector4_t, vvp_assoc_base>(
+            thr, cp->net, cp->net2, 1, true);
+}
+
 bool of_AA_PREV_SIG_V(vthread_t thr, vvp_code_t cp)
 {
       return aa_prev_signal<vvp_vector4_t, vvp_assoc_base>(thr, cp->net, cp->net2, 1);
@@ -14620,6 +15244,12 @@ bool of_AA_PREV_SIG_V(vthread_t thr, vvp_code_t cp)
 bool of_AA_PREV_STR(vthread_t thr, vvp_code_t cp)
 {
       return aa_prev<string, vvp_assoc_base>(thr, cp->net, cp->bit_idx[0]);
+}
+
+bool of_AA_PREV_SV(vthread_t thr, vvp_code_t cp)
+{
+      return aa_prev<vvp_vector4_t, vvp_assoc_base>(
+            thr, cp->net, cp->bit_idx[0], true);
 }
 
 bool of_AA_PREV_V(vthread_t thr, vvp_code_t cp)
@@ -14891,10 +15521,14 @@ bool of_LOAD_OBJ(vthread_t thr, vvp_code_t cp)
  *    bit  9     = 4-state (logic) rather than 2-state (bit)
  *    bit 10     = the declared range DESCENDS (left > right)
  *    bit 11     = object (class handle) elements
+ *    bit 12     = string elements
+ *    bit 13     = materialize a queue rather than a dynamic array
  *
- * bit_idx[1] carries the declared LEFT bound, so the marshaled array can
- * report its source array's range through the open-array accessors rather
- * than the 0..N-1 of the dynamic array it now is (H.10.2).
+ * For a dynamic-array result, bit_idx[1] carries the declared LEFT bound, so
+ * the marshaled array can report its source array's range through the
+ * open-array accessors rather than always looking like [0:N-1]. For a queue
+ * result it instead carries the destination maximum element count (zero is
+ * unbounded); queues always use 0..N-1 indexes.
  *
  * 2-state elements become vvp_darray_atom<T>, whose storage is contiguous
  * so the DPI open-array accessors can hand out raw pointers. 4-state
@@ -14902,12 +15536,15 @@ bool of_LOAD_OBJ(vthread_t thr, vvp_code_t cp)
  * contiguity; the DPI path rejects non-atom elements upstream with its own
  * sorry, so that only affects plain SV assignment.
  */
-# define ARRDAR_REAL      0u
 # define ARRDAR_WIDTH(k)  ((k) & 0xFFu)
 # define ARRDAR_SIGNED(k) (((k) >> 8) & 1u)
 # define ARRDAR_FOUR(k)   (((k) >> 9) & 1u)
 # define ARRDAR_DESC(k)   (((k) >> 10) & 1u)
 # define ARRDAR_OBJ(k)    (((k) >> 11) & 1u)
+# define ARRDAR_STRING(k) (((k) >> 12) & 1u)
+# define ARRDAR_QUEUE(k)  (((k) >> 13) & 1u)
+/* Real has a zero type payload; direction/container-kind bits may be set. */
+# define ARRDAR_REAL(k)   (((k) & ~((1u << 10) | (1u << 13))) == 0u)
 
 /* Build one LEAF container of `count' elements for a packed element
    descriptor. Shared by the flat and the multi-dimensional marshalers
@@ -14917,11 +15554,26 @@ static vvp_darray* arrdar_leaf_(uint32_t kind, size_t count)
       unsigned wid = ARRDAR_WIDTH(kind);
       bool is_signed = ARRDAR_SIGNED(kind) != 0;
 
+      if (ARRDAR_QUEUE(kind)) {
+	    if (ARRDAR_OBJ(kind))
+		  return new vvp_queue_object;
+	    if (ARRDAR_STRING(kind))
+		  return new vvp_queue_string;
+	    if (ARRDAR_REAL(kind))
+		  return new vvp_queue_real;
+	      /* Queue integral elements use the vec4 representation for both
+	       * 2-state and 4-state values; each appended word retains its exact
+	       * descriptor width. */
+	    return new vvp_queue_vec4;
+      }
+
       if (ARRDAR_OBJ(kind))
 	      /* Class-handle elements: the words are handles, copied by
 		 reference exactly as an element-wise assignment would. */
 	    return new vvp_darray_object(count);
-      if (kind == ARRDAR_REAL)
+      if (ARRDAR_STRING(kind))
+	    return new vvp_darray_string(count);
+      if (ARRDAR_REAL(kind))
 	    return new vvp_darray_real(count);
       if (ARRDAR_FOUR(kind))
 	    return new vvp_darray_vec4(count, wid ? wid : 1);
@@ -14952,25 +15604,57 @@ bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
       }
 
       size_t count = array->get_size();
-      bool is_real = (kind == ARRDAR_REAL);
+      bool is_real = ARRDAR_REAL(kind);
+      bool is_string = ARRDAR_STRING(kind) != 0;
       vvp_object_t obj = vvp_object_t(arrdar_leaf_(kind, count));
 
       vvp_darray*dar = obj.peek<vvp_darray>();
-      for (size_t idx = 0 ; dar && idx < count ; idx += 1) {
+      vvp_queue*queue = ARRDAR_QUEUE(kind) ? obj.peek<vvp_queue>() : 0;
+	/* A bounded queue assignment retains the source prefix that fits. Do
+	 * not attempt extra push_back operations: those are user mutations and
+	 * warn at the bound, whereas whole-queue assignment truncates here. */
+      unsigned queue_max_size = queue ? cp->bit_idx[1] : 0;
+      size_t copy_count = count;
+      if (queue_max_size && copy_count > queue_max_size)
+	    copy_count = queue_max_size;
+      for (size_t idx = 0 ; dar && idx < copy_count ; idx += 1) {
+	      /* Fixed-array storage is canonical-index ordered. Queue
+	       * assignment correspondence is declared left-to-right, so a
+	       * descending source is read from the opposite storage end. Keep
+	       * generic darray materialization's established storage walk. */
+	    size_t source_idx = queue && ARRDAR_DESC(kind)
+		  ? count - 1 - idx : idx;
 	    if (ARRDAR_OBJ(kind)) {
 		  vvp_object_t w;
-		  array->get_word_obj((unsigned)idx, w);
-		  dar->set_word((unsigned)idx, w);
+		  array->get_word_obj((unsigned)source_idx, w);
+		  if (queue)
+			queue->push_back(w, queue_max_size);
+		  else
+			dar->set_word((unsigned)idx, w);
+	    } else if (is_string) {
+		  string w = array->get_word_str((unsigned)source_idx);
+		  if (queue)
+			queue->push_back(w, queue_max_size);
+		  else
+			dar->set_word((unsigned)idx, w);
 	    } else if (is_real) {
-		  dar->set_word((unsigned)idx, array->get_word_r((unsigned)idx));
+		  double w = array->get_word_r((unsigned)source_idx);
+		  if (queue)
+			queue->push_back(w, queue_max_size);
+		  else
+			dar->set_word((unsigned)idx, w);
 	    } else {
-		  dar->set_word((unsigned)idx, array->get_word((unsigned)idx));
+		  vvp_vector4_t w = array->get_word((unsigned)source_idx);
+		  if (queue)
+			queue->push_back(w, queue_max_size);
+		  else
+			dar->set_word((unsigned)idx, w);
 	    }
       }
 
 	/* Record the source array's declared range so the DPI open-array
 	   accessors report it instead of 0..N-1. */
-      if (dar && count > 0) {
+      if (dar && count > 0 && !queue) {
 	    int left = (int)(int32_t)cp->bit_idx[1];
 	    int span = (int)count - 1;
 	    int right = ARRDAR_DESC(kind) ? (left - span) : (left + span);
@@ -15033,7 +15717,11 @@ bool of_STORE_ARR_DAR(vthread_t thr, vvp_code_t cp)
 		  vvp_object_t w;
 		  dar->get_word((unsigned)idx, w);
 		  array->set_word((unsigned)idx, w);
-	    } else if (kind == ARRDAR_REAL) {
+	    } else if (ARRDAR_STRING(kind)) {
+		  string w;
+		  dar->get_word((unsigned)idx, w);
+		  array->set_word((unsigned)idx, w);
+	    } else if (ARRDAR_REAL(kind)) {
 		  double w = 0.0;
 		  dar->get_word((unsigned)idx, w);
 		  array->set_word((unsigned)idx, w);
@@ -15113,7 +15801,10 @@ static vvp_object_t md_materialize_(vvp_array_t array, uint32_t kind,
 		  vvp_object_t w;
 		  array->get_word_obj((unsigned)flat, w);
 		  level->set_word((unsigned)idx, w);
-	    } else if (kind == ARRDAR_REAL) {
+	    } else if (ARRDAR_STRING(kind)) {
+		  level->set_word((unsigned)idx,
+				  array->get_word_str((unsigned)flat));
+	    } else if (ARRDAR_REAL(kind)) {
 		  level->set_word((unsigned)idx,
 				  array->get_word_r((unsigned)flat));
 	    } else {
@@ -15154,7 +15845,11 @@ static void md_copy_back_(vvp_array_t array, uint32_t kind,
 		  vvp_object_t w;
 		  level->get_word((unsigned)idx, w);
 		  array->set_word((unsigned)flat, w);
-	    } else if (kind == ARRDAR_REAL) {
+	    } else if (ARRDAR_STRING(kind)) {
+		  string w;
+		  level->get_word((unsigned)idx, w);
+		  array->set_word((unsigned)flat, w);
+	    } else if (ARRDAR_REAL(kind)) {
 		  double w = 0.0;
 		  level->get_word((unsigned)idx, w);
 		  array->set_word((unsigned)flat, w);
@@ -20253,6 +20948,130 @@ bool of_STORE_QOBJ_STR(vthread_t thr, vvp_code_t cp)
 bool of_STORE_QOBJ_V(vthread_t thr, vvp_code_t cp)
 {
       return store_qobj<vvp_vector4_t, vvp_queue_vec4>(thr, cp, cp->bit_idx[1]);
+}
+
+/* Element-copy policy for queue suffix-slice assignment. Object-backed
+ * value elements (nested containers and unpacked structs) must be copied,
+ * while class handles remain shared. value_copy_element() carries exactly
+ * that distinction. */
+static inline void qslice_copy_value_(vvp_object_t&value)
+{
+      value = value.value_copy_element();
+}
+static inline void qslice_copy_value_(double&) { }
+static inline void qslice_copy_value_(string&) { }
+static inline void qslice_copy_value_(vvp_vector4_t&) { }
+
+static inline void qslice_normalize_value_(vvp_vector4_t&value, unsigned wid)
+{
+      if (value.size() != wid)
+	    value.resize(wid);
+}
+static inline void qslice_normalize_value_(vvp_object_t&, unsigned) { }
+static inline void qslice_normalize_value_(double&, unsigned) { }
+static inline void qslice_normalize_value_(string&, unsigned) { }
+
+/*
+ * %store/qslice/<type> <var-label>, <lo-reg> [, <width>]
+ *
+ * Replace the existing suffix q[lo:$] without resizing q. Both the lower
+ * bound and the destination suffix length are dynamic. Validate every
+ * condition before the first set_word so a bad bound, runtime type mismatch,
+ * or element-count mismatch leaves the destination unchanged. Reading all
+ * source words into a temporary first also makes an aliased source atomic.
+ */
+template <typename ELEM, class QTYPE>
+static bool store_qslice(vthread_t thr, vvp_code_t cp, unsigned wid=0)
+{
+      const unsigned lo_reg = cp->bit_idx[0];
+      const int64_t lo = thr->words[lo_reg].w_int;
+      const bool lo_undefined = thr->flags[4] != BIT4_0;
+
+      vvp_object_t src_obj;
+      thr->pop_object(src_obj);
+
+      vvp_net_t*net = cp->net;
+      assert(net);
+      vvp_fun_signal_object*sig_obj =
+	    dynamic_cast<vvp_fun_signal_object*>(net->fun);
+      QTYPE*dst = sig_obj
+	    ? dynamic_cast<QTYPE*>(sig_obj->get_object().peek<vvp_queue>())
+	    : 0;
+      QTYPE*src = src_obj.peek<QTYPE>();
+
+      if (lo_undefined) {
+	    cerr << thr->get_fileline()
+		 << "Warning: queue slice assignment has an undefined lower "
+		    "bound; destination was not modified." << endl;
+	    return true;
+      }
+      if (!dst) {
+	    cerr << thr->get_fileline()
+		 << "Warning: queue slice assignment destination has an "
+		    "incompatible runtime element type; destination was not "
+		    "modified." << endl;
+	    return true;
+      }
+
+      const size_t dst_size = dst->get_size();
+      if (lo < 0 || (uint64_t)lo >= dst_size) {
+	    cerr << thr->get_fileline()
+		 << "Warning: queue slice lower bound " << lo
+		 << " is out of range for queue of size " << dst_size
+		 << "; destination was not modified." << endl;
+	    return true;
+      }
+      if (!src) {
+	    cerr << thr->get_fileline()
+		 << "Warning: queue slice assignment source has an incompatible "
+		    "runtime element type; destination was not modified." << endl;
+	    return true;
+      }
+
+      const size_t suffix_size = dst_size - (size_t)lo;
+      const size_t src_size = src->get_size();
+      if (src_size != suffix_size) {
+	    cerr << thr->get_fileline()
+		 << "Warning: queue slice assignment size mismatch: destination "
+		    "slice has " << suffix_size << " element"
+		 << (suffix_size == 1 ? "" : "s") << ", source has "
+		 << src_size << " element" << (src_size == 1 ? "" : "s")
+		 << "; destination was not modified." << endl;
+	    return true;
+      }
+
+      vector<ELEM> values(src_size);
+      for (size_t idx = 0 ; idx < src_size ; idx += 1) {
+	    src->get_word((unsigned)idx, values[idx]);
+	    qslice_normalize_value_(values[idx], wid);
+	    qslice_copy_value_(values[idx]);
+      }
+      for (size_t idx = 0 ; idx < src_size ; idx += 1)
+	    dst->set_word((unsigned)((size_t)lo + idx), values[idx]);
+
+      notify_mutated_object_signal_(thr, net, "store-qslice");
+      return true;
+}
+
+bool of_STORE_QSLICE_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return store_qslice<vvp_object_t, vvp_queue_object>(thr, cp);
+}
+
+bool of_STORE_QSLICE_R(vthread_t thr, vvp_code_t cp)
+{
+      return store_qslice<double, vvp_queue_real>(thr, cp);
+}
+
+bool of_STORE_QSLICE_STR(vthread_t thr, vvp_code_t cp)
+{
+      return store_qslice<string, vvp_queue_string>(thr, cp);
+}
+
+bool of_STORE_QSLICE_V(vthread_t thr, vvp_code_t cp)
+{
+      return store_qslice<vvp_vector4_t, vvp_queue_vec4>(thr, cp,
+						 cp->bit_idx[1]);
 }
 
 template <typename ELEM, class DST_QTYPE, class SRC_TYPE>

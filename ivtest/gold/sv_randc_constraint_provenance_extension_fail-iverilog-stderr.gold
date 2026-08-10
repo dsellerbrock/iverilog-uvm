@@ -1,0 +1,11 @@
+ivltests/sv_randc_constraint_provenance_extension_fail.v:37: warning: randc property 'item' of class randc_prov_ext_caller has a 32-bit cyclic leaf, beyond the 20-bit randc cycle-tracking cap; it will randomize as plain (non-cyclic) rand instead of guaranteeing a full permutation before any repeat.
+ivltests/sv_randc_constraint_provenance_extension_fail.v:11: warning: randc property 'cyc' of class randc_prov_ext_leaf has a 32-bit cyclic leaf, beyond the 20-bit randc cycle-tracking cap; it will randomize as plain (non-cyclic) rand instead of guaranteeing a full permutation before any repeat.
+ivltests/sv_randc_constraint_provenance_extension_fail.v:27: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_extension_fail.v:29: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_extension_fail.v:28: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_extension_fail.v:81: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_extension_fail.v:84: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_extension_fail.v:42: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_extension_fail.v:61: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_extension_fail.v:58: error: 'randc' variables cannot be used in 'soft' constraints.
+8 error(s) during elaboration.

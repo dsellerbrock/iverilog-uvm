@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_param_class_package_bare_static_lvalue_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_param_class_package_bare_static_lvalue_fail"
+}

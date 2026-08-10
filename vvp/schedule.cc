@@ -620,6 +620,12 @@ static struct event_s* schedule_init_list = 0;
  */
 static struct event_s* schedule_final_list = 0;
 
+/* Passive events pinned by a final procedure run after all final procedures,
+ * followed by thread reaping. Neither list belongs to a new time slot. */
+static struct event_s* schedule_post_final_list = 0;
+static struct event_s* schedule_post_final_delete_list = 0;
+static bool sim_in_final_phase = false;
+
 /*
  * This flag is true until a VPI task or function finishes the
  * simulation.
@@ -729,6 +735,18 @@ static void schedule_final_event(struct event_s*cur)
             schedule_final_list->next = cur;
       }
       schedule_final_list = cur;
+}
+
+static void schedule_post_final_event(struct event_s*&list,
+                                      struct event_s*cur)
+{
+      if (list == 0) {
+            cur->next = cur;
+      } else {
+            cur->next = list->next;
+            list->next = cur;
+      }
+      list = cur;
 }
 
 /*
@@ -1325,7 +1343,12 @@ void schedule_del_thr(vthread_t thr)
 
       cur->thr = thr;
 
-      schedule_event_(cur, 0, DEL_THREAD);
+      if (sim_in_final_phase) {
+            cur->region = DEL_THREAD;
+            schedule_post_final_event(schedule_post_final_delete_list, cur);
+      } else {
+            schedule_event_(cur, 0, DEL_THREAD);
+      }
 }
 
 void schedule_generic(vvp_gen_event_t obj, vvp_time64_t delay,
@@ -1340,6 +1363,15 @@ void schedule_generic(vvp_gen_event_t obj, vvp_time64_t delay,
 
       if (sync_flag)
 	    vthread_delay_delete();
+}
+
+void schedule_post_final(vvp_gen_event_t obj)
+{
+      struct generic_event_s*cur = new generic_event_s;
+      cur->obj = obj;
+      cur->delete_obj_when_done = true;
+      cur->region = SEQ_ROSYNC;
+      schedule_post_final_event(schedule_post_final_list, cur);
 }
 
 static bool sim_started;
@@ -1459,6 +1491,11 @@ static bool sched_regions_live = true;
 bool schedule_regions_live(void)
 {
       return sched_regions_live && sched_current_region != SEQ_ROSYNC;
+}
+
+bool schedule_in_final_phase(void)
+{
+      return sim_in_final_phase;
 }
 
 /*
@@ -1839,6 +1876,7 @@ void schedule_simulate(void)
 	// with %wait/reactive runs inline from here on.
       sched_regions_live = false;
       schedule_runnable = run_finals;
+      sim_in_final_phase = true;
       while (schedule_runnable && schedule_final_list) {
 	    struct event_s*cur = schedule_final_list->next;
 	    if (cur->next == cur) {
@@ -1849,6 +1887,41 @@ void schedule_simulate(void)
 	    cur->run_run();
 	    delete cur;
       }
+
+	/* IEEE 1800-2017 16.4.2 permits a final-deferred assertion in a
+	 * final procedure. Its expression and selected arm are fixed while that
+	 * procedure runs, but the passive action runs only after every final
+	 * procedure. Drain this dedicated Postponed list even if $finish was
+	 * called in the same final procedure; it must never re-enter Active or
+	 * Reactive. */
+      sim_at_rosync = true;
+      while (schedule_post_final_list) {
+	    struct event_s*cur = schedule_post_final_list->next;
+	    if (cur->next == cur) {
+		  schedule_post_final_list = 0;
+	    } else {
+		  schedule_post_final_list->next = cur->next;
+	    }
+	    region_enter_(cur);
+	    cur->run_run();
+	    delete cur;
+      }
+      sim_at_rosync = false;
+
+      sched_current_region = DEL_THREAD;
+      while (schedule_post_final_delete_list) {
+	    struct event_s*cur = schedule_post_final_delete_list->next;
+	    if (cur->next == cur) {
+		  schedule_post_final_delete_list = 0;
+	    } else {
+		  schedule_post_final_delete_list->next = cur->next;
+	    }
+	    region_enter_(cur);
+	    cur->run_run();
+	    delete cur;
+      }
+      sched_current_region = SEQ_START;
+      sim_in_final_phase = false;
 
       signals_revert();
 

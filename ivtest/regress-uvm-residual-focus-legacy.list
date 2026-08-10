@@ -1,0 +1,6 @@
+sv_class_static_const_init normal,-g2012 ivltests gold=sv_class_static_const_init.gold
+sv_class_const_constructor_init normal,-g2012 ivltests gold=sv_class_const_constructor_init.gold
+sv_class_static_const_missing_fail CE,-g2012 ivltests gold=sv_class_static_const_missing_fail.gold
+sv_class_static_const_reassign_fail CE,-g2012 ivltests gold=sv_class_static_const_reassign_fail.gold
+sv_class_static_const_scoped_reassign_fail CE,-g2012 ivltests gold=sv_class_static_const_scoped_reassign_fail.gold
+sv_param_class_virtual_override_tlm normal,-g2012 ivltests gold=sv_param_class_virtual_override_tlm.gold

@@ -1,0 +1,5 @@
+./ivltests/sv_ustruct_member_defaults_unused_shape_fail.v:6: sorry: unpacked-struct default member initializers are not yet supported for fixed-size unpacked array member `fixed_data' in a type declaration.
+./ivltests/sv_ustruct_member_defaults_unused_shape_fail.v:7: sorry: unpacked-struct default member initializers are not yet supported for dynamic array member `dynamic_data' in a type declaration.
+./ivltests/sv_ustruct_member_defaults_unused_shape_fail.v:8: sorry: unpacked-struct default member initializers are not yet supported for queue member `queue_data' in a type declaration.
+./ivltests/sv_ustruct_member_defaults_unused_shape_fail.v:9: sorry: unpacked-struct default member initializers are not yet supported for associative array member `assoc_data' in a type declaration.
+4 error(s) during elaboration.

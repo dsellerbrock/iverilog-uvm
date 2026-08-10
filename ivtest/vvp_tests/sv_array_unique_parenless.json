@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_array_unique_parenless.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_array_unique_parenless"
+}

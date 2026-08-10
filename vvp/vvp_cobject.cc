@@ -112,19 +112,27 @@ bool vvp_cobject::rng_set_state(const std::string&state)
 
 bool vvp_cobject::rand_mode(size_t pid) const
 {
+      if (pid < defn_->property_count() && defn_->property_is_static(pid))
+	    return defn_->static_rand_mode(pid);
       if (pid < rand_mode_.size()) return rand_mode_[pid];
       return true;
 }
 
 void vvp_cobject::set_rand_mode(size_t pid, bool mode)
 {
+      if (pid < defn_->property_count() && defn_->property_is_static(pid)) {
+	    defn_->set_static_rand_mode(pid, mode);
+	    return;
+      }
       if (pid < rand_mode_.size()) rand_mode_[pid] = mode;
 }
 
 void vvp_cobject::set_all_rand_mode(bool mode)
 {
-      for (size_t i = 0 ; i < rand_mode_.size() ; i += 1)
-	    rand_mode_[i] = mode;
+      for (size_t i = 0 ; i < rand_mode_.size() ; i += 1) {
+	    if (defn_->property_is_rand(i))
+		  set_rand_mode(i, mode);
+      }
 }
 
 bool vvp_cobject::constraint_mode(size_t cid) const
@@ -138,7 +146,8 @@ void vvp_cobject::set_constraint_mode(size_t cid, bool mode)
       if (cid < constraint_mode_.size()) constraint_mode_[cid] = mode;
 }
 
-// C1 (Phase 62a): randc cyclic state.  Cycle period = 2^width, capped at
+// R1: committed randc state and per-randomize transaction staging. Cycle
+// period = 2^width, capped at
 // 20 bits (a 2^20-entry, 128KB std::vector<bool> bitmap per instance --
 // the old 16-bit/65536-entry cap was stale conservatism; 128KB is a
 // trivial per-object cost for the guarantee of no repeat before a full
@@ -155,30 +164,164 @@ uint64_t vvp_cobject::randc_period(size_t pid) const
       return (uint64_t)1 << w;
 }
 
+const std::vector<bool>*vvp_cobject::randc_history_find_(size_t pid) const
+{
+      if (pid < defn_->property_count() && defn_->property_is_static(pid))
+	    return &defn_->static_randc_history(pid, 0);
+
+      std::map<size_t, std::vector<bool> >::const_iterator it
+	    = randc_history_.find(pid);
+      return it == randc_history_.end() ? 0 : &it->second;
+}
+
+std::vector<bool>&vvp_cobject::randc_history_mutable_(size_t pid)
+{
+      if (pid < defn_->property_count() && defn_->property_is_static(pid))
+	    return defn_->static_randc_history(pid, 0);
+      return randc_history_[pid];
+}
+
+bool vvp_cobject::randc_history_full_(const std::vector<bool>&hist,
+				      uint64_t period)
+{
+      if (period == 0 || hist.size() != period)
+	    return false;
+      for (size_t idx = 0 ; idx < hist.size() ; idx += 1)
+	    if (!hist[idx]) return false;
+      return true;
+}
+
+void vvp_cobject::randc_transaction_begin()
+{
+	// A map frame holds one final event per pid. Merging an overlapping
+	// same-object randomize would silently collapse two successful calls and
+	// let the outer call re-emit the inner value because randc_seen() reads
+	// only committed history. Reject that latent path until an ordered event
+	// log plus transaction-local history projection is implemented.
+      if (!randc_transactions_.empty()) {
+	    cerr << "internal error: overlapping randc transactions for class '"
+		 << defn_->class_name() << "' are not supported" << endl;
+	    abort();
+      }
+      randc_transactions_.push_back(randc_transaction_t());
+}
+
+bool vvp_cobject::randc_transaction_commit()
+{
+      if (randc_transactions_.empty()) {
+	    cerr << "internal error: randc transaction commit without begin"
+		 << endl;
+	    abort();
+      }
+
+      randc_transaction_t pending = randc_transactions_.back();
+      randc_transactions_.pop_back();
+      assert(randc_transactions_.empty());
+
+      struct resolved_randc_t {
+	    size_t pid;
+	    uint64_t period;
+	    uint64_t actual;
+	    randc_pending_t pending;
+      };
+      std::vector<resolved_randc_t> resolved;
+
+	// Validate and capture every actual final value before changing any
+	// history bank. This makes a multi-property commit atomic even if an
+	// unexpected X/Z reaches a supposedly successful solver result.
+      for (randc_transaction_t::const_iterator it = pending.begin();
+	   it != pending.end(); ++it) {
+	    uint64_t period = randc_period(it->first);
+	    if (period == 0) continue;
+
+	    vvp_vector4_t val;
+	    get_vec4(it->first, val);
+	    uint64_t actual = 0;
+	    for (unsigned bit = 0 ; bit < val.size() ; bit += 1) {
+		  vvp_bit4_t digit = val.value(bit);
+		  if (digit == BIT4_1)
+			actual |= (uint64_t)1 << bit;
+		  else if (digit != BIT4_0) {
+			cerr << "warning: successful randomize produced X/Z for randc "
+			     << "property '" << defn_->property_name(it->first)
+			     << "'; history transaction rolled back" << endl;
+			return false;
+		  }
+	    }
+
+	    resolved_randc_t item;
+	    item.pid = it->first;
+	    item.period = period;
+	    item.actual = actual;
+	    item.pending = it->second;
+	    resolved.push_back(item);
+      }
+
+      for (const resolved_randc_t&item : resolved) {
+	    std::vector<bool>&hist = randc_history_mutable_(item.pid);
+	    if (hist.size() != item.period)
+		  hist.assign((size_t)item.period, false);
+
+	    bool reset = randc_history_full_(hist, item.period);
+	    if (reset) {
+		  // A completed cycle remains visibly complete until this next
+		  // successful choice. Its reset and new mark commit together.
+		  for (size_t idx = 0 ; idx < hist.size() ; idx += 1)
+			hist[idx] = false;
+	    } else if (item.pending.feasible_domain) {
+		  bool any = false;
+		  bool all_used = true;
+		  for (uint64_t value : item.pending.feasible) {
+			if (value >= item.period) continue;
+			any = true;
+			if (!hist[(size_t)value]) all_used = false;
+		  }
+		  if (any && all_used)
+			for (uint64_t value : item.pending.feasible)
+			      if (value < item.period)
+				    hist[(size_t)value] = false;
+	    }
+
+	    if (item.actual < item.period)
+		  hist[(size_t)item.actual] = true;
+      }
+      return true;
+}
+
+void vvp_cobject::randc_transaction_rollback()
+{
+      if (randc_transactions_.empty()) {
+	    cerr << "internal error: randc transaction rollback without begin"
+		 << endl;
+	    abort();
+      }
+      randc_transactions_.pop_back();
+}
+
 bool vvp_cobject::randc_seen(size_t pid, uint64_t val) const
 {
-      std::map<size_t, std::vector<bool> >::const_iterator it
-            = randc_history_.find(pid);
-      if (it == randc_history_.end()) return false;
-      if (val >= it->second.size()) return false;
-      return it->second[val];
+      uint64_t period = randc_period(pid);
+      const std::vector<bool>*hist = randc_history_find_(pid);
+      if (!hist || val >= hist->size()) return false;
+	// Exhaustion is a logical new-cycle view, not a mutation. If the
+	// ensuing solve fails, the committed completed cycle stays intact.
+      if (randc_history_full_(*hist, period)) return false;
+      return (*hist)[(size_t)val];
 }
 
 void vvp_cobject::randc_mark(size_t pid, uint64_t val)
 {
       uint64_t period = randc_period(pid);
       if (period == 0) return;
-      std::vector<bool>&hist = randc_history_[pid];
-      if (hist.size() != period) hist.assign((size_t)period, false);
       if (val >= period) return;
-      hist[val] = true;
-      bool all_used = true;
-      for (size_t i = 0; i < hist.size(); i += 1) {
-            if (!hist[i]) { all_used = false; break; }
+      if (randc_transactions_.empty()) {
+	    cerr << "internal error: randc mark outside randomize transaction"
+		 << endl;
+	    abort();
       }
-      if (all_used) {
-            for (size_t i = 0; i < hist.size(); i += 1) hist[i] = false;
-      }
+      randc_pending_t staged;
+      staged.staged_value = val;
+      randc_transactions_.back()[pid] = staged;
 }
 
 // RANDOM-DIST fix #4: see the declaration in vvp_cobject.h.
@@ -187,26 +330,30 @@ void vvp_cobject::randc_mark_feasible(size_t pid, uint64_t val,
 {
       uint64_t period = randc_period(pid);
       if (period == 0) return;
-      std::vector<bool>&hist = randc_history_[pid];
-      if (hist.size() != period) hist.assign((size_t)period, false);
-      if (val < period) hist[val] = true;
-
-      bool all_used = true;
-      for (uint64_t v : feasible) {
-            if (v < period && !hist[v]) { all_used = false; break; }
+      if (val >= period) return;
+      if (randc_transactions_.empty()) {
+	    cerr << "internal error: constrained randc mark outside randomize "
+		 << "transaction" << endl;
+	    abort();
       }
-      if (all_used) {
-            for (uint64_t v : feasible)
-                  if (v < period) hist[v] = false;
-      }
+      randc_pending_t staged;
+      staged.staged_value = val;
+      staged.feasible_domain = true;
+      staged.feasible = feasible;
+      randc_transactions_.back()[pid] = staged;
 }
 
 void vvp_cobject::randc_unmark(size_t pid, uint64_t val)
 {
-      std::map<size_t, std::vector<bool> >::iterator it
-            = randc_history_.find(pid);
-      if (it == randc_history_.end()) return;
-      if (val < it->second.size()) it->second[val] = false;
+      if (randc_transactions_.empty()) {
+	    cerr << "internal error: randc unmark outside randomize transaction"
+		 << endl;
+	    abort();
+      }
+      randc_transaction_t&pending = randc_transactions_.back();
+      randc_transaction_t::iterator it = pending.find(pid);
+      if (it != pending.end() && it->second.staged_value == val)
+	    pending.erase(it);
 }
 
 vvp_cobject::~vvp_cobject()
@@ -303,8 +450,19 @@ void vvp_cobject::shallow_copy(const vvp_object*obj)
 
       assert(defn_ == that->defn_);
 
-      for (size_t idx = 0 ; idx < defn_->property_count() ; idx += 1)
+      for (size_t idx = 0 ; idx < defn_->property_count() ; idx += 1) {
+	    if (defn_->property_is_static(idx))
+		  continue;
 	    defn_->copy_property(properties_, idx, that->properties_);
+      }
+	// Shallow object copy includes per-object randomization control and
+	// committed cycle state. Static mode/history is intentionally absent
+	// here: it is already shared by declaration through class_type's
+	// canonical static cell. An in-flight transaction belongs to the
+	// active call and is never copied.
+      rand_mode_ = that->rand_mode_;
+      constraint_mode_ = that->constraint_mode_;
+      randc_history_ = that->randc_history_;
       touch();
 
 }

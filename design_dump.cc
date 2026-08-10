@@ -266,6 +266,7 @@ ostream& netqueue_t::debug_dump(ostream&fd) const
       fd << "queue of ";
       if (max_idx_ >= 0) fd << "(maximum of " << max_idx_+1 << " elements) ";
       if (assoc_compat()) fd << "(assoc-compat) ";
+      if (assoc_wildcard()) fd << "(assoc-wildcard) ";
       fd << *element_type();
       return fd;
 }

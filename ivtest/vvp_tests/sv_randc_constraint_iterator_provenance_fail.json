@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_randc_constraint_iterator_provenance_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_randc_constraint_iterator_provenance_fail"
+}

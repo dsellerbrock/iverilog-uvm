@@ -1,0 +1,4 @@
+./ivltests/sv_typeparam_enum_receiver_method_fail.v:25: error: Object sv_typeparam_enum_receiver_method_fail._ivl_2.forward.this has no method "m_imp.nb_transport_fw(...)".
+./ivltests/sv_typeparam_enum_receiver_method_fail.v:25: error: This assignment requires an explicit cast.
+./ivltests/sv_typeparam_enum_receiver_method_fail.v:25: error: Enumeration type mismatch in assignment.
+3 error(s) during elaboration.

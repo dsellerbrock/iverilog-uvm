@@ -759,6 +759,11 @@ struct __vpiArrayBase {
                                     int flags) = 0;
       virtual vpiHandle get_iter_index(struct __vpiArrayIterator*iter, int idx) = 0;
       virtual vvp_fun_signal_base*get_callback_functor() const { return 0; }
+	// Convert the canonical zero-based storage word to its declared
+	// unpacked index. Dynamic containers use the zero-based default;
+	// fixed arrays and fixed class-member views override it.
+      virtual int get_word_declared_index(unsigned idx) const
+	{ return (int)idx; }
 
     // vpi_iterate is already defined by vpiHandle, so to avoid problems with
     // classes inheriting from vpiHandle and vpiArrayBase just share the common
@@ -809,6 +814,8 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
       void put_word_value(struct __vpiArrayWord*word, p_vpi_value vp, int flags) override;
 
       vpiHandle get_iter_index(struct __vpiArrayIterator*iter, int idx) override;
+      int get_word_declared_index(unsigned idx) const override
+	{ return (int)idx + first_addr.get_value(); }
 
       int vpi_get(int code) override;
       char* vpi_get_str(int code) override;
@@ -969,6 +976,19 @@ extern vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net);
 /* M12-5: resolve one member name on a class VARIABLE handle or a
    nested class MEMBER handle (returns nil for anything else). */
 extern vpiHandle vpip_class_member_by_name(vpiHandle base, const char*name);
+
+/* Return the canonical declaring-scope storage handle for a static class
+ * member (or its fixed-array word proxy). Non-static/non-member handles
+ * return null. The returned handle is used only as a callback attachment
+ * target; callback data retains the user's original member-view handle. */
+extern vpiHandle vpip_class_member_static_storage(vpiHandle obj);
+
+/* Attach an array callback described by DATA to a distinct canonical fixed
+ * array/word TARGET while preserving DATA->obj as the reported VPI object. */
+extern value_callback*vpip_array_word_change_target(p_cb_data data,
+					     vpiHandle target);
+extern value_callback*vpip_array_change_target(p_cb_data data,
+					vpiHandle target);
 
 /* Phase 51: VPI handle targeting a specific string property of a
  * class instance. tgt-vvp emits this for class string property

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_param_class_scoped_static_lvalue_recursive.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_param_class_scoped_static_lvalue_recursive"
+}

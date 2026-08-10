@@ -1,0 +1,17 @@
+ivltests/sv_randc_constraint_provenance_fail.v:15: warning: randc property 'cyc' of class randc_prov_bad_leaf has a 32-bit cyclic leaf, beyond the 20-bit randc cycle-tracking cap; it will randomize as plain (non-cyclic) rand instead of guaranteeing a full permutation before any repeat.
+ivltests/sv_randc_constraint_provenance_fail.v:38: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_fail.v:41: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_fail.v:44: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_fail.v:42: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_fail.v:40: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_fail.v:55: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_fail.v:81: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_fail.v:79: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_fail.v:115: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_fail.v:69: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_fail.v:131: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_fail.v:128: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_fail.v:98: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_fail.v:96: error: 'randc' variables cannot be used in 'soft' constraints.
+ivltests/sv_randc_constraint_provenance_fail.v:95: error: 'randc' variables cannot be used in 'soft' constraints.
+15 error(s) during elaboration.

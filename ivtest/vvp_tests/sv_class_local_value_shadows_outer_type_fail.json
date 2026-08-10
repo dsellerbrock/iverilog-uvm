@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_class_local_value_shadows_outer_type_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_class_local_value_shadows_outer_type_fail"
+}

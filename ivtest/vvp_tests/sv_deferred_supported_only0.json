@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_deferred_supported_only0.v",
+    "iverilog-args" : [ "-g2012", "-gsupported-assertions" ],
+    "gold"          : "sv_deferred_supported_only0"
+}

@@ -1,0 +1,1 @@
+ivltests/sv_deferred_final_void_cast_fail.v:2: error: The fail action of a deferred immediate assertion must be a direct subroutine call; a void cast is not an action call (IEEE 1800-2017 16.4).

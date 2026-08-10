@@ -1,0 +1,3 @@
+./ivltests/sv_typeparam_receiver_omitted_default_task_fail.v:8: error: Concrete type-parameter receiver m_imp has no method `no_such_task'.
+./ivltests/sv_typeparam_receiver_omitted_default_task_fail.v:8: Unable to elaborate statement in task sv_typeparam_receiver_omitted_default_task_fail._ivl_0.forward at ./ivltests/sv_typeparam_receiver_omitted_default_task_fail.v:7.
+1 error(s) during elaboration.

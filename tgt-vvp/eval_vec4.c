@@ -1392,11 +1392,18 @@ static int draw_assoc_traversal_vec4(ivl_expr_t expr)
 	    return 0;
 
       if (expr_is_string_assoc_key_(key))
-	    key_kind = "str";
+            key_kind = "str";
       else if (expr_is_object_assoc_key_(key))
-	    key_kind = "obj";
-      else
-	    key_kind = "v";
+            key_kind = "obj";
+      else {
+            ivl_type_t key_type = ivl_signal_net_type(key_sig);
+              /* first/last/next/prev order integral indices according to the
+                 declared key variable's exact signedness.  Use a distinct
+                 opcode because the /sig/ form already consumes both vvp_code
+                 pointer slots (receiver and key signal), leaving no storage
+                 for an additional flag. */
+            key_kind = key_type && ivl_type_signed(key_type) ? "sv" : "v";
+      }
 
       recv_sig = signal_assoc_queue_receiver_(recv);
       if (recv_sig) {
@@ -1600,13 +1607,15 @@ static int rand_hooks_for_type_(ivl_type_t classtype,
 }
 
 /* Emit the bytecode sequence to invoke a void method that takes only
- * the implicit `this` argument.  The receiver expression is drawn,
- * pushed onto the object stack, then stored into the method scope's
- * port[0] inside an automatic context.  No copy-out is needed for the
- * void return. */
-static void emit_void_this_method_call_(ivl_expr_t recv, ivl_scope_t target)
+ * the implicit `this` argument. The receiver is already on top of the
+ * object stack and must remain there for the rest of randomize(): one
+ * source expression denotes one receiver for pre_randomize(), solving,
+ * and post_randomize() (IEEE 1800-2017 13.4.1 / 18.6.2). Use the aliasing
+ * duplicate: %dup/obj would deep-copy container-like object values and
+ * could make the hook observe a different receiver. */
+static void emit_void_this_method_call_from_stack_(ivl_scope_t target)
 {
-      if (!target || !recv) return;
+      if (!target) return;
       unsigned nports = ivl_scope_ports(target);
       /* Class methods: port[0] is the return slot (or unused for void),
        * port[1] is the implicit `this`.  Try port[1] first; fall back
@@ -1620,7 +1629,7 @@ static void emit_void_this_method_call_(ivl_expr_t recv, ivl_scope_t target)
       int is_auto = ivl_scope_is_auto(target);
       if (is_auto)
             fprintf(vvp_out, "    %%alloc S_%p;\n", target);
-      draw_eval_object(recv);
+      fprintf(vvp_out, "    %%dup/obj/ref; randomize receiver\n");
       fprintf(vvp_out, "    %%store/obj v%p_0;\n", this_port);
       int use_virtual = ivl_scope_is_virtual_method(target);
       fprintf(vvp_out, "    %%callf/void%s TD_%s, S_%p;\n",
@@ -1629,17 +1638,17 @@ static void emit_void_this_method_call_(ivl_expr_t recv, ivl_scope_t target)
             fprintf(vvp_out, "    %%free S_%p;\n", target);
 }
 
-/* Invoke TARGET only when RECV's dynamic object is TYPE or a subtype. */
-static void emit_dynamic_void_this_method_call_(ivl_expr_t recv,
-                                                ivl_scope_t target,
-                                                ivl_type_t type)
+/* Invoke TARGET only when the receiver already on the object stack has
+ * dynamic type TYPE or a subtype. Preserve that receiver on every path. */
+static void emit_dynamic_void_this_method_call_from_stack_(ivl_scope_t target,
+                                                           ivl_type_t type)
 {
-      if (!recv || !target || !type) return;
+      if (!target || !type) return;
       unsigned lab_null = local_count++;
       unsigned lab_done = local_count++;
 
       draw_class_in_scope(type);
-      draw_eval_object(recv);
+      fprintf(vvp_out, "    %%dup/obj/ref; randomize dynamic guard\n");
       fprintf(vvp_out, "    %%test_nul/obj; randomize hook dynamic guard\n");
       fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
               thread_count, lab_null);
@@ -1648,7 +1657,7 @@ static void emit_dynamic_void_this_method_call_(ivl_expr_t recv,
       fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
       fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 4;\n",
               thread_count, lab_done);
-      emit_void_this_method_call_(recv, target);
+      emit_void_this_method_call_from_stack_(target);
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_done);
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
       fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
@@ -1664,7 +1673,7 @@ static void emit_dynamic_void_this_method_call_(ivl_expr_t recv,
  * %randomize leaves its 32-bit success word on top of the vec4 stack
  * and that word is this expression's value, so branch on a duplicate of
  * it and leave the original in place. */
-static void emit_conditional_post_randomize_(ivl_expr_t recv, ivl_scope_t post)
+static void emit_conditional_post_randomize_from_stack_(ivl_scope_t post)
 {
       unsigned lab_skip = local_count++;
       int flag = allocate_flag();
@@ -1675,13 +1684,13 @@ static void emit_conditional_post_randomize_(ivl_expr_t recv, ivl_scope_t post)
               thread_count, lab_skip, flag);
       /* %callf/void preserves the parent's vec4 stack, so the success
        * word survives the call untouched. */
-      emit_void_this_method_call_(recv, post);
+      emit_void_this_method_call_from_stack_(post);
       fprintf(vvp_out, "T_%u.%u ; end post_randomize (skipped when "
               "randomize() failed)\n", thread_count, lab_skip);
       clr_flag(flag);
 }
 
-static void emit_conditional_dynamic_post_randomize_(ivl_expr_t recv,
+static void emit_conditional_dynamic_post_randomize_from_stack_(
                                                       ivl_scope_t post,
                                                       ivl_type_t type)
 {
@@ -1692,7 +1701,7 @@ static void emit_conditional_dynamic_post_randomize_(ivl_expr_t recv,
       fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", flag);
       fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d;\n",
               thread_count, lab_skip, flag);
-      emit_dynamic_void_this_method_call_(recv, post, type);
+      emit_dynamic_void_this_method_call_from_stack_(post, type);
       fprintf(vvp_out, "T_%u.%u ; end dynamic post_randomize (skipped when "
               "randomize() failed or receiver type did not match)\n",
               thread_count, lab_skip);
@@ -1834,25 +1843,31 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  pre = post = 0;
 		  pre_dyn = post_dyn = 0;
 	    }
+	      /* Evaluate the method receiver exactly once. Keep this original
+	       * handle on the object stack; hooks consume aliasing duplicates
+	       * and %randomize consumes one final aliasing duplicate. */
+	    if (arg)
+		  draw_eval_object(arg);
 	    if (pre && arg) {
-		  emit_void_this_method_call_(arg, pre);
+		  emit_void_this_method_call_from_stack_(pre);
 	    } else if (pre_dyn && arg) {
-		  emit_dynamic_void_this_method_call_(arg, pre_dyn->pre,
-					       pre_dyn->type);
+		  emit_dynamic_void_this_method_call_from_stack_(pre_dyn->pre,
+							  pre_dyn->type);
 	    }
 	    if (sel)
 		  fprintf(vvp_out, "    %%rand/active \"%s\";\n", sel);
-	    if (arg) {
-		  draw_eval_object(arg);
-	    }
+	    if (arg)
+		  fprintf(vvp_out, "    %%dup/obj/ref; randomize solve receiver\n");
 	      /* %randomize peeks at the object stack and pops it, then
 	       * pushes 1 (success) onto the vec4 stack. */
 	    fprintf(vvp_out, "    %%randomize;\n");
 	    if (post && arg)
-		  emit_conditional_post_randomize_(arg, post);
+		  emit_conditional_post_randomize_from_stack_(post);
 	    else if (post_dyn && arg)
-		  emit_conditional_dynamic_post_randomize_(arg, post_dyn->post,
-						      post_dyn->type);
+		  emit_conditional_dynamic_post_randomize_from_stack_(post_dyn->post,
+								  post_dyn->type);
+	    if (arg)
+		  fprintf(vvp_out, "    %%pop/obj 1, 0; randomize receiver\n");
 	    return;
       }
       if (strncmp(ivl_expr_name(expr),"$ivl_class_method$randomize_with|",33)==0
@@ -1900,10 +1915,14 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  pre = post = 0;
 		  pre_dyn = post_dyn = 0;
 	    }
-	    if (pre && obj_arg) emit_void_this_method_call_(obj_arg, pre);
+	      /* As for plain randomize(), retain one evaluation of the receiver
+	       * across hooks, runtime with-clause slot evaluation, and solving. */
+	    if (obj_arg)
+		  draw_eval_object(obj_arg);
+	    if (pre && obj_arg) emit_void_this_method_call_from_stack_(pre);
 	    else if (pre_dyn && obj_arg)
-		  emit_dynamic_void_this_method_call_(obj_arg, pre_dyn->pre,
-					       pre_dyn->type);
+		  emit_dynamic_void_this_method_call_from_stack_(pre_dyn->pre,
+							  pre_dyn->type);
 	      /* Push runtime slot values (vec4 stack) first so they're
 	       * under the result when %randomize/with pops them. */
 	    for (unsigned i = 0 ; i < n_vals ; i++) {
@@ -1916,15 +1935,19 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    if (have_sel)
 		  fprintf(vvp_out, "    %%rand/active \"%.*s\";\n",
 			  (int)sel_len, sel_beg);
-	      /* Push the object. */
-	    if (obj_arg) draw_eval_object(obj_arg);
+	      /* %randomize/with consumes its object, so give it an aliasing
+	       * duplicate and retain the original for conditional post hooks. */
+	    if (obj_arg)
+		  fprintf(vvp_out, "    %%dup/obj/ref; randomize/with solve receiver\n");
 	    fprintf(vvp_out, "    %%randomize/with \"%s\", %u;\n", ir,
 		    n_vals | (scope_form ? 0x80000000u : 0u));
 	    if (post && obj_arg)
-		  emit_conditional_post_randomize_(obj_arg, post);
+		  emit_conditional_post_randomize_from_stack_(post);
 	    else if (post_dyn && obj_arg)
-		  emit_conditional_dynamic_post_randomize_(obj_arg, post_dyn->post,
-						      post_dyn->type);
+		  emit_conditional_dynamic_post_randomize_from_stack_(post_dyn->post,
+								  post_dyn->type);
+	    if (obj_arg)
+		  fprintf(vvp_out, "    %%pop/obj 1, 0; randomize/with receiver\n");
 	    return;
       }
       if (strncmp(ivl_expr_name(expr), "$ivl_std_randomize_with|", 24) == 0) {

@@ -65,7 +65,17 @@ class vvp_cobject : public vvp_object {
       bool constraint_mode(size_t cid) const;
       void set_constraint_mode(size_t cid, bool mode);
 
-      // C1 (Phase 62a): randc cyclic state.
+      // R1: randc changes are transactional. Each randomize entry pushes
+      // a frame; tentative choices only replace the staged entry in that
+      // frame. Success commits the ACTUAL final property value, while
+      // failure discards the frame. Overlapping entries on the SAME object
+      // are not representable by this one-event-per-pid frame yet and fail
+      // loudly at begin(); source-level pre/post_randomize reentrancy remains
+      // legal because those hooks execute outside the runtime solve frame.
+      void randc_transaction_begin();
+      bool randc_transaction_commit();
+      void randc_transaction_rollback();
+
       bool randc_seen(size_t pid, uint64_t val) const;
       void randc_mark(size_t pid, uint64_t val);
       uint64_t randc_period(size_t pid) const;
@@ -77,10 +87,10 @@ class vvp_cobject : public vvp_object {
       // set is a strict subset (an infeasible encoding sits unmarked
       // forever) -- so cycling would silently stall after one pass instead
       // of repeating. `randc_mark_feasible` judges "all used" only over
-      // the given feasible set. `randc_unmark` lets the caller retract a
-      // mark placed on a value that, in the end, was never actually
-      // emitted (the constraint solver may still override a randc
-      // property's cyclic pre-fill pick).
+      // the given feasible set. These calls stage domain information;
+      // committed history changes only in randc_transaction_commit().
+      // `randc_unmark` retracts a tentative pre-fill when the solver
+      // replaces it with a constrained choice.
       void randc_mark_feasible(size_t pid, uint64_t val,
                                 const std::vector<uint64_t>&feasible);
       void randc_unmark(size_t pid, uint64_t val);
@@ -141,6 +151,18 @@ class vvp_cobject : public vvp_object {
       std::vector<bool> rand_mode_;
       std::vector<bool> constraint_mode_;
       std::map<size_t, std::vector<bool> > randc_history_;
+      struct randc_pending_t {
+	    uint64_t staged_value = 0;
+	    bool feasible_domain = false;
+	    std::vector<uint64_t> feasible;
+      };
+      typedef std::map<size_t, randc_pending_t> randc_transaction_t;
+      std::vector<randc_transaction_t> randc_transactions_;
+
+      const std::vector<bool>*randc_history_find_(size_t pid) const;
+      std::vector<bool>&randc_history_mutable_(size_t pid);
+      static bool randc_history_full_(const std::vector<bool>&hist,
+				       uint64_t period);
       std::map<uint64_t, uint64_t> cov_trans_;
       std::map<std::pair<unsigned,uint64_t>,uint32_t> cov_dyn_counts_;
       bool cov_enabled_ = true;

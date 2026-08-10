@@ -1,0 +1,2 @@
+sv_ustruct_member_defaults_edge	vvp_tests/sv_ustruct_member_defaults_edge.json
+sv_struct_member_defaults_invalid_kind_fail	vvp_tests/sv_struct_member_defaults_invalid_kind_fail.json

@@ -227,6 +227,34 @@ Design::~Design()
 {
 }
 
+void Design::record_struct_member_default_validation(const PExpr*expr,
+						      const NetScope*scope,
+						      bool valid)
+{
+      if (!expr || !scope)
+	    return;
+
+      struct_member_default_validations_[make_pair(expr, scope)] = valid;
+}
+
+bool Design::get_struct_member_default_validation(const PExpr*expr,
+						   const NetScope*scope,
+						   bool&valid) const
+{
+      map<pair<const PExpr*,const NetScope*>,bool>::const_iterator cur =
+	    struct_member_default_validations_.find(make_pair(expr, scope));
+      if (cur == struct_member_default_validations_.end())
+	    return false;
+
+      valid = cur->second;
+      return true;
+}
+
+bool Design::mark_constraint_randc_diagnostic(const PExpr*expr)
+{
+      return expr && constraint_randc_diagnostic_sites_.insert(expr).second;
+}
+
 void Design::set_precision(int val)
 {
       if (val < des_precision_)
@@ -1600,7 +1628,22 @@ void NetScope::evaluate_parameter_(Design*des, param_ref_t cur)
       }
 
       if (cur->second.type_flag) {
+	    /* Type-parameter aliases can be mutually recursive just like value
+	     * parameters (type A=B, type B=A). Guard the type path before it
+	     * follows another parameter; the old ordering entered
+	     * evaluate_type_parameter_ ahead of the ordinary solving check and
+	     * recursed until stack exhaustion. */
+	    if (cur->second.solving) {
+		  cerr << cur->second.get_fileline() << ": error: "
+		       << "Recursive parameter reference found involving "
+		       << cur->first << "." << endl;
+		  des->errors += 1;
+		  cur->second.ivl_type = netvector_t::integer_type();
+		  return;
+	    }
+	    cur->second.solving = true;
 	    evaluate_type_parameter_(des, cur);
+	    cur->second.solving = false;
 	    return;
       }
 

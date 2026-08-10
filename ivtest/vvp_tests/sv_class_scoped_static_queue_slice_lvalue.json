@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_class_scoped_static_queue_slice_lvalue.v",
+    "iverilog-args" : [ "-g2012", "-pfileline=1" ],
+    "gold"          : "sv_class_scoped_static_queue_slice_lvalue"
+}

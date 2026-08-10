@@ -1,0 +1,3 @@
+./ivltests/sv_assoc_default_formal_null_fail.v:5: error: associative-array context requires an associative-array value.
+./ivltests/sv_assoc_default_formal_null_fail.v:5: error: Unable to evaluate null as a port default expression.
+2 error(s) during elaboration.

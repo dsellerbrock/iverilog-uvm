@@ -567,6 +567,9 @@ sv_array_cassign_fail8	CE,-g2005-sv		ivltests
 sv_array_cassign_fail9	CE,-g2005-sv		ivltests
 sv_array_cassign_fail10	CE,-g2005-sv		ivltests
 sv_array_cassign_fail11	CE,-g2005-sv		ivltests
+sv_class_fixed_array_reduction normal,-g2012	ivltests gold=sv_class_fixed_array_reduction.gold
+sv_constraint_fixed_array_reduction normal,-g2012	ivltests gold=sv_constraint_fixed_array_reduction.gold
+sv_class_fixed_array_reduction_fail CE,-g2012	ivltests gold=sv_class_fixed_array_reduction_fail.gold
 sv_array_find_last	normal,-g2012		ivltests gold=sv_array_find_last.gold
 sv_array_find_last_assoc_fail CE,-g2012		ivltests gold=sv_array_find_last_assoc_fail.gold
 sv_array_find_last_fixed_base_fail CE,-g2012	ivltests gold=sv_array_find_last_fixed_base_fail.gold
@@ -576,6 +579,26 @@ sv_array_find_last_with_fail CE,-g2012		ivltests gold=sv_array_find_last_with_fa
 sv_array_minmax_parenless normal,-g2012		ivltests gold=sv_array_minmax_parenless.gold
 sv_array_minmax_residual_fail CE,-g2012		ivltests gold=sv_array_minmax_residual_fail.gold
 sv_array_minmax_type_fail CE,-g2012		ivltests gold=sv_array_minmax_type_fail.gold
+sv_array_unique_argument_fail CE,-g2012		ivltests gold=sv_array_unique_argument_fail.gold
+sv_array_unique_aggregate_fail CE,-g2012		ivltests gold=sv_array_unique_aggregate_fail.gold
+sv_array_unique_class_handles normal,-g2012	ivltests gold=sv_array_unique_class_handles.gold
+sv_array_unique_fixed_types normal,-g2012	ivltests gold=sv_array_unique_fixed_types.gold
+sv_array_unique_fixed_wide_fail CE,-g2012	ivltests gold=sv_array_unique_fixed_wide_fail.gold
+sv_array_unique_width_boundary normal,-g2012	ivltests gold=sv_array_unique_width_boundary.gold
+sv_array_unique_attributes normal,-g2012	ivltests gold=sv_array_unique_attributes.gold
+sv_array_unique_parenless normal,-g2012		ivltests gold=sv_array_unique_parenless.gold
+sv_array_unique_scalar_types normal,-g2012	ivltests gold=sv_array_unique_scalar_types.gold
+sv_array_unique_type_fail CE,-g2012		ivltests gold=sv_array_unique_type_fail.gold
+sv_array_unique_with_object normal,-g2012	ivltests gold=sv_array_unique_with_object.gold
+sv_array_unique_with_eval_once normal,-g2012	ivltests gold=sv_array_unique_with_eval_once.gold
+sv_array_unique_with_scalar_types normal,-g2012	ivltests gold=sv_array_unique_with_scalar_types.gold
+sv_array_unique_with_object_type_fail CE,-g2012	ivltests gold=sv_array_unique_with_object_type_fail.gold
+sv_assoc_unique_typed normal,-g2012		ivltests gold=sv_assoc_unique_typed.gold
+sv_assoc_unique_with_types normal,-g2012	ivltests gold=sv_assoc_unique_with_types.gold
+sv_assoc_unique_wildcard_fail CE,-g2012	ivltests gold=sv_assoc_unique_wildcard_fail.gold
+sv_assoc_unique_index_wildcard_fail CE,-g2012 ivltests gold=sv_assoc_unique_index_wildcard_fail.gold
+sv_assoc_unique_wildcard_iter_index_fail CE,-g2012 ivltests gold=sv_assoc_unique_wildcard_iter_index_fail.gold
+sv_assoc_unique_object_index_fail CE,-g2012 ivltests gold=sv_assoc_unique_object_index_fail.gold
 sv_array_query		normal,-g2005-sv	ivltests
 sv_cast_integer		normal,-g2005-sv	ivltests
 sv_cast_integer2		normal,-g2005-sv	ivltests
@@ -700,9 +723,9 @@ sv_darray_oob_vec4	normal,-g2009		ivltests
 sv_darray_signed	normal,-g2009		ivltests
 sv_darray_word_size	normal,-g2005-sv	ivltests
 sv_deferred_assert1	normal,-g2009		ivltests gold=sv_deferred_assert1.gold
-sv_deferred_assert2	CE,-g2009		ivltests
+sv_deferred_assert2	normal,-g2009		ivltests gold=sv_deferred_assert2.gold
 sv_deferred_assume1	normal,-g2009		ivltests gold=sv_deferred_assume1.gold
-sv_deferred_assume2	CE,-g2009		ivltests
+sv_deferred_assume2	normal,-g2009		ivltests gold=sv_deferred_assume2.gold
 sv_end_label		normal,-g2005-sv	ivltests
 sv_end_label_fail	CE,-g2009		ivltests gold=sv_end_label_fail.gold
 sv_end_labels		normal,-g2009		ivltests
@@ -1061,6 +1084,8 @@ sv_assoc_obj_key_size1 normal,-g2012 ivltests
 sv_assoc_size_num_properties normal,-g2012 ivltests
 sv_assoc_obj_key_bit_copy1 normal,-g2012 ivltests
 sv_assoc_obj_key_delete1 normal,-g2012 ivltests
+sv_assoc_class_key_lifetime normal,-g2012 ivltests gold=sv_assoc_class_key_lifetime.gold
+sv_assoc_signed_traversal normal,-g2012 ivltests gold=sv_assoc_signed_traversal.gold
 sv_assoc_obj_graph_mutation1 normal,-g2012 ivltests
 sv_assoc_nested_member_foreach1 normal,-g2012 ivltests
 sv_class_nested_assoc_foreach normal,-g2012 ivltests
@@ -1127,6 +1152,7 @@ sv_class_prop_array_pattern normal,-g2012 ivltests
 sv_uarray_func_return_fail CE,-g2012 ivltests
 sv_uarray_func_return_nb_fail CE,-g2012 ivltests gold=sv_uarray_func_return_nb_fail.gold
 sv_uarray_func_return normal,-g2012 ivltests
+sv_uarray_func_return_queue_property normal,-g2012 ivltests gold=sv_uarray_func_return_queue_property.gold
 sv_class_prop_real_string_array normal,-g2012 ivltests
 sv_fork_call_arg_capture normal,-g2012 ivltests
 sv_this_nested_detached_fork normal,-g2012 ivltests
@@ -1280,6 +1306,7 @@ sv_foreach_hierarchical_target normal,-g2012 ivltests
 sv_foreach_indexed_instance_target normal,-g2012 ivltests
 sv_randomize_variable_control normal,-g2012 ivltests
 sv_object_randomize_statement_with normal,-g2012 ivltests
+sv_randomize_receiver_eval_once normal,-g2012	ivltests gold=sv_randomize_receiver_eval_once.gold
 sv_sampled_value_procedural normal,-g2012 ivltests
 sv_constraint_expr_width normal,-g2012 ivltests
 sv_rand_distribution1 normal,-g2012 ivltests
@@ -1309,7 +1336,16 @@ sv_stacktrace_task_call normal,-g2023 ivltests
 sv_event_array normal,-g2012 ivltests
 sv_event_lifetime_qualifier normal,-g2012 ivltests
 sv_deferred_flush1	CE,-g2012		ivltests
-sv_deferred_final_latest1	CE,-g2012		ivltests
+sv_deferred_final_latest1	normal,-g2012		ivltests gold=sv_deferred_final_latest1.gold
+sv_deferred_final_order0	normal,-g2012		ivltests gold=sv_deferred_final_order0.gold
+sv_deferred_final_contexts0	normal,-g2012		ivltests gold=sv_deferred_final_contexts0.gold
+sv_deferred_final_assert_control0	normal,-g2012		ivltests gold=sv_deferred_final_assert_control0.gold
+sv_deferred_final_null_default0	normal,-g2012		ivltests gold=sv_deferred_final_null_default0.gold
+sv_deferred_final_finish0	normal,-g2012		ivltests gold=sv_deferred_final_finish0.gold
+sv_deferred_final_user_task0	normal,-g2012		ivltests gold=sv_deferred_final_user_task0.gold
+sv_deferred_final_user_task_error0	normal,-g2012	ivltests gold=sv_deferred_final_user_task_error0.gold
+sv_deferred_final_block_fail	CE,-g2012		ivltests gold=sv_deferred_final_block_fail.gold
+sv_deferred_final_void_cast_fail	CE,-g2012		ivltests gold=sv_deferred_final_void_cast_fail.gold
 sv_deferred_static_generate0	normal,-g2012		ivltests unordered=sv_deferred_static_generate0.gold
 sv_deferred_fifo_flush0	normal,-g2012		ivltests gold=sv_deferred_fifo_flush0.gold
 sv_deferred_reactive_order0	normal,-g2012		ivltests gold=sv_deferred_reactive_order0.gold
@@ -1317,14 +1353,10 @@ sv_deferred_null_action0	normal,-g2012		ivltests gold=sv_deferred_null_action0.g
 sv_deferred_assert_control0	normal,-g2012		ivltests gold=sv_deferred_assert_control0.gold
 sv_deferred_matured_disable0	normal,-g2012		ivltests gold=sv_deferred_matured_disable0.gold
 sv_deferred_supported_only0	normal,-g2012,-gsupported-assertions	ivltests gold=sv_deferred_supported_only0.gold
-sv_deferred_dynamic_action_fail	CE,-g2012		ivltests
 sv_deferred_void_cast_action_fail	CE,-g2012		ivltests
-sv_deferred_final_procedure_fail	CE,-g2012		ivltests
-sv_deferred_final_procedure_label_fail	CE,-g2012		ivltests
-sv_deferred_cover_stage1_fail	CE,-g2012		ivltests
 sv_typename1 normal,-g2012 ivltests
 sv_type_operator1 normal,-g2012 ivltests
-sv_param_type_identity1 normal,-g2012 ivltests
+sv_param_type_identity1 normal,-g2012 ivltests gold=sv_param_type_identity1.gold
 sv_assert_paren_property normal,-g2012 ivltests
 sv_assert_paren_boolean normal,-g2012 ivltests
 sv_case_inside_concat_selector normal,-g2012 ivltests
@@ -1351,10 +1383,10 @@ sv_edition_stacktrace_old CE,-g2012 ivltests gold=sv_edition_stacktrace_old.gold
 sv_edition_stacktrace_def normal,-g2023 ivltests
 sv_edition_stacktrace_latest normal,-glatest ivltests
 sv_edition_stacktrace_neighbour normal,-g2012 ivltests
-sv_edition_iter_index_old CE,-g2012 ivltests gold=sv_edition_iter_index_old.gold
-sv_edition_iter_index_def normal,-g2023 ivltests
+sv_edition_iter_index_old CE,-g2005 ivltests gold=sv_edition_iter_index_old.gold
+sv_edition_iter_index_def normal,-g2005-sv ivltests
 sv_edition_iter_index_latest normal,-glatest ivltests
-sv_edition_iter_index_neighbour normal,-g2012 ivltests
+sv_edition_iter_index_neighbour normal,-g2009 ivltests
 sv_edition_stacktrace_2017 CE,-g2017 ivltests gold=sv_edition_stacktrace_2017.gold
 sva_s_eventually_liveness normal,-g2012 ivltests
 sv_array_elem_member_cassign normal,-g2012 ivltests
@@ -1416,3 +1448,138 @@ sv_constraint_foreach_hierarchical normal,-g2012 ivltests
 sv_queue_dollar_arithmetic normal,-g2012 ivltests
 sv_foreach_hierarchical_dual_dim normal,-g2012 ivltests
 concat_unsized_literal_reject CE,-g2012 ivltests
+sv_assoc_default_values normal,-g2012 ivltests gold=sv_assoc_default_values.gold
+sv_assoc_function_output normal,-g2012 ivltests gold=sv_assoc_function_output.gold
+sv_assoc_function_output_lvalue_fail CE,-g2012 ivltests gold=sv_assoc_function_output_lvalue_fail.gold
+sv_assoc_task_output_lvalue_fail CE,-g2012 ivltests gold=sv_assoc_task_output_lvalue_fail.gold
+sv_assoc_default_expression_contexts normal,-g2012 ivltests gold=sv_assoc_default_expression_contexts.gold
+sv_assoc_default_cast_fail CE,-g2012 ivltests gold=sv_assoc_default_cast_fail.gold
+sv_assoc_default_null_fail CE,-g2012 ivltests gold=sv_assoc_default_null_fail.gold
+sv_assoc_default_typed_empty_fail CE,-g2012 ivltests gold=sv_assoc_default_typed_empty_fail.gold
+sv_assoc_default_const_ternary_fail CE,-g2012 ivltests gold=sv_assoc_default_const_ternary_fail.gold
+sv_assoc_default_formal_type_fail CE,-g2012 ivltests gold=sv_assoc_default_formal_type_fail.gold
+sv_assoc_default_formal_null_fail CE,-g2012 ivltests gold=sv_assoc_default_formal_null_fail.gold
+sv_assoc_output_element_type_fail CE,-g2012 ivltests gold=sv_assoc_output_element_type_fail.gold
+sv_assoc_output_index_type_fail CE,-g2012 ivltests gold=sv_assoc_output_index_type_fail.gold
+sv_assoc_to_queue_fail CE,-g2012 ivltests gold=sv_assoc_to_queue_fail.gold
+sv_assoc_to_darray_fail CE,-g2012 ivltests gold=sv_assoc_to_darray_fail.gold
+sv_assoc_to_fixed_fail CE,-g2012 ivltests gold=sv_assoc_to_fixed_fail.gold
+sv_assoc_nonassoc_formal_default_fail CE,-g2012 ivltests gold=sv_assoc_nonassoc_formal_default_fail.gold
+sv_assoc_scalar_formal_default_fail CE,-g2012 ivltests gold=sv_assoc_scalar_formal_default_fail.gold
+sv_assoc_nested_type_fail CE,-g2012 ivltests gold=sv_assoc_nested_type_fail.gold
+sv_assoc_nested_value_copy normal,-g2012 ivltests gold=sv_assoc_nested_value_copy.gold
+sv_assoc_nested_wrapper_type_fail CE,-g2012 ivltests gold=sv_assoc_nested_wrapper_type_fail.gold
+sv_assoc_wildcard_type_fail CE,-g2012 ivltests gold=sv_assoc_wildcard_type_fail.gold
+sv_assoc_output_nonassoc_fail CE,-g2012 ivltests gold=sv_assoc_output_nonassoc_fail.gold
+sv_assoc_cast_to_queue_fail CE,-g2012 ivltests gold=sv_assoc_cast_to_queue_fail.gold
+sv_default_formal_contexts normal,-g2012 ivltests gold=sv_default_formal_contexts.gold
+sv_enum_default_formal_width normal,-g2012 ivltests gold=sv_enum_default_formal_width.gold
+sv_enum_default_formal_cast_fail CE,-g2012 ivltests gold=sv_enum_default_formal_cast_fail.gold
+sv_enum_compound_assignment_fail CE,-g2012 ivltests gold=sv_enum_compound_assignment_fail.gold
+sv_enum_return_provenance normal,-g2012 ivltests gold=sv_enum_return_provenance.gold
+sv_enum_return_provenance_fail CE,-g2012 ivltests gold=sv_enum_return_provenance_fail.gold
+sv_enum_class_typedef_identity normal,-g2012 ivltests gold=sv_enum_class_typedef_identity.gold
+sv_enum_class_typedef_shadow normal,-g2012 ivltests gold=sv_enum_class_typedef_shadow.gold
+sv_enum_class_typedef_mismatch_fail CE,-g2012 ivltests gold=sv_enum_class_typedef_mismatch_fail.gold
+sv_class_static_get_specialization_reentry normal,-g2012 ivltests gold=sv_class_static_get_specialization_reentry.gold
+sv_class_static_get_recursive_control normal,-g2012 ivltests gold=sv_class_static_get_recursive_control.gold
+sv_class_static_get_bad_receiver_fail CE,-g2012 ivltests gold=sv_class_static_get_bad_receiver_fail.gold
+sv_typeparam_enum_receiver_method normal,-g2012 ivltests gold=sv_typeparam_enum_receiver_method.gold
+sv_typeparam_enum_receiver_method_fail CE,-g2012 ivltests gold=sv_typeparam_enum_receiver_method_fail.gold
+sv_typeparam_enum_receiver_cache_orders_fail CE,-g2012 ivltests gold=sv_typeparam_enum_receiver_cache_orders_fail.gold
+sv_typeparam_enum_receiver_concrete_outer_fail CE,-g2012 ivltests gold=sv_typeparam_enum_receiver_concrete_outer_fail.gold
+sv_typeparam_enum_receiver_pkg_alias_collision_fail CE,-g2012 ivltests gold=sv_typeparam_enum_receiver_pkg_alias_collision_fail.gold
+sv_typeparam_default_cycle_fail CE,-g2012 ivltests gold=sv_typeparam_default_cycle_fail.gold
+sv_param_class_bare_forward_identity normal,-g2012 ivltests gold=sv_param_class_bare_forward_identity.gold
+sv_param_class_bare_static_function_fail CE,-g2012 ivltests gold=sv_param_class_bare_static_function_fail.gold
+sv_param_class_bare_static_task_fail CE,-g2012 ivltests gold=sv_param_class_bare_static_task_fail.gold
+sv_param_class_bare_static_property_fail CE,-g2012 ivltests gold=sv_param_class_bare_static_property_fail.gold
+sv_param_class_typedef_static_function_fail CE,-g2012 ivltests gold=sv_param_class_typedef_static_function_fail.gold
+sv_param_class_typedef_static_task_fail CE,-g2012 ivltests gold=sv_param_class_typedef_static_task_fail.gold
+sv_param_class_typedef_static_property normal,-g2012 ivltests gold=sv_param_class_typedef_static_property.gold
+sv_typeparam_static_dispatch normal,-g2012 ivltests gold=sv_typeparam_static_dispatch.gold
+sv_class_static_nested_property_lifetime normal,-g2012 ivltests gold=sv_class_static_nested_property_lifetime.gold
+sv_class_static_nested_property_missing_fail CE,-g2012 ivltests gold=sv_class_static_nested_property_missing_fail.gold
+sv_typeparam_enum_receiver_omitted_default_fail CE,-g2012 ivltests gold=sv_typeparam_enum_receiver_omitted_default_fail.gold
+sv_typeparam_enum_receiver_omitted_default_array_fail CE,-g2012 ivltests gold=sv_typeparam_enum_receiver_omitted_default_array_fail.gold
+sv_typeparam_enum_receiver_omitted_default_property_fail CE,-g2012 ivltests gold=sv_typeparam_enum_receiver_omitted_default_property_fail.gold
+sv_typeparam_receiver_omitted_default_task_fail CE,-g2012 ivltests gold=sv_typeparam_receiver_omitted_default_task_fail.gold
+sv_typeparam_enum_receiver_omitted_default_inherited_fail CE,-g2012 ivltests gold=sv_typeparam_enum_receiver_omitted_default_inherited_fail.gold
+sv_assoc_default_object_value_fail CE,-g2012 ivltests gold=sv_assoc_default_object_value_fail.gold
+sv_assoc_default_explicit_pattern_fail CE,-g2012 ivltests gold=sv_assoc_default_explicit_pattern_fail.gold
+sv_ustruct_member_defaults normal,-g2012 ivltests gold=sv_ustruct_member_defaults.gold
+sv_ustruct_member_defaults_shape_fail CE,-g2012 ivltests gold=sv_ustruct_member_defaults_shape_fail.gold
+sv_ustruct_member_defaults_nonconstant_fail CE,-g2012 ivltests gold=sv_ustruct_member_defaults_nonconstant_fail.gold
+sv_ustruct_member_defaults_union_fail CE,-g2012 ivltests gold=sv_ustruct_member_defaults_union_fail.gold
+sv_ustruct_member_defaults_scope_fail normal,-g2012 ivltests gold=sv_ustruct_member_defaults_scope_fail.gold
+sv_ustruct_member_defaults_class_scope_fail CE,-g2012 ivltests gold=sv_ustruct_member_defaults_class_scope_fail.gold
+sv_ustruct_member_defaults_declaration normal,-g2012 ivltests gold=sv_ustruct_member_defaults_declaration.gold
+sv_ustruct_member_defaults_declaration_fail CE,-g2012 ivltests gold=sv_ustruct_member_defaults_declaration_fail.gold
+sv_ustruct_member_defaults_unused_kind_fail CE,-g2012 ivltests gold=sv_ustruct_member_defaults_unused_kind_fail.gold
+sv_ustruct_member_defaults_unused_shape_fail CE,-g2012 ivltests gold=sv_ustruct_member_defaults_unused_shape_fail.gold
+sv_ustruct_member_defaults_edge normal,-g2012 ivltests gold=sv_ustruct_member_defaults_edge.gold
+sv_struct_member_defaults_invalid_kind_fail CE,-g2012 ivltests gold=sv_struct_member_defaults_invalid_kind_fail.gold
+sv_param_class_bare_static_property_lvalue_fail CE,-g2012 ivltests gold=sv_param_class_bare_static_property_lvalue_fail.gold
+sv_enum_class_typedef_forward_kind_fail CE,-g2012 ivltests gold=sv_enum_class_typedef_forward_kind_fail.gold
+sv_class_typedef_parameterized_shadow_fail CE,-g2012 ivltests gold=sv_class_typedef_parameterized_shadow_fail.gold
+sv_class_typedef_scoped_static_shadow_fail CE,-g2012 ivltests gold=sv_class_typedef_scoped_static_shadow_fail.gold
+sv_param_class_scoped_static_lvalue_invalid_fail CE,-g2012 ivltests gold=sv_param_class_scoped_static_lvalue_invalid_fail.gold
+sv_param_class_package_static_lvalue normal,-g2012 ivltests gold=sv_param_class_package_static_lvalue.gold
+sv_param_class_package_bare_static_lvalue_fail CE,-g2012 ivltests gold=sv_param_class_package_bare_static_lvalue_fail.gold
+sv_param_class_scoped_static_lvalue_nested normal,-g2012 ivltests gold=sv_param_class_scoped_static_lvalue_nested.gold
+sv_param_class_scoped_static_lvalue_recursive normal,-g2012 ivltests gold=sv_param_class_scoped_static_lvalue_recursive.gold
+sv_param_class_scoped_static_lvalue_special_rhs normal,-g2012 ivltests gold=sv_param_class_scoped_static_lvalue_special_rhs.gold
+sv_typeparam_static_lvalue_nonclass_fail CE,-g2012 ivltests gold=sv_typeparam_static_lvalue_nonclass_fail.gold
+sv_queue_suffix_slice_lvalue normal,-g2012,-pfileline=1 ivltests gold=sv_queue_suffix_slice_lvalue.gold
+sv_class_scoped_static_queue_slice_lvalue normal,-g2012,-pfileline=1 ivltests gold=sv_class_scoped_static_queue_slice_lvalue.gold
+sv_queue_suffix_slice_lvalue_runtime normal,-g2012,-pfileline=1 ivltests gold=sv_queue_suffix_slice_lvalue_runtime.gold
+sv_queue_suffix_slice_lvalue_type_fail CE,-g2012 ivltests gold=sv_queue_suffix_slice_lvalue_type_fail.gold
+sv_package_self_queue_methods normal,-g2012 ivltests gold=sv_package_self_queue_methods.gold
+sv_param_class_static_container_method normal,-g2012 ivltests gold=sv_param_class_static_container_method.gold
+sv_package_self_class_method_collision normal,-g2012 ivltests gold=sv_package_self_class_method_collision.gold
+sv_class_local_struct_shadows_outer_type normal,-g2012 ivltests gold=sv_class_local_struct_shadows_outer_type.gold
+sv_class_local_value_shadows_outer_type_fail CE,-g2012 ivltests gold=sv_class_local_value_shadows_outer_type_fail.gold
+sv_class_static_const_init normal,-g2012 ivltests gold=sv_class_static_const_init.gold
+sv_class_const_constructor_init normal,-g2012 ivltests gold=sv_class_const_constructor_init.gold
+sv_class_static_const_missing_fail CE,-g2012 ivltests gold=sv_class_static_const_missing_fail.gold
+sv_class_static_const_reassign_fail CE,-g2012 ivltests gold=sv_class_static_const_reassign_fail.gold
+sv_class_static_const_scoped_reassign_fail CE,-g2012 ivltests gold=sv_class_static_const_scoped_reassign_fail.gold
+sv_param_class_virtual_override_tlm normal,-g2012 ivltests gold=sv_param_class_virtual_override_tlm.gold
+sv_randomization_builtin_method_override_fail CE,-g2012 ivltests gold=sv_randomization_builtin_method_override_fail.gold
+sv_randomization_builtin_method_override_adversarial_fail CE,-g2012 ivltests gold=sv_randomization_builtin_method_override_adversarial_fail.gold
+sv_randomization_builtin_method_override_multiroot_fail CE,-g2012 ivltests gold=sv_randomization_builtin_method_override_multiroot_fail.gold
+
+# Static randomized property storage
+sv_static_rand_value_storage normal,-g2012 ivltests gold=sv_static_rand_value_storage.gold
+sv_static_rand_typed_storage normal,-g2012 ivltests gold=sv_static_rand_typed_storage.gold
+sv_static_rand_fixed_arrays normal,-g2012 ivltests gold=sv_static_rand_fixed_arrays.gold
+sv_static_rand_inheritance_hiding normal,-g2012 ivltests gold=sv_static_rand_inheritance_hiding.gold
+sv_static_rand_specialization_alias normal,-g2012 ivltests gold=sv_static_rand_specialization_alias.gold
+sv_static_rand_unsat_copy_mode normal,-g2012 ivltests gold=sv_static_rand_unsat_copy_mode.gold
+sv_rand_mode_nested_class_property normal,-g2012 ivltests gold=sv_rand_mode_nested_class_property.gold
+sv_rand_mode_static_inheritance_specialization normal,-g2012 ivltests gold=sv_rand_mode_static_inheritance_specialization.gold
+sv_param_value_forward_compound_identity normal,-g2012 ivltests gold=sv_param_value_forward_compound_identity.gold
+
+# IEEE 1800-2017 randc transaction semantics
+sv_randc_txn_unsat_history normal,-g2012 ivltests gold=sv_randc_txn_unsat_history.gold
+sv_randc_txn_two_pass_commit normal,-g2012 ivltests gold=sv_randc_txn_two_pass_commit.gold
+sv_randc_txn_constrained_cycle normal,-g2012 ivltests gold=sv_randc_txn_constrained_cycle.gold
+sv_randc_txn_static_alias_cycle normal,-g2012 ivltests gold=sv_randc_txn_static_alias_cycle.gold
+sv_randc_txn_object_rng normal,-g2012 ivltests gold=sv_randc_txn_object_rng.gold
+sv_randc_txn_full_cycle_boundary normal,-g2012 ivltests gold=sv_randc_txn_full_cycle_boundary.gold
+sv_randc_txn_shallow_copy_state normal,-g2012 ivltests gold=sv_randc_txn_shallow_copy_state.gold
+sv_randc_txn_unbiased_choice normal,-g2012 ivltests gold=sv_randc_txn_unbiased_choice.gold
+sv_randc_txn_two_pass_rng_order normal,-g2012 ivltests gold=sv_randc_txn_two_pass_rng_order.gold
+sv_randc_txn_reentrant_hooks normal,-g2012 ivltests gold=sv_randc_txn_reentrant_hooks.gold
+sv_randc_txn_final_actual_commit normal,-g2012 ivltests gold=sv_randc_txn_final_actual_commit.gold
+sv_randc_txn_legal_types normal,-g2012 ivltests gold=sv_randc_txn_legal_types.gold
+sv_randc_txn_class_handle_fail CE,-g2012 ivltests gold=sv_randc_txn_class_handle_fail.gold
+sv_randc_txn_unpacked_struct_fail CE,-g2012 ivltests gold=sv_randc_txn_unpacked_struct_fail.gold
+sv_randc_txn_dist_fail CE,-g2012 ivltests gold=sv_randc_txn_dist_fail.gold
+sv_randc_txn_soft_fail CE,-g2012 ivltests gold=sv_randc_txn_soft_fail.gold
+sv_randc_txn_solve_before_fail CE,-g2012 ivltests gold=sv_randc_txn_solve_before_fail.gold
+sv_randc_txn_unique_fail CE,-g2012 ivltests gold=sv_randc_txn_unique_fail.gold
+
+# Randc constraint qualifier provenance (strict Slang differential polarity)
+sv_randc_constraint_provenance normal,-g2012 ivltests gold=sv_randc_constraint_provenance.gold
+sv_randc_constraint_provenance_fail CE,-g2012 ivltests gold=sv_randc_constraint_provenance_fail.gold

@@ -1,0 +1,2 @@
+ivltests/sv_class_local_value_shadows_outer_type_fail.v:11: error: Variable collision does not have a field named: class_only.
+1 error(s) during elaboration.

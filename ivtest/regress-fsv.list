@@ -122,9 +122,9 @@ sv_darray_nest2			NI			ivltests
 sv_darray_nest3			NI			ivltests
 sv_darray_nest4			NI			ivltests
 sv_deferred_assert1		normal			ivltests gold=sv_deferred_assert1.gold
-sv_deferred_assert2		CE			ivltests
+sv_deferred_assert2		normal			ivltests gold=sv_deferred_assert2.gold
 sv_deferred_assume1		normal			ivltests gold=sv_deferred_assume1.gold
-sv_deferred_assume2		CE			ivltests
+sv_deferred_assume2		normal			ivltests gold=sv_deferred_assume2.gold
 sv_queue_nest1			NI			ivltests
 sv_queue_nest2			NI			ivltests
 sv_queue_nest3			NI			ivltests

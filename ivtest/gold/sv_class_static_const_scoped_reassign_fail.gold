@@ -1,0 +1,2 @@
+./ivltests/sv_class_static_const_scoped_reassign_fail.v:7: error: Assignment to const signal `marker` is not allowed.
+1 error(s) during elaboration.

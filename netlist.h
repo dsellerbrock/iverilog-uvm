@@ -2253,6 +2253,19 @@ class NetExpr  : public LineInfo {
 	// part of the enumeration.
       virtual const netenum_t*enumeration() const;
 
+	// True only for a scalar compile-progress placeholder returned for a
+	// method call through an unresolved class type parameter. This belongs
+	// to the elaborated value, not the reusable parse expression: width
+	// probing and later concrete specializations may elaborate the same
+	// PExpr along different paths.
+      bool deferred_type_parameter_stub() const
+	    { return deferred_type_parameter_stub_; }
+      void mark_deferred_type_parameter_stub()
+	    { deferred_type_parameter_stub_ = true; }
+      void inherit_deferred_type_parameter_stub(const NetExpr&source)
+	    { if (source.deferred_type_parameter_stub_)
+		  deferred_type_parameter_stub_ = true; }
+
 	// This method evaluates the expression and returns an
 	// equivalent expression that is reduced as far as compile
 	// time knows how. Essentially, this is designed to fold
@@ -2300,6 +2313,7 @@ class NetExpr  : public LineInfo {
       ivl_type_t net_type_;
       unsigned width_;
       bool signed_flag_;
+      bool deferred_type_parameter_stub_;
 
     private: // not implemented
       NetExpr(const NetExpr&);
@@ -5083,13 +5097,15 @@ class NetENew : public NetExpr {
 };
 
 /*
- * The NetENull node represents the SystemVerilog (null)
- * expression. This is always a null class handle.
+ * NetENull represents the SystemVerilog null class-handle literal and the
+ * internal empty-container value used for an empty assignment pattern. The
+ * latter carries the complete context type in NetExpr::net_type(); an untyped
+ * NetENull remains the literal null.
  */
 class NetENull : public NetExpr {
 
     public:
-      NetENull();
+      explicit NetENull(ivl_type_t type = 0);
       ~NetENull() override;
 
       ivl_variable_type_t expr_type() const override;
@@ -5672,6 +5688,27 @@ class Design {
 
       unsigned int in_fork = 0;
 
+	/* Unpacked-struct member defaults are validated when their declaring
+	 * pform type is elaborated, even when no variable uses the type or a
+	 * whole-variable initializer suppresses the runtime default. Borrowed
+	 * initializer assignments consult this cache so an invalid declaration
+	 * is not elaborated (and diagnosed) a second time. The defining NetScope
+	 * is part of the key because a module typedef can depend on parameters
+	 * whose values differ between instances. */
+      void record_struct_member_default_validation(const PExpr*expr,
+						   const NetScope*scope,
+						   bool valid);
+      bool get_struct_member_default_validation(const PExpr*expr,
+						const NetScope*scope,
+						bool&valid) const;
+
+	/* Constraint IR can be emitted repeatedly for the same parsed item
+	 * while foreach bodies are unrolled or a generic class is specialized.
+	 * Keep "diagnose once" state on the Design that owns the elaboration;
+	 * a process-static AST-pointer cache can suppress errors in a later
+	 * Design after the first parse/elaboration has finished. */
+      bool mark_constraint_randc_diagnostic(const PExpr*expr);
+
     private:
       NetScope* find_scope_(NetScope*, const hname_t&name,
                             NetScope::TYPE type = NetScope::MODULE) const;
@@ -5711,6 +5748,10 @@ class Design {
 
       int des_precision_;
       delay_sel_t des_delay_sel_;
+
+      std::map<std::pair<const PExpr*,const NetScope*>,bool>
+	    struct_member_default_validations_;
+      std::set<const PExpr*> constraint_randc_diagnostic_sites_;
 
     private: // not implemented
       Design(const Design&);

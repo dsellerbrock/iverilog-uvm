@@ -1,4 +1,4 @@
-// Phase 63b/Q-methods: queue.sort/rsort/unique with iterator+with-clause
+// Phase 63b/Q-methods: queue.sort/rsort with iterator+with-clause
 // must evaluate the predicate per element to extract a sort key.
 //
 // Pre-fix: the with-clause was silently dropped — sort/rsort used
@@ -7,11 +7,11 @@
 // produced an order based on the wrong key.
 //
 // Real impl: decorate-sort-undecorate.  Evaluate predicate per
-// element to build a parallel keys queue, then sort q by keys via a
-// new runtime opcode (%qsort/keys, %qrsort/keys, %qunique/keys).
+// element to build a parallel keys queue, then sort q by keys via
+// new runtime opcodes (%qsort/keys and %qrsort/keys).
 //
-// Coverage: T1-T4 vec4 iter, T5 real iter, T6 string iter,
-// T7 class-handle iter (sort by class field).
+// Coverage: T1-T3 vec4 iter, T4 real iter, T5 string iter,
+// T6 class-handle iter (sort by class field).
 `timescale 1ns/1ps
 
 class my_obj;
@@ -44,20 +44,7 @@ module top;
     if (q[0] !== 15 || q[1] !== 8 || q[2] !== 5)
       $fatal(1, "FAIL/T3: got [%0d,%0d,%0d]", q[0], q[1], q[2]);
 
-    // T4: q.unique with (item % 10) — dedup by mod 10
-    while (q.size() > 0) void'(q.pop_back());
-    q.push_back(3);
-    q.push_back(13);
-    q.push_back(5);
-    q.push_back(25);
-    q.push_back(7);
-    q.unique with (item % 10);
-    if (q.size() != 3)
-      $fatal(1, "FAIL/T4: size=%0d expected 3", q.size());
-    if (q[0] !== 3 || q[1] !== 5 || q[2] !== 7)
-      $fatal(1, "FAIL/T4: got [%0d,%0d,%0d]", q[0], q[1], q[2]);
-
-    // T5: real iter — sort real queue by key extracted from real value
+    // T4: real iter — sort real queue by key extracted from real value
     begin
       real rq[$];
       rq.push_back(2.5);
@@ -66,10 +53,10 @@ module top;
       // Use floor as int key (truncate)
       rq.sort with (int'(item));
       if (rq.size() != 3 || rq[0] != 0.7 || rq[1] != 1.1 || rq[2] != 2.5)
-	$fatal(1, "FAIL/T5: got [%g,%g,%g]", rq[0], rq[1], rq[2]);
+	$fatal(1, "FAIL/T4: got [%g,%g,%g]", rq[0], rq[1], rq[2]);
     end
 
-    // T6: string iter — sort by length (a hashable int key)
+    // T5: string iter — sort by length (a hashable int key)
     begin
       string sq[$];
       sq.push_back("alpha");      // len 5
@@ -81,10 +68,10 @@ module top;
       // (alpha and xyzzy both len 5; relative order may vary — just check
       // first and last positions)
       if (sq[0] != "hi" || sq[3] != "longerthing")
-	$fatal(1, "FAIL/T6: got [%s,%s,%s,%s]", sq[0], sq[1], sq[2], sq[3]);
+	$fatal(1, "FAIL/T5: got [%s,%s,%s,%s]", sq[0], sq[1], sq[2], sq[3]);
     end
 
-    // T7: class iter — sort by .priority_val field
+    // T6: class iter — sort by .priority_val field
     begin
       my_obj cq[$];
       my_obj o1 = new(50, "A");
@@ -94,16 +81,16 @@ module top;
       cq.push_back(o2);
       cq.push_back(o3);
       cq.sort with (item.priority_val);
-      if (cq.size() != 3) $fatal(1, "FAIL/T7: size=%0d", cq.size());
+      if (cq.size() != 3) $fatal(1, "FAIL/T6: size=%0d", cq.size());
       if (cq[0].priority_val !== 10 || cq[1].priority_val !== 30 || cq[2].priority_val !== 50)
-	$fatal(1, "FAIL/T7: got priorities [%0d,%0d,%0d]",
+	$fatal(1, "FAIL/T6: got priorities [%0d,%0d,%0d]",
 	       cq[0].priority_val, cq[1].priority_val, cq[2].priority_val);
       // Verify object identity preserved (not just key)
       if (cq[1].name != "C")
-	$fatal(1, "FAIL/T7: cq[1].name=%s expected C", cq[1].name);
+	$fatal(1, "FAIL/T6: cq[1].name=%s expected C", cq[1].name);
     end
 
-    $display("PASS: queue.sort/rsort/unique with predicate (vec4/real/string/class iter)");
+    $display("PASS: queue.sort/rsort with predicate (vec4/real/string/class iter)");
     $finish;
   end
 endmodule

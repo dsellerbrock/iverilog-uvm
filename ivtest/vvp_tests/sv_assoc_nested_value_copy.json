@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_assoc_nested_value_copy.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_assoc_nested_value_copy"
+}

@@ -1,0 +1,3 @@
+sv_class_fixed_array_reduction normal,-g2012	ivltests gold=sv_class_fixed_array_reduction.gold
+sv_constraint_fixed_array_reduction normal,-g2012	ivltests gold=sv_constraint_fixed_array_reduction.gold
+sv_class_fixed_array_reduction_fail CE,-g2012	ivltests gold=sv_class_fixed_array_reduction_fail.gold

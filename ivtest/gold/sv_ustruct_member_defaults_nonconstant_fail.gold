@@ -1,0 +1,4 @@
+./ivltests/sv_ustruct_member_defaults_nonconstant_fail.v:12: error: The RHS expression must be constant.
+./ivltests/sv_ustruct_member_defaults_nonconstant_fail.v:12       : This expression violates the rule: new <type> []
+./ivltests/sv_ustruct_member_defaults_nonconstant_fail.v:8: error: A reference to a net or variable (`runtime_value') is not allowed in a constant expression.
+Elaboration failed

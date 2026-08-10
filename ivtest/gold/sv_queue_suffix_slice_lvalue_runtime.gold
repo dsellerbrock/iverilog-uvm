@@ -1,0 +1,6 @@
+./ivltests/sv_queue_suffix_slice_lvalue_runtime.v:21: Warning: queue slice assignment size mismatch: destination slice has 3 elements, source has 2 elements; destination was not modified.
+./ivltests/sv_queue_suffix_slice_lvalue_runtime.v:26: Warning: queue slice assignment size mismatch: destination slice has 2 elements, source has 4 elements; destination was not modified.
+./ivltests/sv_queue_suffix_slice_lvalue_runtime.v:31: Warning: queue slice lower bound -1 is out of range for queue of size 4; destination was not modified.
+./ivltests/sv_queue_suffix_slice_lvalue_runtime.v:36: Warning: queue slice lower bound 99 is out of range for queue of size 4; destination was not modified.
+./ivltests/sv_queue_suffix_slice_lvalue_runtime.v:40: Warning: queue slice assignment has an undefined lower bound; destination was not modified.
+PASSED

@@ -1,0 +1,2 @@
+ivltests/sv_assoc_to_darray_fail.v:7: error: associative-array value is not assignment-compatible with a non-associative context.
+Elaboration failed

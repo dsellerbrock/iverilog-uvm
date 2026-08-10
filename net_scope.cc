@@ -25,6 +25,7 @@
 # include  "netclass.h"
 # include  "netenum.h"
 # include  "netmisc.h"
+# include  "netparray.h"
 # include  "netvector.h"
 # include  "PExpr.h"
 # include  "PPackage.h"
@@ -322,12 +323,25 @@ NetScope*NetScope::find_typedef_scope(const Design*des, const typedef_t*type)
 	    if (import_scope)
 		  cur_scope = import_scope;
 	    else if (cur_scope == unit_)
-		  return 0;
+		  break;
 	    else
 		  cur_scope = cur_scope->parent();
 
 	    if (cur_scope == 0)
 		  cur_scope = unit_;
+      }
+
+      /* A package-qualified type does not need to be imported into the
+	 consuming scope. The caller nevertheless has the exact typedef_t that
+	 owns a borrowed declaration expression (for example an unpacked-struct
+	 member default), so locate that definition directly in a package. Keep
+	 this pointer-identity search ahead of, and separate from, the visible
+	 name-only recovery below: an unrelated package typedef with the same
+	 name must never change ordinary lookup or shadowing semantics. */
+      for (NetScope*package_scope : des->find_package_scopes()) {
+	    auto it = package_scope->typedefs_.find(type->name);
+	    if (it != package_scope->typedefs_.end() && it->second == type)
+		  return package_scope;
       }
 
       // Some SV paths synthesize equivalent typedef_t wrappers (not pointer
@@ -833,9 +847,38 @@ void NetScope::repair_typed_class_signals(Design*des)
 {
       if (!des) return;
 
+      if (const netclass_t*class_type = class_def())
+	    const_cast<netclass_t*>(class_type)
+		  ->repair_bare_class_property_types(des);
+
       for (auto&kv : signals_map_) {
 	    NetNet*sig = kv.second;
 	    if (!sig) continue;
+
+	    // A forward class declaration can already have produced a class
+	    // placeholder, so the old logic-vector-only repair below will not
+	    // see it. Reapply bare C => C#() normalization now that every class
+	    // scope is registered. NetNet stores fixed unpacked dimensions
+	    // separately, so this repairs scalar and fixed-array element types.
+	    if (PWire*pw = find_signal_placeholder(kv.first)) {
+		  /* Probe with a null stored type so an already-specialized but
+		   * provisional forward element cannot short-circuit the bare-type
+		   * detector.  Once confirmed, re-elaborate the complete declaration
+		   * instead of rebuilding one container layer by hand; this preserves
+		   * arbitrarily nested fixed/dynamic/queue/associative wrappers. */
+		  ivl_type_t bare_default = specialize_bare_class_at_concrete_use(
+			des, this, pw->data_type(), 0, false);
+		  if (bare_default) {
+			ivl_type_t repaired_type = pw->elaborate_sig_type(des, this);
+			/* NetNet stores every fixed unpacked dimension separately and
+			 * keeps only the first non-fixed container (or scalar) here. */
+			while (const netuarray_t*fixed =
+			       dynamic_cast<const netuarray_t*>(repaired_type))
+			      repaired_type = fixed->element_type();
+			if (repaired_type)
+			      sig->set_net_type(repaired_type);
+		  }
+	    }
 
 	    // Only patch logic-vector signals.  Class types, queues,
 	    // strings, reals, etc. all have non-LOGIC base — the
@@ -862,15 +905,15 @@ void NetScope::repair_typed_class_signals(Design*des)
 	    if (!td) continue;
 	    if (td->get_basic_type() != typedef_t::CLASS) continue;
 
-	    // Resolve the class type now.  ensure_visible_class_type
-	    // searches the type's scope (the package the typedef was
-	    // declared in) recursively for the class.
-	    NetScope*type_scope = tr->find_scope(des, this);
-	    if (!type_scope) continue;
-	    netclass_t*cls = ensure_visible_class_type(des, type_scope, td->name);
-	    if (!cls) continue;
-
-	    sig->set_net_type(cls);
+	    // Re-elaborate the exact declared type, including explicit class
+	    // parameter overrides. A name-only lookup here would turn a late
+	    // C#(4) handle into generic C and silently lose its specialization.
+	    ivl_type_t repaired_type = pw->elaborate_sig_type(des, this);
+	    while (const netuarray_t*fixed =
+		   dynamic_cast<const netuarray_t*>(repaired_type))
+		  repaired_type = fixed->element_type();
+	    if (repaired_type)
+		  sig->set_net_type(repaired_type);
       }
 
       // Recurse into children.  Class scopes contain their own static

@@ -33,6 +33,39 @@ struct emitted_struct_cobject_s {
 
 static struct emitted_struct_cobject_s*emitted_struct_cobjects_ = 0;
 
+enum emitted_class_state_e {
+      CLASS_EMITTING,
+      CLASS_EMITTED
+};
+
+struct emitted_class_s {
+      ivl_type_t type;
+      enum emitted_class_state_e state;
+      struct emitted_class_s*next;
+};
+
+static struct emitted_class_s*emitted_classes_ = 0;
+
+static struct emitted_class_s*find_emitted_class_(ivl_type_t type)
+{
+      struct emitted_class_s*cur;
+      for (cur = emitted_classes_ ; cur ; cur = cur->next) {
+	    if (cur->type == type)
+		  return cur;
+      }
+      return 0;
+}
+
+static struct emitted_class_s*mark_class_emitting_(ivl_type_t type)
+{
+      struct emitted_class_s*node = calloc(1, sizeof(*node));
+      node->type = type;
+      node->state = CLASS_EMITTING;
+      node->next = emitted_classes_;
+      emitted_classes_ = node;
+      return node;
+}
+
 static int emitted_struct_cobject_(ivl_type_t type)
 {
       struct emitted_struct_cobject_s*cur;
@@ -116,6 +149,18 @@ static void emit_struct_cobject_dependencies_(ivl_type_t ptype)
       if (ivl_type_base(base_ptype) == IVL_VT_NO_TYPE
 	  && ivl_type_properties(base_ptype) > 0) {
 	    emit_struct_cobject_definition_(base_ptype);
+      }
+}
+
+static void emit_class_dependencies_(ivl_type_t classtype)
+{
+      int idx;
+      for (idx = 0 ; idx < ivl_type_properties(classtype) ; idx += 1) {
+	    ivl_type_t ptype = ivl_type_prop_type(classtype, idx);
+	    if (is_unpacked_array_property_type(ptype))
+		  ptype = ivl_type_element(ptype);
+	    if (ptype && ivl_type_base(ptype) == IVL_VT_CLASS)
+		  ensure_class_type_emitted(ptype);
       }
 }
 
@@ -239,10 +284,10 @@ static void show_prop_type(ivl_type_t ptype, const char*rand_prefix)
 		  fprintf(vvp_out, "\"%so\"", rand_prefix ? rand_prefix : "");
 	    break;
 	  case IVL_VT_REAL:
-	    fprintf(vvp_out, "\"r\"");
+	    fprintf(vvp_out, "\"%sr\"", rand_prefix ? rand_prefix : "");
 	    break;
 	  case IVL_VT_STRING:
-	    fprintf(vvp_out, "\"S\"");
+	    fprintf(vvp_out, "\"%sS\"", rand_prefix ? rand_prefix : "");
 	    break;
 	  case IVL_VT_QUEUE:
 	    show_prop_type_queue(base_ptype, rand_prefix);
@@ -256,8 +301,11 @@ static void show_prop_type(ivl_type_t ptype, const char*rand_prefix)
 	    break;
 	  case IVL_VT_CLASS:
 	      /* A rand class-handle property must retain its qualifier in
-	       * the runtime metadata, just like containers and vectors. */
-	    fprintf(vvp_out, "\"%so\"", rand_prefix ? rand_prefix : "");
+	       * the runtime metadata, just like containers and vectors. Keep
+	       * its declared class too, so a base-typed VPI view does not
+	       * expose a derived hidden member from the live object. */
+	    fprintf(vvp_out, "\"%soh:C%p\"", rand_prefix ? rand_prefix : "",
+		    base_ptype);
 	    if (packed_dimensions > 0) {
 		  unsigned idx;
 		  fprintf(vvp_out, " ");
@@ -281,6 +329,7 @@ static void show_prop_type(ivl_type_t ptype, const char*rand_prefix)
 void draw_class_in_scope(ivl_type_t classtype)
 {
       int idx;
+      struct emitted_class_s*emitted_class = 0;
       const char*dispatch_prefix = ivl_type_method_prefix(classtype);
       ivl_type_t super_type = ivl_type_super(classtype);
       const char*super_dispatch_prefix = ivl_type_method_prefix(super_type);
@@ -289,6 +338,14 @@ void draw_class_in_scope(ivl_type_t classtype)
 	    if (emitted_struct_cobject_(classtype))
 		  return;
 	    mark_struct_cobject_emitted_(classtype);
+      }
+
+      if (classtype && ivl_type_base(classtype) == IVL_VT_CLASS) {
+	    emitted_class = find_emitted_class_(classtype);
+	    if (emitted_class)
+		  return;
+	    emitted_class = mark_class_emitting_(classtype);
+	    emit_class_dependencies_(classtype);
       }
 
       for (idx = 0 ; idx < ivl_type_properties(classtype) ; idx += 1) {
@@ -324,8 +381,16 @@ void draw_class_in_scope(ivl_type_t classtype)
 	    ivl_type_t ptype = ivl_type_prop_type(classtype,idx);
 	    int qual = ivl_type_prop_qual(classtype, idx);
 	    const char*rand_prefix = (qual & 16) ? "rc" : (qual & 8) ? "r" : "";
+	    char qualifier_prefix[32];
+	    snprintf(qualifier_prefix, sizeof qualifier_prefix, "q%x:%s",
+		     (unsigned)qual, rand_prefix);
 	    fprintf(vvp_out, " %3d: \"%s\", ", idx, ivl_type_prop_name(classtype,idx));
-	    show_prop_type(ptype, rand_prefix);
+	    show_prop_type(ptype, qualifier_prefix);
+	    /* Keep the complete source qualifier in the runtime class
+	       definition. The q<hex>: prefix wraps the historical type string,
+	       whose rand/randc prefix remains for backwards compatibility. This
+	       avoids changing the .class grammar while carrying static, access,
+	       and const bits to the runtime. */
 	    if (is_unpacked_array_property_type(ptype)) {
 		  unsigned dim;
 		  for (dim = 0 ; dim < ivl_type_packed_dimensions(ptype) ; dim += 1) {
@@ -335,6 +400,18 @@ void draw_class_in_scope(ivl_type_t classtype)
 		  }
 	    }
 	    fprintf(vvp_out, "\n");
+
+	      /* A static property is backed by the signal in its declaring
+	         class scope. Export that exact absolute-pid binding; inherited
+	         and hidden properties must never be recovered by name in the
+	         derived class. Scalar variables use their word label, while a
+	         fixed unpacked array is addressed by its .array label. */
+	    if (qual & 1) {
+		  ivl_signal_t storage = ivl_type_prop_signal(classtype, idx);
+		  assert(storage);
+		  fprintf(vvp_out, " .static_prop %d v%p%s\n", idx, storage,
+			  ivl_signal_dimensions(storage) ? "" : "_0");
+	    }
       }
 
       {
@@ -404,4 +481,6 @@ void draw_class_in_scope(ivl_type_t classtype)
       }
 
       fprintf(vvp_out, " ;\n");
+      if (emitted_class)
+	    emitted_class->state = CLASS_EMITTED;
 }

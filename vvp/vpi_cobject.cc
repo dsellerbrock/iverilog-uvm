@@ -286,9 +286,26 @@ vpiHandle __vpiCobjectVar::vpi_put_value(p_vpi_value val, int)
       vvp_object_t obj;
 
       switch (val->format) {
-          case vpiObjTypeVal:
-            obj = reinterpret_cast<vvp_object*>(val->value.misc);
+	  case vpiObjTypeVal: {
+	    vvp_object*raw = reinterpret_cast<vvp_object*>(val->value.misc);
+	    if (raw && (!vvp_object::pointer_is_live(raw)
+		      || !dynamic_cast<vvp_cobject*>(raw))) {
+		  fprintf(stderr, "vvp error: vpiClassVar put rejected an invalid "
+			  "or non-class VVP object pointer.\n");
+		  return 0;
+	    }
+	    obj = raw;
             break;
+	  }
+
+	  case vpiIntVal:
+	    if (val->value.integer != 0) {
+		  fprintf(stderr, "vvp error: vpiClassVar integer put accepts only "
+			  "0 (null), got %d.\n", (int)val->value.integer);
+		  return 0;
+	    }
+	    obj.reset();
+	    break;
 
           case vpiStringVal:
             if (val->value.str
@@ -364,11 +381,26 @@ class __vpiClassMember : public __vpiDarrayVar {
 
       int get_type_code(void) const override
       {
-	    return is_container_() ? vpiArrayVar : type_code_;
+	    return (is_fixed_array_() || is_container_())
+		 ? vpiArrayVar : type_code_;
       }
 
       int vpi_get(int code) override
       {
+	    if (is_fixed_array_()) {
+		  switch (code) {
+		      case vpiArrayType:
+			return vpiStaticArray;
+		      case vpiSize:
+			return (int)get_size();
+		      case vpiSigned:
+			return signed_ ? 1 : 0;
+		      case vpiAutomatic:
+			return 0;
+		      default:
+			return vpiUndefined;
+		  }
+	    }
 	    if (is_container_()) {
 		  switch (code) {
 		      case vpiArrayType:
@@ -421,8 +453,12 @@ class __vpiClassMember : public __vpiDarrayVar {
 
       void vpi_get_value(p_vpi_value val) override
       {
-	    if (is_container_()) {
+	    if (is_fixed_array_() || is_container_()) {
 		  __vpiDarrayVar::vpi_get_value(val);
+		  return;
+	    }
+	    if (defn_->property_is_static(idx_)) {
+		  canonical_storage_()->vpi_get_value(val);
 		  return;
 	    }
 	    vvp_cobject*cobj = live_object_();
@@ -481,11 +517,13 @@ class __vpiClassMember : public __vpiDarrayVar {
 
       vpiHandle vpi_put_value(p_vpi_value val, int) override
       {
-	    if (is_container_()) {
+	    if (is_fixed_array_() || is_container_()) {
 		  fprintf(stderr, "vpi sorry: writing a whole runtime-container "
 			  "class property is not supported; write an element.\n");
 		  return 0;
 	    }
+	    if (defn_->property_is_static(idx_))
+		  return canonical_storage_()->vpi_put_value(val, vpiNoDelay);
 	    vvp_cobject*cobj = live_object_();
 	    if (!cobj)
 		  return 0;
@@ -502,15 +540,26 @@ class __vpiClassMember : public __vpiDarrayVar {
 				  for (unsigned b = 32 ; b < width_ ; b += 1)
 					vec.set_bit(b, BIT4_1);
 		      } else if (val->format == vpiScalarVal) {
-			    vec.set_bit(0, (val->value.scalar == vpi1)
-					   ? BIT4_1 : BIT4_0);
+			    vvp_bit4_t bit;
+			    switch (val->value.scalar) {
+				case vpi0: bit = BIT4_0; break;
+				case vpi1: bit = BIT4_1; break;
+				case vpiZ: bit = BIT4_Z; break;
+				case vpiX: bit = BIT4_X; break;
+				default:
+				  fprintf(stderr, "vpi error: invalid scalar value %d "
+					  "for class member write.\n",
+					  (int)val->value.scalar);
+				  return 0;
+			    }
+			    vec.set_bit(0, bit);
 		      } else if (val->format == vpiVectorVal) {
 			    p_vpi_vecval vp = val->value.vector;
 			    for (unsigned b = 0 ; b < width_ ; b += 1) {
 				  int word = b / 32, bit = b % 32;
 				  int a = (vp[word].aval >> bit) & 1;
 				  int bb = (vp[word].bval >> bit) & 1;
-				  vec.set_bit(b, (vvp_bit4_t)((bb << 2) | a));
+				  vec.set_bit(b, (vvp_bit4_t)((bb << 1) | a));
 			    }
 		      } else {
 			    fprintf(stderr, "vpi sorry: format %d not "
@@ -552,7 +601,7 @@ class __vpiClassMember : public __vpiDarrayVar {
 
       vpiHandle vpi_handle(int code) override
       {
-	    if (is_container_()) {
+	    if (is_fixed_array_() || is_container_()) {
 		  if (code == vpiLeftRange)
 			return get_left_range();
 		  if (code == vpiRightRange)
@@ -571,7 +620,7 @@ class __vpiClassMember : public __vpiDarrayVar {
 	   object has no members). */
       vpiHandle vpi_iterate(int code) override
       {
-	    if (is_container_()
+	    if ((is_fixed_array_() || is_container_())
 		&& (code == vpiMember || code == vpiMemoryWord
 		    || code == vpiReg))
 		  return vpi_array_base_iterate(code);
@@ -593,9 +642,9 @@ class __vpiClassMember : public __vpiDarrayVar {
 	    refresh_children_();
 	    if (!children_defn_)
 		  return 0;
-	    for (size_t idx = 0 ; idx < children_.size() ; idx += 1) {
-		  if (children_defn_->property_name(idx) == name)
-			return children_[idx];
+	    for (size_t idx = children_.size() ; idx > 0 ; idx -= 1) {
+		  if (children_defn_->property_name(idx-1) == name)
+			return children_[idx-1];
 	    }
 	    return 0;
       }
@@ -604,22 +653,120 @@ class __vpiClassMember : public __vpiDarrayVar {
       vvp_cobject* member_object_()
       {
 	    if (kind_ != 'o' || is_container_()) return 0;
-	    vvp_cobject*container = live_object_();
-	    if (!container) return 0;
-	    vvp_object_t obj;
-	    container->get_object(idx_, obj, 0);
+	    vvp_object_t obj = live_member_value_();
 	    return obj.peek<vvp_cobject>();
       }
 
       vpiHandle vpi_index(int index) override
       {
+	    if (is_fixed_array_()) {
+		  const std::vector<std::pair<int,int> >&dims =
+			defn_->property_dimensions(idx_);
+		  if (dims.size() != 1)
+			return 0;
+		  int low = dims[0].first < dims[0].second
+			  ? dims[0].first : dims[0].second;
+		  int word = index - low;
+		  if (word < 0 || (unsigned)word >= get_size())
+			return 0;
+		  make_vals_words();
+		  return &vals_words[word].as_word;
+	    }
 	    if (!is_container_())
 		  return 0;
 	    return __vpiDarrayVar::vpi_index(index);
       }
 
+      vpiHandle get_left_range() override
+      {
+	    if (!is_fixed_array_())
+		  return __vpiDarrayVar::get_left_range();
+	    const std::vector<std::pair<int,int> >&dims =
+		  defn_->property_dimensions(idx_);
+	    fixed_left_range_.set_value(dims.empty() ? 0 : dims[0].first);
+	    return &fixed_left_range_;
+      }
+
+      vpiHandle get_right_range() override
+      {
+	    if (!is_fixed_array_())
+		  return __vpiDarrayVar::get_right_range();
+	    const std::vector<std::pair<int,int> >&dims =
+		  defn_->property_dimensions(idx_);
+	    fixed_right_range_.set_value(dims.empty() ? -1 : dims[0].second);
+	    return &fixed_right_range_;
+      }
+
+      int get_word_size() const override
+      {
+	    return is_fixed_array_() ? canonical_array_()->get_word_size()
+				     : __vpiDarrayVar::get_word_size();
+      }
+
+      void get_word_value(struct __vpiArrayWord*word,
+			  p_vpi_value value) override
+      {
+	    if (is_fixed_array_()) {
+		  canonical_array_()->get_word_value(word, value);
+		  return;
+	    }
+	    __vpiDarrayVar::get_word_value(word, value);
+      }
+
+      void put_word_value(struct __vpiArrayWord*word, p_vpi_value value,
+			  int flags) override
+      {
+	    if (is_fixed_array_()) {
+		  canonical_array_()->put_word_value(word, value, flags);
+		  return;
+	    }
+	    __vpiDarrayVar::put_word_value(word, value, flags);
+      }
+
+      vpiHandle get_iter_index(struct __vpiArrayIterator*iter,
+			       int index) override
+      {
+	    if (!is_fixed_array_())
+		  return __vpiDarrayVar::get_iter_index(iter, index);
+	    if (index < 0 || (unsigned)index >= get_size())
+		  return 0;
+	    make_vals_words();
+	    return &vals_words[index].as_word;
+      }
+
+      int get_word_declared_index(unsigned index) const override
+      {
+	    if (!is_fixed_array_())
+		  return (int)index;
+	    const std::vector<std::pair<int,int> >&dims =
+		  defn_->property_dimensions(idx_);
+	    if (dims.empty())
+		  return (int)index;
+	    int low = dims[0].first < dims[0].second
+		  ? dims[0].first : dims[0].second;
+	    return low + (int)index;
+      }
+
+      vvp_fun_signal_base*get_callback_functor() const override
+      {
+	    if (defn_->property_is_static(idx_) && !is_fixed_array_()) {
+		  __vpiBaseVar*var =
+			dynamic_cast<__vpiBaseVar*>(canonical_storage_());
+		  if (!var || !var->get_net())
+			return 0;
+		  vvp_fun_signal_base*fun =
+			dynamic_cast<vvp_fun_signal_base*>(var->get_net()->fun);
+		  if (!fun)
+			fun = dynamic_cast<vvp_fun_signal_base*>(var->get_net()->fil);
+		  return fun;
+	    }
+	    return __vpiDarrayVar::get_callback_functor();
+      }
+
       unsigned get_size() const override
       {
+	    if (is_fixed_array_())
+		  return canonical_array_()->get_size();
 	    if (const vvp_darray*array = get_vvp_darray())
 		  return (unsigned)array->get_size();
 	    if (const vvp_assoc_base*assoc = get_vvp_assoc())
@@ -638,6 +785,22 @@ class __vpiClassMember : public __vpiDarrayVar {
       char*get_word_str(struct __vpiArrayWord*word, int code) override
       {
 	    unsigned index = word->get_index();
+	    if (is_fixed_array_()) {
+		  if (code == vpiFile)
+			return simple_set_rbuf_str(file_names[0]);
+		  char ibuf[32];
+		  snprintf(ibuf, sizeof ibuf, "%d",
+			   get_word_declared_index(index));
+		  if (code == vpiName)
+			return simple_set_rbuf_str(ibuf);
+		  if (code == vpiFullName) {
+			const char*parent_name = vpi_get_str(vpiFullName);
+			std::string full = std::string(parent_name ? parent_name : "?")
+				     + "[" + ibuf + "]";
+			return simple_set_rbuf_str(full.c_str());
+		  }
+		  return 0;
+	    }
 	    std::string label;
 	    if (const vvp_assoc_base*assoc = get_vvp_assoc()) {
 		  std::string key, sval;
@@ -667,6 +830,39 @@ class __vpiClassMember : public __vpiDarrayVar {
       }
 
     private:
+      bool is_fixed_array_() const
+      {
+	    return defn_->property_is_static(idx_)
+		&& !defn_->property_dimensions(idx_).empty();
+      }
+
+      vpiHandle canonical_storage_() const
+      {
+	    return defn_->static_property_storage(idx_);
+      }
+
+      __vpiArray*canonical_array_() const
+      {
+	    __vpiArray*array = dynamic_cast<__vpiArray*>(canonical_storage_());
+	    if (!array) {
+		  fprintf(stderr,
+			  "internal error: fixed static class member is not backed "
+			  "by an array (class=%s pid=%u name=%s)\n",
+			  defn_->class_name().c_str(), idx_,
+			  defn_->property_name(idx_).c_str());
+		  abort();
+	    }
+	    return array;
+      }
+
+      vpiHandle canonical_word_storage_(unsigned index) const
+      {
+	    __vpiArray*array = canonical_array_();
+	    if (index >= array->get_size())
+		  return 0;
+	    return array->get_iter_index(0, (int)index);
+      }
+
       vvp_cobject* live_object_() const
       {
 	    if (parent_member_)
@@ -680,7 +876,9 @@ class __vpiClassMember : public __vpiDarrayVar {
       vvp_object_t live_member_value_() const
       {
 	    vvp_object_t value;
-	    if (vvp_cobject*cobj = live_object_())
+	    if (defn_->property_is_static(idx_))
+		  defn_->get_object(0, idx_, value, 0);
+	    else if (vvp_cobject*cobj = live_object_())
 		  cobj->get_object(idx_, value, 0);
 	    return value;
       }
@@ -711,8 +909,15 @@ class __vpiClassMember : public __vpiDarrayVar {
 
       void refresh_children_()
       {
-	    const class_type*defn = 0;
-	    if (vvp_cobject*mobj = member_object_())
+	      // Nested class-handle members are declared views too. Prefer the
+	      // class recorded for the property; older VVP streams encoded only
+	      // bare `o`, so retain the live-type fallback for compatibility.
+	      // A null handle still has no members, even when its declared type
+	      // is known.
+	    vvp_cobject*mobj = member_object_();
+	    const class_type*defn = mobj
+		  ? defn_->property_declared_class_type(idx_) : 0;
+	    if (mobj && !defn)
 		  defn = mobj->get_defn();
 	    if (defn == children_defn_)
 		  return;
@@ -804,9 +1009,30 @@ class __vpiClassMember : public __vpiDarrayVar {
       bool signed_;
       char kind_;
       int declared_array_type_ = vpiUndefined;
+	__vpiDecConst fixed_left_range_, fixed_right_range_;
       std::vector<__vpiClassMember*> children_;
       const class_type*children_defn_ = nullptr;
+
+      friend vpiHandle vpip_class_member_static_storage(vpiHandle obj);
 };
+
+vpiHandle vpip_class_member_static_storage(vpiHandle obj)
+{
+      if (__vpiClassMember*member = dynamic_cast<__vpiClassMember*>(obj)) {
+	    if (!member->defn_->property_is_static(member->idx_))
+		  return 0;
+	    return member->canonical_storage_();
+      }
+
+      __vpiArrayWord*word = array_var_word_from_handle(obj);
+      if (!word)
+	    return 0;
+      __vpiClassMember*member =
+	    dynamic_cast<__vpiClassMember*>(word->get_parent());
+      if (!member || !member->is_fixed_array_())
+	    return 0;
+      return member->canonical_word_storage_(word->get_index());
+}
 
 /* M12-5: dotted-path descent helper — resolve one member name on
    either a class VARIABLE handle or a (nested) class MEMBER handle,
@@ -1070,16 +1296,17 @@ static vpiHandle covgrp_iterate_items_(vpiHandle root, int code)
 void __vpiCobjectVar::refresh_members_()
 {
       vvp_fun_signal_object*fun = get_object_fun_(this);
-      const class_type*defn = 0;
-      if (fun) {
+	// A VPI variable is a declared view. In particular, a base-typed
+	// handle that currently stores a derived object must continue to expose
+	// the base property selected by that view; otherwise a hidden derived
+	// static of the same name silently replaces it. Use the live type only
+	// when no declared class metadata is available.
+      const class_type*defn = get_declared_class_type_(fun);
+      if (!defn && fun) {
 	    vvp_object_t obj = fun->peek_object();
 	    if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
 		  defn = cobj->get_defn();
       }
-	// Fall back to the declared type for null handles so member
-	// introspection works before construction.
-      if (!defn && fun)
-	    defn = get_declared_class_type_(fun);
       if (defn == members_defn_)
 	    return;
       members_.clear();
@@ -1113,9 +1340,9 @@ vpiHandle __vpiCobjectVar::member_by_name(const char*name)
       refresh_members_();
       if (!members_defn_)
 	    return 0;
-      for (size_t idx = 0 ; idx < members_.size() ; idx += 1) {
-	    if (members_defn_->property_name(idx) == name)
-		  return members_[idx];
+	for (size_t idx = members_.size() ; idx > 0 ; idx -= 1) {
+	    if (members_defn_->property_name(idx-1) == name)
+		  return members_[idx-1];
       }
       return 0;
 }

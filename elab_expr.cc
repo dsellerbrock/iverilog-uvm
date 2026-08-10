@@ -157,6 +157,7 @@ NetESFunc* make_randomize_with_expr(
 
       for (const PExpr*wc : with_constraints) {
 	    if (!wc) continue;
+	    unsigned errors_before = des->errors;
     string ir = std_object_root.nil()
 		  ? pexpr_to_class_constraint_ir(
 			wc, class_type, &value_slots, des, scope)
@@ -170,11 +171,13 @@ NetESFunc* make_randomize_with_expr(
 		    // constraint in effect. That is a real behavioral gap
 		    // (the LRM has no notion of a partially-applied
 		    // constraint), so make it loud instead of silent.
-		  ostringstream item_text;
-		  wc->dump(item_text);
-		  cerr << wc->get_fileline() << ": warning: constraint `"
-		       << item_text.str() << "' could not be translated and "
-		       << "is being ignored (compile-progress fallback)." << endl;
+		  if (des->errors == errors_before) {
+			ostringstream item_text;
+			wc->dump(item_text);
+			cerr << wc->get_fileline() << ": warning: constraint `"
+			     << item_text.str() << "' could not be translated and "
+			     << "is being ignored (compile-progress fallback)." << endl;
+		  }
 		  continue;
 	    }
 	    if (!combined_ir.empty()) combined_ir += " ";
@@ -412,6 +415,28 @@ static inline bool is_array_minmax_name_(perm_string method_name)
       return method_name == "min" || method_name == "max";
 }
 
+static inline bool is_array_unique_name_(perm_string method_name)
+{
+      return method_name == "unique" || method_name == "unique_index";
+}
+
+static inline bool is_plain_array_unique_element_type_(ivl_type_t type)
+{
+      if (!type)
+            return false;
+
+      switch (type->base_type()) {
+          case IVL_VT_BOOL:
+          case IVL_VT_LOGIC:
+          case IVL_VT_REAL:
+          case IVL_VT_STRING:
+          case IVL_VT_CLASS:
+            return true;
+          default:
+            return false;
+      }
+}
+
 /* Array locator methods return queues. Cache the concrete result type so
  * paren-less method expressions and ordinary call expressions carry their
  * element type through assignment/formal compatibility checks. */
@@ -426,6 +451,609 @@ static ivl_type_t array_locator_queue_type_(ivl_type_t element_type)
       ivl_type_t res = new netqueue_t(element_type, -1, false);
       cache[element_type] = res;
       return res;
+}
+
+static NetNet* make_array_method_recv_net_(
+      const LineInfo*li, Design*des, NetScope*scope,
+      NetExpr*array_expr, ivl_type_t container_type, const char*kind);
+static void push_array_method_iter_ctx_(const NetNet*iter_net,
+                                        NetNet*idx_net,
+                                        bool index_query_allowed);
+
+static bool is_assoc_unique_scalar_or_class_type_(ivl_type_t type)
+{
+      if (!type)
+            return false;
+
+      switch (type->base_type()) {
+          case IVL_VT_BOOL:
+          case IVL_VT_LOGIC:
+          case IVL_VT_REAL:
+          case IVL_VT_STRING:
+          case IVL_VT_CLASS:
+            return true;
+          default:
+            return false;
+      }
+}
+
+/* Preserve the runtime category and full packed width of a unique() with
+ * expression in the hidden comparison queue. The queue is internal, so an
+ * anonymous packed type is sufficient when the expression does not carry a
+ * declared net type of its own. */
+static ivl_type_t array_unique_comparison_type_(NetExpr*expr)
+{
+      ivl_assert(*expr, expr);
+
+      ivl_type_t type = expr->net_type();
+      if (type && type->base_type() == expr->expr_type()) {
+	    if ((expr->expr_type() != IVL_VT_BOOL
+		 && expr->expr_type() != IVL_VT_LOGIC)
+		|| (expr->expr_width() != 0
+		    && type->packed_width() == (long)expr->expr_width()))
+		  return type;
+      }
+
+      switch (expr->expr_type()) {
+          case IVL_VT_STRING:
+            return &netstring_t::type_string;
+          case IVL_VT_REAL:
+            return &netreal_t::type_real;
+          case IVL_VT_BOOL:
+          case IVL_VT_LOGIC: {
+            unsigned wid = expr->expr_width();
+            if (wid == 0)
+                  return nullptr;
+            return new netvector_t(expr->expr_type(), (long)wid-1, 0,
+                                   expr->has_sign());
+          }
+          case IVL_VT_CLASS:
+              /* A class expression must retain its declared class type. */
+            return type;
+          default:
+            return nullptr;
+      }
+}
+
+static NetExpr* make_assoc_unique_element_expr_(
+      const LineInfo*li, NetExpr*array_expr, NetNet*index_net,
+      ivl_type_t element_type)
+{
+      ivl_assert(*li, array_expr);
+      ivl_assert(*li, index_net);
+      ivl_assert(*li, element_type);
+
+      const netdarray_t*array_type =
+            dynamic_cast<const netdarray_t*>(array_expr->net_type());
+      if (!array_type) {
+            delete array_expr;
+            return nullptr;
+      }
+
+      unsigned elem_width = array_type->element_width();
+      if (elem_width == 0)
+            elem_width = 1;
+
+      NetESignal*index_expr = new NetESignal(index_net);
+      index_expr->set_line(*li);
+      NetESelect*select = new NetESelect(array_expr, index_expr, elem_width,
+                                         element_type);
+      select->set_line(*li);
+      return select;
+}
+
+/* Associative unique()/unique_index() uses the existing first/next keyed
+ * traversal in tgt-vvp. Both the plain form and the with form carry a
+ * comparison expression and a parallel comparison-key queue, so the target
+ * has one implementation and evaluates a with expression exactly once per
+ * visited entry. This helper consumes array_expr. */
+static NetExpr* make_assoc_array_unique_expr_(
+      const LineInfo*li, Design*des, NetScope*scope,
+      NetExpr*array_expr, const netqueue_t*container_type,
+      ivl_type_t element_type, perm_string method_name,
+      const std::vector<named_pexpr_t>&parms,
+      const std::vector<PExpr*>&with_exprs)
+{
+      ivl_assert(*li, array_expr);
+      ivl_assert(*li, container_type && container_type->assoc_compat());
+
+      const bool is_index = method_name == "unique_index";
+      if (is_index && container_type->assoc_wildcard()) {
+            cerr << li->get_fileline() << ": error: " << method_name
+                 << "() shall not be applied to a wildcard-index "
+                    "associative array (IEEE 1800-2017 7.12.1)."
+                 << endl;
+            des->errors += 1;
+            delete array_expr;
+            return nullptr;
+      }
+      ivl_type_t index_type = container_type->assoc_index_type();
+      if (!index_type) {
+            cerr << li->get_fileline() << ": error: " << method_name
+                 << "() cannot determine the associative array index type."
+                 << endl;
+            des->errors += 1;
+            delete array_expr;
+            return nullptr;
+      }
+      if (index_type->base_type() != IVL_VT_BOOL
+          && index_type->base_type() != IVL_VT_LOGIC
+          && index_type->base_type() != IVL_VT_STRING
+          && index_type->base_type() != IVL_VT_CLASS) {
+            cerr << li->get_fileline() << ": sorry: " << method_name
+                 << "() supports associative index types that are integral, "
+                    "enum, string, or class handles; this object-backed "
+                    "index type requires value-key equality."
+                 << endl;
+            des->errors += 1;
+            delete array_expr;
+            return nullptr;
+      }
+      if (!is_assoc_unique_scalar_or_class_type_(element_type)) {
+            cerr << li->get_fileline() << ": sorry: " << method_name
+                 << "() on this associative array element type is not yet "
+                    "implemented."
+                 << endl;
+            des->errors += 1;
+            delete array_expr;
+            return nullptr;
+      }
+      if (with_exprs.size() > 1) {
+            cerr << li->get_fileline() << ": error: " << method_name
+                 << "() takes exactly one with expression." << endl;
+            des->errors += 1;
+            delete array_expr;
+            return nullptr;
+      }
+      if (with_exprs.empty() && !parms.empty()) {
+            cerr << li->get_fileline() << ": error: " << method_name
+                 << "() iterator argument requires a with clause." << endl;
+            des->errors += 1;
+            delete array_expr;
+            return nullptr;
+      }
+
+      NetNet*recv_net = nullptr;
+      const NetESignal*array_signal = dynamic_cast<NetESignal*>(array_expr);
+      if (!array_signal || array_signal->word_index()) {
+            recv_net = make_array_method_recv_net_(
+                  li, des, scope, array_expr, container_type,
+                  method_name.str());
+            if (!recv_net) {
+                  delete array_expr;
+                  return nullptr;
+            }
+      }
+
+      perm_string iter_name = perm_string::literal("item");
+      if (!parms.empty()) {
+            const PEIdent*iter_ident =
+                  dynamic_cast<const PEIdent*>(parms[0].parm);
+            ivl_assert(*li, iter_ident);
+            iter_name = iter_ident->path().back().name;
+      }
+
+      NetNet*iter_net = new NetNet(scope, scope->local_symbol(),
+                                   NetNet::REG, element_type);
+      iter_net->set_line(*li);
+      iter_net->local_flag(true);
+      NetNet*index_net = new NetNet(scope, scope->local_symbol(),
+                                    NetNet::REG, index_type);
+      index_net->set_line(*li);
+      index_net->local_flag(true);
+
+      NetExpr*comparison_expr = nullptr;
+      ivl_type_t comparison_type = nullptr;
+      if (!with_exprs.empty()) {
+            NetNet*previous = scope->set_signal_alias(iter_name, iter_net);
+            push_array_method_iter_ctx_(
+                  iter_net, index_net, !container_type->assoc_wildcard());
+            comparison_expr = elab_and_eval(
+                  des, scope, with_exprs.front(), -1, false);
+            pop_array_method_iter_ctx();
+            scope->restore_signal_alias(iter_name, previous);
+            if (!comparison_expr) {
+                  delete array_expr;
+                  return nullptr;
+            }
+            comparison_type = array_unique_comparison_type_(comparison_expr);
+      } else {
+            comparison_expr = new NetESignal(iter_net);
+            comparison_expr->set_line(*li);
+            comparison_type = element_type;
+      }
+
+      /* Wildcard unique() is legal, and its with expression must still be
+       * elaborated so illegal iterator index queries receive the mandatory
+       * 7.12.4 diagnostic. Stop before building the target payload: the
+       * wildcard placeholder index cannot preserve arbitrary key widths. */
+      if (container_type->assoc_wildcard()) {
+            cerr << li->get_fileline() << ": sorry: unique() on a "
+                    "wildcard-index associative array is not yet "
+                    "implemented because wildcard keys require "
+                    "width-preserving traversal."
+                 << endl;
+            des->errors += 1;
+            delete comparison_expr;
+            delete array_expr;
+            return nullptr;
+      }
+
+      if (!comparison_type
+          || !is_assoc_unique_scalar_or_class_type_(comparison_type)) {
+            cerr << li->get_fileline() << ": sorry: " << method_name
+                 << "() with expression must have an integral, real, string, "
+                    "or class-handle comparison type."
+                 << endl;
+            des->errors += 1;
+            delete comparison_expr;
+            delete array_expr;
+            return nullptr;
+      }
+
+      ivl_type_t result_element_type = is_index ? index_type : element_type;
+      ivl_type_t result_type =
+            array_locator_queue_type_(result_element_type);
+      NetNet*result_net = new NetNet(scope, scope->local_symbol(),
+                                     NetNet::REG, result_type);
+      result_net->set_line(*li);
+      result_net->local_flag(true);
+
+      ivl_type_t comparisons_type =
+            array_locator_queue_type_(comparison_type);
+      NetNet*comparisons_net = new NetNet(scope, scope->local_symbol(),
+                                          NetNet::REG, comparisons_type);
+      comparisons_net->set_line(*li);
+      comparisons_net->local_flag(true);
+
+      NetExpr*loop_receiver = nullptr;
+      if (recv_net) {
+            loop_receiver = new NetESignal(recv_net);
+            loop_receiver->set_line(*li);
+      } else {
+            loop_receiver = array_expr->dup_expr();
+      }
+      NetExpr*element_expr = make_assoc_unique_element_expr_(
+            li, loop_receiver, index_net, element_type);
+      if (!element_expr) {
+            cerr << li->get_fileline() << ": internal error: cannot build "
+                    "the associative-array unique element selection."
+                 << endl;
+            des->errors += 1;
+            delete comparison_expr;
+            delete array_expr;
+            return nullptr;
+      }
+
+      string mangled = string("$ivl_queue_method$unique_with|")
+            + method_name.str();
+      NetESFunc*fn = new NetESFunc(mangled.c_str(), result_type,
+                                   recv_net ? 8 : 7);
+      fn->parm(0, array_expr);
+      NetESignal*iter_ref = new NetESignal(iter_net);
+      iter_ref->set_line(*li);
+      fn->parm(1, iter_ref);
+      NetESignal*result_ref = new NetESignal(result_net);
+      result_ref->set_line(*li);
+      fn->parm(2, result_ref);
+      NetESignal*comparisons_ref = new NetESignal(comparisons_net);
+      comparisons_ref->set_line(*li);
+      fn->parm(3, comparisons_ref);
+      NetESignal*index_ref = new NetESignal(index_net);
+      index_ref->set_line(*li);
+      fn->parm(4, index_ref);
+      fn->parm(5, comparison_expr);
+      fn->parm(6, element_expr);
+      if (recv_net) {
+            NetESignal*recv_ref = new NetESignal(recv_net);
+            recv_ref->set_line(*li);
+            fn->parm(7, recv_ref);
+      }
+      fn->set_line(*li);
+      return fn;
+}
+
+static bool validate_array_locator_iterator_(
+      const LineInfo*li, Design*des, perm_string method_name,
+      const std::vector<named_pexpr_t>&parms)
+{
+      if (parms.size() > 1) {
+            cerr << li->get_fileline() << ": error: " << method_name
+                 << "() takes at most one iterator identifier." << endl;
+            des->errors += 1;
+            return false;
+      }
+
+      if (!parms.empty() && !parms[0].name.nil()) {
+            cerr << li->get_fileline() << ": error: " << method_name
+                 << "() does not allow a named iterator argument." << endl;
+            des->errors += 1;
+            return false;
+      }
+
+      const PEIdent*iter_ident = parms.empty()
+          ? nullptr : dynamic_cast<const PEIdent*>(parms[0].parm);
+      if (!parms.empty()
+          && (!iter_ident || iter_ident->path().size() != 1
+              || !iter_ident->path().back().index.empty())) {
+            cerr << li->get_fileline() << ": error: " << method_name
+                 << "() iterator must be a simple identifier." << endl;
+            des->errors += 1;
+            return false;
+      }
+      return true;
+}
+
+/* Build the value-returning unique/unique_index implementation shared by
+ * queues and dynamic arrays. Plain calls support the scalar element kinds
+ * whose equality semantics are represented directly by VVP. This helper
+ * consumes array_expr. */
+static NetExpr* make_array_unique_expr_(
+      const LineInfo*li, Design*des, NetScope*scope,
+      NetExpr*array_expr, ivl_type_t container_type,
+      ivl_type_t element_type, perm_string method_name,
+      const std::vector<named_pexpr_t>&parms,
+      const std::vector<PExpr*>&with_exprs)
+{
+      const bool is_index = method_name == "unique_index";
+
+      if (!validate_array_locator_iterator_(li, des, method_name, parms)) {
+            delete array_expr;
+            return nullptr;
+      }
+
+      if (const netqueue_t*queue =
+            dynamic_cast<const netqueue_t*>(container_type)) {
+            if (queue->assoc_compat()) {
+                  return make_assoc_array_unique_expr_(
+                        li, des, scope, array_expr, queue, element_type,
+                        method_name, parms, with_exprs);
+            }
+      }
+
+      const netuarray_t*fixed_type =
+            dynamic_cast<const netuarray_t*>(container_type);
+      if (fixed_type && fixed_type->static_dimensions().size() != 1) {
+            cerr << li->get_fileline() << ": sorry: " << method_name
+                 << "() on multidimensional arrays is not yet implemented."
+                 << endl;
+            des->errors += 1;
+            delete array_expr;
+            return nullptr;
+      }
+
+      if (fixed_type && element_type
+          && (element_type->base_type() == IVL_VT_BOOL
+              || element_type->base_type() == IVL_VT_LOGIC)
+          && element_type->packed_width() > 255) {
+            cerr << li->get_fileline() << ": sorry: " << method_name
+                 << "() on a fixed array with integral element width "
+                 << element_type->packed_width()
+                 << " is not yet implemented; fixed-array materialization "
+                    "supports widths up to 255 bits."
+                 << endl;
+            des->errors += 1;
+            delete array_expr;
+            return nullptr;
+      }
+
+      NetNet*recv_net = nullptr;
+      if (fixed_type) {
+              /* A fixed receiver is not object-backed. Materialize it once
+               * into a hidden dynamic array so every element category and
+               * class-property receiver can share the typed queue loop. */
+            ivl_type_t recv_type = new netdarray_t(element_type);
+            recv_net = new NetNet(scope, scope->local_symbol(),
+                                  NetNet::REG, recv_type);
+            recv_net->set_line(*li);
+            recv_net->local_flag(true);
+      } else {
+            const NetESignal*array_signal =
+                  dynamic_cast<NetESignal*>(array_expr);
+            if (!array_signal || array_signal->word_index()) {
+                  recv_net = make_array_method_recv_net_(
+                        li, des, scope, array_expr, container_type,
+                        method_name.str());
+                  if (!recv_net) {
+                        delete array_expr;
+                        return nullptr;
+                  }
+            }
+      }
+
+      /* A with clause supplies the equality key used by unique/unique_index.
+       * Integral keys retain their full width and X/Z bits; real, string and
+       * class keys retain their native runtime representation. Fixed arrays
+       * also take this path without a with clause, using the element itself
+       * as the key, because the explicit declared-index payload is needed by
+       * both unique_index and iterator.index. */
+      if (!with_exprs.empty() || fixed_type) {
+            if (!is_plain_array_unique_element_type_(element_type)) {
+                  cerr << li->get_fileline() << ": sorry: " << method_name;
+                  if (fixed_type && with_exprs.empty())
+                        cerr << "() on fixed arrays of aggregate elements is "
+                                "not yet implemented.";
+                  else
+                        cerr << "() with a with clause on this array element "
+                                "type is not yet implemented.";
+                  cerr << endl;
+                  des->errors += 1;
+                  delete array_expr;
+                  return nullptr;
+            }
+            if (with_exprs.size() > 1) {
+                  cerr << li->get_fileline() << ": error: " << method_name
+                       << "() takes exactly one with expression." << endl;
+                  des->errors += 1;
+                  delete array_expr;
+                  return nullptr;
+            }
+            if (with_exprs.empty() && !parms.empty()) {
+                  cerr << li->get_fileline() << ": error: " << method_name
+                       << "() iterator argument requires a with clause."
+                       << endl;
+                  des->errors += 1;
+                  delete array_expr;
+                  return nullptr;
+            }
+
+            perm_string iter_name = perm_string::literal("item");
+            if (!parms.empty()) {
+                  const PEIdent*iter_ident =
+                        dynamic_cast<const PEIdent*>(parms[0].parm);
+                  ivl_assert(*li, iter_ident);
+                  iter_name = iter_ident->path().back().name;
+            }
+
+            NetNet*iter_net = new NetNet(scope, scope->local_symbol(),
+                                         NetNet::REG, element_type);
+            iter_net->set_line(*li);
+            iter_net->local_flag(true);
+            NetNet*idx_net = new NetNet(scope, scope->local_symbol(),
+                                        NetNet::REG,
+                                        &netvector_t::atom2s32);
+            idx_net->set_line(*li);
+            idx_net->local_flag(true);
+
+              /* Fixed storage is canonical low-address first. Keep that
+               * counter private and expose low+counter as the iterator's
+               * declared index. Dynamic/queue calls use the counter itself. */
+            NetNet*visible_idx_net = idx_net;
+            NetExpr*declared_idx_expr = nullptr;
+            if (fixed_type) {
+                  visible_idx_net = new NetNet(scope, scope->local_symbol(),
+                                               NetNet::REG,
+                                               &netvector_t::atom2s32);
+                  visible_idx_net->set_line(*li);
+                  visible_idx_net->local_flag(true);
+                  const netrange_t&range =
+                        fixed_type->static_dimensions().front();
+                  long low = std::min(range.get_msb(), range.get_lsb());
+                  NetESignal*canonical_ref = new NetESignal(idx_net);
+                  canonical_ref->set_line(*li);
+                  NetEConst*low_ref = make_const_val_s(low);
+                  low_ref->set_line(*li);
+                  declared_idx_expr = new NetEBAdd(
+                        '+', canonical_ref, low_ref, 32, true);
+                  declared_idx_expr->set_line(*li);
+            }
+
+            NetExpr*key_expr = nullptr;
+            if (!with_exprs.empty()) {
+                  NetNet*previous =
+                        scope->set_signal_alias(iter_name, iter_net);
+                  push_array_method_iter_ctx(iter_net, visible_idx_net);
+                  key_expr = elab_and_eval(
+                        des, scope, with_exprs.front(), -1, false);
+                  pop_array_method_iter_ctx();
+                  scope->restore_signal_alias(iter_name, previous);
+            } else {
+                  key_expr = new NetESignal(iter_net);
+                  key_expr->set_line(*li);
+            }
+            if (!key_expr) {
+                  delete array_expr;
+                  return nullptr;
+            }
+
+            ivl_type_t key_element_type =
+                  array_unique_comparison_type_(key_expr);
+            if (!key_element_type
+                || !is_assoc_unique_scalar_or_class_type_(
+                      key_element_type)) {
+                  cerr << li->get_fileline() << ": sorry: " << method_name
+                       << "() with a with clause requires an integral, real, "
+                          "string, or class-handle key."
+                       << endl;
+                  des->errors += 1;
+                  delete key_expr;
+                  delete array_expr;
+                  return nullptr;
+            }
+
+            ivl_type_t result_type = array_locator_queue_type_(
+                  is_index
+                        ? static_cast<ivl_type_t>(&netvector_t::atom2s32)
+                        : element_type);
+            NetNet*result_net = new NetNet(scope, scope->local_symbol(),
+                                           NetNet::REG, result_type);
+            result_net->set_line(*li);
+            result_net->local_flag(true);
+
+            ivl_type_t keys_type =
+                  array_locator_queue_type_(key_element_type);
+            NetNet*keys_net = new NetNet(scope, scope->local_symbol(),
+                                         NetNet::REG, keys_type);
+            keys_net->set_line(*li);
+            keys_net->local_flag(true);
+
+            string mangled = string("$ivl_queue_method$unique_with|")
+                  + method_name.str();
+            NetESFunc*fn = new NetESFunc(mangled.c_str(), result_type,
+                                         fixed_type ? 9
+                                                    : (recv_net ? 7 : 6));
+            fn->parm(0, array_expr);
+            NetESignal*iter_ref = new NetESignal(iter_net);
+            iter_ref->set_line(*li);
+            fn->parm(1, iter_ref);
+            NetESignal*result_ref = new NetESignal(result_net);
+            result_ref->set_line(*li);
+            fn->parm(2, result_ref);
+            NetESignal*keys_ref = new NetESignal(keys_net);
+            keys_ref->set_line(*li);
+            fn->parm(3, keys_ref);
+            NetESignal*idx_ref = new NetESignal(idx_net);
+            idx_ref->set_line(*li);
+            fn->parm(4, idx_ref);
+            fn->parm(5, key_expr);
+            if (recv_net) {
+                  NetESignal*recv_ref = new NetESignal(recv_net);
+                  recv_ref->set_line(*li);
+                  fn->parm(6, recv_ref);
+            }
+            if (fixed_type) {
+                  NetESignal*visible_idx_ref =
+                        new NetESignal(visible_idx_net);
+                  visible_idx_ref->set_line(*li);
+                  fn->parm(7, visible_idx_ref);
+                  fn->parm(8, declared_idx_expr);
+            }
+            fn->set_line(*li);
+            return fn;
+      }
+
+      if (!parms.empty()) {
+            cerr << li->get_fileline() << ": error: " << method_name
+                 << "() iterator argument requires a with clause." << endl;
+            des->errors += 1;
+            delete array_expr;
+            return nullptr;
+      }
+
+      if (!is_plain_array_unique_element_type_(element_type)) {
+            cerr << li->get_fileline() << ": sorry: " << method_name
+                 << "() on this array element type is not yet implemented."
+                 << endl;
+            des->errors += 1;
+            delete array_expr;
+            return nullptr;
+      }
+
+      ivl_type_t result_type = array_locator_queue_type_(
+            is_index ? static_cast<ivl_type_t>(&netvector_t::atom2s32)
+                     : element_type);
+      string mangled = string("$ivl_queue_method$unique_with|")
+            + method_name.str();
+      NetESFunc*fn = new NetESFunc(mangled.c_str(), result_type,
+                                   recv_net ? 2 : 1);
+      fn->parm(0, array_expr);
+      if (recv_net) {
+            NetESignal*recv_ref = new NetESignal(recv_net);
+            recv_ref->set_line(*li);
+            fn->parm(1, recv_ref);
+      }
+      fn->set_line(*li);
+      return fn;
 }
 
 /* Phase 63b/B1 (real impl): build a NetESFunc that the tgt-vvp side
@@ -446,10 +1074,6 @@ static ivl_type_t array_locator_queue_type_(ivl_type_t element_type)
  *
  * Returns nullptr if the predicate fails to elaborate.
  */
-static NetNet* make_array_method_recv_net_(
-      const LineInfo*li, Design*des, NetScope*scope,
-      NetExpr*array_expr, ivl_type_t container_type, const char*kind);
-
 static NetExpr* make_queue_locator_with_expr_(
       const PECallFunction*call,
       Design*des, NetScope*scope,
@@ -612,20 +1236,78 @@ static NetNet* make_array_method_iter_net_(
       return iter_net;
 }
 
+/* Determine the self-determined result type of a reduction without
+ * elaborating its value. This is used by PECallFunction::test_width_method_
+ * (notably for $bits) before make_array_reduction_expr_ builds the runtime
+ * loop. A with expression is sized in its iterator scope, including the
+ * 32-bit signed index() query. Invalid iterator/with shapes are diagnosed by
+ * the full elaboration path; returning zero here lets that path run. */
+static unsigned test_array_reduction_result_width_(
+      const LineInfo*li, Design*des, NetScope*scope,
+      ivl_type_t element_type,
+      const std::vector<named_pexpr_t>&parms,
+      const std::vector<PExpr*>&with_exprs,
+      ivl_variable_type_t&result_type, bool&result_signed)
+{
+      if (!element_type)
+            return 0;
+
+      if (with_exprs.empty()) {
+            result_type = element_type->base_type();
+            result_signed = element_type->get_signed();
+            unsigned width = element_type->packed_width();
+            return width ? width : 32;
+      }
+      if (with_exprs.size() != 1 || !with_exprs.front())
+            return 0;
+
+      perm_string iter_name = perm_string::literal("item");
+      if (!parms.empty() && parms.front().parm) {
+            const PEIdent*iter_ident =
+                  dynamic_cast<const PEIdent*>(parms.front().parm);
+            if (!iter_ident || iter_ident->path().size() != 1
+                || !iter_ident->path().back().index.empty())
+                  return 0;
+            iter_name = iter_ident->path().back().name;
+      }
+
+      NetNet*iter_net = new NetNet(scope, scope->local_symbol(),
+                                   NetNet::REG, element_type);
+      iter_net->set_line(*li);
+      iter_net->local_flag(true);
+      NetNet*idx_net = new NetNet(scope, scope->local_symbol(),
+                                  NetNet::REG, &netvector_t::atom2s32);
+      idx_net->set_line(*li);
+      idx_net->local_flag(true);
+
+      NetNet*previous = scope->set_signal_alias(iter_name, iter_net);
+      push_array_method_iter_ctx(iter_net, idx_net);
+      PExpr::width_mode_t mode = PExpr::SIZED;
+      unsigned width = with_exprs.front()->test_width(des, scope, mode);
+      result_type = with_exprs.front()->expr_type();
+      result_signed = with_exprs.front()->has_sign();
+      pop_array_method_iter_ctx();
+      scope->restore_signal_alias(iter_name, previous);
+      return width;
+}
+
 /* The tgt-vvp array-method loops index the receiver through a
- * signal label.  When the receiver is not a plain signal (a class
- * property, a nested property chain, a call result), allocate a
- * hidden net of the container type; the code generator evaluates the
- * receiver expression once, stores the object handle into the hidden
- * net, and runs the loop against it.  Only dynamic containers are
- * object-valued, so fixed-size-array properties cannot take this
- * path.  Returns nil (with a diagnostic) for such receivers. */
+ * signal label.  When the receiver is not a plain, unselected signal
+ * (a selected container word, class property, nested property chain,
+ * or call result), allocate a hidden net of the container type; the
+ * code generator evaluates the receiver expression once, stores the
+ * object handle into the hidden net, and runs the loop against it.
+ * Only dynamic containers are object-valued, so fixed-size-array
+ * properties cannot take this path. Returns nil (with a diagnostic)
+ * for such receivers. */
 static NetNet* make_array_method_recv_net_(
       const LineInfo*li, Design*des, NetScope*scope,
       NetExpr*array_expr, ivl_type_t container_type, const char*kind)
 {
-      if (dynamic_cast<NetESignal*>(array_expr))
-	    return 0; /* plain signal: no copy needed */
+      if (const NetESignal*sig = dynamic_cast<NetESignal*>(array_expr)) {
+	    if (!sig->word_index())
+		  return 0; /* plain signal: no copy needed */
+      }
 
       ivl_variable_type_t cbase = container_type
 	    ? container_type->base_type() : IVL_VT_NO_TYPE;
@@ -652,12 +1334,21 @@ static NetNet* make_array_method_recv_net_(
 struct array_method_iter_ctx_t {
       const NetNet*iter_net;
       NetNet*idx_net;
+      bool index_query_allowed;
 };
 static std::vector<array_method_iter_ctx_t> array_method_iter_stack_;
 
+static void push_array_method_iter_ctx_(const NetNet*iter_net,
+                                        NetNet*idx_net,
+                                        bool index_query_allowed)
+{
+      array_method_iter_stack_.push_back(
+            {iter_net, idx_net, index_query_allowed});
+}
+
 void push_array_method_iter_ctx(const NetNet*iter_net, NetNet*idx_net)
 {
-      array_method_iter_stack_.push_back({iter_net, idx_net});
+      push_array_method_iter_ctx_(iter_net, idx_net, true);
 }
 
 void pop_array_method_iter_ctx(void)
@@ -673,6 +1364,16 @@ NetNet* find_array_method_iter_index(const NetNet*iter_net)
 		  return it->idx_net;
       }
       return 0;
+}
+
+static bool array_method_iter_index_forbidden_(const NetNet*iter_net)
+{
+      for (auto it = array_method_iter_stack_.rbegin()
+                 ; it != array_method_iter_stack_.rend() ; ++it) {
+            if (it->iter_net == iter_net)
+                  return !it->index_query_allowed;
+      }
+      return false;
 }
 
 /* Elaborate a with expression with the iterator name bound to the
@@ -714,6 +1415,46 @@ static NetExpr* make_array_reduction_expr_(
       const std::vector<named_pexpr_t>&parms,
       const std::vector<PExpr*>&with_exprs)
 {
+      const PEIdent*iter_ident = parms.empty()
+	    ? nullptr : dynamic_cast<const PEIdent*>(parms.front().parm);
+      if (parms.size() > 1
+	  || (!parms.empty()
+	      && (!parms.front().name.nil() || !iter_ident
+		  || iter_ident->path().size() != 1
+		  || !iter_ident->path().back().index.empty()))) {
+	    cerr << li->get_fileline() << ": error: " << kind
+		 << "() takes at most one simple iterator identifier." << endl;
+	    des->errors += 1;
+	    delete array_expr;
+	    return 0;
+      }
+      if (with_exprs.size() > 1) {
+	    cerr << li->get_fileline() << ": error: " << kind
+		 << "() takes exactly one with expression." << endl;
+	    des->errors += 1;
+	    delete array_expr;
+	    return 0;
+      }
+      if (!parms.empty() && with_exprs.empty()) {
+	    cerr << li->get_fileline() << ": error: " << kind
+		 << "() iterator argument requires a with clause." << endl;
+	    des->errors += 1;
+	    delete array_expr;
+	    return 0;
+      }
+
+      const netuarray_t*fixed_type =
+	    dynamic_cast<const netuarray_t*>(container_type);
+      if (fixed_type && fixed_type->static_dimensions().size() != 1) {
+	    cerr << li->get_fileline() << ": error: Array reduction method "
+		 << kind << "() requires a one-dimensional unpacked array; got "
+		 << fixed_type->static_dimensions().size()
+		 << " unpacked dimensions." << endl;
+	    des->errors += 1;
+	    delete array_expr;
+	    return 0;
+      }
+
       ivl_variable_type_t ebase = element_type
 	    ? element_type->base_type() : IVL_VT_NO_TYPE;
       if (ebase != IVL_VT_BOOL && ebase != IVL_VT_LOGIC) {
@@ -726,7 +1467,20 @@ static NetExpr* make_array_reduction_expr_(
       }
 
       NetNet*recv_net = 0;
-      if (!dynamic_cast<NetESignal*>(array_expr)) {
+      if (fixed_type && !dynamic_cast<NetESignal*>(array_expr)) {
+	      /* A fixed unpacked array has no object handle that the common
+	       * array-method loop can retain. Materialize the complete value once
+	       * into a hidden dynamic array. This is also the only faithful path
+	       * for a fixed-array class property: evaluating the NetEProperty in
+	       * object context invokes %prop/arr/dar, preserving every element,
+	       * while the hidden receiver guarantees that a side-effecting base
+	       * expression is evaluated exactly once. */
+	    ivl_type_t recv_type = new netdarray_t(element_type);
+	    recv_net = new NetNet(scope, scope->local_symbol(),
+				     NetNet::REG, recv_type);
+	    recv_net->set_line(*li);
+	    recv_net->local_flag(true);
+      } else if (!dynamic_cast<NetESignal*>(array_expr)) {
 	    recv_net = make_array_method_recv_net_(li, des, scope,
 						   array_expr,
 						   container_type, kind);
@@ -745,6 +1499,24 @@ static NetExpr* make_array_reduction_expr_(
       idx_net->set_line(*li);
       idx_net->local_flag(true);
 
+      NetNet*visible_idx_net = idx_net;
+      NetExpr*declared_idx_expr = 0;
+      if (fixed_type) {
+	    visible_idx_net = new NetNet(scope, scope->local_symbol(),
+				   NetNet::REG, &netvector_t::atom2s32);
+	    visible_idx_net->set_line(*li);
+	    visible_idx_net->local_flag(true);
+	    const netrange_t&range = fixed_type->static_dimensions().front();
+	    long low = std::min(range.get_msb(), range.get_lsb());
+	    NetESignal*canonical_ref = new NetESignal(idx_net);
+	    canonical_ref->set_line(*li);
+	    NetEConst*low_ref = make_const_val_s(low);
+	    low_ref->set_line(*li);
+	    declared_idx_expr = new NetEBAdd(
+		  '+', canonical_ref, low_ref, 32, true);
+	    declared_idx_expr->set_line(*li);
+      }
+
 	/* The per-element value: the with expression (evaluated with
 	 * the iterator bound to the hidden net), or the element
 	 * itself.  Self-determined context, as for the locators. */
@@ -753,7 +1525,7 @@ static NetExpr* make_array_reduction_expr_(
 	    val_expr = elab_array_method_with_expr_(des, scope,
 						    with_exprs.front(),
 						    iter_name, iter_net,
-						    idx_net);
+						    visible_idx_net);
 	    if (!val_expr) {
 		  delete array_expr;
 		  return 0;
@@ -787,7 +1559,8 @@ static NetExpr* make_array_reduction_expr_(
 
       string mangled = string("$ivl_darray_method$reduce|") + kind;
       NetESFunc*fn = new NetESFunc(mangled.c_str(), res_type,
-				   recv_net ? 6 : 5);
+				   fixed_type ? (recv_net ? 8 : 7)
+					      : (recv_net ? 6 : 5));
       fn->parm(0, array_expr);
       NetESignal*iter_ref = new NetESignal(iter_net);
       iter_ref->set_line(*li);
@@ -803,6 +1576,12 @@ static NetExpr* make_array_reduction_expr_(
 	    NetESignal*recv_ref = new NetESignal(recv_net);
 	    recv_ref->set_line(*li);
 	    fn->parm(5, recv_ref);
+      }
+      if (fixed_type) {
+	    NetESignal*visible_idx_ref = new NetESignal(visible_idx_net);
+	    visible_idx_ref->set_line(*li);
+	    fn->parm(recv_net ? 6 : 5, visible_idx_ref);
+	    fn->parm(recv_net ? 7 : 6, declared_idx_expr);
       }
       fn->set_line(*li);
       return fn;
@@ -1320,14 +2099,25 @@ static ivl_nature_t find_access_function(const pform_scoped_name_t &path)
       return access_function_nature[peek_tail_name(path)];
 }
 
-static const netclass_t* resolve_scoped_class_type_name_(Design*des, NetScope*scope,
-							 perm_string name)
+enum scoped_class_name_kind_t {
+      SCOPED_CLASS_NAME_NONE,
+      SCOPED_CLASS_NAME_DIRECT,
+      SCOPED_CLASS_NAME_TYPE_PARAMETER,
+      SCOPED_CLASS_NAME_TYPEDEF,
+      SCOPED_CLASS_NAME_NONCLASS_TYPEDEF
+};
+
+struct scoped_class_name_result_t {
+      const netclass_t*class_type = nullptr;
+      scoped_class_name_kind_t kind = SCOPED_CLASS_NAME_NONE;
+};
+
+static const netclass_t* resolve_scoped_class_type_parameter_(Design*des,
+							       NetScope*scope,
+							       perm_string name)
 {
       if (!scope)
 	    return nullptr;
-
-      if (netclass_t*cls = scope->find_class(des, name))
-	    return cls;
 
       for (NetScope*cur = scope ; cur ; cur = cur->parent()) {
 	    ivl_type_t param_type = nullptr;
@@ -1347,18 +2137,133 @@ static const netclass_t* resolve_scoped_class_type_name_(Design*des, NetScope*sc
 	    }
       }
 
+      return nullptr;
+}
+
+static scoped_class_name_result_t resolve_scoped_class_type_name_(
+		Design*des, NetScope*scope, perm_string name)
+{
+      scoped_class_name_result_t result;
+      if (!scope)
+	    return result;
+
+      /* A type parameter and a class declaration both resolve to a
+	 netclass_t after binding.  Preserve the parse-form provenance so a
+	 legal T::method() call is not mistaken for a bare use of the class
+	 declaration that T happens to denote. */
       if (typedef_t*td = scope->find_typedef(des, name)) {
-	    ivl_type_t td_type = td->elaborate_type(des, scope);
-	    if (const netclass_t*cls = dynamic_cast<const netclass_t*>(td_type))
-		  return cls;
+	    const data_type_t*declared_type = td->get_data_type();
+	    if (dynamic_cast<const type_parameter_t*>(declared_type)) {
+		  result.class_type = resolve_scoped_class_type_parameter_(
+			des, scope, name);
+		  result.kind = SCOPED_CLASS_NAME_TYPE_PARAMETER;
+		  return result;
+	    }
+
+	    /* The synthetic typedef installed for the class declaration itself
+	       contains that class_type_t directly.  A user typedef alias contains
+	       a typeref_t (possibly through more aliases). */
+	    if (const class_type_t*class_pf =
+		      dynamic_cast<const class_type_t*>(declared_type)) {
+		  if (class_pf->name == name) {
+			result.class_type = scope->find_class(des, name);
+			if (!result.class_type)
+			      result.class_type = ensure_visible_class_type(
+				    des, scope, name);
+			result.kind = SCOPED_CLASS_NAME_DIRECT;
+			return result;
+		  }
+	    }
+
+	    ivl_type_t alias_type = td->elaborate_type(des, scope);
+	    if (dynamic_cast<const netclass_t*>(alias_type)) {
+		  alias_type = specialize_bare_class_at_concrete_use(
+			des, scope, declared_type, alias_type, true);
+		  result.class_type = dynamic_cast<const netclass_t*>(alias_type);
+		  result.kind = SCOPED_CLASS_NAME_TYPEDEF;
+		  return result;
+	    }
+
+	    /* An exact, successfully elaborated typedef is terminal even when
+	       it is not a class.  Falling through to find_class(name) here can
+	       recover an outer class hidden by this typedef and silently change
+	       the meaning of TypeName::member.  A null type may still be an early
+	       class-forward placeholder, so retain the recovery below for that
+	       case only. */
+	    if (alias_type) {
+		  result.kind = SCOPED_CLASS_NAME_NONCLASS_TYPEDEF;
+		  return result;
+	    }
       }
 
-      return nullptr;
+      /* Built-in classes and early/forward class declarations do not always
+	 have a usable pform typedef at this point.  They are direct names. */
+      result.class_type = scope->find_class(des, name);
+      if (!result.class_type)
+	    result.class_type = ensure_visible_class_type(des, scope, name);
+      if (result.class_type)
+	    result.kind = SCOPED_CLASS_NAME_DIRECT;
+
+      return result;
+}
+
+static bool scoped_class_is_unspecialized_parameterized_(
+		const netclass_t*class_type)
+{
+      if (!class_type || class_type->specialized_instance())
+	    return false;
+
+      const NetScope*class_scope = class_type->class_scope();
+      const PClass*pclass = class_scope ? class_scope->class_pform() : nullptr;
+      return pclass && pclass->has_parameter_port_list;
+}
+
+static const netclass_t* scoped_class_current_specialization_(
+		NetScope*use_scope, const netclass_t*class_type)
+{
+      if (!use_scope || !class_type)
+	    return nullptr;
+
+      const NetScope*current_scope = use_scope->get_class_scope();
+      const NetScope*resolved_scope = class_type->class_scope();
+      if (!current_scope || !resolved_scope
+	  || current_scope->class_pform() != resolved_scope->class_pform())
+	    return nullptr;
+
+      return current_scope->class_def();
+}
+
+static void report_bare_parameterized_class_scope_(Design*des,
+						    const LineInfo*li,
+						    perm_string name)
+{
+      if (!des || !li)
+	    return;
+
+      cerr << li->get_fileline() << ": error: Parameterized class `"
+	   << name << "' requires an explicit #(...) specialization before ::."
+	   << endl;
+      des->errors += 1;
+}
+
+static void report_nonclass_typedef_class_scope_(Design*des,
+						 const LineInfo*li,
+						 perm_string name)
+{
+      if (!des || !li)
+	    return;
+
+      cerr << li->get_fileline() << ": error: Scoped static access requires "
+	   << "a class type, but `" << name
+	   << "' resolves to a non-class typedef." << endl;
+      des->errors += 1;
 }
 
 static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
 						   const pform_scoped_name_t&path,
-						   const parmvalue_t*leading_type_args = 0)
+						   const parmvalue_t*leading_type_args = 0,
+						   bool*illegal_bare_generic = 0,
+						   perm_string*nonclass_typedef = 0)
 {
       static int trace_class_method = -1;
       auto scope_text = [](const NetScope*use_scope) -> std::string {
@@ -1376,6 +2281,11 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
 	    return nullptr;
       if (path.name.size() < 2)
 	    return nullptr;
+
+      if (illegal_bare_generic)
+	    *illegal_bare_generic = false;
+      if (nonclass_typedef)
+	    *nonclass_typedef = perm_string();
 
       pform_name_t type_path = path.name;
       perm_string method_name = peek_tail_name(type_path);
@@ -1401,7 +2311,14 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
 		  comp_scope = const_cast<NetScope*>(class_type->class_scope());
 	    }
 
-	    class_type = resolve_scoped_class_type_name_(des, comp_scope, comp.name);
+	    scoped_class_name_result_t resolved =
+		  resolve_scoped_class_type_name_(des, comp_scope, comp.name);
+	    if (resolved.kind == SCOPED_CLASS_NAME_NONCLASS_TYPEDEF) {
+		  if (nonclass_typedef)
+			*nonclass_typedef = comp.name;
+		  return nullptr;
+	    }
+	    class_type = resolved.class_type;
             if ((!class_type || !class_type->class_scope()) && comp_scope)
                   class_type = ensure_visible_class_type(des, comp_scope, comp.name);
             if (trace_class_method) {
@@ -1422,6 +2339,17 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
 						       class_type,
 						       leading_type_args,
 						       false);
+	    }
+	    else if (resolved.kind == SCOPED_CLASS_NAME_DIRECT) {
+		  if (const netclass_t*current_class =
+			scoped_class_current_specialization_(scope, class_type)) {
+			class_type = current_class;
+		  } else if (scoped_class_is_unspecialized_parameterized_(
+				   class_type)) {
+			if (illegal_bare_generic)
+			      *illegal_bare_generic = true;
+			return nullptr;
+		  }
 	    }
 
 	    first_comp = false;
@@ -1565,6 +2493,18 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
       if (expr_needs_typed_elab_(expr))
 	    typed_elab = true;
 
+	// A self-determined associative-array cast carries a complete source
+	// type even when the destination is scalar or another container kind.
+	// Keep that cast on the full-type path so the exact source/destination
+	// compatibility gate runs; the width-only scalar path can diagnose the
+	// aggregate category, but cannot distinguish an associative map from an
+	// ordinary queue or report its element/index mismatch precisely.
+      if (const PECastType*cast_expr = dynamic_cast<const PECastType*>(expr)) {
+	    ivl_type_t cast_type = cast_expr->resolve_target_type(des, scope);
+	    if (assoc_array_type_contains(cast_type))
+		  typed_elab = true;
+      }
+
       if (lv_net_type && typed_elab) {
 	    rval = elab_and_eval(des, scope, expr, lv_net_type, need_const);
       } else {
@@ -1605,14 +2545,36 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
       const netenum_t *lval_enum = dynamic_cast<const netenum_t*>(lv_net_type);
       if (lval_enum) {
 	    const netenum_t *rval_enum = rval->enumeration();
+
+	      // A generic class body is elaborated before its type parameter is
+	      // specialized. A call through such a receiver uses a deliberately
+	      // deferred scalar placeholder; concrete specializations perform
+	      // real dispatch. Give only that tagged placeholder the enclosing
+	      // enum assignment/return type so the generic master remains
+	      // representable. Ordinary integral calls and folded constants stay
+	      // subject to the explicit-cast rule below (IEEE 1800-2017 6.19.3).
+	    const NetEConst*stub_const = dynamic_cast<const NetEConst*>(rval);
+	    if (!rval_enum && stub_const
+		&& rval->deferred_type_parameter_stub()) {
+		  NetEConstEnum*typed_stub = new NetEConstEnum(
+			perm_string(), lval_enum, stub_const->value());
+		  typed_stub->set_line(*expr);
+		  delete rval;
+		  rval = typed_stub;
+		  rval_enum = lval_enum;
+	    }
 	    if (!rval_enum) {
-		// A LITERAL number in the source can never be a victim of
-		// macro/call typing loss -- assigning it to an enum without
-		// a cast is the plain IEEE 1800-2017 6.19.3 violation the
-		// enum_compatibility_fail* tests demand be rejected. The
-		// compile-progress fallbacks below stay available for
-		// calls/identifiers whose enum typing genuinely collapses
-		// through UVM macro expansions.
+		// IEEE 1800-2017 6.19.3 requires an explicit cast from an
+		// integral expression to an enumeration. The sole literal
+		// exception retained here is the unbased unsized fill literal
+		// (`'0, `'1, `'x or `'z), which is context determined. Do not
+		// infer enum provenance merely because a nonliteral expression
+		// constant-folded to NetEConst: 6.19.4 deliberately converts
+		// enum members used in a numerical expression to their base
+		// integral type, so `input e_t value = A | B' is illegal even
+		// though both operands originated in e_t. Lost enum typing on a
+		// call or identifier must be repaired at that expression's
+		// source rather than accepted here as a compile-progress stub.
 	      const PENumber*literal_num = dynamic_cast<PENumber*>(expr);
 		// Slang and the commercial-tool flows used by OpenTitan treat an
 		// unbased unsized literal as a context fill even when that context is
@@ -1620,17 +2582,8 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 		// negative tests below depend on that), but accept `'0/`'1/`'x/`'z
 		// through the existing constant compatibility path. OpenTitan uses
 		// this spelling to tie off lc_tx_t signals in generated wrappers.
-	      bool literal_src = literal_num && !literal_num->value().is_single();
-	      if (gn_system_verilog() && !literal_src
-		  && dynamic_cast<const NetEConst*>(rval)) {
-		    // Compile-progress fallback: unresolved UVM enum-producing
-		    // calls/macros often collapse to integral placeholder
-		    // constants (NetEConst stubs). A RESOLVED non-constant
-		    // integral (array element, function return, variable) is
-		    // the plain 6.19.3 cast violation and errors below
-		    // (enum_compatibility_fail3/4) -- the former vectorable
-		    // blanket fallback swallowed those too.
-	      } else {
+	      bool fill_literal = literal_num && literal_num->value().is_single();
+	      if (!(gn_system_verilog() && fill_literal)) {
 	      cerr << expr->get_fileline() << ": error: "
 			      "This assignment requires an explicit cast." << endl;
 	      des->errors += 1;
@@ -1708,6 +2661,71 @@ NetExpr*PEAssignPattern::elaborate_expr(Design*des, NetScope*scope,
 					ivl_type_t ntype, unsigned flags) const
 {
       bool need_const = NEED_CONST & flags;
+
+	/* IEEE 1800-2017 7.9.11: on an associative array, a lone
+	 * `'{default: value}' pattern establishes per-array state for reads of
+	 * nonexistent entries. It is not a one-element queue pattern and it must
+	 * not create an entry. Preserve the typed value in an internal sentinel;
+	 * the VVP statement target consumes this node while assigning the whole
+	 * associative array. */
+      if (const netqueue_t*queue_type =
+		    dynamic_cast<const netqueue_t*>(ntype)) {
+	    if (queue_type->assoc_compat()) {
+		  if (PExpr*dflt = lone_default_()) {
+			ivl_type_t elem_type = queue_type->element_type();
+			ivl_variable_type_t elem_base = elem_type
+			      ? elem_type->base_type() : IVL_VT_NO_TYPE;
+
+			switch (elem_base) {
+			    case IVL_VT_BOOL:
+			    case IVL_VT_LOGIC:
+			    case IVL_VT_REAL:
+			    case IVL_VT_STRING:
+			      break;
+			    case IVL_VT_CLASS:
+			      if (dynamic_cast<const netclass_t*>(elem_type))
+				    break;
+			      /* A CLASS-category carrier that is not a netclass_t is
+			       * not proven to have class-handle reference semantics. */
+			      /* fall through */
+			    default:
+			      cerr << get_fileline() << ": sorry: associative-array "
+				   << "default assignment patterns support integral/enum, "
+				      "real, string, and class-handle element types; this "
+				      "object-backed element type requires value-copy "
+				      "semantics (IEEE 1800-2017 7.9.11)." << endl;
+			      des->errors += 1;
+			      return nullptr;
+			}
+
+			NetExpr*value = elaborate_rval_expr(des, scope, elem_type,
+						     dflt, need_const);
+			if (!value)
+			      return nullptr;
+
+			NetESFunc*res = new NetESFunc("$ivl_assoc_default",
+						    ntype, 1);
+			res->parm(0, value);
+			res->set_line(*this);
+			return res;
+		  }
+
+		    /* Empty is the complete empty associative-array value and is
+		     * handled by the existing null-container lowering below. Any
+		     * other pattern has one or more explicit entries; the generic
+		     * queue-pattern path is positional and would silently turn the
+		     * keys into queue offsets. Keep those legal but unsupported forms
+		     * loud until associative keyed construction is implemented. */
+		  if (!parms_.empty()) {
+			cerr << get_fileline() << ": sorry: nonempty associative-array "
+			     << "assignment patterns with explicit entries are not yet "
+				"supported; only '{} and '{default:value} are implemented "
+				"(IEEE 1800-2017 7.9.11)." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+	    }
+      }
 
       if (auto darray_type = dynamic_cast<const netdarray_t*>(ntype))
 	    return elaborate_expr_array_(des, scope, darray_type, need_const, true);
@@ -1803,13 +2821,17 @@ NetExpr* PEAssignPattern::elaborate_expr_array_(Design *des, NetScope *scope,
 	// this to a null handle. Internally, Icarus Verilog uses this to
 	// represent nil dynamic arrays.
       if (parms_.empty()) {
-	    NetENull *tmp = new NetENull;
+	    /* Retain the context that shaped the empty pattern. This
+	     * distinguishes a legal bare `'{} (which receives its destination
+	     * type) from a typed empty of some other associative-array type and
+	     * from the untyped class-handle literal `null'. */
+	    NetENull *tmp = new NetENull(array_type);
 	    tmp->set_line(*this);
 	    return tmp;
       }
 
 	/* `'{default: v}' against a container with no size of its own --
-	   a dynamic array, a queue, or an associative array. 7.9.11 makes
+	   a dynamic array or queue. 7.9.11 makes
 	   this the container's DEFAULT VALUE for entries that were never
 	   written, which is state the runtime does not carry; the element
 	   list is empty either way. Kept as the single-element lowering it
@@ -1819,8 +2841,8 @@ NetExpr* PEAssignPattern::elaborate_expr_array_(Design *des, NetScope *scope,
       if (PExpr*dflt = lone_default_()) {
 	    const PENumber*dn = dynamic_cast<const PENumber*>(dflt);
 	    if (!dn || !dn->value().is_defined() || dn->value().as_ulong() != 0) {
-		  cerr << get_fileline() << ": warning: '{default:...} on a "
-		       << "dynamic array, queue or associative array sets the "
+			  cerr << get_fileline() << ": warning: '{default:...} on a "
+			       << "dynamic array or queue sets the "
 		       << "container's default value for unwritten entries "
 		       << "(IEEE 1800-2017 7.9.11), which is not modelled; "
 		       << "unwritten entries read as zero." << endl;
@@ -5196,54 +6218,6 @@ static NetExpr* elaborate_compile_progress_expr_method_stub_(
       return 0;
 }
 
-/* Follow parse-form typedef aliases until they reach a type parameter of the
- * enclosing class. A UVM forwarding property can have more than one alias
- * layer (typedef REQ_IMP this_req_type, where REQ_IMP is itself a type
- * parameter), so checking only the first typeref is insufficient. */
-static bool is_enclosing_class_type_parameter_(
-	const PClass*pclass, const data_type_t*declared_type,
-	std::set<const data_type_t*>&seen)
-{
-      if (!pclass || !declared_type || !seen.insert(declared_type).second)
-	    return false;
-
-      if (const type_parameter_t*type_param =
-		dynamic_cast<const type_parameter_t*>(declared_type)) {
-	    std::map<perm_string,PScope::param_expr_t*>::const_iterator param =
-		  pclass->parameters.find(type_param->name);
-	    return param != pclass->parameters.end() && param->second
-		&& param->second->type_flag;
-      }
-
-      const typeref_t*type_ref =
-	    dynamic_cast<const typeref_t*>(declared_type);
-      if (!type_ref)
-	    return false;
-
-      typedef_t*td = type_ref->typedef_ref();
-      if (!td)
-	    return false;
-
-        // A parse-form reference to a type parameter is represented by a
-        // typeref whose typedef name is the parameter name.
-      std::map<perm_string,PScope::param_expr_t*>::const_iterator param =
-	    pclass->parameters.find(td->name);
-      if (param != pclass->parameters.end() && param->second
-	  && param->second->type_flag)
-	    return true;
-
-      return is_enclosing_class_type_parameter_(
-	    pclass, td->get_data_type(), seen);
-}
-
-static bool is_enclosing_class_type_parameter_(
-	const PClass*pclass, const data_type_t*declared_type)
-{
-      std::set<const data_type_t*>seen;
-      return is_enclosing_class_type_parameter_(
-	    pclass, declared_type, seen);
-}
-
 /* A parameterized class body is a template. A call through a property or a
  * method-local/formal variable whose declared type is a type parameter must
  * be checked against each concrete specialization, not rejected while the
@@ -5252,55 +6226,63 @@ static bool is_enclosing_class_type_parameter_(
  * elaborate.cc.
  *
  * This deliberately recognizes only a direct property receiver or the root
- * signal of a direct method call. It must never hide an unresolved call in a
- * concrete specialization or on an ordinary class-typed receiver. */
-static bool is_unspecialized_type_parameter_expr_receiver_(
-	NetScope*scope, NetNet*root_net,
+ * signal of a direct method call. A concrete specialization (including an
+ * omitted concrete default) is checked normally; a transitive forwarding
+ * binding remains deferred only while its ultimate owner is still generic. */
+static bool is_deferred_type_parameter_expr_receiver_(
+	Design*des, NetScope*scope, NetNet*root_net,
 	const pform_name_t&method_path)
 {
       if (!scope)
 	    return false;
 
       const NetScope*class_scope = scope->get_class_scope();
-      const netclass_t*enclosing = class_scope ? class_scope->class_def() : 0;
       const PClass*pclass = class_scope ? class_scope->class_pform() : 0;
-      if (!enclosing || enclosing->specialized_instance()
-	  || !pclass || !pclass->type)
+      if (!class_scope || !pclass || !pclass->type)
 	    return false;
+
+      perm_string parameter_name;
+      bool is_type_parameter = false;
 
       if (method_path.size() == 2
 	  && method_path.front().index.empty()) {
 	    std::map<perm_string,class_type_t::prop_info_t>::const_iterator prop =
 		  pclass->type->properties.find(method_path.front().name);
-	    return prop != pclass->type->properties.end()
+	    is_type_parameter = prop != pclass->type->properties.end()
 		&& prop->second.type
-		&& is_enclosing_class_type_parameter_(
-		      pclass, prop->second.type.get());
+		&& find_class_type_parameter_reference(
+		      class_scope, prop->second.type.get(), parameter_name);
+	  } else {
+	      // A method-local/formal receiver is represented by the root NetNet.
+	      // Recover its PWire so the original declared type remains visible
+	      // even when generic-master elaboration collapsed the net type to the
+	      // type parameter's default (often int). This also covers an indexed
+	      // associative-array local such as list[name].get_comp().
+	    if (method_path.size() != 1 || !root_net || !root_net->scope())
+		  return false;
+
+	    PWire*wire = root_net->scope()->find_signal_placeholder(root_net->name());
+	    is_type_parameter = wire
+		&& find_class_type_parameter_reference(
+		      class_scope, wire->data_type(), parameter_name);
       }
 
-        // A method-local/formal receiver is represented by the root NetNet.
-        // Recover its PWire so the original declared type remains visible
-        // even when generic-master elaboration collapsed the net type to the
-        // type parameter's default (often int). This also covers an indexed
-        // associative-array local such as list[name].get_comp().
-      if (method_path.size() != 1 || !root_net || !root_net->scope())
+      if (!is_type_parameter)
 	    return false;
 
-      PWire*wire = root_net->scope()->find_signal_placeholder(root_net->name());
-      return wire && is_enclosing_class_type_parameter_(
-	    pclass, wire->data_type());
+      return class_type_parameter_is_deferred(des, class_scope, parameter_name);
 }
 
-/* Preserve real dispatch when the type parameter's default is itself a valid
- * receiver. Defer only when the generic master demonstrably cannot resolve
- * the call; concrete specializations are excluded by the predicate above. */
-static bool should_defer_unspecialized_type_parameter_expr_call_(
+/* Preserve real dispatch when the type parameter's current/default value is
+ * itself a valid receiver. Defer only when the generic or partial-specialized
+ * body demonstrably cannot resolve the call. */
+static bool should_defer_type_parameter_expr_call_(
 	Design*des, NetScope*scope, NetNet*root_net,
 	const pform_name_t&method_path,
 	ivl_type_t target_type, perm_string method_name)
 {
-      if (!is_unspecialized_type_parameter_expr_receiver_(
-	    scope, root_net, method_path))
+      if (!is_deferred_type_parameter_expr_receiver_(
+	    des, scope, root_net, method_path))
 	    return false;
 
       if (const netclass_t*class_type =
@@ -5361,6 +6343,32 @@ unspecialized_type_parameter_expr_stub_kind_(const pform_name_t&use_path,
 	   ? CP_EXPR_METHOD_STUB_INT0 : kind;
 }
 
+static const data_type_t* method_receiver_wire_declared_type_(NetNet*net)
+{
+      if (!net || !net->scope())
+	    return 0;
+      PWire*wire = net->scope()->find_signal_placeholder(net->name());
+      return wire ? wire->data_type() : 0;
+}
+
+static const data_type_t* method_receiver_property_declared_type_(
+		const netclass_t*class_type, perm_string property_name)
+{
+      for (const netclass_t*cur = class_type; cur; cur = cur->get_super()) {
+	    const NetScope*class_scope = cur->class_scope();
+	    const PClass*pclass = class_scope
+		  ? class_scope->class_pform() : 0;
+	    if (!pclass || !pclass->type)
+		  continue;
+
+	    std::map<perm_string,class_type_t::prop_info_t>::const_iterator prop =
+		  pclass->type->properties.find(property_name);
+	    if (prop != pclass->type->properties.end() && prop->second.type)
+		  return prop->second.type.get();
+      }
+      return 0;
+}
+
 unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 					    const symbol_search_results&search_results,
 					    width_mode_t&)
@@ -5402,24 +6410,35 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 	    target_indexed = true;
       }
 
-	// IEEE 1800-2017 7.12.4: iterator index() call form is an int.
+	/* A real bare use of a parameterized class is its concrete #()
+	 * specialization. Resolve it only now, at the method-use site; eagerly
+	 * specializing every declaration also instantiates generic UVM template
+	 * seeds that must remain symbolic until their enclosing class is
+	 * specialized. */
+      if (search_results.net)
+	    target_type = specialize_bare_class_receiver_on_use(
+		des, scope,
+		method_receiver_wire_declared_type_(search_results.net),
+		target_type);
+
+	// IEEE 1800-2017 7.12.4: for an associative array the iterator
+	// index() call has the array's declared key type, not int.
       if (search_results.net && method_path.size() == 1
 	  && method_path.back().name == perm_string::literal("index")
-	  && !target_indexed
-	  && find_array_method_iter_index(search_results.net)) {
-	    expr_type_   = IVL_VT_BOOL;
-	    expr_width_  = 32;
-	    min_width_   = 32;
-	    signed_flag_ = true;
-	    return expr_width_;
+	  && !target_indexed) {
+	    if (NetNet*idx_net =
+		  find_array_method_iter_index(search_results.net)) {
+		expr_type_   = idx_net->data_type();
+		expr_width_  = idx_net->vector_width();
+		min_width_   = expr_width_;
+		signed_flag_ = idx_net->get_signed();
+		return expr_width_;
+	    }
       }
 
-	// IEEE 1800-2017 7.12.3 reduction methods used as operands:
-	// report the element type's width, or a 32-bit signed
-	// approximation when a with clause supplies the values (the
-	// exact width is the with expression's, computed at
-	// elaboration; reporting int here only ever widens the
-	// context, never truncates it to zero).
+	// IEEE 1800-2017 7.12.3 reduction methods used as operands: the
+	// result has the element type without a with clause, and the exact
+	// self-determined type/width of the with expression otherwise.
       if (!target_indexed && method_path.size() == 1
 	  && method_path.back().index.empty()
 	  && is_array_reduction_name_(method_path.back().name)) {
@@ -5434,17 +6453,10 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  elem = search_results.net->array_type()->element_type();
 	    if (elem && (elem->base_type() == IVL_VT_BOOL
 			 || elem->base_type() == IVL_VT_LOGIC)) {
-		  if (with_constraints().empty()) {
-			expr_type_   = elem->base_type();
-			expr_width_  = elem->packed_width();
-			min_width_   = expr_width_;
-			signed_flag_ = elem->get_signed();
-		  } else {
-			expr_type_   = IVL_VT_BOOL;
-			expr_width_  = 32;
-			min_width_   = 32;
-			signed_flag_ = true;
-		  }
+		  expr_width_ = test_array_reduction_result_width_(
+			this, des, scope, elem, parms_, with_constraints(),
+			expr_type_, signed_flag_);
+		  min_width_ = expr_width_;
 		  return expr_width_;
 	    }
       }
@@ -5487,6 +6499,8 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  return 0;
 
 	    ivl_type_t prop_type = class_type->get_prop_type(pidx);
+	    const data_type_t*prop_declared_type =
+		  method_receiver_property_declared_type_(class_type, comp.name);
 	    if (!comp.index.empty()) {
 		  if (const netuarray_t*tmp_ua = dynamic_cast<const netuarray_t*>(prop_type)) {
 			const auto&dims = tmp_ua->static_dimensions();
@@ -5519,6 +6533,9 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  target_type = prop_type;
 	    }
 
+	    target_type = specialize_bare_class_receiver_on_use(
+		des, scope, prop_declared_type, target_type);
+
 	    target_indexed = !comp.index.empty();
 	    method_path.pop_front();
       }
@@ -5534,7 +6551,7 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  stub_use_path.push_back(*it);
       }
 
-      if (should_defer_unspecialized_type_parameter_expr_call_(
+      if (should_defer_type_parameter_expr_call_(
 		des, scope, search_results.net, orig_method_path,
 		target_type, method_name)) {
 	    compile_progress_expr_method_stub_kind_t kind =
@@ -5610,12 +6627,32 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  signed_flag_= false;
 		  return expr_width_;
 	    }
+	    if (is_array_unique_name_(method_name)) {
+		  expr_type_  = IVL_VT_QUEUE;
+		  expr_width_ = 1;
+		  min_width_  = 1;
+		  signed_flag_= false;
+		  return expr_width_;
+	    }
 
 	    return 0;
       }
 
       if (target_type && dynamic_cast<const netuarray_t*>(target_type)
 	  && !target_indexed) {
+	    const netuarray_t*uarray =
+		  dynamic_cast<const netuarray_t*>(target_type);
+	    if (is_array_reduction_name_(method_name)) {
+		  ivl_type_t elem = uarray->element_type();
+		  if (elem && (elem->base_type() == IVL_VT_BOOL
+			       || elem->base_type() == IVL_VT_LOGIC)) {
+			expr_width_ = test_array_reduction_result_width_(
+			      this, des, scope, elem, parms_, with_constraints(),
+			      expr_type_, signed_flag_);
+			min_width_ = expr_width_;
+			return expr_width_;
+		  }
+	    }
 	    if (method_name == "num" || method_name == "size") {
 		  expr_type_  = IVL_VT_BOOL;
 		  expr_width_ = 32;
@@ -5642,6 +6679,13 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  return expr_width_;
 	    }
 	    if (is_array_minmax_name_(method_name)) {
+		  expr_type_  = IVL_VT_QUEUE;
+		  expr_width_ = 1;
+		  min_width_  = 1;
+		  signed_flag_= false;
+		  return expr_width_;
+	    }
+	    if (is_array_unique_name_(method_name)) {
 		  expr_type_  = IVL_VT_QUEUE;
 		  expr_width_ = 1;
 		  min_width_  = 1;
@@ -5702,6 +6746,13 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  return expr_width_;
 	    }
 	    if (is_array_minmax_name_(method_name)) {
+		  expr_type_  = IVL_VT_QUEUE;
+		  expr_width_ = 1;
+		  min_width_  = 1;
+		  signed_flag_= false;
+		  return expr_width_;
+	    }
+	    if (is_array_unique_name_(method_name)) {
 		  expr_type_  = IVL_VT_QUEUE;
 		  expr_width_ = 1;
 		  min_width_  = 1;
@@ -5836,10 +6887,6 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
       if (target_type && ivl_type_base(target_type)==IVL_VT_CLASS) {
 	    const netclass_t *class_type = dynamic_cast<const netclass_t*>(target_type);
 	    ivl_assert(*this, class_type);
-	    if (apply_compile_progress_expr_method_stub_width_(
-		      classify_compile_progress_expr_method_stub_(stub_use_path, class_type, method_name, true),
-		      expr_type_, expr_width_, min_width_, signed_flag_))
-		  return expr_width_;
 	    if (method_name == perm_string::literal("status")
 		&& class_type->get_name() == perm_string::literal("process")
 		&& class_type->method_from_name(method_name) == 0) {
@@ -5865,6 +6912,19 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 	    NetScope*method = class_type->resolve_method_call_scope(des, method_name);
 
 	    if (method == 0) {
+		    // Compile-progress stubs are a fallback for unresolved
+		    // methods only.  Applying the name-based classifier before
+		    // lookup can replace a real, precisely typed method (for
+		    // example an enum-returning get_phase_type()) with a guessed
+		    // class/null result during width analysis.  The expression
+		    // elaborator follows the same resolve-first rule.
+		  bool in_uvm = call_site_is_uvm_provenance_(scope)
+			|| class_is_uvm_provenance_(class_type);
+		  if (apply_compile_progress_expr_method_stub_width_(
+			classify_compile_progress_expr_method_stub_(
+			      stub_use_path, class_type, method_name, in_uvm),
+			expr_type_, expr_width_, min_width_, signed_flag_))
+			return expr_width_;
 		  return 0;
 	    }
 
@@ -5974,6 +7034,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
 		  for (pform_name_t::const_iterator cur = act->path().name.begin()
 			     ; cur != act->path().name.end() ; ++cur) {
 			name_component_t comp(cur->name);
+			comp.local_scope = cur->local_scope;
 			if (!let_clone_index_list_(cur->index, comp.index,
 						   empty_subst))
 			      return 0;
@@ -5988,6 +7049,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
 			return 0;
 		  for (++bcur ; bcur != path.name.end() ; ++bcur) {
 			name_component_t comp(bcur->name);
+			comp.local_scope = bcur->local_scope;
 			if (!let_clone_index_list_(bcur->index, comp.index,
 						   subst))
 			      return 0;
@@ -5996,6 +7058,8 @@ static PExpr* let_clone_expr_(const PExpr*e,
 		  PEIdent*cp = act->path().package
 			? new PEIdent(act->path().package, new_name, UINT_MAX)
 			: new PEIdent(new_name, UINT_MAX);
+		  cp->set_borrowed_leading_type_args(act->leading_type_args());
+		  cp->set_scoped_type_prefix(act->has_scoped_type_prefix());
 		  cp->set_line(*e);
 		  return cp;
 	    }
@@ -6006,6 +7070,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
 	    for (pform_name_t::const_iterator cur = path.name.begin()
 		       ; cur != path.name.end() ; ++cur) {
 		  name_component_t comp(cur->name);
+		  comp.local_scope = cur->local_scope;
 		  if (!let_clone_index_list_(cur->index, comp.index, subst))
 			return 0;
 		  new_name.push_back(comp);
@@ -6013,6 +7078,8 @@ static PExpr* let_clone_expr_(const PExpr*e,
 	    PEIdent*cp = path.package
 		  ? new PEIdent(path.package, new_name, id->lexical_pos())
 		  : new PEIdent(new_name, id->lexical_pos());
+	    cp->set_borrowed_leading_type_args(id->leading_type_args());
+	    cp->set_scoped_type_prefix(id->has_scoped_type_prefix());
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -6096,7 +7163,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
       }
 
       if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(e)) {
-	    if (call->receiver_expr() || call->leading_type_args()
+	    if (call->receiver_expr()
 		|| !call->with_constraints().empty())
 		  return 0;
 	    const pform_scoped_name_t&path = call->path();
@@ -6107,6 +7174,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
 	    for (pform_name_t::const_iterator cur = path.name.begin()
 		       ; cur != path.name.end() ; ++cur) {
 		  name_component_t comp(cur->name);
+		  comp.local_scope = cur->local_scope;
 		  if (!let_clone_index_list_(cur->index, comp.index, subst))
 			return 0;
 		  new_name.push_back(comp);
@@ -6129,6 +7197,10 @@ static PExpr* let_clone_expr_(const PExpr*e,
 	    } else {
 		  cp = new PECallFunction(new_name, new_parms);
 	    }
+	    if (call->leading_type_args())
+		  cp->set_borrowed_leading_type_args(
+			call->leading_type_args());
+	    cp->set_scoped_type_prefix(call->has_scoped_type_prefix());
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -6376,15 +7448,47 @@ unsigned PECallFunction::test_width(Design*des, NetScope*scope,
 		 << "search_results.path_tail: " << search_results.path_tail << endl;
       }
 
-      if (leading_type_args()) {
-	    NetScope*static_func = resolve_scoped_class_method_func_(des, scope, path_,
-								     leading_type_args());
-	    if (static_func
-		&& !skip_static_typecall_override_(static_func)
+      NetScope*scoped_static_func = nullptr;
+      bool illegal_bare_generic = false;
+      perm_string nonclass_typedef;
+      bool scoped_type_call_candidate = path_.name.size() >= 2
+	    && (leading_type_args() || !search_flag || search_results.is_scope());
+      if (scoped_type_call_candidate) {
+	    scoped_static_func = resolve_scoped_class_method_func_(
+		  des, scope, path_, leading_type_args(), &illegal_bare_generic,
+		  &nonclass_typedef);
+	    if (!nonclass_typedef.nil()) {
+		  if (!bare_generic_scope_error_reported_) {
+			report_nonclass_typedef_class_scope_(
+			      des, this, nonclass_typedef);
+			bare_generic_scope_error_reported_ = true;
+		  }
+		  expr_type_ = IVL_VT_LOGIC;
+		  expr_width_ = 1;
+		  min_width_ = 1;
+		  signed_flag_ = false;
+		  return expr_width_;
+	    }
+	    if (illegal_bare_generic) {
+		  if (!bare_generic_scope_error_reported_) {
+			report_bare_parameterized_class_scope_(
+			      des, this, path_.name.front().name);
+			bare_generic_scope_error_reported_ = true;
+		  }
+		  expr_type_ = IVL_VT_LOGIC;
+		  expr_width_ = 1;
+		  min_width_ = 1;
+		  signed_flag_ = false;
+		  return expr_width_;
+	    }
+
+	    if (scoped_static_func
+		&& !skip_static_typecall_override_(scoped_static_func)
 		&& (!search_flag
 		    || (search_results.is_scope()
-			&& search_results.scope != static_func))) {
-		  NetFuncDef*def = find_function_definition(des, scope, static_func);
+			&& search_results.scope != scoped_static_func))) {
+		  NetFuncDef*def = find_function_definition(
+			des, scope, scoped_static_func);
 		  if (def && !def->is_void()) {
 			NetScope*dscope = def->scope();
 			ivl_assert(*this, dscope);
@@ -6408,9 +7512,9 @@ unsigned PECallFunction::test_width(Design*des, NetScope*scope,
 
       // Nothing found? Return nothing.
       if (!search_flag) {
-	    if (NetScope*static_func = resolve_scoped_class_method_func_(des, scope, path_,
-								 leading_type_args())) {
-		  NetFuncDef*def = find_function_definition(des, scope, static_func);
+	    if (scoped_static_func) {
+		  NetFuncDef*def = find_function_definition(
+			des, scope, scoped_static_func);
 		  if (def && !def->is_void()) {
 			NetScope*dscope = def->scope();
 			ivl_assert(*this, dscope);
@@ -8400,9 +9504,9 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 
 static NetExpr* class_static_property_expression(const LineInfo*li,
 						 const netclass_t*class_type,
-						 perm_string name)
+						 size_t pidx)
 {
-      NetNet*sig = class_type->find_static_property(name);
+      NetNet*sig = class_type->get_prop_static_signal(pidx);
       ivl_assert(*li, sig);
       NetESignal*expr = new NetESignal(sig);
       expr->set_line(*li);
@@ -8423,10 +9527,11 @@ static NetExpr* class_static_property_indexed_expression(Design*des,
 							 NetScope*scope,
 							 const LineInfo*li,
 							 const netclass_t*class_type,
+							 size_t pidx,
 							 const name_component_t&comp,
 							 ivl_type_t&out_type)
 {
-      NetNet*sig = class_type->find_static_property(comp.name);
+      NetNet*sig = class_type->get_prop_static_signal(pidx);
       if (!sig)
 	    return 0;
 
@@ -8493,12 +9598,19 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 							   NetScope*scope,
 							   const pform_scoped_name_t&path,
 							   const LineInfo*li,
-							   const parmvalue_t*leading_type_args = 0)
+							   const parmvalue_t*leading_type_args = 0,
+							   bool*illegal_bare_generic = 0,
+							   perm_string*nonclass_typedef = 0)
 {
       if (!gn_system_verilog())
 	    return nullptr;
       if (path.name.size() < 2)
 	    return nullptr;
+
+      if (illegal_bare_generic)
+	    *illegal_bare_generic = false;
+      if (nonclass_typedef)
+	    *nonclass_typedef = perm_string();
 
       const name_component_t&prop_comp = path.name.back();
 
@@ -8525,7 +9637,14 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 		  comp_scope = const_cast<NetScope*>(class_type->class_scope());
 	    }
 
-	    class_type = resolve_scoped_class_type_name_(des, comp_scope, comp.name);
+	    scoped_class_name_result_t resolved =
+		  resolve_scoped_class_type_name_(des, comp_scope, comp.name);
+	    if (resolved.kind == SCOPED_CLASS_NAME_NONCLASS_TYPEDEF) {
+		  if (nonclass_typedef)
+			*nonclass_typedef = comp.name;
+		  return nullptr;
+	    }
+	    class_type = resolved.class_type;
 	    if (!class_type)
 		  return nullptr;
 
@@ -8538,7 +9657,18 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 		  class_type = elaborate_specialized_class_type(des, comp_scope,
 							class_type,
 							leading_type_args,
-							false);
+							true);
+	    }
+	    else if (resolved.kind == SCOPED_CLASS_NAME_DIRECT) {
+		  if (const netclass_t*current_class =
+			scoped_class_current_specialization_(scope, class_type)) {
+			class_type = current_class;
+		  } else if (scoped_class_is_unspecialized_parameterized_(
+				   class_type)) {
+			if (illegal_bare_generic)
+			      *illegal_bare_generic = true;
+			return nullptr;
+		  }
 	    }
 
 	    first_comp = false;
@@ -8556,14 +9686,15 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 	    return nullptr;
 
       if (prop_comp.index.empty())
-	    return class_static_property_expression(li, class_type, prop_comp.name);
+	    return class_static_property_expression(li, class_type, (size_t)pidx);
 
 	// Indexed static property via the scoped form,
 	// Class::arr[i] / Class::q[i] (recovery D10).
       {
 	    ivl_type_t static_out = nullptr;
 	    return class_static_property_indexed_expression(des, scope, li,
-							    class_type, prop_comp,
+							    class_type, (size_t)pidx,
+							    prop_comp,
 							    static_out);
       }
 }
@@ -8765,7 +9896,8 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
       if (qual.test_static()) {
 	    delete base_expr;
 	    return class_static_property_indexed_expression(des, scope, li,
-							    class_type, comp,
+							    class_type, (size_t)pidx,
+							    comp,
 							    out_type);
       }
 
@@ -9110,12 +10242,42 @@ NetExpr* PEMemberAccess::elaborate_expr(Design*des, NetScope*scope,
 	    return nullptr;
       }
 
-      NetExpr*base_expr = base_->elaborate_expr(des, scope,
-					       ivl_type_t(nullptr), flags);
+      /* A member-access base is self-determined. Passing a null target type
+         through PEIdent's typed overload makes its compatibility path
+         dereference a nonexistent context for scoped-static receiver chains.
+         Establish the base expression state, then use its computed width. */
+      width_mode_t base_mode = SIZED;
+      base_->test_width(des, scope, base_mode);
+      unsigned base_width = base_->expr_width();
+      NetExpr*base_expr = base_->elaborate_expr(
+            des, scope, base_width, flags);
       if (!base_expr)
 	    return nullptr;
 
       ivl_type_t base_type = base_expr->net_type();
+
+      /* IDENTIFIER tokens are syntactically ambiguous between a property
+       * and a paren-less array method.  Resolve `unique_index' from the
+       * elaborated receiver type: class/struct receivers continue through
+       * the real member-access path below, while a temporary fixed array,
+       * dynamic array or queue receiver is the IEEE 1800-2017 7.12.1
+       * locator method. */
+      if (member_name_ == "unique_index"
+	  && (dynamic_cast<const netqueue_t*>(base_type)
+	      || dynamic_cast<const netdarray_t*>(base_type)
+	      || dynamic_cast<const netuarray_t*>(base_type))) {
+	    static const std::vector<named_pexpr_t> no_parms;
+	    static const std::vector<PExpr*> no_with;
+	    const netarray_t*array_type =
+		  dynamic_cast<const netarray_t*>(base_type);
+	    ivl_assert(*this, array_type);
+	    ivl_type_t element_type = array_type->element_type();
+	    return make_array_unique_expr_(this, des, scope, base_expr,
+					   base_type, element_type,
+					   perm_string::literal("unique_index"),
+					   no_parms, no_with);
+      }
+
       name_component_t comp(member_name_);
       NetExpr*res = elaborate_temporary_member_access_(this, des, scope,
 							 base_expr, base_type, comp);
@@ -9464,6 +10626,34 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		     << " (compile-progress: expression dropped)." << endl;
 		delete base_expr;
 		return nullptr;
+	  } else if (const netuarray_t*fixed =
+		       dynamic_cast<const netuarray_t*>(cur_type)) {
+		/* Paren-less reductions and unique/unique_index on a whole
+		 * fixed-array class property. The property expression is
+		 * materialized once by the corresponding fixed receiver path. */
+		if (&tail_comp == &sr.path_tail.back()
+		    && tail_comp.index.empty()
+		    && (is_array_reduction_name_(tail_comp.name)
+			|| is_array_unique_name_(tail_comp.name))) {
+		      static const std::vector<named_pexpr_t> no_parms;
+		      static const std::vector<PExpr*> no_with;
+		      if (is_array_reduction_name_(tail_comp.name))
+			    return make_array_reduction_expr_(
+				  this, des, scope, base_expr, cur_type,
+				  fixed->element_type(), tail_comp.name.str(),
+				  no_parms, no_with);
+		      return make_array_unique_expr_(
+			    this, des, scope, base_expr, cur_type,
+			    fixed->element_type(), tail_comp.name,
+			    no_parms, no_with);
+		}
+		delete base_expr;
+		cerr << get_fileline() << ": sorry: Array method `"
+		     << tail_comp.name
+		     << "' on a fixed-array class property is not yet "
+			"implemented." << endl;
+		des->errors += 1;
+		return nullptr;
 	  } else if (dynamic_cast<const netdarray_t*>(cur_type)
 		     || dynamic_cast<const netqueue_t*>(cur_type)) {
 		// Built-in array method on a class-property darray/queue
@@ -9476,7 +10666,7 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		      cur_type = &netvector_t::atom2s32;
 		      continue;
 		}
-		// IEEE 1800-2017 7.12 reduction and min/max methods in
+		// IEEE 1800-2017 7.12 reduction and locator methods in
 		// paren-less form on a class-property darray/queue tail
 		// (e.g. `return q.sum;`): route to the shared array
 		// method machinery.  Only for the final path component
@@ -9486,14 +10676,20 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		    && tail_comp.index.empty()
 		    && (is_array_reduction_name_(tail_comp.name)
 			|| tail_comp.name == "min"
-			|| tail_comp.name == "max")) {
+			|| tail_comp.name == "max"
+			|| is_array_unique_name_(tail_comp.name))) {
 		      const netqueue_t*qt =
 			    dynamic_cast<const netqueue_t*>(cur_type);
 		      const netdarray_t*darr =
 			    dynamic_cast<const netdarray_t*>(cur_type);
+		      static const std::vector<named_pexpr_t> no_parms;
+		      static const std::vector<PExpr*> no_with;
+		      if (is_array_unique_name_(tail_comp.name))
+			    return make_array_unique_expr_(
+				  this, des, scope, base_expr,
+				  cur_type, darr->element_type(),
+				  tail_comp.name, no_parms, no_with);
 		      if (!(qt && qt->assoc_compat())) {
-			    static const std::vector<named_pexpr_t> no_parms;
-			    static const std::vector<PExpr*> no_with;
 			    if (is_array_reduction_name_(tail_comp.name))
 				  return make_array_reduction_expr_(
 					this, des, scope, base_expr,
@@ -9721,7 +10917,8 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
       if (qual.test_static()) {
 	    ivl_type_t static_out = nullptr;
 	    return class_static_property_indexed_expression(des, scope, this,
-							    class_type, comp,
+							    class_type, (size_t)pidx,
+							    comp,
 							    static_out);
       }
 
@@ -10145,27 +11342,96 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
       if (gn_system_verilog()
 	  && peek_tail_name(path_) == perm_string::literal("rand_mode")
 	  && path_.name.size() >= 2 && parms_.empty()) {
-	    perm_string fname = std::next(path_.name.end(), -2)->name;
-	    NetNet*obj_net = nullptr;
+	    const name_component_t&field_comp =
+		  *std::next(path_.name.end(), -2);
+	    perm_string fname = field_comp.name;
+	    NetExpr*obj_expr = nullptr;
 	    if (path_.name.size() == 2) {
-		  obj_net = find_implicit_this_handle(des, scope);
+		  if (NetNet*obj_net = find_implicit_this_handle(des, scope)) {
+			obj_expr = new NetESignal(obj_net);
+			obj_expr->set_line(*this);
+		  }
 	    } else {
 		  pform_name_t obj_path;
 		  auto it = path_.name.begin();
 		  auto end_it = std::next(path_.name.end(), -2);
 		  for (; it != end_it; ++it)
 			obj_path.push_back(*it);
-		  symbol_search_results sr;
-		  symbol_search(this, des, scope, obj_path, UINT_MAX, &sr);
-		  obj_net = sr.net;
+
+		  symbol_search_results obj_sr;
+		  symbol_search(this, des, scope, obj_path, UINT_MAX, &obj_sr);
+		  if (obj_sr.net && obj_sr.path_tail.empty()) {
+			obj_expr = new NetESignal(obj_sr.net);
+			obj_expr->set_line(*this);
+		  } else {
+			PEIdent*obj_id = new PEIdent(obj_path, /*lexical_pos*/0);
+			obj_id->set_file(get_file());
+			obj_id->set_lineno(get_lineno());
+			obj_expr = obj_id->elaborate_expr(des, scope,
+					     /*expr_wid*/0u, /*flags*/0u);
+			delete obj_id;
+		  }
 	    }
-	    if (obj_net) {
+	    if (obj_expr) {
 		  const netclass_t*ctype =
-			dynamic_cast<const netclass_t*>(obj_net->net_type());
+			dynamic_cast<const netclass_t*>(obj_expr->net_type());
 		  int pid = ctype ? ctype->property_idx_from_name(fname) : -1;
-		  if (pid >= 0) {
-			NetESignal*self = new NetESignal(obj_net);
-			self->set_line(*this);
+		  if (ctype && pid < 0 && path_.name.size() >= 3) {
+			cerr << get_fileline() << ": error: Class `"
+			     << ctype->get_name() << "' has no property `"
+			     << fname << "' for rand_mode()." << endl;
+			des->errors += 1;
+			delete obj_expr;
+			NetEConst*zero = new NetEConst(verinum((uint64_t)0, 1));
+			zero->set_line(*this);
+			return zero;
+		  }
+		  if (ctype && pid >= 0 && !field_comp.index.empty()) {
+			cerr << get_fileline() << ": sorry: rand_mode() on indexed "
+			     << "class property `" << fname << "' is not yet "
+			     << "supported; element-specific random modes require "
+			     << "per-element runtime state."
+			     << endl;
+			des->errors += 1;
+			delete obj_expr;
+			NetEConst*zero = new NetEConst(verinum((uint64_t)0, 1));
+			zero->set_line(*this);
+			return zero;
+		  }
+		  if (ctype && pid >= 0) {
+			property_qualifier_t qual =
+			      ctype->get_prop_qual((size_t)pid);
+			ivl_type_t prop_type = ctype->get_prop_type((size_t)pid);
+			if (!qual.test_rand() && !qual.test_randc()) {
+			      if (dynamic_cast<const netclass_t*>(prop_type)) {
+				    delete obj_expr;
+				    obj_expr = nullptr;
+			      } else {
+				    cerr << get_fileline() << ": error: Class property `"
+					 << fname << "' is not declared rand or randc."
+					 << endl;
+				    des->errors += 1;
+				    delete obj_expr;
+				    NetEConst*zero = new NetEConst(
+					  verinum((uint64_t)0, 1));
+				    zero->set_line(*this);
+				    return zero;
+			      }
+			} else if (dynamic_cast<const netuarray_t*>(prop_type)
+				   || dynamic_cast<const netdarray_t*>(prop_type)) {
+			      cerr << get_fileline() << ": sorry: rand_mode() query "
+				   << "on whole unpacked-array property `" << fname
+				   << "' is not yet supported; aggregate query state "
+				   << "requires per-element runtime modes." << endl;
+			      des->errors += 1;
+			      delete obj_expr;
+			      NetEConst*zero = new NetEConst(
+				    verinum((uint64_t)0, 1));
+			      zero->set_line(*this);
+			      return zero;
+			}
+		  }
+		  if (pid >= 0 && obj_expr) {
 			NetEConst*pe = new NetEConst(
 			      verinum((uint64_t)pid, 32));
 			pe->set_line(*this);
@@ -10173,10 +11439,11 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 			      "$ivl_class_method$rand_mode_get",
 			      IVL_VT_BOOL, 1, 2);
 			tmp->set_line(*this);
-			tmp->parm(0, self);
+			tmp->parm(0, obj_expr);
 			tmp->parm(1, pe);
 			return tmp;
 		  }
+		  delete obj_expr;
 	    }
 	      // Not a resolvable field: fall through to normal dispatch.
       }
@@ -10228,18 +11495,42 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		 << "search_results.path_tail: " << search_results.path_tail << endl;
       }
 
-	      if (leading_type_args()) {
-	    NetScope*static_func = resolve_scoped_class_method_func_(des, scope, path_,
-								     leading_type_args());
-	    if (static_func
-		&& !skip_static_typecall_override_(static_func)
+      NetScope*scoped_static_func = nullptr;
+      bool illegal_bare_generic = false;
+      perm_string nonclass_typedef;
+      bool scoped_type_call_candidate = path_.name.size() >= 2
+	    && (leading_type_args() || !search_flag || search_results.is_scope());
+      if (scoped_type_call_candidate) {
+	    scoped_static_func = resolve_scoped_class_method_func_(
+		  des, scope, path_, leading_type_args(), &illegal_bare_generic,
+		  &nonclass_typedef);
+	    if (!nonclass_typedef.nil()) {
+		  if (!bare_generic_scope_error_reported_) {
+			report_nonclass_typedef_class_scope_(
+			      des, this, nonclass_typedef);
+			bare_generic_scope_error_reported_ = true;
+		  }
+		  return 0;
+	    }
+	    if (illegal_bare_generic) {
+		  if (!bare_generic_scope_error_reported_) {
+			report_bare_parameterized_class_scope_(
+			      des, this, path_.name.front().name);
+			bare_generic_scope_error_reported_ = true;
+		  }
+		  return 0;
+	    }
+
+	    if (scoped_static_func
+		&& !skip_static_typecall_override_(scoped_static_func)
 		&& (!search_flag
 		    || (search_results.is_scope()
-			&& search_results.scope != static_func))) {
-			  trace_static_typecall_override_(*this, path_, scope, static_func);
-			  return elaborate_base_(des, scope, static_func, flags);
-		    }
-	      }
+			&& search_results.scope != scoped_static_func))) {
+		  trace_static_typecall_override_(
+			*this, path_, scope, scoped_static_func);
+		  return elaborate_base_(des, scope, scoped_static_func, flags);
+	    }
+      }
 
       // Prefer object/class method elaboration whenever symbol_search
       // preserved a target path tail, even if it also found a function
@@ -10262,9 +11553,8 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 
       // If the symbol is not found at all...
       if (!search_flag) {
-	    if (NetScope*static_func = resolve_scoped_class_method_func_(des, scope, path_,
-								 leading_type_args()))
-		  return elaborate_base_(des, scope, static_func, flags);
+	    if (scoped_static_func)
+		  return elaborate_base_(des, scope, scoped_static_func, flags);
 
 	      // For single-component function calls from within a class
 	      // method, walk the superclass chain to find inherited methods
@@ -10563,7 +11853,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 			des->errors += 1;
 			return 0;
 		  }
-	    }
+		    }
 
 	    cerr << get_fileline() << ": error: Object " << search_results.path_head.back()
 		 << " in " << scope_path(search_results.scope)
@@ -10893,6 +12183,26 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 
 	    if (tmp) {
 		  const NetNet*formal = def->port(pidx);
+		    // IEEE 1800-2017 13.5.2: output and inout actuals must be
+		    // valid procedural assignment l-values.  Function arguments
+		    // are otherwise elaborated only as r-values below, which used
+		    // to accept an assignment pattern such as
+		    // `fill('{default:9})' and silently discard the copy-out.
+		  if (formal->port_type() == NetNet::POUTPUT
+		      || formal->port_type() == NetNet::PINOUT) {
+			unsigned errors_before = des->errors;
+			NetAssign_*lval = tmp->elaborate_lval(des, scope,
+						       false, false);
+			if (lval == 0) {
+			      // Some generic l-value elaborators print a useful
+			      // diagnostic without updating the design error count.
+			      if (des->errors == errors_before)
+				    des->errors += 1;
+			      parm_errors += 1;
+			      continue;
+			}
+			delete lval;
+		  }
 		  ivl_type_t formal_type = formal->unpacked_dimensions() > 0
 			? formal->array_type() : formal->net_type();
 		  parms[pidx] = elaborate_rval_expr(des, scope,
@@ -11020,8 +12330,17 @@ NetExpr* PECallFunction::elaborate_receiver_method_(Design*des, NetScope*scope,
 	    return 0;
       }
 
-      NetExpr*sub_expr = receiver_->elaborate_expr(des, scope,
-						   ivl_type_t(nullptr), flags);
+      /* A receiver has no assignment context.  Passing a null ivl_type_t to
+	 the typed overload is not a self-determined context: PEIdent's typed
+	 path performs compatibility checks against that pointer.  This is
+	 observable for package queues used as method receivers.  Compute the
+	 receiver's self-determined width, then use the ordinary overload while
+	 preserving the caller flags. */
+      width_mode_t receiver_mode = SIZED;
+      receiver_->test_width(des, scope, receiver_mode);
+      unsigned receiver_width = receiver_->expr_width();
+      NetExpr*sub_expr = receiver_->elaborate_expr(
+            des, scope, receiver_width, flags);
       if (!sub_expr)
 	    return 0;
 
@@ -11102,6 +12421,13 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
       if (search_results.net && method_path.size() == 1
 	  && method_path.back().name == perm_string::literal("index")
 	  && !target_indexed) {
+	    if (array_method_iter_index_forbidden_(search_results.net)) {
+		  cerr << get_fileline() << ": error: iterator index querying "
+		       << "is not allowed for wildcard-index associative arrays "
+		          "(IEEE 1800-2017 7.12.4)." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
 	    if (NetNet*idxn = find_array_method_iter_index(search_results.net)) {
 		  bool dim_ok = parms_.empty();
 		  if (parms_.size() == 1 && parms_[0].parm) {
@@ -11231,6 +12557,12 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 	    }
       }
 
+      if (search_results.net)
+	    target_type = specialize_bare_class_receiver_on_use(
+		des, scope,
+		method_receiver_wire_declared_type_(search_results.net),
+		target_type);
+
 	      while (method_path.size() > 1) {
 		    if (!sub_expr) {
 			  return 0;
@@ -11273,6 +12605,9 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 			  return 0;
 		    }
 
+		    const data_type_t*prop_declared_type =
+			  method_receiver_property_declared_type_(
+				class_type, prop_comp.name);
 		    ivl_type_t nested_type = nullptr;
 		    NetExpr*prop_expr = elaborate_nested_method_target_property(this, des, scope,
 								 sub_expr,
@@ -11285,7 +12620,8 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 	    }
 
 	    sub_expr = prop_expr;
-	    target_type = nested_type;
+	    target_type = specialize_bare_class_receiver_on_use(
+		des, scope, prop_declared_type, nested_type);
 	    target_indexed = !prop_comp.index.empty();
 	    method_path.pop_front();
       }
@@ -11348,13 +12684,15 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
       bool explicit_super = !search_results.path_head.empty()
 	    && search_results.path_head.front().name == perm_string::literal(SUPER_TOKEN);
 
-      if (should_defer_unspecialized_type_parameter_expr_call_(
+      if (should_defer_type_parameter_expr_call_(
 		des, scope, search_results.net, orig_method_path,
 		target_type, method_name)) {
 	    compile_progress_expr_method_stub_kind_t kind =
 		  unspecialized_type_parameter_expr_stub_kind_(
 			use_path, target_type, method_name);
 	    NetExpr*stub = elaborate_compile_progress_expr_method_stub_(this, kind);
+	    if (stub)
+		  stub->mark_deferred_type_parameter_stub();
 	    delete sub_expr;
 	    return stub;
       }
@@ -11444,14 +12782,11 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		  delete sub_expr;
 		  return 0;
 	    }
-      if (method_name == "unique"
-		|| method_name == "unique_index") {
-		  // Compile-progress fallback: return null (empty result).
-		  delete sub_expr;
-		  NetENull*tmp = new NetENull();
-		  tmp->set_line(*this);
-		  return tmp;
-	    }
+	    if (is_array_unique_name_(method_name))
+		  return make_array_unique_expr_(this, des, scope, sub_expr,
+						 target_type, element_type,
+						 method_name, parms_,
+						 with_constraints());
 	    if (method_name == "pop_back" || method_name == "pop_front") {
 		  NetENull*tmp = new NetENull();
 		  tmp->set_line(*this);
@@ -11480,8 +12815,7 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 	    ivl_type_t element_type = uarray->element_type();
 
 	    if (uarray->static_dimensions().size() > 1
-		&& (is_array_reduction_name_(method_name)
-		    || is_array_locator_name_(method_name)
+		&& (is_array_locator_name_(method_name)
 		    || method_name == "min" || method_name == "max")) {
 		  cerr << get_fileline() << ": sorry: " << method_name
 		       << "() on multidimensional arrays is not yet "
@@ -11541,22 +12875,13 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 
 	      // G40: unique()/unique_index() on fixed-size unpacked
 	      // arrays (IEEE 1800-2017 7.12.1 applies to any unpacked
-	      // array). Lowered to %uarr/unique, which builds a fresh
-	      // queue of the first-occurrence values (or canonical
-	      // indexes) on the object stack.
-	    if ((method_name == "unique" || method_name == "unique_index")
-		&& with_constraints().empty()
-		&& uarray->static_dimensions().size() == 1
-		&& element_type
-		&& (element_type->base_type() == IVL_VT_BOOL
-		    || element_type->base_type() == IVL_VT_LOGIC)) {
-		  string sfname = string("$ivl_uarray_method$unique|")
-			+ method_name.str();
-		  NetESFunc*fn = new NetESFunc(sfname.c_str(),
-					       IVL_VT_QUEUE, 1, 1);
-		  fn->parm(0, sub_expr);
-		  fn->set_line(*this);
-		  return fn;
+	      // array). Materialize the receiver once and use the same
+	      // typed/keyed implementation as queues and dynamic arrays.
+	    if (is_array_unique_name_(method_name)) {
+		  return make_array_unique_expr_(
+			this, des, scope, sub_expr, target_type,
+			element_type, method_name, parms_,
+			with_constraints());
 	    }
       }
 
@@ -11631,27 +12956,11 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		  delete sub_expr;
 		  return 0;
 	    }
-      if (method_name == "unique"
-		|| method_name == "unique_index") {
-		  /* Phase 63b/Q-methods (gap close): emit a runtime
-		     %qunique_copy / %qunique_idx opcode that returns
-		     a dedup'd copy.  Only enable when the queue
-		     receiver is a simple signal — UVM has property-
-		     based queue uses where this expression form
-		     interferes with sequencer scheduling. */
-		  if (NetESignal*qsig = dynamic_cast<NetESignal*>(sub_expr)) {
-			(void)qsig;
-			string mangled = string("$ivl_queue_method$unique_with|") + method_name.str();
-			NetESFunc*fn = new NetESFunc(mangled.c_str(), IVL_VT_QUEUE, 1, 1);
-			fn->parm(0, sub_expr);
-			fn->set_line(*this);
-			return fn;
-		  }
-		  delete sub_expr;
-		  NetENull*tmp = new NetENull();
-		  tmp->set_line(*this);
-		  return tmp;
-	    }
+	    if (is_array_unique_name_(method_name))
+		  return make_array_unique_expr_(this, des, scope, sub_expr,
+						 target_type, element_type,
+						 method_name, parms_,
+						 with_constraints());
 
 	    if (is_array_reduction_name_(method_name)
 		|| method_name == "min" || method_name == "max") {
@@ -12065,8 +13374,8 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
       if (NetExpr*stub = elaborate_compile_progress_expr_method_stub_(
 		    this,
 		    classify_compile_progress_expr_method_stub_(use_path, nullptr,
-							 method_name,
-							 call_site_is_uvm_provenance_(scope)))) {
+						 method_name,
+						 call_site_is_uvm_provenance_(scope)))) {
 	    warn_compile_progress_stub_fired_(this, "method", method_name);
 	    delete sub_expr;
 	    return stub;
@@ -12257,6 +13566,19 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
     if (dynamic_cast<const PEAssignPattern*>(base_))
           return elaborate_expr(des, scope, (unsigned) 0, flags);
 
+    /* An associative-array cast is an object-valued cast. In particular,
+       aa_t'(aa_t'{default:v}) must preserve the inner typed marker as one
+       map value. The generic vector-to-darray conversion below sees
+       netqueue_t through its netdarray_t base and otherwise expands the
+       marker as if it were a packed scalar (reevaluating it once per bit).
+       Dispatch through this cast's own target path; that path validates that
+       the elaborated source is itself an associative container. */
+    if (const netqueue_t*cast_queue =
+          dynamic_cast<const netqueue_t*>(resolve_target_type(des, scope))) {
+          if (cast_queue->assoc_compat())
+                return elaborate_expr(des, scope, (unsigned) 0, flags);
+    }
+
     // A streaming concatenation with dynamically sized operands cast
     // to a dynamically sized type elaborates as a runtime stream with
     // the cast's target type (IEEE 1800-2017 11.4.14 / 6.24.3).
@@ -12339,6 +13661,37 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	  !target_type_->packed())
 	    return sub;
 
+	/* A cast must not reinterpret an associative map object as an ordinary
+	 * queue/dynamic/scalar value (or the reverse) merely because the backend
+	 * carriers share a QUEUE category. Direct associative targets retain the
+	 * more specific diagnostics below; every other target that contains an
+	 * associative component is an exact no-conversion cast only. */
+      const netqueue_t*direct_assoc_target =
+	    dynamic_cast<const netqueue_t*>(target_type_);
+      bool target_is_direct_assoc = direct_assoc_target
+	    && direct_assoc_target->assoc_compat();
+      if (!target_is_direct_assoc
+	  && (assoc_array_type_contains(target_type_)
+	      || assoc_array_expr_contains(sub))) {
+	    assoc_array_type_match_t match =
+		  assoc_array_expr_type_match(target_type_, sub);
+	    if (match != ASSOC_ARRAY_TYPE_MATCH) {
+		  if (match == ASSOC_ARRAY_TYPE_NOT_ASSOC) {
+			cerr << get_fileline() << ": sorry: casts from an "
+			     << "associative array to a non-associative type "
+			        "are not yet implemented." << endl;
+		  } else {
+			cerr << get_fileline() << ": error: cannot cast between an "
+			     << "associative-array value and a non-equivalent target "
+			        "type." << endl;
+		  }
+		  des->errors += 1;
+		  delete sub;
+		  return nullptr;
+	    }
+	    return sub;
+      }
+
       NetExpr*tmp = 0;
       if (dynamic_cast<const netreal_t*>(target_type_)) {
 	    switch (sub->expr_type()) {
@@ -12375,6 +13728,40 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 		  break;
 	    }
       } else if (const netqueue_t*qt = dynamic_cast<const netqueue_t*>(target_type_)) {
+	    if (qt->assoc_compat()) {
+		  assoc_array_type_match_t match =
+			assoc_array_expr_type_match(qt, sub);
+		  if (match == ASSOC_ARRAY_TYPE_NOT_ASSOC) {
+			cerr << get_fileline() << ": error: cannot cast a "
+			     << "non-associative value to an associative-array type."
+			     << endl;
+			des->errors += 1;
+			delete sub;
+			return nullptr;
+		  }
+
+		  if (match == ASSOC_ARRAY_TYPE_ELEMENT_MISMATCH) {
+			cerr << get_fileline() << ": error: cannot cast between "
+			     << "associative-array types with different element types."
+			     << endl;
+			des->errors += 1;
+			delete sub;
+			return nullptr;
+		  }
+
+		  if (match == ASSOC_ARRAY_TYPE_INDEX_MISMATCH) {
+			cerr << get_fileline() << ": error: cannot cast between "
+			     << "associative-array types with different index types."
+			     << endl;
+			des->errors += 1;
+			delete sub;
+			return nullptr;
+		  }
+		  ivl_assert(*this, match == ASSOC_ARRAY_TYPE_MATCH);
+
+		  return sub;
+	    }
+
 	    // Phase 63a/A4: cast to queue.  When the source is already a
 	    // queue/darray/packed-vector with bit/logic elements compatible
 	    // with the target queue's element type, the cast is a no-op
@@ -13228,6 +14615,15 @@ ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
 			type = queue->element_type();
 		  else if (is_array_minmax_name_(name))
 			type = array_locator_queue_type_(queue->element_type());
+		  else if (is_array_unique_name_(name))
+			type = array_locator_queue_type_(
+			      name == "unique_index"
+				    ? (queue->assoc_compat()
+				       && queue->assoc_index_type()
+					 ? queue->assoc_index_type()
+					 : static_cast<ivl_type_t>(
+					       &netvector_t::atom2s32))
+				    : queue->element_type());
 		  else
 			return nullptr;
 	    } else if (auto uarray = dynamic_cast<const netuarray_t*>(type)) {
@@ -13235,6 +14631,11 @@ ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
 			type = &netvector_t::atom2s32;
 		  else if (name == "min" || name == "max")
 			type = static_array_locator_result_type_(uarray->element_type());
+		  else if (is_array_unique_name_(name))
+			type = array_locator_queue_type_(
+			      name == "unique_index"
+				    ? static_cast<ivl_type_t>(&netvector_t::atom2s32)
+				    : uarray->element_type());
 		  else
 			return nullptr;
 	    } else if (auto darray = dynamic_cast<const netdarray_t*>(type)) {
@@ -13242,6 +14643,11 @@ ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
 			type = &netvector_t::atom2s32;
 		  else if (is_array_minmax_name_(name))
 			type = array_locator_queue_type_(darray->element_type());
+		  else if (is_array_unique_name_(name))
+			type = array_locator_queue_type_(
+			      name == "unique_index"
+				    ? static_cast<ivl_type_t>(&netvector_t::atom2s32)
+				    : darray->element_type());
 		  else
 			return nullptr;
 	    } else if (auto netenum = dynamic_cast<const netenum_t*>(type)) {
@@ -13308,18 +14714,69 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       symbol_search_results sr;
       bool found_symbol = symbol_search(this, des, scope, path_, lexical_pos_, &sr);
 
+      /* Static properties reached through a class typedef must use the
+	 typedef's default specialization, not the generic class signal that
+	 symbol_search finds by following the alias as a scope.  Do the same
+	 provenance check for direct class names so bare C::property is rejected
+	 when C has a parameter port list.  An object member leaves a path tail
+	 and therefore does not enter this scoped-type path. */
+      bool scoped_static_candidate = path_.name.size() >= 2
+	    && (leading_type_args() || !found_symbol || sr.is_scope()
+		|| (sr.net && sr.path_tail.empty()));
+      if (scoped_static_candidate) {
+	    bool illegal_bare_generic = false;
+	    perm_string nonclass_typedef;
+	    NetExpr*static_prop = resolve_scoped_class_static_property_expr_(
+		  des, scope, path_, this, leading_type_args(),
+		  &illegal_bare_generic, &nonclass_typedef);
+	    if (!nonclass_typedef.nil()) {
+		  if (!bare_generic_scope_error_reported_) {
+			report_nonclass_typedef_class_scope_(
+			      des, this, nonclass_typedef);
+			bare_generic_scope_error_reported_ = true;
+		  }
+		  expr_type_ = IVL_VT_LOGIC;
+		  expr_width_ = 1;
+		  min_width_ = 1;
+		  signed_flag_ = false;
+		  return expr_width_;
+	    }
+	    if (illegal_bare_generic) {
+		  if (!bare_generic_scope_error_reported_) {
+			report_bare_parameterized_class_scope_(
+			      des, this, path_.name.front().name);
+			bare_generic_scope_error_reported_ = true;
+		  }
+		  expr_type_ = IVL_VT_LOGIC;
+		  expr_width_ = 1;
+		  min_width_ = 1;
+		  signed_flag_ = false;
+		  return expr_width_;
+	    }
+	    if (static_prop) {
+		  expr_type_ = static_prop->expr_type();
+		  expr_width_ = static_prop->expr_width();
+		  min_width_ = expr_width_;
+		  signed_flag_ = static_prop->has_sign();
+		  delete static_prop;
+		  return expr_width_;
+	    }
+      }
+
 	// IEEE 1800-2017 7.12.4: `item.index` inside an array-method
-	// with expression is an int query of the loop counter.
+	// with expression has the exact associative key type when the
+	// enclosing receiver is associative.
       if (found_symbol && sr.net
 	  && sr.path_tail.size() == 1
 	  && sr.path_tail.front().index.empty()
-	  && sr.path_tail.front().name == perm_string::literal("index")
-	  && find_array_method_iter_index(sr.net)) {
-	    expr_type_   = IVL_VT_BOOL;
-	    expr_width_  = 32;
-	    min_width_   = 32;
-	    signed_flag_ = true;
-	    return expr_width_;
+	  && sr.path_tail.front().name == perm_string::literal("index")) {
+	    if (NetNet*idx_net = find_array_method_iter_index(sr.net)) {
+		expr_type_   = idx_net->data_type();
+		expr_width_  = idx_net->vector_width();
+		min_width_   = expr_width_;
+		signed_flag_ = idx_net->get_signed();
+		return expr_width_;
+	    }
       }
 
 	// If there is a part/bit select expression, then process it
@@ -13629,6 +15086,44 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
 
+      bool scoped_static_candidate = path_.name.size() >= 2
+	    && (leading_type_args() || !sr.is_found() || sr.is_scope()
+		|| (sr.net && sr.path_tail.empty()));
+      if (scoped_static_candidate) {
+	    bool illegal_bare_generic = false;
+	    perm_string nonclass_typedef;
+	    NetExpr*static_prop = resolve_scoped_class_static_property_expr_(
+		  des, scope, path_, this, leading_type_args(),
+		  &illegal_bare_generic, &nonclass_typedef);
+	    if (!nonclass_typedef.nil()) {
+		  if (!bare_generic_scope_error_reported_) {
+			report_nonclass_typedef_class_scope_(
+			      des, this, nonclass_typedef);
+			bare_generic_scope_error_reported_ = true;
+		  }
+		  return 0;
+	    }
+	    if (illegal_bare_generic) {
+		  if (!bare_generic_scope_error_reported_) {
+			report_bare_parameterized_class_scope_(
+			      des, this, path_.name.front().name);
+			bare_generic_scope_error_reported_ = true;
+		  }
+		  return 0;
+	    }
+	    if (static_prop) {
+		  if (NEED_CONST & flags) {
+			cerr << get_fileline() << ": error: A reference to a net "
+			     << "or variable (`" << path_ << "') is not allowed in "
+			     << "a constant expression." << endl;
+			des->errors += 1;
+			delete static_prop;
+			return 0;
+		  }
+		  return static_prop;
+	    }
+      }
+
       if (sr.par_val != 0) {
 	    if (!sr.path_tail.empty()) {
 		  return elaborate_expr_param_member_(des, scope, sr, flags);
@@ -13693,19 +15188,21 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       NetNet *net = sr.net;
 
       /* IEEE 1800-2017 7.12 permits the iterator argument parentheses to be
-       * omitted. In a typed aggregate context, a dynamic-array/queue `a.min'
-       * or `a.max' used to pass the container compatibility check below and
-       * return `a' itself, silently discarding the method suffix. Rebuild the
-       * same call node as the explicit `a.min()' spelling before any
-       * whole-container fallback can run. Fixed arrays retain their existing
-       * direct property lowering. */
+       * omitted. In a typed aggregate context, terminal min/max/unique
+       * locator spellings used to pass the container compatibility check
+       * below and return the receiver itself, silently discarding the method
+       * suffix. Rebuild the same call node as the explicit spelling before
+       * any whole-container fallback can run. */
       if (gn_system_verilog() && !sr.path_head.empty()
 	  && sr.path_head.back().index.empty()
 	  && sr.path_tail.size() == 1
 	  && sr.path_tail.front().index.empty()
-	  && is_array_minmax_name_(sr.path_tail.front().name)
-	  && net->unpacked_dimensions() == 0
-	  && dynamic_cast<const netdarray_t*>(net->net_type())) {
+	  && (is_array_minmax_name_(sr.path_tail.front().name)
+	      || is_array_unique_name_(sr.path_tail.front().name))
+	  && ((net->unpacked_dimensions() == 0
+	       && dynamic_cast<const netdarray_t*>(net->net_type()))
+	      || (net->array_type()
+		  && dynamic_cast<const netuarray_t*>(net->array_type())))) {
 	    std::vector<named_pexpr_t> empty_parms;
 	    PECallFunction*call = path_.package
 		  ? new PECallFunction(path_.package, path_.name, empty_parms)
@@ -14426,6 +15923,44 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
 
+      bool scoped_static_candidate = path_.name.size() >= 2
+	    && (leading_type_args() || !sr.is_found() || sr.is_scope()
+		|| (sr.net && sr.path_tail.empty()));
+      if (scoped_static_candidate) {
+	    bool illegal_bare_generic = false;
+	    perm_string nonclass_typedef;
+	    NetExpr*static_prop = resolve_scoped_class_static_property_expr_(
+		  des, scope, path_, this, leading_type_args(),
+		  &illegal_bare_generic, &nonclass_typedef);
+	    if (!nonclass_typedef.nil()) {
+		  if (!bare_generic_scope_error_reported_) {
+			report_nonclass_typedef_class_scope_(
+			      des, this, nonclass_typedef);
+			bare_generic_scope_error_reported_ = true;
+		  }
+		  return 0;
+	    }
+	    if (illegal_bare_generic) {
+		  if (!bare_generic_scope_error_reported_) {
+			report_bare_parameterized_class_scope_(
+			      des, this, path_.name.front().name);
+			bare_generic_scope_error_reported_ = true;
+		  }
+		  return 0;
+	    }
+	    if (static_prop) {
+		  if (NEED_CONST & flags) {
+			cerr << get_fileline() << ": error: A reference to a net "
+			     << "or variable (`" << path_ << "') is not allowed in "
+			     << "a constant expression." << endl;
+			des->errors += 1;
+			delete static_prop;
+			return 0;
+		  }
+		  return static_prop;
+	    }
+      }
+
       if (path_.size() > 1) {
 	      // Package parameters accessed via a self-package-scope reference
 	      // (pkg_b::Y inside pkg_b) may parse as a hierarchical path if the
@@ -14505,11 +16040,21 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 			const netclass_t*spec_cls =
 			      elaborate_specialized_class_type(des, scope,
 						base_cls, leading_type_args(),
-						false);
+						true);
 			if (spec_cls && spec_cls != base_cls) {
-			      perm_string prop = path_.name.back().name;
+			      /* For C#(...)::static_obj.member the signal found by
+				 symbol_search is static_obj, while path_.back() is the
+				 trailing instance member. Retarget the actual signal
+				 component, then let the ordinary class-property walker
+				 consume the remaining path tail. */
+			      perm_string prop = sr.path_head.empty()
+				    ? path_.name.back().name
+				    : sr.path_head.back().name;
 			      if (NetNet*spec_sig = spec_cls->find_static_property(prop))
-				    sr.net = spec_sig;
+				    {
+				      sr.net = spec_sig;
+				      sr.type = spec_sig->net_type();
+				    }
 			}
 		  }
 	    }
@@ -15111,28 +16656,15 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		      && sr.path_tail.size() == 1
 		      && sr.path_tail.front().index.empty()
 		      && sr.path_tail.front().name == perm_string::literal("index")) {
+			if (array_method_iter_index_forbidden_(sr.net)) {
+			      cerr << get_fileline() << ": error: iterator index "
+			           << "querying is not allowed for wildcard-index "
+			              "associative arrays (IEEE 1800-2017 7.12.4)."
+			           << endl;
+			      des->errors += 1;
+			      return 0;
+			}
 			if (NetNet*idxn = find_array_method_iter_index(sr.net)) {
-			        /* Edition gate: the `index' iterator
-			           property is IEEE 1800-2023 (7.12).
-			           Under an older edition this name is
-			           not an iterator property at all, so
-			           fall through to ordinary resolution
-			           after diagnosing -- silently binding
-			           it produced correct 2023 answers for
-			           a user who asked for 2012. */
-			      if (!sv_require_feature(this,
-						      SVF_ITERATOR_INDEX)) {
-				      /* Keep elaborating with a benign
-				         value: returning 0 made the
-				         enclosing method report `has no
-				         method "sum(...)"', which is
-				         false and misleading. The error
-				         counter already fails the run. */
-				    des->errors += 1;
-				    NetEConst*zero = new NetEConst(verinum((uint64_t)0, 32));
-				    zero->set_line(*this);
-				    return zero;
-			      }
 			      NetESignal*tmp = new NetESignal(idxn);
 			      tmp->set_line(*this);
 			      return tmp;
@@ -19386,9 +20918,18 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 		  bool take_true = (cval.get(0) == verinum::V1);
 		  PExpr*live = take_true ? tru_ : fal_;
 		  PExpr*dead = take_true ? fal_ : tru_;
-		  delete dead->elaborate_expr(des, scope, type, flags);
+		  /* Both arms are assignment-like contexts even when the condition
+		   * is constant. The outer context can otherwise validate only the
+		   * selected arm after this fold; in particular an associative value
+		   * hidden in the dead arm could escape the exact container boundary.
+		   * Running the ordinary typed checker here does not evaluate the dead
+		   * arm at run time. */
+		  NetExpr*dead_expr = elab_and_eval(des, scope, dead, type,
+					       NEED_CONST & flags);
+		  delete dead_expr;
 		  delete con;
-		  return live->elaborate_expr(des, scope, type, flags);
+		  return elab_and_eval(des, scope, live, type,
+				       NEED_CONST & flags);
 	    }
 	      // An x/z condition has to blend both arms.
       }
@@ -19839,6 +21380,19 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	  case 'I':
 	  case 'D':
 	  case 'd':
+		if (ip->enumeration()) {
+		      // IEEE 1800-2017 6.19.4: increment/decrement is a
+		      // numerical expression, so an enum operand first becomes
+		      // its base integral type. Storing that result back through
+		      // the side effect requires an explicit cast. Standalone
+		      // forms are lowered through PAssign::elaborate_compressed_;
+		      // this is the corresponding expression-valued path.
+		      cerr << get_fileline() << ": error: This assignment "
+			      "requires an explicit cast." << endl;
+		      des->errors += 1;
+		      delete ip;
+		      return 0;
+		}
 		t = ip->expr_type();
 		if (expr_wid != expr_->expr_width()) {
 			/*

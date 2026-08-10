@@ -44,16 +44,20 @@ class vvp_assoc_base : public vvp_object {
       virtual bool exists_key(const vvp_vector4_t&key) const =0;
       virtual bool first_key(std::string&key) const =0;
       virtual bool first_key(vvp_object_t&key) const =0;
-      virtual bool first_key(vvp_vector4_t&key) const =0;
+      virtual bool first_key(vvp_vector4_t&key,
+                             bool signed_order = false) const =0;
       virtual bool last_key(std::string&key) const =0;
       virtual bool last_key(vvp_object_t&key) const =0;
-      virtual bool last_key(vvp_vector4_t&key) const =0;
+      virtual bool last_key(vvp_vector4_t&key,
+                            bool signed_order = false) const =0;
       virtual bool next_key(std::string&key) const =0;
       virtual bool next_key(vvp_object_t&key) const =0;
-      virtual bool next_key(vvp_vector4_t&key) const =0;
+      virtual bool next_key(vvp_vector4_t&key,
+                            bool signed_order = false) const =0;
       virtual bool prev_key(std::string&key) const =0;
       virtual bool prev_key(vvp_object_t&key) const =0;
-      virtual bool prev_key(vvp_vector4_t&key) const =0;
+      virtual bool prev_key(vvp_vector4_t&key,
+                            bool signed_order = false) const =0;
       virtual void erase_key(const std::string&key) =0;
       virtual void erase_key(const vvp_object_t&key) =0;
       virtual void erase_key(const vvp_vector4_t&key) =0;
@@ -88,15 +92,36 @@ class vvp_assoc_base : public vvp_object {
       static std::string vec4_key_(const vvp_vector4_t&key);
 };
 
+/* An associative-array value is copied by value, including when its element
+ * is itself a queue, dynamic array, associative array, or synthetic unpacked
+ * struct. Class objects remain handles. Keep the policy identical to other
+ * object-backed containers instead of copying every vvp_object_t verbatim. */
+template <class TYPE>
+static inline TYPE assoc_value_copy_element_(const TYPE&value)
+{
+      return value;
+}
+
+static inline vvp_object_t
+assoc_value_copy_element_(const vvp_object_t&value)
+{
+      return value.value_copy_element();
+}
+
 template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
     public:
-      inline vvp_assoc_map() { }
+      inline vvp_assoc_map() : has_default_(false), default_value_() { }
       ~vvp_assoc_map() override { }
 
       size_t size() const override
       { return str_map_.size() + obj_map_.size() + vec_map_.size(); }
       void clear() override
-      { str_map_.clear(); obj_map_.clear(); vec_map_.clear(); }
+      {
+            str_map_.clear();
+            obj_map_.clear();
+            obj_key_refs_.clear();
+            vec_map_.clear();
+      }
       bool exists_key(const std::string&key) const override
       { return str_map_.find(key) != str_map_.end(); }
       bool exists_key(const vvp_object_t&key) const override
@@ -107,37 +132,49 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       { return first_key_(str_map_, key); }
       bool first_key(vvp_object_t&key) const override
       { return first_key_(obj_map_, key); }
-      bool first_key(vvp_vector4_t&key) const override
-      { return first_key_(vec_map_, key); }
+      bool first_key(vvp_vector4_t&key,
+                     bool signed_order = false) const override
+      { return first_key_(vec_map_, key, signed_order); }
       bool last_key(std::string&key) const override
       { return last_key_(str_map_, key); }
       bool last_key(vvp_object_t&key) const override
       { return last_key_(obj_map_, key); }
-      bool last_key(vvp_vector4_t&key) const override
-      { return last_key_(vec_map_, key); }
+      bool last_key(vvp_vector4_t&key,
+                    bool signed_order = false) const override
+      { return last_key_(vec_map_, key, signed_order); }
       bool next_key(std::string&key) const override
       { return next_key_(str_map_, key); }
       bool next_key(vvp_object_t&key) const override
       { return next_key_(obj_map_, key); }
-      bool next_key(vvp_vector4_t&key) const override
-      { return next_key_(vec_map_, key); }
+      bool next_key(vvp_vector4_t&key,
+                    bool signed_order = false) const override
+      { return next_key_(vec_map_, key, signed_order); }
       bool prev_key(std::string&key) const override
       { return prev_key_(str_map_, key); }
       bool prev_key(vvp_object_t&key) const override
       { return prev_key_(obj_map_, key); }
-      bool prev_key(vvp_vector4_t&key) const override
-      { return prev_key_(vec_map_, key); }
+      bool prev_key(vvp_vector4_t&key,
+                    bool signed_order = false) const override
+      { return prev_key_(vec_map_, key, signed_order); }
       void erase_key(const std::string&key) override
       { str_map_.erase(key); }
       void erase_key(const vvp_object_t&key) override
-      { obj_map_.erase(object_key_(key)); }
+      {
+            const vvp_object*raw_key = object_key_(key);
+            obj_map_.erase(raw_key);
+            obj_key_refs_.erase(raw_key);
+      }
       void erase_key(const vvp_vector4_t&key) override
       { vec_map_.erase(vec4_key_(key)); }
 
       void set(const std::string&key, const TYPE&value)
       { str_map_[key] = value; }
       void set(const vvp_object_t&key, const TYPE&value)
-      { obj_map_[object_key_(key)] = value; }
+      {
+            const vvp_object*raw_key = object_key_(key);
+            obj_key_refs_[raw_key] = key;
+            obj_map_[raw_key] = value;
+      }
       void set(const vvp_vector4_t&key, const TYPE&value)
       {
             vec_entry_t&entry = vec_map_[vec4_key_(key)];
@@ -145,30 +182,57 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
             entry.value = value;
       }
 
+	// IEEE 1800-2017 7.9.11: assigning `'{default: value}' to an
+	// associative array replaces the complete array value. Existing entries
+	// disappear, while the supplied value becomes the fallback for subsequent
+	// reads of absent keys. The fallback is deliberately not represented in
+	// any key map, so size/exists/traversal remain entry-only operations.
+      void replace_default(const TYPE&value)
+      {
+            clear();
+            default_value_ = value;
+            has_default_ = true;
+      }
+
       bool get(const std::string&key, TYPE&value) const
       {
             typename std::map<std::string, TYPE>::const_iterator cur = str_map_.find(key);
-            if (cur == str_map_.end())
-                  return false;
-            value = cur->second;
+            if (cur == str_map_.end()) {
+                  if (has_default_)
+                        value = default_value_;
+                  else
+                        return false;
+            } else {
+                  value = cur->second;
+            }
             return true;
       }
 
       bool get(const vvp_object_t&key, TYPE&value) const
       {
             typename std::map<const vvp_object*, TYPE>::const_iterator cur = obj_map_.find(object_key_(key));
-            if (cur == obj_map_.end())
-                  return false;
-            value = cur->second;
+            if (cur == obj_map_.end()) {
+                  if (has_default_)
+                        value = default_value_;
+                  else
+                        return false;
+            } else {
+                  value = cur->second;
+            }
             return true;
       }
 
       bool get(const vvp_vector4_t&key, TYPE&value) const
       {
             typename std::map<std::string, vec_entry_t>::const_iterator cur = vec_map_.find(vec4_key_(key));
-            if (cur == vec_map_.end())
-                  return false;
-            value = cur->second.value;
+            if (cur == vec_map_.end()) {
+                  if (has_default_)
+                        value = default_value_;
+                  else
+                        return false;
+            } else {
+                  value = cur->second.value;
+            }
             return true;
       }
 
@@ -176,17 +240,16 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       {
             const vvp_assoc_map<TYPE>*that = dynamic_cast<const vvp_assoc_map<TYPE>*>(obj);
             assert(that);
-            str_map_ = that->str_map_;
-            obj_map_ = that->obj_map_;
-            vec_map_ = that->vec_map_;
+            if (that == this)
+                  return;
+            copy_from_(*that);
+            touch();
       }
 
       vvp_object* duplicate(void) const override
       {
             vvp_assoc_map<TYPE>*that = new vvp_assoc_map<TYPE>();
-            that->str_map_ = str_map_;
-            that->obj_map_ = obj_map_;
-            that->vec_map_ = vec_map_;
+            that->copy_from_(*this);
             return that;
       }
 
@@ -195,6 +258,29 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
             vvp_vector4_t key;
             TYPE value;
       };
+
+      void copy_from_(const vvp_assoc_map<TYPE>&that)
+      {
+            str_map_ = that.str_map_;
+            for (typename std::map<std::string, TYPE>::iterator cur =
+                       str_map_.begin(); cur != str_map_.end(); ++cur)
+                  cur->second = assoc_value_copy_element_(cur->second);
+
+            obj_map_ = that.obj_map_;
+            obj_key_refs_ = that.obj_key_refs_;
+            for (typename std::map<const vvp_object*, TYPE>::iterator cur =
+                       obj_map_.begin(); cur != obj_map_.end(); ++cur)
+                  cur->second = assoc_value_copy_element_(cur->second);
+
+            vec_map_ = that.vec_map_;
+            for (typename std::map<std::string, vec_entry_t>::iterator cur =
+                       vec_map_.begin(); cur != vec_map_.end(); ++cur)
+                  cur->second.value =
+                        assoc_value_copy_element_(cur->second.value);
+
+            has_default_ = that.has_default_;
+            default_value_ = assoc_value_copy_element_(that.default_value_);
+      }
 
       static void assign_key_(std::string&dst, const std::string&src)
       { dst = src; }
@@ -214,12 +300,67 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
             return true;
       }
 
+      static int compare_vec_keys_(const vvp_vector4_t&lhs,
+                                   const vvp_vector4_t&rhs,
+                                   bool signed_order)
+      {
+            const unsigned lhs_wid = lhs.size();
+            const unsigned rhs_wid = rhs.size();
+            const bool lhs_negative = signed_order && lhs_wid
+                  && lhs.value(lhs_wid-1) == BIT4_1;
+            const bool rhs_negative = signed_order && rhs_wid
+                  && rhs.value(rhs_wid-1) == BIT4_1;
+
+              // A signed two's-complement value with its sign bit set sorts
+              // before every non-negative value. Within each sign half the
+              // ordinary most-significant-bit-first order is already numeric.
+            if (lhs_negative != rhs_negative)
+                  return lhs_negative ? -1 : 1;
+
+            const unsigned wid = lhs_wid > rhs_wid ? lhs_wid : rhs_wid;
+            for (unsigned pos = wid ; pos > 0 ; pos -= 1) {
+                  const unsigned bit = pos - 1;
+                  const vvp_bit4_t lhs_bit = bit < lhs_wid
+                        ? lhs.value(bit)
+                        : (lhs_negative ? BIT4_1 : BIT4_0);
+                  const vvp_bit4_t rhs_bit = bit < rhs_wid
+                        ? rhs.value(bit)
+                        : (rhs_negative ? BIT4_1 : BIT4_0);
+                  if (lhs_bit == rhs_bit)
+                        continue;
+
+                    // Integral keys normally contain only 0/1. Retain a
+                    // deterministic total order for X/Z keys as well, matching
+                    // the existing raw-key alphabet instead of treating two
+                    // distinct keys as equal.
+                  const char lhs_code = vvp_bit4_to_ascii(lhs_bit);
+                  const char rhs_code = vvp_bit4_to_ascii(rhs_bit);
+                  return lhs_code < rhs_code ? -1 : 1;
+            }
+
+              // Width is part of associative-key identity. If sign/zero
+              // extension makes two differently sized keys numerically equal,
+              // use the existing raw encoding only as a stable tie-breaker.
+            const std::string lhs_raw = vec4_key_(lhs);
+            const std::string rhs_raw = vec4_key_(rhs);
+            if (lhs_raw == rhs_raw)
+                  return 0;
+            return lhs_raw < rhs_raw ? -1 : 1;
+      }
+
       static bool first_key_(const std::map<std::string, vec_entry_t>&map,
-                             vvp_vector4_t&key)
+                             vvp_vector4_t&key, bool signed_order)
       {
             if (map.empty())
                   return false;
-            assign_key_(key, map.begin()->second);
+            typename std::map<std::string, vec_entry_t>::const_iterator best =
+                  map.begin();
+            for (typename std::map<std::string, vec_entry_t>::const_iterator cur =
+                       map.begin(); cur != map.end(); ++cur)
+                  if (compare_vec_keys_(cur->second.key, best->second.key,
+                                        signed_order) < 0)
+                        best = cur;
+            assign_key_(key, best->second);
             return true;
       }
 
@@ -235,13 +376,18 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       }
 
       static bool last_key_(const std::map<std::string, vec_entry_t>&map,
-                            vvp_vector4_t&key)
+                            vvp_vector4_t&key, bool signed_order)
       {
             if (map.empty())
                   return false;
-            typename std::map<std::string, vec_entry_t>::const_iterator cur = map.end();
-            --cur;
-            assign_key_(key, cur->second);
+            typename std::map<std::string, vec_entry_t>::const_iterator best =
+                  map.begin();
+            for (typename std::map<std::string, vec_entry_t>::const_iterator cur =
+                       map.begin(); cur != map.end(); ++cur)
+                  if (compare_vec_keys_(cur->second.key, best->second.key,
+                                        signed_order) > 0)
+                        best = cur;
+            assign_key_(key, best->second);
             return true;
       }
 
@@ -264,13 +410,23 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
             return true;
       }
 
-      static bool next_key_(const std::map<std::string, vec_entry_t>&map, vvp_vector4_t&key)
+      static bool next_key_(const std::map<std::string, vec_entry_t>&map,
+                            vvp_vector4_t&key, bool signed_order)
       {
-            typename std::map<std::string, vec_entry_t>::const_iterator cur =
-                  map.upper_bound(vec4_key_(key));
-            if (cur == map.end())
+            typename std::map<std::string, vec_entry_t>::const_iterator best =
+                  map.end();
+            for (typename std::map<std::string, vec_entry_t>::const_iterator cur =
+                       map.begin(); cur != map.end(); ++cur) {
+                  if (compare_vec_keys_(cur->second.key, key, signed_order) <= 0)
+                        continue;
+                  if (best == map.end()
+                      || compare_vec_keys_(cur->second.key, best->second.key,
+                                           signed_order) < 0)
+                        best = cur;
+            }
+            if (best == map.end())
                   return false;
-            assign_key_(key, cur->second);
+            assign_key_(key, best->second);
             return true;
       }
 
@@ -297,15 +453,23 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
             return true;
       }
 
-      static bool prev_key_(const std::map<std::string, vec_entry_t>&map, vvp_vector4_t&key)
+      static bool prev_key_(const std::map<std::string, vec_entry_t>&map,
+                            vvp_vector4_t&key, bool signed_order)
       {
-            const std::string raw_key = vec4_key_(key);
-            typename std::map<std::string, vec_entry_t>::const_iterator cur = map.lower_bound(raw_key);
-            if (cur == map.begin())
+            typename std::map<std::string, vec_entry_t>::const_iterator best =
+                  map.end();
+            for (typename std::map<std::string, vec_entry_t>::const_iterator cur =
+                       map.begin(); cur != map.end(); ++cur) {
+                  if (compare_vec_keys_(cur->second.key, key, signed_order) >= 0)
+                        continue;
+                  if (best == map.end()
+                      || compare_vec_keys_(cur->second.key, best->second.key,
+                                           signed_order) > 0)
+                        best = cur;
+            }
+            if (best == map.end())
                   return false;
-            if (cur == map.end() || !(cur->first < raw_key))
-                  --cur;
-            assign_key_(key, cur->second);
+            assign_key_(key, best->second);
             return true;
       }
 
@@ -425,8 +589,15 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       { return false; }
 
     protected:
+      bool has_default_;
+      TYPE default_value_;
       std::map<std::string, TYPE> str_map_;
+      // Object identity and ordering use the raw pointer, while this parallel
+      // map owns one handle for every live key. Without the retained handle an
+      // automatic key can be destroyed and its address reused, aliasing an
+      // unrelated later key in obj_map_.
       std::map<const vvp_object*, TYPE> obj_map_;
+      std::map<const vvp_object*, vvp_object_t> obj_key_refs_;
       std::map<std::string, vec_entry_t> vec_map_;
 };
 

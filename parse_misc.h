@@ -76,6 +76,11 @@ struct sva_seq_step_t {
       PExpr* expr = nullptr;
       perm_string lv_name;  // M9-NFA LV-1: local-var assignment on this
       PExpr* lv_rhs = nullptr; //   step ((expr, lv_name = lv_rhs)); nil = none
+      // IEEE 1800-2017 16.11: sequence match-item subroutine calls execute
+      // in source order after the optional local-variable assignment above.
+      // The bounded lowering diagnoses every unsupported placement/call
+      // before an assertion engine can silently discard it.
+      std::vector<PCallTask*> match_calls;
       bool fm = false;      // step is inside a first_match(...) wrapper
       // M9-NFA stage C.1: goto/nonconsecutive repetition of the boolean
       // `expr' (IEEE 1800-2017 16.9.2). rep_kind 0 = none; 1 = goto
@@ -108,12 +113,16 @@ struct sva_seq_step_t {
  */
 struct sva_stree_t {
       enum kind_t { LEAF = 0, SEQ_OR = 1, SEQ_AND = 2, SEQ_INTERSECT = 3,
-		    SEQ_WITHIN = 4, SEQ_THROUGHOUT = 5 };
+		    SEQ_WITHIN = 4, SEQ_THROUGHOUT = 5,
+		    SEQ_CONCAT = 6 };
       int kind = LEAF;
       std::vector<sva_seq_step_t>* chain = nullptr;  // LEAF only
       sva_stree_t* a = nullptr;
       sva_stree_t* b = nullptr;
       PExpr* gexpr = nullptr;    // SEQ_THROUGHOUT invariant (a = the seq)
+      // SEQ_CONCAT: true for a ##0 b (the first tick of b is fused with
+      // a's terminal tick), false for ##1-or-later continuation.
+      bool concat_overlap = false;
 };
 
 // M9-7 residual: one further clock-flow segment past the first boundary

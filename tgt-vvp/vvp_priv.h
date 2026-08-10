@@ -107,6 +107,8 @@ extern void draw_ufunc_string(ivl_expr_t expr);
 extern void draw_ufunc_object(ivl_expr_t expr);
 extern void draw_ufunc_uarray(ivl_expr_t expr, ivl_signal_t dst_sig,
 			      unsigned dst_base);
+extern void draw_ufunc_uarray_object(ivl_expr_t expr, int as_queue,
+				     unsigned queue_max_size);
 
 extern char* process_octal_codes(const char*txt, unsigned wid);
 
@@ -131,6 +133,9 @@ extern void cleanup_modpath(void);
  * instruction. Otherwise, it will generate a %vpi_func instruction.
  */
 extern void draw_vpi_task_call(ivl_statement_t net);
+extern int draw_vpi_deferred_call(ivl_statement_t net, unsigned parm_base,
+				  const char*task_name, long source_id,
+				  ivl_scope_t scope);
 
 extern void draw_vpi_func_call(ivl_expr_t expr);
 extern void draw_vpi_rfunc_call(ivl_expr_t expr);
@@ -261,6 +266,12 @@ extern void draw_eval_string(ivl_expr_t ex);
  */
 extern int draw_eval_object(ivl_expr_t ex);
 extern int vvp_expr_is_whole_fixed_array_property(ivl_expr_t ex);
+
+/* Materialize the typed internal marker used for an associative-array
+   `'{default:value}' pattern. The value is evaluated once and a fresh map is
+   left on the object stack. */
+extern int draw_eval_assoc_default(ivl_expr_t marker,
+                                   ivl_type_t element_type);
 
 /*
  * Like draw_eval_object, but applies unpacked-struct VALUE semantics when the

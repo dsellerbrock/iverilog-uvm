@@ -1,0 +1,2 @@
+ivltests/sv_assoc_default_null_fail.v:6: error: associative-array context requires an associative-array value.
+Elaboration failed

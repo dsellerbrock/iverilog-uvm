@@ -1,0 +1,1 @@
+./ivltests/sv_randc_txn_legal_types.v:31: warning: randc property 'assoc_values' of class randc_txn_legal_item has a 32-bit cyclic leaf, beyond the 20-bit randc cycle-tracking cap; it will randomize as plain (non-cyclic) rand instead of guaranteeing a full permutation before any repeat.

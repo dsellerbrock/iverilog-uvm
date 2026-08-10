@@ -220,14 +220,17 @@ bool value_callback::test_value_callback_ready(void)
       return true;
 }
 
-static void vpip_real_value_change(value_callback*cbh, vpiHandle ref)
+static bool vpip_real_value_change(value_callback*cbh, vpiHandle ref)
 {
       struct __vpiRealVar*rfp = dynamic_cast<__vpiRealVar*>(ref);
-      assert(rfp);
+	if (!rfp || !rfp->net)
+	      return false;
       vvp_vpi_callback*obj = dynamic_cast<vvp_vpi_callback*>(rfp->net->fil);
-      assert(obj);
+	if (!obj)
+	      return false;
 
       obj->add_vpi_callback(cbh);
+	return true;
 }
 
 class value_part_callback : public value_callback {
@@ -451,24 +454,32 @@ static value_callback* make_value_change(p_cb_data data)
             return 0;
       }
 
+	/* A static class-member handle is a view of its declaring class-scope
+	 * signal/array. Attach scheduling to that one canonical object while
+	 * retaining data->obj in value_callback so the VPI client receives the
+	 * exact member view it registered. */
+	vpiHandle target = vpip_class_member_static_storage(data->obj);
+	if (!target)
+	      target = data->obj;
+
 	// Special case: the target object is a vpiPartSelect
-      if (data->obj->get_type_code() == vpiPartSelect) {
-            if (data->obj->vpi_handle(vpiArray))
-	        return vpip_array_word_change(data);
-            else
+	if (target->get_type_code() == vpiPartSelect) {
+	      if (target->vpi_handle(vpiArray))
+	        return vpip_array_word_change_target(data, target);
+	      else
 	        return make_value_change_part(data);
       }
 
-      if (data->obj->get_type_code() == vpiMemoryWord)
-	    return vpip_array_word_change(data);
+	if (target->get_type_code() == vpiMemoryWord)
+	    return vpip_array_word_change_target(data, target);
 
-      if (data->obj->get_type_code() == vpiMemory)
-	    return vpip_array_change(data);
+	if (target->get_type_code() == vpiMemory)
+	    return vpip_array_change_target(data, target);
 
       value_callback*obj = new value_callback(data);
 
       assert(data->obj);
-      switch (data->obj->get_type_code()) {
+	 switch (target->get_type_code()) {
 
 	  case vpiReg:
 	  case vpiNet:
@@ -481,18 +492,37 @@ static value_callback* make_value_change(p_cb_data data)
 	      /* Attach the callback to the vvp_fun_signal node by
 		 putting it in the vpi_callbacks list. */
 	    struct __vpiSignal*sig;
-	    sig = dynamic_cast<__vpiSignal*>(data->obj);
+	    sig = dynamic_cast<__vpiSignal*>(target);
+	    if (!sig || !sig->node) {
+		  fprintf(stderr, "make_value_change: invalid integral callback "
+			  "target for '%s'.\n",
+			  vpi_get_str(vpiName, data->obj));
+		  delete obj;
+		  return 0;
+	    }
 
 	    vvp_net_fil_t*sig_fil;
 	    sig_fil = dynamic_cast<vvp_net_fil_t*>(sig->node->fil);
-	    assert(sig_fil);
+	    if (!sig_fil) {
+		  fprintf(stderr, "make_value_change: integral callback target "
+			  "for '%s' has no filter.\n",
+			  vpi_get_str(vpiName, data->obj));
+		  delete obj;
+		  return 0;
+	    }
 
 	      /* Attach the __vpiCallback object to the signal. */
 	    sig_fil->add_vpi_callback(obj);
 	    break;
 
 	  case vpiRealVar:
-	    vpip_real_value_change(obj, data->obj);
+	    if (!vpip_real_value_change(obj, target)) {
+		  fprintf(stderr, "make_value_change: invalid real callback "
+			  "target for '%s'.\n",
+			  vpi_get_str(vpiName, data->obj));
+		  delete obj;
+		  return 0;
+	    }
 	    break;
 
 	  case vpiNamedEvent:
@@ -516,10 +546,12 @@ static value_callback* make_value_change(p_cb_data data)
 	  case vpiStringVar:
 	  case vpiClassVar:
 	  case vpiArrayVar: {
-		__vpiBaseVar*var = dynamic_cast<__vpiBaseVar*>(data->obj);
-		vvp_fun_signal_base*fun = var
-		      ? dynamic_cast<vvp_fun_signal_base*>(var->get_net()->fun)
-		      : 0;
+		__vpiBaseVar*var = dynamic_cast<__vpiBaseVar*>(target);
+		vvp_net_t*net = var ? var->get_net() : 0;
+		vvp_fun_signal_base*fun = net
+		      ? dynamic_cast<vvp_fun_signal_base*>(net->fun) : 0;
+		if (!fun && net)
+		      fun = dynamic_cast<vvp_fun_signal_base*>(net->fil);
 		if (!fun) {
 		      fprintf(stderr, "make_value_change: sorry: cannot "
 			      "attach a value-change callback to '%s'.\n",
@@ -534,7 +566,7 @@ static value_callback* make_value_change(p_cb_data data)
 	  default:
 	    fprintf(stderr, "make_value_change: sorry: I cannot callback "
 		    "values on type code=%d\n",
-		    data->obj->get_type_code());
+		    target->get_type_code());
 	    delete obj;
 	    return 0;
       }

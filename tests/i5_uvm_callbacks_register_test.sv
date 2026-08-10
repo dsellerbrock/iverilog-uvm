@@ -30,16 +30,31 @@ module top;
     bit reg_ok;
     my_drv drv;
     my_cb  cb;
+    my_cb  all_callbacks[$];
     reg_ok = uvm_callbacks#(my_drv,my_cb)::m_register_pair("my_drv","my_cb");
     if (!reg_ok) $fatal(1, "FAIL: m_register_pair returned 0");
 
     drv = new("drv", null);
     cb = new("cb");
+
+    // Exercise the unmodified UVM callback implementation's exact
+    // CB[$].unique(cb_) with (cb_.get_inst_id) path, including a fresh
+    // empty result before any callback is registered.
+    uvm_callbacks#(my_drv, my_cb)::get_all(all_callbacks, drv);
+    if (all_callbacks.size() != 0)
+      $fatal(1, "FAIL: empty get_all returned %0d callbacks",
+             all_callbacks.size());
+
     // The uvm_test harness greps for UVM_WARNING/UVM_FATAL — if a
     // CBUNREG warning fires here, the test fails automatically.
     uvm_callbacks#(my_drv, my_cb)::add(drv, cb);
 
-    $display("PASS: uvm_callbacks#(T,CB)::add() completed without CBUNREG");
+    all_callbacks.delete();
+    uvm_callbacks#(my_drv, my_cb)::get_all(all_callbacks, drv);
+    if (all_callbacks.size() != 1 || all_callbacks[0] != cb)
+      $fatal(1, "FAIL: get_all did not return the registered callback");
+
+    $display("PASS: uvm_callbacks registration and keyed get_all completed");
     $finish;
   end
 endmodule

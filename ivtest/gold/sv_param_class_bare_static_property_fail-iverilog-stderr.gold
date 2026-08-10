@@ -1,0 +1,2 @@
+ivltests/sv_param_class_bare_static_property_fail.v:7: error: Parameterized class `wrapper' requires an explicit #(...) specialization before ::.
+1 error(s) during elaboration.

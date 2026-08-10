@@ -1,0 +1,2 @@
+ivltests/sv_param_class_typedef_static_function_fail.v:7: error: Object sv_param_class_typedef_static_function_fail._ivl_0.call.imp has no method "no_such_method(...)".
+1 error(s) during elaboration.

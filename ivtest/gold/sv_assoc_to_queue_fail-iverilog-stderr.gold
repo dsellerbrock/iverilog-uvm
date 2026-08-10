@@ -1,0 +1,2 @@
+ivltests/sv_assoc_to_queue_fail.v:8: error: associative-array value is not assignment-compatible with a non-associative context.
+Elaboration failed

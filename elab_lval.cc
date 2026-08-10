@@ -112,10 +112,10 @@ NetAssign_* PExpr::elaborate_lval(Design*, NetScope*, bool, bool, bool) const
  * NetAssign_ object.
  */
 NetAssign_* PEConcat::elaborate_lval(Design*des,
-				     NetScope*scope,
-				     bool is_cassign,
-				     bool is_force,
-				     bool is_init) const
+                                     NetScope*scope,
+                                     bool is_cassign,
+                                     bool is_force,
+                                     bool is_init) const
 {
       if (repeat_) {
 	    cerr << get_fileline() << ": error: Repeat concatenations make "
@@ -166,6 +166,299 @@ NetAssign_* PEConcat::elaborate_lval(Design*des,
       return res;
 }
 
+enum scoped_lvalue_class_name_kind_t {
+      SCOPED_LVALUE_CLASS_NONE,
+      SCOPED_LVALUE_CLASS_DIRECT,
+      SCOPED_LVALUE_CLASS_TYPE_PARAMETER,
+      SCOPED_LVALUE_CLASS_NONCLASS_TYPE_PARAMETER,
+      SCOPED_LVALUE_CLASS_TYPEDEF,
+      SCOPED_LVALUE_CLASS_NONCLASS_TYPEDEF
+};
+
+struct scoped_lvalue_class_name_result_t {
+      const netclass_t*class_type = nullptr;
+      scoped_lvalue_class_name_kind_t kind = SCOPED_LVALUE_CLASS_NONE;
+};
+
+struct scoped_lvalue_type_parameter_result_t {
+      const netclass_t*class_type = nullptr;
+      bool concrete_nonclass = false;
+};
+
+/* Resolve a type parameter without losing that it was a type parameter.  A
+   bound T and a direct class declaration both elaborate to netclass_t, but
+   only the latter is an illegal external bare-generic prefix.  Conversely,
+   the generic class seed may temporarily elaborate a non-class default for T;
+   that seed must remain deferred, while the same result in a concrete
+   specialization is a hard invalid receiver. */
+static scoped_lvalue_type_parameter_result_t
+resolve_scoped_lvalue_type_parameter_(
+		Design*des, NetScope*scope, perm_string name)
+{
+      scoped_lvalue_type_parameter_result_t result;
+      if (!scope)
+	    return result;
+
+      for (NetScope*cur = scope ; cur ; cur = cur->parent()) {
+	    std::map<perm_string,NetScope::param_expr_t>::const_iterator param =
+		  cur->parameters.find(name);
+	    if (param == cur->parameters.end() || !param->second.type_flag)
+		  continue;
+
+	    ivl_type_t param_type = nullptr;
+	    (void) cur->get_parameter(des, name, param_type);
+	    if (dynamic_cast<const netclass_t*>(param_type)) {
+		  if (param->second.val_expr) {
+			if (const PETypename*actual =
+			      dynamic_cast<const PETypename*>(param->second.val_expr))
+			      param_type = specialize_bare_class_at_concrete_use(
+				    des, scope, actual->get_type(), param_type, true);
+		  }
+		  result.class_type = dynamic_cast<const netclass_t*>(param_type);
+		  return result;
+	    }
+
+	    result.concrete_nonclass = param_type
+		  && !class_type_parameter_is_deferred(des, scope, name);
+	    return result;
+      }
+
+      if (NetScope*unit = scope->unit()) {
+	    std::map<perm_string,NetScope::param_expr_t>::const_iterator param =
+		  unit->parameters.find(name);
+	    if (param == unit->parameters.end() || !param->second.type_flag)
+		  return result;
+
+	    ivl_type_t param_type = nullptr;
+	    (void) unit->get_parameter(des, name, param_type);
+	    if (dynamic_cast<const netclass_t*>(param_type)) {
+		  if (param->second.val_expr) {
+			if (const PETypename*actual =
+			      dynamic_cast<const PETypename*>(param->second.val_expr))
+			      param_type = specialize_bare_class_at_concrete_use(
+				    des, scope, actual->get_type(), param_type, true);
+		  }
+		  result.class_type = dynamic_cast<const netclass_t*>(param_type);
+		  return result;
+	    }
+
+	    result.concrete_nonclass = param_type
+		  && !class_type_parameter_is_deferred(des, scope, name);
+      }
+
+	  return result;
+}
+
+static scoped_lvalue_class_name_result_t resolve_scoped_lvalue_class_name_(
+		Design*des, NetScope*scope, perm_string name)
+{
+      scoped_lvalue_class_name_result_t result;
+      if (!scope)
+	    return result;
+
+      if (typedef_t*td = scope->find_typedef(des, name)) {
+	    const data_type_t*declared_type = td->get_data_type();
+	    if (dynamic_cast<const type_parameter_t*>(declared_type)) {
+		  scoped_lvalue_type_parameter_result_t parameter =
+			resolve_scoped_lvalue_type_parameter_(des, scope, name);
+		  result.class_type = parameter.class_type;
+		  result.kind = parameter.concrete_nonclass
+			? SCOPED_LVALUE_CLASS_NONCLASS_TYPE_PARAMETER
+			: SCOPED_LVALUE_CLASS_TYPE_PARAMETER;
+		  return result;
+	    }
+
+	    /* The same-name class_type_t is the synthetic typedef for the
+	       declaration itself.  A user alias has different parse-form
+	       provenance and denotes its concrete default specialization. */
+	    if (const class_type_t*class_pf =
+		  dynamic_cast<const class_type_t*>(declared_type)) {
+		  if (class_pf->name == name) {
+			result.class_type = scope->find_class(des, name);
+			if (!result.class_type)
+			      result.class_type = ensure_visible_class_type(
+				    des, scope, name);
+			result.kind = SCOPED_LVALUE_CLASS_DIRECT;
+			return result;
+		  }
+	    }
+
+	    ivl_type_t alias_type = td->elaborate_type(des, scope);
+	    if (dynamic_cast<const netclass_t*>(alias_type)) {
+		  alias_type = specialize_bare_class_at_concrete_use(
+			des, scope, declared_type, alias_type, true);
+		  result.class_type =
+			dynamic_cast<const netclass_t*>(alias_type);
+		  result.kind = SCOPED_LVALUE_CLASS_TYPEDEF;
+		  return result;
+	    }
+
+	    /* A visible, successfully elaborated typedef is terminal even when
+	       it is not a class.  Falling through to find_class(name) would
+	       incorrectly recover an outer class hidden by the typedef.  Keep
+	       the null-type fallthrough for early class-forward placeholders. */
+	    if (alias_type) {
+		  result.kind = SCOPED_LVALUE_CLASS_NONCLASS_TYPEDEF;
+		  return result;
+	    }
+      }
+
+      result.class_type = scope->find_class(des, name);
+      if (!result.class_type)
+	    result.class_type = ensure_visible_class_type(des, scope, name);
+      if (result.class_type)
+	    result.kind = SCOPED_LVALUE_CLASS_DIRECT;
+      return result;
+}
+
+static bool scoped_lvalue_class_is_unspecialized_parameterized_(
+		const netclass_t*class_type)
+{
+      if (!class_type || class_type->specialized_instance())
+	    return false;
+
+      const NetScope*class_scope = class_type->class_scope();
+      const PClass*pclass = class_scope ? class_scope->class_pform() : nullptr;
+      return pclass && pclass->has_parameter_port_list;
+}
+
+static const netclass_t* scoped_lvalue_current_specialization_(
+		NetScope*use_scope, const netclass_t*class_type)
+{
+      if (!use_scope || !class_type)
+	    return nullptr;
+
+      const NetScope*current_scope = use_scope->get_class_scope();
+      const NetScope*resolved_scope = class_type->class_scope();
+      if (!current_scope || !resolved_scope
+	  || current_scope->class_pform() != resolved_scope->class_pform())
+	    return nullptr;
+
+      return current_scope->class_def();
+}
+
+enum scoped_lvalue_retarget_status_t {
+      SCOPED_LVALUE_RETARGET_NOT_APPLICABLE,
+      SCOPED_LVALUE_RETARGETED,
+      SCOPED_LVALUE_RETARGET_DEFERRED,
+      SCOPED_LVALUE_RETARGET_ERROR_BARE_GENERIC,
+      SCOPED_LVALUE_RETARGET_ERROR_NONCLASS_TYPE_PARAMETER,
+      SCOPED_LVALUE_RETARGET_ERROR_NONCLASS_TYPEDEF,
+      SCOPED_LVALUE_RETARGET_ERROR_MISSING_PROPERTY,
+      SCOPED_LVALUE_RETARGET_ERROR_NONSTATIC_PROPERTY,
+      SCOPED_LVALUE_RETARGET_ERROR_STATIC_STORAGE
+};
+
+struct scoped_lvalue_retarget_result_t {
+      scoped_lvalue_retarget_status_t status =
+	    SCOPED_LVALUE_RETARGET_NOT_APPLICABLE;
+      const netclass_t*class_type = nullptr;
+      perm_string prefix;
+      perm_string property;
+};
+
+/* Retarget Class#(...)::property and typedef-qualified assignments to the
+   selected class specialization before ordinary l-value lowering.  Keeping
+   the result status distinct from the symbol-search result prevents a known
+   class-scoped target from falling through to the generic missing-variable
+   warning path. */
+static scoped_lvalue_retarget_result_t retarget_scoped_static_lvalue_(
+		Design*des, NetScope*scope, const pform_scoped_name_t&path,
+		const parmvalue_t*leading_type_args, symbol_search_results&sr)
+{
+	  scoped_lvalue_retarget_result_t result;
+      if (!gn_system_verilog() || path.name.size() < 2)
+	    return result;
+
+      const name_component_t&prefix = path.name.front();
+      if (!prefix.index.empty())
+	    return result;
+	  result.prefix = prefix.name;
+
+      NetScope*search_scope = scope;
+      if (path.package) {
+	    search_scope = des->find_package(path.package->pscope_name());
+	    if (!search_scope)
+		  return result;
+      }
+
+      scoped_lvalue_class_name_result_t resolved =
+	    resolve_scoped_lvalue_class_name_(des, search_scope, prefix.name);
+	  if (resolved.kind == SCOPED_LVALUE_CLASS_NONCLASS_TYPE_PARAMETER) {
+	    result.status = SCOPED_LVALUE_RETARGET_ERROR_NONCLASS_TYPE_PARAMETER;
+	    return result;
+	  }
+	  if (resolved.kind == SCOPED_LVALUE_CLASS_NONCLASS_TYPEDEF) {
+	    result.status = SCOPED_LVALUE_RETARGET_ERROR_NONCLASS_TYPEDEF;
+	    return result;
+	  }
+      const netclass_t*class_type = resolved.class_type;
+	  if (!class_type) {
+	    if (resolved.kind == SCOPED_LVALUE_CLASS_TYPE_PARAMETER)
+		  result.status = SCOPED_LVALUE_RETARGET_DEFERRED;
+	    return result;
+	  }
+
+      if (leading_type_args) {
+	    class_type = elaborate_specialized_class_type(
+		  des, search_scope, class_type, leading_type_args, true);
+      } else if (resolved.kind == SCOPED_LVALUE_CLASS_DIRECT) {
+	    if (const netclass_t*current_class =
+		  scoped_lvalue_current_specialization_(scope, class_type)) {
+		  class_type = current_class;
+	    } else if (scoped_lvalue_class_is_unspecialized_parameterized_(
+			     class_type)) {
+		  result.class_type = class_type;
+		  result.status = SCOPED_LVALUE_RETARGET_ERROR_BARE_GENERIC;
+		  return result;
+	    }
+      }
+
+	  if (!class_type) {
+	    result.status = SCOPED_LVALUE_RETARGET_DEFERRED;
+	    return result;
+	  }
+	  result.class_type = class_type;
+
+      /* This grammar shape has one class-scope prefix; the next component is
+	 the static property and any later components are instance members of
+	 that property. */
+      pform_name_t::const_iterator prop_it = path.name.begin();
+      ++prop_it;
+	  result.property = prop_it->name;
+	  int pidx = const_cast<netclass_t*>(class_type)->ensure_property_decl(
+		des, prop_it->name);
+	  if (pidx < 0) {
+	    result.status = SCOPED_LVALUE_RETARGET_ERROR_MISSING_PROPERTY;
+	    return result;
+	  }
+	  if (!class_type->get_prop_qual(pidx).test_static()) {
+	    result.status = SCOPED_LVALUE_RETARGET_ERROR_NONSTATIC_PROPERTY;
+	    return result;
+	  }
+
+      NetNet*target = class_type->get_prop_static_signal((size_t)pidx);
+	  if (!target) {
+	    result.status = SCOPED_LVALUE_RETARGET_ERROR_STATIC_STORAGE;
+	    return result;
+	  }
+
+      sr.net = target;
+      sr.scope = target->scope();
+      sr.type = target->net_type();
+	  sr.par_val = nullptr;
+	  sr.eve = nullptr;
+	  sr.decl_after_use = nullptr;
+	  sr.path_head.clear();
+	  sr.path_head.push_back(prefix);
+	  sr.path_head.push_back(*prop_it);
+	  sr.path_tail.clear();
+	  for (++prop_it ; prop_it != path.name.end() ; ++prop_it)
+	    sr.path_tail.push_back(*prop_it);
+	  result.status = SCOPED_LVALUE_RETARGETED;
+	  return result;
+}
+
 
 /*
  * Handle the ident as an l-value. This includes bit and part selects
@@ -185,6 +478,89 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+
+	  scoped_lvalue_retarget_result_t scoped_result;
+	  if (has_scoped_type_prefix())
+	    scoped_result = retarget_scoped_static_lvalue_(
+		  des, scope, path_, leading_type_args(), sr);
+
+	  bool scoped_error = false;
+	  switch (scoped_result.status) {
+	      case SCOPED_LVALUE_RETARGET_ERROR_BARE_GENERIC:
+		    if (!bare_generic_scope_error_reported_) {
+			  cerr << get_fileline()
+			       << ": error: Parameterized class `"
+			       << scoped_result.prefix
+			       << "' requires an explicit #(...) specialization before ::."
+			       << endl;
+			  des->errors += 1;
+			  bare_generic_scope_error_reported_ = true;
+		    }
+		    return nullptr;
+	      case SCOPED_LVALUE_RETARGET_ERROR_NONCLASS_TYPE_PARAMETER:
+		    scoped_error = true;
+		    if (!scoped_lvalue_error_reported_) {
+			  cerr << get_fileline()
+			       << ": error: Class-scoped l-value prefix `"
+			       << scoped_result.prefix
+			       << "' resolves to a non-class type parameter." << endl;
+			  des->errors += 1;
+			  scoped_lvalue_error_reported_ = true;
+		    }
+		    break;
+	      case SCOPED_LVALUE_RETARGET_ERROR_NONCLASS_TYPEDEF:
+		    scoped_error = true;
+		    if (!scoped_lvalue_error_reported_) {
+			  cerr << get_fileline()
+			       << ": error: Class-scoped l-value prefix `"
+			       << scoped_result.prefix
+			       << "' resolves to a non-class typedef." << endl;
+			  des->errors += 1;
+			  scoped_lvalue_error_reported_ = true;
+		    }
+		    break;
+	      case SCOPED_LVALUE_RETARGET_ERROR_MISSING_PROPERTY:
+		    scoped_error = true;
+		    if (!scoped_lvalue_error_reported_) {
+			  cerr << get_fileline() << ": error: Class `"
+			       << scoped_result.class_type->get_name()
+			       << "' does not have a property `"
+			       << scoped_result.property << "'." << endl;
+			  des->errors += 1;
+			  scoped_lvalue_error_reported_ = true;
+		    }
+		    break;
+	      case SCOPED_LVALUE_RETARGET_ERROR_NONSTATIC_PROPERTY:
+		    scoped_error = true;
+		    if (!scoped_lvalue_error_reported_) {
+			  cerr << get_fileline()
+			       << ": error: Class-scoped l-value `"
+			       << scoped_result.prefix << "::"
+			       << scoped_result.property
+			       << "' requires static property `"
+			       << scoped_result.property << "'." << endl;
+			  des->errors += 1;
+			  scoped_lvalue_error_reported_ = true;
+		    }
+		    break;
+	      case SCOPED_LVALUE_RETARGET_ERROR_STATIC_STORAGE:
+		    scoped_error = true;
+		    if (!scoped_lvalue_error_reported_) {
+			  cerr << get_fileline()
+			       << ": error: Failed to resolve static property `"
+			       << scoped_result.property << "' in class `"
+			       << scoped_result.class_type->get_name() << "'." << endl;
+			  des->errors += 1;
+			  scoped_lvalue_error_reported_ = true;
+		    }
+		    break;
+	      case SCOPED_LVALUE_RETARGET_DEFERRED:
+		    return nullptr;
+	      default:
+		    break;
+	  }
+	  if (scoped_error)
+	    return nullptr;
 
       NetNet *reg = sr.net;
       const pform_name_t &member_path = sr.path_tail;
@@ -263,7 +639,34 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 		 << endl;
       }
 
-      if (reg->get_const() && !is_init) {
+	/* A static const class property is represented by a real signal in the
+	   class scope.  Its declaration assignment is the one legal write and
+	   must also satisfy netclass_t's missing-initializer accounting.  The
+	   old class-property path never recorded this direct-signal initializer,
+	   so every valid `const static T p = value;' was rejected after its
+	   initializer had otherwise elaborated successfully. */
+	      if (is_init && reg->scope()
+		  && reg->scope()->type() == NetScope::CLASS) {
+		    const netclass_t*owner_class = reg->scope()->class_def();
+		    int pidx = owner_class
+			  ? owner_class->property_idx_from_name(reg->name()) : -1;
+		    if (pidx >= 0) {
+			  property_qualifier_t qual = owner_class->get_prop_qual(pidx);
+			  if (qual.test_static() && qual.test_const()) {
+				if (owner_class->get_prop_initialized(pidx)) {
+				      cerr << get_fileline() << ": error: Static const property `"
+					   << reg->name()
+					   << "' has more than one declaration initializer."
+					   << endl;
+				      des->errors += 1;
+				      return nullptr;
+				}
+				owner_class->set_prop_initialized(pidx);
+			  }
+		    }
+	      }
+
+	      if (reg->get_const() && !is_init) {
 	    cerr << get_fileline() << ": error: Assignment to const signal `"
 	         << reg->name() << "` is not allowed." << endl;
 	    des->errors++;
@@ -507,6 +910,48 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 
       if (reg->unpacked_dimensions() > 0)
 	    return elaborate_lval_net_word_(des, scope, reg, need_const_idx, is_force);
+
+	// IEEE 1800-2017 7.10.1: q[lo:$] on the left-hand side denotes
+	// the existing suffix of the queue, not one queue element and not a
+	// packed part-select.  Preserve the queue type on the l-value so the
+	// assignment context checks the complete RHS queue (including its
+	// element type), while carrying the lower bound as the slice base.
+	// The target has an explicit queue-slice bit, so this cannot be
+	// confused with the ordinary indexed-element form q[lo].
+      if (use_sel == index_component_t::SEL_PART_LAST) {
+	    const netqueue_t*queue_type = reg->queue_type();
+	    if (!queue_type || queue_type->assoc_compat()) {
+		  cerr << get_fileline() << ": error: [lo:$] is only valid "
+		       << "as a positional queue slice l-value." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+
+	    if (name_tail.index.size() != 1
+		|| !name_tail.index.front().msb) {
+		  cerr << get_fileline() << ": error: malformed queue suffix "
+		       << "slice l-value." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+
+	    if ((reg->type() == NetNet::UNRESOLVED_WIRE) && !is_force) {
+		  ivl_assert(*this, reg->coerced_to_uwire());
+		  report_mixed_assignment_conflict_("queue slice");
+		  des->errors += 1;
+		  return 0;
+	    }
+
+	    NetExpr*lo = elab_and_eval(des, scope,
+					 name_tail.index.front().msb, -1);
+	    if (!lo)
+		  return 0;
+	    lo->set_line(*this);
+
+	    NetAssign_*lv = new NetAssign_(reg);
+	    lv->set_array_slice(lo, reg->net_type());
+	    return lv;
+      }
 
 	// This must be after the array word elaboration above!
       if (reg->get_scalar() &&
@@ -2071,11 +2516,18 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			des->errors += 1;
 
 		  } else if (qual.test_static()) {
+			  if (qual.test_const()) {
+				cerr << get_fileline() << ": error: Assignment to const class property `"
+				     << owner_class->get_prop_name(pidx)
+				     << "' is not allowed." << endl;
+				des->errors += 1;
+				return 0;
+			  }
 
 			  // Special case: this is a static property. Ignore the
 			  // "this" sig and use the property itself, which is not
 			  // part of the sig, as the l-value.
-			NetNet*psig = owner_class->find_static_property(method_name);
+			NetNet*psig = owner_class->get_prop_static_signal((size_t)pidx);
 			ivl_assert(*this, psig);
 
 			if (member_cur.index.empty()) {
@@ -2098,15 +2550,22 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			      continue;
 			}
 
-			  // An indexed static property with a TRAILING
-			  // member path (h.pool[i].x with struct elements)
-			  // is not lowered yet: the shortcut below would
-			  // consume the word index and silently drop the
-			  // member. Keep it a loud refusal.
+			  // Rebase a member path through a fully indexed fixed
+			  // array on the real declaring-class signal. The shared
+			  // member walker already understands array-of-struct/class
+			  // roots and preserves the canonical flattened word index.
 			if (!member_path.empty()) {
+			      if (psig->unpacked_dimensions() > 0
+				  && member_cur.index.size()
+				     == psig->unpacked_dimensions()) {
+				    delete lv;
+				    return elaborate_lval_net_class_member_(
+					  des, scope, psig->net_type(), psig,
+					  member_path, member_cur.index);
+			      }
 			      cerr << get_fileline() << ": sorry: member"
 				   << " access into an indexed static-property"
-				   << " element is not yet supported."
+				   << " element requires a complete fixed-array index."
 				   << endl;
 			      des->errors += 1;
 			      return 0;
@@ -2139,6 +2598,22 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				    canon->set_line(*this);
 				    lv = new NetAssign_(psig);
 				    lv->set_word(canon);
+				    return lv;
+			      }
+			}
+			if (psig->queue_type()
+			    && !psig->queue_type()->assoc_compat()
+			    && member_cur.index.size() == 1
+			    && member_cur.index.front().sel
+			       == index_component_t::SEL_PART_LAST
+			    && member_cur.index.front().msb) {
+			      NetExpr*lo = elab_and_eval(
+				    des, scope, member_cur.index.front().msb, -1);
+			      if (lo) {
+				    lo->set_line(*this);
+				    delete lv;
+				    lv = new NetAssign_(psig);
+				    lv->set_array_slice(lo, psig->net_type());
 				    return lv;
 			      }
 			}

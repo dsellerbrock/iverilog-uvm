@@ -1,0 +1,4 @@
+ivltests/sv_array_unique_with_object_type_fail.v:16: error: array locator result type is not assignment-compatible with the context.
+ivltests/sv_array_unique_with_object_type_fail.v:16:      : result type=queue of class callback_base{}
+ivltests/sv_array_unique_with_object_type_fail.v:16:      : context type=queue of class unrelated{}
+Elaboration failed

@@ -164,16 +164,37 @@ void pform_class_property(const struct vlltype&loc,
 	    FILE_NAME(&pform_cur_class->type->properties[curp->name.first], loc);
             pform_cur_class->type->property_order.push_back(curp->name.first);
 
+	    vector<Statement*>&initializers = property_qual.test_static()
+		  ? pform_cur_class->type->initialize_static
+		  : pform_cur_class->type->initialize;
+	    if (!pform_validate_struct_member_defaults(loc, use_type, curp)) {
+		  // The validation emitted the mandatory diagnostic.
+	    } else if (property_qual.test_const() &&
+		pform_has_implicit_struct_member_defaults(use_type, curp)) {
+		  cerr << loc.get_fileline()
+		       << ": sorry: unpacked-struct default member initializers "
+			  "are not yet supported for const class property "
+			  "declaration `" << curp->name.first
+		       << "'; provide an explicit whole-variable initializer."
+		       << endl;
+		  error_count += 1;
+	    } else {
+		  pform_make_struct_member_defaults(loc, use_type, curp,
+					      initializers);
+	    }
+
 	    if (PExpr*rval = curp->expr.release()) {
 		  PExpr*lval = new PEIdent(curp->name.first, curp->name.second);
 		  FILE_NAME(lval, loc);
-		  PAssign*tmp = new PAssign(lval, rval);
+		    // A class-property declaration assignment is a variable
+		    // initializer, just like the declaration assignments built by
+		    // pform_make_var_init().  Preserve that context through l-value
+		    // elaboration.  In particular, a static const property may be
+		    // written by this declaration initializer and nowhere else.
+		  PAssign*tmp = new PAssign(lval, rval, false, true);
 		  FILE_NAME(tmp, loc);
 
-		  if (property_qual.test_static())
-			pform_cur_class->type->initialize_static.push_back(tmp);
-		  else
-			pform_cur_class->type->initialize.push_back(tmp);
+		  initializers.push_back(tmp);
 	    }
       }
 }

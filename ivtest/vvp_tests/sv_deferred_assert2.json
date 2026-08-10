@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_deferred_assert2.v",
+    "iverilog-args" : [ "-g2009" ],
+    "gold"          : "sv_deferred_assert2"
+}

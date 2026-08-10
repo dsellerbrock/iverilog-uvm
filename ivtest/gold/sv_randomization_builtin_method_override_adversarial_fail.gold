@@ -1,0 +1,5 @@
+./ivltests/sv_randomization_builtin_method_override_adversarial_fail.v:9: error: Class method `randomize' is a built-in randomization method and cannot be overridden.
+./ivltests/sv_randomization_builtin_method_override_adversarial_fail.v:13: error: Class method `rand_mode' is a built-in randomization method and cannot be overridden.
+./ivltests/sv_randomization_builtin_method_override_adversarial_fail.v:20: error: Class method `constraint_mode' is a built-in randomization method and cannot be overridden.
+./ivltests/sv_randomization_builtin_method_override_adversarial_fail.v:25: error: Class method `randomize' is a built-in randomization method and cannot be overridden.
+4 error(s) during elaboration.

@@ -1,0 +1,2 @@
+./ivltests/sv_assoc_output_element_type_fail.v:11: error: task output associative-array formal and actual have different element types.
+1 error(s) during elaboration.

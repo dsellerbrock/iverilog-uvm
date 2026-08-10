@@ -1,0 +1,7 @@
+ivltests/sv_array_unique_aggregate_fail.v:14: sorry: unique() on multidimensional arrays is not yet implemented.
+ivltests/sv_array_unique_aggregate_fail.v:15: sorry: unique_index() on multidimensional arrays is not yet implemented.
+ivltests/sv_array_unique_aggregate_fail.v:36: sorry: unique() on fixed arrays of aggregate elements is not yet implemented.
+ivltests/sv_array_unique_aggregate_fail.v:37: sorry: unique_index() on fixed arrays of aggregate elements is not yet implemented.
+ivltests/sv_array_unique_aggregate_fail.v:25: sorry: unique() on this array element type is not yet implemented.
+ivltests/sv_array_unique_aggregate_fail.v:26: sorry: unique_index() on this array element type is not yet implemented.
+6 error(s) during elaboration.

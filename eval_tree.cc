@@ -28,6 +28,7 @@
 # include  "netlist.h"
 # include  "ivl_assert.h"
 # include  "netmisc.h"
+# include  "netenum.h"
 # include  "netvector.h"
 
 using namespace std;
@@ -1247,7 +1248,19 @@ NetEConst* NetESelect::eval_tree()
 
       oval.has_sign(has_sign());
 
-      NetEConst*res = new NetEConst(oval);
+      NetEConst*res;
+      if (const netenum_t*enum_type =
+	      dynamic_cast<const netenum_t*>(net_type())) {
+	    // A select inserted to size an explicit enum cast still denotes
+	    // that enum after constant folding. Dropping the type here turns a
+	    // legal `e_t'(integral_expression)' into an untyped NetEConst and
+	    // makes the enclosing assignment incorrectly demand a second cast.
+	    res = new NetEConstEnum(perm_string(), enum_type, oval);
+      } else if (net_type()) {
+	    res = new NetEConst(net_type(), oval);
+      } else {
+	    res = new NetEConst(oval);
+      }
       eval_debug(this, res, false);
       return res;
 }

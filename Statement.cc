@@ -30,9 +30,11 @@ Statement::~Statement()
 {
 }
 
-PAssign_::PAssign_(PExpr*lval__, PExpr*ex, bool is_constant, bool is_init)
+PAssign_::PAssign_(PExpr*lval__, PExpr*ex, bool is_constant, bool is_init,
+		   bool delete_rval, const typedef_t*rval_typedef)
 : event_(0), count_(0), lval_(lval__), rval_(ex), is_constant_(is_constant),
-  is_init_(is_init)
+  is_init_(is_init), delete_rval_(delete_rval),
+  rval_typedef_(rval_typedef)
 {
       delay_ = 0;
 }
@@ -52,7 +54,8 @@ PAssign_::PAssign_(PExpr*lval__, PExpr*cnt, PEventStatement*ev, PExpr*ex)
 PAssign_::~PAssign_()
 {
       delete lval_;
-      delete rval_;
+      if (delete_rval_)
+	    delete rval_;
 }
 
 PAssign::PAssign(PExpr*lval__, PExpr*ex)
@@ -77,6 +80,12 @@ PAssign::PAssign(PExpr*lval__, PExpr*cnt, PEventStatement*d, PExpr*ex)
 
 PAssign::PAssign(PExpr*lval__, PExpr*ex, bool is_constant, bool is_init)
 : PAssign_(lval__, ex, is_constant, is_init), op_(0)
+{
+}
+
+PAssign::PAssign(PExpr*lval__, PExpr*ex, bool is_constant, bool is_init,
+		 bool delete_rval, const typedef_t*rval_typedef)
+: PAssign_(lval__, ex, is_constant, is_init, delete_rval, rval_typedef), op_(0)
 {
 }
 

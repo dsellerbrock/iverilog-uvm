@@ -403,6 +403,25 @@ extern unsigned count_lval_width(const class NetAssign_*first);
  */
 class PExpr;
 
+/* netqueue_t is also the internal carrier for associative arrays. Its
+ * inherited equivalence check covers the queue category and element type,
+ * but not the associative key type or wildcard state. Keep the stricter
+ * comparison shared by casts and assignment-like contexts. */
+enum assoc_array_type_match_t {
+      ASSOC_ARRAY_TYPE_MATCH,
+      ASSOC_ARRAY_TYPE_NOT_ASSOC,
+      ASSOC_ARRAY_TYPE_ELEMENT_MISMATCH,
+      ASSOC_ARRAY_TYPE_INDEX_MISMATCH
+};
+
+extern assoc_array_type_match_t assoc_array_type_match(ivl_type_t target,
+						ivl_type_t source);
+extern bool assoc_array_type_contains(ivl_type_t type);
+extern bool assoc_array_expr_contains(const NetExpr*expr);
+extern assoc_array_type_match_t assoc_array_expr_type_match(
+						ivl_type_t target,
+						const NetExpr*source);
+
 /* IEEE 1800-2017 7.12.4 iterator index querying: while an array
  * method's with expression elaborates, register the iterator net and
  * the loop-counter net so `item.index` resolves to the element index.
@@ -692,6 +711,55 @@ extern void warn_ref_formal_fork_hazard(const NetNet*port, const Statement*task_
  */
 extern bool uarray_element_matches_container_(const netuarray_t*dst,
 					      const netdarray_t*src);
+
+/*
+ * A class body may contain a call through a type-parameter receiver before
+ * that parameter has a concrete specialization. Keep the parse-form type
+ * identity and the specialization provenance together: name-only matching is
+ * not sufficient because an unrelated package typedef can have the same
+ * spelling as the class parameter.
+ *
+ * find_class_type_parameter_reference() recognizes only the exact parameter
+ * typedef (or an unqualified alias chain that reaches it). A qualified or
+ * parameterized typedef is a concrete external type and is an alias boundary.
+ * class_type_parameter_is_deferred() follows both dependent defaults and
+ * explicit forwarding overrides recursively. It is true for a generic master,
+ * and for a specialization that still forwards from an unresolved enclosing
+ * parameter; it is false for a concrete specialization, including one whose
+ * value happens to equal the parameter's declared default. A forwarding cycle
+ * fails closed (not deferred), leaving ordinary type elaboration to diagnose
+ * the invalid declaration.
+ */
+extern bool find_class_type_parameter_reference(const NetScope*class_scope,
+						  const data_type_t*type,
+						  perm_string&name);
+extern bool find_class_type_parameter_reference(Design*des,
+						  const NetScope*class_scope,
+						  const PExpr*expr,
+						  perm_string&name);
+extern bool class_type_parameter_is_deferred(Design*des,
+					      const NetScope*class_scope,
+					      perm_string name);
+
+/*
+ * A bare use of a parameterized class denotes its concrete default
+ * specialization.  Keep generic class masters generic while their template
+ * bodies are seeded, but when a real receiver is used, resolve a bare
+ * parse-form declaration to the #() specialization before method lookup.
+ * Explicit/forwarded parameterizations and type-parameter declarations are
+ * deliberately left alone.
+ */
+extern ivl_type_t specialize_bare_class_receiver_on_use(
+		Design*des, NetScope*call_scope,
+		const data_type_t*declared_type, ivl_type_t current_type);
+
+/* Resolve a bare parameterized class declaration to its concrete default
+ * specialization at a real use site.  Callers that are only seeding a
+ * circular placeholder must not use this helper. */
+extern ivl_type_t specialize_bare_class_at_concrete_use(
+		Design*des, NetScope*use_scope,
+		const data_type_t*declared_type, ivl_type_t current_type,
+		bool fully_elaborate);
 
 /*
  * Print a warning if we find a mixture of default and explicit timescale

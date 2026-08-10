@@ -20,6 +20,7 @@
  */
 
 # include  <cstdint>
+# include  <map>
 # include  <string>
 # include  <utility>
 # include  <vector>
@@ -71,12 +72,41 @@ class class_type : public __vpiHandle {
 
       bool property_is_rand(size_t idx) const;
       bool property_is_randc(size_t idx) const;
+      bool property_is_static(size_t idx) const;
+      unsigned property_qualifier(size_t idx) const;
+
+	// Return the canonical declaring-scope VPI storage for a static
+	// property. This resolves inherited absolute property indexes and
+	// validates that deferred label resolution produced an actual signal
+	// or fixed array, never the unresolved null-constant sentinel.
+      vpiHandle static_property_storage(size_t idx) const;
+
+	// Bind an absolute static-property index to the VPI handle for the
+	// declaring class-scope variable (or fixed-array object). The label
+	// may be forward-referenced in the VVP stream.
+      void bind_static_property(size_t idx, char*storage);
+
+	// A static random variable has one mode for the class declaration,
+	// not one mode in every object. Inherited property indexes delegate
+	// through runtime_super(), so base and sibling-derived objects share
+	// the declaring class's state. Parameter specializations are distinct
+	// class_type objects and therefore remain isolated.
+      bool static_rand_mode(size_t idx) const;
+      void set_static_rand_mode(size_t idx, bool mode) const;
+
+	// Return the committed randc history for one scalar/aggregate leaf of
+	// a static property. The history lives in the same canonical cell as
+	// VALUE and rand_mode, so duplicate runtime class records and inherited
+	// receivers cannot fork the cycle. Phase R1 uses leaf 0 for scalars;
+	// the leaf key keeps the storage hook ready for indexed aggregate mode.
+      std::vector<bool>&static_randc_history(size_t idx, size_t leaf) const;
 
 	// Base type text (rand prefix stripped, e.g. "sb32", "o") and
 	// static array element count (1 for scalars) as recorded from
 	// the .class directive. Used by randomize to fill and write
 	// back array-typed rand properties.
       const std::string& property_base_type(size_t idx) const;
+      const class_type*property_declared_class_type(size_t idx) const;
       uint64_t property_array_size(size_t idx) const;
       const std::vector<std::pair<int,int> >&
             property_dimensions(size_t idx) const;
@@ -121,14 +151,30 @@ class class_type : public __vpiHandle {
       struct prop_t {
 	    std::string name;
 	    class_property_t*type;
+	    unsigned qualifier = 0;
 	    bool rand_flag  = false;
 	    bool randc_flag = false;
 	    std::string base_type;
+	    vpiHandle declared_class_type = 0;
 	    uint64_t array_size = 1;
 	    std::vector<std::pair<int,int> > dimensions;
       };
       std::vector<prop_t> properties_;
+      struct static_property_cell_t {
+	    static_property_cell_t() : storage(0), rand_mode(true) { }
+	    vpiHandle storage;
+	    std::string storage_label;
+	    bool rand_mode;
+	    std::map<size_t, std::vector<bool> > randc_history;
+      };
+      std::vector<static_property_cell_t*> static_properties_;
       size_t instance_size_;
+
+	// Inherited absolute pids always resolve to the declaring runtime
+	// class's cell. This shares both VALUE and rand_mode across sibling
+	// derived types while leaving parameter specializations isolated.
+      static_property_cell_t*static_property_cell_(size_t idx) const;
+      vpiHandle static_property_storage_(size_t idx) const;
 
       struct constraint_t {
 	    std::string name;

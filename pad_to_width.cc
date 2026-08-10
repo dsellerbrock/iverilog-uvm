@@ -47,6 +47,7 @@ NetExpr*pad_to_width(NetExpr*expr, unsigned wid, bool signed_flag,
 		  tmp = new NetEConst(oval);
 	    }
 	    tmp->set_line(info);
+	    tmp->inherit_deferred_type_parameter_stub(*expr);
 	    delete expr;
 	    return tmp;
       }
@@ -54,6 +55,8 @@ NetExpr*pad_to_width(NetExpr*expr, unsigned wid, bool signed_flag,
       NetESelect*tmp = new NetESelect(expr, 0, wid, use_type);
       tmp->cast_signed(signed_flag);
       tmp->set_line(info);
+	// The wrapper is the same deferred placeholder value in a new width.
+      tmp->inherit_deferred_type_parameter_stub(*expr);
       return tmp;
 }
 
@@ -64,10 +67,12 @@ NetExpr*cast_to_width(NetExpr*expr, unsigned wid, bool signed_flag,
            const. This is a more efficient result. */
       if (NetEConst*tmp = dynamic_cast<NetEConst*>(expr)) {
             tmp->cast_signed(signed_flag);
-            if (wid != tmp->expr_width()) {
-                  tmp = new NetEConst(verinum(tmp->value(), wid));
+	    if (wid != tmp->expr_width()) {
+		  NetEConst*old = tmp;
+		  tmp = new NetEConst(verinum(old->value(), wid));
                   tmp->set_line(info);
-                  delete expr;
+		  tmp->inherit_deferred_type_parameter_stub(*old);
+		  delete old;
             }
             return tmp;
       }
@@ -75,6 +80,7 @@ NetExpr*cast_to_width(NetExpr*expr, unsigned wid, bool signed_flag,
       NetESelect*tmp = new NetESelect(expr, 0, wid);
       tmp->cast_signed(signed_flag);
       tmp->set_line(info);
+      tmp->inherit_deferred_type_parameter_stub(*expr);
 
       return tmp;
 }
