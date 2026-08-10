@@ -1,0 +1,1 @@
+ivltests/sv_randc_constraint_iterator_extension.v:13: warning: Constraint item in 'retained_slice_iterator_ok' of class randc_iter_ext_control is not representable in the constraint solver and is ignored (further similar warnings suppressed).

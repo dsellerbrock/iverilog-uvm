@@ -74,12 +74,14 @@ static ivl_type_t get_indexed_property_type_from_base_(ivl_type_t prop_type)
 }
 
 NetExpr::NetExpr(unsigned w)
-: net_type_(0), width_(w), signed_flag_(false)
+: net_type_(0), width_(w), signed_flag_(false),
+  deferred_type_parameter_stub_(false)
 {
 }
 
 NetExpr::NetExpr(ivl_type_t t)
-: net_type_(t), width_(0), signed_flag_(false)
+: net_type_(t), width_(0), signed_flag_(false),
+  deferred_type_parameter_stub_(false)
 {
       if (t) {
 	    width_ = t->packed_width();
@@ -437,7 +439,8 @@ ivl_variable_type_t NetENew::expr_type() const
       return size_ ? IVL_VT_DARRAY : IVL_VT_CLASS;
 }
 
-NetENull::NetENull()
+NetENull::NetENull(ivl_type_t type)
+: NetExpr(type)
 {
 }
 
@@ -447,12 +450,23 @@ NetENull::~NetENull()
 
 ivl_variable_type_t NetENull::expr_type() const
 {
-      return IVL_VT_CLASS;
+      /* A context-shaped empty assignment pattern is a container value for
+	 expression compatibility (notably conditional arms). Literal `null'
+	 remains untyped and therefore retains its class-handle category. */
+      return net_type() ? net_type()->base_type() : IVL_VT_CLASS;
 }
 
 NetEProperty::NetEProperty(NetNet*net, size_t pidx, NetExpr*idx)
 : net_(net), expr_(0), pidx_(pidx), index_(idx)
 {
+      /* A direct property base is an expression reference to NET just as a
+       * NetESignal base would be. Keep it alive through nodangle and target
+       * export; otherwise an unconnected static class-handle property can be
+       * deleted while this node still retains net_, leaving expr_property()
+       * to dereference a stale NetNet. */
+      if (net_)
+	    net_->incr_eref();
+
       ivl_type_t use_type = net ? net->net_type() : nullptr;
       ivl_type_t prop_type = get_property_type_from_base_(use_type, pidx_);
       if (!prop_type) {
@@ -487,6 +501,8 @@ NetEProperty::NetEProperty(NetExpr*expr, size_t pidx, NetExpr*idx)
 
 NetEProperty::~NetEProperty()
 {
+      if (net_)
+	    net_->decr_eref();
       delete expr_;
       delete index_;
 }

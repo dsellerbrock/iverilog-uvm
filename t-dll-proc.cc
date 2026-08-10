@@ -173,6 +173,8 @@ bool dll_target::make_single_lval_(const LineInfo*li, struct ivl_lval_s*cur, con
 
       cur->sig = 0;
       cur->nest = 0;
+      cur->queue_slice_ = asn->is_array_slice()
+	    && asn->expr_type() == IVL_VT_QUEUE;
 
       if (loff == 0) {
 	    cur->loff = 0;

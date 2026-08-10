@@ -1,0 +1,2 @@
+./ivltests/sv_param_class_bare_static_task_fail.v:9: error: Parameterized class `wrapper' requires an explicit #(...) specialization before ::.
+Elaboration failed

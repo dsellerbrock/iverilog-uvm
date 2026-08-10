@@ -23,6 +23,7 @@
 # include  <climits>
 # include  <cstring>
 # include  <map>
+# include  <set>
 # include  <algorithm>
 # include  "netlist.h"
 # include  "netparray.h"
@@ -42,6 +43,185 @@
 # include  "ivl_assert.h"
 
 using namespace std;
+
+static bool assoc_array_type_is_direct_(ivl_type_t type)
+{
+      const netqueue_t*queue = dynamic_cast<const netqueue_t*>(type);
+      return queue && queue->assoc_compat();
+}
+
+static bool assoc_array_type_contains_(ivl_type_t type,
+				       set<ivl_type_t>&seen)
+{
+      if (!type)
+	    return false;
+      if (assoc_array_type_is_direct_(type))
+	    return true;
+      if (!seen.insert(type).second)
+	    return false;
+
+      const netarray_t*array = dynamic_cast<const netarray_t*>(type);
+      if (array)
+	    return assoc_array_type_contains_(array->element_type(), seen);
+
+      const netstruct_t*record = dynamic_cast<const netstruct_t*>(type);
+      if (record) {
+	    for (const netstruct_t::member_t&member : record->members()) {
+		  if (assoc_array_type_contains_(member.net_type, seen))
+			return true;
+	    }
+      }
+
+      return false;
+}
+
+bool assoc_array_type_contains(ivl_type_t type)
+{
+      set<ivl_type_t>seen;
+      return assoc_array_type_contains_(type, seen);
+}
+
+static bool assoc_array_component_equivalent_(ivl_type_t left,
+					       ivl_type_t right)
+{
+      if (left == right)
+	    return left != nullptr;
+      if (!left || !right)
+	    return false;
+
+      /* netqueue_t/netdarray_t equivalence deliberately ignores an
+	 associative key and wildcard state. Re-enter the complete matcher for
+	 nested associative components, including those wrapped in another
+	 queue, dynamic array, or fixed unpacked array. */
+      bool left_contains = assoc_array_type_contains(left);
+      bool right_contains = assoc_array_type_contains(right);
+      if (left_contains || right_contains) {
+	    if (!left_contains || !right_contains)
+		  return false;
+
+	    if (assoc_array_type_is_direct_(left)
+		|| assoc_array_type_is_direct_(right))
+		  return assoc_array_type_match(left, right)
+			 == ASSOC_ARRAY_TYPE_MATCH;
+
+	    const netarray_t*left_array =
+		  dynamic_cast<const netarray_t*>(left);
+	    const netarray_t*right_array =
+		  dynamic_cast<const netarray_t*>(right);
+	    if (!left_array || !right_array)
+		  return false;
+	    if (left->base_type() != right->base_type())
+		  return false;
+	    if (!left->type_equivalent(right)
+		|| !right->type_equivalent(left))
+		  return false;
+	    return assoc_array_component_equivalent_(
+		  left_array->element_type(), right_array->element_type());
+      }
+
+      /* Type equivalence is nominal for enums/classes and structural for
+	 packed values. Check it in both directions so width, signedness, and
+	 identity-sensitive component rules cannot be lost by an asymmetric
+	 implementation. */
+      return left->type_equivalent(right) && right->type_equivalent(left);
+}
+
+assoc_array_type_match_t assoc_array_type_match(ivl_type_t target,
+						 ivl_type_t source)
+{
+      const netqueue_t*target_queue =
+	    dynamic_cast<const netqueue_t*>(target);
+      const netqueue_t*source_queue =
+	    dynamic_cast<const netqueue_t*>(source);
+
+      bool target_direct = target_queue && target_queue->assoc_compat();
+      bool source_direct = source_queue && source_queue->assoc_compat();
+
+      if (!target_direct || !source_direct) {
+	    bool target_contains = assoc_array_type_contains(target);
+	    bool source_contains = assoc_array_type_contains(source);
+	    if (!target_contains || !source_contains)
+		  return ASSOC_ARRAY_TYPE_NOT_ASSOC;
+	    /* Unpacked structs are nominal types. The same definition necessarily
+	       carries the same associative member types; distinct definitions are
+	       not interchangeable even if their visible members look alike. */
+	    if (target == source)
+		  return ASSOC_ARRAY_TYPE_MATCH;
+
+	    const netarray_t*target_array =
+		  dynamic_cast<const netarray_t*>(target);
+	    const netarray_t*source_array =
+		  dynamic_cast<const netarray_t*>(source);
+	    if (!target_array || !source_array
+		|| target->base_type() != source->base_type()
+		|| !target->type_equivalent(source)
+		|| !source->type_equivalent(target)
+		|| !assoc_array_component_equivalent_(
+		      target_array->element_type(),
+		      source_array->element_type()))
+		  return ASSOC_ARRAY_TYPE_ELEMENT_MISMATCH;
+	    return ASSOC_ARRAY_TYPE_MATCH;
+      }
+
+      if (!assoc_array_component_equivalent_(target_queue->element_type(),
+					      source_queue->element_type()))
+	    return ASSOC_ARRAY_TYPE_ELEMENT_MISMATCH;
+
+      if (target_queue->assoc_wildcard() != source_queue->assoc_wildcard())
+	    return ASSOC_ARRAY_TYPE_INDEX_MISMATCH;
+
+      if (!target_queue->assoc_wildcard()) {
+	    if (!assoc_array_component_equivalent_(
+		      target_queue->assoc_index_type(),
+		      source_queue->assoc_index_type()))
+		  return ASSOC_ARRAY_TYPE_INDEX_MISMATCH;
+      }
+
+      return ASSOC_ARRAY_TYPE_MATCH;
+}
+
+bool assoc_array_expr_contains(const NetExpr*source)
+{
+      if (!source)
+	    return false;
+      if (assoc_array_type_contains(source->net_type()))
+	    return true;
+
+      const NetETernary*ternary = dynamic_cast<const NetETernary*>(source);
+      return ternary
+	    && (assoc_array_expr_contains(ternary->true_expr())
+		|| assoc_array_expr_contains(ternary->false_expr()));
+}
+
+assoc_array_type_match_t assoc_array_expr_type_match(ivl_type_t target,
+						      const NetExpr*source)
+{
+      if (!source)
+	    return ASSOC_ARRAY_TYPE_NOT_ASSOC;
+
+      if (source->net_type())
+	    return assoc_array_type_match(target, source->net_type());
+
+      /* PEAssignPattern retains its target on an empty NetENull. A null node
+	 * with no complete type is therefore the literal class-handle `null' (or
+	 * another untyped placeholder), not an associative-array value. */
+      if (dynamic_cast<const NetENull*>(source))
+	    return ASSOC_ARRAY_TYPE_NOT_ASSOC;
+
+      /* A context-typed conditional currently carries its complete type on
+	 its arms rather than on NetETernary itself. Recursing here both preserves
+	 legal associative conditionals and prevents a pair of mismatched typed
+	 arms from being hidden behind the common QUEUE expression category. */
+      if (const NetETernary*ternary = dynamic_cast<const NetETernary*>(source)) {
+	    assoc_array_type_match_t match = assoc_array_expr_type_match(
+		  target, ternary->true_expr());
+	    if (match != ASSOC_ARRAY_TYPE_MATCH)
+		  return match;
+	    return assoc_array_expr_type_match(target, ternary->false_expr());
+      }
+
+      return ASSOC_ARRAY_TYPE_NOT_ASSOC;
+}
 
 NetNet* sub_net_from(Design*des, NetScope*scope, long val, NetNet*sig)
 {
@@ -1202,19 +1382,34 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
       ivl_variable_type_t expr_type = tmp->expr_type();
 
       bool compatible;
+	/* Associative arrays share IVL_VT_QUEUE with ordinary queues, so base
+	 * category equality is not enough. Validate the complete element/key/
+	 * wildcard type before any of the legacy container fallbacks below can
+	 * admit or silently stub an incompatible value. */
+      const netqueue_t*assoc_context =
+	    dynamic_cast<const netqueue_t*>(lv_net_type);
+      bool assoc_target = assoc_context && assoc_context->assoc_compat();
+      bool assoc_boundary = assoc_array_type_contains(lv_net_type)
+	    || assoc_array_expr_contains(tmp);
+      assoc_array_type_match_t assoc_match = ASSOC_ARRAY_TYPE_MATCH;
 	/* Locator calls now carry their concrete queue element/index type.
 	 * Check that type in an assignment context instead of accepting every
 	 * queue-shaped result solely because both base types say QUEUE. */
       const NetESFunc*locator = dynamic_cast<const NetESFunc*>(tmp);
       bool typed_locator = locator && tmp->net_type()
 	    && (strncmp(locator->name(), "$ivl_queue_method$find_with|", 28) == 0
-		|| strncmp(locator->name(), "$ivl_darray_method$minmax|", 26) == 0);
+		|| strncmp(locator->name(), "$ivl_darray_method$minmax|", 26) == 0
+		|| strncmp(locator->name(), "$ivl_queue_method$unique_with|", 30) == 0
+		|| strncmp(locator->name(), "$ivl_uarray_method$unique|", 26) == 0);
       const netqueue_t*locator_context = typed_locator
 	    ? dynamic_cast<const netqueue_t*>(lv_net_type) : nullptr;
         // For arrays we need strict type checking here. Long term strict type
 	// checking should be used for all expressions, but at the moment not
 	// all expressions do have a ivl_type_t attached to it.
-      if (dynamic_cast<const netuarray_t*>(lv_net_type)) {
+      if (assoc_boundary) {
+	    assoc_match = assoc_array_expr_type_match(lv_net_type, tmp);
+	    compatible = assoc_match == ASSOC_ARRAY_TYPE_MATCH;
+      } else if (dynamic_cast<const netuarray_t*>(lv_net_type)) {
 	    if (tmp->net_type())
 		  compatible = lv_net_type->type_compatible(tmp->net_type());
 	    else
@@ -1244,6 +1439,33 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
       }
 
       if (!compatible) {
+	    if (assoc_boundary) {
+		  cerr << tmp->get_fileline() << ": error: associative-array ";
+		  switch (assoc_match) {
+		      case ASSOC_ARRAY_TYPE_ELEMENT_MISMATCH:
+			    cerr << "value has an element type that is not "
+				 << "assignment-compatible with the context.";
+			    break;
+		      case ASSOC_ARRAY_TYPE_INDEX_MISMATCH:
+			    cerr << "value has an index type that is not "
+				 << "assignment-compatible with the context.";
+			    break;
+		      case ASSOC_ARRAY_TYPE_NOT_ASSOC:
+			    if (assoc_target)
+				  cerr << "context requires an associative-array value.";
+			    else
+				  cerr << "value is not assignment-compatible with a "
+				          "non-associative context.";
+			    break;
+		      case ASSOC_ARRAY_TYPE_MATCH:
+			    ivl_assert(*tmp, false);
+		  }
+		  cerr << endl;
+		  des->errors += 1;
+		  delete tmp;
+		  return 0;
+	    }
+
 	      // A dynamic array or queue in the context of a fixed-size
 	      // unpacked array (IEEE 1800-2017 7.6). The two are not
 	      // type_compatible -- one is a container object, the other
@@ -1328,6 +1550,16 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 			dynamic_cast<const netdarray_t*>(lv_net_type)) {
 			const netuarray_t*fixed_actual =
 			      dynamic_cast<const netuarray_t*>(tmp->net_type());
+			if (!fixed_actual) {
+			      if (const NetEUFunc*ufn =
+					dynamic_cast<const NetEUFunc*>(tmp)) {
+				    const NetESignal*rsig = ufn->result_sig();
+				    if (rsig && rsig->sig())
+					  fixed_actual =
+						dynamic_cast<const netuarray_t*>
+						      (rsig->sig()->array_type());
+			      }
+			}
 			if (!fixed_actual) {
 			      if (const NetESignal*esig =
 					dynamic_cast<const NetESignal*>(tmp)) {
@@ -1613,6 +1845,7 @@ void eval_expr(NetExpr*&expr, int context_width)
       NetExpr*tmp = expr->eval_tree();
       if (tmp != 0) {
 	    tmp->set_line(*expr);
+	    tmp->inherit_deferred_type_parameter_stub(*expr);
 	    delete expr;
 	    expr = tmp;
       }
@@ -1629,6 +1862,7 @@ void eval_expr(NetExpr*&expr, int context_width)
             verinum value(ce->value(), context_width);
             ce = new NetEConst(value);
             ce->set_line(*expr);
+	    ce->inherit_deferred_type_parameter_stub(*expr);
             delete expr;
             expr = ce;
       }

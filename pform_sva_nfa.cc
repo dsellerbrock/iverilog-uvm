@@ -530,31 +530,54 @@ static void fold_epsilons_(sva_nfa_t&nfa)
 }
 
 /*
- * Prune states that cannot reach the accept state. Folding leaves
- * dead-end duplicates behind (pre-fold accept copies); they are
- * harmless for matching but FATAL for the synthesizer's emptiness
- * test — a thread sitting only in dead states must count as failed,
- * so dead states must not exist. Edges from/to dead states go too.
+ * Keep only states that are both reachable from start and can reach
+ * accept. Folding leaves dead-end duplicates behind (pre-fold accept
+ * copies); product construction also allocates the full Cartesian grid,
+ * including pairs whose relative tick positions make them impossible to
+ * enter. The former are FATAL for the synthesizer's emptiness test — a
+ * thread sitting only in dead states must count as failed — and the latter
+ * needlessly multiply every per-attempt state bit. Edges from/to either
+ * kind go too.
  */
 static void prune_dead_states_(sva_nfa_t&nfa,
 			       std::vector<unsigned>*old_to_new = nullptr)
 {
-      std::vector<bool> live (nfa.nstates, false);
-      live[nfa.accept] = true;
+      std::vector<bool> can_accept (nfa.nstates, false);
+      can_accept[nfa.accept] = true;
       bool changed = true;
       while (changed) {
 	    changed = false;
 	    for (size_t i = 0; i < nfa.edges.size(); i += 1) {
 		  const sva_nfa_edge_t&e = nfa.edges[i];
-		  if (live[e.to] && !live[e.from]) {
-			live[e.from] = true;
+		  if (can_accept[e.to] && !can_accept[e.from]) {
+			can_accept[e.from] = true;
 			changed = true;
 		  }
 	    }
       }
-	// The start state must survive even if the automaton is
-	// vacuously dead (construction bug guard).
+
+      std::vector<bool> reachable (nfa.nstates, false);
+      reachable[nfa.start] = true;
+      changed = true;
+      while (changed) {
+	    changed = false;
+	    for (size_t i = 0; i < nfa.edges.size(); i += 1) {
+		  const sva_nfa_edge_t&e = nfa.edges[i];
+		  if (reachable[e.from] && !reachable[e.to]) {
+			reachable[e.to] = true;
+			changed = true;
+		  }
+	    }
+      }
+
+      std::vector<bool> live (nfa.nstates, false);
+      for (unsigned s = 0; s < nfa.nstates; s += 1)
+	    live[s] = reachable[s] && can_accept[s];
+	// Keep both sentinels even for a vacuously dead automaton. The caller's
+	// explicit accept-reachability guard will then decline the construction
+	// cleanly instead of observing an invalid remap index.
       live[nfa.start] = true;
+      live[nfa.accept] = true;
 
       std::vector<unsigned> remap (nfa.nstates, ~0u);
       unsigned next = 0;
@@ -719,6 +742,28 @@ static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 		}
 		start = base + A.start;
 		exit = base + A.accept;
+		return true;
+	  }
+	  case sva_stree_t::SEQ_CONCAT: {
+		  /* Concatenation is the same regular-language composition used
+		     by an implication, without implication verdict bookkeeping.
+		     ##0 fuses the prefix terminal guards with the suffix's first
+		     tick; ##1-or-later starts the prepared suffix on a later tick. */
+		sva_nfa_t M;
+		std::vector<sva_nfa_boundary_t> ignored;
+		if (!pform_sva_nfa_build_implication(
+		      M, t->a, t->b, !t->concat_overlap, ignored))
+		      return false;
+		unsigned base = nfa.nstates;
+		for (unsigned i = 0; i < M.nstates; i += 1) nfa.new_state();
+		for (size_t i = 0; i < M.edges.size(); i += 1) {
+		      sva_nfa_edge_t edge = M.edges[i];
+		      edge.from += base;
+		      edge.to += base;
+		      nfa.edges.push_back(edge);
+		}
+		start = base + M.start;
+		exit = base + M.accept;
 		return true;
 	  }
 	  case sva_stree_t::SEQ_OR: {

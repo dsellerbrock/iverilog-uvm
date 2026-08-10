@@ -164,6 +164,12 @@ extern void schedule_generic(vvp_gen_event_t obj, vvp_time64_t delay,
 			     bool sync_flag, bool ro_flag =true,
 			     bool delete_obj_when_done =false);
 
+/* Queue passive work after every final procedure has completed. This is the
+ * end-of-simulation Postponed drain used by final-deferred assertions that are
+ * evaluated from inside a final procedure. */
+extern void schedule_post_final(vvp_gen_event_t obj);
+extern bool schedule_in_final_phase(void);
+
 /* Create a functor output event. This is placed in the pre-simulation
  * event queue if the scheduler is still processing pre-simulation
  * events, otherwise it is placed in the stratified event queue as an

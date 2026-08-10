@@ -1,0 +1,2 @@
+ivltests/sv_assoc_function_output_lvalue_fail.v:11: Assignment l-value too complex.
+Elaboration failed

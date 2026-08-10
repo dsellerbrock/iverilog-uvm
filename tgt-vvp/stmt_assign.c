@@ -1802,6 +1802,131 @@ static int show_stmt_assign_queue_pattern(ivl_signal_t var, ivl_expr_t rval,
       return errors;
 }
 
+/* The elaborator represents an associative-array `'{default: value}' whole
+ * assignment as an internal system-function node. Keeping the marker typed as
+ * the destination container prevents ordinary assignment compatibility from
+ * degrading it to a scalar. Direct assignments recognize it here; ordinary
+ * object-valued expression contexts recognize the same marker in
+ * eval_object_sfunc(). */
+static int expr_is_assoc_default_(ivl_expr_t expr)
+{
+      return expr
+	  && ivl_expr_type(expr) == IVL_EX_SFUNC
+	  && ivl_expr_name(expr)
+	  && strcmp(ivl_expr_name(expr), "$ivl_assoc_default") == 0
+	  && ivl_expr_parms(expr) == 1;
+}
+
+/* Evaluate the sentinel's sole value in its declared element category, then
+ * construct a fresh typed associative-array object carrying that default.
+ * The fresh object is left on the object stack for an ordinary signal/property
+ * store. This ordering is essential when RHS side effects replace the same
+ * array: no destination container is captured until the RHS is complete. */
+int draw_eval_assoc_default(ivl_expr_t marker, ivl_type_t element_type)
+{
+      int errors = 0;
+      ivl_expr_t value = ivl_expr_parm(marker, 0);
+
+      switch (ivl_type_base(element_type)) {
+	  case IVL_VT_REAL:
+	    draw_eval_real(value);
+	    fprintf(vvp_out, "    %%aa/new/default/r;\n");
+	    break;
+	  case IVL_VT_STRING:
+	    draw_eval_string(value);
+	    fprintf(vvp_out, "    %%aa/new/default/str;\n");
+	    break;
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC: {
+	    unsigned wid = ivl_type_packed_width(element_type);
+	    draw_eval_vec4(value);
+	    resize_vec4_wid(value, wid);
+	    if (ivl_type_base(element_type) == IVL_VT_BOOL
+		&& ivl_expr_value(value) != IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2;\n");
+	    fprintf(vvp_out, "    %%aa/new/default/v %u;\n", wid);
+	    break;
+	  }
+	  case IVL_VT_CLASS:
+	    errors += draw_eval_object(value);
+	    fprintf(vvp_out, "    %%aa/new/default/obj;\n");
+	    break;
+	  default:
+	    fprintf(stderr, "%s:%u: internal error: unsupported associative "
+		    "default element type %d\n",
+		    ivl_expr_file(marker), ivl_expr_lineno(marker),
+		    (int)ivl_type_base(element_type));
+	    fprintf(vvp_out, "    %%null; ; unsupported associative default type\n");
+	    errors += 1;
+	    break;
+      }
+
+      return errors;
+}
+
+/* Store into the existing suffix selected by q[lo:$].  The l-value API bit
+ * is essential here: ivl_lval_idx alone also denotes q[lo], whose assignment
+ * is an element store with append-at-size behavior.  A suffix-slice store is
+ * instead an exact-cardinality, no-resize operation.  The runtime opcode
+ * validates the dynamic bound and source size atomically before copying. */
+static int show_stmt_assign_sig_queue_slice(ivl_statement_t net,
+					     ivl_lval_t lval,
+					     ivl_signal_t var,
+					     ivl_type_t element_type)
+{
+      int errors = 0;
+      ivl_expr_t lo = ivl_lval_idx(lval);
+      ivl_expr_t rval = ivl_stmt_rval(net);
+
+      if (ivl_stmt_opcode(net) != 0) {
+	    fprintf(stderr, "%s:%u: sorry: compound assignment to a queue "
+		    "suffix slice is not supported.\n",
+		    ivl_stmt_file(net), ivl_stmt_lineno(net));
+	    return 1;
+      }
+      if (!lo) {
+	    fprintf(stderr, "%s:%u: internal error: queue suffix-slice "
+		    "l-value has no lower bound.\n",
+		    ivl_stmt_file(net), ivl_stmt_lineno(net));
+	    return 1;
+      }
+
+      /* Match ordinary blocking container assignment evaluation: form the
+	 * complete RHS value first, then evaluate the l-value index exactly once.
+	 * Keeping the RHS on the object stack is safe across the scalar bound
+	 * evaluation and lets the runtime take a full snapshot before mutation. */
+      errors += draw_eval_object(rval);
+      int lo_word = allocate_word();
+      draw_eval_expr_into_integer(lo, lo_word);
+
+      switch (ivl_type_base(element_type)) {
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	    fprintf(vvp_out, "    %%store/qslice/v v%p_0, %d, %u;\n",
+		    var, lo_word, ivl_type_packed_width(element_type));
+	    break;
+	  case IVL_VT_REAL:
+	    fprintf(vvp_out, "    %%store/qslice/r v%p_0, %d;\n",
+		    var, lo_word);
+	    break;
+	  case IVL_VT_STRING:
+	    fprintf(vvp_out, "    %%store/qslice/str v%p_0, %d;\n",
+		    var, lo_word);
+	    break;
+	  case IVL_VT_CLASS:
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_NO_TYPE:
+	  default:
+	    fprintf(vvp_out, "    %%store/qslice/obj v%p_0, %d;\n",
+		    var, lo_word);
+	    break;
+      }
+
+      clr_word(lo_word);
+      return errors;
+}
+
 static int show_stmt_assign_sig_queue(ivl_statement_t net)
 {
       int errors = 0;
@@ -1813,6 +1938,10 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
       ivl_type_t element_type = ivl_type_element(var_type);
 
       assert(ivl_stmt_lvals(net) == 1);
+
+      if (ivl_lval_is_queue_slice(lval))
+	    return show_stmt_assign_sig_queue_slice(net, lval, var,
+					       element_type);
 
 	/* Part/bit-select store into an ASSOCIATIVE-array element
 	   (am[key][m:l] = v; packed-struct member writes are lowered by
@@ -1909,7 +2038,16 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
         /* Save the queue maximum index value to an integer register. */
       fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", idx, ivl_signal_array_count(var));
 
-      if (ivl_expr_type(rval) == IVL_EX_NULL) {
+      if (ivl_type_queue_assoc_compat(var_type)
+	  && !ivl_lval_idx(lval)
+	  && expr_is_assoc_default_(rval)) {
+	    assert(ivl_stmt_opcode(net) == 0);
+	    errors += draw_eval_assoc_default(rval, element_type);
+	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", var);
+	    clr_word(idx);
+	    return errors;
+
+      } else if (ivl_expr_type(rval) == IVL_EX_NULL) {
 	    assert(ivl_stmt_opcode(net) == 0);
 	    errors += draw_eval_object(rval);
 	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", var);
@@ -2941,18 +3079,51 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 
 		  if (idx_expr) clr_word(idx);
 
-	    } else if (ivl_type_base(prop_type) == IVL_VT_QUEUE) {
-		  int handled_errors = show_stmt_assign_sig_prop_assoc_index(net,
-		                                                           prop_idx,
-		                                                           prop_type);
-		  if (handled_errors >= 0) {
-			errors += handled_errors;
-		  } else {
-			handled_errors = show_stmt_assign_sig_prop_queue_index(net,
-		                                                           prop_idx,
-		                                                           prop_type);
-			if (handled_errors >= 0) {
-			      errors += handled_errors;
+		    } else if (ivl_type_base(prop_type) == IVL_VT_QUEUE) {
+			  if (ivl_type_queue_assoc_compat(prop_type)
+			      && !ivl_lval_idx(lval)
+			      && expr_is_assoc_default_(rval)) {
+				ivl_type_t elem_type = ivl_type_element(prop_type);
+				errors += draw_eval_assoc_default(rval, elem_type);
+				fprintf(vvp_out, "    %%store/prop/obj %d, 0;\n",
+					prop_idx);
+				fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			  } else {
+				int handled_errors = show_stmt_assign_sig_prop_assoc_index(net,
+				                                                     prop_idx,
+				                                                     prop_type);
+				if (handled_errors >= 0) {
+				      errors += handled_errors;
+				} else {
+				  handled_errors = show_stmt_assign_sig_prop_queue_index(net,
+			                                                           prop_idx,
+			                                                           prop_type);
+				  if (handled_errors >= 0) {
+					errors += handled_errors;
+				  } else {
+				ivl_scope_t rv_def = ivl_expr_type(rval) == IVL_EX_UFUNC
+			      ? ivl_expr_def(rval) : 0;
+			ivl_signal_t rv_ret = rv_def ? ivl_scope_port(rv_def, 0) : 0;
+			if (rv_ret && ivl_signal_dimensions(rv_ret) > 0) {
+			      /* NetEUFunc now carries the fixed aggregate type, so a
+			       * fixed-array return is a legal queue RHS. Its IVL value
+			       * category is still the element's scalar category; routing
+			       * on ivl_expr_value() below would evaluate an array-returning
+			       * function as vec4/real/string even though %callf/void leaves
+			       * no such stack value. Materialize directly as a queue and
+			       * store that queue object in the property. */
+			      uint64_t queue_max_size =
+				    ivl_type_queue_max_size(prop_type);
+				/* VVP instruction operands are 32 bits. A larger bound
+				 * cannot truncate a fixed source whose exported count is
+				 * itself unsigned, so zero (unbounded) is equivalent here. */
+			      unsigned marshal_max = queue_max_size > 0xffffffffULL
+				    ? 0 : (unsigned)queue_max_size;
+			      draw_ufunc_uarray_object(rval, 1, marshal_max);
+			      fprintf(vvp_out, "    %%store/prop/obj %d, 0;"
+				      " fixed-array function return to queue\n",
+				      prop_idx);
+			      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 			} else {
 			ivl_variable_type_t rv_type = ivl_expr_value(rval);
 			if (rv_type == IVL_VT_CLASS ||
@@ -2975,10 +3146,12 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 				      prop_idx, ivl_type_base(prop_type), rv_type);
 			      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 			}
-		  }
-		  }
+				}
+			  }
+			  }
+			  }
 
-	    } else if (ivl_type_base(prop_type) == IVL_VT_NO_TYPE) {
+		    } else if (ivl_type_base(prop_type) == IVL_VT_NO_TYPE) {
 		  ivl_variable_type_t rv_type = ivl_expr_value(rval);
 		  ivl_type_t rval_type = ivl_expr_net_type(rval);
 		  ivl_type_t nt_elem_type = ivl_type_element(prop_type);
@@ -3135,6 +3308,9 @@ int uarray_container_kind_(ivl_signal_t sig, unsigned*kind_out,
 	  case IVL_VT_REAL:
 	    kind = 0;                           /* ARRDAR_REAL */
 	    break;
+	  case IVL_VT_STRING:
+	    kind = (1u << 12);                  /* ARRDAR_STRING */
+	    break;
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:
 	    if (wid == 0) wid = 1;
@@ -3148,7 +3324,7 @@ int uarray_container_kind_(ivl_signal_t sig, unsigned*kind_out,
 	  default:
 	    fprintf(stderr, "%s:%u: sorry: the whole unpacked array `%s' "
 		    "cannot receive a dynamic array or queue: only arrays "
-		    "of integral, real or class-handle elements have a "
+		    "of integral, real, string or class-handle elements have a "
 		    "matching element representation.\n",
 		    file ? file : "<unknown>", lineno,
 		    ivl_signal_basename(sig));
@@ -3176,15 +3352,15 @@ void emit_load_arr_dar_(ivl_signal_t sig, unsigned kind)
       if (ivl_signal_dimensions(sig) > 1) {
 	    unsigned dim;
 	    for (dim = 0 ; dim < ivl_signal_dimensions(sig) ; dim += 1)
-		  fprintf(vvp_out, "    %%dim/push %d, %d;\n",
-			  ivl_signal_array_dim_msb(sig, dim),
-			  ivl_signal_array_dim_lsb(sig, dim));
+		  fprintf(vvp_out, "    %%dim/push %u, %u;\n",
+			  (unsigned)ivl_signal_array_dim_msb(sig, dim),
+			  (unsigned)ivl_signal_array_dim_lsb(sig, dim));
 	    fprintf(vvp_out, "    %%load/arr/dar/md v%p, %u;\n", sig, kind);
 	    return;
       }
 
-      fprintf(vvp_out, "    %%load/arr/dar v%p, %u, %d;\n",
-	      sig, kind, left);
+      fprintf(vvp_out, "    %%load/arr/dar v%p, %u, %u;\n",
+	      sig, kind, (unsigned)left);
 }
 
 /* Emit the container -> fixed-array store for one signal. A
@@ -3196,9 +3372,9 @@ void emit_store_arr_dar_(ivl_signal_t sig, unsigned kind)
       if (ivl_signal_dimensions(sig) > 1) {
 	    unsigned dim;
 	    for (dim = 0 ; dim < ivl_signal_dimensions(sig) ; dim += 1)
-		  fprintf(vvp_out, "    %%dim/push %d, %d;\n",
-			  ivl_signal_array_dim_msb(sig, dim),
-			  ivl_signal_array_dim_lsb(sig, dim));
+		  fprintf(vvp_out, "    %%dim/push %u, %u;\n",
+			  (unsigned)ivl_signal_array_dim_msb(sig, dim),
+			  (unsigned)ivl_signal_array_dim_lsb(sig, dim));
 	    fprintf(vvp_out, "    %%store/arr/dar/md v%p, %u;\n", sig, kind);
 	    return;
       }

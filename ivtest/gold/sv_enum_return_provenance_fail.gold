@@ -1,0 +1,6 @@
+./ivltests/sv_enum_return_provenance_fail.v:14: error: Enumeration type mismatch in assignment.
+./ivltests/sv_enum_return_provenance_fail.v:22: error: Enumeration type mismatch in assignment.
+./ivltests/sv_enum_return_provenance_fail.v:34: error: Enumeration type mismatch in assignment.
+./ivltests/sv_enum_return_provenance_fail.v:35: error: Enumeration type mismatch in assignment.
+./ivltests/sv_enum_return_provenance_fail.v:33: error: Enumeration type mismatch in assignment.
+5 error(s) during elaboration.

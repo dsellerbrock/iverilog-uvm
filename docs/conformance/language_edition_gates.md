@@ -52,10 +52,15 @@ times for one line.
 | feature | edition | gated at | earliest layer? |
 |---|---|---|---|
 | `$stacktrace` task | 1800-2023 | `PCallTask::elaborate` | yes — the compiler has no system-task name table before elaboration; names are otherwise resolved at VPI link time |
-| `index` iterator property | 1800-2023 | `elab_expr.cc` member resolution | yes — `.index` is an ordinary member path until the receiver's type is known |
 
-Both were previously accepted under `-g2012` and *executed with correct
-2023 semantics*, so a user asking for 1800-2012 silently got 1800-2023.
+`SVF_ITERATOR_INDEX` remains in the feature table as introduction
+metadata, but its introducing generation is `GN_VER2005_SV`, not
+`GN_VER2023`. Iterator index querying was already specified by
+SystemVerilog 3.1a and IEEE 1800-2005 §5.15.4. It needs no separate elaboration
+gate: array-method syntax is SystemVerilog grammar, and the existing
+`gn_system_verilog()` receiver check already establishes the relevant
+language boundary. In particular, `GN_VER2005` names IEEE 1364-2005;
+the first SystemVerilog row is `GN_VER2005_SV` (`-g2005-sv`).
 
 ## Scope findings that shaped this work
 
@@ -68,7 +73,8 @@ documents itself against 1800-2017 — not because it gates anything.
 test pins that a 2023 feature is refused under `-g2017` exactly as under
 `-g2012`.
 
-**The 1800-2023 leak surface was two constructs, not many.** Every other
+**The implemented 1800-2023 leak surface was `$stacktrace`, not iterator
+index querying.** Every other
 item in `ieee1800_2023_delta.md` and in the campaign's gate list
 (triple-quoted strings, `ref static`, `type(this)`, restricted type
 parameters, `dist default :/`, class/method specifiers, soft unions,
@@ -100,7 +106,7 @@ because the command-line switch exists.
 
 ## Test matrix
 
-Each gated feature carries four arms, registered in
+The `$stacktrace` gate carries four core arms, registered in
 `ivtest/regress-sv.list`:
 
 | arm | registration | asserts |
@@ -113,6 +119,16 @@ Each gated feature carries four arms, registered in
 `$stacktrace` carries a fifth arm, `CE,-g2017`, pinning that a 2023
 feature is refused under 2017 — the concrete check that 2017 is not
 silently treated as "newest".
+
+Iterator index querying has a separate boundary matrix matching its
+actual history:
+
+| arm | registration | asserts |
+|---|---|---|
+| pre-SystemVerilog mode | `CE,-g2005` + `gold=` | the array-method expression is rejected by the IEEE 1364-2005 grammar |
+| defining edition | `normal,-g2005-sv` | `item.index` works and computes the right value in IEEE 1800-2005 mode |
+| next edition | `normal,-g2009` | the feature remains available in the immediately following SV edition |
+| latest edition | `normal,-glatest` | the feature remains available in the newest selectable edition |
 
 ## Related defect fixed alongside
 

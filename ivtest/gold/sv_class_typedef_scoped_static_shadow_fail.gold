@@ -1,0 +1,4 @@
+./ivltests/sv_class_typedef_scoped_static_shadow_fail.v:21: error: Scoped static access requires a class type, but `selected_type' resolves to a non-class typedef.
+./ivltests/sv_class_typedef_scoped_static_shadow_fail.v:25: error: Scoped static access requires a class type, but `selected_type' resolves to a non-class typedef.
+./ivltests/sv_class_typedef_scoped_static_shadow_fail.v:29: error: Scoped static access requires a class type, but `selected_type' resolves to a non-class typedef.
+3 error(s) during elaboration.

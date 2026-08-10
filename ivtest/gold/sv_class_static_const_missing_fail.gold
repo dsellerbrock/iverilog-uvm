@@ -1,0 +1,2 @@
+./ivltests/sv_class_static_const_missing_fail.v:2: error: Const properties of class holder are missing initialization.
+1 error(s) during elaboration.

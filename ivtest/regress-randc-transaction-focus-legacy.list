@@ -1,0 +1,28 @@
+sv_randc_txn_unsat_history normal,-g2012 ivltests gold=sv_randc_txn_unsat_history.gold
+sv_randc_txn_two_pass_commit normal,-g2012 ivltests gold=sv_randc_txn_two_pass_commit.gold
+sv_randc_txn_constrained_cycle normal,-g2012 ivltests gold=sv_randc_txn_constrained_cycle.gold
+sv_randc_txn_static_alias_cycle normal,-g2012 ivltests gold=sv_randc_txn_static_alias_cycle.gold
+sv_randc_txn_object_rng normal,-g2012 ivltests gold=sv_randc_txn_object_rng.gold
+sv_randc_txn_full_cycle_boundary normal,-g2012 ivltests gold=sv_randc_txn_full_cycle_boundary.gold
+sv_randc_txn_shallow_copy_state normal,-g2012 ivltests gold=sv_randc_txn_shallow_copy_state.gold
+sv_randc_txn_unbiased_choice normal,-g2012 ivltests gold=sv_randc_txn_unbiased_choice.gold
+sv_randc_txn_two_pass_rng_order normal,-g2012 ivltests gold=sv_randc_txn_two_pass_rng_order.gold
+sv_randc_txn_reentrant_hooks normal,-g2012 ivltests gold=sv_randc_txn_reentrant_hooks.gold
+sv_randc_txn_final_actual_commit normal,-g2012 ivltests gold=sv_randc_txn_final_actual_commit.gold
+sv_randc_txn_legal_types normal,-g2012 ivltests gold=sv_randc_txn_legal_types.gold
+sv_randc_txn_class_handle_fail CE,-g2012 ivltests gold=sv_randc_txn_class_handle_fail.gold
+sv_randc_txn_unpacked_struct_fail CE,-g2012 ivltests gold=sv_randc_txn_unpacked_struct_fail.gold
+sv_randc_txn_dist_fail CE,-g2012 ivltests gold=sv_randc_txn_dist_fail.gold
+sv_randc_txn_soft_fail CE,-g2012 ivltests gold=sv_randc_txn_soft_fail.gold
+sv_randc_txn_solve_before_fail CE,-g2012 ivltests gold=sv_randc_txn_solve_before_fail.gold
+sv_randc_txn_unique_fail CE,-g2012 ivltests gold=sv_randc_txn_unique_fail.gold
+
+# Constraint-provenance core: strict Slang-confirmed positive/negative pair.
+sv_randc_constraint_provenance normal,-g2012 ivltests gold=sv_randc_constraint_provenance.gold
+sv_randc_constraint_provenance_fail CE,-g2012 ivltests gold=sv_randc_constraint_provenance_fail.gold
+
+# Constraint-provenance extensions: implementation-only focused coverage.
+sv_randc_constraint_provenance_extension_fail CE,-g2012 ivltests gold=sv_randc_constraint_provenance_extension_fail.gold
+sv_randc_constraint_iterator_provenance_fail CE,-g2012 ivltests gold=sv_randc_constraint_iterator_provenance_fail.gold
+sv_randc_constraint_iterator_extension normal,-g2012 ivltests gold=sv_randc_constraint_iterator_extension.gold
+sv_randc_constraint_hierarchy_extension normal,-g2012 ivltests gold=sv_randc_constraint_hierarchy_extension.gold

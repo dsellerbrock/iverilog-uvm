@@ -1,0 +1,4 @@
+./ivltests/sv_param_class_scoped_static_lvalue_invalid_fail.v:10: error: Class `wrapper' does not have a property `missing'.
+./ivltests/sv_param_class_scoped_static_lvalue_invalid_fail.v:11: error: Class-scoped l-value `wrapper::instance_value' requires static property `instance_value'.
+./ivltests/sv_param_class_scoped_static_lvalue_invalid_fail.v:16: error: Class-scoped l-value prefix `wrapper' resolves to a non-class typedef.
+3 error(s) during elaboration.

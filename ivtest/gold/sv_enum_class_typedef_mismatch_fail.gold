@@ -1,0 +1,4 @@
+./ivltests/sv_enum_class_typedef_mismatch_fail.v:20: error: Enumeration type mismatch in assignment.
+./ivltests/sv_enum_class_typedef_mismatch_fail.v:24: error: Enumeration type mismatch in assignment.
+./ivltests/sv_enum_class_typedef_mismatch_fail.v:16: error: Enumeration type mismatch in assignment.
+3 error(s) during elaboration.

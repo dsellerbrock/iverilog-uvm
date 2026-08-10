@@ -282,6 +282,7 @@ static int compare_types(int code, int type)
 	     type == vpiTask ||
 	     type == vpiNamedBegin ||
 	     type == vpiNamedFork ||
+	     type == vpiClassTypespec ||
 	     // M12: interface instances are traversable scopes.
 	     type == vpiInterface) )
 	    return 1;

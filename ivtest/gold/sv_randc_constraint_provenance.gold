@@ -1,0 +1,2 @@
+./ivltests/sv_randc_constraint_provenance.v:68: warning: Constraint item in 'package_enum_method_ok' of class randc_prov_name_controls is not representable in the constraint solver and is ignored (further similar warnings suppressed).
+PASSED

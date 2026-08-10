@@ -1049,6 +1049,116 @@ ivl_type_t parray_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
       return new netparray_t(packed, etype);
 }
 
+static bool struct_has_direct_member_defaults_(const struct_type_t*type)
+{
+      if (!type || !type->members)
+	    return false;
+
+      for (const struct_member_t*member : *type->members) {
+	    if (!member || !member->names)
+		  continue;
+	    for (const decl_assignment_t*name : *member->names) {
+		  if (name && name->expr)
+			return true;
+	    }
+      }
+
+      return false;
+}
+
+static const netstruct_t* net_type_struct_or_union_(ivl_type_t type)
+{
+      while (type) {
+	    if (const netarray_t*array = dynamic_cast<const netarray_t*>(type)) {
+		  type = array->element_type();
+		  continue;
+	    }
+	    return dynamic_cast<const netstruct_t*>(type);
+      }
+
+      return 0;
+}
+
+/* Keep this predicate in lockstep with assignment_rval_is_constant_ in
+ * elaborate.cc. Most constant expressions reduce to NetEConst (including
+ * NetECString) or NetECReal. A literal class-handle null deliberately remains
+ * NetENull; accepting that result for any other source would also admit
+ * nonconstant object expressions such as `new'. */
+static bool struct_member_default_is_constant_(const PExpr*source,
+						const NetExpr*result)
+{
+      if (dynamic_cast<const NetEConst*>(result)) return true;
+      if (dynamic_cast<const NetECReal*>(result)) return true;
+      return dynamic_cast<const PENull*>(source)
+	    && dynamic_cast<const NetENull*>(result);
+}
+
+static const char* unsupported_struct_member_default_shape_(ivl_type_t type)
+{
+      if (dynamic_cast<const netuarray_t*>(type))
+	    return "fixed-size unpacked array";
+
+      if (const netqueue_t*queue = dynamic_cast<const netqueue_t*>(type))
+	    return queue->assoc_compat() ? "associative array" : "queue";
+
+      if (dynamic_cast<const netdarray_t*>(type))
+	    return "dynamic array";
+
+      return 0;
+}
+
+static bool elaborate_struct_member_default_(Design*des, NetScope*scope,
+					     ivl_type_t member_type,
+					     const decl_assignment_t*name)
+{
+      ivl_assert(*name->expr, des);
+      ivl_assert(*name->expr, scope);
+      ivl_assert(*name->expr, member_type);
+
+      PExpr*source = name->expr.get();
+      bool cached = false;
+      if (des->get_struct_member_default_validation(source, scope, cached))
+	    return cached;
+
+	// Mark before descending so a pathological recursive declaration
+	// cannot re-enter the same check indefinitely.
+      des->record_struct_member_default_validation(source, scope, false);
+
+      if (const char*shape =
+		    unsupported_struct_member_default_shape_(member_type)) {
+	    cerr << source->get_fileline() << ": sorry: unpacked-struct "
+		 << "default member initializers are not yet supported for "
+		 << shape << " member `" << name->name.first
+		 << "' in a type declaration." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
+      unsigned errors_before = des->errors;
+      NetExpr*value = elaborate_rval_expr(des, scope, member_type,
+					  source, true);
+      bool valid = value
+	    && des->errors == errors_before
+	    && struct_member_default_is_constant_(source, value);
+
+      if (value && des->errors == errors_before && !valid) {
+	    cerr << source->get_fileline() << ": error: "
+		 << "The RHS expression must be constant." << endl;
+	    cerr << source->get_fileline() << "       : "
+		 << "This expression violates the rule: " << *value << endl;
+	    des->errors += 1;
+      } else if (!value && des->errors == errors_before) {
+	    cerr << source->get_fileline() << ": error: Unable to elaborate "
+		 << "the default value for unpacked struct member `"
+		 << name->name.first << "' as a constant expression." << endl;
+	    des->errors += 1;
+      }
+
+      delete value;
+      des->record_struct_member_default_validation(source, scope, valid);
+      return valid;
+}
+
 ivl_type_t struct_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 {
       netstruct_t*res = new netstruct_t;
@@ -1062,6 +1172,10 @@ ivl_type_t struct_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 	    res->union_flag(true);
       if (tagged_flag)
 	    res->tagged_flag(true);
+
+      const bool has_direct_defaults =
+	    struct_has_direct_member_defaults_(this);
+      bool reported_union_member = false;
 
       for (list<struct_member_t*>::iterator cur = members->begin()
 		 ; cur != members->end() ; ++ cur) {
@@ -1087,6 +1201,20 @@ ivl_type_t struct_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 	    if (mem_vec == 0)
 		  continue;
 
+	    if (!packed_flag && !union_flag && has_direct_defaults
+		&& !reported_union_member) {
+		  const netstruct_t*nested = net_type_struct_or_union_(mem_vec);
+		  if (nested && nested->union_flag()
+		      && curp->names && !curp->names->empty()) {
+			cerr << get_fileline() << ": error: individual member "
+			     << "defaults are not allowed in an unpacked struct "
+			     << "type because it contains union member `"
+			     << curp->names->front()->name.first << "'." << endl;
+			des->errors += 1;
+			reported_union_member = true;
+		  }
+	    }
+
 	      // There may be several names that are the same type:
 	      //   <data_type> name1, name2, ...;
 	      // Process all the member, and give them a type.
@@ -1097,6 +1225,13 @@ ivl_type_t struct_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 		  if (packed_flag && namep->expr) {
 			cerr << namep->expr->get_fileline() << " error: "
 			     << "Packed structs must not have default member values."
+			     << endl;
+			des->errors++;
+		  }
+
+		  if (union_flag && namep->expr) {
+			cerr << namep->expr->get_fileline() << ": error: "
+			     << "Union members must not have default values."
 			     << endl;
 			des->errors++;
 		  }
@@ -1120,7 +1255,11 @@ ivl_type_t struct_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 		  netstruct_t::member_t memb;
 		  memb.name = namep->name.first;
 		  memb.net_type = elaborate_array_type(des, scope, *this,
-						       mem_vec, namep->index);
+							       mem_vec, namep->index);
+		  if (namep->expr && !packed_flag && !union_flag
+		      && !reported_union_member && memb.net_type)
+			elaborate_struct_member_default_(des, scope,
+							 memb.net_type, namep);
 		  res->append_member(des, memb);
 	    }
       }
@@ -1161,7 +1300,8 @@ static ivl_type_t elaborate_queue_type(Design *des, NetScope *scope,
 				       const LineInfo &li, ivl_type_t base_type,
 				       PExpr *ridx,
 				       bool assoc_compat = false,
-				       ivl_type_t assoc_index_type = 0)
+				       ivl_type_t assoc_index_type = 0,
+				       bool assoc_wildcard = false)
 {
       base_type = elaborate_darray_check_type(des, li, base_type, "Queue");
 
@@ -1195,7 +1335,8 @@ static ivl_type_t elaborate_queue_type(Design *des, NetScope *scope,
 	    delete cv;
       }
 
-      return new netqueue_t(base_type, max_idx, assoc_compat, assoc_index_type);
+      return new netqueue_t(base_type, max_idx, assoc_compat,
+			    assoc_index_type, assoc_wildcard);
 }
 
 static bool finite_enum_index_range_(const netenum_t*enum_type,
@@ -1255,7 +1396,8 @@ static ivl_type_t elaborate_assoc_array_type(Design *des, NetScope *scope,
       // index type is threaded through (rather than discarded) so type-name
       // introspection ($typename, IEEE 1800-2017 20.6.1) can print the
       // "$[<index type>]" suffix for an associative array.
-      return elaborate_queue_type(des, scope, li, base_type, 0, true, index_type);
+      return elaborate_queue_type(des, scope, li, base_type, 0, true,
+				  index_type, assoc_idx->wildcard_index());
 }
 
 // If dims is not empty create a unpacked array type and clear dims, otherwise
@@ -1358,6 +1500,28 @@ ivl_type_t uarray_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
       return elaborate_array_type(des, scope, *this, btype, *dims.get());
 }
 
+/* A forward or aliased class typedef can temporarily elaborate to the shared
+ * integer recovery type while its complete class scope is still being
+ * constructed.  Keep that compile-progress state distinct from a genuine
+ * scalar/enum/aggregate typedef followed by illegal #(...) overrides. */
+static bool typedef_has_class_provenance_(
+      const typedef_t*td, std::set<const typedef_t*>&seen)
+{
+      if (!td || !seen.insert(td).second)
+            return false;
+      if (td->get_basic_type() == typedef_t::CLASS)
+            return true;
+
+      const data_type_t*declared_type = td->get_data_type();
+      if (dynamic_cast<const class_type_t*>(declared_type))
+            return true;
+      if (const typeref_t*alias =
+            dynamic_cast<const typeref_t*>(declared_type))
+            return typedef_has_class_provenance_(
+                  alias->typedef_ref(), seen);
+      return false;
+}
+
 ivl_type_t typeref_t::elaborate_type_raw(Design*des, NetScope*s) const
 {
       if (!s) {
@@ -1373,8 +1537,21 @@ ivl_type_t typeref_t::elaborate_type_raw(Design*des, NetScope*s) const
 	    return use_type;
 
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(use_type);
-      if (!class_type)
+	/* A #(...) suffix is class specialization syntax. Do not silently
+	 * discard it when an exact scalar/enum/aggregate typedef shadows a
+	 * same-named class in an outer scope. Besides accepting invalid source,
+	 * that lets later weak class recovery bind the unrelated outer class. */
+      if (!class_type) {
+            std::set<const typedef_t*>class_seen;
+            if (use_type == netvector_t::integer_type()
+                && typedef_has_class_provenance_(type, class_seen))
+                  return use_type;
+            cerr << get_fileline() << ": error: Parameter overrides require a "
+		 << "class type, but `" << type->name
+		 << "` resolves to a non-class type." << endl;
+	    des->errors += 1;
 	    return use_type;
+      }
 
       // Built-in class types (mailbox, semaphore, process) are not template
       // classes — their "type parameter" is used only for SV type-checking.

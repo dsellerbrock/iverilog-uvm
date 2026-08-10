@@ -1,0 +1,3 @@
+ivltests/sv_assoc_unique_wildcard_iter_index_fail.v:7: error: iterator index querying is not allowed for wildcard-index associative arrays (IEEE 1800-2017 7.12.4).
+ivltests/sv_assoc_unique_wildcard_iter_index_fail.v:8: error: iterator index querying is not allowed for wildcard-index associative arrays (IEEE 1800-2017 7.12.4).
+2 error(s) during elaboration.

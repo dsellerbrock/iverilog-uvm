@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_ustruct_member_defaults_union_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_ustruct_member_defaults_union_fail"
+}

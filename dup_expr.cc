@@ -143,6 +143,7 @@ NetEConst* NetEConst::dup_expr() const
       NetEConst*tmp = new NetEConst(value_);
       ivl_assert(*this, tmp);
       tmp->set_line(*this);
+      tmp->inherit_deferred_type_parameter_stub(*this);
       return tmp;
 }
 
@@ -151,6 +152,7 @@ NetEConstEnum* NetEConstEnum::dup_expr() const
       NetEConstEnum*tmp = new NetEConstEnum(name_, enumeration(), value());
       ivl_assert(*this, tmp);
       tmp->set_line(*this);
+      tmp->inherit_deferred_type_parameter_stub(*this);
       return tmp;
 }
 
@@ -214,7 +216,7 @@ NetENew* NetENew::dup_expr() const
 
 NetENull* NetENull::dup_expr() const
 {
-      NetENull*tmp = new NetENull();
+      NetENull*tmp = new NetENull(net_type());
       ivl_assert(*this, tmp);
       tmp->set_line(*this);
       return tmp;
@@ -264,6 +266,7 @@ NetESelect* NetESelect::dup_expr() const
       ivl_assert(*this, tmp);
       tmp->cast_signed(has_sign());
       tmp->set_line(*this);
+      tmp->inherit_deferred_type_parameter_stub(*this);
       return tmp;
 }
 

@@ -1,0 +1,3 @@
+./ivltests/sv_typeparam_enum_receiver_cache_orders_fail.v:17: error: Object sv_typeparam_enum_receiver_cache_orders_fail._ivl_5.forward.this has no method "m_receiver.nb_transport_fw(...)".
+./ivltests/sv_typeparam_enum_receiver_cache_orders_fail.v:32: error: Object sv_typeparam_enum_receiver_cache_orders_fail._ivl_2.forward.this has no method "m_receiver.nb_transport_fw(...)".
+2 error(s) during elaboration.

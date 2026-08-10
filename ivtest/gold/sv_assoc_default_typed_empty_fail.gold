@@ -1,0 +1,2 @@
+./ivltests/sv_assoc_default_typed_empty_fail.v:7: error: associative-array value has an element type that is not assignment-compatible with the context.
+Elaboration failed

@@ -1,0 +1,4 @@
+./ivltests/sv_assoc_default_formal_type_fail.v:8: error: associative-array value has an element type that is not assignment-compatible with the context.
+./ivltests/sv_assoc_default_formal_type_fail.v:6: error: Unable to evaluate 9typeref_t
+'{"bad formal default"} as a port default expression.
+2 error(s) during elaboration.

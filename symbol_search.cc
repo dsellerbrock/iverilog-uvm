@@ -71,6 +71,66 @@ void symbol_search_cache_clear()
       symbol_search_cache_.clear();
 }
 
+/* find_typedef() and find_class() intentionally search out through lexical
+ * parents.  That is useful for a type-name query, but it is too broad for the
+ * per-scope fallback below: while resolving the first component of `a.m', a
+ * class named `a' in $unit must not be selected while the ordinary lexical
+ * search still has an enclosing block/function-local variable named `a' to
+ * visit.  Only accept a type at the scope that owns its declaration (or at a
+ * derived class scope where a base-class typedef is inherited).  Imports are
+ * entered through symbol_search()'s existing find_import() transition, so
+ * they reach their owning package without preempting intervening values.
+ */
+static bool prefix_typedef_is_local_(Design*des, NetScope*scope,
+                                     typedef_t*td)
+{
+      ivl_assert(*scope, td);
+
+      NetScope*owner = scope->find_typedef_scope(des, td);
+      if (owner == scope)
+            return true;
+
+      if (!owner || scope->type() != NetScope::CLASS)
+            return false;
+
+      const netclass_t*cls = scope->class_def();
+      for (const netclass_t*super = cls ? cls->get_super() : 0;
+           super; super = super->get_super()) {
+            if (super->class_scope() == owner)
+                  return true;
+      }
+
+      return false;
+}
+
+static bool prefix_class_is_local_(Design*des, NetScope*scope,
+                                   const netclass_t*cls,
+                                   perm_string name)
+{
+      ivl_assert(*scope, cls);
+
+      /* A class-valued parameter is declared in the current scope even when
+       * its actual class type was defined elsewhere. */
+      ivl_type_t parameter_type = nullptr;
+      (void) scope->get_parameter(des, name, parameter_type);
+      if (parameter_type == cls)
+            return true;
+
+      if (scope->type() == NetScope::CLASS) {
+            const netclass_t*containing = scope->class_def();
+            if (containing == cls)
+                  return true;
+            for (const netclass_t*super = containing
+                       ? containing->get_super() : 0;
+                 super; super = super->get_super()) {
+                  if (super == cls)
+                        return true;
+            }
+      }
+
+      return const_cast<netclass_t*>(cls)->definition_scope() == scope;
+}
+
 static const netclass_t* resolve_prefix_class_type_(Design*des,
 						    NetScope*scope,
 						    perm_string name)
@@ -78,12 +138,40 @@ static const netclass_t* resolve_prefix_class_type_(Design*des,
       if (!gn_system_verilog() || !scope)
 	    return nullptr;
 
-      if (netclass_t*cls = scope->find_class(des, name))
-	    return cls;
-
       if (typedef_t*td = scope->find_typedef(des, name)) {
+	    /* Do not let an outward-searching type query jump ahead of the
+	       ordinary value lookup performed one lexical scope at a time. */
+	    if (!prefix_typedef_is_local_(des, scope, td))
+		  return nullptr;
+
+	    const data_type_t*declared_type = td->get_data_type();
+
+	    /* The parser installs a same-name class_type_t typedef for a class
+	       declaration.  Preserve that direct-class path, including forward
+	       declarations whose typedef has not elaborated a usable type yet. */
+	    if (const class_type_t*class_pf =
+		  dynamic_cast<const class_type_t*>(declared_type)) {
+		  if (class_pf->name == name) {
+			if (netclass_t*cls = scope->find_class(des, name))
+			      return cls;
+		  }
+	    }
+
 	    ivl_type_t td_type = td->elaborate_type(des, scope);
+	    td_type = specialize_bare_class_at_concrete_use(
+		  des, scope, declared_type, td_type, true);
 	    if (const netclass_t*cls = dynamic_cast<const netclass_t*>(td_type))
+		  return cls;
+
+	    /* A concrete non-class typedef hides any outer class with the same
+	       spelling.  Only a null (early/forward) typedef may recover through
+	       the class table below. */
+	    if (td_type)
+		  return nullptr;
+      }
+
+      if (netclass_t*cls = scope->find_class(des, name)) {
+	    if (prefix_class_is_local_(des, scope, cls, name))
 		  return cls;
       }
 

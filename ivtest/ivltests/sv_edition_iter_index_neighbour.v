@@ -1,15 +1,14 @@
-// Edition gate, neighbour arm: the ordinary iterator `item' and the
-// locator methods that do NOT use `index' are 1800-2012 syntax and must
-// keep working under -g2012 -- the gate must cut at `index', not at
-// array manipulation methods generally.
+// Edition boundary, next-edition arm: IEEE 1800-2009 must retain the
+// iterator index querying standardized in IEEE 1800-2005 5.15.4.
 module sv_edition_iter_index_neighbour;
   int arr[5] = '{5,1,2,3,4};
   int s;
   int q[$];
   initial begin
-    s = arr.sum with (item);
-    q = arr.find with (item > 2);
-    if (s == 15 && q.size() == 3) $display("PASSED");
-    else $display("FAILED -- sum=%0d size=%0d, expected 15 and 3", s, q.size());
+    s = arr.sum with (item.index);
+    q = arr.find with (item == 4 && item.index == 4);
+    if (s == 10 && q.size() == 1 && q[0] == 4) $display("PASSED");
+    else $display("FAILED -- sum=%0d size=%0d value=%0d, expected 10, 1, 4",
+                  s, q.size(), q.size() ? q[0] : -1);
   end
 endmodule

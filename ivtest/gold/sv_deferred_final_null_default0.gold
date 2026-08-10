@@ -1,0 +1,3 @@
+ERROR: ./ivltests/sv_deferred_final_null_default0.v:4: 
+       Time: 0  Scope: t
+PASSED

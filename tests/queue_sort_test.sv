@@ -31,8 +31,15 @@ module top;
       q.push_back(1);
       q.push_back(3);
 
+      // unique() is a locator method. Discarding its return value must not
+      // mutate the receiver.
       q.unique();
-      if (q.size() != 3) begin $display("FAIL: unique size=%0d (expect 3)", q.size()); pass = 0; end
+      if (q.size() != 5 ||
+          q[0] != 3 || q[1] != 1 || q[2] != 2 ||
+          q[3] != 1 || q[4] != 3) begin
+        $display("FAIL: discarded unique() mutated its receiver");
+        pass = 0;
+      end
 
       if (pass) $display("QUEUE SORT TEST: PASS");
       else      $display("QUEUE SORT TEST: FAIL");

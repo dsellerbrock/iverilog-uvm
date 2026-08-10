@@ -78,6 +78,18 @@ static int ref_actual_is_nameable_(ivl_expr_t expr)
       return 1;
 }
 
+static int function_port_is_assoc_output_(ivl_signal_t port)
+{
+      ivl_type_t type;
+
+      if (!port || ivl_signal_port(port) != IVL_SIP_OUTPUT
+	  || ivl_signal_dimensions(port) > 0)
+	    return 0;
+      type = ivl_signal_net_type(port);
+      return type && ivl_type_base(type) == IVL_VT_QUEUE
+	  && ivl_type_queue_assoc_compat(type);
+}
+
 /* Bind one `ref' formal (IEEE 1800-2017 13.5.2). An actual that cannot
    be named is copied into the formal's per-frame companion word, which
    is what the formal is then bound to; draw_copy_out_function_arguments
@@ -106,6 +118,13 @@ static void draw_eval_function_argument(ivl_signal_t port, ivl_expr_t expr)
 	   own pass (it must land after every argument has been
 	   evaluated, since evaluating one may call another function). */
       if (ivl_signal_port(port) == IVL_SIP_REF)
+	    return;
+
+	/* A pure output formal starts with its type's default value (IEEE
+	 * 1800-2017 13.5.2); evaluating the caller's associative actual here
+	 * copied its existing entries into the callee before the call. The send
+	 * pass below installs a fresh empty value instead. */
+      if (function_port_is_assoc_output_(port))
 	    return;
 
 	/* An unpacked fixed-array formal can retain its element data type
@@ -178,6 +197,15 @@ static void draw_send_function_argument(ivl_signal_t port, ivl_expr_t actual)
 
       if (ivl_signal_port(port) == IVL_SIP_REF)
 	    return;
+
+	/* Do not copy an associative actual into a pure output formal. Reset even
+	 * a static function's port on every call; the typed signal lazily creates
+	 * a fresh empty associative object when the function first reads/writes it. */
+      if (function_port_is_assoc_output_(port)) {
+	    fprintf(vvp_out, "    %%null; ; default value for output associative array\n");
+	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", port);
+	    return;
+      }
 
       if (ivl_signal_dimensions(port) > 0) {
 	    unsigned kind;
@@ -1091,5 +1119,96 @@ void draw_ufunc_uarray(ivl_expr_t expr, ivl_signal_t dst_sig,
       }
       clr_word(ix);
 
+      draw_ufunc_epilogue(expr);
+}
+
+/*
+ * Call a function whose result is a one-dimensional fixed unpacked array
+ * and materialize that result as dynamic-array storage on the object stack.
+ * Array methods on arbitrary expressions use this form: the function's
+ * automatic frame must remain live until %load/arr/dar has copied all return
+ * words, so the ordinary object-return path cannot be used.
+ */
+void draw_ufunc_uarray_object(ivl_expr_t expr, int as_queue,
+			      unsigned queue_max_size)
+{
+      ivl_scope_t def = ivl_expr_def(expr);
+      ivl_signal_t retval = ivl_scope_port(def, 0);
+      ivl_variable_type_t dt = ivl_signal_data_type(retval);
+      unsigned wid = ivl_signal_width(retval);
+      unsigned kind;
+      unsigned count;
+      int base;
+      int left;
+
+      assert(retval);
+      assert(ivl_signal_dimensions(retval) > 0);
+
+      draw_ufunc_preamble(expr);
+
+      if (ivl_signal_dimensions(retval) != 1) {
+	    fprintf(stderr, "%s:%u: sorry: an unpacked-array function result "
+		    "used as an object must be one-dimensional\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    vvp_errors += 1;
+	    fprintf(vvp_out, "    %%null; ; multidimensional ufunc array\n");
+	    draw_ufunc_epilogue(expr);
+	    return;
+      }
+
+      switch (dt) {
+	  case IVL_VT_REAL:
+	    kind = 0;
+	    break;
+	  case IVL_VT_STRING:
+	    kind = (1u << 12);
+	    break;
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	    if (wid == 0) wid = 1;
+	    if (wid > 255) {
+		  fprintf(stderr, "%s:%u: sorry: fixed-array materialization "
+			  "supports integral widths up to 255 bits\n",
+			  ivl_expr_file(expr), ivl_expr_lineno(expr));
+		  vvp_errors += 1;
+		  fprintf(vvp_out, "    %%null; ; wide ufunc array\n");
+		  draw_ufunc_epilogue(expr);
+		  return;
+	    }
+	    kind = (wid & 0xffu)
+		 | (ivl_signal_signed(retval) ? (1u << 8) : 0u)
+		 | ((dt == IVL_VT_LOGIC) ? (1u << 9) : 0u);
+	    break;
+	  case IVL_VT_CLASS:
+	    kind = (1u << 11);
+	    break;
+	  default:
+	    fprintf(stderr, "%s:%u: sorry: unsupported element type %d in "
+		    "an unpacked-array function result\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr), (int)dt);
+	    vvp_errors += 1;
+	    fprintf(vvp_out, "    %%null; ; unsupported ufunc array\n");
+	    draw_ufunc_epilogue(expr);
+	    return;
+      }
+
+      count = ivl_signal_array_count(retval);
+      base = ivl_signal_array_base(retval);
+      if (ivl_signal_array_addr_swapped(retval)) {
+	    left = base + (int)count - 1;
+	    kind |= (1u << 10);
+      } else {
+	    left = base;
+      }
+	/* A whole queue class property has no signal-backed destination for the
+	 * ordinary %store/qobj copy path. Ask the marshaller for a real queue
+	 * object so later queue-only mutations remain valid. Other object
+	 * contexts intentionally retain dynamic-array storage. */
+      if (as_queue)
+	    kind |= (1u << 13);
+
+      note_array_signal_use(retval);
+      fprintf(vvp_out, "    %%load/arr/dar v%p, %u, %u;\n",
+	      retval, kind, as_queue ? queue_max_size : (unsigned)left);
       draw_ufunc_epilogue(expr);
 }

@@ -41,6 +41,13 @@ struct args_info {
       struct args_info *child; /* Arguments can be nested. */
 };
 
+struct deferred_vpi_call_info {
+      long source_id;
+      ivl_scope_t scope;
+      unsigned action_lab;
+      unsigned after_lab;
+};
+
 static const char* magic_sfuncs[] = {
       "$time",
       "$stime",
@@ -737,12 +744,17 @@ static int get_vpi_taskfunc_lvalue_arg(struct args_info *result,
 
 static void draw_vpi_taskfunc_args(const char*call_string,
 				   ivl_statement_t tnet,
-				   ivl_expr_t fnet)
+				   ivl_expr_t fnet,
+				   unsigned parm_base,
+				   const char*tf_name_override,
+				   int force_value_capture,
+				   const struct deferred_vpi_call_info*deferred)
 {
       unsigned idx;
-      const char*tf_name = tnet ? ivl_stmt_name(tnet) : ivl_expr_name(fnet);
+      const char*tf_name = tf_name_override ? tf_name_override
+	    : (tnet ? ivl_stmt_name(tnet) : ivl_expr_name(fnet));
       unsigned parm_count = tnet
-	    ? ivl_stmt_parm_count(tnet)
+	    ? ivl_stmt_parm_count(tnet) - parm_base
 	    : ivl_expr_parms(fnet);
 
       struct args_info *args = calloc(parm_count, sizeof(struct args_info));
@@ -764,7 +776,7 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 	   for items that are VPI objects directly. */
       for (idx = 0 ;  idx < parm_count ;  idx += 1) {
 	    ivl_expr_t expr = tnet
-		  ? ivl_stmt_parm(tnet, idx)
+		  ? ivl_stmt_parm(tnet, parm_base + idx)
 		  : ivl_expr_parm(fnet, idx);
 
 	      /* A selected instance-array scope can arrive as a zero-extension
@@ -782,7 +794,8 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  continue;
 	    }
 
-	    if (tf_name && strcmp(tf_name, "$cast") == 0 && idx == 0) {
+	    if (!force_value_capture && tf_name
+		&& strcmp(tf_name, "$cast") == 0 && idx == 0) {
 		  if (get_vpi_taskfunc_lvalue_arg(&args[idx], expr))
 			continue;
 	    }
@@ -858,7 +871,8 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  continue;
 
 		case IVL_EX_SFUNC:
-		  if (is_magic_sfunc(ivl_expr_name(expr))) {
+		  if (!force_value_capture
+		      && is_magic_sfunc(ivl_expr_name(expr))) {
 			snprintf(buffer, sizeof buffer, "%s", ivl_expr_name(expr));
 			args[idx].text = strdup(buffer);
 			continue;
@@ -868,18 +882,19 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		case IVL_EX_SIGNAL:
 		case IVL_EX_PROPERTY:
 		case IVL_EX_SELECT:
-		  args[idx].stack = vec4_stack_need;
-		  if (get_vpi_taskfunc_signal_arg(&args[idx], expr)) {
-			if (args[idx].vec_flag) {
-			      vec4_stack_need += 1;
-			} else {
-			      args[idx].stack = 0;
+		  if (!force_value_capture) {
+			args[idx].stack = vec4_stack_need;
+			if (get_vpi_taskfunc_signal_arg(&args[idx], expr)) {
+			      if (args[idx].vec_flag) {
+				    vec4_stack_need += 1;
+			      } else {
+				    args[idx].stack = 0;
+			      }
+			      continue;
 			}
-			continue;
-		  } else {
 			args[idx].stack = 0;
-			break;
 		  }
+		  break;
 		case IVL_EX_NULL:
 		  snprintf(buffer, sizeof buffer, "null");
 		  args[idx].text = strdup(buffer);
@@ -983,6 +998,16 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 	    }
 	    args[idx].text = strdup(buffer);
       }
+      if (deferred) {
+	    fprintf(vvp_out, "    %%defer/final T_%u.%u, S_%p;\n",
+		    thread_count, deferred->action_lab, deferred->scope);
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n",
+		    thread_count, deferred->after_lab);
+	    fprintf(vvp_out, "T_%u.%u ;\n",
+		    thread_count, deferred->action_lab);
+	    fprintf(vvp_out, "    %%defer/final/key %ld;\n",
+		    deferred->source_id);
+      }
 
       fprintf(vvp_out, "%s", call_string);
 
@@ -1030,6 +1055,12 @@ static void draw_vpi_taskfunc_args(const char*call_string,
       fprintf(vvp_out, " {%u %u %u %u}",
               vec4_stack_need, real_stack_need, str_stack_need, obj_stack_need);
       fprintf(vvp_out, ";\n");
+
+      if (deferred) {
+	    fprintf(vvp_out, "    %%end;\n");
+	    fprintf(vvp_out, "T_%u.%u ;\n",
+		    thread_count, deferred->after_lab);
+      }
 }
 
 void draw_vpi_task_call(ivl_statement_t tnet)
@@ -1062,8 +1093,93 @@ void draw_vpi_task_call(ivl_statement_t tnet)
 		     "    %s %u %u \"%s\"", command,
 		     ivl_file_table_index(ivl_stmt_file(tnet)),
 		     ivl_stmt_lineno(tnet), ivl_stmt_name(tnet));
-	    draw_vpi_taskfunc_args(call_string, tnet, 0);
+	    draw_vpi_taskfunc_args(call_string, tnet, 0, 0, 0, 0, 0);
       }
+}
+
+int draw_vpi_deferred_call(ivl_statement_t tnet, unsigned parm_base,
+			   const char*task_name, long source_id,
+			   ivl_scope_t scope)
+{
+      unsigned total = tnet ? ivl_stmt_parm_count(tnet) : 0;
+
+      if (!tnet || !task_name || source_id <= 0 || !scope
+	  || parm_base > total
+	  || (strcmp(task_name, "$display") != 0
+	      && strcmp(task_name, "$error") != 0)) {
+	    fprintf(stderr, "%s:%u: error: malformed final-deferred VPI action; "
+		    "no action was emitted.\n",
+		    tnet ? ivl_stmt_file(tnet) : "<internal>",
+		    tnet ? ivl_stmt_lineno(tnet) : 0);
+	    vvp_errors += 1;
+	    return 1;
+      }
+
+      /* Validate the complete list before emitting any evaluation code. A
+	 deferred marker rejected here must leave every source-thread stack
+	 untouched. Fixed unpacked arrays still need a value-copy representation;
+	 dynamic arrays, queues and class handles already use owned vvp_object_t
+	 stack payloads and are safe to snapshot. */
+      for (unsigned idx = parm_base ; idx < total ; idx += 1) {
+	    ivl_expr_t expr = ivl_stmt_parm(tnet, idx);
+	    int supported = expr != 0;
+	    if (supported && ivl_expr_type(expr) == IVL_EX_ARRAY)
+		  supported = 0;
+	    if (supported && ivl_expr_type(expr) == IVL_EX_SIGNAL) {
+		  ivl_signal_t sig = ivl_expr_signal(expr);
+		  if (sig && ivl_signal_dimensions(sig) != 0)
+			supported = 0;
+	    }
+	    if (supported) {
+		  switch (ivl_expr_value(expr)) {
+		      case IVL_VT_LOGIC:
+		      case IVL_VT_BOOL:
+		      case IVL_VT_REAL:
+		      case IVL_VT_STRING:
+		      case IVL_VT_DARRAY:
+		      case IVL_VT_QUEUE:
+		      case IVL_VT_CLASS:
+			break;
+		      default:
+			switch (ivl_expr_type(expr)) {
+			    case IVL_EX_NONE:
+			    case IVL_EX_NULL:
+			    case IVL_EX_ENUMTYPE:
+			    case IVL_EX_EVENT:
+			    case IVL_EX_SCOPE:
+				break;
+			    default:
+				supported = 0;
+				break;
+			}
+			break;
+		  }
+	    }
+	    if (!supported) {
+		  fprintf(stderr, "%s:%u: error: final-deferred %s argument %u "
+			  "has an unsupported capture shape; no argument was "
+			  "evaluated and no action was emitted.\n",
+			  ivl_stmt_file(tnet), ivl_stmt_lineno(tnet), task_name,
+			  idx - parm_base + 1);
+		  vvp_errors += 1;
+		  return 1;
+	    }
+      }
+
+      struct deferred_vpi_call_info deferred;
+      deferred.source_id = source_id;
+      deferred.scope = scope;
+      deferred.action_lab = local_count++;
+      deferred.after_lab = local_count++;
+
+      char call_string[1024];
+      snprintf(call_string, sizeof(call_string),
+	       "    %%vpi_call %u %u \"%s\"",
+	       ivl_file_table_index(ivl_stmt_file(tnet)),
+	       ivl_stmt_lineno(tnet), task_name);
+      draw_vpi_taskfunc_args(call_string, tnet, 0, parm_base, task_name,
+			     1, &deferred);
+      return 0;
 }
 
 /* Function form: the same lowering, plus the 1/0 result. */
@@ -1095,7 +1211,7 @@ void draw_vpi_func_call(ivl_expr_t fnet)
 	       ivl_expr_lineno(fnet), ivl_expr_name(fnet),
 	       ivl_expr_width(fnet));
 
-      draw_vpi_taskfunc_args(call_string, 0, fnet);
+      draw_vpi_taskfunc_args(call_string, 0, fnet, 0, 0, 0, 0);
 }
 
 void draw_vpi_rfunc_call(ivl_expr_t fnet)
@@ -1107,7 +1223,7 @@ void draw_vpi_rfunc_call(ivl_expr_t fnet)
 	       ivl_file_table_index(ivl_expr_file(fnet)),
 	       ivl_expr_lineno(fnet), ivl_expr_name(fnet));
 
-      draw_vpi_taskfunc_args(call_string, 0, fnet);
+      draw_vpi_taskfunc_args(call_string, 0, fnet, 0, 0, 0, 0);
 }
 
 void draw_vpi_sfunc_call(ivl_expr_t fnet)
@@ -1119,5 +1235,5 @@ void draw_vpi_sfunc_call(ivl_expr_t fnet)
 	       ivl_file_table_index(ivl_expr_file(fnet)),
 	       ivl_expr_lineno(fnet), ivl_expr_name(fnet));
 
-      draw_vpi_taskfunc_args(call_string, 0, fnet);
+      draw_vpi_taskfunc_args(call_string, 0, fnet, 0, 0, 0, 0);
 }

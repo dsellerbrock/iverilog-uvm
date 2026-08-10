@@ -1,0 +1,2 @@
+./ivltests/sv_class_static_get_bad_receiver_fail.v:17: Error: value is not a method of class no_value.
+1 error(s) during elaboration.

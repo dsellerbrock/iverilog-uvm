@@ -110,10 +110,13 @@
  * state the edition they target (and because this fork documents
  * itself against 1800-2017), not because it gates anything.
  */
+/* Iterator index querying was already present in SystemVerilog 3.1a
+ * and IEEE 1800-2005 5.15.4. GN_VER2005 is Verilog-2005; the first
+ * SystemVerilog generation in this table is GN_VER2005_SV. */
 #define SV_FEATURE_TABLE						\
       SV_FEATURE_ROW(SVF_STACKTRACE, GN_VER2023,			\
 		     "the $stacktrace system task")			\
-      SV_FEATURE_ROW(SVF_ITERATOR_INDEX, GN_VER2023,			\
+      SV_FEATURE_ROW(SVF_ITERATOR_INDEX, GN_VER2005_SV,		\
 		     "the `index' iterator method of an array "		\
 		     "manipulation method")
 

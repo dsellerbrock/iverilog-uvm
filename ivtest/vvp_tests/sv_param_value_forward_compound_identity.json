@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_param_value_forward_compound_identity.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_param_value_forward_compound_identity"
+}

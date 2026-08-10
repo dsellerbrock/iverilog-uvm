@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_param_class_static_container_method.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_param_class_static_container_method"
+}

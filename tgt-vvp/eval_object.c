@@ -577,6 +577,12 @@ static int eval_object_signal(ivl_expr_t expr)
 
 static int eval_object_ufunc(ivl_expr_t ex)
 {
+      ivl_scope_t def = ivl_expr_def(ex);
+      ivl_signal_t retval = def ? ivl_scope_port(def, 0) : 0;
+      if (retval && ivl_signal_dimensions(retval) > 0) {
+	    draw_ufunc_uarray_object(ex, 0, 0);
+	    return 0;
+      }
       draw_ufunc_object(ex);
       return 0;
 }
@@ -598,20 +604,9 @@ static int eval_object_ufunc(ivl_expr_t ex)
  *     import "DPI-C" function void f(input int x[]);  f(a);   // 35.5.6.1
  *     C arr[4]; C h;           h = arr;    // NOT legal: type mismatch
  *
- * All three used to emit `%ix/load 3, 0, 0' + `%load/obja' -- element 0 as
- * the object. The legal two therefore produced an EMPTY dynamic array
- * (size 0, so a C model saw a zero-length open array) and the illegal one
- * compiled as if the author had written arr[0]. Silent in every case.
- *
- * Marshaling a fixed array into dynamic-array storage is not implemented,
- * so this is a sorry rather than an answer. It is deliberately NOT phrased
- * as a type error: two of the three shapes are legal SystemVerilog and it
- * is this implementation that is missing, not the user's code.
- *
- * Nothing in the corpus depends on the old behaviour: instrumenting this
- * path and compiling all 1070 ivtest cases and all 218 UVM tests produced
- * zero hits (DPI open-array arguments in the suite are dynamic arrays,
- * which marshal through a different path and are unaffected).
+ * The legal forms are materialized element-wise into typed dynamic-array
+ * storage below. The illegal single-handle forms are rejected during
+ * elaboration, where both source and destination types are visible.
  */
 static int eval_object_array(ivl_expr_t expr)
 {
@@ -639,6 +634,9 @@ static int eval_object_array(ivl_expr_t expr)
 		case IVL_VT_REAL:
 		  kind = 0;                     /* ARRDAR_REAL */
 		  break;
+		case IVL_VT_STRING:
+		  kind = (1u << 12);            /* ARRDAR_STRING */
+		  break;
 		case IVL_VT_BOOL:
 		case IVL_VT_LOGIC:
 		  if (wid == 0) wid = 1;
@@ -658,7 +656,7 @@ static int eval_object_array(ivl_expr_t expr)
 		default:
 		  fprintf(stderr, "%s:%u: sorry: the whole unpacked array "
 			  "`%s' cannot be used as an object: only arrays of "
-			  "integral, real or class-handle elements can be "
+			  "integral, real, string or class-handle elements can be "
 			  "marshaled into dynamic-array storage.\n",
 			  ivl_expr_file(expr), ivl_expr_lineno(expr),
 			  ivl_signal_basename(sig));
@@ -692,16 +690,16 @@ static int eval_object_array(ivl_expr_t expr)
 	    if (ivl_signal_dimensions(sig) > 1) {
 		  unsigned dim;
 		  for (dim = 0 ; dim < ivl_signal_dimensions(sig) ; dim += 1)
-			fprintf(vvp_out, "    %%dim/push %d, %d;\n",
-				ivl_signal_array_dim_msb(sig, dim),
-				ivl_signal_array_dim_lsb(sig, dim));
+			fprintf(vvp_out, "    %%dim/push %u, %u;\n",
+				(unsigned)ivl_signal_array_dim_msb(sig, dim),
+				(unsigned)ivl_signal_array_dim_lsb(sig, dim));
 		  fprintf(vvp_out, "    %%load/arr/dar/md v%p, %u;\n",
 			  sig, kind);
 		  return 0;
 	    }
 
-	    fprintf(vvp_out, "    %%load/arr/dar v%p, %u, %d;\n",
-		    sig, kind, left);
+	    fprintf(vvp_out, "    %%load/arr/dar v%p, %u, %u;\n",
+		    sig, kind, (unsigned)left);
       }
       return 0;
 }
@@ -960,6 +958,19 @@ static void draw_array_elem_load_vec4_(ivl_signal_t sig)
 static ivl_signal_t draw_array_method_recv_(ivl_expr_t a_arg,
 					    ivl_expr_t recv_parm)
 {
+	    /* A supplied hidden receiver is an explicit request to evaluate and
+	     * materialize the source once. Fixed arrays always use this path;
+	     * consulting the IVL_EX_ARRAY fast path first would return the static
+	     * signal and bypass fixed-to-darray marshaling. */
+	  if (a_arg && recv_parm
+	      && ivl_expr_type(recv_parm) == IVL_EX_SIGNAL
+	      && ivl_expr_signal(recv_parm)) {
+		ivl_signal_t recv_sig = ivl_expr_signal(recv_parm);
+		draw_eval_object(a_arg);
+		fprintf(vvp_out, "    %%store/obj v%p_0;\n", recv_sig);
+		return recv_sig;
+	  }
+
       if (a_arg && (ivl_expr_type(a_arg) == IVL_EX_SIGNAL
 		    || ivl_expr_type(a_arg) == IVL_EX_ARRAY)
 	  && ivl_expr_signal(a_arg))
@@ -970,10 +981,208 @@ static ivl_signal_t draw_array_method_recv_(ivl_expr_t a_arg,
 	  || !ivl_expr_signal(recv_parm))
 	    return 0;
 
-      ivl_signal_t recv_sig = ivl_expr_signal(recv_parm);
-      draw_eval_object(a_arg);
-      fprintf(vvp_out, "    %%store/obj v%p_0;\n", recv_sig);
-      return recv_sig;
+	  return 0;
+}
+
+static int unique_runtime_type_supported_(ivl_type_t type)
+{
+      if (!type)
+	    return 0;
+
+      switch (ivl_type_base(type)) {
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	  case IVL_VT_REAL:
+	  case IVL_VT_STRING:
+	  case IVL_VT_CLASS:
+	    return 1;
+	  default:
+	    return 0;
+      }
+}
+
+/* Evaluate one unique() value and store it in a hidden iterator signal. */
+static int draw_unique_store_signal_(ivl_expr_t value, ivl_signal_t sig,
+				     ivl_type_t type)
+{
+      unsigned wid;
+
+      switch (ivl_type_base(type)) {
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	    wid = ivl_type_packed_width(type);
+	    if (wid == 0) wid = 1;
+	    draw_eval_vec4(value);
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", sig, wid);
+	    return 0;
+	  case IVL_VT_REAL:
+	    draw_eval_real(value);
+	    fprintf(vvp_out, "    %%store/real v%p_0;\n", sig);
+	    return 0;
+	  case IVL_VT_STRING:
+	    draw_eval_string(value);
+	    fprintf(vvp_out, "    %%store/str v%p_0;\n", sig);
+	    return 0;
+	  case IVL_VT_CLASS: {
+	    int errors = draw_eval_object(value);
+	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
+	    return errors;
+	  }
+	  default:
+	    return 1;
+      }
+}
+
+/* Evaluate one unique() value and append it to a hidden unbounded queue. */
+static int draw_unique_append_queue_(ivl_expr_t value, ivl_signal_t queue_sig,
+				     ivl_type_t type)
+{
+      unsigned wid;
+
+      switch (ivl_type_base(type)) {
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	    wid = ivl_type_packed_width(type);
+	    if (wid == 0) wid = 1;
+	    draw_eval_vec4(value);
+	    fprintf(vvp_out, "    %%store/qb/v v%p_0, 5, %u;\n",
+		    queue_sig, wid);
+	    return 0;
+	  case IVL_VT_REAL:
+	    draw_eval_real(value);
+	    fprintf(vvp_out, "    %%store/qb/r v%p_0, 5;\n", queue_sig);
+	    return 0;
+	  case IVL_VT_STRING:
+	    draw_eval_string(value);
+	    fprintf(vvp_out, "    %%store/qb/str v%p_0, 5;\n", queue_sig);
+	    return 0;
+	  case IVL_VT_CLASS: {
+	    int errors = draw_eval_object(value);
+	    fprintf(vvp_out, "    %%store/qb/obj v%p_0, 5;\n", queue_sig);
+	    return errors;
+	  }
+	  default:
+	    return 1;
+      }
+}
+
+/* Lower the rich associative payload created by
+ * make_assoc_array_unique_expr_. The receiver has already been materialized
+ * into q_sig. Existing %aa/first/sig and %aa/next/sig operations write the
+ * exact typed key signal; the passed element-select expression then reuses
+ * the ordinary associative load lowering for every value/key combination. */
+static int draw_assoc_unique_expr_(ivl_expr_t expr, ivl_signal_t q_sig,
+				   int is_index)
+{
+      unsigned parm_count = ivl_expr_parms(expr);
+      if (parm_count != 7 && parm_count != 8) {
+	    fprintf(stderr, "%s:%u: internal error: malformed associative "
+		    "unique payload\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    fprintf(vvp_out, "    %%null; ; assoc unique payload failure\n");
+	    return 1;
+      }
+
+      ivl_expr_t iter_arg = ivl_expr_parm(expr, 1);
+      ivl_expr_t result_arg = ivl_expr_parm(expr, 2);
+      ivl_expr_t comparisons_arg = ivl_expr_parm(expr, 3);
+      ivl_expr_t index_arg = ivl_expr_parm(expr, 4);
+      ivl_expr_t comparison_expr = ivl_expr_parm(expr, 5);
+      ivl_expr_t element_expr = ivl_expr_parm(expr, 6);
+      if (!iter_arg || ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
+	  || !ivl_expr_signal(iter_arg)
+	  || !result_arg || ivl_expr_type(result_arg) != IVL_EX_SIGNAL
+	  || !ivl_expr_signal(result_arg)
+	  || !comparisons_arg
+	  || ivl_expr_type(comparisons_arg) != IVL_EX_SIGNAL
+	  || !ivl_expr_signal(comparisons_arg)
+	  || !index_arg || ivl_expr_type(index_arg) != IVL_EX_SIGNAL
+	  || !ivl_expr_signal(index_arg)
+	  || !comparison_expr || !element_expr) {
+	    fprintf(stderr, "%s:%u: internal error: malformed associative "
+		    "unique expression fields\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    fprintf(vvp_out, "    %%null; ; assoc unique field failure\n");
+	    return 1;
+      }
+
+      ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
+      ivl_signal_t result_sig = ivl_expr_signal(result_arg);
+      ivl_signal_t comparisons_sig = ivl_expr_signal(comparisons_arg);
+      ivl_signal_t index_sig = ivl_expr_signal(index_arg);
+      ivl_type_t iter_type = ivl_signal_net_type(iter_sig);
+      ivl_type_t result_queue_type = ivl_signal_net_type(result_sig);
+      ivl_type_t comparisons_queue_type =
+	    ivl_signal_net_type(comparisons_sig);
+      ivl_type_t index_type = ivl_signal_net_type(index_sig);
+      ivl_type_t result_type = result_queue_type
+	    ? ivl_type_element(result_queue_type) : 0;
+      ivl_type_t comparison_type = comparisons_queue_type
+	    ? ivl_type_element(comparisons_queue_type) : 0;
+      if (!unique_runtime_type_supported_(iter_type)
+	  || !unique_runtime_type_supported_(index_type)
+	  || !unique_runtime_type_supported_(result_type)
+	  || !unique_runtime_type_supported_(comparison_type)) {
+	    fprintf(stderr, "%s:%u: internal error: unsupported associative "
+		    "unique runtime type\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    fprintf(vvp_out, "    %%null; ; assoc unique type failure\n");
+	    return 1;
+      }
+
+      const char*key_kind;
+      if (expr_is_string_assoc_key_(index_arg))
+            key_kind = "str";
+      else if (expr_is_object_assoc_key_(index_arg))
+            key_kind = "obj";
+      else
+            key_kind = ivl_type_signed(index_type) ? "sv" : "v";
+
+      char result_enc[64];
+      char comparison_enc[64];
+      container_element_enc_(result_type, result_enc, sizeof result_enc);
+      container_element_enc_(comparison_type, comparison_enc,
+			     sizeof comparison_enc);
+
+      unsigned lab_top = local_count++;
+      unsigned lab_end = local_count++;
+      int traversal_flag = allocate_flag();
+      int errors = 0;
+
+	/* Each evaluation produces a distinct, correctly typed result, even
+	 * when the associative receiver is empty. ix5=0 is the unbounded queue
+	 * limit consumed by every %store/qb operation below. */
+      fprintf(vvp_out, "    %%ix/load 5, 0, 0;\n");
+      fprintf(vvp_out, "    %%new/queue \"%s\";\n", result_enc);
+      fprintf(vvp_out, "    %%store/obj v%p_0;\n", result_sig);
+      fprintf(vvp_out, "    %%new/queue \"%s\";\n", comparison_enc);
+      fprintf(vvp_out, "    %%store/obj v%p_0;\n", comparisons_sig);
+
+      fprintf(vvp_out, "    %%aa/first/sig/%s v%p_0, v%p_0;\n",
+	      key_kind, q_sig, index_sig);
+      fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", traversal_flag);
+      fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d;\n",
+	      thread_count, lab_end, traversal_flag);
+
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_top);
+      errors += draw_unique_store_signal_(element_expr, iter_sig, iter_type);
+      errors += draw_unique_append_queue_(comparison_expr, comparisons_sig,
+					  comparison_type);
+      errors += draw_unique_append_queue_(is_index ? index_arg : iter_arg,
+					  result_sig, result_type);
+
+      fprintf(vvp_out, "    %%aa/next/sig/%s v%p_0, v%p_0;\n",
+	      key_kind, q_sig, index_sig);
+      fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", traversal_flag);
+      fprintf(vvp_out, "    %%jmp/1 T_%u.%u, %d;\n",
+	      thread_count, lab_top, traversal_flag);
+
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_end);
+      fprintf(vvp_out, "    %%qunique/keys v%p_0, v%p_0;\n",
+	      result_sig, comparisons_sig);
+      fprintf(vvp_out, "    %%load/obj v%p_0;\n", result_sig);
+      clr_flag(traversal_flag);
+      return errors;
 }
 
 /* IEEE 1800-2017 7.12.3 array reduction methods:
@@ -992,27 +1201,45 @@ int draw_array_reduce_vec4(ivl_expr_t expr)
       unsigned parm_count = ivl_expr_parms(expr);
       unsigned wid = ivl_expr_width(expr);
       static int warned_reduce_shape = 0;
+	/* A fixed receiver adds a materialized dynamic-array signal plus the
+	 * declared-index signal/expression used by iterator.index(). */
+      int is_fixed = parm_count == 7 || parm_count == 8;
+	/* The 8-parameter fixed shape materializes an arbitrary/property
+	 * receiver; a direct fixed signal uses the 7-parameter shape. */
+      int fixed_has_recv = parm_count == 8;
 
       ivl_expr_t a_arg = (parm_count > 4) ? ivl_expr_parm(expr, 0) : 0;
       ivl_expr_t iter_arg = (parm_count > 4) ? ivl_expr_parm(expr, 1) : 0;
       ivl_expr_t idx_arg = (parm_count > 4) ? ivl_expr_parm(expr, 2) : 0;
       ivl_expr_t acc_arg = (parm_count > 4) ? ivl_expr_parm(expr, 3) : 0;
       ivl_expr_t val = (parm_count > 4) ? ivl_expr_parm(expr, 4) : 0;
-      ivl_expr_t recv_parm = (parm_count > 5) ? ivl_expr_parm(expr, 5) : 0;
+      ivl_expr_t recv_parm = fixed_has_recv
+	    ? ivl_expr_parm(expr, 5)
+	    : (!is_fixed && parm_count > 5) ? ivl_expr_parm(expr, 5) : 0;
+      ivl_expr_t declared_idx_arg = is_fixed
+	    ? ivl_expr_parm(expr, fixed_has_recv ? 6 : 5) : 0;
+      ivl_expr_t declared_idx_expr = is_fixed
+	    ? ivl_expr_parm(expr, fixed_has_recv ? 7 : 6) : 0;
 
 	/* A whole-array receiver is IVL_EX_SIGNAL for queue/darray
 	 * object variables, IVL_EX_ARRAY for fixed-size arrays; other
 	 * object-valued receivers go through the hidden recv_parm
 	 * net. */
       ivl_signal_t a_sig = draw_array_method_recv_(a_arg, recv_parm);
-      if (!a_sig
+      if ((parm_count != 5 && parm_count != 6 && !is_fixed)
+	  || !a_sig
 	  || !iter_arg || ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
 	  || !ivl_expr_signal(iter_arg)
 	  || !idx_arg || ivl_expr_type(idx_arg) != IVL_EX_SIGNAL
 	  || !ivl_expr_signal(idx_arg)
 	  || !acc_arg || ivl_expr_type(acc_arg) != IVL_EX_SIGNAL
 	  || !ivl_expr_signal(acc_arg)
-	  || !val) {
+	  || !val
+	  || (is_fixed
+	      && (!declared_idx_arg
+		  || ivl_expr_type(declared_idx_arg) != IVL_EX_SIGNAL
+		  || !ivl_expr_signal(declared_idx_arg)
+		  || !declared_idx_expr))) {
 	    if (!warned_reduce_shape) {
 		  fprintf(stderr, "Warning: %s requires a simple array"
 			  " variable receiver; emitting 0 fallback"
@@ -1027,6 +1254,8 @@ int draw_array_reduce_vec4(ivl_expr_t expr)
       ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
       ivl_signal_t idx_sig = ivl_expr_signal(idx_arg);
       ivl_signal_t acc_sig = ivl_expr_signal(acc_arg);
+      ivl_signal_t declared_idx_sig = is_fixed
+	    ? ivl_expr_signal(declared_idx_arg) : 0;
 
       unsigned iter_wid = ivl_type_packed_width(ivl_signal_net_type(iter_sig));
       if (iter_wid == 0) iter_wid = 32;
@@ -1065,6 +1294,15 @@ int draw_array_reduce_vec4(ivl_expr_t expr)
       draw_array_elem_load_vec4_(a_sig);
       fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", iter_sig, iter_wid);
 
+	/* The materialized fixed receiver is traversed in canonical low-address
+	 * order. Expose its declared index to the with expression without using
+	 * that value as the storage address. */
+      if (is_fixed) {
+	    draw_eval_vec4(declared_idx_expr);
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n",
+		    declared_idx_sig);
+      }
+
 	/* acc = acc OP value(iter) */
       draw_eval_vec4(val);
       if (ivl_expr_width(val) != wid)
@@ -1090,6 +1328,32 @@ static int eval_object_sfunc(ivl_expr_t expr)
 {
       const char*name = ivl_expr_name(expr);
       unsigned parm_count = ivl_expr_parms(expr);
+
+      /* A lone associative-array default pattern is a first-class value in
+         assignment-like contexts, including function arguments, casts and
+         conditional arms. Direct signal/property assignments consume this
+         marker in stmt_assign.c; all nested and call-argument paths arrive
+         through the generic object evaluator instead. Materialize the same
+         fresh typed map here rather than allowing the internal sfunc name to
+         fall through to the null-object recovery path. */
+      if (strcmp(name, "$ivl_assoc_default") == 0) {
+	    ivl_type_t assoc_type = ivl_expr_net_type(expr);
+	    ivl_type_t element_type = assoc_type
+		  ? ivl_type_element(assoc_type) : 0;
+
+	    if (parm_count != 1 || !assoc_type || !element_type
+		|| ivl_type_base(assoc_type) != IVL_VT_QUEUE
+		|| !ivl_type_queue_assoc_compat(assoc_type)) {
+		  fprintf(stderr, "%s:%u: internal error: malformed typed "
+			  "associative-array default marker\n",
+			  ivl_expr_file(expr), ivl_expr_lineno(expr));
+		  fprintf(vvp_out,
+			  "    %%null; ; malformed associative default marker\n");
+		  return 1;
+	    }
+
+	    return draw_eval_assoc_default(expr, element_type);
+      }
 
       /* Streaming concatenation materialized into a dynamic container
          (IEEE 1800-2017 11.4.14): build the stream, then convert it to
@@ -1182,26 +1446,308 @@ static int eval_object_sfunc(ivl_expr_t expr)
        * case in UVM); REAL/STRING/object-typed queues fall back to
        * an empty result with a one-time advisory warning. */
       /* Phase 63b/Q-methods (gap close): expression-form q.unique()
-       * and q.unique_index().  Emit a single runtime opcode
-       * %qunique_copy that reads the queue and returns a new
-       * dedup'd copy on the object stack. */
+       * and q.unique_index().  Emit runtime opcodes that read the
+       * queue/darray and return a fresh result queue on the object stack.
+       * %qunique_copy also carries the declared element category so a
+       * never-allocated source still produces the correctly typed empty
+       * queue. */
       if (strncmp(name, "$ivl_queue_method$unique_with|", 30) == 0) {
 	    const char*kind = name + 30;
 	    int is_index = (strstr(kind, "index") != NULL);
+	    int is_plain = parm_count == 1 || parm_count == 2;
+	    int is_fixed = parm_count == 9;
 
-	    if (parm_count < 1) {
-		  fprintf(vvp_out, "    %%null; ; unique_with: bad parm count\n");
-		  return 0;
+	    if (!is_plain && parm_count != 6 && parm_count != 7
+		&& parm_count != 8 && !is_fixed) {
+		  fprintf(stderr, "%s:%u: internal error: malformed unique "
+			  "expression parameter count\n",
+			  ivl_expr_file(expr), ivl_expr_lineno(expr));
+		  fprintf(vvp_out, "    %%null; ; unique invariant failure\n");
+		  return 1;
 	    }
 	    ivl_expr_t q_arg = ivl_expr_parm(expr, 0);
-	    if (!q_arg || ivl_expr_type(q_arg) != IVL_EX_SIGNAL
-		|| !ivl_expr_signal(q_arg)) {
-		  fprintf(vvp_out, "    %%null; ; unique_with: bad arg shape\n");
+	    ivl_expr_t recv_parm = is_fixed
+		  ? ivl_expr_parm(expr, 6)
+		  : is_plain
+		  ? ((parm_count == 2) ? ivl_expr_parm(expr, 1) : 0)
+		  : ((parm_count == 8) ? ivl_expr_parm(expr, 7)
+		     : ((parm_count == 7) ? ivl_expr_parm(expr, 6) : 0));
+	    ivl_signal_t q_sig = draw_array_method_recv_(q_arg, recv_parm);
+	    if (!q_sig) {
+		  fprintf(stderr, "%s:%u: internal error: unique expression "
+			  "receiver cannot be materialized\n",
+			  ivl_expr_file(expr), ivl_expr_lineno(expr));
+		  fprintf(vvp_out, "    %%null; ; unique receiver failure\n");
+		  return 1;
+	    }
+	    ivl_type_t q_type = ivl_signal_net_type(q_sig);
+	    if (q_type && ivl_type_queue_assoc_compat(q_type))
+		  return draw_assoc_unique_expr_(expr, q_sig, is_index);
+
+	      /* Plain unique/unique_index supports integral (2- or 4-state),
+	       * real, string, and class-handle element containers. The result of
+	       * unique_index is always an int queue; unique needs the element
+	       * category in its opcode for a null/empty dynamic-array receiver. */
+	    if (is_plain) {
+		  ivl_type_t elem_type = q_type ? ivl_type_element(q_type) : 0;
+		  unsigned elem_kind;
+		  switch (elem_type ? ivl_type_base(elem_type) : IVL_VT_NO_TYPE) {
+		      case IVL_VT_BOOL:
+		      case IVL_VT_LOGIC:
+			elem_kind = 0;
+			break;
+		      case IVL_VT_REAL:
+			elem_kind = 1;
+			break;
+		      case IVL_VT_STRING:
+			elem_kind = 2;
+			break;
+		      case IVL_VT_CLASS:
+			elem_kind = 3;
+			break;
+		      default:
+			fprintf(stderr, "%s:%u: internal error: unsupported plain "
+				"unique element type %d\n",
+				ivl_expr_file(expr), ivl_expr_lineno(expr),
+				elem_type ? (int)ivl_type_base(elem_type) : -1);
+			fprintf(vvp_out,
+				"    %%null; ; unique element type failure\n");
+			return 1;
+		  }
+		  if (is_index)
+			fprintf(vvp_out, "    %%qunique_idx v%p_0;\n", q_sig);
+		  else
+			fprintf(vvp_out, "    %%qunique_copy v%p_0, %u;\n",
+				q_sig, elem_kind);
 		  return 0;
 	    }
-	    ivl_signal_t q_sig = ivl_expr_signal(q_arg);
-	    fprintf(vvp_out, "    %s v%p_0;\n",
-		    is_index ? "%qunique_idx" : "%qunique_copy", q_sig);
+
+	      /* Keyed expression shape:
+	       *   array.unique[(iter)] with (key)
+	       *   array.unique_index[(iter)] with (key)
+	       * parms are source, iterator, fresh result, key queue, index, key.
+	       * Populate both fresh queues in one traversal, evaluating the key
+	       * exactly once for every source element, then deduplicate the result
+	       * against the parallel keys. Scalar element/key types retain their
+	       * native vec4 width/X/Z, real, string, or class-handle
+	       * representation. A fixed receiver adds a distinct declared-index
+	       * signal/expression after the hidden materialized receiver. */
+	    ivl_expr_t iter_arg = ivl_expr_parm(expr, 1);
+	    ivl_expr_t result_arg = ivl_expr_parm(expr, 2);
+	    ivl_expr_t keys_arg = ivl_expr_parm(expr, 3);
+	    ivl_expr_t idx_arg = ivl_expr_parm(expr, 4);
+	    ivl_expr_t key_expr = ivl_expr_parm(expr, 5);
+	    ivl_expr_t declared_idx_arg = is_fixed
+		  ? ivl_expr_parm(expr, 7) : 0;
+	    ivl_expr_t declared_idx_expr = is_fixed
+		  ? ivl_expr_parm(expr, 8) : 0;
+	    if (!iter_arg || ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
+		|| !ivl_expr_signal(iter_arg)
+		|| !result_arg || ivl_expr_type(result_arg) != IVL_EX_SIGNAL
+		|| !ivl_expr_signal(result_arg)
+		|| !keys_arg || ivl_expr_type(keys_arg) != IVL_EX_SIGNAL
+		|| !ivl_expr_signal(keys_arg)
+		|| !idx_arg || ivl_expr_type(idx_arg) != IVL_EX_SIGNAL
+		|| !ivl_expr_signal(idx_arg)
+		|| !key_expr
+		|| (is_fixed
+		    && (!declared_idx_arg
+			|| ivl_expr_type(declared_idx_arg) != IVL_EX_SIGNAL
+			|| !ivl_expr_signal(declared_idx_arg)
+			|| !declared_idx_expr))) {
+		  fprintf(stderr, "%s:%u: internal error: malformed keyed "
+			  "unique payload\n",
+			  ivl_expr_file(expr), ivl_expr_lineno(expr));
+		  fprintf(vvp_out, "    %%null; ; keyed unique payload failure\n");
+		  return 1;
+	    }
+	    ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
+	    ivl_signal_t result_sig = ivl_expr_signal(result_arg);
+	    ivl_signal_t keys_sig = ivl_expr_signal(keys_arg);
+	    ivl_signal_t idx_sig = ivl_expr_signal(idx_arg);
+	    ivl_signal_t declared_idx_sig = is_fixed
+		  ? ivl_expr_signal(declared_idx_arg) : 0;
+	    ivl_type_t iter_type = ivl_signal_net_type(iter_sig);
+	    ivl_type_t elem_type = q_type ? ivl_type_element(q_type) : 0;
+	    ivl_type_t keys_type = ivl_signal_net_type(keys_sig);
+	    ivl_type_t key_type = keys_type ? ivl_type_element(keys_type) : 0;
+	    ivl_variable_type_t elem_vt =
+		  iter_type ? ivl_type_base(iter_type) : IVL_VT_NO_TYPE;
+	    ivl_variable_type_t key_vt = ivl_expr_value(key_expr);
+	    unsigned key_wid = ivl_expr_width(key_expr);
+	    int scalar_element = elem_vt == IVL_VT_BOOL
+		  || elem_vt == IVL_VT_LOGIC || elem_vt == IVL_VT_REAL
+		  || elem_vt == IVL_VT_STRING || elem_vt == IVL_VT_CLASS;
+	    int scalar_key = key_vt == IVL_VT_BOOL
+		  || key_vt == IVL_VT_LOGIC || key_vt == IVL_VT_REAL
+		  || key_vt == IVL_VT_STRING || key_vt == IVL_VT_CLASS;
+	    if (!iter_type || !elem_type
+		|| !scalar_element
+		|| !scalar_key
+		|| !key_type
+		|| ((key_vt == IVL_VT_BOOL || key_vt == IVL_VT_LOGIC)
+		    && key_wid == 0)) {
+		  fprintf(stderr, "%s:%u: internal error: unsupported keyed "
+			  "unique iterator/key shape\n",
+			  ivl_expr_file(expr), ivl_expr_lineno(expr));
+		  fprintf(vvp_out, "    %%null; ; keyed unique type failure\n");
+		  return 1;
+	    }
+
+	    unsigned elem_wid = ivl_type_packed_width(iter_type);
+	    if (elem_wid == 0) elem_wid = 32;
+	    const char*load_elem = 0;
+	    const char*store_iter = 0;
+	    const char*load_result = 0;
+	    const char*store_result = 0;
+	    char store_iter_buf[64];
+	    char load_result_buf[64];
+	    char store_result_buf[64];
+	    switch (elem_vt) {
+		case IVL_VT_BOOL:
+		case IVL_VT_LOGIC:
+		  load_elem = "load/dar/vec4";
+		  snprintf(store_iter_buf, sizeof store_iter_buf,
+			   "store/vec4 v%p_0, 0, %u", iter_sig, elem_wid);
+		  store_iter = store_iter_buf;
+		  snprintf(load_result_buf, sizeof load_result_buf,
+			   "load/vec4 v%p_0", iter_sig);
+		  load_result = load_result_buf;
+		  snprintf(store_result_buf, sizeof store_result_buf,
+			   "store/qb/v v%p_0, 5, %u", result_sig, elem_wid);
+		  store_result = store_result_buf;
+		  break;
+		case IVL_VT_REAL:
+		  load_elem = "load/dar/r";
+		  snprintf(store_iter_buf, sizeof store_iter_buf,
+			   "store/real v%p_0", iter_sig);
+		  store_iter = store_iter_buf;
+		  snprintf(load_result_buf, sizeof load_result_buf,
+			   "load/real v%p_0", iter_sig);
+		  load_result = load_result_buf;
+		  snprintf(store_result_buf, sizeof store_result_buf,
+			   "store/qb/r v%p_0, 5", result_sig);
+		  store_result = store_result_buf;
+		  break;
+		case IVL_VT_STRING:
+		  load_elem = "load/dar/str";
+		  snprintf(store_iter_buf, sizeof store_iter_buf,
+			   "store/str v%p_0", iter_sig);
+		  store_iter = store_iter_buf;
+		  snprintf(load_result_buf, sizeof load_result_buf,
+			   "load/str v%p_0", iter_sig);
+		  load_result = load_result_buf;
+		  snprintf(store_result_buf, sizeof store_result_buf,
+			   "store/qb/str v%p_0, 5", result_sig);
+		  store_result = store_result_buf;
+		  break;
+		case IVL_VT_CLASS:
+		  load_elem = "load/dar/obj";
+		  snprintf(store_iter_buf, sizeof store_iter_buf,
+			   "store/obj v%p_0", iter_sig);
+		  store_iter = store_iter_buf;
+		  snprintf(load_result_buf, sizeof load_result_buf,
+			   "load/obj v%p_0", iter_sig);
+		  load_result = load_result_buf;
+		  snprintf(store_result_buf, sizeof store_result_buf,
+			   "store/qb/obj v%p_0, 5", result_sig);
+		  store_result = store_result_buf;
+		  break;
+		default:
+		  break;
+	    }
+	    if (!load_elem || !store_iter || !load_result || !store_result) {
+		  fprintf(stderr, "%s:%u: internal error: keyed unique element "
+			  "lowering is unavailable\n",
+			  ivl_expr_file(expr), ivl_expr_lineno(expr));
+		  fprintf(vvp_out, "    %%null; ; keyed unique lowering failure\n");
+		  return 1;
+	    }
+
+	    char result_enc[64];
+	    char key_enc[64];
+	    if (is_index)
+		  snprintf(result_enc, sizeof result_enc, "sb32");
+	    else
+		  container_element_enc_(elem_type, result_enc,
+					 sizeof result_enc);
+	    container_element_enc_(key_type, key_enc, sizeof key_enc);
+
+	    unsigned lab_top = local_count++;
+	    unsigned lab_end = local_count++;
+
+	      /* Every evaluation creates new result/key containers. This keeps
+	       * separate calls independent and makes an empty result non-null. */
+	    fprintf(vvp_out, "    %%ix/load 5, 0, 0;\n");
+	    fprintf(vvp_out, "    %%new/queue \"%s\";\n", result_enc);
+	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", result_sig);
+	    fprintf(vvp_out, "    %%new/queue \"%s\";\n", key_enc);
+	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", keys_sig);
+
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_top);
+	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+	    draw_array_size_push_(q_sig);
+	    fprintf(vvp_out, "    %%cmp/s;\n");
+	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 5;\n",
+		    thread_count, lab_end);
+
+	      /* iter = source[idx], preserving its native scalar representation
+	       * (or the original class handle for the UVM subset). */
+	    fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);
+	    fprintf(vvp_out, "    %%%s v%p_0;\n", load_elem, q_sig);
+	    fprintf(vvp_out, "    %%%s;\n", store_iter);
+
+	      /* Fixed-array storage uses a canonical low-address counter, while
+	       * 7.12.4 exposes the declared index. Evaluate the explicit
+	       * low+counter expression before the user's key expression. */
+	    if (is_fixed) {
+		  draw_eval_vec4(declared_idx_expr);
+		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n",
+			  declared_idx_sig);
+	    }
+
+	      /* Evaluate and append the key exactly once per source element. */
+	    if (key_vt == IVL_VT_STRING) {
+		  draw_eval_string(key_expr);
+		  fprintf(vvp_out, "    %%store/qb/str v%p_0, 5;\n", keys_sig);
+	    } else if (key_vt == IVL_VT_REAL) {
+		  draw_eval_real(key_expr);
+		  fprintf(vvp_out, "    %%store/qb/r v%p_0, 5;\n", keys_sig);
+	    } else if (key_vt == IVL_VT_CLASS) {
+		  draw_eval_object(key_expr);
+		  fprintf(vvp_out, "    %%store/qb/obj v%p_0, 5;\n", keys_sig);
+	    } else {
+		  draw_eval_vec4(key_expr);
+		  fprintf(vvp_out, "    %%store/qb/v v%p_0, 5, %u;\n",
+			  keys_sig, key_wid);
+	    }
+
+	      /* unique returns original element values; unique_index returns the
+	       * corresponding source index (the declared index for a fixed
+	       * receiver). Representative choice and result order are not
+	       * externally promised properties. */
+	    if (is_index) {
+		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n",
+			  is_fixed ? declared_idx_sig : idx_sig);
+		  fprintf(vvp_out, "    %%store/qb/v v%p_0, 5, 32;\n", result_sig);
+	    } else {
+		  fprintf(vvp_out, "    %%%s;\n", load_result);
+		  fprintf(vvp_out, "    %%%s;\n", store_result);
+	    }
+
+	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+	    fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
+	    fprintf(vvp_out, "    %%add;\n");
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n", idx_sig);
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_top);
+
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_end);
+	    fprintf(vvp_out, "    %%qunique/keys v%p_0, v%p_0;\n",
+		    result_sig, keys_sig);
+	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", result_sig);
 	    return 0;
       }
 
@@ -1236,10 +1782,10 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    return 0;
       }
 
-      /* G40: unique()/unique_index() on a fixed-size unpacked ARRAY
-       * (IEEE 1800-2017 7.12.1). %uarr/unique reads the array's words
-       * and pushes a fresh queue of the first-occurrence values (mode
-       * 0) or canonical word indexes (mode 1). */
+      /* Legacy fixed-array locator lowering. Current elaboration
+       * materializes fixed receivers and uses the generic keyed path above;
+       * keep this decoder for already-produced IVL without promising a
+       * representative choice or result order. */
       if (strncmp(name, "$ivl_uarray_method$unique|", 26) == 0) {
 	    const char*kind = name + 26;
 	    int is_index = (strstr(kind, "index") != NULL);

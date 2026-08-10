@@ -1,0 +1,1 @@
+vvp: malformed final-deferred user-task thunk; expected a complete synchronous zero-formal task call and dropped the report.

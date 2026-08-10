@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_package_self_class_method_collision.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_package_self_class_method_collision"
+}

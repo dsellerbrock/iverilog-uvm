@@ -1,0 +1,6 @@
+./ivltests/sv_class_fixed_array_reduction_fail.v:9: error: Array reduction method sum() requires an array of integral elements (IEEE 1800-2017 7.12.3).
+./ivltests/sv_class_fixed_array_reduction_fail.v:10: error: Array reduction method sum() requires a one-dimensional unpacked array; got 2 unpacked dimensions.
+./ivltests/sv_class_fixed_array_reduction_fail.v:11: error: sum() takes at most one simple iterator identifier.
+./ivltests/sv_class_fixed_array_reduction_fail.v:12: error: sum() iterator argument requires a with clause.
+./ivltests/sv_class_fixed_array_reduction_fail.v:18: error: Array reduction method sum() requires a one-dimensional unpacked array in a constraint; got 2 unpacked dimensions.
+5 error(s) during elaboration.

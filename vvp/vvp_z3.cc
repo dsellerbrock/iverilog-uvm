@@ -12,6 +12,7 @@
  *   (and expr expr)      -- logical AND
  *   (or  expr expr)      -- logical OR
  *   (not expr)           -- logical NOT
+ *   (trunc:W[:s] expr)   -- self-determined W-bit integral result
  *   (inside p:N:W [c:lo,c:hi] c:val ...) -- prop[N] inside ranges/values
  *   Multiple top-level exprs in one IR string are implicitly AND'd.
  */
@@ -24,6 +25,7 @@
 
 # include  <z3.h>
 # include  <z3_optimization.h>
+# include  <cassert>
 # include  <cctype>
 # include  <cstdlib>
 # include  <cstring>
@@ -1174,6 +1176,28 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    return out;
       }
 
+      /* A method/operator with an explicitly self-determined result width
+	 * (notably an array reduction) must truncate before a surrounding
+	 * comparison supplies a wider context. Ordinary arithmetic deliberately
+	 * delays that truncation; this node marks the semantic boundary. */
+      if (op.compare(0, 6, "trunc:") == 0) {
+	    const char*spec = op.c_str() + 6;
+	    char*end = 0;
+	    unsigned width = (unsigned)strtoul(spec, &end, 10);
+	    bool is_signed = end && *end == ':' && end[1] == 's';
+	    Z3_ast arg = build_z3_atom(par, b);
+	    par.skip_ws(); par.expect(')');
+	    if (width == 0) return mk_free_bv(b, 1);
+	      /* A relational/logical with expression is an integral 1-bit
+	       * SystemVerilog value but is represented internally by a Z3 Bool.
+	       * Re-enter the bitvector domain at this explicit width boundary. */
+	    arg = bool_to_bv1(b.ctx, arg);
+	    Z3_ast out = b.coerce(arg, width);
+	    b.set_sv(out, width);
+	    if (is_signed) b.signed_vars.insert(out);
+	    return out;
+      }
+
       if (op == "countones") {
 	    Z3_ast arg = build_z3_atom(par, b);
 	    par.skip_ws(); par.expect(')');
@@ -2148,11 +2172,53 @@ static string substitute_scope_object_slots(
 
 /* Result of one solve pass. SAT_APPLIED: a model was found and written
  * back. SAT_CURRENT: the pre-filled values already satisfy the
- * constraints (or the solver returned UNKNOWN and we lean on them).
- * UNSAT: the hard constraint set is proven unsatisfiable — the caller
- * must treat randomize() as failed (IEEE 1800-2017 18.6.1). */
-enum z3_pass_status { Z3PASS_UNSAT = 0, Z3PASS_SAT_APPLIED = 1,
+ * constraints. FAILED covers both proven UNSAT and UNKNOWN: neither may
+ * commit tentative values or randc history (IEEE 1800-2017 18.6.1). */
+enum z3_pass_status { Z3PASS_FAILED = 0, Z3PASS_SAT_APPLIED = 1,
 		      Z3PASS_SAT_CURRENT = 2 };
+
+/* One logical object-RNG stream for the complete solve. A dynamic foreach
+ * requires a speculative size pass followed by the authoritative element
+ * pass. Rewind replays pass-1 words from this tape without rewinding the
+ * object's generator; only a pass that needs a longer prefix advances the
+ * object further. Thus the two internal passes consume one external stream,
+ * while a failed solve still leaves every word it requested consumed.
+ *
+ * uniform_index uses rejection against the largest multiple of `bound' in
+ * [0,2^32), eliminating the low-index bias of `rng_next() % bound'. */
+class z3_rng_stream_t {
+    public:
+      explicit z3_rng_stream_t(vvp_cobject*cobj) : cobj_(cobj) { }
+
+      uint32_t next()
+      {
+	    if (cursor_ < words_.size())
+		  return words_[cursor_++];
+	    uint32_t word = cobj_->rng_next();
+	    words_.push_back(word);
+	    cursor_ += 1;
+	    return word;
+      }
+
+      size_t uniform_index(size_t bound)
+      {
+	    assert(bound > 0 && bound <= UINT32_MAX);
+	    const uint64_t span = (uint64_t)UINT32_MAX + 1;
+	    const uint64_t limit = span - span % (uint64_t)bound;
+	    uint32_t word;
+	    do {
+		  word = next();
+	    } while ((uint64_t)word >= limit);
+	    return (size_t)((uint64_t)word % (uint64_t)bound);
+      }
+
+      void rewind() { cursor_ = 0; }
+
+    private:
+      vvp_cobject*cobj_;
+      vector<uint32_t> words_;
+      size_t cursor_ = 0;
+};
 
 /* One solve pass. dyn_sizes null: dynamic-foreach templates are
  * collected (returned via dyn_out) and contribute `true`; sizes are
@@ -2430,6 +2496,7 @@ static bool z3_enumerate_domain_single_var_fast_(Z3_context ctx,
 static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
                                    Z3_optimize opt,
                                    const Z3Builder::DistSpec& spec,
+				   z3_rng_stream_t& rng,
                                    uint64_t& chosen)
 {
       static const uint64_t RANGE_EXPAND_CAP = 4096;
@@ -2458,7 +2525,7 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
 	    double total = 0;
 	    for (const auto& c : cands) total += c.weight;
 	    if (total <= 0) return false;
-	    double r = ((double)rand() / ((double)RAND_MAX + 1.0)) * total;
+	    double r = ((double)rng.next() / 4294967296.0) * total;
 	    size_t pick_i = cands.size() - 1;
 	    double acc = 0;
 	    for (size_t i = 0 ; i < cands.size() ; i += 1) {
@@ -2486,6 +2553,7 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
 }
 
 static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
+			      z3_rng_stream_t& rng,
                       const vector<string>& extra_ir,
                       const vector<uint64_t>& slot_vals,
                       const std::map<unsigned,uint64_t>* dyn_sizes,
@@ -2755,6 +2823,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			if (rand_active_(defn, cobj, prop_active, sv.idx))
 			      precheck = Z3_L_FALSE;
 
+	      // A constrained randc variable must be selected against its
+	      // committed cycle history even when the pre-fill happens to
+	      // satisfy the constraints. Accept-current would skip feasible-
+	      // domain enumeration and could emit a previously used value.
+	    for (auto& pv : builder.prop_vars)
+		  if (rand_active_(defn, cobj, prop_active, pv.idx)
+		      && defn->property_is_randc(pv.idx))
+			precheck = Z3_L_FALSE;
+
 	    if (precheck == Z3_L_TRUE && builder.dist_specs.empty()) {
 		  // The candidate check included every active explicit `soft`
 		  // assertion, so a true result proves the current values are
@@ -2947,7 +3024,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (dist_resolved_idx.count((unsigned)found_idx))
 		  continue; // already resolved by an earlier dist spec on it
 	    uint64_t chosen = 0;
-	    if (z3_resolve_dist_exact(ctx, base, opt, spec, chosen))
+	    if (z3_resolve_dist_exact(ctx, base, opt, spec, rng, chosen))
 		  dist_resolved_idx.insert((unsigned)found_idx);
       }
 
@@ -3001,22 +3078,24 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  uint64_t chosen;
 		  if (defn->property_is_randc(pv.idx)) {
 			uint64_t prefill = cobj_prop_bits(cobj, pv.idx);
-			unsigned start = feasible.empty() ? 0
-			      : (unsigned)rand() % (unsigned)feasible.size();
-			chosen = feasible[start];
-			for (unsigned k = 0 ; k < feasible.size() ; k += 1) {
-			      uint64_t cand =
-				    feasible[(start + k) % feasible.size()];
-			      if (!cobj->randc_seen(pv.idx, cand)) {
-				    chosen = cand;
-				    break;
-			      }
-			}
+			vector<uint64_t> available;
+			for (uint64_t cand : feasible)
+			      if (!cobj->randc_seen(pv.idx, cand))
+				    available.push_back(cand);
+
+			// If the constrained feasible subset is exhausted, selecting
+			// from the whole subset stages its atomic reset at commit.
+			// Otherwise choose uniformly among ONLY the remaining values;
+			// random-start linear probing weights a value by the used run
+			// before it and is not a uniform permutation.
+			const vector<uint64_t>&pool = available.empty()
+			      ? feasible : available;
+			chosen = pool[rng.uniform_index(pool.size())];
 			if (chosen != prefill)
 			      cobj->randc_unmark(pv.idx, prefill);
 			cobj->randc_mark_feasible(pv.idx, chosen, feasible);
 		  } else {
-			chosen = feasible[(unsigned)rand() % feasible.size()];
+			chosen = feasible[rng.uniform_index(feasible.size())];
 		  }
 		  Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
 		  Z3_ast cv = Z3_mk_unsigned_int64(ctx, chosen, sort);
@@ -3054,14 +3133,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	      // the same hierarchical, stable sequence as its other rand
 	      // properties.
 	    Z3_sort sort = Z3_mk_bv_sort(ctx, 32);
-	    Z3_ast rv = Z3_mk_unsigned_int64(ctx, (uint64_t)(cobj->rng_next() & 0xF), sort);
+	    Z3_ast rv = Z3_mk_unsigned_int64(ctx,
+		  (uint64_t)(rng.next() & 0xF), sort);
 	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, sv.var, rv));
       }
       for (auto& ev : builder.elem_vars) {
 	    if (!rand_active_(defn, cobj, prop_active, ev.idx)) continue;
 	    uint64_t rand_bits = 0;
 	    for (unsigned b = 0; b < ev.width && b < 64; ++b)
-		  if (cobj->rng_next() & 1) rand_bits |= (1ULL << b);
+		  if (rng.next() & 1) rand_bits |= (1ULL << b);
 	    Z3_sort sort = Z3_mk_bv_sort(ctx, ev.width);
 	    Z3_ast rv = Z3_mk_unsigned_int64(ctx, rand_bits, sort);
 	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, ev.var, rv));
@@ -3087,18 +3167,19 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_optimize_dec_ref(ctx, opt);
 	    Z3_del_context(ctx);
 	    if (result == Z3_L_FALSE)
-		  return Z3PASS_UNSAT;
-	      // UNKNOWN (solver resource limits): keep the pre-filled
-	      // random values and report success — but say so.
+		  return Z3PASS_FAILED;
+	      // UNKNOWN cannot establish a legal solution. The caller treats
+	      // it exactly like solve failure and rolls back both values and
+	      // the enclosing randc history transaction.
 	    static bool warned_undef = false;
 	    if (!warned_undef) {
 		  fprintf(stderr, "Warning: constraint solver returned "
-			  "UNKNOWN; rand properties keep unconstrained "
+			  "UNKNOWN; randomize fails and restores prior "
 			  "random values (further similar warnings "
 			  "suppressed).\n");
 		  warned_undef = true;
 	    }
-	    return Z3PASS_SAT_CURRENT;
+	    return Z3PASS_FAILED;
       }
 
       Z3_model model = Z3_optimize_get_model(ctx, opt);
@@ -3138,7 +3219,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  for (uint64_t adr = 0 ; queue && adr < new_size ; adr += 1) {
 			vvp_vector4_t nv(desc.elem_width, BIT4_0);
 			for (unsigned b = 0 ; b < desc.elem_width ; b += 1)
-			      nv.set_bit(b, (cobj->rng_next() & 1)
+			      nv.set_bit(b, (rng.next() & 1)
 					    ? BIT4_1 : BIT4_0);
 			queue->set_word_max((unsigned)adr, nv, queue_max);
 		  }
@@ -3150,7 +3231,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			if (wid == 0) wid = 32;
 			vvp_vector4_t nv(wid, BIT4_0);
 			for (unsigned b = 0 ; b < wid ; b += 1)
-			      nv.set_bit(b, (rand() & 1) ? BIT4_1 : BIT4_0);
+			      nv.set_bit(b, (rng.next() & 1)
+					    ? BIT4_1 : BIT4_0);
 			da->set_word((unsigned)adr, nv);
 		  }
 	    }
@@ -3189,14 +3271,21 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
       if ((!include_class_constraints || defn->constraint_count() == 0)
 	  && extra_ir.empty()) return true;
 
+      z3_rng_stream_t rng(cobj);
+
 	// Size pass: dynamic-foreach bodies deferred; sizes solved and
 	// written back.
       std::vector<Z3Builder::DynForeach> dyn;
-      int r1 = z3_solve_pass_(defn, cobj, extra_ir, slot_vals,
+      int r1 = z3_solve_pass_(defn, cobj, rng, extra_ir, slot_vals,
 			      nullptr, &dyn, prop_active,
 			      include_class_constraints);
       if (dyn.empty())
-	    return r1 != Z3PASS_UNSAT;
+	    return r1 != Z3PASS_FAILED;
+	// A failed size pass has no valid size state to expand. Avoid a second
+	// pass over its pre-filled/writeback remnants; the caller restores the
+	// complete value snapshot and discards the randc transaction.
+      if (r1 == Z3PASS_FAILED)
+	    return false;
 
 	// Element pass (IEEE 1800-2017 18.5.8.2): expand each foreach
 	// to the now-current element count of its array and re-solve
@@ -3206,10 +3295,13 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
       std::map<unsigned,uint64_t> sizes;
       for (const auto& d : dyn)
 	    sizes[d.pidx] = cobj_darray_size(cobj, d.pidx);
-      int r2 = z3_solve_pass_(defn, cobj, extra_ir, slot_vals,
+	// Replay the size pass's RNG prefix. The object itself remains at the
+	// furthest state already consumed; only new suffix words advance it.
+      rng.rewind();
+      int r2 = z3_solve_pass_(defn, cobj, rng, extra_ir, slot_vals,
 			      &sizes, nullptr, prop_active,
 			      include_class_constraints);
-      return r1 != Z3PASS_UNSAT && r2 != Z3PASS_UNSAT;
+      return r2 != Z3PASS_FAILED;
 }
 
 bool vvp_z3_randomize_scope(const string&ir,

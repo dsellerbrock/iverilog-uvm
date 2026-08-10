@@ -411,9 +411,19 @@ class PEIdent : public PExpr {
       void set_quiet_bind() { quiet_bind_ = true; }
       bool quiet_bind() const { return quiet_bind_; }
 
-	// Add another name to the string of hierarchy that is the
-	// current identifier.
+      // Add another name to the string of hierarchy that is the
+      // current identifier.
       void append_name(perm_string);
+
+      // Add a select to the final component of the identifier. This is
+      // used by recursive class-scoped carriers, which must retain their
+      // specialization provenance while accepting ordinary l-value suffixes.
+      void append_index(const index_component_t&);
+
+      // Make a second reference to the same parsed path for a synthetic
+      // receiver expression. The clone borrows specialization arguments;
+      // the original identifier remains their owner.
+      PEIdent* clone_for_reference() const;
 
       virtual void dump(std::ostream&) const override;
 
@@ -470,6 +480,17 @@ class PEIdent : public PExpr {
             { leading_type_args_ = type_args; }
       const struct parmvalue_t* leading_type_args() const
             { return leading_type_args_; }
+      void set_borrowed_leading_type_args(
+            const struct parmvalue_t*type_args)
+            { leading_type_args_ = const_cast<struct parmvalue_t*>(type_args);
+              owns_leading_type_args_ = false; }
+      struct parmvalue_t* take_leading_type_args()
+            { struct parmvalue_t*tmp = leading_type_args_;
+              leading_type_args_ = nullptr; return tmp; }
+      void set_scoped_type_prefix(bool flag = true)
+            { scoped_type_prefix_ = flag; }
+      bool has_scoped_type_prefix() const
+            { return scoped_type_prefix_; }
 
 	// IEEE 1800-2017 6.23 `type()` operator support: resolve the type
 	// of this identifier reference (including any indices, hierarchy
@@ -479,6 +500,12 @@ class PEIdent : public PExpr {
 	// for diagnosing that (no diagnostic is emitted here on failure,
 	// so callers that tolerate a null result don't get double errors).
       ivl_type_t test_type_of_ident(Design*des, NetScope*scope) const;
+
+	// Constraint legality checks must inspect the expression after `let'
+	// substitution as well as the surface call/reference. This accessor uses
+	// the same cached expansion as width testing and elaboration.
+      PExpr* constraint_let_substitution(Design*des, NetScope*scope) const
+            { return let_substitution_(des, scope); }
 
     private:
       pform_scoped_name_t path_;
@@ -490,6 +517,10 @@ class PEIdent : public PExpr {
       PExpr* let_substitution_(Design*des, NetScope*scope) const;
       bool no_implicit_sig_;
       struct parmvalue_t* leading_type_args_ = 0;
+      bool owns_leading_type_args_ = true;
+      bool scoped_type_prefix_ = false;
+      mutable bool bare_generic_scope_error_reported_ = false;
+      mutable bool scoped_lvalue_error_reported_ = false;
 
     private:
 	// Common functions to calculate parts of part/bit
@@ -709,6 +740,8 @@ class PEMemberAccess : public PExpr {
       ~PEMemberAccess() override;
 
       PExpr* base() const { return base_; }
+      PExpr* take_base()
+            { PExpr*tmp = base_; base_ = nullptr; return tmp; }
       perm_string member_name() const { return member_name_; }
 
       virtual void dump(std::ostream&) const override;
@@ -825,10 +858,12 @@ class PENull : public PExpr {
 class PEAssocType : public PExpr {
     public:
       explicit PEAssocType(data_type_t*index_type);
+      explicit PEAssocType(data_type_t*index_type, bool wildcard_index);
       ~PEAssocType() override;
 
       inline data_type_t* index_type() { return index_type_.get(); }
       inline const data_type_t* index_type() const { return index_type_.get(); }
+      bool wildcard_index() const { return wildcard_index_; }
 
       virtual unsigned test_width(Design*des, NetScope*scope,
 				  width_mode_t&mode) override;
@@ -840,6 +875,7 @@ class PEAssocType : public PExpr {
 
     private:
       std::unique_ptr<data_type_t> index_type_;
+      bool wildcard_index_;
 };
 
 class PENumber : public PExpr {
@@ -1163,11 +1199,23 @@ class PECallFunction : public PExpr {
             { leading_type_args_ = type_args; }
       const struct parmvalue_t* leading_type_args() const
             { return leading_type_args_; }
+      void set_borrowed_leading_type_args(
+            const struct parmvalue_t*type_args)
+            { leading_type_args_ = const_cast<struct parmvalue_t*>(type_args);
+              owns_leading_type_args_ = false; }
+      void set_scoped_type_prefix(bool flag = true)
+            { scoped_type_prefix_ = flag; }
+      bool has_scoped_type_prefix() const
+            { return scoped_type_prefix_; }
+
+	// Constraint legality checks operate on the semantic `let' body. Keep
+	// expansion ownership and caching private while exposing the result.
+      PExpr* constraint_let_substitution(Design*des, NetScope*scope) const
+            { return let_substitution_(des, scope); }
 
       const pform_scoped_name_t& path() const { return path_; }
       const std::vector<named_pexpr_t>& get_parms() const { return parms_; }
       PExpr* receiver_expr() const { return receiver_; }
-
       virtual void dump(std::ostream &) const override;
 
       virtual void declare_implicit_nets(LexicalScope*scope, NetNet::Type type) override;
@@ -1215,10 +1263,12 @@ class PECallFunction : public PExpr {
       mutable bool let_subst_tried_ = false;
       PExpr* let_substitution_(Design*des, NetScope*scope) const;
       struct parmvalue_t*leading_type_args_ = 0;
-	// Non-null for method calls on arbitrary receiver expressions.
-	// In that case path_ holds only the method name.
+      bool owns_leading_type_args_ = true;
+      bool scoped_type_prefix_ = false;
+      mutable bool bare_generic_scope_error_reported_ = false;
+      // Non-null for method calls on arbitrary receiver expressions.
+      // In that case path_ holds only the method name.
       PExpr*receiver_ = nullptr;
-
         // For system functions.
       bool is_overridden_;
 
@@ -1666,17 +1716,17 @@ class PEConstraintOrder : public PExpr {
  */
 class PEInside : public PExpr {
     public:
-      PEInside(PExpr* expr, std::list<inside_range_t>* ranges);
+      PEInside(PExpr* expr, std::list<inside_range_t>* ranges,
+	       bool is_dist = false);
       ~PEInside() override;
 
       PExpr* get_expr() const { return expr_; }
       const std::vector<inside_range_t>& get_ranges() const { return ranges_; }
 
-      // C7: PEInside doubles as the `dist` lowering target.  When any
-      // range carries a non-null weight, emit a `(dist ...)` constraint
-      // IR opcode instead of `(inside ...)` so the Z3 backend can apply
-      // soft assertions.
-      bool is_dist() const;
+      // C7: PEInside doubles as the `dist` lowering target. Preserve the
+	// source operator explicitly: an unweighted dist list is still dist,
+	// and inferring it from optional range weights loses that distinction.
+	bool is_dist() const { return is_dist_; }
 
       void dump(std::ostream& out) const override;
       unsigned test_width(Design* des, NetScope* scope,
@@ -1688,6 +1738,7 @@ class PEInside : public PExpr {
     private:
       PExpr* expr_;
       std::vector<inside_range_t> ranges_;
+      bool is_dist_;
 };
 
 /*

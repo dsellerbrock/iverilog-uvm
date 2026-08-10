@@ -1,0 +1,2 @@
+./ivltests/sv_typeparam_enum_receiver_omitted_default_fail.v:10: error: Object sv_typeparam_enum_receiver_omitted_default_fail._ivl_0.forward.this has no method "m_imp.nb_transport_fw(...)".
+1 error(s) during elaboration.

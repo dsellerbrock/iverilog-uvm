@@ -1,0 +1,4 @@
+./ivltests/sv_randomization_builtin_method_override_fail.v:4: error: Class method `randomize' is a built-in randomization method and cannot be overridden.
+./ivltests/sv_randomization_builtin_method_override_fail.v:10: error: Class method `rand_mode' is a built-in randomization method and cannot be overridden.
+./ivltests/sv_randomization_builtin_method_override_fail.v:16: error: Class method `constraint_mode' is a built-in randomization method and cannot be overridden.
+3 error(s) during elaboration.

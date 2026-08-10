@@ -1,0 +1,9 @@
+./ivltests/sv_ustruct_member_defaults_declaration_fail.v:7: error: A reference to a net or variable (`runtime_value') is not allowed in a constant expression.
+./ivltests/sv_ustruct_member_defaults_declaration_fail.v:22: error: A reference to a net or variable (`runtime_value') is not allowed in a constant expression.
+./ivltests/sv_ustruct_member_defaults_declaration_fail.v:16: error: A reference to a net or variable (`runtime_value') is not allowed in a constant expression.
+./ivltests/sv_ustruct_member_defaults_declaration_fail.v:56: error: A reference to a net or variable (`runtime_value') is not allowed in a constant expression.
+./ivltests/sv_ustruct_member_defaults_declaration_fail.v:38: error: A reference to a net or variable (`runtime_value') is not allowed in a constant expression.
+./ivltests/sv_ustruct_member_defaults_declaration_fail.v:42: error: A reference to a net or variable (`runtime_value') is not allowed in a constant expression.
+./ivltests/sv_ustruct_member_defaults_declaration_fail.v:50: error: A reference to a net or variable (`runtime_value') is not allowed in a constant expression.
+./ivltests/sv_ustruct_member_defaults_declaration_fail.v:30: error: A reference to a net or variable (`runtime_value') is not allowed in a constant expression.
+8 error(s) during elaboration.

@@ -1,0 +1,10 @@
+./ivltests/sv_enum_compound_assignment_fail.v:18: error: This assignment requires an explicit cast.
+./ivltests/sv_enum_compound_assignment_fail.v:19: error: This assignment requires an explicit cast.
+./ivltests/sv_enum_compound_assignment_fail.v:20: error: This assignment requires an explicit cast.
+./ivltests/sv_enum_compound_assignment_fail.v:21: error: This assignment requires an explicit cast.
+./ivltests/sv_enum_compound_assignment_fail.v:22: error: This assignment requires an explicit cast.
+./ivltests/sv_enum_compound_assignment_fail.v:23: error: This assignment requires an explicit cast.
+./ivltests/sv_enum_compound_assignment_fail.v:24: error: This assignment requires an explicit cast.
+./ivltests/sv_enum_compound_assignment_fail.v:25: error: This assignment requires an explicit cast.
+./ivltests/sv_enum_compound_assignment_fail.v:26: error: This assignment requires an explicit cast.
+9 error(s) during elaboration.

@@ -1,0 +1,3 @@
+ivltests/sv_assoc_nested_wrapper_type_fail.v:15: error: associative-array value has an element type that is not assignment-compatible with the context.
+ivltests/sv_assoc_nested_wrapper_type_fail.v:16: error: cannot cast between an associative-array value and a non-equivalent target type.
+2 error(s) during elaboration.

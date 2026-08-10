@@ -40,6 +40,7 @@ class NetCAssign;
 class NetDeassign;
 class NetForce;
 class NetScope;
+struct typedef_t;
 
 /*
  * The PProcess is the root of a behavioral process. Each process gets
@@ -109,7 +110,8 @@ class Statement : virtual public LineInfo {
 class PAssign_  : public Statement {
     public:
       explicit PAssign_(PExpr*lval, PExpr*ex, bool is_constant,
-			bool is_init = false);
+			bool is_init = false, bool delete_rval = true,
+			const typedef_t*rval_typedef = 0);
       explicit PAssign_(PExpr*lval, PExpr*de, PExpr*ex);
       explicit PAssign_(PExpr*lval, PExpr*cnt, PEventStatement*de, PExpr*ex);
       virtual ~PAssign_() override =0;
@@ -137,6 +139,8 @@ class PAssign_  : public Statement {
 			       bool force_unsigned =false) const;
       NetExpr* elaborate_rval_(Design*, NetScope*, ivl_type_t ntype) const;
 
+      NetScope* elaborate_rval_scope_(Design*, NetScope*) const;
+
       NetExpr* elaborate_rval_obj_(Design*, NetScope*,
 				   ivl_variable_type_t type) const;
 
@@ -150,6 +154,13 @@ class PAssign_  : public Statement {
       bool is_constant_;
         // Whether the assignment is a variable initializer expression
       bool is_init_ = false;
+        // Most assignments own their rvalue. Parse-time synthesized struct
+        // member defaults borrow the expression retained by the type AST.
+      bool delete_rval_ = true;
+        // A borrowed unpacked-struct member default is written where the
+        // variable is declared, but its names are resolved where the
+        // defining typedef was declared.
+      const typedef_t*rval_typedef_ = 0;
 };
 
 class PAssign  : public PAssign_ {
@@ -164,6 +175,9 @@ class PAssign  : public PAssign_ {
       explicit PAssign(PExpr*lval, PExpr*de, PExpr*ex);
       explicit PAssign(PExpr*lval, PExpr*cnt, PEventStatement*de, PExpr*ex);
       explicit PAssign(PExpr*lval, PExpr*ex, bool is_constant, bool is_init);
+      explicit PAssign(PExpr*lval, PExpr*ex, bool is_constant, bool is_init,
+		       bool delete_rval,
+		       const typedef_t*rval_typedef = 0);
       ~PAssign() override;
 
 	// The compressed-assignment operator ('+' for `x += e'), or 0

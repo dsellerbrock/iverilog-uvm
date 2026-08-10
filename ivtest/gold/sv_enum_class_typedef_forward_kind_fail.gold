@@ -1,0 +1,2 @@
+./ivltests/sv_enum_class_typedef_forward_kind_fail.v:4: error: Unexpected resolved type for `wrong_kind_t`. It was forward declared as `class` at ./ivltests/sv_enum_class_typedef_forward_kind_fail.v:2.
+1 error(s) during elaboration.

@@ -74,6 +74,7 @@ static void complete_class_scope_in_place_(Design*des, NetScope*scope,
 // class hierarchies have mutual references that trigger unbounded
 // re-entry, exhausting memory.
 static set<const PClass*> classes_being_scope_elaborated_;
+static set<const PClass*> classes_with_randomization_methods_validated_;
 static unsigned ensure_visible_depth_ = 0;
 static const unsigned ENSURE_VISIBLE_MAX_DEPTH_ = 20;
 
@@ -815,7 +816,8 @@ netclass_t* ensure_visible_class_type(Design*des, NetScope*scope, perm_string na
 }
 
 static std::string parmvalue_cache_key_(Design*des, NetScope*call_scope,
-					const parmvalue_t*overrides);
+					const parmvalue_t*overrides,
+					const PClass*target_class = 0);
 static void append_cache_data_type_key_(Design*des, NetScope*call_scope,
 					std::ostringstream&out,
 					const data_type_t*type);
@@ -992,6 +994,386 @@ static NetScope* specialization_key_scope_(NetScope*call_scope)
       return call_scope;
 }
 
+static bool pexpr_matches_parameter_name_(const PExpr*expr, perm_string name);
+
+static const NetScope* normalize_class_scope_(const NetScope*scope)
+{
+      if (!scope)
+	    return 0;
+      if (scope->type() == NetScope::CLASS)
+	    return scope;
+      return scope->get_class_scope();
+}
+
+static bool find_class_type_parameter_reference_(
+	const PClass*pclass, const data_type_t*type,
+	std::set<const data_type_t*>&seen, perm_string&name)
+{
+      if (!pclass || !type || !seen.insert(type).second)
+	    return false;
+
+      if (const type_parameter_t*type_param =
+		dynamic_cast<const type_parameter_t*>(type)) {
+	    std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator param =
+		  pclass->parameters.find(type_param->name);
+	    PScope::typedef_map_t::const_iterator declared =
+		  pclass->typedefs.find(type_param->name);
+	    if (param == pclass->parameters.end() || !param->second
+		|| !param->second->type_flag
+		|| declared == pclass->typedefs.end()
+		|| declared->second->get_data_type() != type)
+		  return false;
+	    name = type_param->name;
+	    return true;
+      }
+
+      const typeref_t*type_ref = dynamic_cast<const typeref_t*>(type);
+      if (!type_ref)
+	    return false;
+
+	/* A qualified or parameterized reference is an external/concrete type.
+	 * Do not follow its implementation typedefs: a package is allowed to
+	 * contain a typedef whose terminal spelling happens to match this
+	 * class's type parameter. */
+      if (type_ref->scope_ref() || type_ref->parameter_values())
+	    return false;
+
+      typedef_t*td = type_ref->typedef_ref();
+      if (!td)
+	    return false;
+
+      std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator param =
+	    pclass->parameters.find(td->name);
+      PScope::typedef_map_t::const_iterator declared =
+	    pclass->typedefs.find(td->name);
+	/* Compare the typedef object, not only its name. This distinguishes the
+	 * parameter from an unqualified alias imported/declared in an outer
+	 * scope with the same spelling. */
+      if (param != pclass->parameters.end() && param->second
+	  && param->second->type_flag
+	  && declared != pclass->typedefs.end() && declared->second == td) {
+	    name = td->name;
+	    return true;
+      }
+
+      return find_class_type_parameter_reference_(
+	    pclass, td->get_data_type(), seen, name);
+}
+
+bool find_class_type_parameter_reference(const NetScope*scope,
+					  const data_type_t*type,
+					  perm_string&name)
+{
+      const NetScope*class_scope = normalize_class_scope_(scope);
+      const PClass*pclass = class_scope ? class_scope->class_pform() : 0;
+      std::set<const data_type_t*>seen;
+      return find_class_type_parameter_reference_(pclass, type, seen, name);
+}
+
+bool find_class_type_parameter_reference(Design*des, const NetScope*scope,
+					  const PExpr*expr,
+					  perm_string&name)
+{
+      const NetScope*class_scope = normalize_class_scope_(scope);
+      const PClass*pclass = class_scope ? class_scope->class_pform() : 0;
+      if (!pclass || !expr)
+	    return false;
+
+      if (const PETypename*type_expr = dynamic_cast<const PETypename*>(expr))
+	    return find_class_type_parameter_reference(
+		  class_scope, type_expr->get_type(), name);
+
+	/* Some parameter overrides retain a bare identifier expression rather
+	 * than PETypename. It is a forwarding reference only when it is the
+	 * unqualified name of a type parameter in this exact class. */
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(expr);
+      if (!ident)
+	    return false;
+      const pform_scoped_name_t&path = ident->path();
+      if (path.package || path.name.size() != 1
+	  || !path.name.front().index.empty())
+	    return false;
+
+      perm_string use_name = path.name.front().name;
+      std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator param =
+	    pclass->parameters.find(use_name);
+      PScope::typedef_map_t::const_iterator declared =
+	    pclass->typedefs.find(use_name);
+      if (param == pclass->parameters.end() || !param->second
+	  || !param->second->type_flag
+	  || declared == pclass->typedefs.end()
+	  || !des
+	  || const_cast<NetScope*>(scope)->find_typedef(des, use_name)
+		!= declared->second)
+	    return false;
+
+      name = use_name;
+      return true;
+}
+
+static bool class_type_parameter_is_deferred_(
+	Design*des, const NetScope*scope, perm_string name,
+	std::set<std::pair<const NetScope*,perm_string> >&seen)
+{
+      const NetScope*class_scope = normalize_class_scope_(scope);
+      const netclass_t*class_type = class_scope
+	    ? class_scope->class_def() : 0;
+      const PClass*pclass = class_scope
+	    ? class_scope->class_pform() : 0;
+      if (!class_scope || !class_type || !pclass)
+	    return false;
+
+      std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator pparam =
+	    pclass->parameters.find(name);
+      if (pparam == pclass->parameters.end() || !pparam->second
+	  || !pparam->second->type_flag)
+	    return false;
+
+      if (!seen.insert(std::make_pair(class_scope, name)).second)
+	    return false;
+
+	/* The generic master represents every future specialization and must
+	 * keep the call deferred. In a concrete specialization, inspect both an
+	 * explicit actual and the declaration default: a dependent default such
+	 * as RSP=IMP inherits IMP's symbolic state, while an ordinary concrete
+	 * default remains concrete. */
+      if (!class_type->specialized_instance())
+	    return true;
+
+      std::map<perm_string,NetScope::param_expr_t>::const_iterator parameter =
+	    class_scope->parameters.find(name);
+      if (parameter == class_scope->parameters.end()
+	  || !parameter->second.type_flag
+	  || !parameter->second.val_expr)
+	    return false;
+
+      const NetScope*source_use_scope = parameter->second.val_scope;
+      const NetScope*source_scope = normalize_class_scope_(source_use_scope);
+      perm_string source_name;
+      if (!find_class_type_parameter_reference(
+		    des, source_use_scope, parameter->second.val_expr, source_name))
+	    return false;
+
+      return class_type_parameter_is_deferred_(
+	    des, source_scope, source_name, seen);
+}
+
+bool class_type_parameter_is_deferred(Design*des,
+					      const NetScope*class_scope,
+					      perm_string name)
+{
+      std::set<std::pair<const NetScope*,perm_string> >seen;
+      return class_type_parameter_is_deferred_(des, class_scope, name, seen);
+}
+
+static bool is_bare_class_reference_(const data_type_t*type,
+				      std::set<const typedef_t*>&seen)
+{
+      if (!type)
+	    return false;
+
+      if (dynamic_cast<const class_type_t*>(type))
+	    return true;
+
+      if (const array_base_t*array_type =
+		dynamic_cast<const array_base_t*>(type))
+	    return is_bare_class_reference_(array_type->base_type.get(), seen);
+
+      const typeref_t*type_ref = dynamic_cast<const typeref_t*>(type);
+      if (!type_ref || type_ref->parameter_values())
+	    return false;
+
+      typedef_t*td = type_ref->typedef_ref();
+      if (!td || !seen.insert(td).second)
+	    return false;
+
+      return is_bare_class_reference_(td->get_data_type(), seen);
+}
+
+static const netclass_t* resolve_bare_class_reference_(
+		Design*des, NetScope*scope, const data_type_t*type,
+		std::set<const typedef_t*>&seen)
+{
+      if (!(des && scope && type))
+	    return 0;
+
+      if (const class_type_t*class_type =
+		    dynamic_cast<const class_type_t*>(type))
+	    return ensure_visible_class_type(des, scope, class_type->name);
+
+      if (const array_base_t*array_type =
+		    dynamic_cast<const array_base_t*>(type))
+	    return resolve_bare_class_reference_(
+		  des, scope, array_type->base_type.get(), seen);
+
+      const typeref_t*type_ref = dynamic_cast<const typeref_t*>(type);
+      if (!type_ref || type_ref->parameter_values())
+	    return 0;
+
+      typedef_t*td = type_ref->typedef_ref();
+      if (!td || !seen.insert(td).second)
+	    return 0;
+
+      NetScope*type_scope = type_ref->find_scope(des, scope);
+      if (!type_scope)
+	    type_scope = scope;
+
+	/* A synthetic forward declaration has a same-name class_type_t and may
+	 * still point at its early placeholder after the complete PClass is
+	 * registered. Only that shape is recovered by name. A user typedef alias
+	 * must follow its exact target first: an unrelated class may legally have
+	 * the alias's spelling in an outer/imported scope. */
+      const class_type_t*forward_type =
+	    dynamic_cast<const class_type_t*>(td->get_data_type());
+      if (forward_type && forward_type->name == td->name) {
+	    if (netclass_t*visible =
+		  ensure_visible_class_type(des, type_scope, td->name))
+		  return visible;
+      }
+
+      return resolve_bare_class_reference_(
+	    des, type_scope, td->get_data_type(), seen);
+}
+
+ivl_type_t specialize_bare_class_at_concrete_use(
+		Design*des, NetScope*call_scope,
+		const data_type_t*declared_type, ivl_type_t current_type,
+		bool fully_elaborate)
+{
+      if (!des || !call_scope)
+	    return current_type;
+
+      std::set<const typedef_t*>bare_seen;
+      if (!is_bare_class_reference_(declared_type, bare_seen))
+	    return current_type;
+
+	/* Preserve every already-elaborated array/container wrapper while
+	 * normalizing its terminal bare class.  A bare class declaration can be
+	 * wrapped directly or through typedef aliases; treating the whole
+	 * netarray_t as a class would collapse C q[$] into scalar C#(). */
+      if (const netarray_t*array_type =
+	    dynamic_cast<const netarray_t*>(current_type)) {
+	    ivl_type_t repaired_element = specialize_bare_class_at_concrete_use(
+		  des, call_scope, declared_type, array_type->element_type(),
+		  fully_elaborate);
+	    if (!repaired_element || repaired_element == array_type->element_type())
+		  return current_type;
+
+	    if (const netqueue_t*queue_type =
+		  dynamic_cast<const netqueue_t*>(current_type))
+		  return new netqueue_t(repaired_element, queue_type->max_idx(),
+					queue_type->assoc_compat(),
+					queue_type->assoc_index_type(),
+					queue_type->assoc_wildcard());
+	    if (const netuarray_t*fixed_type =
+		  dynamic_cast<const netuarray_t*>(current_type))
+		  return new netuarray_t(fixed_type->static_dimensions(),
+					 repaired_element);
+	    if (const netparray_t*packed_type =
+		  dynamic_cast<const netparray_t*>(current_type))
+		  return new netparray_t(packed_type->static_dimensions(),
+					 repaired_element);
+	    if (dynamic_cast<const netdarray_t*>(current_type))
+		  return new netdarray_t(repaired_element);
+	    return current_type;
+      }
+
+      const netclass_t*base_class =
+	    dynamic_cast<const netclass_t*>(current_type);
+	/* Late repair of a forward declaration must not trust the early class
+	 * placeholder stored in current_type. Resolve the same bare parse-form
+	 * name again after all class scopes are registered. */
+      const NetScope*base_scope = base_class ? base_class->class_scope() : 0;
+      const PClass*base_pclass = base_scope
+	    ? base_scope->class_pform() : 0;
+      if (!base_class || !base_pclass || !base_pclass->has_parameter_port_list) {
+	    std::set<const typedef_t*>resolve_seen;
+	    if (const netclass_t*visible = resolve_bare_class_reference_(
+		      des, call_scope, declared_type, resolve_seen)) {
+		  base_class = visible;
+		  base_scope = base_class->class_scope();
+		  base_pclass = base_scope ? base_scope->class_pform() : 0;
+	    }
+      }
+      if (!base_class || base_class->specialized_instance())
+	    return current_type;
+
+      if (!base_pclass || !base_pclass->has_parameter_port_list)
+	    return current_type;
+
+      perm_string class_name = base_class->get_name();
+      if (class_name == perm_string::literal("mailbox")
+	  || class_name == perm_string::literal("semaphore")
+	  || class_name == perm_string::literal("process"))
+	    return current_type;
+
+      const NetScope*caller_class_scope = call_scope->get_class_scope();
+      const netclass_t*caller_class = caller_class_scope
+	    ? caller_class_scope->class_def() : 0;
+      const PClass*caller_pclass = caller_class_scope
+	    ? caller_class_scope->class_pform() : 0;
+
+	/* A bare self reference inside a concrete specialization denotes that
+	 * same specialization, not a new specialization using the declaration
+	 * defaults. */
+      if (caller_class && caller_pclass == base_pclass
+	  && caller_class->specialized_instance())
+	    return caller_class;
+
+	/* An unspecialized parameterized class scope is a template seed, not a
+	 * concrete use site.  Its body is checked again when a real enclosing
+	 * specialization is elaborated. */
+      if (caller_class && caller_pclass
+	  && caller_pclass->has_parameter_port_list
+	  && !caller_class->specialized_instance())
+	    return current_type;
+
+      std::list<PExpr*>empty_order;
+      parmvalue_t defaults;
+      defaults.by_order = &empty_order;
+      defaults.by_name = 0;
+      return const_cast<netclass_t*>(elaborate_specialized_class_type(
+	    des, call_scope, base_class, &defaults, fully_elaborate));
+}
+
+ivl_type_t specialize_bare_class_receiver_on_use(
+		Design*des, NetScope*call_scope,
+		const data_type_t*declared_type, ivl_type_t current_type)
+{
+      return specialize_bare_class_at_concrete_use(
+	    des, call_scope, declared_type, current_type, true);
+}
+
+/* Keep a generic forwarding actual (inner#(outer_T)) distinct in the
+ * specialization cache from a concrete type that currently happens to equal
+ * outer_T's default. Otherwise whichever spelling populates the cache first
+ * controls whether the inner method body is deferred, making elaboration
+ * order-dependent. Concrete outer specializations use their resolved type and
+ * retain ordinary semantic class identity. */
+static perm_string unresolved_forwarded_type_parameter_(
+	Design*des, NetScope*call_scope, const PExpr*expr, const PClass*&owner)
+{
+      owner = 0;
+      const NetScope*class_scope = call_scope
+	    ? call_scope->get_class_scope() : 0;
+      const PClass*pclass = class_scope
+	    ? class_scope->class_pform() : 0;
+      if (!class_scope || !pclass)
+	    return perm_string();
+
+      perm_string name;
+        /* Resolve the actual in its original lexical scope. A method/block
+         * typedef can deliberately shadow a class type parameter with the
+         * same spelling; normalizing to class_scope here would turn that
+         * concrete local type into a false forwarding reference. */
+      if (!find_class_type_parameter_reference(des, call_scope, expr, name)
+	  || !class_type_parameter_is_deferred(des, class_scope, name))
+	    return perm_string();
+
+      owner = pclass;
+      return name;
+}
+
 static const std::string& cached_data_type_dump_(const data_type_t*type)
 {
       static std::map<const data_type_t*,std::string> cache;
@@ -1036,19 +1418,39 @@ static bool append_cache_typedef_alias_key_(Design*des, NetScope*call_scope,
 
 static void append_cache_expr_key_(Design*des, NetScope*call_scope,
 				   std::ostringstream&out,
-				   const PExpr*expr)
+				   const PExpr*expr,
+				   int formal_kind = -1)
 {
+	/* Preserve the exact lexical lookup scope for provenance. The normalized
+	 * class scope below is desirable for stable semantic cache keys, but it
+	 * must not make a method/block typedef named like a class type parameter
+	 * disappear before forwarding identity is decided. */
+      NetScope*lookup_scope = call_scope;
       call_scope = specialization_key_scope_(call_scope);
 
       if (!expr)
 	    return;
 
+      const PClass*forward_owner = 0;
+      perm_string forward_name;
+      if (formal_kind != 0)
+	    forward_name = unresolved_forwarded_type_parameter_(
+		des, lookup_scope, expr, forward_owner);
+      if (forward_name)
+	    out << "<forwarded-type-param@" << (const void*)forward_owner
+		<< ":" << forward_name << "=";
+      const auto close_forward = [&out, &forward_name]() {
+	    if (forward_name)
+		  out << ">";
+      };
+
       if (const PETypename*type_expr = dynamic_cast<const PETypename*>(expr)) {
-	    if (call_scope) {
+	    if (lookup_scope) {
 		  ivl_type_t resolved_type =
-			const_cast<data_type_t*>(type_expr->get_type())->elaborate_type(des, call_scope);
+			const_cast<data_type_t*>(type_expr->get_type())->elaborate_type(des, lookup_scope);
 		  if (resolved_type) {
 			append_cache_ivl_type_key_(des, out, resolved_type);
+			close_forward();
 			return;
 		  }
 	    }
@@ -1056,26 +1458,71 @@ static void append_cache_expr_key_(Design*des, NetScope*call_scope,
 	    out << "<typename:";
 	    append_cache_data_type_key_(des, call_scope, out, type_expr->get_type());
 	    out << ">";
+	    close_forward();
 	    return;
       }
 
       if (const PEIdent*ident = dynamic_cast<const PEIdent*>(expr)) {
 	    const pform_scoped_name_t&path = ident->path();
-	    if (call_scope && path.package == 0 && path.name.size() == 1 &&
+	    if (lookup_scope && path.package == 0 && path.name.size() == 1 &&
 	        path.name.front().index.empty()) {
 		  perm_string ident_name = path.name.front().name;
-		  ivl_type_t resolved_type = 0;
-		  const NetExpr*resolved_expr =
-			call_scope->get_parameter(des, ident_name, resolved_type);
-		  if (resolved_expr || resolved_type) {
-			if (resolved_type)
-			      append_cache_ivl_type_key_(des, out, resolved_type);
-			if (resolved_expr) {
-			      if (resolved_type)
-				    out << "=";
-			      out << cached_netexpr_dump_(resolved_expr);
+		    /* Implicit named actuals retain a bare identifier for both
+		     * type and value formals. Resolve in the namespace selected by
+		     * the destination formal instead of guessing from the spelling:
+		     * a nearer typedef T must win for `.T' on a type formal, while a
+		     * value parameter P must not be replaced by an unrelated typedef
+		     * P declared elsewhere in the lexical chain. */
+		  if (formal_kind == 1) {
+			if (typedef_t*td = lookup_scope->find_typedef(des, ident_name)) {
+			      if (const data_type_t*declared_type = td->get_data_type()) {
+				    if (ivl_type_t resolved_type =
+					  const_cast<data_type_t*>(declared_type)->elaborate_type(
+						des, lookup_scope)) {
+					  append_cache_ivl_type_key_(des, out, resolved_type);
+					  close_forward();
+					  return;
+				    }
+			      }
 			}
-			return;
+		  }
+
+		  if (formal_kind != 1) {
+			symbol_search_results search;
+			const NetExpr*resolved_expr = 0;
+			ivl_type_t resolved_type = 0;
+			if (symbol_search(ident, des, lookup_scope, path,
+					  ident->lexical_pos(),
+					  &search)
+			    && search.par_val) {
+			      resolved_expr = search.par_val;
+			      resolved_type = search.type;
+			}
+			if (resolved_expr || resolved_type) {
+			      if (resolved_type)
+				    append_cache_ivl_type_key_(des, out, resolved_type);
+			      if (resolved_expr) {
+				    if (resolved_type)
+					  out << "=";
+				    out << cached_netexpr_dump_(resolved_expr);
+			      }
+			      close_forward();
+			      return;
+			}
+		  }
+
+		  if (formal_kind < 0) {
+			if (typedef_t*td = lookup_scope->find_typedef(des, ident_name)) {
+			      if (const data_type_t*declared_type = td->get_data_type()) {
+				    if (ivl_type_t resolved_type =
+					  const_cast<data_type_t*>(declared_type)->elaborate_type(
+						des, lookup_scope)) {
+					  append_cache_ivl_type_key_(des, out, resolved_type);
+					  close_forward();
+					  return;
+				    }
+			      }
+			}
 		  }
 	    }
       }
@@ -1086,6 +1533,7 @@ static void append_cache_expr_key_(Design*des, NetScope*call_scope,
       // could not canonicalize to resolved parameter/type values.
       if (call_scope && expr_cache_key_needs_scope_(expr))
 	    out << "@scope=" << cached_scope_path_(call_scope);
+      close_forward();
 }
 
 static void append_cache_data_type_key_(Design*des, NetScope*call_scope,
@@ -1175,27 +1623,52 @@ static void append_cache_data_type_key_(Design*des, NetScope*call_scope,
 }
 
 static std::string parmvalue_cache_key_(Design*des, NetScope*call_scope,
-					const parmvalue_t*overrides)
+					const parmvalue_t*overrides,
+					const PClass*target_class)
 {
-      call_scope = specialization_key_scope_(call_scope);
-
       if (!overrides)
 	    return std::string();
+
+	/* Keep the original lexical scope until append_cache_expr_key_ has
+	 * resolved whether an actual names a nearer method/block typedef or a
+	 * class type parameter. That helper normalizes the scope only after the
+	 * provenance decision. Normalizing here first makes an implicit named
+	 * actual such as `.T' incorrectly bypass a local typedef T and produces a
+	 * distinct specialization-cache entry for an otherwise identical type. */
 
       std::ostringstream out;
       if (overrides->by_order) {
 	    out << "O";
+	    std::list<perm_string>::const_iterator formal_name = target_class
+		  ? target_class->parameter_order.begin()
+		  : std::list<perm_string>::const_iterator();
 	    for (std::list<PExpr*>::const_iterator cur = overrides->by_order->begin()
 		 ; cur != overrides->by_order->end() ; ++cur) {
 		  out << "|";
-		  append_cache_expr_key_(des, call_scope, out, *cur);
+		  int formal_kind = -1;
+		  if (target_class
+		      && formal_name != target_class->parameter_order.end()) {
+			std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator formal =
+			      target_class->parameters.find(*formal_name);
+			if (formal != target_class->parameters.end() && formal->second)
+			      formal_kind = formal->second->type_flag ? 1 : 0;
+			++formal_name;
+		  }
+		  append_cache_expr_key_(des, call_scope, out, *cur, formal_kind);
 	    }
       } else if (overrides->by_name) {
 	    out << "N";
 	    for (std::list<named_pexpr_t>::const_iterator cur = overrides->by_name->begin()
 		 ; cur != overrides->by_name->end() ; ++cur) {
 		  out << "|" << cur->name << "=";
-		  append_cache_expr_key_(des, call_scope, out, cur->parm);
+		  int formal_kind = -1;
+		  if (target_class) {
+			std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator formal =
+			      target_class->parameters.find(cur->name);
+			if (formal != target_class->parameters.end() && formal->second)
+			      formal_kind = formal->second->type_flag ? 1 : 0;
+		  }
+		  append_cache_expr_key_(des, call_scope, out, cur->parm, formal_kind);
 	    }
       }
 
@@ -1233,6 +1706,146 @@ static bool pexpr_matches_parameter_name_(const PExpr*expr, perm_string name)
       return false;
 }
 
+static bool cache_integral_constant_value_(Design*des, NetScope*scope,
+					   const PExpr*expr,
+					   verinum&value)
+{
+      if (const PENumber*number = dynamic_cast<const PENumber*>(expr)) {
+	    value = number->value();
+	    return true;
+      }
+
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(expr);
+      if (!ident || !scope)
+	    return false;
+      symbol_search_results search;
+      if (!symbol_search(ident, des, scope, ident->path(),
+			 ident->lexical_pos(), &search)
+	  || !search.par_val)
+	    return false;
+      const NetEConst*constant = dynamic_cast<const NetEConst*>(search.par_val);
+      if (!constant)
+	    return false;
+      value = constant->value();
+      return true;
+}
+
+static bool cache_value_parameter_is_deferred_(
+	Design*des, NetScope*scope, const PExpr*expr,
+	std::set<std::pair<const NetScope*,const NetExpr*> >&seen)
+{
+      if (!expr || !scope)
+	    return false;
+
+	/* A concrete intermediate parameter may have been assigned a compound
+	 * expression in another (possibly still generic) class. Walk the common
+	 * constant-expression wrappers so that N=M+1 retains M's symbolic
+	 * provenance instead of being mistaken for N's currently evaluated
+	 * provisional number. */
+      if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr))
+	    return cache_value_parameter_is_deferred_(
+		des, scope, unary->get_expr(), seen);
+
+      if (const PEBinary*binary = dynamic_cast<const PEBinary*>(expr))
+	    return cache_value_parameter_is_deferred_(
+		des, scope, binary->get_left(), seen)
+		|| cache_value_parameter_is_deferred_(
+		      des, scope, binary->get_right(), seen);
+
+      if (const PETernary*ternary = dynamic_cast<const PETernary*>(expr))
+	    return cache_value_parameter_is_deferred_(
+		des, scope, ternary->get_cond(), seen)
+		|| cache_value_parameter_is_deferred_(
+		      des, scope, ternary->get_true(), seen)
+		|| cache_value_parameter_is_deferred_(
+		      des, scope, ternary->get_false(), seen);
+
+      if (const PEConcat*concat = dynamic_cast<const PEConcat*>(expr)) {
+	    if (concat->repeat_expr()
+		&& cache_value_parameter_is_deferred_(
+		      des, scope, concat->repeat_expr(), seen))
+		  return true;
+	    const std::vector<PExpr*>&parms = concat->stream_parms();
+	    for (std::vector<PExpr*>::const_iterator cur = parms.begin()
+		 ; cur != parms.end(); ++cur) {
+		  if (cache_value_parameter_is_deferred_(
+			des, scope, *cur, seen))
+			return true;
+	    }
+	    return false;
+      }
+
+      if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr))
+	    return cache_value_parameter_is_deferred_(
+		des, scope, cast->cast_size(), seen)
+		|| cache_value_parameter_is_deferred_(
+		      des, scope, cast->cast_base(), seen);
+
+      if (const PECastType*cast = dynamic_cast<const PECastType*>(expr))
+	    return cache_value_parameter_is_deferred_(
+		des, scope, cast->cast_base(), seen);
+
+      if (const PECastSign*cast = dynamic_cast<const PECastSign*>(expr))
+	    return cache_value_parameter_is_deferred_(
+		des, scope, cast->cast_base(), seen);
+
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(expr);
+	/* Literal leaves are concrete. Other expression shapes cannot reach the
+	 * typed single-parameter semantic value path directly, and remain
+	 * source-sensitive there. */
+      if (!ident)
+	    return false;
+
+      const pform_scoped_name_t&path = ident->path();
+	/* Use the same symbol-search domain as cache_integral_constant_value_.
+	 * A qualified reference can still select a parameter in an enclosing
+	 * unspecialized class. */
+      if (path.name.empty())
+	    return false;
+
+      symbol_search_results search;
+      if (!symbol_search(ident, des, scope, path, ident->lexical_pos(), &search)
+	  || !search.par_val || !search.scope)
+	    return false;
+	if (!seen.insert(std::make_pair(search.scope, search.par_val)).second)
+	    return false;
+
+      const NetScope*owner_scope = normalize_class_scope_(search.scope);
+      const netclass_t*owner_class = owner_scope
+	    ? owner_scope->class_def() : 0;
+      const PClass*owner_pclass = owner_scope
+	    ? owner_scope->class_pform() : 0;
+      if (owner_class && owner_pclass
+	  && owner_pclass->has_parameter_port_list
+	  && !owner_class->specialized_instance())
+	    return true;
+
+	/* A concrete intermediate specialization can retain a symbolic source
+	 * from its enclosing generic master. Follow that source rather than
+	 * treating its currently evaluated provisional value as concrete. */
+      perm_string parameter_name = path.name.back().name;
+      const NetScope*parameter_scope = search.scope;
+      std::map<perm_string,NetScope::param_expr_t>::const_iterator parameter =
+	    parameter_scope->parameters.find(parameter_name);
+      if (parameter == parameter_scope->parameters.end() && owner_scope) {
+	    parameter_scope = owner_scope;
+	    parameter = parameter_scope->parameters.find(parameter_name);
+      }
+      if (parameter == parameter_scope->parameters.end()
+	  || !parameter->second.val_expr || !parameter->second.val_scope)
+	    return false;
+
+      return cache_value_parameter_is_deferred_(
+	    des, parameter->second.val_scope, parameter->second.val_expr, seen);
+}
+
+static bool cache_value_parameter_is_deferred_(Design*des, NetScope*scope,
+					       const PExpr*expr)
+{
+      std::set<std::pair<const NetScope*,const NetExpr*> >seen;
+      return cache_value_parameter_is_deferred_(des, scope, expr, seen);
+}
+
 static bool overrides_match_parameter_order_(const parmvalue_t*overrides,
 					     const std::list<perm_string>&param_order)
 {
@@ -1268,15 +1881,105 @@ static std::string canonical_specialization_parm_key_(
 		const parmvalue_t*overrides, const PClass*pclass)
 {
       if (!overrides || !pclass)
-	    return parmvalue_cache_key_(des, call_scope, overrides);
+	    return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 
-      /* Single-parameter UVM traversal templates are deliberately visited
-       * with unresolved formals during the compile-progress pass.  Preserve
-       * their source-sensitive key until that dead-template path is removed;
-       * the identity bug addressed here requires a dependent default in a
-       * multi-parameter class. */
+	/* A single parameter has no dependency graph to traverse, so express its
+	 * effective value independent of whether the use is bare, #(), named, or
+	 * positional. Bare uses inside an unspecialized generic master are kept
+	 * deferred by specialize_bare_class_at_concrete_use(); an empty override
+	 * which reaches this helper is therefore a concrete default specialization,
+	 * not the generic master itself. */
+      if (pclass->parameter_order.size() == 1) {
+	    perm_string formal_name = pclass->parameter_order.front();
+	    std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator formal =
+		  pclass->parameters.find(formal_name);
+	    if (formal == pclass->parameters.end() || !formal->second)
+		  return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+
+	    const PExpr*actual = 0;
+	    NetScope*actual_scope = call_scope;
+	    if (overrides->by_order) {
+		  if (overrides->by_order->size() > 1)
+			return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+		  if (!overrides->by_order->empty())
+			actual = overrides->by_order->front();
+	    } else if (overrides->by_name) {
+		  if (overrides->by_name->size() > 1)
+			return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+		  if (!overrides->by_name->empty()) {
+			if (overrides->by_name->front().name != formal_name)
+			      return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+			actual = overrides->by_name->front().parm;
+		  }
+	    } else {
+		  return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+	    }
+	    if (!actual) {
+		  actual = formal->second->expr;
+		  actual_scope = definition_scope;
+	    }
+	    if (!actual)
+		  return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+	    if (!formal->second->type_flag
+		&& cache_value_parameter_is_deferred_(des, actual_scope, actual))
+		  return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+
+	    std::ostringstream out;
+	    out << "C|" << formal_name << "=";
+	    if (formal->second->type_flag) {
+		  std::ostringstream actual_key;
+		  append_cache_expr_key_(des, actual_scope, actual_key, actual, 1);
+		  const std::string key = actual_key.str();
+		  if (key.empty()
+		      || key.find("<forwarded-type-param@") != std::string::npos
+		      || key.find("@scope=") != std::string::npos)
+			return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+		  out << key;
+		  return out.str();
+	    }
+
+	      /* An explicitly typed integral value formal gives every actual one
+	       * common width/sign context. Canonicalize constants after that
+	       * conversion. For an untyped formal retain the actual's cache key,
+	       * including its source width: #(8'd3) and #(32'd3) remain distinct,
+	       * while the same effective default in named/positional/omitted form
+	       * selects one specialization. */
+	    if (!formal->second->data_type) {
+		  std::ostringstream actual_key;
+		  append_cache_expr_key_(des, actual_scope, actual_key, actual, 0);
+		  const std::string key = actual_key.str();
+		  if (key.empty()
+		      || key.find("<forwarded-type-param@") != std::string::npos
+		      || key.find("@scope=") != std::string::npos)
+			return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+		  out << key;
+		  return out.str();
+	    }
+	    ivl_type_t formal_type = formal->second->data_type->elaborate_type(
+		  des, definition_scope);
+	    if (!formal_type || !formal_type->packed()
+		|| (formal_type->base_type() != IVL_VT_BOOL
+		    && formal_type->base_type() != IVL_VT_LOGIC)
+		|| formal_type->packed_width() <= 0)
+		  return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+
+	    verinum value;
+	    if (!cache_integral_constant_value_(des, actual_scope, actual, value))
+		  return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+	    value = cast_to_width(value, formal_type->packed_width());
+	    value.has_sign(formal_type->get_signed());
+	    value.has_len(true);
+	    append_cache_ivl_type_key_(des, out, formal_type);
+	    out << "=" << value;
+	    return out.str();
+      }
+
+	/* Keep the broad semantic cache limited to the multi-parameter class
+	 * pattern it was introduced for. The single-parameter path above rejects
+	 * unresolved forwarded/scope-sensitive keys, and bare generic-master uses
+	 * are deferred before reaching this helper. */
       if (pclass->parameter_order.size() < 2)
-	    return parmvalue_cache_key_(des, call_scope, overrides);
+	    return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 
       bool has_bare_dependent_default = false;
       std::set<perm_string> prior_formals;
@@ -1297,7 +2000,7 @@ static std::string canonical_specialization_parm_key_(
 	    prior_formals.insert(*name_it);
       }
       if (!has_bare_dependent_default)
-	    return parmvalue_cache_key_(des, call_scope, overrides);
+	    return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 
       std::map<perm_string,const PExpr*> supplied;
       if (overrides->by_order) {
@@ -1307,7 +2010,7 @@ static std::string canonical_specialization_parm_key_(
 		       overrides->by_order->begin()
 		 ; expr_it != overrides->by_order->end(); ++expr_it) {
 		  if (name_it == pclass->parameter_order.end())
-			return parmvalue_cache_key_(des, call_scope, overrides);
+			return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 		  supplied[*name_it++] = *expr_it;
 	    }
       } else if (overrides->by_name) {
@@ -1316,11 +2019,11 @@ static std::string canonical_specialization_parm_key_(
 		 ; cur != overrides->by_name->end(); ++cur) {
 		  if (pclass->parameters.find(cur->name) == pclass->parameters.end()
 		      || supplied.find(cur->name) != supplied.end())
-			return parmvalue_cache_key_(des, call_scope, overrides);
+			return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 		  supplied[cur->name] = cur->parm;
 	    }
       } else {
-	    return parmvalue_cache_key_(des, call_scope, overrides);
+	    return parmvalue_cache_key_(des, call_scope, overrides, pclass);
       }
 
       std::map<perm_string,std::string> effective;
@@ -1333,7 +2036,8 @@ static std::string canonical_specialization_parm_key_(
 		  pclass->parameters.find(*name_it);
 	    if (formal == pclass->parameters.end() || !formal->second
 		|| !formal->second->expr || !formal->second->type_flag)
-		  return parmvalue_cache_key_(des, call_scope, overrides);
+		  return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+	    const int formal_kind = 1;
 
 	    const PExpr*default_expr = formal->second->expr;
 	    std::string default_key;
@@ -1346,25 +2050,35 @@ static std::string canonical_specialization_parm_key_(
 	    }
 	    if (default_key.empty()) {
 		  std::ostringstream tmp;
-		  append_cache_expr_key_(des, definition_scope, tmp, default_expr);
+		  append_cache_expr_key_(des, definition_scope, tmp, default_expr,
+					 formal_kind);
 		  default_key = tmp.str();
 	    }
+	    if (default_key.empty()
+		|| default_key.find("<forwarded-type-param@") != std::string::npos
+		|| default_key.find("@scope=") != std::string::npos)
+		  return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 
 	    std::map<perm_string,const PExpr*>::const_iterator actual =
 		  supplied.find(*name_it);
 	    if (actual == supplied.end()) {
 		  if (default_key.compare(0, 12, "<class-type:") != 0)
-			return parmvalue_cache_key_(des, call_scope, overrides);
+			return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 		  effective[*name_it] = default_key;
 		  out << "|" << *name_it << "=" << default_key;
 		  continue;
 	    }
 
 	    std::ostringstream tmp;
-	    append_cache_expr_key_(des, call_scope, tmp, actual->second);
+	    append_cache_expr_key_(des, call_scope, tmp, actual->second,
+				   formal_kind);
 	    const std::string actual_key = tmp.str();
+	    if (actual_key.empty()
+		|| actual_key.find("<forwarded-type-param@") != std::string::npos
+		|| actual_key.find("@scope=") != std::string::npos)
+		  return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 	    if (actual_key.compare(0, 12, "<class-type:") != 0)
-		  return parmvalue_cache_key_(des, call_scope, overrides);
+		  return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 	    effective[*name_it] = actual_key;
 	    out << "|" << *name_it << "=" << actual_key;
       }
@@ -1453,6 +2167,9 @@ static std::vector<netclass_t*> pending_specialized_body_elaboration_;
 static std::set<netclass_t*> pending_specialized_body_elaboration_set_;
 static std::vector<netclass_t*> pending_specialized_method_seed_;
 static std::set<netclass_t*> pending_specialized_method_seed_set_;
+static std::vector<netclass_t*> all_specialized_classes_;
+static std::set<netclass_t*> all_specialized_class_set_;
+static std::set<netclass_t*> repaired_specialized_class_set_;
 
 static bool should_seed_specialized_method_body_(perm_string name)
 {
@@ -1497,33 +2214,42 @@ static void seed_specialized_method_bodies_(Design*des, netclass_t*cls,
 	// specialize with fully_elaborate=false (seed only), so without
 	// this the override for e.g. `sequencer#(item)::get_next` was
 	// never elaborated and virtual dispatch resolved to the base stub.
-      for (map<perm_string,PFunction*>::iterator cur = pclass->funcs.begin()
+	      for (map<perm_string,PFunction*>::iterator cur = pclass->funcs.begin()
 		 ; cur != pclass->funcs.end() ; ++cur) {
-	    if (!should_seed_specialized_method_body_(cur->first)
-		&& !cur->second->is_virtual_method())
-		  continue;
-	    if (cur->second->get_statement() == 0)
-		  continue;
-	    NetScope*scope = class_scope->child(hname_t(cur->first));
-	    if (!scope)
-		  continue;
-	    cur->second->elaborate_sig(des, scope);
-	    cur->second->elaborate(des, scope);
-      }
+		    NetScope*scope = class_scope->child(hname_t(cur->first));
+		    if (!scope)
+			  continue;
+		    // IEEE 1800-2017 8.20 makes an override of an inherited
+		    // virtual method implicitly virtual. elaborate_sig records that
+		    // semantic fact on the elaborated method scope; the parse-form
+		    // method flag only records an explicit `virtual' keyword. Using
+		    // only the latter here skipped bodies such as
+		    // uvm_analysis_imp#(...)::write, so runtime dispatch through the
+		    // virtual interface fell back to the base error stub.
+		    if (!should_seed_specialized_method_body_(cur->first)
+			&& !cur->second->is_virtual_method()
+			&& !scope->is_virtual_method())
+			  continue;
+		    if (cur->second->get_statement() == 0)
+			  continue;
+		    cur->second->elaborate_sig(des, scope);
+		    cur->second->elaborate(des, scope);
+	      }
 
-      for (map<perm_string,PTask*>::iterator cur = pclass->tasks.begin()
+	      for (map<perm_string,PTask*>::iterator cur = pclass->tasks.begin()
 		 ; cur != pclass->tasks.end() ; ++cur) {
-	    if (!should_seed_specialized_method_body_(cur->first)
-		&& !cur->second->is_virtual_method())
-		  continue;
-	    if (cur->second->get_statement() == 0)
-		  continue;
-	    NetScope*scope = class_scope->child(hname_t(cur->first));
-	    if (!scope)
-		  continue;
-	    cur->second->elaborate_sig(des, scope);
-	    cur->second->elaborate(des, scope);
-      }
+		    NetScope*scope = class_scope->child(hname_t(cur->first));
+		    if (!scope)
+			  continue;
+		    if (!should_seed_specialized_method_body_(cur->first)
+			&& !cur->second->is_virtual_method()
+			&& !scope->is_virtual_method())
+			  continue;
+		    if (cur->second->get_statement() == 0)
+			  continue;
+		    cur->second->elaborate_sig(des, scope);
+		    cur->second->elaborate(des, scope);
+	      }
 
       cls->set_body_elaborating(false);
 }
@@ -1587,13 +2313,37 @@ void finalize_pending_specialized_class_elaboration(Design*des)
       pending_specialized_method_seed_set_.clear();
 }
 
+void repair_specialized_class_property_types(Design*des)
+{
+      size_t idx = 0;
+      while (idx < all_specialized_classes_.size()) {
+	    netclass_t*cls = all_specialized_classes_[idx++];
+	    if (!cls)
+		  continue;
+
+	    /* A type-only use creates the specialization scope with
+	     * fully_elaborate=false. Complete its signature now, before any
+	     * expression can snapshot property or signal types. elaborate_sig's
+	     * own guard and the specialization cache make mutual A#()<->B#()
+	     * references terminate; newly created specializations append to this
+	     * same work list. */
+	    const NetScope*class_scope = cls->class_scope();
+	    const PClass*pclass = class_scope ? class_scope->class_pform() : 0;
+	    if (pclass && cls->scope_ready()
+		&& !cls->sig_elaborated() && !cls->sig_elaborating())
+		  cls->elaborate_sig(des, const_cast<PClass*>(pclass));
+
+	    if (cls->sig_elaborated()
+		&& repaired_specialized_class_set_.insert(cls).second)
+		  cls->repair_bare_class_property_types(des);
+      }
+}
+
 const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_scope,
 						   const netclass_t*base_class,
 						   const parmvalue_t*overrides,
 						   bool fully_elaborate)
 {
-      static unsigned elaboration_depth = 0;
-
       if (!base_class || !overrides)
 	    return base_class;
 
@@ -1623,7 +2373,7 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 	// unique canonical representative of the class definition.
       key_prefix << (const void*)pclass << "|";
       const std::string source_key_str = key_prefix.str()
-	    + parmvalue_cache_key_(des, call_scope, overrides);
+	    + parmvalue_cache_key_(des, call_scope, overrides, pclass);
       const std::string semantic_parms = canonical_specialization_parm_key_(
 	    des, call_scope, definition_scope, overrides, pclass);
       const bool has_semantic_key = semantic_parms.compare(0, 2, "C|") == 0;
@@ -1664,14 +2414,14 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 		    }
 		    const PClass*cached_pclass = cached_class->class_scope()
 			  ? cached_class->class_scope()->class_pform() : 0;
-		    if (elaboration_depth == 0 && cached_pclass && cached_class->scope_ready()) {
+		    if (cached_pclass && cached_class->scope_ready()) {
 			  if (!cached_class->sig_elaborated() && !cached_class->sig_elaborating())
 				cached_class->elaborate_sig(des, const_cast<PClass*>(cached_pclass));
-			  if (cached_class->sig_elaborated() &&
-			      !cached_class->body_elaborated() &&
-			      !cached_class->body_elaborating())
-			cached_class->elaborate(des, const_cast<PClass*>(cached_pclass));
-	    }
+			  if (cached_class->sig_elaborated()
+			      && !cached_class->body_elaborated()
+			      && !cached_class->body_elaborating())
+				cached_class->elaborate(des, const_cast<PClass*>(cached_pclass));
+		    }
 	    return cached_result;
       }
       note_specialization_cache_miss_(base_class);
@@ -1701,6 +2451,8 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       if (!use_type->covergroups.empty())
 	    use_class->set_has_embedded_covergroups(true);
       use_class->set_specialized_instance(true);
+      if (all_specialized_class_set_.insert(use_class).second)
+	    all_specialized_classes_.push_back(use_class);
       set_scope_timescale(des, class_scope, pclass);
       cache[source_key_str] = use_class;
       if (has_semantic_key)
@@ -1732,7 +2484,7 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 		  else
 			cerr << "<null>";
 		  cerr << " trace=" << trace
-		       << " overrides=" << parmvalue_cache_key_(des, call_scope, overrides)
+		       << " overrides=" << parmvalue_cache_key_(des, call_scope, overrides, pclass)
 		       << endl;
 		  for (std::list<perm_string>::const_iterator cur = pclass->parameter_order.begin()
 			     ; cur != pclass->parameter_order.end() ; ++cur) {
@@ -1872,6 +2624,40 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 
 static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 {
+      if (classes_with_randomization_methods_validated_.insert(pclass).second) {
+	    /* IEEE 1800-2017 18.6, 18.8 and 18.9: every class has these
+	     * built-in randomization methods, and user declarations cannot
+	     * override them.  Diagnose the declaration itself instead of
+	     * allowing an ordinary class method to silently replace the
+	     * language-defined operation. */
+	    const perm_string randomize = perm_string::literal("randomize");
+	    const perm_string rand_mode = perm_string::literal("rand_mode");
+	    const perm_string constraint_mode =
+		  perm_string::literal("constraint_mode");
+
+	    for (map<perm_string,PFunction*>::const_iterator cur =
+		       pclass->funcs.begin(); cur != pclass->funcs.end(); ++cur) {
+		  if (cur->first != randomize && cur->first != rand_mode
+		      && cur->first != constraint_mode)
+			continue;
+		  cerr << cur->second->get_fileline() << ": error: Class method `"
+		       << cur->first << "' is a built-in randomization method and "
+		       << "cannot be overridden." << endl;
+		  des->errors += 1;
+	    }
+
+	    for (map<perm_string,PTask*>::const_iterator cur =
+		       pclass->tasks.begin(); cur != pclass->tasks.end(); ++cur) {
+		  if (cur->first != randomize && cur->first != rand_mode
+		      && cur->first != constraint_mode)
+			continue;
+		  cerr << cur->second->get_fileline() << ": error: Class method `"
+		       << cur->first << "' is a built-in randomization method and "
+		       << "cannot be overridden." << endl;
+		  des->errors += 1;
+	    }
+      }
+
       if (const NetScope*existing_scope = scope->child_byname(pclass->pscope_name())) {
 	    if (existing_scope->type() == NetScope::CLASS &&
 	        existing_scope->class_pform() == pclass) {

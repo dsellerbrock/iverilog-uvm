@@ -522,6 +522,7 @@ enum ivl_lval_type_t {
 struct ivl_lval_s {
       ivl_expr_t loff;
       ivl_select_type_t sel_type :3;
+      unsigned queue_slice_ :1;
       ivl_expr_t idx;
       unsigned width_;
       unsigned type_   : 8; /* values from ivl_lval_type_t */

@@ -1,0 +1,19 @@
+sv_array_unique_argument_fail CE,-g2012		ivltests gold=sv_array_unique_argument_fail.gold
+sv_array_unique_attributes normal,-g2012	ivltests gold=sv_array_unique_attributes.gold
+sv_array_unique_parenless normal,-g2012		ivltests gold=sv_array_unique_parenless.gold
+sv_array_unique_scalar_types normal,-g2012	ivltests gold=sv_array_unique_scalar_types.gold
+sv_array_unique_type_fail CE,-g2012		ivltests gold=sv_array_unique_type_fail.gold
+sv_array_unique_with_object normal,-g2012	ivltests gold=sv_array_unique_with_object.gold
+sv_array_unique_with_eval_once normal,-g2012	ivltests gold=sv_array_unique_with_eval_once.gold
+sv_array_unique_with_scalar_types normal,-g2012	ivltests gold=sv_array_unique_with_scalar_types.gold
+sv_array_unique_with_object_type_fail CE,-g2012	ivltests gold=sv_array_unique_with_object_type_fail.gold
+sv_assoc_unique_typed normal,-g2012		ivltests gold=sv_assoc_unique_typed.gold
+sv_assoc_unique_with_types normal,-g2012	ivltests gold=sv_assoc_unique_with_types.gold
+sv_assoc_unique_wildcard_fail CE,-g2012	ivltests gold=sv_assoc_unique_wildcard_fail.gold
+sv_assoc_unique_index_wildcard_fail CE,-g2012	ivltests gold=sv_assoc_unique_index_wildcard_fail.gold
+sv_assoc_unique_wildcard_iter_index_fail CE,-g2012	ivltests gold=sv_assoc_unique_wildcard_iter_index_fail.gold
+sv_assoc_unique_object_index_fail CE,-g2012	ivltests gold=sv_assoc_unique_object_index_fail.gold
+sv_edition_iter_index_old CE,-g2005		ivltests gold=sv_edition_iter_index_old.gold
+sv_edition_iter_index_def normal,-g2005-sv	ivltests
+sv_edition_iter_index_neighbour normal,-g2009	ivltests
+sv_edition_iter_index_latest normal,-glatest	ivltests

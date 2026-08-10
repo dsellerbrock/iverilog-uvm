@@ -1,0 +1,3 @@
+./ivltests/sv_assoc_unique_wildcard_fail.v:12: sorry: unique() on a wildcard-index associative array is not yet implemented because wildcard keys require width-preserving traversal.
+./ivltests/sv_assoc_unique_wildcard_fail.v:13: sorry: unique() on a wildcard-index associative array is not yet implemented because wildcard keys require width-preserving traversal.
+2 error(s) during elaboration.

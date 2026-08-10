@@ -1,0 +1,4 @@
+ivltests/sv_assoc_wildcard_type_fail.v:14: error: associative-array value has an index type that is not assignment-compatible with the context.
+ivltests/sv_assoc_wildcard_type_fail.v:15: error: cannot cast between associative-array types with different index types.
+ivltests/sv_assoc_wildcard_type_fail.v:16: error: associative-array value has an index type that is not assignment-compatible with the context.
+3 error(s) during elaboration.

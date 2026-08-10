@@ -2805,6 +2805,13 @@ void dll_target::signal(const NetNet*net)
       obj->scope_->sigs_.push_back(obj);
       signal_map_[net] = obj;
 
+	/* A static class property has one compiler NetNet in its declaring
+	   class scope. Preserve that exact pointer-to-target mapping on the
+	   class type so an absolute property index can later be exported to
+	   the target without a (hiding-unsafe) name search. */
+      if (const netclass_t*class_type = net->scope()->class_def())
+	    class_type->bind_static_property_target(net, obj);
+
 
 	/* Save the primitive properties of the signal in the
 	   ivl_signal_t object. */

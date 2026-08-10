@@ -1,5 +1,5 @@
-// `assume final` remains a deliberate compile-error guard until reports
-// mature in the Postponed region of every time step.
+// Final-deferred assume actions execute in Postponed, with the selected
+// arm fixed when the assume statement executes.
 module test();
 
 integer i = 1;

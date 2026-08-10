@@ -1,0 +1,2 @@
+./ivltests/sv_typeparam_default_cycle_fail.v:4: error: Recursive parameter reference found involving A.
+1 error(s) during elaboration.

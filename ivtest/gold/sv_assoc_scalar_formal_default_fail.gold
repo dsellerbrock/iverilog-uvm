@@ -1,0 +1,4 @@
+./ivltests/sv_assoc_scalar_formal_default_fail.v:7: error: associative-array value is not assignment-compatible with a non-associative context.
+./ivltests/sv_assoc_scalar_formal_default_fail.v:6: error: Unable to evaluate 9typeref_t
+'{'sd1} as a port default expression.
+2 error(s) during elaboration.

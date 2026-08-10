@@ -1,0 +1,3 @@
+./ivltests/sv_ustruct_member_defaults_unused_kind_fail.v:5 error: Packed structs must not have default member values.
+./ivltests/sv_ustruct_member_defaults_unused_kind_fail.v:9: error: Union members must not have default values.
+2 error(s) during elaboration.

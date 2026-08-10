@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_typeparam_static_dispatch.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_typeparam_static_dispatch"
+}

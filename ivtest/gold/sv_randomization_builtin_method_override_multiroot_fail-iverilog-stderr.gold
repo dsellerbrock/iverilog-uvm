@@ -1,0 +1,2 @@
+ivltests/sv_randomization_builtin_method_override_multiroot_fail.v:4: error: Class method `randomize' is a built-in randomization method and cannot be overridden.
+1 error(s) during elaboration.

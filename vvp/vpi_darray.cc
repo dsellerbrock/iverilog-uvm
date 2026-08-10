@@ -381,7 +381,7 @@ void __vpiDarrayVar::put_word_value(struct __vpiArrayWord*word, p_vpi_value vp, 
             }
 
             // convert to vvp_bit4_t
-            new_bit = ((b & 1) << 2) | (a & 1);
+            new_bit = ((b & 1) << 1) | (a & 1);
             new_vec.set_bit(i, (vvp_bit4_t) new_bit);
 
             a >>= 1;

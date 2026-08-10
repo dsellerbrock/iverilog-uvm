@@ -1,0 +1,5 @@
+FUNCTION_SCOPE t.function_source
+CLASS_SCOPE t.c.class_source
+FORK_SCOPE t.fork_source
+FORK_SCOPE t.fork_source
+PASSED

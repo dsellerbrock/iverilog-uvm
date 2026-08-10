@@ -1,0 +1,6 @@
+sv_array_unique_aggregate_fail CE,-g2012		ivltests gold=sv_array_unique_aggregate_fail.gold
+sv_array_unique_class_handles normal,-g2012	ivltests gold=sv_array_unique_class_handles.gold
+sv_array_unique_fixed_types normal,-g2012	ivltests gold=sv_array_unique_fixed_types.gold
+sv_array_unique_fixed_wide_fail CE,-g2012	ivltests gold=sv_array_unique_fixed_wide_fail.gold
+sv_array_unique_width_boundary normal,-g2012	ivltests gold=sv_array_unique_width_boundary.gold
+sv_uarray_func_return_queue_property normal,-g2012 ivltests gold=sv_uarray_func_return_queue_property.gold

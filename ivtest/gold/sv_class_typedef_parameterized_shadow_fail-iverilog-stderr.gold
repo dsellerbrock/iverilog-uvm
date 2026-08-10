@@ -1,0 +1,2 @@
+ivltests/sv_class_typedef_parameterized_shadow_fail.v:9: error: Parameter overrides require a class type, but `selected_type` resolves to a non-class type.
+1 error(s) during elaboration.

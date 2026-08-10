@@ -1,0 +1,17 @@
+:ivl_version "13.0 (devel)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+S_bad .scope module, "bad" "bad" 1 1;
+ .timescale 0 0;
+    .scope S_bad;
+T_main ;
+    %defer/final T_bad_action, S_bad;
+    %end;
+T_bad_action ;
+    %defer/final/taskkey 1;
+    %delay 0, 0;
+    %end;
+    .thread T_main;
+:file_names 2;
+    "N/A";
+    "tests/deferred_final/malformed_task_key.vvp";

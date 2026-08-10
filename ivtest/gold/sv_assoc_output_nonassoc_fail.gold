@@ -1,0 +1,2 @@
+./ivltests/sv_assoc_output_nonassoc_fail.v:10: error: task output associative-array copy-back requires equivalent associative-containing types on both the formal and actual.
+1 error(s) during elaboration.

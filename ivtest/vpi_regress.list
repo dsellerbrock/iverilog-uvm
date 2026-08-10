@@ -137,6 +137,8 @@ sim_time_cb1		normal			sim_time_cb1.c		sim_time_cb1.gold
 sim_time_cb2		normal			sim_time_cb2.c		sim_time_cb2.gold
 spec_delays		normal,-gspecify	spec_delays.c		spec_delays.log
 start_of_simtime1	normal			start_of_simtime1.c	start_of_simtime1.log
+static_class_storage	normal,-g2012		static_class_storage.c	static_class_storage.log
+static_class_storage_callbacks normal,-g2012	static_class_storage_callbacks.c static_class_storage_callbacks.log
 timescale		PLI1			timescale.c		timescale.log
 value_change_cb1	normal,-g2009		value_change_cb1.c	value_change_cb1.gold
 value_change_cb2	normal,-g2009		value_change_cb2.c	value_change_cb2.gold

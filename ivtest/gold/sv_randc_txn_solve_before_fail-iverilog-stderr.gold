@@ -1,0 +1,2 @@
+ivltests/sv_randc_txn_solve_before_fail.v:5: error: 'randc' variables cannot be used in 'solve before' constraints.
+1 error(s) during elaboration.

@@ -62,20 +62,93 @@ static ivl_type_t resolve_class_handle_placeholder_type_weak_(Design*des,
 static ivl_type_t resolve_class_handle_type_weak_(Design*des, NetScope*scope,
 						  const data_type_t*type_pf);
 static ivl_type_t resolve_class_handle_placeholder_type_weak_(Design*des,
-							      NetScope*scope,
-							      const data_type_t*type_pf);
+						      NetScope*scope,
+						      const data_type_t*type_pf);
+
+/* elaborate_class_property_type_ deliberately follows typedef declarations
+ * directly so it can repair late class handles without re-entering a class
+ * signature through typedef_t::elaborate_type. Preserve the forward-typedef
+ * kind check that the generic typedef elaborator would otherwise perform. */
+static void validate_class_property_typedef_kind_(Design*des, typedef_t*td,
+						   ivl_type_t resolved_type)
+{
+      if (!des || !td || !resolved_type)
+	    return;
+
+      bool type_ok = true;
+      switch (td->get_basic_type()) {
+      case typedef_t::ENUM:
+	    type_ok = dynamic_cast<const netenum_t*>(resolved_type);
+	    break;
+      case typedef_t::STRUCT: {
+	    const netstruct_t*structure =
+		  dynamic_cast<const netstruct_t*>(resolved_type);
+	    type_ok = structure && !structure->union_flag();
+	    break;
+      }
+      case typedef_t::UNION: {
+	    const netstruct_t*structure =
+		  dynamic_cast<const netstruct_t*>(resolved_type);
+	    type_ok = structure && structure->union_flag();
+	    break;
+      }
+      case typedef_t::CLASS:
+	    type_ok = dynamic_cast<const netclass_t*>(resolved_type);
+	    break;
+      default:
+	    break;
+      }
+
+      if (type_ok)
+	    return;
+
+      const data_type_t*declared_type = td->get_data_type();
+      cerr << (declared_type ? declared_type->get_fileline()
+			    : td->get_fileline())
+	   << ": error: Unexpected resolved type for `" << td->name
+	   << "`. It was forward declared as `" << td->get_basic_type()
+	   << "` at " << td->get_fileline() << "." << endl;
+      des->errors += 1;
+}
+
+/* Name recovery is only valid for the compiler's class-forward placeholders.
+ * An exact non-class alias can legally shadow an outer class with the same
+ * spelling; falling through to ensure_visible_class_type in that case changes
+ * the declaration's meaning. Built-in generic classes and interface typedefs
+ * use synthetic typedef nodes, so retain their established recovery paths. */
+static bool typedef_allows_class_name_recovery_(const typedef_t*td)
+{
+      if (!td)
+	    return false;
+      if (td->get_basic_type() == typedef_t::CLASS)
+	    return true;
+      if (td->name == perm_string::literal("mailbox")
+	  || td->name == perm_string::literal("semaphore")
+	  || td->name == perm_string::literal("process"))
+	    return true;
+
+      const data_type_t*declared_type = td->get_data_type();
+      if (dynamic_cast<const interface_type_t*>(declared_type))
+	    return true;
+      if (const class_type_t*forward_type =
+		dynamic_cast<const class_type_t*>(declared_type))
+	    return forward_type->name == td->name;
+      return false;
+}
 
 static ivl_type_t elaborate_class_property_type_(Design*des, NetScope*class_scope,
-						 const netclass_t*owner_class,
-						 const data_type_t*prop_type)
+						 const data_type_t*prop_type,
+						 set<const typedef_t*>&seen,
+						 bool validate_typedef_kinds)
 {
       if (!prop_type)
 	    return 0;
 
       if (const array_base_t*array_type = dynamic_cast<const array_base_t*>(prop_type)) {
 	    ivl_type_t base_use_type =
-		  elaborate_class_property_type_(des, class_scope, owner_class,
-						 array_type->base_type.get());
+		  elaborate_class_property_type_(des, class_scope,
+						 array_type->base_type.get(), seen,
+						 validate_typedef_kinds);
 	    if (base_use_type && array_type->dims)
 		  return elaborate_array_type(des, class_scope, *array_type,
 					      base_use_type, *array_type->dims.get());
@@ -83,30 +156,115 @@ static ivl_type_t elaborate_class_property_type_(Design*des, NetScope*class_scop
 		  return base_use_type;
       }
 
-      if (const typeref_t*type_ref = dynamic_cast<const typeref_t*>(prop_type)) {
+      /* A typedef can hide the array wrapper itself (`typedef C A[2]`).
+       * Follow unparameterized aliases in their declaration scope so the
+       * recursive branch above can rebuild the wrapper around the canonical
+       * late-resolved class. */
+	if (const typeref_t*type_ref = dynamic_cast<const typeref_t*>(prop_type)) {
 	    typedef_t*td = type_ref->typedef_ref();
-	    if (td && owner_class && td->name == owner_class->get_name()
-		&& type_ref->parameter_values()) {
-		  // Self-referential parameterized class properties should reuse
-		  // the current class handle type during signal seeding.
-		  return const_cast<netclass_t*>(owner_class);
+	    if (td && !type_ref->parameter_values() && seen.insert(td).second) {
+		  /* This branch deliberately unwraps the typedef so an array
+		   * alias can be rebuilt around a late-resolved class element.
+		   * Elaborate that borrowed declaration in the typedef's own
+		   * scope. Using the reference scope here creates a second
+		   * nominal type for non-class aliases, notably a package enum
+		   * used by a class property. */
+		  NetScope*type_scope =
+			class_scope->find_typedef_scope(des, td);
+		  if (!type_scope)
+			type_scope = type_ref->find_scope(des, class_scope);
+		  if (!type_scope)
+			type_scope = class_scope;
+		  if (ivl_type_t alias_type = elaborate_class_property_type_(
+			des, type_scope, td->get_data_type(), seen,
+			validate_typedef_kinds)) {
+			if (validate_typedef_kinds)
+			      validate_class_property_typedef_kind_(des, td, alias_type);
+			return alias_type;
+		  }
 	    }
       }
 
-      ivl_type_t use_type = const_cast<data_type_t*>(prop_type)->elaborate_type(des, class_scope);
       if (ivl_type_t class_prop_type =
               resolve_class_handle_type_weak_(des, class_scope, prop_type)) {
             /* Class-handle properties can initially elaborate through generic
-             * or placeholder aliases. Prefer the resolved class handle so
-             * nested member access and method/task lookup see the real class. */
+             * or placeholder aliases. Resolve them before the generic type
+             * elaborator: the latter may fully elaborate a cached
+             * specialization while one of its method signatures is still in
+             * progress. Apart from doing unnecessary work, that re-entry can
+             * request the method body before its NetFuncDef is attached. */
             return class_prop_type;
       }
+
+      ivl_type_t use_type =
+            const_cast<data_type_t*>(prop_type)->elaborate_type(des, class_scope);
       if (ivl_type_t placeholder_prop_type =
               resolve_class_handle_placeholder_type_weak_(des, class_scope, prop_type)) {
             return placeholder_prop_type;
       }
 
       return use_type;
+}
+
+static ivl_type_t elaborate_class_property_type_(Design*des,
+						 NetScope*class_scope,
+						 const data_type_t*prop_type,
+						 bool validate_typedef_kinds = false)
+{
+      set<const typedef_t*>seen;
+      return elaborate_class_property_type_(des, class_scope, prop_type, seen,
+					     validate_typedef_kinds);
+}
+
+/* Re-elaborate class property types from their parse-form declarations after
+ * every class definition is visible.  Do not transform the type already in
+ * property_table_: a forward declaration can leave a perfectly class-typed,
+ * but non-canonical, placeholder or default specialization there.  Starting
+ * from the declaration also lets elaborate_class_property_type_ rebuild the
+ * complete fixed/dynamic/queue wrapper around a repaired class element. */
+void netclass_t::repair_bare_class_property_types(Design*des)
+{
+      if (!des || !class_scope_)
+	    return;
+
+      const PClass*pclass = class_scope_->class_pform();
+      if (!pclass || !pclass->type)
+	    return;
+
+      for (map<perm_string,size_t>::iterator cur = properties_.begin()
+	       ; cur != properties_.end() ; ++cur) {
+	    map<perm_string,class_type_t::prop_info_t>::const_iterator declared =
+		  pclass->type->properties.find(cur->first);
+	    if (declared == pclass->type->properties.end()
+		|| !declared->second.type)
+		  continue;
+	    if (!specialize_bare_class_at_concrete_use(
+		  des, class_scope_, declared->second.type.get(), 0, false))
+		  continue;
+
+	    ivl_type_t repaired = elaborate_class_property_type_(
+		  des, class_scope_, declared->second.type.get());
+	    if (!repaired)
+		  continue;
+
+	    prop_t&property = property_table_[cur->second];
+	    property.type = repaired;
+
+	    if (!declared->second.qual.test_static())
+		  continue;
+	    NetNet*sig = class_scope_->find_signal(cur->first);
+	    if (!sig)
+		  continue;
+
+	    /* Fixed unpacked dimensions live on NetNet separately from its
+	     * element net_type.  Other containers are scalar NetNets whose full
+	     * queue/darray type belongs in net_type. */
+	    if (const netuarray_t*array_type =
+		  dynamic_cast<const netuarray_t*>(repaired))
+		  sig->set_net_type(array_type->element_type());
+	    else
+		  sig->set_net_type(repaired);
+      }
 }
 
 static ivl_type_t resolve_typedef_alias_class_handle_type_weak_(Design*des,
@@ -135,6 +293,16 @@ static ivl_type_t resolve_class_handle_type_weak_(Design*des, NetScope*scope,
 {
       if (!des || !scope || !type_pf)
 	    return 0;
+
+      if (const array_base_t*array_type =
+	    dynamic_cast<const array_base_t*>(type_pf)) {
+	    ivl_type_t element_type = resolve_class_handle_type_weak_(
+		  des, scope, array_type->base_type.get(), seen);
+	    if (element_type && array_type->dims)
+		  return elaborate_array_type(des, scope, *array_type,
+					      element_type, *array_type->dims.get());
+	    return element_type;
+      }
 
       if (const class_type_t*class_pf = dynamic_cast<const class_type_t*>(type_pf))
 	    return ensure_visible_class_type(des, scope, class_pf->name);
@@ -174,6 +342,9 @@ static ivl_type_t resolve_class_handle_type_weak_(Design*des, NetScope*scope,
 	    return alias_class;
       }
 
+      if (!typedef_allows_class_name_recovery_(td))
+	    return 0;
+
       netclass_t*base_class = ensure_visible_class_type(des, type_scope, td->name);
       if (!base_class)
 	    return 0;
@@ -194,6 +365,16 @@ static ivl_type_t resolve_class_handle_placeholder_type_weak_(Design*des,
 {
       if (!des || !scope || !type_pf)
 	    return 0;
+
+      if (const array_base_t*array_type =
+	    dynamic_cast<const array_base_t*>(type_pf)) {
+	    ivl_type_t element_type = resolve_class_handle_placeholder_type_weak_(
+		  des, scope, array_type->base_type.get(), seen);
+	    if (element_type && array_type->dims)
+		  return elaborate_array_type(des, scope, *array_type,
+					      element_type, *array_type->dims.get());
+	    return element_type;
+      }
 
       if (getenv("IVL_FOREACH_TYPE_TRACE")) {
             cerr << "[resolve-placeholder] type_pf="
@@ -254,6 +435,9 @@ static ivl_type_t resolve_class_handle_placeholder_type_weak_(Design*des,
 	    return alias_class;
       }
 
+      if (!typedef_allows_class_name_recovery_(td))
+	    return 0;
+
       netclass_t*base_class = ensure_visible_class_type(des, type_scope, td->name);
       return base_class;
 }
@@ -262,7 +446,17 @@ static ivl_type_t resolve_class_handle_type_weak_(Design*des, NetScope*scope,
 						  const data_type_t*type_pf)
 {
       set<const typedef_t*>seen;
-      return resolve_class_handle_type_weak_(des, scope, type_pf, seen);
+      ivl_type_t resolved =
+	    resolve_class_handle_type_weak_(des, scope, type_pf, seen);
+
+	/* The recursive resolver deliberately leaves circular placeholders and
+	 * bare class references generic.  At this top-level declaration use,
+	 * however, IEEE 1800-2017 8.25 requires a bare parameterized class to
+	 * denote the same default specialization as C#().  Normalize only here:
+	 * the placeholder resolver below must stay generic while breaking
+	 * declaration cycles. */
+      return specialize_bare_class_at_concrete_use(
+	    des, scope, type_pf, resolved, false);
 }
 
 static ivl_type_t resolve_class_handle_placeholder_type_weak_(Design*des,
@@ -427,6 +621,76 @@ static void sig_check_port_type(Design*des, const NetScope*scope,
       }
 }
 
+/* Find only typedef type graphs that actually carry a struct/union member
+ * default. Eagerly elaborating every typedef is both unnecessary and harmful
+ * for large class libraries whose unused parameterized aliases are intended
+ * to remain lazy. */
+static bool pform_type_has_struct_member_default_(
+		const data_type_t*type, map<const data_type_t*,unsigned char>&memo)
+{
+      if (!type)
+	    return false;
+
+      map<const data_type_t*,unsigned char>::iterator prior = memo.find(type);
+      if (prior != memo.end()) {
+	    if (prior->second == 1)
+		  return false;
+	    return prior->second == 3;
+      }
+
+      memo[type] = 1;
+      bool found = false;
+
+      if (const typeref_t*ref = dynamic_cast<const typeref_t*>(type)) {
+	    typedef_t*td = ref->typedef_ref();
+	    found = td && pform_type_has_struct_member_default_(
+		  td->get_data_type(), memo);
+      } else if (const array_base_t*array =
+		       dynamic_cast<const array_base_t*>(type)) {
+	    found = pform_type_has_struct_member_default_(
+		  array->base_type.get(), memo);
+      } else if (const struct_type_t*structure =
+		       dynamic_cast<const struct_type_t*>(type)) {
+	    if (structure->members) {
+		  for (const struct_member_t*member : *structure->members) {
+			if (!member)
+			      continue;
+			if (member->names) {
+			      for (const decl_assignment_t*name : *member->names) {
+				    if (name && name->expr) {
+					  found = true;
+					  break;
+				    }
+			      }
+			}
+			if (found)
+			      break;
+			found = pform_type_has_struct_member_default_(
+			      member->type.get(), memo);
+			if (found)
+			      break;
+		  }
+	    }
+      }
+
+      memo[type] = found ? 3 : 2;
+      return found;
+}
+
+static void elaborate_sig_struct_default_typedefs_(
+		Design*des, NetScope*scope,
+		const map<perm_string,typedef_t*>&typedefs)
+{
+      map<const data_type_t*,unsigned char> memo;
+      for (const auto&entry : typedefs) {
+	    typedef_t*td = entry.second;
+	    if (!td || !pform_type_has_struct_member_default_(
+			 td->get_data_type(), memo))
+		  continue;
+	    td->elaborate_type(des, scope);
+      }
+}
+
 bool PScope::elaborate_sig_wires_(Design*des, NetScope*scope) const
 {
       bool flag = true;
@@ -444,6 +708,8 @@ bool PScope::elaborate_sig_wires_(Design*des, NetScope*scope) const
 	    sig_check_port_type(des, scope, cur, sig);
 
       }
+
+      elaborate_sig_struct_default_typedefs_(des, scope, typedefs);
 
       return flag;
 }
@@ -811,6 +1077,58 @@ bool Module::elaborate_sig(Design*des, NetScope*scope) const
       return flag;
 }
 
+/* IEEE 1800-2017 18.4 gives randc a narrower type domain than rand:
+ * each cyclic leaf must be integral. Unpacked containers preserve the leaf
+ * rule, while a packed aggregate is legal only when all of its members are
+ * themselves legal cyclic leaves. Keep this recursive so typedef-expanded
+ * arrays and nested packed records receive one declaration diagnostic rather
+ * than being judged by a misleading outer base_type(). */
+static bool class_randc_property_type_ok_(ivl_type_t type)
+{
+      if (!type)
+	    return false;
+
+      if (const netarray_t*array = dynamic_cast<const netarray_t*>(type))
+	    return class_randc_property_type_ok_(array->element_type());
+
+      if (type == &netvector_t::chandle_type)
+	    return false;
+
+      if (dynamic_cast<const netenum_t*>(type))
+	    return true;
+
+      if (const netvector_t*vec = dynamic_cast<const netvector_t*>(type)) {
+	    ivl_variable_type_t base = vec->base_type();
+	    return base == IVL_VT_BOOL || base == IVL_VT_LOGIC;
+      }
+
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+	    if (!record->packed())
+		  return false;
+	    for (const netstruct_t::member_t&member : record->members())
+		  if (!class_randc_property_type_ok_(member.net_type))
+			return false;
+	    return true;
+      }
+
+      return false;
+}
+
+/* The runtime cycle bitmap is per packed randc value. For an unpacked
+ * container that value is one element, whereas a packed array is itself one
+ * value. Peel only unpacked array/container layers before applying the
+ * implementation width cap. */
+static long class_randc_property_leaf_width_(ivl_type_t type)
+{
+      while (type) {
+	    const netarray_t*array = dynamic_cast<const netarray_t*>(type);
+	    if (!array || type->packed())
+		  break;
+	    type = array->element_type();
+      }
+      return type ? type->packed_width() : 0;
+}
+
 void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 {
       if (sig_elaborated_ || sig_elaborating_)
@@ -873,8 +1191,8 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
                   pclass->type->properties.find(*name_it);
             ivl_assert(*pclass, cur != pclass->type->properties.end());
 
-	    ivl_type_t use_type = elaborate_class_property_type_(des, class_scope_,
-								 this, cur->second.type.get());
+	    ivl_type_t use_type = elaborate_class_property_type_(
+		  des, class_scope_, cur->second.type.get(), true);
 	    if (const char*trace = getenv("IVL_NESTED_PATH_TRACE")) {
 		  if (cur->first == perm_string::literal("m_time_settings")
 		      || cur->first == perm_string::literal("m_verbosity_settings")
@@ -898,21 +1216,12 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		       << " type=" << *use_type << endl;
 	    }
 
-	      // IEEE 1800-2017 18.4: rand/randc is restricted to integral
-	      // types (2-state/4-state, enums, and aggregates thereof).
-	      // real/shortreal, string, and chandle are NOT integral, so a
-	      // rand/randc property of one of these types used to compile
-	      // clean and simply never randomize (silent, randomize() still
-	      // returned 1) -- make it a hard error instead. `event` never
-	      // reaches this loop at all (the parser drops its qualifier
-	      // before a property is even recorded); that path is checked
-	      // at parse time (see the K_event class-item rule in parse.y).
-	      //
-	      // "aggregates thereof" cuts both ways: an array/queue/dynamic
-	      // array of real/string/chandle is exactly as illegal as the
-	      // scalar case, so unwrap through netarray_t (the common base
-	      // of fixed arrays, dynamic arrays, and queues) to the element
-	      // type before judging it.
+	      // real/shortreal, string, and chandle are not randomizable
+	      // leaves for either qualifier. Class handles and unpacked
+	      // structures, however, are legal recursive `rand` properties;
+	      // the narrower integral-leaf rule for `randc` is checked below.
+	      // `event` never reaches this loop because the parser diagnoses
+	      // its qualifier in the class-item rule.
 	    bool bad_type = false;
 	    if (cur->second.qual.test_rand() || cur->second.qual.test_randc()) {
 		  ivl_type_t elem_type = use_type;
@@ -933,15 +1242,33 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 			bad_type = true; what = "chandle";
 		  }
 		  if (bad_type) {
-			cerr << pclass->get_fileline() << ": error: property '"
+			cerr << cur->second.get_fileline() << ": error: property '"
 			     << cur->first << "' of class " << get_name()
 			     << " is declared " << (cur->second.qual.test_randc() ? "randc" : "rand")
 			     << " but has type " << what << ", which is not an "
 			     << "integral type (IEEE 1800-2017 18.4 restricts "
 			     << "rand/randc to 2-state/4-state types, enums, and "
 			     << "aggregates thereof)." << endl;
-			des->errors += 1;
-		  }
+				des->errors += 1;
+			  }
+	    }
+
+	      // A randc declaration denotes one cycle over an integral, enum,
+	      // or packed-aggregate leaf, or an unpacked container composed of
+	      // those leaves. In particular, a class handle or unpacked struct
+	      // (including either beneath nested arrays) is legal for rand but
+	      // not randc. Diagnose the declaration once, after complete type
+	      // elaboration, instead of once per nested array/member.
+	    if (!bad_type && cur->second.qual.test_randc() && use_type
+		&& !class_randc_property_type_ok_(use_type)) {
+		  bad_type = true;
+		  cerr << cur->second.get_fileline() << ": error: property '"
+		       << cur->first << "' of class " << get_name()
+		       << " has a type that is not valid for a randc property; "
+		       << "randc requires an integral, enum, or packed-aggregate "
+		       << "leaf, or an array thereof (IEEE 1800-2017 18.4)."
+		       << endl;
+		  des->errors += 1;
 	    }
 
 	      // C1 (Phase 62a) capped randc's cycle bitmap at a 16-bit
@@ -952,12 +1279,12 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	      // but the same silent-degrade risk exists beyond THAT bound,
 	      // so name it here instead of letting it pass quietly.
 	    if (!bad_type && cur->second.qual.test_randc() && use_type) {
-		  long pw = use_type->packed_width();
-		  const long randc_cap_bits = 20;
-		  if (pw > randc_cap_bits) {
-			cerr << pclass->get_fileline() << ": warning: randc property '"
+	      long pw = class_randc_property_leaf_width_(use_type);
+	      const long randc_cap_bits = 20;
+	      if (pw > randc_cap_bits) {
+		cerr << cur->second.get_fileline() << ": warning: randc property '"
 			     << cur->first << "' of class " << get_name()
-			     << " is " << pw << " bits wide, beyond the "
+			     << " has a " << pw << "-bit cyclic leaf, beyond the "
 			     << randc_cap_bits << "-bit randc cycle-tracking cap; "
 			     << "it will randomize as plain (non-cyclic) rand instead "
 			     << "of guaranteeing a full permutation before any repeat."
@@ -977,7 +1304,8 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		       << "." << endl;
 	    }
 
-	    if (class_scope_->find_signal(cur->first) == 0) {
+	    NetNet*static_sig = class_scope_->find_signal(cur->first);
+	    if (static_sig == 0) {
 		    // A static property is a real signal in the class
 		    // scope. A FIXED-ARRAY property must be created with
 		    // its unpacked dimensions -- the type-only NetNet
@@ -989,14 +1317,15 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		    // (recovery D9 family).
 		  if (const netuarray_t*ua =
 			    dynamic_cast<const netuarray_t*>(use_type)) {
-			new NetNet(class_scope_, cur->first, NetNet::REG,
-				   ua->static_dimensions(),
-				   ua->element_type());
+			static_sig = new NetNet(class_scope_, cur->first, NetNet::REG,
+					ua->static_dimensions(),
+					ua->element_type());
 		  } else {
-			new NetNet(class_scope_, cur->first, NetNet::REG,
-				   use_type);
+			static_sig = new NetNet(class_scope_, cur->first, NetNet::REG,
+					use_type);
 		  }
 	    }
+	    static_sig->set_const(cur->second.qual.test_const());
       }
 
       // Synthesize properties for class-embedded covergroups so they are
@@ -1046,6 +1375,9 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	    ivl_assert(*cur->second, scope);
 	    cur->second->elaborate_sig(des, scope);
       }
+
+      elaborate_sig_struct_default_typedefs_(des, class_scope_,
+					     pclass->typedefs);
 
       sig_elaborating_ = false;
       sig_elaborated_ = true;
@@ -1217,6 +1549,8 @@ bool PGenerate::elaborate_sig_(Design*des, NetScope*scope) const
 	    (*cur)->statement()->elaborate_sig(des, scope);
       }
 
+      elaborate_sig_struct_default_typedefs_(des, scope, typedefs);
+
 
       return flag;
 }
@@ -1245,14 +1579,16 @@ static void seed_super_chain_properties_(Design*des, const netclass_t*cls)
       for (map<perm_string,struct class_type_t::prop_info_t>::const_iterator
 		 cur = super_pclass->type->properties.begin()
 	       ; cur != super_pclass->type->properties.end() ; ++cur) {
-	    ivl_type_t use_type = elaborate_class_property_type_(des, super_scope_mut,
-								 super_mut, cur->second.type.get());
+	    ivl_type_t use_type = elaborate_class_property_type_(
+		  des, super_scope_mut, cur->second.type.get());
 	    if (!use_type) continue;
-	    bool added = super_mut->set_property(cur->first, cur->second.qual, use_type);
-	    if (added && cur->second.qual.test_static()) {
-		  if (super_scope_mut->find_signal(cur->first) == 0)
-			/* NetNet*sig = */ new NetNet(super_scope_mut, cur->first,
-						     NetNet::REG, use_type);
+	    super_mut->set_property(cur->first, cur->second.qual, use_type);
+	    if (cur->second.qual.test_static()) {
+		  NetNet*sig = super_scope_mut->find_signal(cur->first);
+		  if (sig == 0)
+			sig = new NetNet(super_scope_mut, cur->first,
+					 NetNet::REG, use_type);
+		  sig->set_const(cur->second.qual.test_const());
 	    }
       }
 }
@@ -1293,13 +1629,15 @@ static void seed_class_scope_properties_for_method_elab_(Design*des,
       for (map<perm_string,struct class_type_t::prop_info_t>::const_iterator
 		 cur = pclass_type->properties.begin()
 	       ; cur != pclass_type->properties.end() ; ++ cur) {
-	    ivl_type_t use_type = elaborate_class_property_type_(des, class_scope,
-								 clsnet, cur->second.type.get());
-	    bool added = clsnet->set_property(cur->first, cur->second.qual, use_type);
-	    if (added && cur->second.qual.test_static()) {
-		  if (class_scope->find_signal(cur->first) == 0)
-			/* NetNet*sig = */ new NetNet(class_scope, cur->first,
-						     NetNet::REG, use_type);
+	    ivl_type_t use_type = elaborate_class_property_type_(
+		  des, class_scope, cur->second.type.get());
+	    clsnet->set_property(cur->first, cur->second.qual, use_type);
+	    if (cur->second.qual.test_static()) {
+		  NetNet*sig = class_scope->find_signal(cur->first);
+		  if (sig == 0)
+			sig = new NetNet(class_scope, cur->first,
+					 NetNet::REG, use_type);
+		  sig->set_const(cur->second.qual.test_const());
 	    }
       }
 }
@@ -1657,9 +1995,14 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 		      // that expression here.
 		    if (ports_->at(idx).defe != 0) {
 			  if (tmp->port_type() == NetNet::PINPUT) {
+				ivl_type_t formal_type = tmp->unpacked_dimensions() > 0
+				      && tmp->array_type()
+				      ? static_cast<ivl_type_t>(tmp->array_type())
+				      : tmp->net_type();
 				  // Accept the common SV/UVM pattern of class handle
 				  // defaults set to null (e.g. constructor parent=null).
-				if (dynamic_cast<const PENull*>(ports_->at(idx).defe)) {
+				if (tmp->data_type() == IVL_VT_CLASS
+				    && dynamic_cast<const PENull*>(ports_->at(idx).defe)) {
 				      NetENull*nval = new NetENull;
 				      nval->set_line(*ports_->at(idx).defe);
 				      tmp_def = nval;
@@ -1670,53 +2013,30 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				     || tmp->data_type() == IVL_VT_DARRAY)
 				    && dynamic_cast<const PEConcat*>(ports_->at(idx).defe)
 				    && static_cast<const PEConcat*>(ports_->at(idx).defe)->is_empty_concat()) {
-				      NetENull*nval = new NetENull;
+				      NetENull*nval = new NetENull(tmp->net_type());
 				      nval->set_line(*ports_->at(idx).defe);
 				      tmp_def = nval;
-				} else
-				  // Elaborate a class port default in the context of
-				  // the class type.
-				if (tmp->data_type() == IVL_VT_CLASS) {
-				      tmp_def = elab_and_eval(des, scope,
-				                              ports_->at(idx).defe,
-			                              tmp->net_type(),
-			                              scope->need_const_func());
-			} else
-				  // IEEE 1800-2017 10.9: an assignment pattern has
-				  // no self-determined type; it takes its type from
-				  // the context. A default port/argument value has
-				  // no surrounding expression to supply one, so
-				  // elaborate it directly against the port's own
-				  // type, the same way the class-default branch
-				  // above already does. For a fixed unpacked-array
-				  // port, NetNet::net_type() is only the ELEMENT
-				  // type (see the identical comment at the
-				  // task-call-site default-argument handling in
-				  // elaborate.cc); the complete type including
-				  // dimensions is array_type(), and that is what
-				  // the PEAssignPattern typed elaborator dispatches
-				  // on to build a whole-array pattern instead of a
-				  // single scalar element.
-				if (dynamic_cast<const PEAssignPattern*>(ports_->at(idx).defe)
-				    && tmp->unpacked_dimensions() > 0
-				    && tmp->array_type() != 0) {
-				      tmp_def = elab_and_eval(des, scope,
-				                              ports_->at(idx).defe,
-			                              tmp->array_type(),
-			                              scope->need_const_func());
-			} else
-				if (dynamic_cast<const PEAssignPattern*>(ports_->at(idx).defe)
-				    && tmp->net_type() != 0) {
-				      tmp_def = elab_and_eval(des, scope,
-				                              ports_->at(idx).defe,
-			                              tmp->net_type(),
-			                              scope->need_const_func());
-			} else {
-			      tmp_def = elab_and_eval(des, scope,
-			                              ports_->at(idx).defe,
-			                              -1,
-			                              scope->need_const_func());
-			}
+				} else if (formal_type) {
+				      /* IEEE 1800-2017 13.5.3: a default argument is an
+				       * assignment-like context supplied by its formal. Use the
+				       * ordinary r-value contextualizer here: integral formals
+				       * need their packed width propagated into binary operands,
+				       * while aggregate/container formals still take the full
+				       * ivl_type_t path and its exact compatibility checks. Calling
+				       * the generic typed elaborator for every type instead made
+				       * its legacy vector fallback request width 1; an int enum
+				       * expression such as (UVM_LOG | UVM_RM_RECORD) then had a
+				       * 1-bit operator with 32-bit operands and aborted constant
+				       * folding. */
+				      tmp_def = elaborate_rval_expr(
+					    des, scope, formal_type,
+					    ports_->at(idx).defe,
+					    scope->need_const_func());
+				} else {
+				      tmp_def = elab_and_eval(
+					    des, scope, ports_->at(idx).defe, -1,
+					    scope->need_const_func());
+				}
 			if (tmp_def == 0) {
 			      cerr << get_fileline()
 				   << ": error: Unable to evaluate "
@@ -1903,6 +2223,10 @@ ivl_type_t PWire::elaborate_type(Design*des, NetScope*scope,
       const vector_type_t *vec_type = dynamic_cast<vector_type_t*>(set_data_type_.get());
       if (set_data_type_ && !vec_type) {
 	    ivl_assert(*this, packed_dimensions.empty());
+	    if (ivl_type_t class_type =
+		      resolve_class_handle_type_weak_(des, scope,
+					      set_data_type_.get()))
+		  return class_type;
 	    return set_data_type_->elaborate_type(des, scope);
       }
 
@@ -2143,9 +2467,10 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
       }
 
       ivl_type_t early_class_type = 0;
-      if (set_data_type_ && packed_dimensions.empty() && unpacked_.empty())
+      if (set_data_type_ && packed_dimensions.empty() && unpacked_.empty()) {
 	    early_class_type = resolve_class_handle_type_weak_(des, scope,
-						       set_data_type_.get());
+					       set_data_type_.get());
+      }
 
 	/* If the net type is supply0 or supply1, replace it
 	   with a simple wire with a pulldown/pullup with supply

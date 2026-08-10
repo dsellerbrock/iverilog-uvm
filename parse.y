@@ -198,6 +198,49 @@ static void pform_check_event_lifetime(const struct vlltype&loc,
 	      "`static event'.");
 }
 
+/* Array method attributes are syntactically significant (IEEE 1800-2017
+   Syntax 7-5 places them after the method name), but they do not alter the
+   method-call semantics represented by the current parse form.  Discard the
+   parsed attribute expressions as well as their container instead of leaking
+   them when a call rule consumes attribute_instance_list. */
+static void pform_discard_call_attributes(std::list<named_pexpr_t>*attributes)
+{
+      if (!attributes)
+	    return;
+
+      for (const named_pexpr_t&attribute : *attributes)
+	    delete attribute.parm;
+      delete attributes;
+}
+
+/* Parse-only carrier shared by expression- and statement-position array
+   method calls that contain an attribute instance.  Sharing the token
+   production lets the parser wait for the surrounding context before it
+   chooses PECallFunction versus PCallTask, avoiding parallel ambiguous
+   productions for the same Syntax 7-5 form. */
+struct pform_attr_method_call_t {
+      PExpr*receiver;
+      pform_name_t*path;
+      perm_string method;
+      std::list<named_pexpr_t>*args;
+      PExpr*with_expr;
+};
+
+static void pform_destroy_attr_method_call(pform_attr_method_call_t*call)
+{
+      if (!call)
+	    return;
+      delete call->receiver;
+      delete call->path;
+      if (call->args) {
+	    for (const named_pexpr_t&arg : *call->args)
+		  delete arg.parm;
+	    delete call->args;
+      }
+      delete call->with_expr;
+      delete call;
+}
+
 /* IEEE 1800-2017 7.12: build a method-call expression for the
    keyword-named array methods (and/or/xor), which the generic
    function-call and with-clause rules cannot match.  args may be
@@ -225,6 +268,193 @@ static PECallFunction* pform_keyword_method_call(const struct vlltype&loc,
       }
       delete path;
       return tmp;
+}
+
+/* Build a method call on an arbitrary primary while retaining the existing
+   hierarchical representation for PEIdent receivers.  This mirrors the
+   ordinary expr_primary '.' IDENTIFIER call action and consumes receiver and
+   args. */
+static PECallFunction* pform_receiver_method_call(const struct vlltype&loc,
+                                                  PExpr*receiver,
+                                                  perm_string method,
+                                                  std::list<named_pexpr_t>*args,
+                                                  PExpr*with_expr)
+{
+      std::list<named_pexpr_t> empty_args;
+      std::list<named_pexpr_t>&actual_args = args ? *args : empty_args;
+      PECallFunction*tmp;
+      PEIdent*id = dynamic_cast<PEIdent*>(receiver);
+      if (id && !id->has_scoped_type_prefix()) {
+            pform_scoped_name_t path = id->path();
+            struct parmvalue_t*type_args = id->take_leading_type_args();
+            path.name.push_back(name_component_t(method));
+            tmp = path.package
+                ? new PECallFunction(path.package, path.name, actual_args)
+                : new PECallFunction(path.name, actual_args);
+            tmp->set_leading_type_args(type_args);
+            delete receiver;
+      } else {
+            tmp = new PECallFunction(receiver, method, actual_args);
+      }
+      FILE_NAME(tmp, loc);
+      delete args;
+      if (with_expr) {
+            std::vector<PExpr*> wc;
+            wc.push_back(with_expr);
+            tmp->set_with_constraints(std::move(wc));
+      }
+      return tmp;
+}
+
+/* Statement-position sibling of pform_receiver_method_call.  The array
+   locator methods are functions, but SystemVerilog permits their return value
+   to be discarded as a subroutine-call statement. */
+static PCallTask* pform_receiver_method_task(const struct vlltype&loc,
+                                             PExpr*receiver,
+                                             perm_string method,
+                                             std::list<named_pexpr_t>*args,
+                                             PExpr*with_expr)
+{
+      std::list<named_pexpr_t> empty_args;
+      std::list<named_pexpr_t>&actual_args = args ? *args : empty_args;
+      PCallTask*tmp;
+      PEIdent*id = dynamic_cast<PEIdent*>(receiver);
+      if (id) {
+            struct parmvalue_t*type_args = id->take_leading_type_args();
+            if (id->path().package) {
+                  pform_name_t path = id->path().name;
+                  path.push_back(name_component_t(method));
+                  tmp = new PCallTask(id->path().package, path, actual_args);
+            } else {
+                  pform_name_t path = id->path().name;
+                  path.push_back(name_component_t(method));
+                  tmp = new PCallTask(path, actual_args);
+            }
+            tmp->set_leading_type_args(type_args);
+            delete receiver;
+      } else {
+            tmp = new PCallTask(receiver, method, actual_args);
+      }
+      FILE_NAME(tmp, loc);
+      delete args;
+      if (with_expr) {
+            std::vector<PExpr*> wc;
+            wc.push_back(with_expr);
+            tmp->set_with_constraints(std::move(wc));
+      }
+      return tmp;
+}
+
+/* A recursive scoped carrier stores the type prefix, static property and
+   following object members in one PEIdent so every l-value suffix retains
+   specialization provenance.  Arbitrary-receiver method dispatch, however,
+   needs the static property to elaborate first and then each object member
+   to be walked from its resulting type.  Split that path at the static
+   property boundary for method calls; a select on the static property stays
+   on the root identifier. */
+static PExpr* pform_scoped_method_receiver(const struct vlltype&loc,
+                                           PEIdent*carrier)
+{
+      assert(carrier);
+      const pform_scoped_name_t&full = carrier->path();
+
+      /* While a package body is being parsed, its own name has not yet been
+         entered in packages_by_name, so the lexer returns IDENTIFIER for a
+         self-qualified reference such as p::q.push_back(v).  The shared
+         class-scoped carrier consequently marks p::q as a type/property
+         prefix.  Recover the enclosing package here before choosing the
+         arbitrary-receiver representation.  The resulting unmarked,
+         package-owned PEIdent follows the established hierarchical method
+         path; explicit class specialization remains distinct because it
+         carries leading type arguments. */
+      if (carrier->has_scoped_type_prefix() && !full.package
+          && !carrier->leading_type_args() && full.name.size() >= 2
+          && full.name.front().index.empty()) {
+            PPackage*enclosing_package = nullptr;
+            bool shadowed_by_type = false;
+            for (LexicalScope*cur_scope = pform_peek_scope(); cur_scope;
+                 cur_scope = cur_scope->parent_scope()) {
+                  const perm_string head_name = full.name.front().name;
+                  LexicalScope::typedef_map_t::const_iterator local_type =
+                        cur_scope->typedefs.find(head_name);
+                  if (local_type != cur_scope->typedefs.end()
+                      && local_type->second)
+                        shadowed_by_type = true;
+
+                  if (PScopeExtra*scopex = dynamic_cast<PScopeExtra*>(cur_scope)) {
+                        std::map<perm_string,PClass*>::const_iterator local_class =
+                              scopex->classes.find(head_name);
+                        if (local_class != scopex->classes.end()
+                            && local_class->second)
+                              shadowed_by_type = true;
+                  }
+
+                  std::map<perm_string,PPackage*>::const_iterator imported =
+                        cur_scope->explicit_imports.find(head_name);
+                  if (imported != cur_scope->explicit_imports.end()
+                      && imported->second) {
+                        LexicalScope::typedef_map_t::const_iterator imported_type =
+                              imported->second->typedefs.find(head_name);
+                        if (imported_type != imported->second->typedefs.end()
+                            && imported_type->second)
+                              shadowed_by_type = true;
+                  }
+
+                  PPackage*candidate = dynamic_cast<PPackage*>(cur_scope);
+                  if (candidate && candidate->pscope_name()
+                        == head_name) {
+                        if (!shadowed_by_type)
+                              enclosing_package = candidate;
+                        break;
+                  }
+            }
+            if (enclosing_package) {
+                  pform_name_t package_path;
+                  pform_name_t::const_iterator cur = full.name.begin();
+                  ++cur;
+                  for (; cur != full.name.end(); ++cur)
+                        package_path.push_back(*cur);
+                  PEIdent*package_ident = new PEIdent(
+                        enclosing_package, package_path, loc.lexical_pos);
+                  FILE_NAME(package_ident, loc);
+                  delete carrier;
+                  return package_ident;
+            }
+      }
+
+      if (!carrier->has_scoped_type_prefix() || full.name.size() < 2)
+            return carrier;
+
+      pform_name_t::const_iterator cur = full.name.begin();
+      pform_name_t root;
+      root.push_back(*cur++);
+      root.push_back(*cur++);
+
+      /* PEMemberAccess currently represents a named member but not a select
+         on that member. Keep the original all-in-one receiver for such a
+         path; the common root-select and multi-hop named-member forms still
+         take the exact typed route below. */
+      for (pform_name_t::const_iterator check = cur;
+           check != full.name.end(); ++check) {
+            if (!check->index.empty())
+                  return carrier;
+      }
+
+      PEIdent*root_expr = full.package
+            ? new PEIdent(full.package, root, loc.lexical_pos)
+            : new PEIdent(root, loc.lexical_pos);
+      FILE_NAME(root_expr, loc);
+      root_expr->set_leading_type_args(carrier->take_leading_type_args());
+      root_expr->set_scoped_type_prefix();
+
+      PExpr*receiver = root_expr;
+      for (; cur != full.name.end(); ++cur) {
+            PEMemberAccess*member = new PEMemberAccess(receiver, cur->name);
+            FILE_NAME(member, loc);
+            receiver = member;
+      }
+      delete carrier;
+      return receiver;
 }
 
 /* Streaming concatenation (IEEE 1800-2017 11.4.14): the operand list
@@ -1023,6 +1253,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       std::vector<PWire*>*wires;
 
       PCallTask *subroutine_call;
+      struct pform_attr_method_call_t*attr_method_call;
 
       PEventStatement*event_statement;
       Statement*statement;
@@ -1033,6 +1264,9 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
       // M9: sequence step chains for property/sequence expressions.
       std::vector<sva_seq_step_t>* sva_seq;
+
+      // IEEE 1800-2017 16.11 sequence match-item calls, in source order.
+      std::vector<PCallTask*>* sva_calls;
 
       // M9-7 residual: extra clock-flow segments after the first
       // boundary (`@(c2) b ##1 @(c3) c ...').
@@ -1073,6 +1307,13 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 	    char*text;
 	    typedef_t*type;
       } type_identifier;
+
+      struct {
+	    char*text;
+	    typedef_t*type;
+	    PPackage*package;
+	    struct parmvalue_t*type_args;
+      } package_type_identifier;
 
       struct {
 	    data_type_t*type;
@@ -1272,14 +1513,22 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <event_statement> clocking_event_opt
 %type <clocking_skew> clocking_skew clocking_skew_opt clocking_skew_delay_opt
 %type <sva_prop> property_expr property_spec sva_multiclock_seq
-%type <sva_prop> sva_seq_comb sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom
+%type <sva_prop> sva_seq_comb sva_seq_comb_concat
+  sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom
 %type <sva_seq>  sva_seq_expr sva_seq_atom
+%type <subroutine_call> sva_match_call
+%type <sva_calls> sva_match_call_list
 %type <sva_mc_ext> sva_mc_tail sva_mc_tail_opt
 %type <sva_case_item>  property_case_item
 %type <sva_case_items> property_case_items
-%destructor { pform_sva_destroy_property($$); } <sva_prop>
-%destructor { pform_sva_destroy_sequence($$); } <sva_seq>
-%destructor { pform_sva_destroy_mc_segments($$); } <sva_mc_ext>
+%destructor { pform_sva_destroy_property($$); }
+  property_expr property_spec sva_multiclock_seq
+  sva_seq_comb sva_seq_comb_concat
+  sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom
+%destructor { pform_sva_destroy_sequence($$); }
+  sva_seq_expr sva_seq_atom
+%destructor { pform_sva_destroy_mc_segments($$); }
+  sva_mc_tail sva_mc_tail_opt
 %type <rs_item>           rs_prod_item
 %type <rs_item_list>      rs_prod_item_list
 %type <rs_rule>           rs_rule
@@ -1309,6 +1558,13 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <named_pexpr> argument
 %type <named_pexprs> argument_list
 %type <named_pexprs> argument_list_parens argument_list_parens_opt
+%type <attr_method_call> attributed_array_method_head attributed_array_method_core
+%type <attr_method_call> attributed_array_method_call
+%type <expr> attributed_array_method_with_opt
+%destructor { pform_destroy_attr_method_call($$); }
+  attributed_array_method_head attributed_array_method_core
+  attributed_array_method_call
+%destructor { delete $$; } attributed_array_method_with_opt
 
 %type <citem>  case_item
 %type <citems> case_items
@@ -1336,7 +1592,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <expr>  sva_bool_atom
 %type <for_var_decls> for_var_decl_list
 %type <named_pattern> assignment_pattern_named_list
-%type <expr>  expr_primary_or_typename expr_primary
+%type <expr>  expr_primary_or_typename expr_primary parameterized_scoped_identifier
+%type <expr>  package_scoped_lvalue
 %type <expr>  class_new dynamic_array_new
 %type <expr>  var_decl_initializer_opt initializer_opt
 %type <expr>  inc_or_dec_expression inside_expression lpvalue
@@ -1376,6 +1633,9 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <data_type>  assignment_pattern_expression_type
 %type <data_type>  packed_array_data_type
 %type <data_type>  ps_type_identifier
+%type <package_type_identifier> package_type_identifier package_type_identifier_base
+%destructor { delete[] $$.text; delete_parmvalue_t($$.type_args); }
+  package_type_identifier package_type_identifier_base
 %type <data_type>  virtual_interface_type
 %type <data_type>  simple_packed_type
 %type <data_type>  class_scope
@@ -1430,6 +1690,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <real_type> non_integer_type
 %type <int_val> assert_or_assume
 %type <int_val> deferred_mode
+%type <int_val> sva_int_local_declarations
 %type <atom_type> atom_type
 %type <int_val> module_start module_end
 
@@ -1471,7 +1732,9 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %nonassoc less_than_K_else
 %nonassoc K_else
 
- /* to resolve exclude (... ambiguity */
+ /* Resolve both exclude-(... and an attributed hierarchy call followed by
+    its explicit iterator parentheses in statement context. */
+%nonassoc attr_list_before_call_parens
 %nonassoc '('
 %nonassoc K_exclude
 
@@ -1487,6 +1750,22 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
    not create unresolved shift/reduce conflicts. */
 %nonassoc block_item_decls_done
 %nonassoc K_const
+
+ /* A named assertion declaration can begin either with the optional-empty
+    property clock or with an `int name;' assertion-variable declaration.
+    Likewise, after shifting `int' in a sequence body, IDENTIFIER separates a
+    declaration from the built-in type's expression uses.  Give the concrete
+    declaration prefix its normal shift preference explicitly, so these two
+    standard declaration/expression ambiguities do not add parser conflicts. */
+%precedence sva_decl_expr_start
+%precedence K_int
+%precedence IDENTIFIER
+/* When a composite sequence in a sequence declaration is followed by ##,
+   continue the sequence instead of prematurely reducing it to the complete
+   property_expr alternative. This is Bison's existing default-shift choice,
+   made explicit so the focused declaration route adds no parser conflict. */
+%precedence sva_seq_comb_done
+%precedence K_CYCLE_DELAY
 
 %%
 
@@ -2599,7 +2878,15 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
   | assert_or_assume K_property '(' property_spec ')' K_else statement_or_null
       { /* M9: fail action only. */
 	if (gn_supported_assertions_flag) {
-	      pform_make_assertion(@1, $4, $7, 0, ($1==4) ? 1 : 0);
+	      /* Preserve an explicit null else action. A null pointer in the
+	         factory means that the else arm was omitted and therefore
+	         requests the standard default $error action. */
+	      Statement*fail = $7;
+	      if (!fail) {
+		    fail = new PNoop;
+		    FILE_NAME(fail, @6);
+	      }
+	      pform_make_assertion(@1, $4, fail, 0, ($1==4) ? 1 : 0);
 	} else {
 	      if (gn_unsupported_assertions_flag)
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
@@ -2612,7 +2899,14 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
   | assert_or_assume K_property '(' property_spec ')' statement_or_null K_else statement_or_null
       { /* M9: pass and fail actions. */
 	if (gn_supported_assertions_flag) {
-	      pform_make_assertion(@1, $4, $8, $6, ($1==4) ? 1 : 0);
+	      /* As above, distinguish an explicit null else arm from a
+	         syntactically absent else arm. */
+	      Statement*fail = $8;
+	      if (!fail) {
+		    fail = new PNoop;
+		    FILE_NAME(fail, @7);
+	      }
+	      pform_make_assertion(@1, $4, fail, $6, ($1==4) ? 1 : 0);
 	} else {
 	      if (gn_unsupported_assertions_flag)
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
@@ -2751,7 +3045,7 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
       { /* `dist` — lower weights ignored, ranges lowered to `inside` to
            enforce the value domain. Proper weighted distribution is TODO. */
         if ($4) {
-              PEInside*tmp = new PEInside($1, $4);
+              PEInside*tmp = new PEInside($1, $4, true);
               FILE_NAME(tmp, @2);
               $$ = tmp;
         } else {
@@ -2829,9 +3123,11 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
       { PEDisableSoft*tmp = new PEDisableSoft($3); FILE_NAME(tmp, @1); $$ = tmp; }
   | K_soft expression K_dist '{' dist_list_opt '}' ';'
       { if ($5) {
-              PEInside*tmp = new PEInside($2, $5);
-              FILE_NAME(tmp, @3);
-              $$ = tmp;
+	      PEInside*dist = new PEInside($2, $5, true);
+	      FILE_NAME(dist, @3);
+	      PESoft*tmp = new PESoft(dist);
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
         } else {
               delete $2;
               $$ = nullptr;
@@ -2852,7 +3148,7 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
       }
   | expression K_TRIGGER K_soft expression K_dist '{' dist_list_opt '}' ';'
       { if ($7) {
-	      PEInside*dist = new PEInside($4, $7);
+	      PEInside*dist = new PEInside($4, $7, true);
 	      FILE_NAME(dist, @5);
 	      PESoft*soft = new PESoft(dist);
 	      FILE_NAME(soft, @3);
@@ -3500,6 +3796,29 @@ package_scope
       }
   ;
 
+/* Keep the package lexer context active through the member token, then carry
+   the complete prefix to both type and class-scope consumers. This lets the
+   parser decide after the common `pkg::type` prefix whether `)` ends a type
+   actual or `#`/`::` continues a scoped reference. */
+package_type_identifier_base
+  : package_scope TYPE_IDENTIFIER
+      { lex_in_package_scope(0);
+	$$.text = $2.text;
+	$$.type = $2.type;
+	$$.package = $1;
+	$$.type_args = 0;
+      }
+  ;
+
+package_type_identifier
+  : package_type_identifier_base
+      { $$ = $1; }
+  | package_type_identifier_base type_parameter_value
+      { $$ = $1;
+	$$.type_args = $2;
+      }
+  ;
+
 ps_type_identifier /* IEEE1800-2017: A.9.3 */
  : TYPE_IDENTIFIER
       { pform_set_type_referenced(@1, $1.text);
@@ -3507,11 +3826,10 @@ ps_type_identifier /* IEEE1800-2017: A.9.3 */
 	$$ = new typeref_t($1.type);
 	FILE_NAME($$, @1);
       }
-  | package_scope TYPE_IDENTIFIER
-      { lex_in_package_scope(0);
-	$$ = new typeref_t($2.type, $1);
-	FILE_NAME($$, @2);
-	delete[] $2.text;
+  | package_type_identifier
+      { $$ = new typeref_t($1.type, $1.package, $1.type_args);
+	FILE_NAME($$, @1);
+	delete[] $1.text;
       }
   ;
 
@@ -4046,7 +4364,17 @@ for_step /* IEEE1800-2005: A.6.8 */
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
+  | parameterized_scoped_identifier '=' expression
+      { PAssign*tmp = new PAssign($1,$3);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
   | for_step ',' lpvalue '=' expression
+      { PAssign*tmp = new PAssign($3, $5);
+	FILE_NAME(tmp, @3);
+	$$ = append_for_step_stmt(@1, $1, tmp);
+      }
+  | for_step ',' parameterized_scoped_identifier '=' expression
       { PAssign*tmp = new PAssign($3, $5);
 	FILE_NAME(tmp, @3);
 	$$ = append_for_step_stmt(@1, $1, tmp);
@@ -4221,7 +4549,17 @@ inc_or_dec_expression /* IEEE1800-2005: A.4.3 */
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
+  | K_INCR parameterized_scoped_identifier %prec UNARY_PREC
+      { PEUnary*tmp = new PEUnary('I', $2);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
   | lpvalue K_INCR %prec UNARY_PREC
+      { PEUnary*tmp = new PEUnary('i', $1);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | parameterized_scoped_identifier K_INCR %prec UNARY_PREC
       { PEUnary*tmp = new PEUnary('i', $1);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
@@ -4231,7 +4569,17 @@ inc_or_dec_expression /* IEEE1800-2005: A.4.3 */
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
+  | K_DECR parameterized_scoped_identifier %prec UNARY_PREC
+      { PEUnary*tmp = new PEUnary('D', $2);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
   | lpvalue K_DECR %prec UNARY_PREC
+      { PEUnary*tmp = new PEUnary('d', $1);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | parameterized_scoped_identifier K_DECR %prec UNARY_PREC
       { PEUnary*tmp = new PEUnary('d', $1);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
@@ -4428,6 +4776,23 @@ loop_statement /* IEEE1800-2005: A.6.8 */
       { check_for_loop(@1, $5, $7, $9);
 	PForStatement*tmp = new PForStatement($3, $5, $7, $9, $11);
 	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+
+  | K_for '(' parameterized_scoped_identifier '=' expression ';' expression_opt ';' for_step_opt ')'
+    statement_or_null
+      { check_for_loop(@1, $3, $7, $9);
+	PAssign*init = new PAssign($3, $5);
+	FILE_NAME(init, @3);
+	PForStatement*loop = new PForStatement(nullptr, nullptr,
+					      $7, $9, $11);
+	FILE_NAME(loop, @1);
+	vector<Statement*>stmts;
+	stmts.push_back(init);
+	stmts.push_back(loop);
+	PBlock*tmp = new PBlock(PBlock::BL_SEQ);
+	FILE_NAME(tmp, @1);
+	tmp->set_statement(stmts);
 	$$ = tmp;
       }
 
@@ -5104,8 +5469,7 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
   | K_default K_disable K_iff expression ';'
       { pform_sva_set_default_disable($4); }
   /* M9: named no-argument property/sequence declarations, usable by
-     assertions later in the SAME module. Parameterized forms still
-     fall to the error-recovery rules below (parsed and dropped). */
+     assertions later in the SAME module. */
   | K_property IDENTIFIER ';' property_spec ';' K_endproperty
       { pform_sva_declare_property(@2, $2, $4);
 	delete[] $2;
@@ -5115,6 +5479,43 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	delete[] $2;
 	delete[] $8;
       }
+  /* Focused unambiguous slice of assertion_variable_declaration for the
+     ubiquitous built-in `int' local. Using the concrete keyword here avoids
+     making the full data_type grammar compete with every expression start;
+     richer assertion-local types remain on the existing unclocked path. */
+  | K_property IDENTIFIER ';' sva_int_local_declarations event_control
+      property_spec_disable_iff_opt property_expr ';' K_endproperty
+      { sva_property_t*p = $7;
+	if (p) { p->clk_evt = $5; p->disable_iff_expr = $6; }
+	else { delete $5; delete $6; }
+	pform_sva_declare_property(@2, $2, p);
+	delete[] $2;
+      }
+  | K_property IDENTIFIER ';' sva_int_local_declarations event_control
+      property_spec_disable_iff_opt property_expr ';' K_endproperty ':' IDENTIFIER
+      { sva_property_t*p = $7;
+	if (p) { p->clk_evt = $5; p->disable_iff_expr = $6; }
+	else { delete $5; delete $6; }
+	pform_sva_declare_property(@2, $2, p);
+	delete[] $2;
+	delete[] $11;
+      }
+  | K_property IDENTIFIER ';' sva_int_local_declarations
+      property_spec_disable_iff_opt property_expr ';' K_endproperty
+      { sva_property_t*p = $6;
+	if (p) p->disable_iff_expr = $5; else delete $5;
+	pform_sva_declare_property(@2, $2, p);
+	delete[] $2;
+      }
+  | K_property IDENTIFIER ';' sva_int_local_declarations
+      property_spec_disable_iff_opt property_expr ';' K_endproperty ':' IDENTIFIER
+      { sva_property_t*p = $6;
+	if (p) p->disable_iff_expr = $5; else delete $5;
+	pform_sva_declare_property(@2, $2, p);
+	delete[] $2;
+	delete[] $10;
+      }
+  /* An ordinary unclocked named sequence keeps the flat splice table. */
   | K_sequence IDENTIFIER ';' sva_seq_expr ';' K_endsequence
       { pform_sva_declare_sequence(@2, $2, $4);
 	delete[] $2;
@@ -5123,6 +5524,62 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
       { pform_sva_declare_sequence(@2, $2, $4);
 	delete[] $2;
 	delete[] $8;
+      }
+  /* A sequence_expr can carry a leading clocking_event and can itself be a
+     multiclocked/combinator sequence.  Preserve the property-shaped IR. */
+  | K_sequence IDENTIFIER ';' event_control property_expr ';' K_endsequence
+      { sva_property_t*p = $5;
+	if (p) p->clk_evt = $4; else delete $4;
+	pform_sva_declare_sequence_spec(@2, $2, p);
+	delete[] $2;
+      }
+  | K_sequence IDENTIFIER ';' event_control property_expr ';' K_endsequence ':' IDENTIFIER
+      { sva_property_t*p = $5;
+	if (p) p->clk_evt = $4; else delete $4;
+	pform_sva_declare_sequence_spec(@2, $2, p);
+	delete[] $2;
+	delete[] $9;
+      }
+  /* A composite sequence is itself a sequence_expr and may continue through
+     ##delay into an ordinary linear suffix. Keep this declaration-scoped
+     route separate from property_expr: making it a global property rule
+     creates broad ambiguities with every linear `sva_seq_expr ## ...'. */
+  | K_sequence IDENTIFIER ';' event_control sva_seq_comb_concat ';' K_endsequence
+      { sva_property_t*p = $5;
+	if (p) p->clk_evt = $4; else delete $4;
+	pform_sva_declare_sequence_spec(@2, $2, p);
+	delete[] $2;
+      }
+  | K_sequence IDENTIFIER ';' event_control sva_seq_comb_concat ';' K_endsequence ':' IDENTIFIER
+      { sva_property_t*p = $5;
+	if (p) p->clk_evt = $4; else delete $4;
+	pform_sva_declare_sequence_spec(@2, $2, p);
+	delete[] $2;
+	delete[] $9;
+      }
+  | K_sequence IDENTIFIER ';' sva_int_local_declarations event_control
+      property_expr ';' K_endsequence
+      { sva_property_t*p = $6;
+	if (p) p->clk_evt = $5; else delete $5;
+	pform_sva_declare_sequence_spec(@2, $2, p);
+	delete[] $2;
+      }
+  | K_sequence IDENTIFIER ';' sva_int_local_declarations event_control
+      property_expr ';' K_endsequence ':' IDENTIFIER
+      { sva_property_t*p = $6;
+	if (p) p->clk_evt = $5; else delete $5;
+	pform_sva_declare_sequence_spec(@2, $2, p);
+	delete[] $2;
+	delete[] $10;
+      }
+  | K_sequence IDENTIFIER ';' sva_int_local_declarations sva_seq_expr ';' K_endsequence
+      { pform_sva_declare_sequence(@2, $2, $5);
+	delete[] $2;
+      }
+  | K_sequence IDENTIFIER ';' sva_int_local_declarations sva_seq_expr ';' K_endsequence ':' IDENTIFIER
+      { pform_sva_declare_sequence(@2, $2, $5);
+	delete[] $2;
+	delete[] $9;
       }
   /* M9D: parameterized named property/sequence declarations. Formal
      arguments (plain identifiers) are substituted with the actual
@@ -6071,6 +6528,16 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
 	      $$ = pform_make_expect(@1, $3, $5, $7);
 	else { pform_sva_destroy_property($3); delete $5; delete $7; $$ = 0; }
       }
+  /* IEEE 1800-2017 A.6.10 action_block also permits an omitted pass
+     statement followed directly by `else'.  Concurrent assertions already
+     carried this alternative; `expect' accidentally did not, so the legal
+       expect (property_spec) else fail_action;
+     spelling desynchronized the procedural-statement parser. */
+  | K_expect '(' property_spec ')' K_else statement_or_null
+      { if (gn_supported_assertions_flag)
+	      $$ = pform_make_expect(@1, $3, nullptr, $6);
+	else { pform_sva_destroy_property($3); delete $6; $$ = 0; }
+      }
   ;
 
   /* M9D: formal-argument name list for a parameterized property or
@@ -6082,6 +6549,13 @@ sva_formal_list
   | IDENTIFIER
       { std::list<perm_string>*l = new std::list<perm_string>;
 	l->push_back(lex_strings.make($1)); delete[]$1; $$ = l; }
+  ;
+
+sva_int_local_declarations
+  : K_int IDENTIFIER ';'
+      { delete[] $2; $$ = 0; }
+  | sva_int_local_declarations K_int IDENTIFIER ';'
+      { delete[] $3; $$ = 0; }
   ;
 
 /* IEEE 1800-2017 16.13.1: a multiclocked sequence has exactly ##0 or ##1
@@ -6146,6 +6620,12 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      such as an implication. */
   | '(' property_expr ')'
       { $$ = $2; }
+  /* A grouping pair around a complete composite sequence is transparent,
+     including when that sequence continues through a cycle delay.  Keep the
+     grouped prefix exact: a global `sva_seq_comb ## ...' alternative would
+     overlap every ordinary linear sequence concatenation. */
+  | '(' sva_seq_comb ')' K_CYCLE_DELAY delay_value_simple sva_seq_expr
+      { $$ = pform_sva_tree_concat(@4, $2, $5, $6); }
   /* IEEE 1800-2017 A.2.10: the consequent is recursively a complete
      property_expr. Keeping this as the grammar's single ordinary
      implication rule is essential: `not', `always', `until', throughout,
@@ -6332,7 +6812,7 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { $$ = pform_sva_comb_antecedent_sorry(@2, 1, $1, $5, true); }
   | sva_seq_comb K_PIPE_IMPL_NOV K_s_eventually '(' sva_seq_expr ')'
       { $$ = pform_sva_comb_antecedent_sorry(@2, 2, $1, $5, true); }
-  | sva_seq_comb
+  | sva_seq_comb %prec sva_seq_comb_done
       { $$ = $1; }
   /* IEEE 1800-2017 16.9.9: `guard throughout seq` — guard must hold at
      every cycle of the sequence. Fixed-length seq keeps the legacy
@@ -6384,7 +6864,7 @@ property_case_items
      (looser). Each yields an sva_property_t carrying a combinator tree
      (or a chain, from the legacy fixed-intersect path). */
 sva_comb_atom
-  : sva_seq_expr
+  : sva_seq_expr %prec sva_seq_comb_done
       { $$ = pform_sva_leaf_prop($1); }
   | '(' sva_seq_comb ')'
       { $$ = $2; }
@@ -6422,6 +6902,45 @@ sva_seq_comb
       { $$ = $1; }
   ;
 
+/* IEEE 1800-2017 16.9.1: a parenthesized/composite sequence remains a
+   sequence_expr and can be concatenated with a linear suffix.  The tree
+   helper preserves ##0 endpoint fusion and fixed ##N separation exactly. */
+sva_seq_comb_concat
+  : sva_seq_comb K_CYCLE_DELAY delay_value_simple sva_seq_expr
+      { $$ = pform_sva_tree_concat(@2, $1, $3, $4); }
+  ;
+
+/* IEEE 1800-2017 16.11 sequence_match_item subroutine calls. This bounded
+   carrier intentionally recognizes the direct system-task form used by the
+   executable slice plus a parenthesized unqualified user task. Reusing the
+   fully general statement-position `subroutine_call' here activates its
+   receiver/package/hierarchy ambiguity in expression context and adds parser
+   conflicts. Unsupported direct calls are still retained for one targeted
+   semantic diagnostic; broader receiver/package shapes remain future work. */
+sva_match_call
+  : SYSTEM_IDENTIFIER argument_list_parens_opt
+      { PCallTask*tmp = new PCallTask(lex_strings.make($1), *$2);
+	FILE_NAME(tmp, @1);
+	delete[] $1;
+	delete $2;
+	$$ = tmp; }
+  | IDENTIFIER argument_list_parens
+      { pform_name_t name;
+	name.push_back(name_component_t(lex_strings.make($1)));
+	PCallTask*tmp = pform_make_call_task(@1, name, *$2);
+	delete[] $1;
+	delete $2;
+	$$ = tmp; }
+  ;
+
+sva_match_call_list
+  : sva_match_call
+      { $$ = new std::vector<PCallTask*>;
+	$$->push_back($1); }
+  | sva_match_call_list ',' sva_match_call
+      { $1->push_back($3); $$ = $1; }
+  ;
+
 sva_seq_atom
     /* `sva_bool_atom' is a bare `expression'. See its definition for why
        the indirection is required (reduce/reduce tie-break on ')'). */
@@ -6442,6 +6961,28 @@ sva_seq_atom
 	st.lv_name = lex_strings.make($4);
 	st.lv_rhs = $6;
 	delete[] $4;
+	steps->push_back(st);
+	$$ = steps; }
+  /* 16.11 bounded executable slice: calls alone, or calls after the local
+     assignment. The latter order is semantically significant: the call's
+     input arguments observe the value assigned by the preceding item. */
+  | '(' expression ',' sva_match_call_list ')'
+      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
+	sva_seq_step_t st;
+	st.expr = $2;
+	st.match_calls.swap(*$4);
+	delete $4;
+	steps->push_back(st);
+	$$ = steps; }
+  | '(' expression ',' IDENTIFIER '=' expression ',' sva_match_call_list ')'
+      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
+	sva_seq_step_t st;
+	st.expr = $2;
+	st.lv_name = lex_strings.make($4);
+	st.lv_rhs = $6;
+	st.match_calls.swap(*$8);
+	delete[] $4;
+	delete $8;
 	steps->push_back(st);
 	$$ = steps; }
   /* 16.9.9: in match-existence positions first_match(s) has a match
@@ -6489,17 +7030,11 @@ sva_seq_atom
 sva_seq_expr
   : sva_seq_atom
       { $$ = $1; }
-  /* IEEE 1800-2017 A.2.2/16.10: assertion local variables precede a
-     named sequence's expression. The lowering identifies the variable by
-     name in a sequence-match assignment and substitutes every supported
-     read before ordinary expression elaboration, so this declaration must
-     not create a module variable. The recursive tail also permits multiple
-     packed-bit declarations. */
+  /* Unclocked declaration bodies historically reach this path.  A local
+     declaration followed by an explicit clock is handled by the exact
+     property/sequence declaration productions above. */
   | data_type IDENTIFIER ';' sva_seq_expr
-      { /* IEEE 1800-2017 16.10: assertion-variable declarations are
-	   lexical to the sequence/property attempt. The NFA lowering stores
-	   the assigned value per attempt; no module-scope variable is made. */
-	delete $1;
+      { delete $1;
 	delete[] $2;
 	$$ = $4;
       }
@@ -6667,14 +7202,12 @@ property_qualifier_list /* IEEE1800-2005 A.1.8 */
 
 property_spec /* IEEE1800-2012 A.2.10 */
   : clocking_event_opt property_spec_disable_iff_opt property_expr
-      { sva_property_t*p = $3;
-	if (p) { p->clk_evt = $1; p->disable_iff_expr = $2; }
-	$$ = p; }
+      { $$ = pform_sva_apply_property_context(@1, $3, $1, $2); }
   ;
 
 property_spec_disable_iff_opt /* */
   : K_disable K_iff '(' expression ')' { $$ = $4; }
-  | { $$ = nullptr; }
+  | %prec sva_decl_expr_start { $$ = nullptr; }
   ;
 
 random_qualifier /* IEEE1800-2005 A.1.8 */
@@ -7244,7 +7777,7 @@ variable_dimension /* IEEE1800-2005: A.2.5 */
 	// expression), so the wildcard uses a placeholder integral index.
 	list<pform_range_t> *tmp = new std::list<pform_range_t>;
 	data_type_t*wild_index = new atom_type_t(atom_type_t::INT, true);
-	pform_range_t index (new PEAssocType(wild_index),0);
+	pform_range_t index (new PEAssocType(wild_index, true),0);
 	pform_requires_sv(@$, "Associative array declaration");
 	tmp->push_back(index);
 	$$ = tmp;
@@ -7270,7 +7803,7 @@ variable_lifetime_opt
      variety of different objects. The syntax inside the (* *) is a
      comma separated list of names or names with assigned values. */
 attribute_list_opt
-  : attribute_instance_list
+  : attribute_instance_list %prec attr_list_before_call_parens
       { $$ = $1; }
   |
       { $$ = 0; }
@@ -8323,7 +8856,7 @@ dr_strength1
 
 clocking_event_opt /* */
   : event_control { $$ = $1; }
-  | { $$ = nullptr; }
+  | %prec sva_decl_expr_start { $$ = nullptr; }
   ;
 
 event_control /* A.K.A. clocking_event */
@@ -8825,6 +9358,94 @@ argument_list_parens_opt
       { $$ = new std::list<named_pexpr_t>; }
   ;
 
+/* IEEE 1800-2017 Syntax 7-5 puts attribute instances between an array
+   method name and its optional iterator argument.  Keep this call in a
+   parse-only carrier until its surrounding context selects expression or
+   discarded-result statement semantics. */
+attributed_array_method_with_opt
+  :
+      { $$ = 0; }
+  | K_with '(' expression ')'
+      { pform_requires_sv(@1, "Method with-clause");
+	$$ = $3;
+      }
+  ;
+
+attributed_array_method_head
+  : expr_primary '.' IDENTIFIER attribute_instance_list
+      { pform_attr_method_call_t*tmp = new pform_attr_method_call_t;
+	tmp->receiver = $1;
+	tmp->path = 0;
+	tmp->method = lex_strings.make($3);
+	tmp->args = 0;
+	tmp->with_expr = 0;
+	delete[]$3;
+	pform_discard_call_attributes($4);
+	$$ = tmp;
+      }
+  | parameterized_scoped_identifier '.' IDENTIFIER attribute_instance_list
+      { pform_attr_method_call_t*tmp = new pform_attr_method_call_t;
+	tmp->receiver = pform_scoped_method_receiver(
+	      @1, dynamic_cast<PEIdent*>($1));
+	tmp->path = 0;
+	tmp->method = lex_strings.make($3);
+	tmp->args = 0;
+	tmp->with_expr = 0;
+	delete[]$3;
+	pform_discard_call_attributes($4);
+	$$ = tmp;
+      }
+  | expr_primary '.' K_unique attribute_instance_list
+      { pform_attr_method_call_t*tmp = new pform_attr_method_call_t;
+	tmp->receiver = $1;
+	tmp->path = 0;
+	tmp->method = lex_strings.make("unique");
+	tmp->args = 0;
+	tmp->with_expr = 0;
+	pform_discard_call_attributes($4);
+	$$ = tmp;
+      }
+  | hierarchy_identifier '.' K_unique attribute_instance_list
+      { pform_attr_method_call_t*tmp = new pform_attr_method_call_t;
+	$1->push_back(name_component_t(lex_strings.make("unique")));
+	tmp->receiver = 0;
+	tmp->path = $1;
+	tmp->method = lex_strings.make("unique");
+	tmp->args = 0;
+	tmp->with_expr = 0;
+	pform_discard_call_attributes($4);
+	$$ = tmp;
+      }
+  ;
+
+attributed_array_method_core
+  : attributed_array_method_head argument_list_parens_opt
+      { $$ = $1;
+	$$->args = $2;
+      }
+  | hierarchy_identifier attribute_instance_list
+      { /* Explicit-parentheses hierarchy calls stay on the pre-existing
+	   generic call rule. This non-optional attribute suffix owns only the
+	   otherwise-missing parenless Syntax 7-5 form, avoiding a reduction
+	   conflict on the opening iterator parenthesis. */
+	pform_attr_method_call_t*tmp = new pform_attr_method_call_t;
+	tmp->receiver = 0;
+	tmp->path = $1;
+	tmp->method = peek_tail_name(*$1);
+	tmp->args = new std::list<named_pexpr_t>;
+	tmp->with_expr = 0;
+	pform_discard_call_attributes($2);
+	$$ = tmp;
+      }
+  ;
+
+attributed_array_method_call
+  : attributed_array_method_core attributed_array_method_with_opt
+      { $$ = $1;
+	$$->with_expr = $2;
+      }
+  ;
+
 expression_list_proper
   : expression_list_proper ',' expression
       { std::list<PExpr*>*tmp = $1;
@@ -8849,6 +9470,259 @@ expr_primary_or_typename
 	$$ = tmp;
       }
 
+  ;
+
+/* Statement-only raw carrier for package-qualified class static l-values.
+   Keeping this out of expr_primary prevents the first package member from
+   stealing a package-qualified type actual before ps_type_identifier can
+   reduce it. */
+package_scoped_lvalue
+  : PACKAGE_IDENTIFIER K_SCOPE_RES identifier_name K_SCOPE_RES identifier_name
+      { pform_name_t path;
+	path.push_back(name_component_t(lex_strings.make($3)));
+	path.push_back(name_component_t(lex_strings.make($5)));
+	PEIdent*tmp = new PEIdent($1, path, @1.lexical_pos);
+	FILE_NAME(tmp, @1);
+	tmp->set_scoped_type_prefix();
+	delete[]$3;
+	delete[]$5;
+	$$ = tmp;
+      }
+  | PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER type_parameter_value
+    K_SCOPE_RES identifier_name
+      { pform_name_t path;
+	path.push_back(name_component_t(lex_strings.make($3)));
+	path.push_back(name_component_t(lex_strings.make($6)));
+	PEIdent*tmp = new PEIdent($1, path, @1.lexical_pos);
+	FILE_NAME(tmp, @1);
+	tmp->set_leading_type_args($4);
+	tmp->set_scoped_type_prefix();
+	delete[]$3;
+	delete[]$6;
+	$$ = tmp;
+      }
+  | PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER type_parameter_value
+    K_SCOPE_RES identifier_name
+      { pform_name_t path;
+	path.push_back(name_component_t(lex_strings.make($3.text)));
+	path.push_back(name_component_t(lex_strings.make($6)));
+	PEIdent*tmp = new PEIdent($1, path, @1.lexical_pos);
+	FILE_NAME(tmp, @1);
+	tmp->set_leading_type_args($4);
+	tmp->set_scoped_type_prefix();
+	delete[]$3.text;
+	delete[]$6;
+	$$ = tmp;
+      }
+  ;
+
+/* Shared carrier for a parameterized or package-qualified class-scope
+   identifier. Expression and statement contexts consume the same PEIdent,
+   retaining specialization provenance and the property/member selections. */
+parameterized_scoped_identifier
+  : TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($4)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	tmp->set_leading_type_args($2);
+	tmp->set_scoped_type_prefix();
+	delete[]$1.text;
+	delete[]$4;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($4.text)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	tmp->set_leading_type_args($2);
+	tmp->set_scoped_type_prefix();
+	delete[]$1.text;
+	delete[]$4.text;
+	$$ = tmp;
+      }
+  | IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($4)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	tmp->set_leading_type_args($2);
+	tmp->set_scoped_type_prefix();
+	delete[]$1;
+	delete[]$4;
+	$$ = tmp;
+      }
+  | IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($4.text)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	tmp->set_leading_type_args($2);
+	tmp->set_scoped_type_prefix();
+	delete[]$1;
+	delete[]$4.text;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	tmp->set_scoped_type_prefix();
+	delete[]$1.text;
+	delete[]$3;
+	$$ = tmp;
+      }
+  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	tmp->set_scoped_type_prefix();
+	delete[]$1.text;
+	delete[]$3.text;
+	$$ = tmp;
+      }
+  | IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	tmp->set_scoped_type_prefix();
+	delete[]$1;
+	delete[]$3;
+	$$ = tmp;
+      }
+  | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1)));
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	PEIdent*tmp = pform_new_ident(@1, hident);
+	FILE_NAME(tmp, @1);
+	tmp->set_scoped_type_prefix();
+	delete[]$1;
+	delete[]$3.text;
+	$$ = tmp;
+      }
+  | package_type_identifier K_SCOPE_RES identifier_name
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PEIdent*tmp = new PEIdent($1.package, hident, @1.lexical_pos);
+	FILE_NAME(tmp, @1);
+	tmp->set_leading_type_args($1.type_args);
+	tmp->set_scoped_type_prefix();
+	delete[]$1.text;
+	delete[]$3;
+	$$ = tmp;
+      }
+  | parameterized_scoped_identifier '.' identifier_name
+      { PEIdent*tmp = dynamic_cast<PEIdent*>($1);
+	assert(tmp);
+	tmp->append_name(lex_strings.make($3));
+	delete[]$3;
+	$$ = tmp;
+      }
+  | parameterized_scoped_identifier '[' expression ']'
+      { PEIdent*tmp = dynamic_cast<PEIdent*>($1);
+	assert(tmp);
+	index_component_t idx;
+	idx.sel = index_component_t::SEL_BIT;
+	idx.msb = $3;
+	tmp->append_index(idx);
+	$$ = tmp;
+      }
+  | parameterized_scoped_identifier '[' '$' ']'
+      { PEIdent*tmp = dynamic_cast<PEIdent*>($1);
+	assert(tmp);
+	PEIdent*receiver = tmp->clone_for_reference();
+	FILE_NAME(receiver, @3);
+	std::list<named_pexpr_t> no_args;
+	PECallFunction*size_call = new PECallFunction(
+	      receiver, lex_strings.make("size"), no_args);
+	FILE_NAME(size_call, @3);
+	PENumber*one = new PENumber(
+	      new verinum((uint64_t)1, integer_width));
+	FILE_NAME(one, @3);
+	PEBinary*last_idx = new PEBinary('-', size_call, one);
+	FILE_NAME(last_idx, @3);
+	index_component_t idx;
+	idx.sel = index_component_t::SEL_BIT;
+	idx.msb = last_idx;
+	tmp->append_index(idx);
+	$$ = tmp;
+      }
+  | parameterized_scoped_identifier '[' '$' '-' expression ']'
+      { PEIdent*tmp = dynamic_cast<PEIdent*>($1);
+	assert(tmp);
+	PEIdent*receiver = tmp->clone_for_reference();
+	FILE_NAME(receiver, @3);
+	std::list<named_pexpr_t> no_args;
+	PECallFunction*size_call = new PECallFunction(
+	      receiver, lex_strings.make("size"), no_args);
+	FILE_NAME(size_call, @3);
+	PENumber*one = new PENumber(
+	      new verinum((uint64_t)1, integer_width));
+	FILE_NAME(one, @3);
+	PEBinary*last_idx = new PEBinary('-', size_call, one);
+	FILE_NAME(last_idx, @3);
+	PEBinary*offset_idx = new PEBinary('-', last_idx, $5);
+	FILE_NAME(offset_idx, @4);
+	index_component_t idx;
+	idx.sel = index_component_t::SEL_BIT;
+	idx.msb = offset_idx;
+	tmp->append_index(idx);
+	$$ = tmp;
+      }
+  | parameterized_scoped_identifier '[' expression ':' expression ']'
+      { PEIdent*tmp = dynamic_cast<PEIdent*>($1);
+	assert(tmp);
+	index_component_t idx;
+	idx.sel = index_component_t::SEL_PART;
+	idx.msb = $3;
+	idx.lsb = $5;
+	tmp->append_index(idx);
+	$$ = tmp;
+      }
+  | parameterized_scoped_identifier '[' expression ':' '$' ']'
+      { pform_requires_sv(@5, "Queue slice [lo:$]");
+	PEIdent*tmp = dynamic_cast<PEIdent*>($1);
+	assert(tmp);
+	index_component_t idx;
+	idx.sel = index_component_t::SEL_PART_LAST;
+	idx.msb = $3;
+	idx.lsb = 0;
+	tmp->append_index(idx);
+	$$ = tmp;
+      }
+  | parameterized_scoped_identifier '[' expression K_PO_POS expression ']'
+      { PEIdent*tmp = dynamic_cast<PEIdent*>($1);
+	assert(tmp);
+	index_component_t idx;
+	idx.sel = index_component_t::SEL_IDX_UP;
+	idx.msb = $3;
+	idx.lsb = $5;
+	tmp->append_index(idx);
+	$$ = tmp;
+      }
+  | parameterized_scoped_identifier '[' expression K_PO_NEG expression ']'
+      { PEIdent*tmp = dynamic_cast<PEIdent*>($1);
+	assert(tmp);
+	index_component_t idx;
+	idx.sel = index_component_t::SEL_IDX_DO;
+	idx.msb = $3;
+	idx.lsb = $5;
+	tmp->append_index(idx);
+	$$ = tmp;
+      }
   ;
 
 expr_primary
@@ -8993,6 +9867,12 @@ expr_primary
 	$$ = tmp;
       }
   /* These are array methods that cannot be matched with the above rule */
+  | parameterized_scoped_identifier '.' K_and argument_list_parens
+      { $$ = pform_receiver_method_call(
+	      @1, pform_scoped_method_receiver(
+	            @1, dynamic_cast<PEIdent*>($1)),
+	      lex_strings.make("and"), $4, 0);
+      }
   | hierarchy_identifier '.' K_and
       { pform_name_t * nm = $1;
 	nm->push_back(name_component_t(lex_strings.make("and")));
@@ -9041,16 +9921,26 @@ expr_primary
 	delete $4;
 	$$ = tmp;
       }
+  | parameterized_scoped_identifier '.' K_unique argument_list_parens
+      { $$ = pform_receiver_method_call(
+	      @1, pform_scoped_method_receiver(
+	            @1, dynamic_cast<PEIdent*>($1)),
+	      lex_strings.make("unique"), $4, 0);
+      }
 	| hierarchy_identifier '.' K_unique argument_list_parens K_with '(' expression ')'
-	      { /* Temporary parse-only support for array locator with-clause on
-		   keyword-named method (e.g. q.unique(x) with (...)). */
+	      { /* Preserve the with expression so unsupported locator shapes
+		   diagnose loudly instead of silently dropping the predicate. */
 		pform_requires_sv(@5, "Method with-clause");
 		pform_name_t *nm = $1;
 		nm->push_back(name_component_t(lex_strings.make("unique")));
 	PECallFunction*tmp = pform_make_call_function(@1, *nm, *$4);
+	if ($7) {
+	      std::vector<PExpr*> wc;
+	      wc.push_back($7);
+	      tmp->set_with_constraints(std::move(wc));
+	}
 	delete nm;
 	delete $4;
-	delete $7;
 	$$ = tmp;
       }
   | hierarchy_identifier '.' K_unique
@@ -9093,7 +9983,7 @@ expr_primary
   | hierarchy_identifier attribute_list_opt argument_list_parens
       { PECallFunction*tmp = pform_make_call_function(@1, *$1, *$3);
 	delete $1;
-	delete $2;
+	pform_discard_call_attributes($2);
 	delete $3;
 	$$ = tmp;
       }
@@ -9111,7 +10001,7 @@ expr_primary
 		      tmp->set_with_constraints(std::move(wc));
 		}
 	delete $1;
-	delete $2;
+	pform_discard_call_attributes($2);
 	delete $3;
 	$$ = tmp;
       }
@@ -9143,7 +10033,7 @@ expr_primary
 		      delete $6;
 		}
 		delete $1;
-		delete $2;
+		pform_discard_call_attributes($2);
 		delete $3;
 		$$ = tmp;
       }
@@ -9276,6 +10166,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	hident.push_back(name_component_t(lex_strings.make($5)));
 	PECallFunction*tmp = pform_make_call_function(@1, hident, *$6);
+	tmp->set_scoped_type_prefix();
 	delete[]$1;
 	delete[]$3;
 	delete[]$5;
@@ -9287,6 +10178,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($1)));
 	hident.push_back(name_component_t(lex_strings.make($3.text)));
 	PECallFunction*tmp = pform_make_call_function(@1, hident, *$4);
+	tmp->set_scoped_type_prefix();
 	delete[]$1;
 	delete[]$3.text;
 	delete $4;
@@ -9298,6 +10190,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($3.text)));
 	hident.push_back(name_component_t(lex_strings.make($5)));
 	PECallFunction*tmp = pform_make_call_function(@1, hident, *$6);
+	tmp->set_scoped_type_prefix();
 	delete[]$1;
 	delete[]$3.text;
 	delete[]$5;
@@ -9310,6 +10203,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($3.text)));
 	hident.push_back(name_component_t(lex_strings.make($5.text)));
 	PECallFunction*tmp = pform_make_call_function(@1, hident, *$6);
+	tmp->set_scoped_type_prefix();
 	delete[]$1;
 	delete[]$3.text;
 	delete[]$5.text;
@@ -9322,6 +10216,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	hident.push_back(name_component_t(lex_strings.make($5)));
 	PECallFunction*tmp = pform_make_call_function(@1, hident, *$6);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$3;
 	delete[]$5;
@@ -9333,6 +10228,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($1.text)));
 	hident.push_back(name_component_t(lex_strings.make($3.text)));
 	PECallFunction*tmp = pform_make_call_function(@1, hident, *$4);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$3.text;
 	delete $4;
@@ -9344,6 +10240,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($3.text)));
 	hident.push_back(name_component_t(lex_strings.make($5)));
 	PECallFunction*tmp = pform_make_call_function(@1, hident, *$6);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$3.text;
 	delete[]$5;
@@ -9356,6 +10253,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($3.text)));
 	hident.push_back(name_component_t(lex_strings.make($5.text)));
 	PECallFunction*tmp = pform_make_call_function(@1, hident, *$6);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$3.text;
 	delete[]$5.text;
@@ -9384,6 +10282,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($1)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PECallFunction*tmp = pform_make_call_function(@1, hident, *$4);
+	tmp->set_scoped_type_prefix();
 	delete[]$1;
 	delete[]$3;
 	delete $4;
@@ -9395,6 +10294,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($1)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PECallFunction*tmp = pform_make_call_function(@1, hident, *$4);
+	tmp->set_scoped_type_prefix();
 	if ($7) {
 	      std::vector<PExpr*> wc($7->begin(), $7->end());
 	      tmp->set_with_constraints(std::move(wc));
@@ -9410,6 +10310,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($1.text)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PECallFunction*tmp = pform_make_call_function(@1, hident, *$4);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$3;
 	delete $4;
@@ -9461,6 +10362,30 @@ expr_primary
 	delete $2;
 	delete $4;
 	$$ = tmp;
+      }
+  | attributed_array_method_call
+      { pform_attr_method_call_t*call = $1;
+	if (call->path) {
+	      PECallFunction*tmp = pform_make_call_function(
+		    @1, *call->path, *call->args);
+	      if (call->with_expr) {
+		    std::vector<PExpr*> wc;
+		    wc.push_back(call->with_expr);
+		    tmp->set_with_constraints(std::move(wc));
+	      }
+	      $$ = tmp;
+	      delete call->path;
+	      delete call->args;
+	} else {
+	      $$ = pform_receiver_method_call(
+		    @1, call->receiver, call->method,
+		    call->args, call->with_expr);
+	}
+	call->receiver = 0;
+	call->path = 0;
+	call->args = 0;
+	call->with_expr = 0;
+	delete call;
       }
   | expr_primary '.' IDENTIFIER argument_list_parens
       { /* Method call on a primary expression (e.g. fn().method()).
@@ -9542,11 +10467,45 @@ expr_primary
 	}
       }
   | expr_primary '.' K_unique argument_list_parens
-      { PECallFunction*tmp = new PECallFunction(lex_strings.make("unique"), *$4);
+      { /* `unique' is a keyword, so mirror the generic method-call rule
+	   explicitly.  In particular, keep a non-identifier receiver such as
+	   make_queue().unique(); deleting it here turned the call into an
+	   unrelated receiverless function call. */
+	PECallFunction*tmp;
+	if (PEIdent*id = dynamic_cast<PEIdent*>($1)) {
+	      pform_scoped_name_t path = id->path();
+	      path.name.push_back(name_component_t(lex_strings.make("unique")));
+	      tmp = path.package
+		  ? new PECallFunction(path.package, path.name, *$4)
+		  : new PECallFunction(path.name, *$4);
+	      delete $1;
+	} else {
+	      tmp = new PECallFunction($1, lex_strings.make("unique"), *$4);
+	}
 	FILE_NAME(tmp, @2);
-	delete $1;
 	delete $4;
 	$$ = tmp;
+      }
+  | expr_primary '.' K_unique
+      { /* Paren-less locator call on a temporary expression.  Identifier
+	   receivers retain the hierarchical representation so ordinary
+	   property/method disambiguation remains type-directed. */
+	if (PEIdent*id = dynamic_cast<PEIdent*>($1)) {
+	      pform_scoped_name_t path = id->path();
+	      path.name.push_back(name_component_t(lex_strings.make("unique")));
+	      PEIdent*tmp = path.package
+		  ? new PEIdent(path.package, path.name, @2.lexical_pos)
+		  : new PEIdent(path.name, @2.lexical_pos);
+	      FILE_NAME(tmp, @2);
+	      delete id;
+	      $$ = tmp;
+	} else {
+	      std::list<named_pexpr_t> no_args;
+	      PECallFunction*tmp = new PECallFunction(
+		    $1, lex_strings.make("unique"), no_args);
+	      FILE_NAME(tmp, @2);
+	      $$ = tmp;
+	}
       }
   | expr_primary '.' IDENTIFIER argument_list_parens K_with '(' expression ')'
 	      { /* Array locator/reduction method on an arbitrary primary.
@@ -9596,15 +10555,54 @@ expr_primary
   | expr_primary K_with '(' expression ')'
 	      { /* A package-qualified receiver call reduces to expr_primary
 		   before the trailing with-clause. Keep the predicate on the
-		   existing call node. */
-	if (PECallFunction*call = dynamic_cast<PECallFunction*>($1)) {
+		   existing call node. The keyword-named paren-less `unique`
+		   form reduces to a PEIdent, so rebuild that one as a call before
+		   attaching the predicate instead of silently deleting it. */
+	PExpr*result = $1;
+	PECallFunction*call = dynamic_cast<PECallFunction*>(result);
+	if (!call) {
+	      if (PEIdent*id = dynamic_cast<PEIdent*>(result)) {
+		    pform_scoped_name_t path = id->path();
+		    if (!path.name.empty()
+			&& path.back().index.empty()
+			&& (peek_tail_name(path.name) == "unique"
+			    || peek_tail_name(path.name) == "unique_index")) {
+			  std::list<named_pexpr_t> no_args;
+			  call = path.package
+			      ? new PECallFunction(path.package, path.name, no_args)
+			      : new PECallFunction(path.name, no_args);
+			  FILE_NAME(call, @2);
+			  delete id;
+			  result = call;
+		    }
+	      }
+	}
+	if (!call) {
+	      /* A named paren-less method on an arbitrary primary first
+	       * reduces to PEMemberAccess because syntax alone cannot tell a
+	       * property from a method.  A trailing with-clause resolves that
+	       * ambiguity: preserve the member base as the locator receiver. */
+	      if (PEMemberAccess*member =
+		    dynamic_cast<PEMemberAccess*>(result)) {
+		    if (member->member_name() == "unique_index") {
+			  std::list<named_pexpr_t> no_args;
+			  call = new PECallFunction(
+				member->take_base(), member->member_name(), no_args);
+			  FILE_NAME(call, @2);
+			  delete member;
+			  result = call;
+		    }
+	      }
+	}
+	if (call) {
 	      std::vector<PExpr*> wc;
 	      wc.push_back($4);
 	      call->set_with_constraints(std::move(wc));
 	} else {
+	      yyerror(@2, "error: A with-clause requires a method call.");
 	      delete $4;
 	}
-	$$ = $1;
+	$$ = result;
       }
   | K_this
       { PEIdent*tmp = new PEIdent(perm_string::literal(THIS_TOKEN), UINT_MAX);
@@ -9618,79 +10616,16 @@ expr_primary
 	delete $1;
 	$$ = tmp;
       }
-  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($4)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	// I5 (Phase 62m): retain the parameterized-class specialization
-	// args so elaboration can resolve the right specialized
-	// netclass_t for static-property access (`Class#(args)::var`).
-	tmp->set_leading_type_args($2);
-	delete[]$1.text;
-	delete[]$4;
-	$$ = tmp;
+  | parameterized_scoped_identifier '.' identifier_name argument_list_parens
+      { PECallFunction*tmp = pform_receiver_method_call(
+              @1, pform_scoped_method_receiver(
+                    @1, dynamic_cast<PEIdent*>($1)),
+              lex_strings.make($3), $4, 0);
+        delete[]$3;
+        $$ = tmp;
       }
-  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER '.' IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($4)));
-	hident.push_back(name_component_t(lex_strings.make($6)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete_parmvalue_t($2);
-	delete[]$1.text;
-	delete[]$4;
-	delete[]$6;
-	$$ = tmp;
-      }
-  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER '.' IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($4.text)));
-	hident.push_back(name_component_t(lex_strings.make($6)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete_parmvalue_t($2);
-	delete[]$1.text;
-	delete[]$4.text;
-	delete[]$6;
-	$$ = tmp;
-      }
-  | IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1)));
-	hident.push_back(name_component_t(lex_strings.make($4)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete_parmvalue_t($2);
-	delete[]$1;
-	delete[]$4;
-	$$ = tmp;
-      }
-  | IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1)));
-	hident.push_back(name_component_t(lex_strings.make($4.text)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete_parmvalue_t($2);
-	delete[]$1;
-	delete[]$4.text;
-	$$ = tmp;
-      }
-  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($4.text)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete_parmvalue_t($2);
-	delete[]$1.text;
-	delete[]$4.text;
-	$$ = tmp;
-      }
+  | parameterized_scoped_identifier
+      { $$ = $1; }
   | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER K_SCOPE_RES IDENTIFIER
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1.text)));
@@ -9698,7 +10633,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($6)));
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
-	delete_parmvalue_t($2);
+	tmp->set_leading_type_args($2);
 	delete[]$1.text;
 	delete[]$4;
 	delete[]$6;
@@ -9711,7 +10646,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($6)));
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
-	delete_parmvalue_t($2);
+	tmp->set_leading_type_args($2);
 	delete[]$1.text;
 	delete[]$4.text;
 	delete[]$6;
@@ -9724,7 +10659,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($6.text)));
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
-	delete_parmvalue_t($2);
+	tmp->set_leading_type_args($2);
 	delete[]$1.text;
 	delete[]$4.text;
 	delete[]$6.text;
@@ -9737,7 +10672,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($6)));
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
-	delete_parmvalue_t($2);
+	tmp->set_leading_type_args($2);
 	delete[]$1;
 	delete[]$4;
 	delete[]$6;
@@ -9750,7 +10685,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($6)));
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
-	delete_parmvalue_t($2);
+	tmp->set_leading_type_args($2);
 	delete[]$1;
 	delete[]$4.text;
 	delete[]$6;
@@ -9766,70 +10701,6 @@ expr_primary
 	delete[]$1;
 	delete[]$3;
 	delete[]$5;
-	$$ = tmp;
-      }
-  | IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER argument_list_parens
-	      { /* Preserve the complete package/class-qualified receiver.
-		   Dropping the first two components turns
-		   pkg::queue.find_first() into an unqualified find_first()
-		   and makes array-method elaboration impossible. */
-	pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1)));
-	hident.push_back(name_component_t(lex_strings.make($3)));
-	hident.push_back(name_component_t(lex_strings.make($5)));
-	PECallFunction*tmp = new PECallFunction(hident, *$6);
-	FILE_NAME(tmp, @4);
-	delete[]$1;
-	delete[]$3;
-	delete[]$5;
-	delete $6;
-	$$ = tmp;
-      }
-  | IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1)));
-	hident.push_back(name_component_t(lex_strings.make($3)));
-	hident.push_back(name_component_t(lex_strings.make($5)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete[]$1;
-	delete[]$3;
-	delete[]$5;
-	$$ = tmp;
-      }
-  | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '.' IDENTIFIER argument_list_parens
-	      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1)));
-	hident.push_back(name_component_t(lex_strings.make($3.text)));
-	hident.push_back(name_component_t(lex_strings.make($5)));
-	PECallFunction*tmp = new PECallFunction(hident, *$6);
-	FILE_NAME(tmp, @4);
-	delete[]$1;
-	delete[]$3.text;
-	delete[]$5;
-	delete $6;
-	$$ = tmp;
-      }
-  | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '.' IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1)));
-	hident.push_back(name_component_t(lex_strings.make($3.text)));
-	hident.push_back(name_component_t(lex_strings.make($5)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete[]$1;
-	delete[]$3.text;
-	delete[]$5;
-	$$ = tmp;
-      }
-  | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1)));
-	hident.push_back(name_component_t(lex_strings.make($3.text)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete[]$1;
-	delete[]$3.text;
 	$$ = tmp;
       }
   | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
@@ -9868,80 +10739,6 @@ expr_primary
 	delete[]$5;
 	$$ = tmp;
       }
-  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER argument_list_parens
-	      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($3)));
-	hident.push_back(name_component_t(lex_strings.make($5)));
-	PECallFunction*tmp = new PECallFunction(hident, *$6);
-	FILE_NAME(tmp, @4);
-	delete[]$1.text;
-	delete[]$3;
-	delete[]$5;
-	delete $6;
-	$$ = tmp;
-      }
-  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($3)));
-	hident.push_back(name_component_t(lex_strings.make($5)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete[]$1.text;
-	delete[]$3;
-	delete[]$5;
-	$$ = tmp;
-      }
-  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($3.text)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete[]$1.text;
-	delete[]$3.text;
-	$$ = tmp;
-      }
-  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '.' IDENTIFIER argument_list_parens
-	      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($3.text)));
-	hident.push_back(name_component_t(lex_strings.make($5)));
-	PECallFunction*tmp = new PECallFunction(hident, *$6);
-	FILE_NAME(tmp, @4);
-	delete[]$1.text;
-	delete[]$3.text;
-	delete[]$5;
-	delete $6;
-	$$ = tmp;
-      }
-  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '.' IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($3.text)));
-	hident.push_back(name_component_t(lex_strings.make($5)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete[]$1.text;
-	delete[]$3.text;
-	delete[]$5;
-	$$ = tmp;
-      }
-  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '[' expression ']'
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($3.text)));
-	index_component_t itmp;
-	itmp.sel = index_component_t::SEL_BIT;
-	itmp.msb = $5;
-	hident.back().index.push_back(itmp);
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete[]$1.text;
-	delete[]$3.text;
-	$$ = tmp;
-      }
   | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1.text)));
@@ -9966,41 +10763,6 @@ expr_primary
 	delete[]$5.text;
 	$$ = tmp;
       }
-  | IDENTIFIER K_SCOPE_RES IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1)));
-	hident.push_back(name_component_t(lex_strings.make($3)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete[]$1;
-	delete[]$3;
-	$$ = tmp;
-      }
-  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($3)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete[]$1.text;
-	delete[]$3;
-	$$ = tmp;
-      }
-  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER '[' expression ']'
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($3)));
-	index_component_t itmp;
-	itmp.sel = index_component_t::SEL_BIT;
-	itmp.msb = $5;
-	hident.back().index.push_back(itmp);
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete[]$1.text;
-	delete[]$3;
-	$$ = tmp;
-      }
-
   /* Many of the VAMS built-in functions are available as builtin
      functions with $system_function equivalents. */
 
@@ -11112,7 +11874,7 @@ signed_unsigned_opt
 atom_type
   : K_byte     { $$ = atom_type_t::BYTE; }
   | K_shortint { $$ = atom_type_t::SHORTINT; }
-  | K_int      { $$ = atom_type_t::INT; }
+  | K_int %prec sva_decl_expr_start { $$ = atom_type_t::INT; }
   | K_longint  { $$ = atom_type_t::LONGINT; }
   | K_integer  { $$ = atom_type_t::INTEGER; }
   | K_chandle  { $$ = atom_type_t::CHANDLE; }
@@ -11135,103 +11897,6 @@ lpvalue
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
 	delete $1;
-      }
-
-  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($3)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete[] $1.text;
-	delete[] $3;
-	$$ = tmp;
-      }
-  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($3.text)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete[] $1.text;
-	delete[] $3.text;
-	$$ = tmp;
-      }
-  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER '[' expression ']'
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($3)));
-	index_component_t itmp;
-	itmp.sel = index_component_t::SEL_BIT;
-	itmp.msb = $5;
-	hident.back().index.push_back(itmp);
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete[] $1.text;
-	delete[] $3;
-	$$ = tmp;
-      }
-  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '[' expression ']'
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($3.text)));
-	index_component_t itmp;
-	itmp.sel = index_component_t::SEL_BIT;
-	itmp.msb = $5;
-	hident.back().index.push_back(itmp);
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete[] $1.text;
-	delete[] $3.text;
-	$$ = tmp;
-      }
-  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($3)));
-	hident.push_back(name_component_t(lex_strings.make($5)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete[] $1.text;
-	delete[] $3;
-	delete[] $5;
-	$$ = tmp;
-      }
-  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER '.' TYPE_IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($3)));
-	hident.push_back(name_component_t(lex_strings.make($5.text)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete[] $1.text;
-	delete[] $3;
-	delete[] $5.text;
-	$$ = tmp;
-      }
-  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '.' IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($3.text)));
-	hident.push_back(name_component_t(lex_strings.make($5)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete[] $1.text;
-	delete[] $3.text;
-	delete[] $5;
-	$$ = tmp;
-      }
-  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '.' TYPE_IDENTIFIER
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($3.text)));
-	hident.push_back(name_component_t(lex_strings.make($5.text)));
-	PEIdent*tmp = pform_new_ident(@1, hident);
-	FILE_NAME(tmp, @1);
-	delete[] $1.text;
-	delete[] $3.text;
-	delete[] $5.text;
-	$$ = tmp;
       }
 
   | '{' expression_list_proper '}'
@@ -13575,6 +14240,29 @@ subroutine_call
 	delete $2;
 	$$ = tmp;
       }
+  | attributed_array_method_call
+      { pform_attr_method_call_t*call = $1;
+	if (call->path) {
+	      PCallTask*tmp = pform_make_call_task(@1, *call->path, *call->args);
+	      if (call->with_expr) {
+		    std::vector<PExpr*> wc;
+		    wc.push_back(call->with_expr);
+		    tmp->set_with_constraints(std::move(wc));
+	      }
+	      $$ = tmp;
+	      delete call->path;
+	      delete call->args;
+	} else {
+	      $$ = pform_receiver_method_task(
+		    @1, call->receiver, call->method,
+		    call->args, call->with_expr);
+	}
+	call->receiver = 0;
+	call->path = 0;
+	call->args = 0;
+	call->with_expr = 0;
+	delete call;
+      }
   | hierarchy_identifier argument_list_parens '.' IDENTIFIER argument_list_parens_opt
       { /* Method-call statement on a call result: f(args).method(args);
 	   (IEEE 1800-2017 8.10). The receiver call is preserved as an
@@ -13589,6 +14277,40 @@ subroutine_call
 	delete $5;
 	$$ = tmp;
       }
+  | hierarchy_identifier argument_list_parens '.' IDENTIFIER
+    attribute_instance_list argument_list_parens_opt
+      { /* Syntax 7-5 attribute form of the call-result statement above.
+	   Keep this beside the already-established receiver-call production:
+	   introducing a second receiver prefix elsewhere steals ordinary f(). */
+	PECallFunction*rcv = pform_make_call_function(@1, *$1, *$2, 0);
+	$$ = pform_receiver_method_task(
+	      @3, rcv, lex_strings.make($4), $6, 0);
+	delete $1;
+	delete $2;
+	delete[]$4;
+	pform_discard_call_attributes($5);
+      }
+  | hierarchy_identifier argument_list_parens '.' K_unique argument_list_parens_opt
+      { /* Keyword-named locator statement on a call result:
+	   make_queue().unique();.  Preserve the receiver exactly as the
+	   IDENTIFIER sibling does. */
+	PECallFunction*rcv = pform_make_call_function(@1, *$1, *$2, 0);
+	PCallTask*tmp = new PCallTask(rcv, lex_strings.make("unique"), *$5);
+	FILE_NAME(tmp, @3);
+	delete $1;
+	delete $2;
+	delete $5;
+	$$ = tmp;
+      }
+  | hierarchy_identifier argument_list_parens '.' K_unique
+    attribute_instance_list argument_list_parens_opt
+      { PECallFunction*rcv = pform_make_call_function(@1, *$1, *$2, 0);
+	$$ = pform_receiver_method_task(
+	      @3, rcv, lex_strings.make("unique"), $6, 0);
+	delete $1;
+	delete $2;
+	pform_discard_call_attributes($5);
+      }
   | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens '.' IDENTIFIER argument_list_parens_opt
       { /* Method-call statement on a static-method call result:
 	   Class::get(args).method(args); (IEEE 1800-2017 8.10, 8.23). */
@@ -13596,6 +14318,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($1.text)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PECallFunction*rcv = pform_make_call_function(@1, hident, *$4, 0);
+	rcv->set_scoped_type_prefix();
 	PCallTask*tmp = new PCallTask(rcv, lex_strings.make($6), *$7);
 	FILE_NAME(tmp, @5);
 	delete[]$1.text;
@@ -13649,6 +14372,14 @@ subroutine_call
 	delete $2;
 	$$ = tmp;
       }
+  | parameterized_scoped_identifier '.' identifier_name argument_list_parens_opt
+      { PCallTask*tmp = pform_receiver_method_task(
+              @1, pform_scoped_method_receiver(
+                    @1, dynamic_cast<PEIdent*>($1)),
+              lex_strings.make($3), $4, 0);
+        delete[]$3;
+        $$ = tmp;
+      }
   | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens_opt
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1)));
@@ -13657,54 +14388,6 @@ subroutine_call
 	delete[]$1;
 	delete[]$3;
 	delete $4;
-	$$ = tmp;
-      }
-  | IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER argument_list_parens_opt
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1)));
-	hident.push_back(name_component_t(lex_strings.make($3)));
-	hident.push_back(name_component_t(lex_strings.make($5)));
-	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
-	delete[]$1;
-	delete[]$3;
-	delete[]$5;
-	delete $6;
-	$$ = tmp;
-      }
-  | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '.' IDENTIFIER argument_list_parens_opt
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1)));
-	hident.push_back(name_component_t(lex_strings.make($3.text)));
-	hident.push_back(name_component_t(lex_strings.make($5)));
-	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
-	delete[]$1;
-	delete[]$3.text;
-	delete[]$5;
-	delete $6;
-	$$ = tmp;
-      }
-  | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER '.' IDENTIFIER argument_list_parens_opt
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($3)));
-	hident.push_back(name_component_t(lex_strings.make($5)));
-	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
-	delete[]$1.text;
-	delete[]$3;
-	delete[]$5;
-	delete $6;
-	$$ = tmp;
-      }
-  | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '.' IDENTIFIER argument_list_parens_opt
-      { pform_name_t hident;
-	hident.push_back(name_component_t(lex_strings.make($1.text)));
-	hident.push_back(name_component_t(lex_strings.make($3.text)));
-	hident.push_back(name_component_t(lex_strings.make($5)));
-	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
-	delete[]$1.text;
-	delete[]$3.text;
-	delete[]$5;
-	delete $6;
 	$$ = tmp;
       }
   | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER argument_list_parens_opt
@@ -13832,8 +14515,8 @@ subroutine_call
 	   hierarchy_identifier reductions, including the case where an
 	   interface instance shares its name with the interface type), splice
 	   its path into the PCallTask hierarchy so the receiver is preserved.
-	   Otherwise fall back to a name-only call (UVM, queue helpers, etc.
-	   work via the symbol_search inside elaborate_method_). */
+	   Otherwise preserve the primary as an arbitrary receiver and defer
+	   method/property dispatch until its exact type is elaborated. */
 	PCallTask*tmp = nullptr;
 	PEIdent*pid = dynamic_cast<PEIdent*>($1);
 	if (pid && !pid->path().package) {
@@ -13845,10 +14528,11 @@ subroutine_call
 	      hident.push_back(name_component_t(lex_strings.make($3)));
 	      tmp = new PCallTask(pid->path().package, hident, *$4);
 	} else {
-	      tmp = new PCallTask(lex_strings.make($3), *$4);
+	      tmp = new PCallTask($1, lex_strings.make($3), *$4);
 	}
 	FILE_NAME(tmp, @2);
-	delete $1;
+	if (pid)
+	      delete pid;
 	delete[]$3;
 	delete $4;
 	$$ = tmp;
@@ -13936,6 +14620,11 @@ statement_item /* This is roughly statement_item in the LRM */
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
+  | K_assign parameterized_scoped_identifier '=' expression ';'
+      { PCAssign*tmp = new PCAssign($2, $4);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
   /* IEEE 1800-2017 9.3.1 permits a statement label before a sequential
      block (`name: begin ... end`). Treat it as the equivalent named block
      form `begin : name ... end`, preserving its scope and disable target. */
@@ -13983,6 +14672,11 @@ statement_item /* This is roughly statement_item in the LRM */
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
+  | K_deassign parameterized_scoped_identifier ';'
+      { PDeassign*tmp = new PDeassign($2);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
 
 
   /* Force and release statements are similar to assignments,
@@ -13993,7 +14687,17 @@ statement_item /* This is roughly statement_item in the LRM */
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
+  | K_force parameterized_scoped_identifier '=' expression ';'
+      { PForce*tmp = new PForce($2, $4);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
   | K_release lpvalue ';'
+      { PRelease*tmp = new PRelease($2);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_release parameterized_scoped_identifier ';'
       { PRelease*tmp = new PRelease($2);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
@@ -14383,6 +15087,11 @@ statement_item /* This is roughly statement_item in the LRM */
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
+  | package_scoped_lvalue '=' expression ';'
+      { PAssign*tmp = new PAssign($1, $3);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
 
   | type_declaration
       { $$ = nullptr; }
@@ -14684,6 +15393,21 @@ statement_item /* This is roughly statement_item in the LRM */
 
   /* Various assignment statements */
 
+  /* `Class#(...)::property' is already a complete expression primary, so
+     routing it through lpvalue introduces an expression/lvalue ambiguity on
+     <=.  Consume the shared identifier directly in assignment statement
+     position and pass the same PEIdent to ordinary l-value elaboration. */
+  | parameterized_scoped_identifier '=' expression ';'
+      { PAssign*tmp = new PAssign($1,$3);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | parameterized_scoped_identifier K_LE expression ';'
+      { PAssignNB*tmp = new PAssignNB($1,$3);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+
   | lpvalue '=' expression ';'
       { PAssign*tmp = new PAssign($1,$3);
 	FILE_NAME(tmp, @1);
@@ -14776,7 +15500,21 @@ statement_item /* This is roughly statement_item in the LRM */
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
+  | parameterized_scoped_identifier '=' delay1 expression ';'
+      { PExpr*del = $3->front(); $3->pop_front();
+	assert($3->empty());
+	PAssign*tmp = new PAssign($1,del,$4);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
   | lpvalue K_LE delay1 expression ';'
+      { PExpr*del = $3->front(); $3->pop_front();
+	assert($3->empty());
+	PAssignNB*tmp = new PAssignNB($1,del,$4);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | parameterized_scoped_identifier K_LE delay1 expression ';'
       { PExpr*del = $3->front(); $3->pop_front();
 	assert($3->empty());
 	PAssignNB*tmp = new PAssignNB($1,del,$4);
@@ -14788,7 +15526,17 @@ statement_item /* This is roughly statement_item in the LRM */
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
+  | parameterized_scoped_identifier '=' event_control expression ';'
+      { PAssign*tmp = new PAssign($1,0,$3,$4);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
   | lpvalue '=' K_repeat '(' expression ')' event_control expression ';'
+      { PAssign*tmp = new PAssign($1,$5,$7,$8);
+	FILE_NAME(tmp,@1);
+	$$ = tmp;
+      }
+  | parameterized_scoped_identifier '=' K_repeat '(' expression ')' event_control expression ';'
       { PAssign*tmp = new PAssign($1,$5,$7,$8);
 	FILE_NAME(tmp,@1);
 	$$ = tmp;
@@ -14798,7 +15546,17 @@ statement_item /* This is roughly statement_item in the LRM */
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
+  | parameterized_scoped_identifier K_LE event_control expression ';'
+      { PAssignNB*tmp = new PAssignNB($1,0,$3,$4);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
   | lpvalue K_LE K_repeat '(' expression ')' event_control expression ';'
+      { PAssignNB*tmp = new PAssignNB($1,$5,$7,$8);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | parameterized_scoped_identifier K_LE K_repeat '(' expression ')' event_control expression ';'
       { PAssignNB*tmp = new PAssignNB($1,$5,$7,$8);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
@@ -14830,11 +15588,21 @@ statement_item /* This is roughly statement_item in the LRM */
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
+  | parameterized_scoped_identifier '=' dynamic_array_new ';'
+      { PAssign*tmp = new PAssign($1,$3);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
 
   /* The class new and dynamic array new expressions are special, so
      sit in rules of their own. */
 
   | lpvalue '=' class_new ';'
+      { PAssign*tmp = new PAssign($1,$3);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | parameterized_scoped_identifier '=' class_new ';'
       { PAssign*tmp = new PAssign($1,$3);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
@@ -14856,6 +15624,30 @@ statement_item /* This is roughly statement_item in the LRM */
   | K_void '\'' '(' subroutine_call ')' ';'
       { $4->void_cast();
 	$$ = $4;
+      }
+  | hierarchy_identifier attribute_instance_list argument_list_parens ';'
+      { /* Identifier-named hierarchy methods with attributes and explicit
+	   iterator parentheses otherwise reduce through the expression call
+	   rule before statement context can discard their result. */
+	PCallTask*tmp = pform_make_call_task(@1, *$1, *$3);
+	delete $1;
+	pform_discard_call_attributes($2);
+	delete $3;
+	$$ = tmp;
+      }
+  | hierarchy_identifier attribute_instance_list argument_list_parens
+    K_with '(' expression ')' ';'
+      { pform_requires_sv(@4, "Method with-clause");
+	PCallTask*tmp = pform_make_call_task(@1, *$1, *$3);
+	if ($6) {
+	      std::vector<PExpr*> wc;
+	      wc.push_back($6);
+	      tmp->set_with_constraints(std::move(wc));
+	}
+	delete $1;
+	pform_discard_call_attributes($2);
+	delete $3;
+	$$ = tmp;
       }
   | K_void '\'' '(' hierarchy_identifier argument_list_parens K_with '{' constraint_block_item_list_opt '}' ')' ';'
       { if (peek_tail_name(*$4) != "randomize") {
@@ -15137,6 +15929,11 @@ compressed_operator
 
 compressed_statement
   : lpvalue compressed_operator expression
+      { PAssign*tmp = new PAssign($1, $2, $3);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | parameterized_scoped_identifier compressed_operator expression
       { PAssign*tmp = new PAssign($1, $2, $3);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;

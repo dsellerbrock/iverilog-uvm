@@ -43,6 +43,10 @@ module m4_closeout_test;
   int qrow[$];
   int row[];
   int n;
+  int unique_i;
+  bit unique_saw_1;
+  bit unique_saw_2;
+  bit unique_saw_3;
   int errors = 0;
 
   task check(input bit ok, input string what);
@@ -89,9 +93,25 @@ module m4_closeout_test;
     u = '{3,1,3,2,1,3};
     r = u.unique();
     ri = u.unique_index();
-    check(r.size() == 3 && r[0] == 3 && r[1] == 1 && r[2] == 2,
+    r.sort();
+    check(r.size() == 3 && r[0] == 1 && r[1] == 2 && r[2] == 3,
           "G40 unique on unpacked array");
-    check(ri.size() == 3 && ri[0] == 0 && ri[1] == 1 && ri[2] == 3,
+    unique_saw_1 = 0;
+    unique_saw_2 = 0;
+    unique_saw_3 = 0;
+    for (unique_i = 0; unique_i < ri.size(); unique_i++) begin
+      check(ri[unique_i] >= 0 && ri[unique_i] < 6,
+            "G40 unique_index representative range");
+      if (ri[unique_i] >= 0 && ri[unique_i] < 6) begin
+        case (u[ri[unique_i]])
+          1: unique_saw_1 = 1;
+          2: unique_saw_2 = 1;
+          3: unique_saw_3 = 1;
+          default: check(0, "G40 unique_index represented value");
+        endcase
+      end
+    end
+    check(ri.size() == 3 && unique_saw_1 && unique_saw_2 && unique_saw_3,
           "G40 unique_index on unpacked array");
 
     // G73: {} is an empty queue, not nil

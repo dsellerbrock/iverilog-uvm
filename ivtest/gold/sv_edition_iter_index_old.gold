@@ -1,2 +1,2 @@
-./ivltests/sv_edition_iter_index_old.v:9: error: the `index' iterator method of an array manipulation method requires IEEE1800-2023; compile with -g2023 (or -glatest).
-1 error(s) during elaboration.
+./ivltests/sv_edition_iter_index_old.v:9: syntax error
+./ivltests/sv_edition_iter_index_old.v:9: error: Malformed statement

@@ -1,0 +1,2 @@
+ERROR: ./ivltests/sv_deferred_final_user_task_error0.v:5: EXPECTED USER TASK deferred_final_user_task_error.report_error VALUE=23
+       Time: 0  Scope: deferred_final_user_task_error.report_error

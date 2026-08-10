@@ -1,0 +1,2 @@
+./ivltests/sv_assoc_default_explicit_pattern_fail.v:5: sorry: nonempty associative-array assignment patterns with explicit entries are not yet supported; only '{} and '{default:value} are implemented (IEEE 1800-2017 7.9.11).
+Elaboration failed

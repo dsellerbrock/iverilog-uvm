@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_static_rand_typed_storage.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_static_rand_typed_storage"
+}

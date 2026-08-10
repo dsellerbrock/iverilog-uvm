@@ -1,0 +1,2 @@
+ivltests/sv_typeparam_static_lvalue_nonclass_fail.v:7: error: Class-scoped l-value prefix `T' resolves to a non-class type parameter.
+1 error(s) during elaboration.

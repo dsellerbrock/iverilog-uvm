@@ -1,0 +1,2 @@
+ivltests/sv_randc_txn_unique_fail.v:5: error: 'randc' variables cannot be used in 'unique' constraints.
+1 error(s) during elaboration.

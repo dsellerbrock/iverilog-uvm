@@ -1596,6 +1596,12 @@ extern const char*ivl_lpm_string(ivl_lpm_t net);
  *    ivl_expr_t that represents the index expression.  Otherwise, it
  *    returns 0.
  *
+ * ivl_lval_is_queue_slice
+ *    True only for an explicitly written queue suffix-slice l-value
+ *    q[lo:$]. In that case ivl_lval_idx is the lower-bound expression
+ *    and the l-value retains the complete queue type. This bit separates
+ *    the slice from the ordinary indexed-element l-value q[lo].
+ *
  * ivl_lval_property_idx
  *    If the l-value is a class object, this is the name of a property
  *    to select from the object. If this property is not present (<0)
@@ -1629,6 +1635,7 @@ extern const char*ivl_lpm_string(ivl_lpm_t net);
 extern unsigned    ivl_lval_width(ivl_lval_t net);
 extern ivl_expr_t  ivl_lval_mux(ivl_lval_t net) __attribute__((deprecated)); /* XXXX Obsolete? */
 extern ivl_expr_t  ivl_lval_idx(ivl_lval_t net);
+extern int         ivl_lval_is_queue_slice(ivl_lval_t net);
 extern ivl_expr_t  ivl_lval_part_off(ivl_lval_t net);
 extern ivl_select_type_t ivl_lval_sel_type(ivl_lval_t net);
 extern int ivl_lval_property_idx(ivl_lval_t net);
@@ -2538,9 +2545,16 @@ extern const char* ivl_type_name(ivl_type_t net);
 extern ivl_type_t ivl_type_super(ivl_type_t net);
 extern const char* ivl_type_method_prefix(ivl_type_t net);
 extern int ivl_type_queue_assoc_compat(ivl_type_t net);
+/* Return the maximum number of elements in a bounded queue, or zero for an
+ * unbounded queue (and for non-queue types). */
+extern uint64_t ivl_type_queue_max_size(ivl_type_t net);
 extern int         ivl_type_properties(ivl_type_t net);
 extern const char* ivl_type_prop_name(ivl_type_t net, int idx);
 extern ivl_type_t  ivl_type_prop_type(ivl_type_t net, int idx);
+/* Return the declaring class-scope signal that stores a static property,
+ * or NULL for a non-static property. IDX is the absolute property index;
+ * inherited and hidden properties therefore retain declaring identity. */
+extern ivl_signal_t ivl_type_prop_signal(ivl_type_t net, int idx);
 /* Returns the qualifier bits for class property idx.
  * Bit 0: static, Bit 1: protected, Bit 2: local,
  * Bit 3: rand,   Bit 4: randc,     Bit 5: const */

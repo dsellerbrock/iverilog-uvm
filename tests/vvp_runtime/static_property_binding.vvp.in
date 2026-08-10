@@ -1,0 +1,32 @@
+:ivl_version "13.0 (devel)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+S_unit .scope package, "$unit" "$unit" 1 1;
+ .timescale 0 0;
+C_item .class "binding_item" "$unit.binding_item" [1]
+   0: "value", "q9:@BASE_TYPE@"
+ .static_prop 0 @STORAGE@
+ ;
+S_class .scope class, "binding_item" "binding_item" 1 1, 1 1 0, S_unit;
+ .timescale 0 0;
+v_vec8 .var "vec8", 7 0;
+v_int32 .var/2s "int32", 31 0;
+S_top .scope module, "top" "top" 1 1;
+ .timescale 0 0;
+C_item .class "binding_item" "$unit.binding_item" [1]
+   0: "value", "q9:@BASE_TYPE@"
+ .static_prop 0 @STORAGE@
+ ;
+v_obj .var/cobj "obj", TC_item;
+    .scope S_top;
+T_0 ;
+    %new/cobj C_item;
+    %store/obj v_obj;
+    %load/obj v_obj;
+    %rand_mode/get 0;
+    %pop/vec4 1;
+    %end;
+    .thread T_0;
+:file_names 2;
+    "N/A";
+    "static_property_binding.vvp.in";

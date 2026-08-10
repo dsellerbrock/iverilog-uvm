@@ -25,7 +25,14 @@ using namespace std;
 netqueue_t::netqueue_t(ivl_type_t vec, long max_idx, bool assoc_compat,
 		       ivl_type_t assoc_index_type)
 : netdarray_t(vec), max_idx_(max_idx), assoc_compat_(assoc_compat),
-  assoc_index_type_(assoc_index_type)
+  assoc_index_type_(assoc_index_type), assoc_wildcard_(false)
+{
+}
+
+netqueue_t::netqueue_t(ivl_type_t vec, long max_idx, bool assoc_compat,
+		       ivl_type_t assoc_index_type, bool assoc_wildcard)
+: netdarray_t(vec), max_idx_(max_idx), assoc_compat_(assoc_compat),
+  assoc_index_type_(assoc_index_type), assoc_wildcard_(assoc_wildcard)
 {
 }
 

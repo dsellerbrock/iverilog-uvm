@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_randc_txn_two_pass_rng_order.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_randc_txn_two_pass_rng_order"
+}

@@ -22,6 +22,7 @@
 # include  "PClass.h"
 # include  "PTask.h"
 # include  "pform_types.h"
+# include  "netmisc.h"
 # include  <cassert>
 # include  <cstdlib>
 # include  <iostream>
@@ -146,6 +147,7 @@ bool netclass_t::set_property(perm_string pname, property_qualifier_t qual,
       tmp.qual = qual;
       tmp.type = ptype;
       tmp.initialized_flag = false;
+      tmp.static_target = 0;
       property_table_.push_back(tmp);
 
       properties_[pname] = property_table_.size()-1;
@@ -255,9 +257,11 @@ int netclass_t::ensure_property_decl(Design*des, perm_string pname)
 
             bool added = set_property(cur->first, cur->second.qual, use_type);
             if (added && cur->second.qual.test_static()) {
-                  if (class_scope_->find_signal(cur->first) == 0)
-                        /* NetNet*sig = */ new NetNet(class_scope_, cur->first,
-                                                     NetNet::REG, use_type);
+                  NetNet*sig = class_scope_->find_signal(cur->first);
+                  if (sig == 0)
+                        sig = new NetNet(class_scope_, cur->first,
+                                         NetNet::REG, use_type);
+                  sig->set_const(cur->second.qual.test_const());
             }
       }
 
@@ -333,9 +337,11 @@ void netclass_t::ensure_all_properties_declared(Design*des)
 
                         bool added = set_property(cur->first, cur->second.qual, use_type);
                         if (added && cur->second.qual.test_static()) {
-                              if (class_scope_->find_signal(cur->first) == 0)
-                                    new NetNet(class_scope_, cur->first,
-                                               NetNet::REG, use_type);
+                              NetNet*sig = class_scope_->find_signal(cur->first);
+                              if (sig == 0)
+                                    sig = new NetNet(class_scope_, cur->first,
+                                                     NetNet::REG, use_type);
+                              sig->set_const(cur->second.qual.test_const());
                         }
                   }
             }
@@ -408,16 +414,68 @@ ivl_type_t netclass_t::get_prop_type(size_t idx) const
 	    return property_table_[idx-super_size].type;
 }
 
+NetNet*netclass_t::get_prop_static_signal(size_t idx) const
+{
+      size_t super_size = 0;
+      if (super_) super_size = super_->get_properties();
+
+      assert(idx < (super_size + property_table_.size()));
+      if (idx < super_size)
+	    return super_->get_prop_static_signal(idx);
+
+      const prop_t&prop = property_table_[idx-super_size];
+      if (!prop.qual.test_static() || !class_scope_)
+	    return 0;
+
+      return class_scope_->find_signal(prop.name);
+}
+
+bool netclass_t::bind_static_property_target(const NetNet*net,
+					     ivl_signal_t target) const
+{
+      if (!net || !target || net->scope() != class_scope_)
+	    return false;
+
+      map<perm_string,size_t>::const_iterator cur = properties_.find(net->name());
+      if (cur == properties_.end())
+	    return false;
+
+      const prop_t&prop = property_table_[cur->second];
+      if (!prop.qual.test_static())
+	    return false;
+
+	// Match the exact declaring NetNet. A name match alone would bind a
+	// hidden derived property to the wrong shared storage cell.
+      if (class_scope_->find_signal(prop.name) != net)
+	    return false;
+
+      prop.static_target = target;
+      return true;
+}
+
+ivl_signal_t netclass_t::get_prop_static_target(size_t idx) const
+{
+      size_t super_size = 0;
+      if (super_) super_size = super_->get_properties();
+
+      assert(idx < (super_size + property_table_.size()));
+      if (idx < super_size)
+	    return super_->get_prop_static_target(idx);
+
+      const prop_t&prop = property_table_[idx-super_size];
+      return prop.qual.test_static() ? prop.static_target : 0;
+}
+
 bool netclass_t::get_prop_initialized(size_t idx) const
 {
       size_t super_size = 0;
       if (super_) super_size = super_->get_properties();
 
       assert(idx < (super_size+property_table_.size()));
-      if (idx < super_size)
-	    return super_->get_prop_initialized(idx);
-      else
-	    return property_table_[idx].initialized_flag;
+	      if (idx < super_size)
+		    return super_->get_prop_initialized(idx);
+	      else
+		    return property_table_[idx-super_size].initialized_flag;
 }
 
 void netclass_t::set_prop_initialized(size_t idx) const

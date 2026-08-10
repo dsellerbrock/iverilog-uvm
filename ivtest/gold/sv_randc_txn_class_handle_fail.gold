@@ -1,0 +1,3 @@
+./ivltests/sv_randc_txn_class_handle_fail.v:7: error: property 'scalar_handle' of class randc_txn_bad_handle_item has a type that is not valid for a randc property; randc requires an integral, enum, or packed-aggregate leaf, or an array thereof (IEEE 1800-2017 18.4).
+./ivltests/sv_randc_txn_class_handle_fail.v:8: error: property 'handle_array' of class randc_txn_bad_handle_item has a type that is not valid for a randc property; randc requires an integral, enum, or packed-aggregate leaf, or an array thereof (IEEE 1800-2017 18.4).
+2 error(s) during elaboration.

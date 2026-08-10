@@ -1,0 +1,7 @@
+./ivltests/sv_array_unique_argument_fail.v:10: error: unique() iterator must be a simple identifier.
+./ivltests/sv_array_unique_argument_fail.v:11: error: unique_index() takes at most one iterator identifier.
+./ivltests/sv_array_unique_argument_fail.v:12: error: unique() iterator argument requires a with clause.
+./ivltests/sv_array_unique_argument_fail.v:13: error: unique() iterator must be a simple identifier.
+./ivltests/sv_array_unique_argument_fail.v:14: error: unique() does not allow a named iterator argument.
+./ivltests/sv_array_unique_argument_fail.v:15: error: unique() iterator argument requires a with clause.
+6 error(s) during elaboration.

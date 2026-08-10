@@ -1,0 +1,2 @@
+./ivltests/sv_typeparam_enum_receiver_pkg_alias_collision_fail.v:16: error: Object sv_typeparam_enum_receiver_pkg_alias_collision_fail._ivl_1.forward.this has no method "m_receiver.nb_transport_fw(...)".
+1 error(s) during elaboration.

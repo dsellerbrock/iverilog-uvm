@@ -1,0 +1,2 @@
+./ivltests/sv_assoc_default_const_ternary_fail.v:9: error: associative-array value has an element type that is not assignment-compatible with the context.
+1 error(s) during elaboration.

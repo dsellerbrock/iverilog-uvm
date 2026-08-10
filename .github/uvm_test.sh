@@ -203,9 +203,6 @@ plusargs_for() {
 ivflags_for() {
     case "$1" in
         m13_timing_test|m13_specify_paths_test|m13b_timing_checks_test) echo "-gspecify" ;;
-        # Uses the `index' iterator property, which IEEE 1800-2023
-        # introduces (7.12); a later -g overrides the default -g2012.
-        g10_iter_index_test) echo "-g2023" ;;
         *) echo "" ;;
     esac
 }
