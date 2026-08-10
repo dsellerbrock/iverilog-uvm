@@ -1,13 +1,7 @@
-// Phase 63b / B1: queue find()/find_index()/find_first()/find_last()
-// methods on class-property arrays must not hard-error during
-// elaboration.  Pre-fix: those paths emitted "sorry: 'find()' ..."
-// and incremented des->errors, breaking compile of any UVM code that
-// referenced the methods (uvm_resource_pool uses find_index).
-//
-// This commit aligns them with the existing top-level queue locator
-// fallback (returns NetENull → empty result at runtime) so the
-// surrounding code compiles.  Real evaluation of the `with` clause
-// is a separate, larger item; the warning warns once.
+// Queue locator methods on class-property arrays use the same live
+// predicate evaluation as direct queue receivers. This older smoke remains
+// an acceptance check; sv_array_find_last carries the value and result-type
+// oracles, including the single-rightmost-match rule.
 `timescale 1ns/1ps
 
 class container;
@@ -22,8 +16,7 @@ module top;
     c.q.push_back(10);
     c.q.push_back(20);
     c.q.push_back(30);
-    // These should compile (and return empty queue per the
-    // compile-progress fallback) instead of erroring.
+    // These should compile and evaluate their with clauses.
     found = c.q.find with (item == 20);
     idx   = c.q.find_index with (item > 15);
     found = c.q.find_first with (item == 20);

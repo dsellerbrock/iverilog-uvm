@@ -21,6 +21,7 @@
 
 # include  <cstdlib>
 # include  <climits>
+# include  <cstring>
 # include  <map>
 # include  <algorithm>
 # include  "netlist.h"
@@ -1201,6 +1202,15 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
       ivl_variable_type_t expr_type = tmp->expr_type();
 
       bool compatible;
+	/* Locator calls now carry their concrete queue element/index type.
+	 * Check that type in an assignment context instead of accepting every
+	 * queue-shaped result solely because both base types say QUEUE. */
+      const NetESFunc*locator = dynamic_cast<const NetESFunc*>(tmp);
+      bool typed_locator = locator && tmp->net_type()
+	    && (strncmp(locator->name(), "$ivl_queue_method$find_with|", 28) == 0
+		|| strncmp(locator->name(), "$ivl_darray_method$minmax|", 26) == 0);
+      const netqueue_t*locator_context = typed_locator
+	    ? dynamic_cast<const netqueue_t*>(lv_net_type) : nullptr;
         // For arrays we need strict type checking here. Long term strict type
 	// checking should be used for all expressions, but at the moment not
 	// all expressions do have a ivl_type_t attached to it.
@@ -1222,6 +1232,10 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 				    lv_net_type->type_compatible(ret_arr);
 		  }
 	    }
+      } else if (typed_locator
+		 && (cast_type == IVL_VT_DARRAY || cast_type == IVL_VT_QUEUE)) {
+	    compatible = !(locator_context && locator_context->assoc_compat())
+		  && lv_net_type->type_compatible(tmp->net_type());
       } else if (cast_type == IVL_VT_NO_TYPE) {
 	    compatible = true;
       } else {
@@ -1271,6 +1285,21 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 			      }
 			}
 		  }
+	    }
+
+	    if (typed_locator) {
+		  cerr << tmp->get_fileline() << ": error: array locator result "
+		       << "type is not assignment-compatible with the context."
+		       << endl;
+		  cerr << tmp->get_fileline() << ":      : result type=";
+		  tmp->net_type()->debug_dump(cerr);
+		  cerr << endl;
+		  cerr << tmp->get_fileline() << ":      : context type=";
+		  lv_net_type->debug_dump(cerr);
+		  cerr << endl;
+		  des->errors += 1;
+		  delete tmp;
+		  return 0;
 	    }
 
 	      // Catch some special cases.

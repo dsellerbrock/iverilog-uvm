@@ -398,6 +398,36 @@ NetESFunc* make_std_randomize_with_expr(
 
 static bool warned_multi_index_array_prop_fallback = false;
 
+static inline bool is_array_locator_name_(perm_string method_name)
+{
+      return method_name == "find" || method_name == "find_index"
+	  || method_name == "find_first"
+	  || method_name == "find_first_index"
+	  || method_name == "find_last"
+	  || method_name == "find_last_index";
+}
+
+static inline bool is_array_minmax_name_(perm_string method_name)
+{
+      return method_name == "min" || method_name == "max";
+}
+
+/* Array locator methods return queues. Cache the concrete result type so
+ * paren-less method expressions and ordinary call expressions carry their
+ * element type through assignment/formal compatibility checks. */
+static ivl_type_t array_locator_queue_type_(ivl_type_t element_type)
+{
+      static map<ivl_type_t, ivl_type_t> cache;
+
+      map<ivl_type_t, ivl_type_t>::const_iterator cur = cache.find(element_type);
+      if (cur != cache.end())
+	    return cur->second;
+
+      ivl_type_t res = new netqueue_t(element_type, -1, false);
+      cache[element_type] = res;
+      return res;
+}
+
 /* Phase 63b/B1 (real impl): build a NetESFunc that the tgt-vvp side
  * lowers to an inline queue-walking loop applying the with-clause
  * predicate per element.
@@ -429,6 +459,37 @@ static NetExpr* make_queue_locator_with_expr_(
       const char*kind /* "find" / "find_index" / ... */,
       const std::vector<named_pexpr_t>&parms)
 {
+      if (call->with_constraints().empty()) {
+	    cerr << call->get_fileline() << ": error: " << kind
+		 << "() requires a with clause." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+      const PEIdent*iter_ident = parms.empty()
+	  ? nullptr : dynamic_cast<const PEIdent*>(parms[0].parm);
+      if (parms.size() > 1
+	  || (!parms.empty()
+	      && (!parms[0].name.nil()
+		  || !iter_ident || iter_ident->path().size() != 1
+		  || !iter_ident->path().back().index.empty()))) {
+	    cerr << call->get_fileline() << ": error: " << kind
+		 << "() takes at most one iterator identifier." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+      if (const netqueue_t*queue =
+		dynamic_cast<const netqueue_t*>(container_type)) {
+	    if (queue->assoc_compat()) {
+		  cerr << call->get_fileline() << ": sorry: " << kind
+		       << "() on associative arrays is not yet implemented; "
+			  "associative-array locators require keyed iteration "
+			  "and exact index typing."
+		       << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+      }
+
       NetNet*recv_net = 0;
       if (!dynamic_cast<NetESignal*>(queue_expr)) {
 	    recv_net = make_array_method_recv_net_(call, des, scope,
@@ -437,10 +498,6 @@ static NetExpr* make_queue_locator_with_expr_(
 	    if (!recv_net)
 		  return nullptr;
       }
-
-      if (call->with_constraints().empty())
-            return nullptr;
-
       /* Determine the iterator name: first parameter of the find call
        * (if any), otherwise the LRM default "item". */
       perm_string iter_name = perm_string::literal("item");
@@ -505,7 +562,7 @@ static NetExpr* make_queue_locator_with_expr_(
        *   3: idx NetESignal
        *   4: predicate */
       string mangled = string("$ivl_queue_method$find_with|") + kind;
-      NetESFunc*fn = new NetESFunc(mangled.c_str(), IVL_VT_QUEUE, 1,
+      NetESFunc*fn = new NetESFunc(mangled.c_str(), result_qtype,
 				   recv_net ? 6 : 5);
       fn->parm(0, queue_expr);
       NetESignal*iter_ref = new NetESignal(iter_net);
@@ -843,14 +900,14 @@ static NetExpr* make_array_minmax_expr_(
       bitem_net->set_line(*li);
       bitem_net->local_flag(true);
 
-      netqueue_t*result_qtype = new netqueue_t(element_type, -1, false);
+      ivl_type_t result_qtype = array_locator_queue_type_(element_type);
       NetNet*result_net = new NetNet(scope, scope->local_symbol(),
 				     NetNet::REG, result_qtype);
       result_net->set_line(*li);
       result_net->local_flag(true);
 
       string mangled = string("$ivl_darray_method$minmax|") + kind;
-      NetESFunc*fn = new NetESFunc(mangled.c_str(), IVL_VT_QUEUE, 1,
+      NetESFunc*fn = new NetESFunc(mangled.c_str(), result_qtype,
 				   recv_net ? 8 : 7);
       fn->parm(0, array_expr);
       NetESignal*iter_ref = new NetESignal(iter_net);
@@ -5539,6 +5596,20 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  signed_flag_= false;
 		  return expr_width_;
 	    }
+	    if (is_array_locator_name_(method_name)) {
+		  expr_type_  = IVL_VT_QUEUE;
+		  expr_width_ = 1;
+		  min_width_  = 1;
+		  signed_flag_= false;
+		  return expr_width_;
+	    }
+	    if (is_array_minmax_name_(method_name)) {
+		  expr_type_  = IVL_VT_QUEUE;
+		  expr_width_ = 1;
+		  min_width_  = 1;
+		  signed_flag_= false;
+		  return expr_width_;
+	    }
 
 	    return 0;
       }
@@ -5558,6 +5629,20 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		|| method_name == "next"
 		|| method_name == "prev") {
 		  expr_type_  = IVL_VT_BOOL;
+		  expr_width_ = 1;
+		  min_width_  = 1;
+		  signed_flag_= false;
+		  return expr_width_;
+	    }
+	    if (is_array_locator_name_(method_name)) {
+		  expr_type_  = IVL_VT_QUEUE;
+		  expr_width_ = 1;
+		  min_width_  = 1;
+		  signed_flag_= false;
+		  return expr_width_;
+	    }
+	    if (is_array_minmax_name_(method_name)) {
+		  expr_type_  = IVL_VT_QUEUE;
 		  expr_width_ = 1;
 		  min_width_  = 1;
 		  signed_flag_= false;
@@ -5609,7 +5694,14 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  signed_flag_= darray->get_signed();
 		  return expr_width_;
 	    }
-	    if (method_name=="find") {
+	    if (is_array_locator_name_(method_name)) {
+		  expr_type_  = IVL_VT_QUEUE;
+		  expr_width_ = 1;
+		  min_width_  = 1;
+		  signed_flag_= false;
+		  return expr_width_;
+	    }
+	    if (is_array_minmax_name_(method_name)) {
 		  expr_type_  = IVL_VT_QUEUE;
 		  expr_width_ = 1;
 		  min_width_  = 1;
@@ -10155,6 +10247,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
       // can otherwise be misrouted into generic dotted-function lookup.
       if (!search_results.path_tail.empty()
 	  && (search_results.net || search_results.par_val || search_results.type)) {
+	    unsigned errors_before = des->errors;
 	    if (NetExpr*tmp = elaborate_expr_method_(des, scope, search_results)) {
 		  if (debug_elaborate) {
 			cerr << get_fileline() << ": PECallFunction::elaborate_expr: "
@@ -10163,6 +10256,8 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		  }
 		  return tmp;
 	    }
+	    if (des->errors != errors_before)
+		  return 0;
       }
 
       // If the symbol is not found at all...
@@ -10242,11 +10337,15 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 			      if (qsr.net && dar) {
 				    NetESignal*recv = new NetESignal(qsr.net);
 				    recv->set_line(*this);
+				    unsigned errors_before = des->errors;
 				    NetExpr*loc = make_queue_locator_with_expr_(
 					  this, des, scope, recv, qtype,
-					  dar->element_type(), method_name.str(), parms_);
+					  dar->element_type(), method_name.str(),
+					  parms_);
 				    if (loc) return loc;
 				    delete recv;
+				    if (des->errors != errors_before)
+					  return 0;
 			      }
 			}
 		  }
@@ -10340,14 +10439,18 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 
 	    // Maybe this is a method of an object? Give it a try.
 	    if (!search_results.path_tail.empty()) {
-		  NetExpr*tmp = elaborate_expr_method_(des, scope, search_results);
-		  if (tmp) {
+		  unsigned errors_before = des->errors;
+		  NetExpr*method_expr = elaborate_expr_method_(des, scope,
+						       search_results);
+		  if (method_expr) {
 			if (debug_elaborate) {
 			      cerr << get_fileline() << ": PECallFunction::elaborate_expr: "
-				   << "Elaborated method: " << *tmp << endl;
+				   << "Elaborated method: " << *method_expr << endl;
 			}
-			return tmp;
-			  } else {
+			return method_expr;
+		  } else {
+			if (des->errors != errors_before)
+			      return 0;
 				if (gn_system_verilog()) {
 				      // SV compile-progress fallback: multi-hop method
 			      // chains and foreach iterator method calls may fail
@@ -11330,27 +11433,16 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 						 method_name.str(), parms_,
 						 with_constraints());
 
-	    if (method_name == "find"
-		|| method_name == "find_index"
-		|| method_name == "find_first"
-		|| method_name == "find_first_index"
-		|| method_name == "find_last"
-		|| method_name == "find_last_index") {
+	    if (is_array_locator_name_(method_name)) {
 		    // The locator loop is receiver-agnostic across
 		    // queues and dynamic arrays (7.12.1 applies to any
 		    // unpacked array).
-		  if (!with_constraints().empty()) {
-			NetExpr*loc = make_queue_locator_with_expr_(
-			      this, des, scope, sub_expr, target_type,
-			      element_type,
-			      method_name.str(), parms_);
-			if (loc) return loc;
-		  }
-		  // Compile-progress fallback: return null (empty result).
+		  NetExpr*loc = make_queue_locator_with_expr_(
+			this, des, scope, sub_expr, target_type,
+			element_type, method_name.str(), parms_);
+		  if (loc) return loc;
 		  delete sub_expr;
-		  NetENull*tmp = new NetENull();
-		  tmp->set_line(*this);
-		  return tmp;
+		  return 0;
 	    }
       if (method_name == "unique"
 		|| method_name == "unique_index") {
@@ -11389,6 +11481,7 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 
 	    if (uarray->static_dimensions().size() > 1
 		&& (is_array_reduction_name_(method_name)
+		    || is_array_locator_name_(method_name)
 		    || method_name == "min" || method_name == "max")) {
 		  cerr << get_fileline() << ": sorry: " << method_name
 		       << "() on multidimensional arrays is not yet "
@@ -11396,6 +11489,31 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		  des->errors += 1;
 		  delete sub_expr;
 		  return 0;
+	    }
+
+	      /* The runtime fixed-array loop uses canonical word indexes.
+	       * Until it carries a separate declared-index iterator, only a
+	       * zero-based one-dimensional range can implement item.index and
+	       * *_index results without lying about the declared index. */
+	    if (is_array_locator_name_(method_name)) {
+		  ivl_variable_type_t base_type = element_type->base_type();
+		  if (base_type != IVL_VT_BOOL && base_type != IVL_VT_LOGIC) {
+			cerr << get_fileline() << ": sorry: " << method_name
+			     << "() on fixed-size arrays of non-integral "
+				"elements is not yet implemented." << endl;
+			des->errors += 1;
+			delete sub_expr;
+			return 0;
+		  }
+		  const netrange_t&dim = uarray->static_dimensions().front();
+		  if (std::min(dim.get_msb(), dim.get_lsb()) != 0) {
+			cerr << get_fileline() << ": sorry: " << method_name
+			     << "() on fixed-size arrays with a nonzero "
+				"declared index base is not yet implemented." << endl;
+			des->errors += 1;
+			delete sub_expr;
+			return 0;
+		  }
 	    }
 
 	    if (is_array_reduction_name_(method_name))
@@ -11411,18 +11529,14 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 						 method_name.str(), parms_,
 						 with_constraints());
 
-	    if ((method_name == "find"
-		 || method_name == "find_index"
-		 || method_name == "find_first"
-		 || method_name == "find_first_index"
-		 || method_name == "find_last"
-		 || method_name == "find_last_index")
-		&& !with_constraints().empty()) {
+	    if (is_array_locator_name_(method_name)) {
 		  NetExpr*loc = make_queue_locator_with_expr_(
 			this, des, scope, sub_expr, target_type,
 			element_type,
 			method_name.str(), parms_);
 		  if (loc) return loc;
+		  delete sub_expr;
+		  return 0;
 	    }
 
 	      // G40: unique()/unique_index() on fixed-size unpacked
@@ -11500,34 +11614,22 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		  return sys_expr;
 	    }
 
-	    if (method_name == "find"
-		|| method_name == "find_index"
-		|| method_name == "find_first"
-		|| method_name == "find_first_index"
-		|| method_name == "find_last"
-		|| method_name == "find_last_index") {
+	    if (is_array_locator_name_(method_name)) {
 		  if (getenv("IVL_FIND_TRACE"))
 			cerr << get_fileline() << ": [find-trace] method="
 			     << method_name << " with_constraints="
 			     << with_constraints().size() << endl;
 		  // Phase 63b/B1 (real impl): synthesize a NetESFunc that
 		  // tgt-vvp lowers to an inline predicate-evaluating loop.
-		  // If with_constraints is empty (rare; LRM allows but most
-		  // code uses one), fall back to null-empty.
-		  if (!with_constraints().empty()) {
-			NetExpr*loc = make_queue_locator_with_expr_(
-			      this, des, scope, sub_expr, target_type,
-			      element_type,
-			      method_name.str(), parms_);
-			if (getenv("IVL_FIND_TRACE"))
-			      cerr << get_fileline() << ": [find-trace] make_locator="
-				   << (void*)loc << endl;
-			if (loc) return loc;
-		  }
+		  NetExpr*loc = make_queue_locator_with_expr_(
+			this, des, scope, sub_expr, target_type,
+			element_type, method_name.str(), parms_);
+		  if (getenv("IVL_FIND_TRACE"))
+			cerr << get_fileline() << ": [find-trace] make_locator="
+			     << (void*)loc << endl;
+		  if (loc) return loc;
 		  delete sub_expr;
-		  NetENull*tmp = new NetENull();
-		  tmp->set_line(*this);
-		  return tmp;
+		  return 0;
 	    }
       if (method_name == "unique"
 		|| method_name == "unique_index") {
@@ -13124,6 +13226,8 @@ ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
 			type = &netvector_t::atom2s32;
 		  else if (name == "pop_back" || name == "pop_front")
 			type = queue->element_type();
+		  else if (is_array_minmax_name_(name))
+			type = array_locator_queue_type_(queue->element_type());
 		  else
 			return nullptr;
 	    } else if (auto uarray = dynamic_cast<const netuarray_t*>(type)) {
@@ -13133,9 +13237,11 @@ ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
 			type = static_array_locator_result_type_(uarray->element_type());
 		  else
 			return nullptr;
-	    } else if (dynamic_cast<const netdarray_t*>(type)) {
+	    } else if (auto darray = dynamic_cast<const netdarray_t*>(type)) {
 		  if (name == "size")
 			type = &netvector_t::atom2s32;
+		  else if (is_array_minmax_name_(name))
+			type = array_locator_queue_type_(darray->element_type());
 		  else
 			return nullptr;
 	    } else if (auto netenum = dynamic_cast<const netenum_t*>(type)) {
@@ -13585,6 +13691,30 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       }
 
       NetNet *net = sr.net;
+
+      /* IEEE 1800-2017 7.12 permits the iterator argument parentheses to be
+       * omitted. In a typed aggregate context, a dynamic-array/queue `a.min'
+       * or `a.max' used to pass the container compatibility check below and
+       * return `a' itself, silently discarding the method suffix. Rebuild the
+       * same call node as the explicit `a.min()' spelling before any
+       * whole-container fallback can run. Fixed arrays retain their existing
+       * direct property lowering. */
+      if (gn_system_verilog() && !sr.path_head.empty()
+	  && sr.path_head.back().index.empty()
+	  && sr.path_tail.size() == 1
+	  && sr.path_tail.front().index.empty()
+	  && is_array_minmax_name_(sr.path_tail.front().name)
+	  && net->unpacked_dimensions() == 0
+	  && dynamic_cast<const netdarray_t*>(net->net_type())) {
+	    std::vector<named_pexpr_t> empty_parms;
+	    PECallFunction*call = path_.package
+		  ? new PECallFunction(path_.package, path_.name, empty_parms)
+		  : new PECallFunction(path_.name, empty_parms);
+	    call->set_line(*this);
+	    NetExpr*res = call->elaborate_expr(des, scope, ntype, flags);
+	    delete call;
+	    return res;
+      }
 
       if (!sr.path_tail.empty()) {
 	    bool indexed_container_member_path =

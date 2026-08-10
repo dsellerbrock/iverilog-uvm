@@ -2127,6 +2127,229 @@ function-local object receivers.
 
 ---
 
+## G70 — queue self-concatenation observed a partially overwritten destination — **verified fixed subset** [general] (silent wrong result)
+
+The clean pinned sv-tests baseline at
+`c4229f3bd5220e6d3ba8f390e5d09c87e462e9c7` exposed three silent queue
+failures: `q = {q, 4}`, `q = {4, q}`, and
+`q = {q[0:1], 10, q[2:$]}` compiled and ran with status zero, but lost most
+of the original queue. A scalar-only permutation, `q = {q[1], q[0]}`, also
+read the first newly written destination element while evaluating the second
+operand. IEEE 1800-2017 7.10.4 explicitly gives `q = {q, value}` as the
+assignment equivalent of `push_back`, and 10.10 defines the concatenated
+result from the operand values. The destination therefore cannot change while
+that right-hand value is being constructed.
+
+The VVP target previously cleared collection-pattern destinations before
+splicing operands, while its scalar-pattern path wrote each element as soon as
+that operand was evaluated. Bounded scalar patterns additionally stopped
+evaluating operands after the destination capacity was reached. Queue patterns
+now use the existing object-context builder to create an unbounded temporary,
+evaluate every operand exactly once before the destination update, append the
+results in source order, and perform one typed `%store/qobj` copy. The final
+copy applies the `[$:N]` bound, retains the leftmost `N+1` elements, warns for
+the discarded tail, uses the existing typed element-copy policy, and sends
+one completed-destination mutation notification. Existing adjacent tests pin
+class-handle identity and aggregate value copying separately; a combined
+side-effecting object-aggregate capture oracle remains residual work below.
+
+`sv_queue_concat_snapshot` checks scalar self-swap, whole and sliced
+self-splices, bounded-prefix retention, evaluation of a discarded tail
+operand, and `wait` wakeup. `sv_queue_concat_type_fail` pins an incompatible
+string-queue operand in an integer-queue concatenation as an exact compile
+error; Slang 11.0.415 accepts the positive source and rejects the negative
+under IEEE 1800-2017. The inherited vec4/real/string/packed-array bounded
+queue golds intentionally move their static-pattern warning to the common
+run-time whole-copy warning because a collection operand can make the result
+size run-time dependent.
+
+This is not full queue-reference closure. A `ref` bound to an element before
+whole assignment is still modeled as `(queue,index)` rather than a detached
+element cell and can follow the replacement element; side-effecting
+object-backed aggregate operands also need a dedicated capture-order oracle.
+A clean pinned replay of all 923 self-contained tracked sv-tests cases moved
+exactly `push_back_assign`, `push_front_assign`, and `insert_assign` from
+`SEMANTIC_FAIL` to `VERIFIED_RUNTIME`: runtime-verified 157→160 and semantic
+failures 17→14, with every other Icarus/Slang classification unchanged.
+`results.json` SHA-256 is
+`88274e0bf22a79075ee943bef4980b6fe99efab7b19d93448769fd8e76075bf4`;
+the provenance summary at workspace-root-relative
+`evidence/sv-tests-c4229f3/core-safe-queue-snapshot-a34dac77c/SUMMARY.md`
+has SHA-256
+`72e71deaf32eae65337eec0c171c9c1f9fc958f08ac125c25cba56365a366696`.
+Serial project gates passed: `make -j1 check/install`, negative 104/104, SVA
+50/50, VPI 94/94, UVM smoke 14/14, full UVM 337/337, legacy ivtest 3,480
+passed / 0 failed (two NI and three expected-fail retained), and JSON/VVP
+327/327. Clean OpenTitan `tl_agent` compile/elaboration remains DEBT at zero
+hard errors / 39 unique warnings, and the four clean Caliptra
+assertion-enabled `-tnull` witnesses remain zero-hard-error compile evidence
+with warning counts 202/202/0/89; neither is a runtime-closure claim.
+
+---
+
+## G71 — `find_last*` returned all matches, so result `[0]` was not the last match — **verified fixed subset** [general] (silent wrong result)
+
+The clean pinned sv-tests baseline at
+`c4229f3bd5220e6d3ba8f390e5d09c87e462e9c7` contained two zero-exit silent
+failures. The dynamic-string-array `find-last` test expected one value but
+received both matches; `find-last-index` expected the singleton index `{2}`
+but received `{0, 2}`. IEEE 1800-2017 7.12/7.12.1 requires `find_last` and
+`find_last_index` to return one element/index closest to the rightmost array
+element, or an empty queue when no predicate match exists. Array-locator
+traversal order is otherwise unspecified, so the fix and tests do not impose
+a predicate call-count or side-effect order that the standard does not give.
+
+The target loop previously treated `find_last*` like `find`/`find_index` and
+appended every predicate match. It now distinguishes stop-on-match from
+replace-the-current-result behavior. Queues and dynamic arrays therefore keep
+only the last positional match; direct zero-minimum one-dimensional integral
+fixed arrays also account for canonical storage versus declared direction, so
+`find_first*` and `find_last*` retain their declared left/right meaning. The
+frontend carries the concrete queue result type through the internal function
+node and its duplication path. Direct assignment compatibility rejects an
+incompatible queue or associative-array destination while preserving the legal
+queue-result-to-fixed-array copy exception.
+
+`sv_array_find_last` checks queue and dynamic-string results, typed empty
+results, a descending fixed range, a locator queue assigned to a fixed array,
+and an extracted OpenTitan-shaped class-property queue whose consumer uses
+`[0]` of the assigned `find_last_index` result to obtain the newest pending
+write. Exact-gold tests pin
+incompatible direct result contexts and require the `with` clause plus an
+optional positional iterator identifier. Legal but unimplemented associative
+locators, nonzero-base/multidimensional/nonintegral fixed arrays, and fixed
+arrays reached through a class property fail loudly instead of returning a
+plausible wrong value.
+
+The clean OpenTitan source graph at
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` has the corresponding consumer in
+`hw/dv/sv/mem_bkdr_scb/mem_bkdr_scb.sv:69-72`: its RAW-hazard scoreboard uses
+element `[0]` of the assigned locator result as the latest write. The old
+behavior could select the oldest matching pending write, which is a DV-oracle
+integrity risk, not evidence of a DUT defect or a demonstrated security
+vulnerability. The relevant integration graph selected for this checkpoint,
+`lowrisc:dv:sram_ctrl_sim:0.1`, remained a failed clean compile gate: its
+generated Icarus command omitted upstream `INSTR_EXEC` and
+`SRAM_WORD_ADDR_WIDTH` definitions (three warnings and three hard errors), so
+no OpenTitan DV runtime executed. Evidence summary SHA-256 is
+`29d2ad19079bb07fdf63359aae39d554ef7771053d1eaeb8bd433bedea701dfa`
+at workspace-root-relative
+`evidence/opentitan-7a3ad34-a179a1010/uvm-sram-ctrl-find-last-index/SUMMARY.md`.
+
+A clean safe-harness replay of all 923 self-contained tracked sv-tests cases
+moved exactly `find-last.sv` and `find-last-index.sv` from `SEMANTIC_FAIL` to
+`VERIFIED_RUNTIME`: runtime-verified 160→162 and semantic failures 14→12, with
+all other 921 Icarus/Slang classifications unchanged. `results.json` SHA-256
+is `dd98928a606ee9013365488efe3aad6931d08f1bcdab2d6c1a8c0baecd98c56c`;
+the provenance summary at workspace-root-relative
+`evidence/sv-tests-c4229f3/core-safe-find-last-20260808/SUMMARY.md` has SHA-256
+`775decea897fa1a8a8627bb7d32be3f47aa0a8d834f8dbf2b3e023b6b633381a`.
+Serial project gates passed: `make -j1 check/install`, negative 104/104, SVA
+50/50, VPI 94/94, UVM smoke 14/14, full UVM 337/337, legacy ivtest 3,486
+passed / 0 failed (two NI and three expected-fail retained), and JSON/VVP
+333/333. Four clean Caliptra assertion-enabled `-tnull` witnesses again exited
+zero with no hard/`sorry`/internal diagnostics and warning counts 202/202/0/89;
+their summary SHA-256 is
+`c78de511bc1b7102726c21940a33135c4a0fee1bd6ddf29285c89292311cd1bf`
+at workspace-root-relative
+`evidence/caliptra-bd316141/assertions-tnull-find-last-clean-20260808/SUMMARY.md`.
+Both corpus replays used the same installed compiler artifacts as the sv-tests
+replay, and no compiler source edit occurred between those runs. The common
+source base/status/diff fingerprints are recorded in the hashed sv-tests
+summary above; the per-corpus summaries independently record unchanged
+installed-component hashes and clean corpus state before and after.
+
+This is not full locator closure. Associative keyed iteration/index typing and
+the broader fixed-array receivers above remain loud. Value-returning locators
+over object-backed/unpacked-struct elements can still alias instead of making
+the required element-value copy, and a nonconstant ternary or similar wrapper
+can still lose the locator's concrete result type. The OpenTitan `_index`
+oracle does not exercise that value-copy residual.
+
+---
+
+## G72 — parentheses-free dynamic-array/queue `min` and `max` returned the receiver — **verified fixed subset** [general] (silent wrong result)
+
+The clean pinned sv-tests sources
+`tests/chapter-7/arrays/associative/locator-methods/min.sv` and `max.sv`
+(despite that directory name, both use dynamic arrays) exposed two zero-exit
+silent failures. Their legal `result = values.min` and `result = values.max`
+expressions produced the complete receiver rather than the one-element locator
+result. IEEE 1800-2017 7.12 Syntax 7-5 makes the iterator-argument parentheses
+optional, and 7.12.1 includes the corresponding parentheses-free `IA.min`
+form. Pinned Slang accepted both sources; the Icarus runtime values were wrong.
+This also corrects an earlier coverage assumption: parentheses-free reduction
+tests did not exercise queue-valued parentheses-free `min`/`max` in a typed
+aggregate context.
+
+The typed `PEIdent` path previously resolved the receiver as a compatible
+dynamic container and returned `NetESignal(values)` before consuming the
+terminal method suffix. It now recognizes only an unindexed terminal
+`min`/`max` on a direct queue or dynamic-array signal before that fallback,
+then uses the existing explicit-call lowering. Width/type resolution and the
+internal `NetESFunc` carry the concrete unbounded queue element type, and the
+direct assignment checker rejects incompatible or associative contexts rather
+than accepting every queue-shaped result. The unindexed-receiver guard is
+essential: `array[0].min` and `array[0].max` remain ordinary element-member
+accesses when those fields exist.
+
+`sv_array_minmax_parenless` checks signed and unsigned integral dynamic arrays,
+unbounded and bounded queues, empty results, explicit-call parity, compatible
+queue/dynamic/fixed destinations, source immutability, and aggregate element
+fields literally named `min`/`max`. `sv_array_minmax_type_fail` exact-golds
+wrong queue/fixed element types and an associative destination.
+`sv_array_minmax_residual_fail` exact-golds the current loud handling of legal
+real/string dynamic-array and associative-array receivers; Slang accepts those
+residual sources under IEEE 1800-2017. These tests establish only the direct
+integral parentheses-free subset, not general array-locator closure.
+
+A clean safe-harness replay of all 923 self-contained tracked sv-tests cases
+completed all 1,846 serial Icarus/Slang jobs. Exactly `min.sv` and `max.sv`
+moved from `SEMANTIC_FAIL` to `VERIFIED_RUNTIME`: runtime-verified 162→164 and
+semantic failures 12→10, with every other Icarus, Slang, and differential class
+unchanged. `results.json` SHA-256 is
+`01d81039e88e9176eb0f87c285da55bb90f08cdba7d7062bafea9420c50300fe`;
+the provenance summary at workspace-root-relative
+`evidence/sv-tests-c4229f3/core-safe-minmax-20260808/SUMMARY.md` has SHA-256
+`66db6efe7827166ea652f6fcb80a18d87c76c1b60e1a51b4f480e0f80fb493b0`.
+Focused legacy and JSON tests passed 4/4 and 3/3. Serial project gates passed:
+`make -j1 check/install`, negative 104/104, SVA NFA 50/50, VPI 94/94, real-DPI
+UVM smoke 14/14, full UVM 337/337, SystemVerilog legacy ivtest 1,334/1,334,
+and JSON/VVP 336/336. Both UVM lanes had zero skips.
+
+OpenTitan has adjacent parenthesized min/max uses in the clean
+`entropy_src` DV graph, but not the parentheses-free spelling fixed here. The
+selected clean `lowrisc:dv:entropy_src_sim:0.1` non-regression attempt therefore
+could not establish an exact corpus witness, and it also failed before those
+consumers elaborated: setup returned 0, Icarus returned 236, and the matrix
+classified 202 hard errors plus 126 debt diagnostics after required
+`RNG_BUS_WIDTH`, `RNG_BUS_BIT_SEL_WIDTH`, and `DISTR_FIFO_DEPTH` target
+macros were absent. No VVP image or UVM runtime exists. The failed-gate summary
+SHA-256 is
+`03db260db07a8e205664f3b85af073160323777f0eb50677d187edc7100c3b74`
+at workspace-root-relative
+`evidence/opentitan-7a3ad34-a179a1010/uvm-entropy-src-minmax/SUMMARY.md`.
+This is a target/configuration blocker for that invocation, not an integration
+pass and not evidence of a DUT or security defect.
+
+Four clean Caliptra assertion-enabled `-tnull` witnesses remained exit-zero
+compile/elaboration non-regressions with zero error, `sorry`, internal-error,
+or crash diagnostics. Warning counts remain 202/202/0/89; only `abr_sha3` is
+diagnostic-clean. Their summary SHA-256 is
+`e528d9fbbafe1c6e68e41ad71d28bcd274c8f4645ab44e799d6320eaa2481b13`
+at workspace-root-relative
+`evidence/caliptra-bd316141/assertions-tnull-minmax-clean-20260809/SUMMARY.md`.
+This is compile/elaboration evidence only; Caliptra has no exact source witness
+for this parentheses-free min/max bug.
+
+Remaining work includes fixed-array nominal queue-result typing, validation of
+iterator arguments and `with` variants, class/property/nested/indexed
+receivers, call-result and wrapper contexts (including nonconstant ternaries),
+and real/string/associative comparison and keyed-iteration semantics. Those
+forms are open or exact-gold loud; none is claimed implemented by G72.
+
+---
+
 ## Two measurement traps worth remembering
 
 **The error count is not a progress metric while the parser can still give

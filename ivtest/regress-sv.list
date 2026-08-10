@@ -567,6 +567,15 @@ sv_array_cassign_fail8	CE,-g2005-sv		ivltests
 sv_array_cassign_fail9	CE,-g2005-sv		ivltests
 sv_array_cassign_fail10	CE,-g2005-sv		ivltests
 sv_array_cassign_fail11	CE,-g2005-sv		ivltests
+sv_array_find_last	normal,-g2012		ivltests gold=sv_array_find_last.gold
+sv_array_find_last_assoc_fail CE,-g2012		ivltests gold=sv_array_find_last_assoc_fail.gold
+sv_array_find_last_fixed_base_fail CE,-g2012	ivltests gold=sv_array_find_last_fixed_base_fail.gold
+sv_array_find_last_fixed_shape_fail CE,-g2012	ivltests gold=sv_array_find_last_fixed_shape_fail.gold
+sv_array_find_last_type_fail CE,-g2012		ivltests gold=sv_array_find_last_type_fail.gold
+sv_array_find_last_with_fail CE,-g2012		ivltests gold=sv_array_find_last_with_fail.gold
+sv_array_minmax_parenless normal,-g2012		ivltests gold=sv_array_minmax_parenless.gold
+sv_array_minmax_residual_fail CE,-g2012		ivltests gold=sv_array_minmax_residual_fail.gold
+sv_array_minmax_type_fail CE,-g2012		ivltests gold=sv_array_minmax_type_fail.gold
 sv_array_query		normal,-g2005-sv	ivltests
 sv_cast_integer		normal,-g2005-sv	ivltests
 sv_cast_integer2		normal,-g2005-sv	ivltests
@@ -795,6 +804,8 @@ sv_queue2		normal,-g2009		ivltests
 sv_queue3		normal,-g2009		ivltests
 sv_queue_assign1	normal,-g2009		ivltests
 sv_queue_assign2	normal,-g2009		ivltests
+sv_queue_concat_snapshot normal,-g2012,-pfileline=1 ivltests gold=sv_queue_concat_snapshot.gold
+sv_queue_concat_type_fail CE,-g2012		ivltests gold=sv_queue_concat_type_fail.gold
 sv_queue_assign_fail1	CE,-g2009		ivltests
 sv_queue_assign_fail2	CE,-g2009		ivltests
 sv_queue_assign_fail3	CE,-g2009		ivltests

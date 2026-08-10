@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_queue_concat_snapshot.v",
+    "iverilog-args" : [ "-g2012", "-pfileline=1" ],
+    "gold"          : "sv_queue_concat_snapshot"
+}

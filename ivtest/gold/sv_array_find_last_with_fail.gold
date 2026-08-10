@@ -1,0 +1,4 @@
+./ivltests/sv_array_find_last_with_fail.v:16: error: find_last_index() takes at most one iterator identifier.
+./ivltests/sv_array_find_last_with_fail.v:24: error: find_last_index() takes at most one iterator identifier.
+./ivltests/sv_array_find_last_with_fail.v:8: error: find_last() requires a with clause.
+Elaboration failed
