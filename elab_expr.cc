@@ -11229,7 +11229,14 @@ NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 	    return elaborate_sfunc_(des, scope, expr_wid, flags);
 
       NetExpr *result = elaborate_expr_(des, scope, flags);
-      if (!result || !type_is_vectorable(expr_type_))
+      /* A function returning a fixed unpacked array is an aggregate value,
+       * even when its element type is vectorable.  Padding the call to the
+       * element width wraps the NetEUFunc in a scalar expression and drops
+       * the netuarray_t carried by the return signal.  An immediately
+       * chained array method (f().unique(), for example) must see that exact
+       * aggregate type, so leave unpacked-array results self-determined. */
+      if (!result || !type_is_vectorable(expr_type_)
+	  || dynamic_cast<const netuarray_t*>(result->net_type()))
 	    return result;
 
       return pad_to_width(result, expr_wid, signed_flag_, *this);
