@@ -11392,22 +11392,13 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		  const netclass_t*ctype =
 			dynamic_cast<const netclass_t*>(obj_expr->net_type());
 		  int pid = ctype ? ctype->property_idx_from_name(fname) : -1;
+		  NetExpr*leaf_expr = nullptr;
+		  uint64_t leaf_count = 0;
+		  bool field_diagnostic = false;
 		  if (ctype && pid < 0 && path_.name.size() >= 3) {
 			cerr << get_fileline() << ": error: Class `"
 			     << ctype->get_name() << "' has no property `"
 			     << fname << "' for rand_mode()." << endl;
-			des->errors += 1;
-			delete obj_expr;
-			NetEConst*zero = new NetEConst(verinum((uint64_t)0, 1));
-			zero->set_line(*this);
-			return zero;
-		  }
-		  if (ctype && pid >= 0 && !field_comp.index.empty()) {
-			cerr << get_fileline() << ": sorry: rand_mode() on indexed "
-			     << "class property `" << fname << "' is not yet "
-			     << "supported; element-specific random modes require "
-			     << "per-element runtime state."
-			     << endl;
 			des->errors += 1;
 			delete obj_expr;
 			NetEConst*zero = new NetEConst(verinum((uint64_t)0, 1));
@@ -11433,8 +11424,73 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 				    zero->set_line(*this);
 				    return zero;
 			      }
-			} else if (dynamic_cast<const netuarray_t*>(prop_type)
-				   || dynamic_cast<const netdarray_t*>(prop_type)) {
+			} else if (!field_comp.index.empty()) {
+			      if (const netuarray_t*array_type =
+				    dynamic_cast<const netuarray_t*>(prop_type)) {
+				    const netranges_t&dims =
+					  array_type->static_dimensions();
+				    size_t used = field_comp.index.size();
+				    if (used > dims.size()) {
+					  if (dynamic_cast<const netvector_t*>(
+						array_type->element_type()))
+						used = dims.size();
+					  else {
+						cerr << get_fileline() << ": error: Got "
+						     << field_comp.index.size()
+						     << " indices, expecting at most "
+						     << dims.size() << " to select rand "
+						     << "array property `" << fname << "'."
+						     << endl;
+						des->errors += 1;
+						delete obj_expr;
+						obj_expr = nullptr;
+						field_diagnostic = true;
+					  }
+				    }
+				    std::list<index_component_t> word_indices;
+				    auto wi = field_comp.index.begin();
+				    for (size_t dim = 0 ; obj_expr && dim < used;
+					 dim += 1, ++wi) {
+					  if (wi->sel != index_component_t::SEL_BIT) {
+						cerr << get_fileline() << ": sorry: rand_mode() "
+						     << "on an unpacked-array slice is not "
+						     << "supported yet." << endl;
+					des->errors += 1;
+					delete obj_expr;
+					obj_expr = nullptr;
+					field_diagnostic = true;
+					break;
+					  }
+					  word_indices.push_back(*wi);
+				    }
+				    if (obj_expr) {
+					  leaf_expr = make_canonical_index(des, scope, this,
+						word_indices, array_type, false);
+					  if (!leaf_expr) {
+						cerr << get_fileline() << ": error: Invalid index "
+						     << "for rand array property `" << fname
+						     << "'." << endl;
+						des->errors += 1;
+						delete obj_expr;
+						obj_expr = nullptr;
+						field_diagnostic = true;
+					  } else {
+						leaf_count = 1;
+						for (size_t dim = used ; dim < dims.size();
+						     dim += 1)
+						      leaf_count *= dims[dim].width();
+					  }
+				    }
+			      } else if (!dynamic_cast<const netvector_t*>(prop_type)) {
+				    cerr << get_fileline() << ": sorry: rand_mode() on "
+					 << "an indexed dynamic or associative array "
+					 << "property is not supported yet." << endl;
+				    des->errors += 1;
+				    delete obj_expr;
+				    obj_expr = nullptr;
+				    field_diagnostic = true;
+			      }
+			} else if (dynamic_cast<const netdarray_t*>(prop_type)) {
 			      cerr << get_fileline() << ": sorry: rand_mode() query "
 				   << "on whole unpacked-array property `" << fname
 				   << "' is not yet supported; aggregate query state "
@@ -11447,16 +11503,28 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 			      return zero;
 			}
 		  }
+		  if (pid >= 0 && field_diagnostic) {
+			NetEConst*zero = new NetEConst(verinum((uint64_t)0, 1));
+			zero->set_line(*this);
+			return zero;
+		  }
 		  if (pid >= 0 && obj_expr) {
 			NetEConst*pe = new NetEConst(
 			      verinum((uint64_t)pid, 32));
 			pe->set_line(*this);
 			NetESFunc*tmp = new NetESFunc(
 			      "$ivl_class_method$rand_mode_get",
-			      IVL_VT_BOOL, 1, 2);
+			      IVL_VT_BOOL, 1, leaf_expr ? 4 : 2);
 			tmp->set_line(*this);
 			tmp->parm(0, obj_expr);
 			tmp->parm(1, pe);
+			if (leaf_expr) {
+			      tmp->parm(2, leaf_expr);
+			      NetExpr*count_expr = new NetEConst(
+				    verinum(leaf_count, 64));
+			      count_expr->set_line(*this);
+			      tmp->parm(3, count_expr);
+			}
 			return tmp;
 		  }
 		  delete obj_expr;

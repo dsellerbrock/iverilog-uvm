@@ -1395,9 +1395,37 @@ bool class_type::static_rand_mode(size_t idx) const
 {
       if (!property_is_static(idx))
 	    return true;
+      uint64_t count = property_array_size(idx);
+      if (count < 1) count = 1;
+      for (uint64_t leaf = 0 ; leaf < count ; leaf += 1)
+	    if (!static_rand_mode(idx, (size_t)leaf)) return false;
+      return true;
+}
+
+bool class_type::static_rand_mode(size_t idx, size_t leaf) const
+{
+      if (!property_is_static(idx))
+	    return true;
       (void)static_property_storage_(idx);
       static_property_cell_t*cell = static_property_cell_(idx);
-      return cell->rand_mode;
+      uint64_t count = property_array_size(idx);
+      if (count < 1) count = 1;
+      if (leaf >= count) return false;
+      std::map<size_t, bool>::const_iterator it =
+	    cell->rand_mode_leaves.find(leaf);
+      return it == cell->rand_mode_leaves.end() ? cell->rand_mode
+	                                           : it->second;
+}
+
+bool class_type::static_rand_mode_any(size_t idx) const
+{
+      if (!property_is_static(idx))
+	    return true;
+      uint64_t count = property_array_size(idx);
+      if (count < 1) count = 1;
+      for (uint64_t leaf = 0 ; leaf < count ; leaf += 1)
+	    if (static_rand_mode(idx, (size_t)leaf)) return true;
+      return false;
 }
 
 void class_type::set_static_rand_mode(size_t idx, bool mode) const
@@ -1407,6 +1435,23 @@ void class_type::set_static_rand_mode(size_t idx, bool mode) const
       (void)static_property_storage_(idx);
       static_property_cell_t*cell = static_property_cell_(idx);
       cell->rand_mode = mode;
+      cell->rand_mode_leaves.clear();
+}
+
+void class_type::set_static_rand_mode(size_t idx, size_t leaf,
+				       bool mode) const
+{
+      if (!property_is_static(idx))
+	    return;
+      (void)static_property_storage_(idx);
+      static_property_cell_t*cell = static_property_cell_(idx);
+      uint64_t count = property_array_size(idx);
+      if (count < 1) count = 1;
+      if (leaf >= count) return;
+      if (mode == cell->rand_mode)
+	    cell->rand_mode_leaves.erase(leaf);
+      else
+	    cell->rand_mode_leaves[leaf] = mode;
 }
 
 std::vector<bool>&class_type::static_randc_history(size_t idx,

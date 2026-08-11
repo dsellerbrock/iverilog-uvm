@@ -2239,7 +2239,19 @@ static bool rand_active_(const class_type* defn, vvp_cobject* cobj,
 {
       if (sel) return pid < sel->size() ? (*sel)[pid] : false;
       if (!defn->property_is_rand(pid)) return false;
-      return cobj ? cobj->rand_mode(pid) : true;
+      return cobj ? cobj->rand_mode_any(pid) : true;
+}
+
+static bool rand_elem_active_(const class_type* defn, vvp_cobject* cobj,
+			      const std::vector<bool>* sel, unsigned pid,
+			      unsigned elem)
+{
+      if (sel) return pid < sel->size() ? (*sel)[pid] : false;
+      if (!defn->property_is_rand(pid)) return false;
+      if (!cobj) return true;
+      if (defn->property_array_size(pid) <= 1)
+	    return cobj->rand_mode(pid);
+      return cobj->rand_mode(pid, elem);
 }
 
 /* ---------------------------------------------------------------
@@ -2654,7 +2666,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_solver_assert(ctx, base, eq);
       }
       for (auto& ev : builder.elem_vars) {
-	    if (rand_active_(defn, cobj, prop_active, ev.idx)) continue;
+	    if (rand_elem_active_(defn, cobj, prop_active, ev.idx, ev.elem))
+		  continue;
 	    Z3_sort sort = Z3_mk_bv_sort(ctx, ev.width);
 	    Z3_ast cv = Z3_mk_unsigned_int64(ctx,
 		  cobj_elem_bits(cobj, ev.idx, ev.elem), sort);
@@ -2831,6 +2844,11 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  if (rand_active_(defn, cobj, prop_active, pv.idx)
 		      && defn->property_is_randc(pv.idx))
 			precheck = Z3_L_FALSE;
+	    for (auto& ev : builder.elem_vars)
+		  if (rand_elem_active_(defn, cobj, prop_active,
+					 ev.idx, ev.elem)
+		      && defn->property_is_randc(ev.idx))
+			precheck = Z3_L_FALSE;
 
 	    if (precheck == Z3_L_TRUE && builder.dist_specs.empty()) {
 		  // The candidate check included every active explicit `soft`
@@ -2916,7 +2934,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			for (const auto&ranked : rank) {
 			      if (ranked.second != r) continue;
 			      const Z3Builder::OrderRef&ref = ranked.first;
-			      if (!rand_active_(defn, cobj, prop_active, ref.idx))
+			      if (ref.is_elem
+				  ? !rand_elem_active_(defn, cobj, prop_active,
+						       ref.idx, ref.elem)
+				  : !rand_active_(defn, cobj, prop_active, ref.idx))
 				    continue;
 			      Z3_ast var = nullptr;
 			      unsigned width = 0;
@@ -2957,7 +2978,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			for (const auto&ranked : rank) {
 			      if (ranked.second != r) continue;
 			      const Z3Builder::OrderRef&ref = ranked.first;
-			      if (!rand_active_(defn, cobj, prop_active, ref.idx))
+			      if (ref.is_elem
+				  ? !rand_elem_active_(defn, cobj, prop_active,
+						       ref.idx, ref.elem)
+				  : !rand_active_(defn, cobj, prop_active, ref.idx))
 				    continue;
 			      Z3_ast var = nullptr;
 			      if (ref.is_elem) {
@@ -3137,8 +3161,66 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  (uint64_t)(rng.next() & 0xF), sort);
 	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, sv.var, rv));
       }
+
+      bool single_elem_fast_ok = builder.elem_vars.size() == 1
+	    && builder.prop_vars.empty() && builder.size_vars.empty();
       for (auto& ev : builder.elem_vars) {
-	    if (!rand_active_(defn, cobj, prop_active, ev.idx)) continue;
+	    if (!rand_elem_active_(defn, cobj, prop_active, ev.idx, ev.elem))
+		  continue;
+
+	    bool fixed_randc = defn->property_is_randc(ev.idx)
+		  && defn->property_array_size(ev.idx) > 1;
+	    if (fixed_randc) {
+		  vector<uint64_t> feasible;
+		  bool enumerated = false;
+		  if (single_elem_fast_ok)
+			enumerated = z3_enumerate_domain_single_var_fast_(
+			      ctx, base, ev.var, ev.width, feasible);
+		  if (!enumerated)
+			enumerated = z3_enumerate_domain(ctx, base, ev.var,
+					 ev.width, feasible);
+		  if (!enumerated)
+			enumerated = z3_enumerate_sparse_wide_domain_(
+			      ctx, base, ev.var, ev.width, feasible);
+
+		  if (enumerated) {
+			uint64_t chosen;
+			uint64_t prefill = cobj_elem_bits(cobj, ev.idx, ev.elem);
+			vector<uint64_t> available;
+			for (uint64_t candidate : feasible)
+			      if (!cobj->randc_seen(ev.idx, candidate, ev.elem))
+				    available.push_back(candidate);
+			const vector<uint64_t>&pool = available.empty()
+			      ? feasible : available;
+			chosen = pool[rng.uniform_index(pool.size())];
+			if (chosen != prefill)
+			      cobj->randc_unmark(ev.idx, prefill, ev.elem);
+			cobj->randc_mark_feasible(ev.idx, chosen, feasible,
+						  ev.elem);
+			Z3_sort sort = Z3_mk_bv_sort(ctx, ev.width);
+			Z3_ast cv = Z3_mk_unsigned_int64(ctx, chosen, sort);
+			Z3_ast eq = Z3_mk_eq(ctx, ev.var, cv);
+			Z3_optimize_assert(ctx, opt, eq);
+			Z3_solver_assert(ctx, base, eq);
+			continue;
+		  }
+
+		  // An empty feasible set means the overall call is UNSAT, not
+		  // that this randc domain exceeded the exact-enumeration bound.
+		  // The normal solver failure below reports that result without a
+		  // misleading cycle-completeness warning.
+		  if (Z3_solver_check(ctx, base) == Z3_L_TRUE) {
+			static bool warned_randc_array_wide = false;
+			if (!warned_randc_array_wide) {
+			      fprintf(stderr, "Warning: constrained randc fixed-array "
+				    "element domain could not be enumerated exactly "
+				    "(width %u); cycle-completeness is not guaranteed "
+				    "for it (further similar warnings suppressed).\n",
+				    ev.width);
+			      warned_randc_array_wide = true;
+			}
+		  }
+	    }
 	    uint64_t rand_bits = 0;
 	    for (unsigned b = 0; b < ev.width && b < 64; ++b)
 		  if (rng.next() & 1) rand_bits |= (1ULL << b);
@@ -3242,7 +3324,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 
 	// Apply solved array-element values.
       for (auto& ev : builder.elem_vars) {
-	    if (!rand_active_(defn, cobj, prop_active, ev.idx)) continue;
+	    if (!rand_elem_active_(defn, cobj, prop_active, ev.idx, ev.elem))
+		  continue;
 	    uint64_t bits = 0;
 	    bool ev_ok = z3_eval_uint64(ctx, model, ev.var, bits);
 	    if (ev_ok)

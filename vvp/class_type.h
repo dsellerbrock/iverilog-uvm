@@ -92,7 +92,10 @@ class class_type : public __vpiHandle {
 	// the declaring class's state. Parameter specializations are distinct
 	// class_type objects and therefore remain isolated.
       bool static_rand_mode(size_t idx) const;
+      bool static_rand_mode(size_t idx, size_t leaf) const;
+      bool static_rand_mode_any(size_t idx) const;
       void set_static_rand_mode(size_t idx, bool mode) const;
+      void set_static_rand_mode(size_t idx, size_t leaf, bool mode) const;
 
 	// Return the committed randc history for one scalar/aggregate leaf of
 	// a static property. The history lives in the same canonical cell as
@@ -165,6 +168,7 @@ class class_type : public __vpiHandle {
 	    vpiHandle storage;
 	    std::string storage_label;
 	    bool rand_mode;
+	    std::map<size_t, bool> rand_mode_leaves;
 	    std::map<size_t, std::vector<bool> > randc_history;
       };
       std::vector<static_property_cell_t*> static_properties_;

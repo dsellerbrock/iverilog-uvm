@@ -1,0 +1,6 @@
+sv_randc_fixed_array_modes normal,-g2012 ivltests gold=sv_randc_fixed_array_modes.gold
+sv_rand_array_mode_object_struct normal,-g2012 ivltests gold=sv_rand_array_mode_object_struct.gold
+sv_rand_mode_fixed_indexing normal,-g2012 ivltests gold=sv_rand_mode_fixed_indexing.gold
+sv_rand_mode_packed_select normal,-g2012 ivltests gold=sv_rand_mode_packed_select.gold
+sv_rand_mode_invalid_field_fail CE,-g2012 ivltests gold=sv_rand_mode_invalid_field_fail.gold
+sv_rand_mode_dynamic_index_fail CE,-g2012 ivltests gold=sv_rand_mode_dynamic_index_fail.gold

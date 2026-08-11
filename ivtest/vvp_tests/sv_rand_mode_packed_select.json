@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_rand_mode_packed_select.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_rand_mode_packed_select"
+}

@@ -1,0 +1,7 @@
+ivltests/sv_rand_mode_dynamic_index_fail.v:23: sorry: rand_mode() on an indexed dynamic or associative array property is not supported yet.
+ivltests/sv_rand_mode_dynamic_index_fail.v:24: sorry: rand_mode() on an indexed dynamic or associative array property is not supported yet.
+ivltests/sv_rand_mode_dynamic_index_fail.v:25: sorry: rand_mode() on an indexed dynamic or associative array property is not supported yet.
+ivltests/sv_rand_mode_dynamic_index_fail.v:26: sorry: rand_mode() on an indexed dynamic or associative array property is not supported yet.
+ivltests/sv_rand_mode_dynamic_index_fail.v:27: sorry: rand_mode() on an indexed dynamic or associative array property is not supported yet.
+ivltests/sv_rand_mode_dynamic_index_fail.v:28: sorry: rand_mode() on an indexed dynamic or associative array property is not supported yet.
+6 error(s) during elaboration.
