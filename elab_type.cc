@@ -196,7 +196,7 @@ static ivl_type_t resolve_circular_class_handle_type_(Design*des,
 		  if (const netclass_t*base_class =
 			      dynamic_cast<const netclass_t*>(alias_class))
 			return const_cast<netclass_t*>(
-			      elaborate_specialized_class_type(des, type_scope, base_class,
+			      elaborate_specialized_class_type(des, scope, base_class,
 						       overrides, false));
 	    }
 	    return alias_class;
@@ -208,7 +208,7 @@ static ivl_type_t resolve_circular_class_handle_type_(Design*des,
 
       if (const parmvalue_t*overrides = type_ref->parameter_values())
 	    return const_cast<netclass_t*>(
-		  elaborate_specialized_class_type(des, type_scope, base_class, overrides,
+		  elaborate_specialized_class_type(des, scope, base_class, overrides,
 						   false));
 
       return base_class;
@@ -449,6 +449,15 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
       return iface_type;
 }
 
+}
+
+ivl_type_t resolve_class_type_reference(Design*des, NetScope*scope,
+					 const data_type_t*type)
+{
+      ivl_type_t resolved = resolve_circular_class_handle_type_(
+	    des, scope, type);
+      return specialize_bare_class_at_concrete_use(
+	    des, scope, type, resolved, false);
 }
 
 netclass_t* builtin_class_type(perm_string name)

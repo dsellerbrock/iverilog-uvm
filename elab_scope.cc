@@ -1446,8 +1446,11 @@ static void append_cache_expr_key_(Design*des, NetScope*call_scope,
 
       if (const PETypename*type_expr = dynamic_cast<const PETypename*>(expr)) {
 	    if (lookup_scope) {
-		  ivl_type_t resolved_type =
-			const_cast<data_type_t*>(type_expr->get_type())->elaborate_type(des, lookup_scope);
+		  ivl_type_t resolved_type = resolve_class_type_reference(
+			des, lookup_scope, type_expr->get_type());
+		  if (!resolved_type)
+			resolved_type = const_cast<data_type_t*>(
+			      type_expr->get_type())->elaborate_type(des, lookup_scope);
 		  if (resolved_type) {
 			append_cache_ivl_type_key_(des, out, resolved_type);
 			close_forward();

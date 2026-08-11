@@ -131,6 +131,9 @@ extern const netclass_t* elaborate_specialized_class_type(Design*des,
 extern netclass_t* ensure_visible_class_type(Design*des,
                                              NetScope*scope,
                                              perm_string name);
+extern ivl_type_t resolve_class_type_reference(Design*des,
+                                              NetScope*scope,
+                                              const data_type_t*type);
 
 /* Ignore errors about missing modules */
 extern bool ignore_missing_modules;

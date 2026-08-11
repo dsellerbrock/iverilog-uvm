@@ -137,6 +137,14 @@ static string randomize_sel_(const PECallFunction*call,
       return randomize_arg_selector(call->get_parms(), class_type, call);
 }
 
+static perm_string randomize_receiver_root_(const pform_name_t&path)
+{
+      if (path.size() != 1 || !path.front().index.empty()
+	  || path.front().local_scope)
+	    return perm_string();
+      return path.front().name;
+}
+
 /* Build a NetESFunc for randomize() with inline with-constraints.
  * The mangled function name encodes the N_vals count, the 18.11
  * argument selector and the IR string so tgt-vvp can emit the correct
@@ -149,8 +157,9 @@ NetESFunc* make_randomize_with_expr(
       NetExpr*obj_expr,
       const netclass_t*class_type,
       Design*des, NetScope*scope,
-      perm_string std_object_root = perm_string(),
-      bool scope_form = false)
+      perm_string object_root = perm_string(),
+      bool scope_form = false,
+      bool force_all_properties = false)
 {
       string combined_ir;
       vector<const PExpr*> value_slots;
@@ -158,11 +167,11 @@ NetESFunc* make_randomize_with_expr(
       for (const PExpr*wc : with_constraints) {
 	    if (!wc) continue;
 	    unsigned errors_before = des->errors;
-    string ir = std_object_root.nil()
+	    string ir = object_root.nil()
 		  ? pexpr_to_class_constraint_ir(
 			wc, class_type, &value_slots, des, scope)
 		  : pexpr_to_rooted_class_constraint_ir(
-			wc, class_type, std_object_root,
+			wc, class_type, object_root,
 			&value_slots, des, scope);
 	    if (ir.empty()) {
 		    // A top-level `with' constraint item this pass could not
@@ -193,9 +202,9 @@ NetESFunc* make_randomize_with_expr(
 		     ? "$ivl_class_method$scope_randomize_with|"
 		     : "$ivl_class_method$randomize_with|")
 		     + to_string(n_vals) + "|"
-		     + (std_object_root.nil()
-			? randomize_arg_selector(parms, class_type, call)
-			: string("*")) + "|"
+		     + (force_all_properties
+			? string("*")
+			: randomize_arg_selector(parms, class_type, call)) + "|"
 		     + combined_ir;
 
       NetESFunc*rand_expr = new NetESFunc(mangled.c_str(),
@@ -249,7 +258,7 @@ NetESFunc* make_std_randomize_with_expr(
 			return make_randomize_with_expr(
 			      loc, all_properties, with_constraints, obj,
 			      class_type, des, scope,
-			      id->path().back().name);
+			      id->path().back().name, false, true);
 		  }
 		  delete obj;
 	    }
@@ -11775,7 +11784,9 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 							make_randomize_with_expr(
 							      this, get_parms(),
 							      with_constraints(), obj_expr,
-							      class_type, des, scope);
+							      class_type, des, scope,
+							      randomize_receiver_root_(
+								    search_results.path_head));
 						  rand_expr->set_line(*this);
 						  return rand_expr;
 					    }
@@ -13126,7 +13137,8 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 					    make_randomize_with_expr(
 						  this, get_parms(),
 						  with_constraints(), sub_expr,
-						  class_type, des, scope);
+						  class_type, des, scope,
+						  randomize_receiver_root_(use_path));
 				      rand_expr->set_line(*this);
 				      return rand_expr;
 				}
