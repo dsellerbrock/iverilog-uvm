@@ -4930,16 +4930,33 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
       /* $ivl_class_method$rand_mode(object, en [, pid])
        * 2 args: set rand_mode for ALL rand properties (obj.rand_mode(en)).
        * 3 args: set rand_mode for the single property `pid` only
-       *         (obj.field.rand_mode(en)) — M3-rm. */
+	       *         (obj.field.rand_mode(en)) — M3-rm.
+	       * 5 args: additionally carry canonical first leaf and leaf count for
+	       *         an unpacked-array element/subarray. */
       if (strcmp(stmt_name, "$ivl_class_method$rand_mode") == 0) {
 	    ivl_expr_t obj_arg  = ivl_stmt_parm(net, 0);
 	    ivl_expr_t mode_arg = ivl_stmt_parm(net, 1);
 	    ivl_expr_t pid_arg  = (ivl_stmt_parm_count(net) >= 3)
 		  ? ivl_stmt_parm(net, 2) : 0;
+	    ivl_expr_t leaf_arg = (ivl_stmt_parm_count(net) >= 5)
+		  ? ivl_stmt_parm(net, 3) : 0;
+	    ivl_expr_t count_arg = (ivl_stmt_parm_count(net) >= 5)
+		  ? ivl_stmt_parm(net, 4) : 0;
 	    if (mode_arg) draw_eval_vec4(mode_arg);
 	    else fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
 	    if (obj_arg) draw_eval_object(obj_arg);
-	    if (pid_arg && number_is_immediate(pid_arg, 32, 0)
+	    if (pid_arg && leaf_arg && count_arg
+		&& number_is_immediate(pid_arg, 32, 0)
+		&& !number_is_unknown(pid_arg)) {
+		  int leaf_word = allocate_word();
+		  int count_word = allocate_word();
+		  draw_expr_into_idx(leaf_arg, leaf_word);
+		  draw_expr_into_idx(count_arg, count_word);
+		  fprintf(vvp_out, "    %%rand_mode/p/i %ld, %d, %d;\n",
+			  get_number_immediate(pid_arg), leaf_word, count_word);
+		  clr_word(count_word);
+		  clr_word(leaf_word);
+	    } else if (pid_arg && number_is_immediate(pid_arg, 32, 0)
 		&& !number_is_unknown(pid_arg)) {
 		  fprintf(vvp_out, "    %%rand_mode/p %ld;\n",
 			  get_number_immediate(pid_arg));

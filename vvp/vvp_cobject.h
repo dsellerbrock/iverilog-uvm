@@ -31,6 +31,19 @@ class vvp_vector4_t;
 class vvp_cobject : public vvp_object {
 
     public:
+      struct randc_key_t {
+	    size_t pid;
+	    size_t leaf;
+
+	    randc_key_t(size_t pid_arg = 0, size_t leaf_arg = 0)
+	    : pid(pid_arg), leaf(leaf_arg) { }
+
+	    bool operator<(const randc_key_t&that) const
+	    {
+		  return pid < that.pid || (pid == that.pid && leaf < that.leaf);
+	    }
+      };
+
       explicit vvp_cobject(const class_type*defn);
       ~vvp_cobject() override;
 
@@ -59,7 +72,10 @@ class vvp_cobject : public vvp_object {
       const class_type* get_defn() const { return defn_; }
 
       bool rand_mode(size_t pid) const;
+      bool rand_mode(size_t pid, size_t leaf) const;
+      bool rand_mode_any(size_t pid) const;
       void set_rand_mode(size_t pid, bool mode);
+      void set_rand_mode(size_t pid, size_t leaf, bool mode);
       void set_all_rand_mode(bool mode);
 
       bool constraint_mode(size_t cid) const;
@@ -76,9 +92,9 @@ class vvp_cobject : public vvp_object {
       bool randc_transaction_commit();
       void randc_transaction_rollback();
 
-      bool randc_seen(size_t pid, uint64_t val) const;
-      void randc_mark(size_t pid, uint64_t val);
-      uint64_t randc_period(size_t pid) const;
+      bool randc_seen(size_t pid, uint64_t val, size_t leaf = 0) const;
+      void randc_mark(size_t pid, uint64_t val, size_t leaf = 0);
+      uint64_t randc_period(size_t pid, size_t leaf = 0) const;
 
       // RANDOM-DIST fix #4 (18.4.2): cyclic tracking scoped to an explicit
       // feasible-value set, for a `randc` property that also carries an
@@ -92,8 +108,9 @@ class vvp_cobject : public vvp_object {
       // `randc_unmark` retracts a tentative pre-fill when the solver
       // replaces it with a constrained choice.
       void randc_mark_feasible(size_t pid, uint64_t val,
-                                const std::vector<uint64_t>&feasible);
-      void randc_unmark(size_t pid, uint64_t val);
+                                const std::vector<uint64_t>&feasible,
+                                size_t leaf = 0);
+      void randc_unmark(size_t pid, uint64_t val, size_t leaf = 0);
 
 	// M11: covergroup transition-bin progress state — active-
 	// position masks keyed by (prop_idx << 8) | seq_id.
@@ -149,18 +166,19 @@ class vvp_cobject : public vvp_object {
 	// For now, only support 32bit bool signed properties.
       class_type::inst_t properties_;
       std::vector<bool> rand_mode_;
+      std::map<randc_key_t, bool> rand_mode_leaves_;
       std::vector<bool> constraint_mode_;
-      std::map<size_t, std::vector<bool> > randc_history_;
+      std::map<randc_key_t, std::vector<bool> > randc_history_;
       struct randc_pending_t {
 	    uint64_t staged_value = 0;
 	    bool feasible_domain = false;
 	    std::vector<uint64_t> feasible;
       };
-      typedef std::map<size_t, randc_pending_t> randc_transaction_t;
+      typedef std::map<randc_key_t, randc_pending_t> randc_transaction_t;
       std::vector<randc_transaction_t> randc_transactions_;
 
-      const std::vector<bool>*randc_history_find_(size_t pid) const;
-      std::vector<bool>&randc_history_mutable_(size_t pid);
+      const std::vector<bool>*randc_history_find_(const randc_key_t&key) const;
+      std::vector<bool>&randc_history_mutable_(const randc_key_t&key);
       static bool randc_history_full_(const std::vector<bool>&hist,
 				       uint64_t period);
       std::map<uint64_t, uint64_t> cov_trans_;

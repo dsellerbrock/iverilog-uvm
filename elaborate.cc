@@ -8087,6 +8087,9 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 			dynamic_cast<const netclass_t*>(obj_expr->net_type());
 		  if (ctype) {
 			int pid = ctype->property_idx_from_name(fname);
+			NetExpr *leaf_expr = nullptr;
+			uint64_t leaf_count = 0;
+			bool field_diagnostic = false;
 			if (pid < 0) {
 			      /* With an explicit object prefix this spelling can only
 			       * denote field-level rand_mode. A two-component call may
@@ -8102,17 +8105,6 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 				    noop->set_line(*this);
 				    return noop;
 			      }
-			} else if (!field_comp.index.empty()) {
-			      cerr << get_fileline() << ": sorry: rand_mode() on indexed "
-				   << "class property `" << fname << "' is not yet "
-				   << "supported; element-specific random modes require "
-				   << "per-element runtime state."
-				   << endl;
-			      des->errors += 1;
-			      delete obj_expr;
-			      NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
-			      noop->set_line(*this);
-			      return noop;
 			} else {
 			      property_qualifier_t qual =
 				    ctype->get_prop_qual((size_t)pid);
@@ -8135,8 +8127,81 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 					  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 					  noop->set_line(*this);
 					  return noop;
+				      }
+				}
+
+			      if (obj_expr && !field_comp.index.empty()) {
+				    if (const netuarray_t*array_type =
+					dynamic_cast<const netuarray_t*>(prop_type)) {
+					  const netranges_t&dims =
+						array_type->static_dimensions();
+					  size_t used = field_comp.index.size();
+					  if (used > dims.size()) {
+						if (dynamic_cast<const netvector_t*>(
+						      array_type->element_type()))
+						      used = dims.size();
+						else {
+						      cerr << get_fileline() << ": error: Got "
+							   << field_comp.index.size()
+							   << " indices, expecting at most "
+							   << dims.size() << " to select rand "
+							   << "array property `" << fname << "'."
+							   << endl;
+						      des->errors += 1;
+						      delete obj_expr;
+						      obj_expr = nullptr;
+						      field_diagnostic = true;
+						}
+					  }
+					  std::list<index_component_t> word_indices;
+					  auto wi = field_comp.index.begin();
+					  for (size_t dim = 0 ; obj_expr && dim < used;
+					       dim += 1, ++wi) {
+						if (wi->sel != index_component_t::SEL_BIT) {
+						      cerr << get_fileline() << ": sorry: rand_mode() "
+							   << "on an unpacked-array slice is not "
+							   << "supported yet." << endl;
+						      des->errors += 1;
+						      delete obj_expr;
+						      obj_expr = nullptr;
+						      field_diagnostic = true;
+						      break;
+						}
+						word_indices.push_back(*wi);
+					  }
+					  if (obj_expr) {
+						leaf_expr = make_canonical_index(des, scope,
+						      this, word_indices, array_type, false);
+						if (!leaf_expr) {
+						      cerr << get_fileline() << ": error: Invalid "
+							   << "index for rand array property `"
+							   << fname << "'." << endl;
+						      des->errors += 1;
+						      delete obj_expr;
+						      obj_expr = nullptr;
+						      field_diagnostic = true;
+						} else {
+						      leaf_count = 1;
+						      for (size_t dim = used ; dim < dims.size();
+							   dim += 1)
+							    leaf_count *= dims[dim].width();
+						}
+					  }
+				    } else if (!dynamic_cast<const netvector_t*>(prop_type)) {
+					  cerr << get_fileline() << ": sorry: rand_mode() on "
+					       << "an indexed dynamic or associative array "
+					       << "property is not supported yet." << endl;
+					  des->errors += 1;
+					  delete obj_expr;
+					  obj_expr = nullptr;
+					  field_diagnostic = true;
 				    }
 			      }
+			}
+			if (pid >= 0 && field_diagnostic) {
+			      NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+			      noop->set_line(*this);
+			      return noop;
 			}
 			if (pid >= 0 && obj_expr) {
 			      NetExpr *mode_expr = elab_sys_task_arg(des, scope,
@@ -8144,10 +8209,17 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 			      NetExpr *pid_expr = new NetEConst(
 				    verinum((uint64_t)pid, 32));
 			      pid_expr->set_line(*this);
-			      vector<NetExpr*> argv(3);
+			      vector<NetExpr*> argv(leaf_expr ? 5 : 3);
 			      argv[0] = obj_expr;
 			      argv[1] = mode_expr;
 			      argv[2] = pid_expr;
+			      if (leaf_expr) {
+				    argv[3] = leaf_expr;
+				    NetExpr*count_expr = new NetEConst(
+					  verinum(leaf_count, 64));
+				    count_expr->set_line(*this);
+				    argv[4] = count_expr;
+			      }
 			      NetSTask *sys = new NetSTask(
 				    "$ivl_class_method$rand_mode",
 				    IVL_SFUNC_AS_TASK_IGNORE, argv);

@@ -1,0 +1,5 @@
+./ivltests/sv_rand_mode_invalid_field_fail.v:12: error: Class property `plain' is not declared rand or randc.
+./ivltests/sv_rand_mode_invalid_field_fail.v:13: error: Class property `plain' is not declared rand or randc.
+./ivltests/sv_rand_mode_invalid_field_fail.v:14: error: Class `invalid_fields' has no property `missing' for rand_mode().
+./ivltests/sv_rand_mode_invalid_field_fail.v:15: error: Class `invalid_fields' has no property `missing' for rand_mode().
+4 error(s) during elaboration.

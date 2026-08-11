@@ -112,10 +112,47 @@ bool vvp_cobject::rng_set_state(const std::string&state)
 
 bool vvp_cobject::rand_mode(size_t pid) const
 {
-      if (pid < defn_->property_count() && defn_->property_is_static(pid))
-	    return defn_->static_rand_mode(pid);
-      if (pid < rand_mode_.size()) return rand_mode_[pid];
+      uint64_t count = pid < defn_->property_count()
+	    ? defn_->property_array_size(pid) : 1;
+      if (count < 1) count = 1;
+      for (uint64_t leaf = 0 ; leaf < count ; leaf += 1)
+	    if (!rand_mode(pid, (size_t)leaf)) return false;
       return true;
+}
+
+bool vvp_cobject::rand_mode(size_t pid, size_t leaf) const
+{
+      if (pid < defn_->property_count() && defn_->property_is_static(pid))
+	    return defn_->static_rand_mode(pid, leaf);
+      if (pid >= rand_mode_.size()) return true;
+      uint64_t count = defn_->property_array_size(pid);
+      if (count < 1) count = 1;
+      if (leaf >= count) return false;
+      std::map<randc_key_t, bool>::const_iterator it =
+	    rand_mode_leaves_.find(randc_key_t(pid, leaf));
+      if (it != rand_mode_leaves_.end()) return it->second;
+      return rand_mode_[pid];
+}
+
+bool vvp_cobject::rand_mode_any(size_t pid) const
+{
+      if (pid < defn_->property_count() && defn_->property_is_static(pid))
+	    return defn_->static_rand_mode_any(pid);
+      uint64_t count = pid < defn_->property_count()
+	    ? defn_->property_array_size(pid) : 1;
+      if (count < 1) count = 1;
+      for (uint64_t leaf = 0 ; leaf < count ; leaf += 1)
+	    if (rand_mode(pid, (size_t)leaf)) return true;
+      return false;
+}
+
+static void erase_rand_mode_leaves_(
+	    std::map<vvp_cobject::randc_key_t, bool>&modes, size_t pid)
+{
+      std::map<vvp_cobject::randc_key_t, bool>::iterator it =
+	    modes.lower_bound(vvp_cobject::randc_key_t(pid, 0));
+      while (it != modes.end() && it->first.pid == pid)
+	    it = modes.erase(it);
 }
 
 void vvp_cobject::set_rand_mode(size_t pid, bool mode)
@@ -124,7 +161,27 @@ void vvp_cobject::set_rand_mode(size_t pid, bool mode)
 	    defn_->set_static_rand_mode(pid, mode);
 	    return;
       }
-      if (pid < rand_mode_.size()) rand_mode_[pid] = mode;
+      if (pid < rand_mode_.size()) {
+	    rand_mode_[pid] = mode;
+	    erase_rand_mode_leaves_(rand_mode_leaves_, pid);
+      }
+}
+
+void vvp_cobject::set_rand_mode(size_t pid, size_t leaf, bool mode)
+{
+      if (pid < defn_->property_count() && defn_->property_is_static(pid)) {
+	    defn_->set_static_rand_mode(pid, leaf, mode);
+	    return;
+      }
+      if (pid >= rand_mode_.size()) return;
+      uint64_t count = defn_->property_array_size(pid);
+      if (count < 1) count = 1;
+      if (leaf >= count) return;
+      randc_key_t key(pid, leaf);
+      if (mode == rand_mode_[pid])
+	    rand_mode_leaves_.erase(key);
+      else
+	    rand_mode_leaves_[key] = mode;
 }
 
 void vvp_cobject::set_all_rand_mode(bool mode)
@@ -154,31 +211,34 @@ void vvp_cobject::set_constraint_mode(size_t cid, bool mode)
 // cycle). Wider properties fall back to plain rand (period reported as
 // 0); elab_sig.cc warns at compile time, by name, when that degrade
 // happens -- keep this bound in sync with the literal there.
-uint64_t vvp_cobject::randc_period(size_t pid) const
+uint64_t vvp_cobject::randc_period(size_t pid, size_t leaf) const
 {
       if (pid >= defn_->property_count()) return 0;
       vvp_vector4_t probe;
-      const_cast<vvp_cobject*>(this)->get_vec4(pid, probe);
+      const_cast<vvp_cobject*>(this)->get_vec4(pid, probe, leaf);
       unsigned w = probe.size();
       if (w == 0 || w > 20) return 0;
       return (uint64_t)1 << w;
 }
 
-const std::vector<bool>*vvp_cobject::randc_history_find_(size_t pid) const
+const std::vector<bool>*vvp_cobject::randc_history_find_(
+	    const randc_key_t&key) const
 {
+      size_t pid = key.pid;
       if (pid < defn_->property_count() && defn_->property_is_static(pid))
-	    return &defn_->static_randc_history(pid, 0);
+	    return &defn_->static_randc_history(pid, key.leaf);
 
-      std::map<size_t, std::vector<bool> >::const_iterator it
-	    = randc_history_.find(pid);
+      std::map<randc_key_t, std::vector<bool> >::const_iterator it
+	    = randc_history_.find(key);
       return it == randc_history_.end() ? 0 : &it->second;
 }
 
-std::vector<bool>&vvp_cobject::randc_history_mutable_(size_t pid)
+std::vector<bool>&vvp_cobject::randc_history_mutable_(const randc_key_t&key)
 {
+      size_t pid = key.pid;
       if (pid < defn_->property_count() && defn_->property_is_static(pid))
-	    return defn_->static_randc_history(pid, 0);
-      return randc_history_[pid];
+	    return defn_->static_randc_history(pid, key.leaf);
+      return randc_history_[key];
 }
 
 bool vvp_cobject::randc_history_full_(const std::vector<bool>&hist,
@@ -219,7 +279,7 @@ bool vvp_cobject::randc_transaction_commit()
       assert(randc_transactions_.empty());
 
       struct resolved_randc_t {
-	    size_t pid;
+	    randc_key_t key;
 	    uint64_t period;
 	    uint64_t actual;
 	    randc_pending_t pending;
@@ -231,11 +291,11 @@ bool vvp_cobject::randc_transaction_commit()
 	// unexpected X/Z reaches a supposedly successful solver result.
       for (randc_transaction_t::const_iterator it = pending.begin();
 	   it != pending.end(); ++it) {
-	    uint64_t period = randc_period(it->first);
+	    uint64_t period = randc_period(it->first.pid, it->first.leaf);
 	    if (period == 0) continue;
 
 	    vvp_vector4_t val;
-	    get_vec4(it->first, val);
+	    get_vec4(it->first.pid, val, it->first.leaf);
 	    uint64_t actual = 0;
 	    for (unsigned bit = 0 ; bit < val.size() ; bit += 1) {
 		  vvp_bit4_t digit = val.value(bit);
@@ -243,14 +303,15 @@ bool vvp_cobject::randc_transaction_commit()
 			actual |= (uint64_t)1 << bit;
 		  else if (digit != BIT4_0) {
 			cerr << "warning: successful randomize produced X/Z for randc "
-			     << "property '" << defn_->property_name(it->first)
-			     << "'; history transaction rolled back" << endl;
+			     << "property '" << defn_->property_name(it->first.pid)
+			     << "' leaf " << it->first.leaf
+			     << "; history transaction rolled back" << endl;
 			return false;
 		  }
 	    }
 
 	    resolved_randc_t item;
-	    item.pid = it->first;
+	    item.key = it->first;
 	    item.period = period;
 	    item.actual = actual;
 	    item.pending = it->second;
@@ -258,7 +319,7 @@ bool vvp_cobject::randc_transaction_commit()
       }
 
       for (const resolved_randc_t&item : resolved) {
-	    std::vector<bool>&hist = randc_history_mutable_(item.pid);
+	    std::vector<bool>&hist = randc_history_mutable_(item.key);
 	    if (hist.size() != item.period)
 		  hist.assign((size_t)item.period, false);
 
@@ -298,10 +359,11 @@ void vvp_cobject::randc_transaction_rollback()
       randc_transactions_.pop_back();
 }
 
-bool vvp_cobject::randc_seen(size_t pid, uint64_t val) const
+bool vvp_cobject::randc_seen(size_t pid, uint64_t val, size_t leaf) const
 {
-      uint64_t period = randc_period(pid);
-      const std::vector<bool>*hist = randc_history_find_(pid);
+      uint64_t period = randc_period(pid, leaf);
+      const std::vector<bool>*hist =
+	    randc_history_find_(randc_key_t(pid, leaf));
       if (!hist || val >= hist->size()) return false;
 	// Exhaustion is a logical new-cycle view, not a mutation. If the
 	// ensuing solve fails, the committed completed cycle stays intact.
@@ -309,9 +371,9 @@ bool vvp_cobject::randc_seen(size_t pid, uint64_t val) const
       return (*hist)[(size_t)val];
 }
 
-void vvp_cobject::randc_mark(size_t pid, uint64_t val)
+void vvp_cobject::randc_mark(size_t pid, uint64_t val, size_t leaf)
 {
-      uint64_t period = randc_period(pid);
+      uint64_t period = randc_period(pid, leaf);
       if (period == 0) return;
       if (val >= period) return;
       if (randc_transactions_.empty()) {
@@ -321,14 +383,15 @@ void vvp_cobject::randc_mark(size_t pid, uint64_t val)
       }
       randc_pending_t staged;
       staged.staged_value = val;
-      randc_transactions_.back()[pid] = staged;
+      randc_transactions_.back()[randc_key_t(pid, leaf)] = staged;
 }
 
 // RANDOM-DIST fix #4: see the declaration in vvp_cobject.h.
 void vvp_cobject::randc_mark_feasible(size_t pid, uint64_t val,
-                                       const std::vector<uint64_t>&feasible)
+                                       const std::vector<uint64_t>&feasible,
+                                       size_t leaf)
 {
-      uint64_t period = randc_period(pid);
+      uint64_t period = randc_period(pid, leaf);
       if (period == 0) return;
       if (val >= period) return;
       if (randc_transactions_.empty()) {
@@ -340,10 +403,10 @@ void vvp_cobject::randc_mark_feasible(size_t pid, uint64_t val,
       staged.staged_value = val;
       staged.feasible_domain = true;
       staged.feasible = feasible;
-      randc_transactions_.back()[pid] = staged;
+      randc_transactions_.back()[randc_key_t(pid, leaf)] = staged;
 }
 
-void vvp_cobject::randc_unmark(size_t pid, uint64_t val)
+void vvp_cobject::randc_unmark(size_t pid, uint64_t val, size_t leaf)
 {
       if (randc_transactions_.empty()) {
 	    cerr << "internal error: randc unmark outside randomize transaction"
@@ -351,7 +414,8 @@ void vvp_cobject::randc_unmark(size_t pid, uint64_t val)
 	    abort();
       }
       randc_transaction_t&pending = randc_transactions_.back();
-      randc_transaction_t::iterator it = pending.find(pid);
+      randc_transaction_t::iterator it =
+	    pending.find(randc_key_t(pid, leaf));
       if (it != pending.end() && it->second.staged_value == val)
 	    pending.erase(it);
 }
@@ -461,6 +525,7 @@ void vvp_cobject::shallow_copy(const vvp_object*obj)
 	// canonical static cell. An in-flight transaction belongs to the
 	// active call and is never copied.
       rand_mode_ = that->rand_mode_;
+      rand_mode_leaves_ = that->rand_mode_leaves_;
       constraint_mode_ = that->constraint_mode_;
       randc_history_ = that->randc_history_;
       touch();

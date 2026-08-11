@@ -3280,7 +3280,18 @@ static bool rand_call_active_(const class_type*defn, vvp_cobject*cobj,
 {
       if (sel) return pid < sel->size() ? (*sel)[pid] : false;
       if (!defn->property_is_rand(pid)) return false;
-      return cobj->rand_mode(pid);
+      return cobj->rand_mode_any(pid);
+}
+
+static bool rand_leaf_active_(const class_type*defn, vvp_cobject*cobj,
+			      const std::vector<bool>*sel, size_t pid,
+			      size_t leaf)
+{
+      if (sel) return pid < sel->size() ? (*sel)[pid] : false;
+      if (!defn->property_is_rand(pid)) return false;
+      if (defn->property_array_size(pid) <= 1)
+	    return cobj->rand_mode(pid);
+      return cobj->rand_mode(pid, leaf);
 }
 
 /* Does this property hold an OBJECT rather than bits -- a dynamic array,
@@ -3353,6 +3364,43 @@ static inline unsigned randomize_rand_(vvp_cobject*cobj)
 {
       assert(cobj);
       return (unsigned)cobj->rng_next();
+}
+
+/* Pick and stage one unconstrained randc leaf. Keep the scalar draw pattern
+ * byte-for-byte compatible with the existing implementation while extending
+ * the history key to fixed-array leaves. */
+static bool randomize_randc_leaf_(vvp_cobject*cobj, size_t pid, size_t leaf,
+				   vvp_vector4_t&val,
+				   const std::function<unsigned()>&next_random)
+{
+      uint64_t period = cobj->randc_period(pid, leaf);
+      if (period == 0) return false;
+
+      uint64_t pick = 0;
+      bool found = false;
+      for (unsigned attempt = 0 ; attempt < 4 * (unsigned)period;
+	   attempt += 1) {
+	    uint64_t candidate = (uint64_t)next_random() % period;
+	    if (!cobj->randc_seen(pid, candidate, leaf)) {
+		  pick = candidate;
+		  found = true;
+		  break;
+	    }
+      }
+      if (!found) {
+	    for (uint64_t candidate = 0 ; candidate < period ; candidate += 1) {
+		  if (cobj->randc_seen(pid, candidate, leaf)) continue;
+		  pick = candidate;
+		  found = true;
+		  break;
+	    }
+      }
+      if (!found) return false;
+
+      cobj->randc_mark(pid, pick, leaf);
+      for (unsigned bit = 0 ; bit < val.size() ; bit += 1)
+	    val.set_bit(bit, (pick >> bit) & 1 ? BIT4_1 : BIT4_0);
+      return true;
 }
 
 
@@ -3518,6 +3566,9 @@ static bool randomize_cobject_(vvp_cobject*cobj, const std::vector<bool>*sel)
 			uint64_t hsize = defn->property_array_size(pid);
 			if (hsize < 1) hsize = 1;
 			for (uint64_t adr = 0 ; adr < hsize ; adr += 1) {
+			      if (!rand_leaf_active_(defn, cobj, sel, pid,
+					       (size_t)adr))
+				    continue;
 			      vvp_object_t propobj;
 			      cobj->get_object(pid, propobj, adr);
 			      vvp_cobject*subcobj = propobj.peek<vvp_cobject>();
@@ -3552,14 +3603,23 @@ static bool randomize_cobject_(vvp_cobject*cobj, const std::vector<bool>*sel)
 	    if (defn->property_array_size(pid) > 1) {
 		  uint64_t asize = defn->property_array_size(pid);
 		  for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
+			if (!rand_leaf_active_(defn, cobj, sel, pid,
+					       (size_t)adr))
+			      continue;
 			vvp_vector4_t val;
 			cobj->get_vec4(pid, val, adr);
 			unsigned wid = val.size();
 			if (wid == 0)
 			      break;
+			if (defn->property_is_randc(pid)
+			    && randomize_randc_leaf_(cobj, pid, (size_t)adr,
+						     val, next_random)) {
+			      cobj->set_vec4(pid, val, adr);
+			      continue;
+			}
 			vvp_vector4_t nv(wid, BIT4_0);
 			for (unsigned b = 0 ; b < wid ; b += 1)
-			      nv.set_bit(b, (randomize_rand_(cobj) & 1) ? BIT4_1 : BIT4_0);
+			      nv.set_bit(b, (next_random() & 1) ? BIT4_1 : BIT4_0);
 			cobj->set_vec4(pid, nv, adr);
 		  }
 		  continue;
@@ -3645,35 +3705,10 @@ static bool randomize_cobject_(vvp_cobject*cobj, const std::vector<bool>*sel)
 		  continue;
 	    // Pick an unused value from committed history. randc_mark only
 	    // stages it; success commits the actual post-solve value.
-	    if (defn->property_is_randc(pid)) {
-		  uint64_t period = cobj->randc_period(pid);
-		  if (period > 0) {
-			uint64_t pick = 0;
-			bool found = false;
-			for (unsigned attempt = 0;
-			     attempt < 4 * (unsigned)period;
-			     attempt += 1) {
-			      uint64_t cand = (uint64_t)randomize_rand_(cobj) % period;
-			      if (!cobj->randc_seen(pid, cand)) {
-				    pick = cand; found = true; break;
-			      }
-			}
-			if (!found) {
-			      for (uint64_t i = 0; i < period; i += 1) {
-				    if (!cobj->randc_seen(pid, i)) {
-					  pick = i; found = true; break;
-				    }
-			      }
-			}
-			if (found) {
-			      cobj->randc_mark(pid, pick);
-			      for (unsigned b = 0; b < wid; b += 1)
-				    val.set_bit(b, (pick >> b) & 1
-						  ? BIT4_1 : BIT4_0);
-			      cobj->set_vec4(pid, val);
-			      continue;
-			}
-		  }
+	    if (defn->property_is_randc(pid)
+		&& randomize_randc_leaf_(cobj, pid, 0, val, next_random)) {
+		  cobj->set_vec4(pid, val);
+		  continue;
 	    }
 	    for (unsigned i = 0 ; i < wid ; i += 32) {
 		  unsigned rnd = randomize_rand_(cobj);
@@ -3808,6 +3843,9 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 			      uint64_t hsize = defn->property_array_size(pid);
 			      if (hsize < 1) hsize = 1;
 			      for (uint64_t adr = 0 ; adr < hsize ; adr += 1) {
+				    if (!rand_leaf_active_(defn, cobj, sel, pid,
+						     (size_t)adr))
+					  continue;
 				    vvp_object_t propobj;
 				    cobj->get_object(pid, propobj, adr);
 				    vvp_cobject*subcobj = propobj.peek<vvp_cobject>();
@@ -3828,11 +3866,20 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 		  if (defn->property_array_size(pid) > 1) {
 			uint64_t asize = defn->property_array_size(pid);
 			for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
+			      if (!rand_leaf_active_(defn, cobj, sel, pid,
+					       (size_t)adr))
+				    continue;
 			      vvp_vector4_t cur;
 			      cobj->get_vec4(pid, cur, adr);
 			      unsigned awid = cur.size();
 			      if (awid == 0)
 				    break;
+			      if (defn->property_is_randc(pid)
+				  && randomize_randc_leaf_(cobj, pid, (size_t)adr,
+							   cur, next_random)) {
+				    cobj->set_vec4(pid, cur, adr);
+				    continue;
+			      }
 			      vvp_vector4_t nv(awid, BIT4_0);
 			      for (unsigned b = 0 ; b < awid ; b += 1)
 			    nv.set_bit(b, (next_random() & 1) ? BIT4_1 : BIT4_0);
@@ -3849,34 +3896,10 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 		  unsigned wid = val.size();
 		  if (wid == 0) continue;
 		  // Same transactional cyclic pre-fill as of_RANDOMIZE.
-		  if (defn->property_is_randc(pid)) {
-			uint64_t period = cobj->randc_period(pid);
-			if (period > 0) {
-			      uint64_t pick = 0;
-			      bool found = false;
-			      for (unsigned attempt = 0;
-				   attempt < 4 * (unsigned)period; attempt += 1) {
-				    uint64_t cand = (uint64_t)next_random() % period;
-				    if (!cobj->randc_seen(pid, cand)) {
-					  pick = cand; found = true; break;
-				    }
-			      }
-			      if (!found) {
-				    for (uint64_t i = 0; i < period; i += 1) {
-					  if (!cobj->randc_seen(pid, i)) {
-						pick = i; found = true; break;
-					  }
-				    }
-			      }
-			      if (found) {
-				    cobj->randc_mark(pid, pick);
-				    for (unsigned b = 0; b < wid; b += 1)
-					  val.set_bit(b, (pick >> b) & 1
-							? BIT4_1 : BIT4_0);
-				    cobj->set_vec4(pid, val);
-				    continue;
-			      }
-			}
+		  if (defn->property_is_randc(pid)
+			&& randomize_randc_leaf_(cobj, pid, 0, val, next_random)) {
+			cobj->set_vec4(pid, val);
+			continue;
 		  }
 		  for (unsigned i = 0 ; i < wid ; i += 32) {
 		    unsigned rnd = next_random();
@@ -4126,6 +4149,38 @@ bool of_RAND_MODE_P(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* %rand_mode/p/i <pid>, <first-word>, <count-word>
+ *
+ * Set the mode of one canonical fixed-array leaf, or every leaf in a
+ * selected subarray. The compiler normalizes declared ascending/descending
+ * indices into the same flattened address used by class property accesses.
+ */
+bool of_RAND_MODE_P_I(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t mode_vec = thr->pop_vec4();
+      bool mode = (mode_vec.value(0) == BIT4_1);
+
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj) return true;
+
+      const class_type*defn = cobj->get_defn();
+      size_t pid = (size_t)cp->number;
+      int64_t first = thr->words[cp->bit_idx[0]].w_int;
+      uint64_t count = thr->words[cp->bit_idx[1]].w_uint;
+      uint64_t size = pid < defn->property_count()
+	    ? defn->property_array_size(pid) : 0;
+      if (pid >= defn->property_count() || !defn->property_is_rand(pid)
+	  || first < 0 || (uint64_t)first >= size
+	  || count == 0 || count > size - (uint64_t)first)
+	    return true;
+
+      for (uint64_t off = 0 ; off < count ; off += 1)
+	    cobj->set_rand_mode(pid, (size_t)((uint64_t)first + off), mode);
+      return true;
+}
+
 /*
  * %rand_mode/get <pid>
  *
@@ -4148,6 +4203,42 @@ bool of_RAND_MODE_GET(vthread_t thr, vvp_code_t cp)
 	    size_t pid = (size_t) cp->number;
 	    if (pid < defn->property_count() && defn->property_is_rand(pid))
 		  st = cobj->rand_mode(pid);
+      }
+
+      vvp_vector4_t result(32, BIT4_0);
+      result.set_bit(0, st ? BIT4_1 : BIT4_0);
+      thr->push_vec4(result);
+      return true;
+}
+
+/* %rand_mode/get/i <pid>, <first-word>, <count-word>
+ * Return true only when every leaf in the selected fixed-array element or
+ * subarray is enabled. A variable out-of-range index reads false. */
+bool of_RAND_MODE_GET_I(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+
+      bool st = false;
+      if (cobj) {
+	    const class_type*defn = cobj->get_defn();
+	    size_t pid = (size_t)cp->number;
+	    int64_t first = thr->words[cp->bit_idx[0]].w_int;
+	    uint64_t count = thr->words[cp->bit_idx[1]].w_uint;
+	    uint64_t size = pid < defn->property_count()
+		  ? defn->property_array_size(pid) : 0;
+	    if (pid < defn->property_count() && defn->property_is_rand(pid)
+		&& first >= 0 && (uint64_t)first < size && count > 0
+		&& count <= size - (uint64_t)first) {
+		  st = true;
+		  for (uint64_t off = 0 ; off < count ; off += 1)
+			if (!cobj->rand_mode(pid,
+			      (size_t)((uint64_t)first + off))) {
+			      st = false;
+			      break;
+			}
+	    }
       }
 
       vvp_vector4_t result(32, BIT4_0);
