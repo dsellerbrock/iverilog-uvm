@@ -76,8 +76,9 @@ extern NetESFunc* make_randomize_with_expr(
       NetExpr*obj_expr,
       const netclass_t*class_type,
       Design*des, NetScope*scope,
-      perm_string std_object_root = perm_string(),
-      bool scope_form = false);
+      perm_string object_root = perm_string(),
+      bool scope_form = false,
+      bool force_all_properties = false);
 extern NetESFunc* make_std_randomize_with_expr(
       const std::vector<named_pexpr_t>&parms,
       const std::vector<PExpr*>&with_constraints,
@@ -8724,8 +8725,14 @@ NetProc* PCallTask::elaborate_randomize_with_(
 		 << " is being called as a task." << endl;
       }
 
+      perm_string object_root;
+      if (path_.size() == 2 && path_.front().index.empty()
+	  && !path_.front().local_scope
+	  && path_.back().name == perm_string::literal("randomize"))
+	    object_root = path_.front().name;
       NetESFunc*sys_expr = make_randomize_with_expr(
-	    this, parms_, with_constraints_, obj, class_type, des, scope);
+	    this, parms_, with_constraints_, obj, class_type, des, scope,
+	    object_root);
       sys_expr->set_line(*this);
       NetNet*tmp = new NetNet(scope, scope->local_symbol(), NetNet::REG,
 			       &netvector_t::atom2u32);

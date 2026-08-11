@@ -4,6 +4,7 @@
 // call used to obtain the handle.
 class randomizable_item;
   rand int value;
+  rand int other;
   int pre_calls;
   int post_calls;
 
@@ -28,6 +29,7 @@ endclass
 
 module test;
   receiver_holder holder;
+  randomizable_item direct;
   int receiver_evals;
 
   function int next_index();
@@ -67,6 +69,18 @@ module test;
       $fatal(1, "with receiver/hooks/value: eval=%0d pre=%0d post=%0d value=%0d",
              receiver_evals, holder.items[0].pre_calls,
              holder.items[0].post_calls, holder.items[0].value);
+
+    direct = new;
+    direct.value = 0;
+    direct.other = 123;
+    if (!direct.randomize(value) with { direct.value == 9; }
+        || direct.value != 9 || direct.other != 123)
+      $fatal(1, "qualified receiver/selector: value=%0d other=%0d",
+             direct.value, direct.other);
+    void'(direct.randomize(value) with { direct.value == 10; });
+    if (direct.value != 10 || direct.other != 123)
+      $fatal(1, "qualified statement receiver/selector: value=%0d other=%0d",
+             direct.value, direct.other);
 
     $display("PASSED");
   end

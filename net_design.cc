@@ -1560,7 +1560,14 @@ void NetScope::evaluate_type_parameter_(Design *des, param_ref_t cur)
 
       data_type_t *ptype = type_expr->get_type();
       NetScope *type_scope = cur->second.val_scope ? cur->second.val_scope : this;
-      cur->second.ivl_type = ptype->elaborate_type(des, type_scope);
+      /* Resolve class-bearing type actuals before consulting the generic
+       * per-scope type cache. A forward class used through a parameterized
+       * typedef can otherwise cache an early integral recovery
+       * specialization; because that stale result is still a netclass_t,
+       * the late non-class recovery below cannot recognize or repair it. */
+      cur->second.ivl_type = resolve_class_type_reference(des, type_scope, ptype);
+      if (!cur->second.ivl_type)
+	    cur->second.ivl_type = ptype->elaborate_type(des, type_scope);
       if (!dynamic_cast<const netclass_t*>(cur->second.ivl_type)) {
 	    if (const class_type_t*class_type = dynamic_cast<const class_type_t*>(ptype)) {
 		  if (netclass_t*cls = ensure_visible_class_type(des, type_scope,

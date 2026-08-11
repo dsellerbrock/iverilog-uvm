@@ -39,6 +39,39 @@ class alias_target #(int W = 7);
   bit [W-1:0] payload;
 endclass
 
+// A nested parameterized forward type must be resolved before the outer
+// specialization is cached. Otherwise the early default pool<int>
+// specialization can be reused for pool<forward_event<object>> even though
+// both results are class types.
+class forward_nested_object;
+  bit marker;
+endclass
+
+typedef class forward_nested_event;
+
+class forward_nested_pool #(type T = int);
+  T item;
+  virtual function T get();
+    return item;
+  endfunction
+endclass
+
+class forward_nested_early_default;
+  forward_nested_pool pool;
+endclass
+
+typedef forward_nested_pool#(
+  forward_nested_event#(forward_nested_object)
+) forward_nested_pool_t;
+
+class forward_nested_holder;
+  forward_nested_pool_t pool;
+endclass
+
+class forward_nested_event #(type T = int);
+  T payload;
+endclass
+
 module sv_param_class_bare_forward_identity;
   import alias_pkg::*;
   typedef alias_target collision;
@@ -59,6 +92,13 @@ module sv_param_class_bare_forward_identity;
 
   collision alias_value;
   alias_target#() explicit_alias_value;
+
+  forward_nested_holder nested_holder;
+  forward_nested_pool#(
+    forward_nested_event#(forward_nested_object)
+  ) explicit_nested_pool;
+  forward_nested_event#(forward_nested_object) nested_event;
+  forward_nested_object nested_object;
 
   initial begin
     container_item queue_value;
@@ -144,6 +184,22 @@ module sv_param_class_bare_forward_identity;
     if (type(alias_value) != type(explicit_alias_value)
         || $bits(alias_value.payload) != 7) begin
       $display("FAILED exact typedef provenance");
+      $finish;
+    end
+
+    nested_holder = new;
+    nested_holder.pool = new;
+    explicit_nested_pool = new;
+    nested_event = new;
+    nested_object = new;
+    nested_object.marker = 1'b1;
+    nested_event.payload = nested_object;
+    nested_holder.pool.item = nested_event;
+    nested_event = nested_holder.pool.get();
+    if (type(nested_holder.pool) != type(explicit_nested_pool)
+        || nested_event == null || nested_event.payload == null
+        || nested_event.payload.marker !== 1'b1) begin
+      $display("FAILED nested forward specialization identity");
       $finish;
     end
 
