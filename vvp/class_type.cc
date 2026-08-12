@@ -1466,6 +1466,89 @@ std::vector<bool>&class_type::static_randc_history(size_t idx,
       return cell->randc_history[leaf];
 }
 
+bool class_type::static_randomize_transaction_begin(size_t idx) const
+{
+      if (!property_is_static(idx)) return false;
+      vpiHandle storage = static_property_storage_(idx);
+      static_property_cell_t*cell = static_property_cell_(idx);
+      assert(cell);
+      if (cell->randomize_transaction_active) return false;
+
+      cell->randomize_vec4.clear();
+      cell->randomize_real.clear();
+      cell->randomize_string.clear();
+      cell->randomize_object.clear();
+      cell->randomize_dirty.clear();
+      uint64_t count = property_array_size(idx);
+      if (count < 1) count = 1;
+      const string&type = property_base_type(idx);
+      for (uint64_t leaf = 0 ; leaf < count ; leaf += 1) {
+	    if (type == "r") {
+		  cell->randomize_real[(size_t)leaf] =
+			static_property_get_real_(storage, (size_t)leaf);
+	    } else if (type == "S") {
+		  cell->randomize_string[(size_t)leaf] =
+			static_property_get_string_(storage, (size_t)leaf);
+	    } else if (static_property_uses_object_api_(type)) {
+		  vvp_object_t value;
+		  static_property_get_object_(storage, (size_t)leaf, value);
+		  cell->randomize_object[(size_t)leaf] =
+			value.value_copy_element();
+	    } else {
+		  vvp_vector4_t value;
+		  static_property_get_vec4_(storage, (size_t)leaf, value);
+		  cell->randomize_vec4[(size_t)leaf] = value;
+	    }
+      }
+      cell->randomize_transaction_active = true;
+      return true;
+}
+
+void class_type::static_randomize_transaction_mark_dirty(size_t idx,
+						   size_t leaf) const
+{
+      static_property_cell_t*cell = static_property_cell_(idx);
+      if (cell && cell->randomize_transaction_active)
+	    cell->randomize_dirty.insert(leaf);
+}
+
+void class_type::static_randomize_transaction_commit(size_t idx) const
+{
+      static_property_cell_t*cell = static_property_cell_(idx);
+      if (!cell || !cell->randomize_transaction_active) return;
+      vpiHandle storage = static_property_storage_(idx);
+      for (const auto&value : cell->randomize_vec4)
+	    if (cell->randomize_dirty.count(value.first))
+		  static_property_set_vec4_(storage, value.first, value.second);
+      for (const auto&value : cell->randomize_real)
+	    if (cell->randomize_dirty.count(value.first))
+		  static_property_set_real_(storage, value.first, value.second);
+      for (const auto&value : cell->randomize_string)
+	    if (cell->randomize_dirty.count(value.first))
+		  static_property_set_string_(storage, value.first, value.second);
+      for (const auto&value : cell->randomize_object)
+	    if (cell->randomize_dirty.count(value.first))
+		  static_property_set_object_(storage, value.first, value.second);
+      cell->randomize_transaction_active = false;
+      cell->randomize_vec4.clear();
+      cell->randomize_real.clear();
+      cell->randomize_string.clear();
+      cell->randomize_object.clear();
+      cell->randomize_dirty.clear();
+}
+
+void class_type::static_randomize_transaction_rollback(size_t idx) const
+{
+      static_property_cell_t*cell = static_property_cell_(idx);
+      if (!cell || !cell->randomize_transaction_active) return;
+      cell->randomize_transaction_active = false;
+      cell->randomize_vec4.clear();
+      cell->randomize_real.clear();
+      cell->randomize_string.clear();
+      cell->randomize_object.clear();
+      cell->randomize_dirty.clear();
+}
+
 const std::string& class_type::property_base_type(size_t idx) const
 {
       static const std::string nil;
@@ -1754,6 +1837,12 @@ void class_type::set_vec4(class_type::inst_t obj, size_t pid,
 	    return;
       }
       if (property_is_static(pid)) {
+	    static_property_cell_t*cell = static_property_cell_(pid);
+	    if (cell && cell->randomize_transaction_active) {
+		  cell->randomize_vec4[idx] = val;
+		  cell->randomize_dirty.insert(idx);
+		  return;
+	    }
 	    static_property_set_vec4_(static_property_storage_(pid), idx, val);
 	    return;
       }
@@ -1782,6 +1871,14 @@ void class_type::get_vec4(class_type::inst_t obj, size_t pid,
 	    return;
       }
       if (property_is_static(pid)) {
+	    static_property_cell_t*cell = static_property_cell_(pid);
+	    if (cell && cell->randomize_transaction_active) {
+		  std::map<size_t, vvp_vector4_t>::const_iterator it =
+			cell->randomize_vec4.find(idx);
+		  val = it == cell->randomize_vec4.end()
+			? vvp_vector4_t() : it->second;
+		  return;
+	    }
 	    static_property_get_vec4_(static_property_storage_(pid), idx, val);
 	    return;
       }
@@ -1808,6 +1905,12 @@ void class_type::set_real(class_type::inst_t obj, size_t pid,
 	    return;
       }
       if (property_is_static(pid)) {
+	    static_property_cell_t*cell = static_property_cell_(pid);
+	    if (cell && cell->randomize_transaction_active) {
+		  cell->randomize_real[idx] = val;
+		  cell->randomize_dirty.insert(idx);
+		  return;
+	    }
 	    static_property_set_real_(static_property_storage_(pid), idx, val);
 	    return;
       }
@@ -1826,8 +1929,15 @@ double class_type::get_real(class_type::inst_t obj, size_t pid, size_t idx) cons
 	    }
 	    return 0.0;
       }
-      if (property_is_static(pid))
+      if (property_is_static(pid)) {
+	    static_property_cell_t*cell = static_property_cell_(pid);
+	    if (cell && cell->randomize_transaction_active) {
+		  std::map<size_t, double>::const_iterator it =
+			cell->randomize_real.find(idx);
+		  return it == cell->randomize_real.end() ? 0.0 : it->second;
+	    }
 	    return static_property_get_real_(static_property_storage_(pid), idx);
+      }
       return properties_[pid].type->get_real(buf, idx);
 }
 
@@ -1845,6 +1955,12 @@ void class_type::set_string(class_type::inst_t obj, size_t pid,
 	    return;
       }
       if (property_is_static(pid)) {
+	    static_property_cell_t*cell = static_property_cell_(pid);
+	    if (cell && cell->randomize_transaction_active) {
+		  cell->randomize_string[idx] = val;
+		  cell->randomize_dirty.insert(idx);
+		  return;
+	    }
 	    static_property_set_string_(static_property_storage_(pid), idx, val);
 	    return;
       }
@@ -1863,8 +1979,16 @@ string class_type::get_string(class_type::inst_t obj, size_t pid, size_t idx) co
 	    }
 	    return string();
       }
-      if (property_is_static(pid))
+      if (property_is_static(pid)) {
+	    static_property_cell_t*cell = static_property_cell_(pid);
+	    if (cell && cell->randomize_transaction_active) {
+		  std::map<size_t, string>::const_iterator it =
+			cell->randomize_string.find(idx);
+		  return it == cell->randomize_string.end() ? string()
+							 : it->second;
+	    }
 	    return static_property_get_string_(static_property_storage_(pid), idx);
+      }
       return properties_[pid].type->get_string(buf, idx);
 }
 
@@ -1882,8 +2006,15 @@ void class_type::set_object(class_type::inst_t obj, size_t pid,
 	    return;
       }
       if (property_is_static(pid)) {
-	    if (static_property_uses_object_api_(properties_[pid].base_type))
-		  static_property_set_object_(static_property_storage_(pid), idx, val);
+	    if (static_property_uses_object_api_(properties_[pid].base_type)) {
+		  static_property_cell_t*cell = static_property_cell_(pid);
+		  if (cell && cell->randomize_transaction_active) {
+			cell->randomize_object[idx] = val;
+			cell->randomize_dirty.insert(idx);
+		  } else
+			static_property_set_object_(static_property_storage_(pid),
+						    idx, val);
+	    }
 	    return;
       }
       if (class_trace_enabled_(class_name_)) {
@@ -1919,10 +2050,20 @@ void class_type::get_object(class_type::inst_t obj, size_t pid,
 	    return;
       }
       if (property_is_static(pid)) {
-	    if (static_property_uses_object_api_(properties_[pid].base_type))
-		  static_property_get_object_(static_property_storage_(pid), idx, val);
-	    else
+	    if (static_property_uses_object_api_(properties_[pid].base_type)) {
+		  static_property_cell_t*cell = static_property_cell_(pid);
+		  if (cell && cell->randomize_transaction_active) {
+			std::map<size_t, vvp_object_t>::const_iterator it =
+			      cell->randomize_object.find(idx);
+			if (it == cell->randomize_object.end()) val.reset();
+			else val = it->second;
+		  } else {
+			static_property_get_object_(static_property_storage_(pid),
+						    idx, val);
+		  }
+	    } else {
 		  val.reset();
+	    }
 	    return;
       }
       properties_[pid].type->get_object(buf, val, idx);

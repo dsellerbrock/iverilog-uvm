@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_randc_txn_recursive_atomic_visibility.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_randc_txn_recursive_atomic_visibility"
+}

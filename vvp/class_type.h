@@ -21,6 +21,7 @@
 
 # include  <cstdint>
 # include  <map>
+# include  <set>
 # include  <string>
 # include  <utility>
 # include  <vector>
@@ -104,6 +105,16 @@ class class_type : public __vpiHandle {
 	// the leaf key keeps the storage hook ready for indexed aggregate mode.
       std::vector<bool>&static_randc_history(size_t idx, size_t leaf) const;
 
+	// Delay canonical static-value publication while an object graph is
+	// being randomized. Getters see the overlay immediately, but VPI/signal
+	// callbacks see only a successful final commit; rollback discards every
+	// tentative value without exposing it.
+      bool static_randomize_transaction_begin(size_t idx) const;
+      void static_randomize_transaction_mark_dirty(size_t idx,
+						    size_t leaf) const;
+      void static_randomize_transaction_commit(size_t idx) const;
+      void static_randomize_transaction_rollback(size_t idx) const;
+
 	// Base type text (rand prefix stripped, e.g. "sb32", "o") and
 	// static array element count (1 for scalars) as recorded from
 	// the .class directive. Used by randomize to fill and write
@@ -170,6 +181,12 @@ class class_type : public __vpiHandle {
 	    bool rand_mode;
 	    std::map<size_t, bool> rand_mode_leaves;
 	    std::map<size_t, std::vector<bool> > randc_history;
+	    bool randomize_transaction_active = false;
+	    std::map<size_t, vvp_vector4_t> randomize_vec4;
+	    std::map<size_t, double> randomize_real;
+	    std::map<size_t, std::string> randomize_string;
+	    std::map<size_t, vvp_object_t> randomize_object;
+	    std::set<size_t> randomize_dirty;
       };
       std::vector<static_property_cell_t*> static_properties_;
       size_t instance_size_;
