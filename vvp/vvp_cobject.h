@@ -43,6 +43,8 @@ class vvp_cobject : public vvp_object {
 		  return pid < that.pid || (pid == that.pid && leaf < that.leaf);
 	    }
       };
+      typedef std::map<randc_key_t, std::vector<bool> >
+	    randc_history_state_t;
 
       explicit vvp_cobject(const class_type*defn);
       ~vvp_cobject() override;
@@ -91,6 +93,13 @@ class vvp_cobject : public vvp_object {
       void randc_transaction_begin();
       bool randc_transaction_commit();
       void randc_transaction_rollback();
+
+      // An outer recursive randomize call journals committed instance
+      // history before visiting this object. Child solves may commit locally
+      // so later aliases see their choices, but an eventual ancestor failure
+      // restores this exact baseline together with the object values.
+      void randc_history_snapshot(randc_history_state_t&state) const;
+      void randc_history_restore(const randc_history_state_t&state);
 
       bool randc_seen(size_t pid, uint64_t val, size_t leaf = 0) const;
       void randc_mark(size_t pid, uint64_t val, size_t leaf = 0);
@@ -168,7 +177,7 @@ class vvp_cobject : public vvp_object {
       std::vector<bool> rand_mode_;
       std::map<randc_key_t, bool> rand_mode_leaves_;
       std::vector<bool> constraint_mode_;
-      std::map<randc_key_t, std::vector<bool> > randc_history_;
+      randc_history_state_t randc_history_;
       struct randc_pending_t {
 	    uint64_t staged_value = 0;
 	    bool feasible_domain = false;

@@ -359,6 +359,16 @@ void vvp_cobject::randc_transaction_rollback()
       randc_transactions_.pop_back();
 }
 
+void vvp_cobject::randc_history_snapshot(randc_history_state_t&state) const
+{
+      state = randc_history_;
+}
+
+void vvp_cobject::randc_history_restore(const randc_history_state_t&state)
+{
+      randc_history_ = state;
+}
+
 bool vvp_cobject::randc_seen(size_t pid, uint64_t val, size_t leaf) const
 {
       uint64_t period = randc_period(pid, leaf);

@@ -3250,16 +3250,18 @@ bool of_QUNIQUE(vthread_t thr, vvp_code_t cp)
       return qsort_unique_dispatch_(arr, false, true, cp->bit_idx[0] != 0);
 }
 
-/* Snapshot/restore of scalar and static-array rand property values, so
- * an unsatisfiable constraint set can leave the object unchanged and
- * randomize() can return 0 (IEEE 1800-2017 18.6.1). Assoc-array rand
- * properties are not captured (their pre-fill is a compile-progress
- * convenience; constraint UNSAT over assoc entries is not modeled). */
+/* Snapshot every runtime representation a rand property can use. A recursive
+ * outer failure must restore scalar/fixed values, real/string values, and
+ * object-backed value types (structs, D/Q/M containers) alike. Class handles
+ * remain handles; their pointees receive their own graph-session snapshot. */
 struct rand_saved_prop_s {
+      enum kind_t { VEC4_VALUE, REAL_VALUE, STRING_VALUE, OBJECT_VALUE };
       size_t pid;
       uint64_t adr;
+      kind_t kind = VEC4_VALUE;
       vvp_vector4_t val;
-      bool object_value = false;
+      double real = 0.0;
+      std::string str;
       vvp_object_t object;
 };
 
@@ -3305,13 +3307,12 @@ static bool rand_prop_is_container_(const class_type*defn, size_t pid)
 	  || (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q'));
 }
 
-/* Dynamic arrays and queues are VALUE containers. A failed two-pass solve
- * must restore their complete pre-call size and contents, not the one-bit
- * existence image returned by get_vec4(). */
-static bool rand_prop_is_value_container_(const class_type*defn, size_t pid)
+static bool rand_prop_is_object_backed_(const class_type*defn, size_t pid)
 {
       const std::string&bt = defn->property_base_type(pid);
-      return !bt.empty() && (bt[0] == 'D' || bt[0] == 'Q');
+      return bt == "o" || bt.compare(0, 3, "oc:") == 0
+	  || (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q'
+			      || bt[0] == 'M'));
 }
 
 static void randomize_snapshot_(vvp_cobject*cobj, const class_type*defn,
@@ -3320,18 +3321,30 @@ static void randomize_snapshot_(vvp_cobject*cobj, const class_type*defn,
 {
       for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
 	    if (!rand_call_active_(defn, cobj, sel, pid)) continue;
+	    const std::string&bt = defn->property_base_type(pid);
 	    uint64_t asize = defn->property_array_size(pid);
 	    if (asize < 1) asize = 1;
 	    for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
 		  rand_saved_prop_s s;
 		  s.pid = pid;
 		  s.adr = adr;
-		  if (rand_prop_is_value_container_(defn, pid)) {
-			s.object_value = true;
+		  if (rand_prop_is_object_backed_(defn, pid)) {
+			s.kind = rand_saved_prop_s::OBJECT_VALUE;
 			vvp_object_t current;
 			cobj->get_object(pid, current, adr);
-			if (!current.test_nil())
-			      s.object = current.duplicate();
+			s.object = current.value_copy_element();
+			saved.push_back(s);
+			continue;
+		  }
+		  if (bt == "r") {
+			s.kind = rand_saved_prop_s::REAL_VALUE;
+			s.real = cobj->get_real(pid, adr);
+			saved.push_back(s);
+			continue;
+		  }
+		  if (bt == "S") {
+			s.kind = rand_saved_prop_s::STRING_VALUE;
+			s.str = cobj->get_string(pid, adr);
 			saved.push_back(s);
 			continue;
 		  }
@@ -3346,12 +3359,114 @@ static void randomize_restore_(vvp_cobject*cobj,
 			       const std::vector<rand_saved_prop_s>&saved)
 {
 	for (const rand_saved_prop_s&s : saved) {
-	    if (s.object_value)
+	    if (s.kind == rand_saved_prop_s::OBJECT_VALUE)
 		  cobj->set_object(s.pid, s.object, s.adr);
+	    else if (s.kind == rand_saved_prop_s::REAL_VALUE)
+		  cobj->set_real(s.pid, s.real, s.adr);
+	    else if (s.kind == rand_saved_prop_s::STRING_VALUE)
+		  cobj->set_string(s.pid, s.str, s.adr);
 	    else
 		  cobj->set_vec4(s.pid, s.val, s.adr);
 	}
 }
+
+struct randomize_static_history_s {
+      const class_type*defn;
+      size_t pid;
+      size_t leaf;
+      std::vector<bool> history;
+};
+
+struct randomize_static_value_s {
+      const class_type*defn;
+      size_t pid;
+};
+
+struct randomize_graph_entry_s {
+      vvp_object_t hold;
+      vvp_cobject*cobj;
+      std::vector<rand_saved_prop_s> values;
+      vvp_cobject::randc_history_state_t instance_history;
+      std::vector<randomize_static_history_s> static_history;
+};
+
+/* One IEEE 1800-2017 randomize call is one object-graph transaction. Child
+ * solves commit locally so a later static alias observes their staged cycle,
+ * but every committed value/history bank is journaled here and restored in
+ * reverse visitation order if any child or ancestor solve fails. The visited
+ * set also gives cyclic/aliased handle graphs one implicit randomization per
+ * object instead of recursion, double consumption, or an abort. */
+class randomize_graph_session_t {
+    public:
+      bool enter(vvp_cobject*cobj, const std::vector<bool>*sel)
+      {
+	    if (!cobj || visited_.count(cobj)) return false;
+	    visited_.insert(cobj);
+	    entries_.push_back(randomize_graph_entry_s());
+	    randomize_graph_entry_s&entry = entries_.back();
+	    entry.hold = vvp_object_t(cobj);
+	    entry.cobj = cobj;
+	    const class_type*defn = cobj->get_defn();
+	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
+		  if (!rand_call_active_(defn, cobj, sel, pid)
+		      || !defn->property_is_static(pid))
+			continue;
+		  if (defn->static_randomize_transaction_begin(pid)) {
+			randomize_static_value_s value;
+			value.defn = defn;
+			value.pid = pid;
+			static_values_.push_back(value);
+		  }
+	    }
+	    randomize_snapshot_(cobj, defn, entry.values, sel);
+	    cobj->randc_history_snapshot(entry.instance_history);
+
+	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
+		  if (!rand_call_active_(defn, cobj, sel, pid)
+		      || !defn->property_is_randc(pid)
+		      || !defn->property_is_static(pid))
+			continue;
+		  uint64_t count = defn->property_array_size(pid);
+		  if (count < 1) count = 1;
+		  for (uint64_t leaf = 0 ; leaf < count ; leaf += 1) {
+			randomize_static_history_s saved;
+			saved.defn = defn;
+			saved.pid = pid;
+			saved.leaf = (size_t)leaf;
+			saved.history = defn->static_randc_history(pid,
+							(size_t)leaf);
+			entry.static_history.push_back(saved);
+		  }
+	    }
+	    return true;
+      }
+
+      void commit()
+      {
+	    for (const randomize_static_value_s&value : static_values_)
+		  value.defn->static_randomize_transaction_commit(value.pid);
+      }
+
+      void rollback()
+      {
+	    for (std::vector<randomize_graph_entry_s>::reverse_iterator it =
+		       entries_.rbegin(); it != entries_.rend(); ++it) {
+		  randomize_restore_(it->cobj, it->values);
+		  it->cobj->randc_history_restore(it->instance_history);
+		  for (const randomize_static_history_s&saved : it->static_history)
+			saved.defn->static_randc_history(saved.pid, saved.leaf) =
+			      saved.history;
+	    }
+	    for (std::vector<randomize_static_value_s>::reverse_iterator it =
+		       static_values_.rbegin(); it != static_values_.rend(); ++it)
+		  it->defn->static_randomize_transaction_rollback(it->pid);
+      }
+
+    private:
+      std::set<vvp_cobject*> visited_;
+      std::vector<randomize_graph_entry_s> entries_;
+      std::vector<randomize_static_value_s> static_values_;
+};
 
 /*
  * R3/M3B-5 (IEEE 1800-2017 18.13.1): randomize() draws from the OBJECT's
@@ -3508,49 +3623,127 @@ static void randomize_struct_members_(vvp_cobject*subcobj,
       }
 }
 
-/*
- * IEEE 1800-2017 18.4: object.randomize() must also randomize any non-null
- * rand HANDLE property, i.e. call that sub-object's own randomize(). This
- * is sequential recursion -- the sub-object solves its own constraints on
- * its own, NOT jointly with the parent's -- which is the documented limit:
- * a sub-object constraint that references parent state is not modeled.
- * A null handle is left null (18.4 default): nothing to recurse into.
- *
- * `randomize_stack_` guards against a cyclic rand-handle graph (a chain
- * that loops back to an object already being randomized higher up this
- * same call): re-entering would recurse forever, so a repeat occurrence
- * is left as-is instead -- a documented limitation, not a fresh joint
- * solve for the cycle.
- */
-static std::vector<vvp_cobject*> randomize_stack_;
+struct randomize_solve_options_s {
+      const std::vector<std::string>*extra_ir = nullptr;
+      const std::vector<uint64_t>*slot_vals = nullptr;
+      const std::function<unsigned()>*next_random = nullptr;
+      bool include_class_constraints = true;
+};
 
-static bool randomize_cobject_(vvp_cobject*cobj, const std::vector<bool>*sel)
+static bool randomize_cobject_(randomize_graph_session_t&session,
+			       vvp_cobject*cobj,
+			       const std::vector<bool>*sel,
+			       const randomize_solve_options_s*options = nullptr);
+
+/* Recurse through one object-valued aggregate element. Unpacked structs are
+ * value aggregates and consume the containing object's RNG; class handles
+ * are independent randomizable objects and consume their own RNG. Nested
+ * D/Q/M containers are traversed so every non-null class handle participates
+ * in the same outer graph transaction. */
+static bool randomize_object_value_(randomize_graph_session_t&session,
+				    const vvp_object_t&obj,
+				    const std::function<unsigned()>&next_random,
+				    bool*aggregate_changed = nullptr)
+{
+      if (vvp_cobject*subcobj = obj.peek<vvp_cobject>()) {
+	    if (subcobj->get_defn()->is_struct_type()) {
+		  randomize_struct_members_(subcobj, subcobj->get_defn(),
+					    next_random);
+		  if (aggregate_changed) *aggregate_changed = true;
+		  return true;
+	    }
+	    return randomize_cobject_(session, subcobj, nullptr);
+      }
+
+      if (vvp_darray*array = obj.peek<vvp_darray>()) {
+	    for (size_t idx = 0 ; idx < array->get_size() ; idx += 1) {
+		  vvp_object_t elem;
+		  array->get_word((unsigned)idx, elem);
+		  if (!randomize_object_value_(session, elem, next_random,
+						aggregate_changed))
+			return false;
+	    }
+	    return true;
+      }
+
+      if (vvp_assoc_object*assoc = obj.peek<vvp_assoc_object>()) {
+	    std::string skey;
+	    for (bool ok = assoc->first_key(skey); ok;
+		 ok = assoc->next_key(skey)) {
+		  vvp_object_t elem;
+		  if (assoc->get(skey, elem)
+		      && !randomize_object_value_(session, elem, next_random,
+						 aggregate_changed))
+			return false;
+	    }
+
+	    vvp_object_t okey;
+	    for (bool ok = assoc->first_key(okey); ok;
+		 ok = assoc->next_key(okey)) {
+		  vvp_object_t elem;
+		  if (assoc->get(okey, elem)
+		      && !randomize_object_value_(session, elem, next_random,
+						 aggregate_changed))
+			return false;
+	    }
+
+	    vvp_vector4_t vkey;
+	    for (bool ok = assoc->first_key(vkey); ok;
+		 ok = assoc->next_key(vkey)) {
+		  vvp_object_t elem;
+		  if (assoc->get(vkey, elem)
+		      && !randomize_object_value_(session, elem, next_random,
+						 aggregate_changed))
+			return false;
+	    }
+	    return true;
+      }
+
+      return true;
+}
+
+static void randomize_assoc_vec4_(vvp_assoc_vec4*assoc,
+				  const std::function<unsigned()>&next_random)
+{
+      if (!assoc) return;
+      std::string key;
+      for (bool ok = assoc->first_key(key); ok; ok = assoc->next_key(key)) {
+	    vvp_vector4_t cur;
+	    bool got = assoc->get(key, cur);
+	    unsigned wid = got ? cur.size() : 32;
+	    if (wid == 0) wid = 32;
+	    vvp_vector4_t value(wid, BIT4_0);
+	    for (unsigned bit = 0 ; bit < wid ; bit += 1)
+		  value.set_bit(bit, (next_random() & 1) ? BIT4_1 : BIT4_0);
+	    assoc->set(key, value);
+      }
+}
+
+/* IEEE 1800-2017 18.4/18.6.1: every non-null rand handle is randomized as
+ * part of one outer call. Each object solves its own constraint set, but the
+ * graph session makes the observable call atomic: a failure anywhere restores
+ * every visited value/history bank, and an alias or cycle is visited once. */
+static bool randomize_cobject_(randomize_graph_session_t&session,
+			       vvp_cobject*cobj,
+			       const std::vector<bool>*sel,
+			       const randomize_solve_options_s*options)
 {
       if (!cobj) return true;
-      for (vvp_cobject*p : randomize_stack_)
-	    if (p == cobj) return true;
-      randomize_stack_.push_back(cobj);
-	// One stack frame per entry makes tentative randc choices local to
-	// this call. Nested/reentrant entries on the same object merge into
-	// their parent only on success; a failed solve drops its own frame.
+      if (!session.enter(cobj, sel)) return true;
       cobj->randc_transaction_begin();
 
       bool solve_ok = true;
       const class_type*defn = cobj->get_defn();
-      auto next_random = [cobj]() -> unsigned {
+      std::function<unsigned()> object_random = [cobj]() -> unsigned {
 	    return randomize_rand_(cobj);
       };
-
-      bool have_constraints = false;
-      for (const class_type*walker = defn; walker; walker = walker->runtime_super())
-	    if (walker->constraint_count() > 0)
-		  have_constraints = true;
-      std::vector<rand_saved_prop_s> saved;
-      if (have_constraints)
-	    randomize_snapshot_(cobj, defn, saved, sel);
+      const std::function<unsigned()>&next_random =
+	    options && options->next_random ? *options->next_random
+					     : object_random;
 
 	// Fill this call's random variables with random bits first.
-      for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
+      for (size_t pid = 0 ; solve_ok && pid < defn->property_count() ;
+	   pid += 1) {
 	    if (!rand_call_active_(defn, cobj, sel, pid))
 		  continue;
 
@@ -3573,33 +3766,61 @@ static bool randomize_cobject_(vvp_cobject*cobj, const std::vector<bool>*sel)
 			      cobj->get_object(pid, propobj, adr);
 			      vvp_cobject*subcobj = propobj.peek<vvp_cobject>();
 			      if (!subcobj) continue;
-			      if (is_struct_prop)
+			      if (is_struct_prop) {
 				    randomize_struct_members_(subcobj,
 						       subcobj->get_defn(),
 						       next_random);
-			      else
-				    randomize_cobject_(subcobj, nullptr);
+				    if (defn->property_is_static(pid))
+					  defn->static_randomize_transaction_mark_dirty(
+						pid, (size_t)adr);
+			      } else if (!randomize_cobject_(session, subcobj,
+							 nullptr))
+				    solve_ok = false;
 			}
 			continue;
 		  }
 	    }
 
-	      // Phase 50b: rand assoc-vec4 array properties.  When a
-	      // property is `rand uint x[KEY]`, the storage is a
-	      // vvp_assoc_vec4 reachable via get_object().  The default
-	      // get_vec4 path returns a 1-bit "exists" flag and never
-	      // touches the actual entry values, so randomize() left
-	      // assoc entries at their initialised value (typically 0)
-	      // for OpenTitan's clk_freqs_mhz pattern.  Iterate string
-	      // keys here and replace each entry's value with random
-	      // bits of the entry's natural width, capped so the value
-	      // is within `int` range and non-zero.  The constraint
-	      // foreach is currently dropped at parse, so this is the
-	      // only mechanism that puts non-zero values in the assoc;
-	      // downstream code that checks `freq > 0` works.
-	      // Static-array rand properties (e.g. `rand int arr[4]`):
-	      // fill every element with random bits. Without this only
-	      // word 0 is touched and elements stay at 0.
+	      // Object-backed D/Q/M properties may themselves be fixed arrays.
+	      // Traverse each active outer property word before the generic
+	      // fixed-array bit path, which is only valid for integral storage.
+	    {
+		  const std::string&bt = defn->property_base_type(pid);
+		  if (bt == "Do" || bt == "Qo"
+		      || (!bt.empty() && bt[0] == 'M')) {
+			uint64_t count = defn->property_array_size(pid);
+			if (count < 1) count = 1;
+			for (uint64_t adr = 0 ; solve_ok && adr < count ;
+			     adr += 1) {
+			      if (!rand_leaf_active_(defn, cobj, sel, pid,
+					       (size_t)adr))
+				    continue;
+			      vvp_object_t propobj;
+			      cobj->get_object(pid, propobj, adr);
+			      if (bt == "Do" || bt == "Qo" || bt == "Mo") {
+				    bool aggregate_changed = false;
+				    if (!randomize_object_value_(session, propobj,
+							 next_random,
+							 &aggregate_changed))
+					  solve_ok = false;
+				    if (aggregate_changed
+					&& defn->property_is_static(pid))
+					  defn->static_randomize_transaction_mark_dirty(
+						pid, (size_t)adr);
+			      } else if (vvp_assoc_vec4*assoc =
+					       propobj.peek<vvp_assoc_vec4>()) {
+				    randomize_assoc_vec4_(assoc, next_random);
+				    if (defn->property_is_static(pid))
+					  defn->static_randomize_transaction_mark_dirty(
+						pid, (size_t)adr);
+			      }
+			}
+			continue;
+		  }
+	    }
+
+	      // Fixed integral rand properties randomize every active leaf.
+	      // Object-backed and associative properties were handled above.
 	    if (defn->property_array_size(pid) > 1) {
 		  uint64_t asize = defn->property_array_size(pid);
 		  for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
@@ -3625,69 +3846,6 @@ static bool randomize_cobject_(vvp_cobject*cobj, const std::vector<bool>*sel)
 		  continue;
 	    }
 
-	    {
-		  vvp_object_t propobj;
-		  cobj->get_object(pid, propobj, 0);
-		  /* A rand associative array of class handles keeps its keys
-		     and handles; each non-null element object is randomized
-		     recursively (IEEE 1800-2017 18.4). Treating the container
-		     as an integral property reached class_property_t::set_vec4,
-		     produced an ignored-write warning, and skipped every child
-		     object's constraints. Support all three key representations
-		     used by the associative-array runtime. */
-		  if (vvp_assoc_object*assoc = propobj.peek<vvp_assoc_object>()) {
-			std::string skey;
-			bool sok = assoc->first_key(skey);
-			while (sok) {
-			      vvp_object_t elem;
-			      if (assoc->get(skey, elem))
-				    randomize_cobject_(elem.peek<vvp_cobject>(), nullptr);
-			      sok = assoc->next_key(skey);
-			}
-
-			vvp_object_t okey;
-			bool ook = assoc->first_key(okey);
-			while (ook) {
-			      vvp_object_t elem;
-			      if (assoc->get(okey, elem))
-				    randomize_cobject_(elem.peek<vvp_cobject>(), nullptr);
-			      ook = assoc->next_key(okey);
-			}
-
-			vvp_vector4_t vkey;
-			bool vok = assoc->first_key(vkey);
-			while (vok) {
-			      vvp_object_t elem;
-			      if (assoc->get(vkey, elem))
-				    randomize_cobject_(elem.peek<vvp_cobject>(), nullptr);
-			      vok = assoc->next_key(vkey);
-			}
-			continue;
-		  }
-		  if (vvp_assoc_vec4*assoc = propobj.peek<vvp_assoc_vec4>()) {
-			std::string key;
-			bool ok = assoc->first_key(key);
-			while (ok) {
-			      vvp_vector4_t cur;
-			      bool got = assoc->get(key, cur);
-			      unsigned wid = got ? cur.size() : 32;
-			      if (wid == 0) wid = 32;
-			      // Fill every bit of the entry's OWN declared
-			      // width, matching the static-array rand loop
-			      // above -- not a fixed [1,255] sliver of it
-			      // (RANDOM-DIST fix #3: the old cap silently
-			      // confined `rand int aa[string]' to [1,255]
-			      // regardless of declared width).
-			      vvp_vector4_t nv(wid, BIT4_0);
-			      for (unsigned b = 0 ; b < wid ; b += 1)
-				    nv.set_bit(b, (randomize_rand_(cobj) & 1)
-						  ? BIT4_1 : BIT4_0);
-			      assoc->set(key, nv);
-			      ok = assoc->next_key(key);
-			}
-			continue;  // skip the get_vec4 path below
-		  }
-	    }
 	      // A CONTAINER property -- a dynamic array or queue. There are
 	      // no property bits to pre-fill: get_vec4 hands back a 1-bit
 	      // "non-nil" flag and writing that back is not a value
@@ -3711,7 +3869,7 @@ static bool randomize_cobject_(vvp_cobject*cobj, const std::vector<bool>*sel)
 		  continue;
 	    }
 	    for (unsigned i = 0 ; i < wid ; i += 32) {
-		  unsigned rnd = randomize_rand_(cobj);
+		  unsigned rnd = next_random();
 		  for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)
 			val.set_bit(i + b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
 	    }
@@ -3723,10 +3881,21 @@ static bool randomize_cobject_(vvp_cobject*cobj, const std::vector<bool>*sel)
 	// chain class by class silently violates derived constraints.
       {
 	    vector<string> extra_ir;
-	    collect_unmerged_base_constraints_(defn, extra_ir);
-	    if (defn->constraint_count() > 0 || !extra_ir.empty())
-		  if (!vvp_z3_randomize(defn, cobj, extra_ir, {}, sel))
-			solve_ok = false;
+	    bool include_class_constraints = !options
+		  || options->include_class_constraints;
+	    if (include_class_constraints)
+		  collect_unmerged_base_constraints_(defn, extra_ir);
+	    if (options && options->extra_ir)
+		  extra_ir.insert(extra_ir.end(), options->extra_ir->begin(),
+				  options->extra_ir->end());
+	    static const vector<uint64_t> empty_slots;
+	    const vector<uint64_t>&slot_vals =
+		  options && options->slot_vals ? *options->slot_vals
+					 : empty_slots;
+	    if (solve_ok && !vvp_z3_randomize(defn, cobj, extra_ir,
+					       slot_vals, sel,
+					       include_class_constraints))
+		  solve_ok = false;
       }
       if (solve_ok) {
 	    if (!cobj->randc_transaction_commit())
@@ -3734,10 +3903,6 @@ static bool randomize_cobject_(vvp_cobject*cobj, const std::vector<bool>*sel)
       } else {
 	    cobj->randc_transaction_rollback();
       }
-      if (!solve_ok)
-	    randomize_restore_(cobj, saved);
-
-      randomize_stack_.pop_back();
       return solve_ok;
 }
 
@@ -3765,7 +3930,13 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 	    thr->rand_sel.clear();
       }
 
-      bool solve_ok = cobj ? randomize_cobject_(cobj, sel) : true;
+      randomize_graph_session_t session;
+      bool solve_ok = cobj
+	    ? randomize_cobject_(session, cobj, sel) : true;
+      if (!solve_ok)
+	    session.rollback();
+      else
+	    session.commit();
 
       vvp_object_t tmp;
       thr->pop_object(tmp);
@@ -3813,123 +3984,28 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	    thr->rand_sel.clear();
       }
 
-      bool solve_ok = true;
-      if (cobj) {
-	    const class_type*defn = cobj->get_defn();
-	    cobj->randc_transaction_begin();
-	    vthread_t scope_rng_owner = scope_form
-		  ? logical_process_thread_(thr) : nullptr;
-	    auto next_random = [&]() -> unsigned {
-		  return scope_form ? thread_rng_next_(scope_rng_owner)
-				    : randomize_rand_(cobj);
-	    };
+      vector<string> extra_ir;
+      if (ir_text && *ir_text) extra_ir.push_back(string(ir_text));
 
-	    std::vector<rand_saved_prop_s> saved;
-	    randomize_snapshot_(cobj, defn, saved, sel);
+      vthread_t scope_rng_owner = scope_form
+	    ? logical_process_thread_(thr) : nullptr;
+      std::function<unsigned()> scope_random = [scope_rng_owner]() -> unsigned {
+	    return thread_rng_next_(scope_rng_owner);
+      };
+      randomize_solve_options_s options;
+      options.extra_ir = &extra_ir;
+      options.slot_vals = &slot_vals;
+      options.include_class_constraints = !scope_form;
+      if (scope_form)
+	    options.next_random = &scope_random;
 
-	      // Randomize this call's random variables first.
-	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
-		  if (!rand_call_active_(defn, cobj, sel, pid)) continue;
-
-		    // Unpacked-struct / class-handle rand properties:
-		    // member-wise fill or recurse into a non-null handle's
-		    // own randomize() (mirrors of_RANDOMIZE / IEEE 1800-2017
-		    // 18.4). A null handle stays null.
-		  {
-			const std::string&bt = defn->property_base_type(pid);
-			bool is_struct_prop = bt.compare(0, 3, "oc:") == 0;
-			bool is_handle_prop = (bt == "o");
-			if (is_struct_prop || is_handle_prop) {
-			      uint64_t hsize = defn->property_array_size(pid);
-			      if (hsize < 1) hsize = 1;
-			      for (uint64_t adr = 0 ; adr < hsize ; adr += 1) {
-				    if (!rand_leaf_active_(defn, cobj, sel, pid,
-						     (size_t)adr))
-					  continue;
-				    vvp_object_t propobj;
-				    cobj->get_object(pid, propobj, adr);
-				    vvp_cobject*subcobj = propobj.peek<vvp_cobject>();
-				    if (!subcobj) continue;
-				    if (is_struct_prop)
-					  randomize_struct_members_(subcobj,
-							     subcobj->get_defn(),
-							     next_random);
-				    else
-					  randomize_cobject_(subcobj, nullptr);
-			      }
-			      continue;
-			}
-		  }
-
-		    // Static-array rand properties: fill each element
-		    // (mirrors of_RANDOMIZE).
-		  if (defn->property_array_size(pid) > 1) {
-			uint64_t asize = defn->property_array_size(pid);
-			for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
-			      if (!rand_leaf_active_(defn, cobj, sel, pid,
-					       (size_t)adr))
-				    continue;
-			      vvp_vector4_t cur;
-			      cobj->get_vec4(pid, cur, adr);
-			      unsigned awid = cur.size();
-			      if (awid == 0)
-				    break;
-			      if (defn->property_is_randc(pid)
-				  && randomize_randc_leaf_(cobj, pid, (size_t)adr,
-							   cur, next_random)) {
-				    cobj->set_vec4(pid, cur, adr);
-				    continue;
-			      }
-			      vvp_vector4_t nv(awid, BIT4_0);
-			      for (unsigned b = 0 ; b < awid ; b += 1)
-			    nv.set_bit(b, (next_random() & 1) ? BIT4_1 : BIT4_0);
-			      cobj->set_vec4(pid, nv, adr);
-			}
-			continue;
-		  }
-		    // Container / handle property: nothing to pre-fill
-		    // (see of_RANDOMIZE for why).
-		  if (rand_prop_is_container_(defn, pid))
-			continue;
-		  vvp_vector4_t val;
-		  cobj->get_vec4(pid, val);
-		  unsigned wid = val.size();
-		  if (wid == 0) continue;
-		  // Same transactional cyclic pre-fill as of_RANDOMIZE.
-		  if (defn->property_is_randc(pid)
-			&& randomize_randc_leaf_(cobj, pid, 0, val, next_random)) {
-			cobj->set_vec4(pid, val);
-			continue;
-		  }
-		  for (unsigned i = 0 ; i < wid ; i += 32) {
-		    unsigned rnd = next_random();
-			for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)
-			      val.set_bit(i + b, (rnd >> b) & 1 ? BIT4_1 : BIT4_0);
-		  }
-		  cobj->set_vec4(pid, val);
-	    }
-
-	      // Solve with Z3: class constraints + with-constraints.
-	      // Inherited constraints join the same single solve as the
-	      // class's own and the inline with-clause (mirrors
-	      // of_RANDOMIZE). Order is ascending soft-constraint priority
-	      // (18.5.14.1): anything the merge missed from a base first,
-	      // then the call-site with-clause, which outranks everything.
-	    vector<string> extra_ir;
-	    if (!scope_form)
-		  collect_unmerged_base_constraints_(defn, extra_ir);
-	    if (ir_text && *ir_text) extra_ir.push_back(string(ir_text));
-	    solve_ok = vvp_z3_randomize(defn, cobj, extra_ir, slot_vals, sel,
-				      !scope_form);
-	    if (solve_ok) {
-		  if (!cobj->randc_transaction_commit())
-			solve_ok = false;
-	    } else {
-		  cobj->randc_transaction_rollback();
-	    }
-	    if (!solve_ok)
-		  randomize_restore_(cobj, saved);
-      }
+      randomize_graph_session_t session;
+      bool solve_ok = cobj
+	    ? randomize_cobject_(session, cobj, sel, &options) : true;
+      if (!solve_ok)
+	    session.rollback();
+      else
+	    session.commit();
 
       vvp_object_t tmp;
       thr->pop_object(tmp);

@@ -2001,6 +2001,9 @@ static void cobj_set_elem_bits(vvp_cobject* cobj, unsigned idx, unsigned elem,
 	    for (unsigned b = 0; b < vec.size() && b < 64; ++b)
 		  vec.set_bit(b, ((bits >> b) & 1) ? BIT4_1 : BIT4_0);
 	    da->set_word(elem, vec);
+	    const class_type*defn = cobj->get_defn();
+	    if (defn->property_is_static(idx))
+		  defn->static_randomize_transaction_mark_dirty(idx, 0);
 	    return;
       }
       if (vvp_assoc_base*assoc = propobj.peek<vvp_assoc_base>()) {
@@ -2008,6 +2011,9 @@ static void cobj_set_elem_bits(vvp_cobject* cobj, unsigned idx, unsigned elem,
 	    for (unsigned bit = 0 ; bit < vec.size() && bit < 64 ; bit += 1)
 		  vec.set_bit(bit, ((bits >> bit) & 1) ? BIT4_1 : BIT4_0);
 	    (void) assoc->poke_entry(elem, vec, 0.0, string(), 0);
+	    const class_type*defn = cobj->get_defn();
+	    if (defn->property_is_static(idx))
+		  defn->static_randomize_transaction_mark_dirty(idx, 0);
 	    return;
       }
       vvp_vector4_t vec;
