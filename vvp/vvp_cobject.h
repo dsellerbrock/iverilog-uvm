@@ -75,9 +75,16 @@ class vvp_cobject : public vvp_object {
 
       bool rand_mode(size_t pid) const;
       bool rand_mode(size_t pid, size_t leaf) const;
+      bool rand_mode_for_randomization(size_t pid, size_t leaf) const;
       bool rand_mode_any(size_t pid) const;
       void set_rand_mode(size_t pid, bool mode);
       void set_rand_mode(size_t pid, size_t leaf, bool mode);
+      bool rand_mode(size_t pid, const std::string&key) const;
+      bool rand_mode(size_t pid, const vvp_object_t&key) const;
+      bool rand_mode(size_t pid, const vvp_vector4_t&key) const;
+      void set_rand_mode(size_t pid, const std::string&key, bool mode);
+      void set_rand_mode(size_t pid, const vvp_object_t&key, bool mode);
+      void set_rand_mode(size_t pid, const vvp_vector4_t&key, bool mode);
       void set_all_rand_mode(bool mode);
 
       bool constraint_mode(size_t cid) const;

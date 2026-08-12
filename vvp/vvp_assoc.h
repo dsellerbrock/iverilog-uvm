@@ -87,13 +87,38 @@ class vvp_assoc_base : public vvp_object {
 			      double val_real, const std::string&val_str,
 			      int val_kind) =0;
 
+	// IEEE 1800-2017 18.8 per-element mode state. Overrides are keyed by
+	// the same typed key identity as the associative array and are removed
+	// with the entry, so delete/reinsert creates a fresh active variable.
+      bool rand_mode(const std::string&key) const;
+      bool rand_mode(const vvp_object_t&key) const;
+      bool rand_mode(const vvp_vector4_t&key) const;
+      bool rand_mode_at(size_t position) const;
+      bool rand_mode_any() const;
+      void set_rand_mode(const std::string&key, bool mode);
+      void set_rand_mode(const vvp_object_t&key, bool mode);
+      void set_rand_mode(const vvp_vector4_t&key, bool mode);
+      void set_all_rand_mode(bool mode);
+      void inherit_rand_modes(const vvp_assoc_base&that);
+
     protected:
       static const vvp_object* object_key_(const vvp_object_t&key);
       static std::string vec4_key_(const vvp_vector4_t&key);
+      void erase_rand_mode_(const std::string&key);
+      void erase_rand_mode_(const vvp_object_t&key);
+      void erase_rand_mode_(const vvp_vector4_t&key);
+      void clear_rand_modes_();
+
+    private:
+      bool rand_mode_default_ = true;
+      std::map<std::string, bool> rand_mode_str_;
+      std::map<const vvp_object*, bool> rand_mode_obj_;
+      std::map<std::string, bool> rand_mode_vec_;
 };
 
-/* An associative-array value is copied by value, including when its element
- * is itself a queue, dynamic array, associative array, or synthetic unpacked
+/* An associative-array value and its per-element random modes are copied by
+ * value, including when its element is itself a queue, dynamic array,
+ * associative array, or synthetic unpacked
  * struct. Class objects remain handles. Keep the policy identical to other
  * object-backed containers instead of copying every vvp_object_t verbatim. */
 template <class TYPE>
@@ -117,6 +142,7 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       { return str_map_.size() + obj_map_.size() + vec_map_.size(); }
       void clear() override
       {
+            clear_rand_modes_();
             str_map_.clear();
             obj_map_.clear();
             obj_key_refs_.clear();
@@ -157,15 +183,16 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
                     bool signed_order = false) const override
       { return prev_key_(vec_map_, key, signed_order); }
       void erase_key(const std::string&key) override
-      { str_map_.erase(key); }
+      { erase_rand_mode_(key); str_map_.erase(key); }
       void erase_key(const vvp_object_t&key) override
       {
             const vvp_object*raw_key = object_key_(key);
+            erase_rand_mode_(key);
             obj_map_.erase(raw_key);
             obj_key_refs_.erase(raw_key);
       }
       void erase_key(const vvp_vector4_t&key) override
-      { vec_map_.erase(vec4_key_(key)); }
+      { erase_rand_mode_(key); vec_map_.erase(vec4_key_(key)); }
 
       void set(const std::string&key, const TYPE&value)
       { str_map_[key] = value; }
@@ -243,6 +270,7 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
             if (that == this)
                   return;
             copy_from_(*that);
+            inherit_rand_modes(*that);
             touch();
       }
 
@@ -250,6 +278,7 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       {
             vvp_assoc_map<TYPE>*that = new vvp_assoc_map<TYPE>();
             that->copy_from_(*this);
+            that->inherit_rand_modes(*this);
             return that;
       }
 

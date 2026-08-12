@@ -1782,16 +1782,34 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    clr_word(use_idx);
 	    return;
       }
-      if (strcmp(ivl_expr_name(expr),"$ivl_class_method$rand_mode_get")==0) {
+      if (strcmp(ivl_expr_name(expr),"$ivl_class_method$rand_mode_get")==0
+	  || strcmp(ivl_expr_name(expr),
+		    "$ivl_class_method$rand_mode_get_assoc") == 0
+	  || strcmp(ivl_expr_name(expr),
+		    "$ivl_class_method$rand_mode_get_last") == 0) {
+	    int assoc_index = strcmp(ivl_expr_name(expr),
+			     "$ivl_class_method$rand_mode_get_assoc") == 0;
+	    int last_index = strcmp(ivl_expr_name(expr),
+			     "$ivl_class_method$rand_mode_get_last") == 0;
 	      /* M3B-12 (IEEE 1800-2017 18.8): parm[0] = object,
 	       * parm[1] = property id. Reads the variable's active state. */
 	    ivl_expr_t obj_arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
 	    ivl_expr_t pid_arg = (parm_count > 1) ? ivl_expr_parm(expr, 1) : 0;
 	    long pid = pid_arg ? get_number_immediate(pid_arg) : 0;
 	    if (obj_arg) draw_eval_object(obj_arg);
+	    if (last_index) {
+		  fprintf(vvp_out, "    %%rand_mode/get/last %ld;\n", pid);
+		  return;
+	    }
 	    if (parm_count >= 4) {
 		  ivl_expr_t leaf_arg = ivl_expr_parm(expr, 2);
 		  ivl_expr_t count_arg = ivl_expr_parm(expr, 3);
+		  if (assoc_index) {
+			const char*key_kind = draw_eval_assoc_key_(leaf_arg, 0);
+			fprintf(vvp_out, "    %%rand_mode/get/a/%s %ld;\n",
+				key_kind, pid);
+			return;
+		  }
 		  int leaf_word = allocate_word();
 		  int count_word = allocate_word();
 		  draw_expr_into_idx(leaf_arg, leaf_word);

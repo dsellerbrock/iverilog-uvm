@@ -2255,6 +2255,9 @@ static bool rand_elem_active_(const class_type* defn, vvp_cobject* cobj,
       if (sel) return pid < sel->size() ? (*sel)[pid] : false;
       if (!defn->property_is_rand(pid)) return false;
       if (!cobj) return true;
+      const std::string&bt = defn->property_base_type(pid);
+      if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q' || bt[0] == 'M'))
+	    return cobj->rand_mode_for_randomization(pid, elem);
       if (defn->property_array_size(pid) <= 1)
 	    return cobj->rand_mode(pid);
       return cobj->rand_mode(pid, elem);
@@ -3299,6 +3302,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 
 	    random_container_desc_t desc =
 		  random_container_desc_(sv.container_type);
+	    vvp_object_t old_obj;
+	    cobj->get_object(sv.idx, old_obj, 0);
+	    vvp_darray*old_array = old_obj.peek<vvp_darray>();
 	    vvp_darray*da = make_random_container_(desc, (size_t)new_size);
 	    if (desc.is_queue) {
 		  vvp_queue*queue = dynamic_cast<vvp_queue*>(da);
@@ -3306,9 +3312,13 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			? (unsigned)desc.max_size : 0;
 		  for (uint64_t adr = 0 ; queue && adr < new_size ; adr += 1) {
 			vvp_vector4_t nv(desc.elem_width, BIT4_0);
-			for (unsigned b = 0 ; b < desc.elem_width ; b += 1)
-			      nv.set_bit(b, (rng.next() & 1)
-					    ? BIT4_1 : BIT4_0);
+			if (old_array && adr < old_array->get_size()
+			    && !old_array->rand_mode((size_t)adr))
+			      old_array->get_word((unsigned)adr, nv);
+			else
+			      for (unsigned b = 0 ; b < desc.elem_width ; b += 1)
+				    nv.set_bit(b, (rng.next() & 1)
+						  ? BIT4_1 : BIT4_0);
 			queue->set_word_max((unsigned)adr, nv, queue_max);
 		  }
 	    } else {
@@ -3318,14 +3328,24 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			unsigned wid = word.size();
 			if (wid == 0) wid = 32;
 			vvp_vector4_t nv(wid, BIT4_0);
-			for (unsigned b = 0 ; b < wid ; b += 1)
-			      nv.set_bit(b, (rng.next() & 1)
-					    ? BIT4_1 : BIT4_0);
+			if (old_array && adr < old_array->get_size()
+			    && !old_array->rand_mode((size_t)adr))
+			      old_array->get_word((unsigned)adr, nv);
+			else
+			      for (unsigned b = 0 ; b < wid ; b += 1)
+				    nv.set_bit(b, (rng.next() & 1)
+						  ? BIT4_1 : BIT4_0);
 			da->set_word((unsigned)adr, nv);
 		  }
 	    }
 	    vvp_object_t obj(da);
 	    cobj->set_object(sv.idx, obj, 0);
+	    if (old_array) {
+		  vvp_object_t stored;
+		  cobj->get_object(sv.idx, stored, 0);
+		  if (vvp_darray*stored_array = stored.peek<vvp_darray>())
+			stored_array->inherit_rand_modes(*old_array);
+	    }
       }
 
 	// Apply solved array-element values.

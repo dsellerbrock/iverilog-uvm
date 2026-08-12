@@ -1,0 +1,4 @@
+ivltests/sv_rand_mode_dynamic_whole_query_fail.v:21: error: rand_mode() query on unpacked-array property `dynamic_values' requires selecting one element (IEEE 1800-2017 18.8).
+ivltests/sv_rand_mode_dynamic_whole_query_fail.v:22: error: rand_mode() query on unpacked-array property `queue_values' requires selecting one element (IEEE 1800-2017 18.8).
+ivltests/sv_rand_mode_dynamic_whole_query_fail.v:23: error: rand_mode() query on unpacked-array property `associative_values' requires selecting one element (IEEE 1800-2017 18.8).
+3 error(s) during elaboration.

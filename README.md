@@ -174,10 +174,12 @@ endclass
 `rand_mode`/`constraint_mode`, pre/post_randomize, `dist`, `soft`, foreach
 constraints) is solved with Z3. `randcase` and `randsequence` work.
 `srandom()`/`get_randstate()`/`set_randstate()` give each object its own
-generator. Fixed unpacked-array `rand_mode` supports element and subarray
-control, and fixed unpacked `randc` arrays maintain an independent cyclic
-history for each element. Dynamic/queue/associative per-element mode control
-and recursive object-graph rollback remain recorded clause-18 gaps.
+generator. Unpacked-array `rand_mode` supports fixed, dynamic, queue, and
+associative elements (including typed associative keys); whole-array setters
+control current and subsequently created elements, and queue element state
+moves with insert/delete and ordering operations. Fixed unpacked `randc` arrays maintain
+an independent cyclic history for each element. Dynamic/queue/associative
+`randc` cycle histories remain a recorded clause-18 gap.
 
 The scope form `std::randomize(vars) with {...}` now reaches the same Z3
 constraint IR as class randomization in statement, `void'(...)`, and

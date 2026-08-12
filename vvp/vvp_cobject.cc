@@ -21,6 +21,8 @@
 # include  "class_type.h"
 # include  "vvp_net.h"
 # include  "event.h"
+# include  "vvp_darray.h"
+# include  "vvp_assoc.h"
 # include  <iostream>
 # include  <cassert>
 # include  <cstdio>
@@ -112,6 +114,47 @@ bool vvp_cobject::rng_set_state(const std::string&state)
 
 bool vvp_cobject::rand_mode(size_t pid) const
 {
+	// A dynamic array / queue / associative array is one property slot but
+	// contains independently controlled unpacked variables. The aggregate
+	// helper is internal (the IEEE query form still requires one index).
+      if (pid < defn_->property_count()) {
+	    const std::string&bt = defn_->property_base_type(pid);
+	    vvp_object_t obj;
+	    const_cast<vvp_cobject*>(this)->get_object(pid, obj, 0);
+	    if (vvp_darray*array = obj.peek<vvp_darray>()) {
+		  if (array->get_size() == 0) {
+			if (defn_->property_is_static(pid))
+			      return defn_->static_rand_mode(pid, 0);
+			return pid < rand_mode_.size() ? rand_mode_[pid] : true;
+		  }
+		  for (size_t idx = 0 ; idx < array->get_size() ; idx += 1)
+			if (!array->rand_mode(idx)) return false;
+		  return true;
+	    }
+	    if (vvp_assoc_base*assoc = obj.peek<vvp_assoc_base>()) {
+		  if (assoc->size() == 0) {
+			if (defn_->property_is_static(pid))
+			      return defn_->static_rand_mode(pid, 0);
+			return pid < rand_mode_.size() ? rand_mode_[pid] : true;
+		  }
+		  // all-enabled = !any disabled; enumerate typed keys.
+		  std::string skey;
+		  for (bool ok = assoc->first_key(skey); ok; ok = assoc->next_key(skey))
+			if (!assoc->rand_mode(skey)) return false;
+		  vvp_object_t okey;
+		  for (bool ok = assoc->first_key(okey); ok; ok = assoc->next_key(okey))
+			if (!assoc->rand_mode(okey)) return false;
+		  vvp_vector4_t vkey;
+		  for (bool ok = assoc->first_key(vkey); ok; ok = assoc->next_key(vkey))
+			if (!assoc->rand_mode(vkey)) return false;
+		  return true;
+	    }
+	    if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q'
+				 || bt[0] == 'M'))
+		  return defn_->property_is_static(pid)
+			? defn_->static_rand_mode(pid, 0)
+			: (pid < rand_mode_.size() ? rand_mode_[pid] : true);
+      }
       uint64_t count = pid < defn_->property_count()
 	    ? defn_->property_array_size(pid) : 1;
       if (count < 1) count = 1;
@@ -122,6 +165,18 @@ bool vvp_cobject::rand_mode(size_t pid) const
 
 bool vvp_cobject::rand_mode(size_t pid, size_t leaf) const
 {
+	// Sequential dynamic containers use their current positional element
+	// identity. Queue mutation hooks move this state with shifted elements.
+      if (pid < defn_->property_count()) {
+	    const std::string&bt = defn_->property_base_type(pid);
+	    if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q')) {
+		  vvp_object_t obj;
+		  const_cast<vvp_cobject*>(this)->get_object(pid, obj, 0);
+		  if (vvp_darray*array = obj.peek<vvp_darray>())
+			return array->rand_mode(leaf);
+		  return false;
+	    }
+      }
       if (pid < defn_->property_count() && defn_->property_is_static(pid))
 	    return defn_->static_rand_mode(pid, leaf);
       if (pid >= rand_mode_.size()) return true;
@@ -134,8 +189,58 @@ bool vvp_cobject::rand_mode(size_t pid, size_t leaf) const
       return rand_mode_[pid];
 }
 
+bool vvp_cobject::rand_mode_for_randomization(size_t pid, size_t leaf) const
+{
+      if (pid < defn_->property_count()) {
+	    const std::string&bt = defn_->property_base_type(pid);
+	    if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q')) {
+		  vvp_object_t obj;
+		  const_cast<vvp_cobject*>(this)->get_object(pid, obj, 0);
+		  if (vvp_darray*array = obj.peek<vvp_darray>())
+			return leaf < array->get_size()
+			      ? array->rand_mode(leaf)
+			      : array->rand_mode_default();
+		    // A nil container has no existing element, but solver-created
+		    // elements inherit the property-wide active state.
+		  return defn_->property_is_static(pid)
+			? defn_->static_rand_mode(pid, 0)
+			: (pid < rand_mode_.size() ? rand_mode_[pid] : true);
+	    }
+	    if (!bt.empty() && bt[0] == 'M') {
+		  vvp_object_t obj;
+		  const_cast<vvp_cobject*>(this)->get_object(pid, obj, 0);
+		  if (vvp_assoc_base*assoc = obj.peek<vvp_assoc_base>())
+			return assoc->rand_mode_at(leaf);
+		  return false;
+	    }
+      }
+      return rand_mode(pid, leaf);
+}
+
 bool vvp_cobject::rand_mode_any(size_t pid) const
 {
+      if (pid < defn_->property_count()) {
+	    const std::string&bt = defn_->property_base_type(pid);
+	    vvp_object_t obj;
+	    const_cast<vvp_cobject*>(this)->get_object(pid, obj, 0);
+	    if (vvp_darray*array = obj.peek<vvp_darray>()) {
+		  if (array->get_size()) return array->rand_mode_any();
+		  return defn_->property_is_static(pid)
+			? defn_->static_rand_mode(pid, 0)
+			: (pid < rand_mode_.size() ? rand_mode_[pid] : true);
+	    }
+	    if (vvp_assoc_base*assoc = obj.peek<vvp_assoc_base>()) {
+		  if (assoc->size()) return assoc->rand_mode_any();
+		  return defn_->property_is_static(pid)
+			? defn_->static_rand_mode(pid, 0)
+			: (pid < rand_mode_.size() ? rand_mode_[pid] : true);
+	    }
+	    if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q'
+				 || bt[0] == 'M'))
+		  return defn_->property_is_static(pid)
+			? defn_->static_rand_mode(pid, 0)
+			: (pid < rand_mode_.size() ? rand_mode_[pid] : true);
+      }
       if (pid < defn_->property_count() && defn_->property_is_static(pid))
 	    return defn_->static_rand_mode_any(pid);
       uint64_t count = pid < defn_->property_count()
@@ -159,16 +264,35 @@ void vvp_cobject::set_rand_mode(size_t pid, bool mode)
 {
       if (pid < defn_->property_count() && defn_->property_is_static(pid)) {
 	    defn_->set_static_rand_mode(pid, mode);
-	    return;
-      }
-      if (pid < rand_mode_.size()) {
+	} else if (pid < rand_mode_.size()) {
 	    rand_mode_[pid] = mode;
 	    erase_rand_mode_leaves_(rand_mode_leaves_, pid);
+      }
+	// Also update every element that exists now. The stored default on the
+	// container makes elements created later inherit this property-wide mode.
+      if (pid < defn_->property_count()) {
+	    vvp_object_t obj;
+	    get_object(pid, obj, 0);
+	    if (vvp_darray*array = obj.peek<vvp_darray>())
+		  array->set_all_rand_mode(mode);
+	    else if (vvp_assoc_base*assoc = obj.peek<vvp_assoc_base>())
+		  assoc->set_all_rand_mode(mode);
       }
 }
 
 void vvp_cobject::set_rand_mode(size_t pid, size_t leaf, bool mode)
 {
+	// Dynamic arrays and queues store the mode with the live container.
+      if (pid < defn_->property_count()) {
+	    const std::string&bt = defn_->property_base_type(pid);
+	    if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q')) {
+		  vvp_object_t obj;
+		  get_object(pid, obj, 0);
+		  if (vvp_darray*array = obj.peek<vvp_darray>())
+			array->set_rand_mode(leaf, mode);
+		  return;
+	    }
+      }
       if (pid < defn_->property_count() && defn_->property_is_static(pid)) {
 	    defn_->set_static_rand_mode(pid, leaf, mode);
 	    return;
@@ -182,6 +306,54 @@ void vvp_cobject::set_rand_mode(size_t pid, size_t leaf, bool mode)
 	    rand_mode_leaves_.erase(key);
       else
 	    rand_mode_leaves_[key] = mode;
+}
+
+bool vvp_cobject::rand_mode(size_t pid, const std::string&key) const
+{
+      vvp_object_t obj;
+      const_cast<vvp_cobject*>(this)->get_object(pid, obj, 0);
+      vvp_assoc_base*assoc = obj.peek<vvp_assoc_base>();
+      return assoc ? assoc->rand_mode(key) : false;
+}
+
+bool vvp_cobject::rand_mode(size_t pid, const vvp_object_t&key) const
+{
+      vvp_object_t obj;
+      const_cast<vvp_cobject*>(this)->get_object(pid, obj, 0);
+      vvp_assoc_base*assoc = obj.peek<vvp_assoc_base>();
+      return assoc ? assoc->rand_mode(key) : false;
+}
+
+bool vvp_cobject::rand_mode(size_t pid, const vvp_vector4_t&key) const
+{
+      vvp_object_t obj;
+      const_cast<vvp_cobject*>(this)->get_object(pid, obj, 0);
+      vvp_assoc_base*assoc = obj.peek<vvp_assoc_base>();
+      return assoc ? assoc->rand_mode(key) : false;
+}
+
+void vvp_cobject::set_rand_mode(size_t pid, const std::string&key, bool mode)
+{
+      vvp_object_t obj;
+      get_object(pid, obj, 0);
+      if (vvp_assoc_base*assoc = obj.peek<vvp_assoc_base>())
+	    assoc->set_rand_mode(key, mode);
+}
+
+void vvp_cobject::set_rand_mode(size_t pid, const vvp_object_t&key, bool mode)
+{
+      vvp_object_t obj;
+      get_object(pid, obj, 0);
+      if (vvp_assoc_base*assoc = obj.peek<vvp_assoc_base>())
+	    assoc->set_rand_mode(key, mode);
+}
+
+void vvp_cobject::set_rand_mode(size_t pid, const vvp_vector4_t&key, bool mode)
+{
+      vvp_object_t obj;
+      get_object(pid, obj, 0);
+      if (vvp_assoc_base*assoc = obj.peek<vvp_assoc_base>())
+	    assoc->set_rand_mode(key, mode);
 }
 
 void vvp_cobject::set_all_rand_mode(bool mode)
@@ -494,6 +666,21 @@ string vvp_cobject::get_string(size_t pid, size_t idx)
 void vvp_cobject::set_object(size_t pid, const vvp_object_t&val, size_t idx)
 {
       defn_->set_object(properties_, pid, val, idx);
+
+	// A whole-container assignment creates a new set of unpacked element
+	// variables. Initialize those variables from the owning property's
+	// current aggregate mode; individual overrides belong to the old set.
+      if (pid < defn_->property_count() && idx == 0) {
+	    bool mode = defn_->property_is_static(pid)
+		  ? defn_->static_rand_mode(pid, 0)
+		  : (pid < rand_mode_.size() ? rand_mode_[pid] : true);
+	    vvp_object_t stored;
+	    defn_->get_object(properties_, pid, stored, idx);
+	    if (vvp_darray*array = stored.peek<vvp_darray>())
+		  array->set_all_rand_mode(mode);
+	    else if (vvp_assoc_base*assoc = stored.peek<vvp_assoc_base>())
+		  assoc->set_all_rand_mode(mode);
+      }
 
 	// M11-3: storing a covergroup object that has a declaration
 	// sampling event into an object property links the covergroup

@@ -3,4 +3,6 @@ sv_rand_array_mode_object_struct normal,-g2012 ivltests gold=sv_rand_array_mode_
 sv_rand_mode_fixed_indexing normal,-g2012 ivltests gold=sv_rand_mode_fixed_indexing.gold
 sv_rand_mode_packed_select normal,-g2012 ivltests gold=sv_rand_mode_packed_select.gold
 sv_rand_mode_invalid_field_fail CE,-g2012 ivltests gold=sv_rand_mode_invalid_field_fail.gold
-sv_rand_mode_dynamic_index_fail CE,-g2012 ivltests gold=sv_rand_mode_dynamic_index_fail.gold
+sv_rand_mode_dynamic_indexing normal,-g2012 ivltests gold=sv_rand_mode_dynamic_indexing.gold
+sv_static_rand_mode_dynamic_indexing normal,-g2012 ivltests gold=sv_static_rand_mode_dynamic_indexing.gold
+sv_rand_mode_dynamic_whole_query_fail CE,-g2012 ivltests gold=sv_rand_mode_dynamic_whole_query_fail.gold

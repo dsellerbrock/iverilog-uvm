@@ -11,8 +11,8 @@
 #
 # Every name in the expectation list carries a category comment in
 # docs/conformance/ (baseline + audit); nothing is allowed to fail
-# without a written reason. Also hard-gates the bundled VPI suite
-# (81/81) and the negative suite.
+# without a written reason. Also hard-gates the bundled VPI suite,
+# the negative suite, and malformed-bytecode runtime invariants.
 #
 # Usage: ./.github/ivtest_gate.sh   (from the repository root)
 
@@ -71,6 +71,20 @@ if ! bash tests/negative/run_negative.sh > "$WORK/neg.log" 2>&1; then
     status=1
 else
     tail -1 "$WORK/neg.log"
+fi
+
+echo ""
+echo "=== malformed VVP runtime invariants ==="
+runtime_vvp=$(command -v vvp 2>/dev/null || true)
+if [ -z "$runtime_vvp" ] \
+   || ! VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_rand_mode_stack_underflow.sh \
+        > "$WORK/vvp-runtime.log" 2>&1; then
+    cat "$WORK/vvp-runtime.log" 2>/dev/null || true
+    echo "GATE FAIL: malformed rand_mode bytecode invariant failed."
+    status=1
+else
+    tail -1 "$WORK/vvp-runtime.log"
 fi
 
 exit $status

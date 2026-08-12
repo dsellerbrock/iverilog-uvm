@@ -1,5 +1,9 @@
-./ivltests/sv_rand_mode_invalid_field_fail.v:12: error: Class property `plain' is not declared rand or randc.
-./ivltests/sv_rand_mode_invalid_field_fail.v:13: error: Class property `plain' is not declared rand or randc.
-./ivltests/sv_rand_mode_invalid_field_fail.v:14: error: Class `invalid_fields' has no property `missing' for rand_mode().
-./ivltests/sv_rand_mode_invalid_field_fail.v:15: error: Class `invalid_fields' has no property `missing' for rand_mode().
-4 error(s) during elaboration.
+./ivltests/sv_rand_mode_invalid_field_fail.v:15: error: Class property `plain' is not declared rand or randc.
+./ivltests/sv_rand_mode_invalid_field_fail.v:16: error: Class property `plain' is not declared rand or randc.
+./ivltests/sv_rand_mode_invalid_field_fail.v:17: error: Class `invalid_fields' has no property `missing' for rand_mode().
+./ivltests/sv_rand_mode_invalid_field_fail.v:18: error: Class `invalid_fields' has no property `missing' for rand_mode().
+./ivltests/sv_rand_mode_invalid_field_fail.v:19: error: the '$' element index in rand_mode() is only valid for a queue property `dynamic_values'.
+./ivltests/sv_rand_mode_invalid_field_fail.v:20: error: the '$' element index in rand_mode() is only valid for a queue property `dynamic_values'.
+./ivltests/sv_rand_mode_invalid_field_fail.v:21: error: the '$' element index in rand_mode() is only valid for a queue property `associative_values'.
+./ivltests/sv_rand_mode_invalid_field_fail.v:22: error: the '$' element index in rand_mode() is only valid for a queue property `associative_values'.
+8 error(s) during elaboration.

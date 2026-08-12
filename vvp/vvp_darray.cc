@@ -53,6 +53,106 @@ vvp_darray::~vvp_darray()
 {
 }
 
+static void sync_rand_modes_(const vvp_darray*array,
+			     std::vector<unsigned char>&modes,
+			     bool default_mode)
+{
+      modes.resize(array->get_size(), default_mode ? 1 : 0);
+}
+
+bool vvp_darray::rand_mode(size_t idx) const
+{
+      sync_rand_modes_(this, rand_modes_, rand_mode_default_);
+      return idx < rand_modes_.size() ? rand_modes_[idx] != 0 : false;
+}
+
+bool vvp_darray::rand_mode_any() const
+{
+      sync_rand_modes_(this, rand_modes_, rand_mode_default_);
+      for (unsigned char mode : rand_modes_)
+	    if (mode) return true;
+      return false;
+}
+
+void vvp_darray::set_rand_mode(size_t idx, bool mode)
+{
+      sync_rand_modes_(this, rand_modes_, rand_mode_default_);
+      if (idx < rand_modes_.size()) rand_modes_[idx] = mode ? 1 : 0;
+}
+
+void vvp_darray::set_all_rand_mode(bool mode)
+{
+      rand_mode_default_ = mode;
+      rand_modes_.assign(get_size(), mode ? 1 : 0);
+}
+
+void vvp_darray::inherit_rand_modes(const vvp_darray&that)
+{
+      rand_mode_default_ = that.rand_mode_default_;
+      sync_rand_modes_(&that, that.rand_modes_, that.rand_mode_default_);
+      rand_modes_.assign(get_size(), rand_mode_default_ ? 1 : 0);
+      size_t count = std::min(rand_modes_.size(), that.rand_modes_.size());
+      for (size_t idx = 0 ; idx < count ; idx += 1)
+	    rand_modes_[idx] = that.rand_modes_[idx];
+}
+
+void vvp_darray::reorder_rand_modes(
+      const std::vector<size_t>&source_indices)
+{
+      sync_rand_modes_(this, rand_modes_, rand_mode_default_);
+      std::vector<unsigned char> original = rand_modes_;
+      rand_modes_.assign(source_indices.size(),
+			 rand_mode_default_ ? 1 : 0);
+      for (size_t dst = 0 ; dst < source_indices.size() ; dst += 1) {
+	    size_t src = source_indices[dst];
+	    if (src < original.size()) rand_modes_[dst] = original[src];
+      }
+}
+
+void vvp_darray::rand_mode_insert(size_t idx, bool discard_back)
+{
+      sync_rand_modes_(this, rand_modes_, rand_mode_default_);
+      if (discard_back && !rand_modes_.empty()) rand_modes_.pop_back();
+      if (idx <= rand_modes_.size())
+	    rand_modes_.insert(rand_modes_.begin() + idx,
+			       rand_mode_default_ ? 1 : 0);
+}
+
+void vvp_darray::rand_mode_push_back()
+{
+      sync_rand_modes_(this, rand_modes_, rand_mode_default_);
+      rand_modes_.push_back(rand_mode_default_ ? 1 : 0);
+}
+
+void vvp_darray::rand_mode_push_front(bool discard_back)
+{
+      rand_mode_insert(0, discard_back);
+}
+
+void vvp_darray::rand_mode_pop_back()
+{
+      sync_rand_modes_(this, rand_modes_, rand_mode_default_);
+      if (!rand_modes_.empty()) rand_modes_.pop_back();
+}
+
+void vvp_darray::rand_mode_pop_front()
+{
+      sync_rand_modes_(this, rand_modes_, rand_mode_default_);
+      if (!rand_modes_.empty()) rand_modes_.erase(rand_modes_.begin());
+}
+
+void vvp_darray::rand_mode_erase(size_t idx)
+{
+      sync_rand_modes_(this, rand_modes_, rand_mode_default_);
+      if (idx < rand_modes_.size()) rand_modes_.erase(rand_modes_.begin()+idx);
+}
+
+void vvp_darray::rand_mode_erase_tail(size_t idx)
+{
+      sync_rand_modes_(this, rand_modes_, rand_mode_default_);
+      if (idx < rand_modes_.size()) rand_modes_.resize(idx);
+}
+
 // Type-mismatched set_word/get_word fallback. These methods are
 // virtual on vvp_darray and are overridden in concrete subclasses for
 // the concrete element type (vec4, double, string, object). Calls
@@ -858,7 +958,7 @@ void vvp_queue_real::set_word_max(unsigned adr, double value, unsigned max_size)
 {
       if (adr == queue.size())
 	    if (!max_size || (queue.size() < max_size))
-		  queue.push_back(value), touch();
+		  rand_mode_push_back(), queue.push_back(value), touch();
 	    else
 		  cerr << get_fileline()
 		       << "Warning: assigning to queue<real>[" << adr << "] is"
@@ -898,7 +998,7 @@ void vvp_queue_real::insert(unsigned idx, double value, unsigned max_size)
 	// Inserting at the end
       else if (idx == queue.size())
 	    if (!max_size || (queue.size() < max_size))
-		  queue.push_back(value), touch();
+		  rand_mode_push_back(), queue.push_back(value), touch();
 	    else
 		  cerr << get_fileline()
 		       << "Warning: inserting to queue<real>[" << idx << "] is"
@@ -912,6 +1012,7 @@ void vvp_queue_real::insert(unsigned idx, double value, unsigned max_size)
 		       << max_size << "]." << endl;
 		  queue.pop_back();
 	    }
+	    rand_mode_insert(idx);
 	    queue.insert(queue.begin()+idx, value);
             touch();
       }
@@ -920,7 +1021,7 @@ void vvp_queue_real::insert(unsigned idx, double value, unsigned max_size)
 void vvp_queue_real::push_back(double value, unsigned max_size)
 {
       if (!max_size || (queue.size() < max_size))
-	    queue.push_back(value), touch();
+	    rand_mode_push_back(), queue.push_back(value), touch();
       else
 	    cerr << get_fileline()
 	         << "Warning: push_back(" << value
@@ -937,6 +1038,7 @@ void vvp_queue_real::push_front(double value, unsigned max_size)
 	         << max_size << "]." << endl;
 	    queue.pop_back();
       }
+      rand_mode_push_front();
       queue.push_front(value);
       touch();
 }
@@ -944,6 +1046,7 @@ void vvp_queue_real::push_front(double value, unsigned max_size)
 void vvp_queue_real::erase(unsigned idx)
 {
       assert(queue.size() > idx);
+      rand_mode_erase(idx);
       queue.erase(queue.begin()+idx);
       touch();
 }
@@ -952,7 +1055,7 @@ void vvp_queue_real::erase_tail(unsigned idx)
 {
       assert(queue.size() >= idx);
       if (queue.size() > idx)
-	    queue.resize(idx), touch();
+	    rand_mode_erase_tail(idx), queue.resize(idx), touch();
 }
 
 void vvp_queue_string::copy_elems(vvp_object_t src, unsigned max_size)
@@ -977,7 +1080,7 @@ void vvp_queue_string::set_word_max(unsigned adr, const string&value, unsigned m
 {
       if (adr == queue.size())
 	    if (!max_size || (queue.size() < max_size))
-		  queue.push_back(value), touch();
+		  rand_mode_push_back(), queue.push_back(value), touch();
 	    else
 		  cerr << get_fileline()
 		       << "Warning: assigning to queue<string>[" << adr << "] is"
@@ -1017,7 +1120,7 @@ void vvp_queue_string::insert(unsigned idx, const string&value, unsigned max_siz
 	// Inserting at the end
       else if (idx == queue.size())
 	    if (!max_size || (queue.size() < max_size))
-		  queue.push_back(value), touch();
+		  rand_mode_push_back(), queue.push_back(value), touch();
 	    else
 		  cerr << get_fileline()
 		       << "Warning: inserting to queue<string>[" << idx << "] is"
@@ -1031,6 +1134,7 @@ void vvp_queue_string::insert(unsigned idx, const string&value, unsigned max_siz
 		       << max_size << "]." << endl;
 		  queue.pop_back();
 	    }
+	    rand_mode_insert(idx);
 	    queue.insert(queue.begin()+idx, value);
             touch();
       }
@@ -1039,7 +1143,7 @@ void vvp_queue_string::insert(unsigned idx, const string&value, unsigned max_siz
 void vvp_queue_string::push_back(const string&value, unsigned max_size)
 {
       if (!max_size || (queue.size() < max_size))
-	    queue.push_back(value), touch();
+	    rand_mode_push_back(), queue.push_back(value), touch();
       else
 	    cerr << get_fileline()
 	         << "Warning: push_back(\"" << value
@@ -1056,6 +1160,7 @@ void vvp_queue_string::push_front(const string&value, unsigned max_size)
 	         << max_size << "]." << endl;
 	    queue.pop_back();
       }
+      rand_mode_push_front();
       queue.push_front(value);
       touch();
 }
@@ -1063,6 +1168,7 @@ void vvp_queue_string::push_front(const string&value, unsigned max_size)
 void vvp_queue_string::erase(unsigned idx)
 {
       assert(queue.size() > idx);
+      rand_mode_erase(idx);
       queue.erase(queue.begin()+idx);
       touch();
 }
@@ -1071,7 +1177,7 @@ void vvp_queue_string::erase_tail(unsigned idx)
 {
       assert(queue.size() >= idx);
       if (queue.size() > idx)
-	    queue.resize(idx), touch();
+	    rand_mode_erase_tail(idx), queue.resize(idx), touch();
 }
 
 vvp_vector4_t vvp_queue_string::get_bitstream(bool)
@@ -1120,7 +1226,7 @@ void vvp_queue_vec4::set_word_max(unsigned adr, const vvp_vector4_t&value, unsig
 {
       if (adr == queue.size())
 	    if (!max_size || (queue.size() < max_size))
-		  queue.push_back(value), touch();
+		  rand_mode_push_back(), queue.push_back(value), touch();
 	    else
 		  cerr << get_fileline()
 		       << "Warning: assigning to queue<vector>[" << adr << "] is"
@@ -1160,7 +1266,7 @@ void vvp_queue_vec4::insert(unsigned idx, const vvp_vector4_t&value, unsigned ma
 	// Inserting at the end
       else if (idx == queue.size())
 	    if (!max_size || (queue.size() < max_size))
-		  queue.push_back(value), touch();
+		  rand_mode_push_back(), queue.push_back(value), touch();
 	    else
 		  cerr << get_fileline()
 		       << "Warning: inserting to queue<vector[" << value.size()
@@ -1174,6 +1280,7 @@ void vvp_queue_vec4::insert(unsigned idx, const vvp_vector4_t&value, unsigned ma
 		       << value.size() << "]> [" << max_size << "]." << endl;
 		  queue.pop_back();
 	    }
+	    rand_mode_insert(idx);
 	    queue.insert(queue.begin()+idx, value);
             touch();
       }
@@ -1182,7 +1289,7 @@ void vvp_queue_vec4::insert(unsigned idx, const vvp_vector4_t&value, unsigned ma
 void vvp_queue_vec4::push_back(const vvp_vector4_t&value, unsigned max_size)
 {
       if (!max_size || (queue.size() < max_size))
-	    queue.push_back(value), touch();
+	    rand_mode_push_back(), queue.push_back(value), touch();
       else
 	    cerr << get_fileline()
 	         << "Warning: push_back(" << value
@@ -1199,6 +1306,7 @@ void vvp_queue_vec4::push_front(const vvp_vector4_t&value, unsigned max_size)
 	         << value.size() << "]> [" << max_size << "]." << endl;
 	    queue.pop_back();
       }
+      rand_mode_push_front();
       queue.push_front(value);
       touch();
 }
@@ -1206,6 +1314,7 @@ void vvp_queue_vec4::push_front(const vvp_vector4_t&value, unsigned max_size)
 void vvp_queue_vec4::erase(unsigned idx)
 {
       assert(queue.size() > idx);
+      rand_mode_erase(idx);
       queue.erase(queue.begin()+idx);
       touch();
 }
@@ -1214,7 +1323,7 @@ void vvp_queue_vec4::erase_tail(unsigned idx)
 {
       assert(queue.size() >= idx);
       if (queue.size() > idx)
-	    queue.resize(idx), touch();
+	    rand_mode_erase_tail(idx), queue.resize(idx), touch();
 }
 
 /*
@@ -1270,7 +1379,7 @@ void vvp_queue_object::set_word_max(unsigned adr, const vvp_object_t&value, unsi
 {
       if (adr == queue.size())
 	    if (!max_size || (queue.size() < max_size))
-		  queue.push_back(value), touch();
+		  rand_mode_push_back(), queue.push_back(value), touch();
 	    else
 		  cerr << get_fileline()
 		       << "Warning: assigning to queue<object>[" << adr << "] is"
@@ -1289,6 +1398,7 @@ void vvp_queue_object::set_word(unsigned adr, const vvp_object_t&value)
       }
 
       if (adr == queue.size()) {
+	    rand_mode_push_back();
 	    queue.push_back(value);
             touch();
 	    return;
@@ -1296,6 +1406,7 @@ void vvp_queue_object::set_word(unsigned adr, const vvp_object_t&value)
 
       // Compile-progress fallback: permit sparse queue<object> indexed stores
       // by growing and null-filling intermediate elements.
+      while (queue.size() < adr + 1) rand_mode_push_back();
       queue.resize(adr+1);
       queue[adr] = value;
       touch();
@@ -1318,7 +1429,7 @@ void vvp_queue_object::insert(unsigned idx, const vvp_object_t&value, unsigned m
 	         << "). Object was not added." << endl;
       } else if (idx == queue.size()) {
 	    if (!max_size || (queue.size() < max_size))
-		  queue.push_back(value), touch();
+		  rand_mode_push_back(), queue.push_back(value), touch();
 	    else
 		  cerr << get_fileline()
 		       << "Warning: inserting to queue<object>[" << idx << "] is"
@@ -1332,6 +1443,7 @@ void vvp_queue_object::insert(unsigned idx, const vvp_object_t&value, unsigned m
 		       << max_size << "]." << endl;
 		  queue.pop_back();
 	    }
+	    rand_mode_insert(idx);
 	    queue.insert(queue.begin()+idx, value);
             touch();
       }
@@ -1340,7 +1452,7 @@ void vvp_queue_object::insert(unsigned idx, const vvp_object_t&value, unsigned m
 void vvp_queue_object::push_back(const vvp_object_t&value, unsigned max_size)
 {
       if (!max_size || (queue.size() < max_size))
-	    queue.push_back(value), touch();
+	    rand_mode_push_back(), queue.push_back(value), touch();
       else
 	    cerr << get_fileline()
 	         << "Warning: push_back(<object>) skipped for already full bounded"
@@ -1355,6 +1467,7 @@ void vvp_queue_object::push_front(const vvp_object_t&value, unsigned max_size)
 	            " bounded queue<object> [" << max_size << "]." << endl;
 	    queue.pop_back();
       }
+      rand_mode_push_front();
       queue.push_front(value);
       touch();
 }
@@ -1362,6 +1475,7 @@ void vvp_queue_object::push_front(const vvp_object_t&value, unsigned max_size)
 void vvp_queue_object::erase(unsigned idx)
 {
       assert(queue.size() > idx);
+      rand_mode_erase(idx);
       queue.erase(queue.begin()+idx);
       touch();
 }
@@ -1370,5 +1484,5 @@ void vvp_queue_object::erase_tail(unsigned idx)
 {
       assert(queue.size() >= idx);
       if (queue.size() > idx)
-	    queue.resize(idx), touch();
+	    rand_mode_erase_tail(idx), queue.resize(idx), touch();
 }

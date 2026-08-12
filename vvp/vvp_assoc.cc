@@ -41,3 +41,118 @@ std::string vvp_assoc_base::vec4_key_(const vvp_vector4_t&key)
 	    out[4 + idx] = vvp_bit4_to_ascii(key.value(wid - idx - 1));
       return out;
 }
+
+bool vvp_assoc_base::rand_mode(const std::string&key) const
+{
+      if (!exists_key(key)) return false;
+      std::map<std::string, bool>::const_iterator it = rand_mode_str_.find(key);
+      return it == rand_mode_str_.end() ? rand_mode_default_ : it->second;
+}
+
+bool vvp_assoc_base::rand_mode(const vvp_object_t&key) const
+{
+      if (!exists_key(key)) return false;
+      const vvp_object*raw = object_key_(key);
+      std::map<const vvp_object*, bool>::const_iterator it =
+	    rand_mode_obj_.find(raw);
+      return it == rand_mode_obj_.end() ? rand_mode_default_ : it->second;
+}
+
+bool vvp_assoc_base::rand_mode(const vvp_vector4_t&key) const
+{
+      if (!exists_key(key)) return false;
+      std::string canon = vec4_key_(key);
+      std::map<std::string, bool>::const_iterator it = rand_mode_vec_.find(canon);
+      return it == rand_mode_vec_.end() ? rand_mode_default_ : it->second;
+}
+
+bool vvp_assoc_base::rand_mode_at(size_t position) const
+{
+      size_t current = 0;
+      std::string skey;
+      for (bool ok = first_key(skey); ok; ok = next_key(skey)) {
+	    if (current++ == position) return rand_mode(skey);
+      }
+      vvp_object_t okey;
+      for (bool ok = first_key(okey); ok; ok = next_key(okey)) {
+	    if (current++ == position) return rand_mode(okey);
+      }
+      vvp_vector4_t vkey;
+      for (bool ok = first_key(vkey); ok; ok = next_key(vkey)) {
+	    if (current++ == position) return rand_mode(vkey);
+      }
+      return false;
+}
+
+bool vvp_assoc_base::rand_mode_any() const
+{
+      std::string skey;
+      for (bool ok = first_key(skey); ok; ok = next_key(skey))
+	    if (rand_mode(skey)) return true;
+      vvp_object_t okey;
+      for (bool ok = first_key(okey); ok; ok = next_key(okey))
+	    if (rand_mode(okey)) return true;
+      vvp_vector4_t vkey;
+      for (bool ok = first_key(vkey); ok; ok = next_key(vkey))
+	    if (rand_mode(vkey)) return true;
+      return false;
+}
+
+void vvp_assoc_base::set_rand_mode(const std::string&key, bool mode)
+{
+      if (!exists_key(key)) return;
+      if (mode == rand_mode_default_) rand_mode_str_.erase(key);
+      else rand_mode_str_[key] = mode;
+}
+
+void vvp_assoc_base::set_rand_mode(const vvp_object_t&key, bool mode)
+{
+      if (!exists_key(key)) return;
+      const vvp_object*raw = object_key_(key);
+      if (mode == rand_mode_default_) rand_mode_obj_.erase(raw);
+      else rand_mode_obj_[raw] = mode;
+}
+
+void vvp_assoc_base::set_rand_mode(const vvp_vector4_t&key, bool mode)
+{
+      if (!exists_key(key)) return;
+      std::string canon = vec4_key_(key);
+      if (mode == rand_mode_default_) rand_mode_vec_.erase(canon);
+      else rand_mode_vec_[canon] = mode;
+}
+
+void vvp_assoc_base::set_all_rand_mode(bool mode)
+{
+      rand_mode_default_ = mode;
+      clear_rand_modes_();
+}
+
+void vvp_assoc_base::inherit_rand_modes(const vvp_assoc_base&that)
+{
+      rand_mode_default_ = that.rand_mode_default_;
+      rand_mode_str_ = that.rand_mode_str_;
+      rand_mode_obj_ = that.rand_mode_obj_;
+      rand_mode_vec_ = that.rand_mode_vec_;
+}
+
+void vvp_assoc_base::erase_rand_mode_(const std::string&key)
+{
+      rand_mode_str_.erase(key);
+}
+
+void vvp_assoc_base::erase_rand_mode_(const vvp_object_t&key)
+{
+      rand_mode_obj_.erase(object_key_(key));
+}
+
+void vvp_assoc_base::erase_rand_mode_(const vvp_vector4_t&key)
+{
+      rand_mode_vec_.erase(vec4_key_(key));
+}
+
+void vvp_assoc_base::clear_rand_modes_()
+{
+      rand_mode_str_.clear();
+      rand_mode_obj_.clear();
+      rand_mode_vec_.clear();
+}
