@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_assignment_expression.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_assignment_expression"
+}

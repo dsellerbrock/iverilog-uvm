@@ -548,6 +548,11 @@ sv_statement_label_seq_fail	vvp_tests/sv_statement_label_seq_fail.json
 # IEEE 1800-2017 unpacked-array assignment-pattern arity
 sv_struct_array_flat_pattern_fail	vvp_tests/sv_struct_array_flat_pattern_fail.json
 
+# IEEE 1800-2017 parenthesized blocking assignment expressions
+sv_assignment_expression	vvp_tests/sv_assignment_expression.json
+sv_assignment_expression_unparenthesized_fail	vvp_tests/sv_assignment_expression_unparenthesized_fail.json
+sv_assignment_expression_select_fail	vvp_tests/sv_assignment_expression_select_fail.json
+
 # IEEE 1800-2017 string-literal conversion to unpacked byte arrays
 sv_byte_array_string	vvp_tests/sv_byte_array_string.json
 sv_byte_array_string_fail	vvp_tests/sv_byte_array_string_fail.json

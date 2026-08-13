@@ -251,6 +251,24 @@ NexusSet* NetESFunc::nex_input(bool rem_out, bool always_sens, bool nested_func)
       return result;
 }
 
+NexusSet* NetEAssignExpr::nex_input(bool rem_out, bool always_sens,
+                                    bool nested_func) const
+{
+      NexusSet*result = new NexusSet;
+
+      unsigned first = reads_left_ ? 0 : 1;
+      for (unsigned idx = first ; idx < nparms() ; idx += 1) {
+            if (!parm(idx))
+                  continue;
+            NexusSet*tmp = parm(idx)->nex_input(rem_out, always_sens,
+                                                nested_func);
+            result->add(*tmp);
+            delete tmp;
+      }
+
+      return result;
+}
+
 NexusSet* NetEShallowCopy::nex_input(bool, bool, bool) const
 {
       return new NexusSet;

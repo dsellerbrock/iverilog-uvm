@@ -1708,9 +1708,66 @@ static void emit_conditional_dynamic_post_randomize_from_stack_(
       clr_flag(flag);
 }
 
+static void draw_assign_expr_vec4(ivl_expr_t expr)
+{
+      static const char prefix[] = "$ivl_assign_expr$";
+      const char*name = ivl_expr_name(expr);
+      ivl_expr_t lhs = ivl_expr_parm(expr, 0);
+      ivl_expr_t rhs = ivl_expr_parm(expr, 1);
+      char op = name[sizeof prefix - 1];
+
+      assert(ivl_expr_parms(expr) == 2);
+      assert(lhs && rhs);
+      assert(ivl_expr_type(lhs) == IVL_EX_SIGNAL);
+      assert(ivl_expr_oper1(lhs) == 0);
+
+      ivl_signal_t sig = ivl_expr_signal(lhs);
+      unsigned wid = ivl_expr_width(lhs);
+
+      if (op == '=') {
+            draw_eval_vec4(rhs);
+      } else if (op == 'l' || op == 'r' || op == 'R') {
+            draw_eval_vec4(lhs);
+            int use_index_reg = allocate_word();
+            assert(use_index_reg >= 0);
+            draw_eval_expr_into_integer(rhs, use_index_reg);
+            if (op == 'l')
+                  fprintf(vvp_out, "    %%shiftl %d;\n", use_index_reg);
+            else if (op == 'R' && ivl_expr_signed(lhs))
+                  fprintf(vvp_out, "    %%shiftr/s %d;\n", use_index_reg);
+            else
+                  fprintf(vvp_out, "    %%shiftr %d;\n", use_index_reg);
+            clr_word(use_index_reg);
+      } else {
+            draw_eval_vec4(lhs);
+            draw_eval_vec4(rhs);
+            switch (op) {
+                case '+': fprintf(vvp_out, "    %%add;\n"); break;
+                case '-': fprintf(vvp_out, "    %%sub;\n"); break;
+                case '*': fprintf(vvp_out, "    %%mul;\n"); break;
+                case '/': fprintf(vvp_out, "    %%div%s;\n",
+                                  ivl_expr_signed(lhs)? "/s" : ""); break;
+                case '%': fprintf(vvp_out, "    %%mod%s;\n",
+                                  ivl_expr_signed(lhs)? "/s" : ""); break;
+                case '&': fprintf(vvp_out, "    %%and;\n"); break;
+                case '|': fprintf(vvp_out, "    %%or;\n"); break;
+                case '^': fprintf(vvp_out, "    %%xor;\n"); break;
+                default: assert(0);
+            }
+      }
+
+      fprintf(vvp_out, "    %%dup/vec4;\n");
+      fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", sig, wid);
+}
+
 static void draw_sfunc_vec4(ivl_expr_t expr)
 {
       unsigned parm_count = ivl_expr_parms(expr);
+
+      if (strncmp(ivl_expr_name(expr), "$ivl_assign_expr$", 17) == 0) {
+            draw_assign_expr_vec4(expr);
+            return;
+      }
 
 	/* Special case: If there are no arguments to print, then the
 	   %vpi_call statement is easy to draw. */

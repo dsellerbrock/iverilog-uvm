@@ -1,0 +1,2 @@
+ivltests/sv_assignment_expression_unparenthesized_fail.v:6: syntax error
+ivltests/sv_assignment_expression_unparenthesized_fail.v:6: Syntax in assignment statement l-value.

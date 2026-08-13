@@ -1,0 +1,2 @@
+./ivltests/sv_assignment_expression_select_fail.v:5: sorry: Assignment expressions currently require a scalar variable l-value.
+Elaboration failed

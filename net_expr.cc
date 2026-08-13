@@ -613,6 +613,12 @@ NetExpr* NetESFunc::parm(unsigned idx)
       return parms_[idx];
 }
 
+NetEAssignExpr::NetEAssignExpr(const char*name, ivl_variable_type_t type,
+                               unsigned width, bool reads_left)
+: NetESFunc(name, type, width, 2), reads_left_(reads_left)
+{
+}
+
 ivl_variable_type_t NetESFunc::expr_type() const
 {
       return type_;
