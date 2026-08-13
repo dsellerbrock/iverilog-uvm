@@ -540,3 +540,7 @@ sv_assoc_traversal_key_type_fail	vvp_tests/sv_assoc_traversal_key_type_fail.json
 # IEEE 1800-2017 sequential statement labels and matching end labels
 sv_statement_label_seq	vvp_tests/sv_statement_label_seq.json
 sv_statement_label_seq_fail	vvp_tests/sv_statement_label_seq_fail.json
+
+# IEEE 1800-2017 string-literal conversion to unpacked byte arrays
+sv_byte_array_string	vvp_tests/sv_byte_array_string.json
+sv_byte_array_string_fail	vvp_tests/sv_byte_array_string_fail.json
