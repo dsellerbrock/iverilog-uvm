@@ -7266,10 +7266,27 @@ simple_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
       }
   | K_cover '(' expression ')' statement_or_null
       {
-	  /* Coverage collection is not currently supported. */
-	delete $3;
-	delete $5;
-	$$ = 0;
+	if (gn_supported_assertions_flag) {
+	      /* A simple immediate cover is an executable conditional: its
+	         action runs when the expression succeeds. Coverage-database
+	         accounting is separate and is not modelled yet. Keeping a real
+	         statement here is also essential for the legal direct form
+
+	             initial cover (expr);
+
+	         because an initial process may not contain a null statement
+	         pointer. */
+	      PCondit*tmp = new PCondit($3, $5, 0);
+	      tmp->immediate_assertion();
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
+	} else {
+	      delete $3;
+	      delete $5;
+	      PBlock*tmp = new PBlock(PBlock::BL_SEQ);
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
+	}
       }
   | assert_or_assume '(' error ')' statement_or_null %prec less_than_K_else
       { yyerror(@1, "error: Malformed conditional expression.");

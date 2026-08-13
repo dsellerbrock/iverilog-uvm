@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_immediate_cover_action.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_immediate_cover_action"
+}
