@@ -1,0 +1,2 @@
+sv_statement_label_seq vvp_tests/sv_statement_label_seq.json
+sv_statement_label_seq_fail vvp_tests/sv_statement_label_seq_fail.json

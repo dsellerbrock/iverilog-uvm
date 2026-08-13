@@ -1,0 +1,1 @@
+./ivltests/sv_statement_label_seq_fail.v:4: error: block end label `right` doesn't match block name `left`.

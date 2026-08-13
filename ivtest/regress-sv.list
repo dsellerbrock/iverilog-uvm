@@ -1602,3 +1602,7 @@ sv_randc_constraint_provenance_fail CE,-g2012 ivltests gold=sv_randc_constraint_
 # IEEE 1800-2017 associative-array integral key contexts and traversal refs
 sv_assoc_integral_key_context normal,-g2012 ivltests gold=sv_assoc_integral_key_context.gold
 sv_assoc_traversal_key_type_fail CE,-g2012 ivltests gold=sv_assoc_traversal_key_type_fail.gold
+
+# IEEE 1800-2017 sequential statement labels and matching end labels
+sv_statement_label_seq normal,-g2012 ivltests gold=sv_statement_label_seq.gold
+sv_statement_label_seq_fail CE,-g2012 ivltests gold=sv_statement_label_seq_fail.gold

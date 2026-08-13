@@ -1,0 +1,2 @@
+sv_statement_label_seq normal,-g2012 ivltests gold=sv_statement_label_seq.gold
+sv_statement_label_seq_fail CE,-g2012 ivltests gold=sv_statement_label_seq_fail.gold
