@@ -1,0 +1,2 @@
+sv_concat_postfix_select normal,-g2012 ivltests gold=sv_concat_postfix_select.gold
+sv_concat_postfix_select_ascending_fail CE,-g2012 ivltests gold=sv_concat_postfix_select_ascending_fail.gold

@@ -543,6 +543,26 @@ void PEMemberAccess::dump(ostream&out) const
       out << "." << member_name_;
 }
 
+void PEPostSelect::dump(ostream&out) const
+{
+      out << "(";
+      if (base_) out << *base_;
+      else out << "<nil>";
+      out << ")[";
+      if (index_.msb) out << *index_.msb;
+      if (index_.sel == index_component_t::SEL_PART) {
+            out << ":";
+            if (index_.lsb) out << *index_.lsb;
+      } else if (index_.sel == index_component_t::SEL_IDX_UP) {
+            out << "+:";
+            if (index_.lsb) out << *index_.lsb;
+      } else if (index_.sel == index_component_t::SEL_IDX_DO) {
+            out << "-:";
+            if (index_.lsb) out << *index_.lsb;
+      }
+      out << "]";
+}
+
 void PEString::dump(ostream&out) const
 {
       out << "\"" << text_ << "\"";

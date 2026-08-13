@@ -1,0 +1,2 @@
+sv_concat_postfix_select vvp_tests/sv_concat_postfix_select.json
+sv_concat_postfix_select_ascending_fail vvp_tests/sv_concat_postfix_select_ascending_fail.json
