@@ -59,6 +59,13 @@ class vvp_darray : public vvp_object {
       void inherit_rand_modes(const vvp_darray&that);
       void reorder_rand_modes(const std::vector<size_t>&source_indices);
 
+	// Every unpacked randc element has an independent cycle. Keep the
+	// committed history beside the live element so queue mutations and value
+	// copies carry variable state with the same identity as rand_mode.
+      const std::vector<bool>*randc_history(size_t idx) const;
+      std::vector<bool>&randc_history(size_t idx);
+      void inherit_randc_histories(const vvp_darray&that);
+
 	// M10-1: a dynamic array is 0-based, but one MARSHALED from a
 	// fixed-size array carries that array's DECLARED range so the DPI
 	// open-array accessors can report it (IEEE 1800-2017 H.10.2).
@@ -126,6 +133,7 @@ class vvp_darray : public vvp_object {
 		  that->dpi_set_decl_range(dpi_left_, dpi_right_);
 	    that->elem_class_ = elem_class_;
 	    that->inherit_rand_modes(*this);
+	    that->inherit_randc_histories(*this);
       }
 
     private:
@@ -136,6 +144,7 @@ class vvp_darray : public vvp_object {
       const class class_type* elem_class_ = 0;
       bool rand_mode_default_ = true;
       mutable std::vector<unsigned char> rand_modes_;
+      mutable std::vector<std::vector<bool> > randc_histories_;
 };
 
 template <class TYPE> class vvp_darray_atom : public vvp_darray {

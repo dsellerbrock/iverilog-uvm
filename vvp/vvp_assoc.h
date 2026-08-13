@@ -23,6 +23,7 @@
 # include  <iterator>
 # include  <cassert>
 # include  <string>
+# include  <vector>
 # include  "vvp_net.h"
 # include  "vvp_object.h"
 
@@ -101,6 +102,19 @@ class vvp_assoc_base : public vvp_object {
       void set_all_rand_mode(bool mode);
       void inherit_rand_modes(const vvp_assoc_base&that);
 
+	// Per-key randc history uses the associative array's typed key identity.
+	// Deleting a key removes its cycle, while copies and canonical static
+	// aliases preserve it with the value.
+      const std::vector<bool>*randc_history(const std::string&key) const;
+      const std::vector<bool>*randc_history(const vvp_object_t&key) const;
+      const std::vector<bool>*randc_history(const vvp_vector4_t&key) const;
+      const std::vector<bool>*randc_history_at(size_t position) const;
+      std::vector<bool>&randc_history(const std::string&key);
+      std::vector<bool>&randc_history(const vvp_object_t&key);
+      std::vector<bool>&randc_history(const vvp_vector4_t&key);
+      std::vector<bool>&randc_history_at(size_t position);
+      void inherit_randc_histories(const vvp_assoc_base&that);
+
     protected:
       static const vvp_object* object_key_(const vvp_object_t&key);
       static std::string vec4_key_(const vvp_vector4_t&key);
@@ -108,12 +122,19 @@ class vvp_assoc_base : public vvp_object {
       void erase_rand_mode_(const vvp_object_t&key);
       void erase_rand_mode_(const vvp_vector4_t&key);
       void clear_rand_modes_();
+      void erase_randc_history_(const std::string&key);
+      void erase_randc_history_(const vvp_object_t&key);
+      void erase_randc_history_(const vvp_vector4_t&key);
+      void clear_randc_histories_();
 
     private:
       bool rand_mode_default_ = true;
       std::map<std::string, bool> rand_mode_str_;
       std::map<const vvp_object*, bool> rand_mode_obj_;
       std::map<std::string, bool> rand_mode_vec_;
+      std::map<std::string, std::vector<bool> > randc_history_str_;
+      std::map<const vvp_object*, std::vector<bool> > randc_history_obj_;
+      std::map<std::string, std::vector<bool> > randc_history_vec_;
 };
 
 /* An associative-array value and its per-element random modes are copied by
@@ -143,6 +164,7 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       void clear() override
       {
             clear_rand_modes_();
+            clear_randc_histories_();
             str_map_.clear();
             obj_map_.clear();
             obj_key_refs_.clear();
@@ -183,16 +205,25 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
                     bool signed_order = false) const override
       { return prev_key_(vec_map_, key, signed_order); }
       void erase_key(const std::string&key) override
-      { erase_rand_mode_(key); str_map_.erase(key); }
+      {
+            erase_rand_mode_(key);
+            erase_randc_history_(key);
+            str_map_.erase(key);
+      }
       void erase_key(const vvp_object_t&key) override
       {
             const vvp_object*raw_key = object_key_(key);
             erase_rand_mode_(key);
+            erase_randc_history_(key);
             obj_map_.erase(raw_key);
             obj_key_refs_.erase(raw_key);
       }
       void erase_key(const vvp_vector4_t&key) override
-      { erase_rand_mode_(key); vec_map_.erase(vec4_key_(key)); }
+      {
+            erase_rand_mode_(key);
+            erase_randc_history_(key);
+            vec_map_.erase(vec4_key_(key));
+      }
 
       void set(const std::string&key, const TYPE&value)
       { str_map_[key] = value; }
@@ -271,6 +302,7 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
                   return;
             copy_from_(*that);
             inherit_rand_modes(*that);
+            inherit_randc_histories(*that);
             touch();
       }
 
@@ -279,6 +311,7 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
             vvp_assoc_map<TYPE>*that = new vvp_assoc_map<TYPE>();
             that->copy_from_(*this);
             that->inherit_rand_modes(*this);
+            that->inherit_randc_histories(*this);
             return that;
       }
 

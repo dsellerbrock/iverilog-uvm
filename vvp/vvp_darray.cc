@@ -96,32 +96,81 @@ void vvp_darray::inherit_rand_modes(const vvp_darray&that)
 	    rand_modes_[idx] = that.rand_modes_[idx];
 }
 
+const std::vector<bool>*vvp_darray::randc_history(size_t idx) const
+{
+      if (idx >= get_size() || randc_histories_.empty()) return 0;
+      assert(randc_histories_.size() == get_size());
+      return &randc_histories_[idx];
+}
+
+std::vector<bool>&vvp_darray::randc_history(size_t idx)
+{
+      if (randc_histories_.empty()) randc_histories_.resize(get_size());
+      else assert(randc_histories_.size() == get_size());
+      assert(idx < randc_histories_.size());
+      return randc_histories_[idx];
+}
+
+void vvp_darray::inherit_randc_histories(const vvp_darray&that)
+{
+      if (that.randc_histories_.empty()) {
+	    randc_histories_.clear();
+	    return;
+      }
+      assert(that.randc_histories_.size() == that.get_size());
+      randc_histories_.assign(get_size(), std::vector<bool>());
+      size_t count = std::min(randc_histories_.size(),
+			      that.randc_histories_.size());
+      for (size_t idx = 0 ; idx < count ; idx += 1)
+	    randc_histories_[idx] = that.randc_histories_[idx];
+}
+
 void vvp_darray::reorder_rand_modes(
       const std::vector<size_t>&source_indices)
 {
       sync_rand_modes_(this, rand_modes_, rand_mode_default_);
       std::vector<unsigned char> original = rand_modes_;
+      std::vector<std::vector<bool> > original_histories;
+      if (!randc_histories_.empty()) {
+	    assert(randc_histories_.size() == get_size());
+	    original_histories = randc_histories_;
+      }
       rand_modes_.assign(source_indices.size(),
 			 rand_mode_default_ ? 1 : 0);
+      if (!original_histories.empty())
+	    randc_histories_.assign(source_indices.size(), std::vector<bool>());
       for (size_t dst = 0 ; dst < source_indices.size() ; dst += 1) {
 	    size_t src = source_indices[dst];
 	    if (src < original.size()) rand_modes_[dst] = original[src];
+	    if (src < original_histories.size())
+		  randc_histories_[dst] = original_histories[src];
       }
 }
 
 void vvp_darray::rand_mode_insert(size_t idx, bool discard_back)
 {
       sync_rand_modes_(this, rand_modes_, rand_mode_default_);
-      if (discard_back && !rand_modes_.empty()) rand_modes_.pop_back();
+      bool have_histories = !randc_histories_.empty();
+      if (have_histories) assert(randc_histories_.size() == get_size());
+      if (discard_back && !rand_modes_.empty()) {
+	    rand_modes_.pop_back();
+	    if (have_histories) randc_histories_.pop_back();
+      }
       if (idx <= rand_modes_.size())
 	    rand_modes_.insert(rand_modes_.begin() + idx,
 			       rand_mode_default_ ? 1 : 0);
+      if (have_histories && idx <= randc_histories_.size())
+	    randc_histories_.insert(randc_histories_.begin() + idx,
+				    std::vector<bool>());
 }
 
 void vvp_darray::rand_mode_push_back()
 {
       sync_rand_modes_(this, rand_modes_, rand_mode_default_);
+      bool have_histories = !randc_histories_.empty();
+      if (have_histories) assert(randc_histories_.size() == get_size());
       rand_modes_.push_back(rand_mode_default_ ? 1 : 0);
+      if (have_histories) randc_histories_.push_back(std::vector<bool>());
 }
 
 void vvp_darray::rand_mode_push_front(bool discard_back)
@@ -132,25 +181,46 @@ void vvp_darray::rand_mode_push_front(bool discard_back)
 void vvp_darray::rand_mode_pop_back()
 {
       sync_rand_modes_(this, rand_modes_, rand_mode_default_);
-      if (!rand_modes_.empty()) rand_modes_.pop_back();
+      bool have_histories = !randc_histories_.empty();
+      if (have_histories) assert(randc_histories_.size() == get_size());
+      if (!rand_modes_.empty()) {
+	    rand_modes_.pop_back();
+	    if (have_histories) randc_histories_.pop_back();
+      }
 }
 
 void vvp_darray::rand_mode_pop_front()
 {
       sync_rand_modes_(this, rand_modes_, rand_mode_default_);
-      if (!rand_modes_.empty()) rand_modes_.erase(rand_modes_.begin());
+      bool have_histories = !randc_histories_.empty();
+      if (have_histories) assert(randc_histories_.size() == get_size());
+      if (!rand_modes_.empty()) {
+	    rand_modes_.erase(rand_modes_.begin());
+	    if (have_histories) randc_histories_.erase(randc_histories_.begin());
+      }
 }
 
 void vvp_darray::rand_mode_erase(size_t idx)
 {
       sync_rand_modes_(this, rand_modes_, rand_mode_default_);
-      if (idx < rand_modes_.size()) rand_modes_.erase(rand_modes_.begin()+idx);
+      bool have_histories = !randc_histories_.empty();
+      if (have_histories) assert(randc_histories_.size() == get_size());
+      if (idx < rand_modes_.size()) {
+	    rand_modes_.erase(rand_modes_.begin()+idx);
+	    if (have_histories)
+		  randc_histories_.erase(randc_histories_.begin()+idx);
+      }
 }
 
 void vvp_darray::rand_mode_erase_tail(size_t idx)
 {
       sync_rand_modes_(this, rand_modes_, rand_mode_default_);
-      if (idx < rand_modes_.size()) rand_modes_.resize(idx);
+      bool have_histories = !randc_histories_.empty();
+      if (have_histories) assert(randc_histories_.size() == get_size());
+      if (idx < rand_modes_.size()) {
+	    rand_modes_.resize(idx);
+	    if (have_histories) randc_histories_.resize(idx);
+      }
 }
 
 // Type-mismatched set_word/get_word fallback. These methods are
