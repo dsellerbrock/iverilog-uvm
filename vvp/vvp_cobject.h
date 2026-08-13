@@ -128,6 +128,21 @@ class vvp_cobject : public vvp_object {
                                 size_t leaf = 0);
       void randc_unmark(size_t pid, uint64_t val, size_t leaf = 0);
 
+	// Dynamic-array, queue, and associative-array elements keep their
+	// committed histories inside the container so typed keys and queue
+	// mutation preserve variable identity. The transaction still belongs to
+	// the enclosing class randomize call; `position' is stable for that
+	// solve and is translated to the container's typed history at commit.
+      bool randc_container_seen(size_t pid, size_t position, uint64_t val,
+				 size_t word = 0) const;
+      void randc_container_mark(size_t pid, size_t position, uint64_t val,
+				 size_t word = 0);
+      void randc_container_mark_feasible(
+	    size_t pid, size_t position, uint64_t val,
+	    const std::vector<uint64_t>&feasible, size_t word = 0);
+      void randc_container_unmark(size_t pid, size_t position, uint64_t val,
+				   size_t word = 0);
+
 	// M11: covergroup transition-bin progress state — active-
 	// position masks keyed by (prop_idx << 8) | seq_id.
       uint64_t cov_trans_mask(uint64_t key) const {
@@ -190,13 +205,32 @@ class vvp_cobject : public vvp_object {
 	    bool feasible_domain = false;
 	    std::vector<uint64_t> feasible;
       };
-      typedef std::map<randc_key_t, randc_pending_t> randc_transaction_t;
+      struct randc_transaction_t {
+	    std::map<randc_key_t, randc_pending_t> properties;
+	    struct container_key_t {
+		  size_t pid;
+		  size_t word;
+		  size_t position;
+		  container_key_t(size_t p = 0, size_t w = 0, size_t n = 0)
+		  : pid(p), word(w), position(n) { }
+		  bool operator<(const container_key_t&that) const
+		  {
+			return pid < that.pid
+			      || (pid == that.pid && (word < that.word
+			      || (word == that.word && position < that.position)));
+		  }
+	    };
+	    std::map<container_key_t, randc_pending_t> containers;
+      };
       std::vector<randc_transaction_t> randc_transactions_;
 
       const std::vector<bool>*randc_history_find_(const randc_key_t&key) const;
       std::vector<bool>&randc_history_mutable_(const randc_key_t&key);
       static bool randc_history_full_(const std::vector<bool>&hist,
 				       uint64_t period);
+      bool randc_container_state_(size_t pid, size_t word, size_t position,
+				  vvp_vector4_t&value,
+				  std::vector<bool>*&history) const;
       std::map<uint64_t, uint64_t> cov_trans_;
       std::map<std::pair<unsigned,uint64_t>,uint32_t> cov_dyn_counts_;
       bool cov_enabled_ = true;

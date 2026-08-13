@@ -3370,10 +3370,16 @@ static void randomize_snapshot_(vvp_cobject*cobj, const class_type*defn,
 			s.object = current.value_copy_element();
 			if (vvp_darray*from = current.peek<vvp_darray>())
 			      if (vvp_darray*to = s.object.peek<vvp_darray>())
-				    to->inherit_rand_modes(*from);
+				    {
+				      to->inherit_rand_modes(*from);
+				      to->inherit_randc_histories(*from);
+				    }
 			if (vvp_assoc_base*from = current.peek<vvp_assoc_base>())
 			      if (vvp_assoc_base*to = s.object.peek<vvp_assoc_base>())
-				    to->inherit_rand_modes(*from);
+				    {
+				      to->inherit_rand_modes(*from);
+				      to->inherit_randc_histories(*from);
+				    }
 			saved.push_back(s);
 			continue;
 		  }
@@ -3408,19 +3414,31 @@ static void randomize_restore_(vvp_cobject*cobj,
 		  vvp_object_t mode_source = s.object.value_copy_element();
 		  if (vvp_darray*from = s.object.peek<vvp_darray>())
 			if (vvp_darray*to = mode_source.peek<vvp_darray>())
-			      to->inherit_rand_modes(*from);
+			      {
+				    to->inherit_rand_modes(*from);
+				    to->inherit_randc_histories(*from);
+			      }
 		  if (vvp_assoc_base*from = s.object.peek<vvp_assoc_base>())
 			if (vvp_assoc_base*to = mode_source.peek<vvp_assoc_base>())
-			      to->inherit_rand_modes(*from);
+			      {
+				    to->inherit_rand_modes(*from);
+				    to->inherit_randc_histories(*from);
+			      }
 		  cobj->set_object(s.pid, s.object, s.adr);
 		  vvp_object_t restored;
 		  cobj->get_object(s.pid, restored, s.adr);
 		  if (vvp_darray*from = mode_source.peek<vvp_darray>())
 			if (vvp_darray*to = restored.peek<vvp_darray>())
-			      to->inherit_rand_modes(*from);
+			      {
+				    to->inherit_rand_modes(*from);
+				    to->inherit_randc_histories(*from);
+			      }
 		  if (vvp_assoc_base*from = mode_source.peek<vvp_assoc_base>())
 			if (vvp_assoc_base*to = restored.peek<vvp_assoc_base>())
-			      to->inherit_rand_modes(*from);
+			      {
+				    to->inherit_rand_modes(*from);
+				    to->inherit_randc_histories(*from);
+			      }
 	    } else if (s.kind == rand_saved_prop_s::REAL_VALUE)
 		  cobj->set_real(s.pid, s.real, s.adr);
 	    else if (s.kind == rand_saved_prop_s::STRING_VALUE)
@@ -3574,6 +3592,40 @@ static bool randomize_randc_leaf_(vvp_cobject*cobj, size_t pid, size_t leaf,
 
       cobj->randc_mark(pid, pick, leaf);
       for (unsigned bit = 0 ; bit < val.size() ; bit += 1)
+	    val.set_bit(bit, (pick >> bit) & 1 ? BIT4_1 : BIT4_0);
+      return true;
+}
+
+static bool randomize_randc_container_leaf_(vvp_cobject*cobj, size_t pid,
+	    size_t word, size_t position, vvp_vector4_t&val,
+	    const std::function<unsigned()>&next_random)
+{
+      unsigned width = val.size();
+      if (width == 0 || width > 20) return false;
+      uint64_t period = (uint64_t)1 << width;
+      uint64_t pick = 0;
+      bool found = false;
+      for (unsigned attempt = 0 ; attempt < 4 * (unsigned)period;
+	   attempt += 1) {
+	    uint64_t candidate = (uint64_t)next_random() % period;
+	    if (!cobj->randc_container_seen(pid, position, candidate, word)) {
+		  pick = candidate;
+		  found = true;
+		  break;
+	    }
+      }
+      if (!found) {
+	    for (uint64_t candidate = 0 ; candidate < period ; candidate += 1) {
+		  if (cobj->randc_container_seen(pid, position, candidate, word))
+			continue;
+		  pick = candidate;
+		  found = true;
+		  break;
+	    }
+      }
+      if (!found) return false;
+      cobj->randc_container_mark(pid, position, pick, word);
+      for (unsigned bit = 0 ; bit < width ; bit += 1)
 	    val.set_bit(bit, (pick >> bit) & 1 ? BIT4_1 : BIT4_0);
       return true;
 }
@@ -3804,7 +3856,10 @@ static bool randomize_assoc_objects_(randomize_graph_session_t&session,
 }
 
 template <class KEY>
-static void randomize_assoc_vec4_key_(vvp_assoc_vec4*assoc, const KEY&key,
+static void randomize_assoc_vec4_key_(vvp_cobject*cobj, size_t pid,
+				      size_t word, size_t position,
+				      vvp_assoc_vec4*assoc, const KEY&key,
+				      bool is_randc,
 				      const std::function<unsigned()>&next_random)
 {
       vvp_vector4_t cur;
@@ -3812,28 +3867,41 @@ static void randomize_assoc_vec4_key_(vvp_assoc_vec4*assoc, const KEY&key,
       unsigned wid = got ? cur.size() : 32;
       if (wid == 0) wid = 32;
       vvp_vector4_t value(wid, BIT4_0);
-      for (unsigned bit = 0 ; bit < wid ; bit += 1)
-	    value.set_bit(bit, (next_random() & 1) ? BIT4_1 : BIT4_0);
+      if (!is_randc || !randomize_randc_container_leaf_(cobj, pid, word,
+						       position, value,
+						       next_random))
+	    for (unsigned bit = 0 ; bit < wid ; bit += 1)
+		  value.set_bit(bit, (next_random() & 1) ? BIT4_1 : BIT4_0);
       assoc->set(key, value);
 }
 
-static void randomize_assoc_vec4_(vvp_assoc_vec4*assoc,
+static void randomize_assoc_vec4_(vvp_cobject*cobj, size_t pid, size_t word,
+				  vvp_assoc_vec4*assoc, bool is_randc,
 				  bool all_active,
 				  const std::function<unsigned()>&next_random)
 {
       if (!assoc) return;
+      size_t position = 0;
       std::string skey;
-      for (bool ok = assoc->first_key(skey); ok; ok = assoc->next_key(skey))
+
+      for (bool ok = assoc->first_key(skey); ok;
+	   ok = assoc->next_key(skey), position += 1)
 	    if (all_active || assoc->rand_mode(skey))
-		  randomize_assoc_vec4_key_(assoc, skey, next_random);
+		  randomize_assoc_vec4_key_(cobj, pid, word, position, assoc,
+					 skey, is_randc, next_random);
       vvp_object_t okey;
-      for (bool ok = assoc->first_key(okey); ok; ok = assoc->next_key(okey))
+      for (bool ok = assoc->first_key(okey); ok;
+	   ok = assoc->next_key(okey), position += 1)
 	    if (all_active || assoc->rand_mode(okey))
-		  randomize_assoc_vec4_key_(assoc, okey, next_random);
+		  randomize_assoc_vec4_key_(cobj, pid, word, position, assoc,
+					 okey, is_randc, next_random);
       vvp_vector4_t vkey;
-      for (bool ok = assoc->first_key(vkey); ok; ok = assoc->next_key(vkey))
+
+      for (bool ok = assoc->first_key(vkey); ok;
+	   ok = assoc->next_key(vkey), position += 1)
 	    if (all_active || assoc->rand_mode(vkey))
-		  randomize_assoc_vec4_key_(assoc, vkey, next_random);
+		  randomize_assoc_vec4_key_(cobj, pid, word, position, assoc,
+					 vkey, is_randc, next_random);
 }
 
 /* IEEE 1800-2017 18.4/18.6.1: every non-null rand handle is randomized as
@@ -3952,8 +4020,9 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 					  solve_ok = false;
 			      } else if (vvp_assoc_vec4*assoc_vec =
 					       propobj.peek<vvp_assoc_vec4>()) {
-				    randomize_assoc_vec4_(assoc_vec, all_active,
-						   next_random);
+				    randomize_assoc_vec4_(cobj, pid, 0, assoc_vec,
+						   defn->property_is_randc(pid),
+						   all_active, next_random);
 				    aggregate_changed = assoc_vec->size() != 0;
 			      }
 			      if (aggregate_changed
@@ -3984,8 +4053,10 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 						pid, (size_t)adr);
 			      } else if (vvp_assoc_vec4*assoc =
 					       propobj.peek<vvp_assoc_vec4>()) {
-				    randomize_assoc_vec4_(assoc, true,
-						   next_random);
+				    randomize_assoc_vec4_(cobj, pid, (size_t)adr,
+						   assoc,
+						   defn->property_is_randc(pid),
+						   true, next_random);
 				    if (defn->property_is_static(pid))
 					  defn->static_randomize_transaction_mark_dirty(
 						pid, (size_t)adr);
@@ -4023,14 +4094,47 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 	    }
 
 	      // A CONTAINER property -- a dynamic array or queue. There are
-	      // no property bits to pre-fill: get_vec4 hands back a 1-bit
-	      // "non-nil" flag and writing that back is not a value
-	      // (class_property_t::set_vec4 rejects it and warns). A rand
-	      // dynamic array's size and elements are the solver's business
-	      // (18.4), not this loop's. Asked of the DECLARED type, so it
-	      // holds for a property that is still nil on the first call.
-	    if (rand_prop_is_container_(defn, pid))
+	      // no scalar property bits to pre-fill: get_vec4 hands back a
+	      // one-bit non-nil flag. Existing integral elements are nevertheless
+	      // distinct random variables even when no constraint mentions the
+	      // container (and vvp_z3_randomize therefore has no ElemVar for
+	      // them). Pre-fill them here; a constrained solve may subsequently
+	      // replace the tentative value/mark with its authoritative model.
+	    if (rand_prop_is_container_(defn, pid)) {
+		  const std::string&bt = defn->property_base_type(pid);
+		  if (defn->property_is_randc(pid) && !bt.empty()
+		      && (bt[0] == 'D' || bt[0] == 'Q')) {
+			vvp_object_t object;
+			cobj->get_object(pid, object, 0);
+			if (vvp_darray*array = object.peek<vvp_darray>()) {
+			      bool all_active = sel && pid < sel->size()
+				    && (*sel)[pid];
+			      for (size_t position = 0;
+				   position < array->get_size(); position += 1) {
+				    if (!all_active
+					&& !cobj->rand_mode(pid, position))
+					  continue;
+				    vvp_vector4_t value;
+				    array->get_word((unsigned)position, value);
+				    if (value.size() == 0) continue;
+				    if (defn->property_is_randc(pid)
+					&& randomize_randc_container_leaf_(cobj,
+					     pid, 0, position, value, next_random)) {
+					  array->set_word((unsigned)position, value);
+					  continue;
+				    }
+				    for (unsigned bit = 0 ; bit < value.size();
+					 bit += 1)
+					  value.set_bit(bit, (next_random() & 1)
+							 ? BIT4_1 : BIT4_0);
+				    array->set_word((unsigned)position, value);
+			      }
+			      if (defn->property_is_static(pid))
+				    defn->static_randomize_transaction_mark_dirty(pid, 0);
+			}
+		  }
 		  continue;
+	    }
 
 	    vvp_vector4_t val;
 	    cobj->get_vec4(pid, val);

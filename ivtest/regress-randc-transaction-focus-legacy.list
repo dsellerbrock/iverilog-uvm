@@ -19,6 +19,8 @@ sv_randc_txn_dist_fail CE,-g2012 ivltests gold=sv_randc_txn_dist_fail.gold
 sv_randc_txn_soft_fail CE,-g2012 ivltests gold=sv_randc_txn_soft_fail.gold
 sv_randc_txn_solve_before_fail CE,-g2012 ivltests gold=sv_randc_txn_solve_before_fail.gold
 sv_randc_txn_unique_fail CE,-g2012 ivltests gold=sv_randc_txn_unique_fail.gold
+sv_randc_container_cycles normal,-g2012 ivltests gold=sv_randc_container_cycles.gold
+sv_randc_container_transactions normal,-g2012 ivltests gold=sv_randc_container_transactions.gold
 
 # Constraint-provenance core: strict Slang-confirmed positive/negative pair.
 sv_randc_constraint_provenance normal,-g2012 ivltests gold=sv_randc_constraint_provenance.gold

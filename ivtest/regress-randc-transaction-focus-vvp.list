@@ -19,6 +19,8 @@ sv_randc_txn_dist_fail	vvp_tests/sv_randc_txn_dist_fail.json
 sv_randc_txn_soft_fail	vvp_tests/sv_randc_txn_soft_fail.json
 sv_randc_txn_solve_before_fail	vvp_tests/sv_randc_txn_solve_before_fail.json
 sv_randc_txn_unique_fail	vvp_tests/sv_randc_txn_unique_fail.json
+sv_randc_container_cycles	vvp_tests/sv_randc_container_cycles.json
+sv_randc_container_transactions	vvp_tests/sv_randc_container_transactions.json
 
 # Constraint-provenance core: strict Slang-confirmed positive/negative pair.
 sv_randc_constraint_provenance	vvp_tests/sv_randc_constraint_provenance.json

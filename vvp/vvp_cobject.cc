@@ -423,6 +423,48 @@ bool vvp_cobject::randc_history_full_(const std::vector<bool>&hist,
       return true;
 }
 
+bool vvp_cobject::randc_container_state_(size_t pid, size_t word,
+	    size_t position,
+	    vvp_vector4_t&value, std::vector<bool>*&history) const
+{
+      history = 0;
+      if (pid >= defn_->property_count()) return false;
+      vvp_object_t object;
+      const_cast<vvp_cobject*>(this)->get_object(pid, object, word);
+      if (vvp_darray*array = object.peek<vvp_darray>()) {
+	    if (position >= array->get_size()) return false;
+	    array->get_word((unsigned)position, value);
+	    history = &array->randc_history(position);
+	    return value.size() != 0;
+      }
+      if (vvp_assoc_base*assoc = object.peek<vvp_assoc_base>()) {
+	    std::string key_text, string_value;
+	    double real_value = 0.0;
+	    int value_kind = -1;
+	    if (!assoc->peek_entry(position, key_text, value, real_value,
+				   string_value, value_kind)
+		|| value_kind != 0)
+		  return false;
+	    history = &assoc->randc_history_at(position);
+	    return value.size() != 0;
+      }
+      return false;
+}
+
+static bool randc_value_to_uint64_(const vvp_vector4_t&value,
+	    uint64_t&actual)
+{
+      actual = 0;
+      for (unsigned bit = 0 ; bit < value.size() ; bit += 1) {
+	    vvp_bit4_t digit = value.value(bit);
+	    if (digit == BIT4_1)
+		  actual |= (uint64_t)1 << bit;
+	    else if (digit != BIT4_0)
+		  return false;
+      }
+      return true;
+}
+
 void vvp_cobject::randc_transaction_begin()
 {
 	// A map frame holds one final event per pid. Merging an overlapping
@@ -455,31 +497,27 @@ bool vvp_cobject::randc_transaction_commit()
 	    uint64_t period;
 	    uint64_t actual;
 	    randc_pending_t pending;
+	    std::vector<bool>*container_history = 0;
       };
       std::vector<resolved_randc_t> resolved;
 
 	// Validate and capture every actual final value before changing any
 	// history bank. This makes a multi-property commit atomic even if an
 	// unexpected X/Z reaches a supposedly successful solver result.
-      for (randc_transaction_t::const_iterator it = pending.begin();
-	   it != pending.end(); ++it) {
+      for (std::map<randc_key_t, randc_pending_t>::const_iterator it =
+		 pending.properties.begin(); it != pending.properties.end(); ++it) {
 	    uint64_t period = randc_period(it->first.pid, it->first.leaf);
 	    if (period == 0) continue;
 
 	    vvp_vector4_t val;
 	    get_vec4(it->first.pid, val, it->first.leaf);
 	    uint64_t actual = 0;
-	    for (unsigned bit = 0 ; bit < val.size() ; bit += 1) {
-		  vvp_bit4_t digit = val.value(bit);
-		  if (digit == BIT4_1)
-			actual |= (uint64_t)1 << bit;
-		  else if (digit != BIT4_0) {
+	    if (!randc_value_to_uint64_(val, actual)) {
 			cerr << "warning: successful randomize produced X/Z for randc "
 			     << "property '" << defn_->property_name(it->first.pid)
 			     << "' leaf " << it->first.leaf
 			     << "; history transaction rolled back" << endl;
 			return false;
-		  }
 	    }
 
 	    resolved_randc_t item;
@@ -490,8 +528,39 @@ bool vvp_cobject::randc_transaction_commit()
 	    resolved.push_back(item);
       }
 
+      for (std::map<randc_transaction_t::container_key_t,
+		 randc_pending_t>::const_iterator it =
+		 pending.containers.begin(); it != pending.containers.end(); ++it) {
+	    vvp_vector4_t val;
+	    std::vector<bool>*history = 0;
+	    if (!randc_container_state_(it->first.pid, it->first.word,
+					it->first.position,
+					val, history))
+		  continue;
+	    unsigned width = val.size();
+	    if (width == 0 || width > 20) continue;
+	    uint64_t period = (uint64_t)1 << width;
+	    uint64_t actual = 0;
+	    if (!randc_value_to_uint64_(val, actual)) {
+		  cerr << "warning: successful randomize produced X/Z for randc "
+		       << "container property '"
+		       << defn_->property_name(it->first.pid) << "' element "
+		       << it->first.position
+		       << "; history transaction rolled back" << endl;
+		  return false;
+	    }
+	    resolved_randc_t item;
+	    item.key = randc_key_t(it->first.pid, it->first.position);
+	    item.period = period;
+	    item.actual = actual;
+	    item.pending = it->second;
+	    item.container_history = history;
+	    resolved.push_back(item);
+      }
+
       for (const resolved_randc_t&item : resolved) {
-	    std::vector<bool>&hist = randc_history_mutable_(item.key);
+	    std::vector<bool>&hist = item.container_history
+		  ? *item.container_history : randc_history_mutable_(item.key);
 	    if (hist.size() != item.period)
 		  hist.assign((size_t)item.period, false);
 
@@ -565,7 +634,7 @@ void vvp_cobject::randc_mark(size_t pid, uint64_t val, size_t leaf)
       }
       randc_pending_t staged;
       staged.staged_value = val;
-      randc_transactions_.back()[randc_key_t(pid, leaf)] = staged;
+      randc_transactions_.back().properties[randc_key_t(pid, leaf)] = staged;
 }
 
 // RANDOM-DIST fix #4: see the declaration in vvp_cobject.h.
@@ -585,7 +654,7 @@ void vvp_cobject::randc_mark_feasible(size_t pid, uint64_t val,
       staged.staged_value = val;
       staged.feasible_domain = true;
       staged.feasible = feasible;
-      randc_transactions_.back()[randc_key_t(pid, leaf)] = staged;
+      randc_transactions_.back().properties[randc_key_t(pid, leaf)] = staged;
 }
 
 void vvp_cobject::randc_unmark(size_t pid, uint64_t val, size_t leaf)
@@ -596,8 +665,81 @@ void vvp_cobject::randc_unmark(size_t pid, uint64_t val, size_t leaf)
 	    abort();
       }
       randc_transaction_t&pending = randc_transactions_.back();
-      randc_transaction_t::iterator it =
-	    pending.find(randc_key_t(pid, leaf));
+      std::map<randc_key_t, randc_pending_t>::iterator it =
+	    pending.properties.find(randc_key_t(pid, leaf));
+      if (it != pending.properties.end() && it->second.staged_value == val)
+	    pending.properties.erase(it);
+}
+
+bool vvp_cobject::randc_container_seen(size_t pid, size_t position,
+	    uint64_t val, size_t word) const
+{
+      vvp_vector4_t value;
+      std::vector<bool>*history = 0;
+      if (!randc_container_state_(pid, word, position, value, history))
+	    return false;
+      unsigned width = value.size();
+      if (width == 0 || width > 20) return false;
+      uint64_t period = (uint64_t)1 << width;
+      if (!history || val >= history->size()) return false;
+      if (randc_history_full_(*history, period)) return false;
+      return (*history)[(size_t)val];
+}
+
+void vvp_cobject::randc_container_mark(size_t pid, size_t position,
+	    uint64_t val, size_t word)
+{
+      vvp_vector4_t value;
+      std::vector<bool>*history = 0;
+      if (!randc_container_state_(pid, word, position, value, history)) return;
+      unsigned width = value.size();
+      if (width == 0 || width > 20 || val >= ((uint64_t)1 << width)) return;
+      if (randc_transactions_.empty()) {
+	    cerr << "internal error: container randc mark outside randomize "
+		 << "transaction" << endl;
+	    abort();
+      }
+      randc_pending_t staged;
+      staged.staged_value = val;
+      randc_transactions_.back().containers[
+	    randc_transaction_t::container_key_t(pid, word, position)] = staged;
+}
+
+void vvp_cobject::randc_container_mark_feasible(size_t pid, size_t position,
+	    uint64_t val, const std::vector<uint64_t>&feasible, size_t word)
+{
+      vvp_vector4_t value;
+      std::vector<bool>*history = 0;
+      if (!randc_container_state_(pid, word, position, value, history)) return;
+      unsigned width = value.size();
+      if (width == 0 || width > 20 || val >= ((uint64_t)1 << width)) return;
+      if (randc_transactions_.empty()) {
+	    cerr << "internal error: constrained container randc mark outside "
+		 << "randomize transaction" << endl;
+	    abort();
+      }
+      randc_pending_t staged;
+      staged.staged_value = val;
+      staged.feasible_domain = true;
+      staged.feasible = feasible;
+      randc_transactions_.back().containers[
+	    randc_transaction_t::container_key_t(pid, word, position)] = staged;
+}
+
+void vvp_cobject::randc_container_unmark(size_t pid, size_t position,
+	    uint64_t val, size_t word)
+{
+      if (randc_transactions_.empty()) {
+	    cerr << "internal error: container randc unmark outside randomize "
+		 << "transaction" << endl;
+	    abort();
+      }
+      std::map<randc_transaction_t::container_key_t,
+	    randc_pending_t>&pending =
+	    randc_transactions_.back().containers;
+      std::map<randc_transaction_t::container_key_t,
+	    randc_pending_t>::iterator it = pending.find(
+		  randc_transaction_t::container_key_t(pid, word, position));
       if (it != pending.end() && it->second.staged_value == val)
 	    pending.erase(it);
 }

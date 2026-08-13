@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_randc_container_transactions.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_randc_container_transactions"
+}

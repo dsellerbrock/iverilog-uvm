@@ -3177,9 +3177,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (!rand_elem_active_(defn, cobj, prop_active, ev.idx, ev.elem))
 		  continue;
 
-	    bool fixed_randc = defn->property_is_randc(ev.idx)
-		  && defn->property_array_size(ev.idx) > 1;
-	    if (fixed_randc) {
+	    const string&elem_base_type = defn->property_base_type(ev.idx);
+	    bool container_randc = defn->property_is_randc(ev.idx)
+		  && !elem_base_type.empty()
+		  && (elem_base_type[0] == 'D' || elem_base_type[0] == 'Q'
+		      || elem_base_type[0] == 'M');
+	    bool element_randc = defn->property_is_randc(ev.idx)
+		  && (defn->property_array_size(ev.idx) > 1
+		      || container_randc);
+	    if (element_randc) {
 		  vector<uint64_t> feasible;
 		  bool enumerated = false;
 		  if (single_elem_fast_ok)
@@ -3197,15 +3203,27 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			uint64_t prefill = cobj_elem_bits(cobj, ev.idx, ev.elem);
 			vector<uint64_t> available;
 			for (uint64_t candidate : feasible)
-			      if (!cobj->randc_seen(ev.idx, candidate, ev.elem))
+			      if (container_randc
+				    ? !cobj->randc_container_seen(ev.idx, ev.elem,
+							    candidate)
+				    : !cobj->randc_seen(ev.idx, candidate,
+						       ev.elem))
 				    available.push_back(candidate);
 			const vector<uint64_t>&pool = available.empty()
 			      ? feasible : available;
 			chosen = pool[rng.uniform_index(pool.size())];
-			if (chosen != prefill)
-			      cobj->randc_unmark(ev.idx, prefill, ev.elem);
-			cobj->randc_mark_feasible(ev.idx, chosen, feasible,
-						  ev.elem);
+			if (container_randc) {
+			      if (chosen != prefill)
+				    cobj->randc_container_unmark(ev.idx, ev.elem,
+							   prefill);
+			      cobj->randc_container_mark_feasible(ev.idx, ev.elem,
+							 chosen, feasible);
+			} else {
+			      if (chosen != prefill)
+				    cobj->randc_unmark(ev.idx, prefill, ev.elem);
+			      cobj->randc_mark_feasible(ev.idx, chosen, feasible,
+							  ev.elem);
+			}
 			Z3_sort sort = Z3_mk_bv_sort(ctx, ev.width);
 			Z3_ast cv = Z3_mk_unsigned_int64(ctx, chosen, sort);
 			Z3_ast eq = Z3_mk_eq(ctx, ev.var, cv);
@@ -3221,7 +3239,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  if (Z3_solver_check(ctx, base) == Z3_L_TRUE) {
 			static bool warned_randc_array_wide = false;
 			if (!warned_randc_array_wide) {
-			      fprintf(stderr, "Warning: constrained randc fixed-array "
+			      fprintf(stderr, "Warning: constrained randc unpacked-array "
 				    "element domain could not be enumerated exactly "
 				    "(width %u); cycle-completeness is not guaranteed "
 				    "for it (further similar warnings suppressed).\n",
@@ -3292,6 +3310,29 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	// property's correctly typed container with the solved element count
 	// and fill integral elements with random bits. Element constraints,
 	// when present, overwrite specific entries below.
+      auto choose_container_randc = [&rng](const std::vector<bool>*history,
+	    unsigned width) -> uint64_t {
+	    uint64_t period = (uint64_t)1 << width;
+	    bool complete = history && history->size() == period;
+	    if (complete)
+		  for (size_t idx = 0 ; idx < history->size() ; idx += 1)
+			if (!(*history)[idx]) { complete = false; break; }
+	    if (!history || history->size() != period || complete)
+		  return (uint64_t)rng.uniform_index((size_t)period);
+
+	    size_t available = 0;
+	    for (size_t idx = 0 ; idx < history->size() ; idx += 1)
+		  if (!(*history)[idx]) available += 1;
+	    if (available == 0)
+		  return (uint64_t)rng.uniform_index((size_t)period);
+	    size_t target = rng.uniform_index(available);
+	    for (size_t idx = 0 ; idx < history->size() ; idx += 1) {
+		  if ((*history)[idx]) continue;
+		  if (target-- == 0) return (uint64_t)idx;
+	    }
+	    return 0;
+      };
+
       for (auto& sv : builder.size_vars) {
 	    if (!rand_active_(defn, cobj, prop_active, sv.idx)) continue;
 	    uint64_t new_size = 0;
@@ -3306,16 +3347,29 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    cobj->get_object(sv.idx, old_obj, 0);
 	    vvp_darray*old_array = old_obj.peek<vvp_darray>();
 	    vvp_darray*da = make_random_container_(desc, (size_t)new_size);
+	    bool is_randc = defn->property_is_randc(sv.idx);
 	    if (desc.is_queue) {
 		  vvp_queue*queue = dynamic_cast<vvp_queue*>(da);
 		  unsigned queue_max = desc.max_size <= UINT_MAX
 			? (unsigned)desc.max_size : 0;
 		  for (uint64_t adr = 0 ; queue && adr < new_size ; adr += 1) {
 			vvp_vector4_t nv(desc.elem_width, BIT4_0);
-			if (old_array && adr < old_array->get_size()
-			    && !old_array->rand_mode((size_t)adr))
+			bool active = rand_elem_active_(defn, cobj, prop_active,
+						 sv.idx, (unsigned)adr);
+			if (old_array && adr < old_array->get_size() && !active)
 			      old_array->get_word((unsigned)adr, nv);
-			else
+			else if (is_randc && desc.elem_width > 0
+				 && desc.elem_width <= 20) {
+			      const std::vector<bool>*history = old_array
+				    && adr < old_array->get_size()
+				    ? static_cast<const vvp_darray*>(old_array)
+					  ->randc_history((size_t)adr) : 0;
+			      uint64_t bits = choose_container_randc(history,
+							       desc.elem_width);
+			      for (unsigned b = 0 ; b < desc.elem_width ; b += 1)
+				    nv.set_bit(b, (bits >> b) & 1
+						   ? BIT4_1 : BIT4_0);
+			} else
 			      for (unsigned b = 0 ; b < desc.elem_width ; b += 1)
 				    nv.set_bit(b, (rng.next() & 1)
 						  ? BIT4_1 : BIT4_0);
@@ -3328,10 +3382,20 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			unsigned wid = word.size();
 			if (wid == 0) wid = 32;
 			vvp_vector4_t nv(wid, BIT4_0);
-			if (old_array && adr < old_array->get_size()
-			    && !old_array->rand_mode((size_t)adr))
+			bool active = rand_elem_active_(defn, cobj, prop_active,
+						 sv.idx, (unsigned)adr);
+			if (old_array && adr < old_array->get_size() && !active)
 			      old_array->get_word((unsigned)adr, nv);
-			else
+			else if (is_randc && wid <= 20) {
+			      const std::vector<bool>*history = old_array
+				    && adr < old_array->get_size()
+				    ? static_cast<const vvp_darray*>(old_array)
+					  ->randc_history((size_t)adr) : 0;
+			      uint64_t bits = choose_container_randc(history, wid);
+			      for (unsigned b = 0 ; b < wid ; b += 1)
+				    nv.set_bit(b, (bits >> b) & 1
+						   ? BIT4_1 : BIT4_0);
+			} else
 			      for (unsigned b = 0 ; b < wid ; b += 1)
 				    nv.set_bit(b, (rng.next() & 1)
 						  ? BIT4_1 : BIT4_0);
@@ -3339,12 +3403,42 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  }
 	    }
 	    vvp_object_t obj(da);
+	    if (old_array) da->inherit_randc_histories(*old_array);
 	    cobj->set_object(sv.idx, obj, 0);
 	    if (old_array) {
 		  vvp_object_t stored;
 		  cobj->get_object(sv.idx, stored, 0);
 		  if (vvp_darray*stored_array = stored.peek<vvp_darray>())
-			stored_array->inherit_rand_modes(*old_array);
+			{
+			      stored_array->inherit_rand_modes(*old_array);
+			      stored_array->inherit_randc_histories(*old_array);
+			}
+	    }
+	    if (is_randc) {
+		  vvp_object_t stored;
+		  cobj->get_object(sv.idx, stored, 0);
+		  if (vvp_darray*stored_array = stored.peek<vvp_darray>())
+			for (size_t adr = 0 ; adr < stored_array->get_size();
+			     adr += 1) {
+			      if (!rand_elem_active_(defn, cobj, prop_active,
+						     sv.idx, (unsigned)adr))
+				    continue;
+			      bool modeled_element = false;
+			      for (const auto&ev : builder.elem_vars)
+				    if (ev.idx == sv.idx && ev.elem == adr) {
+					  modeled_element = true;
+					  break;
+				    }
+			      if (modeled_element) continue;
+			      vvp_vector4_t value;
+			      stored_array->get_word((unsigned)adr, value);
+			      if (value.size() == 0 || value.size() > 20) continue;
+			      uint64_t bits = 0;
+			      for (unsigned bit = 0 ; bit < value.size() ; bit += 1)
+				    if (value.value(bit) == BIT4_1)
+					  bits |= (uint64_t)1 << bit;
+			      cobj->randc_container_mark(sv.idx, adr, bits);
+			}
 	    }
       }
 
