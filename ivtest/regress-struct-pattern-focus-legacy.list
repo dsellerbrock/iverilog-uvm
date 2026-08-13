@@ -1,0 +1,2 @@
+sv_default_assign_pattern normal,-g2012 ivltests
+sv_struct_array_flat_pattern_fail CE,-g2012 ivltests gold=sv_struct_array_flat_pattern_fail.gold

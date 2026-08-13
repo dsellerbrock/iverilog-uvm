@@ -2923,6 +2923,13 @@ NetExpr* PEAssignPattern::elaborate_expr_uarray_(Design *des, NetScope *scope,
 	         << get_fileline() << ":      : Found "
 		 << pv.size() << " element(s)." << endl;
 	    des->errors++;
+	    /* The element count is part of the assignment-pattern type check,
+	       not a recoverable sizing conversion. In particular, continuing
+	       with scalar elements against an unpacked-struct element type asks
+	       the typed-number elaborator to cast to a non-packed aggregate
+	       width and can allocate without bound. The diagnostic above is the
+	       complete result for this malformed expression. */
+	    return nullptr;
       }
 
       if  (cur_dim == dims.size() - 1) {
