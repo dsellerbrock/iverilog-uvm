@@ -1566,8 +1566,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
   attributed_array_method_call
 %destructor { delete $$; } attributed_array_method_with_opt
 
-%type <citem>  case_item
-%type <citems> case_items
+%type <citem>  case_item case_inside_item
+%type <citems> case_items case_inside_items
 %type <cmitem>  case_matches_item
 %type <cmitems> case_matches_items
 
@@ -8439,21 +8439,6 @@ case_item
 	delete $1;
 	$$ = tmp;
       }
-  /* SV `case (x) inside` allows range case items: [lo:hi]: stmt.
-     Preserve the full range; `case ... inside` lowering
-     (pform_make_case_inside) turns it into a real membership test.
-     For an ordinary `case` a range item is illegal and this range
-     simply never participates (the item matches nothing). */
-  | '[' expression ':' expression ']' ':' statement_or_null
-      { PCase::Item*tmp = new PCase::Item;
-	inside_range_t r;
-	r.lo = $2;
-	r.hi = $4;
-	r.is_range = true;
-	tmp->inside_ranges.push_back(r);
-	tmp->stat = $7;
-	$$ = tmp;
-      }
   | K_default ':' statement_or_null
       { PCase::Item*tmp = new PCase::Item;
 	tmp->stat = $3;
@@ -8467,16 +8452,60 @@ case_item
   | error ':' statement_or_null
       { yyerror(@2, "error: Incomprehensible case expression.");
 	yyerrok;
+	$$ = 0;
       }
   ;
 
 case_items
   : case_items case_item
-      { $1->push_back($2);
+
+      { if ($2) $1->push_back($2);
 	$$ = $1;
       }
   | case_item
-      { $$ = new std::vector<PCase::Item*>(1, $1);
+      { $$ = new std::vector<PCase::Item*>;
+	if ($1) $$->push_back($1);
+      }
+  ;
+
+/* IEEE 1800-2017 12.5.4 uses the same open-value-range list as the
+   `inside` operator for each `case ... inside` item. Keep this grammar
+   separate from ordinary case_item: expression_list_proper and
+   inside_range_list otherwise describe the same value-only prefix and add
+   avoidable parser conflicts. */
+case_inside_item
+  : inside_range_list ':' statement_or_null
+      { PCase::Item*tmp = new PCase::Item;
+	tmp->inside_ranges.splice(tmp->inside_ranges.end(), *$1);
+	delete $1;
+	tmp->stat = $3;
+	$$ = tmp;
+      }
+  | K_default ':' statement_or_null
+      { PCase::Item*tmp = new PCase::Item;
+	tmp->stat = $3;
+	$$ = tmp;
+      }
+  | K_default statement_or_null
+      { PCase::Item*tmp = new PCase::Item;
+	tmp->stat = $2;
+	$$ = tmp;
+      }
+  | error ':' statement_or_null
+      { yyerror(@2, "error: Incomprehensible case-inside expression.");
+	yyerrok;
+	$$ = 0;
+      }
+  ;
+
+case_inside_items
+  : case_inside_items case_inside_item
+      { if ($2) $1->push_back($2);
+	$$ = $1;
+      }
+  | case_inside_item
+      { $$ = new std::vector<PCase::Item*>;
+	if ($1) $$->push_back($1);
       }
   ;
 
@@ -15254,7 +15283,7 @@ statement_item /* This is roughly statement_item in the LRM */
   /* SV: `case (x) inside ...` (IEEE 1800-2017 12.5.4) — lower to
      membership tests so range items match their whole interval, not
      just the lower bound (see pform_make_case_inside). */
-  | unique_priority K_case '(' expression ')' K_inside case_items K_endcase
+  | unique_priority K_case '(' expression ')' K_inside case_inside_items K_endcase
       { $$ = pform_make_case_inside(@2, $1, $4, $7); }
   /* Phase 63b/B7 (gap close): SystemVerilog `case (X) matches` for
      tagged unions (IEEE 1800-2017 §12.6).  Lowered at elab to an

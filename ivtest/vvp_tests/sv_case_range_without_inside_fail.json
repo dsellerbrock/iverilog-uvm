@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_case_range_without_inside_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_case_range_without_inside_fail"
+}

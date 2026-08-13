@@ -1,0 +1,4 @@
+ivltests/sv_case_inside_recovery_fail.v:7: syntax error
+ivltests/sv_case_inside_recovery_fail.v:7: error: Incomprehensible case expression.
+ivltests/sv_case_inside_recovery_fail.v:11: syntax error
+ivltests/sv_case_inside_recovery_fail.v:11: error: Incomprehensible case-inside expression.

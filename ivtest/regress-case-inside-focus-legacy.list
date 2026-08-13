@@ -1,0 +1,4 @@
+sv_case_inside_mixed_items normal,-g2012 ivltests gold=sv_case_inside_mixed_items.gold
+sv_case_inside_recovery_fail CE,-g2012 ivltests gold=sv_case_inside_recovery_fail.gold
+sv_case_range_without_inside_fail CE,-g2012 ivltests gold=sv_case_range_without_inside_fail.gold
+sv_case_inside_concat_selector normal,-g2012 ivltests
