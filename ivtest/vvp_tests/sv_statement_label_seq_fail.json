@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_statement_label_seq_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_statement_label_seq_fail"
+}

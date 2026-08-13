@@ -14643,7 +14643,6 @@ statement_item /* This is roughly statement_item in the LRM */
 	delete $7;
 	check_end_label(@9, "block", $1, $9);
 	delete[] $1;
-	delete[] $9;
 	$$ = tmp;
       }
   /* Work around ivlpp macro-default-arg expansion that may emit a stray
