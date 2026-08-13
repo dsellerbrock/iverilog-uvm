@@ -10415,6 +10415,159 @@ NetExpr* PEMemberAccess::elaborate_expr(Design*des, NetScope*scope,
       return pad_to_width(result, expr_wid, result->has_sign(), *this);
 }
 
+void PEPostSelect::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
+{
+      if (base_) base_->declare_implicit_nets(scope, type);
+      if (index_.msb) index_.msb->declare_implicit_nets(scope, type);
+      if (index_.lsb) index_.lsb->declare_implicit_nets(scope, type);
+}
+
+bool PEPostSelect::has_aa_term(Design*des, NetScope*scope) const
+{
+      return (base_ && base_->has_aa_term(des, scope))
+          || (index_.msb && index_.msb->has_aa_term(des, scope))
+          || (index_.lsb && index_.lsb->has_aa_term(des, scope));
+}
+
+void PEPostSelect::reloc_lexical_pos_bind(bool parameter_context)
+{
+      if (base_) base_->reloc_lexical_pos_bind(parameter_context);
+      if (index_.msb) index_.msb->reloc_lexical_pos_bind(parameter_context);
+      if (index_.lsb) index_.lsb->reloc_lexical_pos_bind(parameter_context);
+}
+
+unsigned PEPostSelect::test_width(Design*des, NetScope*scope,
+                                  width_mode_t&mode)
+{
+      if (!base_ || !index_.msb) {
+            cerr << get_fileline() << ": internal error: incomplete postfix "
+                 << "select expression." << endl;
+            des->errors += 1;
+            return 0;
+      }
+
+      width_mode_t base_mode = SIZED;
+      base_->test_width(des, scope, base_mode);
+      if (!type_is_vectorable(base_->expr_type())) {
+            cerr << get_fileline() << ": error: A postfix select requires a "
+                 << "packed integral expression." << endl;
+            des->errors += 1;
+            return 0;
+      }
+
+      expr_type_ = base_->expr_type();
+      signed_flag_ = false;
+      mode = SIZED;
+
+      if (index_.sel == index_component_t::SEL_BIT) {
+            width_mode_t index_mode = SIZED;
+            index_.msb->test_width(des, scope, index_mode);
+            expr_width_ = min_width_ = 1;
+            return expr_width_;
+      }
+
+      if (index_.sel == index_component_t::SEL_PART) {
+            unsigned long width = 0;
+            if (!calculate_part(this, des, scope, index_, constant_base_, width))
+                  return 0;
+            long msb = constant_base_ + (long)width - 1;
+            NetExpr*msb_expr = elab_and_eval(des, scope, index_.msb, -1, true);
+            long source_msb = 0;
+            bool have_msb = msb_expr && eval_as_long(source_msb, msb_expr);
+            delete msb_expr;
+            if (!have_msb || source_msb != msb) {
+                  cerr << get_fileline() << ": error: A part select on an "
+                       << "expression must use descending [msb:lsb] order."
+                       << endl;
+                  des->errors += 1;
+                  return 0;
+            }
+            expr_width_ = min_width_ = width;
+            return expr_width_;
+      }
+
+      if (index_.sel == index_component_t::SEL_IDX_UP
+          || index_.sel == index_component_t::SEL_IDX_DO) {
+            NetExpr*width_expr = elab_and_eval(des, scope, index_.lsb,
+                                               -1, true);
+            long width = 0;
+            if (!width_expr || !eval_as_long(width, width_expr) || width <= 0) {
+                  cerr << get_fileline() << ": error: Indexed part-select "
+                       << "width must be a positive constant." << endl;
+                  des->errors += 1;
+                  delete width_expr;
+                  return 0;
+            }
+            delete width_expr;
+            width_mode_t index_mode = SIZED;
+            index_.msb->test_width(des, scope, index_mode);
+            expr_width_ = min_width_ = (unsigned)width;
+            return expr_width_;
+      }
+
+      cerr << get_fileline() << ": internal error: unsupported postfix "
+           << "select kind." << endl;
+      des->errors += 1;
+      return 0;
+}
+
+NetExpr* PEPostSelect::elaborate_expr(Design*des, NetScope*scope,
+                                      unsigned expr_wid,
+                                      unsigned flags) const
+{
+      flags &= ~SYS_TASK_ARG;
+      if (!base_ || !index_.msb || expr_width_ == 0)
+            return nullptr;
+
+      width_mode_t base_mode = SIZED;
+      base_->test_width(des, scope, base_mode);
+      NetExpr*base_expr = base_->elaborate_expr(des, scope,
+                                                base_->expr_width(), flags);
+      if (!base_expr)
+            return nullptr;
+
+      NetExpr*index_expr = nullptr;
+      ivl_select_type_t select_type = IVL_SEL_OTHER;
+      if (index_.sel == index_component_t::SEL_PART) {
+            index_expr = make_const_val(constant_base_);
+      } else {
+            index_expr = elab_and_eval(des, scope, index_.msb, -1,
+                                       flags & NEED_CONST);
+            if (index_.sel == index_component_t::SEL_IDX_UP)
+                  select_type = IVL_SEL_IDX_UP;
+            else if (index_.sel == index_component_t::SEL_IDX_DO)
+                  select_type = IVL_SEL_IDX_DOWN;
+      }
+      if (!index_expr) {
+            delete base_expr;
+            return nullptr;
+      }
+      if (index_expr->expr_type() == IVL_VT_REAL) {
+            cerr << get_fileline() << ": error: Select index cannot be real."
+                 << endl;
+            des->errors += 1;
+            delete base_expr;
+            delete index_expr;
+            return nullptr;
+      }
+
+      if (index_.sel == index_component_t::SEL_IDX_UP
+          || index_.sel == index_component_t::SEL_IDX_DO) {
+              // A self-determined packed expression has the canonical range
+              // [width-1:0]. Convert the source base into the least-significant
+              // bit offset expected by NetESelect. In particular, [base-:wid]
+              // begins at base-wid+1 rather than at base.
+            index_expr = normalize_variable_base(
+                  index_expr, base_expr->expr_width()-1, 0, expr_width_,
+                  index_.sel == index_component_t::SEL_IDX_UP);
+      }
+
+      NetESelect*select = new NetESelect(base_expr, index_expr,
+                                          expr_width_, select_type);
+      select->set_line(*this);
+      return pad_to_width(select, expr_wid, false, *this);
+}
+
 NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 					      const symbol_search_results &sr,
 					      unsigned expr_wid,

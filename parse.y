@@ -11009,6 +11009,53 @@ expr_primary
 	delete $2;
 	$$ = tmp;
       }
+  | '{' expression_list_proper '}' '[' expression ']'
+      { PEConcat*base = new PEConcat(*$2);
+	FILE_NAME(base, @1);
+	delete $2;
+	index_component_t idx;
+	idx.sel = index_component_t::SEL_BIT;
+	idx.msb = $5;
+	PEPostSelect*tmp = new PEPostSelect(base, idx);
+	FILE_NAME(tmp, @4);
+	$$ = tmp;
+      }
+  | '{' expression_list_proper '}' '[' expression ':' expression ']'
+      { PEConcat*base = new PEConcat(*$2);
+	FILE_NAME(base, @1);
+	delete $2;
+	index_component_t idx;
+	idx.sel = index_component_t::SEL_PART;
+	idx.msb = $5;
+	idx.lsb = $7;
+	PEPostSelect*tmp = new PEPostSelect(base, idx);
+	FILE_NAME(tmp, @4);
+	$$ = tmp;
+      }
+  | '{' expression_list_proper '}' '[' expression K_PO_POS expression ']'
+      { PEConcat*base = new PEConcat(*$2);
+	FILE_NAME(base, @1);
+	delete $2;
+	index_component_t idx;
+	idx.sel = index_component_t::SEL_IDX_UP;
+	idx.msb = $5;
+	idx.lsb = $7;
+	PEPostSelect*tmp = new PEPostSelect(base, idx);
+	FILE_NAME(tmp, @4);
+	$$ = tmp;
+      }
+  | '{' expression_list_proper '}' '[' expression K_PO_NEG expression ']'
+      { PEConcat*base = new PEConcat(*$2);
+	FILE_NAME(base, @1);
+	delete $2;
+	index_component_t idx;
+	idx.sel = index_component_t::SEL_IDX_DO;
+	idx.msb = $5;
+	idx.lsb = $7;
+	PEPostSelect*tmp = new PEPostSelect(base, idx);
+	FILE_NAME(tmp, @4);
+	$$ = tmp;
+      }
   | '{' expression '{' expression_list_proper '}' '}'
       { PExpr*rep = $2;
 	PEConcat*tmp = new PEConcat(*$4, rep);

@@ -505,6 +505,18 @@ PEMemberAccess::~PEMemberAccess()
       delete base_;
 }
 
+PEPostSelect::PEPostSelect(PExpr*base, const index_component_t&index)
+: base_(base), index_(index)
+{
+}
+
+PEPostSelect::~PEPostSelect()
+{
+      delete base_;
+      delete index_.msb;
+      delete index_.lsb;
+}
+
 static bool find_enum_constant(LexicalScope*scope, perm_string name)
 {
       return std::any_of(scope->enum_sets.cbegin(), scope->enum_sets.cend(),

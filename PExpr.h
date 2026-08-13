@@ -764,6 +764,34 @@ class PEMemberAccess : public PExpr {
       perm_string member_name_;
 };
 
+/* IEEE 1800-2017 11.5 permits a bit or part select on a packed expression,
+ * not only on a named variable. This carrier represents bases that cannot be
+ * folded into a hierarchy_identifier. The parser initially uses it for
+ * concatenations such as `{a,b}[9:6]`. */
+class PEPostSelect : public PExpr {
+
+    public:
+      PEPostSelect(PExpr*base, const index_component_t&index);
+      ~PEPostSelect() override;
+
+      void dump(std::ostream&) const override;
+      void declare_implicit_nets(LexicalScope*scope,
+                                 NetNet::Type type) override;
+      bool has_aa_term(Design*des, NetScope*scope) const override;
+      void reloc_lexical_pos_bind(bool parameter_context) override;
+
+      unsigned test_width(Design*des, NetScope*scope,
+                          width_mode_t&mode) override;
+      NetExpr*elaborate_expr(Design*des, NetScope*scope,
+                             unsigned expr_wid,
+                             unsigned flags) const override;
+
+    private:
+      PExpr*base_;
+      index_component_t index_;
+      long constant_base_ = 0;
+};
+
 class PENewArray : public PExpr {
 
     public:

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_concat_postfix_select.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_concat_postfix_select"
+}

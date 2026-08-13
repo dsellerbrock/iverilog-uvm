@@ -1,0 +1,2 @@
+./ivltests/sv_concat_postfix_select_ascending_fail.v:6: error: A part select on an expression must use descending [msb:lsb] order.
+Elaboration failed
