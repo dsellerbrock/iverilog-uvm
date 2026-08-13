@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_rand_mode_dynamic_whole_query_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_rand_mode_dynamic_whole_query_fail"
+}

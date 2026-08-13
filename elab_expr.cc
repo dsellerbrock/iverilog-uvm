@@ -11394,6 +11394,8 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		  int pid = ctype ? ctype->property_idx_from_name(fname) : -1;
 		  NetExpr*leaf_expr = nullptr;
 		  uint64_t leaf_count = 0;
+		  bool assoc_index = false;
+		  bool last_index = false;
 		  bool field_diagnostic = false;
 		  if (ctype && pid < 0 && path_.name.size() >= 3) {
 			cerr << get_fileline() << ": error: Class `"
@@ -11481,20 +11483,69 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 						      leaf_count *= dims[dim].width();
 					  }
 				    }
+			      } else if (const netdarray_t*container_type =
+					   dynamic_cast<const netdarray_t*>(prop_type)) {
+				    const index_component_t&idx =
+					  field_comp.index.front();
+				    const netqueue_t*queue_type =
+					  dynamic_cast<const netqueue_t*>(container_type);
+				    assoc_index = queue_type
+					  && queue_type->assoc_compat();
+				    if (field_comp.index.size() != 1
+					|| (idx.sel != index_component_t::SEL_BIT
+					    && idx.sel != index_component_t::SEL_BIT_LAST)) {
+					  cerr << get_fileline() << ": error: rand_mode() "
+					       << "requires one element index for dynamic, "
+					       << "queue, or associative array property `"
+					       << fname << "'." << endl;
+					  des->errors += 1;
+					  delete obj_expr;
+					  obj_expr = nullptr;
+					  field_diagnostic = true;
+				    } else if (idx.sel == index_component_t::SEL_BIT_LAST) {
+					  if (!queue_type || assoc_index) {
+						cerr << get_fileline() << ": error: the '$' "
+						     << "element index in rand_mode() is only valid "
+						     << "for a queue property `" << fname << "'."
+						     << endl;
+						des->errors += 1;
+						delete obj_expr;
+						obj_expr = nullptr;
+						field_diagnostic = true;
+					  } else {
+						last_index = true;
+					  }
+				    } else {
+					  ivl_type_t key_type = assoc_index
+						? queue_type->assoc_index_type() : nullptr;
+					  if (key_type && key_type->packed())
+						leaf_expr = idx.msb->elaborate_expr(
+						      des, scope, key_type, PExpr::NO_FLAGS);
+					  else
+						leaf_expr = elab_and_eval(des, scope,
+						      idx.msb, -1, false);
+					  if (!leaf_expr) {
+						delete obj_expr;
+						obj_expr = nullptr;
+						field_diagnostic = true;
+					  } else {
+						leaf_count = 1;
+					  }
+				    }
 			      } else if (!dynamic_cast<const netvector_t*>(prop_type)) {
-				    cerr << get_fileline() << ": sorry: rand_mode() on "
-					 << "an indexed dynamic or associative array "
-					 << "property is not supported yet." << endl;
+				    cerr << get_fileline() << ": error: rand_mode() "
+					 << "index is only valid for an unpacked array "
+					 << "property." << endl;
 				    des->errors += 1;
 				    delete obj_expr;
 				    obj_expr = nullptr;
 				    field_diagnostic = true;
 			      }
 			} else if (dynamic_cast<const netdarray_t*>(prop_type)) {
-			      cerr << get_fileline() << ": sorry: rand_mode() query "
-				   << "on whole unpacked-array property `" << fname
-				   << "' is not yet supported; aggregate query state "
-				   << "requires per-element runtime modes." << endl;
+			      cerr << get_fileline() << ": error: rand_mode() query on "
+				   << "unpacked-array property `" << fname
+				   << "' requires selecting one element (IEEE 1800-2017 "
+				   << "18.8)." << endl;
 			      des->errors += 1;
 			      delete obj_expr;
 			      NetEConst*zero = new NetEConst(
@@ -11513,7 +11564,11 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 			      verinum((uint64_t)pid, 32));
 			pe->set_line(*this);
 			NetESFunc*tmp = new NetESFunc(
-			      "$ivl_class_method$rand_mode_get",
+			      last_index
+				? "$ivl_class_method$rand_mode_get_last"
+			      : assoc_index
+				? "$ivl_class_method$rand_mode_get_assoc"
+				: "$ivl_class_method$rand_mode_get",
 			      IVL_VT_BOOL, 1, leaf_expr ? 4 : 2);
 			tmp->set_line(*this);
 			tmp->parm(0, obj_expr);

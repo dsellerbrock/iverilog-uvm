@@ -2460,6 +2460,16 @@ static bool vec4_eq_(const vvp_vector4_t&a, const vvp_vector4_t&b)
       return true;
 }
 
+static void reorder_queue_rand_modes_(
+      vvp_darray*array, const std::vector<size_t>&permutation)
+{
+        // Fixed and dynamic arrays keep variable identity at each existing
+        // index when an ordering method assigns rearranged values. Queue
+        // ordering rearranges queue members, matching insert/delete shifts.
+      if (dynamic_cast<vvp_queue*>(array))
+            array->reorder_rand_modes(permutation);
+}
+
 /* Signed vec4 numeric less-than (two's complement, X/Z as 0): a
  * negative value is less than any non-negative one; within one sign
  * the unsigned magnitude order applies. Operands are same-width
@@ -2480,25 +2490,37 @@ static void qsort_helper_(vvp_darray*arr, bool reverse, bool unique_only,
                           bool (*eq)(const ELEM&, const ELEM&))
 {
       size_t sz = arr->get_size();
-      std::vector<ELEM> tmp(sz);
+      std::vector<ELEM> original(sz);
       for (size_t i = 0 ; i < sz ; i += 1)
-            arr->get_word((unsigned)i, tmp[i]);
+            arr->get_word((unsigned)i, original[i]);
+
+      std::vector<size_t> permutation;
+      std::vector<ELEM> tmp;
 
       if (unique_only) {
-            std::vector<ELEM> uniq;
-            for (size_t i = 0 ; i < tmp.size() ; i += 1) {
+            for (size_t i = 0 ; i < original.size() ; i += 1) {
                   bool found = false;
-                  for (size_t j = 0 ; j < uniq.size() ; j += 1)
-                        if (eq(tmp[i], uniq[j])) { found = true; break; }
-                  if (!found) uniq.push_back(tmp[i]);
+                  for (size_t j = 0 ; j < tmp.size() ; j += 1)
+                        if (eq(original[i], tmp[j])) { found = true; break; }
+                  if (!found) {
+                        tmp.push_back(original[i]);
+                        permutation.push_back(i);
+                  }
             }
-            tmp.swap(uniq);
       } else {
-            std::sort(tmp.begin(), tmp.end(),
-                      [&](const ELEM&a, const ELEM&b){
-                            return reverse ? lt(b, a) : lt(a, b);
+            permutation.resize(sz);
+            for (size_t i = 0 ; i < sz ; i += 1) permutation[i] = i;
+            std::sort(permutation.begin(), permutation.end(),
+                      [&](size_t a, size_t b){
+                            return reverse ? lt(original[b], original[a])
+                                           : lt(original[a], original[b]);
                       });
+            tmp.resize(sz);
+            for (size_t i = 0 ; i < sz ; i += 1)
+                  tmp[i] = original[permutation[i]];
       }
+
+      reorder_queue_rand_modes_(arr, permutation);
 
       /* If size changed (unique), shrink the queue first by popping. */
       vvp_queue*q = dynamic_cast<vvp_queue*>(arr);
@@ -2599,6 +2621,9 @@ static void qreverse_helper_(vvp_darray*arr)
       for (size_t i = 0 ; i < sz ; i += 1)
             arr->get_word((unsigned)i, tmp[i]);
       std::reverse(tmp.begin(), tmp.end());
+      std::vector<size_t> permutation(sz);
+      for (size_t i = 0 ; i < sz ; i += 1) permutation[i] = sz - i - 1;
+      reorder_queue_rand_modes_(arr, permutation);
       for (size_t i = 0 ; i < sz ; i += 1)
             arr->set_word((unsigned)i, tmp[i]);
 }
@@ -2631,15 +2656,18 @@ static void qshuffle_helper_(vvp_darray*arr)
 {
       size_t sz = arr->get_size();
       if (sz < 2) return;
-      std::vector<ELEM> tmp(sz);
+      std::vector<ELEM> original(sz);
       for (size_t i = 0 ; i < sz ; i += 1)
-            arr->get_word((unsigned)i, tmp[i]);
+            arr->get_word((unsigned)i, original[i]);
+      std::vector<size_t> permutation(sz);
+      for (size_t i = 0 ; i < sz ; i += 1) permutation[i] = i;
       for (size_t i = sz - 1 ; i > 0 ; i -= 1) {
             size_t j = (size_t)(rand() % (long)(i + 1));
-            std::swap(tmp[i], tmp[j]);
+            std::swap(permutation[i], permutation[j]);
       }
+      reorder_queue_rand_modes_(arr, permutation);
       for (size_t i = 0 ; i < sz ; i += 1)
-            arr->set_word((unsigned)i, tmp[i]);
+            arr->set_word((unsigned)i, original[permutation[i]]);
 }
 
 static bool qshuffle_dispatch_(vvp_darray*arr)
@@ -3046,6 +3074,7 @@ static void qsort_with_keys_helper_(vvp_darray*q, vector<KEY>&keys,
                       return reverse ? keys[b] < keys[a]
                                      : keys[a] < keys[b];
                 });
+      reorder_queue_rand_modes_(q, perm);
       vector<ELEM> sorted(sz);
       for (size_t i = 0; i < sz; i++) sorted[i] = qvals[perm[i]];
       for (size_t i = 0; i < sz; i++) q->set_word((unsigned)i, sorted[i]);
@@ -3136,6 +3165,7 @@ static void qunique_keys_helper_(vvp_darray*q, vector<KEY>&keys)
       for (size_t i = 0; i < sz; i++) q->get_word((unsigned)i, qvals[i]);
       vector<KEY> seen_keys;
       vector<ELEM> kept;
+      vector<size_t> kept_indices;
       for (size_t i = 0; i < sz; i++) {
             bool found = false;
             for (const auto&k : seen_keys) {
@@ -3144,8 +3174,13 @@ static void qunique_keys_helper_(vvp_darray*q, vector<KEY>&keys)
                         break;
                   }
             }
-            if (!found) { seen_keys.push_back(keys[i]); kept.push_back(qvals[i]); }
+            if (!found) {
+                  seen_keys.push_back(keys[i]);
+                  kept.push_back(qvals[i]);
+                  kept_indices.push_back(i);
+            }
       }
+      reorder_queue_rand_modes_(q, kept_indices);
       vvp_queue*qq = dynamic_cast<vvp_queue*>(q);
       if (qq) {
             while (qq->get_size() > kept.size()) qq->pop_back();
@@ -3333,6 +3368,12 @@ static void randomize_snapshot_(vvp_cobject*cobj, const class_type*defn,
 			vvp_object_t current;
 			cobj->get_object(pid, current, adr);
 			s.object = current.value_copy_element();
+			if (vvp_darray*from = current.peek<vvp_darray>())
+			      if (vvp_darray*to = s.object.peek<vvp_darray>())
+				    to->inherit_rand_modes(*from);
+			if (vvp_assoc_base*from = current.peek<vvp_assoc_base>())
+			      if (vvp_assoc_base*to = s.object.peek<vvp_assoc_base>())
+				    to->inherit_rand_modes(*from);
 			saved.push_back(s);
 			continue;
 		  }
@@ -3359,9 +3400,28 @@ static void randomize_restore_(vvp_cobject*cobj,
 			       const std::vector<rand_saved_prop_s>&saved)
 {
 	for (const rand_saved_prop_s&s : saved) {
-	    if (s.kind == rand_saved_prop_s::OBJECT_VALUE)
+	    if (s.kind == rand_saved_prop_s::OBJECT_VALUE) {
+		    // Some property setters install the supplied value object
+		    // directly before applying the property's aggregate default.
+		    // Keep a separate metadata source so that initialization cannot
+		    // overwrite the saved per-element modes before they are restored.
+		  vvp_object_t mode_source = s.object.value_copy_element();
+		  if (vvp_darray*from = s.object.peek<vvp_darray>())
+			if (vvp_darray*to = mode_source.peek<vvp_darray>())
+			      to->inherit_rand_modes(*from);
+		  if (vvp_assoc_base*from = s.object.peek<vvp_assoc_base>())
+			if (vvp_assoc_base*to = mode_source.peek<vvp_assoc_base>())
+			      to->inherit_rand_modes(*from);
 		  cobj->set_object(s.pid, s.object, s.adr);
-	    else if (s.kind == rand_saved_prop_s::REAL_VALUE)
+		  vvp_object_t restored;
+		  cobj->get_object(s.pid, restored, s.adr);
+		  if (vvp_darray*from = mode_source.peek<vvp_darray>())
+			if (vvp_darray*to = restored.peek<vvp_darray>())
+			      to->inherit_rand_modes(*from);
+		  if (vvp_assoc_base*from = mode_source.peek<vvp_assoc_base>())
+			if (vvp_assoc_base*to = restored.peek<vvp_assoc_base>())
+			      to->inherit_rand_modes(*from);
+	    } else if (s.kind == rand_saved_prop_s::REAL_VALUE)
 		  cobj->set_real(s.pid, s.real, s.adr);
 	    else if (s.kind == rand_saved_prop_s::STRING_VALUE)
 		  cobj->set_string(s.pid, s.str, s.adr);
@@ -3702,21 +3762,78 @@ static bool randomize_object_value_(randomize_graph_session_t&session,
       return true;
 }
 
+template <class KEY>
+static bool randomize_assoc_object_key_(randomize_graph_session_t&session,
+					vvp_assoc_object*assoc,
+					const KEY&key,
+					const std::function<unsigned()>&next_random,
+					bool*aggregate_changed)
+{
+      vvp_object_t elem;
+      return !assoc->get(key, elem)
+	    || randomize_object_value_(session, elem, next_random,
+				       aggregate_changed);
+}
+
+static bool randomize_assoc_objects_(randomize_graph_session_t&session,
+				     vvp_assoc_object*assoc,
+				     const std::function<unsigned()>&next_random,
+				     bool all_active,
+				     bool*aggregate_changed)
+{
+      if (!assoc) return true;
+      std::string skey;
+      for (bool ok = assoc->first_key(skey); ok; ok = assoc->next_key(skey))
+	    if ((all_active || assoc->rand_mode(skey))
+		&& !randomize_assoc_object_key_(session, assoc, skey,
+					       next_random, aggregate_changed))
+		  return false;
+      vvp_object_t okey;
+      for (bool ok = assoc->first_key(okey); ok; ok = assoc->next_key(okey))
+	    if ((all_active || assoc->rand_mode(okey))
+		&& !randomize_assoc_object_key_(session, assoc, okey,
+					       next_random, aggregate_changed))
+		  return false;
+      vvp_vector4_t vkey;
+      for (bool ok = assoc->first_key(vkey); ok; ok = assoc->next_key(vkey))
+	    if ((all_active || assoc->rand_mode(vkey))
+		&& !randomize_assoc_object_key_(session, assoc, vkey,
+					       next_random, aggregate_changed))
+		  return false;
+      return true;
+}
+
+template <class KEY>
+static void randomize_assoc_vec4_key_(vvp_assoc_vec4*assoc, const KEY&key,
+				      const std::function<unsigned()>&next_random)
+{
+      vvp_vector4_t cur;
+      bool got = assoc->get(key, cur);
+      unsigned wid = got ? cur.size() : 32;
+      if (wid == 0) wid = 32;
+      vvp_vector4_t value(wid, BIT4_0);
+      for (unsigned bit = 0 ; bit < wid ; bit += 1)
+	    value.set_bit(bit, (next_random() & 1) ? BIT4_1 : BIT4_0);
+      assoc->set(key, value);
+}
+
 static void randomize_assoc_vec4_(vvp_assoc_vec4*assoc,
+				  bool all_active,
 				  const std::function<unsigned()>&next_random)
 {
       if (!assoc) return;
-      std::string key;
-      for (bool ok = assoc->first_key(key); ok; ok = assoc->next_key(key)) {
-	    vvp_vector4_t cur;
-	    bool got = assoc->get(key, cur);
-	    unsigned wid = got ? cur.size() : 32;
-	    if (wid == 0) wid = 32;
-	    vvp_vector4_t value(wid, BIT4_0);
-	    for (unsigned bit = 0 ; bit < wid ; bit += 1)
-		  value.set_bit(bit, (next_random() & 1) ? BIT4_1 : BIT4_0);
-	    assoc->set(key, value);
-      }
+      std::string skey;
+      for (bool ok = assoc->first_key(skey); ok; ok = assoc->next_key(skey))
+	    if (all_active || assoc->rand_mode(skey))
+		  randomize_assoc_vec4_key_(assoc, skey, next_random);
+      vvp_object_t okey;
+      for (bool ok = assoc->first_key(okey); ok; ok = assoc->next_key(okey))
+	    if (all_active || assoc->rand_mode(okey))
+		  randomize_assoc_vec4_key_(assoc, okey, next_random);
+      vvp_vector4_t vkey;
+      for (bool ok = assoc->first_key(vkey); ok; ok = assoc->next_key(vkey))
+	    if (all_active || assoc->rand_mode(vkey))
+		  randomize_assoc_vec4_key_(assoc, vkey, next_random);
 }
 
 /* IEEE 1800-2017 18.4/18.6.1: every non-null rand handle is randomized as
@@ -3790,6 +3907,64 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 		      || (!bt.empty() && bt[0] == 'M')) {
 			uint64_t count = defn->property_array_size(pid);
 			if (count < 1) count = 1;
+			bool all_active = sel && pid < sel->size() && (*sel)[pid];
+
+			  // A direct D/Q property has one class slot but one random
+			  // variable per live container element. Do not use the
+			  // aggregate all-enabled query for that one slot: a single
+			  // disabled element must pause only itself.
+			if ((bt == "Do" || bt == "Qo") && count == 1) {
+			      vvp_object_t propobj;
+			      cobj->get_object(pid, propobj, 0);
+			      if (vvp_darray*array = propobj.peek<vvp_darray>()) {
+				    bool aggregate_changed = false;
+				    for (size_t idx = 0 ; solve_ok
+					 && idx < array->get_size() ; idx += 1) {
+					  if (!all_active
+					      && !cobj->rand_mode(pid, idx))
+						continue;
+					  vvp_object_t elem;
+					  array->get_word((unsigned)idx, elem);
+					  if (!randomize_object_value_(session, elem,
+						 next_random, &aggregate_changed))
+						solve_ok = false;
+				    }
+				    if (aggregate_changed
+					&& defn->property_is_static(pid))
+					  defn->static_randomize_transaction_mark_dirty(
+						pid, 0);
+			      }
+			      continue;
+			}
+
+			  // A direct associative property likewise controls each
+			  // existing typed key independently. Missing keys are not
+			  // variables and an indexed setter/query is a no-op/zero.
+			if (!bt.empty() && bt[0] == 'M' && count == 1) {
+			      vvp_object_t propobj;
+			      cobj->get_object(pid, propobj, 0);
+			      bool aggregate_changed = false;
+			      if (vvp_assoc_object*assoc =
+					propobj.peek<vvp_assoc_object>()) {
+				    if (!randomize_assoc_objects_(session, assoc,
+					     next_random, all_active,
+					     &aggregate_changed))
+					  solve_ok = false;
+			      } else if (vvp_assoc_vec4*assoc_vec =
+					       propobj.peek<vvp_assoc_vec4>()) {
+				    randomize_assoc_vec4_(assoc_vec, all_active,
+						   next_random);
+				    aggregate_changed = assoc_vec->size() != 0;
+			      }
+			      if (aggregate_changed
+				  && defn->property_is_static(pid))
+				    defn->static_randomize_transaction_mark_dirty(pid, 0);
+			      continue;
+			}
+
+			  // A fixed outer array of object-backed values is controlled
+			  // by its fixed-array leaf modes; selecting one outer word
+			  // controls that entire contained aggregate.
 			for (uint64_t adr = 0 ; solve_ok && adr < count ;
 			     adr += 1) {
 			      if (!rand_leaf_active_(defn, cobj, sel, pid,
@@ -3809,7 +3984,8 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 						pid, (size_t)adr);
 			      } else if (vvp_assoc_vec4*assoc =
 					       propobj.peek<vvp_assoc_vec4>()) {
-				    randomize_assoc_vec4_(assoc, next_random);
+				    randomize_assoc_vec4_(assoc, true,
+						   next_random);
 				    if (defn->property_is_static(pid))
 					  defn->static_randomize_transaction_mark_dirty(
 						pid, (size_t)adr);
@@ -4185,8 +4361,27 @@ bool of_CONSTRAINT_MODE_GET(vthread_t thr, vvp_code_t cp)
  * Set rand_mode for all rand properties of the cobject on the object stack.
  * Pops mode (0=disable, nonzero=enable) from vec4 stack, pops object.
  */
+static bool rand_mode_stack_operands_(vthread_t thr, const char*opcode,
+				      size_t vec4_need, size_t str_need,
+				      size_t obj_need)
+{
+      if (thr->vec4_stack_size() >= vec4_need
+	  && thr->str_stack_size() >= str_need
+	  && thr->object_stack_size() >= obj_need)
+	    return true;
+      fprintf(stderr,
+	    "vvp: malformed %s stack underflow (need vec4/string/object "
+	    "%zu/%zu/%zu, have %zu/%zu/%zu); operands not consumed.\n",
+	    opcode, vec4_need, str_need, obj_need,
+	    thr->vec4_stack_size(), thr->str_stack_size(),
+	    thr->object_stack_size());
+      return false;
+}
+
 bool of_RAND_MODE(vthread_t thr, vvp_code_t)
 {
+      if (!rand_mode_stack_operands_(thr, "%rand_mode", 1, 0, 1))
+	    return true;
       vvp_vector4_t mode_vec = thr->pop_vec4();
       bool mode = (mode_vec.value(0) == BIT4_1);
 
@@ -4209,6 +4404,8 @@ bool of_RAND_MODE(vthread_t thr, vvp_code_t)
  */
 bool of_RAND_MODE_P(vthread_t thr, vvp_code_t cp)
 {
+      if (!rand_mode_stack_operands_(thr, "%rand_mode/p", 1, 0, 1))
+	    return true;
       vvp_vector4_t mode_vec = thr->pop_vec4();
       bool mode = (mode_vec.value(0) == BIT4_1);
 
@@ -4233,6 +4430,8 @@ bool of_RAND_MODE_P(vthread_t thr, vvp_code_t cp)
  */
 bool of_RAND_MODE_P_I(vthread_t thr, vvp_code_t cp)
 {
+      if (!rand_mode_stack_operands_(thr, "%rand_mode/p/i", 1, 0, 1))
+	    return true;
       vvp_vector4_t mode_vec = thr->pop_vec4();
       bool mode = (mode_vec.value(0) == BIT4_1);
 
@@ -4247,6 +4446,19 @@ bool of_RAND_MODE_P_I(vthread_t thr, vvp_code_t cp)
       uint64_t count = thr->words[cp->bit_idx[1]].w_uint;
       uint64_t size = pid < defn->property_count()
 	    ? defn->property_array_size(pid) : 0;
+	// D/Q properties have one class slot containing a run-time-sized
+	// unpacked container; use its live element count, not slot count 1.
+      if (pid < defn->property_count()) {
+	    const std::string&bt = defn->property_base_type(pid);
+	    if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q')) {
+		  vvp_object_t container;
+		  cobj->get_object(pid, container, 0);
+		  if (vvp_darray*array = container.peek<vvp_darray>())
+			size = array->get_size();
+		  else
+			size = 0;
+	    }
+      }
       if (pid >= defn->property_count() || !defn->property_is_rand(pid)
 	  || first < 0 || (uint64_t)first >= size
 	  || count == 0 || count > size - (uint64_t)first)
@@ -4254,6 +4466,86 @@ bool of_RAND_MODE_P_I(vthread_t thr, vvp_code_t cp)
 
       for (uint64_t off = 0 ; off < count ; off += 1)
 	    cobj->set_rand_mode(pid, (size_t)((uint64_t)first + off), mode);
+      return true;
+}
+
+bool of_RAND_MODE_P_LAST(vthread_t thr, vvp_code_t cp)
+{
+      if (!rand_mode_stack_operands_(thr, "%rand_mode/p/last", 1, 0, 1))
+	    return true;
+      vvp_vector4_t mode_vec = thr->pop_vec4();
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      size_t pid = (size_t)cp->number;
+      if (!cobj) return true;
+      const class_type*defn = cobj->get_defn();
+      if (pid >= defn->property_count() || !defn->property_is_rand(pid))
+	    return true;
+      const std::string&bt = defn->property_base_type(pid);
+      if (bt.empty() || bt[0] != 'Q') return true;
+      vvp_object_t container;
+      cobj->get_object(pid, container, 0);
+      vvp_darray*array = container.peek<vvp_darray>();
+      if (array && array->get_size())
+	    cobj->set_rand_mode(pid, array->get_size() - 1,
+				 mode_vec.value(0) == BIT4_1);
+      return true;
+}
+
+static bool rand_mode_assoc_target_(vvp_cobject*cobj, size_t pid)
+{
+      if (!cobj) return false;
+      const class_type*defn = cobj->get_defn();
+      if (pid >= defn->property_count() || !defn->property_is_rand(pid))
+	    return false;
+      const std::string&bt = defn->property_base_type(pid);
+      return !bt.empty() && bt[0] == 'M';
+}
+
+bool of_RAND_MODE_P_A_STR(vthread_t thr, vvp_code_t cp)
+{
+      if (!rand_mode_stack_operands_(thr, "%rand_mode/p/a/str", 1, 1, 1))
+	    return true;
+      std::string key = thr->pop_str();
+      vvp_vector4_t mode_vec = thr->pop_vec4();
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      size_t pid = (size_t)cp->number;
+      if (rand_mode_assoc_target_(cobj, pid))
+	    cobj->set_rand_mode(pid, key, mode_vec.value(0) == BIT4_1);
+      return true;
+}
+
+bool of_RAND_MODE_P_A_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      if (!rand_mode_stack_operands_(thr, "%rand_mode/p/a/obj", 1, 0, 2))
+	    return true;
+      vvp_object_t key;
+      thr->pop_object(key);
+      vvp_vector4_t mode_vec = thr->pop_vec4();
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      size_t pid = (size_t)cp->number;
+      if (rand_mode_assoc_target_(cobj, pid))
+	    cobj->set_rand_mode(pid, key, mode_vec.value(0) == BIT4_1);
+      return true;
+}
+
+bool of_RAND_MODE_P_A_V(vthread_t thr, vvp_code_t cp)
+{
+      if (!rand_mode_stack_operands_(thr, "%rand_mode/p/a/v", 2, 0, 1))
+	    return true;
+      vvp_vector4_t key = thr->pop_vec4();
+      vvp_vector4_t mode_vec = thr->pop_vec4();
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      size_t pid = (size_t)cp->number;
+      if (rand_mode_assoc_target_(cobj, pid))
+	    cobj->set_rand_mode(pid, key, mode_vec.value(0) == BIT4_1);
       return true;
 }
 
@@ -4269,6 +4561,8 @@ bool of_RAND_MODE_P_I(vthread_t thr, vvp_code_t cp)
  */
 bool of_RAND_MODE_GET(vthread_t thr, vvp_code_t cp)
 {
+      if (!rand_mode_stack_operands_(thr, "%rand_mode/get", 0, 0, 1))
+	    return true;
       vvp_object_t obj;
       thr->pop_object(obj);
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
@@ -4292,6 +4586,8 @@ bool of_RAND_MODE_GET(vthread_t thr, vvp_code_t cp)
  * subarray is enabled. A variable out-of-range index reads false. */
 bool of_RAND_MODE_GET_I(vthread_t thr, vvp_code_t cp)
 {
+      if (!rand_mode_stack_operands_(thr, "%rand_mode/get/i", 0, 0, 1))
+	    return true;
       vvp_object_t obj;
       thr->pop_object(obj);
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
@@ -4304,6 +4600,17 @@ bool of_RAND_MODE_GET_I(vthread_t thr, vvp_code_t cp)
 	    uint64_t count = thr->words[cp->bit_idx[1]].w_uint;
 	    uint64_t size = pid < defn->property_count()
 		  ? defn->property_array_size(pid) : 0;
+	    if (pid < defn->property_count()) {
+		  const std::string&bt = defn->property_base_type(pid);
+		  if (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q')) {
+			vvp_object_t container;
+			cobj->get_object(pid, container, 0);
+			if (vvp_darray*array = container.peek<vvp_darray>())
+			      size = array->get_size();
+			else
+			      size = 0;
+		  }
+	    }
 	    if (pid < defn->property_count() && defn->property_is_rand(pid)
 		&& first >= 0 && (uint64_t)first < size && count > 0
 		&& count <= size - (uint64_t)first) {
@@ -4320,6 +4627,82 @@ bool of_RAND_MODE_GET_I(vthread_t thr, vvp_code_t cp)
       vvp_vector4_t result(32, BIT4_0);
       result.set_bit(0, st ? BIT4_1 : BIT4_0);
       thr->push_vec4(result);
+      return true;
+}
+
+static void push_rand_mode_result_(vthread_t thr, bool state)
+{
+      vvp_vector4_t result(32, BIT4_0);
+      result.set_bit(0, state ? BIT4_1 : BIT4_0);
+      thr->push_vec4(result);
+}
+
+bool of_RAND_MODE_GET_LAST(vthread_t thr, vvp_code_t cp)
+{
+      if (!rand_mode_stack_operands_(thr, "%rand_mode/get/last", 0, 0, 1))
+	    return true;
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      size_t pid = (size_t)cp->number;
+      bool state = false;
+      if (cobj) {
+	    const class_type*defn = cobj->get_defn();
+	    if (pid < defn->property_count() && defn->property_is_rand(pid)) {
+		  const std::string&bt = defn->property_base_type(pid);
+		  if (!bt.empty() && bt[0] == 'Q') {
+			vvp_object_t container;
+			cobj->get_object(pid, container, 0);
+			vvp_darray*array = container.peek<vvp_darray>();
+			if (array && array->get_size())
+			      state = cobj->rand_mode(pid, array->get_size() - 1);
+		  }
+	    }
+      }
+      push_rand_mode_result_(thr, state);
+      return true;
+}
+
+bool of_RAND_MODE_GET_A_STR(vthread_t thr, vvp_code_t cp)
+{
+      if (!rand_mode_stack_operands_(thr, "%rand_mode/get/a/str", 0, 1, 1))
+	    return true;
+      std::string key = thr->pop_str();
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      size_t pid = (size_t)cp->number;
+      push_rand_mode_result_(thr, rand_mode_assoc_target_(cobj, pid)
+	    && cobj->rand_mode(pid, key));
+      return true;
+}
+
+bool of_RAND_MODE_GET_A_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      if (!rand_mode_stack_operands_(thr, "%rand_mode/get/a/obj", 0, 0, 2))
+	    return true;
+      vvp_object_t key;
+      thr->pop_object(key);
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      size_t pid = (size_t)cp->number;
+      push_rand_mode_result_(thr, rand_mode_assoc_target_(cobj, pid)
+	    && cobj->rand_mode(pid, key));
+      return true;
+}
+
+bool of_RAND_MODE_GET_A_V(vthread_t thr, vvp_code_t cp)
+{
+      if (!rand_mode_stack_operands_(thr, "%rand_mode/get/a/v", 1, 0, 1))
+	    return true;
+      vvp_vector4_t key = thr->pop_vec4();
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      size_t pid = (size_t)cp->number;
+      push_rand_mode_result_(thr, rand_mode_assoc_target_(cobj, pid)
+	    && cobj->rand_mode(pid, key));
       return true;
 }
 

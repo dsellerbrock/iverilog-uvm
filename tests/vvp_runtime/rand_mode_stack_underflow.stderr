@@ -1,0 +1,13 @@
+vvp: malformed %rand_mode stack underflow (need vec4/string/object 1/0/1, have 0/0/0); operands not consumed.
+vvp: malformed %rand_mode/p stack underflow (need vec4/string/object 1/0/1, have 0/0/0); operands not consumed.
+vvp: malformed %rand_mode/p/i stack underflow (need vec4/string/object 1/0/1, have 0/0/0); operands not consumed.
+vvp: malformed %rand_mode/p/last stack underflow (need vec4/string/object 1/0/1, have 0/0/0); operands not consumed.
+vvp: malformed %rand_mode/p/a/str stack underflow (need vec4/string/object 1/1/1, have 0/0/0); operands not consumed.
+vvp: malformed %rand_mode/p/a/obj stack underflow (need vec4/string/object 1/0/2, have 0/0/0); operands not consumed.
+vvp: malformed %rand_mode/p/a/v stack underflow (need vec4/string/object 2/0/1, have 0/0/0); operands not consumed.
+vvp: malformed %rand_mode/get stack underflow (need vec4/string/object 0/0/1, have 0/0/0); operands not consumed.
+vvp: malformed %rand_mode/get/i stack underflow (need vec4/string/object 0/0/1, have 0/0/0); operands not consumed.
+vvp: malformed %rand_mode/get/last stack underflow (need vec4/string/object 0/0/1, have 0/0/0); operands not consumed.
+vvp: malformed %rand_mode/get/a/str stack underflow (need vec4/string/object 0/1/1, have 0/0/0); operands not consumed.
+vvp: malformed %rand_mode/get/a/obj stack underflow (need vec4/string/object 0/0/2, have 0/0/0); operands not consumed.
+vvp: malformed %rand_mode/get/a/v stack underflow (need vec4/string/object 1/0/1, have 0/0/0); operands not consumed.

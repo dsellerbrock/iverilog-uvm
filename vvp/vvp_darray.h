@@ -47,6 +47,18 @@ class vvp_darray : public vvp_object {
 
       virtual vvp_vector4_t get_bitstream(bool as_vec4);
 
+	// IEEE 1800-2017 18.8: every element of an unpacked container is a
+	// distinct random variable. Keep its active state with the container so
+	// queue insert/erase operations can move the state with the element and
+	// a newly-created element can inherit the container-wide default.
+      bool rand_mode(size_t idx) const;
+      bool rand_mode_any() const;
+      bool rand_mode_default() const { return rand_mode_default_; }
+      void set_rand_mode(size_t idx, bool mode);
+      void set_all_rand_mode(bool mode);
+      void inherit_rand_modes(const vvp_darray&that);
+      void reorder_rand_modes(const std::vector<size_t>&source_indices);
+
 	// M10-1: a dynamic array is 0-based, but one MARSHALED from a
 	// fixed-size array carries that array's DECLARED range so the DPI
 	// open-array accessors can report it (IEEE 1800-2017 H.10.2).
@@ -91,8 +103,18 @@ class vvp_darray : public vvp_object {
       const class class_type* elem_class() const { return elem_class_; }
 
     protected:
-	// Carry passive per-object metadata onto a value copy: the
-	// declared fixed-range view (a duplicate of a marshaled
+	// Queue mutation hooks. Call these immediately before changing the
+	// corresponding value sequence.
+      void rand_mode_insert(size_t idx, bool discard_back = false);
+      void rand_mode_push_back();
+      void rand_mode_push_front(bool discard_back = false);
+      void rand_mode_pop_back();
+      void rand_mode_pop_front();
+      void rand_mode_erase(size_t idx);
+      void rand_mode_erase_tail(size_t idx);
+
+	// Carry passive per-object metadata onto a value copy: per-element
+	// random modes, the declared fixed-range view (a duplicate of a marshaled
 	// fixed-array actual describes the same geometry) and the
 	// struct-element prototype. The declared-indexing ACTIVATION
 	// flag is deliberately not copied — it is scoped to an
@@ -103,6 +125,7 @@ class vvp_darray : public vvp_object {
 	    if (dpi_has_range_)
 		  that->dpi_set_decl_range(dpi_left_, dpi_right_);
 	    that->elem_class_ = elem_class_;
+	    that->inherit_rand_modes(*this);
       }
 
     private:
@@ -111,6 +134,8 @@ class vvp_darray : public vvp_object {
       bool dpi_has_range_ = false;
       bool sv_declared_indexing_ = false;
       const class class_type* elem_class_ = 0;
+      bool rand_mode_default_ = true;
+      mutable std::vector<unsigned char> rand_modes_;
 };
 
 template <class TYPE> class vvp_darray_atom : public vvp_darray {
@@ -274,8 +299,10 @@ class vvp_queue_real : public vvp_queue {
       void insert(unsigned idx, double value, unsigned max_size) override;
       void push_back(double value, unsigned max_size) override;
       void push_front(double value, unsigned max_size) override;
-      void pop_back(void) override { queue.pop_back(); touch(); };
-      void pop_front(void) override { queue.pop_front(); touch(); };
+      void pop_back(void) override
+      { rand_mode_pop_back(); queue.pop_back(); touch(); };
+      void pop_front(void) override
+      { rand_mode_pop_front(); queue.pop_front(); touch(); };
       void erase(unsigned idx) override;
       void erase_tail(unsigned idx) override;
 
@@ -295,8 +322,10 @@ class vvp_queue_string : public vvp_queue {
       void insert(unsigned idx, const std::string&value, unsigned max_size) override;
       void push_back(const std::string&value, unsigned max_size) override;
       void push_front(const std::string&value, unsigned max_size) override;
-      void pop_back(void) override { queue.pop_back(); touch(); };
-      void pop_front(void) override { queue.pop_front(); touch(); };
+      void pop_back(void) override
+      { rand_mode_pop_back(); queue.pop_back(); touch(); };
+      void pop_front(void) override
+      { rand_mode_pop_front(); queue.pop_front(); touch(); };
       void erase(unsigned idx) override;
       void erase_tail(unsigned idx) override;
       vvp_vector4_t get_bitstream(bool as_vec4) override;
@@ -317,8 +346,10 @@ class vvp_queue_vec4 : public vvp_queue {
       void insert(unsigned idx, const vvp_vector4_t&value, unsigned max_size) override;
       void push_back(const vvp_vector4_t&value, unsigned max_size) override;
       void push_front(const vvp_vector4_t&value, unsigned max_size) override;
-      void pop_back(void) override { queue.pop_back(); touch(); };
-      void pop_front(void) override { queue.pop_front(); touch(); };
+      void pop_back(void) override
+      { rand_mode_pop_back(); queue.pop_back(); touch(); };
+      void pop_front(void) override
+      { rand_mode_pop_front(); queue.pop_front(); touch(); };
       void erase(unsigned idx) override;
       void erase_tail(unsigned idx) override;
       vvp_vector4_t get_bitstream(bool as_vec4) override;
@@ -345,8 +376,10 @@ class vvp_queue_object : public vvp_queue {
       void insert(unsigned idx, const vvp_object_t&value, unsigned max_size) override;
       void push_back(const vvp_object_t&value, unsigned max_size) override;
       void push_front(const vvp_object_t&value, unsigned max_size) override;
-      void pop_back(void) override { queue.pop_back(); touch(); };
-      void pop_front(void) override { queue.pop_front(); touch(); };
+      void pop_back(void) override
+      { rand_mode_pop_back(); queue.pop_back(); touch(); };
+      void pop_front(void) override
+      { rand_mode_pop_front(); queue.pop_front(); touch(); };
       void erase(unsigned idx) override;
       void erase_tail(unsigned idx) override;
 

@@ -4933,7 +4933,13 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	       *         (obj.field.rand_mode(en)) — M3-rm.
 	       * 5 args: additionally carry canonical first leaf and leaf count for
 	       *         an unpacked-array element/subarray. */
-      if (strcmp(stmt_name, "$ivl_class_method$rand_mode") == 0) {
+      if (strcmp(stmt_name, "$ivl_class_method$rand_mode") == 0
+	  || strcmp(stmt_name, "$ivl_class_method$rand_mode_assoc") == 0
+	  || strcmp(stmt_name, "$ivl_class_method$rand_mode_last") == 0) {
+	    int assoc_index = strcmp(stmt_name,
+			     "$ivl_class_method$rand_mode_assoc") == 0;
+	    int last_index = strcmp(stmt_name,
+			     "$ivl_class_method$rand_mode_last") == 0;
 	    ivl_expr_t obj_arg  = ivl_stmt_parm(net, 0);
 	    ivl_expr_t mode_arg = ivl_stmt_parm(net, 1);
 	    ivl_expr_t pid_arg  = (ivl_stmt_parm_count(net) >= 3)
@@ -4945,15 +4951,28 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    if (mode_arg) draw_eval_vec4(mode_arg);
 	    else fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
 	    if (obj_arg) draw_eval_object(obj_arg);
+	    if (last_index && pid_arg && number_is_immediate(pid_arg, 32, 0)
+		&& !number_is_unknown(pid_arg)) {
+		  fprintf(vvp_out, "    %%rand_mode/p/last %ld;\n",
+			  get_number_immediate(pid_arg));
+		  return 0;
+	    }
 	    if (pid_arg && leaf_arg && count_arg
 		&& number_is_immediate(pid_arg, 32, 0)
 		&& !number_is_unknown(pid_arg)) {
+		  long pid = get_number_immediate(pid_arg);
+		  if (assoc_index) {
+			const char*key_kind = draw_eval_assoc_key_(leaf_arg, 0);
+			fprintf(vvp_out, "    %%rand_mode/p/a/%s %ld;\n",
+				key_kind, pid);
+			return 0;
+		  }
 		  int leaf_word = allocate_word();
 		  int count_word = allocate_word();
 		  draw_expr_into_idx(leaf_arg, leaf_word);
 		  draw_expr_into_idx(count_arg, count_word);
 		  fprintf(vvp_out, "    %%rand_mode/p/i %ld, %d, %d;\n",
-			  get_number_immediate(pid_arg), leaf_word, count_word);
+			  pid, leaf_word, count_word);
 		  clr_word(count_word);
 		  clr_word(leaf_word);
 	    } else if (pid_arg && number_is_immediate(pid_arg, 32, 0)
