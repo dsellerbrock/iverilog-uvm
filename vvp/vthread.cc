@@ -17588,6 +17588,80 @@ bool of_STREAM_UNPACK_R(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %stream/pad/min <wid>
+ *
+ * A dynamically sized streaming target still has a fixed minimum width: the
+ * sum of all statically sized members. Leave a wider stream unchanged. If it
+ * is shorter, report the 11.4.14.3 error and left-align it in a zero-filled
+ * minimum-width vector so target distribution remains deterministic.
+ */
+bool of_STREAM_PAD_MIN(vthread_t thr, vvp_code_t cp)
+{
+      static bool warned_stream_too_small = false;
+      const vvp_vector4_t*cur = thr->safe_peek_vec4(0);
+      if (!cur) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: %stream/pad/min requires one vec4 stack value."
+		 << endl;
+	    return false;
+      }
+
+      unsigned min_width = cp->number;
+      if (cur->size() >= min_width)
+	    return true;
+
+      if (!warned_stream_too_small) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: streaming concatenation target has "
+		 << min_width << " fixed bits, but the source stream provides "
+		 << cur->size() << " (IEEE 1800-2017 11.4.14.3); "
+		    "zero-filling (further similar messages suppressed)."
+		 << endl;
+	    warned_stream_too_small = true;
+      }
+
+      vvp_vector4_t val = thr->pop_vec4();
+      vvp_vector4_t padded(min_width, BIT4_0);
+      if (val.size() > 0)
+	    padded.set_vec(min_width - val.size(), val);
+      thr->push_vec4(padded);
+      return true;
+}
+
+/*
+ * %stream/split/rem <fixed-msb-width>
+ *
+ * Split a stream at a run-time-sized greedy target. Keep the reserved fixed
+ * MSB portion below and push the remaining LSB portion for the dynamic member.
+ */
+bool of_STREAM_SPLIT_REM(vthread_t thr, vvp_code_t cp)
+{
+      const vvp_vector4_t*cur = thr->safe_peek_vec4(0);
+      if (!cur) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: %stream/split/rem requires one vec4 stack value."
+		 << endl;
+	    return false;
+      }
+
+      unsigned fixed_msb = cp->number;
+      if (fixed_msb > cur->size()) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: %stream/split/rem reserves " << fixed_msb
+		 << " bits from a " << cur->size() << "-bit stream." << endl;
+	    return false;
+      }
+
+      vvp_vector4_t val = thr->pop_vec4();
+      unsigned dynamic_width = val.size() - fixed_msb;
+      vvp_vector4_t fixed = val.subvalue(dynamic_width, fixed_msb);
+      vvp_vector4_t dynamic = val.subvalue(0, dynamic_width);
+      thr->push_vec4(fixed);
+      thr->push_vec4(dynamic);
+      return true;
+}
+
+/*
  * %stream/to/queue "<t>" and %stream/to/dar "<t>"
  *
  * Pop a bit stream and materialize it as a dynamically sized
@@ -20352,8 +20426,21 @@ bool of_SPLIT_VEC4(vthread_t thr, vvp_code_t cp)
 {
       unsigned lsb_wid = cp->number;
 
+      const vvp_vector4_t*cur = thr->safe_peek_vec4(0);
+      if (!cur) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: %split/vec4 requires one vec4 stack value."
+		 << endl;
+	    return false;
+      }
+      if (lsb_wid > cur->size()) {
+	    cerr << thr->get_fileline() << "VVP error: %split/vec4 requests "
+		 << lsb_wid << " bits from a " << cur->size()
+		 << "-bit value." << endl;
+	    return false;
+      }
+
       vvp_vector4_t&val = thr->peek_vec4();
-      assert(lsb_wid < val.size());
 
       vvp_vector4_t lsb = val.subvalue(0, lsb_wid);
       val = val.subvalue(lsb_wid, val.size()-lsb_wid);

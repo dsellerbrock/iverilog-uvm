@@ -1,0 +1,3 @@
+VVP error: %stream/pad/min requires one vec4 stack value.
+VVP error: %stream/split/rem reserves 8 bits from a 4-bit stream.
+VVP error: %split/vec4 requests 8 bits from a 4-bit value.

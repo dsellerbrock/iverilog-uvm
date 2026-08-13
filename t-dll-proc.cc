@@ -187,6 +187,7 @@ bool dll_target::make_single_lval_(const LineInfo*li, struct ivl_lval_s*cur, con
       }
 
       cur->width_ = asn->lwidth();
+      cur->net_type_ = asn->lval_type();
 
       if (asn->sig()) {
 	    cur->type_ = IVL_LVAL_REG;

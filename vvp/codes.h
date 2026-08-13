@@ -556,6 +556,8 @@ extern bool of_STREAM_END_L(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_END_R(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_FLATTEN_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_FLATTEN_STR(vthread_t thr, vvp_code_t code);
+extern bool of_STREAM_PAD_MIN(vthread_t thr, vvp_code_t code);
+extern bool of_STREAM_SPLIT_REM(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_TO_DAR(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_TO_QUEUE(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_UNPACK_L(vthread_t thr, vvp_code_t code);

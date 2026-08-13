@@ -610,6 +610,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%stream/end/r",  of_STREAM_END_R,  2, {OA_BIT1,   OA_BIT2,  OA_NONE} },
       { "%stream/flatten/obj", of_STREAM_FLATTEN_OBJ, 0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%stream/flatten/str", of_STREAM_FLATTEN_STR, 0, {OA_NONE, OA_NONE, OA_NONE} },
+      { "%stream/pad/min",  of_STREAM_PAD_MIN,  1, {OA_NUMBER, OA_NONE, OA_NONE} },
+      { "%stream/split/rem",of_STREAM_SPLIT_REM,1, {OA_NUMBER, OA_NONE, OA_NONE} },
       { "%stream/to/dar",   of_STREAM_TO_DAR,   1, {OA_STRING, OA_NONE, OA_NONE} },
       { "%stream/to/queue", of_STREAM_TO_QUEUE, 1, {OA_STRING, OA_NONE, OA_NONE} },
       { "%stream/unpack/l", of_STREAM_UNPACK_L, 2, {OA_BIT1,   OA_BIT2,  OA_NONE} },

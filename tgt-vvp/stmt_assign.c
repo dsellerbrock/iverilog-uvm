@@ -668,21 +668,14 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
  * think that it the proper way to do it, so soon I should change the
  * %store/vec4 to not include the width operand.
  */
-static void store_vec4_to_lval(ivl_statement_t net)
+static void store_vec4_to_one_lval(ivl_lval_t lval)
 {
-      for (unsigned lidx = 0 ; lidx < ivl_stmt_lvals(net) ; lidx += 1) {
-	    ivl_lval_t lval = ivl_stmt_lval(net,lidx);
 	    ivl_signal_t lsig = ivl_lval_sig(lval);
 	    unsigned lwid = ivl_lval_width(lval);
-
-
 	    ivl_expr_t part_off_ex = ivl_lval_part_off(lval);
 	      /* This is non-nil if the l-val is the word of a memory,
 		 and nil otherwise. */
 	    ivl_expr_t word_ex = ivl_lval_idx(lval);
-
-	    if (lidx+1 < ivl_stmt_lvals(net))
-		  fprintf(vvp_out, "    %%split/vec4 %u;\n", lwid);
 
 	    if (word_ex) {
 		    /* Handle index into an array */
@@ -739,6 +732,18 @@ static void store_vec4_to_lval(ivl_statement_t net)
 				lsig, lwid);
 		  }
 	    }
+}
+
+static void store_vec4_to_lval(ivl_statement_t net)
+{
+      for (unsigned lidx = 0 ; lidx < ivl_stmt_lvals(net) ; lidx += 1) {
+	    ivl_lval_t lval = ivl_stmt_lval(net,lidx);
+	    unsigned lwid = ivl_lval_width(lval);
+
+	    if (lidx+1 < ivl_stmt_lvals(net))
+		  fprintf(vvp_out, "    %%split/vec4 %u;\n", lwid);
+
+	    store_vec4_to_one_lval(lval);
       }
 }
 
@@ -3453,6 +3458,213 @@ static int lval_is_whole_uarray_(ivl_lval_t lval, ivl_signal_t sig)
       return 1;
 }
 
+static int stream_lval_is_dynamic_(ivl_lval_t lval)
+{
+      ivl_type_t type = ivl_lval_net_type(lval);
+      if (!type)
+	    return 0;
+
+      switch (ivl_type_base(type)) {
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_STRING:
+	    return 1;
+	  default:
+	    return 0;
+      }
+}
+
+static int validate_dynamic_stream_lval_(ivl_statement_t net,
+					  ivl_lval_t lval)
+{
+      ivl_type_t type = ivl_lval_net_type(lval);
+      ivl_signal_t sig = ivl_lval_sig(lval);
+      ivl_variable_type_t base = ivl_type_base(type);
+
+      if (!sig || ivl_lval_nest(lval) || ivl_lval_property_idx(lval) >= 0
+	  || ivl_lval_idx(lval) || ivl_lval_part_off(lval)) {
+	    fprintf(stderr, "%s:%u: sorry: this selected or nested dynamically "
+		    "sized streaming target is not yet supported (IEEE "
+		    "1800-2017 11.4.14.4).\n",
+		    ivl_stmt_file(net), ivl_stmt_lineno(net));
+	    return 1;
+      }
+
+      if (base == IVL_VT_QUEUE && ivl_type_queue_assoc_compat(type)) {
+	    fprintf(stderr, "%s:%u: error: an associative array is not a "
+		    "legal dynamically sized streaming target (IEEE 1800-2017 "
+		    "11.4.14.4).\n", ivl_stmt_file(net),
+		    ivl_stmt_lineno(net));
+	    return 1;
+      }
+
+      ivl_type_t elem = (base == IVL_VT_STRING) ? 0
+	    : ivl_type_element(type);
+      if (base != IVL_VT_STRING
+	  && (!elem || (ivl_type_base(elem) != IVL_VT_BOOL
+			 && ivl_type_base(elem) != IVL_VT_LOGIC))) {
+	    fprintf(stderr, "%s:%u: error: streaming into a dynamic array or "
+		    "queue requires an integral bit-stream element type (IEEE "
+		    "1800-2017 11.4.14.1).\n",
+		    ivl_stmt_file(net), ivl_stmt_lineno(net));
+	    return 1;
+      }
+
+      return 0;
+}
+
+/* Store one run-time-sized member of an IEEE 1800-2017 11.4.14.4
+ * streaming target. The member's complete bit stream is on the vec4 stack.
+ * The caller has already rejected selections and nested/property targets, so
+ * this helper performs one typed whole-variable store. */
+static int store_dynamic_stream_lval_(ivl_lval_t lval)
+{
+      ivl_type_t type = ivl_lval_net_type(lval);
+      ivl_signal_t sig = ivl_lval_sig(lval);
+      ivl_variable_type_t base = ivl_type_base(type);
+
+      assert(sig);
+
+      if (base == IVL_VT_STRING) {
+	    fprintf(vvp_out, "    %%pushv/str;\n");
+	    fprintf(vvp_out, "    %%store/str v%p_0;\n", sig);
+	    return 0;
+      }
+
+      ivl_type_t elem = ivl_type_element(type);
+      assert(elem);
+
+      char elem_text[32];
+      stream_elem_type_text(elem, elem_text, sizeof elem_text);
+      if (base == IVL_VT_DARRAY) {
+	    fprintf(vvp_out, "    %%stream/to/dar \"%s\";\n", elem_text);
+	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
+	    return 0;
+      }
+
+      assert(base == IVL_VT_QUEUE);
+      int max_idx = allocate_word();
+      fprintf(vvp_out, "    %%stream/to/queue \"%s\";\n", elem_text);
+      fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", max_idx,
+	      ivl_signal_array_count(sig));
+      fprintf(vvp_out, "    %%store/qobj/v v%p_0, %d, %u;\n",
+	      sig, max_idx, ivl_type_packed_width(elem));
+      clr_word(max_idx);
+      return 0;
+}
+
+/* Return -1 when NET is not the dynamically-sized streaming-target form.
+ * Otherwise lower the complete assignment and return its target error count.
+ *
+ * L-values are exported least-significant/source-rightmost first. Every fixed
+ * member retains its declared width. The source-leftmost dynamically sized
+ * member (the greatest dynamic l-value index) receives the run-time remainder
+ * after all fixed widths are reserved; every later dynamic member receives an
+ * empty value. This is the greedy rule in IEEE 1800-2017 11.4.14.4. */
+static int show_stmt_assign_dynamic_stream_(ivl_statement_t net)
+{
+      ivl_expr_t rval = ivl_stmt_rval(net);
+      if (ivl_stmt_opcode(net) != 0 || !rval
+	  || ivl_expr_type(rval) != IVL_EX_SFUNC)
+	    return -1;
+
+      const char*name = ivl_expr_name(rval);
+      if (!name || strncmp(name, "$ivl_stream$unpack$", 19) != 0)
+	    return -1;
+
+      unsigned lvals = ivl_stmt_lvals(net);
+      unsigned greedy = 0;
+      unsigned dynamic_count = 0;
+      uint64_t fixed_width = 0;
+
+      for (unsigned idx = 0 ; idx < lvals ; idx += 1) {
+	    ivl_lval_t lval = ivl_stmt_lval(net, idx);
+	    if (stream_lval_is_dynamic_(lval)) {
+		  greedy = idx;
+		  dynamic_count += 1;
+		  continue;
+	    }
+
+	    if (!ivl_lval_sig(lval) || ivl_lval_nest(lval)
+		|| ivl_lval_property_idx(lval) >= 0) {
+		  fprintf(stderr, "%s:%u: sorry: this nested fixed member of a "
+			  "dynamically sized streaming target is not yet "
+			  "supported (IEEE 1800-2017 11.4.14.4).\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return 1;
+	    }
+	    ivl_type_t type = ivl_lval_net_type(lval);
+	    if (!type || (ivl_type_base(type) != IVL_VT_BOOL
+			 && ivl_type_base(type) != IVL_VT_LOGIC)) {
+		  fprintf(stderr, "%s:%u: error: this fixed member of a "
+			  "streaming target is not a bit-stream type (IEEE "
+			  "1800-2017 11.4.14.1).\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return 1;
+	    }
+	    fixed_width += ivl_lval_width(lval);
+      }
+
+      if (dynamic_count == 0)
+	    return -1;
+
+      if (fixed_width > UINT_MAX) {
+	    fprintf(stderr, "%s:%u: error: fixed members of this streaming "
+		    "target exceed the VVP run-time width limit.\n",
+		    ivl_stmt_file(net), ivl_stmt_lineno(net));
+	    return 1;
+      }
+
+      /* Validate every dynamic destination before evaluating the source. A
+	 * rejected target must not expose partial stores or source side effects. */
+      for (unsigned idx = 0 ; idx < lvals ; idx += 1) {
+	    ivl_lval_t lval = ivl_stmt_lval(net, idx);
+	    if (!stream_lval_is_dynamic_(lval))
+		  continue;
+	    int validation_errors = validate_dynamic_stream_lval_(net, lval);
+	    if (validation_errors)
+		  return validation_errors;
+      }
+
+      int errors = draw_stream_pack_pieces(rval, 0);
+      if (errors < 0) {
+	    fprintf(stderr, "%s:%u: internal error: malformed dynamic "
+		    "streaming-target carrier.\n",
+		    ivl_stmt_file(net), ivl_stmt_lineno(net));
+	    return 1;
+      }
+
+      fprintf(vvp_out, "    %%stream/pad/min %u;\n", (unsigned)fixed_width);
+
+      for (unsigned idx = 0 ; idx < lvals ; idx += 1) {
+	    ivl_lval_t lval = ivl_stmt_lval(net, idx);
+	    if (stream_lval_is_dynamic_(lval)) {
+		  if (idx < greedy) {
+			fprintf(vvp_out, "    %%pushi/vec4 0, 0, 0;\n");
+		  } else {
+			uint64_t fixed_left = 0;
+			for (unsigned tail = idx + 1 ; tail < lvals ; tail += 1)
+			      if (!stream_lval_is_dynamic_(
+					ivl_stmt_lval(net, tail)))
+				    fixed_left += ivl_lval_width(
+					  ivl_stmt_lval(net, tail));
+			if (fixed_left > 0)
+			      fprintf(vvp_out, "    %%stream/split/rem %u;\n",
+				      (unsigned)fixed_left);
+		  }
+		  errors += store_dynamic_stream_lval_(lval);
+		  continue;
+	    }
+
+	    if (idx + 1 < lvals)
+		  fprintf(vvp_out, "    %%split/vec4 %u;\n",
+			  ivl_lval_width(lval));
+	    store_vec4_to_one_lval(lval);
+      }
+
+      return errors;
+}
+
 int show_stmt_assign(ivl_statement_t net)
 {
       ivl_lval_t lval;
@@ -3463,6 +3675,12 @@ int show_stmt_assign(ivl_statement_t net)
       lval = ivl_stmt_lval(net, 0);
 
       sig = ivl_lval_sig(lval);
+
+      {
+	    int stream_errors = show_stmt_assign_dynamic_stream_(net);
+	    if (stream_errors >= 0)
+		  return stream_errors;
+      }
 
 	/* Assignment of a function returning an unpacked array into an
 	   unpacked-array (or array-slice) l-value. The function is called

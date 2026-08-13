@@ -1,0 +1,3 @@
+./ivltests/sv_stream_dynamic_target_type_fail.v:7: error: streaming into a dynamic array or queue requires an integral bit-stream element type (IEEE 1800-2017 11.4.14.1).
+./ivltests/sv_stream_dynamic_target_type_fail.v:8: error: an associative array is not a legal dynamically sized streaming target (IEEE 1800-2017 11.4.14.4).
+error: Code generation had 2 error(s).

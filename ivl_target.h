@@ -1633,6 +1633,10 @@ extern const char*ivl_lpm_string(ivl_lpm_t net);
  */
 
 extern unsigned    ivl_lval_width(ivl_lval_t net);
+
+/* Exact type of one l-value member. Unlike the assignment-wide type, this
+ * remains available for members of a concatenation. */
+extern ivl_type_t   ivl_lval_net_type(ivl_lval_t net);
 extern ivl_expr_t  ivl_lval_mux(ivl_lval_t net) __attribute__((deprecated)); /* XXXX Obsolete? */
 extern ivl_expr_t  ivl_lval_idx(ivl_lval_t net);
 extern int         ivl_lval_is_queue_slice(ivl_lval_t net);

@@ -1,0 +1,2 @@
+VVP error: streaming concatenation target has 16 fixed bits, but the source stream provides 8 (IEEE 1800-2017 11.4.14.3); zero-filling (further similar messages suppressed).
+fixed=a500 data=0
