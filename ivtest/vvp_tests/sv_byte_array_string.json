@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_byte_array_string.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_byte_array_string"
+}

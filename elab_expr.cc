@@ -2941,6 +2941,9 @@ NetExpr* PEAssignPattern::elaborate_expr_uarray_(Design *des, NetScope *scope,
 	    if (const auto ap = dynamic_cast<PEAssignPattern*>(pv[idx])) {
 		  expr = ap->elaborate_expr_uarray_(des, scope, uarray_type,
 						    dims, cur_dim, need_const);
+	    } else if (const auto str = dynamic_cast<PEString*>(pv[idx])) {
+		  expr = str->elaborate_expr_uarray_(des, scope, uarray_type,
+						     dims, cur_dim);
 	    } else if (dynamic_cast<PEConcat*>(pv[idx])) {
 		  cerr << get_fileline() << ": sorry: "
 		       << "Array concatenation is not yet supported."
@@ -20955,8 +20958,69 @@ unsigned PEString::test_width(Design*, NetScope*, width_mode_t&)
       return expr_width_;
 }
 
-NetEConst* PEString::elaborate_expr(Design*, NetScope*, ivl_type_t, unsigned) const
+NetExpr* PEString::elaborate_expr_uarray_(Design*des, NetScope*,
+					  const netuarray_t*uarray_type,
+					  const netranges_t&dims,
+					  unsigned cur_dim) const
 {
+      ivl_type_t element_type = uarray_type->element_type();
+
+	/* IEEE 1800-2017 5.9: a string literal can be assigned to a
+	 * one-dimensional unpacked array of byte elements. This is a narrow
+	 * assignment-context conversion, not a general packed-to-unpacked
+	 * aggregate cast. */
+      if (dims.size() != cur_dim + 1 || !element_type->packed()
+	  || element_type->base_type() != IVL_VT_BOOL
+	  || element_type->packed_width() != 8
+	  || !element_type->get_signed()) {
+	    cerr << get_fileline() << ": error: String literal cannot be "
+		 << "implicitly cast to the target type." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+	/* Unlike packed string assignment, this conversion is left-aligned in
+	 * declared array order. A short literal is null padded; a long literal
+	 * is truncated at the right. */
+      vector<NetExpr*> elements(dims[cur_dim].width());
+      bool ascending = dims[cur_dim].get_msb() < dims[cur_dim].get_lsb();
+      verinum text_value(parsed_value());
+      size_t text_bytes = text_value.len() / 8;
+
+      if (text_bytes > elements.size()) {
+	    cerr << get_fileline() << ": warning: Target array smaller than "
+		 << "assigned string literal; value will be truncated." << endl;
+      }
+
+      size_t copied = min(text_bytes, elements.size());
+      for (size_t idx = 0; idx < copied; idx += 1) {
+	    size_t element_idx = ascending ? idx : elements.size() - idx - 1;
+	    verinum value(text_value >> (text_value.len() - 8 - idx * 8), 8);
+	    value.has_sign(true);
+	    elements[element_idx] = new NetEConst(element_type, value);
+      }
+
+      for (size_t idx = copied; idx < elements.size(); idx += 1) {
+	    size_t element_idx = ascending ? idx : elements.size() - idx - 1;
+	    verinum value(verinum::V0, 8);
+	    value.has_sign(true);
+	    elements[element_idx] = new NetEConst(element_type, value);
+      }
+
+      NetEArrayPattern*result = new NetEArrayPattern(uarray_type, elements);
+      result->set_line(*this);
+      return result;
+}
+
+NetExpr* PEString::elaborate_expr(Design*des, NetScope*scope,
+				   ivl_type_t type, unsigned) const
+{
+      if (const netuarray_t*uarray_type =
+		    dynamic_cast<const netuarray_t*>(type)) {
+	    return elaborate_expr_uarray_(des, scope, uarray_type,
+					  uarray_type->static_dimensions(), 0);
+      }
+
       NetECString*tmp = new NetECString(parsed_value());
       tmp->cast_signed(signed_flag_);
       tmp->set_line(*this);

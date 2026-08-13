@@ -1,0 +1,5 @@
+./ivltests/sv_byte_array_string_fail.v:2: error: String literal cannot be implicitly cast to the target type.
+./ivltests/sv_byte_array_string_fail.v:3: error: String literal cannot be implicitly cast to the target type.
+./ivltests/sv_byte_array_string_fail.v:4: error: String literal cannot be implicitly cast to the target type.
+./ivltests/sv_byte_array_string_fail.v:5: error: String literal cannot be implicitly cast to the target type.
+Elaboration failed

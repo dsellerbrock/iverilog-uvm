@@ -1,0 +1,2 @@
+./ivltests/sv_byte_array_string.v:23: warning: Target array smaller than assigned string literal; value will be truncated.
+PASSED
