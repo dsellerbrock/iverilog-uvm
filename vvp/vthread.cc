@@ -14693,10 +14693,19 @@ bool write_signal_assoc_key_<vvp_vector4_t>(vthread_t thr, vvp_net_t*net,
 {
       if (!(thr && net))
             return false;
-      if (!signal_vec4_fun_(net))
+      vvp_signal_value*fun = signal_vec4_fun_(net);
+      if (!fun)
             return false;
 
-      vvp_send_vec4(vvp_net_ptr_t(net, 0), value,
+      /* The key argument is an output/inout variable. Apply its assignment
+       * width before sending the value into the signal functor. Apart from
+       * implementing ordinary truncation/extension, this is a defensive
+       * bytecode boundary: a stale or malformed traversal instruction must
+       * not feed an arbitrary-width vector to vvp_fun_signal4_sa and abort
+       * the simulator on its size invariant. */
+      vvp_vector4_t coerced(value);
+      coerced.resize(fun->value_size(), BIT4_0);
+      vvp_send_vec4(vvp_net_ptr_t(net, 0), coerced,
 		    ensure_write_context_(thr, why));
       return true;
 }

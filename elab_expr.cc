@@ -5672,6 +5672,7 @@ static NetFuncDef* find_function_definition(Design*des, NetScope*caller_scope,
 static NetExpr* elaborate_assoc_array_compat_method_(Design*des, NetScope*scope,
 						      const LineInfo*li,
 						      NetExpr*sub_expr,
+						      ivl_type_t container_type,
 						      perm_string method_name,
 						      const std::vector<named_pexpr_t>&parms)
 {
@@ -5704,7 +5705,8 @@ static NetExpr* elaborate_assoc_array_compat_method_(Design*des, NetScope*scope,
 		  return 0;
 	    }
 
-	    key_expr = elab_and_eval(des, scope, parms[0].parm, -1, false);
+	    key_expr = elab_assoc_index(des, scope, parms[0].parm,
+				  container_type, false);
 	    if (!key_expr) {
 		  delete sub_expr;
 		  return 0;
@@ -5738,6 +5740,25 @@ static NetExpr* elaborate_assoc_array_compat_method_(Design*des, NetScope*scope,
 
 	    key_expr = elab_and_eval(des, scope, parms[0].parm, -1, false);
 	    if (!key_expr) {
+		  delete sub_expr;
+		  return 0;
+	    }
+
+	    const netqueue_t*queue =
+		  dynamic_cast<const netqueue_t*>(container_type);
+	    ivl_type_t expected = queue && queue->assoc_compat()
+		  ? queue->assoc_index_type() : nullptr;
+	    ivl_type_t actual = key_expr->net_type();
+	    if (expected && actual
+		&& expected != actual
+		&& (!expected->type_equivalent(actual)
+		    || !actual->type_equivalent(expected))) {
+		  cerr << li->get_fileline() << ": error: argument to associative "
+		       << "array method '" << method_name
+		       << "' has a type inequivalent to the declared index type."
+		       << endl;
+		  des->errors += 1;
+		  delete key_expr;
 		  delete sub_expr;
 		  return 0;
 	    }
@@ -8907,6 +8928,8 @@ static NetESelect* make_container_member_element_select_(NetExpr*member_expr,
       if (!elem_type)
 	    return nullptr;
 
+      idx_expr = cast_assoc_index(idx_expr, use_type, *idx_expr);
+
       unsigned elem_width = 1;
       if (const netvector_t*vt = dynamic_cast<const netvector_t*>(elem_type))
 	    elem_width = vt->packed_width();
@@ -9996,7 +10019,8 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
                   idx_expr = make_const_val(0);
             }
       } else {
-            idx_expr = elab_and_eval(des, scope, idx_comp.msb, -1, false);
+            idx_expr = elab_assoc_index(des, scope, idx_comp.msb,
+                                       prop_type, false);
       }
       if (!idx_expr) {
 	    delete prop_expr;
@@ -10044,7 +10068,8 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 	    const netdarray_t*da = dynamic_cast<const netdarray_t*>(cur_type);
 	    if (!da)
 		  break;
-	    NetExpr*ix = elab_and_eval(des, scope, idx_it->msb, -1, false);
+	    NetExpr*ix = elab_assoc_index(des, scope, idx_it->msb,
+	                                  cur_type, false);
 	    if (!ix) {
 		  delete cur;
 		  return 0;
@@ -10390,7 +10415,9 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 				    if (!idx_expr)
 					  idx_expr = make_const_val(0);
 			      } else {
-				    idx_expr = elab_and_eval(des, scope, idx_comp.msb, -1, false);
+				    idx_expr = elab_assoc_index(des, scope,
+				                                  idx_comp.msb,
+				                                  use_type, false);
 				    if (!idx_expr)
 					  return false;
 			      }
@@ -11046,12 +11073,15 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 				    canon_index = make_const_val(0);
 			      }
 			} else if (idx_comp.sel != index_component_t::SEL_BIT || idx_comp.lsb) {
-			      canon_index = elab_and_eval(des, scope, idx_comp.msb, -1, false);
+			      canon_index = elab_assoc_index(des, scope,
+			                                     idx_comp.msb,
+			                                     tmp_type, false);
 			      if (!canon_index)
 			      return nullptr;
 		  } else {
 			(void) tmp_arr;
-			canon_index = elab_and_eval(des, scope, idx_comp.msb, -1, false);
+			canon_index = elab_assoc_index(des, scope, idx_comp.msb,
+			                               tmp_type, false);
 			if (!canon_index)
 			      return nullptr;
 		  }
@@ -11117,11 +11147,13 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			     << " (compile-progress fallback, using index 0)." << endl;
 			canon_index = make_const_val(0);
 		  } else if (idx_comp.sel != index_component_t::SEL_BIT || idx_comp.lsb) {
-			canon_index = elab_and_eval(des, scope, idx_comp.msb, -1, false);
+			canon_index = elab_assoc_index(des, scope, idx_comp.msb,
+			                               tmp_type, false);
 			if (!canon_index)
 			      return nullptr;
 		  } else {
-			canon_index = elab_and_eval(des, scope, idx_comp.msb, -1, false);
+			canon_index = elab_assoc_index(des, scope, idx_comp.msb,
+			                               tmp_type, false);
 			if (!canon_index)
 			      return nullptr;
 		  }
@@ -11150,10 +11182,12 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 				    // Compile-progress fallback: treat non-simple selects as
 				    // expression index evaluation via idx_comp.msb.
 			      }
-			      idx_expr = elab_and_eval(des, scope, idx_comp.msb, -1, false);
+			      idx_expr = elab_and_eval(des, scope, idx_comp.msb,
+					       -1, false);
 			      if (!idx_expr)
 				    return nullptr;
 			}
+			idx_expr = cast_assoc_index(idx_expr, cur_type, *this);
 
 			ivl_type_t elem_type = nullptr;
 			unsigned elem_width = 1;
@@ -12892,8 +12926,12 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		  sys_expr->parm(0, sub_expr);
 		  return sys_expr;
 	    }
-	    if (NetExpr*tmp = elaborate_assoc_array_compat_method_(des, scope, this, sub_expr, method_name, parms_))
+	    unsigned errors_before = des->errors;
+	    if (NetExpr*tmp = elaborate_assoc_array_compat_method_(des, scope, this,
+		  sub_expr, target_type, method_name, parms_))
 		  return tmp;
+	    if (des->errors != errors_before)
+		  return nullptr;
 
 	    const netdarray_t*darray =
 		  dynamic_cast<const netdarray_t*>(target_type);
@@ -12942,8 +12980,12 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 
       if (target_type && dynamic_cast<const netuarray_t*>(target_type)
 	  && !target_indexed) {
-	    if (NetExpr*tmp = elaborate_assoc_array_compat_method_(des, scope, this, sub_expr, method_name, parms_))
+	    unsigned errors_before = des->errors;
+	    if (NetExpr*tmp = elaborate_assoc_array_compat_method_(des, scope, this,
+		  sub_expr, target_type, method_name, parms_))
 		  return tmp;
+	    if (des->errors != errors_before)
+		  return nullptr;
 
 	      // IEEE 1800-2017 7.12 array manipulation methods apply
 	      // to fixed-size unpacked arrays too; the tgt-vvp loop
@@ -13049,8 +13091,12 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		  sys_expr->parm(0, sub_expr);
 		  return sys_expr;
 	    }
-	    if (NetExpr*tmp = elaborate_assoc_array_compat_method_(des, scope, this, sub_expr, method_name, parms_))
+	    unsigned errors_before = des->errors;
+	    if (NetExpr*tmp = elaborate_assoc_array_compat_method_(des, scope, this,
+		  sub_expr, target_type, method_name, parms_))
 		  return tmp;
+	    if (des->errors != errors_before)
+		  return nullptr;
 
 	    const netqueue_t*queue = dynamic_cast<const netqueue_t*>(target_type);
 	    ivl_type_t element_type = queue->element_type();
@@ -19747,7 +19793,8 @@ NetExpr* PEIdent::elaborate_expr_net_bit_(Design*des, NetScope*scope,
       ivl_assert(*this, index_tail.msb != 0);
       ivl_assert(*this, index_tail.lsb == 0);
 
-      NetExpr*mux = elab_and_eval(des, scope, index_tail.msb, -1, need_const);
+      NetExpr*mux = elab_assoc_index(des, scope, index_tail.msb,
+				     net->sig()->queue_type(), need_const);
       if (!mux)
 	    return 0;
 
@@ -20087,8 +20134,8 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 			if (ew == 0)
 			      ew = 1;
 
-			NetExpr*mux = elab_and_eval(des, scope, idx_it->msb,
-						    -1, need_const);
+			NetExpr*mux = elab_assoc_index(des, scope, idx_it->msb,
+						     level, need_const);
 			if (!mux) {
 			      delete cur_sel;
 			      return 0;

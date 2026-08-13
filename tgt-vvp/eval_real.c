@@ -322,6 +322,16 @@ static void draw_select_real(ivl_expr_t expr)
 		  || (sube && ivl_expr_value(sube) == IVL_VT_DARRAY);
 
 	    if (sube_is_container && ivl_expr_type(sube) != IVL_EX_SIGNAL) {
+		  if (sube_type
+		      && ivl_type_base(sube_type) == IVL_VT_QUEUE
+		      && ivl_type_queue_assoc_compat(sube_type)) {
+			const char*key_kind;
+			draw_eval_object(sube);
+			key_kind = draw_eval_assoc_key_(shift, 0);
+			fprintf(vvp_out, "    %%aa/load/r/%s;\n", key_kind);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			return;
+		  }
 		  draw_eval_object(sube);
 		  draw_eval_expr_into_integer(shift, 3);
 		  fprintf(vvp_out, "    %%load/qo/r;\n");
