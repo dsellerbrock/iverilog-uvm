@@ -532,3 +532,7 @@ sv_rand_mode_dynamic_whole_query_fail	vvp_tests/sv_rand_mode_dynamic_whole_query
 # Randc constraint qualifier provenance (strict Slang differential polarity)
 sv_randc_constraint_provenance	vvp_tests/sv_randc_constraint_provenance.json
 sv_randc_constraint_provenance_fail	vvp_tests/sv_randc_constraint_provenance_fail.json
+
+# IEEE 1800-2017 associative-array integral key contexts and traversal refs
+sv_assoc_integral_key_context	vvp_tests/sv_assoc_integral_key_context.json
+sv_assoc_traversal_key_type_fail	vvp_tests/sv_assoc_traversal_key_type_fail.json

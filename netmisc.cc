@@ -1707,6 +1707,41 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
       return tmp;
 }
 
+NetExpr* elab_assoc_index(Design*des, NetScope*scope, PExpr*expr,
+			  ivl_type_t container_type, bool need_const)
+{
+      const netqueue_t*queue =
+	    dynamic_cast<const netqueue_t*>(container_type);
+      if (queue && queue->assoc_compat()) {
+	    ivl_type_t index_type = queue->assoc_index_type();
+	    if (index_type && index_type->packed()) {
+		  unsigned width = index_type->packed_width();
+		  return elab_and_eval(des, scope, expr, width,
+				       need_const, false,
+				       index_type->base_type(),
+				       !index_type->get_signed());
+	    }
+      }
+
+      return elab_and_eval(des, scope, expr, -1, need_const);
+}
+
+NetExpr* cast_assoc_index(NetExpr*expr, ivl_type_t container_type,
+			  const LineInfo&info)
+{
+      const netqueue_t*queue =
+	    dynamic_cast<const netqueue_t*>(container_type);
+      if (!expr || !queue || !queue->assoc_compat())
+	    return expr;
+
+      ivl_type_t index_type = queue->assoc_index_type();
+      if (!index_type || !index_type->packed())
+	    return expr;
+
+      return cast_to_width(expr, index_type->packed_width(),
+			   index_type->get_signed(), info);
+}
+
 NetExpr* elab_sys_task_arg(Design*des, NetScope*scope, perm_string name,
                            unsigned arg_idx, PExpr*pe, bool need_const)
 {

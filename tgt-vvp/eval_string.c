@@ -176,11 +176,11 @@ static void string_ex_select(ivl_expr_t expr)
 	    }
 	    if (inner && ivl_type_base(inner) == IVL_VT_QUEUE
 		&& ivl_type_queue_assoc_compat(inner)) {
-		  const char*key_kind = draw_eval_assoc_key_(shift, 0);
+		  const char*key_kind;
 		  draw_eval_object(sube);
+		  key_kind = draw_eval_assoc_key_(shift, 0);
 		  fprintf(vvp_out, "    %%aa/load/str/%s;\n", key_kind);
-		  fprintf(vvp_out, "    %%pop/obj %s;\n",
-			  strcmp(key_kind, "obj") == 0 ? "2, 0" : "1, 0");
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 		  return;
 	    }
 
@@ -270,11 +270,30 @@ static void string_ex_select(ivl_expr_t expr)
 
       if (ivl_expr_type(sube) == IVL_EX_PROPERTY) {
 	    ivl_type_t prop_type = property_expr_type_(sube);
+	    ivl_type_t value_type = ivl_expr_net_type(sube);
 	    int positional_container = expr_is_dynarray_container_(sube);
-	    if (prop_type
-		&& (ivl_type_base(prop_type) == IVL_VT_DARRAY
-		    || (ivl_type_base(prop_type) == IVL_VT_QUEUE
-			&& !ivl_type_queue_assoc_compat(prop_type))))
+	    /* An indexed associative property can itself yield a queue of
+	         strings (`obj.map[key][pos]`).  Its declared property type is
+	         still the OUTER associative array, but the expression net type
+	         is the selected queue value.  Prefer that result type so the
+	         second index remains positional instead of being mistaken for
+	         another associative key. */
+	    if (!value_type)
+		  value_type = prop_type;
+	    if (value_type
+		&& ivl_type_base(value_type) == IVL_VT_QUEUE
+		&& ivl_type_queue_assoc_compat(value_type)) {
+		  const char*key_kind;
+		  draw_eval_object(sube);
+		  key_kind = draw_eval_assoc_key_(shift, 0);
+		  fprintf(vvp_out, "    %%aa/load/str/%s;\n", key_kind);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  return;
+	    }
+	    if (value_type
+		&& (ivl_type_base(value_type) == IVL_VT_DARRAY
+		    || (ivl_type_base(value_type) == IVL_VT_QUEUE
+			&& !ivl_type_queue_assoc_compat(value_type))))
 		  positional_container = 1;
 	    if (positional_container) {
 		  draw_eval_object(sube);

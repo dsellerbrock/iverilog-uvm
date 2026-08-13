@@ -1598,3 +1598,7 @@ sv_rand_mode_dynamic_whole_query_fail CE,-g2012 ivltests gold=sv_rand_mode_dynam
 # Randc constraint qualifier provenance (strict Slang differential polarity)
 sv_randc_constraint_provenance normal,-g2012 ivltests gold=sv_randc_constraint_provenance.gold
 sv_randc_constraint_provenance_fail CE,-g2012 ivltests gold=sv_randc_constraint_provenance_fail.gold
+
+# IEEE 1800-2017 associative-array integral key contexts and traversal refs
+sv_assoc_integral_key_context normal,-g2012 ivltests gold=sv_assoc_integral_key_context.gold
+sv_assoc_traversal_key_type_fail CE,-g2012 ivltests gold=sv_assoc_traversal_key_type_fail.gold

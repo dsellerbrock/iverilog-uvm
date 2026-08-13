@@ -8708,8 +8708,15 @@ NetProc* PCallTask::elaborate_sys_task_method_(Design*des, NetScope*scope,
 
       auto args = map_named_args(des, parm_names, parms_);
       for (unsigned idx = 0 ; idx < nparms ; idx += 1) {
-	    argv[idx + 1] = elab_sys_task_arg(des, scope, method_name,
-					      idx, args[idx]);
+	    const netqueue_t*queue =
+		  dynamic_cast<const netqueue_t*>(obj_type);
+	    if (method_name == "delete" && idx == 0 && queue
+		&& queue->assoc_compat())
+		  argv[idx + 1] = elab_assoc_index(des, scope, args[idx],
+						obj_type, false);
+	    else
+		  argv[idx + 1] = elab_sys_task_arg(des, scope, method_name,
+						idx, args[idx]);
       }
 
       NetSTask*sys = new NetSTask(sys_task_name, IVL_SFUNC_AS_TASK_IGNORE, argv);

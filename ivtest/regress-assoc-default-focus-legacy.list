@@ -26,3 +26,5 @@ sv_assoc_output_nonassoc_fail CE,-g2012	ivltests gold=sv_assoc_output_nonassoc_f
 sv_assoc_cast_to_queue_fail CE,-g2012	ivltests gold=sv_assoc_cast_to_queue_fail.gold
 sv_assoc_default_object_value_fail CE,-g2012	ivltests gold=sv_assoc_default_object_value_fail.gold
 sv_assoc_default_explicit_pattern_fail CE,-g2012	ivltests gold=sv_assoc_default_explicit_pattern_fail.gold
+sv_assoc_integral_key_context normal,-g2012	ivltests gold=sv_assoc_integral_key_context.gold
+sv_assoc_traversal_key_type_fail CE,-g2012	ivltests gold=sv_assoc_traversal_key_type_fail.gold

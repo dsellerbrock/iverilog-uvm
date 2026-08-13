@@ -823,9 +823,9 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 			return 0;
 		  }
 		  NetAssign_*lv = new NetAssign_(reg);
-		  NetExpr*key = elab_and_eval(des, scope,
-					      cont_base->index.front().msb,
-					      -1);
+		  NetExpr*key = elab_assoc_index(des, scope,
+					       cont_base->index.front().msb,
+					       reg->queue_type());
 		  if (!key)
 			return 0;
 		  lv->set_word(key);
@@ -1037,8 +1037,9 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 			if (we && eval_as_long(w, we) && w > 0) {
 			      delete we;
 			      NetAssign_*lv = new NetAssign_(reg);
-			      NetExpr*key = elab_and_eval(des, scope,
-							  nt.index.front().msb, -1);
+			      NetExpr*key = elab_assoc_index(des, scope,
+							   nt.index.front().msb,
+							   reg->queue_type());
 			      NetExpr*base = elab_and_eval(des, scope,
 							   pidx.msb, -1);
 			      if (!key || !base)
@@ -1708,8 +1709,10 @@ bool PEIdent::elaborate_lval_darray_bit_(Design*des,
 	    return false;
       }
 
-	// First index always selects the darray word.
-      NetExpr*mux = elab_and_eval(des, scope, word_index.msb, -1);
+	// First index always selects the darray word. Associative-array keys
+	// are assignment-context expressions of the declared index type.
+      NetExpr*mux = elab_assoc_index(des, scope, word_index.msb,
+				     lv->sig()->queue_type());
 
       lv->set_word(mux);
 
@@ -1777,7 +1780,8 @@ bool PEIdent::elaborate_lval_darray_part_(Design*des,
       }
 
 	// First index selects the darray word.
-      NetExpr*mux = elab_and_eval(des, scope, word_index.msb, -1);
+      NetExpr*mux = elab_assoc_index(des, scope, word_index.msb,
+				     lv->sig()->queue_type());
       lv->set_word(mux);
 
       if (name_tail.index.size() != 2) {
@@ -2243,7 +2247,8 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			  return 0;
 		    }
 
-		    NetExpr*root_word_index = elab_and_eval(des, scope, root_index.msb, -1);
+		    NetExpr*root_word_index = elab_assoc_index(
+			  des, scope, root_index.msb, sig->queue_type());
 		    if (!root_word_index)
 			  return 0;
 
@@ -2620,8 +2625,9 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			if ((psig->darray_type() || psig->queue_type())
 			    && member_cur.index.size() == 1
 			    && member_cur.index.front().sel == index_component_t::SEL_BIT) {
-			      NetExpr*mux = elab_and_eval(des, scope,
-							  member_cur.index.front().msb, -1);
+			      NetExpr*mux = elab_assoc_index(
+				    des, scope, member_cur.index.front().msb,
+				    psig->queue_type());
 			      if (mux) {
 				    lv = new NetAssign_(psig);
 				    lv->set_word(mux);
@@ -2776,7 +2782,8 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				    break;
 			      }
 
-			      NetExpr*idx_expr = elab_and_eval(des, scope, index_tail.msb, -1);
+			      NetExpr*idx_expr = elab_assoc_index(
+				    des, scope, index_tail.msb, ptype);
 			      if (!idx_expr)
 				    break;
 

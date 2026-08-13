@@ -1,0 +1,5 @@
+./ivltests/sv_assoc_traversal_key_type_fail.v:10: error: argument to associative array method 'first' has a type inequivalent to the declared index type.
+./ivltests/sv_assoc_traversal_key_type_fail.v:11: error: argument to associative array method 'last' has a type inequivalent to the declared index type.
+./ivltests/sv_assoc_traversal_key_type_fail.v:12: error: argument to associative array method 'next' has a type inequivalent to the declared index type.
+./ivltests/sv_assoc_traversal_key_type_fail.v:13: error: argument to associative array method 'prev' has a type inequivalent to the declared index type.
+4 error(s) during elaboration.

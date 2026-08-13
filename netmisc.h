@@ -446,6 +446,16 @@ extern NetExpr* elab_and_eval(Design*des, NetScope*scope,
 			      PExpr*expr, ivl_type_t lv_net_type,
 			      bool need_const);
 
+/* IEEE 1800-2017 7.9.1: an associative-array index expression is evaluated
+ * in the assignment context of the declared index type. The queue carrier is
+ * also used for ordinary queues, so non-associative callers retain the usual
+ * self-determined index behavior. */
+extern NetExpr* elab_assoc_index(Design*des, NetScope*scope,
+				 PExpr*expr, ivl_type_t container_type,
+				 bool need_const = false);
+extern NetExpr* cast_assoc_index(NetExpr*expr, ivl_type_t container_type,
+				 const LineInfo&info);
+
 /*
  * This function is a variant of elab_and_eval that elaborates and
  * evaluates the arguments of a system task.

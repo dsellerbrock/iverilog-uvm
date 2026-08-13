@@ -1145,8 +1145,8 @@ static void draw_select_vec4(ivl_expr_t expr)
 	    }
 	    if (sub_type && ivl_type_queue_assoc_compat(sub_type)) {
 		  if (expr_is_string_assoc_key_(base)) {
-			draw_eval_string(base);
 			draw_eval_object(subexpr);
+			draw_eval_string(base);
 			fprintf(vvp_out, "    %%aa/load/v/str %u;\n", wid);
 			if (ivl_expr_value(expr) == IVL_VT_BOOL)
 			      fprintf(vvp_out, "    %%cast2;\n");
@@ -1154,18 +1154,18 @@ static void draw_select_vec4(ivl_expr_t expr)
 			return;
 		  }
 		  if (expr_is_object_assoc_key_(base)) {
-			draw_eval_object(base);
 			draw_eval_object(subexpr);
+			draw_eval_object(base);
 			fprintf(vvp_out, "    %%aa/load/v/obj %u;\n", wid);
 			if (ivl_expr_value(expr) == IVL_VT_BOOL)
 			      fprintf(vvp_out, "    %%cast2;\n");
-			fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 			return;
 		  }
 		    /* Integral (vec4) key: still a keyed lookup, not a
 		       positional queue read. */
-		  draw_eval_vec4(base);
 		  draw_eval_object(subexpr);
+		  draw_eval_vec4(base);
 		  fprintf(vvp_out, "    %%aa/load/v/v %u;\n", wid);
 		  if (ivl_expr_value(expr) == IVL_VT_BOOL)
 			fprintf(vvp_out, "    %%cast2;\n");
