@@ -1,0 +1,3 @@
+ivltests/sv_struct_array_flat_pattern_fail.v:7: error: Unpacked array assignment pattern expects 2 element(s) in this context.
+ivltests/sv_struct_array_flat_pattern_fail.v:7:      : Found 4 element(s).
+Elaboration failed
