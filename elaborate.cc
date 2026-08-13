@@ -4546,6 +4546,36 @@ static NetExpr* build_compound_binary_(char op, NetExpr*l, NetExpr*r,
       }
 }
 
+/* A streaming concatenation used as an assignment target may contain an
+ * unbounded member (dynamic array, queue or string). Such a member has no
+ * packed l-value width: IEEE 1800-2017 11.4.14.4 assigns it the run-time
+ * remainder after reserving all fixed-size members. Do not let
+ * NetAssign_::lwidth()'s compatibility value turn it into a one-bit member.
+ */
+static bool streaming_lval_has_dynamic_member_(const NetAssign_*lv)
+{
+      for (const NetAssign_*cur = lv ; cur ; cur = cur->more) {
+	    ivl_type_t type = cur->lval_type();
+	    if (dynamic_cast<const netdarray_t*>(type)
+		|| dynamic_cast<const netstring_t*>(type))
+		  return true;
+      }
+      return false;
+}
+
+static uint64_t streaming_lval_fixed_width_(const NetAssign_*lv)
+{
+      uint64_t width = 0;
+      for (const NetAssign_*cur = lv ; cur ; cur = cur->more) {
+	    ivl_type_t type = cur->lval_type();
+	    if (dynamic_cast<const netdarray_t*>(type)
+		|| dynamic_cast<const netstring_t*>(type))
+		  continue;
+	    width += cur->lwidth();
+      }
+      return width;
+}
+
 NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, ! delay_);
@@ -5394,6 +5424,12 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
       NetExpr*rv;
       const ivl_type_s*lv_net_type = lv->net_type();
 
+      const PEStreaming*stream_rval =
+	    dynamic_cast<const PEStreaming*>(rval());
+      const bool dynamic_stream_target = stream_rval
+	    && stream_rval->is_lval_context()
+	    && streaming_lval_has_dynamic_member_(lv);
+
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PAssign::elaborate: ";
 	    if (lv_net_type)
@@ -5402,10 +5438,50 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 		  cerr << "lv_net_type=<nil>" << endl;
       }
 
+	/* An unbounded member in a streaming target consumes a run-time
+	 * remainder. Preserve the complete source stream in a zero-width
+	 * internal carrier; the VVP target distributes it using the exact
+	 * per-lvalue types. Delayed forms need an unbounded snapshot rather
+	 * than the fixed-vector temporary below and remain loud for now. */
+      if (dynamic_stream_target) {
+	    if (delay_ || event_ || count_) {
+		  cerr << get_fileline() << ": sorry: delayed streaming "
+		       << "assignment to a dynamically sized target is not yet "
+		       << "supported (IEEE 1800-2017 11.4.14.4)." << endl;
+		  des->errors += 1;
+		  delete lv;
+		  delete delay;
+		  return 0;
+	    }
+	    NetScope*rval_scope = elaborate_rval_scope_(des, scope);
+	    if (!rval_scope) {
+		  delete lv;
+		  delete delay;
+		  return 0;
+	    }
+	    if (!stream_rval->stream_is_dynamic(des, rval_scope)) {
+		  PExpr::width_mode_t mode = PExpr::SIZED;
+		  unsigned source_width = stream_rval->get_inner()->test_width(
+			des, rval_scope, mode);
+		  uint64_t fixed_width = streaming_lval_fixed_width_(lv);
+		  if (source_width < fixed_width) {
+			cerr << get_fileline() << ": error: streaming operator "
+			     << "target has " << fixed_width
+			     << " fixed bits, which does not fit the "
+			     << source_width << "-bit source (IEEE 1800-2017 "
+			     << "11.4.14.3)." << endl;
+			des->errors += 1;
+			delete lv;
+			delete delay;
+			return 0;
+		  }
+	    }
+	    rv = stream_rval->elaborate_stream_sfunc(des, rval_scope, 0, 0);
+
 	/* If the l-value is a compound type of some sort, then use
 	   the newer net_type form of the elaborate_rval_ method to
 	   handle the new types. */
-      if (dynamic_cast<const netclass_t*> (lv_net_type)) {
+      } else if (dynamic_cast<const netclass_t*> (lv_net_type)) {
 	    ivl_assert(*this, lv->more==0);
 	    rv = elaborate_rval_(des, scope, lv_net_type);
 
@@ -6220,6 +6296,20 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 	/* Elaborate the l-value. */
       NetAssign_*lv = elaborate_lval(des, scope);
       if (lv == 0) return 0;
+
+      if (const PEStreaming*stream =
+	    dynamic_cast<const PEStreaming*>(rval())) {
+	    if (stream->is_lval_context()
+		&& streaming_lval_has_dynamic_member_(lv)) {
+		  cerr << get_fileline() << ": sorry: non-blocking streaming "
+		       << "assignment to a dynamically sized target needs an "
+		       << "unbounded NBA snapshot and is not yet supported "
+		       << "(IEEE 1800-2017 11.4.14.4)." << endl;
+		  des->errors += 1;
+		  delete lv;
+		  return 0;
+	    }
+      }
 
 
 	/* Whole static-array copy, non-blocking (IEEE 1800-2017 7.6).

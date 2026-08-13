@@ -1237,6 +1237,11 @@ sv_class_queue_slice_to_last normal,-g2012 ivltests
 sv_assoc_queue_property normal,-g2012 ivltests
 sv_mailbox_string_real normal,-g2012 ivltests
 sv_stream_unpacked_array normal,-g2012 ivltests
+sv_stream_dynamic_multi_target normal,-g2012 ivltests gold=sv_stream_dynamic_multi_target.gold
+sv_stream_dynamic_target_short normal,-g2012 ivltests gold=sv_stream_dynamic_target_short.gold
+sv_stream_dynamic_target_type_fail CE,-g2012 ivltests gold=sv_stream_dynamic_target_type_fail.gold
+sv_stream_dynamic_target_fixed_type_fail CE,-g2012 ivltests gold=sv_stream_dynamic_target_fixed_type_fail.gold
+sv_stream_dynamic_target_static_short_fail CE,-g2012 ivltests gold=sv_stream_dynamic_target_static_short_fail.gold
 sv_checker_basic normal,-g2012 ivltests
 sv_checker_nested_instance normal,-g2012 ivltests
 sv_checker_bind normal,-g2012 ivltests

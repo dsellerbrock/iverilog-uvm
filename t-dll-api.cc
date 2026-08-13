@@ -1900,6 +1900,12 @@ extern "C" unsigned ivl_lval_width(ivl_lval_t net)
       return net->width_;
 }
 
+extern "C" ivl_type_t ivl_lval_net_type(ivl_lval_t net)
+{
+      assert(net);
+      return net->net_type_;
+}
+
 extern "C" int ivl_lval_property_idx(ivl_lval_t net)
 {
       assert(net);

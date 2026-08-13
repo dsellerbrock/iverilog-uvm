@@ -1,0 +1,2 @@
+ivltests/sv_stream_dynamic_target_static_short_fail.v:6: error: streaming operator target has 16 fixed bits, which does not fit the 8-bit source (IEEE 1800-2017 11.4.14.3).
+Elaboration failed

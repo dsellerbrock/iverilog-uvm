@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_stream_dynamic_target_type_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_stream_dynamic_target_type_fail"
+}

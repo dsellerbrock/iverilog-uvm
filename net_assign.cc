@@ -153,6 +153,12 @@ ivl_type_t NetAssign_::net_type() const
       if (more)
 	    return nullptr;
 
+      return lval_type();
+}
+
+ivl_type_t NetAssign_::lval_type() const
+{
+
 	// An unpacked-array slice presents its sub-array type to the r-value
 	// (e.g. `m[i]` of int[2][3] presents int[3]); word_ is the flat base
 	// index, but the type must NOT be unwrapped to the scalar element.

@@ -529,6 +529,7 @@ struct ivl_lval_s {
       int property_idx;
       ivl_signal_t sig;
       ivl_lval_t nest;
+      ivl_type_t net_type_;
 };
 
 /*

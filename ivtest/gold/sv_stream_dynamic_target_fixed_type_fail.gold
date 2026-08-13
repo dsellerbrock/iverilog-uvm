@@ -1,0 +1,2 @@
+./ivltests/sv_stream_dynamic_target_fixed_type_fail.v:6: error: concatenation operand can not be real: fixed_real
+1 error(s) during elaboration.

@@ -3119,6 +3119,13 @@ class NetAssign_ {
 	// example a darray is indexed.
       ivl_type_t net_type() const;
 
+	// Return the type of this ONE l-value node, even when it is linked
+	// into a concatenation through more. net_type() deliberately returns
+	// nil for a concatenation head; streaming-unpack lowering needs the
+	// exact type of every member so dynamically-sized targets are not
+	// mistaken for one-bit packed values.
+      ivl_type_t lval_type() const;
+
 	// Get the name of the underlying object.
       perm_string name() const;
 

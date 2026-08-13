@@ -152,6 +152,7 @@ ivl_lval_idx
 ivl_lval_is_queue_slice
 ivl_lval_mux
 ivl_lval_nest
+ivl_lval_net_type
 ivl_lval_part_off
 ivl_lval_property_idx
 ivl_lval_sel_type
