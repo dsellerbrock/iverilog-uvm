@@ -151,6 +151,11 @@ PEBinary::~PEBinary()
 {
 }
 
+PEAssignExpr::PEAssignExpr(char op, PExpr*l, PExpr*r)
+: PEBinary(op, l, r)
+{
+}
+
 void PEBinary::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
 {
       if (left_) left_->declare_implicit_nets(scope, type);

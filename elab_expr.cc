@@ -3375,6 +3375,81 @@ unsigned PEBinary::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       return fix_width_(mode);
 }
 
+unsigned PEAssignExpr::test_width(Design*des, NetScope*scope,
+                                  width_mode_t&mode)
+{
+      ivl_assert(*this, left_);
+      ivl_assert(*this, right_);
+
+      width_mode_t lmode = SIZED;
+      expr_width_ = left_->test_width(des, scope, lmode);
+      min_width_ = left_->min_width();
+      expr_type_ = left_->expr_type();
+      signed_flag_ = left_->has_sign();
+
+      width_mode_t rmode = SIZED;
+      right_->test_width(des, scope, rmode);
+
+      return fix_width_(mode);
+}
+
+NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
+                                     unsigned expr_wid,
+                                     unsigned flags) const
+{
+      flags &= ~SYS_TASK_ARG;
+
+      const unsigned l_width = left_->expr_width();
+
+      /* Reuse procedural-assignment validation for consts, nets and other
+         read-valid but write-invalid names before exporting the expression
+         side effect. The bounded backend below currently accepts only the
+         resulting scalar signal shape. */
+      NetAssign_*lval = left_->elaborate_lval(des, scope, false, false);
+      if (!lval)
+            return nullptr;
+      delete lval;
+
+      NetExpr*lp = left_->elaborate_expr(des, scope, l_width, flags);
+      if (!lp)
+            return nullptr;
+
+      NetESignal*lsig = dynamic_cast<NetESignal*>(lp);
+      if (!lsig || lsig->word_index()) {
+            cerr << get_fileline() << ": sorry: Assignment expressions "
+                 << "currently require a scalar variable l-value." << endl;
+            des->errors += 1;
+            delete lp;
+            return nullptr;
+      }
+
+      if (expr_type_ != IVL_VT_LOGIC && expr_type_ != IVL_VT_BOOL) {
+            cerr << get_fileline() << ": sorry: Assignment expressions "
+                 << "currently require an integral variable l-value." << endl;
+            des->errors += 1;
+            delete lp;
+            return nullptr;
+      }
+
+      right_->cast_signed(signed_flag_);
+      NetExpr*rp = right_->elaborate_expr(des, scope, l_width, flags);
+      if (!rp) {
+            delete lp;
+            return nullptr;
+      }
+      rp = cast_to_width(rp, l_width, signed_flag_, *this);
+
+      string name = "$ivl_assign_expr$";
+      name += op_;
+      NetEAssignExpr*fun = new NetEAssignExpr(name.c_str(), expr_type_,
+                                              l_width, op_ != '=');
+      fun->set_line(*this);
+      fun->parm(0, lp);
+      fun->parm(1, rp);
+
+      return cast_to_width(fun, expr_wid, signed_flag_, *this);
+}
+
 /*
  * Elaborate binary expressions. This involves elaborating the left
  * and right sides, and creating one of a variety of different NetExpr

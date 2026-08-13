@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_assignment_expression_unparenthesized_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_assignment_expression_unparenthesized_fail"
+}

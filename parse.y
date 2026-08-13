@@ -10986,6 +10986,21 @@ expr_primary
   | '(' expr_mintypmax ')'
       { $$ = $2; }
 
+  /* A blocking assignment may be used as an expression only when it is
+     enclosed in parentheses (IEEE 1800-2017 11.3.6). Keep this in the
+     primary grammar so the ordinary statement assignment remains
+     unambiguous and an unparenthesized assignment chain stays illegal. */
+  | '(' lpvalue '=' expression ')'
+      { PEAssignExpr*tmp = new PEAssignExpr('=', $2, $4);
+	FILE_NAME(tmp, @3);
+	$$ = tmp;
+      }
+  | '(' lpvalue compressed_operator expression ')'
+      { PEAssignExpr*tmp = new PEAssignExpr($3, $2, $4);
+	FILE_NAME(tmp, @3);
+	$$ = tmp;
+      }
+
   /* Various kinds of concatenation expressions. */
 
   | '{' expression_list_proper '}'

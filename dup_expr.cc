@@ -290,6 +290,19 @@ NetESFunc* NetESFunc::dup_expr() const
       return tmp;
 }
 
+NetEAssignExpr* NetEAssignExpr::dup_expr() const
+{
+      NetEAssignExpr*tmp = new NetEAssignExpr(name(), expr_type(),
+                                               expr_width(), reads_left_);
+      tmp->cast_signed(has_sign());
+      for (unsigned idx = 0 ; idx < nparms() ; idx += 1) {
+            ivl_assert(*this, parm(idx));
+            tmp->parm(idx, parm(idx)->dup_expr());
+      }
+      tmp->set_line(*this);
+      return tmp;
+}
+
 NetEShallowCopy* NetEShallowCopy::dup_expr() const
 {
       ivl_assert(*this, 0);

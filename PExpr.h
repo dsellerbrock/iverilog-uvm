@@ -1041,6 +1041,22 @@ class PEBinary : public PExpr {
 
 };
 
+/* IEEE 1800-2017 11.3.6 permits a parenthesized blocking assignment
+ * wherever an expression is allowed. The expression both updates its
+ * l-value and yields the assigned value. */
+class PEAssignExpr : public PEBinary {
+
+    public:
+      explicit PEAssignExpr(char op, PExpr*l, PExpr*r);
+
+      unsigned test_width(Design*des, NetScope*scope,
+                          width_mode_t&mode) override;
+
+      NetExpr* elaborate_expr(Design*des, NetScope*scope,
+                              unsigned expr_wid,
+                              unsigned flags) const override;
+};
+
 /*
  * Here are a few specialized classes for handling specific binary
  * operators.

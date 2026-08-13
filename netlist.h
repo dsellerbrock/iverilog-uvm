@@ -5336,6 +5336,25 @@ class NetESFunc  : public NetExpr {
       NetESFunc& operator= (const NetESFunc&);
 };
 
+/* Target-export carrier for an assignment expression. It deliberately
+ * retains the system-function representation used by code generators, while
+ * correcting expression sensitivity: a simple `=' does not read its l-value,
+ * whereas every compound assignment does. */
+class NetEAssignExpr : public NetESFunc {
+
+    public:
+      NetEAssignExpr(const char*name, ivl_variable_type_t type,
+                     unsigned width, bool reads_left);
+
+      NexusSet* nex_input(bool rem_out = true,
+                          bool always_sens = false,
+                          bool nested_func = false) const override;
+      NetEAssignExpr* dup_expr() const override;
+
+    private:
+      bool reads_left_;
+};
+
 class NetEShallowCopy : public NetExpr {
     public:
 	// Make a shallow copy from arg2 into arg1.
