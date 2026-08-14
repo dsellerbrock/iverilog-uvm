@@ -1,0 +1,3 @@
+sv_pattern_matching_structured normal,-g2012 ivltests gold=sv_pattern_matching_structured.gold
+sv_pattern_matching_invalid_fail CE,-g2012 ivltests gold=sv_pattern_matching_invalid_fail.gold
+sv_pattern_matching_duplicate_fail CE,-g2012 ivltests gold=sv_pattern_matching_duplicate_fail.gold

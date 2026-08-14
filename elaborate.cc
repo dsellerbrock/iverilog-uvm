@@ -54,6 +54,7 @@
 # include  "netparray.h"
 # include  "netscalar.h"
 # include  "netclass.h"
+# include  "netstruct.h"
 # include  "netmisc.h"
 # include  "util.h"
 # include  "parse_api.h"
@@ -88,6 +89,318 @@ extern NetESFunc* make_std_randomize_with_expr(
       Design*des, NetScope*scope, const LineInfo*loc);
 
 using namespace std;
+
+namespace {
+
+struct pattern_subject_t {
+      NetNet*net = nullptr;
+      ivl_type_t type = nullptr;
+};
+
+static bool resolve_pattern_subject_(const LineInfo*loc, PExpr*subject,
+                                     Design*des, NetScope*scope,
+                                     pattern_subject_t&result)
+{
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(subject);
+      if (!ident || ident->leading_type_args()) {
+            cerr << loc->get_fileline() << ": sorry: pattern matching "
+                 << "currently requires an identifier-valued subject; "
+                 << "the expression was not evaluated or matched." << endl;
+            des->errors += 1;
+            return false;
+      }
+
+      symbol_search_results search;
+      if (!symbol_search(loc, des, scope, ident->path(),
+                         ident->lexical_pos(), &search)
+          || !search.net || !search.path_tail.empty()
+          || search.path_head.empty()) {
+            cerr << loc->get_fileline() << ": error: Unable to resolve the "
+                 << "pattern-matching subject to a variable." << endl;
+            des->errors += 1;
+            return false;
+      }
+
+      for (const name_component_t&component : search.path_head)
+            if (!component.index.empty()) {
+                  cerr << loc->get_fileline() << ": sorry: indexed pattern "
+                       << "subjects are not yet supported." << endl;
+                  des->errors += 1;
+                  return false;
+            }
+
+      result.net = search.net;
+      result.type = search.type ? search.type : search.net->net_type();
+      return result.type != nullptr;
+}
+
+static const netstruct_t::member_t*
+resolve_pattern_member_(const LineInfo*loc, const netstruct_t*structure,
+                        const pform_pattern_path_component_t&component,
+                        size_t&member_index, Design*des)
+{
+      const vector<netstruct_t::member_t>&members = structure->members();
+      if (component.kind == pform_pattern_path_component_t::POSITIONAL_MEMBER) {
+            member_index = component.position;
+            if (member_index < members.size())
+                  return &members[member_index];
+      } else {
+            for (size_t idx = 0; idx < members.size(); idx += 1) {
+                  if (members[idx].name == component.name) {
+                        member_index = idx;
+                        return &members[idx];
+                  }
+            }
+      }
+
+      cerr << loc->get_fileline() << ": error: Pattern selects "
+           << (component.kind == pform_pattern_path_component_t::NAMED_MEMBER
+                 ? string("unknown member '") + component.name.str() + "'"
+                 : string("member position ") + to_string(component.position))
+           << "." << endl;
+      des->errors += 1;
+      return nullptr;
+}
+
+static NetExpr* select_pattern_value_(const LineInfo*loc,
+                                      const pattern_subject_t&subject,
+                                      const pform_pattern_path_t&path,
+                                      Design*des, ivl_type_t&selected_type)
+{
+      NetExpr*value = new NetESignal(subject.net);
+      value->set_line(*loc);
+      selected_type = subject.type;
+
+      for (const pform_pattern_path_component_t&component : path) {
+            const netstruct_t*structure =
+                  dynamic_cast<const netstruct_t*>(selected_type);
+            if (!structure) {
+                  cerr << loc->get_fileline() << ": error: Pattern attempts "
+                       << "to select a member from a non-structure value."
+                       << endl;
+                  des->errors += 1;
+                  delete value;
+                  return nullptr;
+            }
+
+            size_t member_index = 0;
+            const netstruct_t::member_t*member = resolve_pattern_member_(
+                  loc, structure, component, member_index, des);
+            if (!member) {
+                  delete value;
+                  return nullptr;
+            }
+
+            if (structure->packed()) {
+                  unsigned long member_offset = 0;
+                  const netstruct_t::member_t*named =
+                        structure->packed_member(member->name, member_offset);
+                  ivl_assert(*loc, named == member);
+                  NetESelect*select = new NetESelect(
+                        value, make_const_val(member_offset),
+                        member->net_type->packed_width(), member->net_type);
+                  select->set_line(*loc);
+                  value = select;
+            } else {
+                  NetEProperty*property =
+                        new NetEProperty(value, member_index, nullptr);
+                  property->set_line(*loc);
+                  value = property;
+            }
+            selected_type = member->net_type;
+      }
+      return value;
+}
+
+static NetExpr* pattern_and_(const LineInfo*loc, NetExpr*left,
+                             NetExpr*right)
+{
+      if (!left) return right;
+      if (!right) return left;
+      NetEBLogic*both = new NetEBLogic('a', left, right);
+      both->set_line(*loc);
+      return both;
+}
+
+static NetExpr* pattern_true_(const LineInfo*loc)
+{
+      NetEConst*result = new NetEConst(verinum(verinum::V1, 1));
+      result->set_line(*loc);
+      return result;
+}
+
+static char pattern_compare_opcode_(NetCase::TYPE case_type)
+{
+      switch (case_type) {
+          case NetCase::EQ:  return 'E';
+          case NetCase::EQX: return 'x';
+          case NetCase::EQZ: return 'z';
+      }
+      return 'E';
+}
+
+static NetExpr* elaborate_pattern_node_(const LineInfo*loc,
+                                        const pattern_subject_t&subject,
+                                        const PMatchPattern*pattern,
+                                        const pform_pattern_path_t&path,
+                                        NetCase::TYPE case_type,
+                                        Design*des, NetScope*scope)
+{
+      if (!pattern)
+            return nullptr;
+
+      ivl_type_t current_type = nullptr;
+      NetExpr*probe = select_pattern_value_(loc, subject, path, des,
+                                            current_type);
+      if (!probe)
+            return nullptr;
+      delete probe;
+
+      switch (pattern->kind()) {
+          case PMatchPattern::VARIABLE:
+          case PMatchPattern::WILDCARD:
+            return pattern_true_(loc);
+
+          case PMatchPattern::CONSTANT: {
+            if (!pattern->expression()) {
+                  cerr << pattern->get_fileline()
+                       << ": error: Missing constant pattern expression."
+                       << endl;
+                  des->errors += 1;
+                  return nullptr;
+            }
+            NetExpr*left = select_pattern_value_(loc, subject, path, des,
+                                                  current_type);
+            NetExpr*right = elaborate_rval_expr(
+                  des, scope, current_type, pattern->expression(), true);
+            if (!left || !right) {
+                  delete left;
+                  delete right;
+                  return nullptr;
+            }
+            NetEBComp*compare = new NetEBComp(
+                  pattern_compare_opcode_(case_type), left, right);
+            compare->set_line(*pattern);
+            return compare;
+          }
+
+          case PMatchPattern::STRUCTURE: {
+            const netstruct_t*structure =
+                  dynamic_cast<const netstruct_t*>(current_type);
+            if (!structure) {
+                  cerr << pattern->get_fileline()
+                       << ": error: Structure pattern requires a struct or "
+                          "union value." << endl;
+                  des->errors += 1;
+                  return nullptr;
+            }
+            if (pattern->children().size() != structure->members().size()) {
+                  cerr << pattern->get_fileline()
+                       << ": error: Structure pattern has "
+                       << pattern->children().size() << " element(s), but the "
+                       << "matched type has " << structure->members().size()
+                       << "." << endl;
+                  des->errors += 1;
+                  return nullptr;
+            }
+            NetExpr*result = nullptr;
+            for (size_t idx = 0; idx < pattern->children().size(); idx += 1) {
+                  pform_pattern_path_t child_path = path;
+                  child_path.push_back(
+                        pform_pattern_path_component_t((unsigned)idx));
+                  NetExpr*child = elaborate_pattern_node_(
+                        loc, subject, pattern->children()[idx], child_path,
+                        case_type, des, scope);
+                  if (!child) {
+                        delete result;
+                        return nullptr;
+                  }
+                  result = pattern_and_(loc, result, child);
+            }
+            return result ? result : pattern_true_(loc);
+          }
+
+          case PMatchPattern::TAGGED: {
+            const netstruct_t*tagged =
+                  dynamic_cast<const netstruct_t*>(current_type);
+            if (!tagged || !tagged->tagged_flag()) {
+                  cerr << pattern->get_fileline()
+                       << ": error: A tagged pattern requires a tagged union "
+                          "value." << endl;
+                  des->errors += 1;
+                  return nullptr;
+            }
+            if (!path.empty()) {
+                  cerr << pattern->get_fileline()
+                       << ": sorry: Nested tagged-union patterns are not yet "
+                          "supported because nested values do not yet carry "
+                          "independent runtime tag storage." << endl;
+                  des->errors += 1;
+                  return nullptr;
+            }
+            unsigned tag_index = tagged->member_index(pattern->name());
+            if (tag_index == (unsigned)-1) {
+                  cerr << pattern->get_fileline() << ": error: Tagged union "
+                       << "has no member named '" << pattern->name() << "'."
+                       << endl;
+                  des->errors += 1;
+                  return nullptr;
+            }
+
+            perm_string companion_name = lex_strings.make(
+                  string(subject.net->name().str()) + "__tag_companion");
+            NetScope*declaration_scope = subject.net->scope()
+                  ? subject.net->scope() : scope;
+            NetNet*companion = declaration_scope->find_signal(companion_name);
+            if (!companion) {
+                  cerr << pattern->get_fileline() << ": error: Runtime tag "
+                       << "storage is missing for tagged-union variable '"
+                       << subject.net->name() << "'." << endl;
+                  des->errors += 1;
+                  return nullptr;
+            }
+
+            NetESignal*tag_value = new NetESignal(companion);
+            tag_value->set_line(*pattern);
+            NetEConst*tag_literal = new NetEConst(
+                  verinum((uint64_t)tag_index, companion->vector_width()));
+            tag_literal->set_line(*pattern);
+            NetEBComp*tag_match = new NetEBComp('E', tag_value, tag_literal);
+            tag_match->set_line(*pattern);
+
+            if (pattern->children().empty())
+                  return tag_match;
+
+            pform_pattern_path_t child_path = path;
+            child_path.push_back(
+                  pform_pattern_path_component_t(pattern->name()));
+            NetExpr*payload = elaborate_pattern_node_(
+                  loc, subject, pattern->children().front(), child_path,
+                  case_type, des, scope);
+            if (!payload) {
+                  delete tag_match;
+                  return nullptr;
+            }
+            return pattern_and_(loc, tag_match, payload);
+          }
+      }
+      return nullptr;
+}
+
+static NetExpr* elaborate_pattern_match_(const LineInfo*loc, PExpr*subject_expr,
+                                         const PMatchPattern*pattern,
+                                         NetCase::TYPE case_type,
+                                         Design*des, NetScope*scope)
+{
+      pattern_subject_t subject;
+      if (!resolve_pattern_subject_(loc, subject_expr, des, scope, subject))
+            return nullptr;
+      pform_pattern_path_t path;
+      return elaborate_pattern_node_(loc, subject, pattern, path, case_type,
+                                     des, scope);
+}
+
+} // namespace
 
 static bool elaboration_perf_trace_enabled_()
 {
@@ -7009,66 +7322,78 @@ NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
       return top;
 }
 
-/* Phase 63b/B7 (gap close): elaborate `case (X) matches` for tagged
- * unions.  Lower to an if-else cascade testing the companion-tag
- * NetNet of X.  Each tagged item generates:
- *   if (X__tag_companion == TAG_INDEX) { /bind/; stmt; }
- * Default item is the final else branch.
- *
- * The expr_ must elaborate to a NetESignal of a tagged-union typed
- * NetNet so we can find the companion via name convention.  If not,
- * we emit a warning and degrade to a sequential block (each branch
- * runs in order; first wins). */
+PEMatches::PEMatches(PExpr*subject, PMatchPattern*pattern,
+                     NetCase::TYPE case_type)
+: subject_(subject), pattern_(pattern), case_type_(case_type)
+{
+}
+
+PEMatches::~PEMatches()
+{
+      delete subject_;
+      delete pattern_;
+}
+
+void PEMatches::dump(ostream&out) const
+{
+      if (subject_) subject_->dump(out);
+      else out << "<missing-subject>";
+      out << " matches ";
+      if (pattern_) pattern_->dump(out);
+      else out << "<missing-pattern>";
+}
+
+void PEMatches::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
+{
+      if (subject_) subject_->declare_implicit_nets(scope, type);
+      if (pattern_) pattern_->declare_implicit_nets(scope, type);
+}
+
+bool PEMatches::has_aa_term(Design*des, NetScope*scope) const
+{
+      return (subject_ && subject_->has_aa_term(des, scope))
+          || (pattern_ && pattern_->has_aa_term(des, scope));
+}
+
+void PEMatches::reloc_lexical_pos_bind(bool parameter_context)
+{
+      if (subject_) subject_->reloc_lexical_pos_bind(parameter_context);
+      if (pattern_) pattern_->reloc_lexical_pos_bind(parameter_context);
+}
+
+unsigned PEMatches::test_width(Design*, NetScope*, width_mode_t&)
+{
+      expr_type_ = IVL_VT_BOOL;
+      expr_width_ = 1;
+      min_width_ = 1;
+      signed_flag_ = false;
+      return 1;
+}
+
+NetExpr* PEMatches::elaborate_expr(Design*des, NetScope*scope,
+                                   unsigned, unsigned) const
+{
+      if (!subject_ || !pattern_) {
+            cerr << get_fileline()
+                 << ": error: Incomplete pattern-matching expression."
+                 << endl;
+            des->errors += 1;
+            return nullptr;
+      }
+      return elaborate_pattern_match_(this, subject_, pattern_, case_type_,
+                                      des, scope);
+}
+
+/* Elaborate `case (X) matches` to an if-else cascade. The shared matcher
+ * validates and lowers each complete typed pattern; the item's implicit block
+ * performs pattern-variable copies before its user statement. Invalid
+ * patterns leave no executable fallback branch. */
 NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
-      if (!expr_) return new NetBlock(NetBlock::SEQU, 0);
+      if (!expr_)
+            return new NetBlock(NetBlock::SEQU, nullptr);
 
-      /* Resolve expr_ to a NetNet so we can find its companion.
-         Handle the common case where expr_ is a simple PEIdent. */
-      NetNet*u_sig = nullptr;
-      const netstruct_t*nst = nullptr;
-      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr_)) {
-            symbol_search_results sr;
-            if (symbol_search(this, des, scope, id->path(),
-                              id->lexical_pos(), &sr)) {
-                  u_sig = sr.net;
-            }
-      }
-      if (u_sig)
-            nst = dynamic_cast<const netstruct_t*>(u_sig->net_type());
-
-      if (!u_sig || !nst || !nst->tagged_flag()) {
-            cerr << get_fileline() << ": warning: case-matches expression "
-                 << "is not a tagged-union variable; degrading to "
-                 << "sequential dispatch (first matching branch wins)."
-                 << endl;
-            NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
-            blk->set_line(*this);
-            if (items_ && !items_->empty()) {
-                  Item*first = items_->front();
-                  if (first && first->stat) {
-                        if (NetProc*s = first->stat->elaborate(des, scope))
-                              blk->append(s);
-                  }
-            }
-            return blk;
-      }
-
-      /* Find the companion NetNet. */
-      perm_string companion_name =
-            lex_strings.make(string(u_sig->name().str()) + "__tag_companion");
-      NetScope*decl_scope = u_sig->scope() ? u_sig->scope() : scope;
-      NetNet*companion = decl_scope->find_signal(companion_name);
-      if (!companion) {
-            cerr << get_fileline() << ": warning: case-matches: tagged-union "
-                 << "companion not found for `" << u_sig->name() << "'."
-                 << endl;
-            return new NetBlock(NetBlock::SEQU, 0);
-      }
-
-      /* Build the if-else cascade from the bottom up.  Default first
-         (becomes else of the final if); each tagged branch wraps it. */
       NetProc*cascade = nullptr;
       Item*default_item = nullptr;
       if (items_) {
@@ -7079,79 +7404,74 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
             cascade = default_item->stat->elaborate(des, scope);
 
       if (items_) {
-            /* Walk in reverse so the first item ends up at the top of
-               the cascade. */
             for (auto rit = items_->rbegin(); rit != items_->rend(); ++rit) {
                   Item*it = *rit;
                   if (!it || it->is_default) continue;
-                  unsigned tidx = nst->member_index(it->tag);
-                  if (tidx == (unsigned)-1) {
-                        cerr << get_fileline() << ": warning: case-matches: "
-                             << "tag `" << it->tag.str() << "' not a member "
-                             << "of tagged union `" << u_sig->name() << "'; "
-                             << "branch dropped." << endl;
+                  NetExpr*match = elaborate_pattern_match_(
+                        it->pattern ? static_cast<const LineInfo*>(it->pattern)
+                                    : static_cast<const LineInfo*>(this),
+                        expr_, it->pattern, case_type_, des, scope);
+                  if (!match)
                         continue;
-                  }
-                  /* Build: companion == tidx */
-                  NetESignal*comp_e = new NetESignal(companion);
-                  comp_e->set_line(*this);
-                  verinum vi((uint64_t)tidx, 32);
-                  NetEConst*idx_e = new NetEConst(vi);
-                  idx_e->set_line(*this);
-                  NetEBComp*cmp = new NetEBComp('e', comp_e, idx_e);
-                  cmp->set_line(*this);
-
-                  /* Body: optional binding then stmt. */
                   NetProc*body = it->stat ? it->stat->elaborate(des, scope) : nullptr;
-                  if (it->bind != perm_string()) {
-                        /* `tagged TAG .var: stmt` — assign .var = u.
-                           The user must have declared `.var` as a regular
-                           variable in scope before the case-matches; we
-                           look it up and emit a NetAssign that copies the
-                           tagged-union storage into it.  Since union
-                           members share storage, reading u and writing
-                           the bind var gives the value that was last
-                           written via tagged TAG (in the ordinary sense
-                           of union semantics, with the tag-companion
-                           protecting against cross-tag reads). */
-                        /* Look up the binding by walking enclosing
-                           scopes manually — symbol_search uses the
-                           PExpr's lexical position, but case-matches
-                           items are anonymous statements without
-                           lexical context. */
-                        NetNet*bind_net = nullptr;
-                        for (NetScope*s = scope; s != nullptr; s = s->parent()) {
-                              if (NetNet*n = s->find_signal(it->bind)) {
-                                    bind_net = n; break;
-                              }
-                        }
-                        if (!bind_net) {
-                              cerr << get_fileline() << ": warning: case-matches "
-                                   << "binding `." << it->bind.str()
-                                   << "': no variable named `" << it->bind.str()
-                                   << "' found in scope; binding skipped." << endl;
-                        } else {
-                              /* Build: bind_net = u (with implicit
-                                 width adjust). */
-                              NetAssign_*bind_lv = new NetAssign_(bind_net);
-                              NetESignal*u_e = new NetESignal(u_sig);
-                              u_e->set_line(*this);
-                              NetAssign*bind_as = new NetAssign(bind_lv, u_e);
-                              bind_as->set_line(*this);
-                              NetBlock*body_blk = new NetBlock(NetBlock::SEQU, 0);
-                              body_blk->set_line(*this);
-                              body_blk->append(bind_as);
-                              if (body) body_blk->append(body);
-                              body = body_blk;
-                        }
-                  }
-                  NetCondit*cond = new NetCondit(cmp, body, cascade);
+                  NetCondit*cond = new NetCondit(match, body, cascade);
                   cond->set_line(*this);
                   cascade = cond;
             }
       }
-      if (!cascade) cascade = new NetBlock(NetBlock::SEQU, 0);
+      if (!cascade) cascade = new NetBlock(NetBlock::SEQU, nullptr);
       return cascade;
+}
+
+void PCaseMatches::elaborate_scope(Design*des, NetScope*scope) const
+{
+      if (!items_) return;
+      for (Item*item : *items_)
+            if (item && item->stat)
+                  item->stat->elaborate_scope(des, scope);
+}
+
+void PCaseMatches::elaborate_sig(Design*des, NetScope*scope) const
+{
+      if (!items_) return;
+      for (Item*item : *items_)
+            if (item && item->stat)
+                  item->stat->elaborate_sig(des, scope);
+}
+
+NetProc* PPatternAssign::elaborate(Design*des, NetScope*scope) const
+{
+      PEIdent subject_expr(subject_.package, subject_.name, lexical_pos_);
+      subject_expr.set_line(*this);
+      pattern_subject_t subject;
+      // The destination lives in this implicit match-arm scope, but the
+      // subject was parsed before that scope existed and must resolve in the
+      // enclosing scope even when the binding shadows its name.
+      NetScope*subject_scope = scope->parent() ? scope->parent() : scope;
+      if (!resolve_pattern_subject_(this, &subject_expr, des, subject_scope,
+                                    subject))
+            return nullptr;
+
+      ivl_type_t selected_type = nullptr;
+      NetExpr*source = select_pattern_value_(
+            this, subject, path_, des, selected_type);
+      if (!source)
+            return nullptr;
+
+      NetNet*destination = scope->find_signal(destination_);
+      if (!destination) {
+            cerr << get_fileline() << ": internal error: Pattern variable '"
+                 << destination_ << "' was not declared in its implicit "
+                    "item scope." << endl;
+            des->errors += 1;
+            delete source;
+            return nullptr;
+      }
+
+      NetAssign_*lvalue = new NetAssign_(destination);
+      NetAssign*assign = new NetAssign(lvalue, source);
+      assign->set_line(*this);
+      return assign;
 }
 
 /*

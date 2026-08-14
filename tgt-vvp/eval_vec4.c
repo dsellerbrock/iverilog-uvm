@@ -457,6 +457,14 @@ static void draw_binary_vec4_compare(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%cmp/we;\n");
 	    fprintf(vvp_out, "    %%flag_get/vec4 4;\n");
 	    break;
+	  case 'x': /* casex pattern comparison */
+	    fprintf(vvp_out, "    %%cmp/x;\n");
+	    fprintf(vvp_out, "    %%flag_get/vec4 4;\n");
+	    break;
+	  case 'z': /* casez pattern comparison */
+	    fprintf(vvp_out, "    %%cmp/z;\n");
+	    fprintf(vvp_out, "    %%flag_get/vec4 4;\n");
+	    break;
 	  case 'W': /* !=? */
 	    fprintf(vvp_out, "    %%cmp/wne;\n");
 	    fprintf(vvp_out, "    %%flag_get/vec4 4;\n");
@@ -792,6 +800,8 @@ static void draw_binary_vec4(ivl_expr_t expr)
 	  case 'N': /* !== */
 	  case 'w': /* ==? */
 	  case 'W': /* !=? */
+	  case 'x': /* casex pattern comparison */
+	  case 'z': /* casez pattern comparison */
 	    draw_binary_vec4_compare(expr);
 	    break;
 

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_pattern_matching_structured.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_pattern_matching_structured"
+}

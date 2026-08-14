@@ -1059,23 +1059,29 @@ void PCase::dump(ostream&out, unsigned ind) const
 
 void PCaseMatches::dump(ostream&out, unsigned ind) const
 {
-      out << setw(ind) << "" << "case (" << *expr_ << ") matches /* "
+      const char*keyword = case_type_ == NetCase::EQX ? "casex"
+            : (case_type_ == NetCase::EQZ ? "casez" : "case");
+      out << setw(ind) << "" << keyword << " (" << *expr_ << ") matches /* "
           << get_fileline() << " */" << endl;
       if (items_) {
             for (auto*it : *items_) {
                   if (!it) continue;
                   out << setw(ind+2) << "";
                   if (it->is_default) out << "default";
-                  else {
-                        out << "tagged " << it->tag.str();
-                        if (it->bind != perm_string()) out << " ." << it->bind.str();
-                  }
+                  else if (it->pattern) it->pattern->dump(out);
+                  else out << "<missing-pattern>";
                   out << ":";
                   if (it->stat) { out << endl; it->stat->dump(out, ind+6); }
                   else out << " ;" << endl;
             }
       }
       out << setw(ind) << "" << "endcase" << endl;
+}
+
+void PPatternAssign::dump(ostream&out, unsigned ind) const
+{
+      out << setw(ind) << "" << "/* pattern bind ." << destination_
+          << " */" << endl;
 }
 
 void PChainConstructor::dump(ostream&out, unsigned ind) const

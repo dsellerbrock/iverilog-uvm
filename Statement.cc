@@ -365,6 +365,11 @@ PCaseMatches::~PCaseMatches()
       }
 }
 
+PCaseMatches::Item::~Item()
+{
+      delete pattern;
+}
+
 PCAssign::PCAssign(PExpr*l, PExpr*r)
 : lval_(l), expr_(r)
 {

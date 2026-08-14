@@ -745,6 +745,43 @@ struct pform_scoped_name_t {
       pform_name_t name;
 };
 
+/* IEEE 1800-2017 12.6 pattern-variable bindings are declared implicitly,
+ * but their type is determined by the corresponding leaf of the matched
+ * value.  Keep the route to that leaf symbolic until type elaboration: a
+ * tagged-union member is named, while an ordered structure pattern selects a
+ * member by declaration position. */
+struct pform_pattern_path_component_t {
+      enum kind_t { NAMED_MEMBER, POSITIONAL_MEMBER };
+
+      explicit pform_pattern_path_component_t(perm_string n)
+      : kind(NAMED_MEMBER), name(n), position(0) { }
+      explicit pform_pattern_path_component_t(unsigned p)
+      : kind(POSITIONAL_MEMBER), position(p) { }
+
+      kind_t kind;
+      perm_string name;
+      unsigned position;
+};
+
+typedef std::vector<pform_pattern_path_component_t> pform_pattern_path_t;
+
+class pattern_binding_type_t : public data_type_t {
+    public:
+      pattern_binding_type_t(const pform_scoped_name_t&subject,
+                             unsigned lexical_pos,
+                             const pform_pattern_path_t&path)
+      : subject_(subject), lexical_pos_(lexical_pos), path_(path) { }
+
+      std::ostream& debug_dump(std::ostream&out) const override;
+
+    private:
+      ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override;
+
+      pform_scoped_name_t subject_;
+      unsigned lexical_pos_;
+      pform_pattern_path_t path_;
+};
+
 inline perm_string peek_head_name(const pform_name_t&that)
 {
       return that.front().name;

@@ -35,6 +35,84 @@
 
 using namespace std;
 
+PMatchPattern::PMatchPattern(kind_t kind)
+: kind_(kind)
+{
+}
+
+PMatchPattern::~PMatchPattern()
+{
+      delete expression_;
+      for (PMatchPattern*child : children_)
+            delete child;
+}
+
+void PMatchPattern::children(vector<PMatchPattern*>*children)
+{
+      if (children) {
+            children_.swap(*children);
+            delete children;
+      }
+}
+
+void PMatchPattern::declare_implicit_nets(LexicalScope*scope,
+                                           NetNet::Type type)
+{
+      if (expression_)
+            expression_->declare_implicit_nets(scope, type);
+      for (PMatchPattern*child : children_)
+            child->declare_implicit_nets(scope, type);
+}
+
+bool PMatchPattern::has_aa_term(Design*des, NetScope*scope) const
+{
+      if (expression_ && expression_->has_aa_term(des, scope))
+            return true;
+      for (PMatchPattern*child : children_)
+            if (child->has_aa_term(des, scope))
+                  return true;
+      return false;
+}
+
+void PMatchPattern::reloc_lexical_pos_bind(bool parameter_context)
+{
+      if (expression_)
+            expression_->reloc_lexical_pos_bind(parameter_context);
+      for (PMatchPattern*child : children_)
+            child->reloc_lexical_pos_bind(parameter_context);
+}
+
+void PMatchPattern::dump(ostream&out) const
+{
+      switch (kind_) {
+          case CONSTANT:
+            if (expression_) expression_->dump(out);
+            else out << "<missing-constant>";
+            break;
+          case VARIABLE:
+            out << "." << name_;
+            break;
+          case WILDCARD:
+            out << ".*";
+            break;
+          case TAGGED:
+            out << "tagged " << name_;
+            if (!children_.empty()) {
+                  out << " ";
+                  children_.front()->dump(out);
+            }
+            break;
+          case STRUCTURE:
+            out << "'{";
+            for (size_t idx = 0; idx < children_.size(); idx += 1) {
+                  if (idx) out << ", ";
+                  children_[idx]->dump(out);
+            }
+            out << "}";
+            break;
+      }
+}
+
 PExpr::PExpr()
 : expr_type_(IVL_VT_NO_TYPE)
 {

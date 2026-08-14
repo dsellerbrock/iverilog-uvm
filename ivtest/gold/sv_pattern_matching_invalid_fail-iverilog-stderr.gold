@@ -1,0 +1,5 @@
+ivltests/sv_pattern_matching_invalid_fail.v:13: error: A tagged pattern requires a tagged union value.
+ivltests/sv_pattern_matching_invalid_fail.v:14: error: Tagged union has no member named 'missing'.
+ivltests/sv_pattern_matching_invalid_fail.v:15: error: Structure pattern has 3 element(s), but the matched type has 2.
+ivltests/sv_pattern_matching_invalid_fail.v:16: error: Structure pattern requires a struct or union value.
+4 error(s) during elaboration.

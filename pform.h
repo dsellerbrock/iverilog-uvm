@@ -605,6 +605,17 @@ extern void pform_resolve_dpi_exports(void);
 extern PBlock*pform_push_block_scope(const struct vlltype&loc, const char*name,
 				     PBlock::BL_TYPE tt);
 
+/* Create/finalize the implicit lexical block that owns pattern variables for
+ * one case item or the true arm of a pattern conditional. */
+extern PBlock*pform_pattern_push_scope(const struct vlltype&loc,
+                                       const PExpr*subject,
+                                       const PMatchPattern*pattern);
+extern PBlock*pform_pattern_finish_scope(const struct vlltype&loc,
+                                         PBlock*block,
+                                         Statement*statement,
+                                         const PExpr*subject,
+                                         const PMatchPattern*pattern);
+
 extern void pform_put_behavior_in_scope(AProcess*proc);
 
 extern verinum* pform_verinum_with_size(verinum*s, verinum*val,
