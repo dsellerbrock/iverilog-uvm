@@ -5918,6 +5918,9 @@ static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
 		  with.push_back(dst);
 	    }
 	    copy->set_with_constraints(std::move(with));
+	    if (call->has_randomize_with_identifier_list())
+		  copy->set_randomize_with_identifiers(
+			call->randomize_with_identifiers());
 	    if (call->is_void_cast()) copy->void_cast();
 	    copy->set_line(*stmt);
 	    return copy;
@@ -7611,6 +7614,20 @@ static PExpr* sva_clone_subst_(PExpr*e,
 		  if (!type_args) { delete cp; return nullptr; }
 		  cp->set_leading_type_args(type_args);
 	    }
+	    std::vector<PExpr*> with;
+	    for (PExpr*source : cf->with_constraints()) {
+		  PExpr*item = sva_clone_subst_(source, subst);
+		  if (!item) {
+			for (PExpr*prior : with) delete prior;
+			delete cp;
+			return nullptr;
+		  }
+		  with.push_back(item);
+	    }
+	    cp->set_with_constraints(std::move(with));
+	    if (cf->has_randomize_with_identifier_list())
+		  cp->set_randomize_with_identifiers(
+			cf->randomize_with_identifiers());
 	    cp->set_scoped_type_prefix(cf->has_scoped_type_prefix());
 	    cp->set_line(*e);
 	    return cp;
@@ -8355,6 +8372,21 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		  if (!type_args) { delete cp; return nullptr; }
 		  cp->set_leading_type_args(type_args);
 	    }
+	    std::vector<PExpr*> with;
+	    for (PExpr*source : cf->with_constraints()) {
+		  PExpr*item = sva_wrap_preponed_(source, sampled,
+					     live_operands, unsampled_locals);
+		  if (!item) {
+			for (PExpr*prior : with) delete prior;
+			delete cp;
+			return nullptr;
+		  }
+		  with.push_back(item);
+	    }
+	    cp->set_with_constraints(std::move(with));
+	    if (cf->has_randomize_with_identifier_list())
+		  cp->set_randomize_with_identifiers(
+			cf->randomize_with_identifiers());
 	    cp->set_scoped_type_prefix(cf->has_scoped_type_prefix());
 	    cp->set_line(*e);
 	    if (sampled_call)

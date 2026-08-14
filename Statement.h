@@ -307,6 +307,13 @@ class PCallTask  : public Statement {
             { with_constraints_ = std::move(c); }
       const std::vector<PExpr*>& with_constraints() const
             { return with_constraints_; }
+      void set_randomize_with_identifiers(std::vector<perm_string> names)
+	    { randomize_with_identifier_list_present_ = true;
+	      randomize_with_identifiers_ = std::move(names); }
+      const std::vector<perm_string>& randomize_with_identifiers() const
+	    { return randomize_with_identifiers_; }
+      bool has_randomize_with_identifier_list() const
+	    { return randomize_with_identifier_list_present_; }
 
       virtual void dump(std::ostream&out, unsigned ind) const override;
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
@@ -369,6 +376,8 @@ class PCallTask  : public Statement {
       struct parmvalue_t*leading_type_args_ = 0;
       bool void_cast_ = false;
       std::vector<PExpr*> with_constraints_;
+      bool randomize_with_identifier_list_present_ = false;
+      std::vector<perm_string> randomize_with_identifiers_;
 	// Non-null for method-call statements on arbitrary receiver
 	// expressions. In that case path_ holds only the method name.
       PExpr*receiver_ = nullptr;

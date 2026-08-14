@@ -73,6 +73,10 @@ class netclass_t : public ivl_type_s {
       inline const std::vector<const netclass_t*>& derived_types() const { return derived_types_; }
       void set_super(const netclass_t*super);
 
+	// Resolve the class's pure-constraint obligations after its superclass
+	// is known. Concrete classes must implement every inherited prototype.
+      void configure_pure_constraints(Design*des, const PClass*pclass);
+
 	// Interface-class inheritance is orthogonal to the single concrete
 	// superclass chain. These relationships contribute type compatibility
 	// and inherited prototypes/typedef visibility, but never properties or
@@ -142,6 +146,7 @@ class netclass_t : public ivl_type_s {
 
       void elaborate_sig(Design*des, PClass*pclass);
       void elaborate(Design*des, PClass*pclass);
+      void elaborate_constraints(Design*des, PClass*pclass);
 
       void emit_scope(struct target_t*tgt) const;
       bool emit_defs(struct target_t*tgt) const;
@@ -190,6 +195,7 @@ class netclass_t : public ivl_type_s {
       const std::string& constraint_ir_str(size_t idx)  const;
       void set_body_elaborated(bool flag) { body_elaborated_ = flag; }
       bool body_elaborated() const { return body_elaborated_; }
+      bool constraints_elaborated() const { return constraints_elaborated_; }
       void set_body_elaborating(bool flag) { body_elaborating_ = flag; }
       bool body_elaborating() const { return body_elaborating_; }
       void set_scope_ready(bool flag) { scope_ready_ = flag; }
@@ -254,6 +260,8 @@ class netclass_t : public ivl_type_s {
       bool props_declaring_;  // guard for ensure_all_properties_declared re-entry
       bool body_elaborated_;
       bool body_elaborating_;
+      bool constraints_elaborated_ = false;
+      bool constraints_elaborating_ = false;
       bool scope_ready_;
       bool specialized_instance_;
       std::map<perm_string,size_t> clocking_blocks_;
@@ -264,6 +272,11 @@ class netclass_t : public ivl_type_s {
 	    std::string ir;
       };
       mutable std::vector<constraint_ir_t> constraint_irs_;
+	// Unimplemented pure constraints inherited by this exact class type.
+	// The source location is the original pure declaration, used by the
+	// concrete-class diagnostic.
+      std::map<perm_string,LineInfo> unimplemented_pure_constraints_;
+      bool pure_constraints_configured_ = false;
 	// Constraint inheritance (IEEE 1800-2017 18.5.2): derived classes
 	// inherit base-class constraints unless overridden by a local
 	// constraint of the same name. The merge runs lazily on the first

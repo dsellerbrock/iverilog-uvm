@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_scope_randomize_with_identifier_list_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_scope_randomize_with_identifier_list_fail"
+}

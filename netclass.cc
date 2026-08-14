@@ -134,6 +134,59 @@ void netclass_t::set_super(const netclass_t*super)
 	    const_cast<netclass_t*>(super_)->add_derived_type_(this);
 }
 
+void netclass_t::configure_pure_constraints(Design*des, const PClass*pclass)
+{
+      if (pure_constraints_configured_ || !pclass || !pclass->type)
+	    return;
+      pure_constraints_configured_ = true;
+
+      if (super_)
+	    unimplemented_pure_constraints_ =
+		  super_->unimplemented_pure_constraints_;
+
+      /* A local declaration implements an inherited pure constraint with
+	 * the same name. A new local pure prototype (only legal in a virtual
+	 * class) deliberately reintroduces the obligation for descendants. */
+      for (const auto&constraint : pclass->type->constraints) {
+	    auto obligation =
+		  unimplemented_pure_constraints_.find(constraint.first);
+	    if (obligation == unimplemented_pure_constraints_.end())
+		  continue;
+
+	    auto decl = pclass->type->constraint_declarations.find(
+		  constraint.first);
+	    if (decl != pclass->type->constraint_declarations.end()
+		&& decl->second.is_static) {
+		  cerr << decl->second.get_fileline()
+		       << ": error: Static constraint `" << constraint.first
+		       << "' cannot implement inherited pure constraint `"
+		       << constraint.first << "'." << endl;
+		  cerr << obligation->second.get_fileline()
+		       << ":      : Pure constraint `" << constraint.first
+		       << "' is declared here." << endl;
+		  des->errors += 1;
+	    }
+	    unimplemented_pure_constraints_.erase(obligation);
+      }
+      for (const auto&pure : pclass->type->pure_constraints) {
+	    LineInfo&source = unimplemented_pure_constraints_[pure.first];
+	    source.set_line(pure.second);
+      }
+
+      if (is_virtual() || unimplemented_pure_constraints_.empty())
+	    return;
+
+      for (const auto&pure : unimplemented_pure_constraints_) {
+	    cerr << pclass->get_fileline() << ": error: Non-virtual class `"
+		 << get_name() << "' does not implement inherited pure constraint `"
+		 << pure.first << "'." << endl;
+	    cerr << pure.second.get_fileline()
+		 << ":      : Pure constraint `" << pure.first
+		 << "' is declared here." << endl;
+	    des->errors += 1;
+      }
+}
+
 void netclass_t::add_interface(const netclass_t*interface_type)
 {
       if (!interface_type)
@@ -720,9 +773,11 @@ void netclass_t::merge_inherited_constraint_irs_() const
 	// A count query can arrive while classes are still elaborating
 	// (e.g. netlist dumps). Defer the merge - without latching the
 	// flag - until the base chain has elaborated its own constraint
-	// blocks, so nothing is lost.
+	// blocks, so nothing is lost. Parameterized specializations may
+	// deliberately leave method bodies lazy, so body_elaborated() is
+	// not a valid readiness test for constraint metadata.
       for (const netclass_t*sup = super_ ; sup ; sup = sup->get_super()) {
-	    if (!sup->body_elaborated())
+	    if (!sup->constraints_elaborated())
 		  return;
       }
       constraint_irs_merged_ = true;

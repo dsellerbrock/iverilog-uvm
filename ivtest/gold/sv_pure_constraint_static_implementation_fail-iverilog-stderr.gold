@@ -1,0 +1,3 @@
+ivltests/sv_pure_constraint_static_implementation_fail.v:6: error: Static constraint `fixed_value' cannot implement inherited pure constraint `fixed_value'.
+ivltests/sv_pure_constraint_static_implementation_fail.v:2:      : Pure constraint `fixed_value' is declared here.
+1 error(s) during elaboration.
