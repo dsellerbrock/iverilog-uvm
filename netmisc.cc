@@ -1802,16 +1802,19 @@ bool evaluate_range(Design*des, NetScope*scope, const LineInfo*li,
             dimension_ok = false;
             des->errors += 1;
       } else {
+            unsigned errors_before = des->errors;
             NetExpr*texpr = elab_and_eval(des, scope, range.first, -1, true);
             if (! eval_as_long(index_l, texpr)) {
-                  cerr << range.first->get_fileline() << ": error: "
-                          "Dimensions must be constant." << endl;
-                  cerr << range.first->get_fileline() << "       : "
-                       << (range.second ? "This MSB" : "This size")
-                       << " expression violates the rule: "
-                       << *range.first << endl;
+                  if (des->errors == errors_before) {
+                        cerr << range.first->get_fileline() << ": error: "
+                                "Dimensions must be constant." << endl;
+                        cerr << range.first->get_fileline() << "       : "
+                             << (range.second ? "This MSB" : "This size")
+                             << " expression violates the rule: "
+                             << *range.first << endl;
+                        des->errors += 1;
+                  }
                   dimension_ok = false;
-                  des->errors += 1;
             }
             delete texpr;
 
@@ -1834,15 +1837,18 @@ bool evaluate_range(Design*des, NetScope*scope, const LineInfo*li,
                         des->errors += 1;
                   }
             } else {
+                  errors_before = des->errors;
                   texpr = elab_and_eval(des, scope, range.second, -1, true);
                   if (! eval_as_long(index_r, texpr)) {
-                        cerr << range.second->get_fileline() << ": error: "
-                                "Dimensions must be constant." << endl;
-                        cerr << range.second->get_fileline() << "       : "
-                                "This LSB expression violates the rule: "
-                             << *range.second << endl;
+                        if (des->errors == errors_before) {
+                              cerr << range.second->get_fileline() << ": error: "
+                                      "Dimensions must be constant." << endl;
+                              cerr << range.second->get_fileline() << "       : "
+                                      "This LSB expression violates the rule: "
+                                   << *range.second << endl;
+                              des->errors += 1;
+                        }
                         dimension_ok = false;
-                        des->errors += 1;
                   }
                   delete texpr;
             }

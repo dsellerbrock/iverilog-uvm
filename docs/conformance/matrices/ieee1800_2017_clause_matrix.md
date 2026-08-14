@@ -97,6 +97,22 @@ diagnostics) — see **§ M14 gap closures** below.
 | Annex B | Keywords | FULL | keyword sets gated by generation (`` `begin_keywords ``). |
 | Annex C–L | (packages, tasks, misc annexes) | PARTIAL | `std::` semaphore/mailbox/process supported; `std::mailbox#(T)` via the `std::` prefix is a syntax error (bare `mailbox#(T)` works). |
 
+## 2026-08-14 sv-tests class-type closure
+
+- **Clause 6:** an unused typedef is now declaration-validated when its type
+  graph contains explicit dimensions, and an unresolved forward typedef is
+  diagnosed once even when never referenced. Resolved forward declarations
+  and parameter-dependent module/class typedef widths remain legal. Evidence:
+  `sv_typedef_eager_{valid,invalid_width_fail,unresolved_forward_fail}`.
+- **Clauses 8 and 25:** class type-parameter defaults accept both
+  `virtual iface` and `virtual interface iface`, including forward interface
+  names, explicit modport suffixes, and unresolved defaults that are never
+  selected. An explicit known non-interface name is rejected; an overridden
+  missing default remains lazy, while a concrete property, signal, or return
+  type that selects it is diagnosed exactly once. Evidence:
+  `sv_typeparam_virtual_interface_{default,default_override,explicit_modport,
+  known_noninterface_fail,default_use_fail}`.
+
 ## M14 gap closures
 
 The audit found six remaining **silent** gaps (constructs that compiled

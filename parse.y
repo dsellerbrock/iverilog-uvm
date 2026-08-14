@@ -165,6 +165,22 @@ static stack<PBlock*> current_block_stack;
 static stack<const PExpr*> current_case_match_subjects;
 static stack<PBlock*> current_pattern_blocks;
 
+/* A virtual-interface name used only as a class type-parameter default may
+   remain unresolved until an actual specialization selects and uses it. Mark
+   that exact parse context after the generic expression rule has produced its
+   PETypename; ordinary virtual-interface declarations retain strict lookup. */
+static void mark_lazy_virtual_interface_default_(PExpr*expr)
+{
+      PETypename*type_expr = dynamic_cast<PETypename*>(expr);
+      if (!type_expr)
+	    return;
+
+      interface_type_t*interface_type =
+	    dynamic_cast<interface_type_t*>(type_expr->get_type());
+      if (interface_type)
+	    interface_type->allow_unresolved = true;
+}
+
 /* IEEE 1800-2017 3.14.3/5.8: procedural #1step is one precision tick
    expressed in the current scope's timeunit. Keep it as a real delay so
    the ordinary delay elaborator performs the final design-precision scale. */
@@ -1630,6 +1646,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <for_var_decls> for_var_decl_list
 %type <pattern_items> assignment_pattern_named_list
 %type <expr>  expr_primary_or_typename expr_primary parameterized_scoped_identifier
+%type <expr>  lazy_virtual_interface_default
 %type <expr>  package_scoped_lvalue
 %type <expr>  class_new dynamic_array_new
 %type <expr>  var_decl_initializer_opt initializer_opt
@@ -2073,15 +2090,33 @@ class_type_parameter_port_list
   ;
 
 class_type_parameter_port_item
-  : K_type IDENTIFIER initializer_opt
-      { pending_class_param_t tmp = { lex_strings.make($2), true, 0, $3 };
+  : K_type IDENTIFIER '=' lazy_virtual_interface_default
+      { pending_class_param_t tmp = { lex_strings.make($2), true, 0, $4 };
+	pending_class_params.push_back(tmp);
+	$$ = list_from_identifier($2, @2.lexical_pos);
+      }
+  | K_type IDENTIFIER initializer_opt
+      { mark_lazy_virtual_interface_default_($3);
+	pending_class_param_t tmp = { lex_strings.make($2), true, 0, $3 };
 	pending_class_params.push_back(tmp);
 	$$ = list_from_identifier($2, @2.lexical_pos);
       }
   /* Support shorthand continuation after a type parameter, e.g.
      #(type KEY=int, T=uvm_void) */
+  | IDENTIFIER '=' lazy_virtual_interface_default
+      { if (!pending_class_params.empty() && pending_class_params.back().is_type) {
+	      pending_class_param_t tmp = { lex_strings.make($1), true, 0, $3 };
+	      pending_class_params.push_back(tmp);
+	      $$ = list_from_identifier($1, @1.lexical_pos);
+	} else {
+	      yyerror(@1, "error: Class parameter %s is missing a preceding type parameter.", $1);
+	      delete $3;
+	      $$ = list_from_identifier($1, @1.lexical_pos);
+	}
+      }
   | IDENTIFIER initializer_opt
       { if (!pending_class_params.empty() && pending_class_params.back().is_type) {
+	      mark_lazy_virtual_interface_default_($2);
 	      pending_class_param_t tmp = { lex_strings.make($1), true, 0, $2 };
 	      pending_class_params.push_back(tmp);
 	      $$ = list_from_identifier($1, @1.lexical_pos);
@@ -2101,8 +2136,14 @@ class_type_parameter_port_item
 	      $$ = list_from_identifier($1, @1.lexical_pos);
 	}
       }
+  | K_parameter K_type IDENTIFIER '=' lazy_virtual_interface_default
+      { pending_class_param_t tmp = { lex_strings.make($3), true, 0, $5 };
+	pending_class_params.push_back(tmp);
+	$$ = list_from_identifier($3, @3.lexical_pos);
+      }
   | K_parameter K_type IDENTIFIER initializer_opt
-      { pending_class_param_t tmp = { lex_strings.make($3), true, 0, $4 };
+      { mark_lazy_virtual_interface_default_($4);
+	pending_class_param_t tmp = { lex_strings.make($3), true, 0, $4 };
 	pending_class_params.push_back(tmp);
 	$$ = list_from_identifier($3, @3.lexical_pos);
       }
@@ -2115,6 +2156,71 @@ class_type_parameter_port_item
       { pending_class_param_t tmp = { lex_strings.make($3), false, $2, $4 };
 	pending_class_params.push_back(tmp);
 	$$ = list_from_identifier($3, @3.lexical_pos);
+      }
+  ;
+
+/* The optional `interface` keyword in a virtual-interface type is accepted
+   here at its only currently-needed ambiguity-free site: a class type-
+   parameter default. Keeping this narrow avoids perturbing the heavily shared
+   general data_type declaration-start states. */
+lazy_virtual_interface_default
+  : K_virtual K_interface IDENTIFIER parameter_value_opt
+      { interface_type_t*interface_type =
+	      new interface_type_t(lex_strings.make($3));
+	FILE_NAME(interface_type, @1);
+	interface_type->has_param_override = ($4 != 0);
+	interface_type->allow_unresolved = true;
+	PETypename*type_expr = new PETypename(interface_type);
+	FILE_NAME(type_expr, @1);
+	delete[] $3;
+	if ($4) delete $4;
+	$$ = type_expr;
+      }
+  | K_virtual K_interface TYPE_IDENTIFIER parameter_value_opt
+      { interface_type_t*interface_type =
+	      new interface_type_t(lex_strings.make($3.text));
+	if (dynamic_cast<const interface_type_t*>(
+	      $3.type->get_data_type()) == 0)
+	      yyerror(@3, "error: virtual may only be used with interface types.");
+	FILE_NAME(interface_type, @1);
+	interface_type->has_param_override = ($4 != 0);
+	interface_type->allow_unresolved = true;
+	PETypename*type_expr = new PETypename(interface_type);
+	FILE_NAME(type_expr, @1);
+	delete[] $3.text;
+	if ($4) delete $4;
+	$$ = type_expr;
+      }
+  | K_virtual K_interface IDENTIFIER parameter_value_opt '.' IDENTIFIER
+      { interface_type_t*interface_type =
+	      new interface_type_t(lex_strings.make($3));
+	FILE_NAME(interface_type, @1);
+	interface_type->has_param_override = ($4 != 0);
+	interface_type->allow_unresolved = true;
+	interface_type->modport = lex_strings.make($6);
+	PETypename*type_expr = new PETypename(interface_type);
+	FILE_NAME(type_expr, @1);
+	delete[] $3;
+	delete[] $6;
+	if ($4) delete $4;
+	$$ = type_expr;
+      }
+  | K_virtual K_interface TYPE_IDENTIFIER parameter_value_opt '.' IDENTIFIER
+      { interface_type_t*interface_type =
+	      new interface_type_t(lex_strings.make($3.text));
+	if (dynamic_cast<const interface_type_t*>(
+	      $3.type->get_data_type()) == 0)
+	      yyerror(@3, "error: virtual may only be used with interface types.");
+	FILE_NAME(interface_type, @1);
+	interface_type->has_param_override = ($4 != 0);
+	interface_type->allow_unresolved = true;
+	interface_type->modport = lex_strings.make($6);
+	PETypename*type_expr = new PETypename(interface_type);
+	FILE_NAME(type_expr, @1);
+	delete[] $3.text;
+	delete[] $6;
+	if ($4) delete $4;
+	$$ = type_expr;
       }
   ;
 

@@ -1561,6 +1561,21 @@ void NetScope::evaluate_type_parameter_(Design *des, param_ref_t cur)
 
       data_type_t *ptype = type_expr->get_type();
       NetScope *type_scope = cur->second.val_scope ? cur->second.val_scope : this;
+
+      /* A type-parameter alias (type U = T) must copy T's resolved type
+	 without elaborating T as a concrete declaration use. This distinction
+	 matters for a lazy unresolved virtual-interface default: forwarding the
+	 default remains legal until a signal/property actually selects it. */
+      if (const type_parameter_t*type_param =
+		dynamic_cast<const type_parameter_t*>(ptype)) {
+	    ivl_type_t resolved_type = 0;
+	    type_scope->get_parameter(des, type_param->name, resolved_type);
+	    if (resolved_type) {
+		  cur->second.ivl_type = resolved_type;
+		  return;
+	    }
+      }
+
       /* Resolve class-bearing type actuals before consulting the generic
        * per-scope type cache. A forward class used through a parameterized
        * typedef can otherwise cache an early integral recovery

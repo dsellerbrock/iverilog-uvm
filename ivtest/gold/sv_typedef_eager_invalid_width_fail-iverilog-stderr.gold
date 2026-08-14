@@ -1,0 +1,5 @@
+ivltests/sv_typedef_eager_invalid_width_fail.v:2: error: Unable to bind parameter `WIDTH_A' in `$unit'
+ivltests/sv_typedef_eager_invalid_width_fail.v:3: error: Unable to bind parameter `WIDTH_D' in `$unit'
+ivltests/sv_typedef_eager_invalid_width_fail.v:4: error: Unable to bind parameter `WIDTH_E' in `$unit'
+ivltests/sv_typedef_eager_invalid_width_fail.v:5: error: Unable to bind parameter `WIDTH_M' in `$unit'
+4 error(s) during elaboration.

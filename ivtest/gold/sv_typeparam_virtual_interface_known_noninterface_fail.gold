@@ -1,0 +1,1 @@
+./ivltests/sv_typeparam_virtual_interface_known_noninterface_fail.v:5: error: virtual may only be used with interface types.

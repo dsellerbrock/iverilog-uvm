@@ -1,0 +1,2 @@
+ivltests/sv_typedef_eager_unresolved_forward_fail.v:1: error: Forward typedef `unresolved_forward_t` does not resolve to a data type in the same scope.
+1 error(s) during elaboration.

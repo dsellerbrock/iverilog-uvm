@@ -311,8 +311,18 @@ static ivl_type_t resolve_class_handle_type_weak_(Design*des, NetScope*scope,
       if (const type_parameter_t*type_par = dynamic_cast<const type_parameter_t*>(type_pf)) {
 	    ivl_type_t par_type = 0;
 	    scope->get_parameter(des, type_par->name, par_type);
-	    if (dynamic_cast<const netclass_t*>(par_type))
-		  return par_type;
+	    if (const netclass_t*class_type =
+		  dynamic_cast<const netclass_t*>(par_type)) {
+		    /* Resolving a class-valued type parameter here means it is the
+		     * type of a concrete declaration (property, signal, or return),
+		     * not merely another type-parameter default.  Force the narrow
+		     * type-parameter elaborator so a lazily accepted unresolved
+		     * virtual-interface default is diagnosed at this first use. */
+		    if (class_type->is_unresolved_interface())
+			  return const_cast<type_parameter_t*>(type_par)
+				->elaborate_type(des, scope);
+		    return par_type;
+	    }
 	    return 0;
       }
 
@@ -622,13 +632,13 @@ static void sig_check_port_type(Design*des, const NetScope*scope,
       }
 }
 
-/* Find only typedef type graphs that carry a struct/union declaration which
- * needs an eager legality check. Defaults and random member qualifiers both
- * have declaration semantics even when the typedef is never referenced;
- * eagerly elaborating every typedef remains unnecessary and harmful for large
- * class libraries whose unused parameterized aliases are intended to stay
- * lazy. */
-static bool pform_type_needs_struct_typedef_validation_(
+/* Find only typedef graphs whose declarations require validation even when
+ * the alias is never referenced: explicit dimensions must bind to constants,
+ * while struct/union member defaults and random qualifiers carry
+ * declaration-time constraints.
+ * Eagerly elaborating every typedef is both unnecessary and harmful for large
+ * class libraries whose unused parameterized aliases are intentionally lazy. */
+static bool pform_type_needs_declaration_validation_(
 		const data_type_t*type, map<const data_type_t*,unsigned char>&memo)
 {
       if (!type)
@@ -646,12 +656,20 @@ static bool pform_type_needs_struct_typedef_validation_(
 
       if (const typeref_t*ref = dynamic_cast<const typeref_t*>(type)) {
 	    typedef_t*td = ref->typedef_ref();
-	    found = td && pform_type_needs_struct_typedef_validation_(
+	    found = td && pform_type_needs_declaration_validation_(
 		  td->get_data_type(), memo);
       } else if (const array_base_t*array =
 		       dynamic_cast<const array_base_t*>(type)) {
-	    found = pform_type_needs_struct_typedef_validation_(
-		  array->base_type.get(), memo);
+	    found = (array->dims && !array->dims->empty())
+		 || pform_type_needs_declaration_validation_(
+		      array->base_type.get(), memo);
+      } else if (const vector_type_t*vector =
+		       dynamic_cast<const vector_type_t*>(type)) {
+	    found = vector->pdims && !vector->pdims->empty();
+      } else if (const enum_type_t*enumeration =
+		       dynamic_cast<const enum_type_t*>(type)) {
+	    found = pform_type_needs_declaration_validation_(
+		  enumeration->base_type.get(), memo);
       } else if (const struct_type_t*structure =
 		       dynamic_cast<const struct_type_t*>(type)) {
 	    if (structure->members) {
@@ -673,7 +691,7 @@ static bool pform_type_needs_struct_typedef_validation_(
 			}
 			if (found)
 			      break;
-			found = pform_type_needs_struct_typedef_validation_(
+			found = pform_type_needs_declaration_validation_(
 			      member->type.get(), memo);
 			if (found)
 			      break;
@@ -685,15 +703,18 @@ static bool pform_type_needs_struct_typedef_validation_(
       return found;
 }
 
-static void elaborate_sig_struct_typedefs_requiring_validation_(
+static void elaborate_sig_required_typedefs_(
 		Design*des, NetScope*scope,
 		const map<perm_string,typedef_t*>&typedefs)
 {
       map<const data_type_t*,unsigned char> memo;
       for (const auto&entry : typedefs) {
 	    typedef_t*td = entry.second;
-	    if (!td || !pform_type_needs_struct_typedef_validation_(
-			 td->get_data_type(), memo))
+	    if (!td)
+		  continue;
+	    if (td->get_data_type()
+		&& !pform_type_needs_declaration_validation_(
+		      td->get_data_type(), memo))
 		  continue;
 	    td->elaborate_type(des, scope);
       }
@@ -717,8 +738,7 @@ bool PScope::elaborate_sig_wires_(Design*des, NetScope*scope) const
 
       }
 
-      elaborate_sig_struct_typedefs_requiring_validation_(des, scope,
-						  typedefs);
+      elaborate_sig_required_typedefs_(des, scope, typedefs);
 
       return flag;
 }
@@ -1743,8 +1763,7 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 
       validate_interface_class_relations_(des, this, pclass);
 
-      elaborate_sig_struct_typedefs_requiring_validation_(des, class_scope_,
-							  pclass->typedefs);
+      elaborate_sig_required_typedefs_(des, class_scope_, pclass->typedefs);
 
       /* Parameterized class specializations are allowed to keep method
 	 bodies lazy, but constraints are part of the class type and must be
@@ -1923,8 +1942,7 @@ bool PGenerate::elaborate_sig_(Design*des, NetScope*scope) const
 	    (*cur)->statement()->elaborate_sig(des, scope);
       }
 
-      elaborate_sig_struct_typedefs_requiring_validation_(des, scope,
-						  typedefs);
+      elaborate_sig_required_typedefs_(des, scope, typedefs);
 
 
       return flag;

@@ -1002,6 +1002,16 @@ ivl_type_t interface_type_t::elaborate_type_raw(Design*des, NetScope*scope) cons
 {
       map<perm_string,Module*>::const_iterator cur = pform_modules.find(name);
       if (cur == pform_modules.end() || !cur->second->is_interface) {
+	    if (allow_unresolved) {
+		  if (!unresolved_type) {
+			unresolved_type = new netclass_t(name, 0);
+			unresolved_type->set_interface(true);
+			unresolved_type->set_unresolved_interface(true);
+			unresolved_type->set_scope_ready(true);
+			unresolved_type->set_body_elaborated(true);
+		  }
+		  return unresolved_type;
+	    }
 	    cerr << get_fileline() << ": error: "
 		 << "Unknown interface type `" << name << "'." << endl;
 	    des->errors += 1;
@@ -1819,9 +1829,12 @@ ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
       }
 
       if (!data_type.get()) {
-	    cerr << get_fileline() << ": error: Undefined type `" << name << "`."
-		 << endl;
-	    des->errors++;
+	    if (report_unresolved_once()) {
+		  cerr << get_fileline() << ": error: Forward typedef `" << name
+		       << "` does not resolve to a data type in the same scope."
+		       << endl;
+		  des->errors++;
+	    }
 
 	    // Try to recover
 	    return netvector_t::integer_type();
@@ -1929,6 +1942,32 @@ ivl_type_t type_parameter_t::elaborate_type_raw(Design *des, NetScope*scope) con
       ivl_type_t type;
 
       scope->get_parameter(des, name, type);
+
+      if (const netclass_t*class_type = dynamic_cast<const netclass_t*>(type)) {
+	    if (class_type->is_unresolved_interface()
+		&& !unresolved_interface_reported) {
+		  /* Signatures on the unspecialized parameterized-class master
+		   * are templates. They may retain an opaque unresolved default;
+		   * only a concrete default-selected specialization owes the
+		   * diagnostic. Keep this guard here so properties, ports, and
+		   * method returns all observe the same lifecycle. */
+		  const NetScope*class_scope = scope->get_class_scope();
+		  const netclass_t*owner = class_scope
+			? class_scope->class_def() : 0;
+		  const PClass*pclass = class_scope
+			? class_scope->class_pform() : 0;
+		  bool generic_master = owner && !owner->specialized_instance()
+			&& pclass && pclass->has_parameter_port_list;
+		  if (!generic_master) {
+			unresolved_interface_reported = true;
+			cerr << get_fileline() << ": error: Virtual interface type `"
+			     << class_type->get_name()
+			     << "` selected by type parameter `" << name
+			     << "` is not declared." << endl;
+			des->errors += 1;
+		  }
+	    }
+      }
 
       // Recover
       if (!type)

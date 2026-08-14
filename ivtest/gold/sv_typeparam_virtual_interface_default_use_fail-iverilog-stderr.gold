@@ -1,0 +1,2 @@
+ivltests/sv_typeparam_virtual_interface_default_use_fail.v:1: error: Virtual interface type `vif_default_missing_if` selected by type parameter `IFType` is not declared.
+1 error(s) during elaboration.
