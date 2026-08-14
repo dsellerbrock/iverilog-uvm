@@ -1,0 +1,2 @@
+ivltests/sv_uarray_slice_width_fail.v:4: error: indexed unpacked-array slice width must be a positive constant integral expression.
+Elaboration failed

@@ -4070,23 +4070,23 @@ bool elaborate_type_operator_match(Design*des, NetScope*scope,
       return true;
 }
 
-static NetNet* whole_fixed_uarray_signal_(Design*des, NetScope*scope,
-					  const PExpr*expr)
+static bool fixed_uarray_element_types_equivalent_(ivl_type_t left,
+						    ivl_type_t right)
 {
-      const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
-      if (!id || id->path().package || id->path().name.empty()
-	  || !id->path().name.back().index.empty()) return 0;
-      symbol_search_results sr;
-      symbol_search(id, des, scope, id->path(), UINT_MAX, &sr);
-      if (!sr.net || !sr.path_tail.empty()
-	  || sr.net->unpacked_dimensions() != 1) return 0;
-      return sr.net;
+      if (!left || !right)
+	    return false;
+      return left == right
+	    || (left->type_equivalent(right)
+		&& right->type_equivalent(left));
 }
 
-/* Fixed unpacked arrays compare element-by-element (7.4.1). The generic
-   PEIdent r-value path deliberately rejects a whole array, so lower the
-   equality here to packed element reads before either operand reaches it. */
-static bool elaborate_whole_uarray_comparison_(Design*des, NetScope*scope,
+/* Fixed unpacked arrays and slices compare element-by-element (7.4.1,
+   7.4.3). The generic PEIdent r-value path deliberately rejects aggregate
+   array values, so lower equality directly to word reads. Canonical memory
+   words run in increasing numeric-index order; if the selected ranges have
+   opposite directions, reverse the right word order to preserve the
+   language's left-to-right element pairing. */
+static bool elaborate_fixed_uarray_comparison_(Design*des, NetScope*scope,
 					       const PEBComp*pexpr,
 					       unsigned flags,
 					       NetExpr*&result)
@@ -4095,52 +4095,52 @@ static bool elaborate_whole_uarray_comparison_(Design*des, NetScope*scope,
       char op = pexpr->get_op();
       if (op != 'e' && op != 'E' && op != 'w'
 	  && op != 'n' && op != 'N' && op != 'W') return false;
-      NetNet*left_net = whole_fixed_uarray_signal_(des, scope,
-						   pexpr->get_left());
-      NetNet*right_net = whole_fixed_uarray_signal_(des, scope,
-						    pexpr->get_right());
-      if (!left_net && !right_net) return false;
-      if (!left_net || !right_net) {
-	    cerr << pexpr->get_fileline() << ": error: a whole fixed unpacked "
-		 << "array may only be compared with a compatible whole array."
-		 << endl;
+      fixed_uarray_slice_t left;
+      fixed_uarray_slice_t right;
+      int left_rc = decode_fixed_uarray_slice(
+	    des, scope, *pexpr, pexpr->get_left(), true, left);
+      int right_rc = decode_fixed_uarray_slice(
+	    des, scope, *pexpr, pexpr->get_right(), true, right);
+      if (left_rc == 0 && right_rc == 0)
+	    return false;
+      if (left_rc < 0 || right_rc < 0)
+	    return true;
+      if (left_rc == 0 || right_rc == 0) {
+	    cerr << pexpr->get_fileline() << ": error: a fixed unpacked array "
+		 << "or slice may only be compared with a compatible array "
+		 << "or slice." << endl;
 	    des->errors += 1;
 	    return true;
       }
-
-      const netranges_t&ldims = left_net->unpacked_dims();
-      const netranges_t&rdims = right_net->unpacked_dims();
-      if (ldims.size() != 1 || rdims.size() != 1
-	  || ldims[0].get_msb() != rdims[0].get_msb()
-	  || ldims[0].get_lsb() != rdims[0].get_lsb()) {
+      if (left.count != right.count
+	  || !fixed_uarray_element_types_equivalent_(
+		left.element_type, right.element_type)) {
 	    cerr << pexpr->get_fileline() << ": error: fixed unpacked array "
-		 << "comparison requires matching index ranges." << endl;
+		 << "comparison requires equal element counts and equivalent "
+		 << "element types." << endl;
 	    des->errors += 1;
 	    return true;
       }
 
-      long left = ldims[0].get_msb();
-      long right = ldims[0].get_lsb();
-      long step = left <= right ? 1 : -1;
-      unsigned count = (unsigned)ldims[0].width();
+      bool left_ascending = left.selected_range.get_msb()
+	    < left.selected_range.get_lsb();
+      bool right_ascending = right.selected_range.get_msb()
+	    < right.selected_range.get_lsb();
+      bool reverse_right = left_ascending != right_ascending;
+      unsigned count = static_cast<unsigned>(left.count);
       bool equal_op = op == 'e' || op == 'E' || op == 'w';
       for (unsigned k = 0 ; k < count ; k += 1) {
-	    long declared_index = left + step * (long)k;
-	    list<long>indices;
-	    indices.push_back(declared_index);
-	    NetExpr*lidx = normalize_variable_unpacked(left_net, indices);
-	    NetExpr*ridx = normalize_variable_unpacked(right_net, indices);
-	    if (!lidx || !ridx) {
-		  delete lidx;
-		  delete ridx;
-		  delete result;
-		  result = 0;
-		  return true;
-	    }
+	    long left_word = left.canonical_base + static_cast<long>(k);
+	    long right_off = reverse_right
+		  ? static_cast<long>(count - 1 - k)
+		  : static_cast<long>(k);
+	    long right_word = right.canonical_base + right_off;
+	    NetExpr*lidx = make_const_val_s(left_word);
+	    NetExpr*ridx = make_const_val_s(right_word);
 	    lidx->set_line(*pexpr);
 	    ridx->set_line(*pexpr);
-	    NetExpr*l = new NetESignal(left_net, lidx);
-	    NetExpr*r = new NetESignal(right_net, ridx);
+	    NetExpr*l = new NetESignal(left.signal, lidx);
+	    NetExpr*r = new NetESignal(right.signal, ridx);
 	    l->set_line(*pexpr);
 	    r->set_line(*pexpr);
 	    unsigned wid = std::max(l->expr_width(), r->expr_width());
@@ -4198,6 +4198,23 @@ unsigned PEBComp::test_width(Design*des, NetScope*scope, width_mode_t&)
 
 	      return expr_width_;
 	}
+      }
+
+	// Whole fixed arrays and unpacked slices have no scalar expression
+	// width for their operands. The element-wise lowering below handles
+	// them before ordinary PEIdent elaboration; recognize the shape quietly
+	// here so test_width() does not send a range select through the scalar
+	// array-index path and emit "Array cannot be indexed by a range" first.
+      fixed_uarray_slice_t left_slice;
+      fixed_uarray_slice_t right_slice;
+      int left_slice_rc = decode_fixed_uarray_slice(
+	    des, scope, *this, left_, true, left_slice, true);
+      int right_slice_rc = decode_fixed_uarray_slice(
+	    des, scope, *this, right_, true, right_slice, true);
+      if (left_slice_rc != 0 || right_slice_rc != 0) {
+	    l_width_ = 1;
+	    r_width_ = 1;
+	    return expr_width_;
       }
 
 	// The widths of the operands are semi-self-determined. They
@@ -4326,7 +4343,7 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
       ivl_assert(*this, right_);
 
       NetExpr*array_comparison = 0;
-      if (elaborate_whole_uarray_comparison_(des, scope, this, flags,
+      if (elaborate_fixed_uarray_comparison_(des, scope, this, flags,
 						     array_comparison)) {
 	    if (!array_comparison) return 0;
 	    return pad_to_width(array_comparison, expr_wid, false, *this);

@@ -1,0 +1,16 @@
+sv_uarray_slice_pattern_assign normal,-g2012 ivltests
+sv_param_unpacked_array_slice_port normal,-g2012 ivltests
+sv_nb_uarray_copy normal,-g2012 ivltests
+sv_uarray_nb_pattern normal,-g2012 ivltests
+sv_uarray_nb_pattern_slice normal,-g2012 ivltests
+sv_uarray_partial_index_copy normal,-g2012 ivltests
+sv_uarray_partial_index_boundary_fail CE,-g2012 ivltests gold=sv_uarray_partial_index_boundary_fail.gold
+sv_uarray_partial_index_driver_fail CE,-g2012 ivltests gold=sv_uarray_partial_index_driver_fail.gold
+sv_uarray_partial_index_type_fail CE,-g2012 ivltests gold=sv_uarray_partial_index_type_fail.gold
+sv_uarray_partial_index_oob normal,-g2012 ivltests
+sv_uarray_slice_ops normal,-g2012 ivltests gold=sv_uarray_slice_ops.gold
+sv_uarray_slice_direction_fail CE,-g2012 ivltests gold=sv_uarray_slice_direction_fail.gold
+sv_uarray_slice_bounds_fail CE,-g2012 ivltests gold=sv_uarray_slice_bounds_fail.gold
+sv_uarray_slice_size_fail CE,-g2012 ivltests gold=sv_uarray_slice_size_fail.gold
+sv_uarray_slice_width_fail CE,-g2012 ivltests gold=sv_uarray_slice_width_fail.gold
+sv_uarray_slice_type_fail CE,-g2012 ivltests gold=sv_uarray_slice_type_fail.gold

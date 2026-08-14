@@ -6053,6 +6053,45 @@ static NetProc* make_uarray_prefix_copy_block_(const LineInfo&loc,
       return block;
 }
 
+/* Copy a constant one-dimensional slice. Blocking assignment first
+ * snapshots an overlapping self-copy so `a[5:3] = a[4:2]' observes the
+ * complete old right-hand side, as every procedural assignment must. A
+ * non-blocking copy needs no extra snapshot: every word's RHS is evaluated
+ * in the active region before any of its scheduled NBA updates can run. */
+static NetProc* make_uarray_signal_range_copy_(NetScope*scope,
+					       const LineInfo&loc,
+					       NetNet*dst_sig, long dst_base,
+					       NetNet*src_sig, long src_base,
+					       unsigned long count,
+					       bool reverse_src,
+					       bool nonblocking)
+{
+      bool overlap = dst_sig == src_sig
+	    && dst_base <= src_base + static_cast<long>(count) - 1
+	    && src_base <= dst_base + static_cast<long>(count) - 1;
+      if (nonblocking || !overlap)
+	    return make_uarray_prefix_copy_block_(
+		  loc, dst_sig, dst_base, src_sig, src_base,
+		  count, reverse_src, nonblocking);
+
+      netranges_t dims;
+      dims.push_back(netrange_t(static_cast<long>(count) - 1, 0));
+      NetNet*tmp = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+			      dims, src_sig->net_type());
+      tmp->local_flag(true);
+      tmp->set_line(loc);
+      if (scope->is_auto())
+	    tmp->lifetime_override(IVL_VLT_AUTOMATIC);
+
+      NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
+      block->set_line(loc);
+      block->append(make_uarray_prefix_copy_block_(
+	    loc, tmp, 0, src_sig, src_base, count, reverse_src, false));
+      block->append(make_uarray_prefix_copy_block_(
+	    loc, dst_sig, dst_base, tmp, 0, count, false, false));
+      return block;
+}
+
 /* Copy a contiguous run of canonical words between two fixed unpacked
  * array signals. This is the aggregate equivalent of the scalar copy loop
  * above, with explicit source and destination bases so a subroutine actual
@@ -6296,17 +6335,9 @@ static bool uarray_copy_shapes_compatible_(const netuarray_t*dst,
       ivl_type_t dst_elem = dst->element_type();
       if (!dst_elem || !src_elem)
 	    return false;
-      if (dst_elem->packed_width() != src_elem->packed_width())
-	    return false;
-
-      ivl_variable_type_t dst_vt = dst_elem->base_type();
-      ivl_variable_type_t src_vt = src_elem->base_type();
-      auto is_vec = [](ivl_variable_type_t vt) {
-	    return vt == IVL_VT_BOOL || vt == IVL_VT_LOGIC;
-      };
-      if (is_vec(dst_vt) && is_vec(src_vt))
-	    return true;
-      return dst_vt == src_vt;
+      return dst_elem == src_elem
+	    || (dst_elem->type_equivalent(src_elem)
+		&& src_elem->type_equivalent(dst_elem));
 }
 
 /* A direct identifier with a constant partial prefix of a fixed unpacked
@@ -6320,6 +6351,7 @@ struct uarray_prefix_source_t {
       unsigned long count = 0;
       netranges_t remaining_dims;
       ivl_type_t element_type = nullptr; // Borrowed from sig.
+      bool range_slice = false;
 };
 
 /* Return 0 when pe is not this shape, 1 on success, and -1 after diagnosing
@@ -6328,6 +6360,21 @@ static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
 					const LineInfo&loc, const PExpr*pe,
 					uarray_prefix_source_t&out)
 {
+      fixed_uarray_slice_t range_slice;
+      int range_rc = decode_fixed_uarray_slice(
+	    des, scope, loc, pe, false, range_slice);
+      if (range_rc < 0)
+	    return -1;
+      if (range_rc > 0) {
+	    out.sig = range_slice.signal;
+	    out.canonical_base = range_slice.canonical_base;
+	    out.count = range_slice.count;
+	    out.remaining_dims.push_back(range_slice.selected_range);
+	    out.element_type = range_slice.element_type;
+	    out.range_slice = true;
+	    return 1;
+      }
+
       const PEIdent*ident = dynamic_cast<const PEIdent*>(pe);
       if (!ident)
 	    return 0;
@@ -6743,7 +6790,11 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 			      return 0;
 			}
 			netuarray_t src_type(src.remaining_dims, src.element_type);
-			if (!lv_uarray->type_equivalent(&src_type)) {
+			bool compatible = src.range_slice
+			      ? uarray_copy_shapes_compatible_(
+				    lv_uarray, src.count, src.element_type)
+			      : lv_uarray->type_equivalent(&src_type);
+			if (!compatible) {
 			      cerr << get_fileline() << ": error: unpacked subarray"
 				   << " types are not equivalent in assignment."
 				   << endl;
@@ -6768,8 +6819,8 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 			      }
 			}
 			delete lv;
-			return make_uarray_prefix_copy_block_(
-			      *this, dst_sig, dst_base, src.sig,
+			return make_uarray_signal_range_copy_(
+			      scope, *this, dst_sig, dst_base, src.sig,
 			      src.canonical_base, src.count, reverse_src, false);
 		  }
 
@@ -6799,7 +6850,9 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 					  return 0;
 				    }
 				    if (!src_type
-					|| !lv_uarray->type_equivalent(src_type)) {
+					|| !uarray_copy_shapes_compatible_(
+					      lv_uarray, sr.net->unpacked_count(),
+					      sr.net->net_type())) {
 					  cerr << get_fileline() << ": error: unpacked"
 					       << " array slice types are not equivalent"
 					       << " in assignment." << endl;
@@ -6821,8 +6874,8 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 				    NetNet*dst_sig = lv->sig();
 				    unsigned long count = sr.net->unpacked_count();
 				    delete lv;
-				    return make_uarray_prefix_copy_block_(
-					  *this, dst_sig, dst_base, sr.net, 0,
+				    return make_uarray_signal_range_copy_(
+					  scope, *this, dst_sig, dst_base, sr.net, 0,
 					  count, reverse_src, false);
 			      }
 
@@ -7545,7 +7598,11 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 			      return 0;
 			}
 			netuarray_t src_type(src.remaining_dims, src.element_type);
-			if (!lv_uarray->type_equivalent(&src_type)) {
+			bool compatible = src.range_slice
+			      ? uarray_copy_shapes_compatible_(
+				    lv_uarray, src.count, src.element_type)
+			      : lv_uarray->type_equivalent(&src_type);
+			if (!compatible) {
 			      cerr << get_fileline() << ": error: unpacked subarray"
 				   << " types are not equivalent in assignment."
 				   << endl;
@@ -7569,8 +7626,8 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 			      }
 			}
 			delete lv;
-			return make_uarray_prefix_copy_block_(
-			      *this, dst_sig, dst_base, src.sig,
+			return make_uarray_signal_range_copy_(
+			      scope, *this, dst_sig, dst_base, src.sig,
 			      src.canonical_base, src.count, reverse_src, true);
 		  }
 
@@ -7597,7 +7654,9 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 					  return 0;
 				    }
 				    if (!src_type
-					|| !lv_uarray->type_equivalent(src_type)) {
+					|| !uarray_copy_shapes_compatible_(
+					      lv_uarray, sr.net->unpacked_count(),
+					      sr.net->net_type())) {
 					  cerr << get_fileline() << ": error: unpacked"
 					       << " array slice types are not equivalent"
 					       << " in assignment." << endl;
@@ -7619,8 +7678,8 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 				    NetNet*dst_sig = lv->sig();
 				    unsigned long count = sr.net->unpacked_count();
 				    delete lv;
-				    return make_uarray_prefix_copy_block_(
-					  *this, dst_sig, dst_base, sr.net, 0,
+				    return make_uarray_signal_range_copy_(
+					  scope, *this, dst_sig, dst_base, sr.net, 0,
 					  count, reverse_src, true);
 			      }
 

@@ -1,0 +1,2 @@
+./ivltests/sv_uarray_slice_size_fail.v:4: error: unpacked subarray types are not equivalent in assignment.
+Elaboration failed

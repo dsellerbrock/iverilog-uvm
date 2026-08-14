@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_uarray_slice_ops.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_uarray_slice_ops"
+}

@@ -893,8 +893,14 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	// carries no index, so name_tail.index.size() is 0. Guard on an
 	// empty tail_path so such references fall through to the
 	// class/struct member l-value path below.
+      bool one_dim_range_slice = reg->unpacked_dimensions() == 1
+	    && name_tail.index.size() == 1
+	    && (use_sel == index_component_t::SEL_PART
+		|| use_sel == index_component_t::SEL_IDX_UP
+		|| use_sel == index_component_t::SEL_IDX_DO);
       if (tail_path.empty()
-	  && reg->unpacked_dimensions() > name_tail.index.size()) {
+	  && (reg->unpacked_dimensions() > name_tail.index.size()
+	      || one_dim_range_slice)) {
 	    return elaborate_lval_array_(des, scope, is_force, reg);
       }
 
@@ -1293,6 +1299,45 @@ NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
 		  return 0;
 	    }
 	    NetAssign_*lv = new NetAssign_(reg);
+	    return lv;
+      }
+
+	// A range on the sole unpacked dimension selects a one-dimensional
+	// fixed-array slice (7.4.3/7.4.6), not a packed part-select and not a
+	// single memory word. Carry its canonical low word and presented range
+	// through the same slice l-value representation used by a partial prefix
+	// of a multidimensional array.
+      fixed_uarray_slice_t range_slice;
+      int range_slice_rc = decode_fixed_uarray_slice(
+	    des, scope, *this, this, false, range_slice);
+      if (range_slice_rc < 0)
+	    return 0;
+      if (range_slice_rc > 0) {
+	    ivl_assert(*this, range_slice.signal == reg);
+	    if ((reg->type() == NetNet::UNRESOLVED_WIRE) && !is_force) {
+		  ivl_assert(*this, reg->coerced_to_uwire());
+		  bool overlap = false;
+		  for (unsigned long word = 0;
+		       !overlap && word < range_slice.count; word += 1) {
+			if (reg->test_part_driven(reg->vector_width()-1, 0,
+					  range_slice.canonical_base + word))
+			      overlap = true;
+		  }
+		  if (overlap) {
+			report_mixed_assignment_conflict_("array slice");
+			des->errors += 1;
+			return 0;
+		  }
+	    }
+
+	    netranges_t slice_dims;
+	    slice_dims.push_back(range_slice.selected_range);
+	    ivl_type_t slice_type =
+		  new netuarray_t(slice_dims, range_slice.element_type);
+	    NetEConst*base = make_const_val_s(range_slice.canonical_base);
+	    base->set_line(*this);
+	    NetAssign_*lv = new NetAssign_(reg);
+	    lv->set_array_slice(base, slice_type);
 	    return lv;
       }
 
