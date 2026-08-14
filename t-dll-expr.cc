@@ -201,6 +201,8 @@ void dll_target::expr_array_pattern(const NetEArrayPattern*net)
 
       expr_tmp->u_.array_pattern_.parms = net->item_size();
       expr_tmp->u_.array_pattern_.parm = new ivl_expr_t [net->item_size()];
+      expr_tmp->u_.array_pattern_.union_active_member =
+	    net->union_active_member();
 
       for (size_t idx = 0 ; idx < net->item_size() ; idx += 1) {
 	    const NetExpr*tmp = net->item(idx);

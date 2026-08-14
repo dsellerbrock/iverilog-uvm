@@ -361,6 +361,17 @@ static char* format_p_value(vpiHandle item)
     vpi_get_value(item, &value);
     if (value.format == vpiIntVal && value.value.integer == 0)
       return strdup("null");
+
+    /* Object-backed structs and unions expose their assignment-pattern
+       rendering directly. This lets tagged unions select only the active
+       alternative (and render a void alternative without an artificial
+       value) while leaving ordinary class-member iteration unchanged. */
+    value.format = vpiStringVal;
+    vpi_get_value(item, &value);
+    if (value.format == vpiStringVal && value.value.str
+        && value.value.str[0] == '\'' && value.value.str[1] == '{')
+      return strdup(value.value.str);
+
     vpiHandle iter = vpi_iterate(vpiMember, item);
     if (iter) {
       char *acc = strdup("'{");

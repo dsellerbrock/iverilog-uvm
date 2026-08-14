@@ -798,6 +798,14 @@ extern "C" unsigned ivl_expr_parms(ivl_expr_t net)
       }
 }
 
+extern "C" int ivl_expr_union_active_member(ivl_expr_t net)
+{
+      assert(net);
+      if (net->type_ != IVL_EX_ARRAY_PATTERN)
+	    return -1;
+      return net->u_.array_pattern_.union_active_member;
+}
+
 extern "C" unsigned ivl_expr_repeat(ivl_expr_t net)
 {
       assert(net);
@@ -3748,6 +3756,18 @@ extern "C" int ivl_type_is_packed_vector(ivl_type_t net)
 	    return 0;
 
       return 1;
+}
+
+extern "C" int ivl_type_is_union(ivl_type_t net)
+{
+      const netstruct_t*record = dynamic_cast<const netstruct_t*>(net);
+      return record && record->union_flag();
+}
+
+extern "C" int ivl_type_is_tagged_union(ivl_type_t net)
+{
+      const netstruct_t*record = dynamic_cast<const netstruct_t*>(net);
+      return record && record->union_flag() && record->tagged_flag();
 }
 
 extern "C" int ivl_type_is_chandle(ivl_type_t net)

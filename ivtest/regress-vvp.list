@@ -577,6 +577,12 @@ sv_concat_postfix_select_ascending_fail	vvp_tests/sv_concat_postfix_select_ascen
 # IEEE 1800-2017 qualified if statements
 sv_quality_if	vvp_tests/sv_quality_if.json
 
+# IEEE 1800-2017 unpacked and tagged union runtime semantics
+sv_union_unpacked_storage	vvp_tests/sv_union_unpacked_storage.json
+sv_union_tagged_runtime	vvp_tests/sv_union_tagged_runtime.json
+sv_union_tagged_packed_storage	vvp_tests/sv_union_tagged_packed_storage.json
+sv_union_tagged_inactive_read_fail	vvp_tests/sv_union_tagged_inactive_read_fail.json
+
 # IEEE 1800-2017 pattern matching
 sv_pattern_matching_structured	vvp_tests/sv_pattern_matching_structured.json
 sv_pattern_matching_invalid_fail	vvp_tests/sv_pattern_matching_invalid_fail.json

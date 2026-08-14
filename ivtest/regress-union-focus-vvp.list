@@ -1,0 +1,5 @@
+# IEEE 1800-2017 unpacked and tagged union runtime semantics
+sv_union_unpacked_storage	vvp_tests/sv_union_unpacked_storage.json
+sv_union_tagged_runtime	vvp_tests/sv_union_tagged_runtime.json
+sv_union_tagged_packed_storage	vvp_tests/sv_union_tagged_packed_storage.json
+sv_union_tagged_inactive_read_fail	vvp_tests/sv_union_tagged_inactive_read_fail.json
