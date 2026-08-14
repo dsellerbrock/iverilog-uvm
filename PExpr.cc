@@ -767,6 +767,7 @@ PENewArray::~PENewArray()
 }
 
 PENewClass::PENewClass(void)
+: class_type_(nullptr)
 {
 }
 
@@ -777,6 +778,7 @@ PENewClass::PENewClass(const list<named_pexpr_t> &p, data_type_t *class_type)
 
 PENewClass::~PENewClass()
 {
+      delete class_type_;
 }
 
 PENewCopy::PENewCopy(PExpr*src)

@@ -10179,6 +10179,20 @@ parameterized_scoped_identifier
 	delete[]$3;
 	$$ = tmp;
       }
+  | package_type_identifier K_SCOPE_RES identifier_name K_SCOPE_RES identifier_name
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PEIdent*tmp = new PEIdent($1.package, hident, @1.lexical_pos);
+	FILE_NAME(tmp, @1);
+	tmp->set_leading_type_args($1.type_args);
+	tmp->set_scoped_type_prefix();
+	delete[]$1.text;
+	delete[]$3;
+	delete[]$5;
+	$$ = tmp;
+      }
   | parameterized_scoped_identifier '.' identifier_name
       { PEIdent*tmp = dynamic_cast<PEIdent*>($1);
 	assert(tmp);
@@ -10881,6 +10895,26 @@ expr_primary
 	delete $4;
 	$$ = tmp;
       }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES K_new
+    argument_list_parens_opt
+      { pform_set_type_referenced(@1, $1.text);
+	typeref_t*type = new typeref_t($1.type, 0, $2);
+	FILE_NAME(type, @1);
+	PENewClass*tmp = new PENewClass(*$5, type);
+	FILE_NAME(tmp, @1);
+	delete[]$1.text;
+	delete $5;
+	$$ = tmp;
+      }
+  | package_type_identifier K_SCOPE_RES K_new argument_list_parens_opt
+      { typeref_t*type = new typeref_t($1.type, $1.package, $1.type_args);
+	FILE_NAME(type, @1);
+	PENewClass*tmp = new PENewClass(*$4, type);
+	FILE_NAME(tmp, @1);
+	delete[]$1.text;
+	delete $4;
+	$$ = tmp;
+      }
   | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1)));
@@ -11322,6 +11356,7 @@ expr_primary
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
 	tmp->set_leading_type_args($2);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$4;
 	delete[]$6;
@@ -11335,6 +11370,7 @@ expr_primary
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
 	tmp->set_leading_type_args($2);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$4.text;
 	delete[]$6;
@@ -11348,6 +11384,7 @@ expr_primary
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
 	tmp->set_leading_type_args($2);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$4.text;
 	delete[]$6.text;
@@ -11361,6 +11398,7 @@ expr_primary
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
 	tmp->set_leading_type_args($2);
+	tmp->set_scoped_type_prefix();
 	delete[]$1;
 	delete[]$4;
 	delete[]$6;
@@ -11374,6 +11412,7 @@ expr_primary
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
 	tmp->set_leading_type_args($2);
+	tmp->set_scoped_type_prefix();
 	delete[]$1;
 	delete[]$4.text;
 	delete[]$6;
@@ -11386,6 +11425,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($5)));
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
+	tmp->set_scoped_type_prefix();
 	delete[]$1;
 	delete[]$3;
 	delete[]$5;
@@ -11398,6 +11438,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($5)));
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
+	tmp->set_scoped_type_prefix();
 	delete[]$1;
 	delete[]$3.text;
 	delete[]$5;
@@ -11410,6 +11451,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($5.text)));
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
+	tmp->set_scoped_type_prefix();
 	delete[]$1;
 	delete[]$3.text;
 	delete[]$5.text;
@@ -11422,6 +11464,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($5)));
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$3;
 	delete[]$5;
@@ -11434,6 +11477,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($5)));
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$3.text;
 	delete[]$5;
@@ -11446,6 +11490,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($5.text)));
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$3.text;
 	delete[]$5.text;

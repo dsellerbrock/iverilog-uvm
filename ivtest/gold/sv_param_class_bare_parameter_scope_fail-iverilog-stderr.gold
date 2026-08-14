@@ -1,0 +1,2 @@
+ivltests/sv_param_class_bare_parameter_scope_fail.v:6: error: Parameterized class `box' requires an explicit #(...) specialization before ::.
+1 error(s) during elaboration.

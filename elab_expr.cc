@@ -9973,7 +9973,12 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 							   const LineInfo*li,
 							   const parmvalue_t*leading_type_args = 0,
 							   bool*illegal_bare_generic = 0,
-							   perm_string*nonclass_typedef = 0)
+							   perm_string*nonclass_typedef = 0,
+							   bool*parameter_found = 0,
+							   const NetExpr**parameter_value = 0,
+							   ivl_type_t*parameter_type = 0,
+							   NetScope**parameter_scope = 0,
+							   size_t*parameter_component = 0)
 {
       if (!gn_system_verilog())
 	    return nullptr;
@@ -9984,11 +9989,16 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 	    *illegal_bare_generic = false;
       if (nonclass_typedef)
 	    *nonclass_typedef = perm_string();
-
-      const name_component_t&prop_comp = path.name.back();
-
-      pform_name_t type_path = path.name;
-      type_path.pop_back();
+      if (parameter_found)
+	    *parameter_found = false;
+      if (parameter_value)
+	    *parameter_value = nullptr;
+      if (parameter_type)
+	    *parameter_type = nullptr;
+      if (parameter_scope)
+	    *parameter_scope = nullptr;
+      if (parameter_component)
+	    *parameter_component = path.name.size();
 
       NetScope*search_scope = scope;
       if (path.package) {
@@ -9997,42 +10007,112 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 		  return nullptr;
       }
 
-      const netclass_t*class_type = nullptr;
-      bool first_comp = true;
-      for (const auto&comp : type_path) {
-	    if (!comp.index.empty())
+      pform_name_t::const_iterator comp_it = path.name.begin();
+      if (!comp_it->index.empty())
+	    return nullptr;
+
+      scoped_class_name_result_t resolved =
+	    resolve_scoped_class_type_name_(des, search_scope, comp_it->name);
+      if (resolved.kind == SCOPED_CLASS_NAME_NONCLASS_TYPEDEF) {
+	    if (nonclass_typedef)
+		  *nonclass_typedef = comp_it->name;
+	    return nullptr;
+      }
+
+      const netclass_t*class_type = resolved.class_type;
+      if (!class_type)
+	    return nullptr;
+
+	// I5 (Phase 62m): when the path was parsed as
+	// `Class#(args)::var`, specialize the root before looking up the
+	// scoped member. This is also what makes a parameter tail such as
+	// `Class#(args)::P.member` start from the selected P value.
+      if (leading_type_args) {
+	    /* The class declaration may live in a package, but parameter actuals
+	       are evaluated where the scoped reference appears. Keep the lexical
+	       caller scope here; passing search_scope made
+	       pkg::C#(LOCAL)::P try to bind LOCAL inside pkg. */
+	    NetScope*specialization_scope = scope ? scope : search_scope;
+	    class_type = elaborate_specialized_class_type(des,
+					      specialization_scope,
+					      class_type,
+					      leading_type_args,
+					      true);
+      } else if (resolved.kind == SCOPED_CLASS_NAME_DIRECT) {
+	    if (const netclass_t*current_class =
+		  scoped_class_current_specialization_(scope, class_type)) {
+		  class_type = current_class;
+	    } else if (scoped_class_is_unspecialized_parameterized_(class_type)) {
+		  if (illegal_bare_generic)
+			*illegal_bare_generic = true;
+		  return nullptr;
+	    }
+      }
+
+      size_t component_index = 1;
+      ++comp_it;
+      for ( ; comp_it != path.name.end(); ++comp_it, ++component_index) {
+	    if (!class_type || !class_type->class_scope())
 		  return nullptr;
 
-	    NetScope*comp_scope = search_scope;
-	    if (!first_comp) {
-		  if (!class_type || !class_type->class_scope())
-			return nullptr;
-		  comp_scope = const_cast<NetScope*>(class_type->class_scope());
+	      /* A class parameter is the first non-type component of the scoped
+		 path. Preserve the remaining components as its value/member tail;
+		 treating every component except the last as a nested class made
+		 C#(...)::P.member silently fall back to the generic P value. Search
+		 the selected superclass chain as well: D#(5)'s superclass is already
+		 the matching specialization, so D#(5)::P must see the inherited
+		 B#(5)::P rather than fail to bind. */
+	    NetScope*parameter_owner = nullptr;
+	    for (const netclass_t*owner = class_type; owner;
+		 owner = owner->get_super()) {
+		  NetScope*owner_scope =
+			const_cast<NetScope*>(owner->class_scope());
+		  if (owner_scope
+		      && owner_scope->parameters.find(comp_it->name)
+			   != owner_scope->parameters.end()) {
+			parameter_owner = owner_scope;
+			break;
+		  }
+	    }
+	    if (parameter_owner) {
+		  ivl_type_t use_type = nullptr;
+		  const NetExpr*use_value =
+			parameter_owner->get_parameter(des, comp_it->name, use_type);
+		  if (parameter_found)
+			*parameter_found = true;
+		  if (parameter_value)
+			*parameter_value = use_value;
+		  if (parameter_type)
+			*parameter_type = use_type;
+		  if (parameter_scope)
+			*parameter_scope = parameter_owner;
+		  if (parameter_component)
+			*parameter_component = component_index;
+		  return nullptr;
 	    }
 
-	    scoped_class_name_result_t resolved =
-		  resolve_scoped_class_type_name_(des, comp_scope, comp.name);
+	      // A remaining component can be a nested class only when another
+	      // component follows it. Otherwise it is the static property below.
+	    pform_name_t::const_iterator next_it = comp_it;
+	    ++next_it;
+	    if (next_it == path.name.end())
+		  break;
+	    if (!comp_it->index.empty())
+		  return nullptr;
+
+	    NetScope*class_scope =
+		  const_cast<NetScope*>(class_type->class_scope());
+	    resolved = resolve_scoped_class_type_name_(des, class_scope,
+							 comp_it->name);
 	    if (resolved.kind == SCOPED_CLASS_NAME_NONCLASS_TYPEDEF) {
 		  if (nonclass_typedef)
-			*nonclass_typedef = comp.name;
+			*nonclass_typedef = comp_it->name;
 		  return nullptr;
 	    }
 	    class_type = resolved.class_type;
 	    if (!class_type)
 		  return nullptr;
-
-	    // I5 (Phase 62m): when the path was parsed as
-	    // `Class#(args)::var`, the parameterized-class specialization
-	    // args reach here via leading_type_args.  Replace the base
-	    // class with its specialized netclass_t so the static
-	    // property lookup targets the right (specialized) signal.
-	    if (first_comp && leading_type_args) {
-		  class_type = elaborate_specialized_class_type(des, comp_scope,
-							class_type,
-							leading_type_args,
-							true);
-	    }
-	    else if (resolved.kind == SCOPED_CLASS_NAME_DIRECT) {
+	    if (resolved.kind == SCOPED_CLASS_NAME_DIRECT) {
 		  if (const netclass_t*current_class =
 			scoped_class_current_specialization_(scope, class_type)) {
 			class_type = current_class;
@@ -10043,12 +10123,13 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 			return nullptr;
 		  }
 	    }
-
-	    first_comp = false;
       }
 
-      if (!class_type)
+	// The final unresolved component is a static property. Member tails of
+	// parameters returned earlier are handled by the ordinary parameter path.
+      if (!class_type || comp_it == path.name.end())
 	    return nullptr;
+      const name_component_t&prop_comp = *comp_it;
 
       int pidx = ensure_class_property_idx_(des, class_type, prop_comp.name);
       if (pidx < 0)
@@ -10070,6 +10151,23 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 							    prop_comp,
 							    static_out);
       }
+}
+
+static void set_scoped_class_parameter_result_(
+		const pform_scoped_name_t&path, size_t parameter_component,
+		NetScope*parameter_scope, const NetExpr*parameter_value,
+		ivl_type_t parameter_type, symbol_search_results&sr)
+{
+      sr = symbol_search_results();
+      sr.scope = parameter_scope;
+      sr.par_val = parameter_value;
+      sr.type = parameter_type;
+
+      pform_name_t::const_iterator cur = path.name.begin();
+      std::advance(cur, parameter_component);
+      sr.path_head.push_back(*cur);
+      for (++cur; cur != path.name.end(); ++cur)
+	    sr.path_tail.push_back(*cur);
 }
 
 /*
@@ -15365,6 +15463,74 @@ ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
       return type;
 }
 
+static ivl_type_t resolve_type_packed_select_(
+		ivl_type_t type, unsigned index_depth,
+		const symbol_search_results&sr, unsigned long final_select_width)
+{
+      if (!type || !type->packed() || index_depth == 0)
+	    return type;
+
+      const name_component_t&comp = sr.path_tail.empty()
+	    ? sr.path_head.back() : sr.path_tail.back();
+      if (index_depth > comp.index.size())
+	    return type;
+
+      list<index_component_t>::const_iterator cur = comp.index.begin();
+      size_t consumed = comp.index.size() - index_depth;
+      while (consumed-- > 0)
+	    ++cur;
+      netranges_t dims = type->slice_dimensions();
+      if (dims.empty() || index_depth > dims.size())
+	    return nullptr;
+
+      size_t dimensions_used = 0;
+      for ( ; cur != comp.index.end(); ++cur, ++dimensions_used) {
+	    if (cur->sel == index_component_t::SEL_BIT)
+		  continue;
+
+	      /* A part-select fixes the current dimension's element count but
+		 retains every inner packed dimension. Its expression type is an
+		 unsigned packed vector with that total width. */
+	    if (cur->sel != index_component_t::SEL_PART
+		&& cur->sel != index_component_t::SEL_IDX_UP
+		&& cur->sel != index_component_t::SEL_IDX_DO)
+		  return nullptr;
+	    if (std::next(cur) != comp.index.end() || final_select_width == 0)
+		  return nullptr;
+
+	    unsigned long width = final_select_width;
+	    for (size_t dim = dimensions_used + 1; dim < dims.size(); ++dim)
+		  width *= dims[dim].width();
+	    return new netvector_t(type->base_type(), (long)width - 1, 0, false);
+      }
+
+	/* Exact packed-array element selects retain a named element type (a
+	   struct or enum, for example). A plain multi-dimensional vector has no
+	   nested type node, so construct the anonymous remaining dimensions. */
+      if (ivl_type_t selected = packed_type_after_dims(type, dimensions_used))
+	    return selected;
+      if (const netparray_t*array = dynamic_cast<const netparray_t*>(type)) {
+	    const netranges_t&array_dims = array->static_dimensions();
+	    if (dimensions_used < array_dims.size()) {
+		  netranges_t remain(array_dims.begin() + dimensions_used,
+				     array_dims.end());
+		  return new netparray_t(remain, array->element_type());
+	    }
+      }
+      if (const netvector_t*vec = dynamic_cast<const netvector_t*>(type)) {
+	    if (dimensions_used < dims.size()) {
+		  netranges_t remain(dims.begin() + dimensions_used, dims.end());
+		  return new netvector_t(remain, vec->base_type());
+	    }
+      }
+
+      if (dimensions_used != dims.size())
+	    return nullptr;
+      return type->base_type() == IVL_VT_BOOL
+	    ? static_cast<ivl_type_t>(&netvector_t::scalar_bool)
+	    : static_cast<ivl_type_t>(&netvector_t::scalar_logic);
+}
+
 /*
  * IEEE 1800-2017 6.23 `type()` operator support. Reuse the same
  * evaluation-free symbol_search()+resolve_type_() path that
@@ -15376,11 +15542,73 @@ ivl_type_t PEIdent::test_type_of_ident(Design*des, NetScope*scope) const
 {
       symbol_search_results sr;
       bool found_symbol = symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+
+      bool scoped_candidate = path_.name.size() >= 2
+	    && (leading_type_args()
+		|| !found_symbol || sr.is_scope()
+		|| (sr.net && sr.path_tail.empty())
+		|| (has_scoped_type_prefix() && sr.par_val && sr.scope
+		    && sr.scope->type() == NetScope::CLASS));
+      if (scoped_candidate) {
+	    bool parameter_found = false;
+	    const NetExpr*parameter_value = nullptr;
+	    ivl_type_t parameter_type = nullptr;
+	    NetScope*parameter_scope = nullptr;
+	    size_t parameter_component = path_.name.size();
+	    NetExpr*static_prop = resolve_scoped_class_static_property_expr_(
+		  des, scope, path_, this, leading_type_args(), nullptr, nullptr,
+		  &parameter_found, &parameter_value, &parameter_type,
+		  &parameter_scope, &parameter_component);
+	    if (parameter_found) {
+		  set_scoped_class_parameter_result_(
+			path_, parameter_component, parameter_scope,
+			parameter_value, parameter_type, sr);
+		  unsigned index_depth = 0;
+		  ivl_type_t type = resolve_type_(des, sr, index_depth);
+		  unsigned long select_width = 0;
+		  if (index_depth != 0) {
+			const index_component_t&tail = path_.back().index.back();
+			if (tail.sel == index_component_t::SEL_PART) {
+			      long msb = 0, lsb = 0;
+			      bool defined = false;
+			      calculate_parts_(des, scope, msb, lsb, defined);
+			      if (defined)
+				    select_width = (unsigned long)labs(msb-lsb) + 1;
+			} else if (tail.sel == index_component_t::SEL_IDX_UP
+				   || tail.sel == index_component_t::SEL_IDX_DO) {
+			      calculate_up_do_width_(des, scope, select_width);
+			}
+		  }
+		  return resolve_type_packed_select_(type, index_depth, sr,
+						     select_width);
+	    }
+	    if (static_prop) {
+		  ivl_type_t type = static_prop->net_type();
+		  delete static_prop;
+		  return type;
+	    }
+      }
+
       if (!found_symbol)
 	    return 0;
 
       unsigned index_depth = 0;
-      return resolve_type_(des, sr, index_depth);
+      ivl_type_t type = resolve_type_(des, sr, index_depth);
+      unsigned long select_width = 0;
+      if (index_depth != 0) {
+	    const index_component_t&tail = path_.back().index.back();
+	    if (tail.sel == index_component_t::SEL_PART) {
+		  long msb = 0, lsb = 0;
+		  bool defined = false;
+		  calculate_parts_(des, scope, msb, lsb, defined);
+		  if (defined)
+			select_width = (unsigned long)labs(msb-lsb) + 1;
+	    } else if (tail.sel == index_component_t::SEL_IDX_UP
+		       || tail.sel == index_component_t::SEL_IDX_DO) {
+		  calculate_up_do_width_(des, scope, select_width);
+	    }
+      }
+      return resolve_type_packed_select_(type, index_depth, sr, select_width);
 }
 
 unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
@@ -15415,14 +15643,24 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 	 when C has a parameter port list.  An object member leaves a path tail
 	 and therefore does not enter this scoped-type path. */
       bool scoped_static_candidate = path_.name.size() >= 2
-	    && (leading_type_args() || !found_symbol || sr.is_scope()
-		|| (sr.net && sr.path_tail.empty()));
+	    && (leading_type_args()
+		|| !found_symbol || sr.is_scope()
+		|| (sr.net && sr.path_tail.empty())
+		|| (has_scoped_type_prefix() && sr.par_val && sr.scope
+		    && sr.scope->type() == NetScope::CLASS));
       if (scoped_static_candidate) {
 	    bool illegal_bare_generic = false;
 	    perm_string nonclass_typedef;
+	    bool parameter_found = false;
+	    const NetExpr*parameter_value = nullptr;
+	    ivl_type_t parameter_type = nullptr;
+	    NetScope*parameter_scope = nullptr;
+	    size_t parameter_component = path_.name.size();
 	    NetExpr*static_prop = resolve_scoped_class_static_property_expr_(
 		  des, scope, path_, this, leading_type_args(),
-		  &illegal_bare_generic, &nonclass_typedef);
+		  &illegal_bare_generic, &nonclass_typedef,
+		  &parameter_found, &parameter_value, &parameter_type,
+		  &parameter_scope, &parameter_component);
 	    if (!nonclass_typedef.nil()) {
 		  if (!bare_generic_scope_error_reported_) {
 			report_nonclass_typedef_class_scope_(
@@ -15446,6 +15684,12 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 		  min_width_ = 1;
 		  signed_flag_ = false;
 		  return expr_width_;
+	    }
+	    if (parameter_found && parameter_value) {
+		  set_scoped_class_parameter_result_(
+			path_, parameter_component, parameter_scope,
+			parameter_value, parameter_type, sr);
+		  found_symbol = true;
 	    }
 	    if (static_prop) {
 		  expr_type_ = static_prop->expr_type();
@@ -15781,14 +16025,24 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
 
       bool scoped_static_candidate = path_.name.size() >= 2
-	    && (leading_type_args() || !sr.is_found() || sr.is_scope()
-		|| (sr.net && sr.path_tail.empty()));
+	    && (leading_type_args()
+		|| !sr.is_found() || sr.is_scope()
+		|| (sr.net && sr.path_tail.empty())
+		|| (has_scoped_type_prefix() && sr.par_val && sr.scope
+		    && sr.scope->type() == NetScope::CLASS));
       if (scoped_static_candidate) {
 	    bool illegal_bare_generic = false;
 	    perm_string nonclass_typedef;
+	    bool parameter_found = false;
+	    const NetExpr*parameter_value = nullptr;
+	    ivl_type_t parameter_type = nullptr;
+	    NetScope*parameter_scope = nullptr;
+	    size_t parameter_component = path_.name.size();
 	    NetExpr*static_prop = resolve_scoped_class_static_property_expr_(
 		  des, scope, path_, this, leading_type_args(),
-		  &illegal_bare_generic, &nonclass_typedef);
+		  &illegal_bare_generic, &nonclass_typedef,
+		  &parameter_found, &parameter_value, &parameter_type,
+		  &parameter_scope, &parameter_component);
 	    if (!nonclass_typedef.nil()) {
 		  if (!bare_generic_scope_error_reported_) {
 			report_nonclass_typedef_class_scope_(
@@ -15804,6 +16058,11 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 			bare_generic_scope_error_reported_ = true;
 		  }
 		  return 0;
+	    }
+	    if (parameter_found && parameter_value) {
+		  set_scoped_class_parameter_result_(
+			path_, parameter_component, parameter_scope,
+			parameter_value, parameter_type, sr);
 	    }
 	    if (static_prop) {
 		  if (NEED_CONST & flags) {
@@ -16618,14 +16877,25 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
 
       bool scoped_static_candidate = path_.name.size() >= 2
-	    && (leading_type_args() || !sr.is_found() || sr.is_scope()
-		|| (sr.net && sr.path_tail.empty()));
+	    && (leading_type_args()
+		|| !sr.is_found() || sr.is_scope()
+		|| (sr.net && sr.path_tail.empty())
+		|| (has_scoped_type_prefix() && sr.par_val && sr.scope
+		    && sr.scope->type() == NetScope::CLASS));
+      bool scoped_class_parameter = false;
       if (scoped_static_candidate) {
 	    bool illegal_bare_generic = false;
 	    perm_string nonclass_typedef;
+	    bool parameter_found = false;
+	    const NetExpr*parameter_value = nullptr;
+	    ivl_type_t parameter_type = nullptr;
+	    NetScope*parameter_scope = nullptr;
+	    size_t parameter_component = path_.name.size();
 	    NetExpr*static_prop = resolve_scoped_class_static_property_expr_(
 		  des, scope, path_, this, leading_type_args(),
-		  &illegal_bare_generic, &nonclass_typedef);
+		  &illegal_bare_generic, &nonclass_typedef,
+		  &parameter_found, &parameter_value, &parameter_type,
+		  &parameter_scope, &parameter_component);
 	    if (!nonclass_typedef.nil()) {
 		  if (!bare_generic_scope_error_reported_) {
 			report_nonclass_typedef_class_scope_(
@@ -16642,6 +16912,12 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		  }
 		  return 0;
 	    }
+	    if (parameter_found && parameter_value) {
+		  set_scoped_class_parameter_result_(
+			path_, parameter_component, parameter_scope,
+			parameter_value, parameter_type, sr);
+		  scoped_class_parameter = true;
+	    }
 	    if (static_prop) {
 		  if (NEED_CONST & flags) {
 			cerr << get_fileline() << ": error: A reference to a net "
@@ -16655,7 +16931,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	    }
       }
 
-      if (path_.size() > 1) {
+      if (path_.size() > 1 && !scoped_class_parameter) {
 	      // Package parameters accessed via a self-package-scope reference
 	      // (pkg_b::Y inside pkg_b) may parse as a hierarchical path if the
 	      // package was not yet registered at lex time. Still allow them as
@@ -18903,7 +19179,14 @@ NetExpr* PEIdent::elaborate_expr_param_member_(
       if (!cur)
 	    return nullptr;
 
-      ivl_type_t cur_type = sr.type;
+      /* sr.type is the declared parameter type. If the parameter head is
+	 indexed, walk those dimensions before resolving a following member;
+	 a packed array of structs P[i].field has the struct element type,
+	 not the packed-array type. */
+      symbol_search_results head_sr = sr;
+      head_sr.path_tail.clear();
+      unsigned head_index_depth = 0;
+      ivl_type_t cur_type = resolve_type_(des, head_sr, head_index_depth);
       for (const name_component_t&comp : sr.path_tail) {
 	    const netstruct_t*st = dynamic_cast<const netstruct_t*>(cur_type);
 	    if (!st) {
