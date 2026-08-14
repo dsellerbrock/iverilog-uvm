@@ -1,0 +1,1 @@
+ivltests/sv_scoped_constructor_unknown_class_fail.v:4: error: Unable to resolve class scope for missing_c.

@@ -34,6 +34,15 @@ using namespace std;
  * The functions here help the parser put together class type declarations.
  */
 static PClass*pform_cur_class = 0;
+/* A class declaration is itself a legal class item (IEEE 1800-2017
+ * 8.3). Keep the enclosing class while a nested declaration is parsed so
+ * items following the nested class are attached to the right owner. */
+static vector<PClass*> pform_enclosing_classes_;
+/* Out-of-block method/constraint bodies temporarily re-enter a previously
+ * declared class. Remember the exact lexical caller so leaving the class can
+ * verify that the parser returned to the declaration site, rather than merely
+ * to some ancestor that happened to contain the class name. */
+static LexicalScope* pform_class_reentry_caller_ = 0;
 static PTaskFunc* pform_recent_class_method_ = 0;
 
 void pform_blend_class_constructors(PClass*pclass)
@@ -123,7 +132,7 @@ void pform_start_class_declaration(const struct vlltype&loc,
 {
       PClass*class_scope = pform_push_class_scope(loc, type->name);
       class_scope->type = type;
-      ivl_assert(loc, pform_cur_class == 0);
+      pform_enclosing_classes_.push_back(pform_cur_class);
       pform_cur_class = class_scope;
 
       ivl_assert(loc, type->base_type == 0);
@@ -213,6 +222,12 @@ void pform_set_this_class(const struct vlltype&loc, PTaskFunc*net)
       if (pform_cur_class == 0)
 	    return;
 
+      if (net->is_pure_method() && !pform_cur_class->type->virtual_class) {
+	    cerr << loc << ": error: A pure virtual method may only be declared "
+		 << "in a virtual class." << endl;
+	    error_count += 1;
+      }
+
       list<pform_port_t>*this_name = new list<pform_port_t>;
       this_name->push_back(pform_port_t({ perm_string::literal(THIS_TOKEN), 0 }, 0, 0));
       vector<pform_tf_port_t>*this_port = pform_make_task_ports(loc,
@@ -246,20 +261,26 @@ void pform_set_constructor_return(PFunction*net)
 bool pform_reenter_class_scope(const struct vlltype&loc, const char*name)
 {
       ivl_assert(loc, pform_cur_class == 0);
+      ivl_assert(loc, pform_class_reentry_caller_ == 0);
 
-      for (LexicalScope*scope = pform_peek_scope(); scope; scope = scope->parent_scope()) {
-	    PScopeExtra*scopex = dynamic_cast<PScopeExtra*>(scope);
-	    if (scopex == 0)
+      /* IEEE 1800-2017 8.24 requires an out-of-block method body to be
+       * declared in the same scope as its class. Looking through parent
+       * scopes is not only an illegal extension: pform_leave_class_scope()
+       * would then restore the class's parent instead of the declaration's
+       * caller (for example a module or generate scope), corrupting parser
+       * state. */
+      PScopeExtra*scopex = dynamic_cast<PScopeExtra*>(pform_peek_scope());
+      if (scopex == 0)
+	    return false;
+
+      for (auto it = scopex->classes.begin(); it != scopex->classes.end(); ++it) {
+	    if (std::strcmp(it->first, name) != 0)
 		  continue;
 
-	    for (auto it = scopex->classes.begin(); it != scopex->classes.end(); ++it) {
-		  if (std::strcmp(it->first, name) != 0)
-			continue;
-
-		  pform_cur_class = it->second;
-		  pform_push_existing_scope(it->second);
-		  return true;
-	    }
+	    pform_class_reentry_caller_ = pform_peek_scope();
+	    pform_cur_class = it->second;
+	    pform_push_existing_scope(it->second);
+	    return true;
       }
 
       return false;
@@ -267,12 +288,16 @@ bool pform_reenter_class_scope(const struct vlltype&loc, const char*name)
 
 void pform_leave_class_scope(const struct vlltype&loc)
 {
-      if (pform_cur_class == 0)
+      /* Failed lookup never entered a class, so there is nothing to undo. */
+      if (pform_class_reentry_caller_ == 0) {
+	    ivl_assert(loc, pform_cur_class == 0);
 	    return;
+      }
 
       pform_cur_class = 0;
       pform_pop_scope();
-      (void)loc;
+      ivl_assert(loc, pform_peek_scope() == pform_class_reentry_caller_);
+      pform_class_reentry_caller_ = 0;
 }
 
 /*
@@ -314,8 +339,10 @@ void pform_end_class_declaration(const struct vlltype&loc)
       pform_blend_class_constructors(pform_cur_class);
       pform_recent_class_method_ = 0;
 
-      pform_cur_class = 0;
       pform_pop_scope();
+      ivl_assert(loc, !pform_enclosing_classes_.empty());
+      pform_cur_class = pform_enclosing_classes_.back();
+      pform_enclosing_classes_.pop_back();
 }
 
 bool pform_in_class()

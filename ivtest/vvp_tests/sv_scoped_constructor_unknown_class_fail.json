@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_scoped_constructor_unknown_class_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_scoped_constructor_unknown_class_fail"
+}

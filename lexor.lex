@@ -122,6 +122,14 @@ static list<int> keyword_mask_stack;
 static int comment_enter;
 static bool in_module = false;
 static bool in_UDP = false;
+/* `function name' and `function class_name::new' both begin with an
+ * IDENTIFIER when the name is not yet known as a type. The parser needs the
+ * former to reduce an implicit return type, while the latter must retain the
+ * scoped-constructor path. Track this narrow header context so the two source
+ * forms get distinct tokens without changing their identifier values. */
+static bool in_function_header = false;
+static bool scoped_function_header_name = false;
+static bool ordinary_function_header_name = false;
 bool in_celldefine = false;
 UCDriveType uc_drive = UCD_NONE;
 static int ts_state = 0;
@@ -370,6 +378,26 @@ TU [munpf]
       return IDENTIFIER;
 }
 
+  /* Preserve an unresolved class name in `function C::new' as an ordinary
+     IDENTIFIER. The same first identifier in an untyped ordinary function is
+     returned as FUNCTION_IDENTIFIER by the general rule below, avoiding the
+     scoped-constructor shift without adding a parser conflict. Trailing
+     context is inspected but not consumed, so whitespace/comments and source
+     locations continue through their normal rules. */
+[a-zA-Z_][a-zA-Z0-9$_]*/([ \t\b\f\r\n]|[/][*]([^*]|[*]+[^*/])*[*]+[/]|[/][/][^\n]*\n)*"::" {
+      if (in_function_header)
+	    scoped_function_header_name = true;
+      REJECT;
+}
+
+  /* Conversely, an identifier followed by a port list or the old-style
+     declaration semicolon is the ordinary function name. */
+[a-zA-Z_][a-zA-Z0-9$_]*/([ \t\b\f\r\n]|[/][*]([^*]|[*]+[^*/])*[*]+[/]|[/][/][^\n]*\n)*("("|";") {
+      if (in_function_header)
+	    ordinary_function_header_name = true;
+      REJECT;
+}
+
 [a-zA-Z_][a-zA-Z0-9$_]* {
       int rc = lexor_keyword_code(yytext, yyleng);
 
@@ -385,6 +413,9 @@ TU [munpf]
 	    if (shadow)
 		  rc = IDENTIFIER;
       }
+
+      const bool is_function_header_identifier =
+	    in_function_header && rc == IDENTIFIER;
       switch (rc) {
 	  case IDENTIFIER:
 	    assert(yylloc.lexical_pos != UINT_MAX);
@@ -422,6 +453,18 @@ TU [munpf]
 	  default:
 	    yylval.text = 0;
 	    break;
+      }
+
+      if (rc == K_function) {
+	    in_function_header = true;
+	    scoped_function_header_name = false;
+	    ordinary_function_header_name = false;
+      } else if (in_function_header && rc != IDENTIFIER &&
+		 rc != K_automatic && rc != K_static) {
+	    /* A keyword return type makes the later name unambiguous. */
+	    in_function_header = false;
+	    scoped_function_header_name = false;
+	    ordinary_function_header_name = false;
       }
 
 	/* Special case: If this is part of a scoped name, then check
@@ -475,6 +518,15 @@ TU [munpf]
 	    }
       }
 
+      if (is_function_header_identifier) {
+	    if (rc == IDENTIFIER && ordinary_function_header_name &&
+		!scoped_function_header_name)
+		  rc = FUNCTION_IDENTIFIER;
+	    in_function_header = false;
+	    scoped_function_header_name = false;
+	    ordinary_function_header_name = false;
+      }
+
       return rc;
   }
 
@@ -483,6 +535,9 @@ TU [munpf]
       assert(yylloc.lexical_pos != UINT_MAX);
       yylloc.lexical_pos += 1;
       yylval.text = strdupnew(yytext+1);
+      in_function_header = false;
+      scoped_function_header_name = false;
+      ordinary_function_header_name = false;
       if (gn_system_verilog()) {
 	    if (PPackage*pkg = pform_test_package_identifier(yylval.text)) {
 		  delete[]yylval.text;
@@ -1705,6 +1760,9 @@ void reset_lexor()
       comment_enter = 0;
       in_module = false;
       in_UDP = false;
+      in_function_header = false;
+      scoped_function_header_name = false;
+      ordinary_function_header_name = false;
       ts_state = 0;
       ts_scale = 0;
       ts_unit = 0;

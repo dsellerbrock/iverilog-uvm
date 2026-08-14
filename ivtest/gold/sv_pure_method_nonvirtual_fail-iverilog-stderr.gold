@@ -1,0 +1,2 @@
+ivltests/sv_pure_method_nonvirtual_fail.v:4: error: A pure virtual method may only be declared in a virtual class.
+ivltests/sv_pure_method_nonvirtual_fail.v:5: error: A pure virtual method may only be declared in a virtual class.

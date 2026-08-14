@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_module_scoped_class_methods.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_module_scoped_class_methods"
+}

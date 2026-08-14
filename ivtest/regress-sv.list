@@ -1125,6 +1125,12 @@ sv_class_method_prop_wait_wakeup1 normal,-g2012 ivltests
 sv_object_alias_rebind_wait normal,-g2012 ivltests
 sv_class_extern_task1 normal,-g2012 ivltests
 sv_class_extern_ctor_const_init1 normal,-g2012 ivltests
+sv_nested_class_scope_stack normal,-g2012 ivltests gold=sv_nested_class_scope_stack.gold
+sv_module_scoped_class_methods normal,-g2012 ivltests gold=sv_module_scoped_class_methods.gold
+sv_pure_method_nonvirtual_fail CE,-g2012 ivltests gold=sv_pure_method_nonvirtual_fail.gold
+sv_scoped_class_method_wrong_scope_fail CE,-g2012 ivltests gold=sv_scoped_class_method_wrong_scope_fail.gold
+sv_scoped_class_method_generate_fail CE,-g2012 ivltests gold=sv_scoped_class_method_generate_fail.gold
+sv_scoped_constructor_unknown_class_fail CE,-g2012 ivltests gold=sv_scoped_constructor_unknown_class_fail.gold
 sv_class_queue_wait_wakeup1 normal,-g2012 ivltests
 sv_class_static_queue_wait_wakeup1 normal,-g2012 ivltests
 sv_class_queue_insert_wait_wakeup1 normal,-g2012 ivltests
