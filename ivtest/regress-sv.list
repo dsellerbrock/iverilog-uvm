@@ -1631,3 +1631,6 @@ sv_byte_array_string_fail CE,-g2012 ivltests gold=sv_byte_array_string_fail.gold
 # IEEE 1800-2017 postfix selects on concatenation expressions
 sv_concat_postfix_select normal,-g2012 ivltests gold=sv_concat_postfix_select.gold
 sv_concat_postfix_select_ascending_fail CE,-g2012 ivltests gold=sv_concat_postfix_select_ascending_fail.gold
+
+# IEEE 1800-2017 qualified if statements
+sv_quality_if normal,-g2012 ivltests gold=sv_quality_if.gold

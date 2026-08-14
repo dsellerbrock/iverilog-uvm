@@ -1533,6 +1533,57 @@ Statement* pform_make_case_inside(const struct vlltype&loc,
       return tmp;
 }
 
+Statement* pform_make_quality_if(const struct vlltype&loc,
+                                 ivl_case_quality_t qual,
+                                 PExpr*cond,
+                                 Statement*if_clause,
+                                 Statement*else_clause)
+{
+      std::vector<PCase::Item*>*items = new std::vector<PCase::Item*>;
+
+      auto append_condition = [&loc, items](PExpr*expr, Statement*stmt) {
+            // An if condition is true for any nonzero integral value. Reduce
+            // it to one bit before using the existing case-quality engine;
+            // `case (1'b1)` must not compare 1 against an unreduced vector.
+            PEUnary*not_expr = new PEUnary('!', expr);
+            FILE_NAME(not_expr, loc);
+            PEUnary*truth_expr = new PEUnary('!', not_expr);
+            FILE_NAME(truth_expr, loc);
+            PCase::Item*item = new PCase::Item;
+            item->expr.push_back(truth_expr);
+            item->stat = stmt;
+            items->push_back(item);
+      };
+
+      append_condition(cond, if_clause);
+
+      // The grammar has already associated a bare `else if` as a nested
+      // PCondit. Flatten only that direct chain. An `else begin ... if ...`
+      // remains a single default branch, as required by its block boundary.
+      Statement*tail = else_clause;
+      while (PCondit*next = dynamic_cast<PCondit*>(tail)) {
+            if (!next->is_parsed_if_statement())
+                  break;
+            PExpr*next_cond = next->release_cond_expr();
+            Statement*next_if = next->release_if_clause();
+            tail = next->release_else_clause();
+            delete next;
+            append_condition(next_cond, next_if);
+      }
+
+      if (tail) {
+            PCase::Item*def = new PCase::Item;
+            def->stat = tail;
+            items->push_back(def);
+      }
+
+      PENumber*one = new PENumber(new verinum(verinum::V1, 1));
+      FILE_NAME(one, loc);
+      PCase*result = new PCase(qual, NetCase::EQ, one, items, true);
+      FILE_NAME(result, loc);
+      return result;
+}
+
 PCallTask* pform_make_call_task(const struct vlltype&loc,
 				const pform_name_t&name,
 				const list<named_pexpr_t> &parms,

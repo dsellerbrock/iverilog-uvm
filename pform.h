@@ -768,6 +768,14 @@ extern Statement* pform_make_case_inside(const struct vlltype&loc,
 					 PExpr*sel,
 					 std::vector<PCase::Item*>*items);
 
+/* IEEE 1800-2017 12.4.2: lower a qualified if/else-if chain to the
+ * equivalent quality-checked case (1'b1) form. */
+extern Statement* pform_make_quality_if(const struct vlltype&loc,
+                                        ivl_case_quality_t qual,
+                                        PExpr*cond,
+                                        Statement*if_clause,
+                                        Statement*else_clause);
+
 extern void pform_make_let(const struct vlltype&loc,
                            perm_string name,
                            std::list<PLet::let_port_t*>*ports,

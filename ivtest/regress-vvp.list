@@ -565,3 +565,6 @@ sv_stream_dynamic_target_static_short_fail	vvp_tests/sv_stream_dynamic_target_st
 # IEEE 1800-2017 postfix selects on concatenation expressions
 sv_concat_postfix_select	vvp_tests/sv_concat_postfix_select.json
 sv_concat_postfix_select_ascending_fail	vvp_tests/sv_concat_postfix_select_ascending_fail.json
+
+# IEEE 1800-2017 qualified if statements
+sv_quality_if	vvp_tests/sv_quality_if.json

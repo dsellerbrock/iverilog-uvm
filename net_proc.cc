@@ -85,8 +85,9 @@ const NetProc* NetBlock::proc_next(const NetProc*cur) const
       return cur->next_;
 }
 
-NetCase::NetCase(ivl_case_quality_t q, NetCase::TYPE c, NetExpr*ex, unsigned cnt)
-: quality_(q), type_(c), expr_(ex), items_(cnt)
+NetCase::NetCase(ivl_case_quality_t q, NetCase::TYPE c, NetExpr*ex,
+                 unsigned cnt, bool quality_if)
+: quality_(q), type_(c), quality_if_(quality_if), expr_(ex), items_(cnt)
 {
       ivl_assert(*this, expr_);
 }

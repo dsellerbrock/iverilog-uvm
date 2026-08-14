@@ -3383,7 +3383,8 @@ class NetCase  : public NetProc {
     public:
       enum TYPE { EQ, EQX, EQZ };
 
-      NetCase(ivl_case_quality_t q, TYPE c, NetExpr*ex, unsigned cnt);
+      NetCase(ivl_case_quality_t q, TYPE c, NetExpr*ex, unsigned cnt,
+              bool quality_if = false);
       ~NetCase() override;
 
       void set_case(unsigned idx, NetExpr*ex, NetProc*st);
@@ -3391,6 +3392,7 @@ class NetCase  : public NetProc {
       void prune();
 
       inline ivl_case_quality_t case_quality() const { return quality_; }
+      inline bool is_quality_if() const { return quality_if_; }
       TYPE type() const;
       const NetExpr*expr() const { return expr_; }
       inline unsigned nitems() const { return items_.size(); }
@@ -3425,6 +3427,7 @@ class NetCase  : public NetProc {
 
       ivl_case_quality_t quality_;
       TYPE type_;
+      bool quality_if_;
 
       struct Item {
 	    inline Item() : guard(0), statement(0) { }

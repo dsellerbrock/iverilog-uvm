@@ -875,6 +875,7 @@ struct ivl_statement_s {
 
 	    struct { /* IVL_ST_CASE, IVL_ST_CASEX, IVL_ST_CASEZ */
 		  ivl_case_quality_t quality;
+		  bool quality_if;
 		  ivl_expr_t cond;
 		  unsigned ncase;
 		  ivl_expr_t*case_ex;

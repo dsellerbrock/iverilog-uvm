@@ -1,0 +1,9 @@
+WARNING: ivltests/sv_quality_if.v:34: multiple conditions match for unique or unique0 if statement
+         Time: 0  Scope: test
+WARNING: ivltests/sv_quality_if.v:45: no condition matches for priority or unique if statement
+         Time: 0  Scope: test
+WARNING: ivltests/sv_quality_if.v:47: no condition matches for priority or unique if statement
+         Time: 0  Scope: test
+WARNING: ivltests/sv_quality_if.v:55: multiple conditions match for unique or unique0 if statement
+         Time: 0  Scope: test
+PASSED

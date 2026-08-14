@@ -338,8 +338,9 @@ const pform_name_t& PCallTask::path() const
       return path_;
 }
 
-PCase::PCase(ivl_case_quality_t q, NetCase::TYPE t, PExpr*ex, std::vector<PCase::Item*>*l)
-: quality_(q), type_(t), expr_(ex), items_(l)
+PCase::PCase(ivl_case_quality_t q, NetCase::TYPE t, PExpr*ex,
+             std::vector<PCase::Item*>*l, bool quality_if)
+: quality_(q), type_(t), expr_(ex), items_(l), quality_if_(quality_if)
 {
 }
 
@@ -399,6 +400,27 @@ PCondit::~PCondit()
       delete expr_;
       delete if_;
       delete else_;
+}
+
+PExpr* PCondit::release_cond_expr()
+{
+      PExpr*tmp = expr_;
+      expr_ = nullptr;
+      return tmp;
+}
+
+Statement* PCondit::release_if_clause()
+{
+      Statement*tmp = if_;
+      if_ = nullptr;
+      return tmp;
+}
+
+Statement* PCondit::release_else_clause()
+{
+      Statement*tmp = else_;
+      else_ = nullptr;
+      return tmp;
 }
 
 PDeassign::PDeassign(PExpr*l)

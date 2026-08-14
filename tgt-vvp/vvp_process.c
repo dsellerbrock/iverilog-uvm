@@ -775,6 +775,7 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
       int multi_flag = allocate_flag();
       int first_match_word = allocate_word();
       unsigned*body_label = count ? calloc(count, sizeof(unsigned)) : 0;
+      int quality_if = ivl_stmt_case_is_quality_if(net);
 
       show_stmt_file_line(net, "Case statement.");
 
@@ -865,11 +866,18 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
       lab_after_warn = local_count++;
       fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d;\n",
 	      thread_count, lab_after_warn, multi_flag);
-      fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
-	      "\"multiple case items match for unique or unique0 case "
-	      "statement\" {0 0 0 0};\n",
-	      ivl_file_table_index(ivl_stmt_file(net)),
-	      ivl_stmt_lineno(net));
+      if (quality_if)
+	    fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
+		    "\"multiple conditions match for unique or unique0 if "
+		    "statement\" {0 0 0 0};\n",
+		    ivl_file_table_index(ivl_stmt_file(net)),
+		    ivl_stmt_lineno(net));
+      else
+	    fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
+		    "\"multiple case items match for unique or unique0 case "
+		    "statement\" {0 0 0 0};\n",
+		    ivl_file_table_index(ivl_stmt_file(net)),
+		    ivl_stmt_lineno(net));
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_after_warn);
 
       lab_out = local_count++;
@@ -897,11 +905,18 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 	    ivl_statement_t cst = ivl_stmt_case_stmt(net, default_case);
 	    rc += show_statement(cst, sscope);
       } else if (qual == IVL_CASE_QUALITY_UNIQUE) {
-	    fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
-		    "\"value is unhandled for priority or unique case statement\""
-		    " {0 0 0 0};\n",
-		    ivl_file_table_index(ivl_stmt_file(net)),
-		    ivl_stmt_lineno(net));
+	    if (quality_if)
+		  fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
+			  "\"no condition matches for priority or unique if statement\""
+			  " {0 0 0 0};\n",
+			  ivl_file_table_index(ivl_stmt_file(net)),
+			  ivl_stmt_lineno(net));
+	    else
+		  fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
+			  "\"value is unhandled for priority or unique case statement\""
+			  " {0 0 0 0};\n",
+			  ivl_file_table_index(ivl_stmt_file(net)),
+			  ivl_stmt_lineno(net));
       }
 
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
@@ -930,6 +945,7 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 {
       int rc = 0;
       ivl_case_quality_t qual = ivl_stmt_case_quality(net);
+      int quality_if = ivl_stmt_case_is_quality_if(net);
       ivl_expr_t expr = ivl_stmt_cond_expr(net);
       unsigned count = ivl_stmt_case_count(net);
 
@@ -1007,11 +1023,18 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
            are handled by show_stmt_case_unique above. */
       else if (default_case == count) {
           if (qual == IVL_CASE_QUALITY_PRIORITY) {
-              fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
-                      "\"value is unhandled for priority or unique case statement\""
-                      " {0 0 0 0};\n",
-                      ivl_file_table_index(ivl_stmt_file(net)),
-                      ivl_stmt_lineno(net));
+              if (quality_if)
+		    fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
+			    "\"no condition matches for priority or unique if statement\""
+			    " {0 0 0 0};\n",
+			    ivl_file_table_index(ivl_stmt_file(net)),
+			    ivl_stmt_lineno(net));
+              else
+		    fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
+			    "\"value is unhandled for priority or unique case statement\""
+			    " {0 0 0 0};\n",
+			    ivl_file_table_index(ivl_stmt_file(net)),
+			    ivl_stmt_lineno(net));
           }
       }
 

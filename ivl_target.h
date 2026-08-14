@@ -2395,6 +2395,8 @@ extern unsigned ivl_stmt_case_count(ivl_statement_t net);
 extern ivl_expr_t ivl_stmt_case_expr(ivl_statement_t net, unsigned i);
   /* IVL+ST_CASE,IVL_ST_CASER,IVL_ST_CASEX,IVL_ST_CASEZ */
 extern ivl_case_quality_t ivl_stmt_case_quality(ivl_statement_t net);
+  /* True when a case node is the internal lowering of unique/unique0/priority if. */
+extern unsigned ivl_stmt_case_is_quality_if(ivl_statement_t net);
   /* IVL_ST_CASE,IVL_ST_CASER,IVL_ST_CASEX,IVL_ST_CASEZ */
 extern ivl_statement_t ivl_stmt_case_stmt(ivl_statement_t net, unsigned i);
   /* IVL_ST_CONDIT IVL_ST_FORLOOP IVL_ST_CASE IVL_ST_REPEAT IVL_ST_WHILE */
