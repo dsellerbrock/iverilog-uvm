@@ -135,9 +135,17 @@ std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth)
 	    return std::string("...");
 
       std::string out = "'{";
+      int active = defn->is_tagged_union_type()
+	    ? cobj->union_active_member() : -1;
+      bool first = true;
       for (size_t i = 0 ; i < defn->property_count() ; i += 1) {
-	    if (i) out += ", ";
+	    if (defn->is_tagged_union_type() && active != (int)i)
+		  continue;
+	    if (!first) out += ", ";
+	    first = false;
 	    out += defn->property_name(i);
+	    if (defn->property_is_void(i))
+		  continue;
 	    out += ":";
 	    const std::string&bt = defn->property_base_type(i);
 	    if (bt == "r") {
@@ -211,7 +219,11 @@ void __vpiCobjectVar::vpi_get_value(p_vpi_value val)
 {
       vvp_fun_signal_object*fun = get_object_fun_(this);
       assert(fun);
-      vvp_object_t obj = fun->peek_object();
+	// An unpacked struct or union is a value, not a nullable class handle.
+	// Reading it through VPI (including a direct %p display) must therefore
+	// materialize its default value just like an ordinary member read does.
+	// Class-handle signals still remain null because they have no init_defn_.
+      vvp_object_t obj = fun->get_object();
 
       switch (val->format) {
 	case vpiObjTypeVal:
@@ -223,7 +235,17 @@ void __vpiCobjectVar::vpi_get_value(p_vpi_value val)
 	case vpiHexStrVal:
 	case vpiStringVal:
 	    {
-	          const char*desc = describe_class_object_(obj);
+	          std::string aggregate;
+	          const char*desc = 0;
+	          if (vvp_cobject*cobj = obj.peek<vvp_cobject>()) {
+			const class_type*defn = cobj->get_defn();
+			if (defn && defn->is_struct_type()) {
+			      aggregate = vvp_format_cobject_p(obj);
+			      desc = aggregate.c_str();
+			}
+	          }
+	          if (!desc)
+			desc = describe_class_object_(obj);
 	          char*rbuf = static_cast<char *>(need_result_buf(strlen(desc)+1, RBUF_VAL));
 	          strcpy(rbuf, desc);
 	    val->value.str = rbuf;

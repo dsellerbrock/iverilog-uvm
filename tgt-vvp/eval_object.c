@@ -2297,6 +2297,13 @@ static int emit_aggregate_property_store_(ivl_type_t prop_type,
       }
 
       switch (ivl_type_base(prop_type)) {
+          case IVL_VT_VOID:
+            /* A tagged-union void member still needs one store so the
+             * runtime records it as the active alternative. */
+            fprintf(vvp_out, "    %%pushi/vec4 0, 0, 1;\n");
+            fprintf(vvp_out, "    %%store/prop/v %u, 1;\n", pidx);
+            return errors;
+
           case IVL_VT_BOOL:
           case IVL_VT_LOGIC: {
             unsigned wid = ivl_type_packed_width(prop_type);
@@ -2339,6 +2346,7 @@ static int eval_object_aggregate_literal_(ivl_expr_t expr)
       unsigned nprop;
       unsigned nparm;
       unsigned idx;
+      int union_active_member;
       int errors = 0;
 
       if (!object_expr_uses_aggregate_cobject_(expr))
@@ -2374,7 +2382,11 @@ static int eval_object_aggregate_literal_(ivl_expr_t expr)
       if (nparm > nprop)
             nparm = nprop;
 
+      union_active_member = ivl_expr_union_active_member(expr);
       for (idx = 0; idx < nparm; idx += 1) {
+            if (union_active_member >= 0
+                && idx != (unsigned)union_active_member)
+                  continue;
             ivl_type_t prop_type = ivl_type_prop_type(agg_type, idx);
             errors += emit_aggregate_property_store_(prop_type, idx,
                                                      ivl_expr_parm(expr, idx));

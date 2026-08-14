@@ -104,6 +104,7 @@ static void emit_struct_cobject_definition_(ivl_type_t struct_type)
 {
       int idx;
       const char*name;
+      const char*directive;
 
       if (!struct_type || emitted_struct_cobject_(struct_type))
 	    return;
@@ -118,8 +119,13 @@ static void emit_struct_cobject_definition_(ivl_type_t struct_type)
       if (!name)
 	    name = "";
 
-      fprintf(vvp_out, "C%p  .class/struct \"%s\" [%d]\n",
-	      struct_type, name, ivl_type_properties(struct_type));
+      directive = ivl_type_is_tagged_union(struct_type)
+	    ? ".class/union/tagged"
+	    : ivl_type_is_union(struct_type)
+	    ? ".class/union" : ".class/struct";
+      fprintf(vvp_out, "C%p  %s \"%s\" [%d]\n",
+	      struct_type, directive,
+	      name, ivl_type_properties(struct_type));
       for (idx = 0 ; idx < ivl_type_properties(struct_type) ; idx += 1) {
 	    ivl_type_t ptype = ivl_type_prop_type(struct_type, idx);
 	    fprintf(vvp_out, " %3d: \"%s\", ", idx, ivl_type_prop_name(struct_type, idx));
@@ -274,6 +280,8 @@ static void show_prop_type(ivl_type_t ptype, const char*rand_prefix)
 
       switch (data_type) {
 	  case IVL_VT_VOID:
+	    fprintf(vvp_out, "\"%sV\"", rand_prefix ? rand_prefix : "");
+	    break;
 	  case IVL_VT_NO_TYPE:
 	      /* An unpacked-struct property must retain its rand/randc
 	       * qualifier in the runtime metadata just like every other
@@ -364,8 +372,12 @@ void draw_class_in_scope(ivl_type_t classtype)
 	         emit_struct_cobject_definition_; this is the same form for
 	         struct types emitted by the scope walk. */
 	    const char*name = ivl_type_name(classtype);
-	    fprintf(vvp_out, "C%p  .class/struct \"%s\" [%d]\n",
-		    classtype, name ? name : "",
+	    const char*directive = ivl_type_is_tagged_union(classtype)
+		  ? ".class/union/tagged"
+		  : ivl_type_is_union(classtype)
+		  ? ".class/union" : ".class/struct";
+	    fprintf(vvp_out, "C%p  %s \"%s\" [%d]\n",
+		    classtype, directive, name ? name : "",
 		    ivl_type_properties(classtype));
       } else if (dispatch_prefix && *dispatch_prefix
           && super_dispatch_prefix && *super_dispatch_prefix) {

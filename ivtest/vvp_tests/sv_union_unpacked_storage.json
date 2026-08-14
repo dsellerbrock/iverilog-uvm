@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_union_unpacked_storage.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_union_unpacked_storage"
+}

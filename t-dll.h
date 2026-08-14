@@ -282,6 +282,7 @@ struct ivl_expr_s {
 	    struct {
 		  size_t parms;
 		  ivl_expr_t*parm;
+		  int union_active_member;
 	    } array_pattern_;
 
 	    struct {

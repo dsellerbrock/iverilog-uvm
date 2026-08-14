@@ -53,6 +53,12 @@ class class_type : public __vpiHandle {
 	// are stored; class objects copy as handles.
       inline bool is_struct_type(void) const { return is_struct_type_; }
       inline void set_struct_type(void) { is_struct_type_ = true; }
+      inline bool is_union_type(void) const { return is_union_type_; }
+      inline bool is_tagged_union_type(void) const
+	    { return is_union_type_ && is_tagged_union_type_; }
+      inline void set_union_type(bool tagged)
+	    { is_struct_type_ = true; is_union_type_ = true;
+	      is_tagged_union_type_ = tagged; }
       inline const std::string&scope_path(void) const { return scope_path_; }
       inline const std::string&dispatch_prefix(void) const { return dispatch_prefix_; }
       inline const std::string&super_dispatch_prefix(void) const { return super_dispatch_prefix_; }
@@ -124,6 +130,10 @@ class class_type : public __vpiHandle {
 	// the .class directive. Used by randomize to fill and write
 	// back array-typed rand properties.
       const std::string& property_base_type(size_t idx) const;
+      unsigned property_vec4_width(size_t idx) const;
+      unsigned union_vec4_width(void) const;
+      bool union_is_four_state(void) const;
+      bool property_is_void(size_t idx) const;
       const class_type*property_declared_class_type(size_t idx) const;
       uint64_t property_array_size(size_t idx) const;
       const std::vector<std::pair<int,int> >&
@@ -162,6 +172,8 @@ class class_type : public __vpiHandle {
     private:
       std::string class_name_;
       bool is_struct_type_ = false;
+      bool is_union_type_ = false;
+      bool is_tagged_union_type_ = false;
       std::string scope_path_;
       std::string dispatch_prefix_;
       std::string super_dispatch_prefix_;
