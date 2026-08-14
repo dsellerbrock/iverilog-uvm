@@ -1454,6 +1454,23 @@ static void validate_interface_class_items_(Design*des, const PClass*pclass)
       }
 }
 
+static void validate_external_class_constraints_(Design*des, PClass*pclass)
+{
+      if (!(des && pclass && pclass->type))
+	    return;
+
+      for (auto&cur : pclass->type->extern_constraints) {
+	    class_type_t::extern_constraint_info_t&info = cur.second;
+	    if (info.reported)
+		  continue;
+	    cerr << info.get_fileline() << ": error: Extern constraint `"
+		 << cur.first << "' has no out-of-body definition in class `"
+		 << pclass->pscope_name() << "'." << endl;
+	    des->errors += 1;
+	    info.reported = true;
+      }
+}
+
 void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 {
       if (sig_elaborated_ || sig_elaborating_)
@@ -1488,6 +1505,7 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 			des, const_cast<PClass*>(interface_pclass));
       }
 
+      validate_external_class_constraints_(des, pclass);
       validate_interface_class_items_(des, pclass);
 
 	// IEEE 1800-2017 8.20: a method that overrides an inherited virtual

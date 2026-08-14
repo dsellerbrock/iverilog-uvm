@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_rootless_randsequence_undeclared_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_rootless_randsequence_undeclared_fail"
+}

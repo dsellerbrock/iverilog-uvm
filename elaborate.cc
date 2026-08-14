@@ -7562,8 +7562,15 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
       };
 
 	// Elaborate and try to evaluate the conditional expression.
+      const unsigned errors_before_condition = des->errors;
       NetExpr*expr = elab_and_eval(des, scope, expr_, -1);
       if (expr == 0) {
+	    /* If the expression already produced a hard diagnostic, do not
+	       obscure it with the compile-progress warning or fabricate an
+	       else-only statement. The fallback below is reserved for the
+	       warning-only UVM typing gaps that still depend on it. */
+	    if (des->errors != errors_before_condition)
+		  return nullptr;
 	    // Compile-progress fallback: Some UVM patterns involve checking
 	    // inherited method results without parentheses (e.g. port.size<1)
 	    // which may fail to elaborate in complex class hierarchies.

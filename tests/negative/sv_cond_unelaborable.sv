@@ -11,12 +11,10 @@
 // used to warn and return null without counting anything, so nothing
 // downstream knew the condition had failed for a real reason.
 //
-// The fallback itself is still there and still prints its warning here.
-// Two sites in the UVM library depend on it (uvm_comparer.svh:638,
-// uvm_driver.svh:100); removing it fails the entire 229-test UVM suite
-// at exactly those two lines. So a condition that fails for a reason
-// nothing else reports STILL loses its then-branch silently. This test
-// pins the half that is fixed and marks the half that is not.
+// The warning-only fallback itself remains for two sites in the UVM library
+// (uvm_comparer.svh:638, uvm_driver.svh:100). A condition that already emits
+// a hard error now stops immediately: it does not also print the fallback
+// warning or fabricate an else-only statement.
 module sv_cond_unelaborable;
   logic [7:0] x;
   initial begin

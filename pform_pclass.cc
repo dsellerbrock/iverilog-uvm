@@ -374,8 +374,8 @@ void pform_bind_extern_task(PTask*task)
       }
 }
 
-void pform_class_constraint(const struct vlltype& /*loc*/,
-			     bool /*is_static*/,
+void pform_class_constraint(const struct vlltype&loc,
+			     bool is_static,
 			     const char*name,
 			     std::list<PExpr*>*items)
 {
@@ -383,11 +383,36 @@ void pform_class_constraint(const struct vlltype& /*loc*/,
 	    return;
 
       perm_string pname = lex_strings.make(name);
+      auto proto = pform_cur_class->type->extern_constraints.find(pname);
+      if (proto != pform_cur_class->type->extern_constraints.end()) {
+	    if (proto->second.is_static != is_static) {
+		  cerr << loc << ": error: Out-of-body definition of constraint `"
+		       << pname << "' does not match the prototype's static "
+			  "qualifier." << endl;
+		  error_count += 1;
+	    }
+	    pform_cur_class->type->extern_constraints.erase(proto);
+      }
       vector<PExpr*>& slot = pform_cur_class->type->constraints[pname];
       if (items) {
 	    slot.assign(items->begin(), items->end());
 	    delete items;
       }
+}
+
+void pform_class_constraint_prototype(const struct vlltype&loc,
+				      bool is_static,
+				      const char*name)
+{
+      if (!pform_cur_class || !name)
+	    return;
+
+      perm_string pname = lex_strings.make(name);
+      class_type_t::extern_constraint_info_t&info =
+	    pform_cur_class->type->extern_constraints[pname];
+      FILE_NAME(&info, loc);
+      info.is_static = is_static;
+      info.reported = false;
 }
 
 // I1 (Phase 62g): forward-declared accumulator from parse.y.

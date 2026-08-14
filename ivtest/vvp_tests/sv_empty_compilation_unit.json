@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_empty_compilation_unit.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_empty_compilation_unit"
+}

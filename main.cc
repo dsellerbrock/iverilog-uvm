@@ -1237,10 +1237,14 @@ int main(int argc, char*argv[])
 		  cout << endl;
       }
 
-	/* If there is *still* no guess for the root module, then give
-	   up completely, and complain. */
+	/* A SystemVerilog compilation unit is useful without a module root:
+	   packages and classes still need full elaboration for type and
+	   semantic checking. The elaborator and targets represent these as
+	   package scopes, so continue with an empty module-root list. Keep the
+	   historical Verilog behavior, and explicit -s names are handled by
+	   elaborate() because they leave roots nonempty. */
 
-      if (roots.empty()) {
+	if (roots.empty() && !gn_system_verilog()) {
 	    cerr << "No top level modules, and no -s option." << endl;
 	    return ignore_missing_modules ? 0 : 1;
       }

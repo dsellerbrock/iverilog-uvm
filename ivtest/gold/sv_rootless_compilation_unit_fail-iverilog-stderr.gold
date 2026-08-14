@@ -1,0 +1,2 @@
+ivltests/sv_rootless_compilation_unit_fail.v:5: error: Non-virtual class `incomplete' does not implement interface method `required_value'.
+1 error(s) during elaboration.

@@ -3379,11 +3379,12 @@ constraint_expression_list /* */
 constraint_prototype /* IEEE1800-2005: A.1.9 */
   : K_static_opt K_constraint IDENTIFIER ';'
       { delete[] $3; /* silently accept constraint prototype */ }
-  /* extern constraint name; — out-of-body definition (not yet supported) */
+  /* An explicit external prototype requires a matching out-of-body
+     definition (IEEE 1800-2017 18.5.1). */
   | K_extern K_constraint IDENTIFIER ';'
-      { /* silently accept extern constraint prototype */ delete[] $3; }
+      { pform_class_constraint_prototype(@2, false, $3); delete[] $3; }
   | K_extern K_static K_constraint IDENTIFIER ';'
-      { /* silently accept extern static constraint prototype */ delete[] $4; }
+      { pform_class_constraint_prototype(@3, true, $4); delete[] $4; }
   ;
 
 constraint_set /* IEEE1800-2005 A.1.9 */

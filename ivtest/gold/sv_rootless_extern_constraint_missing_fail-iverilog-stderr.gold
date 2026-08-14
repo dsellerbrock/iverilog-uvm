@@ -1,0 +1,2 @@
+ivltests/sv_rootless_extern_constraint_missing_fail.v:3: error: Extern constraint `missing_body' has no out-of-body definition in class `constrained'.
+1 error(s) during elaboration.

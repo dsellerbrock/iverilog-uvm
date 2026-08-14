@@ -568,9 +568,19 @@ struct class_type_t : public data_type_t {
 	// without waiting for any constructor.
       std::vector<Statement*> initialize_static;
 
-	// Named constraint blocks: map from constraint name to list of
-	// constraint expressions (PEInside, comparisons, etc.).
+      // Named constraint blocks: map from constraint name to list of
+      // constraint expressions (PEInside, comparisons, etc.).
       std::map<perm_string, std::vector<PExpr*>> constraints;
+
+	// IEEE 1800-2017 18.5.1 explicit external constraint prototypes.
+	// A matching out-of-body definition removes the entry. Keep source
+	// provenance so a missing definition is diagnosed once during class
+	// elaboration, including when the class has multiple specializations.
+      struct extern_constraint_info_t : public LineInfo {
+	    bool is_static = false;
+	    bool reported = false;
+      };
+      std::map<perm_string, extern_constraint_info_t> extern_constraints;
 
 	// Coverage group definitions (class-embedded covergroups).
       struct pform_cov_bins_t {
