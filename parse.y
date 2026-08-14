@@ -1696,7 +1696,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
 %type <lifetime> lifetime lifetime_opt
 
-%type <case_quality> unique_priority
+%type <case_quality> unique_priority if_qualifier
 
 %type <genvar_iter> genvar_iteration
 
@@ -15419,13 +15419,23 @@ statement_item /* This is roughly statement_item in the LRM */
 
   | K_if '(' expression ')' statement_or_null %prec less_than_K_else
       { PCondit*tmp = new PCondit($3, $5, 0);
+	tmp->parsed_if_statement();
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
   | K_if '(' expression ')' statement_or_null K_else statement_or_null
       { PCondit*tmp = new PCondit($3, $5, $7);
+	tmp->parsed_if_statement();
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
+      }
+  | if_qualifier K_if '(' expression ')' statement_or_null %prec less_than_K_else
+      { pform_requires_sv(@1, "qualified if statement");
+	$$ = pform_make_quality_if(@1, $1, $4, $6, nullptr);
+      }
+  | if_qualifier K_if '(' expression ')' statement_or_null K_else statement_or_null
+      { pform_requires_sv(@1, "qualified if statement");
+	$$ = pform_make_quality_if(@1, $1, $4, $6, $8);
       }
   | K_if '(' error ')' statement_or_null %prec less_than_K_else
       { yyerror(@1, "error: Malformed conditional expression.");
@@ -16343,6 +16353,12 @@ udp_primitive
 unique_priority
   :             { $$ = IVL_CASE_QUALITY_BASIC; }
   | K_unique    { $$ = IVL_CASE_QUALITY_UNIQUE; }
+  | K_unique0   { $$ = IVL_CASE_QUALITY_UNIQUE0; }
+  | K_priority  { $$ = IVL_CASE_QUALITY_PRIORITY; }
+  ;
+
+if_qualifier
+  : K_unique    { $$ = IVL_CASE_QUALITY_UNIQUE; }
   | K_unique0   { $$ = IVL_CASE_QUALITY_UNIQUE0; }
   | K_priority  { $$ = IVL_CASE_QUALITY_PRIORITY; }
   ;

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_quality_if.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_quality_if"
+}

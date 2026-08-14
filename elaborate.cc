@@ -7265,7 +7265,7 @@ NetProc* PCase::elaborate(Design*des, NetScope*scope) const
 		  icount += cur->expr.size();
       }
 
-      NetCase*res = new NetCase(quality_, type_, expr, icount);
+      NetCase*res = new NetCase(quality_, type_, expr, icount, quality_if_);
       res->set_line(*this);
 
 	/* Iterate over all the case items (guard/statement pairs)

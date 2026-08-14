@@ -370,7 +370,8 @@ class PCase  : public Statement {
 	    Statement*stat;
       };
 
-      PCase(ivl_case_quality_t, NetCase::TYPE, PExpr*ex, std::vector<Item*>*);
+      PCase(ivl_case_quality_t, NetCase::TYPE, PExpr*ex,
+            std::vector<Item*>*, bool quality_if = false);
       ~PCase() override;
 
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
@@ -385,6 +386,7 @@ class PCase  : public Statement {
       PExpr*expr_;
 
       std::vector<Item*>*items_;
+      bool quality_if_;
 
     private: // not implemented
       PCase(const PCase&);
@@ -503,6 +505,20 @@ class PCondit  : public Statement {
       Statement* if_clause() const { return if_; }
       Statement* else_clause() const { return else_; }
 
+      // Transfer a parsed else-if chain into another statement shape.
+      PExpr* release_cond_expr();
+      Statement* release_if_clause();
+      Statement* release_else_clause();
+
+	/* Some other parsed constructs (notably immediate assertions) use a
+	   PCondit internally. Record when this node came from an actual `if`
+	   statement so qualified-if lowering only flattens syntactic else-if
+	   chains. */
+      void parsed_if_statement(bool flag = true)
+	{ parsed_if_statement_ = flag; }
+      bool is_parsed_if_statement() const
+	{ return parsed_if_statement_; }
+
 	/* A simple/deferred immediate assertion is represented by a
 	   conditional whose branches are assertion action blocks. Keep that
 	   provenance through elaboration: system tasks in an assertion action
@@ -523,6 +539,7 @@ class PCondit  : public Statement {
       PExpr*expr_;
       Statement*if_;
       Statement*else_;
+      bool parsed_if_statement_ = false;
       bool immediate_assertion_ = false;
 
     private: // not implemented

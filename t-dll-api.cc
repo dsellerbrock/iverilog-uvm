@@ -3108,6 +3108,22 @@ extern "C" ivl_case_quality_t ivl_stmt_case_quality(ivl_statement_t net)
       }
 }
 
+extern "C" unsigned ivl_stmt_case_is_quality_if(ivl_statement_t net)
+{
+      assert(net);
+      switch (net->type_) {
+	  case IVL_ST_CASE:
+	  case IVL_ST_CASER:
+	  case IVL_ST_CASEX:
+	  case IVL_ST_CASEZ:
+	    return net->u_.case_.quality_if;
+
+	  default:
+	    assert(0);
+	    return 0;
+      }
+}
+
 extern "C" ivl_statement_t ivl_stmt_case_stmt(ivl_statement_t net, unsigned idx)
 {
       assert(net);
