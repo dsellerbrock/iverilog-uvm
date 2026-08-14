@@ -372,6 +372,19 @@ TU [munpf]
 
 [a-zA-Z_][a-zA-Z0-9$_]* {
       int rc = lexor_keyword_code(yytext, yyleng);
+
+	/* `bool' is an Icarus extension keyword rather than an IEEE keyword.
+	 * A visible user typedef of that name therefore takes precedence, just
+	 * as it would if the extension were disabled. Convert it back through
+	 * the ordinary identifier path so package/class lookup and lexical
+	 * position accounting remain identical to every other typedef name. */
+      if (rc == K_bool && gn_system_verilog()) {
+	    typedef_t*shadow = in_package_scope
+		  ? pform_test_type_identifier(in_package_scope, yytext)
+		  : pform_test_type_identifier(yylloc, yytext);
+	    if (shadow)
+		  rc = IDENTIFIER;
+      }
       switch (rc) {
 	  case IDENTIFIER:
 	    assert(yylloc.lexical_pos != UINT_MAX);

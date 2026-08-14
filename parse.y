@@ -1504,7 +1504,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 
 %type <text> label_opt class_declaration_endlabel_opt
 %type <text> block_identifier_opt
-%type <text> identifier_name bins_name class_cg_port_prefix package_cg_port_prefix
+%type <text> identifier_name typedef_identifier_name bins_name class_cg_port_prefix package_cg_port_prefix
 %type <text> bind_instance_path
 %type <strings> bind_instance_path_list
 %type <event_ident> event_variable
@@ -1693,7 +1693,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <property_qualifier> class_item_qualifier property_qualifier
 %type <property_qualifier> class_item_qualifier_list property_qualifier_list
 %type <property_qualifier> class_item_qualifier_opt property_qualifier_opt
-%type <property_qualifier> random_qualifier
+%type <property_qualifier> random_qualifier random_qualifier_opt
 %type <flag> virtual_class_item
 
 %type <ranges> variable_dimension
@@ -2322,6 +2322,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 
   | K_const class_item_qualifier_opt data_type list_of_variable_decl_assignments ';'
       { pform_class_property(@1, $2 | property_qualifier_t::make_const(), $3, $4); }
+  | class_item_qualifier_list K_const data_type list_of_variable_decl_assignments ';'
+      { pform_class_property(@2, $1 | property_qualifier_t::make_const(), $3, $4); }
 
   | property_qualifier_opt K_event event_variable_list ';'
       { /* IEEE 1800-2017 18.4: rand/randc is restricted to integral
@@ -3012,7 +3014,18 @@ class_item_qualifier /* IEEE1800-2005 A.1.8 */
   ;
 
 class_item_qualifier_list
-  : class_item_qualifier_list class_item_qualifier { $$ = $1 | $2; }
+  : class_item_qualifier_list class_item_qualifier
+      { if ($1.mask() & $2.mask()) {
+	      const char*name = $2.test_static() ? "static"
+		     : $2.test_local() ? "local" : "protected";
+	      yyerror(@2, "error: duplicate '%s' class item qualifier.", name);
+	}
+	if (($1.test_local() && $2.test_protected())
+	    || ($1.test_protected() && $2.test_local()))
+	      yyerror(@2, "error: class item qualifiers 'local' and "
+			  "'protected' cannot be combined.");
+	$$ = $1 | $2;
+      }
   | class_item_qualifier { $$ = $1; }
   ;
 
@@ -7439,6 +7452,11 @@ random_qualifier /* IEEE1800-2005 A.1.8 */
   | K_randc { $$ = property_qualifier_t::make_randc(); }
   ;
 
+random_qualifier_opt
+  : random_qualifier { $$ = $1; }
+  | { $$ = property_qualifier_t::make_none(); }
+  ;
+
 signing /* IEEE1800-2005: A.2.2.1 */
   : K_signed   { $$ = true; }
   | K_unsigned { $$ = false; }
@@ -8023,6 +8041,17 @@ variable_dimension /* IEEE1800-2005: A.2.5 */
 	tmp->push_back(index);
 	$$ = tmp;
       }
+  | '[' '*' ']'
+      { // Whitespace prevents the lexer from folding `[*' into K_LBSTAR.
+	// Preserve the identical IEEE 1800-2017 7.8.1 wildcard-index type
+	// for all four legal whitespace spellings: [*], [* ], [ *], [ * ].
+	list<pform_range_t> *tmp = new std::list<pform_range_t>;
+	data_type_t*wild_index = new atom_type_t(atom_type_t::INT, true);
+	pform_range_t index (new PEAssocType(wild_index, true),0);
+	pform_requires_sv(@$, "Associative array declaration");
+	tmp->push_back(index);
+	$$ = tmp;
+      }
   ;
 
 variable_lifetime_opt
@@ -8387,7 +8416,7 @@ typedef_basic_type
   /* Type declarations are parsed here. The rule actions call pform
      functions that add the declaration to the current lexical scope. */
 type_declaration
-  : K_typedef data_type identifier_name dimensions_opt ';'
+  : K_typedef data_type typedef_identifier_name dimensions_opt ';'
       { perm_string name = lex_strings.make($3);
 	pform_set_typedef(@3, name, $2, $4);
 	delete[]$3;
@@ -8400,7 +8429,7 @@ type_declaration
        reused far too widely), while this narrow, K_typedef-prefixed
        form costs exactly zero. See the matching comment on the
        expr_primary alternative above. */
-  | K_typedef K_type '(' expression ')' identifier_name dimensions_opt ';'
+  | K_typedef K_type '(' expression ')' typedef_identifier_name dimensions_opt ';'
       { data_type_t*dt;
 	if (PETypename*tn = dynamic_cast<PETypename*>($4))
 	      dt = new type_reference_t(tn->get_type());
@@ -8411,7 +8440,7 @@ type_declaration
 	pform_set_typedef(@6, name, dt, $7);
 	delete[]$6;
       }
-  | K_typedef IDENTIFIER identifier_name dimensions_opt ';'
+  | K_typedef IDENTIFIER typedef_identifier_name dimensions_opt ';'
       { typedef_t*base = pform_test_type_identifier(@2, $2);
 	if (base) {
 	      typeref_t*tmp = new typeref_t(base);
@@ -8428,22 +8457,22 @@ type_declaration
 
   /* These are forward declarations... */
 
-  | K_typedef identifier_name ';'
+  | K_typedef typedef_identifier_name ';'
       { perm_string name = lex_strings.make($2);
 	pform_forward_typedef(@2, name, typedef_t::ANY);
 	delete[]$2;
       }
-  | K_typedef typedef_basic_type identifier_name ';'
+  | K_typedef typedef_basic_type typedef_identifier_name ';'
       { perm_string name = lex_strings.make($3);
 	pform_forward_typedef(@3, name, $2);
 	delete[]$3;
       }
-  | K_typedef K_interface_class K_class identifier_name ';'
+  | K_typedef K_interface_class K_class typedef_identifier_name ';'
       { perm_string name = lex_strings.make($4);
 	pform_forward_typedef(@4, name, typedef_t::CLASS);
 	delete[]$4;
       }
-  | K_typedef K_enum identifier_name ';'
+  | K_typedef K_enum typedef_identifier_name ';'
       { perm_string name = lex_strings.make($3);
 	pform_forward_typedef(@3, name, typedef_t::ENUM);
 	delete[]$3;
@@ -8453,6 +8482,16 @@ type_declaration
 	yyerrok;
       }
 
+  ;
+
+/* `bool' is an Icarus extension keyword, not an IEEE keyword. Let an IEEE
+   typedef declaration introduce that spelling; once installed, the lexer
+   returns TYPE_IDENTIFIER for subsequent visible references instead of the
+   extension token. Keep this exception scoped to typedef declarators so the
+   built-in extension continues to work when no user type shadows it. */
+typedef_identifier_name
+  : identifier_name { $$ = $1; }
+  | K_bool { $$ = strdupnew("bool"); }
   ;
 
   /* The structure for an enumeration data type is the keyword "enum",
@@ -8630,11 +8669,12 @@ struct_union_member_list
   ;
 
 struct_union_member /* IEEE 1800-2012 A.2.2.1 */
-  : attribute_list_opt data_type list_of_variable_decl_assignments ';'
+  : attribute_list_opt random_qualifier_opt data_type list_of_variable_decl_assignments ';'
       { struct_member_t*tmp = new struct_member_t;
-	FILE_NAME(tmp, @2);
-	tmp->type  .reset($2);
-	tmp->names .reset($3);
+	FILE_NAME(tmp, @3);
+	tmp->qualifier = $2;
+	tmp->type  .reset($3);
+	tmp->names .reset($4);
 	$$ = tmp;
       }
   /* R20 (roadmap): a `union tagged` member may be declared with type
@@ -8645,29 +8685,31 @@ struct_union_member /* IEEE 1800-2012 A.2.2.1 */
      alternative. Legality of `void` outside a tagged union is
      checked at elaboration (struct_type_t::elaborate_type_raw),
      where the union/tagged context is known. */
-  | attribute_list_opt K_void list_of_variable_decl_assignments ';'
+  | attribute_list_opt random_qualifier_opt K_void list_of_variable_decl_assignments ';'
       { struct_member_t*tmp = new struct_member_t;
-	FILE_NAME(tmp, @2);
+	FILE_NAME(tmp, @3);
+	tmp->qualifier = $2;
 	void_type_t*vtype = new void_type_t;
-	FILE_NAME(vtype, @2);
+	FILE_NAME(vtype, @3);
 	tmp->type  .reset(vtype);
-	tmp->names .reset($3);
+	tmp->names .reset($4);
 	$$ = tmp;
       }
-  | attribute_list_opt IDENTIFIER list_of_variable_decl_assignments ';'
+  | attribute_list_opt random_qualifier_opt IDENTIFIER list_of_variable_decl_assignments ';'
       { struct_member_t*tmp = nullptr;
-	typedef_t*type = pform_test_type_identifier(@2, $2);
+	typedef_t*type = pform_test_type_identifier(@3, $3);
 	if (type) {
 	      tmp = new struct_member_t;
-	      FILE_NAME(tmp, @2);
+	      FILE_NAME(tmp, @3);
+	      tmp->qualifier = $2;
 	      tmp->type.reset(new typeref_t(type));
-	      FILE_NAME(tmp->type.get(), @2);
-	      tmp->names.reset($3);
+	      FILE_NAME(tmp->type.get(), @3);
+	      tmp->names.reset($4);
 	} else {
-	      yyerror(@2, "error: %s doesn't name a type.", $2);
-	      delete $3;
+	      yyerror(@3, "error: %s doesn't name a type.", $3);
+	      delete $4;
 	}
-	delete[]$2;
+	delete[]$3;
 	$$ = tmp;
       }
   | error ';'

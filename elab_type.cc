@@ -1147,6 +1147,35 @@ static const netstruct_t* net_type_struct_or_union_(ivl_type_t type)
       return 0;
 }
 
+static const char* struct_random_member_forbidden_type_(ivl_type_t type)
+{
+      while (const netarray_t*array = dynamic_cast<const netarray_t*>(type))
+	    type = array->element_type();
+
+      if (type == &netreal_t::type_real
+	  || type == &netreal_t::type_shortreal
+	  || (type && type->base_type() == IVL_VT_REAL))
+	    return "real/shortreal";
+      if (type == &netstring_t::type_string
+	  || (type && type->base_type() == IVL_VT_STRING))
+	    return "string";
+      return 0;
+}
+
+/* The runtime cycle bitmap is per packed randc leaf. Peel only unpacked
+ * array layers; a packed array is one cyclic value and its complete packed
+ * width must be checked against the implementation cap. */
+static long struct_randc_member_leaf_width_(ivl_type_t type)
+{
+      while (type) {
+	    const netarray_t*array = dynamic_cast<const netarray_t*>(type);
+	    if (!array || type->packed())
+		  break;
+	    type = array->element_type();
+      }
+      return type ? type->packed_width() : 0;
+}
+
 /* Keep this predicate in lockstep with assignment_rval_is_constant_ in
  * elaborate.cc. Most constant expressions reduce to NetEConst (including
  * NetECString) or NetECReal. A literal class-handle null deliberately remains
@@ -1251,6 +1280,19 @@ ivl_type_t struct_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 	      // Elaborate the type of the member.
 	    struct_member_t*curp = *cur;
 
+	      // IEEE 1800-2017 7.2/18.4 permits a random qualifier on a
+	      // member only when the containing aggregate is an unpacked
+	      // structure. Diagnose the declaration here, where the enclosing
+	      // packed/union shape is known, instead of accepting and silently
+	      // discarding a modifier that cannot have legal semantics.
+	    if ((curp->qualifier.test_rand() || curp->qualifier.test_randc())
+		&& (packed_flag || union_flag)) {
+		  cerr << curp->get_fileline() << ": error: a random qualifier on "
+		       << "a struct/union member is only legal within an unpacked "
+		       << "structure (IEEE 1800-2017 7.2 and 18.4)." << endl;
+		  des->errors += 1;
+	    }
+
 	      // R20: a `void` member (IEEE 1800-2017 7.3.2 tag-only
 	      // member) is only legal inside a `union tagged`. Reject
 	      // it loudly everywhere else instead of quietly building
@@ -1322,8 +1364,52 @@ ivl_type_t struct_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 
 		  netstruct_t::member_t memb;
 		  memb.name = namep->name.first;
+		  memb.qualifier = curp->qualifier;
 		  memb.net_type = elaborate_array_type(des, scope, *this,
 							       mem_vec, namep->index);
+
+		    // IEEE 1800-2017 18.4 restricts random variables to
+		    // integral/enum/aggregate values. Reject forbidden source types
+		    // at declaration time instead of accepting an illegal qualifier.
+		  bool bad_random_type = false;
+		  if (!packed_flag && !union_flag
+		      && (curp->qualifier.test_rand()
+			  || curp->qualifier.test_randc())) {
+			const char*what =
+			      struct_random_member_forbidden_type_(memb.net_type);
+			if (what) {
+			      bad_random_type = true;
+			      cerr << curp->get_fileline() << ": error: member '"
+				   << memb.name << "' of unpacked struct is declared "
+				   << (curp->qualifier.test_randc() ? "randc" : "rand")
+				   << " but has type " << what << ", which is not an "
+				   << "integral type (IEEE 1800-2017 18.4 restricts "
+				   << "rand/randc to 2-state/4-state types, enums, "
+				   << "and aggregates thereof)." << endl;
+			      des->errors += 1;
+			}
+		  }
+
+		    // Keep this limit in sync with vvp_cobject::randc_period()
+		    // and the class-property check in elab_sig.cc. Values above
+		    // it fall back to plain random bits, so the loss of cyclic
+		    // semantics must never be silent.
+		  if (!packed_flag && !union_flag && !bad_random_type
+		      && curp->qualifier.test_randc()
+		      && memb.net_type) {
+			long pw = struct_randc_member_leaf_width_(memb.net_type);
+			const long randc_cap_bits = 20;
+			if (pw > randc_cap_bits) {
+			      cerr << curp->get_fileline() << ": warning: randc member '"
+				   << memb.name << "' of unpacked struct has a " << pw
+				   << "-bit cyclic leaf, beyond the "
+				   << randc_cap_bits << "-bit randc cycle-tracking cap; "
+				   << "it will randomize as plain (non-cyclic) rand "
+				   << "instead of guaranteeing a full permutation "
+				   << "before any repeat." << endl;
+			}
+		  }
+
 		  if (namep->expr && !packed_flag && !union_flag
 		      && !reported_union_member && memb.net_type)
 			elaborate_struct_member_default_(des, scope,

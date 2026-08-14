@@ -1,0 +1,2 @@
+runtime error: randomize() cannot randomize rand member 'child' of an unpacked struct because class-handle member randomization is not yet supported; randomize() returns failure instead of leaving it unchanged.
+runtime error: randomize() cannot randomize rand member 'dynamic_values' of an unpacked struct because dynamic-array member randomization is not yet supported; randomize() returns failure instead of leaving it unchanged.

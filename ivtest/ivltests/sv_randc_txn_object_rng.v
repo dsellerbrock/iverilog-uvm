@@ -2,8 +2,8 @@
 // exact constrained selection, dist, container sizing/fill, unpacked-struct
 // leaves, and static properties randomized through that receiver.
 typedef struct {
-  bit [63:0] left;
-  bit [63:0] right;
+  rand bit [63:0] left;
+  rand bit [63:0] right;
 } randc_txn_rng_struct_t;
 
 class randc_txn_rng_item;

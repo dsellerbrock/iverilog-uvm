@@ -622,11 +622,13 @@ static void sig_check_port_type(Design*des, const NetScope*scope,
       }
 }
 
-/* Find only typedef type graphs that actually carry a struct/union member
- * default. Eagerly elaborating every typedef is both unnecessary and harmful
- * for large class libraries whose unused parameterized aliases are intended
- * to remain lazy. */
-static bool pform_type_has_struct_member_default_(
+/* Find only typedef type graphs that carry a struct/union declaration which
+ * needs an eager legality check. Defaults and random member qualifiers both
+ * have declaration semantics even when the typedef is never referenced;
+ * eagerly elaborating every typedef remains unnecessary and harmful for large
+ * class libraries whose unused parameterized aliases are intended to stay
+ * lazy. */
+static bool pform_type_needs_struct_typedef_validation_(
 		const data_type_t*type, map<const data_type_t*,unsigned char>&memo)
 {
       if (!type)
@@ -644,11 +646,11 @@ static bool pform_type_has_struct_member_default_(
 
       if (const typeref_t*ref = dynamic_cast<const typeref_t*>(type)) {
 	    typedef_t*td = ref->typedef_ref();
-	    found = td && pform_type_has_struct_member_default_(
+	    found = td && pform_type_needs_struct_typedef_validation_(
 		  td->get_data_type(), memo);
       } else if (const array_base_t*array =
 		       dynamic_cast<const array_base_t*>(type)) {
-	    found = pform_type_has_struct_member_default_(
+	    found = pform_type_needs_struct_typedef_validation_(
 		  array->base_type.get(), memo);
       } else if (const struct_type_t*structure =
 		       dynamic_cast<const struct_type_t*>(type)) {
@@ -656,6 +658,11 @@ static bool pform_type_has_struct_member_default_(
 		  for (const struct_member_t*member : *structure->members) {
 			if (!member)
 			      continue;
+			if (member->qualifier.test_rand()
+			    || member->qualifier.test_randc()) {
+			      found = true;
+			      break;
+			}
 			if (member->names) {
 			      for (const decl_assignment_t*name : *member->names) {
 				    if (name && name->expr) {
@@ -666,7 +673,7 @@ static bool pform_type_has_struct_member_default_(
 			}
 			if (found)
 			      break;
-			found = pform_type_has_struct_member_default_(
+			found = pform_type_needs_struct_typedef_validation_(
 			      member->type.get(), memo);
 			if (found)
 			      break;
@@ -678,14 +685,14 @@ static bool pform_type_has_struct_member_default_(
       return found;
 }
 
-static void elaborate_sig_struct_default_typedefs_(
+static void elaborate_sig_struct_typedefs_requiring_validation_(
 		Design*des, NetScope*scope,
 		const map<perm_string,typedef_t*>&typedefs)
 {
       map<const data_type_t*,unsigned char> memo;
       for (const auto&entry : typedefs) {
 	    typedef_t*td = entry.second;
-	    if (!td || !pform_type_has_struct_member_default_(
+	    if (!td || !pform_type_needs_struct_typedef_validation_(
 			 td->get_data_type(), memo))
 		  continue;
 	    td->elaborate_type(des, scope);
@@ -710,7 +717,8 @@ bool PScope::elaborate_sig_wires_(Design*des, NetScope*scope) const
 
       }
 
-      elaborate_sig_struct_default_typedefs_(des, scope, typedefs);
+      elaborate_sig_struct_typedefs_requiring_validation_(des, scope,
+						  typedefs);
 
       return flag;
 }
@@ -1735,8 +1743,8 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 
       validate_interface_class_relations_(des, this, pclass);
 
-      elaborate_sig_struct_default_typedefs_(des, class_scope_,
-					     pclass->typedefs);
+      elaborate_sig_struct_typedefs_requiring_validation_(des, class_scope_,
+							  pclass->typedefs);
 
       /* Parameterized class specializations are allowed to keep method
 	 bodies lazy, but constraints are part of the class type and must be
@@ -1915,7 +1923,8 @@ bool PGenerate::elaborate_sig_(Design*des, NetScope*scope) const
 	    (*cur)->statement()->elaborate_sig(des, scope);
       }
 
-      elaborate_sig_struct_default_typedefs_(des, scope, typedefs);
+      elaborate_sig_struct_typedefs_requiring_validation_(des, scope,
+						  typedefs);
 
 
       return flag;

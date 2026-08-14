@@ -1,5 +1,5 @@
 typedef struct {
-  bit [7:0] word;
+  rand bit [7:0] word;
 } rollback_payload_t;
 
 class rollback_leaf #(int TAG = 0);

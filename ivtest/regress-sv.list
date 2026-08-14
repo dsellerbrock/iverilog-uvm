@@ -1571,6 +1571,15 @@ sv_randomization_builtin_method_override_fail CE,-g2012 ivltests gold=sv_randomi
 sv_randomization_builtin_method_override_adversarial_fail CE,-g2012 ivltests gold=sv_randomization_builtin_method_override_adversarial_fail.gold
 sv_randomization_builtin_method_override_multiroot_fail CE,-g2012 ivltests gold=sv_randomization_builtin_method_override_multiroot_fail.gold
 
+# IEEE declaration grammar and unpacked-struct member qualifiers
+sv_declaration_class_frontier normal,-g2012 ivltests gold=sv_declaration_class_frontier.gold
+sv_static_const_qualifier_fail CE,-g2012 ivltests gold=sv_static_const_qualifier_fail.gold
+sv_struct_member_constraint_fail CE,-g2012 ivltests gold=sv_struct_member_constraint_fail.gold
+sv_struct_member_randc_cap normal,-g2012 ivltests gold=sv_struct_member_randc_cap.gold
+sv_struct_member_randomization normal,-g2012 ivltests gold=sv_struct_member_randomization.gold
+sv_struct_member_random_qualifier_fail CE,-g2012 ivltests gold=sv_struct_member_random_qualifier_fail.gold
+sv_struct_member_random_unsupported_fail normal,-g2012 ivltests gold=sv_struct_member_random_unsupported_fail.gold
+
 # Static randomized property storage
 sv_static_rand_value_storage normal,-g2012 ivltests gold=sv_static_rand_value_storage.gold
 sv_static_rand_typed_storage normal,-g2012 ivltests gold=sv_static_rand_typed_storage.gold

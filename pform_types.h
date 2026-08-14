@@ -355,6 +355,7 @@ struct enum_type_t : public data_type_t {
 };
 
 struct struct_member_t : public LineInfo {
+      property_qualifier_t qualifier = property_qualifier_t::make_none();
       std::unique_ptr<data_type_t> type;
       std::unique_ptr< std::list<decl_assignment_t*> > names;
       void pform_dump(std::ostream&out, unsigned indent) const;

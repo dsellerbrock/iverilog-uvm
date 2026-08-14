@@ -1,0 +1,2 @@
+./ivltests/sv_struct_member_constraint_fail.v:11: sorry: constraint reference 'record.value' selects a member of an unpacked-struct property; solving unpacked-struct member constraints is not yet supported.
+1 error(s) during elaboration.

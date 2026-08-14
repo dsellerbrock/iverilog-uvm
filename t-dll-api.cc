@@ -3758,6 +3758,11 @@ extern "C" int ivl_type_is_packed_vector(ivl_type_t net)
       return 1;
 }
 
+extern "C" ivl_enumtype_t ivl_type_enum(ivl_type_t net)
+{
+      return dynamic_cast<const netenum_t*>(net);
+}
+
 extern "C" int ivl_type_is_union(ivl_type_t net)
 {
       const netstruct_t*record = dynamic_cast<const netstruct_t*>(net);
@@ -3919,6 +3924,9 @@ extern "C" int ivl_type_prop_qual(ivl_type_t net, int idx)
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
       if (class_type)
             return class_type->get_prop_qual(idx).mask();
+      const netstruct_t*struct_type = dynamic_cast<const netstruct_t*>(net);
+      if (struct_type && (size_t)idx < struct_type->members().size())
+	    return struct_type->members()[(size_t)idx].qualifier.mask();
       return 0;
 }
 

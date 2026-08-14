@@ -3630,6 +3630,82 @@ static bool randomize_randc_container_leaf_(vvp_cobject*cobj, size_t pid,
       return true;
 }
 
+static bool enum_value_to_uint64_(const vvp_vector4_t&value, uint64_t&bits)
+{
+      if (value.size() > 20)
+	    return false;
+      bits = 0;
+      for (unsigned bit = 0 ; bit < value.size() ; bit += 1) {
+	    if (value.value(bit) == BIT4_1)
+		  bits |= UINT64_C(1) << bit;
+	    else if (value.value(bit) != BIT4_0)
+		  return false;
+      }
+      return true;
+}
+
+/* Choose only a declared enum literal. For randc, use the same transactional
+ * history bank as an integral leaf, but reset over the enum's finite feasible
+ * set rather than the surrounding 2^width encoding space. Wider enums retain
+ * the documented >20-bit non-cyclic fallback while still staying in-domain. */
+static bool randomize_enum_member_(vvp_cobject*cobj,
+				    const class_type*defn, size_t pid,
+				    size_t leaf, vvp_vector4_t&value,
+				    const std::function<unsigned()>&next_random)
+{
+      const vector<vvp_vector4_t>&domain = defn->property_enum_values(pid);
+      if (domain.empty())
+	    return false;
+
+      if (!defn->property_is_randc(pid) || value.size() > 20) {
+	    value = domain[next_random() % domain.size()];
+	    return true;
+      }
+
+      vector<uint64_t> feasible;
+      feasible.reserve(domain.size());
+      for (const vvp_vector4_t&candidate : domain) {
+	    uint64_t bits = 0;
+	    if (!enum_value_to_uint64_(candidate, bits)) {
+		  cerr << "runtime error: randomize() cannot cycle randc enum member '"
+		       << defn->property_name(pid) << "' of an unpacked struct "
+		       << "because its domain contains "
+		       << "X/Z; randomize() returns failure." << endl;
+		  return false;
+	    }
+	    if (find(feasible.begin(), feasible.end(), bits) == feasible.end())
+		  feasible.push_back(bits);
+      }
+      if (feasible.empty())
+	    return false;
+
+      bool all_seen = true;
+      for (uint64_t bits : feasible)
+	    if (!cobj->randc_seen(pid, bits, leaf)) {
+		  all_seen = false;
+		  break;
+	    }
+
+      vector<size_t> eligible;
+      for (size_t idx = 0 ; idx < domain.size() ; idx += 1) {
+	    uint64_t bits = 0;
+	    bool numeric = enum_value_to_uint64_(domain[idx], bits);
+	    assert(numeric);
+	    if (all_seen || !cobj->randc_seen(pid, bits, leaf))
+		  eligible.push_back(idx);
+      }
+      if (eligible.empty())
+	    return false;
+
+      size_t selected = eligible[next_random() % eligible.size()];
+      uint64_t selected_bits = 0;
+      bool numeric = enum_value_to_uint64_(domain[selected], selected_bits);
+      assert(numeric);
+      cobj->randc_mark_feasible(pid, selected_bits, feasible, leaf);
+      value = domain[selected];
+      return true;
+}
+
 
 /*
  * IEEE 1800-2017 18.5.2: constraints are inherited, and a derived
@@ -3671,60 +3747,100 @@ static void collect_unmerged_base_constraints_(const class_type*defn,
 }
 
 /*
- * IEEE 1800-2017 18.4: a rand UNPACKED STRUCT is an aggregate of integral
- * members, not a separate randomizable object -- structs cannot carry
- * their own `constraint` blocks (those attach to classes), so an
- * unconstrained rand struct property is just every integral member
- * getting fresh random bits, recursively for a nested unpacked-struct
- * member. A member that is itself a container, class handle, real, or
- * string is not integral and is left untouched, with one loud warning
- * (constraint support for struct members has the same limitation --
- * see the "not representable" warning at constraint-IR build time).
+ * IEEE 1800-2017 18.4: a rand UNPACKED STRUCT activates the members whose
+ * type declarations carry rand/randc; an unqualified member remains state.
+ * Structs cannot carry constraint blocks of their own, so each active
+ * integral member is filled independently. Keep a nested value-struct in the
+ * same graph transaction so randc history and value rollback remain atomic.
+ * Legal member shapes that this bounded path cannot yet preserve (class
+ * handles and unpacked containers) fail the actual randomize() call. Their
+ * declarations remain accepted, but success is never reported after silently
+ * leaving an enabled random variable unchanged.
  */
-static void randomize_struct_members_(vvp_cobject*subcobj,
+static bool randomize_struct_members_(randomize_graph_session_t&session,
+				      vvp_cobject*subcobj,
 				      const class_type*subdefn,
 				      const std::function<unsigned()>&next_random)
 {
-      if (!subcobj || !subdefn) return;
-      for (size_t mpid = 0 ; mpid < subdefn->property_count() ; mpid += 1) {
+      if (!subcobj || !subdefn) return true;
+      if (!session.enter(subcobj, nullptr)) return true;
+      subcobj->randc_transaction_begin();
+
+      bool ok = true;
+      for (size_t mpid = 0 ; ok && mpid < subdefn->property_count() ; mpid += 1) {
+	    if (!subdefn->property_is_rand(mpid))
+		  continue;
 	    const std::string&bt = subdefn->property_base_type(mpid);
 	    uint64_t asize = subdefn->property_array_size(mpid);
 	    if (asize < 1) asize = 1;
+	    bool any_active = false;
+	    for (uint64_t adr = 0 ; adr < asize ; adr += 1)
+		  if (rand_leaf_active_(subdefn, subcobj, nullptr, mpid,
+				       (size_t)adr)) {
+			any_active = true;
+			break;
+		  }
+	    if (!any_active)
+		  continue;
 
 	    if (bt.compare(0, 3, "oc:") == 0) {
 		    // Nested unpacked struct member: recurse per element.
 		  for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
+			if (!rand_leaf_active_(subdefn, subcobj, nullptr,
+					       mpid, (size_t)adr))
+			      continue;
 			vvp_object_t propobj;
 			subcobj->get_object(mpid, propobj, adr);
 			if (vvp_cobject*nested = propobj.peek<vvp_cobject>())
-			      randomize_struct_members_(nested, nested->get_defn(),
-						 next_random);
+			      ok = randomize_struct_members_(session, nested,
+						     nested->get_defn(),
+						     next_random);
 		  }
 		  continue;
 	    }
 
-	    if (bt == "o" || bt == "r" || bt == "S" || bt.compare(0, 1, "Q") == 0
-		|| bt.compare(0, 1, "M") == 0
-		|| (!bt.empty() && bt[0] == 'D')) {
-		  static bool warned_struct_member_nonintegral = false;
-		  if (!warned_struct_member_nonintegral) {
-			cerr << "warning: member '" << subdefn->property_name(mpid)
-			     << "' of rand unpacked struct '" << subdefn->class_name()
-			     << "' is not an integral type (IEEE 1800-2017 18.4 "
-			     << "restricts rand aggregates to integral members) "
-			     << "and is not randomized (further similar warnings "
-			     << "suppressed)." << endl;
-			warned_struct_member_nonintegral = true;
-		  }
-		  continue;
+	    const char*unsupported_shape = bt == "o" ? "class-handle"
+		  : (!bt.empty() && bt[0] == 'D') ? "dynamic-array"
+		  : (!bt.empty() && bt[0] == 'Q') ? "queue"
+		  : (!bt.empty() && bt[0] == 'M') ? "associative-array"
+		  : (bt == "r") ? "real"
+		  : (bt == "S") ? "string" : nullptr;
+	    if (unsupported_shape) {
+		  cerr << "runtime error: randomize() cannot randomize "
+		       << (subdefn->property_is_randc(mpid) ? "randc" : "rand")
+		       << " member '" << subdefn->property_name(mpid)
+		       << "' of an unpacked struct because " << unsupported_shape
+		       << " member randomization is not yet supported; "
+		       << "randomize() returns failure instead of leaving it "
+		       << "unchanged." << endl;
+		  ok = false;
+		  break;
 	    }
 
 	    for (uint64_t adr = 0 ; adr < asize ; adr += 1) {
+		  if (!rand_leaf_active_(subdefn, subcobj, nullptr,
+					 mpid, (size_t)adr))
+			continue;
 		  vvp_vector4_t val;
 		  subcobj->get_vec4(mpid, val, adr);
 		  unsigned wid = val.size();
 		  if (wid == 0)
 			continue;
+		  if (subdefn->property_is_enum(mpid)) {
+			if (!randomize_enum_member_(subcobj, subdefn, mpid,
+				      (size_t)adr, val, next_random)) {
+			      ok = false;
+			      break;
+			}
+			subcobj->set_vec4(mpid, val, adr);
+			continue;
+		  }
+		  if (subdefn->property_is_randc(mpid)
+		      && randomize_randc_leaf_(subcobj, mpid, (size_t)adr,
+					       val, next_random)) {
+			subcobj->set_vec4(mpid, val, adr);
+			continue;
+		  }
 		  for (unsigned i = 0 ; i < wid ; i += 32) {
 			unsigned rnd = next_random();
 			for (unsigned b = 0 ; b < 32 && i + b < wid ; b += 1)
@@ -3733,6 +3849,12 @@ static void randomize_struct_members_(vvp_cobject*subcobj,
 		  subcobj->set_vec4(mpid, val, adr);
 	    }
       }
+
+      if (!ok) {
+	    subcobj->randc_transaction_rollback();
+	    return false;
+      }
+      return subcobj->randc_transaction_commit();
 }
 
 struct randomize_solve_options_s {
@@ -3759,10 +3881,11 @@ static bool randomize_object_value_(randomize_graph_session_t&session,
 {
       if (vvp_cobject*subcobj = obj.peek<vvp_cobject>()) {
 	    if (subcobj->get_defn()->is_struct_type()) {
-		  randomize_struct_members_(subcobj, subcobj->get_defn(),
-					    next_random);
-		  if (aggregate_changed) *aggregate_changed = true;
-		  return true;
+		  bool ok = randomize_struct_members_(session, subcobj,
+						      subcobj->get_defn(),
+						      next_random);
+		  if (ok && aggregate_changed) *aggregate_changed = true;
+		  return ok;
 	    }
 	    return randomize_cobject_(session, subcobj, nullptr);
       }
@@ -3952,9 +4075,10 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 			      vvp_cobject*subcobj = propobj.peek<vvp_cobject>();
 			      if (!subcobj) continue;
 			      if (is_struct_prop) {
-				    randomize_struct_members_(subcobj,
+				    if (!randomize_struct_members_(session, subcobj,
 						       subcobj->get_defn(),
-						       next_random);
+						       next_random))
+					  solve_ok = false;
 				    if (defn->property_is_static(pid))
 					  defn->static_randomize_transaction_mark_dirty(
 						pid, (size_t)adr);
