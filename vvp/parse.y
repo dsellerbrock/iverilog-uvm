@@ -83,7 +83,7 @@ static struct __vpiModPath*modpath_dst = 0;
 %token K_ARITH_SUM K_ARITH_SUM_R K_ARITH_POW K_ARITH_POW_R K_ARITH_POW_S
 %token K_ARRAY K_ARRAY_2U K_ARRAY_2S K_ARRAY_I K_ARRAY_OBJ K_ARRAY_R K_ARRAY_S K_ARRAY_STR K_ARRAY_PORT
 %token K_CAST_INT K_CAST_REAL K_CAST_REAL_S K_CAST_2
-%token K_CLASS K_CLASS_STRUCT K_IMPLEMENTS K_STATIC_PROP K_CONSTRAINT_DEF K_COVGRP_BIN K_COVGRP_DYN_BIN K_COVGRP_ITEM K_COVGRP_PARENT K_COVGRP_SRC K_MODPORT
+%token K_CLASS K_CLASS_STRUCT K_CLASS_UNION K_CLASS_UNION_TAGGED K_IMPLEMENTS K_STATIC_PROP K_CONSTRAINT_DEF K_COVGRP_BIN K_COVGRP_DYN_BIN K_COVGRP_ITEM K_COVGRP_PARENT K_COVGRP_SRC K_MODPORT
 %token K_CMP_EEQ K_CMP_EQ K_CMP_EQX K_CMP_EQZ K_CMP_WEQ K_CMP_WNE
 %token K_CMP_EQ_R K_CMP_NEE K_CMP_NE K_CMP_NE_R
 %token K_CMP_GE K_CMP_GE_R K_CMP_GE_S K_CMP_GT K_CMP_GT_R K_CMP_GT_S
@@ -1042,6 +1042,18 @@ statement
   | T_LABEL K_CLASS_STRUCT T_STRING '[' T_NUMBER ']'
       { compile_class_start($1, $3, 0, 0, $5);
         compile_class_mark_struct(); }
+    class_properties_opt ';'
+      { compile_class_done(); }
+
+  | T_LABEL K_CLASS_UNION T_STRING '[' T_NUMBER ']'
+      { compile_class_start($1, $3, 0, 0, $5);
+        compile_class_mark_union(false); }
+    class_properties_opt ';'
+      { compile_class_done(); }
+
+  | T_LABEL K_CLASS_UNION_TAGGED T_STRING '[' T_NUMBER ']'
+      { compile_class_start($1, $3, 0, 0, $5);
+        compile_class_mark_union(true); }
     class_properties_opt ';'
       { compile_class_done(); }
 

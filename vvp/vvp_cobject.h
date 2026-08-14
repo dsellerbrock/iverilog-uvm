@@ -61,6 +61,8 @@ class vvp_cobject : public vvp_object {
       void set_object(size_t pid, const vvp_object_t&val, size_t idx);
       void get_object(size_t pid, vvp_object_t&val, size_t idx);
 
+      int union_active_member(void) const { return union_active_member_; }
+
 	// Per-instance dynamic named event storage (IEEE 1800-2017 15.5).
 	// A non-static class `event` property is backed by its own
 	// vvp_net_t (a vvp_named_event_dyn functor), allocated lazily and
@@ -196,6 +198,8 @@ class vvp_cobject : public vvp_object {
       const class_type* defn_;
 	// For now, only support 32bit bool signed properties.
       class_type::inst_t properties_;
+      int union_active_member_;
+      vvp_vector4_t*union_vec4_;
       std::vector<bool> rand_mode_;
       std::map<randc_key_t, bool> rand_mode_leaves_;
       std::vector<bool> constraint_mode_;
@@ -239,6 +243,8 @@ class vvp_cobject : public vvp_object {
 	// M3B-5: per-object RNG state (see rng_* above).
       uint64_t rng_state_ = 0;
       bool rng_seeded_ = false;
+
+      bool union_member_read_ok_(size_t pid) const;
 };
 
 #endif /* IVL_vvp_cobject_H */

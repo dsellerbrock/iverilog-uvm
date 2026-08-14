@@ -46,12 +46,9 @@ void netstruct_t::union_flag(bool flag)
 
 void netstruct_t::tagged_flag(bool flag)
 {
-      // Phase 63b/B7: marks a `union tagged`.  The flag is pure
-      // metadata — it does NOT change packed_width() (storage stays
-      // the same as a plain union), tag tracking is implemented
-      // out-of-band by the case-matches lowering and member-write
-      // codegen via a parallel hidden integer signal.  Storing the
-      // flag here lets later passes detect "this is a tagged union".
+      // Marks a `union tagged`. For packed tagged unions the tag is part
+      // of the value itself, above the shared member payload. Unpacked
+      // tagged unions carry the same metadata in their runtime value.
       tagged_ = flag;
 }
 
@@ -128,11 +125,11 @@ long netstruct_t::packed_width(void) const
       if (! packed_)
 	    return -1;
 
-	// If this is a packed union, then all the members are the
-	// same width, so it is sufficient to return the width of any
-	// single member.
-      if (union_)
-	    return members_.front().net_type->packed_width();
+	// A plain packed union is exactly one member wide. A tagged packed
+	// union additionally stores the discriminant at the MSB.
+	if (union_)
+	    return members_.front().net_type->packed_width()
+	         + (tagged_ ? tag_bits() : 0);
 
 	// The width of a packed struct is the sum of member widths.
       long res = 0;

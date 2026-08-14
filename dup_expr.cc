@@ -41,6 +41,7 @@ NetEArrayPattern*NetEArrayPattern::dup_expr() const
 	    tmp[idx] = items_[idx]->dup_expr();
 
       NetEArrayPattern*res = new NetEArrayPattern(net_type(), tmp);
+      res->union_active_member(union_active_member());
       res->set_line(*this);
       return res;
 }

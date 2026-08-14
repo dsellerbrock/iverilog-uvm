@@ -76,6 +76,7 @@ ivl_expr_oper3
 ivl_expr_parameter
 ivl_expr_parm
 ivl_expr_parms
+ivl_expr_union_active_member
 ivl_expr_property_idx
 ivl_expr_repeat
 ivl_expr_scope
@@ -359,6 +360,8 @@ ivl_type_base
 ivl_type_element
 ivl_type_is_chandle
 ivl_type_is_packed_vector
+ivl_type_is_tagged_union
+ivl_type_is_union
 ivl_type_name
 ivl_type_packed_dimensions
 ivl_type_packed_lsb

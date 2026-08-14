@@ -2329,6 +2329,14 @@ class NetEArrayPattern  : public NetExpr {
       inline size_t item_size() const { return items_.size(); }
       const NetExpr* item(size_t idx) const { return items_[idx]; }
 
+	// For an unpacked union assignment pattern, identify the sole member
+	// selected by the constructor. Struct patterns use -1. Keeping this on
+	// the expression lets the target initialize only the selected member;
+	// storing synthesized defaults into every overlapping union member would
+	// otherwise lose both the value and the active tag.
+      inline void union_active_member(int idx) { union_active_member_ = idx; }
+      inline int union_active_member() const { return union_active_member_; }
+
       void expr_scan(struct expr_scan_t*) const override;
       void dump(std::ostream&) const override;
 
@@ -2341,6 +2349,7 @@ class NetEArrayPattern  : public NetExpr {
 
     private:
       std::vector<NetExpr*> items_;
+      int union_active_member_ = -1;
 };
 
 /*

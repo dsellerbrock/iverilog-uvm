@@ -3355,9 +3355,10 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 		       also covers the (illegal) `tagged TAG value` form
 		       against a void tag without crashing. */
 		  if (idx_nt && idx_nt->base_type() == IVL_VT_VOID) {
-			unsigned w = idx_nt->packed_width();
-			if (w == 0) w = 1;
-			verinum z((uint64_t)0, w);
+			long packed_width = idx_nt->packed_width();
+			unsigned width = packed_width > 0
+			      ? (unsigned)packed_width : 1;
+			verinum z((uint64_t)0, width);
 			items[idx] = new NetEConst(z);
 			items[idx]->set_line(*this);
 			continue;
@@ -3378,11 +3379,15 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 			if (is_union) {
 			      /* Default-construct the unmentioned member to zero
 			         of the appropriate width; storage overlaps the
-			         active member so this slot is harmless. */
+			         active member so this slot is harmless. An unpacked
+			         aggregate has no packed width (-1), and this inactive
+			         placeholder is skipped by union-aware lowering, so use
+			         one inert bit instead of converting -1 to UINT_MAX. */
 			      ivl_type_t nt = members[idx].net_type;
-			      unsigned w = nt ? nt->packed_width() : 0;
-			      if (w == 0) w = 1;
-			      verinum z((uint64_t)0, w);
+			      long packed_width = nt ? nt->packed_width() : 0;
+			      unsigned width = packed_width > 0
+				    ? (unsigned)packed_width : 1;
+			      verinum z((uint64_t)0, width);
 			      items[idx] = new NetEConst(z);
 			      items[idx]->set_line(*this);
 			      continue;
@@ -3418,6 +3423,9 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 
       if (!struct_type->packed()) {
 	    NetEArrayPattern *res = new NetEArrayPattern(struct_type, items);
+	    if (struct_type->union_flag()
+		&& union_active_member < members.size())
+		  res->union_active_member((int)union_active_member);
 	    res->set_line(*this);
 	    return res;
       }
@@ -3452,7 +3460,24 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
                   single = new NetEConst(z);
                   single->set_line(*this);
             }
-            return single;
+	    if (!struct_type->tagged_flag())
+		  return single;
+
+	      // A packed tagged union is {tag, payload}. The member index is
+	      // the tag encoding, with member zero represented by an all-zero
+	      // discriminant. Keep the payload at the LSB so ordinary packed
+	      // member selects remain at offset zero.
+	    unsigned tag_width = struct_type->tag_bits();
+	    unsigned tag_value = union_active_member < members.size()
+		  ? (unsigned)union_active_member : 0;
+	    verinum tag_bits((uint64_t)tag_value, tag_width);
+	    NetEConst*tag = new NetEConst(tag_bits);
+	    tag->set_line(*this);
+	    NetEConcat*tagged = new NetEConcat(2, 1, struct_type->base_type());
+	    tagged->set(0, tag);
+	    tagged->set(1, single);
+	    tagged->set_line(*this);
+	    return tagged;
       }
 
       NetEConcat *neconcat = new NetEConcat(items.size(), 1, struct_type->base_type());

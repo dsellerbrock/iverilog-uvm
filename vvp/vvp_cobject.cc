@@ -31,9 +31,15 @@ using namespace std;
 
 vvp_cobject::vvp_cobject(const class_type*defn)
 : defn_(defn), properties_(defn->instance_new()),
+  union_active_member_(defn->is_tagged_union_type()
+		       && defn->property_count() ? 0 : -1), union_vec4_(0),
   rand_mode_(defn->property_count(), true),
   constraint_mode_(defn->constraint_count(), true)
 {
+      unsigned union_width = defn_->union_vec4_width();
+      if (union_width)
+	    union_vec4_ = new vvp_vector4_t(
+		  union_width, defn_->union_is_four_state() ? BIT4_X : BIT4_0);
 	// M11-3: covergroup instances with a declaration sampling
 	// event register so %covgrp/sample/all can walk them.
       if (defn->covgrp_parent_prop() >= 0)
@@ -751,6 +757,8 @@ vvp_cobject::~vvp_cobject()
 
       defn_->instance_delete(properties_);
       properties_ = 0;
+      delete union_vec4_;
+      union_vec4_ = 0;
 
 	// The per-instance event vvp_net_t objects are allocated from the
 	// net heap pool, which (like every other net in the design) is
@@ -758,6 +766,24 @@ vvp_cobject::~vvp_cobject()
 	// intentionally unimplemented. Dropping the map is enough; the
 	// nets themselves persist for the remainder of the simulation.
       inst_events_.clear();
+}
+
+bool vvp_cobject::union_member_read_ok_(size_t pid) const
+{
+      if (!defn_->is_tagged_union_type()
+	  || union_active_member_ == (int)pid)
+	    return true;
+
+      cerr << "runtime error: tagged union '" << defn_->class_name()
+	   << "' member '" << defn_->property_name(pid)
+	   << "' is inactive";
+      if (union_active_member_ >= 0
+	  && (size_t)union_active_member_ < defn_->property_count())
+	    cerr << " (active member is '"
+		 << defn_->property_name((size_t)union_active_member_) << "')";
+      cerr << "." << endl;
+      vpip_set_return_value(1);
+      return false;
 }
 
 vvp_net_t* vvp_cobject::get_inst_event(uint32_t slot)
@@ -774,40 +800,97 @@ vvp_net_t* vvp_cobject::get_inst_event(uint32_t slot)
 
 void vvp_cobject::set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx)
 {
+      if (defn_->is_union_type() && union_vec4_ && idx == 0
+	  && defn_->property_array_size(pid) == 1
+	  && defn_->property_vec4_width(pid)) {
+	    // Let the declared property normalize width, signedness and
+	    // two-state X/Z coercion, then copy its representation into the
+	    // union's shared integral storage. A narrower unpacked-union member
+	    // occupies the low bits; the remaining shared bits are zero.
+	    defn_->set_vec4(properties_, pid, val, idx);
+	    vvp_vector4_t member;
+	    defn_->get_vec4(properties_, pid, member, idx);
+	    vvp_vector4_t shared(union_vec4_->size(), BIT4_0);
+	    unsigned copy_width = member.size() < shared.size()
+		  ? member.size() : shared.size();
+	    if (copy_width)
+		  shared.set_vec(0, member.subvalue(0, copy_width));
+	    *union_vec4_ = shared;
+	    union_active_member_ = (int)pid;
+	    touch();
+	    return;
+      }
       defn_->set_vec4(properties_, pid, val, idx);
+      if (defn_->is_union_type())
+	    union_active_member_ = (int)pid;
       touch();
 }
 
 void vvp_cobject::get_vec4(size_t pid, vvp_vector4_t&val, size_t idx)
 {
+      if (!union_member_read_ok_(pid)) {
+	    unsigned width = defn_->property_vec4_width(pid);
+	    val = vvp_vector4_t(width ? width : 1, BIT4_X);
+	    return;
+      }
+      if (defn_->is_union_type() && union_vec4_ && idx == 0
+	  && defn_->property_array_size(pid) == 1
+	  && defn_->property_vec4_width(pid)) {
+	    // Read through the declared member type so a two-state view coerces
+	    // shared X/Z bits exactly as an ordinary bit/integer read would.
+	    vvp_vector4_t member = union_vec4_->subvalue(
+		  0, defn_->property_vec4_width(pid));
+	    const string&member_type = defn_->property_base_type(pid);
+	    size_t type_pos = !member_type.empty() && member_type[0] == 's'
+		  ? 1 : 0;
+	    if (type_pos < member_type.size()
+		&& member_type[type_pos] == 'b') {
+		  for (unsigned bit = 0 ; bit < member.size() ; bit += 1)
+			if (bit4_is_xz(member.value(bit)))
+			      member.set_bit(bit, BIT4_0);
+	    }
+	    defn_->set_vec4(properties_, pid, member, idx);
+	    defn_->get_vec4(properties_, pid, val, idx);
+	    return;
+      }
       defn_->get_vec4(properties_, pid, val, idx);
 }
 
 void vvp_cobject::set_real(size_t pid, double val, size_t idx)
 {
       defn_->set_real(properties_, pid, val, idx);
+      if (defn_->is_union_type())
+	    union_active_member_ = (int)pid;
       touch();
 }
 
 double vvp_cobject::get_real(size_t pid, size_t idx)
 {
+      if (!union_member_read_ok_(pid))
+	    return 0.0;
       return defn_->get_real(properties_, pid, idx);
 }
 
 void vvp_cobject::set_string(size_t pid, const string&val, size_t idx)
 {
       defn_->set_string(properties_, pid, val, idx);
+      if (defn_->is_union_type())
+	    union_active_member_ = (int)pid;
       touch();
 }
 
 string vvp_cobject::get_string(size_t pid, size_t idx)
 {
+      if (!union_member_read_ok_(pid))
+	    return string();
       return defn_->get_string(properties_, pid, idx);
 }
 
 void vvp_cobject::set_object(size_t pid, const vvp_object_t&val, size_t idx)
 {
       defn_->set_object(properties_, pid, val, idx);
+      if (defn_->is_union_type())
+	    union_active_member_ = (int)pid;
 
 	// A whole-container assignment creates a new set of unpacked element
 	// variables. Initialize those variables from the owning property's
@@ -843,6 +926,10 @@ void vvp_cobject::set_object(size_t pid, const vvp_object_t&val, size_t idx)
 
 void vvp_cobject::get_object(size_t pid, vvp_object_t&val, size_t idx)
 {
+      if (!union_member_read_ok_(pid)) {
+	    val = vvp_object_t();
+	    return;
+      }
       return defn_->get_object(properties_, pid, val, idx);
 }
 
@@ -867,6 +954,9 @@ void vvp_cobject::shallow_copy(const vvp_object*obj)
       rand_mode_leaves_ = that->rand_mode_leaves_;
       constraint_mode_ = that->constraint_mode_;
       randc_history_ = that->randc_history_;
+      union_active_member_ = that->union_active_member_;
+      if (union_vec4_ && that->union_vec4_)
+	    *union_vec4_ = *that->union_vec4_;
       touch();
 
 }
