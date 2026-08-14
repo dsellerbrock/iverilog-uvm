@@ -1,0 +1,5 @@
+# IEEE 1800-2017 unpacked and tagged union runtime semantics
+sv_union_unpacked_storage normal,-g2012 ivltests gold=sv_union_unpacked_storage.gold
+sv_union_tagged_runtime normal,-g2012 ivltests gold=sv_union_tagged_runtime.gold
+sv_union_tagged_packed_storage normal,-g2012 ivltests gold=sv_union_tagged_packed_storage.gold
+sv_union_tagged_inactive_read_fail RE,-g2012 ivltests gold=sv_union_tagged_inactive_read_fail.gold

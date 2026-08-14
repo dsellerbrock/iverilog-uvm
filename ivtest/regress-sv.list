@@ -1648,6 +1648,12 @@ sv_concat_postfix_select_ascending_fail CE,-g2012 ivltests gold=sv_concat_postfi
 # IEEE 1800-2017 qualified if statements
 sv_quality_if normal,-g2012 ivltests gold=sv_quality_if.gold
 
+# IEEE 1800-2017 unpacked and tagged union runtime semantics
+sv_union_unpacked_storage normal,-g2012 ivltests gold=sv_union_unpacked_storage.gold
+sv_union_tagged_runtime normal,-g2012 ivltests gold=sv_union_tagged_runtime.gold
+sv_union_tagged_packed_storage normal,-g2012 ivltests gold=sv_union_tagged_packed_storage.gold
+sv_union_tagged_inactive_read_fail RE,-g2012 ivltests gold=sv_union_tagged_inactive_read_fail.gold
+
 # IEEE 1800-2017 pattern matching
 sv_pattern_matching_structured normal,-g2012 ivltests gold=sv_pattern_matching_structured.gold
 sv_pattern_matching_invalid_fail CE,-g2012 ivltests gold=sv_pattern_matching_invalid_fail.gold

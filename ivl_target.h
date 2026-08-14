@@ -1037,6 +1037,8 @@ extern ivl_parameter_t ivl_expr_parameter(ivl_expr_t net);
 extern ivl_expr_t  ivl_expr_parm(ivl_expr_t net, unsigned idx);
   /* IVL_EX_ARRAY_PATTERN IVL_EX_CONCAT IVL_EX_SFUNC IVL_EX_UFUNC */
 extern unsigned    ivl_expr_parms(ivl_expr_t net);
+  /* IVL_EX_ARRAY_PATTERN: selected unpacked-union member, or -1. */
+extern int         ivl_expr_union_active_member(ivl_expr_t net);
   /* IVL_EX_CONCAT */
 extern unsigned    ivl_expr_repeat(ivl_expr_t net);
   /* IVL_EX_SELECT */
@@ -2567,6 +2569,10 @@ extern int ivl_type_packed_lsb(ivl_type_t net, unsigned dim);
 extern int ivl_type_packed_msb(ivl_type_t net, unsigned dim);
 extern unsigned ivl_type_packed_width(ivl_type_t net);
 extern int ivl_type_is_packed_vector(ivl_type_t net);
+/* Return TRUE for an unpacked or packed union record. */
+extern int ivl_type_is_union(ivl_type_t net);
+/* Return TRUE specifically for a `union tagged` record. */
+extern int ivl_type_is_tagged_union(ivl_type_t net);
 extern int ivl_type_is_chandle(ivl_type_t net);
 extern int ivl_type_signed(ivl_type_t net);
 extern const char* ivl_type_name(ivl_type_t net);

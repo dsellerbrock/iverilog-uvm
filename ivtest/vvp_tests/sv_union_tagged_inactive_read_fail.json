@@ -1,0 +1,6 @@
+{
+    "type"          : "EF",
+    "source"        : "sv_union_tagged_inactive_read_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_union_tagged_inactive_read_fail"
+}

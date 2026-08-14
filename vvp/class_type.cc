@@ -1557,6 +1557,56 @@ const std::string& class_type::property_base_type(size_t idx) const
       return properties_[idx].base_type;
 }
 
+unsigned class_type::property_vec4_width(size_t idx) const
+{
+      if (idx >= properties_.size())
+	    return 0;
+      const string&type = properties_[idx].base_type;
+      if (type == "V")
+	    return 1;
+      size_t pos = 0;
+      if (pos < type.size() && type[pos] == 's')
+	    pos += 1;
+      if (pos >= type.size() || (type[pos] != 'b' && type[pos] != 'L'))
+	    return 0;
+      char*end = 0;
+      unsigned long width = strtoul(type.c_str()+pos+1, &end, 10);
+      if (!end || *end != '\0')
+	    return 0;
+      return width ? (unsigned)width : 1;
+}
+
+unsigned class_type::union_vec4_width(void) const
+{
+      if (!is_union_type_)
+	    return 0;
+      unsigned width = 0;
+      for (size_t idx = 0 ; idx < properties_.size() ; idx += 1) {
+	    unsigned member_width = property_vec4_width(idx);
+	    if (member_width > width)
+		  width = member_width;
+      }
+      return width;
+}
+
+bool class_type::union_is_four_state(void) const
+{
+      if (!is_union_type_)
+	    return false;
+      for (size_t idx = 0 ; idx < properties_.size() ; idx += 1) {
+	    const string&type = properties_[idx].base_type;
+	    size_t pos = !type.empty() && type[0] == 's' ? 1 : 0;
+	    if (pos < type.size() && type[pos] == 'L')
+		  return true;
+      }
+      return false;
+}
+
+bool class_type::property_is_void(size_t idx) const
+{
+      return idx < properties_.size() && properties_[idx].base_type == "V";
+}
+
 const class_type*class_type::property_declared_class_type(size_t idx) const
 {
       if (idx >= properties_.size())
@@ -1750,7 +1800,9 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
       properties_[idx].dimensions = dimensions;
 
       const string&t = type_to_use;
-      if (t == "b8")
+      if (t == "V")
+	    properties_[idx].type = new property_bit(1, array_size);
+      else if (t == "b8")
 	    properties_[idx].type = new property_atom<uint8_t>(array_size);
       else if (t == "b16")
 	    properties_[idx].type = new property_atom<uint16_t>(array_size);
@@ -2251,6 +2303,12 @@ void compile_class_mark_struct(void)
 {
       assert(compile_class);
       compile_class->set_struct_type();
+}
+
+void compile_class_mark_union(bool tagged)
+{
+      assert(compile_class);
+      compile_class->set_union_type(tagged);
 }
 
 void compile_class_interface(char*dispatch_prefix)

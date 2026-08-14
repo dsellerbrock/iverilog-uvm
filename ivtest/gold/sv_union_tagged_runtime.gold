@@ -1,0 +1,6 @@
+DEFAULT '{Invalid}
+BYTE '{Byte:165}
+INVALID '{Invalid}
+RETURN '{Byte:90}
+PAIR '{Pair:'{hi:12, lo:3}}
+PASSED
