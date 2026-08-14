@@ -22367,24 +22367,12 @@ bool of_TEST_CLASS(vthread_t thr, vvp_code_t cp)
 	    ok = true;
       } else if (want) {
 	    vvp_cobject*cobj = obj.peek<vvp_cobject>();
-	      /* Walk the object's DYNAMIC type up its super chain. The
-		 comparison is by dispatch prefix rather than by pointer:
-		 that is the identity the runtime itself uses to resolve a
-		 super (class_type::runtime_super), one .class definition
-		 can be emitted more than once in a program, and matching
-		 the super PREFIX directly also succeeds when the super's
-		 definition is not reachable through the map. */
-	    const std::string&want_key = want->dispatch_prefix();
-	    for (const class_type*w = cobj? cobj->get_defn() : 0 ; w ; ) {
-		  if (w == want) { ok = true; break; }
-		  if (!want_key.empty() && w->dispatch_prefix() == want_key) {
-			ok = true; break;
-		  }
-		  const std::string&sup = w->super_dispatch_prefix();
-		  if (sup.empty()) break;
-		  if (!want_key.empty() && sup == want_key) { ok = true; break; }
-		  w = class_type_from_dispatch_prefix(sup);
-	    }
+	      /* The object's dynamic class may reach WANT through either its
+		 concrete superclass or any implemented/extended interface-class
+		 edge. Runtime class records resolve those graphs lazily by their
+		 stable dispatch prefixes. */
+	    const class_type*have = cobj ? cobj->get_defn() : 0;
+	    ok = have && have->assignment_compatible_with(want);
       }
 
       thr->flags[4] = ok? BIT4_1 : BIT4_0;

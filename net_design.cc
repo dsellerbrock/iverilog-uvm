@@ -40,6 +40,7 @@
 # include  "compiler.h"
 # include  "netmisc.h"
 # include  "PExpr.h"
+# include  "PClass.h"
 # include  "PPackage.h"
 # include  "PTask.h"
 # include  "PWire.h"
@@ -1625,6 +1626,29 @@ void NetScope::evaluate_parameter_(Design*des, param_ref_t cur)
             return;
 
       if (cur->second.val_expr == 0) {
+	      /* A parameterized class declaration is a template. Its generic
+	       * master legitimately retains formals without defaults; only a
+	       * concrete bare use or an incomplete specialization owes a missing-
+	       * actual diagnostic. The latter paths create a specialized class
+	       * scope, so give only the unspecialized master a type/value seed that
+	       * lets its signatures be collected without rejecting the declaration
+	       * itself (IEEE 1800-2017 8.25). */
+	    const netclass_t*class_type = type_ == CLASS ? class_def_ : 0;
+	    const NetScope*class_scope = class_type
+		  ? class_type->class_scope() : 0;
+	    const PClass*class_pform = class_scope
+		  ? class_scope->class_pform() : 0;
+	    if (class_type && !class_type->specialized_instance()
+		&& class_pform && class_pform->has_parameter_port_list) {
+		  if (cur->second.type_flag)
+			cur->second.ivl_type = netvector_t::integer_type();
+		  else {
+			cur->second.ivl_type = netvector_t::integer_type();
+			cur->second.val = new NetEConst(verinum(verinum::Vx));
+		  }
+		  return;
+	    }
+
 	    cerr << this->get_fileline() << ": error: "
 	         << "Missing value for parameter `"
 	         << cur->first << "`." << endl;

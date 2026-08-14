@@ -363,7 +363,7 @@ read it for the per-clause evidence and the complete corner ledger.
 
 | Area | Status | Notes |
 |---|---|---|
-| Core classes / OOP (cl. 8) | Substantial | No interface classes, nested classes, out-of-body `extern` methods |
+| Core classes / OOP (cl. 8) | Substantial | Interface classes, multiple `extends`/`implements` relationships, specialization-aware casts, inherited type visibility and method-contract checks are supported; nested classes and out-of-body `extern` methods remain open |
 | UVM (Accellera core, unmodified) | Substantial | 200-test regression green (zero skips), run WITHOUT `UVM_NO_DPI` via the Icarus UVM DPI backend (regex + command-line + `uvm_hdl_*` backdoor); frontdoor + user-defined backdoor work; `UVM_NO_DPI` native fallback still supported |
 | Constraints / randomization (cl. 18) | Substantial | Z3-backed, including scope `std::randomize(vars) with {...}` for simple 1–64-bit integral variables; `randcase`/`randsequence` work |
 | Containers (queues/darrays/assoc, cl. 7) | Substantial | Full method set; narrow recorded corners |
@@ -390,7 +390,7 @@ read it for the per-clause evidence and the complete corner ledger.
   loud sorries. UVM's `uvm_hdl_*` register **backdoor** works via the
   Icarus UVM DPI backend ([`uvm_dpi/`](uvm_dpi)), which `-uvm` installs and
   loads automatically; `--uvm-no-dpi` remains available to skip DPI.
-- `randcase`, `randsequence`, `wait_order`, interface classes, `checker`
+- `randcase`, `randsequence`, `wait_order`, `checker`
   blocks: rejected with explicit diagnostics.
 - Of the 3217-test vendored `ivtest` suite, 44 tests currently fail (vs. 83
   on pristine upstream at the fork base) — the live expected set is

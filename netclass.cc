@@ -97,7 +97,7 @@ static void collect_unique_method_overrides_(const netclass_t*base_type,
 
 netclass_t::netclass_t(perm_string name, const netclass_t*super)
 : name_(name), super_(super), class_scope_(0), definition_scope_(0),
-  virtual_class_(false), interface_type_(false),
+  virtual_class_(false), interface_class_type_(false), interface_type_(false),
   sig_elaborated_(false), sig_elaborating_(false),
   props_declaring_(false),
   body_elaborated_(false), body_elaborating_(false),
@@ -132,6 +132,43 @@ void netclass_t::set_super(const netclass_t*super)
       super_ = super;
       if (super_)
 	    const_cast<netclass_t*>(super_)->add_derived_type_(this);
+}
+
+void netclass_t::add_interface(const netclass_t*interface_type)
+{
+      if (!interface_type)
+	    return;
+
+      for (const netclass_t*cur : interface_types_) {
+	    if (cur == interface_type)
+		  return;
+      }
+
+      interface_types_.push_back(interface_type);
+      const_cast<netclass_t*>(interface_type)->add_derived_type_(this);
+}
+
+static bool implements_interface_(const netclass_t*type,
+				   const netclass_t*interface_type,
+				   set<const netclass_t*>&seen)
+{
+      if (!(type && interface_type) || !seen.insert(type).second)
+	    return false;
+      if (type == interface_type)
+	    return true;
+
+      for (const netclass_t*cur : type->interface_types()) {
+	    if (implements_interface_(cur, interface_type, seen))
+		  return true;
+      }
+
+      return implements_interface_(type->get_super(), interface_type, seen);
+}
+
+bool netclass_t::implements_interface(const netclass_t*interface_type) const
+{
+      set<const netclass_t*>seen;
+      return implements_interface_(this, interface_type, seen);
 }
 
 bool netclass_t::set_property(perm_string pname, property_qualifier_t qual,
@@ -502,14 +539,31 @@ bool netclass_t::test_for_missing_initializers() const
       return false;
 }
 
+static NetScope*method_from_name_(const netclass_t*type, perm_string name,
+				  set<const netclass_t*>&seen)
+{
+      if (!type || !seen.insert(type).second)
+	    return 0;
+
+      NetScope*task = type->class_scope()
+	    ? const_cast<NetScope*>(
+		  type->class_scope()->child(hname_t(name))) : 0;
+      if (!task)
+	    task = method_from_name_(type->get_super(), name, seen);
+      if (task == 0) {
+	    for (const netclass_t*interface_type : type->interface_types()) {
+		  task = method_from_name_(interface_type, name, seen);
+		  if (task)
+			break;
+	    }
+      }
+      return task;
+}
+
 NetScope*netclass_t::method_from_name(perm_string name) const
 {
-      NetScope*task = 0;
-      if (class_scope_)
-	    task = class_scope_->child( hname_t(name) );
-      if ((task == 0) && super_)
-	    task = super_->method_from_name(name);
-      return task;
+      set<const netclass_t*>seen;
+      return method_from_name_(this, name, seen);
 
 }
 
@@ -637,6 +691,8 @@ bool netclass_t::test_compatibility(ivl_type_t that) const
       for (const netclass_t *class_type = dynamic_cast<const netclass_t *>(that);
 	    class_type; class_type = class_type->get_super()) {
 	    if (class_type == this)
+		  return true;
+	    if (is_interface_class() && class_type->implements_interface(this))
 		  return true;
       }
 

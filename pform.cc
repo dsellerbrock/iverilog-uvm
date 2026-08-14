@@ -1117,31 +1117,75 @@ static PClass* pform_find_visible_class_scope(LexicalScope*start, perm_string na
       return nullptr;
 }
 
-static typedef_t* pform_find_inherited_class_typedef(PClass*class_scope, perm_string name)
+static typedef_t* pform_find_class_typedef_graph_(PClass*class_scope,
+						   perm_string name,
+						   set<PClass*>&seen)
 {
-      set<perm_string> seen;
-      PClass*cur_class = class_scope;
+      if (!class_scope || !class_scope->type || !seen.insert(class_scope).second)
+	    return nullptr;
 
-      while (cur_class && cur_class->type && cur_class->type->base_type.get()) {
-	    const typeref_t*base_ref = dynamic_cast<const typeref_t*>(cur_class->type->base_type.get());
-	    if (!base_ref)
-		  break;
+      auto local = class_scope->typedefs.find(name);
+      if (local != class_scope->typedefs.end())
+	    return local->second;
 
-	    typedef_t*base_td = base_ref->typedef_ref();
-	    if (!base_td)
-		  break;
+      vector<const data_type_t*>parents;
+      if (class_scope->type->base_type)
+	    parents.push_back(class_scope->type->base_type.get());
+      /* Implements does not inherit typedefs (8.26.3). Interface-class
+	 inheritance does, so only an interface class walks these edges. */
+      if (class_scope->type->interface_class) {
+	    for (const std::unique_ptr<data_type_t>&parent :
+		 class_scope->type->interface_types)
+		  parents.push_back(parent.get());
+      }
 
-	    perm_string base_name = base_td->name;
-	    if (!seen.insert(base_name).second)
-		  break;
+      for (const data_type_t*parent_type : parents) {
+	    const typeref_t*parent_ref =
+		  dynamic_cast<const typeref_t*>(parent_type);
+	    if (!parent_ref || !parent_ref->typedef_ref())
+		  continue;
 
-	    cur_class = pform_find_visible_class_scope(cur_class, base_name);
-	    if (!cur_class)
-		  break;
+	    PClass*parent = pform_find_visible_class_scope(
+		  class_scope, parent_ref->typedef_ref()->name);
+	    if (typedef_t*found = pform_find_class_typedef_graph_(
+		  parent, name, seen))
+		  return found;
+      }
 
-	    auto cur = cur_class->typedefs.find(name);
-	    if (cur != cur_class->typedefs.end())
-		  return cur->second;
+      return nullptr;
+}
+
+static typedef_t* pform_find_inherited_class_typedef(PClass*class_scope,
+						      perm_string name)
+{
+      if (!class_scope || !class_scope->type)
+	    return nullptr;
+
+      set<PClass*>seen;
+      seen.insert(class_scope);
+
+      if (class_scope->type->base_type) {
+	    const typeref_t*base_ref = dynamic_cast<const typeref_t*>(
+		  class_scope->type->base_type.get());
+	    PClass*base = base_ref && base_ref->typedef_ref()
+		  ? pform_find_visible_class_scope(
+			class_scope, base_ref->typedef_ref()->name) : nullptr;
+	    if (typedef_t*found = pform_find_class_typedef_graph_(base, name, seen))
+		  return found;
+      }
+
+      if (class_scope->type->interface_class) {
+	    for (const std::unique_ptr<data_type_t>&parent_type :
+		 class_scope->type->interface_types) {
+		  const typeref_t*parent_ref = dynamic_cast<const typeref_t*>(
+			parent_type.get());
+		  PClass*parent = parent_ref && parent_ref->typedef_ref()
+			? pform_find_visible_class_scope(
+			      class_scope, parent_ref->typedef_ref()->name) : nullptr;
+		  if (typedef_t*found = pform_find_class_typedef_graph_(
+			parent, name, seen))
+			return found;
+	    }
       }
 
       return nullptr;

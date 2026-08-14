@@ -347,6 +347,27 @@ TU [munpf]
 <EDGES>"z0" { yylval.text = strdupnew(yytext); return K_edge_descriptor; }
 <EDGES>"z1" { yylval.text = strdupnew(yytext); return K_edge_descriptor; }
 
+  /* `interface class' and an ordinary interface declaration share the
+     `interface' keyword, but the grammar reaches them through different
+     description paths. Returning the same first token forces Bison to choose
+     before it has seen `class' and steals ordinary `interface name' forms.
+     Use trailing context (inspected but not consumed) to preserve the source
+     spelling while giving the parser an unambiguous first token. Comments are
+     whitespace for this purpose, including comments that span lines. */
+"interface"/([ \t\b\f\r\n]|[/][*]([^*]|[*]+[^*/])*[*]+[/]|[/][/][^\n]*\n)+"class" {
+      int rc = lexor_keyword_code(yytext, yyleng);
+      if (rc == K_interface)
+	    return K_interface_class;
+
+      /* In a pre-SystemVerilog keyword set, `interface' remains an ordinary
+	 identifier. This rule can still win by longest trailing match. */
+      assert(rc == IDENTIFIER);
+      assert(yylloc.lexical_pos != UINT_MAX);
+      yylloc.lexical_pos += 1;
+      yylval.text = strdupnew(yytext);
+      return IDENTIFIER;
+}
+
 [a-zA-Z_][a-zA-Z0-9$_]* {
       int rc = lexor_keyword_code(yytext, yyleng);
       switch (rc) {

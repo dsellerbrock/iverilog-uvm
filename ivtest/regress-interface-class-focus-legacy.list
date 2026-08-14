@@ -1,0 +1,10 @@
+# IEEE 1800-2017 8.25-8.26 parameterized and interface classes
+sv_interface_class_runtime normal,-g2012 ivltests gold=sv_interface_class_runtime.gold
+sv_interface_class_lexical_boundary normal,-g2012 ivltests gold=sv_interface_class_lexical_boundary.gold
+sv_interface_class_missing_method_fail CE,-g2012 ivltests gold=sv_interface_class_missing_method_fail.gold
+sv_interface_class_signature_fail CE,-g2012 ivltests gold=sv_interface_class_signature_fail.gold
+sv_class_parameter_missing_actual_fail CE,-g2012 ivltests gold=sv_class_parameter_missing_actual_fail.gold
+sv_interface_class_illegal_items_fail CE,-g2012 ivltests gold=sv_interface_class_illegal_items_fail.gold
+sv_interface_class_relation_fail CE,-g2012 ivltests gold=sv_interface_class_relation_fail.gold
+sv_interface_class_qualifier_fail CE,-g2012 ivltests gold=sv_interface_class_qualifier_fail.gold
+sv_interface_class_nonvirtual_method_fail CE,-g2012 ivltests gold=sv_interface_class_nonvirtual_method_fail.gold

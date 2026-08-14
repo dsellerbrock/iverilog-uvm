@@ -1,0 +1,4 @@
+ivltests/sv_interface_class_qualifier_fail.v:7: error: Access or static qualifiers are not allowed on an interface-class method.
+ivltests/sv_interface_class_qualifier_fail.v:3: error: Access or static qualifiers are not allowed on an interface-class method.
+ivltests/sv_interface_class_qualifier_fail.v:11: error: Access or static qualifiers are not allowed on an interface-class method.
+3 error(s) during elaboration.

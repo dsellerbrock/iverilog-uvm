@@ -512,7 +512,7 @@ struct interface_type_t : public data_type_t {
 
 struct class_type_t : public data_type_t {
 
-      inline explicit class_type_t(perm_string n) : name(n) { virtual_class = false; is_covergroup_stub = false; is_covergroup_standalone = false; }
+      inline explicit class_type_t(perm_string n) : name(n) { virtual_class = false; interface_class = false; is_covergroup_stub = false; is_covergroup_standalone = false; }
 
       void pform_dump(std::ostream&out, unsigned indent) const override;
       void pform_dump_init(std::ostream&out, unsigned indent) const;
@@ -524,7 +524,16 @@ struct class_type_t : public data_type_t {
       std::unique_ptr<data_type_t> base_type;
       std::vector<named_pexpr_t> base_args;
 
+	// IEEE 1800-2017 8.26: interface classes form a separate,
+	// potentially multiple-inheritance graph. A concrete class may have
+	// one ordinary base_type and implement any number of these types; an
+	// interface class may extend any number of them and has no ordinary
+	// base class. Keep the two graphs distinct so interface inheritance
+	// never changes object layout or superclass property numbering.
+      std::vector<std::unique_ptr<data_type_t> > interface_types;
+
       bool virtual_class;
+      bool interface_class;
       bool is_covergroup_stub; // true when created as a package-level CG stub
 	// M11-1/2: standalone (module/package-scope) covergroup type —
 	// the elaborated netclass IS the covergroup class itself (bins

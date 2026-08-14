@@ -654,6 +654,7 @@ extern void compile_class_mark_struct(void);
 extern void compile_class_property(
       unsigned idx, char*nam, char*typ,
       std::vector<std::pair<int,int> >*dimensions);
+extern void compile_class_interface(char*dispatch_prefix);
 extern void compile_class_static_property(unsigned idx, char*storage);
 extern void compile_class_constraint(char*name, char*ir);
 extern void compile_class_covgrp_bin(uint64_t cp_idx, uint64_t prop_idx,

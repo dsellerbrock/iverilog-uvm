@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_interface_class_runtime.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_interface_class_runtime"
+}

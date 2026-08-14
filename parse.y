@@ -636,9 +636,11 @@ static std::vector<pending_class_param_t> pending_class_params;
 
 static void clear_pending_class_params()
 {
+      std::set<data_type_t*>deleted_types;
       for (std::vector<pending_class_param_t>::iterator cur = pending_class_params.begin()
 		 ; cur != pending_class_params.end() ; ++cur) {
-	    delete cur->data_type;
+	    if (cur->data_type && deleted_types.insert(cur->data_type).second)
+		  delete cur->data_type;
 	    delete cur->expr;
       }
       pending_class_params.clear();
@@ -1298,6 +1300,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       std::list<assignment_pattern_item_t>*pattern_items;
 
       data_type_t*data_type;
+      std::list<data_type_t*>*data_types;
       class_type_t*class_type;
       real_type_t::type_t real_type;
       property_qualifier_t property_qualifier;
@@ -1319,6 +1322,11 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 	    data_type_t*type;
 	    std::list<named_pexpr_t> *args;
       } class_declaration_extends;
+
+      struct {
+	    char*text;
+	    bool interface_class;
+      } class_declaration_start;
 
       struct {
 	    char*text;
@@ -1430,7 +1438,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %token K_extends K_extern K_final K_first_match K_foreach K_forkjoin
 %token K_iff K_ignore_bins K_illegal_bins K_import K_inside K_int
  /* Icarus already has defined "logic" above! */
-%token K_interface K_intersect K_join_any K_join_none K_local
+%token K_interface K_interface_class K_intersect K_join_any K_join_none K_local
 %token K_longint K_matches K_modport K_new K_null K_package K_packed
 %token K_priority K_program K_property K_protected K_pure K_rand K_randc
 %token K_randcase K_randsequence K_ref K_return K_sequence K_shortint
@@ -1645,7 +1653,12 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <packed_signing> packed_signing
 
 %type <class_declaration_extends> class_declaration_extends_opt
+%type <class_declaration_start> class_declaration_start
+%destructor { delete[] $$.text; } class_declaration_start
 %type <parmvalue> class_extends_type_params_opt
+%type <data_type> interface_class_type
+%type <data_types> class_declaration_implements_opt interface_class_extends_opt
+%type <data_types> interface_class_type_list
 
 %type <property_qualifier> class_item_qualifier property_qualifier
 %type <property_qualifier> class_item_qualifier_list property_qualifier_list
@@ -1919,8 +1932,22 @@ block_identifier_opt /* */
       { $$ = 0; }
   ;
 
-class_declaration /* IEEE1800-2005: A.1.2 */
-  : K_virtual_opt K_class lifetime_opt identifier_name class_type_parameter_port_list_opt class_declaration_extends_opt ';'
+class_declaration /* IEEE1800-2017: A.1.2, A.1.2.1 */
+  : class_declaration_start class_declaration_body
+      { pform_end_class_declaration(@2); }
+    class_declaration_endlabel_opt
+      { check_end_label(@4, $1.interface_class ? "interface class" : "class",
+			$1.text, $4);
+	delete[] $1.text;
+      }
+  ;
+
+/* Complete both declaration headers before entering one shared body state.
+   Apart from avoiding duplicated class-item conflicts, this is important for
+   `interface name' versus `interface class name': the lexer supplies the
+   distinct K_interface_class first token only when `class' follows. */
+class_declaration_start
+  : K_virtual_opt K_class lifetime_opt identifier_name class_type_parameter_port_list_opt class_declaration_extends_opt class_declaration_implements_opt ';'
       { /* Up to 1800-2017 the grammar in the LRM allowed an optional lifetime
 	 * qualifier for class declarations. But the LRM never specified what
 	 * this qualifier should do. Starting with 1800-2023 the qualifier has
@@ -1936,7 +1963,8 @@ class_declaration /* IEEE1800-2005: A.1.2 */
 	class_type_t *class_type= new class_type_t(name);
 	FILE_NAME(class_type, @4);
 	pform_set_typedef(@4, name, class_type, nullptr);
-	pform_start_class_declaration(@2, class_type, $6.type, $6.args, $1);
+	pform_start_class_declaration(@2, class_type, $6.type, $6.args, $1,
+				      false, $7);
 
 	/* Register class parameters in class scope so they can be
 	 * referenced inside the class body. */
@@ -1953,16 +1981,41 @@ class_declaration /* IEEE1800-2005: A.1.2 */
 	}
 	clear_pending_class_params();
 	if ($5) delete $5;
+	$$.text = $4;
+	$$.interface_class = false;
       }
-    class_items_opt K_endclass
-      { // Process a class.
-	pform_end_class_declaration(@10);
+  | K_interface_class K_class identifier_name class_type_parameter_port_list_opt interface_class_extends_opt ';'
+      {
+	perm_string name = lex_strings.make($3);
+	class_type_t *class_type = new class_type_t(name);
+	FILE_NAME(class_type, @3);
+	pform_set_typedef(@3, name, class_type, nullptr);
+	/* Interface classes are abstract by definition (8.26), but retain a
+	 * distinct flag so ordinary virtual classes are not mistaken for
+	 * interface types by relation and cast checks. */
+	pform_start_class_declaration(@2, class_type, nullptr, nullptr, true,
+				      true, $5);
+
+	if (!pending_class_params.empty()) {
+	      pform_start_parameter_port_list();
+	      for (std::vector<pending_class_param_t>::iterator cur = pending_class_params.begin()
+			 ; cur != pending_class_params.end() ; ++cur) {
+		    pform_set_parameter(@4, cur->name, false, cur->is_type,
+					cur->data_type, 0, cur->expr, 0);
+		    cur->data_type = 0;
+		    cur->expr = 0;
+	      }
+	      pform_end_parameter_port_list();
+	}
+	clear_pending_class_params();
+	if ($4) delete $4;
+	$$.text = $3;
+	$$.interface_class = true;
       }
-    class_declaration_endlabel_opt
-      { // Wrap up the class.
-	check_end_label(@12, "class", $4, $12);
-	delete[] $4;
-      }
+  ;
+
+class_declaration_body
+  : class_items_opt K_endclass
   ;
 
 class_type_parameter_port_list_opt
@@ -2000,6 +2053,17 @@ class_type_parameter_port_item
   | IDENTIFIER initializer_opt
       { if (!pending_class_params.empty() && pending_class_params.back().is_type) {
 	      pending_class_param_t tmp = { lex_strings.make($1), true, 0, $2 };
+	      pending_class_params.push_back(tmp);
+	      $$ = list_from_identifier($1, @1.lexical_pos);
+	} else if (!pending_class_params.empty()) {
+	      /* A comma-separated value parameter continues the preceding
+	       * declaration's type (including an implicit type), e.g.
+	       * `#(parameter int A=1, B=2)' and `#(parameter A, B)'. The
+	       * parse-form type is immutable and deliberately shared by the
+	       * formals; clear_pending_class_params deletes shared types once on
+	       * an aborted declaration. */
+	      pending_class_param_t tmp = { lex_strings.make($1), false,
+		    pending_class_params.back().data_type, $2 };
 	      pending_class_params.push_back(tmp);
 	      $$ = list_from_identifier($1, @1.lexical_pos);
 	} else {
@@ -2071,6 +2135,52 @@ class_declaration_extends_opt /* IEEE1800-2005: A.1.2 */
       }
   |
       { $$ = {nullptr, nullptr};
+      }
+  ;
+
+class_declaration_implements_opt /* IEEE1800-2017: A.1.2 */
+  : K_implements interface_class_type_list
+      { $$ = $2; }
+  |
+      { $$ = new std::list<data_type_t*>; }
+  ;
+
+interface_class_extends_opt /* IEEE1800-2017: A.1.2.1 */
+  : K_extends interface_class_type_list
+      { $$ = $2; }
+  |
+      { $$ = new std::list<data_type_t*>; }
+  ;
+
+interface_class_type_list
+  : interface_class_type
+      { $$ = new std::list<data_type_t*>;
+	$$->push_back($1);
+      }
+  | interface_class_type_list ',' interface_class_type
+      { $1->push_back($3);
+	$$ = $1;
+      }
+  ;
+
+interface_class_type
+  : ps_type_identifier class_extends_type_params_opt
+      { if (typeref_t*tmp = dynamic_cast<typeref_t*>($1)) {
+	      if (tmp->typedef_ref() && !tmp->typedef_ref()->get_data_type())
+		    yyerror(@1, "error: A forward-declared interface class cannot be used in an extends or implements list.");
+	      tmp->set_parameter_values($2);
+	} else {
+	      delete_parmvalue_t($2);
+	}
+	$$ = $1;
+      }
+  | IDENTIFIER class_extends_type_params_opt
+      { type_parameter_t*tmp = new type_parameter_t(lex_strings.make($1));
+	FILE_NAME(tmp, @1);
+	delete_parmvalue_t($2);
+	yyerror(@1, "error: An extends or implements entry must name an explicit interface class type, not a type parameter or unknown identifier.");
+	$$ = tmp;
+	delete[] $1;
       }
   ;
 
@@ -2327,6 +2437,7 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
 	current_function->set_return($4);
+	current_function->set_pure_method(true);
 	pform_set_this_class(@5, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -2336,6 +2447,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task = pform_push_task_scope(@3, $4, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($6);
+	current_task->set_pure_method(true);
 	pform_set_this_class(@4, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -2346,7 +2458,7 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
 	current_function->set_return($4);
-	current_function->set_virtual_method(true);
+	current_function->set_pure_method(true);
 	pform_set_this_class(@5, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -2356,7 +2468,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task = pform_push_task_scope(@3, $5, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
-	current_task->set_virtual_method(true);
+	current_task->set_pure_method(true);
 	pform_set_this_class(@5, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -2367,7 +2479,8 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
-	current_function->set_virtual_method(true);
+	current_function->set_pure_method(true);
+	current_function->set_interface_qualifier_valid(false);
 	pform_set_this_class(@6, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -2378,7 +2491,8 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
-	current_function->set_virtual_method(true);
+	current_function->set_pure_method(true);
+	current_function->set_interface_qualifier_valid(false);
 	pform_set_this_class(@6, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -2388,7 +2502,8 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($8);
-	current_task->set_virtual_method(true);
+	current_task->set_pure_method(true);
+	current_task->set_interface_qualifier_valid(false);
 	pform_set_this_class(@6, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -2398,7 +2513,8 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($8);
-	current_task->set_virtual_method(true);
+	current_task->set_pure_method(true);
+	current_task->set_interface_qualifier_valid(false);
 	pform_set_this_class(@6, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -2409,6 +2525,8 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
+	current_function->set_pure_method(true);
+	current_function->set_interface_qualifier_valid($3.mask() == 0);
 	pform_set_this_class(@6, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -2418,6 +2536,8 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
+	current_task->set_pure_method(true);
+	current_task->set_interface_qualifier_valid($3.mask() == 0);
 	pform_set_this_class(@5, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -2428,7 +2548,8 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
-	current_function->set_virtual_method(true);
+	current_function->set_pure_method(true);
+	current_function->set_interface_qualifier_valid($3.mask() == 0);
 	pform_set_this_class(@6, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -2438,7 +2559,8 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($8);
-	current_task->set_virtual_method(true);
+	current_task->set_pure_method(true);
+	current_task->set_interface_qualifier_valid($3.mask() == 0);
 	pform_set_this_class(@6, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -2449,6 +2571,8 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
+	current_function->set_pure_method(true);
+	current_function->set_interface_qualifier_valid($2.mask() == 0);
 	pform_set_this_class(@6, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -2458,6 +2582,8 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($8);
+	current_task->set_pure_method(true);
+	current_task->set_interface_qualifier_valid($2.mask() == 0);
 	pform_set_this_class(@6, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -2468,7 +2594,8 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
-	current_function->set_virtual_method(true);
+	current_function->set_pure_method(true);
+	current_function->set_interface_qualifier_valid($2.mask() == 0);
 	pform_set_this_class(@6, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -2478,7 +2605,8 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($8);
-	current_task->set_virtual_method(true);
+	current_task->set_pure_method(true);
+	current_task->set_interface_qualifier_valid($2.mask() == 0);
 	pform_set_this_class(@6, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -8253,6 +8381,11 @@ type_declaration
       { perm_string name = lex_strings.make($3);
 	pform_forward_typedef(@3, name, $2);
 	delete[]$3;
+      }
+  | K_typedef K_interface_class K_class identifier_name ';'
+      { perm_string name = lex_strings.make($4);
+	pform_forward_typedef(@4, name, typedef_t::CLASS);
+	delete[]$4;
       }
   | K_typedef K_enum identifier_name ';'
       { perm_string name = lex_strings.make($3);

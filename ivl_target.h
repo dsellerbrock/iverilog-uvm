@@ -2549,6 +2549,10 @@ extern int ivl_type_is_chandle(ivl_type_t net);
 extern int ivl_type_signed(ivl_type_t net);
 extern const char* ivl_type_name(ivl_type_t net);
 extern ivl_type_t ivl_type_super(ivl_type_t net);
+/* Interface-class relationships are separate from the single concrete
+ * superclass chain (IEEE 1800-2017 8.26). */
+extern unsigned ivl_type_interface_count(ivl_type_t net);
+extern ivl_type_t ivl_type_interface(ivl_type_t net, unsigned idx);
 extern const char* ivl_type_method_prefix(ivl_type_t net);
 extern int ivl_type_queue_assoc_compat(ivl_type_t net);
 /* Return the maximum number of elements in a bounded queue, or zero for an

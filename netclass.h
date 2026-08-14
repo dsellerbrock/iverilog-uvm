@@ -73,6 +73,15 @@ class netclass_t : public ivl_type_s {
       inline const std::vector<const netclass_t*>& derived_types() const { return derived_types_; }
       void set_super(const netclass_t*super);
 
+	// Interface-class inheritance is orthogonal to the single concrete
+	// superclass chain. These relationships contribute type compatibility
+	// and inherited prototypes/typedef visibility, but never properties or
+	// object layout (IEEE 1800-2017 8.26).
+      void add_interface(const netclass_t*interface_type);
+      inline const std::vector<const netclass_t*>& interface_types() const
+	    { return interface_types_; }
+      bool implements_interface(const netclass_t*interface_type) const;
+
 	// Get the number of properties in this class. Include
 	// properties in the parent class.
       size_t get_properties(void) const;
@@ -162,6 +171,8 @@ class netclass_t : public ivl_type_s {
 
       void set_virtual(bool virtual_class) { virtual_class_ = virtual_class; }
       bool is_virtual() const { return virtual_class_; }
+      void set_interface_class(bool flag) { interface_class_type_ = flag; }
+      bool is_interface_class() const { return interface_class_type_; }
       void set_interface(bool interface_type) { interface_type_ = interface_type; }
       bool is_interface() const { return interface_type_; }
       void set_sig_elaborated(bool flag) { sig_elaborated_ = flag; }
@@ -216,6 +227,7 @@ class netclass_t : public ivl_type_s {
 	// here.
       const netclass_t*super_;
       std::vector<const netclass_t*> derived_types_;
+      std::vector<const netclass_t*> interface_types_;
 	// Map property names to property table index.
       std::map<perm_string,size_t> properties_;
 	// Vector of properties.
@@ -235,6 +247,7 @@ class netclass_t : public ivl_type_s {
       NetScope*definition_scope_;
 
       bool virtual_class_;
+      bool interface_class_type_;
       bool interface_type_;
       bool sig_elaborated_;
       bool sig_elaborating_;

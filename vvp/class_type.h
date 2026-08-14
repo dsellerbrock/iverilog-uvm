@@ -56,9 +56,13 @@ class class_type : public __vpiHandle {
       inline const std::string&scope_path(void) const { return scope_path_; }
       inline const std::string&dispatch_prefix(void) const { return dispatch_prefix_; }
       inline const std::string&super_dispatch_prefix(void) const { return super_dispatch_prefix_; }
+      inline const std::vector<std::string>&interface_dispatch_prefixes(void) const
+	    { return interface_dispatch_prefixes_; }
       void set_scope_path(const std::string&path);
       void set_dispatch_prefix(const std::string&path);
       void set_super_dispatch_prefix(const std::string&path);
+      void add_interface_dispatch_prefix(const std::string&path);
+      bool assignment_compatible_with(const class_type*want) const;
       const class_type* runtime_super(void) const;
 	// Number of properties in the class definition.
       inline size_t property_count(void) const { return properties_.size(); }
@@ -161,6 +165,7 @@ class class_type : public __vpiHandle {
       std::string scope_path_;
       std::string dispatch_prefix_;
       std::string super_dispatch_prefix_;
+      std::vector<std::string> interface_dispatch_prefixes_;
 
       struct prop_t {
 	    std::string name;

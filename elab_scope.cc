@@ -2342,6 +2342,88 @@ void repair_specialized_class_property_types(Design*des)
       }
 }
 
+/* Resolve the interface-class graph independently of the concrete super
+ * chain. This function is deliberately shared by generic, specialized and
+ * in-place class-scope construction so all three paths enforce identical
+ * 8.26 semantics. */
+static const netclass_t* resolve_class_relation_type_(Design*des,
+					       NetScope*class_scope,
+					       const data_type_t*relation_type)
+{
+      if (!relation_type)
+	    return 0;
+
+      ivl_type_t resolved = const_cast<data_type_t*>(relation_type)
+	    ->elaborate_type(des, class_scope);
+      const netclass_t*relation = dynamic_cast<const netclass_t*>(resolved);
+      if (relation)
+	    return relation;
+
+      perm_string relation_name;
+      if (const typeref_t*relation_ref =
+		    dynamic_cast<const typeref_t*>(relation_type)) {
+	    if (typedef_t*td = relation_ref->typedef_ref())
+		  relation_name = td->name;
+      } else if (const class_type_t*relation_class =
+		       dynamic_cast<const class_type_t*>(relation_type)) {
+	    relation_name = relation_class->name;
+      }
+
+      if (relation_name) {
+	    relation = class_scope->find_class(des, relation_name);
+	    if (!relation)
+		  relation = ensure_visible_class_type(des, class_scope,
+					       relation_name);
+      }
+      return relation;
+}
+
+static void resolve_class_interface_relations_(Design*des,
+					NetScope*class_scope,
+					PClass*pclass,
+					netclass_t*use_class)
+{
+      if (!(class_scope && pclass && pclass->type && use_class))
+	    return;
+
+      class_type_t*use_type = pclass->type;
+      use_class->set_interface_class(use_type->interface_class);
+
+      for (const std::unique_ptr<data_type_t>&relation_type :
+		 use_type->interface_types) {
+	    const netclass_t*relation = resolve_class_relation_type_(
+		  des, class_scope, relation_type.get());
+	    if (!relation) {
+		  cerr << relation_type->get_fileline() << ": error: "
+		       << "Interface relationship of class `" << use_type->name
+		       << "' does not resolve to a class type." << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+
+	    if (!relation->is_interface_class()) {
+		  cerr << relation_type->get_fileline() << ": error: Class `"
+		       << relation->get_name()
+		       << "' is not an interface class and cannot appear in an "
+		       << (use_type->interface_class ? "interface extends"
+						     : "implements")
+		       << " list." << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+
+	    if (relation == use_class || relation->implements_interface(use_class)) {
+		  cerr << relation_type->get_fileline() << ": error: Cyclic "
+		       << "interface-class relationship involving `"
+		       << use_type->name << "'." << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+
+	    use_class->add_interface(relation);
+      }
+}
+
 const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_scope,
 						   const netclass_t*base_class,
 						   const parmvalue_t*overrides,
@@ -2449,6 +2531,7 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       use_class->set_class_scope(class_scope);
       use_class->set_definition_scope(definition_scope);
       use_class->set_virtual(use_type->virtual_class);
+      use_class->set_interface_class(use_type->interface_class);
       if (use_type->is_covergroup_stub)
 	    use_class->set_is_covergroup(true);
       if (!use_type->covergroups.empty())
@@ -2532,6 +2615,8 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 	    }
       }
       use_class->set_super(use_base_class);
+      resolve_class_interface_relations_(des, class_scope,
+					 const_cast<PClass*>(pclass), use_class);
 
       collect_scope_signals(class_scope, pclass->wires);
       elaborate_scope_events_(des, class_scope, pclass->events);
@@ -2704,6 +2789,7 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
       use_class->set_class_scope(class_scope);
       use_class->set_definition_scope(scope);
       use_class->set_virtual(use_type->virtual_class);
+      use_class->set_interface_class(use_type->interface_class);
       if (use_type->is_covergroup_stub)
 	    use_class->set_is_covergroup(true);
       if (!use_type->covergroups.empty())
@@ -2742,6 +2828,7 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 		    }
 	      }
       use_class->set_super(use_base_class);
+      resolve_class_interface_relations_(des, class_scope, pclass, use_class);
 
       collect_scope_signals(class_scope, pclass->wires);
 
@@ -2928,6 +3015,7 @@ static void complete_class_scope_in_place_(Design*des, NetScope*scope,
       classes_being_scope_elaborated_.insert(pclass);
 
       class_type_t*use_type = pclass->type;
+      use_class->set_interface_class(use_type->interface_class);
 
       const netclass_t*use_base_class = 0;
       if (use_type->base_type) {
@@ -2958,6 +3046,7 @@ static void complete_class_scope_in_place_(Design*des, NetScope*scope,
 	    }
       }
       use_class->set_super(use_base_class);
+      resolve_class_interface_relations_(des, class_scope, pclass, use_class);
 
       for (map<perm_string,PTask*>::iterator cur = pclass->tasks.begin()
 		 ; cur != pclass->tasks.end() ; ++cur) {

@@ -66,6 +66,18 @@ class PTaskFunc : public PScope, public PNamedItem {
       inline bool is_virtual_method() const { return is_virtual_; }
       inline void set_virtual_method(bool v) { is_virtual_ = v; }
 
+      inline bool is_pure_method() const { return is_pure_; }
+      inline void set_pure_method(bool v) {
+	    is_pure_ = v;
+	    if (v) is_virtual_ = true;
+      }
+      inline bool interface_qualifier_valid() const {
+	    return interface_qualifier_valid_;
+      }
+      inline void set_interface_qualifier_valid(bool v) {
+	    interface_qualifier_valid_ = v;
+      }
+
 	// DPI import linkage (35.x): both functions and tasks can be
 	// DPI imports; the code generator synthesizes the marshaling
 	// body from the C name.
@@ -105,6 +117,8 @@ class PTaskFunc : public PScope, public PNamedItem {
     private:
       class_type_t*this_type_;
       bool is_virtual_ = false;
+      bool is_pure_ = false;
+      bool interface_qualifier_valid_ = true;
       bool is_dpi_import_ = false;
       std::string dpi_c_name_;
       bool is_dpi_export_ = false;
