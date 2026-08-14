@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_rootless_explicit_top_fail.v",
+    "iverilog-args" : [ "-g2012", "-s", "missing_root" ],
+    "gold"          : "sv_rootless_explicit_top_fail"
+}

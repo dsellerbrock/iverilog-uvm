@@ -1,0 +1,2 @@
+./ivltests/sv_rootless_randsequence_undeclared_fail.v:5: error: Unable to bind wire/reg/memory `missing_switch' in `$unit.choose_value'
+1 error(s) during elaboration.

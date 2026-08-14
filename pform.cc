@@ -5620,6 +5620,28 @@ void pform_set_clocking_default_skews(const struct vlltype&loc,
       pform_cur_clocking->set_default_skews(in_skew, out_skew);
 }
 
+/* Marks every identifier in an expression as strict. The implementation is
+   shared with concurrent assertions below; randsequence code blocks use it
+   so an undeclared production-condition name cannot degrade to the generic
+   compile-progress warning and silently select the else branch. */
+static void sva_mark_strict_(PExpr*e);
+
+static void pform_rs_mark_conditions_strict_(Statement*stmt)
+{
+      if (!stmt)
+	    return;
+      if (PCondit*cond = dynamic_cast<PCondit*>(stmt)) {
+	    sva_mark_strict_(cond->cond_expr());
+	    pform_rs_mark_conditions_strict_(cond->if_clause());
+	    pform_rs_mark_conditions_strict_(cond->else_clause());
+	    return;
+      }
+      if (PBlock*block = dynamic_cast<PBlock*>(stmt)) {
+	    for (Statement*child : block->statements())
+		  pform_rs_mark_conditions_strict_(child);
+      }
+}
+
 /*
  * M3B-2: randsequence (IEEE 1800-2017 18.17). Lower the production grammar
  * to procedural code by source-level expansion from the start production:
@@ -5648,7 +5670,11 @@ static Statement* pform_rs_expand_rule_(const struct vlltype&loc,
 	    for (size_t i = 0 ; i < rule.items->size() ; i += 1) {
 		  rs_item_t&it = (*rule.items)[i];
 		  Statement*s = nullptr;
-		  if (it.code) { s = it.code; it.code = nullptr; }  /* move */
+		  if (it.code) {
+			pform_rs_mark_conditions_strict_(it.code);
+			s = it.code;
+			it.code = nullptr;
+		  }  /* move */
 		  else s = pform_rs_expand_(loc, it.name, pmap, used, bad);
 		  if (s) stmts.push_back(s);
 	    }
@@ -7773,11 +7799,6 @@ static Statement* sva_reactive_process_(const struct vlltype&loc)
       FILE_NAME(t, loc);
       return t;
 }
-
-/* Defined with the sampled-value helpers below. Marks every identifier
-   in an assertion expression so an unresolved name errors instead of
-   degrading to a silently inert property. */
-static void sva_mark_strict_(PExpr*e);
 
 static Statement* sva_hist_on_stmt_(const struct vlltype&loc,
 				    const pform_name_t&path)
