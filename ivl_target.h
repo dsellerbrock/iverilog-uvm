@@ -458,6 +458,24 @@ typedef enum ivl_statement_type_e {
       IVL_ST_WAIT_ARR       = 40
 } ivl_statement_type_t;
 
+/* Randsequence flow control is independent of the nearest procedural loop.
+ * Carry that distinction through the target API so a production `return'
+ * cannot accidentally return from its containing task/function, and a
+ * randsequence `break' cannot stop only an intervening repeat production. */
+typedef enum ivl_flow_control_e {
+      IVL_FLOW_LOOP_BREAK = 0,
+      IVL_FLOW_RANDSEQ_BREAK,
+      IVL_FLOW_RANDSEQ_RETURN
+} ivl_flow_control_t;
+
+/* Anonymous lowering blocks establish the two randsequence flow targets
+ * without manufacturing a user-visible named scope. */
+typedef enum ivl_randsequence_block_e {
+      IVL_RANDSEQ_BLOCK_NONE = 0,
+      IVL_RANDSEQ_BLOCK_ROOT,
+      IVL_RANDSEQ_BLOCK_PRODUCTION
+} ivl_randsequence_block_t;
+
 /* Case statements can be tagged as unique/unique0/priority. */
 typedef enum ivl_case_quality_t {
       IVL_CASE_QUALITY_BASIC    = 0,  /* no quality flags */
@@ -2385,6 +2403,10 @@ extern unsigned ivl_stmt_block_count(ivl_statement_t net);
 extern ivl_scope_t ivl_stmt_block_scope(ivl_statement_t net);
   /* IVL_ST_BLOCK, IVL_ST_FORK, IVL_ST_FORK_JOIN_ANY, IVL_ST_FORK_JOIN_NONE */
 extern ivl_statement_t ivl_stmt_block_stmt(ivl_statement_t net, unsigned i);
+  /* IVL_ST_BLOCK, IVL_ST_FORK, IVL_ST_FORK_JOIN_ANY, IVL_ST_FORK_JOIN_NONE */
+extern ivl_randsequence_block_t ivl_stmt_block_randsequence(ivl_statement_t net);
+  /* IVL_ST_BREAK */
+extern ivl_flow_control_t ivl_stmt_break_kind(ivl_statement_t net);
   /* IVL_ST_UTASK IVL_ST_DISABLE */
 extern ivl_scope_t ivl_stmt_call(ivl_statement_t net);
   /* IVL_ST_UTASK */

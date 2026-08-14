@@ -29,6 +29,27 @@ static unsigned break_label = BRK_CONT_LABEL_NONE;
 static unsigned continue_label = BRK_CONT_LABEL_NONE;
 static ivl_scope_t break_scope = 0;
 static ivl_scope_t continue_scope = 0;
+static unsigned randsequence_break_label = BRK_CONT_LABEL_NONE;
+static unsigned randsequence_return_label = BRK_CONT_LABEL_NONE;
+
+vvp_randsequence_flow_t vvp_randsequence_flow_push(
+      ivl_randsequence_block_t kind, unsigned label)
+{
+      vvp_randsequence_flow_t saved = {
+            randsequence_break_label, randsequence_return_label
+      };
+      if (kind == IVL_RANDSEQ_BLOCK_ROOT)
+            randsequence_break_label = label;
+      else if (kind == IVL_RANDSEQ_BLOCK_PRODUCTION)
+            randsequence_return_label = label;
+      return saved;
+}
+
+void vvp_randsequence_flow_pop(vvp_randsequence_flow_t saved)
+{
+      randsequence_break_label = saved.break_label;
+      randsequence_return_label = saved.return_label;
+}
 
 #define PUSH_JUMPS(bl, cl, sc) do {		  \
 	    save_break_label = break_label;	  \
@@ -52,6 +73,27 @@ static ivl_scope_t continue_scope = 0;
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 int show_stmt_break(ivl_statement_t net, ivl_scope_t sscope)
 {
+      ivl_flow_control_t kind = ivl_stmt_break_kind(net);
+      if (kind == IVL_FLOW_RANDSEQ_BREAK) {
+            if (randsequence_break_label == BRK_CONT_LABEL_NONE) {
+                  fprintf(stderr, "vvp.tgt: error: randsequence 'break' "
+                          "has no enclosing randsequence?!\n");
+                  return 1;
+            }
+            fprintf(vvp_out, "    %%jmp T_%u.%u; randsequence break\n",
+                    thread_count, randsequence_break_label);
+            return 0;
+      }
+      if (kind == IVL_FLOW_RANDSEQ_RETURN) {
+            if (randsequence_return_label == BRK_CONT_LABEL_NONE) {
+                  fprintf(stderr, "vvp.tgt: error: randsequence production "
+                          "'return' has no enclosing production?!\n");
+                  return 1;
+            }
+            fprintf(vvp_out, "    %%jmp T_%u.%u; randsequence return\n",
+                    thread_count, randsequence_return_label);
+            return 0;
+      }
       if (break_label == BRK_CONT_LABEL_NONE) {
 	    fprintf(stderr, "vvp.tgt: error: 'break' not in a loop?!\n");
 	    return 1;

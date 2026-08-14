@@ -431,6 +431,7 @@ bool dll_target::proc_block(const NetBlock*net)
 	   fork/join_none, there is no need for the block wrapper,
 	   generate the contained statement instead. */
       if ((count == 1) && (net->subscope() == 0) &&
+	  (net->randsequence_block() == IVL_RANDSEQ_BLOCK_NONE) &&
 	  (net->type() != NetBlock::PARA_JOIN_NONE)) {
 	    return net->proc_first()->emit_proc(this);
       }
@@ -462,6 +463,7 @@ bool dll_target::proc_block(const NetBlock*net)
 	    stmt_cur_->u_.block_.scope = lookup_scope_(net->subscope());
       else
 	    stmt_cur_->u_.block_.scope = 0;
+      stmt_cur_->u_.block_.randsequence = net->randsequence_block();
 
       struct ivl_statement_s*save_cur_ = stmt_cur_;
       unsigned idx = 0;
@@ -487,6 +489,7 @@ bool dll_target::proc_break(const NetBreak*net)
       assert(stmt_cur_->type_ == IVL_ST_NONE);
       FILE_NAME(stmt_cur_, net);
       stmt_cur_->type_ = IVL_ST_BREAK;
+      stmt_cur_->u_.flow_.kind = net->flow_control();
       return true;
 }
 

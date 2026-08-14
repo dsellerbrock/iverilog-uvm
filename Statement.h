@@ -121,6 +121,8 @@ class PAssign_  : public Statement {
 
       const PExpr* lval() const  { return lval_; }
       PExpr* rval() const  { return rval_; }
+      bool has_timing_control() const
+      { return delay_ || event_ || count_; }
 
       // Phase 63a/A3: in-place rewrite for the `{<<N{x}} = rhs`
       // → `x = {<<N{rhs}}` transformation.  The caller takes
@@ -228,6 +230,10 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       ~PBlock() override;
 
       BL_TYPE bl_type() const { return bl_type_; }
+      void randsequence_block(ivl_randsequence_block_t kind)
+      { randsequence_block_ = kind; }
+      ivl_randsequence_block_t randsequence_block() const
+      { return randsequence_block_; }
 
       bool var_init_needs_explicit_lifetime() const override;
 
@@ -260,13 +266,20 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
 
     private:
       BL_TYPE bl_type_;
+      ivl_randsequence_block_t randsequence_block_ = IVL_RANDSEQ_BLOCK_NONE;
       std::vector<Statement*>list_;
 };
 
 class PBreak : public Statement {
     public:
+      explicit PBreak(ivl_flow_control_t kind = IVL_FLOW_LOOP_BREAK)
+      : kind_(kind) { }
+      ivl_flow_control_t flow_control() const { return kind_; }
       void dump(std::ostream&out, unsigned ind) const override;
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
+
+    private:
+      ivl_flow_control_t kind_;
 };
 
 class PCallTask  : public Statement {
@@ -283,6 +296,8 @@ class PCallTask  : public Statement {
       ~PCallTask() override;
 
       const pform_name_t& path() const;
+      PPackage* package() const { return package_; }
+      PExpr* receiver_expr() const { return receiver_; }
       const std::vector<named_pexpr_t>& parms() const { return parms_; }
 
       /* Phase 63b/Q-methods: with-clause predicate for sort/rsort/
@@ -825,6 +840,8 @@ class PRepeat : public Statement {
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
       virtual void dump(std::ostream&out, unsigned ind) const override;
       bool contains_detached_fork() const override;
+      PExpr* count_expr() const { return expr_; }
+      Statement* body() const { return statement_; }
 
     private:
       PExpr*expr_;
@@ -858,6 +875,7 @@ class PReturn  : public Statement {
 
       NetProc* elaborate(Design*des, NetScope*scope) const override;
       virtual void dump(std::ostream&out, unsigned ind) const override;
+      PExpr* expr() const { return expr_; }
 
     private:
       PExpr*expr_;

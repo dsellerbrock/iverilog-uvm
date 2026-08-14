@@ -28,22 +28,44 @@ class PEventStatement;
 class PExpr;
 class Statement;
 
-/*
- * M3B-2: randsequence productions (IEEE 1800-2017 18.17). A production is
- * a named list of alternative rules; each rule is a sequence of items with
- * an optional `:= weight'; each item is either a non-terminal reference
- * (name) or an inline code block ({ ... }).
- */
-struct rs_item_t {
-      perm_string name;            // non-terminal/terminal; empty => code block
-      Statement* code = nullptr;   // { ... } code block; null for a name item
+/* Randsequence parse tree (IEEE 1800-2017 18.17).  Keep production control
+ * forms distinct until lowering; treating them as ordinary procedural
+ * statements gives `break' and `return' the wrong enclosing target. */
+struct rs_formal_t : public LineInfo {
+      perm_string name;
+      data_type_t* type = nullptr;
+      NetNet::PortType direction = NetNet::PINPUT;
+      PExpr* default_expr = nullptr;
 };
+
+struct rs_case_item_t;
+
+struct rs_item_t : public LineInfo {
+      enum kind_t { CALL, CODE, IF_ELSE, REPEAT, CASE, RAND_JOIN } kind = CALL;
+      perm_string name;                    // CALL production name
+      std::list<named_pexpr_t>* actuals = nullptr;
+      Statement* code = nullptr;           // CODE block template
+      PExpr* expr = nullptr;                // IF/REPEAT/CASE selector; join weight
+      rs_item_t* first = nullptr;           // IF true / REPEAT body
+      rs_item_t* second = nullptr;          // IF false
+      std::vector<rs_case_item_t>* cases = nullptr;
+      std::vector<rs_item_t>* join_items = nullptr;
+};
+
+struct rs_case_item_t : public LineInfo {
+      std::list<PExpr*>* expressions = nullptr; // empty/null => default
+      rs_item_t* item = nullptr;
+};
+
 struct rs_rule_t {
       std::vector<rs_item_t>* items = nullptr;  // sequence of items (>=1)
       PExpr* weight = nullptr;                    // `:= weight' (null => 1)
 };
 struct rs_production_t {
       perm_string name;
+      bool explicit_void = false;
+      data_type_t* return_type = nullptr;
+      std::vector<rs_formal_t>* formals = nullptr;
       std::vector<rs_rule_t>* rules = nullptr;    // alternatives (>=1)
 };
 

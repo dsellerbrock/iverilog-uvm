@@ -3306,6 +3306,10 @@ class NetBlock  : public NetProc {
 
       Type type() const    { return type_; }
       NetScope* subscope() const { return subscope_; }
+      void randsequence_block(ivl_randsequence_block_t kind)
+      { randsequence_block_ = kind; }
+      ivl_randsequence_block_t randsequence_block() const
+      { return randsequence_block_; }
 
       void append(NetProc*);
       void prepend(NetProc*);
@@ -3348,12 +3352,16 @@ class NetBlock  : public NetProc {
     private:
       const Type type_;
       NetScope*subscope_;
+      ivl_randsequence_block_t randsequence_block_;
 
       NetProc*last_;
 };
 
 class NetBreak : public NetProc {
     public:
+      explicit NetBreak(ivl_flow_control_t kind = IVL_FLOW_LOOP_BREAK)
+      : kind_(kind) { }
+      ivl_flow_control_t flow_control() const { return kind_; }
       virtual NexusSet* nex_input(bool rem_out = true,
 				  bool always_sens = false,
 				  bool nested_func = false) const override;
@@ -3362,6 +3370,9 @@ class NetBreak : public NetProc {
       virtual bool emit_proc(struct target_t*) const override;
       bool evaluate_function(const LineInfo &loc,
 			     std::map<perm_string,LocalVar> &ctx) const final;
+
+    private:
+      ivl_flow_control_t kind_;
 };
 
 /*

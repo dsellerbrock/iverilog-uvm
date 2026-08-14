@@ -27,7 +27,8 @@
 using namespace std;
 
 NetBlock::NetBlock(Type t, NetScope*ss)
-: type_(t), subscope_(ss), last_(0)
+: type_(t), subscope_(ss),
+  randsequence_block_(IVL_RANDSEQ_BLOCK_NONE), last_(0)
 {
 }
 

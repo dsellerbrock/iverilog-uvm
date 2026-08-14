@@ -1,0 +1,8 @@
+# IEEE 1800-2017 18.17 randsequence structured productions and loud gaps.
+sv_randsequence normal,-g2012 ivltests gold=sv_randsequence.gold
+sv_randsequence_control_flow normal,-g2012 ivltests gold=sv_randsequence_control_flow.gold
+sv_rootless_randsequence_undeclared_fail CE,-g2012 ivltests gold=sv_rootless_randsequence_undeclared_fail.gold
+sv_randsequence_recursive_fail CE,-g2012 ivltests gold=sv_randsequence_recursive_fail.gold
+sv_randsequence_nonconstant_actual_fail CE,-g2012 ivltests gold=sv_randsequence_nonconstant_actual_fail.gold
+sv_randsequence_join_nested_fail CE,-g2012 ivltests gold=sv_randsequence_join_nested_fail.gold
+sv_randsequence_value_return_fail CE,-g2012 ivltests gold=sv_randsequence_value_return_fail.gold

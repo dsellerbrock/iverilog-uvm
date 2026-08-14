@@ -1,0 +1,1 @@
+ivltests/sv_randsequence_join_nested_fail.v:3: sorry: randsequence rand join currently interleaves code-block items; nested production/control items are not supported in joined lanes yet.

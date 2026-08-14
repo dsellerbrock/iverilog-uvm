@@ -1279,6 +1279,10 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       std::vector<sva_prop_case_item_t>* sva_case_items;
 
       // M3B-2: randsequence productions.
+      rs_formal_t* rs_formal;
+      std::vector<rs_formal_t>* rs_formal_list;
+      rs_case_item_t* rs_case_item;
+      std::vector<rs_case_item_t>* rs_case_items;
       rs_item_t* rs_item;
       std::vector<rs_item_t>* rs_item_list;
       rs_rule_t* rs_rule;
@@ -1539,6 +1543,15 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
   sva_mc_tail sva_mc_tail_opt
 %type <rs_item>           rs_prod_item
 %type <rs_item_list>      rs_prod_item_list
+%type <rs_item>           rs_call_item
+%type <rs_item>           rs_rand_join
+%type <rs_item_list>      rs_call_item_list_two
+%type <expr>              rs_rand_join_weight_opt
+%type <statement>         rs_code_block
+%type <rs_formal>         rs_formal
+%type <rs_formal_list>    rs_formal_list rs_formal_list_opt
+%type <rs_case_item>      rs_case_item
+%type <rs_case_items>     rs_case_items
 %type <rs_rule>           rs_rule
 %type <rs_rule_list>      rs_rule_list
 %type <rs_production>     rs_production
@@ -16153,10 +16166,9 @@ statement_item /* This is roughly statement_item in the LRM */
 
   ;
 
-  /* M3B-2: randsequence production grammar (IEEE 1800-2017 A.5.2, subset).
-     A production is `name : rule | rule | ... ;'; a rule is a sequence of
-     items with an optional `:= weight'; an item is a non-terminal name or
-     an inline `{ statement }' code block. */
+  /* Randsequence production grammar (IEEE 1800-2017 A.5.2).  The parse
+     representation retains production control forms so `break' and
+     production `return' can be lowered in their own flow domains. */
 rs_production_list
   : rs_production
       { $$ = new std::vector<rs_production_t>; $$->push_back(*$1); delete $1; }
@@ -16165,10 +16177,65 @@ rs_production_list
   ;
 
 rs_production
-  : IDENTIFIER ':' rs_rule_list ';'
+  : IDENTIFIER rs_formal_list_opt ':' rs_rule_list ';'
       { rs_production_t*p = new rs_production_t;
-	p->name = lex_strings.make($1); p->rules = $3;
+	p->name = lex_strings.make($1); p->formals = $2; p->rules = $4;
 	delete[] $1; $$ = p; }
+  | K_void IDENTIFIER rs_formal_list_opt ':' rs_rule_list ';'
+      { rs_production_t*p = new rs_production_t;
+	p->name = lex_strings.make($2); p->explicit_void = true;
+	p->formals = $3; p->rules = $5;
+	delete[] $2; $$ = p; }
+  | data_type IDENTIFIER rs_formal_list_opt ':' rs_rule_list ';'
+      { rs_production_t*p = new rs_production_t;
+	p->name = lex_strings.make($2); p->return_type = $1;
+	p->formals = $3; p->rules = $5;
+	delete[] $2; $$ = p; }
+  ;
+
+rs_formal_list_opt
+  : '(' rs_formal_list ')' { $$ = $2; }
+  | '(' ')'                { $$ = new std::vector<rs_formal_t>; }
+  |                        { $$ = nullptr; }
+  ;
+
+rs_formal_list
+  : rs_formal
+      { $$ = new std::vector<rs_formal_t>; $$->push_back(*$1); delete $1; }
+  | rs_formal_list ',' rs_formal
+      { $1->push_back(*$3); delete $3; $$ = $1; }
+  ;
+
+rs_formal
+  : data_type IDENTIFIER initializer_opt
+      { rs_formal_t*f = new rs_formal_t;
+	f->name = lex_strings.make($2); f->type = $1; f->default_expr = $3;
+	FILE_NAME(f, @2); delete[] $2; $$ = f; }
+  | K_input data_type IDENTIFIER initializer_opt
+      { rs_formal_t*f = new rs_formal_t;
+	f->name = lex_strings.make($3); f->type = $2;
+	f->direction = NetNet::PINPUT; f->default_expr = $4;
+	FILE_NAME(f, @3); delete[] $3; $$ = f; }
+  | K_output data_type IDENTIFIER initializer_opt
+      { rs_formal_t*f = new rs_formal_t;
+	f->name = lex_strings.make($3); f->type = $2;
+	f->direction = NetNet::POUTPUT; f->default_expr = $4;
+	FILE_NAME(f, @3); delete[] $3; $$ = f; }
+  | K_inout data_type IDENTIFIER initializer_opt
+      { rs_formal_t*f = new rs_formal_t;
+	f->name = lex_strings.make($3); f->type = $2;
+	f->direction = NetNet::PINOUT; f->default_expr = $4;
+	FILE_NAME(f, @3); delete[] $3; $$ = f; }
+  | K_ref data_type IDENTIFIER initializer_opt
+      { rs_formal_t*f = new rs_formal_t;
+	f->name = lex_strings.make($3); f->type = $2;
+	f->direction = NetNet::PREF; f->default_expr = $4;
+	FILE_NAME(f, @3); delete[] $3; $$ = f; }
+  | K_const K_ref data_type IDENTIFIER initializer_opt
+      { rs_formal_t*f = new rs_formal_t;
+	f->name = lex_strings.make($4); f->type = $3;
+	f->direction = NetNet::PREF; f->default_expr = $5;
+	FILE_NAME(f, @4); delete[] $4; $$ = f; }
   ;
 
 rs_rule_list
@@ -16186,6 +16253,10 @@ rs_rule
      alternative separator as a bitwise-or operator. */
   | rs_prod_item_list ':' '=' expr_primary
       { rs_rule_t*r = new rs_rule_t; r->items = $1; r->weight = $4; $$ = r; }
+  | rs_rand_join
+      { rs_rule_t*r = new rs_rule_t;
+	r->items = new std::vector<rs_item_t>; r->items->push_back(*$1);
+	delete $1; r->weight = nullptr; $$ = r; }
   ;
 
 rs_prod_item_list
@@ -16196,12 +16267,79 @@ rs_prod_item_list
   ;
 
 rs_prod_item
+  : rs_call_item { $$ = $1; }
+  | rs_code_block
+      { rs_item_t*i = new rs_item_t; i->kind = rs_item_t::CODE;
+	i->code = $1; FILE_NAME(i, @1); $$ = i; }
+  | K_if '(' expression ')' rs_call_item %prec less_than_K_else
+      { rs_item_t*i = new rs_item_t; i->kind = rs_item_t::IF_ELSE;
+	i->expr = $3; i->first = $5; FILE_NAME(i, @1); $$ = i; }
+  | K_if '(' expression ')' rs_call_item K_else rs_call_item
+      { rs_item_t*i = new rs_item_t; i->kind = rs_item_t::IF_ELSE;
+	i->expr = $3; i->first = $5; i->second = $7;
+	FILE_NAME(i, @1); $$ = i; }
+  | K_repeat '(' expression ')' rs_call_item
+      { rs_item_t*i = new rs_item_t; i->kind = rs_item_t::REPEAT;
+	i->expr = $3; i->first = $5; FILE_NAME(i, @1); $$ = i; }
+  | K_case '(' expression ')' rs_case_items K_endcase
+      { rs_item_t*i = new rs_item_t; i->kind = rs_item_t::CASE;
+	i->expr = $3; i->cases = $5; FILE_NAME(i, @1); $$ = i; }
+  ;
+
+rs_rand_join
+  : K_rand K_join rs_rand_join_weight_opt rs_call_item_list_two
+      { rs_item_t*i = new rs_item_t; i->kind = rs_item_t::RAND_JOIN;
+	i->expr = $3; i->join_items = $4; FILE_NAME(i, @1); $$ = i; }
+  ;
+
+rs_call_item
   : IDENTIFIER
       { rs_item_t*i = new rs_item_t;
-	i->name = lex_strings.make($1); i->code = nullptr;
-	delete[] $1; $$ = i; }
-  | '{' statement_or_null '}'
-      { rs_item_t*i = new rs_item_t; i->code = $2; $$ = i; }
+	i->kind = rs_item_t::CALL; i->name = lex_strings.make($1);
+	FILE_NAME(i, @1); delete[] $1; $$ = i; }
+  | IDENTIFIER argument_list_parens
+      { rs_item_t*i = new rs_item_t;
+	i->kind = rs_item_t::CALL; i->name = lex_strings.make($1);
+	i->actuals = $2; FILE_NAME(i, @1); delete[] $1; $$ = i; }
+  ;
+
+rs_call_item_list_two
+  : rs_call_item rs_call_item
+      { $$ = new std::vector<rs_item_t>; $$->push_back(*$1);
+	$$->push_back(*$2); delete $1; delete $2; }
+  | rs_call_item_list_two rs_call_item
+      { $1->push_back(*$2); delete $2; $$ = $1; }
+  ;
+
+rs_rand_join_weight_opt
+  : '(' expression ')' { $$ = $2; }
+  |                    { $$ = nullptr; }
+  ;
+
+rs_case_items
+  : rs_case_item
+      { $$ = new std::vector<rs_case_item_t>; $$->push_back(*$1); delete $1; }
+  | rs_case_items rs_case_item
+      { $1->push_back(*$2); delete $2; $$ = $1; }
+  ;
+
+rs_case_item
+  : expression_list_proper ':' rs_call_item ';'
+      { rs_case_item_t*i = new rs_case_item_t;
+	i->expressions = $1; i->item = $3; FILE_NAME(i, @2); $$ = i; }
+  | K_default ':' rs_call_item ';'
+      { rs_case_item_t*i = new rs_case_item_t;
+	i->item = $3; FILE_NAME(i, @1); $$ = i; }
+  | K_default rs_call_item ';'
+      { rs_case_item_t*i = new rs_case_item_t;
+	i->item = $2; FILE_NAME(i, @1); $$ = i; }
+  ;
+
+rs_code_block
+  : '{' statement_or_null_list_opt '}'
+      { PBlock*tmp = new PBlock(PBlock::BL_SEQ); FILE_NAME(tmp, @1);
+	if ($2) tmp->set_statement(*$2);
+	delete $2; $$ = tmp; }
   ;
 
 compressed_operator

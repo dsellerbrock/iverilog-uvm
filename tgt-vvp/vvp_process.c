@@ -692,9 +692,23 @@ static int show_stmt_block(ivl_statement_t net, ivl_scope_t sscope)
       int rc = 0;
       unsigned idx;
       unsigned cnt = ivl_stmt_block_count(net);
+      ivl_randsequence_block_t rs_kind =
+            ivl_stmt_block_randsequence(net);
+      unsigned rs_out = 0;
+      vvp_randsequence_flow_t saved_rs = { 0, 0 };
+
+      if (rs_kind != IVL_RANDSEQ_BLOCK_NONE) {
+            rs_out = local_count++;
+            saved_rs = vvp_randsequence_flow_push(rs_kind, rs_out);
+      }
 
       for (idx = 0 ;  idx < cnt ;  idx += 1) {
 	    rc += show_statement(ivl_stmt_block_stmt(net, idx), sscope);
+      }
+
+      if (rs_kind != IVL_RANDSEQ_BLOCK_NONE) {
+            fprintf(vvp_out, "T_%u.%u ;\n", thread_count, rs_out);
+            vvp_randsequence_flow_pop(saved_rs);
       }
 
       return rc;
