@@ -2807,6 +2807,128 @@ bool PEAssignPattern::expand_replication_(Design*des, NetScope*scope,
       return true;
 }
 
+static bool assignment_pattern_types_equivalent_(ivl_type_t lhs,
+						   ivl_type_t rhs)
+{
+      if (!lhs || !rhs)
+	    return false;
+      return lhs == rhs
+	  || (lhs->type_equivalent(rhs) && rhs->type_equivalent(lhs));
+}
+
+/* Resolve a keyed pattern against one fixed array dimension. Explicit
+ * declared-index setters have highest precedence, followed by the last
+ * matching type setter, followed by default (IEEE 1800-2017 10.9.1).
+ * The returned vector is in declaration order; the existing array lowering
+ * maps that order to canonical storage for ascending/descending ranges. */
+bool PEAssignPattern::resolve_keyed_dimension_(Design*des, NetScope*scope,
+					       const netrange_t&range,
+					       ivl_type_t element_type,
+					       vector<PExpr*>&out) const
+{
+      if (keys_.empty())
+	    return expand_replication_(des, scope, out);
+
+      if (keys_.size() != parms_.size()) {
+	    cerr << get_fileline() << ": internal error: assignment-pattern key/value "
+		 << "count mismatch." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
+      const size_t count = range.width();
+      vector<PExpr*> explicit_values(count, nullptr);
+      vector<bool> explicit_seen(count, false);
+      PExpr*default_value = nullptr;
+      bool default_seen = false;
+      PExpr*type_value = nullptr;
+
+      long left = range.get_msb();
+      long right = range.get_lsb();
+      long low = std::min(left, right);
+      long high = std::max(left, right);
+
+      for (size_t idx = 0 ; idx < keys_.size() ; idx += 1) {
+	    const assignment_pattern_key_t&key = keys_[idx];
+	    switch (key.kind) {
+		case assignment_pattern_key_t::DEFAULT:
+		  if (default_seen) {
+			cerr << get_fileline() << ": error: Assignment pattern has "
+			     << "multiple default keys." << endl;
+			des->errors += 1;
+			return false;
+		  }
+		  default_seen = true;
+		  default_value = parms_[idx];
+		  break;
+
+		case assignment_pattern_key_t::TYPE: {
+		  ivl_type_t key_type = key.type
+			? key.type->elaborate_type(des, scope) : nullptr;
+		  if (assignment_pattern_types_equivalent_(element_type, key_type))
+			type_value = parms_[idx];
+		  break;
+		}
+
+		case assignment_pattern_key_t::EXPR: {
+		  unsigned errors_before = des->errors;
+		  NetExpr*key_expr = key.expr
+			? elab_and_eval(des, scope, key.expr, -1, true) : nullptr;
+		  const NetEConst*key_const = dynamic_cast<const NetEConst*>(key_expr);
+		  if (!key_const || !key_const->value().is_defined()) {
+			if (des->errors == errors_before) {
+			      cerr << (key.expr ? key.expr->get_fileline() : get_fileline())
+				   << ": error: Array assignment-pattern index must be a "
+				   << "defined integral constant." << endl;
+			      des->errors += 1;
+			}
+			delete key_expr;
+			return false;
+		  }
+		  long declared_index = key_const->value().as_long();
+		  delete key_expr;
+		  if (declared_index < low || declared_index > high) {
+			cerr << key.expr->get_fileline() << ": error: Array assignment-pattern "
+			     << "index " << declared_index << " is outside declared range ["
+			     << left << ":" << right << "]." << endl;
+			des->errors += 1;
+			return false;
+		  }
+		  size_t ordinal = left <= right
+			? static_cast<size_t>(declared_index - left)
+			: static_cast<size_t>(left - declared_index);
+		  if (explicit_seen[ordinal]) {
+			cerr << key.expr->get_fileline() << ": error: Assignment pattern "
+			     << "has multiple keys for array index "
+			     << declared_index << "." << endl;
+			des->errors += 1;
+			return false;
+		  }
+		  explicit_seen[ordinal] = true;
+		  explicit_values[ordinal] = parms_[idx];
+		  break;
+		}
+	    }
+      }
+
+      out.resize(count);
+      for (size_t idx = 0 ; idx < count ; idx += 1) {
+	    out[idx] = explicit_values[idx]
+		  ? explicit_values[idx]
+		  : (type_value ? type_value : default_value);
+	    if (!out[idx]) {
+		  long declared_index = left <= right
+			? left + static_cast<long>(idx)
+			: left - static_cast<long>(idx);
+		  cerr << get_fileline() << ": error: Keyed array assignment pattern "
+		       << "has no value for index " << declared_index << "." << endl;
+		  des->errors += 1;
+		  return false;
+	    }
+      }
+      return true;
+}
+
 /* IEEE 1800-2017 10.9.1: `'{default: value}' supplies every element or
    member the pattern does not name. When `default' is the ONLY key the
    pattern has no explicit elements at all, so the target's own dimension
@@ -2914,7 +3036,16 @@ NetExpr* PEAssignPattern::elaborate_expr_uarray_(Design *des, NetScope *scope,
       }
 
       vector<PExpr*> pv;
-      if (!expand_replication_(des, scope, pv))
+      ivl_type_t keyed_element_type = uarray_type->element_type();
+      std::unique_ptr<netuarray_t> keyed_element_view;
+      if (cur_dim + 1 < dims.size()) {
+	    netranges_t remaining(dims.begin() + cur_dim + 1, dims.end());
+	    keyed_element_view.reset(new netuarray_t(
+		  remaining, uarray_type->element_type()));
+	    keyed_element_type = keyed_element_view.get();
+      }
+      if (!resolve_keyed_dimension_(des, scope, dims[cur_dim],
+				     keyed_element_type, pv))
 	    return nullptr;
 
       if (dims[cur_dim].width() != pv.size()) {
@@ -2933,7 +3064,18 @@ NetExpr* PEAssignPattern::elaborate_expr_uarray_(Design *des, NetScope *scope,
       }
 
       if  (cur_dim == dims.size() - 1) {
-	    return elaborate_expr_array_(des, scope, uarray_type, need_const, up);
+	    ivl_type_t elem_type = uarray_type->element_type();
+	    vector<NetExpr*> elem_exprs(pv.size());
+	    size_t elem_idx = up ? 0 : pv.size() - 1;
+	    for (size_t idx = 0 ; idx < pv.size() ; idx += 1) {
+		  elem_exprs[elem_idx] = elaborate_rval_expr(
+			des, scope, elem_type, pv[idx], need_const);
+		  if (up) elem_idx += 1;
+		  else elem_idx -= 1;
+	    }
+	    NetEArrayPattern*res = new NetEArrayPattern(uarray_type, elem_exprs);
+	    res->set_line(*this);
+	    return res;
       }
 
       cur_dim++;
@@ -3025,7 +3167,10 @@ NetExpr* PEAssignPattern::elaborate_expr_packed_(Design *des, NetScope *scope,
       }
 
       vector<PExpr*> pv;
-      if (!expand_replication_(des, scope, pv))
+      ivl_type_t keyed_element_type = decl_type
+	    ? packed_type_after_dims(decl_type, cur_dim + 1) : nullptr;
+      if (!resolve_keyed_dimension_(des, scope, dims[cur_dim],
+				     keyed_element_type, pv))
 	    return nullptr;
 
       if (dims[cur_dim].width() != pv.size()) {
@@ -3098,17 +3243,64 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 
       vector<NetExpr*> items(members.size(), nullptr);
 
-      if (!parm_names_.empty()) {
-	    // Named member pattern: '{field: val, ..., default: val}
-	    // Build a name→expr map; "default" key supplies missing members.
-	    map<perm_string, PExpr*> name_map;
-	    for (size_t ii = 0; ii < parm_names_.size(); ii++)
-		  name_map[parm_names_[ii]] = parms_[ii];
-
-	    static const perm_string def_key = lex_strings.make("default");
+      size_t union_active_member = members.size();
+      if (!keys_.empty()) {
+	    vector<PExpr*> member_values(members.size(), nullptr);
+	    vector<bool> member_seen(members.size(), false);
+	    vector<pair<ivl_type_t,PExpr*>> type_values;
 	    PExpr*dflt = nullptr;
-	    auto dit = name_map.find(def_key);
-	    if (dit != name_map.end()) dflt = dit->second;
+	    bool default_seen = false;
+
+	    for (size_t key_idx = 0 ; key_idx < keys_.size() ; key_idx += 1) {
+		  const assignment_pattern_key_t&key = keys_[key_idx];
+		  if (key.kind == assignment_pattern_key_t::DEFAULT) {
+			if (default_seen) {
+			      cerr << get_fileline() << ": error: Assignment pattern has "
+				   << "multiple default keys." << endl;
+			      des->errors += 1;
+			      continue;
+			}
+			default_seen = true;
+			dflt = parms_[key_idx];
+			continue;
+		  }
+		  if (key.kind == assignment_pattern_key_t::TYPE) {
+			ivl_type_t key_type = key.type
+			      ? key.type->elaborate_type(des, scope) : nullptr;
+			type_values.push_back(make_pair(key_type, parms_[key_idx]));
+			continue;
+		  }
+
+		  const PEIdent*id = dynamic_cast<const PEIdent*>(key.expr);
+		  perm_string member_name;
+		  if (id && !id->path().package && id->path().name.size() == 1
+		      && id->path().name.front().index.empty())
+			member_name = id->path().name.front().name;
+		  size_t member_idx = members.size();
+		  for (size_t idx = 0 ; idx < members.size() ; idx += 1)
+			if (members[idx].name == member_name) {
+			      member_idx = idx;
+			      break;
+			}
+		  if (member_idx == members.size()) {
+			cerr << (key.expr ? key.expr->get_fileline() : get_fileline())
+			     << ": error: No member named '" << member_name
+			     << "' in struct assignment pattern." << endl;
+			des->errors += 1;
+			continue;
+		  }
+		  if (member_seen[member_idx]) {
+			cerr << key.expr->get_fileline() << ": error: Assignment pattern "
+			     << "has multiple keys for member '" << member_name
+			     << "'." << endl;
+			des->errors += 1;
+			continue;
+		  }
+		  member_seen[member_idx] = true;
+		  member_values[member_idx] = parms_[key_idx];
+		  if (union_active_member == members.size())
+			union_active_member = member_idx;
+	    }
 
 	    /* Phase 63b/B7: union members share storage — only the
 	       named member needs a value.  Skip the missing-member
@@ -3138,8 +3330,17 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 			continue;
 		  }
 
-		  auto it = name_map.find(members[idx].name);
-		  PExpr*src = (it != name_map.end()) ? it->second : dflt;
+		  PExpr*src = member_values[idx];
+		  if (!src) {
+			for (const auto&type_entry : type_values)
+			      if (assignment_pattern_types_equivalent_(
+					members[idx].net_type, type_entry.first)) {
+				    src = type_entry.second;
+				    if (union_active_member == members.size())
+					  union_active_member = idx;
+			      }
+		  }
+		  if (!src) src = dflt;
 		  if (!src) {
 			if (is_union) {
 			      /* Default-construct the unmentioned member to zero
@@ -3165,17 +3366,21 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 	    }
       } else {
 	    // Positional pattern
-	    if (members.size() != parms_.size()) {
+	    vector<PExpr*> pv;
+	    if (!expand_replication_(des, scope, pv))
+		  return nullptr;
+	    if (members.size() != pv.size()) {
 		  cerr << get_fileline() << ": error: Struct assignment pattern expects "
 		       << members.size() << " element(s) in this context.\n"
 		       << get_fileline() << ":      : Found "
-		       << parms_.size() << " element(s)." << endl;
+		       << pv.size() << " element(s)." << endl;
 		  des->errors++;
+		  return nullptr;
 	    }
-	    for (size_t idx = 0; idx < std::min(parms_.size(), members.size()); idx += 1)
+	    for (size_t idx = 0; idx < pv.size(); idx += 1)
 		  items[idx] = elaborate_rval_expr(des, scope,
-						   members[idx].net_type,
-						   parms_[idx], need_const);
+					   members[idx].net_type,
+					   pv[idx], need_const);
       }
 
       if (!struct_type->packed()) {
@@ -3193,20 +3398,12 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
          form).  This is the value that gets written to the union. */
       if (struct_type->union_flag()) {
             NetExpr*single = nullptr;
-            if (!parm_names_.empty()) {
-                  /* Find the first non-default named entry. */
-                  static const perm_string def_key = lex_strings.make("default");
-                  for (size_t ii = 0; ii < parm_names_.size(); ii++) {
-                        if (parm_names_[ii] == def_key) continue;
-                        unsigned mi = members.size();
-                        for (size_t k = 0; k < members.size(); k++)
-                              if (members[k].name == parm_names_[ii]) { mi = k; break; }
-                        if (mi < items.size() && items[mi]) {
-                              single = items[mi];
-                              items[mi] = nullptr;  // detach so dtor doesn't double-free
-                              break;
-                        }
-                  }
+	    if (!keys_.empty()) {
+		  if (union_active_member < items.size()
+		      && items[union_active_member]) {
+			single = items[union_active_member];
+			items[union_active_member] = nullptr;
+		  }
             } else if (!parms_.empty()) {
                   if (items[0]) {
                         single = items[0];

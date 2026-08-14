@@ -788,9 +788,17 @@ static unsigned int draw_array_pattern(ivl_signal_t var, ivl_expr_t rval,
 
 	    switch (ivl_expr_type(expr)) {
 		case IVL_EX_ARRAY_PATTERN:
-		    /* Object-like array elements use nested array patterns as
-		     * aggregate literals, not additional unpacked dimensions. */
-		  if (type_is_object_like_(elem_type)) {
+		    /* An object-like array element can itself be written as an
+		     * assignment pattern, but a multidimensional array also uses
+		     * nested IVL_EX_ARRAY_PATTERN nodes for its remaining unpacked
+		     * dimensions.  The expression's net type distinguishes them:
+		     * an unpacked-array node still has an element type, while the
+		     * terminal struct/union aggregate has properties instead. */
+		  if (type_is_object_like_(elem_type)
+		      && !(ivl_expr_net_type(expr)
+			   && ivl_type_element(ivl_expr_net_type(expr))
+			   && !ivl_type_is_packed_vector(
+				 ivl_expr_net_type(expr)))) {
 			draw_eval_object(expr);
 			fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", array_idx);
 			fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
