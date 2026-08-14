@@ -162,6 +162,8 @@ static void cov_capture_ctor_ports_(
    outer class_item rule can mark it virtual when K_virtual is present. */
 static PTaskFunc* recently_completed_class_method_ = 0;
 static stack<PBlock*> current_block_stack;
+static stack<const PExpr*> current_case_match_subjects;
+static stack<PBlock*> current_pattern_blocks;
 
 /* IEEE 1800-2017 3.14.3/5.8: procedural #1step is one precision tick
    expressed in the current scope's timeunit. Keep it as a real delay so
@@ -1222,6 +1224,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       std::vector<PCase::Item*>*citems;
       PCaseMatches::Item*cmitem;
       std::vector<PCaseMatches::Item*>*cmitems;
+      PMatchPattern*match_pattern;
+      std::vector<PMatchPattern*>*match_patterns;
 
       lgate*gate;
       std::vector<lgate>*gates;
@@ -1592,6 +1596,17 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <citems> case_items case_inside_items
 %type <cmitem>  case_matches_item
 %type <cmitems> case_matches_items
+%type <match_pattern> match_pattern
+%type <match_patterns> match_pattern_list
+%type <expr> pattern_subject pattern_condition
+%type <statement> pattern_if_prefix
+%destructor { delete $$; } match_pattern
+%destructor {
+      if ($$) {
+            for (PMatchPattern*pattern : *$$) delete pattern;
+            delete $$;
+      }
+} match_pattern_list
 
 %type <gate>  gate_instance
 %type <gates> gate_instance_list
@@ -8740,26 +8755,80 @@ case_inside_items
       }
   ;
 
-  /* Phase 63b/B7 (gap close): SystemVerilog `case (X) matches`
-     pattern matching for tagged unions (IEEE 1800-2017 §12.6).
-     Each item is `tagged TAG [.var]: stmt` or `default: stmt`.
-     Lowered at elab to an if-else cascade testing the
-     companion-tag NetNet of X. */
-case_matches_item
-  : K_tagged IDENTIFIER ':' statement_or_null
-      { PCaseMatches::Item*it = new PCaseMatches::Item;
-	it->tag = lex_strings.make($2);
-	it->stat = $4;
+  /* IEEE 1800-2017 12.6 patterns. A leading dot declares a pattern
+     variable, `.*` is the wildcard pattern, tagged patterns select a union
+     member, and an assignment-pattern-shaped list recursively matches a
+     structure. Constant patterns retain the ordinary expression node so type
+     coercion and constant-expression checking happen in the matched leaf's
+     context. */
+match_pattern
+  : '.' IDENTIFIER
+      { PMatchPattern*tmp = new PMatchPattern(PMatchPattern::VARIABLE);
+	tmp->name(lex_strings.make($2));
+	FILE_NAME(tmp, @1);
 	delete[] $2;
-	$$ = it;
+	$$ = tmp;
       }
-  | K_tagged IDENTIFIER '.' IDENTIFIER ':' statement_or_null
-      { PCaseMatches::Item*it = new PCaseMatches::Item;
-	it->tag = lex_strings.make($2);
-	it->bind = lex_strings.make($4);
-	it->stat = $6;
+  | K_DOTSTAR
+      { PMatchPattern*tmp = new PMatchPattern(PMatchPattern::WILDCARD);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_tagged IDENTIFIER
+      { PMatchPattern*tmp = new PMatchPattern(PMatchPattern::TAGGED);
+	tmp->name(lex_strings.make($2));
+	FILE_NAME(tmp, @1);
 	delete[] $2;
-	delete[] $4;
+	$$ = tmp;
+      }
+  | K_tagged IDENTIFIER match_pattern
+      { PMatchPattern*tmp = new PMatchPattern(PMatchPattern::TAGGED);
+	tmp->name(lex_strings.make($2));
+	std::vector<PMatchPattern*>*children =
+	      new std::vector<PMatchPattern*>(1, $3);
+	tmp->children(children);
+	FILE_NAME(tmp, @1);
+	delete[] $2;
+	$$ = tmp;
+      }
+  | K_LP match_pattern_list '}'
+      { PMatchPattern*tmp = new PMatchPattern(PMatchPattern::STRUCTURE);
+	tmp->children($2);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | number
+      { PMatchPattern*tmp = new PMatchPattern(PMatchPattern::CONSTANT);
+	PENumber*value = new PENumber($1);
+	FILE_NAME(value, @1);
+	tmp->expression(value);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  ;
+
+match_pattern_list
+  : match_pattern
+      { $$ = new std::vector<PMatchPattern*>(1, $1); }
+  | match_pattern_list ',' match_pattern
+      { $1->push_back($3); $$ = $1; }
+  ;
+
+case_matches_item
+  : match_pattern ':'
+      { assert(!current_case_match_subjects.empty());
+	PBlock*block = pform_pattern_push_scope(
+	      @1, current_case_match_subjects.top(), $1);
+	current_pattern_blocks.push(block);
+      }
+    statement_or_null
+      { PCaseMatches::Item*it = new PCaseMatches::Item;
+	assert(!current_pattern_blocks.empty());
+	PBlock*block = current_pattern_blocks.top();
+	current_pattern_blocks.pop();
+	it->pattern = $1;
+	it->stat = pform_pattern_finish_scope(
+	      @1, block, $4, current_case_match_subjects.top(), $1);
 	$$ = it;
       }
   | K_default ':' statement_or_null
@@ -8783,6 +8852,50 @@ case_matches_items
       }
   | case_matches_item
       { $$ = new std::vector<PCaseMatches::Item*>(1, $1);
+      }
+  ;
+
+/* The currently executable matcher accepts a variable as its subject. Keep
+   that restriction in a dedicated grammar carrier: adding K_matches to the
+   FOLLOW set of the fully ambiguous expression grammar creates unrelated
+   type/expression reduce conflicts. This can be widened with the elaborator
+   when general expression subjects are implemented. */
+pattern_subject
+  : IDENTIFIER
+      { PEIdent*tmp = new PEIdent(lex_strings.make($1), @1.lexical_pos);
+	FILE_NAME(tmp, @1);
+	delete[] $1;
+	$$ = tmp;
+      }
+  ;
+
+/* A conditional statement's true arm owns the pattern variables. Push its
+   implicit block as soon as the predicate is complete, before parsing the
+   statement, and pop it before an optional else arm is parsed. */
+pattern_condition
+  : pattern_subject K_matches match_pattern
+      { pform_requires_sv(@2, "pattern-matching conditional");
+	PEMatches*condition = new PEMatches($1, $3, NetCase::EQ);
+	FILE_NAME(condition, @2);
+	PBlock*block = pform_pattern_push_scope(@2, $1, $3);
+	current_pattern_blocks.push(block);
+	$$ = condition;
+      }
+  ;
+
+pattern_if_prefix
+  : K_if '(' pattern_condition ')' statement_or_null
+      { assert(!current_pattern_blocks.empty());
+	PEMatches*condition = dynamic_cast<PEMatches*>($3);
+	assert(condition);
+	PBlock*block = current_pattern_blocks.top();
+	current_pattern_blocks.pop();
+	Statement*if_true = pform_pattern_finish_scope(
+	      @1, block, $5, condition->subject(), condition->pattern());
+	PCondit*tmp = new PCondit(condition, if_true, nullptr);
+	tmp->parsed_if_statement();
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
       }
   ;
 
@@ -9432,6 +9545,14 @@ expression
   | expression '?' attribute_list_opt expression ':' expression
       { PETernary*tmp = new PETernary($1, $4, $6);
 	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
+  | pattern_subject K_matches match_pattern '?' attribute_list_opt expression ':' expression
+      { pform_requires_sv(@2, "pattern-matching conditional expression");
+	PEMatches*condition = new PEMatches($1, $3, NetCase::EQ);
+	FILE_NAME(condition, @2);
+	PETernary*tmp = new PETernary(condition, $6, $8);
+	FILE_NAME(tmp, @4);
 	$$ = tmp;
       }
   ;
@@ -15662,7 +15783,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	delete $2;
 	$$ = tmp;
       }
-  | K_TRIGGER package_scope hierarchy_identifier
+  | K_TRIGGER package_scope hierarchy_identifier ';'
       { lex_in_package_scope(0);
 	PTrigger*tmp = pform_new_trigger(@3, $2, *$3, @3.lexical_pos);
 	delete $3;
@@ -15711,13 +15832,16 @@ statement_item /* This is roughly statement_item in the LRM */
      just the lower bound (see pform_make_case_inside). */
   | unique_priority K_case '(' expression ')' K_inside case_inside_items K_endcase
       { $$ = pform_make_case_inside(@2, $1, $4, $7); }
-  /* Phase 63b/B7 (gap close): SystemVerilog `case (X) matches` for
-     tagged unions (IEEE 1800-2017 §12.6).  Lowered at elab to an
-     if-else cascade testing the companion-tag NetNet of X. */
-  | unique_priority K_case '(' expression ')' K_matches case_matches_items K_endcase
-      { (void)$1;
-	pform_requires_sv(@6, "case-matches pattern matching");
-	PCaseMatches*tmp = new PCaseMatches($4, $7);
+  /* Pattern case items introduce implicit item-local scopes. Keep the
+     controlling expression on a stack while those items parse so nested
+     pattern cases remain independent. */
+  | unique_priority K_case '(' expression ')' K_matches
+      { current_case_match_subjects.push($4); }
+    case_matches_items K_endcase
+      { pform_requires_sv(@6, "case-matches pattern matching");
+	assert(!current_case_match_subjects.empty());
+	current_case_match_subjects.pop();
+	PCaseMatches*tmp = new PCaseMatches($4, $8, NetCase::EQ);
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
@@ -15729,6 +15853,26 @@ statement_item /* This is roughly statement_item in the LRM */
   | unique_priority K_casez '(' expression ')' case_items K_endcase
       { PCase*tmp = new PCase($1, NetCase::EQZ, $4, $6);
 	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | unique_priority K_casex '(' expression ')' K_matches
+      { current_case_match_subjects.push($4); }
+    case_matches_items K_endcase
+      { pform_requires_sv(@6, "casex-matches pattern matching");
+	assert(!current_case_match_subjects.empty());
+	current_case_match_subjects.pop();
+	PCaseMatches*tmp = new PCaseMatches($4, $8, NetCase::EQX);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
+  | unique_priority K_casez '(' expression ')' K_matches
+      { current_case_match_subjects.push($4); }
+    case_matches_items K_endcase
+      { pform_requires_sv(@6, "casez-matches pattern matching");
+	assert(!current_case_match_subjects.empty());
+	current_case_match_subjects.pop();
+	PCaseMatches*tmp = new PCaseMatches($4, $8, NetCase::EQZ);
+	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
   | unique_priority K_case '(' expression ')' error K_endcase
@@ -15768,6 +15912,14 @@ statement_item /* This is roughly statement_item in the LRM */
       { PCondit*tmp = new PCondit($3, $5, 0);
 	tmp->parsed_if_statement();
 	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | pattern_if_prefix %prec less_than_K_else
+      { $$ = $1; }
+  | pattern_if_prefix K_else statement_or_null
+      { PCondit*tmp = dynamic_cast<PCondit*>($1);
+	assert(tmp);
+	tmp->set_else_clause($3);
 	$$ = tmp;
       }
   | K_if '(' expression ')' statement_or_null K_else statement_or_null

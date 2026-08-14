@@ -33,11 +33,45 @@ class Design;
 class Module;
 class LexicalScope;
 class NetNet;
+class PExpr;
 class PLet;
 class NetExpr;
 class NetScope;
 class PPackage;
 struct symbol_search_results;
+
+/* Parse-form pattern tree shared by case-matches, pattern conditionals and
+ * the matches predicate of a conditional expression (IEEE 1800-2017 12.6).
+ * A structure pattern is ordered in this first complete slice; the node shape
+ * deliberately leaves the matching engine reusable for named structure
+ * patterns and filters without another parser-specific representation. */
+class PMatchPattern : public LineInfo {
+    public:
+      enum kind_t { CONSTANT, VARIABLE, WILDCARD, TAGGED, STRUCTURE };
+
+      explicit PMatchPattern(kind_t kind);
+      ~PMatchPattern() override;
+
+      kind_t kind() const { return kind_; }
+      PExpr* expression() const { return expression_; }
+      perm_string name() const { return name_; }
+      const std::vector<PMatchPattern*>& children() const { return children_; }
+
+      void expression(PExpr*expr) { expression_ = expr; }
+      void name(perm_string name) { name_ = name; }
+      void children(std::vector<PMatchPattern*>*children);
+
+      void declare_implicit_nets(LexicalScope*scope, NetNet::Type type);
+      bool has_aa_term(Design*des, NetScope*scope) const;
+      void reloc_lexical_pos_bind(bool parameter_context = false);
+      void dump(std::ostream&out) const;
+
+    private:
+      kind_t kind_;
+      PExpr*expression_ = nullptr;
+      perm_string name_;
+      std::vector<PMatchPattern*>children_;
+};
 
 /*
  * The PExpr class hierarchy supports the description of
@@ -206,6 +240,38 @@ class PExpr : public LineInfo {
     private: // not implemented
       PExpr(const PExpr&);
       PExpr& operator= (const PExpr&);
+};
+
+/* Boolean match predicate. Statement contexts install pattern variables in
+ * their implicit true-arm/item scopes; use of a binding from the true operand
+ * of a conditional expression remains outside this first slice. This node is
+ * responsible only for evaluating the typed pattern and remains reusable by
+ * all three 12.6 forms. */
+class PEMatches : public PExpr {
+    public:
+      PEMatches(PExpr*subject, PMatchPattern*pattern,
+                NetCase::TYPE case_type = NetCase::EQ);
+      ~PEMatches() override;
+
+      PExpr* subject() const { return subject_; }
+      PMatchPattern* pattern() const { return pattern_; }
+      NetCase::TYPE case_type() const { return case_type_; }
+
+      void dump(std::ostream&out) const override;
+      void declare_implicit_nets(LexicalScope*scope,
+                                 NetNet::Type type) override;
+      bool has_aa_term(Design*des, NetScope*scope) const override;
+      void reloc_lexical_pos_bind(bool parameter_context = false) override;
+      unsigned test_width(Design*des, NetScope*scope,
+                          width_mode_t&mode) override;
+      NetExpr* elaborate_expr(Design*des, NetScope*scope,
+                              unsigned expr_wid,
+                              unsigned flags) const override;
+
+    private:
+      PExpr*subject_;
+      PMatchPattern*pattern_;
+      NetCase::TYPE case_type_;
 };
 
 std::ostream& operator << (std::ostream&, const PExpr&);

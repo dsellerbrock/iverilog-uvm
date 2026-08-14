@@ -1648,6 +1648,11 @@ sv_concat_postfix_select_ascending_fail CE,-g2012 ivltests gold=sv_concat_postfi
 # IEEE 1800-2017 qualified if statements
 sv_quality_if normal,-g2012 ivltests gold=sv_quality_if.gold
 
+# IEEE 1800-2017 pattern matching
+sv_pattern_matching_structured normal,-g2012 ivltests gold=sv_pattern_matching_structured.gold
+sv_pattern_matching_invalid_fail CE,-g2012 ivltests gold=sv_pattern_matching_invalid_fail.gold
+sv_pattern_matching_duplicate_fail CE,-g2012 ivltests gold=sv_pattern_matching_duplicate_fail.gold
+
 # IEEE 1800-2017 assignment-pattern replication and keyed forms
 sv_assignment_pattern_keys_replication normal,-g2012 ivltests gold=sv_assignment_pattern_keys_replication.gold
 sv_assignment_pattern_keys_fail CE,-g2012 ivltests gold=sv_assignment_pattern_keys_fail.gold

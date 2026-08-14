@@ -526,6 +526,65 @@ NetScope *data_type_t::find_scope(Design *, NetScope *scope) const
 	return scope;
 }
 
+ostream& pattern_binding_type_t::debug_dump(ostream&out) const
+{
+      out << "<pattern binding type>";
+      return out;
+}
+
+ivl_type_t pattern_binding_type_t::elaborate_type_raw(Design*des,
+                                                       NetScope*scope) const
+{
+      PEIdent subject(subject_.package, subject_.name, lexical_pos_);
+      subject.set_line(*this);
+      // The binding is declared in the match arm's implicit scope. Resolve
+      // the already-parsed subject from the enclosing scope so a binding with
+      // the same spelling cannot create a circular self-type dependency.
+      NetScope*subject_scope = scope->parent() ? scope->parent() : scope;
+      ivl_type_t type = subject.test_type_of_ident(des, subject_scope);
+      if (!type) {
+            cerr << get_fileline() << ": error: Unable to determine the type "
+                 << "of the pattern-matching subject." << endl;
+            des->errors += 1;
+            return netvector_t::integer_type();
+      }
+
+      for (const pform_pattern_path_component_t&component : path_) {
+            const netstruct_t*structure =
+                  dynamic_cast<const netstruct_t*>(type);
+            if (!structure) {
+                  cerr << get_fileline() << ": error: Pattern variable "
+                       << "selects a member of a non-structure value." << endl;
+                  des->errors += 1;
+                  return netvector_t::integer_type();
+            }
+
+            const netstruct_t::member_t*member = nullptr;
+            if (component.kind ==
+                pform_pattern_path_component_t::NAMED_MEMBER) {
+                  for (const netstruct_t::member_t&candidate :
+                       structure->members()) {
+                        if (candidate.name == component.name) {
+                              member = &candidate;
+                              break;
+                        }
+                  }
+            } else if (component.position < structure->members().size()) {
+                  member = &structure->members()[component.position];
+            }
+
+            if (!member) {
+                  cerr << get_fileline() << ": error: Pattern variable "
+                       << "selects a member that does not exist." << endl;
+                  des->errors += 1;
+                  return netvector_t::integer_type();
+            }
+            type = member->net_type;
+      }
+
+      return type;
+}
+
 ivl_type_t data_type_t::elaborate_type_raw(Design*des, NetScope*) const
 {
       cerr << get_fileline() << ": internal error: "

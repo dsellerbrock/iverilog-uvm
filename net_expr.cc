@@ -198,7 +198,7 @@ bool NetEBComp::has_width() const
 ivl_variable_type_t NetEBComp::expr_type() const
 {
 	// Case compare always returns BOOL
-      if (op() == 'E' || op() == 'N')
+      if (op() == 'E' || op() == 'N' || op() == 'x' || op() == 'z')
 	    return IVL_VT_BOOL;
 
       if (left()->expr_type() == IVL_VT_LOGIC)

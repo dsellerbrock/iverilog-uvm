@@ -67,20 +67,24 @@ module top;
       $fatal(1, "FAIL/T5: expected hits_c=1 after b->c, got a=%0d b=%0d c=%0d",
              hits_a, hits_b, hits_c);
 
-    // T6: .var binding — user declares int x in outer scope; case-matches
-    // copies u into x for the matching branch.  Verify x has the value
-    // that was tagged in.
+    // T6: .var binding declares an item-local variable whose exact type and
+    // value come from the matched member.  An outer name of the same spelling
+    // remains shadowed and unchanged.
     begin
       int x;
       x = -1;
       u = tagged b 12345;
       case (u) matches
         tagged a .x: hits_a = 1;
-        tagged b .x: hits_b = 1;  // x = u when this branch fires
+        tagged b .x: begin
+          hits_b = 1;
+          if (x !== 12345)
+            $fatal(1, "FAIL/T6: local x=%0d expected 12345", x);
+        end
         tagged c .x: hits_c = 1;
       endcase
-      if (x !== 12345)
-        $fatal(1, "FAIL/T6: x=%0d expected 12345 (binding propagation)", x);
+      if (x !== -1)
+        $fatal(1, "FAIL/T6: outer x=%0d expected -1", x);
     end
 
     $display("PASS: tagged-union constructor + case matches dispatch + .var bind");

@@ -911,6 +911,163 @@ PBlock* pform_push_block_scope(const struct vlltype&loc, const char*name,
       return block;
 }
 
+namespace {
+
+struct pattern_binding_t {
+      perm_string name;
+      pform_pattern_path_t path;
+};
+
+static void collect_pattern_bindings_(const PMatchPattern*pattern,
+                                      pform_pattern_path_t&path,
+                                      vector<pattern_binding_t>&bindings)
+{
+      if (!pattern)
+            return;
+
+      switch (pattern->kind()) {
+          case PMatchPattern::VARIABLE: {
+            pattern_binding_t binding;
+            binding.name = pattern->name();
+            binding.path = path;
+            bindings.push_back(binding);
+            break;
+          }
+          case PMatchPattern::TAGGED:
+            path.push_back(pform_pattern_path_component_t(pattern->name()));
+            if (!pattern->children().empty())
+                  collect_pattern_bindings_(pattern->children().front(), path,
+                                            bindings);
+            path.pop_back();
+            break;
+          case PMatchPattern::STRUCTURE:
+            for (size_t idx = 0; idx < pattern->children().size(); idx += 1) {
+                  path.push_back(pform_pattern_path_component_t((unsigned)idx));
+                  collect_pattern_bindings_(pattern->children()[idx], path,
+                                            bindings);
+                  path.pop_back();
+            }
+            break;
+          case PMatchPattern::CONSTANT:
+          case PMatchPattern::WILDCARD:
+            break;
+      }
+}
+
+static bool pattern_subject_path_(const struct vlltype&loc,
+                                  const PExpr*subject,
+                                  pform_scoped_name_t&path,
+                                  unsigned&lexical_pos)
+{
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(subject);
+      if (!ident || ident->leading_type_args()) {
+            VLerror(loc, "sorry: pattern variables currently require an "
+                         "identifier-valued match subject.");
+            return false;
+      }
+
+      for (const name_component_t&component : ident->path().name) {
+            if (!component.index.empty()) {
+                  VLerror(loc, "sorry: pattern variables currently require an "
+                               "unindexed match subject.");
+                  return false;
+            }
+      }
+
+      path = ident->path();
+      lexical_pos = ident->lexical_pos();
+      return true;
+}
+
+static vector<pattern_binding_t>
+pattern_bindings_(const struct vlltype&loc, const PMatchPattern*pattern,
+                  bool diagnose_duplicates)
+{
+      vector<pattern_binding_t> collected;
+      pform_pattern_path_t path;
+      collect_pattern_bindings_(pattern, path, collected);
+
+      vector<pattern_binding_t> bindings;
+      set<perm_string> names;
+      for (const pattern_binding_t&binding : collected) {
+            if (!names.insert(binding.name).second) {
+                  if (diagnose_duplicates) {
+                        ostringstream msg;
+                        msg << "error: pattern variable '" << binding.name
+                            << "' is declared more than once in the same "
+                               "pattern.";
+		        VLerror(loc, "%s", msg.str().c_str());
+                  }
+                  continue;
+            }
+            bindings.push_back(binding);
+      }
+      return bindings;
+}
+
+} // namespace
+
+PBlock* pform_pattern_push_scope(const struct vlltype&loc,
+                                 const PExpr*subject,
+                                 const PMatchPattern*pattern)
+{
+      PBlock*block = pform_push_block_scope(loc, nullptr, PBlock::BL_SEQ);
+
+      vector<pattern_binding_t> bindings = pattern_bindings_(loc, pattern,
+                                                             true);
+      if (bindings.empty())
+            return block;
+
+      pform_scoped_name_t subject_path;
+      unsigned lexical_pos = 0;
+      if (!pattern_subject_path_(loc, subject, subject_path, lexical_pos))
+            return block;
+
+      for (const pattern_binding_t&binding : bindings) {
+            PWire*wire = pform_makewire(
+                  loc, pform_ident_t(binding.name, loc.lexical_pos),
+                  NetNet::IMPLICIT_REG, nullptr);
+            pattern_binding_type_t*type = new pattern_binding_type_t(
+                  subject_path, lexical_pos, binding.path);
+            FILE_NAME(type, loc);
+            wire->set_data_type(type);
+      }
+      return block;
+}
+
+PBlock* pform_pattern_finish_scope(const struct vlltype&loc,
+                                   PBlock*block,
+                                   Statement*statement,
+                                   const PExpr*subject,
+                                   const PMatchPattern*pattern)
+{
+      pform_pop_scope();
+
+      vector<Statement*> statements;
+      if (statement)
+            statements.push_back(statement);
+      block->set_statement(statements);
+
+      vector<pattern_binding_t> bindings = pattern_bindings_(loc, pattern,
+                                                             false);
+      if (bindings.empty())
+            return block;
+
+      pform_scoped_name_t subject_path;
+      unsigned lexical_pos = 0;
+      if (!pattern_subject_path_(loc, subject, subject_path, lexical_pos))
+            return block;
+
+      for (vector<pattern_binding_t>::reverse_iterator it = bindings.rbegin();
+           it != bindings.rend(); ++it) {
+            PPatternAssign*assign = new PPatternAssign(
+                  subject_path, lexical_pos, it->path, it->name);
+            FILE_NAME(assign, loc);
+            block->push_statement_front(assign);
+      }
+      return block;
+}
+
 /*
  * Create a new identifier.
  */

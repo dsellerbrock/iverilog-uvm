@@ -444,39 +444,60 @@ class PRandCase : public Statement {
       PRandCase& operator=(const PRandCase&) = delete;
 };
 
-/* Phase 63b/B7 (gap close): SystemVerilog `case (X) matches` pattern
- * matching for tagged unions (IEEE 1800-2017 §12.6).  Each item is
- * `tagged TAG [.var]: stmt` or `default: stmt`.  Lowered at elab to
- * an if-else cascade testing the companion-tag NetNet of X. */
+/* SystemVerilog `case (X) matches` pattern matching (IEEE 1800-2017
+ * 12.6). Each non-default item has a typed pattern and an implicit lexical
+ * block containing any pattern variables. */
 class PCaseMatches : public Statement {
 
     public:
       struct Item {
-            // For tagged items: the named tag
-            perm_string tag;
-            // For tagged items with binding: the bound variable name
-            // (zero-length if no binding)
-            perm_string bind;
-            // True if `default:` (no tag/bind)
+            PMatchPattern*pattern;
             bool is_default;
             Statement *stat;
-            Item() : is_default(false), stat(nullptr) {}
+            Item() : pattern(nullptr), is_default(false), stat(nullptr) {}
+            ~Item();
       };
 
-      PCaseMatches(PExpr*expr, std::vector<Item*>*items)
-            : expr_(expr), items_(items) {}
+      PCaseMatches(PExpr*expr, std::vector<Item*>*items,
+                   NetCase::TYPE case_type)
+            : expr_(expr), items_(items), case_type_(case_type) {}
       ~PCaseMatches() override;
 
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
+      virtual void elaborate_scope(Design*des, NetScope*scope) const override;
+      virtual void elaborate_sig(Design*des, NetScope*scope) const override;
       virtual void dump(std::ostream&out, unsigned ind) const override;
 
     private:
       PExpr *expr_;
       std::vector<Item*>*items_;
+      NetCase::TYPE case_type_;
 
     private: // not implemented
       PCaseMatches(const PCaseMatches&) = delete;
       PCaseMatches& operator=(const PCaseMatches&) = delete;
+};
+
+/* Internal statement prepended to a pattern item's implicit block. It copies
+ * one selected member into its already-declared pattern variable after the
+ * predicate succeeds and before the user's statement executes. */
+class PPatternAssign : public Statement {
+    public:
+      PPatternAssign(const pform_scoped_name_t&subject,
+                     unsigned lexical_pos,
+                     const pform_pattern_path_t&path,
+                     perm_string destination)
+      : subject_(subject), lexical_pos_(lexical_pos), path_(path),
+        destination_(destination) { }
+
+      NetProc* elaborate(Design*des, NetScope*scope) const override;
+      void dump(std::ostream&out, unsigned ind) const override;
+
+    private:
+      pform_scoped_name_t subject_;
+      unsigned lexical_pos_;
+      pform_pattern_path_t path_;
+      perm_string destination_;
 };
 
 class PCAssign  : public Statement {
@@ -533,6 +554,8 @@ class PCondit  : public Statement {
       PExpr* release_cond_expr();
       Statement* release_if_clause();
       Statement* release_else_clause();
+      void set_else_clause(Statement*statement)
+      { else_ = statement; }
 
 	/* Some other parsed constructs (notably immediate assertions) use a
 	   PCondit internally. Record when this node came from an actual `if`

@@ -577,6 +577,11 @@ sv_concat_postfix_select_ascending_fail	vvp_tests/sv_concat_postfix_select_ascen
 # IEEE 1800-2017 qualified if statements
 sv_quality_if	vvp_tests/sv_quality_if.json
 
+# IEEE 1800-2017 pattern matching
+sv_pattern_matching_structured	vvp_tests/sv_pattern_matching_structured.json
+sv_pattern_matching_invalid_fail	vvp_tests/sv_pattern_matching_invalid_fail.json
+sv_pattern_matching_duplicate_fail	vvp_tests/sv_pattern_matching_duplicate_fail.json
+
 # IEEE 1800-2017 assignment-pattern replication and keyed forms
 sv_assignment_pattern_keys_replication	vvp_tests/sv_assignment_pattern_keys_replication.json
 sv_assignment_pattern_keys_fail	vvp_tests/sv_assignment_pattern_keys_fail.json

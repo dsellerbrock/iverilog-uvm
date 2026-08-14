@@ -1,0 +1,1 @@
+./ivltests/sv_pattern_matching_duplicate_fail.v:10: error: pattern variable 'same' is declared more than once in the same pattern.

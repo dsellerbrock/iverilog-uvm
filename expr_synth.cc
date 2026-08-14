@@ -283,9 +283,17 @@ NetNet* NetEBComp::synthesize(Design*des, NetScope*scope, NetExpr*root)
 		 << endl;
       }
 
-      if (op_ == 'E' || op_ == 'N') {
+      if (op_ == 'E' || op_ == 'N' || op_ == 'x' || op_ == 'z') {
+	    NetCaseCmp::kind_t kind = NetCaseCmp::EEQ;
+	    switch (op_) {
+	        case 'E': kind = NetCaseCmp::EEQ; break;
+	        case 'N': kind = NetCaseCmp::NEQ; break;
+	        case 'x': kind = NetCaseCmp::XEQ; break;
+	        case 'z': kind = NetCaseCmp::ZEQ; break;
+	        default: ivl_assert(*this, 0);
+	    }
 	    NetCaseCmp*gate = new NetCaseCmp(scope, scope->local_symbol(),
-					     width, op_=='E' ? NetCaseCmp::EEQ : NetCaseCmp::NEQ);
+					     width, kind);
 	    gate->set_line(*this);
 	    connect(gate->pin(0), osig->pin(0));
 	    connect(gate->pin(1), lsig->pin(0));
