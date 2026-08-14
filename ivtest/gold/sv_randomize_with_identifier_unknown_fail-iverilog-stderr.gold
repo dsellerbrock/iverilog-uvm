@@ -1,0 +1,3 @@
+ivltests/sv_randomize_with_identifier_unknown_fail.v:10: error: Identifier `missing' in randomize with-clause list is not a member of class `target_c'.
+ivltests/sv_randomize_with_identifier_unknown_fail.v:11: error: Identifier `missing' in randomize with-clause list is not a member of class `target_c'.
+2 error(s) during elaboration.

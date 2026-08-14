@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_pure_constraint_inheritance.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_pure_constraint_inheritance"
+}

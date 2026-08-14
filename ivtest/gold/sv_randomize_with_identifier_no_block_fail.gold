@@ -1,0 +1,2 @@
+./ivltests/sv_randomize_with_identifier_no_block_fail.v:10: error: randomize with-clause identifier list requires a constraint block.
+./ivltests/sv_randomize_with_identifier_no_block_fail.v:11: error: randomize with-clause identifier list requires a constraint block.

@@ -2615,6 +2615,7 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 	    }
       }
       use_class->set_super(use_base_class);
+      use_class->configure_pure_constraints(des, pclass);
       resolve_class_interface_relations_(des, class_scope,
 					 const_cast<PClass*>(pclass), use_class);
 
@@ -2828,6 +2829,7 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 		    }
 	      }
       use_class->set_super(use_base_class);
+      use_class->configure_pure_constraints(des, pclass);
       resolve_class_interface_relations_(des, class_scope, pclass, use_class);
 
       collect_scope_signals(class_scope, pclass->wires);
@@ -3046,6 +3048,7 @@ static void complete_class_scope_in_place_(Design*des, NetScope*scope,
 	    }
       }
       use_class->set_super(use_base_class);
+      use_class->configure_pure_constraints(des, pclass);
       resolve_class_interface_relations_(des, class_scope, pclass, use_class);
 
       for (map<perm_string,PTask*>::iterator cur = pclass->tasks.begin()

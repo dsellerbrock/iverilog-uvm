@@ -572,6 +572,21 @@ struct class_type_t : public data_type_t {
       // constraint expressions (PEInside, comparisons, etc.).
       std::map<perm_string, std::vector<PExpr*>> constraints;
 
+	// Source and qualifier metadata for each concrete constraint block.
+	// The solver IR does not distinguish static constraints, but declaration
+	// matching (extern and inherited pure prototypes) must retain the exact
+	// qualifier and diagnostic location.
+      struct constraint_decl_info_t : public LineInfo {
+	    bool is_static = false;
+      };
+      std::map<perm_string, constraint_decl_info_t> constraint_declarations;
+
+	// IEEE 1800-2017 18.5.2 pure constraint prototypes. A concrete
+	// descendant must replace every inherited entry with a constraint
+	// declaration of the same name before it can be instantiated.
+      struct pure_constraint_info_t : public LineInfo { };
+      std::map<perm_string, pure_constraint_info_t> pure_constraints;
+
 	// IEEE 1800-2017 18.5.1 explicit external constraint prototypes.
 	// A matching out-of-body definition removes the entry. Keep source
 	// provenance so a missing definition is diagnosed once during class

@@ -383,6 +383,16 @@ void pform_class_constraint(const struct vlltype&loc,
 	    return;
 
       perm_string pname = lex_strings.make(name);
+      class_type_t::constraint_decl_info_t&decl =
+	    pform_cur_class->type->constraint_declarations[pname];
+      FILE_NAME(&decl, loc);
+      decl.is_static = is_static;
+      auto pure = pform_cur_class->type->pure_constraints.find(pname);
+      if (pure != pform_cur_class->type->pure_constraints.end()) {
+	    cerr << loc << ": error: Constraint `" << pname
+		 << "' is already declared pure in this class." << endl;
+	    error_count += 1;
+      }
       auto proto = pform_cur_class->type->extern_constraints.find(pname);
       if (proto != pform_cur_class->type->extern_constraints.end()) {
 	    if (proto->second.is_static != is_static) {
@@ -408,11 +418,49 @@ void pform_class_constraint_prototype(const struct vlltype&loc,
 	    return;
 
       perm_string pname = lex_strings.make(name);
+      class_type_t*type = pform_cur_class->type;
+      if (type->constraints.find(pname) != type->constraints.end()
+	  || type->pure_constraints.find(pname) != type->pure_constraints.end()
+	  || type->extern_constraints.find(pname)
+	       != type->extern_constraints.end()) {
+	    cerr << loc << ": error: Constraint `" << pname
+		 << "' is already declared in this class." << endl;
+	    error_count += 1;
+	    return;
+      }
       class_type_t::extern_constraint_info_t&info =
-	    pform_cur_class->type->extern_constraints[pname];
+	    type->extern_constraints[pname];
       FILE_NAME(&info, loc);
       info.is_static = is_static;
       info.reported = false;
+}
+
+void pform_class_pure_constraint(const struct vlltype&loc,
+				  const char*name)
+{
+      if (!pform_cur_class || !name)
+	    return;
+
+      perm_string pname = lex_strings.make(name);
+      class_type_t*type = pform_cur_class->type;
+      if (!type->virtual_class) {
+	    cerr << loc << ": error: A pure constraint may only be declared "
+		 << "in a virtual class." << endl;
+	    error_count += 1;
+      }
+      if (type->constraints.find(pname) != type->constraints.end()
+	  || type->pure_constraints.find(pname) != type->pure_constraints.end()
+	  || type->extern_constraints.find(pname)
+	       != type->extern_constraints.end()) {
+	    cerr << loc << ": error: Constraint `" << pname
+		 << "' is already declared in this class." << endl;
+	    error_count += 1;
+	    return;
+      }
+
+      class_type_t::pure_constraint_info_t&info =
+	    type->pure_constraints[pname];
+      FILE_NAME(&info, loc);
 }
 
 // I1 (Phase 62g): forward-declared accumulator from parse.y.

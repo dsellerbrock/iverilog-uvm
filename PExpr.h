@@ -1314,6 +1314,16 @@ class PECallFunction : public PExpr {
             { with_constraints_ = std::move(c); }
       const std::vector<PExpr*>& with_constraints() const
             { return with_constraints_; }
+	// IEEE 1800-2017 18.7: `with (identifier_list)' makes exactly
+	// these unqualified names resolve in the randomized object's scope;
+	// other unqualified names retain caller-scope lookup.
+      void set_randomize_with_identifiers(std::vector<perm_string> names)
+	    { randomize_with_identifier_list_present_ = true;
+	      randomize_with_identifiers_ = std::move(names); }
+      const std::vector<perm_string>& randomize_with_identifiers() const
+	    { return randomize_with_identifiers_; }
+      bool has_randomize_with_identifier_list() const
+	    { return randomize_with_identifier_list_present_; }
 
 	// M9-SV: procedural sampled value functions (IEEE 1800-2017
 	// 16.9.3). $past/$rose/$fell/$stable/$changed are not ordinary
@@ -1331,6 +1341,8 @@ class PECallFunction : public PExpr {
       pform_scoped_name_t path_;
       std::vector<named_pexpr_t> parms_;
       std::vector<PExpr*> with_constraints_;
+      bool randomize_with_identifier_list_present_ = false;
+      std::vector<perm_string> randomize_with_identifiers_;
 
 	// M13: cached let-expansion (IEEE 1800-2017 11.13). When the
 	// call name resolves to a let in scope, the substituted body is

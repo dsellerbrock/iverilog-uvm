@@ -73,6 +73,7 @@ extern NetESFunc* make_randomize_with_expr(
       const LineInfo*call,
       const std::vector<named_pexpr_t>&parms,
       const std::vector<PExpr*>&with_constraints,
+      const std::vector<perm_string>&with_identifiers,
       NetExpr*obj_expr,
       const netclass_t*class_type,
       Design*des, NetScope*scope,
@@ -82,6 +83,8 @@ extern NetESFunc* make_randomize_with_expr(
 extern NetESFunc* make_std_randomize_with_expr(
       const std::vector<named_pexpr_t>&parms,
       const std::vector<PExpr*>&with_constraints,
+      const std::vector<perm_string>&with_identifiers,
+      bool has_with_identifier_list,
       Design*des, NetScope*scope, const LineInfo*loc);
 
 using namespace std;
@@ -7951,9 +7954,12 @@ static NetProc* elaborate_scope_randomize_task_(
       const vector<named_pexpr_t>&parms = call->parms();
       const vector<PExpr*>&constraints = call->with_constraints();
 
-      if (!constraints.empty()) {
+      if (!constraints.empty()
+	  || call->has_randomize_with_identifier_list()) {
 	    NetESFunc*fun = make_std_randomize_with_expr(
-		  parms, constraints, des, scope, call);
+		  parms, constraints, call->randomize_with_identifiers(),
+		  call->has_randomize_with_identifier_list(),
+		  des, scope, call);
 	    if (!fun) return nullptr;
 
 	    vector<NetExpr*> argv(fun->nparms());
@@ -8966,7 +8972,8 @@ NetProc* PCallTask::elaborate_randomize_with_(
 	  && path_.back().name == perm_string::literal("randomize"))
 	    object_root = path_.front().name;
       NetESFunc*sys_expr = make_randomize_with_expr(
-	    this, parms_, with_constraints_, obj, class_type, des, scope,
+	    this, parms_, with_constraints_, randomize_with_identifiers_,
+	    obj, class_type, des, scope,
 	    object_root);
       sys_expr->set_line(*this);
       NetNet*tmp = new NetNet(scope, scope->local_symbol(), NetNet::REG,
@@ -9187,6 +9194,9 @@ NetProc* PCallTask::elaborate_receiver_method_(Design*des, NetScope*scope) const
 		  PECallFunction*call =
 			new PECallFunction(receiver_, method_name, use_parms);
 		  call->set_with_constraints(with_constraints());
+		  if (has_randomize_with_identifier_list())
+			call->set_randomize_with_identifiers(
+			      randomize_with_identifiers());
 		  call->set_file(get_file());
 		  call->set_lineno(get_lineno());
 		  NetExpr*result = call->elaborate_expr(
@@ -9216,7 +9226,8 @@ NetProc* PCallTask::elaborate_receiver_method_(Design*des, NetScope*scope) const
       }
 
       if (method_name == perm_string::literal("randomize")
-	  && !with_constraints().empty())
+	  && (!with_constraints().empty()
+	      || has_randomize_with_identifier_list()))
 	    return elaborate_randomize_with_(des, scope, sub_expr, class_type);
 
       NetScope*task = class_type->resolve_method_call_scope(des, method_name);
@@ -9617,6 +9628,9 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  ? new PECallFunction(package_, path_, parms_)
 		  : new PECallFunction(path_, parms_);
 	    call->set_with_constraints(with_constraints());
+	    if (has_randomize_with_identifier_list())
+		  call->set_randomize_with_identifiers(
+			randomize_with_identifiers());
 	    call->set_file(get_file());
 	    call->set_lineno(get_lineno());
 	    NetExpr*result = call->elaborate_expr(
@@ -10061,7 +10075,8 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    // both expression context (elab_expr.cc) and statement context
 	    // (void'(obj.randomize())) work correctly.
 	    if (method_name == perm_string::literal("randomize")) {
-		  if (!with_constraints().empty()) {
+		  if (!with_constraints().empty()
+		      || has_randomize_with_identifier_list()) {
 			return elaborate_randomize_with_(
 			      des, scope, obj_expr, class_type);
 		  }
@@ -17061,6 +17076,21 @@ static Design*scope_randomize_design_ctx_ = nullptr;
  * at the object itself, so remember and remove exactly that prefix while
  * translating the constraint. */
 static perm_string constraint_class_object_root_;
+/* IEEE 1800-2017 18.7.1: when an inline randomize constraint supplies
+ * `with (identifier_list)', only those unqualified names use the randomized
+ * object's member scope. Other bare names keep caller-scope lookup. A null
+ * pointer preserves the ordinary inline-constraint rule where every visible
+ * target member has precedence. */
+static const vector<perm_string>*constraint_inline_member_names_ = nullptr;
+
+static bool constraint_inline_target_name_(perm_string name)
+{
+      if (!constraint_inline_member_names_)
+	    return true;
+      return find(constraint_inline_member_names_->begin(),
+		  constraint_inline_member_names_->end(), name)
+	    != constraint_inline_member_names_->end();
+}
 
 /* Constraint IR needs ordinary constant-name resolution as well as class
  * property lookup.  In particular, class constraints routinely name
@@ -17181,10 +17211,14 @@ string pexpr_to_scope_constraint_ir(
 string pexpr_to_class_constraint_ir(
       const PExpr*expr, const netclass_t*cls,
       vector<const PExpr*>*value_slots, Design*des,
-      const NetScope*scope)
+      const NetScope*scope,
+      const vector<perm_string>*inline_member_names = nullptr)
 {
       Design*save = constraint_ir_design_ctx_;
+      const vector<perm_string>*save_inline =
+	    constraint_inline_member_names_;
       constraint_ir_design_ctx_ = des;
+      constraint_inline_member_names_ = inline_member_names;
 	/* See the scope-randomize sibling above. This prepass is semantic and
 	 * intentionally independent of whether the backend can represent the
 	 * enclosing constraint node. */
@@ -17192,6 +17226,7 @@ string pexpr_to_class_constraint_ir(
 	    expr, cls, value_slots, scope, nullptr);
       string out = pexpr_to_constraint_ir(expr, cls, value_slots, scope);
       out = constraint_ir_shape_value_slots_(out, value_slots, des, scope);
+      constraint_inline_member_names_ = save_inline;
       constraint_ir_design_ctx_ = save;
       return out;
 }
@@ -17199,12 +17234,13 @@ string pexpr_to_class_constraint_ir(
 string pexpr_to_rooted_class_constraint_ir(
       const PExpr*expr, const netclass_t*cls, perm_string root,
       vector<const PExpr*>*value_slots, Design*des,
-      const NetScope*scope)
+      const NetScope*scope,
+      const vector<perm_string>*inline_member_names = nullptr)
 {
       perm_string save_root = constraint_class_object_root_;
       constraint_class_object_root_ = root;
       string out = pexpr_to_class_constraint_ir(
-	    expr, cls, value_slots, des, scope);
+	    expr, cls, value_slots, des, scope, inline_member_names);
       constraint_class_object_root_ = save_root;
       return out;
 }
@@ -17564,6 +17600,13 @@ static bool constraint_class_path_references_randc_(
 	    if (comp->name == constraint_class_object_root_
 		&& comp->index.empty()) {
 		  ++comp;
+	    } else if (constraint_inline_member_names_
+		       && constraint_inline_target_name_(comp->name)) {
+		  ivl_type_t target_component = nullptr;
+		  bool target_randc = false;
+		  if (!constraint_class_component_type_(
+			cls, comp->name, target_component, target_randc))
+			return false;
 	    } else {
 		  NetNet*root = scope_randomize_find_signal_(scope, comp->name);
 		  if (root) {
@@ -17597,7 +17640,8 @@ static bool constraint_class_path_references_randc_(
       } else {
 	    ivl_type_t target_component = nullptr;
 	    bool target_randc = false;
-	    bool target_has_component = constraint_class_component_type_(
+	    bool target_has_component = constraint_inline_target_name_(
+		  comp->name) && constraint_class_component_type_(
 		  cls, comp->name, target_component, target_randc);
 	    if (comp->local_scope || !target_has_component) {
 		  NetNet*root = scope_randomize_find_signal_(scope, comp->name);
@@ -17723,6 +17767,8 @@ static const netclass_t* constraint_scoped_path_owner_(
 	    vector<NetExpr*>*saved_scope_objects = scope_randomize_object_slots_;
 	    Design*saved_scope_design = scope_randomize_design_ctx_;
 	    perm_string saved_object_root = constraint_class_object_root_;
+	    const vector<perm_string>*saved_inline_members =
+		  constraint_inline_member_names_;
 	    constraint_randc_capture_ = nullptr;
 	    constraint_reduction_iter_ctx_ = nullptr;
 	    dynforeach_emit_ctx_ = nullptr;
@@ -17732,6 +17778,7 @@ static const netclass_t* constraint_scoped_path_owner_(
 	    scope_randomize_object_slots_ = nullptr;
 	    scope_randomize_design_ctx_ = nullptr;
 	    constraint_class_object_root_ = perm_string();
+	    constraint_inline_member_names_ = nullptr;
 	    owner = elaborate_specialized_class_type(
 		  constraint_ir_design_ctx_, type_scope, owner,
 		  id->leading_type_args(), true);
@@ -17744,6 +17791,7 @@ static const netclass_t* constraint_scoped_path_owner_(
 	    scope_randomize_object_slots_ = saved_scope_objects;
 	    scope_randomize_design_ctx_ = saved_scope_design;
 	    constraint_class_object_root_ = saved_object_root;
+	    constraint_inline_member_names_ = saved_inline_members;
 	    if (!owner)
 		  return nullptr;
       }
@@ -18057,12 +18105,20 @@ static bool constraint_target_root_precedence_(
       if (root.local_scope)
 	    return false;
       if (!constraint_class_object_root_.nil())
-	    return root.name == constraint_class_object_root_;
+	    {
+	      if (root.name == constraint_class_object_root_)
+		    return true;
+	      if (!constraint_inline_member_names_
+		  || !constraint_inline_target_name_(root.name))
+		    return false;
+	    }
       if (root.name == perm_string::literal("this")
 	  || root.name == perm_string::literal("super"))
 	    return true;
       ivl_type_t component_type = nullptr;
       bool is_randc = false;
+      if (!constraint_inline_target_name_(root.name))
+	    return false;
       return constraint_class_component_type_(
 	    cls, root.name, component_type, is_randc);
 }
@@ -18248,14 +18304,19 @@ static constraint_source_type_t constraint_source_expr_type_(
 
 	    if (!constraint_class_object_root_.nil())
 		  result.qualifier_relevant =
-			root.name == constraint_class_object_root_;
+			root.name == constraint_class_object_root_
+			|| (constraint_inline_member_names_
+			    && constraint_inline_target_name_(root.name)
+			    && cls
+			    && cls->property_idx_from_name(root.name) >= 0);
 	    else if (root.local_scope)
 		  result.qualifier_relevant = false;
 	    else if (root.name == perm_string::literal("this")
 		     || root.name == perm_string::literal("super"))
 		  result.qualifier_relevant = true;
 	    else
-		  result.qualifier_relevant = cls
+		  result.qualifier_relevant = constraint_inline_target_name_(
+			root.name) && cls
 			&& cls->property_idx_from_name(root.name) >= 0;
 
 	    /* test_type_of_ident searches the lexical caller scope, but an
@@ -19763,6 +19824,25 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  return scope_randomize_value_slot_(expr, nullptr,
 					       value_slots, 32);
 
+	      /* An explicit IEEE 18.7 `with (identifier_list)' changes only
+	       * unqualified lookup. Listed roots are target members; an omitted
+	       * root is evaluated in the caller even if the target class has a
+	       * member with the same spelling. Explicit obj.member, this.member,
+	       * and super.member paths retain target semantics. */
+	    if (constraint_inline_member_names_ && cls && value_slots
+		&& !id->path().package && !id->has_scoped_type_prefix()
+		&& !id->path().name.empty()) {
+		  const name_component_t&root = id->path().name.front();
+		  bool explicit_target = root.name == perm_string::literal("this")
+			|| root.name == perm_string::literal("super")
+			|| (!constraint_class_object_root_.nil()
+			    && root.name == constraint_class_object_root_)
+			|| constraint_inline_target_name_(root.name);
+		  if (!root.local_scope && !explicit_target)
+			return scope_randomize_value_slot_(
+			      expr, nullptr, value_slots, 32);
+	    }
+
 	      /* A multi-component path rooted at one of this class's object
 	         properties is external state, not a property whose name happens
 	         to match the final component. Preserve the whole path. */
@@ -20948,6 +21028,79 @@ static int cov_with_eval_(PExpr*e, int64_t item, int64_t&out)
       return -1;
 }
 
+void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
+{
+      if (constraints_elaborated_ || constraints_elaborating_ || !pclass)
+	    return;
+      constraints_elaborating_ = true;
+
+      /* A specialization can keep its method bodies lazy, but its base
+	 constraint metadata must still be complete before inheritance is merged. */
+      if (super_ && !super_->constraints_elaborated()) {
+	    const NetScope*super_scope = super_->class_scope();
+	    const PClass*super_pclass = super_scope
+		  ? super_scope->class_pform() : nullptr;
+	    if (super_pclass)
+		  const_cast<netclass_t*>(super_)->elaborate_constraints(
+			des, const_cast<PClass*>(super_pclass));
+      }
+
+      /* Convert every source constraint block to solver IR after property
+	 types and specialization parameters are final. */
+      for (auto&cit : pclass->type->constraints) {
+	    string ir;
+	    for (PExpr*item : cit.second) {
+		  if (!item) continue;
+		  unsigned errors_before = des->errors;
+		  string s = pexpr_to_class_constraint_ir(
+			item, this, nullptr, des, class_scope_);
+		  if (!s.empty()) {
+			if (!ir.empty()) ir += " ";
+			ir += s;
+		  } else if (des->errors == errors_before) {
+			/* Manifesto principle 4: a dropped item silently weakens
+			 * the constraint, so diagnose the first unsupported shape. */
+			static bool warned_unconvertible_constraint = false;
+			if (!warned_unconvertible_constraint) {
+			      cerr << item->get_fileline() << ": warning: "
+				   << "Constraint item in '" << cit.first
+				   << "' of class " << get_name()
+				   << " is not representable in the constraint "
+				   << "solver and is ignored (further similar "
+				   << "warnings suppressed)." << endl;
+			      warned_unconvertible_constraint = true;
+			}
+		  }
+	    }
+	    if (!ir.empty())
+		  add_constraint_ir(string(cit.first), ir);
+      }
+
+      /* Synthesize an inside constraint for each random enum property. */
+      for (size_t pid = 0; pid < get_properties(); ++pid) {
+	    property_qualifier_t qual = get_prop_qual(pid);
+	    if (!qual.test_rand() && !qual.test_randc())
+		  continue;
+	    ivl_type_t ptype = get_prop_type(pid);
+	    const netenum_t*etype = dynamic_cast<const netenum_t*>(ptype);
+	    if (!etype || etype->size() == 0)
+		  continue;
+	    unsigned wid = (unsigned)etype->packed_width();
+	    if (wid == 0) wid = 32;
+	    std::ostringstream ir;
+	    ir << "(inside p:" << pid << ":" << wid;
+	    for (size_t val = 0; val < etype->size(); ++val)
+		  ir << " c:" << etype->value_at(val).as_unsigned();
+	    ir << ")";
+	    std::ostringstream name;
+	    name << "_enum_" << get_prop_name(pid);
+	    add_constraint_ir(name.str(), ir.str());
+      }
+
+      constraints_elaborating_ = false;
+      constraints_elaborated_ = true;
+}
+
 void netclass_t::elaborate(Design*des, PClass*pclass)
 {
       if (body_elaborated_ || body_elaborating_)
@@ -20983,63 +21136,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  des->add_process(top);
 	      }
 
-	      // Elaborate constraint blocks: convert PExpr* to IR strings.
-	      for (auto& cit : pclass->type->constraints) {
-		    string ir;
-		    for (PExpr*item : cit.second) {
-			  if (!item) continue;
-			  unsigned errors_before = des->errors;
-			  string s = pexpr_to_class_constraint_ir(
-				item, this, nullptr, des, class_scope_);
-			  if (!s.empty()) {
-				if (!ir.empty()) ir += " ";
-				ir += s;
-			  } else if (des->errors == errors_before) {
-				  // Manifesto principle 4: a dropped item
-				  // silently WEAKENS the constraint. Say so.
-				static bool warned_unconvertible_constraint = false;
-				if (!warned_unconvertible_constraint) {
-				      cerr << item->get_fileline() << ": warning: "
-					   << "Constraint item in '" << cit.first
-					   << "' of class " << get_name()
-					   << " is not representable in the "
-					   << "constraint solver and is ignored "
-					   << "(further similar warnings "
-					   << "suppressed)." << endl;
-				      warned_unconvertible_constraint = true;
-				}
-			  }
-		    }
-		    if (!ir.empty())
-			  add_constraint_ir(string(cit.first), ir);
-	      }
-
-	      // Phase 49: synthesize an `inside` constraint for every rand
-	      // (or randc) property whose type is an enum. Without this,
-	      // %randomize seeds the property with raw rand() bits and the
-	      // resulting value almost never lands on a valid enum label
-	      // (causing UVM_FATAL "Unsupported <enum>" downstream).
-	      for (size_t pid = 0; pid < get_properties(); ++pid) {
-		    property_qualifier_t qual = get_prop_qual(pid);
-		    if (!qual.test_rand() && !qual.test_randc())
-			  continue;
-		    ivl_type_t ptype = get_prop_type(pid);
-		    const netenum_t*etype = dynamic_cast<const netenum_t*>(ptype);
-		    if (!etype || etype->size() == 0)
-			  continue;
-		    unsigned wid = (unsigned)etype->packed_width();
-		    if (wid == 0) wid = 32;
-		    std::ostringstream ir;
-		    ir << "(inside p:" << pid << ":" << wid;
-		    for (size_t v = 0; v < etype->size(); ++v) {
-			  uint64_t val = etype->value_at(v).as_unsigned();
-			  ir << " c:" << val;
-		    }
-		    ir << ")";
-		    std::ostringstream nm;
-		    nm << "_enum_" << get_prop_name(pid);
-		    add_constraint_ir(nm.str(), ir.str());
-	      }
+	      elaborate_constraints(des, pclass);
 
 	      // M11: Elaborate covergroup declarations — synthesize a
 	      // hidden class type per covergroup with one int property

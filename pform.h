@@ -202,6 +202,8 @@ extern void pform_class_constraint(const struct vlltype&loc,
 extern void pform_class_constraint_prototype(const struct vlltype&loc,
 					      bool is_static,
 					      const char*name);
+extern void pform_class_pure_constraint(const struct vlltype&loc,
+					 const char*name);
 
 // covergroup declaration inside a class body.
 // coverpoints is a list<pform_covergroup_t::pform_coverpoint_t*> built by parse.y.

@@ -1,0 +1,3 @@
+ivltests/sv_pure_constraint_missing_fail.v:8: error: Non-virtual class `concrete_c' does not implement inherited pure constraint `required_constraint'.
+ivltests/sv_pure_constraint_missing_fail.v:2:      : Pure constraint `required_constraint' is declared here.
+1 error(s) during elaboration.

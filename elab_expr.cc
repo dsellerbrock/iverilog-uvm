@@ -74,11 +74,13 @@ extern string pexpr_to_scope_constraint_ir(
 extern string pexpr_to_class_constraint_ir(
       const PExpr*expr, const netclass_t*cls,
       vector<const PExpr*>*value_slots, Design*des,
-      const NetScope*scope);
+      const NetScope*scope,
+      const vector<perm_string>*inline_member_names = nullptr);
 extern string pexpr_to_rooted_class_constraint_ir(
       const PExpr*expr, const netclass_t*cls, perm_string root,
       vector<const PExpr*>*value_slots, Design*des,
-      const NetScope*scope);
+      const NetScope*scope,
+      const vector<perm_string>*inline_member_names = nullptr);
 
 /* In-line random variable control (IEEE 1800-2017 18.11). Turn the
  * ARGUMENT list of obj.randomize(...) into the selector the %rand/active
@@ -154,6 +156,7 @@ NetESFunc* make_randomize_with_expr(
       const LineInfo*call,
       const vector<named_pexpr_t>&parms,
       const vector<PExpr*>&with_constraints,
+      const vector<perm_string>&with_identifiers,
       NetExpr*obj_expr,
       const netclass_t*class_type,
       Design*des, NetScope*scope,
@@ -163,16 +166,32 @@ NetESFunc* make_randomize_with_expr(
 {
       string combined_ir;
       vector<const PExpr*> value_slots;
+      const vector<perm_string>*member_names = with_identifiers.empty()
+	    ? nullptr : &with_identifiers;
+
+      bool identifier_list_ok = true;
+      for (perm_string name : with_identifiers) {
+	    if (!class_type || class_type->property_idx_from_name(name) < 0) {
+		  cerr << call->get_fileline() << ": error: Identifier `" << name
+		       << "' in randomize with-clause list is not a member of class `"
+		       << (class_type ? class_type->get_name().str() : "<unknown>")
+		       << "'." << endl;
+		  des->errors += 1;
+		  identifier_list_ok = false;
+	    }
+      }
 
       for (const PExpr*wc : with_constraints) {
 	    if (!wc) continue;
+	    if (!identifier_list_ok) continue;
 	    unsigned errors_before = des->errors;
 	    string ir = object_root.nil()
 		  ? pexpr_to_class_constraint_ir(
-			wc, class_type, &value_slots, des, scope)
+			wc, class_type, &value_slots, des, scope,
+			member_names)
 		  : pexpr_to_rooted_class_constraint_ir(
 			wc, class_type, object_root,
-			&value_slots, des, scope);
+			&value_slots, des, scope, member_names);
 	    if (ir.empty()) {
 		    // A top-level `with' constraint item this pass could not
 		    // translate to solver IR is silently dropped -- the
@@ -237,8 +256,20 @@ NetESFunc* make_randomize_with_expr(
 NetESFunc* make_std_randomize_with_expr(
       const vector<named_pexpr_t>&parms,
       const vector<PExpr*>&with_constraints,
+      const vector<perm_string>&with_identifiers,
+      bool has_with_identifier_list,
       Design*des, NetScope*scope, const LineInfo*loc)
 {
+      static const vector<perm_string> no_identifiers;
+      const vector<perm_string>&effective_identifiers =
+	    has_with_identifier_list ? no_identifiers : with_identifiers;
+      if (has_with_identifier_list) {
+	    cerr << loc->get_fileline() << ": error: A parenthesized lookup "
+		 << "restriction list after `with' is not allowed on scope "
+		 << "randomize." << endl;
+	    des->errors += 1;
+      }
+
       /* IEEE 1800-2017 18.12 permits a class variable in the argument
        * list. The handle already denotes the live object; scope
        * randomization applies the object's rand members and class
@@ -256,7 +287,8 @@ NetESFunc* make_std_randomize_with_expr(
 		  if (obj && class_type) {
 			static const vector<named_pexpr_t> all_properties;
 			return make_randomize_with_expr(
-			      loc, all_properties, with_constraints, obj,
+			      loc, all_properties, with_constraints,
+			      effective_identifiers, obj,
 			      class_type, des, scope,
 			      id->path().back().name, false, true);
 		  }
@@ -298,7 +330,8 @@ NetESFunc* make_std_randomize_with_expr(
 		  NetESignal*self = new NetESignal(this_net);
 		  self->set_line(*loc);
 		  return make_randomize_with_expr(
-			loc, parms, with_constraints, self, class_type,
+			loc, parms, with_constraints, effective_identifiers,
+			self, class_type,
 			des, scope, perm_string(), true);
 	    }
       }
@@ -7476,7 +7509,8 @@ static PExpr* let_clone_expr_(const PExpr*e,
 
       if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(e)) {
 	    if (call->receiver_expr()
-		|| !call->with_constraints().empty())
+		|| !call->with_constraints().empty()
+		|| call->has_randomize_with_identifier_list())
 		  return 0;
 	    const pform_scoped_name_t&path = call->path();
 	      // A formal used as a call name is not expressible.
@@ -12260,9 +12294,11 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		  if (this_net && class_type) {
 			NetESignal*self = new NetESignal(this_net);
 			self->set_line(*this);
-			if (!with_constraints().empty()) {
+			if (!with_constraints().empty()
+			    || has_randomize_with_identifier_list()) {
 			      NetESFunc*rand_expr = make_randomize_with_expr(
-				    this, get_parms(), with_constraints(), self,
+				    this, get_parms(), with_constraints(),
+				    randomize_with_identifiers(), self,
 				    class_type, des, scope);
 			      rand_expr->set_line(*this);
 			      return rand_expr;
@@ -12294,9 +12330,13 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 	    if (peek_tail_name(path_) == perm_string::literal("randomize")
 		&& (explicit_std_randomize || unqualified_scope_randomize)
 		&& !parms_.empty()) {
-		  if (!with_constraints().empty()) {
-			return make_std_randomize_with_expr(
-			      parms_, with_constraints(), des, scope, this);
+		  if (!with_constraints().empty()
+		      || has_randomize_with_identifier_list()) {
+				return make_std_randomize_with_expr(
+				      parms_, with_constraints(),
+				      randomize_with_identifiers(),
+				      has_randomize_with_identifier_list(),
+				      des, scope, this);
 		  }
 		  NetESFunc*fun = new NetESFunc("$ivl_std_randomize",
 						IVL_VT_BOOL, 32,
@@ -12371,11 +12411,14 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 					  && search_results.net) {
 					    NetESignal*obj_expr = new NetESignal(search_results.net);
 					    obj_expr->set_line(*this);
-					    if (!with_constraints().empty() && class_type) {
+				    if ((!with_constraints().empty()
+					 || has_randomize_with_identifier_list())
+					&& class_type) {
 						  NetESFunc*rand_expr =
 							make_randomize_with_expr(
 							      this, get_parms(),
-							      with_constraints(), obj_expr,
+							      with_constraints(),
+							      randomize_with_identifiers(), obj_expr,
 							      class_type, des, scope,
 							      randomize_receiver_root_(
 								    search_results.path_head));
@@ -13736,11 +13779,14 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 			  // rather than a constant-0 stub so the runtime can actually
 			  // assign random values to rand properties.
 			  if (method_name == perm_string::literal("randomize")) {
-				if (!with_constraints().empty() && class_type) {
+				if ((!with_constraints().empty()
+				     || has_randomize_with_identifier_list())
+				    && class_type) {
 				      NetESFunc*rand_expr =
 					    make_randomize_with_expr(
 						  this, get_parms(),
-						  with_constraints(), sub_expr,
+						  with_constraints(),
+						  randomize_with_identifiers(), sub_expr,
 						  class_type, des, scope,
 						  randomize_receiver_root_(use_path));
 				      rand_expr->set_line(*this);

@@ -1,0 +1,8 @@
+./ivltests/sv_scope_randomize_with_identifier_list_fail.v:7: error: A parenthesized lookup restriction list after `with' is not allowed on scope randomize.
+./ivltests/sv_scope_randomize_with_identifier_list_fail.v:8: error: A parenthesized lookup restriction list after `with' is not allowed on scope randomize.
+./ivltests/sv_scope_randomize_with_identifier_list_fail.v:9: error: A parenthesized lookup restriction list after `with' is not allowed on scope randomize.
+./ivltests/sv_scope_randomize_with_identifier_list_fail.v:10: error: A parenthesized lookup restriction list after `with' is not allowed on scope randomize.
+./ivltests/sv_scope_randomize_with_identifier_list_fail.v:11: error: A parenthesized lookup restriction list after `with' is not allowed on scope randomize.
+./ivltests/sv_scope_randomize_with_identifier_list_fail.v:12: error: A parenthesized lookup restriction list after `with' is not allowed on scope randomize.
+./ivltests/sv_scope_randomize_with_identifier_list_fail.v:13: error: A parenthesized lookup restriction list after `with' is not allowed on scope randomize.
+7 error(s) during elaboration.

@@ -1738,6 +1738,13 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
       elaborate_sig_struct_default_typedefs_(des, class_scope_,
 					     pclass->typedefs);
 
+      /* Parameterized class specializations are allowed to keep method
+	 bodies lazy, but constraints are part of the class type and must be
+	 emitted for every specialization. Property and method signature types
+	 are now final, so parameter references lower against the exact scope. */
+      if (specialized_instance())
+	    elaborate_constraints(des, pclass);
+
       sig_elaborating_ = false;
       sig_elaborated_ = true;
 }
