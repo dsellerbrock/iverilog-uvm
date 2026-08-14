@@ -1,0 +1,1 @@
+./ivltests/sv_randsequence_recursive_fail.v:3: sorry: recursive randsequence production `main' is not supported.

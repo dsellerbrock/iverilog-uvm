@@ -48,6 +48,7 @@
 # include  <cstdlib>
 # include  <cctype>
 # include  <climits>
+# include  <cmath>
 
 # include  "ivl_assert.h"
 # include  "ivl_alloc.h"
@@ -5625,15 +5626,24 @@ void pform_set_clocking_default_skews(const struct vlltype&loc,
    so an undeclared production-condition name cannot degrade to the generic
    compile-progress warning and silently select the else branch. */
 static void sva_mark_strict_(PExpr*e);
+static PExpr* sva_clone_subst_(
+      PExpr*e, const std::map<perm_string,PExpr*>*subst);
+static parmvalue_t* sva_clone_parmvalue_(
+      const parmvalue_t*source,
+      const std::map<perm_string,PExpr*>*subst);
 
 static void pform_rs_mark_conditions_strict_(Statement*stmt)
 {
-      if (!stmt)
-	    return;
+      if (!stmt) return;
       if (PCondit*cond = dynamic_cast<PCondit*>(stmt)) {
 	    sva_mark_strict_(cond->cond_expr());
 	    pform_rs_mark_conditions_strict_(cond->if_clause());
 	    pform_rs_mark_conditions_strict_(cond->else_clause());
+	    return;
+      }
+      if (PRepeat*repeat = dynamic_cast<PRepeat*>(stmt)) {
+	    sva_mark_strict_(repeat->count_expr());
+	    pform_rs_mark_conditions_strict_(repeat->body());
 	    return;
       }
       if (PBlock*block = dynamic_cast<PBlock*>(stmt)) {
@@ -5643,133 +5653,750 @@ static void pform_rs_mark_conditions_strict_(Statement*stmt)
 }
 
 /*
- * M3B-2: randsequence (IEEE 1800-2017 18.17). Lower the production grammar
- * to procedural code by source-level expansion from the start production:
- *   - a production with one alternative -> a sequential block of its items;
- *   - a production with >1 alternatives -> a weighted PRandCase (the same
- *     lowering as `randcase`) selecting one alternative;
- *   - a code-block item -> its statement (moved in);
- *   - a non-terminal item -> the recursively expanded production.
- * Because statements cannot be duplicated, each production is expanded at
- * most once across the whole randsequence; a production referenced more
- * than once, or a cyclic (recursive) grammar, is a loud sorry rather than
- * a silent miscompile — such grammars need the automaton/task lowering,
- * which is future work.
+ * Randsequence is a grammar expansion, not a collection of ordinary loop
+ * statements. In particular, IEEE 1800-2017 18.17.6 gives a production
+ * `return' and a whole-randsequence `break' distinct enclosing targets. Keep
+ * those domains on the generated anonymous blocks and clone every invocation
+ * independently, so an acyclic production may legally be reused.
  */
-static Statement* pform_rs_expand_(const struct vlltype&loc, perm_string name,
-				   std::map<perm_string,rs_production_t*>&pmap,
-				   std::set<perm_string>&used, bool&bad);
+struct pform_rs_expand_ctx_t {
+      const struct vlltype&loc;
+      std::map<perm_string,rs_production_t*>&pmap;
+      std::set<perm_string> active;
+      size_t nodes = 0;
+      bool bad = false;
 
-static Statement* pform_rs_expand_rule_(const struct vlltype&loc,
-					rs_rule_t&rule,
-					std::map<perm_string,rs_production_t*>&pmap,
-					std::set<perm_string>&used, bool&bad)
+      pform_rs_expand_ctx_t(const struct vlltype&l,
+			    std::map<perm_string,rs_production_t*>&m)
+      : loc(l), pmap(m) { }
+};
+
+static bool pform_rs_budget_(pform_rs_expand_ctx_t&ctx)
 {
-      std::vector<Statement*> stmts;
-      if (rule.items) {
-	    for (size_t i = 0 ; i < rule.items->size() ; i += 1) {
-		  rs_item_t&it = (*rule.items)[i];
-		  Statement*s = nullptr;
-		  if (it.code) {
-			pform_rs_mark_conditions_strict_(it.code);
-			s = it.code;
-			it.code = nullptr;
-		  }  /* move */
-		  else s = pform_rs_expand_(loc, it.name, pmap, used, bad);
-		  if (s) stmts.push_back(s);
-	    }
+      if (++ctx.nodes <= 16384) return true;
+      if (!ctx.bad) {
+	    cerr << ctx.loc << ": sorry: randsequence expansion exceeds the "
+		 << "16384-statement safety limit." << endl;
+	    error_count += 1;
       }
+      ctx.bad = true;
+      return false;
+}
+
+static PBlock* pform_rs_block_(const LineInfo&where,
+			       const std::vector<Statement*>&stmts,
+			       ivl_randsequence_block_t kind =
+				 IVL_RANDSEQ_BLOCK_NONE)
+{
       PBlock*blk = new PBlock(PBlock::BL_SEQ);
-      FILE_NAME(blk, loc);
+      blk->set_line(where);
       blk->set_statement(stmts);
+      blk->randsequence_block(kind);
       return blk;
 }
 
-static Statement* pform_rs_expand_(const struct vlltype&loc, perm_string name,
-				   std::map<perm_string,rs_production_t*>&pmap,
-				   std::set<perm_string>&used, bool&bad)
+static PBlock* pform_rs_block_(const struct vlltype&where,
+			       const std::vector<Statement*>&stmts,
+			       ivl_randsequence_block_t kind =
+				 IVL_RANDSEQ_BLOCK_NONE)
 {
-      std::map<perm_string,rs_production_t*>::iterator it = pmap.find(name);
-      if (it == pmap.end()) {
-	    cerr << loc << ": error: randsequence production `" << name
+      PBlock*blk = new PBlock(PBlock::BL_SEQ);
+      FILE_NAME(blk, where);
+      blk->set_statement(stmts);
+      blk->randsequence_block(kind);
+      return blk;
+}
+
+static bool pform_rs_constant_actual_(PExpr*expr)
+{
+      if (!expr) return false;
+      if (dynamic_cast<PENumber*>(expr) || dynamic_cast<PEFNumber*>(expr)
+	  || dynamic_cast<PEString*>(expr) || dynamic_cast<PETypename*>(expr))
+	    return true;
+      if (PEUnary*un = dynamic_cast<PEUnary*>(expr))
+	    return pform_rs_constant_actual_(un->get_expr());
+      if (PEBinary*bin = dynamic_cast<PEBinary*>(expr))
+	    return pform_rs_constant_actual_(bin->get_left())
+		&& pform_rs_constant_actual_(bin->get_right());
+      if (PETernary*ter = dynamic_cast<PETernary*>(expr))
+	    return pform_rs_constant_actual_(ter->get_cond())
+		&& pform_rs_constant_actual_(ter->get_true())
+		&& pform_rs_constant_actual_(ter->get_false());
+      if (PECastSize*cast = dynamic_cast<PECastSize*>(expr))
+	    return pform_rs_constant_actual_(cast->cast_size())
+		&& pform_rs_constant_actual_(cast->cast_base());
+      if (PECastType*cast = dynamic_cast<PECastType*>(expr))
+	    return pform_rs_constant_actual_(cast->cast_base());
+      if (PECastSign*cast = dynamic_cast<PECastSign*>(expr))
+	    return pform_rs_constant_actual_(cast->cast_base());
+      if (PEConcat*cat = dynamic_cast<PEConcat*>(expr)) {
+	    if (cat->has_repeat()
+		&& !pform_rs_constant_actual_(cat->repeat_expr())) return false;
+	    for (PExpr*part : cat->stream_parms())
+		  if (!pform_rs_constant_actual_(part)) return false;
+	    return true;
+      }
+      return false;
+}
+
+static void pform_rs_delete_subst_(std::map<perm_string,PExpr*>&subst)
+{
+      for (std::map<perm_string,PExpr*>::iterator it = subst.begin()
+	 ; it != subst.end() ; ++it) delete it->second;
+      subst.clear();
+}
+
+static bool pform_rs_bind_actuals_(pform_rs_expand_ctx_t&ctx,
+				   const rs_production_t&prod,
+				   const std::list<named_pexpr_t>*actuals,
+				   const std::map<perm_string,PExpr*>*outer,
+				   std::map<perm_string,PExpr*>&bound)
+{
+      const size_t count = prod.formals ? prod.formals->size() : 0;
+      std::vector<PExpr*> values(count, nullptr);
+      size_t positional = 0;
+      bool named_seen = false;
+
+      if (actuals) for (const named_pexpr_t&actual : *actuals) {
+	    size_t idx = count;
+	    if (actual.name.nil()) {
+		  if (named_seen) {
+			cerr << ctx.loc << ": error: positional randsequence actual "
+			     << "follows a named actual in production `"
+			     << prod.name << "'." << endl;
+			error_count += 1; ctx.bad = true; break;
+		  }
+		  while (positional < count && values[positional]) ++positional;
+		  idx = positional++;
+	    } else {
+		  named_seen = true;
+		  for (size_t n = 0 ; n < count ; ++n)
+			if ((*prod.formals)[n].name == actual.name) { idx = n; break; }
+	    }
+	    if (idx >= count) {
+		  cerr << ctx.loc << ": error: too many or unknown randsequence "
+		       << "actuals for production `" << prod.name << "'." << endl;
+		  error_count += 1; ctx.bad = true; break;
+	    }
+	    if (values[idx]) {
+		  cerr << ctx.loc << ": error: duplicate randsequence actual for `"
+		       << (*prod.formals)[idx].name << "'." << endl;
+		  error_count += 1; ctx.bad = true; break;
+	    }
+	    values[idx] = actual.parm
+		? sva_clone_subst_(actual.parm, outer) : nullptr;
+	    if (!values[idx] || !pform_rs_constant_actual_(values[idx])) {
+		  cerr << ctx.loc << ": sorry: randsequence input actuals must be "
+		       << "side-effect-free constant expressions; production `"
+		       << prod.name << "' has a nonconstant actual." << endl;
+		  error_count += 1; ctx.bad = true; break;
+	    }
+      }
+
+      for (size_t idx = 0 ; !ctx.bad && idx < count ; ++idx) {
+	    const rs_formal_t&formal = (*prod.formals)[idx];
+	    if (formal.direction != NetNet::PINPUT) {
+		  cerr << formal.get_fileline() << ": sorry: randsequence output, "
+		       << "inout, and ref production formals are not supported yet."
+		       << endl;
+		  error_count += 1; ctx.bad = true; break;
+	    }
+	    if (!values[idx] && formal.default_expr)
+		  values[idx] = sva_clone_subst_(formal.default_expr, &bound);
+	    if (!values[idx] || !pform_rs_constant_actual_(values[idx])) {
+		  cerr << ctx.loc << ": error: randsequence production `"
+		       << prod.name << "' has no constant actual for formal `"
+		       << formal.name << "'." << endl;
+		  error_count += 1; ctx.bad = true; break;
+	    }
+	    bound[formal.name] = values[idx];
+	    values[idx] = nullptr;
+      }
+      for (PExpr*value : values) delete value;
+      if (ctx.bad) pform_rs_delete_subst_(bound);
+      return !ctx.bad;
+}
+
+static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
+				       Statement*stmt,
+				       const std::map<perm_string,PExpr*>*subst,
+				       unsigned loop_depth)
+{
+      if (!stmt || !pform_rs_budget_(ctx)) return nullptr;
+
+      if (PBlock*block = dynamic_cast<PBlock*>(stmt)) {
+	    if (block->bl_type() != PBlock::BL_SEQ
+		|| !block->pscope_name().nil()) {
+		  cerr << stmt->get_fileline() << ": sorry: randsequence code "
+		       << "blocks currently require anonymous sequential blocks."
+		       << endl;
+		  error_count += 1; ctx.bad = true; return nullptr;
+	    }
+	    std::vector<Statement*> children;
+	    for (Statement*child : block->statements()) {
+		  Statement*copy = pform_rs_clone_stmt_(ctx, child, subst,
+						 loop_depth);
+		  if (copy) children.push_back(copy);
+	    }
+	    return pform_rs_block_(*stmt, children,
+				   block->randsequence_block());
+      }
+      if (PAssign*assign = dynamic_cast<PAssign*>(stmt)) {
+	    if (assign->has_timing_control()) goto unsupported;
+	    PExpr*lhs = sva_clone_subst_(const_cast<PExpr*>(assign->lval()), subst);
+	    PExpr*rhs = sva_clone_subst_(assign->rval(), subst);
+	    if (!lhs || !rhs) { delete lhs; delete rhs; goto unsupported; }
+	    PAssign*copy = assign->op()
+		? new PAssign(lhs, assign->op(), rhs) : new PAssign(lhs, rhs);
+	    copy->set_line(*stmt);
+	    return copy;
+      }
+      if (PAssignNB*assign = dynamic_cast<PAssignNB*>(stmt)) {
+	    if (assign->has_timing_control()) goto unsupported;
+	    PExpr*lhs = sva_clone_subst_(const_cast<PExpr*>(assign->lval()), subst);
+	    PExpr*rhs = sva_clone_subst_(assign->rval(), subst);
+	    if (!lhs || !rhs) { delete lhs; delete rhs; goto unsupported; }
+	    PAssignNB*copy = new PAssignNB(lhs, rhs);
+	    copy->set_line(*stmt);
+	    return copy;
+      }
+      if (PCondit*cond = dynamic_cast<PCondit*>(stmt)) {
+	    PExpr*expr = sva_clone_subst_(cond->cond_expr(), subst);
+	    Statement*yes = pform_rs_clone_stmt_(ctx, cond->if_clause(), subst,
+						 loop_depth);
+	    Statement*no = cond->else_clause()
+		? pform_rs_clone_stmt_(ctx, cond->else_clause(), subst, loop_depth)
+		: nullptr;
+	    if (!expr) { delete yes; delete no; goto unsupported; }
+	    sva_mark_strict_(expr);
+	    PCondit*copy = new PCondit(expr, yes, no);
+	    copy->parsed_if_statement(cond->is_parsed_if_statement());
+	    copy->immediate_assertion(cond->is_immediate_assertion());
+	    copy->set_line(*stmt);
+	    return copy;
+      }
+      if (PRepeat*repeat = dynamic_cast<PRepeat*>(stmt)) {
+	    PExpr*count = sva_clone_subst_(repeat->count_expr(), subst);
+	    Statement*body = pform_rs_clone_stmt_(ctx, repeat->body(), subst,
+						   loop_depth + 1);
+	    if (!count || !body) { delete count; delete body; goto unsupported; }
+	    sva_mark_strict_(count);
+	    PRepeat*copy = new PRepeat(count, body);
+	    copy->set_line(*stmt);
+	    return copy;
+      }
+      if (PCallTask*call = dynamic_cast<PCallTask*>(stmt)) {
+	    std::list<named_pexpr_t> parms;
+	    for (const named_pexpr_t&src : call->parms()) {
+		  named_pexpr_t dst;
+		  dst.name = src.name;
+		  dst.parm = src.parm ? sva_clone_subst_(src.parm, subst) : nullptr;
+		  if (src.parm && !dst.parm) goto unsupported;
+		  parms.push_back(dst);
+	    }
+	    PCallTask*copy;
+	    if (call->receiver_expr()) {
+		  if (call->path().size() != 1) goto unsupported;
+		  PExpr*receiver = sva_clone_subst_(call->receiver_expr(), subst);
+		  if (!receiver) goto unsupported;
+		  copy = new PCallTask(receiver, call->path().front().name, parms);
+	    } else if (call->package()) {
+		  copy = new PCallTask(call->package(), call->path(), parms);
+	    } else {
+		  copy = new PCallTask(call->path(), parms);
+	    }
+	    if (call->leading_type_args()) {
+		  parmvalue_t*args = sva_clone_parmvalue_(call->leading_type_args(),
+						      subst);
+		  if (!args) { delete copy; goto unsupported; }
+		  copy->set_leading_type_args(args);
+	    }
+	    std::vector<PExpr*> with;
+	    for (PExpr*src : call->with_constraints()) {
+		  PExpr*dst = sva_clone_subst_(src, subst);
+		  if (!dst) { delete copy; goto unsupported; }
+		  with.push_back(dst);
+	    }
+	    copy->set_with_constraints(std::move(with));
+	    if (call->is_void_cast()) copy->void_cast();
+	    copy->set_line(*stmt);
+	    return copy;
+      }
+      if (PBreak*jump = dynamic_cast<PBreak*>(stmt)) {
+	    ivl_flow_control_t kind = loop_depth
+		? IVL_FLOW_LOOP_BREAK : IVL_FLOW_RANDSEQ_BREAK;
+	    if (jump->flow_control() != IVL_FLOW_LOOP_BREAK)
+		  kind = jump->flow_control();
+	    PBreak*copy = new PBreak(kind);
+	    copy->set_line(*stmt);
+	    return copy;
+      }
+      if (PContinue*cont = dynamic_cast<PContinue*>(stmt)) {
+	    if (!loop_depth) {
+		  cerr << cont->get_fileline() << ": error: continue is not inside "
+		       << "a procedural loop in this randsequence production."
+		       << endl;
+		  error_count += 1; ctx.bad = true; return nullptr;
+	    }
+	    PContinue*copy = new PContinue;
+	    copy->set_line(*stmt);
+	    return copy;
+      }
+      if (PReturn*ret = dynamic_cast<PReturn*>(stmt)) {
+	    if (ret->expr()) {
+		  cerr << ret->get_fileline() << ": sorry: value-returning "
+		       << "randsequence productions are not supported yet." << endl;
+		  error_count += 1; ctx.bad = true; return nullptr;
+	    }
+	    PBreak*copy = new PBreak(IVL_FLOW_RANDSEQ_RETURN);
+	    copy->set_line(*stmt);
+	    return copy;
+      }
+      if (dynamic_cast<PNoop*>(stmt)) {
+	    PNoop*copy = new PNoop;
+	    copy->set_line(*stmt);
+	    return copy;
+      }
+
+unsupported:
+      cerr << stmt->get_fileline() << ": sorry: this statement shape is not "
+	   << "supported in a reusable randsequence code block yet." << endl;
+      error_count += 1; ctx.bad = true;
+      return nullptr;
+}
+
+static Statement* pform_rs_expand_production_(
+      pform_rs_expand_ctx_t&ctx, perm_string name,
+      const std::list<named_pexpr_t>*actuals,
+      const std::map<perm_string,PExpr*>*outer);
+
+static Statement* pform_rs_expand_item_(
+      pform_rs_expand_ctx_t&ctx, const rs_item_t&item,
+      const std::map<perm_string,PExpr*>*subst);
+
+struct pform_rs_join_lane_t {
+      const rs_production_t*production = nullptr;
+      const rs_rule_t*rule = nullptr;
+      std::map<perm_string,PExpr*> subst;
+};
+
+struct pform_rs_join_schedule_t {
+      std::vector<size_t> lanes;
+      double probability = 0.0;
+};
+
+static void pform_rs_join_schedules_(
+      pform_rs_expand_ctx_t&ctx,
+      const std::vector<pform_rs_join_lane_t>&lanes,
+      std::vector<size_t>&positions, long previous,
+      double stay_probability, double probability,
+      std::vector<size_t>&order,
+      std::vector<pform_rs_join_schedule_t>&out)
+{
+      size_t eligible = 0;
+      for (size_t lane = 0 ; lane < lanes.size() ; ++lane)
+	    if (positions[lane] < lanes[lane].rule->items->size()) ++eligible;
+      if (!eligible) {
+	    if (out.size() >= 256) {
+		  if (!ctx.bad) {
+			cerr << ctx.loc << ": sorry: randsequence rand join expands "
+			     << "to more than 256 legal interleavings." << endl;
+			error_count += 1;
+		  }
+		  ctx.bad = true;
+		  return;
+	    }
+	    pform_rs_join_schedule_t schedule;
+	    schedule.lanes = order;
+	    schedule.probability = probability;
+	    out.push_back(schedule);
+	    return;
+      }
+
+      bool previous_active = previous >= 0
+	    && positions[previous] < lanes[previous].rule->items->size();
+      for (size_t lane = 0 ; lane < lanes.size() && !ctx.bad ; ++lane) {
+	    if (positions[lane] >= lanes[lane].rule->items->size()) continue;
+	    double choose = 1.0 / eligible;
+	    if (previous_active) {
+		  choose = (1.0 - stay_probability) / eligible;
+		  if ((long)lane == previous) choose += stay_probability;
+	    }
+	    ++positions[lane];
+	    order.push_back(lane);
+	    pform_rs_join_schedules_(ctx, lanes, positions, lane,
+				      stay_probability,
+				      probability * choose, order, out);
+	    order.pop_back();
+	    --positions[lane];
+      }
+}
+
+static bool pform_rs_join_probability_(pform_rs_expand_ctx_t&ctx,
+				       PExpr*expr,
+				       const std::map<perm_string,PExpr*>*subst,
+				       double&value)
+{
+      if (!expr) { value = 0.5; return true; }
+      PExpr*copy = sva_clone_subst_(expr, subst);
+      if (PENumber*integer = dynamic_cast<PENumber*>(copy))
+	    value = integer->value().as_double();
+      else if (PEFNumber*real = dynamic_cast<PEFNumber*>(copy))
+	    value = real->value().as_double();
+      else {
+	    cerr << ctx.loc << ": sorry: randsequence rand join probability "
+		 << "must currently be a numeric constant." << endl;
+	    error_count += 1; ctx.bad = true; delete copy; return false;
+      }
+      delete copy;
+      if (!std::isfinite(value) || value < 0.0 || value > 1.0) {
+	    cerr << ctx.loc << ": error: randsequence rand join probability "
+		 << "must be between 0.0 and 1.0." << endl;
+	    error_count += 1; ctx.bad = true; return false;
+      }
+      return true;
+}
+
+static Statement* pform_rs_expand_join_(
+      pform_rs_expand_ctx_t&ctx, const rs_item_t&item,
+      const std::map<perm_string,PExpr*>*outer)
+{
+      double stay_probability;
+      if (!pform_rs_join_probability_(ctx, item.expr, outer,
+				      stay_probability)) return nullptr;
+
+      std::vector<pform_rs_join_lane_t> lanes;
+      if (!item.join_items || item.join_items->size() < 2) {
+	    cerr << ctx.loc << ": error: randsequence rand join requires at "
+		 << "least two productions." << endl;
+	    error_count += 1; ctx.bad = true; return nullptr;
+      }
+      for (const rs_item_t&call : *item.join_items) {
+	    std::map<perm_string,rs_production_t*>::iterator found =
+		  ctx.pmap.find(call.name);
+	    if (found == ctx.pmap.end()) {
+		  cerr << ctx.loc << ": error: randsequence production `"
+		       << call.name << "' is not defined." << endl;
+		  error_count += 1; ctx.bad = true; break;
+	    }
+	    const rs_production_t*prod = found->second;
+	    if (ctx.active.count(prod->name)) {
+		  cerr << ctx.loc << ": sorry: recursive randsequence production `"
+		       << prod->name << "' is not supported." << endl;
+		  error_count += 1; ctx.bad = true; break;
+	    }
+	    if (prod->return_type || !prod->rules || prod->rules->size() != 1
+		|| (*prod->rules)[0].weight) {
+		  cerr << ctx.loc << ": sorry: randsequence rand join currently "
+		       << "requires each joined production to have one unweighted "
+		       << "void rule." << endl;
+		  error_count += 1; ctx.bad = true; break;
+	    }
+	    const rs_rule_t&rule = (*prod->rules)[0];
+	    bool code_only = rule.items;
+	    if (rule.items) for (const rs_item_t&part : *rule.items)
+		  if (part.kind != rs_item_t::CODE) code_only = false;
+	    if (!code_only) {
+		  cerr << ctx.loc << ": sorry: randsequence rand join currently "
+		       << "interleaves code-block items; nested production/control "
+		       << "items are not supported in joined lanes yet." << endl;
+		  error_count += 1; ctx.bad = true; break;
+	    }
+	    pform_rs_join_lane_t lane;
+	    lane.production = prod;
+	    lane.rule = &rule;
+	    if (!pform_rs_bind_actuals_(ctx, *prod, call.actuals, outer,
+					  lane.subst)) break;
+	    lanes.push_back(lane);
+      }
+      if (ctx.bad) {
+	    for (pform_rs_join_lane_t&lane : lanes)
+		  pform_rs_delete_subst_(lane.subst);
+	    return nullptr;
+      }
+
+      std::vector<size_t> positions(lanes.size(), 0), order;
+      std::vector<pform_rs_join_schedule_t> schedules;
+      pform_rs_join_schedules_(ctx, lanes, positions, -1,
+				      stay_probability, 1.0, order, schedules);
+      if (ctx.bad) {
+	    for (pform_rs_join_lane_t&lane : lanes)
+		  pform_rs_delete_subst_(lane.subst);
+	    return nullptr;
+      }
+
+      std::vector<PCase::Item*>*branches = new std::vector<PCase::Item*>;
+      for (const pform_rs_join_schedule_t&schedule : schedules) {
+	    std::vector<size_t> used(lanes.size(), 0);
+	    std::vector<Statement*> statements;
+	    for (size_t lane_index : schedule.lanes) {
+		  const pform_rs_join_lane_t&lane = lanes[lane_index];
+		  const rs_item_t&part = (*lane.rule->items)[used[lane_index]++];
+		  Statement*copy = pform_rs_clone_stmt_(ctx, part.code,
+						   &lane.subst, 0);
+		  if (copy) statements.push_back(copy);
+	    }
+	    PCase::Item*branch = new PCase::Item;
+	    uint64_t weight = (uint64_t)llround(schedule.probability
+						 * (double)(1ULL << 30));
+	    if (!weight && schedule.probability > 0.0) weight = 1;
+	    branch->expr.push_back(new PENumber(new verinum(weight, 64)));
+	    branch->stat = pform_rs_block_(item, statements);
+	    branches->push_back(branch);
+      }
+      for (pform_rs_join_lane_t&lane : lanes)
+	    pform_rs_delete_subst_(lane.subst);
+
+      if (branches->size() == 1) {
+	    Statement*only = (*branches)[0]->stat;
+	    (*branches)[0]->stat = nullptr;
+	    delete (*branches)[0];
+	    delete branches;
+	    return only;
+      }
+      PRandCase*choice = new PRandCase(branches);
+      choice->set_line(item);
+      return choice;
+}
+
+static Statement* pform_rs_expand_item_(
+      pform_rs_expand_ctx_t&ctx, const rs_item_t&item,
+      const std::map<perm_string,PExpr*>*subst)
+{
+      switch (item.kind) {
+      case rs_item_t::CALL:
+	    return pform_rs_expand_production_(ctx, item.name, item.actuals, subst);
+      case rs_item_t::CODE: {
+	    Statement*copy = pform_rs_clone_stmt_(ctx, item.code, subst, 0);
+	    pform_rs_mark_conditions_strict_(copy);
+	    return copy;
+      }
+      case rs_item_t::IF_ELSE: {
+	    PExpr*condition = sva_clone_subst_(item.expr, subst);
+	    Statement*yes = item.first
+		? pform_rs_expand_item_(ctx, *item.first, subst) : nullptr;
+	    Statement*no = item.second
+		? pform_rs_expand_item_(ctx, *item.second, subst) : nullptr;
+	    if (!condition) {
+		  cerr << item.get_fileline() << ": sorry: cannot clone this "
+		       << "randsequence if condition." << endl;
+		  error_count += 1; ctx.bad = true; delete yes; delete no;
+		  return nullptr;
+	    }
+	    sva_mark_strict_(condition);
+	    PCondit*result = new PCondit(condition, yes, no);
+	    result->parsed_if_statement();
+	    result->set_line(item);
+	    return result;
+      }
+      case rs_item_t::REPEAT: {
+	    PExpr*count = sva_clone_subst_(item.expr, subst);
+	    Statement*body = item.first
+		? pform_rs_expand_item_(ctx, *item.first, subst) : nullptr;
+	    if (!count || !body) {
+		  cerr << item.get_fileline() << ": sorry: cannot lower this "
+		       << "randsequence repeat production." << endl;
+		  error_count += 1; ctx.bad = true; delete count; delete body;
+		  return nullptr;
+	    }
+	    sva_mark_strict_(count);
+	    PRepeat*result = new PRepeat(count, body);
+	    result->set_line(item);
+	    return result;
+      }
+      case rs_item_t::CASE: {
+	    PExpr*selector = sva_clone_subst_(item.expr, subst);
+	    std::vector<PCase::Item*>*items = new std::vector<PCase::Item*>;
+	    if (!selector) {
+		  cerr << item.get_fileline() << ": sorry: cannot clone this "
+		       << "randsequence case selector." << endl;
+		  error_count += 1; ctx.bad = true;
+	    } else sva_mark_strict_(selector);
+	    if (item.cases) for (const rs_case_item_t&source : *item.cases) {
+		  PCase::Item*target = new PCase::Item;
+		  if (source.expressions)
+			for (PExpr*expr : *source.expressions) {
+			      PExpr*copy = sva_clone_subst_(expr, subst);
+			      if (!copy) ctx.bad = true;
+			      else target->expr.push_back(copy);
+			}
+		  target->stat = source.item
+			? pform_rs_expand_item_(ctx, *source.item, subst) : nullptr;
+		  items->push_back(target);
+	    }
+	    PCase*result = new PCase(IVL_CASE_QUALITY_BASIC, NetCase::EQ,
+				      selector, items);
+	    result->set_line(item);
+	    return result;
+      }
+      case rs_item_t::RAND_JOIN:
+	    return pform_rs_expand_join_(ctx, item, subst);
+      }
+      return nullptr;
+}
+
+static Statement* pform_rs_expand_rule_(
+      pform_rs_expand_ctx_t&ctx, const rs_rule_t&rule,
+      const std::map<perm_string,PExpr*>*subst,
+      const struct vlltype&where)
+{
+      std::vector<Statement*> statements;
+      if (rule.items) for (const rs_item_t&item : *rule.items) {
+	    Statement*expanded = pform_rs_expand_item_(ctx, item, subst);
+	    if (expanded) statements.push_back(expanded);
+      }
+      return pform_rs_block_(where, statements);
+}
+
+static Statement* pform_rs_expand_production_(
+      pform_rs_expand_ctx_t&ctx, perm_string name,
+      const std::list<named_pexpr_t>*actuals,
+      const std::map<perm_string,PExpr*>*outer)
+{
+      std::map<perm_string,rs_production_t*>::iterator found =
+	    ctx.pmap.find(name);
+      if (found == ctx.pmap.end()) {
+	    cerr << ctx.loc << ": error: randsequence production `" << name
 		 << "' is not defined." << endl;
-	    error_count += 1; bad = true;
-	    return nullptr;
+	    error_count += 1; ctx.bad = true; return nullptr;
       }
-      if (used.count(name)) {
-	    cerr << loc << ": sorry: randsequence production `" << name
-		 << "' is referenced more than once (or recursively); the "
-		 << "source-level expansion supports each production at most "
-		 << "once. Rewrite the grammar without production reuse." << endl;
-	    error_count += 1; bad = true;
-	    return nullptr;
+      rs_production_t&prod = *found->second;
+      if (ctx.active.count(name)) {
+	    cerr << ctx.loc << ": sorry: recursive randsequence production `"
+		 << name << "' is not supported." << endl;
+	    error_count += 1; ctx.bad = true; return nullptr;
       }
-      used.insert(name);
+      if (prod.return_type) {
+	    cerr << ctx.loc << ": sorry: value-returning randsequence production `"
+		 << name << "' is not supported yet." << endl;
+	    error_count += 1; ctx.bad = true; return nullptr;
+      }
 
-      rs_production_t*p = it->second;
-      if (!p->rules || p->rules->empty()) {
-	    PBlock*blk = new PBlock(PBlock::BL_SEQ);
-	    FILE_NAME(blk, loc);
-	    return blk;
-      }
-      if (p->rules->size() == 1)
-	    return pform_rs_expand_rule_(loc, (*p->rules)[0], pmap, used, bad);
+      std::map<perm_string,PExpr*> subst;
+      if (!pform_rs_bind_actuals_(ctx, prod, actuals, outer, subst))
+	    return nullptr;
+      ctx.active.insert(name);
 
-	/* >1 alternatives: a weighted PRandCase (18.17.2). */
-      std::vector<PCase::Item*>*items = new std::vector<PCase::Item*>;
-      for (size_t r = 0 ; r < p->rules->size() ; r += 1) {
-	    rs_rule_t&rule = (*p->rules)[r];
-	    Statement*s = pform_rs_expand_rule_(loc, rule, pmap, used, bad);
-	    PCase::Item*ci = new PCase::Item;
-	    PExpr*w = rule.weight;
-	    rule.weight = nullptr;   /* moved */
-	    if (!w) w = new PENumber(new verinum((uint64_t)1, 32));
-	    ci->expr.push_back(w);
-	    ci->stat = s ? s : new PBlock(PBlock::BL_SEQ);
-	    items->push_back(ci);
+      Statement*body = nullptr;
+      if (!prod.rules || prod.rules->empty()) {
+	    std::vector<Statement*> empty;
+	    body = pform_rs_block_(ctx.loc, empty);
+	  } else if (prod.rules->size() == 1 && !(*prod.rules)[0].weight) {
+	    body = pform_rs_expand_rule_(ctx, (*prod.rules)[0], &subst, ctx.loc);
+	  } else {
+	    std::vector<PCase::Item*>*alternatives =
+		  new std::vector<PCase::Item*>;
+	    for (const rs_rule_t&rule : *prod.rules) {
+		  PCase::Item*alternative = new PCase::Item;
+		  PExpr*weight = rule.weight
+			? sva_clone_subst_(rule.weight, &subst)
+			: new PENumber(new verinum((uint64_t)1, 32));
+		  if (!weight) {
+			cerr << ctx.loc << ": sorry: cannot clone randsequence "
+			     << "production weight." << endl;
+			error_count += 1; ctx.bad = true;
+		  } else alternative->expr.push_back(weight);
+		  alternative->stat = pform_rs_expand_rule_(ctx, rule, &subst,
+							ctx.loc);
+		  alternatives->push_back(alternative);
+	    }
+	    PRandCase*choice = new PRandCase(alternatives);
+	    FILE_NAME(choice, ctx.loc);
+	    body = choice;
       }
-      PRandCase*rc = new PRandCase(items);
-      FILE_NAME(rc, loc);
-      return rc;
+      ctx.active.erase(name);
+      pform_rs_delete_subst_(subst);
+
+      std::vector<Statement*> one;
+      if (body) one.push_back(body);
+      return pform_rs_block_(ctx.loc, one, IVL_RANDSEQ_BLOCK_PRODUCTION);
+}
+
+static void pform_rs_destroy_item_(rs_item_t&item)
+{
+      if (item.actuals) {
+	    for (named_pexpr_t&actual : *item.actuals) delete actual.parm;
+	    delete item.actuals;
+      }
+      delete item.code;
+      delete item.expr;
+      if (item.first) { pform_rs_destroy_item_(*item.first); delete item.first; }
+      if (item.second) {
+	    pform_rs_destroy_item_(*item.second); delete item.second;
+      }
+      if (item.cases) {
+	    for (rs_case_item_t&case_item : *item.cases) {
+		  if (case_item.expressions) {
+			for (PExpr*expr : *case_item.expressions) delete expr;
+			delete case_item.expressions;
+		  }
+		  if (case_item.item) {
+			pform_rs_destroy_item_(*case_item.item);
+			delete case_item.item;
+		  }
+	    }
+	    delete item.cases;
+      }
+      if (item.join_items) {
+	    for (rs_item_t&join_item : *item.join_items)
+		  pform_rs_destroy_item_(join_item);
+	    delete item.join_items;
+      }
+}
+
+static void pform_rs_destroy_(std::vector<rs_production_t>*productions)
+{
+      if (!productions) return;
+      for (rs_production_t&prod : *productions) {
+	    if (prod.formals) {
+		  for (rs_formal_t&formal : *prod.formals)
+			delete formal.default_expr;
+		  delete prod.formals;
+	    }
+	    if (prod.rules) {
+		  for (rs_rule_t&rule : *prod.rules) {
+			delete rule.weight;
+			if (rule.items) {
+			      for (rs_item_t&item : *rule.items)
+				    pform_rs_destroy_item_(item);
+			      delete rule.items;
+			}
+		  }
+		  delete prod.rules;
+	    }
+      }
+      delete productions;
 }
 
 Statement* pform_make_randsequence(const struct vlltype&loc, perm_string start,
 				   std::vector<rs_production_t>*prods)
 {
+      std::vector<Statement*> root_statements;
       if (!prods || prods->empty()) {
-	    delete prods;
-	    return new PBlock(PBlock::BL_SEQ);
+	    pform_rs_destroy_(prods);
+	    return pform_rs_block_(loc, root_statements, IVL_RANDSEQ_BLOCK_ROOT);
       }
 
       std::map<perm_string,rs_production_t*> pmap;
-      for (size_t i = 0 ; i < prods->size() ; i += 1)
-	    pmap[(*prods)[i].name] = &(*prods)[i];
-
-      perm_string start_name = start;
-      if (start_name.nil())
-	    start_name = (*prods)[0].name;
-
-      std::set<perm_string> used;
-      bool bad = false;
-      Statement*body = pform_rs_expand_(loc, start_name, pmap, used, bad);
-
-	/* Free the production containers. Item code-blocks and rule weights
-	   were moved into the expanded tree (or dropped on the bad path). */
-      for (size_t i = 0 ; i < prods->size() ; i += 1) {
-	    rs_production_t&pr = (*prods)[i];
-	    if (pr.rules) {
-		  for (size_t r = 0 ; r < pr.rules->size() ; r += 1)
-			delete (*pr.rules)[r].items;
-		  delete pr.rules;
-	    }
+      bool duplicate = false;
+      for (rs_production_t&prod : *prods) {
+	    if (pmap.count(prod.name)) {
+		  cerr << loc << ": error: duplicate randsequence production `"
+		       << prod.name << "'." << endl;
+		  error_count += 1; duplicate = true;
+	    } else pmap[prod.name] = &prod;
       }
-      delete prods;
 
-      if (!body) {
-	    body = new PBlock(PBlock::BL_SEQ);
-	    FILE_NAME(body, loc);
+      perm_string start_name = start.nil() ? prods->front().name : start;
+      pform_rs_expand_ctx_t ctx(loc, pmap);
+      ctx.bad = duplicate;
+      if (!ctx.bad) {
+	    Statement*body = pform_rs_expand_production_(ctx, start_name,
+						    nullptr, nullptr);
+	    if (body) root_statements.push_back(body);
       }
-      return body;
+      pform_rs_destroy_(prods);
+      return pform_rs_block_(loc, root_statements, IVL_RANDSEQ_BLOCK_ROOT);
 }
 
 void pform_end_clocking_block(const struct vlltype&loc)

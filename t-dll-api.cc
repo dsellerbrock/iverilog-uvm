@@ -2996,6 +2996,29 @@ extern "C" ivl_scope_t ivl_stmt_block_scope(ivl_statement_t net)
       }
 }
 
+extern "C" ivl_randsequence_block_t
+ivl_stmt_block_randsequence(ivl_statement_t net)
+{
+      assert(net);
+      switch (net->type_) {
+	  case IVL_ST_BLOCK:
+	  case IVL_ST_FORK:
+	  case IVL_ST_FORK_JOIN_ANY:
+	  case IVL_ST_FORK_JOIN_NONE:
+	    return net->u_.block_.randsequence;
+	  default:
+	    assert(0);
+	    return IVL_RANDSEQ_BLOCK_NONE;
+      }
+}
+
+extern "C" ivl_flow_control_t ivl_stmt_break_kind(ivl_statement_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_ST_BREAK);
+      return net->u_.flow_.kind;
+}
+
 extern "C" unsigned ivl_stmt_block_count(ivl_statement_t net)
 {
       assert(net);

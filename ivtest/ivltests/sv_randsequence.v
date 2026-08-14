@@ -1,8 +1,7 @@
-// M3B-2: randsequence (IEEE 1800-2017 18.17). Production-based random
-// sequence generation, lowered by source-level expansion:
-//   - a production sequence runs its items in order;
-//   - a production with alternatives selects one (weighted by `:=`);
-//   - code-block items execute; non-terminal items expand.
+// M3B-2: randsequence (IEEE 1800-2017 18.17). Baseline production-order
+// and weighted-alternative coverage. The structured-control, reuse,
+// argument, interleaving, break, and return cases live in the companion
+// sv_randsequence_control_flow regression.
 // Self-checking: deterministic-order checks for sequences/nesting, plus a
 // statistical check that a 3:1 weight is honored.
 module sv_randsequence;
@@ -36,6 +35,5 @@ module sv_randsequence;
 
     if (errors == 0) $display("PASSED");
     else $display("FAILED (%0d errors)", errors);
-    $finish;
   end
 endmodule

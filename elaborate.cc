@@ -6642,6 +6642,7 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
       }
 
       NetBlock*cur = new NetBlock(type, nscope);
+      cur->randsequence_block(randsequence_block_);
       NetBlock*prefix = 0;
 
 	// Decide whether this automatic scope needs its own activation
@@ -6722,7 +6723,8 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	// Also, don't elide named blocks, because they might be
 	// referenced elsewhere.
       if ((type == NetBlock::SEQU) && (list_.size() == 1) &&
-          (pscope_name() == 0)) {
+          (pscope_name() == 0)
+	  && (randsequence_block_ == IVL_RANDSEQ_BLOCK_NONE)) {
 	    ivl_assert(*this, list_[0]);
 	    NetProc*tmp = list_[0]->elaborate(des, nscope);
 	    return tmp;
@@ -6806,7 +6808,7 @@ NetProc* PBreak::elaborate(Design*des, NetScope*) const
       }
 
 
-      NetBreak*res = new NetBreak;
+      NetBreak*res = new NetBreak(kind_);
       res->set_line(*this);
       return res;
 }

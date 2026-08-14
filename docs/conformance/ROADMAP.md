@@ -223,7 +223,7 @@ remaining legal dependency wrappers listed above still need traversal.
 | ID | Item | Nat | Status | Blocked-by | Done when |
 |----|------|-----|--------|-----------|-----------|
 | M3B-1 | `randcase` / `std::randomize(var)` / `unique {}` | F | **DONE** | — | tests landed |
-| M3B-2 | `randsequence` | F | **DONE** | — | productions/sequences/nesting/weighted alternatives via source-level expansion; recursion/reuse is a loud sorry |
+| M3B-2 | `randsequence` | F | **PARTIAL** | — | Acyclic reusable productions, weighted alternatives, input constants/defaults/named actuals, production `if`/`case`/`repeat`, code-block control flow, `rand join`, whole-sequence `break`, and production-local `return` are implemented. Recursive grammars, nonconstant input actual capture, value-returning productions, non-input formals, and nested-control joined lanes remain loud boundaries. |
 | M3B-3 | `disable soft` | F | **DONE** | — | soft constraints on the named variable dropped for the randomize() call |
 | M3B-4 | Reaudit `rand_mode` / `constraint_mode` combinations | A | **VERIFIED WORKING** | — | Probe m3b4_randmode: object-level and per-field `rand_mode()`/`constraint_mode()` set and query, in all combinations, behave correctly. **Terms:** pin the probe as a regression test, then close |
 | M3B-5 | Seed-stability + failed-randomization state tests | A | **DONE** (RNG half) | — | **Fixed the P0:** `srandom()` and `set_randstate()` elaborated to an empty `NetBlock` and `get_randstate()` returned a literal empty string, so seeding silently did nothing — re-seeding one object with seed 7 gave 103 then 198, and two objects seeded identically diverged (probe m3b5_seed_stability). **Fix:** each `vvp_cobject` carries its own RNG and each `vthread_s` carries the process RNG (18.13.2) — xorshift64*, one 64-bit word, so `get_randstate()` is that word and `set_randstate()` reads it back exactly; 18.13.3 leaves the string implementation-defined, and a tagged prefix (`ivl1:` / `ivlp1:`) lets a foreign string be rejected loudly. New `%srandom` / `%get_randstate` / `%set_randstate` opcodes dispatch on object vs. `process`. `randomize()` draws from the object RNG, and per 18.13.1 so do `$urandom`/`$urandom_range` — via a new `vpip_object_urandom()` hook the vpi/ module consults before its own generator, resolving the enclosing object first, then walking the thread's parent chain for a seeded process. Reproducible for unconstrained *and* constrained properties (the solver starts from the same draws). Unqualified in-method `srandom()`/`get_randstate()` resolve through `this`. UVM's `p.get_randstate()`/`p.set_randstate()` save-restore idiom works. **Deliberate boundary:** a generator activates only once SEEDED; unseeded objects and threads keep drawing from the global generator, so every unseeded sequence — and each gold depending on one — is bit-for-bit unchanged (ivtest 1024/1068, full UVM confirm). **Note:** `process p = process::self();` as a *static* declaration initializer captures the wrong process (it is hoisted to a separate init thread); Icarus already warns on that form — use `automatic` or assign inside the block. The fail-state audit half of this row is separate and covered by M3B-6. tests m3b5_object_random_state_test, m3b5b_swrite_return_var_test |
@@ -242,14 +242,18 @@ remaining legal dependency wrappers listed above still need traversal.
 | M3B-10 | `std::randomize(vars) with {...}` does not reach the solver | F | **DONE (integral signal boundary)** | — | Parser-time range/enum/retry heuristics and the expression-context unenforced warning are removed. Statement, `void'(...)`, and expression forms now emit the common constraint IR with synthetic solver variables bound to simple integral scalar/packed-vector signals (1–64 bits), solve once through Z3, and write successful models through ordinary signal stores. Runtime state references are pinned to their call-time values; soft/dist/inside/cross-variable constraints use the shared semantics. UNSAT returns zero and preserves all destinations. Width and signedness are carried in literal IR, including full 64-bit and enum values; mixed-sign relational comparison follows 11.8.1. Selected/container destinations, arrays, and >64-bit variables remain loud unsupported boundaries rather than weakened constraints. `sv_std_randomize_with_solver` |
 
 **M3B-2 note.** `randsequence` is lowered by source-level expansion from
-the start production: sequences become blocks, alternatives become a
-weighted `PRandCase` (the same lowering as `randcase`), code blocks and
-non-terminals expand in place. Because pform statements cannot be
-duplicated, each production is expanded at most once; a production
-referenced more than once or a recursive grammar is a **loud sorry** (needs
-a task/automaton lowering — future work). No silent-miscompile gap.
-Advanced production features (`rand join`, `repeat`/`case` productions,
-production value/args, `break`/`return`) are not yet parsed.
+the start production. Each acyclic invocation receives its own cloned body,
+so legal production reuse no longer aliases or consumes the parsed template.
+Alternatives use weighted `PRandCase`; production `if`, `case`, and `repeat`
+retain their procedural selection semantics; constant input actuals are
+substituted into each invocation. Anonymous IR blocks carry separate root and
+production flow domains, so a randsequence `break` is not captured by an
+intervening procedural loop and a production `return` does not return from
+the containing task/function. The implemented `rand join` enumerates legal
+top-level code-item interleavings while preserving order within every lane
+and applies the 18.17.5 stay/switch probability. The loud residuals in the
+table require runtime activation records or a more general grammar automaton;
+none silently degrade to sequential execution.
 
 ### M1C — canonical semantic access architecture  (clause 6/7/8, architecture)
 

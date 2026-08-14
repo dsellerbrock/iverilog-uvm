@@ -172,7 +172,8 @@ endclass
 
 `randomize()` (plain, `with {}`, object- and per-field
 `rand_mode`/`constraint_mode`, pre/post_randomize, `dist`, `soft`, foreach
-constraints) is solved with Z3. `randcase` and `randsequence` work.
+constraints) is solved with Z3. `randcase` and the evidenced structured
+`randsequence` subset work.
 `srandom()`/`get_randstate()`/`set_randstate()` give each object its own
 generator. Unpacked-array `rand_mode` supports fixed, dynamic, queue, and
 associative elements (including typed associative keys); whole-array setters
@@ -390,8 +391,9 @@ read it for the per-clause evidence and the complete corner ledger.
   loud sorries. UVM's `uvm_hdl_*` register **backdoor** works via the
   Icarus UVM DPI backend ([`uvm_dpi/`](uvm_dpi)), which `-uvm` installs and
   loads automatically; `--uvm-no-dpi` remains available to skip DPI.
-- `randcase`, `randsequence`, `wait_order`, `checker`
-  blocks: rejected with explicit diagnostics.
+- Recursive `randsequence` grammars, nonconstant production-actual capture,
+  value-returning productions, and nested-control `rand join` lanes are
+  rejected with explicit diagnostics. `wait_order` remains unsupported.
 - Of the 3217-test vendored `ivtest` suite, 44 tests currently fail (vs. 83
   on pristine upstream at the fork base) — the live expected set is
   [ivtest_expected_fails.list](docs/conformance/ivtest_expected_fails.list);

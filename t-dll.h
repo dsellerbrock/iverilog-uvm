@@ -871,7 +871,12 @@ struct ivl_statement_s {
 		  struct ivl_statement_s*stmt_;
 		  unsigned nstmt_;
 		  ivl_scope_t scope;
+		  ivl_randsequence_block_t randsequence;
 	    } block_;
+
+	    struct { /* IVL_ST_BREAK */
+		  ivl_flow_control_t kind;
+	    } flow_;
 
 	    struct { /* IVL_ST_CASE, IVL_ST_CASEX, IVL_ST_CASEZ */
 		  ivl_case_quality_t quality;

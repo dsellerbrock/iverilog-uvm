@@ -844,6 +844,14 @@ extern int draw_array_reduce_vec4(ivl_expr_t expr);
  */
 extern int show_statement(ivl_statement_t net, ivl_scope_t sscope);
 
+typedef struct vvp_randsequence_flow_s {
+      unsigned break_label;
+      unsigned return_label;
+} vvp_randsequence_flow_t;
+extern vvp_randsequence_flow_t vvp_randsequence_flow_push(
+      ivl_randsequence_block_t kind, unsigned label);
+extern void vvp_randsequence_flow_pop(vvp_randsequence_flow_t saved);
+
 extern int show_stmt_break(ivl_statement_t net, ivl_scope_t sscope);
 extern int show_stmt_continue(ivl_statement_t net, ivl_scope_t sscope);
 extern int show_stmt_forever(ivl_statement_t net, ivl_scope_t sscope);

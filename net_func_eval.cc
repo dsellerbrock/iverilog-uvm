@@ -36,6 +36,8 @@ using namespace std;
 static const NetScope*disable = 0;
 static bool loop_break;
 static bool loop_continue;
+static bool randsequence_break;
+static bool randsequence_return;
 static bool warned_eval_expr_unsupported = false;
 static bool warned_eval_stmt_unsupported = false;
 static bool warned_eval_string_len_fallback = false;
@@ -675,7 +677,8 @@ bool NetBlock::evaluate_function(const LineInfo&loc,
 
 	    bool cur_flag = cur->evaluate_function(loc, use_context_map);
 	    flag = flag && cur_flag;
-      } while (cur != last_ && !disable && !loop_break && !loop_continue);
+      } while (cur != last_ && !disable && !loop_break && !loop_continue
+	       && !randsequence_break && !randsequence_return);
 
       if (debug_eval_tree) {
 	    cerr << get_fileline() << ": NetBlock::evaluate_function: "
@@ -685,6 +688,12 @@ bool NetBlock::evaluate_function(const LineInfo&loc,
       }
 
       if (disable == subscope_) disable = 0;
+      if (randsequence_block_ == IVL_RANDSEQ_BLOCK_PRODUCTION
+	  && randsequence_return)
+	    randsequence_return = false;
+      if (randsequence_block_ == IVL_RANDSEQ_BLOCK_ROOT
+	  && randsequence_break)
+	    randsequence_break = false;
 
       return flag;
 }
@@ -854,10 +863,16 @@ bool NetDisable::evaluate_function(const LineInfo&,
 bool NetBreak::evaluate_function(const LineInfo&,
 			         map<perm_string, LocalVar>&) const
 {
-      loop_break = true;
+      if (kind_ == IVL_FLOW_RANDSEQ_BREAK)
+	    randsequence_break = true;
+      else if (kind_ == IVL_FLOW_RANDSEQ_RETURN)
+	    randsequence_return = true;
+      else
+	    loop_break = true;
 
       if (debug_eval_tree) {
-	    cerr << get_fileline() << ": NetBreak::evaluate_function" << endl;
+	    cerr << get_fileline() << ": NetBreak::evaluate_function kind="
+		 << kind_ << endl;
       }
 
       return true;
@@ -885,11 +900,14 @@ bool NetDoWhile::evaluate_function(const LineInfo&loc,
 		 << "Start loop" << endl;
       }
 
-      while (!disable) {
+      while (!disable && !randsequence_break && !randsequence_return) {
 	      // Evaluate the statement.
 	    flag = proc_->evaluate_function(loc, context_map);
 	    if (! flag)
 		   break;
+
+	    if (randsequence_break || randsequence_return)
+		  break;
 
 	    if (loop_break) {
 		  loop_break = false;
@@ -935,7 +953,8 @@ bool NetForever::evaluate_function(const LineInfo&loc,
 		 << "Start loop" << endl;
       }
 
-      while (flag && !disable) {
+      while (flag && !disable && !randsequence_break
+	     && !randsequence_return) {
 	    flag = flag && statement_->evaluate_function(loc, context_map);
 
 	    if (loop_break) {
@@ -972,7 +991,8 @@ bool NetForLoop::evaluate_function(const LineInfo&loc,
 	    flag &= tmp_flag;
       }
 
-      while (flag && !disable) {
+      while (flag && !disable && !randsequence_break
+	     && !randsequence_return) {
 	    if (condition_) {
 		  // Evaluate the condition expression to try and get the
 		  // condition for the loop.
@@ -996,7 +1016,7 @@ bool NetForLoop::evaluate_function(const LineInfo&loc,
 	    bool tmp_flag = statement_->evaluate_function(loc, context_map);
 	    flag &= tmp_flag;
 
-	    if (disable)
+	    if (disable || randsequence_break || randsequence_return)
 		  break;
 
 	    if (loop_break) {
@@ -1041,7 +1061,8 @@ bool NetRepeat::evaluate_function(const LineInfo&loc,
 		 << "Repeating " << count << " times." << endl;
       }
 
-      while ((count > 0) && flag && !disable) {
+      while ((count > 0) && flag && !disable && !randsequence_break
+	     && !randsequence_return) {
 	    flag = flag && statement_->evaluate_function(loc, context_map);
 	    count -= 1;
 
@@ -1078,7 +1099,8 @@ bool NetWhile::evaluate_function(const LineInfo&loc,
 		 << "Start loop" << endl;
       }
 
-      while (flag && !disable) {
+      while (flag && !disable && !randsequence_break
+	     && !randsequence_return) {
 	      // Evaluate the condition expression to try and get the
 	      // condition for the loop.
 	    NetExpr*cond = cond_->evaluate_function(loc, context_map);
