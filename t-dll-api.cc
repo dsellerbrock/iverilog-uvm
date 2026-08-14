@@ -3765,6 +3765,21 @@ extern "C" ivl_type_t ivl_type_super(ivl_type_t net)
       return const_cast<netclass_t*>(class_type->get_super());
 }
 
+extern "C" unsigned ivl_type_interface_count(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type ? (unsigned)class_type->interface_types().size() : 0;
+}
+
+extern "C" ivl_type_t ivl_type_interface(ivl_type_t net, unsigned idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (!class_type || idx >= class_type->interface_types().size())
+	    return 0;
+
+      return const_cast<netclass_t*>(class_type->interface_types()[idx]);
+}
+
 extern "C" const char* ivl_type_method_prefix(ivl_type_t net)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);

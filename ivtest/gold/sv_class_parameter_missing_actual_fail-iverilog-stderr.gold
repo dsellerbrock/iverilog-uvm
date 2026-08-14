@@ -1,0 +1,2 @@
+ivltests/sv_class_parameter_missing_actual_fail.v:2: error: Missing value for parameter `VALUE`.
+1 error(s) during elaboration.

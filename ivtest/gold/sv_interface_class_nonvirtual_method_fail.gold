@@ -1,0 +1,2 @@
+./ivltests/sv_interface_class_nonvirtual_method_fail.v:6: error: Method `value' in class `nonvirtual_implementation' must be virtual to implement an interface-class method.
+1 error(s) during elaboration.

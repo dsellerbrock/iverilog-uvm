@@ -1,0 +1,2 @@
+./ivltests/sv_interface_class_missing_method_fail.v:6: error: Non-virtual class `incomplete' does not implement interface method `required_value'.
+1 error(s) during elaboration.

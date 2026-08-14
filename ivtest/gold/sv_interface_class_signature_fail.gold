@@ -1,0 +1,6 @@
+./ivltests/sv_interface_class_signature_fail.v:10: error: Interface method `operate' has incompatible inherited prototypes in `incompatible'.
+./ivltests/sv_interface_class_signature_fail.v:39: error: Method `transform' in class `wrong_count' does not match its interface-class prototype.
+./ivltests/sv_interface_class_signature_fail.v:26: error: Method `transform' in class `wrong_direction' does not match its interface-class prototype.
+./ivltests/sv_interface_class_signature_fail.v:20: error: Method `transform' in class `wrong_return' does not match its interface-class prototype.
+./ivltests/sv_interface_class_signature_fail.v:33: error: Method `transform' in class `wrong_type' does not match its interface-class prototype.
+5 error(s) during elaboration.

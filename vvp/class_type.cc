@@ -1612,6 +1612,54 @@ void class_type::set_super_dispatch_prefix(const string&path)
       super_dispatch_prefix_ = path;
 }
 
+void class_type::add_interface_dispatch_prefix(const string&path)
+{
+      if (path.empty())
+	    return;
+      for (const string&cur : interface_dispatch_prefixes_)
+	    if (cur == path)
+		  return;
+      interface_dispatch_prefixes_.push_back(path);
+}
+
+static bool class_assignment_compatible_(const class_type*have,
+					 const class_type*want,
+					 set<const class_type*>&seen)
+{
+      if (!(have && want) || !seen.insert(have).second)
+	    return false;
+
+      const string&want_key = want->dispatch_prefix();
+      if (have == want || (!want_key.empty()
+	  && have->dispatch_prefix() == want_key))
+	    return true;
+
+      const string&super_key = have->super_dispatch_prefix();
+      if (!super_key.empty()) {
+	    if (!want_key.empty() && super_key == want_key)
+		  return true;
+	    if (class_assignment_compatible_(
+		  class_type_from_dispatch_prefix(super_key), want, seen))
+		  return true;
+      }
+
+      for (const string&interface_key : have->interface_dispatch_prefixes()) {
+	    if (!want_key.empty() && interface_key == want_key)
+		  return true;
+	    if (class_assignment_compatible_(
+		  class_type_from_dispatch_prefix(interface_key), want, seen))
+		  return true;
+      }
+
+      return false;
+}
+
+bool class_type::assignment_compatible_with(const class_type*want) const
+{
+      set<const class_type*>seen;
+      return class_assignment_compatible_(this, want, seen);
+}
+
 const class_type* class_type::runtime_super(void) const
 {
       if (super_dispatch_prefix_.empty())
@@ -2203,6 +2251,14 @@ void compile_class_mark_struct(void)
 {
       assert(compile_class);
       compile_class->set_struct_type();
+}
+
+void compile_class_interface(char*dispatch_prefix)
+{
+      assert(compile_class);
+      if (dispatch_prefix)
+	    compile_class->add_interface_dispatch_prefix(dispatch_prefix);
+      delete[]dispatch_prefix;
 }
 
 void compile_class_property(unsigned idx, char*nam, char*typ,

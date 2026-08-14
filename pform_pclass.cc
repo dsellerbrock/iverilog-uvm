@@ -117,7 +117,9 @@ void pform_start_class_declaration(const struct vlltype&loc,
 				   class_type_t*type,
 				   data_type_t*base_type,
 				   list<named_pexpr_t> *base_args,
-				   bool virtual_class)
+				   bool virtual_class,
+				   bool interface_class,
+				   list<data_type_t*>*interface_types)
 {
       PClass*class_scope = pform_push_class_scope(loc, type->name);
       class_scope->type = type;
@@ -127,6 +129,13 @@ void pform_start_class_declaration(const struct vlltype&loc,
       ivl_assert(loc, type->base_type == 0);
       type->base_type.reset(base_type);
       type->virtual_class = virtual_class;
+      type->interface_class = interface_class;
+
+      if (interface_types) {
+	    for (data_type_t*relation : *interface_types)
+		  type->interface_types.emplace_back(relation);
+	    delete interface_types;
+      }
 
 
       ivl_assert(loc, type->base_args.empty());

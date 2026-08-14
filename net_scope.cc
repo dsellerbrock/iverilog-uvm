@@ -312,6 +312,34 @@ NetScope*NetScope::find_typedef_scope(const Design*des, const typedef_t*type)
 	    return 0;
       };
 
+      auto find_in_interface_graph = [type](NetScope*scope) -> NetScope* {
+	    if (!scope || scope->type() != NetScope::CLASS)
+		  return 0;
+	    const netclass_t*cls = scope->class_def();
+	    if (!cls || !cls->is_interface_class())
+		  return 0;
+
+	    std::vector<const netclass_t*>pending(cls->interface_types());
+	    std::set<const netclass_t*>seen;
+	    while (!pending.empty()) {
+		  const netclass_t*parent = pending.back();
+		  pending.pop_back();
+		  if (!parent || !seen.insert(parent).second)
+			continue;
+		  NetScope*parent_scope =
+			const_cast<NetScope*>(parent->class_scope());
+		  if (parent_scope) {
+			auto it = parent_scope->typedefs_.find(type->name);
+			if (it != parent_scope->typedefs_.end()
+			    && it->second == type)
+			      return parent_scope;
+		  }
+		  pending.insert(pending.end(), parent->interface_types().begin(),
+				 parent->interface_types().end());
+	    }
+	    return 0;
+      };
+
       NetScope *cur_scope = this;
       while (cur_scope) {
 	    auto it = cur_scope->typedefs_.find(type->name);
@@ -319,6 +347,8 @@ NetScope*NetScope::find_typedef_scope(const Design*des, const typedef_t*type)
 		  return cur_scope;
 	    if (NetScope*sup_scope = find_in_super_chain(cur_scope))
 		  return sup_scope;
+	    if (NetScope*interface_scope = find_in_interface_graph(cur_scope))
+		  return interface_scope;
 	    NetScope*import_scope = cur_scope->find_import(des, type->name);
 	    if (import_scope)
 		  cur_scope = import_scope;
@@ -362,6 +392,26 @@ NetScope*NetScope::find_typedef_scope(const Design*des, const typedef_t*type)
 			auto sup_it = sup_scope->typedefs_.find(type->name);
 			if (sup_it != sup_scope->typedefs_.end())
 			      return sup_scope;
+		  }
+		  if (cls && cls->is_interface_class()) {
+			std::vector<const netclass_t*>pending(cls->interface_types());
+			std::set<const netclass_t*>seen;
+			while (!pending.empty()) {
+			      const netclass_t*parent = pending.back();
+			      pending.pop_back();
+			      if (!parent || !seen.insert(parent).second)
+				    continue;
+			      NetScope*parent_scope = const_cast<NetScope*>(
+				    parent->class_scope());
+			      if (parent_scope) {
+				    auto parent_it = parent_scope->typedefs_.find(type->name);
+				    if (parent_it != parent_scope->typedefs_.end())
+					  return parent_scope;
+			      }
+			      pending.insert(pending.end(),
+				    parent->interface_types().begin(),
+				    parent->interface_types().end());
+			}
 		  }
 	    }
 	    NetScope*import_scope = cur_scope->find_import(des, type->name);
@@ -1013,6 +1063,27 @@ typedef_t* NetScope::find_typedef(const Design*des, perm_string name)
 	    typedef_t*sup_td = const_cast<NetScope*>(sup_scope)->find_typedef(des, name);
 	    if (sup_td)
 		  res = sup_td;
+      }
+
+      if (!res && type_ == CLASS && class_def_
+	  && class_def_->is_interface_class()) {
+	    std::vector<const netclass_t*>pending(class_def_->interface_types());
+	    std::set<const netclass_t*>seen;
+	    while (!pending.empty() && !res) {
+		  const netclass_t*parent = pending.back();
+		  pending.pop_back();
+		  if (!parent || !seen.insert(parent).second)
+			continue;
+		  NetScope*parent_scope = const_cast<NetScope*>(
+			parent->class_scope());
+		  if (parent_scope) {
+			auto local = parent_scope->typedefs_.find(name);
+			if (local != parent_scope->typedefs_.end())
+			      res = local->second;
+		  }
+		  pending.insert(pending.end(), parent->interface_types().begin(),
+				 parent->interface_types().end());
+	    }
       }
 
       if (!res) {

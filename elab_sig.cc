@@ -29,6 +29,7 @@
 
 # include  "Module.h"
 # include  "PClass.h"
+# include  "PEvent.h"
 # include  "PExpr.h"
 # include  "PGate.h"
 # include  "PGenerate.h"
@@ -1129,6 +1130,330 @@ static long class_randc_property_leaf_width_(ivl_type_t type)
       return type ? type->packed_width() : 0;
 }
 
+static bool interface_method_type_equivalent_(ivl_type_t left,
+					       ivl_type_t right)
+{
+      if (left == right)
+	    return true;
+      return left && right && left->type_equivalent(right)
+	  && right->type_equivalent(left);
+}
+
+static const NetBaseDef*interface_method_def_(const NetScope*method)
+{
+      if (!method)
+	    return 0;
+      if (method->type() == NetScope::FUNC)
+	    return method->func_def();
+      if (method->type() == NetScope::TASK)
+	    return method->task_def();
+      return 0;
+}
+
+static bool interface_method_signatures_match_(const NetScope*left,
+						const NetScope*right)
+{
+      if (!(left && right) || left->type() != right->type())
+	    return false;
+
+      const NetBaseDef*left_def = interface_method_def_(left);
+      const NetBaseDef*right_def = interface_method_def_(right);
+      if (!(left_def && right_def))
+	    return false;
+
+      unsigned left_first = 0;
+      unsigned right_first = 0;
+      if (left_def->port_count() && left_def->port(0)
+	  && left_def->port(0)->name() == perm_string::literal("@"))
+	    left_first = 1;
+      if (right_def->port_count() && right_def->port(0)
+	  && right_def->port(0)->name() == perm_string::literal("@"))
+	    right_first = 1;
+      if (left_def->port_count() - left_first
+	  != right_def->port_count() - right_first)
+	    return false;
+
+      for (unsigned idx = 0 ; idx < left_def->port_count() - left_first
+		 ; idx += 1) {
+	    const NetNet*left_port = left_def->port(left_first + idx);
+	    const NetNet*right_port = right_def->port(right_first + idx);
+	    if (!(left_port && right_port)
+		|| left_port->port_type() != right_port->port_type()
+		|| !interface_method_type_equivalent_(left_port->net_type(),
+						       right_port->net_type()))
+		  return false;
+      }
+
+      if (left->type() == NetScope::FUNC) {
+	    const NetFuncDef*left_func = left->func_def();
+	    const NetFuncDef*right_func = right->func_def();
+	    if (!(left_func && right_func)
+		|| left_func->is_void() != right_func->is_void())
+		  return false;
+	    if (!left_func->is_void()
+		&& !interface_method_type_equivalent_(
+		      left_func->return_sig()->net_type(),
+		      right_func->return_sig()->net_type()))
+		  return false;
+      }
+
+      return true;
+}
+
+static bool interface_method_has_body_(const NetScope*method)
+{
+      if (!method)
+	    return false;
+      if (method->type() == NetScope::FUNC) {
+	    if (const PFunction*pfunc = method->func_pform())
+		  return pfunc->get_statement() != 0;
+	    const NetFuncDef*def = method->func_def();
+	    return def && def->proc();
+      }
+      if (method->type() == NetScope::TASK) {
+	    if (const PTask*ptask = method->task_pform())
+		  return ptask->get_statement() != 0;
+	    const NetTaskDef*def = method->task_def();
+	    return def && def->proc();
+      }
+      return false;
+}
+
+static void collect_interface_class_graph_(const netclass_t*type,
+					   vector<const netclass_t*>&nodes,
+					   set<const netclass_t*>&seen)
+{
+      if (!type || !seen.insert(type).second)
+	    return;
+      nodes.push_back(type);
+      for (const netclass_t*parent : type->interface_types())
+	    collect_interface_class_graph_(parent, nodes, seen);
+}
+
+static NetScope*find_concrete_class_method_(const netclass_t*type,
+					     perm_string name)
+{
+      for (const netclass_t*cur = type ; cur ; cur = cur->get_super()) {
+	    const NetScope*scope = cur->class_scope();
+	    NetScope*method = scope ? const_cast<NetScope*>(
+		  scope->child(hname_t(name))) : 0;
+	    if (method && (method->type() == NetScope::FUNC
+		|| method->type() == NetScope::TASK))
+		  return method;
+      }
+      return 0;
+}
+
+static void validate_interface_class_relations_(Design*des,
+					 netclass_t*use_class,
+					 PClass*pclass)
+{
+      if (!(des && use_class && pclass))
+	    return;
+
+      vector<const netclass_t*>interfaces;
+      set<const netclass_t*>seen;
+      for (const netclass_t*cur = use_class ; cur ; cur = cur->get_super())
+	    for (const netclass_t*relation : cur->interface_types())
+		  collect_interface_class_graph_(relation, interfaces, seen);
+
+      map<perm_string,vector<NetScope*> >requirements;
+      map<perm_string,set<const PClass*> >type_declarations;
+      map<const PClass*,const netclass_t*>specializations;
+      set<const PClass*>reported_specializations;
+
+      for (const netclass_t*interface_type : interfaces) {
+	    const NetScope*interface_scope = interface_type
+		  ? interface_type->class_scope() : 0;
+	    const PClass*interface_pclass = interface_scope
+		  ? interface_scope->class_pform() : 0;
+	    if (!(interface_scope && interface_pclass))
+		  continue;
+
+	    auto prior = specializations.find(interface_pclass);
+	    if (prior == specializations.end()) {
+		  specializations[interface_pclass] = interface_type;
+	    } else if (prior->second != interface_type) {
+		  if (reported_specializations.insert(interface_pclass).second) {
+			cerr << pclass->get_fileline()
+			     << ": error: Interface class `"
+			     << interface_type->get_name()
+			     << "' is inherited through incompatible parameter "
+			     << "specializations in the same interface graph."
+			     << endl;
+			des->errors += 1;
+		  }
+		  /* The specialization conflict is the root cause. Do not also
+		     compare the two specializations' method signatures and emit a
+		     derivative second diagnostic for the same invalid edge. */
+		  continue;
+	    }
+
+	    for (const auto&cur : interface_pclass->funcs) {
+		  NetScope*method = const_cast<NetScope*>(
+			interface_scope->child(hname_t(cur.first)));
+		  if (method)
+			requirements[cur.first].push_back(method);
+	    }
+	    for (const auto&cur : interface_pclass->tasks) {
+		  NetScope*method = const_cast<NetScope*>(
+			interface_scope->child(hname_t(cur.first)));
+		  if (method)
+			requirements[cur.first].push_back(method);
+	    }
+
+	    for (const auto&cur : interface_pclass->parameters)
+		  if (cur.second && cur.second->type_flag)
+			type_declarations[cur.first].insert(interface_pclass);
+	    for (const auto&cur : interface_pclass->typedefs)
+		  type_declarations[cur.first].insert(interface_pclass);
+      }
+
+      if (use_class->is_interface_class()) {
+	    for (const auto&cur : type_declarations) {
+		  if (cur.second.size() < 2
+		      || pclass->typedefs.find(cur.first) != pclass->typedefs.end())
+			continue;
+		  cerr << pclass->get_fileline() << ": error: Interface class `"
+		       << use_class->get_name() << "' inherits conflicting type `"
+		       << cur.first << "' from multiple interface classes and must "
+		       << "declare a local resolution." << endl;
+		  des->errors += 1;
+	    }
+      }
+
+      for (const auto&cur : requirements) {
+	    const vector<NetScope*>&methods = cur.second;
+	    bool signatures_conflict = false;
+	    for (size_t idx = 1 ; idx < methods.size() ; idx += 1) {
+		  if (!interface_method_signatures_match_(methods[0], methods[idx])) {
+			signatures_conflict = true;
+			break;
+		  }
+	    }
+	    if (signatures_conflict) {
+		  cerr << pclass->get_fileline() << ": error: Interface method `"
+		       << cur.first << "' has incompatible inherited prototypes in `"
+		       << use_class->get_name() << "'." << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+
+	    if (use_class->is_interface_class())
+		  continue;
+
+	    NetScope*implementation = find_concrete_class_method_(use_class,
+							     cur.first);
+	    if (implementation && !implementation->is_virtual_method()) {
+		  cerr << pclass->get_fileline() << ": error: Method `" << cur.first
+		       << "' in class `" << use_class->get_name()
+		       << "' must be virtual to implement an interface-class method."
+		       << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+	    if (implementation
+		&& !interface_method_signatures_match_(methods[0], implementation)) {
+		  cerr << pclass->get_fileline() << ": error: Method `" << cur.first
+		       << "' in class `" << use_class->get_name()
+		       << "' does not match its interface-class prototype." << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+
+	    if (!use_class->is_virtual()
+		&& (!implementation || !interface_method_has_body_(implementation))) {
+		  cerr << pclass->get_fileline() << ": error: Non-virtual class `"
+		       << use_class->get_name() << "' does not implement interface "
+		       << "method `" << cur.first << "'." << endl;
+		  des->errors += 1;
+	    }
+      }
+}
+
+static void validate_interface_class_items_(Design*des, const PClass*pclass)
+{
+      if (!(des && pclass && pclass->type
+	    && pclass->type->interface_class))
+	    return;
+
+      for (const auto&cur : pclass->type->properties) {
+	    cerr << cur.second.get_fileline() << ": error: Data property `"
+		 << cur.first << "' is not allowed in an interface class."
+		 << endl;
+	    des->errors += 1;
+      }
+
+      for (const auto&cur : pclass->type->constraints) {
+	    const LineInfo*source = cur.second.empty()
+		  ? static_cast<const LineInfo*>(pclass)
+		  : static_cast<const LineInfo*>(cur.second.front());
+	    cerr << source->get_fileline() << ": error: Constraint `"
+		 << cur.first << "' is not allowed in an interface class."
+		 << endl;
+	    des->errors += 1;
+      }
+
+      for (const auto&cur : pclass->funcs) {
+	    if (!cur.second || !cur.second->is_pure_method()) {
+		  cerr << (cur.second ? cur.second->get_fileline()
+			       : pclass->get_fileline())
+		       << ": error: Function `" << cur.first
+		       << "' in an interface class must be a pure virtual method."
+		       << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+	    if (!cur.second->interface_qualifier_valid()) {
+		  cerr << cur.second->get_fileline()
+		       << ": error: Access or static qualifiers are not allowed "
+			  "on an interface-class method." << endl;
+		  des->errors += 1;
+	    }
+      }
+
+      for (const auto&cur : pclass->tasks) {
+	    if (!cur.second || !cur.second->is_pure_method()) {
+		  cerr << (cur.second ? cur.second->get_fileline()
+			       : pclass->get_fileline())
+		       << ": error: Task `" << cur.first
+		       << "' in an interface class must be a pure virtual method."
+		       << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+	    if (!cur.second->interface_qualifier_valid()) {
+		  cerr << cur.second->get_fileline()
+		       << ": error: Access or static qualifiers are not allowed "
+			  "on an interface-class method." << endl;
+		  des->errors += 1;
+	    }
+      }
+
+      for (const auto&cur : pclass->events) {
+	    cerr << (cur.second ? cur.second->get_fileline()
+			       : pclass->get_fileline())
+		 << ": error: Event `" << cur.first
+		 << "' is not allowed in an interface class." << endl;
+	    des->errors += 1;
+      }
+
+      for (const auto&cur : pclass->classes) {
+	    cerr << (cur.second ? cur.second->get_fileline()
+			       : pclass->get_fileline())
+		 << ": error: Nested class `" << cur.first
+		 << "' is not allowed in an interface class." << endl;
+	    des->errors += 1;
+      }
+
+      for (const auto*cur : pclass->type->covergroups) {
+	    cerr << pclass->get_fileline()
+		 << ": error: Covergroup `" << (cur ? cur->name : perm_string())
+		 << "' is not allowed in an interface class." << endl;
+	    des->errors += 1;
+      }
+}
+
 void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 {
       if (sig_elaborated_ || sig_elaborating_)
@@ -1150,6 +1475,20 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		  const_cast<netclass_t*>(super_)->elaborate_sig(des,
 					    const_cast<PClass*>(super_pclass));
       }
+
+      for (const netclass_t*interface_type : interface_types_) {
+	    if (!interface_type || interface_type->sig_elaborated()
+		|| interface_type->sig_elaborating())
+		  continue;
+	    const NetScope*interface_scope = interface_type->class_scope();
+	    const PClass*interface_pclass = interface_scope
+		  ? interface_scope->class_pform() : 0;
+	    if (interface_pclass)
+		  const_cast<netclass_t*>(interface_type)->elaborate_sig(
+			des, const_cast<PClass*>(interface_pclass));
+      }
+
+      validate_interface_class_items_(des, pclass);
 
 	// IEEE 1800-2017 8.20: a method that overrides an inherited virtual
 	// method is itself virtual, whether or not the declaration repeats
@@ -1375,6 +1714,8 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	    ivl_assert(*cur->second, scope);
 	    cur->second->elaborate_sig(des, scope);
       }
+
+      validate_interface_class_relations_(des, this, pclass);
 
       elaborate_sig_struct_default_typedefs_(des, class_scope_,
 					     pclass->typedefs);

@@ -155,6 +155,10 @@ static void emit_struct_cobject_dependencies_(ivl_type_t ptype)
 static void emit_class_dependencies_(ivl_type_t classtype)
 {
       int idx;
+
+      for (idx = 0 ; idx < (int)ivl_type_interface_count(classtype) ; idx += 1)
+	    ensure_class_type_emitted(ivl_type_interface(classtype, idx));
+
       for (idx = 0 ; idx < ivl_type_properties(classtype) ; idx += 1) {
 	    ivl_type_t ptype = ivl_type_prop_type(classtype, idx);
 	    if (is_unpacked_array_property_type(ptype))
@@ -412,6 +416,13 @@ void draw_class_in_scope(ivl_type_t classtype)
 		  fprintf(vvp_out, " .static_prop %d v%p%s\n", idx, storage,
 			  ivl_signal_dimensions(storage) ? "" : "_0");
 	    }
+      }
+
+      for (idx = 0 ; idx < (int)ivl_type_interface_count(classtype) ; idx += 1) {
+	    ivl_type_t interface_type = ivl_type_interface(classtype, idx);
+	    const char*interface_prefix = ivl_type_method_prefix(interface_type);
+	    assert(interface_prefix && *interface_prefix);
+	    fprintf(vvp_out, " .implements \"%s\"\n", interface_prefix);
       }
 
       {

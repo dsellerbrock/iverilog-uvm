@@ -1,0 +1,7 @@
+./ivltests/sv_interface_class_illegal_items_fail.v:3: error: Function `value' in an interface class must be a pure virtual method.
+./ivltests/sv_interface_class_illegal_items_fail.v:13: error: Data property `value' is not allowed in an interface class.
+./ivltests/sv_interface_class_illegal_items_fail.v:14: error: Constraint `positive' is not allowed in an interface class.
+./ivltests/sv_interface_class_illegal_items_fail.v:24: error: Event `changed' is not allowed in an interface class.
+./ivltests/sv_interface_class_illegal_items_fail.v:9: error: Data property `value' is not allowed in an interface class.
+./ivltests/sv_interface_class_illegal_items_fail.v:18: error: Function `value' in an interface class must be a pure virtual method.
+6 error(s) during elaboration.
