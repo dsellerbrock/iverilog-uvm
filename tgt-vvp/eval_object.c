@@ -2183,6 +2183,93 @@ static int object_expr_uses_aggregate_cobject_(ivl_expr_t expr)
           && ivl_type_properties(net_type) > 0;
 }
 
+/* Store one fixed-unpacked-array property value from an assignment pattern.
+ *
+ * Unpacked structs are represented by cobjects, and their fixed unpacked
+ * members are stored as indexed properties on that cobject.  A nested
+ * assignment pattern therefore cannot be evaluated as one object: doing so
+ * reaches eval_object_array_pattern(), which has no standalone object for a
+ * fixed array and historically degraded to the first element.  Walk only
+ * array-typed pattern nodes (a struct-valued element is itself an
+ * IVL_EX_ARRAY_PATTERN, but has properties rather than an element type), and
+ * write the leaves in canonical flat order using the indexed property
+ * opcodes.  The surrounding aggregate object remains on the object stack for
+ * every store.
+ */
+static int emit_fixed_array_property_pattern_(ivl_type_t leaf_type,
+                                               unsigned pidx,
+                                               ivl_expr_t value_expr,
+                                               int word_reg,
+                                               unsigned*flat_index)
+{
+      int errors = 0;
+      ivl_type_t value_type = ivl_expr_net_type(value_expr);
+
+      if (ivl_expr_type(value_expr) == IVL_EX_ARRAY_PATTERN
+          && value_type && ivl_type_element(value_type)) {
+            unsigned idx;
+            for (idx = 0; idx < ivl_expr_parms(value_expr); idx += 1)
+                  errors += emit_fixed_array_property_pattern_(
+                        leaf_type, pidx, ivl_expr_parm(value_expr, idx),
+                        word_reg, flat_index);
+            return errors;
+      }
+
+      switch (leaf_type ? ivl_type_base(leaf_type) : IVL_VT_LOGIC) {
+          case IVL_VT_BOOL:
+          case IVL_VT_LOGIC: {
+            unsigned wid = leaf_type ? ivl_type_packed_width(leaf_type) : 0;
+            if (wid == 0)
+                  wid = ivl_expr_width(value_expr);
+            draw_eval_vec4(value_expr);
+            if (leaf_type && ivl_type_base(leaf_type) == IVL_VT_BOOL
+                && ivl_expr_value(value_expr) != IVL_VT_BOOL)
+                  fprintf(vvp_out, "    %%cast2;\n");
+            if (ivl_expr_width(value_expr) != wid)
+                  fprintf(vvp_out, "    %%pad/%c %u;\n",
+                          (leaf_type && ivl_type_signed(leaf_type)
+                           && ivl_expr_signed(value_expr)) ? 's' : 'u', wid);
+            fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n",
+                    word_reg, *flat_index);
+            fprintf(vvp_out, "    %%store/prop/v/i %u, %d, %u;"
+                    " fixed-array aggregate member\n",
+                    pidx, word_reg, wid);
+            break;
+          }
+
+          case IVL_VT_REAL:
+            draw_eval_real(value_expr);
+            fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n",
+                    word_reg, *flat_index);
+            fprintf(vvp_out, "    %%store/prop/r/i %u, %d;"
+                    " fixed-array aggregate member\n", pidx, word_reg);
+            break;
+
+          case IVL_VT_STRING:
+            draw_eval_string(value_expr);
+            fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n",
+                    word_reg, *flat_index);
+            fprintf(vvp_out, "    %%store/prop/str/i %u, %d;"
+                    " fixed-array aggregate member\n", pidx, word_reg);
+            break;
+
+          case IVL_VT_CLASS:
+          case IVL_VT_DARRAY:
+          case IVL_VT_QUEUE:
+          case IVL_VT_NO_TYPE:
+          default:
+            errors += draw_eval_object_value_copy(value_expr, leaf_type);
+            fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n",
+                    word_reg, *flat_index);
+            fprintf(vvp_out, "    %%store/prop/obj %u, %d;"
+                    " fixed-array aggregate member\n", pidx, word_reg);
+            break;
+      }
+
+      *flat_index += 1;
+      return errors;
+}
+
 static int emit_aggregate_property_store_(ivl_type_t prop_type,
                                           unsigned pidx,
                                           ivl_expr_t value_expr)
@@ -2192,6 +2279,20 @@ static int emit_aggregate_property_store_(ivl_type_t prop_type,
       if (!prop_type) {
             errors += draw_eval_object(value_expr);
             fprintf(vvp_out, "    %%store/prop/obj %u, 0;\n", pidx);
+            return errors;
+      }
+
+      if (ivl_type_element(prop_type)
+          && ivl_type_base(prop_type) != IVL_VT_DARRAY
+          && ivl_type_base(prop_type) != IVL_VT_QUEUE
+          && !ivl_type_is_packed_vector(prop_type)
+          && ivl_expr_type(value_expr) == IVL_EX_ARRAY_PATTERN) {
+            ivl_type_t leaf_type = ivl_type_element(prop_type);
+            int word_reg = allocate_word();
+            unsigned flat_index = 0;
+            errors += emit_fixed_array_property_pattern_(
+                  leaf_type, pidx, value_expr, word_reg, &flat_index);
+            clr_word(word_reg);
             return errors;
       }
 

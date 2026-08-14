@@ -210,11 +210,32 @@ class PExpr : public LineInfo {
 
 std::ostream& operator << (std::ostream&, const PExpr&);
 
+/* IEEE 1800-2017 10.9 assignment-pattern keys. A key written as an
+ * expression is resolved against the target: for a structure a bare
+ * identifier can name a member, while for an array it is a constant
+ * declared index. Types and default are syntactically unambiguous. */
+struct assignment_pattern_key_t {
+      enum kind_t { EXPR, TYPE, DEFAULT };
+
+      explicit assignment_pattern_key_t(kind_t k = EXPR)
+      : kind(k), expr(nullptr), type(nullptr) { }
+
+      kind_t kind;
+      PExpr*expr;
+      data_type_t*type;
+};
+
+struct assignment_pattern_item_t {
+      assignment_pattern_key_t key;
+      PExpr*value;
+};
+
 class PEAssignPattern : public PExpr {
     public:
       explicit PEAssignPattern();
       explicit PEAssignPattern(const std::list<PExpr*>&p);
       explicit PEAssignPattern(const std::list<std::pair<perm_string,PExpr*>>&named);
+      explicit PEAssignPattern(const std::list<assignment_pattern_item_t>&keyed);
       // Replication form: '{N{elem0, elem1, ...}} — parms_ holds the base elements,
       // replication_ holds the count expression.
       explicit PEAssignPattern(PExpr*replication, const std::list<PExpr*>&p);
@@ -232,12 +253,17 @@ class PEAssignPattern : public PExpr {
       void reloc_lexical_pos_bind(bool parameter_context) override;
       const std::vector<PExpr*>& parms() const { return parms_; }
       const std::vector<perm_string>& parm_names() const { return parm_names_; }
+      const std::vector<assignment_pattern_key_t>& keys() const { return keys_; }
 	// Non-null when the pattern is exactly `'{default: value}'.
       PExpr* lone_default_() const;
 	// Effective element list, expanding the `'{N{...}}' replication
 	// form. False (diagnosed) when N is not a usable constant.
       bool expand_replication_(Design*des, NetScope*scope,
 			       std::vector<PExpr*>&out) const;
+      bool resolve_keyed_dimension_(Design*des, NetScope*scope,
+				    const netrange_t&range,
+				    ivl_type_t element_type,
+				    std::vector<PExpr*>&out) const;
       PExpr* replication() const { return replication_; }
     private:
 	// decl_type is the DECLARED type the dims were flattened from,
@@ -266,6 +292,7 @@ class PEAssignPattern : public PExpr {
     private:
       std::vector<PExpr*>parms_;
       std::vector<perm_string>parm_names_; // non-empty → named member pattern
+      std::vector<assignment_pattern_key_t>keys_; // non-empty → keyed pattern
       PExpr* replication_ = nullptr;       // non-null for '{N{...}} form
 };
 

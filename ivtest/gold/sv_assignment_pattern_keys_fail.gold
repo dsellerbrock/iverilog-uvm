@@ -1,0 +1,9 @@
+./ivltests/sv_assignment_pattern_keys_fail.v:11: error: No member named 'missing' in struct assignment pattern.
+./ivltests/sv_assignment_pattern_keys_fail.v:12: error: Named struct pattern has no value for member 'b'.
+./ivltests/sv_assignment_pattern_keys_fail.v:13: error: Array assignment-pattern index 4 is outside declared range [1:3].
+./ivltests/sv_assignment_pattern_keys_fail.v:14: error: Keyed array assignment pattern has no value for index 2.
+./ivltests/sv_assignment_pattern_keys_fail.v:15: error: A reference to a net or variable (`live_index') is not allowed in a constant expression.
+./ivltests/sv_assignment_pattern_keys_fail.v:16: error: Assignment pattern has multiple keys for array index 1.
+./ivltests/sv_assignment_pattern_keys_fail.v:17: error: Assignment pattern has multiple keys for member 'a'.
+./ivltests/sv_assignment_pattern_keys_fail.v:18: error: Assignment pattern has multiple default keys.
+8 error(s) during elaboration.

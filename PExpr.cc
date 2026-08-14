@@ -114,6 +114,36 @@ PEAssignPattern::PEAssignPattern(const list<pair<perm_string,PExpr*>>&named)
       for (auto&kv : named) {
 	    parm_names_.push_back(kv.first);
 	    parms_.push_back(kv.second);
+	    assignment_pattern_key_t key(
+		  kv.first == lex_strings.make("default")
+			? assignment_pattern_key_t::DEFAULT
+			: assignment_pattern_key_t::EXPR);
+	    if (key.kind == assignment_pattern_key_t::EXPR) {
+		  pform_name_t name;
+		  name.push_back(name_component_t(kv.first));
+		  key.expr = new PEIdent(name, 0);
+	    }
+	    keys_.push_back(key);
+      }
+}
+
+PEAssignPattern::PEAssignPattern(const list<assignment_pattern_item_t>&keyed)
+{
+      static const perm_string def_key = lex_strings.make("default");
+      for (const auto&item : keyed) {
+	    keys_.push_back(item.key);
+	    parms_.push_back(item.value);
+
+	    perm_string legacy_name;
+	    if (item.key.kind == assignment_pattern_key_t::DEFAULT) {
+		  legacy_name = def_key;
+	    } else if (item.key.kind == assignment_pattern_key_t::EXPR) {
+		  const PEIdent*id = dynamic_cast<const PEIdent*>(item.key.expr);
+		  if (id && !id->path().package && id->path().name.size() == 1
+		      && id->path().name.front().index.empty())
+			legacy_name = id->path().name.front().name;
+	    }
+	    parm_names_.push_back(legacy_name);
       }
 }
 
@@ -134,6 +164,9 @@ void PEAssignPattern::reloc_lexical_pos_bind(bool parameter_context)
 	    if (parms_[idx])
 		  parms_[idx]->reloc_lexical_pos_bind(parameter_context);
       }
+      for (auto&key : keys_)
+	    if (key.expr)
+		  key.expr->reloc_lexical_pos_bind(parameter_context);
 }
 
 PEBinary::PEBinary(char op, PExpr*l, PExpr*r)

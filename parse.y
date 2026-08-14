@@ -1295,7 +1295,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       std::list<struct_member_t*>*struct_members;
       struct_type_t*struct_type;
 
-      std::list<std::pair<perm_string,PExpr*>>*named_pattern;
+      std::list<assignment_pattern_item_t>*pattern_items;
 
       data_type_t*data_type;
       class_type_t*class_type;
@@ -1591,7 +1591,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <expr>  assignment_pattern expression expression_opt expr_mintypmax
 %type <expr>  sva_bool_atom
 %type <for_var_decls> for_var_decl_list
-%type <named_pattern> assignment_pattern_named_list
+%type <pattern_items> assignment_pattern_named_list
 %type <expr>  expr_primary_or_typename expr_primary parameterized_scoped_identifier
 %type <expr>  package_scoped_lvalue
 %type <expr>  class_new dynamic_array_new
@@ -1810,18 +1810,6 @@ assignment_pattern /* IEEE1800-2005: A.6.7.1 */
 	delete $2;
 	$$ = tmp;
       }
-  | K_LP K_default ':' expression '}'
-      { /* `'{default: value}' is the NAMED form with the sole key
-	   `default' (IEEE 1800-2017 10.9.1), not a one-element
-	   positional pattern. Building it positionally made every use
-	   an arity error -- "expects N element(s) ... Found 1" -- for
-	   arrays and structs alike. */
-	std::list<std::pair<perm_string,PExpr*>> named;
-	named.push_back(std::make_pair(lex_strings.make("default"), $4));
-	PEAssignPattern*tmp = new PEAssignPattern(named);
-	FILE_NAME(tmp, @1);
-	$$ = tmp;
-      }
   | K_LP assignment_pattern_named_list '}'
       { PEAssignPattern*tmp = new PEAssignPattern(*$2);
 	FILE_NAME(tmp, @1);
@@ -1851,21 +1839,73 @@ assignment_pattern /* IEEE1800-2005: A.6.7.1 */
   /* Named member assignment pattern: '{field: val, ..., default: val} */
 assignment_pattern_named_list
   : IDENTIFIER ':' expression
-      { $$ = new std::list<std::pair<perm_string,PExpr*>>;
-	$$->push_back(std::make_pair(lex_strings.make($1), $3));
+      { $$ = new std::list<assignment_pattern_item_t>;
+	assignment_pattern_item_t item;
+	item.key.kind = assignment_pattern_key_t::EXPR;
+	item.key.expr = new PEIdent(lex_strings.make($1), @1.lexical_pos);
+	FILE_NAME(item.key.expr, @1);
+	item.value = $3;
+	$$->push_back(item);
 	delete[] $1;
       }
   | K_default ':' expression
-      { $$ = new std::list<std::pair<perm_string,PExpr*>>;
-	$$->push_back(std::make_pair(lex_strings.make("default"), $3));
+      { $$ = new std::list<assignment_pattern_item_t>;
+	assignment_pattern_item_t item;
+	item.key.kind = assignment_pattern_key_t::DEFAULT;
+	item.value = $3;
+	$$->push_back(item);
+      }
+  | K_int ':' expression
+      { $$ = new std::list<assignment_pattern_item_t>;
+	assignment_pattern_item_t item;
+	item.key.kind = assignment_pattern_key_t::TYPE;
+	item.key.type = new atom_type_t(atom_type_t::INT, true);
+	FILE_NAME(item.key.type, @1);
+	item.value = $3;
+	$$->push_back(item);
+      }
+  | number ':' expression
+      { $$ = new std::list<assignment_pattern_item_t>;
+	assignment_pattern_item_t item;
+	item.key.kind = assignment_pattern_key_t::EXPR;
+	item.key.expr = new PENumber($1);
+	FILE_NAME(item.key.expr, @1);
+	item.value = $3;
+	$$->push_back(item);
       }
   | assignment_pattern_named_list ',' IDENTIFIER ':' expression
-      { $1->push_back(std::make_pair(lex_strings.make($3), $5));
+      { assignment_pattern_item_t item;
+	item.key.kind = assignment_pattern_key_t::EXPR;
+	item.key.expr = new PEIdent(lex_strings.make($3), @3.lexical_pos);
+	FILE_NAME(item.key.expr, @3);
+	item.value = $5;
+	$1->push_back(item);
 	delete[] $3;
 	$$ = $1;
       }
   | assignment_pattern_named_list ',' K_default ':' expression
-      { $1->push_back(std::make_pair(lex_strings.make("default"), $5));
+      { assignment_pattern_item_t item;
+	item.key.kind = assignment_pattern_key_t::DEFAULT;
+	item.value = $5;
+	$1->push_back(item);
+	$$ = $1;
+      }
+  | assignment_pattern_named_list ',' K_int ':' expression
+      { assignment_pattern_item_t item;
+	item.key.kind = assignment_pattern_key_t::TYPE;
+	item.key.type = new atom_type_t(atom_type_t::INT, true);
+	FILE_NAME(item.key.type, @3);
+	item.value = $5;
+	$1->push_back(item);
+	$$ = $1;
+      }
+  | assignment_pattern_named_list ',' number ':' expression
+      { assignment_pattern_item_t item;
+	item.key.kind = assignment_pattern_key_t::EXPR;
+	item.key.expr = new PENumber($3);
+	FILE_NAME(item.key.expr, @3);
+	item.value = $5;
+	$1->push_back(item);
 	$$ = $1;
       }
   ;
