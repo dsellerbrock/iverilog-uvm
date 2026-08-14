@@ -352,9 +352,11 @@ TU [munpf]
      description paths. Returning the same first token forces Bison to choose
      before it has seen `class' and steals ordinary `interface name' forms.
      Use trailing context (inspected but not consumed) to preserve the source
-     spelling while giving the parser an unambiguous first token. Comments are
-     whitespace for this purpose, including comments that span lines. */
-"interface"/([ \t\b\f\r\n]|[/][*]([^*]|[*]+[^*/])*[*]+[/]|[/][/][^\n]*\n)+"class" {
+     spelling while giving the parser an unambiguous first token. Require a
+     keyword boundary after `class' so an ordinary interface name such as
+     `class_prefixed_if' is not captured. Comments are whitespace for this
+     purpose, including comments that span lines. */
+"interface"/([ \t\b\f\r\n]|[/][*]([^*]|[*]+[^*/])*[*]+[/]|[/][/][^\n]*\n)+"class"([^a-zA-Z0-9$_]) {
       int rc = lexor_keyword_code(yytext, yyleng);
       if (rc == K_interface)
 	    return K_interface_class;
