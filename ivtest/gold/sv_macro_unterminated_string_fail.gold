@@ -1,0 +1,4 @@
+./ivltests/sv_macro_unterminated_string_fail.v:17: error: macro text contains an unterminated string literal.
+./ivltests/sv_macro_unterminated_string_fail.v:19: warning: macro first_half undefined (and assumed null) at this point.
+./ivltests/sv_macro_unterminated_string_fail.v:19: syntax error
+I give up.

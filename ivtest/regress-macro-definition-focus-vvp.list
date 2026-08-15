@@ -1,0 +1,4 @@
+macro_str_esc vvp_tests/macro_str_esc.json
+sv_macro_definition_context vvp_tests/sv_macro_definition_context.json
+sv_macro_unterminated_string_fail vvp_tests/sv_macro_unterminated_string_fail.json
+sv_macro_recursion_limit_fail vvp_tests/sv_macro_recursion_limit_fail.json

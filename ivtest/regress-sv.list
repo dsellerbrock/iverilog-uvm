@@ -768,6 +768,9 @@ sv_macro		normal,-g2009		ivltests
 sv_macro2		normal,-g2009		ivltests gold=sv_macro2.gold
 sv_macro3a		normal,-g2009		ivltests gold=sv_macro3.gold
 sv_macro3b		normal,-g2009		ivltests gold=sv_macro3.gold
+sv_macro_definition_context normal,-g2012	ivltests gold=sv_macro_definition_context.gold
+sv_macro_recursion_limit_fail CE,-g2012	ivltests gold=sv_macro_recursion_limit_fail.gold
+sv_macro_unterminated_string_fail CE,-g2012	ivltests gold=sv_macro_unterminated_string_fail.gold
 sv_nested_container_elem_member normal,-g2012 ivltests
 sv_nested_packed_field_write normal,-g2012 ivltests
 sv_new_array_error	CE,-g2009		ivltests gold=sv_new_array_error.gold

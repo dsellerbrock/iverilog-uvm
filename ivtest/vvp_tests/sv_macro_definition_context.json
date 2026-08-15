@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_macro_definition_context.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_macro_definition_context"
+}

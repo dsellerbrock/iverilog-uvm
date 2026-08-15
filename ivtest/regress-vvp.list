@@ -159,6 +159,9 @@ fread-error			vvp_tests/fread-error.json
 line_directive			vvp_tests/line_directive.json
 localparam_type			vvp_tests/localparam_type.json
 macro_str_esc			vvp_tests/macro_str_esc.json
+sv_macro_definition_context	vvp_tests/sv_macro_definition_context.json
+sv_macro_recursion_limit_fail	vvp_tests/sv_macro_recursion_limit_fail.json
+sv_macro_unterminated_string_fail vvp_tests/sv_macro_unterminated_string_fail.json
 memsynth1			vvp_tests/memsynth1.json
 memsynth2			vvp_tests/memsynth2.json
 memsynth2-synth			vvp_tests/memsynth2-synth.json
