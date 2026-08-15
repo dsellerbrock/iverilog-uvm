@@ -96,7 +96,7 @@ static struct __vpiModPath*modpath_dst = 0;
 %token K_NET K_NET_S K_NET_R K_NET_2S K_NET_2U
 %token K_NET8 K_NET8_2S K_NET8_2U K_NET8_S
 %token K_PARAM_STR K_PARAM_L K_PARAM_REAL K_PART K_PART_PV
-%token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
+%token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1
 %token K_SCOPE K_SFUNC K_SFUNC_E K_SHIFTL K_SHIFTR K_SHIFTRS
@@ -821,6 +821,15 @@ statement
 	| K_PORT_INFO T_NUMBER port_type T_NUMBER T_STRING ';'
 		{ compile_port_info( $2 /* port_index */, $3, $4 /* width */,
 		                     $5 /*&name */, nullptr /* buffer */ ); }
+
+	| K_PORT_INFO_EVCD T_NUMBER T_NUMBER T_NUMBER T_STRING T_STRING T_STRING ';'
+		{ compile_port_info_evcd($2, $3, $4, $5, $6, $7,
+		                         0, 0, 0, nullptr, 0, 0, nullptr); }
+
+	| K_PORT_INFO_EVCD T_NUMBER T_NUMBER T_NUMBER T_STRING T_STRING T_STRING
+	  T_NUMBER T_NUMBER T_NUMBER T_SYMBOL T_NUMBER T_NUMBER T_SYMBOL ';'
+		{ compile_port_info_evcd($2, $3, $4, $5, $6, $7,
+		                         $8, $9, $10, $11, $12, $13, $14); }
 
   /* M12-6: the .modport directive carries optional "port" direction
      pairs after the modport name. */

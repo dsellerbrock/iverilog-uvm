@@ -2550,6 +2550,11 @@ extern ivl_island_t ivl_switch_island(ivl_switch_t net);
 extern unsigned ivl_switch_width(ivl_switch_t net);
 extern unsigned ivl_switch_part(ivl_switch_t net);
 extern unsigned ivl_switch_offset(ivl_switch_t net);
+/* A hierarchy-isolating tran that preserves EVCD inout-side attribution is
+ * tagged with its zero-based module-port and concatenation-component index.
+ * Ordinary switches return -1 for both properties. */
+extern int ivl_switch_port_index(ivl_switch_t net);
+extern int ivl_switch_port_component(ivl_switch_t net);
 extern ivl_expr_t ivl_switch_delay(ivl_switch_t net, unsigned transition);
 
 /* Not implemented yet

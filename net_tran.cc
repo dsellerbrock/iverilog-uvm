@@ -45,8 +45,11 @@ static bool has_enable(ivl_switch_type_t tt)
 }
 
 NetTran::NetTran(NetScope*scope__, perm_string n, ivl_switch_type_t tt,
-                 unsigned width)
-: NetNode(scope__, n, has_enable(tt)? 3 : 2), type_(tt), wid_(width)
+                 unsigned width, int port_info_index,
+                 int port_component_index)
+: NetNode(scope__, n, has_enable(tt)? 3 : 2), type_(tt), wid_(width),
+  port_info_index_(port_info_index),
+  port_component_index_(port_component_index)
 {
       pin(0).set_dir(Link::PASSIVE);
       pin(1).set_dir(Link::PASSIVE);
@@ -57,8 +60,12 @@ NetTran::NetTran(NetScope*scope__, perm_string n, ivl_switch_type_t tt,
       off_ = 0;
 }
 
-NetTran::NetTran(NetScope*scope__, perm_string n, unsigned wid, unsigned part, unsigned off)
-: NetNode(scope__, n, 2), type_(IVL_SW_TRAN_VP), wid_(wid), part_(part), off_(off)
+NetTran::NetTran(NetScope*scope__, perm_string n, unsigned wid, unsigned part,
+                 unsigned off, int port_info_index,
+                 int port_component_index)
+: NetNode(scope__, n, 2), type_(IVL_SW_TRAN_VP), wid_(wid), part_(part),
+  off_(off), port_info_index_(port_info_index),
+  port_component_index_(port_component_index)
 {
       pin(0).set_dir(Link::PASSIVE);
       pin(1).set_dir(Link::PASSIVE);

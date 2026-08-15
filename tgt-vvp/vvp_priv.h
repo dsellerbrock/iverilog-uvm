@@ -95,6 +95,7 @@ extern void emit_dpi_export_directives(void);
 extern void emit_dpi_export_stub_file(const char*vvp_path);
 
 extern int draw_scope(ivl_scope_t scope, ivl_scope_t parent);
+extern void reset_evcd_metadata_budget(void);
 extern void note_array_signal_use(ivl_signal_t sig);
 extern void emit_deferred_array_decls(void);
 
@@ -162,6 +163,9 @@ struct vvp_nexus_data {
       const char*net_input;
 	/* draw_isnald_net_input uses these */
       const char*island_input;
+      /* Aggregate driver stream local to this side of a tran island.  EVCD
+       * needs this before the island resolves both hierarchy sides. */
+      const char*island_local_input;
       ivl_island_t island;
 	/* */
       unsigned drivers_count;
@@ -191,6 +195,10 @@ void EOC_cleanup_drivers(void);
  * the net as a whole.
  */
 extern const char* draw_island_net_input(ivl_island_t island, ivl_nexus_t nex);
+extern const char* draw_island_local_input(ivl_island_t island,
+                                           ivl_nexus_t nex);
+extern unsigned draw_island_local_drivers(ivl_island_t island,
+                                          ivl_nexus_t nex);
 
 /*
  * This function is different from draw_net_input in that it will
@@ -402,7 +410,7 @@ static inline int container_type_shape_eq_(ivl_type_t a, ivl_type_t b)
 
 /* Queue OR plain dynamic array: both are 0-based runtime-sized
  * containers held as vvp_darray objects, so the object-stack indexed
- * load path (%load/qo/*) serves both. */
+ * load path for the queue/object opcodes serves both. */
 static inline int expr_is_dynarray_container_(ivl_expr_t expr)
 {
       ivl_type_t net_type;

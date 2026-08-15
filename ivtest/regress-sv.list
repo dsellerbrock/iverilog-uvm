@@ -1763,6 +1763,21 @@ sv_rootless_extern_constraint_missing_fail CE,-g2012 ivltests gold=sv_rootless_e
 sv_rootless_explicit_top_fail CE,-g2012,-s,missing_root ivltests gold=sv_rootless_explicit_top_fail.gold
 sv_rootless_verilog_fail CE,-g2005 ivltests gold=sv_rootless_verilog_fail.gold
 
+# IEEE 1800-2023 EVCD port dumping and controls
+sv_dumpports_runtime normal,-g2012 ivltests gold=sv_dumpports_runtime.gold
+sv_dumpports_multifile normal,-g2012 ivltests gold=sv_dumpports_multifile.gold
+sv_dumpports_limit_prestart normal,-g2012 ivltests gold=sv_dumpports_limit_prestart.gold
+sv_dumpports_finish_pending normal,-g2012 ivltests gold=sv_dumpports_finish_pending.gold
+sv_dumpports_metadata_base normal,-g2012 ivltests gold=sv_dumpports_metadata_base.gold
+sv_dumpports_no_use_inout normal,-g2012 ivltests gold=sv_dumpports_no_use_inout.gold
+sv_dumpports_svtests_21_7 normal,-g2012 ivltests gold=sv_dumpports_svtests_21_7.gold
+sv_dumpports_args_fail RE,-g2012 ivltests gold=sv_dumpports_args_fail.gold
+sv_dumpports_control_args_fail RE,-g2012 ivltests gold=sv_dumpports_control_args_fail.gold
+sv_dumpports_limit_args_fail RE,-g2012 ivltests gold=sv_dumpports_limit_args_fail.gold
+sv_dumpports_duplicate_scope_fail RE,-g2012 ivltests gold=sv_dumpports_duplicate_scope_fail.gold
+sv_dumpports_duplicate_file_fail RE,-g2012 ivltests gold=sv_dumpports_duplicate_file_fail.gold
+sv_dumpports_late_fail RE,-g2012 ivltests gold=sv_dumpports_late_fail.gold
+
 # IEEE 1800-2017 unbounded parameters and code-coverage access functions
 sv_ch20_isunbounded normal,-g2012 ivltests gold=sv_ch20_isunbounded.gold
 sv_ch20_isunbounded_use_fail CE,-g2012 ivltests gold=sv_ch20_isunbounded_use_fail.gold

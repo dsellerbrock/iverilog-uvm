@@ -29,6 +29,7 @@
 # include  "vvp_net.h"
 # include  "schedule.h"
 # include  "event.h"
+# include  "resolv.h"
 # include  "vvp_net_sig.h"
 # include  "config.h"
 #ifdef CHECK_WITH_VALGRIND
@@ -1047,12 +1048,14 @@ struct __vpi_array_word {
 vvp_vpi_callback::vvp_vpi_callback()
 {
       vpi_callbacks_ = 0;
+      driver_activity_callbacks_ = 0;
       array_words_ = 0;
 }
 
 vvp_vpi_callback::~vvp_vpi_callback()
 {
       assert(vpi_callbacks_ == 0);
+      assert(driver_activity_callbacks_ == 0);
       assert(array_words_ == 0);
 }
 
@@ -1071,6 +1074,12 @@ void vvp_vpi_callback::add_vpi_callback(value_callback*cb)
       vpi_callbacks_ = cb;
 }
 
+void vvp_vpi_callback::add_driver_activity_callback(value_callback*cb)
+{
+      cb->next = driver_activity_callbacks_;
+      driver_activity_callbacks_ = cb;
+}
+
 #ifdef CHECK_WITH_VALGRIND
 void vvp_vpi_callback::clear_all_callbacks()
 {
@@ -1079,6 +1088,12 @@ void vvp_vpi_callback::clear_all_callbacks()
 	                            (vpi_callbacks_->next);
 	    delete vpi_callbacks_;
 	    vpi_callbacks_ = tmp;
+      }
+      while (driver_activity_callbacks_) {
+            value_callback *tmp = dynamic_cast<value_callback*>(
+                  driver_activity_callbacks_->next);
+            delete driver_activity_callbacks_;
+            driver_activity_callbacks_ = tmp;
       }
       while (array_words_) {
 	    struct __vpi_array_word*tmp = array_words_->next;
@@ -1139,6 +1154,60 @@ void vvp_vpi_callback::run_vpi_callbacks()
 		  delete cur;
 	    }
       }
+}
+
+/* EVCD observes resolver input activity because its state alphabet encodes
+ * the number and hierarchy side of active drivers. Keep this private list
+ * separate from ordinary cbValueChange callbacks: a driver-count-only
+ * transition is not a value change for general VPI clients. */
+void vvp_vpi_callback::run_driver_activity_callbacks()
+{
+      value_callback *next = driver_activity_callbacks_;
+      value_callback *prev = 0;
+
+      while (next) {
+            value_callback *cur = next;
+            next = dynamic_cast<value_callback*>(cur->next);
+
+            if (cur->cb_data.cb_rtn != 0) {
+                  if (cur->test_value_callback_ready()) {
+                        if (cur->cb_data.value) get_value(cur->cb_data.value);
+                        callback_execute(cur);
+                  }
+                  prev = cur;
+            } else if (prev == 0) {
+                  driver_activity_callbacks_ = next;
+                  cur->next = 0;
+                  delete cur;
+            } else {
+                  assert(prev->next == cur);
+                  prev->next = next;
+                  cur->next = 0;
+                  delete cur;
+            }
+      }
+}
+
+extern "C" vpiHandle vpip_register_driver_activity_cb(p_cb_data data)
+{
+      struct __vpiSignal *sig;
+      vvp_net_fil_t *filter;
+      resolv_core *resolver;
+      value_callback *obj;
+
+      if (!data || data->reason != cbValueChange ||
+          !check_callback_time(data, true) || !data->obj)
+            return 0;
+      sig = dynamic_cast<__vpiSignal*>(data->obj);
+      if (!sig || !sig->node) return 0;
+      filter = dynamic_cast<vvp_net_fil_t*>(sig->node->fil);
+      resolver = dynamic_cast<resolv_core*>(sig->node->fun);
+      if (!filter || !resolver) return 0;
+
+      obj = new value_callback(data);
+      filter->add_driver_activity_callback(obj);
+      resolver->enable_driver_activity_notifications();
+      return obj;
 }
 
 /*

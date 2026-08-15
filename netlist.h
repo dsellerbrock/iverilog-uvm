@@ -2327,12 +2327,14 @@ class NetSysFunc  : public NetNode {
 class NetTran  : public NetNode, public IslandBranch {
 
     public:
-	// Tran devices other than TRAN_VP
+      // Tran devices other than TRAN_VP
       NetTran(NetScope*scope, perm_string n, ivl_switch_type_t type,
-              unsigned wid);
+              unsigned wid, int port_info_index = -1,
+              int port_component_index = -1);
 	// Create a TRAN_VP
       NetTran(NetScope*scope, perm_string n, unsigned wid,
-	      unsigned part, unsigned off);
+	      unsigned part, unsigned off, int port_info_index = -1,
+	      int port_component_index = -1);
       ~NetTran() override;
 
       ivl_switch_type_t type() const { return type_; }
@@ -2341,6 +2343,8 @@ class NetTran  : public NetNode, public IslandBranch {
       unsigned vector_width() const;
       unsigned part_width() const;
       unsigned part_offset() const;
+      int port_info_index() const { return port_info_index_; }
+      int port_component_index() const { return port_component_index_; }
 
       virtual void dump_node(std::ostream&, unsigned ind) const override;
       virtual bool emit_node(struct target_t*) const override;
@@ -2350,6 +2354,8 @@ class NetTran  : public NetNode, public IslandBranch {
       unsigned wid_;
       unsigned part_;
       unsigned off_;
+      int port_info_index_;
+      int port_component_index_;
 };
 
 /* =========

@@ -593,6 +593,8 @@ struct ivl_switch_s {
       unsigned width;
       unsigned part;
       unsigned offset;
+      int port_info_index;
+      int port_component_index;
 
       perm_string name;
       ivl_scope_t scope;

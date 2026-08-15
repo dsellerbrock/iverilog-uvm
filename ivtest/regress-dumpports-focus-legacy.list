@@ -1,0 +1,15 @@
+# IEEE 1800-2023 21.7.3/21.7.4 EVCD port dumping and controls.
+sv_dumpports_runtime normal,-g2012 ivltests gold=sv_dumpports_runtime.gold
+sv_dumpports_multifile normal,-g2012 ivltests gold=sv_dumpports_multifile.gold
+sv_dumpports_limit_prestart normal,-g2012 ivltests gold=sv_dumpports_limit_prestart.gold
+sv_dumpports_finish_pending normal,-g2012 ivltests gold=sv_dumpports_finish_pending.gold
+sv_dumpports_metadata_base normal,-g2012 ivltests gold=sv_dumpports_metadata_base.gold
+sv_dumpports_no_use_inout normal,-g2012 ivltests gold=sv_dumpports_no_use_inout.gold
+sv_dumpports_svtests_21_7 normal,-g2012 ivltests gold=sv_dumpports_svtests_21_7.gold
+# Compiletf and runtime argument/lifecycle boundaries.
+sv_dumpports_args_fail RE,-g2012 ivltests gold=sv_dumpports_args_fail.gold
+sv_dumpports_control_args_fail RE,-g2012 ivltests gold=sv_dumpports_control_args_fail.gold
+sv_dumpports_limit_args_fail RE,-g2012 ivltests gold=sv_dumpports_limit_args_fail.gold
+sv_dumpports_duplicate_scope_fail RE,-g2012 ivltests gold=sv_dumpports_duplicate_scope_fail.gold
+sv_dumpports_duplicate_file_fail RE,-g2012 ivltests gold=sv_dumpports_duplicate_file_fail.gold
+sv_dumpports_late_fail RE,-g2012 ivltests gold=sv_dumpports_late_fail.gold

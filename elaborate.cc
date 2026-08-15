@@ -3019,8 +3019,8 @@ static void isolate_and_connect(Design*des, NetScope*scope, const PGModule*mod,
 	  case NetNet::PINOUT:
 	    {
 		  NetTran*tmp = new NetTran(scope, scope->local_symbol(),
-					    sig->vector_width(),
-					    sig->vector_width(), 0);
+					    IVL_SW_TRAN,
+					    sig->vector_width(), idx, 0);
 		  tmp->set_line(*mod);
 		  des->add_node(tmp);
 		  connect(tmp->pin(1), port->pin(0));
@@ -4932,11 +4932,15 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		    // that are a delay path destination, to avoid
 		    // the delay being applied to other drivers of
 		    // the external signal.
-		  if (prts[0]->delay_paths() > 0 || (gn_interconnect_flag == true && ptype == NetNet::POUTPUT)) {
+		  if ((gn_dumpports_flag && ptype == NetNet::PINOUT) ||
+		      prts[0]->delay_paths() > 0 ||
+		      (gn_interconnect_flag == true && ptype == NetNet::POUTPUT)) {
 			  // FIXME improve this for multiple module instances
-			NetScope* inner_scope = scope->instance_arrays[get_name()][0];
+			NetScope* inner_scope = prts[0]->scope();
 
-			isolate_and_connect(des, inner_scope, this, prts[0], sig, ptype, gn_interconnect_flag ? idx : -1);
+			isolate_and_connect(des, inner_scope, this, prts[0], sig,
+			                    ptype, ptype == NetNet::PINOUT ? idx :
+			                    (gn_interconnect_flag ? idx : -1));
 		  } else {
 			NetNet*formal = prts[0];
 			if (connect_dominated_wire_port(des, *this, formal, sig))
@@ -5017,11 +5021,15 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  for (unsigned ldx = 0, spin = 0 ;
 		       ldx < prts.size() ;  ldx += 1) {
 			NetNet*sp = prts[prts.size()-ldx-1];
-			NetTran*ttmp = new NetTran(scope,
-			                           scope->local_symbol(),
+			NetScope*tran_scope = gn_dumpports_flag ? sp->scope() : scope;
+			NetTran*ttmp = new NetTran(tran_scope,
+			                           tran_scope->local_symbol(),
 			                           sig->vector_width(),
 			                           sp->vector_width(),
-			                           spin);
+			                           spin,
+			                           gn_dumpports_flag ? (int)idx : -1,
+			                           gn_dumpports_flag
+			                             ? (int)(prts.size()-ldx-1) : -1);
 			ttmp->set_line(*this);
 			des->add_node(ttmp);
 			connect(ttmp->pin(0), sig->pin(0));

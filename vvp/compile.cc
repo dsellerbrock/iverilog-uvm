@@ -1664,6 +1664,8 @@ void compile_init(void)
 {
       check_opcode_table_order_();
 
+      vpip_reset_port_info_evcd_budget();
+
       sym_vpi = new_symbol_table();
 
       sym_functors = new_symbol_table();

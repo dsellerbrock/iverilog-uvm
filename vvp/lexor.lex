@@ -232,6 +232,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".part/v"       { return K_PART_V; }
 ".part/v.s"     { return K_PART_V_S; }
 ".port"         { return K_PORT; }
+".port_info/evcd" { return K_PORT_INFO_EVCD; }
 ".port_info"    { return K_PORT_INFO; }
 ".reduce/and"   { return K_REDUCE_AND; }
 ".reduce/or"    { return K_REDUCE_OR; }

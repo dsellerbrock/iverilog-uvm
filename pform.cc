@@ -2835,6 +2835,7 @@ void pform_make_elab_task(const struct vlltype&li,
                           perm_string name,
                           const list<named_pexpr_t> &params)
 {
+      if (name == "$dumpports") gn_dumpports_flag = true;
       PCallTask*elab_task = new PCallTask(name, params);
       FILE_NAME(elab_task, li);
 

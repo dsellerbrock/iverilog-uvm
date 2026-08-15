@@ -281,6 +281,22 @@ void vpip_count_drivers(vpiHandle ref, unsigned idx, unsigned counts[4])
       assert(vpip_routines);
       vpip_routines->count_drivers(ref, idx, counts);
 }
+vpiHandle vpip_register_driver_activity_cb(p_cb_data data)
+{
+      assert(vpip_routines);
+      return vpip_routines->register_driver_activity_cb(data);
+}
+int vpip_get_port_component(vpiHandle ref, unsigned idx, const char **name,
+                            unsigned *width, int *left, int *right,
+                            vpiHandle *fixture, unsigned *fixture_base,
+                            int *fixture_connected, vpiHandle *dut,
+                            int *dut_connected)
+{
+      assert(vpip_routines);
+      return vpip_routines->get_port_component(
+            ref, idx, name, width, left, right, fixture, fixture_base,
+            fixture_connected, dut, dut_connected);
+}
 void vpip_format_strength(char*str, s_vpi_value*value, unsigned bit)
 {
       assert(vpip_routines);

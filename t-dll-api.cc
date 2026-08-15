@@ -3698,6 +3698,18 @@ extern "C" unsigned ivl_switch_offset(ivl_switch_t net)
       return net->offset;
 }
 
+extern "C" int ivl_switch_port_index(ivl_switch_t net)
+{
+      assert(net);
+      return net->port_info_index;
+}
+
+extern "C" int ivl_switch_port_component(ivl_switch_t net)
+{
+      assert(net);
+      return net->port_component_index;
+}
+
 extern "C" ivl_expr_t ivl_switch_delay(ivl_switch_t net, unsigned transition)
 {
       assert(net);

@@ -1,0 +1,1 @@
+ERROR: ./ivltests/sv_dumpports_control_args_fail.v:2: $dumpportsoff: takes at most one filename argument

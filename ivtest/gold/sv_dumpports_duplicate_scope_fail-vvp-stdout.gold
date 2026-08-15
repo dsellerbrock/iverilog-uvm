@@ -1,0 +1,2 @@
+EVCD info: dumpports file work/sv_dumpports_duplicate_a.evcd opened for output.
+ERROR: ivltests/sv_dumpports_duplicate_scope_fail.v:8: $dumpports: module scope 'sv_dumpports_duplicate_scope_fail.dut' was selected more than once

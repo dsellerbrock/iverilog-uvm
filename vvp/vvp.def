@@ -42,6 +42,8 @@ vpi_vprintf
 
 vpip_calc_clog2
 vpip_count_drivers
+vpip_register_driver_activity_cb
+vpip_get_port_component
 vpip_format_strength
 vpip_make_systf_system_defined
 vpip_mcd_rawwrite

@@ -1,0 +1,15 @@
+# IEEE 1800-2023 21.7.3/21.7.4 EVCD port dumping and controls.
+sv_dumpports_runtime vvp_tests/sv_dumpports_runtime.json
+sv_dumpports_multifile vvp_tests/sv_dumpports_multifile.json
+sv_dumpports_limit_prestart vvp_tests/sv_dumpports_limit_prestart.json
+sv_dumpports_finish_pending vvp_tests/sv_dumpports_finish_pending.json
+sv_dumpports_metadata_base vvp_tests/sv_dumpports_metadata_base.json
+sv_dumpports_no_use_inout vvp_tests/sv_dumpports_no_use_inout.json
+sv_dumpports_svtests_21_7 vvp_tests/sv_dumpports_svtests_21_7.json
+# The JSON harness calls expected runtime errors EF; the legacy layer records RE.
+sv_dumpports_args_fail vvp_tests/sv_dumpports_args_fail.json
+sv_dumpports_control_args_fail vvp_tests/sv_dumpports_control_args_fail.json
+sv_dumpports_limit_args_fail vvp_tests/sv_dumpports_limit_args_fail.json
+sv_dumpports_duplicate_scope_fail vvp_tests/sv_dumpports_duplicate_scope_fail.json
+sv_dumpports_duplicate_file_fail vvp_tests/sv_dumpports_duplicate_file_fail.json
+sv_dumpports_late_fail vvp_tests/sv_dumpports_late_fail.json

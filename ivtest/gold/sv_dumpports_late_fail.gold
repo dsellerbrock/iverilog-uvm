@@ -1,0 +1,2 @@
+EVCD info: dumpports file work/sv_dumpports_late_a.evcd opened for output.
+ERROR: ./ivltests/sv_dumpports_late_fail.v:9: $dumpports: all $dumpports calls must execute at the same simulation time

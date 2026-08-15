@@ -2434,7 +2434,7 @@ bool vvp_wire_vec4::is_forced(unsigned idx) const
 }
 
 vvp_wire_vec8::vvp_wire_vec8(unsigned wid)
-: bits8_(wid)
+: width_error_reported_(false), bits8_(wid)
 {
       needs_init_ = true;
 }
@@ -2445,9 +2445,14 @@ vvp_net_fil_t::prop_t vvp_wire_vec8::filter_vec4(const vvp_vector4_t&bit,
                                                  unsigned vwid)
 {
 	// For now there is no support for a non-zero base.
-      assert(0 == base);
-      assert(bits8_.size() == vwid);
-      assert(bits8_.size() == bit.size());
+      if (base != 0 || bits8_.size() != vwid || bit.size() != vwid) {
+            if (!width_error_reported_) {
+                  fprintf(stderr, "vvp error: strength net declaration width does not match source signal.\n");
+                  width_error_reported_ = true;
+            }
+            vpip_set_return_value(1);
+            return STOP;
+      }
 	// QUESTION: Is it really correct to propagate a vec4 if this
 	// is a vec8 node? In fact, it is really possible for a vec4
 	// value to get through to a vec8 filter?
@@ -2462,7 +2467,15 @@ vvp_net_fil_t::prop_t vvp_wire_vec8::filter_vec4(const vvp_vector4_t&bit,
 
 vvp_net_fil_t::prop_t vvp_wire_vec8::filter_vec8(const vvp_vector8_t&bit, vvp_vector8_t&rep, unsigned base, unsigned vwid)
 {
-      assert(vwid == bits8_.size());
+      if (vwid != bits8_.size() || base > vwid ||
+          bit.size() > vwid-base) {
+            if (!width_error_reported_) {
+                  fprintf(stderr, "vvp error: strength net declaration width does not match source signal.\n");
+                  width_error_reported_ = true;
+            }
+            vpip_set_return_value(1);
+            return STOP;
+      }
 	// Keep track of the value being driven from this net, even if
 	// it is not ultimately what survives the force filter.
       if (base==0 && bit.size()==vwid) {
@@ -2470,7 +2483,6 @@ vvp_net_fil_t::prop_t vvp_wire_vec8::filter_vec8(const vvp_vector8_t&bit, vvp_ve
       } else {
 	    if (bits8_.size() == 0)
 		  bits8_ = vvp_vector8_t(vwid);
-	    assert(bits8_.size() == vwid);
 	    bits8_.set_vec(base, bit);
       }
       needs_init_ = false;

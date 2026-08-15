@@ -125,6 +125,11 @@ s_vpi_vecval vpip_calc_clog2(vpiHandle)
     return val;
 }
 void        vpip_count_drivers(vpiHandle, unsigned, unsigned [4]) { }
+vpiHandle   vpip_register_driver_activity_cb(p_cb_data) { return 0; }
+int         vpip_get_port_component(vpiHandle, unsigned, const char**,
+                                    unsigned*, int*, int*, vpiHandle*,
+                                    unsigned*, int*, vpiHandle*, int*)
+{ return 0; }
 void        vpip_format_strength(char*, s_vpi_value*, unsigned) { }
 void        vpip_make_systf_system_defined(vpiHandle) { }
 void        vpip_mcd_rawwrite(PLI_UINT32, const char*, size_t) { }
@@ -229,6 +234,8 @@ vpip_routines_s vpi_routines = {
     .get_file                   = vpi_get_file,
     .calc_clog2                 = vpip_calc_clog2,
     .count_drivers              = vpip_count_drivers,
+    .register_driver_activity_cb = vpip_register_driver_activity_cb,
+    .get_port_component        = vpip_get_port_component,
     .format_strength            = vpip_format_strength,
     .make_systf_system_defined  = vpip_make_systf_system_defined,
     .mcd_rawwrite               = vpip_mcd_rawwrite,

@@ -615,6 +615,17 @@ extern void compile_var_queue(char*label, char*name, unsigned size,
  */
 
 extern void compile_port_info( unsigned index, int vpi_port_type, unsigned width, const char *name, char* buffer );
+extern void compile_port_info_evcd(unsigned port_index,
+                                   unsigned component_index,
+                                   unsigned width, char *name,
+                                   char *left, char *right,
+                                   unsigned fixture_width,
+                                   unsigned fixture_base,
+                                   unsigned fixture_connected,
+                                   char *fixture,
+                                   unsigned dut_width,
+                                   unsigned dut_connected,
+                                   char *dut);
 
 
 /*

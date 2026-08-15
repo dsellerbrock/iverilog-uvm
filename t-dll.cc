@@ -1242,6 +1242,8 @@ bool dll_target::tran(const NetTran*net)
       obj->width = net->vector_width();
       obj->part = 0;
       obj->offset = 0;
+      obj->port_info_index = net->port_info_index();
+      obj->port_component_index = net->port_component_index();
       obj->name = net->name();
       obj->scope = find_scope(des_, net->scope());
       obj->island = net->get_island();

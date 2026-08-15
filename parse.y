@@ -16022,7 +16022,8 @@ subroutine_call
 	$$ = tmp;
       }
   | SYSTEM_IDENTIFIER argument_list_parens_opt
-      { PCallTask*tmp = new PCallTask(lex_strings.make($1), *$2);
+	{ if (strcmp($1, "$dumpports") == 0) gn_dumpports_flag = true;
+	PCallTask*tmp = new PCallTask(lex_strings.make($1), *$2);
 	FILE_NAME(tmp,@1);
 	delete[]$1;
 	delete $2;

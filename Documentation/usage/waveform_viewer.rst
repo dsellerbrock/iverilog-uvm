@@ -57,6 +57,39 @@ viewed with GTKWave using the command:
 
   % gtkwave dump.fst
 
+EVCD port dumps
+---------------
+
+The vvp target also implements the IEEE 1800 ``$dumpports`` family for
+Extended VCD (EVCD) port activity. A call selects one or more module scopes
+and may name an output file::
+
+  initial begin
+     $dumpports(dut, "dut.evcd");
+     $dumpportslimit(16*1024*1024, "dut.evcd");
+  end
+
+All ``$dumpports`` calls must execute at the same simulation time. Different
+calls may open different files, but a module scope may be selected only once.
+``$dumpportsoff``, ``$dumpportson``, ``$dumpportsall``,
+``$dumpportslimit``, and ``$dumpportsflush`` accept an optional filename to
+control one file; without a filename they control every open EVCD file.
+
+EVCD declarations use ``$var port`` records and declaration-ordered ``<n``
+identifiers. Input, output, and inout records retain their direction-specific
+state alphabets, strengths, and active-driver distinctions. Concatenated
+components in a declared module port are emitted as separate port entries;
+this does not enable arbitrary partial-vector dumping. Real-valued ports use
+the standard's explicit real-number exception, formatted with ``%.16g``;
+``$dumpportsoff`` records them as ``rNaN``. EVCD scope identifiers cannot
+contain whitespace, so such scopes are rejected instead of producing a
+malformed file.
+
+To keep malformed or generated metadata bounded, vvp rejects a port wider
+than 1,048,576 bits and enforces aggregate limits of 4,194,304 selected bits,
+4,096 port-component records, 4,096 module scopes, and 64 simultaneous EVCD
+files. Exceeding a limit is an error; it never silently truncates a dump.
+
 A Working Example
 -----------------
 

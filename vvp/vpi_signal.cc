@@ -1300,6 +1300,22 @@ void signal_delete(vpiHandle item)
       VALGRIND_MEMPOOL_FREE(reinterpret_cast<vpiSignal_plug *>(obj)->pool, obj);
 }
 
+void signal_handle_delete(vpiHandle item)
+{
+      struct __vpiSignal *obj = static_cast<__vpiSignal *> (item);
+
+      /* This handle is only a private VPI view of a resolver node owned by
+       * another signal. Do not clear that node's callbacks or delete it. */
+      if (obj->bits) {
+            for (unsigned idx = 0; idx < obj->width(); idx += 1)
+                  delete obj->bits[idx].index;
+            obj->bits -= 1;
+            delete [] obj->bits;
+      }
+      signal_dels += 1;
+      VALGRIND_MEMPOOL_FREE(reinterpret_cast<vpiSignal_plug *>(obj)->pool, obj);
+}
+
 void signal_pool_delete()
 {
       if (RUNNING_ON_VALGRIND && (signal_count != signal_dels)) {

@@ -225,6 +225,11 @@ extern bool gn_specify_blocks_flag;
    is false, then no input/output buffers are inserted if not needed. */
 extern bool gn_interconnect_flag;
 
+/* True when the parsed design contains an actual $dumpports task call.
+ * This keeps EVCD-only hierarchy boundaries and metadata out of ordinary
+ * designs and non-VVP target flows. */
+extern bool gn_dumpports_flag;
+
 /* If this flag is true, then elaborate supported assertion statements. If
    this flag is false, then stub out supported assertion statements. */
 extern bool gn_supported_assertions_flag;

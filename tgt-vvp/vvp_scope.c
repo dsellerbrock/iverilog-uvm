@@ -2784,9 +2784,136 @@ static const char *vvp_port_info_type_str(ivl_signal_port_t ptype)
       }
 }
 
+static ivl_signal_t evcd_signal_on_nexus(ivl_scope_t scope,
+                                         ivl_nexus_t nexus,
+                                         int allow_local)
+{
+      ivl_signal_t fallback = 0;
+      unsigned idx;
+
+      for (idx = 0; idx < ivl_nexus_ptrs(nexus); idx += 1) {
+            ivl_signal_t sig = ivl_nexus_ptr_sig(ivl_nexus_ptr(nexus, idx));
+            if (!sig || ivl_signal_scope(sig) != scope) continue;
+            if (!fallback) fallback = sig;
+            if (!ivl_signal_local(sig) &&
+                ivl_signal_port(sig) != IVL_SIP_NONE)
+                  return sig;
+      }
+      return allow_local ? fallback : 0;
+}
+
+static ivl_signal_t evcd_port_component_signal(ivl_scope_t scope,
+                                                ivl_nexus_t nexus,
+                                                unsigned *component_width,
+                                                int *left, int *right)
+{
+      ivl_signal_t port_sig = evcd_signal_on_nexus(scope, nexus, 1);
+      ivl_nexus_t value_nexus = port_sig
+                             ? ivl_signal_nex(port_sig, 0) : nexus;
+      ivl_signal_t sig;
+      unsigned idx;
+
+      /* A selected non-ANSI port component is represented by a local
+       * temporary on this nexus and either a PART_{VP,PV} node or one input
+       * of a CONCAT leading to the declared full signal. Recover that signal
+       * and the selected range so EVCD emits one component instead of
+       * duplicating the whole bus. Do this before accepting a signal on the
+       * component nexus: elaboration can mark its generated _ivl temporary
+       * as a port signal as well. */
+      for (idx = 0; idx < ivl_nexus_ptrs(value_nexus); idx += 1) {
+            ivl_lpm_t lpm =
+                  ivl_nexus_ptr_lpm(ivl_nexus_ptr(value_nexus, idx));
+            ivl_nexus_t full_nexus;
+            unsigned base;
+            int signal_left, signal_right;
+
+            if (!lpm) continue;
+            if (ivl_lpm_type(lpm) == IVL_LPM_PART_VP)
+                  full_nexus = ivl_lpm_data(lpm, 0);
+            else if (ivl_lpm_type(lpm) == IVL_LPM_PART_PV)
+                  full_nexus = ivl_lpm_q(lpm);
+            else if (ivl_lpm_type(lpm) == IVL_LPM_CONCAT ||
+                     ivl_lpm_type(lpm) == IVL_LPM_CONCATZ) {
+                  unsigned data, count = ivl_lpm_size(lpm);
+                  base = 0;
+                  for (data = 0; data < count; data += 1) {
+                        ivl_nexus_t input = ivl_lpm_data(lpm, data);
+                        if (input == value_nexus) break;
+                        base += width_of_nexus(input);
+                  }
+                  if (data == count) continue;
+                  full_nexus = ivl_lpm_q(lpm);
+            } else continue;
+            sig = evcd_signal_on_nexus(scope, full_nexus, 0);
+            if (!sig) continue;
+
+            if (ivl_lpm_type(lpm) == IVL_LPM_CONCAT ||
+                ivl_lpm_type(lpm) == IVL_LPM_CONCATZ)
+                  *component_width = width_of_nexus(value_nexus);
+            else {
+                  *component_width = ivl_lpm_width(lpm);
+                  base = ivl_lpm_base(lpm);
+            }
+            signal_left = ivl_signal_packed_dimensions(sig)
+                        ? ivl_signal_packed_msb(sig, 0) : 0;
+            signal_right = ivl_signal_packed_dimensions(sig)
+                         ? ivl_signal_packed_lsb(sig, 0) : 0;
+            if (signal_left >= signal_right) {
+                  *right = signal_right + (int)base;
+                  *left = *right + (int)*component_width - 1;
+            } else {
+                  *right = signal_right - (int)base;
+                  *left = *right - (int)*component_width + 1;
+            }
+            return sig;
+      }
+
+      sig = port_sig;
+      if (sig) {
+            *component_width = ivl_signal_width(sig);
+            *left = ivl_signal_packed_dimensions(sig)
+                  ? ivl_signal_packed_msb(sig, 0) : 0;
+            *right = ivl_signal_packed_dimensions(sig)
+                   ? ivl_signal_packed_lsb(sig, 0) : 0;
+      }
+      return sig;
+}
+
+static ivl_switch_t evcd_port_component_switch(ivl_scope_t scope,
+                                                unsigned port_index,
+                                                unsigned component_index)
+{
+      unsigned idx;
+      for (idx = 0; idx < ivl_scope_switches(scope); idx += 1) {
+            ivl_switch_t sw = ivl_scope_switch(scope, idx);
+            if (ivl_switch_port_index(sw) == (int)port_index &&
+                ivl_switch_port_component(sw) == (int)component_index)
+                  return sw;
+      }
+      return 0;
+}
+
+#define EVCD_METADATA_MAX_RECORDS 4096U
+#define EVCD_METADATA_MAX_BITS (4ULL * 1024ULL * 1024ULL)
+static unsigned evcd_metadata_records;
+static unsigned long long evcd_metadata_bits;
+static unsigned long long evcd_proxy_bits;
+static int evcd_metadata_budget_failed;
+
+void reset_evcd_metadata_budget(void)
+{
+      evcd_metadata_records = 0;
+      evcd_metadata_bits = 0;
+      evcd_proxy_bits = 0;
+      evcd_metadata_budget_failed = 0;
+}
+
 int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 {
       unsigned idx;
+      const char *dumpports_flag =
+            ivl_design_flag(vvp_get_saved_design(), "DUMPPORTS");
+      int emit_evcd_metadata = dumpports_flag && *dumpports_flag;
       const char *type;
 
       const char*prefix = ivl_scope_is_auto(net) ? "auto" : "";
@@ -2898,6 +3025,7 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
       }
 
       if( ivl_scope_type(net) == IVL_SCT_MODULE ) {
+	    unsigned flat_port = 0;
 
 	      // Port data for VPI: needed for vpiPorts property of vpiModule
 	    for( idx = 0; idx < ivl_scope_mod_module_ports(net); ++idx ) {
@@ -2912,6 +3040,137 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 		           vvp_mangle_name(name) );
 		  if (buffer) fprintf( vvp_out, " L_%p;\n", buffer);
 		  else fprintf( vvp_out, ";\n");
+
+		  /* Preserve the flattened declaration components for EVCD.  A
+		   * concatenated module port is one vpiPort signature but each
+		   * named component is a separate $var port entry. */
+		  if (emit_evcd_metadata && !evcd_metadata_budget_failed) {
+			unsigned consumed = 0;
+			unsigned component = 0;
+			while (consumed < width && flat_port < ivl_scope_ports(net)) {
+			      ivl_nexus_t nexus = ivl_scope_mod_port(net, flat_port++);
+			      ivl_signal_t sig;
+			      unsigned component_width;
+			      int left, right;
+			      const char *component_name;
+
+			      sig = evcd_port_component_signal(net, nexus,
+			                                       &component_width,
+			                                       &left, &right);
+
+			      if (!sig) {
+				    fprintf(stderr,
+				      "vvp.tgt error: module port %u has no EVCD value signal.\n",
+				      idx);
+				    vvp_errors += 1;
+				    break;
+			      }
+			      if (!component_width || component_width > width-consumed) {
+				    fprintf(stderr,
+				      "vvp.tgt error: module port %u has inconsistent EVCD component width.\n",
+				      idx);
+				    vvp_errors += 1;
+				    break;
+			      }
+			      if (evcd_metadata_records >=
+			                                      EVCD_METADATA_MAX_RECORDS ||
+			          component_width > EVCD_METADATA_MAX_BITS-
+			                            evcd_metadata_bits) {
+				    fprintf(stderr,
+				      "vvp.tgt error: EVCD metadata exceeds the safe aggregate record/width budget.\n");
+				    vvp_errors += 1;
+				    evcd_metadata_budget_failed = 1;
+				    break;
+			      }
+			      evcd_metadata_records += 1;
+			      evcd_metadata_bits += component_width;
+			      component_name = ivl_signal_basename(sig);
+
+			      if (ptype == IVL_SIP_INOUT) {
+				    ivl_switch_t sw = evcd_port_component_switch(net,
+				                                                   idx,
+				                                                   component);
+				    if (sw) {
+					  ivl_nexus_t fixture_nexus = ivl_switch_a(sw);
+					  ivl_nexus_t dut_nexus = ivl_switch_b(sw);
+					  ivl_island_t island = ivl_switch_island(sw);
+					  const char *fixture =
+					        draw_island_local_input(island,
+					                                fixture_nexus);
+					  const char *dut =
+					        draw_island_local_input(island, dut_nexus);
+					  unsigned fixture_width =
+					        ivl_switch_type(sw) == IVL_SW_TRAN_VP
+					        ? ivl_switch_width(sw) : component_width;
+					  unsigned fixture_base =
+					        ivl_switch_type(sw) == IVL_SW_TRAN_VP
+					        ? ivl_switch_offset(sw) : 0;
+					  unsigned long long proxy_bits;
+					  char fixture_probe[64];
+					  char dut_probe[64];
+					  if (!fixture_width ||
+					      fixture_width > EVCD_METADATA_MAX_BITS ||
+					      component_width > EVCD_METADATA_MAX_BITS-
+					                        fixture_width) {
+						fprintf(stderr,
+						  "vvp.tgt error: EVCD proxy width exceeds the safe aggregate width budget.\n");
+						vvp_errors += 1;
+						evcd_metadata_budget_failed = 1;
+						break;
+					  }
+					  proxy_bits = (unsigned long long)fixture_width +
+					               component_width;
+					  if (proxy_bits > EVCD_METADATA_MAX_BITS-
+					                   evcd_proxy_bits) {
+						fprintf(stderr,
+						  "vvp.tgt error: EVCD proxies exceed the safe aggregate width budget.\n");
+						vvp_errors += 1;
+						evcd_metadata_budget_failed = 1;
+						break;
+					  }
+					  evcd_proxy_bits += proxy_bits;
+					  snprintf(fixture_probe, sizeof fixture_probe,
+					           "EVF_%p", sw);
+					  snprintf(dut_probe, sizeof dut_probe,
+					           "EVD_%p", sw);
+					  /* Put a private strength-aware filter on each local
+					   * driver stream.  The filters make strength-only
+					   * changes observable to VPI callbacks without
+					   * exposing extra user-visible nets. */
+					  fprintf(vvp_out,
+					    "EVF_%p .net8 * \"$ivl_evcd_fixture\", %u 0, %s;\n",
+					    sw, fixture_width-1, fixture);
+					  fprintf(vvp_out,
+					    "EVD_%p .net8 * \"$ivl_evcd_dut\", %u 0, %s;\n",
+					    sw, component_width-1, dut);
+					  fprintf(vvp_out,
+					    "    .port_info/evcd %u %u %u \"%s\" \"%d\" \"%d\" %u %u %u %s %u %u %s;\n",
+					    idx, component, component_width,
+					    vvp_mangle_name(component_name), left, right,
+					    fixture_width, fixture_base,
+					    draw_island_local_drivers(island,
+					                              fixture_nexus),
+					    fixture_probe,
+					    component_width,
+					    draw_island_local_drivers(island,
+					                              dut_nexus),
+					    dut_probe);
+				    } else {
+					  fprintf(vvp_out,
+					    "    .port_info/evcd %u %u %u \"%s\" \"%d\" \"%d\";\n",
+					    idx, component, component_width,
+					    vvp_mangle_name(component_name), left, right);
+				    }
+			      } else {
+				    fprintf(vvp_out,
+				      "    .port_info/evcd %u %u %u \"%s\" \"%d\" \"%d\";\n",
+				      idx, component, component_width,
+				      vvp_mangle_name(component_name), left, right);
+			      }
+			      consumed += component_width;
+			      component += 1;
+			}
+		  }
 	    }
       }
 
