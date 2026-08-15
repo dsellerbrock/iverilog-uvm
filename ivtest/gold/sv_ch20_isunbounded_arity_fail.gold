@@ -1,0 +1,3 @@
+./ivltests/sv_ch20_isunbounded_arity_fail.v:5: error: The $isunbounded function takes exactly one(1) argument.
+./ivltests/sv_ch20_isunbounded_arity_fail.v:6: error: The $isunbounded function takes exactly one(1) argument.
+2 error(s) during elaboration.

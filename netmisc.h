@@ -435,7 +435,8 @@ extern NetExpr* elab_and_eval(Design*des, NetScope*scope,
                               bool need_const =false,
                               bool annotatable =false,
 			      ivl_variable_type_t cast_type =IVL_VT_NO_TYPE,
-			      bool force_unsigned =false);
+			      bool force_unsigned =false,
+			      unsigned extra_flags =0);
 
 /*
  * This form of elab_and_eval uses the ivl_type_t to carry type

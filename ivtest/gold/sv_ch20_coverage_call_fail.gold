@@ -1,0 +1,8 @@
+./ivltests/sv_ch20_coverage_call_fail.v:6: error: The $coverage_control function takes exactly 4 arguments; found 3.
+./ivltests/sv_ch20_coverage_call_fail.v:8: error: argument 3 of $coverage_get must be a module/instance scope or string.
+./ivltests/sv_ch20_coverage_call_fail.v:9: error: argument 2 of $coverage_save must be a string.
+./ivltests/sv_ch20_coverage_call_fail.v:10: error: The $coverage_get_max function takes exactly 3 arguments; found 4.
+./ivltests/sv_ch20_coverage_call_fail.v:12: error: argument 1 of $set_coverage_db_name must be a string.
+./ivltests/sv_ch20_coverage_call_fail.v:13: error: The $load_coverage_db task takes exactly one(1) argument; found 0.
+./ivltests/sv_ch20_coverage_call_fail.v:14: error: The $load_coverage_db task takes exactly one(1) argument; found 2.
+7 error(s) during elaboration.

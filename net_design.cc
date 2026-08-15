@@ -34,6 +34,7 @@
 # include  "netlist.h"
 # include  "netscalar.h"
 # include  "netclass.h"
+# include  "netenum.h"
 # include  "netstruct.h"
 # include  "netvector.h"
 # include  "util.h"
@@ -1196,11 +1197,46 @@ void NetScope::evaluate_parameter_logic_(Design*des, param_ref_t cur)
       if (param_type && dynamic_cast<PEAssignPattern*>(val_expr)) {
 	    expr = elab_and_eval(des, val_scope, val_expr, param_type, true);
       } else {
+	    unsigned extra_flags = PExpr::NO_FLAGS;
+	      /* A direct `$' or direct parameter alias is the only value-
+	       * parameter expression that may carry the unbounded marker.
+	       * Do not propagate this permission through arithmetic/casts: an
+	       * unbounded parameter is not a numeric value (6.20.2.1). */
+	    if (dynamic_cast<PEUnbounded*>(val_expr)
+		|| dynamic_cast<PEIdent*>(val_expr))
+		  extra_flags |= PExpr::ALLOW_UNBOUNDED;
 	    expr = elab_and_eval(des, val_scope, val_expr, lv_width, true,
-				 cur->second.is_annotatable, use_type);
+			 cur->second.is_annotatable, use_type, false,
+			 extra_flags);
       }
       if (! expr)
             return;
+
+      if (NetEConst*unbounded = dynamic_cast<NetEConst*>(expr)) {
+	    if (unbounded->is_unbounded()) {
+		    /* Enum assignment still requires an enum member/cast, and
+		       unpacked arrays are not integer types. */
+		  if (dynamic_cast<const netenum_t*>(param_type)
+		      || cur->second.is_array_param
+		      || cur->second.range) {
+			cerr << val_expr->get_fileline() << ": error: unbounded "
+			     << "literal '$' cannot be assigned to parameter `"
+			     << cur->first << "' with this type or value range."
+			     << endl;
+			des->errors += 1;
+			delete expr;
+			return;
+		  }
+
+		  if (param_type == 0) {
+			param_type = netvector_t::integer_type();
+			cur->second.ivl_type = param_type;
+		  }
+		  unbounded->cast_signed(param_type->get_signed());
+		  cur->second.val = unbounded;
+		  return;
+	    }
+      }
 
       // Make sure to carry the signed-ness from a vector type.
       if (param_vect)

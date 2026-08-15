@@ -143,6 +143,7 @@ NetEConst* NetEConst::dup_expr() const
 {
       NetEConst*tmp = new NetEConst(value_);
       ivl_assert(*this, tmp);
+      tmp->mark_unbounded(is_unbounded());
       tmp->set_line(*this);
       tmp->inherit_deferred_type_parameter_stub(*this);
       return tmp;
@@ -159,7 +160,8 @@ NetEConstEnum* NetEConstEnum::dup_expr() const
 
 NetEConstParam* NetEConstParam::dup_expr() const
 {
-      NetEConstParam*tmp = new NetEConstParam(scope_, name_, value());
+      NetEConstParam*tmp = new NetEConstParam(scope_, name_, value(),
+                                              is_unbounded());
       ivl_assert(*this, tmp);
       tmp->set_line(*this);
       return tmp;

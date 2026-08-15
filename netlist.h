@@ -2366,6 +2366,9 @@ class NetEConst  : public NetExpr {
 
       const verinum&value() const;
 
+      bool is_unbounded() const { return unbounded_; }
+      void mark_unbounded(bool flag = true) { unbounded_ = flag; }
+
       virtual void cast_signed(bool flag) override;
       virtual bool has_width() const override;
       virtual ivl_variable_type_t expr_type() const override;
@@ -2388,6 +2391,7 @@ class NetEConst  : public NetExpr {
 
     private:
       verinum value_;
+      bool unbounded_ = false;
 };
 
 class NetEConstEnum  : public NetEConst {
@@ -2412,7 +2416,7 @@ class NetEConstParam  : public NetEConst {
 
     public:
       explicit NetEConstParam(const NetScope*scope, perm_string name,
-			      const verinum&val);
+			      const verinum&val, bool unbounded = false);
       ~NetEConstParam() override;
 
       perm_string name() const;

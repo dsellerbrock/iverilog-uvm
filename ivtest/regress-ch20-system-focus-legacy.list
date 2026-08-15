@@ -1,0 +1,7 @@
+sv_ch20_isunbounded normal,-g2012 ivltests gold=sv_ch20_isunbounded.gold
+sv_ch20_isunbounded_use_fail CE,-g2012 ivltests gold=sv_ch20_isunbounded_use_fail.gold
+sv_ch20_isunbounded_type_fail CE,-g2012 ivltests gold=sv_ch20_isunbounded_type_fail.gold
+sv_ch20_isunbounded_arity_fail CE,-g2012 ivltests gold=sv_ch20_isunbounded_arity_fail.gold
+sv_ch20_coverage normal,-g2012 ivltests gold=sv_ch20_coverage.gold
+sv_ch20_coverage_bad_domain normal,-g2012 ivltests gold=sv_ch20_coverage_bad_domain.gold
+sv_ch20_coverage_call_fail CE,-g2012 ivltests gold=sv_ch20_coverage_call_fail.gold

@@ -1569,6 +1569,26 @@ int main(int argc, char **argv)
       if (uvm_flag)
 	    configure_uvm_frontend();
 
+	/* IEEE 1800-2017 40.3.1 defines the code-coverage API constants as
+	 * predefined macros. Keep them edition-gated: a plain Verilog source
+	 * must not acquire SystemVerilog-only names merely by using Icarus. */
+      if (generation_is_systemverilog(generation)) {
+	    static const char *const coverage_defines[] = {
+		  "SV_COV_START=0", "SV_COV_STOP=1",
+		  "SV_COV_RESET=2", "SV_COV_CHECK=3",
+		  "SV_COV_MODULE=10", "SV_COV_HIER=11",
+		  "SV_COV_ASSERTION=20", "SV_COV_FSM_STATE=21",
+		  "SV_COV_STATEMENT=22", "SV_COV_TOGGLE=23",
+		  "SV_COV_OVERFLOW=-2", "SV_COV_ERROR=-1",
+		  "SV_COV_NOCOV=0", "SV_COV_OK=1",
+		  "SV_COV_PARTIAL=2"
+	    };
+	    unsigned idx;
+	    for (idx = 0 ; idx < sizeof coverage_defines / sizeof coverage_defines[0]
+		 ; idx += 1)
+		  fprintf(defines_file, "D:%s\n", coverage_defines[idx]);
+      }
+
       if (version_flag || verbose_flag) {
 	    printf("Icarus Verilog version " VERSION " (" VERSION_TAG ")\n\n");
 	    printf("%s\n\n", COPYRIGHT);

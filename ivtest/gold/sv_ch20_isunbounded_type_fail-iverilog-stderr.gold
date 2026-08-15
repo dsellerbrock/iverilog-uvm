@@ -1,0 +1,2 @@
+ivltests/sv_ch20_isunbounded_type_fail.v:3: error: unbounded literal '$' is not allowed here; it may only be assigned directly to an integral parameter or queried by $isunbounded().
+1 error(s) during elaboration.

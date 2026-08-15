@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_ch20_coverage_bad_domain.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_ch20_coverage_bad_domain"
+}
