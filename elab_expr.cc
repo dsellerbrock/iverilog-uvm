@@ -55,6 +55,26 @@
 
 using namespace std;
 
+unsigned PEStreamWith::test_width(Design*des, NetScope*scope,
+                                  width_mode_t&mode)
+{
+      expr_width_ = base_->test_width(des, scope, mode);
+      expr_type_ = base_->expr_type();
+      signed_flag_ = false;
+      min_width_ = expr_width_;
+      return expr_width_;
+}
+
+NetExpr* PEStreamWith::elaborate_expr(Design*des, NetScope*, unsigned,
+                                      unsigned) const
+{
+      cerr << get_fileline() << ": error: a streaming `with' range is only "
+           << "legal on an operand inside a streaming concatenation "
+              "(IEEE 1800-2023 11.4.14.4)." << endl;
+      des->errors += 1;
+      return nullptr;
+}
+
 /* Forward declaration from elaborate.cc — converts a constraint PExpr to
  * Z3 IR string.  value_slots collects caller-scope identifiers that must
  * be evaluated at the call site and substituted as v:N:W at runtime. */
@@ -5233,6 +5253,13 @@ NetExpr* PEStreaming::elaborate_unpack(Design*des, NetScope*scope,
 {
       if (!inner_) return nullptr;
 
+      /* An explicit with-range makes the target width a runtime value even
+	 when the source itself is statically sized.  Preserve the internal unpack
+	 carrier so target lowering can evaluate each range at its mandated point
+	 instead of adapting the source to the whole-array l-value width here. */
+      if (ranged_lval_context_)
+	    return elaborate_stream_sfunc(des, scope, 0, 0);
+
 	// Dynamically sized source: consume-from-the-left and the
 	// inverse re-ordering happen at runtime (the sfunc name
 	// carries the unpack operation via lval_context_).
@@ -5302,6 +5329,8 @@ void PEStreaming::collect_operands_(std::vector<PExpr*>&ops) const
  */
 static bool stream_operand_is_dynamic_(Design*des, NetScope*scope, PExpr*op)
 {
+      if (dynamic_cast<PEStreamWith*>(op))
+	    return true;
       if (PECastType*cast = dynamic_cast<PECastType*>(op)) {
 	    ivl_type_t tt = cast->resolve_target_type(des, scope);
 	    if (dynamic_cast<const netdarray_t*>(tt))
@@ -5345,6 +5374,107 @@ bool PEStreaming::stream_is_dynamic(Design*des, NetScope*scope) const
 static NetExpr* elaborate_stream_operand_(Design*des, NetScope*scope,
 					  PExpr*op, const LineInfo*li)
 {
+      if (PEStreamWith*with = dynamic_cast<PEStreamWith*>(op)) {
+	    stream_uarray_op_info_t fixed_info;
+	    bool fixed_have = stream_whole_uarray_operand_(
+		  des, scope, with->base(), fixed_info);
+	    NetExpr*base = fixed_have
+		  ? stream_uarray_concat_(with, fixed_info)
+		  : elaborate_stream_operand_(des, scope, with->base(), li);
+	    if (!base)
+		  return nullptr;
+
+	    ivl_type_t btype = fixed_have ? fixed_info.ua : base->net_type();
+	    const netdarray_t*dar = dynamic_cast<const netdarray_t*>(btype);
+	    const netqueue_t*queue = dynamic_cast<const netqueue_t*>(btype);
+	    if ((!fixed_have && !dar) || (queue && queue->assoc_compat())) {
+		  cerr << with->get_fileline() << ": error: the operand before "
+		       << "streaming `with' must be a one-dimensional unpacked "
+		          "array or queue (IEEE 1800-2023 11.4.14.4)." << endl;
+		  des->errors += 1;
+		  delete base;
+		  return nullptr;
+	    }
+	    ivl_type_t elem = fixed_have ? fixed_info.elem_type
+	                                 : dar->element_type();
+	    if (!elem || !elem->packed() || elem->packed_width() <= 0) {
+		  cerr << with->get_fileline() << ": error: a streaming `with' "
+		       << "array must have fixed-width bit-stream elements." << endl;
+		  des->errors += 1;
+		  delete base;
+		  return nullptr;
+	    }
+
+	    PExpr::width_mode_t rmode = PExpr::SIZED;
+	    with->range_first()->test_width(des, scope, rmode);
+	    ivl_variable_type_t first_type = with->range_first()->expr_type();
+	    if (first_type != IVL_VT_BOOL && first_type != IVL_VT_LOGIC) {
+		  cerr << with->range_first()->get_fileline()
+		       << ": error: streaming `with' range expressions must be "
+		          "integral." << endl;
+		  des->errors += 1;
+		  delete base;
+		  return nullptr;
+	    }
+	    NetExpr*first = elab_and_eval(des, scope, with->range_first(), -1);
+	    if (!first) {
+		  delete base;
+		  return nullptr;
+	    }
+	    NetExpr*second = nullptr;
+	    if (with->range_second()) {
+		  rmode = PExpr::SIZED;
+		  with->range_second()->test_width(des, scope, rmode);
+		  ivl_variable_type_t second_type =
+			with->range_second()->expr_type();
+		  if (second_type != IVL_VT_BOOL && second_type != IVL_VT_LOGIC) {
+			cerr << with->range_second()->get_fileline()
+			     << ": error: streaming `with' range expressions must "
+			        "be integral." << endl;
+			des->errors += 1;
+			delete first;
+			delete base;
+			return nullptr;
+		  }
+		  second = elab_and_eval(des, scope, with->range_second(), -1);
+		  if (!second) {
+			delete first;
+			delete base;
+			return nullptr;
+		  }
+	    }
+
+	    const char*kind = "index";
+	    switch (with->range_kind()) {
+		case IVL_STREAM_RANGE_RANGE: kind = "range"; break;
+		case IVL_STREAM_RANGE_UP:    kind = "up"; break;
+		case IVL_STREAM_RANGE_DOWN:  kind = "down"; break;
+		default: break;
+	    }
+	    char name[160];
+	    if (fixed_have) {
+		  const netranges_t&dims = fixed_info.ua->static_dimensions();
+		  snprintf(name, sizeof name,
+			   "$ivl_stream$withfixed$%s$%ld$%ld$%ld$%c",
+			   kind, dims[0].get_msb(), dims[0].get_lsb(),
+			   elem->packed_width(),
+			   elem->base_type() == IVL_VT_BOOL ? 'b' : 'v');
+	    } else {
+		  snprintf(name, sizeof name, "$ivl_stream$with$%s$%s%c%ld",
+			   kind, elem->get_signed() ? "s" : "",
+			   elem->base_type() == IVL_VT_BOOL ? 'b' : 'v',
+			   elem->packed_width());
+	    }
+	    unsigned nparms = second ? 3 : 2;
+	    NetESFunc*carrier = new NetESFunc(name, IVL_VT_LOGIC, 0, nparms);
+	    carrier->set_line(*with);
+	    carrier->parm(0, base);
+	    carrier->parm(1, first);
+	    if (second)
+		  carrier->parm(2, second);
+	    return carrier;
+      }
+
 	// Casts to dynamic container types elaborate through the
 	// typed path (which handles streaming bases as well).
       if (PECastType*cast = dynamic_cast<PECastType*>(op)) {
@@ -5393,6 +5523,23 @@ static NetExpr* elaborate_stream_operand_(Design*des, NetScope*scope,
 						PExpr::NO_FLAGS);
 		      if (obj) {
 			    ivl_variable_type_t vt = ivl_type_base(obj->net_type());
+			    if (vt == IVL_VT_DARRAY || vt == IVL_VT_QUEUE)
+				  return obj;
+			      delete obj;
+		      }
+		}
+
+		  /* Function calls and other object-valued primaries can return a
+		     queue or dynamic array directly.  Their ordinary expression
+		     elaborator preserves the aggregate result type (NetEUFunc for
+		     a user function), and the object target has a matching evaluator.
+		     This also pins receiver-before-range evaluation for `f() with'. */
+		if (!id) {
+		      NetExpr*obj = op->elaborate_expr(des, scope, w,
+						PExpr::NO_FLAGS);
+		      if (obj) {
+			    ivl_variable_type_t vt = obj->net_type()
+				  ? ivl_type_base(obj->net_type()) : obj->expr_type();
 			    if (vt == IVL_VT_DARRAY || vt == IVL_VT_QUEUE)
 				  return obj;
 			    delete obj;

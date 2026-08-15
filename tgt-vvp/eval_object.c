@@ -170,6 +170,84 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 
       for (unsigned idx = 0 ; idx < parms ; idx += 1) {
 	    ivl_expr_t parm = ivl_expr_parm(expr, idx);
+	    const char*parm_name = ivl_expr_type(parm) == IVL_EX_SFUNC
+		  ? ivl_expr_name(parm) : 0;
+	    if (parm_name
+		&& (strncmp(parm_name, "$ivl_stream$with$", 17) == 0
+		    || strncmp(parm_name, "$ivl_stream$withfixed$", 22) == 0)) {
+		  unsigned range_parms = ivl_expr_parms(parm);
+		  if (range_parms < 2 || range_parms > 3) {
+			fprintf(stderr, "%s:%u: internal error: malformed "
+				"streaming-with carrier.\n",
+				ivl_expr_file(parm), ivl_expr_lineno(parm));
+			return 1;
+		  }
+		  int fixed = strncmp(parm_name, "$ivl_stream$withfixed$", 22) == 0;
+		  ivl_expr_t obj = ivl_expr_parm(parm, 0);
+		  char kind[16] = "";
+		  char elem_text[32] = "";
+		  char state = 0;
+		  long left = 0, right = 0, ewid = 0;
+		  if (fixed) {
+			int fields = sscanf(parm_name + 22,
+			      "%15[^$]$%ld$%ld$%ld$%c",
+			      kind, &left, &right, &ewid, &state);
+			if (fields != 5 || ewid <= 0
+			    || (state != 'b' && state != 'v')) {
+			      fprintf(stderr, "%s:%u: internal error: malformed "
+				      "fixed streaming-with carrier `%s'.\n",
+				      ivl_expr_file(parm), ivl_expr_lineno(parm),
+				      parm_name);
+			      return 1;
+			}
+			/* Evaluate the array expression first.  The range follows
+			   immediately before flattening it, so a side-effecting
+			   receiver, first bound, and width each run once in source
+			   order (IEEE 1800-2023 11.4.14.4). */
+			draw_eval_vec4(obj);
+		  } else {
+			int fields = sscanf(parm_name + 17, "%15[^$]$%31s",
+			                    kind, elem_text);
+			const char*tp = elem_text;
+			if (*tp == 's') tp += 1;
+			if (fields != 2 || (*tp != 'b' && *tp != 'v')
+			    || strtoul(tp + 1, 0, 10) == 0) {
+			      fprintf(stderr, "%s:%u: internal error: malformed "
+				      "dynamic streaming-with carrier `%s'.\n",
+				      ivl_expr_file(parm), ivl_expr_lineno(parm),
+				      parm_name);
+			      return 1;
+			}
+			draw_eval_object(obj);
+		  }
+
+		  int first_reg = allocate_word();
+		  int second_reg = allocate_word();
+		  draw_eval_expr_into_integer(ivl_expr_parm(parm, 1), first_reg);
+		  fprintf(vvp_out, "    %%stream/range/mark %d, 4;\n", first_reg);
+		  if (range_parms == 3)
+			draw_eval_expr_into_integer(ivl_expr_parm(parm, 2), second_reg);
+		  else
+			fprintf(vvp_out, "    %%ix/load %d, 0, 0;\n", second_reg);
+		  if (range_parms == 3)
+			fprintf(vvp_out, "    %%stream/range/mark %d, 4;\n",
+				second_reg);
+
+		  /* The range is now fully evaluated exactly once, immediately
+		     before selecting and flattening the already-evaluated array. */
+		  if (fixed) {
+			fprintf(vvp_out,
+			      "    %%stream/flatten/vec/with \"%s:%c%ld:%ld:%ld\", "
+			      "%d, %d;\n", kind, state, ewid, left, right,
+			      first_reg, second_reg);
+		  } else {
+			fprintf(vvp_out,
+			      "    %%stream/flatten/obj/with \"%s:%s\", %d, %d;\n",
+			      kind, elem_text, first_reg, second_reg);
+		  }
+		  clr_word(second_reg);
+		  clr_word(first_reg);
+	    } else {
 	    switch (ivl_expr_value(parm)) {
 		case IVL_VT_DARRAY:
 		case IVL_VT_QUEUE:
@@ -183,6 +261,7 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 		default:
 		  draw_eval_vec4(parm);
 		  break;
+	    }
 	    }
 	    if (idx > 0)
 		  fprintf(vvp_out, "    %%concat/vec4;\n");

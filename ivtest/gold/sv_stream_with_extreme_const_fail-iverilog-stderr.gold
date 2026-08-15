@@ -1,0 +1,2 @@
+ivltests/sv_stream_with_extreme_const_fail.v:4: error: streaming `with' unpack range [9223372036854775807:18446744073709551613] is outside fixed array bounds [4:2]; only in-range elements would be modified (IEEE 1800-2023 11.4.14.4).
+Elaboration failed

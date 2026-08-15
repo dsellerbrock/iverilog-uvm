@@ -5080,6 +5080,13 @@ NetExpr* PAssign_::elaborate_rval_(Design*des, NetScope*scope,
 	// stream is left-aligned in the target — a narrower target is
 	// an error, a wider one is zero-filled on the right.
       if (const PEStreaming*st = dynamic_cast<const PEStreaming*>(rval())) {
+	      /* A ranged streaming target has a run-time width even when its
+		 only l-value is a fixed unpacked array.  Such an l-value carries
+		 IVL_VT_NO_TYPE here, so it cannot pass through the packed-vector
+		 branch below; keep the internal stream carrier intact for target
+		 lowering instead of context-elaborating it as the whole array. */
+	    if (st->is_lval_context() && st->is_ranged_lval_context())
+		  return st->elaborate_unpack(des, rval_scope, lv_width);
 	    if (lv_width > 0
 		&& (lv_type == IVL_VT_LOGIC || lv_type == IVL_VT_BOOL)) {
 		  if (st->is_lval_context())
@@ -5263,9 +5270,15 @@ static NetExpr* build_compound_binary_(char op, NetExpr*l, NetExpr*r,
  * remainder after reserving all fixed-size members. Do not let
  * NetAssign_::lwidth()'s compatibility value turn it into a one-bit member.
  */
-static bool streaming_lval_has_dynamic_member_(const NetAssign_*lv)
+/* A `with' member also has a run-time width even when its container is a
+ * fixed unpacked array: the range expressions are evaluated at the member's
+ * left-to-right assignment point.  Both cases therefore need the unbounded
+ * stream carrier rather than ordinary context-width elaboration. */
+static bool streaming_lval_needs_runtime_(const NetAssign_*lv)
 {
       for (const NetAssign_*cur = lv ; cur ; cur = cur->more) {
+	    if (cur->stream_range() != IVL_STREAM_RANGE_NONE)
+		  return true;
 	    ivl_type_t type = cur->lval_type();
 	    if (dynamic_cast<const netdarray_t*>(type)
 		|| dynamic_cast<const netstring_t*>(type))
@@ -5280,7 +5293,8 @@ static uint64_t streaming_lval_fixed_width_(const NetAssign_*lv)
       for (const NetAssign_*cur = lv ; cur ; cur = cur->more) {
 	    ivl_type_t type = cur->lval_type();
 	    if (dynamic_cast<const netdarray_t*>(type)
-		|| dynamic_cast<const netstring_t*>(type))
+		|| dynamic_cast<const netstring_t*>(type)
+		|| cur->stream_range() != IVL_STREAM_RANGE_NONE)
 		  continue;
 	    width += cur->lwidth();
       }
@@ -6139,7 +6153,7 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 	    dynamic_cast<const PEStreaming*>(rval());
       const bool dynamic_stream_target = stream_rval
 	    && stream_rval->is_lval_context()
-	    && streaming_lval_has_dynamic_member_(lv);
+	    && streaming_lval_needs_runtime_(lv);
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PAssign::elaborate: ";
@@ -6149,15 +6163,15 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 		  cerr << "lv_net_type=<nil>" << endl;
       }
 
-	/* An unbounded member in a streaming target consumes a run-time
-	 * remainder. Preserve the complete source stream in a zero-width
-	 * internal carrier; the VVP target distributes it using the exact
-	 * per-lvalue types. Delayed forms need an unbounded snapshot rather
-	 * than the fixed-vector temporary below and remain loud for now. */
+	/* An unbounded or explicitly ranged member consumes a run-time-sized
+	 * field. Preserve the complete source stream in a zero-width internal
+	 * carrier; the target evaluates ranges and distributes exact fields.
+	 * Delayed forms need an unbounded snapshot rather than the fixed-vector
+	 * temporary below and remain loud for now. */
       if (dynamic_stream_target) {
 	    if (delay_ || event_ || count_) {
 		  cerr << get_fileline() << ": sorry: delayed streaming "
-		       << "assignment to a dynamically sized target is not yet "
+		       << "assignment to a run-time-sized target is not yet "
 		       << "supported (IEEE 1800-2017 11.4.14.4)." << endl;
 		  des->errors += 1;
 		  delete lv;
@@ -7011,10 +7025,11 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       if (const PEStreaming*stream =
 	    dynamic_cast<const PEStreaming*>(rval())) {
 	    if (stream->is_lval_context()
-		&& streaming_lval_has_dynamic_member_(lv)) {
+		&& streaming_lval_needs_runtime_(lv)) {
 		  cerr << get_fileline() << ": sorry: non-blocking streaming "
-		       << "assignment to a dynamically sized target needs an "
-		       << "unbounded NBA snapshot and is not yet supported "
+		       << "assignment to a run-time-sized target needs a "
+		       << "snapshot of its receiver, range expressions, and source "
+		       << "stream and is not yet supported "
 		       << "(IEEE 1800-2017 11.4.14.4)." << endl;
 		  des->errors += 1;
 		  delete lv;

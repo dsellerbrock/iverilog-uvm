@@ -531,6 +531,9 @@ struct ivl_lval_s {
       ivl_signal_t sig;
       ivl_lval_t nest;
       ivl_type_t net_type_;
+      ivl_stream_range_t stream_range_;
+      ivl_expr_t stream_range_first_;
+      ivl_expr_t stream_range_second_;
 };
 
 /*

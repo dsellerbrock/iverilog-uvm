@@ -3258,6 +3258,12 @@ class NetAssign_ {
 	// mistaken for one-bit packed values.
       ivl_type_t lval_type() const;
 
+      void set_stream_range(ivl_stream_range_t kind, NetExpr*first,
+                            NetExpr*second);
+      ivl_stream_range_t stream_range() const { return stream_range_; }
+      const NetExpr* stream_range_first() const { return stream_range_first_; }
+      const NetExpr* stream_range_second() const { return stream_range_second_; }
+
 	// Get the name of the underlying object.
       perm_string name() const;
 
@@ -3327,6 +3333,9 @@ class NetAssign_ {
 	// index). Holds the sub-array type the slice presents; word_ holds
 	// the flat base word index. See set_array_slice().
       ivl_type_t slice_type_ = nullptr;
+      ivl_stream_range_t stream_range_ = IVL_STREAM_RANGE_NONE;
+      NetExpr*stream_range_first_ = nullptr;
+      NetExpr*stream_range_second_ = nullptr;
 };
 
 class NetAssignBase : public NetProc {

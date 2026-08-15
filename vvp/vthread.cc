@@ -63,6 +63,8 @@
 # include  <vector>
 # include  <functional>
 # include  <algorithm>
+# include  <cerrno>
+# include  <cctype>
 # include  <cstdlib>
 # include  <climits>
 # include  <cstring>
@@ -257,6 +259,13 @@ struct vthread_s {
 	    int64_t  w_int;
 	    uint64_t w_uint;
       } words[WORDS_COUNT];
+	/* Streaming range values use the ordinary word registers, but their
+	 * four-state validity must remain separate so every int64_t value is
+	 * representable (including INT64_MIN). */
+      bool stream_range_unknown[WORDS_COUNT];
+      bool stream_plan_invalid_pending;
+      unsigned stream_plan_first_reg;
+      unsigned stream_plan_second_reg;
 
 	// These vectors are depths within the parent thread's
 	// corresponding stack.  This is how the %ret/* instructions
@@ -768,6 +777,11 @@ struct vthread_s {
 
 inline vthread_s::vthread_s()
 {
+      for (unsigned idx = 0; idx < WORDS_COUNT; idx += 1)
+	    stream_range_unknown[idx] = false;
+      stream_plan_invalid_pending = false;
+      stream_plan_first_reg = 0;
+      stream_plan_second_reg = 0;
       stack_obj_size_ = 0;
       for (unsigned idx = 0; idx < STACK_OBJ_MAX_SIZE; idx += 1)
             stack_obj_net_[idx] = 0;
@@ -17838,6 +17852,707 @@ bool of_STREAM_FLATTEN_OBJ(vthread_t thr, vvp_code_t)
       return true;
 }
 
+namespace {
+
+/* Keep every range-derived allocation below a process-independent cap.  The
+ * source can request an arbitrarily large indexed width; rejecting it here
+ * prevents integer wrap and memory exhaustion while preserving deterministic
+ * empty/no-store recovery. */
+const uint64_t STREAM_WITH_MAX_BITS = UINT64_C(64) * 1024 * 1024;
+/* A bit count alone is not a safe work bound: one-bit source selections can
+ * still run huge loops, and one-bit object-backed targets carry vector/deque
+ * bookkeeping. Keep every plan consumer and target-container allocation
+ * under an independent element bound. */
+const uint64_t STREAM_WITH_MAX_ELEMENTS = UINT64_C(1024) * 1024;
+
+enum stream_with_kind_t {
+      STREAM_WITH_BAD, STREAM_WITH_INDEX, STREAM_WITH_RANGE,
+      STREAM_WITH_UP, STREAM_WITH_DOWN
+};
+
+struct stream_with_desc_t {
+      stream_with_kind_t kind;
+      unsigned elem_width;
+      bool four_state;
+      int64_t aux1;
+      int64_t aux2;
+};
+
+struct stream_with_plan_t {
+      int64_t first;
+      uint64_t count;
+      int step;
+};
+
+enum stream_with_plan_phase_t {
+      STREAM_PLAN_SINGLE, STREAM_PLAN_TARGET_FIRST, STREAM_PLAN_TARGET_SECOND
+};
+
+static bool parse_stream_with_desc_(vthread_t thr, const char*text,
+				     stream_with_desc_t&desc)
+{
+      static bool warned_malformed = false;
+      const auto malformed = [&]() {
+	    if (!warned_malformed) {
+		  cerr << thr->get_fileline()
+		       << "VVP error: malformed streaming `with' descriptor '"
+		       << (text ? text : "<null>")
+		       << "'; treating the field as empty (further similar "
+		          "messages suppressed)." << endl;
+		  warned_malformed = true;
+	    }
+	    return false;
+      };
+      const auto parse_uint = [](const string&value, uint64_t&result) {
+	    if (value.empty()) return false;
+	    for (char ch : value)
+		  if (!isdigit((unsigned char)ch)) return false;
+	    errno = 0;
+	    char*endp = 0;
+	    unsigned long long parsed = strtoull(value.c_str(), &endp, 10);
+	    if (errno == ERANGE || endp == value.c_str() || *endp)
+		  return false;
+	    result = parsed;
+	    return true;
+      };
+      const auto parse_int = [](const string&value, int64_t&result) {
+	    if (value.empty()) return false;
+	    size_t pos = value[0] == '-' ? 1 : 0;
+	    if (pos == value.size()) return false;
+	    for ( ; pos < value.size() ; pos += 1)
+		  if (!isdigit((unsigned char)value[pos])) return false;
+	    errno = 0;
+	    char*endp = 0;
+	    long long parsed = strtoll(value.c_str(), &endp, 10);
+	    if (errno == ERANGE || endp == value.c_str() || *endp)
+		  return false;
+	    result = parsed;
+	    return true;
+      };
+
+      desc.kind = STREAM_WITH_BAD;
+      desc.elem_width = 0;
+      desc.four_state = true;
+      desc.aux1 = 0;
+      desc.aux2 = 0;
+      if (!text) return malformed();
+
+      string spec(text);
+      size_t colon = spec.find(':');
+      if (colon == string::npos) return malformed();
+      string kind = spec.substr(0, colon);
+      if (kind == "index") desc.kind = STREAM_WITH_INDEX;
+      else if (kind == "range") desc.kind = STREAM_WITH_RANGE;
+      else if (kind == "up") desc.kind = STREAM_WITH_UP;
+      else if (kind == "down") desc.kind = STREAM_WITH_DOWN;
+      else return malformed();
+
+      size_t type_begin = colon + 1;
+      size_t max_colon = spec.find(':', type_begin);
+      string etype = spec.substr(type_begin,
+				 max_colon == string::npos ? string::npos
+				                            : max_colon-type_begin);
+      const char*tp = etype.c_str();
+      if (*tp == 's') tp += 1;
+	  if (*tp != 'b' && *tp != 'v') return malformed();
+      desc.four_state = (*tp == 'v');
+	  uint64_t width = 0;
+	  if (!parse_uint(tp+1, width) || width == 0 || width > UINT_MAX)
+	    return malformed();
+	  desc.elem_width = (unsigned)width;
+
+      if (max_colon != string::npos) {
+	    size_t aux2_colon = spec.find(':', max_colon + 1);
+	    string aux1 = spec.substr(max_colon + 1,
+		  aux2_colon == string::npos ? string::npos
+		                              : aux2_colon-max_colon-1);
+	    if (!parse_int(aux1, desc.aux1)) return malformed();
+	    if (aux2_colon != string::npos) {
+		  string aux2 = spec.substr(aux2_colon + 1);
+		  if (!parse_int(aux2, desc.aux2)) return malformed();
+	    }
+      }
+      return true;
+}
+
+static bool make_stream_with_plan_(vthread_t thr, vvp_code_t cp,
+				    const stream_with_desc_t&desc,
+				    stream_with_plan_t&plan,
+				    bool allow_negative = false,
+				    stream_with_plan_phase_t phase = STREAM_PLAN_SINGLE)
+{
+      plan.first = 0;
+      plan.count = 0;
+      plan.step = 1;
+      if (phase == STREAM_PLAN_TARGET_FIRST) {
+	    /* A previous null-receiver branch may have skipped its second
+	       consumer. A new target field always begins a fresh plan. */
+	    thr->stream_plan_invalid_pending = false;
+      } else if (phase == STREAM_PLAN_TARGET_SECOND) {
+	    bool repeated_invalid = thr->stream_plan_invalid_pending
+		  && thr->stream_plan_first_reg == cp->bit_idx[0]
+		  && thr->stream_plan_second_reg == cp->bit_idx[1];
+	    thr->stream_plan_invalid_pending = false;
+	    if (repeated_invalid) return false;
+      }
+
+      int64_t first = thr->words[cp->bit_idx[0]].w_int;
+      int64_t second = thr->words[cp->bit_idx[1]].w_int;
+	  bool unknown = thr->stream_range_unknown[cp->bit_idx[0]]
+	    || (desc.kind != STREAM_WITH_INDEX
+		&& thr->stream_range_unknown[cp->bit_idx[1]]);
+      bool valid = !unknown && (allow_negative || first >= 0);
+      plan.first = valid ? first : 0;
+
+      switch (desc.kind) {
+	  case STREAM_WITH_INDEX:
+	    plan.count = valid ? 1 : 0;
+	    break;
+	  case STREAM_WITH_RANGE:
+	    if (!allow_negative && second < 0) valid = false;
+	    if (valid) {
+		  __int128 delta = (__int128)second - (__int128)plan.first;
+		  plan.step = delta >= 0 ? 1 : -1;
+		  if (delta < 0) delta = -delta;
+		  if (delta >= (__int128)UINT64_MAX) valid = false;
+		  else plan.count = (uint64_t)delta + 1;
+	    }
+	    break;
+	  case STREAM_WITH_UP:
+	    if (second <= 0) valid = false;
+	    if (valid) {
+		  plan.count = (uint64_t)second;
+		  __int128 last = (__int128)plan.first + plan.count - 1;
+		  if (last > INT64_MAX) valid = false;
+	    }
+	    break;
+	  case STREAM_WITH_DOWN:
+	    if (second <= 0) valid = false;
+	    if (valid) {
+		  plan.count = (uint64_t)second;
+		  plan.step = -1;
+		  __int128 last = (__int128)plan.first - (plan.count - 1);
+		  if (last < INT64_MIN || (!allow_negative && last < 0))
+			valid = false;
+	    }
+	    break;
+	  default:
+	    valid = false;
+	    break;
+      }
+
+      if (valid && plan.count > STREAM_WITH_MAX_ELEMENTS) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: streaming `with' range selects " << plan.count
+		 << " elements, exceeding the bounded per-operation limit of "
+		 << STREAM_WITH_MAX_ELEMENTS
+		 << " elements; treating the range as empty." << endl;
+	    if (phase == STREAM_PLAN_TARGET_FIRST) {
+		  thr->stream_plan_invalid_pending = true;
+		  thr->stream_plan_first_reg = cp->bit_idx[0];
+		  thr->stream_plan_second_reg = cp->bit_idx[1];
+	    }
+	    return false;
+      }
+      if (valid && (plan.count > STREAM_WITH_MAX_BITS/desc.elem_width)) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: streaming `with' range requests " << plan.count
+		 << " elements (" << desc.elem_width
+		 << " bits each), exceeding the bounded runtime limit of "
+		 << STREAM_WITH_MAX_BITS << " bits; treating the range as empty."
+		 << endl;
+	    if (phase == STREAM_PLAN_TARGET_FIRST) {
+		  thr->stream_plan_invalid_pending = true;
+		  thr->stream_plan_first_reg = cp->bit_idx[0];
+		  thr->stream_plan_second_reg = cp->bit_idx[1];
+	    }
+	    return false;
+      }
+      if (!valid) {
+	    cerr << thr->get_fileline()
+		 << (unknown
+		       ? "VVP error: streaming `with' range expression contains X/Z; "
+		       : "VVP error: streaming `with' range has invalid indexes or "
+			 "a nonpositive indexed width; ")
+		 << "treating the range as empty." << endl;
+	    /* The target-width calculation and subsequent store consume the
+	       same captured bounds. Remember that relationship out of band so
+	       no ordinary signed range value is reserved as a sentinel. */
+	    if (phase == STREAM_PLAN_TARGET_FIRST) {
+		  thr->stream_plan_invalid_pending = true;
+		  thr->stream_plan_first_reg = cp->bit_idx[0];
+		  thr->stream_plan_second_reg = cp->bit_idx[1];
+	    }
+	    return false;
+      }
+      return true;
+}
+
+static int64_t stream_with_index_(const stream_with_plan_t&plan,
+				   uint64_t offset)
+{
+      return plan.step > 0 ? plan.first + (int64_t)offset
+	                         : plan.first - (int64_t)offset;
+}
+
+static vvp_vector4_t normalize_stream_elem_(vvp_darray*dar,
+					     int64_t index,
+					     const stream_with_desc_t&desc,
+					     bool nonexistent_default)
+{
+      vvp_bit4_t fill = nonexistent_default && desc.four_state
+	    ? BIT4_X : BIT4_0;
+      vvp_vector4_t elem(desc.elem_width, fill);
+      if (!dar || index < 0 || (uint64_t)index >= dar->get_size()
+	  || (uint64_t)index > UINT_MAX)
+	    return elem;
+      vvp_vector4_t got;
+      dar->get_word((unsigned)index, got);
+      unsigned copy = min(desc.elem_width, got.size());
+      if (copy)
+	    elem.set_vec(0, got.subvalue(0, copy));
+      if (!desc.four_state)
+	    elem = vector2_to_vector4(vvp_vector2_t(elem), elem.size());
+      return elem;
+}
+
+static vvp_vector4_t coerce_stream_elem_(const vvp_vector4_t&value,
+					  bool four_state)
+{
+      return four_state ? value
+	                    : vector2_to_vector4(vvp_vector2_t(value),
+	                                         value.size());
+}
+
+static bool take_stream_left_(vthread_t thr, uint64_t wanted)
+{
+      if (wanted > STREAM_WITH_MAX_BITS || wanted > UINT_MAX) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: streaming target field exceeds the bounded "
+		    "runtime width; producing an empty field." << endl;
+	    wanted = 0;
+      }
+      vvp_vector4_t source = thr->pop_vec4();
+      unsigned sw = source.size();
+      unsigned take = (unsigned)wanted;
+      vvp_vector4_t remainder(0, BIT4_0);
+      vvp_vector4_t piece(take, BIT4_0);
+      if (sw >= take) {
+	    unsigned rw = sw - take;
+	    remainder = source.subvalue(0, rw);
+	    if (take) piece = source.subvalue(rw, take);
+      } else {
+	    if (sw) piece.set_vec(take-sw, source);
+	    cerr << thr->get_fileline()
+		 << "VVP error: streaming concatenation target field requires "
+		 << take << " bits, but only " << sw
+		 << " source bits remain; zero-filling." << endl;
+      }
+      thr->push_vec4(remainder);
+      thr->push_vec4(piece);
+      return true;
+}
+
+} // namespace
+
+bool of_STREAM_FLATTEN_OBJ_WITH(vthread_t thr, vvp_code_t cp)
+{
+      stream_with_desc_t desc;
+      stream_with_plan_t plan;
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (!parse_stream_with_desc_(thr, cp->text, desc)
+	  || !make_stream_with_plan_(thr, cp, desc, plan, true)) {
+	    thr->push_vec4(vvp_vector4_t(0, BIT4_0));
+	    return true;
+      }
+
+      vvp_darray*dar = obj.peek<vvp_darray>();
+      unsigned total = (unsigned)(plan.count * desc.elem_width);
+      vvp_vector4_t result(total, BIT4_0);
+      for (uint64_t pos = 0 ; pos < plan.count ; pos += 1) {
+	    vvp_vector4_t elem = normalize_stream_elem_(
+		  dar, stream_with_index_(plan, pos), desc, true);
+	    unsigned base = total - (unsigned)((pos+1)*desc.elem_width);
+	    result.set_vec(base, elem);
+      }
+      thr->push_vec4(result);
+      return true;
+}
+
+bool of_STREAM_RANGE_MARK(vthread_t thr, vvp_code_t cp)
+{
+      unsigned word = cp->bit_idx[0];
+      unsigned flag = cp->bit_idx[1];
+	  thr->stream_range_unknown[word] = thr->flags[flag] != BIT4_0;
+      return true;
+}
+
+bool of_STREAM_FLATTEN_VEC_WITH(vthread_t thr, vvp_code_t cp)
+{
+      stream_with_desc_t desc;
+      stream_with_plan_t plan;
+      vvp_vector4_t source = thr->pop_vec4();
+      if (!parse_stream_with_desc_(thr, cp->text, desc)
+	  || !make_stream_with_plan_(thr, cp, desc, plan, true)) {
+	    thr->push_vec4(vvp_vector4_t(0, BIT4_0));
+	    return true;
+      }
+
+      int64_t left = desc.aux1;
+      int64_t right = desc.aux2;
+      __int128 span = (__int128)right - left;
+      if (span < 0) span = -span;
+	  __int128 array_count_wide = span + 1;
+	  if (array_count_wide > UINT_MAX
+	      || array_count_wide
+		   > (__int128)(STREAM_WITH_MAX_BITS/desc.elem_width)) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: fixed-array streaming operand exceeds the bounded "
+		    "runtime width; treating it as empty." << endl;
+	    thr->push_vec4(vvp_vector4_t(0, BIT4_0));
+	    return true;
+      }
+	  uint64_t array_count = (uint64_t)array_count_wide;
+
+      unsigned total = (unsigned)(plan.count * desc.elem_width);
+      unsigned source_total = (unsigned)(array_count * desc.elem_width);
+      vvp_vector4_t result(total, BIT4_0);
+      for (uint64_t pos = 0 ; pos < plan.count ; pos += 1) {
+	    int64_t index = stream_with_index_(plan, pos);
+	    vvp_vector4_t elem(desc.elem_width,
+		  desc.four_state ? BIT4_X : BIT4_0);
+	    int decl_step = left <= right ? 1 : -1;
+	    __int128 rel = decl_step > 0 ? (__int128)index-left
+					  : (__int128)left-index;
+	    if (rel >= 0 && rel < (__int128)array_count) {
+		  unsigned src_pos = (unsigned)rel;
+		  unsigned src_base = source_total - (src_pos+1)*desc.elem_width;
+		  if (src_base + desc.elem_width <= source.size())
+			elem = source.subvalue(src_base, desc.elem_width);
+	    }
+	    unsigned dst_base = total - (unsigned)((pos+1)*desc.elem_width);
+	    result.set_vec(dst_base, elem);
+      }
+      thr->push_vec4(result);
+      return true;
+}
+
+bool of_STREAM_TAKE_LEFT(vthread_t thr, vvp_code_t cp)
+{
+      return take_stream_left_(thr, cp->number);
+}
+
+bool of_STREAM_TAKE_LEFT_WITH(vthread_t thr, vvp_code_t cp)
+{
+      stream_with_desc_t desc;
+      stream_with_plan_t plan;
+	  if (!parse_stream_with_desc_(thr, cp->text, desc)) {
+	    thr->stream_plan_invalid_pending = true;
+	    thr->stream_plan_first_reg = cp->bit_idx[0];
+	    thr->stream_plan_second_reg = cp->bit_idx[1];
+	    return take_stream_left_(thr, 0);
+	  }
+	  if (!make_stream_with_plan_(thr, cp, desc, plan, false,
+				       STREAM_PLAN_TARGET_FIRST))
+	    return take_stream_left_(thr, 0);
+
+      uint64_t wanted = plan.count * desc.elem_width;
+      uint64_t reserve = desc.aux1 > 0 ? (uint64_t)desc.aux1 : 0;
+      if (reserve) {
+	    vvp_vector4_t source = thr->pop_vec4();
+	    unsigned sw = source.size();
+	    uint64_t available = sw > reserve ? sw-reserve : 0;
+	    unsigned take = (unsigned)min(wanted, available);
+	    vvp_vector4_t remainder = source.subvalue(0, sw-take);
+	    vvp_vector4_t piece((unsigned)wanted, BIT4_0);
+	    if (take)
+		  piece.set_vec((unsigned)wanted-take,
+			       source.subvalue(sw-take, take));
+	    if (take < wanted)
+		  cerr << thr->get_fileline()
+		       << "VVP error: ranged streaming target has only " << take
+		       << " bits available before later fixed fields; zero-filling "
+			  "the remaining " << wanted-take << " bits." << endl;
+	    thr->push_vec4(remainder);
+	    thr->push_vec4(piece);
+	    return true;
+      }
+      return take_stream_left_(thr, wanted);
+}
+
+bool of_STREAM_TAKE_LEFT_REM(vthread_t thr, vvp_code_t cp)
+{
+      uint64_t reserve = cp->number;
+      vvp_vector4_t source = thr->pop_vec4();
+      unsigned sw = source.size();
+      if (reserve > STREAM_WITH_MAX_BITS || reserve > UINT_MAX) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: fixed suffix of a streaming target exceeds the "
+		    "bounded runtime width." << endl;
+	    reserve = 0;
+      }
+      unsigned keep = (unsigned)reserve;
+      vvp_vector4_t remainder(keep, BIT4_0);
+      vvp_vector4_t greedy(0, BIT4_0);
+      if (sw >= keep) {
+	    unsigned greedy_width = sw-keep;
+	    remainder = source.subvalue(0, keep);
+	    greedy = source.subvalue(keep, greedy_width);
+      } else if (sw) {
+	    remainder.set_vec(keep-sw, source);
+      }
+      thr->push_vec4(remainder);
+      thr->push_vec4(greedy);
+      return true;
+}
+
+static bool stream_store_fixed_with_(vthread_t thr, vvp_code_t cp,
+				      stream_with_kind_t kind)
+{
+      vvp_vector4_t selected = thr->pop_vec4();
+      vvp_array_t array = resolve_runtime_array_(cp, "%stream/store/fixed");
+      if (!array) return true;
+
+      stream_with_desc_t desc;
+      desc.kind = kind;
+      desc.elem_width = (unsigned)array->get_word_size();
+      desc.four_state = true;
+      desc.aux1 = desc.aux2 = 0;
+      stream_with_plan_t plan;
+	  if (desc.elem_width == 0
+	      || !make_stream_with_plan_(thr, cp, desc, plan, true,
+					 STREAM_PLAN_TARGET_SECOND))
+	    return true;
+
+      bool reported_oob = false;
+      uint64_t array_size = array->get_size();
+      int64_t declared_zero = array_size
+	    ? (int64_t)array->get_word_declared_index(0) : 0;
+      for (uint64_t pos = 0 ; pos < plan.count ; pos += 1) {
+	    int64_t declared = stream_with_index_(plan, pos);
+	    /* Fixed-array canonical addresses are affine from the lowest
+	       declared index.  Invert that mapping directly instead of scanning
+	       the complete array once for every selected element. */
+	    __int128 canonical = (__int128)declared - declared_zero;
+	    if (canonical < 0 || canonical >= (__int128)array_size) {
+		  if (!reported_oob) {
+			cerr << thr->get_fileline()
+			     << "VVP error: streaming `with' unpack range includes "
+			     << "index " << declared
+			     << " outside the fixed array bounds; in-range elements "
+				"are still modified." << endl;
+			reported_oob = true;
+		  }
+		  continue;
+	    }
+
+	    unsigned top = selected.size() > pos*desc.elem_width
+		  ? selected.size() - (unsigned)(pos*desc.elem_width) : 0;
+	    vvp_vector4_t elem(desc.elem_width, BIT4_0);
+	    unsigned avail = min(desc.elem_width, top);
+	    if (avail)
+		  elem.set_vec(desc.elem_width-avail,
+			       selected.subvalue(top-avail, avail));
+	    array->set_word((unsigned)canonical, 0, elem);
+      }
+      return true;
+}
+
+bool of_STREAM_STORE_FIXED_INDEX(vthread_t thr, vvp_code_t cp)
+{ return stream_store_fixed_with_(thr, cp, STREAM_WITH_INDEX); }
+bool of_STREAM_STORE_FIXED_RANGE(vthread_t thr, vvp_code_t cp)
+{ return stream_store_fixed_with_(thr, cp, STREAM_WITH_RANGE); }
+bool of_STREAM_STORE_FIXED_UP(vthread_t thr, vvp_code_t cp)
+{ return stream_store_fixed_with_(thr, cp, STREAM_WITH_UP); }
+bool of_STREAM_STORE_FIXED_DOWN(vthread_t thr, vvp_code_t cp)
+{ return stream_store_fixed_with_(thr, cp, STREAM_WITH_DOWN); }
+
+static bool stream_store_prop_fixed_with_(vthread_t thr, vvp_code_t cp,
+					   stream_with_kind_t kind)
+{
+      vvp_vector4_t selected = thr->pop_vec4();
+      size_t pid = cp->number;
+      vvp_object_t&obj = thr->peek_object();
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      const class_type*defn = cobj ? cobj->get_defn()
+	                            : (vif ? vif->get_defn() : 0);
+      if (!defn || pid >= defn->property_count())
+	    return true;
+      const vector<pair<int,int> >&dimensions =
+	    defn->property_dimensions(pid);
+      if (dimensions.size() != 1)
+	    return true;
+
+      stream_with_desc_t desc;
+      desc.kind = kind;
+      desc.elem_width = defn->property_vec4_width(pid);
+      desc.four_state = defn->property_base_type(pid).find('L')
+	    != string::npos;
+      desc.aux1 = desc.aux2 = 0;
+      stream_with_plan_t plan;
+	  if (desc.elem_width == 0
+	      || !make_stream_with_plan_(thr, cp, desc, plan, true,
+					 STREAM_PLAN_TARGET_SECOND))
+	    return true;
+
+      int64_t left = dimensions[0].first;
+      int64_t right = dimensions[0].second;
+      __int128 span = (__int128)right-left;
+      if (span < 0) span = -span;
+      uint64_t count = (uint64_t)span + 1;
+      bool reported_oob = false;
+      for (uint64_t pos = 0 ; pos < plan.count ; pos += 1) {
+	    int64_t declared = stream_with_index_(plan, pos);
+	      /* Inline fixed-array properties use the same canonical storage
+		 numbering as signal arrays: slot zero is the declared RIGHT bound,
+		 irrespective of declaration direction. */
+	    __int128 canonical = left <= right
+		  ? (__int128)right-declared : (__int128)declared-right;
+	    if (canonical < 0 || canonical >= (__int128)count) {
+		  if (!reported_oob) {
+			cerr << thr->get_fileline()
+			     << "VVP error: streaming `with' unpack range includes "
+			     << "index " << declared
+			     << " outside the fixed array property bounds; in-range "
+				"elements are still modified." << endl;
+			reported_oob = true;
+		  }
+		  continue;
+	    }
+
+	    unsigned top = selected.size() > pos*desc.elem_width
+		  ? selected.size() - (unsigned)(pos*desc.elem_width) : 0;
+	    vvp_vector4_t elem(desc.elem_width, BIT4_0);
+	    unsigned avail = min(desc.elem_width, top);
+	    if (avail)
+		  elem.set_vec(desc.elem_width-avail,
+			       selected.subvalue(top-avail, avail));
+	    elem = coerce_stream_elem_(elem, desc.four_state);
+	    if (cobj) cobj->set_vec4(pid, elem, (size_t)canonical);
+	    else vif->set_vec4(pid, elem, (size_t)canonical);
+      }
+      notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
+				  thr->peek_object_root(0),
+				  "stream-store-prop-fixed");
+      return true;
+}
+
+bool of_STREAM_STORE_PROP_FIXED_INDEX(vthread_t thr, vvp_code_t cp)
+{ return stream_store_prop_fixed_with_(thr, cp, STREAM_WITH_INDEX); }
+bool of_STREAM_STORE_PROP_FIXED_RANGE(vthread_t thr, vvp_code_t cp)
+{ return stream_store_prop_fixed_with_(thr, cp, STREAM_WITH_RANGE); }
+bool of_STREAM_STORE_PROP_FIXED_UP(vthread_t thr, vvp_code_t cp)
+{ return stream_store_prop_fixed_with_(thr, cp, STREAM_WITH_UP); }
+bool of_STREAM_STORE_PROP_FIXED_DOWN(vthread_t thr, vvp_code_t cp)
+{ return stream_store_prop_fixed_with_(thr, cp, STREAM_WITH_DOWN); }
+
+static bool stream_to_container_with_(vthread_t thr, vvp_code_t cp,
+				       bool as_queue)
+{
+      stream_with_desc_t desc;
+      stream_with_plan_t plan;
+      vvp_vector4_t selected = thr->pop_vec4();
+      vvp_object_t old_obj;
+      thr->pop_object(old_obj);
+	  if (!parse_stream_with_desc_(thr, cp->text, desc)
+	      || !make_stream_with_plan_(thr, cp, desc, plan, false,
+					 STREAM_PLAN_TARGET_SECOND)) {
+	    thr->push_object(old_obj);
+	    return true;
+      }
+
+      vvp_darray*old = old_obj.peek<vvp_darray>();
+      uint64_t old_size = old ? old->get_size() : 0;
+      int64_t max_index_signed = plan.count
+	    ? stream_with_index_(plan, plan.step > 0 ? plan.count-1 : 0)
+	    : 0;
+	if (plan.step < 0) max_index_signed = plan.first;
+      uint64_t max_index = max_index_signed < 0 ? 0
+	                                       : (uint64_t)max_index_signed;
+      uint64_t wanted_size = plan.count ? max(old_size, max_index+1)
+	                               : old_size;
+      uint64_t limit_elems = STREAM_WITH_MAX_BITS / desc.elem_width;
+      uint64_t queue_max = desc.aux1 > 0 ? (uint64_t)desc.aux1 : 0;
+      if (as_queue && queue_max && wanted_size > queue_max) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: streaming `with' selection exceeds bounded queue "
+		 << "size " << queue_max
+		 << "; out-of-bound elements are ignored." << endl;
+	    wanted_size = queue_max;
+      }
+      if (plan.count > STREAM_WITH_MAX_ELEMENTS
+	  || wanted_size > STREAM_WITH_MAX_ELEMENTS
+	  || wanted_size > limit_elems || wanted_size > UINT_MAX) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: streaming `with' target requests " << plan.count
+		 << " selected elements and a " << wanted_size
+		 << "-element container, exceeding the bounded runtime limit of "
+		 << STREAM_WITH_MAX_ELEMENTS
+		 << " container elements; preserving the previous container value."
+		 << endl;
+	    thr->push_object(old_obj);
+	    return true;
+      }
+
+      vvp_object_t result_obj;
+      vvp_darray*result = 0;
+      bool can_duplicate = old && old_size == wanted_size
+	    && (desc.four_state || dynamic_cast<vvp_darray_vec2*>(old));
+      if (can_duplicate) {
+	    result_obj = vvp_object_t(old->duplicate());
+	    result = result_obj.peek<vvp_darray>();
+      } else if (as_queue) {
+	    vvp_queue_vec4*q = new vvp_queue_vec4;
+	    for (uint64_t pos = 0 ; pos < wanted_size ; pos += 1) {
+		  vvp_vector4_t elem = normalize_stream_elem_(old, pos, desc, false);
+		  q->push_back(elem, (unsigned)queue_max);
+	    }
+	    result_obj = vvp_object_t(q);
+	    result = q;
+      } else {
+	    vvp_darray*d = desc.four_state
+		  ? static_cast<vvp_darray*>(new vvp_darray_vec4(
+			(size_t)wanted_size, desc.elem_width))
+		  : static_cast<vvp_darray*>(new vvp_darray_vec2(
+			(size_t)wanted_size, desc.elem_width));
+	    for (uint64_t pos = 0 ; pos < wanted_size ; pos += 1)
+		  d->set_word((unsigned)pos,
+		      normalize_stream_elem_(old, pos, desc, false));
+	    result_obj = vvp_object_t(d);
+	    result = d;
+      }
+
+      for (uint64_t pos = 0 ; pos < plan.count ; pos += 1) {
+	    int64_t index = stream_with_index_(plan, pos);
+	    if (index < 0 || (uint64_t)index >= wanted_size
+		|| (uint64_t)index > UINT_MAX)
+		  continue;
+	    unsigned top = selected.size() > pos*desc.elem_width
+		  ? selected.size() - (unsigned)(pos*desc.elem_width) : 0;
+	    vvp_vector4_t elem(desc.elem_width, BIT4_0);
+	    unsigned avail = min(desc.elem_width, top);
+	    if (avail)
+		  elem.set_vec(desc.elem_width-avail,
+			       selected.subvalue(top-avail, avail));
+	    elem = coerce_stream_elem_(elem, desc.four_state);
+	    result->set_word((unsigned)index, elem);
+      }
+      thr->push_object(result_obj);
+      return true;
+}
+
+bool of_STREAM_TO_DAR_WITH(vthread_t thr, vvp_code_t cp)
+{
+      return stream_to_container_with_(thr, cp, false);
+}
+
+bool of_STREAM_TO_QUEUE_WITH(vthread_t thr, vvp_code_t cp)
+{
+      return stream_to_container_with_(thr, cp, true);
+}
+
 /*
  * %stream/flatten/str: pop a string, push its bit stream (8 bits per
  * character, first character leftmost).
@@ -18106,6 +18821,9 @@ static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
       unsigned ewid = 0;
       if (*tp == 'b' || *tp == 'v')
 	    ewid = (unsigned)strtoul(tp+1, 0, 10);
+      bool four_state = *tp == 'v';
+      const char*max_sep = strchr(tp+1, ':');
+      uint64_t queue_max = max_sep ? strtoull(max_sep+1, 0, 10) : 0;
 
       if (ewid == 0) {
 	    if (!warned_bad_type) {
@@ -18122,7 +18840,19 @@ static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
       }
 
       unsigned w = val.size();
-      size_t count = (w + ewid - 1) / ewid;
+      size_t count = w / ewid + ((w % ewid) != 0);
+      if (count > STREAM_WITH_MAX_BITS/ewid) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: streaming target container exceeds the bounded "
+		    "runtime width; producing an empty container." << endl;
+	    count = 0;
+      }
+      if (as_queue && queue_max && count > queue_max) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: streaming target exceeds bounded queue size "
+		 << queue_max << "; trailing elements are ignored." << endl;
+	    count = (size_t)queue_max;
+      }
 
       if (as_queue) {
 	    vvp_queue_vec4*res = new vvp_queue_vec4;
@@ -18131,12 +18861,15 @@ static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
 		  unsigned top = w - (unsigned)i*ewid;   // stream bits above this element
 		  unsigned avail = (top >= ewid) ? ewid : top;
 		  elem.set_vec(ewid - avail, val.subvalue(top - avail, avail));
-		  res->push_back(elem, 0);
+		  elem = coerce_stream_elem_(elem, four_state);
+		  res->push_back(elem, (unsigned)queue_max);
 	    }
 	    vvp_object_t obj(res);
 	    thr->push_object(obj);
       } else {
-	    vvp_darray_vec4*res = new vvp_darray_vec4(count, ewid);
+	    vvp_darray*res = four_state
+		  ? static_cast<vvp_darray*>(new vvp_darray_vec4(count, ewid))
+		  : static_cast<vvp_darray*>(new vvp_darray_vec2(count, ewid));
 	    for (size_t i = 0 ; i < count ; i += 1) {
 		  vvp_vector4_t elem(ewid, BIT4_0);
 		  unsigned top = w - (unsigned)i*ewid;

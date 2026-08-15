@@ -1,0 +1,7 @@
+VVP error: streaming `with' range expression contains X/Z; treating the range as empty.
+VVP error: streaming `with' range has invalid indexes or a nonpositive indexed width; treating the range as empty.
+VVP error: streaming `with' unpack range includes index 1 outside the fixed array bounds; in-range elements are still modified.
+VVP error: streaming `with' selection exceeds bounded queue size 3; out-of-bound elements are ignored.
+VVP error: streaming `with' target requests 1 selected elements and a 1048577-element container, exceeding the bounded runtime limit of 1048576 container elements; preserving the previous container value.
+VVP error: streaming `with' target requests 1 selected elements and a 1048577-element container, exceeding the bounded runtime limit of 1048576 container elements; preserving the previous container value.
+PASSED

@@ -1,0 +1,2 @@
+./ivltests/sv_stream_with_syntax_fail.v:4: syntax error
+./ivltests/sv_stream_with_syntax_fail.v:4: error: Malformed statement

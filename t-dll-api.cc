@@ -1902,6 +1902,24 @@ extern "C" ivl_select_type_t ivl_lval_sel_type(ivl_lval_t net)
       return net->sel_type;
 }
 
+extern "C" ivl_stream_range_t ivl_lval_stream_range(ivl_lval_t net)
+{
+      assert(net);
+      return net->stream_range_;
+}
+
+extern "C" ivl_expr_t ivl_lval_stream_range_first(ivl_lval_t net)
+{
+      assert(net);
+      return net->stream_range_first_;
+}
+
+extern "C" ivl_expr_t ivl_lval_stream_range_second(ivl_lval_t net)
+{
+      assert(net);
+      return net->stream_range_second_;
+}
+
 extern "C" unsigned ivl_lval_width(ivl_lval_t net)
 {
       assert(net);

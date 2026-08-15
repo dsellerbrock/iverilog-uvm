@@ -436,6 +436,18 @@ NexusSet* NetAssign_::nex_input(bool rem_out, bool always_sens, bool nested_func
 	    result->add(*tmp);
 	    delete tmp;
       }
+      if (stream_range_first_) {
+	    NexusSet*tmp = stream_range_first_->nex_input(rem_out, always_sens,
+	                                                   nested_func);
+	    result->add(*tmp);
+	    delete tmp;
+      }
+      if (stream_range_second_) {
+	    NexusSet*tmp = stream_range_second_->nex_input(rem_out, always_sens,
+	                                                    nested_func);
+	    result->add(*tmp);
+	    delete tmp;
+      }
 
       return result;
 }

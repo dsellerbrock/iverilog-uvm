@@ -45,6 +45,172 @@
 
 using namespace std;
 
+static string stream_int128_text_(__int128 value)
+{
+      if (value == 0) return "0";
+      bool negative = value < 0;
+      unsigned __int128 magnitude = negative
+	    ? (unsigned __int128)(-(value + 1)) + 1
+	    : (unsigned __int128)value;
+      string result;
+      while (magnitude) {
+	    result.push_back(char('0' + magnitude % 10));
+	    magnitude /= 10;
+      }
+      if (negative) result.push_back('-');
+      reverse(result.begin(), result.end());
+      return result;
+}
+
+NetAssign_* PEStreamWith::elaborate_lval(Design*des, NetScope*scope,
+                                          bool is_cassign, bool is_force,
+                                          bool is_init) const
+{
+      NetAssign_*res = base_->elaborate_lval(des, scope, is_cassign,
+                                             is_force, is_init);
+      if (!res)
+	    return nullptr;
+
+      if (res->more) {
+	    cerr << get_fileline() << ": error: the operand before streaming "
+	         << "`with' must be one one-dimensional unpacked array or queue."
+	         << endl;
+	    des->errors += 1;
+	    delete res;
+	    return nullptr;
+      }
+
+      ivl_type_t type = res->lval_type();
+      const netdarray_t*dar = dynamic_cast<const netdarray_t*>(type);
+      const netqueue_t*queue = dynamic_cast<const netqueue_t*>(type);
+      const netuarray_t*fixed = dynamic_cast<const netuarray_t*>(type);
+      bool valid_fixed = fixed && fixed->static_dimensions().size() == 1;
+      if ((!dar && !valid_fixed) || (queue && queue->assoc_compat())) {
+	    cerr << get_fileline() << ": error: the operand before streaming "
+	         << "`with' must be a one-dimensional unpacked array or queue "
+	            "(IEEE 1800-2023 11.4.14.4)." << endl;
+	    des->errors += 1;
+	    delete res;
+	    return nullptr;
+      }
+
+      ivl_type_t elem = dar ? dar->element_type() : fixed->element_type();
+      if (!elem || !elem->packed() || elem->packed_width() <= 0) {
+	    cerr << get_fileline() << ": error: a streaming `with' array must "
+	         << "have fixed-width bit-stream elements." << endl;
+	    des->errors += 1;
+	    delete res;
+	    return nullptr;
+      }
+
+      width_mode_t mode = SIZED;
+      first_->test_width(des, scope, mode);
+      if (first_->expr_type() != IVL_VT_BOOL
+	  && first_->expr_type() != IVL_VT_LOGIC) {
+	    cerr << first_->get_fileline() << ": error: streaming `with' range "
+	         << "expressions must be integral." << endl;
+	    des->errors += 1;
+	    delete res;
+	    return nullptr;
+      }
+      NetExpr*first = elab_and_eval(des, scope, first_, -1);
+      if (!first) {
+	    delete res;
+	    return nullptr;
+      }
+
+      NetExpr*second = nullptr;
+      if (second_) {
+	    mode = SIZED;
+	    second_->test_width(des, scope, mode);
+	    if (second_->expr_type() != IVL_VT_BOOL
+		&& second_->expr_type() != IVL_VT_LOGIC) {
+		  cerr << second_->get_fileline()
+		       << ": error: streaming `with' range expressions must be "
+		          "integral." << endl;
+		  des->errors += 1;
+		  delete first;
+		  delete res;
+		  return nullptr;
+	    }
+	    second = elab_and_eval(des, scope, second_, -1);
+	    if (!second) {
+		  delete first;
+		  delete res;
+		  return nullptr;
+	    }
+      }
+
+      /* Dynamically sized arrays and queues only admit positive indexes;
+	 catch constant violations here and leave variable values for the bounded
+	 runtime check at their single evaluation point. */
+      if (dar) {
+	    const NetEConst*fc = dynamic_cast<const NetEConst*>(first);
+	    const NetEConst*sc = dynamic_cast<const NetEConst*>(second);
+	    bool bad = fc && fc->value().is_defined()
+		  && fc->value().as_long() < 0;
+	    if (kind_ == IVL_STREAM_RANGE_RANGE && sc
+		&& sc->value().is_defined() && sc->value().as_long() < 0)
+		  bad = true;
+	    if ((kind_ == IVL_STREAM_RANGE_UP
+		 || kind_ == IVL_STREAM_RANGE_DOWN) && sc
+		&& sc->value().is_defined() && sc->value().as_long() <= 0)
+		  bad = true;
+	    if (bad) {
+		  cerr << get_fileline() << ": error: a dynamic-array or queue "
+		       << "streaming `with' range requires nonnegative indexes "
+		          "and a positive indexed width." << endl;
+		  des->errors += 1;
+		  delete second;
+		  delete first;
+		  delete res;
+		  return nullptr;
+	    }
+      } else if (fixed) {
+	    const netranges_t&dims = fixed->static_dimensions();
+	    __int128 bound_lo = std::min(dims[0].get_msb(), dims[0].get_lsb());
+	    __int128 bound_hi = std::max(dims[0].get_msb(), dims[0].get_lsb());
+	    const NetEConst*fc = dynamic_cast<const NetEConst*>(first);
+	    const NetEConst*sc = dynamic_cast<const NetEConst*>(second);
+	    if (fc && fc->value().is_defined()
+		&& (!second || (sc && sc->value().is_defined()))) {
+		  __int128 a = fc->value().as_long();
+		  __int128 lo = a, hi = a;
+		  if (kind_ == IVL_STREAM_RANGE_RANGE) {
+			__int128 b = sc->value().as_long();
+			lo = std::min(a, b); hi = std::max(a, b);
+		  } else if (kind_ == IVL_STREAM_RANGE_UP
+			     || kind_ == IVL_STREAM_RANGE_DOWN) {
+			__int128 width = sc->value().as_long();
+			if (width <= 0) {
+			      lo = bound_lo-1;
+			} else if (kind_ == IVL_STREAM_RANGE_UP) {
+			      hi = a + width - 1;
+			} else {
+			      lo = a - width + 1;
+			}
+		  }
+		  if (lo < bound_lo || hi > bound_hi) {
+			cerr << get_fileline() << ": error: streaming `with' "
+			     << "unpack range [" << stream_int128_text_(lo)
+			     << ":" << stream_int128_text_(hi)
+			     << "] is outside fixed array bounds ["
+			     << dims[0].get_msb() << ":" << dims[0].get_lsb()
+			     << "]; only in-range elements would be modified "
+			        "(IEEE 1800-2023 11.4.14.4)." << endl;
+			des->errors += 1;
+			delete second;
+			delete first;
+			delete res;
+			return nullptr;
+		  }
+	    }
+      }
+
+      res->set_stream_range(kind_, first, second);
+      return res;
+}
+
 /* Clocking-block member path rewrites are shared with expression
    elaboration — see rewrite_*_clocking_member_path* in netmisc.cc. */
 

@@ -179,6 +179,17 @@ typedef struct ivl_expr_s     *ivl_expr_t;
 typedef struct ivl_island_s   *ivl_island_t;
 typedef struct ivl_lpm_s      *ivl_lpm_t;
 typedef struct ivl_lval_s     *ivl_lval_t;
+
+/* IEEE 1800 streaming `with [array_range_expression]' selector carried on
+ * one assignment l-value.  NONE is the ordinary unbounded stream operand;
+ * INDEX, RANGE, UP and DOWN correspond to [i], [l:r], [b+:w] and [b-:w]. */
+typedef enum ivl_stream_range_e {
+      IVL_STREAM_RANGE_NONE = 0,
+      IVL_STREAM_RANGE_INDEX,
+      IVL_STREAM_RANGE_RANGE,
+      IVL_STREAM_RANGE_UP,
+      IVL_STREAM_RANGE_DOWN
+} ivl_stream_range_t;
 typedef struct ivl_net_const_s*ivl_net_const_t;
 typedef struct ivl_net_logic_s*ivl_net_logic_t;
 typedef struct ivl_udp_s      *ivl_udp_t;
@@ -1662,6 +1673,9 @@ extern ivl_expr_t  ivl_lval_idx(ivl_lval_t net);
 extern int         ivl_lval_is_queue_slice(ivl_lval_t net);
 extern ivl_expr_t  ivl_lval_part_off(ivl_lval_t net);
 extern ivl_select_type_t ivl_lval_sel_type(ivl_lval_t net);
+extern ivl_stream_range_t ivl_lval_stream_range(ivl_lval_t net);
+extern ivl_expr_t ivl_lval_stream_range_first(ivl_lval_t net);
+extern ivl_expr_t ivl_lval_stream_range_second(ivl_lval_t net);
 extern int ivl_lval_property_idx(ivl_lval_t net);
 extern ivl_signal_t ivl_lval_sig(ivl_lval_t net);
 extern ivl_lval_t  ivl_lval_nest(ivl_lval_t net);

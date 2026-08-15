@@ -519,6 +519,16 @@ static Statement* pform_stream_lval_assign(const struct vlltype&loc,
                                            PExpr*rhs,
                                            bool nonblock)
 {
+      bool ranged_lval = false;
+      if (lvals) {
+	    for (std::list<PExpr*>::const_iterator cur = lvals->begin();
+		 cur != lvals->end(); ++cur) {
+		  if (dynamic_cast<PEStreamWith*>(*cur)) {
+			ranged_lval = true;
+			break;
+		  }
+	    }
+      }
       PExpr*lhs = pform_stream_operand(loc, lvals);
       if (lhs == 0) {
 	    delete slice_expr;
@@ -529,7 +539,7 @@ static Statement* pform_stream_lval_assign(const struct vlltype&loc,
 	    return noop;
       }
       PEStreaming*rstream = new PEStreaming(dir, slice_expr, slice_type,
-					    rhs, true);
+					    rhs, true, ranged_lval);
       FILE_NAME(rstream, loc);
       Statement*tmp;
       if (nonblock)
@@ -10990,6 +11000,50 @@ expr_primary
 	$$ = tmp;
       }
 	| hierarchy_identifier attribute_list_opt argument_list_parens K_with
+	  '[' expression ']'
+	      { PECallFunction*base = pform_make_call_function(@1, *$1, *$3);
+		delete $1;
+		pform_discard_call_attributes($2);
+		delete $3;
+		PEStreamWith*tmp = new PEStreamWith(base,
+		      IVL_STREAM_RANGE_INDEX, $6, 0);
+		FILE_NAME(tmp, @4);
+		$$ = tmp;
+	      }
+	| hierarchy_identifier attribute_list_opt argument_list_parens K_with
+	  '[' expression ':' expression ']'
+	      { PECallFunction*base = pform_make_call_function(@1, *$1, *$3);
+		delete $1;
+		pform_discard_call_attributes($2);
+		delete $3;
+		PEStreamWith*tmp = new PEStreamWith(base,
+		      IVL_STREAM_RANGE_RANGE, $6, $8);
+		FILE_NAME(tmp, @4);
+		$$ = tmp;
+	      }
+	| hierarchy_identifier attribute_list_opt argument_list_parens K_with
+	  '[' expression K_PO_POS expression ']'
+	      { PECallFunction*base = pform_make_call_function(@1, *$1, *$3);
+		delete $1;
+		pform_discard_call_attributes($2);
+		delete $3;
+		PEStreamWith*tmp = new PEStreamWith(base,
+		      IVL_STREAM_RANGE_UP, $6, $8);
+		FILE_NAME(tmp, @4);
+		$$ = tmp;
+	      }
+	| hierarchy_identifier attribute_list_opt argument_list_parens K_with
+	  '[' expression K_PO_NEG expression ']'
+	      { PECallFunction*base = pform_make_call_function(@1, *$1, *$3);
+		delete $1;
+		pform_discard_call_attributes($2);
+		delete $3;
+		PEStreamWith*tmp = new PEStreamWith(base,
+		      IVL_STREAM_RANGE_DOWN, $6, $8);
+		FILE_NAME(tmp, @4);
+		$$ = tmp;
+	      }
+	| hierarchy_identifier attribute_list_opt argument_list_parens K_with
 	  '(' expression randomize_with_identifier_tail ')'
 	  randomize_constraint_block_opt
 	      { /* Phase 63b/B1 (real impl): capture the with-clause
@@ -11059,6 +11113,42 @@ expr_primary
   /* Phase 63b/B1: no-parens form `q.find with (pred)` — argument
      list is empty.  Captures the with-clause same as the parens
      form above. */
+	| hierarchy_identifier K_with '[' expression ']'
+	      {
+		PEIdent*base = pform_new_ident(@1, *$1);
+		delete $1;
+		PEStreamWith*tmp = new PEStreamWith(base,
+		      IVL_STREAM_RANGE_INDEX, $4, 0);
+		FILE_NAME(tmp, @2);
+		$$ = tmp;
+	      }
+	| hierarchy_identifier K_with '[' expression ':' expression ']'
+	      {
+		PEIdent*base = pform_new_ident(@1, *$1);
+		delete $1;
+		PEStreamWith*tmp = new PEStreamWith(base,
+		      IVL_STREAM_RANGE_RANGE, $4, $6);
+		FILE_NAME(tmp, @2);
+		$$ = tmp;
+	      }
+	| hierarchy_identifier K_with '[' expression K_PO_POS expression ']'
+	      {
+		PEIdent*base = pform_new_ident(@1, *$1);
+		delete $1;
+		PEStreamWith*tmp = new PEStreamWith(base,
+		      IVL_STREAM_RANGE_UP, $4, $6);
+		FILE_NAME(tmp, @2);
+		$$ = tmp;
+	      }
+	| hierarchy_identifier K_with '[' expression K_PO_NEG expression ']'
+	      {
+		PEIdent*base = pform_new_ident(@1, *$1);
+		delete $1;
+		PEStreamWith*tmp = new PEStreamWith(base,
+		      IVL_STREAM_RANGE_DOWN, $4, $6);
+		FILE_NAME(tmp, @2);
+		$$ = tmp;
+	      }
 	| hierarchy_identifier K_with '(' expression ')'
 	      { pform_requires_sv(@2, "Method with-clause (no args)");
 		std::list<named_pexpr_t> pt;
@@ -11705,6 +11795,34 @@ expr_primary
 	      tmp->set_with_constraints(std::move(wc));
 	}
 	delete $4;
+	$$ = tmp;
+      }
+  | expr_primary K_with '[' expression ']'
+      {
+	PEStreamWith*tmp = new PEStreamWith($1, IVL_STREAM_RANGE_INDEX,
+	                                    $4, 0);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
+  | expr_primary K_with '[' expression ':' expression ']'
+      {
+	PEStreamWith*tmp = new PEStreamWith($1, IVL_STREAM_RANGE_RANGE,
+	                                    $4, $6);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
+  | expr_primary K_with '[' expression K_PO_POS expression ']'
+      {
+	PEStreamWith*tmp = new PEStreamWith($1, IVL_STREAM_RANGE_UP,
+	                                    $4, $6);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
+  | expr_primary K_with '[' expression K_PO_NEG expression ']'
+      {
+	PEStreamWith*tmp = new PEStreamWith($1, IVL_STREAM_RANGE_DOWN,
+	                                    $4, $6);
+	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
   | expr_primary K_with '(' expression ')'

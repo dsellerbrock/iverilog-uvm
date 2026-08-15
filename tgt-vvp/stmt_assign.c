@@ -3482,6 +3482,38 @@ static int stream_lval_is_dynamic_(ivl_lval_t lval)
       }
 }
 
+static const char* stream_range_name_(ivl_stream_range_t kind)
+{
+      switch (kind) {
+	  case IVL_STREAM_RANGE_INDEX: return "index";
+	  case IVL_STREAM_RANGE_RANGE: return "range";
+	  case IVL_STREAM_RANGE_UP:    return "up";
+	  case IVL_STREAM_RANGE_DOWN:  return "down";
+	  default: return "none";
+      }
+}
+
+static int eval_stream_range_(ivl_lval_t lval, int*first_reg,
+			      int*second_reg)
+{
+      ivl_expr_t first = ivl_lval_stream_range_first(lval);
+      ivl_expr_t second = ivl_lval_stream_range_second(lval);
+      if (!first)
+	    return 0;
+
+      *first_reg = allocate_word();
+      *second_reg = allocate_word();
+      draw_eval_expr_into_integer(first, *first_reg);
+      fprintf(vvp_out, "    %%stream/range/mark %d, 4;\n", *first_reg);
+      if (second)
+	    draw_eval_expr_into_integer(second, *second_reg);
+      else
+	    fprintf(vvp_out, "    %%ix/load %d, 0, 0;\n", *second_reg);
+      if (second)
+	    fprintf(vvp_out, "    %%stream/range/mark %d, 4;\n", *second_reg);
+      return 1;
+}
+
 static int validate_dynamic_stream_lval_(ivl_statement_t net,
 					  ivl_lval_t lval)
 {
@@ -3489,7 +3521,9 @@ static int validate_dynamic_stream_lval_(ivl_statement_t net,
       ivl_signal_t sig = ivl_lval_sig(lval);
       ivl_variable_type_t base = ivl_type_base(type);
 
-      if (!sig || ivl_lval_nest(lval) || ivl_lval_property_idx(lval) >= 0
+      int prop_idx = ivl_lval_property_idx(lval);
+      if ((!sig && !ivl_lval_nest(lval))
+	  || (prop_idx < 0 && ivl_lval_nest(lval))
 	  || ivl_lval_idx(lval) || ivl_lval_part_off(lval)) {
 	    fprintf(stderr, "%s:%u: sorry: this selected or nested dynamically "
 		    "sized streaming target is not yet supported (IEEE "
@@ -3530,12 +3564,29 @@ static int store_dynamic_stream_lval_(ivl_lval_t lval)
       ivl_type_t type = ivl_lval_net_type(lval);
       ivl_signal_t sig = ivl_lval_sig(lval);
       ivl_variable_type_t base = ivl_type_base(type);
+      int prop_idx = ivl_lval_property_idx(lval);
+      int is_property = prop_idx >= 0;
 
-      assert(sig);
+      if (is_property) {
+	    ivl_type_t receiver_type = draw_lval_expr(lval);
+	    if (!receiver_type || prop_idx >= ivl_type_properties(receiver_type)) {
+		  fprintf(stderr, "sorry: cannot resolve dynamically sized "
+			  "streaming target property %d.\n", prop_idx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  return 1;
+	    }
+      } else {
+	    assert(sig);
+      }
 
       if (base == IVL_VT_STRING) {
 	    fprintf(vvp_out, "    %%pushv/str;\n");
-	    fprintf(vvp_out, "    %%store/str v%p_0;\n", sig);
+	    if (is_property) {
+		  fprintf(vvp_out, "    %%store/prop/str %d;\n", prop_idx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    } else {
+		  fprintf(vvp_out, "    %%store/str v%p_0;\n", sig);
+	    }
 	    return 0;
       }
 
@@ -3546,18 +3597,102 @@ static int store_dynamic_stream_lval_(ivl_lval_t lval)
       stream_elem_type_text(elem, elem_text, sizeof elem_text);
       if (base == IVL_VT_DARRAY) {
 	    fprintf(vvp_out, "    %%stream/to/dar \"%s\";\n", elem_text);
-	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
+	    if (is_property) {
+		  fprintf(vvp_out, "    %%store/prop/obj %d, 0;\n", prop_idx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    } else {
+		  fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
+	    }
 	    return 0;
       }
 
       assert(base == IVL_VT_QUEUE);
+      uint64_t max_size = ivl_type_queue_max_size(type);
+      unsigned max_count = max_size > UINT_MAX ? 0 : (unsigned)max_size;
       int max_idx = allocate_word();
-      fprintf(vvp_out, "    %%stream/to/queue \"%s\";\n", elem_text);
-      fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", max_idx,
+      fprintf(vvp_out, "    %%stream/to/queue \"%s:%u\";\n",
+	      elem_text, max_count);
+      if (is_property) {
+	    fprintf(vvp_out, "    %%store/prop/obj %d, 0;\n", prop_idx);
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+      } else {
+	    fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", max_idx,
 	      ivl_signal_array_count(sig));
-      fprintf(vvp_out, "    %%store/qobj/v v%p_0, %d, %u;\n",
+	    fprintf(vvp_out, "    %%store/qobj/v v%p_0, %d, %u;\n",
 	      sig, max_idx, ivl_type_packed_width(elem));
+      }
       clr_word(max_idx);
+      return 0;
+}
+
+/* Store one explicitly ranged dynamic member.  The range expressions are
+ * already in the two word registers and the selected field is on the vec4
+ * stack.  Load the old container so elements outside the range survive, and
+ * let the bounded runtime operation resize only as far as required. */
+static int store_dynamic_stream_lval_with_(ivl_lval_t lval,
+					    int first_reg, int second_reg,
+					    int receiver_loaded)
+{
+      ivl_type_t type = ivl_lval_net_type(lval);
+      ivl_signal_t sig = ivl_lval_sig(lval);
+      ivl_variable_type_t base = ivl_type_base(type);
+      ivl_type_t elem = ivl_type_element(type);
+      int prop_idx = ivl_lval_property_idx(lval);
+      assert(elem);
+
+      char elem_text[32];
+      stream_elem_type_text(elem, elem_text, sizeof elem_text);
+      const char*kind = stream_range_name_(ivl_lval_stream_range(lval));
+
+      if (prop_idx >= 0) {
+	    if (!receiver_loaded) {
+		  ivl_type_t receiver_type = draw_lval_expr(lval);
+		  if (!receiver_type
+		      || prop_idx >= ivl_type_properties(receiver_type)) {
+			fprintf(stderr, "sorry: cannot resolve nested streaming `with' "
+				"container property %d.\n", prop_idx);
+			return 1;
+		  }
+	    }
+	    fprintf(vvp_out,
+		    "    %%prop/obj %d, 0; load ranged stream property\n",
+		    prop_idx);
+      } else {
+	    assert(sig);
+	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
+      }
+      if (base == IVL_VT_DARRAY) {
+	    fprintf(vvp_out, "    %%stream/to/dar/with \"%s:%s\", %d, %d;\n",
+		    kind, elem_text, first_reg, second_reg);
+	    if (prop_idx >= 0) {
+		  fprintf(vvp_out,
+			  "    %%store/prop/obj %d, 0; ranged stream property\n",
+			  prop_idx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0; drop property receiver\n");
+	    } else {
+		  fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
+	    }
+	    return 0;
+      }
+
+      assert(base == IVL_VT_QUEUE);
+      uint64_t max_size = ivl_type_queue_max_size(type);
+      unsigned max_count = max_size > UINT_MAX ? 0 : (unsigned)max_size;
+      fprintf(vvp_out,
+	      "    %%stream/to/queue/with \"%s:%s:%u\", %d, %d;\n",
+	      kind, elem_text, max_count, first_reg, second_reg);
+      if (prop_idx >= 0) {
+	    fprintf(vvp_out,
+		    "    %%store/prop/obj %d, 0; ranged queue property\n",
+		    prop_idx);
+	    fprintf(vvp_out, "    %%pop/obj 1, 0; drop property receiver\n");
+      } else {
+	    int max_idx = allocate_word();
+	    fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", max_idx, max_count);
+	    fprintf(vvp_out, "    %%store/qobj/v v%p_0, %d, %u;\n",
+		    sig, max_idx, ivl_type_packed_width(elem));
+	    clr_word(max_idx);
+      }
       return 0;
 }
 
@@ -3584,12 +3719,35 @@ static int show_stmt_assign_dynamic_stream_(ivl_statement_t net)
       unsigned greedy = 0;
       unsigned dynamic_count = 0;
       uint64_t fixed_width = 0;
+      int have_range = 0;
 
       for (unsigned idx = 0 ; idx < lvals ; idx += 1) {
 	    ivl_lval_t lval = ivl_stmt_lval(net, idx);
+	    if (ivl_lval_stream_range(lval) != IVL_STREAM_RANGE_NONE)
+		  have_range = 1;
 	    if (stream_lval_is_dynamic_(lval)) {
 		  greedy = idx;
 		  dynamic_count += 1;
+		  continue;
+	    }
+
+	    if (ivl_lval_stream_range(lval) != IVL_STREAM_RANGE_NONE) {
+		  ivl_type_t fixed_type = ivl_lval_net_type(lval);
+		  ivl_type_t elem = fixed_type ? ivl_type_element(fixed_type) : 0;
+		  int prop_idx = ivl_lval_property_idx(lval);
+		  int direct = ivl_lval_sig(lval) && !ivl_lval_nest(lval)
+			&& prop_idx < 0
+			&& ivl_signal_dimensions(ivl_lval_sig(lval)) == 1;
+		  int property = prop_idx >= 0;
+		  if ((!direct && !property)
+		      || !elem || (ivl_type_base(elem) != IVL_VT_BOOL
+				    && ivl_type_base(elem) != IVL_VT_LOGIC)) {
+			fprintf(stderr, "%s:%u: sorry: this selected or nonintegral "
+				"fixed-array streaming `with' target is not yet "
+				"supported.\n", ivl_stmt_file(net),
+				ivl_stmt_lineno(net));
+			return 1;
+		  }
 		  continue;
 	    }
 
@@ -3613,7 +3771,7 @@ static int show_stmt_assign_dynamic_stream_(ivl_statement_t net)
 	    fixed_width += ivl_lval_width(lval);
       }
 
-      if (dynamic_count == 0)
+      if (dynamic_count == 0 && !have_range)
 	    return -1;
 
       if (fixed_width > UINT_MAX) {
@@ -3634,12 +3792,152 @@ static int show_stmt_assign_dynamic_stream_(ivl_statement_t net)
 		  return validation_errors;
       }
 
+	/* An unconstrained variable-size member greedily consumes the remaining
+	 * stream.  A later explicit with-range therefore has no well-defined
+	 * source field; 11.4.14.4 requires all constrained variable-size fields
+	 * to precede it (Slang diagnoses the same ordering). */
+      int saw_unbounded = 0;
+      for (unsigned pos = lvals ; pos > 0 ; pos -= 1) {
+	    ivl_lval_t lval = ivl_stmt_lval(net, pos - 1);
+	    if (stream_lval_is_dynamic_(lval)
+		&& ivl_lval_stream_range(lval) == IVL_STREAM_RANGE_NONE) {
+		  saw_unbounded = 1;
+	    } else if (saw_unbounded
+		       && ivl_lval_stream_range(lval) != IVL_STREAM_RANGE_NONE) {
+		  fprintf(stderr, "%s:%u: error: a streaming `with' target may "
+			  "not follow an unconstrained dynamically sized target "
+			  "(IEEE 1800-2023 11.4.14.4).\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return 1;
+	    }
+      }
+
       int errors = draw_stream_pack_pieces(rval, 0);
       if (errors < 0) {
 	    fprintf(stderr, "%s:%u: internal error: malformed dynamic "
 		    "streaming-target carrier.\n",
 		    ivl_stmt_file(net), ivl_stmt_lineno(net));
 	    return 1;
+      }
+
+      if (have_range) {
+	    /* IVL exports concatenation members rightmost first.  Walk in reverse
+	       source order so preceding fields are committed before a later
+	       range expression is evaluated, exactly as 11.4.14.4 requires. */
+	    int greedy_seen = 0;
+	    for (unsigned pos = lvals ; pos > 0 ; pos -= 1) {
+		  ivl_lval_t lval = ivl_stmt_lval(net, pos - 1);
+		  ivl_stream_range_t kind = ivl_lval_stream_range(lval);
+		  if (kind != IVL_STREAM_RANGE_NONE) {
+			/* Evaluate a class / aggregate receiver once before its range
+			   expressions. Keep that handle on the object stack until the
+			   selected field has been stored, matching source evaluation
+			   order even for nested or indexed receivers. */
+			int prop_idx = ivl_lval_property_idx(lval);
+			ivl_type_t receiver_type = 0;
+			if (prop_idx >= 0) {
+			      receiver_type = draw_lval_expr(lval);
+			      if (!receiver_type
+				  || prop_idx >= ivl_type_properties(receiver_type)) {
+				    fprintf(stderr, "%s:%u: sorry: cannot resolve "
+					    "streaming target property %d.\n",
+					    ivl_stmt_file(net), ivl_stmt_lineno(net),
+					    prop_idx);
+				    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+				    return errors + 1;
+			      }
+			}
+			int first_reg = 0, second_reg = 0;
+			if (!eval_stream_range_(lval, &first_reg, &second_reg)) {
+			      fprintf(stderr, "%s:%u: internal error: streaming "
+				      "range metadata has no first expression.\n",
+				      ivl_stmt_file(net), ivl_stmt_lineno(net));
+			      return errors + 1;
+			}
+			ivl_type_t elem = ivl_type_element(ivl_lval_net_type(lval));
+			char elem_text[32];
+			stream_elem_type_text(elem, elem_text, sizeof elem_text);
+			uint64_t fixed_after = 0;
+			for (unsigned tail = 0 ; tail + 1 < pos ; tail += 1) {
+			      ivl_lval_t later = ivl_stmt_lval(net, tail);
+			      if (!stream_lval_is_dynamic_(later)
+				  && ivl_lval_stream_range(later)
+					== IVL_STREAM_RANGE_NONE)
+				    fixed_after += ivl_lval_width(later);
+			}
+			fprintf(vvp_out,
+				"    %%stream/take/left/with \"%s:%s:%llu\", %d, %d;\n",
+				stream_range_name_(kind), elem_text,
+				(unsigned long long)(greedy_seen ? fixed_after : 0),
+				first_reg, second_reg);
+			unsigned lab_null = 0, lab_out = 0;
+			if (prop_idx >= 0) {
+			      lab_null = local_count++;
+			      lab_out = local_count++;
+			      fprintf(vvp_out, "    %%test_nul/obj;\n");
+			      fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
+				      thread_count, lab_null);
+			}
+			if (stream_lval_is_dynamic_(lval)) {
+			      errors += store_dynamic_stream_lval_with_(
+				    lval, first_reg, second_reg, prop_idx >= 0);
+			} else {
+			      if (prop_idx >= 0) {
+				    fprintf(vvp_out,
+						"    %%stream/store/prop/fixed/%s %d, %d, %d;\n",
+						stream_range_name_(kind), prop_idx,
+						first_reg, second_reg);
+				    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			      } else {
+				    ivl_signal_t fsig = ivl_lval_sig(lval);
+				    note_array_signal_use(fsig);
+				    fprintf(vvp_out,
+					  "    %%stream/store/fixed/%s v%p, %d, %d;\n",
+					  stream_range_name_(kind), fsig,
+					  first_reg, second_reg);
+				      }
+			}
+			if (prop_idx >= 0) {
+			      fprintf(vvp_out, "    %%jmp T_%u.%u;\n",
+				      thread_count, lab_out);
+			      fprintf(vvp_out, "T_%u.%u;\n",
+				      thread_count, lab_null);
+			      fprintf(vvp_out,
+				      "    %%pop/vec4 1; null ranged property field\n");
+			      fprintf(vvp_out,
+				      "    %%pop/obj 1, 0; null ranged property receiver\n");
+			      fprintf(vvp_out, "T_%u.%u;\n",
+				      thread_count, lab_out);
+			}
+			clr_word(second_reg);
+			clr_word(first_reg);
+		  } else if (stream_lval_is_dynamic_(lval)) {
+			if (greedy_seen) {
+			      fprintf(vvp_out, "    %%stream/take/left 0;\n");
+			} else {
+			      uint64_t fixed_after = 0;
+			      for (unsigned tail = 0 ; tail + 1 < pos ; tail += 1) {
+				    ivl_lval_t later = ivl_stmt_lval(net, tail);
+				    if (!stream_lval_is_dynamic_(later)
+					&& ivl_lval_stream_range(later)
+					      == IVL_STREAM_RANGE_NONE)
+					  fixed_after += ivl_lval_width(later);
+			      }
+			      fprintf(vvp_out,
+				      "    %%stream/take/left/rem %llu;\n",
+				      (unsigned long long)fixed_after);
+			      greedy_seen = 1;
+			}
+			errors += store_dynamic_stream_lval_(lval);
+		  } else {
+			fprintf(vvp_out, "    %%stream/take/left %u;\n",
+				ivl_lval_width(lval));
+			store_vec4_to_one_lval(lval);
+		  }
+	    }
+	    /* Every take leaves the unconsumed suffix below its selected piece. */
+	    fprintf(vvp_out, "    %%pop/vec4 1;\n");
+	    return errors;
       }
 
       fprintf(vvp_out, "    %%stream/pad/min %u;\n", (unsigned)fixed_width);

@@ -1,0 +1,4 @@
+VVP error: streaming `with' range selects 1048577 elements, exceeding the bounded per-operation limit of 1048576 elements; treating the range as empty.
+VVP error: streaming `with' range selects 1048577 elements, exceeding the bounded per-operation limit of 1048576 elements; treating the range as empty.
+VVP error: streaming `with' range selects 1048577 elements, exceeding the bounded per-operation limit of 1048576 elements; treating the range as empty.
+PASSED
