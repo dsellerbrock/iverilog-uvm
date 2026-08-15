@@ -32,6 +32,17 @@
 
 using namespace std;
 
+static string string_var_value_(vvp_net_t*net)
+{
+      if (vvp_fun_signal_string*fun =
+            dynamic_cast<vvp_fun_signal_string*>(net->fun))
+            return fun->get_string();
+      if (vvp_ref_signal_aa*ref = dynamic_cast<vvp_ref_signal_aa*>(net->fun))
+            return ref->get_string();
+      assert(0);
+      return string();
+}
+
 __vpiStringVar::__vpiStringVar(__vpiScope*sc, const char*na, vvp_net_t*ne)
 : __vpiBaseVar(sc, na, ne)
 {
@@ -42,9 +53,7 @@ int __vpiStringVar::get_type_code(void) const
 
 int __vpiStringVar::vpi_get(int code)
 {
-      vvp_fun_signal_string*fun = dynamic_cast<vvp_fun_signal_string*> (get_net()->fun);
-      assert(fun);
-      string str = fun->get_string();
+      string str = string_var_value_(get_net());
 
       switch (code) {
 	  case vpiSize:
@@ -67,9 +76,7 @@ int __vpiStringVar::vpi_get(int code)
 
 void __vpiStringVar::vpi_get_value(p_vpi_value val)
 {
-      vvp_fun_signal_string*fun = dynamic_cast<vvp_fun_signal_string*> (get_net()->fun);
-      assert(fun);
-      string str = fun->get_string();
+      string str = string_var_value_(get_net());
 
       if (val->format == vpiStringVal || val->format == vpiObjTypeVal) {
 	    char*rbuf = static_cast<char *>(need_result_buf(str.size()+1, RBUF_VAL));
@@ -84,8 +91,8 @@ void __vpiStringVar::vpi_get_value(p_vpi_value val)
 
 vpiHandle __vpiStringVar::vpi_put_value(p_vpi_value val, int)
 {
-      vvp_fun_signal_string*fun = dynamic_cast<vvp_fun_signal_string*> (get_net()->fun);
-      assert(fun);
+      assert(dynamic_cast<vvp_fun_signal_string*> (get_net()->fun)
+             || dynamic_cast<vvp_ref_signal_aa*> (get_net()->fun));
       assert(val->format == vpiStringVal);
       vvp_net_ptr_t dest (get_net(), 0);
       vvp_send_string(dest, val->value.str, vthread_get_wt_context());

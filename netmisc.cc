@@ -3066,12 +3066,11 @@ bool uarray_element_matches_container_(const netuarray_t*dst,
  * the very same generic interfaces (vvp_signal_value::real_value() and
  * vvp_net_fun_t::recv_real(), both already forwarded by
  * vvp_ref_signal_aa for the class-handle case, see vvp_net_sig.cc), so
- * no new runtime surface was needed. A string or container (dynamic
- * array, queue, fixed array) formal is read by an opcode that reaches
- * for a *different* type-specific functor instead (%load/str, the
- * container element/word opcodes), which vvp_ref_signal_aa does not
- * implement, so those keep the copy-in/copy-out pair they have always
- * had.
+ * no new runtime surface was needed. String formals are also bound for
+ * tasks: %load/str and the string VPI handle recognize the same ref
+ * wrapper, while writes already use its generic recv_string method.
+ * Whole container formals still use type-specific container opcodes and
+ * retain their historical copy-in/copy-out path.
  *
  * Real is deliberately bound for TASK formals only, never FUNC. A
  * function's ref-formal binding does not run through this same
@@ -3145,6 +3144,8 @@ bool ref_formal_is_bound(const NetNet*port)
 	  case IVL_VT_REAL:
 	      /* R25 stretch, TASK only -- see the long comment above. */
 	    return owner->type() == NetScope::TASK;
+	  case IVL_VT_STRING:
+	    return owner->type() == NetScope::TASK;
 	  default:
 	    return false;
       }
@@ -3173,9 +3174,6 @@ void warn_ref_formal_fork_hazard(const NetNet*port, const Statement*task_body)
       } else switch (port->data_type()) {
 	  case IVL_VT_REAL:
 	    what = "real";
-	    break;
-	  case IVL_VT_STRING:
-	    what = "string";
 	    break;
 	  default:
 	      /* Bound (BOOL/LOGIC/CLASS) or some other shape entirely --

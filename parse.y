@@ -10694,6 +10694,17 @@ parameterized_scoped_identifier
 	tmp->append_index(idx);
 	$$ = tmp;
       }
+  | parameterized_scoped_identifier '[' expression ':' '$' '-' expression ']'
+      { pform_requires_sv(@5, "Queue slice [lo:$-offset]");
+	PEIdent*tmp = dynamic_cast<PEIdent*>($1);
+	assert(tmp);
+	index_component_t idx;
+	idx.sel = index_component_t::SEL_PART_LAST;
+	idx.msb = $3;
+	idx.lsb = $7;
+	tmp->append_index(idx);
+	$$ = tmp;
+      }
   | parameterized_scoped_identifier '[' expression K_PO_POS expression ']'
       { PEIdent*tmp = dynamic_cast<PEIdent*>($1);
 	assert(tmp);
@@ -12707,6 +12718,17 @@ hierarchy_identifier
 	itmp.sel = index_component_t::SEL_PART_LAST;
 	itmp.msb = $3;  /* lo index */
 	itmp.lsb = 0;
+	tail.index.push_back(itmp);
+	$$ = tmp;
+      }
+  | hierarchy_identifier '[' expression ':' '$' '-' expression ']'
+      { pform_requires_sv(@5, "Queue slice [lo:$-offset]");
+	pform_name_t * tmp = $1;
+	name_component_t&tail = tmp->back();
+	index_component_t itmp;
+	itmp.sel = index_component_t::SEL_PART_LAST;
+	itmp.msb = $3;
+	itmp.lsb = $7;
 	tail.index.push_back(itmp);
 	$$ = tmp;
       }

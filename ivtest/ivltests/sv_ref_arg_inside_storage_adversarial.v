@@ -35,7 +35,7 @@ module top;
     o1 = new; o2 = new;
 
     // 1. Queue element bound, queue GROWS before the detached write:
-    //    the binding is by index, so q[1] must get the value.
+    //    appending does not remove or shift that live element.
     w_delay(q[1], 11, 2);
     q.push_back(0);          // resize between bind and write
     // 2. Two concurrent calls, different elements of one array.

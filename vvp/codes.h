@@ -469,6 +469,8 @@ extern bool of_QRSORT_KEYS(vthread_t thr, vvp_code_t code);
 extern bool of_QSHUFFLE(vthread_t thr, vvp_code_t code);
 extern bool of_QSORT_KEYS(vthread_t thr, vvp_code_t code);
 extern bool of_QSLICE(vthread_t thr, vvp_code_t code);
+extern bool of_QSLICE_LAST(vthread_t thr, vvp_code_t code);
+extern bool of_QSLICE_OFF(vthread_t thr, vvp_code_t code);
 extern bool of_QUNIQUE_COPY(vthread_t thr, vvp_code_t code);
 extern bool of_QUNIQUE_IDX(vthread_t thr, vvp_code_t code);
 extern bool of_QUNIQUE_KEYS(vthread_t thr, vvp_code_t code);

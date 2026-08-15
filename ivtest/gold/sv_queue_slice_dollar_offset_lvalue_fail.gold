@@ -1,0 +1,2 @@
+./ivltests/sv_queue_slice_dollar_offset_lvalue_fail.v:8: sorry: assignment to queue slice [lo:$-offset] is not yet supported.
+1 error(s) during elaboration.

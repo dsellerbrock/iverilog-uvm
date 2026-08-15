@@ -106,7 +106,7 @@ static struct __vpiModPath*modpath_dst = 0;
 %token K_UDP K_UDP_C K_UDP_S
 %token K_VAR K_VAR_COBJECT K_VAR_DARRAY
 %token K_VAR_QUEUE
-%token K_VAR_S K_VAR_STR K_VAR_I K_VAR_R K_VAR_2S K_VAR_2U K_REF K_REF_R
+%token K_VAR_S K_VAR_STR K_VAR_I K_VAR_R K_VAR_2S K_VAR_2U K_REF K_REF_R K_REF_STR
 %token K_vpi_call K_vpi_call_w K_vpi_call_i
 %token K_vpi_func K_vpi_func_r K_vpi_func_s
 %token K_ivl_version K_ivl_delay_selection
@@ -845,6 +845,9 @@ statement
      kept only so the file-format shape matches K_REF's. */
   | T_LABEL K_REF_R local_flag T_STRING ',' signed_t_number signed_t_number ';'
       { (void)$6; (void)$7; compile_ref_variable_real($1, $4, $3); }
+
+  | T_LABEL K_REF_STR local_flag T_STRING ',' signed_t_number signed_t_number ';'
+      { (void)$6; (void)$7; compile_ref_variable_string($1, $4, $3); }
 
   | T_LABEL K_VAR_R storage_flag T_STRING ',' signed_t_number signed_t_number ';'
       { compile_var_real($1, $4, $3); }
