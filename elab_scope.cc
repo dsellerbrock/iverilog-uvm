@@ -29,6 +29,7 @@
 # include  <cstdio>
 # include  <sstream>
 # include  <set>
+# include  <vector>
 # include  <algorithm>
 # include  <ctime>
 
@@ -3522,54 +3523,27 @@ bool PGenerate::generate_scope_loop_(Design*des, NetScope*container)
 	    return false;
       }
       unsigned long loop_count = 1;
+      set<long> seen_genvars;
+      vector<long> genvar_values;
       while (test->value().as_long()) {
 
-	      // The actual name of the scope includes the genvar so
-	      // that each instance has a unique name in the
-	      // container. The format of using [] is part of the
-	      // Verilog standard.
+	      // Validate the complete control sequence before allocating any
+	      // generated scopes. An invalid loop used to retain hundreds of
+	      // thousands of NetScope trees before reaching the existing
+	      // infinite-loop guard, consuming gigabytes merely to issue an
+	      // error. The loop test and step are constant expressions in the
+	      // containing scope, so their values do not depend on elaborating
+	      // the generated body.
 	    hname_t use_name (scope_name, genvar);
-	    if (container->child(use_name)) {
+	    if (container->child(use_name)
+	        || !seen_genvars.insert(genvar).second) {
 		  cerr << get_fileline() << ": error: "
 		          "Trying to create a duplicate generate scope named \""
 		       << use_name << "\"." << endl;
 		  des->errors += 1;
 		  return false;
 	    }
-
-	    if (debug_scopes)
-		  cerr << get_fileline() << ": debug: "
-		          "Create generated scope " << use_name << endl;
-
-	    NetScope*scope = new NetScope(container, use_name,
-					  NetScope::GENBLOCK);
-	    scope->set_line(get_file(), get_lineno());
-	    scope->add_imports(&explicit_imports);
-
-	      // Set in the scope a localparam for the value of the
-	      // genvar within this instance of the generate
-	      // block. Code within this scope thus has access to the
-	      // genvar as a constant.
-	    {
-		  verinum genvar_verinum;
-		  if (gn_strict_expr_width_flag)
-			genvar_verinum = verinum(genvar, integer_width);
-		  else
-			genvar_verinum = verinum(genvar);
-		  genvar_verinum.has_sign(true);
-		  NetEConstParam*gp = new NetEConstParam(scope,
-							 loop_index,
-							 genvar_verinum);
-		    // The file and line information should really come
-		    // from the genvar statement, not the for loop.
-		  scope->set_parameter(loop_index, gp, *this);
-		  if (debug_scopes)
-			cerr << get_fileline() << ": debug: "
-			        "Create implicit localparam "
-			     << loop_index << " = " << genvar_verinum << endl;
-	    }
-
-	    elaborate_subscope_(des, scope);
+	    genvar_values.push_back(genvar);
 
 	      // Calculate the step for the loop variable.
 	    NetExpr*step_ex = elab_and_eval(des, container, loop_step, -1, true);
@@ -3627,6 +3601,54 @@ bool PGenerate::generate_scope_loop_(Design*des, NetScope*container)
 		  return false;
 	    }
 	    ++loop_count;
+      }
+
+      delete test_ex;
+
+      for (vector<long>::const_iterator cur = genvar_values.begin()
+	     ; cur != genvar_values.end(); ++cur) {
+	    genvar = *cur;
+	    container->genvar_tmp_val = genvar;
+
+	      // The actual name of the scope includes the genvar so
+	      // that each instance has a unique name in the
+	      // container. The format of using [] is part of the
+	      // Verilog standard.
+	    hname_t use_name(scope_name, genvar);
+
+	    if (debug_scopes)
+		  cerr << get_fileline() << ": debug: "
+		          "Create generated scope " << use_name << endl;
+
+	    NetScope*scope = new NetScope(container, use_name,
+					  NetScope::GENBLOCK);
+	    scope->set_line(get_file(), get_lineno());
+	    scope->add_imports(&explicit_imports);
+
+	      // Set in the scope a localparam for the value of the
+	      // genvar within this instance of the generate
+	      // block. Code within this scope thus has access to the
+	      // genvar as a constant.
+	    {
+		  verinum genvar_verinum;
+		  if (gn_strict_expr_width_flag)
+			genvar_verinum = verinum(genvar, integer_width);
+		  else
+			genvar_verinum = verinum(genvar);
+		  genvar_verinum.has_sign(true);
+		  NetEConstParam*gp = new NetEConstParam(scope,
+							 loop_index,
+							 genvar_verinum);
+		    // The file and line information should really come
+		    // from the genvar statement, not the for loop.
+		  scope->set_parameter(loop_index, gp, *this);
+		  if (debug_scopes)
+			cerr << get_fileline() << ": debug: "
+			        "Create implicit localparam "
+			     << loop_index << " = " << genvar_verinum << endl;
+	    }
+
+	    elaborate_subscope_(des, scope);
       }
 
 	// Clear the genvar_tmp field in the scope to reflect that the

@@ -1,0 +1,5 @@
+br_gh1225c CE ivltests gold=br_gh1225c.gold
+sv_class_assoc_recursive_find1 normal,-g2012 ivltests gold=sv_class_assoc_recursive_find1.gold
+sv_class_recursive_find_wrapper1 normal,-g2012 ivltests gold=sv_class_recursive_find_wrapper1.gold
+fork_disable_detached_grandchild normal,-g2012 ivltests gold=fork_disable_detached_grandchild.gold
+sv_vthread_zero_time_named_reclaim normal,-g2012 ivltests gold=sv_vthread_zero_time_named_reclaim.gold

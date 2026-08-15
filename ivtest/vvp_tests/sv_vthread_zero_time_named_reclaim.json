@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_vthread_zero_time_named_reclaim.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_vthread_zero_time_named_reclaim"
+}

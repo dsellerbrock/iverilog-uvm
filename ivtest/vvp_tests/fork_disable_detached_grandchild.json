@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "fork_disable_detached_grandchild.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "fork_disable_detached_grandchild"
+}

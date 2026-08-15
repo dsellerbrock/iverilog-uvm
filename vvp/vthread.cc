@@ -579,6 +579,7 @@ struct vthread_s {
       unsigned is_scheduled      :1;
       unsigned delay_delete      :1;
       unsigned delete_pending    :1;
+      unsigned reap_pending      :1;
       unsigned pending_nonlocal_jmp :1;
       unsigned is_callf_child    :1;
       unsigned is_fork_v_child   :1;
@@ -616,6 +617,12 @@ struct vthread_s {
 	// leaves is_scheduled set), so process::status() needs this flag to
 	// report a delayed process as WAITING rather than RUNNING.
       unsigned i_am_delaying :1;
+      /* A thread executing an opcode remains reachable by vthread_run until
+         the dispatcher has processed the opcode result and trace state. A
+         reap from that opcode may unlink the thread immediately, but its
+         storage cannot be released until the last nested dispatcher frame
+         drops this pin. */
+      unsigned run_pin_count;
       /* Set only by a source event-control/wait wake. The LRM flush
          point is the subsequent resume, not the earlier suspension and
          not a procedural-delay resume. */
@@ -6600,8 +6607,10 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->is_scheduled  = 0;
       thr->i_have_ended  = 0;
       thr->i_was_disabled = 0;
-      thr->delay_delete  = 1;
+      thr->delay_delete  = 0;
       thr->delete_pending = 0;
+      thr->reap_pending = 0;
+      thr->run_pin_count = 0;
       thr->pending_nonlocal_jmp = 0;
       thr->is_callf_child = 0;
       thr->is_fork_v_child = 0;
@@ -6694,16 +6703,43 @@ void vthreads_delete(class __vpiScope*scope)
  * Reaping pulls the thread out of the stack of threads. If I have a
  * child, then hand it over to my parent or fully detach it.
  */
+static void vthread_finish_delete_(vthread_t thr)
+{
+      assert(thr->run_pin_count == 0);
+      assert(!thr->reap_pending);
+
+      if (thr->delay_delete) {
+	    if (!thr->delete_pending) {
+		  thr->delete_pending = 1;
+		  schedule_del_thr(thr);
+	    }
+      } else {
+	    vthread_delete(thr);
+      }
+}
+
+static void vthread_run_pin_(vthread_t thr)
+{
+      assert(thr);
+      thr->run_pin_count += 1;
+}
+
+static void vthread_run_unpin_(vthread_t thr)
+{
+      assert(thr);
+      assert(thr->run_pin_count > 0);
+      thr->run_pin_count -= 1;
+      if ((thr->run_pin_count == 0) && thr->reap_pending) {
+	    thr->reap_pending = 0;
+	    vthread_finish_delete_(thr);
+      }
+}
+
 static void vthread_reap(vthread_t thr)
 {
 	/* Reparent children to the grandparent, emptying our child sets as
-	 * we go. Emptying the sets (rather than leaving stale entries) makes
-	 * vthread_reap idempotent: a thread can be reaped more than once
-	 * (e.g. of_DISABLE_FORK reaps a detached child that do_disable has
-	 * already reaped) without re-processing children whose parent
-	 * pointers were rewritten by the first reap -- which previously
-	 * tripped the `child->parent == thr` assertion below. Mirror of_END's
-	 * while/pop erase discipline. */
+	 * we go. Mirror of_END's while/pop erase discipline so no stale child
+	 * pointer survives this thread's single, owning reap. */
       while (! thr->children.empty()) {
 	      /* Non-detached children of a thread being reaped must be
 	       * reparented to the grandparent so they remain reachable;
@@ -6779,19 +6815,16 @@ static void vthread_reap(vthread_t thr)
       if ((thr->is_scheduled == 0) && (thr->waiting_for_event == 0)) {
 	    assert(thr->children.empty());
 	    assert(thr->wait_next == 0);
-	    if (thr->delay_delete) {
-		  if (!thr->delete_pending) {
-			thr->delete_pending = 1;
-			schedule_del_thr(thr);
-		  }
-	    }
+	    if (thr->run_pin_count)
+		  thr->reap_pending = 1;
 	    else
-		  vthread_delete(thr);
+		  vthread_finish_delete_(thr);
       }
 }
 
 void vthread_delete(vthread_t thr)
 {
+      assert(thr->run_pin_count == 0);
       live_threads_registry_.erase(thr);
       thr->cleanup();
       delete thr;
@@ -7026,6 +7059,26 @@ void vthread_delay_delete()
  */
 static bool context_live_in_owner(vvp_context_t context);
 
+/* A function/final thread runs forked sequential-block continuations by
+ * recursively entering vthread_run. A non-local disable executed by the
+ * child can reap any thread in that active C++ call chain. Retain only those
+ * active frames until the recursive run unwinds; ordinary completed threads
+ * continue to be reclaimed immediately. If a reap occurred, delete_pending
+ * records the already-queued deletion and the pin must remain set until that
+ * event owns the final delete. */
+static bool pin_synchronous_run_thread_(vthread_t thr)
+{
+      const bool was_delayed = thr->delay_delete;
+      thr->delay_delete = 1;
+      return was_delayed;
+}
+
+static void unpin_synchronous_run_thread_(vthread_t thr, bool was_delayed)
+{
+      if (!thr->delete_pending)
+	    thr->delay_delete = was_delayed;
+}
+
 void vthread_run(vthread_t thr)
 {
       static int pc_hottrace_enabled = -1;
@@ -7078,6 +7131,10 @@ void vthread_run(vthread_t thr)
 		  thr = tmp;
 		  continue;
 	    }
+
+	    std::vector<vthread_t> dispatch_pins;
+	    vthread_run_pin_(thr);
+	    dispatch_pins.push_back(thr);
 
 	      /* A source event-control/wait wake is a 16.4.2 flush point
 	         when the logical process actually resumes. Keep the bit set
@@ -7203,6 +7260,8 @@ void vthread_run(vthread_t thr)
 		  if (trampoline_switch_to) {
 			thr = trampoline_switch_to;
 			trampoline_switch_to = 0;
+			vthread_run_pin_(thr);
+			dispatch_pins.push_back(thr);
 			running_thread = thr;
 			continue;
 		  }
@@ -7221,6 +7280,10 @@ void vthread_run(vthread_t thr)
 			thr = caller;
 			running_thread = thr;
 			do_join(thr, reap);
+			assert(!dispatch_pins.empty());
+			assert(dispatch_pins.back() == reap);
+			dispatch_pins.pop_back();
+			vthread_run_unpin_(reap);
 			continue;
 		  }
 		  if (rc == false) {
@@ -7269,6 +7332,12 @@ void vthread_run(vthread_t thr)
 			break;
                   }
 		    }
+
+	    while (!dispatch_pins.empty()) {
+		  vthread_t pinned = dispatch_pins.back();
+		  dispatch_pins.pop_back();
+		  vthread_run_unpin_(pinned);
+	    }
 
 	    thr = tmp;
       }
@@ -11974,6 +12043,7 @@ bool of_DELETE_TAIL(vthread_t thr, vvp_code_t cp)
 static bool do_disable(vthread_t thr, vthread_t match)
 {
       bool flag = false;
+      const bool is_match = (thr == match);
 
       if (vvp_process*proc = thr->process_obj_.peek<vvp_process>()) {
 	    if (thr->i_have_ended && !thr->i_was_disabled)
@@ -12041,7 +12111,9 @@ static bool do_disable(vthread_t thr, vthread_t match)
 	    vthread_reap(thr);
       }
 
-      return flag || (thr == match);
+	/* do_disable may have reaped thr above. Preserve the comparison result
+	 * from entry instead of reading a possibly freed thread. */
+      return flag || is_match;
 }
 
 /*
@@ -12190,7 +12262,9 @@ bool of_DISABLE_FORK(vthread_t thr, vvp_code_t)
 	      /* Disabling the children can never match the parent thread. */
 	    bool res = do_disable(child, thr);
 	    assert(! res);
-	    vthread_reap(child);
+	    /* do_disable owns the detached-child reap. Reaping it again here
+	     * was a double free once ordinary threads stopped being retained
+	     * until the end-of-time-step deletion queue. */
       }
 
       return true;
@@ -13278,9 +13352,15 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 	      if (thr->i_am_in_function && !(next_pc && next_pc->opcode == of_JOIN_DETACH)) {
 		    child->is_scheduled = 1;
 		    child->i_am_in_function = 1;
+		    const bool parent_was_delayed =
+		          pin_synchronous_run_thread_(thr);
+		    const bool child_was_delayed =
+		          pin_synchronous_run_thread_(child);
 		    vthread_run(child);
 		    running_thread = thr;
-	      } else {
+		    unpin_synchronous_run_thread_(child, child_was_delayed);
+		    unpin_synchronous_run_thread_(thr, parent_was_delayed);
+		  } else {
 		      /* A child inherits its parent's program/Reactive affinity.
 			 The front-push path is hard-wired to SEQ_ACTIVE, so use it
 			 only for an ordinary design thread. */
@@ -13347,9 +13427,15 @@ bool of_FORK_V(vthread_t thr, vvp_code_t cp)
 	      if (thr->i_am_in_function && !(next_pc && next_pc->opcode == of_JOIN_DETACH)) {
 		    child->is_scheduled = 1;
 		    child->i_am_in_function = 1;
+		    const bool parent_was_delayed =
+		          pin_synchronous_run_thread_(thr);
+		    const bool child_was_delayed =
+		          pin_synchronous_run_thread_(child);
 		    vthread_run(child);
 		    running_thread = thr;
-	      } else {
+		    unpin_synchronous_run_thread_(child, child_was_delayed);
+		    unpin_synchronous_run_thread_(thr, parent_was_delayed);
+		  } else {
 		      /* Keep a program/Reactive continuation in the Reactive
 			 region from its first instruction (not merely after its
 			 first timing control). */
@@ -23331,14 +23417,10 @@ bool of_ZOMBIE(vthread_t thr, vvp_code_t)
 {
       thr->pc = codespace_null();
       if ((thr->parent == 0) && (thr->children.empty())) {
-	    if (thr->delay_delete) {
-		  if (!thr->delete_pending) {
-			thr->delete_pending = 1;
-			schedule_del_thr(thr);
-		  }
-	    }
+	    if (thr->run_pin_count)
+		  thr->reap_pending = 1;
 	    else
-		  vthread_delete(thr);
+		  vthread_finish_delete_(thr);
       }
       return false;
 }

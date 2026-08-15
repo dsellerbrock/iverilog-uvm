@@ -1757,3 +1757,6 @@ sv_ch20_isunbounded_arity_fail CE,-g2012 ivltests gold=sv_ch20_isunbounded_arity
 sv_ch20_coverage normal,-g2012 ivltests gold=sv_ch20_coverage.gold
 sv_ch20_coverage_bad_domain normal,-g2012 ivltests gold=sv_ch20_coverage_bad_domain.gold
 sv_ch20_coverage_call_fail CE,-g2012 ivltests gold=sv_ch20_coverage_call_fail.gold
+
+# Bounded reclamation of completed zero-time named-block activations
+sv_vthread_zero_time_named_reclaim normal,-g2012 ivltests gold=sv_vthread_zero_time_named_reclaim.gold
