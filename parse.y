@@ -13348,6 +13348,8 @@ module_end
 label_opt
   : ':' IDENTIFIER      { $$ = $2; }
   | ':' TYPE_IDENTIFIER { $$ = $2.text; } /* covergroup/class names become TYPE_IDENTIFIER */
+  | ':' PACKAGE_IDENTIFIER
+      { $$ = dup_cstr($2->pscope_name().str()); }
   | ':' K_new           { $$ = dup_cstr("new"); }
   |                     { $$ = 0; }
   ;

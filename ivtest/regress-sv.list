@@ -1724,6 +1724,7 @@ sv_nettype_direct normal,-g2012 ivltests gold=sv_nettype_direct.gold
 sv_nettype_alias normal,-g2012 ivltests gold=sv_nettype_alias.gold
 sv_nettype_package normal,-g2012 ivltests gold=sv_nettype_package.gold
 sv_nettype_parameter_instances normal,-g2012 ivltests gold=sv_nettype_parameter_instances.gold
+sv_nettype_class_scope_scan normal,-g2012 ivltests gold=sv_nettype_class_scope_scan.gold
 sv_nettype_single_driver normal,-g2012 ivltests gold=sv_nettype_single_driver.gold
 sv_nettype_resolved_runtime_boundary_fail normal,-g2012 ivltests gold=sv_nettype_resolved_runtime_boundary_fail.gold
 sv_interconnect_scalar normal,-g2012 ivltests gold=sv_interconnect_scalar.gold
