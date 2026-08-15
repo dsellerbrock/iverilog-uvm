@@ -178,7 +178,8 @@ class vvp_process : public vvp_object {
       void remove_waiter(vthread_t thr);
 
       void enqueue_deferred_assert(vvp_code_t action_pc,
-                                   __vpiScope*action_scope);
+                                   __vpiScope*action_scope,
+                                   const deferred_assert_args_s&action_args);
       void flush_deferred_asserts();
       void mature_deferred_asserts();
       void pin_final_deferred_assert(unsigned long source_id,
@@ -927,20 +928,21 @@ void vvp_process::remove_waiter(vthread_t thr)
       thr->awaited_processes_.erase(this);
 }
 
-/* Snapshot the typed stack operands consumed by a final-deferred system-task
+/* Snapshot the typed stack operands consumed by a deferred system-task
  * action. Argument expressions execute in the source process, but the action
- * itself executes later in Postponed on a fresh thread. Validate every count
+ * itself executes later on a fresh thread. Validate every count
  * before copying or popping anything so malformed bytecode cannot partially
  * consume the source stacks. Object handles are copied as vvp_object_t values,
- * which retain their payload until the postponed action has consumed it. */
-static bool capture_final_deferred_args_(vthread_t thr,
-                                         vvp_code_t action_pc,
-                                         deferred_assert_args_s&out)
+ * which retain their payload until the deferred action has consumed it. */
+static bool capture_deferred_args_(vthread_t thr,
+                                   vvp_code_t action_pc,
+                                   deferred_assert_args_s&out,
+                                   const char*mode)
 {
       if (!thr || !action_pc) {
             fprintf(stderr,
-                    "vvp: invalid final-deferred action while capturing "
-                    "arguments; source stacks were not consumed.\n");
+                    "vvp: invalid %s-deferred action while capturing "
+                    "arguments; source stacks were not consumed.\n", mode);
             return false;
       }
 
@@ -950,8 +952,9 @@ static bool capture_final_deferred_args_(vthread_t thr,
 
       if (action_pc->opcode != of_VPI_CALL) {
             fprintf(stderr,
-                    "vvp: unsupported final-deferred action opcode while "
-                    "capturing arguments; source stacks were not consumed.\n");
+                    "vvp: unsupported %s-deferred action opcode while "
+                    "capturing arguments; source stacks were not consumed.\n",
+                    mode);
             return false;
       }
 
@@ -959,8 +962,8 @@ static bool capture_final_deferred_args_(vthread_t thr,
             dynamic_cast<__vpiSysTaskCall*>(action_pc->handle);
       if (!call) {
             fprintf(stderr,
-                    "vvp: malformed final-deferred VPI action handle; "
-                    "source stacks were not consumed.\n");
+                    "vvp: malformed %s-deferred VPI action handle; "
+                    "source stacks were not consumed.\n", mode);
             return false;
       }
 
@@ -978,10 +981,11 @@ static bool capture_final_deferred_args_(vthread_t thr,
           || str_count > thr->str_stack_size()
           || obj_count > thr->object_stack_size()) {
             fprintf(stderr,
-                    "vvp: final-deferred VPI argument metadata/stack "
+                    "vvp: %s-deferred VPI argument metadata/stack "
                     "underflow (need %zu/%zu/%zu/%zu, have "
                     "%zu/%zu/%zu/%zu, nargs %u); source stacks were not "
                     "consumed.\n",
+                    mode,
                     vec_count, real_count, str_count, obj_count,
                     thr->vec4_stack_size(), thr->real_stack_size(),
                     thr->str_stack_size(), thr->object_stack_size(),
@@ -1053,11 +1057,13 @@ struct final_deferred_assert_mature_event_s : public vvp_gen_event_s {
 };
 
 void vvp_process::enqueue_deferred_assert(vvp_code_t action_pc,
-                                          __vpiScope*action_scope)
+                                          __vpiScope*action_scope,
+                                          const deferred_assert_args_s&action_args)
 {
       deferred_assert_report_s report;
       report.action_pc = action_pc;
       report.action_scope = action_scope;
+      report.action_args = action_args;
       deferred_asserts_.push_back(report);
 
       if (deferred_assert_observed_armed_)
@@ -1100,6 +1106,14 @@ void vvp_process::mature_deferred_asserts()
 	    report.action_scope->threads.erase(action);
 	    action->is_reactive_process = 1;
 	    action->in_region_drain = 1;
+	    for (size_t idx = 0 ; idx < report.action_args.vec4.size(); idx += 1)
+		  action->push_vec4(report.action_args.vec4[idx]);
+	    for (size_t idx = 0 ; idx < report.action_args.real.size(); idx += 1)
+		  action->push_real(report.action_args.real[idx]);
+	    for (size_t idx = 0 ; idx < report.action_args.str.size(); idx += 1)
+		  action->push_str(report.action_args.str[idx]);
+	    for (size_t idx = 0 ; idx < report.action_args.obj.size(); idx += 1)
+		  action->push_object(report.action_args.obj[idx]);
 	    schedule_vthread(action, 0, false);
       }
 }
@@ -11422,9 +11436,9 @@ bool of_DPI_CALL_TASK(vthread_t thr, vvp_code_t cp)
  * %defer/enqueue <action-code>, <scope>
  *
  * The frontend has already evaluated the immediate assertion expression
- * and selected its pass or fail arm. The selected (Stage-1, argument-free
- * or literal-only) action is an out-of-line code fragment ending in %end.
- * Queue the fragment on the root logical process; function calls,
+ * and selected its pass or fail arm. Positional system-task arguments were
+ * evaluated onto typed source stacks before this opcode; capture them before
+ * queueing the out-of-line action fragment. Function calls,
  * blocking task calls and named sequential blocks deliberately share that
  * process, while explicit fork branches retain their own queue.
  */
@@ -11448,7 +11462,11 @@ bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
 	    return true;
       }
 
-      process->enqueue_deferred_assert(cp->cptr2, scope);
+      deferred_assert_args_s action_args;
+      if (!capture_deferred_args_(thr, cp->cptr2, action_args, "observed"))
+	    return true;
+
+      process->enqueue_deferred_assert(cp->cptr2, scope, action_args);
       return true;
 }
 
@@ -11566,7 +11584,8 @@ bool of_DEFER_FINAL(vthread_t thr, vvp_code_t cp)
                           "task call and dropped the report.\n");
                   return true;
             }
-      } else if (!capture_final_deferred_args_(thr, action_pc, action_args)) {
+      } else if (!capture_deferred_args_(thr, action_pc, action_args,
+					 "final")) {
             return true;
       }
 

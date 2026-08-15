@@ -1,5 +1,5 @@
 module t;
-  task automatic unsupported_context;
+  task automatic observed_context;
     assert #0 (0) else $display("TASK");
   endtask
 
@@ -8,7 +8,7 @@ module t;
     assert final (0) else $display("FINAL");
     assert #0 (0) else $display("x=%0d", x);
     cover #0 (1);
-    unsupported_context();
+    observed_context();
     assert #0 (0) else $display("SUPPORTED");
     #1 $display("PASSED");
   end

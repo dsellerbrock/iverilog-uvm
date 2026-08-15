@@ -1,0 +1,18 @@
+:ivl_version "13.0 (devel)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+S_bad .scope module, "bad" "bad" 1 1;
+ .timescale 0 0;
+    .scope S_bad;
+T_main ;
+    %pushi/vec4 77, 0, 32;
+    %defer/enqueue T_bad_action, S_bad;
+    %vpi_call 1 1 "$display", "SOURCE_SURVIVED %0d", S<0,vec4,u32> {1 0 0 0};
+    %end;
+T_bad_action ;
+    %vpi_call 1 1 "$display", S<1,vec4,u32> {2 0 0 0};
+    %end;
+    .thread T_main;
+:file_names 2;
+    "N/A";
+    "tests/deferred_final/malformed_observed_args.vvp";

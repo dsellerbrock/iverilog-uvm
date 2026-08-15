@@ -930,15 +930,19 @@ extern void pform_bind_sampled_call_to_event(const struct vlltype&loc,
 extern PProcess*  pform_make_behavior(ivl_process_type_t, Statement*,
 				      std::list<named_pexpr_t>*attr);
 
-/* Lower the supported deferred-immediate assertion subset
+/* Lower the supported deferred-immediate assertion and cover subset
    (IEEE 1800-2017 16.4) into evaluate-now / per-process queued reporting.
    pass_stmt/fail_stmt may be nil; a nil fail_stmt gets the default $error.
-   Unsupported modes, contexts, and action shapes fail loudly. */
+   Unsupported action shapes fail loudly. */
 extern Statement* pform_make_deferred_assertion(const struct vlltype&loc,
-						PExpr*expr,
-						Statement*pass_stmt,
-						Statement*fail_stmt,
-						bool is_final);
+					 PExpr*expr,
+					 Statement*pass_stmt,
+					 Statement*fail_stmt,
+					 bool is_final);
+extern Statement* pform_make_deferred_cover(const struct vlltype&loc,
+				     PExpr*expr,
+				     Statement*pass_stmt,
+				     bool is_final);
 extern void pform_mc_translate_on(bool flag);
 
 extern std::vector<PWire*>* pform_make_udp_input_ports(std::list<pform_ident_t>*);

@@ -1371,6 +1371,7 @@ sv_deferred_final_contexts0	normal,-g2012		ivltests gold=sv_deferred_final_conte
 sv_deferred_final_assert_control0	normal,-g2012		ivltests gold=sv_deferred_final_assert_control0.gold
 sv_deferred_final_null_default0	normal,-g2012		ivltests gold=sv_deferred_final_null_default0.gold
 sv_deferred_final_finish0	normal,-g2012		ivltests gold=sv_deferred_final_finish0.gold
+sv_deferred_final_in_final_procedure0	normal,-g2012	ivltests gold=sv_deferred_final_in_final_procedure0.gold
 sv_deferred_final_user_task0	normal,-g2012		ivltests gold=sv_deferred_final_user_task0.gold
 sv_deferred_final_user_task_error0	normal,-g2012	ivltests gold=sv_deferred_final_user_task_error0.gold
 sv_deferred_final_block_fail	CE,-g2012		ivltests gold=sv_deferred_final_block_fail.gold
@@ -1382,6 +1383,10 @@ sv_deferred_null_action0	normal,-g2012		ivltests gold=sv_deferred_null_action0.g
 sv_deferred_assert_control0	normal,-g2012		ivltests gold=sv_deferred_assert_control0.gold
 sv_deferred_matured_disable0	normal,-g2012		ivltests gold=sv_deferred_matured_disable0.gold
 sv_deferred_supported_only0	normal,-g2012,-gsupported-assertions	ivltests gold=sv_deferred_supported_only0.gold
+sv_deferred_observed_args0	normal,-g2012		ivltests gold=sv_deferred_observed_args0.gold
+sv_deferred_observed_error_args0	normal,-g2012	ivltests gold=sv_deferred_observed_error_args0.gold
+sv_deferred_cover_actions0	normal,-g2012		ivltests gold=sv_deferred_cover_actions0.gold
+sv_deferred_cover_disabled0	normal,-g2012,-gno-assertions	ivltests gold=sv_deferred_cover_disabled0.gold
 sv_deferred_void_cast_action_fail	CE,-g2012		ivltests
 sv_typename1 normal,-g2012 ivltests
 sv_type_operator1 normal,-g2012 ivltests

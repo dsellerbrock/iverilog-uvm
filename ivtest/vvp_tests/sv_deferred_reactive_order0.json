@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_deferred_reactive_order0.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_deferred_reactive_order0"
+}
