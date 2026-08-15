@@ -579,6 +579,7 @@ struct vthread_s {
       unsigned is_scheduled      :1;
       unsigned delay_delete      :1;
       unsigned delete_pending    :1;
+      unsigned reap_pending      :1;
       unsigned pending_nonlocal_jmp :1;
       unsigned is_callf_child    :1;
       unsigned is_fork_v_child   :1;
@@ -616,6 +617,12 @@ struct vthread_s {
 	// leaves is_scheduled set), so process::status() needs this flag to
 	// report a delayed process as WAITING rather than RUNNING.
       unsigned i_am_delaying :1;
+      /* A thread executing an opcode remains reachable by vthread_run until
+         the dispatcher has processed the opcode result and trace state. A
+         reap from that opcode may unlink the thread immediately, but its
+         storage cannot be released until the last nested dispatcher frame
+         drops this pin. */
+      unsigned run_pin_count;
       /* Set only by a source event-control/wait wake. The LRM flush
          point is the subsequent resume, not the earlier suspension and
          not a procedural-delay resume. */
@@ -6602,6 +6609,8 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->i_was_disabled = 0;
       thr->delay_delete  = 0;
       thr->delete_pending = 0;
+      thr->reap_pending = 0;
+      thr->run_pin_count = 0;
       thr->pending_nonlocal_jmp = 0;
       thr->is_callf_child = 0;
       thr->is_fork_v_child = 0;
@@ -6694,6 +6703,38 @@ void vthreads_delete(class __vpiScope*scope)
  * Reaping pulls the thread out of the stack of threads. If I have a
  * child, then hand it over to my parent or fully detach it.
  */
+static void vthread_finish_delete_(vthread_t thr)
+{
+      assert(thr->run_pin_count == 0);
+      assert(!thr->reap_pending);
+
+      if (thr->delay_delete) {
+	    if (!thr->delete_pending) {
+		  thr->delete_pending = 1;
+		  schedule_del_thr(thr);
+	    }
+      } else {
+	    vthread_delete(thr);
+      }
+}
+
+static void vthread_run_pin_(vthread_t thr)
+{
+      assert(thr);
+      thr->run_pin_count += 1;
+}
+
+static void vthread_run_unpin_(vthread_t thr)
+{
+      assert(thr);
+      assert(thr->run_pin_count > 0);
+      thr->run_pin_count -= 1;
+      if ((thr->run_pin_count == 0) && thr->reap_pending) {
+	    thr->reap_pending = 0;
+	    vthread_finish_delete_(thr);
+      }
+}
+
 static void vthread_reap(vthread_t thr)
 {
 	/* Reparent children to the grandparent, emptying our child sets as
@@ -6774,19 +6815,16 @@ static void vthread_reap(vthread_t thr)
       if ((thr->is_scheduled == 0) && (thr->waiting_for_event == 0)) {
 	    assert(thr->children.empty());
 	    assert(thr->wait_next == 0);
-	    if (thr->delay_delete) {
-		  if (!thr->delete_pending) {
-			thr->delete_pending = 1;
-			schedule_del_thr(thr);
-		  }
-	    }
+	    if (thr->run_pin_count)
+		  thr->reap_pending = 1;
 	    else
-		  vthread_delete(thr);
+		  vthread_finish_delete_(thr);
       }
 }
 
 void vthread_delete(vthread_t thr)
 {
+      assert(thr->run_pin_count == 0);
       live_threads_registry_.erase(thr);
       thr->cleanup();
       delete thr;
@@ -7094,6 +7132,10 @@ void vthread_run(vthread_t thr)
 		  continue;
 	    }
 
+	    std::vector<vthread_t> dispatch_pins;
+	    vthread_run_pin_(thr);
+	    dispatch_pins.push_back(thr);
+
 	      /* A source event-control/wait wake is a 16.4.2 flush point
 	         when the logical process actually resumes. Keep the bit set
 	         while process::suspend() prevents that resume. */
@@ -7218,6 +7260,8 @@ void vthread_run(vthread_t thr)
 		  if (trampoline_switch_to) {
 			thr = trampoline_switch_to;
 			trampoline_switch_to = 0;
+			vthread_run_pin_(thr);
+			dispatch_pins.push_back(thr);
 			running_thread = thr;
 			continue;
 		  }
@@ -7236,6 +7280,10 @@ void vthread_run(vthread_t thr)
 			thr = caller;
 			running_thread = thr;
 			do_join(thr, reap);
+			assert(!dispatch_pins.empty());
+			assert(dispatch_pins.back() == reap);
+			dispatch_pins.pop_back();
+			vthread_run_unpin_(reap);
 			continue;
 		  }
 		  if (rc == false) {
@@ -7284,6 +7332,12 @@ void vthread_run(vthread_t thr)
 			break;
                   }
 		    }
+
+	    while (!dispatch_pins.empty()) {
+		  vthread_t pinned = dispatch_pins.back();
+		  dispatch_pins.pop_back();
+		  vthread_run_unpin_(pinned);
+	    }
 
 	    thr = tmp;
       }
@@ -23363,14 +23417,10 @@ bool of_ZOMBIE(vthread_t thr, vvp_code_t)
 {
       thr->pc = codespace_null();
       if ((thr->parent == 0) && (thr->children.empty())) {
-	    if (thr->delay_delete) {
-		  if (!thr->delete_pending) {
-			thr->delete_pending = 1;
-			schedule_del_thr(thr);
-		  }
-	    }
+	    if (thr->run_pin_count)
+		  thr->reap_pending = 1;
 	    else
-		  vthread_delete(thr);
+		  vthread_finish_delete_(thr);
       }
       return false;
 }
