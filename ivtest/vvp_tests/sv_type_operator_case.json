@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_type_operator_case.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_type_operator_case"
+}

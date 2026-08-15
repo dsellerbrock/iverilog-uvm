@@ -7917,6 +7917,64 @@ NetProc* PCase::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
 
+	/* A type() value has no run-time bit representation. For a type-valued
+	   case, lower the selector to constant true and every item to the
+	   compile-time type-matching result. This preserves ordinary first-match,
+	   default and unique/priority behavior, and (unlike pruning to the selected
+	   item) still elaborates every branch and diagnoses errors in unreachable
+	   statements. */
+      if (type_operator_reference(expr_)) {
+	    unsigned icount = 0;
+	    for (unsigned idx = 0 ; idx < items_->size() ; idx += 1) {
+		  PCase::Item*cur = (*items_)[idx];
+		  icount += cur->expr.empty() ? 1 : cur->expr.size();
+	    }
+
+	    NetEConst*selector = new NetEConst(verinum(verinum::V1));
+	    selector->set_line(*expr_);
+	    NetCase*res = new NetCase(quality_, type_, selector, icount,
+				       quality_if_);
+	    res->set_line(*this);
+
+	    unsigned inum = 0;
+	    for (unsigned idx = 0 ; idx < items_->size() ; idx += 1) {
+		  PCase::Item*cur = (*items_)[idx];
+		  if (cur->expr.empty()) {
+			NetProc*st = cur->stat ? cur->stat->elaborate(des, scope) : 0;
+			res->set_case(inum++, 0, st);
+			continue;
+		  }
+
+		  for (list<PExpr*>::const_iterator guard = cur->expr.begin()
+		       ; guard != cur->expr.end() ; ++ guard) {
+			PExpr*cur_expr = *guard;
+			ivl_assert(*this, cur_expr);
+			if (!type_operator_reference(cur_expr)) {
+			      cerr << cur_expr->get_fileline() << ": error: A type() "
+				   << "case expression requires type() case item "
+				      "expressions (IEEE 1800-2017 6.23)." << endl;
+			      des->errors += 1;
+			      delete res;
+			      return 0;
+			}
+
+			bool match = false;
+			if (!elaborate_type_operator_match(des, scope, expr_,
+							 cur_expr, *cur_expr, match)) {
+			      delete res;
+			      return 0;
+			}
+
+			NetEConst*item = new NetEConst(verinum(match
+						? verinum::V1 : verinum::V0));
+			item->set_line(*cur_expr);
+			NetProc*st = cur->stat ? cur->stat->elaborate(des, scope) : 0;
+			res->set_case(inum++, item, st);
+		  }
+	    }
+	    return res;
+      }
+
 	/* The type of the case expression and case item expressions is
 	   determined according to the following rules:
 

@@ -1390,6 +1390,8 @@ sv_deferred_cover_disabled0	normal,-g2012,-gno-assertions	ivltests gold=sv_defer
 sv_deferred_void_cast_action_fail	CE,-g2012		ivltests
 sv_typename1 normal,-g2012 ivltests
 sv_type_operator1 normal,-g2012 ivltests
+sv_type_operator_case normal,-g2012 ivltests gold=sv_type_operator_case.gold
+sv_specparam_constant_expr_fail CE,-g2012 ivltests gold=sv_specparam_constant_expr_fail.gold
 sv_param_type_identity1 normal,-g2012 ivltests gold=sv_param_type_identity1.gold
 sv_assert_paren_property normal,-g2012 ivltests
 sv_assert_paren_boolean normal,-g2012 ivltests

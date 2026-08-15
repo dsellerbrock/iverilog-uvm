@@ -1177,6 +1177,11 @@ class NetScope : public Definitions, public Attrib {
 	   not already been set to be unannotatable. */
       bool make_parameter_unannotatable(perm_string name);
 
+	/* True if the named parameter is a specparam whose value remains
+	   eligible for run-time annotation. This query does not change that
+	   status. */
+      bool parameter_is_specparam(perm_string name) const;
+
 	/* These methods set or access events that live in this
 	   scope. */
 

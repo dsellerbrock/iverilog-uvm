@@ -3966,7 +3966,7 @@ NetExpr* PEBinary::elaborate_expr_base_mult_(Design*,
  * (comparison operands), `type_declaration` (typedef) and
  * `block_item_decl`/`data_declaration` (`var type(...) x;`) in parse.y.
  */
-static const type_reference_t* as_type_reference_operand_(const PExpr*expr)
+const type_reference_t* type_operator_reference(const PExpr*expr)
 {
       const PETypename*tn = dynamic_cast<const PETypename*>(expr);
       if (!tn)
@@ -4010,6 +4010,33 @@ static bool type_operator_kind_supported_(ivl_type_t t)
       if (dynamic_cast<const netenum_t*>(t))   return true;
       if (dynamic_cast<const netclass_t*>(t))  return true;
       return false;
+}
+
+bool elaborate_type_operator_match(Design*des, NetScope*scope,
+				   const PExpr*left, const PExpr*right,
+				   const LineInfo&loc, bool&match)
+{
+      const type_reference_t*l_tref = type_operator_reference(left);
+      const type_reference_t*r_tref = type_operator_reference(right);
+      ivl_assert(loc, l_tref);
+      ivl_assert(loc, r_tref);
+
+      ivl_type_t lt = const_cast<type_reference_t*>(l_tref)->elaborate_type(des, scope);
+      ivl_type_t rt = const_cast<type_reference_t*>(r_tref)->elaborate_type(des, scope);
+      if (!lt || !rt)
+	    return false; // Already diagnosed by type_reference_t::elaborate_type_raw().
+
+      if (!type_operator_kind_supported_(lt) || !type_operator_kind_supported_(rt)) {
+	    cerr << loc.get_fileline() << ": sorry: type() comparison/case "
+		 << "matching of struct/union or array-typed operands is not "
+		 << "supported (member/element-wise matching per IEEE 1800-2017 "
+		 << "6.22.1 is not modeled for these operand shapes)." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
+      match = (lt == rt) || lt->type_equivalent(rt);
+      return true;
 }
 
 static NetNet* whole_fixed_uarray_signal_(Design*des, NetScope*scope,
@@ -4113,8 +4140,8 @@ unsigned PEBComp::test_width(Design*des, NetScope*scope, width_mode_t&)
       min_width_   = 1;
       signed_flag_ = false;
 
-      { const type_reference_t*l_tref = as_type_reference_operand_(left_);
-	const type_reference_t*r_tref = as_type_reference_operand_(right_);
+      { const type_reference_t*l_tref = type_operator_reference(left_);
+	const type_reference_t*r_tref = type_operator_reference(right_);
 	if (l_tref || r_tref) {
 	      l_width_ = 1;
 	      r_width_ = 1;
@@ -4274,8 +4301,8 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 	    return pad_to_width(array_comparison, expr_wid, false, *this);
       }
 
-      { const type_reference_t*l_tref = as_type_reference_operand_(left_);
-	const type_reference_t*r_tref = as_type_reference_operand_(right_);
+      { const type_reference_t*l_tref = type_operator_reference(left_);
+	const type_reference_t*r_tref = type_operator_reference(right_);
 	if (l_tref || r_tref) {
 	      if (!(l_tref && r_tref))
 		    return 0; // Already diagnosed by test_width().
@@ -4287,22 +4314,10 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 		    return 0; // Already diagnosed by test_width().
 	      }
 
-	      ivl_type_t lt = const_cast<type_reference_t*>(l_tref)->elaborate_type(des, scope);
-	      ivl_type_t rt = const_cast<type_reference_t*>(r_tref)->elaborate_type(des, scope);
-	      if (!lt || !rt)
-		    return 0; // Already diagnosed by type_reference_t::elaborate_type_raw().
-
-	      if (!type_operator_kind_supported_(lt) || !type_operator_kind_supported_(rt)) {
-		    cerr << get_fileline() << ": sorry: type() equality "
-			 << "comparison of struct/union or array-typed "
-			 << "operands is not supported (member/element-wise "
-			 << "matching per IEEE 1800-2017 6.22.1 is not modeled "
-			 << "for these operand shapes)." << endl;
-		    des->errors += 1;
+	      bool type_match = false;
+	      if (!elaborate_type_operator_match(des, scope, left_, right_,
+						  *this, type_match))
 		    return 0;
-	      }
-
-	      bool type_match = (lt == rt) || lt->type_equivalent(rt);
 	      bool result = (op_ == 'e' || op_ == 'E') ? type_match : !type_match;
 
 	      NetEConst*tmp = new NetEConst(verinum(result ? verinum::V1 : verinum::V0));
@@ -19868,11 +19883,12 @@ NetExpr* PEIdent::elaborate_expr_param_or_specparam_(Design*des,
 
       if (need_const && !(ANNOTATABLE & flags)) {
             perm_string name = peek_tail_name(path_);
-            if (found_in->make_parameter_unannotatable(name)) {
-                  cerr << get_fileline() << ": warning: specparam '" << name
-                       << "' is being used in a constant expression." << endl;
-                  cerr << get_fileline() << ":        : This will prevent it "
-                          "being annotated at run time." << endl;
+            if (found_in->parameter_is_specparam(name)) {
+                  cerr << get_fileline() << ": error: specparam '" << name
+                       << "' cannot be used in a general constant expression "
+                          "(IEEE 1800-2017 6.20.5)." << endl;
+                  des->errors += 1;
+                  return 0;
             }
       }
 
@@ -22389,16 +22405,16 @@ NetExpr* PETernary::elab_and_eval_alternative_(Design*des, NetScope*scope,
 unsigned PETypename::test_width(Design*des, NetScope*, width_mode_t&)
 {
 	// IEEE 1800-2017 6.23: a `type()` operand (carried here as a
-	// PETypename wrapping a type_reference_t) may only appear as an
-	// operand of ==, !=, === or !==. PEBComp intercepts that case
-	// before ever calling test_width() on its operands, so reaching
+	// PETypename wrapping a type_reference_t) may only appear in a
+	// type comparison or type-valued case. PEBComp and PCase intercept
+	// those cases before ever calling test_width() on their operands, so reaching
 	// here means `type()` was used somewhere else (an assignment, a
 	// case expression/item, a function argument, ...) -- name that
 	// loudly rather than silently falling through to the UVM
 	// placeholder behavior below.
       if (dynamic_cast<const type_reference_t*>(data_type_)) {
 	    cerr << get_fileline() << ": sorry: the type() operator is only "
-		 << "supported as an operand of ==, !=, === or !== (IEEE "
+		 << "supported in ==, !=, ===, !==, or case matching (IEEE "
 		 << "1800-2017 6.23); this usage is not implemented." << endl;
 	    des->errors += 1;
 	    expr_type_   = IVL_VT_NO_TYPE;
@@ -22434,7 +22450,7 @@ NetExpr*PETypename::elaborate_expr(Design*des, NetScope*scope_in,
 {
       if (dynamic_cast<const type_reference_t*>(data_type_)) {
 	    cerr << get_fileline() << ": sorry: the type() operator is only "
-		 << "supported as an operand of ==, !=, === or !== (IEEE "
+		 << "supported in ==, !=, ===, !==, or case matching (IEEE "
 		 << "1800-2017 6.23); this usage is not implemented." << endl;
 	    des->errors += 1;
 	    return 0;
