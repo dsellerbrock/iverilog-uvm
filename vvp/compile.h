@@ -179,10 +179,13 @@ extern void compile_compiletf(struct __vpiSysTaskCall*);
  * Compile delay nodes of various form.
  */
 extern void compile_delay(char*label, unsigned width,
-                          vvp_delay_t*del, struct symb_s input);
+                          vvp_delay_t*del, struct symb_s input,
+			  bool per_bit = false,
+			  bool whole_vector = false);
 extern void compile_delay(char*label, unsigned width,
                           unsigned argc, struct symb_s*argv,
-                          bool ignore_decay);
+			  bool ignore_decay, bool per_bit = false,
+			  bool whole_vector = false);
 
 /*
  * This is called by the parser to create a part select node.

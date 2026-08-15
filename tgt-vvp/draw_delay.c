@@ -53,9 +53,12 @@ static char* draw_const_net(const void*ptr, const char*suffix, uint64_t value)
  * Draw the appropriate delay statement.
  */
 void draw_delay(const void*ptr, unsigned wid, const char*input, ivl_expr_t rise_exp,
-		ivl_expr_t fall_exp, ivl_expr_t decay_exp)
+		ivl_expr_t fall_exp, ivl_expr_t decay_exp,
+		unsigned per_bit, unsigned whole_vector)
 {
       char tmp[64];
+      assert(!(per_bit && whole_vector));
+      const char*mode = per_bit ? "/v" : whole_vector ? "/w" : "";
       if (input == 0) {
 	    snprintf(tmp, sizeof tmp, "L_%p/d", ptr);
 	    input = tmp;
@@ -70,9 +73,9 @@ void draw_delay(const void*ptr, unsigned wid, const char*input, ivl_expr_t rise_
 	    assert(! number_is_unknown(fall_exp));
 	    assert(! number_is_unknown(decay_exp));
 
-	    fprintf(vvp_out, "L_%p .delay %u "
+	    fprintf(vvp_out, "L_%p .delay%s %u "
 			     "(%" PRIu64 ",%" PRIu64 ",%" PRIu64 ") %s;\n",
-			     ptr, wid,
+			     ptr, mode, wid,
 			     get_number_immediate64(rise_exp),
 			     get_number_immediate64(fall_exp),
 			     get_number_immediate64(decay_exp),
@@ -117,8 +120,9 @@ void draw_delay(const void*ptr, unsigned wid, const char*input, ivl_expr_t rise_
 		  decay_str = draw_net_input(ivl_signal_nex(sig,0));
 	    }
 
-	    fprintf(vvp_out, "L_%p .delay %u %s, %s, %s, %s;\n",
-		    ptr, wid, input, rise_str, fall_str, decay_str);
+	    fprintf(vvp_out, "L_%p .delay%s %u %s, %s, %s, %s;\n",
+		    ptr, mode, wid, input,
+		    rise_str, fall_str, decay_str);
 
 	    free(rise_const);
 	    free(fall_const);

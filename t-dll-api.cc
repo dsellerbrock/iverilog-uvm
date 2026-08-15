@@ -1138,6 +1138,18 @@ extern "C" ivl_expr_t ivl_logic_delay(ivl_net_logic_t net, unsigned transition)
       return net->delay[transition];
 }
 
+extern "C" unsigned ivl_logic_delay_is_per_bit(ivl_net_logic_t net)
+{
+      assert(net);
+      return net->delay_is_per_bit;
+}
+
+extern "C" unsigned ivl_logic_delay_is_whole_vector(ivl_net_logic_t net)
+{
+      assert(net);
+      return net->delay_is_whole_vector;
+}
+
 extern "C" unsigned ivl_logic_width(ivl_net_logic_t net)
 {
       assert(net);

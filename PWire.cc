@@ -228,6 +228,25 @@ void PWire::set_data_type(data_type_t*type)
       set_data_type_.reset(type);
 }
 
+bool PWire::set_net_delay(const shared_ptr<PDelays>&delay)
+{
+      if (!delay || delay->delay_count() == 0)
+	    return false;
+      if (net_delay_)
+	    return net_delay_ == delay;
+      if (net_kind_ != BUILTIN_NET)
+	    return false;
+      switch (type_) {
+	  case NetNet::REG:
+	  case NetNet::IMPLICIT_REG:
+	    return false;
+	  default:
+	    break;
+      }
+      net_delay_ = delay;
+      return true;
+}
+
 void PWire::set_discipline(ivl_discipline_t d)
 {
       ivl_assert(*this, discipline_ == 0);

@@ -2312,10 +2312,12 @@ void compile_cmp_wne(char*label, long wid,
 
 
 void compile_delay(char*label, unsigned width,
-                   vvp_delay_t*delay, struct symb_s arg)
+                   vvp_delay_t*delay, struct symb_s arg, bool per_bit,
+		   bool whole_vector)
 {
       vvp_net_t*net = new vvp_net_t;
-      vvp_fun_delay*obj = new vvp_fun_delay(net, width, *delay);
+      vvp_fun_delay*obj = new vvp_fun_delay(net, width, *delay, per_bit,
+					   whole_vector);
       net->fun = obj;
 
       delete delay;
@@ -2327,12 +2329,14 @@ void compile_delay(char*label, unsigned width,
 }
 
 void compile_delay(char*label, unsigned width,
-                   unsigned argc, struct symb_s*argv, bool ignore_decay)
+                   unsigned argc, struct symb_s*argv, bool ignore_decay,
+		   bool per_bit, bool whole_vector)
 {
       vvp_delay_t stub (0, 0, 0);
       if (ignore_decay) stub.set_ignore_decay();
       vvp_net_t*net = new vvp_net_t;
-      vvp_fun_delay*obj = new vvp_fun_delay(net, width, stub);
+      vvp_fun_delay*obj = new vvp_fun_delay(net, width, stub, per_bit,
+					   whole_vector);
       net->fun = obj;
 
       inputs_connect(net, argc, argv);

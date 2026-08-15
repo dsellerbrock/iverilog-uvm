@@ -1166,7 +1166,9 @@ static void draw_logic_delay(ivl_net_logic_t lptr)
 	    delay_wid = 0;
       }
 
-      draw_delay(lptr, delay_wid, 0, rise_exp, fall_exp, decay_exp);
+      draw_delay(lptr, delay_wid, 0, rise_exp, fall_exp, decay_exp,
+		 ivl_logic_delay_is_per_bit(lptr),
+		 ivl_logic_delay_is_whole_vector(lptr));
 }
 
 static void draw_udp_def(ivl_udp_t udp)
@@ -1785,7 +1787,7 @@ static const char* draw_lpm_output_delay(ivl_lpm_t net, ivl_variable_type_t dt)
 
       const char*dly = "";
       if (d_rise != 0) {
-	    draw_delay(net, width, 0, d_rise, d_fall, d_decay);
+	    draw_delay(net, width, 0, d_rise, d_fall, d_decay, 0, 0);
 	    dly = "/d";
       }
 

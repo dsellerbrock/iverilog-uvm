@@ -1774,3 +1774,15 @@ sv_ch20_coverage_call_fail CE,-g2012 ivltests gold=sv_ch20_coverage_call_fail.go
 
 # Bounded reclamation of completed zero-time named-block activations
 sv_vthread_zero_time_named_reclaim normal,-g2012 ivltests gold=sv_vthread_zero_time_named_reclaim.gold
+
+# IEEE 1800-2017 10.3.3 net declaration delays and 23.3.3.7 port dominance
+sv_net_decl_delay_corpus normal,-g2012 ivltests gold=sv_net_decl_delay_corpus.gold
+sv_net_decl_delay_inertial normal,-g2012 ivltests gold=sv_net_decl_delay_inertial.gold
+sv_net_decl_delay_vector normal,-g2012 ivltests gold=sv_net_decl_delay_vector.gold
+sv_net_decl_delay_ports normal,-g2012 ivltests gold=sv_net_decl_delay_ports.gold
+sv_net_decl_delay_pull_chain normal,-g2012 ivltests gold=sv_net_decl_delay_pull_chain.gold
+sv_net_decl_delay_table normal,-g2012 ivltests gold=sv_net_decl_delay_table.gold
+sv_net_decl_delay_strength normal,-g2012 ivltests gold=sv_net_decl_delay_strength.gold
+sv_net_decl_delay_wide normal,-g2012 ivltests gold=sv_net_decl_delay_wide.gold
+sv_net_decl_delay_invalid_expr_fail CE,-g2012 ivltests gold=sv_net_decl_delay_invalid_expr_fail.gold
+sv_net_decl_delay_port_inline_fail CE,-g2012 ivltests gold=sv_net_decl_delay_port_inline_fail.gold

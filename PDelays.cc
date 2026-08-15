@@ -123,9 +123,14 @@ static NetExpr* make_delay_nets(Design*des, NetScope*scope, NetExpr*expr)
 	    cerr << expr->get_fileline() << ": error: Expression " << *expr
 		 << " is not suitable as a delay expression." << endl;
 	    des->errors += 1;
+	    delete expr;
 	    return 0;
       }
 
+      /* synthesize() consumes neither the root expression nor this caller's
+       * ownership. Nodes added to Design copy the expression's LineInfo and
+       * do not retain the NetExpr pointer, so release it on both paths. */
+      delete expr;
       expr = new NetESignal(sig);
       return expr;
 }

@@ -435,12 +435,21 @@ times that are used for delay.
 
 	.delay <width> ( <rise>, <fall>, <decay> ) <input> ;
 	.delay <width> <input>, <rise>, <fall>, <decay> ;
+	.delay/v <width> ( <rise>, <fall>, <decay> ) <input> ;
+	.delay/w <width> ( <rise>, <fall>, <decay> ) <input> ;
 
 The first form above takes three constant (64bit) numbers as the
 initial delay, and takes a single input. The second form takes 4 net
 inputs, with the first being the value to delay, and the remaining to
 be the delay values to use. <width> specifies the bit width of the
 input net, with a width of 0 used to identify a real valued net.
+
+The ``.delay/v`` form applies net declaration delays independently to
+each bit. Its transitions to X use the minimum applicable rise, fall and
+decay delay. The ``.delay/w`` form treats a vector as one value, as required
+for a delayed continuous assignment: an all-zero target uses the fall delay,
+an all-Z target uses the decay delay, and every other target uses the rise
+delay. Both suffixes also have the variable-delay input form shown above.
 
 Module Path Delay Statements
 ----------------------------

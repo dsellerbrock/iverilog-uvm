@@ -13619,21 +13619,15 @@ module_item
 	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
 	      FILE_NAME(data_type, @2);
 	}
+	pform_set_net_delay(@2, $4, $5);
 	pform_set_data_type(@2, data_type, $5, $2, $1);
-	if ($4 != 0) {
-	      yyerror(@2, "sorry: Net delays not supported.");
-	      delete $4;
-	}
 	delete $1;
       }
 
   | attribute_list_opt K_wreal delay3 net_variable_list ';'
       { real_type_t*tmpt = new real_type_t(real_type_t::REAL);
+	pform_set_net_delay(@2, $3, $4);
 	pform_set_data_type(@2, tmpt, $4, NetNet::WIRE, $1);
-	if ($3 != 0) {
-	      yyerror(@3, "sorry: Net delays not supported.");
-	      delete $3;
-	}
 	delete $1;
       }
 
@@ -13658,17 +13652,42 @@ module_item
 	delete $1;
       }
 
-  /* This form doesn't have the range, but does have strengths. This
-     gives strength to the assignment drivers. */
+  /* IEEE 1800-2023 Syntax 6-2 places drive strength immediately after
+     the net type and before the optional data type and delay. A declaration
+     without an initializer has no assignment driver to which the strength
+     applies, but it is nevertheless a legal net declaration. */
 
-  | attribute_list_opt net_type data_type_or_implicit drive_strength net_decl_assigns ';'
-      { data_type_t*data_type = $3;
-        pform_check_net_data_type(@2, $2, $3);
+  | attribute_list_opt net_type drive_strength data_type_or_implicit delay3_opt net_variable_list ';'
+      { data_type_t*data_type = $4;
+        pform_check_net_data_type(@2, $2, $4);
 	if (data_type == 0) {
 	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
 	      FILE_NAME(data_type, @2);
 	}
-	pform_makewire(@2, 0, $4, $5, $2, data_type, $1);
+	pform_set_net_delay(@2, $5, $6);
+	pform_set_data_type(@2, data_type, $6, $2, $1);
+	delete $1;
+      }
+
+  | attribute_list_opt net_type drive_strength data_type_or_implicit delay3_opt net_decl_assigns ';'
+      { data_type_t*data_type = $4;
+        pform_check_net_data_type(@2, $2, $4);
+	if (data_type == 0) {
+	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
+	      FILE_NAME(data_type, @2);
+	}
+	pform_makewire(@2, $5, $3, $6, $2, data_type, $1);
+	delete $1;
+      }
+
+  /* Preserve the historical Icarus extension that placed drive strength
+     after a nonempty data type/range. Restricting the carrier to the
+     nonempty form avoids competing with the standards-order production
+     when the data type is omitted. */
+  | attribute_list_opt net_type data_type_or_implicit_no_opt drive_strength delay3_opt net_decl_assigns ';'
+      { data_type_t*data_type = $3;
+        pform_check_net_data_type(@2, $2, $3);
+	pform_makewire(@2, $5, $4, $6, $2, data_type, $1);
 	delete $1;
       }
 

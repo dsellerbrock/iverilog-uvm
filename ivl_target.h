@@ -1130,6 +1130,13 @@ extern unsigned ivl_logic_lineno(ivl_net_logic_t net);
  *
  * ivl_logic_delay
  *    Logic devices have a delay for each transition (0, 1 and Z).
+ * ivl_logic_delay_is_per_bit
+ *    True when a vector delay is applied independently to each bit. This is
+ *    used for vector net declaration delays, as distinct from a delayed
+ *    continuous assignment to a complete vector.
+ * ivl_logic_delay_is_whole_vector
+ *    True when a continuous-assignment delay selects one rise/fall/turn-off
+ *    delay from the complete vector value (IEEE 1800-2023 10.3.3).
  *
  * ivl_logic_attr (obsolete)
  *    Return the value of a specific attribute, given the key name as
@@ -1197,6 +1204,8 @@ extern ivl_nexus_t ivl_logic_pin(ivl_net_logic_t net, unsigned pin);
 extern unsigned    ivl_logic_pins(ivl_net_logic_t net);
 extern ivl_udp_t   ivl_logic_udp(ivl_net_logic_t net);
 extern ivl_expr_t  ivl_logic_delay(ivl_net_logic_t net, unsigned transition);
+extern unsigned    ivl_logic_delay_is_per_bit(ivl_net_logic_t net);
+extern unsigned    ivl_logic_delay_is_whole_vector(ivl_net_logic_t net);
 extern ivl_drive_t ivl_logic_drive0(ivl_net_logic_t net);
 extern ivl_drive_t ivl_logic_drive1(ivl_net_logic_t net);
 extern unsigned    ivl_logic_width(ivl_net_logic_t net);

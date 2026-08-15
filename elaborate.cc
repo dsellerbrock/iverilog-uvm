@@ -37,6 +37,7 @@
 # include  <iostream>
 # include  <sstream>
 # include  <list>
+# include  <set>
 # include  "pform.h"
 # include  "PClass.h"
 # include  "PEvent.h"
@@ -1932,6 +1933,16 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
       if (dynamic_cast<NetESignal*>(rval_expr) ||!rval->is_linked())
 	    need_driver_flag = true;
 
+      /* A delayed continuous assignment to a complete vector selects one
+	 * rise/fall/turn-off delay from the complete RHS value (1800-2023
+	 * 10.3.3). Force an explicit carrier so the target can distinguish it
+	 * from both ordinary vector device delays and per-bit net declaration
+	 * delays. */
+      bool whole_vector_delay = (rise_time || fall_time || decay_time)
+	    && lval->vector_width() > 1;
+      if (whole_vector_delay)
+	    need_driver_flag = true;
+
 	// expression elaboration should have caused the rval width to
 	// match the l-value by now.
       if (rval->vector_width() < lval->vector_width()) {
@@ -1963,6 +1974,9 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    need_driver_flag = false;
       }
 
+      if (whole_vector_delay)
+	    need_driver_flag = true;
+
 	/* When we are given a non-default strength value and if the drive
 	 * source is a bit, part, indexed select or a concatenation we need
 	 * to add a driver (BUFZ) to convey the strength information. */
@@ -1976,6 +1990,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    NetBUFZ*driver = new NetBUFZ(scope, scope->local_symbol(),
 					 rval->vector_width(), false);
 	    driver->set_line(*this);
+	    driver->whole_vector_delay(whole_vector_delay);
 	    des->add_node(driver);
 
 	    connect(rval->pin(0), driver->pin(1));
@@ -2958,7 +2973,10 @@ static bool need_bufz_for_input_port(const vector<NetNet*>&prts)
 {
       if (prts.empty()) return false;
       if (prts[0]->port_type() != NetNet::PINPUT) return false;
-      if (prts[0]->pin(0).nexus()->drivers_present()) return true;
+      NetNet*formal = prts[0];
+      while (formal->net_delay_driver())
+	    formal = formal->net_delay_driver();
+      if (formal->pin(0).nexus()->drivers_present()) return true;
       return false;
 }
 
@@ -3013,6 +3031,436 @@ static void isolate_and_connect(Design*des, NetScope*scope, const PGModule*mod,
 	    ivl_assert(*mod, 0);
 	    break;
       }
+}
+
+enum port_net_dominance_t {
+      PORT_NET_UNSUPPORTED,
+      PORT_NET_EXTERNAL,
+      PORT_NET_INTERNAL
+};
+
+struct port_net_dominance_result_t {
+      port_net_dominance_t dominance;
+      bool warn;
+};
+
+static bool wire_or_tri_type(NetNet::Type type)
+{
+      return type == NetNet::IMPLICIT || type == NetNet::WIRE
+	    || type == NetNet::TRI;
+}
+
+enum port_net_class_t {
+      PORT_NET_WIRE,
+      PORT_NET_WAND,
+      PORT_NET_WOR,
+      PORT_NET_TRI0,
+      PORT_NET_TRI1,
+      PORT_NET_UWIRE,
+      PORT_NET_SUPPLY0,
+      PORT_NET_SUPPLY1,
+      PORT_NET_CLASS_COUNT,
+      PORT_NET_CLASS_UNSUPPORTED
+};
+
+static port_net_class_t port_net_class(NetNet::Type type)
+{
+      if (wire_or_tri_type(type)) return PORT_NET_WIRE;
+      switch (type) {
+	  case NetNet::WAND:
+	  case NetNet::TRIAND:
+	    return PORT_NET_WAND;
+	  case NetNet::WOR:
+	  case NetNet::TRIOR:
+	    return PORT_NET_WOR;
+	  case NetNet::TRI0: return PORT_NET_TRI0;
+	  case NetNet::TRI1: return PORT_NET_TRI1;
+	  case NetNet::UNRESOLVED_WIRE: return PORT_NET_UWIRE;
+	  case NetNet::SUPPLY0: return PORT_NET_SUPPLY0;
+	  case NetNet::SUPPLY1: return PORT_NET_SUPPLY1;
+	  default: return PORT_NET_CLASS_UNSUPPORTED;
+      }
+}
+
+/* IEEE 1800-2023 Table 23-1, with rows=internal and columns=external.
+ * Each entry encodes external/internal dominance and the table's warn cell.
+ * The frontend diagnoses trireg declarations before NetNet construction, so
+ * there is no NetNet::TRIREG row/column to represent here. */
+static port_net_dominance_result_t port_net_dominance(NetNet::Type internal,
+						       NetNet::Type external)
+{
+      enum table_cell_t { E, EW, I, IW };
+      static const table_cell_t table[PORT_NET_CLASS_COUNT]
+					   [PORT_NET_CLASS_COUNT] = {
+	/* external: wire wand wor  tri0 tri1 uwire supply0 supply1 */
+	/* wire */   { E,   E,   E,   E,   E,   E,    E,      E  },
+	/* wand */   { I,   E,   EW,  EW,  EW,  EW,   E,      E  },
+	/* wor */    { I,   EW,  E,   EW,  EW,  EW,   E,      E  },
+	/* tri0 */   { I,   EW,  EW,  E,   EW,  EW,   E,      E  },
+	/* tri1 */   { I,   EW,  EW,  EW,  E,   EW,   E,      E  },
+	/* uwire */  { I,   IW,  IW,  IW,  IW,  E,    E,      E  },
+	/* supply0 */{ I,   I,   I,   I,   I,   I,    E,      EW },
+	/* supply1 */{ I,   I,   I,   I,   I,   I,    EW,     E  }
+      };
+
+      port_net_class_t row = port_net_class(internal);
+      port_net_class_t col = port_net_class(external);
+      if (row == PORT_NET_CLASS_UNSUPPORTED
+	  || col == PORT_NET_CLASS_UNSUPPORTED)
+	    return { PORT_NET_UNSUPPORTED, false };
+      table_cell_t cell = table[row][col];
+      return { cell == I || cell == IW
+		     ? PORT_NET_INTERNAL : PORT_NET_EXTERNAL,
+	       cell == EW || cell == IW };
+}
+
+static const char* port_net_type_name(NetNet::Type type)
+{
+      if (wire_or_tri_type(type)) return "wire/tri";
+      if (type == NetNet::UNRESOLVED_WIRE) return "uwire";
+      if (type == NetNet::TRI0) return "tri0";
+      if (type == NetNet::TRI1) return "tri1";
+      if (type == NetNet::WAND || type == NetNet::TRIAND)
+	    return "wand/triand";
+      if (type == NetNet::WOR || type == NetNet::TRIOR)
+	    return "wor/trior";
+      if (type == NetNet::SUPPLY0) return "supply0";
+      if (type == NetNet::SUPPLY1) return "supply1";
+      return "unsupported";
+}
+
+/* Recover the public/read side when l-value elaboration has returned the raw
+ * side of an outer declaration-delay domain. Dominance links always point
+ * outwards, so following them cannot re-enter a child scope. */
+static NetNet* delay_public_net(NetNet*net)
+{
+      set<NetNet*>seen;
+      while (NetNet*next = net->net_delay_public()) {
+	    if (next == net)
+		  break;
+	    ivl_assert(*net, seen.insert(net).second);
+	    net = next;
+      }
+      return net;
+}
+
+static NetNet* delay_driver_net(NetNet*net)
+{
+      set<NetNet*>seen;
+      while (NetNet*next = net->net_delay_driver()) {
+	    ivl_assert(*net, next != net && seen.insert(net).second);
+	    net = next;
+      }
+      return net;
+}
+
+static void delete_net_delay_boundaries(NetNet*net)
+{
+      vector<NetBUFZ*>&boundaries = net->net_delay_boundaries();
+      for (vector<NetBUFZ*>::iterator cur = boundaries.begin();
+	   cur != boundaries.end(); ++cur)
+	    delete *cur;
+      boundaries.clear();
+}
+
+static void delete_net_delay_pull(NetNet*net)
+{
+      set<NetLogic*>pulls;
+      for (Link*cur = net->pin(0).nexus()->first_nlink(); cur;
+	   cur = cur->next_nlink()) {
+	    NetNet*alias = dynamic_cast<NetNet*>(cur->get_obj());
+	    if (!alias || !alias->net_delay_pull())
+		  continue;
+	    pulls.insert(alias->net_delay_pull());
+	    alias->net_delay_pull(0);
+      }
+      for (set<NetLogic*>::iterator cur = pulls.begin(); cur != pulls.end(); ++cur)
+	    delete *cur;
+}
+
+/* Pull tracking belongs to the simulated-net domain, not to a particular
+ * signal alias. Move its single ownership marker to the public representative
+ * after a legal collapse, while leaving the already-connected NetLogic on the
+ * raw/public nexus where it resolves. */
+static void move_net_delay_pull(NetNet*from, NetNet*to)
+{
+      NetLogic*pull = 0;
+      for (Link*cur = from->pin(0).nexus()->first_nlink(); cur;
+	   cur = cur->next_nlink()) {
+	    NetNet*alias = dynamic_cast<NetNet*>(cur->get_obj());
+	    if (!alias || !alias->net_delay_pull())
+		  continue;
+	    if (!pull)
+		  pull = alias->net_delay_pull();
+	    else
+		  ivl_assert(*alias, pull == alias->net_delay_pull());
+	    alias->net_delay_pull(0);
+      }
+      if (pull)
+	    to->net_delay_pull(pull);
+}
+
+/* An undelayed TRI0/TRI1 normally carries its default pull implicitly in the
+ * NetNet type. Port collapsing must retype every alias to the one dominating
+ * simulated-net storage type, so first materialize exactly one explicit pull
+ * on that nexus. Simple, uncollapsed tri0/tri1 declarations retain their
+ * original target/VPI type. Delayed tri nets are already explicit on raw. */
+static void canonicalize_nettype_pull(Design*des, NetNet*net,
+				      NetNet::Type declared)
+{
+      if (declared != NetNet::TRI0 && declared != NetNet::TRI1)
+	    return;
+
+      move_net_delay_pull(net, net);
+      if (net->net_delay_pull())
+	    return;
+
+      NetLogic::TYPE pull_type = declared == NetNet::TRI1
+	    ? NetLogic::PULLUP : NetLogic::PULLDOWN;
+      NetLogic*pull = new NetLogic(net->scope(), net->scope()->local_symbol(),
+				    1, pull_type, net->vector_width());
+      pull->set_line(*net);
+      pull->pin(0).drive0(IVL_DR_PULL);
+      pull->pin(0).drive1(IVL_DR_PULL);
+      des->add_node(pull);
+      connect(net->pin(0), pull->pin(0));
+      net->net_delay_pull(pull);
+}
+
+static NetNet::Type simulated_net_storage_type(NetNet::Type declared,
+					       NetNet::Type actual)
+{
+      if (declared == NetNet::TRI0 || declared == NetNet::TRI1)
+	    return NetNet::TRI;
+      if (declared == NetNet::SUPPLY0 || declared == NetNet::SUPPLY1)
+	    return NetNet::WIRE;
+      return actual;
+}
+
+static void set_nexus_simulated_net_type(NetNet*net, NetNet::Type actual,
+					 NetNet::Type declared)
+{
+      for (Link*cur = net->pin(0).nexus()->first_nlink(); cur;
+	   cur = cur->next_nlink()) {
+	    NetNet*alias = dynamic_cast<NetNet*>(cur->get_obj());
+	    if (!alias)
+		  continue;
+	    alias->type(actual);
+	    alias->net_delay_declared_type(declared);
+      }
+}
+
+/* A public nexus can contain aliases from lower hierarchy levels. Record the
+ * dominating outer delay domain on every signal identity, not merely the
+ * immediate formal port, so a later hierarchical l-value cannot bypass the
+ * raw resolver. Existing behavioral drivers are moved to the raw nexus;
+ * future drivers follow net_delay_driver() during l-value elaboration. */
+static void adopt_outer_delay_domain(NetNet*inner, NetNet*outer_public,
+				     NetNet*outer_raw)
+{
+      vector<NetNet*>aliases;
+      vector<Link*>drivers;
+      for (Link*cur = inner->pin(0).nexus()->first_nlink(); cur;
+	   cur = cur->next_nlink()) {
+	    if (NetNet*net = dynamic_cast<NetNet*>(cur->get_obj())) {
+		  aliases.push_back(net);
+		  continue;
+	    }
+	    if (cur->get_dir() == Link::OUTPUT)
+		  drivers.push_back(cur);
+      }
+
+      for (vector<Link*>::iterator cur = drivers.begin();
+	   cur != drivers.end(); ++cur) {
+	    (*cur)->unlink();
+	    connect(outer_raw->pin(0), **cur);
+      }
+      for (vector<NetNet*>::iterator cur = aliases.begin();
+	   cur != aliases.end(); ++cur) {
+	    (*cur)->net_delay_driver(outer_raw);
+	    (*cur)->net_delay_public(outer_public);
+      }
+}
+
+/* Rehome an internal-dominating declaration delay onto an anonymous raw net
+ * in the external scope. This preserves Table 23-1 semantics without ever
+ * storing a downward pointer from a shared external NetNet to one particular
+ * module instance. Multiple later port connections therefore see one stable
+ * external simulated-net domain, independent of elaboration order. */
+static void install_internal_delay_on_external(Design*des, NetNet*port,
+					       NetNet*outer_public)
+{
+      ivl_assert(*port, !port->net_delay_boundaries().empty());
+      NetBUFZ*source = port->net_delay_boundaries().front();
+      const NetExpr*rise = source->rise_time();
+      const NetExpr*fall = source->fall_time();
+      const NetExpr*decay = source->decay_time();
+      bool per_bit = source->per_bit_delay();
+      bool whole_vector = source->whole_vector_delay();
+      NetNet*inner_raw = delay_driver_net(port);
+
+      NetNet*outer_raw = 0;
+      delete_net_delay_pull(outer_public);
+      if (!outer_public->net_delay_boundaries().empty()) {
+	    outer_raw = delay_driver_net(outer_public);
+	    delete_net_delay_boundaries(outer_public);
+      } else {
+	    outer_raw = new NetNet(outer_public->scope(),
+				  outer_public->scope()->local_symbol(),
+				  inner_raw->type(), outer_public->net_type());
+	    outer_raw->set_line(*port);
+	    outer_raw->local_flag(false);
+	    adopt_outer_delay_domain(outer_public, outer_public, outer_raw);
+      }
+
+      NetNet::Type declared_type = port->net_delay_declared_type();
+      NetNet::Type storage_type = simulated_net_storage_type(
+	    declared_type, inner_raw->type());
+      set_nexus_simulated_net_type(outer_public, storage_type, declared_type);
+      set_nexus_simulated_net_type(port, storage_type, declared_type);
+      set_nexus_simulated_net_type(inner_raw, storage_type, declared_type);
+      outer_raw->type(storage_type);
+      outer_raw->net_delay_declared_type(declared_type);
+
+      delete_net_delay_boundaries(port);
+      connect(inner_raw->pin(0), outer_raw->pin(0));
+      inner_raw->net_delay_public(outer_public);
+      adopt_outer_delay_domain(port, outer_public, outer_raw);
+      connect(port->pin(0), outer_public->pin(0));
+
+      NetBUFZ*boundary = new NetBUFZ(outer_public->scope(),
+				      outer_public->scope()->local_symbol(),
+				      outer_public->vector_width(), true);
+      boundary->set_line(*port);
+      boundary->rise_time(rise);
+      boundary->fall_time(fall);
+      boundary->decay_time(decay);
+      boundary->per_bit_delay(per_bit);
+      boundary->whole_vector_delay(whole_vector);
+      des->add_node(boundary);
+      outer_public->add_net_delay_boundary(boundary);
+      outer_public->net_delay_driver(outer_raw);
+      outer_public->net_delay_public(outer_public);
+      outer_raw->net_delay_public(outer_public);
+      connect(boundary->pin(1), outer_raw->pin(0));
+      connect(boundary->pin(0), outer_public->pin(0));
+
+      /* A delayed tri0/tri1 or supply net has one explicit pull on INNER_RAW.
+	 * Its ownership marker follows the public simulated-net representative;
+	 * the pull itself remains on the raw side of the delay boundary. */
+      move_net_delay_pull(port, outer_public);
+}
+
+/* Apply Table 23-1 only to a directly collapsible whole-net connection. An
+ * expression/part-select connection is directional and retains independently
+ * declared delays on its two sides. */
+static bool connect_dominated_wire_port(Design*des, const LineInfo&loc,
+					NetNet*port, NetNet*sig)
+{
+      if (port->pin_count() != 1 || sig->pin_count() != 1)
+	    return false;
+      if (sig->local_flag() && !sig->net_delay_public())
+	    return false;
+
+      NetNet*outer_public = delay_public_net(sig);
+      NetNet::Type internal_type = port->net_delay_declared_type();
+      NetNet::Type external_type = outer_public->net_delay_declared_type();
+      port_net_dominance_result_t choice = port_net_dominance(
+	    internal_type, external_type);
+      if (choice.dominance == PORT_NET_UNSUPPORTED)
+	    return false;
+
+      if (choice.warn) {
+	    cerr << loc.get_fileline() << ": warning: Port connection between "
+		 << "internal " << port_net_type_name(internal_type)
+		 << " and external " << port_net_type_name(external_type)
+		 << " nets uses the "
+		 << (choice.dominance == PORT_NET_EXTERNAL
+		     ? "external" : "internal")
+		 << " net type and delay (IEEE 1800-2023 Table 23-1)."
+		 << endl;
+      }
+
+      NetNet*inner_raw = port->net_delay_driver();
+      bool inner_delayed = inner_raw
+	    && !port->net_delay_boundaries().empty();
+      bool outer_delayed = !outer_public->net_delay_boundaries().empty();
+
+	/* The internal net type dominates. Rehome its active delay in the
+	 * external scope, or remove an external delay when the dominating
+	 * internal net has none. */
+      if (choice.dominance == PORT_NET_INTERNAL) {
+	    canonicalize_nettype_pull(des, port, internal_type);
+	    if (inner_delayed) {
+		  install_internal_delay_on_external(des, port, outer_public);
+		  return true;
+	    }
+	    delete_net_delay_pull(outer_public);
+	    if (outer_delayed) {
+		  NetNet*outer_raw = delay_driver_net(outer_public);
+		  delete_net_delay_boundaries(outer_public);
+		  connect(outer_raw->pin(0), outer_public->pin(0));
+		  outer_public->net_delay_driver(0);
+		  outer_public->net_delay_public(0);
+		  outer_raw->net_delay_public(0);
+	    }
+	    NetNet::Type storage_type = simulated_net_storage_type(
+		  internal_type, port->type());
+	    set_nexus_simulated_net_type(port, storage_type, internal_type);
+	    set_nexus_simulated_net_type(outer_public, storage_type,
+					 internal_type);
+	    connect(port->pin(0), outer_public->pin(0));
+	    set_nexus_simulated_net_type(outer_public, storage_type,
+					 internal_type);
+	    move_net_delay_pull(port, outer_public);
+	    return true;
+      }
+
+      canonicalize_nettype_pull(des, outer_public, external_type);
+      NetNet::Type storage_type = simulated_net_storage_type(
+	    external_type, outer_public->type());
+      set_nexus_simulated_net_type(port, storage_type, external_type);
+      if (inner_raw)
+	    set_nexus_simulated_net_type(inner_raw, storage_type, external_type);
+      set_nexus_simulated_net_type(outer_public, storage_type, external_type);
+
+      if (inner_delayed) {
+	    delete_net_delay_boundaries(port);
+      }
+      delete_net_delay_pull(port);
+
+      if (outer_delayed) {
+	    NetNet*outer_raw = delay_driver_net(outer_public);
+	    ivl_assert(*port, outer_raw != outer_public);
+
+	    if (inner_raw) {
+		  connect(inner_raw->pin(0), outer_raw->pin(0));
+		  inner_raw->net_delay_public(outer_public);
+	    } else {
+		  adopt_outer_delay_domain(port, outer_public, outer_raw);
+	    }
+	    port->net_delay_driver(outer_raw);
+	    port->net_delay_public(outer_public);
+	    connect(port->pin(0), outer_public->pin(0));
+	    set_nexus_simulated_net_type(outer_public, storage_type, external_type);
+	    move_net_delay_pull(outer_public, outer_public);
+	    return true;
+      }
+
+	/* The external net has no delay, so the internal boundary is
+	 * dominated away. Collapse its raw and public sides before making the
+	 * ordinary port connection. Any lower-scope redirects still land on the
+	 * same resulting nexus and are therefore harmless. */
+      if (inner_raw) {
+	    connect(inner_raw->pin(0), port->pin(0));
+	    port->net_delay_driver(0);
+	    port->net_delay_public(0);
+	    inner_raw->net_delay_public(0);
+      }
+      connect(port->pin(0), outer_public->pin(0));
+      set_nexus_simulated_net_type(outer_public, storage_type, external_type);
+      move_net_delay_pull(outer_public, outer_public);
+      return true;
 }
 
 void elaborate_unpacked_port(Design *des, NetScope *scope, NetNet *port_net,
@@ -3973,8 +4421,11 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	      // even multiple of the instance count.
 	    ivl_assert(*this, prts_vector_width % instance.size() == 0);
 
+	    NetNet*coercion_net = !prts.empty() ? prts[0] : 0;
+	    while (coercion_net && coercion_net->net_delay_driver())
+		  coercion_net = coercion_net->net_delay_driver();
 	    if (!prts.empty() && (prts[0]->port_type() == NetNet::PINPUT)
-	        && prts[0]->pin(0).nexus()->drivers_present()
+	        && coercion_net->pin(0).nexus()->drivers_present()
 	        && pins[idx]->is_collapsible_net(des, scope,
 	                                         prts[0]->port_type())) {
                   prts[0]->port_type(NetNet::PINOUT);
@@ -3985,7 +4436,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
 	    if (!prts.empty() && (prts[0]->port_type() == NetNet::POUTPUT)
 	        && (prts[0]->type() != NetNet::REG)
-	        && prts[0]->pin(0).nexus()->has_floating_input()
+	        && coercion_net->pin(0).nexus()->has_floating_input()
 	        && pins[idx]->is_collapsible_net(des, scope,
 	                                         prts[0]->port_type())) {
                   prts[0]->port_type(NetNet::PINOUT);
@@ -4487,7 +4938,12 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
 			isolate_and_connect(des, inner_scope, this, prts[0], sig, ptype, gn_interconnect_flag ? idx : -1);
 		  } else {
-			connect(prts[0]->pin(0), sig->pin(0));
+			NetNet*formal = prts[0];
+			if (connect_dominated_wire_port(des, *this, formal, sig))
+			      continue;
+			if (ptype == NetNet::PINPUT && formal->net_delay_driver())
+			      formal = delay_driver_net(formal);
+			connect(formal->pin(0), sig->pin(0));
 		  }
 
 	    } else if (sig->vector_width()==prts_vector_width/instance.size()
@@ -4508,7 +4964,13 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			if (prts[ldx]->delay_paths() > 0) {
 			      isolate_and_connect(des, scope, this, prts[ldx], sig, ptype);
 			} else {
-			      connect(prts[ldx]->pin(0), sig->pin(0));
+			      NetNet*formal = prts[ldx];
+			      if (connect_dominated_wire_port(des, *this,
+							 formal, sig))
+				    continue;
+			      if (ptype == NetNet::PINPUT && formal->net_delay_driver())
+				    formal = delay_driver_net(formal);
+			      connect(formal->pin(0), sig->pin(0));
 			}
 		  }
 
@@ -4539,6 +5001,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  for (unsigned ldx = 0, spin = 0 ;
 		       ldx < prts.size() ;  ldx += 1) {
 			NetNet*sp = prts[prts.size()-ldx-1];
+			if (sp->net_delay_driver())
+			      sp = delay_driver_net(sp);
 			NetPartSelect*ptmp = new NetPartSelect(sig, spin,
 							   sp->vector_width(),
 							   NetPartSelect::VP);

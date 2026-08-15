@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_net_decl_delay_wide.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_net_decl_delay_wide"
+}

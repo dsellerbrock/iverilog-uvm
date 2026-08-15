@@ -87,7 +87,8 @@ static struct __vpiModPath*modpath_dst = 0;
 %token K_CMP_EEQ K_CMP_EQ K_CMP_EQX K_CMP_EQZ K_CMP_WEQ K_CMP_WNE
 %token K_CMP_EQ_R K_CMP_NEE K_CMP_NE K_CMP_NE_R
 %token K_CMP_GE K_CMP_GE_R K_CMP_GE_S K_CMP_GT K_CMP_GT_R K_CMP_GT_S
-%token K_CONCAT K_CONCAT8 K_DEBUG K_DELAY K_DFF_N K_DFF_N_ACLR
+%token K_CONCAT K_CONCAT8 K_DEBUG K_DELAY K_DELAY_VECTOR K_DELAY_WHOLE
+%token K_DFF_N K_DFF_N_ACLR
 %token K_DFF_N_ACLR_ASET K_DFF_N_ASET K_DFF_N_ASET_ACLR
 %token K_DFF_P K_DFF_P_ACLR K_DFF_P_ACLR_ASET K_DFF_P_ASET K_DFF_P_ASET_ACLR
 %token K_ENUM2 K_ENUM2_S K_ENUM4 K_ENUM4_S K_EVENT K_EVENT_OR
@@ -538,8 +539,39 @@ statement
     }
  | T_LABEL K_DELAY T_NUMBER symbols ',' T_NUMBER ';'
     { struct symbv_s obj = $4;
-      if ($6 != 0) assert(0);
+      if ($6 != 0) {
+	    yyerror(".delay dynamic decay flag must be zero");
+	    compile_errors += 1;
+      }
       compile_delay($1, $3, obj.cnt, obj.vect, true);
+    }
+ | T_LABEL K_DELAY_VECTOR T_NUMBER delay symbol ';'
+    { compile_delay($1, $3, $4, $5, true); }
+ | T_LABEL K_DELAY_VECTOR T_NUMBER symbols ';'
+    { struct symbv_s obj = $4;
+      compile_delay($1, $3, obj.cnt, obj.vect, false, true);
+    }
+ | T_LABEL K_DELAY_VECTOR T_NUMBER symbols ',' T_NUMBER ';'
+    { struct symbv_s obj = $4;
+      if ($6 != 0) {
+	    yyerror(".delay/v dynamic decay flag must be zero");
+	    compile_errors += 1;
+      }
+      compile_delay($1, $3, obj.cnt, obj.vect, true, true);
+    }
+ | T_LABEL K_DELAY_WHOLE T_NUMBER delay symbol ';'
+    { compile_delay($1, $3, $4, $5, false, true); }
+ | T_LABEL K_DELAY_WHOLE T_NUMBER symbols ';'
+    { struct symbv_s obj = $4;
+      compile_delay($1, $3, obj.cnt, obj.vect, false, false, true);
+    }
+ | T_LABEL K_DELAY_WHOLE T_NUMBER symbols ',' T_NUMBER ';'
+    { struct symbv_s obj = $4;
+      if ($6 != 0) {
+	    yyerror(".delay/w dynamic decay flag must be zero");
+	    compile_errors += 1;
+      }
+      compile_delay($1, $3, obj.cnt, obj.vect, true, false, true);
     }
 
  | T_LABEL K_MODPATH T_NUMBER symbol symbol ','

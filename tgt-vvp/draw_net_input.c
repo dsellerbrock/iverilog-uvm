@@ -404,7 +404,7 @@ static char* draw_net_input_drive(const ivl_nexus_t nex, ivl_nexus_ptr_t nptr)
 
 	    dly = "";
 	    if (d_rise != 0) {
-		  draw_delay(cptr, dly_width, 0, d_rise, d_fall, d_decay);
+		  draw_delay(cptr, dly_width, 0, d_rise, d_fall, d_decay, 0, 0);
 		  dly = "/d";
 	    }
 	    fprintf(vvp_out, "L_%p%s .functor BUFT 1, %s, C4<0>, C4<0>, C4<0>;\n",

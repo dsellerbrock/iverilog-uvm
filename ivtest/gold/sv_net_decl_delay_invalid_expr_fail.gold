@@ -1,0 +1,2 @@
+./ivltests/sv_net_decl_delay_invalid_expr_fail.v:7: error: Expression holder.<0> is not suitable as a delay expression.
+1 error(s) during elaboration.

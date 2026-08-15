@@ -958,6 +958,29 @@ class NetNet  : public NetObj, public PortType {
       unsigned delay_paths(void) const;
       const class NetDelaySrc*delay_path(unsigned idx) const;
 
+      /* A declaration delay is applied after this hidden net resolves all
+       * of the declared net's drivers. Reads remain on the public NetNet;
+       * structural l-values are redirected to the driver net. Port collapse
+       * may make an outer net the dominating simulated net (1800-2023
+       * 23.3.3.7), in which case a dominated inner signal points outward to
+       * that net's public/driver pair. An outer signal must never point at a
+       * module-local driver net. */
+      void net_delay_driver(NetNet*net) { net_delay_driver_ = net; }
+      NetNet* net_delay_driver() const { return net_delay_driver_; }
+      void net_delay_public(NetNet*net) { net_delay_public_ = net; }
+      NetNet* net_delay_public() const { return net_delay_public_; }
+      void add_net_delay_boundary(class NetBUFZ*net)
+	    { net_delay_boundaries_.push_back(net); }
+      std::vector<class NetBUFZ*>& net_delay_boundaries()
+	    { return net_delay_boundaries_; }
+      void net_delay_declared_type(Type type)
+	    { net_delay_declared_type_ = type; }
+      Type net_delay_declared_type() const
+	    { return net_delay_declared_type_ == NONE
+		   ? type_ : net_delay_declared_type_; }
+      void net_delay_pull(class NetLogic*net) { net_delay_pull_ = net; }
+      class NetLogic* net_delay_pull() const { return net_delay_pull_; }
+
       void dump_net(std::ostream&, unsigned) const;
 
     private:
@@ -1014,6 +1037,11 @@ class NetNet  : public NetObj, public PortType {
       std::vector<class NetAssign_*> lref_objs_;
 
       std::vector<class NetDelaySrc*> delay_paths_;
+      NetNet*net_delay_driver_ = 0;
+      NetNet*net_delay_public_ = 0;
+      std::vector<class NetBUFZ*> net_delay_boundaries_;
+      Type net_delay_declared_type_ = NONE;
+      class NetLogic*net_delay_pull_ = 0;
       int       port_index_ = -1;
 };
 
@@ -2728,6 +2756,10 @@ class NetBUFZ  : public NetNode {
       unsigned width() const;
       bool transparent() const { return transparent_; }
       int port_info_index() const { return port_info_index_; }
+      void per_bit_delay(bool flag) { per_bit_delay_ = flag; }
+      bool per_bit_delay() const { return per_bit_delay_; }
+      void whole_vector_delay(bool flag) { whole_vector_delay_ = flag; }
+      bool whole_vector_delay() const { return whole_vector_delay_; }
 
       virtual void dump_node(std::ostream&, unsigned ind) const override;
       virtual bool emit_node(struct target_t*) const override;
@@ -2735,6 +2767,8 @@ class NetBUFZ  : public NetNode {
     private:
       unsigned width_;
       bool transparent_;
+      bool per_bit_delay_ = false;
+      bool whole_vector_delay_ = false;
       int port_info_index_;
 };
 
