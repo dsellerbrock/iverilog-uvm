@@ -1,0 +1,26 @@
+# IEEE 1800-2017 6.6.7 user-defined nettypes and 6.6.8 interconnect.
+# Verbatim sv-tests corpus cases compile without runtime output.
+sv_nettype_corpus_decl CN,-g2012 ivltests
+sv_nettype_corpus_resolution_fn CN,-g2012 ivltests
+sv_interconnect_corpus CN,-g2012 ivltests
+# Supported declaration, lookup, single-driver, scalar, and shape paths.
+sv_nettype_direct normal,-g2012 ivltests gold=sv_nettype_direct.gold
+sv_nettype_alias normal,-g2012 ivltests gold=sv_nettype_alias.gold
+sv_nettype_package normal,-g2012 ivltests gold=sv_nettype_package.gold
+sv_nettype_parameter_instances normal,-g2012 ivltests gold=sv_nettype_parameter_instances.gold
+sv_nettype_single_driver normal,-g2012 ivltests gold=sv_nettype_single_driver.gold
+sv_nettype_resolved_runtime_boundary_fail normal,-g2012 ivltests gold=sv_nettype_resolved_runtime_boundary_fail.gold
+sv_interconnect_scalar normal,-g2012 ivltests gold=sv_interconnect_scalar.gold
+sv_interconnect_shapes normal,-g2012 ivltests gold=sv_interconnect_shapes.gold
+# Invalid nettype declarations, resolution functions, and driver forms.
+sv_nettype_invalid_underlying_fail CE,-g2012 ivltests gold=sv_nettype_invalid_underlying_fail.gold
+sv_nettype_lookup_fail CE,-g2012 ivltests gold=sv_nettype_lookup_fail.gold
+sv_nettype_resolver_signature_fail CE,-g2012 ivltests gold=sv_nettype_resolver_signature_fail.gold
+sv_nettype_unresolved_multiple_driver_fail CE,-g2012 ivltests gold=sv_nettype_unresolved_multiple_driver_fail.gold
+sv_nettype_unresolved_select_driver_fail CE,-g2012 ivltests gold=sv_nettype_unresolved_select_driver_fail.gold
+# Invalid interconnect declarations, uses, connections, and type collapse.
+sv_interconnect_declaration_fail CE,-g2012 ivltests gold=sv_interconnect_declaration_fail.gold
+sv_interconnect_reference_fail CE,-g2012 ivltests gold=sv_interconnect_reference_fail.gold
+sv_interconnect_variable_fail CE,-g2012 ivltests gold=sv_interconnect_variable_fail.gold
+sv_interconnect_udnt_conflict_fail CE,-g2012 ivltests gold=sv_interconnect_udnt_conflict_fail.gold
+sv_interconnect_unresolved_fail CE,-g2012 ivltests gold=sv_interconnect_unresolved_fail.gold

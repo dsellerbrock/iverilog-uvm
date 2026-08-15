@@ -64,6 +64,40 @@
 
 using namespace std;
 
+void NetScope::add_nettypes(Design*des,
+                            const LexicalScope::nettype_map_t*types)
+{
+      if (!types)
+            return;
+
+      for (LexicalScope::nettype_map_t::const_iterator cur = types->begin();
+           cur != types->end(); ++cur) {
+            const nettype_t*decl = cur->second;
+            if (!decl || nettypes_.find(decl) != nettypes_.end())
+                  continue;
+
+            unique_ptr<NetNetType>info(new NetNetType(decl, this));
+            NetNetType*raw = info.get();
+            nettypes_[decl] = std::move(info);
+            nettypes_by_name_[cur->first] = raw;
+            des->register_nettype_scope(decl, this);
+      }
+}
+
+NetNetType* NetScope::find_local_nettype(const nettype_t*type)
+{
+      map<const nettype_t*,unique_ptr<NetNetType> >::iterator cur =
+            nettypes_.find(type);
+      return cur == nettypes_.end() ? 0 : cur->second.get();
+}
+
+const NetNetType* NetScope::find_local_nettype(const nettype_t*type) const
+{
+      map<const nettype_t*,unique_ptr<NetNetType> >::const_iterator cur =
+            nettypes_.find(type);
+      return cur == nettypes_.end() ? 0 : cur->second.get();
+}
+
 static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass);
 static void complete_class_scope_in_place_(Design*des, NetScope*scope,
 					   PClass*pclass, netclass_t*use_class,
@@ -2545,6 +2579,7 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 	    semantic_cache[semantic_key_str] = use_class;
 
       class_scope->add_typedefs(&pclass->typedefs);
+      class_scope->add_nettypes(des, &pclass->nettypes);
       collect_scope_parameters(des, class_scope, pclass->parameters);
       for (std::map<perm_string,NetScope::param_expr_t>::iterator cur = class_scope->parameters.begin()
 		 ; cur != class_scope->parameters.end() ; ++cur) {
@@ -2799,6 +2834,7 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
       scope->add_class(use_class);
 
       class_scope->add_typedefs(&pclass->typedefs);
+      class_scope->add_nettypes(des, &pclass->nettypes);
       collect_scope_parameters(des, class_scope, pclass->parameters);
 
       const netclass_t*use_base_class = 0;
@@ -3188,6 +3224,7 @@ bool PPackage::elaborate_scope(Design*des, NetScope*scope)
       }
 
       scope->add_typedefs(&typedefs);
+      scope->add_nettypes(des, &nettypes);
 
       collect_scope_parameters(des, scope, parameters);
 
@@ -3247,6 +3284,7 @@ bool Module::elaborate_scope(Design*des, NetScope*scope,
       }
 
       scope->add_typedefs(&typedefs);
+      scope->add_nettypes(des, &nettypes);
 
 	// Add the genvars to the scope.
       typedef map<perm_string,LineInfo*>::const_iterator genvar_it_t;
@@ -3785,6 +3823,7 @@ void PGenerate::elaborate_subscope_direct_(Design*des, NetScope*scope)
 void PGenerate::elaborate_subscope_(Design*des, NetScope*scope)
 {
       scope->add_typedefs(&typedefs);
+      scope->add_nettypes(des, &nettypes);
 
 	// Add the genvars to this scope.
       typedef map<perm_string,LineInfo*>::const_iterator genvar_it_t;
@@ -4163,6 +4202,7 @@ void PFunction::elaborate_scope(Design*des, NetScope*scope) const
       scope->is_const_func(true);
 
       scope->add_typedefs(&typedefs);
+      scope->add_nettypes(des, &nettypes);
 
 	// Scan the parameters in the function, and store the information
         // needed to evaluate the parameter expressions.
@@ -4193,6 +4233,7 @@ void PTask::elaborate_scope(Design*des, NetScope*scope) const
       scope->set_task_pform(this);
 
       scope->add_typedefs(&typedefs);
+      scope->add_nettypes(des, &nettypes);
 
 	// Scan the parameters in the task, and store the information
         // needed to evaluate the parameter expressions.
@@ -4306,6 +4347,7 @@ void PBlock::elaborate_scope(Design*des, NetScope*scope) const
 		  my_scope->auto_frame(false);
 	    my_scope->add_imports(&explicit_imports);
 	    my_scope->add_typedefs(&typedefs);
+	    my_scope->add_nettypes(des, &nettypes);
 
 	      // Scan the parameters in the scope, and store the information
 	      // needed to evaluate the parameter expressions.

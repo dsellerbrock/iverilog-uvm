@@ -19,9 +19,11 @@
 
 # include  "vvp_net.h"
 # include  "compile.h"
+# include  "parse_misc.h"
 # include  "symbols.h"
 # include  "codes.h"
 # include  "ufunc.h"
+# include  "vvp_darray.h"
 # include  "vvp_net_sig.h"
 # include  "vthread.h"
 # include  "schedule.h"
@@ -41,10 +43,11 @@
 class ufunc_real : public ufunc_core {
    public:
       ufunc_real(unsigned ow, vvp_net_t*ptr,
-		 unsigned nports, vvp_net_t**ports,
+		 unsigned ninputs, unsigned nports, vvp_net_t**ports,
 		 vvp_code_t start_address,
 		 __vpiScope*call_scope,
-		 char*scope_label);
+		 char*scope_label,
+		 resolver_kind_t resolver_kind = RESOLVER_NONE);
       ~ufunc_real() override;
 
       void finish_thread() override;
@@ -53,23 +56,28 @@ class ufunc_real : public ufunc_core {
 class ufunc_vec4 : public ufunc_core {
    public:
       ufunc_vec4(unsigned ow, vvp_net_t*ptr,
-		 unsigned nports, vvp_net_t**ports,
+		 unsigned ninputs, unsigned nports, vvp_net_t**ports,
 		 vvp_code_t start_address,
 		 __vpiScope*call_scope,
-		 char*scope_label);
+		 char*scope_label,
+		 resolver_kind_t resolver_kind = RESOLVER_NONE);
       ~ufunc_vec4() override;
 
       void finish_thread() override;
 };
 
 ufunc_core::ufunc_core(unsigned owid, vvp_net_t*ptr,
-		       unsigned nports, vvp_net_t**ports,
+		       unsigned ninputs, unsigned nports, vvp_net_t**ports,
 		       vvp_code_t sa, __vpiScope*call_scope__,
-		       char*scope_label)
-: vvp_wide_fun_core(ptr, nports)
+		       char*scope_label, resolver_kind_t resolver_kind)
+: vvp_wide_fun_core(ptr, ninputs)
 {
       owid_ = owid;
       ports_ = ports;
+      ports_count_ = nports;
+      resolver_kind_ = resolver_kind;
+      input_valid_ = new bool[ninputs]();
+      resolver_error_reported_ = false;
       code_ = sa;
       thread_ = 0;
       call_scope_ = call_scope__;
@@ -83,6 +91,7 @@ ufunc_core::ufunc_core(unsigned owid, vvp_net_t*ptr,
 ufunc_core::~ufunc_core()
 {
       delete [] ports_;
+      delete [] input_valid_;
 }
 
 /*
@@ -92,7 +101,13 @@ ufunc_core::~ufunc_core()
  */
 void ufunc_core::assign_bits_to_ports(vvp_context_t context)
 {
-      for (unsigned idx = 0 ; idx < port_count() ;  idx += 1) {
+      if (resolver_kind_ != RESOLVER_NONE) {
+	    assign_resolver_to_port_(context);
+	    return;
+      }
+
+      assert(port_count() == ports_count_);
+      for (unsigned idx = 0 ; idx < ports_count_ ;  idx += 1) {
 	    vvp_net_t*net = ports_[idx];
 	    vvp_net_ptr_t pp (net, 0);
 	    const vvp_vector4_t&tmp_val = value(idx);
@@ -125,6 +140,70 @@ void ufunc_core::assign_bits_to_ports(vvp_context_t context)
 		  }
 	    }
       }
+}
+
+/*
+ * A user-defined nettype resolution function receives one dynamic array
+ * containing a snapshot of every current driver value. The number of
+ * drivers is independent of the function's single formal port, so build the
+ * container atomically immediately before the function thread runs.
+ */
+void ufunc_core::assign_resolver_to_port_(vvp_context_t context)
+{
+      assert(ports_count_ == 1);
+
+      vvp_net_t*net = ports_[0];
+      vvp_fun_signal_object*formal =
+	    dynamic_cast<vvp_fun_signal_object*>(net->fun);
+      if (!formal) {
+	    report_resolver_runtime_error_(
+		  "user nettype resolver formal is not a dynamic array");
+	    return;
+      }
+
+      const unsigned count = port_count();
+      vvp_darray*array = 0;
+      switch (resolver_kind_) {
+	  case RESOLVER_VEC4:
+	    array = new vvp_darray_vec4(count, owid_);
+	    for (unsigned idx = 0; idx < count; idx += 1) {
+		  vvp_vector4_t val = input_valid_[idx]
+			? value(idx) : vvp_vector4_t(owid_, BIT4_X);
+		  array->set_word(idx, val);
+	    }
+	    break;
+
+	  case RESOLVER_VEC2:
+	    array = new vvp_darray_vec2(count, owid_);
+	    for (unsigned idx = 0; idx < count; idx += 1) {
+		  vvp_vector4_t val = input_valid_[idx]
+			? value(idx) : vvp_vector4_t(owid_, BIT4_0);
+		  array->set_word(idx, val);
+	    }
+	    break;
+
+	  case RESOLVER_REAL:
+	    array = new vvp_darray_real(count);
+	    for (unsigned idx = 0; idx < count; idx += 1)
+		  array->set_word(idx, input_valid_[idx] ? value_r(idx) : 0.0);
+	    break;
+
+	  case RESOLVER_NONE:
+	    assert(0);
+	    break;
+      }
+
+      vvp_net_ptr_t port(net, 0);
+      formal->recv_object(port, vvp_object_t(array), context);
+}
+
+void ufunc_core::report_resolver_runtime_error_(const char*message)
+{
+      if (!resolver_error_reported_) {
+	    fprintf(stderr, "vvp error: %s\n", message);
+	    resolver_error_reported_ = true;
+      }
+      vpip_set_return_value(1);
 }
 
 /*
@@ -171,13 +250,29 @@ void ufunc_core::recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&,
  * input value to the port of the functor. I save the input value and
  * arrange for the function to be called.
  */
-void ufunc_core::recv_vec4_from_inputs(unsigned)
+void ufunc_core::recv_vec4_from_inputs(unsigned port)
 {
+      if (resolver_kind_ == RESOLVER_REAL) {
+	    input_valid_[port] = false;
+	    report_resolver_runtime_error_(
+		  "real user nettype resolver received a vector driver");
+	    invoke_thread_();
+	    return;
+      }
+      input_valid_[port] = true;
       invoke_thread_();
 }
 
-void ufunc_core::recv_real_from_inputs(unsigned)
+void ufunc_core::recv_real_from_inputs(unsigned port)
 {
+      if (resolver_kind_ == RESOLVER_VEC4 || resolver_kind_ == RESOLVER_VEC2) {
+	    input_valid_[port] = false;
+	    report_resolver_runtime_error_(
+		  "vector user nettype resolver received a real driver");
+	    invoke_thread_();
+	    return;
+      }
+      input_valid_[port] = true;
       invoke_thread_();
 }
 
@@ -190,11 +285,12 @@ void ufunc_core::invoke_thread_()
 }
 
 ufunc_vec4::ufunc_vec4(unsigned ow, vvp_net_t*ptr,
-		       unsigned nports, vvp_net_t**ports,
+		       unsigned ninputs, unsigned nports, vvp_net_t**ports,
 		       vvp_code_t start_address,
 		       __vpiScope*call_scope_in,
-		       char*scope_label)
-: ufunc_core(ow, ptr, nports, ports, start_address, call_scope_in, scope_label)
+		       char*scope_label, resolver_kind_t resolver_kind)
+: ufunc_core(ow, ptr, ninputs, nports, ports, start_address, call_scope_in,
+	     scope_label, resolver_kind)
 {
 }
 
@@ -208,11 +304,12 @@ void ufunc_vec4::finish_thread()
 }
 
 ufunc_real::ufunc_real(unsigned ow, vvp_net_t*ptr,
-		       unsigned nports, vvp_net_t**ports,
+		       unsigned ninputs, unsigned nports, vvp_net_t**ports,
 		       vvp_code_t start_address,
 		       __vpiScope*call_scope_in,
-		       char*scope_label)
-: ufunc_core(ow, ptr, nports, ports, start_address, call_scope_in, scope_label)
+		       char*scope_label, resolver_kind_t resolver_kind)
+: ufunc_core(ow, ptr, ninputs, nports, ports, start_address, call_scope_in,
+	     scope_label, resolver_kind)
 {
 }
 
@@ -285,7 +382,7 @@ void compile_ufunc_real(char*label, char*code, unsigned wid,
 	   it about the start address of the code stub, and the scope
 	   that will contain the execution. */
       vvp_net_t*ptr = new vvp_net_t;
-      ufunc_core*fcore = new ufunc_real(wid, ptr, portc, ports,
+      ufunc_core*fcore = new ufunc_real(wid, ptr, argc, portc, ports,
 					exec_code, call_scope,
 					scope_label);
       ptr->fun = fcore;
@@ -356,7 +453,7 @@ void compile_ufunc_vec4(char*label, char*code, unsigned wid,
 	   it about the start address of the code stub, and the scope
 	   that will contain the execution. */
       vvp_net_t*ptr = new vvp_net_t;
-      ufunc_core*fcore = new ufunc_vec4(wid, ptr, portc, ports,
+      ufunc_core*fcore = new ufunc_vec4(wid, ptr, argc, portc, ports,
 					exec_code, call_scope,
 					scope_label);
       ptr->fun = fcore;
@@ -375,6 +472,103 @@ void compile_ufunc_vec4(char*label, char*code, unsigned wid,
 
       free(argv);
       free(portv);
+}
+
+static void compile_ufunc_resolver_(char*label, char*code, unsigned wid,
+		   unsigned argc, struct symb_s*argv,
+		   unsigned portc, struct symb_s*portv,
+		   char*scope_label,
+		   ufunc_core::resolver_kind_t resolver_kind)
+{
+	/* A resolver always has one dynamic-array formal, but its input list
+	 * contains one signal for every current driver. Reject malformed VVP
+	 * records before binding or otherwise consuming either symbol list. */
+      if (argc == 0 || portc != 1) {
+	    yyerror(".ufunc/resolv requires at least one driver and exactly one formal");
+	    compile_errors += 1;
+	    for (unsigned idx = 0; idx < argc; idx += 1)
+		  free(argv[idx].text);
+	    for (unsigned idx = 0; idx < portc; idx += 1)
+		  free(portv[idx].text);
+	    free(label);
+	    free(code);
+	    free(argv);
+	    free(portv);
+	    free(scope_label);
+	    return;
+      }
+      if (wid == 0 && resolver_kind != ufunc_core::RESOLVER_REAL) {
+	    yyerror(".ufunc/resolv vector element width must be nonzero");
+	    compile_errors += 1;
+	    for (unsigned idx = 0; idx < argc; idx += 1)
+		  free(argv[idx].text);
+	    for (unsigned idx = 0; idx < portc; idx += 1)
+		  free(portv[idx].text);
+	    free(label);
+	    free(code);
+	    free(argv);
+	    free(portv);
+	    free(scope_label);
+	    return;
+      }
+
+      __vpiScope*call_scope = vpip_peek_current_scope();
+      assert(call_scope);
+
+      vvp_code_t exec_code = codespace_allocate();
+      const bool real_result = resolver_kind == ufunc_core::RESOLVER_REAL;
+      exec_code->opcode = real_result ? of_EXEC_UFUNC_REAL
+				      : of_EXEC_UFUNC_VEC4;
+      code_label_lookup(exec_code, code, false);
+
+      vvp_code_t reap_code = codespace_allocate();
+      reap_code->opcode = of_REAP_UFUNC;
+
+      vvp_code_t end_code = codespace_allocate();
+      end_code->opcode = &of_END;
+
+      vvp_net_t**ports = new vvp_net_t*[1];
+      functor_ref_lookup(&ports[0], portv[0].text);
+
+      vvp_net_t*ptr = new vvp_net_t;
+      ufunc_core*fcore;
+      if (real_result)
+	    fcore = new ufunc_real(wid, ptr, argc, 1, ports, exec_code,
+				   call_scope, scope_label, resolver_kind);
+      else
+	    fcore = new ufunc_vec4(wid, ptr, argc, 1, ports, exec_code,
+				   call_scope, scope_label, resolver_kind);
+
+      ptr->fun = fcore;
+      define_functor_symbol(label, ptr);
+      free(label);
+
+      exec_code->ufunc_core_ptr = fcore;
+      reap_code->ufunc_core_ptr = fcore;
+      wide_inputs_connect(fcore, argc, argv);
+
+      free(argv);
+      free(portv);
+}
+
+void compile_ufunc_resolver_vec4(char*label, char*code, unsigned wid,
+		   unsigned argc, struct symb_s*argv,
+		   unsigned portc, struct symb_s*portv,
+		   char*scope_label, bool two_state)
+{
+      compile_ufunc_resolver_(label, code, wid, argc, argv, portc, portv,
+			      scope_label, two_state
+				? ufunc_core::RESOLVER_VEC2
+				: ufunc_core::RESOLVER_VEC4);
+}
+
+void compile_ufunc_resolver_real(char*label, char*code, unsigned wid,
+		   unsigned argc, struct symb_s*argv,
+		   unsigned portc, struct symb_s*portv,
+		   char*scope_label)
+{
+      compile_ufunc_resolver_(label, code, wid, argc, argv, portc, portv,
+			      scope_label, ufunc_core::RESOLVER_REAL);
 }
 #ifdef CHECK_WITH_VALGRIND
 static std::map<ufunc_core*, bool> ufunc_map;

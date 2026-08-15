@@ -28,7 +28,7 @@
 class PNamedItem : virtual public LineInfo {
 
     public:
-      enum SymbolType { ANY, PARAM, NET, VAR, GENVAR, EVENT, TYPE, ENUM,
+      enum SymbolType { ANY, PARAM, NET, VAR, GENVAR, EVENT, TYPE, NETTYPE, ENUM,
                         CLASS, FUNCTION, TASK, BLOCK, GENBLOCK, MODPORT,
                         PACKAGE, MODULE, PROGRAM, INTERFACE, PRIMITIVE,
                         INSTANCE };

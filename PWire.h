@@ -34,6 +34,7 @@
 class PExpr;
 class Design;
 class netdarray_t;
+class nettype_t;
 
 /*
  * The different type of PWire::set_range() calls.
@@ -54,6 +55,8 @@ enum PWSRType {SR_PORT, SR_NET, SR_BOTH};
 class PWire : public PNamedItem {
 
     public:
+      enum NetKind { BUILTIN_NET, USER_NETTYPE, INTERCONNECT_NET };
+
       PWire(perm_string name,
 	    unsigned lexical_pos,
 	    NetNet::Type t,
@@ -67,6 +70,12 @@ class PWire : public PNamedItem {
 
       NetNet::Type get_wire_type() const;
       bool set_wire_type(NetNet::Type);
+
+      NetKind net_kind() const { return net_kind_; }
+      const nettype_t* user_nettype() const { return user_nettype_; }
+      bool set_user_nettype(nettype_t*type);
+      bool set_interconnect();
+      bool is_interconnect() const { return net_kind_ == INTERCONNECT_NET; }
 
       NetNet::PortType get_port_type() const;
       bool set_port_type(NetNet::PortType);
@@ -110,6 +119,8 @@ class PWire : public PNamedItem {
       perm_string name_;
       unsigned lexical_pos_;
       NetNet::Type type_;
+      NetKind net_kind_;
+      nettype_t*user_nettype_;
       NetNet::PortType port_type_;
       bool signed_;
       ivl_lifetime_t lifetime_override_ = IVL_VLT_INHERITED;

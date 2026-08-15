@@ -57,6 +57,9 @@ std::ostream& operator << (std::ostream&o, PNamedItem::SymbolType st)
           case PNamedItem::TYPE:
             o << "a type";
             break;
+          case PNamedItem::NETTYPE:
+            o << "a nettype";
+            break;
           case PNamedItem::ENUM:
             o << "an enum type or value";
             break;

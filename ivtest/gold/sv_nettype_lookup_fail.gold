@@ -1,0 +1,2 @@
+./ivltests/sv_nettype_lookup_fail.v:2: error: Unable to bind nettype or data type `missing_net'.
+./ivltests/sv_nettype_lookup_fail.v:3: error: Unable to bind resolution function `missing_resolver'.

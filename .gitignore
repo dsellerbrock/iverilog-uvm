@@ -123,3 +123,6 @@ ivlpp/lex.yy.c
 
 # Ephemeral subagent worktrees
 .claude/worktrees/
+
+# Local licensed standards references. Keep PDFs out of Git.
+/docs/standards/local/

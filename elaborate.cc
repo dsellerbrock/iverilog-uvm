@@ -1780,6 +1780,45 @@ static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
 	    const_cast<PExpr*>(ga->pin(1)));
 }
 
+static NetNet* direct_identifier_net_(const LineInfo*loc, Design*des,
+                                      NetScope*scope, const PExpr*expr,
+                                      bool&selected)
+{
+      selected = false;
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(expr);
+      if (!ident)
+            return 0;
+
+      symbol_search_results sr;
+      symbol_search(loc, des, scope, ident->path(), UINT_MAX, &sr);
+      if (!sr.net)
+            return 0;
+
+      selected = !sr.path_tail.empty();
+      const pform_name_t&path = ident->path().name;
+      for (pform_name_t::const_iterator cur = path.begin();
+           cur != path.end(); ++cur)
+            selected = selected || !cur->index.empty();
+      return sr.net;
+}
+
+static bool diagnose_interconnect_value_reference_(Design*des,
+                                                    NetScope*scope,
+                                                    const PExpr*expr)
+{
+      bool selected = false;
+      NetNet*net = direct_identifier_net_(expr, des, scope, expr, selected);
+      if (!net || !net->is_interconnect())
+            return false;
+
+      cerr << expr->get_fileline() << ": error: Interconnect net `"
+           << net->name() << "'"
+           << " may only be referenced in a net port connection." << endl;
+      des->errors += 1;
+      net->note_interconnect_reference_diagnostic();
+      return true;
+}
+
 void PGAssign::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -1792,6 +1831,9 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 
       ivl_assert(*this, pin(0));
       ivl_assert(*this, pin(1));
+
+      if (diagnose_interconnect_value_reference_(des, scope, pin(1)))
+            return;
 
 	/* M5-if: a continuous assign whose l-value is a MEMBER of an
 	   interface port / virtual interface (`assign b.req = expr;`).
@@ -3011,6 +3053,343 @@ void elaborate_unpacked_port(Design *des, NetScope *scope, NetNet *port_net,
 	    assign_unpacked_with_bufz(des, scope, port_net, port_net, expr_net);
 }
 
+/* An interconnect has no independently declared data type.  Settle the
+ * generic component from the concrete net port at each hierarchy edge before
+ * elaborating the child body.  This is intentionally a net-only operation:
+ * expressions and variables are not legal sources of interconnect type
+ * information. */
+static bool report_interconnect_bind_result_(
+      Design*des, const LineInfo*loc, NetNet*generic, NetNet*concrete,
+      NetNet::interconnect_bind_result_t result)
+{
+      if (result == NetNet::INTERCONNECT_BIND_OK)
+            return true;
+
+      const NetNetType*generic_udnt = generic->user_nettype();
+      const NetNetType*concrete_udnt = concrete->user_nettype();
+      if (result == NetNet::INTERCONNECT_BIND_TYPE_CONFLICT
+          && generic_udnt && concrete_udnt
+          && generic_udnt != concrete_udnt) {
+            cerr << loc->get_fileline() << ": error: Interconnect port "
+                 << "connection cannot mix user-defined nettypes `"
+                 << generic_udnt->pform_type()->name() << "' and `"
+                 << concrete_udnt->pform_type()->name() << "'." << endl;
+      } else if (result == NetNet::INTERCONNECT_BIND_SHAPE_CONFLICT) {
+            cerr << loc->get_fileline() << ": error: Interconnect port "
+                 << "connection has incompatible packed or unpacked shape."
+                 << endl;
+      } else {
+            cerr << loc->get_fileline() << ": error: Interconnect port "
+                 << "connection has incompatible net types." << endl;
+      }
+      des->errors += 1;
+      return false;
+}
+
+static bool bind_interconnect_edge_(Design*des, const LineInfo*loc,
+                                    NetNet*formal, NetNet*actual,
+                                    bool actual_selected)
+{
+      ivl_assert(*loc, formal);
+      ivl_assert(*loc, actual);
+
+      if (!formal->is_interconnect() && !actual->is_interconnect())
+            return true;
+
+      if (formal->port_type() == NetNet::PREF) {
+            cerr << loc->get_fileline() << ": error: Interconnect nets cannot "
+                 << "be connected to reference ports." << endl;
+            des->errors += 1;
+            if (formal->is_interconnect()) formal->invalidate_interconnect_type();
+            if (actual->is_interconnect()) actual->invalidate_interconnect_type();
+            return false;
+      }
+
+      if (formal->is_interconnect()
+          && (actual->type() == NetNet::REG
+              || actual->type() == NetNet::IMPLICIT_REG)) {
+            cerr << loc->get_fileline() << ": error: Variable `"
+                 << actual->name()
+                 << "' cannot be connected to an interconnect port." << endl;
+            des->errors += 1;
+            formal->invalidate_interconnect_type();
+            return false;
+      }
+
+      if (actual->is_interconnect() && formal->type() == NetNet::REG) {
+            cerr << loc->get_fileline() << ": error: Interconnect net `"
+                 << actual->name() << "' cannot be connected to variable port `"
+                 << formal->name() << "'." << endl;
+            des->errors += 1;
+            actual->invalidate_interconnect_type();
+            return false;
+      }
+
+      if (formal->is_interconnect() && actual->is_interconnect()) {
+            if (actual_selected) {
+                  cerr << loc->get_fileline() << ": sorry: A selected generic "
+                       << "interconnect cannot be propagated through another "
+                       << "generic interconnect port." << endl;
+                  des->errors += 1;
+                  formal->invalidate_interconnect_type();
+                  actual->invalidate_interconnect_type();
+                  return false;
+            }
+            return report_interconnect_bind_result_(
+                  des, loc, formal, actual,
+                  formal->merge_interconnect_type(actual));
+      }
+
+      NetNet*generic = formal->is_interconnect() ? formal : actual;
+      NetNet*concrete = formal->is_interconnect() ? actual : formal;
+      NetNet::interconnect_bind_result_t result =
+            generic->bind_interconnect_type(concrete, actual_selected);
+      return report_interconnect_bind_result_(des, loc, generic, concrete,
+                                              result);
+}
+
+static bool collect_interconnect_concat_nets_(
+      Design*des, NetScope*scope, const PExpr*expr,
+      vector<pair<NetNet*,bool> >&nets)
+{
+      if (const PEConcat*concat = dynamic_cast<const PEConcat*>(expr)) {
+            for (vector<PExpr*>::const_iterator cur =
+                       concat->stream_parms().begin();
+                 cur != concat->stream_parms().end(); ++cur) {
+                  if (!collect_interconnect_concat_nets_(des, scope, *cur,
+                                                         nets))
+                        return false;
+            }
+            return true;
+      }
+
+      bool selected = false;
+      NetNet*net = direct_identifier_net_(expr, des, scope, expr, selected);
+      if (!net)
+            return false;
+      nets.push_back(make_pair(net, selected));
+      return true;
+}
+
+static void prebind_interconnect_port_(Design*des, NetScope*scope,
+                                       const PExpr*actual_expr,
+                                       const vector<PEIdent*>&mport,
+                                       const NetScope::scope_vec_t&instances)
+{
+      if (!actual_expr || mport.empty() || instances.empty())
+            return;
+
+      vector<NetNet*>formals;
+      bool has_formal_interconnect = false;
+      for (NetScope::scope_vec_t::const_iterator inst = instances.begin();
+           inst != instances.end(); ++inst) {
+            for (vector<PEIdent*>::const_iterator pport = mport.begin();
+                 pport != mport.end(); ++pport) {
+                  perm_string name = peek_tail_name((*pport)->path().name);
+                  NetNet*formal = (*inst)->find_signal(name);
+                  if (!formal)
+                        continue;
+                  formals.push_back(formal);
+                  has_formal_interconnect = has_formal_interconnect
+                        || formal->is_interconnect();
+            }
+      }
+
+      bool actual_selected = false;
+      NetNet*actual = direct_identifier_net_(actual_expr, des, scope,
+                                             actual_expr, actual_selected);
+      const PEConcat*concat = dynamic_cast<const PEConcat*>(actual_expr);
+      bool has_actual_interconnect = actual && actual->is_interconnect();
+
+      if (mport.size() != 1) {
+            if (has_formal_interconnect || has_actual_interconnect) {
+                  cerr << actual_expr->get_fileline() << ": sorry: "
+                       << "Interconnect propagation through a concatenated "
+                       << "formal port is not yet supported." << endl;
+                  des->errors += 1;
+                  for (vector<NetNet*>::iterator cur = formals.begin();
+                       cur != formals.end(); ++cur)
+                        if ((*cur)->is_interconnect())
+                              (*cur)->invalidate_interconnect_type();
+                  if (actual && actual->is_interconnect())
+                        actual->invalidate_interconnect_type();
+            }
+            return;
+      }
+
+      if (concat && has_formal_interconnect) {
+            vector<pair<NetNet*,bool> >sources;
+            if (!collect_interconnect_concat_nets_(des, scope, actual_expr,
+                                                   sources)) {
+                  cerr << actual_expr->get_fileline() << ": error: "
+                       << "An interconnect port must be connected only to "
+                       << "nets, not a value expression." << endl;
+                  des->errors += 1;
+                  for (vector<NetNet*>::iterator cur = formals.begin();
+                       cur != formals.end(); ++cur)
+                        if ((*cur)->is_interconnect())
+                              (*cur)->invalidate_interconnect_type();
+                  return;
+            }
+
+            unsigned long source_width = 0;
+            for (vector<pair<NetNet*,bool> >::const_iterator cur =
+                       sources.begin(); cur != sources.end(); ++cur) {
+                  if (cur->second || cur->first->is_interconnect()) {
+                        cerr << actual_expr->get_fileline() << ": sorry: "
+                             << (cur->second
+                                   ? "Selected net operands"
+                                   : "Generic interconnect operands")
+                             << " in an interconnect port concatenation are "
+                             << "not yet supported." << endl;
+                        des->errors += 1;
+                        for (vector<NetNet*>::iterator formal = formals.begin();
+                             formal != formals.end(); ++formal)
+                              if ((*formal)->is_interconnect())
+                                    (*formal)->invalidate_interconnect_type();
+                        if (cur->first->is_interconnect())
+                              cur->first->invalidate_interconnect_type();
+                        return;
+                  }
+                  source_width += cur->first->vector_width();
+            }
+
+            NetNet*primary = 0;
+            for (vector<NetNet*>::iterator cur = formals.begin();
+                 cur != formals.end(); ++cur) {
+                  if (!(*cur)->is_interconnect())
+                        continue;
+                  if (!primary)
+                        primary = *cur;
+                  else if (!report_interconnect_bind_result_(
+                                des, actual_expr, primary, *cur,
+                                primary->merge_interconnect_type(*cur)))
+                        return;
+            }
+            if (!primary)
+                  return;
+
+            unsigned long formal_width = primary->vector_width()
+                  * primary->pin_count();
+            if (source_width != formal_width) {
+                  primary->invalidate_interconnect_type();
+                  cerr << actual_expr->get_fileline() << ": error: "
+                       << "Interconnect port connection has incompatible "
+                       << "packed or unpacked shape." << endl;
+                  des->errors += 1;
+                  return;
+            }
+
+            for (vector<pair<NetNet*,bool> >::iterator cur = sources.begin();
+                 cur != sources.end(); ++cur) {
+                  NetNet*source = cur->first;
+                  if (source->type() == NetNet::REG
+                      || source->type() == NetNet::IMPLICIT_REG) {
+                        cerr << actual_expr->get_fileline() << ": error: "
+                             << "Variable `" << source->name()
+                             << "' cannot be connected to an interconnect "
+                             << "port." << endl;
+                        des->errors += 1;
+                        primary->invalidate_interconnect_type();
+                        return;
+                  }
+                  /* Every concatenation operand constrains an element or
+                   * segment of the explicitly shaped formal. */
+                  if (!bind_interconnect_edge_(des, actual_expr, primary,
+                                               source, true))
+                        return;
+            }
+            return;
+      }
+
+      if (!actual) {
+            if (has_formal_interconnect) {
+                  cerr << actual_expr->get_fileline() << ": error: "
+                       << "An interconnect port must be connected to a net, "
+                       << "not a value expression." << endl;
+                  des->errors += 1;
+                  for (vector<NetNet*>::iterator cur = formals.begin();
+                       cur != formals.end(); ++cur)
+                        if ((*cur)->is_interconnect())
+                              (*cur)->invalidate_interconnect_type();
+            }
+            return;
+      }
+
+      if (!has_formal_interconnect && !has_actual_interconnect)
+            return;
+
+      /* direct_identifier_net_ deliberately returns the declaration NetNet,
+       * not a synthetic net for a packed/member select.  Its declaration type
+       * therefore cannot safely settle an untyped formal from a selected
+       * concrete actual.  Keep this unsupported edge explicit rather than
+       * silently propagating the width/type of the whole declaration. */
+      if (actual_selected && has_formal_interconnect
+          && !has_actual_interconnect) {
+            cerr << actual_expr->get_fileline() << ": sorry: A selected "
+                 << "concrete net cannot yet determine the type of a generic "
+                 << "interconnect port." << endl;
+            des->errors += 1;
+            for (vector<NetNet*>::iterator cur = formals.begin();
+                 cur != formals.end(); ++cur)
+                  if ((*cur)->is_interconnect())
+                        (*cur)->invalidate_interconnect_type();
+            return;
+      }
+
+      for (vector<NetNet*>::iterator cur = formals.begin();
+           cur != formals.end(); ++cur) {
+            if (!bind_interconnect_edge_(des, actual_expr, *cur, actual,
+                                         actual_selected))
+                  return;
+      }
+}
+
+static void collect_interconnect_port_uses_(Design*des, NetScope*scope,
+                                            const PExpr*expr,
+                                            set<NetNet*>&uses)
+{
+      if (const PEConcat*concat = dynamic_cast<const PEConcat*>(expr)) {
+            for (vector<PExpr*>::const_iterator cur =
+                       concat->stream_parms().begin();
+                 cur != concat->stream_parms().end(); ++cur)
+                  collect_interconnect_port_uses_(des, scope, *cur, uses);
+            return;
+      }
+      bool selected = false;
+      NetNet*net = direct_identifier_net_(expr, des, scope, expr, selected);
+      if (net && net->is_interconnect())
+            uses.insert(net);
+}
+
+class interconnect_port_use_guard_t {
+    public:
+      interconnect_port_use_guard_t(Design*des, NetScope*scope,
+                                    const PExpr*expr)
+      {
+            set<NetNet*>unique;
+            collect_interconnect_port_uses_(des, scope, expr, unique);
+            for (set<NetNet*>::iterator cur = unique.begin();
+                 cur != unique.end(); ++cur) {
+                  (*cur)->begin_interconnect_port_use();
+                  nets_.push_back(*cur);
+            }
+      }
+
+      ~interconnect_port_use_guard_t()
+      {
+            for (vector<NetNet*>::reverse_iterator cur = nets_.rbegin();
+                 cur != nets_.rend(); ++cur)
+                  (*cur)->end_interconnect_port_use();
+      }
+
+    private:
+      interconnect_port_use_guard_t(const interconnect_port_use_guard_t&);
+      interconnect_port_use_guard_t& operator=(
+            const interconnect_port_use_guard_t&);
+      vector<NetNet*>nets_;
+};
+
 /*
  * Instantiate a module by recursively elaborating it. Set the path of
  * the recursive elaboration so that signal names get properly
@@ -3232,7 +3611,17 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    for (unsigned inst = 0 ; inst < instance.size() ; inst += 1) {
 		  if (NetNet*isig = instance[inst]->find_signal(pname))
 			isig->set_net_type(ifc);
-	    }
+            }
+      }
+
+      /* Resolve generic net types before the recursive statement pass.  A
+       * child is then elaborated with the concrete scalar/vector/real/UDNT
+       * type that arrives through its port instead of the logic placeholder. */
+      for (unsigned idx = 0; idx < pins.size(); idx += 1) {
+            if (!pins[idx])
+                  continue;
+            vector<PEIdent*>mport = rmod->get_port(idx);
+            prebind_interconnect_port_(des, scope, pins[idx], mport, instance);
       }
 
       if (debug_elaborate) cerr << get_fileline() << ": debug: start "
@@ -3615,6 +4004,12 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		   ptype = NetNet::NOT_A_PORT;
 	    else
 		   ptype = prts[0]->port_type();
+
+	    /* Expression elaboration below legitimately reads an interconnect
+	       while constructing this structural net-port edge. Suppress the
+	       value-reference marker only for the dynamic extent of this port. */
+	    interconnect_port_use_guard_t interconnect_port_use(
+		  des, scope, pins[idx]);
 
 	      /* An interface member is a run-time object property, not a
 	         structural nexus. Bridge a scalar module port through an ordinary
@@ -8182,6 +8577,11 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 		       << "` has no argument called `" << parm.name
 		       << "`." << endl;
 		  des->errors++;
+	    }
+
+	    if (diagnose_interconnect_value_reference_(des, scope, parm.parm)) {
+		  eparms[idx] = 0;
+		  continue;
 	    }
 
 	    eparms[idx] = elab_sys_task_arg(des, scope, name, idx,
@@ -24374,6 +24774,12 @@ Design* elaborate(list<perm_string>roots)
       report_elaboration_perf_phase_("specialized-bodies-begin");
       finalize_pending_specialized_class_elaboration(des);
       report_elaboration_perf_phase_("specialized-bodies-end");
+
+      /* Port-based generic type propagation is complete only after every
+       * hierarchy edge and late specialized body has elaborated.  Diagnose
+       * unresolved/illegal interconnect components once at that fixed point,
+       * including when an earlier statement already set rc or errors. */
+      des->finalize_interconnects();
 
       if (rc == false) {
 	    delete des;

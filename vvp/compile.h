@@ -471,6 +471,14 @@ extern void compile_ufunc_vec4(char*label, char*code, unsigned wid,
 			  unsigned argc, struct symb_s*argv,
 			  unsigned portc, struct symb_s*portv,
 			  char*scope_label, char*trigger_label);
+extern void compile_ufunc_resolver_vec4(char*label, char*code, unsigned wid,
+			  unsigned argc, struct symb_s*argv,
+			  unsigned portc, struct symb_s*portv,
+			  char*scope_label, bool two_state);
+extern void compile_ufunc_resolver_real(char*label, char*code, unsigned wid,
+			  unsigned argc, struct symb_s*argv,
+			  unsigned portc, struct symb_s*portv,
+			  char*scope_label);
 
 /*
  * The compile_event function takes the parts of the event statement

@@ -1,0 +1,4 @@
+ivltests/sv_interconnect_declaration_fail.v:1: error: Interconnect nets cannot have an explicit data type.
+ivltests/sv_interconnect_declaration_fail.v:2: error: Interconnect nets cannot have an explicit data type.
+ivltests/sv_interconnect_declaration_fail.v:2: error: Interconnect nets cannot have initializers.
+ivltests/sv_interconnect_declaration_fail.v:2: error: Interconnect net delays can have only one value.

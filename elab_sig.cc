@@ -528,6 +528,15 @@ static void sig_check_data_type(Design*des, const NetScope*scope,
       if (!type)
 	    return;
 
+      /* The underlying type of a user-defined nettype was validated when
+       * NetNetType was elaborated.  Do not feed it back through the legacy
+       * builtin-net filter below: that filter coerces non-logic wires to
+       * unresolved wires and rejects unpacked aggregate nets, both of which
+       * are wrong for a valid UDNT (and would discard a resolution function
+       * on bit/real nettypes). */
+      if (sig->user_nettype())
+	    return;
+
       if ((sig->type() == NetNet::WIRE) && (sig->data_type() != IVL_VT_LOGIC)) {
 	    if (gn_cadence_types_flag) {
 		  sig->type(NetNet::UNRESOLVED_WIRE);
@@ -812,6 +821,7 @@ bool PPackage::elaborate_sig(Design*des, NetScope*scope) const
       elaborate_sig_funcs(des, scope, funcs);
       elaborate_sig_tasks(des, scope, tasks);
       elaborate_sig_classes(des, scope, classes);
+      scope->elaborate_nettypes(des);
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PPackage::elaborate_sig: "
@@ -1090,6 +1100,7 @@ bool Module::elaborate_sig(Design*des, NetScope*scope) const
       elaborate_sig_funcs(des, scope, funcs);
       elaborate_sig_tasks(des, scope, tasks);
       elaborate_sig_classes(des, scope, classes);
+      scope->elaborate_nettypes(des);
 
 	// initial and always blocks may contain begin-end and
 	// fork-join blocks that can introduce scopes. Therefore, I
@@ -1761,6 +1772,8 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	    cur->second->elaborate_sig(des, scope);
       }
 
+      class_scope_->elaborate_nettypes(des);
+
       validate_interface_class_relations_(des, this, pclass);
 
       elaborate_sig_required_typedefs_(des, class_scope_, pclass->typedefs);
@@ -1923,6 +1936,7 @@ bool PGenerate::elaborate_sig_(Design*des, NetScope*scope) const
 
       elaborate_sig_funcs(des, scope, funcs);
       elaborate_sig_tasks(des, scope, tasks);
+      scope->elaborate_nettypes(des);
 
       typedef list<PGenerate*>::const_iterator generate_it_t;
       for (generate_it_t cur = generate_schemes.begin()
@@ -2282,6 +2296,8 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 	    cerr << endl;
       }
 
+      scope->elaborate_nettypes(des);
+
 	// Look for further signals in the sub-statement
       if (statement_)
 	    statement_->elaborate_sig(des, scope);
@@ -2315,6 +2331,7 @@ void PTask::elaborate_sig(Design*des, NetScope*scope) const
       elaborate_sig_ports_(des, scope, ports, pdefs, port_names);
       NetTaskDef*def = new NetTaskDef(scope, ports, pdefs);
       scope->set_task_def(def);
+      scope->elaborate_nettypes(des);
 
 	// R25 (Option B, IEEE 1800-2017 13.5.2): a real/string/container
 	// `ref' formal that is not bound as a real reference still takes
@@ -2498,6 +2515,7 @@ void PBlock::elaborate_sig(Design*des, NetScope*scope) const
 			     << scope_path(my_scope) << "." << endl;
 
 		  elaborate_sig_wires_(des, my_scope);
+		  my_scope->elaborate_nettypes(des);
 	    }
       }
 
@@ -2613,6 +2631,19 @@ bool test_ranges_eeq(const netranges_t&lef, const netranges_t&rig)
 ivl_type_t PWire::elaborate_type(Design*des, NetScope*scope,
 			         const netranges_t &packed_dimensions) const
 {
+      if (const nettype_t*decl = user_nettype()) {
+            NetNetType*info = scope->elaborate_nettype(des, decl);
+            if (info && info->data_type()) {
+                  if (!packed_dimensions.empty()) {
+                        cerr << get_fileline() << ": error: signal '" << name_
+                             << "' adds packed dimensions to user-defined "
+                             << "nettype '" << decl->name() << "'." << endl;
+                        des->errors += 1;
+                  }
+                  return info->data_type();
+            }
+      }
+
       const vector_type_t *vec_type = dynamic_cast<vector_type_t*>(set_data_type_.get());
       if (set_data_type_ && !vec_type) {
 	    ivl_assert(*this, packed_dimensions.empty());
@@ -2692,6 +2723,16 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	    wtype = NetNet::WIRE;
       if (wtype == NetNet::IMPLICIT_REG)
 	    wtype = NetNet::REG;
+
+      NetNetType*user_type = user_nettype()
+            ? scope->elaborate_nettype(des, user_nettype()) : 0;
+      /* A resolver-bearing user net is multiply driven by definition.  Keep
+       * no-resolver UDNTs as UNRESOLVED_WIRE so the ordinary driver mask
+       * enforces their single whole-net driver, but lower resolved UDNTs as a
+       * resolved net and carry their resolver identity in NetNetType for the
+       * target/runtime stream. */
+      if (user_type && user_type->has_resolution_function())
+            wtype = NetNet::WIRE;
 
       NetNet*sig = 0;
       bool sig_predeclared = false;
@@ -2969,6 +3010,16 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	    sig->set_line(*this);
 	    sig->port_type(port_type_);
 	    sig->lexical_pos(lexical_pos_);
+      }
+
+      if (user_type) {
+            sig->set_user_nettype(user_type);
+      }
+
+      if (is_interconnect()) {
+            sig->mark_interconnect(!sig->packed_dims().empty()
+                                   || !unpacked_dimensions.empty());
+            des->register_interconnect(sig);
       }
 
 	// A modport-qualified interface port (`bus_if.mst m`) records

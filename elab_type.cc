@@ -19,8 +19,10 @@
 
 # include  "PExpr.h"
 # include  "PClass.h"
+# include  "PPackage.h"
 # include  "PScope.h"
 # include  "PWire.h"
+# include  "PTask.h"
 # include  "Module.h"
 # include  "compiler.h"
 # include  "pform.h"
@@ -36,6 +38,7 @@
 # include  "netstruct.h"
 # include  "netvector.h"
 # include  "netmisc.h"
+# include  <algorithm>
 # include  <set>
 # include  <sstream>
 # include  <typeinfo>
@@ -469,6 +472,316 @@ netclass_t* builtin_class_type(perm_string name)
       if (name == perm_string::literal("mailbox"))
 	    return make_builtin_mailbox_type_();
       return nullptr;
+}
+
+static bool user_nettype_data_type_valid_(ivl_type_t type)
+{
+      if (!type)
+            return false;
+
+      if (type == &netvector_t::chandle_type)
+            return false;
+      if (dynamic_cast<const netvector_t*>(type)
+          || dynamic_cast<const netenum_t*>(type)
+          || dynamic_cast<const netreal_t*>(type))
+            return true;
+
+      /* Dynamic arrays, queues, and associative-array compatibility objects
+       * derive from netarray_t too, so reject them before accepting the fixed
+       * packed/unpacked array representations. */
+      if (dynamic_cast<const netdarray_t*>(type))
+            return false;
+      if (const netparray_t*array = dynamic_cast<const netparray_t*>(type))
+            return user_nettype_data_type_valid_(array->element_type());
+      if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type))
+            return user_nettype_data_type_valid_(array->element_type());
+
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+            const vector<netstruct_t::member_t>&members = record->members();
+            for (vector<netstruct_t::member_t>::const_iterator cur =
+                       members.begin(); cur != members.end(); ++cur)
+                  if (!user_nettype_data_type_valid_(cur->net_type))
+                        return false;
+            return true;
+      }
+
+      return false;
+}
+
+static bool exact_nettype_match_(ivl_type_t left, ivl_type_t right)
+{
+      if (left == right)
+            return true;
+      return left && right && left->type_equivalent(right)
+             && right->type_equivalent(left);
+}
+
+static string nettype_data_type_name_(ivl_type_t type)
+{
+      ostringstream out;
+      if (type == &netvector_t::chandle_type) {
+            out << "chandle";
+      } else if (type == &netstring_t::type_string) {
+            out << "string";
+      } else if (type == &netreal_t::type_shortreal) {
+            out << "shortreal";
+      } else if (dynamic_cast<const netreal_t*>(type)) {
+            out << "real";
+      } else if (const netvector_t*vec =
+                       dynamic_cast<const netvector_t*>(type)) {
+            switch (vec->base_type()) {
+                case IVL_VT_BOOL:
+                  out << "bit";
+                  break;
+                case IVL_VT_LOGIC:
+                  out << "logic";
+                  break;
+                default:
+                  out << "integral";
+                  break;
+            }
+            out << vec->packed_dims();
+      } else if (type) {
+            type->debug_dump(out);
+      } else {
+            out << "<unresolved>";
+      }
+      return out.str();
+}
+
+static string declared_nettype_data_type_name_(const data_type_t*declared,
+                                                ivl_type_t elaborated)
+{
+      if (const typeref_t*ref = dynamic_cast<const typeref_t*>(declared)) {
+            ostringstream out;
+            out << *ref;
+            return out.str();
+      }
+      return nettype_data_type_name_(elaborated);
+}
+
+static NetScope* resolver_lookup_scope_(Design*des, NetScope*decl_scope,
+                                        const pform_scoped_name_t&path,
+                                        pform_name_t&use_name)
+{
+      use_name = path.name;
+      if (path.package)
+            return des->find_package(path.package->pscope_name());
+
+      if (path.name.size() == 2) {
+            NetScope*pkg = des->find_package(peek_head_name(path.name));
+            if (pkg) {
+                  use_name.clear();
+                  use_name.push_back(path.name.back());
+                  return pkg;
+            }
+      }
+      return decl_scope;
+}
+
+static bool validate_nettype_resolver_(Design*des, NetNetType*info,
+                                       NetFuncDef*&resolved)
+{
+      resolved = 0;
+      const nettype_t*decl = info->pform_type();
+      const pform_scoped_name_t*path = decl->resolution_function();
+      if (!path)
+            return true;
+
+      pform_name_t use_name;
+      NetScope*lookup_scope = resolver_lookup_scope_(
+            des, info->declaration_scope(), *path, use_name);
+      NetFuncDef*func = lookup_scope && !use_name.empty()
+            ? des->find_function(lookup_scope, use_name) : 0;
+      if (!func) {
+            NetScope*task = lookup_scope && !use_name.empty()
+                  ? des->find_task(lookup_scope, use_name) : 0;
+            if (task) {
+                  cerr << decl->get_fileline()
+                       << ": error: Resolution function for nettype `"
+                       << decl->name()
+                       << "' must be a function, not a task." << endl;
+            } else {
+                  cerr << decl->get_fileline() << ": error: Unable to bind "
+                       << "resolution function `" << *path << "'." << endl;
+            }
+            des->errors += 1;
+            return false;
+      }
+
+      NetScope*func_scope = func->scope();
+      const PFunction*pfunc = func_scope ? func_scope->func_pform() : 0;
+      if (!func_scope || !pfunc) {
+            cerr << decl->get_fileline() << ": error: resolution function for "
+                 << "nettype '" << decl->name()
+                 << "' has no elaborated SystemVerilog function declaration."
+                 << endl;
+            des->errors += 1;
+            return false;
+      }
+
+      if (func->port_count() != 1) {
+            cerr << decl->get_fileline() << ": error: Resolution function for "
+                 << "nettype `" << decl->name() << "' must have exactly one "
+                 << "input dynamic-array argument of type "
+                 << nettype_data_type_name_(info->data_type()) << "." << endl;
+            des->errors += 1;
+            return false;
+      }
+
+      if (func_scope->parent()
+          && func_scope->parent()->type() == NetScope::CLASS) {
+            cerr << decl->get_fileline() << ": sorry: class-method resolution "
+                 << "function '" << func_scope->basename()
+                 << "' cannot be used for nettype '" << decl->name()
+                 << "' because this frontend does not preserve the static "
+                 << "method qualifier needed to distinguish the legal form."
+                 << endl;
+            des->errors += 1;
+            return false;
+      }
+
+      if (pfunc->is_virtual_method() || pfunc->is_pure_method()
+          || pfunc->is_dpi_import()) {
+            cerr << decl->get_fileline() << ": error: resolution function '"
+                 << func_scope->basename() << "' for nettype '" << decl->name()
+                 << "' must be an ordinary non-virtual SystemVerilog function."
+                 << endl;
+            des->errors += 1;
+            return false;
+      }
+
+      if (func->is_void()
+          || !exact_nettype_match_(func->return_sig()->net_type(),
+                                   info->data_type())) {
+            cerr << decl->get_fileline() << ": error: Resolution function for "
+                 << "nettype `" << decl->name() << "' must return "
+                 << nettype_data_type_name_(info->data_type()) << "." << endl;
+            des->errors += 1;
+            return false;
+      }
+
+      const NetNet*arg = func->port(0);
+      const netdarray_t*arg_array = arg
+            ? dynamic_cast<const netdarray_t*>(arg->net_type()) : 0;
+      if (!arg || arg->port_type() != NetNet::PINPUT || !arg_array
+          || dynamic_cast<const netqueue_t*>(arg->net_type())
+          || !exact_nettype_match_(arg_array->element_type(),
+                                   info->data_type())) {
+            cerr << decl->get_fileline() << ": error: Resolution function for "
+                 << "nettype `" << decl->name() << "' must have exactly one "
+                 << "input dynamic-array argument of type "
+                 << nettype_data_type_name_(info->data_type()) << "." << endl;
+            des->errors += 1;
+            return false;
+      }
+
+      resolved = func;
+      return true;
+}
+
+NetNetType* NetScope::elaborate_nettype(Design*des, const nettype_t*type)
+{
+      if (!type)
+            return 0;
+
+      NetScope*decl_scope = des->find_nettype_scope(type, this);
+      NetNetType*info = decl_scope ? decl_scope->find_local_nettype(type) : 0;
+      if (!info) {
+            cerr << type->get_fileline() << ": error: user-defined nettype '"
+                 << type->name() << "' has no elaborated declaration scope."
+                 << endl;
+            des->errors += 1;
+            return 0;
+      }
+
+      if (info->state_ == NetNetType::VALID)
+            return info;
+      if (info->state_ == NetNetType::INVALID)
+            return 0;
+      if (info->state_ == NetNetType::ELABORATING) {
+            cerr << type->get_fileline() << ": error: cyclic user-defined "
+                 << "nettype alias involving '" << type->name() << "'." << endl;
+            des->errors += 1;
+            info->state_ = NetNetType::INVALID;
+            return 0;
+      }
+      info->state_ = NetNetType::ELABORATING;
+
+      const nettype_t*canonical_decl = type->canonical_type();
+      if (!canonical_decl) {
+            cerr << type->get_fileline() << ": error: cyclic user-defined "
+                 << "nettype alias involving '" << type->name() << "'." << endl;
+            des->errors += 1;
+            info->state_ = NetNetType::INVALID;
+            return 0;
+      }
+
+      if (canonical_decl != type) {
+            NetScope*canonical_scope = des->find_nettype_scope(canonical_decl,
+                                                               decl_scope);
+            NetNetType*canonical = canonical_scope
+                  ? canonical_scope->elaborate_nettype(des, canonical_decl) : 0;
+            if (!canonical) {
+                  info->state_ = NetNetType::INVALID;
+                  return 0;
+            }
+            info->canonical_type_ = canonical;
+            info->data_type_ = canonical->data_type_;
+            info->state_ = NetNetType::VALID;
+            return info;
+      }
+
+      info->canonical_type_ = info;
+      const data_type_t*direct = canonical_decl->direct_type();
+      info->data_type_ = direct
+            ? const_cast<data_type_t*>(direct)->elaborate_type(des, decl_scope)
+            : 0;
+      if (!user_nettype_data_type_valid_(info->data_type_)) {
+            cerr << canonical_decl->get_fileline() << ": error: '"
+                 << declared_nettype_data_type_name_(direct, info->data_type_)
+                 << "' is not a valid type for a user-defined nettype; only "
+                 << "integral types, floating types, and fixed-size unpacked "
+                 << "aggregates of such types are allowed." << endl;
+            des->errors += 1;
+            info->state_ = NetNetType::INVALID;
+            return 0;
+      }
+
+      if (!info->resolver_checked_) {
+            info->resolver_checked_ = true;
+            NetFuncDef*resolved = 0;
+            if (!validate_nettype_resolver_(des, info, resolved)) {
+                  info->state_ = NetNetType::INVALID;
+                  return 0;
+            }
+            info->resolution_function_ = resolved;
+      }
+
+      info->state_ = NetNetType::VALID;
+      return info;
+}
+
+void NetScope::elaborate_nettypes(Design*des)
+{
+      vector<const nettype_t*>decls;
+      decls.reserve(nettypes_.size());
+      for (map<const nettype_t*,unique_ptr<NetNetType> >::const_iterator cur =
+                 nettypes_.begin(); cur != nettypes_.end(); ++cur)
+            decls.push_back(cur->first);
+      stable_sort(decls.begin(), decls.end(),
+                  [](const nettype_t*left, const nettype_t*right) {
+                        int file_cmp = strcmp(left->get_file().str(),
+                                              right->get_file().str());
+                        if (file_cmp != 0)
+                              return file_cmp < 0;
+                        if (left->get_lineno() != right->get_lineno())
+                              return left->get_lineno() < right->get_lineno();
+                        return left < right;
+                  });
+      for (vector<const nettype_t*>::const_iterator cur = decls.begin();
+           cur != decls.end(); ++cur)
+            elaborate_nettype(des, *cur);
 }
 
 // When a typeref_t with package-scoped overrides is being elaborated, this

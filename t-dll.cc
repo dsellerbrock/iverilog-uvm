@@ -2826,6 +2826,13 @@ void dll_target::signal(const NetNet*net)
       }
 
       obj->net_type = net->net_type();
+      obj->resolution_function_ = 0;
+      if (const NetNetType*user_type = net->user_nettype()) {
+	    if (const NetFuncDef*resolver = user_type->resolution_function()) {
+		  obj->resolution_function_ = find_scope(des_, resolver->scope());
+		  ivl_assert(*net, obj->resolution_function_);
+	    }
+      }
       obj->local_ = net->local_flag()? 1 : 0;
       obj->lifetime_override_ = net->lifetime_override();
       obj->forced_net_ = (net->type() != NetNet::REG) &&

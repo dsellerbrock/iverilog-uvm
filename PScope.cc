@@ -21,6 +21,13 @@
 
 using namespace std;
 
+LexicalScope::~LexicalScope()
+{
+      for (nettype_map_t::iterator it = nettypes.begin();
+           it != nettypes.end(); ++it)
+            delete it->second;
+}
+
 bool LexicalScope::var_init_needs_explicit_lifetime() const
 {
       return false;

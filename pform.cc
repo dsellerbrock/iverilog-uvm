@@ -415,6 +415,11 @@ LexicalScope* pform_peek_scope(void)
       return lexical_scope;
 }
 
+bool pform_in_compilation_unit_scope(void)
+{
+      return lexical_scope && lexical_scope->parent_scope() == nullptr;
+}
+
 void pform_push_existing_scope(LexicalScope*scope)
 {
       assert(scope);
@@ -1248,6 +1253,51 @@ void pform_set_type_referenced(const struct vlltype&loc, const char*name)
       check_potential_imports(loc, lex_name, false);
 }
 
+static nettype_t* pform_install_nettype_(const struct vlltype&loc,
+                                         perm_string name,
+                                         nettype_t*nettype)
+{
+      FILE_NAME(nettype, loc);
+      add_local_symbol(lexical_scope, name, nettype);
+      map<perm_string,PNamedItem*>::const_iterator installed =
+            lexical_scope->local_symbols.find(name);
+      if (installed == lexical_scope->local_symbols.end()
+          || installed->second != nettype) {
+            delete nettype;
+            return nullptr;
+      }
+      lexical_scope->nettypes[name] = nettype;
+      return nettype;
+}
+
+nettype_t* pform_declare_nettype(
+                              const struct vlltype&loc, perm_string name,
+                              data_type_t*data_type,
+                              const pform_scoped_name_t*resolution_function)
+{
+      if (!data_type) {
+            VLerror(loc, "error: Nettype `%s` has no data type.", name.str());
+            return nullptr;
+      }
+      return pform_install_nettype_(
+            loc, name, new nettype_t(name, data_type, resolution_function));
+}
+
+nettype_t* pform_declare_nettype_alias(const struct vlltype&loc,
+                                       perm_string name, nettype_t*alias)
+{
+      if (!alias) {
+            VLerror(loc, "error: Nettype alias `%s` has no target.", name.str());
+            return nullptr;
+      }
+      return pform_install_nettype_(loc, name, new nettype_t(name, alias));
+}
+
+void pform_set_nettype_referenced(const struct vlltype&loc, const char*name)
+{
+      check_potential_imports(loc, lex_strings.make(name), false);
+}
+
 static PClass* pform_find_visible_class_scope(LexicalScope*start, perm_string name)
 {
       for (LexicalScope*cur = start ; cur ; cur = cur->parent_scope()) {
@@ -1546,6 +1596,74 @@ typedef_t* pform_test_type_identifier(const struct vlltype&loc, const char*txt)
 	    return td;
 
       return 0;
+}
+
+nettype_t* pform_test_nettype_identifier(PPackage*pkg, const char*txt)
+{
+      if (!pkg)
+            return nullptr;
+      perm_string name = lex_strings.make(txt);
+      LexicalScope::nettype_map_t::const_iterator cur = pkg->nettypes.find(name);
+      return cur == pkg->nettypes.end() ? nullptr : cur->second;
+}
+
+static nettype_t* pform_find_potential_imported_nettype_(
+                                    LexicalScope*scope, perm_string name)
+{
+      nettype_t*found = nullptr;
+      PPackage*found_decl_pkg = nullptr;
+      bool ambiguous = false;
+      for (PPackage*search_pkg : scope->potential_imports) {
+            PPackage*decl_pkg = pform_package_importable(search_pkg, name);
+            if (!decl_pkg)
+                  continue;
+            LexicalScope::nettype_map_t::const_iterator cur =
+                  decl_pkg->nettypes.find(name);
+            if (cur == decl_pkg->nettypes.end())
+                  continue;
+            if (found && found != cur->second) {
+                  ambiguous = true;
+                  continue;
+            }
+            found = cur->second;
+            found_decl_pkg = decl_pkg;
+      }
+      if (found && !ambiguous) {
+            scope->explicit_imports[name] = found_decl_pkg;
+            scope->explicit_imports_from[name].insert(found_decl_pkg);
+            return found;
+      }
+      return nullptr;
+}
+
+nettype_t* pform_test_nettype_identifier(const struct vlltype&loc,
+                                         const char*txt)
+{
+      (void)loc;
+      perm_string name = lex_strings.make(txt);
+      for (LexicalScope*scope = lexical_scope; scope;
+           scope = scope->parent_scope()) {
+            map<perm_string,PPackage*>::const_iterator explicit_import =
+                  scope->explicit_imports.find(name);
+            if (explicit_import != scope->explicit_imports.end())
+                  return pform_test_nettype_identifier(explicit_import->second,
+                                                       txt);
+
+            LexicalScope::nettype_map_t::const_iterator local =
+                  scope->nettypes.find(name);
+            if (local != scope->nettypes.end())
+                  return local->second;
+
+            /* A nearer declaration in the shared namespace shadows an outer
+             * nettype, even when it is not itself a nettype. */
+            if (scope->local_symbols.find(name) != scope->local_symbols.end())
+                  return nullptr;
+
+            if (nettype_t*imported_nettype =
+                      pform_find_potential_imported_nettype_(scope, name))
+                  return imported_nettype;
+      }
+      return nullptr;
 }
 
 void delete_parmvalue(struct parmvalue_t*parms)
@@ -4086,6 +4204,126 @@ void pform_module_define_port(const struct vlltype&li,
       delete attr;
 }
 
+void pform_module_define_nettype_port(const struct vlltype&li,
+                                     const pform_ident_t&name,
+                                     NetNet::PortType port_kind,
+                                     nettype_t*nettype,
+                                     list<pform_range_t>*urange,
+                                     list<named_pexpr_t>*attr,
+                                     bool keep_attr)
+{
+      PWire*wire = pform_get_or_make_wire(
+            li, name, NetNet::UNRESOLVED_WIRE, port_kind, SR_BOTH);
+      if (!wire->set_user_nettype(nettype)) {
+            cerr << li << ": error: Port `" << name.first
+                 << "` is redeclared with an incompatible nettype." << endl;
+            error_count += 1;
+      }
+      if (urange) {
+            wire->set_unpacked_idx(*urange);
+            delete urange;
+      }
+      pform_bind_attributes(wire->attributes, attr, keep_attr);
+}
+
+void pform_module_define_nettype_port(const struct vlltype&li,
+                                     list<pform_port_t>*ports,
+                                     NetNet::PortType port_kind,
+                                     nettype_t*nettype,
+                                     list<named_pexpr_t>*attr)
+{
+      for (list<pform_port_t>::iterator cur = ports->begin();
+           cur != ports->end(); ++cur) {
+            pform_module_define_nettype_port(
+                  li, cur->name, port_kind, nettype, cur->udims, attr, true);
+            if (cur->expr) {
+                  cerr << li << ": error: User-defined nettype port `"
+                       << cur->name.first << "` cannot have a default value."
+                       << endl;
+                  error_count += 1;
+                  delete cur->expr;
+            }
+      }
+      delete ports;
+      delete attr;
+}
+
+static data_type_t* clone_interconnect_type_(const data_type_t*type,
+                                             const struct vlltype&loc)
+{
+      if (!type)
+            return nullptr;
+      const vector_type_t*vec = dynamic_cast<const vector_type_t*>(type);
+      if (!vec || !vec->implicit_flag) {
+            VLerror(loc, "error: interconnect requires an implicit data type.");
+            return nullptr;
+      }
+      list<pform_range_t>*dims = vec->pdims.get()
+            ? new list<pform_range_t>(*vec->pdims) : nullptr;
+      vector_type_t*copy = new vector_type_t(vec->base_type,
+                                             vec->signed_flag, dims);
+      copy->implicit_flag = true;
+      FILE_NAME(copy, loc);
+      return copy;
+}
+
+data_type_t* pform_module_define_interconnect_port(const struct vlltype&li,
+                                     const pform_ident_t&name,
+                                     NetNet::PortType port_kind,
+                                     data_type_t*implicit_type,
+                                     list<pform_range_t>*urange,
+                                     list<named_pexpr_t>*attr,
+                                     bool keep_attr)
+{
+      PWire*wire = pform_get_or_make_wire(
+            li, name, NetNet::WIRE, port_kind, SR_BOTH);
+      bool compatible = wire->set_interconnect();
+      if (!compatible) {
+            cerr << li << ": error: Port `" << name.first
+                 << "` is redeclared with an incompatible net kind." << endl;
+            error_count += 1;
+      }
+      if (implicit_type) {
+            if (compatible && !wire->data_type()) {
+                  pform_set_net_range(
+                        wire, dynamic_cast<vector_type_t*>(implicit_type),
+                        SR_BOTH);
+                  wire->set_data_type(implicit_type);
+            } else if (wire->data_type() != implicit_type) {
+                  delete implicit_type;
+            }
+      }
+      if (urange) {
+            wire->set_unpacked_idx(*urange);
+            delete urange;
+      }
+      pform_bind_attributes(wire->attributes, attr, keep_attr);
+      return const_cast<data_type_t*>(wire->data_type());
+}
+
+void pform_module_define_interconnect_port(const struct vlltype&li,
+                                     list<pform_port_t>*ports,
+                                     NetNet::PortType port_kind,
+                                     data_type_t*implicit_type,
+                                     list<named_pexpr_t>*attr)
+{
+      for (list<pform_port_t>::iterator cur = ports->begin();
+           cur != ports->end(); ++cur) {
+            data_type_t*copy = clone_interconnect_type_(implicit_type, li);
+            pform_module_define_interconnect_port(
+                  li, cur->name, port_kind, copy, cur->udims, attr, true);
+            if (cur->expr) {
+                  cerr << li << ": error: interconnect port `" << cur->name.first
+                       << "` cannot have a default value." << endl;
+                  error_count += 1;
+                  delete cur->expr;
+            }
+      }
+      delete implicit_type;
+      delete ports;
+      delete attr;
+}
+
 /*
  * this is the basic form of pform_makewire. This takes a single simple
  * name, port type, net type, data type, and attributes, and creates
@@ -4102,6 +4340,110 @@ PWire *pform_makewire(const vlltype&li, const pform_ident_t&name,
 	    cur->set_unpacked_idx(*indices);
 
       return cur;
+}
+
+void pform_set_nettype_wires(const struct vlltype&li,
+                             nettype_t*nettype,
+                             vector<PWire*>*wires,
+                             list<named_pexpr_t>*attr)
+{
+      for (vector<PWire*>::iterator cur = wires->begin();
+           cur != wires->end(); ++cur) {
+            if (!(*cur)->set_user_nettype(nettype)) {
+                  cerr << li << ": error: Net `" << (*cur)->basename()
+                       << "` is redeclared with an incompatible nettype."
+                       << endl;
+                  error_count += 1;
+            }
+            pform_bind_attributes((*cur)->attributes, attr, true);
+      }
+      delete wires;
+      delete attr;
+}
+
+void pform_make_nettype_wires(const struct vlltype&li,
+                              nettype_t*nettype,
+                              list<PExpr*>*delay,
+                              str_pair_t str,
+                              list<decl_assignment_t*>*assign_list,
+                              list<named_pexpr_t>*attr)
+{
+      while (!assign_list->empty()) {
+            decl_assignment_t*decl = assign_list->front();
+            assign_list->pop_front();
+            PWire*wire = pform_makewire(
+                  li, decl->name, NetNet::UNRESOLVED_WIRE, &decl->index);
+            if (!wire->set_user_nettype(nettype)) {
+                  cerr << li << ": error: Net `" << decl->name.first
+                       << "` is redeclared with an incompatible nettype."
+                       << endl;
+                  error_count += 1;
+            }
+            pform_bind_attributes(wire->attributes, attr, true);
+            if (PExpr*expr = decl->expr.release()) {
+                  PEIdent*lval = new PEIdent(decl->name.first,
+                                             decl->name.second);
+                  FILE_NAME(lval, li);
+                  PGAssign*ass = pform_make_pgassign(lval, expr, delay, str);
+                  FILE_NAME(ass, li);
+            }
+            delete decl;
+      }
+      delete assign_list;
+      delete attr;
+}
+
+void pform_set_interconnect_wires(const struct vlltype&li,
+                                  data_type_t*implicit_type,
+                                  vector<PWire*>*wires,
+                                  list<named_pexpr_t>*attr)
+{
+      for (vector<PWire*>::iterator cur = wires->begin();
+           cur != wires->end(); ++cur) {
+            bool compatible = (*cur)->set_interconnect();
+            if (!compatible) {
+                  cerr << li << ": error: Net `" << (*cur)->basename()
+                       << "` is redeclared with an incompatible net kind."
+                       << endl;
+                  error_count += 1;
+            }
+            data_type_t*copy = clone_interconnect_type_(implicit_type, li);
+            if (copy && compatible && !(*cur)->data_type()) {
+                  pform_set_net_range(
+                        *cur, dynamic_cast<vector_type_t*>(copy), SR_NET);
+                  (*cur)->set_data_type(copy);
+            } else {
+                  delete copy;
+            }
+            pform_bind_attributes((*cur)->attributes, attr, true);
+      }
+      delete implicit_type;
+      delete wires;
+      delete attr;
+}
+
+void pform_make_interconnect_wires(const struct vlltype&li,
+                                   data_type_t*implicit_type,
+                                   list<decl_assignment_t*>*assign_list,
+                                   list<named_pexpr_t>*attr)
+{
+      vector<PWire*>*wires = new vector<PWire*>;
+      bool had_initializer = false;
+      while (!assign_list->empty()) {
+            decl_assignment_t*decl = assign_list->front();
+            assign_list->pop_front();
+            wires->push_back(pform_makewire(
+                  li, decl->name, NetNet::WIRE, &decl->index));
+            if (decl->expr) {
+                  had_initializer = true;
+                  decl->expr.reset();
+            }
+            delete decl;
+      }
+      delete assign_list;
+      if (had_initializer)
+            VLerror(li, "error: Interconnect nets cannot have initializers.");
+      pform_set_interconnect_wires(li, implicit_type, wires, attr);
 }
 
 enum pform_struct_default_shape_t {
@@ -20723,6 +21065,177 @@ int pform_parse(const char*path)
       return error_count;
 }
 
+/* Resolution-function signature checks belong to elaboration, but existence
+ * must be checked even when another parse error prevents elaboration from
+ * running.  Perform this narrow, name-only pass after every input file has
+ * been parsed so a resolver may legally be declared after its nettype. */
+static bool pform_nettype_unqualified_name_exists_(LexicalScope*start,
+                                                   perm_string name)
+{
+      for (LexicalScope*scope = start; scope; scope = scope->parent_scope()) {
+            if (scope->local_symbols.find(name) != scope->local_symbols.end())
+                  return true;
+
+            map<perm_string,PPackage*>::const_iterator explicit_import =
+                  scope->explicit_imports.find(name);
+            if (explicit_import != scope->explicit_imports.end())
+                  return true;
+
+            for (PPackage*pkg : scope->potential_imports)
+                  if (pform_package_importable(pkg, name))
+                        return true;
+      }
+      return false;
+}
+
+static LexicalScope* pform_nettype_child_scope_(LexicalScope*scope,
+                                                perm_string name,
+                                                bool&name_exists)
+{
+      name_exists = false;
+      if (!scope)
+            return nullptr;
+
+      if (PScopeExtra*scopex = dynamic_cast<PScopeExtra*>(scope)) {
+            map<perm_string,PClass*>::const_iterator cls =
+                  scopex->classes.find(name);
+            if (cls != scopex->classes.end()) {
+                  name_exists = true;
+                  return cls->second;
+            }
+      }
+
+      map<perm_string,PNamedItem*>::const_iterator symbol =
+            scope->local_symbols.find(name);
+      if (symbol == scope->local_symbols.end())
+            return nullptr;
+
+      name_exists = true;
+      return dynamic_cast<LexicalScope*>(symbol->second);
+}
+
+static bool pform_nettype_resolution_name_exists_(
+                                    LexicalScope*declaration_scope,
+                                    const pform_scoped_name_t&path)
+{
+      if (path.name.empty())
+            return false;
+
+      if (!path.package && path.name.size() == 1)
+            return pform_nettype_unqualified_name_exists_(
+                  declaration_scope, path.name.front().name);
+
+      LexicalScope*scope = path.package;
+      pform_name_t::const_iterator component = path.name.begin();
+
+      if (!scope && component != path.name.end()) {
+            if (PPackage*pkg =
+                      pform_test_package_identifier(component->name.str())) {
+                  scope = pkg;
+                  ++component;
+            } else if (PClass*cls = pform_find_visible_class_scope(
+                            declaration_scope, component->name)) {
+                  scope = cls;
+                  ++component;
+            } else {
+                  for (LexicalScope*lex = declaration_scope; lex;
+                       lex = lex->parent_scope()) {
+                        bool head_exists = false;
+                        LexicalScope*child = pform_nettype_child_scope_(
+                              lex, component->name, head_exists);
+                        if (child) {
+                              scope = child;
+                              ++component;
+                              break;
+                        }
+                        /* A visible non-scope head is bound; elaboration will
+                         * issue the more precise wrong-kind diagnostic. */
+                        if (head_exists)
+                              return true;
+                  }
+            }
+      }
+
+      if (!scope)
+            return false;
+
+      while (component != path.name.end()) {
+            pform_name_t::const_iterator next = component;
+            ++next;
+            if (next == path.name.end()) {
+                  if (scope->local_symbols.find(component->name)
+                      != scope->local_symbols.end())
+                        return true;
+                  if (PPackage*pkg = dynamic_cast<PPackage*>(scope))
+                        if (pform_package_importable(pkg, component->name))
+                              return true;
+                  /* A class may inherit the named static method. Leave that
+                   * semantic lookup to elaboration instead of rejecting it
+                   * here as an unknown name. */
+                  return dynamic_cast<PClass*>(scope) != nullptr;
+            }
+
+            bool component_exists = false;
+            LexicalScope*child = pform_nettype_child_scope_(
+                  scope, component->name, component_exists);
+            if (!child)
+                  return component_exists;
+            scope = child;
+            component = next;
+      }
+
+      return false;
+}
+
+static void pform_validate_nettype_resolvers_(LexicalScope*scope,
+                                              set<LexicalScope*>&seen)
+{
+      if (!scope || !seen.insert(scope).second)
+            return;
+
+      for (LexicalScope::nettype_map_t::const_iterator cur =
+                 scope->nettypes.begin(); cur != scope->nettypes.end(); ++cur) {
+            const nettype_t*nettype = cur->second;
+            const pform_scoped_name_t*resolver =
+                  nettype ? nettype->resolution_function() : nullptr;
+            if (!resolver || pform_nettype_resolution_name_exists_(
+                                  scope, *resolver))
+                  continue;
+
+            cerr << nettype->get_fileline()
+                 << ": error: Unable to bind resolution function `"
+                 << *resolver << "'." << endl;
+            error_count += 1;
+      }
+
+      if (PScopeExtra*scopex = dynamic_cast<PScopeExtra*>(scope))
+            for (map<perm_string,PClass*>::const_iterator cur =
+                       scopex->classes.begin(); cur != scopex->classes.end();
+                 ++cur)
+                  pform_validate_nettype_resolvers_(cur->second, seen);
+
+      if (Module*module = dynamic_cast<Module*>(scope)) {
+            for (map<perm_string,Module*>::const_iterator cur =
+                       module->nested_modules.begin();
+                 cur != module->nested_modules.end(); ++cur)
+                  pform_validate_nettype_resolvers_(cur->second, seen);
+            for (PGenerate*generate : module->generate_schemes)
+                  pform_validate_nettype_resolvers_(generate, seen);
+      }
+
+      if (PGenerate*generate = dynamic_cast<PGenerate*>(scope))
+            for (PGenerate*child : generate->generate_schemes)
+                  pform_validate_nettype_resolvers_(child, seen);
+
+      /* Named generate scopes and nested modules also live in the shared
+       * symbol table. Cross-cast them here; the seen set removes duplicates. */
+      for (map<perm_string,PNamedItem*>::const_iterator cur =
+                 scope->local_symbols.begin(); cur != scope->local_symbols.end();
+           ++cur)
+            if (LexicalScope*child = dynamic_cast<LexicalScope*>(cur->second))
+                  pform_validate_nettype_resolvers_(child, seen);
+}
+
 int pform_finish()
 {
 	// Any errors counted here were already reported by pform_parse
@@ -20733,6 +21246,12 @@ int pform_finish()
       // known before importing possible imports.
       for (auto unit : pform_units)
 	    pform_check_possible_imports(unit);
+
+      set<LexicalScope*>validated_scopes;
+      for (PPackage*unit : pform_units)
+            pform_validate_nettype_resolvers_(unit, validated_scopes);
+      for (PPackage*package : pform_packages)
+            pform_validate_nettype_resolvers_(package, validated_scopes);
 
       // Apply collected SystemVerilog bind directives now that every
       // target module has been parsed.

@@ -1,0 +1,2 @@
+ivltests/sv_interconnect_variable_fail.v:6: error: Variable `variable_connection' cannot be connected to an interconnect port.
+1 error(s) during elaboration.

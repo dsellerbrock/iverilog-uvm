@@ -20,6 +20,49 @@
 
 # include  "pform_types.h"
 # include  "pform.h"
+# include  <set>
+
+nettype_t::nettype_t(perm_string name, data_type_t*type,
+                     const pform_scoped_name_t*resolution_function)
+: name_(name), direct_type_(type), alias_type_(nullptr),
+  resolution_function_(resolution_function
+                       ? new pform_scoped_name_t(*resolution_function) : nullptr)
+{
+}
+
+nettype_t::nettype_t(perm_string name, nettype_t*alias)
+: name_(name), alias_type_(alias)
+{
+}
+
+nettype_t::~nettype_t()
+{
+}
+
+PNamedItem::SymbolType nettype_t::symbol_type() const
+{
+      return NETTYPE;
+}
+
+const nettype_t* nettype_t::canonical_type() const
+{
+      std::set<const nettype_t*> seen;
+      const nettype_t*cur = this;
+      while (cur && cur->alias_type_) {
+            if (!seen.insert(cur).second)
+                  return nullptr;
+            cur = cur->alias_type_;
+      }
+      if (cur && !seen.insert(cur).second)
+            return nullptr;
+      return cur;
+}
+
+nettype_t* nettype_t::canonical_type()
+{
+      return const_cast<nettype_t*>(
+            static_cast<const nettype_t*>(this)->canonical_type());
+}
 
 data_type_t::~data_type_t()
 {

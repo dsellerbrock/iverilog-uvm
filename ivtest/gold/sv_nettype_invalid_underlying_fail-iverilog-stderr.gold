@@ -1,0 +1,5 @@
+ivltests/sv_nettype_invalid_underlying_fail.v:5: error: 'string' is not a valid type for a user-defined nettype; only integral types, floating types, and fixed-size unpacked aggregates of such types are allowed.
+ivltests/sv_nettype_invalid_underlying_fail.v:6: error: 'chandle' is not a valid type for a user-defined nettype; only integral types, floating types, and fixed-size unpacked aggregates of such types are allowed.
+ivltests/sv_nettype_invalid_underlying_fail.v:7: error: 'dynamic_array_t' is not a valid type for a user-defined nettype; only integral types, floating types, and fixed-size unpacked aggregates of such types are allowed.
+ivltests/sv_nettype_invalid_underlying_fail.v:8: error: 'queue_t' is not a valid type for a user-defined nettype; only integral types, floating types, and fixed-size unpacked aggregates of such types are allowed.
+4 error(s) during elaboration.

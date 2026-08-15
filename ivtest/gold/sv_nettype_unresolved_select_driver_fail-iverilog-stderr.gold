@@ -1,0 +1,4 @@
+ivltests/sv_nettype_unresolved_select_driver_fail.v:14: error: Net `member_data' with user-defined nettype `record_net' cannot be partially driven.
+ivltests/sv_nettype_unresolved_select_driver_fail.v:15: error: Net `bit_data' with user-defined nettype `vector_net' cannot be partially driven.
+ivltests/sv_nettype_unresolved_select_driver_fail.v:16: error: Net `part_data' with user-defined nettype `vector_net' cannot be partially driven.
+3 error(s) during elaboration.
