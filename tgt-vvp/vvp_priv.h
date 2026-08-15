@@ -135,7 +135,7 @@ extern void cleanup_modpath(void);
 extern void draw_vpi_task_call(ivl_statement_t net);
 extern int draw_vpi_deferred_call(ivl_statement_t net, unsigned parm_base,
 				  const char*task_name, long source_id,
-				  ivl_scope_t scope);
+				  ivl_scope_t scope, int is_final);
 
 extern void draw_vpi_func_call(ivl_expr_t expr);
 extern void draw_vpi_rfunc_call(ivl_expr_t expr);

@@ -1,0 +1,15 @@
+# IEEE 1800-2017 16.4 observed-deferred immediate assertion/cover focus gate.
+sv_deferred_assert1 normal,-g2009 ivltests gold=sv_deferred_assert1.gold
+sv_deferred_static_generate0 normal,-g2012 ivltests unordered=sv_deferred_static_generate0.gold
+sv_deferred_fifo_flush0 normal,-g2012 ivltests gold=sv_deferred_fifo_flush0.gold
+sv_deferred_reactive_order0 normal,-g2012 ivltests gold=sv_deferred_reactive_order0.gold
+sv_deferred_null_action0 normal,-g2012 ivltests gold=sv_deferred_null_action0.gold
+sv_deferred_assert_control0 normal,-g2012 ivltests gold=sv_deferred_assert_control0.gold
+sv_deferred_matured_disable0 normal,-g2012 ivltests gold=sv_deferred_matured_disable0.gold
+sv_deferred_supported_only0 normal,-g2012,-gsupported-assertions ivltests gold=sv_deferred_supported_only0.gold
+sv_deferred_observed_args0 normal,-g2012 ivltests gold=sv_deferred_observed_args0.gold
+sv_deferred_observed_error_args0 normal,-g2012 ivltests gold=sv_deferred_observed_error_args0.gold
+sv_deferred_cover_actions0 normal,-g2012 ivltests gold=sv_deferred_cover_actions0.gold
+sv_deferred_cover_disabled0 normal,-g2012,-gno-assertions ivltests gold=sv_deferred_cover_disabled0.gold
+sv_deferred_flush1 CE,-g2012 ivltests
+sv_deferred_void_cast_action_fail CE,-g2012 ivltests

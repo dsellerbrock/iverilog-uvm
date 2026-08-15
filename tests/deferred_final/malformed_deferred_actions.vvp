@@ -1,0 +1,70 @@
+:ivl_version "13.0 (devel)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+S_bad .scope module, "bad" "bad" 1 1;
+ .timescale 0 0;
+    .scope S_bad;
+T_main ;
+    %pushi/vec4 101, 0, 32;
+    %defer/enqueue T_bad_depth, S_bad;
+    %vpi_call 1 1 "$display", "DEPTH_SURVIVED %0d", S<0,vec4,u32> {1 0 0 0};
+
+    %pushi/vec4 202, 0, 32;
+    %defer/enqueue T_bad_type, S_bad;
+    %vpi_call 1 1 "$display", "TYPE_SURVIVED %0d", S<0,vec4,u32> {1 0 0 0};
+
+    %pushi/vec4 303, 0, 32;
+    %defer/enqueue T_bad_extra_observed, S_bad;
+    %vpi_call 1 1 "$display", "EXTRA_OBSERVED_SURVIVED %0d", S<0,vec4,u32> {1 0 0 0};
+
+    %pushi/vec4 404, 0, 32;
+    %defer/enqueue T_bad_metadata, S_bad;
+    %vpi_call 1 1 "$display", "METADATA_SURVIVED %0d", S<0,vec4,u32> {1 0 0 0};
+
+    %defer/enqueue T_bad_task, S_bad;
+    %vpi_call 1 1 "$display", "TASK_REJECTED_WITHOUT_SIDE_EFFECT" {0 0 0 0};
+
+    %pushi/vec4 505, 0, 32;
+    %defer/final T_bad_extra_final, S_bad;
+    %vpi_call 1 1 "$display", "EXTRA_FINAL_SURVIVED %0d", S<0,vec4,u32> {1 0 0 0};
+
+    %pushi/vec4 601, 0, 32;
+    %pushi/vec4 602, 0, 32;
+    %defer/enqueue T_bad_duplicate, S_bad;
+    %vpi_call 1 1 "$display", "DUPLICATE_SURVIVED %0d %0d", S<1,vec4,u32>, S<0,vec4,u32> {2 0 0 0};
+    %end;
+
+T_bad_depth ;
+    %vpi_call 1 1 "$display", "BAD_DEPTH", S<1,vec4,u32> {1 0 0 0};
+    %end;
+
+T_bad_type ;
+    %vpi_call 1 1 "$display", "BAD_TYPE", S<0,str> {1 0 0 0};
+    %end;
+
+T_bad_extra_observed ;
+    %vpi_call 1 1 "$display", "BAD_EXTRA_OBSERVED %0d", S<0,vec4,u32> {1 0 0 0};
+    %pushi/vec4 0, 0, 1;
+    %end;
+
+T_bad_metadata ;
+    %vpi_call 1 1 "$display", "BAD_METADATA" {1 0 0 0};
+    %end;
+
+T_bad_task ;
+    %vpi_call 1 1 "$finish" {0 0 0 0};
+    %end;
+
+T_bad_extra_final ;
+    %defer/final/key 1;
+    %vpi_call 1 1 "$display", "BAD_EXTRA_FINAL %0d", S<0,vec4,u32> {1 0 0 0};
+    %delay 0, 0;
+    %end;
+
+T_bad_duplicate ;
+    %vpi_call 1 1 "$display", "BAD_DUPLICATE %0d %0d", S<0,vec4,u32>, S<0,vec4,u32> {2 0 0 0};
+    %end;
+    .thread T_main;
+:file_names 2;
+    "N/A";
+    "tests/deferred_final/malformed_deferred_actions.vvp";

@@ -46,6 +46,7 @@ struct deferred_vpi_call_info {
       ivl_scope_t scope;
       unsigned action_lab;
       unsigned after_lab;
+      int is_final;
 };
 
 static const char* magic_sfuncs[] = {
@@ -999,14 +1000,16 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 	    args[idx].text = strdup(buffer);
       }
       if (deferred) {
-	    fprintf(vvp_out, "    %%defer/final T_%u.%u, S_%p;\n",
+	    fprintf(vvp_out, "    %%defer/%s T_%u.%u, S_%p;\n",
+		    deferred->is_final ? "final" : "enqueue",
 		    thread_count, deferred->action_lab, deferred->scope);
 	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n",
 		    thread_count, deferred->after_lab);
 	    fprintf(vvp_out, "T_%u.%u ;\n",
 		    thread_count, deferred->action_lab);
-	    fprintf(vvp_out, "    %%defer/final/key %ld;\n",
-		    deferred->source_id);
+	    if (deferred->is_final)
+		  fprintf(vvp_out, "    %%defer/final/key %ld;\n",
+			  deferred->source_id);
       }
 
       fprintf(vvp_out, "%s", call_string);
@@ -1099,7 +1102,7 @@ void draw_vpi_task_call(ivl_statement_t tnet)
 
 int draw_vpi_deferred_call(ivl_statement_t tnet, unsigned parm_base,
 			   const char*task_name, long source_id,
-			   ivl_scope_t scope)
+			   ivl_scope_t scope, int is_final)
 {
       unsigned total = tnet ? ivl_stmt_parm_count(tnet) : 0;
 
@@ -1107,7 +1110,7 @@ int draw_vpi_deferred_call(ivl_statement_t tnet, unsigned parm_base,
 	  || parm_base > total
 	  || (strcmp(task_name, "$display") != 0
 	      && strcmp(task_name, "$error") != 0)) {
-	    fprintf(stderr, "%s:%u: error: malformed final-deferred VPI action; "
+	    fprintf(stderr, "%s:%u: error: malformed deferred VPI action; "
 		    "no action was emitted.\n",
 		    tnet ? ivl_stmt_file(tnet) : "<internal>",
 		    tnet ? ivl_stmt_lineno(tnet) : 0);
@@ -1156,7 +1159,7 @@ int draw_vpi_deferred_call(ivl_statement_t tnet, unsigned parm_base,
 		  }
 	    }
 	    if (!supported) {
-		  fprintf(stderr, "%s:%u: error: final-deferred %s argument %u "
+		  fprintf(stderr, "%s:%u: error: deferred %s argument %u "
 			  "has an unsupported capture shape; no argument was "
 			  "evaluated and no action was emitted.\n",
 			  ivl_stmt_file(tnet), ivl_stmt_lineno(tnet), task_name,
@@ -1171,6 +1174,7 @@ int draw_vpi_deferred_call(ivl_statement_t tnet, unsigned parm_base,
       deferred.scope = scope;
       deferred.action_lab = local_count++;
       deferred.after_lab = local_count++;
+      deferred.is_final = is_final != 0;
 
       char call_string[1024];
       snprintf(call_string, sizeof(call_string),

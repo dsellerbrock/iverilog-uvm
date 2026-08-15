@@ -5324,16 +5324,14 @@ static unsigned deferred_assertion_source_id_ = 0;
 /* Build the internal report marker consumed by the VVP target. The source
  * process chooses an arm now, so the runtime only has to queue the already
  * selected call. The first arguments are mode (0 = #0, 1 = final), source id,
- * and action kind (0 = null, 1 = `$error', 2 = `$display'). Final markers may
+ * and action kind (0 = null, 1 = `$error', 2 = `$display'). Both modes may
  * carry the original positional action arguments after that header; the VVP
- * target evaluates those expressions before pinning the report and snapshots
- * their typed stack values. The #0 path deliberately retains its established
- * literal-only contract. */
+ * target evaluates those expressions before queueing the report and snapshots
+ * their typed stack values. */
 static Statement* deferred_enqueue_marker_(const struct vlltype&loc,
 					    bool is_final,
 					    unsigned source_id,
 					    unsigned kind,
-					    const PEString*literal = 0,
 					    const std::vector<named_pexpr_t>*action_args = 0)
 {
       std::list<named_pexpr_t> args;
@@ -5354,16 +5352,6 @@ static Statement* deferred_enqueue_marker_(const struct vlltype&loc,
       kind_arg.parm = new PENumber(new verinum((uint64_t)kind, 32));
       FILE_NAME(kind_arg.parm, loc);
       args.push_back(kind_arg);
-
-      if (literal) {
-	    const std::string&value = literal->value();
-	    char*text = new char[value.size()+1];
-	    memcpy(text, value.c_str(), value.size()+1);
-	    named_pexpr_t text_arg;
-	    text_arg.parm = new PEString(text);
-	    text_arg.parm->set_line(*literal);
-	    args.push_back(text_arg);
-      }
 
       if (action_args) {
 	    for (const named_pexpr_t&arg : *action_args)
@@ -5410,12 +5398,11 @@ static Statement* deferred_final_task_action_(const struct vlltype&loc,
       return block;
 }
 
-/* Convert one action arm to an enqueue marker. This is intentionally a
- * small, honest first slice: an explicit null action, `$error()' without
- * arguments, or `$display' with exactly one positional string literal.
- * Other subroutine calls are legal deferred actions in the language but
- * need the general argument-capture IR, so diagnose them as unsupported.
- * A non-call action is illegal under IEEE 1800-2017 16.4. */
+/* Convert one action arm to an enqueue marker. Positional `$error' and
+ * `$display' arguments are evaluated by the source process and copied into
+ * the selected report before either deferred queue is touched. Other
+ * subroutine calls remain a loud implementation boundary. A non-call action
+ * is illegal under IEEE 1800-2017 16.4. */
 static bool deferred_action_marker_(const struct vlltype&loc,
 				    Statement*source,
 				    bool default_error,
@@ -5472,10 +5459,10 @@ static bool deferred_action_marker_(const struct vlltype&loc,
 	    bool positional = true;
 	    for (const named_pexpr_t&parm : parms)
 		  positional = positional && parm.name.nil();
-	    if (positional && (is_final || parms.empty())) {
+	    if (positional) {
 		  marker = deferred_enqueue_marker_(
-			loc, is_final, source_id, 1, 0,
-			is_final ? &parms : 0);
+			loc, is_final, source_id, 1,
+			&parms);
 		  delete source;
 		  return true;
 	    }
@@ -5485,19 +5472,11 @@ static bool deferred_action_marker_(const struct vlltype&loc,
 	    bool positional = true;
 	    for (const named_pexpr_t&parm : parms)
 		  positional = positional && parm.name.nil();
-	    if (is_final && positional) {
-		  marker = deferred_enqueue_marker_(loc, true, source_id, 2,
-						  0, &parms);
+	    if (positional) {
+		  marker = deferred_enqueue_marker_(loc, is_final, source_id, 2,
+					  &parms);
 		  delete source;
 		  return true;
-	    }
-	    if (!is_final && parms.size() == 1 && parms[0].name.nil()) {
-		  if (PEString*text = dynamic_cast<PEString*>(parms[0].parm)) {
-			marker = deferred_enqueue_marker_(loc, false,
-							 source_id, 2, text);
-			delete source;
-			return true;
-		  }
 	    }
       }
 
@@ -5525,9 +5504,8 @@ static bool deferred_action_marker_(const struct vlltype&loc,
 	    VLerror(loc, "sorry: The %s action of a deferred immediate "
 		  "assertion is not supported yet. Final-deferred actions currently "
 		  "accept null, positional $error/$display calls, and a resolved "
-		  "zero-actual passive user task; #0 actions "
-		  "accept null, $error() with no arguments, or $display() with one "
-		  "string literal; the assertion is dropped.", arm);
+		  "zero-actual passive user task; #0 actions accept null or "
+		  "positional $error/$display calls; the assertion is dropped.", arm);
       delete source;
       return false;
 }
@@ -5538,36 +5516,6 @@ Statement* pform_make_deferred_assertion(const struct vlltype&loc,
 					 Statement*fail_stmt,
 					 bool is_final)
 {
-      /* The #0 slice does not yet capture automatic routine/class state.
-         A final assertion only retains a passive, literal action plus its
-         lexical scope, so it is safe in those contexts. Keep the established
-         #0 restriction and diagnostics unchanged. */
-      if (!is_final) {
-	    bool have_static_owner = false;
-	    bool routine_or_class = false;
-	    for (LexicalScope*sc = pform_peek_scope(); sc;
-		 sc = sc->parent_scope()) {
-		  if (dynamic_cast<PTaskFunc*>(sc) || dynamic_cast<PClass*>(sc)) {
-			routine_or_class = true;
-			break;
-		  }
-		  if (dynamic_cast<Module*>(sc)) {
-			have_static_owner = true;
-			break;
-		  }
-	    }
-	    if (routine_or_class || !have_static_owner) {
-		  if (gn_unsupported_assertions_flag)
-			VLerror(loc, "sorry: Deferred immediate assertions inside tasks, "
-				"functions, or classes are not supported yet; the assertion "
-				"is dropped.");
-		  delete expr;
-		  delete pass_stmt;
-		  delete fail_stmt;
-		  return 0;
-	    }
-      }
-
       unsigned source_id = ++deferred_assertion_source_id_;
       if (source_id == 0)
 	    source_id = ++deferred_assertion_source_id_;
@@ -5591,6 +5539,37 @@ Statement* pform_make_deferred_assertion(const struct vlltype&loc,
       }
 
       PCondit*result = new PCondit(expr, pass_marker, fail_marker);
+      result->immediate_assertion();
+      FILE_NAME(result, loc);
+
+      PCondit*enabled = new PCondit(sva_enabled_expr_(loc), result, 0);
+      FILE_NAME(enabled, loc);
+      return enabled;
+}
+
+Statement* pform_make_deferred_cover(const struct vlltype&loc,
+				     PExpr*expr,
+				     Statement*pass_stmt,
+				     bool is_final)
+{
+      unsigned source_id = ++deferred_assertion_source_id_;
+      if (source_id == 0)
+	    source_id = ++deferred_assertion_source_id_;
+
+      Statement*pass_marker = 0;
+      if (!deferred_action_marker_(loc, pass_stmt, false, is_final,
+				   source_id, "pass", pass_marker)) {
+	    delete expr;
+	    return 0;
+      }
+
+      /* A false final cover selection replaces an earlier true pin from the
+	 same source assertion and logical process. For #0, a false evaluation
+	 simply adds no report; normal process flush points handle reactivation. */
+      Statement*false_marker = is_final
+	    ? deferred_enqueue_marker_(loc, true, source_id, 0) : 0;
+
+      PCondit*result = new PCondit(expr, pass_marker, false_marker);
       result->immediate_assertion();
       FILE_NAME(result, loc);
 

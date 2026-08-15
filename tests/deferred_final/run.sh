@@ -3,8 +3,7 @@
 # Supported behavior is checked by both ivtest harnesses. This script adds:
 #   * an explicit scheduler-region oracle (NBA < Observed < Reactive < ROSync);
 #   * Slang polarity for the two genuinely illegal action shapes; and
-#   * active legal-but-not-yet-supported probes. Those probes must remain a
-#     loud Icarus rejection AND a Slang acceptance until their support lands.
+#   * final-deferred actions pinned from a final procedure.
 
 set -u
 
@@ -73,31 +72,71 @@ for name in sv_deferred_final_block_fail sv_deferred_final_void_cast_fail; do
     fi
 done
 
-# These are legal programs. They are kept out of CE manifests so a temporary
-# implementation boundary never becomes an expected language rejection.
-for name in dynamic_args user_task error_args cover_final in_final_procedure; do
-    src="$DIR/$name.sv"
+# A final procedure is already in the Postponed region. Its deferred action
+# must run only after the source final block completes and must retain values
+# captured when the assertion executes.
+src="$DIR/in_final_procedure.sv"
+if ! "$IVERILOG_BIN" -g2012 -o "$WORK/in_final_procedure.vvp" "$src" \
+        >"$WORK/in_final_procedure.ivl.out" \
+        2>"$WORK/in_final_procedure.ivl.err"; then
+    echo "FAIL: final-procedure source compile"
+    sed -n '1,20p' "$WORK/in_final_procedure.ivl.err"
+    fail=1
+else
+    IVL_REGION_ASSERT=1 "$VVP_BIN" "$WORK/in_final_procedure.vvp" \
+        >"$WORK/in_final_procedure.out" \
+        2>"$WORK/in_final_procedure.err"
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+        echo "FAIL: final-procedure runtime rc=$rc"
+        fail=1
+    fi
+    if ! diff -u \
+            "$ROOT/ivtest/gold/sv_deferred_final_in_final_procedure0-vvp-stdout.gold" \
+            "$WORK/in_final_procedure.out"; then
+        echo "FAIL: final-procedure output"
+        fail=1
+    fi
+    if [ -s "$WORK/in_final_procedure.err" ]; then
+        echo "FAIL: final-procedure unexpected stderr"
+        sed -n '1,20p' "$WORK/in_final_procedure.err"
+        fail=1
+    fi
+fi
+if ! "$SLANG_BIN" --std 1800-2017 --single-unit "$src" \
+        >"$WORK/in_final_procedure.slang.out" \
+        2>"$WORK/in_final_procedure.slang.err"; then
+    echo "FAIL: Slang rejected legal final-procedure source"
+    sed -n '1,20p' "$WORK/in_final_procedure.slang.err"
+    fail=1
+fi
+
+# An observed-deferred action cannot reach a later Observed/Reactive pass once
+# a final procedure is running. Slang accepts these legal spellings, so keep
+# them as active implementation-boundary probes rather than CE regressions.
+for name in sv_deferred_final_procedure_fail \
+            sv_deferred_final_procedure_label_fail; do
+    src="$ROOT/ivtest/ivltests/$name.v"
     if "$IVERILOG_BIN" -g2012 -o "$WORK/$name.vvp" "$src" \
             >"$WORK/$name.ivl.out" 2>"$WORK/$name.ivl.err"; then
-        echo "FAIL: blocker $name unexpectedly compiled; promote it to a positive test"
+        echo "FAIL: observed-in-final boundary unexpectedly compiled"
         fail=1
         continue
     fi
-    count=$(grep -Ec '(^|: )(error|sorry):' "$WORK/$name.ivl.err" || true)
-    if [ "$count" -ne 1 ]; then
-        echo "FAIL: blocker $name expected exactly one loud diagnostic, got $count"
+    count=$(grep -Ec ':[0-9]+: (error|sorry):' "$WORK/$name.ivl.err" || true)
+    if [ "$count" -ne 1 ] \
+            || ! grep -Fq "its Observed/Reactive report regions are no longer reachable" \
+                "$WORK/$name.ivl.err"; then
+        echo "FAIL: $name expected one focused observed-in-final diagnostic, got $count"
         sed -n '1,20p' "$WORK/$name.ivl.err"
         fail=1
-        continue
     fi
     if ! "$SLANG_BIN" --std 1800-2017 --single-unit "$src" \
             >"$WORK/$name.slang.out" 2>"$WORK/$name.slang.err"; then
-        echo "FAIL: Slang rejected legal blocker $name"
+        echo "FAIL: Slang rejected legal observed-in-final boundary $name"
         sed -n '1,20p' "$WORK/$name.slang.err"
         fail=1
-        continue
     fi
-    echo "PASS active blocker: $name (Icarus loud reject, Slang accept)"
 done
 
 if [ "$fail" -eq 0 ]; then

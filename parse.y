@@ -4485,16 +4485,18 @@ deferred_immediate_assertion_statement /* IEEE1800-2012 A.6.10 */
       }
   | K_cover deferred_mode '(' expression ')' statement_or_null
       {
-	if (gn_supported_assertions_flag && gn_unsupported_assertions_flag) {
-	      yyerror(@1, "sorry: Deferred immediate cover statements are not supported yet.");
-	} else if (gn_unsupported_assertions_flag) {
-	      yyerror(@1, "sorry: Deferred assertions are not supported."
-		      " Try -gno-assertions or -gsupported-assertions"
-		      " to turn this message off.");
+	if (gn_supported_assertions_flag) {
+	      $$ = pform_make_deferred_cover(@1, $4, $6, $2 != 0);
+	} else {
+	      delete $4;
+	      delete $6;
+	      $$ = 0;
+	      if (gn_unsupported_assertions_flag) {
+		    yyerror(@1, "sorry: Deferred assertions are not supported."
+			    " Try -gno-assertions or -gsupported-assertions"
+			    " to turn this message off.");
+	      }
 	}
-	delete $4;
-	delete $6;
-	$$ = 0;
       }
   | assert_or_assume deferred_mode '(' error ')' statement_or_null %prec less_than_K_else
       { yyerror(@1, "error: Malformed conditional expression.");
@@ -6870,11 +6872,43 @@ tf_port_direction_opt
 
 procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
   : block_identifier_opt concurrent_assertion_statement
-      { $$ = $2; }
+      { Statement*item = $2;
+	if (!item) {
+	      item = new PBlock(PBlock::BL_SEQ);
+	      FILE_NAME(item, @1);
+	}
+	if ($1) {
+	      PBlock*scope = pform_push_block_scope(@1, $1, PBlock::BL_SEQ);
+	      pform_pop_scope();
+	      std::vector<Statement*> body(1, item);
+	      scope->set_statement(body);
+	      item = scope;
+	}
+	delete[] $1;
+	$$ = item;
+      }
   | block_identifier_opt simple_immediate_assertion_statement
-      { $$ = $2; }
+      { Statement*item = $2;
+	if (!item) {
+	      item = new PBlock(PBlock::BL_SEQ);
+	      FILE_NAME(item, @1);
+	}
+	if ($1) {
+	      PBlock*scope = pform_push_block_scope(@1, $1, PBlock::BL_SEQ);
+	      pform_pop_scope();
+	      std::vector<Statement*> body(1, item);
+	      scope->set_statement(body);
+	      item = scope;
+	}
+	delete[] $1;
+	$$ = item;
+      }
   | block_identifier_opt deferred_immediate_assertion_statement
       { Statement*item = $2;
+	if (!item) {
+	      item = new PBlock(PBlock::BL_SEQ);
+	      FILE_NAME(item, @1);
+	}
 	if ($1 && item) {
 	      PBlock*scope = pform_push_block_scope(@1, $1, PBlock::BL_SEQ);
 	      pform_pop_scope();

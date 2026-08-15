@@ -4024,7 +4024,6 @@ static int show_deferred_assert_enqueue_(ivl_statement_t net,
       long mode = -1;
       long source_id = -1;
       long kind = -1;
-      ivl_expr_t literal = 0;
 
       if (mode_expr && ivl_expr_type(mode_expr) == IVL_EX_NUMBER
           && number_is_immediate(mode_expr, 32, 0)
@@ -4045,17 +4044,13 @@ static int show_deferred_assert_enqueue_(ivl_statement_t net,
             kind = -1;
 
       if (kind == 0) {
-            if (!final_marker || parm_count != 3)
+            if (parm_count != 3)
                   kind = -1;
       } else if (kind == 1) {
-            if ((!final_marker && parm_count != 3)
-                || (final_marker && parm_count < 3))
+            if (parm_count < 3)
                   kind = -1;
       } else if (kind == 2) {
-            if (!final_marker && parm_count == 4
-                && ivl_expr_type(ivl_stmt_parm(net, 3)) == IVL_EX_STRING)
-                  literal = ivl_stmt_parm(net, 3);
-            else if (!final_marker)
+            if (parm_count < 3)
                   kind = -1;
       } else {
             kind = -1;
@@ -4066,54 +4061,41 @@ static int show_deferred_assert_enqueue_(ivl_statement_t net,
             fprintf(stderr,
                     "%s:%u: error: malformed internal "
                     "%s marker; expected a marker-consistent "
-                    "mode, positive source id, and action kind 0 (final "
-                    "null), 1 ($error), or 2 ($display); #0 display "
-                    "requires one constant string.\n",
+                    "mode, positive source id, and action kind 0 "
+                    "(null), 1 ($error), or 2 ($display).\n",
                     ivl_stmt_file(net), ivl_stmt_lineno(net), marker_name);
             vvp_errors += 1;
             return 1;
       }
 
-      /* Final action arguments must be evaluated by the source process and
-       * captured before the pending report is pinned. The shared VPI lowering
-       * emits a typed-stack action thunk and validates the complete argument
-       * list before evaluating any expression. */
-      if (final_marker && kind != 0) {
+      /* Action arguments must be evaluated by the source process and captured
+       * before either pending report is queued. The shared VPI lowering emits
+       * a typed-stack action thunk and validates the complete argument list
+       * before evaluating any expression. */
+      if (kind != 0) {
             show_stmt_file_line(net,
-                                "Final deferred immediate assertion pin.");
+                  final_marker ? "Final deferred immediate assertion pin."
+                               : "Deferred immediate assertion enqueue.");
             return draw_vpi_deferred_call(net, 3,
                                           kind == 1 ? "$error" : "$display",
-                                          source_id, sscope);
+                                          source_id, sscope, final_marker);
       }
+
+      /* A selected #0 null arm queues no action. A final null arm must still
+       * pin its source id so it can cancel an earlier non-null selection. */
+      if (mode == 0)
+            return 0;
 
       unsigned action_lab = local_count++;
       unsigned after_lab = local_count++;
-      unsigned file_idx = ivl_file_table_index(ivl_stmt_file(net));
-      unsigned lineno = ivl_stmt_lineno(net);
 
-      if (mode == 0) {
-            show_stmt_file_line(net, "Deferred immediate assertion enqueue.");
-            fprintf(vvp_out, "    %%defer/enqueue T_%u.%u, S_%p;\n",
-                    thread_count, action_lab, sscope);
-      } else {
-            show_stmt_file_line(net, "Final deferred immediate assertion pin.");
-            fprintf(vvp_out, "    %%defer/final T_%u.%u, S_%p;\n",
-                    thread_count, action_lab, sscope);
-      }
+      show_stmt_file_line(net, "Final deferred immediate assertion pin.");
+      fprintf(vvp_out, "    %%defer/final T_%u.%u, S_%p;\n",
+              thread_count, action_lab, sscope);
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, after_lab);
 
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, action_lab);
-      if (mode == 1)
-            fprintf(vvp_out, "    %%defer/final/key %ld;\n", source_id);
-      if (kind == 1) {
-            fprintf(vvp_out, "    %%vpi_call %u %u \"$error\" "
-                    "{0 0 0 0};\n", file_idx, lineno);
-      } else if (kind == 2) {
-            fprintf(vvp_out,
-                    "    %%vpi_call %u %u \"$display\", \"%s\" "
-                    "{0 0 0 0};\n",
-                    file_idx, lineno, ivl_expr_string(literal));
-      }
+      fprintf(vvp_out, "    %%defer/final/key %ld;\n", source_id);
       fprintf(vvp_out, "    %%end;\n");
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, after_lab);
 

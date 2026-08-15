@@ -1,0 +1,4 @@
+SOURCE VALUE=99 CALLS=1
+ERROR: ./ivltests/sv_deferred_observed_error_args0.v:11: OBS_ERROR VALUE=7 CALLS=1
+       Time: 0  Scope: deferred_observed_error_args
+AFTER VALUE=99 CALLS=1

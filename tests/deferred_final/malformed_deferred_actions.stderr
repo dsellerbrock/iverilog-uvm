@@ -1,0 +1,7 @@
+vvp: observed-deferred VPI argument 2 references vec4 stack depth 1 outside its captured 1-slot segment; source stacks were not consumed.
+vvp: observed-deferred VPI argument 2 references string stack depth 0 outside its captured 0-slot segment; source stacks were not consumed.
+vvp: malformed observed-deferred VPI action thunk; expected exactly one $display/$error call followed by %end; source stacks were not consumed.
+vvp: observed-deferred VPI stack metadata does not match its argument references (declared 1/0/0/0, referenced 0/0/0/0); source stacks were not consumed.
+vvp: malformed observed-deferred VPI action thunk; expected exactly one $display/$error call followed by %end; source stacks were not consumed.
+vvp: malformed final-deferred VPI action thunk; expected exactly one $display/$error call followed by %end; source stacks were not consumed.
+vvp: observed-deferred VPI argument 3 reuses vec4 stack depth 0; source stacks were not consumed.

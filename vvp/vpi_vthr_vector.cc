@@ -252,6 +252,7 @@ class __vpiVThrStrStack : public __vpiHandle {
       int vpi_get(int code) override;
       void vpi_get_value(p_vpi_value val) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
+      unsigned depth() const { return depth_; }
     private:
       unsigned depth_;
 };
@@ -264,6 +265,7 @@ class __vpiVThrObjStack : public __vpiHandle {
       void vpi_get_value(p_vpi_value val) override;
       vpiHandle vpi_handle(int code) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
+      unsigned depth() const { return depth_; }
     private:
       unsigned depth_;
       class_type*declared_type_;
@@ -480,6 +482,7 @@ class __vpiVThrVec4Stack : public __vpiHandle {
       char*vpi_get_str(int code) override;
       void vpi_get_value(p_vpi_value val) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
+      unsigned depth() const { return depth_; }
     private:
       static void vpi_get_value_string_(p_vpi_value vp, const vvp_vector4_t&val);
       static void vpi_get_value_binstr_(p_vpi_value vp, const vvp_vector4_t&val);
@@ -949,6 +952,43 @@ vpiHandle vpip_make_vthr_vec4_stack(unsigned depth, bool signed_flag, unsigned w
 {
       __vpiVThrVec4Stack*obj = new __vpiVThrVec4Stack(depth, signed_flag, wid);
       return obj;
+}
+
+bool vpip_get_vthr_stack_ref(vpiHandle ref,
+                             vpip_vthr_stack_kind_t*kind,
+                             unsigned*depth)
+{
+      if (kind)
+            *kind = VPIP_VTHR_STACK_NONE;
+      if (depth)
+            *depth = 0;
+      if (!ref || !kind || !depth)
+            return false;
+
+      if (__vpiVThrVec4Stack*vec =
+            dynamic_cast<__vpiVThrVec4Stack*>(ref)) {
+            *kind = VPIP_VTHR_STACK_VEC4;
+            *depth = vec->depth();
+            return true;
+      }
+      if (__vpiVThrWord*real = dynamic_cast<__vpiVThrWord*>(ref)) {
+            *kind = VPIP_VTHR_STACK_REAL;
+            *depth = real->get_index();
+            return true;
+      }
+      if (__vpiVThrStrStack*str =
+            dynamic_cast<__vpiVThrStrStack*>(ref)) {
+            *kind = VPIP_VTHR_STACK_STRING;
+            *depth = str->depth();
+            return true;
+      }
+      if (__vpiVThrObjStack*obj =
+            dynamic_cast<__vpiVThrObjStack*>(ref)) {
+            *kind = VPIP_VTHR_STACK_OBJECT;
+            *depth = obj->depth();
+            return true;
+      }
+      return false;
 }
 
 #ifdef CHECK_WITH_VALGRIND

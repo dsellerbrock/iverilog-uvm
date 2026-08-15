@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_deferred_cover_disabled0.v",
+    "iverilog-args" : [ "-g2012", "-gno-assertions" ],
+    "gold"          : "sv_deferred_cover_disabled0"
+}
