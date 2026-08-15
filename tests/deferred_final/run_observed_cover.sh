@@ -219,28 +219,30 @@ else
     fi
 fi
 
-# Forged stack metadata must be rejected before consuming source operands.
+# Forged stack metadata, stack references, task identities, and action tails
+# must all be rejected before consuming source operands.
 if [ ! -f "$VPI_MODULE_DIR/system.vpi" ]; then
     echo "FAIL: system.vpi is not installed in: $VPI_MODULE_DIR"
     fail=1
 fi
-"$VVP_BIN" -M "$VPI_MODULE_DIR" -m system \
-    "$DIR/malformed_observed_args.vvp" \
-    >"$WORK/malformed.out" 2>"$WORK/malformed.err"
-rc=$?
-if [ "$rc" -ne 0 ]; then
-    echo "FAIL: malformed observed action runtime rc=$rc"
-    fail=1
-fi
-if ! diff -u "$DIR/malformed_observed_args.stderr" "$WORK/malformed.err"; then
-    echo "FAIL: malformed observed action diagnostic"
-    fail=1
-fi
-if ! diff -u "$DIR/malformed_observed_args.stdout" \
-        "$WORK/malformed.out"; then
-    echo "FAIL: malformed observed action consumed the source operand"
-    fail=1
-fi
+for name in malformed_observed_args malformed_deferred_actions; do
+    "$VVP_BIN" -M "$VPI_MODULE_DIR" -m system \
+        "$DIR/$name.vvp" \
+        >"$WORK/$name.out" 2>"$WORK/$name.err"
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+        echo "FAIL: $name runtime rc=$rc"
+        fail=1
+    fi
+    if ! diff -u "$DIR/$name.stderr" "$WORK/$name.err"; then
+        echo "FAIL: $name diagnostic"
+        fail=1
+    fi
+    if ! diff -u "$DIR/$name.stdout" "$WORK/$name.out"; then
+        echo "FAIL: $name consumed source operands or ran a rejected action"
+        fail=1
+    fi
+done
 
 if [ "$fail" -eq 0 ]; then
     echo "deferred observed/cover gate: PASS"

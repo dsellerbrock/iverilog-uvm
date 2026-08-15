@@ -1126,6 +1126,21 @@ vpiHandle vpip_make_vthr_str_stack(unsigned depth);
 vpiHandle vpip_make_vthr_vec4_stack(unsigned depth, bool signed_flag, unsigned wid);
 vpiHandle vpip_make_vthr_obj_stack(unsigned depth, char*type = 0);
 
+/* Identify the direct typed-stack handles accepted as deferred VPI action
+ * arguments. The deferred runtime uses this to prove that the call's stack
+ * metadata describes exactly the values it snapshots before the source
+ * thread is modified. */
+enum vpip_vthr_stack_kind_t {
+      VPIP_VTHR_STACK_NONE = 0,
+      VPIP_VTHR_STACK_VEC4,
+      VPIP_VTHR_STACK_REAL,
+      VPIP_VTHR_STACK_STRING,
+      VPIP_VTHR_STACK_OBJECT
+};
+extern bool vpip_get_vthr_stack_ref(vpiHandle ref,
+                                    vpip_vthr_stack_kind_t*kind,
+                                    unsigned*depth);
+
 vpiHandle vpip_make_vthr_A(char*label, unsigned index);
 vpiHandle vpip_make_vthr_A(char*label, char*symbol);
 vpiHandle vpip_make_vthr_A(char*label, vpiHandle handle);

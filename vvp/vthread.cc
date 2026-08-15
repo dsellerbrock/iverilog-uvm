@@ -928,6 +928,19 @@ void vvp_process::remove_waiter(vthread_t thr)
       thr->awaited_processes_.erase(this);
 }
 
+/* Step over the code-space chunk sentinel when validating an out-of-line
+ * deferred action. Target-generated action thunks are deliberately linear,
+ * but a label can land on the last usable instruction in a chunk. */
+static vvp_code_t deferred_action_next_code_(vvp_code_t code)
+{
+      if (!code)
+            return 0;
+      vvp_code_t next = code + 1;
+      if (next->opcode == of_CHUNK_LINK)
+            next = next->cptr;
+      return next;
+}
+
 /* Snapshot the typed stack operands consumed by a deferred system-task
  * action. Argument expressions execute in the source process, but the action
  * itself executes later on a fresh thread. Validate every count
@@ -967,16 +980,42 @@ static bool capture_deferred_args_(vthread_t thr,
             return false;
       }
 
+      const char*task_name = call->defn ? call->defn->info.tfname : 0;
+      vvp_code_t action_end = deferred_action_next_code_(action_pc);
+      if (!task_name
+          || (strcmp(task_name, "$display") != 0
+              && strcmp(task_name, "$error") != 0)
+          || !action_end || action_end->opcode != of_END) {
+            fprintf(stderr,
+                    "vvp: malformed %s-deferred VPI action thunk; expected "
+                    "exactly one $display/$error call followed by %%end; "
+                    "source stacks were not consumed.\n", mode);
+            return false;
+      }
+
       size_t vec_count = call->vec4_stack;
       size_t real_count = call->real_stack;
       size_t str_count = call->string_stack;
       size_t obj_count = call->object_stack;
-      size_t stack_arg_count = vec_count + real_count + str_count + obj_count;
 
-      if (stack_arg_count < vec_count || stack_arg_count < real_count
-          || stack_arg_count < str_count || stack_arg_count < obj_count
-          || stack_arg_count > call->nargs
-          || vec_count > thr->vec4_stack_size()
+      /* Subtract from nargs instead of summing attacker-controlled unsigned
+       * fields, so this check is also correct on 32-bit size_t builds. */
+      size_t remaining_args = call->nargs;
+      bool metadata_bad = vec_count > remaining_args;
+      if (!metadata_bad)
+            remaining_args -= vec_count;
+      if (!metadata_bad && real_count > remaining_args)
+            metadata_bad = true;
+      if (!metadata_bad)
+            remaining_args -= real_count;
+      if (!metadata_bad && str_count > remaining_args)
+            metadata_bad = true;
+      if (!metadata_bad)
+            remaining_args -= str_count;
+      if (!metadata_bad && obj_count > remaining_args)
+            metadata_bad = true;
+
+      if (metadata_bad || vec_count > thr->vec4_stack_size()
           || real_count > thr->real_stack_size()
           || str_count > thr->str_stack_size()
           || obj_count > thr->object_stack_size()) {
@@ -990,6 +1029,102 @@ static bool capture_deferred_args_(vthread_t thr,
                     thr->vec4_stack_size(), thr->real_stack_size(),
                     thr->str_stack_size(), thr->object_stack_size(),
                     call->nargs);
+            return false;
+      }
+
+      if (call->nargs != 0 && !call->args) {
+            fprintf(stderr,
+                    "vvp: malformed %s-deferred VPI argument table; "
+                    "source stacks were not consumed.\n", mode);
+            return false;
+      }
+
+      std::vector<unsigned char> vec_seen(vec_count, 0);
+      std::vector<unsigned char> real_seen(real_count, 0);
+      std::vector<unsigned char> str_seen(str_count, 0);
+      std::vector<unsigned char> obj_seen(obj_count, 0);
+      size_t vec_refs = 0;
+      size_t real_refs = 0;
+      size_t str_refs = 0;
+      size_t obj_refs = 0;
+
+      for (unsigned arg = 0 ; arg < call->nargs ; arg += 1) {
+            if (!call->args[arg]) {
+                  fprintf(stderr,
+                          "vvp: malformed %s-deferred VPI argument %u; "
+                          "source stacks were not consumed.\n", mode,
+                          arg + 1);
+                  return false;
+            }
+
+            vpip_vthr_stack_kind_t kind = VPIP_VTHR_STACK_NONE;
+            unsigned depth = 0;
+            if (!vpip_get_vthr_stack_ref(call->args[arg], &kind, &depth))
+                  continue;
+
+            const char*kind_name = 0;
+            size_t declared = 0;
+            size_t*refs = 0;
+            std::vector<unsigned char>*seen = 0;
+            switch (kind) {
+                case VPIP_VTHR_STACK_VEC4:
+                  kind_name = "vec4";
+                  declared = vec_count;
+                  refs = &vec_refs;
+                  seen = &vec_seen;
+                  break;
+                case VPIP_VTHR_STACK_REAL:
+                  kind_name = "real";
+                  declared = real_count;
+                  refs = &real_refs;
+                  seen = &real_seen;
+                  break;
+                case VPIP_VTHR_STACK_STRING:
+                  kind_name = "string";
+                  declared = str_count;
+                  refs = &str_refs;
+                  seen = &str_seen;
+                  break;
+                case VPIP_VTHR_STACK_OBJECT:
+                  kind_name = "object";
+                  declared = obj_count;
+                  refs = &obj_refs;
+                  seen = &obj_seen;
+                  break;
+                case VPIP_VTHR_STACK_NONE:
+                  break;
+            }
+
+            if (!seen || depth >= declared) {
+                  fprintf(stderr,
+                          "vvp: %s-deferred VPI argument %u references "
+                          "%s stack depth %u outside its captured %zu-slot "
+                          "segment; source stacks were not consumed.\n",
+                          mode, arg + 1,
+                          kind_name ? kind_name : "unknown", depth,
+                          declared);
+                  return false;
+            }
+            if ((*seen)[depth]) {
+                  fprintf(stderr,
+                          "vvp: %s-deferred VPI argument %u reuses %s "
+                          "stack depth %u; source stacks were not "
+                          "consumed.\n", mode, arg + 1, kind_name, depth);
+                  return false;
+            }
+            (*seen)[depth] = 1;
+            *refs += 1;
+      }
+
+      if (vec_refs != vec_count || real_refs != real_count
+          || str_refs != str_count || obj_refs != obj_count) {
+            fprintf(stderr,
+                    "vvp: %s-deferred VPI stack metadata does not match "
+                    "its argument references (declared %zu/%zu/%zu/%zu, "
+                    "referenced %zu/%zu/%zu/%zu); source stacks were not "
+                    "consumed.\n", mode,
+                    vec_count, real_count, str_count, obj_count,
+                    vec_refs, real_refs, str_refs, obj_refs);
             return false;
       }
 
@@ -11478,16 +11613,6 @@ bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
  * tag before reading its numeric payload, then pin execution after the key so
  * metadata is never part of the action.
  */
-static vvp_code_t deferred_final_next_code_(vvp_code_t code)
-{
-      if (!code)
-            return 0;
-      vvp_code_t next = code + 1;
-      if (next->opcode == of_CHUNK_LINK)
-            next = next->cptr;
-      return next;
-}
-
 /* A task-key is intentionally not a generic escape hatch into arbitrary VVP
  * code. The target emits one of exactly two zero-formal call shapes:
  *
@@ -11510,7 +11635,7 @@ static bool validate_final_deferred_task_thunk_(vvp_code_t action)
             if (!alloc_scope || alloc_scope->get_type_code() != vpiTask
                 || !alloc_scope->is_automatic())
                   return false;
-            action = deferred_final_next_code_(action);
+            action = deferred_action_next_code_(action);
       }
 
       if (!action || action->opcode != of_FORK || !action->cptr2
@@ -11524,16 +11649,16 @@ static bool validate_final_deferred_task_thunk_(vvp_code_t action)
             return false;
       }
 
-      action = deferred_final_next_code_(action);
+      action = deferred_action_next_code_(action);
       if (!action || action->opcode != of_JOIN)
             return false;
 
-      action = deferred_final_next_code_(action);
+      action = deferred_action_next_code_(action);
       if (alloc_scope) {
             if (!action || action->opcode != of_FREE
                 || action->scope != alloc_scope)
                   return false;
-            action = deferred_final_next_code_(action);
+            action = deferred_action_next_code_(action);
       }
 
       return action && action->opcode == of_END;
@@ -11574,7 +11699,7 @@ bool of_DEFER_FINAL(vthread_t thr, vvp_code_t cp)
 	    return true;
       }
 
-      vvp_code_t action_pc = deferred_final_next_code_(key);
+      vvp_code_t action_pc = deferred_action_next_code_(key);
       deferred_assert_args_s action_args;
       if (task_key) {
             if (!validate_final_deferred_task_thunk_(action_pc)) {
