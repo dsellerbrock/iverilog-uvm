@@ -621,6 +621,17 @@ This is defined when synthesis is enabled.
 .B __VAMS_ENABLE__ = 1
 This is defined when Verilog\-AMS is enabled.
 
+.TP 8
+.B SV_COV_START, SV_COV_STOP, SV_COV_RESET, SV_COV_CHECK
+.TP 8
+.B SV_COV_MODULE, SV_COV_HIER
+.TP 8
+.B SV_COV_ASSERTION, SV_COV_FSM_STATE, SV_COV_STATEMENT, SV_COV_TOGGLE
+.TP 8
+.B SV_COV_OVERFLOW, SV_COV_ERROR, SV_COV_NOCOV, SV_COV_OK, SV_COV_PARTIAL
+These code coverage constants are predefined when a SystemVerilog language
+edition is selected, as required by IEEE 1800\-2017 section 40.3.1.
+
 .SH ENVIRONMENT
 .PP
 \fIiverilog\fP also accepts some environment variables that control

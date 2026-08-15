@@ -1007,7 +1007,8 @@ NetExpr* condition_reduce(NetExpr*expr)
 
 NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		       int context_width, bool need_const, bool annotatable,
-		       ivl_variable_type_t cast_type, bool force_unsigned)
+		       ivl_variable_type_t cast_type, bool force_unsigned,
+		       unsigned extra_flags)
 {
       PExpr::width_mode_t mode = PExpr::SIZED;
       if ((context_width == -2) && !gn_strict_expr_width_flag)
@@ -1202,7 +1203,7 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 	    expr_width = width_cap;
       }
 
-      unsigned flags = PExpr::NO_FLAGS;
+      unsigned flags = extra_flags;
       if (need_const)
             flags |= PExpr::NEED_CONST;
       if (annotatable)
@@ -1215,6 +1216,14 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 
       NetExpr*tmp = pe->elaborate_expr(des, scope, expr_width, flags);
       if (tmp == 0) return 0;
+
+        /* `$' is not an x-valued integer. Preserve its symbolic marker
+         * through parameter assignment instead of allowing the generic
+         * cast/eval path below to turn it into a numeric constant. */
+      if (const NetEConst*ce = dynamic_cast<const NetEConst*>(tmp)) {
+            if (ce->is_unbounded())
+                  return tmp;
+      }
 
       if ((cast_type != IVL_VT_NO_TYPE) && (cast_type != tmp->expr_type())) {
 	    if (cast_type == IVL_VT_CLASS) {

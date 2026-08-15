@@ -814,6 +814,14 @@ const verinum& PENumber::value() const
       return *value_;
 }
 
+PEUnbounded::PEUnbounded()
+{
+}
+
+PEUnbounded::~PEUnbounded()
+{
+}
+
 PEString::PEString(char*s)
 : text_(s? s : ""), text_width_(0), text_width_valid_(false),
   parsed_value_valid_(false)

@@ -1870,7 +1870,9 @@ void NetEConcat::dump(ostream&o) const
 
 void NetEConst::dump(ostream&o) const
 {
-      if (value_.is_string())
+      if (is_unbounded())
+	    o << "$";
+      else if (value_.is_string())
 	    o << "\"" << value_.as_string() << "\"";
       else
 	    o << value_;

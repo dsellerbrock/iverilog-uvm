@@ -1649,7 +1649,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <expr>  lazy_virtual_interface_default
 %type <expr>  package_scoped_lvalue
 %type <expr>  class_new dynamic_array_new
-%type <expr>  var_decl_initializer_opt initializer_opt
+%type <expr>  var_decl_initializer_opt initializer_opt parameter_initializer_opt
 %type <expr>  inc_or_dec_expression inside_expression lpvalue
 %type <expr>  branch_probe_expression streaming_concatenation
 %type <expr>  delay_value delay_value_simple
@@ -5582,6 +5582,21 @@ list_of_variable_decl_assignments /* IEEE1800-2005 A.2.3 */
 initializer_opt
  : '=' expression { $$ = $2; }
  | { $$ = nullptr; }
+ ;
+
+/* IEEE 1800-2017 6.20.2.1 permits the symbolic unbounded value only in
+   parameter assignments (and as the argument of $isunbounded). Keep `$'
+   out of general expr_primary: placing it there makes queue/open-range `$'
+   ambiguous in sixteen parser states and also accepts it as an ordinary
+   numeric expression. */
+parameter_initializer_opt
+ : initializer_opt
+ | '=' '$'
+     { pform_requires_sv(@2, "unbounded parameter value");
+	PEUnbounded*tmp = new PEUnbounded;
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+     }
  ;
 
 var_decl_initializer_opt
@@ -9916,6 +9931,23 @@ expression_list_with_nuls
 	tmp->push_back($1);
 	$$ = tmp;
       }
+  | expression_list_with_nuls ',' '$'
+      { pform_requires_sv(@3, "unbounded parameter value");
+	PEUnbounded*value = new PEUnbounded;
+	FILE_NAME(value, @3);
+	std::list<PExpr*>*tmp = $1;
+	if (tmp->empty()) tmp->push_back(0);
+	tmp->push_back(value);
+	$$ = tmp;
+      }
+  | '$'
+      { pform_requires_sv(@1, "unbounded parameter value");
+	PEUnbounded*value = new PEUnbounded;
+	FILE_NAME(value, @1);
+	std::list<PExpr*>*tmp = new std::list<PExpr*>;
+	tmp->push_back(value);
+	$$ = tmp;
+      }
   |
       { std::list<PExpr*>*tmp = new std::list<PExpr*>;
 	$$ = tmp;
@@ -9934,6 +9966,16 @@ argument
 	FILE_NAME(tmp, @$);
 	tmp->name = perm_string();
 	tmp->parm = $1;
+	$$ = tmp;
+      }
+  | '$'
+      { pform_requires_sv(@1, "unbounded parameter value");
+	PEUnbounded*value = new PEUnbounded;
+	FILE_NAME(value, @1);
+	named_pexpr_t*tmp = new named_pexpr_t;
+	FILE_NAME(tmp, @1);
+	tmp->name = perm_string();
+	tmp->parm = value;
 	$$ = tmp;
       }
   | named_expression_opt
@@ -13876,7 +13918,7 @@ parameter_assign_list
   ;
 
 parameter_assign
-  : IDENTIFIER dimensions_opt initializer_opt parameter_value_ranges_opt
+  : IDENTIFIER dimensions_opt parameter_initializer_opt parameter_value_ranges_opt
       { pform_set_parameter(@1, lex_strings.make($1), param_is_local,
 			    param_is_type, param_data_type, $2, $3, $4);
 	delete[]$1;
@@ -14025,12 +14067,34 @@ named_expression
 	delete[]$2;
 	$$ = tmp;
       }
+  | '.' IDENTIFIER '(' '$' ')'
+      { pform_requires_sv(@4, "unbounded parameter value");
+	named_pexpr_t*tmp = new named_pexpr_t;
+	FILE_NAME(tmp, @$);
+	tmp->name = lex_strings.make($2);
+	PEUnbounded*value = new PEUnbounded;
+	FILE_NAME(value, @4);
+	tmp->parm = value;
+	delete[]$2;
+	$$ = tmp;
+      }
   /* Allow TYPE_IDENTIFIER as named parameter key (e.g. type param names) */
   | '.' TYPE_IDENTIFIER '(' expression ')'
       { named_pexpr_t*tmp = new named_pexpr_t;
 	FILE_NAME(tmp, @$);
 	tmp->name = lex_strings.make($2.text);
 	tmp->parm = $4;
+	delete[]$2.text;
+	$$ = tmp;
+      }
+  | '.' TYPE_IDENTIFIER '(' '$' ')'
+      { pform_requires_sv(@4, "unbounded parameter value");
+	named_pexpr_t*tmp = new named_pexpr_t;
+	FILE_NAME(tmp, @$);
+	tmp->name = lex_strings.make($2.text);
+	PEUnbounded*value = new PEUnbounded;
+	FILE_NAME(value, @4);
+	tmp->parm = value;
 	delete[]$2.text;
 	$$ = tmp;
       }

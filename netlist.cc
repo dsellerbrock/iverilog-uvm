@@ -2594,10 +2594,12 @@ void NetEConst::trim()
       expr_width(value_.len());
 }
 
-NetEConstParam::NetEConstParam(const NetScope*s, perm_string n, const verinum&v)
+NetEConstParam::NetEConstParam(const NetScope*s, perm_string n,
+                              const verinum&v, bool unbounded)
 : NetEConst(v), scope_(s), name_(n)
 {
       cast_signed_base_(v.has_sign());
+      mark_unbounded(unbounded);
 }
 
 NetEConstParam::~NetEConstParam()

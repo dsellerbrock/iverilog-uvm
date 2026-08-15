@@ -78,6 +78,11 @@ static struct sfunc_return_type* find_in_sys_func_list(const char*name)
 static const struct sfunc_return_type get_coverage_return_type =
     { "$get_coverage", IVL_VT_REAL, 1, false, false };
 
+/* IEEE 1800-2017 40.3.2: the legacy code-coverage access functions
+ * return signed integers because negative status values are normative. */
+static const struct sfunc_return_type code_coverage_return_type =
+    { 0, IVL_VT_LOGIC, 32, true, false };
+
 const struct sfunc_return_type* lookup_sys_func(const char*name)
 {
 	/* First, try to find the name in the function list. */
@@ -87,6 +92,13 @@ const struct sfunc_return_type* lookup_sys_func(const char*name)
 
       if (strcmp(name, "$get_coverage") == 0)
 	    return &get_coverage_return_type;
+
+      if (strcmp(name, "$coverage_control") == 0
+	  || strcmp(name, "$coverage_get_max") == 0
+	  || strcmp(name, "$coverage_get") == 0
+	  || strcmp(name, "$coverage_merge") == 0
+	  || strcmp(name, "$coverage_save") == 0)
+	    return &code_coverage_return_type;
 
 	/* No luck finding, so return the default description. */
       return &default_return_type;

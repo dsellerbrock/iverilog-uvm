@@ -1,0 +1,11 @@
+WARNING: ./ivltests/sv_ch20_coverage.v:39: $coverage_control returns SV_COV_NOCOV because code coverage is not instrumented.
+WARNING: ./ivltests/sv_ch20_coverage.v:43: $coverage_control returns SV_COV_NOCOV because code coverage is not instrumented.
+WARNING: ./ivltests/sv_ch20_coverage.v:47: $coverage_control returns SV_COV_ERROR because code-coverage collection is unavailable.
+WARNING: ./ivltests/sv_ch20_coverage.v:51: $coverage_control returns SV_COV_ERROR because code-coverage collection is unavailable.
+WARNING: ./ivltests/sv_ch20_coverage.v:55: $coverage_get_max returns SV_COV_NOCOV because code coverage is not instrumented.
+WARNING: ./ivltests/sv_ch20_coverage.v:58: $coverage_get returns SV_COV_NOCOV because code coverage is not instrumented.
+WARNING: ./ivltests/sv_ch20_coverage.v:61: $coverage_merge returns SV_COV_ERROR because no code-coverage database backend is available.
+WARNING: ./ivltests/sv_ch20_coverage.v:64: $coverage_save returns SV_COV_NOCOV because no code coverage is available to save.
+WARNING: ./ivltests/sv_ch20_coverage.v:67: $set_coverage_db_name cannot select a functional-coverage database because that backend is unavailable.
+WARNING: ./ivltests/sv_ch20_coverage.v:68: $load_coverage_db cannot load a functional-coverage database because that backend is unavailable.
+PASSED

@@ -8136,6 +8136,19 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
       vector<NetExpr*>eparms (parm_count);
 
       perm_string name = peek_tail_name(path_);
+      const bool coverage_db_task =
+	    name == "$set_coverage_db_name" || name == "$load_coverage_db";
+
+        /* IEEE 1800-2017 19.9: these database tasks take exactly one
+	 * string argument. Their VPI compiletf repeats the check for raw VVP
+	 * and externally generated input, but source compilation must reject
+	 * the malformed call before emitting runnable code. */
+      if (coverage_db_task && parm_count != 1) {
+	    cerr << get_fileline() << ": error: The " << name
+		 << " task takes exactly one(1) argument; found "
+		 << parm_count << "." << endl;
+	    des->errors += 1;
+      }
 
       if (name == perm_string::literal("$ivl_deferred_enqueue")) {
 	    bool inside_final = false;
@@ -8172,7 +8185,19 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	    }
 
 	    eparms[idx] = elab_sys_task_arg(des, scope, name, idx,
-					    parm.parm);
+				    parm.parm);
+
+	    if (coverage_db_task && idx == 0 && eparms[idx]) {
+		  bool is_string = eparms[idx]->expr_type() == IVL_VT_STRING;
+		  if (const NetEConst*constant =
+			dynamic_cast<const NetEConst*>(eparms[idx]))
+			is_string = is_string || constant->value().is_string();
+		  if (!is_string) {
+			cerr << parm.get_fileline() << ": error: argument 1 of "
+			     << name << " must be a string." << endl;
+			des->errors += 1;
+		  }
+	    }
       }
 
 	// Special case: Specify blocks and interconnects are turned off,

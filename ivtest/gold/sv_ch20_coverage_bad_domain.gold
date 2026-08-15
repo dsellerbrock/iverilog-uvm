@@ -1,0 +1,7 @@
+WARNING: ./ivltests/sv_ch20_coverage_bad_domain.v:22: $coverage_control received an invalid argument and returns SV_COV_ERROR.
+WARNING: ./ivltests/sv_ch20_coverage_bad_domain.v:24: $coverage_get received an invalid argument and returns SV_COV_ERROR.
+WARNING: ./ivltests/sv_ch20_coverage_bad_domain.v:26: $coverage_get received an invalid argument and returns SV_COV_ERROR.
+WARNING: ./ivltests/sv_ch20_coverage_bad_domain.v:28: $coverage_get received an invalid argument and returns SV_COV_ERROR.
+WARNING: ./ivltests/sv_ch20_coverage_bad_domain.v:30: $coverage_get received an invalid argument and returns SV_COV_ERROR.
+WARNING: ./ivltests/sv_ch20_coverage_bad_domain.v:32: $coverage_get received an invalid argument and returns SV_COV_ERROR.
+PASSED

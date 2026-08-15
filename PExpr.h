@@ -90,6 +90,9 @@ class PExpr : public LineInfo {
       static const unsigned NEED_CONST   = 0x1;
       static const unsigned SYS_TASK_ARG = 0x2;
       static const unsigned ANNOTATABLE  = 0x4;
+      // Permit the symbolic unbounded value only while evaluating a value
+      // parameter assignment or the argument of $isunbounded().
+      static const unsigned ALLOW_UNBOUNDED = 0x8;
 
 	// Convert width mode to human-readable form.
       static const char*width_mode_name(width_mode_t mode);
@@ -1027,6 +1030,29 @@ class PENumber : public PExpr {
 
     private:
       verinum*const value_;
+};
+
+/*
+ * IEEE 1800-2017 6.20.2.1: `$' is a symbolic unbounded parameter
+ * value, not a large number or an unknown bit vector.  Keep it distinct
+ * in the parse form so ordinary expression contexts can reject it and
+ * $isunbounded() can query it without evaluating a fabricated value.
+ */
+class PEUnbounded : public PExpr {
+
+    public:
+      PEUnbounded();
+      ~PEUnbounded() override;
+
+      void dump(std::ostream&) const override;
+      unsigned test_width(Design*des, NetScope*scope,
+                          width_mode_t&mode) override;
+
+      NetExpr*elaborate_expr(Design*des, NetScope*scope,
+                             ivl_type_t type, unsigned flags) const override;
+      NetEConst*elaborate_expr(Design*des, NetScope*scope,
+                               unsigned expr_wid,
+                               unsigned flags) const override;
 };
 
 /*

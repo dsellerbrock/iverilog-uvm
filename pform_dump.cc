@@ -534,6 +534,11 @@ void PENumber::dump(ostream&out) const
       out << value();
 }
 
+void PEUnbounded::dump(ostream&out) const
+{
+      out << "$";
+}
+
 void PEIdent::dump(ostream&out) const
 {
       out << path_;

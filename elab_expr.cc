@@ -5960,6 +5960,16 @@ unsigned PECallFunction::test_width_sfunc_(Design*des, NetScope*scope,
 	    return expr_width_;
       }
 
+      if (name=="$isunbounded") {
+	    if (parms_.empty() || !parms_[0].parm)
+		  return 0;
+	    expr_type_ = IVL_VT_BOOL;
+	    expr_width_ = 1;
+	    min_width_ = 1;
+	    signed_flag_ = false;
+	    return expr_width_;
+      }
+
 	/* Get the return type of the system function by looking it up
 	   in the sfunc_table. */
       const struct sfunc_return_type*sfunc_info = lookup_sys_func(name);
@@ -8414,6 +8424,41 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	    }
       }
 
+      if (name == "$isunbounded") {
+	    if (parms_.size() != 1 || !parms_[0].parm) {
+		  cerr << get_fileline() << ": error: The $isunbounded function "
+		       << "takes exactly one(1) argument." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+
+	    PExpr*arg = parms_[0].parm;
+	    bool is_unbounded = dynamic_cast<PEUnbounded*>(arg) != 0;
+	    if (!is_unbounded) {
+		  width_mode_t arg_mode = SIZED;
+		  unsigned arg_wid = arg->test_width(des, scope, arg_mode);
+		  unsigned arg_flags = NO_FLAGS;
+		    /* A whole parameter reference is allowed to expose the
+		       symbolic marker to this query. Other expression shapes keep
+		       the ordinary prohibition on using `$' as a number. */
+		  if (dynamic_cast<PEIdent*>(arg))
+			arg_flags |= ALLOW_UNBOUNDED;
+		  NetExpr*sub = arg->elaborate_expr(des, scope, arg_wid,
+					    arg_flags);
+		  if (!sub)
+			return 0;
+		  if (const NetEConst*constant =
+			dynamic_cast<const NetEConst*>(sub))
+			is_unbounded = constant->is_unbounded();
+		  delete sub;
+	    }
+
+	    NetEConst*result = new NetEConst(
+		  verinum(is_unbounded ? verinum::V1 : verinum::V0, 1));
+	    result->set_line(*this);
+	    return cast_to_width_(result, expr_wid);
+      }
+
 	/* Catch the special case that the system function is the
 	   $ivl_unsigned function. In this case the second argument is
 	   the size of the expression, but should already be accounted
@@ -8719,6 +8764,22 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 
       unsigned nparms = parms_.size();
 
+      const bool coverage_control = name == "$coverage_control";
+      const bool coverage_query = name == "$coverage_get_max"
+			       || name == "$coverage_get";
+      const bool coverage_database = name == "$coverage_merge"
+				    || name == "$coverage_save";
+      if (coverage_control || coverage_query || coverage_database) {
+	    unsigned expected = coverage_control ? 4 : (coverage_query ? 3 : 2);
+	    if (nparms != expected) {
+		  cerr << get_fileline() << ": error: The " << name
+		       << " function takes exactly " << expected
+		       << " arguments; found " << nparms << "." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+      }
+
 	// Array query functions over DYNAMIC arrays/queues
 	// (IEEE 1800-2017 20.7): dynamic arrays are always 0-based
 	// with a runtime size, so rewrite to the size sfunc (which
@@ -8905,10 +8966,73 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
       for (unsigned idx = 0 ;  idx < nparms ;  idx += 1) {
 	    PExpr *expr = parms_[idx].parm;
 	    if (expr) {
-		  NetExpr*tmp = elab_sys_task_arg(des, scope, name, idx,
-                                                  expr, need_const);
+		  const bool coverage_target =
+			(coverage_control && idx == 3)
+			|| (coverage_query && idx == 2);
+		  NetExpr*tmp = 0;
+
+		    /* `$root' is a pseudo-scope rather than a concrete module
+		       handle. The target interface has no pseudo-scope expression,
+		       so pass an internal string sentinel for this API only; the
+		       runtime validates it as the all-root target. */
+		  if (coverage_target) {
+			if (const PECallFunction*root =
+			      dynamic_cast<const PECallFunction*>(expr)) {
+			      if (root->receiver_expr() == 0
+				  && root->path().package == 0
+				  && root->path().name.size() == 1
+				  && peek_tail_name(root->path()) == "$root"
+				  && root->get_parms().empty()) {
+				    tmp = new NetECString("$root");
+				    tmp->set_line(*expr);
+			      }
+			}
+		  }
+		    /* The generic system-argument path deliberately turns a
+		       string literal into its packed-vector representation. These
+		       APIs specify a string argument, so retain the SystemVerilog
+		       string type for both definition and database names. */
+		  const bool coverage_string = coverage_target
+			|| (coverage_database && idx == 1);
+		  if (!tmp && coverage_string
+		      && dynamic_cast<PEString*>(expr)) {
+			unsigned arg_flags = SYS_TASK_ARG;
+			if (need_const)
+			      arg_flags |= NEED_CONST;
+			tmp = expr->elaborate_expr(des, scope,
+					   static_cast<ivl_type_t>(0),
+					   arg_flags);
+		  }
+		  if (!tmp)
+			tmp = elab_sys_task_arg(des, scope, name, idx,
+                                                expr, need_const);
 			  if (tmp) {
-                        fun->parm(idx, tmp);
+			bool type_ok = true;
+			if (coverage_control || coverage_query
+			    || coverage_database) {
+			      if (coverage_target)
+				type_ok = dynamic_cast<NetEScope*>(tmp)
+				      || tmp->expr_type() == IVL_VT_STRING;
+			      else if (coverage_database && idx == 1)
+				type_ok = tmp->expr_type() == IVL_VT_STRING;
+			      else
+				type_ok = type_is_vectorable(tmp->expr_type());
+			}
+			if (!type_ok) {
+			      cerr << expr->get_fileline() << ": error: argument "
+				   << idx + 1 << " of " << name
+				   << (coverage_target
+				       ? " must be a module/instance scope or string."
+				       : (coverage_database && idx == 1
+				          ? " must be a string."
+				          : " must be integral.")) << endl;
+			      des->errors += 1;
+			      delete tmp;
+			      parm_errors += 1;
+			      fun->parm(idx, 0);
+			} else {
+			      fun->parm(idx, tmp);
+			}
                   } else {
                         parm_errors += 1;
                         fun->parm(idx, 0);
@@ -19787,6 +19911,21 @@ NetExpr* PEIdent::elaborate_expr_param_(Design*des,
       if (!name_tail.index.empty())
 	    use_sel = name_tail.index.back().sel;
 
+      if (const NetEConst*constant = dynamic_cast<const NetEConst*>(par)) {
+	    if (constant->is_unbounded()) {
+		  if (!(flags & ALLOW_UNBOUNDED)
+		      || use_sel != index_component_t::SEL_NONE) {
+			cerr << get_fileline() << ": error: unbounded parameter `"
+			     << peek_tail_name(path_) << "' is not a numeric value; "
+			     << "it may only be queried by $isunbounded() or "
+			     << "assigned directly to another integral parameter."
+			     << endl;
+			des->errors += 1;
+			return 0;
+		  }
+	    }
+      }
+
       if (par->expr_type() == IVL_VT_REAL &&
           use_sel != index_component_t::SEL_NONE) {
 	    perm_string name = peek_tail_name(path_);
@@ -19883,7 +20022,8 @@ NetExpr* PEIdent::elaborate_expr_param_(Design*des,
                   if (cvalue.has_len())
 			cvalue.has_sign(signed_flag_);
                   cvalue = cast_to_width(cvalue, expr_wid);
-		  tmp = new NetEConstParam(found_in, name, cvalue);
+		  tmp = new NetEConstParam(found_in, name, cvalue,
+					   ctmp->is_unbounded());
 		  tmp->cast_signed(signed_flag_);
 		  tmp->set_line(*par);
 
@@ -21694,6 +21834,61 @@ NetExpr* PENumber::elaborate_expr(Design*, NetScope*, ivl_type_t ntype, unsigned
       NetEConst*tmp = new NetEConst(use_val);
       tmp->set_line(*this);
 
+      return tmp;
+}
+
+unsigned PEUnbounded::test_width(Design*, NetScope*, width_mode_t&mode)
+{
+      expr_type_ = IVL_VT_LOGIC;
+      expr_width_ = integer_width;
+      min_width_ = integer_width;
+      signed_flag_ = true;
+      if (mode < UNSIZED)
+	    mode = UNSIZED;
+      return expr_width_;
+}
+
+NetExpr* PEUnbounded::elaborate_expr(Design*des, NetScope*, ivl_type_t ntype,
+                                     unsigned flags) const
+{
+      if (!(flags & ALLOW_UNBOUNDED)) {
+	    cerr << get_fileline() << ": error: unbounded literal '$' is not "
+		 << "allowed here; it may only be assigned directly to an "
+		 << "integral parameter or queried by $isunbounded()." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
+      unsigned wid = integer_width;
+      if (ntype && ntype->packed() && ntype->packed_width() > 0)
+	    wid = ntype->packed_width();
+      NetEConst*tmp = new NetEConst(verinum(verinum::Vx, wid, true));
+      tmp->mark_unbounded();
+      if (ntype)
+	    tmp->cast_signed(ntype->get_signed());
+      tmp->set_line(*this);
+      return tmp;
+}
+
+NetEConst* PEUnbounded::elaborate_expr(Design*des, NetScope*,
+                                       unsigned expr_wid,
+                                       unsigned flags) const
+{
+      if (!(flags & ALLOW_UNBOUNDED)) {
+	    cerr << get_fileline() << ": error: unbounded literal '$' is not "
+		 << "allowed here; it may only be assigned directly to an "
+		 << "integral parameter or queried by $isunbounded()." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
+      if (expr_wid == 0)
+	    expr_wid = integer_width;
+      NetEConst*tmp = new NetEConst(
+	    verinum(verinum::Vx, expr_wid, true));
+      tmp->mark_unbounded();
+      tmp->cast_signed(signed_flag_);
+      tmp->set_line(*this);
       return tmp;
 }
 
