@@ -495,6 +495,8 @@ void PEEvent::dump(ostream&out) const
 	    break;
       }
       out << *expr_;
+      if (condition_)
+	    out << " iff " << *condition_;
 
 }
 

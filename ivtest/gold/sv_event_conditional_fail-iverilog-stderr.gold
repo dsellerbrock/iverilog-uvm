@@ -1,0 +1,2 @@
+ivltests/sv_event_conditional_fail.v:4: error: 'posedge' cannot be used with real expressions 'clock_value'.
+1 error(s) during elaboration.
