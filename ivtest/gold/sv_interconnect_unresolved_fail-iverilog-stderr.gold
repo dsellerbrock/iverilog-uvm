@@ -1,0 +1,2 @@
+ivltests/sv_interconnect_unresolved_fail.v:3: error: Interconnect net `unresolved_port' may only be referenced in a net port connection.
+1 error(s) during elaboration.

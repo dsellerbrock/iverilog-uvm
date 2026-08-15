@@ -2944,6 +2944,12 @@ extern "C" ivl_type_t ivl_signal_net_type(ivl_signal_t net)
       return net->net_type;
 }
 
+extern "C" ivl_scope_t ivl_signal_resolution_function(ivl_signal_t net)
+{
+      assert(net);
+      return net->resolution_function_;
+}
+
 extern "C" unsigned ivl_signal_npath(ivl_signal_t net)
 {
       assert(net);

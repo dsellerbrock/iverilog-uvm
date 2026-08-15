@@ -71,6 +71,8 @@ class NetEAccess;
 class NetEConstEnum;
 class NetESignal;
 class NetFuncDef;
+class NetNetType;
+class NetInterconnectType;
 class NetRamDq;
 class NetTaskDef;
 class NetEvTrig;
@@ -692,6 +694,64 @@ struct PortInfo
     ivl_net_logic_t buffer;
 };
 
+/*
+ * Elaboration-time description of a user-defined nettype.  The parse-tree
+ * declaration remains the stable identity (and owns the source type); this
+ * object records the exact elaborated declaration scope, canonical alias
+ * target, data type, and validated resolution function.  NetScope owns these
+ * objects and NetNet only keeps non-owning pointers to them.
+ */
+class NetNetType {
+    public:
+      enum state_t { NOT_ELABORATED, ELABORATING, VALID, INVALID };
+
+      explicit NetNetType(const nettype_t*decl, NetScope*scope);
+
+      const nettype_t* pform_type() const { return pform_type_; }
+      NetScope* declaration_scope() const { return declaration_scope_; }
+      ivl_type_t data_type() const { return data_type_; }
+      const NetNetType* canonical_type() const { return canonical_type_; }
+      const NetFuncDef* resolution_function() const;
+      bool has_resolution_function() const;
+      bool valid() const { return state_ == VALID; }
+
+    private:
+      friend class NetScope;
+
+      const nettype_t*pform_type_;
+      NetScope*declaration_scope_;
+      ivl_type_t data_type_ = 0;
+      NetNetType*canonical_type_ = 0;
+      NetFuncDef*resolution_function_ = 0;
+      state_t state_ = NOT_ELABORATED;
+      bool resolver_checked_ = false;
+};
+
+/*
+ * A generic interconnect may span several hierarchy edges before any edge
+ * supplies a concrete net type.  All declarations in that connected generic
+ * component share this object.  NetNet holds it through shared_ptr; the raw
+ * member list is only an elaboration-time union/update index and owns nothing.
+ */
+class NetInterconnectType {
+    public:
+      bool resolved() const { return resolved_type_ != 0; }
+      bool invalid() const { return invalid_; }
+      ivl_type_t resolved_type() const { return resolved_type_; }
+      const NetNetType* user_nettype() const { return user_nettype_; }
+
+    private:
+      friend class NetNet;
+      std::vector<NetNet*>members_;
+      ivl_type_t resolved_type_ = 0;
+      const NetNetType*user_nettype_ = 0;
+      NetNet*source_ = 0;
+      NetNet*declared_shape_source_ = 0;
+      unsigned source_wire_type_ = 0;
+      bool selected_element_type_ = false;
+      bool invalid_ = false;
+};
+
 
 class NetNet  : public NetObj, public PortType {
 
@@ -745,6 +805,42 @@ class NetNet  : public NetObj, public PortType {
 
       inline const ivl_type_s* net_type(void) const { return net_type_; }
       void set_net_type(ivl_type_t type);
+
+      /* User-defined nettype identity is distinct from the lowered data type.
+       * Keep both the spelling selected at the declaration and its canonical
+       * alias target so diagnostics and interconnect propagation do not infer
+       * identity merely from structurally equivalent data types. */
+      void set_user_nettype(const NetNetType*declared);
+      const NetNetType* declared_user_nettype() const
+        { return declared_user_nettype_; }
+      const NetNetType* user_nettype() const { return user_nettype_; }
+
+      enum interconnect_bind_result_t {
+        INTERCONNECT_BIND_OK,
+        INTERCONNECT_BIND_TYPE_CONFLICT,
+        INTERCONNECT_BIND_SHAPE_CONFLICT
+      };
+      void mark_interconnect(bool declared_shape);
+      bool is_interconnect() const { return interconnect_type_.get() != 0; }
+      bool interconnect_type_resolved() const;
+      bool interconnect_type_invalid() const;
+      const NetInterconnectType* interconnect_component() const
+        { return interconnect_type_.get(); }
+      interconnect_bind_result_t bind_interconnect_type(NetNet*source,
+                                                        bool selected_element);
+      interconnect_bind_result_t merge_interconnect_type(NetNet*other);
+      void invalidate_interconnect_type();
+      void begin_interconnect_port_use();
+      void end_interconnect_port_use();
+      bool interconnect_value_referenced() const
+        { return interconnect_value_referenced_; }
+      void note_interconnect_reference_diagnostic()
+        {
+          interconnect_value_referenced_ = true;
+          interconnect_reference_diagnosed_ = true;
+        }
+      bool interconnect_reference_diagnosed() const
+        { return interconnect_reference_diagnosed_; }
       const netenum_t*enumeration(void) const;
       const netstruct_t*struct_type(void) const;
       const netdarray_t*darray_type(void) const;
@@ -866,6 +962,8 @@ class NetNet  : public NetObj, public PortType {
 
     private:
       void initialize_dir_();
+      static void apply_interconnect_type_(
+            const std::shared_ptr<NetInterconnectType>&group);
 
     private:
       Type   type_    : 5;
@@ -875,6 +973,13 @@ class NetNet  : public NetObj, public PortType {
       unsigned lifetime_override_ : 2;
       unsigned lexical_pos_;
       ivl_type_t net_type_;
+      const NetNetType*declared_user_nettype_ = 0;
+      const NetNetType*user_nettype_ = 0;
+      std::shared_ptr<NetInterconnectType>interconnect_type_;
+      bool interconnect_declared_shape_ = false;
+      unsigned interconnect_port_use_depth_ = 0;
+      bool interconnect_value_referenced_ = false;
+      bool interconnect_reference_diagnosed_ = false;
       netuarray_t *array_type_ = nullptr;
       ivl_discipline_t discipline_;
 
@@ -1029,6 +1134,13 @@ class NetScope : public Definitions, public Attrib {
       NetScope*find_import(const Design*des, perm_string name);
 
       void add_typedefs(const std::map<perm_string,typedef_t*>*typedefs);
+
+      void add_nettypes(Design*des,
+                        const LexicalScope::nettype_map_t*nettypes);
+      NetNetType* find_local_nettype(const nettype_t*type);
+      const NetNetType* find_local_nettype(const nettype_t*type) const;
+      NetNetType* elaborate_nettype(Design*des, const nettype_t*type);
+      void elaborate_nettypes(Design*des);
 
         /* Search the scope hierarchy for the scope where 'type' was defined. */
       NetScope*find_typedef_scope(const Design*des, const typedef_t*type);
@@ -1469,6 +1581,8 @@ class NetScope : public Definitions, public Attrib {
       const std::map<perm_string,PPackage*>*imports_;
 
       std::map<perm_string,typedef_t*>typedefs_;
+      std::map<const nettype_t*,std::unique_ptr<NetNetType> >nettypes_;
+      std::map<perm_string,NetNetType*>nettypes_by_name_;
       std::map<perm_string,typedef_t*>typedef_search_cache_;
       std::map<perm_string,netclass_t*>class_search_cache_;
       std::set<perm_string>typedef_search_active_;
@@ -5693,6 +5807,13 @@ class Design {
 
       NetNet*find_signal(NetScope*scope, pform_name_t path);
 
+      void register_nettype_scope(const nettype_t*type, NetScope*scope);
+      NetScope* find_nettype_scope(const nettype_t*type,
+                                   const NetScope*context = 0) const;
+
+      void register_interconnect(NetNet*net);
+      void finalize_interconnects();
+
 	// Functions
       NetFuncDef* find_function(NetScope*scope, const pform_name_t&key);
 
@@ -5776,6 +5897,8 @@ class Design {
 	// Keep a map of all the elaborated packages. Note that
 	// packages do not nest.
       std::map<perm_string,NetScope*>packages_;
+      std::map<const nettype_t*,std::vector<NetScope*> >nettype_scopes_;
+      std::vector<NetNet*>interconnect_nets_;
 
 	// List the nodes in the design.
       NetNode*nodes_;

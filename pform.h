@@ -166,6 +166,34 @@ extern void pform_module_define_port(const struct vlltype&li,
 				     NetNet::Type type,
 				     data_type_t*vtype,
 				     std::list<named_pexpr_t>*attr);
+extern void pform_module_define_nettype_port(
+                                     const struct vlltype&li,
+                                     const pform_ident_t&name,
+                                     NetNet::PortType port_kind,
+                                     nettype_t*nettype,
+                                     std::list<pform_range_t>*urange,
+                                     std::list<named_pexpr_t>*attr,
+                                     bool keep_attr = false);
+extern void pform_module_define_nettype_port(
+                                     const struct vlltype&li,
+                                     std::list<pform_port_t>*ports,
+                                     NetNet::PortType port_kind,
+                                     nettype_t*nettype,
+                                     std::list<named_pexpr_t>*attr);
+extern data_type_t* pform_module_define_interconnect_port(
+                                     const struct vlltype&li,
+                                     const pform_ident_t&name,
+                                     NetNet::PortType port_kind,
+                                     data_type_t*implicit_type,
+                                     std::list<pform_range_t>*urange,
+                                     std::list<named_pexpr_t>*attr,
+                                     bool keep_attr = false);
+extern void pform_module_define_interconnect_port(
+                                     const struct vlltype&li,
+                                     std::list<pform_port_t>*ports,
+                                     NetNet::PortType port_kind,
+                                     data_type_t*implicit_type,
+                                     std::list<named_pexpr_t>*attr);
 
 extern Module::port_t* pform_module_port_reference(const struct vlltype&loc,
 						   perm_string name);
@@ -572,6 +600,7 @@ extern void pform_pop_scope();
  * Peek at the current (most recently active) scope.
  */
 extern LexicalScope* pform_peek_scope();
+extern bool pform_in_compilation_unit_scope();
 extern void pform_push_existing_scope(LexicalScope*scope);
 
 extern PClass* pform_push_class_scope(const struct vlltype&loc, perm_string name);
@@ -670,6 +699,22 @@ extern void pform_forward_typedef(const struct vlltype&loc, perm_string name,
 
 extern void pform_set_type_referenced(const struct vlltype&loc, const char*name);
 
+/* User-defined nettype registration and lookup. The declaration scope owns
+ * returned descriptors; references and PWire objects borrow them. */
+extern nettype_t* pform_declare_nettype(
+                              const struct vlltype&loc, perm_string name,
+                              data_type_t*data_type,
+                              const pform_scoped_name_t*resolution_function);
+extern nettype_t* pform_declare_nettype_alias(
+                              const struct vlltype&loc, perm_string name,
+                              nettype_t*alias);
+extern nettype_t* pform_test_nettype_identifier(
+                              const struct vlltype&loc, const char*name);
+extern nettype_t* pform_test_nettype_identifier(PPackage*pkg,
+                                                const char*name);
+extern void pform_set_nettype_referenced(const struct vlltype&loc,
+                                         const char*name);
+
 /*
  * This function makes a PECallFunction of the named function.
  */
@@ -698,6 +743,26 @@ extern PWire *pform_makewire(const struct vlltype&li,
                              const pform_ident_t&name,
 			     NetNet::Type type,
 			     const std::list<pform_range_t> *indices);
+
+extern void pform_set_nettype_wires(const struct vlltype&li,
+                                    nettype_t*nettype,
+                                    std::vector<PWire*>*wires,
+                                    std::list<named_pexpr_t>*attr = nullptr);
+extern void pform_make_nettype_wires(const struct vlltype&li,
+                                     nettype_t*nettype,
+                                     std::list<PExpr*>*delay,
+                                     str_pair_t str,
+                                     std::list<decl_assignment_t*>*assign_list,
+                                     std::list<named_pexpr_t>*attr = nullptr);
+extern void pform_set_interconnect_wires(const struct vlltype&li,
+                                         data_type_t*implicit_type,
+                                         std::vector<PWire*>*wires,
+                                         std::list<named_pexpr_t>*attr = nullptr);
+extern void pform_make_interconnect_wires(
+                                         const struct vlltype&li,
+                                         data_type_t*implicit_type,
+                                         std::list<decl_assignment_t*>*assign_list,
+                                         std::list<named_pexpr_t>*attr = nullptr);
 
 /* This form handles assignment declarations. */
 

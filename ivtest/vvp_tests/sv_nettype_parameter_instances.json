@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_nettype_parameter_instances.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_nettype_parameter_instances"
+}

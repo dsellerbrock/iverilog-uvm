@@ -1,0 +1,5 @@
+./ivltests/sv_nettype_resolver_signature_fail.v:17: error: Resolution function for nettype `no_argument_net' must have exactly one input dynamic-array argument of type logic[7:0].
+./ivltests/sv_nettype_resolver_signature_fail.v:18: error: Resolution function for nettype `wrong_return_net' must return logic[7:0].
+./ivltests/sv_nettype_resolver_signature_fail.v:19: error: Resolution function for nettype `fixed_argument_net' must have exactly one input dynamic-array argument of type logic[7:0].
+./ivltests/sv_nettype_resolver_signature_fail.v:20: error: Resolution function for nettype `task_resolver_net' must be a function, not a task.
+4 error(s) during elaboration.

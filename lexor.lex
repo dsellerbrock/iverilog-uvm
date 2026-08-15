@@ -41,6 +41,14 @@
 
 using namespace std;
 
+/* Nettype probes live in pform.cc. Keep these declarations local until the
+ * legacy parse_misc interface is split into type-specific scanner hooks. */
+extern nettype_t* pform_test_nettype_identifier(const YYLTYPE&loc,
+                                                const char*txt);
+extern nettype_t* pform_test_nettype_identifier(PPackage*pkg,
+                                                const char*txt);
+extern bool pform_in_compilation_unit_scope();
+
 # define YY_USER_INIT do { reset_lexor(); yylloc.lexical_pos = 0; } while (0);
 # define yylval VLlval
 
@@ -450,6 +458,22 @@ TU [munpf]
 	    BEGIN(UDPTABLE);
 	    break;
 
+	  case K_typedef:
+	    yylval.flag = false;
+	    break;
+
+	  case K_nettype:
+	    /* package_item is reused as a compilation-unit description.  Use
+	       the existing typedef carrier only at $unit so K_nettype does not
+	       grow the long-standing leading-import conflict state. */
+	    if (pform_in_compilation_unit_scope()) {
+		  yylval.flag = true;
+		  rc = K_typedef;
+	    } else {
+		  yylval.text = 0;
+	    }
+	    break;
+
 	  default:
 	    yylval.text = 0;
 	    break;
@@ -475,9 +499,14 @@ TU [munpf]
 	   identifier here and interpret it in the package scope. */
       if (in_package_scope) {
 	    if (rc == IDENTIFIER) {
-		  if (typedef_t*type = pform_test_type_identifier(in_package_scope, yylval.text)) {
+		  if (nettype_t*type = pform_test_nettype_identifier(in_package_scope, yylval.text)) {
+			yylval.nettype_identifier.text = yylval.text;
+			yylval.nettype_identifier.type = type;
+			rc = NETTYPE_IDENTIFIER;
+		  } else
+		  if (typedef_t*typedef_type = pform_test_type_identifier(in_package_scope, yylval.text)) {
 			yylval.type_identifier.text = yylval.text;
-			yylval.type_identifier.type = type;
+			yylval.type_identifier.type = typedef_type;
 			rc = TYPE_IDENTIFIER;
 		  }
 	    }
@@ -510,6 +539,14 @@ TU [munpf]
 
 	/* If this identifier names a previously declared type, then
 	   return this as a TYPE_IDENTIFIER instead. */
+	if (rc == IDENTIFIER && gn_system_verilog()) {
+	    if (nettype_t*type = pform_test_nettype_identifier(yylloc, yylval.text)) {
+		  yylval.nettype_identifier.text = yylval.text;
+		  yylval.nettype_identifier.type = type;
+		  rc = NETTYPE_IDENTIFIER;
+	    }
+	}
+
       if (rc == IDENTIFIER && gn_system_verilog()) {
 	    if (typedef_t*type = pform_test_type_identifier(yylloc, yylval.text)) {
 		  yylval.type_identifier.text = yylval.text;
@@ -543,6 +580,13 @@ TU [munpf]
 		  delete[]yylval.text;
 		  yylval.package = pkg;
 		  return PACKAGE_IDENTIFIER;
+	    }
+      }
+      if (gn_system_verilog()) {
+	    if (nettype_t*type = pform_test_nettype_identifier(yylloc, yylval.text)) {
+		  yylval.nettype_identifier.text = yylval.text;
+		  yylval.nettype_identifier.type = type;
+		  return NETTYPE_IDENTIFIER;
 	    }
       }
       if (gn_system_verilog()) {

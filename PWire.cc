@@ -29,7 +29,8 @@ PWire::PWire(perm_string n,
 	     NetNet::Type t,
 	     NetNet::PortType pt,
 	     PWSRType rt)
-: name_(n), lexical_pos_(lp), type_(t), port_type_(pt), signed_(false),
+: name_(n), lexical_pos_(lp), type_(t), net_kind_(BUILTIN_NET),
+  user_nettype_(nullptr), port_type_(pt), signed_(false),
   port_set_(false), net_set_(false), is_scalar_(false),
   error_cnt_(0), discipline_(0)
 {
@@ -61,6 +62,9 @@ bool PWire::set_wire_type(NetNet::Type t)
 {
       ivl_assert(*this, t != NetNet::IMPLICIT);
 
+      if (net_kind_ != BUILTIN_NET)
+            return false;
+
       switch (type_) {
 	  case NetNet::IMPLICIT:
 	    type_ = t;
@@ -81,6 +85,45 @@ bool PWire::set_wire_type(NetNet::Type t)
 	    else
 		  return true;
       }
+}
+
+bool PWire::set_user_nettype(nettype_t*type)
+{
+      if (!type)
+            return false;
+      if (net_kind_ == USER_NETTYPE)
+            return user_nettype_ == type;
+      if (net_kind_ != BUILTIN_NET)
+            return false;
+      if (type_ != NetNet::IMPLICIT && type_ != NetNet::NONE
+          && type_ != NetNet::UNRESOLVED_WIRE)
+            return false;
+      if (set_data_type_)
+            return false;
+
+      net_kind_ = USER_NETTYPE;
+      user_nettype_ = type;
+      type_ = NetNet::UNRESOLVED_WIRE;
+      return true;
+}
+
+bool PWire::set_interconnect()
+{
+      if (net_kind_ == INTERCONNECT_NET)
+            return true;
+      if (net_kind_ != BUILTIN_NET)
+            return false;
+      if (type_ != NetNet::IMPLICIT && type_ != NetNet::NONE
+          && type_ != NetNet::WIRE)
+            return false;
+      if (set_data_type_)
+            return false;
+
+      net_kind_ = INTERCONNECT_NET;
+      user_nettype_ = nullptr;
+      /* Backend-compatible placeholder until topology inference. */
+      type_ = NetNet::WIRE;
+      return true;
 }
 
 NetNet::PortType PWire::get_port_type() const
@@ -198,6 +241,8 @@ ivl_discipline_t PWire::get_discipline(void) const
 
 PNamedItem::SymbolType PWire::symbol_type() const
 {
+      if (net_kind_ != BUILTIN_NET)
+            return NET;
       switch (type_) {
           case NetNet::IMPLICIT_REG:
           case NetNet::REG:

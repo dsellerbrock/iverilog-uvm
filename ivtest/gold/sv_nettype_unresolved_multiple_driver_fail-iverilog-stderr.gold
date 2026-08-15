@@ -1,0 +1,2 @@
+ivltests/sv_nettype_unresolved_multiple_driver_fail.v:6: error: Net `data' with user-defined nettype `nibble_net' cannot have multiple drivers because it has no resolution function.
+1 error(s) during elaboration.

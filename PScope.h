@@ -61,7 +61,7 @@ class LexicalScope {
         : default_lifetime(INHERITED), has_parameter_port_list(false),
 	  generate_counter(0), parent_(parent) { }
 	// A virtual destructor is so that dynamic_cast can work.
-      virtual ~LexicalScope() { }
+      virtual ~LexicalScope();
 
       lifetime_t default_lifetime;
 
@@ -146,6 +146,10 @@ class LexicalScope {
 	// Defined types in the scope.
       typedef std::map<perm_string,typedef_t*> typedef_map_t;
       typedef_map_t typedefs;
+
+      // This scope owns the descriptors; local_symbols and NetScope borrow.
+      typedef std::map<perm_string,nettype_t*> nettype_map_t;
+      nettype_map_t nettypes;
 
 	// Named events in the scope.
       std::map<perm_string,PEvent*>events;

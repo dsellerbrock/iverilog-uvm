@@ -56,7 +56,11 @@ static struct {
       NetNet::Type port_net_type;
       NetNet::PortType port_type;
       data_type_t* data_type;
-} port_declaration_context = {NetNet::NONE, NetNet::NOT_A_PORT, 0};
+      nettype_t* user_nettype;
+      bool interconnect;
+} port_declaration_context = {
+      NetNet::NONE, NetNet::NOT_A_PORT, 0, nullptr, false
+};
 
 /* Modport port declaration lists use this structure for context. */
 enum modport_port_type_t { MP_NONE, MP_SIMPLE, MP_TF, MP_CLOCKING };
@@ -906,6 +910,8 @@ void reset_parser_file_state(void)
       port_declaration_context.port_net_type = NetNet::NONE;
       port_declaration_context.port_type = NetNet::NOT_A_PORT;
       port_declaration_context.data_type = 0;
+      port_declaration_context.user_nettype = nullptr;
+      port_declaration_context.interconnect = false;
       last_modport_port.type = MP_NONE;
       last_modport_port.direction = NetNet::NOT_A_PORT;
       lex_in_package_scope(0);
@@ -1139,6 +1145,8 @@ static void port_declaration_context_init(void)
       port_declaration_context.port_type = NetNet::PINOUT;
       port_declaration_context.port_net_type = NetNet::IMPLICIT;
       port_declaration_context.data_type = nullptr;
+      port_declaration_context.user_nettype = nullptr;
+      port_declaration_context.interconnect = false;
 }
 
 Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
@@ -1196,8 +1204,94 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       port_declaration_context.port_type = port_type;
       port_declaration_context.port_net_type = net_type;
       port_declaration_context.data_type = data_type;
+      port_declaration_context.user_nettype = nullptr;
+      port_declaration_context.interconnect = false;
 
       return port;
+}
+
+static Module::port_t *module_declare_nettype_port(
+                                    const YYLTYPE&loc, char*id,
+                                    NetNet::PortType port_type,
+                                    nettype_t*nettype,
+                                    std::list<pform_range_t>*unpacked_dims,
+                                    PExpr*default_value,
+                                    std::list<named_pexpr_t>*attributes)
+{
+      pform_ident_t name = { lex_strings.make(id), loc.lexical_pos };
+      delete[] id;
+      Module::port_t*port = pform_module_port_reference(loc, name.first);
+      if (default_value) {
+            yyerror(loc, "error: A user-defined nettype port cannot have a default value.");
+            delete default_value;
+      }
+      pform_module_define_nettype_port(loc, name, port_type, nettype,
+                                       unpacked_dims, attributes);
+      port_declaration_context.port_type = port_type;
+      port_declaration_context.port_net_type = NetNet::UNRESOLVED_WIRE;
+      port_declaration_context.data_type = nullptr;
+      port_declaration_context.user_nettype = nettype;
+      port_declaration_context.interconnect = false;
+      return port;
+}
+
+static Module::port_t *module_declare_interconnect_port(
+                                    const YYLTYPE&loc, char*id,
+                                    NetNet::PortType port_type,
+                                    data_type_t*implicit_type,
+                                    std::list<pform_range_t>*unpacked_dims,
+                                    PExpr*default_value,
+                                    std::list<named_pexpr_t>*attributes)
+{
+      pform_ident_t name = { lex_strings.make(id), loc.lexical_pos };
+      delete[] id;
+      Module::port_t*port = pform_module_port_reference(loc, name.first);
+      if (default_value) {
+            yyerror(loc, "error: An interconnect port cannot have a default value.");
+            delete default_value;
+      }
+      implicit_type = pform_module_define_interconnect_port(
+            loc, name, port_type, implicit_type, unpacked_dims, attributes);
+      port_declaration_context.port_type = port_type;
+      port_declaration_context.port_net_type = NetNet::WIRE;
+      port_declaration_context.data_type = implicit_type;
+      port_declaration_context.user_nettype = nullptr;
+      port_declaration_context.interconnect = true;
+      return port;
+}
+
+static Module::port_t *module_declare_port_continuation(
+                                    const YYLTYPE&loc, char*id,
+                                    std::list<pform_range_t>*unpacked_dims,
+                                    PExpr*default_value,
+                                    std::list<named_pexpr_t>*attributes)
+{
+      if (port_declaration_context.user_nettype)
+            return module_declare_nettype_port(
+                  loc, id, port_declaration_context.port_type,
+                  port_declaration_context.user_nettype, unpacked_dims,
+                  default_value, attributes);
+      if (port_declaration_context.interconnect) {
+            data_type_t*copy = nullptr;
+            if (const vector_type_t*vec = dynamic_cast<const vector_type_t*>(
+                      port_declaration_context.data_type)) {
+                  std::list<pform_range_t>*dims = vec->pdims.get()
+                        ? new std::list<pform_range_t>(*vec->pdims) : nullptr;
+                  vector_type_t*tmp = new vector_type_t(
+                        vec->base_type, vec->signed_flag, dims);
+                  tmp->implicit_flag = true;
+                  FILE_NAME(tmp, loc);
+                  copy = tmp;
+            }
+            return module_declare_interconnect_port(
+                  loc, id, port_declaration_context.port_type, copy,
+                  unpacked_dims, default_value, attributes);
+      }
+      return module_declare_port(
+            loc, id, port_declaration_context.port_type,
+            port_declaration_context.port_net_type,
+            port_declaration_context.data_type, unpacked_dims,
+            default_value, attributes);
 }
 
 %}
@@ -1329,11 +1423,17 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       real_type_t::type_t real_type;
       property_qualifier_t property_qualifier;
       PPackage*package;
+      pform_scoped_name_t*scoped_name;
 
       struct {
 	    char*text;
 	    typedef_t*type;
       } type_identifier;
+
+      struct {
+	    char*text;
+	    nettype_t*type;
+      } nettype_identifier;
 
       struct {
 	    char*text;
@@ -1395,6 +1495,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %debug
 %token <text>      IDENTIFIER FUNCTION_IDENTIFIER SYSTEM_IDENTIFIER STRING TIME_LITERAL
 %token <type_identifier> TYPE_IDENTIFIER
+%token <nettype_identifier> NETTYPE_IDENTIFIER
+%destructor { delete[] $$.text; } NETTYPE_IDENTIFIER
 %token <package>   PACKAGE_IDENTIFIER
 %token <discipline> DISCIPLINE_IDENTIFIER
 %token <text>   PATHPULSE_IDENTIFIER
@@ -1468,7 +1570,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %token K_randcase K_randsequence K_ref K_return K_sequence K_shortint
 %token K_shortreal K_solve K_static K_string K_struct K_super
 %token K_tagged K_this K_throughout K_timeprecision K_timeunit K_type
-%token K_typedef K_union K_unique K_var K_virtual K_void K_wait_order
+%token <flag> K_typedef
+%token K_union K_unique K_var K_virtual K_void K_wait_order
 %token K_wildcard K_with K_within
 
  /* The new tokens from 1800-2009. */
@@ -1521,6 +1624,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <text> label_opt class_declaration_endlabel_opt fork_block_start
 %type <text> block_identifier_opt
 %type <text> identifier_name typedef_identifier_name bins_name class_cg_port_prefix package_cg_port_prefix
+%type <text> nettype_declaration_name nettype_name_component
+%destructor { delete[] $$; } nettype_declaration_name nettype_name_component
 %type <text> bind_instance_path
 %type <strings> bind_instance_path_list
 %type <event_ident> event_variable
@@ -1630,6 +1735,10 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <let_port_itm> let_port_item
 
 %type <pform_name> hierarchy_identifier implicit_class_handle class_hierarchy_identifier
+%type <pform_name> nettype_scope_path
+%type <scoped_name> nettype_resolution_name nettype_resolution_opt
+%destructor { delete $$; }
+  nettype_scope_path nettype_resolution_name nettype_resolution_opt
 %type <pform_name> foreach_array_identifier
 %type <pform_name> spec_notifier_opt spec_notifier
 %type <timing_check_event> spec_reference_event
@@ -1653,7 +1762,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <expr>  inc_or_dec_expression inside_expression lpvalue
 %type <expr>  branch_probe_expression streaming_concatenation
 %type <expr>  delay_value delay_value_simple
-%type <exprs> delay1 delay3 delay3_opt delay_value_list
+%type <exprs> delay1 delay1_opt delay3 delay3_opt delay_value_list
 %type <exprs> expression_list_with_nuls expression_list_proper
 %type <exprs> cont_assign cont_assign_list
 
@@ -1694,6 +1803,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <data_type>  virtual_interface_type
 %type <data_type>  simple_packed_type
 %type <data_type>  class_scope
+%type <data_type>  interconnect_implicit_type
 %type <struct_member>  struct_union_member
 %type <struct_members> struct_union_member_list
 %type <struct_type>    struct_data_type
@@ -2234,6 +2344,47 @@ class_constraint /* IEEE1800-2005: A.1.8 */
 identifier_name
   : IDENTIFIER { $$ = $1; }
   | TYPE_IDENTIFIER { $$ = $1.text; }
+  ;
+
+nettype_declaration_name
+  : identifier_name { $$ = $1; }
+  | NETTYPE_IDENTIFIER { $$ = $1.text; }
+  ;
+
+nettype_name_component
+  : IDENTIFIER { $$ = $1; }
+  | TYPE_IDENTIFIER { $$ = $1.text; }
+  | NETTYPE_IDENTIFIER { $$ = $1.text; }
+  ;
+
+nettype_scope_path
+  : nettype_name_component
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t(lex_strings.make($1)));
+	delete[]$1;
+      }
+  | nettype_scope_path K_SCOPE_RES nettype_name_component
+      { $1->push_back(name_component_t(lex_strings.make($3)));
+	delete[]$3;
+	$$ = $1;
+      }
+  ;
+
+nettype_resolution_name
+  : nettype_scope_path
+      { $$ = new pform_scoped_name_t(*$1);
+	delete $1;
+      }
+  | package_scope nettype_scope_path
+      { lex_in_package_scope(0);
+	$$ = new pform_scoped_name_t($1, *$2);
+	delete $2;
+      }
+  ;
+
+nettype_resolution_opt
+  : K_with nettype_resolution_name { $$ = $2; }
+  | { $$ = nullptr; }
   ;
 
   /* The endlabel after a class declaration is a little tricky because
@@ -4384,6 +4535,47 @@ data_type_or_implicit_no_opt
       }
   ;
 
+/* IEEE 1800-2017 A.2.2.1: interconnect accepts only an implicit data
+ * type (signing and packed dimensions), never an explicit logic/typedef. */
+interconnect_implicit_type
+  :
+      { vector_type_t*tmp = new vector_type_t(IVL_VT_LOGIC, false, nullptr);
+	tmp->implicit_flag = true;
+	FILE_NAME(tmp, @$);
+	$$ = tmp;
+      }
+  | K_signed dimensions_opt
+      { vector_type_t*tmp = new vector_type_t(IVL_VT_LOGIC, true, $2);
+	tmp->implicit_flag = true;
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_unsigned dimensions_opt
+      { vector_type_t*tmp = new vector_type_t(IVL_VT_LOGIC, false, $2);
+	tmp->implicit_flag = true;
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | dimensions
+      { vector_type_t*tmp = new vector_type_t(IVL_VT_LOGIC, false, $1);
+	tmp->implicit_flag = true;
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_vectored dimensions
+      { vector_type_t*tmp = new vector_type_t(IVL_VT_LOGIC, false, $2);
+	tmp->implicit_flag = true;
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  | K_scalared dimensions
+      { vector_type_t*tmp = new vector_type_t(IVL_VT_LOGIC, false, $2);
+	tmp->implicit_flag = true;
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  ;
+
 
 data_type_or_implicit_or_void
   : data_type_or_implicit
@@ -6169,9 +6361,10 @@ package_declaration /* IEEE1800-2005 A.1.2 */
     timeunits_declaration_opt
       { pform_set_scope_timescale(@1); }
     package_item_list_opt
-    K_endpackage label_opt
-      { pform_end_package_declaration(@1);
-	check_end_label(@10, "package", $3, $10);
+    K_endpackage
+      { pform_end_package_declaration(@1); }
+    label_opt
+      { check_end_label(@11, "package", $3, $11);
 	delete[]$3;
       }
   ;
@@ -6299,6 +6492,11 @@ package_import_item
 	pform_package_import(@1, $1, $2.text);
 	delete[]$2.text;
       }
+  | package_scope NETTYPE_IDENTIFIER
+      { lex_in_package_scope(0);
+	pform_package_import(@1, $1, $2.text);
+	delete[]$2.text;
+      }
   | package_scope '*'
       { lex_in_package_scope(0);
         pform_package_import(@1, $1, 0);
@@ -6347,6 +6545,10 @@ package_export_item
 	delete[] $3;
       }
   | PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
+      { pform_package_export(@2, $1, $3.text);
+	delete[] $3.text;
+      }
+  | PACKAGE_IDENTIFIER K_SCOPE_RES NETTYPE_IDENTIFIER
       { pform_package_export(@2, $1, $3.text);
 	delete[] $3.text;
       }
@@ -6850,6 +7052,8 @@ scoped_task_declaration
 package_item_list
   : package_item_list package_item
   | package_item
+  | package_item_list nettype_declaration
+  | nettype_declaration
   ;
 
 package_item_list_opt : package_item_list | ;
@@ -8605,11 +8809,87 @@ typedef_basic_type
 
   /* Type declarations are parsed here. The rule actions call pform
      functions that add the declaration to the current lexical scope. */
+nettype_declaration
+  : K_nettype data_type nettype_declaration_name nettype_resolution_opt ';'
+      { pform_requires_sv(@1, "User-defined nettype declaration");
+	perm_string name = lex_strings.make($3);
+	pform_declare_nettype(@3, name, $2, $4);
+	delete $4;
+	delete[]$3;
+      }
+  | K_nettype NETTYPE_IDENTIFIER nettype_declaration_name ';'
+      { pform_requires_sv(@1, "User-defined nettype alias");
+	pform_set_nettype_referenced(@2, $2.text);
+	perm_string name = lex_strings.make($3);
+	pform_declare_nettype_alias(@3, name, $2.type);
+	delete[]$2.text;
+	delete[]$3;
+      }
+  | K_nettype package_scope NETTYPE_IDENTIFIER nettype_declaration_name ';'
+      { pform_requires_sv(@1, "User-defined nettype alias");
+	lex_in_package_scope(0);
+	perm_string name = lex_strings.make($4);
+	pform_declare_nettype_alias(@4, name, $3.type);
+	delete[]$3.text;
+	delete[]$4;
+      }
+  | K_nettype IDENTIFIER nettype_declaration_name ';'
+      { yyerror(@2, "error: Unable to bind nettype or data type `%s'.", $2);
+	delete[]$2;
+	delete[]$3;
+      }
+  ;
+
 type_declaration
   : K_typedef data_type typedef_identifier_name dimensions_opt ';'
       { perm_string name = lex_strings.make($3);
-	pform_set_typedef(@3, name, $2, $4);
+	if ($1) {
+	      pform_requires_sv(@1, "User-defined nettype declaration");
+	      if ($4) {
+		    yyerror(@4, "error: A nettype name cannot have dimensions.");
+		    delete $4;
+	      }
+	      pform_declare_nettype(@3, name, $2, nullptr);
+	} else {
+	      pform_set_typedef(@3, name, $2, $4);
+	}
 	delete[]$3;
+      }
+  | K_typedef data_type identifier_name K_with nettype_resolution_name ';'
+      { perm_string name = lex_strings.make($3);
+	if ($1) {
+	      pform_requires_sv(@1, "User-defined nettype declaration");
+	      pform_declare_nettype(@3, name, $2, $5);
+	} else {
+	      yyerror(@4, "error: A typedef cannot have a resolution function.");
+	      delete $2;
+	}
+	delete $5;
+	delete[]$3;
+      }
+  | K_typedef NETTYPE_IDENTIFIER nettype_declaration_name ';'
+      { if ($1) {
+	      pform_requires_sv(@1, "User-defined nettype alias");
+	      pform_set_nettype_referenced(@2, $2.text);
+	      perm_string name = lex_strings.make($3);
+	      pform_declare_nettype_alias(@3, name, $2.type);
+	} else {
+	      yyerror(@2, "error: %s doesn't name a data type.", $2.text);
+	}
+	delete[]$2.text;
+	delete[]$3;
+      }
+  | K_typedef package_scope NETTYPE_IDENTIFIER nettype_declaration_name ';'
+      { lex_in_package_scope(0);
+	if ($1) {
+	      pform_requires_sv(@1, "User-defined nettype alias");
+	      perm_string name = lex_strings.make($4);
+	      pform_declare_nettype_alias(@4, name, $3.type);
+	} else {
+	      yyerror(@3, "error: %s doesn't name a data type.", $3.text);
+	}
+	delete[]$3.text;
+	delete[]$4;
       }
     /* IEEE 1800-2017 6.23: `typedef type(...) name;`. Written as its
        own alternative here (rather than by adding `type()` to the
@@ -8627,12 +8907,20 @@ type_declaration
 	      dt = new type_reference_t($4);
 	FILE_NAME(dt, @2);
 	perm_string name = lex_strings.make($6);
-	pform_set_typedef(@6, name, dt, $7);
+	if ($1) {
+	      yyerror(@1, "error: Invalid data type in nettype declaration.");
+	      delete dt;
+	      delete $7;
+	} else {
+	      pform_set_typedef(@6, name, dt, $7);
+	}
 	delete[]$6;
       }
   | K_typedef IDENTIFIER typedef_identifier_name dimensions_opt ';'
-      { typedef_t*base = pform_test_type_identifier(@2, $2);
-	if (base) {
+      { if ($1) {
+	      yyerror(@2, "error: Unable to bind nettype or data type `%s`.", $2);
+	      delete $4;
+	} else if (typedef_t*base = pform_test_type_identifier(@2, $2)) {
 	      typeref_t*tmp = new typeref_t(base);
 	      FILE_NAME(tmp, @2);
 	      perm_string name = lex_strings.make($3);
@@ -8648,27 +8936,46 @@ type_declaration
   /* These are forward declarations... */
 
   | K_typedef typedef_identifier_name ';'
-      { perm_string name = lex_strings.make($2);
-	pform_forward_typedef(@2, name, typedef_t::ANY);
+      { if ($1) {
+	      yyerror(@1, "error: Incomplete nettype declaration.");
+	} else {
+	      perm_string name = lex_strings.make($2);
+	      pform_forward_typedef(@2, name, typedef_t::ANY);
+	}
 	delete[]$2;
       }
   | K_typedef typedef_basic_type typedef_identifier_name ';'
-      { perm_string name = lex_strings.make($3);
-	pform_forward_typedef(@3, name, $2);
+      { if ($1) {
+	      yyerror(@1, "error: Invalid data type in nettype declaration.");
+	} else {
+	      perm_string name = lex_strings.make($3);
+	      pform_forward_typedef(@3, name, $2);
+	}
 	delete[]$3;
       }
   | K_typedef K_interface_class K_class typedef_identifier_name ';'
-      { perm_string name = lex_strings.make($4);
-	pform_forward_typedef(@4, name, typedef_t::CLASS);
+      { if ($1) {
+	      yyerror(@1, "error: Invalid data type in nettype declaration.");
+	} else {
+	      perm_string name = lex_strings.make($4);
+	      pform_forward_typedef(@4, name, typedef_t::CLASS);
+	}
 	delete[]$4;
       }
   | K_typedef K_enum typedef_identifier_name ';'
-      { perm_string name = lex_strings.make($3);
-	pform_forward_typedef(@3, name, typedef_t::ENUM);
+      { if ($1) {
+	      yyerror(@1, "error: Invalid data type in nettype declaration.");
+	} else {
+	      perm_string name = lex_strings.make($3);
+	      pform_forward_typedef(@3, name, typedef_t::ENUM);
+	}
 	delete[]$3;
       }
   | K_typedef error ';'
-      { yyerror(@2, "error: Syntax error in typedef clause.");
+      { if ($1)
+	      yyerror(@2, "error: Syntax error in nettype clause.");
+	else
+	      yyerror(@2, "error: Syntax error in typedef clause.");
 	yyerrok;
       }
 
@@ -9174,6 +9481,11 @@ delay1
 	tmp->push_back($3);
 	$$ = tmp;
       }
+  ;
+
+delay1_opt
+  : delay1 { $$ = $1; }
+  |        { $$ = nullptr; }
   ;
 
 delay3
@@ -12548,10 +12860,7 @@ list_of_port_declarations
       { std::vector<Module::port_t*> *ports = $1;
 
 	Module::port_t* port;
-	port = module_declare_port(@3, $3, port_declaration_context.port_type,
-				   port_declaration_context.port_net_type,
-				   port_declaration_context.data_type,
-				   $4, $5, nullptr);
+	port = module_declare_port_continuation(@3, $3, $4, $5, nullptr);
 	ports->push_back(port);
 	$$ = ports;
       }
@@ -12559,10 +12868,7 @@ list_of_port_declarations
       { std::vector<Module::port_t*> *ports = $1;
 
 	Module::port_t* port;
-	port = module_declare_port(@4, $4, port_declaration_context.port_type,
-				   port_declaration_context.port_net_type,
-				   port_declaration_context.data_type,
-				   $5, $6, $3);
+	port = module_declare_port_continuation(@4, $4, $5, $6, $3);
 	ports->push_back(port);
 	$$ = ports;
       }
@@ -12595,7 +12901,49 @@ class_scoped_type_identifier
   // All of port direction, port kind and data type are optional, but at least
   // one has to be specified, so we need multiple rules.
 port_declaration
-  : port_direction net_type_or_var_opt data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
+  : port_direction NETTYPE_IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
+      { pform_set_nettype_referenced(@2, $2.text);
+	$$ = module_declare_nettype_port(@3, $3, $1, $2.type,
+					 $4, $5, nullptr);
+	delete[]$2.text;
+      }
+  | NETTYPE_IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
+      { pform_requires_sv(@2, "Partial ANSI user-defined nettype port");
+	pform_set_nettype_referenced(@1, $1.text);
+	$$ = module_declare_nettype_port(
+	      @2, $2, port_declaration_context.port_type, $1.type,
+	      $3, $4, nullptr);
+	delete[]$1.text;
+      }
+  | port_direction K_interconnect interconnect_implicit_type IDENTIFIER dimensions_opt initializer_opt
+      { $$ = module_declare_interconnect_port(@4, $4, $1, $3,
+					    $5, $6, nullptr); }
+  | K_interconnect interconnect_implicit_type IDENTIFIER dimensions_opt initializer_opt
+      { pform_requires_sv(@3, "Partial ANSI interconnect port");
+	$$ = module_declare_interconnect_port(
+	      @3, $3, port_declaration_context.port_type, $2,
+	      $4, $5, nullptr);
+      }
+  | port_direction K_interconnect data_type IDENTIFIER dimensions_opt initializer_opt
+      { yyerror(@2, "error: Interconnect nets cannot have an explicit data type.");
+	delete $3;
+	vector_type_t*tmp = new vector_type_t(IVL_VT_LOGIC, false, nullptr);
+	tmp->implicit_flag = true;
+	FILE_NAME(tmp, @2);
+	$$ = module_declare_interconnect_port(@4, $4, $1, tmp,
+					    $5, $6, nullptr);
+      }
+  | K_interconnect data_type IDENTIFIER dimensions_opt initializer_opt
+      { yyerror(@1, "error: Interconnect nets cannot have an explicit data type.");
+	delete $2;
+	vector_type_t*tmp = new vector_type_t(IVL_VT_LOGIC, false, nullptr);
+	tmp->implicit_flag = true;
+	FILE_NAME(tmp, @1);
+	$$ = module_declare_interconnect_port(
+	      @3, $3, port_declaration_context.port_type, tmp,
+	      $4, $5, nullptr);
+      }
+  | port_direction net_type_or_var_opt data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
       { $$ = module_declare_port(@4, $4, $1, $2, $3, $5, $6, nullptr);
       }
   | attribute_instance_list port_direction net_type_or_var_opt data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
@@ -13060,8 +13408,66 @@ module_item
   /* Modules can contain further sub-module definitions. */
   : module
 
+  | nettype_declaration
+
   /* SystemVerilog permits package imports as module items. */
   | package_import_declaration
+
+  | attribute_list_opt NETTYPE_IDENTIFIER delay1_opt net_variable_list ';'
+      { pform_requires_sv(@2, "User-defined net declaration");
+	pform_set_nettype_referenced(@2, $2.text);
+	pform_set_nettype_wires(@2, $2.type, $4, $1);
+	if ($3) {
+	      yyerror(@3, "sorry: User-defined net delays are not supported.");
+	      delete $3;
+	}
+	delete[]$2.text;
+      }
+
+  | attribute_list_opt NETTYPE_IDENTIFIER delay1_opt net_decl_assigns ';'
+      { pform_requires_sv(@2, "User-defined net declaration assignment");
+	pform_set_nettype_referenced(@2, $2.text);
+	pform_make_nettype_wires(@2, $2.type, $3, str_strength, $4, $1);
+	delete[]$2.text;
+      }
+
+  | attribute_list_opt K_interconnect interconnect_implicit_type delay3_opt net_variable_list ';'
+      { pform_requires_sv(@2, "interconnect declaration");
+	pform_set_interconnect_wires(@2, $3, $5, $1);
+	if ($4) {
+	      if ($4->size() > 1)
+		    yyerror(@2, "error: Interconnect net delays can have only one value.");
+	      delete $4;
+	}
+      }
+
+  | attribute_list_opt K_interconnect interconnect_implicit_type delay3_opt net_decl_assigns ';'
+      { pform_requires_sv(@2, "interconnect declaration");
+	pform_make_interconnect_wires(@2, $3, $5, $1);
+	if ($4) {
+	      if ($4->size() > 1)
+		    yyerror(@2, "error: Interconnect net delays can have only one value.");
+	      delete $4;
+	}
+      }
+
+  | attribute_list_opt K_interconnect data_type delay3_opt net_variable_list ';'
+      { yyerror(@2, "error: Interconnect nets cannot have an explicit data type.");
+	pform_set_interconnect_wires(@2, nullptr, $5, $1);
+	delete $3;
+	if ($4 && $4->size() > 1)
+	      yyerror(@2, "error: Interconnect net delays can have only one value.");
+	if ($4) delete $4;
+      }
+
+  | attribute_list_opt K_interconnect data_type delay3_opt net_decl_assigns ';'
+      { yyerror(@2, "error: Interconnect nets cannot have an explicit data type.");
+	pform_make_interconnect_wires(@2, nullptr, $5, $1);
+	delete $3;
+	if ($4 && $4->size() > 1)
+	      yyerror(@2, "error: Interconnect net delays can have only one value.");
+	if ($4) delete $4;
+      }
 
   | attribute_list_opt net_type data_type_or_implicit delay3_opt net_variable_list ';'
 
@@ -13143,6 +13549,15 @@ module_item
 
   | attribute_list_opt port_direction net_type_or_var data_type_or_implicit list_of_port_identifiers ';'
       { pform_module_define_port(@2, $5, $2, $3, $4, $1); }
+
+  | attribute_list_opt port_direction NETTYPE_IDENTIFIER list_of_port_identifiers ';'
+      { pform_set_nettype_referenced(@3, $3.text);
+	pform_module_define_nettype_port(@2, $4, $2, $3.type, $1);
+	delete[]$3.text;
+      }
+
+  | attribute_list_opt port_direction K_interconnect interconnect_implicit_type list_of_port_identifiers ';'
+      { pform_module_define_interconnect_port(@2, $5, $2, $4, $1); }
 
   | attribute_list_opt port_direction K_wreal list_of_port_identifiers ';'
       { real_type_t*real_type = new real_type_t(real_type_t::REAL);
@@ -13829,6 +14244,13 @@ net_decl_assign
 	delete[]$1;
 	$$ = tmp;
       }
+  | NETTYPE_IDENTIFIER '=' expression
+      { decl_assignment_t*tmp = new decl_assignment_t;
+	tmp->name = { lex_strings.make($1.text), @1.lexical_pos };
+	tmp->expr.reset($3);
+	delete[]$1.text;
+	$$ = tmp;
+      }
   ;
 
 net_decl_assigns
@@ -14409,6 +14831,11 @@ net_variable
       { pform_ident_t name = { lex_strings.make($1), @1.lexical_pos };
 	$$ = pform_makewire(@1, name, NetNet::IMPLICIT, $2);
 	delete [] $1;
+      }
+  | NETTYPE_IDENTIFIER dimensions_opt
+      { pform_ident_t name = { lex_strings.make($1.text), @1.lexical_pos };
+	$$ = pform_makewire(@1, name, NetNet::IMPLICIT, $2);
+	delete [] $1.text;
       }
   ;
 

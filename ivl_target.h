@@ -2130,6 +2130,11 @@ extern int ivl_scope_is_virtual_method(ivl_scope_t net);
  *    etc. All the signals connected to a nexus should have the same
  *    data type
  *
+ * ivl_signal_resolution_function
+ *    For a signal declared with a user-defined nettype that has a
+ *    resolution function, return the function scope. Return nil for all
+ *    other signals. Aliases return the canonical nettype's resolver.
+ *
  * ivl_signal_npath
  * ivl_signal_path
  *    This function returns the delay path object for the signal. The
@@ -2198,6 +2203,7 @@ extern ivl_delaypath_t ivl_signal_path(ivl_signal_t net, unsigned idx);
 extern ivl_signal_type_t ivl_signal_type(ivl_signal_t net);
 extern ivl_variable_type_t ivl_signal_data_type(ivl_signal_t net);
 extern ivl_type_t  ivl_signal_net_type(ivl_signal_t net);
+extern ivl_scope_t ivl_signal_resolution_function(ivl_signal_t net);
 extern const char* ivl_signal_name(ivl_signal_t net);
 extern const char* ivl_signal_basename(ivl_signal_t net);
 extern const char* ivl_signal_attr(ivl_signal_t net, const char*key);

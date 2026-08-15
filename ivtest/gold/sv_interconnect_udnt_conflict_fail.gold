@@ -1,0 +1,2 @@
+./ivltests/sv_interconnect_udnt_conflict_fail.v:14: error: Interconnect port connection cannot mix user-defined nettypes `first_nettype' and `second_nettype'.
+1 error(s) during elaboration.

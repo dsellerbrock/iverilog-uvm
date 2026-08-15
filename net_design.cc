@@ -229,6 +229,94 @@ Design::~Design()
 {
 }
 
+void Design::register_nettype_scope(const nettype_t*type, NetScope*scope)
+{
+      if (!type || !scope)
+            return;
+      /* NetScope::add_nettypes registers a descriptor only when inserting its
+       * local record, so duplicates cannot arrive here.  Append directly:
+       * scanning all prior instances would make a heavily instantiated
+       * parameterized module quadratic merely to build this provenance
+       * index. */
+      nettype_scopes_[type].push_back(scope);
+}
+
+NetScope* Design::find_nettype_scope(const nettype_t*type,
+                                     const NetScope*context) const
+{
+      /* Module/class declarations are instantiated, so the same pform
+       * descriptor legitimately belongs to several NetScopes. Prefer the
+       * exact current instance chain; only use the global index when the
+       * descriptor has a unique elaborated owner (packages and compilation
+       * units are the usual cross-scope alias targets). */
+      for (const NetScope*cur = context; cur; cur = cur->parent())
+            if (cur->find_local_nettype(type))
+                  return const_cast<NetScope*>(cur);
+
+      map<const nettype_t*,vector<NetScope*> >::const_iterator cur =
+            nettype_scopes_.find(type);
+      if (cur == nettype_scopes_.end() || cur->second.size() != 1)
+            return 0;
+      return cur->second.front();
+}
+
+void Design::register_interconnect(NetNet*net)
+{
+      if (!net)
+            return;
+      interconnect_nets_.push_back(net);
+}
+
+void Design::finalize_interconnects()
+{
+      struct component_use_t {
+            NetNet*representative = 0;
+            NetNet*referenced = 0;
+            bool reference_diagnosed = false;
+      };
+      map<const NetInterconnectType*,component_use_t>components;
+
+      for (vector<NetNet*>::const_iterator cur = interconnect_nets_.begin();
+           cur != interconnect_nets_.end(); ++cur) {
+            NetNet*net = *cur;
+            if (!net || !net->is_interconnect())
+                  continue;
+            const NetInterconnectType*key = net->interconnect_component();
+            component_use_t&use = components[key];
+            if (!use.representative)
+                  use.representative = net;
+            if (!use.referenced && net->interconnect_value_referenced())
+                  use.referenced = net;
+            use.reference_diagnosed = use.reference_diagnosed
+                  || net->interconnect_reference_diagnosed();
+      }
+
+      for (map<const NetInterconnectType*,component_use_t>::const_iterator cur =
+                 components.begin(); cur != components.end(); ++cur) {
+            const NetInterconnectType*component = cur->first;
+            const component_use_t&use = cur->second;
+            if (use.referenced && !use.reference_diagnosed) {
+                  cerr << use.referenced->get_fileline() << ": error: "
+                       << "Interconnect net `" << use.referenced->name() << "'"
+                       << " may only be referenced in a net port connection."
+                       << endl;
+                  errors += 1;
+            }
+            /* A concrete illegal value reference already explains why this
+             * component cannot be lowered. Do not add a secondary unresolved
+             * type diagnostic for the same component. */
+            if (!use.referenced && !use.reference_diagnosed
+                && !component->resolved()
+                && !component->invalid()) {
+                  cerr << use.representative->get_fileline() << ": error: "
+                       << "interconnect net '" << use.representative->name()
+                       << "' has no concrete net type after port propagation."
+                       << endl;
+                  errors += 1;
+            }
+      }
+}
+
 void Design::record_struct_member_default_validation(const PExpr*expr,
 						      const NetScope*scope,
 						      bool valid)

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_nettype_resolved_runtime_boundary_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_nettype_resolved_runtime_boundary_fail"
+}

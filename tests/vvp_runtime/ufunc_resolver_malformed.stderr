@@ -1,0 +1,2 @@
+tests/vvp_runtime/ufunc_resolver_malformed.vvp:9: .ufunc/resolv requires at least one driver and exactly one formal
+tests/vvp_runtime/ufunc_resolver_malformed.vvp:10: .ufunc/resolv vector element width must be nonzero

@@ -575,6 +575,21 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 	    return nullptr;
       }
 
+      /* A user-defined net is one indivisible driven object, whether or not
+       * it has a resolver. Reject syntactic member/index selects before the
+       * generic struct/array lowering can turn them into independently driven
+       * bits. */
+      if (sig->user_nettype()
+          && (!member_path.empty()
+              || (!base_path.empty() && !base_path.back().index.empty()))) {
+            cerr << get_fileline() << ": error: Net `" << sig->name()
+                 << "' with user-defined nettype `"
+                 << sig->declared_user_nettype()->pform_type()->name()
+                 << "' cannot be partially driven." << endl;
+            des->errors += 1;
+            return 0;
+      }
+
       // If this is SystemVerilog and the variable is not yet
       // assigned by anything, then convert it to an unresolved
       // wire.
@@ -1230,6 +1245,21 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 	long selected_word_base = widx_flag ? widx : 0;
 	unsigned long selected_word_count = unpacked_slice_flag
 	      ? unpacked_slice_count : (widx_flag ? 1 : sig->pin_count());
+
+      if (sig->user_nettype()) {
+            bool partial_drive = explicit_vector_select || widx_flag
+                  || unpacked_slice_flag || midx != sig->vector_width()-1
+                  || lidx != 0 || selected_word_count != sig->pin_count();
+            if (partial_drive) {
+                  cerr << get_fileline() << ": error: Net `" << sig->name()
+                       << "' with user-defined nettype `"
+                       << sig->declared_user_nettype()->pform_type()->name()
+                       << "' cannot be partially driven." << endl;
+                  des->errors += 1;
+                  return 0;
+            }
+      }
+
 	bool procedural_overlap = false;
 	for (unsigned long word = 0; word < selected_word_count; word += 1) {
 	      if (sig->test_part_procedurally_driven(
@@ -1282,11 +1312,19 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 		  if (sig->test_part_driven(
 			midx, lidx, selected_word_base + idx)) {
 			cerr << get_fileline() << ": error: ";
-			if (sig->coerced_to_uwire())
+			if (sig->user_nettype()) {
+			      cerr << "Net `" << sig->name()
+			           << "' with user-defined nettype `"
+			           << sig->declared_user_nettype()->pform_type()->name()
+			           << "' cannot have multiple drivers because it has "
+			           << "no resolution function." << endl;
+			} else if (sig->coerced_to_uwire())
 			      cerr << "Variable '";
 			else
 			      cerr << "Unresolved wire '";
-			cerr << sig->name() << "' cannot have multiple drivers." << endl;
+			if (!sig->user_nettype())
+			      cerr << sig->name()
+			           << "' cannot have multiple drivers." << endl;
 			if (debug_elaborate) {
 			      cerr << get_fileline() << ":	: Overlap in "
 				   << "[" << midx << ":" << lidx << "] (canonical)"

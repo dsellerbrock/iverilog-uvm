@@ -52,11 +52,19 @@ class __vpiScope;
 class ufunc_core : public vvp_wide_fun_core {
 
     public:
+      enum resolver_kind_t {
+	    RESOLVER_NONE,
+	    RESOLVER_VEC4,
+	    RESOLVER_VEC2,
+	    RESOLVER_REAL
+      };
+
       ufunc_core(unsigned ow, vvp_net_t*ptr,
-		 unsigned nports, vvp_net_t**ports,
+		 unsigned ninputs, unsigned nports, vvp_net_t**ports,
 		 vvp_code_t start_address,
 		 __vpiScope*call_scope,
-		 char*scope_label);
+		 char*scope_label,
+		 resolver_kind_t resolver_kind = RESOLVER_NONE);
       virtual ~ufunc_core() override =0;
 
       __vpiScope*call_scope() { return call_scope_; }
@@ -73,6 +81,8 @@ class ufunc_core : public vvp_wide_fun_core {
       void finish_thread_vec4_();
 
     private:
+      void assign_resolver_to_port_(vvp_context_t context);
+      void report_resolver_runtime_error_(const char*message);
       void recv_vec4_from_inputs(unsigned port) override;
       void recv_real_from_inputs(unsigned port) override;
 
@@ -83,9 +93,17 @@ class ufunc_core : public vvp_wide_fun_core {
 	// output width of the function node.
       unsigned owid_;
 	// The vvp_net_t* objects for the function input ports. We use
-	// these to write the input values to the reg input variable
-	// functors for the thread.
+      // these to write the input values to the reg input variable
+      // functors for the thread.
       vvp_net_t**ports_;
+      unsigned ports_count_;
+
+	// A user-defined nettype resolver has one dynamic-array formal but
+	// one input functor per current net driver. Ordinary .ufunc records
+	// leave this disabled and retain their one-input-to-one-formal map.
+      resolver_kind_t resolver_kind_;
+      bool*input_valid_;
+      bool resolver_error_reported_;
 
 	// This is a thread to execute the behavioral portion of the
 	// function.

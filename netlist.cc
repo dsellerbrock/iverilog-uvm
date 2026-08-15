@@ -40,6 +40,23 @@
 
 using namespace std;
 
+NetNetType::NetNetType(const nettype_t*decl, NetScope*scope)
+: pform_type_(decl), declaration_scope_(scope)
+{
+}
+
+const NetFuncDef* NetNetType::resolution_function() const
+{
+      const NetNetType*use = canonical_type_ ? canonical_type_ : this;
+      return use->resolution_function_;
+}
+
+bool NetNetType::has_resolution_function() const
+{
+      const NetNetType*use = canonical_type_ ? canonical_type_ : this;
+      return use->pform_type_ && use->pform_type_->has_resolution_function();
+}
+
 ostream& operator<< (ostream&o, NetNet::Type t)
 {
       switch (t) {
@@ -631,6 +648,249 @@ void NetNet::set_net_type(ivl_type_t type)
 	    array_type_ = new netuarray_t(unpacked_dims_, net_type_);
 }
 
+void NetNet::set_user_nettype(const NetNetType*declared)
+{
+      declared_user_nettype_ = declared;
+      user_nettype_ = declared ? declared->canonical_type() : 0;
+      if (!user_nettype_)
+            user_nettype_ = declared;
+}
+
+static bool interconnect_types_equivalent_(ivl_type_t left, ivl_type_t right,
+                                           bool compare_shape)
+{
+      if (left == right)
+            return true;
+      if (!left || !right)
+            return false;
+      if (!compare_shape)
+            return left->base_type() == right->base_type();
+      return left->type_equivalent(right) && right->type_equivalent(left);
+}
+
+static bool interconnect_shapes_equivalent_(const NetNet*left,
+                                            const NetNet*right)
+{
+      return left && right
+            && netrange_equivalent(left->packed_dims(), right->packed_dims())
+            && netrange_equivalent(left->unpacked_dims(),
+                                   right->unpacked_dims());
+}
+
+void NetNet::mark_interconnect(bool declared_shape)
+{
+      if (!interconnect_type_) {
+            interconnect_type_.reset(new NetInterconnectType);
+            interconnect_type_->members_.push_back(this);
+      }
+      interconnect_declared_shape_ = declared_shape;
+      if (declared_shape)
+            interconnect_type_->declared_shape_source_ = this;
+}
+
+bool NetNet::interconnect_type_resolved() const
+{
+      return interconnect_type_ && interconnect_type_->resolved();
+}
+
+bool NetNet::interconnect_type_invalid() const
+{
+      return interconnect_type_ && interconnect_type_->invalid();
+}
+
+void NetNet::apply_interconnect_type_(
+      const shared_ptr<NetInterconnectType>&group)
+{
+      if (!group || !group->resolved_type_)
+            return;
+
+      for (vector<NetNet*>::iterator cur = group->members_.begin();
+           cur != group->members_.end(); ++cur) {
+            NetNet*net = *cur;
+            if (!net)
+                  continue;
+
+            /* A selected element resolves the element kind of an explicitly
+             * shaped declaration, not the declaration's aggregate shape. */
+            if (!(group->selected_element_type_
+                  && net->interconnect_declared_shape_))
+                  net->set_net_type(group->resolved_type_);
+
+            if (group->user_nettype_)
+                  net->set_user_nettype(group->user_nettype_);
+
+            NetNet::Type use_wire_type = static_cast<NetNet::Type>(
+                  group->source_wire_type_);
+            if (use_wire_type != NetNet::NONE
+                && use_wire_type != NetNet::IMPLICIT
+                && use_wire_type != NetNet::IMPLICIT_REG
+                && use_wire_type != NetNet::REG)
+                  net->type(use_wire_type);
+      }
+}
+
+NetNet::interconnect_bind_result_t
+NetNet::bind_interconnect_type(NetNet*source, bool selected_element)
+{
+      ivl_assert(*this, interconnect_type_);
+      ivl_assert(*this, source);
+
+      shared_ptr<NetInterconnectType>group = interconnect_type_;
+      const NetNetType*source_udnt = source->user_nettype();
+
+      if (group->user_nettype_ && source_udnt
+          && group->user_nettype_ != source_udnt) {
+            group->invalid_ = true;
+            return INTERCONNECT_BIND_TYPE_CONFLICT;
+      }
+
+      NetNet*shape_source = group->declared_shape_source_;
+      if (shape_source && !selected_element
+          && !interconnect_shapes_equivalent_(shape_source, source)) {
+            group->invalid_ = true;
+            return INTERCONNECT_BIND_SHAPE_CONFLICT;
+      }
+
+      if (group->resolved_type_) {
+            /* A selected edge initially supplies only an element-kind hint.
+             * A later whole-net edge may upgrade that hint to the complete
+             * concrete packed type after the declared shape is checked. */
+            if (group->selected_element_type_ && !selected_element) {
+                  group->resolved_type_ = source->net_type();
+                  group->source_ = source;
+                  group->source_wire_type_ =
+                        static_cast<unsigned>(source->type());
+                  group->selected_element_type_ = false;
+                  if (!group->user_nettype_ && source_udnt)
+                        group->user_nettype_ = source_udnt;
+                  apply_interconnect_type_(group);
+                  return INTERCONNECT_BIND_OK;
+            }
+            bool compare_shape = !(group->selected_element_type_
+                                   || selected_element);
+            if (!interconnect_types_equivalent_(group->resolved_type_,
+                                                source->net_type(),
+                                                compare_shape)) {
+                  group->invalid_ = true;
+                  return compare_shape ? INTERCONNECT_BIND_SHAPE_CONFLICT
+                                       : INTERCONNECT_BIND_TYPE_CONFLICT;
+            }
+            if (!group->user_nettype_ && source_udnt)
+                  group->user_nettype_ = source_udnt;
+            return INTERCONNECT_BIND_OK;
+      }
+
+      /* set_net_type() can replace a packed type, but it deliberately does
+       * not rebuild a NetNet's unpacked dimensions or pin array.  An
+       * unshaped generic therefore cannot silently acquire an unpacked shape
+       * from a whole-net connection.  A selected element is safe: the
+       * expression denotes one element and source->net_type() is its type. */
+      if (!interconnect_declared_shape_ && !selected_element
+          && source->unpacked_dimensions() != 0) {
+            group->invalid_ = true;
+            return INTERCONNECT_BIND_SHAPE_CONFLICT;
+      }
+
+      group->resolved_type_ = source->net_type();
+      group->user_nettype_ = source_udnt;
+      group->source_ = source;
+      group->source_wire_type_ = static_cast<unsigned>(source->type());
+      group->selected_element_type_ = selected_element;
+      apply_interconnect_type_(group);
+      return INTERCONNECT_BIND_OK;
+}
+
+NetNet::interconnect_bind_result_t
+NetNet::merge_interconnect_type(NetNet*other)
+{
+      ivl_assert(*this, interconnect_type_);
+      ivl_assert(*this, other && other->interconnect_type_);
+
+      shared_ptr<NetInterconnectType>left = interconnect_type_;
+      shared_ptr<NetInterconnectType>right = other->interconnect_type_;
+      if (left == right)
+            return INTERCONNECT_BIND_OK;
+
+      if (left->user_nettype_ && right->user_nettype_
+          && left->user_nettype_ != right->user_nettype_) {
+            left->invalid_ = right->invalid_ = true;
+            return INTERCONNECT_BIND_TYPE_CONFLICT;
+      }
+
+      if (left->declared_shape_source_ && right->declared_shape_source_
+          && !interconnect_shapes_equivalent_(left->declared_shape_source_,
+                                              right->declared_shape_source_)) {
+            left->invalid_ = right->invalid_ = true;
+            return INTERCONNECT_BIND_SHAPE_CONFLICT;
+      }
+
+      if (left->resolved_type_ && right->resolved_type_) {
+            bool compare_shape = !(left->selected_element_type_
+                                   || right->selected_element_type_);
+            if (!interconnect_types_equivalent_(left->resolved_type_,
+                                                right->resolved_type_,
+                                                compare_shape)) {
+                  left->invalid_ = right->invalid_ = true;
+                  return compare_shape ? INTERCONNECT_BIND_SHAPE_CONFLICT
+                                       : INTERCONNECT_BIND_TYPE_CONFLICT;
+            }
+      }
+
+      /* Union by size bounds the total member-pointer rewrites over a chain
+       * of hierarchy connections to O(N log N). */
+      if (left->members_.size() < right->members_.size())
+            left.swap(right);
+
+      if (!left->resolved_type_ && right->resolved_type_) {
+            left->resolved_type_ = right->resolved_type_;
+            left->source_ = right->source_;
+            left->source_wire_type_ = right->source_wire_type_;
+            left->selected_element_type_ = right->selected_element_type_;
+      } else if (left->resolved_type_ && right->resolved_type_
+                 && left->selected_element_type_
+                 && !right->selected_element_type_) {
+            /* Prefer a complete propagated type over an element-only hint. */
+            left->resolved_type_ = right->resolved_type_;
+            left->source_ = right->source_;
+            left->source_wire_type_ = right->source_wire_type_;
+            left->selected_element_type_ = false;
+      }
+      if (!left->user_nettype_)
+            left->user_nettype_ = right->user_nettype_;
+      if (!left->declared_shape_source_)
+            left->declared_shape_source_ = right->declared_shape_source_;
+      left->invalid_ = left->invalid_ || right->invalid_;
+
+      for (vector<NetNet*>::iterator cur = right->members_.begin();
+           cur != right->members_.end(); ++cur) {
+            (*cur)->interconnect_type_ = left;
+            left->members_.push_back(*cur);
+      }
+      right->members_.clear();
+      apply_interconnect_type_(left);
+      return INTERCONNECT_BIND_OK;
+}
+
+void NetNet::invalidate_interconnect_type()
+{
+      if (interconnect_type_)
+            interconnect_type_->invalid_ = true;
+}
+
+void NetNet::begin_interconnect_port_use()
+{
+      if (interconnect_type_)
+            interconnect_port_use_depth_ += 1;
+}
+
+void NetNet::end_interconnect_port_use()
+{
+      if (!interconnect_type_)
+            return;
+      ivl_assert(*this, interconnect_port_use_depth_ > 0);
+      interconnect_port_use_depth_ -= 1;
+}
+
 NetNet::Type NetNet::type() const
 {
       return type_;
@@ -834,6 +1094,8 @@ unsigned NetNet::unpacked_count() const
 
 void NetNet::incr_eref()
 {
+      if (interconnect_type_ && interconnect_port_use_depth_ == 0)
+            interconnect_value_referenced_ = true;
       eref_count_ += 1;
 }
 

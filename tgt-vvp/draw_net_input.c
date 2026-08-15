@@ -81,6 +81,38 @@ static ivl_variable_type_t signal_data_type_of_nexus(ivl_nexus_t nex)
       return out;
 }
 
+/* Return the canonical user-defined nettype resolver attached to this
+ * connected net. Signals introduced by plain hierarchy edges need not carry
+ * the metadata, but every resolver-bearing signal that does must agree. */
+static ivl_scope_t resolution_function_of_nexus(ivl_nexus_t nex)
+{
+      ivl_scope_t resolver = 0;
+      unsigned idx;
+
+      for (idx = 0; idx < ivl_nexus_ptrs(nex); idx += 1) {
+	    ivl_nexus_ptr_t ptr = ivl_nexus_ptr(nex, idx);
+	    ivl_signal_t sig = ivl_nexus_ptr_sig(ptr);
+	    if (!sig)
+		  continue;
+
+	    ivl_scope_t candidate = ivl_signal_resolution_function(sig);
+	    if (!candidate)
+		  continue;
+	    if (!resolver) {
+		  resolver = candidate;
+		  continue;
+	    }
+	    if (resolver != candidate) {
+		  fprintf(stderr, "%s:%u: vvp.tgt error: connected net has "
+			  "conflicting user-defined nettype resolution functions.\n",
+			  ivl_signal_file(sig), ivl_signal_lineno(sig));
+		  vvp_errors += 1;
+	    }
+      }
+
+      return resolver;
+}
+
 static char* draw_C4_to_string(ivl_net_const_t cptr)
 {
       const char*bits = ivl_const_bits(cptr);
@@ -563,6 +595,7 @@ static void draw_net_input_x(ivl_nexus_t nex,
       unsigned idx;
       char**driver_labels;
       unsigned ndrivers = 0;
+      ivl_scope_t user_resolver = resolution_function_of_nexus(nex);
 
       const char*resolv_type;
 
@@ -717,6 +750,99 @@ static void draw_net_input_x(ivl_nexus_t nex,
 	    assert(nex_data->net_input == 0);
 	    nex_data->net_input = nex_private;
 	    return;
+      }
+
+	/* A user-defined resolver must see an array containing every current
+	 * driver, even when there is exactly one. Emit this before the ordinary
+	 * single-driver shortcut and before the built-in real-net restriction. */
+      if (user_resolver) {
+	    ivl_signal_t return_sig = 0;
+	    ivl_signal_t formal_sig = 0;
+	    const char*resolver_type = 0;
+
+	    if (ivl_scope_ports(user_resolver) == 2) {
+		  return_sig = ivl_scope_port(user_resolver, 0);
+		  formal_sig = ivl_scope_port(user_resolver, 1);
+	    }
+	    if (!return_sig || !formal_sig
+		|| ivl_signal_data_type(formal_sig) != IVL_VT_DARRAY) {
+		  fprintf(stderr, "vvp.tgt error: user-defined nettype resolver `%s' "
+			  "does not have one dynamic-array input.\n",
+			  ivl_scope_name(user_resolver));
+		  vvp_errors += 1;
+		  user_resolver = 0;
+	    } else {
+		  switch (ivl_signal_data_type(return_sig)) {
+		      case IVL_VT_LOGIC:
+			resolver_type = "/vec4";
+			break;
+		      case IVL_VT_BOOL:
+			resolver_type = "/vec2";
+			break;
+		      case IVL_VT_REAL:
+			resolver_type = "/real";
+			break;
+		      default:
+			fprintf(stderr, "vvp.tgt error: user-defined nettype resolver `%s' "
+				"has unsupported return type %d.\n",
+				ivl_scope_name(user_resolver),
+				ivl_signal_data_type(return_sig));
+			vvp_errors += 1;
+			user_resolver = 0;
+			break;
+		  }
+	    }
+
+	    if (user_resolver) {
+		  const char*mangled =
+			vvp_mangle_id(ivl_scope_name(user_resolver));
+		  note_td_reference(mangled);
+
+		  driver_labels = malloc(ndrivers * sizeof(char*));
+		  ivl_signal_t path_sig = find_modpath(nex);
+		  if (path_sig) {
+			for (idx = 0; idx < ndrivers; idx += 1) {
+			      char*nex_str = draw_net_input_drive(nex, drivers[idx]);
+			      char modpath_label[64];
+			      snprintf(modpath_label, sizeof modpath_label,
+				       "V_%p_%u/m", path_sig, idx);
+			      driver_labels[idx] = strdup(modpath_label);
+			      draw_modpath(path_sig, nex_str, idx);
+			}
+		  } else {
+			for (idx = 0; idx < ndrivers; idx += 1)
+			      driver_labels[idx] =
+				    draw_net_input_drive(nex, drivers[idx]);
+		  }
+
+		  fprintf(vvp_out, "RS_%p .ufunc/resolv%s TD_%s, %u",
+			  nex, resolver_type, mangled,
+			  ivl_signal_width(return_sig));
+		  for (idx = 0; idx < ndrivers; idx += 1) {
+			fprintf(vvp_out, ", %s", driver_labels[idx]);
+			free(driver_labels[idx]);
+		  }
+		  fprintf(vvp_out, " (v%p_0) S_%p;\n", formal_sig,
+			  user_resolver);
+		  free(driver_labels);
+
+		    /* Downstream net declarations see the resolver output as their
+		     * one effective driver. Its return value has no Verilog drive
+		     * strength, even when one of the original inputs did. */
+		  nex_data->drivers_count = 1;
+		  nex_data->flags &= ~VVP_NEXUS_DATA_STR;
+
+		  snprintf(result, sizeof result, "RS_%p", nex);
+		  if (island)
+			nex_private = draw_island_port(island, island_input_flag,
+					       nex, nex_data, result);
+		  else
+			nex_private = strdup(result);
+
+		  assert(nex_data->net_input == 0);
+		  nex_data->net_input = nex_private;
+		  return;
+	    }
       }
 
 	/* A uwire is a tri with only one driver. */

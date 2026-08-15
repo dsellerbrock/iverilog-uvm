@@ -769,6 +769,40 @@ struct pform_scoped_name_t {
       pform_name_t name;
 };
 
+/* A user-defined nettype is a declaration-scope symbol, independent of the
+ * built-in NetNet::Type used for ordinary wire resolution. A declaration
+ * either owns a direct data type or aliases an earlier nettype declaration.
+ * The optional resolution function remains symbolic until elaboration. */
+class nettype_t : public PNamedItem {
+    public:
+      nettype_t(perm_string name, data_type_t*type,
+                const pform_scoped_name_t*resolution_function = nullptr);
+      nettype_t(perm_string name, nettype_t*alias);
+      ~nettype_t() override;
+
+      SymbolType symbol_type() const override;
+
+      perm_string name() const { return name_; }
+      data_type_t* direct_type() { return direct_type_.get(); }
+      const data_type_t* direct_type() const { return direct_type_.get(); }
+      nettype_t* alias_type() const { return alias_type_; }
+
+      /* Returns null if an invalid alias cycle is encountered. */
+      nettype_t* canonical_type();
+      const nettype_t* canonical_type() const;
+
+      bool has_resolution_function() const
+        { return resolution_function_.get() != nullptr; }
+      const pform_scoped_name_t* resolution_function() const
+        { return resolution_function_.get(); }
+
+    private:
+      perm_string name_;
+      std::unique_ptr<data_type_t> direct_type_;
+      nettype_t*alias_type_;
+      std::unique_ptr<pform_scoped_name_t> resolution_function_;
+};
+
 /* IEEE 1800-2017 12.6 pattern-variable bindings are declared implicitly,
  * but their type is determined by the corresponding leaf of the matched
  * value.  Keep the route to that leaf symbolic until type elaboration: a

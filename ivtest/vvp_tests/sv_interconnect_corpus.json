@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_interconnect_corpus.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_interconnect_corpus"
+}

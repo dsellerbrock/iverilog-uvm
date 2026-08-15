@@ -798,6 +798,7 @@ struct ivl_signal_s {
 
 	// This is the type for the signal
       ivl_type_t net_type;
+      ivl_scope_t resolution_function_;
       unsigned local_  : 1;
       unsigned lifetime_override_ : 2;
 
