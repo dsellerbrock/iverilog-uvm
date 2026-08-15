@@ -761,3 +761,7 @@ sv_net_decl_delay_strength	vvp_tests/sv_net_decl_delay_strength.json
 sv_net_decl_delay_wide	vvp_tests/sv_net_decl_delay_wide.json
 sv_net_decl_delay_invalid_expr_fail	vvp_tests/sv_net_decl_delay_invalid_expr_fail.json
 sv_net_decl_delay_port_inline_fail	vvp_tests/sv_net_decl_delay_port_inline_fail.json
+
+# IEEE 1800-2017 13.4.4 function fork boundary
+sv_function_fork_join_none	vvp_tests/sv_function_fork_join_none.json
+sv_function_fork_blocking_fail	vvp_tests/sv_function_fork_blocking_fail.json

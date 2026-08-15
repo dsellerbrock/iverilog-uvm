@@ -7900,9 +7900,38 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
  * get all the error messages out of it. Then, if I detected a failure
  * then pass the failure up.
  */
+static bool scope_is_within_function_(const NetScope*scope)
+{
+      while (scope) {
+	    if (scope->type() == NetScope::FUNC)
+		  return true;
+	    if (scope->type() == NetScope::TASK)
+		  return false;
+	    scope = scope->parent();
+      }
+      return false;
+}
+
 NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
+
+	/* IEEE 1800-2017 13.4.4 allows a function to spawn processes only
+	   with fork...join_none. A blocking join or join_any can suspend the
+	   function, even when all of its current branches happen to be
+	   zero-time. Check the lexical routine scope rather than just the
+	   immediate scope: named begin/fork blocks introduce intervening
+	   BEGIN_END/FORK_JOIN scopes, and a lazily elaborated task must not
+	   inherit a function caller's restriction. */
+      if ((bl_type_ == PBlock::BL_PAR || bl_type_ == PBlock::BL_JOIN_ANY)
+	  && scope_is_within_function_(scope)) {
+	    cerr << get_fileline() << ": error: A fork..."
+		 << (bl_type_ == PBlock::BL_PAR ? "join" : "join_any")
+		 << " statement is not permitted in a function; only "
+		    "fork...join_none is allowed." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
 
       NetBlock::Type type;
       switch (bl_type_) {

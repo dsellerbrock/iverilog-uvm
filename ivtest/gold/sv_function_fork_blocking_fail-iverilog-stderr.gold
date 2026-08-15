@@ -1,0 +1,3 @@
+ivltests/sv_function_fork_blocking_fail.v:15: error: A fork...join_any statement is not permitted in a function; only fork...join_none is allowed.
+ivltests/sv_function_fork_blocking_fail.v:6: error: A fork...join statement is not permitted in a function; only fork...join_none is allowed.
+2 error(s) during elaboration.
