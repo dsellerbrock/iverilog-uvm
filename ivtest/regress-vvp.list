@@ -704,3 +704,10 @@ sv_ch20_coverage_call_fail	vvp_tests/sv_ch20_coverage_call_fail.json
 # IEEE 1800-2017 type() case matching and specparam constant-expression boundary
 sv_type_operator_case	vvp_tests/sv_type_operator_case.json
 sv_specparam_constant_expr_fail	vvp_tests/sv_specparam_constant_expr_fail.json
+
+# Bounded reclamation of completed zero-time named-block activations
+br_gh1225c	vvp_tests/br_gh1225c.json
+sv_class_assoc_recursive_find1	vvp_tests/sv_class_assoc_recursive_find1.json
+sv_class_recursive_find_wrapper1	vvp_tests/sv_class_recursive_find_wrapper1.json
+fork_disable_detached_grandchild	vvp_tests/fork_disable_detached_grandchild.json
+sv_vthread_zero_time_named_reclaim	vvp_tests/sv_vthread_zero_time_named_reclaim.json
