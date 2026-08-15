@@ -22,8 +22,59 @@
 # include  "vvp_object.h"
 # include  "vvp_net.h"
 # include  <deque>
+# include  <set>
 # include  <string>
 # include  <vector>
+
+class vvp_darray;
+
+/*
+ * A stable reference to one element of a variable-size array.
+ *
+ * IEEE 1800-2017 13.5.2 requires an element passed by ref to continue to
+ * exist until the called subroutine completes, even if the element is later
+ * removed from its container. While the element is live, reads and writes
+ * must address the live element. Once it is removed, this object owns the
+ * last value and changes remain visible only through the outdated ref.
+ */
+class vvp_darray_element_ref : public vvp_object {
+    public:
+      enum kind_t { ELEM_VEC4, ELEM_REAL, ELEM_STRING, ELEM_OBJECT };
+
+      vvp_darray_element_ref(vvp_darray*owner, size_t index,
+                             kind_t kind, unsigned vec4_width);
+      ~vvp_darray_element_ref() override;
+
+      void set_value(const vvp_vector4_t&value);
+      void get_value(vvp_vector4_t&value);
+      void set_value(double value);
+      void get_value(double&value);
+      void set_value(const std::string&value);
+      void get_value(std::string&value);
+      void set_value(const vvp_object_t&value);
+      void get_value(vvp_object_t&value);
+
+      void shallow_copy(const vvp_object*that) override;
+      vvp_object* duplicate(void) const override;
+
+    private:
+      friend class vvp_darray;
+
+      void detach();
+      void shift_up(size_t at);
+      void shift_down(size_t after);
+      bool is_attached_to(const vvp_darray*owner) const
+      { return owner_ == owner; }
+
+      vvp_darray*owner_;
+      size_t index_;
+      kind_t kind_;
+      bool valid_;
+      vvp_vector4_t vec4_value_;
+      double real_value_;
+      std::string string_value_;
+      vvp_object_t object_value_;
+};
 
 class vvp_darray : public vvp_object {
 
@@ -47,6 +98,11 @@ class vvp_darray : public vvp_object {
 
       virtual vvp_vector4_t get_bitstream(bool as_vec4);
 
+	// Capture a stable ref formal target for one element. The returned
+	// object either follows the live element through queue index shifts or,
+	// after removal/reassignment, retains an outdated private value.
+      vvp_object_t capture_element_ref(size_t idx, unsigned vec4_width);
+
 	// IEEE 1800-2017 18.8: every element of an unpacked container is a
 	// distinct random variable. Keep its active state with the container so
 	// queue insert/erase operations can move the state with the element and
@@ -58,6 +114,7 @@ class vvp_darray : public vvp_object {
       void set_all_rand_mode(bool mode);
       void inherit_rand_modes(const vvp_darray&that);
       void reorder_rand_modes(const std::vector<size_t>&source_indices);
+      void reorder_element_refs(const std::vector<size_t>&source_indices);
 
 	// Every unpacked randc element has an independent cycle. Keep the
 	// committed history beside the live element so queue mutations and value
@@ -120,6 +177,16 @@ class vvp_darray : public vvp_object {
       void rand_mode_erase(size_t idx);
       void rand_mode_erase_tail(size_t idx);
 
+	// Queue/dynamic-array element-reference lifetime hooks. Structural
+	// mutations call these before changing the value sequence.
+      void element_refs_detach_all();
+      void element_refs_insert(size_t idx);
+      void element_refs_remove(size_t idx);
+      void element_refs_remove_tail(size_t idx);
+      void element_refs_push_front(bool discard_back = false);
+      void element_refs_pop_back();
+      void element_refs_pop_front();
+
 	// Carry passive per-object metadata onto a value copy: per-element
 	// random modes, the declared fixed-range view (a duplicate of a marshaled
 	// fixed-array actual describes the same geometry) and the
@@ -137,6 +204,10 @@ class vvp_darray : public vvp_object {
       }
 
     private:
+      friend class vvp_darray_element_ref;
+      void register_element_ref(vvp_darray_element_ref*ref);
+      void unregister_element_ref(vvp_darray_element_ref*ref);
+
       int  dpi_left_  = 0;
       int  dpi_right_ = 0;
       bool dpi_has_range_ = false;
@@ -145,6 +216,7 @@ class vvp_darray : public vvp_object {
       bool rand_mode_default_ = true;
       mutable std::vector<unsigned char> rand_modes_;
       mutable std::vector<std::vector<bool> > randc_histories_;
+      std::set<vvp_darray_element_ref*> element_refs_;
 };
 
 template <class TYPE> class vvp_darray_atom : public vvp_darray {
@@ -299,6 +371,7 @@ class vvp_queue : public vvp_darray {
 class vvp_queue_real : public vvp_queue {
 
     public:
+      ~vvp_queue_real() override;
       size_t get_size(void) const override { return queue.size(); };
       vvp_object* duplicate(void) const override;
       void copy_elems(vvp_object_t src, unsigned max_size) override;
@@ -309,9 +382,9 @@ class vvp_queue_real : public vvp_queue {
       void push_back(double value, unsigned max_size) override;
       void push_front(double value, unsigned max_size) override;
       void pop_back(void) override
-      { rand_mode_pop_back(); queue.pop_back(); touch(); };
+      { element_refs_pop_back(); rand_mode_pop_back(); queue.pop_back(); touch(); };
       void pop_front(void) override
-      { rand_mode_pop_front(); queue.pop_front(); touch(); };
+      { element_refs_pop_front(); rand_mode_pop_front(); queue.pop_front(); touch(); };
       void erase(unsigned idx) override;
       void erase_tail(unsigned idx) override;
 
@@ -322,6 +395,7 @@ class vvp_queue_real : public vvp_queue {
 class vvp_queue_string : public vvp_queue {
 
     public:
+      ~vvp_queue_string() override;
       size_t get_size(void) const override { return queue.size(); };
       vvp_object* duplicate(void) const override;
       void copy_elems(vvp_object_t src, unsigned max_size) override;
@@ -332,9 +406,9 @@ class vvp_queue_string : public vvp_queue {
       void push_back(const std::string&value, unsigned max_size) override;
       void push_front(const std::string&value, unsigned max_size) override;
       void pop_back(void) override
-      { rand_mode_pop_back(); queue.pop_back(); touch(); };
+      { element_refs_pop_back(); rand_mode_pop_back(); queue.pop_back(); touch(); };
       void pop_front(void) override
-      { rand_mode_pop_front(); queue.pop_front(); touch(); };
+      { element_refs_pop_front(); rand_mode_pop_front(); queue.pop_front(); touch(); };
       void erase(unsigned idx) override;
       void erase_tail(unsigned idx) override;
       vvp_vector4_t get_bitstream(bool as_vec4) override;
@@ -346,6 +420,7 @@ class vvp_queue_string : public vvp_queue {
 class vvp_queue_vec4 : public vvp_queue {
 
     public:
+      ~vvp_queue_vec4() override;
       size_t get_size(void) const override { return queue.size(); };
       vvp_object* duplicate(void) const override;
       void copy_elems(vvp_object_t src, unsigned max_size) override;
@@ -356,9 +431,9 @@ class vvp_queue_vec4 : public vvp_queue {
       void push_back(const vvp_vector4_t&value, unsigned max_size) override;
       void push_front(const vvp_vector4_t&value, unsigned max_size) override;
       void pop_back(void) override
-      { rand_mode_pop_back(); queue.pop_back(); touch(); };
+      { element_refs_pop_back(); rand_mode_pop_back(); queue.pop_back(); touch(); };
       void pop_front(void) override
-      { rand_mode_pop_front(); queue.pop_front(); touch(); };
+      { element_refs_pop_front(); rand_mode_pop_front(); queue.pop_front(); touch(); };
       void erase(unsigned idx) override;
       void erase_tail(unsigned idx) override;
       vvp_vector4_t get_bitstream(bool as_vec4) override;
@@ -370,6 +445,7 @@ class vvp_queue_vec4 : public vvp_queue {
 class vvp_queue_object : public vvp_queue {
 
     public:
+      ~vvp_queue_object() override;
       size_t get_size(void) const override { return queue.size(); };
       vvp_object* duplicate(void) const override;
       void copy_elems(vvp_object_t src, unsigned max_size) override;
@@ -386,9 +462,9 @@ class vvp_queue_object : public vvp_queue {
       void push_back(const vvp_object_t&value, unsigned max_size) override;
       void push_front(const vvp_object_t&value, unsigned max_size) override;
       void pop_back(void) override
-      { rand_mode_pop_back(); queue.pop_back(); touch(); };
+      { element_refs_pop_back(); rand_mode_pop_back(); queue.pop_back(); touch(); };
       void pop_front(void) override
-      { rand_mode_pop_front(); queue.pop_front(); touch(); };
+      { element_refs_pop_front(); rand_mode_pop_front(); queue.pop_front(); touch(); };
       void erase(unsigned idx) override;
       void erase_tail(unsigned idx) override;
 

@@ -1765,6 +1765,33 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    return errors;
       }
 
+      /* q[a:$] and q[a:$-offset] evaluate the source container exactly
+       * once. The runtime derives the upper bound from that same object;
+       * synthesizing source.size() in the expression tree would duplicate
+       * side effects in an indexed or function-call receiver. */
+      if (strcmp(name, "$ivl_queue$slice_last") == 0) {
+	    if (parm_count != 2) {
+		  fprintf(vvp_out, "    %%null; ; qslice/last: bad parm count\n");
+		  return 0;
+	    }
+	    int errors = draw_eval_object(ivl_expr_parm(expr, 0));
+	    draw_eval_vec4(ivl_expr_parm(expr, 1));
+	    fprintf(vvp_out, "    %%qslice/last;\n");
+	    return errors;
+      }
+
+      if (strcmp(name, "$ivl_queue$slice_offset") == 0) {
+	    if (parm_count != 3) {
+		  fprintf(vvp_out, "    %%null; ; qslice/off: bad parm count\n");
+		  return 0;
+	    }
+	    int errors = draw_eval_object(ivl_expr_parm(expr, 0));
+	    draw_eval_vec4(ivl_expr_parm(expr, 1));
+	    draw_eval_vec4(ivl_expr_parm(expr, 2));
+	    fprintf(vvp_out, "    %%qslice/off;\n");
+	    return errors;
+      }
+
       /* The empty queue literal `{}` (IEEE 1800-2017 7.10.4): push a
        * fresh EMPTY container of the context type. A null handle here
        * made q_of_q.push_back({}) store nil (G73). */

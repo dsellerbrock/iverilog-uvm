@@ -2009,11 +2009,13 @@ static NetExpr* make_last_array_index_expr_(const LineInfo&loc,
       return nullptr;
 }
 
-/* Build the queue-valued expression for q[lo:hi] or q[lo:$]
+/* Build the queue-valued expression for q[lo:hi], q[lo:$], or
+ * q[lo:$-offset]
  * (IEEE 1800-2017 7.10.1). This consumes container_expr on every path.
  * Keeping this independent of NetESignal lets the exact same semantics work
  * for locals, class properties, virtual-interface properties, and nested
- * container expressions. */
+ * container expressions. The $ forms use dedicated run-time operations so a
+ * side-effecting container expression is evaluated exactly once. */
 static NetExpr* make_queue_slice_expr_(const LineInfo&loc,
 				       Design*des, NetScope*scope,
 				       NetExpr*container_expr,
@@ -2032,24 +2034,33 @@ static NetExpr* make_queue_slice_expr_(const LineInfo&loc,
 
       NetExpr*lo = elab_and_eval(des, scope, index.msb, -1, false);
       NetExpr*hi = nullptr;
-      if (index.sel == index_component_t::SEL_PART_LAST)
-	    hi = make_last_array_index_expr_(loc, container_expr->dup_expr(),
-					     container_type);
-      else if (index.lsb)
+      const char*func_name = "$ivl_queue$slice";
+      unsigned parm_count = 3;
+      if (index.sel == index_component_t::SEL_PART_LAST) {
+	    if (index.lsb) {
+		  hi = elab_and_eval(des, scope, index.lsb, -1, false);
+		  func_name = "$ivl_queue$slice_offset";
+	    } else {
+		  func_name = "$ivl_queue$slice_last";
+		  parm_count = 2;
+	    }
+      } else if (index.lsb) {
 	    hi = elab_and_eval(des, scope, index.lsb, -1, false);
+      }
 
-      if (!lo || !hi) {
+      if (!lo || (parm_count == 3 && !hi)) {
 	    delete lo;
 	    delete hi;
 	    delete container_expr;
 	    return nullptr;
       }
 
-      NetESFunc*fn = new NetESFunc("$ivl_queue$slice", container_type, 3);
+      NetESFunc*fn = new NetESFunc(func_name, container_type, parm_count);
       fn->set_line(loc);
       fn->parm(0, container_expr);
       fn->parm(1, lo);
-      fn->parm(2, hi);
+      if (parm_count == 3)
+	    fn->parm(2, hi);
       return fn;
 }
 

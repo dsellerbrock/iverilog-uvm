@@ -919,6 +919,13 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	// The target has an explicit queue-slice bit, so this cannot be
 	// confused with the ordinary indexed-element form q[lo].
       if (use_sel == index_component_t::SEL_PART_LAST) {
+	    if (name_tail.index.size() == 1
+		&& name_tail.index.front().lsb) {
+		  cerr << get_fileline() << ": sorry: assignment to queue slice"
+		       << " [lo:$-offset] is not yet supported." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
 	    const netqueue_t*queue_type = reg->queue_type();
 	    if (!queue_type || queue_type->assoc_compat()) {
 		  cerr << get_fileline() << ": error: [lo:$] is only valid "
@@ -2612,6 +2619,13 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			    && member_cur.index.front().sel
 			       == index_component_t::SEL_PART_LAST
 			    && member_cur.index.front().msb) {
+			      if (member_cur.index.front().lsb) {
+				    cerr << get_fileline() << ": sorry: assignment to"
+					 << " queue slice [lo:$-offset] is not yet"
+					 << " supported." << endl;
+				    des->errors += 1;
+				    return 0;
+			      }
 			      NetExpr*lo = elab_and_eval(
 				    des, scope, member_cur.index.front().msb, -1);
 			      if (lo) {

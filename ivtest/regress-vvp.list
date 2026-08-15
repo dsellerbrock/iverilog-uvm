@@ -360,6 +360,9 @@ sv_parameter_type		vvp_tests/sv_parameter_type.json
 sv_queue_assign_op		vvp_tests/sv_queue_assign_op.json
 sv_queue_concat_snapshot	vvp_tests/sv_queue_concat_snapshot.json
 sv_queue_concat_type_fail	vvp_tests/sv_queue_concat_type_fail.json
+sv_queue_ref_persistence	vvp_tests/sv_queue_ref_persistence.json
+sv_queue_slice_dollar_offset	vvp_tests/sv_queue_slice_dollar_offset.json
+sv_ref_arg_object_fork_detach	vvp_tests/sv_ref_arg_object_fork_detach.json
 sv_wildcard_import8		vvp_tests/sv_wildcard_import8.json
 sdf_header			vvp_tests/sdf_header.json
 task_return1			vvp_tests/task_return1.json

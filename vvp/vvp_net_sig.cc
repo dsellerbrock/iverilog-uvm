@@ -713,9 +713,9 @@ struct ref_aa_slot {
       enum kind_t { REF_NET = 0, REF_PROP, REF_ELEM, REF_WORD };
       unsigned magic;
       kind_t kind;
-      vvp_net_t*target;        // REF_NET: the net; REF_ELEM: the container variable's net
+      vvp_net_t*target;        // REF_NET: the net
       vvp_context_t caller_ctx;
-      vvp_object_t obj;        // REF_PROP: the receiver (a strong handle)
+      vvp_object_t obj;        // REF_PROP receiver / REF_ELEM stable cell
       unsigned prop_id;        // REF_PROP
       int64_t index;           // REF_ELEM / REF_WORD
       struct __vpiArray*arr;   // REF_WORD
@@ -850,7 +850,7 @@ void vvp_ref_signal_aa::bind_prop(const vvp_object_t&obj, unsigned pid)
       slot->prop_id = pid;
 }
 
-void vvp_ref_signal_aa::bind_elem(vvp_net_t*container, int64_t index)
+void vvp_ref_signal_aa::bind_elem(const vvp_object_t&container, int64_t index)
 {
       vvp_context_t frame = vthread_get_wt_context();
       if (!frame) return;
@@ -863,9 +863,11 @@ void vvp_ref_signal_aa::bind_elem(vvp_net_t*container, int64_t index)
       }
       slot->clear();
       slot->kind = ref_aa_slot::REF_ELEM;
-      slot->target = container;
-      slot->caller_ctx = vthread_get_rd_context();
       slot->index = index;
+      if (index >= 0) {
+            if (vvp_darray*darray = container.peek<vvp_darray>())
+                  slot->obj = darray->capture_element_ref((size_t)index, size_);
+      }
 }
 
 void vvp_ref_signal_aa::bind_word(struct __vpiArray*arr, unsigned index)
@@ -901,12 +903,11 @@ class ref_delegate_ {
 };
 }
 
-  /* Inside-storage accessors (REF_PROP / REF_ELEM / REF_WORD). Each
-     write goes straight to the CURRENT storage and each read fetches
-     the CURRENT value, so a resize of a bound container or a change
-     made directly through the underlying variable is always honoured.
-     An out-of-range element index reads the type default and drops the
-     write, matching a direct out-of-range element access. */
+  /* Inside-storage accessors (REF_PROP / REF_ELEM / REF_WORD). Queue
+     element refs follow their element through structural index changes;
+     removal or whole-container replacement detaches a private last-value
+     cell. An initially out-of-range element reads the type default and
+     drops writes. */
 namespace {
 
 static vvp_cobject* ref_prop_receiver_(const ref_aa_slot*slot)
@@ -916,16 +917,9 @@ static vvp_cobject* ref_prop_receiver_(const ref_aa_slot*slot)
 
   /* The current container held by the bound variable, fetched per
      access through the container variable's own object functor. */
-static vvp_darray* ref_elem_container_(const ref_aa_slot*slot)
+static vvp_darray_element_ref* ref_elem_cell_(const ref_aa_slot*slot)
 {
-      if (!slot->target) return 0;
-      vvp_fun_signal_object*fun =
-            dynamic_cast<vvp_fun_signal_object*> (slot->target->fun);
-      if (!fun)
-            fun = dynamic_cast<vvp_fun_signal_object*> (slot->target->fil);
-      if (!fun) return 0;
-      vvp_object_t cont = fun->peek_object();
-      return cont.peek<vvp_darray>();
+      return slot->obj.peek<vvp_darray_element_ref>();
 }
 
 static bool ref_inside_write_vec4_(ref_aa_slot*slot, const vvp_vector4_t&bit)
@@ -936,10 +930,8 @@ static bool ref_inside_write_vec4_(ref_aa_slot*slot, const vvp_vector4_t&bit)
                   c->set_vec4(slot->prop_id, bit);
             return true;
           case ref_aa_slot::REF_ELEM: {
-            ref_delegate_ hold (slot);
-            if (slot->index >= 0)
-                  if (vvp_darray*d = ref_elem_container_(slot))
-                        d->set_word((unsigned)slot->index, bit);
+            if (vvp_darray_element_ref*cell = ref_elem_cell_(slot))
+                  cell->set_value(bit);
             return true;
           }
           case ref_aa_slot::REF_WORD:
@@ -959,10 +951,8 @@ static bool ref_inside_write_real_(ref_aa_slot*slot, double bit)
                   c->set_real(slot->prop_id, bit);
             return true;
           case ref_aa_slot::REF_ELEM: {
-            ref_delegate_ hold (slot);
-            if (slot->index >= 0)
-                  if (vvp_darray*d = ref_elem_container_(slot))
-                        d->set_word((unsigned)slot->index, bit);
+            if (vvp_darray_element_ref*cell = ref_elem_cell_(slot))
+                  cell->set_value(bit);
             return true;
           }
           case ref_aa_slot::REF_WORD:
@@ -982,10 +972,8 @@ static bool ref_inside_write_string_(ref_aa_slot*slot, const std::string&bit)
                   c->set_string(slot->prop_id, bit);
             return true;
           case ref_aa_slot::REF_ELEM: {
-            ref_delegate_ hold (slot);
-            if (slot->index >= 0)
-                  if (vvp_darray*d = ref_elem_container_(slot))
-                        d->set_word((unsigned)slot->index, bit);
+            if (vvp_darray_element_ref*cell = ref_elem_cell_(slot))
+                  cell->set_value(bit);
             return true;
           }
           case ref_aa_slot::REF_WORD:
@@ -1005,10 +993,8 @@ static bool ref_inside_write_object_(ref_aa_slot*slot, const vvp_object_t&bit)
                   c->set_object(slot->prop_id, bit, 0);
             return true;
           case ref_aa_slot::REF_ELEM: {
-            ref_delegate_ hold (slot);
-            if (slot->index >= 0)
-                  if (vvp_darray*d = ref_elem_container_(slot))
-                        d->set_word((unsigned)slot->index, bit);
+            if (vvp_darray_element_ref*cell = ref_elem_cell_(slot))
+                  cell->set_value(bit);
             return true;
           }
           case ref_aa_slot::REF_WORD:
@@ -1031,11 +1017,9 @@ static bool ref_inside_read_vec4_(const ref_aa_slot*slot, unsigned wid,
                   val = vvp_vector4_t(wid, BIT4_X);
             return true;
           case ref_aa_slot::REF_ELEM: {
-            ref_delegate_ hold (slot);
             val = vvp_vector4_t(wid, BIT4_X);
-            if (slot->index >= 0)
-                  if (vvp_darray*d = ref_elem_container_(slot))
-                        d->get_word((unsigned)slot->index, val);
+            if (vvp_darray_element_ref*cell = ref_elem_cell_(slot))
+                  cell->get_value(val);
             return true;
           }
           case ref_aa_slot::REF_WORD:
@@ -1059,11 +1043,9 @@ static bool ref_inside_read_real_(const ref_aa_slot*slot, double&val)
                   val = 0.0;
             return true;
           case ref_aa_slot::REF_ELEM: {
-            ref_delegate_ hold (slot);
             val = 0.0;
-            if (slot->index >= 0)
-                  if (vvp_darray*d = ref_elem_container_(slot))
-                        d->get_word((unsigned)slot->index, val);
+            if (vvp_darray_element_ref*cell = ref_elem_cell_(slot))
+                  cell->get_value(val);
             return true;
           }
           case ref_aa_slot::REF_WORD:
@@ -1084,11 +1066,9 @@ static bool ref_inside_read_string_(const ref_aa_slot*slot, std::string&val)
                   val = "";
             return true;
           case ref_aa_slot::REF_ELEM: {
-            ref_delegate_ hold (slot);
             val = "";
-            if (slot->index >= 0)
-                  if (vvp_darray*d = ref_elem_container_(slot))
-                        d->get_word((unsigned)slot->index, val);
+            if (vvp_darray_element_ref*cell = ref_elem_cell_(slot))
+                  cell->get_value(val);
             return true;
           }
           case ref_aa_slot::REF_WORD:
@@ -1109,11 +1089,9 @@ static bool ref_inside_read_object_(const ref_aa_slot*slot, vvp_object_t&val)
                   val = vvp_object_t();
             return true;
           case ref_aa_slot::REF_ELEM: {
-            ref_delegate_ hold (slot);
             val = vvp_object_t();
-            if (slot->index >= 0)
-                  if (vvp_darray*d = ref_elem_container_(slot))
-                        d->get_word((unsigned)slot->index, val);
+            if (vvp_darray_element_ref*cell = ref_elem_cell_(slot))
+                  cell->get_value(val);
             return true;
           }
           case ref_aa_slot::REF_WORD:
@@ -1126,6 +1104,34 @@ static bool ref_inside_read_object_(const ref_aa_slot*slot, vvp_object_t&val)
       }
 }
 
+}
+
+const std::string&vvp_ref_signal_aa::get_string() const
+{
+      const ref_aa_slot*slot = ref_slot_(context_idx_, context_scope_);
+      if (!slot) {
+            string_cache_.clear();
+            return string_cache_;
+      }
+      if (slot->kind != ref_aa_slot::REF_NET) {
+            ref_inside_read_string_(slot, string_cache_);
+            return string_cache_;
+      }
+
+      vvp_fun_signal_string*fun = 0;
+      if (slot->target) {
+            fun = dynamic_cast<vvp_fun_signal_string*>(slot->target->fun);
+            if (!fun)
+                  fun = dynamic_cast<vvp_fun_signal_string*>(slot->target->fil);
+      }
+      if (!fun) {
+            string_cache_.clear();
+            return string_cache_;
+      }
+
+      ref_delegate_ hold(slot);
+      string_cache_ = fun->get_string();
+      return string_cache_;
 }
 
 bool vvp_ref_signal_aa::read_binding(binding_t&out) const

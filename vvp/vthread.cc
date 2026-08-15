@@ -2616,7 +2616,10 @@ static void reorder_queue_rand_modes_(
         // index when an ordering method assigns rearranged values. Queue
         // ordering rearranges queue members, matching insert/delete shifts.
       if (dynamic_cast<vvp_queue*>(array))
+      {
+            array->reorder_element_refs(permutation);
             array->reorder_rand_modes(permutation);
+      }
 }
 
 /* Signed vec4 numeric less-than (two's complement, X/Z as 0): a
@@ -2993,6 +2996,59 @@ static vvp_object_t qslice_copy_(vvp_darray*src, int64_t lo, int64_t hi)
       return vvp_object_t(dst);
 }
 
+static int64_t qslice_last_index_(vvp_darray*src)
+{
+      if (!src || src->get_size() == 0)
+            return -1;
+
+      size_t last = src->get_size() - 1;
+      if (last > static_cast<size_t>(LLONG_MAX))
+            return LLONG_MAX;
+      return static_cast<int64_t>(last);
+}
+
+static int64_t qslice_last_offset_(vvp_darray*src, int64_t offset)
+{
+      int64_t last = qslice_last_index_(src);
+      if (offset > 0 && last < LLONG_MIN + offset)
+            return LLONG_MIN;
+      if (offset < 0 && last > LLONG_MAX + offset)
+            return LLONG_MAX;
+      return last - offset;
+}
+
+static bool qslice_result_(vthread_t thr, const vvp_object_t&src_obj,
+                           int64_t lo, int64_t hi)
+{
+      vvp_darray*src = src_obj.peek<vvp_darray>();
+      if (!src) {
+            thr->push_object(vvp_object_t(new vvp_queue_vec4));
+            return true;
+      }
+
+      int64_t last = qslice_last_index_(src);
+      if (lo < 0)
+            lo = 0;
+      if (hi > last)
+            hi = last;
+
+      vvp_object_t out;
+      if (dynamic_cast<vvp_queue_real*>(src)
+          || dynamic_cast<vvp_darray_real*>(src))
+            out = qslice_copy_<double, vvp_queue_real>(src, lo, hi);
+      else if (dynamic_cast<vvp_queue_string*>(src)
+               || dynamic_cast<vvp_darray_string*>(src))
+            out = qslice_copy_<string, vvp_queue_string>(src, lo, hi);
+      else if (dynamic_cast<vvp_queue_object*>(src)
+               || dynamic_cast<vvp_darray_object*>(src))
+            out = qslice_copy_<vvp_object_t, vvp_queue_object>(src, lo, hi);
+      else
+            out = qslice_copy_<vvp_vector4_t, vvp_queue_vec4>(src, lo, hi);
+
+      thr->push_object(out);
+      return true;
+}
+
 /*
  * %qslice
  *
@@ -3012,38 +3068,38 @@ bool of_QSLICE(vthread_t thr, vvp_code_t)
 
       vvp_object_t src_obj;
       thr->pop_object(src_obj);
-      vvp_darray*src = src_obj.peek<vvp_darray>();
+      return qslice_result_(thr, src_obj, msb, lsb);
+}
 
-      int64_t lo = msb;
-      int64_t hi = lsb;
-      if (src) {
-	    int64_t sz = (int64_t)src->get_size();
-	    if (lo < 0) lo = 0;
-	    if (hi >= sz) hi = sz - 1;
-      }
+/* %qslice/last pops q[lo:$]. The upper bound is derived from the already
+ * evaluated source object, so a side-effecting receiver runs only once. */
+bool of_QSLICE_LAST(vthread_t thr, vvp_code_t)
+{
+      int64_t lo = 0;
+      vvp_vector4_t lov = thr->pop_vec4();
+      vector4_to_value(lov, lo, true);
 
-      if (!src || lo > hi) {
-	    /* Empty slice: a fresh empty vec4 queue is a safe universal
-	       "no elements" value for reads. */
-	    thr->push_object(vvp_object_t(new vvp_queue_vec4));
-	    return true;
-      }
+      vvp_object_t src_obj;
+      thr->pop_object(src_obj);
+      return qslice_result_(thr, src_obj, lo,
+                            qslice_last_index_(src_obj.peek<vvp_darray>()));
+}
 
-      vvp_object_t out;
-      if (dynamic_cast<vvp_queue_real*>(src)
-	  || dynamic_cast<vvp_darray_real*>(src))
-	    out = qslice_copy_<double, vvp_queue_real>(src, lo, hi);
-      else if (dynamic_cast<vvp_queue_string*>(src)
-	       || dynamic_cast<vvp_darray_string*>(src))
-	    out = qslice_copy_<string, vvp_queue_string>(src, lo, hi);
-      else if (dynamic_cast<vvp_queue_object*>(src)
-	       || dynamic_cast<vvp_darray_object*>(src))
-	    out = qslice_copy_<vvp_object_t, vvp_queue_object>(src, lo, hi);
-      else
-	    out = qslice_copy_<vvp_vector4_t, vvp_queue_vec4>(src, lo, hi);
+/* %qslice/off pops q[lo:$-offset], deriving the last index from the same
+ * source snapshot and subtracting a separately evaluated offset. */
+bool of_QSLICE_OFF(vthread_t thr, vvp_code_t)
+{
+      int64_t offset = 0, lo = 0;
+      vvp_vector4_t offv = thr->pop_vec4();
+      vvp_vector4_t lov = thr->pop_vec4();
+      vector4_to_value(offv, offset, true);
+      vector4_to_value(lov, lo, true);
 
-      thr->push_object(out);
-      return true;
+      vvp_object_t src_obj;
+      thr->pop_object(src_obj);
+      return qslice_result_(thr, src_obj, lo,
+                            qslice_last_offset_(src_obj.peek<vvp_darray>(),
+                                                offset));
 }
 
 static bool qunique_eq_(const vvp_vector4_t&a, const vvp_vector4_t&b)
@@ -14871,6 +14927,17 @@ vvp_vector4_t pop_assoc_key_<vvp_vector4_t>(vthread_t thr)
 template <typename KEY>
 static bool read_signal_assoc_key_(vthread_t thr, vvp_net_t*net, KEY&value);
 
+static vvp_ref_signal_aa* signal_string_ref_(vvp_net_t*net)
+{
+      if (!net)
+            return 0;
+
+      vvp_ref_signal_aa*ref = dynamic_cast<vvp_ref_signal_aa*>(net->fun);
+      if (!ref)
+            ref = dynamic_cast<vvp_ref_signal_aa*>(net->fil);
+      return ref;
+}
+
 template <>
 bool read_signal_assoc_key_<string>(vthread_t thr, vvp_net_t*net, string&value)
 {
@@ -14878,12 +14945,13 @@ bool read_signal_assoc_key_<string>(vthread_t thr, vvp_net_t*net, string&value)
             return false;
 
       vvp_fun_signal_string*fun = signal_string_fun_(net);
-      if (!fun)
+      vvp_ref_signal_aa*ref = signal_string_ref_(net);
+      if (!fun && !ref)
             return false;
 
       vthread_t save_running = running_thread;
       running_thread = thr;
-      value = fun->get_string();
+      value = fun ? fun->get_string() : ref->get_string();
       running_thread = save_running;
       return true;
 }
@@ -14933,7 +15001,7 @@ bool write_signal_assoc_key_<string>(vthread_t thr, vvp_net_t*net,
 {
       if (!(thr && net))
             return false;
-      if (!signal_string_fun_(net))
+      if (!signal_string_fun_(net) && !signal_string_ref_(net))
             return false;
 
       vvp_send_string(vvp_net_ptr_t(net, 0), value,
@@ -16898,11 +16966,11 @@ bool of_LOAD_STR(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_t*net = cp->net;
 
-
       vvp_fun_signal_string*fun = dynamic_cast<vvp_fun_signal_string*> (net->fun);
-      assert(fun);
+      vvp_ref_signal_aa*ref = dynamic_cast<vvp_ref_signal_aa*> (net->fun);
+      assert(fun || ref);
 
-      const string&val = fun->get_string();
+      const string&val = fun ? fun->get_string() : ref->get_string();
       if (load_str_trace_scope_match_(thr ? thr->parent_scope : 0)) {
             __vpiScope*item_scope = 0;
             vpiHandle item = lookup_scope_item_by_net_chain_(thr ? thr->parent_scope : 0,
@@ -19591,9 +19659,10 @@ bool of_PUTC_STR_VEC4(vthread_t thr, vvp_code_t cp)
 	   index is too big for the string, then give up. */
       vvp_net_t*net = cp->net;
       vvp_fun_signal_string*fun = dynamic_cast<vvp_fun_signal_string*> (net->fun);
-      assert(fun);
+      vvp_ref_signal_aa*ref = dynamic_cast<vvp_ref_signal_aa*> (net->fun);
+      assert(fun || ref);
 
-      string tmp = fun->get_string();
+      string tmp = fun ? fun->get_string() : ref->get_string();
       if (tmp.size() <= (size_t)mux)
 	    return true;
 
@@ -20071,10 +20140,10 @@ bool of_REF_BIND_PR(vthread_t thr, vvp_code_t cp)
  * %ref/bind/el <formal>, <container-var>
  *
  * Bind a ref formal to element <index> (popped from the vec4 stack) of
- * the dynamic array or queue held by <container-var>. The binding
- * records the VARIABLE, and the current container object is fetched on
- * each access, so a resize or whole-container reassignment between
- * accesses is honoured.
+ * the dynamic array or queue held by <container-var>. The captured
+ * element cell follows a live queue element through index shifts and
+ * retains its last value if the element is removed or the whole
+ * container is replaced.
  */
 bool of_REF_BIND_EL(vthread_t thr, vvp_code_t cp)
 {
@@ -20088,7 +20157,10 @@ bool of_REF_BIND_EL(vthread_t thr, vvp_code_t cp)
 	    assert(formal);
 	    return true;
       }
-      formal->bind_elem(cp->net2, use_index);
+      vvp_object_t container;
+      if (vvp_fun_signal_object*fun = signal_object_fun_(cp->net2))
+            container = fun->peek_object();
+      formal->bind_elem(container, use_index);
       return true;
 }
 

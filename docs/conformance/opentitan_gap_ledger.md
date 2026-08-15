@@ -2163,10 +2163,12 @@ queue golds intentionally move their static-pattern warning to the common
 run-time whole-copy warning because a collection operand can make the result
 size run-time dependent.
 
-This is not full queue-reference closure. A `ref` bound to an element before
-whole assignment is still modeled as `(queue,index)` rather than a detached
-element cell and can follow the replacement element; side-effecting
-object-backed aggregate operands also need a dedicated capture-order oracle.
+This is not full queue-reference closure. Direct queue/dynamic-array element
+bindings now use stable cells and detach with their prior value when whole
+assignment removes the element. An element reached through a class property
+or other nested container receiver still takes the companion path, and
+side-effecting object-backed aggregate operands still need a dedicated
+capture-order oracle.
 A clean pinned replay of all 923 self-contained tracked sv-tests cases moved
 exactly `push_back_assign`, `push_front_assign`, and `insert_assign` from
 `SEMANTIC_FAIL` to `VERIFIED_RUNTIME`: runtime-verified 157→160 and semantic

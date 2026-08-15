@@ -11773,13 +11773,13 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 	   true reference (R25): a class property, a dynamic-array or
 	   queue element, or a static-array word. Types whose access
 	   opcodes are delegated generically (packed integral, real,
-	   class handle); a string formal is never bound at all (see
-	   ref_formal_is_bound) so it cannot reach here. */
+	   class handle, string). */
       bool inside_ok = false;
       switch (port->data_type()) {
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:
 	  case IVL_VT_REAL:
+	  case IVL_VT_STRING:
 	    inside_ok = true;
 	    break;
 	  case IVL_VT_CLASS:

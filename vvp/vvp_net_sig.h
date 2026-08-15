@@ -510,15 +510,14 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
 	// handle), so the reference survives the caller's handle variable
 	// being reassigned -- the ref names the property's storage, which
 	// lives in the object.
-	// bind_elem: an element of a dynamic array or queue. The
-	// CONTAINER VARIABLE's net is captured and the current container
-	// object is fetched on each access, so a resize or whole-array
-	// reassignment between accesses is honoured; an out-of-range
-	// index reads the type default and drops the write, matching a
-	// direct element access.
+	// bind_elem: an element of a dynamic array or queue. A stable
+	// element cell follows that live element through queue index shifts.
+	// Removing the element or replacing the whole container detaches the
+	// cell with its last value, as required by 13.5.2; an initially
+	// out-of-range index reads the type default and drops writes.
 	// bind_word: a word of a fixed (static) unpacked array.
       void bind_prop(const vvp_object_t&obj, unsigned pid);
-      void bind_elem(vvp_net_t*container, int64_t index);
+      void bind_elem(const vvp_object_t&container, int64_t index);
       void bind_word(struct __vpiArray*arr, unsigned index);
 
 	// vvp_net_fun_t: forward everything to the bound net.
@@ -539,6 +538,7 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
       void vec4_value(vvp_vector4_t&) const override;
       double real_value() const override;
       void get_signal_value(struct t_vpi_value*vp) override;
+      const std::string& get_string() const;
 
 	// vvp_fun_signal_object: forward to the bound target's own object
 	// functor. A class-handle formal is a single machine word, so
@@ -586,6 +586,7 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
       __vpiScope*context_scope_;
       unsigned context_idx_;
       unsigned size_;
+      mutable std::string string_cache_;
 };
 
 

@@ -56,20 +56,20 @@
 //      `rset` in sv_ref_argument_is_a_reference, a function, still
 //      passing on the copy pair).
 //
-// String and container (dynamic array, queue, fixed array) formals
-// still take the copy pair on TASKS too -- their reads and writes go
-// through a type-specific opcode (%load/str, the container element/word
-// ops) a bound formal cannot answer -- and are exercised below as
-// controls to pin that the still-open gap for them is unchanged, not
-// worse. R25 also asks that the hazard be made LOUD AT ELABORATION for
-// exactly this residual shape (a copy-bound real/string/container `ref'
-// formal on a task whose body forks a detached branch, IEEE 1800-2017
-// 13.5.2): spawn_str/spawn_q below are EXPECTED TO WARN at compile time
-// (spawn_real is not, now that its formal is bound). This test is
-// registered WITH a gold file (ivtest/gold/sv_ref_arg_object_fork_detach.gold)
-// that pins the exact two warning lines in the compile log, so the
-// warning text and the fact that real no longer warns are both checked
-// on every run, not just eyeballed once.
+// String TASK formals are bound references too: their type-specific load
+// now follows the reference wrapper, including detached element storage.
+// Container (dynamic array, queue, fixed array) formals still take the
+// copy pair on TASKS -- their element/word operations cannot yet use a
+// bound formal -- and remain below as a control that pins the residual
+// gap. R25 also asks that this hazard be LOUD AT ELABORATION for exactly
+// this residual shape (a copy-bound container `ref' formal on a task
+// whose body forks a detached branch, IEEE 1800-2017 13.5.2): spawn_q
+// below is EXPECTED TO WARN at compile time (spawn_real and spawn_str
+// are not, now that their formals are bound). This test is registered
+// WITH a gold file (ivtest/gold/sv_ref_arg_object_fork_detach.gold) that
+// pins the exact remaining warning in the compile log, so the warning
+// text and closed real/string gaps are checked on every run, not merely
+// inspected once.
 
 module main;
 
@@ -133,10 +133,9 @@ module main;
   endtask
 
   // ------------------------------------------------------------------
-  // 4. An actual that cannot be named directly (an array element, a
-  //    class property) binds to a per-frame companion object variable
-  //    and is copied in/out through it, same as an integral ref formal.
-  //    Concurrent calls each need their own companion.
+  // 4. An actual inside storage (an array element or class property) uses
+  //    the corresponding tagged ref binding, so it names that storage
+  //    directly. Concurrent calls keep independent bindings.
   // ------------------------------------------------------------------
   Foo arr[3];
   class Holder;
@@ -193,15 +192,29 @@ module main;
   endtask
 
   // ------------------------------------------------------------------
-  // controls: types that still take the copy pair, in the SAME
-  // fork/join_none-after-return shape as the defect. These are
-  // expected to still show the pre-existing hazard -- unchanged, not
-  // worse -- because their reads/writes go through a type-specific
-  // opcode a bound formal cannot answer.
+  // String is a closed type-specific binding path. Queue remains a
+  // copy-pair control in the same fork/join_none-after-return shape.
   // ------------------------------------------------------------------
   string gs;
   task automatic spawn_str(ref string out_s);
-    fork begin out_s = "hello"; #4; end join_none
+    fork begin
+      out_s = "hello";
+      out_s[0] = "H";
+      #4;
+    end join_none
+  endtask
+
+  int walk_aa[string];
+  string walk_key;
+  task automatic traverse_keys(ref string key);
+    if (!walk_aa.first(key) || key != "alpha") begin
+      fails++;
+      $display("FAILED -- string ref: first key=%s", key);
+    end
+    if (!walk_aa.next(key) || key != "beta") begin
+      fails++;
+      $display("FAILED -- string ref: next key=%s", key);
+    end
   endtask
 
   int gq[$];
@@ -236,7 +249,7 @@ module main;
     clear_it(gh);
     chk_int("synchronous ref write: null again", gh == null, 1);
 
-    // ---- 4. companion temporary: array element, class property ----
+    // ---- 4. tagged storage binding: array element, class property ----
     hd = new;
     set_it(arr[1], 11);
     chk_int("array element actual: value", arr[1].tag, 11);
@@ -244,12 +257,12 @@ module main;
     set_it(hd.h, 22);
     chk_int("class property actual: value", hd.h.tag, 22);
 
-    // concurrent calls through the temporary must not cross-contaminate
+    // concurrent tagged bindings must not cross-contaminate
     fork tag_elem(arr[0], 100); join_none
     fork tag_elem(arr[2], 200); join_none
     #4;
-    chk_int("concurrent companions: arr[0]", arr[0].tag, 100);
-    chk_int("concurrent companions: arr[2]", arr[2].tag, 200);
+    chk_int("concurrent bindings: arr[0]", arr[0].tag, 100);
+    chk_int("concurrent bindings: arr[2]", arr[2].tag, 200);
 
     // ---- 5. a static-lifetime task's ref formal ----
     st_task(gh);
@@ -276,12 +289,18 @@ module main;
     count_down_real(racc, 4);
     chk_real("real ref: recursive chained binding", racc, 10.0);
 
-    // ---- controls: the still-open gap, pinned unchanged ----
+    // ---- string binding and the residual container control ----
     fork spawn_str(gs); join_none
     fork spawn_q(gq); join_none
     #6;
-    if (gs == "hello")
-      $display("NOTE: ref string now also survives a detached branch (gap closed; update this control).");
+    chk_int("string ref: detached branch write survives the return",
+            gs == "Hello", 1);
+    walk_aa["alpha"] = 1;
+    walk_aa["beta"] = 2;
+    walk_key = "";
+    traverse_keys(walk_key);
+    chk_int("string ref: associative traversal writes through binding",
+            walk_key == "beta", 1);
     if (gq.size() != 0)
       $display("NOTE: ref queue now also survives a detached branch (gap closed; update this control).");
 

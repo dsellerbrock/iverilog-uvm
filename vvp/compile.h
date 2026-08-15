@@ -589,6 +589,7 @@ extern void compile_ref_variable(char*label, char*name,
  * one (see the comment at its definition in words.cc).
  */
 extern void compile_ref_variable_real(char*label, char*name, bool local_flag);
+extern void compile_ref_variable_string(char*label, char*name, bool local_flag);
 
 extern void compile_var_real(char*label, char*name, int lifetime_flag);
 extern void compile_var_string(char*label, char*name, int lifetime_flag);

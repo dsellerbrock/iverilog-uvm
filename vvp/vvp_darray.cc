@@ -49,8 +49,274 @@ vvp_object_t vvp_object_t::value_copy_element(void) const
 
 using namespace std;
 
+vvp_darray_element_ref::vvp_darray_element_ref(vvp_darray*owner,
+                                               size_t index, kind_t kind,
+                                               unsigned vec4_width)
+: owner_(0), index_(index), kind_(kind), valid_(false),
+  vec4_value_(vec4_width, BIT4_X), real_value_(0.0)
+{
+      if (owner && index < owner->get_size()) {
+            owner_ = owner;
+            valid_ = true;
+            owner_->register_element_ref(this);
+      }
+}
+
+vvp_darray_element_ref::~vvp_darray_element_ref()
+{
+      if (owner_) owner_->unregister_element_ref(this);
+}
+
+void vvp_darray_element_ref::detach()
+{
+      if (!owner_) return;
+
+      vvp_darray*old_owner = owner_;
+      switch (kind_) {
+          case ELEM_VEC4:
+            old_owner->get_word((unsigned)index_, vec4_value_);
+            break;
+          case ELEM_REAL:
+            old_owner->get_word((unsigned)index_, real_value_);
+            break;
+          case ELEM_STRING:
+            old_owner->get_word((unsigned)index_, string_value_);
+            break;
+          case ELEM_OBJECT:
+            old_owner->get_word((unsigned)index_, object_value_);
+            break;
+      }
+      owner_ = 0;
+      old_owner->unregister_element_ref(this);
+      valid_ = true;
+}
+
+void vvp_darray_element_ref::shift_up(size_t at)
+{
+      if (owner_ && index_ >= at) index_ += 1;
+}
+
+void vvp_darray_element_ref::shift_down(size_t after)
+{
+      if (owner_ && index_ > after) index_ -= 1;
+}
+
+void vvp_darray_element_ref::set_value(const vvp_vector4_t&value)
+{
+      if (kind_ != ELEM_VEC4 || !valid_) return;
+      if (owner_) {
+            owner_->set_word((unsigned)index_, value);
+            owner_->notify_signal_aliases();
+      }
+      else vec4_value_ = value;
+      touch();
+}
+
+void vvp_darray_element_ref::get_value(vvp_vector4_t&value)
+{
+      if (kind_ != ELEM_VEC4 || !valid_) {
+            value = vvp_vector4_t(vec4_value_.size(), BIT4_X);
+            return;
+      }
+      if (owner_) owner_->get_word((unsigned)index_, value);
+      else value = vec4_value_;
+}
+
+void vvp_darray_element_ref::set_value(double value)
+{
+      if (kind_ != ELEM_REAL || !valid_) return;
+      if (owner_) {
+            owner_->set_word((unsigned)index_, value);
+            owner_->notify_signal_aliases();
+      }
+      else real_value_ = value;
+      touch();
+}
+
+void vvp_darray_element_ref::get_value(double&value)
+{
+      if (kind_ != ELEM_REAL || !valid_) {
+            value = 0.0;
+            return;
+      }
+      if (owner_) owner_->get_word((unsigned)index_, value);
+      else value = real_value_;
+}
+
+void vvp_darray_element_ref::set_value(const string&value)
+{
+      if (kind_ != ELEM_STRING || !valid_) return;
+      if (owner_) {
+            owner_->set_word((unsigned)index_, value);
+            owner_->notify_signal_aliases();
+      }
+      else string_value_ = value;
+      touch();
+}
+
+void vvp_darray_element_ref::get_value(string&value)
+{
+      if (kind_ != ELEM_STRING || !valid_) {
+            value.clear();
+            return;
+      }
+      if (owner_) owner_->get_word((unsigned)index_, value);
+      else value = string_value_;
+}
+
+void vvp_darray_element_ref::set_value(const vvp_object_t&value)
+{
+      if (kind_ != ELEM_OBJECT || !valid_) return;
+      if (owner_) {
+            owner_->set_word((unsigned)index_, value);
+            owner_->notify_signal_aliases();
+      }
+      else object_value_ = value;
+      touch();
+}
+
+void vvp_darray_element_ref::get_value(vvp_object_t&value)
+{
+      if (kind_ != ELEM_OBJECT || !valid_) {
+            value = vvp_object_t();
+            return;
+      }
+      if (owner_) owner_->get_word((unsigned)index_, value);
+      else value = object_value_;
+}
+
+void vvp_darray_element_ref::shallow_copy(const vvp_object*that)
+{
+      const vvp_darray_element_ref*src =
+            dynamic_cast<const vvp_darray_element_ref*>(that);
+      assert(src);
+      if (src == this) return;
+      if (owner_) {
+            owner_->unregister_element_ref(this);
+            owner_ = 0;
+      }
+
+      kind_ = src->kind_;
+      valid_ = src->valid_;
+      vec4_value_ = vvp_vector4_t(src->vec4_value_.size(), BIT4_X);
+      real_value_ = 0.0;
+      string_value_.clear();
+      object_value_ = vvp_object_t();
+      if (!valid_) return;
+
+      vvp_darray_element_ref*mutable_src =
+            const_cast<vvp_darray_element_ref*>(src);
+      switch (kind_) {
+          case ELEM_VEC4: mutable_src->get_value(vec4_value_); break;
+          case ELEM_REAL: mutable_src->get_value(real_value_); break;
+          case ELEM_STRING: mutable_src->get_value(string_value_); break;
+          case ELEM_OBJECT: mutable_src->get_value(object_value_); break;
+      }
+}
+
+vvp_object*vvp_darray_element_ref::duplicate() const
+{
+      vvp_darray_element_ref*copy =
+            new vvp_darray_element_ref(0, index_, kind_, vec4_value_.size());
+      copy->shallow_copy(this);
+      return copy;
+}
+
 vvp_darray::~vvp_darray()
 {
+      assert(element_refs_.empty());
+}
+
+void vvp_darray::register_element_ref(vvp_darray_element_ref*ref)
+{
+      assert(ref && ref->is_attached_to(this));
+      element_refs_.insert(ref);
+}
+
+void vvp_darray::unregister_element_ref(vvp_darray_element_ref*ref)
+{
+      element_refs_.erase(ref);
+}
+
+vvp_object_t vvp_darray::capture_element_ref(size_t idx, unsigned vec4_width)
+{
+      if (idx < get_size()) {
+            for (vvp_darray_element_ref*ref : element_refs_)
+                  if (ref->index_ == idx) return vvp_object_t(ref);
+      }
+
+      vvp_darray_element_ref::kind_t kind = vvp_darray_element_ref::ELEM_VEC4;
+      if (dynamic_cast<vvp_darray_real*>(this)
+          || dynamic_cast<vvp_queue_real*>(this))
+            kind = vvp_darray_element_ref::ELEM_REAL;
+      else if (dynamic_cast<vvp_darray_string*>(this)
+               || dynamic_cast<vvp_queue_string*>(this))
+            kind = vvp_darray_element_ref::ELEM_STRING;
+      else if (dynamic_cast<vvp_darray_object*>(this)
+               || dynamic_cast<vvp_queue_object*>(this))
+            kind = vvp_darray_element_ref::ELEM_OBJECT;
+
+      return vvp_object_t(new vvp_darray_element_ref(
+            idx < get_size() ? this : 0, idx, kind, vec4_width));
+}
+
+void vvp_darray::element_refs_detach_all()
+{
+      while (!element_refs_.empty()) (*element_refs_.begin())->detach();
+}
+
+void vvp_darray::element_refs_insert(size_t idx)
+{
+      for (vvp_darray_element_ref*ref : element_refs_) ref->shift_up(idx);
+}
+
+void vvp_darray::element_refs_remove(size_t idx)
+{
+      vector<vvp_darray_element_ref*> refs(element_refs_.begin(),
+                                           element_refs_.end());
+      for (vvp_darray_element_ref*ref : refs) {
+            if (ref->index_ == idx) ref->detach();
+            else ref->shift_down(idx);
+      }
+}
+
+void vvp_darray::element_refs_remove_tail(size_t idx)
+{
+      vector<vvp_darray_element_ref*> refs(element_refs_.begin(),
+                                           element_refs_.end());
+      for (vvp_darray_element_ref*ref : refs)
+            if (ref->index_ >= idx) ref->detach();
+}
+
+void vvp_darray::element_refs_push_front(bool discard_back)
+{
+      if (discard_back && get_size()) element_refs_remove(get_size()-1);
+      element_refs_insert(0);
+}
+
+void vvp_darray::element_refs_pop_back()
+{
+      if (get_size()) element_refs_remove(get_size()-1);
+}
+
+void vvp_darray::element_refs_pop_front()
+{
+      if (get_size()) element_refs_remove(0);
+}
+
+void vvp_darray::reorder_element_refs(
+      const vector<size_t>&source_indices)
+{
+      vector<vvp_darray_element_ref*> refs(element_refs_.begin(),
+                                           element_refs_.end());
+      for (vvp_darray_element_ref*ref : refs) {
+            size_t dst = 0;
+            while (dst < source_indices.size()
+                   && source_indices[dst] != ref->index_)
+                  dst += 1;
+            if (dst == source_indices.size()) ref->detach();
+            else ref->index_ = dst;
+      }
 }
 
 static void sync_rand_modes_(const vvp_darray*array,
@@ -302,6 +568,7 @@ vvp_vector4_t vvp_darray::get_bitstream(bool)
 
 template <class TYPE> vvp_darray_atom<TYPE>::~vvp_darray_atom()
 {
+      element_refs_detach_all();
 }
 
 template <class TYPE> size_t vvp_darray_atom<TYPE>::get_size() const
@@ -337,6 +604,7 @@ template <class TYPE> void vvp_darray_atom<TYPE>::get_word(unsigned adr, vvp_vec
 
 template <class TYPE> void vvp_darray_atom<TYPE>::shallow_copy(const vvp_object*obj)
 {
+      element_refs_detach_all();
       if (obj == 0) return;
       const vvp_darray_atom<TYPE>*that = dynamic_cast<const vvp_darray_atom<TYPE>*>(obj);
       if (that == 0) {
@@ -408,6 +676,7 @@ template class vvp_darray_atom<int64_t>;
 
 vvp_darray_vec4::~vvp_darray_vec4()
 {
+      element_refs_detach_all();
 }
 
 size_t vvp_darray_vec4::get_size(void) const
@@ -439,6 +708,7 @@ void vvp_darray_vec4::get_word(unsigned adr, vvp_vector4_t&value)
 
 void vvp_darray_vec4::shallow_copy(const vvp_object*obj)
 {
+      element_refs_detach_all();
       if (obj == 0) return;
       const vvp_darray_vec4*that = dynamic_cast<const vvp_darray_vec4*>(obj);
       if (that == 0) {
@@ -500,6 +770,7 @@ vvp_vector4_t vvp_darray_vec4::get_bitstream(bool as_vec4)
 
 vvp_darray_vec2::~vvp_darray_vec2()
 {
+      element_refs_detach_all();
 }
 
 size_t vvp_darray_vec2::get_size(void) const
@@ -534,6 +805,7 @@ void vvp_darray_vec2::get_word(unsigned adr, vvp_vector4_t&value)
 
 void vvp_darray_vec2::shallow_copy(const vvp_object*obj)
 {
+      element_refs_detach_all();
       if (obj == 0) return;
       const vvp_darray_vec2*that = dynamic_cast<const vvp_darray_vec2*>(obj);
       if (that == 0) {
@@ -594,6 +866,7 @@ vvp_vector4_t vvp_darray_vec2::get_bitstream(bool)
 
 vvp_darray_object::~vvp_darray_object()
 {
+      element_refs_detach_all();
 }
 
 size_t vvp_darray_object::get_size() const
@@ -621,6 +894,7 @@ void vvp_darray_object::get_word(unsigned adr, vvp_object_t&value)
 
 void vvp_darray_object::shallow_copy(const vvp_object*obj)
 {
+      element_refs_detach_all();
       if (obj == 0) return;
       const vvp_darray_object*that = dynamic_cast<const vvp_darray_object*>(obj);
       if (that == 0) {
@@ -665,6 +939,7 @@ vvp_object* vvp_darray_object::duplicate(void) const
 
 vvp_darray_real::~vvp_darray_real()
 {
+      element_refs_detach_all();
 }
 
 size_t vvp_darray_real::get_size() const
@@ -692,6 +967,7 @@ void vvp_darray_real::get_word(unsigned adr, double&value)
 
 void vvp_darray_real::shallow_copy(const vvp_object*obj)
 {
+      element_refs_detach_all();
       if (obj == 0) return;
       const vvp_darray_real*that = dynamic_cast<const vvp_darray_real*>(obj);
       if (that == 0) {
@@ -760,6 +1036,7 @@ vvp_vector4_t vvp_darray_real::get_bitstream(bool)
 
 vvp_darray_string::~vvp_darray_string()
 {
+      element_refs_detach_all();
 }
 
 size_t vvp_darray_string::get_size() const
@@ -787,6 +1064,7 @@ void vvp_darray_string::get_word(unsigned adr, string&value)
 
 void vvp_darray_string::shallow_copy(const vvp_object*obj)
 {
+      element_refs_detach_all();
       if (obj == 0) return;
       const vvp_darray_string*that = dynamic_cast<const vvp_darray_string*>(obj);
       if (that == 0) {
@@ -1006,8 +1284,14 @@ static void copy_elements(QTYPE*queue, SRC_TYPE*src, unsigned max_size)
       }
 }
 
+vvp_queue_real::~vvp_queue_real()
+{
+      element_refs_detach_all();
+}
+
 void vvp_queue_real::copy_elems(vvp_object_t src, unsigned max_size)
 {
+      element_refs_detach_all();
       if (vvp_queue*src_queue = src.peek<vvp_queue>())
 	    copy_elements<double, vvp_queue_real, vvp_queue>(this, src_queue, max_size);
       else if (vvp_darray*src_darray = src.peek<vvp_darray>())
@@ -1080,8 +1364,10 @@ void vvp_queue_real::insert(unsigned idx, double value, unsigned max_size)
 		       << "Warning: insert("<< idx << ", " << value << ") removed "
 		       << queue.back() << " from already full bounded queue<real> ["
 		       << max_size << "]." << endl;
+		  element_refs_pop_back();
 		  queue.pop_back();
 	    }
+	    element_refs_insert(idx);
 	    rand_mode_insert(idx);
 	    queue.insert(queue.begin()+idx, value);
             touch();
@@ -1106,8 +1392,10 @@ void vvp_queue_real::push_front(double value, unsigned max_size)
 	         << "Warning: push_front(" << value << ") removed "
 	         << queue.back() << " from already full bounded queue<real> ["
 	         << max_size << "]." << endl;
+	    element_refs_pop_back();
 	    queue.pop_back();
       }
+      element_refs_insert(0);
       rand_mode_push_front();
       queue.push_front(value);
       touch();
@@ -1116,6 +1404,7 @@ void vvp_queue_real::push_front(double value, unsigned max_size)
 void vvp_queue_real::erase(unsigned idx)
 {
       assert(queue.size() > idx);
+      element_refs_remove(idx);
       rand_mode_erase(idx);
       queue.erase(queue.begin()+idx);
       touch();
@@ -1124,12 +1413,20 @@ void vvp_queue_real::erase(unsigned idx)
 void vvp_queue_real::erase_tail(unsigned idx)
 {
       assert(queue.size() >= idx);
-      if (queue.size() > idx)
+      if (queue.size() > idx) {
+            element_refs_remove_tail(idx);
 	    rand_mode_erase_tail(idx), queue.resize(idx), touch();
+      }
+}
+
+vvp_queue_string::~vvp_queue_string()
+{
+      element_refs_detach_all();
 }
 
 void vvp_queue_string::copy_elems(vvp_object_t src, unsigned max_size)
 {
+      element_refs_detach_all();
       if (vvp_queue*src_queue = src.peek<vvp_queue>())
 	    copy_elements<string, vvp_queue_string, vvp_queue>(this, src_queue, max_size);
       else if (vvp_darray*src_darray = src.peek<vvp_darray>())
@@ -1202,8 +1499,10 @@ void vvp_queue_string::insert(unsigned idx, const string&value, unsigned max_siz
 		       << "Warning: insert("<< idx << ", \"" << value << "\") removed \""
 		       << queue.back() << "\" from already full bounded queue<string> ["
 		       << max_size << "]." << endl;
+		  element_refs_pop_back();
 		  queue.pop_back();
 	    }
+	    element_refs_insert(idx);
 	    rand_mode_insert(idx);
 	    queue.insert(queue.begin()+idx, value);
             touch();
@@ -1228,8 +1527,10 @@ void vvp_queue_string::push_front(const string&value, unsigned max_size)
 	         << "Warning: push_front(\"" << value << "\") removed \""
 	         << queue.back() << "\" from already full bounded queue<string> ["
 	         << max_size << "]." << endl;
+	    element_refs_pop_back();
 	    queue.pop_back();
       }
+      element_refs_insert(0);
       rand_mode_push_front();
       queue.push_front(value);
       touch();
@@ -1238,6 +1539,7 @@ void vvp_queue_string::push_front(const string&value, unsigned max_size)
 void vvp_queue_string::erase(unsigned idx)
 {
       assert(queue.size() > idx);
+      element_refs_remove(idx);
       rand_mode_erase(idx);
       queue.erase(queue.begin()+idx);
       touch();
@@ -1246,8 +1548,10 @@ void vvp_queue_string::erase(unsigned idx)
 void vvp_queue_string::erase_tail(unsigned idx)
 {
       assert(queue.size() >= idx);
-      if (queue.size() > idx)
+      if (queue.size() > idx) {
+            element_refs_remove_tail(idx);
 	    rand_mode_erase_tail(idx), queue.resize(idx), touch();
+      }
 }
 
 vvp_vector4_t vvp_queue_string::get_bitstream(bool)
@@ -1274,8 +1578,14 @@ vvp_vector4_t vvp_queue_string::get_bitstream(bool)
       return vec;
 }
 
+vvp_queue_vec4::~vvp_queue_vec4()
+{
+      element_refs_detach_all();
+}
+
 void vvp_queue_vec4::copy_elems(vvp_object_t src, unsigned max_size)
 {
+      element_refs_detach_all();
       if (vvp_queue*src_queue = src.peek<vvp_queue>())
 	    copy_elements<vvp_vector4_t, vvp_queue_vec4, vvp_queue>(this, src_queue, max_size);
       else if (vvp_darray*src_darray = src.peek<vvp_darray>())
@@ -1348,8 +1658,10 @@ void vvp_queue_vec4::insert(unsigned idx, const vvp_vector4_t&value, unsigned ma
 		       << "Warning: insert("<< idx << ", " << value << ") removed "
 		       << queue.back() << " from already full bounded queue<vector["
 		       << value.size() << "]> [" << max_size << "]." << endl;
+		  element_refs_pop_back();
 		  queue.pop_back();
 	    }
+	    element_refs_insert(idx);
 	    rand_mode_insert(idx);
 	    queue.insert(queue.begin()+idx, value);
             touch();
@@ -1374,8 +1686,10 @@ void vvp_queue_vec4::push_front(const vvp_vector4_t&value, unsigned max_size)
 	         << "Warning: push_front(" << value << ") removed "
 	         << queue.back() << " from already full bounded queue<vector["
 	         << value.size() << "]> [" << max_size << "]." << endl;
+	    element_refs_pop_back();
 	    queue.pop_back();
       }
+      element_refs_insert(0);
       rand_mode_push_front();
       queue.push_front(value);
       touch();
@@ -1384,6 +1698,7 @@ void vvp_queue_vec4::push_front(const vvp_vector4_t&value, unsigned max_size)
 void vvp_queue_vec4::erase(unsigned idx)
 {
       assert(queue.size() > idx);
+      element_refs_remove(idx);
       rand_mode_erase(idx);
       queue.erase(queue.begin()+idx);
       touch();
@@ -1392,8 +1707,10 @@ void vvp_queue_vec4::erase(unsigned idx)
 void vvp_queue_vec4::erase_tail(unsigned idx)
 {
       assert(queue.size() >= idx);
-      if (queue.size() > idx)
+      if (queue.size() > idx) {
+            element_refs_remove_tail(idx);
 	    rand_mode_erase_tail(idx), queue.resize(idx), touch();
+      }
 }
 
 /*
@@ -1423,8 +1740,14 @@ vvp_vector4_t vvp_queue_vec4::get_bitstream(bool as_vec4)
       return vec;
 }
 
+vvp_queue_object::~vvp_queue_object()
+{
+      element_refs_detach_all();
+}
+
 void vvp_queue_object::copy_elems(vvp_object_t src, unsigned max_size)
 {
+      element_refs_detach_all();
       if (vvp_queue*src_queue = src.peek<vvp_queue>())
 	    copy_elements<vvp_object_t, vvp_queue_object, vvp_queue>(this, src_queue, max_size);
       else if (vvp_darray*src_darray = src.peek<vvp_darray>())
@@ -1511,8 +1834,10 @@ void vvp_queue_object::insert(unsigned idx, const vvp_object_t&value, unsigned m
 		       << "Warning: insert(" << idx << ", <object>) removed tail"
 		          " from already full bounded queue<object> ["
 		       << max_size << "]." << endl;
+		  element_refs_pop_back();
 		  queue.pop_back();
 	    }
+	    element_refs_insert(idx);
 	    rand_mode_insert(idx);
 	    queue.insert(queue.begin()+idx, value);
             touch();
@@ -1535,8 +1860,10 @@ void vvp_queue_object::push_front(const vvp_object_t&value, unsigned max_size)
 	    cerr << get_fileline()
 	         << "Warning: push_front(<object>) removed tail from already full"
 	            " bounded queue<object> [" << max_size << "]." << endl;
+	    element_refs_pop_back();
 	    queue.pop_back();
       }
+      element_refs_insert(0);
       rand_mode_push_front();
       queue.push_front(value);
       touch();
@@ -1545,6 +1872,7 @@ void vvp_queue_object::push_front(const vvp_object_t&value, unsigned max_size)
 void vvp_queue_object::erase(unsigned idx)
 {
       assert(queue.size() > idx);
+      element_refs_remove(idx);
       rand_mode_erase(idx);
       queue.erase(queue.begin()+idx);
       touch();
@@ -1553,6 +1881,8 @@ void vvp_queue_object::erase(unsigned idx)
 void vvp_queue_object::erase_tail(unsigned idx)
 {
       assert(queue.size() >= idx);
-      if (queue.size() > idx)
+      if (queue.size() > idx) {
+            element_refs_remove_tail(idx);
 	    rand_mode_erase_tail(idx), queue.resize(idx), touch();
+      }
 }
