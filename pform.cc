@@ -21227,13 +21227,6 @@ static void pform_validate_nettype_resolvers_(LexicalScope*scope,
             for (PGenerate*child : generate->generate_schemes)
                   pform_validate_nettype_resolvers_(child, seen);
 
-      /* Named generate scopes and nested modules also live in the shared
-       * symbol table. Cross-cast them here; the seen set removes duplicates. */
-      for (map<perm_string,PNamedItem*>::const_iterator cur =
-                 scope->local_symbols.begin(); cur != scope->local_symbols.end();
-           ++cur)
-            if (LexicalScope*child = dynamic_cast<LexicalScope*>(cur->second))
-                  pform_validate_nettype_resolvers_(child, seen);
 }
 
 int pform_finish()
@@ -21252,6 +21245,13 @@ int pform_finish()
             pform_validate_nettype_resolvers_(unit, validated_scopes);
       for (PPackage*package : pform_packages)
             pform_validate_nettype_resolvers_(package, validated_scopes);
+      /* Top-level modules are owned by pform_modules. Do not rediscover them
+       * by cross-casting the general local-symbol table: class property and
+       * parameter entries in that table need not remain live through this
+       * deferred finish pass. Nested modules, classes, and generate scopes
+       * are reached recursively through their dedicated owned collections. */
+      for (const pair<const perm_string,Module*>&module : pform_modules)
+            pform_validate_nettype_resolvers_(module.second, validated_scopes);
 
       // Apply collected SystemVerilog bind directives now that every
       // target module has been parsed.
