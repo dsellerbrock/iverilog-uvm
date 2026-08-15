@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_declaration_class_frontier.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_declaration_class_frontier"
+}

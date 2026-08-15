@@ -1,0 +1,2 @@
+./ivltests/sv_static_const_qualifier_fail.v:4: error: duplicate 'static' class item qualifier.
+./ivltests/sv_static_const_qualifier_fail.v:5: error: class item qualifiers 'local' and 'protected' cannot be combined.

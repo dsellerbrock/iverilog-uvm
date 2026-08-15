@@ -14,8 +14,8 @@ typedef struct packed {
 } randc_txn_packed_t;
 
 typedef struct {
-  int first;
-  bit [7:0] second;
+  rand int first;
+  rand bit [7:0] second;
 } randc_txn_unpacked_t;
 
 class randc_txn_legal_child;

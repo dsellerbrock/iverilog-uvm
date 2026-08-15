@@ -2569,6 +2569,10 @@ extern int ivl_type_packed_lsb(ivl_type_t net, unsigned dim);
 extern int ivl_type_packed_msb(ivl_type_t net, unsigned dim);
 extern unsigned ivl_type_packed_width(ivl_type_t net);
 extern int ivl_type_is_packed_vector(ivl_type_t net);
+/* Return the enumeration descriptor when NET is an enum type, or NULL for
+ * every other type. This lets targets preserve a sparse enum domain instead
+ * of treating the declaration as an unconstrained packed vector. */
+extern ivl_enumtype_t ivl_type_enum(ivl_type_t net);
 /* Return TRUE for an unpacked or packed union record. */
 extern int ivl_type_is_union(ivl_type_t net);
 /* Return TRUE specifically for a `union tagged` record. */
@@ -2593,7 +2597,7 @@ extern ivl_type_t  ivl_type_prop_type(ivl_type_t net, int idx);
  * or NULL for a non-static property. IDX is the absolute property index;
  * inherited and hidden properties therefore retain declaring identity. */
 extern ivl_signal_t ivl_type_prop_signal(ivl_type_t net, int idx);
-/* Returns the qualifier bits for class property idx.
+/* Returns the qualifier bits for class property or unpacked-struct member idx.
  * Bit 0: static, Bit 1: protected, Bit 2: local,
  * Bit 3: rand,   Bit 4: randc,     Bit 5: const */
 extern int         ivl_type_prop_qual(ivl_type_t net, int idx);

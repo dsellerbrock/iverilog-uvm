@@ -128,8 +128,13 @@ static void emit_struct_cobject_definition_(ivl_type_t struct_type)
 	      name, ivl_type_properties(struct_type));
       for (idx = 0 ; idx < ivl_type_properties(struct_type) ; idx += 1) {
 	    ivl_type_t ptype = ivl_type_prop_type(struct_type, idx);
+	    int qual = ivl_type_prop_qual(struct_type, idx);
+	    const char*rand_prefix = (qual & 16) ? "rc" : (qual & 8) ? "r" : "";
+	    char qualifier_prefix[32];
+	    snprintf(qualifier_prefix, sizeof qualifier_prefix, "q%x:%s",
+		     (unsigned)qual, rand_prefix);
 	    fprintf(vvp_out, " %3d: \"%s\", ", idx, ivl_type_prop_name(struct_type, idx));
-	    show_prop_type(ptype, "");
+	    show_prop_type(ptype, qualifier_prefix);
 	    if (is_unpacked_array_property_type(ptype)) {
 		  unsigned dim;
 		  for (dim = 0 ; dim < ivl_type_packed_dimensions(ptype) ; dim += 1) {
@@ -191,6 +196,34 @@ static void show_prop_type_vector(ivl_type_t ptype, const char*rand_prefix)
 	    fprintf(vvp_out, "\"%s%s%c%d\"", rand_prefix, signed_flag, code,
 		    packed_width);
       }
+}
+
+/* Keep an enum property's finite declaration domain alongside its ordinary
+ * packed-vector storage code. The vvp reader strips e{...}: before selecting
+ * the storage implementation, while randomize() uses the retained values so
+ * a sparse enum never receives an unnamed encoding. ivl_enum_bits is LSB
+ * first, matching vvp_vector4_t bit indexes directly. */
+static void show_prop_type_enum(ivl_enumtype_t enumtype,
+				const char*rand_prefix)
+{
+      unsigned idx;
+      unsigned emitted = 0;
+      const char*rp = rand_prefix ? rand_prefix : "";
+      const char*signed_flag = ivl_enum_signed(enumtype) ? "s" : "";
+      char code = ivl_enum_type(enumtype) == IVL_VT_BOOL ? 'b' : 'L';
+
+      fprintf(vvp_out, "\"%se{", rp);
+      for (idx = 0 ; idx < ivl_enum_names(enumtype) ; idx += 1) {
+	    const char*bits = ivl_enum_bits(enumtype, idx);
+	    if (!bits)
+		  continue;
+	    if (emitted)
+		  fputc(',', vvp_out);
+	    fputs(bits, vvp_out);
+	    emitted += 1;
+      }
+      fprintf(vvp_out, "}:%s%c%u\"", signed_flag, code,
+	      ivl_enum_width(enumtype));
 }
 
 static void show_prop_type_queue(ivl_type_t ptype, const char*rand_prefix)
@@ -273,6 +306,12 @@ static void show_prop_type(ivl_type_t ptype, const char*rand_prefix)
       ivl_type_t base_ptype = ptype;
       if (is_unpacked_array_property_type(ptype)) {
 	    base_ptype = ivl_type_element(ptype);
+      }
+
+      ivl_enumtype_t enumtype = ivl_type_enum(base_ptype);
+      if (enumtype) {
+	    show_prop_type_enum(enumtype, rand_prefix);
+	    return;
       }
 
       ivl_variable_type_t data_type = ivl_type_base(base_ptype);

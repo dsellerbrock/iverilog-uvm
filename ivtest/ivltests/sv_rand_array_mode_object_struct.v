@@ -4,7 +4,7 @@ class mode_leaf;
 endclass
 
 typedef struct {
-  bit [31:0] word;
+  rand bit [31:0] word;
 } mode_record_t;
 
 class aggregate_mode_item;

@@ -180,6 +180,10 @@ class netclass_t : public ivl_type_s {
       bool is_interface_class() const { return interface_class_type_; }
       void set_interface(bool interface_type) { interface_type_ = interface_type; }
       bool is_interface() const { return interface_type_; }
+      void set_unresolved_interface(bool flag)
+	    { unresolved_interface_type_ = flag; }
+      bool is_unresolved_interface() const
+	    { return unresolved_interface_type_; }
       void set_sig_elaborated(bool flag) { sig_elaborated_ = flag; }
       bool sig_elaborated() const { return sig_elaborated_; }
       void set_sig_elaborating(bool flag) { sig_elaborating_ = flag; }
@@ -255,6 +259,7 @@ class netclass_t : public ivl_type_s {
       bool virtual_class_;
       bool interface_class_type_;
       bool interface_type_;
+      bool unresolved_interface_type_;
       bool sig_elaborated_;
       bool sig_elaborating_;
       bool props_declaring_;  // guard for ensure_all_properties_declared re-entry

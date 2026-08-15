@@ -1,0 +1,4 @@
+typedef unresolved_forward_t;
+
+module sv_typedef_eager_unresolved_forward_fail;
+endmodule

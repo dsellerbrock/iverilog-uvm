@@ -19907,6 +19907,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	       * is the handle name rather than an object property. */
 	    if (cls && id->path().size() > 1 && !id->path().package) {
 		  pform_name_t::const_iterator comp = id->path().name.begin();
+		  if (comp != id->path().name.end() && comp->index.empty()
+		      && (comp->name == perm_string::literal("this")
+			  || comp->name == perm_string::literal("super")))
+			++comp;
 		  if (!constraint_class_object_root_.nil()) {
 			if (comp->name != constraint_class_object_root_
 			    || !comp->index.empty())
@@ -19920,6 +19924,20 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      ? cls->get_prop_type((size_t)pidx) : nullptr;
 			const netstruct_t*st =
 			      dynamic_cast<const netstruct_t*>(ptype);
+			if (pidx >= 0 && st && !st->packed()) {
+			      pform_name_t::const_iterator member = comp;
+			      ++member;
+			      cerr << id->get_fileline() << ": sorry: constraint "
+				   << "reference '" << comp->name;
+			      if (member != id->path().name.end())
+				    cerr << "." << member->name;
+			      cerr << "' selects a member of an unpacked-struct "
+				   << "property; solving unpacked-struct member "
+				   << "constraints is not yet supported." << endl;
+			      if (constraint_ir_design_ctx_)
+				    constraint_ir_design_ctx_->errors += 1;
+			      return "";
+			}
 			if (pidx >= 0 && st && st->packed()) {
 			      unsigned pwidth = ptype->packed_width();
 			      if (pwidth == 0) pwidth = 32;

@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_struct_member_random_qualifier_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_struct_member_random_qualifier_fail"
+}

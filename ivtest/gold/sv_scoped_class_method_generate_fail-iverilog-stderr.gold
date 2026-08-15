@@ -1,0 +1,1 @@
+ivltests/sv_scoped_class_method_generate_fail.v:9: error: Unable to resolve class scope for local_c.

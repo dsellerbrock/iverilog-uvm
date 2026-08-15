@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_struct_member_randomization.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_struct_member_randomization"
+}

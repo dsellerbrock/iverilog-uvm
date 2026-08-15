@@ -364,7 +364,7 @@ read it for the per-clause evidence and the complete corner ledger.
 
 | Area | Status | Notes |
 |---|---|---|
-| Core classes / OOP (cl. 8) | Substantial | Interface classes, multiple `extends`/`implements` relationships, specialization-aware casts, inherited type visibility and method-contract checks are supported; nested classes and out-of-body `extern` methods remain open |
+| Core classes / OOP (cl. 8) | Substantial | Interface classes, nested class declarations, module/package/compilation-unit out-of-body `extern` methods, multiple `extends`/`implements` relationships, specialization-aware casts, inherited type visibility and method-contract checks are supported |
 | UVM (Accellera core, unmodified) | Substantial | 200-test regression green (zero skips), run WITHOUT `UVM_NO_DPI` via the Icarus UVM DPI backend (regex + command-line + `uvm_hdl_*` backdoor); frontdoor + user-defined backdoor work; `UVM_NO_DPI` native fallback still supported |
 | Constraints / randomization (cl. 18) | Substantial | Z3-backed, including scope `std::randomize(vars) with {...}` for simple 1–64-bit integral variables; `randcase`/`randsequence` work |
 | Containers (queues/darrays/assoc, cl. 7) | Substantial | Full method set; narrow recorded corners |

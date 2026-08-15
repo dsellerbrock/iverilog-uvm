@@ -98,6 +98,7 @@ static void collect_unique_method_overrides_(const netclass_t*base_type,
 netclass_t::netclass_t(perm_string name, const netclass_t*super)
 : name_(name), super_(super), class_scope_(0), definition_scope_(0),
   virtual_class_(false), interface_class_type_(false), interface_type_(false),
+  unresolved_interface_type_(false),
   sig_elaborated_(false), sig_elaborating_(false),
   props_declaring_(false),
   body_elaborated_(false), body_elaborating_(false),

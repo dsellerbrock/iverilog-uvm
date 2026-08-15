@@ -22,8 +22,8 @@ module sv_rand_conformance_pin1;
   } packed_s;
 
   typedef struct {
-    int x;
-    bit [7:0] y;
+    rand int x;
+    rand bit [7:0] y;
   } unpacked_s;
 
   class ShapeC;

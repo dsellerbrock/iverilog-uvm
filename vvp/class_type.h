@@ -84,7 +84,9 @@ class class_type : public __vpiHandle {
       bool property_is_rand(size_t idx) const;
       bool property_is_randc(size_t idx) const;
       bool property_is_static(size_t idx) const;
+      bool property_is_enum(size_t idx) const;
       unsigned property_qualifier(size_t idx) const;
+      const std::vector<vvp_vector4_t>&property_enum_values(size_t idx) const;
 
 	// Return the canonical declaring-scope VPI storage for a static
 	// property. This resolves inherited absolute property indexes and
@@ -186,6 +188,7 @@ class class_type : public __vpiHandle {
 	    bool rand_flag  = false;
 	    bool randc_flag = false;
 	    std::string base_type;
+	    std::vector<vvp_vector4_t> enum_values;
 	    vpiHandle declared_class_type = 0;
 	    uint64_t array_size = 1;
 	    std::vector<std::pair<int,int> > dimensions;

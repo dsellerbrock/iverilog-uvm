@@ -1,0 +1,5 @@
+./ivltests/sv_struct_member_random_qualifier_fail.v:4: error: a random qualifier on a struct/union member is only legal within an unpacked structure (IEEE 1800-2017 7.2 and 18.4).
+./ivltests/sv_struct_member_random_qualifier_fail.v:13: error: member 'real_member' of unpacked struct is declared rand but has type real/shortreal, which is not an integral type (IEEE 1800-2017 18.4 restricts rand/randc to 2-state/4-state types, enums, and aggregates thereof).
+./ivltests/sv_struct_member_random_qualifier_fail.v:14: error: member 'string_member' of unpacked struct is declared rand but has type string, which is not an integral type (IEEE 1800-2017 18.4 restricts rand/randc to 2-state/4-state types, enums, and aggregates thereof).
+./ivltests/sv_struct_member_random_qualifier_fail.v:8: error: a random qualifier on a struct/union member is only legal within an unpacked structure (IEEE 1800-2017 7.2 and 18.4).
+4 error(s) during elaboration.

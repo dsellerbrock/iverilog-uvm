@@ -387,7 +387,10 @@ void class_type_t::pform_dump_init(ostream&out, unsigned indent) const
 
 void struct_member_t::pform_dump(ostream&out, unsigned indent) const
 {
-      out << setw(indent) << "" << (type.get()? typeid(*type).name() : "<nil type>");
+      out << setw(indent) << "";
+      if (qualifier.test_randc()) out << "randc ";
+      else if (qualifier.test_rand()) out << "rand ";
+      out << (type.get()? typeid(*type).name() : "<nil type>");
       for (list<decl_assignment_t*>::iterator cur = names->begin()
 		 ; cur != names->end() ; ++cur) {
 	    decl_assignment_t*curp = *cur;

@@ -23,6 +23,7 @@
 # include  <vector>
 # include  "ivl_target.h"
 # include  "nettypes.h"
+# include  "property_qual.h"
 
 class Design;
 
@@ -32,6 +33,7 @@ class netstruct_t : public LineInfo, public ivl_type_s {
       struct member_t {
 	    perm_string name;
 	    ivl_type_t net_type;
+	    property_qualifier_t qualifier = property_qualifier_t::make_none();
 	    inline ivl_variable_type_t data_type() const
 	    { return net_type->base_type(); };
 	    bool get_signed() const

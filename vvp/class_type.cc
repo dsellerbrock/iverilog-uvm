@@ -1305,6 +1305,17 @@ bool class_type::property_is_static(size_t idx) const
       return idx < properties_.size() && (properties_[idx].qualifier & 1);
 }
 
+bool class_type::property_is_enum(size_t idx) const
+{
+      return idx < properties_.size() && !properties_[idx].enum_values.empty();
+}
+
+const vector<vvp_vector4_t>&class_type::property_enum_values(size_t idx) const
+{
+      static const vector<vvp_vector4_t> empty;
+      return idx < properties_.size() ? properties_[idx].enum_values : empty;
+}
+
 void class_type::bind_static_property(size_t idx, char*storage)
 {
       assert(idx < properties_.size());
@@ -1777,12 +1788,40 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
 	    base_type = encoded_type.substr(2);
       } else if (encoded_type.compare(0, 1, "r") == 0
 	         && encoded_type.size() > 1 && encoded_type[1] != '\0'
-	         && encoded_type[1] != 'e' && encoded_type[1] != 'a') {
+	         && ((qualifier & (8 | 16))
+		     || (encoded_type[1] != 'e' && encoded_type[1] != 'a'))) {
 	      // Guard against "r" (real) and "rc" already handled above.
-	      // The "r" prefix for rand only occurs before 's', 'b', 'L', etc.
+	      // Historical records only use the prefix before 's', 'b', 'L',
+	      // etc. A q-wrapped record has authoritative qualifier bits, so
+	      // q8:re{...}:bN is unambiguously a rand enum rather than "real".
 	    properties_[idx].rand_flag = true;
 	    properties_[idx].qualifier |= 8;
 	    base_type = encoded_type.substr(1);
+      }
+
+	// An enum property is stored through the same bit/logic property class
+	// as its base type, but e{LSB-first-values}: retains the finite set that
+	// randomize() may choose. Keeping this metadata here prevents a sparse
+	// enum from receiving an unnamed packed encoding.
+      vector<string> enum_bits;
+      if (base_type.compare(0, 2, "e{") == 0) {
+	    string::size_type close = base_type.find("}:", 2);
+	    if (close != string::npos) {
+		  string domain = base_type.substr(2, close - 2);
+		  string::size_type begin = 0;
+		  while (begin <= domain.size()) {
+			string::size_type comma = domain.find(',', begin);
+			string bits = domain.substr(begin,
+			      comma == string::npos ? string::npos
+						    : comma - begin);
+			if (!bits.empty())
+			      enum_bits.push_back(bits);
+			if (comma == string::npos)
+			      break;
+			begin = comma + 1;
+		  }
+		  base_type.erase(0, close + 2);
+	    }
       }
 	/* `oh:C<label>` is an ordinary class handle with additional declared
 	 * class metadata. Resolve the metadata separately, then normalize the
@@ -1866,6 +1905,22 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
 	    cerr << "Warning: Unknown property type '" << t << "' for property "
 	         << idx << " of class " << class_name_ << "; treating as object" << endl;
 	    properties_[idx].type = new property_object(array_size? array_size : 1);
+      }
+
+      for (const string&bits : enum_bits) {
+	    vvp_vector4_t value((unsigned)bits.size(), BIT4_0);
+	    for (unsigned bit = 0 ; bit < bits.size() ; bit += 1) {
+		  vvp_bit4_t digit = BIT4_X;
+		  switch (bits[bit]) {
+		      case '0': digit = BIT4_0; break;
+		      case '1': digit = BIT4_1; break;
+		      case 'z': case 'Z': digit = BIT4_Z; break;
+		      case 'x': case 'X': digit = BIT4_X; break;
+		      default: break;
+		  }
+		  value.set_bit(bit, digit);
+	    }
+	    properties_[idx].enum_values.push_back(value);
       }
 
       if (properties_[idx].type)

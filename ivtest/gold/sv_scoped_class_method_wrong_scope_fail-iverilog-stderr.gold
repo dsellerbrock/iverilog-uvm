@@ -1,0 +1,1 @@
+ivltests/sv_scoped_class_method_wrong_scope_fail.v:9: error: Unable to resolve class scope for unit_c.

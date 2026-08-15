@@ -225,7 +225,8 @@ class data_type_t : public PNamedItem {
 };
 
 struct typedef_t : public PNamedItem {
-      explicit typedef_t(perm_string n) : basic_type(ANY), name(n) { };
+      explicit typedef_t(perm_string n)
+      : basic_type(ANY), unresolved_reported(false), name(n) { };
 	// M11: the pform is process-lifetime and data_type_t objects
 	// are freely shared (comma declarations, typedef aliases, base
 	// types), so exit-time teardown must NOT delete through this
@@ -249,8 +250,18 @@ struct typedef_t : public PNamedItem {
       bool set_basic_type(basic_type bt);
       enum basic_type get_basic_type() const { return basic_type; }
 
+      // A forward typedef that never receives its definition can be reached
+      // from several elaboration paths (and from every specialization of a
+      // containing class). The declaration owes one diagnostic, not one per
+      // lookup. Return true exactly once so callers can retain compile-
+      // progress recovery without multiplying the error count.
+      bool report_unresolved_once()
+	    { if (unresolved_reported) return false;
+	      unresolved_reported = true; return true; }
+
 protected:
       enum basic_type basic_type;
+      bool unresolved_reported;
       std::unique_ptr<data_type_t> data_type;
 public:
       perm_string name;
@@ -318,9 +329,11 @@ struct type_reference_t : public data_type_t {
 };
 
 struct type_parameter_t : data_type_t {
-      explicit type_parameter_t(perm_string n) : name(n) { }
+      explicit type_parameter_t(perm_string n)
+      : unresolved_interface_reported(false), name(n) { }
       ivl_type_t elaborate_type_raw(Design *des, NetScope *scope) const override;
 
+      mutable bool unresolved_interface_reported;
       perm_string name;
 };
 
@@ -355,6 +368,7 @@ struct enum_type_t : public data_type_t {
 };
 
 struct struct_member_t : public LineInfo {
+      property_qualifier_t qualifier = property_qualifier_t::make_none();
       std::unique_ptr<data_type_t> type;
       std::unique_ptr< std::list<decl_assignment_t*> > names;
       void pform_dump(std::ostream&out, unsigned indent) const;
@@ -503,6 +517,16 @@ struct interface_type_t : public data_type_t {
       // of miscompiling silently (IEEE 1800-2017 25.9). Overrides are not yet
       // honored; when they are, this becomes the specialization key.
       bool has_param_override = false;
+      // IEEE 1800-2017 6.20.3 permits a type-parameter default to carry a
+      // virtual-interface type that is never selected/used. Keep that narrow
+      // declaration context lazy; every ordinary virtual-interface use still
+      // requires a real interface declaration.
+      bool allow_unresolved = false;
+      // Parse-form types are process-lifetime objects and their elaborated
+      // results are cached per scope. Reuse one opaque unresolved handle
+      // across those scope caches so an unused default does not allocate one
+      // placeholder for every class specialization.
+      mutable netclass_t* unresolved_type = nullptr;
       // Phase 63a/A1: optional modport name from `if.modport` port header.
       // When set, restricts which interface members are accessible
       // through this port reference.  Currently captured but not yet

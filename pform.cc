@@ -4857,6 +4857,7 @@ static void pform_set_type_parameter(const struct vlltype&loc, perm_string name,
 	    VLerror(loc, "error: Type parameter must not have value range.");
 
       type_parameter_t *type = new type_parameter_t(name);
+      FILE_NAME(type, loc);
       pform_set_typedef(loc, name, type, 0);
 }
 

@@ -1,0 +1,9 @@
+# IEEE 1800-2017 8.3, 8.21, and 8.24 class declaration context
+sv_nested_class_scope_stack normal,-g2012 ivltests gold=sv_nested_class_scope_stack.gold
+sv_module_scoped_class_methods normal,-g2012 ivltests gold=sv_module_scoped_class_methods.gold
+sv_pure_method_nonvirtual_fail CE,-g2012 ivltests gold=sv_pure_method_nonvirtual_fail.gold
+sv_scoped_class_method_wrong_scope_fail CE,-g2012 ivltests gold=sv_scoped_class_method_wrong_scope_fail.gold
+sv_scoped_class_method_generate_fail CE,-g2012 ivltests gold=sv_scoped_class_method_generate_fail.gold
+sv_scoped_constructor_unknown_class_fail CE,-g2012 ivltests gold=sv_scoped_constructor_unknown_class_fail.gold
+sv_interface_class_runtime normal,-g2012 ivltests gold=sv_interface_class_runtime.gold
+sv_enum_class_typedef_identity normal,-g2012 ivltests gold=sv_enum_class_typedef_identity.gold
