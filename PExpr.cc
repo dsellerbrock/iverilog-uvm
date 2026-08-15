@@ -500,8 +500,8 @@ bool PEConcat::has_aa_term(Design*des, NetScope*scope) const
       return flag;
 }
 
-PEEvent::PEEvent(PEEvent::edge_t t, PExpr*e)
-: type_(t), expr_(e)
+PEEvent::PEEvent(PEEvent::edge_t t, PExpr*e, PExpr*condition)
+: type_(t), expr_(e), condition_(condition)
 {
 }
 
@@ -517,12 +517,20 @@ PEEvent::edge_t PEEvent::type() const
 bool PEEvent::has_aa_term(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, expr_);
-      return expr_->has_aa_term(des, scope);
+      bool flag = expr_->has_aa_term(des, scope);
+      if (condition_)
+	    flag = condition_->has_aa_term(des, scope) || flag;
+      return flag;
 }
 
 PExpr* PEEvent::expr() const
 {
       return expr_;
+}
+
+PExpr* PEEvent::condition() const
+{
+      return condition_;
 }
 
 PENull::PENull(void)

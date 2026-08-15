@@ -742,6 +742,10 @@ class PEventStatement  : public Statement {
       bool contains_detached_fork() const override;
 
     private:
+      NetProc* elaborate_conditional_(Design*des, NetScope*scope,
+				      NetProc*st) const;
+      bool has_conditional_event_() const;
+
       std::vector<PEEvent*>expr_;
       Statement*statement_;
       bool always_sens_;

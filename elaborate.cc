@@ -6877,15 +6877,56 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
                   return 0;
             }
 
-	    NetProc*st = event_->elaborate(des, scope);
-	    if (st == 0) {
-		  cerr << get_fileline() << ": unable to elaborate "
-		          "event expression." << endl;
-		  des->errors += 1;
-		  return 0;
+	    bool conditional_event = false;
+	    for (const PEEvent*leaf : event_->event_expressions()) {
+		  if (leaf && leaf->condition()) {
+			conditional_event = true;
+			break;
+		  }
 	    }
-	    event = dynamic_cast<NetEvWait*>(st) ;
-	    ivl_assert(*this, event);
+
+	    if (conditional_event) {
+		    /* NetAssignNB's event-control representation deliberately
+		     * captures its r-value and l-value addressing when the NBA
+		     * statement executes. Preserve that machinery by feeding it
+		     * a private named event. An always process waits for the full
+		     * conditional event (including false-guard re-wait) and
+		     * triggers the private event only when a leaf qualifies. */
+		  NetEvent*qualified = new NetEvent(scope->local_symbol());
+		  qualified->set_line(*event_);
+		  qualified->local_flag(true);
+
+		  NetEvTrig*trigger = new NetEvTrig(qualified);
+		  trigger->set_line(*event_);
+		  NetProc*watch = event_->elaborate_st(des, scope, trigger);
+		  if (!watch) {
+			delete trigger;
+			delete qualified;
+			cerr << get_fileline() << ": unable to elaborate "
+			        "conditional event expression." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+
+		  scope->add_event(qualified);
+		  NetProcTop*watcher = new NetProcTop(scope, IVL_PR_ALWAYS, watch);
+		  watcher->set_line(*event_);
+		  des->add_process(watcher);
+
+		  event = new NetEvWait(nullptr);
+		  event->set_line(*event_);
+		  event->add_event(qualified);
+	    } else {
+		  NetProc*st = event_->elaborate(des, scope);
+		  if (st == 0) {
+			cerr << get_fileline() << ": unable to elaborate "
+			        "event expression." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+		  event = dynamic_cast<NetEvWait*>(st) ;
+		  ivl_assert(*this, event);
+	    }
 
 	      // Some constant values are special.
 	    if (const NetEConst*ce = dynamic_cast<NetEConst*>(count)) {
@@ -13207,6 +13248,128 @@ static void collect_class_property_mutation_deps_(
       }
 }
 
+bool PEventStatement::has_conditional_event_() const
+{
+      for (const PEEvent*event : expr_)
+	    if (event && event->condition())
+		  return true;
+      return false;
+}
+
+/* IEEE 1800-2017 9.4.2.3 qualifies each event-expression leaf
+ * independently. A simple `if (guard)' around the delayed statement is not
+ * sufficient: a one-shot event control must keep waiting when an edge occurs
+ * while its guard is false. For one leaf, lower to
+ *
+ *     do @(raw_event); while (guard !== 1'b1);
+ *
+ * For an event-or list, run one such waiter per leaf under join_any and kill
+ * the losing waiters before executing the user's statement. This also keeps
+ * a true guard belonging to an event that did not occur from admitting a
+ * different, false-guarded event. X and Z guards are nonmatches by the
+ * explicit case-inequality test.
+ */
+NetProc* PEventStatement::elaborate_conditional_(Design*des, NetScope*scope,
+						 NetProc*enet) const
+{
+      std::vector<NetProc*>waiters;
+
+      for (PEEvent*event : expr_) {
+	    ivl_assert(*this, event);
+
+	      /* Reuse the complete ordinary event elaborator, but hide the guard
+	       * from this temporary leaf so it cannot recurse back here. PEEvent
+	       * and PEventStatement do not own their pform expression pointers. */
+	    PEEvent raw_event(event->type(), event->expr());
+	    raw_event.set_line(*event);
+	    PEventStatement raw_wait(&raw_event);
+	    raw_wait.set_line(*this);
+	    NetProc*wait = raw_wait.elaborate(des, scope);
+	    if (!wait) {
+		  for (NetProc*item : waiters) delete item;
+		  return nullptr;
+	    }
+
+	    if (PExpr*guard = event->condition()) {
+		  unsigned errors_before = des->errors;
+		  NetExpr*condition = elab_and_eval(des, scope, guard, -1);
+		  if (!condition) {
+			if (des->errors == errors_before) {
+			      cerr << guard->get_fileline() << ": error: Unable to "
+				   << "elaborate conditional event guard expression."
+				   << endl;
+			      des->errors += 1;
+			}
+			delete wait;
+			for (NetProc*item : waiters) delete item;
+			return nullptr;
+		  }
+
+		  if (condition->expr_width() < 1) {
+			cerr << guard->get_fileline() << ": error: Conditional event "
+			     << "guard expression has zero width." << endl;
+			des->errors += 1;
+			delete condition;
+			delete wait;
+			for (NetProc*item : waiters) delete item;
+			return nullptr;
+		  }
+
+		  condition = condition_reduce(condition);
+		  NetEConst*one = new NetEConst(verinum(verinum::V1, 1));
+		  one->set_line(*guard);
+		  NetExpr*retry = new NetEBComp('N', condition, one);
+		  retry->set_line(*guard);
+		  eval_expr(retry);
+
+		  NetDoWhile*qualified = new NetDoWhile(retry, wait);
+		  qualified->set_line(*event);
+		  wait = qualified;
+	    }
+
+	    waiters.push_back(wait);
+      }
+
+      ivl_assert(*this, !waiters.empty());
+      NetProc*qualified_wait = nullptr;
+      if (waiters.size() == 1) {
+	    qualified_wait = waiters.front();
+      } else {
+	    NetBlock*select = new NetBlock(NetBlock::PARA_JOIN_ANY, nullptr);
+	    select->set_line(*this);
+	    for (NetProc*wait : waiters)
+		  select->append(wait);
+
+	    NetBlock*select_and_cancel = new NetBlock(NetBlock::SEQU, nullptr);
+	    select_and_cancel->set_line(*this);
+	    select_and_cancel->append(select);
+	    NetDisable*cancel = new NetDisable(nullptr);
+	    cancel->set_line(*this);
+	    select_and_cancel->append(cancel);
+
+	      /* `disable fork' operates on every detached child of the
+	       * process that executes it. Run the selector in its own helper
+	       * process so cancelling the losing event waiters cannot also
+	       * cancel an unrelated user `fork ... join_none' child. A second,
+	       * empty branch keeps the outer parallel block from being reduced
+	       * to its sole child by the target's one-statement optimization. */
+	    NetBlock*isolated = new NetBlock(NetBlock::PARA, nullptr);
+	    isolated->set_line(*this);
+	    isolated->append(select_and_cancel);
+	    NetBlock*noop = new NetBlock(NetBlock::SEQU, nullptr);
+	    noop->set_line(*this);
+	    isolated->append(noop);
+	    qualified_wait = isolated;
+      }
+
+      NetBlock*result = new NetBlock(NetBlock::SEQU, nullptr);
+      result->set_line(*this);
+      result->append(qualified_wait);
+      if (enet)
+	    result->append(enet);
+      return result;
+}
+
 NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				       NetProc*enet) const
 {
@@ -13225,6 +13388,9 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 	    des->errors += 1;
 	    return 0;
       }
+
+      if (has_conditional_event_())
+	    return elaborate_conditional_(des, scope, enet);
 
       if (expr_.size() == 1) {
 	    /* IEEE 1800-2017 14.14: @($global_clock) — substitute the
@@ -13482,7 +13648,8 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			      PEIdent*mapped_ident = id->path().package
 				    ? new PEIdent(id->path().package, mapped_path, id->lexical_pos())
 				    : new PEIdent(mapped_path, id->lexical_pos());
-			      mapped_events.push_back(new PEEvent(cb_event->type(), mapped_ident));
+			      mapped_events.push_back(new PEEvent(cb_event->type(), mapped_ident,
+							       cb_event->condition()));
 			}
 
 			PEventStatement mapped_stmt(mapped_events);
@@ -14606,6 +14773,23 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 	/* Check to see if this is a wait fork statement. */
       if ((expr_.size() == 1) && (expr_[0] == 0))
 		  return elaborate_wait_fork(des, scope);
+
+	/* Conditional event expressions must retain one-shot wait semantics,
+	   so lower them before the specialized single-event fast paths below. */
+      if (has_conditional_event_()) {
+	    NetProc*enet = nullptr;
+	    if (statement_) {
+		  enet = statement_->elaborate(des, scope);
+		  if (!enet) return nullptr;
+	    } else {
+		  enet = new NetBlock(NetBlock::SEQU, nullptr);
+		  enet->set_line(*this);
+	    }
+	    NetProc*result = elaborate_conditional_(des, scope, enet);
+	    if (!result)
+		  delete enet;
+	    return result;
+      }
 
 	/* A wait on a single non-static class event property
 	   (`@(obj.ev)`) is per-instance: wait on that object's own event

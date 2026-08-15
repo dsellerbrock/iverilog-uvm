@@ -1656,6 +1656,12 @@ sv_assoc_traversal_key_type_fail CE,-g2012 ivltests gold=sv_assoc_traversal_key_
 sv_statement_label_seq normal,-g2012 ivltests gold=sv_statement_label_seq.gold
 sv_statement_label_seq_fail CE,-g2012 ivltests gold=sv_statement_label_seq_fail.gold
 
+# IEEE 1800-2017 parallel statement labels and conditional event controls
+sv_statement_label_parallel normal,-g2012 ivltests gold=sv_statement_label_parallel.gold
+sv_statement_label_parallel_fail CE,-g2012 ivltests gold=sv_statement_label_parallel_fail.gold
+sv_event_conditional normal,-g2012 ivltests gold=sv_event_conditional.gold
+sv_event_conditional_fail CE,-g2012 ivltests gold=sv_event_conditional_fail.gold
+
 # IEEE 1800-2017 unpacked-array assignment-pattern arity
 sv_struct_array_flat_pattern_fail CE,-g2012 ivltests gold=sv_struct_array_flat_pattern_fail.gold
 

@@ -1518,7 +1518,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 %type <wire> net_variable
 %type <wires> net_variable_list
 
-%type <text> label_opt class_declaration_endlabel_opt
+%type <text> label_opt class_declaration_endlabel_opt fork_block_start
 %type <text> block_identifier_opt
 %type <text> identifier_name typedef_identifier_name bins_name class_cg_port_prefix package_cg_port_prefix
 %type <text> bind_instance_path
@@ -5000,6 +5000,15 @@ join_keyword /* IEEE1800-2005: A.6.3 */
       { $$ = PBlock::BL_JOIN_NONE; }
   | K_join_any
       { $$ = PBlock::BL_JOIN_ANY; }
+  ;
+
+fork_block_start
+  : K_fork label_opt
+      { $$ = $2; }
+  | IDENTIFIER ':' K_fork
+      { pform_requires_sv(@1, "Statement label");
+	$$ = $1;
+      }
   ;
 
 jump_statement /* IEEE1800-2005: A.6.5 */
@@ -9443,7 +9452,32 @@ event_expression_list
   ;
 
 event_expression
-  : K_posedge expression
+  : K_posedge expression K_iff expression
+      { PEEvent*tmp = new PEEvent(PEEvent::POSEDGE, $2, $4);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+	pform_requires_sv(@3, "Conditional event expression");
+      }
+  | K_negedge expression K_iff expression
+      { PEEvent*tmp = new PEEvent(PEEvent::NEGEDGE, $2, $4);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+	pform_requires_sv(@3, "Conditional event expression");
+      }
+  | K_edge expression K_iff expression
+      { PEEvent*tmp = new PEEvent(PEEvent::EDGE, $2, $4);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+	pform_requires_sv(@1, "Edge event");
+	pform_requires_sv(@3, "Conditional event expression");
+      }
+  | expression K_iff expression
+      { PEEvent*tmp = new PEEvent(PEEvent::ANYEDGE, $1, $3);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+	pform_requires_sv(@2, "Conditional event expression");
+      }
+  | K_posedge expression
       { PEEvent*tmp = new PEEvent(PEEvent::POSEDGE, $2);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
@@ -15937,18 +15971,18 @@ statement_item /* This is roughly statement_item in the LRM */
      code generator can do the right thing. */
 
   /* In SystemVerilog an unnamed block can contain variable declarations. */
-  | K_fork label_opt
-      { PBlock*tmp = pform_push_block_scope(@1, $2, PBlock::BL_PAR);
+  | fork_block_start
+      { PBlock*tmp = pform_push_block_scope(@1, $1, PBlock::BL_PAR);
 	current_block_stack.push(tmp);
       }
 	    block_item_decls_opt
 	      {
-		if (!$2 && $4) pform_requires_sv(@4, "Variable declaration in unnamed block");
+		if (!$1 && $3) pform_requires_sv(@3, "Variable declaration in unnamed block");
 	      }
 	    statement_or_null_list_opt join_keyword label_opt
 	      { PBlock*tmp;
 		/* Inline SV-style var decls in statements also need the SV check. */
-		if (!$2 && !$4 && !pform_block_scope_is_empty())
+		if (!$1 && !$3 && !pform_block_scope_is_empty())
 		      pform_block_decls_requires_sv();
 		/* An unnamed fork with no declarations of its own needs no
 		   scope: keeping the synthesized $unm_blk scope makes the
@@ -15970,8 +16004,8 @@ statement_item /* This is roughly statement_item in the LRM */
 		   forked process with the caller (breaks the UVM sequencer
 		   handshake). So inside a routine the scope is kept even
 		   when empty. */
-		bool scope_empty = !$2 && !$4 && pform_block_scope_is_empty()
-		      && ($7 == PBlock::BL_PAR || !pform_scope_in_routine());
+		bool scope_empty = !$1 && !$3 && pform_block_scope_is_empty()
+		      && ($6 == PBlock::BL_PAR || !pform_scope_in_routine());
 		pform_pop_scope();
 		assert(! current_block_stack.empty());
 		tmp = current_block_stack.top();
@@ -15981,11 +16015,11 @@ statement_item /* This is roughly statement_item in the LRM */
 		      tmp = new PBlock(PBlock::BL_PAR);
 		      FILE_NAME(tmp, @1);
 		}
-		tmp->set_join_type($7);
-	if ($6) tmp->set_statement(*$6);
-	delete $6;
-	check_end_label(@8, "fork", $2, $8);
-	delete[]$2;
+		tmp->set_join_type($6);
+	if ($5) tmp->set_statement(*$5);
+	delete $5;
+	check_end_label(@7, "fork", $1, $7);
+	delete[]$1;
 	$$ = tmp;
       }
 

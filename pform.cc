@@ -11150,7 +11150,10 @@ static void pform_make_sampled_history_process_(
 	    if (!events[i]) continue;
 	    PExpr*ce = sva_clone_expr_(events[i]->expr());
 	    if (!ce) return;
-	    PEEvent*ne = new PEEvent(events[i]->type(), ce);
+	    PExpr*condition = events[i]->condition()
+		  ? sva_clone_expr_(events[i]->condition()) : nullptr;
+	    if (events[i]->condition() && !condition) return;
+	    PEEvent*ne = new PEEvent(events[i]->type(), ce, condition);
 	    FILE_NAME(ne, loc);
 	    evs.push_back(ne);
       }
@@ -17400,7 +17403,9 @@ static PEventStatement* sva_clone_wait_(const struct vlltype&loc,
       std::vector<PEEvent*> ne;
       for (size_t i = 0 ; i < evs.size() ; i += 1) {
 	    PExpr*ce = sva_clone_expr_(evs[i]->expr());
-	    PEEvent*pe = new PEEvent(evs[i]->type(), ce);
+	    PExpr*condition = evs[i]->condition()
+		  ? sva_clone_expr_(evs[i]->condition()) : nullptr;
+	    PEEvent*pe = new PEEvent(evs[i]->type(), ce, condition);
 	    ne.push_back(pe);
       }
       PEventStatement*w = new PEventStatement(ne);
@@ -17752,7 +17757,14 @@ static PEventStatement* sva_clone_event_control_(const PEventStatement*src,
 		  for (size_t k = 0 ; k < copy.size() ; k += 1) delete copy[k];
 		  return nullptr;
 	    }
-	    PEEvent*ev = new PEEvent(evs[idx]->type(), sub);
+	    PExpr*condition = evs[idx]->condition()
+		  ? sva_clone_subst_(evs[idx]->condition(), subst) : nullptr;
+	    if (evs[idx]->condition() && !condition) {
+		  delete sub;
+		  for (size_t k = 0 ; k < copy.size() ; k += 1) delete copy[k];
+		  return nullptr;
+	    }
+	    PEEvent*ev = new PEEvent(evs[idx]->type(), sub, condition);
 	    FILE_NAME(ev, loc);
 	    copy.push_back(ev);
       }
