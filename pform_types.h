@@ -311,10 +311,10 @@ private:
  *    argument, so a side-effecting function call in e.g. `type(f(x))`
  *    is never invoked.
  *
- * This node is carried into expression contexts (so `type(a)==type(b)`
- * can parse and elaborate) by wrapping it in a PETypename -- see the
- * `K_type '(' expression ')'` alternative of expr_primary in parse.y
- * and the type_reference_t checks added to PETypename/PEBComp
+ * This node is carried into expression contexts (so `type(a)==type(b)` and
+ * `case (type(a))` can parse and elaborate) by wrapping it in a PETypename --
+ * see the `K_type '(' expression ')'` alternative of expr_primary in parse.y
+ * and the type_reference_t checks added to PETypename/PEBComp/PCase
  * elaboration.
  */
 struct type_reference_t : public data_type_t {

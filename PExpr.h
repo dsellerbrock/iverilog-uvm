@@ -1940,4 +1940,15 @@ class PEVoid : public PExpr {
                                      unsigned flags) const override;
 };
 
+/*
+ * IEEE 1800-2017 6.23 type-operator support shared by expression and
+ * statement elaboration. A type() operand is represented by a PETypename
+ * that wraps a type_reference_t; matching elaborates the referenced types
+ * without evaluating either source expression.
+ */
+const type_reference_t* type_operator_reference(const PExpr*expr);
+bool elaborate_type_operator_match(Design*des, NetScope*scope,
+				   const PExpr*left, const PExpr*right,
+				   const LineInfo&loc, bool&match);
+
 #endif /* IVL_PExpr_H */

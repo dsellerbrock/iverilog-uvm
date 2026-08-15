@@ -1,0 +1,6 @@
+./ivltests/specparam2.v:7: error: specparam 'sp2' cannot be used in a general constant expression (IEEE 1800-2017 6.20.5).
+./ivltests/specparam2.v:8: error: specparam 'sp2' cannot be used in a general constant expression (IEEE 1800-2017 6.20.5).
+./ivltests/specparam2.v:8: error: Indexed part select width must be an integral constants greater than zero.
+./ivltests/specparam2.v:8:      : This width expression violates that rule: sp2
+./ivltests/specparam2.v:8: error: specparam 'sp3' cannot be used in a general constant expression (IEEE 1800-2017 6.20.5).
+4 error(s) during elaboration.

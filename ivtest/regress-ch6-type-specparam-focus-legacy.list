@@ -1,0 +1,6 @@
+# IEEE 1800-2017 6.20.5 and 6.23 focused parity gate
+sv_type_operator_case normal,-g2012 ivltests gold=sv_type_operator_case.gold
+sv_specparam_constant_expr_fail CE,-g2012 ivltests gold=sv_specparam_constant_expr_fail.gold
+specparam1 normal ivltests
+specparam2 CE ivltests gold=specparam2.gold
+sv_type_operator1 normal,-g2012 ivltests

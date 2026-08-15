@@ -1,0 +1,2 @@
+ivltests/sv_specparam_constant_expr_fail.v:4: error: specparam 'delay' cannot be used in a general constant expression (IEEE 1800-2017 6.20.5).
+1 error(s) during elaboration.

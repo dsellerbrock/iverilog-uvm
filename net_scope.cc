@@ -573,6 +573,12 @@ bool NetScope::make_parameter_unannotatable(perm_string key)
       return flag;
 }
 
+bool NetScope::parameter_is_specparam(perm_string key) const
+{
+      map<perm_string,param_expr_t>::const_iterator cur = parameters.find(key);
+      return cur != parameters.end() && cur->second.is_annotatable;
+}
+
 /*
  * NOTE: This method takes a const char* as a key to lookup a
  * parameter, because we don't save that pointer. However, due to the

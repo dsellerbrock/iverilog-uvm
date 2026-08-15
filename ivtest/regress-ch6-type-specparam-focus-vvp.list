@@ -1,0 +1,3 @@
+# IEEE 1800-2017 6.20.5 and 6.23 focused parity gate
+sv_type_operator_case	vvp_tests/sv_type_operator_case.json
+sv_specparam_constant_expr_fail	vvp_tests/sv_specparam_constant_expr_fail.json

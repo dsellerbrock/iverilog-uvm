@@ -696,3 +696,7 @@ sv_ch20_isunbounded_arity_fail	vvp_tests/sv_ch20_isunbounded_arity_fail.json
 sv_ch20_coverage	vvp_tests/sv_ch20_coverage.json
 sv_ch20_coverage_bad_domain	vvp_tests/sv_ch20_coverage_bad_domain.json
 sv_ch20_coverage_call_fail	vvp_tests/sv_ch20_coverage_call_fail.json
+
+# IEEE 1800-2017 type() case matching and specparam constant-expression boundary
+sv_type_operator_case	vvp_tests/sv_type_operator_case.json
+sv_specparam_constant_expr_fail	vvp_tests/sv_specparam_constant_expr_fail.json
