@@ -819,7 +819,11 @@ void netclass_t::merge_inherited_constraint_irs_() const
 
 void netclass_t::add_covgrp_bin(unsigned cp, unsigned prop, uint64_t lo, uint64_t hi,
 				unsigned kind, unsigned tuple,
-				unsigned item_idx)
+				unsigned item_idx, unsigned trans_repeat,
+				uint64_t trans_min, uint64_t trans_max,
+				unsigned trans_alt, unsigned trans_alt_count,
+				unsigned trans_family, uint64_t trans_base,
+				unsigned guard_idx)
 {
       covgrp_bin_t b;
       b.cp_idx   = cp;
@@ -829,6 +833,14 @@ void netclass_t::add_covgrp_bin(unsigned cp, unsigned prop, uint64_t lo, uint64_
       b.kind = kind;
       b.tuple = tuple;
       b.item_idx = item_idx;
+      b.trans_repeat = trans_repeat;
+      b.trans_min = trans_min;
+      b.trans_max = trans_max;
+      b.trans_alt = trans_alt;
+      b.trans_alt_count = trans_alt_count;
+      b.trans_family = trans_family;
+      b.trans_base = trans_base;
+      b.guard_idx = guard_idx;
       covgrp_bins_.push_back(b);
 }
 

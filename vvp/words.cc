@@ -291,29 +291,31 @@ void compile_variable(char*label, char*name,
       define_functor_symbol(label, net);
 
       vpiHandle obj = 0;
-      if (! local_flag) {
-	      /* Make the vpiHandle for the reg. */
-	    switch (vpi_type_code) {
-		case vpiLogicVar:
-		  obj = vpip_make_var4(name, msb, lsb, signed_flag, net);
-		  break;
-		case vpiIntegerVar:
-		  obj = vpip_make_int4(name, msb, lsb, net);
-		  break;
-		case vpiIntVar: // This handles all the atom2 int types
-		  obj = vpip_make_int2(name, msb, lsb, signed_flag, net);
-		  break;
-		default:
-		  fprintf(stderr, "internal error: %s: vpi_type_code=%d\n", name, vpi_type_code);
-		  break;
-	    }
-	    assert(obj);
-	    compile_vpi_symbol(label, obj);
+        /* Even an ivl-local temporary needs a direct VPI handle when it is
+           passed to a system function. Keep that handle out of scope
+           iteration below, but register it by label so expressions such as
+           $countones(a_covergroup_sample_formal) read the temporary instead
+           of compile_vpi_lookup()'s null-handle recovery. */
+	 switch (vpi_type_code) {
+	     case vpiLogicVar:
+	       obj = vpip_make_var4(name, msb, lsb, signed_flag, net);
+	       break;
+	     case vpiIntegerVar:
+	       obj = vpip_make_int4(name, msb, lsb, net);
+	       break;
+	     case vpiIntVar: // This handles all the atom2 int types
+	       obj = vpip_make_int2(name, msb, lsb, signed_flag, net);
+	       break;
+	     default:
+	       fprintf(stderr, "internal error: %s: vpi_type_code=%d\n", name, vpi_type_code);
+	       break;
       }
+	 assert(obj);
+	 compile_vpi_symbol(label, obj);
 	// If the signal has a name, then it goes into the current
 	// scope as a signal.
       if (name) {
-	    if (obj) vpip_attach_to_current_scope(obj);
+	    if (obj && !local_flag) vpip_attach_to_current_scope(obj);
             if (!use_auto) {
 		  vvp_vector4_t tmp;
 		  vfil->vec4_value(tmp);

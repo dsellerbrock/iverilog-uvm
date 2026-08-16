@@ -78,6 +78,13 @@ class PTaskFunc : public PScope, public PNamedItem {
 	    interface_qualifier_valid_ = v;
       }
 
+      inline bool is_procedural_body_scope() const {
+	    return procedural_body_scope_;
+      }
+      inline void set_procedural_body_scope(bool v) {
+	    procedural_body_scope_ = v;
+      }
+
 	// DPI import linkage (35.x): both functions and tasks can be
 	// DPI imports; the code generator synthesizes the marshaling
 	// body from the C name.
@@ -119,6 +126,7 @@ class PTaskFunc : public PScope, public PNamedItem {
       bool is_virtual_ = false;
       bool is_pure_ = false;
       bool interface_qualifier_valid_ = true;
+      bool procedural_body_scope_ = true;
       bool is_dpi_import_ = false;
       std::string dpi_c_name_;
       bool is_dpi_export_ = false;

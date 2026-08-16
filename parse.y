@@ -88,6 +88,7 @@ std::vector<class_type_t::pform_cross_t> pending_crosses_;
 std::map<perm_string, PExpr*> pending_cg_options_;
 static std::map<perm_string, PExpr*> pending_cp_options_;
 static std::vector<class_type_t::pform_cross_t::cross_bin_t> pending_cross_bins_;
+static uint64_t pending_cross_expr_serial_ = 0;
 static std::vector<perm_string>* pending_cg_ctor_names_ = nullptr;
 static std::vector<data_type_t*>* pending_cg_ctor_types_ = nullptr;
 static std::vector<PExpr*>* pending_cg_ctor_defaults_ = nullptr;
@@ -120,6 +121,30 @@ static void cov_bins_set_ranges_(class_type_t::pform_cov_bins_t*b,
 	    }
       }
       delete lst;
+}
+
+/* Build one transition term without flattening its value-set alternatives.
+ * This matters for repetition: `[1:3] [*2]' accepts every two-sample path
+ * through the range, not only 1=>1, 2=>2, and 3=>3. */
+static class_type_t::pform_cov_trans_term_t* cov_transition_term_(
+      std::list<inside_range_t>*lst,
+      class_type_t::pform_cov_trans_term_t::repeat_kind_t kind,
+      PExpr*repeat_lo = nullptr, PExpr*repeat_hi = nullptr)
+{
+      auto*term = new class_type_t::pform_cov_trans_term_t();
+      term->repeat_kind = kind;
+      term->repeat_lo = repeat_lo;
+      term->repeat_hi = repeat_hi;
+      if (lst) {
+	    for (auto&r : *lst) {
+		  if (r.is_range && r.lo && r.hi)
+			term->ranges.push_back(std::make_pair(r.lo, r.hi));
+		  else if (!r.is_range && r.hi)
+			term->ranges.push_back(std::make_pair(r.hi, r.hi));
+	    }
+	    delete lst;
+      }
+      return term;
 }
 
 /* M11: record an option.name / type_option.name assignment. */
@@ -1491,9 +1516,11 @@ static Module::port_t *module_declare_port_continuation(
       std::list<inside_range_t>* irange_list;
       class_type_t::pform_coverpoint_t* coverpoint;
       std::pair<PExpr*,PExpr*>* cov_step;
-      std::vector<std::pair<PExpr*,PExpr*>>* cov_steps;
-      std::vector<std::vector<std::pair<PExpr*,PExpr*>>>* cov_seqs;
+      class_type_t::pform_cov_trans_term_t* cov_trans_term;
+      std::vector<class_type_t::pform_cov_trans_term_t>* cov_trans_seq;
+      std::vector<std::vector<class_type_t::pform_cov_trans_term_t>>* cov_seqs;
       class_type_t::pform_cross_t::select_t* cross_sel;
+      std::list<class_type_t::pform_cross_t::item_t>* cross_items;
       std::list<class_type_t::pform_coverpoint_t*>* coverpoints;
       class_type_t::pform_cov_bins_t* cov_bins;
       std::list<class_type_t::pform_cov_bins_t*>* cov_bins_list;
@@ -1546,10 +1573,11 @@ static Module::port_t *module_declare_port_continuation(
 %token K_Sskew K_Swidth
 
  /* Icarus specific tokens. */
-%token KK_attribute K_bool K_logic
+%token KK_attribute K_bool K_logic K_sva_logic_local
 
  /* The new tokens from 1364-2001. */
 %token K_automatic K_endgenerate K_generate K_genvar K_localparam
+%token K_localparam_statement
 %token K_noshowcancelled K_pulsestyle_onevent K_pulsestyle_ondetect
 %token K_showcancelled K_signed K_unsigned
 
@@ -1633,7 +1661,7 @@ static Module::port_t *module_declare_port_continuation(
 
 %type <text> label_opt class_declaration_endlabel_opt fork_block_start
 %type <text> block_identifier_opt
-%type <text> identifier_name typedef_identifier_name bins_name class_cg_port_prefix package_cg_port_prefix
+%type <text> identifier_name typedef_identifier_name bins_name class_cg_port_prefix package_cg_port_prefix module_cg_port_prefix
 %type <text> nettype_declaration_name nettype_name_component
 %destructor { delete[] $$; } nettype_declaration_name nettype_name_component
 %type <text> bind_instance_path
@@ -1692,7 +1720,13 @@ static Module::port_t *module_declare_port_continuation(
 %type <rs_rule_list>      rs_rule_list
 %type <rs_production>     rs_production
 %type <rs_production_list> rs_production_list
-%type <perm_strings> cross_item_list
+%type <cross_items> cross_item_list
+%destructor {
+      if ($$) {
+	    for (auto& item : *$$) delete item.expr;
+	    delete $$;
+      }
+} <cross_items>
 
 %type <named_pexprs> enum_name_list enum_name
 %type <data_type> enum_data_type enum_base_type
@@ -1786,10 +1820,12 @@ static Module::port_t *module_declare_port_continuation(
 %type <cov_bins>    bins_item
 %type <cov_bins_list> bins_item_list bins_item_list_opt
 %type <int_val>     bins_keyword
-%type <expr>        coverpoint_iff_opt bins_with_opt
+%type <expr>        coverpoint_iff_opt bins_with_opt bins_iff_opt
 %type <cov_step>    trans_step
 %type <irange_list> transition_step_set
-%type <cov_seqs>    transition_list transition_seq_list
+%type <cov_trans_term> transition_term
+%type <cov_trans_seq> transition_list
+%type <cov_seqs>    transition_seq_list
 %type <cross_sel>   cross_bins_expr
 
 %type <expr>  constraint_expression constraint_block_item constraint_set_item
@@ -2094,9 +2130,9 @@ assignment_pattern_named_list
      implements it in a LALR way. */
 block_identifier_opt /* */
   : IDENTIFIER ':'
-      { $$ = $1; }
+      { pform_sva_set_assertion_label($1); $$ = $1; }
   |
-      { $$ = 0; }
+      { pform_sva_set_assertion_label(0); $$ = 0; }
   ;
 
 class_declaration /* IEEE1800-2017: A.1.2, A.1.2.1 */
@@ -2510,7 +2546,26 @@ class_items /* IEEE1800-2005: A.1.2 */
 class_cg_port_prefix
   : K_covergroup IDENTIFIER
       { current_function = pform_push_function_scope_unbound(
-            @2, $2, LexicalScope::INHERITED); }
+            @2, $2, LexicalScope::INHERITED, false); }
+    tf_port_list_parens_opt
+      { if ($4) current_function->set_ports($4);
+	cov_capture_ctor_ports_($4, pending_cg_ctor_names_,
+				pending_cg_ctor_types_,
+				pending_cg_ctor_defaults_);
+	$$ = $2;
+      }
+  ;
+
+/* Standalone covergroups declared in a module or interface need the same
+   private constructor-formal scope as class and package covergroups. Without
+   it, tf_port_list_parens_opt registers every constructor formal in the
+   enclosing module/interface, so two independent covergroups that both use a
+   conventional name such as `bus_event` spuriously collide. Keep the scope
+   active through the body so its expressions bind the constructor formals. */
+module_cg_port_prefix
+  : K_covergroup IDENTIFIER
+      { current_function = pform_push_function_scope_unbound(
+            @2, $2, LexicalScope::INHERITED, false); }
     tf_port_list_parens_opt
       { if ($4) current_function->set_ports($4);
 	cov_capture_ctor_ports_($4, pending_cg_ctor_names_,
@@ -3164,7 +3219,7 @@ class_item /* IEEE1800-2005: A.1.8 */
   | class_cg_port_prefix K_with K_function function_identifier
       { pform_pop_scope();
 	current_function = pform_push_function_scope_unbound(
-	      @4, $4, LexicalScope::INHERITED); }
+	      @4, $4, LexicalScope::INHERITED, false); }
     tf_port_list_parens_opt ';'
     covergroup_item_list_opt K_endgroup label_opt
       { /* M11-4: `with function sample(<formals>)` (19.8.1) — the
@@ -3214,7 +3269,7 @@ class_item /* IEEE1800-2005: A.1.8 */
   | class_cg_port_prefix K_with K_function function_identifier
       { pform_pop_scope();
 	current_function = pform_push_function_scope_unbound(
-	      @4, $4, LexicalScope::INHERITED); }
+	      @4, $4, LexicalScope::INHERITED, false); }
     tf_port_list_parens_opt ';' error K_endgroup label_opt
       { pform_pop_scope(); current_function = 0;
         yyerror(@1, "error: Errors in covergroup body.");
@@ -3336,7 +3391,8 @@ class_new /* IEEE1800-2005 A.2.4 */
 
 concurrent_assertion_item /* IEEE1800-2012 A.2.10 */
   : block_identifier_opt concurrent_assertion_statement
-      { delete $1;
+      { pform_sva_clear_assertion_label();
+	delete[] $1;
 	delete $2;
       }
   ;
@@ -3809,7 +3865,11 @@ covergroup_item
   | K_cross cross_item_list coverpoint_iff_opt ';'
       { class_type_t::pform_cross_t cx;
 	cx.label = perm_string();
-	if ($2) for (const auto& l : *$2) cx.cp_labels.push_back(l);
+	if ($2) for (auto& item : *$2) {
+	      cx.cp_labels.push_back(item.label);
+	      cx.cp_exprs.push_back(item.expr);
+	      item.expr = nullptr;
+	}
 	cx.iff_expr = $3;
 	cx.bins = std::move(pending_cross_bins_);
 	pending_cross_bins_.clear();
@@ -3820,7 +3880,11 @@ covergroup_item
 	$$ = nullptr; }
   | K_cross cross_item_list coverpoint_iff_opt '{' cross_body_opt '}' semicolon_opt
       { class_type_t::pform_cross_t cx;
-	if ($2) for (const auto& l : *$2) cx.cp_labels.push_back(l);
+	if ($2) for (auto& item : *$2) {
+	      cx.cp_labels.push_back(item.label);
+	      cx.cp_exprs.push_back(item.expr);
+	      item.expr = nullptr;
+	}
 	cx.iff_expr = $3;
 	cx.bins = std::move(pending_cross_bins_);
 	pending_cross_bins_.clear();
@@ -3832,7 +3896,11 @@ covergroup_item
   | IDENTIFIER ':' K_cross cross_item_list coverpoint_iff_opt ';'
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1);
-	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	if ($4) for (auto& item : *$4) {
+	      cx.cp_labels.push_back(item.label);
+	      cx.cp_exprs.push_back(item.expr);
+	      item.expr = nullptr;
+	}
 	cx.iff_expr = $5;
 	cx.bins = std::move(pending_cross_bins_);
 	pending_cross_bins_.clear();
@@ -3844,7 +3912,11 @@ covergroup_item
   | TYPE_IDENTIFIER ':' K_cross cross_item_list coverpoint_iff_opt ';'
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1.text);
-	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	if ($4) for (auto& item : *$4) {
+	      cx.cp_labels.push_back(item.label);
+	      cx.cp_exprs.push_back(item.expr);
+	      item.expr = nullptr;
+	}
 	cx.iff_expr = $5;
 	cx.bins = std::move(pending_cross_bins_);
 	pending_cross_bins_.clear();
@@ -3856,7 +3928,11 @@ covergroup_item
   | IDENTIFIER ':' K_cross cross_item_list coverpoint_iff_opt '{' cross_body_opt '}' semicolon_opt
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1);
-	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	if ($4) for (auto& item : *$4) {
+	      cx.cp_labels.push_back(item.label);
+	      cx.cp_exprs.push_back(item.expr);
+	      item.expr = nullptr;
+	}
 	cx.iff_expr = $5;
 	cx.bins = std::move(pending_cross_bins_);
 	pending_cross_bins_.clear();
@@ -3868,7 +3944,11 @@ covergroup_item
   | TYPE_IDENTIFIER ':' K_cross cross_item_list coverpoint_iff_opt '{' cross_body_opt '}' semicolon_opt
       { class_type_t::pform_cross_t cx;
 	cx.label = lex_strings.make($1.text);
-	if ($4) for (const auto& l : *$4) cx.cp_labels.push_back(l);
+	if ($4) for (auto& item : *$4) {
+	      cx.cp_labels.push_back(item.label);
+	      cx.cp_exprs.push_back(item.expr);
+	      item.expr = nullptr;
+	}
 	cx.iff_expr = $5;
 	cx.bins = std::move(pending_cross_bins_);
 	pending_cross_bins_.clear();
@@ -3934,37 +4014,46 @@ bins_with_opt
   | K_with '(' expression ')'     { $$ = $3; }
   ;
 
+bins_iff_opt
+  :                                { $$ = nullptr; }
+  | K_iff '(' expression ')'      { $$ = $3; }
+  ;
+
 bins_item
-  : bins_keyword bins_name '=' '{' inside_range_list '}' bins_with_opt ';'
+  : bins_keyword bins_name '=' '{' inside_range_list '}' bins_with_opt bins_iff_opt ';'
       { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
 	b->name = lex_strings.make($2);
 	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
 	cov_bins_set_ranges_(b, $5);
 	b->with_expr = $7;
+	b->iff_expr = $8;
 	delete[] $2;
 	$$ = b;
       }
-  | K_wildcard bins_keyword bins_name '=' '{' inside_range_list '}' ';'
+  | K_wildcard bins_keyword bins_name '=' '{' inside_range_list '}' bins_with_opt bins_iff_opt ';'
       { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
 	b->name = lex_strings.make($3);
 	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$2;
 	b->wildcard = true;
 	cov_bins_set_ranges_(b, $6);
+	b->with_expr = $8;
+	b->iff_expr = $9;
 	delete[] $3;
 	$$ = b;
       }
   /* arrayed bins: name[] (one bin per value) and name[N] (N bins) */
-  | bins_keyword bins_name '[' ']' '=' '{' inside_range_list '}' bins_with_opt ';'
+  | bins_keyword bins_name '[' ']' '=' '{' inside_range_list '}' bins_with_opt bins_iff_opt ';'
       { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
 	b->name = lex_strings.make($2);
 	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
 	b->arrayed = true;
 	cov_bins_set_ranges_(b, $7);
 	b->with_expr = $9;
+	b->iff_expr = $10;
 	delete[] $2;
 	$$ = b;
       }
-  | bins_keyword bins_name '[' expression ']' '=' '{' inside_range_list '}' bins_with_opt ';'
+  | bins_keyword bins_name '[' expression ']' '=' '{' inside_range_list '}' bins_with_opt bins_iff_opt ';'
       { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
 	b->name = lex_strings.make($2);
 	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
@@ -3972,22 +4061,24 @@ bins_item
 	b->array_size = $4;
 	cov_bins_set_ranges_(b, $8);
 	b->with_expr = $10;
+	b->iff_expr = $11;
 	delete[] $2;
 	$$ = b;
       }
   /* A set_covergroup_expression yielding an unpacked array or queue. */
-  | bins_keyword bins_name '[' ']' '=' IDENTIFIER ';'
+  | bins_keyword bins_name '[' ']' '=' IDENTIFIER bins_iff_opt ';'
       { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
 	b->name = lex_strings.make($2);
 	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
 	b->arrayed = true;
 	b->set_expr = new PEIdent(lex_strings.make($6), @6.lexical_pos);
 	FILE_NAME(b->set_expr, @6);
+	b->iff_expr = $7;
 	delete[] $6;
 	delete[] $2;
 	$$ = b;
       }
-  | bins_keyword bins_name '[' expression ']' '=' IDENTIFIER ';'
+  | bins_keyword bins_name '[' expression ']' '=' IDENTIFIER bins_iff_opt ';'
       { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
 	b->name = lex_strings.make($2);
 	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
@@ -3995,37 +4086,41 @@ bins_item
 	b->array_size = $4;
 	b->set_expr = new PEIdent(lex_strings.make($7), @7.lexical_pos);
 	FILE_NAME(b->set_expr, @7);
+	b->iff_expr = $8;
 	delete[] $7;
 	delete[] $2;
 	$$ = b;
       }
   /* Values of a named coverpoint selected by a with(item) predicate. */
-  | bins_keyword bins_name '=' bins_name K_with '(' expression ')' ';'
+  | bins_keyword bins_name '=' bins_name K_with '(' expression ')' bins_iff_opt ';'
       { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
 	b->name = lex_strings.make($2);
 	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
 	b->source_coverpoint = lex_strings.make($4);
 	b->with_expr = $7;
+	b->iff_expr = $9;
 	delete[] $2;
 	delete[] $4;
 	$$ = b;
       }
   /* Transition bins: bins b = (v => v), (v => v => v), ...; */
-  | bins_keyword bins_name '=' transition_seq_list ';'
+  | bins_keyword bins_name '=' transition_seq_list bins_iff_opt ';'
       { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
 	b->name = lex_strings.make($2);
 	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
 	b->trans_seqs = std::move(*$4);
+	b->iff_expr = $5;
 	delete $4;
 	delete[] $2;
 	$$ = b;
       }
-  | bins_keyword bins_name '[' ']' '=' transition_seq_list ';'
+  | bins_keyword bins_name '[' ']' '=' transition_seq_list bins_iff_opt ';'
       { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
 	b->name = lex_strings.make($2);
 	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
 	b->arrayed = true;
 	b->trans_seqs = std::move(*$6);
+	b->iff_expr = $7;
 	delete $6;
 	delete[] $2;
 	$$ = b;
@@ -4056,22 +4151,42 @@ bins_item
 	yyerrok; $$ = nullptr; }
   ;
 
-/* cross_item_list: comma-separated list of coverpoint names for 'cross'.
-   I1 (Phase 62g): captures the names so the surrounding cross-declaration
-   action can store them on pform_covergroup_t. */
+/* IEEE 1800-2017 19.6: a cross item is either a coverpoint label or a
+   variable expression, for which an implicit coverpoint is created. Preserve
+   the full hierarchical path instead of flattening it to its first name. */
 cross_item_list
-  : IDENTIFIER
-      { std::list<perm_string>*lst = new std::list<perm_string>();
-	lst->push_back(lex_strings.make($1)); delete[] $1;
-	$$ = lst; }
-  | TYPE_IDENTIFIER
-      { std::list<perm_string>*lst = new std::list<perm_string>();
-	lst->push_back(lex_strings.make($1.text)); delete[] $1.text;
-	$$ = lst; }
-  | cross_item_list ',' IDENTIFIER
-      { $1->push_back(lex_strings.make($3)); delete[] $3; $$ = $1; }
-  | cross_item_list ',' TYPE_IDENTIFIER
-      { $1->push_back(lex_strings.make($3.text)); delete[] $3.text; $$ = $1; }
+  : hierarchy_identifier
+      { $$ = new std::list<class_type_t::pform_cross_t::item_t>();
+	class_type_t::pform_cross_t::item_t item;
+	const name_component_t&root = $1->front();
+	if ($1->size() == 1 && root.index.empty() && !root.local_scope) {
+	      item.label = root.name;
+	} else {
+	      std::string generated = "__implicit_cross_"
+		    + std::to_string(pending_cross_expr_serial_++);
+	      item.label = lex_strings.make(generated.c_str());
+	      item.expr = new PEIdent(*$1, @1.lexical_pos);
+	      FILE_NAME(item.expr, @1);
+	}
+	$$->push_back(item);
+	delete $1;
+      }
+  | cross_item_list ',' hierarchy_identifier
+      { class_type_t::pform_cross_t::item_t item;
+	const name_component_t&root = $3->front();
+	if ($3->size() == 1 && root.index.empty() && !root.local_scope) {
+	      item.label = root.name;
+	} else {
+	      std::string generated = "__implicit_cross_"
+		    + std::to_string(pending_cross_expr_serial_++);
+	      item.label = lex_strings.make(generated.c_str());
+	      item.expr = new PEIdent(*$3, @3.lexical_pos);
+	      FILE_NAME(item.expr, @3);
+	}
+	$1->push_back(item);
+	delete $3;
+	$$ = $1;
+      }
   ;
 
 /* cross_body_opt: body of bins/ignore_bins/illegal_bins items inside
@@ -4099,6 +4214,33 @@ cross_body_opt
 	cb.select = $5;
 	pending_cross_bins_.push_back(cb);
 	delete[] $3; }
+  /* IEEE 1800-2017 19.6.1: filter cross tuples with a predicate over the
+     contributing coverpoint values. Keep the source cross name so a typo
+     cannot silently select tuples from the surrounding declaration. */
+  | cross_body_opt K_illegal_bins bins_name '=' bins_name K_with '(' expression ')' ';'
+      { class_type_t::pform_cross_t::cross_bin_t cb;
+	cb.name = lex_strings.make($3);
+	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_ILLEGAL;
+	cb.with_cross = lex_strings.make($5);
+	cb.with_expr = $8;
+	pending_cross_bins_.push_back(cb);
+	delete[] $3; delete[] $5; }
+  | cross_body_opt K_ignore_bins bins_name '=' bins_name K_with '(' expression ')' ';'
+      { class_type_t::pform_cross_t::cross_bin_t cb;
+	cb.name = lex_strings.make($3);
+	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_IGNORE;
+	cb.with_cross = lex_strings.make($5);
+	cb.with_expr = $8;
+	pending_cross_bins_.push_back(cb);
+	delete[] $3; delete[] $5; }
+  | cross_body_opt K_bins bins_name '=' bins_name K_with '(' expression ')' ';'
+      { class_type_t::pform_cross_t::cross_bin_t cb;
+	cb.name = lex_strings.make($3);
+	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_NORMAL;
+	cb.with_cross = lex_strings.make($5);
+	cb.with_expr = $8;
+	pending_cross_bins_.push_back(cb);
+	delete[] $3; delete[] $5; }
   | cross_body_opt IDENTIFIER '.' IDENTIFIER '=' expression ';'
       { cov_option_set_(pending_cp_options_, @2, $2, $4, $6); }
   | cross_body_opt error ';'
@@ -4178,20 +4320,50 @@ cross_bins_expr
       { $$ = $2; }
   ;
 
-/* transition_seq_list: one or more transition sequences (v=>v), ...
-   M11-2: captured as ordered [lo:hi] step lists. A transition step may
-   itself be a comma-separated set (19.5.3), for example
-   `(0,1,2,3 => 0,1,2,3)`. Expand those sets to the Cartesian collection
-   of simple sequences here so the existing runtime NFA remains exact. */
+/* transition_seq_list: one or more transition sequences (v=>v), ... .
+   Keep each term's value-set alternatives and repetition metadata intact;
+   elaboration can then choose a compact automaton representation. */
 transition_seq_list
   : '(' transition_list ')'
-      { $$ = $2; }
+      { $$ = new std::vector<std::vector<
+		class_type_t::pform_cov_trans_term_t>>();
+	$$->push_back(std::move(*$2));
+	delete $2; }
   | transition_seq_list ',' '(' transition_list ')'
-      { $1->insert($1->end(),
-		 std::make_move_iterator($4->begin()),
-		 std::make_move_iterator($4->end()));
+	{ $1->push_back(std::move(*$4));
 	delete $4;
 	$$ = $1; }
+  ;
+
+/* One transition term is a set of values/ranges with an optional repeat. */
+transition_term
+  : transition_step_set
+      { $$ = cov_transition_term_($1,
+		class_type_t::pform_cov_trans_term_t::TRANS_ONCE); }
+  | transition_step_set K_LBSTAR expression ']'
+      { $$ = cov_transition_term_($1,
+		class_type_t::pform_cov_trans_term_t::TRANS_CONSECUTIVE,
+		$3, $3); }
+  | transition_step_set K_LBSTAR expression ':' expression ']'
+      { $$ = cov_transition_term_($1,
+		class_type_t::pform_cov_trans_term_t::TRANS_CONSECUTIVE,
+		$3, $5); }
+  | transition_step_set K_LBGOTO expression ']'
+      { $$ = cov_transition_term_($1,
+		class_type_t::pform_cov_trans_term_t::TRANS_GOTO,
+		$3, $3); }
+  | transition_step_set K_LBGOTO expression ':' expression ']'
+      { $$ = cov_transition_term_($1,
+		class_type_t::pform_cov_trans_term_t::TRANS_GOTO,
+		$3, $5); }
+  | transition_step_set K_LBEQ expression ']'
+      { $$ = cov_transition_term_($1,
+		class_type_t::pform_cov_trans_term_t::TRANS_NONCONSECUTIVE,
+		$3, $3); }
+  | transition_step_set K_LBEQ expression ':' expression ']'
+      { $$ = cov_transition_term_($1,
+		class_type_t::pform_cov_trans_term_t::TRANS_NONCONSECUTIVE,
+		$3, $5); }
   ;
 
 /* One transition step is a set of values/ranges. */
@@ -4218,31 +4390,14 @@ transition_step_set
    sequences. PExpr endpoints are parse-form arena objects and are shared
    read-only when one prefix participates in several Cartesian products. */
 transition_list
-  : transition_step_set K_EG transition_step_set
-      { $$ = new std::vector<std::vector<std::pair<PExpr*,PExpr*>>>();
-	for (const auto&left : *$1) {
-	      for (const auto&right : *$3) {
-		    std::vector<std::pair<PExpr*,PExpr*>> seq;
-		    seq.push_back(std::make_pair(left.lo, left.hi));
-		    seq.push_back(std::make_pair(right.lo, right.hi));
-		    $$->push_back(std::move(seq));
-	      }
-	}
-	delete $1;
-	delete $3; }
-  | transition_list K_EG transition_step_set
-      { std::vector<std::vector<std::pair<PExpr*,PExpr*>>>*expanded =
-	      new std::vector<std::vector<std::pair<PExpr*,PExpr*>>>();
-	for (const auto&prefix : *$1) {
-	      for (const auto&step : *$3) {
-		    std::vector<std::pair<PExpr*,PExpr*>> seq(prefix);
-		    seq.push_back(std::make_pair(step.lo, step.hi));
-		    expanded->push_back(std::move(seq));
-	      }
-	}
-	delete $1;
+  : transition_term
+      { $$ = new std::vector<class_type_t::pform_cov_trans_term_t>();
+	$$->push_back(std::move(*$1));
+	delete $1; }
+  | transition_list K_EG transition_term
+      { $1->push_back(std::move(*$3));
 	delete $3;
-	$$ = expanded; }
+	$$ = $1; }
   ;
 
 trans_step
@@ -6174,6 +6329,17 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
 	delete[] $2;
 	delete[] $11;
       }
+  | K_property IDENTIFIER '(' sva_formal_list ')' ';'
+      sva_int_local_declarations property_spec ';' K_endproperty
+      { pform_sva_declare_property_p(@2, $2, $4, $8);
+	delete[] $2;
+      }
+  | K_property IDENTIFIER '(' sva_formal_list ')' ';'
+      sva_int_local_declarations property_spec ';' K_endproperty ':' IDENTIFIER
+      { pform_sva_declare_property_p(@2, $2, $4, $8);
+	delete[] $2;
+	delete[] $12;
+      }
   | K_sequence IDENTIFIER '(' sva_formal_list ')' ';' sva_seq_expr ';' K_endsequence
       { pform_sva_declare_sequence_p(@2, $2, $4, $7);
 	delete[] $2;
@@ -6182,6 +6348,17 @@ clocking_declaration /* IEEE 1800-2017 14.3: legal in module, interface,
       { pform_sva_declare_sequence_p(@2, $2, $4, $7);
 	delete[] $2;
 	delete[] $11;
+      }
+  | K_sequence IDENTIFIER '(' sva_formal_list ')' ';'
+      sva_int_local_declarations sva_seq_expr ';' K_endsequence
+      { pform_sva_declare_sequence_p(@2, $2, $4, $8);
+	delete[] $2;
+      }
+  | K_sequence IDENTIFIER '(' sva_formal_list ')' ';'
+      sva_int_local_declarations sva_seq_expr ';' K_endsequence ':' IDENTIFIER
+      { pform_sva_declare_sequence_p(@2, $2, $4, $8);
+	delete[] $2;
+	delete[] $12;
       }
   /* SV `sequence ... endsequence` and `property ... endproperty` —
      parameterized/complex forms are parsed and dropped via bison
@@ -6646,7 +6823,7 @@ package_cg_port_prefix
            netclass shadowed the real one and every instance silently
            collected no coverage. */
         /* Unbound scope for the constructor port list */
-        current_function = pform_push_function_scope_unbound(@2, $2, LexicalScope::INHERITED); }
+        current_function = pform_push_function_scope_unbound(@2, $2, LexicalScope::INHERITED, false); }
     tf_port_list_parens_opt
       { if ($4) current_function->set_ports($4);
 	cov_capture_ctor_ports_($4, pending_cg_ctor_names_,
@@ -6676,7 +6853,7 @@ package_covergroup_declaration
         delete[] $1; if ($5) delete[] $5; }
   | package_cg_port_prefix K_with K_function function_identifier
       { pform_pop_scope();
-        current_function = pform_push_function_scope_unbound(@4, $4, LexicalScope::INHERITED); }
+        current_function = pform_push_function_scope_unbound(@4, $4, LexicalScope::INHERITED, false); }
     tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup label_opt
       { /* M11-4: real with-function-sample covergroup (19.8.1).
            Constructor formals from the prefix were parsed but are
@@ -6712,7 +6889,7 @@ package_covergroup_declaration
         delete[] $1; if ($5) delete[] $5; }
   | package_cg_port_prefix K_with K_function function_identifier
       { pform_pop_scope();
-        current_function = pform_push_function_scope_unbound(@4, $4, LexicalScope::INHERITED); }
+        current_function = pform_push_function_scope_unbound(@4, $4, LexicalScope::INHERITED, false); }
     tf_port_list_parens_opt ';' error K_endgroup label_opt
       { pform_pop_scope(); current_function = 0; yyerrok;
         delete[] $1; delete[] $4; if ($6) delete $6; if ($10) delete[] $10; }
@@ -7110,7 +7287,8 @@ tf_port_direction_opt
 
 procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
   : block_identifier_opt concurrent_assertion_statement
-      { Statement*item = $2;
+      { pform_sva_clear_assertion_label();
+	Statement*item = $2;
 	if (!item) {
 	      item = new PBlock(PBlock::BL_SEQ);
 	      FILE_NAME(item, @1);
@@ -7194,9 +7372,28 @@ sva_formal_list
 
 sva_int_local_declarations
   : K_int IDENTIFIER ';'
-      { delete[] $2; $$ = 0; }
+      { pform_sva_begin_local_declarations();
+	pform_sva_declare_int_local(@1, $2);
+	delete[] $2; $$ = 0; }
+  | K_sva_logic_local dimensions IDENTIFIER ';'
+      { pform_sva_begin_local_declarations();
+	pform_sva_declare_logic_local(@1, $3, $2);
+	delete[] $3;
+	$$ = 0; }
+  | K_sva_logic_local IDENTIFIER ';'
+      { pform_sva_begin_local_declarations();
+	pform_sva_declare_logic_local(@1, $2, nullptr);
+	delete[] $2;
+	$$ = 0; }
   | sva_int_local_declarations K_int IDENTIFIER ';'
-      { delete[] $3; $$ = 0; }
+      { pform_sva_declare_int_local(@2, $3);
+	delete[] $3; $$ = 0; }
+  | sva_int_local_declarations K_sva_logic_local dimensions IDENTIFIER ';'
+      { pform_sva_declare_logic_local(@2, $4, $3);
+	delete[] $4; $$ = 0; }
+  | sva_int_local_declarations K_sva_logic_local IDENTIFIER ';'
+      { pform_sva_declare_logic_local(@2, $3, nullptr);
+	delete[] $3; $$ = 0; }
   ;
 
 /* IEEE 1800-2017 16.13.1: a multiclocked sequence has exactly ##0 or ##1
@@ -7600,7 +7797,7 @@ sva_seq_atom
 	sva_seq_step_t st;
 	st.expr = $2;
 	st.lv_name = lex_strings.make($4);
-	st.lv_rhs = $6;
+	st.lv_rhs = pform_sva_coerce_local_assignment(@4, $4, $6);
 	delete[] $4;
 	steps->push_back(st);
 	$$ = steps; }
@@ -7620,7 +7817,7 @@ sva_seq_atom
 	sva_seq_step_t st;
 	st.expr = $2;
 	st.lv_name = lex_strings.make($4);
-	st.lv_rhs = $6;
+	st.lv_rhs = pform_sva_coerce_local_assignment(@4, $4, $6);
 	st.match_calls.swap(*$8);
 	delete[] $4;
 	delete $8;
@@ -7671,7 +7868,7 @@ sva_seq_atom
 sva_seq_expr
   : sva_seq_atom
       { $$ = $1; }
-  /* Unclocked declaration bodies historically reach this path.  A local
+  /* Unclocked declaration bodies historically reach this path. A local
      declaration followed by an explicit clock is handled by the exact
      property/sequence declaration productions above. */
   | data_type IDENTIFIER ';' sva_seq_expr
@@ -14033,58 +14230,65 @@ module_item
      1800-2017 19.3): declares a type; instances are created with
      `new`. Coverpoint sources are scope signals, resolved at each
      sample() site. */
-  | K_covergroup IDENTIFIER tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup label_opt
-      { std::vector<perm_string>*ctor_names__ = nullptr;
-	std::vector<data_type_t*>*ctor_types__ = nullptr;
-	std::vector<PExpr*>*ctor_defs__ = nullptr;
-	cov_capture_ctor_ports_($3, ctor_names__, ctor_types__, ctor_defs__);
-	pform_standalone_covergroup(@1, $2, $5, nullptr, nullptr, nullptr,
-				    ctor_names__, ctor_types__, ctor_defs__);
-	delete[] $2; if ($3) delete $3; if ($7) delete[] $7;
+  | module_cg_port_prefix ';' covergroup_item_list_opt K_endgroup label_opt
+      { pform_pop_scope(); current_function = 0;
+	pform_standalone_covergroup(@1, $1, $3, nullptr, nullptr, nullptr,
+				    pending_cg_ctor_names_,
+				    pending_cg_ctor_types_,
+				    pending_cg_ctor_defaults_);
+	pending_cg_ctor_names_ = nullptr;
+	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_defaults_ = nullptr;
+	delete[] $1; if ($5) delete[] $5;
       }
-  | K_covergroup IDENTIFIER tf_port_list_parens_opt '@' '(' event_expression_list ')' ';' covergroup_item_list_opt K_endgroup label_opt
-      { std::vector<perm_string>*ctor_names__ = nullptr;
-	std::vector<data_type_t*>*ctor_types__ = nullptr;
-	std::vector<PExpr*>*ctor_defs__ = nullptr;
-	cov_capture_ctor_ports_($3, ctor_names__, ctor_types__, ctor_defs__);
-	pform_standalone_covergroup(@1, $2, $9, $6, nullptr, nullptr,
-				    ctor_names__, ctor_types__, ctor_defs__);
-	delete[] $2; if ($3) delete $3; if ($11) delete[] $11;
+  | module_cg_port_prefix '@' '(' event_expression_list ')' ';' covergroup_item_list_opt K_endgroup label_opt
+      { pform_pop_scope(); current_function = 0;
+	pform_standalone_covergroup(@1, $1, $7, $4, nullptr, nullptr,
+				    pending_cg_ctor_names_,
+				    pending_cg_ctor_types_,
+				    pending_cg_ctor_defaults_);
+	pending_cg_ctor_names_ = nullptr;
+	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_defaults_ = nullptr;
+	delete[] $1; if ($9) delete[] $9;
       }
   /* M11-4: `with function sample(<formals>)` (IEEE 1800-2017
      19.8.1). The formal names become the coverpoint sample sources,
      bound positionally to the sample() call arguments at each call
      site. */
-  | K_covergroup IDENTIFIER tf_port_list_parens_opt K_with K_function function_identifier
-      { current_function = pform_push_function_scope_unbound(@6, $6, LexicalScope::INHERITED); }
+  | module_cg_port_prefix K_with K_function function_identifier
+      { pform_pop_scope();
+	current_function = pform_push_function_scope_unbound(
+	      @4, $4, LexicalScope::INHERITED, false); }
     tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup label_opt
-      { if (strcmp($6, "sample") != 0)
-	      yyerror(@6, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
+      { if (strcmp($4, "sample") != 0)
+	      yyerror(@4, "error: The covergroup `with function` method must be named `sample` (IEEE 1800-2017 19.8.1).");
 	std::vector<perm_string>*formals__ = 0;
 	std::vector<data_type_t*>*ftypes__ = 0;
 	std::vector<PExpr*>*fdefaults__ = 0;
-	if ($8) {
+	if ($6) {
 	      formals__ = new std::vector<perm_string>;
 	      ftypes__ = new std::vector<data_type_t*>;
 	      fdefaults__ = new std::vector<PExpr*>;
-	      for (size_t idx__ = 0; idx__ < $8->size(); idx__ += 1)
-		    if ((*$8)[idx__].port) {
-			  formals__->push_back((*$8)[idx__].port->basename());
-			  ftypes__->push_back(const_cast<data_type_t*>((*$8)[idx__].port->data_type()));
-			  fdefaults__->push_back((*$8)[idx__].defe);
+	      for (size_t idx__ = 0; idx__ < $6->size(); idx__ += 1)
+		    if ((*$6)[idx__].port) {
+			  formals__->push_back((*$6)[idx__].port->basename());
+			  ftypes__->push_back(const_cast<data_type_t*>((*$6)[idx__].port->data_type()));
+			  fdefaults__->push_back((*$6)[idx__].defe);
 		    }
-	      current_function->set_ports($8);
+	      current_function->set_ports($6);
 	}
-	std::vector<perm_string>*ctor_names__ = nullptr;
-	std::vector<data_type_t*>*ctor_types__ = nullptr;
-	std::vector<PExpr*>*ctor_defs__ = nullptr;
-	cov_capture_ctor_ports_($3, ctor_names__, ctor_types__, ctor_defs__);
 	pform_pop_scope();
 	current_function = 0;
-	pform_standalone_covergroup(@1, $2, $10, nullptr, formals__, ftypes__,
-				    ctor_names__, ctor_types__, ctor_defs__, fdefaults__);
-	delete[] $2; if ($3) delete $3; delete[] $6;
-	if ($12) delete[] $12;
+	pform_standalone_covergroup(@1, $1, $8, nullptr, formals__, ftypes__,
+				    pending_cg_ctor_names_,
+				    pending_cg_ctor_types_,
+				    pending_cg_ctor_defaults_, fdefaults__);
+	pending_cg_ctor_names_ = nullptr;
+	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_defaults_ = nullptr;
+	delete[] $1; delete[] $4;
+	if ($10) delete[] $10;
       }
 
   /* M5-if: a bare module-scope virtual-interface variable
@@ -16242,6 +16446,14 @@ statement_item /* This is roughly statement_item in the LRM */
       { if ($1) pform_make_var(@1, $2, $1, nullptr, false);
 	$$ = nullptr;
       }
+
+  /* The lexer returns this carrier only while a task/function lexical scope
+     is active. Register it as a true local parameter and emit no executable
+     statement; the distinct token keeps the parser conflict profile stable. */
+  | K_localparam_statement
+      { param_is_local = true; }
+    param_type parameter_assign_list ';'
+      { $$ = nullptr; }
 
   /* `const <data_type> name = init;` intermixed with statements (not
      the first declaration in the block). The K_const TYPE_IDENTIFIER

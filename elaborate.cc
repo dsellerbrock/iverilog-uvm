@@ -3249,6 +3249,12 @@ static void set_nexus_simulated_net_type(NetNet*net, NetNet::Type actual,
 	    NetNet*alias = dynamic_cast<NetNet*>(cur->get_obj());
 	    if (!alias)
 		  continue;
+	    /* Table 23-1 chooses the simulated net type; it does not turn a
+	       variable output port into a net. Preserve each variable alias's
+	       declared VPI identity while retyping only the collapsed nets. */
+	    if (alias->type() == NetNet::REG
+		|| alias->type() == NetNet::IMPLICIT_REG)
+		  continue;
 	    alias->type(actual);
 	    alias->net_delay_declared_type(declared);
       }
@@ -9208,6 +9214,9 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
       vector<NetExpr*>eparms (parm_count);
 
       perm_string name = peek_tail_name(path_);
+      const bool assertion_control_task =
+	    name == "$asserton" || name == "$assertoff"
+	    || name == "$assertkill";
       const bool coverage_db_task =
 	    name == "$set_coverage_db_name" || name == "$load_coverage_db";
 
@@ -9261,8 +9270,24 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 		  continue;
 	    }
 
-	    eparms[idx] = elab_sys_task_arg(des, scope, name, idx,
-				    parm.parm);
+	    /* IEEE 1800-2017 20.12: arguments after `levels' are names of
+	       scopes or assertion directives, not value expressions. Preserve
+	       their hierarchical spelling for the runtime assertion registry;
+	       ordinary expression elaboration would incorrectly try to bind the
+	       assertion label as a signal (Caliptra relies on this form). */
+	    if (assertion_control_task && idx >= 1) {
+		  if (const PEIdent*id = dynamic_cast<const PEIdent*>(parm.parm)) {
+			std::ostringstream text;
+			text << id->path();
+			NetECString*selector = new NetECString(text.str());
+			selector->set_line(*parm.parm);
+			eparms[idx] = selector;
+			continue;
+		  }
+	    }
+
+            eparms[idx] = elab_sys_task_arg(des, scope, name, idx,
+			    parm.parm);
 
 	    if (coverage_db_task && idx == 0 && eparms[idx]) {
 		  bool is_string = eparms[idx]->expr_type() == IVL_VT_STRING;
@@ -11657,8 +11682,6 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			if (cgtype && cgtype->is_covergroup()) {
 			      unsigned ncp = cgtype->covgrp_ncoverpoints();
 			      vector<NetExpr*> argv;
-			      // arg 0 = cg object expression
-			      argv.push_back(obj_expr);
 
 			      // args 1..ncp: coverpoint values from the
 			      // parent class; args ncp+1..2*ncp: the iff
@@ -11701,18 +11724,69 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				    return 0;
 			      };
 
+				// Constructor formals are stored as leading
+				// properties on the covergroup object. Bind hidden
+				// caller-scope temporaries to those properties while
+				// elaborating coverpoint/guard expressions, just as
+				// with-function sample formals are bound below. This
+				// keeps each standalone covergroup's formal names out
+				// of the enclosing module/interface scope.
+			      unsigned nctor =
+				    static_cast<unsigned>(cgtype->covgrp_ctor_formal_count());
+			      unsigned nformals = cgtype->covgrp_sample_formal_count();
+			      NetBlock*sample_block = (nctor || nformals)
+				    ? new NetBlock(NetBlock::SEQU, 0) : nullptr;
+			      if (sample_block) sample_block->set_line(*this);
+
+				// A receiver can itself be an expression. Evaluate it
+				// exactly once before reading any constructor-formal
+				// properties and before passing the object to the
+				// runtime sampler.
+			      if (nctor) {
+				    NetNet*recv = new NetNet(scope, scope->local_symbol(),
+						      NetNet::REG, obj_type);
+				    recv->set_line(*this);
+				    recv->local_flag(true);
+				    NetAssign*save_recv = new NetAssign(
+					  new NetAssign_(recv), obj_expr);
+				    save_recv->set_line(*this);
+				    sample_block->append(save_recv);
+				    obj_expr = new NetESignal(recv);
+				    obj_expr->set_line(*this);
+			      }
+
+			      // arg 0 = cg object expression
+			      argv.push_back(obj_expr);
+
+			      vector<NetNet*> previous_ctor_bindings(nctor, nullptr);
+			      for (unsigned k = 0; k < nctor; k += 1) {
+				    ivl_type_t slot_type =
+					  cgtype->covgrp_ctor_formal_type(k);
+				    if (!slot_type) slot_type = &netvector_t::atom2s32;
+				    NetNet*slot = new NetNet(scope, scope->local_symbol(),
+						      NetNet::REG, slot_type);
+				    slot->set_line(*this);
+				    slot->local_flag(true);
+				    NetEProperty*value = new NetEProperty(
+					  obj_expr->dup_expr(),
+					  cgtype->covgrp_ctor_formal_prop(k), nullptr);
+				    value->set_line(*this);
+				    NetAssign*copy = new NetAssign(
+					  new NetAssign_(slot), value);
+				    copy->set_line(*this);
+				    sample_block->append(copy);
+				    previous_ctor_bindings[k] = scope->set_signal_alias(
+					  cgtype->covgrp_ctor_formal_name(k), slot);
+			      }
+
 				// M11-4: `with function sample(<formals>)`
 				// (19.8.1). Elaborate each call argument
 				// once; coverpoint/guard sources that name
 				// a formal bind to the corresponding
 				// argument expression instead of a caller-
 				// scope signal.
-			      unsigned nformals = cgtype->covgrp_sample_formal_count();
 			      vector<NetNet*> formal_nets(nformals, nullptr);
 			      vector<NetNet*> previous_formal_bindings(nformals, nullptr);
-			      NetBlock*sample_block = nformals
-				    ? new NetBlock(NetBlock::SEQU, 0) : nullptr;
-			      if (sample_block) sample_block->set_line(*this);
 			      if (nformals > 0) {
 				    if (parms_.size() > nformals) {
 					  cerr << get_fileline()
@@ -11948,10 +12022,47 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					  }
 					  argv.push_back(gval);
 				    }
+				      // Bin-level iff guards (19.5). They are evaluated at
+				      // every sample independently of the coverpoint/cross gate;
+				      // all records originating in one bins declaration share
+				      // the same compact guard index.
+				    unsigned nbinguards = static_cast<unsigned>(
+					  cgtype->covgrp_bin_guard_count());
+				    for (unsigned gi = 0; gi < nbinguards; gi++) {
+					  PExpr*gexpr = cgtype->covgrp_bin_guard(gi);
+					  NetExpr*gval = gexpr
+						? elab_and_eval(des, scope, gexpr,
+								-1, false, false)
+						: nullptr;
+					  if (!gval && gexpr)
+					  if (const PEIdent*gid =
+						dynamic_cast<const PEIdent*>(gexpr)) {
+						perm_string gnm = peek_head_name(gid->path());
+						int gp = parent_cls
+						      ? parent_cls->property_idx_from_name(gnm) : -1;
+						if (gp >= 0) {
+						      NetEProperty*gprop = new NetEProperty(
+							make_parent_expr(), gp, nullptr);
+						      gprop->set_line(*this);
+						      gval = gprop;
+						}
+					  }
+					  if (!gval) {
+						if (gexpr)
+						      cerr << get_fileline()
+							   << ": sorry: covergroup bin iff guard "
+							   << (gi+1) << " cannot be evaluated at "
+							   << "this sample() site; it is treated "
+							   << "as enabled." << endl;
+						gval = new NetEConst(verinum((uint64_t)1, 32));
+						gval->set_line(*this);
+					  }
+					  argv.push_back(gval);
+				    }
 				      // Internal target protocol sentinels. The target cannot
 				      // reliably recover a class type from every object-expression
 				      // shape, so carry the two payload dimensions explicitly and
-				      // strip them before emitting VVP stack operations.
+				    // strip them before emitting VVP stack operations.
 				    unsigned ncross = cgtype->covgrp_item_count() > ncp
 					  ? static_cast<unsigned>(cgtype->covgrp_item_count() - ncp)
 					  : 0;
@@ -11963,11 +12074,19 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 					  verinum((uint64_t)ncross, 32));
 				    ncross_arg->set_line(*this);
 				    argv.push_back(ncross_arg);
+				    NetEConst*nbin_arg = new NetEConst(
+					  verinum((uint64_t)nbinguards, 32));
+				    nbin_arg->set_line(*this);
+				    argv.push_back(nbin_arg);
 			      }
 			      for (unsigned k = 0; k < nformals; k += 1)
 				    scope->restore_signal_alias(
 					  cgtype->covgrp_sample_formal(k),
 					  previous_formal_bindings[k]);
+			      for (unsigned k = 0; k < nctor; k += 1)
+				    scope->restore_signal_alias(
+					  cgtype->covgrp_ctor_formal_name(k),
+					  previous_ctor_bindings[k]);
 			      NetSTask* sys = new NetSTask(
 				    "$ivl_class_method$covgrp_sample",
 				    IVL_SFUNC_AS_TASK_IGNORE, argv);
@@ -22569,7 +22688,9 @@ string pexpr_to_constraint_ir(const PExpr*expr,
  * the expression uses a form this evaluator does not support (the
  * caller diagnoses loudly and drops the bin — never silently).
  */
-static int cov_with_eval_(PExpr*e, int64_t item, int64_t&out)
+static int cov_named_eval_(PExpr*e,
+			   const std::map<perm_string,int64_t>&values,
+			   int64_t&out)
 {
       if (PENumber*num = dynamic_cast<PENumber*>(e)) {
 	    out = (int64_t)num->value().as_ulong64();
@@ -22577,15 +22698,16 @@ static int cov_with_eval_(PExpr*e, int64_t item, int64_t&out)
       }
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
 	    perm_string nm = peek_tail_name(id->path());
-	    if (nm == perm_string::literal("item")) {
-		  out = item;
+	    auto found = values.find(nm);
+	    if (found != values.end()) {
+		  out = found->second;
 		  return 1;
 	    }
 	    return -1;
       }
       if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
 	    int64_t a;
-	    if (cov_with_eval_(un->get_expr(), item, a) < 0) return -1;
+	    if (cov_named_eval_(un->get_expr(), values, a) < 0) return -1;
 	    switch (un->get_op()) {
 		case '!': out = (a == 0); return 1;
 		case '~': out = ~a; return 1;
@@ -22598,8 +22720,8 @@ static int cov_with_eval_(PExpr*e, int64_t item, int64_t&out)
       }
       if (PEBinary*bin = dynamic_cast<PEBinary*>(e)) {
 	    int64_t a, b;
-	    if (cov_with_eval_(bin->get_left(), item, a) < 0) return -1;
-	    if (cov_with_eval_(bin->get_right(), item, b) < 0) return -1;
+	    if (cov_named_eval_(bin->get_left(), values, a) < 0) return -1;
+	    if (cov_named_eval_(bin->get_right(), values, b) < 0) return -1;
 	    switch (bin->get_op()) {
 		case '+': out = a + b; return 1;
 		case '-': out = a - b; return 1;
@@ -22625,16 +22747,16 @@ static int cov_with_eval_(PExpr*e, int64_t item, int64_t&out)
       }
       if (PETernary*ter = dynamic_cast<PETernary*>(e)) {
 	    int64_t c;
-	    if (cov_with_eval_(ter->get_cond(), item, c) < 0) return -1;
-	    return cov_with_eval_(c ? ter->get_true() : ter->get_false(),
-				  item, out);
+	    if (cov_named_eval_(ter->get_cond(), values, c) < 0) return -1;
+	    return cov_named_eval_(c ? ter->get_true() : ter->get_false(),
+			   values, out);
       }
       if (PECallFunction*call = dynamic_cast<PECallFunction*>(e)) {
 	    perm_string nm = peek_tail_name(call->path());
 	    const std::vector<named_pexpr_t>&parms = call->get_parms();
 	    if (parms.size() != 1 || !parms[0].parm) return -1;
 	    int64_t a;
-	    if (cov_with_eval_(parms[0].parm, item, a) < 0) return -1;
+	    if (cov_named_eval_(parms[0].parm, values, a) < 0) return -1;
 	    uint64_t ua = (uint64_t)a;
 	    if (nm == perm_string::literal("$countones")) {
 		  out = __builtin_popcountll(ua);
@@ -22651,6 +22773,13 @@ static int cov_with_eval_(PExpr*e, int64_t item, int64_t&out)
 	    return -1;
       }
       return -1;
+}
+
+static int cov_with_eval_(PExpr*e, int64_t item, int64_t&out)
+{
+      std::map<perm_string,int64_t> values;
+      values[perm_string::literal("item")] = item;
+      return cov_named_eval_(e, values, out);
 }
 
 void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
@@ -22929,6 +23058,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // COMPLETED on this sample, not a range of its current
 			    // value. The property index identifies that source bin.
 			  int transition_prop = -1;
+			    // Arrayed transition bins use a compact per-instance family
+			    // instead of one class property per logical sequence.
+			  int transition_family = -1;
+			  uint64_t transition_index = 0;
+			  unsigned guard_idx = netclass_t::COVGRP_NO_GUARD;
 		    };
 		    std::vector<std::vector<xbin_desc_t>> cp_value_bins;
 
@@ -23273,7 +23407,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 
 			  auto add_value_prop = [&](const std::string&bname,
 						    const std::vector<std::pair<uint64_t,uint64_t>>&rr,
-						    unsigned kindval) {
+						    unsigned kindval,
+						    unsigned guard_idx = netclass_t::COVGRP_NO_GUARD) {
 				perm_string bpp = lex_strings.make(bname.c_str());
 				cg_class->set_property(bpp,
 						       property_qualifier_t::make_none(),
@@ -23282,22 +23417,30 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				for (auto&r : rr)
 				      cg_class->add_covgrp_bin(cp_idx, prop_idx,
 							       r.first, r.second,
-							       kindval, tup++, cp_idx);
+							       kindval, tup++, cp_idx,
+							       0, 1, 1, 0, 1,
+							       netclass_t::COVGRP_NO_FAMILY,
+							       0, guard_idx);
 				prop_idx++;
 			  };
 
 			  for (auto& bin : cp.bins) {
 				unsigned base_kind = (unsigned)bin.kind;
 				unsigned kindval = base_kind | (bin.wildcard ? 8u : 0u);
+				unsigned bin_guard = bin.iff_expr
+				      ? cg_class->add_covgrp_bin_guard(bin.iff_expr)
+				      : netclass_t::COVGRP_NO_GUARD;
 				std::string bstem = std::string("__bin_")
 						  + std::string(cp.label.str())
 						  + "_" + std::string(bin.name.str());
 
 				if (!bin.trans_seqs.empty()) {
-				        // M11-2: transition bins — one
-				        // counter per bin ([]: one per seq);
-				        // records are per-step, tuple =
-				        // (seq << 8) | step, kind = 4.
+				        // IEEE 19.5.2 transition bins. Preserve each term as
+				        // compact range/repetition metadata; expanding [*1:1000]
+				        // into 500500 fixed NFA steps is both unnecessary and a
+				        // denial-of-service hazard. Arrayed transition families use
+				        // sparse dynamic counters keyed by the mixed-radix logical
+				        // sequence index.
 				      if (base_kind != 0) {
 					    cerr << "sorry: covergroup '" << cgdef->name
 						 << "': ignore/illegal transition bins are "
@@ -23305,67 +23448,208 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						 << "' is dropped." << endl;
 					    continue;
 				      }
-				      unsigned nseq = bin.trans_seqs.size();
-				      bool split = bin.arrayed;
-				      unsigned prop_first = prop_idx;
-				      if (!split) {
-					    perm_string bpp = lex_strings.make(bstem.c_str());
-					    cg_class->set_property(bpp,
-						  property_qualifier_t::make_none(),
-						  &netvector_t::atom2s32);
-					    prop_idx++;
+				      if (bin.trans_seqs.size() > 255) {
+					    cerr << "sorry: covergroup transition bin '" << bin.name
+						 << "' has more than 255 alternative sequences; "
+						 << "the bin is dropped." << endl;
+					    continue;
 				      }
+
+				      struct trans_term_t {
+					    std::vector<std::pair<uint64_t,uint64_t>> ranges;
+					    unsigned repeat = 0;
+					    uint64_t min = 1, max = 1;
+					    uint64_t alternatives = 0;
+				      };
+				      std::vector<std::vector<trans_term_t>> programs;
+				      std::vector<uint64_t> seq_bases;
+				      unsigned __int128 family_total = 0;
 				      bool bad = false;
-				      for (unsigned sq = 0; sq < nseq && !bad; sq++) {
-					    auto&steps = bin.trans_seqs[sq];
-					    if (steps.size() > 255) {
-						  cerr << "sorry: covergroup transition "
-						       << "sequence longer than 255 steps "
-						       << "is not supported; bin '"
-						       << bin.name << "' dropped." << endl;
+				      static const uint64_t transition_repeat_limit = 65536;
+				      static const uint64_t array_transition_limit = 65536;
+
+				      auto repeat_bound = [&](PExpr*pe, uint64_t&value) -> bool {
+					    if (!pe) return false;
+					    NetExpr*e = elab_and_eval(des, class_scope_, pe,
+								 -1, false, false);
+					    NetEConst*c = dynamic_cast<NetEConst*>(e);
+					    bool ok = c && c->value().is_defined();
+					    if (ok) value = c->value().as_ulong64();
+					    delete e;
+					    return ok;
+				      };
+				      auto capped_add = [&](unsigned __int128 a,
+							    unsigned __int128 b) {
+					    unsigned __int128 cap = array_transition_limit + 1;
+					    return a >= cap || b >= cap || a + b >= cap
+						 ? cap : a + b;
+				      };
+				      auto capped_mul = [&](unsigned __int128 a,
+							    unsigned __int128 b) {
+					    unsigned __int128 cap = array_transition_limit + 1;
+					    if (a == 0 || b == 0) return (unsigned __int128)0;
+					    return a >= cap || b >= cap || a > cap / b
+						 ? cap : a * b;
+				      };
+
+				      for (unsigned sq = 0; sq < bin.trans_seqs.size() && !bad; sq++) {
+					    auto&source_terms = bin.trans_seqs[sq];
+					    if (source_terms.empty() || source_terms.size() > 255) {
+						  cerr << "sorry: covergroup transition sequence in bin '"
+						       << bin.name << "' is empty or longer than 255 "
+						       << "terms; the bin is dropped." << endl;
 						  bad = true;
 						  break;
 					    }
-					    std::vector<std::pair<uint64_t,uint64_t>> stepv;
-					    if (!eval_ranges(steps, stepv)) {
-						  cerr << "sorry: covergroup transition "
-						       << "steps must be constant; bin '"
-						       << bin.name << "' dropped." << endl;
+					    std::vector<trans_term_t> terms;
+					    unsigned __int128 sequence_variants = 1;
+					    for (auto&source_term : source_terms) {
+						  trans_term_t term;
+						  if (!eval_ranges(source_term.ranges, term.ranges)
+						      || term.ranges.empty()) {
+							cerr << "sorry: covergroup transition terms must "
+							     << "be nonempty constant sets; bin '"
+							     << bin.name << "' is dropped." << endl;
+							bad = true;
+							break;
+						  }
+						  std::sort(term.ranges.begin(), term.ranges.end());
+						  std::vector<std::pair<uint64_t,uint64_t>> merged;
+						  for (auto&r : term.ranges) {
+							if (!merged.empty()
+							    && (r.first <= merged.back().second
+								|| (merged.back().second != UINT64_MAX
+								    && r.first == merged.back().second + 1)))
+							      merged.back().second = std::max(
+								merged.back().second, r.second);
+							else merged.push_back(r);
+						  }
+						  term.ranges = std::move(merged);
+						  unsigned __int128 alternatives = 0;
+						  for (auto&r : term.ranges)
+							alternatives += (unsigned __int128)r.second
+								      - r.first + 1;
+						  if (alternatives == 0
+						      || (bin.arrayed
+							  && alternatives > array_transition_limit)) {
+							cerr << "sorry: arrayed transition term in bin '"
+							     << bin.name << "' has too many value "
+							     << "alternatives; the bin is dropped." << endl;
+							bad = true;
+							break;
+						  }
+						  term.alternatives = alternatives > UINT64_MAX
+							? UINT64_MAX : (uint64_t)alternatives;
+						  term.repeat = (unsigned)source_term.repeat_kind;
+						  if (source_term.repeat_kind
+						      != class_type_t::pform_cov_trans_term_t::TRANS_ONCE) {
+							if (!repeat_bound(source_term.repeat_lo, term.min)
+							    || !repeat_bound(source_term.repeat_hi, term.max)
+							    || term.min == 0 || term.max < term.min
+							    || term.max > transition_repeat_limit) {
+							      cerr << "error: covergroup transition repetition "
+								   << "in bin '" << bin.name
+								   << "' must be a positive ordered "
+								   << "constant range no larger than "
+								   << transition_repeat_limit << "." << endl;
+							      des->errors += 1;
+							      bad = true;
+							      break;
+							}
+						  }
+						  if (bin.arrayed
+						      && (term.repeat ==
+							  class_type_t::pform_cov_trans_term_t::TRANS_GOTO
+							  || term.repeat == class_type_t::
+							     pform_cov_trans_term_t::TRANS_NONCONSECUTIVE)) {
+							cerr << "error: arrayed transition bin '" << bin.name
+							     << "' cannot contain goto or nonconsecutive "
+							     << "repetition because its transition length "
+							     << "is unbounded." << endl;
+							des->errors += 1;
+							bad = true;
+							break;
+						  }
+						  unsigned __int128 variants = 0;
+						  unsigned __int128 power = 1;
+						  for (uint64_t n = 1; n <= term.max; n++) {
+							power = capped_mul(power, alternatives);
+							if (n >= term.min)
+							      variants = capped_add(variants, power);
+						  }
+						  sequence_variants = capped_mul(sequence_variants,
+									 variants);
+						  terms.push_back(std::move(term));
+					    }
+					    if (bad) break;
+					    if (terms.size() == 1 && terms[0].min == 1
+						&& terms[0].max == 1
+						&& terms[0].repeat <= class_type_t::
+						   pform_cov_trans_term_t::TRANS_CONSECUTIVE) {
+						  cerr << "error: transition bin '" << bin.name
+						       << "' has zero transition length." << endl;
+						  des->errors += 1;
 						  bad = true;
 						  break;
 					    }
-					    unsigned use_prop = prop_first;
-					    if (split) {
-						  std::string sn = bstem + "_" + std::to_string(sq);
-						  perm_string bpp = lex_strings.make(sn.c_str());
-						  cg_class->set_property(bpp,
-							property_qualifier_t::make_none(),
-							&netvector_t::atom2s32);
-						  use_prop = prop_idx;
-						  prop_idx++;
+					    seq_bases.push_back((uint64_t)family_total);
+					    family_total = capped_add(family_total,
+							      sequence_variants);
+					    programs.push_back(std::move(terms));
+				      }
+				      if (bad) continue;
+				      if (bin.arrayed && family_total > array_transition_limit) {
+					    cerr << "sorry: arrayed transition bin '" << bin.name
+						 << "' needs more than " << array_transition_limit
+						 << " logical bins; the bin is dropped." << endl;
+					    continue;
+				      }
+
+				      perm_string marker = lex_strings.make(
+					    (bin.arrayed ? bstem + "_marker" : bstem).c_str());
+				      cg_class->set_property(marker,
+					    property_qualifier_t::make_none(),
+					    &netvector_t::atom2s32);
+				      unsigned marker_prop = prop_idx++;
+				      unsigned family = bin.arrayed ? dyn_family++
+					    : netclass_t::COVGRP_NO_FAMILY;
+				      for (unsigned sq = 0; sq < programs.size(); sq++) {
+					    for (unsigned st = 0; st < programs[sq].size(); st++) {
+						  trans_term_t&term = programs[sq][st];
+						  uint64_t alt_base = 0;
+						  for (auto&r : term.ranges) {
+							cg_class->add_covgrp_bin(cp_idx, marker_prop,
+							      r.first, r.second, 4u,
+							      (sq << 8) | st, cp_idx,
+							      term.repeat, term.min, term.max,
+							      (unsigned)alt_base,
+							      (unsigned)term.alternatives,
+							      family, seq_bases[sq], bin_guard);
+							alt_base += r.second - r.first + 1;
+						  }
 					    }
-					    for (unsigned st = 0; st < stepv.size(); st++) {
-						  cg_class->add_covgrp_bin(cp_idx, use_prop,
-							stepv[st].first, stepv[st].second,
-							4u, (sq << 8) | st, cp_idx);
-					    }
-					    if (split) {
+				      }
+				      if (bin.arrayed) {
+					    for (uint64_t logical = 0;
+						 logical < (uint64_t)family_total; logical++) {
 						  xbin_desc_t d;
 						  d.name = lex_strings.make(
 							(std::string(bin.name.str()) + "["
-							 + std::to_string(sq) + "]").c_str());
-						  d.transition_prop = (int)use_prop;
+							 + std::to_string(logical) + "]").c_str());
+						  d.transition_family = (int)family;
+						  d.transition_index = logical;
+						  d.guard_idx = bin_guard;
 						  vbins.push_back(d);
 					    }
-					  }
-					  if (!split && !bad) {
-						xbin_desc_t d;
-						d.name = bin.name;
-						d.transition_prop = (int)prop_first;
-						vbins.push_back(d);
-					  }
-					  has_value_bins = true;
-					  continue;
+				      } else {
+					    xbin_desc_t d;
+					    d.name = bin.name;
+					    d.transition_prop = (int)marker_prop;
+					    d.guard_idx = bin_guard;
+					    vbins.push_back(d);
+				      }
+				      has_value_bins = true;
+				      continue;
 				}
 
 				if (bin.is_default || base_kind == 3) {
@@ -23381,7 +23665,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      unsigned default_prop = prop_idx++;
 				      cg_class->add_covgrp_bin(cp_idx, default_prop,
 							       0, ~(uint64_t)0,
-							       default_kind, 0, cp_idx);
+							       default_kind, 0, cp_idx,
+							       0, 1, 1, 0, 1,
+							       netclass_t::COVGRP_NO_FAMILY,
+							       0, bin_guard);
 				      continue;
 				}
 
@@ -23441,13 +23728,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      set_ir += std::to_string(set_prop);
 				      cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx, kindval,
 							   family, set_array_size,
-							   bin.name.str(), set_ir, set_ir);
+							   bin.name.str(), set_ir, set_ir,
+							   bin_guard);
 				      if (set_on_parent) has_parent_set_bins = true;
 				      if (base_kind == 0) {
 					    xbin_desc_t d;
 					    d.name = bin.name;
 					    d.wildcard = false;
 					    d.dyn_family = (int)family;
+					    d.guard_idx = bin_guard;
 					    vbins.push_back(d);
 					    has_value_bins = true;
 				      }
@@ -23588,15 +23877,16 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      }
 				      unsigned family = dyn_family++;
 				      for (auto&ir : ir_ranges)
-					    cg_class->add_covgrp_dyn_bin(
-						  cp_idx, cp_idx, kindval, family,
-						  dyn_array_size, bin.name.str(),
-						  ir.first, ir.second);
+						  cg_class->add_covgrp_dyn_bin(
+							cp_idx, cp_idx, kindval, family,
+							dyn_array_size, bin.name.str(),
+							ir.first, ir.second, bin_guard);
 				      if (base_kind == 0) {
 					    xbin_desc_t d;
 					    d.name = bin.name;
 					    d.wildcard = false;
 					    d.dyn_family = (int)family;
+					    d.guard_idx = bin_guard;
 					    vbins.push_back(d);
 					    has_value_bins = true;
 				      }
@@ -23664,7 +23954,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    cg_class->add_covgrp_bin(cp_idx,
 						  netclass_t::COVGRP_NO_PROP,
 						  r.first, r.second,
-						  kindval, tup++, cp_idx);
+						  kindval, tup++, cp_idx,
+						  0, 1, 1, 0, 1,
+						  netclass_t::COVGRP_NO_FAMILY,
+						  0, bin_guard);
 				      continue;
 				}
 
@@ -23739,12 +24032,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  }
 					    }
 					    std::string bn = bstem + "_" + std::to_string(k);
-					    add_value_prop(bn, chunk, kindval);
+					    add_value_prop(bn, chunk, kindval, bin_guard);
 					    xbin_desc_t d;
 					    d.name = lex_strings.make((std::string(bin.name.str())
 								       + "[" + std::to_string(k) + "]").c_str());
 					    d.ranges = chunk;
 					    d.wildcard = false;
+					    d.guard_idx = bin_guard;
 					    vbins.push_back(d);
 				      }
 				      has_value_bins = true;
@@ -23752,12 +24046,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				}
 
 				  // Plain (or illegal) one-counter bin.
-				add_value_prop(bstem, rr, kindval);
+				add_value_prop(bstem, rr, kindval, bin_guard);
 				if (base_kind == 0) {
 				      xbin_desc_t d;
 				      d.name = bin.name;
 				      d.ranges = rr;
 				      d.wildcard = bin.wildcard;
+				      d.guard_idx = bin_guard;
 				      vbins.push_back(d);
 				      has_value_bins = true;
 				}
@@ -24197,13 +24492,46 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				bool got_illegal = false;
 				for (size_t ub = 0; ub < cross.bins.size(); ub++) {
 				      xbin_t&cb = cross.bins[ub];
-				      int m = eval_sel(cb.select, idx);
+				      int m = -1;
+				      if (cb.with_expr) {
+					    bool exact_tuple = !cross.label.nil()
+						  && cb.with_cross == cross.label;
+					    std::map<perm_string,int64_t> tuple_values;
+					    for (size_t k = 0;
+						 exact_tuple && k < idx.size(); k++) {
+						  const xbin_desc_t&d =
+							cp_value_bins[cp_indexes[k]][idx[k]];
+						  if (d.ranges.size() != 1
+						      || d.ranges[0].first != d.ranges[0].second
+						      || d.transition_prop >= 0
+						      || d.transition_family >= 0
+						      || d.dyn_family >= 0) {
+							exact_tuple = false;
+							break;
+						  }
+						  tuple_values[cross.cp_labels[k]] =
+							(int64_t)d.ranges[0].first;
+					    }
+					    int64_t result = 0;
+					    if (exact_tuple
+						&& cov_named_eval_(cb.with_expr,
+								 tuple_values, result) >= 0)
+						  m = result != 0;
+				      } else {
+					    m = eval_sel(cb.select, idx);
+				      }
 				      if (m < 0) {
 					    if (!ubin_sorried[ub]) {
-						  cerr << "sorry: cross bin '" << cb.name
-						       << "' uses a binsof select form "
-						       << "that could not be evaluated; "
-						       << "the bin selects nothing."
+						  cerr << "sorry: cross bin '" << cb.name;
+						  if (cb.with_expr)
+							cerr << "' uses a 'with' predicate that "
+							     << "requires singleton integral "
+							     << "contributing bins and the name of "
+							     << "its enclosing cross";
+						  else
+							cerr << "' uses a binsof select form that "
+							     << "could not be evaluated";
+						  cerr << "; the bin selects nothing."
 						       << endl;
 						  ubin_sorried[ub] = true;
 					    }
@@ -24280,6 +24608,22 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 									tgt.first,
 									(uint64_t)d.transition_prop, 0,
 									tgt.second | 16u, tup, item_idx);
+								      // Guard the source transition bin itself.
+								      cg_class->set_last_covgrp_bin_guard(
+									d.guard_idx);
+								      continue;
+								}
+								if (d.transition_family >= 0) {
+								      // kind bit 32 selects a logical member of a
+								      // compact arrayed transition family. lo/hi
+								      // carry (family, logical index).
+								      cg_class->add_covgrp_bin(cp_indexes[k],
+									tgt.first,
+									(uint64_t)d.transition_family,
+									d.transition_index,
+									tgt.second | 32u, tup, item_idx);
+								      cg_class->set_last_covgrp_bin_guard(
+									d.guard_idx);
 								      continue;
 								}
 								if (d.ranges.empty()) continue;
@@ -24289,6 +24633,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							cg_class->add_covgrp_bin(cp_indexes[k],
 							      tgt.first, r.first, r.second,
 							      kv, tup, item_idx);
+							cg_class->set_last_covgrp_bin_guard(
+							      d.guard_idx);
 						  }
 						    // advance mixed-radix ridx
 						  for (size_t k = 0; k < ridx.size(); k++) {

@@ -177,6 +177,7 @@ class vvp_fun_delay  : public vvp_net_fun_t, private vvp_gen_event_s {
 		  list_->next = cur->next;
 	    return cur;
       }
+      void cancel_all_events_(void);
       bool clean_pulse_events_(vvp_time64_t use_delay, const vvp_vector4_t&bit);
       bool clean_pulse_events_(vvp_time64_t use_delay, const vvp_vector8_t&bit);
       bool clean_pulse_events_(vvp_time64_t use_delay, double bit);

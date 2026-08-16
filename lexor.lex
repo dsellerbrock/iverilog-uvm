@@ -48,6 +48,7 @@ extern nettype_t* pform_test_nettype_identifier(const YYLTYPE&loc,
 extern nettype_t* pform_test_nettype_identifier(PPackage*pkg,
                                                 const char*txt);
 extern bool pform_in_compilation_unit_scope();
+extern bool pform_in_task_function_scope();
 
 # define YY_USER_INIT do { reset_lexor(); yylloc.lexical_pos = 0; } while (0);
 # define yylval VLlval
@@ -138,6 +139,16 @@ static bool in_UDP = false;
 static bool in_function_header = false;
 static bool scoped_function_header_name = false;
 static bool ordinary_function_header_name = false;
+/* A packed assertion-local declaration followed by an internal clock starts
+ * with the otherwise ambiguous token stream
+ *
+ *     property name ; logic [packed-dimensions] local ; @(...)
+ *
+ * Track the named property/sequence header through an optional formal list
+ * and give the first body `logic' a private parser token. This is the same
+ * conflict-neutral strategy used above for an untyped function header; all
+ * ordinary `logic' declarations and casts retain K_logic. */
+static unsigned sva_named_decl_header = 0;
 bool in_celldefine = false;
 UCDriveType uc_drive = UCD_NONE;
 static int ts_state = 0;
@@ -309,7 +320,15 @@ TU [munpf]
 "("{W}*"*"{W}*")" { return '*'; }
 
 <EDGES>"]" { BEGIN(0); return yytext[0]; }
-[}{;:\[\],()#=.@&!?<>%|^~+*/-] { return yytext[0]; }
+[}{;:\[\],()#=.@&!?<>%|^~+*/-] {
+      if (yytext[0] == ';' && sva_named_decl_header == 2)
+	    sva_named_decl_header = 3;
+      else if (yytext[0] == ';' && sva_named_decl_header == 4)
+	    sva_named_decl_header = 3;
+      else if (sva_named_decl_header == 1 || sva_named_decl_header == 3)
+	    sva_named_decl_header = 0;
+      return yytext[0];
+}
 
 \"            { BEGIN(CSTRING); }
 <CSTRING>\\\\ { yymore(); /* Catch \\, which is a \ escaping itself */ }
@@ -409,6 +428,26 @@ TU [munpf]
 [a-zA-Z_][a-zA-Z0-9$_]* {
       int rc = lexor_keyword_code(yytext, yyleng);
 
+      if (sva_named_decl_header == 3) {
+	    if (rc == K_logic) {
+		  rc = K_sva_logic_local;
+		  sva_named_decl_header = 4;
+	    } else if (rc == K_int) {
+		  sva_named_decl_header = 4;
+	    } else {
+		  sva_named_decl_header = 0;
+	    }
+      } else if (sva_named_decl_header == 2
+		 || sva_named_decl_header == 4) {
+	      /* Optional property/sequence formals are part of the header. */
+      } else if (rc == K_property || rc == K_sequence) {
+	    sva_named_decl_header = 1;
+      } else if (sva_named_decl_header == 1 && rc == IDENTIFIER) {
+	    sva_named_decl_header = 2;
+      } else if (sva_named_decl_header != 0) {
+	    sva_named_decl_header = 0;
+      }
+
 	/* `bool' is an Icarus extension keyword rather than an IEEE keyword.
 	 * A visible user typedef of that name therefore takes precedence, just
 	 * as it would if the extension were disabled. Convert it back through
@@ -472,6 +511,15 @@ TU [munpf]
 	    } else {
 		  yylval.text = 0;
 	    }
+	    break;
+
+	  case K_localparam:
+	    /* In an old-style task/function body, declarations and procedural
+	       statements share an ambiguous prefix. Once the parser has selected
+	       the statement-list path, preserve localparam as a declaration through
+	       a procedural-only token. */
+	    if (gn_system_verilog() && pform_in_task_function_scope())
+		  rc = K_localparam_statement;
 	    break;
 
 	  default:
@@ -575,6 +623,7 @@ TU [munpf]
       in_function_header = false;
       scoped_function_header_name = false;
       ordinary_function_header_name = false;
+      sva_named_decl_header = 0;
       if (gn_system_verilog()) {
 	    if (PPackage*pkg = pform_test_package_identifier(yylval.text)) {
 		  delete[]yylval.text;
@@ -639,7 +688,7 @@ TU [munpf]
       return SYSTEM_IDENTIFIER; }
 
 
-\'[sS]?[dD][ \t]*[0-9][0-9_]* {
+\'[sS]?[dD][ \t]*_*[0-9][0-9_]* {
       yylval.number = make_unsized_dec(yytext);
       return BASED_NUMBER;
 }
@@ -647,15 +696,15 @@ TU [munpf]
       yylval.number = make_undef_highz_dec(yytext);
       return BASED_NUMBER;
 }
-\'[sS]?[bB][ \t]*[0-1xzXZ?][0-1xzXZ?_]* {
+\'[sS]?[bB][ \t]*_*[0-1xzXZ?][0-1xzXZ?_]* {
       yylval.number = make_unsized_binary(yytext);
       return BASED_NUMBER;
 }
-\'[sS]?[oO][ \t]*[0-7xzXZ?][0-7xzXZ?_]* {
+\'[sS]?[oO][ \t]*_*[0-7xzXZ?][0-7xzXZ?_]* {
       yylval.number = make_unsized_octal(yytext);
       return BASED_NUMBER;
 }
-\'[sS]?[hH][ \t]*[0-9a-fA-FxzXZ?][0-9a-fA-FxzXZ?_]* {
+\'[sS]?[hH][ \t]*_*[0-9a-fA-FxzXZ?][0-9a-fA-FxzXZ?_]* {
       yylval.number = make_unsized_hex(yytext);
       return BASED_NUMBER;
 }

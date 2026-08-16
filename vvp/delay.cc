@@ -181,14 +181,19 @@ vvp_fun_delay::vvp_fun_delay(vvp_net_t*n, unsigned width, const vvp_delay_t&d,
 
 vvp_fun_delay::~vvp_fun_delay()
 {
-      while (struct event_*cur = dequeue_())
-	    delete cur;
+      cancel_all_events_();
 
       for (bit_event_map_t::iterator bucket = bit_events_.begin();
 	   bucket != bit_events_.end(); ++bucket)
 	    for (bit_event_list_t::iterator cur = bucket->second.begin();
 		 cur != bucket->second.end(); ++cur)
 		  delete *cur;
+}
+
+void vvp_fun_delay::cancel_all_events_(void)
+{
+      while (struct event_*cur = dequeue_())
+	    delete cur;
 }
 
 /* A vector net declaration delay can have one independently selected delay
@@ -502,14 +507,21 @@ void vvp_fun_delay::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 	    }
       }
 
+      /* A return to the value currently on the net cancels a pending pulse
+       * but does not itself schedule a redundant update. This test must run
+       * before the ordinary pulse filter: a same-time pending event has not
+       * propagated yet and still needs to be canceled when the input returns
+       * to the currently visible value. The scheduler callback is harmless;
+       * it will observe the now-empty event list. */
+      if (cur_vec4_.eeq(bit)) {
+	    cancel_all_events_();
+	    return;
+      }
+
       /* what *should* happen here is we check to see if there is a
          transaction in the queue. This would be a pulse that needs to be
          eliminated. */
       if (clean_pulse_events_(use_delay, bit)) return;
-
-      /* A return to the value currently on the net cancels a pending pulse
-       * but does not itself schedule a redundant update. */
-      if (cur_vec4_.eeq(bit)) return;
 
       vvp_time64_t use_simtime = schedule_simtime() + use_delay;
 
@@ -584,12 +596,15 @@ void vvp_fun_delay::recv_vec8(vvp_net_ptr_t port, const vvp_vector8_t&bit)
 	    }
       }
 
+      if (cur_vec8_.eeq(bit)) {
+	    cancel_all_events_();
+	    return;
+      }
+
       /* what *should* happen here is we check to see if there is a
          transaction in the queue. This would be a pulse that needs to be
          eliminated. */
       if (clean_pulse_events_(use_delay, bit)) return;
-
-      if (cur_vec8_.eeq(bit)) return;
 
       vvp_time64_t use_simtime = schedule_simtime() + use_delay;
 
@@ -653,12 +668,13 @@ void vvp_fun_delay::recv_real(vvp_net_ptr_t port, double bit,
       vvp_time64_t use_delay;
       use_delay = delay_.get_min_delay();
 
+      if (cur_real_ == bit) {
+	    cancel_all_events_();
+	    return;
+      }
+
       /* Eliminate glitches. */
       if (clean_pulse_events_(use_delay, bit)) return;
-
-      /* This must be done after cleaning pulses to avoid propagating
-       * an incorrect value. */
-      if (cur_real_ == bit) return;
 
       vvp_time64_t use_simtime = schedule_simtime() + use_delay;
 

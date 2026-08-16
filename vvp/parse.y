@@ -23,6 +23,7 @@
 # include  "compile.h"
 # include  "delay.h"
 # include  <list>
+# include  <vector>
 # include  <cstdio>
 # include  <cstdlib>
 # include  <cassert>
@@ -65,6 +66,7 @@ static struct __vpiModPath*modpath_dst = 0;
       struct enum_name_s enum_name;
       std::list<struct enum_name_s>*enum_namev;
       std::vector<std::pair<int,int> >*ranges;
+	std::vector<uint64_t>*numvec;
 
       struct symb_s vect;
 
@@ -128,6 +130,8 @@ static struct __vpiModPath*modpath_dst = 0;
 %type <vpi_enum> port_type
 %type <numb>  signed_t_number
 %type <ranges> dimension dimensions dimensions_opt
+%type <numvec> covgrp_bin_tail
+%type <numb> covgrp_guard_opt
 %type <symb>  symbol symbol_opt
 %type <symbv> symbols symbols_net
 %type <numbv> numbers
@@ -141,6 +145,8 @@ static struct __vpiModPath*modpath_dst = 0;
 
 %type <enum_name> enum_type_name
 %type <enum_namev> enum_type_names enum_type_names_opt
+
+%destructor { delete $$; } covgrp_bin_tail
 
 %%
 
@@ -1150,14 +1156,25 @@ class_property
       { compile_class_static_property($2, $3); }
   | K_CONSTRAINT_DEF T_STRING T_STRING
       { compile_class_constraint($2, $3); }
-  | K_COVGRP_BIN T_NUMBER T_NUMBER T_NUMBER T_NUMBER
-      { compile_class_covgrp_bin($2, $3, $4, $5); }
-  | K_COVGRP_BIN T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER
-      { compile_class_covgrp_bin($2, $3, $4, $5, $6); }
-  | K_COVGRP_BIN T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER
-      { compile_class_covgrp_bin($2, $3, $4, $5, $6, $7, $8); }
-  | K_COVGRP_DYN_BIN T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_STRING T_STRING T_STRING
-      { compile_class_covgrp_dyn_bin($2, $3, $4, $5, $6, $7, $8, $9); }
+  | K_COVGRP_BIN T_NUMBER T_NUMBER T_NUMBER T_NUMBER covgrp_bin_tail
+      { const std::vector<uint64_t>&v = *$6;
+	if (v.empty())
+	      compile_class_covgrp_bin($2, $3, $4, $5);
+	else if (v.size() == 1)
+	      compile_class_covgrp_bin($2, $3, $4, $5, v[0]);
+	else if (v.size() == 3)
+	      compile_class_covgrp_bin($2, $3, $4, $5,
+				       v[0], v[1], v[2]);
+	else if (v.size() == 11)
+	      compile_class_covgrp_bin($2, $3, $4, $5,
+		v[0], v[1], v[2], v[3], v[4], v[5], v[6],
+		v[7], v[8], v[9], v[10]);
+	else
+	      yyerror("invalid .covgrp_bin metadata field count");
+	delete $6;
+      }
+  | K_COVGRP_DYN_BIN T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_STRING T_STRING T_STRING covgrp_guard_opt
+      { compile_class_covgrp_dyn_bin($2, $3, $4, $5, $6, $7, $8, $9, $10); }
   | K_COVGRP_ITEM T_NUMBER T_NUMBER T_NUMBER
       { compile_class_covgrp_item($2, $3, $4); }
   | K_COVGRP_ITEM T_NUMBER T_NUMBER T_NUMBER T_STRING
@@ -1170,6 +1187,22 @@ class_property
       { compile_class_covgrp_parent($2); }
   | K_COVGRP_SRC T_NUMBER T_NUMBER
       { compile_class_covgrp_src($2, $3); }
+  ;
+
+covgrp_bin_tail
+  : { $$ = new std::vector<uint64_t>(); }
+  | covgrp_bin_tail T_NUMBER
+      { /* Retain one sentinel beyond the largest valid record. A malformed
+           raw VVP line can contain arbitrarily many numeric fields; keeping
+           all of them before diagnosing the field count would make loader
+           memory proportional to attacker-controlled metadata. */
+	if ($1->size() < 12) $1->push_back($2);
+	$$ = $1; }
+  ;
+
+covgrp_guard_opt
+  : { $$ = 0xFFFFFFFFu; }
+  | T_NUMBER { $$ = $1; }
   ;
 
 /*

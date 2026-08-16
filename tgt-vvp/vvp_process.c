@@ -5013,34 +5013,51 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
        * Emit all vector arguments in order, then the cg object. */
       if (strcmp(stmt_name, "$ivl_class_method$covgrp_sample") == 0) {
 	    unsigned nparms = ivl_stmt_parm_count(net);
-	    if (nparms < 3) {
+	    if (nparms < 4) {
 		  fprintf(stderr, "internal error: covergroup sample payload "
 			  "is missing its dimension sentinels\n");
 		  return -1;
 	    }
-	    ivl_expr_t ncp_arg = ivl_stmt_parm(net, nparms - 2);
-	    ivl_expr_t ncross_arg = ivl_stmt_parm(net, nparms - 1);
+	    ivl_expr_t ncp_arg = ivl_stmt_parm(net, nparms - 3);
+	    ivl_expr_t ncross_arg = ivl_stmt_parm(net, nparms - 2);
+	    ivl_expr_t nbin_arg = ivl_stmt_parm(net, nparms - 1);
 	    if (!ncp_arg || !ncross_arg
+		|| !nbin_arg
 		|| ivl_expr_type(ncp_arg) != IVL_EX_NUMBER
-		|| ivl_expr_type(ncross_arg) != IVL_EX_NUMBER) {
+		|| ivl_expr_type(ncross_arg) != IVL_EX_NUMBER
+		|| ivl_expr_type(nbin_arg) != IVL_EX_NUMBER) {
 		  fprintf(stderr, "internal error: covergroup sample dimensions "
 			  "are not constants\n");
 		  return -1;
 	    }
 	    unsigned ncp = (unsigned)ivl_expr_uvalue(ncp_arg);
 	    unsigned ncross_guards = (unsigned)ivl_expr_uvalue(ncross_arg);
-	    unsigned payload_end = nparms - 2;
-	    unsigned expected_end = 1 + 2*ncp + ncross_guards;
+	    unsigned nbin_guards = (unsigned)ivl_expr_uvalue(nbin_arg);
+	    unsigned payload_end = nparms - 3;
+	    uint64_t expected_end = 1 + 2*(uint64_t)ncp
+		  + ncross_guards + nbin_guards;
+	    if (expected_end > 2097152) {
+		  fprintf(stderr, "error: covergroup sample payload exceeds "
+			  "the 2097152-value runtime limit\n");
+		  return -1;
+	    }
 	    if (payload_end != expected_end) {
 		  fprintf(stderr, "internal error: covergroup sample payload has "
-			  "%u vector arguments, expected %u for %u coverpoints "
-			  "and %u crosses\n", payload_end - 1,
-			  expected_end - 1, ncp, ncross_guards);
+			  "%u vector arguments, expected %" PRIu64
+			  " for %u coverpoints "
+			  ", %u crosses, and %u bin guards\n", payload_end - 1,
+			  expected_end - 1, ncp, ncross_guards, nbin_guards);
 		  return -1;
 	    }
 	    ivl_expr_t obj_arg = ivl_stmt_parm(net, 0);
 	    unsigned has_cp_guards = ncp ? 1 : 0;
-	    unsigned guard_flags = has_cp_guards | (ncross_guards << 1);
+	    if (ncross_guards > 0x7fffu || nbin_guards > 0xffffu) {
+		  fprintf(stderr, "error: covergroup sample guard table exceeds "
+			  "the VVP encoding limit\n");
+		  return -1;
+	    }
+	    unsigned guard_flags = has_cp_guards | (ncross_guards << 1)
+		  | (nbin_guards << 16);
 	    for (unsigned ii = 1 ; ii < payload_end ; ii += 1) {
 		  ivl_expr_t cp_arg = ivl_stmt_parm(net, ii);
 		  if (cp_arg) draw_eval_vec4(cp_arg);
