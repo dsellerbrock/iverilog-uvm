@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_assert_modport_preponed_sample.v:38: $finish called at 6 (1s)

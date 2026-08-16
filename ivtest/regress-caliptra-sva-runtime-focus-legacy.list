@@ -46,3 +46,4 @@ sv_assert_nested_nonoverlap_unbounded normal,-g2012 ivltests gold=sv_assert_nest
 sv_assert_property_local_declared_type normal,-g2012 ivltests gold=sv_assert_property_local_declared_type.gold
 sv_assert_property_local_packed normal,-g2012 ivltests gold=sv_assert_property_local_packed.gold
 sv_assert_property_local_unbounded_wait normal,-g2012 ivltests gold=sv_assert_property_local_unbounded_wait.gold
+sv_assert_modport_preponed_sample normal,-g2012 ivltests gold=sv_assert_modport_preponed_sample.gold

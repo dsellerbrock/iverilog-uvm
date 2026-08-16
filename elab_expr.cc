@@ -8598,6 +8598,39 @@ static std::string typename_format_basic_(ivl_variable_type_t vtype,
  * size_tf functions, make assumptions about widths based on some
  * known function names.
  */
+/* A direct member of a statically selected interface/modport will resolve to
+   an ordinary signal after module ports are connected. Checker processes are
+   elaborated before that connection exists, so retain the sampling wrapper
+   for this exact shape and let t-dll-expr.cc perform the final resolution.
+   A runtime-selected interface array is deliberately excluded. */
+static bool clocking_static_interface_member_(const NetEProperty*prop)
+{
+      if (!prop || prop->get_index())
+	    return false;
+
+      const NetNet*port = prop->get_sig();
+      if (port) {
+	    if (port->unpacked_dimensions() != 0)
+		  return false;
+      } else {
+	    const NetESignal*base =
+		  dynamic_cast<const NetESignal*>(prop->get_base());
+	    if (!base)
+		  return false;
+	    port = base->sig();
+	    if (const NetExpr*word = base->word_index()) {
+		  long value = 0;
+		  if (!eval_as_long(value, word) || value < 0
+		      || static_cast<unsigned long>(value) >= port->pin_count())
+			return false;
+	    }
+      }
+
+      const netclass_t*interface_type = port
+	    ? dynamic_cast<const netclass_t*>(port->net_type()) : 0;
+      return interface_type && interface_type->is_interface();
+}
+
 NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
                                           unsigned expr_wid,
                                           unsigned flags) const
@@ -8749,12 +8782,18 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	    if (NetESelect*sel = dynamic_cast<NetESelect*>(sub)) {
 		  const NetESignal*bsig =
 			dynamic_cast<const NetESignal*>(sel->sub_expr());
+		  const NetEProperty*bprop =
+			dynamic_cast<const NetEProperty*>(sel->sub_expr());
+		  const NetExpr*sample_source = bsig;
+		  if (!sample_source && clocking_static_interface_member_(bprop)
+		      && (bprop->expr_type() == IVL_VT_LOGIC
+			  || bprop->expr_type() == IVL_VT_BOOL))
+			sample_source = bprop;
 		    /* A select of an array word samples too: the word-indexed
 		       load supplies the word's Preponed value and the select
 		       is applied to that, exactly as for a plain vector. */
-		  if (bsig && (bsig->expr_type() == IVL_VT_LOGIC
-			       || bsig->expr_type() == IVL_VT_BOOL)) {
-			NetExpr*inner = bsig->dup_expr();
+		  if (sample_source) {
+			NetExpr*inner = sample_source->dup_expr();
 			NetESFunc*bfun = inner->net_type()
 			      ? new NetESFunc(name, inner->net_type(), 1)
 			      : new NetESFunc(name, inner->expr_type(),
@@ -8795,14 +8834,20 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		 preponed load exists, and anything that is not a signal at
 		 all. */
 	    NetESignal*ssig = dynamic_cast<NetESignal*>(sub);
+	    NetEProperty*sprop = dynamic_cast<NetEProperty*>(sub);
+	    bool static_interface_member =
+		  clocking_static_interface_member_(sprop)
+		  && (sprop->expr_type() == IVL_VT_LOGIC
+		      || sprop->expr_type() == IVL_VT_BOOL
+		      || sprop->expr_type() == IVL_VT_REAL);
 	      /* An unpacked-array WORD is samplable through the word-indexed
 		 load (%load/preponed/av); a real through the real-valued one.
 		 A real ARRAY element has neither, so it stays live. */
-	    bool samplable = ssig
+	    bool samplable = static_interface_member || (ssig
 			   && (ssig->expr_type() == IVL_VT_LOGIC
 			       || ssig->expr_type() == IVL_VT_BOOL
 			       || (ssig->expr_type() == IVL_VT_REAL
-				   && ssig->word_index() == 0));
+				   && ssig->word_index() == 0)));
 	    if (!samplable) {
 		  if (dynamic_cast<NetEConst*>(sub) == 0
 		      && dynamic_cast<NetECReal*>(sub) == 0)
