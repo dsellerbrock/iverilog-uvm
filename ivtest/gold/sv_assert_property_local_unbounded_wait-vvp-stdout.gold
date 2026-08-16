@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_assert_property_local_unbounded_wait.v:56: $finish called at 70 (1s)

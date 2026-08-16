@@ -1,6 +1,6 @@
 /*
  * M12B-rest: exercise the extended assertion callback reasons.
- * cbAssertionStart fires at every sampled attempt tick;
+ * cbAssertionStart fires at every enabled sampled attempt tick;
  * cbAssertionDisable/cbAssertionEnable fire on $assertoff/$asserton
  * transitions; cbAssertionReset fires on $assertkill.
  * $check_assert_cb2(exp_start, exp_disable, exp_enable, exp_reset)

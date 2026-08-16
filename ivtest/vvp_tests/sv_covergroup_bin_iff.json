@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_covergroup_bin_iff.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_covergroup_bin_iff"
+}

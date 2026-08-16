@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_assert_control_labeled_selective.v:45: $finish called at 21 (1s)

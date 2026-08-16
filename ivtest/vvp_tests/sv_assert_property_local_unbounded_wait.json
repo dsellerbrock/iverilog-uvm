@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_assert_property_local_unbounded_wait.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_assert_property_local_unbounded_wait"
+}

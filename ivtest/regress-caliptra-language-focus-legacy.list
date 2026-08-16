@@ -1,0 +1,2 @@
+sv_task_localparam_untyped normal,-g2012 ivltests gold=sv_task_localparam_untyped.gold
+sv_based_literal_leading_underscore normal,-g2012 ivltests gold=sv_based_literal_leading_underscore.gold

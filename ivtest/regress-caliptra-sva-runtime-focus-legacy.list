@@ -1,0 +1,48 @@
+sv_property_combinators normal,-g2012 ivltests
+sv_assert_in_procedural_block normal,-g2012 ivltests
+sv_assert_procedural_implicit_clock normal,-g2012 ivltests
+sv_assert_select_preponed_sample normal,-g2012 ivltests
+sv_assert_parameterized_unpacked_array_sample normal,-g2012 ivltests
+sv_assert_multiclock_cover_disable normal,-g2012 ivltests
+sv_assert_multiclock_action_blocks normal,-g2012 ivltests
+sv_assert_multiclock_clock_flow normal,-g2012 ivltests
+sv_assert_multiclock_multiplicity normal,-g2012 ivltests
+sv_assert_multiclock_nested_flow normal,-g2012 ivltests
+sv_assert_multiclock_sampled_values normal,-g2012 ivltests
+sv_assert_multiclock_varlen normal,-g2012 ivltests
+sv_assert_wildcard_parameter_delay normal,-g2012 ivltests
+sv_assert_genvar_cycle_delay normal,-g2012 ivltests
+sv_assert_struct_parameter_delay normal,-g2012 ivltests
+sv_assert_unpacked_struct_parameter_delay normal,-g2012 ivltests
+sv_assert_struct_variable_delay_fail CE,-g2012 ivltests
+sv_assert_named_parameter_repeat_window normal,-g2012 ivltests
+sv_assert_parameter_window_fixed_tree normal,-g2012 ivltests
+sv_assert_repeat_parameter_smoke normal,-g2012 ivltests
+sv_assert_repeat_parameter_override normal,-g2012 ivltests
+sv_assert_disable_iff_nba_parameter_repeat normal,-g2012 ivltests
+sv_assert_disable_iff_async_parameter_repeat normal,-g2012 ivltests
+sv_assert_repeat_parameter_direct normal,-g2012 ivltests
+sv_assert_multiclock_chain3 normal,-g2012 ivltests
+sv_assert_observed_region normal,-g2012 ivltests
+sv_assert_reactive_action normal,-g2012 ivltests
+sv_assert_reactive_drain normal,-g2012 ivltests gold=sv_assert_reactive_drain.gold
+sv_assert_pass_action normal,-g2012 ivltests
+sv_assert_strong_eos_action normal,-g2012 ivltests
+sv_assert_paren_property normal,-g2012 ivltests
+sv_assert_paren_boolean normal,-g2012 ivltests
+sv_assert_star_unbounded normal,-g2012 ivltests
+sv_assert_impl_s_eventually normal,-g2012 ivltests
+sva_s_eventually_liveness normal,-g2012 ivltests
+sva_throughout_goto_repeat normal,-g2012 ivltests
+sva_clocking_member_assert normal,-g2012 ivltests
+sva_seq_generate_scope normal,-g2012 ivltests
+sva_paren_seq_conseq normal,-g2012 ivltests
+sva_paren_prop_conseq_ce normal,-g2012 ivltests
+sv_assert_control_labeled_selective normal,-g2012 ivltests gold=sv_assert_control_labeled_selective.gold
+sv_assert_control_instance_identity normal,-g2012 ivltests gold=sv_assert_control_instance_identity.gold
+sv_assert_eventually_not normal,-g2012 ivltests gold=sv_assert_eventually_not.gold
+sv_assert_nested_nonoverlap_fanout normal,-g2012 ivltests gold=sv_assert_nested_nonoverlap_fanout.gold
+sv_assert_nested_nonoverlap_unbounded normal,-g2012 ivltests gold=sv_assert_nested_nonoverlap_unbounded.gold
+sv_assert_property_local_declared_type normal,-g2012 ivltests gold=sv_assert_property_local_declared_type.gold
+sv_assert_property_local_packed normal,-g2012 ivltests gold=sv_assert_property_local_packed.gold
+sv_assert_property_local_unbounded_wait normal,-g2012 ivltests gold=sv_assert_property_local_unbounded_wait.gold

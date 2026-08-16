@@ -1,0 +1,4 @@
+error: transition bin 'zero_length' has zero transition length.
+error: covergroup transition repetition in bin 'reversed' must be a positive ordered constant range no larger than 65536.
+error: arrayed transition bin 'unbounded_array' cannot contain goto or nonconsecutive repetition because its transition length is unbounded.
+3 error(s) during elaboration.

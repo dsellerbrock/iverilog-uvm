@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_assert_property_local_packed.v:48: $finish called at 60 (1s)

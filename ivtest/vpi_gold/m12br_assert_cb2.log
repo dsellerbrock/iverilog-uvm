@@ -1,4 +1,5 @@
 Compiling vpi/m12br_assert_cb2.c...
 Making m12br_assert_cb2.vpi from  m12br_assert_cb2.o...
-PASS: start=5 disable=2 enable=1 reset=1
+SVA warning: $assertkill disables new attempts, but reset of already executing concurrent-assertion attempts is not implemented; use $assertoff when completion of existing attempts is intended.
+PASS: start=3 disable=2 enable=1 reset=1
 vpi/m12br_assert_cb2.v:27: $finish called at 48 (1s)

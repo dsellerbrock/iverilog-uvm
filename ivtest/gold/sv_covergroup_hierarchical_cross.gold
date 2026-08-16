@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_covergroup_hierarchical_cross.v:37: $finish called at 0 (1s)

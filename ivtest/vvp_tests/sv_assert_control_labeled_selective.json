@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_assert_control_labeled_selective.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_assert_control_labeled_selective"
+}
