@@ -38,3 +38,9 @@ binding cluster, not a claim that the entire Caliptra design synthesizes.
 Run-time-selected interface-port array elements and other dynamic interface
 identities remain explicitly unsupported in structural synthesis; they are not
 silently lowered to an arbitrary instance.
+
+This closure is validated for the null and VVP synthesis targets used by the
+Caliptra acceptance flow. Text/FPGA targets still need an explicit ABI for
+flattening one interface/modport formal into multiple named scalar/vector
+ports; the focused JSON configurations therefore mark Verilog-95 translation
+as not implemented rather than treating its current output as equivalent.
