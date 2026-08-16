@@ -1814,3 +1814,6 @@ sv_net_decl_delay_port_inline_fail CE,-g2012 ivltests gold=sv_net_decl_delay_por
 # IEEE 1800-2017 13.4.4 function fork boundary
 sv_function_fork_join_none normal,-g2012 ivltests gold=sv_function_fork_join_none.gold
 sv_function_fork_blocking_fail CE,-g2012 ivltests gold=sv_function_fork_blocking_fail.gold
+
+# IEEE 1800-2017 11.8.1 binary operand contextual sizing
+sv_binary_self_determined_operand_width normal,-g2012 ivltests gold=sv_binary_self_determined_operand_width.gold

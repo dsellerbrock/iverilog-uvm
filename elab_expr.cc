@@ -3806,6 +3806,31 @@ NetExpr* PEBinary::elaborate_expr(Design*des, NetScope*scope,
 	    return 0;
       }
 
+	/* IEEE 1800-2017 11.8.1: after a binary expression's result size and
+	 * signedness are determined, context-determined operands are converted
+	 * to that common type. Passing expr_wid into elaborate_expr normally
+	 * performs this conversion, but a self-determined operand such as a
+	 * type cast intentionally retains its own width. Apply the enclosing
+	 * binary context explicitly so constant folding and runtime lowering see
+	 * the same operand widths. */
+	// Real operands follow their separate conversion path above.
+      if (expr_type_ != IVL_VT_REAL) {
+	    const NetEConst*lconst = dynamic_cast<const NetEConst*>(lp);
+	    const NetEConst*rconst = dynamic_cast<const NetEConst*>(rp);
+	    const bool lcast = dynamic_cast<const PECastSize*>(left_)
+		|| dynamic_cast<const PECastType*>(left_)
+		|| dynamic_cast<const PECastSign*>(left_);
+	    const bool rcast = dynamic_cast<const PECastSize*>(right_)
+		|| dynamic_cast<const PECastType*>(right_)
+		|| dynamic_cast<const PECastSign*>(right_);
+	    if (lcast || (lconst && (lconst->value().len() != expr_wid
+		|| lconst->value().has_sign() != signed_flag_)))
+		  lp = cast_to_width(lp, expr_wid, signed_flag_, *this);
+	    if (rcast || (rconst && (rconst->value().len() != expr_wid
+		|| rconst->value().has_sign() != signed_flag_)))
+		  rp = cast_to_width(rp, expr_wid, signed_flag_, *this);
+      }
+
       return elaborate_expr_base_(des, lp, rp, expr_wid);
 }
 
