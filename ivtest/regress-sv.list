@@ -1180,6 +1180,11 @@ sv_modport_visibility_fail CE,-g2012 ivltests
 sv_modport_read_visibility_fail CE,-g2012 ivltests
 sv_interface_member_sensitivity normal,-g2012 ivltests
 sv_interface_member_cast_sensitivity normal,-g2012 ivltests
+sv_vif_event_initialized normal,-g2012 ivltests gold=sv_vif_event_initialized.gold
+sv_vif_null_anyedge_fail RE,-g2012 ivltests gold=sv_vif_null_anyedge_fail.gold
+sv_vif_null_posedge_fail RE,-g2012 ivltests gold=sv_vif_null_posedge_fail.gold
+sv_vif_null_negedge_fail RE,-g2012 ivltests gold=sv_vif_null_negedge_fail.gold
+sv_vif_null_multi_fail RE,-g2012 ivltests gold=sv_vif_null_multi_fail.gold
 sv_vif_dispatch_many normal,-g2012 ivltests
 sv_vif_named_default_args normal,-g2012 ivltests
 sv_interface_initial_event_start_order normal,-g2012 ivltests

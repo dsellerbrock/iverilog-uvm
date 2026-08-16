@@ -24094,18 +24094,33 @@ bool of_WAIT_FORK(vthread_t thr, vvp_code_t)
  * subscribed to the M-th signal of the interface, add this thread
  * to its wait list, and suspend until posedge fires.
  */
+static bool wait_vif_runtime_fatal_(const char*opcode)
+{
+      /* Multiple time-zero processes can discover the same invalid handle
+       * before the scheduler returns from the current runnable batch. The
+       * first failure owns the diagnostic and exit status. */
+      static bool reported = false;
+      if (reported)
+            return false;
+      reported = true;
+
+      fprintf(stderr,
+              "runtime error: %s attempted to use a null or non-virtual"
+              " interface; a virtual interface must be initialized before"
+              " referencing one of its components.\n",
+              opcode);
+      vpip_set_return_value(1);
+      schedule_finish(0);
+      return false;
+}
+
 bool of_WAIT_VIF_POSEDGE(vthread_t thr, vvp_code_t cp)
 {
       vvp_object_t obj;
       thr->pop_object(obj);
       vvp_vinterface*vif = obj.peek<vvp_vinterface>();
-      if (!vif) {
-	    vvp_cobject*cobj = obj.peek<vvp_cobject>();
-	    fprintf(stderr, "%%wait/vif/posedge: object is not a virtual interface"
-	            " (nil=%d, cobject=%p, raw=%p)\n",
-	            (int)obj.test_nil(), (void*)cobj, (void*)obj.peek<vvp_object>());
-	    assert(vif);
-      }
+      if (!vif)
+            return wait_vif_runtime_fatal_("%wait/vif/posedge");
 
       vvp_fun_edge_sa*edge = vif->get_posedge_functor(cp->number);
 
@@ -24119,10 +24134,8 @@ bool of_WAIT_VIF_NEGEDGE(vthread_t thr, vvp_code_t cp)
       vvp_object_t obj;
       thr->pop_object(obj);
       vvp_vinterface*vif = obj.peek<vvp_vinterface>();
-      if (!vif) {
-	    fprintf(stderr, "%%wait/vif/negedge: object is not a virtual interface\n");
-	    assert(vif);
-      }
+      if (!vif)
+            return wait_vif_runtime_fatal_("%wait/vif/negedge");
 
       vvp_fun_edge_sa*edge = vif->get_negedge_functor(cp->number);
 
@@ -24136,10 +24149,8 @@ bool of_WAIT_VIF_ANYEDGE(vthread_t thr, vvp_code_t cp)
       vvp_object_t obj;
       thr->pop_object(obj);
       vvp_vinterface*vif = obj.peek<vvp_vinterface>();
-      if (!vif) {
-	    fprintf(stderr, "%%wait/vif/anyedge: object is not a virtual interface\n");
-	    assert(vif);
-      }
+      if (!vif)
+            return wait_vif_runtime_fatal_("%wait/vif/anyedge");
 
       vvp_fun_anyedge_sa*edge = vif->get_anyedge_functor(cp->number);
 
@@ -24157,6 +24168,7 @@ bool of_WAIT_VIF_ANYEDGE(vthread_t thr, vvp_code_t cp)
 bool of_WAIT_VIF_ANYEDGE_MULTI(vthread_t thr, vvp_code_t cp)
 {
       std::set<vvp_fun_anyedge_sa*>edges;
+      bool invalid_vif = false;
       for (unsigned idx = 0 ; idx < cp->number ; idx += 1) {
             vvp_vector4_t member_vec = thr->pop_vec4();
             unsigned member = 0;
@@ -24169,10 +24181,15 @@ bool of_WAIT_VIF_ANYEDGE_MULTI(vthread_t thr, vvp_code_t cp)
             vvp_object_t obj;
             thr->pop_object(obj);
             vvp_vinterface*vif = obj.peek<vvp_vinterface>();
-            if (!vif)
+            if (!vif) {
+                  invalid_vif = true;
                   continue;
+            }
             edges.insert(vif->get_anyedge_functor(member));
       }
+
+      if (invalid_vif)
+            return wait_vif_runtime_fatal_("%wait/vif/anyedge/multi");
 
       if (edges.empty()) {
             static bool warned = false;

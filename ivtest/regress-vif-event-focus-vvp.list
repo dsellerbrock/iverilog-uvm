@@ -1,0 +1,5 @@
+sv_vif_event_initialized vvp_tests/sv_vif_event_initialized.json
+sv_vif_null_anyedge_fail vvp_tests/sv_vif_null_anyedge_fail.json
+sv_vif_null_posedge_fail vvp_tests/sv_vif_null_posedge_fail.json
+sv_vif_null_negedge_fail vvp_tests/sv_vif_null_negedge_fail.json
+sv_vif_null_multi_fail vvp_tests/sv_vif_null_multi_fail.json

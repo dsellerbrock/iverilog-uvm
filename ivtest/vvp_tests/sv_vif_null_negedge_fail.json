@@ -1,0 +1,6 @@
+{
+    "type"          : "EF",
+    "source"        : "sv_vif_null_negedge_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_vif_null_negedge_fail"
+}
