@@ -531,6 +531,9 @@ struct ivl_lval_s {
       ivl_signal_t sig;
       ivl_lval_t nest;
       ivl_type_t net_type_;
+      ivl_stream_range_t stream_range_;
+      ivl_expr_t stream_range_first_;
+      ivl_expr_t stream_range_second_;
 };
 
 /*
@@ -567,6 +570,8 @@ struct ivl_net_logic_s {
       unsigned width_;
       unsigned is_cassign;
       unsigned is_port_buffer;
+      unsigned delay_is_per_bit = 0;
+      unsigned delay_is_whole_vector = 0;
       ivl_udp_t udp;
 
       perm_string name_;
@@ -588,6 +593,8 @@ struct ivl_switch_s {
       unsigned width;
       unsigned part;
       unsigned offset;
+      int port_info_index;
+      int port_component_index;
 
       perm_string name;
       ivl_scope_t scope;

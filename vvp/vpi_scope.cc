@@ -23,6 +23,7 @@
 # include  "symbols.h"
 # include  "statistics.h"
 # include  "schedule.h"
+# include  "vvp_net_sig.h"
 # include  "config.h"
 # include  <map>
 # include  <utility>
@@ -30,6 +31,8 @@
 # include  "vvp_cleanup.h"
 #endif
 # include  <vector>
+# include  <cerrno>
+# include  <climits>
 # include  <cstring>
 # include  <cstdlib>
 # include  <cassert>
@@ -1135,6 +1138,26 @@ unsigned vpip_add_item_to_context(automatic_hooks_s*item,
 }
 
 
+vpiPortComponentInfo::vpiPortComponentInfo()
+: index(0), width(0), name(0), left(0), right(0), fixture_width(0),
+  fixture_base(0), fixture_drivers(0), fixture_ref(0),
+  fixture_handle(0), dut_width(0), dut_drivers(0), dut_ref(0),
+  dut_handle(0)
+{
+}
+
+vpiPortComponentInfo::~vpiPortComponentInfo()
+{
+#ifdef CHECK_WITH_VALGRIND
+      /* These private handles are non-owning views of resolver nodes, not
+       * enumerated scope signals. Reclaim only the handle storage; their
+       * shared nodes are cleaned through the ordinary scope signal. */
+      if (fixture_handle) signal_handle_delete(fixture_handle);
+      if (dut_handle) signal_handle_delete(dut_handle);
+#endif
+      delete[] name;
+}
+
 vpiPortInfo::vpiPortInfo( __vpiScope *parent,
               unsigned index,
               int vpi_direction,
@@ -1153,6 +1176,9 @@ vpiPortInfo::vpiPortInfo( __vpiScope *parent,
 
 vpiPortInfo::~vpiPortInfo()
 {
+      for (std::vector<vpiPortComponentInfo*>::iterator cur =
+                 evcd_components_.begin(); cur != evcd_components_.end(); ++cur)
+            delete *cur;
       delete[] name_;
 }
 
@@ -1293,4 +1319,174 @@ void compile_port_info( unsigned index, int vpi_direction, unsigned width, const
 	    obj->add_port_bit(obj_bit);
 	    vpip_attach_to_current_scope(obj_bit);
       }
+}
+
+static bool parse_evcd_range(const char *text, int&value)
+{
+      char *end = 0;
+      long parsed;
+
+      if (!text || !*text) return false;
+      errno = 0;
+      parsed = strtol(text, &end, 10);
+      if (errno == ERANGE || end == text || *end ||
+          parsed < INT_MIN || parsed > INT_MAX)
+            return false;
+      value = (int)parsed;
+      return true;
+}
+
+#define EVCD_METADATA_MAX_RECORDS 4096U
+#define EVCD_METADATA_MAX_BITS (4ULL * 1024ULL * 1024ULL)
+static unsigned evcd_metadata_records;
+static unsigned long long evcd_metadata_bits;
+
+void vpip_reset_port_info_evcd_budget(void)
+{
+      evcd_metadata_records = 0;
+      evcd_metadata_bits = 0;
+}
+
+void compile_port_info_evcd(unsigned port_index,
+                            unsigned component_index,
+                            unsigned width, char *name,
+                            char *left_text, char *right_text,
+                            unsigned fixture_width,
+                            unsigned fixture_base,
+                            unsigned fixture_connected,
+                            char *fixture,
+                            unsigned dut_width,
+                            unsigned dut_connected,
+                            char *dut)
+{
+      __vpiScope *scope = vpip_peek_current_scope();
+      vpiPortInfo *port = 0;
+      vpiPortComponentInfo *component = 0;
+      int left = 0, right = 0;
+      bool ranges_valid = parse_evcd_range(left_text, left) &&
+                          parse_evcd_range(right_text, right);
+      unsigned long long range_width = ranges_valid
+            ? (unsigned long long)(left >= right
+                  ? (long long)left-right : (long long)right-left) + 1
+            : 0;
+
+      for (std::vector<__vpiHandle*>::iterator cur = scope->intern.begin();
+           cur != scope->intern.end(); ++cur) {
+            vpiPortInfo *candidate = dynamic_cast<vpiPortInfo*>(*cur);
+            if (candidate && candidate->get_index() == port_index) {
+                  port = candidate;
+                  break;
+            }
+      }
+
+      if (!port || !width || width > 1024U*1024U ||
+          fixture_width > 1024U*1024U || dut_width > 1024U*1024U ||
+          fixture_connected > 1024U*1024U ||
+          dut_connected > 1024U*1024U ||
+          !name || !*name || !ranges_valid || range_width != width ||
+          component_index != port->evcd_components_.size() ||
+          component_index >= (unsigned)port->get_width() ||
+          (!fixture_width &&
+           (fixture_base || fixture_connected || fixture || dut_width ||
+            dut_connected || dut)) ||
+          (fixture_width &&
+           (!fixture || !dut || !dut_width || dut_width != width ||
+            fixture_base > fixture_width ||
+            width > fixture_width-fixture_base))) {
+            yyerror("invalid .port_info/evcd component metadata");
+            compile_errors += 1;
+            delete[] name;
+            delete[] left_text;
+            delete[] right_text;
+            delete[] fixture;
+            delete[] dut;
+            return;
+      }
+
+      if (evcd_metadata_records >= EVCD_METADATA_MAX_RECORDS ||
+          width > EVCD_METADATA_MAX_BITS-evcd_metadata_bits) {
+            yyerror(".port_info/evcd metadata exceeds the safe aggregate record/width budget");
+            compile_errors += 1;
+            delete[] name;
+            delete[] left_text;
+            delete[] right_text;
+            delete[] fixture;
+            delete[] dut;
+            return;
+      }
+
+      component = new vpiPortComponentInfo;
+      component->index = component_index;
+      component->width = width;
+      component->name = name;
+      component->left = left;
+      component->right = right;
+      component->fixture_width = fixture_width;
+      component->fixture_base = fixture_base;
+      component->fixture_drivers = fixture_connected;
+      component->dut_width = dut_width;
+      component->dut_drivers = dut_connected;
+      if (fixture_width) {
+            functor_ref_lookup(&component->fixture_ref, fixture);
+            functor_ref_lookup(&component->dut_ref, dut);
+      }
+      port->add_evcd_component(component);
+      evcd_metadata_records += 1;
+      evcd_metadata_bits += width;
+      delete[] left_text;
+      delete[] right_text;
+}
+
+extern "C" int vpip_get_port_component(vpiHandle ref, unsigned idx,
+                                        const char **name, unsigned *width,
+                                        int *left, int *right,
+                                        vpiHandle *fixture,
+                                        unsigned *fixture_base,
+                                        int *fixture_connected,
+                                        vpiHandle *dut,
+                                        int *dut_connected)
+{
+      vpiPortInfo *port = dynamic_cast<vpiPortInfo*>(ref);
+      vpiPortComponentInfo *component;
+      __vpiScope *scope;
+
+      if (!port || idx >= port->evcd_components_.size()) return 0;
+      component = port->evcd_components_[idx];
+      scope = dynamic_cast<__vpiScope*>(port->vpi_handle(vpiScope));
+      assert(scope);
+
+      if (component->fixture_ref && !component->fixture_handle) {
+            vvp_signal_value *value = dynamic_cast<vvp_signal_value*>(
+                  component->fixture_ref->fil);
+            if (value && value->value_size())
+                  component->fixture_handle = vpip_make_net4(
+                        scope, "$ivl_evcd_fixture",
+                        (int)value->value_size()-1, 0, false,
+                        component->fixture_ref);
+      }
+      if (component->dut_ref && !component->dut_handle) {
+            vvp_signal_value *value = dynamic_cast<vvp_signal_value*>(
+                  component->dut_ref->fil);
+            if (value && value->value_size())
+                  component->dut_handle = vpip_make_net4(
+                        scope, "$ivl_evcd_dut",
+                        (int)value->value_size()-1, 0, false,
+                        component->dut_ref);
+      }
+
+      if (name) *name = component->name;
+      if (width) *width = component->width;
+      if (left) *left = component->left;
+      if (right) *right = component->right;
+      if (fixture) *fixture = component->fixture_handle;
+      if (fixture_base) *fixture_base = component->fixture_base;
+      if (fixture_connected)
+            *fixture_connected = component->fixture_ref &&
+                                 !component->fixture_handle ? -1 :
+                                 (int)component->fixture_drivers;
+      if (dut) *dut = component->dut_handle;
+      if (dut_connected)
+            *dut_connected = component->dut_ref && !component->dut_handle
+                           ? -1 : (int)component->dut_drivers;
+      return 1;
 }

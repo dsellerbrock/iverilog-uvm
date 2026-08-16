@@ -1,0 +1,3 @@
+# IEEE 1800-2017 13.4.4 function fork boundary
+sv_function_fork_join_none	vvp_tests/sv_function_fork_join_none.json
+sv_function_fork_blocking_fail	vvp_tests/sv_function_fork_blocking_fail.json

@@ -53,6 +53,9 @@ class resolv_core : public vvp_net_fun_t {
 
       virtual void count_drivers(unsigned bit_idx, unsigned counts[3]) =0;
 
+      void enable_driver_activity_notifications()
+            { notify_driver_activity_ = true; }
+
     private:
       friend class resolv_extend;
       virtual void recv_vec4_(unsigned port, const vvp_vector4_t&bit) =0;
@@ -64,8 +67,10 @@ class resolv_core : public vvp_net_fun_t {
 			 unsigned base, unsigned vwid);
 
     protected:
+      void notify_driver_activity();
       unsigned nports_;
       vvp_net_t*net_;
+      bool notify_driver_activity_;
 };
 
 class resolv_extend : public vvp_net_fun_t {

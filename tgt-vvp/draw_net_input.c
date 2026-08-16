@@ -404,7 +404,7 @@ static char* draw_net_input_drive(const ivl_nexus_t nex, ivl_nexus_ptr_t nptr)
 
 	    dly = "";
 	    if (d_rise != 0) {
-		  draw_delay(cptr, dly_width, 0, d_rise, d_fall, d_decay);
+		  draw_delay(cptr, dly_width, 0, d_rise, d_fall, d_decay, 0, 0);
 		  dly = "/d";
 	    }
 	    fprintf(vvp_out, "L_%p%s .functor BUFT 1, %s, C4<0>, C4<0>, C4<0>;\n",
@@ -488,6 +488,8 @@ static char* draw_island_port(ivl_island_t island, int island_input_flag,
       nex_data->island = island;
       assert(nex_data->island_input == 0);
       nex_data->island_input = strdup(result);
+      assert(nex_data->island_local_input == 0);
+      nex_data->island_local_input = strdup(src);
 
       if (island_input_flag) {
 	    fprintf(vvp_out, "p%p .import I%p, %s;\n", nex, island, src);
@@ -984,4 +986,27 @@ const char*draw_island_net_input(const ivl_island_t island, ivl_nexus_t nex)
       assert(nex_data->island_input);
 
       return nex_data->island_input;
+}
+
+const char*draw_island_local_input(const ivl_island_t island, ivl_nexus_t nex)
+{
+      struct vvp_nexus_data*nex_data;
+
+      (void)draw_island_net_input(island, nex);
+      nex_data = (struct vvp_nexus_data*)ivl_nexus_get_private(nex);
+      assert(nex_data);
+      assert(nex_data->island == island);
+      assert(nex_data->island_local_input);
+      return nex_data->island_local_input;
+}
+
+unsigned draw_island_local_drivers(const ivl_island_t island, ivl_nexus_t nex)
+{
+      struct vvp_nexus_data*nex_data;
+
+      (void)draw_island_net_input(island, nex);
+      nex_data = (struct vvp_nexus_data*)ivl_nexus_get_private(nex);
+      assert(nex_data);
+      assert(nex_data->island == island);
+      return nex_data->drivers_count;
 }

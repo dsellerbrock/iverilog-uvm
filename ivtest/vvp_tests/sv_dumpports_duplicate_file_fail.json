@@ -1,0 +1,6 @@
+{
+    "type"          : "EF",
+    "source"        : "sv_dumpports_duplicate_file_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_dumpports_duplicate_file_fail"
+}

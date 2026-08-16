@@ -1346,6 +1346,12 @@ class vvp_net_fil_t  : public vvp_vpi_callback {
 	   RTL expression, so let the concrete filter provide it without RTTI. */
       virtual vvp_signal_value*as_signal_value() { return 0; }
 
+      /* EVCD state encodes active-driver multiplicity in addition to the
+       * resolved value. Resolver nodes use this private hook to wake an
+       * explicitly enabled dumpports observer when an input changes but the
+       * resolved value and strength do not. */
+      void notify_driver_activity() { run_driver_activity_callbacks(); }
+
 
 	// These filter methods are used by the vvp_net_t::send_*()
 	// methods to test the output (from the functor) bit value

@@ -1,0 +1,2 @@
+ivltests/sv_stream_with_unbounded_order_fail.v:4: error: a streaming `with' target may not follow an unconstrained dynamically sized target (IEEE 1800-2023 11.4.14.4).
+error: Code generation had 1 error(s).

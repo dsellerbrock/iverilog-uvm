@@ -721,6 +721,7 @@ class vvp_wire_vec8 : public vvp_wire_base {
 
     private:
       bool needs_init_;
+      bool width_error_reported_;
       vvp_vector8_t bits8_;
       vvp_vector8_t force8_; // the value being forced
 };

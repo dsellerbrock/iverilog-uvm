@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_stream_with_runtime_error.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_stream_with_runtime_error"
+}

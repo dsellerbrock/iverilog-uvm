@@ -25,6 +25,7 @@ class netsarray_t;
 class netuarray_t;
 class netdarray_t;
 class Statement;
+class PExpr;
 
 /*
  * Search for a hierarchical name. The input path is one or more name
@@ -130,6 +131,34 @@ extern bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 extern bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 			  const pform_scoped_name_t &path, unsigned lexical_pos,
 			  struct symbol_search_results*res);
+
+/*
+ * Canonical description of a whole one-dimensional fixed unpacked array or
+ * a constant slice of one. Array storage is flattened in increasing numeric
+ * index order, while SystemVerilog assignment and comparison pair elements
+ * in the slice's declared left-to-right order. Keeping both the canonical
+ * low word and the selected range direction lets callers perform the right
+ * reversal without inventing an aggregate run-time value.
+ *
+ * decode_fixed_uarray_slice() returns 1 on success, 0 when expr is not this
+ * shape, and -1 for a recognized but invalid/unsupported slice. When quiet
+ * is true, -1 is returned without emitting a diagnostic; width inference
+ * uses that mode so the later elaboration pass remains the sole reporter.
+ */
+struct fixed_uarray_slice_t {
+      NetNet*signal = nullptr;       // Borrowed from the design.
+      long canonical_base = 0;      // Lowest canonical word in the slice.
+      unsigned long count = 0;
+      netrange_t selected_range;
+      ivl_type_t element_type = nullptr; // Borrowed from signal.
+      bool whole = false;
+};
+
+extern int decode_fixed_uarray_slice(Design*des, NetScope*scope,
+				     const LineInfo&loc, const PExpr*expr,
+				     bool allow_whole,
+				     fixed_uarray_slice_t&out,
+				     bool quiet = false);
 
 /*
  * symbol_search() caches resolved (scope, name-path) lookups. That

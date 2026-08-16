@@ -958,6 +958,29 @@ class NetNet  : public NetObj, public PortType {
       unsigned delay_paths(void) const;
       const class NetDelaySrc*delay_path(unsigned idx) const;
 
+      /* A declaration delay is applied after this hidden net resolves all
+       * of the declared net's drivers. Reads remain on the public NetNet;
+       * structural l-values are redirected to the driver net. Port collapse
+       * may make an outer net the dominating simulated net (1800-2023
+       * 23.3.3.7), in which case a dominated inner signal points outward to
+       * that net's public/driver pair. An outer signal must never point at a
+       * module-local driver net. */
+      void net_delay_driver(NetNet*net) { net_delay_driver_ = net; }
+      NetNet* net_delay_driver() const { return net_delay_driver_; }
+      void net_delay_public(NetNet*net) { net_delay_public_ = net; }
+      NetNet* net_delay_public() const { return net_delay_public_; }
+      void add_net_delay_boundary(class NetBUFZ*net)
+	    { net_delay_boundaries_.push_back(net); }
+      std::vector<class NetBUFZ*>& net_delay_boundaries()
+	    { return net_delay_boundaries_; }
+      void net_delay_declared_type(Type type)
+	    { net_delay_declared_type_ = type; }
+      Type net_delay_declared_type() const
+	    { return net_delay_declared_type_ == NONE
+		   ? type_ : net_delay_declared_type_; }
+      void net_delay_pull(class NetLogic*net) { net_delay_pull_ = net; }
+      class NetLogic* net_delay_pull() const { return net_delay_pull_; }
+
       void dump_net(std::ostream&, unsigned) const;
 
     private:
@@ -1014,6 +1037,11 @@ class NetNet  : public NetObj, public PortType {
       std::vector<class NetAssign_*> lref_objs_;
 
       std::vector<class NetDelaySrc*> delay_paths_;
+      NetNet*net_delay_driver_ = 0;
+      NetNet*net_delay_public_ = 0;
+      std::vector<class NetBUFZ*> net_delay_boundaries_;
+      Type net_delay_declared_type_ = NONE;
+      class NetLogic*net_delay_pull_ = 0;
       int       port_index_ = -1;
 };
 
@@ -2299,12 +2327,14 @@ class NetSysFunc  : public NetNode {
 class NetTran  : public NetNode, public IslandBranch {
 
     public:
-	// Tran devices other than TRAN_VP
+      // Tran devices other than TRAN_VP
       NetTran(NetScope*scope, perm_string n, ivl_switch_type_t type,
-              unsigned wid);
+              unsigned wid, int port_info_index = -1,
+              int port_component_index = -1);
 	// Create a TRAN_VP
       NetTran(NetScope*scope, perm_string n, unsigned wid,
-	      unsigned part, unsigned off);
+	      unsigned part, unsigned off, int port_info_index = -1,
+	      int port_component_index = -1);
       ~NetTran() override;
 
       ivl_switch_type_t type() const { return type_; }
@@ -2313,6 +2343,8 @@ class NetTran  : public NetNode, public IslandBranch {
       unsigned vector_width() const;
       unsigned part_width() const;
       unsigned part_offset() const;
+      int port_info_index() const { return port_info_index_; }
+      int port_component_index() const { return port_component_index_; }
 
       virtual void dump_node(std::ostream&, unsigned ind) const override;
       virtual bool emit_node(struct target_t*) const override;
@@ -2322,6 +2354,8 @@ class NetTran  : public NetNode, public IslandBranch {
       unsigned wid_;
       unsigned part_;
       unsigned off_;
+      int port_info_index_;
+      int port_component_index_;
 };
 
 /* =========
@@ -2728,6 +2762,10 @@ class NetBUFZ  : public NetNode {
       unsigned width() const;
       bool transparent() const { return transparent_; }
       int port_info_index() const { return port_info_index_; }
+      void per_bit_delay(bool flag) { per_bit_delay_ = flag; }
+      bool per_bit_delay() const { return per_bit_delay_; }
+      void whole_vector_delay(bool flag) { whole_vector_delay_ = flag; }
+      bool whole_vector_delay() const { return whole_vector_delay_; }
 
       virtual void dump_node(std::ostream&, unsigned ind) const override;
       virtual bool emit_node(struct target_t*) const override;
@@ -2735,6 +2773,8 @@ class NetBUFZ  : public NetNode {
     private:
       unsigned width_;
       bool transparent_;
+      bool per_bit_delay_ = false;
+      bool whole_vector_delay_ = false;
       int port_info_index_;
 };
 
@@ -3258,6 +3298,12 @@ class NetAssign_ {
 	// mistaken for one-bit packed values.
       ivl_type_t lval_type() const;
 
+      void set_stream_range(ivl_stream_range_t kind, NetExpr*first,
+                            NetExpr*second);
+      ivl_stream_range_t stream_range() const { return stream_range_; }
+      const NetExpr* stream_range_first() const { return stream_range_first_; }
+      const NetExpr* stream_range_second() const { return stream_range_second_; }
+
 	// Get the name of the underlying object.
       perm_string name() const;
 
@@ -3327,6 +3373,9 @@ class NetAssign_ {
 	// index). Holds the sub-array type the slice presents; word_ holds
 	// the flat base word index. See set_array_slice().
       ivl_type_t slice_type_ = nullptr;
+      ivl_stream_range_t stream_range_ = IVL_STREAM_RANGE_NONE;
+      NetExpr*stream_range_first_ = nullptr;
+      NetExpr*stream_range_second_ = nullptr;
 };
 
 class NetAssignBase : public NetProc {

@@ -513,6 +513,18 @@ static void do_compile_net(vvp_net_t*node, vvp_array_t array,
 
       vvp_wire_base*vsig = dynamic_cast<vvp_wire_base*>(node->fil);
 
+      /* A .net/.net8 record is a VPI view of its source node, not a width
+       * converter. Reject malformed bytecode before installing a handle
+       * whose declared width disagrees with the existing filter; delivering
+       * the first value to such a view would otherwise hit a filter assert. */
+      if (vsig && vsig->value_size() != wid) {
+            yyerror("net declaration width does not match source signal");
+            compile_errors += 1;
+            free(my_label);
+            delete[] name;
+            return;
+      }
+
       if (vsig == 0) {
 	    switch (vpi_type_code) {
 		case vpiIntVar:

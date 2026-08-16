@@ -87,7 +87,8 @@ static struct __vpiModPath*modpath_dst = 0;
 %token K_CMP_EEQ K_CMP_EQ K_CMP_EQX K_CMP_EQZ K_CMP_WEQ K_CMP_WNE
 %token K_CMP_EQ_R K_CMP_NEE K_CMP_NE K_CMP_NE_R
 %token K_CMP_GE K_CMP_GE_R K_CMP_GE_S K_CMP_GT K_CMP_GT_R K_CMP_GT_S
-%token K_CONCAT K_CONCAT8 K_DEBUG K_DELAY K_DFF_N K_DFF_N_ACLR
+%token K_CONCAT K_CONCAT8 K_DEBUG K_DELAY K_DELAY_VECTOR K_DELAY_WHOLE
+%token K_DFF_N K_DFF_N_ACLR
 %token K_DFF_N_ACLR_ASET K_DFF_N_ASET K_DFF_N_ASET_ACLR
 %token K_DFF_P K_DFF_P_ACLR K_DFF_P_ACLR_ASET K_DFF_P_ASET K_DFF_P_ASET_ACLR
 %token K_ENUM2 K_ENUM2_S K_ENUM4 K_ENUM4_S K_EVENT K_EVENT_OR
@@ -95,7 +96,7 @@ static struct __vpiModPath*modpath_dst = 0;
 %token K_NET K_NET_S K_NET_R K_NET_2S K_NET_2U
 %token K_NET8 K_NET8_2S K_NET8_2U K_NET8_S
 %token K_PARAM_STR K_PARAM_L K_PARAM_REAL K_PART K_PART_PV
-%token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
+%token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1
 %token K_SCOPE K_SFUNC K_SFUNC_E K_SHIFTL K_SHIFTR K_SHIFTRS
@@ -538,8 +539,39 @@ statement
     }
  | T_LABEL K_DELAY T_NUMBER symbols ',' T_NUMBER ';'
     { struct symbv_s obj = $4;
-      if ($6 != 0) assert(0);
+      if ($6 != 0) {
+	    yyerror(".delay dynamic decay flag must be zero");
+	    compile_errors += 1;
+      }
       compile_delay($1, $3, obj.cnt, obj.vect, true);
+    }
+ | T_LABEL K_DELAY_VECTOR T_NUMBER delay symbol ';'
+    { compile_delay($1, $3, $4, $5, true); }
+ | T_LABEL K_DELAY_VECTOR T_NUMBER symbols ';'
+    { struct symbv_s obj = $4;
+      compile_delay($1, $3, obj.cnt, obj.vect, false, true);
+    }
+ | T_LABEL K_DELAY_VECTOR T_NUMBER symbols ',' T_NUMBER ';'
+    { struct symbv_s obj = $4;
+      if ($6 != 0) {
+	    yyerror(".delay/v dynamic decay flag must be zero");
+	    compile_errors += 1;
+      }
+      compile_delay($1, $3, obj.cnt, obj.vect, true, true);
+    }
+ | T_LABEL K_DELAY_WHOLE T_NUMBER delay symbol ';'
+    { compile_delay($1, $3, $4, $5, false, true); }
+ | T_LABEL K_DELAY_WHOLE T_NUMBER symbols ';'
+    { struct symbv_s obj = $4;
+      compile_delay($1, $3, obj.cnt, obj.vect, false, false, true);
+    }
+ | T_LABEL K_DELAY_WHOLE T_NUMBER symbols ',' T_NUMBER ';'
+    { struct symbv_s obj = $4;
+      if ($6 != 0) {
+	    yyerror(".delay/w dynamic decay flag must be zero");
+	    compile_errors += 1;
+      }
+      compile_delay($1, $3, obj.cnt, obj.vect, true, false, true);
     }
 
  | T_LABEL K_MODPATH T_NUMBER symbol symbol ','
@@ -789,6 +821,15 @@ statement
 	| K_PORT_INFO T_NUMBER port_type T_NUMBER T_STRING ';'
 		{ compile_port_info( $2 /* port_index */, $3, $4 /* width */,
 		                     $5 /*&name */, nullptr /* buffer */ ); }
+
+	| K_PORT_INFO_EVCD T_NUMBER T_NUMBER T_NUMBER T_STRING T_STRING T_STRING ';'
+		{ compile_port_info_evcd($2, $3, $4, $5, $6, $7,
+		                         0, 0, 0, nullptr, 0, 0, nullptr); }
+
+	| K_PORT_INFO_EVCD T_NUMBER T_NUMBER T_NUMBER T_STRING T_STRING T_STRING
+	  T_NUMBER T_NUMBER T_NUMBER T_SYMBOL T_NUMBER T_NUMBER T_SYMBOL ';'
+		{ compile_port_info_evcd($2, $3, $4, $5, $6, $7,
+		                         $8, $9, $10, $11, $12, $13, $14); }
 
   /* M12-6: the .modport directive carries optional "port" direction
      pairs after the modport name. */

@@ -1,0 +1,5 @@
+./ivltests/sv_uarray_slice_type_fail.v:10: error: unpacked subarray types are not equivalent in assignment.
+./ivltests/sv_uarray_slice_type_fail.v:11: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+./ivltests/sv_uarray_slice_type_fail.v:12: error: unpacked subarray types are not equivalent in assignment.
+./ivltests/sv_uarray_slice_type_fail.v:13: error: fixed unpacked array comparison requires equal element counts and equivalent element types.
+4 error(s) during elaboration.

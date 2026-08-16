@@ -41,6 +41,7 @@ class vvp_vpi_callback {
       void attach_as_word(struct __vpiArray* arr, unsigned long addr);
 
       void add_vpi_callback(value_callback*);
+      void add_driver_activity_callback(value_callback*);
 #ifdef CHECK_WITH_VALGRIND
 	/* This has only been tested at EOS. */
       void clear_all_callbacks(void);
@@ -61,9 +62,11 @@ class vvp_vpi_callback {
 	// Derived classes call this method to indicate that it is
 	// time to call the callback.
       void run_vpi_callbacks();
+      void run_driver_activity_callbacks();
 
     private:
       value_callback*vpi_callbacks_;
+      value_callback*driver_activity_callbacks_;
       struct __vpi_array_word*array_words_;
 };
 

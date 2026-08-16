@@ -73,7 +73,7 @@ vvp_delay_t::~vvp_delay_t()
 {
 }
 
-vvp_time64_t vvp_delay_t::get_delay(vvp_bit4_t from, vvp_bit4_t to)
+vvp_time64_t vvp_delay_t::get_delay(vvp_bit4_t from, vvp_bit4_t to) const
 {
       switch (from) {
 	  case BIT4_0:
@@ -150,9 +150,11 @@ void vvp_delay_t::set_decay(vvp_time64_t val)
 	    calculate_min_delay_();
 }
 
-vvp_fun_delay::vvp_fun_delay(vvp_net_t*n, unsigned width, const vvp_delay_t&d)
-: net_(n), delay_(d)
+vvp_fun_delay::vvp_fun_delay(vvp_net_t*n, unsigned width, const vvp_delay_t&d,
+			     bool per_bit, bool whole_vector)
+: net_(n), delay_(d), per_bit_(per_bit), whole_vector_(whole_vector)
 {
+      assert(!(per_bit_ && whole_vector_));
       cur_real_ = 0.0;
       if (width > 0) {
             cur_vec4_ = vvp_vector4_t(width, BIT4_X);
@@ -181,6 +183,59 @@ vvp_fun_delay::~vvp_fun_delay()
 {
       while (struct event_*cur = dequeue_())
 	    delete cur;
+
+      for (bit_event_map_t::iterator bucket = bit_events_.begin();
+	   bucket != bit_events_.end(); ++bucket)
+	    for (bit_event_list_t::iterator cur = bucket->second.begin();
+		 cur != bucket->second.end(); ++cur)
+		  delete *cur;
+}
+
+/* A vector net declaration delay can have one independently selected delay
+ * per bit. Bucket bit events by due time: insertion is logarithmic in the
+ * number of distinct due times (normally at most rise/fall/turn-off), while
+ * same-time insertion and indexed cancellation are constant time. */
+vvp_fun_delay::bit_event_* vvp_fun_delay::enqueue_bit_(vvp_time64_t time,
+						       unsigned index)
+{
+      std::pair<bit_event_map_t::iterator, bool> ins =
+	    bit_events_.insert(std::make_pair(time, bit_event_list_t()));
+      struct bit_event_*cur = new struct bit_event_(time, index);
+      ins.first->second.push_back(cur);
+      cur->bucket = ins.first;
+      cur->position = --ins.first->second.end();
+      return cur;
+}
+
+/* A superseded inertial bit event is removed in constant time through the
+ * handle kept in pending_bits_. Live storage is bounded to one event per bit. */
+void vvp_fun_delay::cancel_bit_(struct bit_event_*target)
+{
+      assert(target);
+      bit_event_map_t::iterator bucket = target->bucket;
+      bucket->second.erase(target->position);
+      delete target;
+      if (bucket->second.empty())
+	    bit_events_.erase(bucket);
+}
+
+/* Per-bit transitions share one wakeup for the earliest due bit. Canceled
+ * events can leave an obsolete callback because the scheduler has no cancel
+ * handle. Keep every outstanding callback time so re-arming never queues a
+ * duplicate callback for a later bucket after an earlier callback fires. */
+void vvp_fun_delay::arm_wakeup_()
+{
+      if (bit_events_.empty())
+	    return;
+
+      vvp_time64_t next_time = bit_events_.begin()->first;
+	/* An already scheduled earlier callback will observe this bucket and
+	 * re-arm it. If the new bucket is earlier, it needs its own callback. */
+      if (!wake_times_.empty() && *wake_times_.begin() <= next_time)
+	    return;
+
+      wake_times_.insert(next_time);
+      schedule_generic(this, next_time-schedule_simtime(), false);
 }
 
 bool vvp_fun_delay::clean_pulse_events_(vvp_time64_t use_delay,
@@ -242,13 +297,138 @@ void vvp_fun_delay::clean_pulse_events_(vvp_time64_t use_delay)
       } while (list_);
 }
 
-/*
- * FIXME: this implementation currently only uses the maximum delay
- * from all the bit changes in the vectors. If there are multiple
- * changes with different delays, then the results would be
- * wrong. What should happen is that if there are multiple changes,
- * multiple vectors approaching the result should be scheduled.
- */
+void vvp_fun_delay::recv_vec4_per_bit_(const vvp_vector4_t&bit)
+{
+      if (type_ == UNKNOWN_DELAY) {
+	    type_ = VEC4_DELAY;
+	    cur_vec8_ = vvp_vector8_t(vvp_vector4_t(0, BIT4_X), 6, 6);
+	    pending_bits_.resize(bit.size(), 0);
+      } else {
+	    assert(type_ == VEC4_DELAY);
+	    assert(bit.size() == cur_vec4_.size());
+	    assert(bit.size() == pending_bits_.size());
+      }
+
+      bool changed_now = false;
+      for (unsigned idx = 0; idx < bit.size(); idx += 1) {
+	    struct bit_event_*pending = pending_bits_[idx];
+	    if (pending) {
+		  if (pending->bit4_value == bit.value(idx))
+			continue;
+		  pending_bits_[idx] = 0;
+		  cancel_bit_(pending);
+	    }
+
+	    vvp_bit4_t from = cur_vec4_.value(idx);
+	    vvp_bit4_t to = bit.value(idx);
+	    if (from == to)
+		  continue;
+
+	    vvp_time64_t use_delay = delay_.get_delay(from, to);
+	    if (use_delay == 0) {
+		  cur_vec4_.set_bit(idx, to);
+		  changed_now = true;
+		  continue;
+	    }
+
+	    struct bit_event_*cur = enqueue_bit_(schedule_simtime()+use_delay,
+						   idx);
+	    cur->bit4_value = to;
+	    pending_bits_[idx] = cur;
+      }
+
+      arm_wakeup_();
+
+      if (changed_now) {
+	    initial_ = false;
+	    net_->send_vec4(cur_vec4_, 0);
+      }
+}
+
+void vvp_fun_delay::recv_vec8_per_bit_(const vvp_vector8_t&bit)
+{
+      if (type_ == UNKNOWN_DELAY) {
+	    type_ = VEC8_DELAY;
+	    cur_vec4_ = vvp_vector4_t(0, BIT4_X);
+	    pending_bits_.resize(bit.size(), 0);
+      } else {
+	    assert(type_ == VEC8_DELAY);
+	    assert(bit.size() == cur_vec8_.size());
+	    assert(bit.size() == pending_bits_.size());
+      }
+
+      bool changed_now = false;
+      for (unsigned idx = 0; idx < bit.size(); idx += 1) {
+	    struct bit_event_*pending = pending_bits_[idx];
+	    if (pending) {
+		  if (pending->scalar_value.eeq(bit.value(idx)))
+			continue;
+		  pending_bits_[idx] = 0;
+		  cancel_bit_(pending);
+	    }
+
+	    vvp_scalar_t from = cur_vec8_.value(idx);
+	    vvp_scalar_t to = bit.value(idx);
+	    if (from.eeq(to))
+		  continue;
+
+	    vvp_time64_t use_delay = delay_.get_delay(from.value(), to.value());
+	    if (use_delay == 0) {
+		  cur_vec8_.set_bit(idx, to);
+		  changed_now = true;
+		  continue;
+	    }
+
+	    struct bit_event_*cur = enqueue_bit_(schedule_simtime()+use_delay,
+						   idx);
+	    cur->scalar_value = to;
+	    pending_bits_[idx] = cur;
+      }
+
+      arm_wakeup_();
+
+      if (changed_now) {
+	    initial_ = false;
+	    net_->send_vec8(cur_vec8_);
+      }
+}
+
+/* IEEE 1800-2023 10.3.3 selects a delayed complete-vector continuous
+ * assignment from the new RHS value: all-zero is fall, all-Z is turn-off,
+ * and every other value (including any X or a mixed vector) is rise. */
+vvp_time64_t vvp_fun_delay::whole_vector_delay_(const vvp_vector4_t&bit) const
+{
+      assert(bit.size() > 0);
+      bool all_zero = true;
+      bool all_z = true;
+      for (unsigned idx = 0; idx < bit.size(); idx += 1) {
+	    all_zero = all_zero && bit.value(idx) == BIT4_0;
+	    all_z = all_z && bit.value(idx) == BIT4_Z;
+      }
+      if (all_zero)
+	    return delay_.get_delay(BIT4_1, BIT4_0);
+      if (all_z)
+	    return delay_.get_delay(BIT4_0, BIT4_Z);
+      return delay_.get_delay(BIT4_0, BIT4_1);
+}
+
+vvp_time64_t vvp_fun_delay::whole_vector_delay_(const vvp_vector8_t&bit) const
+{
+      assert(bit.size() > 0);
+      bool all_zero = true;
+      bool all_z = true;
+      for (unsigned idx = 0; idx < bit.size(); idx += 1) {
+	    vvp_bit4_t value = bit.value(idx).value();
+	    all_zero = all_zero && value == BIT4_0;
+	    all_z = all_z && value == BIT4_Z;
+      }
+      if (all_zero)
+	    return delay_.get_delay(BIT4_1, BIT4_0);
+      if (all_z)
+	    return delay_.get_delay(BIT4_0, BIT4_Z);
+      return delay_.get_delay(BIT4_0, BIT4_1);
+}
+
 void vvp_fun_delay::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                               vvp_context_t)
 {
@@ -276,18 +456,27 @@ void vvp_fun_delay::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 	    return;
       }
 
+      if (per_bit_) {
+	    recv_vec4_per_bit_(bit);
+	    return;
+      }
+
       vvp_time64_t use_delay;
 	/* This is an initial value so it needs to be compared to all the
 	   bits (the order the bits are changed is not deterministic). */
       if (initial_) {
 	    type_ = VEC4_DELAY;
             cur_vec8_ = vvp_vector8_t(vvp_vector4_t(0, BIT4_X), 6, 6);
-	    vvp_bit4_t cur_val = cur_vec4_.value(0);
-	    use_delay = delay_.get_delay(cur_val, bit.value(0));
-	    for (unsigned idx = 1 ;  idx < bit.size() ;  idx += 1) {
-		  vvp_time64_t tmp;
-		  tmp = delay_.get_delay(cur_val, bit.value(idx));
-		  if (tmp > use_delay) use_delay = tmp;
+	    if (whole_vector_) {
+		  use_delay = whole_vector_delay_(bit);
+	    } else {
+		  vvp_bit4_t cur_val = cur_vec4_.value(0);
+		  use_delay = delay_.get_delay(cur_val, bit.value(0));
+		  for (unsigned idx = 1 ; idx < bit.size(); idx += 1) {
+			vvp_time64_t tmp = delay_.get_delay(cur_val,
+							 bit.value(idx));
+			if (tmp > use_delay) use_delay = tmp;
+		  }
 	    }
       } else {
 	    assert(type_ == VEC4_DELAY);
@@ -298,18 +487,18 @@ void vvp_fun_delay::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 	      // value as a zero-delay-remaining event.
 	    const vvp_vector4_t&use_vec4 = (list_ && list_->next->sim_time == schedule_simtime())? list_->next->ptr_vec4 : cur_vec4_;
 
-	      /* How many bits to compare? */
-	    unsigned use_wid = use_vec4.size();
-	    if (bit.size() < use_wid) use_wid = bit.size();
-
-	      /* Scan the vectors looking for delays. Select the maximum
-	         delay encountered. */
-	    use_delay = delay_.get_delay(use_vec4.value(0), bit.value(0));
-
-	    for (unsigned idx = 1 ;  idx < use_wid ;  idx += 1) {
-		  vvp_time64_t tmp;
-		  tmp = delay_.get_delay(use_vec4.value(idx), bit.value(idx));
-		  if (tmp > use_delay) use_delay = tmp;
+	    if (whole_vector_) {
+		  use_delay = whole_vector_delay_(bit);
+	    } else {
+		  /* Bit-slice devices choose the longest transition delay. */
+		  unsigned use_wid = use_vec4.size();
+		  if (bit.size() < use_wid) use_wid = bit.size();
+		  use_delay = delay_.get_delay(use_vec4.value(0), bit.value(0));
+		  for (unsigned idx = 1; idx < use_wid; idx += 1) {
+			vvp_time64_t tmp = delay_.get_delay(use_vec4.value(idx),
+							 bit.value(idx));
+			if (tmp > use_delay) use_delay = tmp;
+		  }
 	    }
       }
 
@@ -317,6 +506,10 @@ void vvp_fun_delay::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
          transaction in the queue. This would be a pulse that needs to be
          eliminated. */
       if (clean_pulse_events_(use_delay, bit)) return;
+
+      /* A return to the value currently on the net cancels a pending pulse
+       * but does not itself schedule a redundant update. */
+      if (cur_vec4_.eeq(bit)) return;
 
       vvp_time64_t use_simtime = schedule_simtime() + use_delay;
 
@@ -345,18 +538,27 @@ void vvp_fun_delay::recv_vec8(vvp_net_ptr_t port, const vvp_vector8_t&bit)
 {
       assert(port.port() == 0);
 
+      if (per_bit_) {
+	    recv_vec8_per_bit_(bit);
+	    return;
+      }
+
       vvp_time64_t use_delay;
 	/* This is an initial value so it needs to be compared to all the
 	   bits (the order the bits are changed is not deterministic). */
       if (initial_) {
 	    type_ = VEC8_DELAY;
             cur_vec4_ = vvp_vector4_t(0, BIT4_X);
-	    vvp_bit4_t cur_val = cur_vec8_.value(0).value();
-	    use_delay = delay_.get_delay(cur_val, bit.value(0).value());
-	    for (unsigned idx = 1 ;  idx < bit.size() ;  idx += 1) {
-		  vvp_time64_t tmp;
-		  tmp = delay_.get_delay(cur_val, bit.value(idx).value());
-		  if (tmp > use_delay) use_delay = tmp;
+	    if (whole_vector_) {
+		  use_delay = whole_vector_delay_(bit);
+	    } else {
+		  vvp_bit4_t cur_val = cur_vec8_.value(0).value();
+		  use_delay = delay_.get_delay(cur_val, bit.value(0).value());
+		  for (unsigned idx = 1; idx < bit.size(); idx += 1) {
+			vvp_time64_t tmp = delay_.get_delay(
+			      cur_val, bit.value(idx).value());
+			if (tmp > use_delay) use_delay = tmp;
+		  }
 	    }
       } else {
 	    assert(type_ == VEC8_DELAY);
@@ -367,20 +569,18 @@ void vvp_fun_delay::recv_vec8(vvp_net_ptr_t port, const vvp_vector8_t&bit)
 	      // value as a zero-delay-remaining event.
 	    const vvp_vector8_t&use_vec8 = (list_ && list_->next->sim_time == schedule_simtime())? list_->next->ptr_vec8 : cur_vec8_;
 
-	      /* How many bits to compare? */
-	    unsigned use_wid = use_vec8.size();
-	    if (bit.size() < use_wid) use_wid = bit.size();
-
-	      /* Scan the vectors looking for delays. Select the maximum
-	         delay encountered. */
-	    use_delay = delay_.get_delay(use_vec8.value(0).value(),
-	                                 bit.value(0).value());
-
-	    for (unsigned idx = 1 ;  idx < use_wid ;  idx += 1) {
-		  vvp_time64_t tmp;
-		  tmp = delay_.get_delay(use_vec8.value(idx).value(),
-		                         bit.value(idx).value());
-		  if (tmp > use_delay) use_delay = tmp;
+	    if (whole_vector_) {
+		  use_delay = whole_vector_delay_(bit);
+	    } else {
+		  unsigned use_wid = use_vec8.size();
+		  if (bit.size() < use_wid) use_wid = bit.size();
+		  use_delay = delay_.get_delay(use_vec8.value(0).value(),
+					       bit.value(0).value());
+		  for (unsigned idx = 1; idx < use_wid; idx += 1) {
+			vvp_time64_t tmp = delay_.get_delay(
+			      use_vec8.value(idx).value(), bit.value(idx).value());
+			if (tmp > use_delay) use_delay = tmp;
+		  }
 	    }
       }
 
@@ -388,6 +588,8 @@ void vvp_fun_delay::recv_vec8(vvp_net_ptr_t port, const vvp_vector8_t&bit)
          transaction in the queue. This would be a pulse that needs to be
          eliminated. */
       if (clean_pulse_events_(use_delay, bit)) return;
+
+      if (cur_vec8_.eeq(bit)) return;
 
       vvp_time64_t use_simtime = schedule_simtime() + use_delay;
 
@@ -477,6 +679,55 @@ void vvp_fun_delay::recv_real(vvp_net_ptr_t port, double bit,
 void vvp_fun_delay::run_run()
 {
       vvp_time64_t sim_time = schedule_simtime();
+
+      /* Per-bit events with the same wake time are one vector update. This
+       * prevents transient mixed values in callbacks merely because several
+       * independently delayed bits happened to select the same delay. */
+      if (per_bit_) {
+	    /* Consume this exact callback token before inspecting the buckets.
+	     * The associated event may have been canceled, leaving this callback
+	     * as the only opportunity to arm a later replacement. */
+	    set<vvp_time64_t>::iterator wake = wake_times_.find(sim_time);
+	    if (wake == wake_times_.end())
+		  return;
+	    wake_times_.erase(wake);
+
+	    bool changed = false;
+	    while (!bit_events_.empty()
+		   && bit_events_.begin()->first <= sim_time) {
+		  bit_event_map_t::iterator bucket = bit_events_.begin();
+		  for (bit_event_list_t::iterator pos = bucket->second.begin();
+		       pos != bucket->second.end(); ++pos) {
+			struct bit_event_*cur = *pos;
+			assert(cur->bit_index < pending_bits_.size());
+			if (pending_bits_[cur->bit_index] == cur)
+			      pending_bits_[cur->bit_index] = 0;
+
+			if (type_ == VEC4_DELAY)
+			      cur_vec4_.set_bit(cur->bit_index,
+						cur->bit4_value);
+			else {
+			      assert(type_ == VEC8_DELAY);
+			      cur_vec8_.set_bit(cur->bit_index,
+						cur->scalar_value);
+			}
+			delete cur;
+			changed = true;
+		  }
+		  bit_events_.erase(bucket);
+	    }
+
+	    if (changed) {
+		  if (type_ == VEC4_DELAY)
+			net_->send_vec4(cur_vec4_, 0);
+		  else
+			net_->send_vec8(cur_vec8_);
+		  initial_ = false;
+	    }
+	    arm_wakeup_();
+	    return;
+      }
+
       if (list_ == 0 || list_->next->sim_time > sim_time)
 	    return;
 

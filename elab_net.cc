@@ -1343,6 +1343,19 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 	    }
       }
 
+      /* A net declaration delay is a boundary after the declared net's
+       * drivers resolve. All structural l-values therefore drive the hidden
+       * raw net, while expression reads continue to find the declared,
+       * delayed NetNet through the scope symbol table. */
+      /* Port collapsing can chain dominated inner nets to a delay domain in
+       * an enclosing scope. Follow the outward chain to its canonical raw
+       * resolver. The links are acyclic by construction: ownership only
+       * moves from an inner scope to a dominating outer scope. */
+      while (NetNet*raw = sig->net_delay_driver()) {
+	    ivl_assert(*this, raw != sig);
+	    sig = raw;
+      }
+
       if (sig->unpacked_dimensions() > 0 && unpacked_slice_flag) {
 	    NetNet*view = new NetNet(scope, scope->local_symbol(),
 				 NetNet::WIRE, unpacked_slice_dims,

@@ -21,8 +21,10 @@
 
 # include  "netlist.h"
 # include  "PNamedItem.h"
+# include  "PDelays.h"
 # include  <list>
 # include  <map>
+# include  <memory>
 # include  "StringHeap.h"
 
 #ifdef HAVE_IOSFWD
@@ -94,6 +96,9 @@ class PWire : public PNamedItem {
       void set_data_type(data_type_t*type);
       const data_type_t* data_type() const { return set_data_type_.get(); }
 
+      bool set_net_delay(const std::shared_ptr<PDelays>&delay);
+      const PDelays* net_delay() const { return net_delay_.get(); }
+
       void set_discipline(ivl_discipline_t);
       ivl_discipline_t get_discipline(void) const;
 
@@ -150,6 +155,11 @@ class PWire : public PNamedItem {
 	// This is the complex type of the wire. the data_type_ may
 	// modify how this is interpreted.
       std::unique_ptr<data_type_t> set_data_type_;
+
+      /* All nets in one declaration share the parsed delay expressions.
+       * PDelays owns them once; each elaborated net evaluates its own copy in
+       * the declaration scope. */
+      std::shared_ptr<PDelays> net_delay_;
 
       ivl_discipline_t discipline_;
 

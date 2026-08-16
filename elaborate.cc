@@ -37,6 +37,7 @@
 # include  <iostream>
 # include  <sstream>
 # include  <list>
+# include  <set>
 # include  "pform.h"
 # include  "PClass.h"
 # include  "PEvent.h"
@@ -1932,6 +1933,16 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
       if (dynamic_cast<NetESignal*>(rval_expr) ||!rval->is_linked())
 	    need_driver_flag = true;
 
+      /* A delayed continuous assignment to a complete vector selects one
+	 * rise/fall/turn-off delay from the complete RHS value (1800-2023
+	 * 10.3.3). Force an explicit carrier so the target can distinguish it
+	 * from both ordinary vector device delays and per-bit net declaration
+	 * delays. */
+      bool whole_vector_delay = (rise_time || fall_time || decay_time)
+	    && lval->vector_width() > 1;
+      if (whole_vector_delay)
+	    need_driver_flag = true;
+
 	// expression elaboration should have caused the rval width to
 	// match the l-value by now.
       if (rval->vector_width() < lval->vector_width()) {
@@ -1963,6 +1974,9 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    need_driver_flag = false;
       }
 
+      if (whole_vector_delay)
+	    need_driver_flag = true;
+
 	/* When we are given a non-default strength value and if the drive
 	 * source is a bit, part, indexed select or a concatenation we need
 	 * to add a driver (BUFZ) to convey the strength information. */
@@ -1976,6 +1990,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    NetBUFZ*driver = new NetBUFZ(scope, scope->local_symbol(),
 					 rval->vector_width(), false);
 	    driver->set_line(*this);
+	    driver->whole_vector_delay(whole_vector_delay);
 	    des->add_node(driver);
 
 	    connect(rval->pin(0), driver->pin(1));
@@ -2958,7 +2973,10 @@ static bool need_bufz_for_input_port(const vector<NetNet*>&prts)
 {
       if (prts.empty()) return false;
       if (prts[0]->port_type() != NetNet::PINPUT) return false;
-      if (prts[0]->pin(0).nexus()->drivers_present()) return true;
+      NetNet*formal = prts[0];
+      while (formal->net_delay_driver())
+	    formal = formal->net_delay_driver();
+      if (formal->pin(0).nexus()->drivers_present()) return true;
       return false;
 }
 
@@ -3001,8 +3019,8 @@ static void isolate_and_connect(Design*des, NetScope*scope, const PGModule*mod,
 	  case NetNet::PINOUT:
 	    {
 		  NetTran*tmp = new NetTran(scope, scope->local_symbol(),
-					    sig->vector_width(),
-					    sig->vector_width(), 0);
+					    IVL_SW_TRAN,
+					    sig->vector_width(), idx, 0);
 		  tmp->set_line(*mod);
 		  des->add_node(tmp);
 		  connect(tmp->pin(1), port->pin(0));
@@ -3013,6 +3031,436 @@ static void isolate_and_connect(Design*des, NetScope*scope, const PGModule*mod,
 	    ivl_assert(*mod, 0);
 	    break;
       }
+}
+
+enum port_net_dominance_t {
+      PORT_NET_UNSUPPORTED,
+      PORT_NET_EXTERNAL,
+      PORT_NET_INTERNAL
+};
+
+struct port_net_dominance_result_t {
+      port_net_dominance_t dominance;
+      bool warn;
+};
+
+static bool wire_or_tri_type(NetNet::Type type)
+{
+      return type == NetNet::IMPLICIT || type == NetNet::WIRE
+	    || type == NetNet::TRI;
+}
+
+enum port_net_class_t {
+      PORT_NET_WIRE,
+      PORT_NET_WAND,
+      PORT_NET_WOR,
+      PORT_NET_TRI0,
+      PORT_NET_TRI1,
+      PORT_NET_UWIRE,
+      PORT_NET_SUPPLY0,
+      PORT_NET_SUPPLY1,
+      PORT_NET_CLASS_COUNT,
+      PORT_NET_CLASS_UNSUPPORTED
+};
+
+static port_net_class_t port_net_class(NetNet::Type type)
+{
+      if (wire_or_tri_type(type)) return PORT_NET_WIRE;
+      switch (type) {
+	  case NetNet::WAND:
+	  case NetNet::TRIAND:
+	    return PORT_NET_WAND;
+	  case NetNet::WOR:
+	  case NetNet::TRIOR:
+	    return PORT_NET_WOR;
+	  case NetNet::TRI0: return PORT_NET_TRI0;
+	  case NetNet::TRI1: return PORT_NET_TRI1;
+	  case NetNet::UNRESOLVED_WIRE: return PORT_NET_UWIRE;
+	  case NetNet::SUPPLY0: return PORT_NET_SUPPLY0;
+	  case NetNet::SUPPLY1: return PORT_NET_SUPPLY1;
+	  default: return PORT_NET_CLASS_UNSUPPORTED;
+      }
+}
+
+/* IEEE 1800-2023 Table 23-1, with rows=internal and columns=external.
+ * Each entry encodes external/internal dominance and the table's warn cell.
+ * The frontend diagnoses trireg declarations before NetNet construction, so
+ * there is no NetNet::TRIREG row/column to represent here. */
+static port_net_dominance_result_t port_net_dominance(NetNet::Type internal,
+						       NetNet::Type external)
+{
+      enum table_cell_t { E, EW, I, IW };
+      static const table_cell_t table[PORT_NET_CLASS_COUNT]
+					   [PORT_NET_CLASS_COUNT] = {
+	/* external: wire wand wor  tri0 tri1 uwire supply0 supply1 */
+	/* wire */   { E,   E,   E,   E,   E,   E,    E,      E  },
+	/* wand */   { I,   E,   EW,  EW,  EW,  EW,   E,      E  },
+	/* wor */    { I,   EW,  E,   EW,  EW,  EW,   E,      E  },
+	/* tri0 */   { I,   EW,  EW,  E,   EW,  EW,   E,      E  },
+	/* tri1 */   { I,   EW,  EW,  EW,  E,   EW,   E,      E  },
+	/* uwire */  { I,   IW,  IW,  IW,  IW,  E,    E,      E  },
+	/* supply0 */{ I,   I,   I,   I,   I,   I,    E,      EW },
+	/* supply1 */{ I,   I,   I,   I,   I,   I,    EW,     E  }
+      };
+
+      port_net_class_t row = port_net_class(internal);
+      port_net_class_t col = port_net_class(external);
+      if (row == PORT_NET_CLASS_UNSUPPORTED
+	  || col == PORT_NET_CLASS_UNSUPPORTED)
+	    return { PORT_NET_UNSUPPORTED, false };
+      table_cell_t cell = table[row][col];
+      return { cell == I || cell == IW
+		     ? PORT_NET_INTERNAL : PORT_NET_EXTERNAL,
+	       cell == EW || cell == IW };
+}
+
+static const char* port_net_type_name(NetNet::Type type)
+{
+      if (wire_or_tri_type(type)) return "wire/tri";
+      if (type == NetNet::UNRESOLVED_WIRE) return "uwire";
+      if (type == NetNet::TRI0) return "tri0";
+      if (type == NetNet::TRI1) return "tri1";
+      if (type == NetNet::WAND || type == NetNet::TRIAND)
+	    return "wand/triand";
+      if (type == NetNet::WOR || type == NetNet::TRIOR)
+	    return "wor/trior";
+      if (type == NetNet::SUPPLY0) return "supply0";
+      if (type == NetNet::SUPPLY1) return "supply1";
+      return "unsupported";
+}
+
+/* Recover the public/read side when l-value elaboration has returned the raw
+ * side of an outer declaration-delay domain. Dominance links always point
+ * outwards, so following them cannot re-enter a child scope. */
+static NetNet* delay_public_net(NetNet*net)
+{
+      set<NetNet*>seen;
+      while (NetNet*next = net->net_delay_public()) {
+	    if (next == net)
+		  break;
+	    ivl_assert(*net, seen.insert(net).second);
+	    net = next;
+      }
+      return net;
+}
+
+static NetNet* delay_driver_net(NetNet*net)
+{
+      set<NetNet*>seen;
+      while (NetNet*next = net->net_delay_driver()) {
+	    ivl_assert(*net, next != net && seen.insert(net).second);
+	    net = next;
+      }
+      return net;
+}
+
+static void delete_net_delay_boundaries(NetNet*net)
+{
+      vector<NetBUFZ*>&boundaries = net->net_delay_boundaries();
+      for (vector<NetBUFZ*>::iterator cur = boundaries.begin();
+	   cur != boundaries.end(); ++cur)
+	    delete *cur;
+      boundaries.clear();
+}
+
+static void delete_net_delay_pull(NetNet*net)
+{
+      set<NetLogic*>pulls;
+      for (Link*cur = net->pin(0).nexus()->first_nlink(); cur;
+	   cur = cur->next_nlink()) {
+	    NetNet*alias = dynamic_cast<NetNet*>(cur->get_obj());
+	    if (!alias || !alias->net_delay_pull())
+		  continue;
+	    pulls.insert(alias->net_delay_pull());
+	    alias->net_delay_pull(0);
+      }
+      for (set<NetLogic*>::iterator cur = pulls.begin(); cur != pulls.end(); ++cur)
+	    delete *cur;
+}
+
+/* Pull tracking belongs to the simulated-net domain, not to a particular
+ * signal alias. Move its single ownership marker to the public representative
+ * after a legal collapse, while leaving the already-connected NetLogic on the
+ * raw/public nexus where it resolves. */
+static void move_net_delay_pull(NetNet*from, NetNet*to)
+{
+      NetLogic*pull = 0;
+      for (Link*cur = from->pin(0).nexus()->first_nlink(); cur;
+	   cur = cur->next_nlink()) {
+	    NetNet*alias = dynamic_cast<NetNet*>(cur->get_obj());
+	    if (!alias || !alias->net_delay_pull())
+		  continue;
+	    if (!pull)
+		  pull = alias->net_delay_pull();
+	    else
+		  ivl_assert(*alias, pull == alias->net_delay_pull());
+	    alias->net_delay_pull(0);
+      }
+      if (pull)
+	    to->net_delay_pull(pull);
+}
+
+/* An undelayed TRI0/TRI1 normally carries its default pull implicitly in the
+ * NetNet type. Port collapsing must retype every alias to the one dominating
+ * simulated-net storage type, so first materialize exactly one explicit pull
+ * on that nexus. Simple, uncollapsed tri0/tri1 declarations retain their
+ * original target/VPI type. Delayed tri nets are already explicit on raw. */
+static void canonicalize_nettype_pull(Design*des, NetNet*net,
+				      NetNet::Type declared)
+{
+      if (declared != NetNet::TRI0 && declared != NetNet::TRI1)
+	    return;
+
+      move_net_delay_pull(net, net);
+      if (net->net_delay_pull())
+	    return;
+
+      NetLogic::TYPE pull_type = declared == NetNet::TRI1
+	    ? NetLogic::PULLUP : NetLogic::PULLDOWN;
+      NetLogic*pull = new NetLogic(net->scope(), net->scope()->local_symbol(),
+				    1, pull_type, net->vector_width());
+      pull->set_line(*net);
+      pull->pin(0).drive0(IVL_DR_PULL);
+      pull->pin(0).drive1(IVL_DR_PULL);
+      des->add_node(pull);
+      connect(net->pin(0), pull->pin(0));
+      net->net_delay_pull(pull);
+}
+
+static NetNet::Type simulated_net_storage_type(NetNet::Type declared,
+					       NetNet::Type actual)
+{
+      if (declared == NetNet::TRI0 || declared == NetNet::TRI1)
+	    return NetNet::TRI;
+      if (declared == NetNet::SUPPLY0 || declared == NetNet::SUPPLY1)
+	    return NetNet::WIRE;
+      return actual;
+}
+
+static void set_nexus_simulated_net_type(NetNet*net, NetNet::Type actual,
+					 NetNet::Type declared)
+{
+      for (Link*cur = net->pin(0).nexus()->first_nlink(); cur;
+	   cur = cur->next_nlink()) {
+	    NetNet*alias = dynamic_cast<NetNet*>(cur->get_obj());
+	    if (!alias)
+		  continue;
+	    alias->type(actual);
+	    alias->net_delay_declared_type(declared);
+      }
+}
+
+/* A public nexus can contain aliases from lower hierarchy levels. Record the
+ * dominating outer delay domain on every signal identity, not merely the
+ * immediate formal port, so a later hierarchical l-value cannot bypass the
+ * raw resolver. Existing behavioral drivers are moved to the raw nexus;
+ * future drivers follow net_delay_driver() during l-value elaboration. */
+static void adopt_outer_delay_domain(NetNet*inner, NetNet*outer_public,
+				     NetNet*outer_raw)
+{
+      vector<NetNet*>aliases;
+      vector<Link*>drivers;
+      for (Link*cur = inner->pin(0).nexus()->first_nlink(); cur;
+	   cur = cur->next_nlink()) {
+	    if (NetNet*net = dynamic_cast<NetNet*>(cur->get_obj())) {
+		  aliases.push_back(net);
+		  continue;
+	    }
+	    if (cur->get_dir() == Link::OUTPUT)
+		  drivers.push_back(cur);
+      }
+
+      for (vector<Link*>::iterator cur = drivers.begin();
+	   cur != drivers.end(); ++cur) {
+	    (*cur)->unlink();
+	    connect(outer_raw->pin(0), **cur);
+      }
+      for (vector<NetNet*>::iterator cur = aliases.begin();
+	   cur != aliases.end(); ++cur) {
+	    (*cur)->net_delay_driver(outer_raw);
+	    (*cur)->net_delay_public(outer_public);
+      }
+}
+
+/* Rehome an internal-dominating declaration delay onto an anonymous raw net
+ * in the external scope. This preserves Table 23-1 semantics without ever
+ * storing a downward pointer from a shared external NetNet to one particular
+ * module instance. Multiple later port connections therefore see one stable
+ * external simulated-net domain, independent of elaboration order. */
+static void install_internal_delay_on_external(Design*des, NetNet*port,
+					       NetNet*outer_public)
+{
+      ivl_assert(*port, !port->net_delay_boundaries().empty());
+      NetBUFZ*source = port->net_delay_boundaries().front();
+      const NetExpr*rise = source->rise_time();
+      const NetExpr*fall = source->fall_time();
+      const NetExpr*decay = source->decay_time();
+      bool per_bit = source->per_bit_delay();
+      bool whole_vector = source->whole_vector_delay();
+      NetNet*inner_raw = delay_driver_net(port);
+
+      NetNet*outer_raw = 0;
+      delete_net_delay_pull(outer_public);
+      if (!outer_public->net_delay_boundaries().empty()) {
+	    outer_raw = delay_driver_net(outer_public);
+	    delete_net_delay_boundaries(outer_public);
+      } else {
+	    outer_raw = new NetNet(outer_public->scope(),
+				  outer_public->scope()->local_symbol(),
+				  inner_raw->type(), outer_public->net_type());
+	    outer_raw->set_line(*port);
+	    outer_raw->local_flag(false);
+	    adopt_outer_delay_domain(outer_public, outer_public, outer_raw);
+      }
+
+      NetNet::Type declared_type = port->net_delay_declared_type();
+      NetNet::Type storage_type = simulated_net_storage_type(
+	    declared_type, inner_raw->type());
+      set_nexus_simulated_net_type(outer_public, storage_type, declared_type);
+      set_nexus_simulated_net_type(port, storage_type, declared_type);
+      set_nexus_simulated_net_type(inner_raw, storage_type, declared_type);
+      outer_raw->type(storage_type);
+      outer_raw->net_delay_declared_type(declared_type);
+
+      delete_net_delay_boundaries(port);
+      connect(inner_raw->pin(0), outer_raw->pin(0));
+      inner_raw->net_delay_public(outer_public);
+      adopt_outer_delay_domain(port, outer_public, outer_raw);
+      connect(port->pin(0), outer_public->pin(0));
+
+      NetBUFZ*boundary = new NetBUFZ(outer_public->scope(),
+				      outer_public->scope()->local_symbol(),
+				      outer_public->vector_width(), true);
+      boundary->set_line(*port);
+      boundary->rise_time(rise);
+      boundary->fall_time(fall);
+      boundary->decay_time(decay);
+      boundary->per_bit_delay(per_bit);
+      boundary->whole_vector_delay(whole_vector);
+      des->add_node(boundary);
+      outer_public->add_net_delay_boundary(boundary);
+      outer_public->net_delay_driver(outer_raw);
+      outer_public->net_delay_public(outer_public);
+      outer_raw->net_delay_public(outer_public);
+      connect(boundary->pin(1), outer_raw->pin(0));
+      connect(boundary->pin(0), outer_public->pin(0));
+
+      /* A delayed tri0/tri1 or supply net has one explicit pull on INNER_RAW.
+	 * Its ownership marker follows the public simulated-net representative;
+	 * the pull itself remains on the raw side of the delay boundary. */
+      move_net_delay_pull(port, outer_public);
+}
+
+/* Apply Table 23-1 only to a directly collapsible whole-net connection. An
+ * expression/part-select connection is directional and retains independently
+ * declared delays on its two sides. */
+static bool connect_dominated_wire_port(Design*des, const LineInfo&loc,
+					NetNet*port, NetNet*sig)
+{
+      if (port->pin_count() != 1 || sig->pin_count() != 1)
+	    return false;
+      if (sig->local_flag() && !sig->net_delay_public())
+	    return false;
+
+      NetNet*outer_public = delay_public_net(sig);
+      NetNet::Type internal_type = port->net_delay_declared_type();
+      NetNet::Type external_type = outer_public->net_delay_declared_type();
+      port_net_dominance_result_t choice = port_net_dominance(
+	    internal_type, external_type);
+      if (choice.dominance == PORT_NET_UNSUPPORTED)
+	    return false;
+
+      if (choice.warn) {
+	    cerr << loc.get_fileline() << ": warning: Port connection between "
+		 << "internal " << port_net_type_name(internal_type)
+		 << " and external " << port_net_type_name(external_type)
+		 << " nets uses the "
+		 << (choice.dominance == PORT_NET_EXTERNAL
+		     ? "external" : "internal")
+		 << " net type and delay (IEEE 1800-2023 Table 23-1)."
+		 << endl;
+      }
+
+      NetNet*inner_raw = port->net_delay_driver();
+      bool inner_delayed = inner_raw
+	    && !port->net_delay_boundaries().empty();
+      bool outer_delayed = !outer_public->net_delay_boundaries().empty();
+
+	/* The internal net type dominates. Rehome its active delay in the
+	 * external scope, or remove an external delay when the dominating
+	 * internal net has none. */
+      if (choice.dominance == PORT_NET_INTERNAL) {
+	    canonicalize_nettype_pull(des, port, internal_type);
+	    if (inner_delayed) {
+		  install_internal_delay_on_external(des, port, outer_public);
+		  return true;
+	    }
+	    delete_net_delay_pull(outer_public);
+	    if (outer_delayed) {
+		  NetNet*outer_raw = delay_driver_net(outer_public);
+		  delete_net_delay_boundaries(outer_public);
+		  connect(outer_raw->pin(0), outer_public->pin(0));
+		  outer_public->net_delay_driver(0);
+		  outer_public->net_delay_public(0);
+		  outer_raw->net_delay_public(0);
+	    }
+	    NetNet::Type storage_type = simulated_net_storage_type(
+		  internal_type, port->type());
+	    set_nexus_simulated_net_type(port, storage_type, internal_type);
+	    set_nexus_simulated_net_type(outer_public, storage_type,
+					 internal_type);
+	    connect(port->pin(0), outer_public->pin(0));
+	    set_nexus_simulated_net_type(outer_public, storage_type,
+					 internal_type);
+	    move_net_delay_pull(port, outer_public);
+	    return true;
+      }
+
+      canonicalize_nettype_pull(des, outer_public, external_type);
+      NetNet::Type storage_type = simulated_net_storage_type(
+	    external_type, outer_public->type());
+      set_nexus_simulated_net_type(port, storage_type, external_type);
+      if (inner_raw)
+	    set_nexus_simulated_net_type(inner_raw, storage_type, external_type);
+      set_nexus_simulated_net_type(outer_public, storage_type, external_type);
+
+      if (inner_delayed) {
+	    delete_net_delay_boundaries(port);
+      }
+      delete_net_delay_pull(port);
+
+      if (outer_delayed) {
+	    NetNet*outer_raw = delay_driver_net(outer_public);
+	    ivl_assert(*port, outer_raw != outer_public);
+
+	    if (inner_raw) {
+		  connect(inner_raw->pin(0), outer_raw->pin(0));
+		  inner_raw->net_delay_public(outer_public);
+	    } else {
+		  adopt_outer_delay_domain(port, outer_public, outer_raw);
+	    }
+	    port->net_delay_driver(outer_raw);
+	    port->net_delay_public(outer_public);
+	    connect(port->pin(0), outer_public->pin(0));
+	    set_nexus_simulated_net_type(outer_public, storage_type, external_type);
+	    move_net_delay_pull(outer_public, outer_public);
+	    return true;
+      }
+
+	/* The external net has no delay, so the internal boundary is
+	 * dominated away. Collapse its raw and public sides before making the
+	 * ordinary port connection. Any lower-scope redirects still land on the
+	 * same resulting nexus and are therefore harmless. */
+      if (inner_raw) {
+	    connect(inner_raw->pin(0), port->pin(0));
+	    port->net_delay_driver(0);
+	    port->net_delay_public(0);
+	    inner_raw->net_delay_public(0);
+      }
+      connect(port->pin(0), outer_public->pin(0));
+      set_nexus_simulated_net_type(outer_public, storage_type, external_type);
+      move_net_delay_pull(outer_public, outer_public);
+      return true;
 }
 
 void elaborate_unpacked_port(Design *des, NetScope *scope, NetNet *port_net,
@@ -3973,8 +4421,11 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	      // even multiple of the instance count.
 	    ivl_assert(*this, prts_vector_width % instance.size() == 0);
 
+	    NetNet*coercion_net = !prts.empty() ? prts[0] : 0;
+	    while (coercion_net && coercion_net->net_delay_driver())
+		  coercion_net = coercion_net->net_delay_driver();
 	    if (!prts.empty() && (prts[0]->port_type() == NetNet::PINPUT)
-	        && prts[0]->pin(0).nexus()->drivers_present()
+	        && coercion_net->pin(0).nexus()->drivers_present()
 	        && pins[idx]->is_collapsible_net(des, scope,
 	                                         prts[0]->port_type())) {
                   prts[0]->port_type(NetNet::PINOUT);
@@ -3985,7 +4436,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
 	    if (!prts.empty() && (prts[0]->port_type() == NetNet::POUTPUT)
 	        && (prts[0]->type() != NetNet::REG)
-	        && prts[0]->pin(0).nexus()->has_floating_input()
+	        && coercion_net->pin(0).nexus()->has_floating_input()
 	        && pins[idx]->is_collapsible_net(des, scope,
 	                                         prts[0]->port_type())) {
                   prts[0]->port_type(NetNet::PINOUT);
@@ -4481,13 +4932,22 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		    // that are a delay path destination, to avoid
 		    // the delay being applied to other drivers of
 		    // the external signal.
-		  if (prts[0]->delay_paths() > 0 || (gn_interconnect_flag == true && ptype == NetNet::POUTPUT)) {
+		  if ((gn_dumpports_flag && ptype == NetNet::PINOUT) ||
+		      prts[0]->delay_paths() > 0 ||
+		      (gn_interconnect_flag == true && ptype == NetNet::POUTPUT)) {
 			  // FIXME improve this for multiple module instances
-			NetScope* inner_scope = scope->instance_arrays[get_name()][0];
+			NetScope* inner_scope = prts[0]->scope();
 
-			isolate_and_connect(des, inner_scope, this, prts[0], sig, ptype, gn_interconnect_flag ? idx : -1);
+			isolate_and_connect(des, inner_scope, this, prts[0], sig,
+			                    ptype, ptype == NetNet::PINOUT ? idx :
+			                    (gn_interconnect_flag ? idx : -1));
 		  } else {
-			connect(prts[0]->pin(0), sig->pin(0));
+			NetNet*formal = prts[0];
+			if (connect_dominated_wire_port(des, *this, formal, sig))
+			      continue;
+			if (ptype == NetNet::PINPUT && formal->net_delay_driver())
+			      formal = delay_driver_net(formal);
+			connect(formal->pin(0), sig->pin(0));
 		  }
 
 	    } else if (sig->vector_width()==prts_vector_width/instance.size()
@@ -4508,7 +4968,13 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			if (prts[ldx]->delay_paths() > 0) {
 			      isolate_and_connect(des, scope, this, prts[ldx], sig, ptype);
 			} else {
-			      connect(prts[ldx]->pin(0), sig->pin(0));
+			      NetNet*formal = prts[ldx];
+			      if (connect_dominated_wire_port(des, *this,
+							 formal, sig))
+				    continue;
+			      if (ptype == NetNet::PINPUT && formal->net_delay_driver())
+				    formal = delay_driver_net(formal);
+			      connect(formal->pin(0), sig->pin(0));
 			}
 		  }
 
@@ -4539,6 +5005,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  for (unsigned ldx = 0, spin = 0 ;
 		       ldx < prts.size() ;  ldx += 1) {
 			NetNet*sp = prts[prts.size()-ldx-1];
+			if (sp->net_delay_driver())
+			      sp = delay_driver_net(sp);
 			NetPartSelect*ptmp = new NetPartSelect(sig, spin,
 							   sp->vector_width(),
 							   NetPartSelect::VP);
@@ -4553,11 +5021,15 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  for (unsigned ldx = 0, spin = 0 ;
 		       ldx < prts.size() ;  ldx += 1) {
 			NetNet*sp = prts[prts.size()-ldx-1];
-			NetTran*ttmp = new NetTran(scope,
-			                           scope->local_symbol(),
+			NetScope*tran_scope = gn_dumpports_flag ? sp->scope() : scope;
+			NetTran*ttmp = new NetTran(tran_scope,
+			                           tran_scope->local_symbol(),
 			                           sig->vector_width(),
 			                           sp->vector_width(),
-			                           spin);
+			                           spin,
+			                           gn_dumpports_flag ? (int)idx : -1,
+			                           gn_dumpports_flag
+			                             ? (int)(prts.size()-ldx-1) : -1);
 			ttmp->set_line(*this);
 			des->add_node(ttmp);
 			connect(ttmp->pin(0), sig->pin(0));
@@ -5080,6 +5552,13 @@ NetExpr* PAssign_::elaborate_rval_(Design*des, NetScope*scope,
 	// stream is left-aligned in the target — a narrower target is
 	// an error, a wider one is zero-filled on the right.
       if (const PEStreaming*st = dynamic_cast<const PEStreaming*>(rval())) {
+	      /* A ranged streaming target has a run-time width even when its
+		 only l-value is a fixed unpacked array.  Such an l-value carries
+		 IVL_VT_NO_TYPE here, so it cannot pass through the packed-vector
+		 branch below; keep the internal stream carrier intact for target
+		 lowering instead of context-elaborating it as the whole array. */
+	    if (st->is_lval_context() && st->is_ranged_lval_context())
+		  return st->elaborate_unpack(des, rval_scope, lv_width);
 	    if (lv_width > 0
 		&& (lv_type == IVL_VT_LOGIC || lv_type == IVL_VT_BOOL)) {
 		  if (st->is_lval_context())
@@ -5263,9 +5742,15 @@ static NetExpr* build_compound_binary_(char op, NetExpr*l, NetExpr*r,
  * remainder after reserving all fixed-size members. Do not let
  * NetAssign_::lwidth()'s compatibility value turn it into a one-bit member.
  */
-static bool streaming_lval_has_dynamic_member_(const NetAssign_*lv)
+/* A `with' member also has a run-time width even when its container is a
+ * fixed unpacked array: the range expressions are evaluated at the member's
+ * left-to-right assignment point.  Both cases therefore need the unbounded
+ * stream carrier rather than ordinary context-width elaboration. */
+static bool streaming_lval_needs_runtime_(const NetAssign_*lv)
 {
       for (const NetAssign_*cur = lv ; cur ; cur = cur->more) {
+	    if (cur->stream_range() != IVL_STREAM_RANGE_NONE)
+		  return true;
 	    ivl_type_t type = cur->lval_type();
 	    if (dynamic_cast<const netdarray_t*>(type)
 		|| dynamic_cast<const netstring_t*>(type))
@@ -5280,7 +5765,8 @@ static uint64_t streaming_lval_fixed_width_(const NetAssign_*lv)
       for (const NetAssign_*cur = lv ; cur ; cur = cur->more) {
 	    ivl_type_t type = cur->lval_type();
 	    if (dynamic_cast<const netdarray_t*>(type)
-		|| dynamic_cast<const netstring_t*>(type))
+		|| dynamic_cast<const netstring_t*>(type)
+		|| cur->stream_range() != IVL_STREAM_RANGE_NONE)
 		  continue;
 	    width += cur->lwidth();
       }
@@ -5567,6 +6053,45 @@ static NetProc* make_uarray_prefix_copy_block_(const LineInfo&loc,
       return block;
 }
 
+/* Copy a constant one-dimensional slice. Blocking assignment first
+ * snapshots an overlapping self-copy so `a[5:3] = a[4:2]' observes the
+ * complete old right-hand side, as every procedural assignment must. A
+ * non-blocking copy needs no extra snapshot: every word's RHS is evaluated
+ * in the active region before any of its scheduled NBA updates can run. */
+static NetProc* make_uarray_signal_range_copy_(NetScope*scope,
+					       const LineInfo&loc,
+					       NetNet*dst_sig, long dst_base,
+					       NetNet*src_sig, long src_base,
+					       unsigned long count,
+					       bool reverse_src,
+					       bool nonblocking)
+{
+      bool overlap = dst_sig == src_sig
+	    && dst_base <= src_base + static_cast<long>(count) - 1
+	    && src_base <= dst_base + static_cast<long>(count) - 1;
+      if (nonblocking || !overlap)
+	    return make_uarray_prefix_copy_block_(
+		  loc, dst_sig, dst_base, src_sig, src_base,
+		  count, reverse_src, nonblocking);
+
+      netranges_t dims;
+      dims.push_back(netrange_t(static_cast<long>(count) - 1, 0));
+      NetNet*tmp = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+			      dims, src_sig->net_type());
+      tmp->local_flag(true);
+      tmp->set_line(loc);
+      if (scope->is_auto())
+	    tmp->lifetime_override(IVL_VLT_AUTOMATIC);
+
+      NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
+      block->set_line(loc);
+      block->append(make_uarray_prefix_copy_block_(
+	    loc, tmp, 0, src_sig, src_base, count, reverse_src, false));
+      block->append(make_uarray_prefix_copy_block_(
+	    loc, dst_sig, dst_base, tmp, 0, count, false, false));
+      return block;
+}
+
 /* Copy a contiguous run of canonical words between two fixed unpacked
  * array signals. This is the aggregate equivalent of the scalar copy loop
  * above, with explicit source and destination bases so a subroutine actual
@@ -5810,17 +6335,9 @@ static bool uarray_copy_shapes_compatible_(const netuarray_t*dst,
       ivl_type_t dst_elem = dst->element_type();
       if (!dst_elem || !src_elem)
 	    return false;
-      if (dst_elem->packed_width() != src_elem->packed_width())
-	    return false;
-
-      ivl_variable_type_t dst_vt = dst_elem->base_type();
-      ivl_variable_type_t src_vt = src_elem->base_type();
-      auto is_vec = [](ivl_variable_type_t vt) {
-	    return vt == IVL_VT_BOOL || vt == IVL_VT_LOGIC;
-      };
-      if (is_vec(dst_vt) && is_vec(src_vt))
-	    return true;
-      return dst_vt == src_vt;
+      return dst_elem == src_elem
+	    || (dst_elem->type_equivalent(src_elem)
+		&& src_elem->type_equivalent(dst_elem));
 }
 
 /* A direct identifier with a constant partial prefix of a fixed unpacked
@@ -5834,6 +6351,7 @@ struct uarray_prefix_source_t {
       unsigned long count = 0;
       netranges_t remaining_dims;
       ivl_type_t element_type = nullptr; // Borrowed from sig.
+      bool range_slice = false;
 };
 
 /* Return 0 when pe is not this shape, 1 on success, and -1 after diagnosing
@@ -5842,6 +6360,21 @@ static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
 					const LineInfo&loc, const PExpr*pe,
 					uarray_prefix_source_t&out)
 {
+      fixed_uarray_slice_t range_slice;
+      int range_rc = decode_fixed_uarray_slice(
+	    des, scope, loc, pe, false, range_slice);
+      if (range_rc < 0)
+	    return -1;
+      if (range_rc > 0) {
+	    out.sig = range_slice.signal;
+	    out.canonical_base = range_slice.canonical_base;
+	    out.count = range_slice.count;
+	    out.remaining_dims.push_back(range_slice.selected_range);
+	    out.element_type = range_slice.element_type;
+	    out.range_slice = true;
+	    return 1;
+      }
+
       const PEIdent*ident = dynamic_cast<const PEIdent*>(pe);
       if (!ident)
 	    return 0;
@@ -6139,7 +6672,7 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 	    dynamic_cast<const PEStreaming*>(rval());
       const bool dynamic_stream_target = stream_rval
 	    && stream_rval->is_lval_context()
-	    && streaming_lval_has_dynamic_member_(lv);
+	    && streaming_lval_needs_runtime_(lv);
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PAssign::elaborate: ";
@@ -6149,15 +6682,15 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 		  cerr << "lv_net_type=<nil>" << endl;
       }
 
-	/* An unbounded member in a streaming target consumes a run-time
-	 * remainder. Preserve the complete source stream in a zero-width
-	 * internal carrier; the VVP target distributes it using the exact
-	 * per-lvalue types. Delayed forms need an unbounded snapshot rather
-	 * than the fixed-vector temporary below and remain loud for now. */
+	/* An unbounded or explicitly ranged member consumes a run-time-sized
+	 * field. Preserve the complete source stream in a zero-width internal
+	 * carrier; the target evaluates ranges and distributes exact fields.
+	 * Delayed forms need an unbounded snapshot rather than the fixed-vector
+	 * temporary below and remain loud for now. */
       if (dynamic_stream_target) {
 	    if (delay_ || event_ || count_) {
 		  cerr << get_fileline() << ": sorry: delayed streaming "
-		       << "assignment to a dynamically sized target is not yet "
+		       << "assignment to a run-time-sized target is not yet "
 		       << "supported (IEEE 1800-2017 11.4.14.4)." << endl;
 		  des->errors += 1;
 		  delete lv;
@@ -6257,7 +6790,11 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 			      return 0;
 			}
 			netuarray_t src_type(src.remaining_dims, src.element_type);
-			if (!lv_uarray->type_equivalent(&src_type)) {
+			bool compatible = src.range_slice
+			      ? uarray_copy_shapes_compatible_(
+				    lv_uarray, src.count, src.element_type)
+			      : lv_uarray->type_equivalent(&src_type);
+			if (!compatible) {
 			      cerr << get_fileline() << ": error: unpacked subarray"
 				   << " types are not equivalent in assignment."
 				   << endl;
@@ -6282,8 +6819,8 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 			      }
 			}
 			delete lv;
-			return make_uarray_prefix_copy_block_(
-			      *this, dst_sig, dst_base, src.sig,
+			return make_uarray_signal_range_copy_(
+			      scope, *this, dst_sig, dst_base, src.sig,
 			      src.canonical_base, src.count, reverse_src, false);
 		  }
 
@@ -6313,7 +6850,9 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 					  return 0;
 				    }
 				    if (!src_type
-					|| !lv_uarray->type_equivalent(src_type)) {
+					|| !uarray_copy_shapes_compatible_(
+					      lv_uarray, sr.net->unpacked_count(),
+					      sr.net->net_type())) {
 					  cerr << get_fileline() << ": error: unpacked"
 					       << " array slice types are not equivalent"
 					       << " in assignment." << endl;
@@ -6335,8 +6874,8 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 				    NetNet*dst_sig = lv->sig();
 				    unsigned long count = sr.net->unpacked_count();
 				    delete lv;
-				    return make_uarray_prefix_copy_block_(
-					  *this, dst_sig, dst_base, sr.net, 0,
+				    return make_uarray_signal_range_copy_(
+					  scope, *this, dst_sig, dst_base, sr.net, 0,
 					  count, reverse_src, false);
 			      }
 
@@ -7011,10 +7550,11 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       if (const PEStreaming*stream =
 	    dynamic_cast<const PEStreaming*>(rval())) {
 	    if (stream->is_lval_context()
-		&& streaming_lval_has_dynamic_member_(lv)) {
+		&& streaming_lval_needs_runtime_(lv)) {
 		  cerr << get_fileline() << ": sorry: non-blocking streaming "
-		       << "assignment to a dynamically sized target needs an "
-		       << "unbounded NBA snapshot and is not yet supported "
+		       << "assignment to a run-time-sized target needs a "
+		       << "snapshot of its receiver, range expressions, and source "
+		       << "stream and is not yet supported "
 		       << "(IEEE 1800-2017 11.4.14.4)." << endl;
 		  des->errors += 1;
 		  delete lv;
@@ -7058,7 +7598,11 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 			      return 0;
 			}
 			netuarray_t src_type(src.remaining_dims, src.element_type);
-			if (!lv_uarray->type_equivalent(&src_type)) {
+			bool compatible = src.range_slice
+			      ? uarray_copy_shapes_compatible_(
+				    lv_uarray, src.count, src.element_type)
+			      : lv_uarray->type_equivalent(&src_type);
+			if (!compatible) {
 			      cerr << get_fileline() << ": error: unpacked subarray"
 				   << " types are not equivalent in assignment."
 				   << endl;
@@ -7082,8 +7626,8 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 			      }
 			}
 			delete lv;
-			return make_uarray_prefix_copy_block_(
-			      *this, dst_sig, dst_base, src.sig,
+			return make_uarray_signal_range_copy_(
+			      scope, *this, dst_sig, dst_base, src.sig,
 			      src.canonical_base, src.count, reverse_src, true);
 		  }
 
@@ -7110,7 +7654,9 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 					  return 0;
 				    }
 				    if (!src_type
-					|| !lv_uarray->type_equivalent(src_type)) {
+					|| !uarray_copy_shapes_compatible_(
+					      lv_uarray, sr.net->unpacked_count(),
+					      sr.net->net_type())) {
 					  cerr << get_fileline() << ": error: unpacked"
 					       << " array slice types are not equivalent"
 					       << " in assignment." << endl;
@@ -7132,8 +7678,8 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 				    NetNet*dst_sig = lv->sig();
 				    unsigned long count = sr.net->unpacked_count();
 				    delete lv;
-				    return make_uarray_prefix_copy_block_(
-					  *this, dst_sig, dst_base, sr.net, 0,
+				    return make_uarray_signal_range_copy_(
+					  scope, *this, dst_sig, dst_base, sr.net, 0,
 					  count, reverse_src, true);
 			      }
 
@@ -7354,9 +7900,38 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
  * get all the error messages out of it. Then, if I detected a failure
  * then pass the failure up.
  */
+static bool scope_is_within_function_(const NetScope*scope)
+{
+      while (scope) {
+	    if (scope->type() == NetScope::FUNC)
+		  return true;
+	    if (scope->type() == NetScope::TASK)
+		  return false;
+	    scope = scope->parent();
+      }
+      return false;
+}
+
 NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
+
+	/* IEEE 1800-2017 13.4.4 allows a function to spawn processes only
+	   with fork...join_none. A blocking join or join_any can suspend the
+	   function, even when all of its current branches happen to be
+	   zero-time. Check the lexical routine scope rather than just the
+	   immediate scope: named begin/fork blocks introduce intervening
+	   BEGIN_END/FORK_JOIN scopes, and a lazily elaborated task must not
+	   inherit a function caller's restriction. */
+      if ((bl_type_ == PBlock::BL_PAR || bl_type_ == PBlock::BL_JOIN_ANY)
+	  && scope_is_within_function_(scope)) {
+	    cerr << get_fileline() << ": error: A fork..."
+		 << (bl_type_ == PBlock::BL_PAR ? "join" : "join_any")
+		 << " statement is not permitted in a function; only "
+		    "fork...join_none is allowed." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
 
       NetBlock::Type type;
       switch (bl_type_) {

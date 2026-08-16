@@ -51,7 +51,7 @@ static void draw_lpm_mux_ab(ivl_lpm_t net, const char*muxz)
             if (data_type_of_nexus(ivl_lpm_q(net)) == IVL_VT_REAL)
                   dly_width = 0;
 
-	    draw_delay(net, dly_width, 0, d_rise, d_fall, d_decay);
+	    draw_delay(net, dly_width, 0, d_rise, d_fall, d_decay, 0, 0);
 	    dly = "/d";
       }
 

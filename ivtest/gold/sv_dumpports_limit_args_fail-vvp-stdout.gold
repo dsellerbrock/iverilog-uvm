@@ -1,0 +1,1 @@
+ERROR: ivltests/sv_dumpports_limit_args_fail.v:2: $dumpportslimit: requires a numeric file size argument

@@ -2835,6 +2835,7 @@ void pform_make_elab_task(const struct vlltype&li,
                           perm_string name,
                           const list<named_pexpr_t> &params)
 {
+      if (name == "$dumpports") gn_dumpports_flag = true;
       PCallTask*elab_task = new PCallTask(name, params);
       FILE_NAME(elab_task, li);
 
@@ -5583,6 +5584,27 @@ void pform_set_data_type(const struct vlltype&li, data_type_t*data_type,
       }
 
       delete wires;
+}
+
+void pform_set_net_delay(const struct vlltype&li, list<PExpr*>*delay,
+			 vector<PWire*>*wires)
+{
+      if (!delay)
+	    return;
+
+      shared_ptr<PDelays> net_delay(new PDelays);
+      net_delay->set_delays(delay, true);
+      delete delay;
+
+      for (vector<PWire*>::iterator cur = wires->begin();
+	   cur != wires->end(); ++cur) {
+	    if (!(*cur)->set_net_delay(net_delay)) {
+		  cerr << li << ": error: Net `" << (*cur)->basename()
+		       << "' has an incompatible or duplicate net delay."
+		       << endl;
+		  error_count += 1;
+	    }
+      }
 }
 
 vector<PWire*>* pform_make_udp_input_ports(list<pform_ident_t>*names)

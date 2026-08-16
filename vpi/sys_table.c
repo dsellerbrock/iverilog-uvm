@@ -33,6 +33,7 @@ extern void sys_fileio_register(void);
 extern void sys_finish_register(void);
 extern void sys_deposit_register(void);
 extern void sys_display_register(void);
+extern void sys_dumpports_register(void);
 extern void sys_plusargs_register(void);
 extern void sys_queue_register(void);
 extern void sys_random_register(void);
@@ -211,6 +212,7 @@ void (*vlog_startup_routines[])(void) = {
       sys_finish_register,
       sys_deposit_register,
       sys_display_register,
+      sys_dumpports_register,
       sys_plusargs_register,
       sys_queue_register,
       sys_random_register,

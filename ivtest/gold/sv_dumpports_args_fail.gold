@@ -1,0 +1,1 @@
+ERROR: ./ivltests/sv_dumpports_args_fail.v:2: $dumpports: a filename with no scope requires a leading comma

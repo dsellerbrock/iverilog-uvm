@@ -24,6 +24,7 @@
 # include  <cstring>
 # include  <map>
 # include  <set>
+# include  <sstream>
 # include  <algorithm>
 # include  "netlist.h"
 # include  "netparray.h"
@@ -715,6 +716,153 @@ void indices_to_expressions(Design*des, NetScope*scope,
 
 	    indices.push_back(word_index);
       }
+}
+
+int decode_fixed_uarray_slice(Design*des, NetScope*scope,
+			      const LineInfo&loc, const PExpr*expr,
+			      bool allow_whole, fixed_uarray_slice_t&out,
+			      bool quiet)
+{
+      const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
+      if (!id || id->path().name.empty())
+	    return 0;
+
+      symbol_search_results sr;
+      bool found = symbol_search(&loc, des, scope, id->path(),
+				 id->lexical_pos(), &sr);
+      if (!found || !sr.net || !sr.path_tail.empty()
+	  || sr.net->unpacked_dimensions() != 1)
+	    return 0;
+
+      const name_component_t&tail = id->path().name.back();
+      const netrange_t&declared = sr.net->unpacked_dims().front();
+      if (tail.index.empty()) {
+	    if (!allow_whole)
+		  return 0;
+	    out.signal = sr.net;
+	    out.canonical_base = 0;
+	    out.count = declared.width();
+	    out.selected_range = declared;
+	    out.element_type = sr.net->net_type();
+	    out.whole = true;
+	    return 1;
+      }
+
+      if (tail.index.size() != 1)
+	    return 0;
+      const index_component_t&select = tail.index.front();
+      if (select.sel != index_component_t::SEL_PART
+	  && select.sel != index_component_t::SEL_IDX_UP
+	  && select.sel != index_component_t::SEL_IDX_DO)
+	    return 0;
+
+      auto report = [&](const string&message) {
+	    if (!quiet) {
+		  cerr << loc.get_fileline() << ": " << message << endl;
+		  des->errors += 1;
+	    }
+      };
+
+      long left = 0;
+      long right = 0;
+      if (select.sel == index_component_t::SEL_PART) {
+	    NetExpr*left_expr = elab_and_eval(des, scope, select.msb,
+					   -1, false);
+	    NetExpr*right_expr = elab_and_eval(des, scope, select.lsb,
+					    -1, false);
+	    bool ok = left_expr && right_expr
+		  && eval_as_long(left, left_expr)
+		  && eval_as_long(right, right_expr);
+	    delete left_expr;
+	    delete right_expr;
+	    if (!ok) {
+		  report("error: unpacked-array slice bounds must be constant "
+			 "integral expressions.");
+		  return -1;
+	    }
+
+	      // A one-element range has no observable direction.
+	    bool declared_ascending = declared.get_msb() < declared.get_lsb();
+	    bool slice_ascending = left < right;
+	    if (left != right && declared_ascending != slice_ascending) {
+		  ostringstream msg;
+		  msg << "error: unpacked-array slice [" << left << ":"
+		      << right << "] has the opposite direction from declared "
+		      << "range [" << declared.get_msb() << ":"
+		      << declared.get_lsb() << "].";
+		  report(msg.str());
+		  return -1;
+	    }
+      } else {
+	    long base = 0;
+	    long width = 0;
+	    NetExpr*base_expr = elab_and_eval(des, scope, select.msb,
+					   -1, false);
+	    NetExpr*width_expr = elab_and_eval(des, scope, select.lsb,
+					    -1, false);
+	    bool base_ok = base_expr && eval_as_long(base, base_expr);
+	    bool width_ok = width_expr && eval_as_long(width, width_expr)
+		  && width > 0;
+	    delete base_expr;
+	    delete width_expr;
+	    if (!width_ok) {
+		  report("error: indexed unpacked-array slice width must be a "
+			 "positive constant integral expression.");
+		  return -1;
+	    }
+	    if (!base_ok) {
+		  report("sorry: a run-time indexed unpacked-array slice is not "
+			 "yet supported; its base must currently be constant.");
+		  return -1;
+	    }
+
+	    long low;
+	    long high;
+	    if (select.sel == index_component_t::SEL_IDX_UP) {
+		  low = base;
+		  if (base > LONG_MAX - (width - 1)) {
+			report("error: indexed unpacked-array slice bounds overflow.");
+			return -1;
+		  }
+		  high = base + width - 1;
+	    } else {
+		  high = base;
+		  if (base < LONG_MIN + width - 1) {
+			report("error: indexed unpacked-array slice bounds overflow.");
+			return -1;
+		  }
+		  low = base - width + 1;
+	    }
+
+	    if (declared.get_msb() < declared.get_lsb()) {
+		  left = low;
+		  right = high;
+	    } else {
+		  left = high;
+		  right = low;
+	    }
+      }
+
+      long low = min(left, right);
+      long high = max(left, right);
+      long declared_low = min(declared.get_msb(), declared.get_lsb());
+      long declared_high = max(declared.get_msb(), declared.get_lsb());
+      if (low < declared_low || high > declared_high) {
+	    ostringstream msg;
+	    msg << "error: unpacked-array slice [" << left << ":" << right
+		<< "] is outside declared range [" << declared.get_msb()
+		<< ":" << declared.get_lsb() << "].";
+	    report(msg.str());
+	    return -1;
+      }
+
+      out.signal = sr.net;
+      out.canonical_base = low - declared_low;
+      out.count = static_cast<unsigned long>(high - low) + 1;
+      out.selected_range = netrange_t(left, right);
+      out.element_type = sr.net->net_type();
+      out.whole = false;
+      return 1;
 }
 
 static void make_strides(const netranges_t&dims, vector<long>&stride)

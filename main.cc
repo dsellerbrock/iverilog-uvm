@@ -110,6 +110,7 @@ bool gn_icarus_misc_flag = true;
 bool gn_cadence_types_flag = true;
 bool gn_specify_blocks_flag = true;
 bool gn_interconnect_flag = true;
+bool gn_dumpports_flag = false;
 bool gn_supported_assertions_flag = true;
 // iverilog-uvm: this default was once flipped to false so concurrent
 // assertions would parse as silent no-ops. That rationale is obsolete:
@@ -1283,6 +1284,11 @@ int main(int argc, char*argv[])
 	    goto errors_summary;
       }
 
+      if (gn_dumpports_flag) {
+            map<string, const char*>::iterator prior = flags.find("DUMPPORTS");
+            if (prior != flags.end()) free((void *)prior->second);
+            flags["DUMPPORTS"] = strdup("1");
+      }
       des->set_flags(flags);
 
       switch(min_typ_max_flag) {

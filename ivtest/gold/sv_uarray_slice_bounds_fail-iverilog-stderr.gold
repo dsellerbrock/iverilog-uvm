@@ -1,0 +1,2 @@
+ivltests/sv_uarray_slice_bounds_fail.v:4: error: unpacked-array slice [8:6] is outside declared range [7:0].
+Elaboration failed

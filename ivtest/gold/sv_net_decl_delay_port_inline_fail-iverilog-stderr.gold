@@ -1,0 +1,12 @@
+ivltests/sv_net_decl_delay_port_inline_fail.v:1: syntax error
+ivltests/sv_net_decl_delay_port_inline_fail.v:1: Errors in port declarations.
+ivltests/sv_net_decl_delay_port_inline_fail.v:2: syntax error
+ivltests/sv_net_decl_delay_port_inline_fail.v:2: Errors in port declarations.
+ivltests/sv_net_decl_delay_port_inline_fail.v:3: syntax error
+ivltests/sv_net_decl_delay_port_inline_fail.v:3: Errors in port declarations.
+ivltests/sv_net_decl_delay_port_inline_fail.v:6: syntax error
+ivltests/sv_net_decl_delay_port_inline_fail.v:6: error: Invalid module item.
+ivltests/sv_net_decl_delay_port_inline_fail.v:10: syntax error
+ivltests/sv_net_decl_delay_port_inline_fail.v:10: error: Invalid module item.
+ivltests/sv_net_decl_delay_port_inline_fail.v:14: syntax error
+ivltests/sv_net_decl_delay_port_inline_fail.v:14: error: Invalid module item.

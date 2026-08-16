@@ -451,6 +451,26 @@ struct __vpiBit {
 
 class vpiPortBitInfo;
 
+struct vpiPortComponentInfo {
+      vpiPortComponentInfo();
+      ~vpiPortComponentInfo();
+
+      unsigned index;
+      unsigned width;
+      const char *name;
+      int left;
+      int right;
+      unsigned fixture_width;
+      unsigned fixture_base;
+      unsigned fixture_drivers;
+      vvp_net_t *fixture_ref;
+      vpiHandle fixture_handle;
+      unsigned dut_width;
+      unsigned dut_drivers;
+      vvp_net_t *dut_ref;
+      vpiHandle dut_handle;
+};
+
 class vpiPortInfo  : public __vpiHandle {
     public:
       vpiPortInfo( __vpiScope *parent,
@@ -466,6 +486,8 @@ class vpiPortInfo  : public __vpiHandle {
       unsigned get_index(void) { return index_; }
       int get_width(void) { return width_; }
       void add_port_bit(vpiPortBitInfo* port_bit) { port_bits_.push_back(port_bit); }
+      void add_evcd_component(vpiPortComponentInfo*component)
+      { evcd_components_.push_back(component); }
 
       int vpi_get(int code) override;
       char* vpi_get_str(int code) override;
@@ -474,6 +496,7 @@ class vpiPortInfo  : public __vpiHandle {
       vpiHandle vpi_iterate(int code) override;
 
       std::vector<vpiPortBitInfo*> port_bits_;
+      std::vector<vpiPortComponentInfo*> evcd_components_;
 
     private:
       __vpiScope *parent_;
@@ -626,6 +649,9 @@ struct __vpiInterModPath : public __vpiHandle {
  */
 
 extern struct __vpiInterModPath* vpip_make_intermodpath(vvp_net_t *net, vpiPortInfo* port1, vpiPortInfo* port2);
+
+/* Reset the bounded loader-side accounting for .port_info/evcd records. */
+extern void vpip_reset_port_info_evcd_budget(void);
 
 /*
  * These methods support the vpi creation of events. The name string

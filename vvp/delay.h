@@ -20,6 +20,10 @@
  */
 
 # include  <stddef.h>
+# include  <list>
+# include  <map>
+# include  <set>
+# include  <vector>
 # include  "vvp_net.h"
 # include  "schedule.h"
 
@@ -43,7 +47,7 @@ class vvp_delay_t {
       vvp_delay_t(vvp_time64_t rise, vvp_time64_t fall, vvp_time64_t decay);
       ~vvp_delay_t();
 
-      vvp_time64_t get_delay(vvp_bit4_t from, vvp_bit4_t to);
+      vvp_time64_t get_delay(vvp_bit4_t from, vvp_bit4_t to) const;
       vvp_time64_t get_min_delay() const;
 
       void set_rise(vvp_time64_t val);
@@ -88,8 +92,24 @@ class vvp_fun_delay  : public vvp_net_fun_t, private vvp_gen_event_s {
 	    struct event_*next;
       };
 
+      struct bit_event_;
+      typedef std::list<struct bit_event_*> bit_event_list_t;
+      typedef std::map<vvp_time64_t, bit_event_list_t> bit_event_map_t;
+      struct bit_event_ {
+	    bit_event_(vvp_time64_t time, unsigned index)
+	    : sim_time(time), bit_index(index), bit4_value(BIT4_X) { }
+
+	    vvp_time64_t sim_time;
+	    unsigned bit_index;
+	    vvp_bit4_t bit4_value;
+	    vvp_scalar_t scalar_value;
+	    bit_event_map_t::iterator bucket;
+	    bit_event_list_t::iterator position;
+      };
+
     public:
-      vvp_fun_delay(vvp_net_t*net, unsigned width, const vvp_delay_t&d);
+      vvp_fun_delay(vvp_net_t*net, unsigned width, const vvp_delay_t&d,
+		    bool per_bit = false, bool whole_vector = false);
       ~vvp_fun_delay() override;
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
@@ -110,17 +130,26 @@ class vvp_fun_delay  : public vvp_net_fun_t, private vvp_gen_event_s {
       void run_run_vec4_(const struct vvp_fun_delay::event_*cur);
       void run_run_vec8_(const struct vvp_fun_delay::event_*cur);
       void run_run_real_(const struct vvp_fun_delay::event_*cur);
+      void recv_vec4_per_bit_(const vvp_vector4_t&bit);
+      void recv_vec8_per_bit_(const vvp_vector8_t&bit);
+      vvp_time64_t whole_vector_delay_(const vvp_vector4_t&bit) const;
+      vvp_time64_t whole_vector_delay_(const vvp_vector8_t&bit) const;
 
     private:
       vvp_net_t*net_;
       vvp_delay_t delay_;
       delay_type_t type_;
       bool initial_; // Indicates if the value is still the initial value.
+      bool per_bit_;
+      bool whole_vector_;
 
       vvp_vector4_t cur_vec4_;
       vvp_vector8_t cur_vec8_;
       double cur_real_;
       vvp_time64_t round_, scale_; // Needed to scale variable time values.
+      bit_event_map_t bit_events_;
+      std::vector<struct bit_event_*> pending_bits_;
+      std::set<vvp_time64_t> wake_times_;
 
       struct event_ *list_;
       void enqueue_(struct event_*cur)
@@ -134,6 +163,9 @@ class vvp_fun_delay  : public vvp_net_fun_t, private vvp_gen_event_s {
 		  list_ = cur;
 	    }
       }
+      struct bit_event_* enqueue_bit_(vvp_time64_t time, unsigned index);
+      void cancel_bit_(struct bit_event_*cur);
+      void arm_wakeup_();
       struct event_* dequeue_(void)
       {
 	    if (list_ == 0)

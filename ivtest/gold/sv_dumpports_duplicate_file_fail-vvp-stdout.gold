@@ -1,0 +1,2 @@
+EVCD info: dumpports file work/sv_dumpports_duplicate_file.evcd opened for output.
+ERROR: ivltests/sv_dumpports_duplicate_file_fail.v:9: $dumpports: filename 'work/sv_dumpports_duplicate_file.evcd' was specified more than once

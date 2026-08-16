@@ -2906,6 +2906,8 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 					       set_data_type_.get());
       }
 
+      NetNet::Type declared_wtype = wtype;
+
 	/* If the net type is supply0 or supply1, replace it
 	   with a simple wire with a pulldown/pullup with supply
 	   strength. In other words, transform:
@@ -2940,6 +2942,23 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	    pull->pin(0).drive1(IVL_DR_SUPPLY);
 	    des->add_node(pull);
 	    wtype = NetNet::WIRE;
+
+      } else if (net_delay()
+		 && (wtype == NetNet::TRI0 || wtype == NetNet::TRI1)) {
+	    /* A delayed tri0/tri1 needs its default pull on the hidden raw
+	     * resolver. Leaving the public signal typed TRI0/TRI1 would create
+	     * an immediate second pull after the delay. Undelayed nets retain
+	     * their declared target/VPI type; a port collapse canonicalizes their
+	     * implicit pull only when nexus retyping is actually required. */
+	    NetLogic::TYPE pull_type = (wtype == NetNet::TRI1)
+		  ? NetLogic::PULLUP : NetLogic::PULLDOWN;
+	    pull = new NetLogic(scope, scope->local_symbol(), 1,
+				pull_type, wid);
+	    pull->set_line(*this);
+	    pull->pin(0).drive0(IVL_DR_PULL);
+	    pull->pin(0).drive1(IVL_DR_PULL);
+	    des->add_node(pull);
+	    wtype = NetNet::TRI;
       }
 
 	// M5-5: GENERIC interface port (`interface i` / `interface.mp
@@ -3047,8 +3066,61 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
       }
       sig->lifetime_override(lifetime_override());
 
+      if (net_delay() || declared_wtype == NetNet::SUPPLY0
+	  || declared_wtype == NetNet::SUPPLY1) {
+	    sig->net_delay_declared_type(declared_wtype);
+	    if (pull)
+		  sig->net_delay_pull(pull);
+      }
+
+      NetNet*delay_driver = sig;
+      if (const PDelays*net_delay = this->net_delay()) {
+	    NetExpr*rise_expr = 0;
+	    NetExpr*fall_expr = 0;
+	    NetExpr*decay_expr = 0;
+	    net_delay->eval_delays(des, scope, rise_expr, fall_expr,
+				   decay_expr, true);
+
+	    if (rise_expr) {
+		  /* Resolve every driver on a hidden net, then delay the one
+		   * resolved vector that reaches the declared signal. Applying
+		   * this delay to each driver independently changes multi-driver
+		   * behavior and is not a declaration delay (1800-2023 10.3.3). */
+		  delay_driver = new NetNet(scope, scope->local_symbol(), wtype,
+					    unpacked_dimensions, type);
+		  delay_driver->set_line(*this);
+		  /* This anonymous net is persistent state, not an ephemeral l-value
+		   * view. PGAssign deletes local_flag() l-values after connecting
+		   * them, which would leave net_delay_driver() dangling. */
+		  delay_driver->local_flag(false);
+		  if (wtype == NetNet::WIRE)
+			delay_driver->devirtualize_pins();
+		  if (ivl_discipline_t dis = get_discipline())
+			delay_driver->set_discipline(dis);
+		  sig->net_delay_driver(delay_driver);
+		  sig->net_delay_public(sig);
+		  delay_driver->net_delay_public(sig);
+
+		  bool per_bit = sig->data_type() != IVL_VT_REAL
+			&& !sig->get_scalar();
+		  for (unsigned idx = 0; idx < sig->pin_count(); idx += 1) {
+			NetBUFZ*boundary = new NetBUFZ(
+			      scope, scope->local_symbol(), sig->vector_width(), true);
+			boundary->set_line(*this);
+			boundary->rise_time(rise_expr);
+			boundary->fall_time(fall_expr);
+			boundary->decay_time(decay_expr);
+			boundary->per_bit_delay(per_bit);
+			des->add_node(boundary);
+			sig->add_net_delay_boundary(boundary);
+			connect(boundary->pin(1), delay_driver->pin(idx));
+			connect(boundary->pin(0), sig->pin(idx));
+		  }
+	    }
+      }
+
       if (pull)
-	    connect(sig->pin(0), pull->pin(0));
+	    connect(delay_driver->pin(0), pull->pin(0));
 
       for (unsigned idx = 0 ;  idx < nattrib ;  idx += 1)
 	    sig->attribute(attrib_list[idx].key, attrib_list[idx].val);

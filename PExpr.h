@@ -1633,14 +1633,17 @@ class PEStreaming : public PExpr {
     public:
       enum direction_t { DIR_LSHIFT, DIR_RSHIFT };
       PEStreaming(direction_t dir, PExpr*slice_expr, data_type_t*slice_type,
-                  PExpr*inner, bool lval_context)
+                  PExpr*inner, bool lval_context,
+                  bool ranged_lval_context = false)
       : dir_(dir), slice_expr_(slice_expr), slice_type_(slice_type),
-        inner_(inner), lval_context_(lval_context) {}
+        inner_(inner), lval_context_(lval_context),
+        ranged_lval_context_(ranged_lval_context) {}
       ~PEStreaming() override
           { delete inner_; delete slice_expr_; delete slice_type_; }
       direction_t get_dir() const { return dir_; }
       PExpr* get_inner() const { return inner_; }
       bool is_lval_context() const { return lval_context_; }
+      bool is_ranged_lval_context() const { return ranged_lval_context_; }
       // Release ownership of inner_ so a parse-time rewrite can
       // reparent the expression without a double-delete when the
       // PEStreaming is itself destroyed.
@@ -1690,6 +1693,45 @@ class PEStreaming : public PExpr {
       data_type_t* slice_type_;
       PExpr* inner_;
       bool lval_context_;
+      bool ranged_lval_context_;
+};
+
+/* One streaming operand with the IEEE 1800-2023 11.4.14.4
+ * `with [array_range_expression]' suffix.  This parse node deliberately
+ * owns an arbitrary expression operand; legality is decided only after its
+ * unpacked-array type is known during elaboration. */
+class PEStreamWith : public PExpr {
+    public:
+      PEStreamWith(PExpr*base, ivl_stream_range_t kind,
+                   PExpr*first, PExpr*second)
+      : base_(base), kind_(kind), first_(first), second_(second) {}
+      ~PEStreamWith() override
+          { delete base_; delete first_; delete second_; }
+
+      PExpr* base() const { return base_; }
+      ivl_stream_range_t range_kind() const { return kind_; }
+      PExpr* range_first() const { return first_; }
+      PExpr* range_second() const { return second_; }
+
+      void dump(std::ostream&out) const override;
+      void declare_implicit_nets(LexicalScope*scope,
+                                 NetNet::Type type) override;
+      bool has_aa_term(Design*des, NetScope*scope) const override;
+      void reloc_lexical_pos_bind(bool parameter_context) override;
+      unsigned test_width(Design*des, NetScope*scope,
+                          width_mode_t&mode) override;
+      NetExpr* elaborate_expr(Design*des, NetScope*scope,
+                              unsigned expr_wid,
+                              unsigned flags) const override;
+      NetAssign_* elaborate_lval(Design*des, NetScope*scope,
+                                 bool is_cassign, bool is_force,
+                                 bool is_init = false) const override;
+
+    private:
+      PExpr*base_;
+      ivl_stream_range_t kind_;
+      PExpr*first_;
+      PExpr*second_;
 };
 
 /*

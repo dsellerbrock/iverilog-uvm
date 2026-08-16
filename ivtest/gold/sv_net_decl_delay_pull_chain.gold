@@ -1,0 +1,7 @@
+./ivltests/sv_net_decl_delay_pull_chain.v:45: warning: Port connection between internal supply0 and external supply1 nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_pull_chain.v:46: warning: Port connection between internal supply0 and external supply1 nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_pull_chain.v:47: warning: Port connection between internal supply1 and external supply0 nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_pull_chain.v:48: warning: Port connection between internal supply1 and external supply0 nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_pull_chain.v:52: warning: Port connection between internal supply0 and external supply1 nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_pull_chain.v:53: warning: Port connection between internal supply1 and external supply0 nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+PASSED

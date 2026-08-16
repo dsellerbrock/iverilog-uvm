@@ -611,11 +611,27 @@ static const struct opcode_table_s opcode_table[] = {
       { "%stream/end/l",  of_STREAM_END_L,  2, {OA_BIT1,   OA_BIT2,  OA_NONE} },
       { "%stream/end/r",  of_STREAM_END_R,  2, {OA_BIT1,   OA_BIT2,  OA_NONE} },
       { "%stream/flatten/obj", of_STREAM_FLATTEN_OBJ, 0, {OA_NONE, OA_NONE, OA_NONE} },
+      { "%stream/flatten/obj/with", of_STREAM_FLATTEN_OBJ_WITH, 3, {OA_STRING, OA_BIT1, OA_BIT2} },
       { "%stream/flatten/str", of_STREAM_FLATTEN_STR, 0, {OA_NONE, OA_NONE, OA_NONE} },
+      { "%stream/flatten/vec/with", of_STREAM_FLATTEN_VEC_WITH, 3, {OA_STRING, OA_BIT1, OA_BIT2} },
       { "%stream/pad/min",  of_STREAM_PAD_MIN,  1, {OA_NUMBER, OA_NONE, OA_NONE} },
+      { "%stream/range/mark",of_STREAM_RANGE_MARK,2,{OA_BIT1, OA_BIT2, OA_NONE} },
       { "%stream/split/rem",of_STREAM_SPLIT_REM,1, {OA_NUMBER, OA_NONE, OA_NONE} },
+      { "%stream/store/fixed/down",of_STREAM_STORE_FIXED_DOWN,3,{OA_ARR_PTR,OA_BIT1,OA_BIT2} },
+      { "%stream/store/fixed/index",of_STREAM_STORE_FIXED_INDEX,3,{OA_ARR_PTR,OA_BIT1,OA_BIT2} },
+      { "%stream/store/fixed/range",of_STREAM_STORE_FIXED_RANGE,3,{OA_ARR_PTR,OA_BIT1,OA_BIT2} },
+      { "%stream/store/fixed/up",of_STREAM_STORE_FIXED_UP,3,{OA_ARR_PTR,OA_BIT1,OA_BIT2} },
+      { "%stream/store/prop/fixed/down",of_STREAM_STORE_PROP_FIXED_DOWN,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
+      { "%stream/store/prop/fixed/index",of_STREAM_STORE_PROP_FIXED_INDEX,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
+      { "%stream/store/prop/fixed/range",of_STREAM_STORE_PROP_FIXED_RANGE,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
+      { "%stream/store/prop/fixed/up",of_STREAM_STORE_PROP_FIXED_UP,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
+      { "%stream/take/left",of_STREAM_TAKE_LEFT,1, {OA_NUMBER, OA_NONE, OA_NONE} },
+      { "%stream/take/left/rem",of_STREAM_TAKE_LEFT_REM,1,{OA_NUMBER, OA_NONE, OA_NONE} },
+      { "%stream/take/left/with",of_STREAM_TAKE_LEFT_WITH,3, {OA_STRING, OA_BIT1, OA_BIT2} },
       { "%stream/to/dar",   of_STREAM_TO_DAR,   1, {OA_STRING, OA_NONE, OA_NONE} },
+      { "%stream/to/dar/with",of_STREAM_TO_DAR_WITH,3,{OA_STRING, OA_BIT1, OA_BIT2} },
       { "%stream/to/queue", of_STREAM_TO_QUEUE, 1, {OA_STRING, OA_NONE, OA_NONE} },
+      { "%stream/to/queue/with",of_STREAM_TO_QUEUE_WITH,3,{OA_STRING, OA_BIT1, OA_BIT2} },
       { "%stream/unpack/l", of_STREAM_UNPACK_L, 2, {OA_BIT1,   OA_BIT2,  OA_NONE} },
       { "%stream/unpack/r", of_STREAM_UNPACK_R, 2, {OA_BIT1,   OA_BIT2,  OA_NONE} },
       { "%sub",    of_SUB,    0,  {OA_NONE,     OA_NONE,     OA_NONE} },
@@ -1648,6 +1664,8 @@ void compile_init(void)
 {
       check_opcode_table_order_();
 
+      vpip_reset_port_info_evcd_budget();
+
       sym_vpi = new_symbol_table();
 
       sym_functors = new_symbol_table();
@@ -2296,10 +2314,12 @@ void compile_cmp_wne(char*label, long wid,
 
 
 void compile_delay(char*label, unsigned width,
-                   vvp_delay_t*delay, struct symb_s arg)
+                   vvp_delay_t*delay, struct symb_s arg, bool per_bit,
+		   bool whole_vector)
 {
       vvp_net_t*net = new vvp_net_t;
-      vvp_fun_delay*obj = new vvp_fun_delay(net, width, *delay);
+      vvp_fun_delay*obj = new vvp_fun_delay(net, width, *delay, per_bit,
+					   whole_vector);
       net->fun = obj;
 
       delete delay;
@@ -2311,12 +2331,14 @@ void compile_delay(char*label, unsigned width,
 }
 
 void compile_delay(char*label, unsigned width,
-                   unsigned argc, struct symb_s*argv, bool ignore_decay)
+                   unsigned argc, struct symb_s*argv, bool ignore_decay,
+		   bool per_bit, bool whole_vector)
 {
       vvp_delay_t stub (0, 0, 0);
       if (ignore_decay) stub.set_ignore_decay();
       vvp_net_t*net = new vvp_net_t;
-      vvp_fun_delay*obj = new vvp_fun_delay(net, width, stub);
+      vvp_fun_delay*obj = new vvp_fun_delay(net, width, stub, per_bit,
+					   whole_vector);
       net->fun = obj;
 
       inputs_connect(net, argc, argv);

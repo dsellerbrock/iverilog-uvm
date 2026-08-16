@@ -76,6 +76,21 @@ NetAssign_::~NetAssign_()
 
       delete more;
       delete word_;
+      delete base_;
+      delete stream_range_first_;
+      delete stream_range_second_;
+}
+
+void NetAssign_::set_stream_range(ivl_stream_range_t kind, NetExpr*first,
+                                  NetExpr*second)
+{
+      ivl_assert(*this, stream_range_ == IVL_STREAM_RANGE_NONE);
+      ivl_assert(*this, first);
+      ivl_assert(*this, kind != IVL_STREAM_RANGE_NONE);
+      ivl_assert(*this, (kind == IVL_STREAM_RANGE_INDEX) == (second == 0));
+      stream_range_ = kind;
+      stream_range_first_ = first;
+      stream_range_second_ = second;
 }
 
 string NetAssign_::get_fileline() const

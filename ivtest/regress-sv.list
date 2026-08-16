@@ -768,6 +768,9 @@ sv_macro		normal,-g2009		ivltests
 sv_macro2		normal,-g2009		ivltests gold=sv_macro2.gold
 sv_macro3a		normal,-g2009		ivltests gold=sv_macro3.gold
 sv_macro3b		normal,-g2009		ivltests gold=sv_macro3.gold
+sv_macro_definition_context normal,-g2012	ivltests gold=sv_macro_definition_context.gold
+sv_macro_recursion_limit_fail CE,-g2012	ivltests gold=sv_macro_recursion_limit_fail.gold
+sv_macro_unterminated_string_fail CE,-g2012	ivltests gold=sv_macro_unterminated_string_fail.gold
 sv_nested_container_elem_member normal,-g2012 ivltests
 sv_nested_packed_field_write normal,-g2012 ivltests
 sv_new_array_error	CE,-g2009		ivltests gold=sv_new_array_error.gold
@@ -1260,6 +1263,20 @@ sv_stream_dynamic_target_short normal,-g2012 ivltests gold=sv_stream_dynamic_tar
 sv_stream_dynamic_target_type_fail CE,-g2012 ivltests gold=sv_stream_dynamic_target_type_fail.gold
 sv_stream_dynamic_target_fixed_type_fail CE,-g2012 ivltests gold=sv_stream_dynamic_target_fixed_type_fail.gold
 sv_stream_dynamic_target_static_short_fail CE,-g2012 ivltests gold=sv_stream_dynamic_target_static_short_fail.gold
+sv_stream_dynamic_target_control_fail CE,-g2012 ivltests gold=sv_stream_dynamic_target_control_fail.gold
+sv_stream_dynamic_target_nested_residual_fail normal,-g2012 ivltests gold=sv_stream_dynamic_target_nested_residual_fail.gold
+sv_stream_with_svtests_exact normal,-g2012 ivltests gold=sv_stream_with_svtests_exact.gold
+sv_stream_with_runtime normal,-g2012 ivltests gold=sv_stream_with_runtime.gold
+sv_stream_with_property_order normal,-g2012 ivltests gold=sv_stream_with_property_order.gold
+sv_stream_with_runtime_error normal,-g2012 ivltests gold=sv_stream_with_runtime_error.gold
+sv_stream_with_fixed_linear normal,-g2012 ivltests gold=sv_stream_with_fixed_linear.gold
+sv_stream_with_fixed_limit normal,-g2012 ivltests gold=sv_stream_with_fixed_limit.gold
+sv_stream_with_const_oob_fail CE,-g2012 ivltests gold=sv_stream_with_const_oob_fail.gold
+sv_stream_with_nba_fail CE,-g2012 ivltests gold=sv_stream_with_nba_fail.gold
+sv_stream_with_unbounded_order_fail CE,-g2012 ivltests gold=sv_stream_with_unbounded_order_fail.gold
+sv_stream_with_range_type_fail CE,-g2012 ivltests gold=sv_stream_with_range_type_fail.gold
+sv_stream_with_extreme_const_fail CE,-g2012 ivltests gold=sv_stream_with_extreme_const_fail.gold
+sv_stream_with_syntax_fail CE,-g2012 ivltests gold=sv_stream_with_syntax_fail.gold
 sv_checker_basic normal,-g2012 ivltests
 sv_checker_nested_instance normal,-g2012 ivltests
 sv_checker_bind normal,-g2012 ivltests
@@ -1463,6 +1480,12 @@ sv_uarray_partial_index_copy normal,-g2012 ivltests
 sv_uarray_partial_index_boundary_fail CE,-g2012 ivltests gold=sv_uarray_partial_index_boundary_fail.gold
 sv_uarray_partial_index_driver_fail CE,-g2012 ivltests gold=sv_uarray_partial_index_driver_fail.gold
 sv_uarray_partial_index_type_fail CE,-g2012 ivltests gold=sv_uarray_partial_index_type_fail.gold
+sv_uarray_slice_ops normal,-g2012 ivltests gold=sv_uarray_slice_ops.gold
+sv_uarray_slice_direction_fail CE,-g2012 ivltests gold=sv_uarray_slice_direction_fail.gold
+sv_uarray_slice_bounds_fail CE,-g2012 ivltests gold=sv_uarray_slice_bounds_fail.gold
+sv_uarray_slice_size_fail CE,-g2012 ivltests gold=sv_uarray_slice_size_fail.gold
+sv_uarray_slice_width_fail CE,-g2012 ivltests gold=sv_uarray_slice_width_fail.gold
+sv_uarray_slice_type_fail CE,-g2012 ivltests gold=sv_uarray_slice_type_fail.gold
 sv_force_continuous_driver_order normal,-g2012 ivltests
 sv_uarray_partial_index_oob normal,-g2012 ivltests
 sv_packed_array_elem_pattern normal,-g2012 ivltests
@@ -1749,6 +1772,21 @@ sv_rootless_extern_constraint_missing_fail CE,-g2012 ivltests gold=sv_rootless_e
 sv_rootless_explicit_top_fail CE,-g2012,-s,missing_root ivltests gold=sv_rootless_explicit_top_fail.gold
 sv_rootless_verilog_fail CE,-g2005 ivltests gold=sv_rootless_verilog_fail.gold
 
+# IEEE 1800-2023 EVCD port dumping and controls
+sv_dumpports_runtime normal,-g2012 ivltests gold=sv_dumpports_runtime.gold
+sv_dumpports_multifile normal,-g2012 ivltests gold=sv_dumpports_multifile.gold
+sv_dumpports_limit_prestart normal,-g2012 ivltests gold=sv_dumpports_limit_prestart.gold
+sv_dumpports_finish_pending normal,-g2012 ivltests gold=sv_dumpports_finish_pending.gold
+sv_dumpports_metadata_base normal,-g2012 ivltests gold=sv_dumpports_metadata_base.gold
+sv_dumpports_no_use_inout normal,-g2012 ivltests gold=sv_dumpports_no_use_inout.gold
+sv_dumpports_svtests_21_7 normal,-g2012 ivltests gold=sv_dumpports_svtests_21_7.gold
+sv_dumpports_args_fail RE,-g2012 ivltests gold=sv_dumpports_args_fail.gold
+sv_dumpports_control_args_fail RE,-g2012 ivltests gold=sv_dumpports_control_args_fail.gold
+sv_dumpports_limit_args_fail RE,-g2012 ivltests gold=sv_dumpports_limit_args_fail.gold
+sv_dumpports_duplicate_scope_fail RE,-g2012 ivltests gold=sv_dumpports_duplicate_scope_fail.gold
+sv_dumpports_duplicate_file_fail RE,-g2012 ivltests gold=sv_dumpports_duplicate_file_fail.gold
+sv_dumpports_late_fail RE,-g2012 ivltests gold=sv_dumpports_late_fail.gold
+
 # IEEE 1800-2017 unbounded parameters and code-coverage access functions
 sv_ch20_isunbounded normal,-g2012 ivltests gold=sv_ch20_isunbounded.gold
 sv_ch20_isunbounded_use_fail CE,-g2012 ivltests gold=sv_ch20_isunbounded_use_fail.gold
@@ -1760,3 +1798,19 @@ sv_ch20_coverage_call_fail CE,-g2012 ivltests gold=sv_ch20_coverage_call_fail.go
 
 # Bounded reclamation of completed zero-time named-block activations
 sv_vthread_zero_time_named_reclaim normal,-g2012 ivltests gold=sv_vthread_zero_time_named_reclaim.gold
+
+# IEEE 1800-2017 10.3.3 net declaration delays and 23.3.3.7 port dominance
+sv_net_decl_delay_corpus normal,-g2012 ivltests gold=sv_net_decl_delay_corpus.gold
+sv_net_decl_delay_inertial normal,-g2012 ivltests gold=sv_net_decl_delay_inertial.gold
+sv_net_decl_delay_vector normal,-g2012 ivltests gold=sv_net_decl_delay_vector.gold
+sv_net_decl_delay_ports normal,-g2012 ivltests gold=sv_net_decl_delay_ports.gold
+sv_net_decl_delay_pull_chain normal,-g2012 ivltests gold=sv_net_decl_delay_pull_chain.gold
+sv_net_decl_delay_table normal,-g2012 ivltests gold=sv_net_decl_delay_table.gold
+sv_net_decl_delay_strength normal,-g2012 ivltests gold=sv_net_decl_delay_strength.gold
+sv_net_decl_delay_wide normal,-g2012 ivltests gold=sv_net_decl_delay_wide.gold
+sv_net_decl_delay_invalid_expr_fail CE,-g2012 ivltests gold=sv_net_decl_delay_invalid_expr_fail.gold
+sv_net_decl_delay_port_inline_fail CE,-g2012 ivltests gold=sv_net_decl_delay_port_inline_fail.gold
+
+# IEEE 1800-2017 13.4.4 function fork boundary
+sv_function_fork_join_none normal,-g2012 ivltests gold=sv_function_fork_join_none.gold
+sv_function_fork_blocking_fail CE,-g2012 ivltests gold=sv_function_fork_blocking_fail.gold

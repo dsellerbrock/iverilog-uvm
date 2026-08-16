@@ -42,13 +42,19 @@ using namespace std;
 
 
 resolv_core::resolv_core(unsigned nports, vvp_net_t*net)
-: nports_(nports), net_(net)
+: nports_(nports), net_(net), notify_driver_activity_(false)
 {
       count_functors_resolv += 1;
 }
 
 resolv_core::~resolv_core()
 {
+}
+
+void resolv_core::notify_driver_activity()
+{
+      if (notify_driver_activity_ && net_->fil)
+            net_->fil->notify_driver_activity();
 }
 
 void resolv_core::recv_vec4_pv_(unsigned port, const vvp_vector4_t&bit,
@@ -160,8 +166,10 @@ void resolv_tri::recv_vec8_(unsigned port, const vvp_vector8_t&bit)
                   else
                         out = resolve(out, val_[ip]);
             }
-            if (val_[op].eeq(out))
+            if (val_[op].eeq(out)) {
+                  notify_driver_activity();
                   return;
+            }
             val_[op] = out;
 
             base = next_base;
@@ -247,8 +255,10 @@ void resolv_wired_logic::recv_vec4_(unsigned port, const vvp_vector4_t&bit)
                   else
                         out = wired_logic_math_(out, val_[ip]);
             }
-            if (val_[op].eeq(out))
+            if (val_[op].eeq(out)) {
+                  notify_driver_activity();
                   return;
+            }
             val_[op] = out;
 
             base = next_base;

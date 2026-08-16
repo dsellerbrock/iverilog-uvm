@@ -189,6 +189,8 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".cmp/wne"      { return K_CMP_WNE; }
 ".concat"       { return K_CONCAT; }
 ".concat8"      { return K_CONCAT8; }
+".delay/w"      { return K_DELAY_WHOLE; }
+".delay/v"      { return K_DELAY_VECTOR; }
 ".delay"        { return K_DELAY; }
 ".dff/n"        { return K_DFF_N; }
 ".dff/n/aclr"   { return K_DFF_N_ACLR; }
@@ -230,6 +232,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".part/v"       { return K_PART_V; }
 ".part/v.s"     { return K_PART_V_S; }
 ".port"         { return K_PORT; }
+".port_info/evcd" { return K_PORT_INFO_EVCD; }
 ".port_info"    { return K_PORT_INFO; }
 ".reduce/and"   { return K_REDUCE_AND; }
 ".reduce/or"    { return K_REDUCE_OR; }

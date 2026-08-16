@@ -188,6 +188,19 @@ bool dll_target::make_single_lval_(const LineInfo*li, struct ivl_lval_s*cur, con
 
       cur->width_ = asn->lwidth();
       cur->net_type_ = asn->lval_type();
+      cur->stream_range_ = asn->stream_range();
+      cur->stream_range_first_ = 0;
+      cur->stream_range_second_ = 0;
+      if (asn->stream_range_first()) {
+	    asn->stream_range_first()->expr_scan(this);
+	    cur->stream_range_first_ = expr_;
+	    expr_ = 0;
+      }
+      if (asn->stream_range_second()) {
+	    asn->stream_range_second()->expr_scan(this);
+	    cur->stream_range_second_ = expr_;
+	    expr_ = 0;
+      }
 
       if (asn->sig()) {
 	    cur->type_ = IVL_LVAL_REG;

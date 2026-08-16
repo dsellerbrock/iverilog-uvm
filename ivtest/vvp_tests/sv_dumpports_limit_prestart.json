@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_dumpports_limit_prestart.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_dumpports_limit_prestart"
+}

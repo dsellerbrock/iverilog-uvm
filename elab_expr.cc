@@ -55,6 +55,26 @@
 
 using namespace std;
 
+unsigned PEStreamWith::test_width(Design*des, NetScope*scope,
+                                  width_mode_t&mode)
+{
+      expr_width_ = base_->test_width(des, scope, mode);
+      expr_type_ = base_->expr_type();
+      signed_flag_ = false;
+      min_width_ = expr_width_;
+      return expr_width_;
+}
+
+NetExpr* PEStreamWith::elaborate_expr(Design*des, NetScope*, unsigned,
+                                      unsigned) const
+{
+      cerr << get_fileline() << ": error: a streaming `with' range is only "
+           << "legal on an operand inside a streaming concatenation "
+              "(IEEE 1800-2023 11.4.14.4)." << endl;
+      des->errors += 1;
+      return nullptr;
+}
+
 /* Forward declaration from elaborate.cc — converts a constraint PExpr to
  * Z3 IR string.  value_slots collects caller-scope identifiers that must
  * be evaluated at the call site and substituted as v:N:W at runtime. */
@@ -4050,23 +4070,23 @@ bool elaborate_type_operator_match(Design*des, NetScope*scope,
       return true;
 }
 
-static NetNet* whole_fixed_uarray_signal_(Design*des, NetScope*scope,
-					  const PExpr*expr)
+static bool fixed_uarray_element_types_equivalent_(ivl_type_t left,
+						    ivl_type_t right)
 {
-      const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
-      if (!id || id->path().package || id->path().name.empty()
-	  || !id->path().name.back().index.empty()) return 0;
-      symbol_search_results sr;
-      symbol_search(id, des, scope, id->path(), UINT_MAX, &sr);
-      if (!sr.net || !sr.path_tail.empty()
-	  || sr.net->unpacked_dimensions() != 1) return 0;
-      return sr.net;
+      if (!left || !right)
+	    return false;
+      return left == right
+	    || (left->type_equivalent(right)
+		&& right->type_equivalent(left));
 }
 
-/* Fixed unpacked arrays compare element-by-element (7.4.1). The generic
-   PEIdent r-value path deliberately rejects a whole array, so lower the
-   equality here to packed element reads before either operand reaches it. */
-static bool elaborate_whole_uarray_comparison_(Design*des, NetScope*scope,
+/* Fixed unpacked arrays and slices compare element-by-element (7.4.1,
+   7.4.3). The generic PEIdent r-value path deliberately rejects aggregate
+   array values, so lower equality directly to word reads. Canonical memory
+   words run in increasing numeric-index order; if the selected ranges have
+   opposite directions, reverse the right word order to preserve the
+   language's left-to-right element pairing. */
+static bool elaborate_fixed_uarray_comparison_(Design*des, NetScope*scope,
 					       const PEBComp*pexpr,
 					       unsigned flags,
 					       NetExpr*&result)
@@ -4075,52 +4095,52 @@ static bool elaborate_whole_uarray_comparison_(Design*des, NetScope*scope,
       char op = pexpr->get_op();
       if (op != 'e' && op != 'E' && op != 'w'
 	  && op != 'n' && op != 'N' && op != 'W') return false;
-      NetNet*left_net = whole_fixed_uarray_signal_(des, scope,
-						   pexpr->get_left());
-      NetNet*right_net = whole_fixed_uarray_signal_(des, scope,
-						    pexpr->get_right());
-      if (!left_net && !right_net) return false;
-      if (!left_net || !right_net) {
-	    cerr << pexpr->get_fileline() << ": error: a whole fixed unpacked "
-		 << "array may only be compared with a compatible whole array."
-		 << endl;
+      fixed_uarray_slice_t left;
+      fixed_uarray_slice_t right;
+      int left_rc = decode_fixed_uarray_slice(
+	    des, scope, *pexpr, pexpr->get_left(), true, left);
+      int right_rc = decode_fixed_uarray_slice(
+	    des, scope, *pexpr, pexpr->get_right(), true, right);
+      if (left_rc == 0 && right_rc == 0)
+	    return false;
+      if (left_rc < 0 || right_rc < 0)
+	    return true;
+      if (left_rc == 0 || right_rc == 0) {
+	    cerr << pexpr->get_fileline() << ": error: a fixed unpacked array "
+		 << "or slice may only be compared with a compatible array "
+		 << "or slice." << endl;
 	    des->errors += 1;
 	    return true;
       }
-
-      const netranges_t&ldims = left_net->unpacked_dims();
-      const netranges_t&rdims = right_net->unpacked_dims();
-      if (ldims.size() != 1 || rdims.size() != 1
-	  || ldims[0].get_msb() != rdims[0].get_msb()
-	  || ldims[0].get_lsb() != rdims[0].get_lsb()) {
+      if (left.count != right.count
+	  || !fixed_uarray_element_types_equivalent_(
+		left.element_type, right.element_type)) {
 	    cerr << pexpr->get_fileline() << ": error: fixed unpacked array "
-		 << "comparison requires matching index ranges." << endl;
+		 << "comparison requires equal element counts and equivalent "
+		 << "element types." << endl;
 	    des->errors += 1;
 	    return true;
       }
 
-      long left = ldims[0].get_msb();
-      long right = ldims[0].get_lsb();
-      long step = left <= right ? 1 : -1;
-      unsigned count = (unsigned)ldims[0].width();
+      bool left_ascending = left.selected_range.get_msb()
+	    < left.selected_range.get_lsb();
+      bool right_ascending = right.selected_range.get_msb()
+	    < right.selected_range.get_lsb();
+      bool reverse_right = left_ascending != right_ascending;
+      unsigned count = static_cast<unsigned>(left.count);
       bool equal_op = op == 'e' || op == 'E' || op == 'w';
       for (unsigned k = 0 ; k < count ; k += 1) {
-	    long declared_index = left + step * (long)k;
-	    list<long>indices;
-	    indices.push_back(declared_index);
-	    NetExpr*lidx = normalize_variable_unpacked(left_net, indices);
-	    NetExpr*ridx = normalize_variable_unpacked(right_net, indices);
-	    if (!lidx || !ridx) {
-		  delete lidx;
-		  delete ridx;
-		  delete result;
-		  result = 0;
-		  return true;
-	    }
+	    long left_word = left.canonical_base + static_cast<long>(k);
+	    long right_off = reverse_right
+		  ? static_cast<long>(count - 1 - k)
+		  : static_cast<long>(k);
+	    long right_word = right.canonical_base + right_off;
+	    NetExpr*lidx = make_const_val_s(left_word);
+	    NetExpr*ridx = make_const_val_s(right_word);
 	    lidx->set_line(*pexpr);
 	    ridx->set_line(*pexpr);
-	    NetExpr*l = new NetESignal(left_net, lidx);
-	    NetExpr*r = new NetESignal(right_net, ridx);
+	    NetExpr*l = new NetESignal(left.signal, lidx);
+	    NetExpr*r = new NetESignal(right.signal, ridx);
 	    l->set_line(*pexpr);
 	    r->set_line(*pexpr);
 	    unsigned wid = std::max(l->expr_width(), r->expr_width());
@@ -4178,6 +4198,23 @@ unsigned PEBComp::test_width(Design*des, NetScope*scope, width_mode_t&)
 
 	      return expr_width_;
 	}
+      }
+
+	// Whole fixed arrays and unpacked slices have no scalar expression
+	// width for their operands. The element-wise lowering below handles
+	// them before ordinary PEIdent elaboration; recognize the shape quietly
+	// here so test_width() does not send a range select through the scalar
+	// array-index path and emit "Array cannot be indexed by a range" first.
+      fixed_uarray_slice_t left_slice;
+      fixed_uarray_slice_t right_slice;
+      int left_slice_rc = decode_fixed_uarray_slice(
+	    des, scope, *this, left_, true, left_slice, true);
+      int right_slice_rc = decode_fixed_uarray_slice(
+	    des, scope, *this, right_, true, right_slice, true);
+      if (left_slice_rc != 0 || right_slice_rc != 0) {
+	    l_width_ = 1;
+	    r_width_ = 1;
+	    return expr_width_;
       }
 
 	// The widths of the operands are semi-self-determined. They
@@ -4306,7 +4343,7 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
       ivl_assert(*this, right_);
 
       NetExpr*array_comparison = 0;
-      if (elaborate_whole_uarray_comparison_(des, scope, this, flags,
+      if (elaborate_fixed_uarray_comparison_(des, scope, this, flags,
 						     array_comparison)) {
 	    if (!array_comparison) return 0;
 	    return pad_to_width(array_comparison, expr_wid, false, *this);
@@ -5233,6 +5270,13 @@ NetExpr* PEStreaming::elaborate_unpack(Design*des, NetScope*scope,
 {
       if (!inner_) return nullptr;
 
+      /* An explicit with-range makes the target width a runtime value even
+	 when the source itself is statically sized.  Preserve the internal unpack
+	 carrier so target lowering can evaluate each range at its mandated point
+	 instead of adapting the source to the whole-array l-value width here. */
+      if (ranged_lval_context_)
+	    return elaborate_stream_sfunc(des, scope, 0, 0);
+
 	// Dynamically sized source: consume-from-the-left and the
 	// inverse re-ordering happen at runtime (the sfunc name
 	// carries the unpack operation via lval_context_).
@@ -5302,6 +5346,8 @@ void PEStreaming::collect_operands_(std::vector<PExpr*>&ops) const
  */
 static bool stream_operand_is_dynamic_(Design*des, NetScope*scope, PExpr*op)
 {
+      if (dynamic_cast<PEStreamWith*>(op))
+	    return true;
       if (PECastType*cast = dynamic_cast<PECastType*>(op)) {
 	    ivl_type_t tt = cast->resolve_target_type(des, scope);
 	    if (dynamic_cast<const netdarray_t*>(tt))
@@ -5345,6 +5391,107 @@ bool PEStreaming::stream_is_dynamic(Design*des, NetScope*scope) const
 static NetExpr* elaborate_stream_operand_(Design*des, NetScope*scope,
 					  PExpr*op, const LineInfo*li)
 {
+      if (PEStreamWith*with = dynamic_cast<PEStreamWith*>(op)) {
+	    stream_uarray_op_info_t fixed_info;
+	    bool fixed_have = stream_whole_uarray_operand_(
+		  des, scope, with->base(), fixed_info);
+	    NetExpr*base = fixed_have
+		  ? stream_uarray_concat_(with, fixed_info)
+		  : elaborate_stream_operand_(des, scope, with->base(), li);
+	    if (!base)
+		  return nullptr;
+
+	    ivl_type_t btype = fixed_have ? fixed_info.ua : base->net_type();
+	    const netdarray_t*dar = dynamic_cast<const netdarray_t*>(btype);
+	    const netqueue_t*queue = dynamic_cast<const netqueue_t*>(btype);
+	    if ((!fixed_have && !dar) || (queue && queue->assoc_compat())) {
+		  cerr << with->get_fileline() << ": error: the operand before "
+		       << "streaming `with' must be a one-dimensional unpacked "
+		          "array or queue (IEEE 1800-2023 11.4.14.4)." << endl;
+		  des->errors += 1;
+		  delete base;
+		  return nullptr;
+	    }
+	    ivl_type_t elem = fixed_have ? fixed_info.elem_type
+	                                 : dar->element_type();
+	    if (!elem || !elem->packed() || elem->packed_width() <= 0) {
+		  cerr << with->get_fileline() << ": error: a streaming `with' "
+		       << "array must have fixed-width bit-stream elements." << endl;
+		  des->errors += 1;
+		  delete base;
+		  return nullptr;
+	    }
+
+	    PExpr::width_mode_t rmode = PExpr::SIZED;
+	    with->range_first()->test_width(des, scope, rmode);
+	    ivl_variable_type_t first_type = with->range_first()->expr_type();
+	    if (first_type != IVL_VT_BOOL && first_type != IVL_VT_LOGIC) {
+		  cerr << with->range_first()->get_fileline()
+		       << ": error: streaming `with' range expressions must be "
+		          "integral." << endl;
+		  des->errors += 1;
+		  delete base;
+		  return nullptr;
+	    }
+	    NetExpr*first = elab_and_eval(des, scope, with->range_first(), -1);
+	    if (!first) {
+		  delete base;
+		  return nullptr;
+	    }
+	    NetExpr*second = nullptr;
+	    if (with->range_second()) {
+		  rmode = PExpr::SIZED;
+		  with->range_second()->test_width(des, scope, rmode);
+		  ivl_variable_type_t second_type =
+			with->range_second()->expr_type();
+		  if (second_type != IVL_VT_BOOL && second_type != IVL_VT_LOGIC) {
+			cerr << with->range_second()->get_fileline()
+			     << ": error: streaming `with' range expressions must "
+			        "be integral." << endl;
+			des->errors += 1;
+			delete first;
+			delete base;
+			return nullptr;
+		  }
+		  second = elab_and_eval(des, scope, with->range_second(), -1);
+		  if (!second) {
+			delete first;
+			delete base;
+			return nullptr;
+		  }
+	    }
+
+	    const char*kind = "index";
+	    switch (with->range_kind()) {
+		case IVL_STREAM_RANGE_RANGE: kind = "range"; break;
+		case IVL_STREAM_RANGE_UP:    kind = "up"; break;
+		case IVL_STREAM_RANGE_DOWN:  kind = "down"; break;
+		default: break;
+	    }
+	    char name[160];
+	    if (fixed_have) {
+		  const netranges_t&dims = fixed_info.ua->static_dimensions();
+		  snprintf(name, sizeof name,
+			   "$ivl_stream$withfixed$%s$%ld$%ld$%ld$%c",
+			   kind, dims[0].get_msb(), dims[0].get_lsb(),
+			   elem->packed_width(),
+			   elem->base_type() == IVL_VT_BOOL ? 'b' : 'v');
+	    } else {
+		  snprintf(name, sizeof name, "$ivl_stream$with$%s$%s%c%ld",
+			   kind, elem->get_signed() ? "s" : "",
+			   elem->base_type() == IVL_VT_BOOL ? 'b' : 'v',
+			   elem->packed_width());
+	    }
+	    unsigned nparms = second ? 3 : 2;
+	    NetESFunc*carrier = new NetESFunc(name, IVL_VT_LOGIC, 0, nparms);
+	    carrier->set_line(*with);
+	    carrier->parm(0, base);
+	    carrier->parm(1, first);
+	    if (second)
+		  carrier->parm(2, second);
+	    return carrier;
+      }
+
 	// Casts to dynamic container types elaborate through the
 	// typed path (which handles streaming bases as well).
       if (PECastType*cast = dynamic_cast<PECastType*>(op)) {
@@ -5393,6 +5540,23 @@ static NetExpr* elaborate_stream_operand_(Design*des, NetScope*scope,
 						PExpr::NO_FLAGS);
 		      if (obj) {
 			    ivl_variable_type_t vt = ivl_type_base(obj->net_type());
+			    if (vt == IVL_VT_DARRAY || vt == IVL_VT_QUEUE)
+				  return obj;
+			      delete obj;
+		      }
+		}
+
+		  /* Function calls and other object-valued primaries can return a
+		     queue or dynamic array directly.  Their ordinary expression
+		     elaborator preserves the aggregate result type (NetEUFunc for
+		     a user function), and the object target has a matching evaluator.
+		     This also pins receiver-before-range evaluation for `f() with'. */
+		if (!id) {
+		      NetExpr*obj = op->elaborate_expr(des, scope, w,
+						PExpr::NO_FLAGS);
+		      if (obj) {
+			    ivl_variable_type_t vt = obj->net_type()
+				  ? ivl_type_base(obj->net_type()) : obj->expr_type();
 			    if (vt == IVL_VT_DARRAY || vt == IVL_VT_QUEUE)
 				  return obj;
 			    delete obj;

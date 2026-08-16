@@ -519,6 +519,16 @@ static Statement* pform_stream_lval_assign(const struct vlltype&loc,
                                            PExpr*rhs,
                                            bool nonblock)
 {
+      bool ranged_lval = false;
+      if (lvals) {
+	    for (std::list<PExpr*>::const_iterator cur = lvals->begin();
+		 cur != lvals->end(); ++cur) {
+		  if (dynamic_cast<PEStreamWith*>(*cur)) {
+			ranged_lval = true;
+			break;
+		  }
+	    }
+      }
       PExpr*lhs = pform_stream_operand(loc, lvals);
       if (lhs == 0) {
 	    delete slice_expr;
@@ -529,7 +539,7 @@ static Statement* pform_stream_lval_assign(const struct vlltype&loc,
 	    return noop;
       }
       PEStreaming*rstream = new PEStreaming(dir, slice_expr, slice_type,
-					    rhs, true);
+					    rhs, true, ranged_lval);
       FILE_NAME(rstream, loc);
       Statement*tmp;
       if (nonblock)
@@ -10990,6 +11000,50 @@ expr_primary
 	$$ = tmp;
       }
 	| hierarchy_identifier attribute_list_opt argument_list_parens K_with
+	  '[' expression ']'
+	      { PECallFunction*base = pform_make_call_function(@1, *$1, *$3);
+		delete $1;
+		pform_discard_call_attributes($2);
+		delete $3;
+		PEStreamWith*tmp = new PEStreamWith(base,
+		      IVL_STREAM_RANGE_INDEX, $6, 0);
+		FILE_NAME(tmp, @4);
+		$$ = tmp;
+	      }
+	| hierarchy_identifier attribute_list_opt argument_list_parens K_with
+	  '[' expression ':' expression ']'
+	      { PECallFunction*base = pform_make_call_function(@1, *$1, *$3);
+		delete $1;
+		pform_discard_call_attributes($2);
+		delete $3;
+		PEStreamWith*tmp = new PEStreamWith(base,
+		      IVL_STREAM_RANGE_RANGE, $6, $8);
+		FILE_NAME(tmp, @4);
+		$$ = tmp;
+	      }
+	| hierarchy_identifier attribute_list_opt argument_list_parens K_with
+	  '[' expression K_PO_POS expression ']'
+	      { PECallFunction*base = pform_make_call_function(@1, *$1, *$3);
+		delete $1;
+		pform_discard_call_attributes($2);
+		delete $3;
+		PEStreamWith*tmp = new PEStreamWith(base,
+		      IVL_STREAM_RANGE_UP, $6, $8);
+		FILE_NAME(tmp, @4);
+		$$ = tmp;
+	      }
+	| hierarchy_identifier attribute_list_opt argument_list_parens K_with
+	  '[' expression K_PO_NEG expression ']'
+	      { PECallFunction*base = pform_make_call_function(@1, *$1, *$3);
+		delete $1;
+		pform_discard_call_attributes($2);
+		delete $3;
+		PEStreamWith*tmp = new PEStreamWith(base,
+		      IVL_STREAM_RANGE_DOWN, $6, $8);
+		FILE_NAME(tmp, @4);
+		$$ = tmp;
+	      }
+	| hierarchy_identifier attribute_list_opt argument_list_parens K_with
 	  '(' expression randomize_with_identifier_tail ')'
 	  randomize_constraint_block_opt
 	      { /* Phase 63b/B1 (real impl): capture the with-clause
@@ -11059,6 +11113,42 @@ expr_primary
   /* Phase 63b/B1: no-parens form `q.find with (pred)` — argument
      list is empty.  Captures the with-clause same as the parens
      form above. */
+	| hierarchy_identifier K_with '[' expression ']'
+	      {
+		PEIdent*base = pform_new_ident(@1, *$1);
+		delete $1;
+		PEStreamWith*tmp = new PEStreamWith(base,
+		      IVL_STREAM_RANGE_INDEX, $4, 0);
+		FILE_NAME(tmp, @2);
+		$$ = tmp;
+	      }
+	| hierarchy_identifier K_with '[' expression ':' expression ']'
+	      {
+		PEIdent*base = pform_new_ident(@1, *$1);
+		delete $1;
+		PEStreamWith*tmp = new PEStreamWith(base,
+		      IVL_STREAM_RANGE_RANGE, $4, $6);
+		FILE_NAME(tmp, @2);
+		$$ = tmp;
+	      }
+	| hierarchy_identifier K_with '[' expression K_PO_POS expression ']'
+	      {
+		PEIdent*base = pform_new_ident(@1, *$1);
+		delete $1;
+		PEStreamWith*tmp = new PEStreamWith(base,
+		      IVL_STREAM_RANGE_UP, $4, $6);
+		FILE_NAME(tmp, @2);
+		$$ = tmp;
+	      }
+	| hierarchy_identifier K_with '[' expression K_PO_NEG expression ']'
+	      {
+		PEIdent*base = pform_new_ident(@1, *$1);
+		delete $1;
+		PEStreamWith*tmp = new PEStreamWith(base,
+		      IVL_STREAM_RANGE_DOWN, $4, $6);
+		FILE_NAME(tmp, @2);
+		$$ = tmp;
+	      }
 	| hierarchy_identifier K_with '(' expression ')'
 	      { pform_requires_sv(@2, "Method with-clause (no args)");
 		std::list<named_pexpr_t> pt;
@@ -11705,6 +11795,34 @@ expr_primary
 	      tmp->set_with_constraints(std::move(wc));
 	}
 	delete $4;
+	$$ = tmp;
+      }
+  | expr_primary K_with '[' expression ']'
+      {
+	PEStreamWith*tmp = new PEStreamWith($1, IVL_STREAM_RANGE_INDEX,
+	                                    $4, 0);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
+  | expr_primary K_with '[' expression ':' expression ']'
+      {
+	PEStreamWith*tmp = new PEStreamWith($1, IVL_STREAM_RANGE_RANGE,
+	                                    $4, $6);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
+  | expr_primary K_with '[' expression K_PO_POS expression ']'
+      {
+	PEStreamWith*tmp = new PEStreamWith($1, IVL_STREAM_RANGE_UP,
+	                                    $4, $6);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
+  | expr_primary K_with '[' expression K_PO_NEG expression ']'
+      {
+	PEStreamWith*tmp = new PEStreamWith($1, IVL_STREAM_RANGE_DOWN,
+	                                    $4, $6);
+	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
   | expr_primary K_with '(' expression ')'
@@ -13501,21 +13619,15 @@ module_item
 	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
 	      FILE_NAME(data_type, @2);
 	}
+	pform_set_net_delay(@2, $4, $5);
 	pform_set_data_type(@2, data_type, $5, $2, $1);
-	if ($4 != 0) {
-	      yyerror(@2, "sorry: Net delays not supported.");
-	      delete $4;
-	}
 	delete $1;
       }
 
   | attribute_list_opt K_wreal delay3 net_variable_list ';'
       { real_type_t*tmpt = new real_type_t(real_type_t::REAL);
+	pform_set_net_delay(@2, $3, $4);
 	pform_set_data_type(@2, tmpt, $4, NetNet::WIRE, $1);
-	if ($3 != 0) {
-	      yyerror(@3, "sorry: Net delays not supported.");
-	      delete $3;
-	}
 	delete $1;
       }
 
@@ -13540,17 +13652,42 @@ module_item
 	delete $1;
       }
 
-  /* This form doesn't have the range, but does have strengths. This
-     gives strength to the assignment drivers. */
+  /* IEEE 1800-2023 Syntax 6-2 places drive strength immediately after
+     the net type and before the optional data type and delay. A declaration
+     without an initializer has no assignment driver to which the strength
+     applies, but it is nevertheless a legal net declaration. */
 
-  | attribute_list_opt net_type data_type_or_implicit drive_strength net_decl_assigns ';'
-      { data_type_t*data_type = $3;
-        pform_check_net_data_type(@2, $2, $3);
+  | attribute_list_opt net_type drive_strength data_type_or_implicit delay3_opt net_variable_list ';'
+      { data_type_t*data_type = $4;
+        pform_check_net_data_type(@2, $2, $4);
 	if (data_type == 0) {
 	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
 	      FILE_NAME(data_type, @2);
 	}
-	pform_makewire(@2, 0, $4, $5, $2, data_type, $1);
+	pform_set_net_delay(@2, $5, $6);
+	pform_set_data_type(@2, data_type, $6, $2, $1);
+	delete $1;
+      }
+
+  | attribute_list_opt net_type drive_strength data_type_or_implicit delay3_opt net_decl_assigns ';'
+      { data_type_t*data_type = $4;
+        pform_check_net_data_type(@2, $2, $4);
+	if (data_type == 0) {
+	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
+	      FILE_NAME(data_type, @2);
+	}
+	pform_makewire(@2, $5, $3, $6, $2, data_type, $1);
+	delete $1;
+      }
+
+  /* Preserve the historical Icarus extension that placed drive strength
+     after a nonempty data type/range. Restricting the carrier to the
+     nonempty form avoids competing with the standards-order production
+     when the data type is omitted. */
+  | attribute_list_opt net_type data_type_or_implicit_no_opt drive_strength delay3_opt net_decl_assigns ';'
+      { data_type_t*data_type = $3;
+        pform_check_net_data_type(@2, $2, $3);
+	pform_makewire(@2, $5, $4, $6, $2, data_type, $1);
 	delete $1;
       }
 
@@ -15885,7 +16022,8 @@ subroutine_call
 	$$ = tmp;
       }
   | SYSTEM_IDENTIFIER argument_list_parens_opt
-      { PCallTask*tmp = new PCallTask(lex_strings.make($1), *$2);
+	{ if (strcmp($1, "$dumpports") == 0) gn_dumpports_flag = true;
+	PCallTask*tmp = new PCallTask(lex_strings.make($1), *$2);
 	FILE_NAME(tmp,@1);
 	delete[]$1;
 	delete $2;

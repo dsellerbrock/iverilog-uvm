@@ -1,0 +1,22 @@
+macro2 normal ivltests
+macro_args CO,-yivltests ivltests
+macro_comment1 normal ivltests
+macro_comment2 normal ivltests
+macro_comment3 normal ivltests
+macro_comment_multiline normal ivltests
+macro_redefinition normal,-Wmacro-redefinition ivltests gold=macro_redefinition.gold
+macro_replacement normal,-Wmacro-replacement ivltests gold=macro_replacement.gold
+macro_with_args normal ivltests gold=macro_with_args.gold
+pr1912112 normal ivltests gold=pr1912112.gold
+escaped_macro_name normal,-g2009 ivltests gold=escaped_macro_name.gold
+br979 normal,-g2009 ivltests
+br_gh72b normal,-g2009 ivltests gold=br_gh72b.gold
+br_gh72b_fail CE,-g2009 ivltests gold=br_gh72b_fail.gold
+br_gh366 normal,-g2009 ivltests gold=br_gh366.gold
+sv_macro normal,-g2009 ivltests
+sv_macro2 normal,-g2009 ivltests gold=sv_macro2.gold
+sv_macro3a normal,-g2009 ivltests gold=sv_macro3.gold
+sv_macro3b normal,-g2009 ivltests gold=sv_macro3.gold
+sv_macro_definition_context normal,-g2012 ivltests gold=sv_macro_definition_context.gold
+sv_macro_unterminated_string_fail CE,-g2012 ivltests gold=sv_macro_unterminated_string_fail.gold
+sv_macro_recursion_limit_fail CE,-g2012 ivltests gold=sv_macro_recursion_limit_fail.gold

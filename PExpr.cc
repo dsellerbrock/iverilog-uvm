@@ -500,6 +500,43 @@ bool PEConcat::has_aa_term(Design*des, NetScope*scope) const
       return flag;
 }
 
+void PEStreamWith::dump(std::ostream&out) const
+{
+      base_->dump(out);
+      out << " with [";
+      first_->dump(out);
+      switch (kind_) {
+          case IVL_STREAM_RANGE_RANGE: out << ":"; break;
+          case IVL_STREAM_RANGE_UP:    out << "+:"; break;
+          case IVL_STREAM_RANGE_DOWN:  out << "-:"; break;
+          default: break;
+      }
+      if (second_) second_->dump(out);
+      out << "]";
+}
+
+void PEStreamWith::declare_implicit_nets(LexicalScope*scope,
+                                          NetNet::Type type)
+{
+      base_->declare_implicit_nets(scope, type);
+      first_->declare_implicit_nets(scope, type);
+      if (second_) second_->declare_implicit_nets(scope, type);
+}
+
+bool PEStreamWith::has_aa_term(Design*des, NetScope*scope) const
+{
+      return base_->has_aa_term(des, scope)
+          || first_->has_aa_term(des, scope)
+          || (second_ && second_->has_aa_term(des, scope));
+}
+
+void PEStreamWith::reloc_lexical_pos_bind(bool parameter_context)
+{
+      base_->reloc_lexical_pos_bind(parameter_context);
+      first_->reloc_lexical_pos_bind(parameter_context);
+      if (second_) second_->reloc_lexical_pos_bind(parameter_context);
+}
+
 PEEvent::PEEvent(PEEvent::edge_t t, PExpr*e, PExpr*condition)
 : type_(t), expr_(e), condition_(condition)
 {

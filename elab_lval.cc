@@ -45,6 +45,172 @@
 
 using namespace std;
 
+static string stream_int128_text_(__int128 value)
+{
+      if (value == 0) return "0";
+      bool negative = value < 0;
+      unsigned __int128 magnitude = negative
+	    ? (unsigned __int128)(-(value + 1)) + 1
+	    : (unsigned __int128)value;
+      string result;
+      while (magnitude) {
+	    result.push_back(char('0' + magnitude % 10));
+	    magnitude /= 10;
+      }
+      if (negative) result.push_back('-');
+      reverse(result.begin(), result.end());
+      return result;
+}
+
+NetAssign_* PEStreamWith::elaborate_lval(Design*des, NetScope*scope,
+                                          bool is_cassign, bool is_force,
+                                          bool is_init) const
+{
+      NetAssign_*res = base_->elaborate_lval(des, scope, is_cassign,
+                                             is_force, is_init);
+      if (!res)
+	    return nullptr;
+
+      if (res->more) {
+	    cerr << get_fileline() << ": error: the operand before streaming "
+	         << "`with' must be one one-dimensional unpacked array or queue."
+	         << endl;
+	    des->errors += 1;
+	    delete res;
+	    return nullptr;
+      }
+
+      ivl_type_t type = res->lval_type();
+      const netdarray_t*dar = dynamic_cast<const netdarray_t*>(type);
+      const netqueue_t*queue = dynamic_cast<const netqueue_t*>(type);
+      const netuarray_t*fixed = dynamic_cast<const netuarray_t*>(type);
+      bool valid_fixed = fixed && fixed->static_dimensions().size() == 1;
+      if ((!dar && !valid_fixed) || (queue && queue->assoc_compat())) {
+	    cerr << get_fileline() << ": error: the operand before streaming "
+	         << "`with' must be a one-dimensional unpacked array or queue "
+	            "(IEEE 1800-2023 11.4.14.4)." << endl;
+	    des->errors += 1;
+	    delete res;
+	    return nullptr;
+      }
+
+      ivl_type_t elem = dar ? dar->element_type() : fixed->element_type();
+      if (!elem || !elem->packed() || elem->packed_width() <= 0) {
+	    cerr << get_fileline() << ": error: a streaming `with' array must "
+	         << "have fixed-width bit-stream elements." << endl;
+	    des->errors += 1;
+	    delete res;
+	    return nullptr;
+      }
+
+      width_mode_t mode = SIZED;
+      first_->test_width(des, scope, mode);
+      if (first_->expr_type() != IVL_VT_BOOL
+	  && first_->expr_type() != IVL_VT_LOGIC) {
+	    cerr << first_->get_fileline() << ": error: streaming `with' range "
+	         << "expressions must be integral." << endl;
+	    des->errors += 1;
+	    delete res;
+	    return nullptr;
+      }
+      NetExpr*first = elab_and_eval(des, scope, first_, -1);
+      if (!first) {
+	    delete res;
+	    return nullptr;
+      }
+
+      NetExpr*second = nullptr;
+      if (second_) {
+	    mode = SIZED;
+	    second_->test_width(des, scope, mode);
+	    if (second_->expr_type() != IVL_VT_BOOL
+		&& second_->expr_type() != IVL_VT_LOGIC) {
+		  cerr << second_->get_fileline()
+		       << ": error: streaming `with' range expressions must be "
+		          "integral." << endl;
+		  des->errors += 1;
+		  delete first;
+		  delete res;
+		  return nullptr;
+	    }
+	    second = elab_and_eval(des, scope, second_, -1);
+	    if (!second) {
+		  delete first;
+		  delete res;
+		  return nullptr;
+	    }
+      }
+
+      /* Dynamically sized arrays and queues only admit positive indexes;
+	 catch constant violations here and leave variable values for the bounded
+	 runtime check at their single evaluation point. */
+      if (dar) {
+	    const NetEConst*fc = dynamic_cast<const NetEConst*>(first);
+	    const NetEConst*sc = dynamic_cast<const NetEConst*>(second);
+	    bool bad = fc && fc->value().is_defined()
+		  && fc->value().as_long() < 0;
+	    if (kind_ == IVL_STREAM_RANGE_RANGE && sc
+		&& sc->value().is_defined() && sc->value().as_long() < 0)
+		  bad = true;
+	    if ((kind_ == IVL_STREAM_RANGE_UP
+		 || kind_ == IVL_STREAM_RANGE_DOWN) && sc
+		&& sc->value().is_defined() && sc->value().as_long() <= 0)
+		  bad = true;
+	    if (bad) {
+		  cerr << get_fileline() << ": error: a dynamic-array or queue "
+		       << "streaming `with' range requires nonnegative indexes "
+		          "and a positive indexed width." << endl;
+		  des->errors += 1;
+		  delete second;
+		  delete first;
+		  delete res;
+		  return nullptr;
+	    }
+      } else if (fixed) {
+	    const netranges_t&dims = fixed->static_dimensions();
+	    __int128 bound_lo = std::min(dims[0].get_msb(), dims[0].get_lsb());
+	    __int128 bound_hi = std::max(dims[0].get_msb(), dims[0].get_lsb());
+	    const NetEConst*fc = dynamic_cast<const NetEConst*>(first);
+	    const NetEConst*sc = dynamic_cast<const NetEConst*>(second);
+	    if (fc && fc->value().is_defined()
+		&& (!second || (sc && sc->value().is_defined()))) {
+		  __int128 a = fc->value().as_long();
+		  __int128 lo = a, hi = a;
+		  if (kind_ == IVL_STREAM_RANGE_RANGE) {
+			__int128 b = sc->value().as_long();
+			lo = std::min(a, b); hi = std::max(a, b);
+		  } else if (kind_ == IVL_STREAM_RANGE_UP
+			     || kind_ == IVL_STREAM_RANGE_DOWN) {
+			__int128 width = sc->value().as_long();
+			if (width <= 0) {
+			      lo = bound_lo-1;
+			} else if (kind_ == IVL_STREAM_RANGE_UP) {
+			      hi = a + width - 1;
+			} else {
+			      lo = a - width + 1;
+			}
+		  }
+		  if (lo < bound_lo || hi > bound_hi) {
+			cerr << get_fileline() << ": error: streaming `with' "
+			     << "unpack range [" << stream_int128_text_(lo)
+			     << ":" << stream_int128_text_(hi)
+			     << "] is outside fixed array bounds ["
+			     << dims[0].get_msb() << ":" << dims[0].get_lsb()
+			     << "]; only in-range elements would be modified "
+			        "(IEEE 1800-2023 11.4.14.4)." << endl;
+			des->errors += 1;
+			delete second;
+			delete first;
+			delete res;
+			return nullptr;
+		  }
+	    }
+      }
+
+      res->set_stream_range(kind_, first, second);
+      return res;
+}
+
 /* Clocking-block member path rewrites are shared with expression
    elaboration — see rewrite_*_clocking_member_path* in netmisc.cc. */
 
@@ -727,8 +893,14 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	// carries no index, so name_tail.index.size() is 0. Guard on an
 	// empty tail_path so such references fall through to the
 	// class/struct member l-value path below.
+      bool one_dim_range_slice = reg->unpacked_dimensions() == 1
+	    && name_tail.index.size() == 1
+	    && (use_sel == index_component_t::SEL_PART
+		|| use_sel == index_component_t::SEL_IDX_UP
+		|| use_sel == index_component_t::SEL_IDX_DO);
       if (tail_path.empty()
-	  && reg->unpacked_dimensions() > name_tail.index.size()) {
+	  && (reg->unpacked_dimensions() > name_tail.index.size()
+	      || one_dim_range_slice)) {
 	    return elaborate_lval_array_(des, scope, is_force, reg);
       }
 
@@ -1127,6 +1299,45 @@ NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
 		  return 0;
 	    }
 	    NetAssign_*lv = new NetAssign_(reg);
+	    return lv;
+      }
+
+	// A range on the sole unpacked dimension selects a one-dimensional
+	// fixed-array slice (7.4.3/7.4.6), not a packed part-select and not a
+	// single memory word. Carry its canonical low word and presented range
+	// through the same slice l-value representation used by a partial prefix
+	// of a multidimensional array.
+      fixed_uarray_slice_t range_slice;
+      int range_slice_rc = decode_fixed_uarray_slice(
+	    des, scope, *this, this, false, range_slice);
+      if (range_slice_rc < 0)
+	    return 0;
+      if (range_slice_rc > 0) {
+	    ivl_assert(*this, range_slice.signal == reg);
+	    if ((reg->type() == NetNet::UNRESOLVED_WIRE) && !is_force) {
+		  ivl_assert(*this, reg->coerced_to_uwire());
+		  bool overlap = false;
+		  for (unsigned long word = 0;
+		       !overlap && word < range_slice.count; word += 1) {
+			if (reg->test_part_driven(reg->vector_width()-1, 0,
+					  range_slice.canonical_base + word))
+			      overlap = true;
+		  }
+		  if (overlap) {
+			report_mixed_assignment_conflict_("array slice");
+			des->errors += 1;
+			return 0;
+		  }
+	    }
+
+	    netranges_t slice_dims;
+	    slice_dims.push_back(range_slice.selected_range);
+	    ivl_type_t slice_type =
+		  new netuarray_t(slice_dims, range_slice.element_type);
+	    NetEConst*base = make_const_val_s(range_slice.canonical_base);
+	    base->set_line(*this);
+	    NetAssign_*lv = new NetAssign_(reg);
+	    lv->set_array_slice(base, slice_type);
 	    return lv;
       }
 

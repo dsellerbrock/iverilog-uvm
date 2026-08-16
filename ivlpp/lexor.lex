@@ -180,6 +180,16 @@ static int string_enter = 0;
 static int prev_state = 0;
 
 static int ma_parenthesis_level = 0;
+
+/* Keep malformed or recursively expanding input from growing the macro
+ * input stack or doing unbounded replacement work. These limits are high
+ * enough for generated sources, but low enough to fail before flex buffer
+ * allocation becomes a process-wide memory problem. */
+#define MAX_MACRO_EXPANSION_DEPTH 256
+#define MAX_MACRO_EXPANSIONS 1000000UL
+static unsigned macro_expansion_depth = 0;
+static unsigned long macro_expansion_count = 0;
+static int macro_expansion_limit_reported = 0;
 %}
 
 %option stack
@@ -1011,6 +1021,14 @@ static int   def_argo[MAX_DEF_ARG];  /* offset of first character of arg name */
 static int   def_argl[MAX_DEF_ARG];  /* lengths of arg names. */
 static int   def_argd[MAX_DEF_ARG];  /* Offset of default value */
 
+/* State accumulated across physical lines of one macro definition. */
+static char*  define_text = 0;
+static size_t define_cnt = 0;
+static int define_continue_flag = 0;
+static int define_comment_flag = 0;
+static int define_string_flag = 0;
+static int define_invalid_flag = 0;
+
 /*
  * Return a pointer to the start of argument 'arg'. Returned pointers
  * may go stale after a call to def_buf_grow_to_fit.
@@ -1049,6 +1067,13 @@ static void def_buf_grow_to_fit(int length)
 
 static void def_start(void)
 {
+    assert(define_text == 0);
+    define_cnt = 0;
+    define_continue_flag = 0;
+    define_comment_flag = 0;
+    define_string_flag = 0;
+    define_invalid_flag = 0;
+
     def_buf_free = def_buf_size;
     def_argc = 0;
     def_add_arg();
@@ -1218,20 +1243,6 @@ void free_macros(void)
 }
 
 /*
- * The do_define function accumulates the defined value in these
- * variables. When the define is over, the def_finish() function
- * executes the define and clears this text. The define_continue_flag
- * is set if do_define detects that the definition is to be continued
- * on the next line. The define_comment_flag is set when a multi-line comment is
- * active in a define.
- */
-static char*  define_text = 0;
-static size_t define_cnt = 0;
-
-static int define_continue_flag = 0;
-static int define_comment_flag = 0;
-
-/*
  * The do_magic function puts the expansions of magic macros into
  * this buffer and returns its address. It reallocs as needed to
  * fit its whole expansion. Because of this, do_magic is
@@ -1257,56 +1268,66 @@ static int is_id_char(char c)
     return isalnum((int)c) || c == '_' || c == '$';
 }
 
-/*
- * Find an argument, but only if it is not directly preceded by something
- * that would make it part of another simple identifier ([a-zA-Z0-9_$]).
- */
+/* Find an argument token in macro text. Ordinary string literals and
+ * escaped identifiers are indivisible tokens, so a formal name within one
+ * is not substituted. Macro quote operators deliberately leave the
+ * surrounding text visible: that is how `"formal`" requests substitution
+ * while constructing a string literal. */
 static char *find_arg(char*ptr, const char*head, const char*arg)
 {
-    char *cp = ptr;
+    char *cp = (char*)head;
     size_t len = strlen(arg);
+    int in_string = 0;
+    int escaped_identifier = 0;
 
-    while (1) {
-	/* Look for a candidate match, just return if none is found. */
-	cp = strstr(cp, arg);
-	if (!cp) break;
-
-	/* Verify that this match is not in the middle of another identifier. */
-	if ((cp != head && is_id_char(cp[-1])) || is_id_char(cp[len])) {
-	    cp++;
+    while (*cp) {
+	if (in_string) {
+	    if ((cp[0] == '\\') && cp[1]) {
+		cp += 2;
+	    } else {
+		if (*cp == '"') in_string = 0;
+		cp += 1;
+	    }
 	    continue;
 	}
 
-	break;
-    }
-
-    return cp;
-}
-
-/*
- * Returns 1 if the comment continues on the next line
- */
-static int do_define_multiline_comment(char *replace_start,
-				       const char *search_start)
-{
-    char *tail = strstr(search_start, "*/");
-
-    if (!tail) {
-	if (search_start[strlen(search_start) - 1] == '\\') {
-	    define_continue_flag = 1;
-	    define_comment_flag = 1;
-	    *replace_start++ = '\\';
-	} else {
-	    define_comment_flag = 0;
-	    fprintf(stderr, "%s:%u: Unterminated comment in define\n",
-	                    istack->path, istack->lineno+1);
+	if (escaped_identifier) {
+	    if (isspace((unsigned char)*cp)) escaped_identifier = 0;
+	    cp += 1;
+	    continue;
 	}
-	*replace_start = '\0';
-	return 1;
+
+	if (cp[0] == '\\') {
+	    escaped_identifier = 1;
+	    cp += 1;
+	    continue;
+	}
+	if ((cp[0] == '`') && (cp[1] == '`')) {
+	    cp += 2;
+	    continue;
+	}
+	if ((cp[0] == '`') && (cp[1] == '\\') &&
+	    (cp[2] == '`') && (cp[3] == '"')) {
+	    cp += 4;
+	    continue;
+	}
+	if ((cp[0] == '`') && (cp[1] == '"')) {
+	    cp += 2;
+	    continue;
+	}
+	if (*cp == '"') {
+	    in_string = 1;
+	    cp += 1;
+	    continue;
+	}
+
+	if ((cp >= ptr) && (strncmp(cp, arg, len) == 0) &&
+	    (cp == head || !is_id_char(cp[-1])) && !is_id_char(cp[len]))
+	    return cp;
+
+	cp += 1;
     }
-    define_comment_flag = 0;
-    tail += 2;
-    memmove(replace_start, tail, strlen(tail) + 1);
+
     return 0;
 }
 
@@ -1318,39 +1339,111 @@ static int do_define_multiline_comment(char *replace_start,
 static void do_define(void)
 {
     char* cp;
+    char* put;
     char* head;
     char* tail;
+    size_t raw_len;
+    int escaped_identifier = 0;
     int added_cnt;
     int arg;
 
     define_continue_flag = 0;
 
-    /* Are we in an multi-line comment? Look for the end */
-    if (define_comment_flag) {
-	if (do_define_multiline_comment(yytext, yytext))
-	    return;
-    }
-
-    /* Look for comments in the definition, and remove them. */
-    cp = strchr(yytext, '/');
-
-    while (cp && *cp) {
-	if (cp[1] == '/') {
-	    if (cp[strlen(cp) - 1] == '\\') {
-		define_continue_flag = 1;
-		*cp++ = '\\';
+    /* Strip comments while preserving comment-looking text inside a string
+     * literal or escaped identifier. Macro quote (`") and escaped macro
+     * quote (`\`") are operators, not ordinary string delimiters. Token
+     * paste (``) consumes both backticks before the following token is
+     * classified. */
+    raw_len = strlen(yytext);
+    cp = yytext;
+    put = yytext;
+    while (*cp) {
+	if (define_comment_flag) {
+	    if ((cp[0] == '*') && (cp[1] == '/')) {
+		define_comment_flag = 0;
+		cp += 2;
+	    } else {
+		cp += 1;
 	    }
-	    *cp = 0;
-	    break;
-	} else if (cp[1] == '*') {
-	    if (do_define_multiline_comment(cp, cp + 2))
-		break;
-	} else {
-	    cp++;
+	    continue;
 	}
 
-	cp = strchr(cp, '/');
+	if (define_string_flag) {
+	    if ((cp[0] == '\\') && cp[1]) {
+		*put++ = *cp++;
+		*put++ = *cp++;
+	    } else {
+		if (*cp == '"') define_string_flag = 0;
+		*put++ = *cp++;
+	    }
+	    continue;
+	}
+
+	if (escaped_identifier) {
+	    if (isspace((unsigned char)*cp)) escaped_identifier = 0;
+	    *put++ = *cp++;
+	    continue;
+	}
+
+	if (cp[0] == '\\') {
+	    escaped_identifier = 1;
+	    *put++ = *cp++;
+	    continue;
+	}
+
+	if ((cp[0] == '`') && (cp[1] == '`')) {
+	    *put++ = *cp++;
+	    *put++ = *cp++;
+	    continue;
+	}
+
+	if ((cp[0] == '`') && (cp[1] == '\\') &&
+	    (cp[2] == '`') && (cp[3] == '"')) {
+	    *put++ = *cp++;
+	    *put++ = *cp++;
+	    *put++ = *cp++;
+	    *put++ = *cp++;
+	    continue;
+	}
+
+	if ((cp[0] == '`') && (cp[1] == '"')) {
+	    *put++ = *cp++;
+	    *put++ = *cp++;
+	    continue;
+	}
+
+	if (cp[0] == '"') {
+	    define_string_flag = 1;
+	    *put++ = *cp++;
+	    continue;
+	}
+
+	if ((cp[0] == '/') && (cp[1] == '/')) {
+	    if (raw_len && (yytext[raw_len-1] == '\\')) *put++ = '\\';
+	    break;
+	}
+
+	if ((cp[0] == '/') && (cp[1] == '*')) {
+	    define_comment_flag = 1;
+	    cp += 2;
+	    continue;
+	}
+
+	*put++ = *cp++;
     }
+
+    if (define_comment_flag) {
+	if (raw_len && (yytext[raw_len-1] == '\\')) {
+	    *put++ = '\\';
+	} else {
+	    define_comment_flag = 0;
+	    define_invalid_flag = 1;
+	    emit_pathline(istack);
+	    fprintf(stderr, "error: unterminated comment in macro definition.\n");
+	    error_count += 1;
+	}
+    }
+    *put = 0;
 
     /* Trim trailing white space. */
     cp = yytext + strlen(yytext);
@@ -1469,19 +1562,32 @@ static void def_finish(void)
 {
     define_continue_flag = 0;
 
-    if (def_argc <= 0) return;
-
-    if (!define_text) {
-	define_macro(def_argv(0), "", 0, def_argc);
-    } else {
-	define_macro(def_argv(0), define_text, 0, def_argc);
-
-	free(define_text);
-
-	define_text = 0;
-	define_cnt = 0;
+    if (define_string_flag) {
+	emit_pathline(istack);
+	fprintf(stderr, "error: macro text contains an unterminated string literal.\n");
+	error_count += 1;
+	define_invalid_flag = 1;
+    }
+    if (define_comment_flag) {
+	emit_pathline(istack);
+	fprintf(stderr, "error: unterminated comment in macro definition.\n");
+	error_count += 1;
+	define_invalid_flag = 1;
     }
 
+    if (!define_invalid_flag && (def_argc > 0)) {
+	if (!define_text)
+	    define_macro(def_argv(0), "", 0, def_argc);
+	else
+	    define_macro(def_argv(0), define_text, 0, def_argc);
+    }
+
+    free(define_text);
+    define_text = 0;
+    define_cnt = 0;
+    define_comment_flag = 0;
+    define_string_flag = 0;
+    define_invalid_flag = 0;
     def_argc = 0;
 }
 
@@ -1782,6 +1888,32 @@ static void do_expand(int use_args)
 	    return;
 	}
 
+	if (macro_expansion_depth >= MAX_MACRO_EXPANSION_DEPTH) {
+	    emit_pathline(istack);
+	    fprintf(stderr, "error: macro expansion depth exceeds %u.\n",
+	                    MAX_MACRO_EXPANSION_DEPTH);
+	    error_count += 1;
+	    if (do_expand_stringify_flag) {
+		do_expand_stringify_flag = 0;
+		fputc('"', yyout);
+	    }
+	    return;
+	}
+	if (macro_expansion_count >= MAX_MACRO_EXPANSIONS) {
+	    if (!macro_expansion_limit_reported) {
+		emit_pathline(istack);
+		fprintf(stderr, "error: macro expansion count exceeds %lu.\n",
+		                MAX_MACRO_EXPANSIONS);
+		error_count += 1;
+		macro_expansion_limit_reported = 1;
+	    }
+	    if (do_expand_stringify_flag) {
+		do_expand_stringify_flag = 0;
+		fputc('"', yyout);
+	    }
+	    return;
+	}
+
 	if (use_args) {
 	    int tail = 0;
 	    head = exp_buf_size - exp_buf_free;
@@ -1844,6 +1976,8 @@ static void do_expand(int use_args)
 	isp->next = istack;
 	istack->yybs = YY_CURRENT_BUFFER;
 	istack = isp;
+	macro_expansion_depth += 1;
+	macro_expansion_count += 1;
 
 	yy_switch_to_buffer(yy_create_buffer(istack->file, YY_BUF_SIZE));
     } else {
@@ -2188,6 +2322,8 @@ static int load_next_input(void)
 	} else line_mask_flag = 1;
 
 	free(isp->orig_str);
+	assert(macro_expansion_depth > 0);
+	macro_expansion_depth -= 1;
     }
 
     if (isp->stringify_flag) fputc('"', yyout);
@@ -2371,6 +2507,10 @@ void reset_lexor(FILE* out, char* paths[])
      * yyout must already be valid or that fprintf() dereferences a
      * null FILE* and crashes. */
     yyout = out;
+
+    macro_expansion_depth = 0;
+    macro_expansion_count = 0;
+    macro_expansion_limit_reported = 0;
 
     isp = malloc(sizeof(struct include_stack_t));
     isp->next = 0;

@@ -1138,6 +1138,18 @@ extern "C" ivl_expr_t ivl_logic_delay(ivl_net_logic_t net, unsigned transition)
       return net->delay[transition];
 }
 
+extern "C" unsigned ivl_logic_delay_is_per_bit(ivl_net_logic_t net)
+{
+      assert(net);
+      return net->delay_is_per_bit;
+}
+
+extern "C" unsigned ivl_logic_delay_is_whole_vector(ivl_net_logic_t net)
+{
+      assert(net);
+      return net->delay_is_whole_vector;
+}
+
 extern "C" unsigned ivl_logic_width(ivl_net_logic_t net)
 {
       assert(net);
@@ -1900,6 +1912,24 @@ extern "C" ivl_select_type_t ivl_lval_sel_type(ivl_lval_t net)
 {
       assert(net);
       return net->sel_type;
+}
+
+extern "C" ivl_stream_range_t ivl_lval_stream_range(ivl_lval_t net)
+{
+      assert(net);
+      return net->stream_range_;
+}
+
+extern "C" ivl_expr_t ivl_lval_stream_range_first(ivl_lval_t net)
+{
+      assert(net);
+      return net->stream_range_first_;
+}
+
+extern "C" ivl_expr_t ivl_lval_stream_range_second(ivl_lval_t net)
+{
+      assert(net);
+      return net->stream_range_second_;
 }
 
 extern "C" unsigned ivl_lval_width(ivl_lval_t net)
@@ -3666,6 +3696,18 @@ extern "C" unsigned ivl_switch_offset(ivl_switch_t net)
 {
       assert(net);
       return net->offset;
+}
+
+extern "C" int ivl_switch_port_index(ivl_switch_t net)
+{
+      assert(net);
+      return net->port_info_index;
+}
+
+extern "C" int ivl_switch_port_component(ivl_switch_t net)
+{
+      assert(net);
+      return net->port_component_index;
 }
 
 extern "C" ivl_expr_t ivl_switch_delay(ivl_switch_t net, unsigned transition)

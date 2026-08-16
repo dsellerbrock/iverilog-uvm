@@ -1,0 +1,25 @@
+#! /usr/bin/env vvp
+:ivl_version "13.0 (devel)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+S_unit .scope package, "$unit" "$unit" 2 1;
+ .timescale 0 0;
+S_main .scope module, "main" "main" 2 1, 2 1 0, S_unit;
+ .timescale 0 0;
+    .scope S_main;
+T_0 ;
+    %pushi/vec4 0, 0, 8;
+    %ix/load 4, 0, 0;
+    %ix/load 5, 1, 0;
+    %stream/take/left/with "up:v18446744073709551616:0", 4, 5;
+    %pop/vec4 1;
+    %pop/vec4 1;
+    %pushi/vec4 0, 0, 8;
+    %stream/flatten/vec/with "index:v1:-9223372036854775808:9223372036854775807", 4, 5;
+    %pop/vec4 1;
+    %end;
+    .thread T_0;
+:file_names 3;
+    "N/A";
+    "<interactive>";
+    "ivtest/vvp_tests/sv_stream_with_malformed_descriptor.vvp";

@@ -1,0 +1,23 @@
+./ivltests/sv_net_decl_delay_table.v:39: warning: Port connection between internal wand/triand and external wor/trior nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:42: warning: Port connection between internal wand/triand and external tri0 nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:45: warning: Port connection between internal wand/triand and external tri1 nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:48: warning: Port connection between internal wand/triand and external uwire nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:37: warning: Port connection between internal wor/trior and external wand/triand nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:43: warning: Port connection between internal wor/trior and external tri0 nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:46: warning: Port connection between internal wor/trior and external tri1 nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:49: warning: Port connection between internal wor/trior and external uwire nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:38: warning: Port connection between internal tri0 and external wand/triand nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:41: warning: Port connection between internal tri0 and external wor/trior nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:47: warning: Port connection between internal tri0 and external tri1 nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:50: warning: Port connection between internal tri0 and external uwire nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:39: warning: Port connection between internal tri1 and external wand/triand nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:42: warning: Port connection between internal tri1 and external wor/trior nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:45: warning: Port connection between internal tri1 and external tri0 nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:51: warning: Port connection between internal tri1 and external uwire nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:40: warning: Port connection between internal uwire and external wand/triand nets uses the internal net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:43: warning: Port connection between internal uwire and external wor/trior nets uses the internal net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:46: warning: Port connection between internal uwire and external tri0 nets uses the internal net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:49: warning: Port connection between internal uwire and external tri1 nets uses the internal net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:59: warning: Port connection between internal supply0 and external supply1 nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+./ivltests/sv_net_decl_delay_table.v:57: warning: Port connection between internal supply1 and external supply0 nets uses the external net type and delay (IEEE 1800-2023 Table 23-1).
+PASSED

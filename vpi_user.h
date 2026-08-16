@@ -722,6 +722,24 @@ extern void vpip_mcd_rawwrite(PLI_UINT32 mcd, const char*buf, size_t count);
 extern void vpip_count_drivers(vpiHandle ref, unsigned idx,
                                unsigned counts[4]);
 
+/* Register an Icarus-private EVCD wakeup when a resolver input changes even
+   if its resolved value and strength do not. This callback is deliberately
+   separate from the ordinary cbValueChange list. */
+extern vpiHandle vpip_register_driver_activity_cb(p_cb_data data);
+
+/* Return one flattened EVCD module-port component. A concatenated source
+   port has one component per declaration item. For inout components the
+   fixture and DUT handles expose the aggregate driver stream on each side
+   before hierarchy-edge resolution; other directions return null handles. */
+extern int vpip_get_port_component(vpiHandle ref, unsigned idx,
+                                   const char **name, unsigned *width,
+                                   int *left, int *right,
+                                   vpiHandle *fixture,
+                                   unsigned *fixture_base,
+                                   int *fixture_connected,
+                                   vpiHandle *dut,
+                                   int *dut_connected);
+
 /*
  * Stopgap fix for br916. We need to reject any attempt to pass a thread
  * variable to $strobe or $monitor. To do this, we use some private VPI
@@ -751,7 +769,7 @@ extern void vpip_count_drivers(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 6;
+static const PLI_UINT32 vpip_routines_version = 7;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -791,6 +809,10 @@ typedef struct {
     FILE*       (*get_file)(PLI_INT32);
     s_vpi_vecval(*calc_clog2)(vpiHandle);
     void        (*count_drivers)(vpiHandle, unsigned, unsigned [4]);
+    vpiHandle   (*register_driver_activity_cb)(p_cb_data);
+    int         (*get_port_component)(vpiHandle, unsigned, const char**,
+                                      unsigned*, int*, int*, vpiHandle*,
+                                      unsigned*, int*, vpiHandle*, int*);
     void        (*format_strength)(char*, s_vpi_value*, unsigned);
     void        (*make_systf_system_defined)(vpiHandle);
     void        (*mcd_rawwrite)(PLI_UINT32, const char*, size_t);

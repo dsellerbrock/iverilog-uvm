@@ -1,0 +1,2 @@
+./ivltests/sv_macro_recursion_limit_fail.v:5: error: macro expansion depth exceeds 256.
+Preprocessor failed with 1 errors.

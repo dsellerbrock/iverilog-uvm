@@ -1,0 +1,2 @@
+ivltests/sv_uarray_slice_direction_fail.v:4: error: unpacked-array slice [0:2] has the opposite direction from declared range [7:0].
+Elaboration failed

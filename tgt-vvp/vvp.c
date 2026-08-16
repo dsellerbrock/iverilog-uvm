@@ -565,6 +565,7 @@ int target_design(ivl_design_t des)
       draw_module_declarations(des);
 
         /* This causes all structural records to be drawn. */
+      reset_evcd_metadata_budget();
       ivl_design_roots(des, &roots, &nroots);
       for (i = 0; i < nroots; i++)
 	    draw_scope(roots[i], 0);

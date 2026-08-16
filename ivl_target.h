@@ -179,6 +179,17 @@ typedef struct ivl_expr_s     *ivl_expr_t;
 typedef struct ivl_island_s   *ivl_island_t;
 typedef struct ivl_lpm_s      *ivl_lpm_t;
 typedef struct ivl_lval_s     *ivl_lval_t;
+
+/* IEEE 1800 streaming `with [array_range_expression]' selector carried on
+ * one assignment l-value.  NONE is the ordinary unbounded stream operand;
+ * INDEX, RANGE, UP and DOWN correspond to [i], [l:r], [b+:w] and [b-:w]. */
+typedef enum ivl_stream_range_e {
+      IVL_STREAM_RANGE_NONE = 0,
+      IVL_STREAM_RANGE_INDEX,
+      IVL_STREAM_RANGE_RANGE,
+      IVL_STREAM_RANGE_UP,
+      IVL_STREAM_RANGE_DOWN
+} ivl_stream_range_t;
 typedef struct ivl_net_const_s*ivl_net_const_t;
 typedef struct ivl_net_logic_s*ivl_net_logic_t;
 typedef struct ivl_udp_s      *ivl_udp_t;
@@ -1119,6 +1130,13 @@ extern unsigned ivl_logic_lineno(ivl_net_logic_t net);
  *
  * ivl_logic_delay
  *    Logic devices have a delay for each transition (0, 1 and Z).
+ * ivl_logic_delay_is_per_bit
+ *    True when a vector delay is applied independently to each bit. This is
+ *    used for vector net declaration delays, as distinct from a delayed
+ *    continuous assignment to a complete vector.
+ * ivl_logic_delay_is_whole_vector
+ *    True when a continuous-assignment delay selects one rise/fall/turn-off
+ *    delay from the complete vector value (IEEE 1800-2023 10.3.3).
  *
  * ivl_logic_attr (obsolete)
  *    Return the value of a specific attribute, given the key name as
@@ -1186,6 +1204,8 @@ extern ivl_nexus_t ivl_logic_pin(ivl_net_logic_t net, unsigned pin);
 extern unsigned    ivl_logic_pins(ivl_net_logic_t net);
 extern ivl_udp_t   ivl_logic_udp(ivl_net_logic_t net);
 extern ivl_expr_t  ivl_logic_delay(ivl_net_logic_t net, unsigned transition);
+extern unsigned    ivl_logic_delay_is_per_bit(ivl_net_logic_t net);
+extern unsigned    ivl_logic_delay_is_whole_vector(ivl_net_logic_t net);
 extern ivl_drive_t ivl_logic_drive0(ivl_net_logic_t net);
 extern ivl_drive_t ivl_logic_drive1(ivl_net_logic_t net);
 extern unsigned    ivl_logic_width(ivl_net_logic_t net);
@@ -1662,6 +1682,9 @@ extern ivl_expr_t  ivl_lval_idx(ivl_lval_t net);
 extern int         ivl_lval_is_queue_slice(ivl_lval_t net);
 extern ivl_expr_t  ivl_lval_part_off(ivl_lval_t net);
 extern ivl_select_type_t ivl_lval_sel_type(ivl_lval_t net);
+extern ivl_stream_range_t ivl_lval_stream_range(ivl_lval_t net);
+extern ivl_expr_t ivl_lval_stream_range_first(ivl_lval_t net);
+extern ivl_expr_t ivl_lval_stream_range_second(ivl_lval_t net);
 extern int ivl_lval_property_idx(ivl_lval_t net);
 extern ivl_signal_t ivl_lval_sig(ivl_lval_t net);
 extern ivl_lval_t  ivl_lval_nest(ivl_lval_t net);
@@ -2527,6 +2550,11 @@ extern ivl_island_t ivl_switch_island(ivl_switch_t net);
 extern unsigned ivl_switch_width(ivl_switch_t net);
 extern unsigned ivl_switch_part(ivl_switch_t net);
 extern unsigned ivl_switch_offset(ivl_switch_t net);
+/* A hierarchy-isolating tran that preserves EVCD inout-side attribution is
+ * tagged with its zero-based module-port and concatenation-component index.
+ * Ordinary switches return -1 for both properties. */
+extern int ivl_switch_port_index(ivl_switch_t net);
+extern int ivl_switch_port_component(ivl_switch_t net);
 extern ivl_expr_t ivl_switch_delay(ivl_switch_t net, unsigned transition);
 
 /* Not implemented yet

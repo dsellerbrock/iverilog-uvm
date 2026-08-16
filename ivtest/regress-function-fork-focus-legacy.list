@@ -1,0 +1,3 @@
+# IEEE 1800-2017 13.4.4 function fork boundary
+sv_function_fork_join_none normal,-g2012 ivltests gold=sv_function_fork_join_none.gold
+sv_function_fork_blocking_fail CE,-g2012 ivltests gold=sv_function_fork_blocking_fail.gold

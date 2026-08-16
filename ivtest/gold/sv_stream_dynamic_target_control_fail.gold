@@ -1,2 +1,2 @@
-./ivltests/sv_stream_dynamic_target_control_fail.v:7: sorry: non-blocking streaming assignment to a dynamically sized target needs an unbounded NBA snapshot and is not yet supported (IEEE 1800-2017 11.4.14.4).
+./ivltests/sv_stream_dynamic_target_control_fail.v:7: sorry: non-blocking streaming assignment to a run-time-sized target needs a snapshot of its receiver, range expressions, and source stream and is not yet supported (IEEE 1800-2017 11.4.14.4).
 Elaboration failed

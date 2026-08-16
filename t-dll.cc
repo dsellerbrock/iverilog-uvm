@@ -924,6 +924,10 @@ bool dll_target::bufz(const NetBUFZ*net)
       obj->width_= net->width();
       obj->is_cassign = 0;
       obj->is_port_buffer = net->port_info_index() >= 0;
+      obj->delay_is_per_bit = net->per_bit_delay();
+      obj->delay_is_whole_vector = net->whole_vector_delay();
+      ivl_assert(*net, !(obj->delay_is_per_bit
+			 && obj->delay_is_whole_vector));
       obj->npins_= 2;
       obj->pins_ = new ivl_nexus_t[2];
       FILE_NAME(obj, net);
@@ -1238,6 +1242,8 @@ bool dll_target::tran(const NetTran*net)
       obj->width = net->vector_width();
       obj->part = 0;
       obj->offset = 0;
+      obj->port_info_index = net->port_info_index();
+      obj->port_component_index = net->port_component_index();
       obj->name = net->name();
       obj->scope = find_scope(des_, net->scope());
       obj->island = net->get_island();
