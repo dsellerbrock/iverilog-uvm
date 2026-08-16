@@ -684,11 +684,20 @@ extern void compile_class_constraint(char*name, char*ir);
 extern void compile_class_covgrp_bin(uint64_t cp_idx, uint64_t prop_idx,
 				     uint64_t lo, uint64_t hi,
 				     uint64_t kind = 0, uint64_t tuple = 0,
-				     uint64_t item_idx = 0);
+				     uint64_t item_idx = 0,
+				     uint64_t trans_repeat = 0,
+				     uint64_t trans_min = 1,
+				     uint64_t trans_max = 1,
+				     uint64_t trans_alt = 0,
+				     uint64_t trans_alt_count = 1,
+				     uint64_t trans_family = 0xFFFFFFFFu,
+				     uint64_t trans_base = 0,
+				     uint64_t guard_idx = 0xFFFFFFFFu);
 extern void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 					 uint64_t kind, uint64_t family,
 					 uint64_t array_size, char*name,
-					 char*lo_ir, char*hi_ir);
+					 char*lo_ir, char*hi_ir,
+					 uint64_t guard_idx = 0xFFFFFFFFu);
 extern void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
 			      uint64_t is_cross, char*name = 0,
 			      char*weight_ir = 0,

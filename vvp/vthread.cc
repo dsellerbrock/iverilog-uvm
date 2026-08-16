@@ -5606,6 +5606,94 @@ static inline bool covgrp_rec_match_(const class_type::cov_bin_t&bin,
       return val >= bin.lo && val <= bin.hi;
 }
 
+struct covgrp_trans_term_t {
+      std::vector<const class_type::cov_bin_t*> ranges;
+      unsigned repeat = 0;
+      uint64_t min = 1;
+      uint64_t max = 1;
+      uint64_t alternatives = 1;
+};
+
+static uint64_t covgrp_trans_sat_add_(uint64_t a, uint64_t b)
+{
+      return a > UINT64_MAX - b ? UINT64_MAX : a + b;
+}
+
+static uint64_t covgrp_trans_sat_mul_(uint64_t a, uint64_t b)
+{
+      if (a == 0 || b == 0) return 0;
+      return a > UINT64_MAX / b ? UINT64_MAX : a * b;
+}
+
+struct covgrp_trans_power_sum_t {
+      uint64_t power;
+      uint64_t sum;
+};
+
+static covgrp_trans_power_sum_t covgrp_trans_power_sum_join_(
+      const covgrp_trans_power_sum_t&a, const covgrp_trans_power_sum_t&b)
+{
+      covgrp_trans_power_sum_t out;
+      out.power = covgrp_trans_sat_mul_(a.power, b.power);
+      out.sum = covgrp_trans_sat_add_(
+	    a.sum, covgrp_trans_sat_mul_(a.power, b.sum));
+      return out;
+}
+
+static covgrp_trans_power_sum_t covgrp_trans_power_sum_(uint64_t base,
+						 uint64_t count)
+{
+      covgrp_trans_power_sum_t result = { 1, 0 };
+      covgrp_trans_power_sum_t block = { base, base };
+      while (count) {
+	if (count & 1)
+	      result = covgrp_trans_power_sum_join_(result, block);
+	count >>= 1;
+	if (count) block = covgrp_trans_power_sum_join_(block, block);
+      }
+      return result;
+}
+
+static uint64_t covgrp_trans_power_sum_range_(uint64_t base,
+					       uint64_t first,
+					       uint64_t last)
+{
+      if (last < first || last == 0) return 0;
+      uint64_t hi = covgrp_trans_power_sum_(base, last).sum;
+      if (hi == UINT64_MAX) return UINT64_MAX;
+      uint64_t lo = first > 1
+	    ? covgrp_trans_power_sum_(base, first - 1).sum : 0;
+      return hi - lo;
+}
+
+static bool covgrp_trans_match_(const covgrp_trans_term_t&term,
+				uint64_t value, uint64_t&ordinal)
+{
+      for (const class_type::cov_bin_t*range : term.ranges) {
+	    if (!range || !covgrp_rec_match_(*range, value)) continue;
+	    ordinal = covgrp_trans_sat_add_(range->trans_alt,
+					    value - range->lo);
+	    return true;
+      }
+      return false;
+}
+
+static uint64_t covgrp_trans_term_variants_(const covgrp_trans_term_t&term)
+{
+      return covgrp_trans_power_sum_range_(term.alternatives,
+					    term.min, term.max);
+}
+
+static uint64_t covgrp_trans_term_rank_(const covgrp_trans_term_t&term,
+				       uint64_t count, uint64_t word)
+{
+      uint64_t offset = count > term.min
+	    ? covgrp_trans_power_sum_range_(term.alternatives,
+					       term.min, count - 1)
+	    : 0;
+      return covgrp_trans_sat_add_(offset, word);
+}
+
 struct covgrp_dyn_state_t {
       const class_type::cov_dyn_bin_t*meta = 0;
       std::vector<std::pair<uint64_t,uint64_t>> ranges;
@@ -5717,12 +5805,13 @@ static bool covgrp_dyn_match_(const covgrp_dyn_state_t&state, uint64_t value,
 /* %covgrp/sample ncp, guard_flags
  *
  * guard_flags bit 0 records whether ncp coverpoint guards are present;
- * bits 1.. contain the number of trailing cross guards. This preserves
- * the original two-operand encoding (whose second operand was 0/1).
+ * bits 1..15 contain the number of trailing cross guards and bits 16..31
+ * contain the number of bin-level guards. This preserves the original
+ * two-operand encoding (whose second operand was 0/1).
  *
  * Stack on entry: obj-stack top = cg_obj; vec4 stack holds ncp
- * coverpoint values, ncp coverpoint guards, then one cross-level iff
- * guard per cross item on top.
+ * coverpoint values, ncp coverpoint guards, one cross-level iff guard per
+ * cross item, then the bin-level iff guards on top.
  *
  * Record semantics (M11): records sharing (prop, tuple) AND together
  * (cross product tuples); distinct tuples of one prop OR together
@@ -5741,14 +5830,38 @@ static bool covgrp_dyn_match_(const covgrp_dyn_state_t&state, uint64_t value,
 static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 				const vector<uint64_t>&cp_vals,
 				const vector<uint64_t>&guards,
-				const vector<uint64_t>&cross_guards);
+				const vector<uint64_t>&cross_guards,
+				const vector<uint64_t>&bin_guards);
 
 bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 {
       unsigned ncp = cp->number;
       unsigned guard_flags = cp->bit_idx[0];
       unsigned has_cp_guards = guard_flags & 1;
-      unsigned ncross_guards = guard_flags >> 1;
+	 unsigned ncross_guards = (guard_flags >> 1) & 0x7fff;
+	 unsigned nbin_guards = guard_flags >> 16;
+	 uint64_t vec4_need = ncp;
+	 if (has_cp_guards) vec4_need += ncp;
+	 vec4_need += ncross_guards;
+	 vec4_need += nbin_guards;
+	 if (vec4_need > 2097152
+	     || vec4_need > thr->vec4_stack_size()
+	     || thr->object_stack_size() < 1) {
+	       fprintf(stderr,
+		     "vvp: malformed %%covgrp/sample metadata or stack "
+		     "underflow (need vec4/object %" PRIu64 "/1, have "
+		     "%zu/%zu); operands not consumed.\n",
+		     vec4_need, thr->vec4_stack_size(),
+		     thr->object_stack_size());
+	       return true;
+	 }
+
+	 vector<uint64_t> bin_guards(nbin_guards, 1);
+	 for (int ii = (int)nbin_guards - 1 ; ii >= 0 ; ii -= 1) {
+	       vvp_vector4_t g = thr->pop_vec4();
+	       bin_guards[ii] =
+		     (g.size() > 0 && g.value(0) == BIT4_1) ? 1 : 0;
+	 }
 
       vector<uint64_t> cross_guards(ncross_guards, 1);
       for (int ii = (int)ncross_guards - 1 ; ii >= 0 ; ii -= 1) {
@@ -5791,7 +5904,8 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
       if (!cobj) return true;
       if (!cobj->cov_enabled()) return true;
 
-      covgrp_sample_core_(cobj, ncp, cp_vals, guards, cross_guards);
+	 covgrp_sample_core_(cobj, ncp, cp_vals, guards, cross_guards,
+			     bin_guards);
       return true;
 }
 
@@ -5800,7 +5914,8 @@ bool of_COVGRP_SAMPLE(vthread_t thr, vvp_code_t cp)
 static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 				const vector<uint64_t>&cp_vals,
 				const vector<uint64_t>&guards,
-				const vector<uint64_t>&cross_guards)
+				const vector<uint64_t>&cross_guards,
+				const vector<uint64_t>&bin_guards)
 {
       const class_type*defn = cobj->get_defn();
       size_t nbins = defn->covgrp_bin_count();
@@ -5821,6 +5936,10 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    unsigned gi = item - ncp;
 	    return gi >= cross_guards.size() || cross_guards[gi] != 0;
       };
+	 auto bin_enabled = [&](unsigned guard) -> bool {
+	       return guard == class_type::COV_NO_GUARD
+		   || (guard < bin_guards.size() && bin_guards[guard] != 0);
+	 };
 
 	// Illegal precedence: any illegal record group matching fires
 	// an error and suppresses the coverpoint.
@@ -5831,7 +5950,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
       for (size_t bi = 0 ; bi < nbins ; bi += 1) {
 	    const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
 	    if ((bin.kind & 7) == 1) {
-		  ignore_recs.push_back(bi);
+		  if (bin_enabled(bin.guard_idx)) ignore_recs.push_back(bi);
 		  continue;
 	    }
 	    by_prop[bin.prop_idx].push_back(bi);
@@ -5854,7 +5973,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 			tuple_ok[bin.tuple] = false;
 			continue;
 		  }
-		  bool m = covgrp_rec_match_(bin, cp_vals[bin.cp_idx]);
+		  bool m = bin_enabled(bin.guard_idx)
+			&& covgrp_rec_match_(bin, cp_vals[bin.cp_idx]);
 		  auto it = tuple_ok.find(bin.tuple);
 		  if (it == tuple_ok.end()) tuple_ok[bin.tuple] = m;
 		  else it->second = it->second && m;
@@ -5877,7 +5997,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	// ordinary illegal_bins and suppress their coverpoint for this sample.
       for (auto&entry : dyn_states) {
 	    const covgrp_dyn_state_t&state = entry.second;
-	    if (!state.meta || (state.meta->kind & 7) != 2) continue;
+	    if (!state.meta || (state.meta->kind & 7) != 2
+		|| !bin_enabled(state.meta->guard_idx)) continue;
 	    unsigned cp = state.meta->cp_idx;
 	    uint64_t logical = 0;
 	    unsigned __int128 count = 0;
@@ -5902,7 +6023,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
       }
       for (auto&entry : dyn_states) {
 	    const covgrp_dyn_state_t&state = entry.second;
-	    if (!state.meta || (state.meta->kind & 7) != 1) continue;
+	    if (!state.meta || (state.meta->kind & 7) != 1
+		|| !bin_enabled(state.meta->guard_idx)) continue;
 	    unsigned cp = state.meta->cp_idx;
 	    uint64_t logical = 0;
 	    unsigned __int128 count = 0;
@@ -5919,6 +6041,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	// Cross records tagged with kind bit 16 match against this set instead
 	// of treating the transition's final value as an ordinary value bin.
       std::set<unsigned> transition_hits;
+	std::set<std::pair<unsigned,uint64_t>> transition_family_hits;
       struct default_special_t {
 	    unsigned prop;
 	    unsigned item;
@@ -5935,11 +6058,13 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    unsigned k = first.kind & 7;
 	    if (k == 2) continue; // illegal handled above
 	    if (k == 3) {
+		  if (!bin_enabled(first.guard_idx)) continue;
 		  default_props.push_back(std::make_pair(kv.first,
 						 first.item_idx));
 		  continue;
 	    }
 	    if (k == 5 || k == 6) {
+		  if (!bin_enabled(first.guard_idx)) continue;
 		  default_special_t special = { kv.first, first.item_idx,
 						first.cp_idx };
 		  if (k == 5) default_illegal.push_back(special);
@@ -5947,53 +6072,147 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 		  continue;
 	    }
 	    if (k == 4) {
-		    // Transition sequences: per-seq NFA masks.
-		    // Records of one seq share tuple>>8; step = tuple&255.
-		  std::map<unsigned, std::vector<size_t>> by_seq;
-		  for (size_t bi : recs)
-			by_seq[defn->covgrp_bin(bi).tuple >> 8].push_back(bi);
-		  for (auto&sq : by_seq) {
-			  // order steps
-			std::vector<const class_type::cov_bin_t*> steps;
-			steps.resize(sq.second.size(), 0);
-			bool okseq = true;
-			unsigned cpi = ncp;
-			for (size_t bi : sq.second) {
-			      const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
-			      unsigned st = bin.tuple & 255;
-			      if (st >= steps.size()) { okseq = false; break; }
-			      steps[st] = &bin;
-			      cpi = bin.cp_idx;
+		    // A bin-level iff is a per-bin count guard (19.5.1), not a
+		    // sampling gate. In particular, a false guard on an
+		    // intermediate sample of a transition must not freeze or reset
+		    // the transition recognizer. Apply it only to completions below.
+		  bool count_enabled = bin_enabled(first.guard_idx);
+		    // Compact transition-program NFA. One active state carries
+		    // the current term, repetition count, and mixed-radix rank;
+		    // bounded ranges therefore cost O(active attempts), not the
+		    // sum of every expanded sequence length.
+		  std::map<unsigned,
+			std::map<unsigned, covgrp_trans_term_t>> programs;
+		  std::map<unsigned, uint64_t> seq_bases;
+		  unsigned cpi = first.cp_idx;
+		  for (size_t bi : recs) {
+			const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+			unsigned seq = bin.tuple >> 8;
+			unsigned term_idx = bin.tuple & 255;
+			covgrp_trans_term_t&term = programs[seq][term_idx];
+			term.ranges.push_back(&bin);
+			term.repeat = bin.trans_repeat;
+			term.min = bin.trans_min;
+			term.max = bin.trans_max;
+			term.alternatives = bin.trans_alt_count;
+			seq_bases[seq] = bin.trans_base;
+			cpi = bin.cp_idx;
+		  }
+		  if (cpi >= ncp || !cp_sampled[cpi] || cp_suppressed[cpi])
+			continue; // transition progress freezes while unsampled/carved
+		  uint64_t value = cp_vals[cpi];
+		  std::set<unsigned> completed_props;
+		  std::set<std::pair<unsigned,uint64_t>> completed_families;
+
+		  for (auto&seq_entry : programs) {
+			unsigned seq = seq_entry.first;
+			std::map<unsigned,covgrp_trans_term_t>&term_map =
+			      seq_entry.second;
+			if (term_map.empty()) continue;
+			std::vector<covgrp_trans_term_t> terms;
+			for (unsigned ti = 0; ti <= term_map.rbegin()->first; ti++) {
+			      auto found = term_map.find(ti);
+			      if (found == term_map.end()) { terms.clear(); break; }
+			      terms.push_back(found->second);
 			}
-			if (!okseq || cpi >= ncp) continue;
-			if (!cp_sampled[cpi] || cp_suppressed[cpi])
-			      continue; // frozen while unsampled/carved
-			uint64_t key = ((uint64_t)kv.first << 8) | sq.first;
-			uint64_t mask = cobj->cov_trans_mask(key);
-			uint64_t newmask = 0;
-			uint64_t val = cp_vals[cpi];
-			unsigned len = steps.size();
-			if (len == 0 || len > 63) continue;
-			  // fresh attempt from step 0
-			if (steps[0] && covgrp_rec_match_(*steps[0], val)) {
-			      if (len == 1) {
-				    covgrp_bump_count_(cobj, kv.first);
-				    transition_hits.insert(kv.first);
-			      } else
-				    newmask |= ((uint64_t)1 << 1);
-			}
-			  // in-flight attempts
-			for (unsigned pos = 1 ; pos < len ; pos += 1) {
-			      if (!((mask >> pos) & 1)) continue;
-			      if (steps[pos] && covgrp_rec_match_(*steps[pos], val)) {
-				    if (pos + 1 == len) {
-					  covgrp_bump_count_(cobj, kv.first);
-					  transition_hits.insert(kv.first);
-				    } else
-					  newmask |= ((uint64_t)1 << (pos+1));
+			if (terms.empty()) continue;
+
+			uint64_t key = ((uint64_t)kv.first << 32) | seq;
+			std::vector<vvp_cobject::cov_trans_state_t> old_states =
+			      cobj->cov_trans_states(key);
+			std::set<vvp_cobject::cov_trans_state_t> next_states;
+			std::set<uint64_t> sequence_completions;
+
+			auto advance = [&](const vvp_cobject::cov_trans_state_t&state,
+					   uint64_t count, uint64_t word,
+					   bool nonconsecutive) {
+			      const covgrp_trans_term_t&term = terms[state.term];
+			      uint64_t term_rank = covgrp_trans_term_rank_(
+				    term, count, word);
+			      uint64_t prefix = covgrp_trans_sat_add_(
+				    covgrp_trans_sat_mul_(state.prefix,
+					  covgrp_trans_term_variants_(term)),
+				    term_rank);
+			      if (state.term + 1 == terms.size()) {
+				    sequence_completions.insert(covgrp_trans_sat_add_(
+					  seq_bases[seq], prefix));
+				    return;
 			      }
+			      vvp_cobject::cov_trans_state_t out;
+			      out.term = state.term + 1;
+			      out.prefix = prefix;
+			      out.waiting = nonconsecutive;
+			      out.forbid_term = state.term;
+			      next_states.insert(out);
+			};
+
+			auto consume = [&](const vvp_cobject::cov_trans_state_t&state,
+					  bool allow_nonmatch) {
+			      if (state.term >= terms.size()) return;
+			      const covgrp_trans_term_t&term = terms[state.term];
+			      uint64_t ordinal = 0;
+			      bool matches = covgrp_trans_match_(term, value, ordinal);
+			      if (state.waiting && !matches) {
+				    uint64_t unused = 0;
+				    if (state.forbid_term < terms.size()
+					&& covgrp_trans_match_(terms[state.forbid_term],
+							 value, unused))
+					  return;
+				    next_states.insert(state);
+				    return;
+			      }
+			      if (!matches) {
+				    if (allow_nonmatch || term.repeat == 2 || term.repeat == 3)
+					  next_states.insert(state);
+				    return;
+			      }
+			      uint64_t count = state.count + 1;
+			      uint64_t word = covgrp_trans_sat_add_(
+				    covgrp_trans_sat_mul_(state.word,
+					  term.alternatives), ordinal);
+			      if (count >= term.min)
+				    advance(state, count, word, term.repeat == 3);
+			      if (count < term.max) {
+				    vvp_cobject::cov_trans_state_t stay = state;
+				    stay.count = count;
+				    stay.word = word;
+				    stay.waiting = false;
+				    next_states.insert(stay);
+			      }
+			};
+
+			for (const auto&state : old_states)
+			      consume(state, false);
+			vvp_cobject::cov_trans_state_t fresh;
+			uint64_t first_ordinal = 0;
+			if (covgrp_trans_match_(terms[0], value, first_ordinal))
+			      consume(fresh, false);
+
+			std::vector<vvp_cobject::cov_trans_state_t>&stored =
+			      cobj->cov_trans_states(key);
+			stored.assign(next_states.begin(), next_states.end());
+
+			for (uint64_t logical : sequence_completions) {
+			      if (first.trans_family == class_type::COV_NO_FAMILY)
+				    completed_props.insert(kv.first);
+			      else
+				    completed_families.insert(std::make_pair(
+					  first.trans_family, logical));
 			}
-			cobj->set_cov_trans_mask(key, newmask);
+		  }
+
+		  for (unsigned prop : completed_props) {
+			if (!count_enabled) continue;
+			covgrp_bump_count_(cobj, prop);
+			transition_hits.insert(prop);
+			item_matched[first.item_idx] = true;
+		  }
+		  for (auto&hit : completed_families) {
+			if (!count_enabled) continue;
+			cobj->cov_dyn_bump(hit.first, hit.second);
+			transition_hits.insert(kv.first);
+			transition_family_hits.insert(hit);
+			item_matched[first.item_idx] = true;
 		  }
 		  continue;
 	    }
@@ -6006,7 +6225,13 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    for (size_t bi : recs) {
 		  const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
 		  bool m;
-		  if (bin.kind & 16) {
+		  if (!bin_enabled(bin.guard_idx)) {
+			m = false;
+		  } else if (bin.kind & 32) {
+			// (lo,hi) is (transition family, logical bin).
+			m = transition_family_hits.count(std::make_pair(
+			      (unsigned)bin.lo, bin.hi)) != 0;
+		  } else if (bin.kind & 16) {
 			// `lo' is the source transition-bin property index.
 			m = transition_hits.count((unsigned)bin.lo) != 0;
 		  } else if (bin.cp_idx >= ncp || !cp_sampled[bin.cp_idx]
@@ -6029,7 +6254,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	// Normal constructor-dependent families are sampled after carve-outs.
       for (auto&entry : dyn_states) {
 	    const covgrp_dyn_state_t&state = entry.second;
-	    if (!state.meta || (state.meta->kind & 7) != 0) continue;
+	    if (!state.meta || (state.meta->kind & 7) != 0
+		|| !bin_enabled(state.meta->guard_idx)) continue;
 	    unsigned cp = state.meta->cp_idx;
 	    uint64_t logical = 0;
 	    unsigned __int128 count = 0;
@@ -6133,7 +6359,24 @@ bool of_COVGRP_SAMPLE_ALL(vthread_t, vvp_code_t cp)
 		  read_u64(parent, (unsigned)gp, v, low);
 		  cross_guards[item - ncp] = low ? 1 : 0;
 	    }
-	    covgrp_sample_core_(cg, ncp, vals, guards, cross_guards);
+	    unsigned nbin_guards = 0;
+	    for (size_t bi = 0; bi < defn->covgrp_bin_count(); bi++) {
+		  unsigned gi = defn->covgrp_bin(bi).guard_idx;
+		  if (gi != class_type::COV_NO_GUARD && gi + 1 > nbin_guards)
+			nbin_guards = gi + 1;
+	    }
+	    for (size_t bi = 0; bi < defn->covgrp_dyn_bin_count(); bi++) {
+		  unsigned gi = defn->covgrp_dyn_bin(bi).guard_idx;
+		  if (gi != class_type::COV_NO_GUARD && gi + 1 > nbin_guards)
+			nbin_guards = gi + 1;
+	    }
+	    // Class-embedded event samplers can only recover parent-property
+	    // guards today. Complex expressions are diagnosed at elaboration;
+	    // retain the historical enabled recovery rather than silently
+	    // disabling every guarded bin.
+	    vector<uint64_t> bin_guards(nbin_guards, 1);
+	    covgrp_sample_core_(cg, ncp, vals, guards, cross_guards,
+				 bin_guards);
       }
       return true;
 }
@@ -6204,11 +6447,26 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 
 	      // item -> set of countable props
 	    std::map<unsigned, std::set<unsigned>> item_props;
+	    std::map<unsigned,long double> item_trans_total;
+	    std::map<unsigned,uint64_t> item_trans_hits;
+	    std::set<unsigned> seen_trans_families;
 	    for (size_t bi = 0 ; bi < nbins ; bi += 1) {
 		  const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
 		  unsigned k = bin.kind & 7;
 		  if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6)
 			continue;
+		  if (k == 4 && bin.trans_family != class_type::COV_NO_FAMILY) {
+			if (seen_trans_families.insert(bin.trans_family).second) {
+			      item_trans_total[bin.item_idx] +=
+				    (long double)defn->covgrp_trans_family_size(
+					  bin.trans_family);
+			      unsigned at_least = bin.item_idx < defn->covgrp_item_count()
+				    ? defn->covgrp_item(bin.item_idx).at_least : 1;
+			      item_trans_hits[bin.item_idx] +=
+				    cobj->cov_dyn_hits(bin.trans_family, at_least);
+			}
+			continue;
+		  }
 		  if (bin.prop_idx == class_type::COV_NO_PROP) continue;
 		  item_props[bin.item_idx].insert(bin.prop_idx);
 	    }
@@ -6236,6 +6494,7 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 	    std::set<unsigned> items;
 	    for (auto&ip : item_props) items.insert(ip.first);
 	    for (auto&ip : item_dyn_total) items.insert(ip.first);
+	    for (auto&ip : item_trans_total) items.insert(ip.first);
 
 	    double wsum = 0.0, wcov = 0.0;
 	    for (unsigned item : items) {
@@ -6246,6 +6505,8 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 		  }
 		  long double total = item_dyn_total[item];
 		  uint64_t hits = item_dyn_hits[item];
+		  total += item_trans_total[item];
+		  hits += item_trans_hits[item];
 		  const std::set<unsigned>&props = item_props[item];
 		  total += props.size();
 		  for (unsigned prop : props) {

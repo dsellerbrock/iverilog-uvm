@@ -102,6 +102,8 @@ ivl_logic_attr_cnt
 ivl_logic_attr_val
 ivl_logic_basename
 ivl_logic_delay
+ivl_logic_delay_is_per_bit
+ivl_logic_delay_is_whole_vector
 ivl_logic_drive0
 ivl_logic_drive1
 ivl_logic_file
@@ -158,6 +160,9 @@ ivl_lval_part_off
 ivl_lval_property_idx
 ivl_lval_sel_type
 ivl_lval_sig
+ivl_lval_stream_range
+ivl_lval_stream_range_first
+ivl_lval_stream_range_second
 ivl_lval_width
 
 ivl_nature_name
@@ -353,6 +358,8 @@ ivl_switch_island
 ivl_switch_lineno
 ivl_switch_offset
 ivl_switch_part
+ivl_switch_port_component
+ivl_switch_port_index
 ivl_switch_scope
 ivl_switch_type
 ivl_switch_width
@@ -393,6 +400,14 @@ ivl_type_covgrp_bin_cp
 ivl_type_covgrp_bin_kind
 ivl_type_covgrp_bin_tuple
 ivl_type_covgrp_bin_item
+ivl_type_covgrp_bin_trans_repeat
+ivl_type_covgrp_bin_trans_min
+ivl_type_covgrp_bin_trans_max
+ivl_type_covgrp_bin_trans_alt
+ivl_type_covgrp_bin_trans_alt_count
+ivl_type_covgrp_bin_trans_family
+ivl_type_covgrp_bin_trans_base
+ivl_type_covgrp_bin_guard
 ivl_type_covgrp_dyn_bins
 ivl_type_covgrp_dyn_bin_cp
 ivl_type_covgrp_dyn_bin_item
@@ -402,6 +417,7 @@ ivl_type_covgrp_dyn_bin_array_size
 ivl_type_covgrp_dyn_bin_name
 ivl_type_covgrp_dyn_bin_lo_ir
 ivl_type_covgrp_dyn_bin_hi_ir
+ivl_type_covgrp_dyn_bin_guard
 ivl_type_covgrp_items
 ivl_type_covgrp_item_at_least
 ivl_type_covgrp_item_weight

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_task_localparam_untyped.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_task_localparam_untyped"
+}

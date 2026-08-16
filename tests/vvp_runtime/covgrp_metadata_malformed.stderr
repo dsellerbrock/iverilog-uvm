@@ -1,0 +1,3 @@
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:11: invalid .covgrp_bin transition metadata
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:16: invalid .covgrp_bin metadata field count
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:21: invalid .covgrp_dyn_bin metadata value

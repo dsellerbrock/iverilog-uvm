@@ -622,6 +622,22 @@ struct class_type_t : public data_type_t {
       std::map<perm_string, extern_constraint_info_t> extern_constraints;
 
 	// Coverage group definitions (class-embedded covergroups).
+      struct pform_cov_trans_term_t {
+	    enum repeat_kind_t {
+		  TRANS_ONCE,
+		  TRANS_CONSECUTIVE,
+		  TRANS_GOTO,
+		  TRANS_NONCONSECUTIVE
+	    };
+	      // One trans_item is a set of values/ranges. Repetition applies to
+	      // that complete set, so keep the alternatives together instead of
+	      // prematurely expanding them into one fixed value per repetition.
+	    std::vector<std::pair<PExpr*, PExpr*>> ranges;
+	    repeat_kind_t repeat_kind = TRANS_ONCE;
+	    PExpr* repeat_lo = nullptr;
+	    PExpr* repeat_hi = nullptr;
+      };
+
       struct pform_cov_bins_t {
 	    enum kind_t { BIN_NORMAL, BIN_IGNORE, BIN_ILLEGAL,
 			  BIN_DEFAULT };
@@ -639,6 +655,9 @@ struct class_type_t : public data_type_t {
 	      // M11: "with (expr)" filter — keep only values where the
 	      // expression (over 'item') evaluates true.
 	    PExpr* with_expr = nullptr;
+	      // A bin iff is sampled dynamically and is distinct from the
+	      // construction-time with-covergroup expression above.
+	    PExpr* iff_expr = nullptr;
 	      // IEEE 1800-2017 19.5.1.1 set-covergroup expression.  The
 	      // expression yields an unpacked array/queue whose elements form
 	      // the value set for this declaration.
@@ -653,7 +672,7 @@ struct class_type_t : public data_type_t {
 	      // M11-2: transition sequences — each sequence is an
 	      // ordered list of [lo:hi] steps; a bin may carry several
 	      // (comma-separated) sequences.
-	    std::vector<std::vector<std::pair<PExpr*, PExpr*>>> trans_seqs;
+	    std::vector<std::vector<pform_cov_trans_term_t>> trans_seqs;
       };
       struct pform_coverpoint_t {
 	    perm_string label;  // coverpoint label (or same as expr name)
@@ -667,6 +686,10 @@ struct class_type_t : public data_type_t {
       // existing coverpoint labels into bins that count when ALL
       // contributing coverpoint bins are hit on the same sample.
       struct pform_cross_t {
+	    struct item_t {
+		  perm_string label;
+		  PExpr* expr = nullptr;
+	    };
 	      // M11-3: named cross bin with a binsof select expression.
 	      // The select tree is a boolean combination of
 	      // binsof(cp[.bin]) [intersect {ranges}] leaves.
@@ -683,9 +706,12 @@ struct class_type_t : public data_type_t {
 		  perm_string name;
 		  kind_t kind = BIN_NORMAL;
 		  select_t* select = nullptr;
+		  perm_string with_cross;
+		  PExpr* with_expr = nullptr;
 	    };
 	    perm_string label;                 // cross label (or auto)
 	    std::vector<perm_string> cp_labels; // names of contributing coverpoints
+	    std::vector<PExpr*> cp_exprs;       // implicit variable expressions
 	    PExpr* iff_expr = nullptr;         // IEEE 19.6: cross iff sample gate
 	    std::vector<cross_bin_t> bins;      // M11-3: named cross bins
 	      // M11: cross-level options (option.name = const_expr)

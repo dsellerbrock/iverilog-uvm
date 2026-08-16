@@ -1,0 +1,18 @@
+sv_covergroup_chained_sample normal,-g2012 ivltests
+sv_covergroup_standalone normal,-g2012 ivltests
+sv_covergroup_task_sample normal,-g2012 ivltests
+sv_covergroup_with_sample normal,-g2012 ivltests
+sv_covergroup_options normal,-g2012 ivltests
+sv_covergroup_adversarial normal,-g2012 ivltests
+sv_covergroup_class_event normal,-g2012 ivltests
+sv_covergroup_cross_iff normal,-g2012 ivltests
+sv_covergroup_cross_variable normal,-g2012 ivltests
+sv_covergroup_transition_cross normal,-g2012 ivltests
+sv_covergroup_bin_iff normal,-g2012 ivltests gold=sv_covergroup_bin_iff.gold
+sv_covergroup_constructor_scope normal,-g2012 ivltests gold=sv_covergroup_constructor_scope.gold
+sv_covergroup_cross_with normal,-g2012 ivltests gold=sv_covergroup_cross_with.gold
+sv_covergroup_following_localparam normal,-g2012 ivltests gold=sv_covergroup_following_localparam.gold
+sv_covergroup_hierarchical_cross normal,-g2012 ivltests gold=sv_covergroup_hierarchical_cross.gold
+sv_covergroup_transition_modes normal,-g2012 ivltests gold=sv_covergroup_transition_modes.gold
+sv_covergroup_transition_repeat normal,-g2012 ivltests gold=sv_covergroup_transition_repeat.gold
+sv_covergroup_transition_repeat_fail CE,-g2012 ivltests gold=sv_covergroup_transition_repeat_fail.gold

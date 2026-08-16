@@ -339,6 +339,10 @@ struct rs_production_t;
    owned by the supplied IR object. */
 extern void pform_sva_destroy_sequence(std::vector<sva_seq_step_t>*seq);
 extern void pform_sva_destroy_property(sva_property_t*prop);
+/* Preserve an optional source label while the assertion statement itself
+   reduces. The enclosing grammar item owns the label token. */
+extern void pform_sva_set_assertion_label(const char*label);
+extern void pform_sva_clear_assertion_label(void);
 /* Apply the optional clock/disable prefix of a property_spec without
    discarding a clock already carried by an embedded named sequence. */
 extern sva_property_t* pform_sva_apply_property_context(
@@ -350,7 +354,7 @@ extern void pform_sva_destroy_mc_segments(std::vector<sva_mc_seg_t>*segs);
 extern void pform_make_assertion(const struct vlltype&loc,
 				 sva_property_t*prop,
 				 Statement*fail_stmt, Statement*pass_stmt,
-				 int kind);
+				 int kind, perm_string label = perm_string());
 /* M9-10: implicit clock inference for a concurrent assertion written
    inside procedural code (IEEE 1800-2017 16.14.6). An unclocked assertion
    with no default clocking is parked by pform_make_assertion; the first
@@ -368,6 +372,21 @@ extern void pform_sva_flush_pending_procedural(void);
 extern Statement* pform_make_expect(const struct vlltype&loc,
 				    sva_property_t*prop,
 				    Statement*pass_stmt, Statement*else_stmt);
+/* Assertion-local declarations are parsed before their sequence match
+   assignments. Preserve the declared integral conversion so the synthesized
+   per-attempt carrier has the local's type, rather than the assignment RHS
+   type. The packed-logic helper consumes dimensions. */
+extern void pform_sva_begin_local_declarations(void);
+extern void pform_sva_declare_int_local(const struct vlltype&loc,
+					const char*name);
+extern void pform_sva_declare_logic_local(
+					const struct vlltype&loc,
+					const char*name,
+					std::list<pform_range_t>*dimensions);
+extern PExpr* pform_sva_coerce_local_assignment(
+					const struct vlltype&loc,
+					const char*name, PExpr*rhs);
+extern void pform_sva_end_local_declarations(void);
 extern void pform_sva_declare_property(const struct vlltype&loc,
 				       const char*name, sva_property_t*prop);
 extern void pform_sva_declare_sequence(const struct vlltype&loc,
@@ -601,6 +620,7 @@ extern void pform_pop_scope();
  */
 extern LexicalScope* pform_peek_scope();
 extern bool pform_in_compilation_unit_scope();
+extern bool pform_in_task_function_scope();
 extern void pform_push_existing_scope(LexicalScope*scope);
 
 extern PClass* pform_push_class_scope(const struct vlltype&loc, perm_string name);
@@ -618,7 +638,8 @@ extern PTask*pform_push_task_scope_unbound(const struct vlltype&loc, const char*
 extern PFunction*pform_push_function_scope(const struct vlltype&loc, const char*name,
 					   LexicalScope::lifetime_t lifetime);
 extern PFunction*pform_push_function_scope_unbound(const struct vlltype&loc, const char*name,
-						   LexicalScope::lifetime_t lifetime);
+					     LexicalScope::lifetime_t lifetime,
+					     bool procedural_body = true);
 
 // DPI export (IEEE 1800-2017 35.5): mark an already-defined SV
 // function/task in the current scope as callable from C under c_name.

@@ -19,6 +19,7 @@
 
 # include  "class_type.h"
 # include  "compile.h"
+# include  "parse_misc.h"
 # include  "vpi_priv.h"
 # include  "vvp_assoc.h"
 # include  "vvp_cobject.h"
@@ -2402,7 +2403,11 @@ void compile_class_constraint(char*name, char*ir)
 
 void class_type::add_covgrp_bin(unsigned cp_idx, unsigned prop_idx,
 				uint64_t lo, uint64_t hi, unsigned kind,
-				unsigned tuple, unsigned item_idx)
+				unsigned tuple, unsigned item_idx,
+				unsigned trans_repeat, uint64_t trans_min,
+				uint64_t trans_max, unsigned trans_alt,
+				unsigned trans_alt_count, unsigned trans_family,
+				uint64_t trans_base, unsigned guard_idx)
 {
       cov_bin_t b;
       b.cp_idx   = cp_idx;
@@ -2412,29 +2417,76 @@ void class_type::add_covgrp_bin(unsigned cp_idx, unsigned prop_idx,
       b.kind     = kind;
       b.tuple    = tuple;
       b.item_idx = item_idx;
+	 b.trans_repeat = trans_repeat;
+	 b.trans_min = trans_min;
+	 b.trans_max = trans_max;
+	 b.trans_alt = trans_alt;
+	 b.trans_alt_count = trans_alt_count;
+	 b.trans_family = trans_family;
+	 b.trans_base = trans_base;
+	 b.guard_idx = guard_idx;
       covgrp_bins_.push_back(b);
 }
 
 void compile_class_covgrp_bin(uint64_t cp_idx, uint64_t prop_idx,
 			      uint64_t lo, uint64_t hi, uint64_t kind,
-			      uint64_t tuple, uint64_t item_idx)
+			      uint64_t tuple, uint64_t item_idx,
+			      uint64_t trans_repeat, uint64_t trans_min,
+			      uint64_t trans_max, uint64_t trans_alt,
+			      uint64_t trans_alt_count, uint64_t trans_family,
+			      uint64_t trans_base, uint64_t guard_idx)
 {
       assert(compile_class);
+      static const uint64_t transition_repeat_limit = 65536;
+      const uint64_t u32_max = std::numeric_limits<unsigned>::max();
+      if (cp_idx > u32_max || prop_idx > u32_max || kind > u32_max
+	  || tuple > u32_max || item_idx > u32_max
+	  || trans_repeat > u32_max || trans_alt > u32_max
+	  || trans_alt_count > u32_max || trans_family > u32_max
+	  || guard_idx > u32_max) {
+	yyerror("invalid .covgrp_bin metadata value");
+	return;
+      }
+      if ((kind & 7) == 4
+	  && (trans_repeat > 3 || trans_min == 0
+	      || trans_max < trans_min
+	      || trans_max > transition_repeat_limit
+	      || trans_alt_count == 0
+	      || trans_alt >= trans_alt_count)) {
+	yyerror("invalid .covgrp_bin transition metadata");
+	return;
+      }
       compile_class->add_covgrp_bin((unsigned)cp_idx, (unsigned)prop_idx,
 				    lo, hi, (unsigned)kind,
-				    (unsigned)tuple, (unsigned)item_idx);
+				    (unsigned)tuple, (unsigned)item_idx,
+				    (unsigned)trans_repeat, trans_min, trans_max,
+				    (unsigned)trans_alt,
+				    (unsigned)trans_alt_count,
+				    (unsigned)trans_family, trans_base,
+				    (unsigned)guard_idx);
 }
 
 void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 				  uint64_t kind, uint64_t family,
 				  uint64_t array_size, char*name,
-				  char*lo_ir, char*hi_ir)
+				  char*lo_ir, char*hi_ir,
+				  uint64_t guard_idx)
 {
       assert(compile_class);
+      const uint64_t u32_max = std::numeric_limits<unsigned>::max();
+      if (cp_idx > u32_max || item_idx > u32_max || kind > u32_max
+	  || family > u32_max || guard_idx > u32_max) {
+	yyerror("invalid .covgrp_dyn_bin metadata value");
+	free(name);
+	free(lo_ir);
+	free(hi_ir);
+	return;
+      }
       compile_class->add_covgrp_dyn_bin((unsigned)cp_idx, (unsigned)item_idx,
 					(unsigned)kind, (unsigned)family,
 					array_size, name ? name : "",
-					lo_ir ? lo_ir : "", hi_ir ? hi_ir : "");
+					lo_ir ? lo_ir : "", hi_ir ? hi_ir : "",
+					(unsigned)guard_idx);
       free(name);
       free(lo_ir);
       free(hi_ir);
@@ -2618,33 +2670,141 @@ uint32_t class_type::type_count(unsigned prop) const
       return type_counts_[prop];
 }
 
+static uint64_t cov_sat_add_(uint64_t a, uint64_t b)
+{
+      return a > UINT64_MAX - b ? UINT64_MAX : a + b;
+}
+
+static uint64_t cov_sat_mul_(uint64_t a, uint64_t b)
+{
+      if (a == 0 || b == 0) return 0;
+      return a > UINT64_MAX / b ? UINT64_MAX : a * b;
+}
+
+struct cov_power_sum_t {
+      uint64_t power;
+      uint64_t sum;
+};
+
+/* Compose adjacent power-series blocks. A block of length n carries b^n and
+ * b^1+...+b^n. Exponentiation by squaring makes large, valid transition
+ * repetition bounds logarithmic while preserving the existing saturating
+ * logical-bin arithmetic. */
+static cov_power_sum_t cov_power_sum_join_(const cov_power_sum_t&a,
+					    const cov_power_sum_t&b)
+{
+      cov_power_sum_t out;
+      out.power = cov_sat_mul_(a.power, b.power);
+      out.sum = cov_sat_add_(a.sum, cov_sat_mul_(a.power, b.sum));
+      return out;
+}
+
+static cov_power_sum_t cov_power_sum_(uint64_t base, uint64_t count)
+{
+      cov_power_sum_t result = { 1, 0 };
+      cov_power_sum_t block = { base, base };
+      while (count) {
+	if (count & 1) result = cov_power_sum_join_(result, block);
+	count >>= 1;
+	if (count) block = cov_power_sum_join_(block, block);
+      }
+      return result;
+}
+
+static uint64_t cov_power_sum_range_(uint64_t base, uint64_t first,
+				     uint64_t last)
+{
+      if (last < first || last == 0) return 0;
+      uint64_t hi = cov_power_sum_(base, last).sum;
+      if (hi == UINT64_MAX) return UINT64_MAX;
+      uint64_t lo = first > 1 ? cov_power_sum_(base, first - 1).sum : 0;
+      return hi - lo;
+}
+
+uint64_t class_type::covgrp_trans_family_size(unsigned family) const
+{
+      std::map<unsigned, std::map<unsigned, const cov_bin_t*>> seq_terms;
+      std::map<unsigned, uint64_t> seq_bases;
+      for (const cov_bin_t&bin : covgrp_bins_) {
+	    if ((bin.kind & 7) != 4 || bin.trans_family != family) continue;
+	    unsigned seq = bin.tuple >> 8;
+	    unsigned term = bin.tuple & 255;
+	    if (!seq_terms[seq].count(term)) seq_terms[seq][term] = &bin;
+	    seq_bases[seq] = bin.trans_base;
+      }
+      uint64_t total = 0;
+      for (auto&seq : seq_terms) {
+	    uint64_t variants = 1;
+	    for (auto&term_entry : seq.second) {
+		  const cov_bin_t&term = *term_entry.second;
+		  uint64_t term_variants = cov_power_sum_range_(
+			term.trans_alt_count, term.trans_min, term.trans_max);
+		  variants = cov_sat_mul_(variants, term_variants);
+	    }
+	    total = std::max(total,
+		      cov_sat_add_(seq_bases[seq.first], variants));
+      }
+      return total;
+}
+
+unsigned class_type::covgrp_trans_family_item(unsigned family) const
+{
+      for (const cov_bin_t&bin : covgrp_bins_)
+	    if ((bin.kind & 7) == 4 && bin.trans_family == family)
+		  return bin.item_idx;
+      return 0;
+}
+
 double class_type::type_coverage(vvp_cobject*context) const
 {
 	// Same per-item weighted model as instance coverage, computed
 	// over the type-level counters.
       std::map<unsigned, std::set<unsigned>> item_props;
+	std::map<unsigned,uint64_t> item_trans_total;
+	std::map<unsigned,uint64_t> item_trans_hits;
+	std::set<unsigned> seen_trans_families;
       for (size_t bi = 0 ; bi < covgrp_bins_.size() ; bi += 1) {
 	    const cov_bin_t&bin = covgrp_bins_[bi];
 	    unsigned k = bin.kind & 7;
 	    if (k == 1 || k == 2 || k == 3 || k == 5 || k == 6) continue;
+	    if (k == 4 && bin.trans_family != COV_NO_FAMILY) {
+		  if (seen_trans_families.insert(bin.trans_family).second) {
+			uint64_t total = covgrp_trans_family_size(bin.trans_family);
+			item_trans_total[bin.item_idx] = cov_sat_add_(
+			      item_trans_total[bin.item_idx], total);
+			item_trans_hits[bin.item_idx] = cov_sat_add_(
+			      item_trans_hits[bin.item_idx],
+			      dyn_type_hits(bin.trans_family,
+				    bin.item_idx < covgrp_items_.size()
+					? covgrp_items_[bin.item_idx].at_least : 1));
+		  }
+		  continue;
+	    }
 	    if (bin.prop_idx == COV_NO_PROP) continue;
 	    item_props[bin.item_idx].insert(bin.prop_idx);
       }
       double wsum = 0.0, wcov = 0.0;
-      for (auto&ip : item_props) {
+	 std::set<unsigned> items;
+	 for (auto&ip : item_props) items.insert(ip.first);
+	 for (auto&ip : item_trans_total) items.insert(ip.first);
+	 for (unsigned item_idx : items) {
 	    unsigned at_least = 1, weight = 1;
-	    if (ip.first < covgrp_items_.size()) {
-		  at_least = covgrp_items_[ip.first].at_least;
-		  weight = covgrp_item_weight(context, ip.first);
+	    if (item_idx < covgrp_items_.size()) {
+		  at_least = covgrp_items_[item_idx].at_least;
+		  weight = covgrp_item_weight(context, item_idx);
 	    }
-	    if (ip.second.empty()) continue;
+	    uint64_t total = item_trans_total[item_idx];
 	    unsigned hits = 0;
-	    for (unsigned prop : ip.second)
+	    for (unsigned prop : item_props[item_idx]) {
+		  total += 1;
 		  if (type_count(prop) >= at_least)
 			hits += 1;
+	    }
+	    hits += item_trans_hits[item_idx];
+	    if (total == 0) continue;
 	    wsum += (double)weight;
 	    wcov += (double)weight
-		  * (100.0 * (double)hits / (double)ip.second.size());
+		  * (100.0 * (double)hits / (double)total);
       }
       return (wsum > 0.0) ? (wcov / wsum) : 0.0;
 }

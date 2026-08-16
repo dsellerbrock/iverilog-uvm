@@ -19,6 +19,7 @@
 
 # include  "vpi_user.h"
 # include  "sv_vpi_user.h"
+# include  <stdio.h>
 # include  <stdlib.h>
 # include  <string.h>
 
@@ -88,51 +89,266 @@ static PLI_INT32 sva_sizetf(ICARUS_VPI_CONST PLI_BYTE8 *name)
       return 32;
 }
 
-/*
- * Assertion control (IEEE 1800-2017 20.12). A single global enable flag
- * gates the failure reporting of every synthesized concurrent-assertion
- * checker (each emits `if ($ivl_sva_enabled()) <fail action>`). This
- * implements the common global use ($assertoff during reset, $asserton
- * after); the optional [levels, list] arguments select a scope subset in
- * the LRM and are accepted but ignored here (global-only).
- *
- *   $assertoff  — stop reporting assertion failures
- *   $asserton   — resume reporting
- *   $assertkill — stop reporting (in-flight attempt reset is not modeled)
- */
+/* Assertion control (IEEE 1800-2017 20.12). Source-level hierarchical
+ * selectors are lowered to strings because an assertion directive is not a
+ * value expression. Keep a bounded chronological rule list so a time-zero
+ * control call that happens before a checker's registration initial block is
+ * still applied when that checker registers. */
+typedef struct sva_control_entry_s {
+      PLI_INT32 idx;
+      vpiHandle scope;
+      char*full_name;
+      int enabled;
+} sva_control_entry_t;
+
+typedef struct sva_control_rule_s {
+      char*selector;                 /* NULL means whole design */
+      PLI_INT32 levels;              /* zero means all descendant levels */
+      int enabled;
+      int kill;
+} sva_control_rule_t;
+
+static sva_control_entry_t*sva_control_entries;
+static size_t sva_control_entry_count;
+static size_t sva_control_entry_cap;
+static sva_control_rule_t*sva_control_rules;
+static size_t sva_control_rule_count;
+static size_t sva_control_rule_cap;
 static int sva_assert_enabled = 1;
+static int sva_kill_approx_warned;
+
+enum { SVA_CONTROL_RULE_LIMIT = 4096, SVA_CONTROL_SELECTOR_LIMIT = 4096 };
+
+static char*sva_control_strdup_(const char*text)
+{
+      size_t len = text ? strlen(text) : 0;
+      char*copy;
+      if (len > SVA_CONTROL_SELECTOR_LIMIT) return 0;
+      copy = (char*)malloc(len + 1);
+      if (!copy) return 0;
+      if (len) memcpy(copy, text, len);
+      copy[len] = 0;
+      return copy;
+}
+
+static int sva_control_match_(const char*full, const char*selector,
+			      PLI_INT32 levels)
+{
+      size_t n;
+      const char*tail;
+      PLI_INT32 depth = 0;
+      if (!selector) return 1;
+      if (!full) return 0;
+      if (strcmp(full, selector) == 0) return 1;
+      n = strlen(selector);
+      if (strncmp(full, selector, n) != 0 || full[n] != '.') return 0;
+      if (levels == 0) return 1;
+      tail = full + n + 1;
+      depth = 1;
+      while (*tail) {
+	    if (*tail == '.') depth += 1;
+	    tail += 1;
+      }
+      return depth <= levels;
+}
+
+static void sva_control_apply_entry_(sva_control_entry_t*entry,
+				     const sva_control_rule_t*rule,
+				     int callbacks)
+{
+      int was;
+      if (!sva_control_match_(entry->full_name, rule->selector,
+			      rule->levels)) return;
+      was = entry->enabled;
+      entry->enabled = rule->enabled;
+      if (!callbacks) return;
+      if (rule->kill) {
+	    if (was)
+		  vpip_assertion_report(entry->idx, cbAssertionDisable,
+					entry->scope);
+	    vpip_assertion_report(entry->idx, cbAssertionReset, entry->scope);
+      } else if (was != entry->enabled) {
+	    vpip_assertion_report(entry->idx,
+		  entry->enabled ? cbAssertionEnable : cbAssertionDisable,
+		  entry->scope);
+      }
+}
+
+static int sva_control_append_rule_(const char*selector, PLI_INT32 levels,
+				    int enabled, int kill)
+{
+      sva_control_rule_t*rule;
+      if (sva_control_rule_count >= SVA_CONTROL_RULE_LIMIT) {
+	    vpi_printf("SVA runtime error: assertion-control history exceeded "
+		       "%d entries; the control request was not applied.\n",
+		       SVA_CONTROL_RULE_LIMIT);
+	    return 0;
+      }
+      if (sva_control_rule_count == sva_control_rule_cap) {
+	    size_t next = sva_control_rule_cap ? sva_control_rule_cap * 2 : 16;
+	    void*mem = realloc(sva_control_rules, next * sizeof *sva_control_rules);
+	    if (!mem) {
+		  vpi_printf("SVA runtime error: unable to allocate assertion-control "
+			     "state; the control request was not applied.\n");
+		  return 0;
+	    }
+	    sva_control_rules = (sva_control_rule_t*)mem;
+	    sva_control_rule_cap = next;
+      }
+      rule = &sva_control_rules[sva_control_rule_count];
+      rule->selector = selector ? sva_control_strdup_(selector) : 0;
+      if (selector && !rule->selector) {
+	    vpi_printf("SVA runtime error: assertion-control selector is too long "
+		       "or could not be allocated; the request was not applied.\n");
+	    return 0;
+      }
+      rule->levels = levels;
+      rule->enabled = enabled;
+      rule->kill = kill;
+      sva_control_rule_count += 1;
+      return 1;
+}
+
+static sva_control_entry_t*sva_control_find_(vpiHandle scope, PLI_INT32 idx)
+{
+      size_t i;
+      for (i = 0; i < sva_control_entry_count; i += 1)
+	    if (sva_control_entries[i].scope == scope
+		&& sva_control_entries[i].idx == idx)
+		  return &sva_control_entries[i];
+      return 0;
+}
+
+static void sva_control_register_(PLI_INT32 idx, const char*name,
+				  vpiHandle scope)
+{
+      sva_control_entry_t*entry;
+      const char*scope_name;
+      size_t slen, nlen, i;
+      if (sva_control_find_(scope, idx)) return;
+      if (sva_control_entry_count == sva_control_entry_cap) {
+	    size_t next = sva_control_entry_cap ? sva_control_entry_cap * 2 : 64;
+	    void*mem = realloc(sva_control_entries,
+			       next * sizeof *sva_control_entries);
+	    if (!mem) {
+		  vpi_printf("SVA runtime error: unable to allocate per-assertion "
+			     "control state.\n");
+		  return;
+	    }
+	    sva_control_entries = (sva_control_entry_t*)mem;
+	    sva_control_entry_cap = next;
+      }
+      entry = &sva_control_entries[sva_control_entry_count++];
+      memset(entry, 0, sizeof *entry);
+      entry->idx = idx;
+      entry->scope = scope;
+      entry->enabled = 1;
+      scope_name = scope ? vpi_get_str(vpiFullName, scope) : 0;
+      slen = scope_name ? strlen(scope_name) : 0;
+      nlen = name ? strlen(name) : 0;
+      entry->full_name = (char*)malloc(slen + (slen && nlen ? 1 : 0)
+				      + nlen + 1);
+      if (!entry->full_name) {
+	    vpi_printf("SVA runtime error: unable to allocate assertion name.\n");
+	    entry->enabled = sva_assert_enabled;
+	    return;
+      }
+      entry->full_name[0] = 0;
+      if (slen) memcpy(entry->full_name, scope_name, slen);
+      if (slen && nlen) entry->full_name[slen++] = '.';
+      if (nlen) memcpy(entry->full_name + slen, name, nlen);
+      entry->full_name[slen + nlen] = 0;
+      for (i = 0; i < sva_control_rule_count; i += 1)
+	    sva_control_apply_entry_(entry, &sva_control_rules[i], 0);
+}
 
 static PLI_INT32 sva_enabled_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      PLI_INT32 idx = -1;
+      sva_control_entry_t*entry = 0;
       s_vpi_value rv;
       (void)name;
+      if (argv) {
+	    vpiHandle arg = vpi_scan(argv);
+	    if (arg) {
+		  s_vpi_value value;
+		  value.format = vpiIntVal;
+		  vpi_get_value(arg, &value);
+		  idx = value.value.integer;
+	    }
+	    vpi_free_object(argv);
+      }
+      if (idx >= 0)
+	    entry = sva_control_find_(vpi_handle(vpiScope, callh), idx);
       rv.format = vpiIntVal;
-      rv.value.integer = sva_assert_enabled;
+      rv.value.integer = entry ? entry->enabled : sva_assert_enabled;
       vpi_put_value(callh, &rv, 0, vpiNoDelay);
       return 0;
 }
 
 static PLI_INT32 sva_control_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
-      int was = sva_assert_enabled;
-      if (name && strcmp(name, "$asserton") == 0) {
-	    sva_assert_enabled = 1;
-	      /* M12B-rest: report the control change to assertion
-	         callbacks (40.5.2). Enable reports only on a transition;
-	         $assertkill additionally resets in-flight attempts, so it
-	         reports cbAssertionReset each time it runs. */
-	    if (!was)
-		  vpip_assertion_report_all(cbAssertionEnable);
-      } else if (name && strcmp(name, "$assertkill") == 0) {
-	    sva_assert_enabled = 0;
-	    if (was)
-		  vpip_assertion_report_all(cbAssertionDisable);
-	    vpip_assertion_report_all(cbAssertionReset);
-      } else {                   /* $assertoff */
-	    sva_assert_enabled = 0;
-	    if (was)
-		  vpip_assertion_report_all(cbAssertionDisable);
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      int enabled = name && strcmp(name, "$asserton") == 0;
+      int kill = name && strcmp(name, "$assertkill") == 0;
+      PLI_INT32 levels = 0;
+      size_t before = sva_control_rule_count;
+      size_t i;
+      int saw_selector = 0;
+
+      if (argv) {
+	    vpiHandle arg = vpi_scan(argv);
+	    if (arg) {
+		  s_vpi_value value;
+		  value.format = vpiIntVal;
+		  vpi_get_value(arg, &value);
+		  levels = value.value.integer;
+		  if (levels < 0) {
+			vpi_printf("SVA runtime error: %s levels argument must be "
+				   "nonnegative; request ignored.\n", name);
+			vpi_free_object(argv);
+			return 0;
+		  }
+	    }
+	    while ((arg = vpi_scan(argv))) {
+		  s_vpi_value value;
+		  saw_selector = 1;
+		  value.format = vpiStringVal;
+		  vpi_get_value(arg, &value);
+		  if (!value.value.str || !value.value.str[0]) {
+			vpi_printf("SVA runtime error: %s selector is empty; "
+				   "request ignored.\n", name);
+			continue;
+		  }
+		  (void)sva_control_append_rule_(value.value.str, levels,
+					 enabled, kill);
+	    }
+      }
+
+      /* No selector means the whole design. Retain this as a chronological
+	 rule too, so later checker registration sees the same control order. */
+      if (!saw_selector)
+	    (void)sva_control_append_rule_(0, levels, enabled, kill);
+
+      for (i = before; i < sva_control_rule_count; i += 1) {
+	    size_t j;
+	    for (j = 0; j < sva_control_entry_count; j += 1)
+		  sva_control_apply_entry_(&sva_control_entries[j],
+					   &sva_control_rules[i], 1);
+      }
+      if (sva_control_rule_count > before
+	  && sva_control_rules[sva_control_rule_count-1].selector == 0)
+	    sva_assert_enabled = enabled;
+
+      if (kill && !sva_kill_approx_warned) {
+	    sva_kill_approx_warned = 1;
+	    vpi_printf("SVA warning: $assertkill disables new attempts, but "
+		       "reset of already executing concurrent-assertion attempts "
+		       "is not implemented; use $assertoff when completion of "
+		       "existing attempts is intended.\n");
       }
       return 0;
 }
@@ -201,6 +417,7 @@ static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       }
       vpip_register_assertion(idx, nm, fl, ln, vpi_handle(vpiScope, callh),
 			      depth, flags);
+      sva_control_register_(idx, nm, vpi_handle(vpiScope, callh));
       return 0;
 }
 

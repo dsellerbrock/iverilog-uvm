@@ -323,6 +323,18 @@ class netclass_t : public ivl_type_s {
 	    unsigned kind = 0;
 	    unsigned tuple = 0;
 	    unsigned item_idx = 0;
+	      // Transition-program metadata. Defaults preserve old/simple
+	      // records. trans_family==COVGRP_NO_FAMILY means the transition
+	      // increments prop_idx; otherwise it increments a sparse logical
+	      // bin in that compact arrayed family.
+	    unsigned trans_repeat = 0;
+	    uint64_t trans_min = 1;
+	    uint64_t trans_max = 1;
+	    unsigned trans_alt = 0;
+	    unsigned trans_alt_count = 1;
+	    unsigned trans_family = 0xFFFFFFFFu;
+	    uint64_t trans_base = 0;
+	    unsigned guard_idx = 0xFFFFFFFFu;
       };
 
 	// A bin whose endpoints depend on constructor formals. Records with
@@ -339,6 +351,7 @@ class netclass_t : public ivl_type_s {
 	    std::string name;
 	    std::string lo_ir;
 	    std::string hi_ir;
+	    unsigned guard_idx = 0xFFFFFFFFu;
       };
 
 	// M11: per-item (coverpoint or cross) coverage options.
@@ -353,20 +366,32 @@ class netclass_t : public ivl_type_s {
       };
 
       static const unsigned COVGRP_NO_PROP = 0xFFFFFFFF;
+      static const unsigned COVGRP_NO_FAMILY = 0xFFFFFFFF;
+      static const unsigned COVGRP_NO_GUARD = 0xFFFFFFFF;
 
       void add_covgrp_bin(unsigned cp, unsigned prop, uint64_t lo, uint64_t hi,
 			  unsigned kind = 0, unsigned tuple = 0,
-			  unsigned item_idx = 0);
+			  unsigned item_idx = 0, unsigned trans_repeat = 0,
+			  uint64_t trans_min = 1, uint64_t trans_max = 1,
+			  unsigned trans_alt = 0,
+			  unsigned trans_alt_count = 1,
+			  unsigned trans_family = COVGRP_NO_FAMILY,
+			  uint64_t trans_base = 0,
+			  unsigned guard_idx = COVGRP_NO_GUARD);
       size_t covgrp_bin_count() const { return covgrp_bins_.size(); }
       const covgrp_bin_t& covgrp_bin(size_t idx) const { return covgrp_bins_[idx]; }
+	void set_last_covgrp_bin_guard(unsigned guard)
+	{ if (!covgrp_bins_.empty()) covgrp_bins_.back().guard_idx = guard; }
       void add_covgrp_dyn_bin(unsigned cp, unsigned item, unsigned kind,
 			      unsigned family, uint64_t array_size,
 			      const std::string&name,
 			      const std::string&lo_ir,
-			      const std::string&hi_ir)
+			      const std::string&hi_ir,
+			      unsigned guard_idx = COVGRP_NO_GUARD)
       { covgrp_dyn_bin_t b;
 	b.cp_idx = cp; b.item_idx = item; b.kind = kind; b.family = family;
 	b.array_size = array_size; b.name = name; b.lo_ir = lo_ir; b.hi_ir = hi_ir;
+	b.guard_idx = guard_idx;
 	covgrp_dyn_bins_.push_back(b); }
       size_t covgrp_dyn_bin_count() const { return covgrp_dyn_bins_.size(); }
       const covgrp_dyn_bin_t& covgrp_dyn_bin(size_t idx) const
@@ -425,6 +450,14 @@ class netclass_t : public ivl_type_s {
 	// M11: per-coverpoint iff guard expressions (pform, evaluated
 	// at each sample() call site; null = unguarded).
       void add_covgrp_cp_guard(PExpr*g) { covgrp_cp_guards_.push_back(g); }
+	// Per-bin iff expressions, evaluated in declaration order at every
+	// explicit/standalone sample site. Bin records reference this table.
+      unsigned add_covgrp_bin_guard(PExpr*g)
+      { covgrp_bin_guards_.push_back(g);
+	return static_cast<unsigned>(covgrp_bin_guards_.size() - 1); }
+      size_t covgrp_bin_guard_count() const { return covgrp_bin_guards_.size(); }
+      PExpr* covgrp_bin_guard(size_t idx) const
+      { return idx < covgrp_bin_guards_.size() ? covgrp_bin_guards_[idx] : nullptr; }
 	// Coverpoint SOURCE expressions (pform), for sample() sites
 	// where the source is not a parent-class property — standalone
 	// (module/package-scope) covergroups sample scope signals, and
@@ -494,6 +527,7 @@ class netclass_t : public ivl_type_s {
       std::vector<covgrp_item_t> covgrp_items_;
       std::vector<int> covgrp_cp_parent_props_;
       std::vector<PExpr*> covgrp_cp_guards_;
+      std::vector<PExpr*> covgrp_bin_guards_;
       std::vector<int> covgrp_cp_srcprops_;
       std::vector<int> covgrp_cp_guardsrcs_;
       int covgrp_parent_prop_ = -1;

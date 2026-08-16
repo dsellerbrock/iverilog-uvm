@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_covergroup_transition_repeat.v:84: $finish called at 0 (1s)

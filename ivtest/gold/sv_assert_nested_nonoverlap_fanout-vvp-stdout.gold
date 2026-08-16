@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_assert_nested_nonoverlap_fanout.v:38: $finish called at 90 (1s)

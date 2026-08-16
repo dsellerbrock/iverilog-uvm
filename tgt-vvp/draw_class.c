@@ -486,24 +486,35 @@ void draw_class_in_scope(ivl_type_t classtype)
       }
 
       {
-	      /* M11: full record form — cp prop lo hi kind tuple item.
+	      /* Full record form. The trailing transition/guard fields keep
+		 old VVP streams readable while carrying compact repetition state.
 		 (vvp also still parses the older 4/5-operand forms.) */
 	    int nb = ivl_type_covgrp_bins(classtype);
 	    for (idx = 0 ; idx < nb ; idx += 1) {
-		  fprintf(vvp_out, " .covgrp_bin %u %u %" PRIu64 " %" PRIu64 " %u %u %u\n",
+		  fprintf(vvp_out, " .covgrp_bin %u %u %" PRIu64 " %" PRIu64
+			  " %u %u %u %u %" PRIu64 " %" PRIu64
+			  " %u %u %u %" PRIu64 " %u\n",
 			  ivl_type_covgrp_bin_cp(classtype, idx),
 			  ivl_type_covgrp_bin_prop(classtype, idx),
 			  ivl_type_covgrp_bin_lo(classtype, idx),
 			  ivl_type_covgrp_bin_hi(classtype, idx),
 			  ivl_type_covgrp_bin_kind(classtype, idx),
 			  ivl_type_covgrp_bin_tuple(classtype, idx),
-			  ivl_type_covgrp_bin_item(classtype, idx));
+			  ivl_type_covgrp_bin_item(classtype, idx),
+			  ivl_type_covgrp_bin_trans_repeat(classtype, idx),
+			  ivl_type_covgrp_bin_trans_min(classtype, idx),
+			  ivl_type_covgrp_bin_trans_max(classtype, idx),
+			  ivl_type_covgrp_bin_trans_alt(classtype, idx),
+			  ivl_type_covgrp_bin_trans_alt_count(classtype, idx),
+			  ivl_type_covgrp_bin_trans_family(classtype, idx),
+			  ivl_type_covgrp_bin_trans_base(classtype, idx),
+			  ivl_type_covgrp_bin_guard(classtype, idx));
 	    }
 	    int nd = ivl_type_covgrp_dyn_bins(classtype);
 	    for (idx = 0 ; idx < nd ; idx += 1) {
 		  fprintf(vvp_out,
 			  " .covgrp_dyn_bin %u %u %u %u %" PRIu64
-			  " \"%s\" \"%s\" \"%s\"\n",
+			  " \"%s\" \"%s\" \"%s\" %u\n",
 			  ivl_type_covgrp_dyn_bin_cp(classtype, idx),
 			  ivl_type_covgrp_dyn_bin_item(classtype, idx),
 			  ivl_type_covgrp_dyn_bin_kind(classtype, idx),
@@ -511,7 +522,8 @@ void draw_class_in_scope(ivl_type_t classtype)
 			  ivl_type_covgrp_dyn_bin_array_size(classtype, idx),
 			  ivl_type_covgrp_dyn_bin_name(classtype, idx),
 			  ivl_type_covgrp_dyn_bin_lo_ir(classtype, idx),
-			  ivl_type_covgrp_dyn_bin_hi_ir(classtype, idx));
+			  ivl_type_covgrp_dyn_bin_hi_ir(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_guard(classtype, idx));
 	    }
 	    int ni = ivl_type_covgrp_items(classtype);
 	    for (idx = 0 ; idx < ni ; idx += 1) {

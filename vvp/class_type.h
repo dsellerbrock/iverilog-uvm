@@ -240,6 +240,14 @@ class class_type : public __vpiHandle {
 	    unsigned kind = 0;
 	    unsigned tuple = 0;
 	    unsigned item_idx = 0;
+	    unsigned trans_repeat = 0;
+	    uint64_t trans_min = 1;
+	    uint64_t trans_max = 1;
+	    unsigned trans_alt = 0;
+	    unsigned trans_alt_count = 1;
+	    unsigned trans_family = 0xFFFFFFFFu;
+	    uint64_t trans_base = 0;
+	    unsigned guard_idx = 0xFFFFFFFFu;
       };
       struct cov_item_t {
 	    unsigned at_least = 1;
@@ -258,11 +266,19 @@ class class_type : public __vpiHandle {
 	    std::string name;
 	    std::string lo_ir;
 	    std::string hi_ir;
+	    unsigned guard_idx = 0xFFFFFFFFu;
       };
       static const unsigned COV_NO_PROP = 0xFFFFFFFFu;
+	static const unsigned COV_NO_FAMILY = 0xFFFFFFFFu;
+	static const unsigned COV_NO_GUARD = 0xFFFFFFFFu;
       void add_covgrp_bin(unsigned cp_idx, unsigned prop_idx, uint64_t lo, uint64_t hi,
 			  unsigned kind = 0, unsigned tuple = 0,
-			  unsigned item_idx = 0);
+			  unsigned item_idx = 0, unsigned trans_repeat = 0,
+			  uint64_t trans_min = 1, uint64_t trans_max = 1,
+			  unsigned trans_alt = 0, unsigned trans_alt_count = 1,
+			  unsigned trans_family = COV_NO_FAMILY,
+			  uint64_t trans_base = 0,
+			  unsigned guard_idx = COV_NO_GUARD);
       void add_covgrp_item(unsigned at_least, unsigned weight, bool is_cross,
 			   const std::string&name = std::string(),
 			   const std::string&weight_ir = std::string(),
@@ -281,10 +297,12 @@ class class_type : public __vpiHandle {
 			      unsigned family, uint64_t array_size,
 			      const std::string&name,
 			      const std::string&lo_ir,
-			      const std::string&hi_ir)
+			      const std::string&hi_ir,
+			      unsigned guard_idx = COV_NO_GUARD)
       { cov_dyn_bin_t b;
 	b.cp_idx = cp; b.item_idx = item; b.kind = kind; b.family = family;
 	b.array_size = array_size; b.name = name; b.lo_ir = lo_ir; b.hi_ir = hi_ir;
+	b.guard_idx = guard_idx;
 	covgrp_dyn_bins_.push_back(b); }
       size_t covgrp_dyn_bin_count() const { return covgrp_dyn_bins_.size(); }
       const cov_dyn_bin_t& covgrp_dyn_bin(size_t idx) const
@@ -308,6 +326,14 @@ class class_type : public __vpiHandle {
       uint32_t dyn_type_count(unsigned family, uint64_t bin) const
       { auto it = covgrp_dyn_type_counts_.find(std::make_pair(family, bin));
 	return it == covgrp_dyn_type_counts_.end() ? 0 : it->second; }
+	uint64_t dyn_type_hits(unsigned family, unsigned at_least) const
+	{ uint64_t hits = 0;
+	  for (auto&entry : covgrp_dyn_type_counts_)
+		if (entry.first.first == family && entry.second >= at_least)
+		      hits += 1;
+	  return hits; }
+	uint64_t covgrp_trans_family_size(unsigned family) const;
+	unsigned covgrp_trans_family_item(unsigned family) const;
       double type_coverage(class vvp_cobject*context = 0) const;
 
 	// M11: registry of covergroup types for $get_coverage and the

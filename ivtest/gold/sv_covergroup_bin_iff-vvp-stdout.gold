@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_covergroup_bin_iff.v:101: $finish called at 6 (1s)

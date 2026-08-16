@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_covergroup_transition_modes.v:133: $finish called at 0 (1s)

@@ -4074,6 +4074,28 @@ extern "C" unsigned ivl_type_covgrp_bin_item(ivl_type_t net, int idx)
       return 0;
 }
 
+#define IVL_COV_BIN_UINT_API(NAME, FIELD) \
+extern "C" unsigned NAME(ivl_type_t net, int idx) \
+{ const netclass_t*ct = dynamic_cast<const netclass_t*>(net); \
+  return (ct && idx >= 0) ? ct->covgrp_bin((size_t)idx).FIELD : 0; }
+
+#define IVL_COV_BIN_U64_API(NAME, FIELD) \
+extern "C" uint64_t NAME(ivl_type_t net, int idx) \
+{ const netclass_t*ct = dynamic_cast<const netclass_t*>(net); \
+  return (ct && idx >= 0) ? ct->covgrp_bin((size_t)idx).FIELD : 0; }
+
+IVL_COV_BIN_UINT_API(ivl_type_covgrp_bin_trans_repeat, trans_repeat)
+IVL_COV_BIN_U64_API(ivl_type_covgrp_bin_trans_min, trans_min)
+IVL_COV_BIN_U64_API(ivl_type_covgrp_bin_trans_max, trans_max)
+IVL_COV_BIN_UINT_API(ivl_type_covgrp_bin_trans_alt, trans_alt)
+IVL_COV_BIN_UINT_API(ivl_type_covgrp_bin_trans_alt_count, trans_alt_count)
+IVL_COV_BIN_UINT_API(ivl_type_covgrp_bin_trans_family, trans_family)
+IVL_COV_BIN_U64_API(ivl_type_covgrp_bin_trans_base, trans_base)
+IVL_COV_BIN_UINT_API(ivl_type_covgrp_bin_guard, guard_idx)
+
+#undef IVL_COV_BIN_UINT_API
+#undef IVL_COV_BIN_U64_API
+
 extern "C" int ivl_type_covgrp_dyn_bins(ivl_type_t net)
 {
       const netclass_t*ct = dynamic_cast<const netclass_t*>(net);
@@ -4089,6 +4111,7 @@ IVL_DYN_BIN_UINT_API(ivl_type_covgrp_dyn_bin_cp, cp_idx)
 IVL_DYN_BIN_UINT_API(ivl_type_covgrp_dyn_bin_item, item_idx)
 IVL_DYN_BIN_UINT_API(ivl_type_covgrp_dyn_bin_kind, kind)
 IVL_DYN_BIN_UINT_API(ivl_type_covgrp_dyn_bin_family, family)
+IVL_DYN_BIN_UINT_API(ivl_type_covgrp_dyn_bin_guard, guard_idx)
 #undef IVL_DYN_BIN_UINT_API
 
 extern "C" uint64_t ivl_type_covgrp_dyn_bin_array_size(ivl_type_t net, int idx)

@@ -498,15 +498,16 @@ extern std::map<perm_string, PExpr*> pending_cg_options_;
  * coverpoint or an integral variable. In the latter case the language creates
  * an implicit coverpoint equivalent to `coverpoint variable'. Do this after
  * the complete covergroup body has been parsed so a cross can precede the
- * explicit coverpoint that it names. Reuse one implicit coverpoint when the
- * same variable contributes to more than one cross. */
+ * explicit coverpoint that it names. */
 static void pform_covergroup_implicit_cross_coverpoints_(
       const struct vlltype&loc, class_type_t::pform_covergroup_t*cg)
 {
       if (!cg) return;
 
-      for (const auto&cross : cg->crosses) {
-	    for (perm_string item : cross.cp_labels) {
+      for (auto&cross : cg->crosses) {
+	    for (size_t item_idx = 0; item_idx < cross.cp_labels.size();
+		 item_idx += 1) {
+		  perm_string item = cross.cp_labels[item_idx];
 		  bool declared = false;
 		  for (const auto&cp : cg->coverpoints) {
 			if (cp.label == item) {
@@ -518,8 +519,14 @@ static void pform_covergroup_implicit_cross_coverpoints_(
 
 		  class_type_t::pform_coverpoint_t cp;
 		  cp.label = item;
-		  cp.expr = new PEIdent(item, loc.lexical_pos);
-		  FILE_NAME(cp.expr, loc);
+		  if (item_idx < cross.cp_exprs.size()
+		      && cross.cp_exprs[item_idx]) {
+			cp.expr = cross.cp_exprs[item_idx];
+			cross.cp_exprs[item_idx] = nullptr;
+		  } else {
+			cp.expr = new PEIdent(item, loc.lexical_pos);
+			FILE_NAME(cp.expr, loc);
+		  }
 		  cg->coverpoints.push_back(std::move(cp));
 	    }
       }

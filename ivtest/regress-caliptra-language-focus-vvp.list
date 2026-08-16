@@ -1,0 +1,2 @@
+sv_task_localparam_untyped vvp_tests/sv_task_localparam_untyped.json
+sv_based_literal_leading_underscore vvp_tests/sv_based_literal_leading_underscore.json

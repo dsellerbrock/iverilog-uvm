@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_assert_eventually_not.v:56: $finish called at 300 (1s)

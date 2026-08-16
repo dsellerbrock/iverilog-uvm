@@ -154,6 +154,25 @@ class vvp_cobject : public vvp_object {
       void set_cov_trans_mask(uint64_t key, uint64_t mask) {
 	    cov_trans_[key] = mask;
       }
+	struct cov_trans_state_t {
+	      unsigned term = 0;
+	      unsigned forbid_term = 0;
+	      uint64_t count = 0;
+	      uint64_t prefix = 0;
+	      uint64_t word = 0;
+	      bool waiting = false;
+	      bool operator<(const cov_trans_state_t&that) const {
+		    if (term != that.term) return term < that.term;
+		    if (forbid_term != that.forbid_term)
+			  return forbid_term < that.forbid_term;
+		    if (count != that.count) return count < that.count;
+		    if (prefix != that.prefix) return prefix < that.prefix;
+		    if (word != that.word) return word < that.word;
+		    return waiting < that.waiting;
+	      }
+	};
+	std::vector<cov_trans_state_t>& cov_trans_states(uint64_t key)
+	{ return cov_trans_states_[key]; }
 	// Per-instance counters for constructor-dependent bin families.
       uint32_t cov_dyn_count(unsigned family, uint64_t bin) const
       { auto it = cov_dyn_counts_.find(std::make_pair(family, bin));
@@ -236,6 +255,7 @@ class vvp_cobject : public vvp_object {
 				  vvp_vector4_t&value,
 				  std::vector<bool>*&history) const;
       std::map<uint64_t, uint64_t> cov_trans_;
+	std::map<uint64_t, std::vector<cov_trans_state_t>> cov_trans_states_;
       std::map<std::pair<unsigned,uint64_t>,uint32_t> cov_dyn_counts_;
       bool cov_enabled_ = true;
 	// Lazily-allocated per-instance event nets, keyed by event slot.
