@@ -1084,6 +1084,19 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 	    return false;
       }
 
+      NetNet*interface_lsig = 0;
+      if (lval_->is_interface_member()) {
+	    interface_lsig = lval_->resolve_interface_member_signal();
+	    if (!interface_lsig) {
+		  cerr << get_fileline() << ": error: Interface-member l-value ";
+		  dump_lval(cerr);
+		  cerr << " cannot be synthesized because its interface port is "
+			  "not statically bound to an interface instance." << endl;
+		  des->errors += 1;
+		  return false;
+	    }
+      }
+
       unsigned errors_before = des->errors;
       NetNet*rsig = rval_->synthesize(des, scope, rval_);
       if (!rsig) {
@@ -1095,7 +1108,7 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 	    return false;
       }
 
-      NetNet*lsig = lval_->sig();
+      NetNet*lsig = interface_lsig ? interface_lsig : lval_->sig();
       if (!lsig) {
 	    cerr << get_fileline() << ": error: "
 		    "NetAssignBase::synth_async on unsupported lval ";
@@ -3990,6 +4003,15 @@ void synth2_f::process(Design*des, NetProcTop*top)
 	    return;
       }
 
+      if (top->attribute(perm_string::literal(
+                "_ivl_synthesis_transient")).as_ulong() != 0) {
+            des->delete_process(top);
+            return;
+      }
+
+      bool vif_continuous = top->attribute(perm_string::literal(
+            "_ivl_vif_continuous")).as_ulong() != 0;
+
       if (top->attribute(perm_string::literal("ivl_synthesis_off")).as_ulong() != 0)
 	    return;
 
@@ -4037,6 +4059,14 @@ void synth2_f::process(Design*des, NetProcTop*top)
       }
 
       if (! top->is_asynchronous()) {
+	    if (vif_continuous) {
+		  cerr << top->get_fileline() << ": error: "
+		       << "Unable to statically synthesize interface-member "
+		          "continuous assignment." << endl;
+		  des->errors += 1;
+		  des->delete_process(top);
+		  return;
+	    }
 	    bool synth_error_flag = false;
 	    if (top->attribute(perm_string::literal("ivl_combinational")).as_ulong() != 0) {
 		  cerr << top->get_fileline() << ": error: "
@@ -4061,11 +4091,16 @@ void synth2_f::process(Design*des, NetProcTop*top)
 	    return;
       }
 
+      unsigned errors_before_async = des->errors;
       if (! top->synth_async(des)) {
-	    cerr << top->get_fileline() << ": error: "
-		 << "Unable to synthesize asynchronous process."
-		 << endl;
-	    des->errors += 1;
+	    if (!vif_continuous || des->errors == errors_before_async) {
+		  cerr << top->get_fileline() << ": error: "
+		       << "Unable to synthesize asynchronous process."
+		       << endl;
+		  des->errors += 1;
+	    }
+	    if (vif_continuous)
+		  des->delete_process(top);
 	    return;
       }
 

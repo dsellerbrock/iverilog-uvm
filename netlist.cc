@@ -648,6 +648,95 @@ void NetNet::set_net_type(ivl_type_t type)
 	    array_type_ = new netuarray_t(unpacked_dims_, net_type_);
 }
 
+void NetNet::bind_interface_scope(unsigned word, NetScope*scope)
+{
+      ivl_assert(*this, word < pin_count());
+      ivl_assert(*this, scope);
+      if (interface_bindings_.size() < pin_count())
+            interface_bindings_.resize(pin_count());
+      interface_binding_t&binding = interface_bindings_[word];
+      binding.scope = scope;
+      binding.signal = 0;
+      binding.signal_word = 0;
+}
+
+void NetNet::bind_interface_signal(unsigned word, NetNet*signal,
+                                   unsigned signal_word)
+{
+      ivl_assert(*this, word < pin_count());
+      ivl_assert(*this, signal);
+      ivl_assert(*this, signal_word < signal->pin_count());
+      if (interface_bindings_.size() < pin_count())
+            interface_bindings_.resize(pin_count());
+      interface_binding_t&binding = interface_bindings_[word];
+      binding.scope = 0;
+      binding.signal = signal;
+      binding.signal_word = signal_word;
+}
+
+void NetNet::bind_interface_member(unsigned word, size_t property_idx,
+                                   NetNet*member)
+{
+      ivl_assert(*this, word < pin_count());
+      ivl_assert(*this, member);
+      interface_synthesis_members_[make_pair(word, property_idx)] = member;
+}
+
+NetNet* NetNet::resolve_interface_member(unsigned word,
+                                         size_t property_idx) const
+{
+      const NetNet*signal = this;
+      unsigned signal_word = word;
+      set<pair<const NetNet*,unsigned> >seen;
+
+      while (signal) {
+            if (signal_word >= signal->pin_count())
+                  return 0;
+            if (!seen.insert(make_pair(signal, signal_word)).second)
+                  return 0;
+
+            const netclass_t*interface_type =
+                  dynamic_cast<const netclass_t*>(signal->net_type());
+            if (!interface_type || !interface_type->is_interface()
+                || property_idx >= interface_type->get_properties())
+                  return 0;
+            map<pair<unsigned,size_t>,NetNet*>::const_iterator bound_member =
+                  signal->interface_synthesis_members_.find(
+                        make_pair(signal_word, property_idx));
+            if (bound_member != signal->interface_synthesis_members_.end())
+                  return bound_member->second;
+            if (signal->interface_bindings_.size() <= signal_word)
+                  return 0;
+
+            const interface_binding_t&binding =
+                  signal->interface_bindings_[signal_word];
+            if (binding.scope) {
+                  perm_string member_name = lex_strings.make(
+                        interface_type->get_prop_name(property_idx));
+                  NetNet*member = binding.scope->find_signal(member_name);
+                  if (!member)
+                        return 0;
+
+                  ivl_type_t expected = interface_type->get_prop_type(
+                        property_idx);
+                  ivl_type_t actual = member->unpacked_dimensions()
+                        ? static_cast<ivl_type_t>(member->array_type())
+                        : member->net_type();
+                  if (!expected || !actual
+                      || !expected->type_equivalent(actual)
+                      || !actual->type_equivalent(expected)) {
+                        return 0;
+                  }
+                  return member;
+            }
+
+            signal = binding.signal;
+            signal_word = binding.signal_word;
+      }
+
+      return 0;
+}
+
 void NetNet::set_user_nettype(const NetNetType*declared)
 {
       declared_user_nettype_ = declared;

@@ -53,13 +53,17 @@ bool nex_output_precise_array_word = false;
 
 void NetAssign_::nex_output(NexusSet&out)
 {
-      assert(! nest_);
-      assert(sig_);
+      NetNet*interface_member = resolve_interface_member_signal();
+      NetNet*use_sig = interface_member ? interface_member : sig_;
+      if (!use_sig && is_interface_member() && nest_)
+            use_sig = nest_->sig();
+      assert(!nest_ || interface_member || is_interface_member());
+      assert(use_sig);
 
 	// A synchronous synthesis pass may replace a single run-time-selected
 	// whole-word write by one structural array write port. Let that pass
 	// collect all writes first, then substitute its compact output token.
-      if (synth_array_write_nex_output(this, out))
+      if (!interface_member && synth_array_write_nex_output(this, out))
 	    return;
 
 	// A whole unpacked-array assignment writes every word, and an
@@ -67,9 +71,9 @@ void NetAssign_::nex_output(NexusSet&out)
 	// sub-array. Treating either as one selected word leaves words out of the
 	// process output map; a slice additionally reports lwidth()==1 because
 	// its netuarray_t is unpacked, creating an overlapping one-bit map entry.
-      if (sig_->unpacked_dimensions() && (!word_ || is_array_slice())) {
+      if (use_sig->unpacked_dimensions() && (!word_ || is_array_slice())) {
 	    unsigned long first_word = 0;
-	    unsigned long word_count = sig_->pin_count();
+	    unsigned long word_count = use_sig->pin_count();
 
 	    if (is_array_slice()) {
 		  long base = 0;
@@ -77,13 +81,13 @@ void NetAssign_::nex_output(NexusSet&out)
 			return;
 		  first_word = static_cast<unsigned long>(base);
 		  word_count = netrange_width(net_type()->slice_dimensions());
-		  if (word_count == 0 || first_word >= sig_->pin_count()
-		      || word_count > sig_->pin_count() - first_word)
+		  if (word_count == 0 || first_word >= use_sig->pin_count()
+		      || word_count > use_sig->pin_count() - first_word)
 			return;
 	    }
 
 	    for (unsigned long idx = 0; idx < word_count; idx += 1) {
-		  Nexus*word_nex = sig_->pin(first_word + idx).nexus();
+		  Nexus*word_nex = use_sig->pin(first_word + idx).nexus();
 		  out.add(word_nex, 0, word_nex->vector_width());
 	    }
 	    return;
@@ -105,15 +109,15 @@ void NetAssign_::nex_output(NexusSet&out)
 		    // word expression. Keep the precise walk conservative and
 		    // expose all words to the default synthesis walk.
 		  if (!nex_output_precise_array_word) {
-			for (unsigned idx = 0; idx < sig_->pin_count(); idx += 1) {
-			      Nexus*word_nex = sig_->pin(idx).nexus();
+			for (unsigned idx = 0; idx < use_sig->pin_count(); idx += 1) {
+			      Nexus*word_nex = use_sig->pin(idx).nexus();
 			      out.add(word_nex, 0, word_nex->vector_width());
 			}
 		  }
 		  return;
 	    }
       }
-      Nexus*nex = sig_->pin(use_word).nexus();
+      Nexus*nex = use_sig->pin(use_word).nexus();
       if (base_) {
 
 	      // Unable to evaluate the bit/part select of

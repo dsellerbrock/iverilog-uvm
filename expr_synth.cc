@@ -24,6 +24,7 @@
 # include  <iostream>
 
 # include  "netlist.h"
+# include  "netclass.h"
 # include  "netvector.h"
 # include  "netparray.h"
 # include  "netmisc.h"
@@ -88,12 +89,61 @@ NetNet* NetExpr::synthesize(Design*des, NetScope*, NetExpr*)
       return 0;
 }
 
-// Class property accesses (obj.prop or nested chains) cannot be synthesized
-// to a gate-level net. Return null silently — the event-expression call site
-// in elaborate.cc already handles this with a compile-progress warning.
-NetNet* NetEProperty::synthesize(Design*, NetScope*, NetExpr*)
+// Ordinary class-property accesses cannot be synthesized to a gate-level
+// net. An interface PORT uses the same expression node for simulation, but
+// elaboration also records its static binding to a concrete interface scope.
+// Resolve that special case to the real interface-member signal so synthesis
+// sees the structural design rather than the one-bit runtime handle.
+NetNet* NetEProperty::synthesize(Design*des, NetScope*scope, NetExpr*root)
 {
-      return 0;
+      NetNet*interface_port = get_sig()
+            ? const_cast<NetNet*>(get_sig()) : 0;
+
+      if (!interface_port) {
+            const NetESignal*base =
+                  dynamic_cast<const NetESignal*>(get_base());
+            if (base) {
+                  interface_port = const_cast<NetNet*>(base->sig());
+                  if (const NetExpr*word = base->word_index()) {
+                        long value = 0;
+                        if (!eval_as_long(value, word) || value < 0
+                            || static_cast<unsigned long>(value)
+                               >= interface_port->pin_count()) {
+                              cerr << get_fileline() << ": sorry: A "
+                                      "run-time-selected interface-port "
+                                      "array member is not currently "
+                                      "supported in synthesis." << endl;
+                              des->errors += 1;
+                              return 0;
+                        }
+                  }
+            }
+      }
+
+      const netclass_t*interface_type = interface_port
+            ? dynamic_cast<const netclass_t*>(interface_port->net_type()) : 0;
+      if (!interface_type || !interface_type->is_interface())
+            return 0;
+
+      NetNet*member = resolve_interface_member_signal();
+      if (!member) {
+            cerr << get_fileline() << ": error: Interface member '"
+                 << interface_type->get_prop_name(property_idx())
+                 << "' cannot be synthesized because interface port '"
+                 << interface_port->name()
+                 << "' is not statically bound to a matching interface "
+                    "instance." << endl;
+            des->errors += 1;
+            return 0;
+      }
+
+      if (const NetExpr*index = get_index()) {
+            NetESignal selected(member, index->dup_expr());
+            selected.set_line(*this);
+            return selected.synthesize(des, scope, root);
+      }
+
+      return member;
 }
 
 /*

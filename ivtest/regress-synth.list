@@ -189,3 +189,7 @@ synth_unwritten_packed_initialization normal,-g2012	ivltests
 synth_variable_packed_lvalue normal,-g2012	ivltests
 synth_if_no_else	normal			ivltests
 ufuncsynth1		normal			ivltests
+
+# IEEE 1800-2017 interface/modport member binding through synthesis
+synth_interface_member_transfer normal,-g2012,-ssynth_interface_member_all_netlist ivltests gold=synth_interface_member_synthesis.gold
+synth_interface_member_top_port normal,-g2012,-ssynth_interface_member_top_port ivltests gold=synth_interface_member_synthesis.gold

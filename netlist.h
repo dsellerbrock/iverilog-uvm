@@ -806,6 +806,20 @@ class NetNet  : public NetObj, public PortType {
       inline const ivl_type_s* net_type(void) const { return net_type_; }
       void set_net_type(ivl_type_t type);
 
+      /* Interface ports are represented as class-typed handle variables for
+       * simulation.  Elaboration nevertheless knows the concrete interface
+       * instance (or an enclosing interface port) to which every handle word
+       * is bound.  Preserve that static binding separately so synthesis can
+       * resolve port.member to the real member NetNet without changing the
+       * virtual-interface runtime model. */
+      void bind_interface_scope(unsigned word, NetScope*scope);
+      void bind_interface_signal(unsigned word, NetNet*signal,
+                                 unsigned signal_word);
+      void bind_interface_member(unsigned word, size_t property_idx,
+                                 NetNet*member);
+      NetNet* resolve_interface_member(unsigned word,
+                                       size_t property_idx) const;
+
       /* User-defined nettype identity is distinct from the lowered data type.
        * Keep both the spelling selected at the declaration and its canonical
        * alias target so diagnostics and interconnect propagation do not infer
@@ -1043,6 +1057,15 @@ class NetNet  : public NetObj, public PortType {
       Type net_delay_declared_type_ = NONE;
       class NetLogic*net_delay_pull_ = 0;
       int       port_index_ = -1;
+
+      struct interface_binding_t {
+            NetScope*scope = 0;
+            NetNet*signal = 0;
+            unsigned signal_word = 0;
+      };
+      std::vector<interface_binding_t>interface_bindings_;
+      std::map<std::pair<unsigned,size_t>,NetNet*>
+            interface_synthesis_members_;
 };
 
 /*
@@ -3310,6 +3333,11 @@ class NetAssign_ {
       NetNet* sig() const;
       inline const NetAssign_* nest() const { return nest_; }
 
+      // A direct member of a statically bound interface port is backed by a
+      // real signal in the bound interface-instance scope during synthesis.
+      bool is_interface_member() const;
+      NetNet* resolve_interface_member_signal() const;
+
       // Force/release targets are temporary overrides, not permanent
       // procedural drivers. Mark the complete nested l-value chain so
       // continuous-driver conflict analysis can distinguish them.
@@ -5345,6 +5373,11 @@ class NetEProperty : public NetExpr {
       inline const NetExpr* get_base() const { return expr_; }
       inline size_t property_idx() const { return pidx_; }
       inline const NetExpr*get_index() const { return index_; }
+
+      // Resolve a direct member of a statically bound interface port to the
+      // concrete signal in the interface-instance scope. Ordinary class
+      // properties and run-time-selected interface-port arrays return nil.
+      NetNet* resolve_interface_member_signal() const;
 
     public: // Overridden methods
 	      virtual void expr_scan(struct expr_scan_t*) const override;

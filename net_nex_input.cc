@@ -132,7 +132,14 @@ NexusSet* NetENull::nex_input(bool, bool, bool) const
 NexusSet* NetEProperty::nex_input(bool, bool, bool) const
 {
       NexusSet*result = new NexusSet;
-      if (const NetNet*sig = get_sig()) {
+      NetNet*static_member = resolve_interface_member_signal();
+      if (static_member) {
+            for (unsigned pin = 0; pin < static_member->pin_count(); pin += 1) {
+                  Nexus*nx = static_member->pin(pin).nexus();
+                  if (nx)
+                        result->add(nx, 0, nx->vector_width());
+            }
+      } else if (const NetNet*sig = get_sig()) {
             static int trace_prop_wait = -1;
             if (trace_prop_wait < 0) {
                   const char*env = getenv("IVL_PROP_WAIT_TRACE");
@@ -168,7 +175,8 @@ NexusSet* NetEProperty::nex_input(bool, bool, bool) const
 			result->add(nx, 0, nx->vector_width());
 	    }
       }
-      if (const NetExpr*base = get_base()) {
+      const NetExpr*base = get_base();
+      if (base && !static_member) {
 	    delete result;
 	    result = base->nex_input();
       }
@@ -423,8 +431,17 @@ NexusSet* NetAlloc::nex_input(bool, bool, bool) const
 
 NexusSet* NetAssign_::nex_input(bool rem_out, bool always_sens, bool nested_func) const
 {
-      assert(! nest_);
       NexusSet*result = new NexusSet;
+
+      // A member of an indexed interface-port array is represented as a
+      // nested l-value. Its root word/select expressions are ordinary inputs
+      // to the assignment even though the member itself resolves to a
+      // concrete interface signal for synthesis.
+      if (nest_) {
+            NexusSet*tmp = nest_->nex_input(rem_out, always_sens, nested_func);
+            result->add(*tmp);
+            delete tmp;
+      }
 
       if (word_) {
 	    NexusSet*tmp = word_->nex_input(rem_out, always_sens, nested_func);

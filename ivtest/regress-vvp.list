@@ -773,3 +773,8 @@ sv_function_fork_blocking_fail	vvp_tests/sv_function_fork_blocking_fail.json
 
 # IEEE 1800-2017 11.8.1 binary operand contextual sizing
 sv_binary_self_determined_operand_width	vvp_tests/sv_binary_self_determined_operand_width.json
+
+# IEEE 1800-2017 interface/modport member binding through synthesis
+synth_interface_member_transfer	vvp_tests/synth_interface_member_transfer.json
+synth_interface_member_transfer-S	vvp_tests/synth_interface_member_transfer-S.json
+synth_interface_member_top_port-S	vvp_tests/synth_interface_member_top_port-S.json

@@ -27,6 +27,7 @@
 # include  "netstruct.h"
 # include  "netenum.h"
 # include  "netvector.h"
+# include  "netmisc.h"
 # include  "ivl_assert.h"
 
 using namespace std;
@@ -261,6 +262,42 @@ NetNet* NetAssign_::sig() const
 {
       ivl_assert(*this, sig_ ? nest_ == 0 : nest_ != 0);
       return sig_;
+}
+
+bool NetAssign_::is_interface_member() const
+{
+      if (member_.nil() || member_idx_ < 0)
+            return false;
+
+      ivl_type_t owner_type = nest_ ? nest_->net_type()
+                                    : sig_ ? sig_->net_type() : 0;
+      const netclass_t*owner =
+            dynamic_cast<const netclass_t*>(owner_type);
+      return owner && owner->is_interface();
+}
+
+NetNet* NetAssign_::resolve_interface_member_signal() const
+{
+      if (!is_interface_member())
+            return 0;
+
+      const NetAssign_*owner = nest_ ? nest_ : this;
+      NetNet*root = owner->sig_;
+      if (!root)
+            return 0;
+
+      unsigned root_word = 0;
+      if (root->unpacked_dimensions()) {
+            long value = 0;
+            if (!owner->word_ || !eval_as_long(value, owner->word_)
+                || value < 0
+                || static_cast<unsigned long>(value) >= root->pin_count())
+                  return 0;
+            root_word = static_cast<unsigned>(value);
+      }
+
+      return root->resolve_interface_member(
+            root_word, static_cast<size_t>(member_idx_));
 }
 
 void NetAssign_::mark_force_lval()

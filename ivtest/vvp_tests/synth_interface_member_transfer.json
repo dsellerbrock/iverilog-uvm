@@ -1,0 +1,9 @@
+{
+    "type"          : "normal",
+    "source"        : "synth_interface_member_transfer.v",
+    "iverilog-args" : [ "-g2012", "-s", "synth_interface_member_transfer" ],
+    "gold"          : "synth_interface_member_transfer",
+    "vlog95"        : {
+        "type" : "NI"
+    }
+}
