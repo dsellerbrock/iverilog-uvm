@@ -1,6 +1,7 @@
 /*
  * This program doesn't do anything, and shouldn't be run. This is
- * only to check that the null target can see the ternary operator.
+ * only to check that the complete frontend validation pipeline used by the
+ * null target accepts the ternary operator.
  */
 
 module main2( );

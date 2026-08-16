@@ -20,6 +20,7 @@
 # include "version_base.h"
 # include "version_tag.h"
 # include "config.h"
+# include  <stdio.h>
 # include  <string.h>
 
 /*
@@ -49,7 +50,20 @@ static const char*version_string =
 
 int target_design(ivl_design_t des)
 {
-      (void)des; /* Parameter is not used. */
+      ivl_scope_t*roots = 0;
+      unsigned nroots = 0;
+
+      /* This invariant makes every null-target invocation a regression for
+	 the capability below: the frontend must finish validation, but must
+	 not construct the target-side scope graph that this target discards. */
+      ivl_design_roots(des, &roots, &nroots);
+      if (nroots != 0) {
+	    fprintf(stderr,
+		    "internal error: null target received %u target-side roots.\n",
+		    nroots);
+	    return 1;
+      }
+
       return 0;
 }
 
@@ -58,6 +72,12 @@ const char* target_query(const char*key)
 {
       if (strcmp(key,"version") == 0)
 	    return version_string;
+
+      /* target_design accepts the skeletal metadata object above. Tell the
+	 core not to materialize a duplicate target-side graph for this
+	 validation-only target. */
+      if (strcmp(key,"requires_design") == 0)
+	    return "false";
 
       return 0;
 }

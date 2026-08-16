@@ -584,6 +584,14 @@ int Design::emit(struct target_t*tgt) const
       if (tgt->start_design(this) == false)
 	    return -2;
 
+	/* A validation-only target has already received the fully parsed,
+	   elaborated, and post-processed Design through start_design(). Avoid
+	   constructing a second target-side copy when it accepts the skeletal
+	   API design initialized there. The null target uses this path;
+	   ordinary code generators retain the complete traversal below. */
+      if (!tgt->needs_design())
+	    return tgt->end_design(this);
+
 	// enumerate package scopes
       for (map<perm_string,NetScope*>::const_iterator scope = packages_.begin()
 		 ; scope != packages_.end() ; ++ scope) {

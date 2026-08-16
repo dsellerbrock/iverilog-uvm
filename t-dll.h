@@ -54,6 +54,7 @@ struct dll_target  : public target_t, public expr_scan_t {
       void test_version(const char*target_name);
 
       bool start_design(const Design*) override;
+      bool needs_design() const override { return needs_design_; }
       int  end_design(const Design*) override;
 
       bool bufz(const NetBUFZ*) override;
@@ -174,6 +175,7 @@ struct dll_target  : public target_t, public expr_scan_t {
       void logic_attributes(struct ivl_net_logic_s *obj, const NetNode*net);
 
     private:
+      bool needs_design_ = true;
       StringHeap strings_;
       std::map<const NetNet*, ivl_signal_t> signal_map_;
 

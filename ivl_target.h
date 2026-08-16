@@ -2700,6 +2700,16 @@ extern int      ivl_type_covgrp_guardsrc(ivl_type_t net, int idx);
 extern DLLEXPORT int target_design(ivl_design_t des);
 extern DLLEXPORT const char* target_query(const char*key);
 
+/* Optional target_query keys understood by the core:
+
+   "requires_design"
+      Return the exact string "false" only when target_design() accepts a
+      skeletal ivl_design_t with no scopes, processes, constants, or other
+      target-side graph objects. The core still completes parse, elaboration,
+      semantic checks and netlist functors. Global metadata such as time
+      precision and disciplines remains available. A missing hook, null
+      answer, or any other value retains the full graph. */
+
 /* target_design
 
    The "target_design" function is called once after the whole design

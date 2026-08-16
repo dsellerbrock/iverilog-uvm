@@ -101,6 +101,16 @@ extern "C" void ivl_design_roots(ivl_design_t des, ivl_scope_t **scopes,
 {
       assert(des);
       assert (nscopes && scopes);
+
+	/* A target that opts out of target-side graph materialization receives
+	   a valid skeletal design. Make the empty-root API result explicit
+	   instead of taking element zero of an empty vector. */
+      if (des->packages.empty() && des->roots.empty()) {
+	    *scopes = 0;
+	    *nscopes = 0;
+	    return;
+      }
+
       if (des->root_scope_list.size() == 0) {
 	    size_t fill = 0;
 	    des->root_scope_list.resize(des->packages.size() + des->roots.size());
