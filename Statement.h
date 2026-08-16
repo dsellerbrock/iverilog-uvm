@@ -52,7 +52,7 @@ class PProcess : public LineInfo {
 
     public:
       PProcess(ivl_process_type_t t, Statement*st)
-      : type_(t), statement_(st) { }
+      : type_(t), statement_(st), generated_verification_(false) { }
 
       virtual ~PProcess() override;
 
@@ -64,6 +64,11 @@ class PProcess : public LineInfo {
       ivl_process_type_t type() const { return type_; }
       Statement*statement() { return statement_; }
 
+      void generated_verification(bool flag = true)
+      { generated_verification_ = flag; }
+      bool is_generated_verification() const
+      { return generated_verification_; }
+
       std::map<perm_string,PExpr*> attributes;
 
       virtual void dump(std::ostream&out, unsigned ind) const;
@@ -71,6 +76,7 @@ class PProcess : public LineInfo {
     private:
       ivl_process_type_t type_;
       Statement*statement_;
+      bool generated_verification_;
 };
 
 /*

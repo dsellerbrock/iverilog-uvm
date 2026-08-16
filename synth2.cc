@@ -1077,9 +1077,23 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 	    return flag;
       }
 
-      assert(rval_);
+      if (!rval_) {
+	    cerr << get_fileline() << ": internal error: assignment has no "
+		    "r-value during synthesis." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
+      unsigned errors_before = des->errors;
       NetNet*rsig = rval_->synthesize(des, scope, rval_);
-      assert(rsig);
+      if (!rsig) {
+	    if (des->errors == errors_before) {
+		  cerr << get_fileline() << ": error: Unable to synthesize "
+			  "assignment r-value." << endl;
+		  des->errors += 1;
+	    }
+	    return false;
+      }
 
       NetNet*lsig = lval_->sig();
       if (!lsig) {
@@ -3971,6 +3985,11 @@ static bool process_outputs_are_unobservable(NetProc*statement)
  */
 void synth2_f::process(Design*des, NetProcTop*top)
 {
+      if (top->is_generated_verification()) {
+	    des->delete_process(top);
+	    return;
+      }
+
       if (top->attribute(perm_string::literal("ivl_synthesis_off")).as_ulong() != 0)
 	    return;
 

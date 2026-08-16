@@ -4780,6 +4780,11 @@ class NetProcTop  : public LineInfo, public Attrib {
       NetScope*scope();
       const NetScope*scope() const;
 
+      void generated_verification(bool flag = true)
+      { generated_verification_ = flag; }
+      bool is_generated_verification() const
+      { return generated_verification_; }
+
 	/* Return true if this process represents combinational logic. */
       bool is_asynchronous() const;
 
@@ -4809,6 +4814,7 @@ class NetProcTop  : public LineInfo, public Attrib {
       const ivl_process_type_t type_;
       NetProc*const statement_;
       Design*synthesized_design_;
+      bool generated_verification_ = false;
 
       NetScope*scope_;
       friend class Design;

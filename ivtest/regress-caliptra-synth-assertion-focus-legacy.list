@@ -1,0 +1,2 @@
+synth_concurrent_assertion_transparent normal,-S,-g2012,-gassertions ivltests gold=synth_concurrent_assertion_transparent.gold
+synth_property_rhs_no_crash_fail CE,-S,-g2012 ivltests gold=synth_property_rhs_no_crash_fail.gold

@@ -1,0 +1,2 @@
+synth_concurrent_assertion_transparent-S vvp_tests/synth_concurrent_assertion_transparent-S.json
+synth_property_rhs_no_crash_fail-S vvp_tests/synth_property_rhs_no_crash_fail-S.json

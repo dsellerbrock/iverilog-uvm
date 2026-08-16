@@ -17474,6 +17474,7 @@ bool PProcess::elaborate(Design*des, NetScope*scope) const
 
       NetProcTop*top=new NetProcTop(scope, type(), cur);
       ivl_assert(*this, top);
+      top->generated_verification(is_generated_verification());
 
 	// Evaluate the attributes for this process, if there
 	// are any. These attributes are to be attached to the

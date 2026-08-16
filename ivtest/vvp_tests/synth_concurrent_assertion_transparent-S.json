@@ -1,0 +1,9 @@
+{
+    "type"          : "normal",
+    "source"        : "synth_concurrent_assertion_transparent.v",
+    "iverilog-args" : [ "-S", "-g2012", "-gassertions" ],
+    "gold"          : "synth_concurrent_assertion_transparent",
+    "vlog95"        : {
+        "type" : "NI"
+    }
+}
