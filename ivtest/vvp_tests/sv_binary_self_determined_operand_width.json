@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_binary_self_determined_operand_width.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_binary_self_determined_operand_width"
+}

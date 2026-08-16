@@ -768,3 +768,6 @@ sv_net_decl_delay_port_inline_fail	vvp_tests/sv_net_decl_delay_port_inline_fail.
 # IEEE 1800-2017 13.4.4 function fork boundary
 sv_function_fork_join_none	vvp_tests/sv_function_fork_join_none.json
 sv_function_fork_blocking_fail	vvp_tests/sv_function_fork_blocking_fail.json
+
+# IEEE 1800-2017 11.8.1 binary operand contextual sizing
+sv_binary_self_determined_operand_width	vvp_tests/sv_binary_self_determined_operand_width.json
