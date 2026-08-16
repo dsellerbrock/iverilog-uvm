@@ -1,0 +1,9 @@
+{
+    "type"          : "CE",
+    "source"        : "synth_property_rhs_no_crash_fail.v",
+    "iverilog-args" : [ "-S", "-g2012" ],
+    "gold"          : "synth_property_rhs_no_crash_fail",
+    "vlog95"        : {
+        "type" : "NI"
+    }
+}

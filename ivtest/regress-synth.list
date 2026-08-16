@@ -161,6 +161,8 @@ sv_case_inside_concat_selector normal,-g2012	ivltests
 sv_enum_unbased_fill normal,-g2012	ivltests
 synth_inert_initial normal,-g2012	ivltests
 synth_deferred_assertion_transparent normal,-g2012	ivltests
+synth_concurrent_assertion_transparent normal,-g2012,-gassertions	ivltests gold=synth_concurrent_assertion_transparent.gold
+synth_property_rhs_no_crash_fail CE,-g2012	ivltests gold=synth_property_rhs_no_crash_fail.gold
 synth_loop_constant_async_reset normal,-g2012	ivltests
 synth_loop_unknown_async_reset CE,-g2012	ivltests gold=synth_loop_unknown_async_reset.gold
 synth_lower_async_after_omitted_output_reject CE,-g2012	ivltests gold=synth_lower_async_after_omitted_output_reject.gold

@@ -5632,6 +5632,40 @@ vector<PWire*>* pform_make_udp_input_ports(list<pform_ident_t>*names)
 static void pform_bind_procedural_sampled_(ivl_process_type_t type,
 					   Statement*st);
 
+/* Concurrent assertions are lowered into ordinary-looking behavioral
+ * processes for simulation. Keep an explicit provenance marker while that
+ * lowering runs so synthesis can discard those checker processes without
+ * mistaking user RTL for verification logic. The depth counter is needed
+ * because named/parameterized properties recurse through
+ * pform_make_assertion(). */
+static unsigned pform_generated_verification_depth_ = 0;
+
+class pform_generated_verification_scope_t {
+    public:
+      pform_generated_verification_scope_t()
+      { pform_generated_verification_depth_ += 1; }
+
+      ~pform_generated_verification_scope_t()
+      {
+	    assert(pform_generated_verification_depth_ > 0);
+	    pform_generated_verification_depth_ -= 1;
+      }
+
+    private:
+      pform_generated_verification_scope_t(
+	    const pform_generated_verification_scope_t&) = delete;
+      pform_generated_verification_scope_t& operator=(
+	    const pform_generated_verification_scope_t&) = delete;
+};
+
+static void pform_mark_generated_verification_process_(PProcess*process)
+{
+      if (pform_generated_verification_depth_ == 0)
+	    return;
+
+      process->generated_verification();
+}
+
 PProcess* pform_make_behavior(ivl_process_type_t type, Statement*st,
 			      list<named_pexpr_t>*attr)
 {
@@ -5647,6 +5681,7 @@ PProcess* pform_make_behavior(ivl_process_type_t type, Statement*st,
       }
 
       PProcess*pp = new PProcess(type, st);
+      pform_mark_generated_verification_process_(pp);
 
 	// If we are in a part of the code where the meta-comment
 	// synthesis translate_off is in effect, then implicitly add
@@ -11508,12 +11543,14 @@ static void pform_make_sampled_history_process_(
 
       PProcess*pp = new PProcess(IVL_PR_ALWAYS, sampler);
       FILE_NAME(pp, loc);
+      pform_mark_generated_verification_process_(pp);
       pform_put_behavior_in_scope(pp);
 
 	/* Histories start at 0 so the first tick is deterministic. */
       if (!init.empty()) {
 	    PProcess*ip = new PProcess(IVL_PR_INITIAL, sva_block_(loc, init));
 	    FILE_NAME(ip, loc);
+	    pform_mark_generated_verification_process_(ip);
 	    pform_put_behavior_in_scope(ip);
       }
 }
@@ -19534,6 +19571,8 @@ static bool sva_genvar_delay_try_assertion_(const struct vlltype&loc,
 void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			  Statement*fail_stmt, Statement*pass_stmt, int kind)
 {
+      pform_generated_verification_scope_t verification_scope;
+
 	/* `else ;' is an explicit null failure action, whereas a null
 	   fail_stmt pointer means there was no else arm and requests the LRM
 	   default $error action. parse.y carries the former as a PNoop sentinel.
