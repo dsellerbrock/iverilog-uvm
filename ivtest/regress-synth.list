@@ -152,6 +152,8 @@ synth_always_comb_constant normal,-g2012	ivltests
 synth_always_latch_intent normal,-g2012	ivltests
 synth_async_reset_equality normal,-S,-g2012	ivltests
 synth_async_reset_comparison_mismatch_fail CE,-S,-g2012	ivltests gold=synth_async_reset_comparison_mismatch_fail.gold
+synth_selected_output_feedback normal,-S,-g2012	ivltests
+synth_selected_output_real_overlap_fail CE,-S,-g2012	ivltests gold=synth_selected_output_real_overlap_fail.gold
 synth_common_latch_enable normal,-g2012	ivltests
 synth_disjoint_partial_async_reset normal,-g2012	ivltests
 synth_duplicate_async_control_reject CE,-g2012	ivltests gold=synth_duplicate_async_control_reject.gold

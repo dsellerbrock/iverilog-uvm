@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "synth_selected_output_real_overlap_fail.v",
+    "iverilog-args" : [ "-S", "-g2012" ],
+    "gold"          : "synth_selected_output_real_overlap_fail"
+}

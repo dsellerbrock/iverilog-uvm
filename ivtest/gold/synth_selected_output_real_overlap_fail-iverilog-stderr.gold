@@ -1,0 +1,3 @@
+ivltests/synth_selected_output_real_overlap_fail.v:14: error: Cannot perform procedural assignment to variable 'state' because it is also continuously assigned.
+ivltests/synth_selected_output_real_overlap_fail.v:16: error: Cannot perform procedural assignment to variable 'state' because it is also continuously assigned.
+2 error(s) during elaboration.
