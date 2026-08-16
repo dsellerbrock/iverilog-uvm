@@ -1,2 +1,3 @@
 synth_interface_member_transfer normal,-S,-g2012,-ssynth_interface_member_all_netlist ivltests gold=synth_interface_member_synthesis.gold
 synth_interface_member_top_port normal,-S,-g2012,-ssynth_interface_member_top_port ivltests gold=synth_interface_member_synthesis.gold
+sv_synth_integral_member_lvalue normal,-g2012 ivltests gold=sv_synth_integral_member_lvalue.gold
