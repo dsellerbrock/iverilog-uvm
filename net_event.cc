@@ -278,6 +278,37 @@ NexusSet* NetEvent::nex_async_()
 		  return 0;
 	    }
 
+            /* A direct virtual-interface member probe is built before the
+             * containing module's interface ports are connected. By the
+             * synthesis pass that static binding is available, so use the
+             * concrete member nexus instead of the one-bit handle nexus.
+             * This makes the lowered continuous assignment a normal
+             * combinational process without changing simulation probes. */
+            bool resolved_interface_member = false;
+            if (cur->is_vif_anyedge() && cur->vif_N() == UINT_MAX
+                && cur->vif_root_pin() < cur->pin_count()) {
+                  Nexus*root_nexus = cur->pin(cur->vif_root_pin()).nexus();
+                  for (Link*link = root_nexus->first_nlink(); link;
+                       link = link->next_nlink()) {
+                        NetNet*root = dynamic_cast<NetNet*>(link->get_obj());
+                        if (!root)
+                              continue;
+                        NetNet*member = root->resolve_interface_member(
+                              link->get_pin(), cur->vif_M());
+                        if (!member)
+                              continue;
+                        for (unsigned pin = 0; pin < member->pin_count();
+                             pin += 1) {
+                              Nexus*nex = member->pin(pin).nexus();
+                              tmp->add(nex, 0, nex->vector_width());
+                        }
+                        resolved_interface_member = true;
+                        break;
+                  }
+            }
+            if (resolved_interface_member)
+                  continue;
+
 	    for (unsigned idx = 0 ;  idx < cur->pin_count() ;  idx += 1) {
 		  Nexus*nex = cur->pin(idx).nexus();
 		  bool precise_part = false;

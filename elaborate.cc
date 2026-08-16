@@ -1702,6 +1702,8 @@ static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
       }
       NetProcTop*t0 = new NetProcTop(scope, IVL_PR_INITIAL, cur0);
       t0->set_line(*li);
+      t0->attribute(perm_string::literal("_ivl_synthesis_transient"),
+                    verinum(1));
       des->add_process(t0);
 
       bool const_rhs = dynamic_cast<const PENumber*>(rval) != 0
@@ -1768,6 +1770,8 @@ static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
 	    }
 	    NetProcTop*t1 = new NetProcTop(scope, IVL_PR_ALWAYS, cur1);
 	    t1->set_line(*li);
+	    t1->attribute(perm_string::literal("_ivl_vif_continuous"),
+	                  verinum(1));
 	    des->add_process(t1);
       }
       return true;
@@ -4279,6 +4283,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 					  if (types_ok) {
 						for (size_t word = 0;
 						     word < actual->second.size(); word += 1) {
+						      prts[0]->bind_interface_scope(
+							    word, actual->second[word]);
 						      NetEScope*se = new NetEScope(
 							    actual->second[word],
 							    static_cast<ivl_type_t>(ifc));
@@ -4295,6 +4301,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 						      top->set_line(*this);
 						      top->attribute(perm_string::literal(
 							    "_ivl_schedule_init"), verinum(1));
+						      top->attribute(perm_string::literal(
+							    "_ivl_synthesis_transient"), verinum(1));
 						      des->add_process_at_tail(top);
 						}
 						bound_array = true;
@@ -4375,6 +4383,39 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 				    des->errors += 1;
 				    continue;
 			      }
+
+			      /* Keep the statically-known binding in the netlist as
+			       * well as in the simulation initializer. Synthesis uses
+			       * this compiler-owned metadata to resolve formal.member
+			       * to the real member NetNet. A forwarded interface port
+			       * forms a chain which is resolved after the whole
+			       * hierarchy has been elaborated. */
+			      if (const NetEScope*bound_scope =
+				    dynamic_cast<const NetEScope*>(vif)) {
+				    port_var->bind_interface_scope(
+					  0, const_cast<NetScope*>(
+						bound_scope->scope()));
+			      } else if (const NetESignal*bound_signal =
+					 dynamic_cast<const NetESignal*>(vif)) {
+				    unsigned bound_word = 0;
+				    bool static_word = true;
+				    if (const NetExpr*word_expr =
+					  bound_signal->word_index()) {
+					  long word_value = 0;
+					  static_word = eval_as_long(
+						word_value, word_expr)
+						&& word_value >= 0
+						&& static_cast<unsigned long>(word_value)
+						   < bound_signal->sig()->pin_count();
+					  if (static_word)
+						bound_word = static_cast<unsigned>(
+						      word_value);
+				    }
+				    if (static_word)
+					  port_var->bind_interface_signal(
+						0, const_cast<NetNet*>(
+						      bound_signal->sig()), bound_word);
+			      }
 			      NetAssign_*lv = new NetAssign_(port_var);
 			      NetAssign*as = new NetAssign(lv, vif);
 			      as->set_line(*this);
@@ -4383,9 +4424,12 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			      NetProcTop*top = new NetProcTop(
 				    inst_scope, IVL_PR_INITIAL, as);
 			      top->set_line(*this);
-			      if (gn_system_verilog())
+			      if (gn_system_verilog()) {
 				    top->attribute(perm_string::literal(
 					  "_ivl_schedule_init"), verinum(1));
+				      }
+				      top->attribute(perm_string::literal(
+					    "_ivl_synthesis_transient"), verinum(1));
 				// A binding that resolves directly to an
 				// interface instance SCOPE must run before
 				// one that FORWARDS another port handle
@@ -25113,6 +25157,97 @@ struct root_elem {
       NetScope *scope;
 };
 
+static NetNet* make_root_interface_member_(NetScope*root, NetNet*port,
+                                           unsigned word,
+                                           size_t property_idx,
+                                           NetNet::PortType direction)
+{
+      const netclass_t*interface_type =
+            dynamic_cast<const netclass_t*>(port->net_type());
+      ivl_assert(*port, interface_type && interface_type->is_interface());
+      ivl_type_t property_type = interface_type->get_prop_type(property_idx);
+      if (!property_type)
+            return 0;
+
+      NetNet*member = 0;
+      perm_string internal_name = root->local_symbol();
+      if (const netuarray_t*array_type =
+                dynamic_cast<const netuarray_t*>(property_type)) {
+            member = new NetNet(root, internal_name, NetNet::WIRE,
+                                array_type->static_dimensions(),
+                                array_type->element_type());
+      } else {
+            member = new NetNet(root, internal_name, NetNet::WIRE,
+                                property_type);
+      }
+      member->set_line(*port);
+      member->port_type(direction);
+      port->bind_interface_member(word, property_idx, member);
+      return member;
+}
+
+/* A selected synthesis root has no parent instance from which its interface
+ * formals can obtain a concrete scope. Model each listed modport member as a
+ * real structural top-level signal. Instantiated modules still resolve their
+ * formals through the actual interface scope (or through another formal), so
+ * this fallback is used only at the outermost hierarchy boundary. */
+static void bind_root_interface_synthesis_members_(Design*des)
+{
+      for (NetScope*root : des->find_root_scopes()) {
+            vector<NetNet*>root_signals;
+            for (const auto&entry : root->signals_map())
+                  root_signals.push_back(entry.second);
+
+            for (NetNet*port : root_signals) {
+                  if (!port || port->port_type() == NetNet::NOT_A_PORT)
+                        continue;
+                  const netclass_t*interface_type =
+                        dynamic_cast<const netclass_t*>(port->net_type());
+                  if (!interface_type || !interface_type->is_interface())
+                        continue;
+
+                  vector<pair<size_t,NetNet::PortType> >members;
+                  verinum modport_attr = port->attribute(
+                        perm_string::literal("ivl_modport"));
+                  if (modport_attr != verinum()) {
+                        perm_string modport_name = lex_strings.make(
+                              modport_attr.as_string().c_str());
+                        auto interface_module = pform_modules.find(
+                              interface_type->get_name());
+                        if (interface_module != pform_modules.end()) {
+                              auto modport = interface_module->second->modports.find(
+                                    modport_name);
+                              if (modport != interface_module->second->modports.end()
+                                  && modport->second) {
+                                    for (const auto&entry :
+                                         modport->second->simple_ports) {
+                                          int property_idx =
+                                                interface_type->property_idx_from_name(
+                                                      entry.first);
+                                          if (property_idx >= 0)
+                                                members.push_back(make_pair(
+                                                      static_cast<size_t>(property_idx),
+                                                      entry.second.first));
+                                    }
+                              }
+                        }
+                  } else {
+                        for (size_t property_idx = 0;
+                             property_idx < interface_type->get_properties();
+                             property_idx += 1)
+                              members.push_back(make_pair(property_idx,
+                                                          NetNet::PINOUT));
+                  }
+
+                  for (unsigned word = 0; word < port->pin_count(); word += 1)
+                        for (const auto&member : members)
+                              make_root_interface_member_(root, port, word,
+                                                          member.first,
+                                                          member.second);
+            }
+      }
+}
+
 Design* elaborate(list<perm_string>roots)
 {
       unsigned npackages = pform_packages.size();
@@ -25408,6 +25543,10 @@ Design* elaborate(list<perm_string>roots)
       report_elaboration_perf_phase_("specialized-bodies-begin");
       finalize_pending_specialized_class_elaboration(des);
       report_elaboration_perf_phase_("specialized-bodies-end");
+
+      extern bool synthesis; /* Synthesis flag from main.cc. */
+      if (synthesis)
+            bind_root_interface_synthesis_members_(des);
 
       /* Port-based generic type propagation is complete only after every
        * hierarchy edge and late specialized body has elaborated.  Diagnose

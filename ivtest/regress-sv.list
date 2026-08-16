@@ -1817,3 +1817,6 @@ sv_function_fork_blocking_fail CE,-g2012 ivltests gold=sv_function_fork_blocking
 
 # IEEE 1800-2017 11.8.1 binary operand contextual sizing
 sv_binary_self_determined_operand_width normal,-g2012 ivltests gold=sv_binary_self_determined_operand_width.gold
+
+# IEEE 1800-2017 interface/modport member binding through synthesis
+synth_interface_member_transfer normal,-g2012,-ssynth_interface_member_transfer ivltests gold=synth_interface_member_transfer.gold

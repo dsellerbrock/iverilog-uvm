@@ -507,6 +507,35 @@ NetEProperty::~NetEProperty()
       delete index_;
 }
 
+NetNet* NetEProperty::resolve_interface_member_signal() const
+{
+      NetNet*interface_port = net_;
+      unsigned interface_word = 0;
+
+      if (!interface_port) {
+            const NetESignal*base = dynamic_cast<const NetESignal*>(expr_);
+            if (!base)
+                  return 0;
+
+            interface_port = const_cast<NetNet*>(base->sig());
+            if (const NetExpr*word = base->word_index()) {
+                  long value = 0;
+                  if (!eval_as_long(value, word) || value < 0
+                      || static_cast<unsigned long>(value)
+                         >= interface_port->pin_count())
+                        return 0;
+                  interface_word = static_cast<unsigned>(value);
+            }
+      }
+
+      const netclass_t*interface_type = interface_port
+            ? dynamic_cast<const netclass_t*>(interface_port->net_type()) : 0;
+      if (!interface_type || !interface_type->is_interface())
+            return 0;
+
+      return interface_port->resolve_interface_member(interface_word, pidx_);
+}
+
 NetESelect::NetESelect(NetExpr*exp, NetExpr*base, unsigned wid,
                        ivl_select_type_t sel_type)
 : expr_(exp), base_(base), sel_type_(sel_type)
