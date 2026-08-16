@@ -1,0 +1,2 @@
+synth_selected_output_feedback normal,-S,-g2012 ivltests
+synth_selected_output_real_overlap_fail CE,-S,-g2012 ivltests gold=synth_selected_output_real_overlap_fail.gold

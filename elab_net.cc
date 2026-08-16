@@ -1696,6 +1696,15 @@ bool PEIdent::is_collapsible_net(Design*des, NetScope*scope,
 {
       ivl_assert(*this, scope);
 
+	/* A selected actual needs the ordinary directional port connection
+	   machinery to preserve its bit mapping. Collapsing the underlying whole
+	   net would erase the selection and can reflect an output back into the
+	   child as a structural driver. */
+      for (const name_component_t&component : path_.name) {
+            if (!component.index.empty())
+                  return false;
+      }
+
       symbol_search_results sr;
       symbol_search(this, des, scope, path_.name, lexical_pos_, &sr);
 
