@@ -46,6 +46,12 @@ Pin `fusesoc==2.4.5` (the version OpenTitan pins). 2.4.6 rejects OpenTitan's
 `hjson mako semantic_version mistletoe systemrdl-compiler peakrdl-systemrdl
 pycryptodome`.
 
+Keep FuseSoC and those generator dependencies in one Python 3.10-or-newer
+environment. Invoke `regtool.py` and the matrix with that environment's logical
+`python` path; resolving a virtual-environment symlink to its base interpreter
+loses `pyvenv.cfg` package discovery. `scripts/opentitan_matrix.py` accepts
+`--fusesoc-python` and rejects an executable/imported-package version mismatch.
+
 The only thing the Edalize backend does not do is pass `-g2012`, which is
 mandatory for any SystemVerilog input. Pass it via `IVERILOG_OPTIONS`.
 
@@ -359,13 +365,16 @@ obligations.
 
 ```bash
 # tools
-pip3 install 'fusesoc==2.4.5' 'edalize==0.6.3' \
+python3.13 -m venv /path/to/opentitan-tool-env
+OT_PY=/path/to/opentitan-tool-env/bin/python
+OT_FUSESOC=/path/to/opentitan-tool-env/bin/fusesoc
+"$OT_PY" -m pip install 'fusesoc==2.4.5' 'edalize==0.6.3' \
     hjson mako semantic_version mistletoe systemrdl-compiler \
     peakrdl-systemrdl pycryptodome
 
 # file list for an IP
 cd <opentitan>
-fusesoc --cores-root=. run --target=default --tool=icarus --setup \
+"$OT_FUSESOC" --cores-root=. run --target=default --tool=icarus --setup \
         --build-root=/tmp/ot/uart lowrisc:ip:uart
 
 # build + run
@@ -373,7 +382,7 @@ cd /tmp/ot/uart/lowrisc_ip_uart_0.1/default-icarus
 iverilog -g2012 -DSYNTHESIS -suart -c lowrisc_ip_uart_0.1.scr -o uart.vvp
 
 # UVM DV file list (needs the generators above)
-fusesoc --cores-root=. run --target=sim --tool=icarus --setup \
+"$OT_FUSESOC" --cores-root=. run --target=sim --tool=icarus --setup \
         --build-root=/tmp/ot/uart_dv lowrisc:dv:uart_sim
 ```
 
