@@ -1,0 +1,4 @@
+synth_async_reset_equality-S vvp_tests/synth_async_reset_equality-S.json
+synth_async_reset_comparison_mismatch_fail-S vvp_tests/synth_async_reset_comparison_mismatch_fail-S.json
+synth_dual_async_initial_events-S vvp_tests/synth_dual_async_initial_events-S.json
+synth_dual_async_priority-S vvp_tests/synth_dual_async_priority-S.json

@@ -3261,6 +3261,79 @@ bool NetBlock::synth_sync(Design*des, NetScope*scope,
       return flag;
 }
 
+/* Return the polarity of a one-bit logical comparison against an event
+ * signal. A positive result means the condition is true when the event
+ * signal is one; a negative result means it is true when the event signal is
+ * zero. Zero means that the expression is not a provably equivalent simple
+ * event predicate.
+ *
+ * Unsized 0/1 constants make these comparisons wider during ordinary
+ * expression synthesis. Recognize the source expression instead of guessing
+ * from the resulting comparator topology, but keep the synthesized comparison
+ * as the active-high asynchronous control. Logical equality/inequality are
+ * deliberately supported here; case inequality has different X/Z semantics
+ * and must not be treated as a simple inversion.
+ */
+static int async_event_comparison_polarity_(const NetExpr*expr,
+                                             const Nexus*event_nexus)
+{
+      const NetEBComp*comparison = dynamic_cast<const NetEBComp*>(expr);
+      if (!comparison || (comparison->op() != 'e' && comparison->op() != 'n'))
+            return 0;
+
+      const NetExpr*signal_expr = comparison->left();
+      const NetEConst*constant =
+            dynamic_cast<const NetEConst*>(comparison->right());
+      if (!constant) {
+            signal_expr = comparison->right();
+            constant = dynamic_cast<const NetEConst*>(comparison->left());
+      }
+      if (!constant)
+            return 0;
+
+      // Comparison context can widen a one-bit signal to the width of an
+      // unsized integer literal. A null-base NetESelect is that width cast;
+      // it does not select or otherwise transform the source value.
+      while (const NetESelect*width_cast =
+                   dynamic_cast<const NetESelect*>(signal_expr)) {
+            if (width_cast->select())
+                  return 0;
+            signal_expr = width_cast->sub_expr();
+      }
+
+      const NetESignal*signal = dynamic_cast<const NetESignal*>(signal_expr);
+      if (!signal || signal->word_index() || signal->vector_width() != 1
+          || signal->sig()->pin_count() != 1
+          || signal->sig()->pin(0).nexus() != event_nexus)
+            return 0;
+
+      const verinum&value = constant->value();
+      if (!value.is_defined())
+            return 0;
+
+      int constant_value = -1;
+      if (value.is_zero()) {
+            constant_value = 0;
+      } else {
+            bool is_one = value.len() > 0 && value.get(0) == verinum::V1;
+            for (unsigned bit = 1; is_one && bit < value.len(); bit += 1)
+                  is_one = value.get(bit) == verinum::V0;
+            if (is_one)
+                  constant_value = 1;
+      }
+      if (constant_value < 0)
+            return 0;
+
+      // A signed one-bit value widens 1'b1 to all ones, so comparison with
+      // integer 1 is not a simple event predicate. Zero remains unambiguous.
+      if (constant_value == 1 && signal->has_sign())
+            return 0;
+
+      const bool true_when_event_is_one = comparison->op() == 'e'
+            ? constant_value == 1 : constant_value == 0;
+      return true_when_event_is_one ? 1 : -1;
+}
+
 /*
  * This method handles the case where I find a conditional near the
  * surface of a synchronous thread. This conditional can be a CE or an
@@ -3282,7 +3355,7 @@ bool NetCondit::synth_sync(Design*des, NetScope*scope,
 	   inputs that are included in the sensitivity list, then it
 	   is likely intended as an asynchronous input. */
 
-      NexusSet*expr_input = expr_->nex_input();
+      unique_ptr<NexusSet> expr_input(expr_->nex_input());
       assert(expr_input);
       for (unsigned idx = 0 ;  idx < events_in.size() ;  idx += 1) {
 
@@ -3298,9 +3371,12 @@ bool NetCondit::synth_sync(Design*des, NetScope*scope,
 	    ivl_assert(*this, rst->pin_count() == 1);
 
 	      // Check that the edge used on the set/reset input is correct.
+	    const int comparison_polarity =
+	          async_event_comparison_polarity_(expr_, ev->pin(0).nexus());
 	    switch (ev->edge()) {
 	      case NetEvProbe::POSEDGE:
-		  if (ev->pin(0).nexus() != rst->pin(0).nexus()) {
+		  if (ev->pin(0).nexus() != rst->pin(0).nexus()
+		      && comparison_polarity != 1) {
 			cerr << get_fileline() << ": error: "
 			     << "Condition for posedge asynchronous set/reset "
 			     << "must exactly match the event expression." << endl;
@@ -3319,7 +3395,9 @@ bool NetCondit::synth_sync(Design*des, NetScope*scope,
 			if (gate->type() == NetUReduce::NOR)
 				is_inverter = true;
 		  }
-		  if (!is_inverter || ev->pin(0).nexus() != node->pin(1).nexus()) {
+		  if ((!is_inverter
+		       || ev->pin(0).nexus() != node->pin(1).nexus())
+		      && comparison_polarity != -1) {
 			cerr << get_fileline() << ": error: "
 			     << "Condition for negedge asynchronous set/reset must be "
 			     << "a simple inversion of the event expression." << endl;
@@ -3505,8 +3583,6 @@ bool NetCondit::synth_sync(Design*des, NetScope*scope,
 	    }
 	    return true;
       }
-
-      delete expr_input;
 
 #if 0
 	/* Detect the case that this is a *synchronous* set/reset. It

@@ -1,0 +1,8 @@
+{
+    "type"          : "normal",
+    "source"        : "synth_async_reset_equality.v",
+    "iverilog-args" : [ "-S", "-g2012" ],
+    "vlog95"        : {
+        "type" : "NI"
+    }
+}
