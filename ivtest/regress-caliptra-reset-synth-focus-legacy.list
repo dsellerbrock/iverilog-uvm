@@ -1,0 +1,4 @@
+synth_async_reset_equality normal,-S,-g2012 ivltests
+synth_async_reset_comparison_mismatch_fail CE,-S,-g2012 ivltests gold=synth_async_reset_comparison_mismatch_fail.gold
+synth_dual_async_initial_events normal,-S,-g2012 ivltests
+synth_dual_async_priority normal,-S,-g2012 ivltests

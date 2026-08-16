@@ -1,0 +1,13 @@
+ivltests/synth_async_reset_comparison_mismatch_fail.v:32: error: Condition for negedge asynchronous set/reset must be a simple inversion of the event expression.
+ivltests/synth_async_reset_comparison_mismatch_fail.v:31: error: Unable to synthesize synchronous process.
+ivltests/synth_async_reset_comparison_mismatch_fail.v:26: error: Condition for negedge asynchronous set/reset must be a simple inversion of the event expression.
+ivltests/synth_async_reset_comparison_mismatch_fail.v:25: error: Unable to synthesize synchronous process.
+ivltests/synth_async_reset_comparison_mismatch_fail.v:20: error: Condition for posedge asynchronous set/reset must exactly match the event expression.
+ivltests/synth_async_reset_comparison_mismatch_fail.v:19: error: Unable to synthesize synchronous process.
+ivltests/synth_async_reset_comparison_mismatch_fail.v:14: error: Condition for negedge asynchronous set/reset must be a simple inversion of the event expression.
+ivltests/synth_async_reset_comparison_mismatch_fail.v:13: error: Unable to synthesize synchronous process.
+ivltests/synth_async_reset_comparison_mismatch_fail.v:31: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+ivltests/synth_async_reset_comparison_mismatch_fail.v:25: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+ivltests/synth_async_reset_comparison_mismatch_fail.v:19: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+ivltests/synth_async_reset_comparison_mismatch_fail.v:13: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+12 error(s) in post-elaboration processing.

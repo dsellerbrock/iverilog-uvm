@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "synth_async_reset_comparison_mismatch_fail.v",
+    "iverilog-args" : [ "-S", "-g2012" ],
+    "gold"          : "synth_async_reset_comparison_mismatch_fail"
+}
