@@ -1,0 +1,1 @@
+runtime error: %wait/vif/posedge attempted to use a null or non-virtual interface; a virtual interface must be initialized before referencing one of its components.

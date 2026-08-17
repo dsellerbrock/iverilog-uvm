@@ -1,0 +1,5 @@
+sv_vif_event_initialized normal,-g2012 ivltests gold=sv_vif_event_initialized.gold
+sv_vif_null_anyedge_fail RE,-g2012 ivltests gold=sv_vif_null_anyedge_fail.gold
+sv_vif_null_posedge_fail RE,-g2012 ivltests gold=sv_vif_null_posedge_fail.gold
+sv_vif_null_negedge_fail RE,-g2012 ivltests gold=sv_vif_null_negedge_fail.gold
+sv_vif_null_multi_fail RE,-g2012 ivltests gold=sv_vif_null_multi_fail.gold
