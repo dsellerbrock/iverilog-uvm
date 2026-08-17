@@ -3675,13 +3675,19 @@ static void check_if_logic_l_value(const NetAssignBase *base,
       const NetAssign_*lval = base->l_val(0);
       if (! lval) return;
 
-      const NetNet*sig = lval->sig();
-      if (! sig) return;
+      const ivl_variable_type_t type = lval->expr_type();
+      if (type == IVL_VT_NO_TYPE) return;
 
-      if ((sig->data_type() != IVL_VT_BOOL) &&
-          (sig->data_type() != IVL_VT_LOGIC)) {
+	// Class, interface and struct member l-values retain the root
+	// carrier in sig(), but synthesis legality is determined by the
+	// selected member. NetAssign_::expr_type() resolves that complete
+	// l-value path, including indexed elements and packed selects.
+      if ((type != IVL_VT_BOOL) && (type != IVL_VT_LOGIC)) {
+	    const NetAssign_*object = lval;
+	    while (object->nest()) object = object->nest();
+	    const perm_string name = object->name();
 	    cerr << base->get_fileline() << ": warning: Assigning to a "
-	            "non-integral variable ("<< sig->name()
+	            "non-integral variable (" << name
 	         << ") cannot be synthesized "
 	         << get_process_type_as_string(pr_type) << endl;
       }

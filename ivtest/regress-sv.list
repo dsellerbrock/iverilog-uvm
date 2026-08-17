@@ -1844,3 +1844,4 @@ sv_binary_self_determined_operand_width normal,-g2012 ivltests gold=sv_binary_se
 
 # IEEE 1800-2017 interface/modport member binding through synthesis
 synth_interface_member_transfer normal,-g2012,-ssynth_interface_member_transfer ivltests gold=synth_interface_member_transfer.gold
+sv_synth_integral_member_lvalue normal,-g2012 ivltests gold=sv_synth_integral_member_lvalue.gold

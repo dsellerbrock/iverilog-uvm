@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_synth_integral_member_lvalue.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_synth_integral_member_lvalue"
+}

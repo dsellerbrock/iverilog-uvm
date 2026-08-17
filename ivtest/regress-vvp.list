@@ -787,6 +787,7 @@ sv_binary_self_determined_operand_width	vvp_tests/sv_binary_self_determined_oper
 synth_interface_member_transfer	vvp_tests/synth_interface_member_transfer.json
 synth_interface_member_transfer-S	vvp_tests/synth_interface_member_transfer-S.json
 synth_interface_member_top_port-S	vvp_tests/synth_interface_member_top_port-S.json
+sv_synth_integral_member_lvalue	vvp_tests/sv_synth_integral_member_lvalue.json
 
 # Caliptra language, functional coverage, and assertion compatibility
 sv_task_localparam_untyped	vvp_tests/sv_task_localparam_untyped.json

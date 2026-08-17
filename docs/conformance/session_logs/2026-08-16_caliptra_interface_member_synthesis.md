@@ -44,3 +44,59 @@ Caliptra acceptance flow. Text/FPGA targets still need an explicit ABI for
 flattening one interface/modport formal into multiple named scalar/vector
 ports; the focused JSON configurations therefore mark Verilog-95 translation
 as not implemented rather than treating its current output as equivalent.
+
+## Integral member warning classification
+
+The synthesis checks attached to `always_comb`, `always_ff`, and
+`always_latch` formerly classified an assignment from the root signal's type.
+An integral assignment such as `req_if.valid = next_valid` was consequently
+reported as non-synthesizable merely because the root `req_if` was an
+interface handle. The warning now uses the fully resolved l-value type, after
+member, element, and packed-select traversal. Direct assignments to real and
+other genuinely non-integral variables retain their existing warnings.
+
+`sv_synth_integral_member_lvalue` value-checks integral interface and packed
+struct members in all three specialized `always_*` process kinds. The old
+compiler emits three false warnings on this reducer; the corrected compiler
+emits none, runs `PASSED`, and Slang 11 accepts it with zero errors and zero
+warnings. This removes a large repeated warning cluster from the unchanged
+Caliptra design without suppressing unsupported constructs or changing their
+semantics.
+
+The unchanged Caliptra top-level VVP compile provides the integration count.
+Both pre-fix and corrected compilers exit 0 under the resource guard. The
+pre-fix log contains 180 instances of this false warning among 202 total
+warnings; the corrected log contains zero such instances and 22 total
+warnings. The remaining 22 are the separately documented conservative
+interface-member sensitivity warnings. The corrected compile took 15.30
+seconds and peaked at 870,858,752 bytes of RSS, below the 1 GiB limit.
+
+## Tool and invocation notes
+
+- macOS `/usr/bin/bison` is Apple Bison 2.3 and cannot regenerate this tree;
+  put Homebrew Bison 3.8.2 first in `PATH`.
+- A focused object build immediately after `configure` can compile the object
+  and then fail moving its dependency file if the generated `dep/` directory
+  has not yet been initialized. Run the normal bootstrap build first, or
+  create that generated directory before requesting an individual object.
+- A yielded command session is still running until its session identifier
+  reports an exit code. Poll that exact session; do not launch a replacement
+  build merely because the first output chunk returned.
+- Caliptra's `+timescale+1ns/1ps` belongs in an Icarus command file. Passing
+  it as a free driver argument is ignored and can make the next option appear
+  to be an input filename. A nested `-f` path is resolved relative to the
+  command file containing it, not the shell's current directory, so an
+  evidence-directory wrapper must use an absolute path for
+  `src/integration/config/caliptra_top.vf`.
+- The full Caliptra file list requires all three environment settings:
+  `CALIPTRA_ROOT=<checkout>`,
+  `CALIPTRA_PRIM_ROOT=<checkout>/src/caliptra_prim_generic`, and
+  `CALIPTRA_PRIM_MODULE_PREFIX=caliptra_prim_generic`. Omitting the latter
+  two expands primitive filenames to paths such as `/rtl/_flop_en.sv`.
+- This checkout was configured with `CFLAGS=-g0 -O2` and
+  `CXXFLAGS=-g0 -O2`. On this host, debug information for the very large VVP
+  translation unit can exceed the per-process 45-second CPU cap even though
+  the optimized non-debug build remains comfortably bounded.
+- Every compiler and simulator process tree in this validation used the
+  pinned `resource-runner` with 45 seconds of CPU per process and 1 GiB of
+  aggregate RSS. Ambient `iverilog` and `vvp` binaries were not used.
