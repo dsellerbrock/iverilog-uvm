@@ -1,5 +1,6 @@
-// M9-NFA dual-run seed: plain fixed-delay chains (op 0) through the
-// automaton engine; verdict parity with the legacy linear engine.
+// M9-NFA dual-run seed: plain fixed-delay chains (op 0) through the compact
+// linear checker under both environment settings.
+// NFA-EXPECT-FALLBACK
 module plain_fixed;
   logic clk = 0, a = 0, b = 0, c = 0;
   always #5 clk = ~clk;

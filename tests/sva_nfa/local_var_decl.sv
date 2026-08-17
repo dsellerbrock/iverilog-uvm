@@ -1,6 +1,7 @@
 // IEEE 1800-2017 16.10: a named sequence may declare local variables
 // between its header semicolon and sequence expression. This uses the exact
 // package-qualified packed-width shape found in OpenTitan's tlul_assert.sv.
+// NFA-EXPECT-FALLBACK
 package local_var_decl_pkg;
   parameter int W = 8;
 endpackage

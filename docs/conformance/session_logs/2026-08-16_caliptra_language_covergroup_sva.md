@@ -33,6 +33,15 @@ Caliptra design now compiles or simulates.
   runtime `(scope, assertion index)` identity, so equal compile-time indices in
   two module instances do not alias. Off starts no new attempts but does not
   discard an already executing attempt.
+- `$assertkill` now aborts active attempts in the linear, NFA, parameter-bound,
+  generated-delay, temporal, and two-/N-domain multiclock checkers. A
+  monotonically increasing generation is retained per runtime assertion
+  identity, so an immediate Kill/On pair cannot lose the reset. Multiclock
+  request handoffs carry the generation that created them, generated-instance
+  selectors use canonical `G[2]` spelling, and final strong obligations are
+  suppressed even when no later assertion clock acknowledges the kill.
+  Finite `always[m:n]` attempts preserved by Off now expire at age `n`
+  instead of being promoted accidentally to unbounded obligations.
 - The integrated gate exposed two parent-branch collateral regressions while
   validating this work. A whole-vector delayed assignment now cancels a
   same-time pending transition when its input returns to the visible value,
@@ -41,9 +50,9 @@ Caliptra design now compiles or simulates.
 
 ## Deliberate boundaries
 
-- `$assertkill` disables new attempts and emits the expected disable/reset VPI
-  callbacks, but reset of already executing attempts is not implemented and
-  produces one explicit runtime warning.
+- `$assertkill` cancellation of queued deferred-immediate reports and pending
+  procedural assertion instances remains open. The active concurrent-attempt
+  support above does not silently claim those distinct queue lifecycles.
 - Property/sequence locals do not yet implement every assertion-variable type,
   declaration initializer, formal direction/default, or complete branch-flow
   rule.
@@ -72,7 +81,7 @@ runner with 45 seconds CPU per process and a 1 GiB aggregate RSS cap.
 
 - Caliptra language focus: legacy 2/2; JSON 2/2.
 - Caliptra covergroup focus: legacy 18/18; JSON 8/8.
-- Caliptra SVA runtime focus: legacy 48/48; JSON 8/8.
+- Caliptra SVA runtime focus: legacy 52/52; JSON 12/12.
 - Slang 11 differential: 18/18 exact accept/reject and diagnostic-count cases.
 - Assertion/Coverage VPI collateral: 6/6.
 - Malformed covergroup VVP boundary: 5/5.

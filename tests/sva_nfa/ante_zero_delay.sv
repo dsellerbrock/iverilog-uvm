@@ -2,6 +2,8 @@
 // carries a guard conjunction (trailing ##0-fused run), and the
 // obligation must arm on p&&q, not q alone (a lone q must stay
 // vacuous).
+// NFA-EXPECT-FALLBACK: this fixed deterministic chain uses the compact linear
+// checker under both environment settings.
 module ante_zero_delay;
   logic clk = 0, p = 0, q = 0, r = 0, x = 0, y = 0, z = 0, u = 0;
   always #5 clk = ~clk;

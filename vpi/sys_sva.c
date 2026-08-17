@@ -99,6 +99,7 @@ typedef struct sva_control_entry_s {
       vpiHandle scope;
       char*full_name;
       int enabled;
+      PLI_UINT32 kill_generation;
 } sva_control_entry_t;
 
 typedef struct sva_control_rule_s {
@@ -115,7 +116,6 @@ static sva_control_rule_t*sva_control_rules;
 static size_t sva_control_rule_count;
 static size_t sva_control_rule_cap;
 static int sva_assert_enabled = 1;
-static int sva_kill_approx_warned;
 
 enum { SVA_CONTROL_RULE_LIMIT = 4096, SVA_CONTROL_SELECTOR_LIMIT = 4096 };
 
@@ -161,6 +161,7 @@ static void sva_control_apply_entry_(sva_control_entry_t*entry,
 			      rule->levels)) return;
       was = entry->enabled;
       entry->enabled = rule->enabled;
+      if (rule->kill) entry->kill_generation += 1;
       if (!callbacks) return;
       if (rule->kill) {
 	    if (was)
@@ -288,6 +289,38 @@ static PLI_INT32 sva_enabled_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
+/* Every synthesized checker process remembers this monotonically increasing
+ * generation.  A changed value means that $assertkill selected this exact
+ * (runtime scope, assertion index) since the process last ran.  Unlike a
+ * consumable bit, the generation is safe for multi-clock checkers whose
+ * independent clock-domain processes must all observe the same reset.  The
+ * chronological control-rule cap keeps wraparound unreachable. */
+static PLI_INT32 sva_kill_generation_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      PLI_INT32 idx = -1;
+      sva_control_entry_t*entry = 0;
+      s_vpi_value rv;
+      (void)name;
+      if (argv) {
+	    vpiHandle arg = vpi_scan(argv);
+	    if (arg) {
+		  s_vpi_value value;
+		  value.format = vpiIntVal;
+		  vpi_get_value(arg, &value);
+		  idx = value.value.integer;
+	    }
+	    vpi_free_object(argv);
+      }
+      if (idx >= 0)
+	    entry = sva_control_find_(vpi_handle(vpiScope, callh), idx);
+      rv.format = vpiIntVal;
+      rv.value.integer = entry ? (PLI_INT32)entry->kill_generation : 0;
+      vpi_put_value(callh, &rv, 0, vpiNoDelay);
+      return 0;
+}
+
 static PLI_INT32 sva_control_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
@@ -343,13 +376,6 @@ static PLI_INT32 sva_control_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	  && sva_control_rules[sva_control_rule_count-1].selector == 0)
 	    sva_assert_enabled = enabled;
 
-      if (kill && !sva_kill_approx_warned) {
-	    sva_kill_approx_warned = 1;
-	    vpi_printf("SVA warning: $assertkill disables new attempts, but "
-		       "reset of already executing concurrent-assertion attempts "
-		       "is not implemented; use $assertoff when completion of "
-		       "existing attempts is intended.\n");
-      }
       return 0;
 }
 
@@ -505,6 +531,8 @@ void sys_sva_register(void)
 	/* Assertion control (20.12): the enable-query function used by
 	   synthesized checkers, and the control tasks. */
       register_one_("$ivl_sva_enabled", sva_enabled_calltf);
+      register_one_("$ivl_sva_kill_generation",
+		    sva_kill_generation_calltf);
       register_task_("$asserton",   sva_control_calltf);
       register_task_("$assertoff",  sva_control_calltf);
       register_task_("$assertkill", sva_control_calltf);

@@ -7,6 +7,7 @@
 // rewrites $sampled to the Preponed capture register, making the
 // pre-edge read deterministic. x updates via an NBA at the same edge,
 // so a post-NBA live read would be one ahead of the oracle (10 + k).
+// NFA-EXPECT-FALLBACK
 //
 // The same call OUTSIDE a property (plain procedural code below)
 // cannot use a capture and falls back to the live-value VPI stub;

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_assertkill_multiclock_active.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_assertkill_multiclock_active"
+}

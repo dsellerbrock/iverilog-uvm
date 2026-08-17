@@ -1,7 +1,8 @@
 // M9-NFA stage B.2: equal-length fixed `intersect` keeps the legacy
 // AND-chain lowering (p->seq), so both engines lower it identically —
-// verdict parity. (The NFA engine engages on the resulting plain
-// chain; that is expected and must match the legacy linear engine.)
+// verdict parity. The resulting fixed chain intentionally stays on the
+// compact linear checker under both environment settings.
+// NFA-EXPECT-FALLBACK
 module intersect_fixed;
   logic clk = 0, a = 0, b = 0, c = 0, d = 0;
   always #5 clk = ~clk;

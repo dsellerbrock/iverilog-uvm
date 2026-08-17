@@ -1,10 +1,11 @@
-// M9-NFA dual-run seed: cover property counting through the automaton
-// engine. Both engines name the match counter identically
+// M9-NFA dual-run seed: cover property counting through the compact fixed
+// checker. Both environment settings name the match counter identically
 // (_ivl_sva<inst>_cnt0, inst in source order), so displaying it puts
 // the COUNT into the verdict stream — parity proves count equality,
 // not just silence. The second cover carries a pass statement to pin
 // the shared loud-drop warning (neither engine executes cover pass
 // statements; the drop must never be silent).
+// NFA-EXPECT-FALLBACK
 module cover_counts;
   logic clk = 0, a = 0, b = 0, w = 0, v = 0;
   always #5 clk = ~clk;
