@@ -37,6 +37,13 @@
 ## Tool pinning
 
 - Test the compiler and runtime built from the current worktree. Do not trust ambient `/usr/local/bin/iverilog` or an old installed `vvp`.
+- OpenTitan pins FuseSoC 2.4.5. Invoke `scripts/opentitan_matrix.py` with the
+  Python from the same tool environment and pass it through
+  `--fusesoc-python`; do not replace a virtual-environment `python` symlink
+  with its real path, because that bypasses `pyvenv.cfg` and changes imports.
+- Run OpenTitan generators through that same Python, for example
+  `TOOL_PY util/regtool.py ...`, and write generated comparison output outside
+  the read-only OpenTitan checkout.
 - From `ivtest`, prefer:
 
   ```sh
@@ -46,6 +53,9 @@
 
 - When a generated artifact's shebang may select a stale runtime, invoke the current repository `vvp/vvp` explicitly.
 - Record the exact compiler/runtime path in failure reports when tool provenance could affect the result.
+- Run legacy and JSON ivtest focus harnesses serially unless each has an
+  isolated work directory; both otherwise use `ivtest/log` and can delete one
+  another's evidence.
 
 ## Test pyramid
 

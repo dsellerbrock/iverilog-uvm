@@ -52,28 +52,42 @@ installed UVM source tree when present. Hashing only the `iverilog` driver is
 insufficient because that binary can remain unchanged when the compiler engine
 is rebuilt. A dirty OpenTitan tree is reported rather than modified.
 
-At OpenTitan revision `7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19`, initial
-discovery finds 267 RTL/default-target candidates, 109 standalone SVA/formal
-jobs, and 80 UVM simulation jobs. Some RTL candidates are CAPI package/fileset
-providers without a toplevel; the runner records those as `DEPENDENCY_ONLY`
-rather than falsely reporting a compiler or setup failure. The runtime lane
-reuses the same 80 simulation cores but only earns `PASS` after executing the
-generated image. The SVA count combines 54 assertion/bind cores with 55 FPV
-cores. Three top-specific `rv_plic_fpv` cores live in an `*_ip` VLNV library;
-their formal sources and target belong only to the SVA/formal lane, so they are
-excluded from RTL rather than being compiled twice under different labels.
+The Python interpreter used for FuseSoC API discovery is equally part of the
+fingerprint. The runner records its logical virtual-environment path, real
+executable, SHA-256, Python version, imported FuseSoC version, and HJSON version
+when simulation metadata is read. It rejects a FuseSoC executable/Python
+package version mismatch. By default it checks an adjacent virtual-environment
+interpreter and then a conventional Python shebang; `--fusesoc-python` is the
+unambiguous choice. The logical venv path is intentionally preserved: resolving
+that symlink to its base Homebrew interpreter bypasses `pyvenv.cfg` and loses
+the environment's packages.
+
+At OpenTitan revision `7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19`, current
+discovery finds 264 RTL/default-target jobs, 128 standalone SVA/formal jobs, 61
+UVM compile jobs, and 77 runtime jobs. The runtime total is the 61 configured
+UVM targets plus 16 directed simulations; eight Verilator-only and six
+elaboration-only targets remain inventoried but are not mislabeled as Icarus
+runtime tests. Some RTL candidates are CAPI package/fileset providers without a
+toplevel; the runner records those as `DEPENDENCY_ONLY` rather than falsely
+reporting a compiler or setup failure. Three top-specific `rv_plic_fpv` cores
+live in an `*_ip` VLNV library; their formal sources and target belong only to
+the SVA/formal lane, so they are excluded from RTL rather than being compiled
+twice under different labels.
 
 ## Commands
 
 The runner requires explicit roots so a report cannot silently use a different
-checkout or compiler from the one under test.  A small ADC-control census is:
+checkout or compiler from the one under test. Use the Python and FuseSoC from
+one OpenTitan tool environment. A small ADC-control census is:
 
 ```sh
-python3 scripts/opentitan_matrix.py \
+OT_PY=/path/to/opentitan-tool-env/bin/python
+OT_FUSESOC=/path/to/opentitan-tool-env/bin/fusesoc
+"$OT_PY" scripts/opentitan_matrix.py \
   --opentitan-root /path/to/opentitan \
   --build-root /path/to/build/matrix/adc_ctrl \
   --iverilog /path/to/install/bin/iverilog \
-  --fusesoc /path/to/opentitan/.venv-iverilog/bin/fusesoc \
+  --fusesoc "$OT_FUSESOC" --fusesoc-python "$OT_PY" \
   --lane rtl --lane sva --lane uvm \
   --ip adc_ctrl
 ```
@@ -81,24 +95,37 @@ python3 scripts/opentitan_matrix.py \
 List the full discovered inventory without building it:
 
 ```sh
-python3 scripts/opentitan_matrix.py \
+"$OT_PY" scripts/opentitan_matrix.py \
   --opentitan-root /path/to/opentitan \
   --build-root /path/to/build/matrix \
   --iverilog /path/to/install/bin/iverilog \
-  --fusesoc /path/to/opentitan/.venv-iverilog/bin/fusesoc \
+  --fusesoc "$OT_FUSESOC" --fusesoc-python "$OT_PY" \
   --lane rtl --lane sva --lane uvm --list
 ```
 
 Run all four lanes with four independent cores in flight:
 
 ```sh
-python3 scripts/opentitan_matrix.py \
+"$OT_PY" scripts/opentitan_matrix.py \
   --opentitan-root /path/to/opentitan \
   --build-root /path/to/build/matrix/full \
   --iverilog /path/to/install/bin/iverilog \
-  --fusesoc /path/to/opentitan/.venv-iverilog/bin/fusesoc \
+  --fusesoc "$OT_FUSESOC" --fusesoc-python "$OT_PY" \
   --lane all --jobs 4
 ```
+
+Run register generation through the same interpreter rather than relying on
+`util/regtool.py`'s ambient `python3` shebang:
+
+```sh
+"$OT_PY" /path/to/opentitan/util/regtool.py -r \
+  -t /path/to/evidence/uart-reg-rtl \
+  /path/to/opentitan/hw/ip/uart/data/uart.hjson
+```
+
+Keep that output outside the OpenTitan checkout, then compare it with the
+checked-in generated RTL. This validates the register-generation dependency
+closure without altering the compatibility workload.
 
 `--core` selects an exact VLNV; `--ip` is a repeatable case-insensitive name or
 description filter.  Runtime plusargs can be repeated with `--runtime-arg`.

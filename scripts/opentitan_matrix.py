@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Use the OpenTitan tool environment's Python; see --fusesoc-python below.
 """Run a reproducible Icarus Verilog conformance matrix over OpenTitan cores.
 
 The matrix deliberately distinguishes a clean compile from a successful process
@@ -833,6 +834,157 @@ def compiler_fingerprint(iverilog: Path, vvp: Path) -> dict[str, object]:
     return result
 
 
+def _python_interpreter(
+    path: Path, arguments: Sequence[str] = ()
+) -> tuple[str, ...] | None:
+    """Return a safe Python command prefix, rejecting other shebang programs."""
+    # Keep a virtual environment's logical symlink path. Resolving it to the
+    # base interpreter bypasses pyvenv.cfg and silently changes sys.path.
+    executable = path.expanduser().absolute()
+    if not executable.is_file() or not os.access(executable, os.X_OK):
+        return None
+    if not re.fullmatch(
+        r"(?:python(?:\d+(?:\.\d+)*)?|pypy(?:\d+(?:\.\d+)*)?)(?:\.exe)?",
+        executable.name,
+        re.I,
+    ):
+        return None
+    safe_arguments = {
+        "-B", "-E", "-I", "-O", "-OO", "-P", "-S", "-s", "-q", "-u"
+    }
+    if any(argument not in safe_arguments for argument in arguments):
+        return None
+    return (str(executable), *arguments)
+
+
+def resolve_fusesoc_python(
+    fusesoc: Path,
+    explicit: Path | None,
+    env: dict[str, str],
+) -> tuple[str, ...]:
+    """Find the interpreter that owns the FuseSoC Python packages.
+
+    Virtual environments normally put ``python`` beside ``fusesoc``. User
+    installs often do not, so an explicit interpreter or a conventional
+    Python shebang is also accepted. The shebang is parsed as data; no shell
+    fragment from the executable is evaluated.
+    """
+    if explicit is not None:
+        command = _python_interpreter(explicit)
+        if command is None:
+            raise RuntimeError(
+                "--fusesoc-python must name an executable Python interpreter: "
+                f"{explicit.expanduser()}"
+            )
+        return command
+
+    adjacent_names = ("python", "python3", "python.exe")
+    for name in adjacent_names:
+        command = _python_interpreter(fusesoc.with_name(name))
+        if command is not None:
+            return command
+
+    try:
+        with fusesoc.open("rb") as stream:
+            raw_shebang = stream.readline(4097)
+    except OSError as exc:
+        raise RuntimeError(f"cannot inspect FuseSoC shebang: {exc}") from exc
+    if len(raw_shebang) <= 4096 and raw_shebang.startswith(b"#!"):
+        try:
+            tokens = shlex.split(raw_shebang[2:].decode("utf-8").strip())
+        except (UnicodeDecodeError, ValueError):
+            tokens = []
+        if tokens:
+            interpreter = Path(tokens[0])
+            arguments = tokens[1:]
+            if interpreter.name == "env":
+                if arguments[:1] == ["-S"]:
+                    arguments = arguments[1:]
+                if arguments[:1] == ["--"]:
+                    arguments = arguments[1:]
+                if arguments and "=" not in arguments[0]:
+                    executable = shutil.which(
+                        arguments[0], path=env.get("PATH", "")
+                    )
+                    if executable is not None:
+                        command = _python_interpreter(
+                            Path(executable), arguments[1:]
+                        )
+                        if command is not None:
+                            return command
+            elif interpreter.is_absolute():
+                command = _python_interpreter(interpreter, arguments)
+                if command is not None:
+                    return command
+
+    checked = ", ".join(str(fusesoc.with_name(name)) for name in adjacent_names)
+    raise RuntimeError(
+        "FuseSoC target discovery could not identify its Python environment. "
+        f"Checked adjacent interpreters ({checked}) and the executable shebang. "
+        "Provide --fusesoc-python with the Python that imports the same "
+        "FuseSoC version and OpenTitan dependencies."
+    )
+
+
+def validate_fusesoc_python(
+    command: Sequence[str],
+    *,
+    require_hjson: bool,
+    cwd: Path,
+    env: dict[str, str],
+    timeout: int,
+) -> dict[str, object]:
+    """Validate and fingerprint the Python environment used by API probes."""
+    marker = "FUSESOC_PYTHON_INFO_JSON="
+    probe = r"""
+import importlib.metadata
+import json
+import sys
+
+import fusesoc
+
+if sys.argv[1] == "1":
+    import hjson
+
+payload = {
+    "executable": sys.executable,
+    "python_version": sys.version.split()[0],
+    "fusesoc_version": importlib.metadata.version("fusesoc"),
+}
+if sys.argv[1] == "1":
+    payload["hjson_version"] = importlib.metadata.version("hjson")
+print("FUSESOC_PYTHON_INFO_JSON=" + json.dumps(payload, sort_keys=True))
+"""
+    result = command_result(
+        [*command, "-c", probe, "1" if require_hjson else "0"],
+        cwd=cwd,
+        env=env,
+        timeout=timeout,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            "FuseSoC Python validation failed; use --fusesoc-python to select "
+            "the OpenTitan tool environment:\n" + result.output.rstrip()
+        )
+    for line in reversed(result.output.splitlines()):
+        if line.startswith(marker):
+            payload = json.loads(line[len(marker) :])
+            executable = Path(payload["executable"]).expanduser().absolute()
+            payload.update(
+                {
+                    "command": short_command(command),
+                    "executable": str(executable),
+                    "real_executable": str(executable.resolve()),
+                    "sha256": file_sha256(executable),
+                }
+            )
+            return payload
+    raise RuntimeError(
+        "FuseSoC Python validation produced no machine-readable result:\n"
+        + result.output.rstrip()
+    )
+
+
 def discover_cores(
     fusesoc: Path, opentitan_root: Path, env: dict[str, str], timeout: int
 ) -> list[Core]:
@@ -861,7 +1013,10 @@ def discover_cores(
 
 
 def discover_formal_targets(
-    fusesoc: Path, opentitan_root: Path, env: dict[str, str], timeout: int
+    fusesoc_python: Sequence[str],
+    opentitan_root: Path,
+    env: dict[str, str],
+    timeout: int,
 ) -> set[str]:
     """Ask the loaded FuseSoC core database which cores expose `formal`.
 
@@ -870,12 +1025,6 @@ def discover_formal_targets(
     core whose usable target is `default`. Loading the database once is both
     exact and much faster than hundreds of `fusesoc core show` subprocesses.
     """
-    python = fusesoc.with_name("python")
-    if not python.is_file():
-        raise RuntimeError(
-            "FuseSoC target discovery needs the Python interpreter adjacent "
-            f"to the FuseSoC executable; not found: {python}"
-        )
     marker = "FUSESOC_FORMAL_TARGETS_JSON="
     probe = r"""
 import json
@@ -897,7 +1046,7 @@ for name, core in manager.get_cores().items():
 print("FUSESOC_FORMAL_TARGETS_JSON=" + json.dumps(sorted(formal)))
 """
     result = command_result(
-        [str(python), "-c", probe, str(opentitan_root)],
+        [*fusesoc_python, "-c", probe, str(opentitan_root)],
         cwd=opentitan_root,
         env=env,
         timeout=timeout,
@@ -916,7 +1065,10 @@ print("FUSESOC_FORMAL_TARGETS_JSON=" + json.dumps(sorted(formal)))
 
 
 def discover_simulation_targets(
-    fusesoc: Path, opentitan_root: Path, env: dict[str, str], timeout: int
+    fusesoc_python: Sequence[str],
+    opentitan_root: Path,
+    env: dict[str, str],
+    timeout: int,
 ) -> dict[str, SimulationTarget]:
     """Inventory every literal FuseSoC `sim` target and its execution model.
 
@@ -926,12 +1078,6 @@ def discover_simulation_targets(
     It also reads local dvsim HJSON with the same Python environment OpenTitan
     uses, so a UVM runtime is never launched without a known test and sequence.
     """
-    python = fusesoc.with_name("python")
-    if not python.is_file():
-        raise RuntimeError(
-            "FuseSoC simulation-target discovery needs the Python interpreter "
-            f"adjacent to the FuseSoC executable; not found: {python}"
-        )
     marker = "FUSESOC_SIM_TARGETS_JSON="
     probe = r"""
 import json
@@ -1354,7 +1500,7 @@ print("FUSESOC_SIM_TARGETS_JSON=" + json.dumps(sorted(
 )))
 """
     result = command_result(
-        [str(python), "-c", probe, str(opentitan_root)],
+        [*fusesoc_python, "-c", probe, str(opentitan_root)],
         cwd=opentitan_root,
         env=env,
         timeout=timeout,
@@ -2411,6 +2557,47 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         "signatures will not be checked."
     )
     if os.name == "posix":
+        with tempfile.TemporaryDirectory() as directory:
+            test_root = Path(directory)
+            fusesoc = test_root / "fusesoc"
+            current_python = Path(sys.executable).absolute()
+            fusesoc.write_text(f"#!{current_python}\n")
+            fusesoc.chmod(0o755)
+            assert resolve_fusesoc_python(
+                fusesoc, None, os.environ.copy()
+            ) == (str(current_python),)
+
+            adjacent = test_root / "python"
+            adjacent.symlink_to(current_python)
+            assert resolve_fusesoc_python(
+                fusesoc, None, os.environ.copy()
+            ) == (str(adjacent),)
+            adjacent.unlink()
+
+            env_python = test_root / "python3.99"
+            env_python.symlink_to(current_python)
+            fusesoc.write_text("#!/usr/bin/env python3.99\n")
+            probe_env = {**os.environ, "PATH": str(test_root)}
+            assert resolve_fusesoc_python(
+                fusesoc, None, probe_env
+            ) == (str(env_python),)
+
+            fusesoc.write_text("#!/bin/sh\nexit 0\n")
+            try:
+                resolve_fusesoc_python(fusesoc, None, probe_env)
+            except RuntimeError as exc:
+                assert "--fusesoc-python" in str(exc)
+            else:
+                raise AssertionError("non-Python FuseSoC shebang was accepted")
+
+            fusesoc.write_text(f"#!{current_python} -c malicious\n")
+            try:
+                resolve_fusesoc_python(fusesoc, None, probe_env)
+            except RuntimeError as exc:
+                assert "--fusesoc-python" in str(exc)
+            else:
+                raise AssertionError("executable Python shebang option was accepted")
+    if os.name == "posix":
         timeout_probe = command_result(
             [
                 sys.executable,
@@ -2443,6 +2630,15 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--build-root", type=Path)
     result.add_argument("--iverilog", type=Path)
     result.add_argument("--fusesoc", type=Path)
+    result.add_argument(
+        "--fusesoc-python",
+        type=Path,
+        help=(
+            "Python interpreter that imports the same FuseSoC package and "
+            "OpenTitan dependencies; defaults to an adjacent interpreter or "
+            "a conventional Python shebang from --fusesoc"
+        ),
+    )
     result.add_argument(
         "--lane",
         action="append",
@@ -2480,11 +2676,14 @@ def parser() -> argparse.ArgumentParser:
     return result
 
 
-def resolve_executable(value: Path | None, fallback: str) -> Path:
+def resolve_executable(
+    value: Path | None, fallback: str, *, preserve_symlink: bool = False
+) -> Path:
     candidate = str(value) if value else shutil.which(fallback)
     if not candidate:
         raise FileNotFoundError(f"could not find {fallback}; provide --{fallback}")
-    resolved = Path(candidate).expanduser().resolve()
+    expanded = Path(candidate).expanduser()
+    resolved = expanded.absolute() if preserve_symlink else expanded.resolve()
     if not resolved.is_file():
         raise FileNotFoundError(f"executable does not exist: {resolved}")
     return resolved
@@ -2511,7 +2710,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     opentitan_root = args.opentitan_root.expanduser().resolve()
     build_root = args.build_root.expanduser().resolve()
     iverilog = resolve_executable(args.iverilog, "iverilog")
-    fusesoc = resolve_executable(args.fusesoc, "fusesoc")
+    fusesoc = resolve_executable(
+        args.fusesoc, "fusesoc", preserve_symlink=True
+    )
     vvp_candidate = iverilog.with_name("vvp")
     vvp = vvp_candidate if vvp_candidate.is_file() else resolve_executable(None, "vvp")
     if not opentitan_root.is_dir():
@@ -2524,17 +2725,37 @@ def main(argv: Sequence[str] | None = None) -> int:
         [str(iverilog.parent), str(fusesoc.parent), env.get("PATH", "")]
     )
     try:
-        cores = discover_cores(fusesoc, opentitan_root, env, args.setup_timeout)
         lanes = requested_lanes(args.lane)
+        fusesoc_python = resolve_fusesoc_python(
+            fusesoc, args.fusesoc_python, env
+        )
+        fusesoc_python_info = validate_fusesoc_python(
+            fusesoc_python,
+            require_hjson=bool({"uvm", "runtime"}.intersection(lanes)),
+            cwd=opentitan_root,
+            env=env,
+            timeout=args.setup_timeout,
+        )
+        fusesoc_version = tool_version(
+            [str(fusesoc), "--version"], opentitan_root, env
+        )
+        if fusesoc_python_info["fusesoc_version"] != fusesoc_version:
+            raise RuntimeError(
+                "FuseSoC executable/Python version mismatch: executable reports "
+                f"{fusesoc_version}, but {fusesoc_python_info['command']} imports "
+                f"{fusesoc_python_info['fusesoc_version']}. Select the matching "
+                "environment with --fusesoc-python."
+            )
+        cores = discover_cores(fusesoc, opentitan_root, env, args.setup_timeout)
         formal_targets = None
         simulation_targets = None
         if "sva" in lanes:
             formal_targets = discover_formal_targets(
-                fusesoc, opentitan_root, env, args.setup_timeout
+                fusesoc_python, opentitan_root, env, args.setup_timeout
             )
         if {"uvm", "runtime"}.intersection(lanes):
             simulation_targets = discover_simulation_targets(
-                fusesoc, opentitan_root, env, args.setup_timeout
+                fusesoc_python, opentitan_root, env, args.setup_timeout
             )
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
@@ -2558,7 +2779,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         "iverilog_version": tool_version([str(iverilog), "-V"], opentitan_root, env),
         "compiler_fingerprint": compiler_fingerprint(iverilog, vvp),
         "fusesoc": str(fusesoc),
-        "fusesoc_version": tool_version([str(fusesoc), "--version"], opentitan_root, env),
+        "fusesoc_real_executable": str(fusesoc.resolve()),
+        "fusesoc_sha256": file_sha256(fusesoc),
+        "fusesoc_version": fusesoc_version,
+        "fusesoc_python": fusesoc_python_info,
         "top_mapping": args.top,
         "matrix_provider_core_root": str(matrix_core_root),
         "englishbreakfast_mapping_sha256": hashlib.sha256(
