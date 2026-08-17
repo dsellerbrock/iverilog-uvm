@@ -70,6 +70,7 @@ CASES = (
     ("sv_assert_property_local_declared_type", "standard", 0, 0, (), ()),
     ("sv_assert_property_local_packed", "standard", 0, 0, (), ()),
     ("sv_assert_property_local_unbounded_wait", "standard", 0, 0, (), ()),
+    ("sv_assert_modport_preponed_sample", "standard", 0, 0, (), ()),
 )
 
 

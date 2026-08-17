@@ -446,6 +446,36 @@ void dll_target::expr_null(const NetENull*net)
 
 void dll_target::expr_property(const NetEProperty*net)
 {
+	/* A statically bound interface/modport member is represented as a
+	   property while processes elaborate, before the containing module's
+	   interface ports are connected. By target export the binding is known,
+	   so expose the concrete member as an ordinary signal expression. This
+	   lets all signal-only backends, including %hist/on and
+	   %load/preponed, use the exact interface-instance storage. Runtime
+	   selections and ordinary class properties remain IVL_EX_PROPERTY. */
+      if (!net->get_index()) {
+	    if (NetNet*member = net->resolve_interface_member_signal()) {
+		  ivl_signal_t sig = find_signal(member);
+		  assert(expr_ == 0);
+		  expr_ = static_cast<ivl_expr_t>(
+			calloc(1, sizeof(struct ivl_expr_s)));
+		  expr_->type_ = IVL_EX_SIGNAL;
+		  expr_->value_ = net->expr_type();
+		  expr_->net_type = 0;
+		  expr_->width_ = net->expr_width();
+		  expr_->signed_ = net->has_sign() ? 1 : 0;
+		  expr_->sized_ = 1;
+		  FILE_NAME(expr_, net);
+		  expr_->u_.signal_.word = 0;
+		  expr_->u_.signal_.sig = sig;
+		  if (sig->array_dimensions_ > 0) {
+			expr_->type_ = IVL_EX_ARRAY;
+			expr_->width_ = 0;
+		  }
+		  return;
+	    }
+      }
+
       ivl_expr_t base_expr = 0;
       ivl_expr_t index = 0;
 
