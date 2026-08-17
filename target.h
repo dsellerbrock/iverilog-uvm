@@ -56,6 +56,12 @@ struct target_t {
 	   that the target should use. */
       virtual bool start_design(const Design*) =0;
 
+	/* A target that only validates the frontend result can opt out of
+	   materializing the complete target-side design. start_design() is
+	   called first so a dynamically loaded target can advertise this
+	   capability; end_design() is still called exactly once. */
+      virtual bool needs_design() const { return true; }
+
 	/* This is called once for each scope in the design, before
 	   anything else is called. */
       virtual void scope(const NetScope*);

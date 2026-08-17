@@ -734,6 +734,7 @@ bool dll_target::start_design(const Design*des)
       const char*dll_path_ = des->get_flag("DLL");
 
       signal_map_.clear();
+      needs_design_ = true;
 
       dll_ = ivl_dlopen(dll_path_);
 
@@ -751,6 +752,28 @@ bool dll_target::start_design(const Design*des)
 	    return false;
       }
 
+      target_ = reinterpret_cast<target_design_f>(
+	    ivl_dlsym(dll_, LU "target_design" TU));
+      if (target_ == 0) {
+	    cerr << dll_path_ << ": error: target_design entry "
+		  "point is missing." << endl;
+	    return false;
+      }
+
+	/* target_query is optional for existing target modules. A target that
+	   explicitly answers "false" promises to accept a skeletal
+	   ivl_design_t without the target-side graph. This lets a
+	   validation-only target avoid duplicating a very large elaborated
+	   design solely to discard it. Missing and unknown answers preserve
+	   the historical full walk. */
+      target_query_f targ_query = reinterpret_cast<target_query_f>(
+	    ivl_dlsym(dll_, LU "target_query" TU));
+      if (targ_query) {
+	    const char*answer = (*targ_query)("requires_design");
+	    if (answer && strcmp(answer, "false") == 0)
+		  needs_design_ = false;
+      }
+
       stmt_cur_ = 0;
 
 	// Initialize the design object.
@@ -766,6 +789,9 @@ bool dll_target::start_design(const Design*des)
       }
       assert(idx == des_.disciplines.size());
 
+      if (!needs_design_)
+	    return true;
+
       list<NetScope *> scope_list;
 
       scope_list = des->find_package_scopes();
@@ -778,13 +804,6 @@ bool dll_target::start_design(const Design*des)
       for (list<NetScope*>::const_iterator cur = scope_list.begin()
 		 ; cur != scope_list.end(); ++ cur ) {
 	    add_root(*cur);
-      }
-
-      target_ = reinterpret_cast<target_design_f>(ivl_dlsym(dll_, LU "target_design" TU));
-      if (target_ == 0) {
-	    cerr << dll_path_ << ": error: target_design entry "
-		  "point is missing." << endl;
-	    return false;
       }
 
       return true;
