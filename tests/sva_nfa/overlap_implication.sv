@@ -1,5 +1,6 @@
 // M9-NFA dual-run seed: overlapped |-> consequents (##0 fusion —
 // conjunction guards) including a windowed overlap start.
+// NFA-EXPECT-FALLBACK
 module overlap_implication;
   logic clk = 0, a = 0, b = 0, c = 0;
   always #5 clk = ~clk;

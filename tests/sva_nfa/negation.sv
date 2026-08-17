@@ -1,5 +1,6 @@
 // M9-NFA dual-run seed: not (op 3) — a match is the failure; a failed
 // match is silent (legacy parity).
+// NFA-EXPECT-FALLBACK
 module negation;
   logic clk = 0, a = 0, b = 0;
   always #5 clk = ~clk;

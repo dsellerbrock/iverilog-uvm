@@ -1,7 +1,9 @@
 // Regression for a lifetime bug in SVA expression cloning: the cloned
 // B#(2)::static_function() call borrowed its class-specialization actuals and
 // could outlive them, causing a use-after-free / compiler segfault. Exercise
-// both value- and type-parameter actuals in the legacy and NFA engines.
+// both value- and type-parameter actuals under both checker environment
+// settings. This deterministic shape uses the compact checker in each run.
+// NFA-EXPECT-FALLBACK
 class B #(int VALUE = 0);
   static function automatic bit static_function();
     return VALUE == 2;

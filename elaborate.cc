@@ -9165,6 +9165,52 @@ enum type_parameter_receiver_state_t {
 static type_parameter_receiver_state_t type_parameter_receiver_state_(
 		Design*des, NetScope*scope, const pform_name_t&use_path);
 
+/* IEEE 1800-2017 20.12 assertion-control selectors are names, not value
+ * expressions. The generic parse-form dumper deliberately preserves an
+ * integer literal's source-width spelling (for example ['sd2]); VPI scope
+ * full names use the canonical hierarchy spelling ([2]). Canonicalize every
+ * constant word select here so a generated-instance selector names the same
+ * object that the runtime assertion registry enumerates. */
+static string assertion_control_selector_(Design*des, NetScope*scope,
+					   const PEIdent*id)
+{
+      const pform_scoped_name_t&path = id->path();
+      ostringstream text;
+      if (path.package)
+	    text << path.package->pscope_name() << "::";
+
+      bool first = true;
+      for (pform_name_t::const_iterator comp = path.name.begin();
+	   comp != path.name.end(); ++comp) {
+	    if (!first) text << ".";
+	    first = false;
+	    if (comp->local_scope) text << "local::";
+	    if (comp->name == THIS_TOKEN) text << "this";
+	    else if (comp->name == SUPER_TOKEN) text << "super";
+	    else text << comp->name.str();
+
+	    for (list<index_component_t>::const_iterator idx =
+		   comp->index.begin(); idx != comp->index.end(); ++idx) {
+		  if (idx->sel == index_component_t::SEL_BIT && idx->msb) {
+			NetExpr*value = elab_and_eval(
+			      des, scope, idx->msb, -1, true);
+			NetEConst*constant = dynamic_cast<NetEConst*>(value);
+			if (constant && constant->value().is_defined()) {
+			      text << "[" << constant->value().as_long() << "]";
+			      delete value;
+			      continue;
+			}
+			delete value;
+		  }
+		  /* Invalid selector shapes are diagnosed by ordinary name
+		     resolution elsewhere. Preserve their source form here rather
+		     than silently inventing a different selector. */
+		  text << *idx;
+	    }
+      }
+      return text.str();
+}
+
 NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
 {
 	// Method-call statement on an arbitrary receiver expression,
@@ -9277,9 +9323,8 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	       assertion label as a signal (Caliptra relies on this form). */
 	    if (assertion_control_task && idx >= 1) {
 		  if (const PEIdent*id = dynamic_cast<const PEIdent*>(parm.parm)) {
-			std::ostringstream text;
-			text << id->path();
-			NetECString*selector = new NetECString(text.str());
+			NetECString*selector = new NetECString(
+			      assertion_control_selector_(des, scope, id));
 			selector->set_line(*parm.parm);
 			eparms[idx] = selector;
 			continue;

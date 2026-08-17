@@ -1,5 +1,6 @@
 // M9-NFA dual-run seed: |=> and a fixed-sequence antecedent |->
-// (non-overlapped consequent) through the composite automaton.
+// (non-overlapped consequent) through the compact deterministic checker.
+// NFA-EXPECT-FALLBACK
 module implication;
   logic clk = 0, a = 0, b = 0, c = 0;
   always #5 clk = ~clk;

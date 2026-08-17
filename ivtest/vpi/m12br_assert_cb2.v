@@ -2,9 +2,9 @@
 // $assertoff/$asserton transitions fire Disable/Enable; $assertkill
 // fires Reset (plus Disable when it also turns reporting off).
 // Three posedges while enabled -> three starts (ticks 1,2 and 4).
-// IEEE 1800-2023 20.11 says Off starts no new attempts; Kill likewise stops
-// checking after aborting the attempts that the current bounded runtime
-// explicitly diagnoses as not yet resettable.
+// IEEE 1800-2023 20.11 says Off starts no new attempts, while Kill also
+// aborts attempts already executing. Active-attempt semantics are pinned by
+// the sv_assertkill_* runtime regressions; this test pins the VPI callbacks.
 module top;
   logic clk = 0, sig = 1;
   always #5 clk = ~clk;

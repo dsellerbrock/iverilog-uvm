@@ -2,6 +2,7 @@
 // intentionally silent. It is distinct from an omitted else arm, which uses
 // the default $error action. Exercise both concurrent-action grammar forms
 // and repeat them behind 16.14.6 procedural clock inference.
+// NFA-EXPECT-FALLBACK
 module concurrent_explicit_null;
   logic explicit_clk = 0;
   logic inferred_clk = 0;

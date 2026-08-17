@@ -4,6 +4,7 @@
 // (`a ##1 b' -> `$past(a,1) && b'), a source transform BOTH engines
 // lower identically — so this is an ordinary dual-run parity test (not
 // nfa_only). Under a single clock `.triggered' and `.matched' coincide.
+// NFA-EXPECT-FALLBACK
 //
 // s1 = a ##1 b. s1 completes at cyc1 (a@0,b@1) with c@1 -> pass; and at
 // cyc4 (a@3,b@4) with c@4=0 -> fail. The cover counts both completions.

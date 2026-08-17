@@ -1,6 +1,7 @@
 // M9-NFA stage B.5: fixed-length `throughout` keeps the legacy
 // source-level lowering (a plain chain) under both engines -> verdict
 // parity.
+// NFA-EXPECT-FALLBACK
 module throughout_fixed;
   logic clk = 0, g=0, x=0, y=0, z=0;
   always #5 clk = ~clk;

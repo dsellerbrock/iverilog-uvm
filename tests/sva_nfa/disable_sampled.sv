@@ -1,5 +1,6 @@
 // M9-NFA dual-run seed: disable iff + $rose sampled-value rewrite
-// through the automaton path.
+// through the common sampled checker path.
+// NFA-EXPECT-FALLBACK
 module disable_sampled;
   logic clk = 0, rst = 0, a = 0, b = 0;
   always #5 clk = ~clk;

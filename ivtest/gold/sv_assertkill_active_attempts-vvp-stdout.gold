@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_assertkill_active_attempts.v:205: $finish called at 86 (1s)

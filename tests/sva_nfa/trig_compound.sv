@@ -5,6 +5,7 @@
 // identifier binding, drew only an "Unable to bind" warning, and the
 // assertion silently evaluated X — indistinguishable from a pass.
 // The fix rewrites `.triggered`/`.matched` recursively through &&, ||,
+// NFA-EXPECT-FALLBACK
 // !, comparisons, and ternaries. s1 = a ##1 b matches ending on the
 // tick where b samples true, so `.triggered` is true exactly there.
 module trig_compound;

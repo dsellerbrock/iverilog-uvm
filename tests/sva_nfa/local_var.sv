@@ -4,6 +4,7 @@
 // CAPTURED value -- a per-attempt data check. Lowered by a source
 // transform to $past (exact, engine-independent), so this is a
 // verdict-parity test. The count distinguishes value match vs mismatch.
+// NFA-EXPECT-FALLBACK
 module local_var;
   logic clk=0, a=0, b=0;
   logic [7:0] d=0, c=0;

@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_assertkill_multiclock_active.v:71: $finish called at 20 (1s)

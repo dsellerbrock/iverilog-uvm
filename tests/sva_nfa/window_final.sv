@@ -1,5 +1,6 @@
 // M9-NFA dual-run seed: final-position ##[m:n] window (both engines
-// support it; the NFA lowers it as branch states).
+// support it through the compact final-window checker).
+// NFA-EXPECT-FALLBACK
 module window_final;
   logic clk = 0, a = 0, b = 0;
   always #5 clk = ~clk;

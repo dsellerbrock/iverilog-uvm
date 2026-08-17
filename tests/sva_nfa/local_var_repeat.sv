@@ -7,6 +7,7 @@
 // (a, v = d)[*3] it must hold d from the THIRD sampled step, and the
 // comparison one cycle later must see that value. The match counter in
 // the verdict stream proves the value, not just crash-freedom.
+// NFA-EXPECT-FALLBACK
 module local_var_repeat;
   logic clk = 0, a = 0, c = 0;
   logic [7:0] d = 0;

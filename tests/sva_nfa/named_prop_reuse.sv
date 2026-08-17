@@ -6,6 +6,7 @@
 // a bind warning, and never fired PASS or FAIL — a silently-dead
 // assertion. The fix deep-clones the declaration per instantiation.
 // Both instances must show fails=1 passes=1 on the same stimulus.
+// NFA-EXPECT-FALLBACK
 module named_prop_reuse;
   logic clk = 0, a = 0, b = 0;
   always #5 clk = ~clk;
