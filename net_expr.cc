@@ -507,6 +507,21 @@ NetEProperty::~NetEProperty()
       delete index_;
 }
 
+bool NetEProperty::is_interface_member() const
+{
+      const NetNet*interface_port = net_;
+      if (!interface_port) {
+            const NetESignal*base = dynamic_cast<const NetESignal*>(expr_);
+            if (!base)
+                  return false;
+            interface_port = base->sig();
+      }
+
+      const netclass_t*interface_type = interface_port
+            ? dynamic_cast<const netclass_t*>(interface_port->net_type()) : 0;
+      return interface_type && interface_type->is_interface();
+}
+
 NetNet* NetEProperty::resolve_interface_member_signal() const
 {
       NetNet*interface_port = net_;

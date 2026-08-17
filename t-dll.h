@@ -242,6 +242,7 @@ struct ivl_event_s {
       bool is_vif_anyedge;
       unsigned vif_N;
       unsigned vif_M;
+      unsigned vif_member_word;
       unsigned vif_pre_N; // UINT_MAX = unused (2-level); set = extra prop hop (3-level)
       std::vector<unsigned> vif_path; // root-to-interface property indices
       unsigned vif_root_pin;

@@ -1032,6 +1032,46 @@ void __vpiArray::attach_word(unsigned addr, vpiHandle word)
       }
 }
 
+static void send_word_to_edge_probe_(__vpiArray*array, unsigned addr,
+				     vvp_net_t*probe)
+{
+      assert(array);
+      assert(probe && probe->fun);
+      vvp_net_ptr_t port(probe, 0);
+      if (vpi_array_is_real(array)) {
+	    probe->fun->recv_real(port, array->get_word_r(addr), 0);
+      } else if (vpi_array_is_string(array)) {
+	    probe->fun->recv_string(port, array->get_word_str(addr), 0);
+      } else if (dynamic_cast<vvp_darray_object*>(array->vals)) {
+	    vvp_object_t value;
+	    array->get_word_obj(addr, value);
+	    probe->fun->recv_object(port, value, 0);
+      } else {
+	    probe->fun->recv_vec4(port, array->get_word(addr), 0);
+      }
+}
+
+void __vpiArray::attach_word_edge_probe(unsigned addr, vvp_net_t*probe)
+{
+      const unsigned wildcard = static_cast<unsigned>(-1);
+      if (!probe || !probe->fun
+	  || (addr != wildcard && addr >= get_size()))
+	    return;
+      for (const word_edge_probe_t&prior : word_edge_probes_)
+	    if (prior.addr == addr && prior.probe == probe)
+		  return;
+      word_edge_probe_t entry = {addr, probe, false};
+      word_edge_probes_.push_back(entry);
+      /* Seed the edge detector before a thread starts waiting so the first
+       * later assignment is compared with the element's current value. */
+      if (addr == wildcard) {
+	    vvp_vector4_t initial(1, BIT4_0);
+	    probe->fun->recv_vec4(vvp_net_ptr_t(probe, 0), initial, 0);
+      } else {
+	    send_word_to_edge_probe_(this, addr, probe);
+      }
+}
+
 void compile_var_array(char*label, char*name, int last, int first,
 		   int msb, int lsb, char signed_flag)
 {
@@ -1537,6 +1577,19 @@ void __vpiArray::word_change(unsigned long addr)
 {
       for (vvp_fun_arrayport*cur = ports_; cur; cur = cur->next_)
 	    cur->check_word_change(addr);
+
+      const unsigned wildcard = static_cast<unsigned>(-1);
+      for (word_edge_probe_t&probe : word_edge_probes_) {
+	    if (probe.addr == wildcard) {
+		  probe.wildcard_state = !probe.wildcard_state;
+		  vvp_vector4_t changed(1, probe.wildcard_state
+					 ? BIT4_1 : BIT4_0);
+		  probe.probe->fun->recv_vec4(vvp_net_ptr_t(probe.probe, 0),
+					       changed, 0);
+	    } else if (probe.addr == addr) {
+		  send_word_to_edge_probe_(this, (unsigned)addr, probe.probe);
+	    }
+      }
 
 	// Run callbacks attached to the array itself.
       struct __vpiCallback *next = vpi_callbacks;

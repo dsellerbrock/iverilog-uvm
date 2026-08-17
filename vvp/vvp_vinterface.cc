@@ -175,6 +175,15 @@ vvp_vinterface::slot_t vvp_vinterface::get_slot_(size_t pid) const
       return slots_[pid];
 }
 
+bool vvp_vinterface::has_array_word(size_t pid, size_t word) const
+{
+      slot_t slot = get_slot_(pid);
+      if (slot.kind != SLOT_ARRAY)
+	    return false;
+      __vpiArray*arr = dynamic_cast<__vpiArray*>(slot.handle);
+      return arr && word < arr->get_size();
+}
+
 void vvp_vinterface::set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx)
 {
       slot_t slot = get_slot_(pid);
@@ -423,13 +432,29 @@ void vvp_vinterface::get_object(size_t pid, vvp_object_t&val, size_t idx) const
       val = fun->get_object();
 }
 
-vvp_fun_edge_sa* vvp_vinterface::get_posedge_functor(size_t M)
+vvp_fun_edge_sa* vvp_vinterface::get_posedge_functor(size_t M, size_t word)
 {
+      slot_t slot = get_slot_(M);
+      if (slot.kind == SLOT_ARRAY) {
+	    std::pair<size_t, size_t>key(M, word);
+	    std::map<std::pair<size_t, size_t>, vvp_fun_edge_sa*>::iterator found =
+		  array_posedge_functors_.find(key);
+	    if (found != array_posedge_functors_.end())
+		  return found->second;
+	    vvp_fun_edge_sa*fun = new vvp_fun_edge_sa(vvp_edge_posedge);
+	    vvp_net_t*edge_net = new vvp_net_t;
+	    edge_net->fun = fun;
+	    __vpiArray*arr = dynamic_cast<__vpiArray*>(slot.handle);
+	    if (arr && word < arr->get_size())
+		  arr->attach_word_edge_probe((unsigned)word, edge_net);
+	    array_posedge_functors_[key] = fun;
+	    return fun;
+      }
       if (M >= posedge_functors_.size())
 	    posedge_functors_.resize(M + 1, nullptr);
 
       if (posedge_functors_[M] == nullptr) {
-	    slot_t slot = get_slot_(M);
+	    slot = get_slot_(M);
 	    assert(slot.kind == SLOT_SIGNAL);
 	    __vpiSignal*sig = dynamic_cast<__vpiSignal*>(slot.handle);
 	    assert(sig && sig->node);
@@ -446,13 +471,29 @@ vvp_fun_edge_sa* vvp_vinterface::get_posedge_functor(size_t M)
       return posedge_functors_[M];
 }
 
-vvp_fun_edge_sa* vvp_vinterface::get_negedge_functor(size_t M)
+vvp_fun_edge_sa* vvp_vinterface::get_negedge_functor(size_t M, size_t word)
 {
+      slot_t slot = get_slot_(M);
+      if (slot.kind == SLOT_ARRAY) {
+	    std::pair<size_t, size_t>key(M, word);
+	    std::map<std::pair<size_t, size_t>, vvp_fun_edge_sa*>::iterator found =
+		  array_negedge_functors_.find(key);
+	    if (found != array_negedge_functors_.end())
+		  return found->second;
+	    vvp_fun_edge_sa*fun = new vvp_fun_edge_sa(vvp_edge_negedge);
+	    vvp_net_t*edge_net = new vvp_net_t;
+	    edge_net->fun = fun;
+	    __vpiArray*arr = dynamic_cast<__vpiArray*>(slot.handle);
+	    if (arr && word < arr->get_size())
+		  arr->attach_word_edge_probe((unsigned)word, edge_net);
+	    array_negedge_functors_[key] = fun;
+	    return fun;
+      }
       if (M >= negedge_functors_.size())
 	    negedge_functors_.resize(M + 1, nullptr);
 
       if (negedge_functors_[M] == nullptr) {
-	    slot_t slot = get_slot_(M);
+	    slot = get_slot_(M);
 	    assert(slot.kind == SLOT_SIGNAL);
 	    __vpiSignal*sig = dynamic_cast<__vpiSignal*>(slot.handle);
 	    assert(sig && sig->node);
@@ -469,13 +510,30 @@ vvp_fun_edge_sa* vvp_vinterface::get_negedge_functor(size_t M)
       return negedge_functors_[M];
 }
 
-vvp_fun_anyedge_sa* vvp_vinterface::get_anyedge_functor(size_t M)
+vvp_fun_anyedge_sa* vvp_vinterface::get_anyedge_functor(size_t M, size_t word)
 {
+      slot_t slot = get_slot_(M);
+      if (slot.kind == SLOT_ARRAY) {
+	    std::pair<size_t, size_t>key(M, word);
+	    std::map<std::pair<size_t, size_t>, vvp_fun_anyedge_sa*>::iterator found =
+		  array_anyedge_functors_.find(key);
+	    if (found != array_anyedge_functors_.end())
+		  return found->second;
+	    vvp_fun_anyedge_sa*fun = new vvp_fun_anyedge_sa;
+	    vvp_net_t*edge_net = new vvp_net_t;
+	    edge_net->fun = fun;
+	    __vpiArray*arr = dynamic_cast<__vpiArray*>(slot.handle);
+	    if (arr && (word == static_cast<size_t>(-1)
+			|| word < arr->get_size()))
+		  arr->attach_word_edge_probe((unsigned)word, edge_net);
+	    array_anyedge_functors_[key] = fun;
+	    return fun;
+      }
       if (M >= anyedge_functors_.size())
 	    anyedge_functors_.resize(M + 1, nullptr);
 
       if (anyedge_functors_[M] == nullptr) {
-	    slot_t slot = get_slot_(M);
+	    slot = get_slot_(M);
 	    assert(slot.kind == SLOT_SIGNAL);
 	    __vpiSignal*sig = dynamic_cast<__vpiSignal*>(slot.handle);
 	    assert(sig && sig->node);

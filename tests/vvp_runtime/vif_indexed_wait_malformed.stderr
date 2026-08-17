@@ -1,0 +1,3 @@
+vvp: malformed %wait/vif/posedge/i object stack underflow; wait ignored.
+vvp: malformed %wait/vif/negedge/i object stack underflow; wait ignored.
+vvp: malformed %wait/vif/anyedge/i object stack underflow; wait ignored.

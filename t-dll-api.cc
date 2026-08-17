@@ -473,6 +473,12 @@ extern "C" unsigned ivl_event_vif_M(ivl_event_t net)
       return net->vif_M;
 }
 
+extern "C" unsigned ivl_event_vif_member_word(ivl_event_t net)
+{
+      assert(net);
+      return net->vif_member_word;
+}
+
 extern "C" unsigned ivl_event_vif_pre_N(ivl_event_t net)
 {
       assert(net);

@@ -166,6 +166,7 @@ static bool vif_probes_match_(const NetEvProbe*a, const NetEvProbe*b)
 	  && a->is_vif_posedge() == b->is_vif_posedge()
 	  && a->is_vif_negedge() == b->is_vif_negedge()
 	  && a->vif_M() == b->vif_M()
+	  && a->vif_member_word() == b->vif_member_word()
 	  && a->vif_path() == b->vif_path()
 	  && a->vif_root_pin() == b->vif_root_pin();
 }
@@ -509,6 +510,7 @@ void NetEvProbe::set_vif_posedge(unsigned N, unsigned M, unsigned pre_N)
       is_vif_posedge_ = true;
       vif_N_ = N;
       vif_M_ = M;
+      vif_member_word_ = UINT_MAX;
       vif_pre_N_ = pre_N;
       vif_path_.clear();
       if (pre_N != UINT_MAX)
@@ -522,6 +524,7 @@ void NetEvProbe::set_vif_negedge(unsigned N, unsigned M, unsigned pre_N)
       is_vif_negedge_ = true;
       vif_N_ = N;
       vif_M_ = M;
+      vif_member_word_ = UINT_MAX;
       vif_pre_N_ = pre_N;
       vif_path_.clear();
       if (pre_N != UINT_MAX)
@@ -535,6 +538,7 @@ void NetEvProbe::set_vif_anyedge(unsigned N, unsigned M, unsigned pre_N)
       is_vif_anyedge_ = true;
       vif_N_ = N;
       vif_M_ = M;
+      vif_member_word_ = UINT_MAX;
       vif_pre_N_ = pre_N;
       vif_path_.clear();
       if (pre_N != UINT_MAX)
@@ -543,29 +547,35 @@ void NetEvProbe::set_vif_anyedge(unsigned N, unsigned M, unsigned pre_N)
 	    vif_path_.push_back(N);
 }
 
-void NetEvProbe::set_vif_posedge_path(const vector<unsigned>&path, unsigned M)
+void NetEvProbe::set_vif_posedge_path(const vector<unsigned>&path, unsigned M,
+				      unsigned member_word)
 {
       is_vif_posedge_ = true;
       vif_path_ = path;
       vif_M_ = M;
+      vif_member_word_ = member_word;
       vif_N_ = path.empty() ? UINT_MAX : path.back();
       vif_pre_N_ = path.size() == 2 ? path.front() : UINT_MAX;
 }
 
-void NetEvProbe::set_vif_negedge_path(const vector<unsigned>&path, unsigned M)
+void NetEvProbe::set_vif_negedge_path(const vector<unsigned>&path, unsigned M,
+				      unsigned member_word)
 {
       is_vif_negedge_ = true;
       vif_path_ = path;
       vif_M_ = M;
+      vif_member_word_ = member_word;
       vif_N_ = path.empty() ? UINT_MAX : path.back();
       vif_pre_N_ = path.size() == 2 ? path.front() : UINT_MAX;
 }
 
-void NetEvProbe::set_vif_anyedge_path(const vector<unsigned>&path, unsigned M)
+void NetEvProbe::set_vif_anyedge_path(const vector<unsigned>&path, unsigned M,
+				      unsigned member_word)
 {
       is_vif_anyedge_ = true;
       vif_path_ = path;
       vif_M_ = M;
+      vif_member_word_ = member_word;
       vif_N_ = path.empty() ? UINT_MAX : path.back();
       vif_pre_N_ = path.size() == 2 ? path.front() : UINT_MAX;
 }

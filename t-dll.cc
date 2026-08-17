@@ -1044,6 +1044,7 @@ void dll_target::event(const NetEvent*net)
       obj->is_vif_anyedge = false;
       obj->vif_N = 0;
       obj->vif_M = 0;
+      obj->vif_member_word = UINT_MAX;
       obj->vif_pre_N = UINT_MAX;
       obj->vif_root_pin = 0;
       obj->is_obj_mutation = false;
@@ -1096,6 +1097,7 @@ void dll_target::event(const NetEvent*net)
 			      obj->is_vif_anyedge = true;
 			      obj->vif_N = pr->vif_N();
 			      obj->vif_M = pr->vif_M();
+			      obj->vif_member_word = pr->vif_member_word();
 			      obj->vif_pre_N = pr->vif_pre_N();
 			      obj->vif_path = pr->vif_path();
 			      obj->vif_root_pin = pr->vif_root_pin();
@@ -1107,6 +1109,7 @@ void dll_target::event(const NetEvent*net)
 			      obj->is_vif_negedge = true;
 			      obj->vif_N = pr->vif_N();
 			      obj->vif_M = pr->vif_M();
+			      obj->vif_member_word = pr->vif_member_word();
 			      obj->vif_pre_N = pr->vif_pre_N();
 			      obj->vif_path = pr->vif_path();
 			      obj->vif_root_pin = pr->vif_root_pin();
@@ -1118,6 +1121,7 @@ void dll_target::event(const NetEvent*net)
 			      obj->is_vif_posedge = true;
 			      obj->vif_N = pr->vif_N();
 			      obj->vif_M = pr->vif_M();
+			      obj->vif_member_word = pr->vif_member_word();
 			      obj->vif_pre_N = pr->vif_pre_N();
 			      obj->vif_path = pr->vif_path();
 			      obj->vif_root_pin = pr->vif_root_pin();

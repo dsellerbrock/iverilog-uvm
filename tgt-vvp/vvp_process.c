@@ -2482,14 +2482,27 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 		  else if (ivl_event_nneg(ev) > root_pin) this_nex = ivl_event_neg(ev, root_pin);
 		  else if (ivl_event_nany(ev) > root_pin) this_nex = ivl_event_any(ev, root_pin);
 		  unsigned path_count = ivl_event_vif_path_count(ev);
+		  if (!this_nex) {
+			fprintf(stderr,
+			      "error: virtual-interface wait event %s has no root nexus "
+			      "(nany=%u, npos=%u, nneg=%u, root=%u)\n",
+			      ivl_event_basename(ev), ivl_event_nany(ev),
+			      ivl_event_npos(ev), ivl_event_nneg(ev), root_pin);
+			return 1;
+		  }
 		  draw_object_from_net(this_nex, ivl_event_scope(ev));
 		  if (path_count == 0 && ivl_event_vif_N(ev) == UINT_MAX) {
 			/* Direct interface-port member `@(edge p.sig)`: the base
 			   object loaded above IS the virtual interface, so there
 			   is no intermediate vif property to extract. %wait/vif
 			   pops the object it waits on. */
-			fprintf(vvp_out, "    %%wait/vif/%s %u;\n",
-				opcode, ivl_event_vif_M(ev));
+			unsigned member_word = ivl_event_vif_member_word(ev);
+			if (member_word == UINT_MAX)
+			      fprintf(vvp_out, "    %%wait/vif/%s %u;\n",
+				      opcode, ivl_event_vif_M(ev));
+			else
+			      fprintf(vvp_out, "    %%wait/vif/%s/i %u, %u;\n",
+				      opcode, ivl_event_vif_M(ev), member_word);
 		  } else {
 			if (path_count > 0) {
 			      for (unsigned idx = 0 ; idx < path_count ; idx += 1)
@@ -2507,8 +2520,13 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 				      ivl_event_vif_N(ev));
 			      fprintf(vvp_out, "    %%pop/obj %d, 1;\n", has_pre ? 2 : 1);
 			}
-			fprintf(vvp_out, "    %%wait/vif/%s %u;\n",
-				opcode, ivl_event_vif_M(ev));
+			unsigned member_word = ivl_event_vif_member_word(ev);
+			if (member_word == UINT_MAX)
+			      fprintf(vvp_out, "    %%wait/vif/%s %u;\n",
+				      opcode, ivl_event_vif_M(ev));
+			else
+			      fprintf(vvp_out, "    %%wait/vif/%s/i %u, %u;\n",
+				      opcode, ivl_event_vif_M(ev), member_word);
 		  }
 	    } else {
 		  fprintf(vvp_out, "    %%wait E_%p;\n", ev);
@@ -2566,7 +2584,8 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 			ev = ivl_stmt_events(net, idx);
 			fprintf(vvp_out, ", E_%p", ev);
 		  }
-		  assert(ivl_stmt_needs_t0_trigger(net) == 0);
+		  if (ivl_stmt_needs_t0_trigger(net))
+			fprintf(vvp_out, ", E_0x0");
 		  fprintf(vvp_out, ";\n    %%wait Ewait_%u;\n", cascade_counter);
 		  cascade_counter += 1;
 	    }

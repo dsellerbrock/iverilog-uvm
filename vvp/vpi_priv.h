@@ -879,6 +879,7 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
 
       void alias_word(unsigned long addr, vpiHandle word, int msb, int lsb);
       void attach_word(unsigned addr, vpiHandle word);
+      void attach_word_edge_probe(unsigned addr, vvp_net_t*probe);
       void word_change(unsigned long addr);
 
       const char*name; /* Permanently allocated string */
@@ -894,6 +895,12 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
       vvp_darray        *vals;
 
       vvp_fun_arrayport*ports_;
+      struct word_edge_probe_t {
+	    unsigned addr;
+	    vvp_net_t*probe;
+	    bool wildcard_state;
+      };
+      std::vector<word_edge_probe_t>word_edge_probes_;
       struct __vpiCallback *vpi_callbacks;
       bool signed_flag;
       bool swap_addr;

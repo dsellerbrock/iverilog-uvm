@@ -30,6 +30,20 @@
 
 using namespace std;
 
+/* The implicit-sensitivity elaborator surrounds exactly one process
+   nex_input() walk with this collector. Keeping the hook here means every
+   NetProc subclass continues to use its existing, standards-aware input
+   traversal (including branches, loop controls, calls, and l-value index
+   expressions) instead of maintaining a second incomplete statement walk. */
+static vector<const NetEProperty*>*nex_input_vif_collector = nullptr;
+
+void NetEProperty::set_nex_input_vif_collector(
+      vector<const NetEProperty*>*collector)
+{
+      assert(!collector || !nex_input_vif_collector);
+      nex_input_vif_collector = collector;
+}
+
 NexusSet* NetExpr::nex_input(bool, bool, bool) const
 {
       cerr << get_fileline()
@@ -131,6 +145,9 @@ NexusSet* NetENull::nex_input(bool, bool, bool) const
 
 NexusSet* NetEProperty::nex_input(bool, bool, bool) const
 {
+      if (nex_input_vif_collector)
+            nex_input_vif_collector->push_back(this);
+
       NexusSet*result = new NexusSet;
       NetNet*static_member = resolve_interface_member_signal();
       if (static_member) {
@@ -221,6 +238,19 @@ NexusSet* NetESelect::nex_input(bool rem_out, bool always_sens, bool nested_func
 			delete tmp;
 			tmp = sig->nex_input_base(rem_out, always_sens, nested_func,
                                                   val->value().as_unsigned(), expr_width());
+		  } else if (const NetEProperty*prop =
+				dynamic_cast<const NetEProperty*>(expr_)) {
+			/* A property of a statically bound interface port is
+			 * observed by the dynamic VIF watcher collected above.
+			 * That watcher deliberately observes the whole member, so
+			 * this select is conservative but complete and needs no
+			 * imprecision warning. */
+			if (!prop->is_interface_member()) {
+			      cerr << get_fileline() << ": warning: cannot determine the "
+				   << "precise sensitivity for the select of " << *expr_
+				   << "; using conservative whole-expression sensitivity."
+				   << endl;
+			}
 		  } else if (!select_reads_only_constant_data(expr_)) {
 			cerr << get_fileline() << ": warning: cannot determine the "
 			     << "precise sensitivity for the select of " << *expr_
