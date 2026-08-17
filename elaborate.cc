@@ -14140,6 +14140,7 @@ struct vif_member_path_t {
       unsigned root_word = 0;
       std::vector<unsigned> path;
       unsigned member = UINT_MAX;
+      unsigned member_word = UINT_MAX;
 };
 
 static bool decode_vif_member_path_(const NetEProperty*leaf,
@@ -14201,6 +14202,12 @@ static bool decode_vif_member_path_(const NetEProperty*leaf,
       out.root_word = root_word;
       out.path.swap(path);
       out.member = leaf_to_root.front();
+      if (const NetExpr*member_index = leaf->get_index()) {
+	    long word = -1;
+	    if (eval_as_long(word, member_index) && word >= 0
+		&& static_cast<unsigned long>(word) <= UINT_MAX)
+		  out.member_word = static_cast<unsigned>(word);
+      }
       return true;
 }
 
@@ -14245,7 +14252,8 @@ static void add_vif_member_path_(std::vector<vif_member_path_t>&paths,
       for (const vif_member_path_t&prior : paths) {
             if (prior.root == path.root && prior.root_word == path.root_word
                 && prior.path == path.path
-                && prior.member == path.member)
+                && prior.member == path.member
+		&& prior.member_word == path.member_word)
                   return;
       }
       paths.push_back(path);
@@ -14297,6 +14305,52 @@ static void collect_vif_member_paths_(const NetExpr*e,
       if (const NetESFunc*f = dynamic_cast<const NetESFunc*>(e)) {
             for (unsigned idx = 0 ; idx < f->nparms() ; idx += 1)
                   collect_vif_member_paths_(f->parm(idx), paths);
+      }
+}
+
+/* An implicit @* event needs both its ordinary static nexus sensitivity and
+   dynamic virtual-interface member sensitivity. The main wait also carries
+   the always_comb/latch time-zero trigger, so it cannot directly use the
+   runtime's multi-VIF wait opcode. Instead, one tiny compiler-generated
+   always process per distinct VIF member waits dynamically and triggers the
+   ordinary event. This preserves the user's single process/body, handles a
+   mix of real nets and VIF members, and lets duplicate same-slot triggers
+   collapse through the normal named-event wakeup rules. */
+static void add_implicit_vif_watchers_(Design*des, NetScope*scope,
+				      const LineInfo&loc, NetEvent*main_event,
+				      const std::vector<vif_member_path_t>&paths)
+{
+      for (const vif_member_path_t&path : paths) {
+	    if (!path.root || path.root_word >= path.root->pin_count())
+		  continue;
+
+	    NetEvent*vif_event = new NetEvent(scope->local_symbol());
+	    vif_event->set_line(loc);
+	    vif_event->local_flag(true);
+
+	    NetEvProbe*probe = new NetEvProbe(scope, scope->local_symbol(),
+					      vif_event, NetEvProbe::ANYEDGE, 1);
+	    connect(const_cast<NetNet*>(path.root)->pin(path.root_word),
+		    probe->pin(0));
+	    probe->set_vif_anyedge_path(path.path, path.member,
+					path.member_word);
+	    probe->set_vif_root_pin(0);
+	    des->add_node(probe);
+	    scope->add_event(vif_event);
+
+	    NetEvTrig*trigger = new NetEvTrig(main_event);
+	    trigger->set_line(loc);
+	    NetEvWait*wait = new NetEvWait(trigger);
+	    wait->set_line(loc);
+	    wait->add_event(vif_event);
+
+	    NetProcTop*watcher = new NetProcTop(scope, IVL_PR_ALWAYS, wait);
+	    watcher->set_line(loc);
+	    watcher->attribute(perm_string::literal("_ivl_schedule_push"),
+			       verinum(1));
+	    watcher->attribute(perm_string::literal("_ivl_synthesis_transient"),
+			       verinum(1));
+	    des->add_process(watcher);
       }
 }
 
@@ -14893,6 +14947,8 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
       NetEvWait*wa = new NetEvWait(enet);
       wa->set_line(*this);
       bool ignored_class_property_event_expr = false;
+      std::vector<vif_member_path_t> implicit_vif_paths;
+      NetEvent*implicit_vif_trigger_event = nullptr;
 
 	/* If there are no expressions, this is a signal that it is an
 	   @* statement. Generate an expression to use. */
@@ -14910,7 +14966,17 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 	      // If this is an always_comb/latch then we need an implicit T0
 	      // trigger of the event expression.
 	    if (always_sens_) wa->set_t0_trigger();
+	    std::vector<const NetEProperty*> implicit_vif_props;
+	    if (gn_system_verilog() && !synthesis)
+		  NetEProperty::set_nex_input_vif_collector(&implicit_vif_props);
 	    NexusSet*nset = enet->nex_input(rem_out, always_sens_);
+	    if (gn_system_verilog() && !synthesis)
+		  NetEProperty::set_nex_input_vif_collector(nullptr);
+	    for (const NetEProperty*prop : implicit_vif_props) {
+		  vif_member_path_t path;
+		  if (decode_vif_member_path_(prop, path))
+			add_vif_member_path_(implicit_vif_paths, path);
+	    }
 	    if (nset == 0) {
 		  cerr << get_fileline() << ": error: Unable to elaborate:"
 		       << endl;
@@ -14918,8 +14984,26 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  des->errors += 1;
 		  return enet;
 	    }
-
-	    if (nset->size() == 0) {
+	    /* The value of an interface handle does not change when a member of
+	     * the referenced interface changes. Dynamic VIF watcher processes
+	     * below provide that member sensitivity, so remove the handle nexuses
+	     * from the ordinary static event. Besides avoiding a useless wakeup,
+	     * this matters for interface ports referenced from generate scopes:
+	     * their local handle carrier may not be exported as a target nexus. */
+	    if (!implicit_vif_paths.empty()) {
+		  NexusSet vif_roots;
+		  for (const vif_member_path_t&path : implicit_vif_paths) {
+			if (!path.root || path.root_word >= path.root->pin_count())
+			      continue;
+			Nexus*root_nexus = const_cast<Nexus*>(
+			      path.root->pin(path.root_word).nexus());
+			if (root_nexus)
+			      vif_roots.add(root_nexus, 0,
+					    root_nexus->vector_width());
+		  }
+		  nset->rem(vif_roots);
+	    }
+	    if (nset->size() == 0 && implicit_vif_paths.empty()) {
                   if (always_sens_) return wa;
 
 		  cerr << get_fileline() << ": warning: @* found no "
@@ -14938,10 +15022,21 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  return wa;
 	    }
 
-	    NetEvProbe*pr = new NetEvProbe(scope, scope->local_symbol(),
-					   ev, NetEvProbe::ANYEDGE,
-					   nset->size());
-	    for (unsigned idx = 0 ;  idx < nset->size() ;  idx += 1) {
+	    if (nset->size() > 0) {
+		  /* A probe-backed event is not a named event target in the VVP
+		   * backend. Keep the ordinary nexus event and give dynamic VIF
+		   * watchers a separate named event when both dependency kinds
+		   * occur in the same implicit sensitivity expression. */
+		  if (!implicit_vif_paths.empty()) {
+			implicit_vif_trigger_event =
+			      new NetEvent(scope->local_symbol());
+			implicit_vif_trigger_event->set_line(*this);
+			implicit_vif_trigger_event->local_flag(true);
+		  }
+		  NetEvProbe*pr = new NetEvProbe(scope, scope->local_symbol(),
+						 ev, NetEvProbe::ANYEDGE,
+						 nset->size());
+		  for (unsigned idx = 0 ;  idx < nset->size() ;  idx += 1) {
 		  unsigned wid = nset->at(idx).wid;
 		  unsigned vwid = nset->at(idx).lnk.nexus()->vector_width();
 		    // Is this a part select?
@@ -14981,10 +15076,13 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  } else {
 			connect(nset->at(idx).lnk, pr->pin(idx));
 		  }
-	    }
+		  }
 
+		  des->add_node(pr);
+	    }
 	    delete nset;
-	    des->add_node(pr);
+	    if (!implicit_vif_paths.empty() && !implicit_vif_trigger_event)
+		  implicit_vif_trigger_event = ev;
 
 	    expr_count = 1;
 
@@ -15142,7 +15240,8 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
                                     NetEvProbe::ANYEDGE, vif_set->size());
                               for (unsigned pin = 0 ; pin < vif_set->size() ; pin += 1)
                                     connect(vif_set->at(pin).lnk, pr->pin(pin));
-                              pr->set_vif_anyedge_path(path.path, path.member);
+			      pr->set_vif_anyedge_path(path.path, path.member,
+						    path.member_word);
                               pr->set_vif_root_pin(root_pin);
                               scope->add_event(vif_ev);
                               wa->add_event(vif_ev);
@@ -15320,7 +15419,37 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 								}
 							  }
 						    }
-					      }
+					    }
+				      }
+				    }
+
+				    /* Preserve a fixed unpacked-array word on every
+				     * direct or nested VIF edge path. The older N/M/pre-N
+				     * encoding identifies the member slot but loses the
+				     * member's canonical word index. */
+				    if (pr->is_vif_posedge() || pr->is_vif_negedge()
+					|| pr->is_vif_anyedge()) {
+					  std::vector<const NetEProperty*> exact_props;
+					  collect_iface_member_props_(tmp, exact_props);
+					  vif_member_path_t exact_path;
+					  if (exact_props.size() == 1
+					      && decode_vif_member_path_(exact_props[0],
+								 exact_path)) {
+						if (etype == PEEvent::POSEDGE)
+						      pr->set_vif_posedge_path(
+							    exact_path.path,
+							    exact_path.member,
+							    exact_path.member_word);
+						else if (etype == PEEvent::NEGEDGE)
+						      pr->set_vif_negedge_path(
+							    exact_path.path,
+							    exact_path.member,
+							    exact_path.member_word);
+						else
+						      pr->set_vif_anyedge_path(
+							    exact_path.path,
+							    exact_path.member,
+							    exact_path.member_word);
 					  }
 				    }
 
@@ -15432,12 +15561,27 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				    connect(ivset->at(src).lnk, pr2->pin(pp));
 			      }
 			      unsigned Mdir = iface_props[0]->property_idx();
-			      if (etype2 == PEEvent::POSEDGE)
+			      vif_member_path_t direct_path;
+			      if (decode_vif_member_path_(iface_props[0], direct_path)) {
+				    if (etype2 == PEEvent::POSEDGE)
+					  pr2->set_vif_posedge_path(
+						direct_path.path, direct_path.member,
+						direct_path.member_word);
+				    else if (etype2 == PEEvent::NEGEDGE)
+					  pr2->set_vif_negedge_path(
+						direct_path.path, direct_path.member,
+						direct_path.member_word);
+				    else
+					  pr2->set_vif_anyedge_path(
+						direct_path.path, direct_path.member,
+						direct_path.member_word);
+			      } else if (etype2 == PEEvent::POSEDGE) {
 				    pr2->set_vif_posedge(UINT_MAX, Mdir, UINT_MAX);
-			      else if (etype2 == PEEvent::NEGEDGE)
+			      } else if (etype2 == PEEvent::NEGEDGE) {
 				    pr2->set_vif_negedge(UINT_MAX, Mdir, UINT_MAX);
-			      else
+			      } else {
 				    pr2->set_vif_anyedge(UINT_MAX, Mdir, UINT_MAX);
+			      }
 			      des->add_node(pr2);
 			      delete ivset;
 			      delete tmp;
@@ -15520,6 +15664,15 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
       if (expr_count > 0) {
 	    scope->add_event(ev);
 	    wa->add_event(ev);
+	    if (implicit_vif_trigger_event) {
+		  if (implicit_vif_trigger_event != ev) {
+			scope->add_event(implicit_vif_trigger_event);
+			wa->add_event(implicit_vif_trigger_event);
+		  }
+		  add_implicit_vif_watchers_(des, scope, *this,
+					     implicit_vif_trigger_event,
+					     implicit_vif_paths);
+	    }
 	      /* NOTE: This event that I am adding to the wait may be
 		 a duplicate of another event somewhere else. However,
 		 I don't know that until all the modules are hooked
@@ -15804,7 +15957,8 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 
 	    if (has_wait_vif_path) {
 		  wait_pr->set_vif_anyedge_path(wait_vif_path.path,
-					      wait_vif_path.member);
+					      wait_vif_path.member,
+					      wait_vif_path.member_word);
 		  wait_pr->set_vif_root_pin(wait_vif_root_pin);
 	    }
 	    des->add_node(wait_pr);
@@ -15821,7 +15975,8 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 		  vif_member_path_t path;
 		  if (!wait_pr || !find_vif_member_path_(e, path))
 			return false;
-		  wait_pr->set_vif_anyedge_path(path.path, path.member);
+		  wait_pr->set_vif_anyedge_path(path.path, path.member,
+						path.member_word);
 		  return true;
 	    };
 	    try_set_vif_anyedge(expr);

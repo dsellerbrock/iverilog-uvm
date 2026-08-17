@@ -24129,6 +24129,28 @@ bool of_WAIT_VIF_POSEDGE(vthread_t thr, vvp_code_t cp)
       return false;
 }
 
+bool of_WAIT_VIF_POSEDGE_I(vthread_t thr, vvp_code_t cp)
+{
+      if (thr->object_stack_size() < 1) {
+	    fprintf(stderr, "vvp: malformed %%wait/vif/posedge/i object stack "
+		    "underflow; wait ignored.\n");
+	    return true;
+      }
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      if (!vif || !vif->has_array_word(cp->number, cp->bit_idx[0])) {
+	    fprintf(stderr, "vvp: malformed %%wait/vif/posedge/i virtual-interface "
+		    "member or word; wait ignored.\n");
+	    return true;
+      }
+      vvp_fun_edge_sa*edge = vif->get_posedge_functor(cp->number,
+						       cp->bit_idx[0]);
+      thr->waiting_for_event = 1;
+      thr->wait_next = edge->add_waiting_thread(thr);
+      return false;
+}
+
 bool of_WAIT_VIF_NEGEDGE(vthread_t thr, vvp_code_t cp)
 {
       vvp_object_t obj;
@@ -24144,6 +24166,28 @@ bool of_WAIT_VIF_NEGEDGE(vthread_t thr, vvp_code_t cp)
       return false;
 }
 
+bool of_WAIT_VIF_NEGEDGE_I(vthread_t thr, vvp_code_t cp)
+{
+      if (thr->object_stack_size() < 1) {
+	    fprintf(stderr, "vvp: malformed %%wait/vif/negedge/i object stack "
+		    "underflow; wait ignored.\n");
+	    return true;
+      }
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      if (!vif || !vif->has_array_word(cp->number, cp->bit_idx[0])) {
+	    fprintf(stderr, "vvp: malformed %%wait/vif/negedge/i virtual-interface "
+		    "member or word; wait ignored.\n");
+	    return true;
+      }
+      vvp_fun_edge_sa*edge = vif->get_negedge_functor(cp->number,
+						       cp->bit_idx[0]);
+      thr->waiting_for_event = 1;
+      thr->wait_next = edge->add_waiting_thread(thr);
+      return false;
+}
+
 bool of_WAIT_VIF_ANYEDGE(vthread_t thr, vvp_code_t cp)
 {
       vvp_object_t obj;
@@ -24154,6 +24198,28 @@ bool of_WAIT_VIF_ANYEDGE(vthread_t thr, vvp_code_t cp)
 
       vvp_fun_anyedge_sa*edge = vif->get_anyedge_functor(cp->number);
 
+      thr->waiting_for_event = 1;
+      thr->wait_next = edge->add_waiting_thread(thr);
+      return false;
+}
+
+bool of_WAIT_VIF_ANYEDGE_I(vthread_t thr, vvp_code_t cp)
+{
+      if (thr->object_stack_size() < 1) {
+	    fprintf(stderr, "vvp: malformed %%wait/vif/anyedge/i object stack "
+		    "underflow; wait ignored.\n");
+	    return true;
+      }
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      if (!vif || !vif->has_array_word(cp->number, cp->bit_idx[0])) {
+	    fprintf(stderr, "vvp: malformed %%wait/vif/anyedge/i virtual-interface "
+		    "member or word; wait ignored.\n");
+	    return true;
+      }
+      vvp_fun_anyedge_sa*edge = vif->get_anyedge_functor(cp->number,
+							 cp->bit_idx[0]);
       thr->waiting_for_event = 1;
       thr->wait_next = edge->add_waiting_thread(thr);
       return false;

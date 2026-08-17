@@ -1185,6 +1185,7 @@ sv_vif_null_anyedge_fail RE,-g2012 ivltests gold=sv_vif_null_anyedge_fail.gold
 sv_vif_null_posedge_fail RE,-g2012 ivltests gold=sv_vif_null_posedge_fail.gold
 sv_vif_null_negedge_fail RE,-g2012 ivltests gold=sv_vif_null_negedge_fail.gold
 sv_vif_null_multi_fail RE,-g2012 ivltests gold=sv_vif_null_multi_fail.gold
+sv_interface_member_select_sensitivity normal,-g2012 ivltests gold=sv_interface_member_select_sensitivity.gold
 sv_vif_dispatch_many normal,-g2012 ivltests
 sv_vif_named_default_args normal,-g2012 ivltests
 sv_interface_initial_event_start_order normal,-g2012 ivltests

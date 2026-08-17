@@ -4277,14 +4277,18 @@ class NetEvProbe  : public NetNode {
       void set_vif_posedge(unsigned N, unsigned M, unsigned pre_N = UINT_MAX);
       void set_vif_negedge(unsigned N, unsigned M, unsigned pre_N = UINT_MAX);
       void set_vif_anyedge(unsigned N, unsigned M, unsigned pre_N = UINT_MAX);
-      void set_vif_posedge_path(const std::vector<unsigned>&path, unsigned M);
-      void set_vif_negedge_path(const std::vector<unsigned>&path, unsigned M);
-      void set_vif_anyedge_path(const std::vector<unsigned>&path, unsigned M);
+      void set_vif_posedge_path(const std::vector<unsigned>&path, unsigned M,
+                                unsigned member_word = UINT_MAX);
+      void set_vif_negedge_path(const std::vector<unsigned>&path, unsigned M,
+                                unsigned member_word = UINT_MAX);
+      void set_vif_anyedge_path(const std::vector<unsigned>&path, unsigned M,
+                                unsigned member_word = UINT_MAX);
       bool is_vif_posedge() const { return is_vif_posedge_; }
       bool is_vif_negedge() const { return is_vif_negedge_; }
       bool is_vif_anyedge() const { return is_vif_anyedge_; }
       unsigned vif_N() const { return vif_N_; }
       unsigned vif_M() const { return vif_M_; }
+      unsigned vif_member_word() const { return vif_member_word_; }
       unsigned vif_pre_N() const { return vif_pre_N_; }
       bool has_vif_pre_N() const { return vif_pre_N_ != UINT_MAX; }
       const std::vector<unsigned>& vif_path() const { return vif_path_; }
@@ -4323,6 +4327,7 @@ class NetEvProbe  : public NetNode {
       bool is_vif_anyedge_ = false;
       unsigned vif_N_ = 0;
       unsigned vif_M_ = 0;
+      unsigned vif_member_word_ = UINT_MAX;
       unsigned vif_pre_N_ = UINT_MAX;
       std::vector<unsigned> vif_path_;
       unsigned vif_root_pin_ = 0;
@@ -5377,7 +5382,17 @@ class NetEProperty : public NetExpr {
       // Resolve a direct member of a statically bound interface port to the
       // concrete signal in the interface-instance scope. Ordinary class
       // properties and run-time-selected interface-port arrays return nil.
+      bool is_interface_member() const;
       NetNet* resolve_interface_member_signal() const;
+
+      // An implicit event control (@* / always_comb / always_latch) obtains
+      // its dependencies by recursively calling nex_input() on the process.
+      // Install a short-lived collector around that walk so direct or nested
+      // virtual-interface member reads can also be represented by dynamic
+      // VIF watchers; their object handles do not change when a member does.
+      // The elaborator is single-threaded and collectors must not be nested.
+      static void set_nex_input_vif_collector(
+            std::vector<const NetEProperty*>*collector);
 
     public: // Overridden methods
 	      virtual void expr_scan(struct expr_scan_t*) const override;

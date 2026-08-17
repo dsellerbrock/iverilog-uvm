@@ -1,0 +1,2 @@
+# IEEE 1800-2017 clause 25 interface-member sensitivity focus gate.
+sv_interface_member_select_sensitivity normal,-g2012 ivltests gold=sv_interface_member_select_sensitivity.gold

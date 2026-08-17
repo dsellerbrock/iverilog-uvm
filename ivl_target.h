@@ -850,6 +850,7 @@ extern int         ivl_event_is_vif_negedge(ivl_event_t net);
 extern int         ivl_event_is_vif_anyedge(ivl_event_t net);
 extern unsigned    ivl_event_vif_N(ivl_event_t net);
 extern unsigned    ivl_event_vif_M(ivl_event_t net);
+extern unsigned    ivl_event_vif_member_word(ivl_event_t net); /* UINT_MAX = no unpacked word */
 extern unsigned    ivl_event_vif_pre_N(ivl_event_t net); /* UINT_MAX = 2-level, else extra prop idx */
 extern unsigned    ivl_event_vif_path_count(ivl_event_t net);
 extern unsigned    ivl_event_vif_path_index(ivl_event_t net, unsigned idx);

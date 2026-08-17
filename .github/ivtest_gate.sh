@@ -82,6 +82,9 @@ if [ -z "$runtime_vvp" ] \
         > "$WORK/vvp-runtime.log" 2>&1 \
    || ! VVP="$runtime_vvp" \
         bash tests/vvp_runtime/run_covgrp_metadata.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_vif_indexed_wait_malformed.sh \
         >> "$WORK/vvp-runtime.log" 2>&1; then
     cat "$WORK/vvp-runtime.log" 2>/dev/null || true
     echo "GATE FAIL: malformed VVP bytecode invariant failed."

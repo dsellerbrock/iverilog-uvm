@@ -20,6 +20,8 @@
  */
 
 # include  <string>
+# include  <map>
+# include  <utility>
 # include  <vector>
 # include  "vpi_user.h"
 # include  "vvp_object.h"
@@ -47,9 +49,13 @@ class vvp_vinterface : public vvp_object {
       void set_object(size_t pid, const vvp_object_t&val, size_t idx = 0);
       void get_object(size_t pid, vvp_object_t&val, size_t idx = 0) const;
 
-      vvp_fun_edge_sa* get_posedge_functor(size_t M);
-      vvp_fun_edge_sa* get_negedge_functor(size_t M);
-      vvp_fun_anyedge_sa* get_anyedge_functor(size_t M);
+      vvp_fun_edge_sa* get_posedge_functor(size_t M,
+                                           size_t word = static_cast<size_t>(-1));
+      vvp_fun_edge_sa* get_negedge_functor(size_t M,
+                                           size_t word = static_cast<size_t>(-1));
+      vvp_fun_anyedge_sa* get_anyedge_functor(size_t M,
+                                              size_t word = static_cast<size_t>(-1));
+      bool has_array_word(size_t M, size_t word) const;
 
       void shallow_copy(const vvp_object*that) override;
       vvp_object* duplicate(void) const override;
@@ -99,6 +105,12 @@ class vvp_vinterface : public vvp_object {
       std::vector<vvp_fun_edge_sa*> posedge_functors_;
       std::vector<vvp_fun_edge_sa*> negedge_functors_;
       std::vector<vvp_fun_anyedge_sa*> anyedge_functors_;
+      std::map<std::pair<size_t, size_t>, vvp_fun_edge_sa*>
+            array_posedge_functors_;
+      std::map<std::pair<size_t, size_t>, vvp_fun_edge_sa*>
+            array_negedge_functors_;
+      std::map<std::pair<size_t, size_t>, vvp_fun_anyedge_sa*>
+            array_anyedge_functors_;
 };
 
 #endif /* IVL_vvp_vinterface_H */
