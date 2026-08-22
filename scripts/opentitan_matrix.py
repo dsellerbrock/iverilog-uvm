@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Apple Silicon campaign hint: invoke with
+# /opt/homebrew/opt/python@3.13/bin/python3.13 (arm64).
+# Override with --fusesoc-python only for an equivalent native 3.13 environment.
 # Use the OpenTitan tool environment's Python; see --fusesoc-python below.
 """Run a reproducible Icarus Verilog conformance matrix over OpenTitan cores.
 
@@ -17,6 +20,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import platform
 from pathlib import Path
 import re
 import signal
@@ -28,6 +32,64 @@ import tempfile
 import threading
 import time
 from typing import Iterable, Sequence
+
+
+def _apple_silicon_host() -> bool:
+    """Return whether this Darwin host can execute arm64 processes natively."""
+    if sys.platform != "darwin":
+        return False
+    if platform.machine().lower() in {"arm64", "aarch64"}:
+        return True
+    for name in ("sysctl.proc_translated", "hw.optional.arm64"):
+        try:
+            result = subprocess.run(
+                ["/usr/sbin/sysctl", "-n", name],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        if result.returncode == 0 and result.stdout.strip() == "1":
+            return True
+    return False
+
+
+def _require_darwin_arm_python(
+    machine: str,
+    version: str,
+    *,
+    apple_silicon: bool | None = None,
+    role: str = "Python",
+) -> None:
+    """Require the campaign's native Python 3.13 on Apple Silicon."""
+    if apple_silicon is None:
+        apple_silicon = _apple_silicon_host()
+    if not apple_silicon:
+        return
+    if role == "matrix driver Python":
+        hint = (
+            "Invoke this script with "
+            "/opt/homebrew/opt/python@3.13/bin/python3.13."
+        )
+    else:
+        hint = (
+            "Use --fusesoc-python with "
+            "/opt/homebrew/opt/python@3.13/bin/python3.13 or another "
+            "matching native interpreter."
+        )
+    if machine not in {"arm64", "aarch64"}:
+        raise RuntimeError(f"{role} must be arm64 on Apple Silicon. {hint}")
+    try:
+        major, minor = (int(part) for part in version.split(".", 2)[:2])
+    except (TypeError, ValueError):
+        major, minor = (-1, -1)
+    if (major, minor) != (3, 13):
+        raise RuntimeError(
+            f"OpenTitan's Apple Silicon {role} must use Python 3.13; "
+            f"the interpreter reports {version!r}. {hint}"
+        )
 
 
 LANES = ("rtl", "sva", "uvm", "runtime")
@@ -942,6 +1004,7 @@ import json
 import sys
 
 import fusesoc
+import platform
 
 if sys.argv[1] == "1":
     import hjson
@@ -950,6 +1013,7 @@ payload = {
     "executable": sys.executable,
     "python_version": sys.version.split()[0],
     "fusesoc_version": importlib.metadata.version("fusesoc"),
+    "python_platform_machine": platform.machine(),
 }
 if sys.argv[1] == "1":
     payload["hjson_version"] = importlib.metadata.version("hjson")
@@ -970,6 +1034,9 @@ print("FUSESOC_PYTHON_INFO_JSON=" + json.dumps(payload, sort_keys=True))
         if line.startswith(marker):
             payload = json.loads(line[len(marker) :])
             executable = Path(payload["executable"]).expanduser().absolute()
+            payload.setdefault(
+                "python_platform_machine", payload.get("python_platform_machine", "")
+            )
             payload.update(
                 {
                     "command": short_command(command),
@@ -2312,6 +2379,17 @@ def print_inventory(
 
 
 def self_test() -> None:
+    _require_darwin_arm_python("arm64", "3.13.15", apple_silicon=True)
+    _require_darwin_arm_python("x86_64", "3.14.7", apple_silicon=False)
+    for machine, version in (("x86_64", "3.13.15"), ("arm64", "3.14.7")):
+        try:
+            _require_darwin_arm_python(machine, version, apple_silicon=True)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError(
+                "non-native or wrong-version Apple Silicon Python was accepted"
+            )
     sample = """Available cores:
 lowrisc:dv:adc_ctrl_sim:0.1 : local : - : ADC UVM simulation
 lowrisc:dv:adc_ctrl_sva:0.1 : local : - : ADC assertions
@@ -2725,6 +2803,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         [str(iverilog.parent), str(fusesoc.parent), env.get("PATH", "")]
     )
     try:
+        _require_darwin_arm_python(
+            platform.machine().lower(),
+            platform.python_version(),
+            role="matrix driver Python",
+        )
         lanes = requested_lanes(args.lane)
         fusesoc_python = resolve_fusesoc_python(
             fusesoc, args.fusesoc_python, env
@@ -2738,6 +2821,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         fusesoc_version = tool_version(
             [str(fusesoc), "--version"], opentitan_root, env
+        )
+        python_machine = str(
+            fusesoc_python_info.get("python_platform_machine", "")
+        ).lower()
+        python_version = str(fusesoc_python_info.get("python_version", ""))
+        _require_darwin_arm_python(
+            python_machine, python_version, role="FuseSoC Python"
         )
         if fusesoc_python_info["fusesoc_version"] != fusesoc_version:
             raise RuntimeError(

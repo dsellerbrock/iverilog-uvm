@@ -30,6 +30,13 @@
   ```
 
 - Adapt Homebrew paths with `brew --prefix` where necessary. This fork requires Z3 and libffi.
+- On Apple Silicon, verify `uname -m`, the compiler, Python, native extension
+  modules, and installed Icarus binaries all report `arm64`. Never reuse an
+  install tree or virtual environment created under Rosetta. Start with
+  `make distclean`, configure against `/opt/homebrew`, and use
+  `CFLAGS="-g0 -O2" CXXFLAGS="-g0 -O2"`. Run the bounded build serially:
+  two simultaneous Clang C++ jobs can exceed the campaign's 1 GiB aggregate
+  RSS ceiling even when each compilation is healthy.
 - Before a full JSON ivtest run, install the optional FPGA target with `make -C tgt-fpga install`; the root `make install` does not install `fpga.conf`/`fpga.tgt`, and two FPGA diagnostic tests otherwise fail before reaching their expected errors.
 - After source edits, build the directly affected objects first. Before handing off, use `make -q` for those objects and run `git diff --check`.
 - If parser grammar changes, report Bison conflict counts and whether the conflict-state signature changed.
@@ -41,9 +48,14 @@
   Python from the same tool environment and pass it through
   `--fusesoc-python`; do not replace a virtual-environment `python` symlink
   with its real path, because that bypasses `pyvenv.cfg` and changes imports.
+- On Apple Silicon, create that environment with native
+  `/opt/homebrew/opt/python@3.13/bin/python3.13`. The ambient Homebrew
+  `python3` may be 3.14, which is outside OpenTitan's supported range. Recreate
+  the environment from OpenTitan's hashed requirements; do not relink an old
+  `/usr/local` environment because its compiled wheels remain x86_64.
 - Run OpenTitan generators through that same Python, for example
-  `TOOL_PY util/regtool.py ...`, and write generated comparison output outside
-  the read-only OpenTitan checkout.
+  `"$TOOL_PY" util/regtool.py ...`, and write generated comparison output
+  outside the read-only OpenTitan checkout.
 - From `ivtest`, prefer:
 
   ```sh
