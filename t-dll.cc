@@ -1206,19 +1206,28 @@ bool dll_target::start_processes()
       stream_started_ = true;
       stream_result_ = (*target_begin_)(&des_);
       stream_begin_succeeded_ = stream_result_ == 0;
-      return stream_result_ == 0;
+      /* Positive target results are ordinary code-generation diagnostics.
+       * Only negative results represent an infrastructure failure in the
+       * incremental handoff. Preserve that distinction for Design::emit(). */
+      return stream_result_ >= 0;
 }
 
 bool dll_target::stream_process(ivl_process_t process)
 {
       assert(stream_processes_);
-      if (!stream_started_ || stream_finished_ || stream_result_ != 0)
+      if (!stream_started_ || stream_finished_)
 	    return false;
+
+      /* The legacy one-shot target stops after its first diagnosed process.
+       * A prior positive result is therefore a successful handoff that has
+       * already finished with diagnostics, not a core lowering failure. */
+      if (stream_result_ != 0)
+	    return stream_result_ > 0;
 
       int rc = (*target_process_)(process);
       if (rc != 0) {
 	    stream_result_ = rc;
-	    return false;
+	    return rc > 0;
       }
       return true;
 }
@@ -1231,14 +1240,17 @@ bool dll_target::end_processes()
 	    return false;
 	if (!stream_begin_succeeded_) {
 	    stream_finished_ = true;
-	    return false;
+	    return stream_result_ > 0;
 	}
 
       int prior_result = stream_result_;
       int end_result = (*target_end_)(&des_);
       stream_finished_ = true;
-      stream_result_ = prior_result != 0 ? prior_result : end_result;
-	return stream_result_ == 0;
+	/* A finalize/write infrastructure failure must not be hidden by an
+	 * earlier positive code-generation diagnostic count. */
+      stream_result_ = end_result < 0 ? end_result
+	    : prior_result != 0 ? prior_result : end_result;
+	return stream_result_ >= 0;
 }
 
 /*

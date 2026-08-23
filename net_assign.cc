@@ -143,9 +143,11 @@ ivl_select_type_t NetAssign_::select_type() const
 unsigned NetAssign_::lwidth() const
 {
 	// This gets me the type of the l-value expression, down to
-	// the type of the member. If this returns nil, then resort to
-	// the lwid_ value.
-      ivl_type_t ntype = net_type();
+	// the type of this exact member. net_type() is deliberately nil for
+	// a concatenation head, so use lval_type(): falling back to the root
+	// signal width makes a wide class/interface property appear one bit
+	// wide whenever another l-value follows it.
+      ivl_type_t ntype = lval_type();
       if (ntype)
 	    return ntype->packed_width();
 
@@ -157,6 +159,29 @@ ivl_variable_type_t NetAssign_::expr_type() const
       ivl_type_t ntype = net_type();
       if (ntype)
 	    return ntype->base_type();
+
+	/* net_type() is deliberately nil for a concatenation head. A packed
+	 * concatenation is four-state when any leaf is four-state, and two-state
+	 * only when every leaf is two-state (IEEE 1800-2023 11.3.4). Using just
+	 * the rightmost leaf silently converted X/Z to zero for
+	 * {logic_leaf, bit_leaf} compound assignments. */
+	if (more) {
+	      ivl_variable_type_t aggregate = IVL_VT_NO_TYPE;
+	      for (const NetAssign_*cur = this; cur; cur = cur->more) {
+		    ntype = cur->lval_type();
+		    if (!ntype)
+			  continue;
+		    ivl_variable_type_t leaf_type = ntype->base_type();
+		    if (leaf_type == IVL_VT_LOGIC)
+			  return IVL_VT_LOGIC;
+		    if (leaf_type == IVL_VT_BOOL)
+			  aggregate = IVL_VT_BOOL;
+		    else if (aggregate == IVL_VT_NO_TYPE)
+			  aggregate = leaf_type;
+	      }
+	      if (aggregate != IVL_VT_NO_TYPE)
+		    return aggregate;
+      }
 
       if (sig_ == 0) {
 	    return IVL_VT_NO_TYPE;
@@ -289,10 +314,12 @@ NetNet* NetAssign_::resolve_interface_member_signal() const
 
       unsigned root_word = 0;
       if (root->unpacked_dimensions()) {
-            long value = 0;
-            if (!owner->word_ || !eval_as_long(value, owner->word_)
-                || value < 0
-                || static_cast<unsigned long>(value) >= root->pin_count())
+            const NetEConst*word = owner->word_
+                  ? dynamic_cast<const NetEConst*>(owner->word_) : 0;
+            if (!word || !word->value().is_defined())
+                  return 0;
+            unsigned long value = word->value().as_ulong();
+            if (value >= root->pin_count())
                   return 0;
             root_word = static_cast<unsigned>(value);
       }
@@ -396,6 +423,13 @@ void NetAssignBase::set_rval(NetExpr*r)
 {
       delete rval_;
       rval_ = r;
+}
+
+NetExpr* NetAssignBase::exchange_rval(NetExpr*r)
+{
+      NetExpr*old = rval_;
+      rval_ = r;
+      return old;
 }
 
 NetAssign_* NetAssignBase::l_val(unsigned idx)
@@ -520,13 +554,19 @@ NetDeassign::~NetDeassign()
 {
 }
 
-NetForce::NetForce(NetAssign_*lv, NetExpr*rv)
-: NetAssignBase(lv, rv)
+NetForce::NetForce(NetAssign_*lv, NetExpr*rv, NetExpr*link_rv)
+: NetAssignBase(lv, rv), force_link_rval_(link_rv)
 {
 }
 
 NetForce::~NetForce()
 {
+      delete force_link_rval_;
+}
+
+const NetExpr* NetForce::force_link_rval() const
+{
+      return force_link_rval_ ? force_link_rval_ : rval();
 }
 
 NetRelease::NetRelease(NetAssign_*l)

@@ -2081,6 +2081,36 @@ bool eval_as_long(long&value, const NetExpr*expr)
       return false;
 }
 
+uint64_t verinum_signed_magnitude(const verinum&value, bool&negative)
+{
+      assert(value.is_defined());
+
+      negative = value.has_sign() && value.len() > 0
+	    && value.get(value.len()-1) == verinum::V1;
+      if (!negative)
+	    return value.as_ulong64();
+
+	/* Form the magnitude of a two's-complement negative number without
+	 * converting it to a host signed type. Copy through the least-significant
+	 * one, then invert every more-significant bit. */
+      uint64_t magnitude = 0;
+      bool found_one = false;
+      bool overflow = false;
+      for (unsigned idx = 0; idx < value.len(); idx += 1) {
+	    bool source_bit = value.get(idx) == verinum::V1;
+	    bool magnitude_bit = found_one ? !source_bit : source_bit;
+	    if (source_bit)
+		  found_one = true;
+	    if (!magnitude_bit)
+		  continue;
+	    if (idx < 64)
+		  magnitude |= uint64_t(1) << idx;
+	    else
+		  overflow = true;
+      }
+      return overflow ? ~uint64_t(0) : magnitude;
+}
+
 bool eval_as_double(double&value, NetExpr*expr)
 {
       if (const NetEConst*tmp = dynamic_cast<NetEConst*>(expr) ) {
@@ -2095,6 +2125,13 @@ bool eval_as_double(double&value, NetExpr*expr)
 
       return false;
 }
+
+/* Symbol lookup legitimately probes the same parsed hierarchical reference
+ * during width inference and expression elaboration. Retain the failure on
+ * every probe, but report a nonconstant scope index only once for that parsed
+ * expression. Parsed index expressions live through elaboration; this cache is
+ * released with the other elaboration-only caches below. */
+static set<pair<const Design*,const PExpr*> > reported_scope_index_errors_;
 
 /*
  * At the parser level, a name component is a name with a collection
@@ -2134,9 +2171,19 @@ hname_t eval_path_component(Design*des, NetScope*scope,
 	      // but "foo[n:m]" is not.
 	    assert(index.sel == index_component_t::SEL_BIT);
 
-	      // Evaluate the bit select to get a number.
-	    NetExpr*tmp = elab_and_eval(des, scope, index.msb, -1);
-	    ivl_assert(*index.msb, tmp);
+	      // Scope indices are constant expressions, but NEED_CONST makes a
+	      // speculative/quiet scope probe diagnose an ordinary variable before
+	      // this routine gets a chance to honor quiet. Enable constant-function
+	      // folding explicitly while retaining the normal nonconstant result;
+	      // the caller below then owns the single, quiet-aware diagnostic.
+	    unsigned saved_opt_const_func = opt_const_func;
+	    opt_const_func = std::max(opt_const_func, 2u);
+	    NetExpr*tmp = elab_and_eval(des, scope, index.msb, -1, false);
+	    opt_const_func = saved_opt_const_func;
+	    if (!tmp) {
+		  error_flag = true;
+		  return hname_t(comp.name, 0);
+	    }
 
 	    if (NetEConst*ctmp = dynamic_cast<NetEConst*>(tmp)) {
 		  index_values.push_back(ctmp->value().as_long());
@@ -2151,10 +2198,13 @@ hname_t eval_path_component(Design*des, NetScope*scope,
 	      // caller resolving a GENUINE scope reference still gets the
 	      // diagnostic and the error is still counted.
 	    if (!quiet) {
-		  cerr << index.msb->get_fileline() << ": error: "
-		       << "Scope index expression is not constant: "
-		       << *index.msb << endl;
-		  des->errors += 1;
+		  pair<const Design*,const PExpr*>key(des, index.msb);
+		  if (reported_scope_index_errors_.insert(key).second) {
+			cerr << index.msb->get_fileline() << ": error: "
+			     << "Scope index expression is not constant: "
+			     << *index.msb << endl;
+			des->errors += 1;
+		  }
 	    }
 	    error_flag = true;
 
@@ -2603,15 +2653,33 @@ NetExpr*collapse_dims_exprs(Design*des, NetScope*scope,
 			    const netranges_t&pdims,
 			    const list<index_component_t>&indices)
 {
-	// First elaborate all the expressions as far as possible.
+	/* First elaborate all expressions without routing defined constants
+	 * through the legacy list<long> side channel. This path consumes the
+	 * NetExpr values directly; converting an otherwise legal 65-bit index to
+	 * native long only emits a truncation warning and loses the exact
+	 * out-of-range value before packed-property code generation sees it. */
       list<NetExpr*> exprs;
-      list<long> exprs_const;
-      indices_flags flags;
-      indices_to_expressions(des, scope, loc, indices,
-                             pdims.size(),
-                             false, flags, exprs, exprs_const);
-      if (exprs.size() != pdims.size())
-	    return 0;
+      list<index_component_t>::const_iterator component = indices.begin();
+      for (size_t idx = 0; idx < pdims.size(); idx += 1, ++component) {
+	    ivl_assert(*loc, component != indices.end());
+	    if (component->sel != index_component_t::SEL_BIT
+		|| !component->msb) {
+		  cerr << loc->get_fileline() << ": error: "
+		       << "Array cannot be indexed by a range." << endl;
+		  des->errors += 1;
+		  for (NetExpr*expr : exprs)
+			delete expr;
+		  return 0;
+	    }
+	    NetExpr*expr = elab_and_eval(
+		  des, scope, component->msb, -1, false);
+	    if (!expr) {
+		  for (NetExpr*prior : exprs)
+			delete prior;
+		  return 0;
+	    }
+	    exprs.push_back(expr);
+      }
 
       netranges_t::const_iterator pcur = pdims.begin();
 
@@ -3018,6 +3086,7 @@ static std::map<NetScope*,bool> implicit_this_handle_cache_valid_;
 
 void netmisc_release_elaboration_caches()
 {
+	  reported_scope_index_errors_.clear();
       method_containing_scope_cache_.clear();
       method_containing_scope_cache_valid_.clear();
       method_uses_implicit_this_cache_.clear();

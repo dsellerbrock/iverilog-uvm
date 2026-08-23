@@ -54,6 +54,7 @@ struct symbol_search_results {
 	    type = 0;
 	    eve = 0;
 	    decl_after_use = 0;
+	    scope_index_error = false;
       }
 
       inline bool is_scope() const {
@@ -96,6 +97,11 @@ struct symbol_search_results {
 	// stored here. If more than one such symbol is found, the first
 	// one is retained.
       const LineInfo*decl_after_use;
+
+        // A scope component existed, but one of its instance-array indices
+        // was not a constant expression. Callers must not replace that
+        // specific diagnostic with a generic unresolved-name warning.
+      bool scope_index_error;
 
         // Store bread crumbs of the search here. The path_tail is the parts
         // of the original path that were not found, or are after an object
@@ -539,6 +545,11 @@ void eval_expr(NetExpr*&expr, int context_width =-1);
 bool eval_as_long(long&value, const NetExpr*expr);
 bool eval_as_double(double&value, NetExpr*expr);
 
+/* Return the mathematical sign and absolute value of a defined constant.
+ * Magnitudes that do not fit in 64 bits saturate at UINT64_MAX. This avoids
+ * host-long truncation and, in particular, never negates INT64_MIN. */
+uint64_t verinum_signed_magnitude(const verinum&value, bool&negative);
+
 /*
  * Evaluate an entire scope path in the context of the given scope.
  *
@@ -621,6 +632,13 @@ extern bool nex_output_precise_array_word;
    materializing every possible word. Returns true when the active compact
    write pass handled this l-value (including its counting-only prepass). */
 extern bool synth_array_write_nex_output(NetAssign_*lval, NexusSet&out);
+
+/* Mark the lexical extent of a procedural for-loop while the synchronous
+   synthesis output prepass walks it. A run-time array-word assignment in
+   that extent is replicated by loop unrolling, so it cannot use the
+   single-write-port compact representation. */
+extern void synth_array_write_loop_enter();
+extern void synth_array_write_loop_leave();
 
 /* Collapse the leading indices of a packed select into constants. With
    quiet=true a non-constant prefix simply returns false with no

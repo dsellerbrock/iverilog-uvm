@@ -563,9 +563,11 @@ void draw_object_from_net(ivl_nexus_t nex, ivl_scope_t scope)
 
       if (sig && ivl_signal_dimensions(sig) > 0) {
             int index_reg = allocate_word();
-            long source_word = (long)ivl_signal_array_base(sig) + (long)word;
-            fprintf(vvp_out, "    %%ix/load %d, %ld, 0; vif array word\n",
-                    index_reg, source_word);
+              /* A nexus pin is already the canonical zero-based array word.
+               * %load/obja uses that same storage address; adding the declared
+               * base made nonzero-bound interface-port arrays read a nil slot. */
+            fprintf(vvp_out, "    %%ix/load %d, %u, 0; vif array word\n",
+                    index_reg, word);
             note_array_signal_use(sig);
             fprintf(vvp_out, "    %%load/obja v%p, %d;\n", sig, index_reg);
             clr_word(index_reg);

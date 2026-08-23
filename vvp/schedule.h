@@ -140,6 +140,8 @@ extern void schedule_init_vector(vvp_net_ptr_t ptr, double val);
  */
 extern void schedule_init_propagate(vvp_net_t*net, vvp_vector4_t val);
 extern void schedule_init_propagate(vvp_net_t*net, double val);
+extern void schedule_init_propagate(vvp_net_t*net, const std::string&val);
+extern void schedule_init_propagate(vvp_net_t*net, const vvp_object_t&val);
 
 /*
  * Create a generic event. This supports scheduled events that are not

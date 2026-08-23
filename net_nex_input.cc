@@ -229,7 +229,19 @@ static bool select_reads_only_constant_data(const NetExpr*expr)
 NexusSet* NetESelect::nex_input(bool rem_out, bool always_sens, bool nested_func) const
 {
       NexusSet*result = base_? base_->nex_input(rem_out, always_sens, nested_func) : new NexusSet();
+      size_t vif_props_before = nex_input_vif_collector
+	    ? nex_input_vif_collector->size() : 0;
       NexusSet*tmp = expr_->nex_input(rem_out, always_sens, nested_func);
+      bool selected_expr_has_interface_member = false;
+      if (nex_input_vif_collector) {
+	    for (size_t idx = vif_props_before;
+		 idx < nex_input_vif_collector->size(); idx += 1) {
+		  if ((*nex_input_vif_collector)[idx]->is_interface_member()) {
+			selected_expr_has_interface_member = true;
+			break;
+		  }
+	    }
+      }
       bool const_select = result->size() == 0;
       if (always_sens && const_select) {
 	    if (const NetEConst *val = dynamic_cast <NetEConst*> (base_)) {
@@ -251,7 +263,8 @@ NexusSet* NetESelect::nex_input(bool rem_out, bool always_sens, bool nested_func
 				   << "; using conservative whole-expression sensitivity."
 				   << endl;
 			}
-		  } else if (!select_reads_only_constant_data(expr_)) {
+		  } else if (!selected_expr_has_interface_member
+			     && !select_reads_only_constant_data(expr_)) {
 			cerr << get_fileline() << ": warning: cannot determine the "
 			     << "precise sensitivity for the select of " << *expr_
 			     << "; using conservative whole-expression sensitivity."

@@ -1051,7 +1051,8 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	      // (IEEE 1800-2017 7.2.1).
 	    if (class_type || (struct_type && !struct_type->packed()))
 		  return elaborate_lval_net_class_member_(des, scope, member_root_type,
-							  reg, tail_path, base_index);
+							  reg, tail_path, base_index,
+							  is_cassign || is_force);
       }
 
 
@@ -2371,7 +2372,8 @@ bool PEIdent::elaborate_lval_net_idx_(Design*des,
 NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope,
 				    ivl_type_t root_type, NetNet*sig,
 				    pform_name_t member_path,
-				    const list<index_component_t>&base_index) const
+				    const list<index_component_t>&base_index,
+				    bool need_const_idx) const
 {
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PEIdent::elaborate_lval_net_class_member_: "
@@ -2487,7 +2489,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		    indices_flags flags;
 		    indices_to_expressions(des, scope, this,
 					   base_index, sig->unpacked_dimensions(),
-					   false, flags,
+					   need_const_idx, flags,
 					   unpacked_indices, unpacked_indices_const);
 
 		    NetExpr*canon_index = 0;
@@ -2784,7 +2786,8 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				    delete lv;
 				    return elaborate_lval_net_class_member_(
 					  des, scope, psig->net_type(), psig,
-					  member_path, member_cur.index);
+					  member_path, member_cur.index,
+					  need_const_idx);
 			      }
 			      cerr << get_fileline() << ": sorry: member"
 				   << " access into an indexed static-property"
@@ -3089,14 +3092,30 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 					  [&](NetExpr*e)->NetExpr* {
 					  if (NetEConst*ec =
 						dynamic_cast<NetEConst*>(e)) {
-						if (!ec->value().is_defined())
+						if (!ec->value().is_defined()) {
+						      delete e;
 						      return nullptr;
-						long i = ec->value().as_long();
-						long off = descending
-							 ? (i - base_lsb)
-							 : (base_lsb - i);
-						return new NetEConst(
-						      verinum((int64_t)off));
+						}
+
+						/* Canonical offsets are compiler metadata, not an
+						 * expression-width arithmetic result. Preserve an
+						 * arbitrary-width source index exactly and add one
+						 * sign bit so subtracting the declared LSB cannot
+						 * wrap. Converting through native long both warned
+						 * and aliased values below INT64_MIN. */
+						unsigned work_width =
+						      std::max(ec->value().len(), 64u) + 1;
+						verinum index_value(ec->value(), work_width);
+						index_value.has_sign(true);
+						verinum bound_value((int64_t)base_lsb);
+						bound_value = verinum(bound_value, work_width);
+						bound_value.has_sign(true);
+						verinum offset_value = descending
+						      ? index_value - bound_value
+						      : bound_value - index_value;
+						offset_value.has_sign(true);
+						delete e;
+						return new NetEConst(offset_value);
 					  }
 					  if (!descending)
 						return nullptr;

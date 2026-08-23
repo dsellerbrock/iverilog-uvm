@@ -134,6 +134,9 @@ extern const netclass_t* elaborate_specialized_class_type(Design*des,
                                                           const netclass_t*base_class,
                                                           const parmvalue_t*overrides,
                                                           bool fully_elaborate = true);
+extern const netclass_t* elaborate_interface_instance_type(
+                                                          Design*des,
+                                                          NetScope*actual_interface_scope);
 extern netclass_t* ensure_visible_class_type(Design*des,
                                              NetScope*scope,
                                              perm_string name);

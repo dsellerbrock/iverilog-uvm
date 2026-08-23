@@ -3723,6 +3723,15 @@ extern "C" ivl_expr_t ivl_stmt_rval(ivl_statement_t net)
       return 0;
 }
 
+extern "C" ivl_expr_t ivl_stmt_force_link_rval(ivl_statement_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_ST_FORCE);
+      return net->u_.assign_.force_link_rval_
+	   ? net->u_.assign_.force_link_rval_
+	   : net->u_.assign_.rval_;
+}
+
 extern "C" ivl_sfunc_as_task_t ivl_stmt_sfunc_as_task(ivl_statement_t net)
 {
       assert(net);

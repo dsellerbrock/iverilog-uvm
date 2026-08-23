@@ -22,6 +22,7 @@
 # include  <assert.h>
 # include  <stdlib.h>
 # include  <limits.h>
+# include  <inttypes.h>
 
 /*
  * These functions handle the blocking assignment. Use the %set
@@ -1027,6 +1028,245 @@ static int show_stmt_assign_vector(ivl_statement_t net)
 	    draw_eval_vec4(rval);
 	    resize_vec4_wid(rval, wid);
 	    store_vec4_to_lval(net);
+      }
+
+      return 0;
+}
+
+static int packed_property_offset_is_unknown_(ivl_expr_t expr)
+{
+      return ivl_expr_type(expr) == IVL_EX_NUMBER
+	  && number_is_unknown(expr);
+}
+
+static int packed_property_offset_is_negative_(ivl_expr_t expr)
+{
+      if (ivl_expr_type(expr) != IVL_EX_NUMBER || !ivl_expr_signed(expr)
+	  || ivl_expr_width(expr) == 0 || number_is_unknown(expr))
+	    return 0;
+
+      return ivl_expr_bits(expr)[ivl_expr_width(expr)-1] == '1';
+}
+
+static int packed_property_offset_is_immediate_(ivl_expr_t expr)
+{
+      if (ivl_expr_type(expr) != IVL_EX_NUMBER
+	  && ivl_expr_type(expr) != IVL_EX_ULONG)
+	    return 0;
+      if (packed_property_offset_is_unknown_(expr))
+	    return 0;
+      return number_is_immediate(expr, 32, 0);
+}
+
+/* Return the exact two's-complement bits of a defined negative constant when
+ * it fits the run-time signed property-offset register. This deliberately
+ * includes INT64_MIN, which number_is_immediate(..., 64, true) rejects because
+ * that older helper assumes every negative immediate will later be negated.
+ * Property offsets are never negated by code generation. */
+static int packed_property_negative_offset_bits64_(ivl_expr_t expr,
+						     uint64_t*value)
+{
+      const char*bits;
+      unsigned width;
+      uint64_t result = 0;
+
+      if (!packed_property_offset_is_negative_(expr)
+	  || number_is_unknown(expr))
+	    return 0;
+
+      bits = ivl_expr_bits(expr);
+      width = ivl_expr_width(expr);
+
+	/* A value wider than int64_t fits only when bit 63 and every more
+	 * significant bit are sign-extension ones. */
+      if (width > 64) {
+	    for (unsigned idx = 63; idx < width; idx += 1)
+		  if (bits[idx] != '1')
+			return 0;
+      }
+
+      unsigned copy_width = width < 64 ? width : 64;
+      for (unsigned idx = 0; idx < copy_width; idx += 1) {
+	    if (bits[idx] == '1')
+		  result |= UINT64_C(1) << idx;
+	    else if (bits[idx] != '0')
+		  return 0;
+      }
+      if (width < 64)
+	    result |= ~UINT64_C(0) << width;
+
+      *value = result;
+      return 1;
+}
+
+static void emit_packed_property_negative_offset_(int word,
+						    uint64_t value)
+{
+      fprintf(vvp_out, "    %%ix/load %d, %" PRIu32 ", %" PRIu32 ";\n",
+	      word, (uint32_t)value, (uint32_t)(value >> 32));
+      fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+}
+
+/* A concatenation containing interface/class integral properties is exported
+ * as multiple l-values, least-significant (source-rightmost) first. The
+ * ordinary class-property path handles one l-value and would silently store
+ * only index zero, while the ordinary vector path cannot store through an
+ * object receiver. Split the packed r-value exactly as an ordinary
+ * concatenation, dispatching each slice to either a property or vector store.
+ * This also handles constant packed-field offsets within a property. */
+static int show_stmt_assign_concat_cobject_(ivl_statement_t net)
+{
+      unsigned lvals = ivl_stmt_lvals(net);
+      ivl_expr_t rval = ivl_stmt_rval(net);
+      int have_property = 0;
+
+      if (lvals < 2 || ivl_stmt_opcode(net) != 0 || !rval)
+	    return -1;
+
+	/* First distinguish this path from an ordinary vector concatenation. */
+      for (unsigned idx = 0; idx < lvals; idx += 1) {
+	    ivl_lval_t lval = ivl_stmt_lval(net, idx);
+	    if (ivl_lval_property_idx(lval) >= 0)
+		  have_property = 1;
+      }
+      if (!have_property)
+	    return -1;
+
+	/* Validate the complete destination before emitting any partial store. */
+      for (unsigned idx = 0; idx < lvals; idx += 1) {
+	    ivl_lval_t lval = ivl_stmt_lval(net, idx);
+	    ivl_signal_t sig = ivl_lval_sig(lval);
+	    int prop_idx = ivl_lval_property_idx(lval);
+	    if (!sig || ivl_lval_nest(lval)) {
+		  fprintf(stderr, "%s:%u: sorry: nested or signal-less member in "
+			  "a packed property concatenation is not yet supported.\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return 1;
+	    }
+
+	    if (prop_idx >= 0) {
+		  ivl_type_t owner_type = ivl_signal_net_type(sig);
+		  ivl_expr_t part_off = ivl_lval_part_off(lval);
+		  if (ivl_lval_idx(lval) || (part_off
+		      && ivl_expr_type(part_off) != IVL_EX_NUMBER
+		      && ivl_expr_type(part_off) != IVL_EX_ULONG)) {
+			fprintf(stderr, "%s:%u: sorry: indexed or dynamically "
+				"selected member in a packed property concatenation "
+				"is not yet supported.\n",
+				ivl_stmt_file(net), ivl_stmt_lineno(net));
+			return 1;
+		  }
+		  if (!owner_type || prop_idx >= ivl_type_properties(owner_type)) {
+			fprintf(stderr, "%s:%u: error: cannot resolve property %d "
+				"in packed concatenation assignment.\n",
+				ivl_stmt_file(net), ivl_stmt_lineno(net), prop_idx);
+			return 1;
+		  }
+		  ivl_type_t prop_type = ivl_type_prop_type(owner_type, prop_idx);
+		  if (!prop_type || (ivl_type_base(prop_type) != IVL_VT_BOOL
+			       && ivl_type_base(prop_type) != IVL_VT_LOGIC)) {
+			fprintf(stderr, "%s:%u: error: property in packed "
+				"concatenation assignment is not an integral packed "
+				"type.\n", ivl_stmt_file(net), ivl_stmt_lineno(net));
+			return 1;
+		  }
+	    } else {
+		  ivl_type_t lval_type = ivl_lval_net_type(lval);
+		  if (!lval_type)
+			lval_type = ivl_signal_net_type(sig);
+		  if (!lval_type || (ivl_type_base(lval_type) != IVL_VT_BOOL
+			       && ivl_type_base(lval_type) != IVL_VT_LOGIC)) {
+			fprintf(stderr, "%s:%u: error: nonintegral ordinary "
+				"member in packed property concatenation assignment.\n",
+				ivl_stmt_file(net), ivl_stmt_lineno(net));
+			return 1;
+		  }
+	    }
+      }
+
+      draw_eval_vec4(rval);
+      resize_vec4_wid(rval, ivl_stmt_lwidth(net));
+
+      for (unsigned idx = 0; idx < lvals; idx += 1) {
+	    ivl_lval_t lval = ivl_stmt_lval(net, idx);
+	    unsigned width = ivl_lval_width(lval);
+	    int prop_idx = ivl_lval_property_idx(lval);
+
+	    if (idx + 1 < lvals)
+		  fprintf(vvp_out, "    %%split/vec4 %u;\n", width);
+
+	    if (prop_idx < 0) {
+		  store_vec4_to_one_lval(lval);
+		  continue;
+	    }
+
+	    unsigned lab_null = local_count++;
+	    unsigned lab_out = local_count++;
+	    ivl_type_t owner_type = draw_lval_expr(lval);
+	    ivl_type_t prop_type = ivl_type_prop_type(owner_type, prop_idx);
+	    ivl_expr_t part_off = ivl_lval_part_off(lval);
+	    uint64_t negative_part_off_bits = 0;
+	    int dynamic_part_off = part_off
+		  && packed_property_negative_offset_bits64_(
+			part_off, &negative_part_off_bits);
+	      /* An X/Z or nonnegative constant too large for any packed property
+	       * is wholly out of bounds. The assignment slice is a no-op, but the
+	       * complete r-value and receiver have already been evaluated and
+	       * ordinary sibling slices must still be stored. A defined negative
+	       * base instead takes the dynamic opcode so a partially overlapping
+	       * indexed part-select still updates its in-range bits. */
+	    if (part_off && !dynamic_part_off
+		  && !packed_property_offset_is_immediate_(part_off)) {
+		  fprintf(vvp_out, "    %%pop/obj 1, 0; Discard receiver for "
+			  "unknown/out-of-range property offset\n");
+		  fprintf(vvp_out, "    %%pop/vec4 1; Discard no-op "
+			  "concatenation slice\n");
+		  continue;
+	    }
+	    int off_reg = 0;
+	    int off_flag = 0;
+	    if (dynamic_part_off) {
+		  off_reg = allocate_word();
+		  off_flag = allocate_flag();
+		  emit_packed_property_negative_offset_(
+			off_reg, negative_part_off_bits);
+		  fprintf(vvp_out, "    %%flag_mov %d, 4;\n", off_flag);
+	    }
+	    fprintf(vvp_out, "    %%test_nul/obj;\n");
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
+		    thread_count, lab_null);
+	    if (ivl_type_base(prop_type) == IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2;\n");
+	    if (dynamic_part_off) {
+		  fprintf(vvp_out, "    %%flag_mov 4, %d;\n", off_flag);
+		  fprintf(vvp_out,
+			  "    %%store/prop/v/bits/x %d, %d, %u; Store "
+			  "concatenation slice at signed property offset\n",
+			  prop_idx, off_reg, width);
+	    } else if (part_off) {
+		  unsigned bitoff = (unsigned)ivl_expr_uvalue(part_off);
+		  fprintf(vvp_out,
+			  "    %%store/prop/v/bits %d, %u, %u; Store "
+			  "concatenation slice in field [%u+:%u] of property %s\n",
+			  prop_idx, bitoff, width, bitoff, width,
+			  ivl_type_prop_name(owner_type, prop_idx));
+	    } else {
+		  fprintf(vvp_out,
+			  "    %%store/prop/v %d, %u; Store concatenation slice "
+			  "in logic property %s\n",
+			  prop_idx, width,
+			  ivl_type_prop_name(owner_type, prop_idx));
+	    }
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+	    fprintf(vvp_out, "    %%pop/vec4 1;\n");
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+	    if (dynamic_part_off) {
+		  clr_word(off_reg);
+		  clr_flag(off_flag);
+	    }
       }
 
       return 0;
@@ -2797,6 +3037,10 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		  int prop_word_idx = 0;
 		  ivl_expr_t idx_expr = ivl_lval_idx(lval);
 		  ivl_expr_t part_off_ex = ivl_lval_part_off(lval);
+		  uint64_t negative_part_off_bits = 0;
+		  int negative_part_off_fits = part_off_ex
+			&& packed_property_negative_offset_bits64_(
+			      part_off_ex, &negative_part_off_bits);
 
 		  /* Whole-array assignment pattern into a logic-array
 		     property (`obj.arr = '{...}` where arr is an unpacked
@@ -2820,13 +3064,42 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			return errors;
 		  }
 
+		    /* A defined constant outside the run-time signed offset range
+		       is wholly out of bounds. The same is true of a nonnegative
+		       constant outside the compact unsigned literal range. Evaluate
+		       the RHS (and therefore any function side effects), discard its
+		       converted value, and leave the property unchanged. */
+		  if (part_off_ex && !idx_expr
+		      && (ivl_expr_type(part_off_ex) == IVL_EX_NUMBER
+			  || ivl_expr_type(part_off_ex) == IVL_EX_ULONG)
+		      && !packed_property_offset_is_unknown_(part_off_ex)
+		      && ((packed_property_offset_is_negative_(part_off_ex)
+			   && !negative_part_off_fits)
+			  || (!packed_property_offset_is_negative_(part_off_ex)
+			      && !packed_property_offset_is_immediate_(
+				    part_off_ex)))) {
+			draw_eval_vec4(rval);
+			resize_property_vec4_wid(rval, lwid);
+			fprintf(vvp_out, "    %%pop/vec4 1; Discard RHS for "
+				"out-of-range property offset\n");
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "    %%jmp T_%u.%u;\n",
+				thread_count, lab_out);
+			fprintf(vvp_out, "T_%u.%u;\n",
+				thread_count, lab_null);
+			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			fprintf(vvp_out, "T_%u.%u;\n",
+				thread_count, lab_out);
+			return errors;
+		  }
+
 		  /* Packed struct field write via bit-offset RMW.  This is
 		     generated when a VIF packed-struct property field is
 		     used as an l-value (e.g. cfg.vif.h2d_int.a_valid <= 1).
 		     The part_off_ex holds the field's bit offset within the
 		     property and lwid is the field width. */
 		  if (part_off_ex && !idx_expr &&
-		      ivl_expr_type(part_off_ex) == IVL_EX_NUMBER) {
+		      packed_property_offset_is_immediate_(part_off_ex)) {
 			unsigned bitoff = (unsigned)ivl_expr_uvalue(part_off_ex);
 			/* Compound assignment (`fld |= x`) needs the current
 			   field value on the stack before the r-value so the
@@ -2862,10 +3135,16 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		     select of a vector property with a run-time offset (e.g.
 		     `obj.m_bits[i +: 4] = ...`).  The canonical bit offset is
 		     evaluated into an index register and consumed by the
-		     %store/prop/v/bits/x handler, which read-modify-writes the
+		     signed %store/prop/v/bits/x or unsigned
+		     %store/prop/v/bits/ux handler, which read-modify-writes the
 		     property so bits outside [off+:wid] are preserved. */
 		  if (part_off_ex && !idx_expr) {
 			int off_reg = allocate_word();
+			int off_flag = allocate_flag();
+			int signed_offset = ivl_expr_signed(part_off_ex);
+			const char*store_opcode = signed_offset
+			      ? "%store/prop/v/bits/x"
+			      : "%store/prop/v/bits/ux";
 			if (ivl_stmt_opcode(net) != 0) {
 			      /* Compound assignment: load the current field
 				 value first. Evaluate the offset once as a
@@ -2876,21 +3155,37 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			      fprintf(vvp_out, "    %%prop/v %d;\n", prop_idx);
 			      draw_eval_vec4(part_off_ex);
 			      fprintf(vvp_out, "    %%dup/vec4;\n");
-			      fprintf(vvp_out, "    %%ix/vec4 %d;\n", off_reg);
-			      fprintf(vvp_out, "    %%part/u %u;\n", lwid);
+			      fprintf(vvp_out, "    %%ix/vec4%s %d;\n",
+				      signed_offset ? "/s" : "", off_reg);
+			      fprintf(vvp_out, "    %%flag_mov %d, 4;\n",
+				      off_flag);
+			      fprintf(vvp_out, "    %%part/%c %u;\n",
+				      signed_offset ? 's' : 'u', lwid);
 			} else {
-			      draw_eval_expr_into_integer(part_off_ex, off_reg);
+			      if (negative_part_off_fits)
+				    emit_packed_property_negative_offset_(
+					  off_reg, negative_part_off_bits);
+			      else
+				    draw_eval_expr_into_integer(part_off_ex,
+							 off_reg);
+			      fprintf(vvp_out, "    %%flag_mov %d, 4;\n",
+				      off_flag);
 			}
 			draw_eval_vec4(rval);
 			resize_property_vec4_wid(rval, lwid);
 			draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
 						       ivl_expr_signed(rval));
+			  /* R-value evaluation and a compound opcode may change flag
+			     4. Restore the offset-validity flag immediately before
+			     the run-time partial store consumes it. */
+			fprintf(vvp_out, "    %%flag_mov 4, %d;\n", off_flag);
 			fprintf(vvp_out,
-				"    %%store/prop/v/bits/x %d, %d, %u;"
+				"    %s %d, %d, %u;"
 				" Store field [<var>+:%u] of property %s\n",
-				prop_idx, off_reg, lwid, lwid,
+				store_opcode, prop_idx, off_reg, lwid, lwid,
 				ivl_type_prop_name(sig_type, prop_idx));
 			clr_word(off_reg);
+			clr_flag(off_flag);
 			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 			/* Emit the null-guard epilogue inline and return. */
 			fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
@@ -3986,6 +4281,12 @@ int show_stmt_assign(ivl_statement_t net)
 	    int stream_errors = show_stmt_assign_dynamic_stream_(net);
 	    if (stream_errors >= 0)
 		  return stream_errors;
+      }
+
+      {
+	    int concat_object_errors = show_stmt_assign_concat_cobject_(net);
+	    if (concat_object_errors >= 0)
+		  return concat_object_errors;
       }
 
 	/* Assignment of a function returning an unpacked array into an

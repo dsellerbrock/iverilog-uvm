@@ -254,6 +254,107 @@ netclass_t* make_builtin_mailbox_type_()
 }
 
 static map<Module*, netclass_t*> interface_type_cache_;
+static map<NetScope*, netclass_t*> interface_instance_type_cache_;
+
+static void populate_interface_type_(Design*des, NetScope*member_scope,
+				     Module*mod, netclass_t*iface_type)
+{
+      ivl_assert(*mod, member_scope);
+      ivl_assert(*mod, iface_type);
+
+      for (map<perm_string,PWire*>::const_iterator cur = mod->wires.begin()
+		 ; cur != mod->wires.end() ; ++cur) {
+	    ivl_type_t prop_type = cur->second->elaborate_sig_type(des, member_scope);
+	    iface_type->set_property(cur->first,
+				     property_qualifier_t::make_none(), prop_type);
+      }
+
+      for (map<perm_string,Module::PClocking*>::const_iterator cur =
+		 mod->clocking_blocks.begin()
+		 ; cur != mod->clocking_blocks.end() ; ++cur) {
+	    map<perm_string,int> dirs;
+	    map<perm_string,perm_string> aliases;
+	    for (map<perm_string,NetNet::PortType>::const_iterator dir =
+		       cur->second->directions.begin()
+		 ; dir != cur->second->directions.end() ; ++dir)
+		  dirs[dir->first] = static_cast<int>(dir->second);
+	    for (map<perm_string,PExpr*>::const_iterator da =
+		       cur->second->decl_assigns.begin()
+		 ; da != cur->second->decl_assigns.end() ; ++da) {
+		  const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
+		  if (id && !id->path().package && id->path().name.size() == 1
+		      && id->path().name.front().index.empty())
+			aliases[da->first] = id->path().name.front().name;
+	    }
+	    iface_type->add_clocking_block(cur->first, cur->second->event,
+				   cur->second->signals, dirs, aliases);
+
+	      /* M8-2a-4: register the hidden clocking sample variables
+		 (and the sampler tick bit) as interface properties, so
+		 `vif.cb.sig` reads rewritten to `vif._ivl_smp$cb$sig`
+		 elaborate as property accesses. The runtime resolves
+		 properties BY NAME in the bound instance scope, where
+		 elaborate_sig created the matching signals. Mirror the
+		 sampleable predicate (vec4, not a dynamic container);
+		 unsampleable signals get no property and their reads
+		 keep the alias rewrite — consistent by construction. */
+	    const Module::PClocking*cb = cur->second;
+	    bool any_sampled = false;
+	    for (vector<perm_string>::const_iterator sig_it = cb->signals.begin()
+		       ; sig_it != cb->signals.end() ; ++sig_it) {
+		  NetNet::PortType dir = cb->signal_direction(*sig_it);
+		  bool is_in  = (dir==NetNet::PINPUT || dir==NetNet::PINOUT);
+		  bool is_out = (dir==NetNet::POUTPUT || dir==NetNet::PINOUT);
+		  if (!is_in && !is_out)
+			continue;
+		  map<perm_string,PWire*>::const_iterator wt =
+			mod->wires.find(*sig_it);
+		  if (wt == mod->wires.end())
+			continue;
+		  ivl_type_t rt = wt->second->elaborate_sig_type(des, member_scope);
+		  if (!rt)
+			continue;
+		  if (rt->base_type() != IVL_VT_LOGIC
+		      && rt->base_type() != IVL_VT_BOOL)
+			continue;
+		  if (dynamic_cast<const netdarray_t*>(rt)
+		      || dynamic_cast<const netuarray_t*>(rt)
+		      || dynamic_cast<const netqueue_t*>(rt))
+			continue;
+		  if (is_in) {
+			string sname = string("_ivl_smp$") + cur->first.str()
+			      + "$" + sig_it->str();
+			iface_type->set_property(lex_strings.make(sname.c_str()),
+					 property_qualifier_t::make_none(), rt);
+		  }
+		    /* M8-tail: output drive buffer + pending flag as
+		       properties, so vif.cb.out <= v drives resolve
+		       against the bound instance's buffered-drive vars
+		       (created by elaborate_sig; the instance's apply
+		       process lands buffered drives at each event). */
+		  if (is_out) {
+			string bname = string("_ivl_obuf$") + cur->first.str()
+			      + "$" + sig_it->str();
+			iface_type->set_property(lex_strings.make(bname.c_str()),
+					 property_qualifier_t::make_none(), rt);
+			string pname = string("_ivl_opend$") + cur->first.str()
+			      + "$" + sig_it->str();
+			netvector_t*pvec = new netvector_t(IVL_VT_LOGIC,
+						       0, 0, false);
+			iface_type->set_property(lex_strings.make(pname.c_str()),
+					 property_qualifier_t::make_none(), pvec);
+		  }
+		  any_sampled = true;
+	    }
+	    if (any_sampled) {
+		  string tname = string("_ivl_smptick$") + cur->first.str();
+		  netvector_t*tick_vec = new netvector_t(IVL_VT_LOGIC,
+						    0, 0, false);
+		  iface_type->set_property(lex_strings.make(tname.c_str()),
+				   property_qualifier_t::make_none(), tick_vec);
+	    }
+      }
+}
 
 static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*mod)
 {
@@ -322,95 +423,7 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
       if (temp_scope)
 	    temp_scope->add_typedefs(&mod->typedefs);
 
-      for (map<perm_string,PWire*>::const_iterator cur = mod->wires.begin()
-		 ; cur != mod->wires.end() ; ++cur) {
-	    ivl_type_t prop_type = cur->second->elaborate_sig_type(des, iface_scope);
-	    iface_type->set_property(cur->first, property_qualifier_t::make_none(),
-				     prop_type);
-      }
-
-      for (map<perm_string,Module::PClocking*>::const_iterator cur = mod->clocking_blocks.begin()
-		 ; cur != mod->clocking_blocks.end() ; ++cur) {
-	    map<perm_string,int> dirs;
-	    map<perm_string,perm_string> aliases;
-	    for (map<perm_string,NetNet::PortType>::const_iterator dir = cur->second->directions.begin()
-		       ; dir != cur->second->directions.end() ; ++dir)
-		  dirs[dir->first] = static_cast<int>(dir->second);
-	    for (map<perm_string,PExpr*>::const_iterator da =
-		       cur->second->decl_assigns.begin()
-		 ; da != cur->second->decl_assigns.end() ; ++da) {
-		  const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
-		  if (id && !id->path().package && id->path().name.size() == 1
-		      && id->path().name.front().index.empty())
-			aliases[da->first] = id->path().name.front().name;
-	    }
-	    iface_type->add_clocking_block(cur->first, cur->second->event,
-					   cur->second->signals, dirs, aliases);
-
-	      /* M8-2a-4: register the hidden clocking sample variables
-		 (and the sampler tick bit) as interface properties, so
-		 `vif.cb.sig` reads rewritten to `vif._ivl_smp$cb$sig`
-		 elaborate as property accesses. The runtime resolves
-		 properties BY NAME in the bound instance scope, where
-		 elaborate_sig created the matching signals. Mirror the
-		 sampleable predicate (vec4, not a dynamic container);
-		 unsampleable signals get no property and their reads
-		 keep the alias rewrite — consistent by construction. */
-	    const Module::PClocking*cb = cur->second;
-	    bool any_sampled = false;
-	    for (vector<perm_string>::const_iterator sig_it = cb->signals.begin()
-		       ; sig_it != cb->signals.end() ; ++sig_it) {
-		  NetNet::PortType dir = cb->signal_direction(*sig_it);
-		  bool is_in  = (dir==NetNet::PINPUT || dir==NetNet::PINOUT);
-		  bool is_out = (dir==NetNet::POUTPUT || dir==NetNet::PINOUT);
-		  if (!is_in && !is_out)
-			continue;
-		  map<perm_string,PWire*>::const_iterator wt = mod->wires.find(*sig_it);
-		  if (wt == mod->wires.end())
-			continue;
-		  ivl_type_t rt = wt->second->elaborate_sig_type(des, iface_scope);
-		  if (!rt)
-			continue;
-		  if (rt->base_type() != IVL_VT_LOGIC
-		      && rt->base_type() != IVL_VT_BOOL)
-			continue;
-		  if (dynamic_cast<const netdarray_t*>(rt)
-		      || dynamic_cast<const netuarray_t*>(rt)
-		      || dynamic_cast<const netqueue_t*>(rt))
-			continue;
-		  if (is_in) {
-			string sname = string("_ivl_smp$") + cur->first.str()
-			      + "$" + sig_it->str();
-			iface_type->set_property(lex_strings.make(sname.c_str()),
-						 property_qualifier_t::make_none(), rt);
-		  }
-		    /* M8-tail: output drive buffer + pending flag as
-		       properties, so vif.cb.out <= v drives resolve
-		       against the bound instance's buffered-drive vars
-		       (created by elaborate_sig; the instance's apply
-		       process lands buffered drives at each event). */
-		  if (is_out) {
-			string bname = string("_ivl_obuf$") + cur->first.str()
-			      + "$" + sig_it->str();
-			iface_type->set_property(lex_strings.make(bname.c_str()),
-						 property_qualifier_t::make_none(), rt);
-			string pname = string("_ivl_opend$") + cur->first.str()
-			      + "$" + sig_it->str();
-			netvector_t*pvec = new netvector_t(IVL_VT_LOGIC, 0, 0, false);
-			iface_type->set_property(lex_strings.make(pname.c_str()),
-						 property_qualifier_t::make_none(),
-						 pvec);
-		  }
-		  any_sampled = true;
-	    }
-	    if (any_sampled) {
-		  string tname = string("_ivl_smptick$") + cur->first.str();
-		  netvector_t*tick_vec = new netvector_t(IVL_VT_LOGIC, 0, 0, false);
-		  iface_type->set_property(lex_strings.make(tname.c_str()),
-					   property_qualifier_t::make_none(),
-					   tick_vec);
-	    }
-      }
+      populate_interface_type_(des, iface_scope, mod, iface_type);
 
       // If a real interface instance scope exists somewhere in the design,
       // attach it as the netclass_t's class_scope so virtual-interface method
@@ -452,6 +465,45 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
       return iface_type;
 }
 
+}
+
+const netclass_t* elaborate_interface_instance_type(Design*des,
+					     NetScope*actual_interface_scope)
+{
+      if (!des || !actual_interface_scope
+	  || actual_interface_scope->type() != NetScope::MODULE
+	  || !actual_interface_scope->is_interface())
+	    return 0;
+
+      map<perm_string,Module*>::const_iterator module_it =
+	    pform_modules.find(actual_interface_scope->module_name());
+      if (module_it == pform_modules.end() || !module_it->second->is_interface)
+	    return 0;
+
+      Module*mod = module_it->second;
+      if (mod->parameters.empty()) {
+	    netclass_t*canonical = elaborate_interface_type_(
+		  des, actual_interface_scope, mod);
+	    if (canonical && !canonical->class_scope())
+		  canonical->set_class_scope(actual_interface_scope);
+	    return canonical;
+      }
+
+      map<NetScope*,netclass_t*>::const_iterator found =
+	    interface_instance_type_cache_.find(actual_interface_scope);
+      if (found != interface_instance_type_cache_.end())
+	    return found->second;
+
+      netclass_t*iface_type = new netclass_t(mod->mod_name(), 0);
+      iface_type->set_interface(true);
+      iface_type->set_definition_scope(actual_interface_scope);
+      iface_type->set_class_scope(actual_interface_scope);
+
+        // Cache before member elaboration so recursive member type graphs see
+        // one stable type for this concrete interface instance.
+      interface_instance_type_cache_[actual_interface_scope] = iface_type;
+      populate_interface_type_(des, actual_interface_scope, mod, iface_type);
+      return iface_type;
 }
 
 ivl_type_t resolve_class_type_reference(Design*des, NetScope*scope,

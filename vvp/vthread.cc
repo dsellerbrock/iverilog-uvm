@@ -7213,7 +7213,7 @@ void vthread_dump_live_threads(const char*reason)
                   scheduled += 1;
 
             fprintf(stderr,
-                    "trace sched: thr=%p parent_thr=%p scope=%s parent=%s pc=%s@%p pause=%s@%p scheduled=%d waiting=%d joining=%d ended=%d detached=%d disabled=%d callf=%d in_func=%d children=%zu wt=%p rd=%p event=%p ecount=%lu\n",
+                    "trace sched: thr=%p parent_thr=%p scope=%s parent=%s pc=%s@%p pause=%s@%p scheduled=%d waiting=%d joining=%d ended=%d detached=%d disabled=%d callf=%d in_func=%d children=%zu wt=%p rd=%p event=%p ecount=%" PRIu64 "\n",
                     (void*)thr,
                     (void*)thr->parent,
                     scope_name,
@@ -7262,7 +7262,7 @@ void vthread_dump_running_thread(const char*reason)
                             ? vvp_opcode_mnemonic(running_thread->last_pause_pc->opcode) : "<none>";
 
       fprintf(stderr,
-              "trace sched: running-thread reason=%s thr=%p scope=%s pc=%s pause=%s scheduled=%d waiting=%d joining=%d ended=%d detached=%d disabled=%d callf=%d in_func=%d children=%zu wt=%p rd=%p event=%p ecount=%lu\n",
+              "trace sched: running-thread reason=%s thr=%p scope=%s pc=%s pause=%s scheduled=%d waiting=%d joining=%d ended=%d detached=%d disabled=%d callf=%d in_func=%d children=%zu wt=%p rd=%p event=%p ecount=%" PRIu64 "\n",
               reason ? reason : "<unknown>",
               (void*)running_thread,
               scope_name,
@@ -13195,13 +13195,13 @@ bool of_EVTEST_OBJ(vthread_t thr, vvp_code_t cp)
  * index is a hard error rather than silently indexing outside the
  * array's reserved slot range (which could alias another event).
  */
-static inline uint32_t evarr_base_(unsigned long packed)
+static inline uint32_t evarr_base_(uint64_t packed)
 {
       return (uint32_t)(packed >> 32);
 }
-static inline uint32_t evarr_count_(unsigned long packed)
+static inline uint32_t evarr_count_(uint64_t packed)
 {
-      return (uint32_t)(packed & 0xFFFFFFFFul);
+      return (uint32_t)(packed & UINT64_C(0xFFFFFFFF));
 }
 
 /*
@@ -14042,12 +14042,14 @@ bool of_INV(vthread_t thr, vvp_code_t)
 
 static inline int64_t get_as_64_bit(uint32_t low_32, uint32_t high_32)
 {
-      int64_t low = low_32;
-      int64_t res = high_32;
+      uint64_t bits = ((uint64_t)high_32 << 32) | (uint64_t)low_32;
 
-      res <<= 32;
-      res |= low;
-      return res;
+	/* Avoid both an out-of-range unsigned-to-signed conversion and shifting
+	 * a signed high half into its sign bit. The subtraction spelling maps the
+	 * two's-complement bit pattern without overflow, including INT64_MIN. */
+      if (bits <= (uint64_t)INT64_MAX)
+	    return (int64_t)bits;
+      return -1 - (int64_t)(~bits);
 }
 
 bool of_IX_ADD(vthread_t thr, vvp_code_t cp)
@@ -22812,9 +22814,36 @@ bool of_STORE_PROP_V_I(vthread_t thr, vvp_code_t cp)
  */
 bool of_STORE_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
 {
-      unsigned pid    = cp->number;
+      uint64_t pid_raw = cp->number;
       unsigned bitoff = cp->bit_idx[0];
       unsigned wid    = cp->bit_idx[1];
+
+      const vvp_vector4_t*top = thr->safe_peek_vec4(0);
+      if (wid == 0 || !top || top->size() < wid
+          || thr->object_stack_size() < 1) {
+            fprintf(stderr,
+                    "%sVVP error: malformed %%store/prop/v/bits stack or "
+                    "width metadata (wid=%u, vec4=%zu, object=%zu); "
+                    "operands not consumed.\n",
+                    thr->get_fileline().c_str(), wid,
+                    top ? (size_t)top->size() : 0,
+                    thr->object_stack_size());
+            return false;
+      }
+
+      vvp_object_t&obj = thr->peek_object();
+      fixed_prop_receiver_t recv = {
+            obj.peek<vvp_cobject>(), obj.peek<vvp_vinterface>()
+      };
+      const class_type*defn = recv.defn();
+      if ((!obj.test_nil() && !defn)
+          || (defn && pid_raw >= defn->property_count())) {
+            fprintf(stderr,
+                    "%sVVP error: malformed %%store/prop/v/bits receiver or "
+                    "property index (pid=%" PRIu64 "); operands not consumed.\n",
+                    thr->get_fileline().c_str(), pid_raw);
+            return false;
+      }
 
       vvp_vector4_t new_val;
       pop_prop_val(thr, new_val, wid);
@@ -22824,24 +22853,27 @@ bool of_STORE_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
 	 are preserved. Both a virtual interface and a plain class object
 	 (vvp_cobject) expose the same get_vec4/set_vec4 property API; a null
 	 receiver is a no-op (matches the other %store/prop handlers). */
-      vvp_object_t&obj = thr->peek_object();
-      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
-      vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      if (!vif && !cobj)
+      if (!defn)
 	    return true;
 
+      size_t pid = (size_t)pid_raw;
       vvp_vector4_t current;
-      if (vif) vif->get_vec4(pid, current, 0);
-      else     cobj->get_vec4(pid, current, 0);
+      recv.get_vec4(pid, current, 0);
 
-      /* Merge new_val bits into current at [bitoff .. bitoff+wid-1]. */
+      /* Merge new_val bits into current at [bitoff .. bitoff+wid-1].
+       * Widen before adding so UINT32_MAX offsets cannot wrap to bit zero. */
+      bool have_overlap = false;
       for (unsigned i = 0; i < wid; i++) {
-	    if (bitoff + i < current.size())
-		  current.set_bit(bitoff + i, new_val.value(i));
+	    uint64_t pos = (uint64_t)bitoff + (uint64_t)i;
+	    if (pos < current.size()) {
+		  current.set_bit((unsigned)pos, new_val.value(i));
+		  have_overlap = true;
+	    }
       }
+      if (!have_overlap)
+	    return true;
 
-      if (vif) vif->set_vec4(pid, current, 0);
-      else     cobj->set_vec4(pid, current, 0);
+      recv.set_vec4(pid, current, 0);
       notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
                                   thr->peek_object_root(0), "store-prop-bits");
       return true;
@@ -22903,49 +22935,114 @@ bool of_ASSIGN_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
 }
 
 /*
- * %store/prop/v/bits/x <pid>, <off_reg>, <wid>
+ * %store/prop/v/bits/x  <pid>, <off_reg>, <wid>
+ * %store/prop/v/bits/ux <pid>, <off_reg>, <wid>
  *
  * As %store/prop/v/bits, but the destination bit offset is taken at run
  * time from index register <off_reg> (thr->words[off_reg]) rather than
  * being an assembled literal. This is the read-modify-write path for a
  * VARIABLE bit-select or indexed part-select of a vector property, e.g.
- * `obj.m_bits[i +: 4] = ...`. Bits that fall outside the property vector
- * (including a negative computed offset) are dropped, matching the
- * no-op semantics of an out-of-bounds part-select.
+ * `obj.m_bits[i +: 4] = ...`. The /x spelling interprets the register as
+ * signed; /ux interprets all 64 bits as an unsigned offset. Bits that fall
+ * outside the property vector are dropped, matching the no-op semantics of
+ * an out-of-bounds part-select.
  */
-bool of_STORE_PROP_V_BITSX(vthread_t thr, vvp_code_t cp)
+static bool store_prop_v_bitsx_(vthread_t thr, vvp_code_t cp,
+                                bool signed_offset)
 {
-      unsigned pid     = cp->number;
+      const char*opcode = signed_offset ? "%store/prop/v/bits/x"
+                                         : "%store/prop/v/bits/ux";
+      uint64_t pid_raw = cp->number;
       unsigned off_reg = cp->bit_idx[0];
       unsigned wid     = cp->bit_idx[1];
+
+      const vvp_vector4_t*top = thr->safe_peek_vec4(0);
+      if (off_reg >= vthread_s::WORDS_COUNT || wid == 0 || !top
+          || top->size() < wid || thr->object_stack_size() < 1) {
+            fprintf(stderr,
+                    "%sVVP error: malformed %s operands or stacks "
+                    "(off_reg=%u, wid=%u, vec4=%zu, object=%zu); "
+                    "operands not consumed.\n",
+                    thr->get_fileline().c_str(), opcode, off_reg, wid,
+                    top ? (size_t)top->size() : 0,
+                    thr->object_stack_size());
+            return false;
+      }
+
+      vvp_object_t&obj = thr->peek_object();
+      fixed_prop_receiver_t recv = {
+            obj.peek<vvp_cobject>(), obj.peek<vvp_vinterface>()
+      };
+      const class_type*defn = recv.defn();
+      if ((!obj.test_nil() && !defn)
+          || (defn && pid_raw >= defn->property_count())) {
+            fprintf(stderr,
+                    "%sVVP error: malformed %s receiver or property index "
+                    "(pid=%" PRIu64 "); operands not consumed.\n",
+                    thr->get_fileline().c_str(), opcode, pid_raw);
+            return false;
+      }
 
       vvp_vector4_t new_val;
       pop_prop_val(thr, new_val, wid);
 
-      assert(off_reg < vthread_s::WORDS_COUNT);
-      long bitoff = thr->words[off_reg].w_int;
-
-      vvp_object_t&obj = thr->peek_object();
-      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
-      vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      if (!vif && !cobj)
+	/* %ix/vec4 records an X/Z or overflowing offset in flag 4. Such a
+	 * packed-select l-value is a no-op; never let its integer placeholder
+	 * (normally zero) alias a real property bit. */
+      if (thr->flags[4] != BIT4_0)
 	    return true;
 
+      if (!defn)
+	    return true;
+
+      size_t pid = (size_t)pid_raw;
       vvp_vector4_t current;
-      if (vif) vif->get_vec4(pid, current, 0);
-      else     cobj->get_vec4(pid, current, 0);
+      recv.get_vec4(pid, current, 0);
 
-      for (unsigned i = 0; i < wid; i++) {
-	    long pos = bitoff + (long)i;
-	    if (pos >= 0 && (size_t)pos < current.size())
-		  current.set_bit((unsigned)pos, new_val.value(i));
+	/* Compute overlap without signed addition: extreme dynamic offsets are
+	 * legal no-op writes and must not trigger signed-overflow UB. */
+      bool have_overlap = false;
+      if (!signed_offset || thr->words[off_reg].w_int >= 0) {
+	    uint64_t base = thr->words[off_reg].w_uint;
+	    for (unsigned i = 0; i < wid; i++) {
+		  if ((uint64_t)i > UINT64_MAX - base)
+			continue;
+		  uint64_t pos = base + (uint64_t)i;
+		  if (pos < current.size()) {
+			current.set_bit((unsigned)pos, new_val.value(i));
+			have_overlap = true;
+		  }
+	    }
+      } else {
+	    int64_t bitoff = thr->words[off_reg].w_int;
+	    uint64_t below = (uint64_t)(-(bitoff + 1)) + 1;
+	    for (unsigned i = 0; i < wid; i++) {
+		  if ((uint64_t)i < below)
+			continue;
+		  uint64_t pos = (uint64_t)i - below;
+		  if (pos < current.size()) {
+			current.set_bit((unsigned)pos, new_val.value(i));
+			have_overlap = true;
+		  }
+	    }
       }
+      if (!have_overlap)
+	    return true;
 
-      if (vif) vif->set_vec4(pid, current, 0);
-      else     cobj->set_vec4(pid, current, 0);
+      recv.set_vec4(pid, current, 0);
       notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
                                   thr->peek_object_root(0), "store-prop-bits-x");
       return true;
+}
+
+bool of_STORE_PROP_V_BITSX(vthread_t thr, vvp_code_t cp)
+{
+      return store_prop_v_bitsx_(thr, cp, true);
+}
+
+bool of_STORE_PROP_V_BITSUX(vthread_t thr, vvp_code_t cp)
+{
+      return store_prop_v_bitsx_(thr, cp, false);
 }
 
 template <typename ELEM, class QTYPE>

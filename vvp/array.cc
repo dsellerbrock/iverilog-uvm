@@ -1669,6 +1669,29 @@ bool vvp_array_port_store(vvp_net_t*net, const vvp_vector4_t&value)
       return true;
 }
 
+/* A fixed-array read port carries the element's declared run-time type. This
+ * matters for object arrays (including arrays of virtual interfaces): routing
+ * an object word through get_word(vec4) both loses the handle and asks the
+ * object-backed darray for an unsupported conversion. Keep the dispatch in one
+ * place so address changes and word-change notifications use identical
+ * semantics for static and automatic ports. */
+static void send_array_port_word_(vvp_array_t array, vvp_net_t*net,
+				  unsigned long address,
+				  vvp_context_t context)
+{
+      if (vpi_array_is_real(array)) {
+	    net->send_real(array->get_word_r(address), context);
+      } else if (vpi_array_is_string(array)) {
+	    net->send_string(array->get_word_str(address), context);
+      } else if (vpi_array_is_object(array)) {
+	    vvp_object_t value;
+	    array->get_word_obj(address, value);
+	    net->send_object(value, context);
+      } else {
+	    net->send_vec4(array->get_word(address), context);
+      }
+}
+
 class vvp_fun_arrayport_sa  : public vvp_fun_arrayport {
 
     public:
@@ -1725,10 +1748,7 @@ void vvp_fun_arrayport_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit
 	    addr_valid_flag = vector4_to_value(bit, addr_);
 	    if (! addr_valid_flag)
 		  addr_ = arr_->get_size();
-	    if (vpi_array_is_real(arr_))
-		  port.ptr()->send_real(arr_->get_word_r(addr_), 0);
-	    else
-		  port.ptr()->send_vec4(arr_->get_word(addr_), 0);
+	    send_array_port_word_(arr_, port.ptr(), addr_, 0);
 
 	    break;
 
@@ -1774,12 +1794,7 @@ void vvp_fun_arrayport_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit
 void vvp_fun_arrayport_sa::check_word_change(unsigned long addr)
 {
       if (addr != addr_) return;
-
-      if (vpi_array_is_real(arr_)) {
-	    net_->send_real(arr_->get_word_r(addr_), 0);
-      } else {
-	    net_->send_vec4(arr_->get_word(addr_), 0);
-      }
+      send_array_port_word_(arr_, net_, addr_, 0);
 }
 
 class vvp_fun_arrayport_aa  : public vvp_fun_arrayport, public automatic_hooks_s {
@@ -1859,17 +1874,11 @@ void vvp_fun_arrayport_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit
 
             switch (port.port()) {
 
-                case 0: // Address input
-                  addr_valid_flag = vector4_to_value(bit, *addr);
-                  if (! addr_valid_flag) *addr = arr_->get_size();
-                  if (vpi_array_is_real(arr_)) {
-			port.ptr()->send_real(arr_->get_word_r(*addr),
-					      context);
-                  } else {
-			port.ptr()->send_vec4(arr_->get_word(*addr),
-					      context);
-                  }
-                  break;
+		case 0: // Address input
+		  addr_valid_flag = vector4_to_value(bit, *addr);
+		  if (! addr_valid_flag) *addr = arr_->get_size();
+		  send_array_port_word_(arr_, port.ptr(), *addr, context);
+		  break;
 
                 default:
                   fprintf(stdout, "XXXX write ports not implemented.\n");
@@ -1892,12 +1901,7 @@ void vvp_fun_arrayport_aa::check_word_change_(unsigned long addr,
 
       if (addr != *port_addr)
 	    return;
-
-      if (vpi_array_is_real(arr_)) {
-	    net_->send_real(arr_->get_word_r(addr), context);
-      } else {
-	    net_->send_vec4(arr_->get_word(addr), context);
-      }
+      send_array_port_word_(arr_, net_, addr, context);
 }
 
 void vvp_fun_arrayport_aa::check_word_change(unsigned long addr)
@@ -1921,18 +1925,22 @@ static void array_attach_port(vvp_array_t array, vvp_fun_arrayport*fun)
       array->ports_ = fun;
       if (!array->get_scope()->is_automatic() &&
           (array->vals4 || array->vals)) {
-              /* propagate initial values for variable arrays */
-            if (!vpi_array_is_real(array)) {
-                  vvp_bit4_t init;
-                  if (array->vals4)
-                      init = BIT4_X;
-                  else
-                      init = BIT4_0;
-                  vvp_vector4_t tmp(array->vals_width, init);
-                  schedule_init_propagate(fun->net_, tmp);
-            } else {
-                  schedule_init_propagate(fun->net_, 0.0);
-            }
+	      /* propagate initial values for variable arrays */
+	    if (vpi_array_is_real(array)) {
+		  schedule_init_propagate(fun->net_, 0.0);
+	    } else if (vpi_array_is_string(array)) {
+		  schedule_init_propagate(fun->net_, std::string());
+	    } else if (vpi_array_is_object(array)) {
+		  schedule_init_propagate(fun->net_, vvp_object_t());
+	    } else {
+		  vvp_bit4_t init;
+		  if (array->vals4)
+		      init = BIT4_X;
+		  else
+		      init = BIT4_0;
+		  vvp_vector4_t tmp(array->vals_width, init);
+		  schedule_init_propagate(fun->net_, tmp);
+	    }
       }
 }
 

@@ -178,6 +178,7 @@ bool dll_target::make_assign_lvals_(const NetAssignBase*net)
       stmt_cur_->u_.assign_.lval_ =
 	    dll_procedure_new_array<struct ivl_lval_s>(cnt);
       stmt_cur_->u_.assign_.rval_  = 0;
+      stmt_cur_->u_.assign_.force_link_rval_ = 0;
       stmt_cur_->u_.assign_.aux_   = 0;
       stmt_cur_->u_.assign_.oper   = 0;
 
@@ -781,6 +782,17 @@ bool dll_target::proc_force(const NetForce*net)
       rval->expr_scan(this);
       stmt_cur_->u_.assign_.rval_ = expr_;
       expr_ = 0;
+
+      const NetExpr*link_rval = net->force_link_rval();
+      assert(link_rval);
+      if (link_rval == rval) {
+	    stmt_cur_->u_.assign_.force_link_rval_ =
+		  stmt_cur_->u_.assign_.rval_;
+      } else {
+	    link_rval->expr_scan(this);
+	    stmt_cur_->u_.assign_.force_link_rval_ = expr_;
+	    expr_ = 0;
+      }
 
       return true;
 }

@@ -505,6 +505,26 @@ void propagate_real_event_s::single_step_display(void)
       cerr << "propagate_real_event: Propagate val=" << val << endl;
 }
 
+/* Typed initial propagation for fixed-array read ports. String and object
+ * ports must not be seeded through the vec4 channel: doing so gives an
+ * anyedge receiver the wrong run-time value kind before its first real word
+ * update. */
+struct propagate_string_event_s : public event_s {
+      vvp_net_t*net;
+      std::string val;
+      void run_run(void) override { net->send_string(val, 0); }
+      void single_step_display(void) override
+      { cerr << "propagate_string_event: Propagate val=" << val << endl; }
+};
+
+struct propagate_object_event_s : public event_s {
+      vvp_net_t*net;
+      vvp_object_t val;
+      void run_run(void) override { net->send_object(val, 0); }
+      void single_step_display(void) override
+      { cerr << "propagate_object_event: Propagate object" << endl; }
+};
+
 struct assign_array_r_word_s  : public event_s {
       vvp_array_t mem;
       unsigned adr;
@@ -1332,6 +1352,22 @@ void schedule_init_propagate(vvp_net_t*net, vvp_vector4_t bit)
 void schedule_init_propagate(vvp_net_t*net, double bit)
 {
       struct propagate_real_event_s*cur = new struct propagate_real_event_s;
+      cur->net = net;
+      cur->val = bit;
+      schedule_init_event(cur);
+}
+
+void schedule_init_propagate(vvp_net_t*net, const std::string&bit)
+{
+      propagate_string_event_s*cur = new propagate_string_event_s;
+      cur->net = net;
+      cur->val = bit;
+      schedule_init_event(cur);
+}
+
+void schedule_init_propagate(vvp_net_t*net, const vvp_object_t&bit)
+{
+      propagate_object_event_s*cur = new propagate_object_event_s;
       cur->net = net;
       cur->val = bit;
       schedule_init_event(cur);

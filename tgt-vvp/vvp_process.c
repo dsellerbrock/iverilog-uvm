@@ -23,6 +23,7 @@
 # include  <stdlib.h>
 # include  <stdbool.h>
 # include  <limits.h>
+# include  <inttypes.h>
 
 unsigned local_count = 0;
 unsigned thread_count = 0;
@@ -541,6 +542,31 @@ static int show_stmt_assign_nb(ivl_statement_t net)
       unsigned nevents = ivl_stmt_nevent(net);
 
       show_stmt_file_line(net, "Nonblocking assignment.");
+
+	/* The generic vec4 NBA lowering below assumes every l-value is an
+	 * ordinary signal. IVL exports concatenation members rightmost first,
+	 * so checking only member zero misses a class/interface property on the
+	 * source-left side and emits a malformed vector assignment for its object
+	 * carrier. Validate all members before evaluating the r-value or emitting
+	 * any event-control/NBA store. Supporting this form requires scheduling
+	 * one atomic RHS snapshot across both property and vector destinations. */
+      if (ivl_stmt_lvals(net) > 1) {
+	    for (unsigned idx = 0; idx < ivl_stmt_lvals(net); idx += 1) {
+		  ivl_lval_t item = ivl_stmt_lval(net, idx);
+		  ivl_signal_t item_sig = ivl_lval_sig(item);
+		  if (ivl_lval_property_idx(item) >= 0
+		      || ivl_lval_nest(item)
+		      || (item_sig
+			  && ivl_signal_data_type(item_sig) == IVL_VT_CLASS)) {
+			fprintf(stderr, "%s:%u: vvp.tgt error: a concatenated "
+				"nonblocking assignment containing a class or "
+				"interface property is not yet supported atomically "
+				"in the NBA region.\n",
+				ivl_stmt_file(net), ivl_stmt_lineno(net));
+			return 1;
+		  }
+	    }
+      }
 
 	/* If we have an event control build the control structure. */
       if (nevents) {
@@ -1922,7 +1948,7 @@ static int show_stmt_force(ivl_statement_t net)
             force_vector_to_lval(net);
       }
 
-      force_link_rval(net, rval);
+      force_link_rval(net, ivl_stmt_force_link_rval(net));
 
       return 0;
 }
@@ -2371,7 +2397,7 @@ static int show_stmt_trigger_arr(ivl_statement_t net)
 {
       unsigned base = ivl_stmt_evarr_base(net);
       unsigned count = ivl_stmt_evarr_count(net);
-      unsigned long packed = ((unsigned long)base << 32) | (unsigned long)count;
+      uint64_t packed = ((uint64_t)base << 32) | (uint64_t)count;
       int is_nb = (ivl_statement_type(net) == IVL_ST_NB_TRIGGER_ARR);
 
       show_stmt_file_line(net, "Named-event array element trigger.");
@@ -2386,11 +2412,12 @@ static int show_stmt_trigger_arr(ivl_statement_t net)
 		  draw_expr_into_idx(expr, use_dly);
 	    else
 		  fprintf(vvp_out, "    %%ix/load %d, 0, 0;\n", use_dly);
-	    fprintf(vvp_out, "    %%evt/arr/nb %lu, %d, %d;\n",
+	    fprintf(vvp_out, "    %%evt/arr/nb %" PRIu64 ", %d, %d;\n",
 		    packed, use_idx, use_dly);
 	    clr_word(use_dly);
       } else {
-	    fprintf(vvp_out, "    %%evt/arr %lu, %d;\n", packed, use_idx);
+	    fprintf(vvp_out, "    %%evt/arr %" PRIu64 ", %d;\n",
+		    packed, use_idx);
       }
       clr_word(use_idx);
       return 0;
@@ -2405,13 +2432,14 @@ static int show_stmt_wait_arr(ivl_statement_t net, ivl_scope_t sscope)
 {
       unsigned base = ivl_stmt_evarr_base(net);
       unsigned count = ivl_stmt_evarr_count(net);
-      unsigned long packed = ((unsigned long)base << 32) | (unsigned long)count;
+      uint64_t packed = ((uint64_t)base << 32) | (uint64_t)count;
 
       show_stmt_file_line(net, "Named-event array element wait (@).");
 
       int use_idx = allocate_word();
       draw_expr_into_idx(ivl_stmt_evarr_index(net), use_idx);
-      fprintf(vvp_out, "    %%wait/arr %lu, %d;\n", packed, use_idx);
+      fprintf(vvp_out, "    %%wait/arr %" PRIu64 ", %d;\n",
+	      packed, use_idx);
       clr_word(use_idx);
 
       return show_statement(ivl_stmt_sub_stmt(net), sscope);
