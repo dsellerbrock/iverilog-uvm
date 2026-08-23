@@ -1,0 +1,8 @@
+vvp: malformed %fill/dar/obj/vec4 stack underflow (need vec4/real/string/object 1/0/0/1, have 0/0/0/0); fill ignored.
+vvp: malformed %fill/dar/obj/real stack underflow (need vec4/real/string/object 0/1/0/1, have 0/0/0/0); fill ignored.
+vvp: malformed %fill/dar/obj/str stack underflow (need vec4/real/string/object 0/0/1/1, have 0/0/0/0); fill ignored.
+vvp: malformed %fill/dar/obj/obj stack underflow (need vec4/real/string/object 0/0/0/2, have 0/0/0/0); fill ignored.
+vvp: malformed %fill/dar/obj/vec4 receiver is not a dynamic array; fill ignored.
+vvp: malformed %fill/dar/obj/obj receiver is not a dynamic array; fill ignored.
+vvp: malformed %fill/dar/obj/vec4 value width 1 does not match element width 4; fill ignored.
+vvp: malformed %fill/dar/obj/vec4 value width 1 does not match element width 4; fill ignored.

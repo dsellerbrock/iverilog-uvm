@@ -21831,6 +21831,125 @@ static void thread_peek(vthread_t thr, vvp_vector4_t&value)
       value = thr->peek_vec4(0);
 }
 
+/* Fill the dynamic array at the top of the object stack with the scalar at
+ * the top of its value stack. new[N]('{default:value}) uses this compact
+ * operation so a run-time N does not need generated loop bytecode and a
+ * large constant N does not duplicate the initializer expression. */
+template <typename ELEM>
+static bool fill_dar_obj(vthread_t thr, const char*opcode)
+{
+      ELEM value;
+      thread_peek(thr, value);
+
+      vvp_object_t&top = thr->peek_object();
+      vvp_darray*darray = top.peek<vvp_darray>();
+      if (!darray) {
+	    fprintf(stderr, "vvp: malformed %s receiver is not a dynamic "
+		    "array; fill ignored.\n", opcode);
+	    return true;
+	}
+
+      for (size_t idx = 0 ; idx < darray->get_size() ; idx += 1)
+	    darray->set_word((unsigned)idx, value);
+
+      notify_mutated_object_root_(thr, top, thr->peek_object_source_net(0),
+				  thr->peek_object_root(0), "fill-dar-obj");
+      return true;
+}
+
+static bool fill_dar_stack_operands_(vthread_t thr, const char*opcode,
+				      size_t vec4_need, size_t real_need,
+				      size_t str_need, size_t obj_need)
+{
+      if (thr->vec4_stack_size() >= vec4_need
+	  && thr->real_stack_size() >= real_need
+	  && thr->str_stack_size() >= str_need
+	  && thr->object_stack_size() >= obj_need)
+	    return true;
+
+      fprintf(stderr,
+	    "vvp: malformed %s stack underflow (need vec4/real/string/object "
+	    "%zu/%zu/%zu/%zu, have %zu/%zu/%zu/%zu); fill ignored.\n",
+	    opcode, vec4_need, real_need, str_need, obj_need,
+	    thr->vec4_stack_size(), thr->real_stack_size(),
+	    thr->str_stack_size(), thr->object_stack_size());
+      return false;
+}
+
+bool of_FILL_DAR_OBJ_REAL(vthread_t thr, vvp_code_t cp)
+{
+      (void)cp;
+      if (!fill_dar_stack_operands_(thr, "%fill/dar/obj/real",
+				    0, 1, 0, 1))
+	    return true;
+      return fill_dar_obj<double>(thr, "%fill/dar/obj/real");
+}
+
+bool of_FILL_DAR_OBJ_STR(vthread_t thr, vvp_code_t cp)
+{
+      (void)cp;
+      if (!fill_dar_stack_operands_(thr, "%fill/dar/obj/str",
+				    0, 0, 1, 1))
+	    return true;
+      return fill_dar_obj<string>(thr, "%fill/dar/obj/str");
+}
+
+bool of_FILL_DAR_OBJ_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      (void)cp;
+      if (!fill_dar_stack_operands_(thr, "%fill/dar/obj/vec4",
+				    1, 0, 0, 1))
+	    return true;
+
+      vvp_darray*darray = thr->peek_object().peek<vvp_darray>();
+      if (darray) {
+	    unsigned expected = darray->vec4_word_width();
+	    unsigned actual = thr->peek_vec4(0).size();
+	    if (!expected) {
+		  fprintf(stderr, "vvp: malformed %%fill/dar/obj/vec4 receiver "
+			  "does not have integral elements; fill ignored.\n");
+		  return true;
+	    }
+	    if (actual != expected) {
+		  fprintf(stderr, "vvp: malformed %%fill/dar/obj/vec4 value "
+			  "width %u does not match element width %u; fill "
+			  "ignored.\n", actual, expected);
+		  return true;
+	    }
+      }
+      return fill_dar_obj<vvp_vector4_t>(thr, "%fill/dar/obj/vec4");
+}
+
+/* Object-backed array elements include both reference-semantic class handles
+ * and value-semantic aggregates/containers. value_copy_element() preserves
+ * a class handle while making the independent copy required for a struct,
+ * dynamic array, or associative-array value in each destination slot. */
+bool of_FILL_DAR_OBJ_OBJ(vthread_t thr, vvp_code_t)
+{
+      if (!fill_dar_stack_operands_(thr, "%fill/dar/obj/obj",
+				    0, 0, 0, 2))
+	    return true;
+
+      vvp_darray*darray = thr->peek_object(1).peek<vvp_darray>();
+      if (!darray) {
+	    fprintf(stderr, "vvp: malformed %%fill/dar/obj/obj receiver is not "
+		    "a dynamic array; fill ignored.\n");
+	    return true;
+      }
+
+      vvp_object_t value;
+      thr->pop_object(value);
+
+      vvp_object_t&top = thr->peek_object();
+
+      for (size_t idx = 0 ; idx < darray->get_size() ; idx += 1)
+	    darray->set_word((unsigned)idx, value.value_copy_element());
+
+      notify_mutated_object_root_(thr, top, thr->peek_object_source_net(0),
+				  thr->peek_object_root(0), "fill-dar-obj-obj");
+      return true;
+}
+
 /* Phase 63b/runtime-cleanup: silently absorb vec4-into-object-queue
  * code-gen mismatches.  See store_dar() for the rationale. */
 template<typename ELEM>

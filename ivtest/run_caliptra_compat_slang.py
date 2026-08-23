@@ -4,7 +4,7 @@
 The case labels distinguish standard agreement from two deliberate
 compatibility boundaries: a Caliptra hierarchical-cross extension and known
 Slang disagreements with the IEEE text. Run this script through the repository
-resource wrapper so Slang and all descendants remain within the campaign caps.
+resource wrapper so Slang and its descendants retain the campaign CPU guard.
 """
 
 import argparse
@@ -24,6 +24,16 @@ CASES = (
         4,
         0,
         ("numeric literals must not start with a leading underscore",) * 4,
+        (),
+    ),
+    ("sv_darray_new_default_fill", "standard", 0, 0, (), ()),
+    ("sv_darray_new_default_runtime_size", "standard", 0, 0, (), ()),
+    (
+        "sv_darray_new_default_type_fail",
+        "standard",
+        1,
+        0,
+        ("cannot be assigned to type 'int'",),
         (),
     ),
     ("sv_covergroup_bin_iff", "standard", 0, 0, (), ()),

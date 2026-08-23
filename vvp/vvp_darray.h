@@ -84,6 +84,10 @@ class vvp_darray : public vvp_object {
 
       virtual size_t get_size(void) const =0;
 
+	// Width accepted by the vec4 get/set interface for integral storage.
+	// Zero identifies a non-integral element representation.
+      virtual unsigned vec4_word_width(void) const { return 0; }
+
       virtual void set_word(unsigned adr, const vvp_vector4_t&value);
       virtual void get_word(unsigned adr, vvp_vector4_t&value);
 
@@ -226,6 +230,8 @@ template <class TYPE> class vvp_darray_atom : public vvp_darray {
       ~vvp_darray_atom() override;
 
       size_t get_size(void) const override;
+      unsigned vec4_word_width(void) const override
+      { return 8*sizeof(TYPE); }
       void set_word(unsigned adr, const vvp_vector4_t&value) override;
       void get_word(unsigned adr, vvp_vector4_t&value) override;
       void shallow_copy(const vvp_object*obj) override;
@@ -248,6 +254,7 @@ class vvp_darray_vec4 : public vvp_darray {
       ~vvp_darray_vec4() override;
 
       size_t get_size(void) const override;
+      unsigned vec4_word_width(void) const override { return word_wid_; }
       void set_word(unsigned adr, const vvp_vector4_t&value) override;
       void get_word(unsigned adr, vvp_vector4_t&value) override;
       void shallow_copy(const vvp_object*obj) override;
@@ -267,6 +274,7 @@ class vvp_darray_vec2 : public vvp_darray {
       ~vvp_darray_vec2() override;
 
       size_t get_size(void) const override;
+      unsigned vec4_word_width(void) const override { return word_wid_; }
       void set_word(unsigned adr, const vvp_vector4_t&value) override;
       void get_word(unsigned adr, vvp_vector4_t&value) override;
       void shallow_copy(const vvp_object*obj) override;

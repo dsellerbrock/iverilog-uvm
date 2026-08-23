@@ -21595,13 +21595,50 @@ NetExpr* PENewArray::elaborate_expr(Design*des, NetScope*scope,
       width_mode_t mode = LOSSLESS;
       unsigned use_wid = size_->test_width(des, scope, mode);
       NetExpr*size = size_->elaborate_expr(des, scope, use_wid, flags);
+      if (!size)
+	    return nullptr;
       NetExpr*init_val = 0;
 
-      if (dynamic_cast<PEAssignPattern*> (init_)) {
+      if (PEAssignPattern*pattern = dynamic_cast<PEAssignPattern*> (init_)) {
+	      /* IEEE 1800-2017 7.5.1 and 10.9.1: in new[N]
+	       * ('{default:value}), the new array supplies the assignment
+	       * pattern's size. The default therefore covers every one of the N
+	       * elements, including when N is known only at run time. Preserve a
+	       * typed internal marker so the VVP target can evaluate the value in
+	       * element context and fill the allocated array without expanding a
+	       * potentially large pattern in the netlist. */
+	    if (PExpr*dflt = pattern->lone_default_()) {
+		  const netarray_t*array_type =
+			dynamic_cast<const netarray_t*> (ntype);
+		  if (!array_type) {
+			cerr << get_fileline() << ": internal error: new array "
+			     << "constructor target has no dynamic-array element "
+			     << "type." << endl;
+			des->errors += 1;
+			delete size;
+			return nullptr;
+		  }
+
+		  ivl_type_t elem_type = array_type->element_type();
+		  NetExpr*value = elaborate_rval_expr(des, scope, elem_type,
+					       dflt, flags & NEED_CONST);
+		  if (!value) {
+			delete size;
+			return nullptr;
+		  }
+
+		  NetESFunc*fill = new NetESFunc("$ivl_darray_default_fill",
+					       ntype, 1);
+		  fill->parm(0, value);
+		  fill->set_line(*pattern);
+		  init_val = fill;
+
+	    } else {
 	      // Special case: the initial value expression is an
 	      // array_pattern. Elaborate the expression like the
 	      // r-value to an assignment to array.
-	    init_val = init_->elaborate_expr(des, scope, ntype, flags);
+		  init_val = init_->elaborate_expr(des, scope, ntype, flags);
+	    }
 
       } else if (init_) {
 	      // Regular case: The initial value is an

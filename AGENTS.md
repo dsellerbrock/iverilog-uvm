@@ -50,14 +50,13 @@
   Icarus install trees are Rosetta-era x86_64 artifacts, and Homebrew's arm64
   Icarus is the wrong semantic revision even though its architecture matches.
 - Run compiler/simulator commands through
-  `../evidence/arm64-tooling/resource-runner`, or through the peak-reporting
-  native wrapper under `../evidence/caliptra-leading-underscore-20260816/`.
-  Do not execute the old sv-tests runner by its broken x86-era shebang. Retain
-  the 45-second CPU guard, but do not impose a compiler RSS ceiling for the
-  current campaign: set `RESOURCE_RUNNER_RSS_LIMIT_BYTES=9223372036854775807`
-  when using a legacy wrapper that otherwise supplies a default cap. Observe
-  memory and investigate genuinely abnormal growth instead of terminating a
-  legitimate large elaboration at a fixed byte threshold.
+  `../evidence/arm64-tooling/resource-runner`. Do not execute the old sv-tests
+  runner by its broken x86-era shebang, or a historical peak-reporting wrapper
+  unless abnormal growth is being investigated deliberately. The
+  shared ARM64 runner retains the 45-second CPU guard and has no compiler RSS
+  ceiling. Do not invoke a legacy wrapper that supplies a default memory cap.
+  Observe memory and investigate genuinely abnormal growth instead of
+  terminating a legitimate large elaboration at a fixed byte threshold.
 - OpenTitan pins FuseSoC 2.4.5. Invoke `scripts/opentitan_matrix.py` with the
   Python from the same tool environment and pass it through
   `--fusesoc-python`; do not replace a virtual-environment `python` symlink

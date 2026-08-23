@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_darray_new_default_runtime_size.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_darray_new_default_runtime_size"
+}
