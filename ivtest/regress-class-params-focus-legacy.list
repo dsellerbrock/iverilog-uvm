@@ -15,3 +15,4 @@ sv_param_class_scoped_static_lvalue_special_rhs normal,-g2012 ivltests gold=sv_p
 sv_param_class_typedef_static_property normal,-g2012 ivltests gold=sv_param_class_typedef_static_property.gold
 sv_param_class_randomize_hooks normal,-g2012 ivltests gold=sv_param_class_randomize_hooks.gold
 sv_param_class_randomize_hook_task_fail CE,-g2012 ivltests gold=sv_param_class_randomize_hook_task_fail.gold
+sv_param_class_builtin_property_type normal,-g2012 ivltests gold=sv_param_class_builtin_property_type.gold

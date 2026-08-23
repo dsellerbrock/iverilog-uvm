@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_param_class_builtin_property_type.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_param_class_builtin_property_type"
+}

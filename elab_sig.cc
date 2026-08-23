@@ -164,6 +164,14 @@ static ivl_type_t elaborate_class_property_type_(Design*des, NetScope*class_scop
 	if (const typeref_t*type_ref = dynamic_cast<const typeref_t*>(prop_type)) {
 	    typedef_t*td = type_ref->typedef_ref();
 	    if (td && !type_ref->parameter_values() && seen.insert(td).second) {
+		  /* mailbox, semaphore and process are represented by synthetic
+		   * typedefs whose declaration payload is only a parser placeholder.
+		   * Unwrapping that payload as an ordinary alias turns the builtin
+		   * class into an unresolved type parameter and eventually into int.
+		   * Recover the canonical builtin before following user aliases. */
+		  if (netclass_t*builtin = builtin_class_type(td->name))
+			return builtin;
+
 		  /* This branch deliberately unwraps the typedef so an array
 		   * alias can be rebuilt around a late-resolved class element.
 		   * Elaborate that borrowed declaration in the typedef's own
