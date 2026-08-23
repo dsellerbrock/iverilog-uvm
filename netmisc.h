@@ -550,6 +550,23 @@ bool eval_as_double(double&value, NetExpr*expr);
  * host-long truncation and, in particular, never negates INT64_MIN. */
 uint64_t verinum_signed_magnitude(const verinum&value, bool&negative);
 
+/* Exact intersection of a constant-base indexed part select with a packed
+ * carrier. source_base is the first replacement bit that survives clipping;
+ * destination_base is the first carrier bit written. A zero width means the
+ * select is wholly outside the carrier. */
+struct verinum_part_select_t {
+      verinum_part_select_t()
+      : destination_base(0), source_base(0), width(0) { }
+
+      uint64_t destination_base;
+      uint64_t source_base;
+      uint64_t width;
+};
+
+verinum_part_select_t verinum_part_select_overlap(
+		const verinum&base, uint64_t select_width,
+		uint64_t carrier_width);
+
 /*
  * Evaluate an entire scope path in the context of the given scope.
  *

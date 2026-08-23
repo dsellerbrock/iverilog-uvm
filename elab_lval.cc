@@ -21,6 +21,7 @@
 # include "config.h"
 # include  <algorithm>
 # include  <cstdlib>
+# include  <sstream>
 
 # include  "PExpr.h"
 # include  "PPackage.h"
@@ -1692,6 +1693,8 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 	// width of 1.
       NetExpr*mux = elab_and_eval(des, scope, index_tail.msb, -1);
       long lsb = 0;
+      bool exact_constant_mux = false;
+      string exact_constant_text;
 
       if (mux && mux->expr_type() == IVL_VT_REAL) {
            cerr << get_fileline() << ": error: Index expression for "
@@ -1704,8 +1707,23 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
       if (const NetEConst*index_con = dynamic_cast<NetEConst*> (mux)) {
 	      // The index has a constant defined value.
 	    if (index_con->value().is_defined()) {
-		  lsb = index_con->value().as_long();
-		  mux = 0;
+		  if (reg->data_type() != IVL_VT_STRING
+		      && prefix_indices.size()+1 == reg->packed_dims().size()) {
+			ostringstream text;
+			text << index_con->value();
+			exact_constant_text = text.str();
+			mux = normalize_variable_bit_base(prefix_indices, mux, reg);
+			eval_expr(mux, -1);
+			mux->cast_signed(true);
+			const NetEConst*canonical =
+			      dynamic_cast<const NetEConst*>(mux);
+			ivl_assert(*this, canonical);
+			ivl_assert(*this, canonical->value().is_defined());
+			exact_constant_mux = true;
+		  } else {
+			lsb = index_con->value().as_long();
+			mux = 0;
+		  }
 	      // The index is undefined and this is a packed array.
 	    } else if (prefix_indices.size()+2 <= reg->packed_dims().size()) {
 		  long loff;
@@ -1819,20 +1837,53 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 	      // Non-constant bit mux. Correct the mux for the range
 	      // of the vector, then set the l-value part select
 	      // expression.
-	    if (need_const_idx) {
+	    if (need_const_idx && !exact_constant_mux) {
 		  cerr << get_fileline() << ": error: '" << reg->name()
 		       << "' bit select must be a constant in this context."
 		       << endl;
 		  des->errors += 1;
 		  return false;
 	    }
-	    mux = normalize_variable_bit_base(prefix_indices, mux, reg);
+	    if (!exact_constant_mux)
+		  mux = normalize_variable_bit_base(prefix_indices, mux, reg);
 
 	    if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
 		  ivl_assert(*this, reg->coerced_to_uwire());
-		  report_mixed_assignment_conflict_("bit select");
-		  des->errors += 1;
-		  return false;
+		  if (exact_constant_mux) {
+			const NetEConst*canonical =
+			      dynamic_cast<const NetEConst*>(mux);
+			ivl_assert(*this, canonical);
+			verinum_part_select_t overlap =
+			      verinum_part_select_overlap(
+				    canonical->value(), 1, reg->vector_width());
+			if (overlap.width > 0
+			    && reg->test_part_driven(
+				  static_cast<unsigned>(
+					overlap.destination_base),
+				  static_cast<unsigned>(
+					overlap.destination_base))) {
+			      report_mixed_assignment_conflict_("bit select");
+			      des->errors += 1;
+			      delete mux;
+			      return false;
+			}
+		  } else {
+			report_mixed_assignment_conflict_("bit select");
+			des->errors += 1;
+			return false;
+		  }
+	    }
+	    if (warn_ob_select && exact_constant_mux) {
+		  const NetEConst*canonical =
+			dynamic_cast<const NetEConst*>(mux);
+		  ivl_assert(*this, canonical);
+		  verinum_part_select_t overlap = verinum_part_select_overlap(
+			canonical->value(), 1, reg->vector_width());
+		  if (overlap.width == 0) {
+			cerr << get_fileline() << ": warning: bit select "
+			     << reg->name() << "[" << exact_constant_text
+			     << "] is out of range." << endl;
+		  }
 	    }
 
 	    lv->set_part(mux, 1);
@@ -2206,9 +2257,76 @@ bool PEIdent::elaborate_lval_net_idx_(Design*des,
 
       ivl_select_type_t sel_type = IVL_SEL_OTHER;
 
+	/* Normalize a constant in the final packed dimension with the same
+	 * width-preserving, signed expression machinery used for a run-time base.
+	 * The historical as_long()/sb_to_idx() shortcut both truncated constants
+	 * wider than the host long and represented negative canonical offsets as
+	 * unsigned constants. Folding this expression retains the exact
+	 * mathematical base for later code generation and synthesis. */
+      const NetEConst*initial_base_constant =
+	    dynamic_cast<const NetEConst*>(base);
+      if (initial_base_constant
+	  && initial_base_constant->value().is_defined()
+	  && prefix_indices.size()+1 == reg->packed_dims().size()) {
+	    ostringstream source_base_text;
+	    source_base_text << initial_base_constant->value();
+	    base = normalize_variable_part_base(
+		  prefix_indices, base, reg, wid,
+		  use_sel == index_component_t::SEL_IDX_UP);
+	    eval_expr(base, -1);
+	    base->cast_signed(true);
+	    const NetEConst*canonical_base =
+		  dynamic_cast<const NetEConst*>(base);
+	    ivl_assert(*this, canonical_base);
+	    ivl_assert(*this, canonical_base->value().is_defined());
+
+	    verinum_part_select_t overlap = verinum_part_select_overlap(
+		  canonical_base->value(), wid, reg->vector_width());
+	    if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
+		  ivl_assert(*this, reg->coerced_to_uwire());
+		  if (overlap.width > 0
+		      && reg->test_part_driven(
+			    static_cast<unsigned>(overlap.destination_base
+						 + overlap.width-1),
+			    static_cast<unsigned>(overlap.destination_base))) {
+			report_mixed_assignment_conflict_("part select");
+			des->errors += 1;
+			delete base;
+			return false;
+		  }
+	    }
+
+	    if (warn_ob_select) {
+		  bool negative = false;
+		  uint64_t magnitude = verinum_signed_magnitude(
+			canonical_base->value(), negative);
+		  uint64_t select_width = wid;
+		  uint64_t carrier_width = reg->vector_width();
+		  bool selects_before = negative;
+		  bool selects_after = negative
+			? (magnitude < select_width
+			   && select_width-magnitude > carrier_width)
+			: (magnitude >= carrier_width
+			   || select_width > carrier_width-magnitude);
+		  if (selects_before || selects_after) {
+			cerr << get_fileline() << ": warning: " << reg->name();
+			if (reg->unpacked_dimensions() > 0) cerr << "[]";
+			cerr << "[" << source_base_text.str()
+			     << (use_sel == index_component_t::SEL_IDX_UP
+				   ? "+:" : "-:") << wid << "] is selecting ";
+			if (selects_before && selects_after)
+			      cerr << "before and after vector.";
+			else if (selects_before)
+			      cerr << "before vector.";
+			else
+			      cerr << "after vector.";
+			cerr << endl;
+		  }
+	    }
+
 	// Handle the special case that the base is constant. For this
 	// case we can reduce the expression.
-      if (const NetEConst*base_c = dynamic_cast<NetEConst*> (base)) {
+      } else if (const NetEConst*base_c = dynamic_cast<NetEConst*> (base)) {
 	      // For the undefined case just let the constant pass and
 	      // we will handle it in the code generator.
 	    if (base_c->value().is_defined()) {

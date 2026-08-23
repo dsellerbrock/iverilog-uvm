@@ -1288,29 +1288,15 @@ static NetExpr*synthesis_concat_compound_leaf_(
 
 	    const NetEConst*base_constant =
 		  dynamic_cast<const NetEConst*>(base_value);
-	    long base = 0;
 	    if (base_constant && !base_constant->value().is_defined()) {
 		    // A statically X/Z select reads no available destination bits.
-	    } else if (eval_as_long(base, base_value)) {
-		  uint64_t selected_width = lval->lwidth();
-		  unsigned first = 0;
-		  uint64_t count = 0;
-		  if (base >= 0) {
-			uint64_t unsigned_base = static_cast<uint64_t>(base);
-			if (unsigned_base < full_width) {
-			      first = static_cast<unsigned>(unsigned_base);
-			      count = min(selected_width,
-					  static_cast<uint64_t>(full_width-first));
-			}
-		  } else {
-			uint64_t skipped =
-			      static_cast<uint64_t>(-(base+1)) + 1;
-			if (skipped < selected_width)
-			      count = min(selected_width-skipped,
-					  static_cast<uint64_t>(full_width));
-		  }
-		  for (uint64_t offset = 0; offset < count; offset += 1)
-			required_prior[first+static_cast<unsigned>(offset)] = true;
+	    } else if (base_constant) {
+		  verinum_part_select_t overlap =
+			verinum_part_select_overlap(base_constant->value(),
+						   lval->lwidth(), full_width);
+		  for (uint64_t offset = 0; offset < overlap.width; offset += 1)
+			required_prior[static_cast<unsigned>(
+			      overlap.destination_base+offset)] = true;
 	    } else {
 		  required_prior.assign(full_width, true);
 	    }
@@ -1548,34 +1534,15 @@ bool NetAssign::synth_async(Design*des, NetScope*scope,
 
 	    const NetEConst*base_constant =
 		  dynamic_cast<const NetEConst*>(base_value);
-	    long base = 0;
 	    if (base_constant && !base_constant->value().is_defined()) {
 		    // A statically X/Z select writes no bits.
-	    } else if (eval_as_long(base, base_value)) {
-		  /* Intersect [base, base+width) with the carrier without
-		   * evaluating base+width in signed arithmetic. Very large
-		   * constant selects are legal to elaborate, and signed overflow
-		   * here would otherwise be undefined behavior in the compiler. */
-		  uint64_t selected_width = lval->lwidth();
-		  unsigned first = 0;
-		  uint64_t count = 0;
-		  if (base >= 0) {
-			uint64_t unsigned_base = static_cast<uint64_t>(base);
-			if (unsigned_base < full_width) {
-			      first = static_cast<unsigned>(unsigned_base);
-			      count = min(selected_width,
-					  static_cast<uint64_t>(full_width-first));
-			}
-		  } else {
-			// This spelling also handles LONG_MIN without negating it.
-			uint64_t skipped =
-			      static_cast<uint64_t>(-(base+1)) + 1;
-			if (skipped < selected_width)
-			      count = min(selected_width-skipped,
-					  static_cast<uint64_t>(full_width));
-		  }
-		  for (uint64_t offset = 0; offset < count; offset += 1)
-			required_prior[first+static_cast<unsigned>(offset)] = true;
+	    } else if (base_constant) {
+		  verinum_part_select_t overlap =
+			verinum_part_select_overlap(base_constant->value(),
+						   lval->lwidth(), full_width);
+		  for (uint64_t offset = 0; offset < overlap.width; offset += 1)
+			required_prior[static_cast<unsigned>(
+			      overlap.destination_base+offset)] = true;
 	    } else {
 		  required_prior.assign(full_width, true);
 	    }
@@ -2080,33 +2047,38 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
       if (is_part_select && !scope->loop_index_tmp.empty())
 	    rsig = crop_to_width(des, rsig, lval_width);
 
-      long base_off = 0;
       bool variable_part_select = false;
-      bool clipped_constant_part_select = false;
-      unsigned clipped_base = 0;
-      unsigned clipped_width = 0;
+      bool constant_part_select = false;
+      unsigned constant_part_base = 0;
+      unsigned constant_part_width = 0;
       bool no_op_part_select = false;
       if (is_part_select) {
 	    const NetExpr*base_expr_raw = lval_->get_base();
 	    ivl_assert(*this, base_expr_raw);
 
-	    NetExpr*base_expr = 0;
-	    if (synth_context_constant(base_expr_raw,
-					 scope->loop_index_values_tmp))
-		  base_expr = base_expr_raw->evaluate_function(*this,
-							 scope->loop_index_tmp);
+	    unique_ptr<NetExpr>folded_base;
+	    const NetExpr*base_value = base_expr_raw;
+	    if (!dynamic_cast<const NetEConst*>(base_expr_raw)
+		&& synth_context_constant(base_expr_raw,
+					  scope->loop_index_values_tmp)) {
+		  folded_base.reset(base_expr_raw->evaluate_function(
+			*this, scope->loop_index_tmp));
+		  base_value = folded_base.get();
+	    }
 
 	    const NetEConst*base_constant =
-		  dynamic_cast<const NetEConst*>(base_expr);
+		  dynamic_cast<const NetEConst*>(base_value);
 	    bool undefined_constant_base = base_constant
 		  && !base_constant->value().is_defined();
-	    bool constant_base = !undefined_constant_base
-		  && eval_as_long(base_off, base_expr);
-	    delete base_expr;
-	    if (undefined_constant_base) {
+	    verinum_part_select_t overlap;
+	    if (base_constant && !undefined_constant_base)
+		  overlap = verinum_part_select_overlap(
+			base_constant->value(), lval_width, lsig_width);
+	    if (undefined_constant_base
+		|| (base_constant && overlap.width == 0)) {
 		    // A compile-time X/Z packed index selects no bit. Preserve the
-		    // accumulated value and write mask exactly as for an out-of-range
-		    // constant select.
+		    // accumulated value and write mask, just as for a defined constant
+		    // whose exact interval is wholly out of range.
 		  rsig = nex_out.pin(ptr).nexus()->pick_any_net();
 		  if (!rsig) {
 			const netvector_t*tmp_type =
@@ -2118,11 +2090,39 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 			connect(rsig->pin(0), nex_out.pin(ptr));
 		  }
 		  no_op_part_select = true;
-	    } else if (constant_base && base_off >= 0
-		&& static_cast<unsigned long>(base_off) + lval_width <= lsig_width) {
-		  ivl_variable_type_t tmp_data_type = rsig->data_type();
+	    } else if (base_constant) {
+		  NetNet*replacement = rsig;
+		  bool complete_replacement = overlap.source_base == 0
+			&& overlap.width == rsig->vector_width();
+		  if (!complete_replacement) {
+			if (overlap.source_base >= rsig->vector_width()
+			    || overlap.width > rsig->vector_width()
+					       - overlap.source_base) {
+			      cerr << get_fileline() << ": error: synthesized packed "
+				      "l-value replacement is narrower than its "
+				      "constant overlapping select." << endl;
+			      des->errors += 1;
+			      return false;
+			}
+
+			NetPartSelect*select = new NetPartSelect(
+			      rsig, static_cast<unsigned>(overlap.source_base),
+			      static_cast<unsigned>(overlap.width),
+			      NetPartSelect::VP);
+			select->set_line(*this);
+			des->add_node(select);
+			const netvector_t*replacement_type = new netvector_t(
+			      rsig->data_type(),
+			      static_cast<unsigned>(overlap.width)-1, 0);
+			replacement = new NetNet(scope, scope->local_symbol(),
+						NetNet::WIRE, replacement_type);
+			replacement->local_flag(true);
+			replacement->set_line(*this);
+			connect(replacement->pin(0), select->pin(0));
+		  }
+
 		  const netvector_t*tmp_type =
-			new netvector_t(tmp_data_type, lsig_width-1, 0);
+			new netvector_t(lsig->data_type(), lsig_width-1, 0);
 		  NetNet*tmp = new NetNet(scope, scope->local_symbol(),
 					  NetNet::WIRE, tmp_type);
 		  tmp->local_flag(true);
@@ -2137,26 +2137,17 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 			connect(isig->pin(0), nex_out.pin(ptr));
 		  }
 		  NetSubstitute*ps =
-			new NetSubstitute(isig, rsig, lsig_width, base_off);
+			new NetSubstitute(isig, replacement, lsig_width,
+					  static_cast<unsigned>(
+						overlap.destination_base));
 		  ps->set_line(*this);
 		  des->add_node(ps);
 		  connect(ps->pin(0), tmp->pin(0));
 		  rsig = tmp;
-	    } else if (constant_base
-		       && (base_off >= static_cast<long>(lsig_width)
-			   || base_off + static_cast<long>(lval_width) <= 0)) {
-		    // A statically non-overlapping procedural select writes no bits.
-		  rsig = nex_out.pin(ptr).nexus()->pick_any_net();
-		  if (!rsig) {
-			const netvector_t*tmp_type =
-			      new netvector_t(lsig->data_type(), lsig_width-1, 0);
-			rsig = new NetNet(scope, scope->local_symbol(),
-					  NetNet::WIRE, tmp_type);
-			rsig->local_flag(true);
-			rsig->set_line(*this);
-			connect(rsig->pin(0), nex_out.pin(ptr));
-		  }
-		  no_op_part_select = true;
+		  constant_part_select = true;
+		  constant_part_base = static_cast<unsigned>(
+			overlap.destination_base);
+		  constant_part_width = static_cast<unsigned>(overlap.width);
 	    } else {
 		  const netvector_t*tmp_type =
 			new netvector_t(lsig->data_type(), lsig_width-1, 0);
@@ -2177,19 +2168,7 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 			des->errors += 1;
 			return false;
 		  }
-		  if (constant_base) {
-			long overlap_base = max(base_off, 0L);
-			long overlap_end = min(
-			      base_off + static_cast<long>(lval_width),
-			      static_cast<long>(lsig_width));
-			ivl_assert(*this, overlap_end > overlap_base);
-			clipped_constant_part_select = true;
-			clipped_base = static_cast<unsigned>(overlap_base);
-			clipped_width = static_cast<unsigned>(overlap_end
-						       - overlap_base);
-		  } else {
-			variable_part_select = true;
-		  }
+		  variable_part_select = true;
 	    }
       }
 
@@ -2215,20 +2194,12 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 	    if (bitmask.size() == 0)
 		  bitmask = mask_t(lsig_width, false);
 	    ivl_assert(*this, bitmask.size() == lsig_width);
-      } else if (clipped_constant_part_select) {
+      } else if (constant_part_select) {
 	    if (bitmask.size() == 0)
 		  bitmask = mask_t(lsig_width, false);
 	    ivl_assert(*this, bitmask.size() == lsig_width);
-	    for (unsigned idx = 0; idx < clipped_width; idx += 1)
-		  bitmask[clipped_base + idx] = true;
-      } else if (is_part_select) {
-	    if (bitmask.size() == 0) {
-		  bitmask = mask_t (lsig_width, false);
-	    }
-	    ivl_assert(*this, bitmask.size() == lsig_width);
-	    for (unsigned idx = 0; idx < lval_width; idx += 1) {
-		  bitmask[base_off + idx] = true;
-	    }
+	    for (unsigned idx = 0; idx < constant_part_width; idx += 1)
+		  bitmask[constant_part_base + idx] = true;
       } else if (bitmask.size() > 0) {
 	    for (unsigned idx = 0; idx < bitmask.size(); idx += 1) {
 		  bitmask[idx] = true;
@@ -2242,15 +2213,11 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 	    if (variable_part_select) {
 		  record_synthesized_write(*this, write_nexus, 0, lsig_width,
 					   lsig->data_type());
-	    } else if (clipped_constant_part_select) {
+	    } else if (constant_part_select) {
 		  record_synthesized_write(*this, write_nexus,
-					   clipped_base, clipped_width,
+					   constant_part_base,
+					   constant_part_width,
 					   lsig->data_type());
-	    } else if (is_part_select) {
-		  ivl_assert(*this, base_off >= 0);
-		  record_synthesized_write(*this, write_nexus,
-					   static_cast<unsigned>(base_off),
-					   lval_width, lsig->data_type());
 	    } else {
 		  record_synthesized_write(*this, write_nexus, 0, lsig_width,
 					   lsig->data_type());

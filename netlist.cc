@@ -1394,14 +1394,18 @@ bool NetNet::test_part_procedurally_driven(unsigned msb, unsigned lsb,
 		    // Run-time offset: could be anywhere.
 		  return true;
 
-	    long off = bc->value().as_long();
-	    long wid = (long)lv->lwidth();
-	    if (wid <= 0)
+	    uint64_t select_width = lv->lwidth();
+	    if (select_width == 0)
 		  return true;
 
-	    long l_lo = off;
-	    long l_hi = off + wid - 1;
-	    if (l_hi >= (long)lsb && l_lo <= (long)msb)
+	    verinum_part_select_t overlap = verinum_part_select_overlap(
+		  bc->value(), select_width, vector_width());
+	    if (overlap.width == 0)
+		  continue;
+
+	    uint64_t overlap_last = overlap.destination_base
+		  + overlap.width - 1;
+	    if (overlap_last >= lsb && overlap.destination_base <= msb)
 		  return true;
       }
 

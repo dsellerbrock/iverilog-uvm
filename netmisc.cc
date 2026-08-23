@@ -533,8 +533,11 @@ NetExpr *normalize_variable_base(NetExpr *base, long msb, long lsb,
 	    offset -= lsb;
 	    if (!is_up)  // E.g. down_vect[msb_base_expr -: width_expr]
 		  offset -= wid - 1;
-	      // There is no need to calculate 0 + base.
-	    if (offset == 0) return base;
+	      /* A canonical packed offset is consumed as a signed run-time
+	       * quantity. Do not return an unsigned base directly even for zero
+	       * offset: values above INT64_MAX would otherwise alias negative
+	       * offsets in the VVP index register. */
+	    if (offset == 0 && base->has_sign()) return base;
       }
 
 	// Calculate the space needed for the offset.
@@ -542,9 +545,11 @@ NetExpr *normalize_variable_base(NetExpr *base, long msb, long lsb,
 	// Get the width of the base expression.
       unsigned base_wid = base->expr_width();
 
-	// If the result could be negative, then we need to do signed math
-	// to get the location value correct.
-      bool add_base_sign = !base->has_sign() && (offset < 0 || (msb_lo && off_wid <= base_wid));
+	/* Canonical packed offsets are signed mathematical values. Give every
+	 * unsigned source base an explicit leading zero before the internal
+	 * normalization arithmetic, both to represent a negative normalized
+	 * result and to distinguish UINT64_MAX from -1 in a signed index slot. */
+      bool add_base_sign = !base->has_sign();
 
 	// If base is signed, we must add a sign bit to offset as well.
       bool add_off_sign = offset >= 0 && (base->has_sign() || add_base_sign);
@@ -2087,8 +2092,19 @@ uint64_t verinum_signed_magnitude(const verinum&value, bool&negative)
 
       negative = value.has_sign() && value.len() > 0
 	    && value.get(value.len()-1) == verinum::V1;
-      if (!negative)
-	    return value.as_ulong64();
+      if (!negative) {
+	    uint64_t magnitude = 0;
+	    bool overflow = false;
+	    for (unsigned idx = 0; idx < value.len(); idx += 1) {
+		  if (value.get(idx) != verinum::V1)
+			continue;
+		  if (idx < 64)
+			magnitude |= uint64_t(1) << idx;
+		  else
+			overflow = true;
+	    }
+	    return overflow ? ~uint64_t(0) : magnitude;
+      }
 
 	/* Form the magnitude of a two's-complement negative number without
 	 * converting it to a host signed type. Copy through the least-significant
@@ -2109,6 +2125,31 @@ uint64_t verinum_signed_magnitude(const verinum&value, bool&negative)
 		  overflow = true;
       }
       return overflow ? ~uint64_t(0) : magnitude;
+}
+
+verinum_part_select_t verinum_part_select_overlap(
+		const verinum&base, uint64_t select_width,
+		uint64_t carrier_width)
+{
+      verinum_part_select_t result;
+      bool negative = false;
+      uint64_t magnitude = verinum_signed_magnitude(base, negative);
+
+      if (negative) {
+	      /* [-m, -m+select_width) overlaps the carrier only after the
+	       * first m replacement bits have fallen below bit zero. */
+	    if (magnitude >= select_width)
+		  return result;
+	    result.source_base = magnitude;
+	    result.width = min(select_width-magnitude, carrier_width);
+	    return result;
+      }
+
+      if (magnitude >= carrier_width)
+	    return result;
+      result.destination_base = magnitude;
+      result.width = min(select_width, carrier_width-magnitude);
+      return result;
 }
 
 bool eval_as_double(double&value, NetExpr*expr)
