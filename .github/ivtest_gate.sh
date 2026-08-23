@@ -81,6 +81,9 @@ if [ -z "$runtime_vvp" ] \
         bash tests/vvp_runtime/run_rand_mode_stack_underflow.sh \
         > "$WORK/vvp-runtime.log" 2>&1 \
    || ! VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_darray_default_fill_malformed.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! VVP="$runtime_vvp" \
         bash tests/vvp_runtime/run_covgrp_metadata.sh \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! VVP="$runtime_vvp" \

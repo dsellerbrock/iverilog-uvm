@@ -1,2 +1,5 @@
 sv_task_localparam_untyped normal,-g2012 ivltests gold=sv_task_localparam_untyped.gold
 sv_based_literal_leading_underscore normal,-g2012 ivltests gold=sv_based_literal_leading_underscore.gold
+sv_darray_new_default_fill normal,-g2012 ivltests gold=sv_darray_new_default_fill.gold
+sv_darray_new_default_runtime_size normal,-g2012 ivltests gold=sv_darray_new_default_runtime_size.gold
+sv_darray_new_default_type_fail CE,-g2012 ivltests gold=sv_darray_new_default_type_fail.gold

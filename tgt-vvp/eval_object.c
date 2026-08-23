@@ -300,7 +300,59 @@ static int eval_darray_new(ivl_expr_t ex)
 
       darray_new(element_type, size_reg);
 
-      if (init_expr && ivl_expr_type(init_expr)==IVL_EX_ARRAY_PATTERN) {
+      if (init_expr && ivl_expr_type(init_expr) == IVL_EX_SFUNC
+	  && ivl_expr_name(init_expr)
+	  && strcmp(ivl_expr_name(init_expr),
+		    "$ivl_darray_default_fill") == 0) {
+	    if (ivl_expr_parms(init_expr) != 1) {
+		  fprintf(stderr, "%s:%u: internal error: malformed dynamic-array "
+			  "default-fill marker\n",
+			  ivl_expr_file(init_expr), ivl_expr_lineno(init_expr));
+		  return 1;
+	    }
+
+	    ivl_expr_t value = ivl_expr_parm(init_expr, 0);
+	    switch (ivl_type_base(element_type)) {
+		case IVL_VT_BOOL:
+		case IVL_VT_LOGIC: {
+		      unsigned wid = ivl_type_packed_width(element_type);
+		      draw_eval_vec4(value);
+		      resize_vec4_wid(value, wid);
+		      if (ivl_type_base(element_type) == IVL_VT_BOOL
+			  && ivl_expr_value(value) != IVL_VT_BOOL)
+			    fprintf(vvp_out, "    %%cast2;\n");
+		      fprintf(vvp_out, "    %%fill/dar/obj/vec4;\n");
+		      fprintf(vvp_out, "    %%pop/vec4 1;\n");
+		      break;
+		}
+		case IVL_VT_REAL:
+		      draw_eval_real(value);
+		      fprintf(vvp_out, "    %%fill/dar/obj/real;\n");
+		      fprintf(vvp_out, "    %%pop/real 1;\n");
+		      break;
+		case IVL_VT_STRING:
+		      draw_eval_string(value);
+		      fprintf(vvp_out, "    %%fill/dar/obj/str;\n");
+		      fprintf(vvp_out, "    %%pop/str 1;\n");
+		      break;
+		case IVL_VT_CLASS:
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		case IVL_VT_NO_TYPE: {
+		      int errors = draw_eval_object(value);
+		      fprintf(vvp_out, "    %%fill/dar/obj/obj;\n");
+		      return errors;
+		}
+		default:
+		      fprintf(stderr, "%s:%u: internal error: unsupported "
+			      "dynamic-array default-fill element type %d\n",
+			      ivl_expr_file(init_expr),
+			      ivl_expr_lineno(init_expr),
+			      (int)ivl_type_base(element_type));
+		      return 1;
+	    }
+
+      } else if (init_expr && ivl_expr_type(init_expr)==IVL_EX_ARRAY_PATTERN) {
 	    unsigned idx;
 	    switch (ivl_type_base(element_type)) {
 		case IVL_VT_BOOL:
