@@ -3187,7 +3187,18 @@ static void elaborate_scope_task(Design*des, NetScope*scope, PTask*task)
 {
       hname_t use_name( task->pscope_name() );
 
-      NetScope*task_scope = new NetScope(scope, use_name, NetScope::TASK);
+      NetScope*task_scope = scope->child(use_name);
+	// Class specialization can resolve a package subroutine before the
+	// package's ordinary subroutine pass reaches it. Keep that lazily
+	// materialized scope: replacing it would strand its procedure graph on
+	// objects that are no longer reachable through the scope tree.
+      if (task_scope && task_scope->type() == NetScope::TASK
+          && task_scope->task_pform() == task)
+	    return;
+
+      if (!task_scope || task_scope->type() != NetScope::TASK
+          || task_scope->task_pform())
+	    task_scope = new NetScope(scope, use_name, NetScope::TASK);
       task_scope->is_auto(task->is_auto());
       task_scope->is_virtual_method(task_scope->is_virtual_method()
 				     || task->is_virtual_method());
@@ -3219,7 +3230,16 @@ static void elaborate_scope_func(Design*des, NetScope*scope, PFunction*task)
 {
       hname_t use_name( task->pscope_name() );
 
-      NetScope*task_scope = new NetScope(scope, use_name, NetScope::FUNC);
+      NetScope*task_scope = scope->child(use_name);
+	// Match the task path above. Package functions can also be materialized
+	// by an early class/type lookup and must remain the canonical scope.
+      if (task_scope && task_scope->type() == NetScope::FUNC
+          && task_scope->func_pform() == task)
+	    return;
+
+      if (!task_scope || task_scope->type() != NetScope::FUNC
+          || task_scope->func_pform())
+	    task_scope = new NetScope(scope, use_name, NetScope::FUNC);
       task_scope->is_auto(task->is_auto());
       task_scope->is_virtual_method(task_scope->is_virtual_method()
 				     || task->is_virtual_method());

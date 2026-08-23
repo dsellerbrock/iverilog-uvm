@@ -1663,6 +1663,7 @@ sv_queue_suffix_slice_lvalue_type_fail CE,-g2012 ivltests gold=sv_queue_suffix_s
 sv_package_self_queue_methods normal,-g2012 ivltests gold=sv_package_self_queue_methods.gold
 sv_param_class_static_container_method normal,-g2012 ivltests gold=sv_param_class_static_container_method.gold
 sv_package_self_class_method_collision normal,-g2012 ivltests gold=sv_package_self_class_method_collision.gold
+sv_package_lazy_subroutine_scope CO,-g2012,-uvm ivltests
 sv_class_local_struct_shadows_outer_type normal,-g2012 ivltests gold=sv_class_local_struct_shadows_outer_type.gold
 sv_class_local_value_shadows_outer_type_fail CE,-g2012 ivltests gold=sv_class_local_value_shadows_outer_type_fail.gold
 sv_class_static_const_init normal,-g2012 ivltests gold=sv_class_static_const_init.gold
