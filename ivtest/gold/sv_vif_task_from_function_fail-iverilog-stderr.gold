@@ -1,0 +1,2 @@
+ivltests/sv_vif_task_from_function_fail.v:13: error: Functions cannot enable/call tasks.
+1 error(s) during elaboration.

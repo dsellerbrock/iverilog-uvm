@@ -655,6 +655,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%unbox/real", of_UNBOX_REAL,0,{OA_NONE,    OA_NONE,    OA_NONE} },
       { "%unbox/str",  of_UNBOX_STR, 0,{OA_NONE,    OA_NONE,    OA_NONE} },
       { "%unbox/vec4", of_UNBOX_VEC4,1,{OA_NUMBER,  OA_NONE,    OA_NONE} },
+      { "%vif/fatal", of_VIF_FATAL, 0,{OA_NONE,     OA_NONE,    OA_NONE} },
       { "%vif/tickchg",of_VIF_TICKCHG,1,{OA_NUMBER, OA_NONE,    OA_NONE} },
       { "%wait",   of_WAIT,   1,  {OA_FUNC_PTR, OA_NONE,     OA_NONE} },
       { "%wait/arr",of_WAIT_ARR,2,{OA_NUMBER,  OA_BIT1,     OA_NONE} },

@@ -1,0 +1,3 @@
+./ivltests/sv_vif_input_array_method_fail.v:18: sorry: virtual-interface method input argument 1 ('values') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.
+./ivltests/sv_vif_input_array_method_fail.v:18: warning: Enable of unknown task ``vif.consume'' ignored (compile-progress fallback).
+1 error(s) during elaboration.

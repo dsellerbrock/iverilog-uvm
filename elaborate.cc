@@ -10280,6 +10280,353 @@ static NetProc* elaborate_scope_randomize_task_(
       return sys;
 }
 
+/* Find an elaborated interface method scope without depending on the
+ * representative scope cached on netclass_t. Interface types are commonly
+ * first referenced while packages are elaborated, before that cache is
+ * attached, but the completed scope tree still contains the declaration
+ * scopes needed to elaborate default arguments. */
+static void collect_interface_method_scopes_recurse_(
+		NetScope*scope, perm_string interface_name,
+		perm_string method_name, vector<NetScope*>&methods)
+{
+      if (!scope)
+	    return;
+
+      if (scope->type() == NetScope::MODULE
+	  && scope->module_name() == interface_name) {
+	    if (NetScope*method = scope->child(hname_t(method_name)))
+		  methods.push_back(method);
+      }
+
+      for (const auto&child : scope->children()) {
+	    collect_interface_method_scopes_recurse_(
+		  child.second, interface_name, method_name, methods);
+      }
+}
+
+static vector<NetScope*> collect_interface_method_scopes_(
+		Design*des, perm_string interface_name,
+		perm_string method_name)
+{
+      vector<NetScope*>methods;
+      if (!des)
+	    return methods;
+      for (NetScope*root : des->find_root_scopes()) {
+	    collect_interface_method_scopes_recurse_(
+		  root, interface_name, method_name, methods);
+      }
+      return methods;
+}
+
+static void collect_nested_interface_method_scopes_recurse_(
+		NetScope*scope, perm_string outer_name,
+		perm_string nested_name, perm_string method_name,
+		vector<NetScope*>&methods)
+{
+      if (!scope)
+	    return;
+
+      if (scope->type() == NetScope::MODULE
+	  && scope->module_name() == outer_name) {
+	    NetScope*nested = scope->child(hname_t(nested_name));
+	    if (nested && nested->type() == NetScope::MODULE) {
+		  if (NetScope*method = nested->child(hname_t(method_name)))
+			methods.push_back(method);
+	    }
+      }
+
+      for (const auto&child : scope->children()) {
+	    collect_nested_interface_method_scopes_recurse_(
+		  child.second, outer_name, nested_name, method_name, methods);
+      }
+}
+
+static vector<NetScope*> collect_nested_interface_method_scopes_(
+		Design*des, perm_string outer_name,
+		perm_string nested_name, perm_string method_name)
+{
+      vector<NetScope*>methods;
+      if (!des)
+	    return methods;
+      for (NetScope*root : des->find_root_scopes()) {
+	    collect_nested_interface_method_scopes_recurse_(
+		  root, outer_name, nested_name, method_name, methods);
+      }
+      return methods;
+}
+
+struct interface_method_pform_info_t {
+      const PTaskFunc*method;
+      bool is_task;
+};
+
+static interface_method_pform_info_t find_interface_method_pform_(
+		Module*interface_module, perm_string method_name)
+{
+      interface_method_pform_info_t result = { nullptr, false };
+      if (!interface_module || !interface_module->is_interface)
+	    return result;
+
+      auto task_it = interface_module->tasks.find(method_name);
+      if (task_it != interface_module->tasks.end()) {
+	    result.method = task_it->second;
+	    result.is_task = true;
+	    return result;
+      }
+
+      auto func_it = interface_module->funcs.find(method_name);
+      if (func_it != interface_module->funcs.end())
+	    result.method = func_it->second;
+      return result;
+}
+
+static interface_method_pform_info_t find_interface_method_pform_(
+		perm_string interface_name, perm_string method_name)
+{
+      auto module_it = pform_modules.find(interface_name);
+      if (module_it == pform_modules.end()) {
+	    interface_method_pform_info_t result = { nullptr, false };
+	    return result;
+      }
+      return find_interface_method_pform_(module_it->second, method_name);
+}
+
+static interface_method_pform_info_t find_nested_interface_method_pform_(
+		perm_string outer_name, perm_string nested_name,
+		perm_string method_name)
+{
+      interface_method_pform_info_t result = { nullptr, false };
+      auto outer_it = pform_modules.find(outer_name);
+      if (outer_it == pform_modules.end() || !outer_it->second->is_interface)
+	    return result;
+
+      PGModule*nested_instance = dynamic_cast<PGModule*>(
+	    outer_it->second->get_gate(nested_name));
+      if (!nested_instance)
+	    return result;
+
+      auto nested_it = pform_modules.find(nested_instance->get_type());
+      if (nested_it == pform_modules.end())
+	    return result;
+      return find_interface_method_pform_(nested_it->second, method_name);
+}
+
+/* With no concrete interface instance there is no declaration NetScope from
+ * which to build an argument row. The receiver is necessarily null, but still
+ * validate the parse-form signature and explicit actuals before emitting the
+ * receiver-only runtime-fatal call. No argument row is emitted because no
+ * instance declaration scope exists and no method can be entered. */
+static void validate_uninstantiated_interface_method_call_(
+		const LineInfo&loc, Design*des, NetScope*caller_scope,
+		perm_string method_name, const PTaskFunc*method,
+		const vector<named_pexpr_t>&parms)
+{
+      if (!method)
+	    return;
+      const vector<pform_tf_port_t>*ports = method->peek_ports();
+      const unsigned count = ports ? static_cast<unsigned>(ports->size()) : 0;
+      if (parms.size() > count) {
+	    cerr << loc.get_fileline() << ": error: Too many arguments ("
+		 << parms.size() << ", expecting " << count
+		 << ") in virtual-interface method call." << endl;
+	    des->errors += 1;
+      }
+
+      vector<perm_string>names;
+      names.reserve(count);
+      if (ports) {
+	    for (const pform_tf_port_t&port : *ports)
+		  names.push_back(port.port ? port.port->basename() : perm_string());
+      }
+      vector<PExpr*>actuals = map_named_args(des, names, parms);
+      for (unsigned idx = 0 ; idx < count ; idx += 1) {
+	    const pform_tf_port_t&port = (*ports)[idx];
+	    if (actuals[idx]) {
+		  NetExpr*actual = elab_sys_task_arg(
+			des, caller_scope, method_name, idx, actuals[idx]);
+		  delete actual;
+		  continue;
+	    }
+	    if (port.defe)
+		  continue;
+	    cerr << loc.get_fileline() << ": error: Missing argument "
+		 << (idx+1) << " ('"
+		 << (port.port ? port.port->basename() : perm_string())
+		 << "') in virtual-interface method call: the formal has no "
+		    "default value." << endl;
+	    des->errors += 1;
+      }
+}
+
+/* Interface dispatch uses a synthetic system-task statement, so it cannot use
+ * elaborate_build_call_ directly. Still obtain its signature/defaults through
+ * the same declaration-scope elaboration as an ordinary subroutine call. */
+static const NetBaseDef* ensure_interface_method_def_(
+		Design*des, NetScope*method)
+{
+      if (!method)
+	    return nullptr;
+
+      if (method->type() == NetScope::TASK) {
+	    if (!method->task_def()) {
+		  if (const PTask*task = method->task_pform())
+			task->elaborate_sig(des, method);
+	    }
+	    return method->task_def();
+      }
+
+      if (method->type() == NetScope::FUNC) {
+	    if (!method->func_def()) {
+		  if (const PFunction*func = method->func_pform())
+			func->elaborate_sig(des, method);
+	    }
+	    return method->func_def();
+      }
+
+      return nullptr;
+}
+
+static bool interface_method_dynamic_signature_(
+		const LineInfo&loc, Design*des, const NetBaseDef*def,
+		bool&hard_error)
+{
+      if (!def)
+	    return false;
+      for (unsigned idx = 0 ; idx < def->port_count() ; idx += 1) {
+	    const NetNet*port = def->port(idx);
+	    if (!port || port->port_type() != NetNet::PINPUT)
+		  return false;
+	    if (port->unpacked_dimensions() > 0) {
+		  cerr << loc.get_fileline() << ": sorry: virtual-interface "
+		       << "method input argument " << (idx+1) << " ('"
+		       << port->name() << "') is a fixed unpacked array; "
+		       << "dynamic-dispatch array marshalling is not yet supported."
+		       << endl;
+		  des->errors += 1;
+		  hard_error = true;
+		  return false;
+	    }
+      }
+      return true;
+}
+
+/* Explicit actuals are caller expressions. Omitted arguments are declaration
+ * expressions: elaborate_sig_ports_ has already bound package imports,
+ * interface names and the formal's assignment context, and dup_expr keeps a
+ * nonconstant default (for example $urandom_range) executable at every call. */
+static vector<NetExpr*> elaborate_interface_method_argument_row_(
+		const LineInfo&loc, Design*des, NetScope*caller_scope,
+		const NetBaseDef*def, const vector<PExpr*>&actuals,
+		bool diagnose_missing)
+{
+      vector<NetExpr*>result;
+      if (!def)
+	    return result;
+
+      const unsigned count = def->port_count();
+      result.resize(count, nullptr);
+      for (unsigned idx = 0 ; idx < count ; idx += 1) {
+	    NetNet*port = def->port(idx);
+	    if (actuals[idx]) {
+		  ivl_type_t formal_type = port->unpacked_dimensions() > 0
+			&& port->array_type()
+			? static_cast<ivl_type_t>(port->array_type())
+			: port->net_type();
+		  result[idx] = elaborate_rval_expr(
+			des, caller_scope, formal_type, actuals[idx], false);
+		  continue;
+	    }
+
+	    if (const NetExpr*default_value = def->port_defe(idx)) {
+		  result[idx] = default_value->dup_expr();
+		  continue;
+	    }
+
+	    if (diagnose_missing) {
+		  cerr << loc.get_fileline() << ": error: Missing argument "
+		       << (idx+1) << " ('" << port->name()
+		       << "') in virtual-interface method call: the formal has no "
+			  "default value." << endl;
+		  des->errors += 1;
+	    }
+      }
+      return result;
+}
+
+/* Carry one argument row per candidate interface method. Each row is keyed by
+ * the method's complete scope name, so the target can select it by runtime VIF
+ * identity without depending on source/target traversal order. Explicit
+ * actuals are elaborated against that instance's formal type; omitted actuals
+ * clone that instance's declaration-scoped default. This is required for a
+ * default that binds an interface-local signal or an earlier formal (13.5.3). */
+static NetSTask* elaborate_dynamic_interface_method_call_(
+		const LineInfo&loc, Design*des, NetScope*caller_scope,
+		const string&call_name, NetExpr*receiver,
+		const vector<NetScope*>&methods,
+		const vector<named_pexpr_t>&parms, bool&hard_error)
+{
+      hard_error = false;
+      if (!receiver)
+	    return nullptr;
+
+      if (methods.empty()) {
+	    vector<NetExpr*>argv;
+	    argv.push_back(receiver);
+	    perm_string name = lex_strings.make(call_name.c_str());
+	    NetSTask*sys = new NetSTask(
+		  name.str(), IVL_SFUNC_AS_TASK_IGNORE, argv);
+	    sys->set_line(loc);
+	    return sys;
+      }
+
+      vector<const NetBaseDef*>defs;
+      defs.reserve(methods.size());
+      for (NetScope*method : methods) {
+	    const NetBaseDef*def = ensure_interface_method_def_(des, method);
+	    if (!interface_method_dynamic_signature_(
+		  loc, des, def, hard_error))
+		  return nullptr;
+	    defs.push_back(def);
+      }
+
+      const unsigned count = defs.front()->port_count();
+      for (const NetBaseDef*def : defs) {
+	    if (def->port_count() != count) {
+		  cerr << loc.get_fileline() << ": error: virtual-interface method "
+		       << "instances have inconsistent argument counts." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+      }
+
+      if (parms.size() > count) {
+	    cerr << loc.get_fileline() << ": error: Too many arguments ("
+		 << parms.size() << ", expecting " << count
+		 << ") in virtual-interface method call." << endl;
+	    des->errors += 1;
+      }
+      vector<PExpr*>actuals = map_named_args(des, defs.front(), parms, 0);
+
+      vector<NetExpr*>argv;
+      argv.push_back(receiver);
+      for (size_t idx = 0 ; idx < methods.size() ; idx += 1) {
+	    ostringstream key_text;
+	    key_text << scope_path(methods[idx]);
+	    NetECString*key = new NetECString(key_text.str());
+	    key->set_line(loc);
+	    argv.push_back(key);
+
+	    vector<NetExpr*>row = elaborate_interface_method_argument_row_(
+		  loc, des, caller_scope, defs[idx], actuals, idx == 0);
+	    argv.insert(argv.end(), row.begin(), row.end());
+      }
+
+      perm_string name = lex_strings.make(call_name.c_str());
+      NetSTask*sys = new NetSTask(name.str(), IVL_SFUNC_AS_TASK_IGNORE, argv);
+      sys->set_line(loc);
+      return sys;
+}
+
 NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -10302,7 +10649,7 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	 interface definition to identify the fixed nested instance and method.
 	 The outer handle remains an argument of the synthetic call so tgt-vvp
 	 can select the correct outer instance dynamically before descending to
-	 the named child (IEEE 1800-2017 25.10). */
+	 the named child (IEEE 1800-2023 25.9). */
       if (gn_system_verilog() && path_.size() >= 3) {
 	    auto method_it = std::prev(path_.end());
 	    auto nested_it = std::prev(method_it);
@@ -10350,80 +10697,43 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 			? dynamic_cast<const netclass_t*>(outer_expr_type)
 			: nullptr;
 
-		  PTaskFunc*method = nullptr;
-		  const std::vector<pform_tf_port_t>*pports = nullptr;
+		  vector<NetScope*>methods;
+		  interface_method_pform_info_t pform_method = { nullptr, false };
 		  if (outer_type && outer_type->is_interface()) {
-			auto outer_mod_it = pform_modules.find(outer_type->get_name());
-			if (outer_mod_it != pform_modules.end()
-			    && outer_mod_it->second->is_interface) {
-			      PGModule*nested_inst = dynamic_cast<PGModule*>(
-				    outer_mod_it->second->get_gate(nested_it->name));
-			      if (nested_inst) {
-				auto nested_mod_it = pform_modules.find(
-				      nested_inst->get_type());
-				if (nested_mod_it != pform_modules.end()
-				    && nested_mod_it->second->is_interface) {
-				      auto task_it = nested_mod_it->second->tasks.find(
-					    method_it->name);
-				      if (task_it != nested_mod_it->second->tasks.end())
-					    method = task_it->second;
-				      if (!method) {
-					    auto func_it = nested_mod_it->second->funcs.find(
-						  method_it->name);
-					    if (func_it != nested_mod_it->second->funcs.end())
-						  method = func_it->second;
-				      }
-				}
-			      }
-			}
+			methods = collect_nested_interface_method_scopes_(
+			      des, outer_type->get_name(), nested_it->name,
+			      method_it->name);
+			pform_method = find_nested_interface_method_pform_(
+			      outer_type->get_name(), nested_it->name,
+			      method_it->name);
 		  }
 
-		  if (method) {
-			pports = method->peek_ports();
-			bool inputs_only = true;
-			if (pports) {
-			      for (const pform_tf_port_t&pp : *pports) {
-				    if (pp.port
-					&& pp.port->get_port_type() != NetNet::PINPUT) {
-					  inputs_only = false;
-					  break;
-				    }
-			      }
-			}
-
-			if (inputs_only
-			    && (pports ? parms_.size() <= pports->size()
-				       : parms_.empty())) {
-			      std::vector<perm_string> port_names;
-			      if (pports) {
-				    for (const pform_tf_port_t&pp : *pports)
-					  port_names.push_back(pp.port
-						? pp.port->basename() : perm_string());
-			      }
-			      std::vector<PExpr*> args = map_named_args(
-				    des, port_names, parms_);
-			      std::vector<NetExpr*> argv;
-			      argv.push_back(outer_expr);
+		  if (!methods.empty() || pform_method.method) {
+			std::string call_name = "$ivl_vif_nested_call$";
+			call_name += outer_type->get_name().str();
+			call_name += "$";
+			call_name += nested_it->name.str();
+			call_name += "$";
+			call_name += method_it->name.str();
+			if (methods.empty())
+			      validate_uninstantiated_interface_method_call_(
+				    *this, des, scope, method_it->name,
+				    pform_method.method, parms_);
+			bool dynamic_error = false;
+			if (NetSTask*sys = elaborate_dynamic_interface_method_call_(
+			      *this, des, scope, call_name, outer_expr,
+			      methods, parms_, dynamic_error)) {
+			      bool is_task = methods.empty()
+				    ? pform_method.is_task
+				    : methods.front()->type() == NetScope::TASK;
+			      if (is_task)
+				    test_task_calls_ok_(des, scope);
 			      outer_expr = nullptr;
-			      for (size_t pi = 0; pi < port_names.size(); ++pi) {
-				    PExpr*arg = args[pi];
-				    if (!arg && pports)
-					  arg = (*pports)[pi].defe;
-				    argv.push_back(arg ? elab_sys_task_arg(
-					  des, scope, method_it->name, pi, arg) : nullptr);
-			      }
-
-			      std::string call_name = "$ivl_vif_nested_call$";
-			      call_name += outer_type->get_name().str();
-			      call_name += "$";
-			      call_name += nested_it->name.str();
-			      call_name += "$";
-			      call_name += method_it->name.str();
-			      perm_string cn = lex_strings.make(call_name.c_str());
-			      NetSTask*sys = new NetSTask(cn.str(),
-				    IVL_SFUNC_AS_TASK_IGNORE, argv);
-			      sys->set_line(*this);
 			      return sys;
+			}
+			if (dynamic_error) {
+			      delete outer_expr;
+			      return nullptr;
 			}
 		  }
 		  delete outer_expr;
@@ -12945,82 +13255,45 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  // a compile-progress warning and emit a noop stub so
 		  // elaboration can continue producing a VVP file.
 		  if (!class_type->scope_ready() || class_type->is_covergroup()) {
-			// Phase 54: deferred interface task dispatch.  When the
+			// Phase 54: deferred interface method dispatch. When the
 			// caller is a parameterized class body that elaborates
 			// before the interface's testbench instance scope is
-			// populated, the regular method lookup fails and we
-			// fall through here.  For interface types where the
-			// pform definition exists and contains the requested
-			// task, emit a deferred NetSTask with name
-			// "$ivl_iface_late$<iface>$<method>".  The caller-
-			// supplied arguments are passed through as parms; the
-			// task will use the .var auto-init zero defaults for
-			// any unspecified ports (sufficient for the common
-			// OpenTitan apply_reset/drive_rst_pin pattern, since
-			// `repeat (0)` is a no-op and rst_n_scheme=0 picks the
-			// sync-deassert path that still toggles rst_n).
-			// tgt-vvp recognizes the name prefix, walks the design
-			// for a unique IVL_SCT_MODULE scope whose module_name
-			// matches <iface>, finds the child task scope by
-			// basename, and emits %callf/void with the resolved
-			// scope handle.
+			// populated, the regular method lookup can fail and we
+			// fall through here. Recover every instance method scope,
+			// but retain obj_expr: the runtime handle still determines
+			// which instance is called. Reuse the ordinary receiver-first
+			// dynamic VIF protocol instead of selecting a static best/first
+			// instance (25.9).
 			if (class_type->is_interface() && gn_system_verilog()) {
-			      auto pmod_it = pform_modules.find(class_type->get_name());
-			      if (pmod_it != pform_modules.end()
-				  && pmod_it->second->is_interface) {
-				    auto task_it =
-					  pmod_it->second->tasks.find(method_name);
-				    if (task_it != pmod_it->second->tasks.end()) {
-				    PTask*ptask = task_it->second;
-				    std::string defer_name = "$ivl_iface_late$";
-				    defer_name += class_type->get_name().str();
-				    defer_name += "$";
-				    defer_name += method_name.str();
-				    std::vector<NetExpr*> argv;
-				    for (size_t pi = 0 ; pi < parms_.size() ; pi += 1) {
-					  if (!parms_[pi].parm) {
-						argv.push_back(0);
-						continue;
-					  }
-					  NetExpr*ev =
-						elab_sys_task_arg(des, scope,
-								  method_name,
-								  pi, parms_[pi].parm);
-					  argv.push_back(ev);
+			      vector<NetScope*>methods = collect_interface_method_scopes_(
+				    des, class_type->get_name(), method_name);
+			      interface_method_pform_info_t pform_method =
+				    find_interface_method_pform_(
+					  class_type->get_name(), method_name);
+			      if (!methods.empty() || pform_method.method) {
+				    std::string call_name = "$ivl_vif_call$";
+				    call_name += class_type->get_name().str();
+				    call_name += "$";
+				    call_name += method_name.str();
+				    if (methods.empty())
+					  validate_uninstantiated_interface_method_call_(
+						*this, des, scope, method_name,
+						pform_method.method, parms_);
+				    bool dynamic_error = false;
+				    if (NetSTask*sys =
+					  elaborate_dynamic_interface_method_call_(
+						*this, des, scope, call_name, obj_expr,
+						methods, parms_, dynamic_error)) {
+					  bool is_task = methods.empty()
+						? pform_method.is_task
+						: methods.front()->type() == NetScope::TASK;
+					  if (is_task)
+						test_task_calls_ok_(des, scope);
+					  return sys;
 				    }
-				    // Pad missing args with the pform default
-				    // expressions evaluated in the caller's
-				    // scope.  This preserves SV semantics where
-				    // unsupplied args use the task's declared
-				    // default (e.g. apply_reset(reset_width_clks
-				    // = $urandom_range(50, 100), ...) requires
-				    // a non-zero width or rst_n won't actually
-				    // toggle through 0 to fire negedge events).
-				    const std::vector<pform_tf_port_t>*pports =
-					  ptask->peek_ports();
-				    if (pports) {
-					  for (size_t pi = parms_.size();
-					       pi < pports->size() ; pi += 1) {
-						pform_tf_port_t pp = (*pports)[pi];
-						if (pp.defe) {
-						      NetExpr*ev =
-							    elab_sys_task_arg(
-								des, scope,
-								method_name,
-								pi, pp.defe);
-						      argv.push_back(ev);
-						} else {
-						      argv.push_back(0);
-						}
-					  }
-				    }
-				    perm_string pn = perm_string::literal(strdup(defer_name.c_str()));
-				    NetSTask*sys = new NetSTask(pn.str(),
-								IVL_SFUNC_AS_TASK_IGNORE,
-								argv);
-				    sys->set_line(*this);
-				    delete obj_expr;
-				    return sys;
+				    if (dynamic_error) {
+					  delete obj_expr;
+					  return 0;
 				    }
 			      }
 			}
@@ -13054,65 +13327,36 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 
 	    // Virtual-interface task dispatch: the resolved task lives in an
 	    // interface scope and is NOT a class method, so there is no `this`
-	    // first port (IEEE 1800-2017 25.10). The call must apply to the
+	    // first port (IEEE 1800-2023 25.9). The call must apply to the
 	    // instance the HANDLE designates, so emit the dynamic-dispatch
 	    // form $ivl_vif_call$<iface>$<method>(receiver, args...) — the
 	    // code generator compares the handle's bound scope against every
-	    // instance of the interface and calls that instance's method.
+	    // instance of the interface and calls that instance's method. The
+	    // internal payload carries one scope-keyed argument row per instance,
+	    // preserving declaration-scope defaults and instance formal types.
 	    // Tasks with output/inout/ref ports keep the legacy static call
 	    // (single attached instance): the dynamic form has no
 	    // copy-back path yet (recorded approximation).
 	    if (class_type->is_interface()) {
-		  bool inputs_only = true;
-		  auto pmod_it = pform_modules.find(class_type->get_name());
-		  const std::vector<pform_tf_port_t>*pports = nullptr;
-		  if (pmod_it != pform_modules.end()) {
-			auto task_it = pmod_it->second->tasks.find(method_name);
-			if (task_it != pmod_it->second->tasks.end())
-			      pports = task_it->second->peek_ports();
-		  }
-		  if (pports) {
-			for (const pform_tf_port_t&pp : *pports) {
-			      if (pp.port
-				  && pp.port->get_port_type() != NetNet::PINPUT) {
-				    inputs_only = false;
-				    break;
-			      }
-			}
-		  }
-		  if (inputs_only) {
+		  vector<NetScope*>methods = collect_interface_method_scopes_(
+			des, class_type->get_name(), method_name);
+		  if (!methods.empty()) {
 			std::string call_name = "$ivl_vif_call$";
 			call_name += class_type->get_name().str();
 			call_name += "$";
 			call_name += method_name.str();
-			std::vector<NetExpr*> argv;
-			argv.push_back(obj_expr);
-			if (pports) {
-			      std::vector<perm_string> port_names;
-			      for (const pform_tf_port_t&pp : *pports)
-				    port_names.push_back(pp.port
-					  ? pp.port->basename() : perm_string());
-			      std::vector<PExpr*> args = map_named_args(
-				    des, port_names, parms_);
-			      for (size_t pi = 0 ; pi < pports->size() ; pi += 1) {
-				    const pform_tf_port_t&pp = (*pports)[pi];
-				    PExpr*arg = args[pi] ? args[pi] : pp.defe;
-				    argv.push_back(arg ? elab_sys_task_arg(
-					  des, scope, method_name, pi, arg) : nullptr);
-			      }
-			} else {
-			      for (size_t pi = 0 ; pi < parms_.size() ; pi += 1) {
-				    PExpr*arg = parms_[pi].parm;
-				    argv.push_back(arg ? elab_sys_task_arg(
-					  des, scope, method_name, pi, arg) : nullptr);
-			      }
+			bool dynamic_error = false;
+			if (NetSTask*sys = elaborate_dynamic_interface_method_call_(
+			      *this, des, scope, call_name, obj_expr,
+			      methods, parms_, dynamic_error)) {
+			      if (methods.front()->type() == NetScope::TASK)
+				test_task_calls_ok_(des, scope);
+			      return sys;
 			}
-			perm_string cn = lex_strings.make(call_name.c_str());
-			NetSTask*sys = new NetSTask(cn.str(),
-						    IVL_SFUNC_AS_TASK_IGNORE,
-						    argv);
-			sys->set_line(*this);
-			return sys;
+			if (dynamic_error) {
+			      delete obj_expr;
+			      return 0;
+			}
 		  }
 		  if (net->port_type() != NetNet::NOT_A_PORT
 		      && net->unpacked_dimensions() > 0) {
@@ -13127,7 +13371,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  }
 		  static bool warned_vif_static_call = false;
 		  if (!warned_vif_static_call) {
-			cerr << get_fileline() << ": warning: interface task "
+			cerr << get_fileline() << ": warning: interface method "
 			     << method_name << " has output/inout/ref ports;"
 			     << " the call binds to a single attached instance"
 			     << " of " << class_type->get_name()

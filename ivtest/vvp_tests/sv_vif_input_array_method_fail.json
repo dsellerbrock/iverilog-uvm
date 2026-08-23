@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_vif_input_array_method_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_vif_input_array_method_fail"
+}
