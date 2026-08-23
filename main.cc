@@ -46,6 +46,9 @@ const char NOTICE[] =
 # include  <map>
 # include  <unistd.h>
 # include  <cstdlib>
+#if defined(__APPLE__)
+# include  <malloc/malloc.h>
+#endif
 #if defined(HAVE_TIMES)
 # include  <sys/times.h>
 #endif
@@ -56,12 +59,22 @@ const char NOTICE[] =
 # include  "parse_api.h"
 # include  "PGenerate.h"
 # include  "netlist.h"
+# include  "netmisc.h"
 # include  "target.h"
 # include  "compiler.h"
 # include  "discipline.h"
 # include  "t-dll.h"
 
 using namespace std;
+
+std::size_t release_unused_heap_pages()
+{
+#if defined(__APPLE__)
+      return malloc_zone_pressure_relief(0, 0);
+#else
+      return 0;
+#endif
+}
 
 #if defined(__MINGW32__) && !defined(HAVE_GETOPT_H)
 extern "C" int getopt(int argc, char*argv[], const char*fmt);
@@ -1305,14 +1318,6 @@ int main(int argc, char*argv[])
 	    assert(0);
       }
 
-	/* Done with all the pform data. Delete the modules. */
-      for (map<perm_string,Module*>::iterator idx = pform_modules.begin()
-		 ; idx != pform_modules.end() ; ++ idx ) {
-
-	    delete (*idx).second;
-	    (*idx).second = 0;
-      }
-
       if (verbose_flag) {
 	    if (times_flag) {
 		  times(cycles+2);
@@ -1357,6 +1362,28 @@ int main(int argc, char*argv[])
 		      <<cycles_diff(cycles+3, cycles+2)<<" seconds."<<endl;
 	    }
       }
+
+	/* Target emission only consumes the elaborated Net* graph. Release
+	 * behavioral parse trees after every post-elaboration functor and dump,
+	 * but before the target constructs its second representation. */
+      pform_release_elaboration_memory();
+
+	/* Done with the top-level module containers. Task/function descriptors
+	 * remain separately allocated because target metadata borrows them. */
+      for (map<perm_string,Module*>::iterator idx = pform_modules.begin()
+		 ; idx != pform_modules.end() ; ++ idx ) {
+	    delete (*idx).second;
+	    (*idx).second = 0;
+      }
+
+      /* Name resolution is complete before target emission. Its global cache
+       * owns path/result containers accumulated across elaboration and is not
+       * consulted by any target callback. */
+      symbol_search_cache_clear();
+      des->release_elaboration_caches();
+      release_elaboration_specialization_caches();
+      netmisc_release_elaboration_caches();
+      release_unused_heap_pages();
 
       if (verbose_flag) {
 	    cout << "CODE GENERATION" << endl;

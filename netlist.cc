@@ -163,30 +163,32 @@ Link* find_next_output(Link*lnk)
 
 void NetPins::devirtualize_pins(void)
 {
+      ivl_assert(*this, !connectivity_released_());
       if (pins_) return;
-      if (npins_ > array_size_limit) {
-	    cerr << get_fileline() << ": error: pin count " << npins_ <<
-		" exceeds " << array_size_limit <<
-		" (set by -pARRAY_SIZE_LIMIT)" << endl;
-	    ivl_assert(*this, 0);
+      const unsigned count = pin_count();
+      if (count > array_size_limit) {
+            cerr << get_fileline() << ": error: pin count " << count <<
+                " exceeds " << array_size_limit <<
+                " (set by -pARRAY_SIZE_LIMIT)" << endl;
+            ivl_assert(*this, 0);
       }
-      if (debug_optimizer && npins_ > 1000) cerr << "debug: devirtualizing " << npins_ << " pins." << endl;
+      if (debug_optimizer && count > 1000) cerr << "debug: devirtualizing " << count << " pins." << endl;
 
-      pins_ = new Link[npins_];
+      pins_ = new Link[count];
       pins_[0].pin_zero_ = true;
       pins_[0].node_ = this;
       pins_[0].dir_  = default_dir_;
 
-      for (unsigned idx = 1 ;  idx < npins_ ;  idx += 1) {
-	    pins_[idx].pin_zero_ = false;
-	    pins_[idx].pin_      = idx;
-	    pins_[idx].dir_      = default_dir_;
+      for (unsigned idx = 1 ;  idx < count ;  idx += 1) {
+            pins_[idx].pin_zero_ = false;
+            pins_[idx].pin_      = idx;
+            pins_[idx].dir_      = default_dir_;
       }
 }
 
 bool NetPins::pins_are_virtual(void) const
 {
-      return pins_ == NULL;
+      return pins_ == NULL && !connectivity_released_();
 }
 
 NetPins::NetPins(unsigned npins)
@@ -208,15 +210,17 @@ NetPins::~NetPins()
 
 Link& NetPins::pin(unsigned idx)
 {
+      ivl_assert(*this, !connectivity_released_());
       if (!pins_) devirtualize_pins();
-      if (idx >= npins_) {
-	    cerr << get_fileline() << ": internal error: pin("<<idx<<")"
-		 << " out of bounds("<<npins_<<")" << endl;
-	    cerr << get_fileline() << ":               : typeid="
-		 << typeid(*this).name() << endl;
+      const unsigned count = pin_count();
+      if (idx >= count) {
+            cerr << get_fileline() << ": internal error: pin("<<idx<<")"
+                 << " out of bounds("<<count<<")" << endl;
+            cerr << get_fileline() << ":               : typeid="
+                 << typeid(*this).name() << endl;
       }
 
-      ivl_assert(*this, idx < npins_);
+      ivl_assert(*this, idx < count);
       ivl_assert(*this, idx == 0? (pins_[0].pin_zero_ && pins_[0].node_==this) : pins_[idx].pin_==idx);
 
       return pins_[idx];
@@ -224,19 +228,21 @@ Link& NetPins::pin(unsigned idx)
 
 const Link& NetPins::pin(unsigned idx) const
 {
+      ivl_assert(*this, !connectivity_released_());
       if (!pins_ && !disable_virtual_pins) {
 	    cerr << get_fileline() << ": internal error: pin is unexpectedly"
 	      " virtual, try again with -pDISABLE_VIRTUAL_PINS=true" << endl;
 	    ivl_assert(*this, 0);
       }
       ivl_assert(*this, pins_);
-      ivl_assert(*this, idx < npins_);
+      ivl_assert(*this, idx < pin_count());
       ivl_assert(*this, idx == 0? (pins_[0].pin_zero_ && pins_[0].node_==this) : pins_[idx].pin_==idx);
       return pins_[idx];
 }
 
 void NetPins::set_default_dir(Link::DIR d)
 {
+       ivl_assert(*this, !connectivity_released_());
        default_dir_ = d;
 }
 
@@ -244,13 +250,37 @@ bool NetPins::is_linked(void) const
 {
       bool linked_flag = false;
       if (pins_ == NULL) return false;
-      for (unsigned u = 0; u < npins_; u++) {
-	    if (pins_[u].is_linked()) {
+      for (unsigned u = 0; u < pin_count(); u++) {
+            if (pins_[u].is_linked()) {
 		  linked_flag = true;
 		  break;
 	    }
       }
       return linked_flag;
+}
+
+size_t NetPins::release_terminal_connectivity()
+{
+      if (connectivity_released_())
+            return 0;
+
+      size_t released = 0;
+      if (pins_) {
+            released = pin_count();
+            for (unsigned idx = 0; idx < pin_count(); idx += 1) {
+                  if (!pins_[idx].next_)
+                        continue;
+                  Nexus*nexus = pins_[idx].find_nexus_();
+                  ivl_assert(*this, nexus);
+                  nexus->detach_all_links_();
+                  delete nexus;
+            }
+            delete[] pins_;
+            pins_ = 0;
+      }
+
+      default_dir_ = static_cast<Link::DIR>(TERMINAL_DIR_);
+      return released;
 }
 
 NetObj::NetObj(NetScope*s, perm_string n, unsigned np)
@@ -546,30 +576,13 @@ static unsigned calculate_count(const netranges_t &unpacked)
       return sum;
 }
 
-void NetNet::calculate_slice_widths_from_packed_dims_(void)
+void NetNet::calculate_slice_dims_from_net_type_()
 {
       ivl_assert(*this, net_type_);
       if (!net_type_->packed())
 	    return;
 
       slice_dims_ = net_type_->slice_dimensions();
-
-	// Special case: There are no actual packed dimensions, so
-	// build up a fake dimension of "1".
-      if (slice_dims_.empty()) {
-	    slice_wids_.resize(1);
-	    slice_wids_[0] = net_type_->packed_width();
-	    return;
-      }
-
-      slice_wids_.resize(slice_dims_.size());
-
-      ivl_assert(*this, ! slice_wids_.empty());
-      slice_wids_[0] = netrange_width(slice_dims_);
-      netranges_t::const_iterator cur = slice_dims_.begin();
-      for (size_t idx = 1 ; idx < slice_wids_.size() ; idx += 1, ++cur) {
-	    slice_wids_[idx] = slice_wids_[idx-1] / cur->width();
-      }
 }
 
 NetNet::NetNet(NetScope*s, perm_string n, Type t,
@@ -578,10 +591,10 @@ NetNet::NetNet(NetScope*s, perm_string n, Type t,
     type_(t), port_type_(NOT_A_PORT), coerced_to_uwire_(false),
     local_flag_(false), lifetime_override_(IVL_VLT_INHERITED),
     lexical_pos_(0), net_type_(use_net_type),
-    discipline_(0), unpacked_dims_(unpacked),
+    discipline_(0),
     eref_count_(0), lref_count_(0)
 {
-      calculate_slice_widths_from_packed_dims_();
+      calculate_slice_dims_from_net_type_();
 
       ivl_assert(*this, s);
       if (pin_count() == 0) {
@@ -591,8 +604,8 @@ NetNet::NetNet(NetScope*s, perm_string n, Type t,
 
       initialize_dir_();
 
-      if (!unpacked_dims_.empty())
-	    array_type_ = new netuarray_t(unpacked_dims_, net_type_);
+      if (!unpacked.empty())
+	    array_type_ = new netuarray_t(unpacked, net_type_);
 
       s->add_signal(this);
 }
@@ -605,7 +618,7 @@ NetNet::NetNet(NetScope*s, perm_string n, Type t, ivl_type_t type)
     discipline_(0),
     eref_count_(0), lref_count_(0)
 {
-      calculate_slice_widths_from_packed_dims_();
+      calculate_slice_dims_from_net_type_();
 
       initialize_dir_();
 
@@ -631,30 +644,38 @@ NetNet::~NetNet()
       if (scope())
 	    scope()->rem_signal(this);
 
+      delete target_emit_aux_;
+      target_emit_aux_ = 0;
 }
 
 void NetNet::set_net_type(ivl_type_t type)
 {
       ivl_assert(*this, type);
+
+      netuarray_t*replacement_array = array_type_
+	    ? new netuarray_t(array_type_->static_dimensions(), type) : 0;
       net_type_ = type;
       slice_dims_.clear();
-      slice_wids_.clear();
-      calculate_slice_widths_from_packed_dims_();
-      if (array_type_) {
-	    delete array_type_;
-	    array_type_ = 0;
-      }
-      if (!unpacked_dims_.empty())
-	    array_type_ = new netuarray_t(unpacked_dims_, net_type_);
+      calculate_slice_dims_from_net_type_();
+      delete array_type_;
+      array_type_ = replacement_array;
+}
+
+NetNet::target_emit_aux_t*NetNet::ensure_target_emit_aux_()
+{
+      if (!target_emit_aux_)
+	    target_emit_aux_ = new target_emit_aux_t;
+      return target_emit_aux_;
 }
 
 void NetNet::bind_interface_scope(unsigned word, NetScope*scope)
 {
       ivl_assert(*this, word < pin_count());
       ivl_assert(*this, scope);
-      if (interface_bindings_.size() < pin_count())
-            interface_bindings_.resize(pin_count());
-      interface_binding_t&binding = interface_bindings_[word];
+      target_emit_aux_t*aux = ensure_target_emit_aux_();
+      if (aux->interface_bindings.size() < pin_count())
+            aux->interface_bindings.resize(pin_count());
+      interface_binding_t&binding = aux->interface_bindings[word];
       binding.scope = scope;
       binding.signal = 0;
       binding.signal_word = 0;
@@ -666,9 +687,10 @@ void NetNet::bind_interface_signal(unsigned word, NetNet*signal,
       ivl_assert(*this, word < pin_count());
       ivl_assert(*this, signal);
       ivl_assert(*this, signal_word < signal->pin_count());
-      if (interface_bindings_.size() < pin_count())
-            interface_bindings_.resize(pin_count());
-      interface_binding_t&binding = interface_bindings_[word];
+      target_emit_aux_t*aux = ensure_target_emit_aux_();
+      if (aux->interface_bindings.size() < pin_count())
+            aux->interface_bindings.resize(pin_count());
+      interface_binding_t&binding = aux->interface_bindings[word];
       binding.scope = 0;
       binding.signal = signal;
       binding.signal_word = signal_word;
@@ -679,7 +701,8 @@ void NetNet::bind_interface_member(unsigned word, size_t property_idx,
 {
       ivl_assert(*this, word < pin_count());
       ivl_assert(*this, member);
-      interface_synthesis_members_[make_pair(word, property_idx)] = member;
+      ensure_target_emit_aux_()->interface_synthesis_members[
+            make_pair(word, property_idx)] = member;
 }
 
 NetNet* NetNet::resolve_interface_member(unsigned word,
@@ -700,16 +723,19 @@ NetNet* NetNet::resolve_interface_member(unsigned word,
             if (!interface_type || !interface_type->is_interface()
                 || property_idx >= interface_type->get_properties())
                   return 0;
+            const target_emit_aux_t*aux = signal->target_emit_aux_;
+            if (!aux)
+                  return 0;
             map<pair<unsigned,size_t>,NetNet*>::const_iterator bound_member =
-                  signal->interface_synthesis_members_.find(
+                  aux->interface_synthesis_members.find(
                         make_pair(signal_word, property_idx));
-            if (bound_member != signal->interface_synthesis_members_.end())
+            if (bound_member != aux->interface_synthesis_members.end())
                   return bound_member->second;
-            if (signal->interface_bindings_.size() <= signal_word)
+            if (aux->interface_bindings.size() <= signal_word)
                   return 0;
 
             const interface_binding_t&binding =
-                  signal->interface_bindings_[signal_word];
+                  aux->interface_bindings[signal_word];
             if (binding.scope) {
                   perm_string member_name = lex_strings.make(
                         interface_type->get_prop_name(property_idx));
@@ -1088,6 +1114,17 @@ const netarray_t* NetNet::array_type() const
       return darray_type();
 }
 
+const netranges_t& NetNet::unpacked_dims() const
+{
+      static const netranges_t no_dimensions;
+      return array_type_ ? array_type_->static_dimensions() : no_dimensions;
+}
+
+unsigned NetNet::unpacked_dimensions() const
+{
+      return array_type_ ? array_type_->static_dimensions().size() : 0;
+}
+
 /*
  * "depth" is the number of index expressions that the user is using
  * to index this identifier. So consider if Net was declared like so:
@@ -1103,11 +1140,29 @@ const netarray_t* NetNet::array_type() const
  */
 unsigned long NetNet::slice_width(size_t depth) const
 {
-      if (depth > slice_wids_.size())
+      ivl_assert(*this, net_type_);
+
+      if (!net_type_->packed())
+	    return depth == 0 ? 1 : 0;
+
+	/* Packed scalar-like types have no declared dimensions, but the old
+	 * width cache retained their packed width at depth zero and the scalar
+	 * element width at depth one. */
+      if (slice_dims_.empty()) {
+	    if (depth == 0)
+		  return net_type_->packed_width();
+	    return depth == 1 ? 1 : 0;
+      }
+
+      if (depth > slice_dims_.size())
 	    return 0;
-      if (depth == slice_wids_.size())
+      if (depth == slice_dims_.size())
 	    return 1;
-      return slice_wids_[depth];
+
+      unsigned long width = netrange_width(slice_dims_);
+      for (size_t idx = 0; idx < depth; idx += 1)
+	    width /= slice_dims_[idx].width();
+      return width;
 }
 
 ivl_discipline_t NetNet::get_discipline() const
@@ -1178,7 +1233,7 @@ bool NetNet::sb_to_slice(const list<long>&indices, long sb, long&loff, unsigned 
 
 unsigned NetNet::unpacked_count() const
 {
-      return netrange_width(unpacked_dims_);
+      return netrange_width(unpacked_dims());
 }
 
 void NetNet::incr_eref()
@@ -1360,18 +1415,54 @@ unsigned NetNet::get_refs() const
 
 void NetNet::add_delay_path(NetDelaySrc*path)
 {
-      delay_paths_.push_back(path);
+      ensure_target_emit_aux_()->delay_paths.push_back(path);
 }
 
 unsigned NetNet::delay_paths(void)const
 {
-      return delay_paths_.size();
+      return target_emit_aux_ ? target_emit_aux_->delay_paths.size() : 0;
 }
 
 const NetDelaySrc* NetNet::delay_path(unsigned idx) const
 {
-      ivl_assert(*this, idx < delay_paths_.size());
-      return delay_paths_[idx];
+      ivl_assert(*this, target_emit_aux_);
+      ivl_assert(*this, idx < target_emit_aux_->delay_paths.size());
+      return target_emit_aux_->delay_paths[idx];
+}
+
+void NetNet::add_net_delay_boundary(NetBUFZ*net)
+{
+      ensure_target_emit_aux_()->net_delay_boundaries.push_back(net);
+}
+
+const vector<NetBUFZ*>& NetNet::net_delay_boundaries() const
+{
+      static const vector<NetBUFZ*> no_boundaries;
+      return target_emit_aux_ ? target_emit_aux_->net_delay_boundaries
+	    : no_boundaries;
+}
+
+vector<NetBUFZ*>& NetNet::mutable_net_delay_boundaries()
+{
+      return ensure_target_emit_aux_()->net_delay_boundaries;
+}
+
+void NetNet::release_emitted_signal_aux()
+{
+      if (!target_emit_aux_)
+	    return;
+
+      vector<NetDelaySrc*>().swap(target_emit_aux_->delay_paths);
+      vector<NetBUFZ*>().swap(target_emit_aux_->net_delay_boundaries);
+
+	/* Interface properties can still be resolved while later task/function
+	 * definitions and processes are converted. Retain those two containers,
+	 * but avoid keeping an otherwise empty auxiliary record. */
+      if (target_emit_aux_->interface_bindings.empty()
+	  && target_emit_aux_->interface_synthesis_members.empty()) {
+	    delete target_emit_aux_;
+	    target_emit_aux_ = 0;
+      }
 }
 
 NetPartSelect::NetPartSelect(NetNet*sig, unsigned off, unsigned wid,
@@ -2610,6 +2701,7 @@ NetBaseDef::NetBaseDef(NetScope*s, const vector<NetNet*>&po, const std::vector<N
 
 NetBaseDef::~NetBaseDef()
 {
+      release_port_defaults();
 }
 
 const NetScope* NetBaseDef::scope() const
@@ -2639,11 +2731,27 @@ NetExpr* NetBaseDef::port_defe(unsigned idx) const
       return pdefaults_[idx];
 }
 
+void NetBaseDef::release_port_defaults()
+{
+      for (vector<NetExpr*>::iterator cur = pdefaults_.begin()
+		 ; cur != pdefaults_.end() ; ++cur) {
+	    delete *cur;
+	    *cur = 0;
+      }
+      vector<NetExpr*>().swap(pdefaults_);
+}
+
 void NetBaseDef::set_proc(NetProc*st)
 {
       assert(proc_ == 0);
       assert(st != 0);
       proc_ = st;
+}
+
+void NetBaseDef::release_proc()
+{
+      delete proc_;
+      proc_ = 0;
 }
 
 const NetProc* NetBaseDef::proc() const
@@ -2975,6 +3083,8 @@ NetEEvent::NetEEvent(NetEvent*e)
 
 NetEEvent::~NetEEvent()
 {
+      assert(event_->exprref_ > 0);
+      event_->exprref_ -= 1;
 }
 
 const NetEvent* NetEEvent::event() const

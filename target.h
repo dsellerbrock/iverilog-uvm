@@ -20,6 +20,19 @@
  */
 
 # include  "netlist.h"
+# include  <vector>
+
+/* A lightweight reference used to arrange process callbacks before any
+ * target-side procedure graph is materialized. Exactly one member is set. */
+struct target_process_ref_t {
+      explicit target_process_ref_t(NetProcTop*net)
+      : net(net), analog(0) { }
+      explicit target_process_ref_t(NetAnalogTop*net)
+      : net(0), analog(net) { }
+
+      NetProcTop*net;
+      NetAnalogTop*analog;
+};
 
 /*
  * This header file describes the types and constants used to describe
@@ -84,6 +97,37 @@ struct target_t {
 
         /* Analog branches */
       virtual bool branch(const NetBranch*);
+
+	/* All scopes, signals, structural nodes and analog branches have been
+	 * exported. Structural NetNode objects may be released immediately
+	 * after their callback, so targets must use their copied connectivity. */
+      virtual bool end_nodes();
+
+	/* A target that has copied and finalized every source nexus by
+	 * end_nodes() may allow the compiler to release NetNet/NetBranch Link
+	 * arrays before converting procedural definitions. */
+      virtual bool can_release_source_connectivity() const { return false; }
+
+	/* A target whose process callbacks do not depend on task/function
+	 * definition callbacks may allow ordinary source processes to be
+	 * converted and released before those definitions. */
+      virtual bool can_emit_processes_before_definitions() const
+	    { return false; }
+
+	/* A target may use these hooks to consume each process synchronously
+	 * instead of retaining the complete procedural graph until end_design().
+	 * The default hooks preserve the historical one-shot target contract. */
+      virtual bool start_processes() { return true; }
+      virtual bool end_processes() { return true; }
+
+	/* An incremental target may request callbacks in the order it would
+	 * historically consume processes from the completed target graph. The
+	 * input starts in that legacy base order (including the reversed analog
+	 * prefix); order_processes() may apply target-specific policy using only
+	 * source metadata, before procedure lowering begins. */
+      virtual bool ordered_process_callbacks() const { return false; }
+      virtual bool order_processes(std::vector<target_process_ref_t>&)
+	    { return true; }
 
 	/* Output a defined task. */
       virtual void task_def(const NetScope*);

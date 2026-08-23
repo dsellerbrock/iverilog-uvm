@@ -2711,6 +2711,22 @@ extern DLLEXPORT const char* target_query(const char*key);
       precision and disciplines remains available. A missing hook, null
       answer, or any other value retains the full graph. */
 
+/* "stream_processes"
+      Return the exact string "true" only when the target exports all three
+      incremental entry points below. The core calls target_design_begin()
+      after definitions are materialized, target_process() synchronously for
+      each process, and target_design_end() after the last process. Missing
+      hooks or any other answer retain the historical target_design() call. */
+
+/* "order_processes"
+      An incremental target may additionally return the exact string "true"
+      when it exports target_process_order(). Before lowering any process, the
+      core supplies lightweight descriptors in the base order historically
+      observed through ivl_design_process(): reversed analog processes first,
+      followed by reversed ordinary processes. The target may permute complete
+      descriptors to apply its normal ordering policy. Subsequent
+      target_process() callbacks arrive in exactly that returned order. */
+
 /* target_design
 
    The "target_design" function is called once after the whole design
@@ -2727,6 +2743,28 @@ extern DLLEXPORT const char* target_query(const char*key);
    ivl core. This function is how the target module is invoked. */
 
 typedef int  (*target_design_f)(ivl_design_t des);
+typedef int  (*target_design_begin_f)(ivl_design_t des);
+typedef int  (*target_process_f)(ivl_process_t process);
+typedef int  (*target_design_end_f)(ivl_design_t des);
+
+typedef enum ivl_process_order_flag_e {
+      IVL_PROCESS_ORDER_ANALOG        = 0x01,
+      IVL_PROCESS_ORDER_SCHEDULE_INIT = 0x02
+} ivl_process_order_flag_t;
+
+/* The cookie identifies the source process and must remain attached to its
+ * complete descriptor. All other fields are read-only ordering metadata. */
+typedef struct ivl_process_order_s {
+      size_t cookie;
+      ivl_process_type_t type;
+      ivl_scope_t scope;
+      const char*file;
+      unsigned lineno;
+      unsigned flags;
+} ivl_process_order_s;
+
+typedef int  (*target_process_order_f)(ivl_process_order_s*processes,
+                                       size_t count);
 typedef const char* (*target_query_f) (const char*key);
 
 

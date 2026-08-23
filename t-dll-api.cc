@@ -30,9 +30,11 @@
 # include  "netqueue.h"
 # include  "netstruct.h"
 # include  "netvector.h"
+# include  <algorithm>
 # include  <cstdlib>
 # include  <cstdio>
 # include  <cstring>
+# include  <map>
 # include  <sstream>
 # include  "config.h"
 # ifdef HAVE_EXECINFO_H
@@ -43,6 +45,7 @@
 using namespace std;
 
 static StringHeap api_strings;
+static map<ivl_nexus_t,const char*> api_nexus_names;
 
 /* THE FOLLOWING ARE FUNCTIONS THAT ARE CALLED FROM THE TARGET. */
 
@@ -185,19 +188,19 @@ extern "C" ivl_expr_type_t ivl_expr_type(ivl_expr_t net)
 {
       if (net == 0)
 	    return IVL_EX_NONE;
-      return net->type_;
+      return static_cast<ivl_expr_type_t>(net->type_);
 }
 
 extern "C" const char*ivl_expr_file(ivl_expr_t net)
 {
       assert(net);
-      return net->file.str();
+      return dll_target_expr_file(net->location_);
 }
 
 extern "C" unsigned ivl_expr_lineno(ivl_expr_t net)
 {
       assert(net);
-      return net->lineno;
+      return static_cast<unsigned>(net->location_);
 }
 
 extern "C" ivl_variable_type_t ivl_const_type(ivl_net_const_t net)
@@ -228,7 +231,7 @@ extern "C" ivl_expr_t ivl_const_delay(ivl_net_const_t net, unsigned transition)
 {
       assert(net);
       assert(transition < 3);
-      return net->delay[transition];
+      return net->delay ? net->delay[transition] : 0;
 }
 
 extern "C" const char*ivl_const_file(ivl_net_const_t net)
@@ -623,7 +626,7 @@ extern "C" const char* ivl_expr_name(ivl_expr_t net)
 	    return net->u_.sfunc_.name_;
 
 	  case IVL_EX_SIGNAL:
-	    return net->u_.signal_.sig->name_;
+	    return ivl_signal_basename(net->u_.signal_.sig);
 
 	  case IVL_EX_PROPERTY:
 	      { ivl_signal_t sig = ivl_expr_signal(net);
@@ -717,7 +720,8 @@ extern "C" ivl_expr_t ivl_expr_oper2(ivl_expr_t net)
 	    return net->u_.new_.init_val;
 
 	  case IVL_EX_PROPERTY:
-	    return net->u_.property_.base;
+	    return net->property_signal_ ? 0
+		 : net->u_.property_.source.base;
 
 	  case IVL_EX_SELECT:
 	    return net->u_.select_.base_;
@@ -867,7 +871,8 @@ extern "C" ivl_signal_t ivl_expr_signal(ivl_expr_t net)
 	    return net->u_.signal_.sig;
 
 	  case IVL_EX_PROPERTY:
-	    return net->u_.property_.sig;
+	    return net->property_signal_
+		 ? net->u_.property_.source.sig : 0;
 
 	  default:
 	    assert(0);
@@ -923,7 +928,7 @@ extern "C" unsigned long ivl_expr_uvalue(ivl_expr_t net)
 extern "C" ivl_variable_type_t ivl_expr_value(ivl_expr_t net)
 {
       assert(net);
-      return net->value_;
+      return static_cast<ivl_variable_type_t>(net->value_);
 }
 
 extern "C" unsigned ivl_expr_width(ivl_expr_t net)
@@ -1151,7 +1156,7 @@ extern "C" ivl_expr_t ivl_logic_delay(ivl_net_logic_t net, unsigned transition)
 {
       assert(net);
       assert(transition < 3);
-      return net->delay[transition];
+      return net->delay ? net->delay[transition] : 0;
 }
 
 extern "C" unsigned ivl_logic_delay_is_per_bit(ivl_net_logic_t net)
@@ -1273,7 +1278,7 @@ extern "C" ivl_expr_t ivl_lpm_delay(ivl_lpm_t net, unsigned transition)
 {
       assert(net);
       assert(transition < 3);
-      return net->delay[transition];
+      return net->delay ? net->delay[transition] : 0;
 }
 
 extern "C" ivl_nexus_t ivl_lpm_async_set(ivl_lpm_t net)
@@ -1802,7 +1807,7 @@ extern "C" int ivl_lpm_signed(ivl_lpm_t net)
 	  case IVL_LPM_SUBSTITUTE:
 	    return net->u_.substitute.signed_flag;
 	  case IVL_LPM_ARRAY: // Array ports take the signedness of the array.
-	    return net->u_.array.sig->net_type->get_signed()? 1 : 0;
+	    return ivl_signal_signed(net->u_.array.sig);
 	  default:
 	    assert(0);
 	    return 0;
@@ -1927,13 +1932,13 @@ extern "C" ivl_expr_t ivl_lval_part_off(ivl_lval_t net)
 extern "C" ivl_select_type_t ivl_lval_sel_type(ivl_lval_t net)
 {
       assert(net);
-      return net->sel_type;
+      return static_cast<ivl_select_type_t>(net->sel_type);
 }
 
 extern "C" ivl_stream_range_t ivl_lval_stream_range(ivl_lval_t net)
 {
       assert(net);
-      return net->stream_range_;
+      return static_cast<ivl_stream_range_t>(net->stream_range_);
 }
 
 extern "C" ivl_expr_t ivl_lval_stream_range_first(ivl_lval_t net)
@@ -2005,12 +2010,16 @@ extern "C" const char* ivl_nature_name(ivl_nature_t net)
 extern "C" const char* ivl_nexus_name(ivl_nexus_t net)
 {
       assert(net);
-      if (net->name_ == 0) {
-	    char tmp[2 * sizeof(net) + 5];
-	    snprintf(tmp, sizeof tmp, "n%p", static_cast<void *>(net));
-	    net->name_ = api_strings.add(tmp);
-      }
-      return net->name_;
+      map<ivl_nexus_t,const char*>::const_iterator found =
+	    api_nexus_names.find(net);
+      if (found != api_nexus_names.end())
+	    return found->second;
+
+      char tmp[2 * sizeof(net) + 5];
+      snprintf(tmp, sizeof tmp, "n%p", static_cast<void *>(net));
+      const char*name = api_strings.add(tmp);
+      api_nexus_names.insert(make_pair(net, name));
+      return name;
 }
 
 extern "C" void* ivl_nexus_get_private(ivl_nexus_t net)
@@ -2285,15 +2294,18 @@ extern "C" ivl_attribute_t ivl_process_attr_val(ivl_process_t net,
 extern "C" unsigned ivl_scope_attr_cnt(ivl_scope_t net)
 {
       assert(net);
-      return net->nattr;
+      assert(net->net_);
+      return net->net_->attr_cnt();
 }
 
 extern "C" ivl_attribute_t ivl_scope_attr_val(ivl_scope_t net,
 					      unsigned idx)
 {
       assert(net);
-      assert(idx < net->nattr);
-      return net->attr + idx;
+      assert(net->net_);
+      assert(idx < net->net_->attr_cnt());
+      assert(net->aux_ && net->aux_->attr);
+      return net->aux_->attr + idx;
 }
 
 extern "C" const char* ivl_scope_basename(ivl_scope_t net)
@@ -2306,9 +2318,18 @@ extern "C" int ivl_scope_children(ivl_scope_t net,
 				  ivl_scope_f func,
 				  void*cd)
 {
-      for (map<hname_t,ivl_scope_t>::iterator cur = net->children.begin()
-		 ; cur != net->children.end() ; ++ cur ) {
-	    int rc = func(cur->second, cd);
+      vector<ivl_scope_t>children;
+      if (net->child_count_)
+	    children.assign(net->child, net->child + net->child_count_);
+      sort(children.begin(), children.end(),
+	   [](ivl_scope_t lhs, ivl_scope_t rhs) {
+		 assert(lhs->net_);
+		 assert(rhs->net_);
+		 return lhs->net_->fullname() < rhs->net_->fullname();
+	   });
+
+      for (ivl_scope_t child : children) {
+	    int rc = func(child, cd);
 	    if (rc != 0)
 		  return rc;
       }
@@ -2319,79 +2340,88 @@ extern "C" int ivl_scope_children(ivl_scope_t net,
 extern "C" size_t ivl_scope_childs(ivl_scope_t net)
 {
       assert(net);
-      assert(net->child.size() == net->children.size());
-      return net->child.size();
+      return net->child_count_;
 }
 
 extern "C" ivl_scope_t ivl_scope_child(ivl_scope_t net, size_t idx)
 {
       assert(net);
-      assert(idx < net->child.size());
+      assert(idx < net->child_count_);
       return net->child[idx];
 }
 
 extern "C" ivl_type_t ivl_scope_class(ivl_scope_t net, unsigned idx)
 {
       assert(net);
-      assert(idx < net->classes.size());
-      return net->classes[idx];
+      assert(net->aux_ && net->aux_->classes);
+      assert(idx < net->aux_->classes->size());
+      return (*net->aux_->classes)[idx];
 }
 
 extern "C" unsigned ivl_scope_classes(ivl_scope_t net)
 {
       assert(net);
-      return net->classes.size();
+      return net->aux_ && net->aux_->classes
+	   ? net->aux_->classes->size() : 0;
 }
 
 
 extern "C" ivl_statement_t ivl_scope_def(ivl_scope_t net)
 {
       assert(net);
-      return net->def;
+      ivl_scope_proc_s*proc = net->proc_();
+      return proc ? proc->def : 0;
 }
 
 extern "C" const char*ivl_scope_def_file(ivl_scope_t net)
 {
       assert(net);
-      return net->def_file.str();
+      assert(net->net_);
+      return net->net_->get_def_file().str();
 }
 
 extern "C" unsigned ivl_scope_def_lineno(ivl_scope_t net)
 {
       assert(net);
-      return net->def_lineno;
+      assert(net->net_);
+      return net->net_->get_def_lineno();
 }
 
 extern "C" unsigned ivl_scope_enumerates(ivl_scope_t net)
 {
       assert(net);
-      return net->enumerations_.size();
+      return net->aux_ && net->aux_->enumerations_
+	   ? net->aux_->enumerations_->size() : 0;
 }
 
 extern "C" ivl_enumtype_t ivl_scope_enumerate(ivl_scope_t net, unsigned idx)
 {
       assert(net);
-      assert(idx < net->enumerations_.size());
-      return net->enumerations_[idx];
+      assert(net->aux_ && net->aux_->enumerations_);
+      assert(idx < net->aux_->enumerations_->size());
+      return (*net->aux_->enumerations_)[idx];
 }
 
 extern "C" unsigned ivl_scope_events(ivl_scope_t net)
 {
       assert(net);
-      return net->nevent_;
+      ivl_scope_objects_s*objects = net->objects_();
+      return objects ? objects->nevent_ : 0;
 }
 
 extern "C" ivl_event_t ivl_scope_event(ivl_scope_t net, unsigned idx)
 {
       assert(net);
-      assert(idx < net->nevent_);
-      return net->event_[idx];
+      ivl_scope_objects_s*objects = net->objects_();
+      assert(objects && idx < objects->nevent_);
+      return objects->event_[idx];
 }
 
 extern "C" const char*ivl_scope_file(ivl_scope_t net)
 {
       assert(net);
-      return net->file.str();
+      assert(net->net_);
+      return net->net_->get_file().str();
 }
 
 extern "C" ivl_variable_type_t ivl_scope_func_type(ivl_scope_t net)
@@ -2444,46 +2474,54 @@ extern "C" unsigned ivl_scope_is_interface(ivl_scope_t net)
 extern "C" unsigned ivl_scope_modports(ivl_scope_t net)
 {
       assert(net);
-      return net->modport_names.size();
+      assert(net->net_);
+      return net->net_->modport_names().size();
 }
 
 extern "C" const char* ivl_scope_modport_name(ivl_scope_t net, unsigned idx)
 {
       assert(net);
-      if (idx >= net->modport_names.size())
+      assert(net->net_);
+      const vector<perm_string>&names = net->net_->modport_names();
+      if (idx >= names.size())
 	    return 0;
-      return net->modport_names[idx].str();
+      return names[idx].str();
 }
 
 /* M12-6: per-modport port lists with VPI direction codes. */
 extern "C" unsigned ivl_scope_modport_ports(ivl_scope_t net, unsigned idx)
 {
       assert(net);
-      if (idx >= net->modport_ports.size())
+      assert(net->net_);
+      if (idx >= net->net_->modport_names().size())
 	    return 0;
-      return (unsigned)net->modport_ports[idx].size();
+      return static_cast<unsigned>(net->net_->modport_ports(idx).size());
 }
 
 extern "C" const char* ivl_scope_modport_port_name(ivl_scope_t net,
 						   unsigned idx, unsigned pidx)
 {
       assert(net);
-      if (idx >= net->modport_ports.size())
+      assert(net->net_);
+      if (idx >= net->net_->modport_names().size())
 	    return 0;
-      if (pidx >= net->modport_ports[idx].size())
+      const NetScope::modport_port_list_t&ports = net->net_->modport_ports(idx);
+      if (pidx >= ports.size())
 	    return 0;
-      return net->modport_ports[idx][pidx].first.str();
+      return ports[pidx].first.str();
 }
 
 extern "C" int ivl_scope_modport_port_dir(ivl_scope_t net,
 					  unsigned idx, unsigned pidx)
 {
       assert(net);
-      if (idx >= net->modport_ports.size())
+      assert(net->net_);
+      if (idx >= net->net_->modport_names().size())
 	    return 5;
-      if (pidx >= net->modport_ports[idx].size())
+      const NetScope::modport_port_list_t&ports = net->net_->modport_ports(idx);
+      if (pidx >= ports.size())
 	    return 5;
-      return net->modport_ports[idx][pidx].second;
+      return ports[pidx].second;
 }
 
 extern "C" int ivl_scope_is_dpi_import(ivl_scope_t net)
@@ -2501,7 +2539,8 @@ extern "C" int ivl_scope_is_virtual_method(ivl_scope_t net)
 extern "C" const char*ivl_scope_dpi_c_name(ivl_scope_t net)
 {
       assert(net);
-      return net->dpi_c_name;
+      ivl_scope_proc_s*proc = net->proc_();
+      return proc ? proc->dpi_c_name : 0;
 }
 
 extern "C" int ivl_scope_is_dpi_export(ivl_scope_t net)
@@ -2513,7 +2552,8 @@ extern "C" int ivl_scope_is_dpi_export(ivl_scope_t net)
 extern "C" const char*ivl_scope_dpi_export_c_name(ivl_scope_t net)
 {
       assert(net);
-      return net->dpi_export_c_name;
+      ivl_scope_proc_s*proc = net->proc_();
+      return proc ? proc->dpi_export_c_name : 0;
 }
 
 extern "C" unsigned ivl_scope_is_cell(ivl_scope_t net)
@@ -2525,33 +2565,38 @@ extern "C" unsigned ivl_scope_is_cell(ivl_scope_t net)
 extern "C" unsigned ivl_scope_lineno(ivl_scope_t net)
 {
       assert(net);
-      return net->lineno;
+      assert(net->net_);
+      return net->net_->get_lineno();
 }
 
 extern "C" unsigned ivl_scope_logs(ivl_scope_t net)
 {
       assert(net);
-      return net->nlog_;
+      ivl_scope_objects_s*objects = net->objects_();
+      return objects ? objects->nlog_ : 0;
 }
 
 extern "C" ivl_net_logic_t ivl_scope_log(ivl_scope_t net, unsigned idx)
 {
       assert(net);
-      assert(idx < net->nlog_);
-      return net->log_[idx];
+      ivl_scope_objects_s*objects = net->objects_();
+      assert(objects && idx < objects->nlog_);
+      return objects->log_[idx];
 }
 
 extern "C" unsigned ivl_scope_lpms(ivl_scope_t net)
 {
       assert(net);
-      return net->nlpm_;
+      ivl_scope_objects_s*objects = net->objects_();
+      return objects ? objects->nlpm_ : 0;
 }
 
 extern "C" ivl_lpm_t ivl_scope_lpm(ivl_scope_t net, unsigned idx)
 {
       assert(net);
-      assert(idx < net->nlpm_);
-      return net->lpm_[idx];
+      ivl_scope_objects_s*objects = net->objects_();
+      assert(objects && idx < objects->nlpm_);
+      return objects->lpm_[idx];
 }
 
 static unsigned scope_name_len(ivl_scope_t net)
@@ -2601,14 +2646,15 @@ extern "C" const char* ivl_scope_name(ivl_scope_t net)
 extern "C" unsigned ivl_scope_params(ivl_scope_t net)
 {
       assert(net);
-      return net->param.size();
+      return net->aux_ && net->aux_->param ? net->aux_->param->size() : 0;
 }
 
 extern "C" ivl_parameter_t ivl_scope_param(ivl_scope_t net, unsigned idx)
 {
       assert(net);
-      assert(idx < net->param.size());
-      return & (net->param[idx]);
+      assert(net->aux_ && net->aux_->param);
+      assert(idx < net->aux_->param->size());
+      return &(*net->aux_->param)[idx];
 }
 
 extern "C" ivl_scope_t ivl_scope_parent(ivl_scope_t net)
@@ -2622,22 +2668,28 @@ extern "C" unsigned ivl_scope_mod_module_ports(ivl_scope_t net)
 {
       assert(net);
       assert(net->type_ == IVL_SCT_MODULE );
-      return static_cast<unsigned>(net->module_ports_info.size());
+      assert(net->net_);
+      return static_cast<unsigned>(net->net_->module_port_info().size());
 }
 
 extern "C" const char *ivl_scope_mod_module_port_name(ivl_scope_t net, unsigned idx )
 {
       assert(net);
       assert(net->type_ == IVL_SCT_MODULE );
-      assert(idx < net->module_ports_info.size());
+      assert(net->net_);
+      const vector<PortInfo>&ports = net->net_->module_port_info();
+      assert(idx < ports.size());
 
-      return net->module_ports_info[idx].name;
+      return ports[idx].name;
 }
 
 extern "C" ivl_signal_port_t ivl_scope_mod_module_port_type(ivl_scope_t net, unsigned idx )
 {
       assert(net);
-      switch( net->module_ports_info[idx].type )
+      assert(net->net_);
+      const vector<PortInfo>&ports = net->net_->module_port_info();
+      assert(idx < ports.size());
+      switch( ports[idx].type )
       {
       case PortType::PINPUT : return IVL_SIP_INPUT;
       case PortType::POUTPUT : return IVL_SIP_OUTPUT;
@@ -2649,13 +2701,19 @@ extern "C" ivl_signal_port_t ivl_scope_mod_module_port_type(ivl_scope_t net, uns
 extern "C" unsigned ivl_scope_mod_module_port_width(ivl_scope_t net, unsigned idx )
 {
     assert(net);
-    return net->module_ports_info[idx].width;
+    assert(net->net_);
+    const vector<PortInfo>&ports = net->net_->module_port_info();
+    assert(idx < ports.size());
+    return ports[idx].width;
 }
 
 extern "C" ivl_net_logic_t ivl_scope_mod_module_port_buffer(ivl_scope_t net, unsigned idx )
 {
     assert(net);
-    return (ivl_net_logic_t)net->module_ports_info[idx].buffer;
+    assert(net->net_);
+    const vector<PortInfo>&ports = net->net_->module_port_info();
+    assert(idx < ports.size());
+    return ports[idx].buffer;
 }
 
 extern "C" unsigned ivl_scope_ports(ivl_scope_t net)
@@ -2663,7 +2721,10 @@ extern "C" unsigned ivl_scope_ports(ivl_scope_t net)
       assert(net);
       if (net->type_ == IVL_SCT_MODULE ||
           net->type_ == IVL_SCT_FUNCTION ||
-          net->type_ == IVL_SCT_TASK) return net->ports;
+          net->type_ == IVL_SCT_TASK) {
+	    ivl_scope_proc_s*proc = net->proc_();
+	    return proc ? proc->ports : 0;
+      }
       return 0;
 }
 
@@ -2672,16 +2733,18 @@ extern "C" ivl_signal_t ivl_scope_port(ivl_scope_t net, unsigned idx)
       assert(net);
       assert(net->type_ == IVL_SCT_FUNCTION ||
              net->type_ == IVL_SCT_TASK);
-      assert(idx < net->ports);
-      return net->u_.port[idx];
+      ivl_scope_proc_s*proc = net->proc_();
+      assert(proc && idx < proc->ports);
+      return proc->u_.port[idx];
 }
 
 extern "C" ivl_nexus_t ivl_scope_mod_port(ivl_scope_t net, unsigned idx)
 {
       assert(net);
       assert(net->type_ == IVL_SCT_MODULE);
-      assert(idx < net->ports);
-      return net->u_.nex[idx];
+      ivl_scope_proc_s*proc = net->proc_();
+      assert(proc && idx < proc->ports);
+      return proc->u_.nex[idx];
 }
 
 extern "C" unsigned ivl_scope_sigs(ivl_scope_t net)
@@ -2700,14 +2763,16 @@ extern "C" ivl_signal_t ivl_scope_sig(ivl_scope_t net, unsigned idx)
 extern "C" unsigned ivl_scope_switches(ivl_scope_t net)
 {
       assert(net);
-      return net->switches.size();
+      return net->aux_ && net->aux_->switches
+	   ? net->aux_->switches->size() : 0;
 }
 
 extern "C" ivl_switch_t ivl_scope_switch(ivl_scope_t net, unsigned idx)
 {
       assert(net);
-      assert(idx < net->switches.size());
-      return net->switches[idx];
+      assert(net->aux_ && net->aux_->switches);
+      assert(idx < net->aux_->switches->size());
+      return (*net->aux_->switches)[idx];
 }
 
 extern "C" int ivl_scope_time_precision(ivl_scope_t net)
@@ -2737,60 +2802,73 @@ extern "C" const char* ivl_scope_tname(ivl_scope_t net)
 extern "C" int ivl_signal_array_base(ivl_signal_t net)
 {
       assert(net);
-      return net->array_base;
+      assert(net->net_);
+      return dll_target_signal_array_base(net->net_);
 }
 
 extern "C" unsigned ivl_signal_array_count(ivl_signal_t net)
 {
       assert(net);
-      return net->array_words;
+      assert(net->net_);
+      return dll_target_signal_array_words(net->net_);
 }
 
 extern "C" unsigned ivl_signal_array_addr_swapped(ivl_signal_t net)
 {
       assert(net);
-      return net->array_addr_swapped;
+      assert(net->net_);
+      return dll_target_signal_array_addr_swapped(net->net_)? 1 : 0;
 }
 
 extern "C" unsigned ivl_signal_dimensions(ivl_signal_t net)
 {
       assert(net);
-      return net->array_dimensions_;
+      assert(net->net_);
+      return net->net_->unpacked_dimensions();
 }
 
 extern "C" int ivl_signal_array_dim_msb(ivl_signal_t net, unsigned dim)
 {
       assert(net);
-      if (dim >= net->unpacked_dims.size())
+      assert(net->net_);
+      const netranges_t& dims = net->net_->unpacked_dims();
+      if (dim >= dims.size())
 	    return 0;
-      return net->unpacked_dims[dim].get_msb();
+      return dims[dim].get_msb();
 }
 
 extern "C" int ivl_signal_array_dim_lsb(ivl_signal_t net, unsigned dim)
 {
       assert(net);
-      if (dim >= net->unpacked_dims.size())
+      assert(net->net_);
+      const netranges_t& dims = net->net_->unpacked_dims();
+      if (dim >= dims.size())
 	    return 0;
-      return net->unpacked_dims[dim].get_lsb();
+      return dims[dim].get_lsb();
 }
 
 extern "C" ivl_discipline_t ivl_signal_discipline(ivl_signal_t net)
 {
       assert(net);
-      return net->discipline;
+      assert(net->net_);
+      return net->net_->get_discipline();
 }
 
 extern "C" const char* ivl_signal_attr(ivl_signal_t net, const char*key)
 {
       assert(net);
-      if (net->nattr == 0)
+      assert(net->net_);
+      unsigned nattr = net->net_->attr_cnt();
+      if (nattr == 0)
 	    return 0;
+      assert(net->aux_);
+      assert(net->aux_->attr);
 
-      for (unsigned idx = 0 ;  idx < net->nattr ;  idx += 1)
+      for (unsigned idx = 0 ;  idx < nattr ;  idx += 1)
 
-	    if (strcmp(key, net->attr[idx].key) == 0)
-		  return net->attr[idx].type == IVL_ATT_STR
-			? net->attr[idx].val.str
+	    if (strcmp(key, net->aux_->attr[idx].key) == 0)
+		  return net->aux_->attr[idx].type == IVL_ATT_STR
+			? net->aux_->attr[idx].val.str
 			: 0;
 
       return 0;
@@ -2799,20 +2877,25 @@ extern "C" const char* ivl_signal_attr(ivl_signal_t net, const char*key)
 extern "C" unsigned ivl_signal_attr_cnt(ivl_signal_t net)
 {
       assert(net);
-      return net->nattr;
+      assert(net->net_);
+      return net->net_->attr_cnt();
 }
 
 extern "C" ivl_attribute_t ivl_signal_attr_val(ivl_signal_t net, unsigned idx)
 {
       assert(net);
-      assert(idx < net->nattr);
-      return net->attr + idx;
+      assert(net->net_);
+      assert(idx < net->net_->attr_cnt());
+      assert(net->aux_);
+      assert(net->aux_->attr);
+      return net->aux_->attr + idx;
 }
 
 extern "C" const char* ivl_signal_basename(ivl_signal_t net)
 {
       assert(net);
-      return net->name_;
+      assert(net->net_);
+      return net->net_->name().str();
 }
 
 extern "C" const char* ivl_signal_name(ivl_signal_t net)
@@ -2821,17 +2904,20 @@ extern "C" const char* ivl_signal_name(ivl_signal_t net)
       static char*name_buffer = 0;
       static unsigned name_size = 0;
 
-      unsigned needlen = scope_name_len(net->scope_);
-      needlen += strlen(net->name_) + 2;
+      assert(net->net_);
+      ivl_scope_t scope = net->net_->scope()->target_scope();
+      const char*basename = net->net_->name().str();
+      unsigned needlen = scope_name_len(scope);
+      needlen += strlen(basename) + 2;
 
       if (name_size < needlen) {
 	    name_buffer = static_cast<char*>(realloc(name_buffer, needlen));
 	    name_size = needlen;
       }
 
-      push_scope_basename(net->scope_, name_buffer);
+      push_scope_basename(scope, name_buffer);
       strcat(name_buffer, ".");
-      strcat(name_buffer, net->name_);
+      strcat(name_buffer, basename);
 
       return name_buffer;
 }
@@ -2839,8 +2925,10 @@ extern "C" const char* ivl_signal_name(ivl_signal_t net)
 extern "C" ivl_nexus_t ivl_signal_nex(ivl_signal_t net, unsigned word)
 {
       assert(net);
-      assert(word < net->array_words);
-      if (net->array_words > 1) {
+      assert(net->net_);
+      unsigned array_words = dll_target_signal_array_words(net->net_);
+      assert(word < array_words);
+      if (array_words > 1) {
 	    if (net->pins) {
 		return net->pins[word];
 	    } else {
@@ -2856,85 +2944,100 @@ extern "C" ivl_nexus_t ivl_signal_nex(ivl_signal_t net, unsigned word)
 extern "C" unsigned ivl_signal_packed_dimensions(ivl_signal_t net)
 {
       assert(net);
-      return net->packed_dims.size();
+      assert(net->net_);
+      return net->net_->packed_dims().size();
 }
 
 extern "C" int ivl_signal_packed_msb(ivl_signal_t net, unsigned dim)
 {
       assert(net);
-      assert(dim < net->packed_dims.size());
-      return net->packed_dims[dim].get_msb();
+      assert(net->net_);
+      const netranges_t& dims = net->net_->packed_dims();
+      assert(dim < dims.size());
+      return dims[dim].get_msb();
 }
 
 extern "C" int ivl_signal_packed_lsb(ivl_signal_t net, unsigned dim)
 {
       assert(net);
-      assert(dim < net->packed_dims.size());
-      return net->packed_dims[dim].get_lsb();
+      assert(net->net_);
+      const netranges_t& dims = net->net_->packed_dims();
+      assert(dim < dims.size());
+      return dims[dim].get_lsb();
 }
 
 extern "C" int ivl_signal_msb(ivl_signal_t net)
 {
       assert(net);
-      if (net->packed_dims.empty())
+      assert(net->net_);
+      const netranges_t& dims = net->net_->packed_dims();
+      if (dims.empty())
 	    return 0;
 
-      assert(net->packed_dims.size() == 1);
-      return net->packed_dims[0].get_msb();
+      assert(dims.size() == 1);
+      return dims[0].get_msb();
 }
 
 extern "C" int ivl_signal_lsb(ivl_signal_t net)
 {
       assert(net);
-      if (net->packed_dims.empty())
+      assert(net->net_);
+      const netranges_t& dims = net->net_->packed_dims();
+      if (dims.empty())
 	    return 0;
 
-      assert(net->packed_dims.size() == 1);
-      return net->packed_dims[0].get_lsb();
+      assert(dims.size() == 1);
+      return dims[0].get_lsb();
 }
 
 extern "C" ivl_scope_t ivl_signal_scope(ivl_signal_t net)
 {
       assert(net);
-      return net->scope_;
+      assert(net->net_);
+      return net->net_->scope()->target_scope();
 }
 
 extern "C" unsigned ivl_signal_width(ivl_signal_t net)
 {
       assert(net);
-      assert(net->net_type);
-      return net->net_type->packed_width();
+      assert(net->net_);
+      assert(net->net_->net_type());
+      return net->net_->net_type()->packed_width();
 }
 
 extern "C" ivl_signal_port_t ivl_signal_port(ivl_signal_t net)
 {
       assert(net);
-      return net->port_;
+      return static_cast<ivl_signal_port_t>(net->port_);
 }
 
 extern "C" int ivl_signal_module_port_index(ivl_signal_t net)
 {
       assert(net);
-      return net->module_port_index_;
+      assert(net->net_);
+      return net->net_->get_module_port_index();
 }
 
 extern "C" int ivl_signal_local(ivl_signal_t net)
 {
       assert(net);
-      return net->local_;
+      assert(net->net_);
+      return net->net_->local_flag()? 1 : 0;
 }
 
 extern "C" ivl_lifetime_t ivl_signal_lifetime(ivl_signal_t net)
 {
       assert(net);
-      return static_cast<ivl_lifetime_t>(net->lifetime_override_);
+      assert(net->net_);
+      return net->net_->lifetime_override();
 }
 
 extern "C" int ivl_signal_signed(ivl_signal_t net)
 {
       assert(net);
-      assert(net->net_type);
-      return net->net_type->get_signed()? 1 : 0;
+      assert(net->net_);
+      assert(net->net_->net_type());
+      return net->net_->net_type()->get_signed()? 1 : 0;
 }
 
 extern "C" unsigned ivl_signal_forced_net(ivl_signal_t net)
@@ -2946,21 +3049,25 @@ extern "C" unsigned ivl_signal_forced_net(ivl_signal_t net)
 extern "C" const char* ivl_signal_file(ivl_signal_t net)
 {
       assert(net);
-      return net->file.str();
+      assert(net->net_);
+      return net->net_->get_file().str();
 }
 
 extern "C" unsigned ivl_signal_lineno(ivl_signal_t net)
 {
       assert(net);
-      return net->lineno;
+      assert(net->net_);
+      return net->net_->get_lineno();
 }
 
 extern "C" int ivl_signal_integer(ivl_signal_t net)
 {
       assert(net);
-      if (const netvector_t*vec = dynamic_cast<const netvector_t*> (net->net_type))
+      assert(net->net_);
+      ivl_type_t net_type = net->net_->net_type();
+      if (const netvector_t*vec = dynamic_cast<const netvector_t*> (net_type))
 	    return vec->get_isint()? 1 : 0;
-      else if (const netenum_t*enm = dynamic_cast<const netenum_t*> (net->net_type))
+      else if (const netenum_t*enm = dynamic_cast<const netenum_t*> (net_type))
 	    return enm->get_isint()? 1 : 0;
       else
 	    return 0;
@@ -2972,41 +3079,50 @@ extern "C" ivl_variable_type_t ivl_signal_data_type(ivl_signal_t net)
 	    fprintf(stderr, "Warning: ivl_signal_data_type called with null signal; returning NO_TYPE\n");
 	    return IVL_VT_NO_TYPE;
       }
-      if (!net->net_type) return IVL_VT_NO_TYPE;
+      assert(net->net_);
+      ivl_type_t net_type = net->net_->net_type();
+      if (!net_type) return IVL_VT_NO_TYPE;
       // Guard against corrupted type objects (e.g. compile-progress placeholder
       // signals whose net_type was allocated but never properly constructed).
       // A valid C++ vtable pointer on x86_64 must be non-zero, above the first
       // page, and naturally aligned (8 bytes). Anything else is a corrupt object.
-      { const uintptr_t vtbl = *reinterpret_cast<const uintptr_t* const>(net->net_type);
+      { const uintptr_t vtbl = *reinterpret_cast<const uintptr_t* const>(net_type);
 	if (!vtbl || vtbl < 0x10000UL || (vtbl & (sizeof(void*)-1)) != 0)
 	      return IVL_VT_NO_TYPE;
       }
-      return net->net_type->base_type();
+      return net_type->base_type();
 }
 
 extern "C" ivl_type_t ivl_signal_net_type(ivl_signal_t net)
 {
       assert(net);
-      return net->net_type;
+      assert(net->net_);
+      return net->net_->net_type();
 }
 
 extern "C" ivl_scope_t ivl_signal_resolution_function(ivl_signal_t net)
 {
       assert(net);
-      return net->resolution_function_;
+      assert(net->net_);
+      if (const NetNetType*user_type = net->net_->user_nettype()) {
+	    if (const NetFuncDef*resolver = user_type->resolution_function())
+		  return resolver->scope()->target_scope();
+      }
+      return 0;
 }
 
 extern "C" unsigned ivl_signal_npath(ivl_signal_t net)
 {
       assert(net);
-      return net->npath;
+      return net->aux_ ? net->aux_->npath : 0;
 }
 
 extern "C" ivl_delaypath_t ivl_signal_path(ivl_signal_t net, unsigned idx)
 {
       assert(net);
-      assert(idx < net->npath);
-      return net->path + idx;
+      assert(net->aux_);
+      assert(idx < net->aux_->npath);
+      return net->aux_->path + idx;
 }
 
 extern "C" ivl_signal_type_t ivl_signal_type(ivl_signal_t net)
@@ -3020,7 +3136,7 @@ extern "C" ivl_signal_type_t ivl_signal_type(ivl_signal_t net)
 # endif
 	    abort();
       }
-      return net->type_;
+      return static_cast<ivl_signal_type_t>(net->type_);
 }
 
 extern "C" ivl_statement_type_t ivl_statement_type(ivl_statement_t net)
@@ -3183,7 +3299,7 @@ extern "C" ivl_case_quality_t ivl_stmt_case_quality(ivl_statement_t net)
 	  case IVL_ST_CASER:
 	  case IVL_ST_CASEX:
 	  case IVL_ST_CASEZ:
-	    return net->u_.case_.quality;
+	    return static_cast<ivl_case_quality_t>(net->u_.case_.quality);
 
 	  default:
 	    assert(0);
@@ -3229,7 +3345,7 @@ extern "C" ivl_expr_t ivl_stmt_cond_expr(ivl_statement_t net)
       assert(net);
       switch (net->type_) {
 	  case IVL_ST_ASSIGN_NB:
-	    return net->u_.assign_.count;
+	    return net->u_.assign_.aux_? net->u_.assign_.aux_->count : 0;
 
 	  case IVL_ST_CONDIT:
 	    return net->u_.condit_.cond_;
@@ -3280,7 +3396,7 @@ extern "C" ivl_expr_t ivl_stmt_delay_expr(ivl_statement_t net)
       switch (net->type_) {
 	  case IVL_ST_ASSIGN:
 	  case IVL_ST_ASSIGN_NB:
-	    return net->u_.assign_.delay;
+	    return net->u_.assign_.aux_? net->u_.assign_.aux_->delay : 0;
 
 	  case IVL_ST_DELAYX:
 	    return net->u_.delayx_.expr;
@@ -3404,7 +3520,7 @@ extern "C" unsigned ivl_stmt_nevent(ivl_statement_t net)
       assert(net);
       switch (net->type_) {
 	  case IVL_ST_ASSIGN_NB:
-	    return net->u_.assign_.nevent;
+	    return net->u_.assign_.aux_? net->u_.assign_.aux_->nevent : 0;
 
 	  case IVL_ST_NB_TRIGGER:
 	    return 1;
@@ -3426,11 +3542,12 @@ extern "C" ivl_event_t ivl_stmt_events(ivl_statement_t net, unsigned idx)
       assert(net);
       switch (net->type_) {
 	  case IVL_ST_ASSIGN_NB:
-	    assert(idx < net->u_.assign_.nevent);
-	    if (net->u_.assign_.nevent == 1)
-		  return net->u_.assign_.event;
+	    assert(net->u_.assign_.aux_);
+	    assert(idx < net->u_.assign_.aux_->nevent);
+	    if (net->u_.assign_.aux_->nevent == 1)
+		  return net->u_.assign_.aux_->event;
 	    else
-		  return net->u_.assign_.events[idx];
+		  return net->u_.assign_.aux_->events[idx];
 
 	  case IVL_ST_NB_TRIGGER:
 	    assert(idx == 0);

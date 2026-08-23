@@ -1,0 +1,3 @@
+sv_mixed_assign_multidim vvp_tests/sv_mixed_assign_multidim.json
+synth_uarray_partial_index_caliptra vvp_tests/synth_uarray_partial_index_caliptra.json
+synth_uarray_partial_index_caliptra-S vvp_tests/synth_uarray_partial_index_caliptra-S.json

@@ -1,0 +1,3 @@
+ivltests/sv_param_class_randomize_hook_task_fail.v:9: error: Class randomization hook `post_randomize' shall be declared as a void function.
+ivltests/sv_param_class_randomize_hook_task_fail.v:6: error: Class randomization hook `pre_randomize' shall be declared as a void function.
+2 error(s) during elaboration.

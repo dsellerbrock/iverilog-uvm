@@ -23,6 +23,7 @@
 # include  <iostream>
 
 # include  <cstring>
+# include  <cstdint>
 # include  <cstdio> // sprintf()
 # include  "compiler.h"
 # include  "PTask.h"
@@ -39,6 +40,154 @@
 using namespace std;
 
 struct dll_target dll_target_obj;
+
+namespace {
+
+struct dll_process_arena_block_s {
+      unsigned char*data;
+      size_t capacity;
+      size_t used;
+};
+
+struct dll_process_arena_state_s {
+      bool active;
+      size_t block_hint;
+      vector<dll_process_arena_block_s> blocks;
+
+      dll_process_arena_state_s() : active(false), block_hint(0) { }
+      ~dll_process_arena_state_s()
+      {
+	    for (size_t idx = 0; idx < blocks.size(); idx += 1)
+		  free(blocks[idx].data);
+      }
+};
+
+static dll_process_arena_state_s dll_process_arena;
+static const size_t DLL_PROCESS_ARENA_BLOCK_SIZE = 1024 * 1024;
+
+static void*dll_process_arena_try_alloc_(dll_process_arena_block_s&block,
+					 size_t bytes, size_t alignment)
+{
+      uintptr_t cur = reinterpret_cast<uintptr_t>(block.data + block.used);
+      size_t padding = static_cast<size_t>(
+	    (alignment - cur % alignment) % alignment);
+      if (padding > block.capacity - block.used)
+	    return 0;
+      if (bytes > block.capacity - block.used - padding)
+	    return 0;
+
+      block.used += padding;
+      void*res = block.data + block.used;
+      block.used += bytes;
+      return res;
+}
+
+static void*dll_process_arena_alloc_(size_t bytes, size_t alignment)
+{
+      assert(dll_process_arena.active);
+      assert(alignment > 0);
+      if (bytes == 0 || alignment == 0)
+	    return 0;
+
+      const size_t nblocks = dll_process_arena.blocks.size();
+      for (size_t off = 0; off < nblocks; off += 1) {
+	    size_t idx = (dll_process_arena.block_hint + off) % nblocks;
+	    void*res = dll_process_arena_try_alloc_(
+		  dll_process_arena.blocks[idx], bytes, alignment);
+	    if (res) {
+		  dll_process_arena.block_hint = idx;
+		  return res;
+	    }
+      }
+
+      if (bytes > static_cast<size_t>(-1) - (alignment - 1))
+	    return 0;
+      size_t capacity = bytes + alignment - 1;
+      if (capacity < DLL_PROCESS_ARENA_BLOCK_SIZE)
+	    capacity = DLL_PROCESS_ARENA_BLOCK_SIZE;
+
+      unsigned char*data = static_cast<unsigned char*>(malloc(capacity));
+      if (!data)
+	    return 0;
+      dll_process_arena_block_s block = { data, capacity, 0 };
+      dll_process_arena.blocks.push_back(block);
+      dll_process_arena.block_hint = dll_process_arena.blocks.size() - 1;
+      return dll_process_arena_try_alloc_(dll_process_arena.blocks.back(),
+					  bytes, alignment);
+}
+
+} // namespace
+
+void dll_procedure_begin()
+{
+      assert(!dll_process_arena.active);
+      for (size_t idx = 0; idx < dll_process_arena.blocks.size(); idx += 1)
+	    dll_process_arena.blocks[idx].used = 0;
+      dll_process_arena.block_hint = 0;
+      dll_process_arena.active = true;
+}
+
+void dll_procedure_reset()
+{
+      dll_process_arena.active = false;
+      dll_process_arena.block_hint = 0;
+      for (size_t idx = 0; idx < dll_process_arena.blocks.size(); idx += 1)
+	    dll_process_arena.blocks[idx].used = 0;
+}
+
+bool dll_procedure_active()
+{
+      return dll_process_arena.active;
+}
+
+void*dll_procedure_malloc(size_t bytes, size_t alignment)
+{
+      assert(alignment > 0);
+      if (dll_process_arena.active)
+	    return dll_process_arena_alloc_(bytes, alignment);
+
+      /* malloc supplies sufficient alignment for every target record used by
+       * these helpers. Over-aligned records are not part of the target ABI. */
+      assert(alignment <= alignof(max_align_t));
+      return malloc(bytes);
+}
+
+void*dll_procedure_malloc(size_t bytes)
+{
+      return dll_procedure_malloc(bytes, alignof(max_align_t));
+}
+
+void*dll_procedure_calloc(size_t count, size_t bytes, size_t alignment)
+{
+      assert(alignment > 0);
+      if (bytes != 0 && count > static_cast<size_t>(-1) / bytes)
+	    return 0;
+      size_t total = count * bytes;
+	if (!dll_process_arena.active) {
+	    assert(alignment <= alignof(max_align_t));
+	    return calloc(count, bytes);
+	}
+
+      void*res = dll_process_arena_alloc_(total, alignment);
+      if (res)
+	    memset(res, 0, total);
+      return res;
+}
+
+void*dll_procedure_calloc(size_t count, size_t bytes)
+{
+      return dll_procedure_calloc(count, bytes, alignof(max_align_t));
+}
+
+char*dll_procedure_strdup(const char*text)
+{
+      assert(text);
+      size_t bytes = strlen(text) + 1;
+      char*res = static_cast<char*>(dll_procedure_malloc(bytes, alignof(char)));
+      if (res)
+	    memcpy(res, text, bytes);
+      return res;
+}
 
 #if defined(__WIN32__)
 
@@ -109,15 +258,41 @@ inline const char*dlerror(void)
 #endif
 
 ivl_scope_s::ivl_scope_s()
-: func_type(IVL_VT_NO_TYPE)
+: parent(0), child(0), net_(0), aux_(0), child_count_(0),
+  func_type(IVL_VT_NO_TYPE), func_width(0)
 {
+      is_auto = false;
+      auto_frame = false;
+      is_program = false;
+      is_interface = false;
+      is_cell = false;
       func_signed = false;
-      func_width = 0;
       is_dpi_import = false;
-      dpi_c_name = 0;
       is_dpi_export = false;
-      dpi_export_c_name = 0;
       is_virtual_method = false;
+}
+
+ivl_scope_aux_s*ivl_scope_s::ensure_aux_()
+{
+      if (!aux_)
+	    aux_ = new ivl_scope_aux_s();
+      return aux_;
+}
+
+ivl_scope_objects_s*ivl_scope_s::ensure_objects_()
+{
+      ivl_scope_aux_s*aux = ensure_aux_();
+      if (!aux->objects_)
+	    aux->objects_ = new ivl_scope_objects_s();
+      return aux->objects_;
+}
+
+ivl_scope_proc_s*ivl_scope_s::ensure_proc_()
+{
+      ivl_scope_aux_s*aux = ensure_aux_();
+      if (!aux->proc_)
+	    aux->proc_ = new ivl_scope_proc_s();
+      return aux->proc_;
 }
 
 /*
@@ -127,28 +302,45 @@ ivl_scope_s::ivl_scope_s()
  * allocation overhead.
  */
 
-template <class TYPE> void* pool_permalloc(size_t s)
+/* Allocate high-count, zero-initialized target records from monotonic blocks.
+ * Their C++ members are still constructed by the caller's scalar
+ * new-expression, while the records live through the synchronous target
+ * callback without paying one malloc header apiece. */
+template <class TYPE> void* pool_zeroalloc(size_t s)
 {
-      static TYPE * pool_ptr = 0;
-      static int pool_remaining = 0;
+      static unsigned char*pool_ptr = 0;
+      static size_t pool_remaining = 0;
       static const size_t POOL_SIZE = 4096;
 
       assert(s == sizeof(TYPE));
-      if (pool_remaining <= 0) {
-	    pool_ptr = new TYPE[POOL_SIZE];
+      if (pool_remaining == 0) {
+	    pool_ptr = static_cast<unsigned char*>(
+		  calloc(POOL_SIZE, sizeof(TYPE)));
 	    pool_remaining = POOL_SIZE;
       }
 
-      TYPE*tmp = pool_ptr;
-      pool_ptr += 1;
+      void*tmp = pool_ptr;
+      pool_ptr += sizeof(TYPE);
       pool_remaining -= 1;
-
       return tmp;
+}
+
+template <class TYPE> void*procedure_or_pool_zeroalloc_(size_t s)
+{
+      if (!dll_procedure_active())
+	    return pool_zeroalloc<TYPE>(s);
+
+      assert(s == sizeof(TYPE));
+      return dll_procedure_calloc(1, s, alignof(TYPE));
 }
 
 void* ivl_nexus_s::operator new(size_t s)
 {
-      return pool_permalloc<struct ivl_nexus_s>(s);
+      /* Raw storage is essential here: `new TYPE[POOL_SIZE]` would construct
+       * every vector-bearing nexus once in the pool and the scalar new-
+       * expression would then construct the selected slot a second time,
+       * leaking the first vector allocation and violating object lifetime. */
+      return pool_zeroalloc<struct ivl_nexus_s>(s);
 }
 
 void ivl_nexus_s::operator delete(void*, size_t)
@@ -156,9 +348,39 @@ void ivl_nexus_s::operator delete(void*, size_t)
       assert(0);
 }
 
+void* ivl_expr_s::operator new(size_t s)
+{
+      return procedure_or_pool_zeroalloc_<struct ivl_expr_s>(s);
+}
+
+void ivl_expr_s::operator delete(void*, size_t)
+{
+      assert(0);
+}
+
+void* ivl_process_s::operator new(size_t s)
+{
+      return procedure_or_pool_zeroalloc_<struct ivl_process_s>(s);
+}
+
+void ivl_process_s::operator delete(void*, size_t)
+{
+      assert(0);
+}
+
+void* ivl_statement_s::operator new(size_t s)
+{
+      return procedure_or_pool_zeroalloc_<struct ivl_statement_s>(s);
+}
+
+void ivl_statement_s::operator delete(void*, size_t)
+{
+      assert(0);
+}
+
 void* ivl_net_const_s::operator new(size_t s)
 {
-      return pool_permalloc<struct ivl_net_const_s>(s);
+      return pool_zeroalloc<struct ivl_net_const_s>(s);
 }
 
 void ivl_net_const_s::operator delete(void*, size_t)
@@ -166,7 +388,92 @@ void ivl_net_const_s::operator delete(void*, size_t)
       assert(0);
 }
 
+void* ivl_signal_s::operator new(size_t s)
+{
+      return pool_zeroalloc<struct ivl_signal_s>(s);
+}
+
+void ivl_signal_s::operator delete(void*, size_t)
+{
+      assert(0);
+}
+
+void* ivl_scope_s::operator new(size_t s)
+{
+      return pool_zeroalloc<struct ivl_scope_s>(s);
+}
+
+void ivl_scope_s::operator delete(void*, size_t)
+{
+      assert(0);
+}
+
+void* ivl_net_logic_s::operator new(size_t s)
+{
+      return pool_zeroalloc<struct ivl_net_logic_s>(s);
+}
+
+void ivl_net_logic_s::operator delete(void*, size_t)
+{
+      assert(0);
+}
+
+void* ivl_event_s::operator new(size_t s)
+{
+      return pool_zeroalloc<struct ivl_event_s>(s);
+}
+
+void ivl_event_s::operator delete(void*, size_t)
+{
+      assert(0);
+}
+
+void* ivl_lpm_s::operator new(size_t s)
+{
+      return pool_zeroalloc<struct ivl_lpm_s>(s);
+}
+
+void ivl_lpm_s::operator delete(void*, size_t)
+{
+      assert(0);
+}
+
 static StringHeapLex net_const_strings;
+
+/* Expression locations need to outlive progressively released NetExpr
+ * objects. There are only as many table entries as source files, while each
+ * expression carries a compact 32-bit file id and the full 32-bit line. */
+static vector<perm_string> expr_files(1);
+static map<perm_string,uint32_t> expr_file_ids;
+
+uint64_t dll_target_expr_location(const LineInfo*info)
+{
+      assert(info);
+      perm_string file = info->get_file();
+      uint32_t file_id = 0;
+
+      if (! file.nil()) {
+	    map<perm_string,uint32_t>::const_iterator found =
+		  expr_file_ids.find(file);
+	    if (found != expr_file_ids.end()) {
+		  file_id = found->second;
+	    } else {
+		  assert(expr_files.size() < 0x100000000ULL);
+		  file_id = static_cast<uint32_t>(expr_files.size());
+		  expr_files.push_back(file);
+		  expr_file_ids.insert(make_pair(file, file_id));
+	    }
+      }
+
+      return (static_cast<uint64_t>(file_id) << 32) | info->get_lineno();
+}
+
+const char* dll_target_expr_file(uint64_t location)
+{
+      uint32_t file_id = static_cast<uint32_t>(location >> 32);
+      assert(file_id < expr_files.size());
+      return expr_files[file_id].str();
+}
 
 static perm_string make_scope_name(const hname_t&name)
 {
@@ -202,14 +509,16 @@ ivl_attribute_s* dll_target::fill_in_attributes(const Attrib*net)
       if (nattr == 0)
 	    return 0;
 
-      attr = new struct ivl_attribute_s[nattr];
+      attr = dll_procedure_new_array<struct ivl_attribute_s>(nattr);
 
       for (unsigned idx = 0 ;  idx < nattr ;  idx += 1) {
 	    verinum tmp = net->attr_value(idx);
 	    attr[idx].key = net->attr_key(idx);
 	    if (tmp.is_string()) {
 		  attr[idx].type = IVL_ATT_STR;
-		  attr[idx].val.str = strings_.add(tmp.as_string().c_str());
+		  attr[idx].val.str = dll_procedure_active()
+			? dll_procedure_strdup(tmp.as_string().c_str())
+			: strings_.add(tmp.as_string().c_str());
 
 	    } else if (tmp == verinum()) {
 		  attr[idx].type = IVL_ATT_VOID;
@@ -223,64 +532,11 @@ ivl_attribute_s* dll_target::fill_in_attributes(const Attrib*net)
       return attr;
 }
 
-/*
- * This function locates an ivl_scope_t object that matches the
- * NetScope object. The search works by looking for the parent scope,
- * then scanning the parent scope for the NetScope object.
- */
-static ivl_scope_t find_scope_from_root(ivl_scope_t root, const NetScope*cur)
-{
-      if (const NetScope*par = cur->parent()) {
-	    ivl_scope_t parent = find_scope_from_root(root, par);
-	    if (parent == 0) {
-		  return 0;
-	    }
-
-	    map<hname_t,ivl_scope_t>::iterator idx = parent->children.find(cur->fullname());
-	    if (idx == parent->children.end())
-		  return 0;
-	    else
-		  return idx->second;
-
-      } else {
-	    perm_string cur_name = make_scope_name(cur->fullname());
-	    if (strcmp(root->name_, cur_name) == 0)
-		  return root;
-      }
-
-      return 0;
-}
-
 ivl_scope_t dll_target::find_scope(ivl_design_s &des, const NetScope*cur)
 {
       assert(cur);
-
-	// If the scope is a PACKAGE, then it is a special kind of
-	// root scope and it in the packages array instead.
-      if (cur->type() == NetScope::PACKAGE) {
-	    perm_string cur_name = cur->module_name();
-	    for (size_t idx = 0 ; idx < des.packages.size() ; idx += 1) {
-		  if (des.packages[idx]->name_ == cur_name)
-			return des.packages[idx];
-	    }
-	    return 0;
-      }
-
-      for (unsigned idx = 0; idx < des.roots.size(); idx += 1) {
-	    assert(des.roots[idx]);
-	    ivl_scope_t scop = find_scope_from_root(des.roots[idx], cur);
-	    if (scop)
-		  return scop;
-      }
-
-      for (size_t idx = 0; idx < des.packages.size(); idx += 1) {
-	    assert(des.packages[idx]);
-	    ivl_scope_t scop = find_scope_from_root(des.packages[idx], cur);
-	    if (scop)
-		  return scop;
-      }
-
-      return 0;
+      (void)des;
+      return cur->target_scope();
 }
 
 ivl_scope_t dll_target::lookup_scope_(const NetScope*cur)
@@ -294,30 +550,34 @@ ivl_scope_t dll_target::lookup_scope_(const NetScope*cur)
  */
 ivl_signal_t dll_target::find_signal(const NetNet*net)
 {
-      map<const NetNet*, ivl_signal_t>::const_iterator cached =
-	    signal_map_.find(net);
-      if (cached != signal_map_.end())
-	    return cached->second;
-
-      ivl_scope_t scop = find_scope(des_, net->scope());
-      assert(scop);
-
-      perm_string nname = net->name();
-
-      for (unsigned idx = 0 ;  idx < scop->sigs_.size() ;  idx += 1) {
-	    if (strcmp(scop->sigs_[idx]->name_, nname) == 0) {
-		  signal_map_[net] = scop->sigs_[idx];
-		  return scop->sigs_[idx];
-	    }
-      }
-
-      assert(0);
-      return 0;
+      assert(net);
+      ivl_signal_t signal = net->target_signal();
+      assert(signal);
+      return signal;
 }
 
-static ivl_nexus_t nexus_sig_make(ivl_signal_t net, unsigned pin)
+/* Count the source links that are exposed through ivl_nexus_ptr(). Event
+ * probes have their own event-pin API and are not target nexus pointers. */
+static size_t nexus_ptr_count(const Nexus*nex)
+{
+      size_t count = 0;
+      for (const Link*cur = nex->first_nlink()
+		 ; cur ; cur = cur->next_nlink()) {
+	    const NetPins*obj = cur->get_obj();
+	    if (dynamic_cast<const NetNet*>(obj)
+		|| dynamic_cast<const NetBranch*>(obj)
+		|| (dynamic_cast<const NetNode*>(obj)
+		    && !dynamic_cast<const NetEvProbe*>(obj)))
+		  count += 1;
+      }
+      return count;
+}
+
+static ivl_nexus_t nexus_sig_make(ivl_signal_t net, unsigned pin,
+				  const Nexus*nex = 0)
 {
       ivl_nexus_t tmp = new struct ivl_nexus_s;
+      tmp->ptrs_.reserve(nex ? nexus_ptr_count(nex) : 1);
       tmp->ptrs_.resize(1);
       tmp->ptrs_[0].pin_   = pin;
       tmp->ptrs_[0].type_  = __NEXUS_PTR_SIG;
@@ -431,65 +691,74 @@ static void nexus_switch_add(ivl_nexus_t nex, ivl_switch_t net, unsigned pin)
 
 void scope_add_logic(ivl_scope_t scope, ivl_net_logic_t net)
 {
-      if (scope->nlog_ == 0) {
-	    scope->nlog_ = 1;
-	    scope->log_ = static_cast<ivl_net_logic_t*>(malloc(sizeof(ivl_net_logic_t)));
-	    scope->log_[0] = net;
+      ivl_scope_objects_s*objects = scope->ensure_objects_();
+      if (objects->nlog_ == 0) {
+            objects->nlog_ = 1;
+            objects->log_ = static_cast<ivl_net_logic_t*>(malloc(sizeof(ivl_net_logic_t)));
+            objects->log_[0] = net;
 
       } else {
-	    scope->nlog_ += 1;
-	    scope->log_ = static_cast<ivl_net_logic_t*>
-	                  (realloc(scope->log_, scope->nlog_*sizeof(ivl_net_logic_t)));
-	    scope->log_[scope->nlog_-1] = net;
+            objects->nlog_ += 1;
+            objects->log_ = static_cast<ivl_net_logic_t*>
+                          (realloc(objects->log_, objects->nlog_*sizeof(ivl_net_logic_t)));
+            objects->log_[objects->nlog_-1] = net;
       }
 
 }
 
 void scope_add_event(ivl_scope_t scope, ivl_event_t net)
 {
-      if (scope->nevent_ == 0) {
-	    scope->nevent_ = 1;
-	    scope->event_ = static_cast<ivl_event_t*>(malloc(sizeof(ivl_event_t)));
-	    scope->event_[0] = net;
+      ivl_scope_objects_s*objects = scope->ensure_objects_();
+      if (objects->nevent_ == 0) {
+            objects->nevent_ = 1;
+            objects->event_ = static_cast<ivl_event_t*>(malloc(sizeof(ivl_event_t)));
+            objects->event_[0] = net;
 
       } else {
-	    scope->nevent_ += 1;
-	    scope->event_ = static_cast<ivl_event_t*>
-	                    (realloc(scope->event_, scope->nevent_*sizeof(ivl_event_t)));
-	    scope->event_[scope->nevent_-1] = net;
+            objects->nevent_ += 1;
+            objects->event_ = static_cast<ivl_event_t*>
+                            (realloc(objects->event_, objects->nevent_*sizeof(ivl_event_t)));
+            objects->event_[objects->nevent_-1] = net;
       }
 
 }
 
 static void scope_add_lpm(ivl_scope_t scope, ivl_lpm_t net)
 {
-      if (scope->nlpm_ == 0) {
-	    assert(scope->lpm_ == 0);
-	    scope->nlpm_ = 1;
-	    scope->lpm_ = static_cast<ivl_lpm_t*>(malloc(sizeof(ivl_lpm_t)));
-	    scope->lpm_[0] = net;
+      ivl_scope_objects_s*objects = scope->ensure_objects_();
+      if (objects->nlpm_ == 0) {
+            assert(objects->lpm_ == 0);
+            objects->nlpm_ = 1;
+            objects->lpm_ = static_cast<ivl_lpm_t*>(malloc(sizeof(ivl_lpm_t)));
+            objects->lpm_[0] = net;
 
       } else {
-	    assert(scope->lpm_);
-	    scope->nlpm_ += 1;
-	    scope->lpm_   = static_cast<ivl_lpm_t*>
-                            (realloc(scope->lpm_, scope->nlpm_*sizeof(ivl_lpm_t)));
-	    scope->lpm_[scope->nlpm_-1] = net;
+            assert(objects->lpm_);
+            objects->nlpm_ += 1;
+            objects->lpm_ = static_cast<ivl_lpm_t*>
+                            (realloc(objects->lpm_, objects->nlpm_*sizeof(ivl_lpm_t)));
+            objects->lpm_[objects->nlpm_-1] = net;
       }
 }
 
 static void scope_add_switch(ivl_scope_t scope, ivl_switch_t net)
 {
-      scope->switches.push_back(net);
+      ivl_scope_aux_s*aux = scope->ensure_aux_();
+      if (!aux->switches)
+	    aux->switches = new vector<ivl_switch_t>();
+      aux->switches->push_back(net);
 }
 
 ivl_parameter_t dll_target::scope_find_param(ivl_scope_t scope,
 					     const char*name)
 {
+      if (!scope->aux_ || !scope->aux_->param)
+	    return 0;
+      vector<ivl_parameter_s>&param = *scope->aux_->param;
       unsigned idx = 0;
-      while (idx < scope->param.size()) {
-	    if (strcmp(name, scope->param[idx].basename) == 0)
-		  return &scope->param[idx];
+      while (idx < param.size()) {
+            if (strcmp(name, param[idx].basename) == 0)
+                  return &param[idx];
 
 	    idx += 1;
       }
@@ -504,12 +773,13 @@ ivl_parameter_t dll_target::scope_find_param(ivl_scope_t scope,
  */
 void dll_target::make_scope_parameters(ivl_scope_t scop, const NetScope*net)
 {
-      if (net->parameters.empty()) {
-	    scop->param.clear();
-	    return;
-      }
+      if (net->parameters.empty())
+            return;
 
-      scop->param.resize(net->parameters.size());
+      ivl_scope_aux_s*aux = scop->ensure_aux_();
+      assert(aux->param == 0);
+      aux->param = new vector<ivl_parameter_s>(net->parameters.size());
+      vector<ivl_parameter_s>&param = *aux->param;
 
       unsigned idx = 0;
       typedef map<perm_string,NetScope::param_expr_t>::const_iterator pit_t;
@@ -517,8 +787,8 @@ void dll_target::make_scope_parameters(ivl_scope_t scop, const NetScope*net)
       for (pit_t cur_pit = net->parameters.begin()
 		 ; cur_pit != net->parameters.end() ; ++ cur_pit ) {
 
-	    assert(idx < scop->param.size());
-	    ivl_parameter_t cur_par = &scop->param[idx];
+            assert(idx < param.size());
+            ivl_parameter_t cur_par = &param[idx];
 	    cur_par->basename = cur_pit->first;
 	    cur_par->local = cur_pit->second.local_flag ||
 			     !cur_pit->second.overridable;
@@ -653,42 +923,52 @@ static void fill_in_scope_function(ivl_scope_t scope, const NetScope*net)
       if (const PFunction*pfunc = net->func_pform()) {
             if (pfunc->is_dpi_import()) {
                   scope->is_dpi_import = true;
-                  scope->dpi_c_name = pfunc->dpi_c_name().c_str();
+                  scope->ensure_proc_()->dpi_c_name =
+			pfunc->dpi_c_name().c_str();
             }
             if (pfunc->is_dpi_export()) {
                   scope->is_dpi_export = true;
-                  scope->dpi_export_c_name = pfunc->dpi_export_c_name().c_str();
+                  scope->ensure_proc_()->dpi_export_c_name =
+			pfunc->dpi_export_c_name().c_str();
             }
       }
+}
+
+static void scope_prepare_children_(ivl_scope_t scope, const NetScope*net)
+{
+      size_t count = net->children().size();
+      scope->child = count ? new ivl_scope_t[count] : 0;
+}
+
+static void scope_add_child_(ivl_scope_t parent, ivl_scope_t child)
+{
+      assert(parent);
+      assert(parent->net_);
+      assert(parent->child_count_ < parent->net_->children().size());
+      parent->child[parent->child_count_++] = child;
 }
 
 void dll_target::add_root(const NetScope *s)
 {
       ivl_scope_t root_ = new struct ivl_scope_s;
+      s->target_scope(root_);
+      root_->net_ = s;
+      scope_prepare_children_(root_, s);
+      root_->sigs_.reserve(s->signals_map().size());
       perm_string name = s->basename();
       root_->name_ = name;
-      FILE_NAME(root_, s);
       root_->parent = 0;
-      root_->nlog_ = 0;
-      root_->log_ = 0;
-      root_->nevent_ = 0;
-      root_->event_ = 0;
-      root_->nlpm_ = 0;
-      root_->lpm_ = 0;
-      root_->def = 0;
       make_scope_parameters(root_, s);
+      const_cast<NetScope*>(s)->release_parameters();
       root_->tname_ = root_->name_;
       root_->time_precision = s->time_precision();
       root_->time_units = s->time_unit();
-      root_->nattr = s->attr_cnt();
-      root_->attr  = fill_in_attributes(s);
+      if (ivl_attribute_s*attr = fill_in_attributes(s))
+	    root_->ensure_aux_()->attr = attr;
       root_->is_auto = 0;
       root_->auto_frame = 1;
       root_->is_program = s->program_block();
       root_->is_interface = s->is_interface();
-      root_->modport_names = s->modport_names();
-      for (size_t mi = 0 ; mi < s->modport_names().size() ; mi += 1)
-	    root_->modport_ports.push_back(s->modport_ports(mi));
       root_->is_cell = s->is_cell();
       switch (s->type()) {
 	  case NetScope::PACKAGE:
@@ -706,20 +986,12 @@ void dll_target::add_root(const NetScope *s)
 
       switch (s->type()) {
 	  case NetScope::MODULE:
-	    root_->ports = s->module_port_nets();
-	    if (root_->ports > 0) {
-		  root_->u_.net = new NetNet*[root_->ports];
-		  for (unsigned idx = 0; idx < root_->ports; idx += 1) {
-			root_->u_.net[idx] = s->module_port_net(idx);
-		  }
-	    }
-	    root_->module_ports_info = s->module_port_info();
-
+	    if (unsigned ports = s->module_port_nets())
+		  root_->ensure_proc_()->ports = ports;
 	    des_.roots.push_back(root_);
 	    break;
 
 	  case NetScope::PACKAGE:
-	    root_->ports = 0;
 	    des_.packages.push_back(root_);
 	    break;
 
@@ -733,8 +1005,17 @@ bool dll_target::start_design(const Design*des)
 {
       const char*dll_path_ = des->get_flag("DLL");
 
-      signal_map_.clear();
       needs_design_ = true;
+      stream_processes_ = false;
+      order_processes_ = false;
+      stream_started_ = false;
+      stream_begin_succeeded_ = false;
+      stream_finished_ = false;
+      stream_result_ = 0;
+      target_begin_ = 0;
+      target_process_ = 0;
+      target_end_ = 0;
+      target_process_order_ = 0;
 
       dll_ = ivl_dlopen(dll_path_);
 
@@ -772,6 +1053,38 @@ bool dll_target::start_design(const Design*des)
 	    const char*answer = (*targ_query)("requires_design");
 	    if (answer && strcmp(answer, "false") == 0)
 		  needs_design_ = false;
+
+	    answer = (*targ_query)("stream_processes");
+	    if (needs_design_ && answer && strcmp(answer, "true") == 0) {
+		  target_begin_ = reinterpret_cast<target_design_begin_f>(
+			ivl_dlsym(dll_, LU "target_design_begin" TU));
+		  target_process_ = reinterpret_cast<target_process_f>(
+			ivl_dlsym(dll_, LU "target_process" TU));
+		  target_end_ = reinterpret_cast<target_design_end_f>(
+			ivl_dlsym(dll_, LU "target_design_end" TU));
+		  if (!target_begin_ || !target_process_ || !target_end_) {
+			cerr << dll_path_ << ": error: target advertises "
+			     << "stream_processes without all incremental entry "
+			     << "points." << endl;
+			return false;
+		  }
+		  stream_processes_ = true;
+
+		  answer = (*targ_query)("order_processes");
+		  if (answer && strcmp(answer, "true") == 0) {
+			target_process_order_ =
+			      reinterpret_cast<target_process_order_f>(
+				    ivl_dlsym(dll_,
+					      LU "target_process_order" TU));
+			if (!target_process_order_) {
+			      cerr << dll_path_ << ": error: target advertises "
+				   << "order_processes without the ordering entry "
+				   << "point." << endl;
+			      return false;
+			}
+			order_processes_ = true;
+		  }
+	    }
       }
 
       stmt_cur_ = 0;
@@ -809,6 +1122,125 @@ bool dll_target::start_design(const Design*des)
       return true;
 }
 
+static bool process_has_schedule_init_(const Attrib*process)
+{
+      for (unsigned idx = 0; idx < process->attr_cnt(); idx += 1) {
+	    if (process->attr_key(idx) == "_ivl_schedule_init")
+		  return true;
+      }
+      return false;
+}
+
+bool dll_target::order_processes(vector<target_process_ref_t>&processes)
+{
+      assert(stream_processes_);
+      assert(order_processes_);
+      assert(target_process_order_);
+
+      vector<ivl_process_order_s> descriptors(processes.size());
+      for (size_t idx = 0; idx < processes.size(); idx += 1) {
+	    const target_process_ref_t&ref = processes[idx];
+	    const LineInfo*line;
+	    const Attrib*attr;
+	    const NetScope*scope;
+
+	    descriptors[idx].cookie = idx;
+	    descriptors[idx].flags = 0;
+	    if (ref.analog) {
+		  assert(!ref.net);
+		  descriptors[idx].type = ref.analog->type();
+		  scope = ref.analog->scope();
+		  line = ref.analog;
+		  attr = ref.analog;
+		  descriptors[idx].flags |= IVL_PROCESS_ORDER_ANALOG;
+	    } else {
+		  assert(ref.net);
+		  descriptors[idx].type = ref.net->type();
+		  scope = ref.net->scope();
+		  line = ref.net;
+		  attr = ref.net;
+	    }
+
+	    descriptors[idx].scope = lookup_scope_(scope);
+	    descriptors[idx].file = line->get_file().str();
+	    descriptors[idx].lineno = line->get_lineno();
+	    if (process_has_schedule_init_(attr))
+		  descriptors[idx].flags |= IVL_PROCESS_ORDER_SCHEDULE_INIT;
+      }
+
+      int rc = (*target_process_order_)(descriptors.data(),
+					processes.size());
+      if (rc != 0) {
+	    stream_result_ = rc;
+	    return false;
+      }
+
+      vector<unsigned char> seen(processes.size(), 0);
+      vector<target_process_ref_t> ordered;
+      ordered.reserve(processes.size());
+      for (size_t idx = 0; idx < descriptors.size(); idx += 1) {
+	    size_t cookie = descriptors[idx].cookie;
+	    if (cookie >= processes.size() || seen[cookie]) {
+		  cerr << "error: target_process_order returned an invalid "
+		       << "process permutation." << endl;
+		  stream_result_ = -1;
+		  return false;
+	    }
+	    seen[cookie] = 1;
+	    ordered.push_back(processes[cookie]);
+      }
+
+      processes.swap(ordered);
+      return true;
+}
+
+bool dll_target::start_processes()
+{
+      if (!stream_processes_)
+	    return true;
+      assert(!stream_started_);
+      assert(!stream_finished_);
+
+      if (verbose_flag)
+	    cout << " ... invoking incremental target design begin" << endl;
+      stream_started_ = true;
+      stream_result_ = (*target_begin_)(&des_);
+      stream_begin_succeeded_ = stream_result_ == 0;
+      return stream_result_ == 0;
+}
+
+bool dll_target::stream_process(ivl_process_t process)
+{
+      assert(stream_processes_);
+      if (!stream_started_ || stream_finished_ || stream_result_ != 0)
+	    return false;
+
+      int rc = (*target_process_)(process);
+      if (rc != 0) {
+	    stream_result_ = rc;
+	    return false;
+      }
+      return true;
+}
+
+bool dll_target::end_processes()
+{
+      if (!stream_processes_)
+	    return true;
+      if (!stream_started_ || stream_finished_)
+	    return false;
+	if (!stream_begin_succeeded_) {
+	    stream_finished_ = true;
+	    return false;
+	}
+
+      int prior_result = stream_result_;
+      int end_result = (*target_end_)(&des_);
+      stream_finished_ = true;
+      stream_result_ = prior_result != 0 ? prior_result : end_result;
+	return stream_result_ == 0;
+}
+
 /*
  * Here ivl is telling us that the design is scanned completely, and
  * here is where we call the API to process the constructed design.
@@ -816,7 +1248,14 @@ bool dll_target::start_design(const Design*des)
 int dll_target::end_design(const Design*)
 {
       int rc;
-      if (errors == 0) {
+      if (stream_processes_) {
+	    if (stream_result_ != 0)
+		  rc = stream_result_;
+	    else if (errors != 0)
+		  rc = errors;
+	    else
+		  rc = stream_result_;
+      } else if (errors == 0) {
 	    if (verbose_flag) {
 		  cout << " ... invoking target_design" << endl;
 	    }
@@ -847,7 +1286,7 @@ void dll_target::logic_attributes(struct ivl_net_logic_s *obj,
       obj->attr  = fill_in_attributes(net);
 }
 
-void dll_target::make_delays_(ivl_expr_t*delay, const NetObj*net)
+void dll_target::fill_delays_(ivl_expr_t*delay, const NetObj*net)
 {
       delay[0] = 0;
       delay[1] = 0;
@@ -884,28 +1323,43 @@ void dll_target::make_delays_(ivl_expr_t*delay, const NetObj*net)
       }
 }
 
+ivl_expr_t* dll_target::make_sparse_delays_(const NetObj*net)
+{
+      if (!net->rise_time() && !net->fall_time() && !net->decay_time())
+	    return 0;
+
+	/* Delay-bearing target records are uncommon. Keep the common record
+	 * compact and allocate the complete transition tuple only when one of
+	 * its source expressions exists. Value initialization supplies the
+	 * absent transitions before fill_delays_ preserves shared-expression
+	 * pointer identity. */
+      ivl_expr_t*delay = new ivl_expr_t[3]();
+      fill_delays_(delay, net);
+      return delay;
+}
+
 void dll_target::make_logic_delays_(struct ivl_net_logic_s*obj,
                                     const NetObj*net)
 {
-      make_delays_(obj->delay, net);
+      obj->delay = make_sparse_delays_(net);
 }
 
 void dll_target::make_switch_delays_(struct ivl_switch_s*obj,
                                     const NetObj*net)
 {
-      make_delays_(obj->delay, net);
+      fill_delays_(obj->delay, net);
 }
 
 void dll_target::make_lpm_delays_(struct ivl_lpm_s*obj,
 				  const NetObj*net)
 {
-      make_delays_(obj->delay, net);
+      obj->delay = make_sparse_delays_(net);
 }
 
 void dll_target::make_const_delays_(struct ivl_net_const_s*obj,
 				    const NetObj*net)
 {
-      make_delays_(obj->delay, net);
+      obj->delay = make_sparse_delays_(net);
 }
 
 bool dll_target::branch(const NetBranch*net)
@@ -986,9 +1440,10 @@ bool dll_target::bufz(const NetBUFZ*net)
 	// Add bufz to the corresponding port_info entry,
 	// if it is an input / output buffer
 	// This is needed for the SDF interconnect feature
-	// to access the buffers directly from the port_info
+      // to access the buffers directly from the port_info
       if (obj->is_port_buffer) {
-	    scop->module_ports_info[net->port_info_index()].buffer = obj;
+	    NetScope*source_scope = const_cast<NetScope*>(net->scope());
+	    source_scope->get_module_port_info(net->port_info_index())->buffer = obj;
       }
 
       return true;
@@ -997,7 +1452,10 @@ bool dll_target::bufz(const NetBUFZ*net)
 bool dll_target::class_type(const NetScope*in_scope, netclass_t*net)
 {
       ivl_scope_t use_scope = find_scope(des_, in_scope);
-      use_scope->classes.push_back(net);
+      ivl_scope_aux_s*aux = use_scope->ensure_aux_();
+      if (!aux->classes)
+	    aux->classes = new vector<ivl_type_t>();
+      aux->classes->push_back(net);
       return true;
 }
 
@@ -1009,21 +1467,165 @@ bool dll_target::enumeration(const NetScope*in_scope, netenum_t*net)
 	// typespec is identified by NET, so emitting that same object twice
 	// creates duplicate labels in the VVP program. Keep one entry per
 	// typespec while preserving declaration order.
+      ivl_scope_aux_s*aux = use_scope->ensure_aux_();
+      if (!aux->enumerations_)
+	    aux->enumerations_ = new vector<ivl_enumtype_t>();
+
+	vector<ivl_enumtype_t>&enumerations = *aux->enumerations_;
       for (std::vector<ivl_enumtype_t>::const_iterator cur =
-		 use_scope->enumerations_.begin()
-		 ; cur != use_scope->enumerations_.end() ; ++cur)
+		 enumerations.begin()
+		 ; cur != enumerations.end() ; ++cur)
 	    if (*cur == net)
 		  return true;
-      use_scope->enumerations_.push_back(net);
+      enumerations.push_back(net);
       return true;
+}
+
+ivl_event_t dll_target::find_event_(const NetEvent*net)
+{
+      ivl_scope_t scope = lookup_scope_(net->scope());
+      if (!scope)
+	    return 0;
+
+      ivl_scope_objects_s*objects = scope->objects_();
+      if (!objects)
+	    return 0;
+      for (unsigned idx = 0; idx < objects->nevent_; idx += 1) {
+	    ivl_event_t event = objects->event_[idx];
+	    if (strcmp(net->name(), event->name) == 0)
+		  return event;
+      }
+      return 0;
+}
+
+bool dll_target::finalize_event_pins_(const NetEvent*net)
+{
+      ivl_event_t event = find_event_(net);
+      if (!event) {
+	    cerr << net->get_fileline() << ": internal error: target event `"
+		 << net->name() << "' was not materialized." << endl;
+	    return false;
+      }
+
+      if (event->pins_finalized)
+	    return true;
+      event->pins_finalized = true;
+
+      unsigned iany = 0;
+      unsigned ineg = event->nany;
+      unsigned ipos = ineg + event->nneg;
+      unsigned iedg = ipos + event->npos;
+      unsigned count = iedg + event->nedg;
+      unsigned missing = 0;
+
+      for (unsigned idx = 0; idx < net->nprobe(); idx += 1) {
+	    const NetEvProbe*probe = net->probe(idx);
+	    unsigned base = 0;
+
+	    switch (probe->edge()) {
+		case NetEvProbe::ANYEDGE:
+		  base = iany;
+		  iany += probe->pin_count();
+		  break;
+		case NetEvProbe::NEGEDGE:
+		  base = ineg;
+		  ineg += probe->pin_count();
+		  break;
+		case NetEvProbe::POSEDGE:
+		  base = ipos;
+		  ipos += probe->pin_count();
+		  break;
+		case NetEvProbe::EDGE:
+		  base = iedg;
+		  iedg += probe->pin_count();
+		  break;
+	    }
+
+	    if (base > count || probe->pin_count() > count - base) {
+		  missing += probe->pin_count();
+		  continue;
+	    }
+	    for (unsigned bit = 0; bit < probe->pin_count(); bit += 1) {
+		  const Nexus*source = probe->pin(bit).nexus();
+		  ivl_nexus_t nexus = source ? source->t_cookie() : 0;
+		  if (event->pins)
+			event->pins[base + bit] = nexus;
+		  if (!nexus)
+			missing += 1;
+	    }
+      }
+
+      bool layout_ok = iany == event->nany
+	    && ineg == event->nany + event->nneg
+	    && ipos == event->nany + event->nneg + event->npos
+	    && iedg == event->nany + event->nneg + event->npos + event->nedg;
+      if (!layout_ok || missing) {
+	    cerr << net->get_fileline() << ": internal error: target event `"
+		 << net->name() << "' has " << missing
+		 << " unmaterialized nexus pin(s)." << endl;
+	    return false;
+      }
+      return true;
+}
+
+bool dll_target::validate_scope_event_pins_(ivl_scope_t scope) const
+{
+      bool flag = true;
+      ivl_scope_objects_s*objects = scope->objects_();
+      unsigned nevent = objects ? objects->nevent_ : 0;
+      for (unsigned idx = 0; idx < nevent; idx += 1) {
+	    ivl_event_t event = objects->event_[idx];
+	    unsigned count = event->nany + event->nneg
+		  + event->npos + event->nedg;
+	    unsigned missing = 0;
+	    if (count && !event->pins) {
+		  missing = count;
+	    } else {
+		  for (unsigned pin = 0; pin < count; pin += 1)
+			if (!event->pins[pin])
+			      missing += 1;
+	    }
+
+	    if ((count && !event->pins_finalized) || missing) {
+		  cerr << event->file << ":" << event->lineno
+		       << ": internal error: target event `" << event->name
+		       << "' was not finalized (" << missing
+		       << " missing nexus pin(s))." << endl;
+		  flag = false;
+	    }
+      }
+
+      for (unsigned idx = 0; idx < scope->child_count_; idx += 1) {
+	    bool child_flag = validate_scope_event_pins_(scope->child[idx]);
+	    flag = child_flag && flag;
+      }
+      return flag;
+}
+
+bool dll_target::end_nodes()
+{
+      bool flag = true;
+      for (vector<ivl_scope_t>::const_iterator cur = des_.packages.begin();
+	   cur != des_.packages.end(); ++cur) {
+	    bool scope_flag = validate_scope_event_pins_(*cur);
+	    flag = scope_flag && flag;
+      }
+      for (vector<ivl_scope_t>::const_iterator cur = des_.roots.begin();
+	   cur != des_.roots.end(); ++cur) {
+	    bool scope_flag = validate_scope_event_pins_(*cur);
+	    flag = scope_flag && flag;
+      }
+      return flag;
 }
 
 void dll_target::event(const NetEvent*net)
 {
       ivl_scope_t scop = find_scope(des_, net->scope());
       assert(scop);
-      for (unsigned idx = 0 ; idx < scop->nevent_ ; idx += 1) {
-            if (strcmp(ivl_event_basename(scop->event_[idx]), net->name()) == 0)
+      ivl_scope_objects_s*objects = scop->objects_();
+      unsigned nevent = objects ? objects->nevent_ : 0;
+      for (unsigned idx = 0 ; idx < nevent ; idx += 1) {
+            if (strcmp(ivl_event_basename(objects->event_[idx]), net->name()) == 0)
                   return;
       }
 
@@ -1039,6 +1641,7 @@ void dll_target::event(const NetEvent*net)
       obj->nneg = 0;
       obj->npos = 0;
       obj->nedg = 0;
+      obj->pins_finalized = false;
       obj->is_vif_posedge = false;
       obj->is_vif_negedge = false;
       obj->is_vif_anyedge = false;
@@ -1488,31 +2091,13 @@ ivl_event_t dll_target::make_lpm_trigger(const NetEvWait*net)
       ivl_event_t trigger = 0;
       if (net) {
             const NetEvent*ev = net->event(0);
+            trigger = find_event_(ev);
+            ivl_assert(*ev, trigger);
 
-              /* Locate the event by name. */
-            ivl_scope_t ev_scope = lookup_scope_(ev->scope());
-
-            assert(ev_scope);
-            assert(ev_scope->nevent_ > 0);
-            for (unsigned idx = 0;  idx < ev_scope->nevent_; idx += 1) {
-                  const char*ename =
-                        ivl_event_basename(ev_scope->event_[idx]);
-                  if (strcmp(ev->name(), ename) == 0) {
-                        trigger = ev_scope->event_[idx];
-                        break;
-                  }
-            }
-
-              /* Connect up the probe pins. This wasn't done during the
-                 ::event method because the signals weren't scanned yet. */
-            assert(ev->nprobe() == 1);
-            const NetEvProbe*pr = ev->probe(0);
-            for (unsigned bit = 0; bit < pr->pin_count(); bit += 1) {
-                  ivl_nexus_t nex = static_cast<ivl_nexus_t>
-		                    (pr->pin(bit).nexus()->t_cookie());
-                  assert(nex);
-                  trigger->pins[bit] = nex;
-            }
+	      /* A structural function may be emitted before its probe node.
+	       * Finalize the complete event here as well as from net_probe(). */
+            if (!finalize_event_pins_(ev))
+		  errors += 1;
       }
       return trigger;
 }
@@ -2694,8 +3279,10 @@ bool dll_target::net_literal(const NetLiteral*net)
       return true;
 }
 
-void dll_target::net_probe(const NetEvProbe*)
+void dll_target::net_probe(const NetEvProbe*net)
 {
+      if (!finalize_event_pins_(net->event()))
+	    errors += 1;
 }
 
 void dll_target::scope(const NetScope*net)
@@ -2712,31 +3299,24 @@ void dll_target::scope(const NetScope*net)
       } else {
 	    perm_string sname = make_scope_name(net->fullname());
 	    ivl_scope_t scop = new struct ivl_scope_s;
+	    scop->net_ = net;
+	    scope_prepare_children_(scop, net);
+	    scop->sigs_.reserve(net->signals_map().size());
 	    scop->name_ = sname;
-	    FILE_NAME(scop, net);
 	    scop->parent = find_scope(des_, net->parent());
 	    assert(scop->parent);
-	    scop->parent->children[net->fullname()] = scop;
-	    scop->parent->child .push_back(scop);
-	    scop->nlog_ = 0;
-	    scop->log_ = 0;
-	    scop->nevent_ = 0;
-	    scop->event_ = 0;
-	    scop->nlpm_ = 0;
-	    scop->lpm_ = 0;
-	    scop->def = 0;
+	    net->target_scope(scop);
+	    scope_add_child_(scop->parent, scop);
 	    make_scope_parameters(scop, net);
+	    const_cast<NetScope*>(net)->release_parameters();
 	    scop->time_precision = net->time_precision();
 	    scop->time_units = net->time_unit();
-	    scop->nattr = net->attr_cnt();
-	    scop->attr = fill_in_attributes(net);
+	    if (ivl_attribute_s*attr = fill_in_attributes(net))
+		  scop->ensure_aux_()->attr = attr;
 	    scop->is_auto = net->is_auto();
 	    scop->auto_frame = net->auto_frame();
 	    scop->is_program = net->program_block();
 	    scop->is_interface = net->is_interface();
-	    scop->modport_names = net->modport_names();
-	    for (size_t mi = 0 ; mi < net->modport_names().size() ; mi += 1)
-		  scop->modport_ports.push_back(net->modport_ports(mi));
 	    scop->is_cell = net->is_cell();
 	    scop->is_virtual_method = net->is_virtual_method();
 
@@ -2748,14 +3328,8 @@ void dll_target::scope(const NetScope*net)
 		case NetScope::MODULE:
 		  scop->type_ = IVL_SCT_MODULE;
 		  scop->tname_ = net->module_name();
-		  scop->ports = net->module_port_nets();
-		  if (scop->ports > 0) {
-			scop->u_.net = new NetNet*[scop->ports];
-			for (unsigned idx = 0; idx < scop->ports; idx += 1) {
-			      scop->u_.net[idx] = net->module_port_net(idx);
-			}
-		  }
-		  scop->module_ports_info = net->module_port_info();
+		  if (unsigned ports = net->module_port_nets())
+			scop->ensure_proc_()->ports = ports;
 		  break;
 
 		case NetScope::TASK: {
@@ -2765,11 +3339,13 @@ void dll_target::scope(const NetScope*net)
 		      if (const PTask*ptask = net->task_pform()) {
 			    if (ptask->is_dpi_import()) {
 				  scop->is_dpi_import = true;
-				  scop->dpi_c_name = ptask->dpi_c_name().c_str();
+				  scop->ensure_proc_()->dpi_c_name =
+					ptask->dpi_c_name().c_str();
 			    }
 			    if (ptask->is_dpi_export()) {
 				  scop->is_dpi_export = true;
-				  scop->dpi_export_c_name = ptask->dpi_export_c_name().c_str();
+				  scop->ensure_proc_()->dpi_export_c_name =
+					ptask->dpi_export_c_name().c_str();
 			    }
 		      }
 		      break;
@@ -2800,20 +3376,63 @@ void dll_target::scope(const NetScope*net)
 void dll_target::convert_module_ports(const NetScope*net)
 {
       ivl_scope_t scop = find_scope(des_, net);
-      if (scop->ports > 0) {
-	    NetNet**nets = scop->u_.net;
-	    scop->u_.nex = new ivl_nexus_t[scop->ports];
-	    for (unsigned idx = 0; idx < scop->ports; idx += 1) {
-		  ivl_signal_t sig = find_signal(nets[idx]);
-		  scop->u_.nex[idx] = nexus_sig_make(sig, 0);
+      ivl_scope_proc_s*proc = scop->proc_();
+      if (proc && proc->ports > 0) {
+	    proc->u_.nex = new ivl_nexus_t[proc->ports];
+	    for (unsigned idx = 0; idx < proc->ports; idx += 1) {
+		  ivl_signal_t sig = find_signal(net->module_port_net(idx));
+		  proc->u_.nex[idx] = nexus_sig_make(sig, 0);
 	    }
-	    delete [] nets;
       }
+}
+
+unsigned dll_target_signal_array_words(const NetNet*net)
+{
+      assert(net);
+      if (net->unpacked_dimensions() == 1)
+	    return net->unpacked_count();
+
+      if (net->net_type()->base_type() == IVL_VT_QUEUE) {
+	    if (const netqueue_t*queue_type = net->queue_type()) {
+		  long max_size = queue_type->max_idx() + 1;
+		  ivl_assert(*net, max_size >= 0);
+		  return static_cast<unsigned>(max_size);
+	    }
+	    return net->pin_count();
+      }
+
+      return net->unpacked_count();
+}
+
+int dll_target_signal_array_base(const NetNet*net)
+{
+      assert(net);
+      if (net->unpacked_dimensions() != 1)
+	    return 0;
+      const netrange_t&dim = net->unpacked_dims()[0];
+      return dim.get_msb() < dim.get_lsb()
+	   ? dim.get_msb() : dim.get_lsb();
+}
+
+bool dll_target_signal_array_addr_swapped(const NetNet*net)
+{
+      assert(net);
+      if (net->unpacked_dimensions() != 1)
+	    return false;
+      const netrange_t&dim = net->unpacked_dims()[0];
+      return dim.get_msb() >= dim.get_lsb();
+}
+
+static ivl_signal_aux_s* signal_aux_(ivl_signal_t obj)
+{
+      if (! obj->aux_)
+	    obj->aux_ = new ivl_signal_aux_s();
+      return obj->aux_;
 }
 
 void dll_target::signal(const NetNet*net)
 {
-      if (signal_map_.find(net) != signal_map_.end())
+      if (net->target_signal())
 	    return;
 
       ivl_scope_t scope = find_scope(des_, net->scope());
@@ -2821,18 +3440,12 @@ void dll_target::signal(const NetNet*net)
 
       ivl_signal_t obj = new struct ivl_signal_s;
 
-      obj->name_ = net->name();
       obj->net_ = net;
+      net->target_signal(obj);
 
-	/* Attach the signal to the ivl_scope_t object that contains
-	   it. This involves growing the sigs_ array in the scope
-	   object, or creating the sigs_ array if this is the first
-	   signal. */
-      obj->scope_ = scope;
-      FILE_NAME(obj, net);
-
-      obj->scope_->sigs_.push_back(obj);
-      signal_map_[net] = obj;
+	/* Attach the signal to the exact-sized vector reserved when its scope
+	   target record was created. */
+      scope->sigs_.push_back(obj);
 
 	/* A static class property has one compiler NetNet in its declaring
 	   class scope. Preserve that exact pointer-to-target mapping on the
@@ -2842,34 +3455,14 @@ void dll_target::signal(const NetNet*net)
 	    class_type->bind_static_property_target(net, obj);
 
 
-	/* Save the primitive properties of the signal in the
-	   ivl_signal_t object. */
-
-      { size_t idx = 0;
-	netranges_t::const_iterator cur;
-	obj->packed_dims.resize(net->packed_dims().size());
-	for (cur = net->packed_dims().begin(), idx = 0
-		   ; cur != net->packed_dims().end() ; ++cur, idx += 1) {
-	    obj->packed_dims[idx] = *cur;
-	}
-      }
-
-      obj->net_type = net->net_type();
-      obj->resolution_function_ = 0;
+	/* Save only target-specific primitive properties. Immutable metadata is
+	   read from obj->net_ by the target API. Validate the resolver mapping
+	   here while every target scope has already been materialized. */
       if (const NetNetType*user_type = net->user_nettype()) {
 	    if (const NetFuncDef*resolver = user_type->resolution_function()) {
-		  obj->resolution_function_ = find_scope(des_, resolver->scope());
-		  ivl_assert(*net, obj->resolution_function_);
+		  ivl_assert(*net, find_scope(des_, resolver->scope()));
 	    }
       }
-      obj->local_ = net->local_flag()? 1 : 0;
-      obj->lifetime_override_ = net->lifetime_override();
-      obj->forced_net_ = (net->type() != NetNet::REG) &&
-                         (net->peek_lref() > 0) ? 1 : 0;
-      obj->discipline = net->get_discipline();
-
-      obj->array_dimensions_ = net->unpacked_dimensions();
-      obj->unpacked_dims = net->unpacked_dims();
 
       switch (net->port_type()) {
 
@@ -2896,8 +3489,6 @@ void dll_target::signal(const NetNet*net)
 	    obj->port_ = IVL_SIP_NONE;
 	    break;
       }
-
-      obj->module_port_index_ = net->get_module_port_index();
 
       switch (net->type()) {
 
@@ -2949,22 +3540,21 @@ void dll_target::signal(const NetNet*net)
 	    break;
       }
 
-	/* Initialize the path fields to be filled in later. */
-      obj->npath = 0;
-      obj->path = 0;
+	/* Process release decrements NetNet l-value references before the target
+	   callback, so this one semantic snapshot cannot be derived later. */
+      obj->forced_net_ = (net->type() != NetNet::REG) &&
+                         (net->peek_lref() > 0) ? 1 : 0;
 
-      obj->nattr = net->attr_cnt();
-      obj->attr = fill_in_attributes(net);
+      if (net->attr_cnt())
+	    signal_aux_(obj)->attr = fill_in_attributes(net);
 
       // Special case: IVL_VT_QUEUE objects don't normally show up in the
       // network,  but can in certain special cases. In these cases, it is the
       // object itself and not the array elements that is in the network. of
       // course, only do this if there is at least one link to this signal.
-      if (obj->net_type->base_type()==IVL_VT_QUEUE && net->is_linked()) {
+      if (net->net_type()->base_type()==IVL_VT_QUEUE && net->is_linked()) {
 	    const Nexus*nex = net->pin(0).nexus();
-	    ivl_nexus_t tmp = nexus_sig_make(obj, 0);
-	    tmp->nexus_ = nex;
-	    tmp->name_ = 0;
+	    ivl_nexus_t tmp = nexus_sig_make(obj, 0, nex);
 	    nex->t_cookie(tmp);
       }
 
@@ -2975,51 +3565,24 @@ void dll_target::signal(const NetNet*net)
 
 	   When I create an ivl_nexus_t object, store it in the
 	   t_cookie of the Nexus object so that I find it again when I
-	   next encounter the nexus. */
+	   next encounter the nexus. Array shape stays in the live NetNet; only
+	   the target nexus pointers themselves are materialized here. */
+      unsigned array_words = dll_target_signal_array_words(net);
 
-      if (obj->array_dimensions_ == 1) {
-	    const netranges_t& dims = net->unpacked_dims();
-	    if (dims[0].get_msb() < dims[0].get_lsb()) {
-		  obj->array_base = dims[0].get_msb();
-		  obj->array_addr_swapped = false;
-	    } else {
-		  obj->array_base = dims[0].get_lsb();
-		  obj->array_addr_swapped = true;
-	    }
-	    obj->array_words = net->unpacked_count();
-      } else {
-	      // The back-end API doesn't yet support multi-dimension
-	      // unpacked arrays, so just report the canonical dimensions.
-	    obj->array_base = 0;
-	      // For a queue we pass the maximum queue size as the array words.
-		    if (obj->net_type->base_type() == IVL_VT_QUEUE) {
-			  const netqueue_t*queue_type = net->queue_type();
-			  if (queue_type) {
-				long max_size = queue_type->max_idx()+1;
-				ivl_assert(*net, max_size >= 0);
-				obj->array_words = max_size;
-			  } else {
-				obj->array_words = net->pin_count();
-			  }
-		    } else
-			  obj->array_words = net->unpacked_count();
-	    obj->array_addr_swapped = 0;
-      }
-
-      ivl_assert(*net, (obj->array_words == net->pin_count()) ||
-                       (obj->net_type->base_type() == IVL_VT_QUEUE));
-      if (debug_optimizer && obj->array_words > 1000) cerr << "debug: "
-	    "t-dll creating nexus array " << obj->array_words << " long" << endl;
-      if (obj->array_words > 1 && net->pins_are_virtual()) {
+      ivl_assert(*net, (array_words == net->pin_count()) ||
+                       (net->net_type()->base_type() == IVL_VT_QUEUE));
+      if (debug_optimizer && array_words > 1000) cerr << "debug: "
+	    "t-dll creating nexus array " << array_words << " long" << endl;
+      if (array_words > 1 && net->pins_are_virtual()) {
 	    obj->pins = NULL;
-	    if (debug_optimizer && obj->array_words > 1000) cerr << "debug: "
+	    if (debug_optimizer && array_words > 1000) cerr << "debug: "
 		"t-dll used NULL for big nexus array" << endl;
 	    return;
       }
-      if (obj->array_words > 1)
-	    obj->pins = new ivl_nexus_t[obj->array_words];
+      if (array_words > 1)
+	    obj->pins = new ivl_nexus_t[array_words];
 
-      for (unsigned idx = 0 ;  idx < obj->array_words ;  idx += 1) {
+      for (unsigned idx = 0 ;  idx < array_words ;  idx += 1) {
 
 	    const Nexus*nex = net->pins_are_virtual() ? NULL : net->pin(idx).nexus();
 	    if (nex == 0) {
@@ -3028,14 +3591,12 @@ void dll_target::signal(const NetNet*net)
 		    // variable is only used in behavioral
 		    // code. Create a stub nexus.
 		  ivl_nexus_t tmp = nexus_sig_make(obj, idx);
-		  tmp->nexus_ = nex;
-		  tmp->name_ = 0;
-		  if (obj->array_words > 1)
+		  if (array_words > 1)
 			obj->pins[idx] = tmp;
 		  else
 			obj->pin = tmp;
 	    } else if (nex->t_cookie()) {
-		  if (obj->array_words > 1) {
+		  if (array_words > 1) {
 			obj->pins[idx] = nex->t_cookie();
 			nexus_sig_add(obj->pins[idx], obj, idx);
 		  } else {
@@ -3043,17 +3604,15 @@ void dll_target::signal(const NetNet*net)
 			nexus_sig_add(obj->pin, obj, idx);
 		  }
 	    } else {
-		  ivl_nexus_t tmp = nexus_sig_make(obj, idx);
-		  tmp->nexus_ = nex;
-		  tmp->name_ = 0;
+		  ivl_nexus_t tmp = nexus_sig_make(obj, idx, nex);
 		  nex->t_cookie(tmp);
-		  if (obj->array_words > 1)
+		  if (array_words > 1)
 			obj->pins[idx] = tmp;
 		  else
 			obj->pin = tmp;
 	    }
       }
-      if (debug_optimizer && obj->array_words > 1000) cerr << "debug: t-dll done with big nexus array" << endl;
+      if (debug_optimizer && array_words > 1000) cerr << "debug: t-dll done with big nexus array" << endl;
 }
 
 bool dll_target::signal_paths(const NetNet*net)
@@ -3064,18 +3623,19 @@ bool dll_target::signal_paths(const NetNet*net)
 
       ivl_signal_t obj = find_signal(net);
       assert(obj);
+      ivl_signal_aux_s*aux = signal_aux_(obj);
 
 	/* We cannot have already set up the paths for this signal. */
-      assert(obj->npath == 0);
-      assert(obj->path == 0);
+      assert(aux->npath == 0);
+      assert(aux->path == 0);
 
          /* Figure out how many paths there really are. */
       for (unsigned idx = 0 ;  idx < net->delay_paths() ;  idx += 1) {
 	    const NetDelaySrc*src = net->delay_path(idx);
-	    obj->npath += src->src_count();
+	    aux->npath += src->src_count();
       }
 
-      obj->path = new struct ivl_delaypath_s[obj->npath];
+      aux->path = new struct ivl_delaypath_s[aux->npath];
 
       unsigned ptr = 0;
       for (unsigned idx = 0 ;  idx < net->delay_paths() ;  idx += 1) {
@@ -3097,15 +3657,15 @@ bool dll_target::signal_paths(const NetNet*net)
 			     << "." << endl;
 		  }
 		  assert(nex->t_cookie());
-		  obj->path[ptr].scope = lookup_scope_(src->scope());
-		  obj->path[ptr].src = nex->t_cookie();
-		  obj->path[ptr].condit = path_condit;
-		  obj->path[ptr].conditional = src->is_condit();
-		  obj->path[ptr].parallel = src->is_parallel();
-		  obj->path[ptr].posedge = src->is_posedge();
-		  obj->path[ptr].negedge = src->is_negedge();
+		  aux->path[ptr].scope = lookup_scope_(src->scope());
+		  aux->path[ptr].src = nex->t_cookie();
+		  aux->path[ptr].condit = path_condit;
+		  aux->path[ptr].conditional = src->is_condit();
+		  aux->path[ptr].parallel = src->is_parallel();
+		  aux->path[ptr].posedge = src->is_posedge();
+		  aux->path[ptr].negedge = src->is_negedge();
 		  for (unsigned pe = 0 ;  pe < 12 ;  pe += 1) {
-			obj->path[ptr].delay[pe] = src->get_delay(pe);
+			aux->path[ptr].delay[pe] = src->get_delay(pe);
 		  }
 
 		  ptr += 1;

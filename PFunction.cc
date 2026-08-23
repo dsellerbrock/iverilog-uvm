@@ -35,6 +35,13 @@ PFunction::~PFunction()
 {
 }
 
+void PFunction::release_elaboration_memory()
+{
+      delete statement_;
+      statement_ = nullptr;
+      LexicalScope::release_elaboration_memory();
+}
+
 void PFunction::set_statement(Statement*s)
 {
       ivl_assert(*this, s != 0);

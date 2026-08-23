@@ -24,8 +24,53 @@
 # include  "ivl_target_priv.h"
 # include  "StringHeap.h"
 # include  "netlist.h"
+# include  <cstddef>
+# include  <new>
+# include  <type_traits>
 # include  <vector>
 # include  <map>
+
+/* Procedure target records are consumed synchronously by the target. These
+ * helpers let the caller bound their backing storage by the largest procedure
+ * while retaining the allocated blocks for reuse by the next procedure. */
+void dll_procedure_begin();
+void dll_procedure_reset();
+bool dll_procedure_active();
+void*dll_procedure_malloc(size_t bytes);
+void*dll_procedure_malloc(size_t bytes, size_t alignment);
+void*dll_procedure_calloc(size_t count, size_t bytes);
+void*dll_procedure_calloc(size_t count, size_t bytes, size_t alignment);
+char*dll_procedure_strdup(const char*text);
+
+template <class TYPE> TYPE*dll_procedure_new()
+{
+      if (!dll_procedure_active())
+	    return new TYPE();
+
+      static_assert(std::is_trivially_destructible<TYPE>::value,
+		    "procedure arena objects cannot require destruction");
+      void*mem = dll_procedure_calloc(1, sizeof(TYPE), alignof(TYPE));
+      return mem? ::new (mem) TYPE : 0;
+}
+
+template <class TYPE> TYPE*dll_procedure_new_array(size_t count)
+{
+      if (!dll_procedure_active())
+	    return new TYPE[count]();
+      if (count == 0)
+	    return 0;
+
+      static_assert(std::is_trivially_destructible<TYPE>::value
+		    || std::is_same<TYPE, struct ivl_statement_s>::value,
+		    "procedure arena arrays cannot require destruction");
+      TYPE*mem = static_cast<TYPE*>(
+	    dll_procedure_calloc(count, sizeof(TYPE), alignof(TYPE)));
+      if (!mem)
+	    return 0;
+      for (size_t idx = 0; idx < count; idx += 1)
+	    ::new (static_cast<void*>(mem + idx)) TYPE;
+      return mem;
+}
 
 #if defined(__MINGW32__)
 #include <windows.h>
@@ -59,6 +104,15 @@ struct dll_target  : public target_t, public expr_scan_t {
 
       bool bufz(const NetBUFZ*) override;
       bool branch(const NetBranch*) override;
+      bool end_nodes() override;
+      bool can_release_source_connectivity() const override { return true; }
+      bool can_emit_processes_before_definitions() const override
+	    { return !stream_processes_; }
+      bool start_processes() override;
+      bool end_processes() override;
+      bool ordered_process_callbacks() const override
+	    { return order_processes_; }
+      bool order_processes(std::vector<target_process_ref_t>&) override;
       bool class_type(const NetScope*, netclass_t*) override;
       bool enumeration(const NetScope*, netenum_t*) override;
       void event(const NetEvent*) override;
@@ -105,6 +159,19 @@ struct dll_target  : public target_t, public expr_scan_t {
       ivl_design_s des_;
 
       target_design_f target_;
+      target_design_begin_f target_begin_ = 0;
+      target_process_f target_process_ = 0;
+      target_design_end_f target_end_ = 0;
+      target_process_order_f target_process_order_ = 0;
+      bool stream_processes_ = false;
+      bool order_processes_ = false;
+      bool stream_started_ = false;
+      bool stream_begin_succeeded_ = false;
+      bool stream_finished_ = false;
+      int stream_result_ = 0;
+
+      bool streaming_processes() const { return stream_processes_; }
+      bool stream_process(ivl_process_t);
 
 
 	/* These methods and members are used for forming the
@@ -177,12 +244,15 @@ struct dll_target  : public target_t, public expr_scan_t {
     private:
       bool needs_design_ = true;
       StringHeap strings_;
-      std::map<const NetNet*, ivl_signal_t> signal_map_;
 
       static ivl_scope_t find_scope(ivl_design_s &des, const NetScope*cur);
       ivl_signal_t find_signal(const NetNet*net);
       static ivl_parameter_t scope_find_param(ivl_scope_t scope,
 					      const char*name);
+
+      ivl_event_t find_event_(const NetEvent*net);
+      bool finalize_event_pins_(const NetEvent*net);
+      bool validate_scope_event_pins_(ivl_scope_t scope) const;
 
       void add_root(const NetScope *s);
 
@@ -191,7 +261,8 @@ struct dll_target  : public target_t, public expr_scan_t {
       void sub_off_from_expr_(long);
       void mul_expr_by_const_(long);
 
-      void make_delays_(ivl_expr_t*delay, const NetObj*net);
+      void fill_delays_(ivl_expr_t*delay, const NetObj*net);
+      ivl_expr_t* make_sparse_delays_(const NetObj*net);
       void make_logic_delays_(struct ivl_net_logic_s*obj, const NetObj*net);
       void make_switch_delays_(struct ivl_switch_s*obj, const NetObj*net);
       void make_lpm_delays_(struct ivl_lpm_s*obj, const NetObj*net);
@@ -236,6 +307,7 @@ struct ivl_event_s {
       unsigned lineno;
       unsigned nany, nneg, npos, nedg;
       ivl_nexus_t*pins;
+      bool pins_finalized;
       // VIF edge support: @(posedge/negedge/edge vif.signal)
       bool is_vif_posedge;
       bool is_vif_negedge;
@@ -255,6 +327,9 @@ struct ivl_event_s {
       bool is_array;
       unsigned array_base;
       unsigned array_count;
+
+      void* operator new (size_t s);
+      void  operator delete(void*obj, size_t s); // Not implemented
 };
 
 /*
@@ -263,17 +338,26 @@ struct ivl_event_s {
  * an expression node, including its type, the expression width, and
  * type specific properties.
  */
-struct ivl_expr_s {
-      ivl_expr_type_t type_;
-      ivl_variable_type_t value_;
-      ivl_type_t net_type;
-      perm_string file;
-      unsigned lineno;
+uint64_t dll_target_expr_location(const LineInfo*info);
+const char* dll_target_expr_file(uint64_t location);
+unsigned dll_target_signal_array_words(const NetNet*net);
+int dll_target_signal_array_base(const NetNet*net);
+bool dll_target_signal_array_addr_swapped(const NetNet*net);
 
-      unsigned width_;
+struct ivl_expr_s {
+      unsigned type_ : 8;
+      unsigned value_ : 8;
       unsigned signed_ : 1;
       unsigned sized_  : 1;
       unsigned super_call_ : 1;
+      unsigned property_signal_ : 1;
+      unsigned width_;
+      ivl_type_t net_type;
+      /* High 32 bits identify an interned source filename; low 32 bits are
+       * the full LineInfo line number. This copies location identity without
+       * retaining a soon-to-be-released NetExpr and keeps the opaque target
+       * expression record compact on 64-bit hosts. */
+      uint64_t location_;
 
       union {
 	    struct {
@@ -384,13 +468,23 @@ struct ivl_expr_s {
 	    } new_;
 
 	    struct {
-		  ivl_signal_t sig;
-		  ivl_expr_t base;
+		  union {
+			ivl_signal_t sig;
+			ivl_expr_t base;
+		  } source;
 		  unsigned prop_idx;
 		  ivl_expr_t index;
 	    } property_;
       } u_;
+
+      void* operator new (size_t s);
+      void  operator delete(void*obj, size_t s); // Not implemented
 };
+
+static_assert(IVL_EX_ARRAY_PATTERN < 256,
+	      "ivl_expr_s expression tag exceeds packed storage");
+static_assert(IVL_VT_QUEUE < 256,
+	      "ivl_expr_s value tag exceeds packed storage");
 
 /*
  * LPM devices are handled by this suite of types. The ivl_lpm_s
@@ -407,7 +501,7 @@ struct ivl_lpm_s {
       unsigned lineno;
 	// Value returned by ivl_lpm_width;
       unsigned width;
-      ivl_expr_t delay[3];
+      ivl_expr_t*delay;
 
       union {
 	    struct ivl_lpm_ff_s {
@@ -509,6 +603,9 @@ struct ivl_lpm_s {
 		  ivl_event_t trigger;
 	    } ufunc;
       } u_;
+
+      void* operator new (size_t s);
+      void  operator delete(void*obj, size_t s); // Not implemented
 };
 
 /*
@@ -525,19 +622,24 @@ enum ivl_lval_type_t {
 
 struct ivl_lval_s {
       ivl_expr_t loff;
-      ivl_select_type_t sel_type :3;
-      unsigned queue_slice_ :1;
       ivl_expr_t idx;
-      unsigned width_;
-      unsigned type_   : 8; /* values from ivl_lval_type_t */
-      int property_idx;
       ivl_signal_t sig;
       ivl_lval_t nest;
       ivl_type_t net_type_;
-      ivl_stream_range_t stream_range_;
       ivl_expr_t stream_range_first_;
       ivl_expr_t stream_range_second_;
+      unsigned width_;
+      int property_idx;
+      unsigned sel_type : 3;
+      unsigned queue_slice_ : 1;
+      unsigned type_ : 3; /* values from ivl_lval_type_t */
+      unsigned stream_range_ : 3;
 };
+
+static_assert(IVL_LVAL_LVAL < 8,
+	      "ivl_lval_s l-value tag exceeds packed storage");
+static_assert(IVL_STREAM_RANGE_DOWN < 8,
+	      "ivl_lval_s stream-range tag exceeds packed storage");
 
 /*
  * This object represents a literal constant, possibly signed, in a
@@ -558,7 +660,7 @@ struct ivl_net_const_s {
       } b;
 
       ivl_nexus_t pin_;
-      ivl_expr_t delay[3];
+      ivl_expr_t*delay;
 
       void* operator new (size_t s);
       void  operator delete(void*obj, size_t s); // Not implemented
@@ -588,7 +690,10 @@ struct ivl_net_logic_s {
       struct ivl_attribute_s*attr;
       unsigned nattr;
 
-      ivl_expr_t delay[3];
+      ivl_expr_t*delay;
+
+      void* operator new (size_t s);
+      void  operator delete(void*obj, size_t s); // Not implemented
 };
 
 struct ivl_switch_s {
@@ -666,10 +771,8 @@ struct ivl_nexus_ptr_s {
  * NOTE: ONLY allocate ivl_nexus_s objects with the included "new" operator.
  */
 struct ivl_nexus_s {
-      ivl_nexus_s() : ptrs_(1), nexus_(0), name_(0), private_data(0) { }
+      ivl_nexus_s() : private_data(0) { }
       std::vector<ivl_nexus_ptr_s>ptrs_;
-      const Nexus*nexus_;
-      const char*name_;
       void*private_data;
 
       void* operator new (size_t s);
@@ -709,86 +812,92 @@ struct ivl_process_s {
       unsigned nattr;
 
       ivl_process_t next_;
+
+      void* operator new (size_t s);
+      void  operator delete(void*obj, size_t s); // Not implemented
 };
 
-/*
- * Scopes are kept in a tree. Each scope points to its first child,
- * and also to any siblings. Thus a parent can scan all its children
- * by following its child pointer, then following sibling pointers from
- * there.
- */
+/* Rare scope-owned collections are allocated only for scopes that use them.
+ * The source NetScope remains live throughout the synchronous target callback,
+ * but these records continue to own the same copied target objects as before. */
+struct ivl_scope_objects_s {
+      ivl_net_logic_t*log_;
+      ivl_event_t*event_;
+      ivl_lpm_t*lpm_;
+      unsigned nlog_;
+      unsigned nevent_;
+      unsigned nlpm_;
+};
+
+struct ivl_scope_proc_s {
+      ivl_statement_t def;
+      union {
+	    ivl_signal_t*port;
+	    ivl_nexus_t*nex;
+      } u_;
+      const char*dpi_c_name;
+      const char*dpi_export_c_name;
+      unsigned ports;
+};
+
+struct ivl_scope_aux_s {
+      std::vector<ivl_type_t>*classes;
+      std::vector<ivl_enumtype_t>*enumerations_;
+      std::vector<struct ivl_parameter_s>*param;
+      std::vector<ivl_switch_t>*switches;
+      ivl_scope_objects_s*objects_;
+      ivl_scope_proc_s*proc_;
+      struct ivl_attribute_s*attr;
+};
+
+/* Scopes are kept in a tree. Children retain the exact target creation order.
+ * Their source count is known before target emission, so an exact pointer span
+ * avoids a vector object in every scope without changing indexed traversal. */
 struct ivl_scope_s {
       ivl_scope_s();
 
       ivl_scope_t parent;
-      std::map<hname_t,ivl_scope_t> children;
-	// This is just like the children map above, but in vector
-	// form for convenient access.
-      std::vector<ivl_scope_t> child;
+      ivl_scope_t*child;
+      const NetScope*net_;
 
       perm_string name_;
       perm_string tname_;
-      perm_string file;
-      perm_string def_file;
-      unsigned lineno;
-      unsigned def_lineno;
-      ivl_scope_type_t type_;
-
-      std::vector<ivl_type_t> classes;
-      std::vector<ivl_enumtype_t> enumerations_;
 
       std::vector<ivl_signal_t> sigs_;
+      ivl_scope_aux_s*aux_;
 
-      unsigned nlog_;
-      ivl_net_logic_t*log_;
-
-      unsigned nevent_;
-      ivl_event_t* event_;
-
-      unsigned nlpm_;
-      ivl_lpm_t* lpm_;
-
-      std::vector<struct ivl_parameter_s> param;
-
-	/* Scopes that are tasks/functions have a definition. */
-      ivl_statement_t def;
-      unsigned is_auto;
-      unsigned auto_frame;
-      unsigned is_program;
-      unsigned is_interface;
-      std::vector<perm_string> modport_names;
-	// M12-6: per-modport (port name, VPI direction) lists,
-	// parallel to modport_names.
-      std::vector< std::vector< std::pair<perm_string,int> > > modport_ports;
+      unsigned child_count_;
+      ivl_scope_type_t type_;
       ivl_variable_type_t func_type;
-      bool func_signed;
       unsigned func_width;
-      bool is_dpi_import;
-      const char*dpi_c_name;
-      bool is_dpi_export;
-      const char*dpi_export_c_name;
-      bool is_virtual_method;
 
-      unsigned is_cell;
-
-      // Ports of Module scope (just introspection data for VPI) - actual connections
-      // are nets defined in u_.net (may be > 1 per module port)
-      std::vector<PortInfo>     module_ports_info;
-
-      unsigned ports;
-      union {
-	    ivl_signal_t*port;
-	    ivl_nexus_t*nex;
-	    NetNet**net;
-      } u_;
-
-      std::vector<ivl_switch_t>switches;
+      unsigned is_auto : 1;
+      unsigned auto_frame : 1;
+      unsigned is_program : 1;
+      unsigned is_interface : 1;
+      unsigned is_virtual_method : 1;
+      unsigned is_cell : 1;
+      unsigned func_signed : 1;
+      unsigned is_dpi_import : 1;
+      unsigned is_dpi_export : 1;
 
       signed int time_precision :8;
       signed int time_units :8;
 
-      struct ivl_attribute_s*attr;
-      unsigned nattr;
+	/* NetScope remains live through the synchronous target callback. Source
+	   locations, attributes, modport descriptions and module-port
+	   introspection data are immutable and are borrowed through net_. */
+
+      ivl_scope_aux_s*ensure_aux_();
+      ivl_scope_objects_s*ensure_objects_();
+      ivl_scope_proc_s*ensure_proc_();
+      ivl_scope_objects_s*objects_() const
+      { return aux_ ? aux_->objects_ : 0; }
+      ivl_scope_proc_s*proc_() const
+      { return aux_ ? aux_->proc_ : 0; }
+
+      void* operator new (size_t s);
+      void  operator delete(void*obj, size_t s); // Not implemented
 };
 
 /*
@@ -797,54 +906,32 @@ struct ivl_scope_s {
  * into scopes (which also point back to me) and have pins that
  * connect to the rest of the netlist.
  */
+/* Rare signal payloads are kept out of the high-count base record. Most
+ * signals have neither attributes nor specify delay paths. */
+struct ivl_signal_aux_s {
+      ivl_delaypath_s*path;
+      struct ivl_attribute_s*attr;
+      unsigned npath;
+};
+
 struct ivl_signal_s {
-      ivl_signal_type_t type_;
-      ivl_signal_port_t port_;
-      int module_port_index_;
-      ivl_discipline_t discipline;
       const NetNet* net_;
-      perm_string file;
-      unsigned lineno;
-
-	// This is the type for the signal
-      ivl_type_t net_type;
-      ivl_scope_t resolution_function_;
-      unsigned local_  : 1;
-      unsigned lifetime_override_ : 2;
-
-      unsigned forced_net_ : 1;
-
-      unsigned array_dimensions_ : 8;
-      unsigned array_addr_swapped : 1;
-
-	/* These encode the declared packed dimensions for the
-	   signal, in case they are needed by the run-time */
-      netranges_t packed_dims;
-
-	/* The declared UNPACKED dimensions, all of them. array_base
-	   and array_words describe the flat word array a signal is
-	   stored as, which is all a one-dimensional signal needs; a
-	   multi-dimensional one also has to be able to say what shape
-	   that flat storage is declared to have -- an open-array
-	   formal is nested, and its per-dimension bounds are what
-	   svLow/svHigh report (H.10.2). */
-      netranges_t unpacked_dims;
-
-      perm_string name_;
-      ivl_scope_t scope_;
-
-      unsigned array_words;
-      int array_base;
       union {
 	    ivl_nexus_t pin;
 	    ivl_nexus_t*pins;
       };
+      ivl_signal_aux_s*aux_;
 
-      ivl_delaypath_s*path;
-      unsigned npath;
+	/* The source NetNet and its NetScope remain alive through the
+	   synchronous target callback. Borrow immutable name, location, type,
+	   discipline, dimension, resolver, scope and flag metadata from net_
+	   instead of duplicating it in every high-count target record. */
+      unsigned type_ : 4;
+      unsigned port_ : 3;
+      unsigned forced_net_ : 1;
 
-      struct ivl_attribute_s*attr;
-      unsigned nattr;
+      void* operator new (size_t s);
+      void  operator delete(void*obj, size_t s); // Not implemented
 };
 
 
@@ -853,10 +940,20 @@ struct ivl_signal_s {
  * is defined by the ivl_statement_type_t enumeration. Given the type,
  * certain information about the statement may be available.
  */
+struct ivl_statement_assign_aux_s {
+      ivl_expr_t delay;
+      ivl_expr_t count;
+      union {
+	    ivl_event_t event;
+	    ivl_event_t*events;
+      };
+      unsigned nevent;
+};
+
 struct ivl_statement_s {
       enum ivl_statement_type_e type_;
-      perm_string file;
       unsigned lineno;
+      perm_string file;
 
       union {
 	    struct { /* IVL_ST_ALLOC */
@@ -865,18 +962,11 @@ struct ivl_statement_s {
 
 	    struct { /* IVL_ST_ASSIGN IVL_ST_ASSIGN_NB
 			IVL_ST_CASSIGN, IVL_ST_DEASSIGN */
-		  unsigned lvals_;
 		  struct ivl_lval_s*lval_;
-		  char oper; // Operator if this is a compressed assignment.
 		  ivl_expr_t rval_;
-		  ivl_expr_t delay;
-		    // The following are only for NB event control.
-		  ivl_expr_t count;
-		  unsigned nevent;
-		  union {
-			ivl_event_t event;
-			ivl_event_t*events;
-		  };
+		  ivl_statement_assign_aux_s*aux_;
+		  unsigned lvals_;
+		  char oper; // Operator if this is a compressed assignment.
 	    } assign_;
 
 	    struct { /* IVL_ST_BLOCK, IVL_ST_FORK */
@@ -891,12 +981,12 @@ struct ivl_statement_s {
 	    } flow_;
 
 	    struct { /* IVL_ST_CASE, IVL_ST_CASEX, IVL_ST_CASEZ */
-		  ivl_case_quality_t quality;
-		  bool quality_if;
 		  ivl_expr_t cond;
-		  unsigned ncase;
 		  ivl_expr_t*case_ex;
 		  struct ivl_statement_s*case_st;
+		  unsigned ncase;
+		  unsigned char quality;
+		  bool quality_if;
 	    } case_;
 
 	    struct { /* IVL_ST_CONDIT */
@@ -986,6 +1076,9 @@ struct ivl_statement_s {
 		  ivl_statement_t stmt_;
 	    } while_;
       } u_;
+
+      void* operator new (size_t s);
+      void  operator delete(void*obj, size_t s); // Not implemented
 };
 
 /*
@@ -994,8 +1087,7 @@ struct ivl_statement_s {
  */
 static inline void FILE_NAME(ivl_expr_t expr, const LineInfo*info)
 {
-      expr->file = info->get_file();
-      expr->lineno = info->get_lineno();
+      expr->location_ = dll_target_expr_location(info);
 }
 
 static inline void FILE_NAME(ivl_event_t event, const LineInfo*info)
@@ -1034,14 +1126,6 @@ static inline void FILE_NAME(ivl_process_t net, const LineInfo*info)
       net->lineno = info->get_lineno();
 }
 
-static inline void FILE_NAME(ivl_scope_t scope, const NetScope*info)
-{
-      scope->file = info->get_file();
-      scope->def_file = info->get_def_file();
-      scope->lineno = info->get_lineno();
-      scope->def_lineno = info->get_def_lineno();
-}
-
 static inline void FILE_NAME(ivl_statement_t stmt, const LineInfo*info)
 {
       stmt->file = info->get_file();
@@ -1049,12 +1133,6 @@ static inline void FILE_NAME(ivl_statement_t stmt, const LineInfo*info)
 }
 
 static inline void FILE_NAME(ivl_switch_t net, const LineInfo*info)
-{
-      net->file = info->get_file();
-      net->lineno = info->get_lineno();
-}
-
-static inline void FILE_NAME(ivl_signal_t net, const LineInfo*info)
 {
       net->file = info->get_file();
       net->lineno = info->get_lineno();

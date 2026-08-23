@@ -191,6 +191,12 @@ const NetScope* NetDisable::target() const
       return target_;
 }
 
+NetDoWhile::~NetDoWhile()
+{
+      delete cond_;
+      delete proc_;
+}
+
 NetForever::NetForever(NetProc*p)
 : statement_(p)
 {
@@ -240,6 +246,7 @@ NetPDelay::NetPDelay(NetExpr*d, NetProc*st)
 NetPDelay::~NetPDelay()
 {
       delete expr_;
+      delete statement_;
 }
 
 uint64_t NetPDelay::delay() const
@@ -267,4 +274,10 @@ NetRepeat::~NetRepeat()
 const NetExpr* NetRepeat::expr() const
 {
       return expr_;
+}
+
+NetWhile::~NetWhile()
+{
+      delete cond_;
+      delete proc_;
 }

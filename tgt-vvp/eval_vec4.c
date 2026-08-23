@@ -1469,8 +1469,10 @@ static void rand_hook_walk_(ivl_scope_t scope)
             for (size_t i = 0 ; i < nch ; i += 1) {
                   ivl_scope_t ch = ivl_scope_child(scope, i);
                   if (!ch) continue;
-                  if (ivl_scope_type(ch) != IVL_SCT_FUNCTION
-                      && ivl_scope_type(ch) != IVL_SCT_TASK) continue;
+		  /* IEEE 1800-2023 18.6.2 callbacks are void functions. Keep
+		   * target lookup defensive even though the front end diagnoses an
+		   * illegal task declaration before target emission. */
+		  if (ivl_scope_type(ch) != IVL_SCT_FUNCTION) continue;
                   const char*base = ivl_scope_basename(ch);
                   if (getenv("IVL_RAND_HOOKS_DBG"))
                         fprintf(stderr, "[RHK]     child[%zu] type=%d base=%s\n",

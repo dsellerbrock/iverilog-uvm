@@ -144,6 +144,7 @@ class PTask  : public PTaskFunc {
       ~PTask() override;
 
       void set_statement(Statement *s);
+      void release_elaboration_memory();
       inline Statement* get_statement() { return statement_; }
       inline const Statement* get_statement() const { return statement_; }
 
@@ -188,6 +189,7 @@ class PFunction : public PTaskFunc {
       ~PFunction() override;
 
       void set_statement(Statement *s);
+      void release_elaboration_memory();
       void set_return(data_type_t*t);
 
       inline Statement* get_statement() { return statement_; }

@@ -33,9 +33,11 @@
 bool dll_target::process(const NetAnalogTop*net)
 {
       bool rc_flag = true;
+      const bool streaming = streaming_processes();
+      if (streaming)
+	    dll_procedure_begin();
 
-      ivl_process_t obj = static_cast<struct ivl_process_s*>
-                          (calloc(1, sizeof(struct ivl_process_s)));
+      ivl_process_t obj = new struct ivl_process_s();
 
       obj->type_ = net->type();
       obj->analog_flag = 1;
@@ -49,16 +51,23 @@ bool dll_target::process(const NetAnalogTop*net)
       obj->attr = fill_in_attributes(net);
 
       assert(stmt_cur_ == 0);
-      stmt_cur_ = static_cast<struct ivl_statement_s*>(calloc(1, sizeof*stmt_cur_));
+      stmt_cur_ = new struct ivl_statement_s();
       rc_flag = net->statement()->emit_proc(this) && rc_flag;
 
       assert(stmt_cur_);
       obj->stmt_ = stmt_cur_;
       stmt_cur_ = 0;
 
-	/* Save the process in the design. */
-      obj->next_ = des_.threads_;
-      des_.threads_ = obj;
+	/* Save the process for a legacy one-shot target, or consume it while the
+	 * incremental target's procedure arena is still live. */
+      if (streaming) {
+	    if (rc_flag)
+		  rc_flag = stream_process(obj) && rc_flag;
+	    dll_procedure_reset();
+      } else {
+	    obj->next_ = des_.threads_;
+	    des_.threads_ = obj;
+      }
 
       return rc_flag;
 }

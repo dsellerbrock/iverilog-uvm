@@ -3160,7 +3160,7 @@ static NetNet* delay_driver_net(NetNet*net)
 
 static void delete_net_delay_boundaries(NetNet*net)
 {
-      vector<NetBUFZ*>&boundaries = net->net_delay_boundaries();
+      vector<NetBUFZ*>&boundaries = net->mutable_net_delay_boundaries();
       for (vector<NetBUFZ*>::iterator cur = boundaries.begin();
 	   cur != boundaries.end(); ++cur)
 	    delete *cur;

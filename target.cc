@@ -45,6 +45,11 @@ bool target_t::branch(const NetBranch*obj)
       return false;
 }
 
+bool target_t::end_nodes()
+{
+      return true;
+}
+
 bool target_t::class_type(const NetScope*, netclass_t*obj)
 {
       cerr << "<>:0" << ": error: target (" << typeid(*this).name()

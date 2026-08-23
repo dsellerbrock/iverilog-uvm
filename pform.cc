@@ -22211,3 +22211,61 @@ int pform_finish()
 
       return error_count;
 }
+
+static void pform_release_scope_memory_(LexicalScope*scope,
+					set<LexicalScope*>&seen)
+{
+      if (!scope || !seen.insert(scope).second)
+	    return;
+
+      if (PTask*task = dynamic_cast<PTask*>(scope))
+	    task->release_elaboration_memory();
+      else if (PFunction*func = dynamic_cast<PFunction*>(scope))
+	    func->release_elaboration_memory();
+      else
+	    scope->release_elaboration_memory();
+
+      if (PScopeExtra*extra = dynamic_cast<PScopeExtra*>(scope)) {
+	    for (map<perm_string,PTask*>::value_type&item : extra->tasks)
+		  pform_release_scope_memory_(item.second, seen);
+	    for (map<perm_string,PFunction*>::value_type&item : extra->funcs)
+		  pform_release_scope_memory_(item.second, seen);
+	    for (map<perm_string,PClass*>::value_type&item : extra->classes)
+		  pform_release_scope_memory_(item.second, seen);
+      }
+
+      if (PClass*pclass = dynamic_cast<PClass*>(scope)) {
+	    /* Instance property initializers are borrowed by the synthesized
+	     * constructor body released above. Drop the aliases without deleting
+	     * them a second time. Static initializers have separate ownership. */
+	    pclass->type->initialize.clear();
+      }
+
+      if (Module*module = dynamic_cast<Module*>(scope)) {
+	    for (map<perm_string,Module*>::value_type&item :
+		 module->nested_modules)
+		  pform_release_scope_memory_(item.second, seen);
+	    for (PGenerate*generate : module->generate_schemes)
+		  pform_release_scope_memory_(generate, seen);
+      }
+
+      if (PGenerate*generate = dynamic_cast<PGenerate*>(scope)) {
+	    for (map<perm_string,PTask*>::value_type&item : generate->tasks)
+		  pform_release_scope_memory_(item.second, seen);
+	    for (map<perm_string,PFunction*>::value_type&item : generate->funcs)
+		  pform_release_scope_memory_(item.second, seen);
+	    for (PGenerate*child : generate->generate_schemes)
+		  pform_release_scope_memory_(child, seen);
+      }
+}
+
+void pform_release_elaboration_memory()
+{
+      set<LexicalScope*>seen;
+      for (PPackage*unit : pform_units)
+	    pform_release_scope_memory_(unit, seen);
+      for (PPackage*package : pform_packages)
+	    pform_release_scope_memory_(package, seen);
+      for (map<perm_string,Module*>::value_type&item : pform_modules)
+	    pform_release_scope_memory_(item.second, seen);
+}

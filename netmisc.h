@@ -566,6 +566,7 @@ extern const netclass_t*find_class_containing_scope(const LineInfo&loc,const Net
 extern NetScope* find_method_containing_scope(const LineInfo&log, NetScope*scope);
 extern bool scope_method_uses_implicit_this(Design*des, NetScope*scope);
 extern NetNet* find_implicit_this_handle(Design*des, NetScope*scope);
+extern void netmisc_release_elaboration_caches();
 
 /*
  * Return true if the data type is a type that is normally available

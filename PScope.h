@@ -60,8 +60,14 @@ class LexicalScope {
       explicit LexicalScope(LexicalScope*parent)
         : default_lifetime(INHERITED), has_parameter_port_list(false),
 	  generate_counter(0), parent_(parent) { }
-	// A virtual destructor is so that dynamic_cast can work.
+      // A virtual destructor is so that dynamic_cast can work.
       virtual ~LexicalScope();
+
+	// Behavioral parse trees are needed through elaboration, but target
+	// emission consumes only the elaborated Net* graph. Release this owned
+	// phase-local state before constructing the target-side graph so large
+	// designs do not retain both representations at their peak.
+      void release_elaboration_memory();
 
       lifetime_t default_lifetime;
 
