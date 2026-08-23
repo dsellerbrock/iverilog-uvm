@@ -1,0 +1,2 @@
+ivltests/sv_constraint_darray_size_parenless_randc_fail.v:6: error: 'randc' variables cannot be used in 'solve before' constraints.
+1 error(s) during elaboration.

@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_constraint_darray_size_parenless_randc_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_constraint_darray_size_parenless_randc_fail"
+}

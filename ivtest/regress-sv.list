@@ -1283,6 +1283,7 @@ sv_inside_property_container normal,-g2012 ivltests
 sv_constraint_inside_container normal,-g2012 ivltests
 sv_constraint_nonrand_queue_size normal,-g2012 ivltests
 sv_constraint_rand_queue_size normal,-g2012 ivltests
+sv_constraint_darray_size_parenless normal,-g2012 ivltests gold=sv_constraint_darray_size_parenless.gold
 sv_queue_of_queues normal,-g2012 ivltests
 sv_queue_slice_p normal,-g2012 ivltests
 sv_queue_slice_to_last normal,-g2012 ivltests
@@ -1729,6 +1730,7 @@ sv_randc_txn_unpacked_struct_fail CE,-g2012 ivltests gold=sv_randc_txn_unpacked_
 sv_randc_txn_dist_fail CE,-g2012 ivltests gold=sv_randc_txn_dist_fail.gold
 sv_randc_txn_soft_fail CE,-g2012 ivltests gold=sv_randc_txn_soft_fail.gold
 sv_randc_txn_solve_before_fail CE,-g2012 ivltests gold=sv_randc_txn_solve_before_fail.gold
+sv_constraint_darray_size_parenless_randc_fail CE,-g2012 ivltests gold=sv_constraint_darray_size_parenless_randc_fail.gold
 sv_randc_txn_unique_fail CE,-g2012 ivltests gold=sv_randc_txn_unique_fail.gold
 sv_randc_container_cycles normal,-g2012 ivltests gold=sv_randc_container_cycles.gold
 sv_randc_container_transactions normal,-g2012 ivltests gold=sv_randc_container_transactions.gold
