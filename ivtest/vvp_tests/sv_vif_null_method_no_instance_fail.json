@@ -1,0 +1,6 @@
+{
+    "type"          : "EF",
+    "source"        : "sv_vif_null_method_no_instance_fail.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_vif_null_method_no_instance_fail" ],
+    "gold"          : "sv_vif_null_method_no_instance_fail"
+}

@@ -50,10 +50,8 @@ class PTaskFunc : public PScope, public PNamedItem {
       // `int x; input x;`). set_ports() later prepends the tf_item
       // ports so declaration order is preserved.
       void append_stmt_port_decls(std::vector<pform_tf_port_t>*p);
-      // Public accessor for the pform port list, used by deferred
-      // interface task dispatch (Phase 54) to evaluate default-arg
-      // expressions in the caller's scope when the task body cannot
-      // be elaborated yet.
+      // Public accessor for parse-form port metadata used by early
+      // signature and legality checks before every NetBaseDef is available.
       inline const std::vector<pform_tf_port_t>* peek_ports() const { return ports_; }
 
       void set_this(class_type_t*use_type, PWire*this_wire);

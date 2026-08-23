@@ -1,4 +1,4 @@
-// IEEE 1800-2017 25.10: a method call through a virtual interface must
+// IEEE 1800-2023 25.9: a method call through a virtual interface must
 // dispatch to the bound interface instance and pass every user argument.
 // A void function still has a return port in the compiler IR, so its first
 // user argument is port one rather than port zero.
@@ -18,10 +18,10 @@ endinterface
 class vif_method_args_driver;
   virtual vif_method_args_if vif;
 
-  function void set_and_add(int set_v, int add_v);
+  task set_and_add(int set_v, int add_v);
     vif.set_value(set_v);
     vif.add_value(add_v);
-  endfunction
+  endtask
 endclass
 
 module vif_method_args_test;

@@ -3757,42 +3757,6 @@ static int show_push_frontback_method(ivl_statement_t net, bool is_front)
       return 0;
 }
 
-/* Phase 54: deferred interface task dispatch.  When iverilog can't
- * statically resolve cfg.iface.method() at elaboration time (because the
- * caller's class body elaborates before the testbench's interface
- * instance scope is populated), elaborate.cc emits a NetSTask with name
- * "$ivl_iface_late$<iface>$<method>" carrying the user-supplied args.
- * Here we walk the design tree (now fully populated at code-gen time)
- * to find the unique interface instance scope and emit a real %callf or
- * %fork to its method scope.  Unsupplied ports keep their auto-init
- * zero defaults from the .var declarations -- sufficient for OpenTitan's
- * apply_reset()/drive_rst_pin() pattern (rst_n_scheme=0 still drives
- * o_rst_n=0 then 1, repeat(0) skips, so the rst_n line still toggles).
- */
-/* Walk the design and pick the BEST interface instance whose tname (the
- * module/interface type) matches the target.  We prefer:
- *   1. Instances whose basename equals the type name (the OpenTitan
- *      convention of `clk_rst_if clk_rst_if(...)` in the tb top).
- *   2. Otherwise the first instance encountered.
- * Returns null only if no instance is found at all.  Returns the
- * preferred match if multiple exist. */
-static void find_module_scope_recurse_(ivl_scope_t node, const char*target,
-                                       ivl_scope_t*best, ivl_scope_t*first)
-{
-      if (!node) return;
-      if (ivl_scope_type(node) == IVL_SCT_MODULE
-          && strcmp(ivl_scope_tname(node), target) == 0) {
-            if (!*first) *first = node;
-            if (!*best
-                && strcmp(ivl_scope_basename(node), target) == 0) {
-                  *best = node;
-            }
-      }
-      for (size_t i = 0 ; i < ivl_scope_childs(node) ; i += 1)
-            find_module_scope_recurse_(ivl_scope_child(node, i), target,
-                                       best, first);
-}
-
 /* Collect ALL module-scope instances of a given definition name into a
  * dynamically grown list. There is deliberately no fixed cap: an earlier
  * VIF_DISPATCH_MAX=64 limit SILENTLY dropped instances beyond it, so a
@@ -3817,15 +3781,55 @@ static void collect_module_scopes_(ivl_scope_t node, const char*target,
             collect_module_scopes_(ivl_scope_child(node, i), target, list, count, cap);
 }
 
-/* Emit the argument stores + fork/join for ONE resolved interface
- * method instance. parm_base is the index of the first user argument
- * in the statement's parm list. Shared by the late (static) call and
- * the dynamic per-handle dispatch. */
+/* Return the first user-port index in the instance-keyed argument row for
+ * `method'. Rows have the internal form:
+ *
+ *   receiver, "complete.method.scope", arg0, ..., argN, next-key, ...
+ *
+ * The scope string is compile-time metadata and is never evaluated. Keeping
+ * it in the statement makes row selection independent of traversal order. */
+static unsigned find_iface_method_row_(ivl_statement_t net,
+                                       ivl_scope_t method)
+{
+      unsigned nports = ivl_scope_ports(method);
+      unsigned port_base = (ivl_scope_type(method) == IVL_SCT_FUNCTION) ? 1 : 0;
+      unsigned user_ports = nports >= port_base ? nports - port_base : 0;
+      unsigned stride = user_ports + 1;
+      unsigned nparms = ivl_stmt_parm_count(net);
+      if (nparms < 2 || ((nparms - 1) % stride) != 0)
+            return UINT_MAX;
+
+      const char*method_name_tmp = ivl_scope_name(method);
+      if (!method_name_tmp) return UINT_MAX;
+      char*method_name = strdup(method_name_tmp);
+      assert(method_name);
+
+      unsigned answer = UINT_MAX;
+      for (unsigned key_idx = 1 ; key_idx < nparms ; key_idx += stride) {
+            ivl_expr_t key = ivl_stmt_parm(net, key_idx);
+            if (!key || ivl_expr_type(key) != IVL_EX_STRING)
+                  break;
+            if (strcmp(ivl_expr_string(key), method_name) == 0) {
+                  answer = key_idx + 1;
+                  break;
+            }
+      }
+      free(method_name);
+      return answer;
+}
+
+/* Emit the argument stores + fork/join for ONE resolved interface method
+ * instance. parm_base selects that instance's argument row. */
 static void emit_iface_method_call_(ivl_statement_t net, ivl_scope_t method,
                                     unsigned parm_base)
 {
-      const char*mangled = vvp_mangle_id(ivl_scope_name(method));
-      if (!mangled) return;
+      const char*mangled_tmp = vvp_mangle_id(ivl_scope_name(method));
+      if (!mangled_tmp) return;
+      /* vvp_mangle_id() returns reusable storage. Argument lowering may
+       * mangle a user-function name, so retain the method label across the
+       * draw_eval_* calls below. */
+      char*mangled = strdup(mangled_tmp);
+      assert(mangled);
       note_td_reference(mangled);
 
       int is_auto = ivl_scope_is_auto(method);
@@ -3887,6 +3891,7 @@ static void emit_iface_method_call_(ivl_statement_t net, ivl_scope_t method,
 
       if (is_auto)
             fprintf(vvp_out, "    %%free S_%p;\n", method);
+      free(mangled);
 }
 
 /* Find the named task/function child of an instance scope. */
@@ -3971,48 +3976,62 @@ static int show_vif_nested_dyn_call(ivl_statement_t net)
                                    &insts_cap);
 
       if (ninst == 0) {
-            fprintf(stderr,
-                    "Warning: nested interface call %s.%s.%s -- no outer"
-                    " instance found; skipping\n",
-                    outer_name, nested_name, method_name);
-            return 0;
-      }
-
-      if (ninst == 1) {
-            ivl_scope_t method = find_nested_iface_method_(
-                  insts[0], nested_name, method_name);
-            if (method)
-                  emit_iface_method_call_(net, method, 1);
+            draw_eval_object(recv);
+            fprintf(vvp_out, "    %%vif/fatal;\n");
             free(insts);
             return 0;
       }
 
       unsigned lab_end = local_count++;
       unsigned*lab_inst = calloc(ninst, sizeof(unsigned));
+      unsigned*row_base = calloc(ninst, sizeof(unsigned));
+      ivl_scope_t*methods = calloc(ninst, sizeof(ivl_scope_t));
       assert(lab_inst);
+      assert(row_base);
+      assert(methods);
+
+      int malformed = 0;
+      for (unsigned i = 0 ; i < ninst ; i += 1) {
+            methods[i] = find_nested_iface_method_(
+                  insts[i], nested_name, method_name);
+            row_base[i] = methods[i]
+                  ? find_iface_method_row_(net, methods[i]) : UINT_MAX;
+            if (!methods[i] || row_base[i] == UINT_MAX) {
+                  fprintf(stderr,
+                          "error: nested virtual-interface call %s.%s.%s"
+                          " has no argument row for instance %s.\n",
+                          outer_name, nested_name, method_name,
+                          ivl_scope_name(insts[i]));
+                  malformed = 1;
+            }
+      }
+      if (malformed) {
+            free(methods);
+            free(row_base);
+            free(lab_inst);
+            free(insts);
+            return 1;
+      }
 
       draw_eval_object(recv);
       for (unsigned i = 0 ; i < ninst ; i += 1) {
-            if (!find_nested_iface_method_(insts[i], nested_name, method_name))
-                  continue;
             lab_inst[i] = local_count++;
             fprintf(vvp_out, "    %%jmp/vif T_%u.%u, S_%p;\n",
                     thread_count, lab_inst[i], insts[i]);
       }
-      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+      fprintf(vvp_out, "    %%vif/fatal;\n");
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_end);
 
       for (unsigned i = 0 ; i < ninst ; i += 1) {
-            ivl_scope_t method = find_nested_iface_method_(
-                  insts[i], nested_name, method_name);
-            if (!method) continue;
             fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_inst[i]);
             fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
-            emit_iface_method_call_(net, method, 1);
+            emit_iface_method_call_(net, methods[i], row_base[i]);
             fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_end);
       }
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_end);
 
+      free(methods);
+      free(row_base);
       free(lab_inst);
       free(insts);
       return 0;
@@ -4022,7 +4041,7 @@ static int show_vif_nested_dyn_call(ivl_statement_t net)
  *   $ivl_vif_call$<iface>$<method>(receiver, args...)
  * The receiver handle is evaluated once; a %jmp/vif compare chain
  * branches to the per-instance argument stores + fork for whichever
- * interface INSTANCE the handle is bound to (IEEE 1800-2017 25.10 —
+ * interface INSTANCE the handle is bound to (IEEE 1800-2023 25.9 —
  * a method call through a virtual interface applies to the instance
  * the handle designates, not to a statically chosen one). */
 static int show_vif_dyn_call(ivl_statement_t net)
@@ -4057,178 +4076,65 @@ static int show_vif_dyn_call(ivl_statement_t net)
                                    &insts_cap);
 
       if (ninst == 0) {
-            static int warned_noinst = 0;
-            if (!warned_noinst) {
-                  fprintf(stderr, "Warning: interface call %s.%s -- no"
-                          " instance found; skipping (further similar"
-                          " warnings suppressed)\n",
-                          iface_name, method_name);
-                  warned_noinst = 1;
-            }
-            return 0;
-      }
-
-      if (ninst == 1) {
-            /* Single instance: no runtime compare needed. */
-            ivl_scope_t method = find_iface_method_child_(insts[0], method_name);
-            if (method)
-                  emit_iface_method_call_(net, method, 1);
+            draw_eval_object(recv);
+            fprintf(vvp_out, "    %%vif/fatal;\n");
             free(insts);
             return 0;
       }
 
       unsigned lab_end = local_count++;
       unsigned*lab_inst = calloc(ninst, sizeof(unsigned));
+      unsigned*row_base = calloc(ninst, sizeof(unsigned));
+      ivl_scope_t*methods = calloc(ninst, sizeof(ivl_scope_t));
       assert(lab_inst);
+      assert(row_base);
+      assert(methods);
+
+      int malformed = 0;
+      for (unsigned i = 0 ; i < ninst ; i += 1) {
+            methods[i] = find_iface_method_child_(insts[i], method_name);
+            row_base[i] = methods[i]
+                  ? find_iface_method_row_(net, methods[i]) : UINT_MAX;
+            if (!methods[i] || row_base[i] == UINT_MAX) {
+                  fprintf(stderr,
+                          "error: virtual-interface call %s.%s has no"
+                          " argument row for instance %s.\n",
+                          iface_name, method_name,
+                          ivl_scope_name(insts[i]));
+                  malformed = 1;
+            }
+      }
+      if (malformed) {
+            free(methods);
+            free(row_base);
+            free(lab_inst);
+            free(insts);
+            return 1;
+      }
 
       draw_eval_object(recv);
-      unsigned emitted = 0;
       for (unsigned i = 0 ; i < ninst ; i += 1) {
-            if (!find_iface_method_child_(insts[i], method_name))
-                  continue;
             lab_inst[i] = local_count++;
             fprintf(vvp_out, "    %%jmp/vif T_%u.%u, S_%p;\n",
                     thread_count, lab_inst[i], insts[i]);
-            emitted += 1;
       }
-        /* No branch taken: unknown/null handle. Drop it and skip. */
-      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+        /* No branch taken: IEEE 1800-2023 25.9 requires a fatal run-time
+         * error for a null virtual interface. A nonmatching typed handle is
+         * likewise invalid for this call site and follows the same boundary. */
+      fprintf(vvp_out, "    %%vif/fatal;\n");
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_end);
 
       for (unsigned i = 0 ; i < ninst ; i += 1) {
-            ivl_scope_t method = find_iface_method_child_(insts[i], method_name);
-            if (!method)
-                  continue;
             fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_inst[i]);
             fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
-            emit_iface_method_call_(net, method, 1);
+            emit_iface_method_call_(net, methods[i], row_base[i]);
             fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_end);
       }
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_end);
-      (void)emitted;
+      free(methods);
+      free(row_base);
       free(lab_inst);
       free(insts);
-      return 0;
-}
-
-static int show_iface_late_call(ivl_statement_t net)
-{
-      const char*stmt_name = ivl_stmt_name(net);
-      const char*p = stmt_name + 16; /* skip "$ivl_iface_late$" */
-      const char*sep = strchr(p, '$');
-      if (!sep) {
-            fprintf(stderr, "Warning: malformed $ivl_iface_late name '%s'; skipping\n",
-                    stmt_name);
-            return 0;
-      }
-      char iface_name[256];
-      size_t ifn_len = sep - p;
-      if (ifn_len >= sizeof(iface_name)) ifn_len = sizeof(iface_name) - 1;
-      memcpy(iface_name, p, ifn_len);
-      iface_name[ifn_len] = '\0';
-      const char*method_name = sep + 1;
-
-      ivl_design_t des = vvp_get_saved_design();
-      if (!des) return 0;
-      ivl_scope_t*roots = 0;
-      unsigned nroots = 0;
-      ivl_design_roots(des, &roots, &nroots);
-      ivl_scope_t best = 0, first = 0;
-      for (unsigned i = 0 ; i < nroots ; i += 1)
-            find_module_scope_recurse_(roots[i], iface_name, &best, &first);
-      ivl_scope_t found = best ? best : first;
-
-      if (!found) {
-            static int warned = 0;
-            if (!warned) {
-                  fprintf(stderr,
-                          "Warning: deferred interface call %s.%s -- no instance found\n",
-                          iface_name, method_name);
-                  warned = 1;
-            }
-            return 0;
-      }
-
-      /* Find the method scope as a child of `found`. */
-      ivl_scope_t method = 0;
-      for (size_t i = 0 ; i < ivl_scope_childs(found) ; i += 1) {
-            ivl_scope_t ch = ivl_scope_child(found, i);
-            if (ch && (ivl_scope_type(ch) == IVL_SCT_TASK
-                       || ivl_scope_type(ch) == IVL_SCT_FUNCTION)
-                && strcmp(ivl_scope_basename(ch), method_name) == 0) {
-                  method = ch;
-                  break;
-            }
-      }
-      if (!method) {
-            fprintf(stderr,
-                    "Warning: deferred interface call %s.%s -- method not found; skipping\n",
-                    iface_name, method_name);
-            return 0;
-      }
-
-      const char*mangled = vvp_mangle_id(ivl_scope_name(method));
-      if (!mangled) return 0;
-      note_td_reference(mangled);
-
-      int is_auto = ivl_scope_is_auto(method);
-      if (is_auto)
-            fprintf(vvp_out, "    %%alloc S_%p;\n", method);
-
-      /* Map caller-supplied parms to the method's ports.  Interface tasks
-       * have their first user argument at port zero.  Functions reserve
-       * port zero for the return value (also for a void function), so their
-       * first user argument is port one. */
-      unsigned nparms = ivl_stmt_parm_count(net);
-      unsigned nports = ivl_scope_ports(method);
-      unsigned port_base = (ivl_scope_type(method) == IVL_SCT_FUNCTION) ? 1 : 0;
-      unsigned user_ports = nports >= port_base ? nports - port_base : 0;
-      for (unsigned i = 0 ; i < nparms && i < user_ports ; i += 1) {
-            ivl_expr_t pe = ivl_stmt_parm(net, i);
-            if (!pe) continue;
-            ivl_signal_t port = ivl_scope_port(method, port_base + i);
-            if (!port) continue;
-            ivl_variable_type_t pt = ivl_signal_data_type(port);
-            switch (pt) {
-                case IVL_VT_BOOL:
-                case IVL_VT_LOGIC:
-                  draw_eval_vec4(pe);
-                  resize_vec4_wid(pe, ivl_signal_width(port));
-                  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
-                          port, ivl_signal_width(port));
-                  break;
-                case IVL_VT_REAL:
-                  draw_eval_real(pe);
-                  fprintf(vvp_out, "    %%store/real v%p_0;\n", port);
-                  break;
-                case IVL_VT_STRING:
-                  draw_eval_string(pe);
-                  fprintf(vvp_out, "    %%store/str v%p_0;\n", port);
-                  break;
-                case IVL_VT_CLASS:
-                case IVL_VT_DARRAY:
-                case IVL_VT_QUEUE:
-                  draw_eval_object(pe);
-                  fprintf(vvp_out, "    %%store/obj v%p_0;\n", port);
-                  break;
-                default:
-                  break;
-            }
-      }
-
-      /* Tasks use %fork ... %join to maintain the run-to-completion semantics
-       * of a blocking call.  Functions would use %callf/* but interface
-       * methods called as tasks are always tasks here. */
-      if (ivl_scope_type(method) == IVL_SCT_FUNCTION) {
-            fprintf(vvp_out, "    %%callf/void TD_%s, S_%p;\n", mangled, method);
-      } else {
-            fprintf(vvp_out, "    %%fork TD_%s, S_%p;\n", mangled, method);
-            fprintf(vvp_out, "    %%join;\n");
-      }
-
-      if (is_auto)
-            fprintf(vvp_out, "    %%free S_%p;\n", method);
-
       return 0;
 }
 
@@ -4507,9 +4413,6 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    fprintf(vvp_out, "    %%pop/vec4 1;\n");
 	    return 0;
       }
-
-      if (strncmp(stmt_name, "$ivl_iface_late$", 16) == 0)
-	    return show_iface_late_call(net);
 
       if (strncmp(stmt_name, "$ivl_vif_call$", 14) == 0)
 	    return show_vif_dyn_call(net);

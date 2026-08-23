@@ -24754,6 +24754,29 @@ bool of_REACTIVE_PROCESS(vthread_t thr, vvp_code_t)
       return true;
 }
 
+/* A dynamic virtual-interface method dispatch reached no matching instance.
+ * The target emits this only after evaluating the receiver and exhausting
+ * every type-compatible interface scope (IEEE 1800-2023 25.9). */
+bool of_VIF_FATAL(vthread_t thr, vvp_code_t)
+{
+      if (thr->object_stack_size() > 0) {
+	    vvp_object_t obj;
+	    thr->pop_object(obj);
+      }
+
+      static bool reported = false;
+      if (!reported) {
+	    reported = true;
+	    fprintf(stderr,
+		    "runtime error: virtual interface method call attempted to use"
+		    " a null or non-virtual interface; a virtual interface must be"
+		    " initialized before calling one of its methods.\n");
+	    vpip_set_return_value(1);
+	    schedule_finish(0);
+      }
+      return false;
+}
+
 /*
  * %vif/tickchg <M>
  *

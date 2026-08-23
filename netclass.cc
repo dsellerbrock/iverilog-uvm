@@ -621,26 +621,35 @@ NetScope*netclass_t::method_from_name(perm_string name) const
 
 }
 
+static NetScope*find_interface_instance_scope_(NetScope*scope,
+					       perm_string interface_name)
+{
+      if (!scope)
+	    return 0;
+      if (scope->type() == NetScope::MODULE
+	  && scope->module_name() == interface_name)
+	    return scope;
+
+      for (const auto&child : scope->children()) {
+	    if (NetScope*found = find_interface_instance_scope_(
+		  child.second, interface_name))
+		  return found;
+      }
+      return 0;
+}
+
 NetScope*netclass_t::resolve_method_call_scope(const Design*des, perm_string name) const
 {
       // For interface types, the netclass_t is created (and cached) before
       // the interface's actual instance scope is elaborated, so class_scope_
-      // is often null at method-dispatch time. Look it up lazily by walking
-      // the design's root scopes for a MODULE child whose module_name matches
-      // this interface's name. Once found, attach it so subsequent lookups
-      // hit the fast path.
+      // is often null at method-dispatch time. Look it up lazily through the
+      // complete design hierarchy: interfaces can themselves be nested below
+      // another interface or a generated/module hierarchy. Once found, attach
+      // it so subsequent lookups hit the fast path.
       if (interface_type_ && class_scope_ == nullptr && des) {
             NetScope*found = nullptr;
             for (NetScope*root_scope : const_cast<Design*>(des)->find_root_scopes()) {
-                  for (auto&kv : root_scope->children()) {
-                        NetScope*child = kv.second;
-                        if (!child || child->type() != NetScope::MODULE)
-                              continue;
-                        if (child->module_name() == get_name()) {
-                              found = child;
-                              break;
-                        }
-                  }
+                  found = find_interface_instance_scope_(root_scope, get_name());
                   if (found) break;
             }
             if (found) {
