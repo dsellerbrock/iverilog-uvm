@@ -2684,6 +2684,8 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       const netclass_t*use_base_class = 0;
       if (use_type->base_type) {
 	    ivl_type_t base_type = use_type->base_type->elaborate_type(des, class_scope);
+	    base_type = specialize_bare_class_at_concrete_use(
+	          des, class_scope, use_type->base_type.get(), base_type, true);
 	    use_base_class = dynamic_cast<const netclass_t*>(base_type);
 	    if (!use_base_class) {
 		  perm_string base_name;
@@ -2904,6 +2906,8 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
       const netclass_t*use_base_class = 0;
       if (use_type->base_type) {
 	    ivl_type_t base_type = use_type->base_type->elaborate_type(des, class_scope);
+	    base_type = specialize_bare_class_at_concrete_use(
+	          des, class_scope, use_type->base_type.get(), base_type, true);
 	    use_base_class = dynamic_cast<const netclass_t *>(base_type);
 	    if (!use_base_class) {
 		  perm_string base_name;
@@ -3122,6 +3126,8 @@ static void complete_class_scope_in_place_(Design*des, NetScope*scope,
       const netclass_t*use_base_class = 0;
       if (use_type->base_type) {
 	    ivl_type_t base_type = use_type->base_type->elaborate_type(des, class_scope);
+	    base_type = specialize_bare_class_at_concrete_use(
+	          des, class_scope, use_type->base_type.get(), base_type, true);
 	    use_base_class = dynamic_cast<const netclass_t*>(base_type);
 	    if (!use_base_class) {
 		  perm_string base_name;

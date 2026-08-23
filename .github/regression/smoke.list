@@ -2,6 +2,7 @@
 # Run via: .github/regression/run_uvm_subset.sh .github/regression/smoke.list
 # One test name per line (tests/<name>.sv). Comments/blank lines ignored.
 m1_uvm_factory_by_name_test
+m1_uvm_sequence_factory_by_name_test
 factory_param_cast_test
 configdb_classprop_test
 vif_config_db_test
