@@ -2451,9 +2451,20 @@ class_declaration_endlabel_opt
 
 class_declaration_extends_opt /* IEEE1800-2005: A.1.2 */
   : K_extends ps_type_identifier class_extends_type_params_opt argument_list_parens_opt
-      { if (typeref_t*tmp = dynamic_cast<typeref_t*>($2))
-	      tmp->set_parameter_values($3);
-	else
+      { if (typeref_t*tmp = dynamic_cast<typeref_t*>($2)) {
+	      /* A package-qualified ps_type_identifier consumes its own
+	       * #(...) before this outer optional production.  Preserve those
+	       * arguments when $3 is absent instead of silently selecting every
+	       * class default. */
+	      if ($3) {
+		    if (tmp->parameter_values()) {
+			  yyerror(@3, "error: A class type may have only one parameter value assignment.");
+			  delete_parmvalue_t($3);
+		    } else {
+			  tmp->set_parameter_values($3);
+		    }
+	      }
+	} else
 	      delete_parmvalue_t($3);
 	$$.type = $2;
 	$$.args = $4;
@@ -2501,7 +2512,16 @@ interface_class_type
       { if (typeref_t*tmp = dynamic_cast<typeref_t*>($1)) {
 	      if (tmp->typedef_ref() && !tmp->typedef_ref()->get_data_type())
 		    yyerror(@1, "error: A forward-declared interface class cannot be used in an extends or implements list.");
-	      tmp->set_parameter_values($2);
+	      /* As with an ordinary extends clause, package-qualified names may
+	       * already own the parameter values parsed as part of $1. */
+	      if ($2) {
+		    if (tmp->parameter_values()) {
+			  yyerror(@2, "error: An interface class type may have only one parameter value assignment.");
+			  delete_parmvalue_t($2);
+		    } else {
+			  tmp->set_parameter_values($2);
+		    }
+	      }
 	} else {
 	      delete_parmvalue_t($2);
 	}

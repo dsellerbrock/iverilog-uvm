@@ -1619,6 +1619,7 @@ sv_typedef_eager_valid normal,-g2012 ivltests gold=sv_typedef_eager_valid.gold
 sv_param_class_bare_forward_identity normal,-g2012 ivltests gold=sv_param_class_bare_forward_identity.gold
 sv_param_class_bare_base_identity normal,-g2012 ivltests gold=sv_param_class_bare_base_identity.gold
 sv_param_class_builtin_property_type normal,-g2012 ivltests gold=sv_param_class_builtin_property_type.gold
+sv_package_param_class_extends normal,-g2012 ivltests gold=sv_package_param_class_extends.gold
 sv_param_class_bare_static_function_fail CE,-g2012 ivltests gold=sv_param_class_bare_static_function_fail.gold
 sv_param_class_bare_static_task_fail CE,-g2012 ivltests gold=sv_param_class_bare_static_task_fail.gold
 sv_param_class_bare_static_property_fail CE,-g2012 ivltests gold=sv_param_class_bare_static_property_fail.gold
@@ -1795,6 +1796,7 @@ sv_interface_class_illegal_items_fail CE,-g2012 ivltests gold=sv_interface_class
 sv_interface_class_relation_fail CE,-g2012 ivltests gold=sv_interface_class_relation_fail.gold
 sv_interface_class_qualifier_fail CE,-g2012 ivltests gold=sv_interface_class_qualifier_fail.gold
 sv_interface_class_nonvirtual_method_fail CE,-g2012 ivltests gold=sv_interface_class_nonvirtual_method_fail.gold
+sv_package_param_interface_relations normal,-g2012 ivltests gold=sv_package_param_interface_relations.gold
 
 # IEEE 1800-2017 6.6.7 user-defined nettypes and 6.6.8 interconnect
 sv_nettype_corpus_decl CN,-g2012 ivltests
