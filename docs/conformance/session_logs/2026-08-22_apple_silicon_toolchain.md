@@ -18,11 +18,14 @@ from those x86_64/Rosetta environments are historical until rerun natively.
 
 The native resource launcher initially preserved the existing 45-second CPU
 and 1 GiB aggregate-RSS implementation. On 2026-08-22 the user approved a
-2 GiB aggregate-RSS ceiling for current full-design campaigns after the clean
+2 GiB aggregate-RSS ceiling for full-design campaigns after the clean
 ARM64 Caliptra compile reached 1,074,003,968 bytes. The CPU limit remains 45
-seconds, and frozen 1 GiB results below remain historical evidence rather than
-being reclassified. A later complete assertion-enabled Caliptra compilation
-peaked at 1,179,353,088 bytes under the current ceiling:
+seconds. On 2026-08-23 that interim RSS ceiling was removed: current compiler
+runs have no fixed memory cutoff unless abnormal growth warrants a focused
+bounded investigation. Frozen 1 GiB and 2 GiB results below remain historical
+evidence rather than being reclassified. A complete assertion-enabled
+Caliptra compilation peaked at 1,179,353,088 bytes under the then-current
+ceiling:
 
 ```sh
 RUNNER=/path/to/evidence/arm64-tooling/resource-runner
@@ -157,16 +160,16 @@ above.
 
 These focused results validate the native migration, not full-corpus parity.
 The frozen full OpenTitan and Caliptra matrices remain historical until their
-bounded ARM64 reruns complete.
+ARM64 reruns complete.
 
 ## Full assertion-enabled Caliptra compile
 
 The unmodified Caliptra `caliptra_top_tb` completed parsing, elaboration,
 optimization, and VVP code generation with assertions enabled under the
-current 2 GiB aggregate-RSS ceiling. The bounded compiler exited 0 with a peak
+then-current 2 GiB aggregate-RSS ceiling. The compiler exited 0 with a peak
 aggregate RSS of 1,179,353,088 bytes. Its diagnostics contained 26 warnings,
-zero errors, and zero `sorry` messages. This supersedes the intermediate
-1,074,003,968-byte run and the earlier 1 GiB resource stop; both remain useful
+zero errors, and zero `sorry` messages. This superseded the intermediate
+1,074,003,968-byte run and the earlier 1 GiB resource stop; all remain useful
 historical measurements rather than current failure results.
 
 The generated VVP SHA-256 is
