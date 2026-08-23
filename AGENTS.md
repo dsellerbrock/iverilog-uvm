@@ -33,12 +33,12 @@
 - Do not substitute `/usr/local` paths on Apple Silicon. This fork requires
   the `/opt/homebrew` Z3 and libffi libraries. Apple `/usr/bin/bison` is
   native-capable but version 2.3 and is too old; pin Homebrew Bison 3.8.x.
-- On Apple Silicon, verify `uname -m`, the compiler, Python, native extension
-  modules, and installed Icarus binaries all report `arm64`. Never reuse an
-  install tree or virtual environment created under Rosetta. Start with
-  `make distclean`, configure against `/opt/homebrew`, and use
-  `CFLAGS="-g0 -O2" CXXFLAGS="-g0 -O2"`. Run the bounded build serially:
-  keep the build serial so aggregate compiler memory remains predictable.
+- This campaign runs natively on Apple Silicon; assume the compiler, Python,
+  extension modules, and installed Icarus binaries are ARM64 instead of
+  repeatedly spending runs rechecking the host architecture. Never reuse a
+  known Rosetta-era install tree or virtual environment. Start a replacement
+  build with `make distclean`, configure against `/opt/homebrew`, and use
+  `CFLAGS="-g0 -O2" CXXFLAGS="-g0 -O2"`. Keep builds serial.
 - Before a full JSON ivtest run, install the optional FPGA target with `make -C tgt-fpga install`; the root `make install` does not install `fpga.conf`/`fpga.tgt`, and two FPGA diagnostic tests otherwise fail before reaching their expected errors.
 - After source edits, build the directly affected objects first. Before handing off, use `make -q` for those objects and run `git diff --check`.
 - If parser grammar changes, report Bison conflict counts and whether the conflict-state signature changed.
@@ -49,13 +49,15 @@
 - On this workspace, use only this worktree's `local-install` prefix. Sibling
   Icarus install trees are Rosetta-era x86_64 artifacts, and Homebrew's arm64
   Icarus is the wrong semantic revision even though its architecture matches.
-- Run bounded commands through `../evidence/arm64-tooling/resource-runner`, or
-  through the peak-reporting native wrapper under
-  `../evidence/caliptra-leading-underscore-20260816/`. Do not execute the old
-  sv-tests runner by its broken x86-era shebang. The native launcher retains
-  the 45-second CPU limit and uses the user-approved 2 GiB aggregate-RSS cap;
-  set `RESOURCE_RUNNER_RSS_LIMIT_BYTES` explicitly when reproducing a frozen
-  historical run with a different ceiling.
+- Run compiler/simulator commands through
+  `../evidence/arm64-tooling/resource-runner`, or through the peak-reporting
+  native wrapper under `../evidence/caliptra-leading-underscore-20260816/`.
+  Do not execute the old sv-tests runner by its broken x86-era shebang. Retain
+  the 45-second CPU guard, but do not impose a compiler RSS ceiling for the
+  current campaign: set `RESOURCE_RUNNER_RSS_LIMIT_BYTES=9223372036854775807`
+  when using a legacy wrapper that otherwise supplies a default cap. Observe
+  memory and investigate genuinely abnormal growth instead of terminating a
+  legitimate large elaboration at a fixed byte threshold.
 - OpenTitan pins FuseSoC 2.4.5. Invoke `scripts/opentitan_matrix.py` with the
   Python from the same tool environment and pass it through
   `--fusesoc-python`; do not replace a virtual-environment `python` symlink
