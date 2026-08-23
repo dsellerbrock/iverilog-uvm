@@ -20520,6 +20520,22 @@ static void constraint_randc_reference_error_(const PExpr*site,
       constraint_ir_design_ctx_->errors += 1;
 }
 
+/* A solve-before operand must name a random variable (18.5.10). Container
+ * sizes carry their owning property's index in the s: token, so reject the
+ * state-only case here instead of letting the runtime silently ignore an
+ * ordering rank it cannot randomize. */
+static void constraint_order_nonrandom_error_(const PExpr*site)
+{
+      if (!site || !constraint_ir_design_ctx_
+	  || !constraint_ir_design_ctx_->mark_constraint_order_diagnostic(site))
+	    return;
+
+      cerr << site->get_fileline()
+	   << ": error: target of 'solve before' constraint must be a random variable."
+	   << endl;
+      constraint_ir_design_ctx_->errors += 1;
+}
+
 /* Some legal source paths are not yet representable in the constraint IR
  * (notably an indexed class-handle array followed by a randc member).  A
  * forbidden-use diagnostic must not disappear merely because lowering later
@@ -22495,6 +22511,7 @@ static string constraint_class_container_size_ir_(
       if (cpath.size() != 2
 	  || cpath.back().name != perm_string::literal("size")
 	  || !cpath.back().index.empty() || !cpath.front().index.empty()
+	  || cpath.front().local_scope || cpath.back().local_scope
 	  || !cls)
 	    return "";
 
@@ -23270,6 +23287,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       // the darray type text used to construct the array at write-back.
       if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(expr)) {
 	    const pform_name_t&cpath = call->path().name;
+	    bool call_local_qualified = !cpath.empty()
+		  && cpath.front().local_scope;
 
 	      /* The parenthesized spelling of an array-method iterator's
 	       * index query is represented as a call. The paren-less spelling is
@@ -23516,8 +23535,31 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (!state_ir.empty()) return state_ir;
 		  }
 	    }
-	    string size_ir = constraint_class_container_size_ir_(cpath, cls);
-	    if (!size_ir.empty()) return size_ir;
+	      /* local:: selects the caller's value in an inline constraint, even
+	       * when the randomized class has a property with the same name.
+	       * Capture the whole size call so both parenthesized and paren-less
+	       * spellings observe the same call-site value. */
+	    bool call_foreach_shadow = !cpath.empty()
+		  && ((loop_env
+		       && loop_env->find(cpath.front().name) != loop_env->end())
+		      || (dynforeach_emit_ctx_
+			  && dynforeach_emit_ctx_->loop_var
+			     == cpath.front().name));
+	    bool simple_size_call = cpath.size() == 2
+		  && cpath.back().name == perm_string::literal("size")
+		  && cpath.back().index.empty() && cpath.front().index.empty()
+		  && call->get_parms().empty()
+		  && call->with_constraints().empty();
+	    if (simple_size_call && call_local_qualified)
+		  return scope_randomize_value_slot_(
+			call, nullptr, value_slots, 32);
+
+	    if (!call_iter_ctx && !call_foreach_shadow
+		&& !call_local_qualified && !call->path().package
+		&& !call->has_scoped_type_prefix()) {
+		  string size_ir = constraint_class_container_size_ir_(cpath, cls);
+		  if (!size_ir.empty()) return size_ir;
+	    }
 	      /* In scope randomization, a non-random container's size is an
 	       * ordinary state value sampled at the call. Unlike a selected
 	       * element, it does not depend on a solver variable. */
@@ -23591,6 +23633,18 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			    && s.compare(0, 2, "e:") != 0
 			    && s.compare(0, 2, "s:") != 0)
 			      return "";
+			if (s.compare(0, 2, "s:") == 0 && cls) {
+			      char*end = nullptr;
+			      unsigned long idx = strtoul(
+				    s.c_str() + 2, &end, 10);
+			      if (end != s.c_str() + 2 && *end == ':'
+				  && idx < cls->get_properties()) {
+				    property_qualifier_t qual =
+					  cls->get_prop_qual((size_t)idx);
+				    if (!qual.test_rand() && !qual.test_randc())
+					  constraint_order_nonrandom_error_(item);
+			      }
+			}
 			acc += acc.empty() ? s : (" " + s);
 		  }
 		  return acc;
