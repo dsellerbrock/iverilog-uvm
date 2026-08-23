@@ -223,10 +223,21 @@ Design:: Design()
       nodes_functor_cur_ = 0;
       nodes_functor_nxt_ = 0;
       des_delay_sel_ = Design::TYP;
+      package_subroutine_bodies_ready_ = false;
 }
 
 Design::~Design()
 {
+}
+
+bool Design::package_subroutine_bodies_ready() const
+{
+      return package_subroutine_bodies_ready_;
+}
+
+void Design::set_package_subroutine_bodies_ready(bool ready)
+{
+      package_subroutine_bodies_ready_ = ready;
 }
 
 void Design::release_elaboration_caches()

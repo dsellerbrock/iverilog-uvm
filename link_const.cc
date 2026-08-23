@@ -19,11 +19,83 @@
 
 # include "config.h"
 
+# include  <set>
+
 # include  "netlist.h"
 # include  "netmisc.h"
 # include  "ivl_assert.h"
 
 using namespace std;
+
+namespace {
+
+class nexus_recursion_guard_t {
+
+    public:
+      nexus_recursion_guard_t(set<const Nexus*>&active, unsigned&depth,
+			      const Nexus*nexus)
+      : active_(active), depth_(depth), nexus_(nexus), owner_(false)
+      {
+	    /* Bound acyclic as well as cyclic traversal. A maliciously deep
+	     * fixed-select/substitute chain must not exhaust the compiler stack. */
+	    static const unsigned max_depth = 512;
+	    if (depth_ < max_depth && active_.insert(nexus_).second) {
+		  depth_ += 1;
+		  owner_ = true;
+	    }
+      }
+
+      ~nexus_recursion_guard_t()
+      {
+	    if (owner_) {
+		  depth_ -= 1;
+		  active_.erase(nexus_);
+	    }
+      }
+
+      bool owner() const { return owner_; }
+
+    private:
+      set<const Nexus*>&active_;
+      unsigned&depth_;
+      const Nexus*nexus_;
+      bool owner_;
+};
+
+static bool fixed_part_select_output_(const Link*link,
+				       const NetPartSelect*&part)
+{
+      part = dynamic_cast<const NetPartSelect*>(link->get_obj());
+      return part && part->dir() == NetPartSelect::VP
+	    && part->pin_count() == 2 && link->get_pin() == 0;
+}
+
+static bool part_select_in_range_(const NetPartSelect*part,
+				   unsigned source_width)
+{
+      return part->width() != 0 && part->base() <= source_width
+	    && part->width() <= source_width-part->base();
+}
+
+static bool fixed_part_select_shape_(const Nexus*output,
+				      const NetPartSelect*part)
+{
+      const Nexus*source = part->pin(1).nexus();
+      if (!source || !part_select_in_range_(part, source->vector_width()))
+	    return false;
+
+	/* A nexus with no NetNet has no independently declared output width.
+	 * Otherwise the selected driver must cover that complete vector. */
+      unsigned output_width = output->vector_width();
+      return output_width == 0 || output_width == part->width();
+}
+
+static verinum unknown_vector_(const Nexus*nexus)
+{
+      return verinum(verinum::Vx, nexus->vector_width());
+}
+
+}
 
 /*
  * Scan the link for drivers. If there are only constant drivers, then
@@ -35,6 +107,18 @@ bool Nexus::drivers_constant() const
 	    return false;
       if (driven_ != NO_GUESS)
 	    return true;
+
+	/* NetPartSelect outputs can form a cycle when a zero-delay continuous
+	 * assignment nexus-merges a fixed select with its source. Such a graph is
+	 * legal, but it is not a provable constant. Stop at the first revisit and
+	 * let every caller on that path conservatively cache VAR. */
+      static thread_local set<const Nexus*> active_queries;
+      static thread_local unsigned active_depth = 0;
+      nexus_recursion_guard_t recursion(active_queries, active_depth, this);
+      if (!recursion.owner()) {
+	    driven_ = VAR;
+	    return false;
+      }
 
       unsigned constant_drivers = 0;
       for (const Link*cur = first_nlink() ; cur  ;  cur = cur->next_nlink()) {
@@ -104,6 +188,18 @@ bool Nexus::drivers_constant() const
 			break;
 		  }
 
+	    const NetPartSelect*part = 0;
+	    if (fixed_part_select_output_(cur, part)) {
+		  const Nexus*source = part->pin(1).nexus();
+		  if (fixed_part_select_shape_(this, part)
+		      && source->drivers_constant()) {
+			constant_drivers += 1;
+			continue;
+		  }
+		  driven_ = VAR;
+		  return false;
+	    }
+
 	    const NetSubstitute*ps = dynamic_cast<const NetSubstitute*>(cur->get_obj());
 	    if (ps) {
 		  if (ps->pin(1).nexus()->drivers_constant() &&
@@ -138,6 +234,12 @@ bool Nexus::drivers_constant() const
 
 verinum::V Nexus::driven_value() const
 {
+	/* Preserve the public contract even for a defensive caller: a variable or
+	 * cyclic driver has no constant scalar value. Normal callers test
+	 * drivers_constant() before asking for the value. */
+      if (!drivers_constant())
+	    return verinum::Vx;
+
       switch (driven_) {
 	  case V0:
 	    return verinum::V0;
@@ -160,12 +262,24 @@ verinum::V Nexus::driven_value() const
 
       for (cur = first_nlink() ; cur  ;  cur = cur->next_nlink()) {
 
+	    const NetPartSelect*part;
 	    const NetConst*obj;
 	    const NetNet*sig;
 	    if ((obj = dynamic_cast<const NetConst*>(cur->get_obj()))) {
 		    // Multiple drivers are not currently supported.
 		  ivl_assert(*obj, val == verinum::Vz);
 		  val = obj->value(cur->get_pin());
+
+	    } else if (fixed_part_select_output_(cur, part)) {
+		    // Multiple drivers are not currently supported.
+		  ivl_assert(*part, val == verinum::Vz);
+		  const Nexus*source_nexus = part->pin(1).nexus();
+		  if (!fixed_part_select_shape_(this, part))
+			return verinum::Vx;
+		  verinum source = source_nexus->driven_vector();
+		  if (!part_select_in_range_(part, source.len()))
+			return verinum::Vx;
+		  val = source.get(part->base());
 
 	    } else if ((sig = dynamic_cast<const NetNet*>(cur->get_obj()))) {
 
@@ -209,6 +323,12 @@ verinum::V Nexus::driven_value() const
 
 verinum Nexus::driven_vector() const
 {
+	/* This also makes a direct value query cycle-safe. The documented caller
+	 * contract is to ask drivers_constant() first, but returning X here is a
+	 * conservative result if a future caller omits that gate. */
+      if (!drivers_constant())
+	    return unknown_vector_(this);
+
       const Link*cur = list_;
 
       verinum val;
@@ -217,6 +337,7 @@ verinum Nexus::driven_vector() const
 
       for (cur = first_nlink() ; cur  ;  cur = cur->next_nlink()) {
 
+	    const NetPartSelect*part;
 	    const NetSubstitute*ps;
 	    const NetConst*obj;
 	    const NetNet*sig;
@@ -225,6 +346,22 @@ verinum Nexus::driven_vector() const
 		  ivl_assert(*obj, val.len() == 0);
 		  ivl_assert(*obj, cur->get_pin() == 0);
 		  val = obj->value();
+		  width = val.len();
+
+	    } else if (fixed_part_select_output_(cur, part)) {
+		    // A fixed vector-to-part projection of a constant remains a
+		    // constant. This occurs when synthesis shares a concatenated
+		    // r-value and gives each l-value leaf a static slice.
+		  ivl_assert(*part, val.len() == 0);
+		  const Nexus*source_nexus = part->pin(1).nexus();
+		  if (!fixed_part_select_shape_(this, part))
+			return unknown_vector_(this);
+		  verinum source = source_nexus->driven_vector();
+		  if (!part_select_in_range_(part, source.len()))
+			return unknown_vector_(this);
+		  val = verinum(verinum::Vx, part->width());
+		  for (unsigned idx = 0; idx < part->width(); idx += 1)
+			val.set(idx, source.get(part->base()+idx));
 		  width = val.len();
 
 	    } else if ((ps = dynamic_cast<const NetSubstitute*>(cur->get_obj()))) {

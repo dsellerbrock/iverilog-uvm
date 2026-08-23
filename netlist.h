@@ -5953,6 +5953,12 @@ class Design {
 				   bool is_unit);
       std::list<NetScope*> find_package_scopes() const;
 
+	/* Package subroutine signatures may be materialized by an early class
+	 * specialization. Their bodies must wait until late class-typed signals
+	 * have been repaired. */
+      bool package_subroutine_bodies_ready() const;
+      void set_package_subroutine_bodies_ready(bool ready);
+
 	/* Attempt to set the precision to the specified value. If the
 	   precision is already more precise, the keep the precise
 	   setting. This is intended to hold the simulation precision
@@ -6133,6 +6139,7 @@ class Design {
       std::map<std::pair<const PExpr*,const NetScope*>,bool>
 	    struct_member_default_validations_;
       std::set<const PExpr*> constraint_randc_diagnostic_sites_;
+      bool package_subroutine_bodies_ready_;
 
     private: // not implemented
       Design(const Design&);

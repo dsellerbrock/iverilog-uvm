@@ -5286,6 +5286,9 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  NetNet*bridge = new NetNet(scope, scope->local_symbol(),
 					  bridge_type, prts[0]->net_type());
 		  bridge->local_flag(true);
+		  if (ptype == NetNet::POUTPUT)
+			bridge->attribute(perm_string::literal(
+			      "_ivl_implicit_sensitivity"), verinum(1));
 		  bridge->set_line(*pins[idx]);
 		  unique_ptr<PEIdent> bridge_id(
 			new PEIdent(bridge->name(), UINT_MAX, true));
@@ -18183,6 +18186,17 @@ void PFunction::elaborate(Design*des, NetScope*scope) const
 	    def = scope->func_def();
       }
 
+	/* A package function referenced while an early class specialization is
+	 * elaborated needs its canonical scope and signature immediately, but its
+	 * body can depend on class-typed package signals that have not yet been
+	 * repaired. Constant functions are the exception: their bodies are needed
+	 * immediately for compile-time evaluation. */
+      if (scope->parent()
+	  && scope->parent()->type() == NetScope::PACKAGE
+	  && !des->package_subroutine_bodies_ready()
+	  && !scope->need_const_func())
+	    return;
+
       scope->set_elab_stage(3);
 
       if (def == 0) {
@@ -18513,6 +18527,14 @@ void PTask::elaborate(Design*des, NetScope*task) const
 	    elaborate_sig(des, task);
 	    def = task->task_def();
       }
+
+	/* As for package functions above, retain the early canonical task scope
+	 * and signature while deferring body elaboration until repaired package
+	 * signal types are available. */
+      if (task->parent()
+	  && task->parent()->type() == NetScope::PACKAGE
+	  && !des->package_subroutine_bodies_ready())
+	    return;
 
       task->set_elab_stage(3);
       ivl_assert(*this, def);
@@ -26941,6 +26963,11 @@ Design* elaborate(list<perm_string>roots)
 	 * Complete any classes appended to the registry before statement
 	 * expressions snapshot their property types. */
       repair_specialized_class_property_types(des);
+
+	/* Package subroutine bodies can now safely bind class-typed package
+	 * signals. This must precede PPackage::elaborate because that pass begins
+	 * by elaborating class bodies that can call package subroutines. */
+      des->set_package_subroutine_bodies_ready(true);
 
 	// Now that the structure and parameters are taken care of,
 	// run through the pform again and generate the full netlist.

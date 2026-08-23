@@ -1,4 +1,3 @@
 ./ivltests/synth_property_rhs_no_crash_fail.v:12: error: Unable to synthesize assignment r-value.
-./ivltests/synth_property_rhs_no_crash_fail.v:12: error: Unable to synthesize asynchronous process.
 ./ivltests/synth_property_rhs_no_crash_fail.v:12: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
-3 error(s) in post-elaboration processing.
+2 error(s) in post-elaboration processing.

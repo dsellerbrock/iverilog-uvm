@@ -151,10 +151,12 @@ ssetclr3		normal			ivltests
 synth_always_comb_constant normal,-g2012	ivltests
 synth_always_latch_intent normal,-g2012	ivltests
 synth_async_reset_equality normal,-S,-g2012	ivltests
+synth_async_reset_concat_constant_slices normal,-S,-g2012	ivltests gold=synth_async_reset_concat_constant_slices.gold
 synth_async_reset_comparison_mismatch_fail CE,-S,-g2012	ivltests gold=synth_async_reset_comparison_mismatch_fail.gold
 synth_async_reset_transformed_predicate_reject CE,-S,-g2012	ivltests gold=synth_async_reset_transformed_predicate_reject.gold
 synth_async_reset_multidriver_select_reject CE,-S,-g2012	ivltests gold=synth_async_reset_multidriver_select_reject.gold
 synth_async_reset_cyclic_select_reject CE,-S,-g2012	ivltests gold=synth_async_reset_cyclic_select_reject.gold
+synth_async_reset_cyclic_value_reject CE,-S,-g2012	ivltests gold=synth_async_reset_cyclic_value_reject.gold
 synth_async_reset_cast_predicate_reject CE,-S,-g2012	ivltests gold=synth_async_reset_cast_predicate_reject.gold
 synth_async_reset_root_inout_driver_reject CE,-S,-g2012	ivltests gold=synth_async_reset_root_inout_driver_reject.gold
 synth_automatic_block_locals normal,-S,-g2012	ivltests
