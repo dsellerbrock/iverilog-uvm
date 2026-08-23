@@ -1,0 +1,5 @@
+{
+    "type"          : "normal",
+    "source"        : "real_force_rel.v",
+    "iverilog-args" : [ "-g2012" ]
+}

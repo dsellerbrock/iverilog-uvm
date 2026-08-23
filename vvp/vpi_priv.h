@@ -39,6 +39,7 @@
 class class_type;
 class vvp_darray;
 class vvp_fun_arrayport;
+class vvp_fun_force_array;
 class vvp_fun_signal_base;
 
 typedef struct __vpiArray* vvp_array_t;
@@ -854,6 +855,17 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
       void set_word(unsigned idx, const std::string&val);
       void set_word(unsigned idx, const vvp_object_t&val);
 
+	// A compact static variable array has no vvp_net_t filter for each
+	// word. Implement force/release directly on the array storage instead.
+	// The public entry points expect an in-range word and packed range; the
+	// opcode handlers perform signed-offset clipping and reject automatic or
+	// non-integral arrays before calling them.
+      void force_word(unsigned idx, unsigned off, const vvp_vector4_t&val);
+      void force_link_word(unsigned idx, unsigned off, unsigned wid,
+			   vvp_net_t*source);
+      void release_word(unsigned idx, unsigned off, unsigned wid);
+      bool is_forceable_vec4_array() const;
+
       vvp_vector4_t get_word(unsigned address);
       double get_word_r(unsigned address);
       void get_word_obj(unsigned address, vvp_object_t&val);
@@ -867,20 +879,52 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
 	// cleared at the first write of each new step, so it costs one
 	// entry per word actually written per step and nothing when the
 	// history is off.
-      void enable_sample_hist() { hist_enabled_ = true; }
+      void enable_sample_hist()
+      { canonical_value_owner_()->hist_enabled_ = true; }
       vvp_vector4_t get_word_preponed(unsigned address);
     private:
+      struct force_word_state_t {
+	    vvp_vector4_t value;
+	    vvp_vector2_t mask;
+      };
+
+      vvp_vector4_t get_word_raw_(unsigned address);
+      void set_word_raw_(unsigned address, const vvp_vector4_t&value);
+      vvp_vector4_t apply_force_(unsigned address,
+				 const vvp_vector4_t&raw) const;
+      __vpiArray*canonical_value_owner_()
+      { return value_owner_ ? value_owner_ : this; }
+      const __vpiArray*canonical_value_owner_() const
+      { return value_owner_ ? value_owner_ : this; }
+      void notify_word_change_(unsigned long address);
+      void unlink_force_range_(unsigned address, unsigned off, unsigned wid);
+      void update_force_link_(unsigned address, unsigned base, unsigned wid,
+			      const vvp_vector2_t&active,
+			      const vvp_vector4_t&value);
+
       void hist_snapshot_word_(unsigned address);
       bool hist_enabled_ = false;
       vvp_time64_t hist_time_ = 0;
       bool hist_valid_ = false;
       std::map<unsigned, vvp_vector4_t> hist_prev_;
+      std::map<unsigned, force_word_state_t> force_words_;
+      std::vector<vvp_net_t*> force_links_;
+
+	// .array/alias records share their word storage. Keep force overlays,
+	// live-force adapters and sampling history on the same canonical object
+	// as well, and retain every VPI view so a change reaches callbacks and
+	// read ports registered through any alias.
+      __vpiArray*value_owner_ = nullptr;
+      std::vector<__vpiArray*> value_views_;
+
+      friend class vvp_fun_force_array;
     public:
 
       void alias_word(unsigned long addr, vpiHandle word, int msb, int lsb);
       void attach_word(unsigned addr, vpiHandle word);
       void attach_word_edge_probe(unsigned addr, vvp_net_t*probe);
       void word_change(unsigned long addr);
+      void word_change_local_(unsigned long addr);
 
       const char*name; /* Permanently allocated string */
       __vpiDecConst first_addr;

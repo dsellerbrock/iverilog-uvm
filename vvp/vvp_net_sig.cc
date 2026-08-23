@@ -2174,6 +2174,40 @@ vvp_fun_force::~vvp_fun_force()
 {
 }
 
+void vvp_fun_force::activate(unsigned base, unsigned wid, unsigned full_wid)
+{
+      base_ = base;
+      width_ = wid;
+      mask_ = vvp_vector2_t(vvp_vector2_t::FILL0, full_wid);
+      for (unsigned idx = 0 ; idx < wid ; idx += 1)
+	    mask_.set_bit(base + idx, 1);
+      source_value_ = vvp_vector4_t();
+}
+
+void vvp_fun_force::remove_range(unsigned base, unsigned wid)
+{
+      if (mask_.size() == 0)
+	    return;
+      for (unsigned idx = 0 ; idx < mask_.size() ; idx += 1)
+	    if (idx >= base && idx - base < wid)
+		  mask_.set_bit(idx, 0);
+}
+
+void vvp_fun_force::deactivate()
+{
+      mask_ = vvp_vector2_t();
+}
+
+bool vvp_fun_force::active() const
+{
+      return mask_.size() != 0 && !mask_.is_zero();
+}
+
+bool vvp_fun_force::configured_for(unsigned base, unsigned wid) const
+{
+      return base_ == base && width_ == wid;
+}
+
 void vvp_fun_force::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
 			      vvp_context_t)
 {
@@ -2183,7 +2217,59 @@ void vvp_fun_force::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
       vvp_net_t*dst = net->port[3].ptr();
       assert(dst->fil);
 
-      dst->force_vec4(coerce_to_width(bit, dst->fil->filter_size()), vvp_vector2_t(vvp_vector2_t::FILL1, dst->fil->filter_size()));
+      if (!active())
+	    return;
+
+      vvp_signal_value*sig = dst->fil->as_signal_value();
+      assert(sig);
+      vvp_vector4_t value;
+      sig->vec4_value(value);
+      source_value_ = bit;
+      vvp_vector4_t source = coerce_to_width(source_value_, width_);
+      for (unsigned idx = 0 ; idx < width_ ; idx += 1)
+	    if (mask_.value(base_ + idx))
+		  value.set_bit(base_ + idx, source.value(idx));
+      dst->force_vec4(value, mask_);
+}
+
+void vvp_fun_force::recv_vec4_pv(vvp_net_ptr_t ptr,
+				 const vvp_vector4_t&bit,
+				 unsigned base, unsigned vwid,
+				 vvp_context_t)
+{
+      assert(ptr.port() == 0);
+      if (!active())
+	    return;
+
+      vvp_net_t*net = ptr.ptr();
+      if (source_value_.size() != vwid) {
+	    source_value_ = vvp_vector4_t(vwid, BIT4_Z);
+            /* Only a partial vec4 delivery needs the previous source bits.
+             * Prime them lazily here, where the delivery type proves that
+             * vec4_value is valid. A real force link calls recv_real and
+             * must never be queried through the vec4 interface. */
+            if (vvp_net_t*source = net->port[2].ptr()) {
+		  if (source->fil) {
+			if (vvp_signal_value*sig =
+			      source->fil->as_signal_value())
+			      sig->vec4_value(source_value_);
+		  }
+            }
+      }
+      if (base <= vwid && bit.size() <= vwid - base)
+	    source_value_.set_vec(base, bit);
+
+      vvp_net_t*dst = net->port[3].ptr();
+      assert(dst->fil);
+      vvp_signal_value*sig = dst->fil->as_signal_value();
+      assert(sig);
+      vvp_vector4_t value;
+      sig->vec4_value(value);
+      vvp_vector4_t source = coerce_to_width(source_value_, width_);
+      for (unsigned idx = 0 ; idx < width_ ; idx += 1)
+	    if (mask_.value(base_ + idx))
+		  value.set_bit(base_ + idx, source.value(idx));
+      dst->force_vec4(value, mask_);
 }
 
 void vvp_fun_force::recv_real(vvp_net_ptr_t ptr, double bit, vvp_context_t)
@@ -2191,6 +2277,8 @@ void vvp_fun_force::recv_real(vvp_net_ptr_t ptr, double bit, vvp_context_t)
       assert(ptr.port() == 0);
       vvp_net_t*net = ptr.ptr();
       vvp_net_t*dst = net->port[3].ptr();
+      if (!active())
+	    return;
       dst->force_real(bit, vvp_vector2_t(vvp_vector2_t::FILL1, 1));
 }
 
@@ -2652,8 +2740,7 @@ vvp_net_fil_t::prop_t vvp_wire_real::filter_real(double&bit)
 
 unsigned vvp_wire_real::filter_size() const
 {
-      assert(0);
-      return 0;
+      return 1;
 }
 
 void vvp_wire_real::force_fil_vec4(const vvp_vector4_t&, const vvp_vector2_t&)

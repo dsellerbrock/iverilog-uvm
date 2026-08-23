@@ -1,0 +1,6 @@
+sv_force_array_word normal,-g2012 ivltests gold=sv_force_array_word.gold
+sv_force_partial_live_overlap normal,-g2012 ivltests gold=sv_force_partial_live_overlap.gold
+sv_force_binary_rhs_live normal,-g2012 ivltests gold=sv_force_binary_rhs_live.gold
+sv_force_urandom_once normal,-g2012 ivltests gold=sv_force_urandom_once.gold
+sv_force_auto_static_rhs_live normal,-g2012 ivltests gold=sv_force_auto_static_rhs_live.gold
+real_force_rel normal,-g2012 ivltests

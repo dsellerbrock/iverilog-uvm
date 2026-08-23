@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_force_array_word.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_force_array_word"
+}

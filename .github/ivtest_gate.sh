@@ -74,7 +74,7 @@ else
 fi
 
 echo ""
-echo "=== malformed VVP runtime invariants ==="
+echo "=== VVP runtime invariants ==="
 runtime_vvp=$(command -v vvp 2>/dev/null || true)
 if [ -z "$runtime_vvp" ] \
    || ! VVP="$runtime_vvp" \
@@ -85,9 +85,12 @@ if [ -z "$runtime_vvp" ] \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! VVP="$runtime_vvp" \
         bash tests/vvp_runtime/run_vif_indexed_wait_malformed.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_force_array_runtime.sh \
         >> "$WORK/vvp-runtime.log" 2>&1; then
     cat "$WORK/vvp-runtime.log" 2>/dev/null || true
-    echo "GATE FAIL: malformed VVP bytecode invariant failed."
+    echo "GATE FAIL: VVP bytecode invariant failed."
     status=1
 else
     tail -1 "$WORK/vvp-runtime.log"

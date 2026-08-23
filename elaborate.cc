@@ -16297,6 +16297,88 @@ NetProc* PForever::elaborate(Design*des, NetScope*scope) const
       return proc;
 }
 
+/* Return true when EXPR can be lowered to the existing structural expression
+ * netlist without changing its meaning. This deliberately starts with the
+ * signal/select/concatenation cluster used by Caliptra's memory-injection
+ * forces. Other procedural expressions retain the target's explicit
+ * one-evaluation warning until they have an equally precise lowering. */
+static bool force_rhs_is_structural_(const NetExpr*expr)
+{
+      if (dynamic_cast<const NetEConst*>(expr))
+	    return true;
+
+      if (const NetESignal*sig = dynamic_cast<const NetESignal*>(expr)) {
+	    const NetExpr*word = sig->word_index();
+	    return !word || dynamic_cast<const NetEConst*>(word);
+      }
+
+      if (const NetESelect*sel = dynamic_cast<const NetESelect*>(expr)) {
+	    const NetExpr*base = sel->select();
+	    return force_rhs_is_structural_(sel->sub_expr())
+		&& (!base || dynamic_cast<const NetEConst*>(base));
+      }
+
+      if (const NetEConcat*cat = dynamic_cast<const NetEConcat*>(expr)) {
+	    for (unsigned idx = 0 ; idx < cat->nparms() ; idx += 1)
+		  if (!force_rhs_is_structural_(cat->parm(idx)))
+			return false;
+	    return true;
+      }
+
+        /* A pure signal/select minus a constant has no procedural side
+	   effects or evaluation-order dependency, and NetEBAdd::synthesize()
+	   preserves the elaborated expression width and signedness. This covers
+	   live force values such as `random_key_size - 1` without admitting
+	   calls, division, shifts, or other binary forms whose force semantics
+	   need separate review. */
+      if (const NetEBAdd*sub = dynamic_cast<const NetEBAdd*>(expr)) {
+	    return sub->op() == '-'
+		&& force_rhs_is_structural_(sub->left())
+		&& dynamic_cast<const NetEConst*>(sub->right());
+      }
+
+      return false;
+}
+
+static bool force_rhs_needs_structural_net_(const NetExpr*expr)
+{
+      if (dynamic_cast<const NetEConst*>(expr)
+          || dynamic_cast<const NetECReal*>(expr))
+	    return false;
+
+      if (const NetESignal*sig = dynamic_cast<const NetESignal*>(expr))
+	    return sig->word_index() != 0;
+
+      return force_rhs_is_structural_(expr);
+}
+
+/* A force may be executed in an automatic task or block as long as its
+ * target and RHS variables have static lifetime. Keep the hidden continuous
+ * source outside the automatic activation: local structural nets in an
+ * automatic scope are deliberately elided by targets, but the force remains
+ * active after that activation returns. */
+static NetScope* force_rhs_structural_scope_(NetScope*scope)
+{
+      NetScope*res = scope;
+      while (res && res->is_auto())
+	    res = res->parent();
+      return res ? res : scope;
+}
+
+static NetNet* force_rhs_static_alias_(NetNet*source, NetScope*scope,
+				       const LineInfo&loc)
+{
+      if (!source || !source->scope()->is_auto())
+	    return source;
+
+      NetNet*res = new NetNet(scope, scope->local_symbol(), NetNet::IMPLICIT,
+			       source->net_type());
+      res->set_line(loc);
+      res->local_flag(true);
+      connect(res->pin(0), source->pin(0));
+      return res;
+}
+
 /*
  * Force is like a procedural assignment, most notably procedural
  * continuous assignment:
@@ -16342,6 +16424,22 @@ NetForce* PForce::elaborate(Design*des, NetScope*scope) const
       NetExpr*rexp = elaborate_rval_expr(des, scope, lval->net_type(), ltype, lwid, expr_);
       if (rexp == 0)
 	    return 0;
+
+      /* IEEE 1800-2023 10.6 requires the force RHS to be reevaluated when
+       * any of its inputs change. Turn the structural subset into a hidden
+       * continuously driven signal so the VVP force-link mechanism observes
+       * those changes. A direct signal already has that representation. */
+      if (force_rhs_needs_structural_net_(rexp)) {
+	    NetScope*source_scope = force_rhs_structural_scope_(scope);
+	    NetNet*source = rexp->synthesize(des, source_scope, rexp);
+	    source = force_rhs_static_alias_(source, source_scope, *rexp);
+	    if (source) {
+		  NetESignal*continuous = new NetESignal(source);
+		  continuous->set_line(*rexp);
+		  delete rexp;
+		  rexp = continuous;
+	    }
+      }
 
       dev = new NetForce(lval, rexp);
 

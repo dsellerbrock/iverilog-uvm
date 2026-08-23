@@ -308,14 +308,12 @@ void vvp_net_fun_t::operator delete(void*)
 
 vvp_net_fil_t::vvp_net_fil_t()
 {
-      force_link_ = 0;
       force_propagate_ = false;
       count_filters += 1;
 }
 
 vvp_net_fil_t::~vvp_net_fil_t()
 {
-      assert(force_link_ == 0);
 }
 
 vvp_net_fil_t::prop_t vvp_net_fil_t::filter_vec4(const vvp_vector4_t&,
@@ -394,21 +392,57 @@ void vvp_net_fil_t::force_link(vvp_net_t*dst, vvp_net_t*src)
 {
       assert(dst->fil == this);
 
-      if (force_link_ == 0) {
-	    force_link_ = new vvp_net_t;
-	      // Use port[3] to hold the force destination.
-	    force_link_->port[3] = vvp_net_ptr_t(dst, 0);
-	    force_link_->port[2] = vvp_net_ptr_t(0,0);
-	    force_link_->fun = new vvp_fun_force;
+      force_link_pv(dst, src, 0, filter_size());
+}
+
+void vvp_net_fil_t::force_link_pv(vvp_net_t*dst, vvp_net_t*src,
+				   unsigned base, unsigned wid)
+{
+      assert(dst->fil == this);
+
+      unsigned full_wid = filter_size();
+      if (base >= full_wid || wid == 0)
+	    return;
+      if (wid > full_wid - base)
+	    wid = full_wid - base;
+
+      vvp_net_t*slot = 0;
+      for (std::vector<vvp_net_t*>::iterator cur = force_links_.begin();
+	   cur != force_links_.end(); ++cur) {
+	    vvp_net_t*link = *cur;
+	    vvp_fun_force*fun = dynamic_cast<vvp_fun_force*>(link->fun);
+	    assert(fun);
+
+	    if (!slot && fun->configured_for(base, wid)) {
+		  slot = link;
+		  continue;
+	    }
+
+	    fun->remove_range(base, wid);
+	    if (!fun->active()) {
+		  if (vvp_net_t*old_src = link->port[2].ptr())
+			old_src->unlink(vvp_net_ptr_t(link, 0));
+		  link->port[2] = vvp_net_ptr_t(0, 0);
+	    }
       }
 
-      force_unlink();
-      assert(force_link_->port[2] == vvp_net_ptr_t(0,0));
+      if (!slot) {
+	    slot = new vvp_net_t;
+	    slot->port[3] = vvp_net_ptr_t(dst, 0);
+	    slot->port[2] = vvp_net_ptr_t(0, 0);
+	    slot->fun = new vvp_fun_force;
+	    force_links_.push_back(slot);
+      } else if (vvp_net_t*old_src = slot->port[2].ptr()) {
+	    old_src->unlink(vvp_net_ptr_t(slot, 0));
+	    slot->port[2] = vvp_net_ptr_t(0, 0);
+      }
 
-	// Use port[2] to hold the force source.
-      force_link_->port[2] = vvp_net_ptr_t(src,0);
+      vvp_fun_force*slot_fun = dynamic_cast<vvp_fun_force*>(slot->fun);
+      assert(slot_fun);
+      slot_fun->activate(base, wid, full_wid);
 
-      vvp_net_ptr_t dst_ptr(force_link_, 0);
+      slot->port[2] = vvp_net_ptr_t(src, 0);
+      vvp_net_ptr_t dst_ptr(slot, 0);
       src->link(dst_ptr);
 }
 
@@ -419,12 +453,32 @@ void vvp_net_fil_t::operator delete(void*)
 
 void vvp_net_fil_t::force_unlink(void)
 {
-      if (force_link_ == 0) return;
-      vvp_net_t*src = force_link_->port[2].ptr();
-      if (src == 0) return;
+      for (std::vector<vvp_net_t*>::iterator cur = force_links_.begin();
+	   cur != force_links_.end(); ++cur) {
+	    vvp_net_t*link = *cur;
+	    if (vvp_net_t*src = link->port[2].ptr())
+		  src->unlink(vvp_net_ptr_t(link, 0));
+	    link->port[2] = vvp_net_ptr_t(0, 0);
+	    vvp_fun_force*fun = dynamic_cast<vvp_fun_force*>(link->fun);
+	    assert(fun);
+	    fun->deactivate();
+      }
+}
 
-      src->unlink(vvp_net_ptr_t(force_link_,0));
-      force_link_->port[2] = vvp_net_ptr_t(0,0);
+void vvp_net_fil_t::force_unlink_pv(unsigned base, unsigned wid)
+{
+      for (std::vector<vvp_net_t*>::iterator cur = force_links_.begin();
+	   cur != force_links_.end(); ++cur) {
+	    vvp_net_t*link = *cur;
+	    vvp_fun_force*fun = dynamic_cast<vvp_fun_force*>(link->fun);
+	    assert(fun);
+	    fun->remove_range(base, wid);
+	    if (!fun->active()) {
+		  if (vvp_net_t*src = link->port[2].ptr())
+			src->unlink(vvp_net_ptr_t(link, 0));
+		  link->port[2] = vvp_net_ptr_t(0, 0);
+	    }
+      }
 }
 
 /* *** BIT operations *** */

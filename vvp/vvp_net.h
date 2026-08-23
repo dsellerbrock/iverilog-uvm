@@ -28,6 +28,7 @@
 # include  <cstdlib>
 # include  <cstring>
 # include  <string>
+# include  <vector>
 # include  <new>
 # include  <cassert>
 /* Portable wrapper for malloc usable size (bounds checking only). */
@@ -1377,7 +1378,10 @@ class vvp_net_fil_t  : public vvp_vpi_callback {
 	// source node of the force, so that subsequent %force and
 	// %release instructions can undo the link as needed. */
       void force_link(vvp_net_t*dst, vvp_net_t*src);
+      void force_link_pv(vvp_net_t*dst, vvp_net_t*src,
+			 unsigned base, unsigned wid);
       void force_unlink(void);
+      void force_unlink_pv(unsigned base, unsigned wid);
 
       virtual unsigned filter_size() const =0;
 
@@ -1437,8 +1441,9 @@ class vvp_net_fil_t  : public vvp_vpi_callback {
 	// True if the next filter must propagate. Need this to allow
 	// the forced value to get through.
       bool force_propagate_;
-	// force link back.
-      class vvp_net_t*force_link_;
+	// Force links are retained as reusable slots, one per distinct range,
+	// so repeated procedural force statements do not allocate forever.
+      std::vector<class vvp_net_t*> force_links_;
 };
 
 /* **** Some core net functions **** */
@@ -1461,7 +1466,22 @@ class vvp_fun_force : public vvp_net_fun_t {
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 		     vvp_context_t context) override;
+      void recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&bit,
+			unsigned base, unsigned vwid,
+			vvp_context_t context) override;
       void recv_real(vvp_net_ptr_t port, double bit, vvp_context_t) override;
+
+      void activate(unsigned base, unsigned wid, unsigned full_wid);
+      void remove_range(unsigned base, unsigned wid);
+      void deactivate();
+      bool active() const;
+      bool configured_for(unsigned base, unsigned wid) const;
+
+    private:
+      unsigned base_ = 0;
+      unsigned width_ = 0;
+      vvp_vector2_t mask_;
+      vvp_vector4_t source_value_;
 };
 
 /* vvp_fun_drive

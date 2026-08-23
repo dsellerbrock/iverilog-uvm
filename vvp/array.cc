@@ -161,6 +161,19 @@ static bool vpi_array_is_object(const vvp_array_t arr)
       return dynamic_cast<vvp_darray_object*>(arr->vals) != 0;
 }
 
+bool __vpiArray::is_forceable_vec4_array() const
+{
+      if (nets)
+	    return false;
+      if (vals4)
+	    return true;
+      if (!vals)
+	    return false;
+      return !vpi_array_is_real(const_cast<__vpiArray*>(this))
+	  && !vpi_array_is_string(const_cast<__vpiArray*>(this))
+	  && !vpi_array_is_object(const_cast<__vpiArray*>(this));
+}
+
 int __vpiArray::get_word_size() const
 {
       unsigned width;
@@ -247,7 +260,7 @@ void __vpiArray::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
       }
 
       if(vals4) {
-          vpip_vec4_get_value(vals4->get_word(index),
+          vpip_vec4_get_value(get_word(index),
                               vals4->width(), signed_flag, vp);
       } else if(vals) {
           switch(vp->format) {
@@ -259,8 +272,7 @@ void __vpiArray::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
             case vpiIntVal:
             case vpiVectorVal:
             {
-                vvp_vector4_t v;
-                vals->get_word(index, v);
+                vvp_vector4_t v = get_word(index);
                 vpip_vec4_get_value(v, vals_width, signed_flag, vp);
             }
             break;
@@ -671,10 +683,332 @@ vpiHandle __vpiArrayVthrAPV::vpi_handle(int code)
       return 0;
 }
 
+/* A compact variable array deliberately has no vvp_net_t filter per word.
+   This adapter gives a continuously evaluated force RHS a normal fanout
+   endpoint while keeping the actual force mask in the array storage. */
+class vvp_fun_force_array : public vvp_net_fun_t {
+    public:
+      explicit vvp_fun_force_array(__vpiArray*array)
+      : array_(array), word_(0), base_(0), width_(0)
+      { }
+
+      void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&value,
+                     vvp_context_t) override
+      {
+            assert(port.port() == 0);
+            if (!active())
+                  return;
+            source_value_ = value;
+            array_->update_force_link_(word_, base_, width_, active_,
+                                       source_value_);
+      }
+
+      void recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&value,
+                        unsigned base, unsigned full_wid,
+                        vvp_context_t) override
+      {
+            assert(port.port() == 0);
+            if (!active())
+                  return;
+            if (source_value_.size() != full_wid)
+                  source_value_ = vvp_vector4_t(full_wid, BIT4_Z);
+            if (base <= full_wid && value.size() <= full_wid - base)
+                  source_value_.set_vec(base, value);
+            array_->update_force_link_(word_, base_, width_, active_,
+                                       source_value_);
+      }
+
+      void recv_real(vvp_net_ptr_t, double, vvp_context_t) override
+      {
+            assert(0);
+      }
+
+      void activate(unsigned word, unsigned base, unsigned wid,
+                    unsigned word_wid, vvp_net_t*source)
+      {
+            word_ = word;
+            base_ = base;
+            width_ = wid;
+            active_ = vvp_vector2_t(vvp_vector2_t::FILL0, word_wid);
+            for (unsigned idx = 0; idx < wid; idx += 1)
+                  active_.set_bit(base + idx, 1);
+            source_value_ = vvp_vector4_t();
+            if (source && source->fil) {
+                  if (vvp_signal_value*sig = source->fil->as_signal_value()) {
+                        vvp_vector4_t current;
+                        sig->vec4_value(current);
+                        source_value_ = current;
+                  }
+            }
+      }
+
+      void remove_range(unsigned word, unsigned base, unsigned wid)
+      {
+            if (word != word_ || active_.size() == 0)
+                  return;
+            for (unsigned idx = 0; idx < wid; idx += 1) {
+                  unsigned bit = base + idx;
+                  if (bit < active_.size())
+                        active_.set_bit(bit, 0);
+            }
+      }
+
+      void deactivate()
+      {
+            active_ = vvp_vector2_t();
+      }
+
+      bool active() const
+      {
+            return active_.size() != 0 && !active_.is_zero();
+      }
+
+      bool configured_for(unsigned word, unsigned base, unsigned wid) const
+      {
+            return word_ == word && base_ == base && width_ == wid;
+      }
+
+    private:
+      __vpiArray*array_;
+      unsigned word_;
+      unsigned base_;
+      unsigned width_;
+      vvp_vector2_t active_;
+      vvp_vector4_t source_value_;
+};
+
+vvp_vector4_t __vpiArray::apply_force_(unsigned address,
+                                       const vvp_vector4_t&raw) const
+{
+      const __vpiArray*owner = canonical_value_owner_();
+      std::map<unsigned, force_word_state_t>::const_iterator cur =
+            owner->force_words_.find(address);
+      if (cur == owner->force_words_.end())
+            return raw;
+
+      const force_word_state_t&state = cur->second;
+      assert(state.mask.size() == raw.size());
+      assert(state.value.size() == raw.size());
+      vvp_vector4_t visible = raw;
+      for (unsigned idx = 0; idx < state.mask.size(); idx += 1)
+            if (state.mask.value(idx))
+                  visible.set_bit(idx, state.value.value(idx));
+      return visible;
+}
+
+void __vpiArray::set_word_raw_(unsigned address,
+                               const vvp_vector4_t&value)
+{
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this) {
+            owner->set_word_raw_(address, value);
+            return;
+      }
+
+      assert(address < get_size());
+      assert(value.size() == vals_width);
+      assert(nets == 0);
+      if (vals4) {
+            vals4->set_word(address, value);
+      } else {
+            assert(vals);
+            vals->set_word(address, value);
+      }
+}
+
+void __vpiArray::unlink_force_range_(unsigned address, unsigned off,
+                                     unsigned wid)
+{
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this) {
+            owner->unlink_force_range_(address, off, wid);
+            return;
+      }
+
+      for (std::vector<vvp_net_t*>::iterator cur = force_links_.begin();
+           cur != force_links_.end(); ++cur) {
+            vvp_net_t*link = *cur;
+            vvp_fun_force_array*fun =
+                  dynamic_cast<vvp_fun_force_array*>(link->fun);
+            assert(fun);
+            fun->remove_range(address, off, wid);
+            if (!fun->active()) {
+                  if (vvp_net_t*source = link->port[2].ptr())
+                        source->unlink(vvp_net_ptr_t(link, 0));
+                  link->port[2] = vvp_net_ptr_t(0, 0);
+            }
+      }
+}
+
+void __vpiArray::force_word(unsigned address, unsigned off,
+                            const vvp_vector4_t&value)
+{
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this) {
+            owner->force_word(address, off, value);
+            return;
+      }
+
+      assert(address < get_size());
+      assert(off <= vals_width);
+      assert(value.size() <= vals_width - off);
+      assert(nets == 0);
+      assert(vals4 || vals);
+
+      vvp_vector4_t old_visible = get_word(address);
+      unlink_force_range_(address, off, value.size());
+
+      std::pair<std::map<unsigned, force_word_state_t>::iterator, bool> ins =
+            force_words_.insert(std::make_pair(address, force_word_state_t()));
+      force_word_state_t&state = ins.first->second;
+      if (ins.second) {
+            state.value = get_word_raw_(address);
+            state.mask = vvp_vector2_t(vvp_vector2_t::FILL0, vals_width);
+      }
+
+      for (unsigned idx = 0; idx < value.size(); idx += 1) {
+            state.value.set_bit(off + idx, value.value(idx));
+            state.mask.set_bit(off + idx, 1);
+      }
+
+      if (!old_visible.eeq(get_word(address)))
+            word_change(address);
+}
+
+void __vpiArray::force_link_word(unsigned address, unsigned off, unsigned wid,
+                                 vvp_net_t*source)
+{
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this) {
+            owner->force_link_word(address, off, wid, source);
+            return;
+      }
+
+      assert(address < get_size());
+      assert(off <= vals_width);
+      assert(wid <= vals_width - off);
+      assert(source);
+
+      vvp_net_t*slot = 0;
+      for (std::vector<vvp_net_t*>::iterator cur = force_links_.begin();
+           cur != force_links_.end(); ++cur) {
+            vvp_net_t*link = *cur;
+            vvp_fun_force_array*fun =
+                  dynamic_cast<vvp_fun_force_array*>(link->fun);
+            assert(fun);
+
+            if (!slot && fun->configured_for(address, off, wid)) {
+                  slot = link;
+                  continue;
+            }
+
+            fun->remove_range(address, off, wid);
+            if (!fun->active()) {
+                  if (vvp_net_t*old_source = link->port[2].ptr())
+                        old_source->unlink(vvp_net_ptr_t(link, 0));
+                  link->port[2] = vvp_net_ptr_t(0, 0);
+            }
+      }
+
+      if (!slot) {
+            slot = new vvp_net_t;
+            slot->fun = new vvp_fun_force_array(this);
+            slot->port[2] = vvp_net_ptr_t(0, 0);
+            force_links_.push_back(slot);
+      } else if (vvp_net_t*old_source = slot->port[2].ptr()) {
+            old_source->unlink(vvp_net_ptr_t(slot, 0));
+            slot->port[2] = vvp_net_ptr_t(0, 0);
+      }
+
+      vvp_fun_force_array*fun =
+            dynamic_cast<vvp_fun_force_array*>(slot->fun);
+      assert(fun);
+      fun->activate(address, off, wid, vals_width, source);
+      slot->port[2] = vvp_net_ptr_t(source, 0);
+      source->link(vvp_net_ptr_t(slot, 0));
+}
+
+void __vpiArray::update_force_link_(unsigned address, unsigned base,
+                                    unsigned wid,
+                                    const vvp_vector2_t&active,
+                                    const vvp_vector4_t&value)
+{
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this) {
+            owner->update_force_link_(address, base, wid, active, value);
+            return;
+      }
+
+      std::map<unsigned, force_word_state_t>::iterator pos =
+            force_words_.find(address);
+      if (pos == force_words_.end())
+            return;
+
+      force_word_state_t&state = pos->second;
+      vvp_vector4_t old_visible = get_word(address);
+      vvp_vector4_t source = coerce_to_width(value, wid);
+      for (unsigned idx = 0; idx < wid; idx += 1) {
+            unsigned bit = base + idx;
+            if (bit < active.size() && active.value(bit)
+                && state.mask.value(bit))
+                  state.value.set_bit(bit, source.value(idx));
+      }
+
+      if (!old_visible.eeq(get_word(address)))
+            word_change(address);
+}
+
+void __vpiArray::release_word(unsigned address, unsigned off, unsigned wid)
+{
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this) {
+            owner->release_word(address, off, wid);
+            return;
+      }
+
+      assert(address < get_size());
+      assert(off <= vals_width);
+      assert(wid <= vals_width - off);
+
+      std::map<unsigned, force_word_state_t>::iterator pos =
+            force_words_.find(address);
+      if (pos == force_words_.end()) {
+            unlink_force_range_(address, off, wid);
+            return;
+      }
+
+      vvp_vector4_t visible = get_word(address);
+      unlink_force_range_(address, off, wid);
+
+      // A released variable keeps the value that was visible while forced.
+      // Commit those bits to the driven storage before clearing the overlay.
+      hist_snapshot_word_(address);
+      vvp_vector4_t raw = get_word_raw_(address);
+      raw.set_vec(off, visible.subvalue(off, wid));
+      set_word_raw_(address, raw);
+
+      force_word_state_t&state = pos->second;
+      for (unsigned idx = 0; idx < wid; idx += 1)
+            state.mask.set_bit(off + idx, 0);
+      if (state.mask.is_zero())
+            force_words_.erase(pos);
+
+      // Correct variable release is visibly stable. Keep the equality guard
+      // as a defensive check for clipped or future mixed-kind extensions.
+      if (!visible.eeq(get_word(address)))
+            word_change(address);
+}
+
 /* R11: record what this word held when the current time step began, the
    first time it is written within the step. */
 void __vpiArray::hist_snapshot_word_(unsigned address)
 {
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this) {
+            owner->hist_snapshot_word_(address);
+            return;
+      }
+
       if (!hist_enabled_) return;
       vvp_time64_t now = schedule_simtime();
       if (!hist_valid_ || hist_time_ != now) {
@@ -683,7 +1017,7 @@ void __vpiArray::hist_snapshot_word_(unsigned address)
 	    hist_valid_ = true;
       }
       if (hist_prev_.find(address) != hist_prev_.end()) return;
-      hist_prev_[address] = get_word(address);
+      hist_prev_[address] = get_word_raw_(address);
 }
 
 /* The Preponed-region value of one word: if it changed during the current
@@ -691,6 +1025,10 @@ void __vpiArray::hist_snapshot_word_(unsigned address)
    value. */
 vvp_vector4_t __vpiArray::get_word_preponed(unsigned address)
 {
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this)
+            return owner->get_word_preponed(address);
+
       if (hist_enabled_ && hist_valid_ && hist_time_ == schedule_simtime()) {
 	    std::map<unsigned, vvp_vector4_t>::const_iterator it =
 		  hist_prev_.find(address);
@@ -701,15 +1039,21 @@ vvp_vector4_t __vpiArray::get_word_preponed(unsigned address)
 
 void __vpiArray::set_word(unsigned address, unsigned part_off, const vvp_vector4_t&val)
 {
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this) {
+            owner->set_word(address, part_off, val);
+            return;
+      }
+
       if (address >= get_size())
 	    return;
 
-      hist_snapshot_word_(address);
-
-      if (vals4) {
+      if (vals4 || vals) {
 	    assert(nets == 0);
+	    vvp_vector4_t old_visible = get_word(address);
+	    hist_snapshot_word_(address);
 	    if (part_off != 0 || val.size() != vals_width) {
-		  vvp_vector4_t tmp = vals4->get_word(address);
+		  vvp_vector4_t tmp = get_word_raw_(address);
 		  if ((part_off + val.size()) > tmp.size()) {
 			cerr << "part_off=" << part_off
 			     << " val.size()=" << val.size()
@@ -718,32 +1062,12 @@ void __vpiArray::set_word(unsigned address, unsigned part_off, const vvp_vector4
 			assert(0);
 		  }
 		  tmp.set_vec(part_off, val);
-		  vals4->set_word(address, tmp);
+		  set_word_raw_(address, tmp);
 	    } else {
-		  vals4->set_word(address, val);
+		  set_word_raw_(address, val);
 	    }
-	    word_change(address);
-	    return;
-      }
-
-      if (vals) {
-	    assert(nets == 0);
-	    if (part_off != 0 || val.size() != vals_width) {
-		  vvp_vector4_t tmp;
-		  vals->get_word(address, tmp);
-		  if ((part_off + val.size()) > tmp.size()) {
-			cerr << "part_off=" << part_off
-			     << " val.size()=" << val.size()
-			     << " vals[address].size()=" << tmp.size()
-			     << " vals_width=" << vals_width << endl;
-			assert(0);
-		  }
-		  tmp.set_vec(part_off, val);
-		  vals->set_word(address, tmp);
-	    } else {
-		  vals->set_word(address, val);
-	    }
-	    word_change(address);
+	    if (!old_visible.eeq(get_word(address)))
+		  word_change(address);
 	    return;
       }
 
@@ -760,6 +1084,12 @@ void __vpiArray::set_word(unsigned address, unsigned part_off, const vvp_vector4
 
 void __vpiArray::set_word(unsigned address, double val)
 {
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this) {
+            owner->set_word(address, val);
+            return;
+      }
+
       assert(vals != 0);
       assert(nets == 0);
 
@@ -772,6 +1102,12 @@ void __vpiArray::set_word(unsigned address, double val)
 
 void __vpiArray::set_word(unsigned address, const string&val)
 {
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this) {
+            owner->set_word(address, val);
+            return;
+      }
+
       assert(vals != 0);
       assert(nets == 0);
 
@@ -784,6 +1120,12 @@ void __vpiArray::set_word(unsigned address, const string&val)
 
 void __vpiArray::set_word(unsigned address, const vvp_object_t&val)
 {
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this) {
+            owner->set_word(address, val);
+            return;
+      }
+
       assert(vals != 0);
       assert(nets == 0);
 
@@ -794,11 +1136,17 @@ void __vpiArray::set_word(unsigned address, const vvp_object_t&val)
       word_change(address);
 }
 
-vvp_vector4_t __vpiArray::get_word(unsigned address)
+vvp_vector4_t __vpiArray::get_word_raw_(unsigned address)
 {
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this)
+            return owner->get_word_raw_(address);
+
       if (vals4) {
 	    assert(nets == 0);
 	    assert(vals == 0);
+	    if (address >= get_size())
+		  return vvp_vector4_t(vals_width, BIT4_X);
 	    return vals4->get_word(address);
       }
 
@@ -841,8 +1189,21 @@ vvp_vector4_t __vpiArray::get_word(unsigned address)
       return val;
 }
 
+vvp_vector4_t __vpiArray::get_word(unsigned address)
+{
+      __vpiArray*owner = canonical_value_owner_();
+      vvp_vector4_t raw = owner->get_word_raw_(address);
+      if (address >= owner->get_size() || owner->nets)
+	    return raw;
+      return owner->apply_force_(address, raw);
+}
+
 double __vpiArray::get_word_r(unsigned address)
 {
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this)
+            return owner->get_word_r(address);
+
       if (vals) {
 	    assert(vals4 == 0);
 	    assert(nets  == 0);
@@ -872,6 +1233,12 @@ double __vpiArray::get_word_r(unsigned address)
 
 void __vpiArray::get_word_obj(unsigned address, vvp_object_t&val)
 {
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this) {
+            owner->get_word_obj(address, val);
+            return;
+      }
+
       if (vals) {
 	    assert(vals4 == 0);
 	    assert(nets  == 0);
@@ -903,6 +1270,10 @@ void __vpiArray::get_word_obj(unsigned address, vvp_object_t&val)
 
 string __vpiArray::get_word_str(unsigned address)
 {
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this)
+            return owner->get_word_str(address);
+
       if (vals) {
 	    assert(vals4 == 0);
 	    assert(nets  == 0);
@@ -957,6 +1328,8 @@ vpiHandle vpip_make_array(const char*label, const char*name,
       obj->vals  = 0;
       obj->vals_width = 0;
       obj->vals_words = 0;
+      obj->value_owner_ = obj;
+      obj->value_views_.push_back(obj);
 
 	// Initialize (clear) the read-ports list.
       obj->ports_ = 0;
@@ -1256,7 +1629,7 @@ class vvp_fun_arrayport  : public vvp_net_fun_t {
       unsigned long addr_;
 
       friend void array_attach_port(vvp_array_t, vvp_fun_arrayport*);
-      friend void __vpiArray::word_change(unsigned long);
+      friend void __vpiArray::word_change_local_(unsigned long);
       vvp_fun_arrayport*next_;
 };
 
@@ -1573,7 +1946,29 @@ class array_word_value_callback : public value_callback {
       long word_addr;
 };
 
+void __vpiArray::notify_word_change_(unsigned long addr)
+{
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this) {
+            owner->notify_word_change_(addr);
+            return;
+      }
+
+      if (value_views_.empty()) {
+            word_change_local_(addr);
+            return;
+      }
+
+      for (__vpiArray*view : value_views_)
+            view->word_change_local_(addr);
+}
+
 void __vpiArray::word_change(unsigned long addr)
+{
+      canonical_value_owner_()->notify_word_change_(addr);
+}
+
+void __vpiArray::word_change_local_(unsigned long addr)
 {
       for (vvp_fun_arrayport*cur = ports_; cur; cur = cur->next_)
 	    cur->check_word_change(addr);
@@ -1978,6 +2373,8 @@ void compile_array_alias(char*label, char*name, char*src)
       obj->vals  = mem->vals;
       obj->vals_width = mem->vals_width;
       obj->vals_words = mem->vals_words;
+      obj->value_owner_ = mem->canonical_value_owner_();
+      obj->value_owner_->value_views_.push_back(obj);
 
       obj->ports_ = 0;
       obj->vpi_callbacks = 0;

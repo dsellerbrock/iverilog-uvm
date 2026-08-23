@@ -1517,6 +1517,11 @@ sv_uarray_slice_size_fail CE,-g2012 ivltests gold=sv_uarray_slice_size_fail.gold
 sv_uarray_slice_width_fail CE,-g2012 ivltests gold=sv_uarray_slice_width_fail.gold
 sv_uarray_slice_type_fail CE,-g2012 ivltests gold=sv_uarray_slice_type_fail.gold
 sv_force_continuous_driver_order normal,-g2012 ivltests
+sv_force_array_word normal,-g2012 ivltests gold=sv_force_array_word.gold
+sv_force_partial_live_overlap normal,-g2012 ivltests gold=sv_force_partial_live_overlap.gold
+sv_force_binary_rhs_live normal,-g2012 ivltests gold=sv_force_binary_rhs_live.gold
+sv_force_urandom_once normal,-g2012 ivltests gold=sv_force_urandom_once.gold
+sv_force_auto_static_rhs_live normal,-g2012 ivltests gold=sv_force_auto_static_rhs_live.gold
 sv_uarray_partial_index_oob normal,-g2012 ivltests
 sv_packed_array_elem_pattern normal,-g2012 ivltests
 sv_param_uarray_packed_elem normal,-g2012 ivltests
