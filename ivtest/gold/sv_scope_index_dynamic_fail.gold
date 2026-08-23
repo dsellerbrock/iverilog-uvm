@@ -1,0 +1,2 @@
+./ivltests/sv_scope_index_dynamic_fail.v:14: error: Scope index expression is not constant: index
+1 error(s) during elaboration.

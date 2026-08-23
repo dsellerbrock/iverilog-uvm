@@ -1,0 +1,5 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_vif_struct_field_write.v",
+    "iverilog-args" : [ "-g2012" ]
+}

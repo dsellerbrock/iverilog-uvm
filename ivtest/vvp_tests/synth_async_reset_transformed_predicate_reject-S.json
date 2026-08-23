@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "synth_async_reset_transformed_predicate_reject.v",
+    "iverilog-args" : [ "-S", "-g2012" ],
+    "gold"          : "synth_async_reset_transformed_predicate_reject"
+}

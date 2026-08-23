@@ -10594,7 +10594,14 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 		  long off = desc ? (i - r.get_lsb()) : (r.get_lsb() - i);
 		  return c32(off);
 	    }
-	    e = pad_to_width(e, 32, true, *li);
+	      // Widen before making any normalization arithmetic signed. An
+	      // unsigned narrow index whose top bit is one (2'b10, for example)
+	      // is a positive source index, not -2. Sign-extending it here made
+	      // legal packed-property selects read X for the upper half of their
+	      // range. The subtraction result below is signed where a negative
+	      // canonical offset is possible; a zero-offset descending range can
+	      // retain the index's original signedness directly.
+	    e = pad_to_width(e, 32, e->has_sign(), *li);
 	    if (desc) {
 		  if (r.get_lsb() == 0)
 			return e;
@@ -14364,6 +14371,31 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		  return 0;
 	    }
 
+		    /* An interface-port array has one element netclass_t, whose
+		     * class_scope is necessarily only a signature representative.
+		     * Member reads/writes use the per-word static bindings, and task
+		     * calls have an explicit runtime scope dispatcher. NetEUFunc has
+		     * neither: choosing the representative method scope would silently
+		     * execute the function in the wrong interface instance. Reject this
+		     * narrow case until virtual-interface function dispatch can select
+		     * a method scope from the receiver handle. */
+		    if (class_type->is_interface()) {
+		  const NetESignal*receiver =
+			dynamic_cast<const NetESignal*>(sub_expr);
+		  const NetNet*receiver_net = receiver ? receiver->sig() : 0;
+		  if (receiver_net
+		      && receiver_net->port_type() != NetNet::NOT_A_PORT
+		      && receiver_net->unpacked_dimensions() > 0) {
+			cerr << get_fileline() << ": sorry: Function method `"
+			     << method_name << "' through an interface-port array "
+				"requires per-word dynamic interface dispatch, which is "
+				"not yet supported." << endl;
+			des->errors += 1;
+			delete sub_expr;
+			return 0;
+		  }
+		    }
+
 		    const NetFuncDef*def = method->func_def();
 		    if (!def || !def->proc()) {
 			  const PFunction*pfunc = method->func_pform();
@@ -15927,6 +15959,9 @@ ivl_type_t PEIdent::test_type_of_ident(Design*des, NetScope*scope) const
       symbol_search_results sr;
       bool found_symbol = symbol_search(this, des, scope, path_, lexical_pos_, &sr);
 
+      if (sr.scope_index_error)
+	    return nullptr;
+
       bool scoped_candidate = path_.name.size() >= 2
 	    && (leading_type_args()
 		|| !found_symbol || sr.is_scope()
@@ -16019,6 +16054,14 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 
       symbol_search_results sr;
       bool found_symbol = symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+
+      if (sr.scope_index_error) {
+	    expr_type_ = IVL_VT_LOGIC;
+	    expr_width_ = 1;
+	    min_width_ = 1;
+	    signed_flag_ = false;
+	    return expr_width_;
+      }
 
       /* Static properties reached through a class typedef must use the
 	 typedef's default specialization, not the generic class signal that
@@ -16407,6 +16450,9 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+
+      if (sr.scope_index_error)
+	    return 0;
 
       bool scoped_static_candidate = path_.name.size() >= 2
 	    && (leading_type_args()
@@ -17259,6 +17305,9 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	// named "c". symbol_search() handles this for us.
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+
+      if (sr.scope_index_error)
+	    return 0;
 
       bool scoped_static_candidate = path_.name.size() >= 2
 	    && (leading_type_args()

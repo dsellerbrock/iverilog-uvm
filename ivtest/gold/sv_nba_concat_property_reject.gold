@@ -1,0 +1,2 @@
+./ivltests/sv_nba_concat_property_reject.v:15: vvp.tgt error: a concatenated nonblocking assignment containing a class or interface property is not yet supported atomically in the NBA region.
+error: Code generation had 1 error(s).

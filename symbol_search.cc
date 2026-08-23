@@ -608,7 +608,8 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 		  bool flag = false;
 		  hname_t path_item = eval_path_component(des, start_scope, path_tail, flag);
 		  if (flag) {
-			cerr << li->get_fileline() << ": XXXXX: Errors evaluating scope index" << endl;
+			res->scope_index_error = true;
+			return false;
 		  } else if (NetScope*chld = scope->child(path_item)) {
 			path.push_back(path_tail);
 			res->scope = chld;

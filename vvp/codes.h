@@ -518,6 +518,7 @@ extern bool of_STORE_PROP_STR_I(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_PROP_V(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_PROP_V_I(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_PROP_V_BITS(vthread_t thr, vvp_code_t code);
+extern bool of_STORE_PROP_V_BITSUX(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_PROP_V_BITSX(vthread_t thr, vvp_code_t code);
 extern bool of_ASSIGN_PROP_V_BITS(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_QB_R(vthread_t thr, vvp_code_t code);
@@ -629,7 +630,7 @@ struct vvp_code_s {
       vvp_code_fun opcode;
 
       union {
-	    unsigned long number;
+	    uint64_t      number;
 	    vvp_net_t    *net;
 	    vvp_code_t   cptr;
 	    vvp_array_t array;

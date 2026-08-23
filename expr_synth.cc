@@ -1247,37 +1247,36 @@ NetNet* NetESelect::synthesize(Design *des, NetScope*scope, NetExpr*root)
 		  return result;
 	    }
 
-	    long base_val = base_tmp.as_long();
+	    bool base_negative = false;
+	    uint64_t base_magnitude = verinum_signed_magnitude(
+		  base_tmp, base_negative);
+	    unsigned base_val = 0;
 	    unsigned below_width = 0;
 
 	      // Any below X bits?
 	    NetNet*below = 0;
-	    if (base_val < 0) {
-		  below_width = abs(base_val);
-		  base_val = 0;
-		  if (below_width > select_width) {
-			below_width = select_width;
-			select_width = 0;
-		  } else {
-			select_width -= below_width;
-		  }
+	    if (base_negative) {
+		  below_width = static_cast<unsigned>(std::min(
+			base_magnitude, static_cast<uint64_t>(select_width)));
+		  select_width -= below_width;
 
 		  below = make_const_x(des, scope, below_width);
 		  below->set_line(*this);
 		    // All the selected bits are below the signal.
 		  if (select_width == 0) return below;
+	    } else if (base_magnitude < sub->vector_width()) {
+		  base_val = static_cast<unsigned>(base_magnitude);
 	    }
 
 	      // Any above bits?
 	    NetNet*above = 0;
-	    if ((unsigned)base_val+select_width > sub->vector_width()) {
-		  if (base_val > (long)sub->vector_width()) {
-			select_width = 0;
-		  } else {
-			select_width = sub->vector_width() - base_val;
-		  }
-		  ivl_assert(*this, expr_width() > (select_width+below_width));
-		  unsigned above_width = expr_width() - select_width - below_width;
+	    uint64_t available_width = base_negative ? sub->vector_width()
+		  : (base_magnitude < sub->vector_width()
+		       ? sub->vector_width()-base_magnitude : 0);
+	    if (select_width > available_width) {
+		  unsigned above_width = select_width
+			- static_cast<unsigned>(available_width);
+		  select_width = static_cast<unsigned>(available_width);
 
 		  above = make_const_x(des, scope, above_width);
 		  above->set_line(*this);

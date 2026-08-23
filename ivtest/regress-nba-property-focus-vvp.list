@@ -1,0 +1,3 @@
+# Property-bearing nonblocking assignment boundaries (IEEE 1800-2017 10.4.2)
+sv_nba_concat_property_reject vvp_tests/sv_nba_concat_property_reject.json
+sv_nba_property_dynamic_fail vvp_tests/sv_nba_property_dynamic_fail.json

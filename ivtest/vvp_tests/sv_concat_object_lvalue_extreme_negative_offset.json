@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_concat_object_lvalue_extreme_negative_offset.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_concat_object_lvalue_extreme_negative_offset" ],
+    "gold"          : "sv_concat_object_lvalue_extreme_negative_offset"
+}

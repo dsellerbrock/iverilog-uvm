@@ -40,6 +40,7 @@
 # include  <cstdlib>
 # include  <cstring>
 # include  <cassert>
+# include  <stdint.h>
 
 #ifdef __MINGW32__
 #include <windows.h>
@@ -572,6 +573,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%store/prop/str/i",of_STORE_PROP_STR_I,2,{OA_NUMBER,OA_BIT1, OA_NONE} },
       { "%store/prop/v",  of_STORE_PROP_V,  2, {OA_NUMBER,  OA_BIT1, OA_NONE} },
       { "%store/prop/v/bits",of_STORE_PROP_V_BITS,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
+      { "%store/prop/v/bits/ux",of_STORE_PROP_V_BITSUX,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
       { "%store/prop/v/bits/x",of_STORE_PROP_V_BITSX,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
       { "%store/prop/v/i",of_STORE_PROP_V_I,3,{OA_NUMBER,  OA_BIT1, OA_BIT2} },
       { "%store/qb/obj", of_STORE_QB_OBJ,  2, {OA_FUNC_PTR, OA_BIT1, OA_NONE} },
@@ -2651,12 +2653,22 @@ void compile_code(char*label, char*mnem, comp_operands_t opa)
 			yyerror("operand format");
 			break;
 		  }
+		  if (opa->argv[idx].numb > UINT32_MAX) {
+			yyerror("numeric operand out of range");
+			compile_errors += 1;
+			break;
+		  }
 		  code->bit_idx[0] = opa->argv[idx].numb;
 		  break;
 
 		case OA_BIT2:
 		  if (opa->argv[idx].ltype != L_NUMB) {
 			yyerror("operand format");
+			break;
+		  }
+		  if (opa->argv[idx].numb > UINT32_MAX) {
+			yyerror("numeric operand out of range");
+			compile_errors += 1;
 			break;
 		  }
 		  code->bit_idx[1] = opa->argv[idx].numb;

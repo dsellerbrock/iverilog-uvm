@@ -22,6 +22,7 @@ sv_class_new_init normal,-g2009 ivltests
 sv_class_static_const_init normal,-g2012 ivltests gold=sv_class_static_const_init.gold
 sv_class_const_constructor_init normal,-g2012 ivltests gold=sv_class_const_constructor_init.gold
 sv_event_array normal,-g2012 ivltests
+sv_event_array_llp64_pack normal,-g2012 ivltests gold=sv_event_array_llp64_pack.gold
 sv_function_fork_join_none normal,-g2012 ivltests gold=sv_function_fork_join_none.gold
 sv_interface_member_select_sensitivity normal,-g2012 ivltests gold=sv_interface_member_select_sensitivity.gold
 sv_nettype_class_scope_scan normal,-g2012 ivltests gold=sv_nettype_class_scope_scan.gold

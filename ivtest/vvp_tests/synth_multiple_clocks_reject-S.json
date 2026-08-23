@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "synth_multiple_clocks_reject.v",
+    "iverilog-args" : [ "-S", "-g2012" ],
+    "gold"          : "synth_multiple_clocks_reject"
+}

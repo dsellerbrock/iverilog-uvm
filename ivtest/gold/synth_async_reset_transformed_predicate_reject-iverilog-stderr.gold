@@ -1,0 +1,7 @@
+ivltests/synth_async_reset_transformed_predicate_reject.v:17: error: Condition for negedge asynchronous set/reset must be a simple inversion of the event expression.
+ivltests/synth_async_reset_transformed_predicate_reject.v:16: error: Unable to synthesize synchronous process.
+ivltests/synth_async_reset_transformed_predicate_reject.v:11: error: Condition for negedge asynchronous set/reset must be a simple inversion of the event expression.
+ivltests/synth_async_reset_transformed_predicate_reject.v:10: error: Unable to synthesize synchronous process.
+ivltests/synth_async_reset_transformed_predicate_reject.v:16: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+ivltests/synth_async_reset_transformed_predicate_reject.v:10: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+6 error(s) in post-elaboration processing.

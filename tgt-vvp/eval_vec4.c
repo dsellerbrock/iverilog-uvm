@@ -26,6 +26,7 @@
 # include  <math.h>
 # include  <assert.h>
 # include  <stdbool.h>
+# include  <inttypes.h>
 
 static int number_trace_enabled_(void)
 {
@@ -1841,13 +1842,14 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    ivl_expr_t earg = ivl_expr_parm(expr, 0);
 	    assert(earg && ivl_expr_type(earg) == IVL_EX_EVENT);
 	    ivl_event_t ev = ivl_expr_event(earg);
-	    unsigned long packed = ((unsigned long)ivl_event_array_base(ev) << 32)
-	                         | (unsigned long)ivl_event_array_count(ev);
+	    uint64_t packed = ((uint64_t)ivl_event_array_base(ev) << 32)
+	                    | (uint64_t)ivl_event_array_count(ev);
 
 	    ivl_expr_t iarg = ivl_expr_parm(expr, 1);
 	    int use_idx = allocate_word();
 	    draw_expr_into_idx(iarg, use_idx);
-	    fprintf(vvp_out, "    %%evtest/arr %lu, %d;\n", packed, use_idx);
+	    fprintf(vvp_out, "    %%evtest/arr %" PRIu64 ", %d;\n",
+		    packed, use_idx);
 	    clr_word(use_idx);
 	    return;
       }

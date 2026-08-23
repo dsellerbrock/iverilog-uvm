@@ -1,0 +1,8 @@
+{
+    "type"          : "normal",
+    "source"        : "synth_clocked_uarray_loop_copy.v",
+    "iverilog-args" : [ "-g2012", "-s", "main" ],
+    "vlog95"        : {
+        "type" : "NI"
+    }
+}

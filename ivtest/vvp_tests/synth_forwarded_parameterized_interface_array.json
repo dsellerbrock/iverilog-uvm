@@ -1,0 +1,9 @@
+{
+    "type"          : "normal",
+    "source"        : "synth_forwarded_parameterized_interface_array.v",
+    "iverilog-args" : [ "-g2012", "-s", "synth_forwarded_parameterized_interface_array" ],
+    "gold"          : "synth_forwarded_parameterized_interface_array",
+    "vlog95"        : {
+        "type" : "NI"
+    }
+}

@@ -25,4 +25,5 @@ sv_ustruct_member_defaults_unused_kind_fail CE,-g2012 ivltests gold=sv_ustruct_m
 sv_ustruct_member_defaults_unused_shape_fail CE,-g2012 ivltests gold=sv_ustruct_member_defaults_unused_shape_fail.gold
 sv_typeparam_default_cycle_fail CE,-g2012 ivltests gold=sv_typeparam_default_cycle_fail.gold
 sv_param_class_bare_forward_identity normal,-g2012 ivltests gold=sv_param_class_bare_forward_identity.gold
+sv_param_class_bare_base_identity normal,-g2012 ivltests gold=sv_param_class_bare_base_identity.gold
 sv_typeparam_static_dispatch normal,-g2012 ivltests gold=sv_typeparam_static_dispatch.gold

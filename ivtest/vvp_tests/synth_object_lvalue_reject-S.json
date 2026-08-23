@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "synth_object_lvalue_reject.v",
+    "iverilog-args" : [ "-S", "-g2012" ],
+    "gold"          : "synth_object_lvalue_reject"
+}

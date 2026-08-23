@@ -685,7 +685,8 @@ class PEIdent : public PExpr {
 						   ivl_type_t root_type,
 						   NetNet*,
 						   pform_name_t,
-						   const std::list<index_component_t>&base_index) const;
+						   const std::list<index_component_t>&base_index,
+						   bool need_const_idx) const;
       bool elaborate_lval_net_packed_member_(Design*, NetScope*,
 					     NetAssign_*,
 					     pform_name_t member_path, bool is_force) const;
@@ -873,6 +874,9 @@ class PEPostSelect : public PExpr {
     public:
       PEPostSelect(PExpr*base, const index_component_t&index);
       ~PEPostSelect() override;
+
+      PExpr* base() const { return base_; }
+      const index_component_t& index() const { return index_; }
 
       void dump(std::ostream&) const override;
       void declare_implicit_nets(LexicalScope*scope,

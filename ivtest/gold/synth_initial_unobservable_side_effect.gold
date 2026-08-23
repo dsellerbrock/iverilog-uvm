@@ -1,0 +1,2 @@
+./ivltests/synth_initial_unobservable_side_effect.v:10: warning: Process not synthesized.
+SIDE_EFFECT_SURVIVED

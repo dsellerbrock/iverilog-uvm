@@ -511,7 +511,7 @@ struct comp_operands_s {
       struct {
 	    enum ltype_e ltype;
 	    union {
-		  unsigned long numb;
+		  uint64_t numb;
 		  struct symb_s symb;
 		  const char   *text;
 	    };

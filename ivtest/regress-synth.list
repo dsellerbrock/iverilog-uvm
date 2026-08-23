@@ -152,6 +152,22 @@ synth_always_comb_constant normal,-g2012	ivltests
 synth_always_latch_intent normal,-g2012	ivltests
 synth_async_reset_equality normal,-S,-g2012	ivltests
 synth_async_reset_comparison_mismatch_fail CE,-S,-g2012	ivltests gold=synth_async_reset_comparison_mismatch_fail.gold
+synth_async_reset_transformed_predicate_reject CE,-S,-g2012	ivltests gold=synth_async_reset_transformed_predicate_reject.gold
+synth_async_reset_multidriver_select_reject CE,-S,-g2012	ivltests gold=synth_async_reset_multidriver_select_reject.gold
+synth_async_reset_cyclic_select_reject CE,-S,-g2012	ivltests gold=synth_async_reset_cyclic_select_reject.gold
+synth_async_reset_cast_predicate_reject CE,-S,-g2012	ivltests gold=synth_async_reset_cast_predicate_reject.gold
+synth_async_reset_root_inout_driver_reject CE,-S,-g2012	ivltests gold=synth_async_reset_root_inout_driver_reject.gold
+synth_automatic_block_locals normal,-S,-g2012	ivltests
+synth_compound_assignment_carrier normal,-S,-g2012	ivltests
+synth_compound_assignment_concat_carrier normal,-S,-g2012	ivltests
+synth_compound_assignment_concat_edges normal,-S,-g2012	ivltests
+synth_compound_assignment_extreme_select normal,-S,-g2012	ivltests gold=synth_compound_assignment_extreme_select.gold
+synth_compound_assignment_dynamic_carrier_reject CE,-S,-g2012	ivltests gold=synth_compound_assignment_dynamic_carrier_reject.gold
+synth_compound_assignment_incomplete_prior_reject CE,-S,-g2012	ivltests gold=synth_compound_assignment_incomplete_prior_reject.gold
+synth_compound_assignment_concat_incomplete_prior_reject CE,-S,-g2012	ivltests gold=synth_compound_assignment_concat_incomplete_prior_reject.gold
+synth_object_lvalue_reject CE,-S,-g2012	ivltests gold=synth_object_lvalue_reject.gold
+synth_packed_struct_async_reset normal,-S,-g2012	ivltests
+synth_packed_struct_async_event_orders normal,-S,-g2012	ivltests gold=synth_packed_struct_async_event_orders.gold
 synth_selected_output_feedback normal,-S,-g2012	ivltests
 synth_selected_output_real_overlap_fail CE,-S,-g2012	ivltests gold=synth_selected_output_real_overlap_fail.gold
 synth_common_latch_enable normal,-g2012	ivltests
@@ -171,6 +187,7 @@ synth_loop_constant_async_reset normal,-g2012	ivltests
 synth_loop_unknown_async_reset CE,-g2012	ivltests gold=synth_loop_unknown_async_reset.gold
 synth_lower_async_after_omitted_output_reject CE,-g2012	ivltests gold=synth_lower_async_after_omitted_output_reject.gold
 synth_mixed_async_reset_outputs normal,-g2012	ivltests
+synth_multiple_clocks_reject CE,-S,-g2012	ivltests gold=synth_multiple_clocks_reject.gold
 synth_clipped_constant_part_select normal,-g2012	ivltests
 synth_concat_select_write_masks normal,-g2012	ivltests
 synth_noop_packed_write normal,-g2012	ivltests
@@ -178,8 +195,10 @@ synth_packed_loop_disjoint_fields normal,-g2012	ivltests
 synth_parameter_member_width normal,-g2012	ivltests
 synth_partial_async_reset_reject CE,-g2012	ivltests
 synth_contextual_array_word normal,-g2012	ivltests
+synth_clocked_uarray_loop_copy normal,-g2012	ivltests
 synth_concat_unsized_expr normal,-g2012	ivltests
 synth_dead_declaration_initializer normal,-g2012	ivltests
+synth_initial_unobservable_side_effect normal,-S,-g2012,-ssynth_initial_unobservable_side_effect	ivltests gold=synth_initial_unobservable_side_effect.gold
 synth_runtime_for_bound normal,-g2012	ivltests
 synth_runtime_memory_output_set normal,-g2012	ivltests
 synth_runtime_memory_partial_reject CE,-g2012	ivltests
@@ -197,3 +216,9 @@ ufuncsynth1		normal			ivltests
 # IEEE 1800-2017 interface/modport member binding through synthesis
 synth_interface_member_transfer normal,-g2012,-ssynth_interface_member_all_netlist ivltests gold=synth_interface_member_synthesis.gold
 synth_interface_member_top_port normal,-g2012,-ssynth_interface_member_top_port ivltests gold=synth_interface_member_synthesis.gold
+synth_interface_member_contassign_shapes normal,-g2012,-ssynth_interface_member_contassign_shapes ivltests
+synth_interface_member_dynamic_select normal,-g2012,-ssynth_interface_member_dynamic_select ivltests gold=synth_interface_member_dynamic_select.gold
+synth_parameterized_interface_member normal,-g2012,-ssynth_parameterized_interface_member ivltests gold=synth_parameterized_interface_member.gold
+synth_parameterized_interface_member_array normal,-g2012,-ssynth_parameterized_interface_member_array ivltests gold=synth_parameterized_interface_member_array.gold
+synth_parameterized_interface_selected_instance normal,-g2012,-ssynth_parameterized_interface_selected_instance ivltests gold=synth_parameterized_interface_selected_instance.gold
+synth_forwarded_parameterized_interface_array normal,-g2012,-ssynth_forwarded_parameterized_interface_array ivltests gold=synth_forwarded_parameterized_interface_array.gold

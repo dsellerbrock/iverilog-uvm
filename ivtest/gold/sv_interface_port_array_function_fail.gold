@@ -1,0 +1,2 @@
+./ivltests/sv_interface_port_array_function_fail.v:16: sorry: Function method `read_value' through an interface-port array requires per-word dynamic interface dispatch, which is not yet supported.
+1 error(s) during elaboration.

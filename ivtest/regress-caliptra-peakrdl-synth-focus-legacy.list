@@ -1,0 +1,13 @@
+synth_async_reset_equality normal,-S,-g2012 ivltests
+synth_packed_struct_async_reset normal,-S,-g2012 ivltests
+synth_automatic_block_locals normal,-S,-g2012 ivltests
+synth_initial_unobservable_side_effect normal,-S,-g2012,-ssynth_initial_unobservable_side_effect ivltests gold=synth_initial_unobservable_side_effect.gold
+synth_compound_assignment_carrier normal,-S,-g2012 ivltests
+synth_compound_assignment_concat_carrier normal,-S,-g2012 ivltests
+synth_compound_assignment_concat_edges normal,-S,-g2012 ivltests
+synth_compound_assignment_extreme_select normal,-S,-g2012 ivltests gold=synth_compound_assignment_extreme_select.gold
+synth_compound_assignment_dynamic_carrier_reject CE,-S,-g2012 ivltests gold=synth_compound_assignment_dynamic_carrier_reject.gold
+synth_compound_assignment_incomplete_prior_reject CE,-S,-g2012 ivltests gold=synth_compound_assignment_incomplete_prior_reject.gold
+synth_compound_assignment_concat_incomplete_prior_reject CE,-S,-g2012 ivltests gold=synth_compound_assignment_concat_incomplete_prior_reject.gold
+synth_object_lvalue_reject CE,-S,-g2012 ivltests gold=synth_object_lvalue_reject.gold
+synth_multiple_clocks_reject CE,-S,-g2012 ivltests gold=synth_multiple_clocks_reject.gold

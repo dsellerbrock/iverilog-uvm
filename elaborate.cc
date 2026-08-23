@@ -38,6 +38,7 @@
 # include  <sstream>
 # include  <list>
 # include  <set>
+# include  <tuple>
 # include  "pform.h"
 # include  "PClass.h"
 # include  "PEvent.h"
@@ -1613,19 +1614,25 @@ unsigned PGate::calculate_array_size_(Design*des, NetScope*scope,
  * borrow the gate's pin expressions; pform objects live for the whole
  * compilation, so sharing is safe. */
 /* Collect the leaf signal-read sub-expressions (PEIdent nodes) of a pform
-   r-value, recursing through the common operator and cast nodes. Used to fan a
-   continuous assign whose l-value is an interface member into one
-   `always @(read) (lhs = rhs)` process per distinct read: %wait/vif waits on
-   a single signal per event, so a multi-member or mixed r-value
-   (`p.a & p.c`, `p.a & enable`) cannot be covered by one combined event.
-   Each single-read event routes correctly on its own — an interface member
-   through the virtual-interface edge probe, an ordinary net through a normal
-   probe. */
+   r-value, recursing through the common operator and cast nodes. This is used
+   only for the early interface-member detection that selects the behavioral
+   continuous-assignment lowering. The implicit sensitivity elaborator later
+   derives the complete netlist dependency set, including function bodies. */
 static void collect_pform_reads_(PExpr*e, std::vector<PExpr*>&out)
 {
       if (!e) return;
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
 	    out.push_back(id);
+	    // A packed/unpacked select is sensitive to its index expressions as
+	    // well as to the selected signal. In particular, p.member[index]
+	    // combines a dynamic VIF source with an ordinary selector; omitting
+	    // the latter leaves a continuous assignment stale when only the index
+	    // changes.
+	    for (const name_component_t&component : id->path().name)
+		  for (const index_component_t&index : component.index) {
+			collect_pform_reads_(index.msb, out);
+			collect_pform_reads_(index.lsb, out);
+		  }
 	    return;
       }
       if (PECastType*cast = dynamic_cast<PECastType*>(e)) {
@@ -1660,11 +1667,39 @@ static void collect_pform_reads_(PExpr*e, std::vector<PExpr*>&out)
 		  collect_pform_reads_(p, out);
 	    return;
       }
-      // PENumber / PEString / function calls / etc. contribute no simple read.
+      if (PECallFunction*call = dynamic_cast<PECallFunction*>(e)) {
+	    collect_pform_reads_(call->receiver_expr(), out);
+	    for (const named_pexpr_t&parm : call->get_parms())
+		  collect_pform_reads_(parm.parm, out);
+	    return;
+      }
+      if (PEStreaming*stream = dynamic_cast<PEStreaming*>(e)) {
+	    collect_pform_reads_(stream->get_inner(), out);
+	    return;
+      }
+      if (PEPostSelect*select = dynamic_cast<PEPostSelect*>(e)) {
+	    collect_pform_reads_(select->base(), out);
+	    collect_pform_reads_(select->index().msb, out);
+	    collect_pform_reads_(select->index().lsb, out);
+	    return;
+      }
+      if (PEMemberAccess*member = dynamic_cast<PEMemberAccess*>(e)) {
+	    collect_pform_reads_(member->base(), out);
+	    return;
+      }
+      if (PEAssignPattern*pattern = dynamic_cast<PEAssignPattern*>(e)) {
+	    collect_pform_reads_(pattern->replication(), out);
+	    for (PExpr*value : pattern->parms())
+		  collect_pform_reads_(value, out);
+	    for (const assignment_pattern_key_t&key : pattern->keys())
+		  collect_pform_reads_(key.expr, out);
+	    return;
+      }
+      // Literal and type-only expressions contribute no signal read.
 }
 
 static bool reads_interface_member_(const LineInfo*li, Design*des,
-				     NetScope*scope, PExpr*expr)
+                                    NetScope*scope, PExpr*expr)
 {
       std::vector<PExpr*> reads;
       collect_pform_reads_(expr, reads);
@@ -1683,14 +1718,41 @@ static bool reads_interface_member_(const LineInfo*li, Design*des,
       return false;
 }
 
+static NetProc* elaborate_vif_member_assignment_(Design*des, NetScope*scope,
+						 const LineInfo*li, PExpr*lval,
+						 PExpr*rval,
+						 NetNet*signal_lval)
+{
+      if (signal_lval) {
+	    NetExpr*rv = elaborate_rval_expr(
+		  des, scope, signal_lval->net_type(), rval);
+	    if (!rv)
+		  return 0;
+	    NetAssign_*lv = new NetAssign_(signal_lval);
+	    NetAssign*assignment = new NetAssign(lv, rv);
+	    assignment->set_line(*li);
+	    return assignment;
+      }
+
+	// PAssign normally owns both pform operands. These operands belong to the
+	// original continuous assignment, so clear the temporary wrapper before
+	// its stack destructor runs. The elaborated NetProc owns its independent
+	// netlist expressions and does not refer back to this wrapper.
+      PAssign assignment(lval, rval);
+      assignment.set_line(*li);
+      NetProc*result = assignment.elaborate(des, scope);
+      assignment.replace_lval_rval(0, 0);
+      return result;
+}
+
 static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
 					 const LineInfo*li, PExpr*lval,
-					 PExpr*rval)
+					 PExpr*rval,
+					 NetNet*signal_lval = 0)
 {
       const PEIdent*lid = dynamic_cast<const PEIdent*>(lval);
-      PAssign*ast0 = new PAssign(lval, rval);
-      ast0->set_line(*li);
-      NetProc*cur0 = ast0->elaborate(des, scope);
+      NetProc*cur0 = elaborate_vif_member_assignment_(
+	    des, scope, li, lval, rval, signal_lval);
       if (cur0 == 0) {
 	    cerr << li->get_fileline() << ": error: Unable to elaborate "
 		 << "continuous assignment involving an interface member";
@@ -1702,7 +1764,7 @@ static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
       }
       NetProcTop*t0 = new NetProcTop(scope, IVL_PR_INITIAL, cur0);
       t0->set_line(*li);
-      t0->attribute(perm_string::literal("_ivl_synthesis_transient"),
+      t0->attribute(perm_string::literal("_ivl_vif_continuous"),
                     verinum(1));
       des->add_process(t0);
 
@@ -1711,69 +1773,41 @@ static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
       if (const_rhs)
 	    return true;
 
-	// Build the re-apply process(es) with explicit sensitivity rather than
-	// `@*`. An `@*` implicit list collects its sensitivity via
-	// NexusSet/nex_input, which for an interface-member read (a class
-	// property on the vif handle) yields the HANDLE net — and the handle
-	// never changes after binding, so the assign never re-triggered when
-	// the underlying interface signal changed.
-	//
-	// Fan out one `always @(read) (lhs = rhs)` process per distinct signal
-	// read in the r-value. A single interface member routes through the
-	// virtual-interface edge probe; an ordinary net through a normal probe.
-	// One process per source is required because %wait/vif waits on a
-	// single signal per event, so a multi-member or mixed r-value
-	// (`p.a & p.c`, `p.a & enable`) cannot share one combined event — each
-	// process re-applies the whole assignment when its own source changes.
-      std::vector<PExpr*> reads;
-      collect_pform_reads_(rval, reads);
-
-	// Keep only reads that resolve to a signal (net / interface member),
-	// de-duplicated by name, so constants and parameters do not spawn
-	// (invalid) event processes.
-      std::vector<PExpr*> sources;
-      std::set<std::string> seen;
-      for (PExpr*r : reads) {
-	    PEIdent*id = dynamic_cast<PEIdent*>(r);
-	    if (!id) continue;
-	    symbol_search_results sr;
-	    symbol_search(li, des, scope, id->path(), UINT_MAX, &sr);
-	    if (!sr.net) continue;
-	    ostringstream key;
-	    key << id->path();
-	    if (!seen.insert(key.str()).second) continue;
-	    sources.push_back(id);
+	/* Reuse the implicit always_comb sensitivity engine. Besides ordinary
+	 * argument dependencies, it descends into user-function bodies and finds
+	 * signals that the call reads without passing them as arguments. Its VIF
+	 * collector also keeps dynamic interface-member watchers separate from the
+	 * ordinary static nexus event, so a mixed RHS re-arms every source. */
+      NetProc*assignment = elaborate_vif_member_assignment_(
+	    des, scope, li, lval, rval, signal_lval);
+      if (!assignment) {
+	    cerr << li->get_fileline() << ": error: Unable to elaborate "
+		 << "continuous assignment involving an interface member";
+	    if (lid)
+		  cerr << " `" << lid->path() << "`";
+	    cerr << "." << endl;
+	    des->errors += 1;
+	    return false;
       }
 
-	// Fall back to `@(<rhs>)` when no simple signal read was found (e.g. a
-	// function-call r-value): preserves the previous behavior.
-      if (sources.empty())
-	    sources.push_back(rval);
-
-      for (PExpr*src : sources) {
-	    PAssign*ast1 = new PAssign(lval, rval);
-	    ast1->set_line(*li);
-	    PEEvent*rhs_ev = new PEEvent(PEEvent::ANYEDGE, src);
-	    rhs_ev->set_line(*li);
-	    PEventStatement*wait = new PEventStatement(rhs_ev);
-	    wait->set_line(*li);
-	    wait->set_statement(ast1);
-	    NetProc*cur1 = wait->elaborate(des, scope);
-	    if (cur1 == 0) {
-		  cerr << li->get_fileline() << ": error: Unable to elaborate "
-		       << "continuous assignment involving an interface member";
-		  if (lid)
-			cerr << " `" << lid->path() << "`";
-		  cerr << "." << endl;
-		  des->errors += 1;
-		  return false;
-	    }
-	    NetProcTop*t1 = new NetProcTop(scope, IVL_PR_ALWAYS, cur1);
-	    t1->set_line(*li);
-	    t1->attribute(perm_string::literal("_ivl_vif_continuous"),
-	                  verinum(1));
-	    des->add_process(t1);
+      PEventStatement wait(true);
+      wait.set_line(*li);
+      NetProc*cur1 = wait.elaborate_st(des, scope, assignment);
+      if (!cur1) {
+	    delete assignment;
+	    cerr << li->get_fileline() << ": error: Unable to elaborate "
+		 << "continuous assignment involving an interface member";
+	    if (lid)
+		  cerr << " `" << lid->path() << "`";
+	    cerr << "." << endl;
+	    des->errors += 1;
+	    return false;
       }
+      NetProcTop*t1 = new NetProcTop(scope, IVL_PR_ALWAYS, cur1);
+      t1->set_line(*li);
+      t1->attribute(perm_string::literal("_ivl_synthesis_transient"),
+		    verinum(1));
+      des->add_process(t1);
       return true;
 }
 
@@ -1783,6 +1817,330 @@ static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
       return elaborate_vif_member_assign_(
 	    des, scope, ga, const_cast<PExpr*>(ga->pin(0)),
 	    const_cast<PExpr*>(ga->pin(1)));
+}
+
+static void delete_unique_delays_(NetExpr*rise, NetExpr*fall, NetExpr*decay)
+{
+      std::set<NetExpr*>seen;
+      if (rise && seen.insert(rise).second)
+	    delete rise;
+      if (fall && seen.insert(fall).second)
+	    delete fall;
+      if (decay && seen.insert(decay).second)
+	    delete decay;
+}
+
+static bool is_defined_zero_delay_(const NetExpr*delay)
+{
+      if (!delay)
+	    return true;
+      const NetEConst*constant = dynamic_cast<const NetEConst*>(delay);
+      return constant && constant->value().is_defined()
+	    && constant->value().is_zero();
+}
+
+struct pending_interface_continuous_driver_t {
+      NetNet*port;
+      unsigned port_word;
+      size_t property_idx;
+      NetNet*carrier;
+      const LineInfo*location;
+};
+
+static vector<pending_interface_continuous_driver_t>
+      pending_interface_continuous_drivers_;
+
+struct pending_interface_variable_continuous_driver_t {
+      NetNet*port;
+      unsigned port_word;
+      size_t property_idx;
+      const LineInfo*location;
+};
+
+static vector<pending_interface_variable_continuous_driver_t>
+      pending_interface_variable_continuous_drivers_;
+
+/* An ordinary net/variable driven from an interface-member expression keeps
+ * normal continuous-assignment semantics through a structural BUFZ. A local
+ * variable is updated by the event-driven property-read processes above; the
+ * BUFZ then supplies the destination's delay, strength, resolution, and
+ * driver boundary exactly as an ordinary continuous assignment does. */
+static NetNet* make_vif_member_continuous_proxy_(
+		Design*des, NetScope*scope, const LineInfo&loc, NetNet*lval,
+		ivl_drive_t drive0, ivl_drive_t drive1,
+		NetExpr*rise_time, NetExpr*fall_time, NetExpr*decay_time,
+		NetNet**driver_carrier = 0)
+{
+      ivl_assert(loc, lval);
+      ivl_assert(loc, lval->pin_count() == 1);
+
+      NetNet*proxy = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				 lval->net_type());
+      proxy->set_line(loc);
+      proxy->local_flag(true);
+
+      NetBUFZ*driver = new NetBUFZ(scope, scope->local_symbol(),
+				   lval->vector_width(), false);
+      driver->set_line(loc);
+      driver->whole_vector_delay(
+	    (rise_time || fall_time || decay_time) && lval->vector_width() > 1);
+      des->add_node(driver);
+      connect(proxy->pin(0), driver->pin(1));
+
+      const netvector_t*carrier_type = new netvector_t(
+	    lval->data_type(), lval->vector_width()-1, 0);
+      NetNet*carrier = new NetNet(scope, scope->local_symbol(),
+				   NetNet::WIRE, carrier_type);
+      carrier->set_line(loc);
+      carrier->local_flag(true);
+      connect(driver->pin(0), carrier->pin(0));
+      if (driver_carrier)
+	    *driver_carrier = carrier;
+
+      if (drive0 != IVL_DR_STRONG || drive1 != IVL_DR_STRONG)
+	    carrier->pin(0).drivers_drive(drive0, drive1);
+      if (rise_time || fall_time || decay_time)
+	    carrier->pin(0).drivers_delays(rise_time, fall_time, decay_time);
+      connect(lval->pin(0), carrier->pin(0));
+
+      if (lval->local_flag())
+	    delete lval;
+      return proxy;
+}
+
+struct interface_member_declaration_t {
+      bool found = false;
+      bool is_net = false;
+      ivl_type_t type = 0;
+};
+
+/* The run-time class property table intentionally records the member's type,
+ * but not whether its source declaration was a net or a variable. Recover
+ * that distinction from the authoritative interface PWire. A representative
+ * class_scope is optional and may not yet have elaborated signals, so it is
+ * not a reliable declaration-kind oracle during module-body elaboration. */
+static interface_member_declaration_t interface_member_declaration_(
+		const NetAssign_*lval)
+{
+      interface_member_declaration_t result;
+      if (!lval || !lval->is_interface_member()
+	  || lval->get_property_idx() < 0)
+	    return result;
+
+      ivl_type_t owner_type = lval->nest()
+	    ? lval->nest()->net_type()
+	    : lval->sig() ? lval->sig()->net_type() : 0;
+      const netclass_t*interface_type =
+	    dynamic_cast<const netclass_t*>(owner_type);
+      if (!interface_type || !interface_type->is_interface())
+	    return result;
+
+      perm_string member_name = lex_strings.make(
+	    interface_type->get_prop_name(
+		  static_cast<size_t>(lval->get_property_idx())));
+      map<perm_string,Module*>::const_iterator module =
+	    pform_modules.find(interface_type->get_name());
+      if (module != pform_modules.end()) {
+	    map<perm_string,PWire*>::const_iterator wire =
+		  module->second->wires.find(member_name);
+	    if (wire != module->second->wires.end()) {
+		  result.found = true;
+		  result.is_net = wire->second->symbol_type() == PNamedItem::NET;
+		  result.type = interface_type->get_prop_type(
+			static_cast<size_t>(lval->get_property_idx()));
+		  return result;
+	    }
+      }
+
+      // Hidden/generated interface properties have no PWire. If one is
+      // already bound, its concrete signal still gives a safe fallback.
+      if (NetNet*member = lval->resolve_interface_member_signal()) {
+	    result.found = true;
+	    result.is_net = member->type() != NetNet::REG;
+	    result.type = member->net_type();
+      }
+      return result;
+}
+
+static bool interface_member_static_binding_(const NetAssign_*lval,
+					       NetNet*&port,
+					       unsigned&port_word,
+					       size_t&property_idx)
+{
+      if (!lval || !lval->is_interface_member()
+	  || lval->get_property_idx() < 0)
+	    return false;
+
+      const NetAssign_*owner = lval->nest() ? lval->nest() : lval;
+      const NetAssign_*root = owner;
+      while (root->nest())
+	    root = root->nest();
+      if (root != owner)
+	    return false;
+
+      port = root->sig();
+      if (!port)
+	    return false;
+      port_word = 0;
+      if (port->unpacked_dimensions() > 0 || port->pin_count() > 1) {
+	    if (!owner->word())
+		  return false;
+
+	      // The ordinary class/interface-array l-value path retains
+	      // run-time indices, so a constant function used as an interface
+	      // instance selector can still be represented by NetEUFunc here.
+	      // Re-evaluate a private copy in constant-function mode; this does
+	      // not turn genuinely dynamic selections into static bindings.
+	    unique_ptr<NetExpr>word_value(owner->word()->dup_expr());
+	    const NetEConst*word_const =
+		  dynamic_cast<const NetEConst*>(word_value.get());
+	    if (!word_const) {
+		  unsigned saved_opt_const_func = opt_const_func;
+		  opt_const_func = std::max(opt_const_func, 2u);
+		  NetExpr*folded = word_value.release();
+		  eval_expr(folded, -1);
+		  word_value.reset(folded);
+		  opt_const_func = saved_opt_const_func;
+		  word_const = dynamic_cast<const NetEConst*>(word_value.get());
+	    }
+	    if (!word_const || !word_const->value().is_defined())
+		  return false;
+
+	      // as_ulong() saturates on overflow. The bound check therefore
+	      // rejects negative, oversized, undefined, and out-of-range words
+	      // instead of accidentally aliasing them to canonical word zero.
+	    unsigned long word = word_const->value().as_ulong();
+	    if (word >= port->pin_count())
+		  return false;
+	    port_word = static_cast<unsigned>(word);
+      }
+      property_idx = static_cast<size_t>(lval->get_property_idx());
+      return true;
+}
+
+static void finalize_interface_continuous_drivers_(Design*des)
+{
+      for (const pending_interface_continuous_driver_t&pending :
+	   pending_interface_continuous_drivers_) {
+	    const NetNet*unbound_root = 0;
+	    NetNet*member = pending.port->resolve_interface_member(
+		  pending.port_word, pending.property_idx,
+		  &unbound_root, 0);
+	    /* A selected simulation root has no enclosing interface instance.
+	     * Keep accepting its externally bound interface port just as an
+	     * ordinary top-level port; there is no concrete member nexus to which
+	     * this internal carrier can be attached. Synthesis materializes root
+	     * members before this pass and therefore does not take this path. */
+	    if (!member && unbound_root)
+		  continue;
+	    if (!member || member->unpacked_dimensions() > 0
+		|| member->pin_count() != 1
+		|| !type_is_vectorable(member->data_type())
+		|| member->vector_width() != pending.carrier->vector_width()) {
+		  cerr << pending.location->get_fileline() << ": error: Unable to "
+		       << "resolve the static net member driven by this interface "
+			  "continuous assignment." << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+
+	      // Preserve the ordinary continuous-lvalue single-driver rule for
+	      // uwire and user-defined nettypes without a resolution function.
+	      // This path admits only one complete packed word.
+	    if (member->type() == NetNet::UNRESOLVED_WIRE) {
+		  unsigned msb = member->vector_width() - 1;
+		  if (member->test_part_driven(msb, 0, 0)) {
+			cerr << pending.location->get_fileline() << ": error: ";
+			if (member->user_nettype()) {
+			      cerr << "Interface net member `" << member->name()
+				   << "' uses user-defined nettype `"
+				   << member->declared_user_nettype()
+					->pform_type()->name()
+				   << "' without a resolution function and cannot have "
+				      "multiple drivers." << endl;
+			} else {
+			      cerr << "Unresolved interface net member `"
+				   << member->name()
+				   << "' cannot have multiple drivers." << endl;
+			}
+			des->errors += 1;
+			continue;
+		  }
+		  bool overlap = member->test_and_set_part_driver(msb, 0, 0);
+		  ivl_assert(*pending.location, !overlap);
+	    }
+
+	      // A declaration delay resolves all raw drivers before crossing one
+	      // boundary to the public signal. Structural l-values drive the raw
+	      // side; follow any collapsed/chained delay domains just as ordinary
+	      // continuous-assignment elaboration does.
+	    NetNet*driver_target = member;
+	    while (NetNet*raw = driver_target->net_delay_driver()) {
+		  ivl_assert(*pending.location, raw != driver_target);
+		  driver_target = raw;
+	    }
+	    connect(pending.carrier->pin(0), driver_target->pin(0));
+      }
+      pending_interface_continuous_drivers_.clear();
+
+	/* A continuous assignment to a variable has one driver. Interface
+	 * property lowering is behavioral and therefore cannot use the ordinary
+	 * elaborate_lnet conversion to an unresolved wire. Reserve the bound
+	 * member's complete packed word here, after port binding, so aliases
+	 * through separate module ports still collide on the concrete signal.
+	 * An unbound simulation root has no concrete member signal, so retain a
+	 * parallel key set to diagnose multiple drivers on that formal member. */
+      set<tuple<const NetNet*,unsigned,size_t> >unbound_root_drivers;
+      for (const pending_interface_variable_continuous_driver_t&pending :
+	   pending_interface_variable_continuous_drivers_) {
+	    const NetNet*unbound_root = 0;
+	    unsigned unbound_word = 0;
+	    NetNet*member = pending.port->resolve_interface_member(
+		  pending.port_word, pending.property_idx,
+		  &unbound_root, &unbound_word);
+	    if (!member && unbound_root) {
+		  tuple<const NetNet*,unsigned,size_t>key(
+			unbound_root, unbound_word, pending.property_idx);
+		  if (!unbound_root_drivers.insert(key).second) {
+			const netclass_t*interface_type =
+			      dynamic_cast<const netclass_t*>(
+				    unbound_root->net_type());
+			cerr << pending.location->get_fileline()
+			     << ": error: Variable interface member `";
+			if (interface_type
+			    && pending.property_idx
+			       < interface_type->get_properties())
+			      cerr << interface_type->get_prop_name(
+				    pending.property_idx);
+			else
+			      cerr << "<unknown>";
+			cerr << "' cannot have multiple drivers." << endl;
+			des->errors += 1;
+		  }
+		  continue;
+	    }
+	    if (!member || member->unpacked_dimensions() > 0
+		|| member->pin_count() != 1
+		|| !type_is_vectorable(member->data_type())) {
+		  cerr << pending.location->get_fileline() << ": error: Unable to "
+		       << "resolve the static variable member driven by this "
+			  "interface continuous assignment." << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+
+	    unsigned msb = member->vector_width() - 1;
+	    if (member->test_part_driven(msb, 0, 0)) {
+		  cerr << pending.location->get_fileline() << ": error: Variable "
+		       << "interface member `" << member->name()
+		       << "' cannot have multiple drivers." << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+	    bool overlap = member->test_and_set_part_driver(msb, 0, 0);
+	    ivl_assert(*pending.location, !overlap);
+      }
+      pending_interface_variable_continuous_drivers_.clear();
 }
 
 static NetNet* direct_identifier_net_(const LineInfo*loc, Design*des,
@@ -1833,6 +2191,8 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 
       ivl_drive_t drive0 = strength0();
       ivl_drive_t drive1 = strength1();
+      bool var_allowed_in_sv = (drive0 == IVL_DR_STRONG &&
+				drive1 == IVL_DR_STRONG);
 
       ivl_assert(*this, pin(0));
       ivl_assert(*this, pin(1));
@@ -1842,8 +2202,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 
 	/* M5-if: a continuous assign whose l-value is a MEMBER of an
 	   interface port / virtual interface (`assign b.req = expr;`).
-	   There is no static member net to drive -- the member resolves
-	   through the class-typed handle at run time -- and even
+	   The member resolves through the class-typed handle at run time, and even
 	   CALLING elaborate_lnet on the path coerces the handle
 	   variable into an object net (which then crashes the vif
 	   handle initialization with recv_object on a bufz). Detect
@@ -1858,7 +2217,138 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 		  if (sr.net && sr.net->net_type()
 		      && ivl_type_base(sr.net->net_type()) == IVL_VT_CLASS
 		      && !sr.path_tail.empty()) {
-			elaborate_vif_member_assign_(des, scope, this);
+			unsigned errors_before_lval = des->errors;
+			unique_ptr<NetAssign_> property_lval(
+			      // Force-lvalue mode permits both declared nets and
+			      // variables while building this temporary descriptor. It
+			      // only marks the descriptor; the source statement remains
+			      // an ordinary continuous assignment.
+			      pin(0)->elaborate_lval(des, scope, false, true));
+			if (!property_lval && des->errors != errors_before_lval) {
+			      delete_unique_delays_(
+				    rise_time, fall_time, decay_time);
+			      return;
+			}
+
+			interface_member_declaration_t declaration =
+			      interface_member_declaration_(
+				    property_lval.get());
+			if (!declaration.found) {
+			      cerr << get_fileline() << ": sorry: Unable to determine "
+				      "whether this interface member is declared as a net "
+				      "or a variable for continuous-assignment lowering."
+				   << endl;
+			      des->errors += 1;
+			      delete_unique_delays_(
+				    rise_time, fall_time, decay_time);
+			      return;
+			}
+			bool declared_net = declaration.found && declaration.is_net;
+			if (declared_net) {
+			      NetNet*port = 0;
+			      unsigned port_word = 0;
+			      size_t property_idx = 0;
+			      bool complete_packed_member =
+				    !property_lval->word()
+				    && !property_lval->get_base()
+				    && declaration.type
+				    && !dynamic_cast<const netuarray_t*>(declaration.type)
+				    && !dynamic_cast<const netdarray_t*>(declaration.type)
+				    && !dynamic_cast<const netqueue_t*>(declaration.type)
+				    && type_is_vectorable(
+					  declaration.type->base_type())
+				    && property_lval->lwidth()
+				       == declaration.type->packed_width();
+			      bool static_binding = complete_packed_member
+				    && interface_member_static_binding_(
+					  property_lval.get(), port, port_word,
+					  property_idx);
+			      if (!static_binding) {
+				    cerr << get_fileline() << ": sorry: A continuous "
+					 << "assignment to an interface net member "
+					    "currently requires one statically bound "
+					    "complete packed member." << endl;
+				    des->errors += 1;
+				    delete_unique_delays_(
+					  rise_time, fall_time, decay_time);
+				    return;
+			      }
+
+			      NetNet*placeholder = new NetNet(
+				    scope, scope->local_symbol(), NetNet::WIRE,
+				    declaration.type);
+			      placeholder->set_line(*this);
+			      placeholder->local_flag(true);
+			      NetNet*driver_carrier = 0;
+			      NetNet*proxy = make_vif_member_continuous_proxy_(
+				    des, scope, *this, placeholder, drive0, drive1,
+				    rise_time, fall_time, decay_time,
+				    &driver_carrier);
+			      bool ok = elaborate_vif_member_assign_(
+				    des, scope, this, const_cast<PExpr*>(pin(0)),
+				    const_cast<PExpr*>(pin(1)), proxy);
+			      if (ok) {
+				    pending_interface_continuous_driver_t pending = {
+					  port, port_word, property_idx,
+					  driver_carrier, this
+				    };
+				    pending_interface_continuous_drivers_.push_back(
+					  pending);
+			      }
+			      return;
+			}
+
+			bool unsupported_delay = delay_count() > 0
+			      && !(is_defined_zero_delay_(rise_time)
+				   && is_defined_zero_delay_(fall_time)
+				   && is_defined_zero_delay_(decay_time));
+			if (unsupported_delay || !var_allowed_in_sv) {
+			      cerr << get_fileline() << ": sorry: Nonzero/dynamic delay "
+				      "and "
+				      "non-default drive strength on a continuous "
+				      "assignment to an interface member are not "
+				      "currently supported." << endl;
+			      des->errors += 1;
+			      delete_unique_delays_(
+				    rise_time, fall_time, decay_time);
+			      return;
+			}
+			NetNet*port = 0;
+			unsigned port_word = 0;
+			size_t property_idx = 0;
+			bool complete_packed_member =
+			      !property_lval->word()
+			      && !property_lval->get_base()
+			      && declaration.type
+			      && !dynamic_cast<const netuarray_t*>(declaration.type)
+			      && !dynamic_cast<const netdarray_t*>(declaration.type)
+			      && !dynamic_cast<const netqueue_t*>(declaration.type)
+			      && type_is_vectorable(declaration.type->base_type())
+			      && property_lval->lwidth()
+				 == declaration.type->packed_width();
+			bool static_binding = complete_packed_member
+			      && interface_member_static_binding_(
+				    property_lval.get(), port, port_word,
+				    property_idx);
+			if (!static_binding) {
+			      cerr << get_fileline() << ": sorry: A continuous "
+				   << "assignment to an interface variable member "
+				      "currently requires one statically bound "
+				      "complete packed member." << endl;
+			      des->errors += 1;
+			      delete_unique_delays_(
+				    rise_time, fall_time, decay_time);
+			      return;
+			}
+			delete_unique_delays_(rise_time, fall_time, decay_time);
+			bool ok = elaborate_vif_member_assign_(des, scope, this);
+			if (ok) {
+			      pending_interface_variable_continuous_driver_t pending = {
+				    port, port_word, property_idx, this
+			      };
+			      pending_interface_variable_continuous_drivers_.push_back(
+				    pending);
+			}
 			return;
 		  }
 	    }
@@ -1869,17 +2359,37 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	   to the same event-driven behavioral equivalent used for an interface
 	   member l-value. This is especially important for arrays of modport
 	   ports, where each constant word/member read remains a handle access. */
-      if (dynamic_cast<const PEIdent*>(pin(0))
-	  && reads_interface_member_(this, des, scope,
-				     const_cast<PExpr*>(pin(1)))) {
-	    elaborate_vif_member_assign_(des, scope, this);
+      if (reads_interface_member_(this, des, scope,
+				  const_cast<PExpr*>(pin(1)))) {
+	    NetNet*lval = pin(0)->elaborate_lnet(
+		  des, scope, var_allowed_in_sv);
+	    if (!lval) {
+		  delete_unique_delays_(rise_time, fall_time, decay_time);
+		  return;
+	    }
+	    if (lval->unpacked_dimensions() > 0 || lval->pin_count() != 1
+		|| !type_is_vectorable(lval->data_type())) {
+		  cerr << get_fileline() << ": sorry: A continuous assignment "
+		       << "from an interface member currently requires one packed "
+			  "integral destination." << endl;
+		  des->errors += 1;
+		  if (lval->local_flag())
+			delete lval;
+		  delete_unique_delays_(rise_time, fall_time, decay_time);
+		  return;
+	    }
+
+	    NetNet*proxy = make_vif_member_continuous_proxy_(
+		  des, scope, *this, lval, drive0, drive1,
+		  rise_time, fall_time, decay_time);
+	    elaborate_vif_member_assign_(
+		  des, scope, this, const_cast<PExpr*>(pin(0)),
+		  const_cast<PExpr*>(pin(1)), proxy);
 	    return;
       }
 
 	/* Elaborate the l-value. */
         // A continuous assignment can drive a variable if the default strength is used.
-      bool var_allowed_in_sv = (drive0 == IVL_DR_STRONG &&
-                                drive1 == IVL_DR_STRONG) ? true : false;
       NetNet*lval = pin(0)->elaborate_lnet(des, scope, var_allowed_in_sv);
       if (lval == 0) {
 	    return;
@@ -3848,6 +4358,119 @@ class interconnect_port_use_guard_t {
       vector<NetNet*>nets_;
 };
 
+/* Convert an unpacked-array element's left-to-right ordinal into the
+ * canonical, zero-based word used by NetNet.  Canonical words always advance
+ * from the numerically lower index, independently in every dimension, whereas
+ * an array port connection is defined in declaration (left-to-right) order. */
+static unsigned long interface_array_ltr_word_(const netranges_t&dims,
+					       unsigned long ordinal)
+{
+      unsigned long word = 0;
+      unsigned long stride = 1;
+      for (size_t dim = dims.size(); dim > 0; dim -= 1) {
+	    const netrange_t&range = dims[dim-1];
+	    const unsigned long width = range.width();
+	    assert(width > 0);
+	    unsigned long digit = ordinal % width;
+	    ordinal /= width;
+	    if (range.get_msb() > range.get_lsb())
+		  digit = width - digit - 1;
+	    word += digit * stride;
+	    stride *= width;
+      }
+      assert(ordinal == 0);
+      return word;
+}
+
+/* IEEE 1800-2023 23.3.3.5 permits different bounds and directions, but an
+ * unpacked-array port and actual must have the same number of dimensions and
+ * the same size in each dimension. */
+static bool interface_array_shapes_match_(const netranges_t&formal,
+					  const netranges_t&actual)
+{
+      if (formal.size() != actual.size())
+	    return false;
+      for (size_t dim = 0; dim < formal.size(); dim += 1) {
+	    if (formal[dim].width() != actual[dim].width())
+		  return false;
+      }
+      return true;
+}
+
+/* Resolve a constant element select of an interface instance array. Instance
+ * scope vectors are stored from the declared right bound toward the declared
+ * left bound (elab_scope.cc), not in canonical numeric-index order. Recover
+ * that direction from the endpoint scope names before translating the source
+ * index to a vector ordinal. This is used before child elaboration to retain
+ * the selected instance's parameter-specialized member types, and again when
+ * recording its static interface-port binding. */
+static NetScope* selected_interface_instance_scope_(Design*des,
+					     NetScope*scope,
+					     const PEIdent*actual)
+{
+      if (!des || !scope || !actual)
+	    return 0;
+
+      const pform_name_t&path = actual->path().name;
+      if (path.empty() || path.size() > 2
+	  || (path.size() == 2 && !path.back().index.empty()))
+	    return 0;
+
+      const name_component_t&root = path.front();
+      if (root.index.size() != 1)
+	    return 0;
+      const index_component_t&select = root.index.front();
+      if (select.sel != index_component_t::SEL_BIT
+	  || !select.msb || select.lsb)
+	    return 0;
+
+      map<perm_string,NetScope::scope_vec_t>::const_iterator found =
+	    scope->instance_arrays.find(root.name);
+      if (found == scope->instance_arrays.end() || found->second.empty())
+	    return 0;
+
+      unique_ptr<NetExpr>index_expr(
+	    elab_and_eval(des, scope, select.msb, -1, true));
+      long declared_index = 0;
+      if (!index_expr || !eval_as_long(declared_index, index_expr.get()))
+	    return 0;
+
+      const NetScope::scope_vec_t&elements = found->second;
+      if (!elements.front() || !elements.back())
+	    return 0;
+      const hname_t&right_name = elements.front()->fullname();
+      const hname_t&left_name = elements.back()->fullname();
+      if (right_name.peek_name() != root.name
+	  || left_name.peek_name() != root.name
+	  || right_name.has_numbers() != 1
+	  || left_name.has_numbers() != 1)
+	    return 0;
+
+      long right_bound = right_name.peek_number(0);
+      long left_bound = left_name.peek_number(0);
+      unsigned long ordinal = 0;
+      if (right_bound <= left_bound) {
+	    if (declared_index < right_bound || declared_index > left_bound)
+		  return 0;
+	    ordinal = static_cast<unsigned long>(declared_index-right_bound);
+      } else {
+	    if (declared_index > right_bound || declared_index < left_bound)
+		  return 0;
+	    ordinal = static_cast<unsigned long>(right_bound-declared_index);
+      }
+      if (ordinal >= elements.size())
+	    return 0;
+
+      NetScope*selected = elements[ordinal];
+      if (!selected || selected->fullname().peek_name() != root.name
+	  || selected->fullname().has_numbers() != 1
+	  || selected->fullname().peek_number(0) != declared_index
+	  || selected->type() != NetScope::MODULE
+	  || !selected->is_interface())
+	    return 0;
+      return selected;
+}
+
 /*
  * Instantiate a module by recursively elaborating it. Set the path of
  * the recursive elaboration so that signal names get properly
@@ -3979,15 +4602,14 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
       NetScope::scope_vec_t&instance = scope->instance_arrays[get_name()];
 
-	// M5-5: GENERIC interface ports (`interface i` / `interface.mp
-	// i`, IEEE 1800-2017 25.3.3) carry a placeholder type from
-	// elab_sig; the concrete interface comes from the ACTUAL of
-	// THIS instantiation. Retype the formal in every instance
-	// BEFORE the recursive elaboration below, so the child body
-	// elaborates member references (i.clk, i.data...) against the
-	// real interface class. The regular interface-port binding
-	// later in this function then connects the vif handle exactly
-	// as for explicitly typed interface formals.
+	// M5-5: An interface formal's member types come from the concrete
+	// ACTUAL of THIS instantiation. This is required for generic ports
+	// (`interface i`) and for explicitly typed parameterized interfaces:
+	// the canonical pform type uses default parameters, while an instance
+	// may have different member widths. Retype every formal BEFORE the
+	// recursive elaboration below, so the child body elaborates i.member
+	// against the actual instance specialization. A forwarded interface
+	// formal carries the specialization through another hierarchy level.
       for (unsigned idx = 0 ; idx < pins.size() ; idx += 1) {
 	    vector<PEIdent*> mport = rmod->get_port(idx);
 	    if (mport.size() != 1 || instance.empty())
@@ -3996,79 +4618,109 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    NetNet*psig = instance[0]->find_signal(pname);
 	    if (!psig)
 		  continue;
-	    if (psig->attribute(perm_string::literal("ivl_generic_iface")).len() == 0)
+	    bool generic_iface = psig->attribute(
+		  perm_string::literal("ivl_generic_iface")).len() != 0;
+	    const netclass_t*formal_ifc =
+		  dynamic_cast<const netclass_t*>(psig->net_type());
+	    if (!generic_iface && (!formal_ifc || !formal_ifc->is_interface()))
 		  continue;
-	    if (const netclass_t*already =
-		      dynamic_cast<const netclass_t*>(psig->net_type()))
-		  if (already->is_interface())
-			continue;
 	    perm_string port_name = rmod->get_port_name(idx);
 	    if (!pins[idx]) {
-		  cerr << get_fileline() << ": error: Generic interface "
-		       << "port `" << port_name << "' of module `"
-		       << rmod->mod_name()
-		       << "' cannot be left unconnected." << endl;
-		  des->errors += 1;
+		  if (generic_iface) {
+			cerr << get_fileline() << ": error: Generic interface "
+			     << "port `" << port_name << "' of module `"
+			     << rmod->mod_name()
+			     << "' cannot be left unconnected." << endl;
+			des->errors += 1;
+		  }
 		  continue;
 	    }
-	    perm_string act_iface_name;
-	    const netclass_t*sig_ifc = 0;
+	    NetScope*actual_iface_scope = 0;
+	    const netclass_t*actual_ifc = 0;
 	    if (const PEIdent*aid = dynamic_cast<const PEIdent*>(pins[idx])) {
 		  const pform_name_t&ap = aid->path().name;
+		  if (ap.size() >= 1 && ap.size() <= 2
+		      && (ap.size() == 1 || ap.back().index.empty()))
+			actual_iface_scope = selected_interface_instance_scope_(
+			      des, scope, aid);
 		  if (ap.size() >= 1 && ap.size() <= 2
 		      && ap.front().index.empty()
 		      && ap.back().index.empty()) {
 			NetScope*iscope = scope->child(hname_t(ap.front().name));
-			if (iscope && iscope->type() == NetScope::MODULE) {
+			if (iscope && iscope->type() == NetScope::MODULE
+			    && iscope->is_interface()) {
 			      auto pm = pform_modules.find(iscope->module_name());
 			      if (pm != pform_modules.end()
 				  && pm->second->is_interface)
-				    act_iface_name = iscope->module_name();
+				    actual_iface_scope = iscope;
+			}
+			  // A whole interface instance array has no unindexed child
+			  // scope. Its canonical elements live in instance_arrays;
+			  // every element of one instance array shares the same
+			  // parameter overrides, so the first element supplies the
+			  // formal's member specialization.
+			if (!actual_iface_scope && ap.size() == 1) {
+			      map<perm_string,NetScope::scope_vec_t>::const_iterator
+				    actual_array = scope->instance_arrays.find(
+					  ap.front().name);
+			      if (actual_array != scope->instance_arrays.end()
+				  && !actual_array->second.empty()) {
+				    NetScope*first = actual_array->second.front();
+				    bool same_interface = first
+					  && first->type() == NetScope::MODULE
+					  && first->is_interface();
+				    for (NetScope*element : actual_array->second) {
+					  if (!element || !same_interface
+					      || element->type() != NetScope::MODULE
+					      || !element->is_interface()
+					      || element->module_name()
+						 != first->module_name()) {
+						same_interface = false;
+						break;
+					  }
+				    }
+				    if (same_interface)
+					  actual_iface_scope = first;
+			      }
 			}
 			  // Pass-through: the actual is an interface-typed
 			  // signal in the parent (an already-retyped
 			  // interface port handle being forwarded).
-			if (act_iface_name.nil() && ap.size() == 1) {
+			if (!actual_iface_scope && ap.size() == 1) {
 			      if (NetNet*asig = scope->find_signal(ap.front().name)) {
 				    const netclass_t*ac =
 					  dynamic_cast<const netclass_t*>(asig->net_type());
 				    if (ac && ac->is_interface())
-					  sig_ifc = ac;
+					  actual_ifc = ac;
 			      }
 			}
 		  }
 	    }
-	    if (sig_ifc) {
-		  for (unsigned inst = 0 ; inst < instance.size() ; inst += 1) {
-			if (NetNet*isig = instance[inst]->find_signal(pname))
-			      isig->set_net_type(sig_ifc);
+	    if (actual_iface_scope)
+		  actual_ifc = elaborate_interface_instance_type(
+			des, actual_iface_scope);
+
+	      // An explicitly typed formal must retain its declared interface
+	      // identity. The later binding pass emits the established detailed
+	      // diagnostic for a mismatched actual; do not hide it by retyping.
+	    if (actual_ifc && formal_ifc && formal_ifc->is_interface()
+		&& formal_ifc->get_name() != actual_ifc->get_name())
+		  actual_ifc = 0;
+
+	    if (!actual_ifc || !actual_ifc->is_interface()) {
+		  if (generic_iface) {
+			cerr << pins[idx]->get_fileline() << ": error: The actual "
+			     << "for generic interface port `" << port_name
+			     << "' of module `" << rmod->mod_name() << "' must be "
+			     << "an interface instance (or instance.modport)."
+			     << endl;
+			des->errors += 1;
 		  }
-		  continue;
-	    }
-	    if (act_iface_name.nil()) {
-		  cerr << pins[idx]->get_fileline() << ": error: The actual "
-		       << "for generic interface port `" << port_name
-		       << "' of module `" << rmod->mod_name() << "' must be "
-		       << "an interface instance (or instance.modport)."
-		       << endl;
-		  des->errors += 1;
-		  continue;
-	    }
-	    interface_type_t act_type(act_iface_name);
-	    act_type.set_line(*this);
-	    const netclass_t*ifc = dynamic_cast<const netclass_t*>(
-		  act_type.elaborate_type(des, scope));
-	    if (!ifc || !ifc->is_interface()) {
-		  cerr << pins[idx]->get_fileline() << ": error: Cannot "
-		       << "resolve interface `" << act_iface_name
-		       << "' for generic interface port `" << port_name
-		       << "'." << endl;
-		  des->errors += 1;
 		  continue;
 	    }
 	    for (unsigned inst = 0 ; inst < instance.size() ; inst += 1) {
 		  if (NetNet*isig = instance[inst]->find_signal(pname))
-			isig->set_net_type(ifc);
+			isig->set_net_type(actual_ifc);
             }
       }
 
@@ -4260,10 +4912,14 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			}
 
 			// Bind a whole unpacked array of interface instances to
-			// an equally sized interface-port array. Instance arrays are
-			// stored in canonical LSB-to-MSB order, matching NetNet word
-			// pins, so each formal handle word receives the corresponding
-			// actual interface scope.
+			// an equally sized interface-port array. IEEE 1800-2023
+			// 7.6/23.3.3.5 maps different ranges in left-to-right element
+			// order; their numeric indices and directions need not match.
+			// instance_arrays preserves the actual's direction implicitly by
+			// storing scopes from its declared right bound to its left bound,
+			// while a NetNet's canonical words run from the numerically lower
+			// index to the higher index. Reverse for an ascending formal so
+			// formal-left binds actual-left for every direction combination.
 			if (prts[0]->unpacked_dimensions() > 0) {
 			      bool bound_array = false;
 			      const PEIdent*aid =
@@ -4276,6 +4932,19 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 				    map<perm_string,NetScope::scope_vec_t>::const_iterator
 					  actual = scope->instance_arrays.find(actual_name);
 				    if (actual != scope->instance_arrays.end()
+					&& prts[0]->unpacked_dimensions() != 1) {
+					  cerr << pins[idx]->get_fileline()
+					       << ": error: Cannot bind interface-port array `"
+					       << port_name << "' of module `"
+					       << rmod->mod_name() << "' to `"
+					       << *pins[idx] << "': the formal has "
+					       << prts[0]->unpacked_dimensions()
+					       << " unpacked dimensions, but an interface "
+						  "instance array has 1." << endl;
+					  des->errors += 1;
+					  continue;
+				    }
+				    if (actual != scope->instance_arrays.end()
 					&& actual->second.size() == prts[0]->pin_count()) {
 					  bool types_ok = true;
 					  for (NetScope*actual_scope : actual->second) {
@@ -4287,12 +4956,23 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 						}
 					  }
 					  if (types_ok) {
+						bool reverse_scope_words = false;
+						if (prts[0]->unpacked_dimensions() == 1) {
+						      const netrange_t&formal_range =
+							    prts[0]->unpacked_dims().front();
+						      reverse_scope_words =
+							    formal_range.get_msb()
+							    < formal_range.get_lsb();
+						}
 						for (size_t word = 0;
 						     word < actual->second.size(); word += 1) {
+						      size_t scope_word = reverse_scope_words
+							    ? actual->second.size() - word - 1
+							    : word;
 						      prts[0]->bind_interface_scope(
-							    word, actual->second[word]);
+							    word, actual->second[scope_word]);
 						      NetEScope*se = new NetEScope(
-							    actual->second[word],
+							    actual->second[scope_word],
 							    static_cast<ivl_type_t>(ifc));
 						      se->set_line(*aid);
 						      NetAssign_*lv = new NetAssign_(prts[0]);
@@ -4301,6 +4981,76 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 						      word_expr->set_line(*aid);
 						      lv->set_word(word_expr);
 						      NetAssign*as = new NetAssign(lv, se);
+						      as->set_line(*this);
+						      NetProcTop*top = new NetProcTop(
+							    instance[0], IVL_PR_INITIAL, as);
+						      top->set_line(*this);
+						      top->attribute(perm_string::literal(
+							    "_ivl_schedule_init"), verinum(1));
+						      top->attribute(perm_string::literal(
+							    "_ivl_synthesis_transient"), verinum(1));
+						      des->add_process_at_tail(top);
+						}
+						bound_array = true;
+					  }
+				    }
+
+				      // A parent interface-port array is represented by an
+				      // interface-typed NetNet rather than instance_arrays.
+				      // Preserve the per-word binding chain so both simulation
+				      // and synthesis can follow forwarding through hierarchy.
+				    if (actual == scope->instance_arrays.end()) {
+					  NetNet*actual_signal =
+						scope->find_signal(actual_name);
+					  const netclass_t*actual_ifc = actual_signal
+						? dynamic_cast<const netclass_t*>(
+						      actual_signal->net_type()) : 0;
+					  if (actual_ifc && actual_ifc->is_interface()
+					      && actual_ifc->get_name() == ifc->get_name()
+					      && actual_signal->unpacked_dimensions() > 0) {
+						const netranges_t&formal_dims =
+						      prts[0]->unpacked_dims();
+						const netranges_t&actual_dims =
+						      actual_signal->unpacked_dims();
+						if (!interface_array_shapes_match_(
+						      formal_dims, actual_dims)) {
+						      cerr << pins[idx]->get_fileline()
+							   << ": error: Cannot bind interface-port array `"
+							   << port_name << "' of module `"
+							   << rmod->mod_name() << "' to `"
+							   << *pins[idx] << "': formal unpacked shape "
+							   << formal_dims << " does not match actual "
+							      "unpacked shape " << actual_dims << "."
+							   << endl;
+						      des->errors += 1;
+						      continue;
+						}
+
+						for (unsigned long ordinal = 0;
+						     ordinal < prts[0]->pin_count();
+						     ordinal += 1) {
+						      unsigned long formal_word =
+							    interface_array_ltr_word_(
+								  formal_dims, ordinal);
+						      unsigned long actual_word =
+							    interface_array_ltr_word_(
+								  actual_dims, ordinal);
+						      prts[0]->bind_interface_signal(
+							    formal_word, actual_signal,
+							    actual_word);
+
+						      NetEConst*source_word_expr =
+							    make_const_val_s(actual_word);
+						      source_word_expr->set_line(*aid);
+						      NetESignal*source = new NetESignal(
+							    actual_signal, source_word_expr);
+						      source->set_line(*aid);
+						      NetAssign_*lv = new NetAssign_(prts[0]);
+						      NetEConst*formal_word_expr =
+							    make_const_val_s(formal_word);
+						      formal_word_expr->set_line(*aid);
+						      lv->set_word(formal_word_expr);
+						      NetAssign*as = new NetAssign(lv, source);
 						      as->set_line(*this);
 						      NetProcTop*top = new NetProcTop(
 							    instance[0], IVL_PR_INITIAL, as);
@@ -4348,10 +5098,14 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 				    dynamic_cast<const PEIdent*>(pins[idx])) {
 				    const pform_name_t&ap = aid->path().name;
 				    if (ap.size() >= 1 && ap.size() <= 2
-					&& ap.front().index.empty()
-					&& ap.back().index.empty()) {
-					  NetScope*iscope = scope->child(
-						hname_t(ap.front().name));
+					&& (ap.size() == 1
+					    || ap.back().index.empty())) {
+					  NetScope*iscope =
+						selected_interface_instance_scope_(
+						      des, scope, aid);
+					  if (!iscope && ap.front().index.empty())
+						iscope = scope->child(
+						      hname_t(ap.front().name));
 					  if (iscope
 					      && iscope->type() == NetScope::MODULE
 					      && iscope->module_name() == ifc->get_name()) {
@@ -4533,13 +5287,14 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 					  bridge_type, prts[0]->net_type());
 		  bridge->local_flag(true);
 		  bridge->set_line(*pins[idx]);
-		  PEIdent*bridge_id = new PEIdent(bridge->name(), UINT_MAX, true);
+		  unique_ptr<PEIdent> bridge_id(
+			new PEIdent(bridge->name(), UINT_MAX, true));
 		  bridge_id->set_line(*pins[idx]);
 		  bool ok = ptype == NetNet::PINPUT
 			? elaborate_vif_member_assign_(des, scope, pins[idx],
-						       bridge_id, pins[idx])
+						       bridge_id.get(), pins[idx])
 			: elaborate_vif_member_assign_(des, scope, pins[idx],
-						       pins[idx], bridge_id);
+						       pins[idx], bridge_id.get());
 		  if (!ok)
 			continue;
 		  sig = bridge;
@@ -9946,8 +10701,11 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		      // indices (which must be constant). For SV object methods like
 		      // q[idx].method(), try method elaboration first and otherwise
 		      // degrade to a warning/no-op to keep UVM compilation progressing.
+		    unsigned method_errors_before = des->errors;
 		    NetProc *tmp = elaborate_method_(des, scope, false);
 		    if (tmp) return tmp;
+		    if (des->errors != method_errors_before)
+			  return 0;
 		    if (is_uvm_compile_progress_task_stub_candidate_(path_)) {
 			  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 			  noop->set_line(*this);
@@ -12352,6 +13110,17 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 						    argv);
 			sys->set_line(*this);
 			return sys;
+		  }
+		  if (net->port_type() != NetNet::NOT_A_PORT
+		      && net->unpacked_dimensions() > 0) {
+			cerr << get_fileline() << ": sorry: Task method `"
+			     << method_name << "' with output, inout, or ref "
+				"arguments through an interface-port array requires "
+				"per-word dynamic copy-back, which is not yet "
+				"supported." << endl;
+			des->errors += 1;
+			delete obj_expr;
+			return 0;
 		  }
 		  static bool warned_vif_static_call = false;
 		  if (!warned_vif_static_call) {
@@ -16425,23 +17194,31 @@ NetForce* PForce::elaborate(Design*des, NetScope*scope) const
       if (rexp == 0)
 	    return 0;
 
+      NetExpr*force_link_rexp = 0;
+
       /* IEEE 1800-2023 10.6 requires the force RHS to be reevaluated when
        * any of its inputs change. Turn the structural subset into a hidden
        * continuously driven signal so the VVP force-link mechanism observes
-       * those changes. A direct signal already has that representation. */
+       * those changes. Preserve the original expression for immediate force
+       * activation: the hidden continuous signal does not settle until the
+       * scheduler runs, and reading it here would incorrectly produce X/Z.
+       * A direct signal already has both required representations. */
       if (force_rhs_needs_structural_net_(rexp)) {
 	    NetScope*source_scope = force_rhs_structural_scope_(scope);
-	    NetNet*source = rexp->synthesize(des, source_scope, rexp);
-	    source = force_rhs_static_alias_(source, source_scope, *rexp);
+	    NetExpr*structural_rexp = rexp->dup_expr();
+	    NetNet*source = structural_rexp->synthesize(des, source_scope,
+						   structural_rexp);
+	    source = force_rhs_static_alias_(source, source_scope,
+					     *structural_rexp);
 	    if (source) {
 		  NetESignal*continuous = new NetESignal(source);
-		  continuous->set_line(*rexp);
-		  delete rexp;
-		  rexp = continuous;
+		  continuous->set_line(*structural_rexp);
+		  force_link_rexp = continuous;
 	    }
+	    delete structural_rexp;
       }
 
-      dev = new NetForce(lval, rexp);
+      dev = new NetForce(lval, rexp, force_link_rexp);
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": debug: Elaborate force,"
@@ -25907,6 +26684,8 @@ Design* elaborate(list<perm_string>roots)
 	// This is the output design. I fill it in as I scan the root
 	// module and elaborate what I find.
       Design*des = new Design;
+      pending_interface_continuous_drivers_.clear();
+      pending_interface_variable_continuous_drivers_.clear();
 
 	// Create NetScope objects for compilation units first so that
 	// unit_scopes is populated before packages are processed.
@@ -26191,6 +26970,11 @@ Design* elaborate(list<perm_string>roots)
       extern bool synthesis; /* Synthesis flag from main.cc. */
       if (synthesis)
             bind_root_interface_synthesis_members_(des);
+
+      /* Interface module bodies elaborate before their port connections are
+	 * installed. Attach each persistent continuous net driver now, after all
+	 * scalar, array, and forwarded interface bindings are complete. */
+      finalize_interface_continuous_drivers_(des);
 
       /* Port-based generic type propagation is complete only after every
        * hierarchy edge and late specialized body has elaborated.  Diagnose

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_event_array_llp64_pack.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_event_array_llp64_pack"
+}

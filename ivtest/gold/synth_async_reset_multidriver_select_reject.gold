@@ -1,0 +1,5 @@
+./ivltests/synth_async_reset_multidriver_select_reject.v:17: error: Too many clocks for synchronous logic.
+./ivltests/synth_async_reset_multidriver_select_reject.v:17:	  : Perhaps an asynchronous set/reset is misused?
+./ivltests/synth_async_reset_multidriver_select_reject.v:17: error: Unable to synthesize synchronous process.
+./ivltests/synth_async_reset_multidriver_select_reject.v:17: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+3 error(s) in post-elaboration processing.

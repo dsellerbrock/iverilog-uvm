@@ -1,0 +1,2 @@
+./ivltests/sv_interface_member_variable_contassign_multidriver_fail.v:13: error: Variable interface member `value' cannot have multiple drivers.
+1 error(s) during elaboration.

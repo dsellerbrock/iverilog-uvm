@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_interface_port_array_function_fail.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_interface_port_array_function_fail" ],
+    "gold"          : "sv_interface_port_array_function_fail"
+}

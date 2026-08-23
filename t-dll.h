@@ -960,10 +960,11 @@ struct ivl_statement_s {
 		  ivl_scope_t scope;
 	    } alloc_;
 
-	    struct { /* IVL_ST_ASSIGN IVL_ST_ASSIGN_NB
-			IVL_ST_CASSIGN, IVL_ST_DEASSIGN */
+	    struct { /* IVL_ST_ASSIGN IVL_ST_ASSIGN_NB, IVL_ST_CASSIGN,
+			IVL_ST_DEASSIGN, IVL_ST_FORCE, IVL_ST_RELEASE */
 		  struct ivl_lval_s*lval_;
 		  ivl_expr_t rval_;
+		  ivl_expr_t force_link_rval_;
 		  ivl_statement_assign_aux_s*aux_;
 		  unsigned lvals_;
 		  char oper; // Operator if this is a compressed assignment.

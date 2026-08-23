@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_interface_member_contassign_timing_reject.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_interface_member_contassign_timing_reject" ],
+    "gold"          : "sv_interface_member_contassign_timing_reject"
+}

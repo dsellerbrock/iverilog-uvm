@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "synth_compound_assignment_concat_incomplete_prior_reject.v",
+    "iverilog-args" : [ "-S", "-g2012" ],
+    "gold"          : "synth_compound_assignment_concat_incomplete_prior_reject"
+}

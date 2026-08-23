@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "synth_interface_member_dynamic_select.v",
+    "iverilog-args" : [ "-S", "-g2012", "-s", "synth_interface_member_dynamic_select" ],
+    "gold"          : "synth_interface_member_dynamic_select"
+}

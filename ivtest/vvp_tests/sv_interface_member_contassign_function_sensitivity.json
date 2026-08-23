@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_interface_member_contassign_function_sensitivity.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_interface_member_contassign_function_sensitivity" ],
+    "gold"          : "sv_interface_member_contassign_function_sensitivity"
+}

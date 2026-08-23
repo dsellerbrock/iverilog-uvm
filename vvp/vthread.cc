@@ -7213,7 +7213,7 @@ void vthread_dump_live_threads(const char*reason)
                   scheduled += 1;
 
             fprintf(stderr,
-                    "trace sched: thr=%p parent_thr=%p scope=%s parent=%s pc=%s@%p pause=%s@%p scheduled=%d waiting=%d joining=%d ended=%d detached=%d disabled=%d callf=%d in_func=%d children=%zu wt=%p rd=%p event=%p ecount=%lu\n",
+                    "trace sched: thr=%p parent_thr=%p scope=%s parent=%s pc=%s@%p pause=%s@%p scheduled=%d waiting=%d joining=%d ended=%d detached=%d disabled=%d callf=%d in_func=%d children=%zu wt=%p rd=%p event=%p ecount=%" PRIu64 "\n",
                     (void*)thr,
                     (void*)thr->parent,
                     scope_name,
@@ -7262,7 +7262,7 @@ void vthread_dump_running_thread(const char*reason)
                             ? vvp_opcode_mnemonic(running_thread->last_pause_pc->opcode) : "<none>";
 
       fprintf(stderr,
-              "trace sched: running-thread reason=%s thr=%p scope=%s pc=%s pause=%s scheduled=%d waiting=%d joining=%d ended=%d detached=%d disabled=%d callf=%d in_func=%d children=%zu wt=%p rd=%p event=%p ecount=%lu\n",
+              "trace sched: running-thread reason=%s thr=%p scope=%s pc=%s pause=%s scheduled=%d waiting=%d joining=%d ended=%d detached=%d disabled=%d callf=%d in_func=%d children=%zu wt=%p rd=%p event=%p ecount=%" PRIu64 "\n",
               reason ? reason : "<unknown>",
               (void*)running_thread,
               scope_name,
@@ -8883,23 +8883,24 @@ bool of_ASSIGN_VEC4_A_D(vthread_t thr, vvp_code_t cp)
 
       int64_t  off = off_idx ? thr->words[off_idx].w_int : 0;
       vvp_time64_t del = del_idx? thr->words[del_idx].w_uint : 0;
-      long     adr = thr->words[adr_idx].w_int;
+      int64_t  adr = thr->words[adr_idx].w_int;
 
       vvp_vector4_t val = thr->pop_vec4();
 
-	// Abort if flags[4] is set. This can happen if the calculation
-	// into an index register failed.
-      if (thr->flags[4] == BIT4_1)
+	// Abort if the index is unknown or does not fit the index register.
+      if (thr->flags[4] != BIT4_0)
 	    return true;
 
       vvp_array_t array = resolve_runtime_array_(cp, "%assign/vec4/a/d");
       if (!array)
 	    return true;
+      if (adr < 0 || (uint64_t)adr >= array->get_size())
+	    return true;
 
       if (!resize_rval_vec(val, off, array->get_word_size()))
 	    return true;
 
-      schedule_assign_array_word(array, adr, off, val, del,
+	  schedule_assign_array_word(array, (unsigned)adr, off, val, del,
 				 schedule_assign_is_reactive_(thr));
 
       return true;
@@ -8914,27 +8915,29 @@ bool of_ASSIGN_VEC4_A_E(vthread_t thr, vvp_code_t cp)
       int adr_idx = 3;
 
       int64_t  off = off_idx ? thr->words[off_idx].w_int : 0;
-      long     adr = thr->words[adr_idx].w_int;
+      int64_t  adr = thr->words[adr_idx].w_int;
 
       vvp_vector4_t val = thr->pop_vec4();
 
-	// Abort if flags[4] is set. This can happen if the calculation
-	// into an index register failed.
-      if (thr->flags[4] == BIT4_1)
+	// Abort if the index is unknown or does not fit the index register.
+      if (thr->flags[4] != BIT4_0)
 	    return true;
 
       vvp_array_t array = resolve_runtime_array_(cp, "%assign/vec4/a/e");
       if (!array)
+	    return true;
+      if (adr < 0 || (uint64_t)adr >= array->get_size())
 	    return true;
 
       if (!resize_rval_vec(val, off, array->get_word_size()))
 	    return true;
 
       if (thr->ecount == 0) {
-	    schedule_assign_array_word(array, adr, off, val, 0,
+	    schedule_assign_array_word(array, (unsigned)adr, off, val, 0,
 				       schedule_assign_is_reactive_(thr));
       } else {
-	    schedule_evctl(array, adr, val, off, thr->event, thr->ecount);
+	    schedule_evctl(array, (unsigned)adr, val, off,
+			   thr->event, thr->ecount);
       }
 
       return true;
@@ -8953,9 +8956,8 @@ bool of_ASSIGN_VEC4_OFF_D(vthread_t thr, vvp_code_t cp)
       int64_t off = thr->words[off_index].w_int;
       vvp_time64_t del = thr->words[del_index].w_uint;
 
-	// Abort if flags[4] is set. This can happen if the calculation
-	// into an index register failed.
-      if (thr->flags[4] == BIT4_1)
+	// Abort if the offset is unknown or does not fit the index register.
+      if (thr->flags[4] != BIT4_0)
 	    return true;
 
       vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (cp->net->fil);
@@ -8980,9 +8982,8 @@ bool of_ASSIGN_VEC4_OFF_E(vthread_t thr, vvp_code_t cp)
 
       int64_t off = thr->words[off_index].w_int;
 
-	// Abort if flags[4] is set. This can happen if the calculation
-	// into an index register failed.
-      if (thr->flags[4] == BIT4_1)
+	// Abort if the offset is unknown or does not fit the index register.
+      if (thr->flags[4] != BIT4_0)
 	    return true;
 
       vvp_signal_value*sig = dynamic_cast<vvp_signal_value*> (cp->net->fil);
@@ -10663,38 +10664,24 @@ bool of_CASSIGN_VEC4_OFF(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_t*net = cp->net;
       unsigned base_idx = cp->bit_idx[0];
-      long base = thr->words[base_idx].w_int;
+      int64_t base = thr->words[base_idx].w_int;
       vvp_vector4_t value = thr->pop_vec4();
-      unsigned wid = value.size();
 
-      if (thr->flags[4] == BIT4_1)
+      if (thr->flags[4] != BIT4_0)
 	    return true;
-
-	/* Remove any previous continuous assign to this net. */
-      cassign_unlink(net);
 
       vvp_signal_value*sig = net->fil ? net->fil->as_signal_value() : 0;
       assert(sig);
 
-      if (base < 0 && (wid <= (unsigned)-base))
+      if (!resize_rval_vec(value, base, sig->value_size()))
 	    return true;
 
-      if (base >= (long)sig->value_size())
-	    return true;
-
-      if (base < 0) {
-	    wid -= (unsigned) -base;
-	    base = 0;
-	    value.resize(wid);
-      }
-
-      if (base+wid > sig->value_size()) {
-	    wid = sig->value_size() - base;
-	    value.resize(wid);
-      }
+	/* An invalid or non-overlapping select is a no-op and must not remove a
+	 * previously installed continuous assignment. */
+      cassign_unlink(net);
 
       vvp_net_ptr_t ptr (net, 1);
-      vvp_send_vec4_pv(ptr, value, base, sig->value_size(), 0);
+      vvp_send_vec4_pv(ptr, value, (unsigned)base, sig->value_size(), 0);
       return true;
 }
 
@@ -13195,13 +13182,13 @@ bool of_EVTEST_OBJ(vthread_t thr, vvp_code_t cp)
  * index is a hard error rather than silently indexing outside the
  * array's reserved slot range (which could alias another event).
  */
-static inline uint32_t evarr_base_(unsigned long packed)
+static inline uint32_t evarr_base_(uint64_t packed)
 {
       return (uint32_t)(packed >> 32);
 }
-static inline uint32_t evarr_count_(unsigned long packed)
+static inline uint32_t evarr_count_(uint64_t packed)
 {
-      return (uint32_t)(packed & 0xFFFFFFFFul);
+      return (uint32_t)(packed & UINT64_C(0xFFFFFFFF));
 }
 
 /*
@@ -13524,7 +13511,7 @@ bool of_FORCE_VEC4_A(vthread_t thr, vvp_code_t cp)
       vvp_vector4_t value = thr->pop_vec4();
       force_pending_clear_(thr);
 
-      if (thr->flags[4] == BIT4_1)
+      if (thr->flags[4] != BIT4_0)
 	    return true;
       vvp_array_t array = resolve_runtime_array_(cp, "%force/vec4/a");
       if (!array || address < 0 || (uint64_t)address >= array->get_size()
@@ -13562,7 +13549,7 @@ bool of_FORCE_VEC4_OFF(vthread_t thr, vvp_code_t cp)
       force_pending_clear_(thr);
       assert(net->fil);
 
-      if (thr->flags[4] == BIT4_1)
+      if (thr->flags[4] != BIT4_0)
 	    return true;
 
 	// This is the width of the target vector.
@@ -13609,7 +13596,7 @@ bool of_FORCE_VEC4_OFF_D(vthread_t thr, vvp_code_t cp)
       vvp_net_t*net = cp->net;
 
       unsigned base_idx = cp->bit_idx[0];
-      long base = thr->words[base_idx].w_int;
+      int64_t base = thr->words[base_idx].w_int;
 
       unsigned delay_idx = cp->bit_idx[1];
       vvp_time64_t delay = thr->words[delay_idx].w_uint;
@@ -13619,18 +13606,17 @@ bool of_FORCE_VEC4_OFF_D(vthread_t thr, vvp_code_t cp)
       force_pending_clear_(thr);
       assert(net->fil);
 
-      if (thr->flags[4] == BIT4_1)
+      if (thr->flags[4] != BIT4_0)
 	    return true;
 
 	// This is the width of the target vector.
       unsigned use_size = net->fil->filter_size();
 
-      if (base >= (long)use_size)
-	    return true;
-      if (base < -(long)use_size)
+      int64_t use_base = base;
+      if (!resize_rval_vec(value, use_base, use_size))
 	    return true;
 
-      schedule_force_vector(net, base, use_size, value, delay);
+      schedule_force_vector(net, (unsigned)use_base, use_size, value, delay);
       return true;
 }
 
@@ -14042,12 +14028,14 @@ bool of_INV(vthread_t thr, vvp_code_t)
 
 static inline int64_t get_as_64_bit(uint32_t low_32, uint32_t high_32)
 {
-      int64_t low = low_32;
-      int64_t res = high_32;
+      uint64_t bits = ((uint64_t)high_32 << 32) | (uint64_t)low_32;
 
-      res <<= 32;
-      res |= low;
-      return res;
+	/* Avoid both an out-of-range unsigned-to-signed conversion and shifting
+	 * a signed high half into its sign bit. The subtraction spelling maps the
+	 * two's-complement bit pattern without overflow, including INT64_MIN. */
+      if (bits <= (uint64_t)INT64_MAX)
+	    return (int64_t)bits;
+      return -1 - (int64_t)(~bits);
 }
 
 bool of_IX_ADD(vthread_t thr, vvp_code_t cp)
@@ -14174,7 +14162,18 @@ static uint64_t vec4_to_index(vthread_t thr, bool signed_flag)
 	    if (idx < 8*sizeof(v)) {
 		  v |= tmp << idx;
 	    } else {
-		  bool overflow = signed_flag && (v >> 63) ? ~tmp != 0 : tmp != 0;
+		  unsigned valid_bits = val_size - idx;
+		  const unsigned chunk_bits = 8*sizeof(bits[0]);
+		  if (valid_bits > chunk_bits)
+			valid_bits = chunk_bits;
+
+		  const uint64_t valid_mask = valid_bits == 8*sizeof(uint64_t)
+			? ~static_cast<uint64_t>(0)
+			: (static_cast<uint64_t>(1) << valid_bits) - 1;
+		  tmp &= valid_mask;
+
+		  bool overflow = signed_flag && (v >> 63)
+			? tmp != valid_mask : tmp != 0;
 		  if (overflow) {
 			thr->flags[4] = BIT4_X;
 			break;
@@ -20905,10 +20904,13 @@ bool of_PUSHV_STR(vthread_t thr, vvp_code_t)
 bool of_PUTC_STR_VEC4(vthread_t thr, vvp_code_t cp)
 {
       unsigned muxr = cp->bit_idx[0];
-      int32_t mux = muxr? thr->words[muxr].w_int : 0;
+      int64_t mux = muxr? thr->words[muxr].w_int : 0;
 
       vvp_vector4_t val = thr->pop_vec4();
       assert(val.size() == 8);
+
+      if (muxr && thr->flags[4] != BIT4_0)
+	    return true;
 
       if (mux < 0)
 	    return true;
@@ -20921,7 +20923,7 @@ bool of_PUTC_STR_VEC4(vthread_t thr, vvp_code_t cp)
       assert(fun || ref);
 
       string tmp = fun ? fun->get_string() : ref->get_string();
-      if (tmp.size() <= (size_t)mux)
+      if ((uint64_t)mux >= (uint64_t)tmp.size())
 	    return true;
 
       char val_str = 0;
@@ -21476,7 +21478,7 @@ bool of_RELEASE_REG_A(vthread_t thr, vvp_code_t cp)
       int64_t wid = thr->words[wid_idx].w_int;
       force_pending_clear_(thr);
 
-      if (thr->flags[4] == BIT4_1 || wid <= 0)
+      if (thr->flags[4] != BIT4_0 || wid <= 0)
 	    return true;
       vvp_array_t array = resolve_runtime_array_(cp, "%release/reg/a");
       if (!array || address < 0 || (uint64_t)address >= array->get_size()
@@ -21684,7 +21686,7 @@ bool of_RET_VEC4(vthread_t thr, vvp_code_t cp)
       int64_t off = off_index ? thr->words[off_index].w_int : 0;
       unsigned int sig_value_size = fun_thr->parent->peek_vec4(depth).size();
 
-      if (off_index!=0 && thr->flags[4] == BIT4_1) {
+      if (off_index!=0 && thr->flags[4] != BIT4_0) {
 	    thr->pop_vec4(1);
 	    return true;
       }
@@ -21940,37 +21942,38 @@ bool of_SET_DAR_OBJ_VEC4(vthread_t thr, vvp_code_t cp)
  *
  * Read-modify-write on the vec4 stack: pops a <wid>-bit value and merges
  * it into the vector BELOW it at bit offset <off> (immediate, or read
- * from index register <off_reg> for the /x form), extending the target
- * with x bits if needed. Generic building block for container-element
- * partial stores (e.g. assoc[key][m:l] = v).
+ * from index register <off_reg> for the /x form). The target is a fixed-width
+ * container element, so out-of-range writes are clipped rather than extending
+ * the stack vector. Generic building block for container-element partial
+ * stores (e.g. assoc[key][m:l] = v).
  */
-static bool setbits_vec4_(vthread_t thr, long off, unsigned wid)
+static bool setbits_vec4_(vthread_t thr, int64_t off, unsigned wid)
 {
       vvp_vector4_t val = thr->pop_vec4();
       vvp_vector4_t&tgt = thr->peek_vec4();
 
-      if (off < 0)
-	    return true;
-      if ((size_t)(off) + wid > tgt.size()) {
-	    vvp_vector4_t bigger((unsigned)(off + wid), BIT4_X);
-	    bigger.set_vec(0, tgt);
-	    tgt = bigger;
-      }
       if (val.size() > wid)
 	    val = val.subvalue(0, wid);
+      if (!resize_rval_vec(val, off, tgt.size()))
+	    return true;
       tgt.set_vec((unsigned)off, val);
       return true;
 }
 
 bool of_SETBITS_VEC4(vthread_t thr, vvp_code_t cp)
 {
-      return setbits_vec4_(thr, (long)cp->bit_idx[0], cp->bit_idx[1]);
+      return setbits_vec4_(thr, cp->bit_idx[0], cp->bit_idx[1]);
 }
 
 bool of_SETBITS_VEC4_X(vthread_t thr, vvp_code_t cp)
 {
       unsigned off_reg = cp->bit_idx[0];
       assert(off_reg < vthread_s::WORDS_COUNT);
+      if (thr->flags[4] != BIT4_0) {
+	    /* Pop the replacement while retaining the target below it. */
+	    thr->pop_vec4(1);
+	    return true;
+      }
       return setbits_vec4_(thr, thr->words[off_reg].w_int, cp->bit_idx[1]);
 }
 
@@ -22812,9 +22815,36 @@ bool of_STORE_PROP_V_I(vthread_t thr, vvp_code_t cp)
  */
 bool of_STORE_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
 {
-      unsigned pid    = cp->number;
+      uint64_t pid_raw = cp->number;
       unsigned bitoff = cp->bit_idx[0];
       unsigned wid    = cp->bit_idx[1];
+
+      const vvp_vector4_t*top = thr->safe_peek_vec4(0);
+      if (wid == 0 || !top || top->size() < wid
+          || thr->object_stack_size() < 1) {
+            fprintf(stderr,
+                    "%sVVP error: malformed %%store/prop/v/bits stack or "
+                    "width metadata (wid=%u, vec4=%zu, object=%zu); "
+                    "operands not consumed.\n",
+                    thr->get_fileline().c_str(), wid,
+                    top ? (size_t)top->size() : 0,
+                    thr->object_stack_size());
+            return false;
+      }
+
+      vvp_object_t&obj = thr->peek_object();
+      fixed_prop_receiver_t recv = {
+            obj.peek<vvp_cobject>(), obj.peek<vvp_vinterface>()
+      };
+      const class_type*defn = recv.defn();
+      if ((!obj.test_nil() && !defn)
+          || (defn && pid_raw >= defn->property_count())) {
+            fprintf(stderr,
+                    "%sVVP error: malformed %%store/prop/v/bits receiver or "
+                    "property index (pid=%" PRIu64 "); operands not consumed.\n",
+                    thr->get_fileline().c_str(), pid_raw);
+            return false;
+      }
 
       vvp_vector4_t new_val;
       pop_prop_val(thr, new_val, wid);
@@ -22824,24 +22854,27 @@ bool of_STORE_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
 	 are preserved. Both a virtual interface and a plain class object
 	 (vvp_cobject) expose the same get_vec4/set_vec4 property API; a null
 	 receiver is a no-op (matches the other %store/prop handlers). */
-      vvp_object_t&obj = thr->peek_object();
-      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
-      vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      if (!vif && !cobj)
+      if (!defn)
 	    return true;
 
+      size_t pid = (size_t)pid_raw;
       vvp_vector4_t current;
-      if (vif) vif->get_vec4(pid, current, 0);
-      else     cobj->get_vec4(pid, current, 0);
+      recv.get_vec4(pid, current, 0);
 
-      /* Merge new_val bits into current at [bitoff .. bitoff+wid-1]. */
+      /* Merge new_val bits into current at [bitoff .. bitoff+wid-1].
+       * Widen before adding so UINT32_MAX offsets cannot wrap to bit zero. */
+      bool have_overlap = false;
       for (unsigned i = 0; i < wid; i++) {
-	    if (bitoff + i < current.size())
-		  current.set_bit(bitoff + i, new_val.value(i));
+	    uint64_t pos = (uint64_t)bitoff + (uint64_t)i;
+	    if (pos < current.size()) {
+		  current.set_bit((unsigned)pos, new_val.value(i));
+		  have_overlap = true;
+	    }
       }
+      if (!have_overlap)
+	    return true;
 
-      if (vif) vif->set_vec4(pid, current, 0);
-      else     cobj->set_vec4(pid, current, 0);
+      recv.set_vec4(pid, current, 0);
       notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
                                   thr->peek_object_root(0), "store-prop-bits");
       return true;
@@ -22903,49 +22936,114 @@ bool of_ASSIGN_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
 }
 
 /*
- * %store/prop/v/bits/x <pid>, <off_reg>, <wid>
+ * %store/prop/v/bits/x  <pid>, <off_reg>, <wid>
+ * %store/prop/v/bits/ux <pid>, <off_reg>, <wid>
  *
  * As %store/prop/v/bits, but the destination bit offset is taken at run
  * time from index register <off_reg> (thr->words[off_reg]) rather than
  * being an assembled literal. This is the read-modify-write path for a
  * VARIABLE bit-select or indexed part-select of a vector property, e.g.
- * `obj.m_bits[i +: 4] = ...`. Bits that fall outside the property vector
- * (including a negative computed offset) are dropped, matching the
- * no-op semantics of an out-of-bounds part-select.
+ * `obj.m_bits[i +: 4] = ...`. The /x spelling interprets the register as
+ * signed; /ux interprets all 64 bits as an unsigned offset. Bits that fall
+ * outside the property vector are dropped, matching the no-op semantics of
+ * an out-of-bounds part-select.
  */
-bool of_STORE_PROP_V_BITSX(vthread_t thr, vvp_code_t cp)
+static bool store_prop_v_bitsx_(vthread_t thr, vvp_code_t cp,
+                                bool signed_offset)
 {
-      unsigned pid     = cp->number;
+      const char*opcode = signed_offset ? "%store/prop/v/bits/x"
+                                         : "%store/prop/v/bits/ux";
+      uint64_t pid_raw = cp->number;
       unsigned off_reg = cp->bit_idx[0];
       unsigned wid     = cp->bit_idx[1];
+
+      const vvp_vector4_t*top = thr->safe_peek_vec4(0);
+      if (off_reg >= vthread_s::WORDS_COUNT || wid == 0 || !top
+          || top->size() < wid || thr->object_stack_size() < 1) {
+            fprintf(stderr,
+                    "%sVVP error: malformed %s operands or stacks "
+                    "(off_reg=%u, wid=%u, vec4=%zu, object=%zu); "
+                    "operands not consumed.\n",
+                    thr->get_fileline().c_str(), opcode, off_reg, wid,
+                    top ? (size_t)top->size() : 0,
+                    thr->object_stack_size());
+            return false;
+      }
+
+      vvp_object_t&obj = thr->peek_object();
+      fixed_prop_receiver_t recv = {
+            obj.peek<vvp_cobject>(), obj.peek<vvp_vinterface>()
+      };
+      const class_type*defn = recv.defn();
+      if ((!obj.test_nil() && !defn)
+          || (defn && pid_raw >= defn->property_count())) {
+            fprintf(stderr,
+                    "%sVVP error: malformed %s receiver or property index "
+                    "(pid=%" PRIu64 "); operands not consumed.\n",
+                    thr->get_fileline().c_str(), opcode, pid_raw);
+            return false;
+      }
 
       vvp_vector4_t new_val;
       pop_prop_val(thr, new_val, wid);
 
-      assert(off_reg < vthread_s::WORDS_COUNT);
-      long bitoff = thr->words[off_reg].w_int;
-
-      vvp_object_t&obj = thr->peek_object();
-      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
-      vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      if (!vif && !cobj)
+	/* %ix/vec4 records an X/Z or overflowing offset in flag 4. Such a
+	 * packed-select l-value is a no-op; never let its integer placeholder
+	 * (normally zero) alias a real property bit. */
+      if (thr->flags[4] != BIT4_0)
 	    return true;
 
+      if (!defn)
+	    return true;
+
+      size_t pid = (size_t)pid_raw;
       vvp_vector4_t current;
-      if (vif) vif->get_vec4(pid, current, 0);
-      else     cobj->get_vec4(pid, current, 0);
+      recv.get_vec4(pid, current, 0);
 
-      for (unsigned i = 0; i < wid; i++) {
-	    long pos = bitoff + (long)i;
-	    if (pos >= 0 && (size_t)pos < current.size())
-		  current.set_bit((unsigned)pos, new_val.value(i));
+	/* Compute overlap without signed addition: extreme dynamic offsets are
+	 * legal no-op writes and must not trigger signed-overflow UB. */
+      bool have_overlap = false;
+      if (!signed_offset || thr->words[off_reg].w_int >= 0) {
+	    uint64_t base = thr->words[off_reg].w_uint;
+	    for (unsigned i = 0; i < wid; i++) {
+		  if ((uint64_t)i > UINT64_MAX - base)
+			continue;
+		  uint64_t pos = base + (uint64_t)i;
+		  if (pos < current.size()) {
+			current.set_bit((unsigned)pos, new_val.value(i));
+			have_overlap = true;
+		  }
+	    }
+      } else {
+	    int64_t bitoff = thr->words[off_reg].w_int;
+	    uint64_t below = (uint64_t)(-(bitoff + 1)) + 1;
+	    for (unsigned i = 0; i < wid; i++) {
+		  if ((uint64_t)i < below)
+			continue;
+		  uint64_t pos = (uint64_t)i - below;
+		  if (pos < current.size()) {
+			current.set_bit((unsigned)pos, new_val.value(i));
+			have_overlap = true;
+		  }
+	    }
       }
+      if (!have_overlap)
+	    return true;
 
-      if (vif) vif->set_vec4(pid, current, 0);
-      else     cobj->set_vec4(pid, current, 0);
+      recv.set_vec4(pid, current, 0);
       notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
                                   thr->peek_object_root(0), "store-prop-bits-x");
       return true;
+}
+
+bool of_STORE_PROP_V_BITSX(vthread_t thr, vvp_code_t cp)
+{
+      return store_prop_v_bitsx_(thr, cp, true);
+}
+
+bool of_STORE_PROP_V_BITSUX(vthread_t thr, vvp_code_t cp)
+{
+      return store_prop_v_bitsx_(thr, cp, false);
 }
 
 template <typename ELEM, class QTYPE>
@@ -23754,9 +23852,8 @@ bool of_STORE_VEC4(vthread_t thr, vvp_code_t cp)
 	    val.resize(wid);
       }
 
-	// If there is a problem loading the index register, flags-4
-	// will be set to 1, and we know here to skip the actual assignment.
-      if (off_index!=0 && thr->flags[4] == BIT4_1) {
+	// Skip an unknown offset or one that overflowed the index register.
+      if (off_index!=0 && thr->flags[4] != BIT4_0) {
 	    thr->pop_vec4(1);
 	    return true;
       }
@@ -23787,17 +23884,21 @@ bool of_STORE_VEC4A(vthread_t thr, vvp_code_t cp)
       unsigned adr_index = cp->bit_idx[0];
       unsigned off_index = cp->bit_idx[1];
 
-      long adr = adr_index? thr->words[adr_index].w_int : 0;
+      int64_t adr = adr_index? thr->words[adr_index].w_int : 0;
       int64_t off = off_index ? thr->words[off_index].w_int : 0;
 
-	// Suppress action if flags-4 is true.
-      if (thr->flags[4] == BIT4_1) {
+	// Suppress an unknown address/offset or one that overflowed its register.
+      if (thr->flags[4] != BIT4_0) {
 	    thr->pop_vec4(1);
 	    return true;
       }
 
       vvp_array_t array = resolve_runtime_array_(cp, "%store/vec4a");
       if (!array) {
+	    thr->pop_vec4(1);
+	    return true;
+      }
+      if (adr < 0 || (uint64_t)adr >= array->get_size()) {
 	    thr->pop_vec4(1);
 	    return true;
       }
@@ -23809,7 +23910,7 @@ bool of_STORE_VEC4A(vthread_t thr, vvp_code_t cp)
 	    return true;
       }
 
-      array->set_word(adr, off, value);
+      array->set_word((unsigned)adr, off, value);
 
       thr->pop_vec4(1);
       return true;

@@ -8,3 +8,4 @@ sv_interface_class_illegal_items_fail CE,-g2012 ivltests gold=sv_interface_class
 sv_interface_class_relation_fail CE,-g2012 ivltests gold=sv_interface_class_relation_fail.gold
 sv_interface_class_qualifier_fail CE,-g2012 ivltests gold=sv_interface_class_qualifier_fail.gold
 sv_interface_class_nonvirtual_method_fail CE,-g2012 ivltests gold=sv_interface_class_nonvirtual_method_fail.gold
+sv_package_param_interface_relations normal,-g2012 ivltests gold=sv_package_param_interface_relations.gold

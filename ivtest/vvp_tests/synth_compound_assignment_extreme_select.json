@@ -1,0 +1,9 @@
+{
+    "type"          : "normal",
+    "source"        : "synth_compound_assignment_extreme_select.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "synth_compound_assignment_extreme_select",
+    "vlog95"        : {
+        "type" : "NI"
+    }
+}

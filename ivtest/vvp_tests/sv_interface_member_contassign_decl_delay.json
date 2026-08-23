@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_interface_member_contassign_decl_delay.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_interface_member_contassign_decl_delay" ],
+    "gold"          : "sv_interface_member_contassign_decl_delay"
+}

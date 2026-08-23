@@ -24,6 +24,7 @@
 # include  <cassert>
 # include  <typeinfo>
 # include  "netlist.h"
+# include  "netclass.h"
 # include  "netmisc.h"
 
 using namespace std;
@@ -55,10 +56,51 @@ void NetAssign_::nex_output(NexusSet&out)
 {
       NetNet*interface_member = resolve_interface_member_signal();
       NetNet*use_sig = interface_member ? interface_member : sig_;
-      if (!use_sig && is_interface_member() && nest_)
-            use_sig = nest_->sig();
-      assert(!nest_ || interface_member || is_interface_member());
+      bool nested_root_fallback = false;
+
+	/* A class property may be encoded either on the root assignment node or
+	 * as one or more nested nodes. In both cases, output discovery only needs
+	 * a conservative provisional map: synthesis will issue the supported-
+	 * boundary diagnostic before lowering the property store. */
+      if (!interface_member) {
+	    const NetAssign_*root = this;
+	    while (root->nest())
+		  root = root->nest();
+	    NetNet*root_sig = root->sig();
+	    const netclass_t*root_class = root_sig
+		  ? dynamic_cast<const netclass_t*>(root_sig->net_type()) : 0;
+	    if (root_class && !root_class->is_interface()) {
+		  use_sig = root_sig;
+		  nested_root_fallback = true;
+	    }
+      }
+      if (!use_sig && nest_) {
+	    /* Object member l-values are rooted in a nested assignment node.
+	     * Synthesis validation must be allowed to reject unsupported
+	     * object-backed word selects before this output-discovery walk tries
+	     * to treat the member as a standalone signal. Use the root carrier
+	     * only to construct the provisional process output map. */
+	    const NetAssign_*root = nest_;
+	    while (root->nest())
+		  root = root->nest();
+	    use_sig = root->sig();
+	    nested_root_fallback = true;
+      }
       assert(use_sig);
+
+	/* A nested property's word/base selects describe the property, not the
+	 * root object handle. Never apply them to the root carrier: class handles
+	 * have a single object pin, so `obj.array_property[1]' otherwise indexes
+	 * pin 1 and aborts before synthesis can issue its supported-boundary
+	 * diagnostic. Conservatively expose every root word, then let the normal
+	 * synthesis validation reject unsupported object-backed l-values. */
+      if (nested_root_fallback) {
+	    for (unsigned idx = 0; idx < use_sig->pin_count(); idx += 1) {
+		  Nexus*nex = use_sig->pin(idx).nexus();
+		  out.add(nex, 0, nex->vector_width());
+	    }
+	    return;
+      }
 
 	// A synchronous synthesis pass may replace a single run-time-selected
 	// whole-word write by one structural array write port. Let that pass
@@ -97,10 +139,15 @@ void NetAssign_::nex_output(NexusSet&out)
       unsigned use_base = 0;
       unsigned use_wid = lwidth();
       if (word_) {
-	    long tmp = 0;
-	    if (eval_as_long(tmp, word_)) {
+	    const NetEConst*word_const = dynamic_cast<const NetEConst*>(word_);
+	    if (word_const) {
 		    // A constant word select, so add the selected word.
-		  use_word = tmp;
+		  if (!word_const->value().is_defined())
+			return;
+		  unsigned long tmp = word_const->value().as_ulong();
+		  if (tmp >= use_sig->pin_count())
+			return;
+		  use_word = static_cast<unsigned>(tmp);
 	    } else {
 		    // For always_comb sensitivity subtraction, claiming the
 		    // whole array could remove words that the block only reads.
@@ -153,16 +200,26 @@ void NetAssign_::nex_output(NexusSet&out)
 	    if (nex_output_precise_partsel) {
 		  const NetEConst*base_c = dynamic_cast<const NetEConst*>(base_);
 		  if (base_c && base_c->value().is_defined()) {
-			long off = base_c->value().as_long();
-			long end = off + use_wid;
-			long overlap_base = std::max(off, 0L);
-			long overlap_end = std::min(
-			      end, static_cast<long>(nex->vector_width()));
-			if (overlap_end <= overlap_base)
+			bool negative = false;
+			uint64_t magnitude = verinum_signed_magnitude(
+			      base_c->value(), negative);
+			uint64_t selected_width = use_wid;
+			uint64_t signal_width = nex->vector_width();
+			uint64_t overlap_base = 0;
+			uint64_t overlap_width = 0;
+			if (negative) {
+			      if (magnitude < selected_width)
+				overlap_width = std::min(
+				      selected_width-magnitude, signal_width);
+			} else if (magnitude < signal_width) {
+			      overlap_base = magnitude;
+			      overlap_width = std::min(
+				    selected_width, signal_width-magnitude);
+			}
+			if (overlap_width == 0)
 			      return;
 			use_base = static_cast<unsigned>(overlap_base);
-			use_wid = static_cast<unsigned>(overlap_end
-						    - overlap_base);
+			use_wid = static_cast<unsigned>(overlap_width);
 			narrow = true;
 		  }
 	    }
@@ -251,7 +308,9 @@ void NetForever::nex_output(NexusSet&out)
 
 void NetForLoop::nex_output(NexusSet&out)
 {
+      synth_array_write_loop_enter();
       if (statement_) statement_->nex_output(out);
+      synth_array_write_loop_leave();
 }
 
 void NetFree::nex_output(NexusSet&)

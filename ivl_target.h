@@ -2328,6 +2328,12 @@ extern unsigned ivl_stmt_lineno(ivl_statement_t net);
  *    that is to be calculated and assigned to the l-value in all the
  *    assignment statements.
  *
+ * ivl_stmt_force_link_rval
+ *    For an IVL_ST_FORCE, return the expression used to keep the force live
+ *    after its initial activation. This may differ from ivl_stmt_rval, which
+ *    remains the expression evaluated when the statement executes. When no
+ *    distinct structural link source exists, this returns ivl_stmt_rval.
+ *
  * ivl_stmt_sub_stmt
  *    Some statements contain a single, subordinate statement. An
  *    example is the IVL_ST_WAIT, which contains the statement to be
@@ -2500,6 +2506,8 @@ extern unsigned ivl_stmt_parm_count(ivl_statement_t net);
   /* IVL_ST_ASSIGN IVL_ST_ASSIGN_NB IVL_ST_CASSIGN IVL_ST_CONTRIB
      IVL_ST_FORCE */
 extern ivl_expr_t ivl_stmt_rval(ivl_statement_t net);
+  /* IVL_ST_FORCE */
+extern ivl_expr_t ivl_stmt_force_link_rval(ivl_statement_t net);
   /* IVL_ST_STASK */
 extern ivl_sfunc_as_task_t ivl_stmt_sfunc_as_task(ivl_statement_t net);
   /* IVL_ST_DELAY, IVL_ST_DELAYX, IVL_ST_FOREVER, IVL_ST_FORLOOP,
@@ -2716,7 +2724,10 @@ extern DLLEXPORT const char* target_query(const char*key);
       incremental entry points below. The core calls target_design_begin()
       after definitions are materialized, target_process() synchronously for
       each process, and target_design_end() after the last process. Missing
-      hooks or any other answer retain the historical target_design() call. */
+      hooks or any other answer retain the historical target_design() call.
+      Their return values follow target_design(): zero is success, a positive
+      value is an approximate code-generation error count, and a negative
+      value is a system or infrastructure failure. */
 
 /* "order_processes"
       An incremental target may additionally return the exact string "true"

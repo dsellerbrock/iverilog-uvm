@@ -838,7 +838,9 @@ class NetNet  : public NetObj, public PortType {
       void bind_interface_member(unsigned word, size_t property_idx,
                                  NetNet*member);
       NetNet* resolve_interface_member(unsigned word,
-                                       size_t property_idx) const;
+                                       size_t property_idx,
+                                       const NetNet**unbound_root = 0,
+                                       unsigned*unbound_word = 0) const;
 
       /* User-defined nettype identity is distinct from the lowered data type.
        * Keep both the spelling selected at the declaration and its canonical
@@ -3274,6 +3276,9 @@ class NetAlloc  : public NetProc {
                                   bool nested_func = false) const override;
       virtual void nex_output(NexusSet&) override;
       virtual bool emit_proc(struct target_t*) const override;
+      bool synth_async(Design*des, NetScope*scope,
+		       NexusSet&nex_map, NetBus&nex_out,
+		       NetBus&enables, std::vector<mask_t>&bitmasks) override;
       virtual void dump(std::ostream&, unsigned ind) const override;
 
     private:
@@ -3507,6 +3512,12 @@ class NetAssignBase : public NetProc {
       void dump_lval(std::ostream&) const;
       virtual void dump(std::ostream&, unsigned ind) const override;
 
+    protected:
+        // Replace the r-value without deleting either expression. This is for
+        // derived-class lowering passes that must temporarily substitute an
+        // equivalent expression while preserving the behavioral IR.
+      NetExpr* exchange_rval(NetExpr*);
+
     private:
       NetAssign_*lval_;
       NetExpr   *rval_;
@@ -3523,6 +3534,10 @@ class NetAssign : public NetAssignBase {
       bool is_asynchronous() override;
 
       inline char assign_operator(void) const { return op_; }
+
+      bool synth_async(Design*des, NetScope*scope,
+		       NexusSet&nex_map, NetBus&nex_out,
+		       NetBus&enables, std::vector<mask_t>&bitmasks) override;
 
       virtual bool emit_proc(struct target_t*) const override;
       virtual int match_proc(struct proc_match_t*) override;
@@ -4413,12 +4428,20 @@ class NetEvProbe  : public NetNode {
 class NetForce  : public NetAssignBase {
 
     public:
-      explicit NetForce(NetAssign_*l, NetExpr*r);
+      explicit NetForce(NetAssign_*l, NetExpr*r, NetExpr*link_r = 0);
       ~NetForce() override;
+
+        /* When non-null, this assignment-context-sized signal is the
+	 * continuously driven source used to keep the force live. The ordinary
+	 * rval remains the expression evaluated when the force first executes. */
+      const NetExpr* force_link_rval() const;
 
       virtual void dump(std::ostream&, unsigned ind) const override;
       virtual bool emit_proc(struct target_t*) const override;
       virtual bool check_synth(ivl_process_type_t pr_type, const NetScope*scope) const override;
+
+    private:
+      NetExpr*force_link_rval_;
 };
 
 /*
@@ -4499,6 +4522,9 @@ class NetFree   : public NetProc {
                                   bool nested_func = false) const override;
       virtual void nex_output(NexusSet&) override;
       virtual bool emit_proc(struct target_t*) const override;
+      bool synth_async(Design*des, NetScope*scope,
+		       NexusSet&nex_map, NetBus&nex_out,
+		       NetBus&enables, std::vector<mask_t>&bitmasks) override;
       virtual void dump(std::ostream&, unsigned ind) const override;
 
     private:

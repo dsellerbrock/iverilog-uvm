@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_property_extreme_negative_offset.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_property_extreme_negative_offset" ],
+    "gold"          : "sv_property_extreme_negative_offset"
+}

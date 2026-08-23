@@ -205,14 +205,14 @@ static void eval_logic_into_integer(ivl_expr_t expr, unsigned ix)
 	  case IVL_EX_NUMBER:
 	  case IVL_EX_ULONG:
 	      {
-		    /* Compile-progress: wide constants that don't fit in immediate
-		       are truncated to 0. */
+		    /* Preserve wide constants through the vec4-to-index path. It
+		       records X/Z and signed/unsigned overflow in flag 4; silently
+		       replacing the value with zero can redirect an out-of-range
+		       packed write to bit zero. */
 		    if (!number_is_immediate(expr, IMM_WID, 1)) {
-			  fprintf(stderr, "Warning: eval_logic_into_integer: "
-				  "constant too wide for integer load; truncating to 0 "
-				  "(compile-progress).\n");
-			  fprintf(vvp_out, "    %%ix/load %u, 0, 0;\n", ix);
-			  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+			  draw_eval_vec4(expr);
+			  fprintf(vvp_out, "    %%ix/vec4%s %u;\n",
+				  ivl_expr_signed(expr) ? "/s" : "", ix);
 			  break;
 		    }
 		    if (number_is_unknown(expr)) {
