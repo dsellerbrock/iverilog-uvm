@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "synth_compound_assignment_dynamic_carrier_reject.v",
+    "iverilog-args" : [ "-S", "-g2012" ],
+    "gold"          : "synth_compound_assignment_dynamic_carrier_reject"
+}

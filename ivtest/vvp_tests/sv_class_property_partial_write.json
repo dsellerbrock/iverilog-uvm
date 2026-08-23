@@ -1,0 +1,5 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_class_property_partial_write.v",
+    "iverilog-args" : [ "-g2012" ]
+}

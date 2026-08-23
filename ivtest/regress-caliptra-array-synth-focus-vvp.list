@@ -1,0 +1,2 @@
+synth_clocked_uarray_loop_copy vvp_tests/synth_clocked_uarray_loop_copy.json
+synth_clocked_uarray_loop_copy-S vvp_tests/synth_clocked_uarray_loop_copy-S.json

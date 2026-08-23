@@ -1,4 +1,12 @@
 synth_async_reset_equality normal,-S,-g2012 ivltests
 synth_async_reset_comparison_mismatch_fail CE,-S,-g2012 ivltests gold=synth_async_reset_comparison_mismatch_fail.gold
+synth_async_reset_transformed_predicate_reject CE,-S,-g2012 ivltests gold=synth_async_reset_transformed_predicate_reject.gold
+synth_async_reset_multidriver_select_reject CE,-S,-g2012 ivltests gold=synth_async_reset_multidriver_select_reject.gold
+synth_async_reset_cyclic_select_reject CE,-S,-g2012 ivltests gold=synth_async_reset_cyclic_select_reject.gold
+synth_async_reset_cast_predicate_reject CE,-S,-g2012 ivltests gold=synth_async_reset_cast_predicate_reject.gold
+synth_async_reset_root_inout_driver_reject CE,-S,-g2012 ivltests gold=synth_async_reset_root_inout_driver_reject.gold
+synth_packed_struct_async_reset normal,-S,-g2012 ivltests
+synth_packed_struct_async_event_orders normal,-S,-g2012 ivltests gold=synth_packed_struct_async_event_orders.gold
 synth_dual_async_initial_events normal,-S,-g2012 ivltests
 synth_dual_async_priority normal,-S,-g2012 ivltests
+synth_multiple_clocks_reject CE,-S,-g2012 ivltests gold=synth_multiple_clocks_reject.gold

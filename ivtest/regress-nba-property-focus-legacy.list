@@ -1,0 +1,3 @@
+# Property-bearing nonblocking assignment boundaries (IEEE 1800-2017 10.4.2)
+sv_nba_concat_property_reject CE,-g2012 ivltests gold=sv_nba_concat_property_reject.gold
+sv_nba_property_dynamic_fail CE,-g2012 ivltests

@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_scope_index_dynamic_fail.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_scope_index_dynamic_fail" ],
+    "gold"          : "sv_scope_index_dynamic_fail"
+}

@@ -1,0 +1,9 @@
+ivltests/synth_async_reset_cast_predicate_reject.v:25: warning: cannot determine the precise sensitivity for the select of <select=<select=<select=rst[(0)+:32] expr_type=logic>[(0)+:32] expr_type=logic>[(0)+:32] net_type=(11netstruct_t)>; using conservative whole-expression sensitivity.
+ivltests/synth_async_reset_cast_predicate_reject.v:25: warning: cannot determine the precise sensitivity for the select of <select=<select=<select=rst[(0)+:32] expr_type=logic>[(0)+:32] expr_type=logic>[(0)+:32] net_type=(11netstruct_t)>; using conservative whole-expression sensitivity.
+ivltests/synth_async_reset_cast_predicate_reject.v:25: error: Condition for negedge asynchronous set/reset must be a simple inversion of the event expression.
+ivltests/synth_async_reset_cast_predicate_reject.v:24: error: Unable to synthesize synchronous process.
+ivltests/synth_async_reset_cast_predicate_reject.v:17: error: Condition for posedge asynchronous set/reset must exactly match the event expression.
+ivltests/synth_async_reset_cast_predicate_reject.v:16: error: Unable to synthesize synchronous process.
+ivltests/synth_async_reset_cast_predicate_reject.v:24: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+ivltests/synth_async_reset_cast_predicate_reject.v:16: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+6 error(s) in post-elaboration processing.

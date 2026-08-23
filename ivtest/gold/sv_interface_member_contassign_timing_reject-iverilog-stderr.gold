@@ -1,0 +1,3 @@
+ivltests/sv_interface_member_contassign_timing_reject.v:12: sorry: Nonzero/dynamic delay and non-default drive strength on a continuous assignment to an interface member are not currently supported.
+ivltests/sv_interface_member_contassign_timing_reject.v:13: sorry: Nonzero/dynamic delay and non-default drive strength on a continuous assignment to an interface member are not currently supported.
+2 error(s) during elaboration.

@@ -1,0 +1,2 @@
+ivltests/sv_interface_port_array_shape_fail.v:13: error: Cannot bind interface-port array `ports' of module `port_array_shape_consumer' to `bus': the formal has 2 unpacked dimensions, but an interface instance array has 1.
+1 error(s) during elaboration.

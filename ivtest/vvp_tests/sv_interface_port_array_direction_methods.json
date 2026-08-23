@@ -1,0 +1,9 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_interface_port_array_direction_methods.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_interface_port_array_direction_methods" ],
+    "gold"          : "sv_interface_port_array_direction_methods",
+    "vlog95"        : {
+        "type" : "NI"
+    }
+}

@@ -1,0 +1,9 @@
+{
+    "type"          : "normal",
+    "source"        : "synth_initial_unobservable_side_effect.v",
+    "iverilog-args" : [ "-S", "-g2012", "-s", "synth_initial_unobservable_side_effect" ],
+    "gold"          : "synth_initial_unobservable_side_effect-S",
+    "vlog95"        : {
+        "type" : "NI"
+    }
+}

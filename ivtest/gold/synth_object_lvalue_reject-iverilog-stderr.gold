@@ -1,0 +1,17 @@
+ivltests/synth_object_lvalue_reject.v:44: sorry: A class/object-backed procedural l-value is not currently supported in synthesis.
+ivltests/synth_object_lvalue_reject.v:41: sorry: A class/object-backed procedural l-value is not currently supported in synthesis.
+ivltests/synth_object_lvalue_reject.v:38: sorry: A class/object-backed procedural l-value is not currently supported in synthesis.
+ivltests/synth_object_lvalue_reject.v:35: sorry: A class/object-backed procedural l-value is not currently supported in synthesis.
+ivltests/synth_object_lvalue_reject.v:32: sorry: A class/object-backed procedural l-value is not currently supported in synthesis.
+ivltests/synth_object_lvalue_reject.v:29: sorry: A class/object-backed procedural l-value is not currently supported in synthesis.
+ivltests/synth_object_lvalue_reject.v:23: sorry: A class/object-backed procedural l-value is not currently supported in synthesis.
+ivltests/synth_object_lvalue_reject.v:20: sorry: A class/object-backed procedural l-value is not currently supported in synthesis.
+ivltests/synth_object_lvalue_reject.v:43: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+ivltests/synth_object_lvalue_reject.v:40: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+ivltests/synth_object_lvalue_reject.v:37: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+ivltests/synth_object_lvalue_reject.v:34: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+ivltests/synth_object_lvalue_reject.v:31: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+ivltests/synth_object_lvalue_reject.v:28: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+ivltests/synth_object_lvalue_reject.v:22: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+ivltests/synth_object_lvalue_reject.v:19: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+16 error(s) in post-elaboration processing.

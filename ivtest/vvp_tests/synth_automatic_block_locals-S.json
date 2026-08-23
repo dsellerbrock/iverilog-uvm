@@ -1,0 +1,8 @@
+{
+    "type"          : "normal",
+    "source"        : "synth_automatic_block_locals.v",
+    "iverilog-args" : [ "-S", "-g2012" ],
+    "vlog95"        : {
+        "type" : "NI"
+    }
+}

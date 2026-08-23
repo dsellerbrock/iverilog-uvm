@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_scope_index_constant_function.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_scope_index_constant_function" ],
+    "gold"          : "sv_scope_index_constant_function"
+}

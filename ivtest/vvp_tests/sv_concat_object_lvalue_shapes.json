@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_concat_object_lvalue_shapes.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_concat_object_lvalue_shapes" ],
+    "gold"          : "sv_concat_object_lvalue_shapes"
+}

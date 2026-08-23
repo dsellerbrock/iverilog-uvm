@@ -1,0 +1,9 @@
+{
+    "type"          : "normal",
+    "source"        : "synth_packed_struct_async_event_orders.v",
+    "iverilog-args" : [ "-S", "-g2012" ],
+    "gold"          : "synth_packed_struct_async_event_orders",
+    "vlog95"        : {
+        "type" : "NI"
+    }
+}

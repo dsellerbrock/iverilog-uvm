@@ -1,0 +1,2 @@
+./ivltests/sv_interface_port_array_forwarded_shape_fail.v:10: error: Cannot bind interface-port array `ports' of module `forwarded_shape_leaf' to `ports': formal unpacked shape [0:0][0:1] does not match actual unpacked shape [1:0].
+1 error(s) during elaboration.

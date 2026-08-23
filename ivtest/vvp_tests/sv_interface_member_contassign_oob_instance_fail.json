@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_interface_member_contassign_oob_instance_fail.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_interface_member_contassign_oob_instance_fail" ],
+    "gold"          : "sv_interface_member_contassign_oob_instance_fail"
+}

@@ -1,0 +1,4 @@
+ivltests/synth_multiple_clocks_reject.v:11: error: Too many clocks for synchronous logic.
+ivltests/synth_multiple_clocks_reject.v:11:	  : Perhaps an asynchronous set/reset is misused?
+ivltests/synth_multiple_clocks_reject.v:11: error: Unable to synthesize synchronous process.
+2 error(s) in post-elaboration processing.

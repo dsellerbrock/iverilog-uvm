@@ -1,0 +1,3 @@
+./ivltests/synth_compound_assignment_incomplete_prior_reject.v:11: sorry: A compound assignment without an unconditionally available prior value is not currently supported in synthesis.
+./ivltests/synth_compound_assignment_incomplete_prior_reject.v:8: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+2 error(s) in post-elaboration processing.

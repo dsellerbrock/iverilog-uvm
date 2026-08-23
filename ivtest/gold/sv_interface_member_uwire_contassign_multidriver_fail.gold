@@ -1,0 +1,2 @@
+./ivltests/sv_interface_member_uwire_contassign_multidriver_fail.v:14: error: Unresolved interface net member `single_driver' cannot have multiple drivers.
+1 error(s) during elaboration.
