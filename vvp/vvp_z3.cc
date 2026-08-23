@@ -573,21 +573,21 @@ struct Z3Builder {
       const std::map<unsigned,uint64_t>*dyn_sizes = nullptr;
 
 	// solve...before ordering pairs (IEEE 1800-2017 18.5.10). A
-	// selected static-array element is a distinct ordering variable,
-	// rather than collapsing to its owning property: OpenTitan uses
-	// `solve control before table[i]' inside foreach constraint sets.
+	// selected static-array element and a dynamic-container size are
+	// distinct ordering variables, rather than collapsing to their owning
+	// property. This preserves directives such as `solve n before a.size'.
       struct OrderRef {
-	    bool is_elem;
+	    enum Kind { PROP, ELEM, SIZE } kind;
 	    unsigned idx;
 	    unsigned elem;
 
 	    bool operator<(const OrderRef&that) const {
-		  if (is_elem != that.is_elem) return is_elem < that.is_elem;
+		  if (kind != that.kind) return kind < that.kind;
 		  if (idx != that.idx) return idx < that.idx;
 		  return elem < that.elem;
 	    }
 	    bool operator==(const OrderRef&that) const {
-		  return is_elem == that.is_elem && idx == that.idx
+		  return kind == that.kind && idx == that.idx
 			&& elem == that.elem;
 	    }
       };
@@ -634,6 +634,18 @@ static Z3_ast parse_prop(IRParser&, Z3Builder& b, const string& tok)
       if (sflag) b.signed_vars.insert(var);
       if (b.collect_prop_refs) b.collect_prop_refs->insert((int)idx);
       return var;
+}
+
+// Parse "s:N:T" -- returns the 32-bit dynamic-container size variable.
+static Z3_ast parse_size(Z3Builder& b, const string& tok,
+			 unsigned*idx_out = nullptr)
+{
+      const char*s = tok.c_str() + 2;
+      unsigned idx = (unsigned)atoi(s);
+      while (*s && *s != ':') ++s;
+      string dtype = (*s == ':') ? string(s + 1) : string("v32");
+      if (idx_out) *idx_out = idx;
+      return b.get_size_var(idx, dtype);
 }
 
 // Parse "e:N:W:I[:s]" -- returns the selected array-element variable.
@@ -888,11 +900,7 @@ static Z3_ast build_z3_atom(IRParser& par, Z3Builder& b)
       }
       if (tok.substr(0,2) == "s:") {
 	      // s:N:T — size of dynamic-array property N, darray type T.
-	    const char*s = tok.c_str() + 2;
-	    unsigned idx = (unsigned)atoi(s);
-	    while (*s && *s != ':') ++s;
-	    string dtype = (*s == ':') ? string(s + 1) : string("v32");
-	    return b.get_size_var(idx, dtype);
+	    return parse_size(b, tok);
       }
       if (tok.substr(0,2) == "e:") {
 	    return parse_elem(par, b, tok);
@@ -1059,10 +1067,10 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    return var;
       }
 
-	/* Variable-ordering directive: (order (vars p:../e:..)
-	 * (vars p:../e:..)). Registers properties or selected elements
-	 * (so they become solver variables
-	 * even if otherwise unconstrained) and records every
+	/* Variable-ordering directive: (order (vars p:../e:../s:..)
+	 * (vars p:../e:../s:..)). Registers properties, selected elements,
+	 * or dynamic-container sizes (so they become solver variables even if
+	 * otherwise unconstrained) and records every
 	 * before-var x after-var pair. Contributes `true` — ordering
 	 * affects distribution, not satisfiability (18.5.10). */
       if (op == "order") {
@@ -1080,7 +1088,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 			if (tok.compare(0, 2, "p:") == 0) {
 			      parse_prop(par, b, tok);
 			      Z3Builder::OrderRef ref;
-			      ref.is_elem = false;
+			      ref.kind = Z3Builder::OrderRef::PROP;
 			      ref.idx = (unsigned)atoi(tok.c_str() + 2);
 			      ref.elem = 0;
 			      groups[g].push_back(ref);
@@ -1088,13 +1096,19 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 			      parse_elem(par, b, tok);
 			      const char*s = tok.c_str() + 2;
 			      Z3Builder::OrderRef ref;
-			      ref.is_elem = true;
+			      ref.kind = Z3Builder::OrderRef::ELEM;
 			      ref.idx = (unsigned)atoi(s);
 			      while (*s && *s != ':') ++s;
 			      if (*s == ':') ++s;
 			      while (*s && *s != ':') ++s;
 			      ref.elem = (*s == ':')
 				    ? (unsigned)atoi(s + 1) : 0;
+			      groups[g].push_back(ref);
+			} else if (tok.compare(0, 2, "s:") == 0) {
+			      Z3Builder::OrderRef ref;
+			      ref.kind = Z3Builder::OrderRef::SIZE;
+			      parse_size(b, tok, &ref.idx);
+			      ref.elem = 0;
 			      groups[g].push_back(ref);
 			}
 		  }
@@ -2898,14 +2912,25 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       }
 
 	// solve...before staged solving (IEEE 1800-2017 18.5.10): rank
-	// the ordered scalar properties/selected array elements by longest
-	// path in the before-graph,
+	// the ordered scalar properties/selected array elements/container sizes
+	// by longest path in the before-graph,
 	// then for each non-final rank solve the FULL hard-constraint
 	// set with the diversity objective applied to that rank's
 	// variables alone, and pin their solved values before the next
 	// stage. The final rank (and all unordered variables) solve in
 	// the normal combined pass below. Pins come from a complete
-	// satisfying model, so they can never make later stages UNSAT.
+	// satisfying model, so they can never make later stages UNSAT. Size
+	// targets are cached across the staged and combined passes: every size
+	// consumes exactly one object-RNG word regardless of its ordering rank.
+      std::map<unsigned,uint64_t> size_random_targets;
+      auto size_random_target = [&](unsigned idx) -> uint64_t {
+	    std::map<unsigned,uint64_t>::iterator found =
+		  size_random_targets.find(idx);
+	    if (found != size_random_targets.end()) return found->second;
+	    uint64_t target = (uint64_t)(rng.next() & 0xF);
+	    size_random_targets[idx] = target;
+	    return target;
+      };
       if (!builder.order_pairs.empty()) {
 	    std::map<Z3Builder::OrderRef,unsigned> rank;
 	    for (const auto& pr : builder.order_pairs) {
@@ -2943,7 +2968,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			for (const auto&ranked : rank) {
 			      if (ranked.second != r) continue;
 			      const Z3Builder::OrderRef&ref = ranked.first;
-			      if (ref.is_elem
+			      if (ref.kind == Z3Builder::OrderRef::ELEM
 				  ? !rand_elem_active_(defn, cobj, prop_active,
 						       ref.idx, ref.elem)
 				  : !rand_active_(defn, cobj, prop_active, ref.idx))
@@ -2951,7 +2976,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      Z3_ast var = nullptr;
 			      unsigned width = 0;
 			      uint64_t rand_bits = 0;
-			      if (ref.is_elem) {
+			      if (ref.kind == Z3Builder::OrderRef::ELEM) {
 				    for (auto&ev : builder.elem_vars)
 					  if (ev.idx == ref.idx
 					      && ev.elem == ref.elem) {
@@ -2961,7 +2986,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 					  }
 				    rand_bits = cobj_elem_bits(cobj, ref.idx,
 							     ref.elem);
-			      } else {
+			      } else if (ref.kind == Z3Builder::OrderRef::PROP) {
 				    for (auto&pv : builder.prop_vars)
 					  if (pv.idx == ref.idx) {
 						var = pv.var;
@@ -2969,6 +2994,14 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 						break;
 					  }
 				    rand_bits = cobj_prop_bits(cobj, ref.idx);
+			      } else {
+				    for (auto&sv : builder.size_vars)
+					  if (sv.idx == ref.idx) {
+						var = sv.var;
+						width = 32;
+						break;
+					  }
+				    rand_bits = size_random_target(ref.idx);
 			      }
 			      if (!var || width == 0) continue;
 			      Z3_sort sort = Z3_mk_bv_sort(ctx, width);
@@ -2987,23 +3020,29 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			for (const auto&ranked : rank) {
 			      if (ranked.second != r) continue;
 			      const Z3Builder::OrderRef&ref = ranked.first;
-			      if (ref.is_elem
+			      if (ref.kind == Z3Builder::OrderRef::ELEM
 				  ? !rand_elem_active_(defn, cobj, prop_active,
 						       ref.idx, ref.elem)
 				  : !rand_active_(defn, cobj, prop_active, ref.idx))
 				    continue;
 			      Z3_ast var = nullptr;
-			      if (ref.is_elem) {
+			      if (ref.kind == Z3Builder::OrderRef::ELEM) {
 				    for (auto&ev : builder.elem_vars)
 					  if (ev.idx == ref.idx
 					      && ev.elem == ref.elem) {
 						var = ev.var;
 						break;
 					  }
-			      } else {
+			      } else if (ref.kind == Z3Builder::OrderRef::PROP) {
 				    for (auto&pv : builder.prop_vars)
 					  if (pv.idx == ref.idx) {
 						var = pv.var;
+						break;
+					  }
+			      } else {
+				    for (auto&sv : builder.size_vars)
+					  if (sv.idx == ref.idx) {
+						var = sv.var;
 						break;
 					  }
 			      }
@@ -3167,7 +3206,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	      // properties.
 	    Z3_sort sort = Z3_mk_bv_sort(ctx, 32);
 	    Z3_ast rv = Z3_mk_unsigned_int64(ctx,
-		  (uint64_t)(rng.next() & 0xF), sort);
+		  size_random_target(sv.idx), sort);
 	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, sv.var, rv));
       }
 

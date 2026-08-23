@@ -1,0 +1,2 @@
+ivltests/sv_constraint_darray_size_nonrand_order_fail.v:6: error: target of 'solve before' constraint must be a random variable.
+1 error(s) during elaboration.

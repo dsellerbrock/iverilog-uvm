@@ -20520,6 +20520,22 @@ static void constraint_randc_reference_error_(const PExpr*site,
       constraint_ir_design_ctx_->errors += 1;
 }
 
+/* A solve-before operand must name a random variable (18.5.10). Container
+ * sizes carry their owning property's index in the s: token, so reject the
+ * state-only case here instead of letting the runtime silently ignore an
+ * ordering rank it cannot randomize. */
+static void constraint_order_nonrandom_error_(const PExpr*site)
+{
+      if (!site || !constraint_ir_design_ctx_
+	  || !constraint_ir_design_ctx_->mark_constraint_order_diagnostic(site))
+	    return;
+
+      cerr << site->get_fileline()
+	   << ": error: target of 'solve before' constraint must be a random variable."
+	   << endl;
+      constraint_ir_design_ctx_->errors += 1;
+}
+
 /* Some legal source paths are not yet representable in the constraint IR
  * (notably an indexed class-handle array followed by a randc member).  A
  * forbidden-use diagnostic must not disappear merely because lowering later
@@ -22485,6 +22501,67 @@ static string scope_randomize_select_ir_(
       return "";
 }
 
+/* A no-argument function call may omit its parentheses (IEEE 1800-2017
+ * 13.4.2), so both `items.size' and `items.size()' must denote the same
+ * dynamic-container size solver variable. Keep their lowering in one place
+ * so the two parsed expression shapes cannot drift apart. */
+static string constraint_class_container_size_ir_(
+      const pform_name_t&cpath, const netclass_t*cls)
+{
+      if (cpath.size() != 2
+	  || cpath.back().name != perm_string::literal("size")
+	  || !cpath.back().index.empty() || !cpath.front().index.empty()
+	  || cpath.front().local_scope || cpath.back().local_scope
+	  || !cls)
+	    return "";
+
+      perm_string aname = cpath.front().name;
+	// A non-rand array's size is a state value (18.3): emit the same
+	// size variable and let the solve pin it. `x < buf.size()' is an
+	// ordinary constraint.
+      int idx = cls->property_idx_from_name(aname);
+      if (idx < 0)
+	    return "";
+
+      ivl_type_t ptype = cls->get_prop_type((size_t)idx);
+      const netdarray_t*da = dynamic_cast<const netdarray_t*>(ptype);
+      const netqueue_t*queue = dynamic_cast<const netqueue_t*>(ptype);
+      property_qualifier_t qual = cls->get_prop_qual((size_t)idx);
+      bool rand_container = qual.test_rand() || qual.test_randc();
+      ivl_type_t etype = da ? da->element_type() : nullptr;
+      ivl_variable_type_t ebase = etype
+	    ? etype->base_type() : IVL_VT_NO_TYPE;
+      bool integral_queue = ebase == IVL_VT_BOOL
+	    || ebase == IVL_VT_LOGIC
+	    || dynamic_cast<const netenum_t*>(etype);
+	// Associative arrays currently share netqueue_t as an elaboration
+	// representation, but their key set is state, not a randomizable queue
+	// size. Likewise, the bitvector solver cannot fill a rand queue of
+	// non-integral elements.
+      bool unsupported_rand_queue = queue && rand_container
+	    && (queue->assoc_compat() || !integral_queue);
+      if (!da || unsupported_rand_queue)
+	    return "";
+
+      unsigned ewid = etype ? etype->packed_width() : 32;
+      if (ewid == 0) ewid = 32;
+      bool esigned = etype && etype->get_signed();
+      string ttext;
+      if (ewid == 8 || ewid == 16 || ewid == 32 || ewid == 64)
+	    ttext = (esigned ? "sb" : "b") + to_string(ewid);
+      else
+	    ttext = (esigned ? "sv" : "v") + to_string(ewid);
+	// Q<MAX>:<ENC> distinguishes queue construction from dynamic-array
+	// construction at solver write-back. MAX is the maximum element count
+	// (0 means unbounded).
+      if (queue && !queue->assoc_compat()) {
+	    uint64_t max_size = queue->max_idx() < 0 ? 0
+		  : (uint64_t)queue->max_idx() + 1;
+	    ttext = "Q" + to_string(max_size) + ":" + ttext;
+      }
+      return "s:" + to_string(idx) + ":" + ttext;
+}
+
 string pexpr_to_constraint_ir(const PExpr*expr,
 			      const netclass_t*cls,
 			      vector<const PExpr*>*value_slots,
@@ -22569,6 +22646,23 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		      && id->path().back().name == perm_string::literal("index")
 		      && id->path().back().index.empty())
 			return ctx->index_ir;
+	    }
+
+	      // No-argument method calls may omit parentheses (13.4.2).
+	      // Normalize a simple class-container `.size' before ordinary
+	      // dotted-property and caller-value classification. An array-method
+	      // or foreach iterator with the same name shadows the class property.
+	    bool foreach_shadow = (loop_env
+		&& loop_env->find(id->path().name.front().name)
+		   != loop_env->end())
+		|| (dynforeach_emit_ctx_
+		    && dynforeach_emit_ctx_->loop_var
+		       == id->path().name.front().name);
+	    if (!ctx && !foreach_shadow && !local_qualified && !id->path().package
+		&& !id->has_scoped_type_prefix()) {
+		  string size_ir = constraint_class_container_size_ir_(
+			id->path().name, cls);
+		  if (!size_ir.empty()) return size_ir;
 	    }
 
 	      /* Package and Type::property carriers are not dotted paths rooted
@@ -23193,6 +23287,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       // the darray type text used to construct the array at write-back.
       if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(expr)) {
 	    const pform_name_t&cpath = call->path().name;
+	    bool call_local_qualified = !cpath.empty()
+		  && cpath.front().local_scope;
 
 	      /* The parenthesized spelling of an array-method iterator's
 	       * index query is represented as a call. The paren-less spelling is
@@ -23439,59 +23535,30 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (!state_ir.empty()) return state_ir;
 		  }
 	    }
-	    if (cpath.size() == 2
-		&& cpath.back().name == perm_string::literal("size")
-		&& cpath.back().index.empty()
-		&& cpath.front().index.empty() && cls) {
-		  perm_string aname = cpath.front().name;
-		    // A non-rand array's size is a state value (18.3):
-		    // emit the same size variable and let the solve pin
-		    // it. `x < buf.size()' is an ordinary constraint.
-		  int idx = cls->property_idx_from_name(aname);
-		  if (idx >= 0) {
-			ivl_type_t ptype = cls->get_prop_type((size_t)idx);
-			const netdarray_t*da =
-			      dynamic_cast<const netdarray_t*>(ptype);
-			const netqueue_t*queue =
-			      dynamic_cast<const netqueue_t*>(ptype);
-			property_qualifier_t qual =
-			      cls->get_prop_qual((size_t)idx);
-			bool rand_container = qual.test_rand() || qual.test_randc();
-			ivl_type_t etype = da ? da->element_type() : nullptr;
-			ivl_variable_type_t ebase = etype
-			      ? etype->base_type() : IVL_VT_NO_TYPE;
-			bool integral_queue = ebase == IVL_VT_BOOL
-			      || ebase == IVL_VT_LOGIC
-			      || dynamic_cast<const netenum_t*>(etype);
-			  // Associative arrays currently share netqueue_t as an
-			  // elaboration representation, but their key set is state,
-			  // not a randomizable queue size. Likewise, the bitvector
-			  // solver cannot fill a rand queue of non-integral elements.
-			bool unsupported_rand_queue = queue && rand_container
-			      && (queue->assoc_compat() || !integral_queue);
-			if (da && !unsupported_rand_queue) {
-			      unsigned ewid = etype ? etype->packed_width() : 32;
-			      if (ewid == 0) ewid = 32;
-			      bool esigned = etype && etype->get_signed();
-			      string ttext;
-			      if (ewid == 8 || ewid == 16
-				  || ewid == 32 || ewid == 64)
-				    ttext = (esigned ? "sb" : "b")
-					  + to_string(ewid);
-			      else
-				    ttext = (esigned ? "sv" : "v")
-					  + to_string(ewid);
-				// Q<MAX>:<ENC> distinguishes queue construction from
-				// dynamic-array construction at solver write-back. MAX is
-				// the maximum element count (0 means unbounded).
-			      if (queue && !queue->assoc_compat()) {
-				    uint64_t max_size = queue->max_idx() < 0 ? 0
-					  : (uint64_t)queue->max_idx() + 1;
-				    ttext = "Q" + to_string(max_size) + ":" + ttext;
-			      }
-			      return "s:" + to_string(idx) + ":" + ttext;
-			}
-		  }
+	      /* local:: selects the caller's value in an inline constraint, even
+	       * when the randomized class has a property with the same name.
+	       * Capture the whole size call so both parenthesized and paren-less
+	       * spellings observe the same call-site value. */
+	    bool call_foreach_shadow = !cpath.empty()
+		  && ((loop_env
+		       && loop_env->find(cpath.front().name) != loop_env->end())
+		      || (dynforeach_emit_ctx_
+			  && dynforeach_emit_ctx_->loop_var
+			     == cpath.front().name));
+	    bool simple_size_call = cpath.size() == 2
+		  && cpath.back().name == perm_string::literal("size")
+		  && cpath.back().index.empty() && cpath.front().index.empty()
+		  && call->get_parms().empty()
+		  && call->with_constraints().empty();
+	    if (simple_size_call && call_local_qualified)
+		  return scope_randomize_value_slot_(
+			call, nullptr, value_slots, 32);
+
+	    if (!call_iter_ctx && !call_foreach_shadow
+		&& !call_local_qualified && !call->path().package
+		&& !call->has_scoped_type_prefix()) {
+		  string size_ir = constraint_class_container_size_ir_(cpath, cls);
+		  if (!size_ir.empty()) return size_ir;
 	    }
 	      /* In scope randomization, a non-random container's size is an
 	       * ordinary state value sampled at the call. Unlike a selected
@@ -23558,14 +23625,26 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (!item) continue;
 			string s = pexpr_to_constraint_ir(item, cls,
 						value_slots, scope, loop_env);
-			  // Ordering may name either a scalar rand property or a
-			  // statically selected rand-array element. The runtime
-			  // retains the complete element identity so `solve a
-			  // before values[i]' remains a distribution directive
-			  // after a foreach constraint is unrolled.
+			  // Ordering may name a scalar rand property, a dynamic
+			  // container size, or a statically selected rand-array
+			  // element. The runtime retains the complete identity so
+			  // each remains a distribution directive after lowering.
 			if (s.compare(0, 2, "p:") != 0
-			    && s.compare(0, 2, "e:") != 0)
+			    && s.compare(0, 2, "e:") != 0
+			    && s.compare(0, 2, "s:") != 0)
 			      return "";
+			if (s.compare(0, 2, "s:") == 0 && cls) {
+			      char*end = nullptr;
+			      unsigned long idx = strtoul(
+				    s.c_str() + 2, &end, 10);
+			      if (end != s.c_str() + 2 && *end == ':'
+				  && idx < cls->get_properties()) {
+				    property_qualifier_t qual =
+					  cls->get_prop_qual((size_t)idx);
+				    if (!qual.test_rand() && !qual.test_randc())
+					  constraint_order_nonrandom_error_(item);
+			      }
+			}
 			acc += acc.empty() ? s : (" " + s);
 		  }
 		  return acc;

@@ -84,6 +84,18 @@ checker. The replay supplied an inert file outside the Caliptra checkout; the
 therefore makes no proprietary-checker coverage claim. It was compile-only and
 did not execute `jtagdpi`.
 
+Defining `XCELIUM` is not a valid way to count this testbench as clean. In
+`axi_if.sv` that macro removes all eight AXI BFM task declarations, but the SoC
+BFM remains included and instantiated and retains 29 unguarded calls to those
+tasks. A one-factor `-DXCELIUM` diagnostic compile removed the 62 mixed-driver
+errors and returned success, but Icarus warned that all 29 task calls were
+unknown and ignored them. The resulting testbench has no meaningful AXI/reset
+stimulus. Caliptra's `compile.yml` uses `-DXCELIUM` only in DPI C compilation
+options; it does not provide an HDL flow that makes this integration testbench
+functional under that guard. The compile-only probe took 9.74 seconds and
+peaked near 1.47 GiB RSS with no compiler memory ceiling; the generated VVP was
+not executed and was removed after inspection.
+
 ## Boundaries and memory note
 
 This change closes the constructor-context lone-default form. It does not

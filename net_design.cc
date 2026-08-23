@@ -254,6 +254,7 @@ void Design::release_elaboration_caches()
       interconnect_nets_.clear();
       struct_member_default_validations_.clear();
       constraint_randc_diagnostic_sites_.clear();
+      constraint_order_diagnostic_sites_.clear();
 }
 
 void Design::register_nettype_scope(const nettype_t*type, NetScope*scope)
@@ -370,6 +371,11 @@ bool Design::get_struct_member_default_validation(const PExpr*expr,
 bool Design::mark_constraint_randc_diagnostic(const PExpr*expr)
 {
       return expr && constraint_randc_diagnostic_sites_.insert(expr).second;
+}
+
+bool Design::mark_constraint_order_diagnostic(const PExpr*expr)
+{
+      return expr && constraint_order_diagnostic_sites_.insert(expr).second;
 }
 
 void Design::set_precision(int val)
