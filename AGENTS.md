@@ -18,25 +18,27 @@
 ## Build
 
 - For a checkout from Git, run `sh autoconf.sh`, configure a repository-local install prefix, then build and install.
-- A typical macOS configuration is:
+- The Apple Silicon configuration for this campaign is:
 
   ```sh
-  PATH="/usr/local/opt/bison/bin:$PATH" \
-  CPPFLAGS="-I/usr/local/opt/libffi/include" \
-  LDFLAGS="-L/usr/local/opt/libffi/lib" \
+  PATH="/opt/homebrew/opt/bison/bin:/opt/homebrew/bin:$PATH" \
+  CPPFLAGS="-I/opt/homebrew/opt/libffi/include -I/opt/homebrew/opt/z3/include" \
+  LDFLAGS="-L/opt/homebrew/opt/libffi/lib -L/opt/homebrew/opt/z3/lib" \
+  CFLAGS="-g0 -O2" CXXFLAGS="-g0 -O2" \
   ./configure --prefix="$PWD/local-install" --enable-libveriuser
-  make -j4
+  make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex
   make install
   ```
 
-- Adapt Homebrew paths with `brew --prefix` where necessary. This fork requires Z3 and libffi.
+- Do not substitute `/usr/local` paths on Apple Silicon. This fork requires
+  the `/opt/homebrew` Z3 and libffi libraries. Apple `/usr/bin/bison` is
+  native-capable but version 2.3 and is too old; pin Homebrew Bison 3.8.x.
 - On Apple Silicon, verify `uname -m`, the compiler, Python, native extension
   modules, and installed Icarus binaries all report `arm64`. Never reuse an
   install tree or virtual environment created under Rosetta. Start with
   `make distclean`, configure against `/opt/homebrew`, and use
   `CFLAGS="-g0 -O2" CXXFLAGS="-g0 -O2"`. Run the bounded build serially:
-  two simultaneous Clang C++ jobs can exceed the campaign's 1 GiB aggregate
-  RSS ceiling even when each compilation is healthy.
+  keep the build serial so aggregate compiler memory remains predictable.
 - Before a full JSON ivtest run, install the optional FPGA target with `make -C tgt-fpga install`; the root `make install` does not install `fpga.conf`/`fpga.tgt`, and two FPGA diagnostic tests otherwise fail before reaching their expected errors.
 - After source edits, build the directly affected objects first. Before handing off, use `make -q` for those objects and run `git diff --check`.
 - If parser grammar changes, report Bison conflict counts and whether the conflict-state signature changed.
@@ -44,6 +46,16 @@
 ## Tool pinning
 
 - Test the compiler and runtime built from the current worktree. Do not trust ambient `/usr/local/bin/iverilog` or an old installed `vvp`.
+- On this workspace, use only this worktree's `local-install` prefix. Sibling
+  Icarus install trees are Rosetta-era x86_64 artifacts, and Homebrew's arm64
+  Icarus is the wrong semantic revision even though its architecture matches.
+- Run bounded commands through `../evidence/arm64-tooling/resource-runner`, or
+  through the peak-reporting native wrapper under
+  `../evidence/caliptra-leading-underscore-20260816/`. Do not execute the old
+  sv-tests runner by its broken x86-era shebang. The native launcher retains
+  the 45-second CPU limit and uses the user-approved 2 GiB aggregate-RSS cap;
+  set `RESOURCE_RUNNER_RSS_LIMIT_BYTES` explicitly when reproducing a frozen
+  historical run with a different ceiling.
 - OpenTitan pins FuseSoC 2.4.5. Invoke `scripts/opentitan_matrix.py` with the
   Python from the same tool environment and pass it through
   `--fusesoc-python`; do not replace a virtual-environment `python` symlink
@@ -56,6 +68,23 @@
 - Run OpenTitan generators through that same Python, for example
   `"$TOOL_PY" util/regtool.py ...`, and write generated comparison output
   outside the read-only OpenTitan checkout.
+- Keep the OpenTitan virtual environment first on `PATH`: FuseSoC generators
+  and regtool scripts use `python3` shebangs. Invoke the logical venv Python
+  path (do not resolve its symlink), and pass that identical path through
+  `--fusesoc-python`.
+- Never reuse an OpenTitan FuseSoC build root created on another host
+  architecture. Generated `.vvp` launchers embed the `vvp` path selected at
+  build time, and per-core simulation directories may also retain native
+  DPI/VPI objects. Regenerate the complete matrix in a fresh ARM64 build root
+  with the active worktree's `iverilog`, then architecture-audit every native
+  artifact before running it.
+- Load DPI bundles with the active `vvp` runtime's `-d <bundle>` option.
+  `-M/-m` is for VPI modules and is wrong for Caliptra's `jtagdpi.vpi` and
+  OpenTitan's AES DPI bundle. Architecture-check every additional per-core DPI
+  dependency; one native AES bundle does not certify the entire runtime matrix.
+- Keep Caliptra's `+timescale+1ns/1ps` command file and filtered full-TB
+  manifest at durable paths. Do not reuse vanished `/tmp` timescale or AXI
+  checker paths from historical evidence.
 - From `ivtest`, prefer:
 
   ```sh

@@ -16,8 +16,13 @@ from those x86_64/Rosetta environments are historical until rerun natively.
 - The old evidence environments point at removed `/usr/local` Python paths and
   contain x86_64 native wheels. They must be recreated, never relinked.
 
-The native resource launcher preserves the existing 45-second CPU and 1 GiB
-aggregate-RSS implementation:
+The native resource launcher initially preserved the existing 45-second CPU
+and 1 GiB aggregate-RSS implementation. On 2026-08-22 the user approved a
+2 GiB aggregate-RSS ceiling for current full-design campaigns after the clean
+ARM64 Caliptra compile reached 1,074,003,968 bytes. The CPU limit remains 45
+seconds, and frozen 1 GiB results below remain historical evidence rather than
+being reclassified. A later complete assertion-enabled Caliptra compilation
+peaked at 1,179,353,088 bytes under the current ceiling:
 
 ```sh
 RUNNER=/path/to/evidence/arm64-tooling/resource-runner
@@ -48,8 +53,9 @@ and debug information was disabled to keep the largest compilation bounded:
 "$RUNNER" make installuvm
 ```
 
-`make -j2` is not suitable under this cap on this host: two healthy Clang C++
-processes exceeded 1 GiB aggregate RSS and were terminated by the monitor.
+During the initial 1 GiB-bounded rebuild, `make -j2` was not suitable on this
+host: two healthy Clang C++ processes exceeded 1 GiB aggregate RSS and were
+terminated by the monitor.
 Serial `-g0 -O2` compilation completed, including `vvp/vthread.cc`. The parser
 generation signature remained 535 shift/reduce and 1115 reduce/reduce
 conflicts. The compiler, runtime, target bundles, VPI modules, UVM DPI module,
@@ -112,10 +118,10 @@ The rebuilt compiler fingerprint is:
 
 | Component | SHA-256 |
 | --- | --- |
-| installed `iverilog` | `674e90bd3c81f83836de491873ef8bd0dc7c8ed685fa240ac2eef6cb02c2ab14` |
-| installed `vvp` | `88b92b5a0c7b1453e9ea9a1fc885ff7dd8400aef5b4ee576960b5d0fd37efcaf` |
-| installed `ivl` | `c637d552ef32e7253d942f10af39de1de28321cd3d317743cf0ad183c290b380` |
-| installed `vvp.tgt` | `e72ea36571bc7355dc467a8b00d6c7d1142edc6c2bef3ea419a5e8320c414adc` |
+| installed `iverilog` | `3a127b85af0134d4697997c2ab0f4911c0c36e39e8a6017e09a58a9f7c6412bf` |
+| installed `vvp` | `0612b59843d291bb6bd1ff20f682e8a9fb68c04259afd6a8d70fec3e2415d449` |
+| installed `ivl` | `5fff0d81243b8b0dea060b58fd758f907b17b76ceafcab1f1b36b6a57d21701a` |
+| installed `vvp.tgt` | `1608396fae3057327eaf77aa5486571fc8159256d4dfcf10961f361c58045afe` |
 | installed `uvm_dpi.vpi` | `23a2d7a5a0696d0102f7ad254a7c142688202824caf19772c5583b74ecc85dd1` |
 
 All of these Mach-O files, the rebuilt VPI objects, and the native Python
@@ -152,6 +158,29 @@ above.
 These focused results validate the native migration, not full-corpus parity.
 The frozen full OpenTitan and Caliptra matrices remain historical until their
 bounded ARM64 reruns complete.
+
+## Full assertion-enabled Caliptra compile
+
+The unmodified Caliptra `caliptra_top_tb` completed parsing, elaboration,
+optimization, and VVP code generation with assertions enabled under the
+current 2 GiB aggregate-RSS ceiling. The bounded compiler exited 0 with a peak
+aggregate RSS of 1,179,353,088 bytes. Its diagnostics contained 26 warnings,
+zero errors, and zero `sorry` messages. This supersedes the intermediate
+1,074,003,968-byte run and the earlier 1 GiB resource stop; both remain useful
+historical measurements rather than current failure results.
+
+The generated VVP SHA-256 is
+`d003a8383a4f466fdfc5caaa6ef76e576cbe94f4fc252b6c4665383ffb43f290`.
+Its compact force/release lowering contains 1,760 `%force/vec4/a`, 1,760
+`%force/link/a`, 1,760 `%release/reg/a`, and 7,418 `%force/link/off`
+instructions. The compile transcript and artifact are preserved at
+`evidence/caliptra-full-arm64-force-static-2g-20260823T003727MDT/`.
+
+This is full-design compile/elaboration/code-generation evidence, not an
+authentic Caliptra simulation result. The generated launcher was deliberately
+not executed because Caliptra's real `jtagdpi` component binds a network
+socket. The 26 remaining warnings and full-matrix/runtime behavior therefore
+remain separate compatibility work.
 
 ## Robustness and security notes
 
