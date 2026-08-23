@@ -69,7 +69,7 @@ now reaches the next genuine Icarus gap at
 constraint is currently ignored even though the equivalent `size()` spelling
 works. That constraint issue is not part of this constructor fix.
 
-Elaboration then reports 52 mixed continuous/procedural driver errors in
+Elaboration then reports 62 mixed continuous/procedural driver errors in
 `caliptra_top_tb_axi_complex.sv`. The implicated interface variables are
 assigned by manager tasks and also driven by continuous assignments at the
 subordinate endpoints. An exact reduced topology is rejected by both Icarus
