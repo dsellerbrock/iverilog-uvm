@@ -77,6 +77,12 @@ class NetRamDq;
 class NetTaskDef;
 class NetEvTrig;
 class NetEvNBTrig;
+
+/* During target emission, converted procedure trees are consumed and
+ * released while their shared NetEvent objects remain available to later
+ * procedures. The compiler is single-threaded and emits one design at a
+ * time, so this phase switch is process-global. */
+void net_event_target_release_mode(bool flag);
 class NetEvWait;
 class PClass;
 class PExpr;
@@ -228,11 +234,23 @@ class NetPins : public LineInfo {
       bool pins_are_virtual(void) const;
       void devirtualize_pins(void);
 
+	/* The DLL target has copied every structural nexus by end_nodes().
+	 * Release the source-only Link arrays and Nexus rings without changing
+	 * the lifetime of the NetPins-derived object. This is a terminal
+	 * operation: later target conversion may inspect signals and branches,
+	 * but must not inspect their source connectivity. */
+      size_t release_terminal_connectivity();
+
 	// This is for showing a brief description of the object to
 	// the stream. It is used for debug and diagnostics.
       virtual void show_type(std::ostream&fd) const;
 
     private:
+      enum { TERMINAL_DIR_ = 3 };
+      bool connectivity_released_() const
+      {
+            return static_cast<unsigned>(default_dir_) == TERMINAL_DIR_;
+      }
       Link*pins_;
       const unsigned npins_;
       Link::DIR default_dir_;
@@ -365,6 +383,7 @@ class Nexus {
 
       friend void connect(Link&, Link&);
       friend class Link;
+      friend class NetPins;
 
     private:
 	// Only Link objects can create (or delete) Nexus objects
@@ -445,6 +464,7 @@ class Nexus {
     private:
       Link*list_;
       void unlink(Link*);
+      void detach_all_links_();
 
       mutable char* name_; /* Cache the calculated name for the Nexus. */
       mutable ivl_nexus_t t_cookie_;
@@ -873,7 +893,13 @@ class NetNet  : public NetObj, public PortType {
 	   to represent the dimensions of all the subtypes. */
       const netranges_t& packed_dims() const { return slice_dims_; }
 
-      const netranges_t& unpacked_dims() const { return unpacked_dims_; }
+      const netranges_t& unpacked_dims() const;
+
+	/* The target graph is materialized synchronously while this net is
+	   alive. Cache the opaque target signal directly to avoid a second
+	   pointer-keyed map with one allocation per signal. */
+      ivl_signal_t target_signal() const { return target_signal_; }
+      void target_signal(ivl_signal_t signal) const { target_signal_ = signal; }
 
 	/* The vector_width returns the bit width of the packed array,
 	   vector or scalar that is this NetNet object.  */
@@ -907,7 +933,7 @@ class NetNet  : public NetObj, public PortType {
 	/* This method returns 0 for scalars and vectors, and greater
 	   for arrays. The value is the number of array
 	   indices. (Currently only one array index is supported.) */
-      inline unsigned unpacked_dimensions() const { return unpacked_dims_.size(); }
+      unsigned unpacked_dimensions() const;
 
 	/* This method returns 0 for scalars, but vectors and other
 	   PACKED arrays have packed dimensions. */
@@ -983,10 +1009,9 @@ class NetNet  : public NetObj, public PortType {
       NetNet* net_delay_driver() const { return net_delay_driver_; }
       void net_delay_public(NetNet*net) { net_delay_public_ = net; }
       NetNet* net_delay_public() const { return net_delay_public_; }
-      void add_net_delay_boundary(class NetBUFZ*net)
-	    { net_delay_boundaries_.push_back(net); }
-      std::vector<class NetBUFZ*>& net_delay_boundaries()
-	    { return net_delay_boundaries_; }
+      void add_net_delay_boundary(class NetBUFZ*net);
+      const std::vector<class NetBUFZ*>& net_delay_boundaries() const;
+      std::vector<class NetBUFZ*>& mutable_net_delay_boundaries();
       void net_delay_declared_type(Type type)
 	    { net_delay_declared_type_ = type; }
       Type net_delay_declared_type() const
@@ -995,10 +1020,16 @@ class NetNet  : public NetObj, public PortType {
       void net_delay_pull(class NetLogic*net) { net_delay_pull_ = net; }
       class NetLogic* net_delay_pull() const { return net_delay_pull_; }
 
+	/* Delay-path and declaration-delay indexes are consumed by the signal
+	 * callbacks. Release their storage after that second signal pass while
+	 * retaining interface bindings needed by later procedural lowering. */
+      void release_emitted_signal_aux();
+
       void dump_net(std::ostream&, unsigned) const;
 
     private:
       void initialize_dir_();
+      void calculate_slice_dims_from_net_type_();
       static void apply_interconnect_type_(
             const std::shared_ptr<NetInterconnectType>&group);
 
@@ -1010,6 +1041,7 @@ class NetNet  : public NetObj, public PortType {
       unsigned lifetime_override_ : 2;
       unsigned lexical_pos_;
       ivl_type_t net_type_;
+      mutable ivl_signal_t target_signal_ = 0;
       const NetNetType*declared_user_nettype_ = 0;
       const NetNetType*user_nettype_ = 0;
       std::shared_ptr<NetInterconnectType>interconnect_type_;
@@ -1023,16 +1055,10 @@ class NetNet  : public NetObj, public PortType {
         // Whether the net is variable declared with the const keyword.
       bool is_const_ = false;
 
-      netranges_t unpacked_dims_;
-
-	// These are the widths of the various slice depths. There is
-	// one entry in this vector for each packed dimension. The
-	// value at N is the slice width if N indices are provided.
-	//
-	// For example: slice_wids_[0] is vector_width().
-      void calculate_slice_widths_from_packed_dims_(void);
+	/* Packed slice dimensions are retained for index conversion. Slice
+	 * widths are inexpensive products of these dimensions and are derived
+	 * on demand instead of duplicated in a heap-backed vector. */
       netranges_t slice_dims_;
-      std::vector<unsigned long> slice_wids_;
 
       unsigned eref_count_;
       unsigned lref_count_;
@@ -1050,10 +1076,8 @@ class NetNet  : public NetObj, public PortType {
 	// select is not known when it is constructed.
       std::vector<class NetAssign_*> lref_objs_;
 
-      std::vector<class NetDelaySrc*> delay_paths_;
       NetNet*net_delay_driver_ = 0;
       NetNet*net_delay_public_ = 0;
-      std::vector<class NetBUFZ*> net_delay_boundaries_;
       Type net_delay_declared_type_ = NONE;
       class NetLogic*net_delay_pull_ = 0;
       int       port_index_ = -1;
@@ -1063,9 +1087,19 @@ class NetNet  : public NetObj, public PortType {
             NetNet*signal = 0;
             unsigned signal_word = 0;
       };
-      std::vector<interface_binding_t>interface_bindings_;
-      std::map<std::pair<unsigned,size_t>,NetNet*>
-            interface_synthesis_members_;
+
+	/* Most nets need none of these containers. Keep their common record to
+	 * one pointer, and retain interface metadata through task/function and
+	 * process conversion because property lowering resolves it lazily. */
+      struct target_emit_aux_t {
+            std::vector<class NetDelaySrc*> delay_paths;
+            std::vector<class NetBUFZ*> net_delay_boundaries;
+            std::vector<interface_binding_t> interface_bindings;
+            std::map<std::pair<unsigned,size_t>,NetNet*>
+                  interface_synthesis_members;
+      };
+      target_emit_aux_t*target_emit_aux_ = 0;
+      target_emit_aux_t*ensure_target_emit_aux_();
 };
 
 /*
@@ -1094,7 +1128,15 @@ class NetBaseDef {
       NetNet*port(unsigned idx) const;
       NetExpr*port_defe(unsigned idx) const;
 
+	/* Default argument expressions are only consulted during elaboration.
+	 * Release their owned trees before target materialization. */
+      void release_port_defaults();
+
       void set_proc(NetProc*p);
+
+	// Target emission has copied the complete procedural definition. Release
+	// the elaborated body while keeping the signature and scope metadata.
+      void release_proc();
 
 	//const string& name() const;
       const NetProc*proc() const;
@@ -1278,6 +1320,15 @@ class NetScope : public Definitions, public Attrib {
       // after finalize_pending_specialized_class_elaboration so all
       // classes are visible.
       void repair_typed_class_signals(class Design*des);
+
+	/* Name-resolution caches are phase-local. Release their map nodes after
+	 * every elaboration/functor pass and before target materialization. */
+      void release_elaboration_caches();
+
+	/* Release source-only signal connectivity after the target has copied
+	 * and finalized all structural nodes. Returns the number of Link records
+	 * discarded. */
+      size_t release_signal_connectivity();
 
       netclass_t* find_class(const Design*des, perm_string name);
 
@@ -1492,6 +1543,12 @@ class NetScope : public Definitions, public Attrib {
       void emit_scope(struct target_t*tgt) const;
       bool emit_defs(struct target_t*tgt) const;
 
+	/* The DLL target is built synchronously while this scope remains live.
+	   Cache its opaque counterpart directly instead of duplicating the
+	   target hierarchy in a per-scope lookup map. */
+      ivl_scope_t target_scope() const { return target_scope_; }
+      void target_scope(ivl_scope_t scope) const { target_scope_ = scope; }
+
 	/* This method runs the functor on me. Recurse through the
 	   children of this node as well. */
       void run_functor(Design*des, functor_t*fun);
@@ -1575,6 +1632,12 @@ class NetScope : public Definitions, public Attrib {
 	    ivl_type_t ivl_type;
       };
       std::map<perm_string,param_expr_t>parameters;
+
+	/* The DLL target copies every parameter value while materializing its
+	 * corresponding scope. Release the elaborated, owned value/range trees
+	 * after that copy while leaving borrowed pform and shared type pointers
+	 * alone. This is idempotent so multiply visited scopes are harmless. */
+      void release_parameters();
 
       typedef std::map<perm_string,param_expr_t>::iterator param_ref_t;
 
@@ -1671,6 +1734,7 @@ class NetScope : public Definitions, public Attrib {
 
       NetScope*unit_;
       NetScope*up_;
+      mutable ivl_scope_t target_scope_;
       std::map<hname_t,NetScope*> children_;
 
       unsigned lcounter_;
@@ -3845,6 +3909,7 @@ class NetDoWhile  : public NetProc {
     public:
       NetDoWhile(NetExpr*c, NetProc*p)
       : cond_(c), proc_(p) { }
+      ~NetDoWhile() override;
 
       const NetExpr*expr() const { return cond_; }
 
@@ -4774,6 +4839,7 @@ class NetWhile  : public NetProc {
     public:
       NetWhile(NetExpr*c, NetProc*p)
       : cond_(c), proc_(p) { }
+      ~NetWhile() override;
 
       const NetExpr*expr() const { return cond_; }
 
@@ -5956,7 +6022,12 @@ class Design {
       void dump(std::ostream&) const;
       void functor(struct functor_t*);
       void join_islands(void);
-      int emit(struct target_t*) const;
+      int emit(struct target_t*);
+
+	/* Drop elaboration-only indexes/caches at the terminal code-generation
+	 * boundary. The Net* design graph and all target-visible metadata remain
+	 * alive. */
+      void release_elaboration_caches();
 
 	// This is incremented by elaboration when an error is
 	// detected. It prevents code being emitted.

@@ -24,6 +24,13 @@
 
 using namespace std;
 
+static bool target_release_mode = false;
+
+void net_event_target_release_mode(bool flag)
+{
+      target_release_mode = flag;
+}
+
 /*
  * NOTE: The name_ is perm-allocated by the caller.
  */
@@ -382,6 +389,8 @@ NetEvNBTrig::~NetEvNBTrig()
 
 	    cur->enext_ = this->enext_;
       }
+
+      delete dly_;
 }
 
 const NetExpr* NetEvNBTrig::delay() const
@@ -693,6 +702,10 @@ NetEvWait::~NetEvWait()
       if (! events_.empty()) {
 	    for (unsigned idx = 0 ;  idx < events_.size() ;  idx += 1) {
 		  NetEvent*tgt = events_[idx];
+		  // A wait-fork deliberately carries a null event sentinel.
+		  if (! tgt)
+			continue;
+		  ivl_assert(*this, tgt->waitref_ > 0);
 		  tgt->waitref_ -= 1;
 
 		  struct NetEvent::wcell_*tmp = tgt->wlist_;
@@ -705,10 +718,16 @@ NetEvWait::~NetEvWait()
 			      tmp = tmp->next;
 			      ivl_assert(*this, tmp->next);
 			}
-			tmp->next = tmp->next->next;
-			delete tmp;
+			struct NetEvent::wcell_*dead = tmp->next;
+			tmp->next = dead->next;
+			delete dead;
 		  }
-		  delete tgt;
+		  /* Later process trees may still reference this shared event
+		   * during progressive target conversion. */
+		  if (! target_release_mode && tgt->waitref_ == 0
+		      && tgt->ntrig() == 0 && tgt->nnb_trig() == 0
+		      && tgt->nexpr() == 0 && !tgt->is_event_array())
+			delete tgt;
 	    }
 	    events_.clear();
       }
@@ -759,8 +778,9 @@ void NetEvWait::replace_event(NetEvent*src, NetEvent*repl)
 		  tmp = tmp->next;
 		  ivl_assert(*this, tmp->next);
 	    }
-	    tmp->next = tmp->next->next;
-	    delete tmp;
+	    struct NetEvent::wcell_*dead = tmp->next;
+	    tmp->next = dead->next;
+	    delete dead;
       }
 
 	// Replace the src pointer with the repl pointer.

@@ -1,0 +1,5 @@
+value_range1 vvp_tests/value_range1.json
+value_range2 vvp_tests/value_range2.json
+delayed_sfunc vvp_tests/delayed_sfunc.json
+sv_string_localparam_sformatf_scope vvp_tests/sv_string_localparam_sformatf_scope.json
+sv_param_type_identity1 vvp_tests/sv_param_type_identity1.json

@@ -21,11 +21,16 @@
 
 # include  <list>
 # include  <map>
+# include  <cstddef>
 # include  "netlist.h"
 # include  "StringHeap.h"
 
 struct parmvalue_t;
 class Design;
+
+/* Ask the platform allocator to return unused pages after a terminal
+ * compiler phase. Platforms without an explicit facility return zero. */
+extern std::size_t release_unused_heap_pages();
 
 /*
  * This defines constants and defaults for the compiler in general.
@@ -122,6 +127,7 @@ extern bool debug_optimizer;
 
 void finalize_pending_specialized_class_elaboration(Design*des);
 void repair_specialized_class_property_types(Design*des);
+void release_elaboration_specialization_caches();
 
 extern const netclass_t* elaborate_specialized_class_type(Design*des,
                                                           NetScope*call_scope,

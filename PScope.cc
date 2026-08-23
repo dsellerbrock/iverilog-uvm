@@ -18,6 +18,7 @@
  */
 
 # include  "PScope.h"
+# include  "Statement.h"
 
 using namespace std;
 
@@ -26,6 +27,17 @@ LexicalScope::~LexicalScope()
       for (nettype_map_t::iterator it = nettypes.begin();
            it != nettypes.end(); ++it)
             delete it->second;
+}
+
+void LexicalScope::release_elaboration_memory()
+{
+      for (Statement*statement : var_inits)
+	    delete statement;
+      var_inits.clear();
+
+      for (PProcess*process : behaviors)
+	    delete process;
+      behaviors.clear();
 }
 
 bool LexicalScope::var_init_needs_explicit_lifetime() const

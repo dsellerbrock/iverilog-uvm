@@ -432,6 +432,8 @@ NetENew::NetENew(ivl_type_t t, NetExpr*size, NetExpr*init_val)
 
 NetENew::~NetENew()
 {
+      delete size_;
+      delete init_val_;
 }
 
 ivl_variable_type_t NetENew::expr_type() const
@@ -675,6 +677,8 @@ NetEShallowCopy::NetEShallowCopy(NetExpr*arg1, NetExpr*arg2)
 
 NetEShallowCopy::~NetEShallowCopy()
 {
+      delete arg1_;
+      delete arg2_;
 }
 
 ivl_variable_type_t NetEShallowCopy::expr_type() const

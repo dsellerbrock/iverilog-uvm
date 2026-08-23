@@ -336,6 +336,22 @@ Nexus::~Nexus()
       nexus_identity_generation += 1;
 }
 
+void Nexus::detach_all_links_()
+{
+      if (!list_)
+            return;
+
+      Link*first = list_->next_;
+      Link*cur = first;
+      do {
+            Link*next = cur->next_;
+            cur->next_ = 0;
+            cur->nexus_ = 0;
+            cur = next;
+      } while (cur != first);
+      list_ = 0;
+}
+
 bool Nexus::claim_synthesized_process_driver(unsigned base, unsigned wid)
 {
       if (synthesized_process_driver_mask_.size() < base + wid)

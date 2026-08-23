@@ -116,7 +116,8 @@ void Definitions::class_definitions_changed_()
 NetScope::NetScope(NetScope*up, const hname_t&n, NetScope::TYPE t, NetScope*in_unit,
 		   bool nest, bool program, bool interface, bool compilation_unit)
 : type_(t), name_(n), nested_module_(nest), program_block_(program),
-  is_interface_(interface), is_unit_(compilation_unit), unit_(in_unit), up_(up)
+  is_interface_(interface), is_unit_(compilation_unit), unit_(in_unit), up_(up),
+  target_scope_(0)
 {
       imports_ = 0;
       events_ = 0;
@@ -288,6 +289,47 @@ void NetScope::clear_lookup_caches_(bool clear_typedefs, bool clear_classes)
 	    if (cur->second)
 		  cur->second->clear_lookup_caches_(clear_typedefs, clear_classes);
       }
+}
+
+void NetScope::release_elaboration_caches()
+{
+      typedef_search_cache_.clear();
+      class_search_cache_.clear();
+
+	/* These maps only index borrowed parse-form declarations. Every signal,
+	 * let expansion, post-elaboration functor and netlist dump is complete at
+	 * this terminal boundary; target callbacks consume elaborated Net* objects
+	 * and never consult these source-name indexes. */
+      signal_placeholders_.clear();
+      lets_.clear();
+
+      if (type_ == FUNC && func_)
+	    func_->release_port_defaults();
+      if (type_ == TASK && task_)
+	    task_->release_port_defaults();
+
+      for (map<hname_t,NetScope*>::iterator cur = children_.begin()
+		 ; cur != children_.end() ; ++cur) {
+	    if (cur->second)
+		  cur->second->release_elaboration_caches();
+      }
+}
+
+size_t NetScope::release_signal_connectivity()
+{
+      size_t released = 0;
+      for (signals_map_iter_t cur = signals_map_.begin()
+                 ; cur != signals_map_.end() ; ++cur) {
+            if (cur->second)
+                  released += cur->second->release_terminal_connectivity();
+      }
+
+      for (map<hname_t,NetScope*>::iterator cur = children_.begin()
+                 ; cur != children_.end() ; ++cur) {
+            if (cur->second)
+                  released += cur->second->release_signal_connectivity();
+      }
+      return released;
 }
 
 NetScope*NetScope::find_typedef_scope(const Design*des, const typedef_t*type)
@@ -474,6 +516,30 @@ void NetScope::set_parameter(perm_string key, NetExpr*val,
       ivl_assert(file_line, ref.ivl_type);
       ref.val = val;
       ref.set_line(file_line);
+}
+
+void NetScope::release_parameters()
+{
+      for (map<perm_string,param_expr_t>::iterator cur = parameters.begin()
+		 ; cur != parameters.end() ; ++cur) {
+	    param_expr_t&param = cur->second;
+	    delete param.val;
+
+	    range_t*range = param.range;
+	    while (range) {
+		  range_t*next = range->next;
+		  if (range->high_expr != range->low_expr)
+			delete range->high_expr;
+		  delete range->low_expr;
+		  delete range;
+		  range = next;
+	    }
+	}
+
+	/* Clearing the records releases their map nodes and array-dimension
+	 * vectors. val_expr, val_type, udims and ivl_type are deliberately not
+	 * deleted: they are borrowed pform or shared elaborated-type pointers. */
+      parameters.clear();
 }
 
 bool NetScope::auto_name(const char*prefix, char pad, const char* suffix)

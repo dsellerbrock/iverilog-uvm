@@ -229,6 +229,22 @@ Design::~Design()
 {
 }
 
+void Design::release_elaboration_caches()
+{
+      for (map<perm_string,NetScope*>::iterator cur = packages_.begin()
+		 ; cur != packages_.end() ; ++cur)
+	    cur->second->release_elaboration_caches();
+
+      for (list<NetScope*>::iterator cur = root_scopes_.begin()
+		 ; cur != root_scopes_.end() ; ++cur)
+	    (*cur)->release_elaboration_caches();
+
+      nettype_scopes_.clear();
+      interconnect_nets_.clear();
+      struct_member_default_validations_.clear();
+      constraint_randc_diagnostic_sites_.clear();
+}
+
 void Design::register_nettype_scope(const nettype_t*type, NetScope*scope)
 {
       if (!type || !scope)

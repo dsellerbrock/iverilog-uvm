@@ -1,0 +1,35 @@
+br_gh191_break normal,-g2009 ivltests
+br_gh1237 normal ivltests
+br_gh801 normal,-g2012 ivltests
+br_gh801b normal,-g2012 ivltests
+automatic_task2 normal ivltests gold=automatic_task2.gold
+case_unique normal,-g2005-sv ivltests gold=case_unique.gold
+func_init_var1 normal,-g2009 ivltests
+fork_join_any normal,-g2009 ivltests
+function1 normal ivltests gold=function1.gold
+repeat2 normal ivltests
+sv_case_inside_mixed_items normal,-g2012 ivltests gold=sv_case_inside_mixed_items.gold
+sv_case_unique_multimatch1 normal,-g2012 ivltests gold=sv_case_unique_multimatch1.gold
+sv_class15 normal,-g2009 ivltests
+sv_class17 normal,-g2009 ivltests
+sv_class_constructor1 normal,-g2009 ivltests
+sv_class_event_member1 normal,-g2012 ivltests
+sv_class_extern_ctor_const_init1 normal,-g2012 ivltests
+sv_class_extern_task1 normal,-g2012 ivltests
+sv_class_function_fork_task1 normal,-g2012 ivltests
+sv_class_method_var_init normal,-g2009 ivltests
+sv_class_new_init normal,-g2009 ivltests
+sv_class_static_const_init normal,-g2012 ivltests gold=sv_class_static_const_init.gold
+sv_class_const_constructor_init normal,-g2012 ivltests gold=sv_class_const_constructor_init.gold
+sv_event_array normal,-g2012 ivltests
+sv_function_fork_join_none normal,-g2012 ivltests gold=sv_function_fork_join_none.gold
+sv_interface_member_select_sensitivity normal,-g2012 ivltests gold=sv_interface_member_select_sensitivity.gold
+sv_nettype_class_scope_scan normal,-g2012 ivltests gold=sv_nettype_class_scope_scan.gold
+sv_nettype_package normal,-g2012 ivltests gold=sv_nettype_package.gold
+sv_task_localparam_untyped normal,-g2012 ivltests gold=sv_task_localparam_untyped.gold
+sv_type_operator_case normal,-g2012 ivltests gold=sv_type_operator_case.gold
+sv_var_init1 normal,-g2009 ivltests
+task3.14A normal ivltests
+task_init_var1 normal,-g2009 ivltests
+wait1 normal ivltests
+wait3 normal ivltests gold=wait3.gold

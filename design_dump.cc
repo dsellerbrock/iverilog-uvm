@@ -440,7 +440,7 @@ ostream&operator<<(ostream&out, const netranges_t&rlist)
 void NetNet::dump_net(ostream&o, unsigned ind) const
 {
       o << setw(ind) << "" << type() << ": " << name()
-	<< unpacked_dims_ << " unpacked dims=" << unpacked_dimensions();
+	<< unpacked_dims() << " unpacked dims=" << unpacked_dimensions();
       o << " pin_count=" << pin_count();
       if (local_flag_)
 	    o << " (local)";
@@ -490,8 +490,8 @@ void NetNet::dump_net(ostream&o, unsigned ind) const
 	      << " " << nex->name() << endl;
       }
 
-      for (unsigned idx = 0 ;  idx < delay_paths_.size() ;  idx += 1) {
-	    const NetDelaySrc*cur = delay_paths_[idx];
+      for (unsigned idx = 0 ;  idx < delay_paths() ;  idx += 1) {
+	    const NetDelaySrc*cur = delay_path(idx);
 	    cur->dump(o, ind+4);
       }
 

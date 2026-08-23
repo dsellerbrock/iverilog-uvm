@@ -434,6 +434,7 @@ ivl_event_is_vif_negedge
 ivl_event_is_vif_anyedge
 ivl_event_vif_N
 ivl_event_vif_M
+ivl_event_vif_member_word
 ivl_event_vif_pre_N
 ivl_event_vif_path_count
 ivl_event_vif_path_index

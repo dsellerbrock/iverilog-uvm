@@ -1,0 +1,6 @@
+sv_force_array_word vvp_tests/sv_force_array_word.json
+sv_force_partial_live_overlap vvp_tests/sv_force_partial_live_overlap.json
+sv_force_binary_rhs_live vvp_tests/sv_force_binary_rhs_live.json
+sv_force_urandom_once vvp_tests/sv_force_urandom_once.json
+sv_force_auto_static_rhs_live vvp_tests/sv_force_auto_static_rhs_live.json
+real_force_rel vvp_tests/real_force_rel.json

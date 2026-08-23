@@ -243,8 +243,49 @@ class vvp_process : public vvp_object {
  * to reap the child immediately.
  */
 
+enum force_pending_kind_t {
+      FORCE_PENDING_NONE,
+      FORCE_PENDING_ARRAY,
+      FORCE_PENDING_NET
+};
+
+/* The force value opcode and its optional live-source link opcode are two
+ * adjacent instructions, but vvp_code_s does not have enough independent
+ * operand storage to carry both target selection and source information in
+ * one instruction. Allocate this handoff lazily: most VVP threads never
+ * execute force, so they pay for only one pointer in vthread_s. */
+struct force_pending_s {
+      force_pending_kind_t kind;
+      vvp_code_t expected_link_pc;
+      union {
+	    vvp_array_t array;
+	    vvp_net_t*net;
+      } target;
+      unsigned word;
+      unsigned base;
+      unsigned width;
+
+      force_pending_s()
+      : kind(FORCE_PENDING_NONE), expected_link_pc(0), word(0), base(0),
+	width(0)
+      {
+	    target.net = 0;
+      }
+
+      void clear()
+      {
+	    kind = FORCE_PENDING_NONE;
+	    expected_link_pc = 0;
+	    target.net = 0;
+	    word = 0;
+	    base = 0;
+	    width = 0;
+      }
+};
+
 struct vthread_s {
       vthread_s();
+      ~vthread_s();
 
       void debug_dump(ostream&fd, const char*label_text);
 
@@ -266,6 +307,8 @@ struct vthread_s {
       bool stream_plan_invalid_pending;
       unsigned stream_plan_first_reg;
       unsigned stream_plan_second_reg;
+	/* Shared handoff for array-word and scalar partial-force links. */
+      force_pending_s*force_pending;
 
 	// These vectors are depths within the parent thread's
 	// corresponding stack.  This is how the %ret/* instructions
@@ -714,6 +757,8 @@ struct vthread_s {
 
       inline void cleanup()
       {
+	    delete force_pending;
+	    force_pending = 0;
 	    release_owned_context_(this);
 	    while (!awaited_processes_.empty()) {
 		  vvp_process*proc = *awaited_processes_.begin();
@@ -782,6 +827,7 @@ inline vthread_s::vthread_s()
       stream_plan_invalid_pending = false;
       stream_plan_first_reg = 0;
       stream_plan_second_reg = 0;
+      force_pending = 0;
       stack_obj_size_ = 0;
       for (unsigned idx = 0; idx < STACK_OBJ_MAX_SIZE; idx += 1)
             stack_obj_net_[idx] = 0;
@@ -800,6 +846,29 @@ inline vthread_s::vthread_s()
       return_object_mirror_scope = 0;
       dynamic_dispatch_base_scope = 0;
       last_pause_pc = 0;
+}
+
+inline vthread_s::~vthread_s()
+{
+      delete force_pending;
+}
+
+static void force_pending_clear_(vthread_t thr)
+{
+      if (thr->force_pending)
+	    thr->force_pending->clear();
+}
+
+static force_pending_s* force_pending_start_(vthread_t thr,
+					      force_pending_kind_t kind)
+{
+      if (!thr->force_pending)
+	    thr->force_pending = new force_pending_s;
+      else
+	    thr->force_pending->clear();
+
+      thr->force_pending->kind = kind;
+      return thr->force_pending;
 }
 
 void vthread_s::set_fileline(char *filenm, unsigned lineno)
@@ -8767,31 +8836,36 @@ static bool resize_rval_vec(vvp_vector4_t &val, int64_t &off,
 {
       unsigned int wid = val.size();
 
-        // Fully in bounds, most likely case
-      if (off >= 0 && (uint64_t)off + wid <= sig_wid)
-	    return true;
+      if (wid == 0 || sig_wid == 0)
+	    return false;
 
       unsigned int base = 0;
       if (off >= 0) {
-	      // Fully out-of-bounds
-	    if ((uint64_t)off >= sig_wid)
+	    uint64_t use_off = (uint64_t)off;
+	      // Fully out-of-bounds.
+	    if (use_off >= sig_wid)
 		  return false;
+
+	      // Fully in bounds, most likely case.
+	    unsigned int available = sig_wid - (unsigned int)use_off;
+	    if (wid <= available)
+		  return true;
+	    wid = available;
       } else {
-	      // Fully out-of-bounds */
-	    if ((uint64_t)(-off) >= wid)
+	      /* Compute the magnitude without negating INT64_MIN. */
+	    uint64_t below = (uint64_t)(-(off + 1)) + 1;
+	      // Fully out-of-bounds.
+	    if (below >= wid)
 		  return false;
 
 	      // If the index is below the vector, then only assign the high
-	      // bits that overlap with the target
-	    base = -off;
-	    wid += off;
-		off = 0;
+	      // bits that overlap with the target.
+	    base = (unsigned int)below;
+	    wid -= base;
+	    off = 0;
+	    if (wid > sig_wid)
+		  wid = sig_wid;
       }
-
-	// If the value is partly above the target, then only assign
-	// the bits that overlap
-      if ((uint64_t)off + wid > sig_wid)
-	    wid = sig_wid - (uint64_t)off;
 
       val = val.subvalue(base, wid);
 
@@ -13340,14 +13414,69 @@ bool of_FLAG_SET_VEC4(vthread_t thr, vvp_code_t cp)
  * unlinked without specifically knowing the source that this
  * instruction used.
  */
-bool of_FORCE_LINK(vthread_t, vvp_code_t cp)
+bool of_FORCE_LINK(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_t*dst = cp->net;
       vvp_net_t*src = cp->net2;
 
+      force_pending_clear_(thr);
       assert(dst->fil);
       dst->fil->force_link(dst, src);
 
+      return true;
+}
+
+/* %force/link/a <array>, <source>
+ *
+ * The preceding %force/vec4/a recorded the clipped array word and packed
+ * range in this thread. This instruction consumes that descriptor and
+ * installs a reusable source-change adapter on compact array storage. */
+bool of_FORCE_LINK_A(vthread_t thr, vvp_code_t cp)
+{
+      vvp_array_t array = resolve_runtime_array_(cp, "%force/link/a");
+      vvp_net_t*source = cp->net2;
+      force_pending_s*pending = thr->force_pending;
+      if (!pending || pending->kind != FORCE_PENDING_ARRAY
+	  || pending->expected_link_pc != cp || !array
+	  || pending->target.array != array || !source) {
+	    force_pending_clear_(thr);
+	    return true;
+      }
+
+      unsigned word = pending->word;
+      unsigned base = pending->base;
+      unsigned wid = pending->width;
+      force_pending_clear_(thr);
+
+      if (array->get_scope()->is_automatic()
+	  || !array->is_forceable_vec4_array() || !source->fil)
+	    return true;
+      array->force_link_word(word, base, wid, source);
+      return true;
+}
+
+/* %force/link/off <destination>, <source>
+ *
+ * The preceding %force/vec4/off supplies the forced base and width. Multiple
+ * disjoint ranges may remain linked to the same destination; overlapping
+ * newer links supersede only the overlapping bits. */
+bool of_FORCE_LINK_OFF(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*dst = cp->net;
+      vvp_net_t*src = cp->net2;
+      force_pending_s*pending = thr->force_pending;
+      if (!pending || pending->kind != FORCE_PENDING_NET
+	  || pending->expected_link_pc != cp
+	  || pending->target.net != dst || !dst || !src) {
+	    force_pending_clear_(thr);
+	    return true;
+      }
+      unsigned base = pending->base;
+      unsigned wid = pending->width;
+      force_pending_clear_(thr);
+      if (!dst->fil || !src->fil)
+	    return true;
+      dst->fil->force_link_pv(dst, src, base, wid);
       return true;
 }
 
@@ -13369,14 +13498,54 @@ bool of_FORCE_VEC4(vthread_t thr, vvp_code_t cp)
 
       vvp_vector4_t value = thr->pop_vec4();
 
+      force_pending_clear_(thr);
+
 	/* Send the force value to the filter on the node. */
 
       assert(net->fil);
+      net->fil->force_unlink();
       if (value.size() != net->fil->filter_size())
 	    value = coerce_to_width(value, net->fil->filter_size());
 
       net->force_vec4(value, vvp_vector2_t(vvp_vector2_t::FILL1, net->fil->filter_size()));
 
+      return true;
+}
+
+/* %force/vec4/a <array>, <off-reg>
+ *
+ * The canonical unpacked word address is in ix3. Operand zero denotes a
+ * literal packed offset of zero, matching %store/vec4a. */
+bool of_FORCE_VEC4_A(vthread_t thr, vvp_code_t cp)
+{
+      unsigned off_idx = cp->bit_idx[0];
+      int64_t address = thr->words[3].w_int;
+      int64_t off = off_idx ? thr->words[off_idx].w_int : 0;
+      vvp_vector4_t value = thr->pop_vec4();
+      force_pending_clear_(thr);
+
+      if (thr->flags[4] == BIT4_1)
+	    return true;
+      vvp_array_t array = resolve_runtime_array_(cp, "%force/vec4/a");
+      if (!array || address < 0 || (uint64_t)address >= array->get_size()
+	  || array->get_scope()->is_automatic()
+	  || !array->is_forceable_vec4_array())
+	    return true;
+
+      if (!resize_rval_vec(value, off, array->get_word_size()))
+	    return true;
+      assert(off >= 0);
+      unsigned use_address = (unsigned)address;
+      unsigned use_off = (unsigned)off;
+      array->force_word(use_address, use_off, value);
+
+      force_pending_s*pending =
+	    force_pending_start_(thr, FORCE_PENDING_ARRAY);
+      pending->target.array = array;
+      pending->word = use_address;
+      pending->base = use_off;
+      pending->width = value.size();
+      pending->expected_link_pc = thr->pc;
       return true;
 }
 
@@ -13387,10 +13556,10 @@ bool of_FORCE_VEC4_OFF(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_t*net = cp->net;
       unsigned base_idx = cp->bit_idx[0];
-      long base = thr->words[base_idx].w_int;
+      int64_t base = thr->words[base_idx].w_int;
       vvp_vector4_t value = thr->pop_vec4();
-      unsigned wid = value.size();
 
+      force_pending_clear_(thr);
       assert(net->fil);
 
       if (thr->flags[4] == BIT4_1)
@@ -13398,20 +13567,19 @@ bool of_FORCE_VEC4_OFF(vthread_t thr, vvp_code_t cp)
 
 	// This is the width of the target vector.
       unsigned use_size = net->fil->filter_size();
-
-      if (base >= (long)use_size)
+      if (!resize_rval_vec(value, base, use_size))
 	    return true;
-      if (base < -(long)use_size)
-	    return true;
+      assert(base >= 0);
+      unsigned use_base = (unsigned)base;
+      unsigned wid = value.size();
 
-      if ((base + wid) > use_size)
-	    wid = use_size - base;
+      net->fil->force_unlink_pv(use_base, wid);
 
 	// Make a mask of which bits are to be forced, 0 for unforced
 	// bits and 1 for forced bits.
       vvp_vector2_t mask (vvp_vector2_t::FILL0, use_size);
       for (unsigned idx = 0 ; idx < wid ; idx += 1)
-	    mask.set_bit(base+idx, 1);
+	    mask.set_bit(use_base+idx, 1);
 
       vvp_vector4_t tmp (use_size, BIT4_Z);
 
@@ -13422,9 +13590,14 @@ bool of_FORCE_VEC4_OFF(vthread_t thr, vvp_code_t cp)
       assert(sig);
       sig->vec4_value(tmp);
 
-      tmp.set_vec(base, value);
+      tmp.set_vec(use_base, value);
 
       net->force_vec4(tmp, mask);
+      force_pending_s*pending = force_pending_start_(thr, FORCE_PENDING_NET);
+      pending->target.net = net;
+      pending->base = use_base;
+      pending->width = wid;
+      pending->expected_link_pc = thr->pc;
       return true;
 }
 
@@ -13443,6 +13616,7 @@ bool of_FORCE_VEC4_OFF_D(vthread_t thr, vvp_code_t cp)
 
       vvp_vector4_t value = thr->pop_vec4();
 
+      force_pending_clear_(thr);
       assert(net->fil);
 
       if (thr->flags[4] == BIT4_1)
@@ -13464,6 +13638,10 @@ bool of_FORCE_WR(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_t*net  = cp->net;
       double value = thr->pop_real();
+
+      force_pending_clear_(thr);
+      assert(net->fil);
+      net->fil->force_unlink();
 
       net->force_real(value, vvp_vector2_t(vvp_vector2_t::FILL1, 1));
 
@@ -21131,8 +21309,10 @@ static bool do_release_vec(vvp_code_t cp, bool net_flag)
 
       bool full_sig = base == 0 && width == net->fil->filter_size();
 
-	// XXXX Can't really do this if this is a partial release?
-      net->fil->force_unlink();
+      if (full_sig)
+	    net->fil->force_unlink();
+      else
+	    net->fil->force_unlink_pv(base, width);
 
 	/* Do we release all or part of the net? */
       vvp_net_ptr_t ptr (net, 0);
@@ -21270,23 +21450,70 @@ bool of_REF_BIND_W(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
-bool of_RELEASE_NET(vthread_t, vvp_code_t cp)
+bool of_RELEASE_NET(vthread_t thr, vvp_code_t cp)
 {
+      force_pending_clear_(thr);
       return do_release_vec(cp, true);
 }
 
 
-bool of_RELEASE_REG(vthread_t, vvp_code_t cp)
+bool of_RELEASE_REG(vthread_t thr, vvp_code_t cp)
 {
+      force_pending_clear_(thr);
       return do_release_vec(cp, false);
 }
 
+/* %release/reg/a <array>, <off-reg>, <width-reg>
+ *
+ * The canonical unpacked word address is in ix3. Compact arrays are
+ * variables, so released bits retain their last forced visible value. */
+bool of_RELEASE_REG_A(vthread_t thr, vvp_code_t cp)
+{
+      unsigned off_idx = cp->bit_idx[0];
+      unsigned wid_idx = cp->bit_idx[1];
+      int64_t address = thr->words[3].w_int;
+      int64_t off = off_idx ? thr->words[off_idx].w_int : 0;
+      int64_t wid = thr->words[wid_idx].w_int;
+      force_pending_clear_(thr);
+
+      if (thr->flags[4] == BIT4_1 || wid <= 0)
+	    return true;
+      vvp_array_t array = resolve_runtime_array_(cp, "%release/reg/a");
+      if (!array || address < 0 || (uint64_t)address >= array->get_size()
+	  || array->get_scope()->is_automatic()
+	  || !array->is_forceable_vec4_array())
+	    return true;
+      unsigned word_wid = array->get_word_size();
+      uint64_t use_wid = (uint64_t)wid;
+      if (off < 0) {
+	      /* Compute the magnitude without negating INT64_MIN, and subtract
+	       * in unsigned space so a malformed bytecode operand cannot cause
+	       * signed overflow. */
+	    uint64_t below = (uint64_t)(-(off + 1)) + 1;
+	    if (below >= use_wid)
+		  return true;
+	    use_wid -= below;
+	    off = 0;
+      }
+      uint64_t use_off = (uint64_t)off;
+      if (use_off >= word_wid)
+	    return true;
+      uint64_t available = word_wid - use_off;
+      if (use_wid > available)
+	    use_wid = available;
+
+      array->release_word((unsigned)address, (unsigned)use_off,
+			  (unsigned)use_wid);
+      return true;
+}
+
 /* The type is 1 for registers and 0 for everything else. */
-bool of_RELEASE_WR(vthread_t, vvp_code_t cp)
+bool of_RELEASE_WR(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_t*net = cp->net;
       unsigned type  = cp->bit_idx[0];
 
+      force_pending_clear_(thr);
       assert(net->fil);
       net->fil->force_unlink();
 

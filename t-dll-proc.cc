@@ -35,9 +35,11 @@
 bool dll_target::process(const NetProcTop*net)
 {
       bool rc_flag = true;
+      const bool streaming = streaming_processes();
+      if (streaming)
+	    dll_procedure_begin();
 
-      ivl_process_t obj = static_cast<struct ivl_process_s*>
-                          (calloc(1, sizeof(struct ivl_process_s)));
+      ivl_process_t obj = new struct ivl_process_s();
 
       obj->type_ = net->type();
       obj->analog_flag = 0;
@@ -61,16 +63,23 @@ bool dll_target::process(const NetProcTop*net)
 	   statement back. The asserts check these conditions. */
 
       assert(stmt_cur_ == 0);
-      stmt_cur_ = static_cast<struct ivl_statement_s*>(calloc(1, sizeof*stmt_cur_));
+      stmt_cur_ = new struct ivl_statement_s();
       rc_flag = net->statement()->emit_proc(this) && rc_flag;
 
       assert(stmt_cur_);
       obj->stmt_ = stmt_cur_;
       stmt_cur_ = 0;
 
-	/* Save the process in the design. */
-      obj->next_ = des_.threads_;
-      des_.threads_ = obj;
+	/* Incremental targets consume the graph synchronously while its arena is
+	 * active. Historical targets retain it on the design list. */
+      if (streaming) {
+	    if (rc_flag)
+		  rc_flag = stream_process(obj) && rc_flag;
+	    dll_procedure_reset();
+      } else {
+	    obj->next_ = des_.threads_;
+	    des_.threads_ = obj;
+      }
 
       return rc_flag;
 }
@@ -80,24 +89,27 @@ void dll_target::task_def(const NetScope*net)
       ivl_scope_t scop = lookup_scope_(net);
       const NetTaskDef*def = net->task_def();
 
-      if (scop->def)
+	ivl_scope_proc_s*proc = scop->proc_();
+      if (proc && proc->def)
 	    return;
 
       if (def == 0 || def->proc() == 0)
 	    return;
       assert(stmt_cur_ == 0);
-      stmt_cur_ = static_cast<struct ivl_statement_s*>(calloc(1, sizeof*stmt_cur_));
+      stmt_cur_ = new struct ivl_statement_s();
       def->proc()->emit_proc(this);
 
       assert(stmt_cur_);
-      scop->def = stmt_cur_;
+	proc = scop->ensure_proc_();
+      proc->def = stmt_cur_;
       stmt_cur_ = 0;
 
-      scop->ports = def->port_count();
-      if (scop->ports > 0) {
-	    scop->u_.port = new ivl_signal_t[scop->ports];
-	    for (unsigned idx = 0 ;  idx < scop->ports ;  idx += 1)
-		  scop->u_.port[idx] = find_signal(def->port(idx));
+      proc->ports = def->port_count();
+      if (proc->ports > 0) {
+	    proc->u_.port =
+		  dll_procedure_new_array<ivl_signal_t>(proc->ports);
+	    for (unsigned idx = 0 ;  idx < proc->ports ;  idx += 1)
+		  proc->u_.port[idx] = find_signal(def->port(idx));
       }
 
 }
@@ -107,23 +119,25 @@ bool dll_target::func_def(const NetScope*net)
       ivl_scope_t scop = lookup_scope_(net);
       const NetFuncDef*def = net->func_def();
 
-      if (scop->def)
+	ivl_scope_proc_s*proc = scop->proc_();
+      if (proc && proc->def)
 	    return true;
 
       if (def == 0 || def->proc() == 0)
 	    return true;
       assert(stmt_cur_ == 0);
-      stmt_cur_ = static_cast<struct ivl_statement_s*>(calloc(1, sizeof*stmt_cur_));
+      stmt_cur_ = new struct ivl_statement_s();
       def->proc()->emit_proc(this);
 
       assert(stmt_cur_);
-      scop->def = stmt_cur_;
+	proc = scop->ensure_proc_();
+      proc->def = stmt_cur_;
       stmt_cur_ = 0;
 
-      scop->ports = def->port_count() + 1;
-      scop->u_.port = new ivl_signal_t[scop->ports];
-      for (unsigned idx = 1 ;  idx < scop->ports ;  idx += 1)
-	    scop->u_.port[idx] = find_signal(def->port(idx-1));
+      proc->ports = def->port_count() + 1;
+      proc->u_.port = dll_procedure_new_array<ivl_signal_t>(proc->ports);
+      for (unsigned idx = 1 ;  idx < proc->ports ;  idx += 1)
+	    proc->u_.port[idx] = find_signal(def->port(idx-1));
 
 	/* FIXME: the ivl_target API expects port-0 to be the output
 	   port. This assumes that the return value is a signal, which
@@ -131,9 +145,9 @@ bool dll_target::func_def(const NetScope*net)
 	   this, but that will break code generators that use this
 	   result. */
       if (const NetNet*ret_sig = def->return_sig())
-	    scop->u_.port[0] = find_signal(ret_sig);
+	    proc->u_.port[0] = find_signal(ret_sig);
       else
-	    scop->u_.port[0] = 0;
+	    proc->u_.port[0] = 0;
 
 	/* If there is no return value, then this is a void function. */
 
@@ -145,6 +159,14 @@ bool dll_target::func_def(const NetScope*net)
  * This private function makes the assignment lvals for the various
  * kinds of assignment statements.
  */
+static ivl_statement_assign_aux_s*ensure_assign_aux_(ivl_statement_t stmt)
+{
+      if (!stmt->u_.assign_.aux_)
+	    stmt->u_.assign_.aux_ =
+		  dll_procedure_new<ivl_statement_assign_aux_s>();
+      return stmt->u_.assign_.aux_;
+}
+
 bool dll_target::make_assign_lvals_(const NetAssignBase*net)
 {
       bool flag = true;
@@ -153,8 +175,11 @@ bool dll_target::make_assign_lvals_(const NetAssignBase*net)
       unsigned cnt = net->l_val_count();
 
       stmt_cur_->u_.assign_.lvals_ = cnt;
-      stmt_cur_->u_.assign_.lval_  = new struct ivl_lval_s[cnt];
-      stmt_cur_->u_.assign_.delay  = 0;
+      stmt_cur_->u_.assign_.lval_ =
+	    dll_procedure_new_array<struct ivl_lval_s>(cnt);
+      stmt_cur_->u_.assign_.rval_  = 0;
+      stmt_cur_->u_.assign_.aux_   = 0;
+      stmt_cur_->u_.assign_.oper   = 0;
 
       for (unsigned idx = 0 ;  idx < cnt ;  idx += 1) {
 	    struct ivl_lval_s*cur = stmt_cur_->u_.assign_.lval_ + idx;
@@ -209,7 +234,8 @@ bool dll_target::make_single_lval_(const LineInfo*li, struct ivl_lval_s*cur, con
       } else {
 	    const NetAssign_*asn_nest = asn->nest();
 	    ivl_assert(*li, asn_nest);
-	    struct ivl_lval_s*cur_nest = new struct ivl_lval_s;
+	    struct ivl_lval_s*cur_nest =
+		  dll_procedure_new<struct ivl_lval_s>();
 	    flag &= make_single_lval_(li, cur_nest, asn_nest);
 
 	    cur->type_ = IVL_LVAL_LVAL;
@@ -256,8 +282,6 @@ bool dll_target::proc_assign(const NetAssign*net)
       stmt_cur_->type_ = IVL_ST_ASSIGN;
       FILE_NAME(stmt_cur_, net);
 
-      stmt_cur_->u_.assign_.delay = 0;
-
 	/* Make the lval fields. */
       flag &= make_assign_lvals_(net);
 
@@ -275,7 +299,7 @@ bool dll_target::proc_assign(const NetAssign*net)
       const NetExpr*del = net->get_delay();
       if (del) {
 	    del->expr_scan(this);
-	    stmt_cur_->u_.assign_.delay = expr_;
+	    ensure_assign_aux_(stmt_cur_)->delay = expr_;
 	    expr_ = 0;
       }
 
@@ -294,10 +318,6 @@ void dll_target::proc_assign_nb(const NetAssignNB*net)
       stmt_cur_->type_ = IVL_ST_ASSIGN_NB;
       FILE_NAME(stmt_cur_, net);
 
-      stmt_cur_->u_.assign_.delay  = 0;
-      stmt_cur_->u_.assign_.count  = 0;
-      stmt_cur_->u_.assign_.nevent  = 0;
-
 	/* Make the lval fields. */
       make_assign_lvals_(net);
 
@@ -314,42 +334,44 @@ void dll_target::proc_assign_nb(const NetAssignNB*net)
 	/* Process a delay if it exists. */
       if (const NetEConst*delay_num = dynamic_cast<const NetEConst*>(delay_exp)) {
 	    verinum val = delay_num->value();
-	    ivl_expr_t de = new struct ivl_expr_s;
+	    ivl_expr_t de = new struct ivl_expr_s();
 	    de->type_ = IVL_EX_DELAY;
 	    de->width_  = 8 * sizeof(uint64_t);
 	    de->signed_ = 0;
 	    de->u_.delay_.value = val.as_ulong64();
-	    stmt_cur_->u_.assign_.delay = de;
+	    ensure_assign_aux_(stmt_cur_)->delay = de;
 
       } else if (delay_exp != 0) {
 	    delay_exp->expr_scan(this);
-	    stmt_cur_->u_.assign_.delay = expr_;
+	    ensure_assign_aux_(stmt_cur_)->delay = expr_;
 	    expr_ = 0;
       }
 
 	/* Process a count if it exists. */
       if (const NetEConst*cnt_num = dynamic_cast<const NetEConst*>(cnt_exp)) {
 	    verinum val = cnt_num->value();
-	    ivl_expr_t cnt = new struct ivl_expr_s;
+	    ivl_expr_t cnt = new struct ivl_expr_s();
 	    cnt->type_ = IVL_EX_ULONG;
 	    cnt->width_  = 8 * sizeof(unsigned long);
 	    cnt->signed_ = 0;
 	    cnt->u_.ulong_.value = val.as_ulong();
-	    stmt_cur_->u_.assign_.count = cnt;
+	    ensure_assign_aux_(stmt_cur_)->count = cnt;
 
       } else if (cnt_exp != 0) {
 	    cnt_exp->expr_scan(this);
-	    stmt_cur_->u_.assign_.count = expr_;
+	    ensure_assign_aux_(stmt_cur_)->count = expr_;
 	    expr_ = 0;
       }
 
 	/* Process the events if they exist. This is a copy of code
 	 * from NetEvWait below. */
       if (net->nevents() > 0) {
-	    stmt_cur_->u_.assign_.nevent = net->nevents();
+	    ivl_statement_assign_aux_s*aux = ensure_assign_aux_(stmt_cur_);
+	    aux->nevent = net->nevents();
 	    if (net->nevents() > 1) {
-		  stmt_cur_->u_.assign_.events = static_cast<ivl_event_t*>
-		                                 (calloc(net->nevents(), sizeof(ivl_event_t*)));
+		  aux->events = static_cast<ivl_event_t*>(
+			dll_procedure_calloc(net->nevents(),
+					     sizeof(ivl_event_t*)));
 	    }
 
 	    for (unsigned edx = 0 ;  edx < net->nevents() ;  edx += 1) {
@@ -361,21 +383,22 @@ void dll_target::proc_assign_nb(const NetAssignNB*net)
 		  ivl_event_t ev_tmp=0;
 
 		  assert(ev_scope);
-		  assert(ev_scope->nevent_ > 0);
-		  for (unsigned idx = 0;  idx < ev_scope->nevent_; idx += 1) {
+		  ivl_scope_objects_s*objects = ev_scope->objects_();
+		  assert(objects && objects->nevent_ > 0);
+		  for (unsigned idx = 0; idx < objects->nevent_; idx += 1) {
 			const char*ename =
-			      ivl_event_basename(ev_scope->event_[idx]);
+			      ivl_event_basename(objects->event_[idx]);
 			if (strcmp(ev->name(), ename) == 0) {
-			      ev_tmp = ev_scope->event_[idx];
+			      ev_tmp = objects->event_[idx];
 			      break;
 			}
 		  }
 		  // XXX should we assert(ev_tmp)?
 
 		  if (net->nevents() == 1)
-			stmt_cur_->u_.assign_.event = ev_tmp;
+			aux->event = ev_tmp;
 		  else
-			stmt_cur_->u_.assign_.events[edx] = ev_tmp;
+			aux->events[edx] = ev_tmp;
 
 		    /* If this is an event with a probe, then connect up the
 		       pins. This wasn't done during the ::event method because
@@ -469,8 +492,8 @@ bool dll_target::proc_block(const NetBlock*net)
 	    break;
       }
       stmt_cur_->u_.block_.nstmt_ = count;
-      stmt_cur_->u_.block_.stmt_ = static_cast<struct ivl_statement_s*>
-                                   (calloc(count, sizeof(struct ivl_statement_s)));
+      stmt_cur_->u_.block_.stmt_ =
+	    dll_procedure_new_array<struct ivl_statement_s>(count);
 
       if (net->subscope())
 	    stmt_cur_->u_.block_.scope = lookup_scope_(net->subscope());
@@ -530,7 +553,8 @@ void dll_target::proc_case(const NetCase*net)
       }
       assert(stmt_cur_->type_ != IVL_ST_NONE);
 
-      stmt_cur_->u_.case_.quality = net->case_quality();
+      stmt_cur_->u_.case_.quality =
+	    static_cast<unsigned char>(net->case_quality());
       stmt_cur_->u_.case_.quality_if = net->is_quality_if();
       assert(expr_ == 0);
       assert(net->expr());
@@ -546,8 +570,10 @@ void dll_target::proc_case(const NetCase*net)
       unsigned ncase = net->nitems();
       stmt_cur_->u_.case_.ncase = ncase;
 
-      stmt_cur_->u_.case_.case_ex = new ivl_expr_t[ncase];
-      stmt_cur_->u_.case_.case_st = new struct ivl_statement_s[ncase];
+      stmt_cur_->u_.case_.case_ex =
+	    dll_procedure_new_array<ivl_expr_t>(ncase);
+      stmt_cur_->u_.case_.case_st =
+	    dll_procedure_new_array<struct ivl_statement_s>(ncase);
 
       ivl_statement_t save_cur = stmt_cur_;
 
@@ -607,8 +633,8 @@ bool dll_target::proc_condit(const NetCondit*net)
       FILE_NAME(stmt_cur_, net);
 
       stmt_cur_->type_ = IVL_ST_CONDIT;
-      stmt_cur_->u_.condit_.stmt_ = static_cast<struct ivl_statement_s*>
-                                    (calloc(2, sizeof(struct ivl_statement_s)));
+      stmt_cur_->u_.condit_.stmt_ =
+	    dll_procedure_new_array<struct ivl_statement_s>(2);
 
       assert(expr_ == 0);
       net->expr()->expr_scan(this);
@@ -658,8 +684,7 @@ bool dll_target::proc_delay(const NetPDelay*net)
       assert(stmt_cur_->type_ == IVL_ST_NONE);
       FILE_NAME(stmt_cur_, net);
 
-      ivl_statement_t tmp = static_cast<struct ivl_statement_s*>
-                            (calloc(1, sizeof(struct ivl_statement_s)));
+      ivl_statement_t tmp = new struct ivl_statement_s();
 
       if (const NetExpr*expr = net->expr()) {
 
@@ -716,8 +741,7 @@ void dll_target::proc_do_while(const NetDoWhile*net)
       FILE_NAME(stmt_cur_, net);
 
       stmt_cur_->type_ = IVL_ST_DO_WHILE;
-      stmt_cur_->u_.while_.stmt_ = static_cast<struct ivl_statement_s*>
-                                   (calloc(1, sizeof(struct ivl_statement_s)));
+      stmt_cur_->u_.while_.stmt_ = new struct ivl_statement_s();
 
       assert(expr_ == 0);
       net->expr()->expr_scan(this);
@@ -769,8 +793,7 @@ void dll_target::proc_forever(const NetForever*net)
 
       stmt_cur_->type_ = IVL_ST_FOREVER;
 
-      ivl_statement_t tmp = static_cast<struct ivl_statement_s*>
-                            (calloc(1, sizeof(struct ivl_statement_s)));
+      ivl_statement_t tmp = new struct ivl_statement_s();
 
       ivl_statement_t save_cur_ = stmt_cur_;
       stmt_cur_ = tmp;
@@ -795,30 +818,36 @@ bool dll_target::proc_forloop(const NetForLoop*net)
 
       // Note that the init statement is optional. If it is not present,
       // then the emit_recurse_init will not generate a statement.
-      tmp = static_cast<struct ivl_statement_s*> (calloc(1, sizeof(struct ivl_statement_s)));
+      bool init_in_arena = dll_procedure_active();
+      tmp = static_cast<struct ivl_statement_s*>(
+	    dll_procedure_calloc(1, sizeof(struct ivl_statement_s)));
       stmt_cur_ = tmp;
       rc = net->emit_recurse_init(this);
       if (stmt_cur_->type_ != IVL_ST_NONE)
 	    save_cur_->u_.forloop_.init_stmt = stmt_cur_;
       else {
-	    free(tmp);
+	    if (!init_in_arena)
+		  free(tmp);
 	    save_cur_->u_.forloop_.init_stmt = nullptr;
       }
       res = res && rc;
 
-      tmp = static_cast<struct ivl_statement_s*>(calloc(1, sizeof(struct ivl_statement_s)));
+      tmp = new struct ivl_statement_s();
       stmt_cur_ = tmp;
       rc = net->emit_recurse_stmt(this);
       save_cur_->u_.forloop_.stmt = stmt_cur_;
       res = res && rc;
 
-      tmp = static_cast<struct ivl_statement_s*>(calloc(1, sizeof(struct ivl_statement_s)));
+      bool step_in_arena = dll_procedure_active();
+      tmp = static_cast<struct ivl_statement_s*>(
+	    dll_procedure_calloc(1, sizeof(struct ivl_statement_s)));
       stmt_cur_ = tmp;
       rc = net->emit_recurse_step(this);
       if (stmt_cur_->type_ != IVL_ST_NONE)
 	    save_cur_->u_.forloop_.step = stmt_cur_;
       else {
-	    free(tmp);
+	    if (!step_in_arena)
+		  free(tmp);
 	    save_cur_->u_.forloop_.step = nullptr;
       }
       res = res && rc;
@@ -870,8 +899,7 @@ void dll_target::proc_repeat(const NetRepeat*net)
       stmt_cur_->u_.while_.cond_ = expr_;
       expr_ = 0;
 
-      ivl_statement_t tmp = static_cast<struct ivl_statement_s*>
-                            (calloc(1, sizeof(struct ivl_statement_s)));
+      ivl_statement_t tmp = new struct ivl_statement_s();
 
       ivl_statement_t save_cur_ = stmt_cur_;
       stmt_cur_ = tmp;
@@ -894,8 +922,8 @@ void dll_target::proc_stask(const NetSTask*net)
       stmt_cur_->u_.stask_.name_ = net->name();
       stmt_cur_->u_.stask_.sfunc_as_task_ = net->sfunc_as_task();
       stmt_cur_->u_.stask_.nparm_= nparms;
-      stmt_cur_->u_.stask_.parms_= static_cast<ivl_expr_t*>
-                                   (calloc(nparms, sizeof(ivl_expr_t)));
+      stmt_cur_->u_.stask_.parms_ = static_cast<ivl_expr_t*>(
+	    dll_procedure_calloc(nparms, sizeof(ivl_expr_t)));
 
       for (unsigned idx = 0 ;  idx < nparms ;  idx += 1) {
 	    if (net->parm(idx))
@@ -919,11 +947,13 @@ bool dll_target::proc_trigger(const NetEvTrig*net)
 	   statement so that the generator can find it easily. */
       const NetEvent*ev = net->event();
       ivl_scope_t ev_scope = lookup_scope_(ev->scope());
+      ivl_scope_objects_s*objects = ev_scope->objects_();
+      assert(objects);
 
-      for (unsigned idx = 0 ;  idx < ev_scope->nevent_ ;  idx += 1) {
-	    const char*ename = ivl_event_basename(ev_scope->event_[idx]);
+      for (unsigned idx = 0 ;  idx < objects->nevent_ ;  idx += 1) {
+	    const char*ename = ivl_event_basename(objects->event_[idx]);
 	    if (strcmp(ev->name(), ename) == 0) {
-		  stmt_cur_->u_.wait_.event = ev_scope->event_[idx];
+		  stmt_cur_->u_.wait_.event = objects->event_[idx];
 		  break;
 	    }
       }
@@ -952,11 +982,13 @@ bool dll_target::proc_nb_trigger(const NetEvNBTrig*net)
 	   statement so that the generator can find it easily. */
       const NetEvent*ev = net->event();
       ivl_scope_t ev_scope = lookup_scope_(ev->scope());
+      ivl_scope_objects_s*objects = ev_scope->objects_();
+      assert(objects);
 
-      for (unsigned idx = 0 ;  idx < ev_scope->nevent_ ;  idx += 1) {
-	    const char*ename = ivl_event_basename(ev_scope->event_[idx]);
+      for (unsigned idx = 0 ;  idx < objects->nevent_ ;  idx += 1) {
+	    const char*ename = ivl_event_basename(objects->event_[idx]);
 	    if (strcmp(ev->name(), ename) == 0) {
-		  stmt_cur_->u_.wait_.event = ev_scope->event_[idx];
+		  stmt_cur_->u_.wait_.event = objects->event_[idx];
 		  break;
 	    }
       }
@@ -999,8 +1031,7 @@ bool dll_target::proc_wait_obj(const NetEvWaitObj*net)
       stmt_cur_->type_ = IVL_ST_WAIT_OBJ;
       stmt_cur_->u_.evobj_.ev_slot = net->slot();
       stmt_cur_->u_.evobj_.delay = 0;
-      stmt_cur_->u_.evobj_.stmt_ = static_cast<struct ivl_statement_s*>
-	                           (calloc(1, sizeof(struct ivl_statement_s)));
+      stmt_cur_->u_.evobj_.stmt_ = new struct ivl_statement_s();
 
       assert(expr_ == 0);
       net->obj()->expr_scan(this);
@@ -1055,8 +1086,7 @@ bool dll_target::proc_wait_arr(const NetEvWaitArr*net)
       stmt_cur_->u_.evarr_.base_slot = net->event()->array_base_slot();
       stmt_cur_->u_.evarr_.count = net->event()->array_count();
       stmt_cur_->u_.evarr_.delay = 0;
-      stmt_cur_->u_.evarr_.stmt_ = static_cast<struct ivl_statement_s*>
-	                           (calloc(1, sizeof(struct ivl_statement_s)));
+      stmt_cur_->u_.evarr_.stmt_ = new struct ivl_statement_s();
 
       assert(expr_ == 0);
       net->index()->expr_scan(this);
@@ -1092,8 +1122,7 @@ bool dll_target::proc_wait(const NetEvWait*net)
       FILE_NAME(stmt_cur_, net);
 
       stmt_cur_->type_ = IVL_ST_WAIT;
-      stmt_cur_->u_.wait_.stmt_ = static_cast<struct ivl_statement_s*>
-                                  (calloc(1, sizeof(struct ivl_statement_s)));
+      stmt_cur_->u_.wait_.stmt_ = new struct ivl_statement_s();
 
       stmt_cur_->u_.wait_.nevent = net->nevents();
 
@@ -1110,8 +1139,9 @@ bool dll_target::proc_wait(const NetEvWait*net)
 
 	// This event processing code is also in the NB assign above.
       if (net->nevents() > 1) {
-	    stmt_cur_->u_.wait_.events = static_cast<ivl_event_t*>
-	                                 (calloc(net->nevents(), sizeof(ivl_event_t*)));
+	    stmt_cur_->u_.wait_.events = static_cast<ivl_event_t*>(
+		  dll_procedure_calloc(net->nevents(),
+					   sizeof(ivl_event_t*)));
       }
 
       for (unsigned edx = 0 ;  edx < net->nevents() ;  edx += 1) {
@@ -1123,11 +1153,12 @@ bool dll_target::proc_wait(const NetEvWait*net)
 	    ivl_event_t ev_tmp=0;
 
 	    assert(ev_scope);
-	    assert(ev_scope->nevent_ > 0);
-	    for (unsigned idx = 0 ;  idx < ev_scope->nevent_ ;  idx += 1) {
-		  const char*ename = ivl_event_basename(ev_scope->event_[idx]);
+	    ivl_scope_objects_s*objects = ev_scope->objects_();
+	    assert(objects && objects->nevent_ > 0);
+	    for (unsigned idx = 0 ; idx < objects->nevent_; idx += 1) {
+		  const char*ename = ivl_event_basename(objects->event_[idx]);
 		  if (strcmp(ev->name(), ename) == 0) {
-			ev_tmp = ev_scope->event_[idx];
+			ev_tmp = objects->event_[idx];
 			break;
 		  }
 	    }
@@ -1202,8 +1233,7 @@ void dll_target::proc_while(const NetWhile*net)
       FILE_NAME(stmt_cur_, net);
 
       stmt_cur_->type_ = IVL_ST_WHILE;
-      stmt_cur_->u_.while_.stmt_ = static_cast<struct ivl_statement_s*>
-                                   (calloc(1, sizeof(struct ivl_statement_s)));
+      stmt_cur_->u_.while_.stmt_ = new struct ivl_statement_s();
 
       assert(expr_ == 0);
       net->expr()->expr_scan(this);

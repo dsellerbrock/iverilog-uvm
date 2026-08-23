@@ -350,7 +350,7 @@ PCase::~PCase()
       for (unsigned idx = 0 ;  idx < items_->size() ;  idx += 1)
 	    if ((*items_)[idx]->stat) delete (*items_)[idx]->stat;
 
-      delete[]items_;
+      delete items_;
 }
 
 PCaseMatches::~PCaseMatches()

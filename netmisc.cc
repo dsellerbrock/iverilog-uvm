@@ -3005,6 +3005,27 @@ const netclass_t* find_class_containing_scope(const LineInfo&loc, const NetScope
       ivl_assert(loc, found_in);
       return found_in;
 }
+
+/* These scope-query caches are only used while elaborating expressions and
+ * resolving symbols. Keep them process-global for the duration of that phase,
+ * then release their map nodes before the target builds its own design graph. */
+static std::map<NetScope*,NetScope*> method_containing_scope_cache_;
+static std::map<NetScope*,bool> method_containing_scope_cache_valid_;
+static std::map<NetScope*,bool> method_uses_implicit_this_cache_;
+static std::map<NetScope*,bool> method_uses_implicit_this_cache_valid_;
+static std::map<NetScope*,NetNet*> implicit_this_handle_cache_;
+static std::map<NetScope*,bool> implicit_this_handle_cache_valid_;
+
+void netmisc_release_elaboration_caches()
+{
+      method_containing_scope_cache_.clear();
+      method_containing_scope_cache_valid_.clear();
+      method_uses_implicit_this_cache_.clear();
+      method_uses_implicit_this_cache_valid_.clear();
+      implicit_this_handle_cache_.clear();
+      implicit_this_handle_cache_valid_.clear();
+}
+
 /*
  * Find the scope that contains this scope, that is the method for a
  * class scope. Look for the scope whose PARENT is the scope for a
@@ -3012,15 +3033,13 @@ const netclass_t* find_class_containing_scope(const LineInfo&loc, const NetScope
  */
 NetScope* find_method_containing_scope(const LineInfo&, NetScope*scope)
 {
-      static std::map<NetScope*,NetScope*> cache;
-      static std::map<NetScope*,bool> cache_valid;
       NetScope*origin_scope = scope;
 
       if (scope == 0)
 	    return 0;
 
-      if (cache_valid[origin_scope])
-	    return cache[origin_scope];
+      if (method_containing_scope_cache_valid_[origin_scope])
+	    return method_containing_scope_cache_[origin_scope];
 
       // Extern class methods are not nested under a CLASS scope; their parent
       // is typically a package scope. Detect those directly from the function
@@ -3029,8 +3048,8 @@ NetScope* find_method_containing_scope(const LineInfo&, NetScope*scope)
 	    if (cur->type() == NetScope::FUNC) {
 		  const PFunction*pfunc = cur->func_pform();
 		  if (pfunc && pfunc->method_of()) {
-			cache[origin_scope] = cur;
-			cache_valid[origin_scope] = true;
+			method_containing_scope_cache_[origin_scope] = cur;
+			method_containing_scope_cache_valid_[origin_scope] = true;
 			return cur;
 		  }
 	    }
@@ -3044,15 +3063,15 @@ NetScope* find_method_containing_scope(const LineInfo&, NetScope*scope)
       }
 
       if (up == 0) {
-	    cache[origin_scope] = 0;
-	    cache_valid[origin_scope] = true;
+	    method_containing_scope_cache_[origin_scope] = 0;
+	    method_containing_scope_cache_valid_[origin_scope] = true;
 	    return 0;
       }
 
 	// Should I check if this scope is a TASK or FUNC?
 
-      cache[origin_scope] = scope;
-      cache_valid[origin_scope] = true;
+      method_containing_scope_cache_[origin_scope] = scope;
+      method_containing_scope_cache_valid_[origin_scope] = true;
       return scope;
 }
 
@@ -3077,14 +3096,11 @@ static bool base_def_uses_implicit_this_(const NetBaseDef*def)
 
 bool scope_method_uses_implicit_this(Design*des, NetScope*scope)
 {
-      static std::map<NetScope*,bool> cache;
-      static std::map<NetScope*,bool> cache_valid;
-
       if (!scope)
 	    return false;
 
-      if (cache_valid[scope])
-	    return cache[scope];
+      if (method_uses_implicit_this_cache_valid_[scope])
+	    return method_uses_implicit_this_cache_[scope];
 
       bool uses_this = false;
 
@@ -3115,27 +3131,25 @@ bool scope_method_uses_implicit_this(Design*des, NetScope*scope)
 	    break;
       }
 
-      cache[scope] = uses_this;
-      cache_valid[scope] = true;
+      method_uses_implicit_this_cache_[scope] = uses_this;
+      method_uses_implicit_this_cache_valid_[scope] = true;
       return uses_this;
 }
 
 NetNet* find_implicit_this_handle(Design*des, NetScope*scope)
 {
-      static std::map<NetScope*,NetNet*> cache;
-      static std::map<NetScope*,bool> cache_valid;
       NetScope*origin_scope = scope;
 
       if (scope == 0)
 	    return 0;
 
-      if (cache_valid[origin_scope])
-	    return cache[origin_scope];
+      if (implicit_this_handle_cache_valid_[origin_scope])
+	    return implicit_this_handle_cache_[origin_scope];
 
       for (NetScope*cur = scope ; cur ; cur = cur->parent()) {
 	    if (NetNet*net = cur->find_signal(perm_string::literal(THIS_TOKEN))) {
-		  cache[origin_scope] = net;
-		  cache_valid[origin_scope] = true;
+		  implicit_this_handle_cache_[origin_scope] = net;
+		  implicit_this_handle_cache_valid_[origin_scope] = true;
 		  return net;
 	    }
 
@@ -3147,8 +3161,8 @@ NetNet* find_implicit_this_handle(Design*des, NetScope*scope)
 		  scope_pfunc->elaborate_sig(des, cur);
 
 	    if (NetNet*net = cur->find_signal(perm_string::literal(THIS_TOKEN))) {
-		  cache[origin_scope] = net;
-		  cache_valid[origin_scope] = true;
+		  implicit_this_handle_cache_[origin_scope] = net;
+		  implicit_this_handle_cache_valid_[origin_scope] = true;
 		  return net;
 	    }
 
@@ -3159,15 +3173,16 @@ NetNet* find_implicit_this_handle(Design*des, NetScope*scope)
 		  const NetNet*ret_sig = fdef->return_sig();
 		  if (ret_sig && ret_sig->net_type()
 		      && ivl_type_base(ret_sig->net_type()) == IVL_VT_CLASS) {
-			cache[origin_scope] = const_cast<NetNet*>(ret_sig);
-			cache_valid[origin_scope] = true;
-			return cache[origin_scope];
+			implicit_this_handle_cache_[origin_scope] =
+			      const_cast<NetNet*>(ret_sig);
+			implicit_this_handle_cache_valid_[origin_scope] = true;
+			return implicit_this_handle_cache_[origin_scope];
 		  }
 	    }
       }
 
-      cache[origin_scope] = 0;
-      cache_valid[origin_scope] = true;
+      implicit_this_handle_cache_[origin_scope] = 0;
+      implicit_this_handle_cache_valid_[origin_scope] = true;
       return 0;
 }
 

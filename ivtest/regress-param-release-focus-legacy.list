@@ -1,0 +1,11 @@
+sv_param_pattern_override_import normal,-g2012 ivltests
+sv_param_unpacked_array_select normal,-g2012 ivltests
+sv_string_localparam_sformatf_scope normal,-g2012 ivltests
+sv_uparam_dim_decl_scope normal,-g2012 ivltests sv_uparam_dim_decl_scope
+sv_uparam_multi_dim normal,-g2012 ivltests
+sv_type_param1 normal,-g2005-sv ivltests
+sv_param_type_identity1 normal,-g2012 ivltests gold=sv_param_type_identity1.gold
+param_string normal ivltests
+ca_func normal,-gstrict-ca-eval ivltests
+modparam normal ivltests top
+defparam normal ivltests main

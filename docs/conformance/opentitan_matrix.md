@@ -62,6 +62,14 @@ unambiguous choice. The logical venv path is intentionally preserved: resolving
 that symlink to its base Homebrew interpreter bypasses `pyvenv.cfg` and loses
 the environment's packages.
 
+On Apple Silicon, the supported campaign interpreter is native Python 3.13 at
+`/opt/homebrew/opt/python@3.13/bin/python3.13`. Do not use an older environment
+whose interpreter points into `/usr/local`: changing only that symlink does not
+rebuild its x86_64 extension modules. Create a fresh environment from
+OpenTitan's hashed requirements and pass its logical `bin/python` path through
+`--fusesoc-python`. The matrix records and validates the selected machine
+architecture as well as the Python and FuseSoC versions.
+
 At OpenTitan revision `7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19`, current
 discovery finds 264 RTL/default-target jobs, 128 standalone SVA/formal jobs, 61
 UVM compile jobs, and 77 runtime jobs. The runtime total is the 61 configured

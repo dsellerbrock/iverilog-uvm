@@ -53,6 +53,13 @@ unsigned show_file_line = 0;
 int debug_draw = 0;
 
 static ivl_design_t saved_design = NULL;
+static int incremental_design_active = 0;
+
+DLLEXPORT int target_design_begin(ivl_design_t des);
+DLLEXPORT int target_process(ivl_process_t net);
+DLLEXPORT int target_design_end(ivl_design_t des);
+DLLEXPORT int target_process_order(ivl_process_order_s*processes,
+                                   size_t count);
 
 /* Normal INITIAL processes all enter the Active region at time zero. The
  * standard deliberately leaves their relative execution order unspecified,
@@ -363,6 +370,291 @@ static int draw_processes(ivl_design_t des)
       return rc;
 }
 
+/* Incremental callbacks must be rendered in the same order as the legacy
+ * complete target graph. Ordering lightweight source descriptors before
+ * lowering preserves first-use side effects (notably lazy class definitions)
+ * without retaining or spooling any procedure graph or generated text. */
+struct ordered_lexical_process_s {
+      ivl_process_order_s*process;
+      ivl_scope_t module;
+      const char*file;
+      unsigned line;
+      size_t position;
+};
+
+static int ordered_process_is_normal_initial(
+      const ivl_process_order_s*process)
+{
+      return process->type == IVL_PR_INITIAL
+          && !(process->flags & IVL_PROCESS_ORDER_SCHEDULE_INIT);
+}
+
+static ivl_scope_t ordered_process_containing_module(
+      const ivl_process_order_s*process)
+{
+      ivl_scope_t scope = process->scope;
+      while (scope && ivl_scope_type(scope) != IVL_SCT_MODULE)
+            scope = ivl_scope_parent(scope);
+      return scope;
+}
+
+static int compare_ordered_lexical_group(
+      const struct ordered_lexical_process_s*left,
+      const struct ordered_lexical_process_s*right)
+{
+      uintptr_t left_module = (uintptr_t)left->module;
+      uintptr_t right_module = (uintptr_t)right->module;
+      if (left_module < right_module) return -1;
+      if (left_module > right_module) return 1;
+      return strcmp(left->file, right->file);
+}
+
+static int compare_ordered_lexical_line(const void*left_arg,
+                                        const void*right_arg)
+{
+      const struct ordered_lexical_process_s*left =
+            (const struct ordered_lexical_process_s*)left_arg;
+      const struct ordered_lexical_process_s*right =
+            (const struct ordered_lexical_process_s*)right_arg;
+      int group_cmp = compare_ordered_lexical_group(left, right);
+      if (group_cmp) return group_cmp;
+      if (left->line < right->line) return -1;
+      if (left->line > right->line) return 1;
+      if (left->position < right->position) return -1;
+      if (left->position > right->position) return 1;
+      return 0;
+}
+
+static int compare_ordered_lexical_position(const void*left_arg,
+                                            const void*right_arg)
+{
+      const struct ordered_lexical_process_s*left =
+            (const struct ordered_lexical_process_s*)left_arg;
+      const struct ordered_lexical_process_s*right =
+            (const struct ordered_lexical_process_s*)right_arg;
+      int group_cmp = compare_ordered_lexical_group(left, right);
+      if (group_cmp) return group_cmp;
+      if (left->position < right->position) return -1;
+      if (left->position > right->position) return 1;
+      return 0;
+}
+
+static void order_descriptors_normal_initials_lexically(
+      ivl_process_order_s**items, size_t count)
+{
+      struct ordered_lexical_process_s*by_line;
+      struct ordered_lexical_process_s*by_position;
+      size_t eligible_count = 0;
+      size_t idx;
+
+      if (count < 2)
+            return;
+
+      by_line = (struct ordered_lexical_process_s*)malloc(
+            count * sizeof(struct ordered_lexical_process_s));
+      assert(by_line);
+
+      for (idx = 0; idx < count; idx += 1) {
+            ivl_process_order_s*process = items[idx];
+            ivl_scope_t module;
+            if (!ordered_process_is_normal_initial(process))
+                  continue;
+            module = ordered_process_containing_module(process);
+            if (!module || ivl_scope_program(module) || !process->file
+                || process->lineno == 0)
+                  continue;
+            by_line[eligible_count].process = process;
+            by_line[eligible_count].module = module;
+            by_line[eligible_count].file = process->file;
+            by_line[eligible_count].line = process->lineno;
+            by_line[eligible_count].position = idx;
+            eligible_count += 1;
+      }
+
+      if (eligible_count < 2) {
+            free(by_line);
+            return;
+      }
+
+      by_position = (struct ordered_lexical_process_s*)malloc(
+            eligible_count * sizeof(struct ordered_lexical_process_s));
+      assert(by_position);
+      memcpy(by_position, by_line,
+             eligible_count * sizeof(struct ordered_lexical_process_s));
+
+      qsort(by_line, eligible_count,
+            sizeof(struct ordered_lexical_process_s),
+            compare_ordered_lexical_line);
+      qsort(by_position, eligible_count,
+            sizeof(struct ordered_lexical_process_s),
+            compare_ordered_lexical_position);
+
+      for (idx = 0; idx < eligible_count; idx += 1) {
+            assert(compare_ordered_lexical_group(&by_line[idx],
+                                                 &by_position[idx]) == 0);
+            items[by_position[idx].position] = by_line[idx].process;
+      }
+
+      free(by_position);
+      free(by_line);
+}
+
+struct ordered_hierarchy_process_s {
+      ivl_process_order_s*process;
+      ivl_scope_t module;
+      size_t position;
+      int in_interface;
+};
+
+static int ordered_process_is_in_interface(
+      const ivl_process_order_s*process)
+{
+      ivl_scope_t scope = process->scope;
+      while (scope) {
+            if (ivl_scope_type(scope) == IVL_SCT_MODULE)
+                  return ivl_scope_is_interface(scope) ? 1 : 0;
+            scope = ivl_scope_parent(scope);
+      }
+      return 0;
+}
+
+static ivl_scope_t ordered_process_containing_design_module(
+      const ivl_process_order_s*process)
+{
+      ivl_scope_t scope = process->scope;
+      while (scope) {
+            if (ivl_scope_type(scope) == IVL_SCT_MODULE
+                && !ivl_scope_is_interface(scope))
+                  return scope;
+            scope = ivl_scope_parent(scope);
+      }
+      return NULL;
+}
+
+static int compare_ordered_hierarchy_position(const void*left_arg,
+                                              const void*right_arg)
+{
+      const struct ordered_hierarchy_process_s*left =
+            (const struct ordered_hierarchy_process_s*)left_arg;
+      const struct ordered_hierarchy_process_s*right =
+            (const struct ordered_hierarchy_process_s*)right_arg;
+      uintptr_t left_module = (uintptr_t)left->module;
+      uintptr_t right_module = (uintptr_t)right->module;
+      if (left_module < right_module) return -1;
+      if (left_module > right_module) return 1;
+      if (left->position < right->position) return -1;
+      if (left->position > right->position) return 1;
+      return 0;
+}
+
+static void order_descriptors_interface_initials_before_parent(
+      ivl_process_order_s**items, size_t count)
+{
+      struct ordered_hierarchy_process_s*by_position;
+      struct ordered_hierarchy_process_s*partitioned;
+      size_t eligible_count = 0;
+      size_t idx;
+
+      if (count < 2)
+            return;
+
+      by_position = (struct ordered_hierarchy_process_s*)malloc(
+            count * sizeof(struct ordered_hierarchy_process_s));
+      assert(by_position);
+
+      for (idx = 0; idx < count; idx += 1) {
+            ivl_process_order_s*process = items[idx];
+            ivl_scope_t module;
+            if (!ordered_process_is_normal_initial(process))
+                  continue;
+            module = ordered_process_containing_design_module(process);
+            if (!module || ivl_scope_program(module))
+                  continue;
+            by_position[eligible_count].process = process;
+            by_position[eligible_count].module = module;
+            by_position[eligible_count].position = idx;
+            by_position[eligible_count].in_interface =
+                  ordered_process_is_in_interface(process);
+            eligible_count += 1;
+      }
+
+      if (eligible_count < 2) {
+            free(by_position);
+            return;
+      }
+
+      qsort(by_position, eligible_count,
+            sizeof(struct ordered_hierarchy_process_s),
+            compare_ordered_hierarchy_position);
+      partitioned = (struct ordered_hierarchy_process_s*)malloc(
+            eligible_count * sizeof(struct ordered_hierarchy_process_s));
+      assert(partitioned);
+
+      for (idx = 0; idx < eligible_count; ) {
+            size_t end = idx + 1;
+            size_t out = idx;
+            size_t cur;
+            while (end < eligible_count
+                   && by_position[end].module == by_position[idx].module)
+                  end += 1;
+
+            for (cur = idx; cur < end; cur += 1)
+                  if (by_position[cur].in_interface)
+                        partitioned[out++] = by_position[cur];
+            for (cur = idx; cur < end; cur += 1)
+                  if (!by_position[cur].in_interface)
+                        partitioned[out++] = by_position[cur];
+            assert(out == end);
+
+            for (cur = idx; cur < end; cur += 1)
+                  items[by_position[cur].position] =
+                        partitioned[cur].process;
+            idx = end;
+      }
+
+      free(partitioned);
+      free(by_position);
+}
+
+DLLEXPORT int target_process_order(ivl_process_order_s*processes,
+                                   size_t count)
+{
+      ivl_process_order_s**ordered;
+      ivl_process_order_s*copy;
+      size_t idx;
+
+      if (count < 2)
+            return 0;
+      if (!processes)
+            return -1;
+
+      ordered = (ivl_process_order_s**)malloc(
+            count * sizeof(ivl_process_order_s*));
+      copy = (ivl_process_order_s*)malloc(
+            count * sizeof(ivl_process_order_s));
+      if (!ordered || !copy) {
+            free(copy);
+            free(ordered);
+            fprintf(stderr,
+                    "vvp.tgt error: unable to allocate process order index.\n");
+            return -1;
+      }
+
+      for (idx = 0; idx < count; idx += 1)
+            ordered[idx] = &processes[idx];
+
+      order_descriptors_normal_initials_lexically(ordered, count);
+      order_descriptors_interface_initials_before_parent(ordered, count);
+
+      for (idx = 0; idx < count; idx += 1)
+            copy[idx] = *ordered[idx];
+      memcpy(processes, copy, count * sizeof(ivl_process_order_s));
+
+      free(copy);
+      free(ordered);
+      return 0;
+}
+
 /* Accessor for tgt-vvp helpers that need design-wide scope navigation
  * (e.g. randomize() pre/post-hook lookup in eval_vec4.c). */
 ivl_design_t vvp_get_saved_design(void) { return saved_design; }
@@ -487,14 +779,10 @@ static void process_debug_string(const char*debug_string)
       }
 }
 
-int target_design(ivl_design_t des)
-
+static int begin_design_output(ivl_design_t des)
 {
-      int rc;
       ivl_scope_t *roots;
       unsigned nroots, i;
-      unsigned size;
-      unsigned idx;
       const char*path = ivl_design_flag(des, "-o");
 	/* Use -pfileline to determine if file and line information is
 	 * printed for procedural statements. (e.g. -pfileline=1).
@@ -570,10 +858,17 @@ int target_design(ivl_design_t des)
       for (i = 0; i < nroots; i++)
 	    draw_scope(roots[i], 0);
 
-        /* Finish up any modpaths that are not yet emitted. */
+	/* Finish up any modpaths that are not yet emitted. */
       cleanup_modpath();
 
-      rc = draw_processes(des);
+      return 0;
+}
+
+static int finish_design_output(ivl_design_t des, int rc)
+{
+      unsigned size;
+      unsigned idx;
+      const char*path = ivl_design_flag(des, "-o");
 
       emit_deferred_array_decls();
 
@@ -596,9 +891,61 @@ int target_design(ivl_design_t des)
       }
 
       fclose(vvp_out);
+      vvp_out = 0;
       EOC_cleanup_drivers();
 
       return rc + vvp_errors;
+}
+
+int target_design(ivl_design_t des)
+{
+      int rc = begin_design_output(des);
+      if (rc != 0)
+            return rc;
+
+      rc = draw_processes(des);
+      return finish_design_output(des, rc);
+}
+
+DLLEXPORT int target_design_begin(ivl_design_t des)
+{
+      int rc;
+
+      if (incremental_design_active) {
+            fprintf(stderr,
+                    "vvp.tgt error: streaming process emission is already active.\n");
+            return -1;
+      }
+
+      rc = begin_design_output(des);
+      if (rc != 0)
+            return rc;
+
+      incremental_design_active = 1;
+      return 0;
+}
+
+DLLEXPORT int target_process(ivl_process_t net)
+{
+      if (!incremental_design_active || !vvp_out || !net) {
+            fprintf(stderr,
+                    "vvp.tgt error: process callback outside a streaming design.\n");
+            return -1;
+      }
+
+      return draw_process(net, 0);
+}
+
+DLLEXPORT int target_design_end(ivl_design_t des)
+{
+      if (!incremental_design_active || !vvp_out || des != saved_design) {
+            fprintf(stderr,
+                    "vvp.tgt error: design-end callback outside a streaming design.\n");
+            return -1;
+      }
+
+      incremental_design_active = 0;
+      return finish_design_output(des, 0);
 }
 
 
@@ -606,6 +953,12 @@ const char* target_query(const char*key)
 {
       if (strcmp(key,"version") == 0)
 	    return version_string;
+
+      if (strcmp(key,"stream_processes") == 0)
+            return "true";
+
+      if (strcmp(key,"order_processes") == 0)
+            return "true";
 
       return 0;
 }

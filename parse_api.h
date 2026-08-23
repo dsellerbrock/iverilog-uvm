@@ -59,6 +59,7 @@ extern void pform_dump(std::ostream&out, const PTaskFunc*tf);
 extern int pform_parse(const char*path);
 
 extern int pform_finish();
+extern void pform_release_elaboration_memory();
 
 extern std::string vl_file;
 

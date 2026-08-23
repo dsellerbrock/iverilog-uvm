@@ -108,6 +108,8 @@ dep
 
 # The executables.
 *.exe
+*.dSYM/
+*.o.tmp
 /driver/iverilog
 /iverilog-vpi
 /ivl
@@ -123,6 +125,9 @@ ivlpp/lex.yy.c
 
 # Ephemeral subagent worktrees
 .claude/worktrees/
+
+# Python interpreter caches are host- and version-specific build artifacts.
+__pycache__/
 
 # Local licensed standards references. Keep PDFs out of Git.
 /docs/standards/local/

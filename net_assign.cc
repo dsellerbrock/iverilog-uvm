@@ -76,6 +76,7 @@ NetAssign_::~NetAssign_()
       }
 
       delete more;
+      delete nest_;
       delete word_;
       delete base_;
       delete stream_range_first_;
@@ -372,6 +373,7 @@ NetAssignBase::NetAssignBase(NetAssign_*lv, NetExpr*rv)
 NetAssignBase::~NetAssignBase()
 {
       delete rval_;
+      delete delay_;
       while (lval_) {
 	    NetAssign_*tmp = lval_;
 	    lval_ = tmp->more;
@@ -479,6 +481,8 @@ NetAssignNB::NetAssignNB(NetAssign_*lv, NetExpr*rv, NetEvWait*ev, NetExpr*cnt)
 
 NetAssignNB::~NetAssignNB()
 {
+      delete event_;
+      delete count_;
 }
 
 unsigned NetAssignNB::nevents() const

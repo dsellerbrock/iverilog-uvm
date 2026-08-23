@@ -19,6 +19,7 @@
 
 # include "config.h"
 # include "PTask.h"
+# include "Statement.h"
 # include "ivl_assert.h"
 
 using namespace std;
@@ -95,6 +96,13 @@ PTask::PTask(perm_string name, LexicalScope*parent, bool is_auto__)
 
 PTask::~PTask()
 {
+}
+
+void PTask::release_elaboration_memory()
+{
+      delete statement_;
+      statement_ = nullptr;
+      LexicalScope::release_elaboration_memory();
 }
 
 void PTask::set_statement(Statement*s)

@@ -31,6 +31,7 @@
 # include  "netlist.h"
 # include  "compiler.h"
 # include  <typeinfo>
+# include  <algorithm>
 # include  <cassert>
 # include  <cstring>
 
@@ -534,6 +535,14 @@ void NetScope::emit_scope(struct target_t*tgt) const
       }
 
       if (type_ == MODULE) tgt->convert_module_ports(this);
+
+	/* Delay paths and declaration-delay boundary indexes are complete once
+	 * both signal passes and module-port conversion have run. Interface
+	 * binding metadata remains live for later procedural property lowering. */
+      for (signals_map_iter_t cur = signals_map_.begin()
+		 ; cur != signals_map_.end() ; ++cur) {
+	    cur->second->release_emitted_signal_aux();
+      }
 }
 
 bool NetScope::emit_defs(struct target_t*tgt) const
@@ -558,9 +567,13 @@ bool NetScope::emit_defs(struct target_t*tgt) const
 
 	  case FUNC:
 	    flag &= tgt->func_def(this);
+	    if (func_def())
+		  const_cast<NetFuncDef*>(func_def())->release_proc();
 	    break;
 	  case TASK:
 	    tgt->task_def(this);
+	    if (task_def())
+		  const_cast<NetTaskDef*>(task_def())->release_proc();
 	    break;
 	  default:  /* BEGIN_END and FORK_JOIN, GENERATE... */
 	    for (map<hname_t,NetScope*>::const_iterator cur = children_.begin()
@@ -577,7 +590,7 @@ bool netclass_t::emit_defs(struct target_t*tgt) const
       return class_scope_->emit_defs(tgt);
 }
 
-int Design::emit(struct target_t*tgt) const
+int Design::emit(struct target_t*tgt)
 {
       int rc = 0;
 
@@ -592,6 +605,12 @@ int Design::emit(struct target_t*tgt) const
       if (!tgt->needs_design())
 	    return tgt->end_design(this);
 
+      /* Converted procedure trees are released below. Preserve shared event
+       * objects until every later process has been converted by the target.
+       * Validation-only and failed targets returned before entering this
+       * terminal release phase. */
+      net_event_target_release_mode(true);
+
 	// enumerate package scopes
       for (map<perm_string,NetScope*>::const_iterator scope = packages_.begin()
 		 ; scope != packages_.end() ; ++ scope) {
@@ -603,21 +622,89 @@ int Design::emit(struct target_t*tgt) const
 		 ; scope != root_scopes_.end(); ++ scope ) {
 	    (*scope)->emit_scope(tgt);
       }
+      size_t released_heap_bytes = release_unused_heap_pages();
+      if (verbose_flag)
+	    cout << " ... target scopes and signals complete" << endl;
 
 	// emit nodes
       bool nodes_rc = true;
-      if (nodes_) {
-	    const NetNode*cur = nodes_->node_next_;
-	    do {
-		  nodes_rc = nodes_rc && cur->emit_node(tgt);
-		  cur = cur->node_next_;
-	    } while (cur != nodes_->node_next_);
+      while (nodes_) {
+	    NetNode*cur = nodes_->node_next_;
+	    if (nodes_rc)
+		  nodes_rc = cur->emit_node(tgt);
+	    delete cur;
       }
+
+      released_heap_bytes += release_unused_heap_pages();
 
 
       bool branches_rc = true;
       for (const NetBranch*cur = branches_ ; cur ; cur = cur->next_) {
 	    branches_rc = tgt->branch(cur) && branches_rc;
+      }
+
+      bool end_nodes_rc = tgt->end_nodes();
+      nodes_rc = end_nodes_rc && nodes_rc;
+
+      size_t released_connectivity_links = 0;
+      if (tgt->can_release_source_connectivity()) {
+            for (map<perm_string,NetScope*>::const_iterator scope = packages_.begin()
+                       ; scope != packages_.end() ; ++scope)
+                  released_connectivity_links +=
+                        scope->second->release_signal_connectivity();
+            for (list<NetScope*>::const_iterator scope = root_scopes_.begin()
+                       ; scope != root_scopes_.end(); ++scope)
+                  released_connectivity_links +=
+                        (*scope)->release_signal_connectivity();
+            for (NetBranch*cur = branches_; cur; cur = cur->next_)
+                  released_connectivity_links +=
+                        cur->release_terminal_connectivity();
+            released_heap_bytes += release_unused_heap_pages();
+      }
+      if (verbose_flag)
+            cout << " ... target structural nodes complete" << endl;
+
+      if (verbose_flag && released_connectivity_links)
+            cout << " ... source connectivity released ("
+                 << released_connectivity_links << " pin records)" << endl;
+
+      if (verbose_flag && released_heap_bytes)
+	    cout << " ... allocator released " << released_heap_bytes
+		 << " bytes while converting target records" << endl;
+
+      if (verbose_flag)
+	    cout << " ... source structural nodes released" << endl;
+
+	/* DLL targets materialize statements without consulting the target-side
+	 * task/function definitions. Convert ordinary processes first for targets
+	 * that advertise this ordering, so their source trees can be released
+	 * before definition conversion builds another large set of records. */
+      bool proc_rc = true;
+      const bool emit_processes_before_definitions =
+	    tgt->can_emit_processes_before_definitions();
+      const bool ordered_process_callbacks =
+	    tgt->ordered_process_callbacks();
+      assert(!ordered_process_callbacks ||
+	     !emit_processes_before_definitions);
+      const auto emit_ordinary_processes = [&]() {
+	    while (procs_) {
+		  NetProcTop*idx = procs_;
+		  proc_rc &= idx->emit(tgt);
+		  if (idx->scope()->var_init() == idx->statement())
+			idx->scope()->set_var_init(0);
+		  delete_process(idx);
+	    }
+      };
+
+      if (emit_processes_before_definitions) {
+	    emit_ordinary_processes();
+	    size_t process_released_heap_bytes = release_unused_heap_pages();
+	    if (verbose_flag)
+		  cout << " ... target ordinary processes complete" << endl;
+	    if (verbose_flag && process_released_heap_bytes)
+		  cout << " ... allocator released "
+		       << process_released_heap_bytes
+		       << " bytes after source process release" << endl;
       }
 
 	// emit task and function definitions
@@ -628,14 +715,81 @@ int Design::emit(struct target_t*tgt) const
       for (list<NetScope*>::const_iterator scope = root_scopes_.begin()
 		 ; scope != root_scopes_.end(); ++ scope )
 	    tasks_rc &= (*scope)->emit_defs(tgt);
+      if (verbose_flag)
+	    cout << " ... target task/function definitions complete" << endl;
 
+	/* A target that applies its own final process ordering receives a compact
+	 * source-only index before any procedure is lowered. Start with the exact
+	 * base order historically observed through the DLL design list: callbacks
+	 * were prepended, and analog callbacks came last, so reversed analogs form
+	 * a prefix followed by reversed ordinary processes. */
+      vector<target_process_ref_t> ordered_processes;
+      bool process_order_rc = true;
+      if (ordered_process_callbacks) {
+	    for (NetAnalogTop*idx = aprocs_; idx; idx = idx->next_)
+		  ordered_processes.push_back(target_process_ref_t(idx));
+	    reverse(ordered_processes.begin(), ordered_processes.end());
+
+	    const size_t ordinary_begin = ordered_processes.size();
+	    for (NetProcTop*idx = procs_; idx; idx = idx->next_)
+		  ordered_processes.push_back(target_process_ref_t(idx));
+	    reverse(ordered_processes.begin() + ordinary_begin,
+		    ordered_processes.end());
+	    process_order_rc = tgt->order_processes(ordered_processes);
+      }
+
+	/* Incremental targets initialize their procedural handoff only after
+	 * every task/function body is available. Legacy targets use no-op hooks
+	 * and retain their complete process list for end_design(). */
+      bool processes_started = false;
+      bool process_handoff_rc = process_order_rc;
+      if (process_order_rc) {
+	    process_handoff_rc = tgt->start_processes();
+	    processes_started = true;
+      }
 
 	// emit the processes
-      bool proc_rc = true;
-      for (const NetProcTop*idx = procs_ ;  idx ;  idx = idx->next_)
-	    proc_rc &= idx->emit(tgt);
-      for (const NetAnalogTop*idx = aprocs_ ;  idx ;  idx = idx->next_)
-	    proc_rc &= idx->emit(tgt);
+      if (ordered_process_callbacks && process_order_rc) {
+	    /* The ordered vector now owns reachability for ordinary source
+	     * processes. Detach the list so each tree can be destroyed as soon as
+	     * its synchronous target callback returns, regardless of permutation. */
+	    procs_ = 0;
+	    procs_idx_ = 0;
+	    for (vector<target_process_ref_t>::const_iterator cur =
+		       ordered_processes.begin();
+		 cur != ordered_processes.end(); ++cur) {
+		  if (cur->analog) {
+			proc_rc &= cur->analog->emit(tgt);
+		  } else {
+			assert(cur->net);
+			proc_rc &= cur->net->emit(tgt);
+			if (cur->net->scope()->var_init() ==
+			    cur->net->statement())
+			      cur->net->scope()->set_var_init(0);
+			delete cur->net;
+		  }
+	    }
+	} else if (ordered_process_callbacks) {
+	    /* Ordering failed before the target design began. Release the source
+	     * process trees without invoking callbacks. */
+	    while (procs_) {
+		  NetProcTop*idx = procs_;
+		  procs_ = idx->next_;
+		  if (idx->scope()->var_init() == idx->statement())
+			idx->scope()->set_var_init(0);
+		  delete idx;
+	    }
+	    procs_idx_ = 0;
+	} else {
+	    if (!emit_processes_before_definitions)
+		  emit_ordinary_processes();
+	    for (const NetAnalogTop*idx = aprocs_ ; idx ; idx = idx->next_)
+		  proc_rc &= idx->emit(tgt);
+      }
+      if (processes_started)
+	    process_handoff_rc = tgt->end_processes() && process_handoff_rc;
+      if (verbose_flag)
+	    cout << " ... target processes complete" << endl;
 
       if (nodes_rc == false)
 	    tgt->errors += 1;
@@ -643,10 +797,14 @@ int Design::emit(struct target_t*tgt) const
 	    tgt->errors += 1;
       if (proc_rc == false)
 	    tgt->errors += 1;
+      if (process_handoff_rc == false)
+	    tgt->errors += 1;
       if (branches_rc == false)
 	    tgt->errors += 1;
 
       rc = tgt->end_design(this);
+
+      net_event_target_release_mode(false);
 
       if (nodes_rc == false)
 	    return -1;

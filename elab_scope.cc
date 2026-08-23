@@ -857,76 +857,91 @@ static void append_cache_data_type_key_(Design*des, NetScope*call_scope,
 					std::ostringstream&out,
 					const data_type_t*type);
 
+/* Specialization-key construction repeatedly renders the same source and
+ * elaborated objects. Keep these caches for the whole elaboration phase, but
+ * make their storage visible to the terminal phase release below instead of
+ * hiding it in function-static maps that survive target emission. */
+static std::map<const NetScope*,std::string> specialization_scope_path_cache_;
+static std::map<const PExpr*,std::string> specialization_pexpr_dump_cache_;
+static std::map<const NetExpr*,std::string> specialization_netexpr_dump_cache_;
+static std::map<ivl_type_t,std::string> specialization_type_dump_cache_;
+static std::map<const data_type_t*,std::string>
+      specialization_data_type_dump_cache_;
+static std::map<std::string,const netclass_t*>
+      specialized_class_source_key_cache_;
+static std::map<std::string,const netclass_t*>
+      specialized_class_semantic_key_cache_;
+
 static const std::string& cached_scope_path_(const NetScope*scope)
 {
-      static std::map<const NetScope*,std::string> cache;
-
       if (!scope) {
 	    static const std::string empty;
 	    return empty;
       }
 
-      std::map<const NetScope*,std::string>::iterator it = cache.find(scope);
-      if (it != cache.end())
+      std::map<const NetScope*,std::string>::iterator it =
+	    specialization_scope_path_cache_.find(scope);
+      if (it != specialization_scope_path_cache_.end())
 	    return it->second;
 
       std::ostringstream out;
       out << scope_path(scope);
-      return cache.insert(std::make_pair(scope, out.str())).first->second;
+      return specialization_scope_path_cache_
+	    .insert(std::make_pair(scope, out.str())).first->second;
 }
 
 static const std::string& cached_pexpr_dump_(const PExpr*expr)
 {
-      static std::map<const PExpr*,std::string> cache;
-
       if (!expr) {
 	    static const std::string empty;
 	    return empty;
       }
 
-      std::map<const PExpr*,std::string>::iterator it = cache.find(expr);
-      if (it != cache.end())
+      std::map<const PExpr*,std::string>::iterator it =
+	    specialization_pexpr_dump_cache_.find(expr);
+      if (it != specialization_pexpr_dump_cache_.end())
 	    return it->second;
 
       std::ostringstream out;
       out << *expr;
-      return cache.insert(std::make_pair(expr, out.str())).first->second;
+      return specialization_pexpr_dump_cache_
+	    .insert(std::make_pair(expr, out.str())).first->second;
 }
 
 static const std::string& cached_netexpr_dump_(const NetExpr*expr)
 {
-      static std::map<const NetExpr*,std::string> cache;
-
       if (!expr) {
 	    static const std::string empty;
 	    return empty;
       }
 
-      std::map<const NetExpr*,std::string>::iterator it = cache.find(expr);
-      if (it != cache.end())
+      std::map<const NetExpr*,std::string>::iterator it =
+	    specialization_netexpr_dump_cache_.find(expr);
+      if (it != specialization_netexpr_dump_cache_.end())
 	    return it->second;
 
       std::ostringstream out;
       out << *expr;
-      return cache.insert(std::make_pair(expr, out.str())).first->second;
+      return specialization_netexpr_dump_cache_
+	    .insert(std::make_pair(expr, out.str())).first->second;
 }
 
 static const std::string& cached_type_dump_(ivl_type_t type)
 {
-      static std::map<ivl_type_t,std::string> cache;
-
       if (!type) {
 	    static const std::string empty;
 	    return empty;
       }
 
-      std::map<ivl_type_t,std::string>::iterator it = cache.find(type);
-      if (it != cache.end())
+      std::map<ivl_type_t,std::string>::iterator it =
+	    specialization_type_dump_cache_.find(type);
+      if (it != specialization_type_dump_cache_.end())
 	    return it->second;
 
       std::ostringstream out;
       type->debug_dump(out);
-      return cache.insert(std::make_pair(type, out.str())).first->second;
+      return specialization_type_dump_cache_
+	    .insert(std::make_pair(type, out.str())).first->second;
 }
 
 static void append_cache_ivl_type_key_(Design*des, std::ostringstream&out,
@@ -1411,20 +1426,20 @@ static perm_string unresolved_forwarded_type_parameter_(
 
 static const std::string& cached_data_type_dump_(const data_type_t*type)
 {
-      static std::map<const data_type_t*,std::string> cache;
-
       if (!type) {
 	    static const std::string empty;
 	    return empty;
       }
 
-      std::map<const data_type_t*,std::string>::iterator it = cache.find(type);
-      if (it != cache.end())
+      std::map<const data_type_t*,std::string>::iterator it =
+	    specialization_data_type_dump_cache_.find(type);
+      if (it != specialization_data_type_dump_cache_.end())
 	    return it->second;
 
       std::ostringstream out;
       type->debug_dump(out);
-      return cache.insert(std::make_pair(type, out.str())).first->second;
+      return specialization_data_type_dump_cache_
+	    .insert(std::make_pair(type, out.str())).first->second;
 }
 
 static bool append_cache_typedef_alias_key_(Design*des, NetScope*call_scope,
@@ -2209,6 +2224,36 @@ static std::vector<netclass_t*> all_specialized_classes_;
 static std::set<netclass_t*> all_specialized_class_set_;
 static std::set<netclass_t*> repaired_specialized_class_set_;
 
+void release_elaboration_specialization_caches()
+{
+      specialization_scope_path_cache_.clear();
+      specialization_pexpr_dump_cache_.clear();
+      specialization_netexpr_dump_cache_.clear();
+      specialization_type_dump_cache_.clear();
+      specialization_data_type_dump_cache_.clear();
+      specialized_class_source_key_cache_.clear();
+      specialized_class_semantic_key_cache_.clear();
+
+      classes_being_scope_elaborated_.clear();
+      classes_with_randomization_methods_validated_.clear();
+      pending_specialized_body_elaboration_set_.clear();
+      pending_specialized_method_seed_set_.clear();
+      all_specialized_class_set_.clear();
+      repaired_specialized_class_set_.clear();
+
+	/* clear() retains vector capacity; swap with empty storage because no
+	 * later target callback consults these elaboration work registries. */
+      std::vector<netclass_t*>().swap(pending_specialized_body_elaboration_);
+      std::vector<netclass_t*>().swap(pending_specialized_method_seed_);
+      std::vector<netclass_t*>().swap(all_specialized_classes_);
+}
+
+static bool is_randomize_hook_name_(perm_string name)
+{
+      return name == perm_string::literal("pre_randomize")
+	  || name == perm_string::literal("post_randomize");
+}
+
 static bool should_seed_specialized_method_body_(perm_string name)
 {
       return name == perm_string::literal("new")
@@ -2227,6 +2272,15 @@ static bool should_seed_specialized_method_body_(perm_string name)
 	  || name == perm_string::literal("m_is_registered")
 	  || name == perm_string::literal("m_is_for_me")
 	  || name == perm_string::literal("m_am_i_a");
+}
+
+static bool should_seed_specialized_function_body_(perm_string name)
+{
+      /* IEEE 1800-2023 18.6.2 defines the randomization callbacks as void
+       * functions. A specialized class must retain their bodies even though
+       * the callbacks are invoked implicitly by the built-in randomize(). */
+      return is_randomize_hook_name_(name)
+	  || should_seed_specialized_method_body_(name);
 }
 
 static void seed_specialized_method_bodies_(Design*des, netclass_t*cls,
@@ -2264,7 +2318,7 @@ static void seed_specialized_method_bodies_(Design*des, netclass_t*cls,
 		    // only the latter here skipped bodies such as
 		    // uvm_analysis_imp#(...)::write, so runtime dispatch through the
 		    // virtual interface fell back to the base error stub.
-		    if (!should_seed_specialized_method_body_(cur->first)
+		    if (!should_seed_specialized_function_body_(cur->first)
 			&& !cur->second->is_virtual_method()
 			&& !scope->is_virtual_method())
 			  continue;
@@ -2483,8 +2537,6 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 	    }
       }
 
-      static std::map<std::string,const netclass_t*> cache;
-      static std::map<std::string,const netclass_t*> semantic_cache;
       std::ostringstream key_prefix;
 	// Use the pclass (parse-tree) pointer as the stable key prefix.
 	// The netclass_t (base_class) pointer is NOT stable — the same
@@ -2514,15 +2566,15 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       }
 	      const netclass_t*cached_result = 0;
 	      std::map<std::string,const netclass_t*>::const_iterator cached =
-		    cache.find(source_key_str);
-	      if (cached != cache.end()) {
+		    specialized_class_source_key_cache_.find(source_key_str);
+	      if (cached != specialized_class_source_key_cache_.end()) {
 		    cached_result = cached->second;
 	      } else if (has_semantic_key) {
 		    std::map<std::string,const netclass_t*>::const_iterator semantic_cached =
-			  semantic_cache.find(semantic_key_str);
-		    if (semantic_cached != semantic_cache.end()) {
+			  specialized_class_semantic_key_cache_.find(semantic_key_str);
+		    if (semantic_cached != specialized_class_semantic_key_cache_.end()) {
 			  cached_result = semantic_cached->second;
-			  cache[source_key_str] = cached_result;
+			  specialized_class_source_key_cache_[source_key_str] = cached_result;
 		    }
 	      }
 	      if (cached_result) {
@@ -2575,9 +2627,9 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       if (all_specialized_class_set_.insert(use_class).second)
 	    all_specialized_classes_.push_back(use_class);
       set_scope_timescale(des, class_scope, pclass);
-      cache[source_key_str] = use_class;
+      specialized_class_source_key_cache_[source_key_str] = use_class;
       if (has_semantic_key)
-	    semantic_cache[semantic_key_str] = use_class;
+	    specialized_class_semantic_key_cache_[semantic_key_str] = use_class;
 
       class_scope->add_typedefs(&pclass->typedefs);
       class_scope->add_nettypes(des, &pclass->nettypes);
@@ -2759,6 +2811,10 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 	    const perm_string rand_mode = perm_string::literal("rand_mode");
 	    const perm_string constraint_mode =
 		  perm_string::literal("constraint_mode");
+	    const perm_string pre_randomize =
+		  perm_string::literal("pre_randomize");
+	    const perm_string post_randomize =
+		  perm_string::literal("post_randomize");
 
 	    for (map<perm_string,PFunction*>::const_iterator cur =
 		       pclass->funcs.begin(); cur != pclass->funcs.end(); ++cur) {
@@ -2773,6 +2829,13 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 
 	    for (map<perm_string,PTask*>::const_iterator cur =
 		       pclass->tasks.begin(); cur != pclass->tasks.end(); ++cur) {
+		  if (cur->first == pre_randomize || cur->first == post_randomize) {
+			cerr << cur->second->get_fileline()
+			     << ": error: Class randomization hook `" << cur->first
+			     << "' shall be declared as a void function." << endl;
+			des->errors += 1;
+			continue;
+		  }
 		  if (cur->first != randomize && cur->first != rand_mode
 		      && cur->first != constraint_mode)
 			continue;

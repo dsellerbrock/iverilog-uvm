@@ -1215,6 +1215,76 @@ static void force_real_to_lval(ivl_statement_t net)
       fprintf(vvp_out, "    %s v%p_%lu;\n", command_name, lsig, use_word);
 }
 
+/* A variable array declared in an automatic scope is currently emitted as
+   per-invocation associative storage. A force watcher cannot safely retain a
+   pointer to that storage after the invocation ends. Explicit automatic
+   lifetime in an otherwise static scope has the same restriction.
+
+   TODO: Once the .array record carries an explicit lifetime override, an
+   explicitly static array in an automatic scope can be accepted here. */
+static int force_array_is_automatic_(ivl_signal_t sig)
+{
+      return ivl_signal_lifetime(sig) == IVL_VLT_AUTOMATIC
+          || ivl_scope_is_auto(ivl_signal_scope(sig));
+}
+
+static int force_array_is_vec4_(ivl_signal_t sig)
+{
+      ivl_variable_type_t type = ivl_signal_data_type(sig);
+      return type == IVL_VT_BOOL || type == IVL_VT_LOGIC;
+}
+
+/* Prepare the operands shared by the variable-array force and release
+   opcodes. The unpacked word index is already a canonical, zero-based array
+   address by the time it reaches the target, and the /a opcodes take it in
+   index register 3. A packed offset of zero is encoded by word register 0.
+
+   Return zero for an unknown or out-of-range word. In that case the caller is
+   responsible for balancing any value stack entry. */
+static int prepare_force_array_lval_(ivl_lval_t lval, int*off_index)
+{
+      ivl_signal_t sig = ivl_lval_sig(lval);
+      ivl_expr_t word_idx = ivl_lval_idx(lval);
+      ivl_expr_t part_off_ex = ivl_lval_part_off(lval);
+      unsigned long use_word;
+
+      assert(sig != 0);
+      assert(word_idx != 0);
+      assert(number_is_immediate(word_idx, IMM_WID, 0));
+
+      *off_index = 0;
+      if (number_is_unknown(word_idx))
+	    return 0;
+
+      use_word = get_number_immediate(word_idx);
+      if (use_word >= ivl_signal_array_count(sig))
+	    return 0;
+
+      if (part_off_ex != 0) {
+	    if (number_is_immediate(part_off_ex, IMM_WID, 0)
+		&& !number_is_unknown(part_off_ex)) {
+		  unsigned long part_off = get_number_immediate(part_off_ex);
+		  if (part_off != 0) {
+			*off_index = allocate_word();
+			fprintf(vvp_out, "    %%ix/load %d, %lu, 0; force array packed offset\n",
+			        *off_index, part_off);
+		  }
+		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+	    } else {
+		  *off_index = allocate_word();
+		  draw_eval_expr_into_integer(part_off_ex, *off_index);
+	    }
+      } else {
+	    fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+      }
+
+        /* Loading ix3 does not alter flag 4, so a dynamic/unknown packed
+	   offset remains visible to the consuming opcode. */
+      fprintf(vvp_out, "    %%ix/load 3, %lu, 0; force array word\n",
+	      use_word);
+      return 1;
+}
+
 static void force_vector_to_lval(ivl_statement_t net)
 {
       unsigned lidx;
@@ -1241,6 +1311,7 @@ static void force_vector_to_lval(ivl_statement_t net)
 
 	    ivl_expr_t word_idx = ivl_lval_idx(lval);
 	    unsigned long use_word = 0;
+	    int array_force = 0;
 
 	    if (word_idx != 0) {
 		  assert(number_is_immediate(word_idx, IMM_WID, 0));
@@ -1253,15 +1324,37 @@ static void force_vector_to_lval(ivl_statement_t net)
 		  }
 		  use_word = get_number_immediate(word_idx);
 
-		    /* We do not currently support using a word from a variable
-		       array as the L-value (SystemVerilog / Icarus extension). */
-		  if (ivl_signal_type(lsig) == IVL_SIT_REG) {
+		    /* Procedural assign retains its existing limitation. A force
+		       to a static variable array uses the compact-array path below. */
+		  if (ivl_signal_type(lsig) == IVL_SIT_REG
+		      && ivl_statement_type(net) == IVL_ST_FORCE
+		      && force_array_is_vec4_(lsig)) {
+			array_force = 1;
+			if (use_word >= ivl_signal_array_count(lsig)) {
+			      fprintf(vvp_out, "    %%pop/vec4 1; force to out of bounds index suppressed.\n");
+			      return;
+			}
+			if (force_array_is_automatic_(lsig)) {
+			      fprintf(stderr, "%s:%u: vvp.tgt sorry: cannot %s to an "
+				      "automatic variable array (%s[%ld]).\n",
+				      ivl_stmt_file(net), ivl_stmt_lineno(net),
+				      command_name, ivl_signal_basename(lsig),
+				      ivl_signal_array_base(lsig) + (long)use_word);
+			      vvp_errors += 1;
+			      fprintf(vvp_out, "    %%pop/vec4 1; automatic array force suppressed.\n");
+			      return;
+			}
+		  } else if (ivl_signal_type(lsig) == IVL_SIT_REG) {
 				fprintf(stderr, "%s:%u: vvp.tgt sorry: cannot %s to the "
 					"word of a variable array (%s[%ld]).\n",
 					ivl_stmt_file(net), ivl_stmt_lineno(net),
 					command_name, ivl_signal_basename(lsig),
 					ivl_signal_array_base(lsig) + (long)use_word);
 		        vvp_errors += 1;
+			if (ivl_statement_type(net) == IVL_ST_FORCE) {
+			      fprintf(vvp_out, "    %%pop/vec4 1; unsupported array force suppressed.\n");
+			      return;
+			}
 		  }
 	    }
 
@@ -1271,6 +1364,21 @@ static void force_vector_to_lval(ivl_statement_t net)
 
 	      /* L-Value must be a signal: reg or wire */
 	    assert(lsig != 0);
+
+	    if (array_force) {
+		  int off_index;
+		  if (!prepare_force_array_lval_(lval, &off_index)) {
+			fprintf(vvp_out, "    %%pop/vec4 1; force to out of bounds index suppressed.\n");
+			return;
+		  }
+		  note_array_signal_use(lsig);
+		  fprintf(vvp_out, "    %%force/vec4/a v%p, %d;\n",
+		          lsig, off_index);
+		  if (off_index != 0)
+			clr_word(off_index);
+		  continue;
+	    }
+
 	      /* Do not support bit or part selects of l-values yet. */
 	    if (part_off_ex) {
 		  int off_index = allocate_word();
@@ -1302,6 +1410,18 @@ static void force_link_rval(ivl_statement_t net, ivl_expr_t rval)
 	        ivl_expr_type(rval) == IVL_EX_REALNUM)
 		  return;
 
+	      /* A no-argument $urandom call has no RHS source element that can
+	       * change and trigger reevaluation (IEEE 1800-2023 4.9.2, 10.6 and
+	       * 18.13.1). It is therefore correctly evaluated exactly once when
+	       * the procedural continuous assignment starts. Keep this whitelist
+	       * narrow: arbitrary zero-argument system functions may observe
+	       * implicit state for which the target has no dependency metadata. */
+	    if (ivl_expr_type(rval) == IVL_EX_SFUNC
+		&& ivl_expr_parms(rval) == 0
+		&& ivl_expr_name(rval) != 0
+		&& strcmp(ivl_expr_name(rval), "$urandom") == 0)
+		  return;
+
 	    fprintf(stderr, "%s:%u: vvp.tgt sorry: procedural continuous "
 		    "assignments are not yet fully supported. The RHS of "
 		    "this assignment will only be evaluated once, at the "
@@ -1328,6 +1448,79 @@ static void force_link_rval(ivl_statement_t net, ivl_expr_t rval)
       lval = ivl_stmt_lval(net, 0);
       lsig = ivl_lval_sig(lval);
 
+	/* A force to a compact variable-array word saves its normalized
+	 * address, packed offset and effective width in the immediately
+	 * preceding %force/vec4/a. Link a live signal source to that saved
+	 * descriptor without inventing a per-word array functor. */
+      lword_idx = ivl_lval_idx(lval);
+      if (ivl_statement_type(net) == IVL_ST_FORCE
+	  && lword_idx != 0 && ivl_signal_type(lsig) == IVL_SIT_REG
+	  && !force_array_is_vec4_(lsig))
+	    return;
+
+      if (ivl_statement_type(net) == IVL_ST_FORCE
+	  && lword_idx != 0 && ivl_signal_type(lsig) == IVL_SIT_REG
+	  && force_array_is_vec4_(lsig)) {
+	    assert(number_is_immediate(lword_idx, IMM_WID, 0));
+	    if (number_is_unknown(lword_idx)
+		|| (unsigned long)get_number_immediate(lword_idx)
+		   >= ivl_signal_array_count(lsig)
+		|| force_array_is_automatic_(lsig))
+		  return;
+
+	    if (!force_array_is_vec4_(rsig)) {
+		  fprintf(stderr, "%s:%u: vvp.tgt sorry: procedural continuous "
+			  "assignments are not yet fully supported. The RHS of "
+			  "this assignment will only be evaluated once, at the "
+			  "time the assignment statement is executed.\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return;
+	    }
+
+	    if (signal_is_return_value(rsig)
+		|| (ivl_signal_local(rsig)
+		    && ivl_scope_is_auto(ivl_signal_scope(rsig)))) {
+		  fprintf(stderr, "%s:%u: vvp.tgt sorry: procedural continuous "
+			  "assignments are not yet fully supported. The RHS of "
+			  "this assignment will only be evaluated once, at the "
+			  "time the assignment statement is executed.\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return;
+	    }
+
+	    if ((rword_idx = ivl_expr_oper1(rval)) != 0) {
+		  assert(ivl_signal_dimensions(rsig) != 0);
+		  if (!number_is_immediate(rword_idx, IMM_WID, 0)
+		      || number_is_unknown(rword_idx)) {
+			fprintf(stderr, "%s:%u: vvp.tgt sorry: procedural continuous "
+				"assignments are not yet fully supported. The RHS of "
+				"this assignment will only be evaluated once, at the "
+				"time the assignment statement is executed.\n",
+				ivl_stmt_file(net), ivl_stmt_lineno(net));
+			return;
+		  }
+		  use_rword = get_number_immediate(rword_idx);
+		  if (use_rword >= ivl_signal_array_count(rsig))
+			return;
+		  if (ivl_signal_type(rsig) == IVL_SIT_REG) {
+			fprintf(stderr, "%s:%u: vvp.tgt sorry: procedural continuous "
+				"assignments are not yet fully supported. The RHS of "
+				"this assignment will only be evaluated once, at the "
+				"time the assignment statement is executed.\n",
+				ivl_stmt_file(net), ivl_stmt_lineno(net));
+			return;
+		  }
+	    } else {
+		  assert(ivl_signal_dimensions(rsig) == 0);
+		  use_rword = 0;
+	    }
+
+	    note_array_signal_use(lsig);
+	    fprintf(vvp_out, "    %%force/link/a v%p, v%p_%lu;\n",
+		    lsig, rsig, use_rword);
+	    return;
+      }
+
 	/* We do not currently support driving a signal to a bit or
 	 * part select (this could give us multiple drivers). */
       part_off_ex = ivl_lval_part_off(lval);
@@ -1337,8 +1530,11 @@ static void force_link_rval(ivl_statement_t net, ivl_expr_t rval)
 	    assert(number_is_immediate(part_off_ex, IMM_WID, 0));
 	    assert(! number_is_unknown(part_off_ex));
       }
-      if (ivl_signal_width(lsig) > ivl_signal_width(rsig) ||
-          (part_off_ex && get_number_immediate(part_off_ex) != 0)) {
+      int partial_lval = part_off_ex
+	  || ivl_lval_width(lval) != ivl_signal_width(lsig);
+      if (ivl_statement_type(net) != IVL_ST_FORCE
+	  && (ivl_signal_width(lsig) > ivl_signal_width(rsig)
+	      || (part_off_ex && get_number_immediate(part_off_ex) != 0))) {
 	      /* Normalize the bit/part select. This also needs to be
 	       * reworked to support packed arrays. */
 	    long real_msb = ivl_signal_packed_msb(lsig, 0);
@@ -1429,8 +1625,23 @@ static void force_link_rval(ivl_statement_t net, ivl_expr_t rval)
       }
 
       fprintf(vvp_out, "    %s/link", command_name);
+      if (ivl_statement_type(net) == IVL_ST_FORCE && partial_lval)
+	    fprintf(vvp_out, "/off");
       fprintf(vvp_out, " v%p_%lu", lsig, use_lword);
-      fprintf(vvp_out, ", v%p_%lu;\n", rsig, use_rword);
+      fprintf(vvp_out, ", v%p_%lu", rsig, use_rword);
+      fprintf(vvp_out, ";\n");
+}
+
+/* Force RHS expressions are assignment-context sized by the elaborator, but
+   a direct signal load still pushes the signal's physical storage width.
+   Therefore ivl_expr_width(rval) cannot be used to decide that no resize is
+   needed. Always normalize the actual vec4 stack entry to the selected
+   l-value width; %pad/[su] truncates as well as extends. */
+static void resize_force_vec4_wid_(ivl_expr_t rval, unsigned force_width)
+{
+      fprintf(vvp_out, ivl_expr_signed(rval)
+	    ? "    %%pad/s %u; force RHS width\n"
+	    : "    %%pad/u %u; force RHS width\n", force_width);
 }
 
 static int show_stmt_cassign(ivl_statement_t net)
@@ -1450,9 +1661,17 @@ static int show_stmt_cassign(ivl_statement_t net)
 	    force_real_to_lval(net);
 
       } else {
+	    unsigned force_width = 0;
+	    for (unsigned idx = 0; idx < ivl_stmt_lvals(net); idx += 1)
+		  force_width += ivl_lval_width(ivl_stmt_lval(net, idx));
+	    assert(force_width > 0);
 
 	    draw_eval_vec4(rval);
-	    resize_vec4_wid(rval, ivl_stmt_lwidth(net));
+	      /* ivl_stmt_lwidth historically reports the containing signal width
+	       * for a force part-select. The value stack must instead match the
+	       * selected l-value width; otherwise a wider RHS overwrites adjacent
+	       * bits and installs an over-wide live-force mask. */
+	    resize_force_vec4_wid_(rval, force_width);
 
 	      /* Write out initial continuous assign instructions to assign
 	         the expression value to the l-value. */
@@ -1690,8 +1909,13 @@ static int show_stmt_force(ivl_statement_t net)
             force_real_to_lval(net);
 
       } else {
+	    unsigned force_width = 0;
+	    for (unsigned idx = 0; idx < ivl_stmt_lvals(net); idx += 1)
+		  force_width += ivl_lval_width(ivl_stmt_lval(net, idx));
+	    assert(force_width > 0);
 
             draw_eval_vec4(rval);
+	    resize_force_vec4_wid_(rval, force_width);
 
               /* Write out initial continuous assign instructions to assign
                  the expression value to the l-value. */
@@ -1948,6 +2172,62 @@ static int show_stmt_release(ivl_statement_t net)
 	    assert(lsig != 0);
 
 	    use_wid = ivl_lval_width(lval);
+
+	      /* Static variable arrays use compact array storage, so release
+		 must address the array itself instead of a nonexistent per-word
+		 functor. Net arrays retain the path below. */
+	    if (word_idx != 0 && ivl_signal_type(lsig) == IVL_SIT_REG
+		&& force_array_is_vec4_(lsig)) {
+		  int off_index;
+		  int width_index;
+
+		  assert(number_is_immediate(word_idx, IMM_WID, 0));
+		  if (number_is_unknown(word_idx))
+			return 0;
+		  use_word = get_number_immediate(word_idx);
+		  if (use_word >= ivl_signal_array_count(lsig))
+			return 0;
+
+		  if (force_array_is_automatic_(lsig)) {
+			fprintf(stderr, "%s:%u: vvp.tgt sorry: cannot release an "
+				"automatic variable array (%s[%ld]).\n",
+				ivl_stmt_file(net), ivl_stmt_lineno(net),
+				ivl_signal_basename(lsig),
+				ivl_signal_array_base(lsig) + (long)use_word);
+			vvp_errors += 1;
+			return 0;
+		  }
+
+		  if (!prepare_force_array_lval_(lval, &off_index))
+			return 0;
+
+		  width_index = allocate_word();
+		  fprintf(vvp_out, "    %%ix/load %d, %u, 0; release array width\n",
+		          width_index, use_wid);
+		  note_array_signal_use(lsig);
+		  fprintf(vvp_out, "    %%release/reg/a v%p, %d, %d;\n",
+		          lsig, off_index, width_index);
+		  if (off_index != 0)
+			clr_word(off_index);
+		  clr_word(width_index);
+		  continue;
+	    }
+
+	    if (word_idx != 0 && ivl_signal_type(lsig) == IVL_SIT_REG
+		&& !force_array_is_vec4_(lsig)) {
+		  assert(number_is_immediate(word_idx, IMM_WID, 0));
+		  if (number_is_unknown(word_idx))
+			return 0;
+		  use_word = get_number_immediate(word_idx);
+		  fprintf(stderr, "%s:%u: vvp.tgt sorry: cannot release a word "
+			  "of a non-integral variable array (%s[%ld]).\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net),
+			  ivl_signal_basename(lsig),
+			  ivl_signal_array_base(lsig) + (long)use_word);
+		  vvp_errors += 1;
+		  return 0;
+	    }
+
 	    part_off_ex = ivl_lval_part_off(lval);
 	    part_off = 0;
 	    if (part_off_ex != 0) {
