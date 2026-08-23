@@ -342,8 +342,14 @@ NexusSet* NetESignal::nex_input_base(bool rem_out, bool always_sens, bool nested
       bool const_select = false;
       unsigned const_word = 0;
       NexusSet*result = new NexusSet;
-	/* Local signals are not added to the sensitivity list. */
-      if (net_->local_flag()) {
+	/* Local signals are not normally added to the sensitivity list. A
+	 * compiler-generated module-output bridge is the exception: its
+	 * structural driver changes after time zero, so the behavioral interface-
+	 * member store on the far side must observe it while the bridge itself
+	 * remains hidden from user-visible signal enumeration. */
+      bool force_local_sensitivity = net_->attribute(perm_string::literal(
+	    "_ivl_implicit_sensitivity")).as_ulong() != 0;
+      if (net_->local_flag() && !force_local_sensitivity) {
 	    // Compile-progress semantic support: local class-handle roots can
 	    // still carry useful wait/event dependencies (e.g. wait(obj.flag))
 	    // when they are represented with concrete pins.

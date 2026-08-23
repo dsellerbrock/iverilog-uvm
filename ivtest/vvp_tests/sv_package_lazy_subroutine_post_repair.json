@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_package_lazy_subroutine_post_repair.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_package_lazy_subroutine_post_repair"
+}
