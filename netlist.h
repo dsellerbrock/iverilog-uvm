@@ -838,7 +838,9 @@ class NetNet  : public NetObj, public PortType {
       void bind_interface_member(unsigned word, size_t property_idx,
                                  NetNet*member);
       NetNet* resolve_interface_member(unsigned word,
-                                       size_t property_idx) const;
+                                       size_t property_idx,
+                                       const NetNet**unbound_root = 0,
+                                       unsigned*unbound_word = 0) const;
 
       /* User-defined nettype identity is distinct from the lowered data type.
        * Keep both the spelling selected at the declaration and its canonical

@@ -706,8 +706,15 @@ void NetNet::bind_interface_member(unsigned word, size_t property_idx,
 }
 
 NetNet* NetNet::resolve_interface_member(unsigned word,
-                                         size_t property_idx) const
+                                         size_t property_idx,
+                                         const NetNet**unbound_root,
+                                         unsigned*unbound_word) const
 {
+      if (unbound_root)
+            *unbound_root = 0;
+      if (unbound_word)
+            *unbound_word = 0;
+
       const NetNet*signal = this;
       unsigned signal_word = word;
       set<pair<const NetNet*,unsigned> >seen;
@@ -724,15 +731,31 @@ NetNet* NetNet::resolve_interface_member(unsigned word,
                 || property_idx >= interface_type->get_properties())
                   return 0;
             const target_emit_aux_t*aux = signal->target_emit_aux_;
-            if (!aux)
+            if (!aux) {
+                  if (signal->port_type() != NetNet::NOT_A_PORT
+                      && signal->scope() && !signal->scope()->parent()) {
+                        if (unbound_root)
+                              *unbound_root = signal;
+                        if (unbound_word)
+                              *unbound_word = signal_word;
+                  }
                   return 0;
+            }
             map<pair<unsigned,size_t>,NetNet*>::const_iterator bound_member =
                   aux->interface_synthesis_members.find(
                         make_pair(signal_word, property_idx));
             if (bound_member != aux->interface_synthesis_members.end())
                   return bound_member->second;
-            if (aux->interface_bindings.size() <= signal_word)
+            if (aux->interface_bindings.size() <= signal_word) {
+                  if (signal->port_type() != NetNet::NOT_A_PORT
+                      && signal->scope() && !signal->scope()->parent()) {
+                        if (unbound_root)
+                              *unbound_root = signal;
+                        if (unbound_word)
+                              *unbound_word = signal_word;
+                  }
                   return 0;
+            }
 
             const interface_binding_t&binding =
                   aux->interface_bindings[signal_word];
@@ -756,6 +779,16 @@ NetNet* NetNet::resolve_interface_member(unsigned word,
                   return member;
             }
 
+            if (!binding.signal) {
+                  if (signal->port_type() != NetNet::NOT_A_PORT
+                      && signal->scope() && !signal->scope()->parent()) {
+                        if (unbound_root)
+                              *unbound_root = signal;
+                        if (unbound_word)
+                              *unbound_word = signal_word;
+                  }
+                  return 0;
+            }
             signal = binding.signal;
             signal_word = binding.signal_word;
       }

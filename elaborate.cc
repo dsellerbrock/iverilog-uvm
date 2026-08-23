@@ -38,6 +38,7 @@
 # include  <sstream>
 # include  <list>
 # include  <set>
+# include  <tuple>
 # include  "pform.h"
 # include  "PClass.h"
 # include  "PEvent.h"
@@ -2021,8 +2022,17 @@ static void finalize_interface_continuous_drivers_(Design*des)
 {
       for (const pending_interface_continuous_driver_t&pending :
 	   pending_interface_continuous_drivers_) {
+	    const NetNet*unbound_root = 0;
 	    NetNet*member = pending.port->resolve_interface_member(
-		  pending.port_word, pending.property_idx);
+		  pending.port_word, pending.property_idx,
+		  &unbound_root, 0);
+	    /* A selected simulation root has no enclosing interface instance.
+	     * Keep accepting its externally bound interface port just as an
+	     * ordinary top-level port; there is no concrete member nexus to which
+	     * this internal carrier can be attached. Synthesis materializes root
+	     * members before this pass and therefore does not take this path. */
+	    if (!member && unbound_root)
+		  continue;
 	    if (!member || member->unpacked_dimensions() > 0
 		|| member->pin_count() != 1
 		|| !type_is_vectorable(member->data_type())
@@ -2077,11 +2087,38 @@ static void finalize_interface_continuous_drivers_(Design*des)
 	 * property lowering is behavioral and therefore cannot use the ordinary
 	 * elaborate_lnet conversion to an unresolved wire. Reserve the bound
 	 * member's complete packed word here, after port binding, so aliases
-	 * through separate module ports still collide on the concrete signal. */
+	 * through separate module ports still collide on the concrete signal.
+	 * An unbound simulation root has no concrete member signal, so retain a
+	 * parallel key set to diagnose multiple drivers on that formal member. */
+      set<tuple<const NetNet*,unsigned,size_t> >unbound_root_drivers;
       for (const pending_interface_variable_continuous_driver_t&pending :
 	   pending_interface_variable_continuous_drivers_) {
+	    const NetNet*unbound_root = 0;
+	    unsigned unbound_word = 0;
 	    NetNet*member = pending.port->resolve_interface_member(
-		  pending.port_word, pending.property_idx);
+		  pending.port_word, pending.property_idx,
+		  &unbound_root, &unbound_word);
+	    if (!member && unbound_root) {
+		  tuple<const NetNet*,unsigned,size_t>key(
+			unbound_root, unbound_word, pending.property_idx);
+		  if (!unbound_root_drivers.insert(key).second) {
+			const netclass_t*interface_type =
+			      dynamic_cast<const netclass_t*>(
+				    unbound_root->net_type());
+			cerr << pending.location->get_fileline()
+			     << ": error: Variable interface member `";
+			if (interface_type
+			    && pending.property_idx
+			       < interface_type->get_properties())
+			      cerr << interface_type->get_prop_name(
+				    pending.property_idx);
+			else
+			      cerr << "<unknown>";
+			cerr << "' cannot have multiple drivers." << endl;
+			des->errors += 1;
+		  }
+		  continue;
+	    }
 	    if (!member || member->unpacked_dimensions() > 0
 		|| member->pin_count() != 1
 		|| !type_is_vectorable(member->data_type())) {
