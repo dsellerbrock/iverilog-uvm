@@ -123,7 +123,7 @@ the condition was 4-state. The result type is the common operand type; a
 concern — and refusing the type bought nothing, because the cast the user was
 forced to add produces exactly the same bits.
 
-Backbone of OpenTitan's security hardening (`mubi4_bool_to_mubi`,
+Backbone of OpenTitan's multi-bit control hardening (`mubi4_bool_to_mubi`,
 `lc_tx_bool_to_lc_tx`, FSM state updates in `prim_alert_sender` and
 `tlul_adapter_reg`). Fix: drop the 2-state guard in
 `NetETernary::enumeration()`. Genuine 6.19.3 violations still rejected.
@@ -2219,8 +2219,8 @@ The clean OpenTitan source graph at
 `hw/dv/sv/mem_bkdr_scb/mem_bkdr_scb.sv:69-72`: its RAW-hazard scoreboard uses
 element `[0]` of the assigned locator result as the latest write. The old
 behavior could select the oldest matching pending write, which is a DV-oracle
-integrity risk, not evidence of a DUT defect or a demonstrated security
-vulnerability. The relevant integration graph selected for this checkpoint,
+correctness defect rather than a DUT defect. The relevant integration graph
+selected for this checkpoint,
 `lowrisc:dv:sram_ctrl_sim:0.1`, remained a failed clean compile gate: its
 generated Icarus command omitted upstream `INSTR_EXEC` and
 `SRAM_WORD_ADDR_WIDTH` definitions (three warnings and three hard errors), so
@@ -2323,7 +2323,7 @@ SHA-256 is
 at workspace-root-relative
 `evidence/opentitan-7a3ad34-a179a1010/uvm-entropy-src-minmax/SUMMARY.md`.
 This is a target/configuration blocker for that invocation, not an integration
-pass and not evidence of a DUT or security defect.
+pass and not evidence of a DUT defect.
 
 Four clean Caliptra assertion-enabled `-tnull` witnesses remained exit-zero
 compile/elaboration non-regressions with zero error, `sorry`, internal-error,

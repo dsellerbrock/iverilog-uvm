@@ -1159,7 +1159,7 @@ static bool capture_deferred_args_(vthread_t thr,
       size_t str_count = call->string_stack;
       size_t obj_count = call->object_stack;
 
-      /* Subtract from nargs instead of summing attacker-controlled unsigned
+      /* Subtract from nargs instead of summing external unsigned metadata
        * fields, so this check is also correct on 32-bit size_t builds. */
       size_t remaining_args = call->nargs;
       bool metadata_bad = vec_count > remaining_args;

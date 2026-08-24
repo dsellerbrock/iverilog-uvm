@@ -65,14 +65,13 @@ Caliptra design now compiles or simulates.
 
 ## Robustness finding
 
-A crafted raw `.vvp` covergroup transition record could previously request a
+A malformed raw `.vvp` covergroup transition record could previously request a
 repeat bound of `UINT64_MAX`. Coverage computation then performed work
-proportional to that untrusted metadata, which is a local denial-of-service
-condition when executing untrusted VVP bytecode. There is no evidence of code
-execution or a remote attack surface. The loader now validates bounded unsigned
-metadata and the runtime/loader use saturating logarithmic power sums. Raw VVP
-fixtures also reject overlong metadata and oversized/underflowing sample
-payloads before allocation or stack access.
+proportional to that metadata instead of terminating within the compiler's
+bounded-work contract. The loader now validates bounded unsigned metadata and
+the runtime/loader use saturating logarithmic power sums. Raw VVP fixtures also
+reject overlong metadata and oversized/underflowing sample payloads before
+allocation or stack access.
 
 ## Gates
 

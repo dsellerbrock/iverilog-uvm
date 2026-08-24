@@ -2630,7 +2630,7 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
             else:
                 raise AssertionError("non-Python FuseSoC shebang was accepted")
 
-            fusesoc.write_text(f"#!{current_python} -c malicious\n")
+            fusesoc.write_text(f"#!{current_python} -c rejected_option_payload\n")
             try:
                 resolve_fusesoc_python(fusesoc, None, probe_env)
             except RuntimeError as exc:

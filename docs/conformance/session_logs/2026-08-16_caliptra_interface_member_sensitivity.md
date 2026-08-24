@@ -42,10 +42,10 @@ array-member edge-functor assertion while arming the explicit selected wait.
 An earlier implicit-only form ran far enough to prove that member changes did
 not retrigger. The corrected compiler emits no warning, runs `PASSED`, and
 Slang 11.0.415 accepts the same source with zero errors and zero warnings.
-The assertion is a robustness failure on unsupported internal metadata, not
-evidence of attacker control or memory corruption. The new indexed VVP
-instructions validate their object stack and member/word identity so malformed
-raw bytecode now reports a bounded diagnostic instead of asserting.
+The assertion is a compiler robustness failure on unsupported internal
+metadata. The new indexed VVP instructions validate their object stack and
+member/word identity so malformed raw bytecode now reports a bounded diagnostic
+instead of asserting.
 
 The unchanged Caliptra top-level VVP compile had 22 instances of the defect:
 four in `axi_dma_ctrl`, one each in `axi_mgr_rd` and `axi_mgr_wr`, and eight

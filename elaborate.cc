@@ -10097,7 +10097,8 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 
       /* A malformed/recovery-generated conditional must fail loudly instead
          of dereferencing a null expression. Besides producing a useful source
-         location, this protects compiler availability for untrusted HDL. */
+         location, this preserves bounded compiler termination on invalid
+         HDL. */
       if (!expr_) {
 	    cerr << get_fileline() << ": internal error: conditional statement "
 		 << "has no expression." << endl;
@@ -25455,7 +25456,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				        // IEEE 19.5.2 transition bins. Preserve each term as
 				        // compact range/repetition metadata; expanding [*1:1000]
 				        // into 500500 fixed NFA steps is both unnecessary and a
-				        // denial-of-service hazard. Arrayed transition families use
+				        // bounded-work hazard. Arrayed transition families use
 				        // sparse dynamic counters keyed by the mixed-radix logical
 				        // sequence index.
 				      if (base_kind != 0) {
