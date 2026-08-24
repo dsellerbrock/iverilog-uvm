@@ -1,0 +1,2 @@
+sv_covergroup_procedural_item_options normal,-g2012 ivltests gold=sv_covergroup_procedural_item_options.gold
+sv_covergroup_procedural_item_options_unsupported CE,-g2012 ivltests gold=sv_covergroup_procedural_item_options_unsupported.gold

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_covergroup_procedural_item_options.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_covergroup_procedural_item_options"
+}

@@ -1,0 +1,3 @@
+VVP error: %covgrp/options/init requires a covergroup object on the object stack.
+VVP error: %covgrp/options/init receiver is not a covergroup object.
+VVP error: %covgrp/options/init receiver is not a covergroup object.

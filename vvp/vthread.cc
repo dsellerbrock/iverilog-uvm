@@ -6470,6 +6470,33 @@ bool of_COVGRP_STOP(vthread_t thr, vvp_code_t)
       return true;
 }
 
+/* %covgrp/options/init
+ *
+ * Initialize the hidden mutable per-item option slots on the covergroup
+ * object at the top of the object stack.  The object is deliberately not
+ * popped: this instruction is part of `%new/cobj' expression evaluation.
+ * Check both stack shape and receiver kind because VVP is a public bytecode
+ * format and malformed input must report an error rather than assert/crash.
+ */
+bool of_COVGRP_OPTIONS_INIT(vthread_t thr, vvp_code_t)
+{
+      if (thr->object_stack_size() < 1) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: %covgrp/options/init requires a covergroup object"
+		 << " on the object stack." << endl;
+	    return true;
+      }
+      vvp_cobject*cobj = thr->peek_object().peek<vvp_cobject>();
+      if (!cobj || !cobj->get_defn()->is_covergroup()) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: %covgrp/options/init receiver is not a covergroup"
+		 << " object." << endl;
+	    return true;
+      }
+      cobj->get_defn()->covgrp_init_options(cobj);
+      return true;
+}
+
 /* %covgrp/get_coverage — TYPE coverage: the per-item weighted model
  * computed over the counters merged across all instances of this
  * covergroup type. */
@@ -6517,7 +6544,7 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 	      // item -> set of countable props
 	    std::map<unsigned, std::set<unsigned>> item_props;
 	    std::map<unsigned,long double> item_trans_total;
-	    std::map<unsigned,uint64_t> item_trans_hits;
+	    std::map<unsigned,long double> item_trans_hits;
 	    std::set<unsigned> seen_trans_families;
 	    for (size_t bi = 0 ; bi < nbins ; bi += 1) {
 		  const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
@@ -6526,13 +6553,16 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 			continue;
 		  if (k == 4 && bin.trans_family != class_type::COV_NO_FAMILY) {
 			if (seen_trans_families.insert(bin.trans_family).second) {
-			      item_trans_total[bin.item_idx] +=
-				    (long double)defn->covgrp_trans_family_size(
-					  bin.trans_family);
+			      uint64_t total = defn->covgrp_trans_family_size(
+				    bin.trans_family);
+			      item_trans_total[bin.item_idx] += (long double)total;
 			      unsigned at_least = bin.item_idx < defn->covgrp_item_count()
-				    ? defn->covgrp_item(bin.item_idx).at_least : 1;
-			      item_trans_hits[bin.item_idx] +=
-				    cobj->cov_dyn_hits(bin.trans_family, at_least);
+				    ? defn->covgrp_item_at_least(cobj,
+					  bin.item_idx) : 1;
+			      item_trans_hits[bin.item_idx] += at_least == 0
+				    ? (long double)total
+				    : (long double)cobj->cov_dyn_hits(
+					  bin.trans_family, at_least);
 			}
 			continue;
 		  }
@@ -6540,7 +6570,7 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 		  item_props[bin.item_idx].insert(bin.prop_idx);
 	    }
 	    std::map<unsigned,long double> item_dyn_total;
-	    std::map<unsigned,uint64_t> item_dyn_hits;
+	    std::map<unsigned,long double> item_dyn_hits;
 	    std::map<unsigned,covgrp_dyn_state_t> dyn_states =
 		  covgrp_dyn_states_(defn, cobj);
 	    for (auto&entry : dyn_states) {
@@ -6556,9 +6586,12 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 		  item_dyn_total[state.meta->item_idx] += (long double)logical;
 		  unsigned at_least = 1;
 		  if (state.meta->item_idx < defn->covgrp_item_count())
-			at_least = defn->covgrp_item(state.meta->item_idx).at_least;
+			at_least = defn->covgrp_item_at_least(
+			      cobj, state.meta->item_idx);
 		  item_dyn_hits[state.meta->item_idx] +=
-			cobj->cov_dyn_hits(entry.first, at_least);
+			at_least == 0 ? (long double)logical
+			      : (long double)cobj->cov_dyn_hits(entry.first,
+				    at_least);
 	    }
 	    std::set<unsigned> items;
 	    for (auto&ip : item_props) items.insert(ip.first);
@@ -6569,11 +6602,11 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 	    for (unsigned item : items) {
 		  unsigned at_least = 1, weight = 1;
 		  if (item < defn->covgrp_item_count()) {
-			at_least = defn->covgrp_item(item).at_least;
+			at_least = defn->covgrp_item_at_least(cobj, item);
 			weight = defn->covgrp_item_weight(cobj, item);
 		  }
 		  long double total = item_dyn_total[item];
-		  uint64_t hits = item_dyn_hits[item];
+		  long double hits = item_dyn_hits[item];
 		  total += item_trans_total[item];
 		  hits += item_trans_hits[item];
 		  const std::set<unsigned>&props = item_props[item];

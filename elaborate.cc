@@ -24395,14 +24395,28 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      ? cgdef->sample_formal_defaults[fi] : nullptr);
 		    }
 
+		      // Constructor formals live in synthesized covergroup-object
+		      // properties, not class_scope_. Recognize a direct reference so
+		      // supported runtime option lowering and loud constant-only
+		      // fallback diagnostics do not first emit a misleading bind warning.
+		    auto is_direct_ctor_formal = [&](const PExpr*expr) -> bool {
+			  const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
+			  if (!id || id->path().size() != 1) return false;
+			  perm_string name = peek_head_name(id->path());
+			  for (perm_string formal : cgdef->ctor_formals)
+				if (formal == name) return true;
+			  return false;
+		    };
+
 		      // Constant-evaluate an option value (default when
 		      // absent; loud when non-constant).
 		    auto opt_uint = [&](const std::map<perm_string,PExpr*>&opts,
 					const char*optname, unsigned dflt) -> unsigned {
 			  auto it = opts.find(lex_strings.make(optname));
 			  if (it == opts.end() || !it->second) return dflt;
-			  NetExpr*e = elab_and_eval(des, class_scope_,
-						    it->second, -1, false, false);
+			  NetExpr*e = is_direct_ctor_formal(it->second) ? nullptr
+				: elab_and_eval(des, class_scope_, it->second,
+						-1, false, false);
 			  unsigned r = dflt;
 			  if (NetEConst*c = dynamic_cast<NetEConst*>(e))
 				r = (unsigned)c->value().as_ulong64();
@@ -24423,14 +24437,16 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  auto it = opts.find(perm_string::literal("weight"));
 			  if (it == opts.end() || !it->second)
 				return std::make_pair(dflt, std::string());
-			  NetExpr*e = elab_and_eval(des, class_scope_, it->second,
-						-1, false, false);
-			  if (NetEConst*c = dynamic_cast<NetEConst*>(e)) {
-				unsigned val = (unsigned)c->value().as_ulong64();
+			  if (!is_direct_ctor_formal(it->second)) {
+				NetExpr*e = elab_and_eval(des, class_scope_, it->second,
+						      -1, false, false);
+				if (NetEConst*c = dynamic_cast<NetEConst*>(e)) {
+				      unsigned val = (unsigned)c->value().as_ulong64();
+				      delete e;
+				      return std::make_pair(val, std::string());
+				}
 				delete e;
-				return std::make_pair(val, std::string());
 			  }
-			  delete e;
 			  std::string ir = pexpr_to_constraint_ir(
 				it->second, cg_class, nullptr, class_scope_);
 			  if (ir.empty()) {
@@ -24626,6 +24642,42 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    unsigned cp_idx  = 0;
 		    unsigned dyn_family = 0;
 		    bool has_parent_set_bins = false;
+		      // IEEE 1800-2023 19.5/19.7.1: a labeled coverage
+		      // item has mutable, instance-specific option state
+		      // addressable through `instance.item.option.member'.
+		      // The source-level item and option nodes are pseudo
+		      // hierarchy, not class objects, so keep their supported
+		      // scalar members in hidden properties on the synthesized
+		      // covergroup object. Constant/default at_least and weight
+		      // initialize every object; a constructor-dependent weight is
+		      // evaluated after constructor-formal slots are stored.
+		    auto add_item_option_props = [&](unsigned item_idx)
+			  -> std::pair<int,int> {
+			std::string stem = "__covgrp_item_" + std::to_string(item_idx);
+			auto add_unique_property = [&](const std::string&base) -> int {
+			      std::string candidate = base;
+			      unsigned suffix = 0;
+			      perm_string name = lex_strings.make(candidate.c_str());
+			      while (cg_class->property_idx_from_name(name) >= 0) {
+				    candidate = base + "_" + std::to_string(++suffix);
+				    name = lex_strings.make(candidate.c_str());
+			      }
+			      bool added = cg_class->set_property(name,
+				    property_qualifier_t::make_none(),
+				    &netvector_t::atom2s32);
+			      if (!added) {
+				    cerr << "internal error: unable to add covergroup "
+					 << "item-option property '" << name << "'." << endl;
+				    des->errors += 1;
+				    return -1;
+			      }
+			      return cg_class->property_idx_from_name(name);
+			};
+			int at_prop = add_unique_property(stem + "_option_at_least");
+			int wt_prop = add_unique_property(stem + "_option_weight");
+			prop_idx = cg_class->get_properties();
+			return std::make_pair(at_prop, wt_prop);
+		    };
 		      // A coverpoint expression may combine sample() formals
 		      // (for example {valid, ready}). Bind typed placeholder
 		      // signals while sizing the expression so ordinary expression
@@ -24767,12 +24819,20 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  cg_class->add_covgrp_cp_expr(cp.expr);
 
 			  opt_check(cp.options, "coverpoint");
-			  unsigned cp_at_least = opt_uint(cp.options, "at_least", cg_at_least);
+			  unsigned cp_at_least = opt_uint(cp.options, "at_least",
+						  cg_at_least);
 			  std::pair<unsigned,std::string> cp_weight =
 				opt_weight(cp.options, 1);
-			  unsigned cp_abm = opt_uint(cp.options, "auto_bin_max", cg_auto_bin_max);
-			  cg_class->add_covgrp_item(cp_at_least, cp_weight.first, false,
-						    cp.label, cp_weight.second);
+			  unsigned cp_abm = opt_uint(cp.options, "auto_bin_max",
+						cg_auto_bin_max);
+			  std::pair<int,int> cp_option_props =
+				add_item_option_props(cp_idx);
+			  cg_class->add_covgrp_item(cp_at_least,
+						cp_weight.first, false,
+						cp.label, cp_weight.second,
+						nullptr, -1,
+						cp_option_props.first,
+						cp_option_props.second);
 
 			  cp_value_bins.push_back(std::vector<xbin_desc_t>());
 			  std::vector<xbin_desc_t>&vbins = cp_value_bins.back();
@@ -25774,9 +25834,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				if (!is_formal && gpe->path().size() == 1)
 				      x_guard_src = property_idx_from_name(gname);
 			  }
-			  cg_class->add_covgrp_item(x_at_least, x_weight.first, true,
-					    cross.label, x_weight.second,
-					    cross.iff_expr, x_guard_src);
+			  std::pair<int,int> x_option_props =
+				add_item_option_props(item_idx);
+			  cg_class->add_covgrp_item(x_at_least, x_weight.first,
+						true, cross.label,
+						x_weight.second,
+						cross.iff_expr, x_guard_src,
+						x_option_props.first,
+						x_option_props.second);
 
 			    // M11-3: named cross bins — per product
 			    // tuple, evaluate each user bin's binsof

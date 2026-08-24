@@ -25,18 +25,22 @@ static void drill(const char*path)
 		       vpi_get(vpiSize, item), val.value.real);
 	    bit_ = vpi_iterate(vpiCoverBin, item);
 	    while (bit_ && (bin = vpi_scan(bit_))) {
-		  vpi_printf("  bin %s count=%d type_count=%d\n",
+		  vpi_printf("  bin %s count=%d type_count=%d at_least=%d weight=%d\n",
 			     vpi_get_str(vpiName, bin),
 			     vpi_get(vpiCoverCount, bin),
-			     vpi_get(vpiCoverTypeCount, bin));
+			     vpi_get(vpiCoverTypeCount, bin),
+			     vpi_get(vpiCoverAtLeast, bin),
+			     vpi_get(vpiCoverWeight, bin));
 	    }
       }
       it = vpi_iterate(vpiCoverCross, h);
       while (it && (item = vpi_scan(it))) {
 	    val.format = vpiRealVal;
 	    vpi_get_value(item, &val);
-	    vpi_printf("%s cross %s bins=%d cov=%.2f\n",
+	    vpi_printf("%s cross %s at_least=%d weight=%d bins=%d cov=%.2f\n",
 		       path, vpi_get_str(vpiName, item),
+		       vpi_get(vpiCoverAtLeast, item),
+		       vpi_get(vpiCoverWeight, item),
 		       vpi_get(vpiSize, item), val.value.real);
       }
 }

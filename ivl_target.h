@@ -2686,6 +2686,10 @@ extern int      ivl_type_covgrp_items(ivl_type_t net);
 extern unsigned ivl_type_covgrp_item_at_least(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_item_weight(ivl_type_t net, int idx);
 extern const char* ivl_type_covgrp_item_weight_ir(ivl_type_t net, int idx);
+  /* Hidden per-instance scalar slots for the supported mutable item options
+     (-1 for legacy metadata without materialized runtime state). */
+extern int      ivl_type_covgrp_item_at_least_prop(ivl_type_t net, int idx);
+extern int      ivl_type_covgrp_item_weight_prop(ivl_type_t net, int idx);
 extern int      ivl_type_covgrp_item_is_cross(ivl_type_t net, int idx);
   /* M12-7: coverpoint/cross label ("" when unnamed). */
 extern const char* ivl_type_covgrp_item_name(ivl_type_t net, int idx);

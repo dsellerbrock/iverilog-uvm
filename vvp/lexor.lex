@@ -168,6 +168,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".covgrp_bin"   { return K_COVGRP_BIN; }
 ".covgrp_dyn_bin" { return K_COVGRP_DYN_BIN; }
 ".covgrp_item"  { return K_COVGRP_ITEM; }
+".covgrp_item_options" { return K_COVGRP_ITEM_OPTIONS; }
 ".covgrp_parent" { return K_COVGRP_PARENT; }
 ".covgrp_src"   { return K_COVGRP_SRC; }
 ".modport"      { return K_MODPORT; }

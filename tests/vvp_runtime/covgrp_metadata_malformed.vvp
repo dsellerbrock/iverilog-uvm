@@ -20,6 +20,17 @@ C0x3 .class "bad_dynamic" "top.bad_dynamic" [1]
  .covgrp_dyn_bin 4294967296 0 0 0 0 "bad" "" ""
  .covgrp_item 1 1 0 "cp" "" 0
  ;
+C0x4 .class "bad_option_property" "top.bad_option_property" [1]
+   0: "__bin", "q0:sb32"
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_item_options 0 2 1
+ ;
+C0x5 .class "bad_item_narrowing" "top.bad_item_narrowing" [0]
+ .covgrp_item 4294967296 1 0 "cp" "" 0
+ ;
+C0x6 .class "bad_item_guardsrc" "top.bad_item_guardsrc" [0]
+ .covgrp_item 1 1 0 "cp" "" 2147483649
+ ;
 :file_names 2;
     "N/A";
     "covgrp_metadata_malformed.vvp";

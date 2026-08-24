@@ -26,6 +26,7 @@
 # include  <cctype>
 # include  <climits>
 # include  <functional>
+# include  <iterator>
 # include  <map>
 # include  <set>
 # include  <sstream>
@@ -11313,6 +11314,66 @@ NetExpr* PEPostSelect::elaborate_expr(Design*des, NetScope*scope,
       return pad_to_width(select, expr_wid, false, *this);
 }
 
+/* IEEE 1800-2023 19.5/19.7.1: coverage-item labels and `option' are
+ * pseudo hierarchy rather than class objects. Replace the three source
+ * components
+ *
+ *     <coverpoint-or-cross>.option.{at_least,weight}
+ *
+ * with the synthesized scalar property that carries the mutable value on
+ * this covergroup object. Advance the iterator to the final consumed
+ * component so every nested class/container path walker can reuse ordinary
+ * property-read lowering. */
+enum covgrp_item_option_path_t {
+      COVGRP_ITEM_OPTION_NOT_PSEUDO,
+      COVGRP_ITEM_OPTION_SUPPORTED,
+      COVGRP_ITEM_OPTION_UNSUPPORTED
+};
+
+static covgrp_item_option_path_t rewrite_covergroup_item_option_component_(
+		const netclass_t*class_type,
+		pform_name_t::const_iterator&cur,
+		const pform_name_t::const_iterator&end,
+		name_component_t&component)
+{
+      if (!class_type || !class_type->is_covergroup()
+	  || !component.index.empty())
+	    return COVGRP_ITEM_OPTION_NOT_PSEUDO;
+
+      pform_name_t::const_iterator option = std::next(cur);
+      if (option == end)
+	    return COVGRP_ITEM_OPTION_NOT_PSEUDO;
+      pform_name_t::const_iterator member = std::next(option);
+      if (member == end
+	  || option->name != perm_string::literal("option")
+	  || !option->index.empty() || !member->index.empty())
+	    return COVGRP_ITEM_OPTION_NOT_PSEUDO;
+
+      if (!class_type->has_covgrp_item(component.name))
+	    return COVGRP_ITEM_OPTION_NOT_PSEUDO;
+
+      int property = class_type->covgrp_item_option_prop(component.name,
+							 member->name);
+      cur = member;
+      if (property < 0)
+	    return COVGRP_ITEM_OPTION_UNSUPPORTED;
+
+      component.name = lex_strings.make(
+	    class_type->get_prop_name(static_cast<size_t>(property)));
+      return COVGRP_ITEM_OPTION_SUPPORTED;
+}
+
+static void report_unsupported_covergroup_item_option_(
+		const LineInfo*loc, Design*des, perm_string item,
+		perm_string member, const char*access)
+{
+      cerr << loc->get_fileline() << ": sorry: procedural " << access
+	   << " of coverpoint/cross option `" << item << ".option."
+	   << member << "' is not supported; only option.at_least and "
+	   << "option.weight are implemented." << endl;
+      des->errors += 1;
+}
+
 NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 					      const symbol_search_results &sr,
 					      unsigned expr_wid,
@@ -11435,9 +11496,21 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			return true;
 		  };
 
-	    for (const auto&tail_comp : sr.path_tail) {
+	    for (auto tail_it = sr.path_tail.begin();
+		 tail_it != sr.path_tail.end(); ++tail_it) {
+		  name_component_t tail_comp = *tail_it;
 		  const netclass_t*cur_class = dynamic_cast<const netclass_t*>(cur_type);
 		  const netstruct_t*cur_struct = dynamic_cast<const netstruct_t*>(cur_type);
+		  covgrp_item_option_path_t option_path =
+			rewrite_covergroup_item_option_component_(
+			      cur_class, tail_it, sr.path_tail.end(), tail_comp);
+		  if (option_path == COVGRP_ITEM_OPTION_UNSUPPORTED) {
+			report_unsupported_covergroup_item_option_(
+			      this, des, tail_comp.name, tail_it->name, "read");
+			delete base_expr;
+			return nullptr;
+		  }
+		  bool tail_is_last = std::next(tail_it) == sr.path_tail.end();
 		  
 		    // IEEE 1800-2017 9.7: process.status in paren-less
 		    // form queries the live process state (used inside
@@ -11650,7 +11723,7 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		/* Paren-less reductions and unique/unique_index on a whole
 		 * fixed-array class property. The property expression is
 		 * materialized once by the corresponding fixed receiver path. */
-		if (&tail_comp == &sr.path_tail.back()
+		if (tail_is_last
 		    && tail_comp.index.empty()
 		    && (is_array_reduction_name_(tail_comp.name)
 			|| is_array_unique_name_(tail_comp.name))) {
@@ -11691,7 +11764,7 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		// method machinery.  Only for the final path component
 		// and non-assoc containers; the with forms parse as
 		// calls and never reach this path.
-		if (&tail_comp == &sr.path_tail.back()
+		if (tail_is_last
 		    && tail_comp.index.empty()
 		    && (is_array_reduction_name_(tail_comp.name)
 			|| tail_comp.name == "min"
@@ -15788,6 +15861,28 @@ ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
 	    const auto &name = cpath->name;
 
 	    if (auto class_type = dynamic_cast<const netclass_t*>(type)) {
+		  pform_name_t::const_iterator pseudo_tail = cpath;
+		  name_component_t pseudo_component = *cpath;
+		  covgrp_item_option_path_t option_path =
+			rewrite_covergroup_item_option_component_(
+			      class_type, pseudo_tail, sr.path_tail.end(),
+			      pseudo_component);
+		  if (option_path == COVGRP_ITEM_OPTION_SUPPORTED) {
+			int pidx = class_type->property_idx_from_name(
+			      pseudo_component.name);
+			ivl_assert(*this, pidx >= 0);
+			type = class_type->get_prop_type(pidx);
+			indices = &pseudo_tail->index;
+			cpath = std::next(pseudo_tail);
+			continue;
+		  }
+		  if (option_path == COVGRP_ITEM_OPTION_UNSUPPORTED) {
+			type = &netvector_t::atom2u32;
+			indices = &pseudo_tail->index;
+			cpath = std::next(pseudo_tail);
+			continue;
+		  }
+
 		  // If the type is an object, the next path member may be a
 		  // class property.
 		  ivl_type_t par_type;
@@ -16630,9 +16725,22 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 			if (!base_expr)
 			      return nullptr;
 
-			for (const auto&tail_comp : sr.path_tail) {
+			for (auto tail_it = sr.path_tail.cbegin();
+			     tail_it != sr.path_tail.cend(); ++tail_it) {
+			      name_component_t tail_comp = *tail_it;
 			      const netclass_t*cur_class = dynamic_cast<const netclass_t*>(cur_type);
 			      const netstruct_t*cur_struct = dynamic_cast<const netstruct_t*>(cur_type);
+			      covgrp_item_option_path_t option_path =
+				    rewrite_covergroup_item_option_component_(
+					  cur_class, tail_it,
+					  sr.path_tail.cend(), tail_comp);
+			      if (option_path == COVGRP_ITEM_OPTION_UNSUPPORTED) {
+				    report_unsupported_covergroup_item_option_(
+					  this, des, tail_comp.name,
+					  tail_it->name, "read");
+				    delete base_expr;
+				    return nullptr;
+			      }
 
 			      if (cur_struct && gn_system_verilog()) {
 				    unsigned long member_off = 0;
@@ -17619,9 +17727,22 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 			if (!base_expr)
 			      return make_nested_stub(cur_type);
 
-			for (const auto&tail_comp : sr.path_tail) {
+			for (auto tail_it = sr.path_tail.cbegin();
+			     tail_it != sr.path_tail.cend(); ++tail_it) {
+			      name_component_t tail_comp = *tail_it;
 			      const netclass_t*cur_class = dynamic_cast<const netclass_t*>(cur_type);
 			      const netstruct_t*cur_struct = dynamic_cast<const netstruct_t*>(cur_type);
+			      covgrp_item_option_path_t option_path =
+				    rewrite_covergroup_item_option_component_(
+					  cur_class, tail_it,
+					  sr.path_tail.cend(), tail_comp);
+			      if (option_path == COVGRP_ITEM_OPTION_UNSUPPORTED) {
+				    report_unsupported_covergroup_item_option_(
+					  this, des, tail_comp.name,
+					  tail_it->name, "read");
+				    delete base_expr;
+				    return nullptr;
+			      }
 
 			      if (cur_struct && gn_system_verilog()) {
 				    unsigned long member_off = 0;
@@ -18136,11 +18257,25 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 			      cur = esel;
 			      cur_type = elem_out;
 			}
-			for (const auto&tail_comp : sr.path_tail) {
+			for (auto tail_it = sr.path_tail.cbegin();
+			     tail_it != sr.path_tail.cend(); ++tail_it) {
 			      if (!ok)
 				    break;
-			      if (const netclass_t*cc =
-					dynamic_cast<const netclass_t*>(cur_type)) {
+			      name_component_t tail_comp = *tail_it;
+			      const netclass_t*cc =
+				    dynamic_cast<const netclass_t*>(cur_type);
+			      covgrp_item_option_path_t option_path =
+				    rewrite_covergroup_item_option_component_(
+					  cc, tail_it,
+					  sr.path_tail.cend(), tail_comp);
+			      if (option_path == COVGRP_ITEM_OPTION_UNSUPPORTED) {
+				    report_unsupported_covergroup_item_option_(
+					  this, des, tail_comp.name,
+					  tail_it->name, "read");
+				    delete cur;
+				    return nullptr;
+			      }
+			      if (cc) {
 				    ivl_type_t next_type = nullptr;
 				    NetExpr*next =
 					  elaborate_nested_method_target_property(

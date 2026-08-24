@@ -359,6 +359,8 @@ class netclass_t : public ivl_type_s {
 	    unsigned at_least = 1;
 	    unsigned weight = 1;
 	    std::string weight_ir; // per-instance constructor expression
+	    int at_least_prop = -1; // mutable per-instance option slot
+	    int weight_prop = -1;   // mutable per-instance option slot
 	    bool is_cross = false;
 	    perm_string name;   // M12-7: coverpoint/cross label
 	    PExpr* iff_expr = nullptr; // cross-level iff, evaluated per sample
@@ -399,11 +401,14 @@ class netclass_t : public ivl_type_s {
       void add_covgrp_item(unsigned at_least, unsigned weight, bool is_cross,
 			   perm_string name = perm_string(),
 			   const std::string&weight_ir = std::string(),
-			   PExpr*iff_expr = nullptr, int iff_src = -1)
+			   PExpr*iff_expr = nullptr, int iff_src = -1,
+			   int at_least_prop = -1, int weight_prop = -1)
       { covgrp_item_t it;
 	it.at_least = at_least;
 	it.weight = weight;
 	it.weight_ir = weight_ir;
+	it.at_least_prop = at_least_prop;
+	it.weight_prop = weight_prop;
 	it.is_cross = is_cross;
 	it.name = name;
 	it.iff_expr = iff_expr;
@@ -411,6 +416,30 @@ class netclass_t : public ivl_type_s {
 	covgrp_items_.push_back(it); }
       size_t covgrp_item_count() const { return covgrp_items_.size(); }
       const covgrp_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
+	// Resolve the IEEE hierarchical pseudo-members
+	//   <coverpoint-or-cross>.option.{at_least,weight}
+	// to the synthesized scalar property that carries the mutable value on
+	// each covergroup object. The item labels themselves are metadata rather
+	// than class properties, so expression/l-value elaboration uses this hook
+	// before ordinary class-member lookup.
+      int covgrp_item_option_prop(perm_string item_name,
+				   perm_string option_name) const {
+	    for (const covgrp_item_t&item : covgrp_items_) {
+		  if (item.name != item_name) continue;
+		  if (option_name == perm_string::literal("at_least"))
+			return item.at_least_prop;
+		  if (option_name == perm_string::literal("weight"))
+			return item.weight_prop;
+		  return -1;
+	    }
+	    return -1;
+      }
+      bool has_covgrp_item(perm_string item_name) const {
+	    for (const covgrp_item_t&item : covgrp_items_)
+		  if (item.name == item_name)
+			return true;
+	    return false;
+      }
       PExpr* covgrp_item_guard(size_t idx) const {
 	    return idx < covgrp_items_.size() ? covgrp_items_[idx].iff_expr : nullptr;
       }

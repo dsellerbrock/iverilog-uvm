@@ -1,0 +1,6 @@
+covergroup $unit.__covgrp_cumulative_threshold_wrap_cg_t type_coverage 0.00
+  item 0 kind coverpoint at_least 3 weight 1
+    bin __bin_cp_one count 1 MISS
+covergroup $unit.__covgrp_retired_threshold_wrap_cg_t type_coverage 0.00
+  item 0 kind coverpoint at_least 3 weight 1
+    bin __bin_cp_one count 1 MISS
