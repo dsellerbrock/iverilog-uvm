@@ -2124,9 +2124,22 @@ static NetExpr* make_last_queue_element_expr_(const LineInfo&loc,
       return last_expr;
 }
 
+static NetExpr* unsupported_dynamic_array_slice_(const LineInfo&loc,
+					  Design*des,
+					  NetExpr*recovery_expr)
+{
+      cerr << loc.get_fileline() << ": sorry: dynamic-array slice r-values "
+	   << "are not yet supported as fixed-size unpacked-array expressions."
+	   << endl;
+      des->errors += 1;
+      return recovery_expr;
+}
+
 /* Build the queue-valued expression for q[lo:hi], q[lo:$], or
- * q[lo:$-offset]
- * (IEEE 1800-2017 7.10.1). This consumes container_expr on every path.
+ * q[lo:$-offset] (IEEE 1800-2017 7.10.1). Ordinary dynamic-array
+ * colon slices are validated here too, but stop with an explicit unsupported
+ * diagnostic because 7.4.5 gives them a fixed-size unpacked-array result,
+ * not a dynamic-array result. This consumes container_expr on every path.
  * Keeping this independent of NetESignal lets the exact same semantics work
  * for locals, class properties, virtual-interface properties, and nested
  * container expressions. The $ forms use dedicated run-time operations so a
@@ -2139,12 +2152,33 @@ static NetExpr* make_queue_slice_expr_(const LineInfo&loc,
 {
       if (!container_expr)
 	    return nullptr;
-      if (!dynamic_cast<const netdarray_t*>(container_type)
+      const netdarray_t*array_type =
+	    dynamic_cast<const netdarray_t*>(container_type);
+      const netqueue_t*queue_type =
+	    dynamic_cast<const netqueue_t*>(container_type);
+      if (!array_type
 	  || (index.sel != index_component_t::SEL_PART
 	      && index.sel != index_component_t::SEL_PART_LAST)
 	  || !index.msb) {
 	    delete container_expr;
 	    return nullptr;
+      }
+
+      if (queue_type && queue_type->assoc_compat()) {
+	    cerr << loc.get_fileline() << ": error: associative arrays cannot be "
+		 << "indexed by a range." << endl;
+	    des->errors += 1;
+	      /* Keep a same-typed recovery value so the enclosing assignment can
+	       * finish elaboration and report the counted diagnostic normally. */
+	    return container_expr;
+      }
+
+      const bool plain_darray = !queue_type;
+      if (plain_darray && index.sel == index_component_t::SEL_PART_LAST) {
+	    cerr << loc.get_fileline() << ": error: `$' is only valid as a queue "
+		 << "slice endpoint." << endl;
+	    des->errors += 1;
+	    return container_expr;
       }
 
       NetExpr*lo = elab_and_eval(des, scope, index.msb, -1, false);
@@ -2170,12 +2204,213 @@ static NetExpr* make_queue_slice_expr_(const LineInfo&loc,
 	    return nullptr;
       }
 
-      NetESFunc*fn = new NetESFunc(func_name, container_type, parm_count);
+	/* An ordinary unpacked array has a fixed declared direction and its
+	 * slice bounds must be constant (7.4.5). A dynamic array's implicit
+	 * range is ascending. Compare direction only when both constant bounds
+	 * are fully defined; either way, a legal form reaches the loud fixed-size
+	 * result boundary below instead of being lowered with queue semantics. */
+      if (plain_darray) {
+	    const NetEConst*lo_const = dynamic_cast<const NetEConst*>(lo);
+	    const NetEConst*hi_const = dynamic_cast<const NetEConst*>(hi);
+	    bool constant_integral = lo_const && hi_const
+		  && (lo->expr_type() == IVL_VT_BOOL
+		      || lo->expr_type() == IVL_VT_LOGIC)
+		  && (hi->expr_type() == IVL_VT_BOOL
+		      || hi->expr_type() == IVL_VT_LOGIC);
+	    if (!constant_integral) {
+		  cerr << loc.get_fileline() << ": error: dynamic-array slice bounds "
+		       << "must be constant integral expressions." << endl;
+		  des->errors += 1;
+		  delete lo;
+		  delete hi;
+		  return container_expr;
+	    }
+
+	    if (lo_const->value().is_defined()
+		&& hi_const->value().is_defined()) {
+		  verinum lo_value = lo_const->value();
+		  verinum hi_value = hi_const->value();
+		  const bool lo_negative = lo->has_sign()
+			&& lo_value.len() > 0
+			&& lo_value.get(lo_value.len()-1) == verinum::V1;
+		  const bool hi_negative = hi->has_sign()
+			&& hi_value.len() > 0
+			&& hi_value.get(hi_value.len()-1) == verinum::V1;
+		  bool descending = false;
+		  if (lo_negative != hi_negative) {
+			descending = !lo_negative;
+		  } else {
+			lo_value.has_sign(lo_negative);
+			hi_value.has_sign(hi_negative);
+			descending = (hi_value < lo_value) == verinum::V1;
+		  }
+		  if (descending) {
+			cerr << loc.get_fileline() << ": error: dynamic-array slice "
+			     << "range has the opposite direction from its declared "
+			     << "range." << endl;
+			des->errors += 1;
+			delete lo;
+			delete hi;
+			return container_expr;
+		  }
+	    }
+
+	    delete lo;
+	    delete hi;
+	    return unsupported_dynamic_array_slice_(loc, des, container_expr);
+      }
+
+      bool integral_bounds = lo->expr_type() == IVL_VT_BOOL
+	    || lo->expr_type() == IVL_VT_LOGIC;
+      if (!integral_bounds) {
+	    cerr << index.msb->get_fileline() << ": error: queue slice bound "
+		 << "must be an integral expression." << endl;
+	    des->errors += 1;
+      }
+      if (hi && hi->expr_type() != IVL_VT_BOOL
+	  && hi->expr_type() != IVL_VT_LOGIC) {
+	    cerr << index.lsb->get_fileline() << ": error: queue slice bound "
+		 << "must be an integral expression." << endl;
+	    des->errors += 1;
+	    integral_bounds = false;
+      }
+      if (!integral_bounds) {
+	    delete lo;
+	    delete hi;
+	    delete container_expr;
+	    return nullptr;
+      }
+
+      /* A queue range always creates an unbounded queue, even when the
+	 * receiver has a declared bound (IEEE 1800-2017 7.10.1). */
+      ivl_type_t result_type =
+	    array_locator_queue_type_(queue_type->element_type());
+      NetESFunc*fn = new NetESFunc(func_name, result_type, parm_count);
       fn->set_line(loc);
       fn->parm(0, container_expr);
       fn->parm(1, lo);
       if (parm_count == 3)
 	    fn->parm(2, hi);
+      return fn;
+}
+
+static bool is_unpacked_array_slice_select_(index_component_t::ctype_t sel)
+{
+      return sel == index_component_t::SEL_PART
+	  || sel == index_component_t::SEL_PART_LAST
+	  || sel == index_component_t::SEL_IDX_UP
+	  || sel == index_component_t::SEL_IDX_DO;
+}
+
+/* Build q[base +: width] or q[base -: width]. Queue ranges permit arbitrary
+ * integral base and width expressions; the runtime evaluates each exactly
+ * once and returns an empty queue for an unknown or nonpositive width.
+ * Ordinary dynamic-array indexed slices are validated here too, but stop at
+ * the same fixed-size-result boundary as their colon form. This consumes
+ * container_expr on every path. */
+static NetExpr* make_container_indexed_slice_expr_(
+      const LineInfo&loc, Design*des, NetScope*scope,
+      NetExpr*container_expr, ivl_type_t container_type,
+      const index_component_t&index)
+{
+      if (!container_expr)
+	    return nullptr;
+
+      const netdarray_t*array_type =
+	    dynamic_cast<const netdarray_t*>(container_type);
+      const netqueue_t*queue_type =
+	    dynamic_cast<const netqueue_t*>(container_type);
+      if (queue_type && queue_type->assoc_compat()) {
+	    cerr << loc.get_fileline() << ": error: associative arrays cannot be "
+		 << "indexed by a range." << endl;
+	    des->errors += 1;
+	    return container_expr;
+      }
+      if (!array_type || (index.sel != index_component_t::SEL_IDX_UP
+			  && index.sel != index_component_t::SEL_IDX_DO)
+	  || !index.msb || !index.lsb) {
+	    delete container_expr;
+	    return nullptr;
+      }
+
+      const bool plain_darray = !queue_type;
+
+      NetExpr*base = elab_and_eval(des, scope, index.msb, -1, false);
+      if (!base) {
+	    delete container_expr;
+	    return nullptr;
+      }
+      if (base->expr_type() != IVL_VT_BOOL
+	  && base->expr_type() != IVL_VT_LOGIC) {
+	    cerr << index.msb->get_fileline() << ": error: indexed unpacked-array "
+		 << "slice base must be an integral expression." << endl;
+	    des->errors += 1;
+	    delete base;
+	    return container_expr;
+      }
+
+      NetExpr*width = elab_and_eval(des, scope, index.lsb, -1, false);
+      if (!width) {
+	    delete base;
+	    delete container_expr;
+	    return nullptr;
+      }
+      if (width->expr_type() != IVL_VT_BOOL
+	  && width->expr_type() != IVL_VT_LOGIC) {
+	    cerr << index.lsb->get_fileline() << ": error: indexed unpacked-array "
+		 << "slice width must be an integral expression." << endl;
+	    des->errors += 1;
+	    delete width;
+	    delete base;
+	    return container_expr;
+      }
+
+      if (plain_darray) {
+	    const NetEConst*width_const = dynamic_cast<const NetEConst*>(width);
+	    bool width_positive = width_const
+		  && width_const->value().is_defined();
+	    if (width_positive) {
+		  const verinum&value = width_const->value();
+		  if (width_const->has_sign() && value.len() > 0
+		      && value.get(value.len()-1) == verinum::V1) {
+			width_positive = false;
+		  } else {
+			width_positive = false;
+			for (unsigned bit = 0 ; bit < value.len(); bit += 1) {
+			      if (value.get(bit) == verinum::V1) {
+				    width_positive = true;
+				    break;
+			      }
+			}
+		  }
+	    }
+	    if (!width_positive) {
+		  cerr << index.lsb->get_fileline() << ": error: indexed "
+		       << "unpacked-array slice width must be a positive constant "
+		       << "integral expression." << endl;
+		  des->errors += 1;
+		  delete width;
+		  delete base;
+		  return container_expr;
+	    }
+
+	    delete width;
+	    delete base;
+	    return unsupported_dynamic_array_slice_(loc, des, container_expr);
+      }
+
+      const char*func_name = index.sel == index_component_t::SEL_IDX_UP
+	    ? "$ivl_array$slice_indexed_up"
+	    : "$ivl_array$slice_indexed_down";
+      /* Like the colon form, an indexed queue range is unbounded regardless
+	 * of the receiver's declared bound. */
+      ivl_type_t result_type =
+	    array_locator_queue_type_(queue_type->element_type());
+      NetESFunc*fn = new NetESFunc(func_name, result_type, 3);
+      fn->set_line(loc);
+      fn->parm(0, container_expr);
+      fn->parm(1, base);
+      fn->parm(2, width);
       return fn;
 }
 
@@ -2224,24 +2459,30 @@ static NetExpr* apply_trailing_container_indices_(
 	    const netqueue_t*queue_type =
 		  dynamic_cast<const netqueue_t*>(cur_type);
 
-	    if (idx_comp.sel == index_component_t::SEL_PART
-		|| idx_comp.sel == index_component_t::SEL_PART_LAST) {
+	    if (is_unpacked_array_slice_select_(idx_comp.sel)) {
 		  list<index_component_t>::const_iterator next = idx_it;
 		  ++next;
-		  if (!queue_type || queue_type->assoc_compat() || next != indices.end()) {
+		  const netdarray_t*darray_type =
+			dynamic_cast<const netdarray_t*>(cur_type);
+		  if (!darray_type || next != indices.end()) {
 			cerr << loc.get_fileline() << ": sorry: this container "
-			     << "slice/index chain on a class property is not yet "
+			     << "slice/index chain is not yet "
 			     << "supported." << endl;
 			des->errors += 1;
 			delete cur_expr;
 			return nullptr;
 		  }
 
-		  cur_expr = make_queue_slice_expr_(loc, des, scope, cur_expr,
-						 cur_type, idx_comp);
+		  if (idx_comp.sel == index_component_t::SEL_IDX_UP
+		      || idx_comp.sel == index_component_t::SEL_IDX_DO)
+			cur_expr = make_container_indexed_slice_expr_(
+			      loc, des, scope, cur_expr, cur_type, idx_comp);
+		  else
+			cur_expr = make_queue_slice_expr_(
+			      loc, des, scope, cur_expr, cur_type, idx_comp);
 		  if (!cur_expr)
 			return nullptr;
-		  out_type = cur_type;
+		  out_type = cur_expr->net_type();
 		  return cur_expr;
 	    }
 
@@ -5769,11 +6010,13 @@ static NetExpr* elaborate_stream_operand_(Design*des, NetScope*scope,
 		  // Container identifiers elaborate as object-valued
 		  // signal references.
 		PEIdent*id = dynamic_cast<PEIdent*>(op);
-		if (id) {
+		  if (id) {
 		      symbol_search_results sr;
 		      if (symbol_search(li, des, scope, id->path(),
 					id->lexical_pos(), &sr)
 			  && sr.net && sr.path_tail.empty()
+			  && !sr.path_head.empty()
+			  && sr.path_head.back().index.empty()
 			  && dynamic_cast<const netdarray_t*>(sr.net->net_type())) {
 			    NetESignal*sig = new NetESignal(sr.net);
 			    sig->set_line(*op);
@@ -7228,9 +7471,18 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 	  && !search_results.path_head.empty()
 	  && !search_results.path_head.back().index.empty()) {
 	    const netdarray_t*darray = search_results.net->darray_type();
-	    if (darray)
-		  target_type = darray->element_type();
-	    target_indexed = true;
+	    const netqueue_t*queue = search_results.net->queue_type();
+	    const list<index_component_t>&indices =
+		  search_results.path_head.back().index;
+	    if (queue && !queue->assoc_compat() && indices.size() == 1
+		&& is_unpacked_array_slice_select_(indices.front().sel)) {
+		  target_type = array_locator_queue_type_(queue->element_type());
+		  target_indexed = false;
+	    } else {
+		  if (darray)
+			target_type = darray->element_type();
+		  target_indexed = true;
+	    }
       }
 
 	/* A real bare use of a parameterized class is its concrete #()
@@ -7346,14 +7598,14 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 			      if (!array_type)
 				    return 0;
 
-			      if (idx_comp.sel == index_component_t::SEL_PART
-				  || idx_comp.sel == index_component_t::SEL_PART_LAST) {
+			      if (is_unpacked_array_slice_select_(idx_comp.sel)) {
 				    auto next = idx_it;
 				    ++next;
 				    if (!queue_type || queue_type->assoc_compat()
 					|| next != comp.index.end())
 					  return 0;
-				    /* A queue slice remains queue-valued. */
+				    target_type = array_locator_queue_type_(
+					  queue_type->element_type());
 				    break;
 			      }
 
@@ -10581,6 +10833,31 @@ static NetExpr* class_static_property_indexed_expression(Design*des,
 	    }
       }
 
+	/* A scoped static container range is a read of the WHOLE static signal,
+	 * followed by range validation/lowering. Treating its first operand as
+	 * the signal's word index silently discarded the other operand. */
+      if (comp.index.size() == 1) {
+	    const index_component_t&slice_idx = comp.index.front();
+	    const netdarray_t*darray_type = sig->darray_type();
+	    bool container_slice = darray_type
+		  && is_unpacked_array_slice_select_(slice_idx.sel);
+	    bool indexed_slice = slice_idx.sel == index_component_t::SEL_IDX_UP
+		  || slice_idx.sel == index_component_t::SEL_IDX_DO;
+	    if (container_slice) {
+		  NetESignal*base = new NetESignal(sig);
+		  base->set_line(*li);
+		  NetExpr*slice = indexed_slice
+			? make_container_indexed_slice_expr_(
+			      *li, des, scope, base, sig->net_type(), slice_idx)
+			: make_queue_slice_expr_(
+			      *li, des, scope, base, sig->net_type(), slice_idx);
+		  if (!slice)
+			return 0;
+		  out_type = slice->net_type();
+		  return slice;
+	    }
+      }
+
 	// Container property element read (single positional or keyed
 	// index): reuse the shared typed element-select helper.
       if (comp.index.size() == 1
@@ -11075,14 +11352,14 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 	    return prop_expr;
       }
 
-	// A queue/dynamic-array property slice is a value of the same
-	// container type. Passing its lower bound as NetEProperty's word
+	// A queue property slice is an unbounded queue value. A legal dynamic-
+	// array slice stops at the fixed-size-result unsupported boundary.
+	// Passing the lower bound as NetEProperty's word
 	// index would read one element and make the VVP queue object masquerade
 	// as that element type. Read the whole property, then slice it.
       const index_component_t&first_idx = comp.index.front();
       if (dynamic_cast<const netdarray_t*>(prop_type)
-	  && (first_idx.sel == index_component_t::SEL_PART
-	      || first_idx.sel == index_component_t::SEL_PART_LAST)) {
+	  && is_unpacked_array_slice_select_(first_idx.sel)) {
 	    if (comp.index.size() != 1) {
 		  cerr << li->get_fileline() << ": sorry: indexing the result of a "
 		       << "queue property slice is not yet supported." << endl;
@@ -11090,11 +11367,15 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 		  delete prop_expr;
 		  return 0;
 	    }
-	    NetExpr*slice = make_queue_slice_expr_(*li, des, scope, prop_expr,
-					      prop_type, first_idx);
+	    NetExpr*slice = first_idx.sel == index_component_t::SEL_IDX_UP
+		  || first_idx.sel == index_component_t::SEL_IDX_DO
+		  ? make_container_indexed_slice_expr_(
+			*li, des, scope, prop_expr, prop_type, first_idx)
+		  : make_queue_slice_expr_(
+			*li, des, scope, prop_expr, prop_type, first_idx);
 	    if (!slice)
 		  return 0;
-	    out_type = prop_type;
+	    out_type = slice->net_type();
 	    return slice;
       }
 
@@ -12266,8 +12547,7 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
       if (!comp.index.empty()) {
 	    const index_component_t&first_idx = comp.index.front();
 	    if (dynamic_cast<const netdarray_t*>(tmp_type)
-		&& (first_idx.sel == index_component_t::SEL_PART
-		    || first_idx.sel == index_component_t::SEL_PART_LAST)) {
+		&& is_unpacked_array_slice_select_(first_idx.sel)) {
 		  if (comp.index.size() != 1) {
 			cerr << get_fileline() << ": sorry: indexing the result of a "
 			     << "queue property slice is not yet supported." << endl;
@@ -12291,8 +12571,12 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 
 		  NetEProperty*whole = new NetEProperty(base_expr, pidx, nullptr);
 		  whole->set_line(*this);
-		  return make_queue_slice_expr_(*this, des, scope, whole,
-						tmp_type, first_idx);
+		  if (first_idx.sel == index_component_t::SEL_IDX_UP
+		      || first_idx.sel == index_component_t::SEL_IDX_DO)
+			return make_container_indexed_slice_expr_(
+			      *this, des, scope, whole, tmp_type, first_idx);
+		  return make_queue_slice_expr_(
+			*this, des, scope, whole, tmp_type, first_idx);
 	    }
 
 	    /* An indexed NetEProperty is the legacy direct element-load form.
@@ -13964,6 +14248,27 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
       }
 
       bool applied_root_queue_select = false;
+	/* A method on a nested container slice must retain every root
+	 * subscript in its receiver expression. The single-index path below
+	 * cannot represent dd[outer][base +: width].size(); historically the
+	 * method was dispatched on the right inner type but against the bare
+	 * outer signal, so neither index expression was evaluated. */
+      if (search_results.net
+	  && search_results.net->darray_type()
+	  && search_results.path_head.back().index.size() > 1
+	  && is_unpacked_array_slice_select_(
+		search_results.path_head.back().index.back().sel)) {
+	    ivl_type_t selected_type = nullptr;
+	    sub_expr = apply_trailing_container_indices_(
+		  *this, des, scope, sub_expr, search_results.net->net_type(),
+		  search_results.path_head.back().index, selected_type);
+	    if (!sub_expr)
+		  return 0;
+	    target_type = selected_type;
+	    target_indexed = false;
+	    applied_root_queue_select = true;
+      }
+
 	// Apply the root container index (x[i]) to the receiver before
 	// walking any property/method chain. This covers QUEUE and assoc
 	// arrays (IVL_VT_QUEUE) AND plain dynamic arrays (IVL_VT_DARRAY):
@@ -13973,6 +14278,7 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 	// The size()==1 direct-method branch below already handled
 	// da[i].method(); this handles the property-chain case too.
       if (search_results.net
+	  && !applied_root_queue_select
 	  && (search_results.net->data_type()==IVL_VT_QUEUE
 	      || search_results.net->data_type()==IVL_VT_DARRAY)
 	  && search_results.net->darray_type()
@@ -13982,19 +14288,45 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 	    const netdarray_t*darray = net->darray_type();
 	    const index_component_t&use_index = search_results.path_head.back().index.back();
 	    ivl_assert(*this, use_index.msb != 0);
-	    ivl_assert(*this, use_index.lsb == 0);
 
-	    NetExpr*mux = elab_and_eval(des, scope, use_index.msb, -1, false);
-	    if (!mux) {
-		  delete sub_expr;
-		  return 0;
+	    if (is_unpacked_array_slice_select_(use_index.sel)) {
+		  if (use_index.sel == index_component_t::SEL_IDX_UP
+		      || use_index.sel == index_component_t::SEL_IDX_DO)
+			sub_expr = make_container_indexed_slice_expr_(
+			      *this, des, scope, sub_expr, darray, use_index);
+		  else
+			sub_expr = make_queue_slice_expr_(
+			      *this, des, scope, sub_expr, darray, use_index);
+		  if (!sub_expr)
+			return 0;
+		  target_type = sub_expr->net_type();
+		  target_indexed = false;
+	    } else {
+		  if (use_index.sel != index_component_t::SEL_BIT
+		      || use_index.lsb != 0) {
+			cerr << get_fileline() << ": sorry: this selected dynamic "
+			     << "container method receiver is not yet supported."
+			     << endl;
+			des->errors += 1;
+			delete sub_expr;
+			return 0;
+		  }
+
+		  NetExpr*mux = elab_and_eval(des, scope, use_index.msb,
+					      -1, false);
+		  if (!mux) {
+			delete sub_expr;
+			return 0;
+		  }
+
+		  NetESelect*tmp = new NetESelect(
+			sub_expr, mux, darray->element_width(),
+			darray->element_type());
+		  tmp->set_line(*this);
+		  sub_expr = tmp;
+		  target_type = darray->element_type();
+		  target_indexed = true;
 	    }
-
-	    NetESelect*tmp = new NetESelect(sub_expr, mux, darray->element_width(), darray->element_type());
-	    tmp->set_line(*this);
-	    sub_expr = tmp;
-	    target_type = darray->element_type();
-	    target_indexed = true;
 	    applied_root_queue_select = true;
       }
 
@@ -16053,8 +16385,12 @@ unsigned PEIdent::test_width_parameter_(const NetExpr *par, width_mode_t&mode)
 }
 
 ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
-				  unsigned int &index_depth) const
+				  unsigned int &index_depth,
+				  ivl_type_t *final_index_type) const
 {
+      if (final_index_type)
+	    *final_index_type = nullptr;
+
       ivl_type_t type;
       if (sr.net && sr.net->unpacked_dimensions())
 	    type = sr.net->array_type();
@@ -16097,6 +16433,13 @@ ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
 
 	    // First process all indices
 	    while (index_depth) {
+		  // Save the type immediately before the final selector. This is
+		  // used to distinguish a queue slice from a packed part select
+		  // without evaluating either bound.
+		  if (final_index_type && cpath == sr.path_tail.cend()
+		      && index_depth == 1)
+			*final_index_type = type;
+
 		  if (type == &netstring_t::type_string) {
 			index++;
 			index_depth--;
@@ -16114,9 +16457,18 @@ ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
 
 			type = array->element_type();
 		  } else if (auto darray = dynamic_cast<const netdarray_t*>(type)) {
+			const netqueue_t*queue =
+			      dynamic_cast<const netqueue_t*>(type);
+			const bool final_container_slice = index_depth == 1
+			      && is_unpacked_array_slice_select_(index->sel)
+			      && queue && !queue->assoc_compat();
 			index++;
 			index_depth--;
-			type = darray->element_type();
+			if (final_container_slice)
+			      type = array_locator_queue_type_(
+				    queue->element_type());
+			else
+			      type = darray->element_type();
 		  } else {
 			return type;
 		  }
@@ -16519,27 +16871,47 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 	    use_sel = index_tail.sel;
       }
 
+      unsigned int use_depth = path_.back().index.size();
+      ivl_type_t type = nullptr;
+      ivl_type_t final_index_type = nullptr;
+
+      if (found_symbol)
+	    type = resolve_type_(des, sr, use_depth, &final_index_type);
+
+      // A queue slice has runtime integral bounds (IEEE 1800-2017
+      // 7.10.1). Its syntax is shared with a packed part select, whose
+      // bounds must remain constant, so classify the receiver type before
+      // applying the packed-select width rules below. Associative arrays
+      // use the same internal queue type for compatibility but do not have
+      // queue-slice semantics.
+      const netqueue_t*final_queue =
+	    dynamic_cast<const netqueue_t*>(final_index_type);
+      const bool queue_slice = is_unpacked_array_slice_select_(use_sel)
+	    && final_queue && !final_queue->assoc_compat();
+
       unsigned use_width = UINT_MAX;
       switch (use_sel) {
 	  case index_component_t::SEL_NONE:
 	    break;
 	  case index_component_t::SEL_PART:
-	      { long msb, lsb;
+	      if (!queue_slice) {
+		long msb, lsb;
 		bool parts_defined;
 		calculate_parts_(des, scope, msb, lsb, parts_defined);
 		if (parts_defined)
 		      use_width = 1 + ((msb>lsb) ? (msb-lsb) : (lsb-msb));
 		else
 		      use_width = UINT_MAX;
-		break;
 	      }
+	      break;
 	  case index_component_t::SEL_IDX_UP:
 	  case index_component_t::SEL_IDX_DO:
-	      { unsigned long tmp = 0;
-		calculate_up_do_width_(des, scope, tmp);
-		use_width = tmp;
-		break;
+	      if (!queue_slice) {
+		    unsigned long tmp = 0;
+		    calculate_up_do_width_(des, scope, tmp);
+		    use_width = tmp;
 	      }
+	      break;
 	  case index_component_t::SEL_BIT:
 	      { ivl_assert(*this, !name_tail.index.empty());
 		const index_component_t&index_tail = name_tail.index.back();
@@ -16559,13 +16931,6 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 	  default:
 	    ivl_assert(*this, 0);
       }
-
-      unsigned int use_depth = path_.back().index.size();
-      ivl_type_t type = nullptr;
-
-      if (found_symbol)
-	    type = resolve_type_(des, sr, use_depth);
-
       if (use_width != UINT_MAX && (!type || (use_depth != 0 && type->packed()))) {
 	      // We have a bit/part select. Account for any remaining dimensions
 	      // beyond the indexed dimension.
@@ -17181,6 +17546,57 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       }
 
       const name_component_t&use_comp = path_.back();
+
+	/* The typed container fast path below historically reduced every
+	 * subscripted container to its first element type. A direct slice then
+	 * degraded to the whole signal, while qq[outer][lo:hi] also dropped outer
+	 * and discarded hi; indexed slices had the same prefix loss. Route a final
+	 * dynamic-container slice through the shared container walker instead.
+	 * Packed and string element selects retain their established paths. */
+      if (sr.path_tail.empty() && net->unpacked_dimensions() == 0
+	  && !use_comp.index.empty()
+	  && (net->darray_type() || net->queue_type())) {
+	    ivl_type_t cur_type = net->net_type();
+	    bool container_slice = false;
+	    for (list<index_component_t>::const_iterator cur =
+		       use_comp.index.begin(); cur != use_comp.index.end(); ++cur) {
+		  if (is_unpacked_array_slice_select_(cur->sel)) {
+			const netdarray_t*array_type =
+			      dynamic_cast<const netdarray_t*>(cur_type);
+			list<index_component_t>::const_iterator next = cur;
+			++next;
+			container_slice = array_type
+			      && next == use_comp.index.end();
+			break;
+		  }
+
+		  if (cur->sel != index_component_t::SEL_BIT
+		      && cur->sel != index_component_t::SEL_BIT_LAST)
+			break;
+		  const netarray_t*array_type =
+			dynamic_cast<const netarray_t*>(cur_type);
+		  if (!array_type)
+			break;
+		  cur_type = array_type->element_type();
+	    }
+
+	    const netqueue_t*slice_queue =
+		  dynamic_cast<const netqueue_t*>(cur_type);
+	    const bool slice_needs_diagnostic = !slice_queue
+		  || slice_queue->assoc_compat();
+	    ivl_type_t slice_type = slice_queue && !slice_queue->assoc_compat()
+		  ? array_locator_queue_type_(slice_queue->element_type())
+		  : cur_type;
+	    if (container_slice && cur_type
+		&& (slice_needs_diagnostic || ntype->type_compatible(slice_type))) {
+		  NetESignal*base_expr = new NetESignal(net);
+		  base_expr->set_line(*this);
+		  ivl_type_t selected_type = nullptr;
+		  return apply_trailing_container_indices_(
+			*this, des, scope, base_expr, net->net_type(),
+			use_comp.index, selected_type);
+	    }
+      }
 
 	/* In a typed context, an exact element select from a packed array of
 	   structs/enums has the selected element type, not the type of the
@@ -21730,6 +22146,19 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 	    return 0;
       }
 
+	/* A direct dynamic-container indexed slice is an unpacked-array slice,
+	 * not a packed part select. The packed handlers below require at least
+	 * one packed dimension and asserted for `da[base +: width]'. Route this
+	 * form before calculate_packed_indices_ sees the empty packed shape. */
+      if (net->darray_type()
+	  && path_.back().index.size() == 1
+	  && (use_sel == index_component_t::SEL_IDX_UP
+	      || use_sel == index_component_t::SEL_IDX_DO)) {
+	    const index_component_t&index = path_.back().index.front();
+	    return make_container_indexed_slice_expr_(
+		  *this, des, scope, node, net->net_type(), index);
+      }
+
 	// For darray/queue/string signals with 2+ indices, the first
 	// index is the element access (a runtime index), followed by
 	// a packed bit/part-select on the element.  Handle the element
@@ -21765,15 +22194,79 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 		  const netarray_t*level = darray
 			? (const netarray_t*)darray : (const netarray_t*)queue;
 		  while (level && idx_it != path_.back().index.end()) {
+			const index_component_t&level_index = *idx_it;
+			list<index_component_t>::const_iterator next_idx = idx_it;
+			++next_idx;
+			bool final_index = next_idx == path_.back().index.end();
+			const netdarray_t*level_darray =
+			      dynamic_cast<const netdarray_t*>(level);
+			const netqueue_t*level_queue =
+			      dynamic_cast<const netqueue_t*>(level);
+
+			  /* A range selector consumes the current container as a
+			   * whole. Do not treat its first operand as an element index:
+			   * doing so dropped the second bound of qq[outer][lo:hi]. */
+			if (is_unpacked_array_slice_select_(level_index.sel)) {
+			      if (!final_index) {
+				    cerr << get_fileline() << ": sorry: indexing the "
+					 << "result of a nested unpacked-array slice is "
+					 << "not yet supported." << endl;
+				    des->errors += 1;
+				    delete cur_sel;
+				    return 0;
+			      }
+
+			      if (level_index.sel == index_component_t::SEL_IDX_UP
+				  || level_index.sel == index_component_t::SEL_IDX_DO) {
+				    return make_container_indexed_slice_expr_(
+					  *this, des, scope, cur_sel,
+					  level_darray, level_index);
+			      }
+
+			      return make_queue_slice_expr_(
+				    *this, des, scope, cur_sel,
+				    level_darray, level_index);
+			}
+
+			if (level_index.sel == index_component_t::SEL_BIT_LAST) {
+			      if (!level_queue || level_queue->assoc_compat()) {
+				    cerr << get_fileline() << ": error: `$' is only valid "
+					 << "for a positional queue index here." << endl;
+				    des->errors += 1;
+				    delete cur_sel;
+				    return 0;
+			      }
+
+			      cur_sel = make_last_queue_element_expr_(
+				    *this, cur_sel, level_queue);
+			      if (!cur_sel)
+				    return 0;
+			      cur_type = level->element_type();
+			      idx_it = next_idx;
+			      if (final_index)
+				    return cur_sel;
+			      level = dynamic_cast<const netdarray_t*>(cur_type);
+			      continue;
+			}
+
+			if (level_index.sel != index_component_t::SEL_BIT
+			    || !level_index.msb || level_index.lsb) {
+			      cerr << get_fileline() << ": sorry: this nested "
+				   << "dynamic-container select form is not yet "
+				   << "supported." << endl;
+			      des->errors += 1;
+			      delete cur_sel;
+			      return 0;
+			}
+
 			ivl_type_t et = level->element_type();
 			unsigned ew = 1;
-			if (const netdarray_t*da =
-				  dynamic_cast<const netdarray_t*>(level))
-			      ew = da->element_width();
+			if (level_darray)
+			      ew = level_darray->element_width();
 			if (ew == 0)
 			      ew = 1;
 
-			NetExpr*mux = elab_assoc_index(des, scope, idx_it->msb,
+			NetExpr*mux = elab_assoc_index(des, scope, level_index.msb,
 						     level, need_const);
 			if (!mux) {
 			      delete cur_sel;

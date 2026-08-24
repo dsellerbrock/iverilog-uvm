@@ -3070,8 +3070,23 @@ bool of_UARR_ORDER(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* The constructor lives with %new/queue much later in this file, but typed
+ * queue-slice operations also need it for empty and nil-source results. */
+static vvp_object_t make_queue_for_enc_(const char*text);
+
 /* Phase 63b/Q-methods: expression-form q.unique() returns a fresh queue
  * containing one representative per distinct value. */
+/* A slice builds a new array value by assigning each selected element
+ * (7.6). Dynamic containers and unpacked structs are therefore copied as
+ * values; class handles remain shared. */
+static inline void qslice_rvalue_copy_(vvp_object_t&value)
+{
+      value = value.value_copy_element();
+}
+static inline void qslice_rvalue_copy_(double&) { }
+static inline void qslice_rvalue_copy_(string&) { }
+static inline void qslice_rvalue_copy_(vvp_vector4_t&) { }
+
 /* Copy source elements [lo..hi] into a fresh queue of the matching
  * element kind. */
 template <typename ELEM, class QTYPE>
@@ -3081,6 +3096,7 @@ static vvp_object_t qslice_copy_(vvp_darray*src, int64_t lo, int64_t hi)
       for (int64_t i = lo; i <= hi; i += 1) {
 	    ELEM v;
 	    src->get_word((unsigned)i, v);
+	    qslice_rvalue_copy_(v);
 	    dst->push_back(v, 0);
       }
       return vvp_object_t(dst);
@@ -3139,6 +3155,63 @@ static bool qslice_result_(vthread_t thr, const vvp_object_t&src_obj,
       return true;
 }
 
+/* Queue slice bounds can be arbitrary-width signed or unsigned
+ * integral expressions. Convert exactly when the value fits in int64_t and
+ * saturate only values outside that range. Exact negative values matter for
+ * indexed slices: q[-100 +: 102] and q[-1 +: 102] have different upper
+ * bounds before 7.10.1 clamping. */
+static bool qslice_bound_value_(const vvp_vector4_t&vec, bool is_signed,
+                                int64_t&value)
+{
+      for (unsigned idx = 0; idx < vec.size(); idx += 1) {
+            vvp_bit4_t bit = vec.value(idx);
+            if (bit != BIT4_0 && bit != BIT4_1)
+                  return false;
+      }
+
+      bool negative = is_signed && vec.size()
+	    && vec.value(vec.size()-1) == BIT4_1;
+      uint64_t magnitude = 0;
+
+      if (!negative) {
+	    for (unsigned idx = 0; idx < vec.size(); idx += 1) {
+		  if (vec.value(idx) != BIT4_1)
+			continue;
+		  if (idx >= 63) {
+			value = LLONG_MAX;
+			return true;
+		  }
+		  magnitude |= uint64_t(1) << idx;
+	    }
+	    value = static_cast<int64_t>(magnitude);
+	    return true;
+      }
+
+      /* Form the unsigned magnitude of a negative two's-complement value
+	 * without first narrowing it. This also recognizes sign extension, so
+	 * a 128-bit -5 remains exactly -5 while a value below INT64_MIN
+	 * saturates. */
+      bool carry = true;
+      for (unsigned idx = 0; idx < vec.size(); idx += 1) {
+	    bool inverted = vec.value(idx) == BIT4_0;
+	    bool magnitude_bit = inverted != carry;
+	    carry = inverted && carry;
+	    if (!magnitude_bit)
+		  continue;
+	    if (idx > 63) {
+		  value = LLONG_MIN;
+		  return true;
+	    }
+	    magnitude |= uint64_t(1) << idx;
+      }
+
+      if (magnitude >= (uint64_t(1) << 63))
+	    value = LLONG_MIN;
+      else
+	    value = -static_cast<int64_t>(magnitude);
+      return true;
+}
+
 /*
  * %qslice
  *
@@ -3148,48 +3221,446 @@ static bool qslice_result_(vthread_t thr, const vvp_object_t&src_obj,
  * [msb..lsb] inclusive. Bounds are clamped to the source range; an
  * inverted or fully out-of-range slice yields an empty queue.
  */
-bool of_QSLICE(vthread_t thr, vvp_code_t)
+static bool qslice_(vthread_t thr, bool msb_signed, bool lsb_signed)
 {
       int64_t lsb = 0, msb = 0;
       vvp_vector4_t lsv = thr->pop_vec4();
       vvp_vector4_t msv = thr->pop_vec4();
-      vector4_to_value(lsv, lsb, true);
-      vector4_to_value(msv, msb, true);
+      bool lsb_defined = qslice_bound_value_(lsv, lsb_signed, lsb);
+      bool msb_defined = qslice_bound_value_(msv, msb_signed, msb);
 
       vvp_object_t src_obj;
       thr->pop_object(src_obj);
+      if (!lsb_defined || !msb_defined)
+	    return qslice_result_(thr, src_obj, 1, 0);
       return qslice_result_(thr, src_obj, msb, lsb);
+}
+
+/* Legacy zero-operand VVP instruction: both bounds were historically
+ * converted as signed values. */
+bool of_QSLICE(vthread_t thr, vvp_code_t)
+{
+      return qslice_(thr, true, true);
+}
+
+bool of_QSLICE_F(vthread_t thr, vvp_code_t cp)
+{
+      return qslice_(thr, cp->bit_idx[0] != 0, cp->bit_idx[1] != 0);
+}
+
+/* Copy one slice element into a freshly-created result container. Object
+ * elements use value_copy_element(): nested value containers and unpacked
+ * structs are copied, while class handles deliberately remain shared. */
+static bool qslice_copy_typed_element_(vvp_darray*src, vvp_queue*dst,
+				       size_t src_index)
+{
+      if (!src || !dst || src_index > UINT_MAX)
+	    return false;
+
+      if (vvp_queue_real*queue = dynamic_cast<vvp_queue_real*>(dst)) {
+	    double word = 0.0;
+	    src->get_word(static_cast<unsigned>(src_index), word);
+	    queue->push_back(word, 0);
+	    return true;
+      }
+      if (vvp_queue_string*queue = dynamic_cast<vvp_queue_string*>(dst)) {
+	    string word;
+	    src->get_word(static_cast<unsigned>(src_index), word);
+	    queue->push_back(word, 0);
+	    return true;
+      }
+      if (vvp_queue_object*queue = dynamic_cast<vvp_queue_object*>(dst)) {
+	    vvp_object_t word;
+	    src->get_word(static_cast<unsigned>(src_index), word);
+	    queue->push_back(word.value_copy_element(), 0);
+	    return true;
+      }
+      if (vvp_queue_vec4*queue = dynamic_cast<vvp_queue_vec4*>(dst)) {
+	    vvp_vector4_t word;
+	    src->get_word(static_cast<unsigned>(src_index), word);
+	    queue->push_back(word, 0);
+	    return true;
+      }
+      return false;
+}
+
+/* Produce a typed queue slice from normalized low/high indices. Queue ranges
+ * clamp at 0/$ (7.10.1), so an oversized indexed width never drives result
+ * allocation beyond the number of live source elements. */
+static bool qslice_indexed_result_(vthread_t thr,
+				   const vvp_object_t&src_obj,
+				   const char*element_enc,
+				   bool bounds_defined, int64_t lo, int64_t hi)
+{
+      vvp_darray*src = src_obj.peek<vvp_darray>();
+      size_t count = 0;
+
+      if (bounds_defined && src) {
+	    int64_t last = qslice_last_index_(src);
+	    if (lo < 0)
+		  lo = 0;
+	    if (hi > last)
+		  hi = last;
+	    if (lo <= hi)
+		  count = static_cast<size_t>(hi - lo) + 1;
+      }
+
+      vvp_object_t dst_obj = make_queue_for_enc_(element_enc);
+      vvp_queue*dst = dst_obj.peek<vvp_queue>();
+      if (!dst) {
+	    cerr << get_fileline() << "Internal error: unsupported queue slice "
+		 << "element encoding `" << element_enc << "'." << endl;
+	    thr->push_object(vvp_object_t());
+	    return true;
+      }
+
+      if (src && src->elem_class())
+	    dst->set_elem_class(src->elem_class());
+      for (size_t idx = 0; idx < count; idx += 1) {
+	    if (!qslice_copy_typed_element_(src, dst,
+					     static_cast<size_t>(lo) + idx)) {
+		  cerr << get_fileline() << "Internal error: incompatible runtime "
+		       << "element storage while building a queue slice." << endl;
+		  break;
+	    }
+      }
+
+      thr->push_object(dst_obj);
+      return true;
+}
+
+/* A zero-allocation view of the unsigned magnitude of an arbitrary-width
+ * vec4 value. For a negative two's-complement value, bits below the least
+ * significant one remain zero, that one remains set, and all higher bits are
+ * complemented. Keeping this as a view matters for an enormous indexed width:
+ * clamping a slice must not first allocate storage proportional to that width. */
+struct qslice_magnitude_view_ {
+      const vvp_vector4_t*value;
+      bool negative;
+      bool nonzero;
+      unsigned first_one;
+      unsigned highest_one;
+};
+
+static bool qslice_magnitude_view_init_(const vvp_vector4_t&vec,
+					bool is_signed,
+					bool&negative,
+					qslice_magnitude_view_&view)
+{
+      negative = false;
+      for (unsigned idx = 0; idx < vec.size(); idx += 1) {
+	    vvp_bit4_t bit = vec.value(idx);
+	    if (bit != BIT4_0 && bit != BIT4_1)
+		  return false;
+      }
+      if (is_signed && vec.size() && vec.value(vec.size()-1) == BIT4_1)
+	    negative = true;
+
+      view.value = &vec;
+      view.negative = negative;
+      view.nonzero = false;
+      view.first_one = 0;
+      view.highest_one = 0;
+
+      bool found_first = false;
+      for (unsigned idx = 0; idx < vec.size(); idx += 1) {
+	    bool raw_one = vec.value(idx) == BIT4_1;
+	    if (!negative) {
+		  if (raw_one) {
+			view.nonzero = true;
+			view.highest_one = idx;
+		  }
+		  continue;
+	    }
+
+	    if (!found_first && raw_one) {
+		  found_first = true;
+		  view.nonzero = true;
+		  view.first_one = idx;
+		  view.highest_one = idx;
+	    } else if (found_first && !raw_one) {
+		  view.highest_one = idx;
+	    }
+      }
+      return true;
+}
+
+static bool qslice_magnitude_bit_(const qslice_magnitude_view_&view,
+				 unsigned idx)
+{
+      if (!view.nonzero || idx >= view.value->size())
+	    return false;
+      if (!view.negative)
+	    return view.value->value(idx) == BIT4_1;
+      if (idx < view.first_one)
+	    return false;
+      if (idx == view.first_one)
+	    return true;
+      return view.value->value(idx) == BIT4_0;
+}
+
+static int qslice_magnitude_compare_(const qslice_magnitude_view_&lhs,
+				    const qslice_magnitude_view_&rhs)
+{
+      if (lhs.nonzero != rhs.nonzero)
+	    return lhs.nonzero ? 1 : -1;
+      if (!lhs.nonzero)
+	    return 0;
+      if (lhs.highest_one != rhs.highest_one)
+	    return lhs.highest_one > rhs.highest_one ? 1 : -1;
+
+      for (unsigned idx = lhs.highest_one;; idx -= 1) {
+	    bool lhs_bit = qslice_magnitude_bit_(lhs, idx);
+	    bool rhs_bit = qslice_magnitude_bit_(rhs, idx);
+	    if (lhs_bit != rhs_bit)
+		  return lhs_bit ? 1 : -1;
+	    if (idx == 0)
+		  break;
+      }
+      return 0;
+}
+
+static bool qslice_magnitude_to_u64_(const qslice_magnitude_view_&view,
+				    uint64_t&value)
+{
+      value = 0;
+      if (!view.nonzero)
+	    return true;
+      if (view.highest_one >= 64)
+	    return false;
+      for (unsigned idx = 0; idx <= view.highest_one; idx += 1) {
+	    if (qslice_magnitude_bit_(view, idx))
+		  value |= uint64_t(1) << idx;
+      }
+      return true;
+}
+
+static int qslice_magnitude_compare_u64_(const qslice_magnitude_view_&lhs,
+					uint64_t rhs)
+{
+      uint64_t lhs_value = 0;
+      if (!qslice_magnitude_to_u64_(lhs, lhs_value))
+	    return 1;
+      if (lhs_value == rhs)
+	    return 0;
+      return lhs_value > rhs ? 1 : -1;
+}
+
+/* Return lhs-rhs when the nonnegative difference fits in uint64_t. The
+ * subtraction streams over the operand bits, so even two very wide values
+ * that almost cancel require no temporary big integer. */
+static bool qslice_magnitude_difference_u64_(
+		const qslice_magnitude_view_&lhs,
+		const qslice_magnitude_view_&rhs, uint64_t&difference)
+{
+      if (qslice_magnitude_compare_(lhs, rhs) < 0)
+	    return false;
+
+      difference = 0;
+      bool borrow = false;
+      bool too_wide = false;
+      unsigned bits = lhs.value->size() > rhs.value->size()
+	    ? lhs.value->size() : rhs.value->size();
+      for (unsigned idx = 0; idx < bits; idx += 1) {
+	    bool lhs_bit = qslice_magnitude_bit_(lhs, idx);
+	    bool rhs_bit = qslice_magnitude_bit_(rhs, idx);
+	    bool difference_bit = (lhs_bit != rhs_bit) != borrow;
+	    bool next_borrow = (!lhs_bit && (rhs_bit || borrow))
+		  || (rhs_bit && borrow);
+	    if (difference_bit) {
+		  if (idx >= 64)
+			too_wide = true;
+		  else
+			difference |= uint64_t(1) << idx;
+	    }
+	    borrow = next_borrow;
+      }
+      return !borrow && !too_wide;
+}
+
+/* Normalize an indexed queue range directly into the live interval [0,last].
+ * Do not narrow base and width independently: q[(2**100) -: (2**100+2)]
+ * and q[-(2**100) +: (2**100+2)] depend on exact cancellation even though
+ * neither operand fits in int64_t. */
+static bool qslice_indexed_bounds_(const vvp_vector4_t&base_vec,
+				   bool base_signed,
+				   const vvp_vector4_t&width_vec,
+				   bool width_signed, bool indexed_up,
+				   int64_t last, int64_t&lo, int64_t&hi)
+{
+      if (last < 0)
+	    return false;
+
+      bool base_negative = false, width_negative = false;
+      qslice_magnitude_view_ base;
+      qslice_magnitude_view_ width;
+      if (!qslice_magnitude_view_init_(base_vec, base_signed,
+					      base_negative, base)
+	  || !qslice_magnitude_view_init_(width_vec, width_signed,
+					      width_negative, width)
+	  || width_negative || !width.nonzero)
+	    return false;
+
+      uint64_t last_value = static_cast<uint64_t>(last);
+      if (indexed_up) {
+	    if (!base_negative) {
+		  if (qslice_magnitude_compare_u64_(base, last_value) > 0)
+			return false;
+		  uint64_t base_value = 0;
+		  if (!qslice_magnitude_to_u64_(base, base_value))
+			return false;
+		  uint64_t available = last_value - base_value + 1;
+		  lo = static_cast<int64_t>(base_value);
+		  if (qslice_magnitude_compare_u64_(width, available) >= 0) {
+			hi = last;
+		  } else {
+			uint64_t width_value = 0;
+			if (!qslice_magnitude_to_u64_(width, width_value)
+			    || width_value == 0)
+			      return false;
+			hi = static_cast<int64_t>(base_value + width_value - 1);
+		  }
+		  return true;
+	    }
+
+	      /* base=-M: the unclamped upper endpoint is width-M-1. */
+	    if (qslice_magnitude_compare_(width, base) <= 0)
+		  return false;
+	    uint64_t difference = 0;
+	    bool difference_fits = qslice_magnitude_difference_u64_(
+		  width, base, difference);
+	    lo = 0;
+	    if (!difference_fits || difference > last_value + 1)
+		  hi = last;
+	    else
+		  hi = static_cast<int64_t>(difference - 1);
+	    return true;
+      }
+
+      if (base_negative)
+	    return false;
+      int base_vs_last = qslice_magnitude_compare_u64_(base, last_value);
+      if (base_vs_last <= 0) {
+	    uint64_t base_value = 0;
+	    if (!qslice_magnitude_to_u64_(base, base_value))
+		  return false;
+	    uint64_t available = base_value + 1;
+	    hi = static_cast<int64_t>(base_value);
+	    if (qslice_magnitude_compare_u64_(width, available) >= 0) {
+		  lo = 0;
+	    } else {
+		  uint64_t width_value = 0;
+		  if (!qslice_magnitude_to_u64_(width, width_value)
+		      || width_value == 0)
+			return false;
+		  lo = static_cast<int64_t>(base_value - width_value + 1);
+	    }
+	    return true;
+      }
+
+      hi = last;
+      int width_vs_base = qslice_magnitude_compare_(width, base);
+      if (width_vs_base > 0) {
+	    lo = 0;
+	    return true;
+      }
+
+      uint64_t difference = 0;
+      bool difference_fits = qslice_magnitude_difference_u64_(
+	    base, width, difference);
+      if (!difference_fits || difference >= last_value)
+	    return false;
+      lo = static_cast<int64_t>(difference + 1);
+      return true;
+}
+
+/* Indexed queue-slice runtime. The vec4 stack holds base then width, so pop
+ * in reverse order. Both remain arbitrary-width runtime operands here;
+ * nonpositive or unknown widths yield empty, and oversized positive widths
+ * are normalized directly against the live source range. */
+static bool qslice_indexed_(vthread_t thr, vvp_code_t cp, bool indexed_up)
+{
+      vvp_vector4_t width_vec = thr->pop_vec4();
+      vvp_vector4_t base_vec = thr->pop_vec4();
+
+      vvp_object_t src_obj;
+      thr->pop_object(src_obj);
+      int64_t lo = 1, hi = 0;
+      int64_t last = qslice_last_index_(src_obj.peek<vvp_darray>());
+      bool bounds_defined = qslice_indexed_bounds_(
+	    base_vec, cp->bit_idx[0] != 0,
+	    width_vec, cp->bit_idx[1] != 0,
+	    indexed_up, last, lo, hi);
+
+      return qslice_indexed_result_(thr, src_obj, cp->text,
+				     bounds_defined, lo, hi);
+}
+
+bool of_QSLICE_IDX_Q_DOWN(vthread_t thr, vvp_code_t cp)
+{
+      return qslice_indexed_(thr, cp, false);
+}
+
+bool of_QSLICE_IDX_Q_UP(vthread_t thr, vvp_code_t cp)
+{
+      return qslice_indexed_(thr, cp, true);
 }
 
 /* %qslice/last pops q[lo:$]. The upper bound is derived from the already
  * evaluated source object, so a side-effecting receiver runs only once. */
-bool of_QSLICE_LAST(vthread_t thr, vvp_code_t)
+static bool qslice_last_(vthread_t thr, bool lo_signed)
 {
       int64_t lo = 0;
       vvp_vector4_t lov = thr->pop_vec4();
-      vector4_to_value(lov, lo, true);
+      bool lo_defined = qslice_bound_value_(lov, lo_signed, lo);
 
       vvp_object_t src_obj;
       thr->pop_object(src_obj);
+      if (!lo_defined)
+	    return qslice_result_(thr, src_obj, 1, 0);
       return qslice_result_(thr, src_obj, lo,
                             qslice_last_index_(src_obj.peek<vvp_darray>()));
 }
 
+bool of_QSLICE_LAST(vthread_t thr, vvp_code_t)
+{
+      return qslice_last_(thr, true);
+}
+
+bool of_QSLICE_LAST_F(vthread_t thr, vvp_code_t cp)
+{
+      return qslice_last_(thr, cp->bit_idx[0] != 0);
+}
+
 /* %qslice/off pops q[lo:$-offset], deriving the last index from the same
  * source snapshot and subtracting a separately evaluated offset. */
-bool of_QSLICE_OFF(vthread_t thr, vvp_code_t)
+static bool qslice_off_(vthread_t thr, bool lo_signed, bool offset_signed)
 {
       int64_t offset = 0, lo = 0;
       vvp_vector4_t offv = thr->pop_vec4();
       vvp_vector4_t lov = thr->pop_vec4();
-      vector4_to_value(offv, offset, true);
-      vector4_to_value(lov, lo, true);
+      bool offset_defined = qslice_bound_value_(
+            offv, offset_signed, offset);
+      bool lo_defined = qslice_bound_value_(lov, lo_signed, lo);
 
       vvp_object_t src_obj;
       thr->pop_object(src_obj);
+      if (!offset_defined || !lo_defined)
+	    return qslice_result_(thr, src_obj, 1, 0);
       return qslice_result_(thr, src_obj, lo,
                             qslice_last_offset_(src_obj.peek<vvp_darray>(),
                                                 offset));
+}
+
+bool of_QSLICE_OFF(vthread_t thr, vvp_code_t)
+{
+      return qslice_off_(thr, true, true);
+}
+
+bool of_QSLICE_OFF_F(vthread_t thr, vvp_code_t cp)
+{
+      return qslice_off_(thr, cp->bit_idx[0] != 0,
+                         cp->bit_idx[1] != 0);
 }
 
 static bool qunique_eq_(const vvp_vector4_t&a, const vvp_vector4_t&b)

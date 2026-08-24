@@ -2524,6 +2524,77 @@ whole-design pass claim. Evidence is under
 
 ---
 
+## G77 — queue ranges were lowered as packed part selects — **fixed/verified r-value subset** [general]
+
+*7.4.5 / 7.4.6 / 7.6 / 7.10.1 [general] — unpacked-array slices,
+queue range expressions, result typing, and array assignment.*
+
+The unmodified OpenTitan USBDEV graph exposed variable queue bounds inside a
+streaming expression. Icarus formerly reached the terminal range through the
+packed part-select path and rejected the legal queue operands as nonconstant:
+`usb20_monitor.sv:578` failed once and the same diagnostic recurred at line
+582. The receiver's dynamic-container kind was being recognized after the
+wrong width/constant rule had already fired.
+
+The common expression walk now stops at a genuine positional queue range and
+uses queue-specific elaboration and runtime operations. Direct, nested,
+instance/fixed-slot/scoped-static property, method, untyped formatting, and
+streaming paths preserve the complete receiver selection. Colon bounds and
+indexed `+:`/`-:` base and width expressions are evaluated exactly once.
+Signed, unsigned, narrow, wide, and X/Z values are classified before any host
+integer conversion or allocation. Colon endpoints clamp to the live queue;
+reversed or unknown ranges are empty. Indexed ranges normalize into ascending
+queue order, clamp without over-allocation, and return empty for an unknown
+base or a zero, negative, or unknown width. Nested unpacked value elements are
+copied rather than aliased.
+
+IEEE 1800-2017/2023 7.10.1 explicitly permits arbitrary integral queue colon
+bounds such as `Q[a:b]`. For queue indexed ranges, the implementation follows
+Slang's compatible interpretation that the queue exception applies to every
+range-selection kind; this is recorded as differential behavior rather than
+an unqualified 7.10.1 claim. Slang 11.0.448+e222e7dc0 accepts the positive
+colon/`+:`/`-:` source under both 1800-2017 and 1800-2023. A bounded queue
+receiver still produces an unbounded queue result, matching Slang's AST type.
+
+The syntax is deliberately discriminated from other unpacked arrays. Sections
+7.4.5, 7.4.6, and 7.6 require a dynamic-array slice to be a fixed-size
+unpacked-array expression, not a dynamic array. Legal dynamic colon and
+indexed r-values therefore produce the exact loud
+`sorry: dynamic-array slice r-values are not yet supported as fixed-size
+unpacked-array expressions.` until that result representation exists;
+`$typename` and method contexts cannot silently claim a dynamic result.
+Illegal dynamic operands receive their standard-specific diagnostics first.
+Associative colon, `+:`, and `-:` ranges all produce
+`associative arrays cannot be indexed by a range.`
+
+The final focus gates pass 14/14 legacy and 9/9 JSON/VVP. The complete runners
+report 1,801/1,801 for `regress-sv.list` and 869/869 for `regress-vvp.list`;
+these are runner-reported test totals, not raw manifest line counts. Legacy
+queue-slice VVP bytecode remains 3/3. The JSON commands used
+`python3 vvp_reg.py`, not Perl or direct shebang execution. No RSS cap was
+applied to the compiler or tests; only the 45-second per-process CPU runaway
+guard remained. Full commands, differential diagnostics, evidence hashes, and
+the permanent reducer inventory are in
+[`session_logs/2026-08-24_opentitan_usbdev_variable_queue_slices.md`](session_logs/2026-08-24_opentitan_usbdev_variable_queue_slices.md).
+
+At OpenTitan commit `7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19`, the
+fresh `lowrisc:dv:usbdev_sim:0.1` replay contains no line-578/582 diagnostic and
+no remaining `Part select expressions must be constant integral values.` The
+graph advances to ten independent elaboration errors, including hierarchical
+`usbdev_timed_regs.timed_reg_e` constant/cast-size uses and three aggregate
+`std::randomize()` constraint sites; a later unresolved `ep_default` statement
+also remains. No VVP image or USBDEV runtime exists, and no OpenTitan source
+was changed. This is a precise compiler-blocker removal, not a whole-design or
+UVM pass claim.
+
+Queue range l-values, an indexed `+:`/`-:` range whose base token is `$`, and
+the fixed-size result implementation for dynamic-array slices remain explicit
+boundaries. The first is loud, the indexed-`$` spelling remains a parser/
+lowering boundary, and the dynamic-array r-value boundary is loud rather than
+silently represented as the wrong type.
+
+---
+
 ## Two measurement traps worth remembering
 
 **The error count is not a progress metric while the parser can still give

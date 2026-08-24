@@ -2050,7 +2050,9 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    int errors = draw_eval_object(ivl_expr_parm(expr, 0));
 	    draw_eval_vec4(ivl_expr_parm(expr, 1));
 	    draw_eval_vec4(ivl_expr_parm(expr, 2));
-	    fprintf(vvp_out, "    %%qslice;\n");
+	    fprintf(vvp_out, "    %%qslice/f %u, %u;\n",
+		    ivl_expr_signed(ivl_expr_parm(expr, 1)) ? 1U : 0U,
+		    ivl_expr_signed(ivl_expr_parm(expr, 2)) ? 1U : 0U);
 	    return errors;
       }
 
@@ -2065,7 +2067,8 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    }
 	    int errors = draw_eval_object(ivl_expr_parm(expr, 0));
 	    draw_eval_vec4(ivl_expr_parm(expr, 1));
-	    fprintf(vvp_out, "    %%qslice/last;\n");
+	    fprintf(vvp_out, "    %%qslice/last/f %u;\n",
+		    ivl_expr_signed(ivl_expr_parm(expr, 1)) ? 1U : 0U);
 	    return errors;
       }
 
@@ -2077,7 +2080,51 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    int errors = draw_eval_object(ivl_expr_parm(expr, 0));
 	    draw_eval_vec4(ivl_expr_parm(expr, 1));
 	    draw_eval_vec4(ivl_expr_parm(expr, 2));
-	    fprintf(vvp_out, "    %%qslice/off;\n");
+	    fprintf(vvp_out, "    %%qslice/off/f %u, %u;\n",
+		    ivl_expr_signed(ivl_expr_parm(expr, 1)) ? 1U : 0U,
+		    ivl_expr_signed(ivl_expr_parm(expr, 2)) ? 1U : 0U);
+	    return errors;
+      }
+
+      /* Indexed queue slice Q[base +: width] / Q[base -: width]. Keep width
+       * as a vec4 operand instead of truncating it to a C integer here: the
+       * runtime can reject or clamp an arbitrary-width value without
+       * accidentally allocating a wrapped result. Receiver, base, and width
+       * are evaluated once, in that order. Dynamic-array slices have fixed-
+       * size unpacked-array result types (7.4.5) and are rejected in
+       * elaboration until that non-object result IR exists. */
+      if (strcmp(name, "$ivl_array$slice_indexed_up") == 0
+	  || strcmp(name, "$ivl_array$slice_indexed_down") == 0) {
+	    if (parm_count != 3) {
+		  fprintf(vvp_out,
+			  "    %%null; ; indexed array slice: bad parm count\n");
+		  return 0;
+	    }
+
+	    ivl_type_t container_type = ivl_expr_net_type(expr);
+	    if (!container_type
+		|| ivl_type_base(container_type) != IVL_VT_QUEUE) {
+		  fprintf(stderr, "%s:%u: internal error: indexed slice object "
+			  "code generation requires a queue result.\n",
+			  ivl_expr_file(expr), ivl_expr_lineno(expr));
+		  fprintf(vvp_out,
+			  "    %%null; ; indexed slice non-queue result\n");
+		  return 1;
+	    }
+	    ivl_type_t elem_type = ivl_type_element(container_type);
+	    char enc[32];
+	    container_element_enc_(elem_type, enc, sizeof enc);
+	    const char*direction =
+		  strcmp(name, "$ivl_array$slice_indexed_up") == 0
+		  ? "up" : "down";
+
+	    int errors = draw_eval_object(ivl_expr_parm(expr, 0));
+	    draw_eval_vec4(ivl_expr_parm(expr, 1));
+	    draw_eval_vec4(ivl_expr_parm(expr, 2));
+	    fprintf(vvp_out, "    %%qslice/idx/q/%s \"%s\", %u, %u;\n",
+		    direction, enc,
+		    ivl_expr_signed(ivl_expr_parm(expr, 1)) ? 1U : 0U,
+		    ivl_expr_signed(ivl_expr_parm(expr, 2)) ? 1U : 0U);
 	    return errors;
       }
 

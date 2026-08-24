@@ -52,6 +52,15 @@ unsigned compile_errors = 0;
 
 static void unresolved_warn_once(const char*kind, const char*label, const char*detail);
 
+/* Flag-bearing queue-slice opcodes. The original zero-operand spellings are
+ * retained below so VVP files produced by earlier 13.x compilers remain
+ * runnable; those legacy instructions interpret both bounds as signed. */
+extern bool of_QSLICE_F(vthread_t thr, vvp_code_t code);
+extern bool of_QSLICE_IDX_Q_DOWN(vthread_t thr, vvp_code_t code);
+extern bool of_QSLICE_IDX_Q_UP(vthread_t thr, vvp_code_t code);
+extern bool of_QSLICE_LAST_F(vthread_t thr, vvp_code_t code);
+extern bool of_QSLICE_OFF_F(vthread_t thr, vvp_code_t code);
+
 /*
  * The opcode table lists all the code mnemonics, along with their
  * opcode and operand types. The table is written sorted by mnemonic
@@ -497,9 +506,14 @@ static const struct opcode_table_s opcode_table[] = {
       { "%qshuffle",   of_QSHUFFLE, 1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%qsize",      of_QSIZE,   1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%qsize/o",    of_QSIZE_O, 0,{OA_NONE,OA_NONE,OA_NONE} },
-      { "%qslice",     of_QSLICE,  0,{OA_NONE,OA_NONE,OA_NONE} },
-      { "%qslice/last",of_QSLICE_LAST,0,{OA_NONE,OA_NONE,OA_NONE} },
-      { "%qslice/off", of_QSLICE_OFF,0,{OA_NONE,OA_NONE,OA_NONE} },
+      { "%qslice",       of_QSLICE,       0,{OA_NONE,OA_NONE,OA_NONE} },
+      { "%qslice/f",     of_QSLICE_F,     2,{OA_BIT1,OA_BIT2,OA_NONE} },
+      { "%qslice/idx/q/down",of_QSLICE_IDX_Q_DOWN,3,{OA_STRING,OA_BIT1,OA_BIT2} },
+      { "%qslice/idx/q/up",of_QSLICE_IDX_Q_UP,3,{OA_STRING,OA_BIT1,OA_BIT2} },
+      { "%qslice/last",  of_QSLICE_LAST,  0,{OA_NONE,OA_NONE,OA_NONE} },
+      { "%qslice/last/f",of_QSLICE_LAST_F,1,{OA_BIT1,OA_NONE,OA_NONE} },
+      { "%qslice/off",   of_QSLICE_OFF,   0,{OA_NONE,OA_NONE,OA_NONE} },
+      { "%qslice/off/f", of_QSLICE_OFF_F, 2,{OA_BIT1,OA_BIT2,OA_NONE} },
       { "%qsort",      of_QSORT,   2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
       { "%qsort/keys", of_QSORT_KEYS,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%qsort/r",    of_QSORT_R, 2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
