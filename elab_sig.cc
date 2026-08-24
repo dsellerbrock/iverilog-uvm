@@ -1720,7 +1720,8 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	    }
 
 	    perm_string interface_modport =
-		  pform_interface_modport(cur->second.type.get());
+		  pform_interface_modport(
+			des, class_scope_, cur->second.type.get());
 	    set_property(cur->first, cur->second.qual, use_type,
 			 interface_modport);
 
@@ -2027,7 +2028,8 @@ static void seed_super_chain_properties_(Design*des, const netclass_t*cls)
 		  des, super_scope_mut, cur->second.type.get());
 	    if (!use_type) continue;
 	    perm_string interface_modport =
-		  pform_interface_modport(cur->second.type.get());
+		  pform_interface_modport(
+			des, super_scope_mut, cur->second.type.get());
 	    super_mut->set_property(cur->first, cur->second.qual, use_type,
 				    interface_modport);
 	    if (cur->second.qual.test_static()) {
@@ -2082,7 +2084,8 @@ static void seed_class_scope_properties_for_method_elab_(Design*des,
 	    ivl_type_t use_type = elaborate_class_property_type_(
 		  des, class_scope, cur->second.type.get());
 	    perm_string interface_modport =
-		  pform_interface_modport(cur->second.type.get());
+		  pform_interface_modport(
+			des, class_scope, cur->second.type.get());
 	    clsnet->set_property(cur->first, cur->second.qual, use_type,
 				 interface_modport);
 	    if (cur->second.qual.test_static()) {
@@ -3060,10 +3063,8 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	// is a class-typed variable (the virtual-interface model), so
 	// force variable kind — the net default would reject property
 	// writes (`m.data = ...` errored as "declared as a uwire").
-      bool is_iface_typed = false;
       if (const netclass_t*ifc = dynamic_cast<const netclass_t*>(type)) {
 	    if (ifc->is_interface()) {
-		  is_iface_typed = true;
 		  if (wtype != NetNet::REG)
 			wtype = NetNet::REG;
 	    }
@@ -3093,13 +3094,12 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	// A modport-qualified interface port (`bus_if.mst m`) records
 	// its modport name so l-value elaboration can enforce the
 	// modport member directions (IEEE 1800-2017 25.5).
-      if (is_iface_typed) {
-	    if (const interface_type_t*itype =
-		  dynamic_cast<const interface_type_t*>(set_data_type_.get())) {
-		  if (!itype->modport.nil())
-			sig->attribute(perm_string::literal("ivl_modport"),
-				       verinum(std::string(itype->modport.str())));
-	    }
+      if (set_data_type_) {
+	    perm_string interface_modport = pform_interface_modport(
+		  des, scope, set_data_type_.get());
+	    if (!interface_modport.nil())
+		  sig->attribute(perm_string::literal("ivl_modport"),
+				 verinum(std::string(interface_modport.str())));
       }
 
       if (generic_iface) {

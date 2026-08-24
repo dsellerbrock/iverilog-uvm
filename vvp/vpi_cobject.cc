@@ -71,6 +71,14 @@ static class_type* get_declared_class_type_(vvp_fun_signal_object*fun)
       return fun ? fun->declared_type() : 0;
 }
 
+static void report_vinterface_property_write_()
+{
+      fprintf(stderr, "vvp error: writing a virtual-interface property "
+                      "through VPI is not supported; use an ordinary "
+                      "assignment or a clocking drive.\n");
+      vpip_set_return_value(1);
+}
+
 }
 
 /* Shared object -> `'{name:value, ...}` renderer for %p and object string
@@ -1390,10 +1398,10 @@ vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net)
  * when a string property is passed as an lvalue to a sysfunc such as
  * $value$plusargs.
  *
- * Both get_value(vpiStringVal) and put_value(vpiStringVal) delegate
- * to the containing object's get_string/set_string at the captured
- * property index. Other format codes report a clear error so we don't
- * silently mishandle them.
+ * Class-property reads and writes delegate to the containing object at the
+ * captured property index. Virtual-interface properties remain readable,
+ * but writes are rejected loudly: direct mutation here would bypass modport
+ * direction checks and clocking-block sampling/drive scheduling.
  */
 class __vpiClassPropertyStringVar : public __vpiHandle {
     public:
@@ -1471,8 +1479,8 @@ class __vpiClassPropertyStringVar : public __vpiHandle {
             obj = fun->peek_object();
             if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
                   cobj->set_string(prop_idx_, std::string(s));
-            else if (vvp_vinterface*vif = obj.peek<vvp_vinterface>())
-                  vif->set_string(prop_idx_, std::string(s));
+            else if (obj.peek<vvp_vinterface>())
+                  report_vinterface_property_write_();
       }
 
 };
@@ -1488,8 +1496,9 @@ vpiHandle vpip_make_cobject_property_string_var(char*label, size_t prop_idx)
    ordinary object-variable handle identifies the containing object only,
    while a vec4-stack argument is a temporary whose vpi_put_value result is
    discarded after the system function returns. Retaining the property index
-   here gives system functions with output arguments (notably
-   $value$plusargs) a real writable destination. */
+   gives ordinary class properties a real writable destination and lets
+   virtual-interface properties be read. Virtual-interface writes are a loud
+   unsupported boundary because they would evade modport and clocking rules. */
 class __vpiClassPropertyVecVar : public __vpiHandle {
     public:
       __vpiClassPropertyVecVar(size_t prop_idx, unsigned width,
@@ -1530,8 +1539,8 @@ class __vpiClassPropertyVecVar : public __vpiHandle {
             vvp_object_t obj = current_object_();
             if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
                   cobj->set_vec4(prop_idx_, vec4_from_vpi_value(val, width_));
-            else if (vvp_vinterface*vif = obj.peek<vvp_vinterface>())
-                  vif->set_vec4(prop_idx_, vec4_from_vpi_value(val, width_));
+            else if (obj.peek<vvp_vinterface>())
+                  report_vinterface_property_write_();
             return 0;
       }
 

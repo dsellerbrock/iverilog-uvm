@@ -1776,6 +1776,8 @@ ivl_type_t struct_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 		  netstruct_t::member_t memb;
 		  memb.name = namep->name.first;
 		  memb.qualifier = curp->qualifier;
+		  memb.interface_modport =
+			pform_interface_modport(des, scope, curp->type.get());
 		  memb.net_type = elaborate_array_type(des, scope, *this,
 							       mem_vec, namep->index);
 

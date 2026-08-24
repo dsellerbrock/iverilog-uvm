@@ -1,0 +1,7 @@
+{
+    "type"              : "EF",
+    "source"            : "sv_clocking_vif_vpi_write_fail.v",
+    "iverilog-args"     : [ "-g2012", "-s", "sv_clocking_vif_vpi_write_fail" ],
+    "vvp-args-extended" : [ "+CBIN=1", "+CBOUT=1", "+MPIN=1" ],
+    "gold"              : "sv_clocking_vif_vpi_write_fail"
+}

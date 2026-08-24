@@ -336,7 +336,8 @@ int netclass_t::ensure_property_decl(Design*des, perm_string pname)
             if (properties_.find(cur->first) != properties_.end()) {
                   set_property(cur->first, cur->second.qual,
                                property_table_[properties_[cur->first]].type,
-                               pform_interface_modport(cur->second.type.get()));
+                               pform_interface_modport(
+                                     des, class_scope_, cur->second.type.get()));
                   continue;
             }
 
@@ -358,7 +359,8 @@ int netclass_t::ensure_property_decl(Design*des, perm_string pname)
                   return -1;
 
             perm_string interface_modport =
-                  pform_interface_modport(cur->second.type.get());
+                  pform_interface_modport(
+                        des, class_scope_, cur->second.type.get());
             bool added = set_property(cur->first, cur->second.qual, use_type,
                                       interface_modport);
             if (added && cur->second.qual.test_static()) {
@@ -428,6 +430,7 @@ void netclass_t::ensure_all_properties_declared(Design*des)
                               set_property(cur->first, cur->second.qual,
                                            property_table_[already->second].type,
                                            pform_interface_modport(
+                                                 des, class_scope_,
                                                  cur->second.type.get()));
                               continue;
                         }
@@ -449,7 +452,8 @@ void netclass_t::ensure_all_properties_declared(Design*des)
                               continue;   // skip unresolvable types
 
                         perm_string interface_modport =
-                              pform_interface_modport(cur->second.type.get());
+                              pform_interface_modport(
+                                    des, class_scope_, cur->second.type.get());
                         bool added = set_property(cur->first, cur->second.qual,
                                                   use_type, interface_modport);
                         if (added && cur->second.qual.test_static()) {

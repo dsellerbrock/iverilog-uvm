@@ -1,0 +1,2 @@
+ivltests/sv_clocking_nonconstant_output_skew_fail.v:9: error: A reference to a net or variable (`runtime_skew') is not allowed in a constant expression.
+1 error(s) during elaboration.

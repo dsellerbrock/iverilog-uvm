@@ -1,0 +1,3 @@
+./ivltests/sv_clocking_struct_vif_modport_raw_member_fail.v:30: error: cannot access 'raw' through modport 'monitor_mp' of interface 'clocking_struct_vif_modport_if' — it is not listed in that modport (IEEE 1800-2017 25.5).
+./ivltests/sv_clocking_struct_vif_modport_raw_member_fail.v:31: error: cannot access 'raw' through modport 'monitor_mp' of interface 'clocking_struct_vif_modport_if' — it is not listed in that modport (IEEE 1800-2017 25.5).
+2 error(s) during elaboration.

@@ -6537,6 +6537,7 @@ NetExpr* PAssign_::elaborate_rval_(Design*des, NetScope*scope,
 static NetExpr* elaborate_delay_expr_(PExpr*expr, Design*des, NetScope*scope,
 				      bool clocking_skew)
 {
+      unsigned errors_before = des->errors;
       NetExpr*dex = elab_and_eval(des, scope, expr, -1, clocking_skew);
 
 	// If the elab_and_eval returns nil, then the function
@@ -6544,6 +6545,12 @@ static NetExpr* elaborate_delay_expr_(PExpr*expr, Design*des, NetScope*scope,
 	// but we can add some detail. Lets add the error count, just
 	// in case.
       if (dex == 0) {
+	      /* A constant clocking-skew failure normally carries its own
+		 diagnostic from NEED_CONST elaboration.  Do not obscure it with
+		 the generic delay follow-up, but retain that fallback for a silent
+		 failure. */
+	    if (clocking_skew && des->errors != errors_before)
+		  return 0;
 	    cerr << expr->get_fileline() << ": error: "
 		 << "Unable to elaborate (or evaluate) delay expression."
 		 << endl;
@@ -8134,21 +8141,17 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 
        begin
 	     _ivl_obuf$cb$out = v;
+	     _ivl_opend$cb$out = '1;
 	     if ($ivl_clocking_sample(_ivl_smptick$cb) !== _ivl_smptick$cb)
-		   out <= _ivl_obuf$cb$out;     // event occurred this
-						// step: drive now
-	     else
-		   _ivl_opend$cb$out = '1;      // buffer: the apply
-						// process lands it at
-						// the next event
+		   _ivl_odkick$cb = ~_ivl_odkick$cb;
        end
 
    The tick comparison asks "did the clocking event already occur in
    this time step" via the same 1-deep history the input sampling
    uses (the tick toggles in the NBA region of each event step). A
-   drive executed after an @(cb) wake therefore lands in the same
-   step (the LRM's drive-at-current-event case); a drive between
-   events is buffered for the next one.
+   drive executed after an @(cb) wake therefore kicks the per-instance
+   apply process in the same step (the LRM's drive-at-current-event
+   case); a drive between events remains buffered for the next trigger.
 
    All three receiver shapes retain packed members and constant bit/part
    selects. Returns nullptr with handled false for an unrecognized clockvar
@@ -8170,26 +8173,6 @@ static NetAssign_* clone_clocking_packed_lval_(NetNet*target,
 	    res->set_part(copy, type);
       else
 	    res->set_part(copy, shape->lwidth(), shape->select_type());
-      return res;
-}
-
-/* Read the same packed selection that a canonical l-value descriptor writes. */
-static NetExpr* read_clocking_packed_lval_(NetNet*source,
-					   const NetAssign_*shape,
-					   const LineInfo&loc)
-{
-      NetExpr*res = new NetESignal(source);
-      res->set_line(loc);
-      const NetExpr*base = shape->get_base();
-      if (!base)
-	    return res;
-
-      if (ivl_type_t type = shape->lval_type())
-	    res = new NetESelect(res, base->dup_expr(), shape->lwidth(), type);
-      else
-	    res = new NetESelect(res, base->dup_expr(), shape->lwidth(),
-				  shape->select_type());
-      res->set_line(loc);
       return res;
 }
 
@@ -8273,7 +8256,12 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 		       clockvar and must retain its buffered/NBA semantics. */
 		  const netclass_t*walk = class_type;
 		  bool chain_ok = true;
-		  bool indexed_receiver = false;
+		  /* The class receiver begins at the object found by symbol_search.
+		     An index on that path-head object is just as stateful as an
+		     index on a following class property: rebuilding the hidden
+		     obuf/opend/kick paths would otherwise evaluate it repeatedly. */
+		  bool indexed_receiver = !csr.path_head.empty()
+			&& !csr.path_head.back().index.empty();
 		  for (pform_name_t::const_iterator it = csr.path_tail.begin()
 			     ; it != csr.path_tail.end() && chain_ok ; ++it) {
 			if (walk->is_interface()) {
@@ -8525,12 +8513,14 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
       string pname = string("_ivl_opend$") + cb_name.str() + "$" + sig_name.str();
       string kname = string("_ivl_smptick$") + cb_name.str();
       string tname = string("_ivl_smptrig$") + cb_name.str();
+      string dname = string("_ivl_odkick$") + cb_name.str();
       NetNet*raw  = resolve_clocking_raw_signal(des, def_scope, cbp, sig_name);
       NetNet*obuf = def_scope->find_signal(lex_strings.make(bname.c_str()));
       NetNet*opend = def_scope->find_signal(lex_strings.make(pname.c_str()));
       NetNet*tick = def_scope->find_signal(lex_strings.make(kname.c_str()));
+      NetNet*kick = def_scope->find_signal(lex_strings.make(dname.c_str()));
       NetEvent*trig = def_scope->find_event(lex_strings.make(tname.c_str()));
-	if (!raw || !obuf || !opend || !tick || !trig) {
+	if (!raw || !obuf || !opend || !tick || !kick || !trig) {
 	    cerr << loc.get_fileline() << ": sorry: clocking output `"
 		 << cb_name << "." << sig_name
 		 << "' has no representable buffered storage; the drive was "
@@ -8550,8 +8540,8 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 
 	/* Remove the clocking-block component and rename the clockvar to its
 	   hidden output buffer, preserving indices on the signal component and
-	   every later packed member/select. Elaborating this once gives all
-	   three destinations one canonical flattened selection. */
+	   every later packed member/select. Elaborating this once gives both
+	   hidden destinations one canonical flattened selection. */
       pform_name_t obuf_path;
       pform_name_t::const_iterator path_it = path.begin();
       for (size_t idx = 0; idx < static_prefix_count; ++idx, ++path_it)
@@ -8605,6 +8595,14 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
       store->set_line(loc);
       blk->append(store);
 
+      NetAssign_*opend_lv = clone_clocking_packed_lval_(opend, obuf_lv);
+      verinum one_v (verinum::V1, opend_lv->lwidth());
+      NetEConst*one = new NetEConst(one_v);
+      one->set_line(loc);
+      NetAssign*mark = new NetAssign(opend_lv, one);
+      mark->set_line(loc);
+      blk->append(mark);
+
       NetESFunc*pre = new NetESFunc("$ivl_clocking_sample",
 				    tick->net_type(), 1);
       NetESignal*tick_arg = new NetESignal(tick);
@@ -8616,25 +8614,17 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
       NetEBComp*cmp = new NetEBComp('N', pre, tick_now);
       cmp->set_line(loc);
 
-      NetExpr*buf_rd = read_clocking_packed_lval_(obuf, obuf_lv, loc);
-      NetAssign_*raw_lv = clone_clocking_packed_lval_(raw, obuf_lv);
-      NetAssignNB*direct = new NetAssignNB(raw_lv, buf_rd, 0, 0);
-      direct->set_line(loc);
-	/* Output skew (14.4): the drive-at-current-event case also
-	   lands #d after the event. */
-      if (PExpr*od = cbp->output_skew_delay(sig_name)) {
-	    if (NetExpr*dly = elaborate_clocking_skew_expr(od, des, def_scope))
-		  direct->set_delay(dly);
-      }
-
-      NetAssign_*opend_lv = clone_clocking_packed_lval_(opend, obuf_lv);
-      verinum one_v (verinum::V1, opend_lv->lwidth());
-      NetEConst*one = new NetEConst(one_v);
-      one->set_line(loc);
-      NetAssign*mark = new NetAssign(opend_lv, one);
-      mark->set_line(loc);
-
-      NetCondit*cond = new NetCondit(cmp, direct, mark);
+	/* The per-instance apply process owns raw-target resolution and output
+	   skew elaboration.  A drive after this instance's current clocking
+	   event wakes that same process through its kick bit; a between-event
+	   drive simply remains pending for the ordinary clocking trigger. */
+      NetESignal*kick_rd = new NetESignal(kick);
+      kick_rd->set_line(loc);
+      NetEUnary*inv = new NetEUnary('~', kick_rd, 1, false);
+      inv->set_line(loc);
+      NetAssign*kick_now = new NetAssign(new NetAssign_(kick), inv);
+      kick_now->set_line(loc);
+      NetCondit*cond = new NetCondit(cmp, kick_now, 0);
       cond->set_line(loc);
       blk->append(cond);
 

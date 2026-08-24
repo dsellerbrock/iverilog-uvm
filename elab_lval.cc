@@ -2838,8 +2838,10 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 	    if (owner_class && owner_class->is_interface()
 		&& !validate_interface_modport_access(
 		      des, this, owner_class, active_modport,
-		      member_cur.name, clocking_access(), true))
+		      member_cur.name, clocking_access(), true)) {
+		  delete lv;
 		  return 0;
+	    }
 
 	      // IEEE 1800-2023 19.5/19.7.1: coverpoint and cross labels form
 	      // pseudo hierarchy under a covergroup instance. Rewrite the two
@@ -3113,6 +3115,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		  const auto&members = owner_struct->members();
 		  pidx = member - &members.front();
 		  ptype = member->net_type;
+		  next_modport = member->interface_modport;
 	    }
 
 	    lv = lv? new NetAssign_(lv) : new NetAssign_(sig);

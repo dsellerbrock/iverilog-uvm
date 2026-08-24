@@ -538,6 +538,12 @@ struct interface_type_t : public data_type_t {
    typedefs preserve the qualifier of their underlying interface type. */
 perm_string pform_interface_modport(const data_type_t*type);
 
+/* Resolve the same qualifier in an elaborated scope. This additionally
+   follows concrete type-parameter actuals, retaining the lexical scope in
+   which each actual was supplied. */
+perm_string pform_interface_modport(Design*des, NetScope*scope,
+				    const data_type_t*type);
+
 struct class_type_t : public data_type_t {
 
       inline explicit class_type_t(perm_string n) : name(n) { virtual_class = false; interface_class = false; is_covergroup_stub = false; is_covergroup_standalone = false; }

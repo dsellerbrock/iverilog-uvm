@@ -10189,7 +10189,7 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 							const name_component_t&comp,
 							ivl_type_t&out_type);
 
-static NetExpr* check_for_struct_members(const LineInfo*li,
+static NetExpr* check_for_struct_members(const PEIdent*li,
 					 Design*des, NetScope*scope,
 					 NetNet*net,
 					 const list<index_component_t>&base_index,
@@ -10268,6 +10268,12 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 	    }
 
 	    ivl_type_t cur_type = struct_type;
+	    perm_string active_modport;
+	    verinum root_modport =
+		  net->attribute(perm_string::literal("ivl_modport"));
+	    if (root_modport != verinum())
+		  active_modport = lex_strings.make(
+			root_modport.as_string().c_str());
 	    while (!member_path.empty()) {
 		  const name_component_t member_comp = member_path.front();
 		  member_path.pop_front();
@@ -10309,6 +10315,18 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 		    // D12: the read compiled to nothing at all).
 		  if (const netclass_t*cur_class =
 			    dynamic_cast<const netclass_t*>(cur_type)) {
+			if (cur_class->is_interface()
+			    && !validate_interface_modport_access(
+				  des, li, cur_class, active_modport,
+				  member_comp.name, li->clocking_access(), false)) {
+			      delete base_expr;
+			      return 0;
+			}
+			int pidx = ensure_class_property_idx_(
+			      des, cur_class, member_comp.name);
+			perm_string next_modport = pidx >= 0
+			      ? cur_class->get_prop_interface_modport(pidx)
+			      : perm_string();
 			ivl_type_t next_type = nullptr;
 			NetExpr*next_expr =
 			      elaborate_nested_method_target_property(li, des, scope,
@@ -10318,6 +10336,7 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 		      return 0;
 			base_expr = next_expr;
 			cur_type = next_type;
+			active_modport = next_modport;
 			continue;
 		  }
 
@@ -10343,6 +10362,7 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 		  const auto&members = cur_struct->members();
 		  size_t member_idx = member - &members.front();
 		  ivl_type_t member_type = member->net_type;
+		  active_modport = member->interface_modport;
 
 		    // An UNPACKED ARRAY member indexed by an element select
 		    // (`s.arr[2]`). The member is one property holding the
@@ -12121,6 +12141,7 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			}
 			
 			cur_type = member->net_type;
+			active_modport = member->interface_modport;
 			if (cur_struct->packed()) {
 			      unsigned long member_width = cur_type->packed_width();
 			      NetExpr*offset_expr = make_const_val(member_off);
@@ -14235,6 +14256,7 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 
       NetExpr* sub_expr = 0;
       ivl_type_t target_type = search_results.type;
+	perm_string active_modport;
       if (search_results.net) {
 	    NetESignal*tmp = new NetESignal(search_results.net);
 	    tmp->set_line(*this);
@@ -14252,6 +14274,11 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		&& dynamic_cast<const netuarray_t*>(
 			search_results.net->array_type()))
 		  target_type = search_results.net->array_type();
+	    verinum root_modport = search_results.net->attribute(
+		  perm_string::literal("ivl_modport"));
+	    if (root_modport != verinum())
+		  active_modport = lex_strings.make(
+			root_modport.as_string().c_str());
       }
 
       bool applied_root_queue_select = false;
@@ -14402,6 +14429,13 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 
 		    name_component_t prop_comp = method_path.front();
 		    const netclass_t*class_type = dynamic_cast<const netclass_t*>(target_type);
+		    if (class_type && class_type->is_interface()
+			&& !validate_interface_modport_access(
+			      des, this, class_type, active_modport,
+			      prop_comp.name, perm_string(), false)) {
+			  delete sub_expr;
+			  return 0;
+		    }
 		    if (!class_type) {
 			  const netstruct_t*struct_type = dynamic_cast<const netstruct_t*>(target_type);
 			  if (gn_system_verilog() && struct_type) {
@@ -14412,6 +14446,7 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 				      return 0;
 
 				ivl_type_t member_type = member->net_type;
+				active_modport = member->interface_modport;
 				if (struct_type->packed()) {
 				      unsigned long member_width = member_type->packed_width();
 				      NetExpr*offset_expr = make_const_val(member_off);
@@ -14440,6 +14475,11 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		    const data_type_t*prop_declared_type =
 			  method_receiver_property_declared_type_(
 				class_type, prop_comp.name);
+		    int pidx = ensure_class_property_idx_(
+			  des, class_type, prop_comp.name);
+		    perm_string next_modport = pidx >= 0
+			  ? class_type->get_prop_interface_modport(pidx)
+			  : perm_string();
 		    ivl_type_t nested_type = nullptr;
 		    NetExpr*prop_expr = elaborate_nested_method_target_property(this, des, scope,
 								 sub_expr,
@@ -14452,6 +14492,7 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 	    sub_expr = prop_expr;
 	    target_type = specialize_bare_class_receiver_on_use(
 		des, scope, prop_declared_type, nested_type);
+	    active_modport = next_modport;
 	    target_indexed = !prop_comp.index.empty();
 	    method_path.pop_front();
       }
@@ -14502,6 +14543,16 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
       ivl_assert(*this, sub_expr);
       ivl_assert(*this, !method_path.empty());
       perm_string method_name = method_path.back().name;
+	if (const netclass_t*interface_type =
+	      dynamic_cast<const netclass_t*>(target_type)) {
+	    if (interface_type->is_interface()
+		&& !validate_interface_modport_access(
+		      des, this, interface_type, active_modport,
+		      method_name, perm_string(), false)) {
+		  delete sub_expr;
+		  return 0;
+	    }
+	}
       pform_name_t use_path = search_results.path_head;
       if (orig_method_path.size() > 1) {
 	    auto it = orig_method_path.begin();
@@ -17365,12 +17416,25 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 									      cur_type);
 			if (!base_expr)
 			      return nullptr;
+			perm_string active_modport;
+			verinum root_modport = net->attribute(
+			      perm_string::literal("ivl_modport"));
+			if (root_modport != verinum())
+			      active_modport = lex_strings.make(
+				    root_modport.as_string().c_str());
 
 			for (auto tail_it = sr.path_tail.cbegin();
 			     tail_it != sr.path_tail.cend(); ++tail_it) {
 			      name_component_t tail_comp = *tail_it;
 			      const netclass_t*cur_class = dynamic_cast<const netclass_t*>(cur_type);
 			      const netstruct_t*cur_struct = dynamic_cast<const netstruct_t*>(cur_type);
+			      if (cur_class && cur_class->is_interface()
+				  && !validate_interface_modport_access(
+					des, this, cur_class, active_modport,
+					tail_comp.name, clocking_access(), false)) {
+				    delete base_expr;
+				    return nullptr;
+			      }
 			      covgrp_item_option_path_t option_path =
 				    rewrite_covergroup_item_option_component_(
 					  cur_class, tail_it,
@@ -17397,6 +17461,7 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				    }
 
 				    ivl_type_t member_type = member->net_type;
+				    active_modport = member->interface_modport;
 				    ivl_type_t member_index_result_type = nullptr;
 				    auto apply_member_index =
 					  [&](NetExpr*member_expr, ivl_type_t use_type,
@@ -17521,6 +17586,11 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 					  cur_type = member_type;
 				    }
 			      } else if (cur_class) {
+				    int pidx = ensure_class_property_idx_(
+					  des, cur_class, tail_comp.name);
+				    perm_string next_modport = pidx >= 0
+					  ? cur_class->get_prop_interface_modport(pidx)
+					  : perm_string();
 				    ivl_type_t next_type = nullptr;
 				    NetExpr*next_expr = elaborate_nested_method_target_property(this,
 												 des, scope,
@@ -17530,6 +17600,7 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 					  return nullptr;
 				    base_expr = next_expr;
 				    cur_type = next_type;
+				    active_modport = next_modport;
 			      } else {
 				    delete base_expr;
 				    cerr << get_fileline() << ": sorry: "
@@ -18416,12 +18487,25 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 										    cur_type);
 			if (!base_expr)
 			      return make_nested_stub(cur_type);
+			perm_string active_modport;
+			verinum root_modport = sr.net->attribute(
+			      perm_string::literal("ivl_modport"));
+			if (root_modport != verinum())
+			      active_modport = lex_strings.make(
+				    root_modport.as_string().c_str());
 
 			for (auto tail_it = sr.path_tail.cbegin();
 			     tail_it != sr.path_tail.cend(); ++tail_it) {
 			      name_component_t tail_comp = *tail_it;
 			      const netclass_t*cur_class = dynamic_cast<const netclass_t*>(cur_type);
 			      const netstruct_t*cur_struct = dynamic_cast<const netstruct_t*>(cur_type);
+			      if (cur_class && cur_class->is_interface()
+				  && !validate_interface_modport_access(
+					des, this, cur_class, active_modport,
+					tail_comp.name, clocking_access(), false)) {
+				    delete base_expr;
+				    return nullptr;
+			      }
 			      covgrp_item_option_path_t option_path =
 				    rewrite_covergroup_item_option_component_(
 					  cur_class, tail_it,
@@ -18444,6 +18528,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				    }
 
 				    ivl_type_t member_type = member->net_type;
+				    active_modport = member->interface_modport;
 				    ivl_type_t member_index_result_type = nullptr;
 				    auto apply_member_index =
 					  [&](NetExpr*member_expr, ivl_type_t use_type,
@@ -18558,6 +18643,11 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 					  cur_type = member_type;
 				    }
 			      } else if (cur_class) {
+				    int pidx = ensure_class_property_idx_(
+					  des, cur_class, tail_comp.name);
+				    perm_string next_modport = pidx >= 0
+					  ? cur_class->get_prop_interface_modport(pidx)
+					  : perm_string();
 				    ivl_type_t next_type = nullptr;
 				    NetExpr*next_expr = elaborate_nested_method_target_property(this,
 												 des, scope,
@@ -18567,6 +18657,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 					  return make_nested_stub(cur_type);
 				    base_expr = next_expr;
 				    cur_type = next_type;
+				    active_modport = next_modport;
 			      } else {
 				    delete base_expr;
 				    return make_nested_stub(cur_type);
@@ -18920,6 +19011,12 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 			NetESignal*sig_expr = new NetESignal(sr.net);
 			sig_expr->set_line(*this);
 			NetExpr*cur = sig_expr;
+			perm_string active_modport;
+			verinum root_modport = sr.net->attribute(
+			      perm_string::literal("ivl_modport"));
+			if (root_modport != verinum())
+			      active_modport = lex_strings.make(
+				    root_modport.as_string().c_str());
 			bool ok = true;
 			for (const index_component_t&idx : sr.path_head.back().index) {
 			      if (idx.sel != index_component_t::SEL_BIT) {
@@ -18952,6 +19049,13 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 			      name_component_t tail_comp = *tail_it;
 			      const netclass_t*cc =
 				    dynamic_cast<const netclass_t*>(cur_type);
+			      if (cc && cc->is_interface()
+				  && !validate_interface_modport_access(
+					des, this, cc, active_modport,
+					tail_comp.name, clocking_access(), false)) {
+				    delete cur;
+				    return nullptr;
+			      }
 			      covgrp_item_option_path_t option_path =
 				    rewrite_covergroup_item_option_component_(
 					  cc, tail_it,
@@ -18964,6 +19068,11 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				    return nullptr;
 			      }
 			      if (cc) {
+				    int pidx = ensure_class_property_idx_(
+					  des, cc, tail_comp.name);
+				    perm_string next_modport = pidx >= 0
+					  ? cc->get_prop_interface_modport(pidx)
+					  : perm_string();
 				    ivl_type_t next_type = nullptr;
 				    NetExpr*next =
 					  elaborate_nested_method_target_property(
@@ -18976,6 +19085,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				    }
 				    cur = next;
 				    cur_type = next_type;
+				    active_modport = next_modport;
 			      } else if (const netstruct_t*cs =
 					dynamic_cast<const netstruct_t*>(cur_type)) {
 				    unsigned long moff = 0;
@@ -18993,6 +19103,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				    prop->set_line(*this);
 				    cur = prop;
 				    cur_type = member->net_type;
+				    active_modport = member->interface_modport;
 			      } else {
 				    ok = false;
 				    break;
