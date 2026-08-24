@@ -1964,7 +1964,6 @@ def result_base(job: Job, work_root: Path, mappings: list[str]) -> dict[str, obj
         "work_root": str(work_root),
         "provider_mappings": mappings,
         "status": "NOT_RUN",
-        "security_vulnerability": False,
     }
     if job.simulation is not None:
         result.update(

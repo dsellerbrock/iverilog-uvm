@@ -526,7 +526,7 @@ makes their current boundary deterministic and non-crashing.
 
 ## G22 — Ibex synthesis lowering exceeds its declared resource bound — **fixed** (current upstream campaign)
 
-*[general] — bounded-termination/performance defect, not a cybersecurity finding.*
+*[general] — bounded-termination/performance defect.*
 
 The first whole-RTL checkpoint left four Ibex compiler engines running after
 their 1800-second drivers timed out. Process-session cleanup now proves that a
@@ -562,8 +562,8 @@ clause was not recorded as a default when reducing a wide selector.
 The final exact `ibex-case-fallback-v8` replay of
 `lowrisc:ibex:ibex_core:0.1` at the same pinned OpenTitan revision is `PASS` in
 0.761 seconds: exit 0, 0 hard errors, 0 semantic-debt diagnostics, no timeout
-and no leaked descendant. This is bounded-termination and synthesis-conformance
-closure, not a cybersecurity vulnerability.
+and no leaked descendant. This closes the bounded-termination and
+synthesis-conformance defect.
 
 ## G23 — disjoint packed fields looked like conflicting whole-vector processes — **fixed** (current upstream campaign)
 
@@ -731,8 +731,7 @@ In the fresh `process-boundary-v12` replay, the formerly failing Darjeeling
 `alert_handler`, `pwrmgr` and `rstmgr` cores are `PASS` with zero hard errors and
 zero semantic debt in 46.750, 0.403 and 0.594 seconds respectively. The change
 also removes the false multi-process hard errors from `clkmgr` and `otp_ctrl`;
-their independent diagnostic debt is recorded separately. Every witness has
-`security_vulnerability=false`.
+their independent diagnostic debt is recorded separately.
 
 ## G31 — explicit always_latch intent was reported as accidental inference — **fixed** (current upstream campaign)
 
@@ -749,8 +748,7 @@ those inference warnings. Accidental latch inference retains both diagnostics;
 `basiclatch.v` verifies that boundary, while `synth_always_latch_intent.v`
 value-checks capture and hold behavior in ordinary and `-S` execution. The
 exact `clkmgr-latch-intent-v13` Darjeeling replay is `PASS` in 0.456 seconds,
-with exit 0, zero hard errors, zero semantic debt and
-`security_vulnerability=false`.
+with exit 0, zero hard errors, and zero semantic debt.
 
 ## G32 — constant aggregate member selects emitted false sensitivity debt — **fixed** (current upstream campaign)
 
@@ -770,8 +768,8 @@ expressions already collected by the walk, so no conservative fallback or
 warning is needed. `synth_constant_array_select_sensitivity.v` value-checks a
 runtime index followed by a constant member-field select in ordinary and `-S`
 execution. The exact `otp-constant-sensitivity-v15` Darjeeling replay is `PASS`
-in 21.432 seconds, with exit 0, zero hard errors, zero semantic debt and
-`security_vulnerability=false`.
+in 21.432 seconds, with exit 0, zero hard errors, zero semantic debt, and no
+timeout.
 
 ## G33 — whole unpacked-array assignments were mapped as one packed word — **fixed** (current upstream campaign)
 
@@ -790,8 +788,7 @@ enable and driven mask. `synth_unpacked_array_whole_assign.v` value-checks a
 two-word array pattern through two input updates in ordinary and `-S`
 execution. A fresh Darjeeling `rv_core_ibex` replay advances past the former
 Ibex ALU abort to the separately tracked partial-reset and run-time memory-word
-gaps; the old whole-array assertion is absent and
-`security_vulnerability=false`.
+gaps; the old whole-array assertion is absent.
 
 ## G34 — nested synthesized procedural loops discarded the outer index — **fixed** (current upstream campaign)
 
@@ -812,7 +809,7 @@ indices. `synth_nested_for_loop_select.v` combines a whole unpacked-array
 assignment with outer word and inner packed-field selects and value-checks two
 updates in ordinary and `-S` execution. The exact `nested-sha3-v20` OpenTitan
 replay is `PASS` in 0.263 seconds, with exit 0, zero hard errors, zero semantic
-debt, no timeout and `security_vulnerability=false`.
+debt, and no timeout.
 
 ## G35 — asynchronous-reset synthesis required every bit of a shared packed variable — **fixed** (current upstream campaign)
 
@@ -851,7 +848,7 @@ continuous driver.
 negative boundary. All positive checks pass in ordinary and `-S` execution.
 The exact `partial-reset-gpio-v22` and `mixed-reset-edn-v25` OpenTitan replays
 are `PASS` in 0.478 and 1.463 seconds respectively, with exit 0, zero hard
-errors, zero semantic debt, no timeout and `security_vulnerability=false`.
+errors, zero semantic debt, and no timeout.
 The Darjeeling `rv_core_ibex` witness drops from 11 hard diagnostics to the two
 separately tracked run-time RAM-word diagnostics.
 
@@ -900,7 +897,7 @@ check preserves the live-path diagnostic.
 
 Together, G36 and G37 move the final exact `runtime-memory-rv-core-v28`
 Darjeeling `rv_core_ibex` replay to `PASS` in 11.985 seconds, with exit 0, zero hard
-errors, zero semantic debt, no timeout and `security_vulnerability=false`.
+errors, zero semantic debt, and no timeout.
 
 ## G38 — loop-expanded packed-field writes were widened after synthesis — **fixed** (current upstream campaign)
 
@@ -913,8 +910,7 @@ partition exhaustively into 11 compiler/IEEE defects, 12 synthesis-lowering
 defects, 3 semantic-debt records, 8 bounded timeouts, 22 provider/source-list/
 top-selection harness defects, and 153 dependency-only cores. The highest-
 multiplicity synthesis family was a false bit-level-latch rejection in eight
-standalone cores and three larger top-level witnesses. Every record retains
-`security_vulnerability=false`.
+standalone cores and three larger top-level witnesses.
 
 Generated OpenTitan register interfaces assign disjoint packed fields in
 separate `always_comb` processes, often inside procedural loops. The loop
@@ -971,8 +967,7 @@ the false latch diagnostic from every focused family witness. HMAC, full and
 reduced KMAC, USBDEV, and Earl Grey sensor control are `PASS`; AES reaches only
 its independent `uwire` ownership debt, and DMA reaches only its independent
 `wdata_intg_i` width debt. All seven compiles exit 0 without timeout or hard
-error, and every result has `security_vulnerability=false`. The compiler engine
-fingerprint is
+error. The compiler engine fingerprint is
 `287c40f65ff77e90c2c7c50521fa6d2ea0f95587f6461f70e09c510b4cae8cd0`.
 
 The companion exact replays remain bounded non-pass evidence, not clean-corpus
@@ -980,8 +975,7 @@ claims. CSRNG 0.1 produces no diagnostic before its 600.077-second compile
 timeout. Darjeeling and Earl Grey likewise time out after 600.566 and 600.261
 seconds; English Breakfast advances to the separately classified `pinmux`
 asynchronous-load synthesis rejection in 253.606 seconds. None of those four
-logs contains the former packed-loop/latch diagnostic, and every record retains
-`security_vulnerability=false`.
+logs contains the former packed-loop/latch diagnostic.
 
 ## G39 — loop-index-constant reset branches were mistaken for asynchronous data loads — **fixed** (current upstream campaign)
 
@@ -993,8 +987,7 @@ The v33 whole-RTL census completed all 267 candidates at OpenTitan revision
 `DEBT`. Its 204 non-pass records partition exhaustively into 11 compiler/IEEE
 defects, 4 synthesis-lowering defects, 5 semantic-debt records, 9 bounded
 timeouts, 22 provider/source-list/top-selection harness defects, and 153
-dependency-only cores. Every record explicitly has
-`security_vulnerability=false`.
+dependency-only cores.
 
 The v33 evidence is under
 `matrix/full-7a3ad34/rtl-v33/opentitan-matrix.json` and
@@ -1065,8 +1058,8 @@ with `Total=3356`, `Passed=3351`, `Failed=0`, `Not Implemented=2`, and
 
 The final frozen-binary two-core `context-constant-pinmux-v38` replay is
 `PASS=2`. Earl Grey compiles in 65.029 seconds and English Breakfast in 55.806
-seconds; both exit 0 with zero hard errors, zero semantic debt, no timeout, and
-`security_vulnerability=false`. The compiler engine fingerprint is
+seconds; both exit 0 with zero hard errors, zero semantic debt, and no timeout.
+The compiler engine fingerprint is
 `00650942adb5412768247ddc0f3c134bc5ec1690aaae623ec22a8b69bfdfc35c`;
 the driver fingerprint is
 `1fa9b330b6aefd694e41b2699db956b208ffedcf60b5c615d38084aa47e60500`.
@@ -1084,8 +1077,8 @@ failing at `pinmux` or timing out. It exits 0 after 186.627 seconds with no hard
 error and no timeout, but remains `DEBT` because of four independent findings:
 two `sram_ctrl` configuration-port width mismatches (416 versus 13 and 32
 versus 1), one unsynthesized Ibex process, and the AES `hw2reg` `uwire` with 28
-drivers. The record has `security_vulnerability=false` and contains no pinmux
-asynchronous-load diagnostic. Its JSON and Markdown evidence are under
+drivers. The record contains no pinmux asynchronous-load diagnostic. Its JSON
+and Markdown evidence are under
 `matrix/full-7a3ad34/context-constant-pinmux-v38-eb-top/`; their SHA-256
 fingerprints are respectively
 `d811ecf7df4346369f8a48730944a025674fda6aa57c53b833abfc633dcb8000`
@@ -1099,8 +1092,7 @@ Breakfast pinmux records are the only two status changes from v33; all other
 265 records retain the same status. The 202 non-pass records partition
 exhaustively into 11 compiler/IEEE defects, 2 synthesis-lowering defects, 5
 semantic-debt records, 9 bounded timeouts, 22 provider/source-list/top-selection
-harness defects, and 153 dependency-only cores. Every result again has
-`security_vulnerability=false`.
+harness defects, and 153 dependency-only cores.
 
 The v39 evidence is under
 `matrix/full-7a3ad34/rtl-v39/opentitan-matrix.json` and
@@ -1205,9 +1197,8 @@ diagnostic. The English Breakfast Verilator wrapper advances from ten syntax
 errors to one independent explicit-cast error after 29.542 seconds. The three
 standalone AST cores compile past their typed patterns in under half a second
 and reach the separately classified multiple-asynchronous-set/reset synthesis
-gap, each with six unique hard diagnostics after deduplication. All eight
-records retain `security_vulnerability=false`; this focused replay proves the
-parser family is retired, not that the larger cores are clean.
+gap, each with six unique hard diagnostics after deduplication. This focused
+replay proves the parser family is retired, not that the larger cores are clean.
 
 The v40 evidence is under
 `matrix/full-7a3ad34/typed-assignment-pattern-ast-v40/opentitan-matrix.json`
