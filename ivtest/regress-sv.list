@@ -1222,6 +1222,7 @@ sv_interface_member_select_sensitivity normal,-g2012 ivltests gold=sv_interface_
 sv_vif_dispatch_many normal,-g2012 ivltests
 sv_vif_named_default_args normal,-g2012 ivltests
 sv_vif_default_decl_scope normal,-g2012 ivltests gold=sv_vif_default_decl_scope.gold
+sv_param_class_cached_vif_default normal,-g2012 ivltests gold=sv_param_class_cached_vif_default.gold
 sv_interface_initial_event_start_order normal,-g2012 ivltests
 sv_vif_nested_interface_method normal,-g2012 ivltests
 sv_auto_complex_class_property_event normal,-g2012 ivltests
