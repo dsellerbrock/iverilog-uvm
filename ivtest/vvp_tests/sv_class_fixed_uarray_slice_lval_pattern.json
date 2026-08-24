@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_class_fixed_uarray_slice_lval_pattern.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_class_fixed_uarray_slice_lval_pattern"
+}

@@ -1193,71 +1193,163 @@ static unsigned int draw_array_pattern(ivl_signal_t var, ivl_expr_t rval,
  * index; array_idx is the running flat element counter.  A nested pattern
  * (a multidimensional unpacked array) recurses with the same running
  * index.  Returns the next flat element index. */
+static unsigned int draw_prop_array_pattern_values_(ivl_expr_t rval)
+{
+      unsigned int count = 0;
+      for (unsigned int idx = 0; idx < ivl_expr_parms(rval); idx += 1) {
+	    ivl_expr_t expr = ivl_expr_parm(rval, idx);
+	    if (ivl_expr_type(expr) == IVL_EX_ARRAY_PATTERN) {
+		  count += draw_prop_array_pattern_values_(expr);
+		  continue;
+	    }
+	    draw_eval_vec4(expr);
+	    count += 1;
+      }
+      return count;
+}
+
+static unsigned int draw_prop_array_pattern_stores_(
+					    int prop_idx, const char*prop_name,
+					    ivl_expr_t rval, int word_reg,
+					    unsigned int next_idx)
+{
+      for (unsigned int idx = ivl_expr_parms(rval); idx > 0; idx -= 1) {
+	    ivl_expr_t expr = ivl_expr_parm(rval, idx - 1);
+	    if (ivl_expr_type(expr) == IVL_EX_ARRAY_PATTERN) {
+		  next_idx = draw_prop_array_pattern_stores_(
+			prop_idx, prop_name, expr, word_reg, next_idx);
+		  continue;
+	    }
+	    assert(next_idx > 0);
+	    next_idx -= 1;
+	    fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", word_reg,
+		    next_idx);
+	    fprintf(vvp_out, "    %%store/prop/v/i %d, %d, %u;"
+		    " array-pattern element into logic property %s\n",
+		    prop_idx, word_reg, ivl_expr_width(expr), prop_name);
+      }
+      return next_idx;
+}
+
 static unsigned int draw_prop_array_pattern(int prop_idx, const char*prop_name,
 					    ivl_expr_t rval, int word_reg,
 					    unsigned int array_idx)
 {
-      for (unsigned int idx = 0; idx < ivl_expr_parms(rval); idx += 1) {
-	    ivl_expr_t expr = ivl_expr_parm(rval, idx);
-	    if (ivl_expr_type(expr) == IVL_EX_ARRAY_PATTERN) {
-		  array_idx = draw_prop_array_pattern(prop_idx, prop_name,
-						      expr, word_reg, array_idx);
-		  continue;
-	    }
-	    draw_eval_vec4(expr);
-	    fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", word_reg, array_idx);
-	    fprintf(vvp_out, "    %%store/prop/v/i %d, %d, %u;"
-		    " array-pattern element into logic property %s\n",
-		    prop_idx, word_reg, ivl_expr_width(expr), prop_name);
-	    array_idx += 1;
-      }
-      return array_idx;
+      unsigned int count = draw_prop_array_pattern_values_(rval);
+      unsigned int next_idx = array_idx + count;
+      assert(next_idx >= array_idx);
+      unsigned int first_idx = draw_prop_array_pattern_stores_(
+	    prop_idx, prop_name, rval, word_reg, next_idx);
+      assert(first_idx == array_idx);
+      return next_idx;
 }
 
 /* As draw_prop_array_pattern, but for a real-valued class-property array
  * (`obj.arr = '{...}` where arr is an unpacked array of real). */
-static unsigned int draw_prop_real_array_pattern(int prop_idx, const char*prop_name,
-						 ivl_expr_t rval, int word_reg,
-						 unsigned int array_idx)
+static unsigned int draw_prop_real_array_pattern_values_(ivl_expr_t rval)
 {
+      unsigned int count = 0;
       for (unsigned int idx = 0; idx < ivl_expr_parms(rval); idx += 1) {
 	    ivl_expr_t expr = ivl_expr_parm(rval, idx);
 	    if (ivl_expr_type(expr) == IVL_EX_ARRAY_PATTERN) {
-		  array_idx = draw_prop_real_array_pattern(prop_idx, prop_name,
-							   expr, word_reg, array_idx);
+		  count += draw_prop_real_array_pattern_values_(expr);
 		  continue;
 	    }
 	    draw_eval_real(expr);
-	    fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", word_reg, array_idx);
+	    count += 1;
+      }
+      return count;
+}
+
+static unsigned int draw_prop_real_array_pattern_stores_(
+						 int prop_idx, const char*prop_name,
+						 ivl_expr_t rval, int word_reg,
+						 unsigned int next_idx)
+{
+      for (unsigned int idx = ivl_expr_parms(rval); idx > 0; idx -= 1) {
+	    ivl_expr_t expr = ivl_expr_parm(rval, idx - 1);
+	    if (ivl_expr_type(expr) == IVL_EX_ARRAY_PATTERN) {
+		  next_idx = draw_prop_real_array_pattern_stores_(
+			prop_idx, prop_name, expr, word_reg, next_idx);
+		  continue;
+	    }
+	    assert(next_idx > 0);
+	    next_idx -= 1;
+	    fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", word_reg,
+		    next_idx);
 	    fprintf(vvp_out, "    %%store/prop/r/i %d, %d;"
 		    " array-pattern element into real property %s\n",
 		    prop_idx, word_reg, prop_name);
-	    array_idx += 1;
       }
-      return array_idx;
+      return next_idx;
+}
+
+static unsigned int draw_prop_real_array_pattern(int prop_idx,
+						 const char*prop_name,
+						 ivl_expr_t rval, int word_reg,
+						 unsigned int array_idx)
+{
+      unsigned int count = draw_prop_real_array_pattern_values_(rval);
+      unsigned int next_idx = array_idx + count;
+      assert(next_idx >= array_idx);
+      unsigned int first_idx = draw_prop_real_array_pattern_stores_(
+	    prop_idx, prop_name, rval, word_reg, next_idx);
+      assert(first_idx == array_idx);
+      return next_idx;
 }
 
 /* As draw_prop_array_pattern, but for a string-valued class-property
  * array (`obj.arr = '{...}` where arr is an unpacked array of string). */
-static unsigned int draw_prop_str_array_pattern(int prop_idx, const char*prop_name,
-						ivl_expr_t rval, int word_reg,
-						unsigned int array_idx)
+static unsigned int draw_prop_str_array_pattern_values_(ivl_expr_t rval)
 {
+      unsigned int count = 0;
       for (unsigned int idx = 0; idx < ivl_expr_parms(rval); idx += 1) {
 	    ivl_expr_t expr = ivl_expr_parm(rval, idx);
 	    if (ivl_expr_type(expr) == IVL_EX_ARRAY_PATTERN) {
-		  array_idx = draw_prop_str_array_pattern(prop_idx, prop_name,
-							  expr, word_reg, array_idx);
+		  count += draw_prop_str_array_pattern_values_(expr);
 		  continue;
 	    }
 	    draw_eval_string(expr);
-	    fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", word_reg, array_idx);
+	    count += 1;
+      }
+      return count;
+}
+
+static unsigned int draw_prop_str_array_pattern_stores_(
+						int prop_idx, const char*prop_name,
+						ivl_expr_t rval, int word_reg,
+						unsigned int next_idx)
+{
+      for (unsigned int idx = ivl_expr_parms(rval); idx > 0; idx -= 1) {
+	    ivl_expr_t expr = ivl_expr_parm(rval, idx - 1);
+	    if (ivl_expr_type(expr) == IVL_EX_ARRAY_PATTERN) {
+		  next_idx = draw_prop_str_array_pattern_stores_(
+			prop_idx, prop_name, expr, word_reg, next_idx);
+		  continue;
+	    }
+	    assert(next_idx > 0);
+	    next_idx -= 1;
+	    fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", word_reg,
+		    next_idx);
 	    fprintf(vvp_out, "    %%store/prop/str/i %d, %d;"
 		    " array-pattern element into string property %s\n",
 		    prop_idx, word_reg, prop_name);
-	    array_idx += 1;
       }
-      return array_idx;
+      return next_idx;
+}
+
+static unsigned int draw_prop_str_array_pattern(int prop_idx,
+						const char*prop_name,
+						ivl_expr_t rval, int word_reg,
+						unsigned int array_idx)
+{
+      unsigned int count = draw_prop_str_array_pattern_values_(rval);
+      unsigned int next_idx = array_idx + count;
+      assert(next_idx >= array_idx);
+      unsigned int first_idx = draw_prop_str_array_pattern_stores_(
+	    prop_idx, prop_name, rval, word_reg, next_idx);
+      assert(first_idx == array_idx);
+      return next_idx;
 }
 
 static void draw_stmt_assign_vector_opcode(unsigned char opcode, bool is_signed)
@@ -3801,8 +3893,14 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		  !ivl_lval_idx(lval) && !ivl_lval_part_off(lval)
 		  && type_is_fixed_uarray_property_(prop_type);
 	    ivl_expr_t fixed_slot_expr = ivl_lval_idx(lval);
+	    ivl_type_t lval_type = ivl_lval_net_type(lval);
+	    int fixed_array_slice = ivl_lval_is_array_slice(lval)
+		  && fixed_slot_expr
+		  && type_is_fixed_uarray_property_(prop_type)
+		  && type_is_fixed_uarray_property_(lval_type);
 	    ivl_type_t fixed_slot_type =
-		  fixed_slot_expr && type_is_fixed_uarray_property_(prop_type)
+		  fixed_slot_expr && !fixed_array_slice
+		  && type_is_fixed_uarray_property_(prop_type)
 		  ? ivl_type_element(prop_type) : 0;
 	    int fixed_container_slot = fixed_slot_type
 		  && (ivl_type_base(fixed_slot_type) == IVL_VT_QUEUE
@@ -3841,7 +3939,58 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			  fixed_slot_in_range_flag);
 	    }
 
-	    if (fixed_container_slot) {
+	    if (fixed_array_slice) {
+		  ivl_type_t slice_element_type = ivl_type_element(lval_type);
+
+		  if (ivl_lval_part_off(lval) || ivl_stmt_opcode(net) != 0
+		      || ivl_expr_type(rval) != IVL_EX_ARRAY_PATTERN) {
+			fprintf(stderr, "%s:%u: sorry: fixed unpacked-array "
+				"property slices currently require a simple blocking "
+				"assignment-pattern value.\n",
+				ivl_stmt_file(net), ivl_stmt_lineno(net));
+			fprintf(vvp_out,
+				"    %%pop/obj 1, 0; unsupported fixed property slice store\n");
+			errors += 1;
+		  } else {
+			int wreg = allocate_word();
+			unsigned int base = array_pattern_base_(lval);
+			ivl_variable_type_t element_kind =
+			      ivl_type_base(slice_element_type);
+
+			switch (element_kind) {
+			    case IVL_VT_BOOL:
+			    case IVL_VT_LOGIC:
+				draw_prop_array_pattern(
+				      prop_idx,
+				      ivl_type_prop_name(sig_type, prop_idx),
+				      rval, wreg, base);
+				break;
+			    case IVL_VT_REAL:
+				draw_prop_real_array_pattern(
+				      prop_idx,
+				      ivl_type_prop_name(sig_type, prop_idx),
+				      rval, wreg, base);
+				break;
+			    case IVL_VT_STRING:
+				draw_prop_str_array_pattern(
+				      prop_idx,
+				      ivl_type_prop_name(sig_type, prop_idx),
+				      rval, wreg, base);
+				break;
+			    default:
+				fprintf(stderr, "%s:%u: sorry: assignment-pattern "
+					"store to a fixed property slice with element "
+					"type %d is not supported.\n",
+					ivl_stmt_file(net), ivl_stmt_lineno(net),
+					element_kind);
+				errors += 1;
+				break;
+			}
+			clr_word(wreg);
+			fprintf(vvp_out, "    %%pop/obj 1, 0; fixed property slice store\n");
+		  }
+
+	    } else if (fixed_container_slot) {
 		  int slot_word;
 
 		  if (ivl_lval_part_off(lval) || ivl_stmt_opcode(net) != 0) {

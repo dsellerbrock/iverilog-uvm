@@ -1637,6 +1637,11 @@ extern const char*ivl_lpm_string(ivl_lpm_t net);
  *    ivl_expr_t that represents the index expression.  Otherwise, it
  *    returns 0.
  *
+ * ivl_lval_is_array_slice
+ *    True only when ivl_lval_idx is the canonical base of an unpacked-array
+ *    slice rather than an ordinary indexed element. The l-value's exact type
+ *    is the selected fixed array (or the queue type for q[lo:$]).
+ *
  * ivl_lval_is_queue_slice
  *    True only for an explicitly written queue suffix-slice l-value
  *    q[lo:$]. In that case ivl_lval_idx is the lower-bound expression
@@ -1680,6 +1685,7 @@ extern unsigned    ivl_lval_width(ivl_lval_t net);
 extern ivl_type_t   ivl_lval_net_type(ivl_lval_t net);
 extern ivl_expr_t  ivl_lval_mux(ivl_lval_t net) __attribute__((deprecated)); /* XXXX Obsolete? */
 extern ivl_expr_t  ivl_lval_idx(ivl_lval_t net);
+extern int         ivl_lval_is_array_slice(ivl_lval_t net);
 extern int         ivl_lval_is_queue_slice(ivl_lval_t net);
 extern ivl_expr_t  ivl_lval_part_off(ivl_lval_t net);
 extern ivl_select_type_t ivl_lval_sel_type(ivl_lval_t net);

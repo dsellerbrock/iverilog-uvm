@@ -1,0 +1,7 @@
+./ivltests/sv_class_fixed_uarray_slice_lval_fail.v:6: error: unpacked-array slice [2:1] has the opposite direction from declared range [0:3].
+./ivltests/sv_class_fixed_uarray_slice_lval_fail.v:7: error: unpacked-array slice [2:4] is outside declared range [0:3].
+./ivltests/sv_class_fixed_uarray_slice_lval_fail.v:8: sorry: a run-time indexed unpacked-array slice is not yet supported; its base must currently be constant.
+./ivltests/sv_class_fixed_uarray_slice_lval_fail.v:9: sorry: non-blocking assignment to a fixed unpacked-array class or aggregate property slice is not yet supported.
+./ivltests/sv_class_fixed_uarray_slice_lval_fail.v:23: sorry: a nested fixed-array class or aggregate property slice is not yet supported as an l-value.
+./ivltests/sv_class_fixed_uarray_slice_lval_fail.v:24: sorry: a nested fixed-array class or aggregate property slice is not yet supported as an l-value.
+6 error(s) during elaboration.

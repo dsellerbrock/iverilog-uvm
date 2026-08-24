@@ -166,6 +166,19 @@ extern int decode_fixed_uarray_slice(Design*des, NetScope*scope,
 				     fixed_uarray_slice_t&out,
 				     bool quiet = false);
 
+/* Decode a range written directly on a one-dimensional fixed unpacked-array
+ * type. This is the declaration-independent counterpart used for class and
+ * aggregate properties, where symbol_search() resolves the receiver rather
+ * than a standalone array signal. The return convention matches
+ * decode_fixed_uarray_slice(). */
+extern int decode_fixed_uarray_slice_select(
+				     Design*des, NetScope*scope,
+				     const LineInfo&loc,
+				     const std::list<index_component_t>&indices,
+				     const netsarray_t*array_type,
+				     fixed_uarray_slice_t&out,
+				     bool quiet = false);
+
 /*
  * symbol_search() caches resolved (scope, name-path) lookups. That
  * cache assumes ordinary declarations, which are stable for the rest

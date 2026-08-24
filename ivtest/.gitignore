@@ -21,6 +21,7 @@ vhdl_regression_report.txt
 *~
 *.o
 *.vpi
+*.dpiexport.c
 *.tmp
 src/vcddiff
 vsim

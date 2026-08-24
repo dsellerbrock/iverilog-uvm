@@ -8477,6 +8477,22 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       NetAssign_*lv = elaborate_lval(des, scope);
       if (lv == 0) return 0;
 
+	/* A fixed unpacked-array property slice needs a persistent receiver and
+	 * one snapshot word per element in the NBA queue. The signal-array
+	 * lowering below has neither: allowing a one-element base-zero slice to
+	 * reach it can silently schedule a write to the root class-handle signal.
+	 * Keep every property-backed slice loud until that aggregate receiver
+	 * snapshot exists. */
+      if (lv->is_array_slice()
+	  && (lv->get_property_idx() >= 0 || lv->nest())) {
+	    cerr << get_fileline() << ": sorry: non-blocking assignment to a "
+		 << "fixed unpacked-array class or aggregate property slice is "
+		 << "not yet supported." << endl;
+	    des->errors += 1;
+	    delete lv;
+	    return 0;
+      }
+
       if (const PEStreaming*stream =
 	    dynamic_cast<const PEStreaming*>(rval())) {
 	    if (stream->is_lval_context()

@@ -2595,6 +2595,51 @@ silently represented as the wrong type.
 
 ---
 
+## G78 — fixed class-property array ranges were treated as scalar indices — **fixed/verified blocking pattern-lvalue subset** [general]
+
+*7.4.5 / 7.4.6 / 7.6 / 8.5 / 10.4 / 10.9.1 [general] — fixed
+unpacked-array slicing, class-property l-values, and assignment patterns.*
+
+At frozen OpenTitan commit `7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19`,
+DMA declares `bit [TL_DW-1:0] exp_digest[16]` and assigns
+`exp_digest[8:15]` and `[12:15]` from `'{default:0}` at
+`dma_scoreboard.sv:1446` and `:1450`. Icarus previously routed those ranges
+through scalar property indexing and emitted exactly two
+`Array cannot be indexed by a range.` errors.
+
+Direct one-dimensional non-static fixed properties now preserve the selected
+fixed-array l-value type and canonical base for constant colon and
+constant-base indexed ranges. Simple blocking assignment patterns are
+contextualized by that selected type. Every RHS leaf is captured before the
+first store, declaration direction is preserved, receivers are evaluated
+once, and unselected words remain unchanged. An explicit target-API slice bit
+prevents an ordinary fixed-array-valued property element from being inferred
+as a range solely from its type; typedef-nested scalar and range selections
+are rejected before target lowering until their storage semantics exist.
+
+`sv_class_fixed_uarray_slice_lval_pattern` covers packed integral, real and
+string values, negative/nonzero bounds, indexed polarity, overlap snapshots,
+receiver evaluation, and the exact DMA patterns. Its negative companion pins
+direction, bounds, runtime-base, NBA, and both nested-fixed-array forms. Slang
+11.0.448+e222e7dc0 agrees on the supported subset under 1800-2017 and
+1800-2023. The final focused runners pass 18/18 legacy and 15/15 JSON/VVP;
+the related OpenTitan fixed-container focuses pass 17/17 in each harness.
+Complete runner, UVM, self-check, and unmodified DMA results are recorded in
+the [session log](session_logs/2026-08-24_opentitan_dma_fixed_property_slice_lvalues.md).
+
+The frozen DMA compile now returns zero and contains neither former range
+error. It advances to later VVP-target virtual-interface method-call errors
+whose receiver instances lack argument rows. This closes G76's two exposed
+range errors, not the complete DMA graph or runtime: the target still writes
+no trustworthy runnable DMA image for that later frontier, and OpenTitan was
+not modified.
+
+Runtime-base indexed slices, multidimensional or typedef-nested property
+slices, property-slice r-values, NBA and non-pattern/compound stores, and
+aggregate/object elements remain explicit loud or unclaimed boundaries.
+
+---
+
 ## Two measurement traps worth remembering
 
 **The error count is not a progress metric while the parser can still give

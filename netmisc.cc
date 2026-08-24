@@ -724,39 +724,15 @@ void indices_to_expressions(Design*des, NetScope*scope,
       }
 }
 
-int decode_fixed_uarray_slice(Design*des, NetScope*scope,
-			      const LineInfo&loc, const PExpr*expr,
-			      bool allow_whole, fixed_uarray_slice_t&out,
+static int decode_fixed_uarray_slice_select_(
+			      Design*des, NetScope*scope,
+			      const LineInfo&loc,
+			      const index_component_t&select,
+			      const netrange_t&declared,
+			      ivl_type_t element_type,
+			      fixed_uarray_slice_t&out,
 			      bool quiet)
 {
-      const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
-      if (!id || id->path().name.empty())
-	    return 0;
-
-      symbol_search_results sr;
-      bool found = symbol_search(&loc, des, scope, id->path(),
-				 id->lexical_pos(), &sr);
-      if (!found || !sr.net || !sr.path_tail.empty()
-	  || sr.net->unpacked_dimensions() != 1)
-	    return 0;
-
-      const name_component_t&tail = id->path().name.back();
-      const netrange_t&declared = sr.net->unpacked_dims().front();
-      if (tail.index.empty()) {
-	    if (!allow_whole)
-		  return 0;
-	    out.signal = sr.net;
-	    out.canonical_base = 0;
-	    out.count = declared.width();
-	    out.selected_range = declared;
-	    out.element_type = sr.net->net_type();
-	    out.whole = true;
-	    return 1;
-      }
-
-      if (tail.index.size() != 1)
-	    return 0;
-      const index_component_t&select = tail.index.front();
       if (select.sel != index_component_t::SEL_PART
 	  && select.sel != index_component_t::SEL_IDX_UP
 	  && select.sel != index_component_t::SEL_IDX_DO)
@@ -862,13 +838,71 @@ int decode_fixed_uarray_slice(Design*des, NetScope*scope,
 	    return -1;
       }
 
-      out.signal = sr.net;
       out.canonical_base = low - declared_low;
       out.count = static_cast<unsigned long>(high - low) + 1;
       out.selected_range = netrange_t(left, right);
-      out.element_type = sr.net->net_type();
+      out.element_type = element_type;
       out.whole = false;
       return 1;
+}
+
+int decode_fixed_uarray_slice_select(
+			      Design*des, NetScope*scope,
+			      const LineInfo&loc,
+			      const list<index_component_t>&indices,
+			      const netsarray_t*array_type,
+			      fixed_uarray_slice_t&out,
+			      bool quiet)
+{
+      if (!array_type || array_type->static_dimensions().size() != 1
+	  || indices.size() != 1)
+	    return 0;
+
+      return decode_fixed_uarray_slice_select_(
+	    des, scope, loc, indices.front(),
+	    array_type->static_dimensions().front(),
+	    array_type->element_type(), out, quiet);
+}
+
+int decode_fixed_uarray_slice(Design*des, NetScope*scope,
+			      const LineInfo&loc, const PExpr*expr,
+			      bool allow_whole, fixed_uarray_slice_t&out,
+			      bool quiet)
+{
+      const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
+      if (!id || id->path().name.empty())
+	    return 0;
+
+      symbol_search_results sr;
+      bool found = symbol_search(&loc, des, scope, id->path(),
+				 id->lexical_pos(), &sr);
+      if (!found || !sr.net || !sr.path_tail.empty()
+	  || sr.net->unpacked_dimensions() != 1)
+	    return 0;
+
+      const name_component_t&tail = id->path().name.back();
+      const netrange_t&declared = sr.net->unpacked_dims().front();
+      if (tail.index.empty()) {
+	    if (!allow_whole)
+		  return 0;
+	    out.signal = sr.net;
+	    out.canonical_base = 0;
+	    out.count = declared.width();
+	    out.selected_range = declared;
+	    out.element_type = sr.net->net_type();
+	    out.whole = true;
+	    return 1;
+      }
+
+      if (tail.index.size() != 1)
+	    return 0;
+
+      int rc = decode_fixed_uarray_slice_select_(
+	    des, scope, loc, tail.index.front(), declared,
+	    sr.net->net_type(), out, quiet);
+      if (rc > 0)
+	    out.signal = sr.net;
+      return rc;
 }
 
 static void make_strides(const netranges_t&dims, vector<long>&stride)
