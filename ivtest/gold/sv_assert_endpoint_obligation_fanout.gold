@@ -1,0 +1,9 @@
+fanout counts 1/1 1/1 1/1 1/1 1/1 1/1 1/1 1/1
+combinator counts 1/1 1/1 1/1 1/1
+local fanout counts 2/0 2/0
+consequence-local counts 2/0 2/0
+coincident counts 2/0 0/2 2/0 0/2
+dependent local counts 2/0 2/0
+nonzero local counts 1/0 1/0 1/0 1/0
+PASSED
+EOS_FAILURE 2

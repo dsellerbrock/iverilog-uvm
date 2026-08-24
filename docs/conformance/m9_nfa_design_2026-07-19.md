@@ -883,6 +883,103 @@ sorry; the single-boundary form keeps `disable iff` support). See
 `docs/conformance/ROADMAP.md` row M9-7 for the current, authoritative
 detail and test list.
 
+### Increment M9-16: endpoint-obligation fan-out — LANDED
+
+A variable-length or combinator antecedent can accept more than once for one
+attempt. The earlier implication composer kept antecedent and consequence
+states in one bitset, so the first consequence acceptance cleared the slot and
+discarded a later endpoint's still-live path. Mixed early-pass/late-fail and
+early-fail/late-pass traces consequently reported only the early verdict.
+
+The single-clock implication lowering now builds two NFAs. Antecedent attempt
+slots remain live after acceptance, clearing only their accept bit and setting
+a per-slot spawn marker. Each marker allocates a separate consequence record:
+
+- `|->` allocates all records before consequence advancement, so the first
+  consequence edge consumes the antecedent endpoint's Preponed samples;
+- `|=>` advances existing records first and allocates afterward, so a new
+  record starts on the first strictly-following sampled tick;
+- every record owns its full consequence state set and, for the supported
+  local-variable subset, a copy of the source attempt's sequence-local
+  registers; consequence match-item assignments update that record's copy
+  only;
+- acceptance or death clears only that record, while `disable iff` and
+  `$assertkill` clear both pools and any pending spawn markers.
+
+The bitset representation still has one local-value carrier per attempt or
+obligation, not per simultaneously live NFA path. The admission proof is
+therefore deliberately narrow: an assignment must occur exactly once on a
+fixed-delay, nonrepeated LEAF prefix before any branching construct. Reads may
+occur after the branch because all siblings see the same captured value. A
+later deterministic-prefix assignment may also derive its RHS from an earlier
+assigned local. The admitted RHS subset is structural (identifiers/selects,
+literals, unary/binary/ternary expressions, `inside`, casts, and
+concatenations): the lowering Preponed-wraps its nonlocal operands and replaces
+every local hole with the current attempt's `vk` or consequence record's `ovk`
+on the assigning edge. This makes overlapping
+`(first=tag) ##1 (second=first+1)` attempts and obligations independent even
+when a module signal is also named `first`.
+
+Calls, sampled-value calls over a local, a selected local object, self/future
+or otherwise unassigned-local dependencies, and expression shapes outside
+that structural copier produce one focused `sorry`; none fall through to a
+module/global lookup. The dependency audit retains the complete set of
+declared property-local names independently of assignment destinations, so an
+unassigned local still shadows a same-named module object during this check. A
+read through any zero-inclusive continuation (`##0`,
+`##[0:n]`, or `##[0:$]`) is also refused: guard evaluation currently precedes
+the same-edge local capture, so admitting its zero-delay branch would observe
+the old value. Lower bounds of one remain supported. Branch-local,
+post-branch, repeated, duplicate, interior-tree, and zero-inclusive-read
+assignments produce focused diagnostics; both antecedent and consequence trees
+use this audit.
+`sva_endpoint_branch_local_{antecedent,consequence}` and
+`sva_endpoint_fused_local_{antecedent,consequence}`, the bounded/unbounded
+zero-inclusive negatives, and `sva_endpoint_dependent_local_rhs_call` pin the
+exact boundaries. The
+`sva_endpoint_dependent_local_rhs_unassigned{,_collision}` negatives pin the
+declared-but-unassigned case both without and with a colliding module name.
+`sva_endpoint_dependent_local_rhs_future_collision` separately pins an
+assigned-later local against the same fall-through hazard.
+The principal reducer pins overlapping dependent-local
+isolation and four bounded/unbounded lower-bound-one controls.
+An empty consequence remains a loud construction residual rather than an
+implicit success.
+
+Pass and fail are 64-bit per-tick counts on this path, not Boolean flags. Each
+resolving consequence increments the appropriate count; dispatch repeats the
+combined user action and success/failure callback exactly that many times,
+with every pass before every failure as in the established checker order.
+Step callbacks remain once per checker per sampled tick. The coincident cases
+in `endpoint_obligation_fanout_nfa_only` pin two passes and two failures for
+both `|->` and `|=>`; `m12_endpoint_fanout_cb` observes the matching two
+success and two failure callbacks. Antecedent endpoint acceptance sets the
+StepSuccess aggregate directly. That is especially material for `|=>`, where
+allocation occurs after old consequence records advance; the
+`m12_endpoint_fanout_step` trace pins StepSuccess on the endpoint tick while an
+older record's failure and the checker-wide StepFailure aggregate coexist.
+
+For an acyclic consequence, `antecedent-slot count × longest consequence
+path` is the exact maximum number of simultaneously live records. A cyclic
+consequence retains the NFA engine's finite pool and once-per-run
+loud overflow warning; it never regresses to merged or silent endpoint state.
+Strong end-of-simulation checks count the live consequence records rather than
+OR-reducing them, and repeat the failure action plus failure callback for every
+record. The principal reducer leaves two records pending and requires
+`EOS_FAILURE 2`; the VPI reducer independently requires two final failure
+callbacks.
+
+`endpoint_obligation_fanout_nfa_only` is red against the prior compiler
+(`1/0` instead of `1/1` in all eight variable-antecedent mixed-verdict cases)
+and pins both verdict orders for `|->`/`|=>`, linear multi-step and tree
+consequences, combinator antecedents, safe antecedent/consequence-prefix local
+snapshots, dependent RHS evaluation from per-attempt/per-obligation state,
+coincident action multiplicity, and strong end-of-simulation multiplicity. It
+is registered directly in the hard legacy and JSON ivtest
+manifests as `sv_assert_endpoint_obligation_fanout`. Slang accepts the complete
+positive reducer with zero diagnostics; no executable Slang simulator is
+present for a verdict differential.
+
 ## FLIP: LANDED — the automaton engine is the default
 
 The automaton engine is now the DEFAULT SVA engine

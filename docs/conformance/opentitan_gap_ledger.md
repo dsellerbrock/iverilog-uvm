@@ -245,7 +245,7 @@ This is the `aes_transpose` idiom in `aes_pkg`.
 Test: `sv_packed_multidim_var_index.v` (checks values — a mis-scaled offset
 would still elaborate but read the wrong element).
 
-## G10 — variable-length implication antecedents — **partial / correctness blocker**
+## G10 — variable-length implication antecedents — **supported by NFA endpoint fan-out**
 
 *16.9.2 / A.2.10. [general]*
 
@@ -263,33 +263,67 @@ sorry: this assertion antecedent shape is not supported
        (fixed-delay sequence chains up to 128 cycles only)
 ```
 
-**2026-08-08 audit correction:** more shapes now route through the automaton,
-and the focused parameter-sized implication/cover forms use an exact count
-pipeline. General NFA implication is still not conformant: one antecedent
-attempt may match at several endpoints, every endpoint must create a separate
-consequent obligation, and the current slot merges those paths so one passing
-consequence can mask a sibling endpoint's failure. Closure requires explicit
-endpoint-obligation fan-out and mixed-verdict tests for both `|->` and `|=>`.
+**2026-08-24 closure:** antecedent matching and consequence execution now use
+separate NFA pools. Every accept endpoint of a variable-length or combinator
+antecedent allocates its own consequence record, so one consequence verdict
+cannot clear a later sibling endpoint. Overlapped records consume the endpoint
+tick; nonoverlapped records start on the next sampled tick. Per-tick verdict
+counters dispatch one action and success/failure callback per resolved record,
+including coincident outcomes; step callbacks remain once per checker per tick.
+A local assignment that occurs exactly once on a
+deterministic leaf prefix is copied into the record at allocation and remains
+private while later antecedent attempts reuse their slots. A later prefix
+assignment may read an earlier local through the structural no-call subset;
+nonlocal operands are sampled Preponed and the local reads are substituted with
+the current attempt/obligation carrier on the assigning edge. Calls, selected
+local objects, self/future/unassigned dependencies, and unknown shapes stay
+loud instead of resolving through a module-name collision. The audit uses all
+declared property-local names, not only assignment destinations; the paired
+`sva_endpoint_dependent_local_rhs_unassigned{,_collision}` negatives pin that
+shadowing rule, and `sva_endpoint_dependent_local_rhs_future_collision` pins
+the assigned-later case. Branch-local,
+post-branch, repeated, duplicate, and interior-tree assignments also stay
+loud. So does a read after any zero-inclusive continuation (`##0`, `##[0:n]`,
+or `##[0:$]`) until same-edge captures precede their continuation guards;
+lower-bound-one ranges remain admitted.
+`endpoint_obligation_fanout_nfa_only`
+pins mixed early-pass/late-fail and early-fail/late-pass outcomes for both
+operators, multi-step and tree consequences, combinator antecedents, and local
+snapshots. It is registered in the hard legacy and JSON ivtest manifests and
+also pins two live strong consequences producing `EOS_FAILURE 2`. Loop-free
+shapes have a compile-time exact capacity bound;
+unbounded/cyclic shapes retain the NFA engine's finite pool with a loud
+run-time overflow diagnostic rather than merging or silently dropping an
+endpoint. Empty consequences remain a loud residual. Parameter-valued bounds
+remain governed by the focused M9-15 path. The exact local-topology boundary
+is pinned by `sva_endpoint_{branch,fused}_local_{antecedent,consequence}`, the
+bounded/unbounded zero-inclusive negatives, and the dependent-RHS call
+negative;
+`m12_endpoint_fanout_cb` pins run-time success/failure and strong-end failure
+callback multiplicity. `m12_endpoint_fanout_step` pins `|=>` antecedent
+StepSuccess on the endpoint tick while an older consequence failure coexists.
 
-Blocks `prim_alert_receiver`, `prim_diff_decode`.
+This is no longer an endpoint-merging blocker for `prim_alert_receiver` or
+`prim_diff_decode`.
 
-## G11 — sequence combinators as an implication operand — **open**
+## G11 — sequence combinators as an implication operand — **partial**
 
 *A.2.10. [general]*
 
 ```systemverilog
-assert property (@(posedge clk) (a or b)  |-> c);   // syntax error
-assert property (@(posedge clk) (a and b) |-> c);   // syntax error
-assert property (@(posedge clk) a |-> (b or c));    // syntax error
+assert property (@(posedge clk) (a or b)  |-> c);          // supported
+assert property (@(posedge clk) (a and b) |-> c);          // supported
+assert property (@(posedge clk) a |-> (b or c));           // supported
+assert property (@(posedge clk) (a or b) |-> (c or d));    // syntax error
 ```
 
-The combinator rules (`sva_or_has_op`, `sva_and_has_op`) yield an
-`sva_property_t` carrying a combinator tree, while the implication productions
-accept only `sva_seq_expr` on either side — so no production covers the
-combination. The antecedent side additionally needs the automaton engine.
-
-Currently the **first** diagnostic in the OpenTitan DV build
-(`prim_alert_sender.sv:324`).
+Current implication productions accept an `sva_property_t` combinator tree on
+either the antecedent or consequence side when the opposite operand uses the
+sequence-expression carrier. `tree_implication_nfa_only` pins both directions;
+`endpoint_obligation_fanout_nfa_only` additionally proves that a combinator
+antecedent can launch independent multi-step obligations from all of its match
+endpoints. A combinator tree on **both** sides still has no grammar production
+and remains a loud syntax residual.
 
 ## G12 — the other property-expression consequents — **open**
 

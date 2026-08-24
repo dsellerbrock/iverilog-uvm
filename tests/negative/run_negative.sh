@@ -13,6 +13,8 @@ FAIL=0
 
 for sv in "$DIR"/*.sv; do
     name=$(basename "$sv" .sv)
+    expected_diag=$(sed -n 's|^// NEG-DIAG: ||p' "$sv" | head -1)
+    expected_count=$(sed -n 's|^// NEG-DIAG-COUNT: ||p' "$sv" | head -1)
     printf "  %-40s " "$name"
     # Tests marked NEG-LEGACY-ONLY exercise a construct the (now default)
     # automaton engine LOWERS but the legacy linear engine rejects; run
@@ -39,8 +41,23 @@ for sv in "$DIR"/*.sv; do
         echo "$out" | head -3
         FAIL=$((FAIL+1))
     elif [ $status -ne 0 ] && echo "$out" | grep -qiE "error|sorry"; then
-        echo "PASS (rejected with diagnostic)"
-        PASS=$((PASS+1))
+        if [ -n "$expected_diag" ] \
+           && ! echo "$out" | grep -Fq -- "$expected_diag"; then
+            echo "FAIL (wrong diagnostic; expected: $expected_diag)"
+            echo "$out" | head -3
+            FAIL=$((FAIL+1))
+        elif [ -n "$expected_diag" ] && [ -n "$expected_count" ] \
+             && [ "$(printf '%s\n' "$out" | grep -Fc -- "$expected_diag")" \
+                  -ne "$expected_count" ]; then
+            actual_count=$(printf '%s\n' "$out" \
+                           | grep -Fc -- "$expected_diag")
+            echo "FAIL (diagnostic count $actual_count; expected $expected_count)"
+            echo "$out" | head -3
+            FAIL=$((FAIL+1))
+        else
+            echo "PASS (rejected with diagnostic)"
+            PASS=$((PASS+1))
+        fi
     else
         echo "FAIL (accepted or no diagnostic)"
         echo "$out" | head -3
