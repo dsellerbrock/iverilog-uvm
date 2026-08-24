@@ -62,13 +62,18 @@ class vvp_mailbox : public vvp_object {
        * For put: when returning false the item is stored in the
        * put_waiter_t record; it is NOT pushed to the thread stack.
        */
-      bool put(vthread_t thr, const vvp_object_t& item);
-      bool get(vthread_t thr, vvp_object_t& item_out);
-      bool peek(vthread_t thr, vvp_object_t& item_out);
+      bool put(vthread_t thr, const vvp_object_t& self,
+               const vvp_object_t& item);
+      bool get(vthread_t thr, const vvp_object_t& self,
+               vvp_object_t& item_out);
+      bool peek(vthread_t thr, const vvp_object_t& self,
+                vvp_object_t& item_out);
 
     private:
       void resume_get_waiters_();
       void resume_put_waiters_();
+      static void cancel_waiter_cb_(void*owner, vthread_t thr);
+      void cancel_waiter_(vthread_t thr);
 
       size_t bound_;                      /* 0 = unbounded */
       std::deque<vvp_object_t> items_;
@@ -115,10 +120,12 @@ class vvp_semaphore : public vvp_object {
 
       /* get: block thr until count >= n, then decrement.
        * Returns true if immediately satisfied, false if thr is suspended. */
-      bool get(vthread_t thr, size_t n = 1);
+      bool get(vthread_t thr, const vvp_object_t& self, size_t n = 1);
 
     private:
       void resume_waiters_();
+      static void cancel_waiter_cb_(void*owner, vthread_t thr);
+      void cancel_waiter_(vthread_t thr);
 
       size_t count_;
 

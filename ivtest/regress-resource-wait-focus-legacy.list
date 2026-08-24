@@ -1,0 +1,7 @@
+sv_mailbox_kill_blocked_get normal,-g2012	ivltests gold=sv_mailbox_kill_blocked_get.gold
+sv_mailbox_kill_blocked_peek normal,-g2012	ivltests gold=sv_mailbox_kill_blocked_peek.gold
+sv_mailbox_kill_blocked_put normal,-g2012	ivltests gold=sv_mailbox_kill_blocked_put.gold
+sv_semaphore_kill_blocked_get normal,-g2012	ivltests gold=sv_semaphore_kill_blocked_get.gold
+sv_resource_wait_normal_wake normal,-g2012	ivltests gold=sv_resource_wait_normal_wake.gold
+sv_process_await_resource_wait normal,-g2012	ivltests gold=sv_process_await_resource_wait.gold
+sv_resource_wait_sync_nested normal,-g2012	ivltests gold=sv_resource_wait_sync_nested.gold

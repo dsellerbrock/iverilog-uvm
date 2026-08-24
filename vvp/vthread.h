@@ -39,6 +39,14 @@ typedef struct vvp_code_s*vvp_code_t;
 class __vpiScope;
 
 /*
+ * Blocking runtime objects (mailbox, semaphore, process::await) retain a
+ * thread until their condition becomes ready.  The thread in turn retains
+ * the runtime object, and supplies this callback so disabling/deleting the
+ * thread can unlink it from the object's wait queue before freeing it.
+ */
+typedef void (*vthread_resource_cancel_t)(void*owner, vthread_t thr);
+
+/*
  * This creates a new simulation thread, with the given start
  * address. The generated thread is ready to run, but is not yet
  * scheduled.
@@ -50,6 +58,33 @@ extern vthread_t vthread_new(vvp_code_t sa, __vpiScope*scope);
  * schedule_vthread function.
  */
 extern void vthread_mark_scheduled(vthread_t thr);
+
+/* Register a cancellable wait on a runtime object. OWNER_ID is the raw
+ * identity handed back to the callback; OWNER_REF keeps that object alive
+ * for as long as the thread is queued on it. A thread may be parked on at
+ * most one resource at a time: the registration is created by the opcode
+ * that suspends the thread and is cleared by exactly one claim or one
+ * cancellation before the thread runs again. */
+extern void vthread_mark_resource_wait(vthread_t thr, void*owner_id,
+                                       const vvp_object_t&owner_ref,
+                                       vthread_resource_cancel_t cancel);
+
+/* Claim the registration THR holds on OWNER_ID, clearing it. This must be
+ * done BEFORE any operation-specific side effect (consuming a message,
+ * inserting a stored item, taking a semaphore key, touching the thread's
+ * object stack, scheduling the thread), because a false return means the
+ * record is obsolete -- the thread was killed while queued -- and none of
+ * those side effects may happen. A successful claim moves the retaining
+ * reference into KEEP_ALIVE so the resource cannot delete itself in the
+ * middle of its own wake method. */
+extern bool vthread_claim_resource_wait(vthread_t thr, void*owner_id,
+                                        vvp_object_t&keep_alive);
+
+/* Cancel a pending resource wait and unlink THR from the owner's wait
+ * collection. Idempotent, and safe to call on a thread that is not waiting
+ * on any resource. Every path that releases thread storage must run this
+ * first, or the owner is left holding a pointer to freed memory. */
+extern void vthread_cancel_resource_wait(vthread_t thr);
 
 /*
  * True when the thread belongs to a program block (its scope chain

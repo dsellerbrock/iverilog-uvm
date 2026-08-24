@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_process_await_resource_wait.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_process_await_resource_wait"
+}
