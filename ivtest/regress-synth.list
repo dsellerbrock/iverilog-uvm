@@ -170,6 +170,8 @@ synth_compound_assignment_concat_incomplete_prior_reject CE,-S,-g2012	ivltests g
 synth_object_lvalue_reject CE,-S,-g2012	ivltests gold=synth_object_lvalue_reject.gold
 synth_packed_struct_async_reset normal,-S,-g2012	ivltests
 synth_packed_struct_async_event_orders normal,-S,-g2012	ivltests gold=synth_packed_struct_async_event_orders.gold
+synth_selected_input_port_async normal,-S,-g2012	ivltests gold=synth_selected_input_port_async.gold
+synth_precise_select_async_control normal,-S,-g2012	ivltests gold=synth_precise_select_async_control.gold
 synth_selected_output_feedback normal,-S,-g2012	ivltests
 synth_selected_output_real_overlap_fail CE,-S,-g2012	ivltests gold=synth_selected_output_real_overlap_fail.gold
 synth_common_latch_enable normal,-g2012	ivltests

@@ -1,0 +1,4 @@
+synth_selected_input_port_async vvp_tests/synth_selected_input_port_async.json
+synth_selected_input_port_async-S vvp_tests/synth_selected_input_port_async-S.json
+synth_precise_select_async_control vvp_tests/synth_precise_select_async_control.json
+synth_precise_select_async_control-S vvp_tests/synth_precise_select_async_control-S.json
