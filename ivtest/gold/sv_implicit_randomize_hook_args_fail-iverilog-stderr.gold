@@ -1,0 +1,4 @@
+ivltests/sv_implicit_randomize_hook_args_fail.v:8: error: Class randomization hook `pre_randomize' takes no arguments.
+ivltests/sv_implicit_randomize_hook_args_fail.v:21: error: Class randomization hook `post_randomize' takes no arguments.
+ivltests/sv_implicit_randomize_hook_args_fail.v:22: error: Class randomization hook `pre_randomize' takes no arguments.
+3 error(s) during elaboration.
