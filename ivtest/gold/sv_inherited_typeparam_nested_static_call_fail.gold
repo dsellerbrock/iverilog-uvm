@@ -1,0 +1,4 @@
+./ivltests/sv_inherited_typeparam_nested_static_call_fail.v:23: error: Missing argument 2 of call to task.
+./ivltests/sv_inherited_typeparam_nested_static_call_fail.v:23: error: Missing argument 3 of call to task.
+./ivltests/sv_inherited_typeparam_nested_static_call_fail.v:24: error: Too many arguments (1, expecting 0) in call to function sv_inherited_typeparam_nested_static_call_fail.registry.get_inst_override.
+3 error(s) during elaboration.

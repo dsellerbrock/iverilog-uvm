@@ -1,2 +1,4 @@
 sv_package_nested_static_call normal,-g2012 ivltests gold=sv_package_nested_static_call.gold
 sv_package_nested_static_call_fail CE,-g2012 ivltests gold=sv_package_nested_static_call_fail.gold
+sv_inherited_typeparam_nested_static_call normal,-g2012 ivltests gold=sv_inherited_typeparam_nested_static_call.gold
+sv_inherited_typeparam_nested_static_call_fail CE,-g2012 ivltests gold=sv_inherited_typeparam_nested_static_call_fail.gold

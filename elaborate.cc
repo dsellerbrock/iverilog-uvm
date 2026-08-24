@@ -580,8 +580,13 @@ static scoped_class_name_result_task_t resolve_scoped_class_type_name_task_(
       if (typedef_t*td = scope->find_typedef(des, name)) {
 	    const data_type_t*declared_type = td->get_data_type();
 	    if (dynamic_cast<const type_parameter_t*>(declared_type)) {
+		  /* find_typedef() includes inherited class typedefs.  Resolve the
+		     corresponding type parameter in the scope that owns that typedef,
+		     which may be a specialized superclass rather than a lexical
+		     parent of the derived-class method doing the lookup. */
+		  NetScope*parameter_scope = scope->find_typedef_scope(des, td);
 		  result.class_type = resolve_scoped_class_type_parameter_task_(
-			des, scope, name);
+			des, parameter_scope ? parameter_scope : scope, name);
 		  result.kind = SCOPED_CLASS_NAME_TASK_TYPE_PARAMETER;
 		  return result;
 	    }
