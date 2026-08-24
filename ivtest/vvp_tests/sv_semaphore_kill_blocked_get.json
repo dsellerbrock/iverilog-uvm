@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_semaphore_kill_blocked_get.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_semaphore_kill_blocked_get"
+}

@@ -176,8 +176,12 @@ class vvp_process : public vvp_object {
       unsigned status() const;
       vthread_t owner() const;
 
-      void add_waiter(vthread_t thr);
+	/* Returns true when THR was actually queued, so that the %process/await
+	   opcode only parks a thread it managed to register. */
+      bool add_waiter(vthread_t thr);
       void remove_waiter(vthread_t thr);
+	/* vthread_resource_cancel_t for process::await waits. */
+      static void cancel_await_waiter(void*owner, vthread_t thr);
 
       void enqueue_deferred_assert(vvp_code_t action_pc,
                                    __vpiScope*action_scope,
@@ -620,6 +624,11 @@ struct vthread_s {
       vvp_object_t process_obj_;
       set<vvp_process*> awaited_processes_;
 
+	/* Resource-wait registration; see waiting_for_resource below. */
+      void*resource_id_;
+      vthread_resource_cancel_t resource_cancel_;
+      vvp_object_t resource_ref_;
+
 	/* My parent sets this when it wants me to wake it up. */
       unsigned i_am_joining      :1;
       unsigned i_am_detached     :1;
@@ -628,6 +637,17 @@ struct vthread_s {
       unsigned i_have_ended      :1;
       unsigned i_was_disabled    :1;
       unsigned waiting_for_event :1;
+	/* Parked inside a blocking mailbox/semaphore/process::await
+	   operation. Like waiting_for_event this means "suspended, and not
+	   runnable until something else wakes me", but the wake comes from a
+	   runtime object's wait collection rather than from an event
+	   functor, so it needs its own flag: the thread is on no wait_next
+	   chain and nothing in the scheduler would otherwise know it is
+	   blocked. resource_id_ is the raw owner identity, resource_cancel_
+	   unlinks this thread from that owner, and resource_ref_ retains the
+	   owner so a blocked method invocation cannot outlive its own
+	   mailbox, semaphore, or process object. */
+      unsigned waiting_for_resource :1;
       unsigned is_scheduled      :1;
       unsigned delay_delete      :1;
       unsigned delete_pending    :1;
@@ -757,6 +777,12 @@ struct vthread_s {
 
       inline void cleanup()
       {
+	      /* Unlink from any mailbox/semaphore/process wait collection
+		 FIRST. Everything below releases state this thread owns; a
+		 wait collection elsewhere still names this thread by raw
+		 pointer, and it must be cut loose before the storage goes
+		 away. */
+	    vthread_cancel_resource_wait(this);
 	    delete force_pending;
 	    force_pending = 0;
 	    release_owned_context_(this);
@@ -820,6 +846,23 @@ struct vthread_s {
       }
 };
 
+/*
+ * True when THR is suspended waiting for something outside itself to wake
+ * it: an event functor (%wait), or a blocking mailbox/semaphore/process
+ * operation. Such a thread is NOT runnable, and in particular a synchronous
+ * caller draining a call frame must never drive it again -- re-entering the
+ * blocking opcode would register a second wait for a thread that is already
+ * parked.
+ *
+ * Deliberately limited to those two states. `suspended' (process::suspend)
+ * and `i_am_delaying' (a procedural delay) are separate conditions that the
+ * individual call sites already handle where they care about them.
+ */
+static inline bool vthread_is_blocked_on_wait_(vthread_t thr)
+{
+      return thr && (thr->waiting_for_event || thr->waiting_for_resource);
+}
+
 inline vthread_s::vthread_s()
 {
       for (unsigned idx = 0; idx < WORDS_COUNT; idx += 1)
@@ -833,6 +876,9 @@ inline vthread_s::vthread_s()
             stack_obj_net_[idx] = 0;
       filenm_ = 0;
       lineno_ = 0;
+      waiting_for_resource = 0;
+      resource_id_ = 0;
+      resource_cancel_ = 0;
       owns_automatic_context = 0;
       owned_context = 0;
       skip_free_context = 0;
@@ -850,6 +896,10 @@ inline vthread_s::vthread_s()
 
 inline vthread_s::~vthread_s()
 {
+	/* Backstop for the raw `delete' in vthreads_delete(), which bypasses
+	   cleanup(). Cancellation is idempotent, so the normal path -- where
+	   cleanup() already ran -- does nothing here. */
+      vthread_cancel_resource_wait(this);
       delete force_pending;
 }
 
@@ -924,6 +974,10 @@ void vvp_process::detach_owner(vthread_t owner)
 
 void vvp_process::signal_waiters_()
 {
+	/* Retain self for the whole sweep: claiming a wait can release the
+	   last reference an awaiting thread held to this process object. */
+      vvp_object_t keep_self(this);
+      vvp_object_t claimed;
       std::set<vthread_t> waiters = waiters_;
       waiters_.clear();
       for (set<vthread_t>::iterator cur = waiters.begin()
@@ -932,8 +986,15 @@ void vvp_process::signal_waiters_()
 	    if (!waiter)
 		  continue;
 	    waiter->awaited_processes_.erase(this);
-	    if (!waiter->i_have_ended)
-		  schedule_vthread(waiter, 0, true);
+	      /* Claim before scheduling. A killed awaiting thread has already
+		 been unlinked by vthread_cancel_resource_wait(), so it cannot
+		 appear here at all; anything that still does and fails to
+		 claim is obsolete and must not be scheduled. This replaces an
+		 `i_have_ended' test, which was itself a read of possibly
+		 freed storage. */
+	    if (!vthread_claim_resource_wait(waiter, this, claimed))
+		  continue;
+	    schedule_vthread(waiter, 0, true);
       }
 }
 
@@ -990,7 +1051,10 @@ unsigned vvp_process::status() const
 	    }
       }
 
-      if (owner_->i_am_waiting || owner_->waiting_for_event
+	/* A process blocked in mailbox.get(), semaphore.get(), or another
+	   process's await is waiting just as much as one blocked on an
+	   event control (IEEE 1800-2017 9.7). */
+      if (owner_->i_am_waiting || vthread_is_blocked_on_wait_(owner_)
 	  || owner_->i_am_joining || owner_->i_am_delaying)
 	    return PROCESS_STATE_WAITING;
 
@@ -1002,12 +1066,13 @@ vthread_t vvp_process::owner() const
       return owner_;
 }
 
-void vvp_process::add_waiter(vthread_t thr)
+bool vvp_process::add_waiter(vthread_t thr)
 {
       if (!thr || thr->i_have_ended)
-	    return;
+	    return false;
       waiters_.insert(thr);
       thr->awaited_processes_.insert(this);
+      return true;
 }
 
 void vvp_process::remove_waiter(vthread_t thr)
@@ -1016,6 +1081,12 @@ void vvp_process::remove_waiter(vthread_t thr)
 	    return;
       waiters_.erase(thr);
       thr->awaited_processes_.erase(this);
+}
+
+void vvp_process::cancel_await_waiter(void*owner, vthread_t thr)
+{
+      if (vvp_process*proc = static_cast<vvp_process*>(owner))
+	    proc->remove_waiter(thr);
 }
 
 /* Step over the code-space chunk sentinel when validating an out-of-line
@@ -7585,6 +7656,16 @@ static void vthread_run_unpin_(vthread_t thr)
 
 static void vthread_reap(vthread_t thr)
 {
+	/* Cut this thread out of any mailbox/semaphore/process wait
+	   collection before anything else. This has to happen ahead of the
+	   "safe to delete" test at the bottom of this function: a
+	   resource-blocked thread has is_scheduled == 0 and
+	   waiting_for_event == 0, so it takes the immediate-delete branch,
+	   and when delay_delete defers that to schedule_del_thr() there is a
+	   window in which the resource could still try to wake a thread that
+	   is already reaped. */
+      vthread_cancel_resource_wait(thr);
+
 	/* Reparent children to the grandparent, emptying our child sets as
 	 * we go. Mirror of_END's while/pop erase discipline so no stale child
 	 * pointer survives this thread's single, owning reap. */
@@ -7685,6 +7766,7 @@ void vthread_dump_live_threads(const char*reason)
 
       unsigned active = 0;
       unsigned waiting = 0;
+      unsigned resource = 0;
       unsigned joining = 0;
       unsigned scheduled = 0;
 
@@ -7711,13 +7793,15 @@ void vthread_dump_live_threads(const char*reason)
             active += 1;
             if (thr->waiting_for_event)
                   waiting += 1;
+            if (thr->waiting_for_resource)
+                  resource += 1;
             if (thr->i_am_joining)
                   joining += 1;
             if (thr->is_scheduled)
                   scheduled += 1;
 
             fprintf(stderr,
-                    "trace sched: thr=%p parent_thr=%p scope=%s parent=%s pc=%s@%p pause=%s@%p scheduled=%d waiting=%d joining=%d ended=%d detached=%d disabled=%d callf=%d in_func=%d children=%zu wt=%p rd=%p event=%p ecount=%" PRIu64 "\n",
+                    "trace sched: thr=%p parent_thr=%p scope=%s parent=%s pc=%s@%p pause=%s@%p scheduled=%d waiting=%d resource=%d joining=%d ended=%d detached=%d disabled=%d callf=%d in_func=%d children=%zu wt=%p rd=%p event=%p ecount=%" PRIu64 "\n",
                     (void*)thr,
                     (void*)thr->parent,
                     scope_name,
@@ -7728,6 +7812,7 @@ void vthread_dump_live_threads(const char*reason)
                     (void*)thr->last_pause_pc,
                     thr->is_scheduled ? 1 : 0,
                     thr->waiting_for_event ? 1 : 0,
+                    thr->waiting_for_resource ? 1 : 0,
                     thr->i_am_joining ? 1 : 0,
                     thr->i_have_ended ? 1 : 0,
                     thr->i_am_detached ? 1 : 0,
@@ -7742,9 +7827,9 @@ void vthread_dump_live_threads(const char*reason)
       }
 
       fprintf(stderr,
-              "trace sched: live-thread summary reason=%s active=%u scheduled=%u waiting=%u joining=%u\n",
+              "trace sched: live-thread summary reason=%s active=%u scheduled=%u waiting=%u resource=%u joining=%u\n",
               reason ? reason : "<unknown>",
-              active, scheduled, waiting, joining);
+              active, scheduled, waiting, resource, joining);
 }
 
 void vthread_dump_running_thread(const char*reason)
@@ -7766,7 +7851,7 @@ void vthread_dump_running_thread(const char*reason)
                             ? vvp_opcode_mnemonic(running_thread->last_pause_pc->opcode) : "<none>";
 
       fprintf(stderr,
-              "trace sched: running-thread reason=%s thr=%p scope=%s pc=%s pause=%s scheduled=%d waiting=%d joining=%d ended=%d detached=%d disabled=%d callf=%d in_func=%d children=%zu wt=%p rd=%p event=%p ecount=%" PRIu64 "\n",
+              "trace sched: running-thread reason=%s thr=%p scope=%s pc=%s pause=%s scheduled=%d waiting=%d resource=%d joining=%d ended=%d detached=%d disabled=%d callf=%d in_func=%d children=%zu wt=%p rd=%p event=%p ecount=%" PRIu64 "\n",
               reason ? reason : "<unknown>",
               (void*)running_thread,
               scope_name,
@@ -7774,6 +7859,7 @@ void vthread_dump_running_thread(const char*reason)
               pause_name,
               running_thread->is_scheduled ? 1 : 0,
               running_thread->waiting_for_event ? 1 : 0,
+              running_thread->waiting_for_resource ? 1 : 0,
               running_thread->i_am_joining ? 1 : 0,
               running_thread->i_have_ended ? 1 : 0,
               running_thread->i_am_detached ? 1 : 0,
@@ -7838,6 +7924,92 @@ void vthread_mark_scheduled(vthread_t thr)
 	    thr->is_scheduled = 1;
 	    thr = thr->wait_next;
       }
+}
+
+/*
+ * Cancellable resource waits (IEEE 1800-2017 15.4 mailboxes, 15.5
+ * semaphores, 9.7 process control).
+ *
+ * A mailbox or semaphore parks a blocked thread in a wait collection keyed
+ * by a raw vthread_t. Nothing in the SystemVerilog source keeps that thread
+ * alive: `fork ... join_any; disable fork' kills the branch that is sitting
+ * in mailbox.get(), and the thread is reaped and freed while the mailbox
+ * still names it. A later put() then walked that obsolete record -- pushing
+ * an item onto a freed thread's object stack, consuming the message, and
+ * scheduling freed storage, which is what tripped the scheduler assertions.
+ *
+ * The registration below is a strict single-transition state machine:
+ *
+ *    registered --> claimed    (normal wakeup; the wake may proceed)
+ *               \-> cancelled  (thread killed; the record is unlinked)
+ *
+ * Exactly one of the two transitions happens, and the flag is clear
+ * afterwards either way.
+ */
+void vthread_mark_resource_wait(vthread_t thr, void*owner_id,
+                                const vvp_object_t&owner_ref,
+                                vthread_resource_cancel_t cancel)
+{
+      assert(thr);
+      assert(owner_id);
+      assert(cancel);
+	/* A thread suspends inside the opcode that registers the wait and
+	   cannot execute again until the registration is claimed or
+	   cancelled. Registering twice means an already-blocked thread was
+	   driven a second time -- the synchronous call-frame drain used to
+	   do exactly that -- and would leave a duplicate queue record. */
+      assert(thr->waiting_for_resource == 0);
+
+      thr->waiting_for_resource = 1;
+      thr->resource_id_ = owner_id;
+      thr->resource_cancel_ = cancel;
+      thr->resource_ref_ = owner_ref;
+}
+
+bool vthread_claim_resource_wait(vthread_t thr, void*owner_id,
+                                 vvp_object_t&keep_alive)
+{
+      if (!thr || !thr->waiting_for_resource)
+	    return false;
+	/* Only the owner the thread actually registered with may claim it. */
+      if (thr->resource_id_ != owner_id)
+	    return false;
+
+	/* Hand the retaining reference to the caller rather than dropping
+	   it here: releasing it now could destroy the very object whose
+	   wake method is running. */
+      keep_alive = thr->resource_ref_;
+
+      thr->waiting_for_resource = 0;
+      thr->resource_id_ = 0;
+      thr->resource_cancel_ = 0;
+      thr->resource_ref_.reset(0);
+      return true;
+}
+
+void vthread_cancel_resource_wait(vthread_t thr)
+{
+      if (!thr || !thr->waiting_for_resource)
+	    return;
+
+      vthread_resource_cancel_t cancel = thr->resource_cancel_;
+      void*owner_id = thr->resource_id_;
+	/* Retain the owner locally across the callback. Clearing the
+	   thread's reference may otherwise drop the last one, and the
+	   callback is about to reach into that object's wait collection. */
+      vvp_object_t keep_alive = thr->resource_ref_;
+
+	/* Clear the registration BEFORE invoking the callback. The callback
+	   sweeps the owner's wait collection, and this thread must already
+	   look unregistered so nothing can recurse back into cancellation. */
+      thr->waiting_for_resource = 0;
+      thr->resource_id_ = 0;
+      thr->resource_cancel_ = 0;
+      thr->resource_ref_.reset(0);
+
+      if (cancel)
+	    cancel(owner_id, thr);
+	/* keep_alive releases the owner here, after the unlink is complete. */
 }
 
 int vthread_is_reactive(vthread_t thr)
@@ -10773,7 +10945,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
                    && child->parent == thr
                    && child->is_callf_child
                    && child->is_scheduled
-                   && !child->waiting_for_event) {
+                   && !vthread_is_blocked_on_wait_(child)) {
                   if (sync_resume_count >= sync_resume_limit) {
                         static bool warned = false;
                         if (!warned) {
@@ -10803,7 +10975,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 	            while (!child->i_have_ended
 	                   && child->parent == thr
 	                   && child->is_callf_child
-	                   && !child->waiting_for_event) {
+	                   && !vthread_is_blocked_on_wait_(child)) {
 	                  vthread_t join_ready = 0;
 	                  vthread_t drive = 0;
 	                  vector<vthread_t> pending;
@@ -10821,7 +10993,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 	                        }
 	                        if (!drive
 	                            && !cur->i_have_ended
-	                            && !cur->waiting_for_event
+	                            && !vthread_is_blocked_on_wait_(cur)
 	                            && (cur->is_scheduled
 	                                || cur->children.empty()))
 	                              drive = cur;
@@ -10864,7 +11036,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
                    && child->parent == thr
                    && child->is_callf_child
                    && child->is_scheduled
-                   && !child->waiting_for_event) {
+                   && !vthread_is_blocked_on_wait_(child)) {
                   if (sync_resume_count >= sync_resume_limit)
                         break;
                   vthread_run(child);
@@ -12908,6 +13080,13 @@ static bool do_disable(vthread_t thr, vthread_t match)
       thr->pc = codespace_null();
       thr->i_was_disabled = 1;
       thr->i_have_ended = 1;
+
+	/* `disable fork' on a branch parked in mailbox.get()/semaphore.get()
+	   is the case this whole mechanism exists for. Unlink here rather
+	   than relying on the reap below: the `parent->i_am_joining' branch
+	   does not reap at all -- it leaves the parent's %join to do it --
+	   so a kill would otherwise leave the record queued until then. */
+      vthread_cancel_resource_wait(thr);
 
 	/* Turn off all the children of the thread. Simulate a %join
 	   for as many times as needed to clear the results of all the
@@ -15279,7 +15458,7 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 	     && child->parent == thr
 	     && child->is_callf_child
 	     && child->is_scheduled
-	     && ! child->waiting_for_event
+	     && ! vthread_is_blocked_on_wait_(child)
 	       /* M10-2: a child that hit a delay is scheduled for a FUTURE
 		  time. Spinning it here would run past the delay AND leave
 		  the scheduler holding an event for a thread we then join
@@ -15293,7 +15472,7 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
       }
 
       bool ok = child->i_have_ended && child->parent == thr
-		&& ! child->waiting_for_event;
+		&& ! vthread_is_blocked_on_wait_(child);
 
 	/* DPI output and inout arguments are copy-out parameters (35.5.6).
 	   Read them before joining/reaping the child, while an automatic
@@ -20019,7 +20198,15 @@ bool of_PROCESS_AWAIT(vthread_t thr, vvp_code_t)
       if (status == PROCESS_STATE_FINISHED || status == PROCESS_STATE_KILLED)
 	    return true;
 
-      proc->add_waiter(thr);
+      if (!proc->add_waiter(thr))
+	    return true;   /* not registrable: do not park on it */
+
+	/* Park on the process object the same way a mailbox or semaphore
+	   wait parks, so that killing this thread unlinks it from proc's
+	   waiter set, and so the scheduler sees it as blocked. `obj' retains
+	   proc for as long as the wait is outstanding. */
+      vthread_mark_resource_wait(thr, proc, obj,
+				 &vvp_process::cancel_await_waiter);
       return false;
 }
 
@@ -25918,7 +26105,7 @@ bool of_MBX_PUT(vthread_t thr, vvp_code_t)
                        << " mbx=" << mbx << " value=" << box->get_value() << endl;
       }
 
-      bool done = mbx->put(thr, item_obj);
+      bool done = mbx->put(thr, mbx_obj, item_obj);
       if (!done) return false; /* thread suspended */
       return true;
 }
@@ -25942,7 +26129,7 @@ bool of_MBX_GET(vthread_t thr, vvp_code_t)
       }
 
       vvp_object_t item;
-      bool done = mbx->get(thr, item);
+      bool done = mbx->get(thr, mbx_obj, item);
       if (!done) return false; /* thread suspended */
       const char*mbx_trace = getenv("IVL_MBX_TRACE");
       const char*scope_name = (thr && thr->parent_scope)
@@ -25979,7 +26166,7 @@ bool of_MBX_PEEK(vthread_t thr, vvp_code_t)
       }
 
       vvp_object_t item;
-      bool done = mbx->peek(thr, item);
+      bool done = mbx->peek(thr, mbx_obj, item);
       if (!done) return false; /* thread suspended */
       thr->push_object(item);
       return true;
@@ -26106,7 +26293,7 @@ bool of_SEM_GET(vthread_t thr, vvp_code_t)
       vvp_semaphore*sem = sem_obj.peek<vvp_semaphore>();
       if (!sem) return true; /* null semaphore: ignore */
 
-      bool done = sem->get(thr, nval ? nval : 1);
+      bool done = sem->get(thr, sem_obj, nval ? nval : 1);
       if (!done) return false; /* thread suspended */
       return true;
 }

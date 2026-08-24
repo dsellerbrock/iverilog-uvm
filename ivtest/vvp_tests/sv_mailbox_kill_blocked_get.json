@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_mailbox_kill_blocked_get.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_mailbox_kill_blocked_get"
+}

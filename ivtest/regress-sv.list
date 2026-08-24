@@ -1946,3 +1946,14 @@ synth_parameterized_interface_member_array normal,-g2012,-ssynth_parameterized_i
 synth_parameterized_interface_selected_instance normal,-g2012,-ssynth_parameterized_interface_selected_instance ivltests gold=synth_parameterized_interface_selected_instance.gold
 synth_forwarded_parameterized_interface_array normal,-g2012,-ssynth_forwarded_parameterized_interface_array ivltests gold=synth_forwarded_parameterized_interface_array.gold
 sv_synth_integral_member_lvalue normal,-g2012 ivltests gold=sv_synth_integral_member_lvalue.gold
+
+# Cancellable resource waits (IEEE 1800-2017 9.7, 15.3, 15.4): a
+# mailbox/semaphore/process::await waiter killed by `disable fork' must be
+# unlinked from the wait queue instead of being woken as a freed thread.
+sv_mailbox_kill_blocked_get normal,-g2012 ivltests gold=sv_mailbox_kill_blocked_get.gold
+sv_mailbox_kill_blocked_peek normal,-g2012 ivltests gold=sv_mailbox_kill_blocked_peek.gold
+sv_mailbox_kill_blocked_put normal,-g2012 ivltests gold=sv_mailbox_kill_blocked_put.gold
+sv_semaphore_kill_blocked_get normal,-g2012 ivltests gold=sv_semaphore_kill_blocked_get.gold
+sv_resource_wait_normal_wake normal,-g2012 ivltests gold=sv_resource_wait_normal_wake.gold
+sv_process_await_resource_wait normal,-g2012 ivltests gold=sv_process_await_resource_wait.gold
+sv_resource_wait_sync_nested normal,-g2012 ivltests gold=sv_resource_wait_sync_nested.gold
