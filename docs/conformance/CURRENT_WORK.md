@@ -1,5 +1,62 @@
 # CURRENT WORK — continuation state
 
+## Resume state — 2026-08-24 — clocking static skew and exact modports
+
+Worktree:
+`iverilog-uvm-opentitan-clocking-static-skew-fresh-arm64-20260824`
+
+Baseline: `origin/main` at
+`3d9afc7c6094fd382d4f118cfae5cb68b1505329`. The clocking implementation and
+initial regressions are `db6b1f7e3` and `2ae389d7a`; the audit follow-up and
+its six expanded reducers are committed as `e564c2600`.
+
+The implemented IEEE 1800-2017 boundary is 14.3–14.5 declaration/skew/alias
+semantics, 14.13 sampled-input ordering, 14.16 packed output buffering and
+scheduling, and 25.5 exact modport visibility. Constant packed member/bit/part
+output selects are supported for same-scope, static-instance, alias, and VIF
+spellings. Run-time selectors, root or nested indexed class receivers, whole
+unpacked output clockvars, and selected declaration-assignment targets without
+representable hidden storage are loud boundaries; none may fall through to an
+ordinary NBA.
+
+The read-only audit found and drove follow-ups for:
+
+- a root indexed receiver evaluated five times instead of rejected at the
+  existing once-capture boundary;
+- output-skew elaboration repeated once per static source drive;
+- exact modport qualifiers lost through typedef, class type-parameter, and
+  unpacked-struct carriers;
+- VPI-backed output arguments directly mutating sampled inputs, clocking
+  outputs, and modport inputs; and
+- a partial nested l-value tree leaked on modport rejection.
+
+The VPI boundary is now precise: integral/string VIF property reads remain
+supported, while any `vpi_put_value` to a VIF property is a loud run-time
+error, sets a failing status, and leaves the target unchanged. Ordinary
+assignments and clocking drives keep their checked language paths.
+
+Post-audit verification is complete: both expanded clocking focuses are
+36/36; the SystemVerilog manifest is 1850/1850; JSON/VVP is 918/918; the
+default legacy manifest is 4029 pass / 2 NI / 3 EF / 0 fail; VPI is 97/97;
+negative diagnostics are 111/111; the clocking Slang differential is 59/59;
+`make check` passes; and real-DPI UVM is 338/338.
+
+A fresh OpenTitan replay is 7/7 for setup and compile with zero hard compile
+errors. Six long simulations advance through time until the 45-second CPU
+guard; ADC retains its known zero-time UVM testbench fatal. No compiler abort
+or scheduler assertion occurs. The frozen Caliptra differential remains
+Icarus 53/105 in each of assertions, no-assertions, and synthesis versus Slang
+54/105, with zero `ICARUS_GAP`; the sole raw Slang lead remains source order.
+These are compatibility-frontier results, not clean full-application runtime
+pass claims.
+
+Durable detail is in
+`session_logs/2026-08-24_opentitan_clocking_static_skew_modports.md`. The local
+ignored standards reference is `docs/standards/local/IEEE_1800-2023.pdf`,
+SHA-256
+`2280eb7f39532ca990b9bbd2e4226ae5c89910b51f42b2eb0e972df4403c9597`;
+the PDF is not part of the change.
+
 This is the short resume state. `ROADMAP.md` is the living tracker,
 `iverilog_ieee1800_uvm_manifesto.md` carries policy, and dated technical
 narratives live in `session_logs/`.
