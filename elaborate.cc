@@ -16563,7 +16563,6 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			NetPartSelect*select =
 			      new NetPartSelect(carrier, base, wid,
 						NetPartSelect::VP);
-			select->mark_implicit_sensitivity_select();
 			select->set_line(*this);
 			des->add_node(select);
 
