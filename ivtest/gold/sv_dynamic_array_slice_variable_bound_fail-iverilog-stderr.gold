@@ -1,0 +1,11 @@
+ivltests/sv_dynamic_array_slice_variable_bound_fail.v:12: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.
+ivltests/sv_dynamic_array_slice_variable_bound_fail.v:14: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.
+ivltests/sv_dynamic_array_slice_variable_bound_fail.v:15: error: dynamic-array slice bounds must be constant integral expressions.
+ivltests/sv_dynamic_array_slice_variable_bound_fail.v:16: error: `$' is only valid as a queue slice endpoint.
+ivltests/sv_dynamic_array_slice_variable_bound_fail.v:17: error: dynamic-array slice range has the opposite direction from its declared range.
+ivltests/sv_dynamic_array_slice_variable_bound_fail.v:18: error: indexed unpacked-array slice width must be a positive constant integral expression.
+ivltests/sv_dynamic_array_slice_variable_bound_fail.v:19: error: indexed unpacked-array slice width must be a positive constant integral expression.
+ivltests/sv_dynamic_array_slice_variable_bound_fail.v:20: error: indexed unpacked-array slice width must be a positive constant integral expression.
+ivltests/sv_dynamic_array_slice_variable_bound_fail.v:21: error: indexed unpacked-array slice width must be a positive constant integral expression.
+ivltests/sv_dynamic_array_slice_variable_bound_fail.v:22: error: indexed unpacked-array slice base must be an integral expression.
+10 error(s) during elaboration.

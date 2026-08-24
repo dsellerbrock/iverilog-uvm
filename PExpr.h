@@ -818,7 +818,8 @@ class PEIdent : public PExpr {
       unsigned test_width_parameter_(const NetExpr *par, width_mode_t&mode);
 
       ivl_type_t resolve_type_(Design *des, const symbol_search_results &sr,
-			       unsigned int &index_depth) const;
+			       unsigned int &index_depth,
+			       ivl_type_t *final_index_type = nullptr) const;
 
     private:
       bool strict_bind_ = false;

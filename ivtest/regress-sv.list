@@ -872,6 +872,11 @@ sv_queue_method_signed3	normal,-g2009		ivltests
 sv_queue_method_signed4	normal,-g2009		ivltests
 sv_queue_ref_persistence normal,-g2012		ivltests gold=sv_queue_ref_persistence.gold
 sv_queue_slice_dollar_offset normal,-g2012	ivltests gold=sv_queue_slice_dollar_offset.gold
+sv_queue_slice_nonintegral_bound_fail CE,-g2012	ivltests gold=sv_queue_slice_nonintegral_bound_fail.gold
+sv_queue_slice_variable_bounds normal,-g2012	ivltests gold=sv_queue_slice_variable_bounds.gold
+sv_packed_part_select_variable_bound_fail CE,-g2012	ivltests gold=sv_packed_part_select_variable_bound_fail.gold
+sv_dynamic_array_slice_variable_bound_fail CE,-g2012	ivltests gold=sv_dynamic_array_slice_variable_bound_fail.gold
+sv_associative_array_slice_fail CE,-g2012	ivltests gold=sv_associative_array_slice_fail.gold
 sv_queue_string		normal,-g2009,-pfileline=1	ivltests gold=sv_queue_string.gold
 sv_queue_string_bounded	normal,-g2009,-pfileline=1	ivltests gold=sv_queue_string_bounded.gold
 sv_queue_string_fail	CE,-g2009		ivltests gold=sv_queue_string_fail.gold

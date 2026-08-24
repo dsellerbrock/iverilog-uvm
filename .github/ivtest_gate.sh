@@ -95,6 +95,9 @@ if [ -z "$runtime_vvp" ] || [ -z "$runtime_iverilog" ] \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! VVP="$runtime_vvp" \
         bash tests/vvp_runtime/run_force_array_runtime.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_queue_slice_legacy.sh \
         >> "$WORK/vvp-runtime.log" 2>&1; then
     cat "$WORK/vvp-runtime.log" 2>/dev/null || true
     echo "GATE FAIL: VVP bytecode invariant failed."

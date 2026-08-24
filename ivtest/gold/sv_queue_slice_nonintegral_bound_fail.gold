@@ -1,0 +1,4 @@
+./ivltests/sv_queue_slice_nonintegral_bound_fail.v:12: error: queue slice bound must be an integral expression.
+./ivltests/sv_queue_slice_nonintegral_bound_fail.v:13: error: indexed unpacked-array slice base must be an integral expression.
+./ivltests/sv_queue_slice_nonintegral_bound_fail.v:14: error: indexed unpacked-array slice width must be an integral expression.
+3 error(s) during elaboration.

@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_dynamic_array_slice_variable_bound_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_dynamic_array_slice_variable_bound_fail"
+}

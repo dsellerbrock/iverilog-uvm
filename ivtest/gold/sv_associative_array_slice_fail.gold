@@ -1,0 +1,4 @@
+./ivltests/sv_associative_array_slice_fail.v:8: error: associative arrays cannot be indexed by a range.
+./ivltests/sv_associative_array_slice_fail.v:9: error: associative arrays cannot be indexed by a range.
+./ivltests/sv_associative_array_slice_fail.v:10: error: associative arrays cannot be indexed by a range.
+3 error(s) during elaboration.
