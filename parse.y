@@ -11618,6 +11618,27 @@ expr_primary
 	delete $6;
 	$$ = tmp;
       }
+  | package_type_identifier K_SCOPE_RES identifier_name K_SCOPE_RES identifier_name
+    argument_list_parens
+      { /* A package-qualified class may expose a nested typedef whose static
+	   method is then called, for example
+	   pkg::item::type_id::get().  The two-component package call rules
+	   cannot carry the nested class scope, although the equivalent
+	   item::type_id::get() form already can (IEEE 1800-2017 8.23, 26.3). */
+	pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($1.text)));
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PECallFunction*tmp = new PECallFunction($1.package, hident, *$6);
+	tmp->set_leading_type_args($1.type_args);
+	tmp->set_scoped_type_prefix();
+	FILE_NAME(tmp, @1);
+	delete[]$1.text;
+	delete[]$3;
+	delete[]$5;
+	delete $6;
+	$$ = tmp;
+      }
   /* A scoped (typed) constructor call `C::new(...)`. The generic
      class_new path (class_scope K_new) is unreachable from expression
      position: these direct TYPE_IDENTIFIER K_SCOPE_RES rules win the
@@ -17814,6 +17835,24 @@ statement_item /* This is roughly statement_item in the LRM */
 
   | subroutine_call ';'
       { $$ = $1;
+      }
+  | package_scoped_lvalue K_SCOPE_RES identifier_name argument_list_parens ';'
+      { /* In statement position the common pkg::class::nested prefix first
+	   reduces through package_scoped_lvalue.  Continue that established
+	   path for UVM's pkg::item::type_id::set_type_override(...) form
+	   instead of duplicating the raw package prefix in subroutine_call. */
+	PEIdent*prefix = dynamic_cast<PEIdent*>($1);
+	assert(prefix);
+	pform_scoped_name_t scoped = prefix->path();
+	pform_name_t hident = scoped.name;
+	hident.push_back(name_component_t(lex_strings.make($3)));
+	PCallTask*tmp = new PCallTask(scoped.package, hident, *$4);
+	tmp->set_leading_type_args(prefix->take_leading_type_args());
+	FILE_NAME(tmp, @1);
+	delete[]$3;
+	delete $4;
+	delete prefix;
+	$$ = tmp;
       }
   /* IEEE 1800-2017 18.12: preserve the constraint AST on the ordinary
      PCallTask. Elaboration routes std::randomize through the shared Z3

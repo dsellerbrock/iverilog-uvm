@@ -1,0 +1,3 @@
+./ivltests/sv_package_nested_static_call_fail.v:22: error: Missing argument 2 of call to task.
+./ivltests/sv_package_nested_static_call_fail.v:23: error: Too many arguments (1, expecting 0) in call to function package_nested_static_fail_pkg.registry.get.
+2 error(s) during elaboration.
