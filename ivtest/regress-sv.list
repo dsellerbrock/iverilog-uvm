@@ -1479,6 +1479,7 @@ sv_ref_arg_object_fork_detach normal,-g2012 ivltests gold=sv_ref_arg_object_fork
 sv_assert_pass_action normal,-g2012 ivltests
 sv_fork_join_none_automatic_frame normal,-g2012 ivltests
 sv_assert_strong_eos_action normal,-g2012 ivltests
+sv_assert_strong_eos_package_action normal,-g2012 ivltests
 sv_struct_array_member_element normal,-g2012 ivltests
 sv_struct_array_member_open_arg normal,-g2012 ivltests
 sv_whole_aggregate_value_copy normal,-g2012 ivltests

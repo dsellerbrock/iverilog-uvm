@@ -9658,9 +9658,11 @@ static Statement* sva_clone_stmt_(Statement*st)
       if (!st) return nullptr;
 
       if (PCallTask*ct = dynamic_cast<PCallTask*> (st)) {
-	      /* A method call on a receiver expression keeps no accessor
-		 for the receiver, so leave that shape to the caller. */
-	    if (ct->path().empty()) return nullptr;
+	      /* Receiver-method actions need a separately owned receiver
+		 expression and remain outside this bounded copier. Do not turn one
+		 into an unqualified call while duplicating an end-of-simulation
+		 action. */
+	    if (ct->receiver_expr() || ct->path().empty()) return nullptr;
 	    std::list<named_pexpr_t> parms;
 	    for (size_t i = 0 ; i < ct->parms().size() ; i += 1) {
 		  named_pexpr_t np;
@@ -9669,7 +9671,14 @@ static Statement* sva_clone_stmt_(Statement*st)
 		  if (ct->parms()[i].parm && !np.parm) return nullptr;
 		  parms.push_back(np);
 	    }
-	    PCallTask*out = new PCallTask(ct->path(), parms);
+	      /* Package qualification is part of the call target, not lookup
+		 decoration. Dropping it changed pkg::report(...) into a lookup for
+		 report in the synthesized checker scope; OpenTitan's strong
+		 eventuality actions were consequently replaced by unknown-task
+		 no-ops at end of simulation. */
+	    PCallTask*out = ct->package()
+		  ? new PCallTask(ct->package(), ct->path(), parms)
+		  : new PCallTask(ct->path(), parms);
 	    out->set_lineno(ct->get_lineno());
 	    out->set_file(ct->get_file());
 	    return out;
