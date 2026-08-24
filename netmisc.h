@@ -384,6 +384,17 @@ extern NetExpr*make_canonical_index(Design*des, NetScope*scope,
 				      // True if the expression MUST be constant.
 				    bool need_const);
 
+/* Canonicalize the fixed unpacked prefix of a class property while checking
+ * every declared dimension independently. Dynamic indices are kept together
+ * in one synthetic expression so each source expression is evaluated exactly
+ * once. An undefined or out-of-range dimension produces an X canonical slot. */
+extern NetExpr*make_checked_canonical_property_index(
+				    Design*des, NetScope*scope,
+				    const LineInfo*loc,
+				    const std::list<index_component_t>&src,
+				    const netsarray_t*stype,
+				    bool need_const);
+
 /*
  * This function takes as input a NetNet signal and adds a constant
  * value to it. If the val is 0, then simply return sig. Otherwise,

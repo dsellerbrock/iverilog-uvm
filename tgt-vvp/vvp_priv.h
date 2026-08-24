@@ -275,6 +275,12 @@ extern void draw_eval_string(ivl_expr_t ex);
 extern int draw_eval_object(ivl_expr_t ex);
 extern int vvp_expr_is_whole_fixed_array_property(ivl_expr_t ex);
 
+/* Recover the declared container type denoted by an expression. The t-dll
+   representation deliberately omits net_type from SELECT nodes, so nested
+   container selections must walk back to a typed property/signal and then
+   descend one element type per SELECT. */
+static inline ivl_type_t receiver_container_type_(ivl_expr_t expr);
+
 /* Materialize the typed internal marker used for an associative-array
    `'{default:value}' pattern. The value is evaluated once and a fresh map is
    left on the object stack. */
@@ -361,7 +367,7 @@ static inline int expr_is_queue_container_(ivl_expr_t expr)
       if (!expr)
             return 0;
 
-      net_type = ivl_expr_net_type(expr);
+      net_type = receiver_container_type_(expr);
       if (net_type && ivl_type_base(net_type) == IVL_VT_QUEUE)
             return 1;
 
@@ -418,7 +424,7 @@ static inline int expr_is_dynarray_container_(ivl_expr_t expr)
       if (!expr)
             return 0;
 
-      net_type = ivl_expr_net_type(expr);
+      net_type = receiver_container_type_(expr);
       if (net_type && (ivl_type_base(net_type) == IVL_VT_QUEUE
                        || ivl_type_base(net_type) == IVL_VT_DARRAY))
             return 1;
@@ -493,7 +499,7 @@ static inline int expr_is_assoc_queue_container_(ivl_expr_t expr)
       if (!expr)
             return 0;
 
-      net_type = ivl_expr_net_type(expr);
+      net_type = receiver_container_type_(expr);
       return net_type && ivl_type_base(net_type) == IVL_VT_QUEUE
           && ivl_type_queue_assoc_compat(net_type);
 }
@@ -537,12 +543,34 @@ static inline ivl_type_t property_receiver_class_type_(ivl_expr_t expr)
                   if (base_type && ivl_type_properties(base_type) > 0)
                         return base_type;
 
+                  /* Synthesized queue-method/property expressions retain
+                   * their class receiver as an IVL_EX_SIGNAL operand, but
+                   * that operand does not necessarily carry an expression
+                   * net type. Recover the declared class type from the
+                   * signal itself before classifying the property index. */
+                  if (ivl_expr_type(base_expr) == IVL_EX_SIGNAL
+                      || ivl_expr_type(base_expr) == IVL_EX_ARRAY
+                      || ivl_expr_type(base_expr) == IVL_EX_PROPERTY)
+                        sig = ivl_expr_signal(base_expr);
+                  else
+                        sig = 0;
+                  if (sig) {
+                        base_type = ivl_signal_net_type(sig);
+                        if (base_type && ivl_type_properties(base_type) > 0)
+                              return base_type;
+                  }
+
                   if (ivl_expr_type(base_expr) == IVL_EX_PROPERTY)
                         return property_receiver_class_type_(base_expr);
             }
       }
 
-      sig = ivl_expr_signal(expr);
+      if (ivl_expr_type(expr) == IVL_EX_SIGNAL
+          || ivl_expr_type(expr) == IVL_EX_ARRAY
+          || ivl_expr_type(expr) == IVL_EX_PROPERTY)
+            sig = ivl_expr_signal(expr);
+      else
+            sig = 0;
       if (sig)
             return ivl_signal_net_type(sig);
 
@@ -574,9 +602,148 @@ static inline ivl_type_t property_expr_type_(ivl_expr_t expr)
       return ivl_type_prop_type(base_type, ivl_expr_property_idx(expr));
 }
 
-static inline int property_is_object_expr_(ivl_expr_t expr)
+/* The target API represents a fixed unpacked-array class property as a
+ * one-bit-width wrapper carrying unpacked ranges in its "packed" dimension
+ * accessors.  Its element type is the kind actually stored in each property
+ * slot.  Keep this test in one place: an index on such a PROPERTY selects a
+ * property slot, while an index on a scalar queue/darray property selects an
+ * element inside the one container held by slot zero. */
+static inline int type_is_fixed_uarray_property_(ivl_type_t type)
+{
+      return type && ivl_type_element(type)
+          && !ivl_type_is_packed_vector(type)
+          && ivl_type_packed_dimensions(type) > 0
+          && ivl_type_packed_width(type) == 1;
+}
+
+static inline int property_selects_fixed_uarray_slot_(ivl_expr_t expr)
+{
+      return expr && ivl_expr_type(expr) == IVL_EX_PROPERTY
+          && ivl_expr_oper1(expr)
+          && type_is_fixed_uarray_property_(property_expr_type_(expr));
+}
+
+/* Declared type of the value denoted by a property expression.  A selected
+ * fixed-array word denotes the leaf value; an unselected property denotes
+ * its complete declared type. */
+static inline ivl_type_t property_expr_value_type_(ivl_expr_t expr)
 {
       ivl_type_t prop_type = property_expr_type_(expr);
+
+      if (property_selects_fixed_uarray_slot_(expr))
+            return ivl_type_element(prop_type);
+
+      return prop_type;
+}
+
+static inline int type_is_runtime_container_(ivl_type_t type)
+{
+      return type && (ivl_type_base(type) == IVL_VT_QUEUE
+                      || ivl_type_base(type) == IVL_VT_DARRAY);
+}
+
+/* A SELECT is accepted only when its immediate source resolves to a runtime
+   container and the selected element is itself a runtime container. This
+   avoids inventing a type across packed/scalar or otherwise malformed nodes.
+   IVL expression trees are acyclic, so plain structural recursion has no
+   source-visible depth limit. */
+static inline ivl_type_t receiver_container_type_(ivl_expr_t expr)
+{
+      ivl_type_t type;
+
+      if (!expr)
+            return 0;
+
+      if (ivl_expr_type(expr) == IVL_EX_PROPERTY) {
+            type = property_expr_value_type_(expr);
+            if (type)
+                  return type_is_runtime_container_(type) ? type : 0;
+      }
+
+      type = ivl_expr_net_type(expr);
+      if (type_is_runtime_container_(type))
+            return type;
+
+      if ((ivl_expr_type(expr) == IVL_EX_SIGNAL
+           || ivl_expr_type(expr) == IVL_EX_ARRAY)
+          && ivl_expr_signal(expr)) {
+            type = ivl_signal_net_type(ivl_expr_signal(expr));
+            return type_is_runtime_container_(type) ? type : 0;
+      }
+
+      if (ivl_expr_type(expr) != IVL_EX_SELECT)
+            return 0;
+
+      type = receiver_container_type_(ivl_expr_oper1(expr));
+      type = type ? ivl_type_element(type) : 0;
+      return type_is_runtime_container_(type) ? type : 0;
+}
+
+/* Evaluate one already-canonical fixed-property slot expression into WORD and
+   preserve its X/Z/conversion and explicit range results in caller-owned
+   flags. */
+extern void draw_fixed_uarray_slot_index_(ivl_expr_t expr, ivl_type_t type,
+                                          int word, int*x_flag,
+                                          int*in_range_flag);
+
+/* Runtime queue mutation opcodes use zero for an unbounded queue and an
+ * unsigned element count for a bounded queue. Keep that conversion identical
+ * at every object-receiver emitter. Associative queues and dynamic arrays do
+ * not have a positional maximum. */
+static inline unsigned queue_type_max_count_(ivl_type_t type)
+{
+      uint64_t max_size;
+
+      if (!type || ivl_type_base(type) != IVL_VT_QUEUE
+          || ivl_type_queue_assoc_compat(type))
+            return 0;
+
+      max_size = ivl_type_queue_max_size(type);
+      return max_size > 0xffffffffULL ? 0 : (unsigned)max_size;
+}
+
+/* Keep the legacy zero-bound VVP spellings intact so older generated VVP
+ * remains parseable. Bounded object receivers use explicit /max variants. */
+static inline void emit_object_queue_insert_(const char*kind,
+                                             unsigned max_count,
+                                             unsigned vec_width)
+{
+      if (strcmp(kind, "v") == 0) {
+            if (max_count)
+                  fprintf(vvp_out, "    %%qinsert/o/v/max %u, %u;\n",
+                          max_count, vec_width);
+            else
+                  fprintf(vvp_out, "    %%qinsert/o/v %u;\n", vec_width);
+      } else if (max_count) {
+            fprintf(vvp_out, "    %%qinsert/o/%s/max %u;\n",
+                    kind, max_count);
+      } else {
+            fprintf(vvp_out, "    %%qinsert/o/%s;\n", kind);
+      }
+}
+
+static inline void emit_object_queue_store_(char mode, const char*kind,
+                                            unsigned max_count,
+                                            unsigned vec_width)
+{
+      if (strcmp(kind, "v") == 0) {
+            if (max_count)
+                  fprintf(vvp_out, "    %%store/qo/%c/v/max %u, %u;\n",
+                          mode, max_count, vec_width);
+            else
+                  fprintf(vvp_out, "    %%store/qo/%c/v %u;\n",
+                          mode, vec_width);
+      } else if (max_count) {
+            fprintf(vvp_out, "    %%store/qo/%c/%s/max %u;\n",
+                    mode, kind, max_count);
+      } else {
+            fprintf(vvp_out, "    %%store/qo/%c/%s;\n", mode, kind);
+      }
+}
+
+static inline int property_is_object_expr_(ivl_expr_t expr)
+{
+      ivl_type_t prop_type = property_expr_value_type_(expr);
 
       if (!prop_type)
             return 0;
@@ -598,6 +765,9 @@ static inline int property_is_indexed_queue_expr_(ivl_expr_t expr)
       ivl_type_t prop_type;
 
       if (!expr_has_numeric_container_index_(expr))
+            return 0;
+
+      if (property_selects_fixed_uarray_slot_(expr))
             return 0;
 
       if (expr_is_assoc_queue_container_(expr))
@@ -637,6 +807,7 @@ static inline ivl_type_t property_assoc_container_type_(ivl_expr_t expr)
 static inline int property_is_assoc_indexed_expr_(ivl_expr_t expr)
 {
       return expr && ivl_expr_oper1(expr) != 0
+          && !property_selects_fixed_uarray_slot_(expr)
           && property_assoc_container_type_(expr) != 0;
 }
 
@@ -646,6 +817,9 @@ static inline int property_is_indexed_darray_expr_(ivl_expr_t expr)
       ivl_type_t prop_type;
 
       if (!expr_has_numeric_container_index_(expr))
+            return 0;
+
+      if (property_selects_fixed_uarray_slot_(expr))
             return 0;
 
       base_type = property_receiver_class_type_(expr);

@@ -576,6 +576,15 @@ template <class TYPE> size_t vvp_darray_atom<TYPE>::get_size() const
       return array_.size();
 }
 
+template <class TYPE> void vvp_darray_atom<TYPE>::clear()
+{
+      if (array_.empty()) return;
+      element_refs_remove_tail(0);
+      rand_mode_erase_tail(0);
+      array_.clear();
+      touch();
+}
+
 template <class TYPE> void vvp_darray_atom<TYPE>::set_word(unsigned adr, const vvp_vector4_t&value)
 {
       if (adr >= array_.size())
@@ -684,6 +693,15 @@ size_t vvp_darray_vec4::get_size(void) const
       return array_.size();
 }
 
+void vvp_darray_vec4::clear()
+{
+      if (array_.empty()) return;
+      element_refs_remove_tail(0);
+      rand_mode_erase_tail(0);
+      array_.clear();
+      touch();
+}
+
 void vvp_darray_vec4::set_word(unsigned adr, const vvp_vector4_t&value)
 {
       if (adr >= array_.size()) return;
@@ -776,6 +794,15 @@ vvp_darray_vec2::~vvp_darray_vec2()
 size_t vvp_darray_vec2::get_size(void) const
 {
       return array_.size();
+}
+
+void vvp_darray_vec2::clear()
+{
+      if (array_.empty()) return;
+      element_refs_remove_tail(0);
+      rand_mode_erase_tail(0);
+      array_.clear();
+      touch();
 }
 
 void vvp_darray_vec2::set_word(unsigned adr, const vvp_vector4_t&value)
@@ -874,6 +901,15 @@ size_t vvp_darray_object::get_size() const
       return array_.size();
 }
 
+void vvp_darray_object::clear()
+{
+      if (array_.empty()) return;
+      element_refs_remove_tail(0);
+      rand_mode_erase_tail(0);
+      array_.clear();
+      touch();
+}
+
 void vvp_darray_object::set_word(unsigned adr, const vvp_object_t&value)
 {
       if (adr >= array_.size())
@@ -945,6 +981,15 @@ vvp_darray_real::~vvp_darray_real()
 size_t vvp_darray_real::get_size() const
 {
       return array_.size();
+}
+
+void vvp_darray_real::clear()
+{
+      if (array_.empty()) return;
+      element_refs_remove_tail(0);
+      rand_mode_erase_tail(0);
+      array_.clear();
+      touch();
 }
 
 void vvp_darray_real::set_word(unsigned adr, double value)
@@ -1042,6 +1087,15 @@ vvp_darray_string::~vvp_darray_string()
 size_t vvp_darray_string::get_size() const
 {
       return array_.size();
+}
+
+void vvp_darray_string::clear()
+{
+      if (array_.empty()) return;
+      element_refs_remove_tail(0);
+      rand_mode_erase_tail(0);
+      array_.clear();
+      touch();
 }
 
 void vvp_darray_string::set_word(unsigned adr, const string&value)

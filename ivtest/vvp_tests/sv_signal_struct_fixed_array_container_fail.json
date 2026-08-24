@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_signal_struct_fixed_array_container_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_signal_struct_fixed_array_container_fail"
+}

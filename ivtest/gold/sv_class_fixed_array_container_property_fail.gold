@@ -1,0 +1,3 @@
+./ivltests/sv_class_fixed_array_container_property_fail.v:11: error: method `push_back' requires all 1 fixed-prefix indices for property `values'; the fixed outer array is not a queue or dynamic array.
+./ivltests/sv_class_fixed_array_container_property_fail.v:12: error: Got 1 indices, expecting at least 2 to index the property multi.
+2 error(s) during elaboration.

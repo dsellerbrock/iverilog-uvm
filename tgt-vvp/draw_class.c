@@ -90,12 +90,7 @@ static void mark_struct_cobject_emitted_(ivl_type_t type)
 
 static int is_unpacked_array_property_type(ivl_type_t ptype)
 {
-      ivl_type_t element_type = ivl_type_element(ptype);
-      if (!element_type)
-	    return 0;
-
-      return ivl_type_packed_dimensions(ptype) > 0
-          && ivl_type_packed_width(ptype) == 1;
+      return type_is_fixed_uarray_property_(ptype);
 }
 
 static void emit_struct_cobject_dependencies_(ivl_type_t ptype);

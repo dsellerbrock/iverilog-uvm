@@ -590,10 +590,80 @@ int vvp_expr_is_whole_fixed_array_property(ivl_expr_t expr)
 	  || ivl_expr_oper1(expr))
 	    return 0;
 
-      type = ivl_expr_net_type(expr);
-      return type && ivl_type_element(type)
-	  && ivl_type_packed_dimensions(type) > 0
-	  && ivl_type_packed_width(type) == 1;
+      type = property_expr_type_(expr);
+      if (!type)
+	    type = ivl_expr_net_type(expr);
+      return type_is_fixed_uarray_property_(type);
+}
+
+static uint64_t fixed_uarray_property_size_(ivl_type_t type)
+{
+      uint64_t size = 1;
+      unsigned dim;
+
+      if (!type_is_fixed_uarray_property_(type))
+	    return 0;
+
+      for (dim = 0; dim < ivl_type_packed_dimensions(type); dim += 1) {
+	    int64_t msb = ivl_type_packed_msb(type, dim);
+	    int64_t lsb = ivl_type_packed_lsb(type, dim);
+	    uint64_t count = msb >= lsb
+		  ? (uint64_t)(msb - lsb) + 1
+		  : (uint64_t)(lsb - msb) + 1;
+
+	    if (count == 0 || size > UINT64_MAX / count)
+		  return 0;
+	    size *= count;
+      }
+
+      return size;
+}
+
+static unsigned unsigned_width64_(uint64_t value)
+{
+      unsigned width = 1;
+
+      while (value >>= 1)
+	    width += 1;
+      return width;
+}
+
+void draw_fixed_uarray_slot_index_(ivl_expr_t expr, ivl_type_t type,
+                                    int word, int*x_flag,
+                                    int*in_range_flag)
+{
+      uint64_t count = fixed_uarray_property_size_(type);
+      unsigned wid = ivl_expr_width(expr);
+      unsigned count_wid = unsigned_width64_(count);
+
+      if (wid < count_wid)
+            wid = count_wid;
+      if (wid == 0)
+            wid = 1;
+
+      draw_eval_vec4(expr);
+      resize_vec4_wid(expr, wid);
+      fprintf(vvp_out, "    %%dup/vec4; fixed property slot index\n");
+      fprintf(vvp_out, "    %%ix/vec4%s %d; fixed property slot word\n",
+              ivl_expr_signed(expr) ? "/s" : "", word);
+      *x_flag = allocate_flag();
+      fprintf(vvp_out, "    %%flag_mov %d, 4; fixed property slot X/Z\n",
+              *x_flag);
+      fprintf(vvp_out,
+              "    %%cmpi/u %u, %u, %u; fixed property slot in range\n",
+              (unsigned)count, (unsigned)(count >> 32), wid);
+      *in_range_flag = allocate_flag();
+      fprintf(vvp_out, "    %%flag_mov %d, 5; fixed property slot in range\n",
+              *in_range_flag);
+}
+
+static int fixed_uarray_has_container_leaf_(ivl_type_t type)
+{
+      ivl_type_t leaf = type_is_fixed_uarray_property_(type)
+	    ? ivl_type_element(type) : 0;
+
+      return leaf && (ivl_type_base(leaf) == IVL_VT_QUEUE
+		      || ivl_type_base(leaf) == IVL_VT_DARRAY);
 }
 
 static int eval_object_property(ivl_expr_t expr)
@@ -605,7 +675,10 @@ static int eval_object_property(ivl_expr_t expr)
       unsigned lab_out = local_count++;
 
       int idx = 0;
+      int idx_x_flag = -1;
+      int idx_in_range_flag = -1;
       ivl_expr_t idx_expr = 0;
+	ivl_type_t declared_prop_type = property_expr_type_(expr);
 	/* An index on a queue OR plain-darray property selects an
 	 * element WITHIN the container value (the property itself is
 	 * scalar), not a word of an arrayed property. %load/qo/obj
@@ -620,7 +693,13 @@ static int eval_object_property(ivl_expr_t expr)
       if ( (idx_expr = ivl_expr_oper1(expr)) ) {
 	    if (!queue_indexed && !assoc_indexed) {
 		  idx = allocate_word();
-		  draw_eval_expr_into_integer(idx_expr, idx);
+		  if (property_selects_fixed_uarray_slot_(expr)) {
+			draw_fixed_uarray_slot_index_(idx_expr, declared_prop_type,
+						     idx, &idx_x_flag,
+						     &idx_in_range_flag);
+		  } else {
+			draw_eval_expr_into_integer(idx_expr, idx);
+		  }
 	    }
       }
 
@@ -631,12 +710,21 @@ static int eval_object_property(ivl_expr_t expr)
 	         yields a null object directly. */
 	    fprintf(vvp_out, "    %%null;\n");
 	    if (idx != 0) clr_word(idx);
+	    if (idx_x_flag >= 0) clr_flag(idx_x_flag);
+	    if (idx_in_range_flag >= 0) clr_flag(idx_in_range_flag);
 	    return 0;
       } else {
 	    draw_eval_object(base_expr);
       }
       fprintf(vvp_out, "    %%test_nul/obj;\n");
       fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
+      if (idx_x_flag >= 0) {
+	    fprintf(vvp_out, "    %%jmp/1xz T_%u.%u, %d; invalid fixed property slot\n",
+		    thread_count, lab_null, idx_x_flag);
+	    fprintf(vvp_out,
+		    "    %%jmp/0xz T_%u.%u, %d; fixed property slot out of range\n",
+		    thread_count, lab_null, idx_in_range_flag);
+      }
       if (assoc_indexed) {
             const char*key_kind;
 	    fprintf(vvp_out, "    %%prop/obj %u, 0; eval_assoc_property\n", pidx);
@@ -650,14 +738,25 @@ static int eval_object_property(ivl_expr_t expr)
 		    fprintf(vvp_out, "    %%load/qo/obj;\n");
 		    fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
       } else {
-	    if (vvp_expr_is_whole_fixed_array_property(expr))
-		  fprintf(vvp_out,
-			  "    %%prop/arr/dar %u; eval_fixed_property_array\n",
-			  pidx);
-	    else
+	    if (vvp_expr_is_whole_fixed_array_property(expr)) {
+		  if (fixed_uarray_has_container_leaf_(declared_prop_type)) {
+			fprintf(stderr, "%s:%u: sorry: whole fixed unpacked array "
+				"property %u with queue or dynamic-array elements "
+				"cannot be read as one aggregate object.\n",
+				ivl_expr_file(expr), ivl_expr_lineno(expr), pidx);
+			vvp_errors += 1;
+			fprintf(vvp_out,
+				"    %%null; unsupported whole fixed array of containers\n");
+		  } else {
+			fprintf(vvp_out,
+				"    %%prop/arr/dar %u; eval_fixed_property_array\n",
+				pidx);
+		  }
+	    } else {
 		  fprintf(vvp_out,
 			  "    %%prop/obj %u, %d; eval_object_property\n",
 			  pidx, idx);
+	    }
 	    fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
       }
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
@@ -667,6 +766,8 @@ static int eval_object_property(ivl_expr_t expr)
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
 
       if (idx != 0) clr_word(idx);
+      if (idx_x_flag >= 0) clr_flag(idx_x_flag);
+      if (idx_in_range_flag >= 0) clr_flag(idx_in_range_flag);
       return 0;
 }
 
@@ -840,8 +941,8 @@ static int eval_object_array(ivl_expr_t expr)
       return 0;
 }
 
-/* Handle IVL_EX_SELECT: element access on a darray/queue of objects.
- * Emits the index into word 3, then %load/dar/obj. */
+/* Handle IVL_EX_SELECT for object-valued container elements. Associative
+ * receivers keep their native key stack; positional receivers use word 3. */
 static int eval_object_select(ivl_expr_t expr)
 {
       ivl_expr_t sube  = ivl_expr_oper1(expr);
@@ -856,17 +957,35 @@ static int eval_object_select(ivl_expr_t expr)
 	    index = 0;
       }
 
-      if (expr_is_dynarray_container_(sube) &&
-          ivl_expr_type(sube) != IVL_EX_SIGNAL &&
-          ivl_expr_type(sube) != IVL_EX_ARRAY &&
-          ivl_expr_type(sube) != IVL_EX_PROPERTY) {
-	    draw_eval_object(sube);
-	    if (index)
-		  draw_eval_expr_into_integer(index, 3);
-	    else
-		  fprintf(vvp_out, "    %%ix/load 3, 0, 0;\n");
-	    fprintf(vvp_out, "    %%load/qo/obj;\n");
-	    return 0;
+      if (ivl_expr_type(sube) != IVL_EX_SIGNAL
+	  && ivl_expr_type(sube) != IVL_EX_ARRAY
+	  && ivl_expr_type(sube) != IVL_EX_PROPERTY) {
+	    ivl_type_t sube_type = receiver_container_type_(sube);
+
+	    if (type_is_runtime_container_(sube_type)
+		|| expr_is_dynarray_container_(sube)) {
+		  draw_eval_object(sube);
+		  if (sube_type
+		      && ivl_type_base(sube_type) == IVL_VT_QUEUE
+		      && ivl_type_queue_assoc_compat(sube_type)) {
+			const char*key_kind;
+			if (index)
+			      key_kind = draw_eval_assoc_key_(index, 0);
+			else {
+			      fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+			      key_kind = "v";
+			}
+			fprintf(vvp_out, "    %%aa/load/obj/%s;\n", key_kind);
+			fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+		  } else {
+			if (index)
+			      draw_eval_expr_into_integer(index, 3);
+			else
+			      fprintf(vvp_out, "    %%ix/load 3, 0, 0;\n");
+			fprintf(vvp_out, "    %%load/qo/obj;\n");
+		  }
+		  return 0;
+	    }
       }
 
       /* Select from object property arrays: obj.prop[idx]
@@ -878,6 +997,24 @@ static int eval_object_select(ivl_expr_t expr)
 	    ivl_expr_t prop_idx = ivl_expr_oper1(sube);
 	    lab_null = local_count++;
 	    lab_out = local_count++;
+
+	      /* The PROPERTY's own index is the fixed outer-array slot here;
+	       * INDEX is the trailing associative key.  Loading the PROPERTY
+	       * first cleanly consumes the class receiver and preserves the
+	       * selected map as the receiver for the keyed lookup. */
+	    if (property_selects_fixed_uarray_slot_(sube)
+		&& expr_is_assoc_queue_container_(sube)) {
+		  draw_eval_object(sube);
+		  if (!index) {
+			fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
+			fprintf(vvp_out, "    %%aa/load/obj/v;\n");
+		  } else {
+			const char*key_kind = draw_eval_assoc_key_(index, 0);
+			fprintf(vvp_out, "    %%aa/load/obj/%s;\n", key_kind);
+		  }
+		  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+		  return 0;
+	    }
 
 	    if (expr_is_assoc_queue_container_(sube)) {
 		  if (prop_idx) {
@@ -1489,6 +1626,22 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    }
 
 	    return draw_eval_assoc_default(expr, element_type);
+      }
+
+      /* The frontend lowers a queue `$' object-element read to this
+       * one-argument marker. Evaluate the receiver once, retain an alias for
+       * the eventual element load while %qsize/o consumes its duplicate, then
+       * load element size-1 through the ordinary object-container opcode. */
+      if (strcmp(name, "$ivl_queue$last") == 0) {
+	    assert(parm_count == 1);
+	    draw_eval_object(ivl_expr_parm(expr, 0));
+	    fprintf(vvp_out, "    %%dup/obj/ref; queue-last receiver alias\n");
+	    fprintf(vvp_out, "    %%qsize/o;\n");
+	    fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
+	    fprintf(vvp_out, "    %%sub;\n");
+	    fprintf(vvp_out, "    %%ix/vec4 3;\n");
+	    fprintf(vvp_out, "    %%load/qo/obj;\n");
+	    return 0;
       }
 
       /* Streaming concatenation materialized into a dynamic container
@@ -2579,6 +2732,10 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 	    fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", nparm);
 	    fprintf(vvp_out, "    %%new/darray 3, \"%s\";\n", enc);
       } else {
+	      /* Materialize the complete RHS before a bounded destination
+	       * truncates it. Besides preserving evaluation of excess operands,
+	       * the final whole-queue assignment then emits the established
+	       * source-size warning instead of a per-element push warning. */
 	    fprintf(vvp_out, "    %%new/queue \"%s\";\n", enc);
       }
 
@@ -2638,21 +2795,21 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 	    switch (etype ? ivl_type_base(etype) : IVL_VT_LOGIC) {
 		case IVL_VT_REAL:
 		  draw_eval_real(parm);
-		  fprintf(vvp_out, "    %%store/qo/%c/r;\n",
-			  is_darray ? 'i' : 'b');
+		  emit_object_queue_store_(is_darray ? 'i' : 'b', "r",
+		                           0, 0);
 		  break;
 		case IVL_VT_STRING:
 		  draw_eval_string(parm);
-		  fprintf(vvp_out, "    %%store/qo/%c/str;\n",
-			  is_darray ? 'i' : 'b');
+		  emit_object_queue_store_(is_darray ? 'i' : 'b', "str",
+		                           0, 0);
 		  break;
 		case IVL_VT_CLASS:
 		case IVL_VT_DARRAY:
 		case IVL_VT_QUEUE:
 		case IVL_VT_NO_TYPE:
-		  errors += draw_eval_object_value_copy(parm, etype);
-		  fprintf(vvp_out, "    %%store/qo/%c/obj;\n",
-			  is_darray ? 'i' : 'b');
+		  errors += draw_eval_object(parm);
+		  emit_object_queue_store_(is_darray ? 'i' : 'b', "obj",
+		                           0, 0);
 		  break;
 		default: {
 		  unsigned wid = etype ? ivl_type_packed_width(etype) : 0;
@@ -2664,8 +2821,8 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 				(etype && ivl_type_signed(etype)
 				 && ivl_expr_signed(parm)) ? 's' : 'u',
 				wid);
-		  fprintf(vvp_out, "    %%store/qo/%c/v %u;\n",
-			  is_darray ? 'i' : 'b', wid);
+		  emit_object_queue_store_(is_darray ? 'i' : 'b', "v",
+		                           0, wid);
 		  break;
 		}
 	    }
@@ -2855,6 +3012,18 @@ int draw_eval_object_value_copy(ivl_expr_t ex, ivl_type_t element_type)
       int is_value_struct = element_type
 			    && ivl_type_base(element_type) == IVL_VT_NO_TYPE
 			    && ivl_type_properties(element_type) > 0;
+      int is_value_container = element_type
+			     && (ivl_type_base(element_type) == IVL_VT_DARRAY
+				 || ivl_type_base(element_type) == IVL_VT_QUEUE);
+
+      /* The synthetic queue-last expression returns a live element alias,
+       * just like an ordinary IVL_EX_SELECT. Copy an unpacked-struct value
+       * selected through q[$], while leaving class-handle elements shared. */
+      if (rvt == IVL_EX_SFUNC) {
+	    const char*name = ivl_expr_name(ex);
+	    if (name && strcmp(name, "$ivl_queue$last") == 0)
+		  rval_aliases = 1;
+      }
 
         /* An unpacked-array value can reach the target as an array pattern
          * whose own net type describes the fixed source rather than the
@@ -2866,6 +3035,13 @@ int draw_eval_object_value_copy(ivl_expr_t ex, ivl_type_t element_type)
 	  && (ivl_type_base(element_type) == IVL_VT_DARRAY
 	      || ivl_type_base(element_type) == IVL_VT_QUEUE))
 	    return eval_object_container_pattern_(ex, element_type);
+
+      if (is_value_container && rval_aliases) {
+	    int errors = draw_eval_object(ex);
+	    fprintf(vvp_out, "    %%dup/obj; container value copy\n");
+	    fprintf(vvp_out, "    %%pop/obj 1, 1; discard source container alias\n");
+	    return errors;
+      }
 
       if (is_value_struct && rval_aliases) {
 	    ensure_class_type_emitted(element_type);

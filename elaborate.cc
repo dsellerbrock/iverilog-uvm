@@ -1207,6 +1207,20 @@ static bool assoc_compat_selected_collection_method_allowed_(ivl_type_t type,
 		  || method_name == perm_string::literal("pop_back");
 }
 
+/* These methods require a resizable container receiver. A fixed unpacked
+ * array whose elements happen to be queues/maps is still the fixed OUTER
+ * array until every fixed-prefix index has been supplied. */
+static bool resizable_container_method_requires_leaf_receiver_(
+							perm_string method_name)
+{
+      return method_name == perm_string::literal("delete")
+	  || method_name == perm_string::literal("push_back")
+	  || method_name == perm_string::literal("push_front")
+	  || method_name == perm_string::literal("insert")
+	  || method_name == perm_string::literal("pop_front")
+	  || method_name == perm_string::literal("pop_back");
+}
+
 static bool assoc_compat_supports_indexed_method_target_(ivl_type_t type,
 							 perm_string method_name)
 {
@@ -1427,6 +1441,23 @@ static NetExpr* elaborate_nested_method_target_property_task_(const LineInfo*li,
       ivl_type_t prop_type = class_type->get_prop_type(pidx);
 
       if (comp.index.empty()) {
+	    if (const netuarray_t*fixed_type =
+		  dynamic_cast<const netuarray_t*>(prop_type)) {
+		  if (dynamic_cast<const netdarray_t*>(fixed_type->element_type())
+		      && resizable_container_method_requires_leaf_receiver_(
+			    method_name)) {
+			cerr << li->get_fileline() << ": error: method `"
+			     << method_name << "' requires all "
+			     << fixed_type->static_dimensions().size()
+			     << " fixed-prefix indices for property `"
+			     << class_type->get_prop_name(pidx)
+			     << "'; the fixed outer array is not a queue or "
+			     << "dynamic array." << endl;
+			des->errors += 1;
+			delete base_expr;
+			return nullptr;
+		  }
+	    }
 	    NetEProperty*prop_expr = new NetEProperty(base_expr, pidx, nullptr);
 	    prop_expr->set_line(*li);
 	    out_type = prop_type;
@@ -1439,25 +1470,110 @@ static NetExpr* elaborate_nested_method_target_property_task_(const LineInfo*li,
 
       if (const netuarray_t*tmp_ua = dynamic_cast<const netuarray_t*>(prop_type)) {
 	    const auto&dims = tmp_ua->static_dimensions();
-	    if (dims.size() != comp.index.size()) {
+	    if (comp.index.size() < dims.size()) {
 		  cerr << li->get_fileline() << ": error: "
-		       << "Got " << comp.index.size() << " indices, expecting "
+		       << "Got " << comp.index.size() << " indices, expecting at least "
 		       << dims.size() << " to index the property "
 		       << class_type->get_prop_name(pidx) << "." << endl;
 		  des->errors += 1;
 		  delete base_expr;
 		  return nullptr;
 	    }
-	    NetExpr*canon_index = make_canonical_index(des, scope, li,
-						       comp.index, tmp_ua, false);
+
+	    list<index_component_t>::const_iterator split =
+		  std::next(comp.index.begin(), dims.size());
+	    list<index_component_t>fixed_indices(comp.index.begin(), split);
+	    list<index_component_t>trailing_indices(split, comp.index.end());
+	    NetExpr*canon_index = make_checked_canonical_property_index(
+		  des, scope, li, fixed_indices, tmp_ua, false);
 	    if (!canon_index) {
 		  delete base_expr;
 		  return nullptr;
 	    }
 	    NetEProperty*indexed_expr = new NetEProperty(base_expr, pidx, canon_index);
 	    indexed_expr->set_line(*li);
-	    out_type = tmp_ua->element_type();
-	    return indexed_expr;
+	    NetExpr*cur_expr = indexed_expr;
+	    ivl_type_t cur_type = tmp_ua->element_type();
+
+	    for (const index_component_t&idx_comp : trailing_indices) {
+		  const netqueue_t*queue_type =
+			dynamic_cast<const netqueue_t*>(cur_type);
+		  const netarray_t*array_type =
+			dynamic_cast<const netarray_t*>(cur_type);
+		  if (!array_type) {
+			cerr << li->get_fileline() << ": sorry: trailing index on "
+			     << "a non-container fixed-array property method target "
+			     << "is not supported." << endl;
+			des->errors += 1;
+			delete cur_expr;
+			return nullptr;
+		  }
+		    /* METHOD_NAME belongs to the receiver produced after every
+		     * trailing index is consumed. Do not apply the associative-array
+		     * selected-element compatibility filter to an intermediate map:
+		     * its element may be another container that leads to the actual
+		     * class/container receiver. Final dispatch below validates the
+		     * method against CUR_TYPE after this walk. */
+		  if (idx_comp.sel == index_component_t::SEL_BIT_LAST) {
+			if (!queue_type || queue_type->assoc_compat()) {
+			      cerr << li->get_fileline() << ": error: `$' is only "
+				   << "valid for a positional queue index here." << endl;
+			      des->errors += 1;
+			      delete cur_expr;
+			      return nullptr;
+			}
+
+			ivl_type_t elem_type = array_type->element_type();
+			if (!elem_type) {
+			      delete cur_expr;
+			      return nullptr;
+			}
+			NetESFunc*last_expr = new NetESFunc(
+			      "$ivl_queue$last", elem_type, 1);
+			last_expr->set_line(*li);
+			last_expr->parm(0, cur_expr);
+			cur_expr = last_expr;
+			cur_type = elem_type;
+			continue;
+		  }
+
+		  NetExpr*idx_expr = nullptr;
+		  if (idx_comp.sel == index_component_t::SEL_BIT
+			     && idx_comp.msb && !idx_comp.lsb) {
+			idx_expr = elab_assoc_index(des, scope, idx_comp.msb,
+						    cur_type, false);
+		  } else {
+			cerr << li->get_fileline() << ": sorry: queue slices and "
+			     << "non-simple trailing selects are not supported as "
+			     << "task-style method targets." << endl;
+			des->errors += 1;
+			delete cur_expr;
+			return nullptr;
+		  }
+
+		  if (!idx_expr) {
+			delete cur_expr;
+			return nullptr;
+		  }
+
+		  ivl_type_t elem_type = array_type->element_type();
+		  unsigned elem_width = elem_type ? elem_type->packed_width() : 1;
+		  if (const netdarray_t*darray_type =
+			dynamic_cast<const netdarray_t*>(cur_type))
+			elem_width = darray_type->element_width();
+		  if (elem_width == 0)
+			elem_width = 1;
+
+		  NetESelect*next_expr = elem_type
+			? new NetESelect(cur_expr, idx_expr, elem_width, elem_type)
+			: new NetESelect(cur_expr, idx_expr, elem_width);
+		  next_expr->set_line(*li);
+		  cur_expr = next_expr;
+		  cur_type = elem_type;
+	    }
+
+	    out_type = cur_type;
+	    return cur_expr;
       }
 
       NetEProperty*prop_expr = new NetEProperty(base_expr, pidx, nullptr);
@@ -7382,30 +7498,36 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 		  vector<NetExpr*> keys;
 		  ivl_type_t val_type = 0;
 
-		  if (shape_ok) {
-			size_t nkeys = tail.index.size();
-			size_t kn = 0;
-			for (auto ii = tail.index.begin()
-				   ; ii != tail.index.end() ; ++ii, ++kn) {
+			  if (shape_ok) {
+				size_t nkeys = tail.index.size();
+				size_t kn = 0;
+				for (auto ii = tail.index.begin()
+					   ; ii != tail.index.end() ; ++ii, ++kn) {
 			      if (ii->sel != index_component_t::SEL_BIT
 				  || !ii->msb || ii->lsb) {
 				    shape_ok = false;
 				    break;
 			      }
-				/* Every key but the last must land on a
-				   further container level. */
-			      if (kn + 1 < nkeys) {
-				    const netdarray_t*next =
-					  dynamic_cast<const netdarray_t*>
-						(level->element_type());
-				    if (!next) { shape_ok = false; break; }
-				    level = next;
-			      }
-			      NetExpr*k = elab_and_eval(des, scope,
-							ii->msb, -1, false);
-			      if (!k) { shape_ok = false; break; }
-			      keys.push_back(k);
-			}
+				      /* Elaborate this key in the assignment context of
+				       * its own receiver before descending. Packed
+				       * associative index types impose width, signedness,
+				       * and 2-/4-state conversion; without that cast a
+				       * store can use a different runtime key than the
+				       * corresponding ordinary read. */
+				      NetExpr*k = elab_assoc_index(des, scope, ii->msb,
+							level, false);
+				      if (!k) { shape_ok = false; break; }
+				      keys.push_back(k);
+				      /* Every key but the last must land on a
+					 further container level. */
+				      if (kn + 1 < nkeys) {
+					    const netdarray_t*next =
+						  dynamic_cast<const netdarray_t*>
+							(level->element_type());
+					    if (!next) { shape_ok = false; break; }
+					    level = next;
+				      }
+				}
 			if (shape_ok)
 			      val_type = level->element_type();
 		  }
@@ -12093,10 +12215,16 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  const data_type_t*prop_declared_type =
 			task_method_property_declared_type_(
 			      class_type, comp.name);
+		  unsigned property_errors_before = des->errors;
 		  obj_expr = elaborate_nested_method_target_property_task_(this, des, scope,
 									   obj_expr, class_type,
 									   comp, method_name,
 									   obj_type);
+		  if (!obj_expr && des->errors != property_errors_before) {
+			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+			noop->set_line(*this);
+			return noop;
+		  }
 		  if (!obj_expr)
 			return 0;
 		  obj_type = specialize_bare_class_receiver_on_use(
@@ -26988,6 +27116,145 @@ struct root_elem {
       NetScope *scope;
 };
 
+/* Return true when TYPE contains a queue/associative-array leaf below a fixed
+ * unpacked dimension. Signal-backed unpacked structs retain member types as a
+ * nested netstruct_t, so checking only the NetNet's top-level shape would let
+ * `struct { int q[N][$]; }' escape the storage boundary. Do not descend through
+ * class handles: their non-static instance properties have their own storage. */
+static bool type_has_fixed_queue_leaf_(ivl_type_t type, bool below_fixed)
+{
+      if (!type)
+	    return false;
+
+      if (dynamic_cast<const netqueue_t*>(type))
+	    return below_fixed;
+
+      if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type))
+	    return type_has_fixed_queue_leaf_(array->element_type(), true);
+
+      if (const netstruct_t*struct_type =
+	    dynamic_cast<const netstruct_t*>(type)) {
+	    for (const netstruct_t::member_t&member : struct_type->members()) {
+		    /* An unpacked struct is object-backed storage: a plain queue
+		     * member remains independent in every struct value even when the
+		     * struct itself is in a fixed signal array. Only fixed dimensions
+		     * introduced inside the member type cross the unsupported boundary. */
+		  if (type_has_fixed_queue_leaf_(member.net_type, false))
+			return true;
+	    }
+      }
+
+      return false;
+}
+
+/* The direct instance-property form `class C; T q[N][$]; endclass' has a
+ * dedicated class-storage lowering. The equivalent fixed/container shape
+ * nested below an unpacked struct does not yet reach that lowering: existing
+ * struct member walkers can otherwise drop the fixed prefix of `c.s.q[i]'.
+ * Identify that narrower unsupported shape so accepting the type never turns
+ * a legal mutator into a silent no-op. Container wrappers outside the struct
+ * do not change this boundary; class handles do, and are intentionally not
+ * traversed. */
+static bool type_has_struct_nested_fixed_queue_leaf_(ivl_type_t type)
+{
+      if (!type || dynamic_cast<const netclass_t*>(type))
+	    return false;
+
+      if (const netstruct_t*struct_type =
+	    dynamic_cast<const netstruct_t*>(type))
+	    return type_has_fixed_queue_leaf_(struct_type, false);
+
+      if (const netarray_t*array_type =
+	    dynamic_cast<const netarray_t*>(type))
+	    return type_has_struct_nested_fixed_queue_leaf_(
+		  array_type->element_type());
+
+      return false;
+}
+
+/* A fixed unpacked array with a queue/associative-array leaf is currently
+ * representable only by non-static instance-class property storage. PWire and
+ * static class properties flatten the fixed dimensions onto a NetNet and
+ * leave the queue leaf in net_type(); the VVP signal-array backend cannot
+ * construct an independent queue/map object in every word yet. Diagnose that
+ * boundary after signal elaboration, when the same source type's property-vs-
+ * signal storage is unambiguous. */
+static unsigned diagnose_signal_backed_fixed_queue_arrays_(
+      Design*des, NetScope*scope, set<const NetScope*>&seen)
+{
+      if (!des || !scope || !seen.insert(scope).second)
+	    return 0;
+
+      unsigned count = 0;
+
+	/* Instance class properties are not present in signals_map(). Check the
+	 * one newly-admitted shape that class storage does not lower yet: a fixed
+	 * queue/map array nested inside an unpacked-struct property. Iterate only
+	 * declarations local to this class so inherited properties are diagnosed
+	 * once at their declaring location. */
+      if (scope->type() == NetScope::CLASS) {
+	    const PClass*pclass = scope->class_pform();
+	    const netclass_t*class_type = scope->class_def();
+	    if (pclass && pclass->type && class_type) {
+		  for (const auto&decl : pclass->type->properties) {
+			if (decl.second.qual.test_static())
+			      continue;
+			int pidx = class_type->property_idx_from_name(decl.first);
+			if (pidx < 0)
+			      continue;
+			ivl_type_t prop_type = class_type->get_prop_type(
+			      static_cast<size_t>(pidx));
+			if (!type_has_struct_nested_fixed_queue_leaf_(prop_type))
+			      continue;
+
+			cerr << decl.second.get_fileline() << ": sorry: a fixed array "
+			     << "of queues or associative arrays nested inside an "
+			     << "unpacked-struct class property is not yet supported; "
+			     << "the supported instance-class form is a direct fixed "
+			     << "array property." << endl;
+			des->errors += 1;
+			count += 1;
+		  }
+	    }
+      }
+
+      for (const auto&entry : scope->signals_map()) {
+	    NetNet*sig = entry.second;
+	    if (!sig)
+		  continue;
+
+	    const bool has_fixed_queue_leaf = type_has_fixed_queue_leaf_(
+		  sig->net_type(), sig->unpacked_dimensions() != 0);
+	    if (!has_fixed_queue_leaf)
+		  continue;
+
+	    string location = sig->get_fileline();
+	    if (scope->type() == NetScope::CLASS) {
+		  const PClass*pclass = scope->class_pform();
+		  if (pclass && pclass->type) {
+			map<perm_string,class_type_t::prop_info_t>::const_iterator prop =
+			      pclass->type->properties.find(sig->name());
+			if (prop != pclass->type->properties.end()
+			    && prop->second.qual.test_static())
+			      location = prop->second.get_fileline();
+		  }
+	    }
+
+	    cerr << location << ": sorry: array of queue type is not yet "
+		 << "supported for signal-backed declarations; this form is "
+		 << "currently supported only as a non-static instance-class "
+		 << "property." << endl;
+	    des->errors += 1;
+	    count += 1;
+      }
+
+      for (const auto&child : scope->children())
+	    count += diagnose_signal_backed_fixed_queue_arrays_(
+		  des, child.second, seen);
+
+      return count;
+}
+
 static NetNet* make_root_interface_member_(NetScope*root, NetNet*port,
                                            unsigned word,
                                            size_t property_idx,
@@ -27329,7 +27596,24 @@ Design* elaborate(list<perm_string>roots)
                                 << rmod->get_port_name(idx) << endl;
                      }
 		  scope->add_module_port_info(idx, rmod->get_port_name(idx), ptype, prt_vector_width );
-	    }
+		    }
+	      }
+
+	/* Fixed-array queue/map storage is implemented by instance-class
+	 * properties only. Stop before statement elaboration so an unsupported
+	 * signal-backed declaration gets one focused diagnostic instead of a
+	 * cascade from code generation paths that cannot construct its words. */
+      {
+	    set<const NetScope*>seen;
+	    unsigned unsupported = 0;
+	    for (NetScope*pkg : des->find_package_scopes())
+		  unsupported += diagnose_signal_backed_fixed_queue_arrays_(
+			des, pkg, seen);
+	    for (NetScope*root : des->find_root_scopes())
+		  unsupported += diagnose_signal_backed_fixed_queue_arrays_(
+			des, root, seen);
+	    if (unsupported != 0)
+		  return des;
       }
 
 	// I2 (Phase 62m): now that elaborate_sig has been called for
@@ -27381,6 +27665,23 @@ Design* elaborate(list<perm_string>roots)
       report_elaboration_perf_phase_("specialized-bodies-begin");
       finalize_pending_specialized_class_elaboration(des);
       report_elaboration_perf_phase_("specialized-bodies-end");
+
+	/* The repair and body-elaboration passes above can materialize lazy
+	 * parameterized-class specializations after the first signal-backed
+	 * fixed-container scan. Recheck from a fresh scope set at the fixed point
+	 * so late static properties cannot escape into unsupported target storage. */
+      {
+	    set<const NetScope*>seen;
+	    unsigned unsupported = 0;
+	    for (NetScope*pkg : des->find_package_scopes())
+		  unsupported += diagnose_signal_backed_fixed_queue_arrays_(
+			des, pkg, seen);
+	    for (NetScope*root : des->find_root_scopes())
+		  unsupported += diagnose_signal_backed_fixed_queue_arrays_(
+			des, root, seen);
+	    if (unsupported != 0)
+		  return des;
+      }
 
       extern bool synthesis; /* Synthesis flag from main.cc. */
       if (synthesis)

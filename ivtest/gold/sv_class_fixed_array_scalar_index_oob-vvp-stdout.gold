@@ -1,0 +1,25 @@
+WARNING: ivltests/sv_class_fixed_array_scalar_index_oob.v:172: fixed unpacked-array property index is undefined or out of range; write was ignored
+         Time: 0  Scope: sv_class_fixed_array_scalar_index_oob.$unm_blk_2
+WARNING: ivltests/sv_class_fixed_array_scalar_index_oob.v:178: fixed unpacked-array property index is undefined or out of range; write was ignored
+         Time: 0  Scope: sv_class_fixed_array_scalar_index_oob.$unm_blk_2
+WARNING: ivltests/sv_class_fixed_array_scalar_index_oob.v:184: fixed unpacked-array property index is undefined or out of range; write was ignored
+         Time: 0  Scope: sv_class_fixed_array_scalar_index_oob.$unm_blk_2
+WARNING: ivltests/sv_class_fixed_array_scalar_index_oob.v:190: fixed unpacked-array property index is undefined or out of range; write was ignored
+         Time: 0  Scope: sv_class_fixed_array_scalar_index_oob.$unm_blk_2
+WARNING: ivltests/sv_class_fixed_array_scalar_index_oob.v:196: fixed unpacked-array property index is undefined or out of range; write was ignored
+         Time: 0  Scope: sv_class_fixed_array_scalar_index_oob.$unm_blk_2
+WARNING: ivltests/sv_class_fixed_array_scalar_index_oob.v:202: fixed unpacked-array property index is undefined or out of range; write was ignored
+         Time: 0  Scope: sv_class_fixed_array_scalar_index_oob.$unm_blk_2
+WARNING: ivltests/sv_class_fixed_array_scalar_index_oob.v:211: fixed unpacked-array property index is undefined or out of range; write was ignored
+         Time: 0  Scope: sv_class_fixed_array_scalar_index_oob.$unm_blk_2
+WARNING: ivltests/sv_class_fixed_array_scalar_index_oob.v:224: fixed unpacked-array property index is undefined or out of range; write was ignored
+         Time: 0  Scope: sv_class_fixed_array_scalar_index_oob.$unm_blk_2
+WARNING: ivltests/sv_class_fixed_array_scalar_index_oob.v:237: fixed unpacked-array property index is undefined or out of range; write was ignored
+         Time: 0  Scope: sv_class_fixed_array_scalar_index_oob.$unm_blk_2
+WARNING: ivltests/sv_class_fixed_array_scalar_index_oob.v:252: fixed unpacked-array property index is undefined or out of range; write was ignored
+         Time: 0  Scope: sv_class_fixed_array_scalar_index_oob.$unm_blk_2
+WARNING: ivltests/sv_class_fixed_array_scalar_index_oob.v:259: fixed unpacked-array property index is undefined or out of range; write was ignored
+         Time: 0  Scope: sv_class_fixed_array_scalar_index_oob.$unm_blk_2
+WARNING: ivltests/sv_class_fixed_array_scalar_index_oob.v:260: fixed unpacked-array property index is undefined or out of range; write was ignored
+         Time: 0  Scope: sv_class_fixed_array_scalar_index_oob.$unm_blk_2
+PASSED

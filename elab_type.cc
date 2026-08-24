@@ -1929,8 +1929,14 @@ static ivl_type_t elaborate_assoc_array_type(Design *des, NetScope *scope,
 				  index_type, assoc_idx->wildcard_index());
 }
 
-// If dims is not empty create a unpacked array type and clear dims, otherwise
+// If dims is not empty create an unpacked array type and clear dims, otherwise
 // return the base type. Also check that we actually support the base type.
+//
+// Keep a queue/associative-array leaf here. Non-static instance-class
+// properties store fixed unpacked arrays in class-property storage, which can
+// represent one independent queue/map object per fixed slot. Signal-backed
+// declarations use a different storage path; elaborate.cc diagnoses those
+// after PWire/static-property materialization, when that distinction is known.
 static ivl_type_t elaborate_static_array_type(Design *des, const LineInfo &li,
 					      ivl_type_t base_type,
 					      netranges_t &dims)
@@ -1938,14 +1944,8 @@ static ivl_type_t elaborate_static_array_type(Design *des, const LineInfo &li,
       if (dims.empty())
 	    return base_type;
 
-      if (dynamic_cast<const netqueue_t*>(base_type)) {
-	    cerr << li.get_fileline() << ": sorry: "
-		 << "array of queue type is not yet supported."
-		 << endl;
-	    des->errors++;
-	    // Recover
-	    base_type = new netvector_t(IVL_VT_LOGIC);
-      } else if (dynamic_cast<const netdarray_t*>(base_type)) {
+      if (dynamic_cast<const netdarray_t*>(base_type)
+	  && !dynamic_cast<const netqueue_t*>(base_type)) {
 	    cerr << li.get_fileline() << ": sorry: "
 		 << "array of dynamic array type is not yet supported."
 		 << endl;

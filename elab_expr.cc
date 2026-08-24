@@ -2030,6 +2030,50 @@ static NetExpr* make_last_array_index_expr_(const LineInfo&loc,
       return nullptr;
 }
 
+static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
+					     const LineInfo*li,
+					     NetExpr*prop_expr,
+					     const netvector_t*pvec,
+					     const std::list<index_component_t>&indices,
+					     ivl_type_t&out_type);
+
+/* Keep the fixed-property path separate from generic unpacked-array indexing:
+ * every declared dimension must be checked before the index is flattened. */
+static NetExpr* make_canonical_property_index_(
+      Design*des, NetScope*scope, const LineInfo*loc,
+      const std::list<index_component_t>&indices,
+      const netsarray_t*array_type, bool need_const)
+{
+      return make_checked_canonical_property_index(des, scope, loc, indices,
+						     array_type, need_const);
+}
+
+/* Select the last queue element while consuming the receiver expression only
+ * once. The target keeps an aliasing receiver reference while it computes
+ * size()-1, then loads the element from that same object. Building an ordinary
+ * NetESelect(receiver, receiver.size()-1) would duplicate side effects in a
+ * function-call or nested-property receiver. This consumes queue_expr. */
+static NetExpr* make_last_queue_element_expr_(const LineInfo&loc,
+					       NetExpr*queue_expr,
+					       const netqueue_t*queue_type)
+{
+      if (!queue_expr || !queue_type || queue_type->assoc_compat()) {
+	    delete queue_expr;
+	    return nullptr;
+      }
+
+      ivl_type_t elem_type = queue_type->element_type();
+      if (!elem_type) {
+	    delete queue_expr;
+	    return nullptr;
+      }
+
+      NetESFunc*last_expr = new NetESFunc("$ivl_queue$last", elem_type, 1);
+      last_expr->set_line(loc);
+      last_expr->parm(0, queue_expr);
+      return last_expr;
+}
+
 /* Build the queue-valued expression for q[lo:hi], q[lo:$], or
  * q[lo:$-offset]
  * (IEEE 1800-2017 7.10.1). This consumes container_expr on every path.
@@ -2083,6 +2127,139 @@ static NetExpr* make_queue_slice_expr_(const LineInfo&loc,
       if (parm_count == 3)
 	    fn->parm(2, hi);
       return fn;
+}
+
+/* Apply indices to a queue/associative-array property value. For a fixed
+ * unpacked property, the fixed prefix has already been put in NetEProperty's
+ * canonical word index; for an ordinary container property, base_expr is the
+ * whole-property read. Keeping container indices as separate nodes preserves
+ * associative key types and allows residual packed selects to use their exact
+ * vector type. This consumes base_expr. */
+static NetExpr* apply_trailing_container_indices_(
+      const LineInfo&loc, Design*des, NetScope*scope,
+      NetExpr*base_expr, ivl_type_t base_type,
+      const list<index_component_t>&indices, ivl_type_t&out_type)
+{
+      NetExpr*cur_expr = base_expr;
+      ivl_type_t cur_type = base_type;
+
+      for (list<index_component_t>::const_iterator idx_it = indices.begin()
+	       ; idx_it != indices.end() ; ++idx_it) {
+	    const index_component_t&idx_comp = *idx_it;
+
+	      /* Once a container element is packed, every remaining component is
+	       * a packed bit/part/indexed select on that value, not another
+	       * container word. Keep the exact selected vector type and consume all
+	       * residual components through the established packed-property
+	       * canonicalizer. */
+	    if (const netvector_t*vector_type =
+		  dynamic_cast<const netvector_t*>(cur_type)) {
+		  list<index_component_t>packed_indices(idx_it, indices.end());
+		  ivl_type_t selected_type = nullptr;
+		  NetExpr*selected = make_vector_property_select_(
+			 des, scope, &loc, cur_expr, vector_type,
+			 packed_indices, selected_type);
+		  if (!selected) {
+			cerr << loc.get_fileline() << ": sorry: this packed select "
+			     << "after a queue or associative-array element is not "
+			     << "yet supported." << endl;
+			des->errors += 1;
+			delete cur_expr;
+			return nullptr;
+		  }
+		  out_type = selected_type;
+		  return selected;
+	    }
+
+	    const netqueue_t*queue_type =
+		  dynamic_cast<const netqueue_t*>(cur_type);
+
+	    if (idx_comp.sel == index_component_t::SEL_PART
+		|| idx_comp.sel == index_component_t::SEL_PART_LAST) {
+		  list<index_component_t>::const_iterator next = idx_it;
+		  ++next;
+		  if (!queue_type || queue_type->assoc_compat() || next != indices.end()) {
+			cerr << loc.get_fileline() << ": sorry: this container "
+			     << "slice/index chain on a class property is not yet "
+			     << "supported." << endl;
+			des->errors += 1;
+			delete cur_expr;
+			return nullptr;
+		  }
+
+		  cur_expr = make_queue_slice_expr_(loc, des, scope, cur_expr,
+						 cur_type, idx_comp);
+		  if (!cur_expr)
+			return nullptr;
+		  out_type = cur_type;
+		  return cur_expr;
+	    }
+
+	    const netarray_t*array_type =
+		  dynamic_cast<const netarray_t*>(cur_type);
+	    if (!array_type) {
+		  cerr << loc.get_fileline() << ": sorry: this index does not "
+		       << "select a queue or associative-array class-property "
+		       << "value." << endl;
+		  des->errors += 1;
+		  delete cur_expr;
+		  return nullptr;
+	    }
+
+	    if (idx_comp.sel == index_component_t::SEL_BIT_LAST) {
+		  if (!queue_type || queue_type->assoc_compat()) {
+			cerr << loc.get_fileline() << ": error: `$' is only valid "
+			     << "for a positional queue index here." << endl;
+			des->errors += 1;
+			delete cur_expr;
+			return nullptr;
+		  }
+
+		  cur_expr = make_last_queue_element_expr_(loc, cur_expr,
+						       queue_type);
+		  if (!cur_expr)
+			return nullptr;
+		  cur_type = array_type->element_type();
+		  continue;
+	    }
+
+	    NetExpr*index_expr = nullptr;
+	    if (idx_comp.sel == index_component_t::SEL_BIT
+		       && idx_comp.msb && !idx_comp.lsb) {
+		  index_expr = elab_assoc_index(des, scope, idx_comp.msb,
+					cur_type, false);
+	    } else {
+		  cerr << loc.get_fileline() << ": sorry: this select form on "
+		       << "a queue or associative-array class-property value is "
+		       << "not yet supported." << endl;
+		  des->errors += 1;
+		  delete cur_expr;
+		  return nullptr;
+	    }
+
+	    if (!index_expr) {
+		  delete cur_expr;
+		  return nullptr;
+	    }
+
+	    ivl_type_t elem_type = array_type->element_type();
+	    unsigned elem_width = elem_type ? elem_type->packed_width() : 1;
+	    if (const netdarray_t*darray_type =
+		  dynamic_cast<const netdarray_t*>(cur_type))
+		  elem_width = darray_type->element_width();
+	    if (elem_width == 0)
+		  elem_width = 1;
+
+	    NetESelect*next_expr = elem_type
+		  ? new NetESelect(cur_expr, index_expr, elem_width, elem_type)
+		  : new NetESelect(cur_expr, index_expr, elem_width);
+	    next_expr->set_line(loc);
+	    cur_expr = next_expr;
+	    cur_type = elem_type;
+      }
+
+      out_type = cur_type;
+      return cur_expr;
 }
 
 static NetExpr* elaborate_static_array_property_(const LineInfo&loc, Design*des,
@@ -7100,9 +7277,46 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 	    if (!comp.index.empty()) {
 		  if (const netuarray_t*tmp_ua = dynamic_cast<const netuarray_t*>(prop_type)) {
 			const auto&dims = tmp_ua->static_dimensions();
-			if (dims.size() != comp.index.size())
+			if (comp.index.size() < dims.size())
 			      return 0;
 			target_type = tmp_ua->element_type();
+
+			/* The leading fixed indices select one property slot. Any
+			 * remaining indices select through the queue/associative-array
+			 * value stored in that slot. Mirror the expression elaborator's
+			 * type walk so method result sizing sees the actual receiver
+			 * (`p[outer].size()', `p[outer][key].sample()', etc.). */
+			auto idx_it = std::next(comp.index.begin(), dims.size());
+			for (; idx_it != comp.index.end(); ++idx_it) {
+			      const index_component_t&idx_comp = *idx_it;
+			      const netqueue_t*queue_type =
+				    dynamic_cast<const netqueue_t*>(target_type);
+			      const netarray_t*array_type =
+				    dynamic_cast<const netarray_t*>(target_type);
+			      if (!array_type)
+				    return 0;
+
+			      if (idx_comp.sel == index_component_t::SEL_PART
+				  || idx_comp.sel == index_component_t::SEL_PART_LAST) {
+				    auto next = idx_it;
+				    ++next;
+				    if (!queue_type || queue_type->assoc_compat()
+					|| next != comp.index.end())
+					  return 0;
+				    /* A queue slice remains queue-valued. */
+				    break;
+			      }
+
+			      if (idx_comp.sel == index_component_t::SEL_BIT_LAST) {
+				    if (!queue_type || queue_type->assoc_compat())
+					  return 0;
+			      } else if (idx_comp.sel != index_component_t::SEL_BIT
+					 || !idx_comp.msb || idx_comp.lsb) {
+				    return 0;
+			      }
+
+			      target_type = array_type->element_type();
+			}
 		  } else if (const netarray_t*tmp_arr = dynamic_cast<const netarray_t*>(prop_type)) {
 			if (comp.index.size() != 1)
 			      return 0;
@@ -9624,13 +9838,6 @@ bool calculate_part(const LineInfo*li, Design*des, NetScope*scope,
  * struct is packed, then return a NetExpr that selects the member out
  * of the variable.
  */
-static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
-					     const LineInfo*li,
-					     NetExpr*prop_expr,
-					     const netvector_t*pvec,
-					     const std::list<index_component_t>&indices,
-					     ivl_type_t&out_type);
-
 /*
  * A positional index into a darray/queue-typed struct member
  * (s.da[i] with da a dynamic array or queue) selects an ELEMENT. The
@@ -9799,10 +10006,8 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 			      elaborate_nested_method_target_property(li, des, scope,
 								      base_expr, cur_class,
 								      member_comp, next_type);
-			if (!next_expr) {
-			      delete base_expr;
-			      return 0;
-			}
+		if (!next_expr)
+		      return 0;
 			base_expr = next_expr;
 			cur_type = next_type;
 			continue;
@@ -9867,9 +10072,9 @@ static NetExpr* check_for_struct_members(const LineInfo*li,
 				    delete base_expr;
 				    return 0;
 			      }
-			      NetExpr*widx = make_canonical_index(des, scope, li,
-								  member_comp.index,
-								  member_ua, false);
+		      NetExpr*widx = make_canonical_property_index_(
+			    des, scope, li, member_comp.index,
+			    member_ua, false);
 			      if (!widx) {
 				    delete base_expr;
 				    return 0;
@@ -10730,7 +10935,9 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 /*
  * Resolve one nested class property step for method-target elaboration.
  * This supports expressions such as obj.member.method(...), where symbol_search
- * stops at obj and leaves "member.method" in path_tail.
+ * stops at obj and leaves "member.method" in path_tail. This function always
+ * consumes base_expr: on success the returned expression owns it, and on
+ * failure it is deleted here (possibly through an intermediate expression).
  */
 static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 							Design*des, NetScope*scope,
@@ -10739,12 +10946,19 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 							const name_component_t&comp,
 							ivl_type_t&out_type)
 {
-      if (!class_type || !base_expr)
+      if (!base_expr)
 	    return 0;
 
-      int pidx = ensure_class_property_idx_(des, class_type, comp.name);
-      if (pidx < 0)
+      if (!class_type) {
+	    delete base_expr;
 	    return 0;
+      }
+
+      int pidx = ensure_class_property_idx_(des, class_type, comp.name);
+      if (pidx < 0) {
+	    delete base_expr;
+	    return 0;
+      }
 
       property_qualifier_t qual = class_type->get_prop_qual(pidx);
       if (qual.test_local() && !class_type->test_scope_is_method(scope)) {
@@ -10753,6 +10967,7 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 		 << " is not accessible in this context."
 		 << " (scope=" << scope_path(scope) << ")" << endl;
 	    des->errors += 1;
+	    delete base_expr;
 	    return 0;
       }
 
@@ -10764,30 +10979,43 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 							    out_type);
       }
 
-      NetExpr *canon_index = nullptr;
       ivl_type_t prop_type = class_type->get_prop_type(pidx);
       if (!comp.index.empty()) {
 	    if (const netuarray_t *tmp_ua = dynamic_cast<const netuarray_t*>(prop_type)) {
 		  const auto &dims = tmp_ua->static_dimensions();
-		  if (dims.size() != comp.index.size()) {
+		  if (comp.index.size() < dims.size()) {
 			cerr << li->get_fileline() << ": error: "
 			     << "Got " << comp.index.size() << " indices, "
-			     << "expecting " << dims.size()
+			     << "expecting at least " << dims.size()
 			     << " to index the property "
 			     << class_type->get_prop_name(pidx) << "." << endl;
 			des->errors += 1;
+			delete base_expr;
 			return 0;
 		  }
-		  canon_index = make_canonical_index(des, scope, li,
-						     comp.index, tmp_ua, false);
-	    }
-      }
 
-      if (canon_index) {
-	    NetEProperty *expr = new NetEProperty(base_expr, pidx, canon_index);
-	    expr->set_line(*li);
-	    out_type = expr->net_type();
-	    return expr;
+		  list<index_component_t>::const_iterator split =
+			std::next(comp.index.begin(), dims.size());
+		  list<index_component_t>fixed_indices(comp.index.begin(), split);
+		  list<index_component_t>trailing_indices(split, comp.index.end());
+		  NetExpr*canon_index = make_canonical_property_index_(
+			des, scope, li, fixed_indices, tmp_ua, false);
+		  if (!canon_index) {
+			delete base_expr;
+			return 0;
+		  }
+
+		  NetEProperty *expr = new NetEProperty(base_expr, pidx, canon_index);
+		  expr->set_line(*li);
+		  if (trailing_indices.empty()) {
+			out_type = tmp_ua->element_type();
+			return expr;
+		  }
+
+		  return apply_trailing_container_indices_(
+			*li, des, scope, expr, tmp_ua->element_type(),
+			trailing_indices, out_type);
+	    }
       }
 
       NetEProperty *prop_expr = new NetEProperty(base_expr, pidx, nullptr);
@@ -10888,44 +11116,15 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 	    : new NetESelect(prop_expr, idx_expr, elem_width);
       cur->set_line(*li);
 
-	// Consume TRAILING indices through nested container elements
-	// (iq[key][idx] on an assoc-of-queue property, qq[i][j]...).
-	// These used to be dropped with a "using first index" warning,
-	// so the read returned the whole inner container.
-      ivl_type_t cur_type = elem_type;
-      auto idx_it = comp.index.begin();
+	// Consume trailing container indices and any packed select on the
+	// selected element through the common property-value lowering. This keeps
+	// associative key types intact and gives bit/part/indexed selects the exact
+	// packed result type.
+      list<index_component_t>::const_iterator idx_it = comp.index.begin();
       ++idx_it;
-      for (; idx_it != comp.index.end() ; ++idx_it) {
-	    const netdarray_t*da = dynamic_cast<const netdarray_t*>(cur_type);
-	    if (!da)
-		  break;
-	    NetExpr*ix = elab_assoc_index(des, scope, idx_it->msb,
-	                                  cur_type, false);
-	    if (!ix) {
-		  delete cur;
-		  return 0;
-	    }
-	    unsigned ew = da->element_width();
-	    if (ew == 0)
-		  ew = 1;
-	    NetESelect*sel2 = da->element_type()
-		  ? new NetESelect(cur, ix, ew, da->element_type())
-		  : new NetESelect(cur, ix, ew);
-	    sel2->set_line(*li);
-	    cur = sel2;
-	    cur_type = da->element_type();
-      }
-      if (idx_it != comp.index.end()) {
-	    cerr << li->get_fileline() << ": sorry: this index chain on "
-		 << "property " << class_type->get_prop_name(pidx)
-		 << " is not yet supported." << endl;
-	    des->errors += 1;
-	    delete cur;
-	    return 0;
-      }
-
-      out_type = cur_type;
-      return cur;
+      list<index_component_t>trailing_indices(idx_it, comp.index.cend());
+      return apply_trailing_container_indices_(
+	    *li, des, scope, cur, elem_type, trailing_indices, out_type);
 }
 
 static NetExpr* elaborate_root_indexed_class_base_expr_(const LineInfo*li,
@@ -11594,8 +11793,9 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 						delete base_expr;
 						return nullptr;
 					  }
-					  NetExpr*widx = make_canonical_index(des, scope, this,
-									      tail_comp.index, mua, false);
+				  NetExpr*widx = make_canonical_property_index_(
+					des, scope, this, tail_comp.index,
+					mua, false);
 					  if (!widx) {
 						delete base_expr;
 						return nullptr;
@@ -11848,10 +12048,8 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			      NetExpr*next_expr = elaborate_nested_method_target_property(
 				    this, des, scope, base_expr, cur_class,
 				    tail_comp, cur_type);
-			      if (!next_expr) {
-				    delete base_expr;
-				    return nullptr;
-			      }
+		      if (!next_expr)
+			    return nullptr;
 			      base_expr = next_expr;
 			      continue;
 			}
@@ -11860,10 +12058,8 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			NetExpr*next_expr = elaborate_nested_method_target_property(this, des, scope,
 									   base_expr, cur_class,
 									   prop_comp, cur_type);
-			if (!next_expr) {
-			      delete base_expr;
-			      return nullptr;
-			}
+		if (!next_expr)
+		      return nullptr;
 			base_expr = next_expr;
 			if (!tail_comp.index.empty() &&
 			    !apply_component_indices(base_expr, cur_type, tail_comp.index)) {
@@ -12049,6 +12245,37 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 						tmp_type, first_idx);
 	    }
 
+	    /* An indexed NetEProperty is the legacy direct element-load form.
+	     * It cannot carry a subsequent packed select with the required
+	     * element type/RMW semantics. For a multi-component chain, read the
+	     * whole queue/map property and represent every bracket explicitly;
+	     * apply_trailing_container_indices_ switches to packed lowering once
+	     * the container element type is reached. Keep the one-index form on
+	     * its established path. */
+	    if (dynamic_cast<const netdarray_t*>(tmp_type)
+		&& comp.index.size() > 1) {
+		  NetExpr*base_expr = nullptr;
+		  if (!sr.path_head.empty()
+		      && !sr.path_head.back().index.empty()) {
+			ivl_type_t base_type = nullptr;
+			base_expr = elaborate_root_indexed_class_base_expr_(
+			      this, des, scope, sr.net,
+			      sr.path_head.back().index, base_type);
+		  } else {
+			base_expr = new NetESignal(sr.net);
+			base_expr->set_line(*this);
+		  }
+		  if (!base_expr)
+			return nullptr;
+
+		  NetEProperty*whole = new NetEProperty(base_expr, pidx, nullptr);
+		  whole->set_line(*this);
+		  ivl_type_t selected_type = tmp_type;
+		  return apply_trailing_container_indices_(
+			*this, des, scope, whole, tmp_type,
+			comp.index, selected_type);
+	    }
+
 	    if (const netuarray_t *tmp_ua = dynamic_cast<const netuarray_t*>(tmp_type)) {
 		  const auto &dims = tmp_ua->static_dimensions();
 
@@ -12059,21 +12286,37 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			     << " got " << comp.index.size() << " indices." << endl;
 		  }
 
-		  if (dims.size() < comp.index.size()
-		      && dynamic_cast<const netvector_t*>(tmp_ua->element_type())) {
-			  // Element access + bit/part-select of a packed-vector
-			  // element (c.arr[i][m:l]): split the index list —
-			  // leading indices address the array element, trailing
-			  // ones select within the element vector.
+		  if (dims.size() > comp.index.size()) {
+			cerr << get_fileline() << ": error: "
+			     << "Got " << comp.index.size() << " indices, "
+			     << "expecting " << dims.size()
+			     << " to index the property "
+			     << class_type->get_prop_name(pidx) << "." << endl;
+			des->errors++;
+			/* Preserve the whole-property recovery expression after this
+			 * diagnostic. The assignment/type checker then reports the
+			 * established implicit-cast error for the unsupported partial
+			 * prefix as well. No canonical index is formed on this path. */
+		  }
+
+		  if (dims.size() < comp.index.size()) {
+			  // Split the fixed-property prefix from selects applied to
+			  // the value stored in that slot. Packed-vector leaves use
+			  // their established select builder; queue/associative leaves
+			  // retain the trailing indices for NetESelect lowering below.
 			std::list<index_component_t> elem_idx(
 			      comp.index.begin(),
 			      std::next(comp.index.begin(), dims.size()));
 			std::list<index_component_t> tail_idx(
 			      std::next(comp.index.begin(), dims.size()),
 			      comp.index.end());
-			canon_index = make_canonical_index(des, scope, this,
-							   elem_idx, tmp_ua, false);
-			if (canon_index) {
+			canon_index = make_canonical_property_index_(
+			      des, scope, this, elem_idx, tmp_ua, false);
+			if (!canon_index)
+			      return nullptr;
+
+			if (const netvector_t*evec =
+			      dynamic_cast<const netvector_t*>(tmp_ua->element_type())) {
 			      NetExpr*base_expr = nullptr;
 			      if (!sr.path_head.empty()
 				  && !sr.path_head.back().index.empty()) {
@@ -12088,10 +12331,8 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			      if (!base_expr)
 				    return nullptr;
 			      NetEProperty*ep = new NetEProperty(base_expr, pidx,
-								 canon_index);
+							 canon_index);
 			      ep->set_line(*this);
-			      const netvector_t*evec =
-				    dynamic_cast<const netvector_t*>(tmp_ua->element_type());
 			      ivl_type_t sel_type = nullptr;
 			      NetExpr*sel = make_vector_property_select_(
 				    des, scope, this, ep, evec, tail_idx, sel_type);
@@ -12104,15 +12345,23 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			      des->errors += 1;
 			      return nullptr;
 			}
-		  } else if (dims.size() != comp.index.size()) {
-			cerr << get_fileline() << ": error: "
-			     << "Got " << comp.index.size() << " indices, "
-			     << "expecting " << dims.size()
-			     << " to index the property " << class_type->get_prop_name(pidx) << "." << endl;
-			des->errors++;
-		  } else {
-			canon_index = make_canonical_index(des, scope, this,
-							   comp.index, tmp_ua, false);
+
+			if (dynamic_cast<const netdarray_t*>(tmp_ua->element_type())) {
+			      trailing_indices = tail_idx;
+			} else {
+			      cerr << get_fileline() << ": error: Got "
+				   << comp.index.size() << " indices, expecting "
+				   << dims.size() << " to index the property "
+				   << class_type->get_prop_name(pidx) << "." << endl;
+			      des->errors++;
+			      delete canon_index;
+			      return nullptr;
+			}
+		  } else if (dims.size() == comp.index.size()) {
+			canon_index = make_canonical_property_index_(
+			      des, scope, this, comp.index, tmp_ua, false);
+			if (!canon_index)
+			      return nullptr;
 		  }
 		  } else if (const netarray_t *tmp_arr = dynamic_cast<const netarray_t*>(tmp_type)) {
 			const index_component_t&idx_comp = comp.index.front();
@@ -12222,58 +12471,6 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		 << " canonical index: " << *canon_index << endl;
       }
 
-      auto apply_trailing_property_indices =
-	    [&](NetExpr*base_expr, ivl_type_t start_type) -> NetExpr* {
-		  NetExpr*cur_expr = base_expr;
-		  ivl_type_t cur_type = start_type;
-		  for (const auto&idx_comp : trailing_indices) {
-			NetExpr*idx_expr = nullptr;
-			if (idx_comp.sel == index_component_t::SEL_BIT_LAST) {
-			      idx_expr = make_last_array_index_expr_(*this, cur_expr->dup_expr(),
-							     cur_type);
-			      if (!idx_expr)
-				    idx_expr = make_const_val(0);
-			} else {
-			      if (idx_comp.sel != index_component_t::SEL_BIT || idx_comp.lsb) {
-				    // Compile-progress fallback: treat non-simple selects as
-				    // expression index evaluation via idx_comp.msb.
-			      }
-			      idx_expr = elab_and_eval(des, scope, idx_comp.msb,
-					       -1, false);
-			      if (!idx_expr)
-				    return nullptr;
-			}
-			idx_expr = cast_assoc_index(idx_expr, cur_type, *this);
-
-			ivl_type_t elem_type = nullptr;
-			unsigned elem_width = 1;
-			if (const netarray_t*arr = dynamic_cast<const netarray_t*>(cur_type)) {
-			      elem_type = arr->element_type();
-			      if (elem_type)
-				    elem_width = elem_type->packed_width();
-			} else if (const netdarray_t*darr = dynamic_cast<const netdarray_t*>(cur_type)) {
-			      elem_type = darr->element_type();
-			      elem_width = darr->element_width();
-			} else if (const netqueue_t*que = dynamic_cast<const netqueue_t*>(cur_type)) {
-			      elem_type = que->element_type();
-			      elem_width = que->element_width();
-			} else {
-			      delete idx_expr;
-			      return cur_expr;
-			}
-
-			if (elem_width == 0)
-			      elem_width = 1;
-			NetESelect*next = elem_type
-			      ? new NetESelect(cur_expr, idx_expr, elem_width, elem_type)
-			      : new NetESelect(cur_expr, idx_expr, elem_width);
-			next->set_line(*this);
-			cur_expr = next;
-			cur_type = elem_type;
-		  }
-		  return cur_expr;
-	    };
-
 	      if (!sr.path_head.empty() && !sr.path_head.back().index.empty()) {
 		    ivl_type_t base_type = nullptr;
 		    NetExpr*base_expr =
@@ -12287,12 +12484,18 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 
 		    NetEProperty *tmp = new NetEProperty(base_expr, pidx, canon_index);
 		    tmp->set_line(*this);
-		    return apply_trailing_property_indices(tmp, tmp->net_type());
+		    ivl_type_t selected_type = tmp->net_type();
+		    return apply_trailing_container_indices_(
+			  *this, des, scope, tmp, selected_type,
+			  trailing_indices, selected_type);
 	      }
 
 	      NetEProperty *tmp = new NetEProperty(sr.net, pidx, canon_index);
 	      tmp->set_line(*this);
-	      return apply_trailing_property_indices(tmp, tmp->net_type());
+	      ivl_type_t selected_type = tmp->net_type();
+	      return apply_trailing_container_indices_(
+		    *this, des, scope, tmp, selected_type,
+		    trailing_indices, selected_type);
 }
 
 NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
@@ -13854,10 +14057,8 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 								 class_type,
 								 prop_comp,
 								 nested_type);
-	    if (!prop_expr) {
-		  delete sub_expr;
+	    if (!prop_expr)
 		  return 0;
-	    }
 
 	    sub_expr = prop_expr;
 	    target_type = specialize_bare_class_receiver_on_use(
@@ -16885,10 +17086,8 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 												 des, scope,
 												 base_expr, cur_class,
 												 tail_comp, next_type);
-				    if (!next_expr) {
-					  delete base_expr;
+				    if (!next_expr)
 					  return nullptr;
-				    }
 				    base_expr = next_expr;
 				    cur_type = next_type;
 			      } else {
@@ -17873,10 +18072,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 												 des, scope,
 												 base_expr, cur_class,
 												 tail_comp, next_type);
-				    if (!next_expr) {
-					  delete base_expr;
+				    if (!next_expr)
 					  return make_nested_stub(cur_type);
-				    }
 				    base_expr = next_expr;
 				    cur_type = next_type;
 			      } else {

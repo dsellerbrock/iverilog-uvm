@@ -26,6 +26,7 @@
 # include  <set>
 # include  <sstream>
 # include  <algorithm>
+# include  <limits>
 # include  "netlist.h"
 # include  "netparray.h"
 # include  "netvector.h"
@@ -1065,6 +1066,209 @@ NetExpr* make_canonical_index(Design*des, NetScope*scope,
       return canon_index;
 }
 
+static void delete_index_expressions_(list<NetExpr*>&indices)
+{
+      for (NetExpr*expr : indices)
+	    delete expr;
+      indices.clear();
+}
+
+static uint64_t signed_magnitude_(int64_t value)
+{
+      if (value >= 0)
+	    return static_cast<uint64_t>(value);
+      return static_cast<uint64_t>(-(value + 1)) + 1;
+}
+
+static bool constant_index_value_(const verinum&value, int64_t&result)
+{
+      bool negative = false;
+      uint64_t magnitude = verinum_signed_magnitude(value, negative);
+      if (!negative) {
+	    if (magnitude > static_cast<uint64_t>(
+				 std::numeric_limits<int64_t>::max()))
+		  return false;
+	    result = static_cast<int64_t>(magnitude);
+	    return true;
+      }
+
+      const uint64_t negative_limit = static_cast<uint64_t>(
+				 std::numeric_limits<int64_t>::max()) + 1;
+      if (magnitude > negative_limit)
+	    return false;
+      if (magnitude == negative_limit) {
+	    result = std::numeric_limits<int64_t>::min();
+	    return true;
+      }
+      result = -static_cast<int64_t>(magnitude);
+      return true;
+}
+
+static uint64_t canonical_dimension_offset_(const LineInfo&loc,
+					     int64_t value, int64_t low)
+{
+      ivl_assert(loc, value >= low);
+      if (low >= 0)
+	    return static_cast<uint64_t>(value)
+		 - static_cast<uint64_t>(low);
+      if (value < 0)
+	    return signed_magnitude_(low) - signed_magnitude_(value);
+      return signed_magnitude_(low) + static_cast<uint64_t>(value);
+}
+
+static NetEConst* make_u64_index_constant_(uint64_t value,
+					    const LineInfo&loc)
+{
+      NetEConst*result = new NetEConst(verinum(value, 64));
+      result->set_line(loc);
+      return result;
+}
+
+static NetEConst* make_i64_index_constant_(int64_t value,
+					    const LineInfo&loc)
+{
+      verinum unscaled(value);
+      verinum scaled(unscaled, 64);
+      scaled.has_sign(true);
+      NetEConst*result = new NetEConst(scaled);
+      result->set_line(loc);
+      return result;
+}
+
+NetExpr* make_checked_canonical_property_index(
+      Design*des, NetScope*scope, const LineInfo*loc,
+      const list<index_component_t>&src, const netsarray_t*stype,
+      bool need_const)
+{
+      const netranges_t&dims = stype->static_dimensions();
+      ivl_assert(*loc, !dims.empty());
+      ivl_assert(*loc, src.size() == dims.size());
+
+      list<long> indices_const;
+      list<NetExpr*> indices_expr;
+      indices_flags flags;
+      indices_to_expressions(des, scope, loc, src, src.size(), need_const,
+			     flags, indices_expr, indices_const);
+
+      if (flags.invalid) {
+	    delete_index_expressions_(indices_expr);
+	    return 0;
+      }
+
+      if (flags.undefined) {
+	    cerr << loc->get_fileline() << ": warning: "
+		 << "ignoring undefined value array access." << endl;
+      }
+
+      vector<int64_t> lows(dims.size());
+      vector<int64_t> highs(dims.size());
+      vector<uint64_t> widths(dims.size());
+      vector<uint64_t> strides(dims.size());
+      for (size_t idx = 0; idx < dims.size(); ++idx) {
+	    ivl_assert(*loc, dims[idx].defined());
+	    int64_t first = static_cast<int64_t>(dims[idx].get_msb());
+	    int64_t second = static_cast<int64_t>(dims[idx].get_lsb());
+	    lows[idx] = min(first, second);
+	    highs[idx] = max(first, second);
+
+	    uint64_t distance;
+	    if (lows[idx] < 0 && highs[idx] >= 0) {
+		  uint64_t negative_part = signed_magnitude_(lows[idx]);
+		  uint64_t positive_part = static_cast<uint64_t>(highs[idx]);
+		  if (positive_part == std::numeric_limits<uint64_t>::max()
+		      || negative_part > std::numeric_limits<uint64_t>::max()
+					  - positive_part - 1) {
+			cerr << loc->get_fileline() << ": error: "
+			     << "Fixed property array dimension is too wide to "
+			     << "canonicalize." << endl;
+			des->errors += 1;
+			delete_index_expressions_(indices_expr);
+			return 0;
+		  }
+		  distance = negative_part + positive_part;
+	    } else {
+		  distance = canonical_dimension_offset_(*loc, highs[idx],
+						 lows[idx]);
+	    }
+	    if (distance == std::numeric_limits<uint64_t>::max()) {
+		  cerr << loc->get_fileline() << ": error: "
+		       << "Fixed property array dimension is too wide to "
+		       << "canonicalize." << endl;
+		  des->errors += 1;
+		  delete_index_expressions_(indices_expr);
+		  return 0;
+	    }
+	    widths[idx] = distance + 1;
+      }
+
+      uint64_t total_width = 1;
+      for (size_t idx = dims.size(); idx > 0; --idx) {
+	    strides[idx-1] = total_width;
+	    if (total_width > std::numeric_limits<uint64_t>::max()
+					 / widths[idx-1]) {
+		  cerr << loc->get_fileline() << ": error: "
+		       << "Fixed property array dimensions are too large to "
+		       << "canonicalize." << endl;
+		  des->errors += 1;
+		  delete_index_expressions_(indices_expr);
+		  return 0;
+	    }
+	    total_width *= widths[idx-1];
+      }
+
+      if (!flags.variable) {
+	    if (flags.undefined) {
+		  delete_index_expressions_(indices_expr);
+		  NetEConst*invalid = make_const_x(64);
+		  invalid->set_line(*loc);
+		  return invalid;
+	    }
+
+	    uint64_t canonical = 0;
+	    size_t idx = 0;
+	    bool invalid = false;
+	    for (NetExpr*expr : indices_expr) {
+		  const NetEConst*constant = dynamic_cast<const NetEConst*>(expr);
+		  ivl_assert(*loc, constant);
+		  int64_t value = 0;
+		  if (!constant_index_value_(constant->value(), value)
+		      || value < lows[idx] || value > highs[idx]) {
+			invalid = true;
+			break;
+		  }
+		  canonical += canonical_dimension_offset_(*loc, value, lows[idx])
+			     * strides[idx];
+		  idx += 1;
+	    }
+	    delete_index_expressions_(indices_expr);
+	    if (invalid) {
+		  NetEConst*invalid_expr = make_const_x(64);
+		  invalid_expr->set_line(*loc);
+		  return invalid_expr;
+	    }
+	    return make_u64_index_constant_(canonical, *loc);
+      }
+
+      NetESFunc*checked = new NetESFunc("$ivl_checked_property_index",
+					 IVL_VT_LOGIC, 64,
+					 4 * dims.size());
+      checked->set_line(*loc);
+      checked->cast_signed(false);
+      size_t idx = 0;
+      for (NetExpr*raw : indices_expr) {
+	    checked->parm(4*idx, raw);
+	    checked->parm(4*idx+1,
+			  make_i64_index_constant_(lows[idx], *loc));
+	    checked->parm(4*idx+2,
+			  make_u64_index_constant_(widths[idx], *loc));
+	    checked->parm(4*idx+3,
+			  make_u64_index_constant_(strides[idx], *loc));
+	    idx += 1;
+      }
+      indices_expr.clear();
+      return checked;
+}
+
 NetEConst* make_const_x(unsigned long wid)
 {
       verinum xxx (verinum::Vx, wid);
@@ -1878,10 +2082,16 @@ NetExpr* elab_assoc_index(Design*des, NetScope*scope, PExpr*expr,
 	    ivl_type_t index_type = queue->assoc_index_type();
 	    if (index_type && index_type->packed()) {
 		  unsigned width = index_type->packed_width();
-		  return elab_and_eval(des, scope, expr, width,
-				       need_const, false,
-				       index_type->base_type(),
-				       !index_type->get_signed());
+		  NetExpr*tmp = elab_and_eval(des, scope, expr, width,
+					       need_const, false,
+					       index_type->base_type(),
+					       !index_type->get_signed());
+		  /* The contextual elaborator may annotate a signal expression with
+		   * WIDTH without materializing a runtime truncation. Associative
+		   * storage keys by exact vector width and bits, so force an explicit
+		   * assignment-width node even when TMP already reports WIDTH. */
+		  return tmp ? cast_to_width(tmp, width,
+					     index_type->get_signed(), *expr) : 0;
 	    }
       }
 
