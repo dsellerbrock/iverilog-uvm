@@ -1197,7 +1197,7 @@ covgrp_bin_tail
       { /* Retain one sentinel beyond the largest valid record. A malformed
            raw VVP line can contain arbitrarily many numeric fields; keeping
            all of them before diagnosing the field count would make loader
-           memory proportional to attacker-controlled metadata. */
+           memory proportional to the external metadata. */
 	if ($1->size() < 12) $1->push_back($2);
 	$$ = $1; }
   ;

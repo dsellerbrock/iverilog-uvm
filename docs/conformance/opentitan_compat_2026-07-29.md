@@ -142,7 +142,7 @@ condition is a *value* concern (bitwise blending), not a type concern — and
 refusing the type bought nothing, since the cast the user was forced to add
 produces exactly the same bits.
 
-This is the backbone of OpenTitan's security hardening
+This is the backbone of OpenTitan's multi-bit control hardening
 (`mubi4_bool_to_mubi`, `lc_tx_bool_to_lc_tx`, and the FSM state updates in
 `prim_alert_sender` / `tlul_adapter_reg`). Fix: drop the 2-state guard in
 `NetETernary::enumeration()` (`netlist.cc`). Genuine 6.19.3 violations

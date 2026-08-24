@@ -119,7 +119,7 @@ static const char *const evcd_units[] = {
 };
 
 /* Bounds malformed hand-written VVP metadata before it can drive an
- * attacker-sized allocation or callback loop. Ordinary HDL port widths are
+ * input-sized allocation or callback loop. Ordinary HDL port widths are
  * far below this one-megabit implementation guard. */
 #define EVCD_MAX_PORT_BITS (1024U * 1024U)
 #define EVCD_MAX_TOTAL_BITS (4U * EVCD_MAX_PORT_BITS)

@@ -2528,7 +2528,7 @@ void compile_class_covgrp_item_options(uint64_t item_idx,
       assert(compile_class);
 	// Property indexes are biased by +1 (zero means absent). Besides bounds,
 	// require the scalar 32-bit non-static shape consumed by get/set_vec4;
-	// otherwise a malicious hand-written VVP stream could select a string,
+	// otherwise an invalid hand-written VVP stream could select a string,
 	// object, array, or static property and reach the wrong storage accessor.
       const uint64_t size_max = std::numeric_limits<size_t>::max();
       const uint64_t int_max = std::numeric_limits<int>::max();
