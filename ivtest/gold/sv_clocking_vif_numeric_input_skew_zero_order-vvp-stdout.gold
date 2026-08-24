@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_clocking_vif_numeric_input_skew_zero_order.v:47: $finish called at 6000 (1ps)

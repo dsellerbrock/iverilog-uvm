@@ -40,6 +40,7 @@
 # include  "Statement.h"
 # include  "pform_types.h"
 # include  "Module.h"
+# include  "PModport.h"
 # include  "parse_api.h"
 # include  "compiler.h"
 # include  "ivl_assert.h"
@@ -3838,7 +3839,8 @@ bool rewrite_class_clocking_member_path(const PEIdent*ident,
 					const symbol_search_results&sr,
 					pform_name_t&rewritten,
 					bool as_lvalue,
-					bool*input_write)
+					bool*input_write,
+					perm_string*clocking_access)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(sr.type);
       if (!class_type || sr.path_tail.size() < 2)
@@ -3931,6 +3933,8 @@ bool rewrite_class_clocking_member_path(const PEIdent*ident,
 			}
 
 			rewritten.erase(erase_it);
+			if (clocking_access)
+			      *clocking_access = clocking_comp.name;
 			return true;
 		  }
 	    }
@@ -3979,6 +3983,12 @@ NetNet* resolve_clocking_raw_signal(Design*des, NetScope*scope,
 
       const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
       if (!id)
+	    return nullptr;
+	/* The hidden output machinery currently owns a whole packed raw signal.
+	   A select on the declaration-assignment target must not be discarded and
+	   reinterpreted as that whole signal. */
+      if (id->path().name.empty()
+	  || !id->path().name.back().index.empty())
 	    return nullptr;
       symbol_search_results sr;
       symbol_search(id, des, scope, id->path(), id->lexical_pos(), &sr);
@@ -4065,7 +4075,8 @@ bool rewrite_clocking_member_path_via_scope(const PEIdent*ident,
 					    const symbol_search_results&sr,
 					    pform_name_t&rewritten,
 					    bool as_lvalue,
-					    bool*input_write)
+					    bool*input_write,
+					    perm_string*clocking_access)
 {
       if (sr.net || !sr.scope) return false;
       if (ident->path().size() < 3) return false;
@@ -4099,6 +4110,8 @@ bool rewrite_clocking_member_path_via_scope(const PEIdent*ident,
 						       sr.scope, newpath, it,
 						       as_lvalue, input_write);
 			rewritten = newpath;
+			if (clocking_access)
+			      *clocking_access = cb_it->second->name;
 			return true;
 		  }
 	    }
@@ -4117,7 +4130,8 @@ bool rewrite_enclosing_scope_clocking_member_path(const PEIdent*ident,
 						  const NetScope*scope,
 						  pform_name_t&rewritten,
 						  bool as_lvalue,
-						  bool*input_write)
+						  bool*input_write,
+						  perm_string*clocking_access)
 {
       if (ident->path().size() < 2) return false;
       const name_component_t&cb_comp = ident->path().name.front();
@@ -4144,7 +4158,81 @@ bool rewrite_enclosing_scope_clocking_member_path(const PEIdent*ident,
 	    apply_clocking_member_rewrite_(ident, cb_it->second, walker,
 					   rewritten, rewritten.begin(),
 					   as_lvalue, input_write);
+	    if (clocking_access)
+		  *clocking_access = cb_it->second->name;
 	    return true;
       }
       return false;
+}
+
+bool validate_interface_modport_access(Design*des, const LineInfo*loc,
+				       const netclass_t*interface_type,
+				       perm_string modport,
+				       perm_string member,
+				       perm_string clocking_access,
+				       bool as_lvalue)
+{
+      if (!interface_type || !interface_type->is_interface() || modport.nil())
+	    return true;
+
+      map<perm_string,Module*>::const_iterator interface_it =
+	    pform_modules.find(interface_type->get_name());
+      if (interface_it == pform_modules.end())
+	    return true;
+
+      map<perm_string,PModport*>::const_iterator modport_it =
+	    interface_it->second->modports.find(modport);
+      if (modport_it == interface_it->second->modports.end())
+	    return true;
+
+      const PModport*view = modport_it->second;
+      bool clocking_allowed = !clocking_access.nil()
+	    && view->clocking_ports.count(clocking_access) != 0;
+      map<perm_string,pair<NetNet::PortType,PExpr*> >::const_iterator simple =
+	    view->simple_ports.find(member);
+
+        /* A clocking-block access must be authorized as a clocking-block
+           access.  The rewrite maps `vif.cb.member' to the underlying
+           interface property before normal member lookup, and that raw
+           property may also be listed independently in the modport.  Such
+           an independent export does not make an unexported clocking block
+           visible (IEEE 1800-2017 25.5).  Check the retained provenance
+           before considering the mapped member itself. */
+      if (!clocking_access.nil() && !clocking_allowed) {
+	    cerr << loc->get_fileline() << ": error: cannot access clocking block '"
+		 << clocking_access << "' through modport '" << modport
+		 << "' of interface '" << interface_type->get_name()
+		 << "' — that clocking block is not exported by the modport "
+		 << "(IEEE 1800-2017 25.5)." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
+      if (!clocking_allowed && as_lvalue
+	  && simple != view->simple_ports.end()
+	  && simple->second.first == NetNet::PINPUT) {
+	    cerr << loc->get_fileline() << ": error: cannot write to '"
+		 << member << "' through modport '" << modport
+		 << "' of interface '" << interface_type->get_name()
+		 << "' — it is an input in that modport "
+		 << "(IEEE 1800-2017 25.5)." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
+      if (!clocking_allowed
+	  && simple == view->simple_ports.end()
+	  && view->import_ports.count(member) == 0
+	  && view->export_ports.count(member) == 0
+	  && interface_type->property_idx_from_name(member) >= 0) {
+	    cerr << loc->get_fileline() << ": error: cannot access '"
+		 << member << "' through modport '" << modport
+		 << "' of interface '" << interface_type->get_name()
+		 << "' — it is not listed in that modport "
+		 << "(IEEE 1800-2017 25.5)." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
+      return true;
 }

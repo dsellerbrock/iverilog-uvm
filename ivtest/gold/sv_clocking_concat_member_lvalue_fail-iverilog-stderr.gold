@@ -1,0 +1,2 @@
+ivltests/sv_clocking_concat_member_lvalue_fail.v:17: error: clocking signal `bus.cb.raw' cannot be part of a concatenation or assignment-pattern l-value (IEEE 1800-2017 14.3).
+Elaboration failed

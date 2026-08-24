@@ -1,0 +1,2 @@
+ivltests/sv_clocking_vif_selected_dynamic_fail.v:14: sorry: a run-time selected clocking-output drive requires one captured selector and is not yet supported.
+Elaboration failed

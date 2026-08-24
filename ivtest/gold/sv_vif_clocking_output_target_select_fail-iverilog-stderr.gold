@@ -1,0 +1,3 @@
+ivltests/sv_vif_clocking_output_target_select_fail.v:11: sorry: clocking_decl_assign for `nib' is not a resolvable signal path; the clockvar is not sampled.
+ivltests/sv_vif_clocking_output_target_select_fail.v:23: sorry: virtual-interface clocking output `cb.nib' has no representable buffered storage.
+1 error(s) during elaboration.

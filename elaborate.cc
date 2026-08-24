@@ -1020,7 +1020,8 @@ resolve_scope_pform_clocking_event_(const PEIdent*id,
 static const netclass_t::clocking_block_t* resolve_interface_clocking_block_from_search_(
 					      const symbol_search_results&sr,
 					      size_t&base_path_components,
-					      const netclass_t**found_class = nullptr)
+					      const netclass_t**found_class = nullptr,
+					      perm_string*found_modport = nullptr)
 {
       if (!sr.net || sr.path_tail.empty())
 	    return nullptr;
@@ -1028,6 +1029,12 @@ static const netclass_t::clocking_block_t* resolve_interface_clocking_block_from
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(sr.type);
       if (!class_type)
 	    return nullptr;
+
+      perm_string active_modport;
+      verinum root_modport =
+	    sr.net->attribute(perm_string::literal("ivl_modport"));
+      if (root_modport != verinum())
+	    active_modport = lex_strings.make(root_modport.as_string().c_str());
 
       size_t offset = 0;
       for (pform_name_t::const_iterator it = sr.path_tail.begin()
@@ -1041,6 +1048,7 @@ static const netclass_t::clocking_block_t* resolve_interface_clocking_block_from
 				    class_type->find_clocking_block(it->name)) {
                               base_path_components = offset;
                               if (found_class) *found_class = class_type;
+			      if (found_modport) *found_modport = active_modport;
                               return clocking;
 			}
 		  }
@@ -1064,6 +1072,7 @@ static const netclass_t::clocking_block_t* resolve_interface_clocking_block_from
 					      class_type->find_clocking_block(next->name)) {
 					    base_path_components = offset;
 					    if (found_class) *found_class = class_type;
+					    if (found_modport) *found_modport = it->name;
 					    return clocking;
 				      }
 				}
@@ -1077,6 +1086,8 @@ static const netclass_t::clocking_block_t* resolve_interface_clocking_block_from
 		  return nullptr;
 
 	    ivl_type_t ptype = class_type->get_prop_type(pidx);
+	    perm_string next_modport =
+		  class_type->get_prop_interface_modport(pidx);
 	    if (!it->index.empty()) {
 		  if (const netdarray_t*darr = dynamic_cast<const netdarray_t*>(ptype))
 			ptype = darr->element_type();
@@ -1093,6 +1104,7 @@ static const netclass_t::clocking_block_t* resolve_interface_clocking_block_from
 	    class_type = dynamic_cast<const netclass_t*>(ptype);
 	    if (!class_type)
 		  return nullptr;
+	    active_modport = next_modport;
       }
 
       return nullptr;
@@ -6522,19 +6534,37 @@ NetExpr* PAssign_::elaborate_rval_(Design*des, NetScope*scope,
  * different from normal elaboration because the result may need to be
  * scaled.
  */
-static NetExpr*elaborate_delay_expr(PExpr*expr, Design*des, NetScope*scope)
+static NetExpr* elaborate_delay_expr_(PExpr*expr, Design*des, NetScope*scope,
+				      bool clocking_skew)
 {
-      NetExpr*dex = elab_and_eval(des, scope, expr, -1);
+      unsigned errors_before = des->errors;
+      NetExpr*dex = elab_and_eval(des, scope, expr, -1, clocking_skew);
 
 	// If the elab_and_eval returns nil, then the function
 	// failed. It should already have printed an error message,
 	// but we can add some detail. Lets add the error count, just
 	// in case.
       if (dex == 0) {
+	      /* A constant clocking-skew failure normally carries its own
+		 diagnostic from NEED_CONST elaboration.  Do not obscure it with
+		 the generic delay follow-up, but retain that fallback for a silent
+		 failure. */
+	    if (clocking_skew && des->errors != errors_before)
+		  return 0;
 	    cerr << expr->get_fileline() << ": error: "
 		 << "Unable to elaborate (or evaluate) delay expression."
 		 << endl;
 	    des->errors += 1;
+	    return 0;
+      }
+
+      if (clocking_skew
+	  && !dynamic_cast<const NetEConst*>(dex)
+	  && !dynamic_cast<const NetECReal*>(dex)) {
+	    cerr << expr->get_fileline() << ": error: A clocking skew must be a "
+		 << "constant expression." << endl;
+	    des->errors += 1;
+	    delete dex;
 	    return 0;
       }
 
@@ -6608,6 +6638,17 @@ static NetExpr*elaborate_delay_expr(PExpr*expr, Design*des, NetScope*scope)
       }
 
       return dex;
+}
+
+static NetExpr* elaborate_delay_expr(PExpr*expr, Design*des, NetScope*scope)
+{
+      return elaborate_delay_expr_(expr, des, scope, false);
+}
+
+static NetExpr* elaborate_clocking_skew_expr(PExpr*expr, Design*des,
+					      NetScope*scope)
+{
+      return elaborate_delay_expr_(expr, des, scope, true);
 }
 
 /*
@@ -8100,31 +8141,48 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 
        begin
 	     _ivl_obuf$cb$out = v;
+	     _ivl_opend$cb$out = '1;
 	     if ($ivl_clocking_sample(_ivl_smptick$cb) !== _ivl_smptick$cb)
-		   out <= _ivl_obuf$cb$out;     // event occurred this
-						// step: drive now
-	     else
-		   _ivl_opend$cb$out = '1;      // buffer: the apply
-						// process lands it at
-						// the next event
+		   _ivl_odkick$cb = ~_ivl_odkick$cb;
        end
 
    The tick comparison asks "did the clocking event already occur in
    this time step" via the same 1-deep history the input sampling
    uses (the tick toggles in the NBA region of each event step). A
-   drive executed after an @(cb) wake therefore lands in the same
-   step (the LRM's drive-at-current-event case); a drive between
-   events is buffered for the next one.
+   drive executed after an @(cb) wake therefore kicks the per-instance
+   apply process in the same step (the LRM's drive-at-current-event
+   case); a drive between events remains buffered for the next trigger.
 
-   The same-scope and static-instance shapes currently recognize a whole
-   clockvar. The virtual-interface shape additionally retains packed member
-   and constant bit/part-select destinations. Returns nullptr for an
-   unrecognized clockvar shape so the ordinary NBA elaborator can handle it. */
+   All three receiver shapes retain packed members and constant bit/part
+   selects. Returns nullptr with handled false for an unrecognized clockvar
+   shape so the ordinary NBA elaborator can handle it. A recognized but
+   unsupported clockvar shape sets handled and reports its own diagnostic. */
+
+/* Copy one direct packed l-value's canonical selection onto another signal.
+   The source descriptor remains owned by its assignment. */
+static NetAssign_* clone_clocking_packed_lval_(NetNet*target,
+					       const NetAssign_*shape)
+{
+      NetAssign_*res = new NetAssign_(target);
+      const NetExpr*base = shape->get_base();
+      if (!base)
+	    return res;
+
+      NetExpr*copy = base->dup_expr();
+      if (ivl_type_t type = shape->lval_type())
+	    res->set_part(copy, type);
+      else
+	    res->set_part(copy, shape->lwidth(), shape->select_type());
+      return res;
+}
+
 static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 						 const PEIdent*lid,
 						 PExpr*rexpr,
-						 const LineInfo&loc)
+						 const LineInfo&loc,
+						 bool&handled)
 {
+      handled = false;
       if (!gn_system_verilog()) return nullptr;
       if (lid->path().package) return nullptr;
       const pform_name_t&path = lid->path().name;
@@ -8133,10 +8191,22 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
       NetScope*def_scope = nullptr;
       const Module::PClocking*cbp = nullptr;
       perm_string cb_name, sig_name;
+	/* Number of original path components before the clocking block. */
+      size_t static_prefix_count = 0;
+      pform_name_t::const_iterator static_sig_c = path.end();
 
-	/* Shape (a): same-scope `cb.sig`. */
-      if (path.size() == 2 && path.front().index.empty()
-	  && path.back().index.empty()) {
+	/* Shape (a): same-scope `cb.sig`. A nearer lexical object named CB
+	   wins over the enclosing clocking-block pseudo-name. The ordinary
+	   l-value path uses this same symbol-search distinction before it
+	   rewrites an enclosing clocking member. */
+      symbol_search_results direct_binding;
+      bool has_direct_binding = symbol_search(&loc, des, scope, lid->path(),
+					       lid->lexical_pos(),
+					       &direct_binding);
+      if (path.size() >= 2 && path.front().index.empty()
+	  && !has_direct_binding) {
+	    pform_name_t::const_iterator sig_c = path.begin();
+	    ++sig_c;
 	    for (NetScope*walker = scope ; walker ; walker = walker->parent()) {
 		  if (walker->type() != NetScope::MODULE)
 			continue;
@@ -8148,13 +8218,14 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 		  if (cb_it == pmod_it->second->clocking_blocks.end())
 			continue;
 		  const auto&signals = cb_it->second->signals;
-		  if (std::find(signals.begin(), signals.end(), path.back().name)
+		  if (std::find(signals.begin(), signals.end(), sig_c->name)
 			    == signals.end())
 			break;
 		  def_scope = walker;
 		  cbp = cb_it->second;
 		  cb_name = path.front().name;
-		  sig_name = path.back().name;
+		  sig_name = sig_c->name;
+		  static_sig_c = sig_c;
 		  break;
 	    }
       }
@@ -8166,8 +8237,8 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 	   as interface properties by name; that instance's apply
 	   process lands buffered drives at its clocking events. The
 	   did-the-event-occur test is %vif/tickchg on the instance's
-	   sampler tick property. Output skews through a vif are not
-	   applied (the class side carries no skew info; recorded). */
+	   sampler tick property. Effective output-skew metadata remains
+	   tied to the defining interface type. */
       if (path.size() >= 3) {
 	    symbol_search_results csr;
 	    symbol_search(&loc, des, scope, lid->path(), lid->lexical_pos(), &csr);
@@ -8185,10 +8256,19 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 		       clockvar and must retain its buffered/NBA semantics. */
 		  const netclass_t*walk = class_type;
 		  bool chain_ok = true;
+		  /* The class receiver begins at the object found by symbol_search.
+		     An index on that path-head object is just as stateful as an
+		     index on a following class property: rebuilding the hidden
+		     obuf/opend/kick paths would otherwise evaluate it repeatedly. */
+		  bool indexed_receiver = !csr.path_head.empty()
+			&& !csr.path_head.back().index.empty();
 		  for (pform_name_t::const_iterator it = csr.path_tail.begin()
 			     ; it != csr.path_tail.end() && chain_ok ; ++it) {
-			if (!it->index.empty()) { chain_ok = false; break; }
 			if (walk->is_interface()) {
+			      if (!it->index.empty()) {
+				    chain_ok = false;
+				    break;
+			      }
 			      const netclass_t::clocking_block_t*candidate =
 				    walk->find_clocking_block(it->name);
 			      pform_name_t::const_iterator next = it;
@@ -8207,7 +8287,27 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 			}
 			int pidx = walk->property_idx_from_name(it->name);
 			if (pidx < 0) { chain_ok = false; break; }
-			walk = dynamic_cast<const netclass_t*>(walk->get_prop_type(pidx));
+			ivl_type_t ptype = walk->get_prop_type(pidx);
+			if (!it->index.empty()) {
+			      indexed_receiver = true;
+			      if (const netdarray_t*darr =
+					dynamic_cast<const netdarray_t*>(ptype))
+				    ptype = darr->element_type();
+			      else if (const netuarray_t*uarr =
+					dynamic_cast<const netuarray_t*>(ptype))
+				    ptype = uarr->element_type();
+			      else if (const netarray_t*arr =
+					dynamic_cast<const netarray_t*>(ptype))
+				    ptype = arr->element_type();
+			      else if (const netqueue_t*que =
+					dynamic_cast<const netqueue_t*>(ptype))
+				    ptype = que->element_type();
+			      else {
+				    chain_ok = false;
+				    break;
+			      }
+			}
+			walk = dynamic_cast<const netclass_t*>(ptype);
 			if (!walk) chain_ok = false;
 		  }
 
@@ -8220,103 +8320,142 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 
 			if (cdir == static_cast<int>(NetNet::POUTPUT)
 			    || cdir == static_cast<int>(NetNet::PINOUT)) {
+			      handled = true;
+			      if (indexed_receiver) {
+				    cerr << loc.get_fileline() << ": sorry: a clocking-output "
+					 << "drive through an indexed class receiver requires "
+					 << "capturing that receiver once; the drive was rejected "
+					 << "rather than executed as an ordinary nonblocking "
+					 << "assignment." << endl;
+				    des->errors += 1;
+				    return 0;
+			      }
 			      string vbname = string("_ivl_obuf$") + cb_c->name.str()
 				    + "$" + sig_c->name.str();
 			      string vpname = string("_ivl_opend$") + cb_c->name.str()
 				    + "$" + sig_c->name.str();
 			      string vkname = string("_ivl_smptick$") + cb_c->name.str();
+			      string vdname = string("_ivl_odkick$") + cb_c->name.str();
 			      perm_string obuf_p = lex_strings.make(vbname.c_str());
 			      perm_string opend_p = lex_strings.make(vpname.c_str());
 			      perm_string tick_p = lex_strings.make(vkname.c_str());
+			      perm_string kick_p = lex_strings.make(vdname.c_str());
 			      int obuf_idx = walk->property_idx_from_name(obuf_p);
 			      int opend_idx = walk->property_idx_from_name(opend_p);
 			      int tick_idx = walk->property_idx_from_name(tick_p);
-			      if (obuf_idx >= 0 && opend_idx >= 0 && tick_idx >= 0) {
-				    pform_name_t suffix(sel_c, csr.path_tail.cend());
-				    pform_name_t prefix = path;
-				    for (size_t idx = 0; idx < suffix.size() + 2; ++idx)
-					  prefix.pop_back();
+			      int kick_idx = walk->property_idx_from_name(kick_p);
+			      if (obuf_idx < 0 || opend_idx < 0 || tick_idx < 0
+				  || kick_idx < 0) {
+				    cerr << loc.get_fileline() << ": sorry: virtual-interface "
+					 << "clocking output `" << cb_c->name << "."
+					 << sig_c->name << "' has no representable buffered "
+					 << "storage." << endl;
+				    des->errors += 1;
+				    return 0;
+			      }
 
-				    pform_name_t obuf_path = prefix;
-				    name_component_t obuf_comp = *sig_c;
-				    obuf_comp.name = obuf_p;
-				    obuf_path.push_back(obuf_comp);
-				    obuf_path.insert(obuf_path.end(), suffix.begin(), suffix.end());
-				    pform_name_t opend_path = prefix;
-				    name_component_t opend_comp = *sig_c;
-				    opend_comp.name = opend_p;
-				    opend_path.push_back(opend_comp);
-				    opend_path.insert(opend_path.end(), suffix.begin(), suffix.end());
-				    pform_name_t raw_path = prefix;
-				    name_component_t raw_comp = *sig_c;
-				    std::map<perm_string,perm_string>::const_iterator alias_it =
-					  cbk->aliases.find(sig_c->name);
-				    if (alias_it != cbk->aliases.end())
-					  raw_comp.name = alias_it->second;
-				    raw_path.push_back(raw_comp);
-				    raw_path.insert(raw_path.end(), suffix.begin(), suffix.end());
+			      pform_name_t suffix(sel_c, csr.path_tail.cend());
+			      pform_name_t prefix = path;
+			      for (size_t idx = 0; idx < suffix.size() + 2; ++idx)
+				    prefix.pop_back();
+
+			      pform_name_t obuf_path = prefix;
+			      name_component_t obuf_comp = *sig_c;
+			      obuf_comp.name = obuf_p;
+			      obuf_path.push_back(obuf_comp);
+			      obuf_path.insert(obuf_path.end(), suffix.begin(), suffix.end());
+			      pform_name_t opend_path = prefix;
+			      name_component_t opend_comp = *sig_c;
+			      opend_comp.name = opend_p;
+			      opend_path.push_back(opend_comp);
+			      opend_path.insert(opend_path.end(), suffix.begin(), suffix.end());
+			      pform_name_t kick_path = prefix;
+			      name_component_t kick_comp(kick_p);
+			      kick_path.push_back(kick_comp);
 
 				    PEIdent obuf_id (obuf_path, lid->lexical_pos());
 				    obuf_id.set_line(loc);
-				    NetAssign_*obuf_lv = obuf_id.elaborate_lval(des, scope,
-									false, false, false);
-				    if (obuf_lv == 0) return 0;
-				    NetExpr*rv = elaborate_rval_expr(des, scope,
-							obuf_lv->net_type(),
-							obuf_lv->expr_type(),
-							obuf_lv->lwidth(), rexpr);
-				    if (rv == 0) return 0;
-				    NetAssign*store = new NetAssign(obuf_lv, rv);
+				    obuf_id.set_clocking_access(cb_c->name);
+				    unique_ptr<NetAssign_> obuf_lv(
+					  obuf_id.elaborate_lval(des, scope,
+								 false, false, false));
+				    if (!obuf_lv) return 0;
+				    if (obuf_lv->get_base()
+					&& !dynamic_cast<const NetEConst*>(obuf_lv->get_base())) {
+				    cerr << loc.get_fileline() << ": sorry: a run-time "
+					 << "selected clocking-output drive requires one "
+					     << "captured selector and is not yet supported." << endl;
+					des->errors += 1;
+					return 0;
+				    }
+				    unique_ptr<NetExpr> rv(elaborate_rval_expr(des, scope,
+						    obuf_lv->net_type(),
+						    obuf_lv->expr_type(),
+						    obuf_lv->lwidth(), rexpr));
+				    if (!rv) return 0;
+				    unique_ptr<NetAssign> store(
+					  new NetAssign(obuf_lv.release(), rv.release()));
 				    store->set_line(loc);
 
-				    PEIdent pfx_id (prefix, lid->lexical_pos());
-				    pfx_id.set_line(loc);
-				    NetExpr*vif_ex = pfx_id.elaborate_expr(des, scope, 0u, 0u);
-				    if (vif_ex == 0) return 0;
-				    NetESFunc*chg = new NetESFunc("$ivl_vif_tick_changed",
-							walk->get_prop_type(tick_idx), 2);
-				    chg->parm(0, vif_ex);
-				    verinum tick_v ((uint64_t)tick_idx, 32);
-				    NetEConst*tick_c = new NetEConst(tick_v);
-				    tick_c->set_line(loc);
-				    chg->parm(1, tick_c);
-				    chg->set_line(loc);
-
-				    PEIdent raw_id (raw_path, lid->lexical_pos());
-				    raw_id.set_line(loc);
-				    NetAssign_*raw_lv = raw_id.elaborate_lval(des, scope,
-								      false, false, false);
-				    if (raw_lv == 0) return 0;
-				    /* Preserve a member/select destination through the NBA.
-				       Reading and assigning the complete buffer here would
-				       overwrite every untouched raw bit with the buffer's
-				       uninitialized value. */
-				    PEIdent obuf_rd_id (obuf_path, lid->lexical_pos());
-				    obuf_rd_id.set_line(loc);
-				    NetExpr*obuf_rd = obuf_rd_id.elaborate_expr(des, scope, 0u, 0u);
-				    if (obuf_rd == 0) return 0;
-				    NetAssignNB*now = new NetAssignNB(raw_lv, obuf_rd, 0, 0);
-				    now->set_line(loc);
-
-				    PEIdent opend_id (opend_path, lid->lexical_pos());
-				    opend_id.set_line(loc);
-				    NetAssign_*opend_lv = opend_id.elaborate_lval(des, scope,
-									  false, false, false);
-				    if (opend_lv == 0) return 0;
+			      PEIdent opend_id (opend_path, lid->lexical_pos());
+			      opend_id.set_line(loc);
+			      opend_id.set_clocking_access(cb_c->name);
+				    unique_ptr<NetAssign_> opend_lv(
+					  opend_id.elaborate_lval(des, scope,
+								  false, false, false));
+				    if (!opend_lv) return 0;
 				    verinum one_v (verinum::V1, opend_lv->lwidth());
-				    NetEConst*one = new NetEConst(one_v);
+				    unique_ptr<NetEConst> one(new NetEConst(one_v));
 				    one->set_line(loc);
-				    NetAssign*mark = new NetAssign(opend_lv, one);
+				    unique_ptr<NetAssign> mark(
+					  new NetAssign(opend_lv.release(), one.release()));
 				    mark->set_line(loc);
 
-				    NetCondit*cond = new NetCondit(chg, now, mark);
+			      PEIdent pfx_id (prefix, lid->lexical_pos());
+			      pfx_id.set_line(loc);
+				    unique_ptr<NetExpr> vif_ex(
+					  pfx_id.elaborate_expr(des, scope, 0u, 0u));
+				    if (!vif_ex) return 0;
+				    unique_ptr<NetESFunc> chg(new NetESFunc(
+						      "$ivl_vif_tick_changed",
+						      walk->get_prop_type(tick_idx), 2));
+				    chg->parm(0, vif_ex.release());
+			      verinum tick_v ((uint64_t)tick_idx, 32);
+			      NetEConst*tick_c = new NetEConst(tick_v);
+			      tick_c->set_line(loc);
+			      chg->parm(1, tick_c);
+			      chg->set_line(loc);
+
+			      PEIdent kick_rd_id (kick_path, lid->lexical_pos());
+			      kick_rd_id.set_line(loc);
+			      kick_rd_id.set_clocking_access(cb_c->name);
+				    unique_ptr<NetExpr> kick_rd(
+					  kick_rd_id.elaborate_expr(des, scope, 0u, 0u));
+				    if (!kick_rd) return 0;
+				    unique_ptr<NetEUnary> inv(
+					  new NetEUnary('~', kick_rd.release(), 1, false));
+				    inv->set_line(loc);
+			      PEIdent kick_id (kick_path, lid->lexical_pos());
+			      kick_id.set_line(loc);
+			      kick_id.set_clocking_access(cb_c->name);
+				    unique_ptr<NetAssign_> kick_lv(
+					  kick_id.elaborate_lval(des, scope,
+								false, false, false));
+				    if (!kick_lv) return 0;
+				    unique_ptr<NetAssign> kick_now(
+					  new NetAssign(kick_lv.release(), inv.release()));
+				    kick_now->set_line(loc);
+
+				    unique_ptr<NetCondit> cond(
+					  new NetCondit(chg.release(), kick_now.release(), 0));
 				    cond->set_line(loc);
-				    NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+				    unique_ptr<NetBlock> blk(
+					  new NetBlock(NetBlock::SEQU, 0));
 				    blk->set_line(loc);
-				    blk->append(store);
-				    blk->append(cond);
-				    return blk;
-			      }
+				    blk->append(store.release());
+				    blk->append(mark.release());
+				    blk->append(cond.release());
+				    return blk.release();
 			}
 		  }
 	    }
@@ -8332,20 +8471,24 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 		  auto pmod_it = mn.nil() ? pform_modules.end()
 					  : pform_modules.find(mn);
 		  if (pmod_it != pform_modules.end()) {
-			pform_name_t::const_iterator sig_c = path.end();
-			--sig_c;
-			pform_name_t::const_iterator cb_c = sig_c;
-			--cb_c;
-			if (cb_c->index.empty() && sig_c->index.empty()) {
-			      auto cb_it = pmod_it->second->clocking_blocks.find(cb_c->name);
-			      if (cb_it != pmod_it->second->clocking_blocks.end()) {
-				    const auto&signals = cb_it->second->signals;
-				    if (std::find(signals.begin(), signals.end(),
-						  sig_c->name) != signals.end()) {
-					  def_scope = sr.scope;
-					  cbp = cb_it->second;
-					  cb_name = cb_c->name;
-					  sig_name = sig_c->name;
+			static_prefix_count = sr.path_head.size();
+			if (static_prefix_count + 2 <= path.size()) {
+			      pform_name_t::const_iterator cb_c = path.begin();
+			      advance(cb_c, static_prefix_count);
+			      pform_name_t::const_iterator sig_c = cb_c;
+			      ++sig_c;
+			      if (cb_c->index.empty()) {
+				    auto cb_it = pmod_it->second->clocking_blocks.find(cb_c->name);
+				    if (cb_it != pmod_it->second->clocking_blocks.end()) {
+					  const auto&signals = cb_it->second->signals;
+					  if (std::find(signals.begin(), signals.end(),
+							sig_c->name) != signals.end()) {
+						def_scope = sr.scope;
+						cbp = cb_it->second;
+						cb_name = cb_c->name;
+						sig_name = sig_c->name;
+						static_sig_c = sig_c;
+					  }
 				    }
 			      }
 			}
@@ -8360,27 +8503,105 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
       if (dir != NetNet::POUTPUT && dir != NetNet::PINOUT)
 	    return nullptr;
 
+        /* From this point the source l-value is definitely an output
+           clockvar.  Never let a missing hidden representation fall through
+           to the ordinary NBA path: that silently turns a buffered clocking
+           drive into an immediate write of an alias or proxy. */
+      handled = true;
+
       string bname = string("_ivl_obuf$") + cb_name.str() + "$" + sig_name.str();
       string pname = string("_ivl_opend$") + cb_name.str() + "$" + sig_name.str();
       string kname = string("_ivl_smptick$") + cb_name.str();
       string tname = string("_ivl_smptrig$") + cb_name.str();
+      string dname = string("_ivl_odkick$") + cb_name.str();
       NetNet*raw  = resolve_clocking_raw_signal(des, def_scope, cbp, sig_name);
       NetNet*obuf = def_scope->find_signal(lex_strings.make(bname.c_str()));
       NetNet*opend = def_scope->find_signal(lex_strings.make(pname.c_str()));
       NetNet*tick = def_scope->find_signal(lex_strings.make(kname.c_str()));
+      NetNet*kick = def_scope->find_signal(lex_strings.make(dname.c_str()));
       NetEvent*trig = def_scope->find_event(lex_strings.make(tname.c_str()));
-      if (!raw || !obuf || !opend || !tick || !trig)
+	if (!raw || !obuf || !opend || !tick || !kick || !trig) {
+	    cerr << loc.get_fileline() << ": sorry: clocking output `"
+		 << cb_name << "." << sig_name
+		 << "' has no representable buffered storage; the drive was "
+		 << "rejected rather than executed as an ordinary nonblocking "
+		 << "assignment." << endl;
+	    des->errors += 1;
 	    return nullptr;
+	}
+      if (raw->vector_width() != obuf->vector_width()
+	  || raw->vector_width() != opend->vector_width()) {
+	    cerr << loc.get_fileline() << ": error: internal clocking-output "
+		 << "storage widths do not match for `" << cb_name << "."
+		 << sig_name << "'." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
 
-      NetExpr*rv = elaborate_rval_expr(des, scope, obuf->net_type(), rexpr);
-      if (rv == 0) return 0;
+	/* Remove the clocking-block component and rename the clockvar to its
+	   hidden output buffer, preserving indices on the signal component and
+	   every later packed member/select. Elaborating this once gives both
+	   hidden destinations one canonical flattened selection. */
+      pform_name_t obuf_path;
+      pform_name_t::const_iterator path_it = path.begin();
+      for (size_t idx = 0; idx < static_prefix_count; ++idx, ++path_it)
+	    obuf_path.push_back(*path_it);
+      ivl_assert(loc, static_sig_c != path.end());
+      name_component_t obuf_comp = *static_sig_c;
+      obuf_comp.name = lex_strings.make(bname.c_str());
+      obuf_path.push_back(obuf_comp);
+      pform_name_t::const_iterator suffix = static_sig_c;
+      ++suffix;
+      obuf_path.insert(obuf_path.end(), suffix, path.end());
+
+      PEIdent obuf_id (obuf_path, lid->lexical_pos());
+      obuf_id.set_line(loc);
+      NetAssign_*obuf_lv = obuf_id.elaborate_lval(des, scope,
+						  false, false, false);
+      if (!obuf_lv)
+	    return 0;
+
+      if (obuf_lv->more || obuf_lv->nest() || obuf_lv->word()
+	  || obuf_lv->is_array_slice() || obuf_lv->sig() != obuf) {
+	    cerr << loc.get_fileline() << ": sorry: selected clocking-output "
+		 << "drives currently require a direct packed clockvar (`"
+		 << cb_name << "." << sig_name << "')." << endl;
+	    des->errors += 1;
+	    delete obuf_lv;
+	    return 0;
+      }
+      if (obuf_lv->get_base()
+	  && !dynamic_cast<const NetEConst*>(obuf_lv->get_base())) {
+	    cerr << loc.get_fileline() << ": sorry: a run-time selected "
+		 << "clocking-output drive requires one captured selector and is "
+		 << "not yet supported." << endl;
+	    des->errors += 1;
+	    delete obuf_lv;
+	    return 0;
+      }
+
+      NetExpr*rv = elaborate_rval_expr(des, scope, obuf_lv->net_type(),
+					obuf_lv->expr_type(), obuf_lv->lwidth(),
+					rexpr);
+      if (rv == 0) {
+	    delete obuf_lv;
+	    return 0;
+      }
 
       NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
       blk->set_line(loc);
 
-      NetAssign*store = new NetAssign(new NetAssign_(obuf), rv);
+      NetAssign*store = new NetAssign(obuf_lv, rv);
       store->set_line(loc);
       blk->append(store);
+
+      NetAssign_*opend_lv = clone_clocking_packed_lval_(opend, obuf_lv);
+      verinum one_v (verinum::V1, opend_lv->lwidth());
+      NetEConst*one = new NetEConst(one_v);
+      one->set_line(loc);
+      NetAssign*mark = new NetAssign(opend_lv, one);
+      mark->set_line(loc);
+      blk->append(mark);
 
       NetESFunc*pre = new NetESFunc("$ivl_clocking_sample",
 				    tick->net_type(), 1);
@@ -8393,24 +8614,17 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
       NetEBComp*cmp = new NetEBComp('N', pre, tick_now);
       cmp->set_line(loc);
 
-      NetESignal*buf_rd = new NetESignal(obuf);
-      buf_rd->set_line(loc);
-      NetAssignNB*direct = new NetAssignNB(new NetAssign_(raw), buf_rd, 0, 0);
-      direct->set_line(loc);
-	/* Output skew (14.4): the drive-at-current-event case also
-	   lands #d after the event. */
-      if (PExpr*od = cbp->output_skew_delay(sig_name)) {
-	    if (NetExpr*dly = elaborate_delay_expr(od, des, scope))
-		  direct->set_delay(dly);
-      }
-
-      verinum one_v (verinum::V1, opend->vector_width());
-      NetEConst*one = new NetEConst(one_v);
-      one->set_line(loc);
-      NetAssign*mark = new NetAssign(new NetAssign_(opend), one);
-      mark->set_line(loc);
-
-      NetCondit*cond = new NetCondit(cmp, direct, mark);
+	/* The per-instance apply process owns raw-target resolution and output
+	   skew elaboration.  A drive after this instance's current clocking
+	   event wakes that same process through its kick bit; a between-event
+	   drive simply remains pending for the ordinary clocking trigger. */
+      NetESignal*kick_rd = new NetESignal(kick);
+      kick_rd->set_line(loc);
+      NetEUnary*inv = new NetEUnary('~', kick_rd, 1, false);
+      inv->set_line(loc);
+      NetAssign*kick_now = new NetAssign(new NetAssign_(kick), inv);
+      kick_now->set_line(loc);
+      NetCondit*cond = new NetCondit(cmp, kick_now, 0);
       cond->set_line(loc);
       blk->append(cond);
 
@@ -8468,8 +8682,10 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 	   (`<= ##N` cycle delays are the 2c increment). */
       if (delay_ == 0 && count_ == 0 && event_ == 0) {
 	    if (const PEIdent*lid = dynamic_cast<const PEIdent*>(lval())) {
-		  if (NetProc*drive = elaborate_clocking_output_drive_(
-			    des, scope, lid, rval(), *this))
+		  bool clocking_drive_handled = false;
+		  NetProc*drive = elaborate_clocking_output_drive_(
+			des, scope, lid, rval(), *this, clocking_drive_handled);
+		  if (clocking_drive_handled)
 			return drive;
 	    }
       }
@@ -16069,9 +16285,11 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  }
 
 		  const netclass_t*clocking_class = nullptr;
+		  perm_string clocking_modport;
 		  const netclass_t::clocking_block_t*clocking =
 			resolve_interface_clocking_block_from_search_(sr, base_path_components,
-								      &clocking_class);
+							      &clocking_class,
+							      &clocking_modport);
 		  /* resolve_interface_clocking_block_from_search_ sets
 		     base_path_components = offset (0-based index into
 		     sr.path_tail where the clocking block was found).
@@ -16079,6 +16297,11 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		     before path_tail: add (id->path().size() - path_tail.size()). */
 		  if (clocking)
 			base_path_components += id->path().size() - sr.path_tail.size();
+		  if (clocking && clocking_class
+		      && !validate_interface_modport_access(
+			    des, this, clocking_class, clocking_modport,
+			    clocking->name, clocking->name, false))
+			return 0;
 		  perm_string scope_cb_name;
 		  const PEventStatement*pform_event = clocking
 			? clocking->event
@@ -16163,6 +16386,8 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				    PEIdent*tick_ident = id->path().package
 					  ? new PEIdent(id->path().package, tick_path, id->lexical_pos())
 					  : new PEIdent(tick_path, id->lexical_pos());
+				    tick_ident->set_line(*this);
+				    tick_ident->set_clocking_access(clocking->name);
 				    std::vector<PEEvent*> tick_events;
 				    tick_events.push_back(new PEEvent(PEEvent::ANYEDGE, tick_ident));
 				    PEventStatement tick_stmt(tick_events);
@@ -16197,6 +16422,9 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			      PEIdent*mapped_ident = id->path().package
 				    ? new PEIdent(id->path().package, mapped_path, id->lexical_pos())
 				    : new PEIdent(mapped_path, id->lexical_pos());
+			      mapped_ident->set_line(*this);
+			      if (clocking)
+				    mapped_ident->set_clocking_access(clocking->name);
 			      mapped_events.push_back(new PEEvent(cb_event->type(), mapped_ident,
 							       cb_event->condition()));
 			}
@@ -19878,7 +20106,7 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 			NetNet*shadow = scope->find_signal(lex_strings.make(wname.c_str()));
 			if (shadow) {
 			      NetExpr*dly = skew_delay
-				    ? elaborate_delay_expr(skew_delay, des, scope)
+				    ? elaborate_clocking_skew_expr(skew_delay, des, scope)
 				    : nullptr;
 			      NetESignal*rv = new NetESignal(raw);
 			      rv->set_line(*cb);
@@ -19959,6 +20187,8 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  out_pends.push_back(opend);
 		  out_names.push_back(*sig_it);
 	    }
+	    string dname = string("_ivl_odkick$") + cb->name.str();
+	    NetNet*kick = scope->find_signal(lex_strings.make(dname.c_str()));
 
 	    if (sample_count == 0 && out_raws.empty()) {
 		  delete prologue;
@@ -19977,9 +20207,16 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  init->set_line(*cb);
 		  prologue->append(init);
 	    }
+	    if (kick) {
+		  verinum zero_v (verinum::V0, 1);
+		  NetEConst*zero = new NetEConst(zero_v);
+		  zero->set_line(*cb);
+		  NetAssign*init = new NetAssign(new NetAssign_(kick), zero);
+		  init->set_line(*cb);
+		  prologue->append(init);
+	    }
 
-	      /* Toggle the tick bit after the sample stores (same NBA
-		 ordering as the named-event trigger below). @(vif.cb)
+	      /* Toggle the tick bit after the sample stores. @(vif.cb)
 		 waits anyedge on this bit through the class handle;
 		 initialize it to 0 in the prologue because ~x is x and
 		 an x->x "toggle" never fires an anyedge. The tick also
@@ -20012,9 +20249,26 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  NetEUnary*inv = new NetEUnary('~', tsig, 1, false);
 		  inv->set_line(*cb);
 		  NetAssign_*tlv = new NetAssign_(tick);
-		  NetAssignNB*toggle = new NetAssignNB(tlv, inv, 0, 0);
-		  toggle->set_line(*cb);
-		  body->append(toggle);
+		  if (phase2_count > 0) {
+			/* Numeric-skew samples are stored only after the
+			   Observed-region wait below. A normal NBA toggle here
+			   would wake @(vif.cb) before those stores while the
+			   named trigger correctly waited for them. Put a blocking
+			   toggle after the phase-2 stores instead, so both static
+			   and virtual-interface event controls observe this edge's
+			   complete sample set. The blocking update also makes the
+			   tick visible before either waiter can issue a current-event
+			   clocking-output drive. */
+			NetAssign*toggle = new NetAssign(tlv, inv);
+			toggle->set_line(*cb);
+			phase2->append(toggle);
+		  } else {
+			/* Ordinary samples and this tick are queued in that order
+			   in the NBA region, before the nonblocking named trigger. */
+			NetAssignNB*toggle = new NetAssignNB(tlv, inv, 0, 0);
+			toggle->set_line(*cb);
+			body->append(toggle);
+		  }
 	    }
 
 	      /* Trigger sequencing. Without numeric-skew inputs the
@@ -20087,6 +20341,19 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		 updated in the same time slot are merged, not overwritten by
 		 a whole-value snapshot. */
 	    if (!out_raws.empty()) {
+		  NetEvent*kick_event = nullptr;
+		  if (kick) {
+			kick_event = new NetEvent(scope->local_symbol());
+			kick_event->local_flag(true);
+			kick_event->set_line(*cb);
+			scope->add_event(kick_event);
+			NetEvProbe*probe = new NetEvProbe(scope,
+						       scope->local_symbol(),
+						       kick_event,
+						       NetEvProbe::ANYEDGE, 1);
+			connect(probe->pin(0), kick->pin(0));
+			des->add_node(probe);
+		  }
 		  NetBlock*apply_blk = new NetBlock(NetBlock::SEQU, 0);
 		  apply_blk->set_line(*cb);
 		  for (size_t idx = 0 ; idx < out_raws.size() ; idx += 1) {
@@ -20133,7 +20400,7 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 			drv->set_line(*cb);
 			  /* Output skew (14.4): land #d after the event. */
 			if (PExpr*od = cb->output_skew_delay(out_names[idx])) {
-			      if (NetExpr*dly = elaborate_delay_expr(od, des, scope))
+			      if (NetExpr*dly = elaborate_clocking_skew_expr(od, des, scope))
 				    drv->set_delay(dly);
 			}
 			NetCondit*drive_bit = new NetCondit(pend_bit, drv, 0);
@@ -20159,6 +20426,8 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  NetEvWait*await = new NetEvWait(apply_blk);
 		  await->set_line(*cb);
 		  await->add_event(trig);
+		  if (kick_event)
+			await->add_event(kick_event);
 		  NetForever*apply_loop = new NetForever(await);
 		  apply_loop->set_line(*cb);
 		  NetProcTop*apply_top = new NetProcTop(scope, IVL_PR_INITIAL,
@@ -27256,6 +27525,24 @@ struct root_elem {
       NetScope *scope;
 };
 
+/* IEEE 1800-2017 3.14.3 defines one global simulation precision from all
+   design elements, not merely from scopes that happen to be instantiated.
+   Establish that invariant before any delay expression can be scaled. This
+   also makes virtual-interface metadata independent of declaration order. */
+static void seed_design_precision_(Design*des)
+{
+      for (const auto&entry : pform_modules)
+	des->set_precision(entry.second->time_precision);
+
+      if (!gn_system_verilog())
+	return;
+
+      for (const PPackage*package : pform_packages)
+	des->set_precision(package->time_precision);
+      for (const PPackage*unit : pform_units)
+	des->set_precision(unit->time_precision);
+}
+
 /* Return true when TYPE contains a queue/associative-array leaf below a fixed
  * unpacked dimension. Signal-backed unpacked structs retain member types as a
  * nested netstruct_t, so checking only the NetNet's top-level shape would let
@@ -27498,9 +27785,10 @@ Design* elaborate(list<perm_string>roots)
       bool rc = true;
       unsigned i = 0;
 
-	// This is the output design. I fill it in as I scan the root
-	// module and elaborate what I find.
+      // This is the output design. I fill it in as I scan the root
+      // module and elaborate what I find.
       Design*des = new Design;
+      seed_design_precision_(des);
       pending_interface_continuous_drivers_.clear();
       pending_interface_variable_continuous_drivers_.clear();
 

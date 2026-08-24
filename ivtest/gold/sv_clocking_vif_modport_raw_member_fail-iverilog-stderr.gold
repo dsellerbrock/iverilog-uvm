@@ -1,0 +1,2 @@
+ivltests/sv_clocking_vif_modport_raw_member_fail.v:22: error: cannot access 'raw' through modport 'monitor_mp' of interface 'mp_clocking_raw_negative_if' — it is not listed in that modport (IEEE 1800-2017 25.5).
+1 error(s) during elaboration.

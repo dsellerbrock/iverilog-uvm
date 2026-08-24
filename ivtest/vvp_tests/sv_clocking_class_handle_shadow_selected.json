@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_clocking_class_handle_shadow_selected.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_clocking_class_handle_shadow_selected" ],
+    "gold"          : "sv_clocking_class_handle_shadow_selected"
+}

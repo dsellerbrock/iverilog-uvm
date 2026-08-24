@@ -278,6 +278,49 @@ NetAssign_* PExpr::elaborate_lval(Design*, NetScope*, bool, bool, bool) const
  * a is the MSB and b the LSB. Connect the LSB to the low pins of the
  * NetAssign_ object.
  */
+
+/* IEEE 1800-2017 14.3: a clocking signal is not a legal operand of a
+   concatenation or assignment-pattern l-value. Detect the clocking pseudo-
+   hierarchy before elaborating any operand, otherwise the ordinary member
+   rewrite aliases it to the raw signal and a partial NetAssign_ tree can be
+   built with immediate (non-clocking) semantics. */
+static bool report_concat_clocking_lvalue_(const PExpr*expr, Design*des,
+					    NetScope*scope)
+{
+      if (const PEIdent*ident = dynamic_cast<const PEIdent*>(expr)) {
+	    symbol_search_results sr;
+	    symbol_search(ident, des, scope, ident->path(),
+			  ident->lexical_pos(), &sr);
+	    pform_name_t rewritten;
+	    bool is_clocking =
+		  (sr.net && rewrite_class_clocking_member_path(
+			ident, sr, rewritten, false))
+		  || rewrite_clocking_member_path_via_scope(
+			ident, sr, rewritten, false)
+		  || (!sr.net && rewrite_enclosing_scope_clocking_member_path(
+			ident, scope, rewritten, false));
+	    if (!is_clocking)
+		  return false;
+
+	    cerr << ident->get_fileline() << ": error: clocking signal `"
+		 << *ident << "' cannot be part of a concatenation or "
+		 << "assignment-pattern l-value (IEEE 1800-2017 14.3)." << endl;
+	    des->errors += 1;
+	    return true;
+      }
+
+      const PEConcat*concat = dynamic_cast<const PEConcat*>(expr);
+      if (!concat)
+	    return false;
+
+      bool found = false;
+      for (const PExpr*operand : concat->stream_parms())
+	    if (operand)
+		  found = report_concat_clocking_lvalue_(operand, des, scope)
+			|| found;
+      return found;
+}
+
 NetAssign_* PEConcat::elaborate_lval(Design*des,
                                      NetScope*scope,
                                      bool is_cassign,
@@ -290,6 +333,9 @@ NetAssign_* PEConcat::elaborate_lval(Design*des,
 	    des->errors += 1;
 	    return 0;
       }
+
+      if (report_concat_clocking_lvalue_(this, des, scope))
+	    return 0;
 
       NetAssign_*res = 0;
 
@@ -734,20 +780,28 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 
       pform_name_t rewritten_path;
       bool clk_input_write = false;
+      perm_string mapped_access = clocking_access();
       if ((reg && rewrite_class_clocking_member_path(this, sr, rewritten_path,
-						     true, &clk_input_write))
+						     true, &clk_input_write,
+						     &mapped_access))
 	  || rewrite_clocking_member_path_via_scope(this, sr, rewritten_path,
-						    true, &clk_input_write)
+						    true, &clk_input_write,
+						    &mapped_access)
 	  || (!reg && rewrite_enclosing_scope_clocking_member_path(this, scope, rewritten_path,
-								   true, &clk_input_write))) {
+								   true, &clk_input_write,
+								   &mapped_access))) {
 	    if (clk_input_write)
 		  des->errors += 1;
 	    if (path_.package) {
 		  PEIdent mapped_ident(path_.package, rewritten_path, lexical_pos_);
+		  mapped_ident.set_line(*this);
+		  mapped_ident.set_clocking_access(mapped_access);
 		  return mapped_ident.elaborate_lval(des, scope, is_cassign,
 						    is_force, is_init);
 	    }
 	    PEIdent mapped_ident(rewritten_path, lexical_pos_);
+	    mapped_ident.set_line(*this);
+	    mapped_ident.set_clocking_access(mapped_access);
 	    return mapped_ident.elaborate_lval(des, scope, is_cassign,
 					      is_force, is_init);
       }
@@ -2512,62 +2566,14 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 
 	      ivl_assert(*this, root_type);
 
-	// Modport direction enforcement (IEEE 1800-2017 25.5): an
-	// interface port declared with a modport may not WRITE a
-	// member the modport lists as input. The port variable
-	// carries its modport name in the ivl_modport attribute.
-      if (!member_path.empty()) {
-	    verinum mp_attr = sig->attribute(perm_string::literal("ivl_modport"));
-	    const netclass_t*ifc =
-		  dynamic_cast<const netclass_t*>(sig->net_type());
-	    if (mp_attr != verinum() && ifc && ifc->is_interface()) {
-		  std::string mp_name = mp_attr.as_string();
-		  auto im = pform_modules.find(ifc->get_name());
-		  if (im != pform_modules.end()) {
-			auto mit = im->second->modports.find(
-			      lex_strings.make(mp_name.c_str()));
-			if (mit != im->second->modports.end()) {
-			      perm_string member = member_path.front().name;
-			      auto sp = mit->second->simple_ports.find(member);
-			      if (sp != mit->second->simple_ports.end()
-				  && sp->second.first == NetNet::PINPUT) {
-				    cerr << get_fileline() << ": error: "
-					 << "cannot write to '" << member
-					 << "' through modport '" << mp_name
-					 << "' of interface '"
-					 << ifc->get_name()
-					 << "' — it is an input in that"
-					 << " modport (IEEE 1800-2017 25.5)."
-					 << endl;
-				    des->errors += 1;
-				    return 0;
-			      }
-				// Modport member visibility (IEEE
-				// 1800-2017 25.5): only members the
-				// modport lists (as ports or via
-				// import/export) are accessible
-				// through it. A write to any other
-				// interface member used to compile
-				// silently.
-			      if (sp == mit->second->simple_ports.end()
-				  && mit->second->import_ports.count(member) == 0
-				  && mit->second->export_ports.count(member) == 0
-				  && ifc->property_idx_from_name(member) >= 0) {
-				    cerr << get_fileline() << ": error: "
-					 << "cannot access '" << member
-					 << "' through modport '" << mp_name
-					 << "' of interface '"
-					 << ifc->get_name()
-					 << "' — it is not listed in that"
-					 << " modport (IEEE 1800-2017 25.5)."
-					 << endl;
-				    des->errors += 1;
-				    return 0;
-			      }
-			}
-		  }
-	    }
-      }
+	/* Track the selected interface view through nested class properties.
+	   A module/static virtual-interface signal carries the same qualifier
+	   directly as an attribute. */
+      perm_string active_modport;
+      verinum root_modport =
+	    sig->attribute(perm_string::literal("ivl_modport"));
+      if (root_modport != verinum())
+	    active_modport = lex_strings.make(root_modport.as_string().c_str());
 
 	      NetAssign_*lv = 0;
 	      if (!base_index.empty() && sig->darray_type()) {
@@ -2829,6 +2835,13 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 	      // need to know if there are more members to be worked on.
 	    name_component_t member_cur = member_path.front();
 	    member_path.pop_front();
+	    if (owner_class && owner_class->is_interface()
+		&& !validate_interface_modport_access(
+		      des, this, owner_class, active_modport,
+		      member_cur.name, clocking_access(), true)) {
+		  delete lv;
+		  return 0;
+	    }
 
 	      // IEEE 1800-2023 19.5/19.7.1: coverpoint and cross labels form
 	      // pseudo hierarchy under a covergroup instance. Rewrite the two
@@ -2872,6 +2885,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 	      // then generate an error message and return an error.
 	    int pidx = -1;
 	    ivl_type_t ptype = nullptr;
+	    perm_string next_modport;
 	    if (owner_class) {
 		  pidx = const_cast<netclass_t*>(owner_class)->ensure_property_decl(des, method_name);
 		  if (pidx < 0) {
@@ -2890,6 +2904,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			des->errors += 1;
 			return 0;
 		  }
+		  next_modport = owner_class->get_prop_interface_modport(pidx);
 
 		  property_qualifier_t qual = owner_class->get_prop_qual(pidx);
 		  if (qual.test_local() && ! owner_class->test_scope_is_method(scope)) {
@@ -2931,6 +2946,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			      lv = new NetAssign_(psig);
 			      if (member_path.empty())
 				    return lv;
+			      active_modport = next_modport;
 			      continue;
 			}
 
@@ -3099,6 +3115,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		  const auto&members = owner_struct->members();
 		  pidx = member - &members.front();
 		  ptype = member->net_type;
+		  next_modport = member->interface_modport;
 	    }
 
 	    lv = lv? new NetAssign_(lv) : new NetAssign_(sig);
@@ -3793,10 +3810,9 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 	    if (word_index)
 		  lv->set_word(word_index);
 
-	      // The next-step type must come from the l-value node after any
-	      // property and index selections are applied (e.g. m_events[obj]
-	      // should yield the element type, not the container property type).
-	    ivl_type_t next_type = lv->net_type();
+	      // Preserve a virtual-interface property's selected view through
+	      // the next member hop; an ordinary property clears it.
+	    active_modport = next_modport;
 
       } while (!member_path.empty());
 

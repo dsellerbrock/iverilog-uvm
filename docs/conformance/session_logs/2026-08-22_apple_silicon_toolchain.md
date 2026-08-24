@@ -185,13 +185,13 @@ not executed because Caliptra's real `jtagdpi` component binds a network
 socket. The 26 remaining warnings and full-matrix/runtime behavior therefore
 remain separate compatibility work.
 
-## Robustness and security notes
+## Robustness notes
 
-- The cap stopped the parallel build pressure; this was not an Icarus memory
-  leak or a cybersecurity incident.
+- The cap stopped the parallel build pressure; the evidence did not show an
+  Icarus memory leak.
 - The UVM DPI build emitted deprecation warnings for upstream UVM `sprintf`
-  calls. No overflow, corruption, or exploitation was observed; the dependency
-  retains its existing maximum-length checks and was not edited here.
+  calls. The dependency retains its existing maximum-length checks and was not
+  edited here.
 - Tracked x86_64 `.dSYM` payloads and host-specific Python bytecode were
   removed, and `.dSYM`, `__pycache__`, and interrupted `.o.tmp` artifacts are
   ignored so they cannot silently cross architectures again.

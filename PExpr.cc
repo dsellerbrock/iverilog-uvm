@@ -648,6 +648,7 @@ PEIdent* PEIdent::clone_for_reference() const
       res->leading_type_args_ = leading_type_args_;
       res->owns_leading_type_args_ = false;
       res->scoped_type_prefix_ = scoped_type_prefix_;
+      res->clocking_access_ = clocking_access_;
       return res;
 }
 

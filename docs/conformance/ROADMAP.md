@@ -428,7 +428,7 @@ wrong-region fallback, ignored constraint, unresolved method, or approximated
 container operation does **not** pass. Those diagnostics are compliance debt,
 not harmless warnings. Build-provider ambiguity is also a failed reproducibility
 gate until the chosen virtual providers are pinned; it is a build-integrity risk,
-not by itself a cybersecurity vulnerability.
+independent of the compiler's language result.
 
 After both corpora meet that gate, execute M14B in this fixed order:
 

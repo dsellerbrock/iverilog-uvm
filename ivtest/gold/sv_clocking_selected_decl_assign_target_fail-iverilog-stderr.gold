@@ -1,0 +1,3 @@
+ivltests/sv_clocking_selected_decl_assign_target_fail.v:12: sorry: clocking_decl_assign for `nib' is not a resolvable signal path; the clockvar is not sampled.
+ivltests/sv_clocking_selected_decl_assign_target_fail.v:21: sorry: clocking output `cb.nib' has no representable buffered storage; the drive was rejected rather than executed as an ordinary nonblocking assignment.
+Elaboration failed

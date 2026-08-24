@@ -26,6 +26,7 @@ class netuarray_t;
 class netdarray_t;
 class Statement;
 class PExpr;
+class netclass_t;
 
 /*
  * Search for a hierarchical name. The input path is one or more name
@@ -226,17 +227,31 @@ extern bool rewrite_class_clocking_member_path(const PEIdent*ident,
 					       const symbol_search_results&sr,
 					       pform_name_t&rewritten,
 					       bool as_lvalue = false,
-					       bool*input_write = nullptr);
+					       bool*input_write = nullptr,
+					       perm_string*clocking_access = nullptr);
 extern bool rewrite_clocking_member_path_via_scope(const PEIdent*ident,
 						   const symbol_search_results&sr,
 						   pform_name_t&rewritten,
 						   bool as_lvalue = false,
-						   bool*input_write = nullptr);
+						   bool*input_write = nullptr,
+						   perm_string*clocking_access = nullptr);
 extern bool rewrite_enclosing_scope_clocking_member_path(const PEIdent*ident,
 							 const NetScope*scope,
 							 pform_name_t&rewritten,
 							 bool as_lvalue = false,
-							 bool*input_write = nullptr);
+							 bool*input_write = nullptr,
+							 perm_string*clocking_access = nullptr);
+
+/* Enforce the member surface and write directions of one modport-qualified
+   interface handle. Compiler-generated clocking state is admitted only when
+   its exact clocking block is exported by the selected modport. */
+extern bool validate_interface_modport_access(Design*des,
+					       const LineInfo*loc,
+					       const netclass_t*interface_type,
+					       perm_string modport,
+					       perm_string member,
+					       perm_string clocking_access,
+					       bool as_lvalue);
 
 /*
  * This function transforms an expression by either zero or sign extending

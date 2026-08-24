@@ -7,6 +7,18 @@
 - Never turn unsupported behavior into silent success. Emit a focused `error`, `sorry`, or warning and add a regression that pins the boundary.
 - Preserve source evaluation order, scope and type provenance, scheduler-region semantics, DPI/VPI ABI behavior, and exact diagnostic counts.
 
+## Project scope and defect language
+
+- This is HDL compiler and event-driven simulator engineering: language
+  conformance, elaboration, code generation, runtime correctness, and
+  regression testing.
+- Describe crashes, use-after-free defects, malformed-bytecode handling, and
+  unchecked casts as compiler robustness or memory-safety defects. Report the
+  precise input, failure mode, fix, and regression without speculative labels
+  outside compiler correctness.
+- Source reducers are conformance tests. Keep them minimal and focused on the
+  compiler/runtime behavior being repaired.
+
 ## Worktree and Git lifecycle
 
 - Work only in the intended repository/worktree. Inspect `pwd`, `git status --short --branch`, and the current upstream before editing.
@@ -131,7 +143,10 @@ Run the narrowest meaningful gate first, then widen it:
 - Changes to VVP instructions generally require synchronized updates to opcode declarations, compiler parsing, target emission, runtime execution, and malformed-bytecode validation where applicable.
 - For randomization changes, preserve deterministic RNG ownership and consumption, atomic value/history rollback on failure, static alias identity, and per-leaf state where the LRM defines independent variables.
 - For SVA/deferred work, preserve the specified sampling and scheduler region; never escape into Active/Reactive from a Postponed-only action.
-- Treat crashes, null dereferences, unchecked VPI/DPI casts, malformed bytecode handling, use-after-free, and transient callback leaks as security-relevant findings and call them out explicitly.
+- Treat crashes, null dereferences, unchecked VPI/DPI casts, malformed
+  bytecode handling, use-after-free, and transient callback leaks as
+  high-priority compiler robustness or memory-safety defects. Call out the
+  exact failure and permanent regression in compiler terms.
 - Review for silent fallback, stale-runtime execution, lost diagnostic counts, host-specific paths, generated artifacts, and claims broader than the tests prove.
 
 ## Commit and pull request

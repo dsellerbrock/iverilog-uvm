@@ -25,7 +25,7 @@ FuseSoC's unsigned-core trust-file notice and its legacy-backend migration
 notice are explicitly allowlisted because neither changes the selected HDL or
 its meaning.  Every other setup warning is retained.  Ambiguous virtual-core
 provider selection is a build-integrity/reproducibility finding; it is not by
-itself classified as a cybersecurity vulnerability.
+itself a compiler semantic result.
 
 ## Reproducible inputs
 
@@ -179,7 +179,7 @@ the `ibex_alu.sv` partial-field latch error: the lower field is fully assigned
 on both `if/else` paths and now composes with its independently driven upper
 bit. The sole remaining warning in that exact log is the legal constant-only
 `always_comb` in `ibex_cs_registers.sv`; G26 removes that false debt after the
-replay. The timeout itself remains open and is not a cybersecurity finding.
+replay. The timeout itself remains an open compiler-performance finding.
 
 The subsequent disjoint-packed-process and precise-select-sensitivity fixes
 move the exact Darjeeling RACL target to a clean result at the same pinned
@@ -194,9 +194,8 @@ zero-debt disposition and a 0.357-second compile.
 
 After the complete-branch refinement and G26 warning cleanup,
 `racl-disjoint-precise-v6` is the final witness: `PASS`, exit 0, zero hard
-errors, zero semantic-debt lines, no timeout, `security_vulnerability=false`,
-and a 0.334-second compile. This replay includes the adversarial per-bit-state
-guard added after v5.
+errors, zero semantic-debt lines, no timeout, and a 0.334-second compile. This
+replay includes the adversarial per-bit-state guard added after v5.
 
 ## First ADC-control matrix witness
 
@@ -205,7 +204,7 @@ The first three-lane run exposed the intended distinction immediately:
 | Lane | Result | Current frontier |
 |---|---|---|
 | RTL synthesis | `DEBT` | Compile succeeds; one conservative `always_*` sensitivity warning remains recorded. |
-| Standalone SVA/formal | `FAIL` | After supplying UVM to the unmodified formal dependency graph, `adc_ctrl_fsm_sva_if.sv` refers to the simulation hierarchy `tb.dut` while the formal target's top is `adc_ctrl`. This is presently an OpenTitan target/topology mismatch, followed by compiler semantic-debt warnings; it is not evidence of a cybersecurity vulnerability. |
+| Standalone SVA/formal | `FAIL` | After supplying UVM to the unmodified formal dependency graph, `adc_ctrl_fsm_sva_if.sv` refers to the simulation hierarchy `tb.dut` while the formal target's top is `adc_ctrl`. This is presently an OpenTitan target/topology mismatch, followed by compiler semantic-debt warnings. |
 | UVM compile | `DEBT` | Compile and code generation succeed with no hard errors, but 153 unique warning/degradation lines remain. |
 
 The UVM warning count is a triage count, not a defect count: one root language

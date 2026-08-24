@@ -226,17 +226,24 @@ bool netclass_t::implements_interface(const netclass_t*interface_type) const
 }
 
 bool netclass_t::set_property(perm_string pname, property_qualifier_t qual,
-			      ivl_type_t ptype)
+				      ivl_type_t ptype,
+				      perm_string interface_modport)
 {
       map<perm_string,size_t>::const_iterator cur;
       cur = properties_.find(pname);
-      if (cur != properties_.end())
+	/* A property can be seeded before its complete parse type is revisited.
+	   Refresh the view qualifier without perturbing its stable slot. */
+      if (cur != properties_.end()) {
+	    if (!interface_modport.nil())
+		  property_table_[cur->second].interface_modport = interface_modport;
 	    return false;
+      }
 
       prop_t tmp;
       tmp.name = pname;
       tmp.qual = qual;
       tmp.type = ptype;
+      tmp.interface_modport = interface_modport;
       tmp.initialized_flag = false;
       tmp.static_target = 0;
       property_table_.push_back(tmp);
@@ -326,8 +333,13 @@ int netclass_t::ensure_property_decl(Design*des, perm_string pname)
             assert(cur != pclass->type->properties.end());
             ivl_type_t use_type = 0;
 
-            if (properties_.find(cur->first) != properties_.end())
+            if (properties_.find(cur->first) != properties_.end()) {
+                  set_property(cur->first, cur->second.qual,
+                               property_table_[properties_[cur->first]].type,
+                               pform_interface_modport(
+                                     des, class_scope_, cur->second.type.get()));
                   continue;
+            }
 
             if (const typeref_t*type_ref =
                         dynamic_cast<const typeref_t*>(cur->second.type.get())) {
@@ -346,12 +358,20 @@ int netclass_t::ensure_property_decl(Design*des, perm_string pname)
             if (!use_type)
                   return -1;
 
-            bool added = set_property(cur->first, cur->second.qual, use_type);
+            perm_string interface_modport =
+                  pform_interface_modport(
+                        des, class_scope_, cur->second.type.get());
+            bool added = set_property(cur->first, cur->second.qual, use_type,
+                                      interface_modport);
             if (added && cur->second.qual.test_static()) {
                   NetNet*sig = class_scope_->find_signal(cur->first);
                   if (sig == 0)
                         sig = new NetNet(class_scope_, cur->first,
                                          NetNet::REG, use_type);
+                  if (!interface_modport.nil())
+                        sig->attribute(perm_string::literal("ivl_modport"),
+                                       verinum(std::string(
+                                             interface_modport.str())));
                   sig->set_const(cur->second.qual.test_const());
             }
       }
@@ -407,6 +427,11 @@ void netclass_t::ensure_all_properties_declared(Design*des)
                                     if (dynamic_cast<const netclass_t*>(repaired))
                                           property_table_[already->second].type = repaired;
                               }
+                              set_property(cur->first, cur->second.qual,
+                                           property_table_[already->second].type,
+                                           pform_interface_modport(
+                                                 des, class_scope_,
+                                                 cur->second.type.get()));
                               continue;
                         }
 
@@ -426,12 +451,21 @@ void netclass_t::ensure_all_properties_declared(Design*des)
                         if (!use_type)
                               continue;   // skip unresolvable types
 
-                        bool added = set_property(cur->first, cur->second.qual, use_type);
+                        perm_string interface_modport =
+                              pform_interface_modport(
+                                    des, class_scope_, cur->second.type.get());
+                        bool added = set_property(cur->first, cur->second.qual,
+                                                  use_type, interface_modport);
                         if (added && cur->second.qual.test_static()) {
                               NetNet*sig = class_scope_->find_signal(cur->first);
                               if (sig == 0)
                                     sig = new NetNet(class_scope_, cur->first,
                                                      NetNet::REG, use_type);
+                              if (!interface_modport.nil())
+                                    sig->attribute(
+                                          perm_string::literal("ivl_modport"),
+                                          verinum(std::string(
+                                                interface_modport.str())));
                               sig->set_const(cur->second.qual.test_const());
                         }
                   }
@@ -503,6 +537,17 @@ ivl_type_t netclass_t::get_prop_type(size_t idx) const
 	    return super_->get_prop_type(idx);
       else
 	    return property_table_[idx-super_size].type;
+}
+
+perm_string netclass_t::get_prop_interface_modport(size_t idx) const
+{
+      size_t super_size = 0;
+      if (super_) super_size = super_->get_properties();
+
+      assert(idx < (super_size + property_table_.size()));
+      if (idx < super_size)
+	    return super_->get_prop_interface_modport(idx);
+      return property_table_[idx-super_size].interface_modport;
 }
 
 NetNet*netclass_t::get_prop_static_signal(size_t idx) const

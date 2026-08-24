@@ -1,0 +1,2 @@
+./ivltests/sv_clocking_indexed_class_receiver_fail.v:30: sorry: a clocking-output drive through an indexed class receiver requires capturing that receiver once; the drive was rejected rather than executed as an ordinary nonblocking assignment.
+1 error(s) during elaboration.
