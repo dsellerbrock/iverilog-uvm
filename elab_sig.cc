@@ -860,6 +860,7 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 		  continue;
 
 	    bool any = false;
+	    bool any_output = false;
 	    for (vector<perm_string>::const_iterator sig_it = cb->signals.begin()
 		       ; sig_it != cb->signals.end() ; ++sig_it) {
 		  NetNet::PortType dir = cb->signal_direction(*sig_it);
@@ -999,6 +1000,7 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 			      }
 			      opend->set_line(*cb);
 			}
+			any_output = true;
 			any = true;
 		  }
 	    }
@@ -1026,6 +1028,20 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 		  netvector_t*tvec = new netvector_t(IVL_VT_LOGIC, 0, 0, false);
 		  NetNet*tick = new NetNet(scope, tick_name, NetNet::REG, tvec);
 		  tick->set_line(*cb);
+	    }
+
+	      /* A VIF drive issued after @(vif.cb) toggles this per-instance
+		 kick bit. The output-apply process waits on it as well as on the
+		 ordinary clocking trigger, so current-event drives use the same
+		 resolved raw target and skew as buffered drives. */
+	    if (any_output) {
+		  string dname = string("_ivl_odkick$") + cb->name.str();
+		  perm_string kick_name = lex_strings.make(dname.c_str());
+		  if (!scope->find_signal(kick_name)) {
+			netvector_t*dvec = new netvector_t(IVL_VT_LOGIC, 0, 0, false);
+			NetNet*kick = new NetNet(scope, kick_name, NetNet::REG, dvec);
+			kick->set_line(*cb);
+		  }
 	    }
       }
 }
@@ -1703,7 +1719,10 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		  }
 	    }
 
-	    set_property(cur->first, cur->second.qual, use_type);
+	    perm_string interface_modport =
+		  pform_interface_modport(cur->second.type.get());
+	    set_property(cur->first, cur->second.qual, use_type,
+			 interface_modport);
 
 	    if (! cur->second.qual.test_static())
 		  continue;
@@ -1736,6 +1755,9 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 					use_type);
 		  }
 	    }
+	    if (!interface_modport.nil())
+		  static_sig->attribute(perm_string::literal("ivl_modport"),
+				verinum(std::string(interface_modport.str())));
 	    static_sig->set_const(cur->second.qual.test_const());
       }
 
@@ -2004,12 +2026,18 @@ static void seed_super_chain_properties_(Design*des, const netclass_t*cls)
 	    ivl_type_t use_type = elaborate_class_property_type_(
 		  des, super_scope_mut, cur->second.type.get());
 	    if (!use_type) continue;
-	    super_mut->set_property(cur->first, cur->second.qual, use_type);
+	    perm_string interface_modport =
+		  pform_interface_modport(cur->second.type.get());
+	    super_mut->set_property(cur->first, cur->second.qual, use_type,
+				    interface_modport);
 	    if (cur->second.qual.test_static()) {
 		  NetNet*sig = super_scope_mut->find_signal(cur->first);
-		  if (sig == 0)
-			sig = new NetNet(super_scope_mut, cur->first,
+		if (sig == 0)
+		      sig = new NetNet(super_scope_mut, cur->first,
 					 NetNet::REG, use_type);
+		if (!interface_modport.nil())
+		      sig->attribute(perm_string::literal("ivl_modport"),
+				     verinum(std::string(interface_modport.str())));
 		  sig->set_const(cur->second.qual.test_const());
 	    }
       }
@@ -2053,12 +2081,18 @@ static void seed_class_scope_properties_for_method_elab_(Design*des,
 	       ; cur != pclass_type->properties.end() ; ++ cur) {
 	    ivl_type_t use_type = elaborate_class_property_type_(
 		  des, class_scope, cur->second.type.get());
-	    clsnet->set_property(cur->first, cur->second.qual, use_type);
+	    perm_string interface_modport =
+		  pform_interface_modport(cur->second.type.get());
+	    clsnet->set_property(cur->first, cur->second.qual, use_type,
+				 interface_modport);
 	    if (cur->second.qual.test_static()) {
 		  NetNet*sig = class_scope->find_signal(cur->first);
-		  if (sig == 0)
-			sig = new NetNet(class_scope, cur->first,
+		if (sig == 0)
+		      sig = new NetNet(class_scope, cur->first,
 					 NetNet::REG, use_type);
+		if (!interface_modport.nil())
+		      sig->attribute(perm_string::literal("ivl_modport"),
+				     verinum(std::string(interface_modport.str())));
 		  sig->set_const(cur->second.qual.test_const());
 	    }
       }

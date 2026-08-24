@@ -22,6 +22,37 @@
 # include  "pform.h"
 # include  <set>
 
+perm_string pform_interface_modport(const data_type_t*type)
+{
+      std::set<const data_type_t*>seen_types;
+      std::set<const typedef_t*>seen_typedefs;
+
+      while (type && seen_types.insert(type).second) {
+            if (const interface_type_t*interface_type =
+                  dynamic_cast<const interface_type_t*>(type))
+                  return interface_type->modport;
+
+            if (const array_base_t*array_type =
+                  dynamic_cast<const array_base_t*>(type)) {
+                  type = array_type->base_type.get();
+                  continue;
+            }
+
+            if (const typeref_t*type_ref =
+                  dynamic_cast<const typeref_t*>(type)) {
+                  const typedef_t*typedef_decl = type_ref->typedef_ref();
+                  if (!typedef_decl || !seen_typedefs.insert(typedef_decl).second)
+                        break;
+                  type = typedef_decl->get_data_type();
+                  continue;
+            }
+
+            break;
+      }
+
+      return perm_string();
+}
+
 nettype_t::nettype_t(perm_string name, data_type_t*type,
                      const pform_scoped_name_t*resolution_function)
 : name_(name), direct_type_(type), alias_type_(nullptr),

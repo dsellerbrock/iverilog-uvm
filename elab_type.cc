@@ -287,7 +287,7 @@ static void populate_interface_type_(Design*des, NetScope*member_scope,
 			aliases[da->first] = id->path().name.front().name;
 	    }
 	    iface_type->add_clocking_block(cur->first, cur->second->event,
-				   cur->second->signals, dirs, aliases);
+			   cur->second->signals, dirs, aliases);
 
 	      /* M8-2a-4: register the hidden clocking sample variables
 		 (and the sampler tick bit) as interface properties, so
@@ -300,6 +300,7 @@ static void populate_interface_type_(Design*des, NetScope*member_scope,
 		 keep the alias rewrite — consistent by construction. */
 	    const Module::PClocking*cb = cur->second;
 	    bool any_sampled = false;
+	    bool any_output = false;
 	    for (vector<perm_string>::const_iterator sig_it = cb->signals.begin()
 		       ; sig_it != cb->signals.end() ; ++sig_it) {
 		  NetNet::PortType dir = cb->signal_direction(*sig_it);
@@ -307,11 +308,36 @@ static void populate_interface_type_(Design*des, NetScope*member_scope,
 		  bool is_out = (dir==NetNet::POUTPUT || dir==NetNet::PINOUT);
 		  if (!is_in && !is_out)
 			continue;
-		  map<perm_string,PWire*>::const_iterator wt =
-			mod->wires.find(*sig_it);
-		  if (wt == mod->wires.end())
-			continue;
-		  ivl_type_t rt = wt->second->elaborate_sig_type(des, member_scope);
+		  ivl_type_t rt = nullptr;
+		  map<perm_string,PExpr*>::const_iterator da =
+			cb->decl_assigns.find(*sig_it);
+		  if (da != cb->decl_assigns.end()) {
+			const PEIdent*id = dynamic_cast<const PEIdent*>(da->second);
+			if (!id || id->path().name.empty()
+			    || !id->path().name.back().index.empty())
+			      continue;
+			map<perm_string,perm_string>::const_iterator alias =
+			      aliases.find(*sig_it);
+			map<perm_string,PWire*>::const_iterator wt =
+			      alias == aliases.end() ? mod->wires.end()
+					     : mod->wires.find(alias->second);
+			if (wt != mod->wires.end())
+			      rt = wt->second->elaborate_sig_type(des, member_scope);
+			else {
+			      rt = id->test_type_of_ident(des, member_scope);
+			      if (!rt) {
+				    wt = mod->wires.find(*sig_it);
+				    if (wt != mod->wires.end())
+					  rt = wt->second->elaborate_sig_type(
+						des, member_scope);
+			      }
+			}
+		  } else {
+			map<perm_string,PWire*>::const_iterator wt =
+			      mod->wires.find(*sig_it);
+			if (wt != mod->wires.end())
+			      rt = wt->second->elaborate_sig_type(des, member_scope);
+		  }
 		  if (!rt)
 			continue;
 		  if (rt->base_type() != IVL_VT_LOGIC
@@ -341,6 +367,7 @@ static void populate_interface_type_(Design*des, NetScope*member_scope,
 			      + "$" + sig_it->str();
 			iface_type->set_property(lex_strings.make(pname.c_str()),
 					 property_qualifier_t::make_none(), rt);
+			any_output = true;
 		  }
 		  any_sampled = true;
 	    }
@@ -349,7 +376,14 @@ static void populate_interface_type_(Design*des, NetScope*member_scope,
 		  netvector_t*tick_vec = new netvector_t(IVL_VT_LOGIC,
 						    0, 0, false);
 		  iface_type->set_property(lex_strings.make(tname.c_str()),
-				   property_qualifier_t::make_none(), tick_vec);
+			   property_qualifier_t::make_none(), tick_vec);
+	    }
+	    if (any_output) {
+		  string dname = string("_ivl_odkick$") + cur->first.str();
+		  netvector_t*kick_vec = new netvector_t(IVL_VT_LOGIC,
+						     0, 0, false);
+		  iface_type->set_property(lex_strings.make(dname.c_str()),
+			   property_qualifier_t::make_none(), kick_vec);
 	    }
       }
 }
@@ -394,8 +428,12 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
 			      lexical_parent->pscope_name());
 		  // Interface is NOT a root — create a disposable scope.
 		  temp_scope = new NetScope(nullptr, hname_t(mod->mod_name()),
-				   NetScope::MODULE, unit_scope,
-				   false, false, true, false);
+			   NetScope::MODULE, unit_scope,
+			   false, false, true, false);
+		  temp_scope->time_unit(mod->time_unit);
+		  temp_scope->time_precision(mod->time_precision);
+		  temp_scope->time_from_timescale(mod->has_explicit_timescale());
+		  des->set_precision(mod->time_precision);
 		  iface_scope = temp_scope;
 	    }
 	    // Pre-populate default parameters so dimension expressions resolve.

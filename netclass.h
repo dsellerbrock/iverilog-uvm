@@ -42,7 +42,9 @@ class netclass_t : public ivl_type_s {
 	// Set the property of the class during elaboration. Set the
 	// name and type, and return true. If the name is already
 	// present, then return false.
-      bool set_property(perm_string pname, property_qualifier_t qual, ivl_type_t ptype);
+      bool set_property(perm_string pname, property_qualifier_t qual,
+			ivl_type_t ptype,
+			perm_string interface_modport = perm_string());
 
 	// Set the scope for the class. The scope has no parents and
 	// is used for the elaboration of methods
@@ -93,6 +95,7 @@ class netclass_t : public ivl_type_s {
       const char*get_prop_name(size_t idx) const;
       property_qualifier_t get_prop_qual(size_t idx) const;
       ivl_type_t get_prop_type(size_t idx) const;
+      perm_string get_prop_interface_modport(size_t idx) const;
 
 	// Return the declaring class-scope signal for a static property.
 	// IDX is the absolute property index, so inherited properties are
@@ -245,6 +248,7 @@ class netclass_t : public ivl_type_s {
 	    perm_string name;
 	    property_qualifier_t qual;
 	    ivl_type_t type;
+	    perm_string interface_modport;
 	    mutable bool initialized_flag;
 	    mutable ivl_signal_t static_target;
       };

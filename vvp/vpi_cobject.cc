@@ -23,6 +23,7 @@
 # include  "vpi_priv.h"
 # include  "sv_vpi_user.h"
 # include  "vvp_cobject.h"
+# include  "vvp_vinterface.h"
 # include  "vvp_darray.h"
 # include  "vvp_assoc.h"
 # include  "vvp_net_sig.h"
@@ -1383,16 +1384,16 @@ vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net)
 
 /*
  * Phase 51: a VPI handle that targets a specific string property of a
- * class instance. The wrapping handle for the class instance does not
+ * class instance or virtual interface. The wrapping object handle does not
  * carry a property index; without one, a vpi_put_value(vpiStringVal)
  * has nowhere to write to. tgt-vvp emits this property-aware handle
- * (via the &cprop_str<ADDR,N> token) when a class string property is
- * passed as an lvalue to a sysfunc such as $value$plusargs.
+ * when a string property is passed as an lvalue to a sysfunc such as
+ * $value$plusargs.
  *
  * Both get_value(vpiStringVal) and put_value(vpiStringVal) delegate
- * to the cobject's get_string/set_string at the captured property
- * index. Other format codes report a clear error so we don't silently
- * mishandle them.
+ * to the containing object's get_string/set_string at the captured
+ * property index. Other format codes report a clear error so we don't
+ * silently mishandle them.
  */
 class __vpiClassPropertyStringVar : public __vpiHandle {
     public:
@@ -1454,6 +1455,8 @@ class __vpiClassPropertyStringVar : public __vpiHandle {
             if (fun) obj = fun->peek_object();
             if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
                   return cobj->get_string(prop_idx_);
+            if (vvp_vinterface*vif = obj.peek<vvp_vinterface>())
+                  return vif->get_string(prop_idx_);
             return std::string();
       }
 
@@ -1468,6 +1471,8 @@ class __vpiClassPropertyStringVar : public __vpiHandle {
             obj = fun->peek_object();
             if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
                   cobj->set_string(prop_idx_, std::string(s));
+            else if (vvp_vinterface*vif = obj.peek<vvp_vinterface>())
+                  vif->set_string(prop_idx_, std::string(s));
       }
 
 };
@@ -1479,12 +1484,12 @@ vpiHandle vpip_make_cobject_property_string_var(char*label, size_t prop_idx)
       return obj;
 }
 
-/* A VPI lvalue for an integral class property. The ordinary class-variable
-   handle identifies the containing object only, while a vec4-stack argument
-   is a temporary whose vpi_put_value result is discarded after the system
-   function returns. Retaining the property index here gives system
-   functions with output arguments (notably $value$plusargs) a real writable
-   destination. */
+/* A VPI lvalue for an integral class or virtual-interface property. The
+   ordinary object-variable handle identifies the containing object only,
+   while a vec4-stack argument is a temporary whose vpi_put_value result is
+   discarded after the system function returns. Retaining the property index
+   here gives system functions with output arguments (notably
+   $value$plusargs) a real writable destination. */
 class __vpiClassPropertyVecVar : public __vpiHandle {
     public:
       __vpiClassPropertyVecVar(size_t prop_idx, unsigned width,
@@ -1512,15 +1517,21 @@ class __vpiClassPropertyVecVar : public __vpiHandle {
       void vpi_get_value(p_vpi_value val) override
       {
             vvp_vector4_t current(width_, BIT4_X);
-            if (vvp_cobject*cobj = current_object_())
+            vvp_object_t obj = current_object_();
+            if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
                   cobj->get_vec4(prop_idx_, current);
+            else if (vvp_vinterface*vif = obj.peek<vvp_vinterface>())
+                  vif->get_vec4(prop_idx_, current);
             vpip_vec4_get_value(current, width_, signed_flag_, val);
       }
 
       vpiHandle vpi_put_value(p_vpi_value val, int) override
       {
-            if (vvp_cobject*cobj = current_object_())
+            vvp_object_t obj = current_object_();
+            if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
                   cobj->set_vec4(prop_idx_, vec4_from_vpi_value(val, width_));
+            else if (vvp_vinterface*vif = obj.peek<vvp_vinterface>())
+                  vif->set_vec4(prop_idx_, vec4_from_vpi_value(val, width_));
             return 0;
       }
 
@@ -1531,15 +1542,13 @@ class __vpiClassPropertyVecVar : public __vpiHandle {
       unsigned width_;
       bool signed_flag_;
 
-      vvp_cobject*current_object_() const
+      vvp_object_t current_object_() const
       {
             vvp_fun_signal_object*fun =
                   cobj_net_ ? dynamic_cast<vvp_fun_signal_object*>(cobj_net_->fun) : nullptr;
             if (!fun)
                   fun = cobj_net_ ? dynamic_cast<vvp_fun_signal_object*>(cobj_net_->fil) : nullptr;
-            if (!fun) return nullptr;
-            vvp_object_t obj = fun->peek_object();
-            return obj.peek<vvp_cobject>();
+            return fun ? fun->peek_object() : vvp_object_t();
       }
 };
 

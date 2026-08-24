@@ -569,6 +569,12 @@ class PEIdent : public PExpr {
 
       unsigned lexical_pos() const { return lexical_pos_; }
 
+	// Compiler-generated accesses to hidden properties that implement
+	// a modport clocking declaration carry the declared clocking-block
+	// name here. Source identifiers leave this nil.
+      void set_clocking_access(perm_string name) { clocking_access_ = name; }
+      perm_string clocking_access() const { return clocking_access_; }
+
       virtual void reloc_lexical_pos_bind(bool parameter_context) override;
 
       // I5 (Phase 62m): when path was parsed from `Class#(args)::var`,
@@ -619,6 +625,7 @@ class PEIdent : public PExpr {
       struct parmvalue_t* leading_type_args_ = 0;
       bool owns_leading_type_args_ = true;
       bool scoped_type_prefix_ = false;
+      perm_string clocking_access_;
       mutable bool bare_generic_scope_error_reported_ = false;
       mutable bool scoped_lvalue_error_reported_ = false;
 
