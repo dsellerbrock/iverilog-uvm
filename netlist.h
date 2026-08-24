@@ -1585,15 +1585,21 @@ class NetScope : public Definitions, public Attrib {
 	/* After everything is all set up, the code generators like
 	   access to these things to make up the parameter lists. */
       struct param_expr_t : public LineInfo {
-	    param_expr_t() : val_expr(0), val_type(0), val_scope(0),
+	    param_expr_t() : val_expr(0), source_expr(0), val_type(0),
+		             val_scope(0), source_scope(0),
 		             solving(false), is_annotatable(false),
 		             local_flag(false),
 		             range(0), val(0), ivl_type(0) { }
 	    // Source expression and data type (before elaboration)
 	    PExpr*val_expr;
+	    // Preserve the supplied source after val_expr is cleared on evaluation.
+	    // Class-specialization identity may need to follow an evaluated
+	    // forwarding parameter back to the expression that supplied it.
+	    PExpr*source_expr;
 	    data_type_t*val_type;
 	    // Scope information
             NetScope*val_scope;
+	    NetScope*source_scope;
 	    // Evaluation status
 	    bool solving;
 	    // specparam status
@@ -1637,8 +1643,9 @@ class NetScope : public Definitions, public Attrib {
 
 	/* The DLL target copies every parameter value while materializing its
 	 * corresponding scope. Release the elaborated, owned value/range trees
-	 * after that copy while leaving borrowed pform and shared type pointers
-	 * alone. This is idempotent so multiply visited scopes are harmless. */
+	 * after that copy while leaving borrowed pform source expressions and
+	 * shared type pointers alone. This is idempotent so multiply visited
+	 * scopes are harmless. */
       void release_parameters();
 
       typedef std::map<perm_string,param_expr_t>::iterator param_ref_t;

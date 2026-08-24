@@ -36,7 +36,7 @@ class nexus_recursion_guard_t {
 			      const Nexus*nexus)
       : active_(active), depth_(depth), nexus_(nexus), owner_(false)
       {
-	    /* Bound acyclic as well as cyclic traversal. A maliciously deep
+	    /* Bound acyclic as well as cyclic traversal. A pathologically deep
 	     * fixed-select/substitute chain must not exhaust the compiler stack. */
 	    static const unsigned max_depth = 512;
 	    if (depth_ < max_depth && active_.insert(nexus_).second) {

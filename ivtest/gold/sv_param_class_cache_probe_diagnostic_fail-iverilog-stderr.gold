@@ -1,0 +1,4 @@
+ivltests/sv_param_class_cache_probe_diagnostic_fail.v:20: error: Unable to bind parameter `missing_real' in `sv_param_class_cache_probe_diagnostic_fail'
+ivltests/sv_param_class_cache_probe_diagnostic_fail.v:21: error: Unable to bind variable `missing_string' in `sv_param_class_cache_probe_diagnostic_fail'
+ivltests/sv_param_class_cache_probe_diagnostic_fail.v:22: error: Unable to bind parameter `missing_struct' in `sv_param_class_cache_probe_diagnostic_fail'
+3 error(s) during elaboration.
