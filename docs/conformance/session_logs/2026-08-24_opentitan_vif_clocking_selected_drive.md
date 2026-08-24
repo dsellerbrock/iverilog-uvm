@@ -65,6 +65,18 @@ Focused fixed results:
 - Slang IEEE 1800-2017 differential: 25 cases, 0 failed.
 - Existing VIF clocking drive/member/alias controls: 3/3 passed.
 
+Broad fixed results:
+
+- Complete default legacy sweep: 4,000 records, 0 failed, 2 recorded NI,
+  3 expected failures.
+- Complete SystemVerilog legacy manifest: 1,816/1,816 passed.
+- Complete JSON/VVP manifest: 884 records, 0 failed.
+- VPI: 97/97 passed.
+- Negative diagnostics: 111/111 passed.
+- `make check`: passed.
+- Real-DPI UVM: 338 passed, 0 failed, 0 skipped; the real DPI umbrella was
+  loaded rather than falling back to `UVM_NO_DPI`.
+
 The unmodified OpenTitan DMA image was recompiled from
 `matrix-iverilog.scr`. With `IVL_SVA_NFA=1`, it advances to at least
 3,866,045,985 ps before the 45-second CPU guard, more than 900 times beyond
