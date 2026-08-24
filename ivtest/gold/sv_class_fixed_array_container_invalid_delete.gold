@@ -1,0 +1,3 @@
+Warning: skipping queue delete() with undefined index.
+Warning: skipping queue delete() with negative index.
+PASSED

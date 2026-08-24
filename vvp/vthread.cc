@@ -12268,7 +12268,7 @@ bool of_DELETE_ELEM(vthread_t thr, vvp_code_t cp)
 	      vvp_net_t*net = cp->net;
 
       int64_t idx_val = thr->words[3].w_int;
-      if (thr->flags[4] == BIT4_1) {
+      if (thr->flags[4] != BIT4_0) {
 	    cerr << thr->get_fileline()
 	         << "Warning: skipping queue delete() with undefined index."
 	         << endl;
@@ -12321,13 +12321,17 @@ bool of_DELETE_ELEM(vthread_t thr, vvp_code_t cp)
 bool of_DELETE_O_ELEM(vthread_t thr, vvp_code_t)
 {
 	      int64_t idx_val = thr->words[3].w_int;
-	      if (thr->flags[4] == BIT4_1) {
+	      if (thr->flags[4] != BIT4_0) {
+		    vvp_object_t ignored_receiver;
+		    thr->pop_object(ignored_receiver);
 		    cerr << thr->get_fileline()
 		         << "Warning: skipping queue delete() with undefined index."
 		         << endl;
 		    return true;
 	      }
 	      if (idx_val < 0) {
+		    vvp_object_t ignored_receiver;
+		    thr->pop_object(ignored_receiver);
 		    cerr << thr->get_fileline()
 		         << "Warning: skipping queue delete() with negative index."
 		         << endl;
@@ -12372,19 +12376,23 @@ bool of_DELETE_OBJ(vthread_t thr, vvp_code_t cp)
 
 /* %delete/o/obj
  *
- * Clear a queue receiver popped from the object stack.
+ * Clear a queue or dynamic-array receiver popped from the object stack.
  */
 bool of_DELETE_O_OBJ(vthread_t thr, vvp_code_t)
 {
-	      vvp_object_t recv, root_obj;
-            vvp_net_t*root_net = 0;
-	      vvp_queue*queue = pop_queue_receiver_<vvp_queue>(thr, recv, root_net, root_obj);
-	      if (!queue)
+	      vvp_object_t recv = thr->peek_object();
+	      vvp_object_t root_obj = thr->peek_object_root(0);
+            vvp_net_t*root_net = thr->peek_object_source_net(0);
+	      thr->pop_object(recv);
+	      vvp_darray*array = recv.peek<vvp_darray>();
+	      if (!array) {
+		    warn_null_queue_receiver_(thr, !recv.test_nil());
 		    return true;
+	      }
 
-	      queue->erase_tail(0);
+	      array->clear();
             notify_mutated_object_root_(thr, recv, root_net, root_obj,
-                                        "queue-delete-o-obj");
+	                                "container-delete-o-obj");
 	      return true;
 }
 
@@ -15769,10 +15777,7 @@ static bool aa_load_keep_vec(vthread_t thr, unsigned wid=0)
  * generic. */
 static inline void container_value_copy_(vvp_object_t&val)
 {
-      vvp_object*raw = val.peek<vvp_object>();
-      if (raw && (dynamic_cast<vvp_darray*>(raw)
-                  || dynamic_cast<vvp_assoc_base*>(raw)))
-	    val = val.duplicate();
+      val = val.value_copy_element();
 }
 static inline void container_value_copy_(vvp_vector4_t&) { }
 static inline void container_value_copy_(double&) { }
@@ -16225,7 +16230,9 @@ enum aa_viv_spec_code {
       AA_VIV_ASSOC_VEC4   = 4,
       AA_VIV_ASSOC_REAL   = 5,
       AA_VIV_ASSOC_STRING = 6,
-      AA_VIV_ASSOC_OBJECT = 7
+      AA_VIV_ASSOC_OBJECT = 7,
+        /* Insert a missing dynamic-array element with its nil default. */
+      AA_VIV_DARRAY_NIL   = 16
 };
 
 static vvp_object_t make_dynamic_container_from_code_(unsigned code)
@@ -16245,35 +16252,85 @@ static vvp_object_t make_dynamic_container_from_code_(unsigned code)
 
 /* %aa/viv/sig/{v,str} <asig>, <spec>
  * %aa/viv/o/{v,str} <spec>
- *   Element access with auto-vivification for chained writes and
- *   method calls on nested dynamic containers (assoc-of-queue,
- *   assoc-of-assoc): pop the key, load the element handle from the
- *   object-valued associative array (the signal's object, or an
- *   assoc handle popped from the object stack), creating and
- *   inserting an empty inner container per the spec code when the
- *   key is absent.  Pushes the element handle — mutations through
- *   the handle reach the stored element. */
+ *   Element access with auto-vivification for chained writes and method calls
+ *   on nested dynamic containers (assoc-of-queue, assoc-of-assoc, and
+ *   assoc-of-darray). A missing entry is always inserted as required by IEEE
+ *   1800-2017 7.8.7. An explicit associative default is value-copied first;
+ *   otherwise the spec creates an empty queue/assoc, or nil for a darray.
+ *   Pushes the stored element handle so later mutations reach that entry. */
 template <typename KEY>
-static bool aa_viv_common_(vthread_t thr, vvp_assoc_object*assoc,
-			   unsigned spec)
+static vvp_object_t aa_viv_common_(vthread_t thr, vvp_assoc_object*assoc,
+				   unsigned spec, bool&changed)
 {
       KEY key = pop_assoc_key_<KEY>(thr);
       vvp_object_t value;
+      changed = false;
       if (assoc) {
-	    if (!assoc->get(key, value) || value.test_nil()) {
+	    bool present = assoc->exists_key(key);
+	    bool have_value = assoc->get(key, value);
+
+	    if (!present) {
+		    /* get() returns an explicit default without creating a key.
+		     * Assignment-target allocation needs an independent stored
+		     * value, never an alias of the shared fallback object. */
+		  if (have_value)
+			value = value.value_copy_element();
+		  else
+			value = make_dynamic_container_from_code_(spec);
+		  assoc->set(key, value);
+		  changed = true;
+	    } else if (value.test_nil() && spec != AA_VIV_DARRAY_NIL) {
 		  value = make_dynamic_container_from_code_(spec);
 		  assoc->set(key, value);
+		  changed = true;
 	    }
       }
-      thr->push_object(value);
+      return value;
+}
+
+template <typename KEY>
+static bool aa_viv_signal_(vthread_t thr, vvp_code_t cp)
+{
+      vvp_assoc_object*assoc =
+	    ensure_signal_assoc_<vvp_assoc_object>(thr, cp->net, "aa-viv-sig");
+      bool changed;
+      vvp_object_t value =
+	    aa_viv_common_<KEY>(thr, assoc, cp->bit_idx[0], changed);
+
+      if (changed)
+	    notify_mutated_object_signal_(thr, cp->net, "aa-viv-sig");
+
+      vvp_fun_signal_object*fun = signal_object_fun_(cp->net);
+      vvp_object_t root = fun ? fun->peek_object() : vvp_object_t();
+      thr->push_object(value, cp->net, root);
+      return true;
+}
+
+template <typename KEY>
+static bool aa_viv_object_(vthread_t thr, unsigned spec)
+{
+      vvp_net_t*root_net = thr->peek_object_source_net(0);
+      vvp_object_t root_obj = thr->peek_object_root(0);
+      vvp_object_t recv;
+      thr->pop_object(recv);
+
+      vvp_assoc_object*assoc =
+	    dynamic_cast<vvp_assoc_object*>(recv.peek<vvp_assoc_base>());
+      bool changed;
+      vvp_object_t value = aa_viv_common_<KEY>(thr, assoc, spec, changed);
+
+      if (changed)
+	    notify_mutated_object_root_(thr, recv, root_net, root_obj,
+					"aa-viv-object");
+      if (root_obj.test_nil())
+	    root_obj = recv;
+      thr->push_object(value, root_net, root_obj);
       return true;
 }
 
 bool of_AA_VIV_SIG_V(vthread_t thr, vvp_code_t cp)
 {
-      vvp_assoc_object*assoc =
-	    ensure_signal_assoc_<vvp_assoc_object>(thr, cp->net, "aa-viv-sig");
-      return aa_viv_common_<vvp_vector4_t>(thr, assoc, cp->bit_idx[0]);
+      return aa_viv_signal_<vvp_vector4_t>(thr, cp);
 }
 
 /* Object-KEYED vivification (class-typed assoc keys, e.g. the
@@ -16281,43 +16338,59 @@ bool of_AA_VIV_SIG_V(vthread_t thr, vvp_code_t cp)
  * the v/str forms with the key popped from the object stack. */
 bool of_AA_VIV_SIG_OBJ(vthread_t thr, vvp_code_t cp)
 {
-      vvp_assoc_object*assoc =
-	    ensure_signal_assoc_<vvp_assoc_object>(thr, cp->net, "aa-viv-sig");
-      return aa_viv_common_<vvp_object_t>(thr, assoc, cp->bit_idx[0]);
+      return aa_viv_signal_<vvp_object_t>(thr, cp);
 }
 
 bool of_AA_VIV_O_OBJ(vthread_t thr, vvp_code_t cp)
 {
+      unsigned spec = cp->number;
       vvp_object_t recv;
-      thr->pop_object(recv);
+      vvp_net_t*root_net;
+      vvp_object_t root_obj;
+
+      if (spec & 8) {
+	    /* New target protocol: receiver expression first, object key on
+	     * top. Keep the old receiver-on-top protocol for compatibility
+	     * with previously generated VVP. */
+	    root_net = thr->peek_object_source_net(1);
+	    root_obj = thr->peek_object_root(1);
+	    vvp_object_t key;
+	    thr->pop_object(key);
+	    thr->pop_object(recv);
+	    thr->push_object(key);
+	    spec &= ~8U;
+	  } else {
+	    root_net = thr->peek_object_source_net(0);
+	    root_obj = thr->peek_object_root(0);
+	    thr->pop_object(recv);
+	  }
       vvp_assoc_object*assoc =
 	    dynamic_cast<vvp_assoc_object*>(recv.peek<vvp_assoc_base>());
-      return aa_viv_common_<vvp_object_t>(thr, assoc, cp->number);
+      bool changed;
+      vvp_object_t value =
+	    aa_viv_common_<vvp_object_t>(thr, assoc, spec, changed);
+      if (changed)
+	    notify_mutated_object_root_(thr, recv, root_net, root_obj,
+					"aa-viv-object-key");
+      if (root_obj.test_nil())
+	    root_obj = recv;
+      thr->push_object(value, root_net, root_obj);
+      return true;
 }
 
 bool of_AA_VIV_SIG_STR(vthread_t thr, vvp_code_t cp)
 {
-      vvp_assoc_object*assoc =
-	    ensure_signal_assoc_<vvp_assoc_object>(thr, cp->net, "aa-viv-sig");
-      return aa_viv_common_<std::string>(thr, assoc, cp->bit_idx[0]);
+      return aa_viv_signal_<std::string>(thr, cp);
 }
 
 bool of_AA_VIV_O_V(vthread_t thr, vvp_code_t cp)
 {
-      vvp_object_t recv;
-      thr->pop_object(recv);
-      vvp_assoc_object*assoc =
-	    dynamic_cast<vvp_assoc_object*>(recv.peek<vvp_assoc_base>());
-      return aa_viv_common_<vvp_vector4_t>(thr, assoc, cp->number);
+      return aa_viv_object_<vvp_vector4_t>(thr, cp->number);
 }
 
 bool of_AA_VIV_O_STR(vthread_t thr, vvp_code_t cp)
 {
-      vvp_object_t recv;
-      thr->pop_object(recv);
-      vvp_assoc_object*assoc =
-	    dynamic_cast<vvp_assoc_object*>(recv.peek<vvp_assoc_base>());
-      return aa_viv_common_<std::string>(thr, assoc, cp->number);
+      return aa_viv_object_<std::string>(thr, cp->number);
 }
 
 template <typename ELEM, class QTYPE>
@@ -16860,6 +16933,7 @@ static bool aa_load_signal_obj_lval(vthread_t thr, vvp_net_t*net)
       vvp_object_t value;
       ASSOC*assoc = peek_signal_assoc_<ASSOC>(net);
       bool have = assoc && assoc->get(key, value);
+      bool changed = false;
 
       if (assoc && (!have || value.test_nil())) {
 	    vvp_fun_signal_object*obj =
@@ -16867,11 +16941,16 @@ static bool aa_load_signal_obj_lval(vthread_t thr, vvp_net_t*net)
 	    if (obj && obj->declared_type()) {
 		  value = vvp_object_t(new vvp_cobject(obj->declared_type()));
 		  assoc->set(key, value);
+		  changed = true;
 	    }
       }
 
+      if (changed)
+	    notify_mutated_object_signal_(thr, net, "aa-loadlv-sig-object");
       assoc_trace_signal_load_(thr, net, assoc, key, value);
-      thr->push_object(value);
+      vvp_fun_signal_object*fun = signal_object_fun_(net);
+      vvp_object_t root = fun ? fun->peek_object() : vvp_object_t();
+      thr->push_object(value, net, root);
       return true;
 }
 
@@ -16893,17 +16972,28 @@ static bool aa_loadlv_o_queue(vthread_t thr, const char*enc)
 {
       KEY key = pop_assoc_key_<KEY>(thr);
 
+      vvp_net_t*root_net = thr->peek_object_source_net(0);
+      vvp_object_t root_obj = thr->peek_object_root(0);
+      vvp_object_t recv = thr->peek_object();
       vvp_object_t value;
       vvp_assoc_object*assoc = peek_assoc_receiver_<vvp_assoc_object>(thr);
       bool have = assoc && assoc->get(key, value);
+      bool changed = false;
 
       if (assoc && (!have || value.test_nil())) {
 	    value = make_queue_for_enc_(enc);
-	    if (!value.test_nil())
+	    if (!value.test_nil()) {
 		  assoc->set(key, value);
+		  changed = true;
+	    }
       }
 
-      thr->push_object(value);
+      if (changed)
+	    notify_mutated_object_root_(thr, recv, root_net, root_obj,
+					"aa-loadlv-object-queue");
+      if (root_obj.test_nil())
+	    root_obj = recv;
+      thr->push_object(value, root_net, root_obj);
       return true;
 }
 
@@ -16935,19 +17025,25 @@ bool of_QDAR_LOADLV_O(vthread_t thr, vvp_code_t cp)
       vvp_darray*arr = recv.peek<vvp_darray>();
 
       vvp_object_t value;
+      bool changed = false;
       adr = darray_canonical_index_(arr, adr);
       if (arr && (adr >= 0) && (thr->flags[4] == BIT4_0)
 	  && (static_cast<size_t>(adr) < arr->get_size())) {
 	    arr->get_word((unsigned)adr, value);
 	    if (value.test_nil()) {
 		  value = make_queue_for_enc_(cp->text);
-		  if (!value.test_nil())
+		  if (!value.test_nil()) {
 			arr->set_word((unsigned)adr, value);
+			changed = true;
+		  }
 	    }
       }
 
       if (src_root.test_nil())
 	    src_root = recv;
+      if (changed)
+	    notify_mutated_object_root_(thr, recv, src_net, src_root,
+					"qdar-loadlv");
       thr->push_object(value, src_net, src_root);
       return true;
 }
@@ -19788,15 +19884,21 @@ bool of_QUEUE_TO_DARRAY(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
-/* Make a fresh empty queue for the element-kind encoding used by
- * %new/queue. Returns a nil object for an unknown encoding. */
+/* Make a fresh empty dynamic container. Legacy element-kind encodings make
+ * queues for %new/queue and older load-or-vivify VVP. "@N" is the nested
+ * dynamic-container spec shared with %aa/viv, and can also make an
+ * associative child. Returns nil for an unknown encoding. */
 static vvp_object_t make_queue_for_enc_(const char*text)
 {
       unsigned word_wid;
+      unsigned container_spec;
       size_t n;
 
       vvp_object_t obj;
-      if (strcmp(text, "r") == 0) {
+      if ((1 == sscanf(text, "@%u%zn", &container_spec, &n))
+	  && (n == strlen(text))) {
+	    obj = make_dynamic_container_from_code_(container_spec);
+      } else if (strcmp(text, "r") == 0) {
 	    obj = new vvp_queue_real;
       } else if (strcmp(text, "S") == 0) {
 	    obj = new vvp_queue_string;
@@ -20359,6 +20461,161 @@ static void fixed_prop_copy_back_(
 		  recv.set_vec4(pid, val, flat);
 	    }
       }
+}
+
+struct checked_property_index_dim_t {
+      bool is_signed;
+      int64_t low;
+      uint64_t width;
+      uint64_t stride;
+};
+
+static bool checked_property_index_parse_i64_(const char*&cursor,
+                                              int64_t&value)
+{
+      char*end = 0;
+      errno = 0;
+      long long parsed = strtoll(cursor, &end, 10);
+      if (end == cursor || errno == ERANGE || *end != ':')
+            return false;
+      value = (int64_t)parsed;
+      cursor = end + 1;
+      return true;
+}
+
+static bool checked_property_index_parse_u64_(const char*&cursor,
+                                              uint64_t&value,
+                                              char delimiter)
+{
+      char*end = 0;
+      if (*cursor == '-')
+            return false;
+      errno = 0;
+      unsigned long long parsed = strtoull(cursor, &end, 10);
+      if (end == cursor || errno == ERANGE || *end != delimiter)
+            return false;
+      value = (uint64_t)parsed;
+      cursor = delimiter ? end + 1 : end;
+      return true;
+}
+
+/* Convert the complete mathematical value of RAW to the signed-64 domain
+ * used by declared unpacked-array bounds. Wide values are accepted only when
+ * all discarded bits are a valid sign extension; an unsigned bit 63 or any
+ * higher set bit is therefore OOB instead of being reinterpreted as negative. */
+static bool checked_property_index_value_(const vvp_vector4_t&raw,
+                                          bool is_signed, int64_t&value)
+{
+      unsigned width = raw.size();
+      uint64_t bits = 0;
+      unsigned idx;
+
+      if (width == 0 || raw.has_xz())
+            return false;
+
+      for (idx = 0 ; idx < width && idx < 64 ; idx += 1)
+            if (raw.value(idx) == BIT4_1)
+                  bits |= UINT64_C(1) << idx;
+
+      if (!is_signed) {
+            if ((width >= 64 && raw.value(63) == BIT4_1))
+                  return false;
+            for (idx = 64 ; idx < width ; idx += 1)
+                  if (raw.value(idx) != BIT4_0)
+                        return false;
+      } else if (width < 64) {
+            if (raw.value(width - 1) == BIT4_1)
+                  bits |= UINT64_MAX << width;
+      } else if (width > 64) {
+            vvp_bit4_t extension = raw.value(63);
+            for (idx = 64 ; idx < width ; idx += 1)
+                  if (raw.value(idx) != extension)
+                        return false;
+      }
+
+      value = (int64_t)bits;
+      return true;
+}
+
+/* %prop/index/check "N|s:low:width:stride;..."
+ *
+ * The N raw index vectors are already on the vec4 stack in declared
+ * left-to-right order. Pop all of them even after an invalid dimension, then
+ * return X64 for X/Z, OOB, metadata, or arithmetic overflow; otherwise return
+ * the canonical flat index. */
+bool of_PROP_INDEX_CHECK(vthread_t thr, vvp_code_t cp)
+{
+      const char*cursor = cp->text ? cp->text : "";
+      char*count_end = 0;
+      errno = 0;
+      unsigned long parsed_count = strtoul(cursor, &count_end, 10);
+      bool valid = count_end != cursor && errno != ERANGE
+            && *count_end == '|' && parsed_count <= 65536;
+      unsigned count = valid ? (unsigned)parsed_count : 0;
+      vector<checked_property_index_dim_t> dims;
+
+      if (valid) {
+            cursor = count_end + 1;
+            dims.resize(count);
+            for (unsigned idx = 0 ; idx < count && valid ; idx += 1) {
+                  checked_property_index_dim_t&dim = dims[idx];
+                  if ((*cursor != 's' && *cursor != 'u') || cursor[1] != ':') {
+                        valid = false;
+                        break;
+                  }
+                  dim.is_signed = *cursor == 's';
+                  cursor += 2;
+                  valid = checked_property_index_parse_i64_(cursor, dim.low)
+                        && checked_property_index_parse_u64_(cursor, dim.width, ':')
+                        && checked_property_index_parse_u64_(
+                              cursor, dim.stride,
+                              idx + 1 < count ? ';' : '\0')
+                        && dim.width != 0;
+            }
+            if (valid && *cursor != '\0')
+                  valid = false;
+      }
+
+      uint64_t flat = 0;
+      for (unsigned rev = count ; rev > 0 ; rev -= 1) {
+            vvp_vector4_t raw = thr->pop_vec4();
+            if (!valid)
+                  continue;
+
+            const checked_property_index_dim_t&dim = dims[rev - 1];
+            int64_t raw_value = 0;
+            if (!checked_property_index_value_(raw, dim.is_signed, raw_value)
+                || raw_value < dim.low) {
+                  valid = false;
+                  continue;
+            }
+
+            uint64_t delta = (uint64_t)raw_value - (uint64_t)dim.low;
+            if (delta >= dim.width
+                || (dim.stride && delta > UINT64_MAX / dim.stride)) {
+                  valid = false;
+                  continue;
+            }
+
+            uint64_t contribution = delta * dim.stride;
+            if (contribution > UINT64_MAX - flat) {
+                  valid = false;
+                  continue;
+            }
+            flat += contribution;
+      }
+
+      if (!valid) {
+            thr->push_vec4(vvp_vector4_t(64, BIT4_X));
+            return true;
+      }
+
+      vvp_vector4_t result(64, BIT4_0);
+      for (unsigned idx = 0 ; idx < 64 ; idx += 1)
+            if ((flat >> idx) & UINT64_C(1))
+                  result.set_bit(idx, BIT4_1);
+      thr->push_vec4(result);
+      return true;
 }
 
 /*
@@ -20984,6 +21241,7 @@ static bool qinsert(vthread_t thr, vvp_code_t cp, unsigned wid=0)
       ELEM value;
       vvp_net_t*net = cp->net;
       pop_value(thr, value, wid); // Pop the value to store.
+      container_value_copy_(value);
 
       vvp_queue*queue = get_queue_object<QTYPE>(thr, net);
       assert(queue);
@@ -21040,12 +21298,18 @@ bool of_QINSERT_V(vthread_t thr, vvp_code_t cp)
       return qinsert<vvp_vector4_t, vvp_queue_vec4>(thr, cp, cp->bit_idx[1]);
 }
 
+static unsigned object_queue_max_count_(vvp_code_t cp)
+{
+      return cp->number > UINT_MAX ? UINT_MAX : (unsigned)cp->number;
+}
+
 template <typename ELEM, class QTYPE>
-static bool qinsert_o(vthread_t thr, unsigned wid=0)
+static bool qinsert_o(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 {
       int64_t idx = thr->words[3].w_int;
       ELEM value;
       pop_value(thr, value, wid);
+      container_value_copy_(value);
 
       vvp_object_t recv, root_obj;
       vvp_net_t*root_net = 0;
@@ -21067,31 +21331,32 @@ static bool qinsert_o(vthread_t thr, unsigned wid=0)
 	    print_queue_value(value);
 	    cerr << " was not added." << endl;
       } else {
-	    queue->insert(idx, value, 0);
+            queue->insert(idx, value, object_queue_max_count_(cp));
             notify_mutated_object_root_(thr, recv, root_net, root_obj,
                                         "queue-insert-o");
       }
       return true;
 }
 
-bool of_QINSERT_O_REAL(vthread_t thr, vvp_code_t)
+bool of_QINSERT_O_REAL(vthread_t thr, vvp_code_t cp)
 {
-      return qinsert_o<double, vvp_queue_real>(thr);
+      return qinsert_o<double, vvp_queue_real>(thr, cp);
 }
 
-bool of_QINSERT_O_OBJ(vthread_t thr, vvp_code_t)
+bool of_QINSERT_O_OBJ(vthread_t thr, vvp_code_t cp)
 {
-      return qinsert_o<vvp_object_t, vvp_queue_object>(thr);
+      return qinsert_o<vvp_object_t, vvp_queue_object>(thr, cp);
 }
 
-bool of_QINSERT_O_STR(vthread_t thr, vvp_code_t)
+bool of_QINSERT_O_STR(vthread_t thr, vvp_code_t cp)
 {
-      return qinsert_o<string, vvp_queue_string>(thr);
+      return qinsert_o<string, vvp_queue_string>(thr, cp);
 }
 
 bool of_QINSERT_O_V(vthread_t thr, vvp_code_t cp)
 {
-      return qinsert_o<vvp_vector4_t, vvp_queue_vec4>(thr, cp->bit_idx[0]);
+      return qinsert_o<vvp_vector4_t, vvp_queue_vec4>(thr, cp,
+                                                      cp->bit_idx[0]);
 }
 
 /*
@@ -23247,7 +23512,7 @@ bool of_STORE_QB_V(vthread_t thr, vvp_code_t cp)
 }
 
 template <typename ELEM, class QTYPE>
-static bool store_qo_b(vthread_t thr, unsigned wid=0)
+static bool store_qo_b(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 {
       ELEM value;
       pop_value(thr, value, wid);
@@ -23259,7 +23524,7 @@ static bool store_qo_b(vthread_t thr, unsigned wid=0)
       if (!queue)
 	    return true;
 
-      queue->push_back(value, 0);
+      queue->push_back(value, object_queue_max_count_(cp));
       notify_mutated_object_root_(thr, recv, root_net, root_obj, "store-qo-b");
       return true;
 }
@@ -23273,7 +23538,7 @@ static bool store_qo_b(vthread_t thr, unsigned wid=0)
  * same as the signal-based %store/qdar forms.
  */
 template <typename ELEM, class QTYPE>
-static bool store_qo_i(vthread_t thr, unsigned wid=0)
+static bool store_qo_i(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 {
       int64_t idx = thr->words[3].w_int;
       ELEM value;
@@ -23313,7 +23578,7 @@ static bool store_qo_i(vthread_t thr, unsigned wid=0)
 	    return true;
       }
       if (vvp_queue*queue = dynamic_cast<vvp_queue*>(dar)) {
-	    queue->set_word_max(idx, value, 0);
+            queue->set_word_max(idx, value, object_queue_max_count_(cp));
       } else {
 	    if ((uint64_t)idx >= dar->get_size()) {
 		  cerr << thr->get_fileline()
@@ -23328,44 +23593,46 @@ static bool store_qo_i(vthread_t thr, unsigned wid=0)
       return true;
 }
 
-bool of_STORE_QO_I_R(vthread_t thr, vvp_code_t)
+bool of_STORE_QO_I_R(vthread_t thr, vvp_code_t cp)
 {
-      return store_qo_i<double, vvp_queue_real>(thr);
+      return store_qo_i<double, vvp_queue_real>(thr, cp);
 }
 
-bool of_STORE_QO_I_OBJ(vthread_t thr, vvp_code_t)
+bool of_STORE_QO_I_OBJ(vthread_t thr, vvp_code_t cp)
 {
-      return store_qo_i<vvp_object_t, vvp_queue_object>(thr);
+      return store_qo_i<vvp_object_t, vvp_queue_object>(thr, cp);
 }
 
-bool of_STORE_QO_I_STR(vthread_t thr, vvp_code_t)
+bool of_STORE_QO_I_STR(vthread_t thr, vvp_code_t cp)
 {
-      return store_qo_i<string, vvp_queue_string>(thr);
+      return store_qo_i<string, vvp_queue_string>(thr, cp);
 }
 
 bool of_STORE_QO_I_V(vthread_t thr, vvp_code_t cp)
 {
-      return store_qo_i<vvp_vector4_t, vvp_queue_vec4>(thr, cp->bit_idx[0]);
+      return store_qo_i<vvp_vector4_t, vvp_queue_vec4>(thr, cp,
+                                                       cp->bit_idx[0]);
 }
 
-bool of_STORE_QO_B_R(vthread_t thr, vvp_code_t)
+bool of_STORE_QO_B_R(vthread_t thr, vvp_code_t cp)
 {
-      return store_qo_b<double, vvp_queue_real>(thr);
+      return store_qo_b<double, vvp_queue_real>(thr, cp);
 }
 
-bool of_STORE_QO_B_OBJ(vthread_t thr, vvp_code_t)
+bool of_STORE_QO_B_OBJ(vthread_t thr, vvp_code_t cp)
 {
-      return store_qo_b<vvp_object_t, vvp_queue_object>(thr);
+      return store_qo_b<vvp_object_t, vvp_queue_object>(thr, cp);
 }
 
-bool of_STORE_QO_B_STR(vthread_t thr, vvp_code_t)
+bool of_STORE_QO_B_STR(vthread_t thr, vvp_code_t cp)
 {
-      return store_qo_b<string, vvp_queue_string>(thr);
+      return store_qo_b<string, vvp_queue_string>(thr, cp);
 }
 
 bool of_STORE_QO_B_V(vthread_t thr, vvp_code_t cp)
 {
-      return store_qo_b<vvp_vector4_t, vvp_queue_vec4>(thr, cp->bit_idx[0]);
+      return store_qo_b<vvp_vector4_t, vvp_queue_vec4>(thr, cp,
+                                                       cp->bit_idx[0]);
 }
 
 template <typename ELEM, class QTYPE>
@@ -23509,10 +23776,11 @@ bool of_STORE_QF_V(vthread_t thr, vvp_code_t cp)
 }
 
 template <typename ELEM, class QTYPE>
-static bool store_qo_f(vthread_t thr, unsigned wid=0)
+static bool store_qo_f(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 {
       ELEM value;
       pop_value(thr, value, wid);
+      container_value_copy_(value);
 
       vvp_object_t recv, root_obj;
       vvp_net_t*root_net = 0;
@@ -23520,29 +23788,30 @@ static bool store_qo_f(vthread_t thr, unsigned wid=0)
       if (!queue)
 	    return true;
 
-      queue->push_front(value, 0);
+      queue->push_front(value, object_queue_max_count_(cp));
       notify_mutated_object_root_(thr, recv, root_net, root_obj, "store-qo-f");
       return true;
 }
 
-bool of_STORE_QO_F_R(vthread_t thr, vvp_code_t)
+bool of_STORE_QO_F_R(vthread_t thr, vvp_code_t cp)
 {
-      return store_qo_f<double, vvp_queue_real>(thr);
+      return store_qo_f<double, vvp_queue_real>(thr, cp);
 }
 
-bool of_STORE_QO_F_OBJ(vthread_t thr, vvp_code_t)
+bool of_STORE_QO_F_OBJ(vthread_t thr, vvp_code_t cp)
 {
-      return store_qo_f<vvp_object_t, vvp_queue_object>(thr);
+      return store_qo_f<vvp_object_t, vvp_queue_object>(thr, cp);
 }
 
-bool of_STORE_QO_F_STR(vthread_t thr, vvp_code_t)
+bool of_STORE_QO_F_STR(vthread_t thr, vvp_code_t cp)
 {
-      return store_qo_f<string, vvp_queue_string>(thr);
+      return store_qo_f<string, vvp_queue_string>(thr, cp);
 }
 
 bool of_STORE_QO_F_V(vthread_t thr, vvp_code_t cp)
 {
-      return store_qo_f<vvp_vector4_t, vvp_queue_vec4>(thr, cp->bit_idx[0]);
+      return store_qo_f<vvp_vector4_t, vvp_queue_vec4>(thr, cp,
+                                                       cp->bit_idx[0]);
 }
 
 template <typename ELEM, class QTYPE>

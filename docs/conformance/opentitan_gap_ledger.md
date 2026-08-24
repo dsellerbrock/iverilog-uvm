@@ -2385,6 +2385,65 @@ not a pass claim. OpenTitan sources were not modified.
 
 ---
 
+## G74 — fixed unpacked arrays of queues/maps were rejected as instance class properties — **fixed/verified partial subset** [general]
+
+*7.4 / 7.8–7.10 / 8.5 [general] — fixed unpacked arrays, associative
+arrays, queues, and object properties.*
+
+OpenTitan contains direct non-static class properties such as
+`dma_intr_pred_t exp_intr_queue[NUM_MAX_INTERRUPTS][$]`, typedef-named queues
+indexed by address, per-channel queues of class handles, per-buffer byte
+queues, and fixed arrays of string-keyed associative coverage objects. The
+frontend formerly rejected every such queue-leaf type before distinguishing
+class instance storage from signal-backed storage.
+
+The verified implementation preserves a queue or associative-array leaf below
+one or more fixed unpacked property dimensions. VVP class storage constructs
+an independent container in each fixed slot. Elaboration keeps the canonical
+fixed prefix separate from a trailing queue position or associative key, and
+the target carries that separation through typed element reads/writes and
+method receivers. A fully selected leaf supports whole-container value copy,
+queue/associative methods, r-value queue slices, last-element reads, packed
+element selects, and integral, real, string, class-handle, aggregate, and
+nested-container values. Bare fixed-array values assigned to scalar or
+selected fixed-slot queue properties are materialized as independent queues in
+declared order and truncated to the destination bound. Context conversion is
+applied to associative keys and integral leaves. Associative vivification
+inserts nil dynamic-array values, notifies the outer root, and carries that
+root provenance through later child mutation. Arbitrary trailing
+queue/associative/dynamic-array chains retain recursive receiver typing and
+value-copy behavior, and a
+selected nested dynamic array supports `delete()`. Whole fixed-outer
+assignment decomposes into
+declared-order slot stores and value-copies every queue/map leaf independently.
+The selected queue receiver used for `$` and the fixed outer-index expression
+are not duplicated. Undefined or out-of-range fixed indices return the
+empty/null default on reads and make writes/mutators warned no-ops rather than
+aliasing slot zero. Scalar integral/bit, real, string, class-handle and
+unpacked-struct properties behind the same fixed prefix use type-appropriate
+defaults/no-ops too, including packed read-modify-write and exactly-once
+index/RHS evaluation.
+
+This is not full fixed-array/container closure. Signal-backed declarations and
+static class properties, a fixed queue/map array nested inside an unpacked
+struct property, direct fixed arrays of dynamic arrays, whole-outer property
+r-value reads, queue-slice l-values through the selected property, `$` as an
+l-value, methods invoked without the complete fixed prefix, and direct
+property selection from a function-call result remain loud. Randomization,
+`ref` lifetime, VPI and synthesis behavior are not claimed.
+
+Implementation scope, OpenTitan source witnesses, permanent reducer names,
+and the final ARM64 evidence are recorded in
+[`session_logs/2026-08-23_opentitan_fixed_array_container_class_properties.md`](session_logs/2026-08-23_opentitan_fixed_array_container_class_properties.md).
+The new legacy and split focuses pass 15/15 each, the complete manifests pass
+1,792/1,792 and 860/860, and the Slang differential agrees with the supported
+and deliberately loud boundaries. A final unmodified OpenTitan replay finds
+zero occurrences of the former array-of-queue rejection and reaches later
+independent blockers in every selected lane. No OpenTitan runtime lane reaches
+simulation, so this entry does not claim whole-design UVM/runtime closure.
+
+---
+
 ## Two measurement traps worth remembering
 
 **The error count is not a progress metric while the parser can still give

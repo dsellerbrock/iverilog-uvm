@@ -1023,14 +1023,22 @@ static void draw_property_vec4(ivl_expr_t expr)
       unsigned lab_null = local_count++;
       unsigned lab_out = local_count++;
       int idx_word = 0;
+      int idx_x_flag = -1;
+      int idx_in_range_flag = -1;
       int queue_indexed = property_is_indexed_queue_expr_(expr);
       int assoc_indexed = property_is_assoc_indexed_expr_(expr);
       int darray_indexed = property_is_indexed_darray_expr_(expr);
       unsigned pidx = ivl_expr_property_idx(expr);
+      ivl_type_t declared_prop_type = property_expr_type_(expr);
 
       if (idx_expr && !queue_indexed && !assoc_indexed) {
 	    idx_word = allocate_word();
-	    draw_eval_expr_into_integer(idx_expr, idx_word);
+	    if (property_selects_fixed_uarray_slot_(expr))
+		  draw_fixed_uarray_slot_index_(idx_expr, declared_prop_type,
+					       idx_word, &idx_x_flag,
+					       &idx_in_range_flag);
+	    else
+		  draw_eval_expr_into_integer(idx_expr, idx_word);
       }
 
       if (sig) {
@@ -1039,12 +1047,23 @@ static void draw_property_vec4(ivl_expr_t expr)
 	      /* Compile-progress fallback: null receiver property access
 	         yields all-zero vector value. */
 	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", ivl_expr_width(expr));
+	    if (idx_word) clr_word(idx_word);
+	    if (idx_x_flag >= 0) clr_flag(idx_x_flag);
+	    if (idx_in_range_flag >= 0) clr_flag(idx_in_range_flag);
 	    return;
       } else {
 	    draw_eval_object(base_expr);
       }
       fprintf(vvp_out, "    %%test_nul/obj;\n");
       fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
+      if (idx_x_flag >= 0) {
+	    fprintf(vvp_out,
+		    "    %%jmp/1xz T_%u.%u, %d; invalid fixed property slot\n",
+		    thread_count, lab_null, idx_x_flag);
+	    fprintf(vvp_out,
+		    "    %%jmp/0xz T_%u.%u, %d; fixed property slot out of range\n",
+		    thread_count, lab_null, idx_in_range_flag);
+      }
       if (assoc_indexed) {
             const char*key_kind;
 	    fprintf(vvp_out, "    %%prop/obj %u, 0; eval_assoc_property\n", pidx);
@@ -1091,6 +1110,10 @@ static void draw_property_vec4(ivl_expr_t expr)
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
       if (idx_word)
 	    clr_word(idx_word);
+      if (idx_x_flag >= 0)
+	    clr_flag(idx_x_flag);
+      if (idx_in_range_flag >= 0)
+	    clr_flag(idx_in_range_flag);
 }
 
 static void draw_select_vec4(ivl_expr_t expr)
@@ -1132,28 +1155,7 @@ static void draw_select_vec4(ivl_expr_t expr)
 	       * or class-typed), not an integer.  Treating "key" as a
 	       * numeric queue index reads garbage; emit %aa/load/v/* with
 	       * the proper key type instead. */
-	    ivl_type_t sub_type = ivl_expr_net_type(subexpr);
-	    if (!sub_type && ivl_expr_type(subexpr) == IVL_EX_SELECT) {
-		    /* Chained select: derive the inner container type
-		       from the root signal (select exprs often carry
-		       no net_type). */
-		  ivl_expr_t root = ivl_expr_oper1(subexpr);
-		  if (root
-		      && (ivl_expr_type(root) == IVL_EX_SIGNAL
-			  || ivl_expr_type(root) == IVL_EX_ARRAY)
-		      && ivl_expr_signal(root)) {
-			ivl_type_t rt =
-			      ivl_signal_net_type(ivl_expr_signal(root));
-			  /* Any container root will do: whether the outer
-			     dimension is keyed or positional, the element
-			     type is the sub-select's type.  The branch below
-			     still requires that ELEMENT type to be
-			     assoc-compat before taking the keyed path. */
-			if (rt && (ivl_type_base(rt) == IVL_VT_QUEUE
-				   || ivl_type_base(rt) == IVL_VT_DARRAY))
-			      sub_type = ivl_type_element(rt);
-		  }
-	    }
+	    ivl_type_t sub_type = receiver_container_type_(subexpr);
 	    if (sub_type && ivl_type_queue_assoc_compat(sub_type)) {
 		  if (expr_is_string_assoc_key_(base)) {
 			draw_eval_object(subexpr);
@@ -1782,6 +1784,69 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
             return;
       }
 
+      /* Atomic canonicalization for a multidimensional fixed class-property
+       * index. Raw index expressions occupy parms 0,4,8,... and are evaluated
+       * exactly once, left-to-right. The remaining parms are constant
+       * low/width/stride metadata and intentionally have no runtime
+       * evaluation. One runtime opcode checks every already-evaluated raw
+       * value before returning either the flat 64-bit index or X64. */
+      if (strcmp(ivl_expr_name(expr), "$ivl_checked_property_index") == 0) {
+            unsigned dims = parm_count / 4;
+            unsigned dim;
+            int malformed = (parm_count == 0 || (parm_count % 4) != 0);
+
+            for (dim = 0 ; dim < dims ; dim += 1) {
+                  ivl_expr_t raw = ivl_expr_parm(expr, 4 * dim);
+                  if (raw) {
+                        draw_eval_vec4(raw);
+                  } else {
+                        malformed = 1;
+                        fprintf(vvp_out, "    %%pushi/vec4 0, 0, 64; malformed checked index\n");
+                  }
+            }
+
+            for (dim = 0 ; dim < dims ; dim += 1) {
+                  unsigned field;
+                  for (field = 1 ; field < 4 ; field += 1) {
+                        ivl_expr_t meta = ivl_expr_parm(expr, 4 * dim + field);
+                        if (!meta
+                            || (ivl_expr_type(meta) != IVL_EX_NUMBER
+                                && ivl_expr_type(meta) != IVL_EX_ULONG)
+                            || number_is_unknown(meta)
+                            || ivl_expr_width(meta) > 64)
+                              malformed = 1;
+                  }
+            }
+
+            if (malformed) {
+                  fprintf(stderr, "%s:%u: internal error: malformed "
+                          "$ivl_checked_property_index metadata.\n",
+                          ivl_expr_file(expr), ivl_expr_lineno(expr));
+                  vvp_errors += 1;
+                  fprintf(vvp_out, "    %%prop/index/check \"%u|!\";\n", dims);
+                  return;
+            }
+
+            fprintf(vvp_out, "    %%prop/index/check \"%u|", dims);
+            for (dim = 0 ; dim < dims ; dim += 1) {
+                  ivl_expr_t raw = ivl_expr_parm(expr, 4 * dim);
+                  int64_t low = (int64_t)get_number_immediate64(
+                        ivl_expr_parm(expr, 4 * dim + 1));
+                  uint64_t width = get_number_immediate64(
+                        ivl_expr_parm(expr, 4 * dim + 2));
+                  uint64_t stride = get_number_immediate64(
+                        ivl_expr_parm(expr, 4 * dim + 3));
+
+                  if (dim != 0)
+                        fputc(';', vvp_out);
+                  fprintf(vvp_out, "%c:%" PRId64 ":%" PRIu64 ":%" PRIu64,
+                          ivl_expr_signed(raw) ? 's' : 'u', low,
+                          width, stride);
+            }
+            fprintf(vvp_out, "\";\n");
+            return;
+      }
+
 	/* Special case: If there are no arguments to print, then the
 	   %vpi_call statement is easy to draw. */
       if (parm_count == 0) {
@@ -1801,6 +1866,19 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
       }
       if (strcmp(ivl_expr_name(expr),"$ivl_queue_method$pop_front")==0) {
 	    draw_darray_pop(expr);
+	    return;
+      }
+      if (strcmp(ivl_expr_name(expr), "$ivl_queue$last") == 0) {
+	    assert(parm_count == 1);
+	    draw_eval_object(ivl_expr_parm(expr, 0));
+	    fprintf(vvp_out, "    %%dup/obj/ref; queue-last receiver alias\n");
+	    fprintf(vvp_out, "    %%qsize/o;\n");
+	    fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
+	    fprintf(vvp_out, "    %%sub;\n");
+	    fprintf(vvp_out, "    %%ix/vec4 3;\n");
+	    fprintf(vvp_out, "    %%load/qo/v %u;\n", ivl_expr_width(expr));
+	    if (ivl_expr_value(expr) == IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2;\n");
 	    return;
       }
       if (strncmp(ivl_expr_name(expr),"$ivl_stream$",12)==0) {

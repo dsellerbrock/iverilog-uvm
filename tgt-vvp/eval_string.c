@@ -70,6 +70,18 @@ static void string_ex_property(ivl_expr_t expr)
       int queue_indexed = property_is_indexed_queue_expr_(expr)
 	    || property_is_indexed_darray_expr_(expr);
       int assoc_indexed = property_is_assoc_indexed_expr_(expr);
+      ivl_type_t declared_prop_type = property_expr_type_(expr);
+      int fixed_idx_word = 0;
+      int fixed_idx_x_flag = -1;
+      int fixed_idx_in_range_flag = -1;
+
+      if (idx_expr && !queue_indexed && !assoc_indexed
+	  && property_selects_fixed_uarray_slot_(expr)) {
+	    fixed_idx_word = allocate_word();
+	    draw_fixed_uarray_slot_index_(idx_expr, declared_prop_type,
+					 fixed_idx_word, &fixed_idx_x_flag,
+					 &fixed_idx_in_range_flag);
+      }
 
       if (sig) {
 	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
@@ -77,12 +89,24 @@ static void string_ex_property(ivl_expr_t expr)
 	      /* Compile-progress fallback: null receiver property access
 	         yields an empty string. */
 	    fprintf(vvp_out, "    %%pushi/str \"\";\n");
+	    if (fixed_idx_word) clr_word(fixed_idx_word);
+	    if (fixed_idx_x_flag >= 0) clr_flag(fixed_idx_x_flag);
+	    if (fixed_idx_in_range_flag >= 0)
+		  clr_flag(fixed_idx_in_range_flag);
 	    return;
       } else {
 	    draw_eval_object(base_expr);
       }
       fprintf(vvp_out, "    %%test_nul/obj;\n");
       fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
+      if (fixed_idx_x_flag >= 0) {
+	    fprintf(vvp_out,
+		    "    %%jmp/1xz T_%u.%u, %d; invalid fixed property slot\n",
+		    thread_count, lab_null, fixed_idx_x_flag);
+	    fprintf(vvp_out,
+		    "    %%jmp/0xz T_%u.%u, %d; fixed property slot out of range\n",
+		    thread_count, lab_null, fixed_idx_in_range_flag);
+      }
       if (assoc_indexed) {
             const char*key_kind;
 	    fprintf(vvp_out, "    %%prop/obj %u, 0; eval_assoc_property\n", pidx);
@@ -97,8 +121,10 @@ static void string_ex_property(ivl_expr_t expr)
 		    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	      } else if (idx_expr) {
 		    /* Element of a string-array property (`obj.arr[i]`). */
-		  draw_eval_expr_into_integer(idx_expr, 3);
-		  fprintf(vvp_out, "    %%prop/str/i %u, 3;\n", pidx);
+		  if (!fixed_idx_word)
+			draw_eval_expr_into_integer(idx_expr, 3);
+		  fprintf(vvp_out, "    %%prop/str/i %u, %d;\n", pidx,
+			  fixed_idx_word ? fixed_idx_word : 3);
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	      } else {
 	    fprintf(vvp_out, "    %%prop/str %u;\n", pidx);
@@ -109,6 +135,10 @@ static void string_ex_property(ivl_expr_t expr)
       fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
       fprintf(vvp_out, "    %%pushi/str \"\";\n");
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+      if (fixed_idx_word) clr_word(fixed_idx_word);
+      if (fixed_idx_x_flag >= 0) clr_flag(fixed_idx_x_flag);
+      if (fixed_idx_in_range_flag >= 0)
+	    clr_flag(fixed_idx_in_range_flag);
 }
 
 static void string_ex_signal(ivl_expr_t expr)
@@ -159,21 +189,7 @@ static void string_ex_select(ivl_expr_t expr)
 	   handle, then do a keyed string load through it (the non-sig
 	   %aa/load forms peek their receiver from the object stack). */
       if (ivl_expr_type(sube) == IVL_EX_SELECT) {
-	    ivl_expr_t root = ivl_expr_oper1(sube);
-	    ivl_type_t inner = 0;
-	    if (root
-		&& (ivl_expr_type(root) == IVL_EX_SIGNAL
-		    || ivl_expr_type(root) == IVL_EX_ARRAY)
-		&& ivl_expr_signal(root)) {
-		  ivl_type_t rt = ivl_signal_net_type(ivl_expr_signal(root));
-		    /* Any container root (keyed or positional outer
-		       dimension): the element type is the sub-select's
-		       type; the guard below still requires that element
-		       type to be assoc-compat. */
-		  if (rt && (ivl_type_base(rt) == IVL_VT_QUEUE
-			     || ivl_type_base(rt) == IVL_VT_DARRAY))
-			inner = ivl_type_element(rt);
-	    }
+	    ivl_type_t inner = receiver_container_type_(sube);
 	    if (inner && ivl_type_base(inner) == IVL_VT_QUEUE
 		&& ivl_type_queue_assoc_compat(inner)) {
 		  const char*key_kind;
@@ -493,6 +509,16 @@ void draw_eval_string(ivl_expr_t expr)
 	  case IVL_EX_SFUNC:
 	    if (strcmp(ivl_expr_name(expr), "$ivl_string_method$substr") == 0)
 		  string_ex_substr(expr);
+	    else if (strcmp(ivl_expr_name(expr), "$ivl_queue$last") == 0) {
+		  assert(ivl_expr_parms(expr) == 1);
+		  draw_eval_object(ivl_expr_parm(expr, 0));
+		  fprintf(vvp_out, "    %%dup/obj/ref; queue-last receiver alias\n");
+		  fprintf(vvp_out, "    %%qsize/o;\n");
+		  fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
+		  fprintf(vvp_out, "    %%sub;\n");
+		  fprintf(vvp_out, "    %%ix/vec4 3;\n");
+		  fprintf(vvp_out, "    %%load/qo/str;\n");
+	    }
 	    else if (strcmp(ivl_expr_name(expr), "$ivl_queue_method$pop_back")==0)
 		  string_ex_pop(expr);
 	    else if (strcmp(ivl_expr_name(expr), "$ivl_queue_method$pop_front")==0)

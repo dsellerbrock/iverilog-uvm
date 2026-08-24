@@ -179,6 +179,18 @@ static void draw_property_real(ivl_expr_t expr)
       int queue_indexed = property_is_indexed_queue_expr_(expr)
 	    || property_is_indexed_darray_expr_(expr);
       int assoc_indexed = property_is_assoc_indexed_expr_(expr);
+      ivl_type_t declared_prop_type = property_expr_type_(expr);
+      int fixed_idx_word = 0;
+      int fixed_idx_x_flag = -1;
+      int fixed_idx_in_range_flag = -1;
+
+      if (idx_expr && !queue_indexed && !assoc_indexed
+	  && property_selects_fixed_uarray_slot_(expr)) {
+	    fixed_idx_word = allocate_word();
+	    draw_fixed_uarray_slot_index_(idx_expr, declared_prop_type,
+					 fixed_idx_word, &fixed_idx_x_flag,
+					 &fixed_idx_in_range_flag);
+      }
 
       if (sig) {
 	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
@@ -187,12 +199,24 @@ static void draw_property_real(ivl_expr_t expr)
 	         yields numeric zero. */
 	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, 1;\n");
 	    fprintf(vvp_out, "    %%cvt/rv;\n");
+	    if (fixed_idx_word) clr_word(fixed_idx_word);
+	    if (fixed_idx_x_flag >= 0) clr_flag(fixed_idx_x_flag);
+	    if (fixed_idx_in_range_flag >= 0)
+		  clr_flag(fixed_idx_in_range_flag);
 	    return;
       } else {
 	    draw_eval_object(base_expr);
       }
       fprintf(vvp_out, "    %%test_nul/obj;\n");
       fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
+      if (fixed_idx_x_flag >= 0) {
+	    fprintf(vvp_out,
+		    "    %%jmp/1xz T_%u.%u, %d; invalid fixed property slot\n",
+		    thread_count, lab_null, fixed_idx_x_flag);
+	    fprintf(vvp_out,
+		    "    %%jmp/0xz T_%u.%u, %d; fixed property slot out of range\n",
+		    thread_count, lab_null, fixed_idx_in_range_flag);
+      }
       if (assoc_indexed) {
             const char*key_kind;
 	    fprintf(vvp_out, "    %%prop/obj %u, 0; eval_assoc_property\n", pidx);
@@ -208,8 +232,10 @@ static void draw_property_real(ivl_expr_t expr)
 	      } else if (idx_expr) {
 		    /* Element of a real-array property (`obj.arr[i]`): the
 		       index selects a word of the property's array storage. */
-		  draw_eval_expr_into_integer(idx_expr, 3);
-		  fprintf(vvp_out, "    %%prop/r/i %u, 3;\n", pidx);
+		  if (!fixed_idx_word)
+			draw_eval_expr_into_integer(idx_expr, 3);
+		  fprintf(vvp_out, "    %%prop/r/i %u, %d;\n", pidx,
+			  fixed_idx_word ? fixed_idx_word : 3);
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	      } else {
 	    fprintf(vvp_out, "    %%prop/r %u;\n", pidx);
@@ -221,6 +247,10 @@ static void draw_property_real(ivl_expr_t expr)
       fprintf(vvp_out, "    %%pushi/vec4 0, 0, 1;\n");
       fprintf(vvp_out, "    %%cvt/rv;\n");
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+      if (fixed_idx_word) clr_word(fixed_idx_word);
+      if (fixed_idx_x_flag >= 0) clr_flag(fixed_idx_x_flag);
+      if (fixed_idx_in_range_flag >= 0)
+	    clr_flag(fixed_idx_in_range_flag);
 }
 
 static void draw_realnum_real(ivl_expr_t expr)
@@ -315,7 +345,7 @@ static void draw_select_real(ivl_expr_t expr)
 	   ivl_expr_signal() assert. vvp_darray backs both, so one
 	   %load/qo/r serves both. */
       {
-	    ivl_type_t sube_type = sube ? ivl_expr_net_type(sube) : 0;
+	    ivl_type_t sube_type = receiver_container_type_(sube);
 	    int sube_is_container =
 		  expr_is_queue_container_(sube)
 		  || (sube_type && ivl_type_base(sube_type) == IVL_VT_DARRAY)
@@ -711,7 +741,16 @@ void draw_eval_real(ivl_expr_t expr)
 	    break;
 
 	  case IVL_EX_SFUNC:
-	    if (strcmp(ivl_expr_name(expr), "$ivl_queue_method$pop_back")==0)
+	    if (strcmp(ivl_expr_name(expr), "$ivl_queue$last") == 0) {
+		  assert(ivl_expr_parms(expr) == 1);
+		  draw_eval_object(ivl_expr_parm(expr, 0));
+		  fprintf(vvp_out, "    %%dup/obj/ref; queue-last receiver alias\n");
+		  fprintf(vvp_out, "    %%qsize/o;\n");
+		  fprintf(vvp_out, "    %%pushi/vec4 1, 0, 32;\n");
+		  fprintf(vvp_out, "    %%sub;\n");
+		  fprintf(vvp_out, "    %%ix/vec4 3;\n");
+		  fprintf(vvp_out, "    %%load/qo/r;\n");
+	    } else if (strcmp(ivl_expr_name(expr), "$ivl_queue_method$pop_back")==0)
 		  real_ex_pop(expr);
 	    else if (strcmp(ivl_expr_name(expr), "$ivl_queue_method$pop_front")==0)
 		  real_ex_pop(expr);

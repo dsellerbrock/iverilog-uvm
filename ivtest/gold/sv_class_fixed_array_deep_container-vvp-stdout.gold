@@ -1,0 +1,13 @@
+WARNING: ivltests/sv_class_fixed_array_deep_container.v:285: fixed unpacked-array property index is undefined or out of range; write was ignored
+         Time: 0  Scope: sv_class_fixed_array_deep_container.$unm_blk_2
+WARNING: ivltests/sv_class_fixed_array_deep_container.v:295: fixed unpacked-array property index is undefined or out of range; write was ignored
+         Time: 0  Scope: sv_class_fixed_array_deep_container.$unm_blk_2
+WARNING: ivltests/sv_class_fixed_array_deep_container.v:301: fixed unpacked-array property index is undefined or out of range; write was ignored
+         Time: 0  Scope: sv_class_fixed_array_deep_container.$unm_blk_2
+WARNING: ivltests/sv_class_fixed_array_deep_container.v:307: fixed unpacked-array property index is undefined or out of range; write was ignored
+         Time: 0  Scope: sv_class_fixed_array_deep_container.$unm_blk_2
+WARNING: ivltests/sv_class_fixed_array_deep_container.v:313: fixed unpacked-array property index is undefined or out of range; write was ignored
+         Time: 0  Scope: sv_class_fixed_array_deep_container.$unm_blk_2
+WARNING: ivltests/sv_class_fixed_array_deep_container.v:319: fixed unpacked-array property index is undefined or out of range; write was ignored
+         Time: 0  Scope: sv_class_fixed_array_deep_container.$unm_blk_2
+PASSED

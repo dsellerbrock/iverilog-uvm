@@ -843,7 +843,7 @@ template <class QUEUE_TYPE> class property_queue : public class_property_t {
                   if (!warned_property_queue_oob_set) {
                         fprintf(stderr,
                                 "Warning: property_queue::set_object class=%s prop=%s type=%s"
-                                " index %" PRIu64 " out of range (size=%zu); using index 0"
+                                " index %" PRIu64 " out of range (size=%zu); ignoring write"
                                 " (further similar warnings suppressed)\n",
                                 owner_class_.empty() ? "<unknown>" : owner_class_.c_str(),
                                 prop_name_.empty() ? "<unknown>" : prop_name_.c_str(),
@@ -851,7 +851,7 @@ template <class QUEUE_TYPE> class property_queue : public class_property_t {
                                 idx, array_size_);
                         warned_property_queue_oob_set = true;
                   }
-                  idx = 0;
+                  return;
             }
 	    vvp_object_t*tmp = reinterpret_cast<vvp_object_t*>(buf+offset_);
             if (val.test_nil()) {
@@ -870,7 +870,7 @@ template <class QUEUE_TYPE> class property_queue : public class_property_t {
                   if (!warned_property_queue_oob_get) {
                         fprintf(stderr,
                                 "Warning: property_queue::get_object class=%s prop=%s type=%s"
-                                " index %" PRIu64 " out of range (size=%zu); using index 0"
+                                " index %" PRIu64 " out of range (size=%zu); returning null object"
                                 " (further similar warnings suppressed)\n",
                                 owner_class_.empty() ? "<unknown>" : owner_class_.c_str(),
                                 prop_name_.empty() ? "<unknown>" : prop_name_.c_str(),
@@ -878,7 +878,8 @@ template <class QUEUE_TYPE> class property_queue : public class_property_t {
                                 idx, array_size_);
                         warned_property_queue_oob_get = true;
                   }
-                  idx = 0;
+                  val.reset();
+                  return;
             }
 	    const vvp_object_t*tmp = reinterpret_cast<vvp_object_t*>(buf+offset_);
 	    val = tmp[idx];

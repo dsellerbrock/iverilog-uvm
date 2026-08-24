@@ -84,6 +84,11 @@ class vvp_darray : public vvp_object {
 
       virtual size_t get_size(void) const =0;
 
+	// Remove every element while retaining the container object itself.
+	// Queue and dynamic-array delete() share this operation so references to
+	// a selected container continue to observe the mutation.
+      virtual void clear(void) =0;
+
 	// Width accepted by the vec4 get/set interface for integral storage.
 	// Zero identifies a non-integral element representation.
       virtual unsigned vec4_word_width(void) const { return 0; }
@@ -230,6 +235,7 @@ template <class TYPE> class vvp_darray_atom : public vvp_darray {
       ~vvp_darray_atom() override;
 
       size_t get_size(void) const override;
+      void clear(void) override;
       unsigned vec4_word_width(void) const override
       { return 8*sizeof(TYPE); }
       void set_word(unsigned adr, const vvp_vector4_t&value) override;
@@ -254,6 +260,7 @@ class vvp_darray_vec4 : public vvp_darray {
       ~vvp_darray_vec4() override;
 
       size_t get_size(void) const override;
+      void clear(void) override;
       unsigned vec4_word_width(void) const override { return word_wid_; }
       void set_word(unsigned adr, const vvp_vector4_t&value) override;
       void get_word(unsigned adr, vvp_vector4_t&value) override;
@@ -274,6 +281,7 @@ class vvp_darray_vec2 : public vvp_darray {
       ~vvp_darray_vec2() override;
 
       size_t get_size(void) const override;
+      void clear(void) override;
       unsigned vec4_word_width(void) const override { return word_wid_; }
       void set_word(unsigned adr, const vvp_vector4_t&value) override;
       void get_word(unsigned adr, vvp_vector4_t&value) override;
@@ -293,6 +301,7 @@ class vvp_darray_real : public vvp_darray {
       ~vvp_darray_real() override;
 
       size_t get_size(void) const override;
+      void clear(void) override;
       void set_word(unsigned adr, double value) override;
       void get_word(unsigned adr, double&value) override;
       void shallow_copy(const vvp_object*obj) override;
@@ -315,6 +324,7 @@ class vvp_darray_string : public vvp_darray {
       ~vvp_darray_string() override;
 
       size_t get_size(void) const override;
+      void clear(void) override;
       void set_word(unsigned adr, const std::string&value) override;
       void get_word(unsigned adr, std::string&value) override;
       void shallow_copy(const vvp_object*obj) override;
@@ -332,6 +342,7 @@ class vvp_darray_object : public vvp_darray {
       ~vvp_darray_object() override;
 
       size_t get_size(void) const override;
+      void clear(void) override;
       void set_word(unsigned adr, const vvp_object_t&value) override;
       void get_word(unsigned adr, vvp_object_t&value) override;
       void shallow_copy(const vvp_object*obj) override;
@@ -348,6 +359,7 @@ class vvp_queue : public vvp_darray {
       ~vvp_queue() override;
 
       virtual size_t get_size(void) const override =0;
+      void clear(void) override { erase_tail(0); }
       virtual void copy_elems(vvp_object_t src, unsigned max_size);
 
       virtual void set_word_max(unsigned adr, const vvp_vector4_t&value, unsigned max_size);

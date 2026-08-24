@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_nested_container_audit.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_nested_container_audit"
+}

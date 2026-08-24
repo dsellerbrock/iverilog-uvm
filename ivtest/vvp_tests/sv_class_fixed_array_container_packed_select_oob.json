@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_class_fixed_array_container_packed_select_oob.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_class_fixed_array_container_packed_select_oob"
+}

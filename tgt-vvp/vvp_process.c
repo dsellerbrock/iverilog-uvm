@@ -2939,41 +2939,89 @@ static void queue_elem_enc_(ivl_type_t queue_type, char*enc, size_t enc_len)
       }
 }
 
-static void emit_new_queue_object_(ivl_type_t queue_type)
+/* Runtime nested-container constructor code. This matches aa_viv_spec_code
+ * in vvp/vthread.cc. Positional load-or-vivify encodes the same code as
+ * "@N", so a mixed queue/associative chain constructs the declared child
+ * container instead of assuming that every positional child is a queue. */
+static unsigned dynamic_container_spec_(ivl_type_t container_type)
 {
-      ivl_type_t element_type = ivl_type_element(queue_type);
-      ivl_variable_type_t type = element_type ? ivl_type_base(element_type) : IVL_VT_NO_TYPE;
-      int wid = 0;
-      const char*signed_char = "";
+      ivl_type_t element_type = ivl_type_element(container_type);
+      unsigned kind = 3;
 
-      if ((type == IVL_VT_BOOL) || (type == IVL_VT_LOGIC)) {
-	    wid = ivl_type_packed_width(element_type);
-	    signed_char = ivl_type_signed(element_type) ? "s" : "";
+      if (element_type) {
+	    switch (ivl_type_base(element_type)) {
+		case IVL_VT_BOOL:
+		case IVL_VT_LOGIC:  kind = 0; break;
+		case IVL_VT_REAL:   kind = 1; break;
+		case IVL_VT_STRING: kind = 2; break;
+		default:            kind = 3; break;
+	    }
       }
 
-      switch (type) {
-	  case IVL_VT_REAL:
-	    fprintf(vvp_out, "    %%new/queue \"r\";\n");
-	    break;
-	  case IVL_VT_STRING:
-	    fprintf(vvp_out, "    %%new/queue \"S\";\n");
-	    break;
-	  case IVL_VT_BOOL:
-	    fprintf(vvp_out, "    %%new/queue \"%sb%d\";\n", signed_char, wid);
-	    break;
-	  case IVL_VT_LOGIC:
-	    fprintf(vvp_out, "    %%new/queue \"%sv%d\";\n", signed_char, wid);
-	    break;
-	  case IVL_VT_CLASS:
-	  case IVL_VT_DARRAY:
-	  case IVL_VT_QUEUE:
-	  case IVL_VT_NO_TYPE:
-	    fprintf(vvp_out, "    %%new/queue \"o\";\n");
-	    break;
-	  default:
-	    fprintf(vvp_out, "    %%new/queue \"o\";\n");
-	    break;
-      }
+      if (ivl_type_base(container_type) == IVL_VT_QUEUE
+	  && ivl_type_queue_assoc_compat(container_type))
+	    kind += 4;
+      return kind;
+}
+
+/* A queue used as another queue's element has value semantics.  Object-store
+ * opcodes make the final copy, but have no target-type operand from which to
+ * learn an inner queue's bound.  Make a private copy and trim it before the
+ * store.  Keep word 3/flag 4 intact because insert() evaluates its position
+ * before its value. */
+static void draw_queue_element_object_value_(ivl_expr_t expr,
+                                             ivl_type_t element_type)
+{
+      uint64_t max_size;
+      int saved_index;
+      int saved_x_flag;
+      unsigned lab_trim;
+      unsigned lab_done;
+
+      draw_eval_object(expr);
+      if (!element_type || ivl_type_base(element_type) != IVL_VT_QUEUE
+          || ivl_type_queue_assoc_compat(element_type))
+            return;
+
+      max_size = ivl_type_queue_max_size(element_type);
+      if (max_size == 0 || max_size >= UINT_MAX)
+            return;
+
+      /* Trimming must never mutate the RHS. Only bounded queue elements need
+       * this target-side private copy; every other element is copied exactly
+       * once by the runtime store's value_copy_element() policy. */
+      fprintf(vvp_out, "    %%dup/obj; bounded queue element value copy\n");
+      fprintf(vvp_out, "    %%pop/obj 1, 1; discard source queue value\n");
+
+      saved_index = allocate_word();
+      saved_x_flag = allocate_flag();
+      lab_trim = local_count++;
+      lab_done = local_count++;
+
+      fprintf(vvp_out, "    %%ix/mov %d, 3; preserve queue-method index\n",
+              saved_index);
+      fprintf(vvp_out, "    %%flag_mov %d, 4; preserve queue-method X/Z\n",
+              saved_x_flag);
+      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_trim);
+      fprintf(vvp_out, "    %%dup/obj/ref; bounded queue size receiver\n");
+      fprintf(vvp_out, "    %%qsize/o;\n");
+      fprintf(vvp_out, "    %%cmpi/u %u, 0, 32; queue size <= %u\n",
+              (unsigned)max_size + 1, (unsigned)max_size);
+      fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 5; bounded queue fits\n",
+              thread_count, lab_done);
+      fprintf(vvp_out, "    %%dup/obj/ref; bounded queue trim receiver\n");
+      fprintf(vvp_out, "    %%ix/load 3, %u, 0; first excess element\n",
+              (unsigned)max_size);
+      fprintf(vvp_out, "    %%flag_set/imm 4, 0; known queue index\n");
+      fprintf(vvp_out, "    %%delete/o/elem;\n");
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_trim);
+      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_done);
+      fprintf(vvp_out, "    %%ix/mov 3, %d; restore queue-method index\n",
+              saved_index);
+      fprintf(vvp_out, "    %%flag_mov 4, %d; restore queue-method X/Z\n",
+              saved_x_flag);
+      clr_word(saved_index);
+      clr_flag(saved_x_flag);
 }
 
 static int show_delete_static_array_signal_method(ivl_statement_t net,
@@ -3070,6 +3118,18 @@ static int show_delete_property_method(ivl_statement_t net, ivl_expr_t parm, uns
 	      if (!base || prop_idx < 0)
 		    return -1;
 
+	      /* An indexed fixed-array property denotes its leaf container.
+	       * Let the object-receiver path operate on that selected slot;
+	       * the direct property path below interprets prop_word as an
+	       * index inside a scalar container property. */
+	      if (property_selects_fixed_uarray_slot_(parm)) {
+		    ivl_type_t value_type = property_expr_value_type_(parm);
+		    if (value_type
+			&& (ivl_type_base(value_type) == IVL_VT_QUEUE
+			    || ivl_type_base(value_type) == IVL_VT_DARRAY))
+			  return -1;
+	      }
+
 	      {
 		    ivl_type_t recv_type = ivl_expr_net_type(base);
 		    if (recv_type && ivl_type_base(recv_type) == IVL_VT_CLASS)
@@ -3161,38 +3221,15 @@ static int show_delete_property_method(ivl_statement_t net, ivl_expr_t parm, uns
 	      return 0;
 }
 
-/* Best-effort container type of a receiver expression: the
- * expression's own net_type, or the element type of the root signal
- * for one-level selects (select expressions often carry no net_type
- * in the t-dll view). */
-static ivl_type_t receiver_container_type_(ivl_expr_t expr)
-{
-      ivl_type_t t = ivl_expr_net_type(expr);
-      if (t)
-	    return t;
-      if (ivl_expr_type(expr) == IVL_EX_SELECT) {
-	    ivl_expr_t root = ivl_expr_oper1(expr);
-	    if (root
-		&& (ivl_expr_type(root) == IVL_EX_SIGNAL
-		    || ivl_expr_type(root) == IVL_EX_ARRAY)
-		&& ivl_expr_signal(root)) {
-		  ivl_type_t rt = ivl_signal_net_type(ivl_expr_signal(root));
-		  if (rt && (ivl_type_base(rt) == IVL_VT_QUEUE
-			     || ivl_type_base(rt) == IVL_VT_DARRAY))
-			return ivl_type_element(rt);
-	    }
-      }
-      return 0;
-}
-
 static int show_delete_queue_object_method(ivl_statement_t net, ivl_expr_t parm,
 					   unsigned parm_count)
 {
+	      ivl_type_t rt = receiver_container_type_(parm);
+
 	      /* delete(key) on an ASSOCIATIVE receiver expression must
 	       * erase the keyed entry (IEEE 1800-2017 7.9.2), not queue
 	       * position <key>. */
 	      if (parm_count == 2) {
-		    ivl_type_t rt = receiver_container_type_(parm);
 		    if (rt && ivl_type_base(rt) == IVL_VT_QUEUE
 			&& ivl_type_queue_assoc_compat(rt)) {
 			  const char*key_kind;
@@ -3203,6 +3240,16 @@ static int show_delete_queue_object_method(ivl_statement_t net, ivl_expr_t parm,
 			  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 			  return 0;
 		    }
+	      }
+
+	      if (parm_count == 1 && rt
+		  && ivl_type_base(rt) == IVL_VT_QUEUE
+		  && ivl_type_queue_assoc_compat(rt)) {
+		    if (show_queue_object_receiver(parm) != 0)
+			  return -1;
+		    fprintf(vvp_out, "    %%aa/delete/all;\n");
+		    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		    return 0;
 	      }
 
 	      if (show_queue_object_receiver(parm) != 0)
@@ -3348,8 +3395,9 @@ static int show_queue_object_receiver(ivl_expr_t parm)
 			  bt ? ivl_type_queue_assoc_compat(bt) : -1);
 	    }
       }
-      if (!expr_is_queue_expr(parm))
-	    return -1;
+	      if (!expr_is_dynarray_container_(parm)
+		  && !expr_is_assoc_queue_container_(parm))
+		    return -1;
 
       if (ivl_expr_type(parm) == IVL_EX_SELECT) {
 	    ivl_expr_t sube = ivl_expr_oper1(parm);
@@ -3358,44 +3406,28 @@ static int show_queue_object_receiver(ivl_expr_t parm)
 	    ivl_type_t base_type = 0;
 	    ivl_type_t recv_type = 0;
 
-	      /* Assoc-of-queue element through a class PROPERTY
-	       * (c.aq[key].push_back(v)): the plain %aa/load/obj read
-	       * returns nil for a missing key and the mutation is
-	       * dropped. Use the get-or-create element load. */
+	      /* Dynamic-container element through an associative class PROPERTY
+	       * (c.aq[key].push_back(v)): use the typed vivify load so a missing
+	       * entry is inserted and the selected child retains the property's
+	       * root notification provenance. */
 	    if (sube && index && ivl_expr_type(sube) == IVL_EX_PROPERTY) {
 		  ivl_type_t ptype = ivl_expr_net_type(sube);
 		  ivl_type_t elem = ptype ? ivl_type_element(ptype) : 0;
 		  if (ptype && ivl_type_base(ptype) == IVL_VT_QUEUE
 		      && ivl_type_queue_assoc_compat(ptype)
 		      && elem && ivl_type_base(elem) == IVL_VT_QUEUE) {
-			ivl_signal_t bsig = ivl_expr_signal(sube);
-			ivl_expr_t base_expr = ivl_expr_oper2(sube);
-			unsigned pidx = ivl_expr_property_idx(sube);
-			unsigned lab_null = local_count++;
-			unsigned lab_out = local_count++;
 			const char*key_kind;
-			char enc[32];
-			queue_elem_enc_(elem, enc, sizeof enc);
-			if (bsig)
-			      fprintf(vvp_out, "    %%load/obj v%p_0;\n", bsig);
-			else if (base_expr)
-			      draw_eval_object(base_expr);
-			else
-			      fprintf(vvp_out, "    %%null;\n");
-			fprintf(vvp_out, "    %%test_nul/obj;\n");
-			fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
-				thread_count, lab_null);
-			fprintf(vvp_out, "    %%prop/obj %u, 0;\n", pidx);
+			unsigned spec = dynamic_container_spec_(elem);
+			/* Evaluate the property expression itself. For a fixed outer
+			 * array, oper1 is its canonical SLOT; manually loading slot zero
+			 * made every method mutate element zero. This also centralizes
+			 * null/X/OOB handling in the ordinary property evaluator. */
+			draw_eval_object(sube);
 			key_kind = draw_eval_assoc_key_(index, 0);
-			fprintf(vvp_out, "    %%aa/loadlv/o/q/%s \"%s\";\n",
-				key_kind, enc);
-			fprintf(vvp_out, "    %%pop/obj 2, 1;\n");
-			fprintf(vvp_out, "    %%jmp T_%u.%u;\n",
-				thread_count, lab_out);
-			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
-			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
-			fprintf(vvp_out, "    %%null;\n");
-			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+			if (strcmp(key_kind, "obj") == 0)
+			      spec += 8;
+			fprintf(vvp_out, "    %%aa/viv/o/%s %u;\n",
+				key_kind, spec);
 			return 0;
 		  }
 
@@ -3409,32 +3441,12 @@ static int show_queue_object_receiver(ivl_expr_t parm)
 			      && !ivl_type_queue_assoc_compat(ptype)))
 		      && elem && ivl_type_base(elem) == IVL_VT_QUEUE
 		      && !ivl_type_queue_assoc_compat(elem)) {
-			ivl_signal_t bsig = ivl_expr_signal(sube);
-			ivl_expr_t base_expr = ivl_expr_oper2(sube);
-			unsigned pidx = ivl_expr_property_idx(sube);
-			unsigned lab_null = local_count++;
-			unsigned lab_out = local_count++;
 			char enc[32];
 			queue_elem_enc_(elem, enc, sizeof enc);
-			if (bsig)
-			      fprintf(vvp_out, "    %%load/obj v%p_0;\n", bsig);
-			else if (base_expr)
-			      draw_eval_object(base_expr);
-			else
-			      fprintf(vvp_out, "    %%null;\n");
-			fprintf(vvp_out, "    %%test_nul/obj;\n");
-			fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
-				thread_count, lab_null);
-			fprintf(vvp_out, "    %%prop/obj %u, 0;\n", pidx);
+			draw_eval_object(sube);
 			draw_eval_expr_into_integer(index, 3);
 			fprintf(vvp_out, "    %%qdar/loadlv/o \"%s\";\n", enc);
-			fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
-			fprintf(vvp_out, "    %%jmp T_%u.%u;\n",
-				thread_count, lab_out);
-			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
-			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
-			fprintf(vvp_out, "    %%null;\n");
-			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+			/* %qdar/loadlv/o consumes the selected outer container. */
 			return 0;
 		  }
 	    }
@@ -3476,38 +3488,10 @@ static int show_queue_object_receiver(ivl_expr_t parm)
 		&& ivl_type_queue_assoc_compat(base_type)
 		&& recv_type && ivl_type_base(recv_type) == IVL_VT_QUEUE) {
 		  const char*key_kind = draw_eval_assoc_key_(index, 0);
-		  const char*dup_key = 0;
-		  const char*pop_key = 0;
-		  unsigned lab_new = local_count++;
-		  unsigned lab_done = local_count++;
-
-		  if (strcmp(key_kind, "v") == 0) {
-			dup_key = "%dup/vec4";
-			pop_key = "%pop/vec4 1";
-		  } else if (strcmp(key_kind, "str") == 0) {
-			dup_key = "%dup/str";
-			pop_key = "%pop/str 1";
-		  } else if (strcmp(key_kind, "obj") == 0) {
-			dup_key = "%dup/obj";
-			pop_key = "%pop/obj 1, 1";
-		  }
-
-		  if (dup_key && pop_key) {
-			fprintf(vvp_out, "    %s;\n", dup_key);
-			fprintf(vvp_out, "    %%aa/load/sig/obj/%s v%p_0;\n", key_kind, sig);
-			fprintf(vvp_out, "    %%test_nul/obj;\n");
-			fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_new);
-			fprintf(vvp_out, "    %s;\n", pop_key);
-			fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_done);
-			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_new);
-			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
-			fprintf(vvp_out, "    %s;\n", dup_key);
-			emit_new_queue_object_(recv_type);
-			fprintf(vvp_out, "    %%aa/store/sig/obj/%s v%p_0;\n", key_kind, sig);
-			fprintf(vvp_out, "    %%aa/load/sig/obj/%s v%p_0;\n", key_kind, sig);
-			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_done);
-			return 0;
-		  }
+		  unsigned spec = dynamic_container_spec_(recv_type);
+		  fprintf(vvp_out, "    %%aa/viv/sig/%s v%p_0, %u;\n",
+			  key_kind, sig, spec);
+		  return 0;
 	    }
       }
 
@@ -3529,34 +3513,65 @@ static int show_insert_method(ivl_statement_t net)
 
       ivl_expr_t parm0 = ivl_stmt_parm(net,0);
       if (ivl_expr_type(parm0) != IVL_EX_SIGNAL) {
-	    if (show_queue_object_receiver(parm0) == 0) {
-		  ivl_expr_t parm2 = ivl_stmt_parm(net,2);
+            if (show_queue_object_receiver(parm0) == 0) {
+                  ivl_expr_t parm2 = ivl_stmt_parm(net,2);
+                  ivl_type_t recv_type = receiver_container_type_(parm0);
+                  ivl_type_t elem_type = recv_type
+                        ? ivl_type_element(recv_type) : 0;
+                  ivl_variable_type_t elem_kind = elem_type
+                        ? ivl_type_base(elem_type) : ivl_expr_value(parm2);
+                  unsigned max_count = queue_type_max_count_(recv_type);
+                  int insert_word = allocate_word();
+                  int insert_flag = allocate_flag();
 		  draw_eval_expr_into_integer(ivl_stmt_parm(net,1), 3);
-		  switch (ivl_expr_value(parm2)) {
-		      case IVL_VT_REAL:
-			draw_eval_real(parm2);
-			fprintf(vvp_out, "    %%qinsert/o/real;\n");
-			break;
+		  fprintf(vvp_out, "    %%ix/mov %d, 3; preserve insert index\n",
+			  insert_word);
+		  fprintf(vvp_out, "    %%flag_mov %d, 4; preserve insert index X/Z\n",
+			  insert_flag);
+                  switch (elem_kind) {
+                      case IVL_VT_REAL:
+                        draw_eval_real(parm2);
+			fprintf(vvp_out, "    %%ix/mov 3, %d; restore insert index\n",
+				insert_word);
+			fprintf(vvp_out, "    %%flag_mov 4, %d; restore insert index X/Z\n",
+				insert_flag);
+                        emit_object_queue_insert_("real", max_count, 0);
+                        break;
 		      case IVL_VT_STRING:
 			draw_eval_string(parm2);
-			fprintf(vvp_out, "    %%qinsert/o/str;\n");
-			break;
+			fprintf(vvp_out, "    %%ix/mov 3, %d; restore insert index\n",
+				insert_word);
+			fprintf(vvp_out, "    %%flag_mov 4, %d; restore insert index X/Z\n",
+				insert_flag);
+                        emit_object_queue_insert_("str", max_count, 0);
+                        break;
 		      case IVL_VT_CLASS:
 		      case IVL_VT_DARRAY:
 		      case IVL_VT_QUEUE:
-		      case IVL_VT_NO_TYPE: {
-			ivl_type_t p0t = ivl_expr_net_type(parm0);
-			draw_eval_object_value_copy(parm2,
-						    p0t ? ivl_type_element(p0t) : 0);
-			fprintf(vvp_out, "    %%qinsert/o/obj;\n");
-			break;
-		      }
-		      default:
-			draw_eval_vec4(parm2);
-			fprintf(vvp_out, "    %%qinsert/o/v %u;\n",
-			        ivl_expr_width(parm2));
-			break;
-		  }
+                      case IVL_VT_NO_TYPE:
+                        draw_queue_element_object_value_(parm2, elem_type);
+                        fprintf(vvp_out, "    %%ix/mov 3, %d; restore insert index\n",
+                                insert_word);
+                        fprintf(vvp_out, "    %%flag_mov 4, %d; restore insert index X/Z\n",
+                                insert_flag);
+                        emit_object_queue_insert_("obj", max_count, 0);
+                        break;
+                      default: {
+                        unsigned elem_wid = elem_type
+                              ? ivl_type_packed_width(elem_type) : 0;
+                        if (elem_wid == 0)
+                              elem_wid = ivl_expr_width(parm2);
+                        draw_eval_vec4(parm2);
+                        fprintf(vvp_out, "    %%ix/mov 3, %d; restore insert index\n",
+                                insert_word);
+                        fprintf(vvp_out, "    %%flag_mov 4, %d; restore insert index X/Z\n",
+                                insert_flag);
+                        emit_object_queue_insert_("v", max_count, elem_wid);
+                        break;
+                      }
+                  }
+		  clr_flag(insert_flag);
+		  clr_word(insert_word);
 		  return 0;
 	    }
 	    if (!warned_insert_non_signal) {
@@ -3581,15 +3596,32 @@ static int show_insert_method(ivl_statement_t net)
       ivl_expr_t parm1 = ivl_stmt_parm(net,1);
 	/* The %qinsert expects the array index to be in index register 3. */
       draw_eval_expr_into_integer(parm1, 3);
+	/* RHS evaluation may use word 3/flag 4 for its own container index.
+	 * Preserve the already-evaluated insert position across every value kind
+	 * so qinsert observes the source-order parm1 result, not RHS scratch state. */
+      int insert_word = allocate_word();
+      int insert_flag = allocate_flag();
+      fprintf(vvp_out, "    %%ix/mov %d, 3; preserve insert index\n",
+	      insert_word);
+      fprintf(vvp_out, "    %%flag_mov %d, 4; preserve insert index X/Z\n",
+	      insert_flag);
       ivl_expr_t parm2 = ivl_stmt_parm(net,2);
       switch (ivl_type_base(element_type)) {
 	  case IVL_VT_REAL:
 	    draw_eval_real(parm2);
+	    fprintf(vvp_out, "    %%ix/mov 3, %d; restore insert index\n",
+		    insert_word);
+	    fprintf(vvp_out, "    %%flag_mov 4, %d; restore insert index X/Z\n",
+		    insert_flag);
 	    fprintf(vvp_out, "    %%qinsert/real v%p_0, %d;\n",
 	            var, idx);
 	    break;
 	  case IVL_VT_STRING:
 	    draw_eval_string(parm2);
+	    fprintf(vvp_out, "    %%ix/mov 3, %d; restore insert index\n",
+		    insert_word);
+	    fprintf(vvp_out, "    %%flag_mov 4, %d; restore insert index X/Z\n",
+		    insert_flag);
 	    fprintf(vvp_out, "    %%qinsert/str v%p_0, %d;\n",
 	            var, idx);
 	    break;
@@ -3597,17 +3629,28 @@ static int show_insert_method(ivl_statement_t net)
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_QUEUE:
 	  case IVL_VT_NO_TYPE:
-	    draw_eval_object_value_copy(parm2, element_type);
+	    draw_queue_element_object_value_(parm2, element_type);
+	    fprintf(vvp_out, "    %%ix/mov 3, %d; restore insert index\n",
+		    insert_word);
+	    fprintf(vvp_out, "    %%flag_mov 4, %d; restore insert index X/Z\n",
+		    insert_flag);
 	    fprintf(vvp_out, "    %%qinsert/obj v%p_0, %d;\n",
 	            var, idx);
 	    break;
 	  default:
 	    draw_eval_vec4(parm2);
+	    fprintf(vvp_out, "    %%ix/mov 3, %d; restore insert index\n",
+		    insert_word);
+	    fprintf(vvp_out, "    %%flag_mov 4, %d; restore insert index X/Z\n",
+		    insert_flag);
 	    fprintf(vvp_out, "    %%qinsert/v v%p_0, %d, %u;\n",
 	            var, idx,
 	            ivl_type_packed_width(element_type));
 	    break;
       }
+      clr_flag(insert_flag);
+      clr_word(insert_word);
+      clr_word(idx);
       return 0;
 }
 
@@ -3632,8 +3675,8 @@ static int show_push_frontback_method(ivl_statement_t net, bool is_front)
 
       ivl_expr_t parm0 = ivl_stmt_parm(net,0);
 	      if (ivl_expr_type(parm0) != IVL_EX_SIGNAL) {
-		    if (show_queue_object_receiver(parm0) == 0) {
-			  ivl_expr_t parm1 = ivl_stmt_parm(net,1);
+            if (show_queue_object_receiver(parm0) == 0) {
+                  ivl_expr_t parm1 = ivl_stmt_parm(net,1);
 			  if (!parm1) {
 				fprintf(stderr,
 					"Warning: push_front/push_back missing value expression at %s:%u; skipping\n",
@@ -3648,55 +3691,42 @@ static int show_push_frontback_method(ivl_statement_t net, bool is_front)
 			   * and no-ops because the actual storage is
 			   * vvp_queue_string.  Pull the element type off parm0
 			   * when we have a net_type. */
-			  ivl_variable_type_t elem_kind = ivl_expr_value(parm1);
-			  ivl_type_t parm0_type = ivl_expr_net_type(parm0);
-			    /* An element select (aq[key] / qq[i]) often
-			     * carries no net_type of its own — derive the
-			     * receiver queue type from the select's BASE
-			     * container so the value stores with the right
-			     * element kind (a string pushed into an
-			     * assoc-of-string-queues used to be drawn as
-			     * vec4 and dropped with a type mismatch). */
-			  if (!parm0_type && ivl_expr_type(parm0) == IVL_EX_SELECT) {
-				ivl_expr_t sube = ivl_expr_oper1(parm0);
-				ivl_type_t bt = sube ? ivl_expr_net_type(sube) : 0;
-				if (!bt && sube
-				    && (ivl_expr_type(sube) == IVL_EX_SIGNAL
-					|| ivl_expr_type(sube) == IVL_EX_ARRAY)
-				    && ivl_expr_signal(sube))
-				      bt = ivl_signal_net_type(ivl_expr_signal(sube));
-				if (bt && (ivl_type_base(bt) == IVL_VT_QUEUE
-					   || ivl_type_base(bt) == IVL_VT_DARRAY))
-				      parm0_type = ivl_type_element(bt);
-			  }
-			  if (parm0_type) {
-				ivl_type_t elem_type = ivl_type_element(parm0_type);
-				if (elem_type)
-				      elem_kind = ivl_type_base(elem_type);
-			  }
-			  switch (elem_kind) {
-		      case IVL_VT_REAL:
-			draw_eval_real(parm1);
-			fprintf(vvp_out, "    %%store/qo/%s/r;\n", type_code + 1);
-			break;
-		      case IVL_VT_STRING:
-			draw_eval_string(parm1);
-			fprintf(vvp_out, "    %%store/qo/%s/str;\n", type_code + 1);
-			break;
+                  ivl_type_t parm0_type = receiver_container_type_(parm0);
+                  ivl_type_t elem_type = parm0_type
+                        ? ivl_type_element(parm0_type) : 0;
+                  ivl_variable_type_t elem_kind = elem_type
+                        ? ivl_type_base(elem_type) : ivl_expr_value(parm1);
+                  unsigned max_count = queue_type_max_count_(parm0_type);
+                  switch (elem_kind) {
+                      case IVL_VT_REAL:
+                        draw_eval_real(parm1);
+                        emit_object_queue_store_(type_code[1], "r",
+                                                 max_count, 0);
+                        break;
+                      case IVL_VT_STRING:
+                        draw_eval_string(parm1);
+                        emit_object_queue_store_(type_code[1], "str",
+                                                 max_count, 0);
+                        break;
 		      case IVL_VT_CLASS:
 		      case IVL_VT_DARRAY:
 		      case IVL_VT_QUEUE:
 		      case IVL_VT_NO_TYPE:
-			draw_eval_object_value_copy(parm1,
-						    parm0_type ? ivl_type_element(parm0_type) : 0);
-			fprintf(vvp_out, "    %%store/qo/%s/obj;\n", type_code + 1);
-			break;
-		      default:
-			draw_eval_vec4(parm1);
-			fprintf(vvp_out, "    %%store/qo/%s/v %u;\n",
-			        type_code + 1, ivl_expr_width(parm1));
-			break;
-		  }
+                        draw_queue_element_object_value_(parm1, elem_type);
+                        emit_object_queue_store_(type_code[1], "obj",
+                                                 max_count, 0);
+                        break;
+                      default: {
+                        unsigned elem_wid = elem_type
+                              ? ivl_type_packed_width(elem_type) : 0;
+                        if (elem_wid == 0)
+                              elem_wid = ivl_expr_width(parm1);
+                        draw_eval_vec4(parm1);
+                        emit_object_queue_store_(type_code[1], "v",
+                                                 max_count, elem_wid);
+                        break;
+                      }
+                  }
 		  return 0;
 	    }
 	    if (!warned_push_non_signal) {
@@ -3741,7 +3771,7 @@ static int show_push_frontback_method(ivl_statement_t net, bool is_front)
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_QUEUE:
 	  case IVL_VT_NO_TYPE:
-	    draw_eval_object_value_copy(parm1, element_type);
+	    draw_queue_element_object_value_(parm1, element_type);
 	    fprintf(vvp_out, "    %%store/%s/obj v%p_0, %d;\n",
 	            type_code, var, idx);
 	    break;
@@ -4789,93 +4819,109 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		  return 0;
 	    }
 
-	      /* Inner container spec code, from the outer element type:
-	       * 0-3 queue of vec4/real/string/object, 4-7 the assoc
-	       * equivalents. */
-	    unsigned spec = 7;
 	    ivl_type_t outer_type = outer_sig
 		  ? ivl_signal_net_type(outer_sig)
-		  : ivl_expr_net_type(outer_arg);
-	      /* The container that RECEIVES the value is nkeys_-1 levels
-		 below the outer one, not always exactly one. Walking only
-		 one level made a deeper store take the value kind of an
-		 intermediate container -- an object rather than a vector --
-		 so the value was evaluated with draw_eval_object and the
-		 store wrote a null. */
+		  : receiver_container_type_(outer_arg);
 	    ivl_type_t inner_type = outer_type;
 	    {
 		  unsigned lv_;
-		  for (lv_ = 1 ; lv_ < nkeys_ && inner_type ; lv_ += 1)
+		  for (lv_ = 1 ; lv_ < nkeys_ ; lv_ += 1) {
+			if (!type_is_runtime_container_(inner_type))
+			      break;
 			inner_type = ivl_type_element(inner_type);
+		  }
 	    }
-	    if (inner_type == outer_type)
-		  inner_type = outer_type ? ivl_type_element(outer_type) : 0;
-	    if (inner_type) {
-		  int is_assoc = ivl_type_base(inner_type) == IVL_VT_QUEUE
-			&& ivl_type_queue_assoc_compat(inner_type);
-		  int is_queue = ivl_type_base(inner_type) == IVL_VT_QUEUE
-			|| ivl_type_base(inner_type) == IVL_VT_DARRAY;
-		  ivl_type_t et = ivl_type_element(inner_type);
-		  unsigned kind = 3;
-		  if (et) {
-			switch (ivl_type_base(et)) {
-			    case IVL_VT_BOOL:
-			    case IVL_VT_LOGIC:  kind = 0; break;
-			    case IVL_VT_REAL:   kind = 1; break;
-			    case IVL_VT_STRING: kind = 2; break;
-			    default:            kind = 3; break;
+	    if (!type_is_runtime_container_(outer_type)
+		|| !type_is_runtime_container_(inner_type)) {
+		  fprintf(stderr, "Warning: $ivl_assoc$store2 lost a nested "
+			  "container type at %s:%u; skipping\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return 0;
+	    }
+
+	      /* Walk every navigation key against the type of its own
+	       * receiver. Associative hops preserve string/object/vector key
+	       * stacks; positional hops use numeric word 3. Each hop creates
+	       * the declared next container when the stored handle is nil. */
+	    {
+		  ivl_type_t recv_type = outer_type;
+		  unsigned ki_;
+		  for (ki_ = 1 ; ki_ < nkeys_ ; ki_ += 1) {
+			ivl_expr_t key = ivl_stmt_parm(net, ki_);
+			ivl_type_t next_type = ivl_type_element(recv_type);
+
+			if (!type_is_runtime_container_(next_type)) {
+			      fprintf(stderr, "Warning: $ivl_assoc$store2 has a "
+				      "non-container navigation hop at %s:%u; skipping\n",
+				      ivl_stmt_file(net), ivl_stmt_lineno(net));
+			      return 0;
 			}
-		  }
-		  if (is_assoc)
-			spec = 4 + kind;
-		  else if (is_queue)
-			spec = kind;
-	    }
-
-	    int outer_keyed = outer_type
-		  && ivl_type_base(outer_type) == IVL_VT_QUEUE
-		  && ivl_type_queue_assoc_compat(outer_type);
-	    int inner_keyed = spec >= 4;
-
-	      /* Element handle for outer[k1]. */
-	    if (outer_keyed) {
-		    /* inner = viv(outer, k1) */
-		  if (outer_sig) {
-			const char*k1_kind = draw_eval_assoc_key_(k1, 0);
-			fprintf(vvp_out, "    %%aa/viv/sig/%s v%p_0, %u;\n",
-				k1_kind, outer_sig, spec);
-		  } else {
-			const char*k1_kind = draw_eval_assoc_key_(k1, 0);
-			draw_eval_object(outer_arg);
-			fprintf(vvp_out, "    %%aa/viv/o/%s %u;\n",
-				k1_kind, spec);
-		  }
-	    } else {
-		    /* Positional outer: load the existing element handle
-		     * (no vivification — an out-of-range index yields a
-		     * nil handle and the inner store is skipped). */
-		  if (outer_sig) {
-			draw_eval_expr_into_integer(k1, 3);
-			fprintf(vvp_out, "    %%load/dar/obj v%p_0;\n", outer_sig);
-		  } else {
-			draw_eval_object(outer_arg);
-			draw_eval_expr_into_integer(k1, 3);
-			fprintf(vvp_out, "    %%load/qo/obj;\n");
-		  }
-
-		    /* Any further navigation keys walk down from the
-		       handle now on the object stack. */
-		  {
-			unsigned ki_;
-			for (ki_ = 2 ; ki_ < nkeys_ ; ki_ += 1) {
-			      draw_eval_expr_into_integer(
-				    ivl_stmt_parm(net, ki_), 3);
-			      fprintf(vvp_out, "    %%load/qo/obj;\n");
+			if (ivl_type_base(recv_type) == IVL_VT_QUEUE
+			    && ivl_type_queue_assoc_compat(recv_type)) {
+			      const char*key_kind;
+			      if (ki_ == 1 && !outer_sig)
+				    draw_eval_object(outer_arg);
+			      key_kind = draw_eval_assoc_key_(key, 0);
+			      if (ivl_type_base(next_type) == IVL_VT_DARRAY) {
+				    /* IEEE 1800-2017 7.8.7 allocates a missing
+				     * associative element used as an assignment target. The
+				     * element's dynamic-array default remains nil: protocol
+				     * spec 16 inserts nil without manufacturing a queue. */
+				    if (ki_ == 1 && outer_sig) {
+					  fprintf(vvp_out,
+						  "    %%aa/viv/sig/%s v%p_0, 16;\n",
+						  key_kind, outer_sig);
+				    } else {
+					  fprintf(vvp_out, "    %%aa/viv/o/%s %u;\n",
+						  key_kind,
+						  strcmp(key_kind, "obj") == 0 ? 24 : 16);
+				    }
+			      } else {
+				    unsigned next_spec =
+					  dynamic_container_spec_(next_type);
+				    if (ki_ == 1 && outer_sig) {
+					  fprintf(vvp_out,
+						  "    %%aa/viv/sig/%s v%p_0, %u;\n",
+						  key_kind, outer_sig, next_spec);
+				    } else {
+					  fprintf(vvp_out,
+						  "    %%aa/viv/o/%s %u;\n",
+						  key_kind, next_spec
+						  + (strcmp(key_kind, "obj") == 0 ? 8 : 0));
+				    }
+			      }
+			} else {
+			      if (ki_ == 1) {
+				    if (outer_sig)
+					  fprintf(vvp_out, "    %%load/obj v%p_0;\n",
+						  outer_sig);
+				    else
+					  draw_eval_object(outer_arg);
+			      }
+			      draw_eval_expr_into_integer(key, 3);
+			      if (ivl_type_base(next_type) == IVL_VT_DARRAY) {
+				    fprintf(vvp_out, "    %%load/qo/obj;\n");
+			      } else {
+				    unsigned next_spec =
+					  dynamic_container_spec_(next_type);
+				    fprintf(vvp_out,
+					    "    %%qdar/loadlv/o \"@%u\";\n",
+					    next_spec);
+			      }
 			}
+			recv_type = next_type;
 		  }
 	    }
 
-	    unsigned vkind = spec & 3;
+		    unsigned spec = dynamic_container_spec_(inner_type);
+		    int inner_keyed = spec >= 4;
+		    unsigned vkind = spec & 3;
+		    unsigned inner_max_count = queue_type_max_count_(inner_type);
+		    ivl_type_t inner_element_type = ivl_type_element(inner_type);
+		    unsigned inner_element_width = inner_element_type
+			  ? ivl_type_packed_width(inner_element_type) : 0;
+		    if (inner_element_width == 0)
+			  inner_element_width = ivl_expr_width(val);
 	    if (inner_keyed) {
 		    /* inner[k2] = value (receiver peeked from the obj
 		     * stack).  The store kind follows the declared element
@@ -4895,12 +4941,18 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 			draw_eval_real(val);
 			fprintf(vvp_out, "    %%aa/store/r/%s;\n", k2_kind);
 		  } else if (vkind == 3) {
-			draw_eval_object(val);
+			draw_queue_element_object_value_(val,
+						 inner_element_type);
 			fprintf(vvp_out, "    %%aa/store/obj/%s;\n", k2_kind);
-		  } else {
-			draw_eval_vec4(val);
-			fprintf(vvp_out, "    %%aa/store/v/%s %u;\n",
-				k2_kind, ivl_expr_width(val));
+			  } else {
+				draw_eval_vec4(val);
+				resize_vec4_wid(val, inner_element_width);
+				if (inner_element_type
+				    && ivl_type_base(inner_element_type) == IVL_VT_BOOL
+				    && ivl_expr_value(val) != IVL_VT_BOOL)
+				      fprintf(vvp_out, "    %%cast2;\n");
+				fprintf(vvp_out, "    %%aa/store/v/%s %u;\n",
+					k2_kind, inner_element_width);
 		  }
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	    } else {
@@ -4915,20 +4967,29 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 			      fprintf(vvp_out, "    %%pushv/str;\n");
 			}
 			draw_eval_expr_into_integer(k2, 3);
-			fprintf(vvp_out, "    %%store/qo/i/str;\n");
+			emit_object_queue_store_('i', "str",
+			                         inner_max_count, 0);
 		  } else if (vkind == 1) {
 			draw_eval_real(val);
 			draw_eval_expr_into_integer(k2, 3);
-			fprintf(vvp_out, "    %%store/qo/i/r;\n");
+			emit_object_queue_store_('i', "r",
+			                         inner_max_count, 0);
 		  } else if (vkind == 3) {
-			draw_eval_object(val);
+			draw_queue_element_object_value_(val,
+						 inner_element_type);
 			draw_eval_expr_into_integer(k2, 3);
-			fprintf(vvp_out, "    %%store/qo/i/obj;\n");
-		  } else {
-			draw_eval_vec4(val);
-			draw_eval_expr_into_integer(k2, 3);
-			fprintf(vvp_out, "    %%store/qo/i/v %u;\n",
-				ivl_expr_width(val));
+			emit_object_queue_store_('i', "obj",
+			                         inner_max_count, 0);
+			  } else {
+				draw_eval_vec4(val);
+				resize_vec4_wid(val, inner_element_width);
+				if (inner_element_type
+				    && ivl_type_base(inner_element_type) == IVL_VT_BOOL
+				    && ivl_expr_value(val) != IVL_VT_BOOL)
+				      fprintf(vvp_out, "    %%cast2;\n");
+				draw_eval_expr_into_integer(k2, 3);
+				emit_object_queue_store_('i', "v", inner_max_count,
+				                         inner_element_width);
 		  }
 	    }
 	    return 0;

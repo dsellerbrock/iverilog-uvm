@@ -1,0 +1,2 @@
+./ivltests/sv_class_fixed_array_container_outer_read_fail.v:10: sorry: whole fixed unpacked array property 0 with queue or dynamic-array elements cannot be read as one aggregate object.
+error: Code generation had 1 error(s).

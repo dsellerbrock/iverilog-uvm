@@ -2480,6 +2480,17 @@ bool PEIdent::elaborate_lval_net_idx_(Design*des,
       return true;
 }
 
+/* Keep the fixed-property path separate from generic unpacked-array indexing:
+ * every declared dimension must be checked before the index is flattened. */
+static NetExpr* make_canonical_property_lval_index_(
+      Design*des, NetScope*scope, const LineInfo*loc,
+      const std::list<index_component_t>&indices,
+      const netsarray_t*array_type, bool need_const)
+{
+      return make_checked_canonical_property_index(des, scope, loc, indices,
+						     array_type, need_const);
+}
+
 /*
  * When the l-value turns out to be a class object, this method is
  * called with the bound variable, and the method path. For example,
@@ -3105,6 +3116,16 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			const size_t adims = stype->static_dimensions().size();
 			const netvector_t*evec =
 			      dynamic_cast<const netvector_t*>(stype->element_type());
+			if (member_cur.index.size() < adims) {
+			      cerr << get_fileline() << ": error: Got "
+				   << member_cur.index.size() << " indices, expecting "
+				   << adims << " to index the property "
+				   << method_name << "." << endl;
+			      des->errors += 1;
+			      delete lv;
+			      return 0;
+			}
+
 			if (member_cur.index.size() > adims && evec) {
 			      std::list<index_component_t> elem_idx(
 				    member_cur.index.begin(),
@@ -3112,8 +3133,8 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			      std::list<index_component_t> tail_idx(
 				    std::next(member_cur.index.begin(), adims),
 				    member_cur.index.end());
-			      word_index = make_canonical_index(des, scope, this,
-							elem_idx, stype, false);
+			      word_index = make_canonical_property_lval_index_(
+				    des, scope, this, elem_idx, stype, false);
 			      NetExpr*part_off = 0;
 			      unsigned long part_wid = 0;
 			      bool tail_ok = word_index
@@ -3133,55 +3154,223 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				    des->errors += 1;
 				    return 0;
 			      }
+			} else if (member_cur.index.size() > adims
+				   && dynamic_cast<const netdarray_t*>(
+					 stype->element_type())) {
+			      /* A fixed unpacked prefix selects the property slot;
+			       * trailing indices select through the queue/associative
+			       * value stored in that slot. Represent these as nested
+			       * l-values so the property word is never overwritten by
+			       * the container key. This also makes a fully-selected
+			       * struct/class element available to the next member hop. */
+			      std::list<index_component_t>::const_iterator split =
+				    std::next(member_cur.index.cbegin(), adims);
+			      std::list<index_component_t> fixed_idx(
+				    member_cur.index.cbegin(), split);
+			      word_index = make_canonical_property_lval_index_(
+				    des, scope, this, fixed_idx, stype, false);
+			      if (!word_index) {
+				    delete lv;
+				    return 0;
+			      }
+			      lv->set_word(word_index);
+			      word_index = nullptr;
+			      ptype = lv->net_type();
+
+			      for (std::list<index_component_t>::const_iterator idx_it = split
+				     ; idx_it != member_cur.index.end(); ++idx_it) {
+				    const index_component_t&index_tail = *idx_it;
+
+				      /* A queue/map element can itself be a packed vector. Its
+				       * residual brackets are packed selects on the current
+				       * element l-value, not more container word indices. */
+				    if (const netvector_t*vector_type =
+					  dynamic_cast<const netvector_t*>(ptype)) {
+					  std::list<index_component_t>packed_indices(
+						idx_it, member_cur.index.cend());
+					  NetExpr*part_off = nullptr;
+					  unsigned long part_wid = 0;
+					  if (!collapse_packed_member_indices(
+						des, scope, this, vector_type->packed_dims(),
+						packed_indices, part_off, part_wid)) {
+						cerr << get_fileline() << ": sorry: this packed "
+						     << "select after a queue or associative-array "
+						     << "element is not yet supported as an l-value."
+						     << endl;
+						des->errors += 1;
+						delete lv;
+						return 0;
+					  }
+					  lv->set_part(part_off,
+						new netvector_t(vector_type->base_type(),
+							     (long)part_wid - 1, 0));
+					  ptype = lv->net_type();
+					  break;
+				    }
+
+				    const netqueue_t*queue_type =
+					  dynamic_cast<const netqueue_t*>(ptype);
+
+				    if (index_tail.sel == index_component_t::SEL_PART_LAST) {
+					  std::list<index_component_t>::const_iterator next = idx_it;
+					  ++next;
+					  if (!queue_type || queue_type->assoc_compat()
+					      || next != member_cur.index.end()
+					      || !index_tail.msb || index_tail.lsb) {
+						cerr << get_fileline() << ": sorry: only a final "
+						     << "[lo:$] positional-queue slice is supported "
+						     << "after a fixed-array class-property index "
+						     << "as an l-value." << endl;
+						des->errors += 1;
+						delete lv;
+						return 0;
+					  }
+
+					  NetExpr*lo = elab_and_eval(des, scope,
+							       index_tail.msb, -1);
+					  if (!lo) {
+						delete lv;
+						return 0;
+					  }
+					  lo->set_line(*this);
+					  NetAssign_*slice_lv = new NetAssign_(lv);
+					  slice_lv->set_array_slice(lo, ptype);
+					  lv = slice_lv;
+					  ptype = lv->net_type();
+					  continue;
+				    }
+
+				    if (index_tail.sel == index_component_t::SEL_BIT_LAST) {
+					  cerr << get_fileline() << ": sorry: last-element "
+					       << "selection after a fixed-array class-property "
+					       << "index is not yet supported as an l-value." << endl;
+					  des->errors += 1;
+					  delete lv;
+					  return 0;
+				    }
+				    if (index_tail.sel != index_component_t::SEL_BIT
+					|| !index_tail.msb || index_tail.lsb) {
+					  cerr << get_fileline() << ": sorry: this trailing "
+					       << "select after a fixed-array class-property "
+					       << "index is not yet supported as an l-value." << endl;
+					  des->errors += 1;
+					  delete lv;
+					  return 0;
+				    }
+				    if (!dynamic_cast<const netarray_t*>(ptype)) {
+					  cerr << get_fileline() << ": error: trailing index "
+					       << "does not apply to the selected property "
+					       << "element." << endl;
+					  des->errors += 1;
+					  delete lv;
+					  return 0;
+				    }
+
+				    NetExpr*idx_expr = elab_assoc_index(
+					  des, scope, index_tail.msb, ptype);
+				    if (!idx_expr) {
+					  delete lv;
+					  return 0;
+				    }
+
+				    NetAssign_*element_lv = new NetAssign_(lv);
+				    element_lv->set_word(idx_expr);
+				    lv = element_lv;
+				    ptype = lv->net_type();
+			      }
 			} else {
-			      word_index = make_canonical_index(des, scope, this,
-								member_cur.index, stype, false);
+			      word_index = make_canonical_property_lval_index_(
+				    des, scope, this, member_cur.index, stype, false);
+			      if (!word_index) {
+				    delete lv;
+				    return 0;
+			      }
 			}
 
 		  } else if (dynamic_cast<const netdarray_t*>(ptype)) {
 			size_t idx_pos = 0;
 			const size_t idx_count = member_cur.index.size();
-			for (const auto&index_tail : member_cur.index) {
+			for (std::list<index_component_t>::const_iterator idx_it =
+			       member_cur.index.begin();
+			     idx_it != member_cur.index.end(); ) {
+			      if (applied_multi_dyn_word_index) {
+				    if (const netvector_t*vector_type =
+					  dynamic_cast<const netvector_t*>(ptype)) {
+					  std::list<index_component_t>packed_indices(
+						idx_it, member_cur.index.cend());
+					  NetExpr*part_off = nullptr;
+					  unsigned long part_wid = 0;
+					  if (!collapse_packed_member_indices(
+						des, scope, this,
+						vector_type->packed_dims(),
+						packed_indices, part_off, part_wid)) {
+						cerr << get_fileline() << ": sorry: this packed "
+						     << "select after a queue or associative-array "
+						     << "element is not yet supported as an l-value."
+						     << endl;
+						des->errors += 1;
+						delete lv;
+						return 0;
+					  }
+					  lv->set_part(part_off,
+						new netvector_t(
+						      vector_type->base_type(),
+						      (long)part_wid - 1, 0));
+					  ptype = lv->net_type();
+					  idx_pos = idx_count;
+					  break;
+				    }
+			      }
+
+			      const index_component_t&index_tail = *idx_it;
 			      if (index_tail.sel == index_component_t::SEL_BIT_LAST) {
 				    cerr << get_fileline() << ": sorry: "
-				         << "Last-element select of dynamic/queue class properties is not supported."
-				         << endl;
+					 << "Last-element select of dynamic/queue class "
+					 << "properties is not supported." << endl;
 				    des->errors += 1;
-				    break;
+				    delete lv;
+				    return 0;
 			      }
-			      if (index_tail.msb == 0 || index_tail.lsb != 0
+			      if (!index_tail.msb || index_tail.lsb
 				  || index_tail.sel != index_component_t::SEL_BIT) {
 				    cerr << get_fileline() << ": sorry: "
-				         << "Part-select of dynamic/queue class properties is not supported."
-				         << endl;
+					 << "Part-select of dynamic/queue class properties "
+					 << "is not supported." << endl;
 				    des->errors += 1;
-				    break;
+				    delete lv;
+				    return 0;
 			      }
 
 			      NetExpr*idx_expr = elab_assoc_index(
 				    des, scope, index_tail.msb, ptype);
-			      if (!idx_expr)
-				    break;
+			      if (!idx_expr) {
+				    delete lv;
+				    return 0;
+			      }
 
-			      if (applied_multi_dyn_word_index)
+			      const netdarray_t*word_container =
+				    dynamic_cast<const netdarray_t*>(ptype);
+			      const bool packed_element_tail =
+				    idx_pos + 1 < idx_count && word_container
+				    && dynamic_cast<const netvector_t*>(
+					  word_container->element_type());
+			      if (applied_multi_dyn_word_index || packed_element_tail)
 				    lv = new NetAssign_(lv);
 			      lv->set_word(idx_expr);
 			      applied_multi_dyn_word_index = true;
 
 			      ptype = lv->net_type();
 			      idx_pos += 1;
-			      if (idx_pos < idx_count) {
-				    if (!dynamic_cast<const netarray_t*>(ptype)) {
-					  // Compile-progress: part-select on a dynamic/assoc array
-					  // element after the first index is applied (e.g.
-					  // assoc[key][1:0] = 0) is not yet fully supported as an
-					  // l-value. Silently ignore the remaining indices.
-					  cerr << get_fileline() << ": warning: "
-					       << "Index expressions don't apply to this type of property"
-					       << " (compile-progress: assignment ignored)."
-					       << endl;
-					  break;
-				    }
+			      ++idx_it;
+			      if (idx_pos < idx_count
+				  && !dynamic_cast<const netarray_t*>(ptype)
+				  && !dynamic_cast<const netvector_t*>(ptype)) {
+				    cerr << get_fileline() << ": error: residual index "
+					 << "does not apply to the selected property element."
+					 << endl;
+				    des->errors += 1;
+				    delete lv;
+				    return 0;
 			      }
 			}
 
