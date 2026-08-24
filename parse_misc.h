@@ -163,6 +163,11 @@ struct sva_mc_seg_t {
 };
 
 struct sva_property_t {
+      // Names declared by this property's assertion_variable_declarations.
+      // Keep identity even when a local has no match-item assignment: its
+      // bare identifier still shadows any same-named module object and must
+      // never be silently resolved as design state by the NFA lowering.
+      std::vector<perm_string> local_names;
       PEventStatement* clk_evt = nullptr;   // clocking event (may be null)
       // M9-NFA stage D.1: consequent clocking event for a multiclocked
       // implication `@(c1) a |=> @(c2) b' (IEEE 1800-2017 16.13.3). When
