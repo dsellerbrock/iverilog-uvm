@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_clocking_vif_input_sys_task_arg.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_clocking_vif_input_sys_task_arg" ],
+    "gold"          : "sv_clocking_vif_input_sys_task_arg"
+}

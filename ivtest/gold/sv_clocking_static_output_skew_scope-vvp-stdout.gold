@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_clocking_static_output_skew_scope.v:57: $finish called at 18001 (1ps)

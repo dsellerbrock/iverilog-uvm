@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_clocking_vif_skew_type_only.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_clocking_vif_skew_type_only" ],
+    "gold"          : "sv_clocking_vif_skew_type_only"
+}

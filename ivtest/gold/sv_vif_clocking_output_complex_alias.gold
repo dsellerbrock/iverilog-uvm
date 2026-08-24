@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_vif_clocking_output_complex_alias.v:70: $finish called at 26001 (1ps)

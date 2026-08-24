@@ -102,7 +102,7 @@ def compare_files(log_path, gold_path):
     If they differ, then write to stdout a unified diff. In any case,
     return True or False to indicate the results of the test.'''
 
-    with open(log_path, 'rt', encoding='ascii') as fd:
+    with open(log_path, 'rt', encoding='utf-8') as fd:
         a_raw = fd.readlines()
     # Remove the valgrind lines from the log. They start with ==PID==
     # and error messages are **PID**
@@ -110,7 +110,7 @@ def compare_files(log_path, gold_path):
 
     # Allow to omit empty gold files
     if os.path.exists(gold_path):
-        with open(gold_path, 'rt', encoding='ascii') as fd:
+        with open(gold_path, 'rt', encoding='utf-8') as fd:
             b = fd.readlines()
     else:
         b = []

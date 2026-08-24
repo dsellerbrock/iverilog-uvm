@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_clocking_static_output_skew_scope.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_clocking_static_output_skew_scope" ],
+    "gold"          : "sv_clocking_static_output_skew_scope"
+}

@@ -1,0 +1,3 @@
+sampled=1 direct=1
+PASSED
+ivltests/sv_clocking_vif_input_sys_task_arg.v:40: $finish called at 5000 (1ps)

@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_clocking_vif_skew_precision_order.v:82: $finish called at 8000 (1ps)

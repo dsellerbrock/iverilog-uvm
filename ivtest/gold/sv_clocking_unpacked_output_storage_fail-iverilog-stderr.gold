@@ -1,0 +1,3 @@
+ivltests/sv_clocking_unpacked_output_storage_fail.v:7: sorry: clocking signal `raw' of block `cb' is an array; it keeps the alias behavior.
+ivltests/sv_clocking_unpacked_output_storage_fail.v:16: sorry: clocking output `cb.raw' has no representable buffered storage; the drive was rejected rather than executed as an ordinary nonblocking assignment.
+Elaboration failed

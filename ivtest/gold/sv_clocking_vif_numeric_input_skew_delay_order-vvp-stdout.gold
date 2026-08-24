@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_clocking_vif_numeric_input_skew_delay_order.v:51: $finish called at 6000 (1ps)

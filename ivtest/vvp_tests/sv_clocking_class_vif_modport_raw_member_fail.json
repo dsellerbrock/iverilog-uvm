@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_clocking_class_vif_modport_raw_member_fail.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_clocking_class_vif_modport_raw_member_fail" ],
+    "gold"          : "sv_clocking_class_vif_modport_raw_member_fail"
+}

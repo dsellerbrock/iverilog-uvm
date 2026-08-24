@@ -1,0 +1,2 @@
+./ivltests/sv_clocking_class_vif_modport_clocking_collision_fail.v:26: error: cannot access clocking block 'hidden_cb' through modport 'monitor_mp' of interface 'class_mp_clocking_collision_negative_if' — that clocking block is not exported by the modport (IEEE 1800-2017 25.5).
+1 error(s) during elaboration.

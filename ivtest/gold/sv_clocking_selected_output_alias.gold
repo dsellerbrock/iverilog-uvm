@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_clocking_selected_output_alias.v:67: $finish called at 16000 (1ps)

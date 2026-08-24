@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_clocking_selected_decl_assign_target_fail.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_clocking_selected_decl_assign_target_fail" ],
+    "gold"          : "sv_clocking_selected_decl_assign_target_fail"
+}

@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_clocking_vif_skew_type_only.v:36: $finish called at 0 (1ps)

@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_clocking_class_vif_modport_property_isolation.v:64: $finish called at 6000 (1ps)

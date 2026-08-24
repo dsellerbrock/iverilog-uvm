@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_clocking_vif_modport_input_event.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_clocking_vif_modport_input_event" ],
+    "gold"          : "sv_clocking_vif_modport_input_event"
+}

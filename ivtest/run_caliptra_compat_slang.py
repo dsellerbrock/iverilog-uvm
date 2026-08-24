@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Check focused Caliptra compatibility cases against Slang 1800-2017.
 
-The case labels distinguish standard agreement from two deliberate
-compatibility boundaries: a Caliptra hierarchical-cross extension and known
-Slang disagreements with the IEEE text. Run this script through the repository
-resource wrapper so Slang and its descendants retain the campaign CPU guard.
+The case labels distinguish standard agreement from deliberate compatibility
+boundaries: a Caliptra hierarchical-cross extension, known Slang disagreements
+with the IEEE text, and legal forms that Icarus rejects loudly pending lossless
+lowering. Run this script through the repository resource wrapper so Slang and
+its descendants retain the campaign CPU guard.
 """
 
 import argparse
@@ -84,6 +85,125 @@ CASES = (
     ("sv_assert_packed_member_preponed_sample", "standard", 0, 0, (), ()),
     ("sv_vif_clocking_partial_member_preserve", "standard", 0, 0, (), ()),
     ("sv_vif_clocking_partial_select_preserve", "standard", 0, 0, (), ()),
+    ("sv_vif_clocking_output_skew_scope", "standard", 0, 0, (), ()),
+    ("sv_clocking_static_output_skew_scope", "standard", 0, 0, (), ()),
+    ("sv_clocking_selected_output_static", "standard", 0, 0, (), ()),
+    ("sv_clocking_selected_output_alias", "standard", 0, 0, (), ()),
+    ("sv_clocking_selected_output_dynamic_fail", "standard", 0, 0, (), ()),
+    ("sv_clocking_class_handle_shadow_selected", "standard", 0, 0, (), ()),
+    ("sv_clocking_vif_skew_precision_order", "standard", 0, 0, (), ()),
+    ("sv_clocking_vif_skew_type_only", "standard", 0, 0, (), ()),
+    ("sv_clocking_vif_selected_dynamic_fail", "standard", 0, 0, (), ()),
+    ("sv_vif_clocking_output_complex_alias", "standard", 0, 0, (), ()),
+    ("sv_vif_clocking_output_target_select_fail", "standard", 0, 0, (), ()),
+    ("sv_clocking_vif_modport_output", "standard", 0, 0, (), ()),
+    ("sv_clocking_vif_modport_input_event", "standard", 0, 0, (), ()),
+    (
+        "sv_clocking_vif_modport_raw_member_fail",
+        "standard",
+        1,
+        0,
+        ("cannot access 'raw' via modport",),
+        (),
+    ),
+    (
+        "sv_clocking_vif_modport_unexported_clocking_fail",
+        "standard",
+        1,
+        0,
+        ("cannot access 'hidden_cb' via modport",),
+        (),
+    ),
+    ("sv_clocking_class_vif_modport_output", "standard", 0, 0, (), ()),
+    ("sv_clocking_class_vif_modport_input_event", "standard", 0, 0, (), ()),
+    (
+        "sv_clocking_class_vif_modport_raw_member_fail",
+        "standard",
+        1,
+        0,
+        ("cannot access 'raw' via modport",),
+        (),
+    ),
+    (
+        "sv_clocking_class_vif_modport_unexported_clocking_fail",
+        "standard",
+        1,
+        0,
+        ("cannot access 'hidden_cb' via modport",),
+        (),
+    ),
+    (
+        "sv_clocking_class_vif_modport_clocking_collision_fail",
+        "standard",
+        1,
+        0,
+        ("cannot access 'hidden_cb' via modport",),
+        (),
+    ),
+    (
+        "sv_clocking_class_vif_modport_property_isolation",
+        "standard",
+        0,
+        0,
+        (),
+        (),
+    ),
+    (
+        "sv_clocking_vif_numeric_input_skew_zero_order",
+        "standard",
+        0,
+        0,
+        (),
+        (),
+    ),
+    (
+        "sv_clocking_vif_numeric_input_skew_delay_order",
+        "standard",
+        0,
+        0,
+        (),
+        (),
+    ),
+    (
+        "sv_clocking_concat_member_lvalue_fail",
+        "standard",
+        1,
+        0,
+        ("cannot be part of a concatenation or assignment pattern lvalue",),
+        (),
+    ),
+    (
+        "sv_clocking_indexed_class_receiver_fail",
+        "ieee-accepted-icarus-ni",
+        0,
+        0,
+        (),
+        (),
+    ),
+    (
+        "sv_clocking_unpacked_output_storage_fail",
+        "ieee-accepted-icarus-ni",
+        0,
+        0,
+        (),
+        (),
+    ),
+    (
+        "sv_clocking_selected_decl_assign_target_fail",
+        "ieee-accepted-icarus-ni",
+        0,
+        0,
+        (),
+        (),
+    ),
+    (
+        "sv_clocking_vif_input_sys_task_arg",
+        "standard",
+        0,
+        0,
+        (),
+        (),
+    ),
 )
 
 

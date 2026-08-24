@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_clocking_class_vif_modport_output.v:55: $finish called at 16000 (1ps)

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_clocking_selected_output_static.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_clocking_selected_output_static" ],
+    "gold"          : "sv_clocking_selected_output_static"
+}

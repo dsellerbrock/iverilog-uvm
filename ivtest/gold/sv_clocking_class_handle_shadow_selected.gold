@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_clocking_class_handle_shadow_selected.v:45: $finish called at 6000 (1ps)
