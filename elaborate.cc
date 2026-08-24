@@ -10285,8 +10285,8 @@ static type_parameter_receiver_state_t type_parameter_receiver_state_(
  * full names use the canonical hierarchy spelling ([2]). Canonicalize every
  * constant word select here so a generated-instance selector names the same
  * object that the runtime assertion registry enumerates. */
-static string assertion_control_selector_(Design*des, NetScope*scope,
-					   const PEIdent*id)
+static string assertion_control_selector_source_(Design*des, NetScope*scope,
+						  const PEIdent*id)
 {
       const pform_scoped_name_t&path = id->path();
       ostringstream text;
@@ -10322,6 +10322,97 @@ static string assertion_control_selector_(Design*des, NetScope*scope,
 		  text << *idx;
 	    }
       }
+      return text.str();
+}
+
+/* eval_scope_path canonicalizes scope indices with as_long().  Preflight the
+ * index expressions so an X/Z or otherwise nonconstant generated-scope index
+ * cannot be mistaken for instance zero.  Use an ordinary expression probe,
+ * rather than NEED_CONST, so a failed speculative lookup falls back to the
+ * source spelling without adding a second constant-expression diagnostic. */
+static bool assertion_control_indices_defined_(Design*des, NetScope*scope,
+						const pform_name_t&path)
+{
+      for (pform_name_t::const_iterator comp = path.begin();
+	   comp != path.end(); ++comp) {
+	    for (list<index_component_t>::const_iterator idx =
+		   comp->index.begin(); idx != comp->index.end(); ++idx) {
+		  if (idx->sel != index_component_t::SEL_BIT || !idx->msb)
+			return false;
+
+		  unsigned saved_opt_const_func = opt_const_func;
+		  opt_const_func = std::max(opt_const_func, 2u);
+		  NetExpr*value = elab_and_eval(des, scope, idx->msb, -1, false);
+		  opt_const_func = saved_opt_const_func;
+		  NetEConst*constant = dynamic_cast<NetEConst*>(value);
+		  bool defined = constant && constant->value().is_defined();
+		  delete value;
+		  if (!defined) return false;
+	    }
+      }
+      return true;
+}
+
+/* The assertion registry uses rooted per-instance names.  An assertion
+ * control name, however, is resolved in the lexical context of the call.
+ * Resolve the scope portion while the elaborator still has that context;
+ * making the runtime search for an unqualified suffix would incorrectly
+ * select identically labelled assertions in unrelated instances.
+ *
+ * Concurrent assertion identities are registered in the nearest static
+ * module/interface or generate scope.  Procedural blocks introduced by the
+ * control macro are therefore skipped for a bare assertion label. */
+static string assertion_control_selector_(Design*des, NetScope*scope,
+					   const PEIdent*id)
+{
+      const pform_scoped_name_t&path = id->path();
+      if (path.package || path.name.empty())
+	    return assertion_control_selector_source_(des, scope, id);
+
+      for (pform_name_t::const_iterator comp = path.name.begin();
+	   comp != path.name.end(); ++comp) {
+	    if (comp->local_scope || comp->name == THIS_TOKEN
+		|| comp->name == SUPER_TOKEN)
+		  return assertion_control_selector_source_(des, scope, id);
+      }
+
+      if (!assertion_control_indices_defined_(des, scope, path.name))
+	    return assertion_control_selector_source_(des, scope, id);
+
+      list<hname_t> canonical = eval_scope_path(des, scope, path.name, true);
+      if (canonical.empty())
+	    return assertion_control_selector_source_(des, scope, id);
+
+      /* A selector may name a scope directly; levels then controls the
+	 descendants selected by the runtime. */
+      if (NetScope*selected = des->find_scope(scope, canonical,
+					       NetScope::MODULE)) {
+	    ostringstream text;
+	    text << scope_path(selected);
+	    return text.str();
+      }
+
+      hname_t assertion_name = canonical.back();
+      canonical.pop_back();
+      NetScope*container = 0;
+      if (!canonical.empty())
+	    container = des->find_scope(scope, canonical, NetScope::MODULE);
+      else {
+	    for (NetScope*cur = scope; cur; cur = cur->parent()) {
+		  if (cur->type() == NetScope::MODULE
+		      || cur->type() == NetScope::GENBLOCK
+		      || cur->type() == NetScope::PACKAGE) {
+			container = cur;
+			break;
+		  }
+	    }
+      }
+
+      if (!container)
+	    return assertion_control_selector_source_(des, scope, id);
+
+      ostringstream text;
+      text << scope_path(container) << "." << assertion_name;
       return text.str();
 }
 

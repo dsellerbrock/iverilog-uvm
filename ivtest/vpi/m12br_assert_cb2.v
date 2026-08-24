@@ -16,12 +16,12 @@ module top;
   initial begin
     @(posedge clk); #1;      // tick 1: start
     @(posedge clk); #1;      // tick 2: start
-    $assertoff(0, top.a1);   // -> per-assertion disable (transition)
+    $assertoff(0, a1);       // -> relative per-assertion disable (transition)
     @(posedge clk); #1;      // tick 3: no new attempt
     $asserton(0, top.a1);    // -> per-assertion enable (transition)
-    $asserton(0, top.a1);    // no transition, no report
+    $asserton(0, a1);        // relative, no transition and no report
     @(posedge clk); #1;      // tick 4: start
-    $assertkill(0, top.a1);  // -> per-assertion disable + reset
+    $assertkill(0, a1);      // -> relative per-assertion disable + reset
     @(posedge clk); #1;      // tick 5: no new attempt
     #2 $check_assert_cb2(3, 2, 1, 1);
     $finish;

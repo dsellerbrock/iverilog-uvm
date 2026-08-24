@@ -42,6 +42,8 @@ sva_paren_seq_conseq normal,-g2012 ivltests
 sva_paren_prop_conseq_ce normal,-g2012 ivltests
 sv_assert_control_labeled_selective normal,-g2012 ivltests gold=sv_assert_control_labeled_selective.gold
 sv_assert_control_instance_identity normal,-g2012 ivltests gold=sv_assert_control_instance_identity.gold
+sv_assert_control_relative_selector normal,-g2012 ivltests gold=sv_assert_control_relative_selector.gold
+sv_assert_control_undefined_selector normal,-g2012 ivltests gold=sv_assert_control_undefined_selector.gold
 sv_assertkill_active_attempts normal,-g2012 ivltests gold=sv_assertkill_active_attempts.gold
 sv_assertkill_multiclock_active normal,-g2012 ivltests gold=sv_assertkill_multiclock_active.gold
 sv_assertkill_final_obligations normal,-g2012 ivltests gold=sv_assertkill_final_obligations.gold
