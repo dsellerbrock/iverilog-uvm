@@ -1917,6 +1917,12 @@ extern "C" ivl_expr_t ivl_lval_idx(ivl_lval_t net)
       return 0x0;
 }
 
+extern "C" int ivl_lval_is_array_slice(ivl_lval_t net)
+{
+      assert(net);
+      return net->array_slice_ ? 1 : 0;
+}
+
 extern "C" int ivl_lval_is_queue_slice(ivl_lval_t net)
 {
       assert(net);

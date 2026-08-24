@@ -631,6 +631,7 @@ struct ivl_lval_s {
       unsigned width_;
       int property_idx;
       unsigned sel_type : 3;
+      unsigned array_slice_ : 1;
       unsigned queue_slice_ : 1;
       unsigned type_ : 3; /* values from ivl_lval_type_t */
       unsigned stream_range_ : 3;

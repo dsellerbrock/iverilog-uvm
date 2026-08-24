@@ -3114,9 +3114,63 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			  // a part on it; codegen RMWs via %prop/v/i + %setbits +
 			  // %store/prop/v/i.
 			const size_t adims = stype->static_dimensions().size();
+			const netuarray_t*utype =
+			      dynamic_cast<const netuarray_t*>(ptype);
 			const netvector_t*evec =
 			      dynamic_cast<const netvector_t*>(stype->element_type());
-			if (member_cur.index.size() < adims) {
+
+			/* A final range on a one-dimensional fixed class property is
+			 * an unpacked-array slice, not an element index. Decode it
+			 * before the scalar index path calls indices_to_expressions(),
+			 * which intentionally rejects every range. The selected range
+			 * remains the l-value type so assignment-pattern contextualization
+			 * preserves its declared left-to-right order. */
+			fixed_uarray_slice_t range_slice;
+			int range_slice_rc = member_path.empty() && utype
+			      ? decode_fixed_uarray_slice_select(
+				    des, scope, *this, member_cur.index, utype,
+				    range_slice)
+			      : 0;
+			if (range_slice_rc < 0) {
+			      delete lv;
+			      return 0;
+			}
+			if (range_slice_rc > 0) {
+			      if (dynamic_cast<const netuarray_t*>(
+					 range_slice.element_type)) {
+				    cerr << get_fileline() << ": sorry: a nested"
+					 << " fixed-array class or aggregate property"
+					 << " slice is not yet supported as an l-value."
+					 << endl;
+				    des->errors += 1;
+				    delete lv;
+				    return 0;
+			      }
+			      netranges_t slice_dims;
+			      slice_dims.push_back(range_slice.selected_range);
+			      ivl_type_t slice_type = new netuarray_t(
+				    slice_dims, range_slice.element_type);
+			      NetEConst*base = make_const_val_s(
+				    range_slice.canonical_base);
+			      base->set_line(*this);
+			      lv->set_array_slice(base, slice_type);
+			      ptype = slice_type;
+
+			} else if (dynamic_cast<const netuarray_t*>(
+				     stype->element_type())) {
+			      /* A typedef can preserve another fixed unpacked array as
+			       * this property's element type. An ordinary outer index then
+			       * denotes a subarray, but it is not the explicit range slice
+			       * carried above. Reject this distinct nested form before the
+			       * target can mistake its fixed result type for a range marker. */
+			      cerr << get_fileline() << ": sorry: a nested fixed-array"
+				   << " class or aggregate property slice is not yet"
+				   << " supported as an l-value." << endl;
+			      des->errors += 1;
+			      delete lv;
+			      return 0;
+
+			} else if (member_cur.index.size() < adims) {
 			      cerr << get_fileline() << ": error: Got "
 				   << member_cur.index.size() << " indices, expecting "
 				   << adims << " to index the property "
@@ -3124,9 +3178,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			      des->errors += 1;
 			      delete lv;
 			      return 0;
-			}
-
-			if (member_cur.index.size() > adims && evec) {
+			} else if (member_cur.index.size() > adims && evec) {
 			      std::list<index_component_t> elem_idx(
 				    member_cur.index.begin(),
 				    std::next(member_cur.index.begin(), adims));
