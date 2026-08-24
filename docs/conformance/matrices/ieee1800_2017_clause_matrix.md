@@ -97,6 +97,16 @@ diagnostics) — see **§ M14 gap closures** below.
 | Annex B | Keywords | FULL | keyword sets gated by generation (`` `begin_keywords ``). |
 | Annex C–L | (packages, tasks, misc annexes) | PARTIAL | `std::` semaphore/mailbox/process supported; `std::mailbox#(T)` via the `std::` prefix is a syntax error (bare `mailbox#(T)` works). |
 
+## 2026-08-24 clause-16 strong-action target correction
+
+When an unbounded strong assertion needs a copied end-of-simulation action,
+the supported task/void-function-call subset now retains package
+qualification. `pkg::report(...)` remains that exact target rather than
+becoming an unqualified lookup in the synthesized checker scope. The
+self-checking package-action reducer is red against the prior compiler, and
+the unmodified OpenTitan TL-UL checker loses all four corresponding
+unknown-task warnings.
+
 ## 2026-08-24 clocking static-skew, modport, and VPI audit refinement
 
 This refinement records the exact supported or loud boundary. Post-audit

@@ -29,6 +29,7 @@ sv_assert_reactive_action normal,-g2012 ivltests
 sv_assert_reactive_drain normal,-g2012 ivltests gold=sv_assert_reactive_drain.gold
 sv_assert_pass_action normal,-g2012 ivltests
 sv_assert_strong_eos_action normal,-g2012 ivltests
+sv_assert_strong_eos_package_action normal,-g2012 ivltests
 sv_assert_paren_property normal,-g2012 ivltests
 sv_assert_paren_boolean normal,-g2012 ivltests
 sv_assert_star_unbounded normal,-g2012 ivltests

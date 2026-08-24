@@ -318,6 +318,17 @@ none silently degrade to sequential execution.
 | M9-15 | Parameter-valued SVA bounds in the focused instance-sized implication/cover lowering | F | **DONE (focused subset)** | — | Direct or one-prefix Boolean implication antecedents support exact, finite, and unbounded symbolic consecutive repetition; fixed antecedents support fully symbolic bounded-consequence LO/HI; standalone cover supports exact symbolic repetition, including `[*0]`. Bounds resolve independently after instance overrides. Asynchronous `disable iff` clears live cover state without erasing prior matches. X/Z, negative, or reversed finite bounds fail during elaboration. General symbolic compositions, including standalone `a[*LO:HI]`, remain loud. `param_bounds` plus the 12 `sv_cover_parameter_*` regressions pin override isolation, counting, disable, invalid-bound diagnostics, and the residual refusal. |
 | M9-16 | One consequent obligation per variable antecedent match endpoint | C | **OPEN — correctness blocker** | NFA obligation fan-out | A variable or combinator antecedent can match at several endpoints from one attempt, and every endpoint creates an independent consequent obligation. The current NFA slot merges those paths: one accepting consequence clears the slot and can mask a sibling endpoint's failure. Before these general implication shapes can be called conformant, antecedent completion must fan out independent obligation records and mixed early-pass/late-fail plus early-fail/late-pass tests must pass for both `|->` and `|=>`. Focused count-pipeline shapes covered by M9-15 do not use this merged-slot path. |
 
+**M9-14 package-action correction (2026-08-24).** The action copier used
+for a strong end-of-simulation verdict now preserves the `PPackage*` target
+of a package-qualified void-function call. It previously changed
+`pkg::report(...)` into an unqualified `report(...)`; OpenTitan's four TL-UL
+`A and B |=> s_eventually(C)` error actions therefore became unknown-task
+no-ops. `sv_assert_strong_eos_package_action` is red against the prior
+compiler (one warning and zero calls), while a fresh compile of the unmodified
+ADC FuseSoC source list goes from four such warnings to zero. Receiver-method
+actions remain outside the bounded copier and are refused explicitly instead
+of being changed into unqualified calls.
+
 **M9 status note (corrected 2026-07-22).** The **M9-NFA per-attempt
 automaton engine is LANDED and is the default SVA engine** — stages
 A/B/C/D.1 all shipped in prior sessions (design doc
