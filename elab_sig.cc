@@ -964,7 +964,7 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 			any = true;
 		  }
 
-		    /* Output clockvars get a drive buffer + pending flag
+		    /* Output clockvars get a drive buffer + per-bit pending state
 		       (IEEE 1800-2017 14.16, M8-2b): drives issued between
 		       clocking events are buffered and applied at the next
 		       event by the synthesized apply process. */
@@ -988,8 +988,15 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 			      + "$" + sig_it->str();
 			perm_string opend_name = lex_strings.make(pname.c_str());
 			if (!scope->find_signal(opend_name)) {
-			      netvector_t*pvec = new netvector_t(IVL_VT_LOGIC, 0, 0, false);
-			      NetNet*opend = new NetNet(scope, opend_name, NetNet::REG, pvec);
+			      NetNet*opend;
+			      if (vt) {
+				    opend = new NetNet(scope, opend_name, NetNet::REG, vt);
+			      } else {
+				    netvector_t*pvec = new netvector_t(raw->data_type(),
+							  raw->vector_width()-1,
+							  0, false);
+				    opend = new NetNet(scope, opend_name, NetNet::REG, pvec);
+			      }
 			      opend->set_line(*cb);
 			}
 			any = true;

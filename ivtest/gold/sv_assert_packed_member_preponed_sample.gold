@@ -1,0 +1,3 @@
+COUNTS member_0_to_1=0 scalar_0_to_1=0 member_1_to_x=0 scalar_1_to_x=0
+PASSED
+./ivltests/sv_assert_packed_member_preponed_sample.v:71: $finish called at 11 (1s)

@@ -2,6 +2,7 @@ sv_property_combinators normal,-g2012 ivltests
 sv_assert_in_procedural_block normal,-g2012 ivltests
 sv_assert_procedural_implicit_clock normal,-g2012 ivltests
 sv_assert_select_preponed_sample normal,-g2012 ivltests
+sv_assert_packed_member_preponed_sample normal,-g2012 ivltests gold=sv_assert_packed_member_preponed_sample.gold
 sv_assert_parameterized_unpacked_array_sample normal,-g2012 ivltests
 sv_assert_multiclock_cover_disable normal,-g2012 ivltests
 sv_assert_multiclock_action_blocks normal,-g2012 ivltests

@@ -4480,12 +4480,21 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
       if (strcmp(stmt_name,"$ivl_clocking_hist_on") == 0) {
 	    ivl_expr_t parm0 = (ivl_stmt_parm_count(net) > 0)
 		  ? ivl_stmt_parm(net, 0) : 0;
+	    ivl_expr_t hist_expr = parm0;
+	    ivl_signal_t hsig = 0;
+	      /* A direct packed member is represented as a SELECT over the
+		 underlying signal. History belongs to that whole signal because
+		 $ivl_clocking_sample reads it before applying the same select.
+		 Stop at SIGNAL: its oper1 is an unpacked-array word index, not
+		 another expression wrapper. */
+	    while (hist_expr && ivl_expr_type(hist_expr) == IVL_EX_SELECT)
+		  hist_expr = ivl_expr_oper1(hist_expr);
 	      /* A bare unpacked-array name arrives as IVL_EX_ARRAY, not
 		 IVL_EX_SIGNAL. */
-	    if (parm0 && (ivl_expr_type(parm0) == IVL_EX_SIGNAL
-			  || ivl_expr_type(parm0) == IVL_EX_ARRAY)
-		&& ivl_expr_signal(parm0)) {
-		  ivl_signal_t hsig = ivl_expr_signal(parm0);
+	    if (hist_expr && (ivl_expr_type(hist_expr) == IVL_EX_SIGNAL
+			       || ivl_expr_type(hist_expr) == IVL_EX_ARRAY))
+		  hsig = ivl_expr_signal(hist_expr);
+	    if (hsig) {
 		    /* R11: an unpacked array carries per-word history, so
 		       it needs the array form of the enable. */
 		  if (ivl_signal_dimensions(hsig) > 0) {

@@ -1,0 +1,3 @@
+# IEEE 1800-2017 14.16/10.4.2 virtual-interface clocking-output selected drives
+sv_vif_clocking_partial_member_preserve vvp_tests/sv_vif_clocking_partial_member_preserve.json
+sv_vif_clocking_partial_select_preserve vvp_tests/sv_vif_clocking_partial_select_preserve.json
