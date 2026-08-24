@@ -32,6 +32,9 @@
 # include  <vector>
 # include  <algorithm>
 # include  <ctime>
+# include  <stdint.h>
+# include  <iomanip>
+# include  <limits>
 
 /*
  * Elaboration happens in two passes, generally. The first scans the
@@ -58,6 +61,7 @@
 # include  "netclass.h"
 # include  "netenum.h"
 # include  "netqueue.h"
+# include  "netstruct.h"
 # include  "parse_api.h"
 # include  "util.h"
 # include  <typeinfo>
@@ -856,6 +860,8 @@ static std::string parmvalue_cache_key_(Design*des, NetScope*call_scope,
 static void append_cache_data_type_key_(Design*des, NetScope*call_scope,
 					std::ostringstream&out,
 					const data_type_t*type);
+static bool cache_value_parameter_is_deferred_(Design*des, NetScope*scope,
+					       const PExpr*expr);
 
 /* Specialization-key construction repeatedly renders the same source and
  * elaborated objects. Keep these caches for the whole elaboration phase, but
@@ -863,7 +869,8 @@ static void append_cache_data_type_key_(Design*des, NetScope*call_scope,
  * hiding it in function-static maps that survive target emission. */
 static std::map<const NetScope*,std::string> specialization_scope_path_cache_;
 static std::map<const PExpr*,std::string> specialization_pexpr_dump_cache_;
-static std::map<const NetExpr*,std::string> specialization_netexpr_dump_cache_;
+static std::map<const NetExpr*,std::string>
+      specialization_netexpr_value_key_cache_;
 static std::map<ivl_type_t,std::string> specialization_type_dump_cache_;
 static std::map<const data_type_t*,std::string>
       specialization_data_type_dump_cache_;
@@ -903,27 +910,127 @@ static const std::string& cached_pexpr_dump_(const PExpr*expr)
 	    return it->second;
 
       std::ostringstream out;
+      // PExpr dumps can contain real literals below an operator. Preserve
+      // enough digits to round-trip every binary64 value instead of allowing
+      // the stream's default six significant digits to merge source keys.
+      out << setprecision(numeric_limits<double>::max_digits10);
       out << *expr;
       return specialization_pexpr_dump_cache_
 	    .insert(std::make_pair(expr, out.str())).first->second;
 }
 
-static const std::string& cached_netexpr_dump_(const NetExpr*expr)
+static void append_exact_double_key_(std::ostream&out, double value)
+{
+      static_assert(numeric_limits<double>::is_iec559
+		    && sizeof(double) == sizeof(uint64_t),
+		    "specialization keys require 64-bit IEEE-754 doubles");
+      static const char hex_digits[] = "0123456789abcdef";
+      uint64_t bits = 0;
+      memcpy(&bits, &value, sizeof(bits));
+      for (int shift = 60 ; shift >= 0 ; shift -= 4)
+	out << hex_digits[(bits >> shift) & 0xf];
+}
+
+static void append_exact_verinum_key_(std::ostream&out, const verinum&value)
+{
+      out << "value-width=" << value.len()
+	  << ":sized=" << value.has_len()
+	  << ":signed=" << value.has_sign()
+	  << ":single=" << value.is_single()
+	  << ":string=" << value.is_string()
+	  << ":raw-bits=";
+      for (unsigned idx = value.len() ; idx > 0 ; --idx)
+	out << value.get(idx-1);
+}
+
+static void append_cache_netexpr_value_key_(std::ostringstream&out,
+					     const NetExpr*expr)
 {
       if (!expr) {
-	    static const std::string empty;
-	    return empty;
+	out << "<nil-value>";
+	return;
+      }
+
+      if (const NetECReal*real_value = dynamic_cast<const NetECReal*>(expr)) {
+	out << "<real:ieee754=";
+	append_exact_double_key_(out, real_value->value().as_double());
+	out << ">";
+	return;
+      }
+
+      if (const NetEConst*constant = dynamic_cast<const NetEConst*>(expr)) {
+	const verinum&value = constant->value();
+	out << "<constant:variant=";
+	if (dynamic_cast<const NetECString*>(constant) || value.is_string())
+	      out << "string";
+	else if (dynamic_cast<const NetEConstEnum*>(constant))
+	      out << "enum";
+	else
+	      out << "integral";
+	out << ":expr-type=" << static_cast<int>(expr->expr_type())
+	    << ":expr-width=" << expr->expr_width()
+	    << ":expr-signed=" << expr->has_sign()
+	    << ":unbounded=" << constant->is_unbounded() << ":";
+	append_exact_verinum_key_(out, value);
+	out << ">";
+	return;
+      }
+
+      if (const NetEArrayPattern*pattern =
+		dynamic_cast<const NetEArrayPattern*>(expr)) {
+	out << "<aggregate:expr-type=" << static_cast<int>(expr->expr_type())
+	    << ":expr-width=" << expr->expr_width()
+	    << ":expr-signed=" << expr->has_sign()
+	    << ":active-member=" << pattern->union_active_member()
+	    << ":items=" << pattern->item_size() << ":";
+	for (size_t idx = 0 ; idx < pattern->item_size() ; ++idx) {
+	      std::ostringstream item;
+	      append_cache_netexpr_value_key_(item, pattern->item(idx));
+	      const std::string item_key = item.str();
+	      out << item_key.size() << ":";
+	      out.write(item_key.data(), item_key.size());
+	}
+	out << ">";
+	return;
+      }
+
+      if (dynamic_cast<const NetENull*>(expr)) {
+	out << "<null>";
+	return;
+      }
+
+      /* Parameter evaluation currently yields scalar constants or an
+	 * unpacked-struct assignment pattern. Keep a length-delimited fallback
+	 * for a future constant expression variant so it cannot silently alias a
+	 * known variant while its exact serializer is added. */
+      std::ostringstream rendered;
+      rendered << setprecision(numeric_limits<double>::max_digits10);
+      rendered << *expr;
+      const std::string dump = rendered.str();
+      out << "<expression:expr-type=" << static_cast<int>(expr->expr_type())
+	  << ":expr-width=" << expr->expr_width()
+	  << ":expr-signed=" << expr->has_sign()
+	  << ":dump-size=" << dump.size() << ":";
+      out.write(dump.data(), dump.size());
+      out << ">";
+}
+
+static const std::string& cached_netexpr_value_key_(const NetExpr*expr)
+{
+      if (!expr) {
+	static const std::string nil("<nil-value>");
+	return nil;
       }
 
       std::map<const NetExpr*,std::string>::iterator it =
-	    specialization_netexpr_dump_cache_.find(expr);
-      if (it != specialization_netexpr_dump_cache_.end())
-	    return it->second;
+	specialization_netexpr_value_key_cache_.find(expr);
+      if (it != specialization_netexpr_value_key_cache_.end())
+	return it->second;
 
       std::ostringstream out;
-      out << *expr;
-      return specialization_netexpr_dump_cache_
-	    .insert(std::make_pair(expr, out.str())).first->second;
+      append_cache_netexpr_value_key_(out, expr);
+      return specialization_netexpr_value_key_cache_
+	.insert(std::make_pair(expr, out.str())).first->second;
 }
 
 static const std::string& cached_type_dump_(ivl_type_t type)
@@ -980,12 +1087,55 @@ static void append_cache_ivl_type_key_(Design*des, std::ostringstream&out,
 			      const_cast<NetScope*>(class_scope)->get_parameter(des,
 								    *cur,
 								    parm_type);
-			if (parm_type)
-			      append_cache_ivl_type_key_(des, out, parm_type, active);
-			else if (parm_expr)
-			      out << cached_netexpr_dump_(parm_expr);
-			else
+			std::map<perm_string,NetScope::param_expr_t>::const_iterator
+			      parameter = class_scope->parameters.find(*cur);
+			const bool type_parameter =
+			      parameter != class_scope->parameters.end()
+			      && parameter->second.type_flag;
+			const PExpr*source_expr =
+			      parameter != class_scope->parameters.end()
+			      ? (parameter->second.source_expr
+				    ? parameter->second.source_expr
+				    : parameter->second.val_expr)
+			      : 0;
+			NetScope*source_scope =
+			      parameter != class_scope->parameters.end()
+			      ? (parameter->second.source_scope
+				    ? parameter->second.source_scope
+				    : parameter->second.val_scope)
+			      : 0;
+			const bool deferred_value = !type_parameter
+			      && source_expr && source_scope
+			      && cache_value_parameter_is_deferred_(
+				    des, source_scope, source_expr);
+
+			/* For a type parameter, ivl_type is the actual type.  For a
+			 * value parameter it is only the declared type, so the value is
+			 * also part of class-specialization identity. */
+			if (type_parameter) {
+			      if (parm_type)
+				    append_cache_ivl_type_key_(des, out, parm_type, active);
+			      else
+				    out << "<unset-type>";
+			} else if (deferred_value) {
+			      if (parm_type) {
+				    append_cache_ivl_type_key_(des, out, parm_type, active);
+				    out << "=";
+			      }
+			      out << "<forwarded-value-param@"
+				  << (const void*)pclass << ":expr@"
+				  << (const void*)source_expr << ">";
+			} else if (parm_type || parm_expr) {
+			      if (parm_type)
+				    append_cache_ivl_type_key_(des, out, parm_type, active);
+			      if (parm_expr) {
+				    if (parm_type)
+					  out << "=";
+				    out << cached_netexpr_value_key_(parm_expr);
+			      }
+			} else {
 			      out << "<unset>";
+			}
 		  }
 		  out << ")";
 	    }
@@ -1494,6 +1644,59 @@ static void append_cache_expr_key_(Design*des, NetScope*call_scope,
 		  out << ">";
       };
 
+	/* A value actual forwarded through an unspecialized class template is
+	 * symbolic even when its provisional NetExpr equals the formal default.
+	 * Keep that template seed out of the concrete source-key namespace; the
+	 * concrete specialization will use the ordinary exact value key after the
+	 * forwarding parameter has been replaced. */
+      if (formal_kind == 0
+	  && cache_value_parameter_is_deferred_(des, lookup_scope, expr)) {
+	const NetScope*class_scope = lookup_scope
+	      ? lookup_scope->get_class_scope() : 0;
+	const PClass*pclass = class_scope ? class_scope->class_pform() : 0;
+	out << "<forwarded-value-param@" << (const void*)pclass
+	    << ":expr@" << (const void*)expr << ">";
+	close_forward();
+	return;
+      }
+
+      if (const PEFNumber*real_value =
+		dynamic_cast<const PEFNumber*>(expr)) {
+	out << "<real:ieee754=";
+	append_exact_double_key_(out, real_value->value().as_double());
+	out << ">";
+	close_forward();
+	return;
+      }
+
+      if (const PENumber*number = dynamic_cast<const PENumber*>(expr)) {
+	out << "<number:";
+	append_exact_verinum_key_(out, number->value());
+	out << ">";
+	close_forward();
+	return;
+      }
+
+      if (const PEString*string_value = dynamic_cast<const PEString*>(expr)) {
+	out << "<string:";
+	append_exact_verinum_key_(out, string_value->parsed_value());
+	out << ">";
+	close_forward();
+	return;
+      }
+
+      if (dynamic_cast<const PEUnbounded*>(expr)) {
+	out << "<unbounded>";
+	close_forward();
+	return;
+      }
+
+      if (dynamic_cast<const PENull*>(expr)) {
+	out << "<null>";
+	close_forward();
+	return;
+      }
+
       if (const PETypename*type_expr = dynamic_cast<const PETypename*>(expr)) {
 	    if (lookup_scope) {
 		  ivl_type_t resolved_type = resolve_class_type_reference(
@@ -1557,7 +1760,7 @@ static void append_cache_expr_key_(Design*des, NetScope*call_scope,
 			      if (resolved_expr) {
 				    if (resolved_type)
 					  out << "=";
-				    out << cached_netexpr_dump_(resolved_expr);
+				    out << cached_netexpr_value_key_(resolved_expr);
 			      }
 			      close_forward();
 			      return;
@@ -1759,28 +1962,801 @@ static bool pexpr_matches_parameter_name_(const PExpr*expr, perm_string name)
       return false;
 }
 
+static bool cache_integral_expression_signed_(Design*des, NetScope*scope,
+					       const PExpr*expr,
+					       bool&is_signed)
+{
+      if (!expr)
+	return false;
+
+      if (dynamic_cast<const PEUnbounded*>(expr)) {
+	is_signed = true;
+	return true;
+      }
+
+      if (const PENumber*number = dynamic_cast<const PENumber*>(expr)) {
+	is_signed = number->value().has_sign();
+	return true;
+      }
+
+      if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr)) {
+	switch (unary->get_op()) {
+	    case '+':
+	    case '-':
+	    case '~':
+	      return cache_integral_expression_signed_(
+		    des, scope, unary->get_expr(), is_signed);
+	    default:
+	      return false;
+	}
+      }
+
+      if (const PEBinary*binary = dynamic_cast<const PEBinary*>(expr)) {
+	switch (binary->get_op()) {
+	    case '+':
+	    case '-':
+	    case '*':
+	    case '/':
+	    case '%':
+	      break;
+	    default:
+	      return false;
+	}
+	bool left_signed = false;
+	bool right_signed = false;
+	if (!cache_integral_expression_signed_(
+	      des, scope, binary->get_left(), left_signed)
+	    || !cache_integral_expression_signed_(
+	      des, scope, binary->get_right(), right_signed))
+	      return false;
+	is_signed = left_signed && right_signed;
+	return true;
+      }
+
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(expr);
+      if (!ident || !scope)
+	return false;
+      const pform_scoped_name_t&path = ident->path();
+      if (path.name.size() != 1)
+	return false;
+      symbol_search_results search;
+      if (!symbol_search(ident, des, scope, path,
+			 ident->lexical_pos(), &search)
+	  || !search.par_val)
+	return false;
+      const NetEConst*constant = dynamic_cast<const NetEConst*>(search.par_val);
+      if (!constant || constant->value().is_string())
+	return false;
+      if (!path.name.front().index.empty()) {
+	is_signed = false;
+	return true;
+      }
+      if (!search.path_tail.empty())
+	return false;
+      is_signed = constant->value().has_sign();
+      return true;
+}
+
+static void cache_apply_integral_context_(verinum&value,
+					  unsigned context_width,
+					  bool signed_override,
+					  bool context_signed)
+{
+      if (context_width == 0)
+	return;
+      if (signed_override)
+	value.has_sign(context_signed);
+      value = cast_to_width(value, std::max(value.len(), context_width));
+      if (signed_override)
+	value.has_sign(context_signed);
+      value.has_len(true);
+}
+
+/* Assignment context contributes width throughout an arithmetic tree.  The
+ * signed override is the containing expression's common signedness, matching
+ * PEBinary/PEUnary elaboration; the destination formal's signedness is a final
+ * assignment conversion and must not make a direct unsigned select sign-
+ * extend (for example, int'(P[1]) where P[1] is one). */
 static bool cache_integral_constant_value_(Design*des, NetScope*scope,
 					   const PExpr*expr,
-					   verinum&value)
+					   verinum&value,
+					   bool&unbounded,
+					   unsigned context_width = 0,
+					   bool signed_override = false,
+					   bool context_signed = false)
 {
+      unbounded = false;
+
+      if (!expr)
+	return false;
+
+      if (dynamic_cast<const PEUnbounded*>(expr)) {
+	value = verinum(verinum::Vx, integer_width, true);
+	unbounded = true;
+	return true;
+      }
+
       if (const PENumber*number = dynamic_cast<const PENumber*>(expr)) {
 	    value = number->value();
+	    if (!value.has_len()) {
+		  const bool single = value.is_single();
+		  value = cast_to_width(
+			value, std::max(value.len(), integer_width));
+		  value.has_len(true);
+		  value.is_single(single);
+	    }
+	    cache_apply_integral_context_(
+		  value, context_width, signed_override, context_signed);
 	    return true;
+      }
+
+      if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr)) {
+	bool unary_signed = context_signed;
+	bool unary_signed_override = signed_override;
+	if (context_width && !unary_signed_override) {
+	      if (!cache_integral_expression_signed_(
+		    des, scope, unary, unary_signed))
+		    return false;
+	      unary_signed_override = true;
+	}
+	verinum operand;
+	bool operand_unbounded = false;
+	if (!cache_integral_constant_value_(
+	      des, scope, unary->get_expr(), operand, operand_unbounded,
+	      context_width, unary_signed_override, unary_signed)
+	    || operand_unbounded)
+	      return false;
+	switch (unary->get_op()) {
+	    case '+': value = operand; break;
+	    case '-': value = -operand; break;
+	    case '~': value = ~operand; break;
+	    default: return false;
+	}
+	cache_apply_integral_context_(
+	      value, context_width, unary_signed_override, unary_signed);
+	return true;
+      }
+
+      if (const PEBinary*binary = dynamic_cast<const PEBinary*>(expr)) {
+	bool binary_signed = context_signed;
+	bool binary_signed_override = signed_override;
+	if (context_width && !binary_signed_override) {
+	      if (!cache_integral_expression_signed_(
+		    des, scope, binary, binary_signed))
+		    return false;
+	      binary_signed_override = true;
+	}
+	verinum left;
+	verinum right;
+	bool left_unbounded = false;
+	bool right_unbounded = false;
+	if (!cache_integral_constant_value_(
+	      des, scope, binary->get_left(), left, left_unbounded,
+	      context_width, binary_signed_override, binary_signed)
+	    || !cache_integral_constant_value_(
+	      des, scope, binary->get_right(), right, right_unbounded,
+	      context_width, binary_signed_override, binary_signed)
+	    || left_unbounded || right_unbounded)
+	      return false;
+
+	/* IEEE 1800-2017 11.8.1: arithmetic operands first acquire the
+	 * expression's common width and signedness.  Change signedness before
+	 * extending: 8'shff combined with a wider unsigned operand denotes
+	 * 16'h00ff, not 16'hffff. */
+	const unsigned width = std::max(
+	      context_width, std::max(left.len(), right.len()));
+	const bool is_signed = binary_signed_override
+	      ? binary_signed : left.has_sign() && right.has_sign();
+	left.has_sign(is_signed);
+	right.has_sign(is_signed);
+	left = cast_to_width(left, width);
+	right = cast_to_width(right, width);
+	left.has_sign(is_signed);
+	right.has_sign(is_signed);
+
+	switch (binary->get_op()) {
+	    case '+': value = left + right; break;
+	    case '-': value = left - right; break;
+	    case '*': value = left * right; break;
+	    case '/':
+	      if (right.is_zero())
+		    return false;
+	      value = left / right;
+	      break;
+	    case '%':
+	      if (right.is_zero())
+		    return false;
+	      value = left % right;
+	      break;
+	    default: return false;
+	}
+	value = cast_to_width(value, width);
+	value.has_sign(is_signed);
+	value.has_len(true);
+	return true;
       }
 
       const PEIdent*ident = dynamic_cast<const PEIdent*>(expr);
       if (!ident || !scope)
 	    return false;
+
+      const pform_scoped_name_t&path = ident->path();
+      if (path.name.size() != 1)
+	return false;
+
       symbol_search_results search;
-      if (!symbol_search(ident, des, scope, ident->path(),
+      if (!symbol_search(ident, des, scope, path,
 			 ident->lexical_pos(), &search)
 	  || !search.par_val)
 	    return false;
       const NetEConst*constant = dynamic_cast<const NetEConst*>(search.par_val);
-      if (!constant)
+      if (!constant || constant->value().is_string())
 	    return false;
+
+      /* Resolve one constant packed bit/element select without expression
+       * elaboration.  symbol_search returns the whole parameter for P[1]; using
+       * that value directly made P[1] collide with P. */
+      const std::list<index_component_t>&indices = path.name.front().index;
+      if (!indices.empty()) {
+	if (indices.size() != 1 || !search.path_tail.empty())
+	      return false;
+	const index_component_t&index = indices.front();
+	if (index.sel != index_component_t::SEL_BIT
+	    || !index.msb || index.lsb)
+	      return false;
+	verinum index_value;
+	bool index_unbounded = false;
+	if (!cache_integral_constant_value_(
+	      des, scope, index.msb, index_value, index_unbounded)
+	    || index_unbounded || !index_value.is_defined())
+	      return false;
+	long parameter_msb = 0;
+	long parameter_lsb = 0;
+	unsigned long slice_width = 1;
+	if (!calculate_param_range(
+	      *ident, search.type, parameter_msb, parameter_lsb,
+	      constant->value().len(), &slice_width))
+	      return false;
+	long offset = index_value.as_long();
+	if (parameter_msb >= parameter_lsb)
+	      offset -= parameter_lsb;
+	else
+	      offset = parameter_lsb - offset;
+	const long base = offset * static_cast<long>(slice_width);
+	if (offset < 0 || base < 0
+	    || static_cast<unsigned long>(base) + slice_width
+		  > constant->value().len())
+	      return false;
+	value = verinum(verinum::Vx, static_cast<unsigned>(slice_width), true);
+	for (unsigned long bit = 0 ; bit < slice_width ; ++bit)
+	      value.set(static_cast<unsigned>(bit),
+		constant->value().get(static_cast<unsigned long>(base) + bit));
+	value.has_sign(false);
+	value.has_len(true);
+	cache_apply_integral_context_(
+	      value, context_width, signed_override, context_signed);
+	unbounded = false;
+	return true;
+      }
+
+      if (!search.path_tail.empty())
+	      return false;
       value = constant->value();
+      unbounded = constant->is_unbounded();
+	if (!unbounded)
+	      cache_apply_integral_context_(
+		    value, context_width, signed_override, context_signed);
       return true;
+}
+
+/* Resolve only a bare/package-qualified parameter name.  Unlike expression
+ * elaboration, this lookup is diagnostic-free on failure; hierarchical or
+ * selected names conservatively retain their source cache key. */
+static const NetExpr* cache_simple_parameter_value_(Design*des,
+						     NetScope*scope,
+						     const PExpr*expr,
+						     ivl_type_t&type)
+{
+      type = 0;
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(expr);
+      if (!ident || !scope)
+	return 0;
+
+      const pform_scoped_name_t&path = ident->path();
+      if (path.name.size() != 1 || !path.name.front().index.empty())
+	return 0;
+
+      symbol_search_results search;
+      if (!symbol_search(ident, des, scope, path, ident->lexical_pos(), &search)
+	  || !search.par_val || !search.path_tail.empty())
+	return 0;
+      type = search.type;
+      return search.par_val;
+}
+
+/* Follow a concrete parameter reference back to the PExpr that supplied its
+ * value.  Unsupported semantic probes then key both the direct spelling and
+ * a dependent forwarded spelling from the same source lineage. */
+static bool cache_parameter_source_lineage_(Design*des, NetScope*&scope,
+					     const PExpr*&expr)
+{
+      std::set<std::pair<const NetScope*,const NetExpr*> >seen;
+      while (const PEIdent*ident = dynamic_cast<const PEIdent*>(expr)) {
+	const pform_scoped_name_t&path = ident->path();
+	if (!scope || path.name.size() != 1
+	    || !path.name.front().index.empty())
+	      break;
+
+	symbol_search_results search;
+	if (!symbol_search(ident, des, scope, path, ident->lexical_pos(), &search)
+	    || !search.par_val || !search.scope || !search.path_tail.empty())
+	      break;
+	if (!seen.insert(std::make_pair(search.scope, search.par_val)).second)
+	      return false;
+
+	perm_string parameter_name = path.name.front().name;
+	NetScope*parameter_scope = search.scope;
+	std::map<perm_string,NetScope::param_expr_t>::const_iterator parameter =
+	      parameter_scope->parameters.find(parameter_name);
+	const NetScope*owner_scope = normalize_class_scope_(search.scope);
+	if (parameter == parameter_scope->parameters.end() && owner_scope) {
+	      parameter_scope = const_cast<NetScope*>(owner_scope);
+	      parameter = parameter_scope->parameters.find(parameter_name);
+	}
+	if (parameter == parameter_scope->parameters.end())
+	      break;
+
+	const PExpr*source_expr = parameter->second.source_expr
+	      ? parameter->second.source_expr : parameter->second.val_expr;
+	NetScope*source_scope = parameter->second.source_scope
+	      ? parameter->second.source_scope : parameter->second.val_scope;
+	if (!source_expr || !source_scope)
+	      break;
+	expr = source_expr;
+	scope = source_scope;
+      }
+      return true;
+}
+
+static bool cache_source_lineage_key_(Design*des, NetScope*scope,
+				       const PExpr*expr, std::string&key)
+{
+      if (!expr || !cache_parameter_source_lineage_(des, scope, expr))
+	return false;
+
+      std::ostringstream source;
+      append_cache_expr_key_(des, scope, source, expr, 0);
+      const std::string source_key = source.str();
+      if (source_key.empty())
+	return false;
+
+      std::ostringstream out;
+      out << "<source-lineage:size=" << source_key.size() << ":";
+      out.write(source_key.data(), source_key.size());
+      out << ">";
+      key = out.str();
+      return true;
+}
+
+/* Evaluate the small scalar subset needed to canonicalize real class values
+ * without invoking elaboration. Integral subexpressions remain verinum
+ * operations until real arithmetic or assignment conversion, preserving
+ * width, sign, overflow, division and unary semantics. A failed probe is
+ * silent and leaves the caller on its source-sensitive key; the ordinary
+ * specialization pass then owns any legitimate diagnostic. */
+static bool cache_real_constant_operand_(Design*des, NetScope*scope,
+					  const PExpr*expr, double&real_value,
+					  verinum&integral_value,
+					  bool&real_expression)
+{
+      bool unbounded = false;
+      if (cache_integral_constant_value_(
+	    des, scope, expr, integral_value, unbounded)) {
+	if (unbounded || !integral_value.is_defined())
+	      return false;
+	real_expression = false;
+	return true;
+      }
+
+      if (const PEFNumber*number = dynamic_cast<const PEFNumber*>(expr)) {
+	real_value = number->value().as_double();
+	real_expression = true;
+	return true;
+      }
+
+      ivl_type_t parameter_type = 0;
+      if (const NetExpr*parameter = cache_simple_parameter_value_(
+		des, scope, expr, parameter_type)) {
+	if (const NetECReal*real_constant =
+	      dynamic_cast<const NetECReal*>(parameter)) {
+	      real_value = real_constant->value().as_double();
+	      real_expression = true;
+	      return true;
+	}
+	return false;
+      }
+
+      if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr)) {
+	double operand_real = 0.0;
+	verinum operand_integral;
+	bool operand_is_real = false;
+	if (!cache_real_constant_operand_(
+	      des, scope, unary->get_expr(), operand_real, operand_integral,
+	      operand_is_real))
+	      return false;
+	switch (unary->get_op()) {
+	    case '+':
+	      if (!operand_is_real)
+		    return false;
+	      real_value = operand_real;
+	      real_expression = true;
+	      return true;
+	    case '-':
+	      if (!operand_is_real)
+		    return false;
+	      real_value = -operand_real;
+	      real_expression = true;
+	      return true;
+	    default: return false;
+	}
+      }
+
+      if (const PEBinary*binary = dynamic_cast<const PEBinary*>(expr)) {
+	double left_real = 0.0;
+	double right_real = 0.0;
+	verinum left_integral;
+	verinum right_integral;
+	bool left_is_real = false;
+	bool right_is_real = false;
+	if (!cache_real_constant_operand_(
+	      des, scope, binary->get_left(), left_real, left_integral,
+	      left_is_real)
+	    || !cache_real_constant_operand_(
+	      des, scope, binary->get_right(), right_real, right_integral,
+	      right_is_real))
+	      return false;
+	if (!left_is_real && !right_is_real)
+	      return false;
+	const double left = left_is_real
+	      ? left_real : left_integral.as_double();
+	const double right = right_is_real
+	      ? right_real : right_integral.as_double();
+	real_expression = true;
+	switch (binary->get_op()) {
+	    case '+': real_value = left + right; return true;
+	    case '-': real_value = left - right; return true;
+	    case '*': real_value = left * right; return true;
+	    case '/':
+	      real_value = left / right;
+	      return true;
+	    default: return false;
+	}
+      }
+
+      return false;
+}
+
+static bool cache_real_constant_value_(Design*des, NetScope*scope,
+					const PExpr*expr, double&value)
+{
+      bool real_expression = false;
+      verinum integral_value;
+      if (!cache_real_constant_operand_(
+	    des, scope, expr, value, integral_value, real_expression))
+	    return false;
+      if (!real_expression)
+	    value = integral_value.as_double();
+      return true;
+}
+
+static NetExpr* cache_typed_literal_value_(Design*des, NetScope*scope,
+					    const PExpr*expr,
+					    ivl_type_t formal_type);
+static NetExpr* cache_typed_netexpr_value_(const NetExpr*expr,
+					    ivl_type_t formal_type);
+
+static void delete_cache_literal_items_(std::vector<NetExpr*>&items)
+{
+      for (std::vector<NetExpr*>::iterator cur = items.begin()
+	   ; cur != items.end(); ++cur)
+	delete *cur;
+}
+
+/* Materialize a diagnostic-free, fully typed fixed-array literal.  Keep the
+ * same declared-index ordering as PEAssignPattern::elaborate_expr_uarray_ so
+ * its exact NetEArrayPattern key matches an already evaluated parameter. */
+static NetExpr* cache_typed_literal_uarray_(Design*des, NetScope*scope,
+					     const PEAssignPattern*pattern,
+					     const netuarray_t*array_type,
+					     unsigned dimension)
+{
+      if (!pattern || !array_type || !pattern->keys().empty()
+	  || !pattern->parm_names().empty() || pattern->replication())
+	return 0;
+
+      const netranges_t&dimensions = array_type->static_dimensions();
+      if (dimension >= dimensions.size())
+	return 0;
+      const std::vector<PExpr*>&parms = pattern->parms();
+      const size_t count = dimensions[dimension].width();
+      if (parms.size() != count)
+	return 0;
+
+      const bool ascending =
+	    dimensions[dimension].get_msb() < dimensions[dimension].get_lsb();
+      std::vector<NetExpr*>items(count, 0);
+      for (size_t idx = 0 ; idx < count ; ++idx) {
+	NetExpr*item = 0;
+	if (dimension + 1 < dimensions.size()) {
+	      item = cache_typed_literal_uarray_(
+		    des, scope, dynamic_cast<const PEAssignPattern*>(parms[idx]),
+		    array_type, dimension + 1);
+	} else {
+	      item = cache_typed_literal_value_(
+		    des, scope, parms[idx], array_type->element_type());
+	}
+	if (!item) {
+	      delete_cache_literal_items_(items);
+	      return 0;
+	}
+	items[ascending ? idx : count - 1 - idx] = item;
+      }
+      return new NetEArrayPattern(const_cast<netuarray_t*>(array_type), items);
+}
+
+/* Build only values whose syntax and safely resolved scalar constants can be
+ * checked without ordinary expression elaboration. Unsupported keyed,
+ * replicated, union, or unresolved identifier-bearing shapes return null and
+ * retain the caller's scope-sensitive source key. */
+static NetExpr* cache_typed_literal_value_(Design*des, NetScope*scope,
+					    const PExpr*expr,
+					    ivl_type_t formal_type)
+{
+      if (!des || !scope || !expr || !formal_type)
+	return 0;
+
+      if (formal_type->base_type() == IVL_VT_REAL) {
+	double value = 0.0;
+	if (!cache_real_constant_value_(des, scope, expr, value))
+	      return 0;
+	return new NetECReal(verireal(value));
+      }
+
+      if (formal_type->base_type() == IVL_VT_STRING) {
+	if (const PEString*literal = dynamic_cast<const PEString*>(expr))
+	      return new NetECString(literal->parsed_value());
+	ivl_type_t parameter_type = 0;
+	const NetEConst*constant = dynamic_cast<const NetEConst*>(
+	      cache_simple_parameter_value_(des, scope, expr, parameter_type));
+	if (!constant || (!dynamic_cast<const NetECString*>(constant)
+		      && !constant->value().is_string()))
+	      return 0;
+	return new NetECString(constant->value());
+      }
+
+      if (const netstruct_t*struct_type =
+	    dynamic_cast<const netstruct_t*>(formal_type)) {
+	if (struct_type->packed() || struct_type->union_flag())
+	      return 0;
+	const PEAssignPattern*pattern =
+	      dynamic_cast<const PEAssignPattern*>(expr);
+	if (!pattern || !pattern->keys().empty()
+	    || !pattern->parm_names().empty() || pattern->replication())
+	      return 0;
+	const std::vector<netstruct_t::member_t>&members =
+	      struct_type->members();
+	const std::vector<PExpr*>&parms = pattern->parms();
+	if (parms.size() != members.size())
+	      return 0;
+	std::vector<NetExpr*>items(members.size(), 0);
+	for (size_t idx = 0 ; idx < members.size() ; ++idx) {
+	      items[idx] = cache_typed_literal_value_(
+		    des, scope, parms[idx], members[idx].net_type);
+	      if (!items[idx]) {
+		    delete_cache_literal_items_(items);
+		    return 0;
+	      }
+	}
+	return new NetEArrayPattern(formal_type, items);
+      }
+
+      if (const netuarray_t*array_type =
+	    dynamic_cast<const netuarray_t*>(formal_type))
+	return cache_typed_literal_uarray_(
+	      des, scope, dynamic_cast<const PEAssignPattern*>(expr),
+	      array_type, 0);
+
+      if (!formal_type->packed()
+	  || (formal_type->base_type() != IVL_VT_BOOL
+	      && formal_type->base_type() != IVL_VT_LOGIC)
+	  || formal_type->packed_width() <= 0)
+	return 0;
+
+      verinum value;
+      bool unbounded = false;
+      if (!cache_integral_constant_value_(
+	    des, scope, expr, value, unbounded,
+	    formal_type->packed_width())
+	  || unbounded)
+	return 0;
+      value = cast_to_width(value, formal_type->packed_width());
+      value.has_sign(formal_type->get_signed());
+      value.has_len(true);
+      if (formal_type->base_type() == IVL_VT_BOOL)
+	value.cast_to_int2();
+      return new NetEConst(formal_type, value);
+}
+
+static NetExpr* cache_typed_netexpr_uarray_(const NetEArrayPattern*pattern,
+					     const netuarray_t*array_type,
+					     unsigned dimension)
+{
+      if (!pattern || !array_type)
+	return 0;
+      const netranges_t&dimensions = array_type->static_dimensions();
+      if (dimension >= dimensions.size()
+	  || pattern->item_size() != dimensions[dimension].width())
+	return 0;
+
+      std::vector<NetExpr*>items(pattern->item_size(), 0);
+      for (size_t idx = 0 ; idx < pattern->item_size() ; ++idx) {
+	if (dimension + 1 < dimensions.size()) {
+	      items[idx] = cache_typed_netexpr_uarray_(
+		    dynamic_cast<const NetEArrayPattern*>(pattern->item(idx)),
+		    array_type, dimension + 1);
+	} else {
+	      items[idx] = cache_typed_netexpr_value_(
+		    pattern->item(idx), array_type->element_type());
+	}
+	if (!items[idx]) {
+	      delete_cache_literal_items_(items);
+	      return 0;
+	}
+      }
+      return new NetEArrayPattern(const_cast<netuarray_t*>(array_type), items);
+}
+
+/* Reapply a declared aggregate type to an already evaluated parameter.  Raw
+ * NetEArrayPattern leaves retain details of their source elaboration (a
+ * string leaf can look vector-typed, and an array element can retain source
+ * signedness); those are not part of the effective parameter value. */
+static NetExpr* cache_typed_netexpr_value_(const NetExpr*expr,
+					    ivl_type_t formal_type)
+{
+      if (!expr || !formal_type)
+	return 0;
+
+      if (formal_type->base_type() == IVL_VT_REAL) {
+	if (const NetECReal*real_value = dynamic_cast<const NetECReal*>(expr))
+	      return new NetECReal(real_value->value());
+	const NetEConst*integral = dynamic_cast<const NetEConst*>(expr);
+	if (!integral || integral->is_unbounded()
+	    || !integral->value().is_defined())
+	      return 0;
+	return new NetECReal(verireal(integral->value().as_double()));
+      }
+
+      if (formal_type->base_type() == IVL_VT_STRING) {
+	const NetEConst*constant = dynamic_cast<const NetEConst*>(expr);
+	if (!constant || !constant->value().is_string())
+	      return 0;
+	return new NetECString(constant->value());
+      }
+
+      if (const netstruct_t*struct_type =
+	    dynamic_cast<const netstruct_t*>(formal_type)) {
+	const NetEArrayPattern*pattern =
+	      dynamic_cast<const NetEArrayPattern*>(expr);
+	if (!pattern || struct_type->packed() || struct_type->union_flag())
+	      return 0;
+	const std::vector<netstruct_t::member_t>&members =
+	      struct_type->members();
+	if (pattern->item_size() != members.size())
+	      return 0;
+	std::vector<NetExpr*>items(members.size(), 0);
+	for (size_t idx = 0 ; idx < members.size() ; ++idx) {
+	      items[idx] = cache_typed_netexpr_value_(
+		    pattern->item(idx), members[idx].net_type);
+	      if (!items[idx]) {
+		    delete_cache_literal_items_(items);
+		    return 0;
+	      }
+	}
+	return new NetEArrayPattern(formal_type, items);
+      }
+
+      if (const netuarray_t*array_type =
+	    dynamic_cast<const netuarray_t*>(formal_type))
+	return cache_typed_netexpr_uarray_(
+	      dynamic_cast<const NetEArrayPattern*>(expr), array_type, 0);
+
+      if (!formal_type->packed()
+	  || (formal_type->base_type() != IVL_VT_BOOL
+	      && formal_type->base_type() != IVL_VT_LOGIC)
+	  || formal_type->packed_width() <= 0)
+	return 0;
+      const NetEConst*constant = dynamic_cast<const NetEConst*>(expr);
+      if (!constant || constant->is_unbounded()
+	  || constant->value().is_string())
+	return 0;
+      verinum value = constant->value();
+      value = cast_to_width(value, formal_type->packed_width());
+      value.has_sign(formal_type->get_signed());
+      value.has_len(true);
+      if (formal_type->base_type() == IVL_VT_BOOL)
+	value.cast_to_int2();
+      return new NetEConst(formal_type, value);
+}
+
+static bool cache_typed_constant_value_key_(Design*des, NetScope*scope,
+					     const PExpr*expr,
+					     ivl_type_t formal_type,
+					     std::string&key)
+{
+      if (!des || !scope || !expr || !formal_type)
+	return false;
+
+      if (formal_type->base_type() == IVL_VT_REAL) {
+	double value = 0.0;
+	if (!cache_real_constant_value_(des, scope, expr, value))
+	      return false;
+	std::ostringstream out;
+	out << "<real:ieee754=";
+	append_exact_double_key_(out, value);
+	out << ">";
+	key = out.str();
+	return true;
+      }
+
+      if (formal_type->base_type() == IVL_VT_STRING) {
+	std::ostringstream out;
+	if (const PEString*literal = dynamic_cast<const PEString*>(expr)) {
+	      NetECString value(literal->parsed_value());
+	      append_cache_netexpr_value_key_(out, &value);
+	} else {
+	      ivl_type_t parameter_type = 0;
+	      const NetExpr*parameter = cache_simple_parameter_value_(
+		    des, scope, expr, parameter_type);
+	      const NetEConst*constant =
+		    dynamic_cast<const NetEConst*>(parameter);
+	      if (!constant || (!dynamic_cast<const NetECString*>(constant)
+				&& !constant->value().is_string()))
+		    return false;
+	      append_cache_netexpr_value_key_(out, constant);
+	}
+	key = out.str();
+	return true;
+      }
+
+      if (const netstruct_t*struct_type =
+	    dynamic_cast<const netstruct_t*>(formal_type)) {
+	if (struct_type->packed())
+	      return false;
+	ivl_type_t parameter_type = 0;
+	if (const NetEArrayPattern*parameter =
+	      dynamic_cast<const NetEArrayPattern*>(
+		    cache_simple_parameter_value_(
+			des, scope, expr, parameter_type))) {
+	      std::unique_ptr<NetExpr>normalized(
+		    cache_typed_netexpr_value_(parameter, formal_type));
+	      if (!normalized)
+		    return false;
+	      std::ostringstream out;
+	      append_cache_netexpr_value_key_(out, normalized.get());
+	      key = out.str();
+	      return true;
+	}
+	std::unique_ptr<NetExpr>literal(
+	      cache_typed_literal_value_(des, scope, expr, formal_type));
+	if (!literal)
+	      return false;
+	std::ostringstream out;
+	append_cache_netexpr_value_key_(out, literal.get());
+	key = out.str();
+	return true;
+      }
+
+      return false;
 }
 
 static bool cache_value_parameter_is_deferred_(
@@ -1884,12 +2860,18 @@ static bool cache_value_parameter_is_deferred_(
 	    parameter_scope = owner_scope;
 	    parameter = parameter_scope->parameters.find(parameter_name);
       }
-      if (parameter == parameter_scope->parameters.end()
-	  || !parameter->second.val_expr || !parameter->second.val_scope)
+      if (parameter == parameter_scope->parameters.end())
+	    return false;
+
+      const PExpr*source_expr = parameter->second.source_expr
+	    ? parameter->second.source_expr : parameter->second.val_expr;
+      NetScope*source_scope = parameter->second.source_scope
+	    ? parameter->second.source_scope : parameter->second.val_scope;
+      if (!source_expr || !source_scope)
 	    return false;
 
       return cache_value_parameter_is_deferred_(
-	    des, parameter->second.val_scope, parameter->second.val_expr, seen);
+	    des, source_scope, source_expr, seen);
 }
 
 static bool cache_value_parameter_is_deferred_(Design*des, NetScope*scope,
@@ -1926,8 +2908,9 @@ static bool overrides_match_parameter_order_(const parmvalue_t*overrides,
  *
  * Express the complete effective parameter list in declaration order.  A
  * default which is a bare reference to an earlier formal uses that formal's
- * effective key; more complicated dependent defaults remain conservatively
- * source-sensitive.
+ * effective key. The diagnostic-free scalar evaluator also handles the
+ * bounded arithmetic subset below; broader dependency graphs remain
+ * conservatively source-sensitive.
  */
 static std::string canonical_specialization_parm_key_(
 		Design*des, NetScope*call_scope, NetScope*definition_scope,
@@ -2010,20 +2993,60 @@ static std::string canonical_specialization_parm_key_(
 	    }
 	    ivl_type_t formal_type = formal->second->data_type->elaborate_type(
 		  des, definition_scope);
-	    if (!formal_type || !formal_type->packed()
+	    if (!formal_type)
+		  return parmvalue_cache_key_(des, call_scope, overrides, pclass);
+
+	      /* Real and string values, plus the supported constant unpacked-
+	       * struct pattern, need the same semantic key whether an actual is a
+	       * literal/expression or a parameter reference. Their source forms
+	       * are not a class type identity. */
+	    const bool aggregate_constant =
+		  dynamic_cast<const netstruct_t*>(formal_type)
+		  && !formal_type->packed();
+	    if (formal_type->base_type() == IVL_VT_REAL
+		|| formal_type->base_type() == IVL_VT_STRING
+		|| aggregate_constant) {
+		  std::string value_key;
+		  if (!cache_typed_constant_value_key_(
+			des, actual_scope, actual, formal_type, value_key)) {
+			const PExpr*origin = actual;
+			NetScope*origin_scope = actual_scope;
+			if (!cache_parameter_source_lineage_(
+			      des, origin_scope, origin)
+			    || (!cache_typed_constant_value_key_(
+				des, origin_scope, origin,
+				formal_type, value_key)
+				&& !cache_source_lineage_key_(
+				      des, origin_scope, origin, value_key)))
+			      return parmvalue_cache_key_(
+				    des, call_scope, overrides, pclass);
+		  }
+		  append_cache_ivl_type_key_(des, out, formal_type);
+		  out << "=" << value_key;
+		  return out.str();
+	    }
+
+	    if (!formal_type->packed()
 		|| (formal_type->base_type() != IVL_VT_BOOL
 		    && formal_type->base_type() != IVL_VT_LOGIC)
 		|| formal_type->packed_width() <= 0)
 		  return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 
 	    verinum value;
-	    if (!cache_integral_constant_value_(des, actual_scope, actual, value))
+	    bool unbounded = false;
+	    if (!cache_integral_constant_value_(
+		  des, actual_scope, actual, value, unbounded,
+		  formal_type->packed_width()))
 		  return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 	    value = cast_to_width(value, formal_type->packed_width());
 	    value.has_sign(formal_type->get_signed());
 	    value.has_len(true);
+	    if (formal_type->base_type() == IVL_VT_BOOL)
+		  value.cast_to_int2();
 	    append_cache_ivl_type_key_(des, out, formal_type);
-	    out << "=" << value;
+	    out << "=<constant:variant=integral:unbounded=" << unbounded << ":";
+	    append_exact_verinum_key_(out, value);
+	    out << ">";
 	    return out.str();
       }
 
@@ -2228,7 +3251,7 @@ void release_elaboration_specialization_caches()
 {
       specialization_scope_path_cache_.clear();
       specialization_pexpr_dump_cache_.clear();
-      specialization_netexpr_dump_cache_.clear();
+      specialization_netexpr_value_key_cache_.clear();
       specialization_type_dump_cache_.clear();
       specialization_data_type_dump_cache_.clear();
       specialized_class_source_key_cache_.clear();

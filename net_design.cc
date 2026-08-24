@@ -952,8 +952,10 @@ void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 	    param_expr_t& ref = parameters[elem_name];
 	    ref.is_annotatable = false;
 	    ref.val_expr = expr;
+	    ref.source_expr = expr;
 	    ref.val_type = nullptr;
 	    ref.val_scope = vscope;
+	    ref.source_scope = vscope;
 	    ref.local_flag = cur->second.local_flag;
 	    ref.overridable = false;
 	    ref.type_flag = false;

@@ -474,8 +474,9 @@ NetScope*NetScope::find_typedef_scope(const Design*des, const typedef_t*type)
 /*
  * Attach to the a parameter name in the scope a value and a type. The value
  * (val_expr) is the PExpr form that is not yet elaborated. Later, when
- * elaboration happens, the val_expr is elaborated and written to the val
- * member.
+ * elaboration happens, val_expr is elaborated and written to val, then
+ * cleared. source_expr retains the borrowed parse form for provenance-only
+ * uses such as parameterized-class specialization identity.
  */
 void NetScope::set_parameter(perm_string key, bool is_annotatable,
 			     const LexicalScope::param_expr_t &param,
@@ -484,8 +485,10 @@ void NetScope::set_parameter(perm_string key, bool is_annotatable,
       param_expr_t&ref = parameters[key];
       ref.is_annotatable = is_annotatable;
       ref.val_expr = param.expr;
+      ref.source_expr = param.expr;
       ref.val_type = param.data_type;
       ref.val_scope = this;
+      ref.source_scope = this;
       ref.local_flag = param.local_flag;
       ref.overridable = param.overridable;
       ref.type_flag = param.type_flag;
@@ -510,8 +513,10 @@ void NetScope::set_parameter(perm_string key, NetExpr*val,
       param_expr_t&ref = parameters[key];
       ref.is_annotatable = false;
       ref.val_expr = 0;
+      ref.source_expr = 0;
       ref.val_type = 0;
       ref.val_scope = this;
+      ref.source_scope = this;
       ref.ivl_type = netvector_t::integer_type();
       ivl_assert(file_line, ref.ivl_type);
       ref.val = val;
@@ -537,8 +542,9 @@ void NetScope::release_parameters()
 	}
 
 	/* Clearing the records releases their map nodes and array-dimension
-	 * vectors. val_expr, val_type, udims and ivl_type are deliberately not
-	 * deleted: they are borrowed pform or shared elaborated-type pointers. */
+	 * vectors. val_expr, source_expr, val_type, udims and ivl_type are
+	 * deliberately not deleted: they are borrowed pform or shared
+	 * elaborated-type pointers. */
       parameters.clear();
 }
 
@@ -624,6 +630,8 @@ void NetScope::replace_parameter(Design *des, perm_string key, PExpr*val,
 
       ref.val_expr = val;
       ref.val_scope = scope;
+      ref.source_expr = val;
+      ref.source_scope = scope;
 }
 
 bool NetScope::make_parameter_unannotatable(perm_string key)
