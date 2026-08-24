@@ -18,3 +18,4 @@ sv_param_class_randomize_hook_task_fail CE,-g2012 ivltests gold=sv_param_class_r
 sv_param_class_builtin_property_type normal,-g2012 ivltests gold=sv_param_class_builtin_property_type.gold
 sv_package_param_class_extends normal,-g2012 ivltests gold=sv_package_param_class_extends.gold
 sv_param_class_cached_vif_default normal,-g2012 ivltests gold=sv_param_class_cached_vif_default.gold
+sv_param_class_dependent_super_value_identity normal,-g2012 ivltests gold=sv_param_class_dependent_super_value_identity.gold

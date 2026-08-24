@@ -980,12 +980,31 @@ static void append_cache_ivl_type_key_(Design*des, std::ostringstream&out,
 			      const_cast<NetScope*>(class_scope)->get_parameter(des,
 								    *cur,
 								    parm_type);
-			if (parm_type)
-			      append_cache_ivl_type_key_(des, out, parm_type, active);
-			else if (parm_expr)
-			      out << cached_netexpr_dump_(parm_expr);
-			else
+			std::map<perm_string,NetScope::param_expr_t>::const_iterator
+			      parameter = class_scope->parameters.find(*cur);
+			const bool type_parameter =
+			      parameter != class_scope->parameters.end()
+			      && parameter->second.type_flag;
+
+			/* For a type parameter, ivl_type is the actual type.  For a
+			 * value parameter it is only the declared type, so the value is
+			 * also part of class-specialization identity. */
+			if (type_parameter) {
+			      if (parm_type)
+				    append_cache_ivl_type_key_(des, out, parm_type, active);
+			      else
+				    out << "<unset-type>";
+			} else if (parm_type || parm_expr) {
+			      if (parm_type)
+				    append_cache_ivl_type_key_(des, out, parm_type, active);
+			      if (parm_expr) {
+				    if (parm_type)
+					  out << "=";
+				    out << cached_netexpr_dump_(parm_expr);
+			      }
+			} else {
 			      out << "<unset>";
+			}
 		  }
 		  out << ")";
 	    }
