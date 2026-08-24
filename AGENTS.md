@@ -77,12 +77,14 @@
   architecture. Generated `.vvp` launchers embed the `vvp` path selected at
   build time, and per-core simulation directories may also retain native
   DPI/VPI objects. Regenerate the complete matrix in a fresh ARM64 build root
-  with the active worktree's `iverilog`, then architecture-audit every native
-  artifact before running it.
+  with the active worktree's `iverilog`. Apple Silicon is the standing
+  environment assumption, so do not spend runs rechecking artifact
+  architecture unless a loader error gives concrete evidence of a mismatch.
 - Load DPI bundles with the active `vvp` runtime's `-d <bundle>` option.
   `-M/-m` is for VPI modules and is wrong for Caliptra's `jtagdpi.vpi` and
-  OpenTitan's AES DPI bundle. Architecture-check every additional per-core DPI
-  dependency; one native AES bundle does not certify the entire runtime matrix.
+  OpenTitan's AES DPI bundle. Rebuild per-core DPI dependencies in the fresh
+  Apple Silicon build root and treat them as ARM64 unless a load failure shows
+  otherwise.
 - Keep Caliptra's `+timescale+1ns/1ps` command file and filtered full-TB
   manifest at durable paths. Do not reuse vanished `/tmp` timescale or AXI
   checker paths from historical evidence.
