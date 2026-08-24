@@ -2589,10 +2589,10 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 		    if (cached_pclass && cached_class->scope_ready()) {
 			  if (!cached_class->sig_elaborated() && !cached_class->sig_elaborating())
 				cached_class->elaborate_sig(des, const_cast<PClass*>(cached_pclass));
-			  if (cached_class->sig_elaborated()
-			      && !cached_class->body_elaborated()
-			      && !cached_class->body_elaborating())
-				cached_class->elaborate(des, const_cast<PClass*>(cached_pclass));
+			  // Cache hits need the same post-root body deferral as misses.
+			  // Queue even during recursive signature elaboration so a full
+			  // elaboration request is not lost before that recursion unwinds.
+			  enqueue_pending_specialized_class_body_(cached_class);
 		    }
 	    return cached_result;
       }
