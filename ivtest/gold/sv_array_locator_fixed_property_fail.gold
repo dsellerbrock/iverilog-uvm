@@ -1,0 +1,2 @@
+./ivltests/sv_array_locator_fixed_property_fail.v:13: sorry: find() on multidimensional arrays is not yet implemented.
+1 error(s) during elaboration.

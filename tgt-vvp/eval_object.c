@@ -2282,13 +2282,14 @@ static int eval_object_sfunc(ivl_expr_t expr)
 
       if (strncmp(name, "$ivl_queue_method$find_with|", 28) == 0) {
 	    const char*kind = name + 28;
+	    int is_fixed_property = parm_count == 9;
 	    int is_index = (strstr(kind, "index") != NULL);
 	    int is_first = (strcmp(kind, "find_first") == 0
 			    || strcmp(kind, "find_first_index") == 0);
 	    int is_last = (strcmp(kind, "find_last") == 0
 			   || strcmp(kind, "find_last_index") == 0);
 
-	    if (parm_count < 5) {
+	    if (parm_count != 5 && parm_count != 6 && !is_fixed_property) {
 		  fprintf(vvp_out, "    %%null; ; find_with: bad parm count\n");
 		  return 0;
 	    }
@@ -2299,6 +2300,12 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    ivl_expr_t pred = ivl_expr_parm(expr, 4);
 	    ivl_expr_t recv_parm = (parm_count > 5)
 		  ? ivl_expr_parm(expr, 5) : 0;
+	    ivl_expr_t declared_idx_arg = is_fixed_property
+		  ? ivl_expr_parm(expr, 6) : 0;
+	    ivl_expr_t declared_idx_expr = is_fixed_property
+		  ? ivl_expr_parm(expr, 7) : 0;
+	    ivl_expr_t fixed_desc_expr = is_fixed_property
+		  ? ivl_expr_parm(expr, 8) : 0;
 
 	    ivl_signal_t q_sig = draw_array_method_recv_(q_arg, recv_parm);
 	    if (!q_sig
@@ -2308,15 +2315,25 @@ static int eval_object_sfunc(ivl_expr_t expr)
 		|| !ivl_expr_signal(result_arg)
 		|| !idx_arg || ivl_expr_type(idx_arg) != IVL_EX_SIGNAL
 		|| !ivl_expr_signal(idx_arg)
-		|| !pred) {
+		|| !pred
+		|| (is_fixed_property
+		    && (!declared_idx_arg
+			|| ivl_expr_type(declared_idx_arg) != IVL_EX_SIGNAL
+			|| !ivl_expr_signal(declared_idx_arg)
+			|| !declared_idx_expr || !fixed_desc_expr
+			|| ivl_expr_type(fixed_desc_expr) != IVL_EX_NUMBER))) {
 		  fprintf(vvp_out, "    %%null; ; find_with: bad arg shape\n");
 		  return 0;
 	    }
 	    ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
 	    ivl_signal_t result_sig = ivl_expr_signal(result_arg);
 	    ivl_signal_t idx_sig = ivl_expr_signal(idx_arg);
-	    int fixed_desc = !array_receiver_is_dynamic_(q_sig)
-		  && ivl_signal_array_addr_swapped(q_sig);
+	    ivl_signal_t declared_idx_sig = is_fixed_property
+		  ? ivl_expr_signal(declared_idx_arg) : 0;
+	    int fixed_desc = is_fixed_property
+		  ? (ivl_expr_uvalue(fixed_desc_expr) != 0)
+		  : (!array_receiver_is_dynamic_(q_sig)
+		     && ivl_signal_array_addr_swapped(q_sig));
 	    int stop_on_match = (is_first && !fixed_desc)
 		  || (is_last && fixed_desc);
 	    int replace_on_match = (is_first && fixed_desc)
@@ -2424,6 +2441,16 @@ static int eval_object_sfunc(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%store/obj v%p_0;\n", iter_sig);
 	    }
 
+	      /* A materialized fixed property is traversed by canonical storage
+	       * address. Publish its declared low+canonical index before the
+	       * predicate so item.index() and every *_index result observe the
+	       * original declared range. */
+	    if (is_fixed_property) {
+		  draw_eval_vec4(declared_idx_expr);
+		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n",
+			  declared_idx_sig);
+	    }
+
 	    /* Evaluate predicate (always returns a vec4 boolean) */
 	    draw_eval_vec4(pred);
 	    if (ivl_expr_width(pred) > 1)
@@ -2443,7 +2470,8 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    /* Push q[idx] (or idx) into result_sig.  Index variants always
 	     * push the int32 idx onto a vec4 queue. */
 	    if (is_index) {
-		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", idx_sig);
+		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n",
+			  is_fixed_property ? declared_idx_sig : idx_sig);
 		  fprintf(vvp_out, "    %%store/qb/v v%p_0, 5, 32;\n", result_sig);
 	    } else if (bt == IVL_VT_BOOL || bt == IVL_VT_LOGIC) {
 		  fprintf(vvp_out, "    %%ix/getv/s 3, v%p_0;\n", idx_sig);

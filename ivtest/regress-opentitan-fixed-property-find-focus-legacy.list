@@ -1,0 +1,7 @@
+sv_array_find_last normal,-g2012 ivltests gold=sv_array_find_last.gold
+sv_array_find_last_fixed_base_fail CE,-g2012 ivltests gold=sv_array_find_last_fixed_base_fail.gold
+sv_array_find_last_fixed_shape_fail CE,-g2012 ivltests gold=sv_array_find_last_fixed_shape_fail.gold
+sv_array_locator_fixed_property normal,-g2012 ivltests gold=sv_array_locator_fixed_property.gold
+sv_array_locator_fixed_property_fail CE,-g2012 ivltests gold=sv_array_locator_fixed_property_fail.gold
+sv_class_fixed_array_reduction normal,-g2012 ivltests gold=sv_class_fixed_array_reduction.gold
+sv_array_unique_fixed_types normal,-g2012 ivltests gold=sv_array_unique_fixed_types.gold

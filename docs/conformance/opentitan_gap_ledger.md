@@ -2444,6 +2444,51 @@ simulation, so this entry does not claim whole-design UVM/runtime closure.
 
 ---
 
+## G75 — locator methods rejected fixed-array class-property receivers — **fixed/verified partial subset** [general]
+
+*7.12.1 [general] — array locator methods on fixed unpacked object
+properties.*
+
+OpenTitan GPIO filters the fixed property `stable_cycles_per_pin` with
+`find(m) with (m != FILTER_CYCLES)`. Icarus previously rejected the legal
+receiver before lowering the predicate. A fixed property is inline class
+storage rather than a signal-backed array or dynamic-container handle, while
+the shared locator target loop required a signal label.
+
+The supported one-dimensional property is now evaluated once and materialized
+as a typed temporary dynamic array. A separate declared-index payload keeps
+`item.index` and every `*_index` result in the property's original coordinate
+system, including negative and nonzero bases. Declared direction controls the
+leftmost/rightmost match chosen by `find_first*` and `find_last*`. Integral,
+real, string, and class-handle elements are supported; scalar results are
+fresh value snapshots and class results keep normal handle-copy semantics.
+The standard leaves general locator traversal order unspecified, so the tests
+do not impose an order on `find`/`find_index` results.
+
+Permanent positive and negative tests, exact gold streams, dual focus lists,
+and the main manifests are described in
+[`session_logs/2026-08-24_opentitan_fixed_property_locators.md`](session_logs/2026-08-24_opentitan_fixed_property_locators.md).
+Focused legacy and JSON/VVP gates pass 7/7 each; the complete manifests pass
+1,794/1,794 and 862/862. Slang 11.0.448 accepts the supported source under
+IEEE 1800-2017 and 1800-2023.
+
+An unmodified `lowrisc:earlgrey:dv:gpio_sim:0.1` witness at OpenTitan commit
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` returns zero with no occurrence of
+the former fixed-property locator diagnostic. Previously triaged
+virtual-interface argument-row diagnostics remain in target output, and no
+OpenTitan simulation ran; this is not a whole-design pass claim.
+The workspace-root-relative evidence summary is
+`evidence/opentitan-fixed-property-find-arm64-20260824T0032MDT/SUMMARY.md`
+(SHA-256
+`dcf72578e3655d287b99f41f24dabe92e01a920c56d73e4fd7dfad116dc0e000`).
+
+Multidimensional fixed-property locators remain loud. Associative keyed
+locators, aggregate-element value copying, direct fixed-signal nonzero-base or
+nonintegral receivers, and result typing through arbitrary expression wrappers
+remain separate boundaries.
+
+---
+
 ## Two measurement traps worth remembering
 
 **The error count is not a progress metric while the parser can still give
