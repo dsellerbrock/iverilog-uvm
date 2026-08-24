@@ -327,7 +327,7 @@ static void populate_interface_type_(Design*des, NetScope*member_scope,
 			iface_type->set_property(lex_strings.make(sname.c_str()),
 					 property_qualifier_t::make_none(), rt);
 		  }
-		    /* M8-tail: output drive buffer + pending flag as
+		    /* M8-tail: output drive buffer + per-bit pending state as
 		       properties, so vif.cb.out <= v drives resolve
 		       against the bound instance's buffered-drive vars
 		       (created by elaborate_sig; the instance's apply
@@ -339,10 +339,8 @@ static void populate_interface_type_(Design*des, NetScope*member_scope,
 					 property_qualifier_t::make_none(), rt);
 			string pname = string("_ivl_opend$") + cur->first.str()
 			      + "$" + sig_it->str();
-			netvector_t*pvec = new netvector_t(IVL_VT_LOGIC,
-						       0, 0, false);
 			iface_type->set_property(lex_strings.make(pname.c_str()),
-					 property_qualifier_t::make_none(), pvec);
+					 property_qualifier_t::make_none(), rt);
 		  }
 		  any_sampled = true;
 	    }

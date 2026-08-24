@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_vif_clocking_partial_member_preserve.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_vif_clocking_partial_member_preserve" ],
+    "gold"          : "sv_vif_clocking_partial_member_preserve"
+}

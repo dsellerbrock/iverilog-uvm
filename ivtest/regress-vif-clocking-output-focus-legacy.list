@@ -1,0 +1,3 @@
+# IEEE 1800-2017 14.16/10.4.2 virtual-interface clocking-output selected drives
+sv_vif_clocking_partial_member_preserve normal,-g2012,-ssv_vif_clocking_partial_member_preserve ivltests gold=sv_vif_clocking_partial_member_preserve.gold
+sv_vif_clocking_partial_select_preserve normal,-g2012,-ssv_vif_clocking_partial_select_preserve ivltests gold=sv_vif_clocking_partial_select_preserve.gold

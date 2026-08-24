@@ -8104,7 +8104,7 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 		   out <= _ivl_obuf$cb$out;     // event occurred this
 						// step: drive now
 	     else
-		   _ivl_opend$cb$out = 1'b0+1;  // buffer: the apply
+		   _ivl_opend$cb$out = '1;      // buffer: the apply
 						// process lands it at
 						// the next event
        end
@@ -8116,9 +8116,10 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
    step (the LRM's drive-at-current-event case); a drive between
    events is buffered for the next one.
 
-   Returns nullptr to fall through to the ordinary (alias) NBA:
-   virtual-interface drives, part-selects of clockvars, intra-assign
-   delays, and unsampleable signals keep the old behavior. */
+   The same-scope and static-instance shapes currently recognize a whole
+   clockvar. The virtual-interface shape additionally retains packed member
+   and constant bit/part-select destinations. Returns nullptr for an
+   unrecognized clockvar shape so the ordinary NBA elaborator can handle it. */
 static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 						 const PEIdent*lid,
 						 PExpr*rexpr,
@@ -8236,26 +8237,24 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 				    for (size_t idx = 0; idx < suffix.size() + 2; ++idx)
 					  prefix.pop_back();
 
-				    pform_name_t obuf_full_path = prefix;
-				    name_component_t obuf_full_comp = *sig_c;
-				    obuf_full_comp.name = obuf_p;
-				    obuf_full_comp.index.clear();
-				    obuf_full_path.push_back(obuf_full_comp);
 				    pform_name_t obuf_path = prefix;
 				    name_component_t obuf_comp = *sig_c;
 				    obuf_comp.name = obuf_p;
 				    obuf_path.push_back(obuf_comp);
 				    obuf_path.insert(obuf_path.end(), suffix.begin(), suffix.end());
 				    pform_name_t opend_path = prefix;
-				    opend_path.push_back(name_component_t(opend_p));
+				    name_component_t opend_comp = *sig_c;
+				    opend_comp.name = opend_p;
+				    opend_path.push_back(opend_comp);
+				    opend_path.insert(opend_path.end(), suffix.begin(), suffix.end());
 				    pform_name_t raw_path = prefix;
 				    name_component_t raw_comp = *sig_c;
 				    std::map<perm_string,perm_string>::const_iterator alias_it =
 					  cbk->aliases.find(sig_c->name);
 				    if (alias_it != cbk->aliases.end())
 					  raw_comp.name = alias_it->second;
-				    raw_comp.index.clear();
 				    raw_path.push_back(raw_comp);
+				    raw_path.insert(raw_path.end(), suffix.begin(), suffix.end());
 
 				    PEIdent obuf_id (obuf_path, lid->lexical_pos());
 				    obuf_id.set_line(loc);
@@ -8288,14 +8287,11 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 				    NetAssign_*raw_lv = raw_id.elaborate_lval(des, scope,
 								      false, false, false);
 				    if (raw_lv == 0) return 0;
-				    /* A clockvar is one variable for NBA ordering.  A
-				       member write changes the selected bits in its
-				       output buffer, then schedules the complete raw
-				       clockvar from that updated buffer.  Besides being
-				       the LRM ordering model, this avoids turning a
-				       packed member into an independently scheduled
-				       class-property NBA. */
-				    PEIdent obuf_rd_id (obuf_full_path, lid->lexical_pos());
+				    /* Preserve a member/select destination through the NBA.
+				       Reading and assigning the complete buffer here would
+				       overwrite every untouched raw bit with the buffer's
+				       uninitialized value. */
+				    PEIdent obuf_rd_id (obuf_path, lid->lexical_pos());
 				    obuf_rd_id.set_line(loc);
 				    NetExpr*obuf_rd = obuf_rd_id.elaborate_expr(des, scope, 0u, 0u);
 				    if (obuf_rd == 0) return 0;
@@ -8307,7 +8303,7 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 				    NetAssign_*opend_lv = opend_id.elaborate_lval(des, scope,
 									  false, false, false);
 				    if (opend_lv == 0) return 0;
-				    verinum one_v (verinum::V1, 1);
+				    verinum one_v (verinum::V1, opend_lv->lwidth());
 				    NetEConst*one = new NetEConst(one_v);
 				    one->set_line(loc);
 				    NetAssign*mark = new NetAssign(opend_lv, one);
@@ -8408,7 +8404,7 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 		  direct->set_delay(dly);
       }
 
-      verinum one_v (verinum::V1, 1);
+      verinum one_v (verinum::V1, opend->vector_width());
       NetEConst*one = new NetEConst(one_v);
       one->set_line(loc);
       NetAssign*mark = new NetAssign(new NetAssign_(opend), one);
@@ -19970,6 +19966,18 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  continue;
 	    }
 
+	      /* The pending state is a bit-for-bit write-enable mask. A member
+		 drive sets only its selected bits, so the apply process cannot
+		 overwrite unrelated fields of the raw clockvar. */
+	    for (NetNet*pend : out_pends) {
+		  verinum zero_v (verinum::V0, pend->vector_width());
+		  NetEConst*zero = new NetEConst(zero_v);
+		  zero->set_line(*cb);
+		  NetAssign*init = new NetAssign(new NetAssign_(pend), zero);
+		  init->set_line(*cb);
+		  prologue->append(init);
+	    }
+
 	      /* Toggle the tick bit after the sample stores (same NBA
 		 ordering as the named-event trigger below). @(vif.cb)
 		 waits anyedge on this bit through the class handle;
@@ -20074,24 +20082,67 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		 both between-edge drives and same-step drives that raced
 		 the edge:
 		     initial forever @(trig)
-			   if (opend) begin raw <= obuf; opend = 0; end */
+			   for each pending bit raw[bit] <= obuf[bit]
+		 A selected NBA is retained through execution so other fields
+		 updated in the same time slot are merged, not overwritten by
+		 a whole-value snapshot. */
 	    if (!out_raws.empty()) {
 		  NetBlock*apply_blk = new NetBlock(NetBlock::SEQU, 0);
 		  apply_blk->set_line(*cb);
 		  for (size_t idx = 0 ; idx < out_raws.size() ; idx += 1) {
 			NetESignal*pend_rd = new NetESignal(out_pends[idx]);
 			pend_rd->set_line(*cb);
-			NetESignal*buf_rd = new NetESignal(out_bufs[idx]);
-			buf_rd->set_line(*cb);
-			NetAssignNB*drv = new NetAssignNB(new NetAssign_(out_raws[idx]),
-							  buf_rd, 0, 0);
+
+			NetNet*bit_idx = new NetNet(scope, scope->local_symbol(),
+						   NetNet::REG, &netvector_t::atom2s32);
+			bit_idx->local_flag(true);
+			bit_idx->set_line(*cb);
+			NetEConst*init_expr = make_const_val_s(0);
+			init_expr->set_line(*cb);
+			NetESignal*cond_idx = new NetESignal(bit_idx);
+			cond_idx->set_line(*cb);
+			NetEConst*width_expr = make_const_val_s(out_raws[idx]->vector_width());
+			width_expr->set_line(*cb);
+			NetEBComp*loop_cond = new NetEBComp('<', cond_idx, width_expr);
+			loop_cond->set_line(*cb);
+
+			NetAssign_*step_lv = new NetAssign_(bit_idx);
+			NetEConst*step_val = make_const_val_s(1);
+			step_val->set_line(*cb);
+			NetAssign*step = new NetAssign(step_lv, '+', step_val);
+			step->set_line(*cb);
+
+			NetESignal*pend_vec = new NetESignal(out_pends[idx]);
+			pend_vec->set_line(*cb);
+			NetESignal*pend_bit_idx = new NetESignal(bit_idx);
+			pend_bit_idx->set_line(*cb);
+			NetESelect*pend_bit = new NetESelect(pend_vec, pend_bit_idx, 1);
+			pend_bit->set_line(*cb);
+
+			NetAssign_*raw_bit = new NetAssign_(out_raws[idx]);
+			NetESignal*raw_bit_idx = new NetESignal(bit_idx);
+			raw_bit_idx->set_line(*cb);
+			raw_bit->set_part(raw_bit_idx, 1);
+			NetESignal*buf_vec = new NetESignal(out_bufs[idx]);
+			buf_vec->set_line(*cb);
+			NetESignal*buf_bit_idx = new NetESignal(bit_idx);
+			buf_bit_idx->set_line(*cb);
+			NetESelect*buf_bit = new NetESelect(buf_vec, buf_bit_idx, 1);
+			buf_bit->set_line(*cb);
+			NetAssignNB*drv = new NetAssignNB(raw_bit, buf_bit, 0, 0);
 			drv->set_line(*cb);
 			  /* Output skew (14.4): land #d after the event. */
 			if (PExpr*od = cb->output_skew_delay(out_names[idx])) {
 			      if (NetExpr*dly = elaborate_delay_expr(od, des, scope))
 				    drv->set_delay(dly);
 			}
-			verinum zero_v (verinum::V0, 1);
+			NetCondit*drive_bit = new NetCondit(pend_bit, drv, 0);
+			drive_bit->set_line(*cb);
+			NetForLoop*drive_bits = new NetForLoop(bit_idx, init_expr,
+							loop_cond, drive_bit, step);
+			drive_bits->set_line(*cb);
+
+			verinum zero_v (verinum::V0, out_pends[idx]->vector_width());
 			NetEConst*zero = new NetEConst(zero_v);
 			zero->set_line(*cb);
 			NetAssign*clr = new NetAssign(new NetAssign_(out_pends[idx]),
@@ -20099,7 +20150,7 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 			clr->set_line(*cb);
 			NetBlock*hit = new NetBlock(NetBlock::SEQU, 0);
 			hit->set_line(*cb);
-			hit->append(drv);
+			hit->append(drive_bits);
 			hit->append(clr);
 			NetCondit*cond = new NetCondit(pend_rd, hit, 0);
 			cond->set_line(*cb);
