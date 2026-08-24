@@ -1119,9 +1119,8 @@ static NetExpr* make_array_unique_expr_(
       return fn;
 }
 
-/* Phase 63b/B1 (real impl): build a NetESFunc that the tgt-vvp side
- * lowers to an inline queue-walking loop applying the with-clause
- * predicate per element.
+/* Build a NetESFunc that the tgt-vvp side lowers to an inline array-walking
+ * loop applying the with-clause predicate per element.
  *
  * Approach: at elab, allocate a hidden NetNet `item' (or whatever the
  * user-named iter is) of the queue's element type in the enclosing
@@ -1131,8 +1130,14 @@ static NetExpr* make_array_unique_expr_(
  * queue-of-int for *_index variants) to serve as the accumulator.
  * Wrap as
  *   NetESFunc("$ivl_queue_method$find_with|<kind>", ...)
- * with parm[0] = queue, parm[1] = NetESignal(iter NetNet),
- * parm[2] = NetESignal(result NetNet), parm[3] = predicate.
+ * with parm[0] = array, parm[1] = NetESignal(iter NetNet),
+ * parm[2] = NetESignal(result NetNet), parm[3] = canonical index and
+ * parm[4] = predicate. A fixed-array class property has no standalone
+ * signal label, so it is evaluated once into a hidden dynamic-array receiver
+ * (parm[5]). Parms[6:8] then carry its declared index signal, the
+ * low+canonical-index expression, and declared direction. This keeps
+ * item.index and the find_first/find_last edge tied to the declared range
+ * while the runtime storage remains canonical low-address first.
  * tgt-vvp recognizes the mangled name and emits the loop bytecode.
  *
  * Returns nullptr if the predicate fails to elaborate.
@@ -1177,11 +1182,24 @@ static NetExpr* make_queue_locator_with_expr_(
 	    }
       }
 
+      const netuarray_t*fixed_type =
+	    dynamic_cast<const netuarray_t*>(container_type);
+      const bool fixed_property = fixed_type
+	    && !dynamic_cast<NetESignal*>(queue_expr);
       NetNet*recv_net = 0;
-      if (!dynamic_cast<NetESignal*>(queue_expr)) {
-	    recv_net = make_array_method_recv_net_(call, des, scope,
-						   queue_expr,
-						   container_type, kind);
+      if (fixed_property) {
+	      /* NetEProperty cannot be indexed directly by the target's array
+	       * loop. Materialize the complete property value exactly once. The
+	       * property evaluator preserves integral, real, string and class
+	       * element representations in the temporary dynamic array. */
+	    ivl_type_t recv_type = new netdarray_t(element_type);
+	    recv_net = new NetNet(scope, scope->local_symbol(),
+			     NetNet::REG, recv_type);
+	    recv_net->set_line(*call);
+	    recv_net->local_flag(true);
+      } else if (!dynamic_cast<NetESignal*>(queue_expr)) {
+	    recv_net = make_array_method_recv_net_(
+		  call, des, scope, queue_expr, container_type, kind);
 	    if (!recv_net)
 		  return nullptr;
       }
@@ -1226,6 +1244,31 @@ static NetExpr* make_queue_locator_with_expr_(
       idx_net->set_line(*call);
       idx_net->local_flag(true);
 
+      NetNet*visible_idx_net = idx_net;
+      NetExpr*declared_idx_expr = 0;
+      NetExpr*fixed_desc_expr = 0;
+      if (fixed_property) {
+	    visible_idx_net = new NetNet(scope, scope->local_symbol(),
+				    NetNet::REG,
+				    &netvector_t::atom2s32);
+	    visible_idx_net->set_line(*call);
+	    visible_idx_net->local_flag(true);
+
+	    const netrange_t&range = fixed_type->static_dimensions().front();
+	    long low = std::min(range.get_msb(), range.get_lsb());
+	    NetESignal*canonical_ref = new NetESignal(idx_net);
+	    canonical_ref->set_line(*call);
+	    NetEConst*low_ref = make_const_val_s(low);
+	    low_ref->set_line(*call);
+	    declared_idx_expr = new NetEBAdd(
+		  '+', canonical_ref, low_ref, 32, true);
+	    declared_idx_expr->set_line(*call);
+
+	    fixed_desc_expr = make_const_val(
+		  range.get_msb() > range.get_lsb() ? 1 : 0);
+	    fixed_desc_expr->set_line(*call);
+      }
+
       /* Elaborate the predicate.  PEIdent(iter_name) resolves to
        * iter_net via symbol_search in the enclosing scope.
        * Use elab_and_eval with self-determined context width so
@@ -1235,7 +1278,7 @@ static NetExpr* make_queue_locator_with_expr_(
       if (!pred_pe)
             return nullptr;
       NetNet*prev_bind = scope->set_signal_alias(iter_name, iter_net);
-      push_array_method_iter_ctx(iter_net, idx_net);
+      push_array_method_iter_ctx(iter_net, visible_idx_net);
       NetExpr*pred_expr = elab_and_eval(des, scope, pred_pe, -1, false);
       pop_array_method_iter_ctx();
       scope->restore_signal_alias(iter_name, prev_bind);
@@ -1250,7 +1293,7 @@ static NetExpr* make_queue_locator_with_expr_(
        *   4: predicate */
       string mangled = string("$ivl_queue_method$find_with|") + kind;
       NetESFunc*fn = new NetESFunc(mangled.c_str(), result_qtype,
-				   recv_net ? 6 : 5);
+				   fixed_property ? 9 : (recv_net ? 6 : 5));
       fn->parm(0, queue_expr);
       NetESignal*iter_ref = new NetESignal(iter_net);
       iter_ref->set_line(*call);
@@ -1266,6 +1309,13 @@ static NetExpr* make_queue_locator_with_expr_(
 	    NetESignal*recv_ref = new NetESignal(recv_net);
 	    recv_ref->set_line(*call);
 	    fn->parm(5, recv_ref);
+      }
+      if (fixed_property) {
+	    NetESignal*visible_idx_ref = new NetESignal(visible_idx_net);
+	    visible_idx_ref->set_line(*call);
+	    fn->parm(6, visible_idx_ref);
+	    fn->parm(7, declared_idx_expr);
+	    fn->parm(8, fixed_desc_expr);
       }
       fn->set_line(*call);
       return fn;
@@ -14274,13 +14324,22 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		  return 0;
 	    }
 
-	      /* The runtime fixed-array loop uses canonical word indexes.
-	       * Until it carries a separate declared-index iterator, only a
-	       * zero-based one-dimensional range can implement item.index and
-	       * *_index results without lying about the declared index. */
+	      /* Direct fixed signals retain the historical vector-only and
+	       * zero-base boundary. A whole fixed-array class property is instead
+	       * materialized into a typed dynamic-array temporary by the locator
+	       * helper below, with explicit declared-index and direction payloads.
+	       * That path supports the scalar/object element categories faithfully
+	       * represented by the property materializer. */
 	    if (is_array_locator_name_(method_name)) {
 		  ivl_variable_type_t base_type = element_type->base_type();
-		  if (base_type != IVL_VT_BOOL && base_type != IVL_VT_LOGIC) {
+		  bool direct_fixed =
+			dynamic_cast<NetESignal*>(sub_expr) != nullptr;
+		  bool property_element_supported =
+			base_type == IVL_VT_BOOL || base_type == IVL_VT_LOGIC
+			|| base_type == IVL_VT_REAL || base_type == IVL_VT_STRING
+			|| base_type == IVL_VT_CLASS;
+		  if (direct_fixed
+		      && base_type != IVL_VT_BOOL && base_type != IVL_VT_LOGIC) {
 			cerr << get_fileline() << ": sorry: " << method_name
 			     << "() on fixed-size arrays of non-integral "
 				"elements is not yet implemented." << endl;
@@ -14288,8 +14347,17 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 			delete sub_expr;
 			return 0;
 		  }
+		  if (!direct_fixed && !property_element_supported) {
+			cerr << get_fileline() << ": sorry: " << method_name
+			     << "() on a fixed-size array class property of this "
+				"element type is not yet implemented." << endl;
+			des->errors += 1;
+			delete sub_expr;
+			return 0;
+		  }
 		  const netrange_t&dim = uarray->static_dimensions().front();
-		  if (std::min(dim.get_msb(), dim.get_lsb()) != 0) {
+		  if (direct_fixed
+		      && std::min(dim.get_msb(), dim.get_lsb()) != 0) {
 			cerr << get_fileline() << ": sorry: " << method_name
 			     << "() on fixed-size arrays with a nonzero "
 				"declared index base is not yet implemented." << endl;
