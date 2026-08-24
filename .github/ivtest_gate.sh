@@ -76,7 +76,8 @@ fi
 echo ""
 echo "=== VVP runtime invariants ==="
 runtime_vvp=$(command -v vvp 2>/dev/null || true)
-if [ -z "$runtime_vvp" ] \
+runtime_iverilog=$(command -v iverilog 2>/dev/null || true)
+if [ -z "$runtime_vvp" ] || [ -z "$runtime_iverilog" ] \
    || ! VVP="$runtime_vvp" \
         bash tests/vvp_runtime/run_rand_mode_stack_underflow.sh \
         > "$WORK/vvp-runtime.log" 2>&1 \
@@ -85,6 +86,9 @@ if [ -z "$runtime_vvp" ] \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! VVP="$runtime_vvp" \
         bash tests/vvp_runtime/run_covgrp_metadata.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! IVERILOG="$runtime_iverilog" VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_covgrp_options_report.sh \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! VVP="$runtime_vvp" \
         bash tests/vvp_runtime/run_vif_indexed_wait_malformed.sh \

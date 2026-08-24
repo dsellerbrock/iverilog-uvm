@@ -30,6 +30,10 @@ module top;
     a = 1; b = 0; c1.sample();   // cp_a bin1 count 1 (below at_least 2)
     a = 3; b = 1; c2.sample();   // second instance: type-merge only
     wr.v = 2; wr.wcg.sample();
+    c1.cp_a.option.at_least = 1;
+    c1.cp_a.option.weight = 5;
+    c1.axb.option.at_least = 0;
+    c1.axb.option.weight = 7;
     $m12cd_probe;
     $finish(0);
   end

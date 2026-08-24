@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_covergroup_procedural_item_options_unsupported.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_covergroup_procedural_item_options_unsupported"
+}

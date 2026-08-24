@@ -1116,7 +1116,8 @@ class __vpiCovBin : public __vpiHandle {
 		  return (int)defn_->type_count(prop_);
 		case vpiCoverAtLeast:
 		  if (item_ < defn_->covgrp_item_count())
-			return (int)defn_->covgrp_item(item_).at_least;
+			return (int)defn_->covgrp_item_at_least(
+			      live_cobject_of_(root_), item_);
 		  return 1;
 		case vpiCoverWeight:
 		  if (item_ < defn_->covgrp_item_count())
@@ -1163,7 +1164,8 @@ class __vpiCovItem : public __vpiHandle {
 	    switch (code) {
 		case vpiCoverAtLeast:
 		  if (item_ < defn_->covgrp_item_count())
-			return (int)defn_->covgrp_item(item_).at_least;
+			return (int)defn_->covgrp_item_at_least(
+			      live_cobject_of_(root_), item_);
 		  return 1;
 		case vpiCoverWeight:
 		  if (item_ < defn_->covgrp_item_count())
@@ -1202,7 +1204,7 @@ class __vpiCovItem : public __vpiHandle {
 	    if (cobj && !props.empty()) {
 		  unsigned at_least = 1;
 		  if (item_ < defn_->covgrp_item_count())
-			at_least = defn_->covgrp_item(item_).at_least;
+			at_least = defn_->covgrp_item_at_least(cobj, item_);
 		  unsigned hits = 0;
 		  for (size_t i = 0 ; i < props.size() ; i += 1)
 			if (cov_prop_count_(cobj, props[i]) >= at_least)

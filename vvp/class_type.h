@@ -253,6 +253,8 @@ class class_type : public __vpiHandle {
 	    unsigned at_least = 1;
 	    unsigned weight = 1;
 	    std::string weight_ir;
+	    int at_least_prop = -1;
+	    int weight_prop = -1;
 	    bool is_cross = false;
 	    std::string name;   // M12-7: coverpoint/cross label
 	    int iff_src = -1;   // parent property for event-driven cross iff
@@ -291,6 +293,12 @@ class class_type : public __vpiHandle {
 	it.name = name;
 	it.iff_src = iff_src;
 	covgrp_items_.push_back(it); }
+      bool set_covgrp_item_option_props(size_t idx, int at_least_prop,
+					 int weight_prop)
+      { if (idx >= covgrp_items_.size()) return false;
+	covgrp_items_[idx].at_least_prop = at_least_prop;
+	covgrp_items_[idx].weight_prop = weight_prop;
+	return true; }
       size_t covgrp_bin_count() const { return covgrp_bins_.size(); }
       const cov_bin_t& covgrp_bin(size_t idx) const { return covgrp_bins_[idx]; }
       void add_covgrp_dyn_bin(unsigned cp, unsigned item, unsigned kind,
@@ -309,11 +317,17 @@ class class_type : public __vpiHandle {
       { return covgrp_dyn_bins_[idx]; }
       size_t covgrp_item_count() const { return covgrp_items_.size(); }
       const cov_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
+      unsigned covgrp_item_at_least(class vvp_cobject*obj, size_t idx) const;
       unsigned covgrp_item_weight(class vvp_cobject*obj, size_t idx) const;
+	// Initialize constant/default at_least and weight slots after constructor
+	// formals are stored, so a constructor-dependent weight expression is
+	// evaluated against the completed instance.
+      void covgrp_init_options(class vvp_cobject*obj) const;
       bool covgrp_eval_ir(class vvp_cobject*obj, const std::string&ir,
 			  uint64_t&value) const;
       bool is_covergroup() const
-      { return !covgrp_bins_.empty() || !covgrp_dyn_bins_.empty(); }
+      { return !covgrp_items_.empty() || !covgrp_bins_.empty()
+	    || !covgrp_dyn_bins_.empty(); }
 
 	// M11: TYPE-level (merged across all instances) hit counters
 	// indexed by counter property, and the type coverage computed
@@ -342,12 +356,11 @@ class class_type : public __vpiHandle {
       static void covgrp_register(const class_type*ct);
       static void covgrp_report(FILE*fd);
 
-	// M11-3: event-driven sampling of class-embedded covergroup
-	// instances. The parent-handle property links each covergroup
-	// object back to its containing object; per-coverpoint source
-	// and guard property indexes name the PARENT properties the
-	// event process reads; the live-instance list is walked by
-	// %covgrp/sample/all.
+	// M11-3: all live covergroup instances are registered for cumulative
+	// option semantics. For event-driven class-embedded covergroups, the
+	// same list is walked by %covgrp/sample/all; the parent-handle property
+	// links each covergroup object to the containing object whose source and
+	// guard properties the event process reads.
       void set_covgrp_parent_prop(int p) { covgrp_parent_prop_ = p; }
       int covgrp_parent_prop() const { return covgrp_parent_prop_; }
       void add_covgrp_src(int srcprop, int guardsrc)
@@ -358,14 +371,8 @@ class class_type : public __vpiHandle {
       int covgrp_guardsrc(size_t cp) const
       { return cp < covgrp_guardsrcs_.size() ? covgrp_guardsrcs_[cp] : -1; }
       size_t covgrp_src_count() const { return covgrp_srcprops_.size(); }
-      void covgrp_live_add(class vvp_cobject*obj) const
-      { covgrp_live_.push_back(obj); }
-      void covgrp_live_remove(class vvp_cobject*obj) const
-      { for (size_t i = 0; i < covgrp_live_.size(); i += 1)
-	      if (covgrp_live_[i] == obj) {
-		    covgrp_live_.erase(covgrp_live_.begin() + (long)i);
-		    return;
-	      } }
+      void covgrp_live_add(class vvp_cobject*obj) const;
+      void covgrp_live_remove(class vvp_cobject*obj) const;
       const std::vector<class vvp_cobject*>& covgrp_live() const
       { return covgrp_live_; }
 
@@ -380,6 +387,11 @@ class class_type : public __vpiHandle {
       std::vector<int> covgrp_srcprops_;
       std::vector<int> covgrp_guardsrcs_;
       mutable std::vector<class vvp_cobject*> covgrp_live_;
+      mutable std::vector<unsigned> covgrp_retired_at_least_;
+      mutable bool covgrp_has_retired_options_ = false;
+
+      unsigned covgrp_decl_weight_(class vvp_cobject*obj, size_t idx) const;
+      unsigned covgrp_cumulative_at_least_(size_t idx) const;
 };
 
 const class_type* class_type_from_dispatch_prefix(const std::string&prefix);

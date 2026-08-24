@@ -515,6 +515,11 @@ static int eval_class_new(ivl_expr_t ex)
 		  }
 	    }
       }
+	/* The object remains on the object stack after the constructor-formal
+	 * stores. Initialize constant/default at_least and weight slots now; a
+	 * constructor-dependent weight expression then sees the final formals. */
+	if (ivl_type_covgrp_items(class_type) > 0)
+	      fprintf(vvp_out, "    %%covgrp/options/init;\n");
       return 0;
 }
 

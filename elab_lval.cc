@@ -2813,13 +2813,43 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			    return 0;
 		      }
 
-		      // Start with the first component of the member path...
-		    perm_string method_name = peek_head_name(member_path);
-	      // Pull that component from the member_path. We need to
+	      // Pull the first component from the member_path. We need to
 	      // know the current member being worked on, and will
 	      // need to know if there are more members to be worked on.
 	    name_component_t member_cur = member_path.front();
 	    member_path.pop_front();
+
+	      // IEEE 1800-2023 19.5/19.7.1: coverpoint and cross labels form
+	      // pseudo hierarchy under a covergroup instance. Rewrite the two
+	      // supported mutable item options to the synthesized scalar slot on
+	      // this particular covergroup object before ordinary property lookup.
+	    if (owner_class && owner_class->is_covergroup()
+		&& member_cur.index.empty() && member_path.size() >= 2) {
+		  const name_component_t&option_comp = member_path.front();
+		  auto value_it = member_path.begin();
+		  ++value_it;
+		  const name_component_t&value_comp = *value_it;
+		  if (option_comp.name == perm_string::literal("option")
+		      && option_comp.index.empty() && value_comp.index.empty()) {
+			int option_prop = owner_class->covgrp_item_option_prop(
+			      member_cur.name, value_comp.name);
+			if (option_prop >= 0) {
+			      member_cur.name = lex_strings.make(owner_class->get_prop_name(
+				    static_cast<size_t>(option_prop)));
+			      member_path.pop_front();
+			      member_path.pop_front();
+			} else if (owner_class->has_covgrp_item(member_cur.name)) {
+			      cerr << get_fileline() << ": sorry: procedural write of "
+				   << "coverpoint/cross option `" << member_cur.name
+				   << ".option." << value_comp.name
+				   << "' is not supported; only option.at_least and "
+				   << "option.weight are implemented." << endl;
+			      des->errors += 1;
+			      return 0;
+			}
+		  }
+	    }
+	    perm_string method_name = member_cur.name;
 
 	    if (debug_elaborate) {
 		  cerr << get_fileline() << ": PEIdent::elaborate_lval_net_class_member_: "

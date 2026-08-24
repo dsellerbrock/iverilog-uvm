@@ -140,6 +140,5 @@ SRC=(
   opentitan/hw/ip/uart/dv/tb/tb.sv
 )
 
-ulimit -v 3000000
 exec "$IVERILOG" -g2012 -DUVM_NO_DPI -DUVM -DICARUS \
   "${INC_DIRS[@]}" -o "$OUT" "${SRC[@]}"

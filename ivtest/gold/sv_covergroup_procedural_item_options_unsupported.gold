@@ -1,0 +1,8 @@
+sorry: covergroup option 'at_least' is not a constant; using default 1.
+./ivltests/sv_covergroup_procedural_item_options_unsupported.v:37: sorry: procedural read of coverpoint/cross option `cp.option.goal' is not supported; only option.at_least and option.weight are implemented.
+./ivltests/sv_covergroup_procedural_item_options_unsupported.v:38: sorry: procedural read of coverpoint/cross option `cp.option.comment' is not supported; only option.at_least and option.weight are implemented.
+./ivltests/sv_covergroup_procedural_item_options_unsupported.v:39: sorry: procedural read of coverpoint/cross option `cp.option.bogus' is not supported; only option.at_least and option.weight are implemented.
+./ivltests/sv_covergroup_procedural_item_options_unsupported.v:40: sorry: procedural write of coverpoint/cross option `cp.option.goal' is not supported; only option.at_least and option.weight are implemented.
+./ivltests/sv_covergroup_procedural_item_options_unsupported.v:41: sorry: procedural write of coverpoint/cross option `cp.option.comment' is not supported; only option.at_least and option.weight are implemented.
+./ivltests/sv_covergroup_procedural_item_options_unsupported.v:42: sorry: procedural write of coverpoint/cross option `cp.option.bogus' is not supported; only option.at_least and option.weight are implemented.
+6 error(s) during elaboration.

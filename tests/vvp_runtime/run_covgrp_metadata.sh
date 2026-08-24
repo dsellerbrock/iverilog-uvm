@@ -7,8 +7,10 @@ vvp=${VVP:-$repo_dir/vvp/vvp}
 boundary=tests/vvp_runtime/covgrp_metadata_boundary.vvp
 malformed=tests/vvp_runtime/covgrp_metadata_malformed.vvp
 sample_malformed=tests/vvp_runtime/covgrp_sample_malformed.vvp
+options_malformed=tests/vvp_runtime/covgrp_options_malformed.vvp
 expected=$script_dir/covgrp_metadata_malformed.stderr
 sample_expected=$script_dir/covgrp_sample_malformed.stderr
+options_expected=$script_dir/covgrp_options_malformed.stderr
 work_dir=$(mktemp -d "${TMPDIR:-/tmp}/covgrp-metadata.XXXXXX")
 trap 'rm -rf "$work_dir"' EXIT HUP INT TERM
 
@@ -57,4 +59,20 @@ if ! cmp -s "$work_dir/sample-expected-normalized" \
     exit 1
 fi
 
-echo "PASS covergroup transition metadata bounds (5/5)"
+"$vvp" "$options_malformed" > "$work_dir/options.stdout" \
+    2> "$work_dir/options.stderr"
+if [ -s "$work_dir/options.stdout" ]; then
+    echo "FAIL covergroup metadata: expected empty options stdout" >&2
+    exit 1
+fi
+tr -d '\r' < "$options_expected" > "$work_dir/options-expected-normalized"
+tr -d '\r' < "$work_dir/options.stderr" > "$work_dir/options-stderr-normalized"
+if ! cmp -s "$work_dir/options-expected-normalized" \
+          "$work_dir/options-stderr-normalized"; then
+    echo "FAIL covergroup metadata: options stderr mismatch" >&2
+    diff -u "$work_dir/options-expected-normalized" \
+        "$work_dir/options-stderr-normalized" >&2 || true
+    exit 1
+fi
+
+echo "PASS covergroup transition/option metadata bounds (12/12)"

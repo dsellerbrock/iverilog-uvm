@@ -40,9 +40,10 @@ vvp_cobject::vvp_cobject(const class_type*defn)
       if (union_width)
 	    union_vec4_ = new vvp_vector4_t(
 		  union_width, defn_->union_is_four_state() ? BIT4_X : BIT4_0);
-	// M11-3: covergroup instances with a declaration sampling
-	// event register so %covgrp/sample/all can walk them.
-      if (defn->covgrp_parent_prop() >= 0)
+	// Keep every live covergroup instance registered. Event-driven sampling
+	// walks the relevant type's list, and cumulative coverage needs the live
+	// instances' effective option.at_least values.
+	if (defn->is_covergroup())
 	    defn->covgrp_live_add(this);
 }
 
@@ -752,7 +753,7 @@ void vvp_cobject::randc_container_unmark(size_t pid, size_t position,
 
 vvp_cobject::~vvp_cobject()
 {
-      if (defn_->covgrp_parent_prop() >= 0)
+	if (defn_->is_covergroup())
 	    defn_->covgrp_live_remove(this);
 
       defn_->instance_delete(properties_);

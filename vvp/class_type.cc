@@ -27,6 +27,7 @@
 # include  "vvp_net.h"
 # include  "vvp_net_sig.h"
 # include  "config.h"
+# include  <cstddef>
 # include  <cinttypes>
 # include  <cctype>
 # include  <cstdlib>
@@ -2497,13 +2498,61 @@ void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
 			       uint64_t guardsrc)
 {
       assert(compile_class);
+	// Validate every narrowing conversion before retaining public VVP
+	// metadata. The mutable option-property references arrive in a separate
+	// tagged record so they cannot be parsed as the next numeric property.
+      const uint64_t uint_max = std::numeric_limits<unsigned>::max();
+      const uint64_t int_max = std::numeric_limits<int>::max();
+      bool bad = at_least > uint_max || weight > uint_max
+	    || is_cross > 1 || guardsrc > int_max + 1;
+      if (bad) {
+	    yyerror("invalid .covgrp_item metadata value");
+	    free(name);
+	    free(weight_ir);
+	    return;
+      }
       compile_class->add_covgrp_item((unsigned)at_least, (unsigned)weight,
 			     is_cross != 0,
-			     name ? std::string(name) : std::string(),
-			     weight_ir ? std::string(weight_ir) : std::string(),
-			     guardsrc ? (int)guardsrc - 1 : -1);
+		     name ? std::string(name) : std::string(),
+		     weight_ir ? std::string(weight_ir) : std::string(),
+		     guardsrc ? static_cast<int>(guardsrc - 1) : -1);
       free(name);
       free(weight_ir);
+}
+
+void compile_class_covgrp_item_options(uint64_t item_idx,
+				       uint64_t at_least_prop,
+				       uint64_t weight_prop)
+{
+      assert(compile_class);
+	// Property indexes are biased by +1 (zero means absent). Besides bounds,
+	// require the scalar 32-bit non-static shape consumed by get/set_vec4;
+	// otherwise a malicious hand-written VVP stream could select a string,
+	// object, array, or static property and reach the wrong storage accessor.
+      const uint64_t size_max = std::numeric_limits<size_t>::max();
+      const uint64_t int_max = std::numeric_limits<int>::max();
+      bool bad = item_idx > size_max || at_least_prop > int_max + 1
+	    || weight_prop > int_max + 1;
+      int at_prop = -1;
+      int wt_prop = -1;
+      if (!bad) {
+	    at_prop = at_least_prop ? (int)(at_least_prop - 1) : -1;
+	    wt_prop = weight_prop ? (int)(weight_prop - 1) : -1;
+      }
+      auto valid_property = [&](int prop) {
+	    return prop < 0
+		  || ((size_t)prop < compile_class->property_count()
+		      && compile_class->property_vec4_width((size_t)prop) == 32
+		      && compile_class->property_array_size((size_t)prop) == 1
+		      && !compile_class->property_is_static((size_t)prop));
+      };
+      if (!bad)
+	    if (!valid_property(at_prop) || !valid_property(wt_prop)
+		|| !compile_class->set_covgrp_item_option_props(
+		      static_cast<size_t>(item_idx), at_prop, wt_prop))
+		  bad = true;
+      if (bad)
+	    yyerror("invalid .covgrp_item_options metadata value");
 }
 
 /* M11-3: event-driven sampling metadata. The .covgrp_src property
@@ -2644,7 +2693,7 @@ class covgrp_ir_eval_t {
       size_t pos_;
 };
 
-unsigned class_type::covgrp_item_weight(vvp_cobject*obj, size_t idx) const
+unsigned class_type::covgrp_decl_weight_(vvp_cobject*obj, size_t idx) const
 {
       if (idx >= covgrp_items_.size()) return 1;
       const cov_item_t&item = covgrp_items_[idx];
@@ -2655,6 +2704,106 @@ unsigned class_type::covgrp_item_weight(vvp_cobject*obj, size_t idx) const
       if (val > numeric_limits<unsigned>::max())
 	    return numeric_limits<unsigned>::max();
       return (unsigned)val;
+}
+
+static unsigned covgrp_option_prop_value_(const class_type*defn,
+					  vvp_cobject*obj, int prop,
+					  unsigned fallback)
+{
+      if (!obj || obj->get_defn() != defn || prop < 0
+	  || (size_t)prop >= defn->property_count())
+	    return fallback;
+
+      vvp_vector4_t value;
+      obj->get_vec4((size_t)prop, value);
+      uint64_t bits = 0;
+      for (unsigned idx = 0; idx < value.size() && idx < 32; idx += 1) {
+	    vvp_bit4_t bit = value.value(idx);
+	    if (bit == BIT4_X || bit == BIT4_Z)
+		  return fallback;
+	    if (bit == BIT4_1)
+		  bits |= (uint64_t)1 << idx;
+      }
+      return (unsigned)bits;
+}
+
+unsigned class_type::covgrp_item_at_least(vvp_cobject*obj, size_t idx) const
+{
+      if (idx >= covgrp_items_.size()) return 1;
+      const cov_item_t&item = covgrp_items_[idx];
+      return covgrp_option_prop_value_(this, obj, item.at_least_prop,
+					item.at_least);
+}
+
+unsigned class_type::covgrp_item_weight(vvp_cobject*obj, size_t idx) const
+{
+      if (idx >= covgrp_items_.size()) return 1;
+      const cov_item_t&item = covgrp_items_[idx];
+      unsigned declared = covgrp_decl_weight_(obj, idx);
+      return covgrp_option_prop_value_(this, obj, item.weight_prop, declared);
+}
+
+unsigned class_type::covgrp_cumulative_at_least_(size_t idx) const
+{
+      if (idx >= covgrp_items_.size()) return 1;
+
+      unsigned maximum = idx < covgrp_retired_at_least_.size()
+	    ? covgrp_retired_at_least_[idx] : 0;
+      bool found = covgrp_has_retired_options_;
+      for (vvp_cobject*obj : covgrp_live_) {
+	    // The destructor removes dead instances. Retain defensive checks
+	    // because the same live registry drives event sampling.
+	    if (!obj || obj->get_defn() != this) continue;
+	    maximum = std::max(maximum, covgrp_item_at_least(obj, idx));
+	    found = true;
+      }
+      return found ? maximum : covgrp_items_[idx].at_least;
+}
+
+void class_type::covgrp_live_add(vvp_cobject*obj) const
+{
+      if (obj && obj->get_defn() == this)
+	    covgrp_live_.push_back(obj);
+}
+
+void class_type::covgrp_live_remove(vvp_cobject*obj) const
+{
+      if (obj && obj->get_defn() == this) {
+	    if (covgrp_retired_at_least_.size() < covgrp_items_.size())
+		  covgrp_retired_at_least_.resize(covgrp_items_.size(), 0);
+	    for (size_t idx = 0; idx < covgrp_items_.size(); idx += 1)
+		  covgrp_retired_at_least_[idx] = std::max(
+			covgrp_retired_at_least_[idx],
+			covgrp_item_at_least(obj, idx));
+	    covgrp_has_retired_options_ = true;
+      }
+
+      for (size_t idx = 0; idx < covgrp_live_.size(); idx += 1)
+	    if (covgrp_live_[idx] == obj) {
+		  covgrp_live_.erase(covgrp_live_.begin()
+			+ static_cast<std::ptrdiff_t>(idx));
+		  return;
+	    }
+}
+
+void class_type::covgrp_init_options(vvp_cobject*obj) const
+{
+      if (!obj || obj->get_defn() != this) return;
+
+      auto store = [&](int prop, unsigned value) {
+	    if (prop < 0 || (size_t)prop >= property_count()) return;
+	    vvp_vector4_t bits(32, BIT4_0);
+	    for (unsigned idx = 0; idx < 32; idx += 1)
+		  if (value & ((uint64_t)1 << idx))
+			bits.set_bit(idx, BIT4_1);
+	    obj->set_vec4((size_t)prop, bits);
+      };
+
+      for (size_t idx = 0; idx < covgrp_items_.size(); idx += 1) {
+	    const cov_item_t&item = covgrp_items_[idx];
+	    store(item.at_least_prop, item.at_least);
+	    store(item.weight_prop, covgrp_decl_weight_(obj, idx));
+      }
 }
 
 bool class_type::covgrp_eval_ir(vvp_cobject*obj, const string&ir,
@@ -2755,10 +2904,13 @@ unsigned class_type::covgrp_trans_family_item(unsigned family) const
       return 0;
 }
 
-double class_type::type_coverage(vvp_cobject*context) const
+double class_type::type_coverage(vvp_cobject*) const
 {
 	// Same per-item weighted model as instance coverage, computed
-	// over the type-level counters.
+	// over the type-level counters. Until the complete 19.11.3
+	// merge_instances/type_option model is represented, use stable
+	// declaration weights rather than making this static result depend on
+	// which instance happened to invoke get_coverage().
       std::map<unsigned, std::set<unsigned>> item_props;
 	std::map<unsigned,uint64_t> item_trans_total;
 	std::map<unsigned,uint64_t> item_trans_hits;
@@ -2770,13 +2922,14 @@ double class_type::type_coverage(vvp_cobject*context) const
 	    if (k == 4 && bin.trans_family != COV_NO_FAMILY) {
 		  if (seen_trans_families.insert(bin.trans_family).second) {
 			uint64_t total = covgrp_trans_family_size(bin.trans_family);
+			unsigned at_least = bin.item_idx < covgrp_items_.size()
+			      ? covgrp_cumulative_at_least_(bin.item_idx) : 1;
 			item_trans_total[bin.item_idx] = cov_sat_add_(
 			      item_trans_total[bin.item_idx], total);
 			item_trans_hits[bin.item_idx] = cov_sat_add_(
 			      item_trans_hits[bin.item_idx],
-			      dyn_type_hits(bin.trans_family,
-				    bin.item_idx < covgrp_items_.size()
-					? covgrp_items_[bin.item_idx].at_least : 1));
+			      at_least == 0 ? total
+				    : dyn_type_hits(bin.trans_family, at_least));
 		  }
 		  continue;
 	    }
@@ -2790,8 +2943,8 @@ double class_type::type_coverage(vvp_cobject*context) const
 	 for (unsigned item_idx : items) {
 	    unsigned at_least = 1, weight = 1;
 	    if (item_idx < covgrp_items_.size()) {
-		  at_least = covgrp_items_[item_idx].at_least;
-		  weight = covgrp_item_weight(context, item_idx);
+		  at_least = covgrp_cumulative_at_least_(item_idx);
+		  weight = covgrp_items_[item_idx].weight;
 	    }
 	    uint64_t total = item_trans_total[item_idx];
 	    unsigned hits = 0;
@@ -2858,7 +3011,7 @@ void class_type::covgrp_report(FILE*fd)
 		  unsigned at_least = 1, weight = 1;
 		  bool is_cross = false;
 		  if (ip.first < ct->covgrp_items_.size()) {
-			at_least = ct->covgrp_items_[ip.first].at_least;
+			at_least = ct->covgrp_cumulative_at_least_(ip.first);
 			weight = ct->covgrp_items_[ip.first].weight;
 			is_cross = ct->covgrp_items_[ip.first].is_cross;
 		  }
