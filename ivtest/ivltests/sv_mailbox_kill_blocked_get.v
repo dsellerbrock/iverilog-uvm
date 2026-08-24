@@ -13,7 +13,10 @@
 // never resume.
 module sv_mailbox_kill_blocked_get;
 
+  localparam int FINISHED = 0, RUNNING = 1, WAITING = 2, SUSPENDED = 3, KILLED = 4;
+
   mailbox #(int) mbx;
+  process doomed;
   int errors = 0;
   int killed_resumed = 0;
   int got;
@@ -56,6 +59,38 @@ module sv_mailbox_kill_blocked_get;
       chk("message value intact", got, 7);
     end
     chk("mailbox drained", mbx.num(), 0);
+
+    // Same cancellation, reached through a suspended process: kill() on a
+    // process that is BOTH suspended and parked in get() must still unlink it
+    // from the wait queue, so a later put keeps its message.
+    begin
+      automatic int susp_killed_resumed = 0;
+      automatic int susp_v = 0;
+      fork
+        begin
+          doomed = process::self();
+          mbx.get(susp_v);
+          susp_killed_resumed = 1;   // must never execute
+        end
+      join_none
+      #1;
+      doomed.suspend();
+      #1;
+      doomed.kill();
+      #1;
+      chk("killed suspended waiter reports KILLED", doomed.status(), KILLED);
+
+      mbx.put(8);
+      #10;
+      chk("killed suspended waiter stayed dead", susp_killed_resumed, 0);
+      chk("its message survived", mbx.num(), 1);
+      if (!mbx.try_get(got)) begin
+        $display("FAILED: try_get found no message after suspended kill");
+        errors++;
+      end else begin
+        chk("surviving message value", got, 8);
+      end
+    end
 
     if (errors == 0) $display("PASSED");
     else $display("FAILED (%0d errors)", errors);

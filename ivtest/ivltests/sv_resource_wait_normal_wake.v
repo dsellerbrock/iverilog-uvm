@@ -11,6 +11,10 @@ module sv_resource_wait_normal_wake;
   mailbox #(int) bmbx;
   semaphore      sem;
 
+  localparam int FINISHED = 0, RUNNING = 1, WAITING = 2, SUSPENDED = 3, KILLED = 4;
+
+  process susp_p;
+
   int errors = 0;
   int peek_count = 0, get_count = 0, put_count = 0, sem_count = 0;
   int pk, g1, g2, t;
@@ -88,6 +92,41 @@ module sv_resource_wait_normal_wake;
     if (sem.try_get(1)) begin
       $display("FAILED: semaphore still had a key after the waiter took two");
       errors++;
+    end
+
+    // ---- suspend/resume across a resource wait (IEEE 1800-2017 9.7.2) ----
+    // A suspended process is a separate condition from a resource wait, so
+    // `suspended' is deliberately NOT folded into the blocked-on-wait
+    // predicate. This pins the interaction: a wake that arrives while the
+    // waiter is suspended must not run it, and resume() must then deliver it
+    // exactly once rather than re-registering or double-scheduling.
+    begin
+      automatic int susp_runs = 0;
+      automatic int susp_v = 0;
+      mbx.put(0);                  // drain check below wants a known state
+      void'(mbx.try_get(t));
+      fork
+        begin
+          susp_p = process::self();
+          mbx.get(susp_v);
+          susp_runs++;
+        end
+      join_none
+      #1;
+      chk("resource-blocked process reports WAITING", susp_p.status(), WAITING);
+      susp_p.suspend();
+      chk("suspended process reports SUSPENDED", susp_p.status(), SUSPENDED);
+
+      mbx.put(31);                 // wake arrives while the waiter is suspended
+      #1;
+      chk("suspended waiter did not run", susp_runs, 0);
+
+      susp_p.resume();
+      #1;
+      chk("resumed waiter ran exactly once", susp_runs, 1);
+      chk("resumed waiter got its message", susp_v, 31);
+      chk("mailbox drained after resume", mbx.num(), 0);
+      chk("resumed waiter finished", susp_p.status(), FINISHED);
     end
 
     if (errors == 0) $display("PASSED");
