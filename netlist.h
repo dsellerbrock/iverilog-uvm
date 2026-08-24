@@ -2778,15 +2778,6 @@ class NetPartSelect  : public NetNode {
       unsigned width() const;
       inline dir_t dir()   const { return dir_; }
 
-	/* PEventStatement creates a private part-select node when an implicit
-	 * event must observe only the precise bits returned by nex_input().
-	 * Mark that compiler-owned topology explicitly so later sensitivity
-	 * analysis does not confuse an ordinary module-port select with it. */
-      inline void mark_implicit_sensitivity_select()
-	{ implicit_sensitivity_select_ = true; }
-      inline bool is_implicit_sensitivity_select() const
-	{ return implicit_sensitivity_select_; }
-
 	/* Is the select signal signed? */
       inline bool signed_flag() const { return signed_flag_; }
 
@@ -2799,7 +2790,6 @@ class NetPartSelect  : public NetNode {
       unsigned wid_;
       dir_t    dir_;
       bool signed_flag_;
-      bool implicit_sensitivity_select_;
 };
 
 /*

@@ -4,10 +4,11 @@ module precise_implicit_leaf (
   input  logic [7:0] in,
   output logic       parity
 );
-  // Control for the opposite topology: this selected dependency really does
-  // use the private, compiler-generated sensitivity part-select and therefore
-  // must retain the precise unwrapping path.
-  always @* parity = ^in[4:0];
+  // A selected read inside always_comb remains a supported control. Exact
+  // selected-bit wakeup behavior is observed separately by the existing
+  // sv_always_comb_precise_select_sens regression; this synthesis test does
+  // not infer dependency provenance from netlist topology.
+  always_comb parity = ^in[4:0];
 endmodule
 
 module whole_input_star_leaf (
