@@ -13031,9 +13031,48 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 
 		  symbol_search_results obj_sr;
 		  symbol_search(this, des, scope, obj_path, UINT_MAX, &obj_sr);
-		  if (obj_sr.net && obj_sr.path_tail.empty()) {
-			obj_expr = new NetESignal(obj_sr.net);
-			obj_expr->set_line(*this);
+		  if (obj_sr.net) {
+			ivl_type_t obj_type = nullptr;
+			/* Keep the root array index on the class receiver; the
+			 * remaining tail begins with its class/struct property. */
+			if (!obj_sr.path_head.empty()
+			    && !obj_sr.path_head.back().index.empty()) {
+			      obj_expr = elaborate_root_indexed_class_base_expr_(
+				    this, des, scope, obj_sr.net,
+				    obj_sr.path_head.back().index, obj_type);
+			} else {
+			      obj_expr = new NetESignal(obj_sr.net);
+			      obj_expr->set_line(*this);
+			      obj_type = obj_sr.type
+				    ? obj_sr.type : obj_sr.net->net_type();
+			}
+			while (obj_expr && !obj_sr.path_tail.empty()) {
+			      const name_component_t&comp = obj_sr.path_tail.front();
+			      if (const netclass_t*class_walk =
+				  dynamic_cast<const netclass_t*>(obj_type)) {
+				    obj_expr = elaborate_nested_method_target_property(
+					  this, des, scope, obj_expr, class_walk, comp,
+					  obj_type);
+			      } else if (const netstruct_t*struct_walk =
+					 dynamic_cast<const netstruct_t*>(obj_type)) {
+				    unsigned midx = struct_walk->member_index(comp.name);
+				    if (midx >= struct_walk->members().size()
+					|| !comp.index.empty()) {
+					  delete obj_expr;
+					  obj_expr = nullptr;
+				    } else {
+					  NetEProperty*prop = new NetEProperty(
+						obj_expr, midx, nullptr);
+					  prop->set_line(*this);
+					  obj_expr = prop;
+					  obj_type = struct_walk->members()[midx].net_type;
+				    }
+			      } else {
+				    delete obj_expr;
+				    obj_expr = nullptr;
+			      }
+			      obj_sr.path_tail.pop_front();
+			}
 		  } else {
 			PEIdent*obj_id = new PEIdent(obj_path, /*lexical_pos*/0);
 			obj_id->set_file(get_file());
@@ -13044,6 +13083,55 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		  }
 	    }
 	    if (obj_expr) {
+		  const netstruct_t*stype =
+			dynamic_cast<const netstruct_t*>(obj_expr->net_type());
+		  if (stype && !stype->packed()) {
+			unsigned pid = stype->member_index(fname);
+			if (pid >= stype->members().size()) {
+			      cerr << get_fileline() << ": error: Unpacked struct has "
+				   << "no member `" << fname
+				   << "' for rand_mode()." << endl;
+			      des->errors += 1;
+			      delete obj_expr;
+			      NetEConst*zero = new NetEConst(
+				    verinum((uint64_t)0, 1));
+			      zero->set_line(*this);
+			      return zero;
+			}
+			const netstruct_t::member_t&member = stype->members()[pid];
+			if (!member.qualifier.test_rand()
+			    && !member.qualifier.test_randc()) {
+			      cerr << get_fileline() << ": error: Unpacked-struct member `"
+				   << fname << "' is not declared rand or randc."
+				   << endl;
+			      des->errors += 1;
+			      delete obj_expr;
+			      NetEConst*zero = new NetEConst(
+				    verinum((uint64_t)0, 1));
+			      zero->set_line(*this);
+			      return zero;
+			}
+			if (!field_comp.index.empty()) {
+			      cerr << get_fileline() << ": sorry: rand_mode() query on "
+				   << "an indexed unpacked-struct member is not "
+				   << "supported yet." << endl;
+			      des->errors += 1;
+			      delete obj_expr;
+			      NetEConst*zero = new NetEConst(
+				    verinum((uint64_t)0, 1));
+			      zero->set_line(*this);
+			      return zero;
+			}
+			NetEConst*pe = new NetEConst(verinum((uint64_t)pid, 32));
+			pe->set_line(*this);
+			NetESFunc*tmp = new NetESFunc(
+			      "$ivl_class_method$rand_mode_get",
+			      IVL_VT_BOOL, 1, 2);
+			tmp->set_line(*this);
+			tmp->parm(0, obj_expr);
+			tmp->parm(1, pe);
+			return tmp;
+		  }
 		  const netclass_t*ctype =
 			dynamic_cast<const netclass_t*>(obj_expr->net_type());
 		  int pid = ctype ? ctype->property_idx_from_name(fname) : -1;

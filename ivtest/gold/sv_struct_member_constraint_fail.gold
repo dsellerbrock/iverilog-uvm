@@ -1,2 +1,5 @@
-./ivltests/sv_struct_member_constraint_fail.v:11: sorry: constraint reference 'record.value' selects a member of an unpacked-struct property; solving unpacked-struct member constraints is not yet supported.
-1 error(s) during elaboration.
+./ivltests/sv_struct_member_constraint_fail.v:25: sorry: constraint reference 'records[...].value' selects an indexed outer unpacked-struct property; indexed outer struct constraint paths are not supported.
+./ivltests/sv_struct_member_constraint_fail.v:23: sorry: constraint reference 'record.lanes' selects an unsupported unpacked-struct constraint path; only one-level scalar integral or enum members up to 64 bits are supported.
+./ivltests/sv_struct_member_constraint_fail.v:22: sorry: constraint reference 'record.nested' selects an unsupported unpacked-struct constraint path; only one-level scalar integral or enum members up to 64 bits are supported.
+./ivltests/sv_struct_member_constraint_fail.v:24: sorry: constraint reference 'record.wide' selects an unsupported unpacked-struct constraint path; only one-level scalar integral or enum members up to 64 bits are supported.
+4 error(s) during elaboration.

@@ -4597,11 +4597,13 @@ static void collect_unmerged_base_constraints_(const class_type*defn,
 static bool randomize_struct_members_(randomize_graph_session_t&session,
 				      vvp_cobject*subcobj,
 				      const class_type*subdefn,
-				      const std::function<unsigned()>&next_random)
+				      const std::function<unsigned()>&next_random,
+				      vector<vvp_cobject*>*deferred = nullptr)
 {
       if (!subcobj || !subdefn) return true;
       if (!session.enter(subcobj, nullptr)) return true;
       subcobj->randc_transaction_begin();
+      if (deferred) deferred->push_back(subcobj);
 
       bool ok = true;
       for (size_t mpid = 0 ; ok && mpid < subdefn->property_count() ; mpid += 1) {
@@ -4631,7 +4633,7 @@ static bool randomize_struct_members_(randomize_graph_session_t&session,
 			if (vvp_cobject*nested = propobj.peek<vvp_cobject>())
 			      ok = randomize_struct_members_(session, nested,
 						     nested->get_defn(),
-						     next_random);
+						     next_random, deferred);
 		  }
 		  continue;
 	    }
@@ -4688,9 +4690,10 @@ static bool randomize_struct_members_(randomize_graph_session_t&session,
       }
 
       if (!ok) {
-	    subcobj->randc_transaction_rollback();
+	    if (!deferred) subcobj->randc_transaction_rollback();
 	    return false;
       }
+      if (deferred) return true;
       return subcobj->randc_transaction_commit();
 }
 
@@ -4885,6 +4888,11 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
       const std::function<unsigned()>&next_random =
 	    options && options->next_random ? *options->next_random
 					     : object_random;
+	// Direct unpacked-struct properties may be referenced by this class's
+	// constraints. Keep their randc transactions open through the parent
+	// solve so a constrained model can replace the tentative pre-fill mark;
+	// commit them only after the complete constraint set succeeds.
+      vector<vvp_cobject*> deferred_struct_transactions;
 
 	// Fill this call's random variables with random bits first.
       for (size_t pid = 0 ; solve_ok && pid < defn->property_count() ;
@@ -4914,7 +4922,8 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 			      if (is_struct_prop) {
 				    if (!randomize_struct_members_(session, subcobj,
 						       subcobj->get_defn(),
-						       next_random))
+						       next_random,
+						       &deferred_struct_transactions))
 					  solve_ok = false;
 				    if (defn->property_is_static(pid))
 					  defn->static_randomize_transaction_mark_dirty(
@@ -5138,11 +5147,28 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 					       include_class_constraints))
 		  solve_ok = false;
       }
+      size_t pending_struct_transactions =
+	    deferred_struct_transactions.size();
       if (solve_ok) {
-	    if (!cobj->randc_transaction_commit())
-		  solve_ok = false;
-      } else {
+	    while (solve_ok && pending_struct_transactions > 0) {
+		  pending_struct_transactions -= 1;
+		  if (!deferred_struct_transactions[
+			pending_struct_transactions]->randc_transaction_commit())
+			solve_ok = false;
+	    }
+      }
+      if (!solve_ok) {
+	    while (pending_struct_transactions > 0) {
+		  pending_struct_transactions -= 1;
+		  deferred_struct_transactions[
+			pending_struct_transactions]->randc_transaction_rollback();
+	    }
 	    cobj->randc_transaction_rollback();
+      } else if (!cobj->randc_transaction_commit()) {
+	    // commit() has consumed the parent transaction even on an invalid
+	    // final randc value. The graph-session journal restores the already
+	    // committed nested values/history at the call site.
+	    solve_ok = false;
       }
       return solve_ok;
 }
