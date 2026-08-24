@@ -325,7 +325,8 @@ NexusSet* NetEvent::nex_async_()
 			NetPartSelect*select =
 			      dynamic_cast<NetPartSelect*>(link->get_obj());
 			if (!select || select->dir() != NetPartSelect::VP
-			    || link->get_pin() != 0)
+			    || link->get_pin() != 0
+			    || !select->is_implicit_sensitivity_select())
 			      continue;
 			tmp->add(select->pin(1).nexus(), select->base(),
 				 select->width());

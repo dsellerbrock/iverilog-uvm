@@ -1,0 +1,2 @@
+synth_selected_input_port_async normal,-S,-g2012 ivltests gold=synth_selected_input_port_async.gold
+synth_precise_select_async_control normal,-S,-g2012 ivltests gold=synth_precise_select_async_control.gold

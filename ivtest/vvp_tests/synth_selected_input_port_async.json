@@ -1,0 +1,9 @@
+{
+    "type"          : "normal",
+    "source"        : "synth_selected_input_port_async.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "synth_selected_input_port_async",
+    "vlog95"        : {
+        "type" : "NI"
+    }
+}
