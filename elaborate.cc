@@ -11133,9 +11133,47 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		   * class. */
 		  symbol_search_results obj_sr;
 		  symbol_search(this, des, scope, obj_path, UINT_MAX, &obj_sr);
-		  if (obj_sr.net && obj_sr.path_tail.empty()) {
+		  if (obj_sr.net) {
 			obj_expr = new NetESignal(obj_sr.net);
 			obj_expr->set_line(*this);
+			ivl_type_t obj_type = obj_sr.type
+			      ? obj_sr.type : obj_sr.net->net_type();
+			/* Select a fixed/dynamic-array class receiver before walking
+			 * its class/struct property tail. */
+			if (!obj_sr.path_head.empty()
+			    && !obj_sr.path_head.back().index.empty()) {
+			      obj_expr = elaborate_root_indexed_method_target_expr_(
+				    this, des, scope, obj_expr, obj_type,
+				    obj_sr.path_head.back().index,
+				    perm_string::literal("rand_mode"), obj_type);
+			}
+			while (obj_expr && !obj_sr.path_tail.empty()) {
+			      const name_component_t&comp = obj_sr.path_tail.front();
+			      if (const netclass_t*class_walk =
+				  dynamic_cast<const netclass_t*>(obj_type)) {
+				    obj_expr = elaborate_nested_method_target_property_task_(
+					  this, des, scope, obj_expr, class_walk, comp,
+					  perm_string::literal("rand_mode"), obj_type);
+			      } else if (const netstruct_t*struct_walk =
+					 dynamic_cast<const netstruct_t*>(obj_type)) {
+				    unsigned midx = struct_walk->member_index(comp.name);
+				    if (midx >= struct_walk->members().size()
+					|| !comp.index.empty()) {
+					  delete obj_expr;
+					  obj_expr = nullptr;
+				    } else {
+					  NetEProperty*prop = new NetEProperty(
+						obj_expr, midx, nullptr);
+					  prop->set_line(*this);
+					  obj_expr = prop;
+					  obj_type = struct_walk->members()[midx].net_type;
+				    }
+			      } else {
+				    delete obj_expr;
+				    obj_expr = nullptr;
+			      }
+			      obj_sr.path_tail.pop_front();
+			}
 		  } else {
 			PEIdent *obj_id = new PEIdent(obj_path, /*lexical_pos*/0);
 			obj_id->set_file(get_file());
@@ -11146,6 +11184,57 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		  }
 	    }
 	    if (obj_expr) {
+		  const netstruct_t *stype =
+			dynamic_cast<const netstruct_t*>(obj_expr->net_type());
+		  if (stype && !stype->packed()) {
+			unsigned pid = stype->member_index(fname);
+			if (pid >= stype->members().size()) {
+			      cerr << get_fileline() << ": error: Unpacked struct has "
+				   << "no member `" << fname
+				   << "' for rand_mode()." << endl;
+			      des->errors += 1;
+			      delete obj_expr;
+			      NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+			      noop->set_line(*this);
+			      return noop;
+			}
+			const netstruct_t::member_t&member = stype->members()[pid];
+			if (!member.qualifier.test_rand()
+			    && !member.qualifier.test_randc()) {
+			      cerr << get_fileline() << ": error: Unpacked-struct member `"
+				   << fname << "' is not declared rand or randc."
+				   << endl;
+			      des->errors += 1;
+			      delete obj_expr;
+			      NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+			      noop->set_line(*this);
+			      return noop;
+			}
+			if (!field_comp.index.empty()) {
+			      cerr << get_fileline() << ": sorry: rand_mode() on an "
+				   << "indexed unpacked-struct member is not supported "
+				   << "yet." << endl;
+			      des->errors += 1;
+			      delete obj_expr;
+			      NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+			      noop->set_line(*this);
+			      return noop;
+			}
+			NetExpr *mode_expr = elab_sys_task_arg(des, scope,
+			      peek_tail_name(path_), 0, parms_[0].parm);
+			NetExpr *pid_expr = new NetEConst(
+			      verinum((uint64_t)pid, 32));
+			pid_expr->set_line(*this);
+			vector<NetExpr*> argv(3);
+			argv[0] = obj_expr;
+			argv[1] = mode_expr;
+			argv[2] = pid_expr;
+			NetSTask *sys = new NetSTask(
+			      "$ivl_class_method$rand_mode",
+			      IVL_SFUNC_AS_TASK_IGNORE, argv);
+			sys->set_line(*this);
+			return sys;
+		  }
 		  const netclass_t *ctype =
 			dynamic_cast<const netclass_t*>(obj_expr->net_type());
 		  if (ctype) {
@@ -20697,6 +20786,73 @@ static bool constraint_inline_target_name_(perm_string name)
 	    != constraint_inline_member_names_->end();
 }
 
+static bool constraint_this_name_(perm_string name)
+{
+      return name == perm_string::literal(THIS_TOKEN)
+	  || name == perm_string::literal("this");
+}
+
+static bool constraint_super_name_(perm_string name)
+{
+      return name == perm_string::literal(SUPER_TOKEN)
+	  || name == perm_string::literal("super");
+}
+
+/* Class-constraint and inline-constraint lookup share one target-path rule.
+ * A simple receiver root (`obj.member') and explicit this/super are always
+ * target-qualified. Otherwise an unqualified target property wins before a
+ * same-named caller symbol, except that an explicit with(identifier_list)
+ * limits which unqualified roots receive target lookup (18.7.1). */
+static bool constraint_target_path_begin_(
+      const pform_scoped_name_t&path, const netclass_t*cls,
+      const netclass_t*&owner, pform_name_t::const_iterator&component)
+{
+      owner = cls;
+      component = path.name.begin();
+      if (!cls || path.package || path.name.empty()) return false;
+
+      const name_component_t&root = *component;
+      if (root.local_scope) return false;
+      if (constraint_this_name_(root.name)) {
+	    ++component;
+	    return component != path.name.end();
+      }
+      if (constraint_super_name_(root.name)) {
+	    owner = cls->get_super();
+	    ++component;
+	    return owner && component != path.name.end();
+      }
+      if (!constraint_class_object_root_.nil()
+	  && root.name == constraint_class_object_root_
+	  && root.index.empty()) {
+	    ++component;
+	    return component != path.name.end();
+      }
+      if (!constraint_inline_target_name_(root.name)
+	  || cls->property_idx_from_name(root.name) < 0)
+	    return false;
+      return true;
+}
+
+/* Some expression-primary forms retain a typed member chain as nested
+ * PEMemberAccess nodes instead of folding it into one PEIdent. Flatten only
+ * ordinary unscoped named access; the resulting path is used immediately and
+ * never replaces the original expression when caller-value capture is needed. */
+static bool constraint_flatten_member_path_(const PExpr*expr,
+					     pform_name_t&path)
+{
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+	    if (id->path().package || id->has_scoped_type_prefix()) return false;
+	    path = id->path().name;
+	    return !path.empty();
+      }
+      const PEMemberAccess*member = dynamic_cast<const PEMemberAccess*>(expr);
+      if (!member || !constraint_flatten_member_path_(member->base(), path))
+	    return false;
+      path.push_back(name_component_t(member->member_name()));
+      return true;
+}
+
 /* Constraint IR needs ordinary constant-name resolution as well as class
  * property lookup.  In particular, class constraints routinely name
  * parameters and enum literals imported from a package.  Keep the Design
@@ -20981,6 +21137,17 @@ static bool constraint_property_is_randc_(const netclass_t*cls,
 	    && cls->get_prop_qual((size_t)idx).test_randc();
 }
 
+static bool constraint_member_is_randc_(const netclass_t*cls,
+					 unsigned long outer,
+					 unsigned long member)
+{
+      if (!cls || outer >= cls->get_properties()) return false;
+      const netstruct_t*record = dynamic_cast<const netstruct_t*>(
+	    cls->get_prop_type((size_t)outer));
+      return record && member < record->members().size()
+	    && record->members()[(size_t)member].qualifier.test_randc();
+}
+
 static bool constraint_state_path_is_randc_(const char*path,
 					     const netclass_t*cls)
 {
@@ -21025,6 +21192,19 @@ static bool constraint_ir_references_randc_(const string&ir,
 		  if (end != p + 2 && *end == ':'
 		      && constraint_property_is_randc_(cls, idx))
 			return true;
+		  continue;
+	    }
+
+	    if (p[0] == 'm' && p[1] == ':') {
+		  char*end = nullptr;
+		  unsigned long outer = strtoul(p + 2, &end, 10);
+		  if (end != p + 2 && *end == ':') {
+			char*member_end = nullptr;
+			unsigned long member = strtoul(end + 1, &member_end, 10);
+			if (member_end != end + 1 && *member_end == ':'
+			    && constraint_member_is_randc_(cls, outer, member))
+			      return true;
+		  }
 		  continue;
 	    }
 
@@ -21217,57 +21397,20 @@ static bool constraint_class_path_references_randc_(
 			return false;
 		  current = caller;
 	    }
-      } else if (!constraint_class_object_root_.nil()) {
-	    if (comp->name == constraint_class_object_root_
-		&& comp->index.empty()) {
-		  ++comp;
-	    } else if (constraint_inline_member_names_
-		       && constraint_inline_target_name_(comp->name)) {
-		  ivl_type_t target_component = nullptr;
-		  bool target_randc = false;
-		  if (!constraint_class_component_type_(
-			cls, comp->name, target_component, target_randc))
-			return false;
-	    } else {
-		  NetNet*root = scope_randomize_find_signal_(scope, comp->name);
-		  if (root) {
-			current = root->net_type();
-			++comp;
-		  } else {
-			const NetScope*caller_scope = scope
-			      ? scope->get_class_scope() : nullptr;
-			const netclass_t*caller = caller_scope
-			      ? caller_scope->class_def() : nullptr;
-			ivl_type_t caller_component = nullptr;
-			bool caller_randc = false;
-			if (!constraint_class_component_type_(
-			      caller, comp->name,
-			      caller_component, caller_randc))
-			      return false;
-			/* Keep COMP on the caller property name so the common walk
-			 * observes its qualifier and declared type. */
-			current = caller;
-		  }
-	    }
-      } else if (comp->name == perm_string::literal("this")) {
-	    ++comp;
-      } else if (comp->name == perm_string::literal("super")) {
-	    current = cls->get_super();
-	    ++comp;
-	  /* Inline constraints resolve target properties before caller scope.
-	   * If the target has no such root, follow the actual caller class handle:
-	   * IEEE 18.8.1 forbids a randc variable in these constructs regardless
-	   * of which object owns it (Slang applies the same rule). */
-      } else {
-	    ivl_type_t target_component = nullptr;
-	    bool target_randc = false;
-	    bool target_has_component = constraint_inline_target_name_(
-		  comp->name) && constraint_class_component_type_(
-		  cls, comp->name, target_component, target_randc);
-	    if (comp->local_scope || !target_has_component) {
-		  NetNet*root = scope_randomize_find_signal_(scope, comp->name);
-		  if (root) {
-			current = root->net_type();
+	} else {
+	      const netclass_t*target_owner = nullptr;
+	      pform_name_t::const_iterator target_component;
+	      if (constraint_target_path_begin_(
+		    path, cls, target_owner, target_component)) {
+		    current = target_owner;
+		    comp = target_component;
+	      } else {
+		    /* No target component matched. Follow the actual caller object;
+		     * local:: always arrives here, and a with(identifier_list) leaves
+		     * every unlisted root in caller scope. */
+		    NetNet*root = scope_randomize_find_signal_(scope, comp->name);
+		    if (root) {
+			  current = root->net_type();
 			++comp;
 		  } else {
 			const NetScope*caller_scope = scope
@@ -21283,10 +21426,10 @@ static bool constraint_class_path_references_randc_(
 			/* Keep COMP on the caller component name; the common walk
 			 * applies its qualifier or method-return type before following
 			 * the remaining tail. */
-			current = caller;
-		  }
-	    }
-      }
+			  current = caller;
+		    }
+	      }
+	}
 
       for (; comp != path.name.end(); ++comp) {
 	    /* local:: is a qualifier on the root name. At that point CURRENT has
@@ -21315,6 +21458,8 @@ static bool constraint_class_path_references_randc_(
 		  unsigned midx = record->member_index(comp->name);
 		  if (midx >= record->members().size())
 			return false;
+		  if (record->members()[midx].qualifier.test_randc())
+			return true;
 		  current = record->members()[midx].net_type;
 		  continue;
 	    }
@@ -21457,6 +21602,8 @@ static bool constraint_scoped_path_references_randc_(
 		  unsigned midx = record->member_index(comp->name);
 		  if (midx >= record->members().size())
 			return false;
+		  if (record->members()[midx].qualifier.test_randc())
+			return true;
 		  current = record->members()[midx].net_type;
 		  continue;
 	    }
@@ -21570,6 +21717,8 @@ static bool constraint_package_path_references_randc_(const PEIdent*id)
 		  unsigned idx = record->member_index(comp->name);
 		  if (idx >= record->members().size())
 			return false;
+		  if (record->members()[idx].qualifier.test_randc())
+			return true;
 		  current = record->members()[idx].net_type;
 		  continue;
 	    }
@@ -21706,6 +21855,10 @@ constraint_symbol_path_references_randc_(
 		  unsigned idx = record->member_index(component.name);
 		  if (idx >= record->members().size())
 			return result;
+		  if (record->members()[idx].qualifier.test_randc()) {
+			result.seen = true;
+			return result;
+		  }
 		  current = constraint_source_type_from_raw_(
 			record->members()[idx].net_type);
 	    } else {
@@ -21722,26 +21875,9 @@ static bool constraint_target_root_precedence_(
       if (!id || !cls || id->path().package
 	  || id->has_scoped_type_prefix() || id->path().name.empty())
 	    return false;
-      const name_component_t&root = id->path().name.front();
-      if (root.local_scope)
-	    return false;
-      if (!constraint_class_object_root_.nil())
-	    {
-	      if (root.name == constraint_class_object_root_)
-		    return true;
-	      if (!constraint_inline_member_names_
-		  || !constraint_inline_target_name_(root.name))
-		    return false;
-	    }
-      if (root.name == perm_string::literal("this")
-	  || root.name == perm_string::literal("super"))
-	    return true;
-      ivl_type_t component_type = nullptr;
-      bool is_randc = false;
-      if (!constraint_inline_target_name_(root.name))
-	    return false;
-      return constraint_class_component_type_(
-	    cls, root.name, component_type, is_randc);
+      const netclass_t*owner = nullptr;
+      pform_name_t::const_iterator component;
+      return constraint_target_path_begin_(id->path(), cls, owner, component);
 }
 
 /* Resolve just enough source-expression type and ownership information to
@@ -21923,22 +22059,10 @@ static constraint_source_type_t constraint_source_expr_type_(
 	    bool forced_external = resolved_external
 		  && !constraint_target_root_precedence_(id, cls);
 
-	    if (!constraint_class_object_root_.nil())
-		  result.qualifier_relevant =
-			root.name == constraint_class_object_root_
-			|| (constraint_inline_member_names_
-			    && constraint_inline_target_name_(root.name)
-			    && cls
-			    && cls->property_idx_from_name(root.name) >= 0);
-	    else if (root.local_scope)
-		  result.qualifier_relevant = false;
-	    else if (root.name == perm_string::literal("this")
-		     || root.name == perm_string::literal("super"))
-		  result.qualifier_relevant = true;
-	    else
-		  result.qualifier_relevant = constraint_inline_target_name_(
-			root.name) && cls
-			&& cls->property_idx_from_name(root.name) >= 0;
+	    const netclass_t*target_owner = nullptr;
+	    pform_name_t::const_iterator target_component;
+	    result.qualifier_relevant = constraint_target_path_begin_(
+		  id->path(), cls, target_owner, target_component);
 
 	    /* test_type_of_ident searches the lexical caller scope, but an
 	     * unqualified name in a handle-form inline constraint resolves in the
@@ -21947,20 +22071,8 @@ static constraint_source_type_t constraint_source_expr_type_(
 	     * otherwise same-named Caller.child can silently override Target.child.
 	     * This also recovers paths that ordinary type probing leaves unknown. */
 	    if (result.qualifier_relevant && cls && !forced_external) {
-		  pform_name_t::const_iterator comp = id->path().name.begin();
-		  const netclass_t*owner = cls;
-		  if (!constraint_class_object_root_.nil()) {
-			if (comp != id->path().name.end()
-			    && comp->name == constraint_class_object_root_)
-			      ++comp;
-		  } else if (comp != id->path().name.end()
-			     && comp->name == perm_string::literal("this")) {
-			++comp;
-		  } else if (comp != id->path().name.end()
-			     && comp->name == perm_string::literal("super")) {
-			owner = cls->get_super();
-			++comp;
-		  }
+		  pform_name_t::const_iterator comp = target_component;
+		  const netclass_t*owner = target_owner;
 		  constraint_source_type_t current =
 			constraint_source_type_from_raw_(owner);
 		  for (; comp != id->path().name.end() && current.type; ++comp) {
@@ -23039,6 +23151,55 @@ static string scope_randomize_select_ir_(
       return "";
 }
 
+struct constraint_const_ir_t {
+      uint64_t value = 0;
+      unsigned width = 32;
+      bool is_signed = false;
+};
+
+static bool constraint_parse_const_ir_(const string&ir,
+					constraint_const_ir_t&out)
+{
+      if (ir.compare(0, 2, "c:") != 0) return false;
+      const char*text = ir.c_str() + 2;
+      char*end = nullptr;
+      out.value = strtoull(text, &end, 10);
+      if (end == text) return false;
+      out.width = 32;
+      out.is_signed = false;
+      if (*end == ':') {
+	    const char*width_text = end + 1;
+	    out.width = (unsigned)strtoul(width_text, &end, 10);
+	    if (end == width_text || out.width == 0) return false;
+	    if (*end == ':' && end[1] == 's') {
+		  out.is_signed = true;
+		  end += 2;
+	    }
+      }
+      return *end == 0;
+}
+
+static string constraint_format_const_ir_(constraint_const_ir_t value)
+{
+      if (value.width < 64)
+	    value.value &= (UINT64_C(1) << value.width) - 1;
+      return "c:" + to_string(value.value) + ":" + to_string(value.width)
+	  + (value.is_signed ? ":s" : "");
+}
+
+static uint64_t constraint_resize_const_bits_(
+      const constraint_const_ir_t&value, unsigned width, bool sign_extend)
+{
+      uint64_t bits = value.value;
+      if (value.width < 64)
+	    bits &= (UINT64_C(1) << value.width) - 1;
+      if (sign_extend && value.width < width && value.width < 64
+	  && ((bits >> (value.width - 1)) & 1))
+	    bits |= ~((UINT64_C(1) << value.width) - 1);
+      if (width < 64) bits &= (UINT64_C(1) << width) - 1;
+      return bits;
+}
+
 /* A no-argument function call may omit its parentheses (IEEE 1800-2017
  * 13.4.2), so both `items.size' and `items.size()' must denote the same
  * dynamic-container size solver variable. Keep their lowering in one place
@@ -23131,6 +23292,27 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  --constraint_ir_let_depth;
 		  return out;
 	    }
+      }
+
+      if (const PEMemberAccess*member =
+	  dynamic_cast<const PEMemberAccess*>(expr)) {
+	    pform_name_t flat_path;
+	    if (constraint_flatten_member_path_(member, flat_path)) {
+		  pform_scoped_name_t scoped(flat_path);
+		  const netclass_t*target_owner = nullptr;
+		  pform_name_t::const_iterator target_component;
+		  if (constraint_target_path_begin_(
+			scoped, cls, target_owner, target_component)) {
+			PEIdent flat(flat_path, UINT_MAX);
+			flat.set_file(expr->get_file());
+			flat.set_lineno(expr->get_lineno());
+			return pexpr_to_constraint_ir(
+			      &flat, cls, value_slots, scope, loop_env);
+		  }
+	    }
+	    return value_slots
+		  ? scope_randomize_value_slot_(expr, nullptr, value_slots, 32)
+		  : string();
       }
 
       if (const PENumber*num = dynamic_cast<const PENumber*>(expr)) {
@@ -23227,25 +23409,21 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  return "";
 	    }
 
-	      // A qualified caller expression such as rw.addr is not a
-	      // randomized-object property merely because its final component
-	      // has the same name as one. Only a path rooted at the object being
-	      // randomized (bus_req.addr) receives property-token treatment.
-	      // This distinction is required by IEEE 1800-2017 18.7.1 and is
-	      // especially common with ref packed-struct arguments in adapters.
+	    const netclass_t*target_owner = nullptr;
+	    pform_name_t::const_iterator target_component;
+	    bool target_path = constraint_target_path_begin_(
+		  id->path(), cls, target_owner, target_component);
+
+	      // A genuinely caller-qualified expression such as local::rw.addr
+	      // or top.rw.addr is captured at the call site. An unqualified root
+	      // that names a target property is not caller state merely because a
+	      // same-named lexical symbol exists: target lookup wins in an inline
+	      // constraint (18.7.1), including handle-form obj.randomize().
 	    if (cls && value_slots && !local_qualified
-		&& id->path().size() > 1 && !id->path().package) {
-		  perm_string root_name = id->path().name.front().name;
-		  if (!constraint_class_object_root_.nil()
-		      && root_name != constraint_class_object_root_)
+		&& id->path().size() > 1 && !id->path().package
+		&& !target_path)
 			return scope_randomize_value_slot_(expr, nullptr,
 					   value_slots, 32);
-		  NetNet*root_net = scope_randomize_find_signal_(scope, root_name);
-		  if (constraint_class_object_root_.nil() && root_net
-		      && cls->property_idx_from_name(root_name) < 0)
-			return scope_randomize_value_slot_(expr, nullptr,
-					   value_slots, 32);
-	    }
 
 	      // foreach loop variables shadow properties inside the
 	      // iterated constraint set (IEEE 1800-2017 18.5.8).
@@ -23284,40 +23462,82 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	       * select of the property's solver bitvector. This also handles
 	       * std::randomize(h) inline paths, whose first lexical component
 	       * is the handle name rather than an object property. */
-	    if (cls && id->path().size() > 1 && !id->path().package) {
-		  pform_name_t::const_iterator comp = id->path().name.begin();
-		  if (comp != id->path().name.end() && comp->index.empty()
-		      && (comp->name == perm_string::literal("this")
-			  || comp->name == perm_string::literal("super")))
-			++comp;
-		  if (!constraint_class_object_root_.nil()) {
-			if (comp->name != constraint_class_object_root_
-			    || !comp->index.empty())
-			      comp = id->path().name.end();
-			else
-			      ++comp;
-		  }
-		  if (comp != id->path().name.end() && comp->index.empty()) {
-			int pidx = cls->property_idx_from_name(comp->name);
-			ivl_type_t ptype = pidx >= 0
-			      ? cls->get_prop_type((size_t)pidx) : nullptr;
+	    if (cls && target_path && id->path().size() > 1) {
+		  pform_name_t::const_iterator comp = target_component;
+		  if (comp != id->path().name.end()) {
+			int pidx = target_owner
+			      ? target_owner->property_idx_from_name(comp->name) : -1;
+			ivl_type_t ptype = pidx >= 0 && target_owner
+			      ? target_owner->get_prop_type((size_t)pidx) : nullptr;
 			const netstruct_t*st =
 			      dynamic_cast<const netstruct_t*>(ptype);
-			if (pidx >= 0 && st && !st->packed()) {
-			      pform_name_t::const_iterator member = comp;
-			      ++member;
+			const netarray_t*outer_array =
+			      dynamic_cast<const netarray_t*>(ptype);
+			const netstruct_t*outer_element = outer_array
+			      && !outer_array->packed()
+			      ? dynamic_cast<const netstruct_t*>(
+				    outer_array->element_type()) : nullptr;
+			pform_name_t::const_iterator outer_tail = comp;
+			++outer_tail;
+			if (!comp->index.empty() && outer_element
+			    && !outer_element->packed()
+			    && outer_tail != id->path().name.end()) {
 			      cerr << id->get_fileline() << ": sorry: constraint "
-				   << "reference '" << comp->name;
-			      if (member != id->path().name.end())
-				    cerr << "." << member->name;
-			      cerr << "' selects a member of an unpacked-struct "
-				   << "property; solving unpacked-struct member "
-				   << "constraints is not yet supported." << endl;
+				   << "reference '" << comp->name << "[...]"
+				   << "." << outer_tail->name
+				   << "' selects an indexed outer unpacked-struct "
+				   << "property; indexed outer struct constraint paths "
+				   << "are not supported." << endl;
 			      if (constraint_ir_design_ctx_)
 				    constraint_ir_design_ctx_->errors += 1;
 			      return "";
 			}
-			if (pidx >= 0 && st && st->packed()) {
+			if (pidx >= 0 && st && !st->packed()) {
+			      pform_name_t::const_iterator member = comp;
+			      ++member;
+			      bool one_level = comp->index.empty()
+				    && member != id->path().name.end();
+			      pform_name_t::const_iterator after = member;
+			      if (after != id->path().name.end()) ++after;
+			      one_level = one_level
+				    && after == id->path().name.end()
+				    && member->index.empty();
+			      unsigned midx = one_level
+				    ? st->member_index(member->name) : (unsigned)-1;
+			      const netstruct_t::member_t*mem =
+				    midx < st->members().size()
+				    ? &st->members()[midx] : nullptr;
+			      ivl_type_t mtype = mem ? mem->net_type : nullptr;
+			      ivl_variable_type_t mbase = mtype
+				    ? mtype->base_type() : IVL_VT_NO_TYPE;
+			      unsigned mwidth = mtype && mtype->packed()
+				    ? mtype->packed_width() : 0;
+			      bool integral = mtype
+				    && (mbase == IVL_VT_BOOL || mbase == IVL_VT_LOGIC
+					|| dynamic_cast<const netenum_t*>(mtype));
+			      if (one_level && mem && integral
+				  && mwidth > 0 && mwidth <= 64) {
+				    string token = "m:" + to_string(pidx) + ":"
+					  + to_string(midx) + ":"
+					  + to_string(mwidth);
+				    if (mtype->get_signed()) token += ":s";
+				    return token;
+			      }
+
+			      cerr << id->get_fileline() << ": sorry: constraint "
+				   << "reference '" << comp->name;
+			      if (member != id->path().name.end())
+				    cerr << "." << member->name;
+			      cerr << "' selects an unsupported unpacked-struct "
+				   << "constraint path; only one-level scalar integral "
+				   << "or enum members up to 64 bits are supported."
+				   << endl;
+			      if (constraint_ir_design_ctx_)
+				    constraint_ir_design_ctx_->errors += 1;
+			      return "";
+			}
+			if (pidx >= 0 && st && st->packed()
+			    && comp->index.empty()) {
 			      unsigned pwidth = ptype->packed_width();
 			      if (pwidth == 0) pwidth = 32;
 			      string base = "p:" + to_string(pidx) + ":"
@@ -23550,8 +23770,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		&& !id->path().package && !id->has_scoped_type_prefix()
 		&& !id->path().name.empty()) {
 		  const name_component_t&root = id->path().name.front();
-		  bool explicit_target = root.name == perm_string::literal("this")
-			|| root.name == perm_string::literal("super")
+			  bool explicit_target = constraint_this_name_(root.name)
+				|| constraint_super_name_(root.name)
 			|| (!constraint_class_object_root_.nil()
 			    && root.name == constraint_class_object_root_)
 			|| constraint_inline_target_name_(root.name);
@@ -24168,9 +24388,30 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			  // element. The runtime retains the complete identity so
 			  // each remains a distribution directive after lowering.
 			if (s.compare(0, 2, "p:") != 0
+			    && s.compare(0, 2, "m:") != 0
 			    && s.compare(0, 2, "e:") != 0
 			    && s.compare(0, 2, "s:") != 0)
 			      return "";
+			if (s.compare(0, 2, "m:") == 0 && cls) {
+			      const char*p = s.c_str() + 2;
+			      char*end = nullptr;
+			      unsigned long outer = strtoul(p, &end, 10);
+			      p = end;
+			      if (*p == ':') ++p;
+			      unsigned long member = strtoul(p, &end, 10);
+			      ivl_type_t outer_type = outer < cls->get_properties()
+				    ? cls->get_prop_type((size_t)outer) : nullptr;
+			      const netstruct_t*stype =
+				    dynamic_cast<const netstruct_t*>(outer_type);
+			      bool outer_rand = outer < cls->get_properties()
+				    && (cls->get_prop_qual((size_t)outer).test_rand()
+					|| cls->get_prop_qual((size_t)outer).test_randc());
+			      if (!outer_rand
+				  || !stype || member >= stype->members().size()
+				  || (!stype->members()[member].qualifier.test_rand()
+				      && !stype->members()[member].qualifier.test_randc()))
+				    constraint_order_nonrandom_error_(item);
+			}
 			if (s.compare(0, 2, "s:") == 0 && cls) {
 			      char*end = nullptr;
 			      unsigned long idx = strtoul(
@@ -24592,18 +24833,43 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	      // Fold constant arithmetic (e.g. unrolled foreach index
 	      // expressions like i*10) so inside/dist range bounds stay
 	      // simple c:V literals.
-	    if (left.compare(0, 2, "c:") == 0 && right.compare(0, 2, "c:") == 0
+	    constraint_const_ir_t left_const;
+	    constraint_const_ir_t right_const;
+	    if (constraint_parse_const_ir_(left, left_const)
+		&& constraint_parse_const_ir_(right, right_const)
+		&& left_const.width <= 64 && right_const.width <= 64
 		&& (op == "add" || op == "sub" || op == "mul"
 		    || op == "div" || op == "mod")) {
-		  uint64_t lv = strtoull(left.c_str() + 2, nullptr, 10);
-		  uint64_t rv = strtoull(right.c_str() + 2, nullptr, 10);
-		  uint64_t res = 0;
-		  if (op == "add") res = lv + rv;
-		  else if (op == "sub") res = lv - rv;
-		  else if (op == "mul") res = lv * rv;
-		  else if (op == "div") res = rv ? lv / rv : 0;
-		  else res = rv ? lv % rv : 0;
-		  return "c:" + to_string(res);
+		  constraint_const_ir_t result;
+		  result.width = max(left_const.width, right_const.width);
+		  result.is_signed = left_const.is_signed
+			&& right_const.is_signed;
+		  /* Once both operands are signed, expression propagation extends
+		   * each to the common result width before arithmetic. Raw narrow
+		   * two's-complement bits (for example 8'shff) must not be treated
+		   * as a positive 255 in a wider folded add/sub/mul. */
+		  uint64_t lv = constraint_resize_const_bits_(
+			left_const, result.width, result.is_signed);
+		  uint64_t rv = constraint_resize_const_bits_(
+			right_const, result.width, result.is_signed);
+		  if (op == "add") result.value = lv + rv;
+		  else if (op == "sub") result.value = lv - rv;
+		  else if (op == "mul") result.value = lv * rv;
+		  else if (result.is_signed) {
+			auto signed_value = [](uint64_t bits, unsigned width) -> __int128 {
+			      if (width < 64 && ((bits >> (width - 1)) & 1))
+				    bits |= ~((UINT64_C(1) << width) - 1);
+			      return (__int128)(int64_t)bits;
+			};
+			__int128 lhs = signed_value(lv, left_const.width);
+			__int128 rhs = signed_value(rv, right_const.width);
+			result.value = rhs == 0 ? 0 : (uint64_t)(
+			      op == "div" ? lhs / rhs : lhs % rhs);
+		  } else {
+			result.value = rv == 0 ? 0
+			      : op == "div" ? lv / rv : lv % rv;
+		  }
+		  return constraint_format_const_ir_(result);
 	    }
 	    return "(" + op + " " + left + " " + right + ")";
       }
@@ -24613,12 +24879,14 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (sub.empty()) return "";
 	    if (un->get_op() == '!') return "(not " + sub + ")";
 	    if (un->get_op() == '-') {
-		    // Negation: literals fold to their 64-bit two's
-		    // complement (the solver reduces numerals mod 2^W at
-		    // the use width); other operands become (sub 0 x).
-		  if (sub.compare(0, 2, "c:") == 0) {
-			uint64_t v = strtoull(sub.c_str() + 2, nullptr, 10);
-			return "c:" + to_string((uint64_t)(0 - v));
+		    // Unary arithmetic retains its operand's self-determined width
+		    // and signedness. Losing `:64:s' here turned -64'sd7 into an
+		    // unsigned 32-bit constant before comparison and write-back.
+		  constraint_const_ir_t value;
+		  if (constraint_parse_const_ir_(sub, value)
+		      && value.width <= 64) {
+			value.value = UINT64_C(0) - value.value;
+			return constraint_format_const_ir_(value);
 		  }
 		  return "(sub c:0 " + sub + ")";
 	    }
