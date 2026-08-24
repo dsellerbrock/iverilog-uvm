@@ -2489,6 +2489,41 @@ remain separate boundaries.
 
 ---
 
+## G76 — missing implicit randomization hooks were treated as unknown methods — **fixed** [general]
+
+*18.6.2 [general] — implicit `pre_randomize()` and `post_randomize()`
+functions.*
+
+IEEE 1800 gives every class implicit zero-argument `void` randomization hooks
+with empty default bodies. Icarus instead treated a call as an ordinary missing
+method when neither the class nor an ancestor declared that hook. OpenTitan
+DMA exposed the gap in `dma_seq_item.sv:491`, where the declared override calls
+`super.post_randomize()` and the UVM base class relies on the implicit body.
+
+Missing hooks now lower to their empty standard bodies after the class
+hierarchy is complete. Ordinary, implicit-`this`, explicit-`super`, and
+arbitrary receiver-expression calls share the behavior. The receiver is
+evaluated exactly once even though the body is empty. A parsed declaration in
+any ancestor keeps the existing declared-method path, while any argument is a
+deterministic error because the implicit prototypes have no formals.
+
+The permanent positive and negative tests, dual focus lists, differential
+results, and ARM64 validation are described in
+[`session_logs/2026-08-24_opentitan_implicit_randomization_hooks.md`](session_logs/2026-08-24_opentitan_implicit_randomization_hooks.md).
+Focused legacy and JSON/VVP gates pass 2/2 each; the complete manifests pass
+1,796/1,796 and 864/864. Slang 11.0.448 accepts the positive source and rejects
+the three illegal calls under both IEEE 1800-2017 and 1800-2023.
+
+An unmodified frozen `lowrisc:dv:dma_sim:0.1` source graph at OpenTitan commit
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` contains no remaining
+`pre_randomize` or `post_randomize` diagnostic. Compilation advances to
+exactly two independent fixed-array range-lvalue errors in
+`dma_scoreboard.sv:1446` and `:1450`; no simulation ran, so this is not a
+whole-design pass claim. Evidence is under
+`evidence/opentitan-dma-implicit-hooks-fresh-arm64-validation-20260824T0054MDT/`.
+
+---
+
 ## Two measurement traps worth remembering
 
 **The error count is not a progress metric while the parser can still give

@@ -11878,6 +11878,62 @@ static bool is_uvm_compile_progress_task_stub_candidate_(const pform_name_t&path
       return false;
 }
 
+/* IEEE 1800-2017/2023 18.6.2 gives every class two implicit void
+ * functions, pre_randomize() and post_randomize().  A class need not
+ * declare either hook, so an ordinary method-scope lookup can legitimately
+ * miss.  Keep this check local to a completed class hierarchy: an
+ * incomplete hierarchy may still contain a declaration whose method scope
+ * has not been installed yet, and treating that case as the empty built-in
+ * body would silently discard the user's override. */
+static bool is_implicit_randomization_hook_(perm_string name)
+{
+      return name == perm_string::literal("pre_randomize")
+	  || name == perm_string::literal("post_randomize");
+}
+
+static bool class_hierarchy_declares_randomization_hook_(
+		  const netclass_t*class_type, perm_string name)
+{
+      set<const netclass_t*>seen;
+      for (const netclass_t*cur = class_type;
+	   cur && seen.insert(cur).second; cur = cur->get_super()) {
+	    const NetScope*class_scope = cur->class_scope();
+	    const PClass*pclass = class_scope ? class_scope->class_pform() : 0;
+	    if (!pclass)
+		  continue;
+	    if (pclass->funcs.find(name) != pclass->funcs.end()
+		|| pclass->tasks.find(name) != pclass->tasks.end())
+		  return true;
+      }
+      return false;
+}
+
+static NetProc* elaborate_implicit_randomization_hook_(
+		  const PCallTask*call, Design*des, NetExpr*receiver,
+		  perm_string name)
+{
+      ivl_assert(*call, receiver);
+      if (!call->parms().empty()) {
+	    cerr << call->get_fileline() << ": error: Class randomization hook `"
+		 << name << "' takes no arguments." << endl;
+	    des->errors += 1;
+	    delete receiver;
+	    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+	    noop->set_line(*call);
+	    return noop;
+      }
+
+      /* The implicit body is empty, but the receiver expression is still
+	 evaluated exactly once.  Reuse the object-expression discard lowering
+	 used for other statement-position object results. */
+      vector<NetExpr*>argv(1);
+      argv[0] = receiver;
+      NetSTask*discard = new NetSTask(
+	    "$ivl_discard_object_expr", IVL_SFUNC_AS_TASK_IGNORE, argv);
+      discard->set_line(*call);
+      return discard;
+}
+
 /*
  * Elaborate a method-call statement whose target is an arbitrary
  * receiver expression, e.g. f().method(args); or
@@ -11958,6 +12014,12 @@ NetProc* PCallTask::elaborate_receiver_method_(Design*des, NetScope*scope) const
 
       NetScope*task = class_type->resolve_method_call_scope(des, method_name);
       if (!task) {
+	    if (class_type->scope_ready()
+		&& is_implicit_randomization_hook_(method_name)
+		&& !class_hierarchy_declares_randomization_hook_(
+		      class_type, method_name))
+		  return elaborate_implicit_randomization_hook_(
+			this, des, sub_expr, method_name);
 	    cerr << get_fileline() << ": error: " << method_name
 		 << " is not a method of class " << class_type->get_name()
 		 << "." << endl;
@@ -12839,6 +12901,12 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
                        << endl;
             }
 	    if (task == 0) {
+		  if (class_type->scope_ready()
+		      && is_implicit_randomization_hook_(method_name)
+		      && !class_hierarchy_declares_randomization_hook_(
+			    class_type, method_name))
+			return elaborate_implicit_randomization_hook_(
+			      this, des, obj_expr, method_name);
 		  pform_name_t full_path = use_path;
 		  full_path.push_back(name_component_t(method_name));
 		  if (is_deferred_type_parameter_receiver_(des, scope, use_path)) {

@@ -1,0 +1,2 @@
+sv_implicit_randomize_hooks vvp_tests/sv_implicit_randomize_hooks.json
+sv_implicit_randomize_hook_args_fail vvp_tests/sv_implicit_randomize_hook_args_fail.json

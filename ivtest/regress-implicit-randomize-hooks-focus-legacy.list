@@ -1,0 +1,2 @@
+sv_implicit_randomize_hooks normal,-g2012 ivltests gold=sv_implicit_randomize_hooks.gold
+sv_implicit_randomize_hook_args_fail CE,-g2012 ivltests gold=sv_implicit_randomize_hook_args_fail.gold
