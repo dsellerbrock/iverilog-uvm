@@ -2352,6 +2352,39 @@ forms are open or exact-gold loud; none is claimed implemented by G72.
 
 ---
 
+## G73 — package-qualified calls through a nested class typedef were syntax errors — **fixed** [general]
+
+*8.23 / 26.3 / Annex A [general] — static class methods and explicit package
+qualification.*
+
+Ten OpenTitan xbar/full-chip cores, repeated in the UVM and runtime lanes,
+stopped at `xbar_error_test.sv:12` on
+`cip_base_pkg::cip_tl_seq_item::type_id::set_type_override(...)`. The
+unqualified class form already worked. Statement parsing reduced the shared
+`package::class::nested` prefix as a package-scoped l-value and had no
+continuation for the final static method; expression parsing retained the
+package class type but likewise lacked the nested-call continuation.
+
+Expression calls now extend the existing package type path, while statement
+calls extend the existing package-scoped l-value directly through the final
+method and semicolon. Both preserve class specialization and nested typedef
+provenance. The grammar remains at 535 shift/reduce and 1115 reduce/reduce
+conflicts with the unchanged 201-state normalized descriptor signature
+`b96fa4bf669e73f14ed8748e864e8b3f4cdfbdc61b45ec6d5cab66a7e6946bc8`.
+
+`sv_package_nested_static_call` value-checks the exact UVM spelling and
+independent parameter-specialization storage; its negative companion pins
+statement/function arity diagnostics. Both focused harnesses pass, and Slang
+accepts the positive while rejecting both negative sites.
+
+A fresh 20-record OpenTitan replay removes every former line-12
+syntax/malformed-statement pair. Sixteen jobs advance to a missing standalone
+`prim_clock_gating` dependency and four full-chip jobs reach a later
+`chip_common_pkg.sv` parser boundary, so this is a precise blocker removal,
+not a pass claim. OpenTitan sources were not modified.
+
+---
+
 ## Two measurement traps worth remembering
 
 **The error count is not a progress metric while the parser can still give
