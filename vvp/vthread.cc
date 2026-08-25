@@ -15933,8 +15933,10 @@ bool of_LOAD_DAR_OBJ(vthread_t thr, vvp_code_t cp)
 
       vvp_object_t word;
       if (darray &&
-          (adr >= 0) && (thr->flags[4] == BIT4_0)) {
-	    darray->get_word(adr, word);
+	  (adr >= 0) && (thr->flags[4] == BIT4_0) &&
+	  (static_cast<uint64_t>(adr) <= static_cast<uint64_t>(UINT_MAX)) &&
+	  (static_cast<size_t>(adr) < darray->get_size())) {
+	    darray->get_word(static_cast<unsigned>(adr), word);
 	      // A dynamic array of an object-backed unpacked struct records its
 	      // element class type (declared_type()). A `new[]`-allocated
 	      // element starts nil; materialize it as a default-constructed
@@ -15949,10 +15951,9 @@ bool of_LOAD_DAR_OBJ(vthread_t thr, vvp_code_t cp)
 	      // queue would otherwise set_word(5) and silently GROW the queue
 	      // to 6 elements — IEEE 1800-2017 7.10.2: an out-of-range queue
 	      // read returns the default value and must not modify the queue).
-	    if (word.test_nil() && obj->declared_type()
-		&& (size_t)adr < darray->get_size()) {
+	    if (word.test_nil() && obj->declared_type()) {
 		  word = vvp_object_t(new vvp_cobject(obj->declared_type()));
-		  darray->set_word(adr, word);
+		  darray->set_word(static_cast<unsigned>(adr), word);
 	    }
       }
       // else word remains nil (default-constructed vvp_object_t)

@@ -2039,7 +2039,6 @@ static int show_stmt_assign_darray_pattern(ivl_statement_t net)
 
       ivl_type_t element_type = ivl_type_element(var_type);
       unsigned idx;
-      unsigned size_reg = allocate_word();
 
         /* An unpacked-array concatenation is represented as an array pattern
          * whose collection operands retain the destination container type.
@@ -2122,76 +2121,18 @@ static int show_stmt_assign_darray_pattern(ivl_statement_t net)
                   fprintf(vvp_out, "    %%dar/elem/proto;\n");
             }
             fprintf(vvp_out, "    %%store/obj v%p_0;\n", var);
-            clr_word(size_reg);
             return errors;
       }
 
-#if 0
-      unsigned element_width = 1;
-      if (ivl_type_base(element_type) == IVL_VT_BOOL)
-	    element_width = ivl_type_packed_width(element_type);
-      else if (ivl_type_base(element_type) == IVL_VT_LOGIC)
-	    element_width = ivl_type_packed_width(element_type);
-#endif
-
-// FIXME: At the moment we reallocate the array space.
-//        This probably should be a resize to avoid values glitching
-	/* Allocate at least enough space for the array pattern. */
-      fprintf(vvp_out, "    %%ix/load %u, %u, 0;\n", size_reg, ivl_expr_parms(rval));
-	/* This can not have have a X/Z value so clear flag 4. */
-      fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
-      darray_new(element_type, size_reg);
-      fprintf(vvp_out, "    %%store/obj v%p_0;\n", var);
-
+        /* Build the complete value before replacing the destination object.
+         * This is not just an optimization: `a = a[0:1]' reads from the old
+         * dynamic array, so allocating/storing the destination first destroys
+         * the receiver of every element select. The context-aware object
+         * evaluator turns the fixed unpacked-array pattern into a temporary
+         * dynamic array and applies the normal element value-copy policy. */
       assert(ivl_expr_type(rval) == IVL_EX_ARRAY_PATTERN);
-      for (idx = 0 ; idx < ivl_expr_parms(rval) ; idx += 1) {
-	    switch (ivl_type_base(element_type)) {
-		case IVL_VT_BOOL:
-		case IVL_VT_LOGIC:
-		  draw_eval_vec4(ivl_expr_parm(rval,idx));
-		  fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
-		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
-		  fprintf(vvp_out, "    %%store/dar/vec4 v%p_0;\n", var);
-		  break;
-
-		case IVL_VT_REAL:
-		  draw_eval_real(ivl_expr_parm(rval,idx));
-		  fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
-		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
-		  fprintf(vvp_out, "    %%store/dar/r v%p_0;\n", var);
-		  break;
-
-		case IVL_VT_STRING:
-		  draw_eval_string(ivl_expr_parm(rval,idx));
-		  fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
-		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
-		  fprintf(vvp_out, "    %%store/dar/str v%p_0;\n", var);
-		  break;
-
-		case IVL_VT_NO_TYPE:
-		  /* %store/dar/obj applies the element value-copy policy. */
-		  errors += draw_eval_object(ivl_expr_parm(rval, idx));
-		  fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
-		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
-		  fprintf(vvp_out, "    %%store/dar/obj v%p_0;\n", var);
-		  break;
-
-		case IVL_VT_CLASS:
-		case IVL_VT_DARRAY:
-		case IVL_VT_QUEUE:
-		  errors += draw_eval_object(ivl_expr_parm(rval, idx));
-		  fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
-		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
-		  fprintf(vvp_out, "    %%store/dar/obj v%p_0;\n", var);
-		  break;
-
-		default:
-		  fprintf(vvp_out, "; ERROR: show_stmt_assign_darray_pattern: type_base=%d not implemented\n", ivl_type_base(element_type));
-		  errors += 1;
-		  break;
-	    }
-      }
-
+      errors += draw_eval_object_value_copy(rval, var_type);
+      fprintf(vvp_out, "    %%store/obj v%p_0; complete darray pattern\n", var);
       return errors;
 }
 
