@@ -93,6 +93,9 @@ extern void vthread_cancel_resource_wait(vthread_t thr);
  * 4.4.2.5, clause 24).
  */
 extern int vthread_is_reactive(vthread_t thr);
+/* Mark synthesized clocking scheduler infrastructure as a design process,
+ * even when its lexical scope is a program. */
+extern void vthread_mark_clocking_sync(vthread_t thr);
 /* M6B: mark a thread as a program initial procedure (24.7). */
 extern void vthread_mark_program_init(vthread_t thr);
 

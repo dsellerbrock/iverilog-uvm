@@ -6087,6 +6087,7 @@ int draw_process(ivl_process_t net, void*x)
       int init_flag = 0;
       int push_flag = 0;
       int clocking_bg_flag = 0;
+      int clocking_sync_flag = 0;
 
       (void)x; /* Parameter is not used. */
 
@@ -6116,6 +6117,18 @@ int draw_process(ivl_process_t net, void*x)
 		       activity is a clocking block would never reach
 		       program-completion end-of-simulation. */
 		  clocking_bg_flag = 1;
+
+	    } else if (strcmp(attr->key, "_ivl_clocking_sync") == 0) {
+
+		    /* A synthesized clocking sampler or numeric-skew shadow
+		       driver. Even when declared in a program, this is design
+		       scheduler infrastructure: its NBA work must settle before
+		       the public clocking event fires in Observed. `$clocking`
+		       clears the program scope's Reactive affinity at runtime and
+		       also keeps an INITIAL sampler out of the program-completion
+		       count. */
+		  clocking_bg_flag = 1;
+		  clocking_sync_flag = 1;
 
 	    }
       }
@@ -6162,6 +6175,8 @@ int draw_process(ivl_process_t net, void*x)
 		  fprintf(vvp_out, "    .thread T_%u, $init;\n", thread_count);
 	    } else if (push_flag) {
 		  fprintf(vvp_out, "    .thread T_%u, $push;\n", thread_count);
+	    } else if (clocking_sync_flag) {
+		  fprintf(vvp_out, "    .thread T_%u, $clocking;\n", thread_count);
 	    } else if (ivl_process_type(net) == IVL_PR_INITIAL
 		       && ivl_scope_program(scope) && !clocking_bg_flag) {
 		    /* M6B: a program-block INITIAL procedure. Mark it so the

@@ -289,8 +289,8 @@ static void populate_interface_type_(Design*des, NetScope*member_scope,
 	    iface_type->add_clocking_block(cur->first, cur->second->event,
 			   cur->second->signals, dirs, aliases);
 
-	      /* M8-2a-4: register the hidden clocking sample variables
-		 (and the sampler tick bit) as interface properties, so
+	      /* M8-2a-4: register the hidden clocking sample variables and
+		 clocking-event tick bits as interface properties, so
 		 `vif.cb.sig` reads rewritten to `vif._ivl_smp$cb$sig`
 		 elaborate as property accesses. The runtime resolves
 		 properties BY NAME in the bound instance scope, where
@@ -371,12 +371,20 @@ static void populate_interface_type_(Design*des, NetScope*member_scope,
 		  }
 		  any_sampled = true;
 	    }
+	      /* The public clocking-event tick exists even for an itemless
+		 block, allowing @(vif.cb) to preserve clocking-region timing. */
+	    string tname = string("_ivl_cbtick$") + cur->first.str();
+	    netvector_t*tick_vec = new netvector_t(IVL_VT_BOOL,
+					  0, 0, false);
+	    iface_type->set_property(lex_strings.make(tname.c_str()),
+			 property_qualifier_t::make_none(), tick_vec);
+	      /* Preserve the existing internal sample/output tick. */
 	    if (any_sampled) {
-		  string tname = string("_ivl_smptick$") + cur->first.str();
-		  netvector_t*tick_vec = new netvector_t(IVL_VT_LOGIC,
-						    0, 0, false);
-		  iface_type->set_property(lex_strings.make(tname.c_str()),
-			   property_qualifier_t::make_none(), tick_vec);
+		  string sname = string("_ivl_smptick$") + cur->first.str();
+		  netvector_t*sample_tick_vec = new netvector_t(IVL_VT_LOGIC,
+							 0, 0, false);
+		  iface_type->set_property(lex_strings.make(sname.c_str()),
+			 property_qualifier_t::make_none(), sample_tick_vec);
 	    }
 	    if (any_output) {
 		  string dname = string("_ivl_odkick$") + cur->first.str();

@@ -2909,6 +2909,10 @@ void compile_thread(char*start_sym, char*flag)
 	    push_flag = true;
 
       vthread_t thr = vthread_new(pc, vpip_peek_current_scope());
+	/* A synthesized clocking sampler belongs to the design-region
+	   pipeline even when its declaration scope is a program. */
+      if (flag && (strcmp(flag,"$clocking") == 0))
+	    vthread_mark_clocking_sync(thr);
 
       if (flag && (strcmp(flag,"$init") == 0))
 	    schedule_init_vthread(thr);

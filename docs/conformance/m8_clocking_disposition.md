@@ -4,9 +4,10 @@ Audit of IEEE 1800-2017 clause 14 (clocking blocks), exact modport access
 under 25.5, and the program end-of-simulation interaction under 24.7. This is
 the M8-5 deliverable: every listed clause-14 subfeature has a disposition, and
 the implemented behaviors have permanent tests. The 2026-08-24 post-audit
-focus, broad, VPI, negative, UVM, OpenTitan, and Caliptra reruns are complete.
-Unsupported shapes in the table have a loud boundary rather than an
-ordinary-assignment fallback.
+focus, broad, VPI, negative, UVM, OpenTitan, and Caliptra reruns are complete;
+the 2026-08-25 follow-up pins the public event of itemless clocking blocks.
+Unsupported shapes in the table have a loud boundary rather than an ordinary-
+assignment fallback.
 
 Legend: ✅ verified & pinned · ⚠️ loud-`sorry` limitation (disclosed, not
 silent) · — n/a.
@@ -16,6 +17,8 @@ silent) · — n/a.
 | 14.3 | `clocking cb @(event)` declaration | ✅ | sv_clocking_audit, skew_audit |
 | 14.3 | `default clocking` | ✅ | sv_clocking_audit |
 | 14.3 | `global clocking` | ✅ (parsed/selected) | sv_clocking_audit |
+| 14.10 | Public clocking synchronization event, including itemless blocks | ✅ fires in Observed after NBA quiescence | sv_clocking_itemless_static_event, sv_clocking_itemless_program_event |
+| 14.10 / 25.9 | Public event through plain and modport-qualified VIF handles | ✅, with no manufactured time-zero event | sv_clocking_itemless_vif_event, sv_clocking_vif_no_t0_event |
 | 14.4 | `input` clockvar (default `#1step` Preponed sample) | ✅ | sv_clocking_audit |
 | 14.4 | `input #N` skew (samples N units **before** the edge) | ✅, including static/VIF waiter ordering | sv_clocking_skew_audit, sv_clocking_vif_numeric_input_skew_delay_order |
 | 14.4 | `input #0` skew (Observed-region sample) | ✅, including static/VIF waiter ordering | sv_clocking_vif_numeric_input_skew_zero_order |
@@ -67,6 +70,16 @@ silent) · — n/a.
   excludes the clocking sampler and output-apply processes (24.7), which
   fixed a hang where a program whose only tail activity was a clocking
   block never ended. Pinned by `sv_program_clocking_finish`.
+
+- **Public clocking synchronization event.** The block name denotes a public
+  event in Observed whether or not the block declares any input or output
+  items. Static, hierarchical, global, default-`##1`, VIF, and modport VIF
+  references use that event rather than falling back to the raw Active-region
+  edge. The internal sample/output trigger remains separate so existing
+  buffering timing is unchanged. A two-state VIF event tick prevents its
+  initialization from manufacturing an X-to-0 event at time zero. Synthesized
+  samplers declared in a program run as design scheduler infrastructure and
+  remain outside program-completion accounting.
 
 - **Numeric input skew and clocking events.** Explicit `#0` inputs are
   sampled in Observed and become readable at the end of Observed processing.
@@ -142,6 +155,23 @@ seven-test runtime claim. All seven compiles have zero hard errors. The six
 long tests end at the deliberate 45-second CPU guard with advancing simulated
 time and no compiler/runtime assertion; ADC reaches its already classified
 testbench fatal at time zero.
+
+## 2026-08-25 itemless public-event follow-up evidence
+
+| Gate | Result |
+|---|---|
+| Itemless clocking legacy focus | 4/4 |
+| Itemless clocking JSON/VVP focus | 4/4 |
+| Complete default legacy manifest | 4051 pass / 2 NI / 3 EF / 0 fail (4056 total) |
+| Complete JSON/VVP manifest | 941/941 |
+| VPI | 108/108 |
+| Negative diagnostics | 123/123 |
+| `make check` | pass |
+| Real-DPI UVM | 338/338 |
+| Unchanged OpenTitan HMAC replay | former `is_idle()` mismatch cleared; next independent class-property event defect reached |
+
+The HMAC replay is a bounded frontier result, not a clean test claim. The next
+runtime change has its own red reducer and is kept out of this clocking batch.
 
 The local standards reference consulted for the clause audit is the ignored
 `docs/standards/local/IEEE_1800-2023.pdf`, SHA-256

@@ -1,0 +1,5 @@
+# IEEE 1800-2017 14.3/14.11/14.12/14.14/25.9 itemless clocking events
+sv_clocking_itemless_static_event vvp_tests/sv_clocking_itemless_static_event.json
+sv_clocking_itemless_vif_event vvp_tests/sv_clocking_itemless_vif_event.json
+sv_clocking_itemless_program_event vvp_tests/sv_clocking_itemless_program_event.json
+sv_clocking_vif_no_t0_event vvp_tests/sv_clocking_vif_no_t0_event.json
