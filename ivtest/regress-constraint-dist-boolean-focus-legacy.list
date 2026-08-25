@@ -1,0 +1,2 @@
+sv_constraint_dist_boolean_subject normal,-g2012	ivltests gold=sv_constraint_dist_boolean_subject.gold
+sv_constraint_dist_wide_literal_fail CE,-g2012 ivltests gold=sv_constraint_dist_wide_literal_fail.gold

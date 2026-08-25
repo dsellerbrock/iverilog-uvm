@@ -1,0 +1,2 @@
+sv_covergroup_ctor_bin_ranges normal,-g2012 ivltests gold=sv_covergroup_ctor_bin_ranges.gold
+sv_covergroup_ctor_bin_ranges_unresolved normal,-g2012 ivltests gold=sv_covergroup_ctor_bin_ranges_unresolved.gold

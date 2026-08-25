@@ -1614,10 +1614,13 @@ struct inside_range_t {
     bool is_range;
     // C7 (Phase 62b): dist weight expression.  Non-null only for `dist`-form
     // ranges that carry an explicit weight (`val := w` or `val :/ w`).
-    // Weight is null for plain `inside { ... }` ranges (uniform pick).
+    // Weight is null for plain `inside { ... }` ranges and for an unweighted
+    // dist item (whose runtime default is `:= 1`).
     PExpr* weight = nullptr;
-    // C7: true if the weight was specified with `:/` (divide across range
-    // count) rather than `:=` (per-item).  Only meaningful when weight!=null.
+    // C7: true if the weight was specified with `:/` (one aggregate range
+    // weight) rather than `:=` (that weight for every range member). Only
+    // meaningful when weight!=null; an unweighted integral item defaults to
+    // `:= 1` in IEEE 1800-2023 18.5.3.
     bool weight_is_divided = false;
 };
 

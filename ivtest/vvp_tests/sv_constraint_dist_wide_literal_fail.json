@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_constraint_dist_wide_literal_fail.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_constraint_dist_wide_literal_fail"
+}

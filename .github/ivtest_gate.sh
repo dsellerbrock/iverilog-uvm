@@ -85,6 +85,12 @@ if [ -z "$runtime_vvp" ] || [ -z "$runtime_iverilog" ] \
         bash tests/vvp_runtime/run_darray_default_fill_malformed.sh \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_concat_malformed_arity.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_dist_ir_compat.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! VVP="$runtime_vvp" \
         bash tests/vvp_runtime/run_covgrp_metadata.sh \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! IVERILOG="$runtime_iverilog" VVP="$runtime_vvp" \

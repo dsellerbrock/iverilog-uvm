@@ -1,0 +1,2 @@
+sv_constraint_dist_boolean_subject	vvp_tests/sv_constraint_dist_boolean_subject.json
+sv_constraint_dist_wide_literal_fail	vvp_tests/sv_constraint_dist_wide_literal_fail.json

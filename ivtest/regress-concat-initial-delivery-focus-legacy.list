@@ -1,0 +1,2 @@
+# VVP concatenation waits for one initial delivery from every connected port
+sv_concat_initial_port_delivery normal,-g2012,-ssv_concat_initial_port_delivery ivltests gold=sv_concat_initial_port_delivery.gold

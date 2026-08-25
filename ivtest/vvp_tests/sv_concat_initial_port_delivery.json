@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_concat_initial_port_delivery.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_concat_initial_port_delivery" ],
+    "gold"          : "sv_concat_initial_port_delivery"
+}

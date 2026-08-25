@@ -21166,6 +21166,523 @@ static bool constraint_flatten_member_path_(const PExpr*expr,
  * elaborated scope/import tables as normal expressions. */
 static Design*constraint_ir_design_ctx_ = nullptr;
 
+/* The current textual IR constant atom carries at most 64 value bits. Keep
+ * that bounded representation from silently aliasing a dist subject, item,
+ * endpoint, or weight that contains meaningful high bits. A depth counter,
+ * rather than a bool, preserves the context through nested expressions. */
+static unsigned constraint_dist_payload_depth_ = 0;
+
+struct constraint_dist_payload_scope_t {
+      constraint_dist_payload_scope_t() { constraint_dist_payload_depth_ += 1; }
+      ~constraint_dist_payload_scope_t() { constraint_dist_payload_depth_ -= 1; }
+};
+
+static bool constraint_dist_reject_wide_value_(const PExpr*site,
+						 const verinum&value)
+{
+      if (!constraint_dist_payload_depth_)
+	    return false;
+      bool meaningful_high_bit = false;
+      for (unsigned i = 64 ; i < value.len() ; i += 1) {
+	    if (value.get(i) != verinum::V0) {
+		  meaningful_high_bit = true;
+		  break;
+	    }
+      }
+      if (!meaningful_high_bit)
+	    return false;
+      if (constraint_ir_design_ctx_ && site
+	  && constraint_ir_design_ctx_->mark_constraint_dist_diagnostic(site)) {
+	    cerr << site->get_fileline() << ": error: dist subject, item, "
+		 << "range endpoint, or weight value has nonzero or unknown "
+		 << "bits above bit 63, which the constraint IR cannot "
+		 << "represent without changing its value." << endl;
+	    constraint_ir_design_ctx_->errors += 1;
+      }
+      return true;
+}
+
+/* IEEE 11.8.2 propagates comparison width/signedness down through
+ * context-determined expressions. The compact solver IR is not yet a typed
+ * tree, so accepting an arbitrary expression and trying to recognize a few
+ * risky substrings is unsafe. Decode the complete IR expression recursively
+ * and admit only the small shapes whose runtime semantics are proven here.
+ * A `self_safe' node has no context-determined descendant. */
+struct constraint_dist_ir_shape_t {
+      bool parsed = false;
+      bool self_safe = false;
+      bool terminal = false;
+      bool solver_storage = false;
+      bool is_signed = false;
+      bool is_constant = false;
+      bool constant_nonzero = false;
+      uint64_t constant_value = 0;
+      unsigned width = 1;
+      string op;
+      vector<constraint_dist_ir_shape_t> args;
+};
+
+struct constraint_value_slot_shape_t {
+      const PExpr*expr = nullptr;
+      unsigned width = 32;
+      bool is_signed = false;
+      bool valid = false;
+};
+
+static constraint_value_slot_shape_t constraint_ir_value_slot_shape_(
+      unsigned slot, const vector<const PExpr*>*value_slots,
+      Design*des, const NetScope*scope)
+{
+      constraint_value_slot_shape_t out;
+      if (!value_slots || slot >= value_slots->size()
+	  || !value_slots->at(slot) || !des || !scope)
+	    return out;
+
+      out.expr = value_slots->at(slot);
+      PExpr*slot_expr = const_cast<PExpr*>(out.expr);
+      PExpr::width_mode_t mode = PExpr::SIZED;
+      out.width = slot_expr->test_width(
+	    des, const_cast<NetScope*>(scope), mode);
+      if (out.width == 0) out.width = 32;
+      out.is_signed = slot_expr->has_sign();
+      out.valid = true;
+      return out;
+}
+
+static unsigned constraint_dist_ir_leaf_width_(const string&tok)
+{
+      vector<string> fields;
+      size_t begin = 0;
+      for (size_t i = 0 ; i <= tok.size() ; i += 1) {
+	    if (i != tok.size() && tok[i] != ':') continue;
+	    fields.push_back(tok.substr(begin, i - begin));
+	    begin = i + 1;
+      }
+      auto field_width = [&](size_t index) -> unsigned {
+	    if (index >= fields.size()) return 1;
+	    char*end = nullptr;
+	    unsigned long value = strtoul(fields[index].c_str(), &end, 10);
+	    return end && *end == 0 && value ? (unsigned)value : 1;
+      };
+      if (fields.empty()) return 1;
+	if (fields[0] == "c" || fields[0] == "p" || fields[0] == "r"
+	  || fields[0] == "v")
+	    return field_width(2);
+      if (fields[0] == "m") return field_width(3);
+      if (fields[0] == "e") return field_width(2);
+      if (fields[0] == "s") return 32;
+	/* dynforeach's delem header is P:W[:s], without an alphabetic
+	 * terminal prefix. It is consumed only by the delem operator below. */
+	if (fields.size() >= 2 && !fields[0].empty()
+	  && isdigit((unsigned char)fields[0][0])) return field_width(1);
+      return 1;
+}
+
+static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
+      const string&ir, size_t&pos,
+      const vector<const PExpr*>*value_slots,
+      Design*des, const NetScope*scope)
+{
+      constraint_dist_ir_shape_t out;
+      while (pos < ir.size() && isspace((unsigned char)ir[pos])) pos += 1;
+      if (pos >= ir.size()) return out;
+      if (ir[pos] != '(') {
+	    size_t begin = pos;
+	    while (pos < ir.size() && !isspace((unsigned char)ir[pos])
+		   && ir[pos] != '(' && ir[pos] != ')' && ir[pos] != '['
+		   && ir[pos] != ']' && ir[pos] != ',')
+		  pos += 1;
+	    string tok = ir.substr(begin, pos - begin);
+	    bool typed_terminal = tok.compare(0, 2, "c:") == 0
+		  || tok.compare(0, 2, "p:") == 0
+		  || tok.compare(0, 2, "m:") == 0
+		  || tok.compare(0, 2, "e:") == 0
+		  || tok.compare(0, 2, "r:") == 0
+		  || tok.compare(0, 2, "v:") == 0
+		  || tok.compare(0, 2, "s:") == 0;
+	    bool delem_header = !tok.empty()
+		  && isdigit((unsigned char)tok[0]) && tok.find(':') != string::npos;
+	    bool loop_header = tok == "L";
+	    out.parsed = typed_terminal || delem_header || loop_header;
+	    out.self_safe = out.parsed;
+	    out.terminal = typed_terminal;
+	    out.solver_storage = tok.compare(0, 2, "p:") == 0
+		  || tok.compare(0, 2, "m:") == 0
+		  || tok.compare(0, 2, "e:") == 0
+		  || tok.compare(0, 2, "r:") == 0
+		  || tok.compare(0, 2, "v:") == 0;
+	    out.is_signed = tok.size() >= 2
+		  && tok.compare(tok.size() - 2, 2, ":s") == 0;
+	    out.width = constraint_dist_ir_leaf_width_(tok);
+	    if (tok.compare(0, 2, "v:") == 0) {
+		  char*end = nullptr;
+		  unsigned long slot = strtoul(tok.c_str() + 2, &end, 10);
+		  if (end != tok.c_str() + 2 && *end == ':'
+		      && slot <= UINT_MAX) {
+			constraint_value_slot_shape_t actual =
+			      constraint_ir_value_slot_shape_(
+				    (unsigned)slot, value_slots, des, scope);
+			if (actual.valid) {
+			      out.width = actual.width;
+			      out.is_signed = actual.is_signed;
+			}
+		  }
+	    }
+	    if (tok.compare(0, 2, "c:") == 0) {
+		  char*end = nullptr;
+		  uint64_t value = (uint64_t)strtoull(tok.c_str() + 2, &end, 10);
+		  out.is_constant = end && end != tok.c_str() + 2;
+		  out.constant_value = value;
+		  out.constant_nonzero = out.is_constant && value != 0;
+	    }
+	    return out;
+      }
+
+      pos += 1;
+      while (pos < ir.size() && isspace((unsigned char)ir[pos])) pos += 1;
+      size_t op_begin = pos;
+	while (pos < ir.size() && !isspace((unsigned char)ir[pos])
+	     && ir[pos] != ')') pos += 1;
+      out.op = ir.substr(op_begin, pos - op_begin);
+      while (pos < ir.size()) {
+	    while (pos < ir.size() && isspace((unsigned char)ir[pos])) pos += 1;
+	    if (pos >= ir.size() || ir[pos] == ')') break;
+	    out.args.push_back(constraint_dist_ir_shape_at_(
+		  ir, pos, value_slots, des, scope));
+      }
+      if (pos >= ir.size() || ir[pos] != ')') return out;
+      pos += 1;
+      out.parsed = !out.op.empty();
+      for (const auto&arg : out.args)
+	    if (!arg.parsed) out.parsed = false;
+      auto args_self_safe = [&]() -> bool {
+	    for (const auto&arg : out.args)
+		  if (!arg.self_safe) return false;
+	    return true;
+      };
+      auto max_arg_width = [&]() -> unsigned {
+	    unsigned width = 1;
+	    for (const auto&arg : out.args)
+		  if (arg.width > width) width = arg.width;
+	    return width;
+      };
+
+      if (out.op.compare(0, 6, "trunc:") == 0) {
+	    const char*spec = out.op.c_str() + 6;
+	    char*end = nullptr;
+	    unsigned width = (unsigned)strtoul(spec, &end, 10);
+	    out.width = width ? width : 1;
+	    out.is_signed = end && *end == ':' && end[1] == 's';
+	    out.self_safe = args_self_safe();
+	    return out;
+      }
+      if (out.op == "countones") {
+	    out.width = 32;
+	    out.self_safe = args_self_safe();
+	    return out;
+      }
+      if (out.op == "onehot" || out.op == "onehot0"
+	  || out.op == "redand" || out.op == "redor"
+	  || out.op == "redxor" || out.op == "not"
+	  || out.op == "eq" || out.op == "ne" || out.op == "lt"
+	  || out.op == "le" || out.op == "gt" || out.op == "ge"
+	  || out.op == "and" || out.op == "or") {
+	    out.width = 1;
+	    out.self_safe = args_self_safe();
+	    return out;
+      }
+      if (out.op == "bit") {
+	    out.width = 1;
+	    out.self_safe = args_self_safe();
+	    out.is_signed = false;
+	    out.terminal = out.args.size() == 2
+		  && out.args[0].terminal && out.args[1].terminal;
+	    return out;
+      }
+      if (out.op == "part") {
+	    out.self_safe = args_self_safe();
+	    if (out.args.size() == 3 && out.args[0].terminal
+		&& out.args[1].terminal && out.args[1].is_constant
+		&& out.args[2].terminal && out.args[2].is_constant) {
+		  uint64_t hi = out.args[1].constant_value;
+		  uint64_t lo = out.args[2].constant_value;
+		  uint64_t width = hi >= lo ? hi - lo + 1 : lo - hi + 1;
+		  if (width != 0 && width <= 64) {
+			out.width = (unsigned)width;
+			out.is_signed = false;
+			out.terminal = true;
+		  }
+	    }
+	    return out;
+      }
+      if (out.op == "concat") {
+	    out.width = 0;
+	    bool terminal = !out.args.empty();
+	    for (const auto&arg : out.args) {
+		  if (arg.width > UINT_MAX - out.width) out.width = UINT_MAX;
+		  else out.width += arg.width;
+		  if (!arg.terminal) terminal = false;
+	    }
+	    if (out.width == 0) out.width = 1;
+	    out.self_safe = args_self_safe();
+	    out.is_signed = false;
+	    out.terminal = terminal;
+	    return out;
+      }
+      if (out.op == "delem") {
+	    out.width = out.args.empty() ? 1 : out.args.front().width;
+	    out.is_signed = !out.args.empty() && out.args.front().is_signed;
+	    out.self_safe = true;
+	    out.terminal = out.parsed;
+	    out.solver_storage = true;
+	    return out;
+      }
+      if (out.op == "add" || out.op == "sub" || out.op == "mul"
+	  || out.op == "div" || out.op == "mod" || out.op == "band"
+	  || out.op == "bor" || out.op == "bxor") {
+	    out.width = max_arg_width();
+	    out.is_signed = out.args.size() >= 2
+		  && out.args[0].is_signed && out.args[1].is_signed;
+	    return out; // context-determined: deliberately not self_safe
+      }
+      if (out.op == "neg" || out.op == "bnot" || out.op == "pow"
+	  || out.op == "shl" || out.op == "lshr" || out.op == "ashr") {
+	    if (!out.args.empty()) {
+		  out.width = out.args[0].width;
+		  out.is_signed = out.args[0].is_signed;
+	    }
+	    return out; // context-determined
+      }
+      if (out.op == "ite") {
+	    if (out.args.size() >= 3) {
+		  out.width = out.args[1].width > out.args[2].width
+			? out.args[1].width : out.args[2].width;
+		  out.is_signed = out.args[1].is_signed && out.args[2].is_signed;
+	    }
+	    return out; // context-determined
+      }
+      return out; // unknown operators are not self-safe
+}
+
+static constraint_dist_ir_shape_t constraint_dist_ir_shape_(
+      const string&ir, const vector<const PExpr*>*value_slots,
+      Design*des, const NetScope*scope)
+{
+      size_t pos = 0;
+      constraint_dist_ir_shape_t shape = constraint_dist_ir_shape_at_(
+	    ir, pos, value_slots, des, scope);
+      while (pos < ir.size() && isspace((unsigned char)ir[pos])) pos += 1;
+      if (pos != ir.size()) shape.parsed = false;
+      return shape;
+}
+
+/* The current runtime exchanges class-property/member/element values through
+ * uint64_t. A wider Z3 storage variable cannot be read, pinned, or committed
+ * without losing its high bits. Keep dist's newly widened expression support
+ * from exposing that pre-existing backend boundary; arbitrary-width model
+ * transfer must land before these storage leaves can be accepted. */
+static bool constraint_dist_reject_wide_storage_(
+      const PExpr*site, const constraint_dist_ir_shape_t&shape)
+{
+      bool wide = shape.solver_storage && shape.width > 64;
+      for (const auto&arg : shape.args)
+	    wide = constraint_dist_reject_wide_storage_(nullptr, arg) || wide;
+      if (!wide) return false;
+      if (site && constraint_ir_design_ctx_
+	  && constraint_ir_design_ctx_->mark_constraint_dist_diagnostic(site)) {
+	    cerr << site->get_fileline() << ": error: dist references a "
+		 << "runtime storage value wider than 64 bits, which the "
+		 << "constraint runtime cannot transfer without losing high bits; "
+		 << "use a <=64-bit typed intermediate expression." << endl;
+	    constraint_ir_design_ctx_->errors += 1;
+      }
+      return true;
+}
+
+static bool constraint_dist_ir_terminal_(const constraint_dist_ir_shape_t&shape)
+{
+      if (!shape.parsed) return false;
+	if (shape.terminal) return true;
+	/* An explicit typed truncation/cast is a semantic boundary only when it
+	 * wraps a terminal; accepting a context expression below it would still
+	 * build that child before the cast supplied its type. */
+      return shape.op.compare(0, 6, "trunc:") == 0
+	  && shape.args.size() == 1
+	  && constraint_dist_ir_terminal_(shape.args[0]);
+}
+
+/* `$countones' is self-determined. OpenTitan uses both a direct packed leaf
+ * and the bitwise complement of one as the complete dist subject. Admit only
+ * those two forms: arithmetic below countones would otherwise observe the
+ * solver AST's carry headroom instead of the SystemVerilog operand width. */
+static bool constraint_dist_countones_shape_(
+      const constraint_dist_ir_shape_t&shape)
+{
+      if (shape.op != "countones" || shape.args.size() != 1) return false;
+      const constraint_dist_ir_shape_t&arg = shape.args[0];
+      if (constraint_dist_ir_terminal_(arg)) return true;
+      return arg.op == "bnot" && !arg.is_signed && arg.args.size() == 1
+	  && constraint_dist_ir_terminal_(arg.args[0]);
+}
+
+static bool constraint_dist_hmac_boolean_shape_(
+      const constraint_dist_ir_shape_t&shape)
+{
+      if (shape.op != "eq" || shape.args.size() != 2) return false;
+      return (constraint_dist_countones_shape_(shape.args[0])
+		  && shape.args[1].is_constant
+		  && constraint_dist_ir_terminal_(shape.args[1]))
+	  || (constraint_dist_countones_shape_(shape.args[1])
+		  && shape.args[0].is_constant
+		  && constraint_dist_ir_terminal_(shape.args[0]));
+}
+
+static bool constraint_dist_terminal_comparison_shape_(
+      const constraint_dist_ir_shape_t&shape)
+{
+      bool comparison = shape.op == "eq" || shape.op == "ne"
+	  || shape.op == "lt" || shape.op == "le"
+	  || shape.op == "gt" || shape.op == "ge";
+      return comparison && shape.args.size() == 2
+	  && constraint_dist_ir_terminal_(shape.args[0])
+	  && constraint_dist_ir_terminal_(shape.args[1]);
+}
+
+/* A +,-,* tree is a ring expression modulo its final W-bit context. The
+ * runtime keeps full carry/product headroom, so narrower unsigned add/mul
+ * children remain exact integers until the root truncation. A narrower
+ * subtraction may already have wrapped modulo a smaller power of two, and a
+ * narrower signed subtree may already have sign-extended operands that the
+ * final unsigned context should zero-extend, so reject those two cases.
+ *
+ * OpenTitan relies on this bounded mixed-width form for uint16_t timer sums
+ * combined with positive int literals, and for uint/uvm_reg_data_t chains.
+ * A positive signed constant is safe in a wider unsigned context because its
+ * sign- and zero-extensions are identical. */
+static bool constraint_dist_terminal_in_ring_context_(
+      const constraint_dist_ir_shape_t&shape, unsigned width,
+      bool context_signed)
+{
+      if (!constraint_dist_ir_terminal_(shape) || shape.width > width)
+	    return false;
+      if (shape.is_signed == context_signed || shape.width == width)
+	    return true;
+      if (!context_signed && shape.is_signed && shape.is_constant) {
+	    uint64_t sign = shape.width == 64 ? UINT64_C(1) << 63
+		  : UINT64_C(1) << (shape.width - 1);
+	    return (shape.constant_value & sign) == 0;
+      }
+      return false;
+}
+
+static bool constraint_dist_ring_context_tree_(
+      const constraint_dist_ir_shape_t&shape, unsigned width,
+      bool context_signed)
+{
+      if (constraint_dist_ir_terminal_(shape))
+	    return constraint_dist_terminal_in_ring_context_(
+		  shape, width, context_signed);
+      if (shape.width > width || shape.args.size() != 2) return false;
+
+      if (shape.op == "add" || shape.op == "sub" || shape.op == "mul") {
+	      /* If this child's own signedness differs from the propagated
+	       * context, every operand must already be W bits; otherwise the
+	       * runtime would extend it using the local rather than outer type. */
+	    if (shape.is_signed != context_signed) {
+		  if (shape.width != width) return false;
+		  for (const auto&arg : shape.args)
+			if (arg.width != width) return false;
+	    }
+	      /* A narrow subtraction can wrap before it reaches W. Full-headroom
+	       * add and multiply do not lose information, but subtraction's
+	       * two's-complement residue is only congruent at its own width. */
+	    if (shape.op == "sub" && shape.width != width) return false;
+	    return constraint_dist_ring_context_tree_(
+		  shape.args[0], width, shape.is_signed)
+		  && constraint_dist_ring_context_tree_(
+			shape.args[1], width, shape.is_signed);
+      }
+
+      if (shape.op != "div" && shape.op != "mod") return false;
+      if (shape.op == "div" && shape.is_signed) return false;
+      if (shape.width != width || !shape.args[1].constant_nonzero
+	  || !constraint_dist_terminal_in_ring_context_(
+		shape.args[1], width, shape.is_signed))
+	    return false;
+
+      /* A composite dividend is explicitly truncated to this semantic
+	       * width by the dist-only emitter before division/modulus. */
+      const constraint_dist_ir_shape_t&left = shape.args[0];
+      if (constraint_dist_ir_terminal_(left))
+	    return constraint_dist_terminal_in_ring_context_(
+		  left, width, shape.is_signed);
+      return left.op.compare(0, 6, "trunc:") == 0
+	  && left.width == width && left.args.size() == 1
+	  && constraint_dist_ring_context_tree_(
+		left.args[0], width, left.is_signed);
+}
+
+static bool constraint_dist_compared_shape_supported_(
+      const constraint_dist_ir_shape_t&shape, unsigned comparison_width)
+{
+      if (!shape.parsed) return false;
+	if (constraint_dist_ir_terminal_(shape)) return true;
+	if (constraint_dist_countones_shape_(shape)) return true;
+	if (constraint_dist_hmac_boolean_shape_(shape)) return true;
+	if (constraint_dist_terminal_comparison_shape_(shape)) return true;
+	if (comparison_width <= shape.width
+	    && constraint_dist_ring_context_tree_(
+		  shape, shape.width, shape.is_signed))
+	  return true;
+	bool children_terminal = true;
+      for (const auto&arg : shape.args)
+	    if (!constraint_dist_ir_terminal_(arg)) children_terminal = false;
+	if (!children_terminal) return false;
+	/* Full carry/product headroom makes direct add/multiply exact. Signed
+	 * subtraction has the same extra carry/sign headroom. Division/modulus
+	 * are admitted only with a statically nonzero terminal divisor so Z3's
+	 * total division-by-zero operators cannot become observable. */
+	if (shape.op == "add" || shape.op == "mul") return true;
+	if (shape.op == "sub" && shape.is_signed) return true;
+	if (shape.op == "div" && !shape.is_signed && shape.args.size() == 2
+	    && shape.args[1].constant_nonzero) return true;
+	if (shape.op == "mod" && shape.args.size() == 2
+	    && shape.args[1].constant_nonzero) return true;
+      if (shape.op == "bnot" && !shape.is_signed)
+	    return shape.args.size() == 1
+		  && comparison_width <= shape.width;
+      return false;
+}
+
+static bool constraint_dist_weight_shape_supported_(
+      const constraint_dist_ir_shape_t&shape)
+{
+      if (!shape.parsed) return false;
+	if (constraint_dist_ir_terminal_(shape)) return true;
+	/* Weights are self-determined and folded modulo their semantic width.
+	 * Equal-width +,-,* trees therefore remain exact even when nested. */
+      if (constraint_dist_ring_context_tree_(
+	    shape, shape.width, shape.is_signed))
+	    return true;
+	/* A state-selected weight is self-determined. Equal arm types make the
+	 * runtime ite bitvector identical to the SystemVerilog result, including
+	 * through the nested ternary used by OpenTitan/Ibex. */
+      if (shape.op == "ite" && shape.args.size() == 3
+	  && shape.args[0].self_safe
+	  && shape.args[1].width == shape.args[2].width
+	  && shape.args[1].is_signed == shape.args[2].is_signed)
+	    return constraint_dist_weight_shape_supported_(shape.args[1])
+		  && constraint_dist_weight_shape_supported_(shape.args[2]);
+      for (const auto&arg : shape.args)
+	    if (!constraint_dist_ir_terminal_(arg)) return false;
+	/* A weight is self-determined and ground-folded at its semantic width;
+	 * these direct arithmetic roots therefore need no outer context replay. */
+      if (shape.op == "add" || shape.op == "sub" || shape.op == "mul")
+	    return true;
+      return (shape.op == "div" || shape.op == "mod")
+	  && shape.args.size() == 2 && shape.args[1].constant_nonzero;
+}
+
 /* Value slots are initially emitted while the constraint tree is being
  * walked. Some nodes (notably size/sign casts) replace the saved caller
  * expression after their operand has already emitted its token, so assign
@@ -21180,6 +21697,7 @@ static string constraint_ir_shape_value_slots_(
 	    return ir;
 
       string out;
+      bool contains_dist = ir.find("(dist ") != string::npos;
       const char*begin = ir.c_str();
       const char*p = begin;
       while (*p) {
@@ -21212,13 +21730,28 @@ static string constraint_ir_shape_value_slots_(
 		  continue;
 	    }
 
-	    PExpr*slot_expr = const_cast<PExpr*>(value_slots->at(slot));
-	    PExpr::width_mode_t mode = PExpr::SIZED;
-	    unsigned width = slot_expr->test_width(
-		  des, const_cast<NetScope*>(scope), mode);
+	    constraint_value_slot_shape_t actual =
+		  constraint_ir_value_slot_shape_(slot, value_slots, des, scope);
+	    if (!actual.valid) {
+		  out.append(p, q - p);
+		  p = q;
+		  continue;
+	    }
+	    unsigned width = actual.width;
+	    if (contains_dist && width > 64) {
+		  if (des->mark_constraint_dist_diagnostic(actual.expr)) {
+			cerr << actual.expr->get_fileline() << ": error: dist "
+			     << "references a runtime storage value wider than 64 "
+			     << "bits, which the constraint runtime cannot transfer "
+			     << "without losing high bits; use a <=64-bit typed "
+			     << "intermediate expression." << endl;
+			des->errors += 1;
+		  }
+		  return "";
+	    }
 	    if (width == 0 || width > 64) width = 32;
 	    out += "v:" + to_string(slot) + ":" + to_string(width);
-	    if (slot_expr->has_sign()) out += ":s";
+	    if (actual.is_signed) out += ":s";
 	    p = q;
       }
       return out;
@@ -21318,10 +21851,11 @@ static string constraint_constant_ir_(const PEIdent*id,
       Design*des = constraint_ir_design_ctx_;
       if (!des || !scope || !id || id->path().name.empty()) return "";
 
-      auto const_ir = [](const NetExpr*expr) -> string {
+      auto const_ir = [&](const NetExpr*expr) -> string {
 	    const NetEConst*val = dynamic_cast<const NetEConst*>(expr);
 	    if (!val || !val->value().is_defined()) return "";
 	    const verinum&v = val->value();
+	    if (constraint_dist_reject_wide_value_(id, v)) return "";
 	    return "c:" + to_string(v.as_ulong64()) + ":"
 		  + to_string(v.len()) + (v.has_sign() ? ":s" : "");
       };
@@ -21425,7 +21959,7 @@ static string constraint_class_state_path_ir_(
 
       if (!constraint_state_prop_ok_(cur_type, false)) return "";
       unsigned wid = cur_type ? cur_type->packed_width() : 0;
-      if (wid == 0 || wid > 64) wid = 32;
+      if (wid == 0 || (wid > 64 && !constraint_dist_payload_depth_)) wid = 32;
       return "r:" + path + ":" + to_string(wid)
 	   + ((cur_type && cur_type->get_signed()) ? ":s" : "");
 }
@@ -23433,7 +23967,8 @@ static string scope_randomize_value_slot_(const PExpr*expr,
       value_slots->push_back(expr);
       if (scope_randomize_signal_slots_)
 	    scope_randomize_signal_slots_->push_back(direct_signal);
-      if (width == 0 || width > 64) width = 32;
+      if (width == 0 || (width > 64 && !constraint_dist_payload_depth_))
+	    width = 32;
       return "v:" + to_string(slot) + ":" + to_string(width);
 }
 
@@ -23504,6 +24039,108 @@ static uint64_t constraint_resize_const_bits_(
 	    bits |= ~((UINT64_C(1) << value.width) - 1);
       if (width < 64) bits &= (UINT64_C(1) << width) - 1;
       return bits;
+}
+
+/* An unbased unsized literal (`'0 or `'1) takes the width of its expression
+ * context. A dist item/range endpoint gets that context from its subject, so
+ * serializing the literal first as c:BIT:1 loses information. Materialize the
+ * exact OpenTitan constant forms here, before the generic IR constant folder:
+ * a bare fill literal, or `fill - integral-literal'. Other fill-bearing
+ * compared expressions remain a focused unsupported-context diagnostic. */
+static bool constraint_dist_contains_fill_literal_(const PExpr*expr)
+{
+      if (const PENumber*num = dynamic_cast<const PENumber*>(expr))
+	    return num->value().is_single();
+      if (const PEBinary*bin = dynamic_cast<const PEBinary*>(expr))
+	    return constraint_dist_contains_fill_literal_(bin->get_left())
+		  || constraint_dist_contains_fill_literal_(bin->get_right());
+      if (const PEUnary*un = dynamic_cast<const PEUnary*>(expr))
+	    return constraint_dist_contains_fill_literal_(un->get_expr());
+      if (const PETernary*ter = dynamic_cast<const PETernary*>(expr))
+	    return constraint_dist_contains_fill_literal_(ter->get_cond())
+		  || constraint_dist_contains_fill_literal_(ter->get_true())
+		  || constraint_dist_contains_fill_literal_(ter->get_false());
+      return false;
+}
+
+static bool constraint_dist_number_const_(const PENumber*num,
+					    unsigned fill_width,
+					    constraint_const_ir_t&out)
+{
+      if (!num || fill_width == 0 || fill_width > 64) return false;
+      const verinum&value = num->value();
+      if (!value.is_defined()) return false;
+      if (value.is_single()) {
+	    if (value.len() != 1) return false;
+	    if (value.get(0) == verinum::V0) out.value = 0;
+	    else if (value.get(0) == verinum::V1)
+		  out.value = fill_width == 64 ? UINT64_MAX
+			: (UINT64_C(1) << fill_width) - 1;
+	    else return false;
+	    out.width = fill_width;
+	    out.is_signed = false;
+	    return true;
+      }
+      unsigned width = value.len();
+      if (!value.has_len() && width < integer_width) width = integer_width;
+      if (width == 0 || width > 64) return false;
+      out.value = 0;
+      for (unsigned i = 0 ; i < value.len() && i < 64 ; i += 1)
+	    if (value.get(i) == verinum::V1) out.value |= UINT64_C(1) << i;
+      out.width = width;
+      out.is_signed = value.has_sign();
+      return true;
+}
+
+static bool constraint_dist_context_fill_ir_(const PExpr*expr,
+					       unsigned subject_width,
+					       string&ir)
+{
+      if (!expr || subject_width == 0 || subject_width > 64) return false;
+      if (const PENumber*num = dynamic_cast<const PENumber*>(expr)) {
+	    if (!num->value().is_single()) return false;
+	    constraint_const_ir_t value;
+	    if (!constraint_dist_number_const_(num, subject_width, value))
+		  return false;
+	    ir = constraint_format_const_ir_(value);
+	    return true;
+      }
+
+      const PEBinary*bin = dynamic_cast<const PEBinary*>(expr);
+      const PENumber*left_num = bin
+	    ? dynamic_cast<const PENumber*>(bin->get_left()) : nullptr;
+      const PENumber*right_num = bin
+	    ? dynamic_cast<const PENumber*>(bin->get_right()) : nullptr;
+      if (!bin || bin->get_op() != '-' || !left_num || !right_num
+	  || !left_num->value().is_single()
+	  || right_num->value().is_single())
+	    return false;
+
+      auto natural_width = [](const PENumber*num) -> unsigned {
+	    const verinum&value = num->value();
+	    if (value.is_single()) return 1;
+	    unsigned width = value.len();
+	    if (!value.has_len() && width < integer_width) width = integer_width;
+	    return width;
+      };
+      unsigned width = subject_width;
+      width = max(width, natural_width(right_num));
+      if (width == 0 || width > 64) return false;
+
+      constraint_const_ir_t left;
+      constraint_const_ir_t right;
+      if (!constraint_dist_number_const_(left_num, width, left)
+	  || !constraint_dist_number_const_(right_num, width, right))
+	    return false;
+      constraint_const_ir_t result;
+      result.width = width;
+      result.is_signed = false;
+      /* An unbased fill literal is unsigned, so both operands use unsigned
+	 * propagation in this expression context. */
+      result.value = constraint_resize_const_bits_(left, width, false)
+	  - constraint_resize_const_bits_(right, width, false);
+      ir = constraint_format_const_ir_(result);
+      return true;
 }
 
 /* A no-argument function call may omit its parentheses (IEEE 1800-2017
@@ -23623,6 +24260,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 
       if (const PENumber*num = dynamic_cast<const PENumber*>(expr)) {
 	    const verinum&v = num->value();
+	    if (constraint_dist_reject_wide_value_(num, v)) return "";
 	    uint64_t val = 0;
 	    unsigned bits = v.len();
 	      // An unsized integer literal has at least the implementation's
@@ -24248,6 +24886,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (!en) continue;
 			if (const NetEConst*ec =
 			    dynamic_cast<const NetEConst*>(en)) {
+			      if (constraint_dist_reject_wide_value_(id, ec->value()))
+				    return "";
 			      uint64_t val = ec->value().as_unsigned();
 			      return "c:" + to_string(val) + ":"
 				    + to_string(ec->value().len())
@@ -24664,7 +25304,46 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       }
 
       if (const PEConcat*cat = dynamic_cast<const PEConcat*>(expr)) {
-	    if (cat->has_repeat()) return "";
+	    if (cat->has_repeat()) {
+		  /* A replication concatenation is self-determined. OpenTitan uses
+		   * `{OTP_ADDR_WIDTH{1'b1}}' as a dist endpoint; fold the bounded
+		   * all-integral ground form before the generic concat IR would lose
+		   * its repeat count. Wider or nonground replication remains loud at
+		   * the enclosing dist payload boundary. */
+		  string repeat_ir = pexpr_to_constraint_ir(
+			cat->repeat_expr(), cls, value_slots, scope, loop_env);
+		  constraint_const_ir_t repeat_value;
+		  if (!constraint_parse_const_ir_(repeat_ir, repeat_value)) return "";
+		  uint64_t repeat = constraint_resize_const_bits_(
+			repeat_value, repeat_value.width, false);
+		  if (repeat == 0 || repeat > 64) return "";
+
+		  uint64_t chunk = 0;
+		  unsigned chunk_width = 0;
+		  for (const PExpr*part : cat->stream_parms()) {
+			string item_ir = pexpr_to_constraint_ir(
+			      part, cls, value_slots, scope, loop_env);
+			constraint_const_ir_t item;
+			if (!constraint_parse_const_ir_(item_ir, item)
+			    || item.width == 0 || item.width > 64
+			    || item.width > 64 - chunk_width)
+			      return "";
+			uint64_t bits = constraint_resize_const_bits_(
+			      item, item.width, false);
+			chunk = item.width == 64 ? bits
+			      : (chunk << item.width) | bits;
+			chunk_width += item.width;
+		  }
+		  if (chunk_width == 0 || repeat > 64 / chunk_width) return "";
+		  constraint_const_ir_t folded;
+		  folded.width = chunk_width * (unsigned)repeat;
+		  folded.is_signed = false;
+		  folded.value = 0;
+		  for (uint64_t idx = 0 ; idx < repeat ; idx += 1)
+			folded.value = chunk_width == 64 ? chunk
+			      : (folded.value << chunk_width) | chunk;
+		  return constraint_format_const_ir_(folded);
+	    }
 	    string out = "(concat";
 	    for (const PExpr*part : cat->stream_parms()) {
 		  string item = pexpr_to_constraint_ir(
@@ -24987,23 +25666,144 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (capture)
 		  capture->seen = constraint_source_references_randc_(
 			ins, cls, value_slots, scope, loop_env);
-	    string s = pexpr_to_constraint_ir(ins->get_expr(), cls, value_slots, scope, loop_env);
+	    if (is_dist
+		&& constraint_dist_contains_fill_literal_(ins->get_expr())) {
+		  if (constraint_ir_design_ctx_
+		      && constraint_ir_design_ctx_->mark_constraint_dist_diagnostic(ins)) {
+			cerr << ins->get_fileline() << ": error: an unbased unsized "
+			     << "fill literal in a dist subject is not self-sized; "
+			     << "use a typed intermediate expression." << endl;
+			constraint_ir_design_ctx_->errors += 1;
+		  }
+		  return "";
+	    }
+	    string s;
+	    if (is_dist) {
+		  constraint_dist_payload_scope_t subject_scope;
+		  s = pexpr_to_constraint_ir(ins->get_expr(), cls, value_slots,
+					   scope, loop_env);
+	    } else {
+		  s = pexpr_to_constraint_ir(ins->get_expr(), cls, value_slots,
+					   scope, loop_env);
+	    }
 	    if (s.empty() || s[0] == '?') return "";
+	    constraint_dist_ir_shape_t dist_subject_shape;
+	    if (is_dist) dist_subject_shape = constraint_dist_ir_shape_(
+		  s, value_slots, constraint_ir_design_ctx_, scope);
+	    if (is_dist && constraint_dist_reject_wide_storage_(
+		  ins->get_expr(), dist_subject_shape))
+		  return "";
+	    bool dist_subject_signed = is_dist && dist_subject_shape.is_signed;
+	    if (is_dist && !constraint_dist_compared_shape_supported_(
+		  dist_subject_shape, dist_subject_shape.width)) {
+		  if (constraint_ir_design_ctx_
+		      && constraint_ir_design_ctx_->mark_constraint_dist_diagnostic(ins)) {
+			cerr << ins->get_fileline() << ": error: dist subject expression "
+			     << "requires unsupported IEEE 11.8.2 top-down context "
+			     << "propagation; use a typed intermediate expression." << endl;
+			constraint_ir_design_ctx_->errors += 1;
+		  }
+		  return "";
+	    }
 	    // C7 (Phase 62b): dist form preserves per-branch weights as
-	    // `(dist <expr> (b W <range>) ...)` where W is the literal
-	    // weight integer.  Plain inside emits the existing form.
+	    // `(dist <expr> (b MODE W <range>) ...)`, where MODE is the
+	    // source `:=' or `:/' spelling and W is the integral weight.
+	    // An unweighted integral item has the IEEE default `:= 1'.
+	    // Plain inside emits the existing form.
 	    string result = is_dist ? "(dist " : "(inside ";
 	    result += s;
+	    auto payload_ir = [&](const PExpr*payload,
+				 bool compared_to_subject) -> string {
+		  string ir;
+		  if (!is_dist) {
+			ir = pexpr_to_constraint_ir(payload, cls, value_slots,
+					      scope, loop_env);
+		  } else {
+			/* Compared fill literals receive their width from the dist
+			 * subject. Materialize the bounded constant forms before the
+			 * generic emitter can collapse `'1' to c:1:1. */
+			if (compared_to_subject
+			    && constraint_dist_contains_fill_literal_(payload)) {
+			      if (!constraint_dist_context_fill_ir_(
+				    payload, dist_subject_shape.width, ir))
+				    ir = "(unsupported-dist-fill-context)";
+			} else {
+			      constraint_dist_payload_scope_t payload_scope;
+			      ir = pexpr_to_constraint_ir(payload, cls, value_slots,
+						     scope, loop_env);
+			}
+		  }
+		  if (!is_dist || ir.empty()) return ir;
+		  constraint_dist_ir_shape_t payload_shape =
+			constraint_dist_ir_shape_(
+			      ir, value_slots, constraint_ir_design_ctx_, scope);
+		  if (constraint_dist_reject_wide_storage_(payload, payload_shape))
+			return "";
+		  bool supported = compared_to_subject
+			? constraint_dist_compared_shape_supported_(
+				payload_shape, dist_subject_shape.width)
+			  && constraint_dist_compared_shape_supported_(
+				dist_subject_shape, payload_shape.width)
+			: constraint_dist_weight_shape_supported_(payload_shape);
+		  if (!supported) {
+			if (constraint_ir_design_ctx_ && payload
+			    && constraint_ir_design_ctx_
+				 ->mark_constraint_dist_diagnostic(payload)) {
+			      cerr << payload->get_fileline() << ": error: dist "
+				   << (compared_to_subject
+					 ? "item or range endpoint expression"
+					 : "weight expression")
+				   << " requires unsupported IEEE 11.8.2 top-down "
+				   << "context propagation; use a typed intermediate "
+				   << "expression." << endl;
+			      constraint_ir_design_ctx_->errors += 1;
+			}
+			return "";
+		  }
+		  /* A signed arithmetic item/endpoint evaluated in an unsigned
+		   * subject comparison also needs IEEE 11.8.2's outer context
+		   * propagated into its operands. The compact IR cannot express that
+		   * safely yet. Weights are self-determined and are not compared to
+		   * the subject, so this boundary does not apply to them. */
+		  if (compared_to_subject && !payload_shape.self_safe) {
+			if (payload_shape.is_signed && !dist_subject_signed) {
+			      if (constraint_ir_design_ctx_ && payload
+				  && constraint_ir_design_ctx_
+				       ->mark_constraint_dist_diagnostic(payload)) {
+				    cerr << payload->get_fileline() << ": error: a signed "
+					 << "arithmetic dist item or range endpoint in an "
+					 << "unsigned subject context requires unsupported "
+					 << "IEEE 11.8.2 top-down context propagation; use "
+					 << "a typed intermediate expression." << endl;
+				    constraint_ir_design_ctx_->errors += 1;
+			      }
+			      return "";
+			}
+		  }
+		  if (compared_to_subject && !dist_subject_shape.self_safe
+		      && dist_subject_signed && !payload_shape.is_signed) {
+			if (constraint_ir_design_ctx_ && payload
+			    && constraint_ir_design_ctx_
+				 ->mark_constraint_dist_diagnostic(payload)) {
+			      cerr << payload->get_fileline() << ": error: a signed "
+				   << "arithmetic dist subject with an unsigned item or "
+				   << "range endpoint requires unsupported IEEE 11.8.2 "
+				   << "top-down context propagation; use a typed "
+				   << "intermediate expression." << endl;
+			      constraint_ir_design_ctx_->errors += 1;
+			}
+			return "";
+		  }
+		  return ir;
+	    };
 	    for (auto& r : ins->get_ranges()) {
 		  string range_ir;
 		  if (r.is_range) {
 			string lo = r.lo
-			      ? pexpr_to_constraint_ir(r.lo, cls, value_slots,
-						       scope, loop_env)
+			      ? payload_ir(r.lo, true)
 			      : "*";
 			string hi = r.hi
-			      ? pexpr_to_constraint_ir(r.hi, cls, value_slots,
-						       scope, loop_env)
+			      ? payload_ir(r.hi, true)
 			      : "*";
 			  // A dropped item silently NARROWS (or, when all
 			  // items drop, voids) the membership set; fail the
@@ -25075,20 +25875,25 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      }
 			}
 			if (range_ir.empty()) {
-			      string v = pexpr_to_constraint_ir(r.hi, cls, value_slots, scope, loop_env);
+			      string v = payload_ir(r.hi, true);
 			      if (v.empty()) return "";
 			      range_ir = v;
 			}
 		  }
 		  if (is_dist) {
-			// Default weight 1 for unweighted branches in a
-			// dist (rare, but legal in mixed forms).
+			// Default weight 1 for unweighted branches in a dist.
+			// IEEE 1800-2023 18.5.3 specifies `:= 1' for an
+			// unweighted integral item, which matters for a range
+			// because its aggregate weight includes the complete
+			// range size.
 			string w = "1";
 			if (r.weight) {
-			      string we = pexpr_to_constraint_ir(r.weight, cls, value_slots, scope, loop_env);
-			      if (!we.empty()) w = we;
+			      string we = payload_ir(r.weight, false);
+			      if (we.empty()) return "";
+			      w = we;
 			}
-			result += " (b " + w + " " + range_ir + ")";
+			string mode = r.weight_is_divided ? ":/" : ":=";
+			result += " (b " + mode + " " + w + " " + range_ir + ")";
 		  } else {
 			result += " " + range_ir;
 		  }
@@ -25107,6 +25912,23 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    string no = pexpr_to_constraint_ir(ter->get_false(), cls,
 					   value_slots, scope, loop_env);
 	    if (cond.empty() || yes.empty() || no.empty()) return "";
+	    constraint_const_ir_t cond_const;
+	    constraint_const_ir_t yes_const;
+	    constraint_const_ir_t no_const;
+	    if (constraint_parse_const_ir_(cond, cond_const)
+		&& constraint_parse_const_ir_(yes, yes_const)
+		&& constraint_parse_const_ir_(no, no_const)
+		&& cond_const.width <= 64 && yes_const.width <= 64
+		&& no_const.width <= 64) {
+		  constraint_const_ir_t result;
+		  result.width = max(yes_const.width, no_const.width);
+		  result.is_signed = yes_const.is_signed && no_const.is_signed;
+		  const constraint_const_ir_t&selected = cond_const.value
+			? yes_const : no_const;
+		  result.value = constraint_resize_const_bits_(
+			selected, result.width, result.is_signed);
+		  return constraint_format_const_ir_(result);
+	    }
 	    return "(ite " + cond + " " + yes + " " + no + ")";
       }
 
@@ -25145,15 +25967,65 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	      // simple c:V literals.
 	    constraint_const_ir_t left_const;
 	    constraint_const_ir_t right_const;
-	    if (constraint_parse_const_ir_(left, left_const)
-		&& constraint_parse_const_ir_(right, right_const)
-		&& left_const.width <= 64 && right_const.width <= 64
+	    bool have_ground_operands = constraint_parse_const_ir_(left, left_const)
+		  && constraint_parse_const_ir_(right, right_const)
+		  && left_const.width <= 64 && right_const.width <= 64;
+	    if (have_ground_operands
+		&& (op == "eq" || op == "ne" || op == "lt" || op == "le"
+		    || op == "gt" || op == "ge" || op == "and" || op == "or")) {
+		  unsigned width = max(left_const.width, right_const.width);
+		  bool use_signed = left_const.is_signed && right_const.is_signed;
+		  uint64_t lv = constraint_resize_const_bits_(
+			left_const, width, use_signed);
+		  uint64_t rv = constraint_resize_const_bits_(
+			right_const, width, use_signed);
+		  bool result = false;
+		  if (op == "eq") result = lv == rv;
+		  else if (op == "ne") result = lv != rv;
+		  else if (op == "and") result = lv != 0 && rv != 0;
+		  else if (op == "or") result = lv != 0 || rv != 0;
+		  else if (use_signed) {
+			auto signed_value = [](uint64_t bits, unsigned bits_width) -> __int128 {
+			      if (bits_width < 64
+				  && ((bits >> (bits_width - 1)) & 1))
+				    bits |= ~((UINT64_C(1) << bits_width) - 1);
+			      return (__int128)(int64_t)bits;
+			};
+			__int128 lhs = signed_value(lv, width);
+			__int128 rhs = signed_value(rv, width);
+			if (op == "lt") result = lhs < rhs;
+			else if (op == "le") result = lhs <= rhs;
+			else if (op == "gt") result = lhs > rhs;
+			else result = lhs >= rhs;
+		  } else {
+			if (op == "lt") result = lv < rv;
+			else if (op == "le") result = lv <= rv;
+			else if (op == "gt") result = lv > rv;
+			else result = lv >= rv;
+		  }
+		  constraint_const_ir_t folded;
+		  folded.value = result ? 1 : 0;
+		  folded.width = 1;
+		  folded.is_signed = false;
+		  return constraint_format_const_ir_(folded);
+	    }
+	    if (have_ground_operands
 		&& (op == "add" || op == "sub" || op == "mul"
-		    || op == "div" || op == "mod")) {
+		    || op == "div" || op == "mod" || op == "pow"
+		    || op == "shl" || op == "lshr" || op == "ashr"
+		    || op == "bxor")
+		&& (!right_const.is_signed
+		    || (right_const.value
+			& (UINT64_C(1) << (right_const.width - 1))) == 0
+		    || (op != "pow" && op != "shl"
+			&& op != "lshr" && op != "ashr"))) {
 		  constraint_const_ir_t result;
-		  result.width = max(left_const.width, right_const.width);
-		  result.is_signed = left_const.is_signed
-			&& right_const.is_signed;
+		  bool left_width_result = op == "pow" || op == "shl"
+			|| op == "lshr" || op == "ashr";
+		  result.width = left_width_result ? left_const.width
+			: max(left_const.width, right_const.width);
+		  result.is_signed = left_width_result ? left_const.is_signed
+			: left_const.is_signed && right_const.is_signed;
 		  /* Once both operands are signed, expression propagation extends
 		   * each to the common result width before arithmetic. Raw narrow
 		   * two's-complement bits (for example 8'shff) must not be treated
@@ -25165,7 +26037,38 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (op == "add") result.value = lv + rv;
 		  else if (op == "sub") result.value = lv - rv;
 		  else if (op == "mul") result.value = lv * rv;
-		  else if (result.is_signed) {
+		  else if (op == "bxor") result.value = lv ^ rv;
+		  else if (op == "pow") {
+			uint64_t exponent = constraint_resize_const_bits_(
+			      right_const, right_const.width, false);
+			uint64_t power = 1;
+			uint64_t base = lv;
+			while (exponent) {
+			      if (exponent & 1) power *= base;
+			      exponent >>= 1;
+			      if (exponent) base *= base;
+			}
+			result.value = power;
+		  } else if (op == "shl" || op == "lshr" || op == "ashr") {
+			uint64_t count = constraint_resize_const_bits_(
+			      right_const, right_const.width, false);
+			uint64_t mask = result.width == 64 ? UINT64_MAX
+			      : (UINT64_C(1) << result.width) - 1;
+			bool sign = result.is_signed
+			      && ((lv >> (result.width - 1)) & 1);
+			if (count >= result.width)
+			      result.value = op == "ashr" && sign ? mask : 0;
+			else if (op == "shl") result.value = (lv << count) & mask;
+			else {
+			      result.value = lv >> count;
+			      if (op == "ashr" && sign && count) {
+				    uint64_t low_mask = result.width - count == 64
+					  ? UINT64_MAX
+					  : (UINT64_C(1) << (result.width - count)) - 1;
+				    result.value |= mask & ~low_mask;
+			      }
+			}
+		  } else if (result.is_signed) {
 			auto signed_value = [](uint64_t bits, unsigned width) -> __int128 {
 			      if (width < 64 && ((bits >> (width - 1)) & 1))
 				    bits |= ~((UINT64_C(1) << width) - 1);
@@ -25180,6 +26083,34 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      : op == "div" ? lv / rv : lv % rv;
 		  }
 		  return constraint_format_const_ir_(result);
+	    }
+	      /* Division and modulus consume their operands at the expression's
+	       * semantic width. A composite left operand is otherwise still a
+	       * full-headroom Z3 AST (for example a 64-bit product whose SV width
+	       * is 32), and dividing before truncation changes the result. Within
+	       * dist payloads make that boundary explicit; the recursive shape
+	       * validator admits it only when the final comparison supplies no
+	       * wider context. This covers OpenTitan's `(9*max)/10' and
+	       * `(100-pct)/2' forms without broad untyped-tree acceptance. */
+	    if (constraint_dist_payload_depth_
+		&& (op == "div" || op == "mod")) {
+		  constraint_dist_ir_shape_t left_shape =
+			constraint_dist_ir_shape_(
+			      left, value_slots, constraint_ir_design_ctx_, scope);
+		  constraint_dist_ir_shape_t right_shape =
+			constraint_dist_ir_shape_(
+			      right, value_slots, constraint_ir_design_ctx_, scope);
+		  unsigned semantic_width = max(
+			left_shape.width, right_shape.width);
+		  bool already_bounded = left_shape.op.compare(0, 6, "trunc:") == 0
+			&& left_shape.width == semantic_width;
+		  if (left_shape.parsed && right_shape.parsed
+		      && !constraint_dist_ir_terminal_(left_shape)
+		      && !already_bounded) {
+			left = "(trunc:" + to_string(semantic_width)
+			      + (left_shape.is_signed ? ":s " : " ")
+			      + left + ")";
+		  }
 	    }
 	    return "(" + op + " " + left + " " + right + ")";
       }
@@ -25198,7 +26129,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			value.value = UINT64_C(0) - value.value;
 			return constraint_format_const_ir_(value);
 		  }
-		  return "(sub c:0 " + sub + ")";
+		  return "(neg " + sub + ")";
 	    }
 	    if (un->get_op() == '+') return sub;
 	    if (un->get_op() == '~') return "(bnot " + sub + ")";
@@ -25618,11 +26549,162 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    };
 		    std::vector<std::vector<xbin_desc_t>> cp_value_bins;
 
-		    auto eval_ranges = [&](std::vector<std::pair<PExpr*,PExpr*>>&ranges,
-					   std::vector<std::pair<uint64_t,uint64_t>>&rout) -> bool {
-			  for (auto& range : ranges) {
-				if (!range.first || !range.second) continue;
-				NetExpr* lo_e = elab_and_eval(des, class_scope_,
+			      // A non-ref covergroup constructor formal is immutable state of
+			      // one covergroup object (19.3). Reference discovery is deliberately
+			      // independent from the small dynamic-endpoint grammar below: an
+			      // unsupported call/cast/concat/operator around a formal must reach
+			      // the focused runtime-range diagnostic without first trying to bind
+			      // that synthesized property in class_scope_.
+			    std::function<bool(const PExpr*)> ctor_range_references_formal;
+			    ctor_range_references_formal = [&](const PExpr*expr) -> bool {
+				  if (!expr) return false;
+				  if (is_direct_ctor_formal(expr)) return true;
+				  if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+					for (const name_component_t&component : id->path().name)
+					      for (const index_component_t&index : component.index)
+						    if (ctor_range_references_formal(index.msb)
+							|| ctor_range_references_formal(index.lsb))
+							  return true;
+					return false;
+				  }
+				  if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr))
+					return ctor_range_references_formal(unary->get_expr());
+				  if (const PEBinary*binary = dynamic_cast<const PEBinary*>(expr))
+					return ctor_range_references_formal(binary->get_left())
+					      || ctor_range_references_formal(binary->get_right());
+				  if (const PETernary*ternary =
+					dynamic_cast<const PETernary*>(expr))
+					return ctor_range_references_formal(ternary->get_cond())
+					      || ctor_range_references_formal(ternary->get_true())
+					      || ctor_range_references_formal(ternary->get_false());
+				  if (const PECallFunction*call =
+					dynamic_cast<const PECallFunction*>(expr)) {
+					if (ctor_range_references_formal(call->receiver_expr()))
+					      return true;
+					for (const named_pexpr_t&parm : call->get_parms())
+					      if (ctor_range_references_formal(parm.parm)) return true;
+					for (const PExpr*with : call->with_constraints())
+					      if (ctor_range_references_formal(with)) return true;
+					return false;
+				  }
+				  if (const PEMemberAccess*member =
+					dynamic_cast<const PEMemberAccess*>(expr))
+					return ctor_range_references_formal(member->base());
+				  if (const PEConcat*concat = dynamic_cast<const PEConcat*>(expr)) {
+					if (ctor_range_references_formal(concat->repeat_expr()))
+					      return true;
+					for (const PExpr*part : concat->stream_parms())
+					      if (ctor_range_references_formal(part)) return true;
+					return false;
+				  }
+				  if (const PEAssignPattern*pattern =
+					dynamic_cast<const PEAssignPattern*>(expr)) {
+					if (ctor_range_references_formal(pattern->replication()))
+					      return true;
+					for (const PExpr*part : pattern->parms())
+					      if (ctor_range_references_formal(part)) return true;
+					return false;
+				  }
+				  if (const PEStreaming*stream =
+					dynamic_cast<const PEStreaming*>(expr))
+					return ctor_range_references_formal(stream->get_inner());
+				  if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr))
+					return ctor_range_references_formal(cast->cast_size())
+					      || ctor_range_references_formal(cast->cast_base());
+				  if (const PECastType*cast = dynamic_cast<const PECastType*>(expr))
+					return ctor_range_references_formal(cast->cast_base());
+				  if (const PECastSign*cast = dynamic_cast<const PECastSign*>(expr))
+					return ctor_range_references_formal(cast->cast_base());
+				  if (const PEInside*inside = dynamic_cast<const PEInside*>(expr)) {
+					if (ctor_range_references_formal(inside->get_expr())) return true;
+					for (const inside_range_t&range : inside->get_ranges())
+					      if (ctor_range_references_formal(range.lo)
+						  || ctor_range_references_formal(range.hi)
+						  || ctor_range_references_formal(range.weight))
+						    return true;
+				  }
+				  return false;
+			    };
+
+			      // Runtime range endpoints intentionally admit only a folded
+			      // <=64-bit integral constant, a direct <=64-bit integral
+			      // constructor formal, optional unary plus around an admitted
+			      // endpoint, and the OpenTitan form `formal - constant'.
+			      // Return {runtime-evaluator supported, references a constructor
+			      // formal}; callers impose the reference requirement once per bin.
+			    using ctor_range_shape_t = std::pair<bool,bool>;
+			    std::function<ctor_range_shape_t(const PExpr*)> ctor_range_shape;
+			    ctor_range_shape = [&](const PExpr*expr) -> ctor_range_shape_t {
+				  if (!expr) return std::make_pair(false, false);
+				  bool references_ctor = ctor_range_references_formal(expr);
+				  if (is_direct_ctor_formal(expr)) {
+					const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
+					bool direct = id && id->path().back().index.empty();
+					int prop = direct ? cg_class->property_idx_from_name(
+					      peek_head_name(id->path())) : -1;
+					ivl_type_t type = prop >= 0
+					      ? cg_class->get_prop_type((size_t)prop) : nullptr;
+					ivl_variable_type_t base = type
+					      ? type->base_type() : IVL_VT_NO_TYPE;
+					bool integral = type && type->packed()
+					      && (base == IVL_VT_BOOL || base == IVL_VT_LOGIC
+						  || dynamic_cast<const netenum_t*>(type));
+					unsigned width = integral ? type->packed_width() : 0;
+					return std::make_pair(direct && width > 0 && width <= 64,
+							      true);
+				  }
+				  if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr)) {
+					if (unary->get_op() == '+')
+					      return ctor_range_shape(unary->get_expr());
+					return std::make_pair(false, references_ctor);
+				  }
+				  if (const PEBinary*binary = dynamic_cast<const PEBinary*>(expr)) {
+					if (binary->get_op() == '-'
+					    && is_direct_ctor_formal(binary->get_left())) {
+					      ctor_range_shape_t left =
+						    ctor_range_shape(binary->get_left());
+					      if (left.first
+						  && !ctor_range_references_formal(binary->get_right())) {
+						    std::string right_ir = pexpr_to_constraint_ir(
+							  binary->get_right(), cg_class, nullptr,
+							  class_scope_);
+						    constraint_const_ir_t constant;
+						    bool constant_ok = constraint_parse_const_ir_(
+							  right_ir, constant)
+							  && constant.width > 0
+							  && constant.width <= 64;
+						    return std::make_pair(constant_ok, true);
+					      }
+					}
+					return std::make_pair(false, references_ctor);
+				  }
+
+				    // With no constructor reference, the endpoint is static. The
+				    // shared emitter may fold a literal, parameter, or constant
+				    // expression, but no nonconstant IR form crosses this boundary.
+				  if (!references_ctor) {
+					std::string ir = pexpr_to_constraint_ir(
+					      expr, cg_class, nullptr, class_scope_);
+					constraint_const_ir_t constant;
+					bool supported = constraint_parse_const_ir_(ir, constant)
+					      && constant.width > 0 && constant.width <= 64;
+					return std::make_pair(supported, false);
+				  }
+				  return std::make_pair(false, true);
+			    };
+
+			    auto eval_ranges = [&](std::vector<std::pair<PExpr*,PExpr*>>&ranges,
+						   std::vector<std::pair<uint64_t,uint64_t>>&rout) -> bool {
+				    // A constructor reference anywhere makes the complete bin
+				    // per-instance. Do not partially constant-elaborate earlier pairs
+				    // or try to bind a formal hidden in an unsupported later tree.
+				  for (auto&range : ranges)
+					if (ctor_range_references_formal(range.first)
+					    || ctor_range_references_formal(range.second))
+					      return false;
+				  for (auto& range : ranges) {
+					if (!range.first || !range.second) continue;
+					NetExpr* lo_e = elab_and_eval(des, class_scope_,
 							      range.first, -1,
 							      false, false);
 				NetExpr* hi_e = elab_and_eval(des, class_scope_,
@@ -26434,12 +27516,26 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      }
 				} else if (!eval_ranges(bin.ranges, rr)) {
 					// Constructor-dependent bounds are per-instance
-					// constants (19.3), not failed declaration
-					// constants. Preserve each endpoint as property IR.
+					  // constants (19.3), not failed declaration
+					  // constants. Preserve each endpoint as property IR.
 				      std::vector<std::pair<std::string,std::string>> ir_ranges;
 				      bool dyn_ok = true;
+				      bool bin_references_ctor = false;
+				      for (auto&range : bin.ranges) {
+					    bin_references_ctor = bin_references_ctor
+						  || ctor_range_references_formal(range.first)
+						  || ctor_range_references_formal(range.second);
+				      }
 				      for (auto&range : bin.ranges) {
 					    if (!range.first || !range.second) continue;
+					    ctor_range_shape_t lo_shape =
+						  ctor_range_shape(range.first);
+					    ctor_range_shape_t hi_shape =
+						  ctor_range_shape(range.second);
+					    if (!lo_shape.first || !hi_shape.first) {
+						dyn_ok = false;
+						break;
+					    }
 					    std::string lo_ir = pexpr_to_constraint_ir(
 						  range.first, cg_class, nullptr, class_scope_);
 					    std::string hi_ir = pexpr_to_constraint_ir(
@@ -26450,6 +27546,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    }
 					    ir_ranges.push_back(std::make_pair(lo_ir, hi_ir));
 				      }
+				      if (!bin_references_ctor) dyn_ok = false;
 				      uint64_t dyn_array_size = ~(uint64_t)0;
 				      if (bin.arrayed) {
 					    dyn_array_size = 0;

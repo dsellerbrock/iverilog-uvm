@@ -1,0 +1,3 @@
+# VVP concatenation waits for one initial delivery from every connected port
+sv_concat_initial_port_delivery vvp_tests/sv_concat_initial_port_delivery.json
+partsel_outside_expr vvp_tests/partsel_outside_expr.json

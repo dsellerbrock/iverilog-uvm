@@ -378,6 +378,12 @@ bool Design::mark_constraint_order_diagnostic(const PExpr*expr)
       return expr && constraint_order_diagnostic_sites_.insert(expr).second;
 }
 
+bool Design::mark_constraint_dist_diagnostic(const PExpr*expr)
+{
+      return expr
+	    && constraint_dist_diagnostic_sites_.insert(expr).second;
+}
+
 void Design::set_precision(int val)
 {
       if (val < des_precision_)
