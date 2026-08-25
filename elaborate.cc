@@ -16611,11 +16611,10 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			      des->errors += 1;
 			      return 0;
 			}
-			  /* Prefer the sampler trigger, so waiters observe
-			     the block's samples for that edge (global
-			     clocking blocks have no items, hence no
-			     trigger, and fall through). */
-			string trig_name = string("_ivl_smptrig$")
+			  /* Wait on the universal public trigger. A global block
+			     has no items, but its name still denotes a clocking
+			     synchronization event in Observed (14.10, 14.14). */
+			string trig_name = string("_ivl_cbtrig$")
 			      + gcb->name.str();
 			if (NetEvent*trig = gdef_scope->find_event(
 				  lex_strings.make(trig_name.c_str()))) {
@@ -16736,16 +16735,13 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			      return 0;
 			}
 
-			/* M8-2a: a clocking block with sampled inputs has a
-			 * synthesized sampler process that triggers a named
-			 * event AFTER updating the sample variables (14.13).
-			 * Wait on that event instead of the raw clocking
-			 * event, so processes woken by @(cb) observe this
-			 * edge's samples deterministically. Blocks with no
-			 * sampled inputs have no such event and keep the
-			 * underlying-event substitution below. */
+			/* M8-2a: every clocking block has a synthesized public
+			 * event that fires in Observed (14.10), after its sample
+			 * variables update (14.13). Use that event even when the
+			 * block is itemless, so @(cb) is not reduced to the raw
+			 * Active-region edge. */
 			if (cb_def_scope && !scope_cb_name.nil()) {
-			      string trig_name = string("_ivl_smptrig$")
+			      string trig_name = string("_ivl_cbtrig$")
 				    + scope_cb_name.str();
 			      if (NetEvent*trig = cb_def_scope->find_event(
 					lex_strings.make(trig_name.c_str()))) {
@@ -16756,16 +16752,13 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			      }
 			}
 
-			/* M8-2a-4: the class (virtual-interface) path.
-			 * Named events cannot be reached through a class
-			 * handle, so the sampler toggles a tick bit
-			 * (registered as an interface property) after its
-			 * sample stores; wait ANYEDGE on that property so
-			 * @(vif.cb) resumes with this edge's samples
-			 * visible. Falls through to the underlying-event
-			 * mapping for blocks with no sampled inputs. */
+			/* M8-2a-4: the class (virtual-interface) path. Named
+			 * events cannot be reached through a class handle, so the
+			 * universal public event is represented by a tick property.
+			 * The synchronizer toggles it in Observed for itemless and
+			 * populated blocks alike. */
 			if (clocking && clocking_class) {
-			      string kname = string("_ivl_smptick$")
+			      string kname = string("_ivl_cbtick$")
 				    + clocking->name.str();
 			      perm_string tick_name =
 				    lex_strings.make(kname.c_str());
@@ -20420,15 +20413,18 @@ bool PPackage::elaborate(Design*des, NetScope*scope) const
  * method to elaborate the contents of the module.
  */
 
-/* M8 increment 2a (IEEE 1800-2017 14.13): synthesize the input sampler
-   process for each clocking block whose sample variables were created
-   in the signal pass (elaborate_sig_clocking_samples_). The process is
+/* M8 increment 2a (IEEE 1800-2017 14.10, 14.13): synthesize a sampler and
+   public synchronization process for every clocking block. The process is
 
        initial begin
 	     $ivl_clocking_hist_on(raw1); ...   // enable 1-deep history
+	     _ivl_cbtick$cb = 0;
 	     forever @(<clocking event>) begin
 		   _ivl_smp$cb$sig1 <= $ivl_clocking_sample(raw1); ...
-		   ->> _ivl_smptrig$cb;
+		   ->> _ivl_smptrig$cb;          // existing sample/output path
+		   $ivl_observed_wait;
+		   _ivl_cbtick$cb = ~_ivl_cbtick$cb;
+		   -> _ivl_cbtrig$cb;             // public clocking event
 	     end
        end
 
@@ -20438,15 +20434,19 @@ bool PPackage::elaborate(Design*des, NetScope*scope) const
    skew sample. It is time-step-stable, so it does not matter when in
    the step the sampler thread actually runs.
 
-   The stores and the trigger are NONBLOCKING so the visibility order
-   is deterministic (IEEE 1800-2017 14.13 puts clockvar updates after
-   the Active region; we use the NBA region):
+   The sample stores and existing internal trigger remain NONBLOCKING, which
+   preserves input-sample and output-drive scheduling. The universal public
+   event is separate: IEEE 1800-2023 14.10 requires the event associated with
+   the clocking-block name to trigger in Observed, with its waiter executing
+   in the first following Active iteration. Waiting for the Observed boundary
+   also lets multi-stage design-NBA cascades quiesce before an itemless @(cb)
+   resumes. Thus:
    - processes woken by the raw edge in the Active region read the
      PREVIOUS sample;
-   - the sample variables update in the NBA region, in scheduling
-     order BEFORE the trigger fires;
-   - processes waiting on @(cb) are woken by the trigger (see
-     PEventStatement elaboration) and read THIS edge's samples. */
+   - sample variables update in NBA before the internal trigger;
+   - numeric-skew samples update after the Observed wait;
+   - the public tick and trigger update last, so static and virtual-interface
+     @(cb) waiters see settled design state and this edge's samples. */
 static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 					 const Module*mod)
 {
@@ -20457,10 +20457,24 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 	    if (!cb->event || cb->event->event_expressions().empty())
 		  continue;
 
+	    string ptname = string("_ivl_cbtrig$") + cb->name.str();
+	    NetEvent*public_trig = scope->find_event(
+		  lex_strings.make(ptname.c_str()));
+	    string pktname = string("_ivl_cbtick$") + cb->name.str();
+	    NetNet*public_tick = scope->find_signal(
+		  lex_strings.make(pktname.c_str()));
+	    if (!public_trig || !public_tick) {
+		  cerr << cb->get_fileline() << ": error: internal clocking-block "
+		       << "synchronization state is missing for `" << cb->name
+		       << "'." << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+
+	      /* This established pair remains private to sampled-value and
+		 output-drive scheduling. It is absent for a truly itemless block. */
 	    string tname = string("_ivl_smptrig$") + cb->name.str();
 	    NetEvent*trig = scope->find_event(lex_strings.make(tname.c_str()));
-	    if (!trig)
-		  continue;   // no sampleable inputs in this block
 
 	    NetBlock*prologue = new NetBlock(NetBlock::SEQU, 0);
 	    prologue->set_line(*cb);
@@ -20471,7 +20485,6 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		 #d-delayed shadow signals. */
 	    NetBlock*phase2 = new NetBlock(NetBlock::SEQU, 0);
 	    phase2->set_line(*cb);
-	    unsigned sample_count = 0;
 	    unsigned phase2_count = 0;
 
 	    for (vector<perm_string>::const_iterator sig_it = cb->signals.begin()
@@ -20523,6 +20536,10 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 			      des->add_node(spr);
 			      NetProcTop*sdrv = new NetProcTop(scope, IVL_PR_ALWAYS, swa);
 			      sdrv->set_line(*cb);
+			      if (gn_system_verilog())
+				    sdrv->attribute(
+					  perm_string::literal("_ivl_clocking_sync"),
+					  verinum(1));
 			      des->add_process(sdrv);
 
 			      NetESignal*shrd = new NetESignal(shadow);
@@ -20530,7 +20547,6 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 			      NetAssign*st2 = new NetAssign(new NetAssign_(smp), shrd);
 			      st2->set_line(*cb);
 			      phase2->append(st2);
-			      sample_count += 1;
 			      phase2_count += 1;
 			      continue;
 			}
@@ -20556,7 +20572,6 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  NetAssignNB*asn = new NetAssignNB(lv, samp, 0, 0);
 		  asn->set_line(*cb);
 		  body->append(asn);
-		  sample_count += 1;
 	    }
 
 	      /* Collect the output clockvars with drive buffers
@@ -20586,12 +20601,6 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 	    string dname = string("_ivl_odkick$") + cb->name.str();
 	    NetNet*kick = scope->find_signal(lex_strings.make(dname.c_str()));
 
-	    if (sample_count == 0 && out_raws.empty()) {
-		  delete prologue;
-		  delete body;
-		  continue;
-	    }
-
 	      /* The pending state is a bit-for-bit write-enable mask. A member
 		 drive sets only its selected bits, so the apply process cannot
 		 overwrite unrelated fields of the raw clockvar. */
@@ -20612,11 +20621,12 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  prologue->append(init);
 	    }
 
-	      /* Toggle the tick bit after the sample stores. @(vif.cb)
-		 waits anyedge on this bit through the class handle;
+	      /* Preserve the internal sample/output tick after sample stores.
+		 Clocking-output drives compare its history to decide whether
+		 the internal clocking event already occurred in this time step;
 		 initialize it to 0 in the prologue because ~x is x and
-		 an x->x "toggle" never fires an anyedge. The tick also
-		 gets the 1-deep history: output drives test
+		 an x->x "toggle" never fires an anyedge. The tick gets
+		 1-deep history: output drives test
 		 "$ivl_clocking_sample(tick) !== tick" to decide whether
 		 the clocking event already occurred in this time step
 		 (drive now) or not (buffer for the next event). */
@@ -20648,13 +20658,9 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  if (phase2_count > 0) {
 			/* Numeric-skew samples are stored only after the
 			   Observed-region wait below. A normal NBA toggle here
-			   would wake @(vif.cb) before those stores while the
-			   named trigger correctly waited for them. Put a blocking
-			   toggle after the phase-2 stores instead, so both static
-			   and virtual-interface event controls observe this edge's
-			   complete sample set. The blocking update also makes the
-			   tick visible before either waiter can issue a current-event
-			   clocking-output drive. */
+			   would mark the internal event before those stores while
+			   the named trigger correctly waited for them. Put a blocking
+			   toggle after the phase-2 stores instead. */
 			NetAssign*toggle = new NetAssign(tlv, inv);
 			toggle->set_line(*cb);
 			phase2->append(toggle);
@@ -20667,33 +20673,56 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  }
 	    }
 
-	      /* Trigger sequencing. Without numeric-skew inputs the
-		 trigger is nonblocking: it fires in the NBA region
-		 after the sample stores. With them, the sampler
-		 suspends until the OBSERVED region of the edge step
-		 ($ivl_observed_wait -> %wait/observed), performs the
-		 phase-2 shadow reads against fully settled values
-		 (all NBA cascades applied), and only then fires the
-		 trigger (blocking), so @(cb) waiters still observe
-		 every sample of this edge. */
-	    if (phase2_count > 0) {
-		  vector<NetExpr*> no_parms;
-		  NetSTask*owait = new NetSTask("$ivl_observed_wait",
-						IVL_SFUNC_AS_TASK_IGNORE,
-						no_parms);
-		  owait->set_line(*cb);
-		  body->append(owait);
-
-		  NetEvTrig*tfire = new NetEvTrig(trig);
-		  tfire->set_line(*cb);
-		  phase2->append(tfire);
-		  body->append(phase2);
-	    } else {
-		  delete phase2;
+	      /* Preserve the established internal trigger timing. Ordinary
+		 samples fire it in NBA; numeric-skew samples fire it after their
+		 post-Observed blocking stores. */
+	    if (trig && phase2_count == 0) {
 		  NetEvNBTrig*fire = new NetEvNBTrig(trig, 0);
 		  fire->set_line(*cb);
 		  body->append(fire);
 	    }
+
+	      /* The public clocking synchronization event is unconditional.
+		 Wait for NBA quiescence, complete numeric-skew samples and the
+		 internal path, then toggle/fire the VIF/static representations in
+		 Observed. A waiter consequently resumes in the following Active
+		 iteration, as required by IEEE 1800-2023 14.10. */
+	    vector<NetExpr*> no_parms;
+	    NetSTask*owait = new NetSTask("$ivl_observed_wait",
+					      IVL_SFUNC_AS_TASK_IGNORE,
+					      no_parms);
+	    owait->set_line(*cb);
+	    body->append(owait);
+
+	    if (trig && phase2_count > 0) {
+		  NetEvTrig*tfire = new NetEvTrig(trig);
+		  tfire->set_line(*cb);
+		  phase2->append(tfire);
+	    }
+
+	      /* The public VIF tick needs no preponed history: it is event
+		 identity only. Initialize it so every edge produces an anyedge. */
+	    {
+		  NetAssign_*ilv = new NetAssign_(public_tick);
+		  verinum zero_v (verinum::V0, 1);
+		  NetEConst*zero = new NetEConst(zero_v);
+		  zero->set_line(*cb);
+		  NetAssign*init = new NetAssign(ilv, zero);
+		  init->set_line(*cb);
+		  prologue->append(init);
+
+		  NetESignal*tsig = new NetESignal(public_tick);
+		  tsig->set_line(*cb);
+		  NetEUnary*inv = new NetEUnary('~', tsig, 1, false);
+		  inv->set_line(*cb);
+		  NetAssign*toggle = new NetAssign(new NetAssign_(public_tick), inv);
+		  toggle->set_line(*cb);
+		  phase2->append(toggle);
+	    }
+	    NetEvTrig*public_fire = new NetEvTrig(public_trig);
+	    public_fire->set_line(*cb);
+	    phase2->append(public_fire);
+	    body->append(phase2);
 
 	      /* Wrap the per-edge body in the clocking event wait. The
 		 event expression elaborates in the defining scope, the
@@ -20701,9 +20730,8 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 	    NetProc*wait = cb->event->elaborate_st(des, scope, body);
 	    if (!wait) {
 		  cerr << cb->get_fileline() << ": sorry: cannot elaborate "
-		       << "the clocking event of block `" << cb->name
-		       << "' for input sampling; its inputs keep the "
-		       << "unsampled (alias) behavior." << endl;
+		       << "the synchronization event of clocking block `"
+		       << cb->name << "'." << endl;
 		  delete prologue;
 		  continue;
 	    }
@@ -20714,14 +20742,12 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 
 	    NetProcTop*top = new NetProcTop(scope, IVL_PR_INITIAL, prologue);
 	    top->set_line(*cb);
-	      /* This synthesized sampler is an INITIAL wrapping a forever loop,
-		 so it never completes. In a PROGRAM scope it must not be counted
-		 toward program-completion end-of-simulation (IEEE 1800-2017
-		 24.7) — otherwise a program whose only post-initial activity is
-		 a clocking block never finishes. Mark it as a clocking-background
-		 process so tgt-vvp omits the `$prog` tag. */
+	      /* This synthesized sampler is scheduler infrastructure, not a
+		 program procedure. In a PROGRAM scope it must run in the design
+		 region so its NBA sample updates precede Observed, and it must not
+		 count toward program-completion end-of-simulation (24.7). */
 	    if (gn_system_verilog())
-		  top->attribute(perm_string::literal("_ivl_clocking_bg"),
+		  top->attribute(perm_string::literal("_ivl_clocking_sync"),
 				 verinum(1));
 	    des->add_process(top);
 

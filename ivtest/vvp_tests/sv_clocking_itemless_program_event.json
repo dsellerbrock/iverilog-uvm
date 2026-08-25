@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_clocking_itemless_program_event.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_clocking_itemless_program_event" ],
+    "gold"          : "sv_clocking_itemless_program_event"
+}

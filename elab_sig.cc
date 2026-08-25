@@ -840,16 +840,22 @@ bool PPackage::elaborate_sig(Design*des, NetScope*scope) const
       return flag;
 }
 
-/* M8 increment 2a (IEEE 1800-2017 14.13): for each clocking block that
-   has sampleable input signals, create per-instance hidden sample
-   variables (`_ivl_smp$<cb>$<sig>`) and the sampler trigger event
-   (`_ivl_smptrig$<cb>`). The sampler process itself is synthesized
-   later, in Module::elaborate; the names are created here in the
-   signal-elaboration pass so that expressions anywhere in the design
-   (including other scopes referencing `inst.cb.sig`) can resolve them.
-   Inputs that cannot be sampled (non-vector types, arrays) keep the
-   pre-existing alias behavior; the read-rewrite helpers key off the
-   presence of the sample variable, so the two stay consistent. */
+/* M8 increment 2a (IEEE 1800-2017 14.13): create a per-instance public
+   synchronization event/tick for EVERY clocking block (`_ivl_cbtrig$<cb>`
+   and `_ivl_cbtick$<cb>`), plus sample variables for sampleable inputs.
+   A clocking block remains a synchronization event even when it declares no
+   items; making the trigger conditional on a sample variable incorrectly
+   reduced an itemless @(cb) to its raw Active-region edge. The process that
+   fires/toggles these names is synthesized later in Module::elaborate. The
+   names are created in the signal pass so static and virtual-interface event
+   references can resolve them from any scope. Blocks with sampleable items
+   also retain the existing `_ivl_smptrig$<cb>`/`_ivl_smptick$<cb>` pair:
+   that pair is internal to input sampling and output-drive scheduling, while
+   the universal pair represents the public clocking synchronization event.
+
+   Inputs that cannot be sampled (non-vector types, arrays) keep the existing
+   alias behavior; the read-rewrite helpers key off the presence of the sample
+   variable, so the two stay consistent. */
 static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Module*mod)
 {
       typedef std::map<perm_string,Module::PClocking*>::const_iterator cb_it_t;
@@ -1005,10 +1011,7 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 		  }
 	    }
 
-	    if (!any)
-		  continue;
-
-	    string tname = string("_ivl_smptrig$") + cb->name.str();
+	    string tname = string("_ivl_cbtrig$") + cb->name.str();
 	    perm_string trig_name = lex_strings.make(tname.c_str());
 	    if (!scope->find_event(trig_name)) {
 		  NetEvent*trig = new NetEvent(trig_name);
@@ -1016,18 +1019,41 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 		  scope->add_event(trig);
 	    }
 
-	      /* The sampler also toggles a tick bit after the sample
-		 stores. @(vif.cb) through a virtual interface maps to
-		 an anyedge wait on this bit (registered as an
-		 interface-class property), riding the existing
-		 %wait/vif edge machinery — named events cannot be
-		 reached through a class handle. */
-	    string kname = string("_ivl_smptick$") + cb->name.str();
+	      /* The synchronizer also toggles a tick bit after the Observed
+		 boundary and all sample stores. @(vif.cb) maps to an anyedge
+		 wait on this interface-class property because a named event
+		 cannot be reached through a class handle. */
+	    string kname = string("_ivl_cbtick$") + cb->name.str();
 	    perm_string tick_name = lex_strings.make(kname.c_str());
 	    if (!scope->find_signal(tick_name)) {
-		  netvector_t*tvec = new netvector_t(IVL_VT_LOGIC, 0, 0, false);
+		    /* A 2-state tick defaults to zero before any initial process
+		       runs. The explicit prologue assignment is therefore 0->0,
+		       not the spurious X->0 ANYEDGE a virtual-interface waiter
+		       could otherwise observe at time zero. */
+		  netvector_t*tvec = new netvector_t(IVL_VT_BOOL, 0, 0, false);
 		  NetNet*tick = new NetNet(scope, tick_name, NetNet::REG, tvec);
 		  tick->set_line(*cb);
+	    }
+
+	      /* Keep the established sample/output trigger and tick for blocks
+		 with usable items. Their NBA-region timing is part of the output
+		 buffering protocol; the public pair above must not move it. */
+	    if (any) {
+		  string stname = string("_ivl_smptrig$") + cb->name.str();
+		  perm_string strig_name = lex_strings.make(stname.c_str());
+		  if (!scope->find_event(strig_name)) {
+			NetEvent*strig = new NetEvent(strig_name);
+			strig->set_line(*cb);
+			scope->add_event(strig);
+		  }
+
+		  string skname = string("_ivl_smptick$") + cb->name.str();
+		  perm_string stick_name = lex_strings.make(skname.c_str());
+		  if (!scope->find_signal(stick_name)) {
+			netvector_t*svec = new netvector_t(IVL_VT_LOGIC, 0, 0, false);
+			NetNet*stick = new NetNet(scope, stick_name, NetNet::REG, svec);
+			stick->set_line(*cb);
+		  }
 	    }
 
 	      /* A VIF drive issued after @(vif.cb) toggles this per-instance

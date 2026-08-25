@@ -1,0 +1,5 @@
+# IEEE 1800-2017 14.3/14.11/14.12/14.14/25.9 itemless clocking events
+sv_clocking_itemless_static_event normal,-g2012,-ssv_clocking_itemless_static_event ivltests gold=sv_clocking_itemless_static_event.gold
+sv_clocking_itemless_vif_event normal,-g2012,-ssv_clocking_itemless_vif_event ivltests gold=sv_clocking_itemless_vif_event.gold
+sv_clocking_itemless_program_event normal,-g2012,-ssv_clocking_itemless_program_event ivltests gold=sv_clocking_itemless_program_event.gold
+sv_clocking_vif_no_t0_event normal,-g2012,-ssv_clocking_vif_no_t0_event ivltests gold=sv_clocking_vif_no_t0_event.gold

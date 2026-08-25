@@ -51,19 +51,18 @@ module m8_global_clocking_test;
     @($global_clock);
     check($time == 15, "second wait hits the next edge");
 
-    // 3: default clocking still works alongside. Note the strict
-    // semantics: we are IN the t=15 edge step (woken by
-    // @($global_clock) on the raw edge), so this @(cb) catches the
-    // CURRENT edge's trigger (fires after the NBA region of this
-    // step) and its #1step sample excludes the same-step blocking
-    // write; the next edge samples it.
+    // 3: default clocking still works alongside. Both named clocking
+    // synchronization events fire in Observed. Starting @(cb) after the
+    // t=15 @($global_clock) event therefore waits for cb's NEXT event;
+    // it cannot catch another block's already-processed synchronization
+    // event from the same edge.
     d = 8'h42;
     @(cb);
-    check($time == 15 && cb.d == 8'h00,
-          "same-step @(cb) resumes at this edge with the pre-step sample");
-    @(cb);
     check($time == 25 && cb.d == 8'h42,
-          "next edge samples the settled value");
+          "cross-block wait advances to the next clocking event");
+    @(cb);
+    check($time == 35 && cb.d == 8'h42,
+          "following edge retains the settled sample");
 
     // 2: the submodule's waits complete after 3 edges (t=25).
     #11;   // t > 25+

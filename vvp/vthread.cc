@@ -8043,6 +8043,12 @@ int vthread_is_reactive(vthread_t thr)
       return (thr && thr->is_reactive_process) ? 1 : 0;
 }
 
+void vthread_mark_clocking_sync(vthread_t thr)
+{
+      if (thr)
+	    thr->is_reactive_process = 0;
+}
+
 /*
  * M6B: program-completion tracking (IEEE 1800-2017 24.7 / 3.9). A
  * program completes when all of its INITIAL procedures complete; when

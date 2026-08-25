@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_clocking_vif_no_t0_event.v:76: $finish called at 2000 (1ps)

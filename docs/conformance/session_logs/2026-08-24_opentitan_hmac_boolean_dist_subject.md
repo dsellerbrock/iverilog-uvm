@@ -196,9 +196,19 @@ The unchanged HMAC source list was freshly recompiled with this compiler and
 the arm64 `cryptoc_dpi` module rebuilt from its generated DPI-export stubs.
 Compilation exits zero and the smoke advances from time zero to 3,637,253 ps.
 Neither `RspZero_A`, `BUILDERR`, nor the Z3 sort error reappears. The next
-independent frontier is a scoreboard mismatch at
-`hmac_scoreboard.sv:1059`: `cfg.hmac_vif.is_idle()` is 0 while the expected
-value is 1. The mismatch has been reduced to the separate itemless
-clocking-block event path. UVM records one error and the authoritative `TEST
-FAILED CHECKS` banner, so the process's `$finish` exit status is not treated as
-a pass.
+independent frontier was a scoreboard mismatch at
+`hmac_scoreboard.sv:1059`: `cfg.hmac_vif.is_idle()` was 0 while the expected
+value was 1. The mismatch reduced to the separate itemless clocking-block
+event path.
+
+The 2026-08-25 itemless-event follow-up gives every clocking block a public
+Observed-region synchronization event, even when it has no clockvars. The
+same unchanged HMAC image now passes the former 3,637,253 ps `is_idle()`
+mismatch and advances to approximately 3,641,652 ps. That exposes a different
+VVP runtime defect: `@(object.property)` is currently invalidated by writes to
+unrelated properties of the same object, including same-value writes. The
+HMAC scoreboard's zero-time `fork ... join_none` event loops therefore create
+an unbounded allocation storm. The permanent red reducer is
+`sv_class_property_event_value_change`; it is intentionally left for the next
+fresh-main change rather than mixed into the clocking fix. This bounded replay
+is not recorded as a clean HMAC result.
