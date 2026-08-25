@@ -6102,6 +6102,7 @@ class Design {
 	 * Design after the first parse/elaboration has finished. */
       bool mark_constraint_randc_diagnostic(const PExpr*expr);
       bool mark_constraint_order_diagnostic(const PExpr*expr);
+      bool mark_constraint_dist_diagnostic(const PExpr*expr);
 
     private:
       NetScope* find_scope_(NetScope*, const hname_t&name,
@@ -6149,6 +6150,7 @@ class Design {
 	    struct_member_default_validations_;
       std::set<const PExpr*> constraint_randc_diagnostic_sites_;
       std::set<const PExpr*> constraint_order_diagnostic_sites_;
+      std::set<const PExpr*> constraint_dist_diagnostic_sites_;
       bool package_subroutine_bodies_ready_;
 
     private: // not implemented

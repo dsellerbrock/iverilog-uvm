@@ -171,6 +171,21 @@ Evidence is in
 and `matrix-runtime.log` has SHA-256
 `1df81a2222fb5a4208801186c9c875ccd0a94a763ff0d34828059886f7e7769a`.
 
+## Follow-up: nested-concatenation initial delivery
+
+The historical compile, runtime result, and hashes above are unchanged. A
+same-day follow-up reduced and fixed the next frontier in VVP: `.concat` and
+`.concat8` now wait for one delivery from every connected input port before
+their first publication. The internal accumulator remains intentionally
+Z-filled for partial-vector semantics, and an all-Z final initial delivery
+still forces publication. The exact reducer changes from three callbacks with
+`rsp_intg=zzzzzzz` in the first callback to two callbacks with zero integrity
+bits throughout. The unmodified HMAC smoke no longer reports `RspZero_A` or
+its UVM `BUILDERR`; after the adjacent boolean-`dist` solver correction it
+advances to 696084 ps and a later scoreboard `is_idle` mismatch. This is not a
+whole-HMAC pass, and no OpenTitan source was modified. See the
+[concat initial-delivery session log](2026-08-24_opentitan_concat_initial_delivery.md).
+
 ## Remaining boundaries
 
 This is not a general dynamic-array slice-expression implementation.

@@ -1406,6 +1406,8 @@ sv_task_localparam_untyped normal,-g2012 ivltests gold=sv_task_localparam_untype
 sv_based_literal_leading_underscore normal,-g2012 ivltests gold=sv_based_literal_leading_underscore.gold
 sv_covergroup_bin_iff normal,-g2012 ivltests gold=sv_covergroup_bin_iff.gold
 sv_covergroup_constructor_scope normal,-g2012 ivltests gold=sv_covergroup_constructor_scope.gold
+sv_covergroup_ctor_bin_ranges normal,-g2012 ivltests gold=sv_covergroup_ctor_bin_ranges.gold
+sv_covergroup_ctor_bin_ranges_unresolved normal,-g2012 ivltests gold=sv_covergroup_ctor_bin_ranges_unresolved.gold
 sv_covergroup_cross_with normal,-g2012 ivltests gold=sv_covergroup_cross_with.gold
 sv_covergroup_following_localparam normal,-g2012 ivltests gold=sv_covergroup_following_localparam.gold
 sv_covergroup_hierarchical_cross normal,-g2012 ivltests gold=sv_covergroup_hierarchical_cross.gold
@@ -1468,6 +1470,8 @@ sv_randomize_with_identifier_no_block_fail CE,-g2012 ivltests gold=sv_randomize_
 sv_scope_randomize_with_identifier_list_fail CE,-g2012 ivltests gold=sv_scope_randomize_with_identifier_list_fail.gold
 sv_sampled_value_procedural normal,-g2012 ivltests
 sv_constraint_expr_width normal,-g2012 ivltests
+sv_constraint_dist_boolean_subject normal,-g2012 ivltests gold=sv_constraint_dist_boolean_subject.gold
+sv_constraint_dist_wide_literal_fail CE,-g2012 ivltests gold=sv_constraint_dist_wide_literal_fail.gold
 sv_rand_distribution1 normal,-g2012 ivltests
 sv_randc_constrained1 normal,-g2012 ivltests
 sv_sampled_value_default_clocking normal,-g2012 ivltests
@@ -1848,6 +1852,9 @@ sv_byte_array_string_fail CE,-g2012 ivltests gold=sv_byte_array_string_fail.gold
 # IEEE 1800-2017 postfix selects on concatenation expressions
 sv_concat_postfix_select normal,-g2012 ivltests gold=sv_concat_postfix_select.gold
 sv_concat_postfix_select_ascending_fail CE,-g2012 ivltests gold=sv_concat_postfix_select_ascending_fail.gold
+
+# VVP atomic initial delivery for ordinary and strength-aware concatenations
+sv_concat_initial_port_delivery normal,-g2012,-ssv_concat_initial_port_delivery ivltests gold=sv_concat_initial_port_delivery.gold
 
 # IEEE 1800-2017 qualified if statements
 sv_quality_if normal,-g2012 ivltests gold=sv_quality_if.gold

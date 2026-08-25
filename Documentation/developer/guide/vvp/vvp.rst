@@ -589,11 +589,21 @@ expected widths of all the inputs. These widths are needed to figure
 the positions of the input vectors in the generated output, and are
 listed in order LSB to MSB. The inputs themselves are also listed LSB
 to MSB, with the LSB vector input coming through port-0 of the real
-functor.
+functor. One through four input symbols are required; the loader rejects a
+different count before constructing the node.
 
-The initial output value is (W+X+Y+Z) bits of 'bx. As input values are
-propagated, the bits are placed in the correct place in the output
-vector value, and a new output value is propagated.
+The internal accumulator starts as (W+X+Y+Z) bits of 'bz. This intentional
+Z fill preserves portions of an input that have not been written by a
+partial-vector delivery. No output is propagated until every listed input
+port has delivered once; a legitimate all-Z value counts as a delivery. The
+first complete value is propagated even when it leaves the accumulator all-Z,
+and later changed inputs are coalesced through the normal functor scheduling.
+If the final initial delivery reaches an ordinary concat after simulation has
+started, that first complete value is forwarded immediately so later Active
+processes see the continuous result; pre-simulation completion retains normal
+coalesced initialization. The strength-aware .concat8 form uses the same
+per-port readiness rule while preserving its strength values and scheduled
+publication behavior.
 
 
 Repeat Vector Statements

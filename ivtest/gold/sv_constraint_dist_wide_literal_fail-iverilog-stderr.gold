@@ -1,0 +1,21 @@
+ivltests/sv_constraint_dist_wide_literal_fail.v:4: error: dist subject, item, range endpoint, or weight value has nonzero or unknown bits above bit 63, which the constraint IR cannot represent without changing its value.
+ivltests/sv_constraint_dist_wide_literal_fail.v:14: error: dist subject, item, range endpoint, or weight value has nonzero or unknown bits above bit 63, which the constraint IR cannot represent without changing its value.
+ivltests/sv_constraint_dist_wide_literal_fail.v:22: error: dist references a runtime storage value wider than 64 bits, which the constraint runtime cannot transfer without losing high bits; use a <=64-bit typed intermediate expression.
+ivltests/sv_constraint_dist_wide_literal_fail.v:34: error: dist references a runtime storage value wider than 64 bits, which the constraint runtime cannot transfer without losing high bits; use a <=64-bit typed intermediate expression.
+ivltests/sv_constraint_dist_wide_literal_fail.v:43: error: dist subject expression requires unsupported IEEE 11.8.2 top-down context propagation; use a typed intermediate expression.
+ivltests/sv_constraint_dist_wide_literal_fail.v:50: error: a signed arithmetic dist subject with an unsigned item or range endpoint requires unsupported IEEE 11.8.2 top-down context propagation; use a typed intermediate expression.
+ivltests/sv_constraint_dist_wide_literal_fail.v:59: error: dist weight expression requires unsupported IEEE 11.8.2 top-down context propagation; use a typed intermediate expression.
+ivltests/sv_constraint_dist_wide_literal_fail.v:71: error: a signed arithmetic dist item or range endpoint in an unsigned subject context requires unsupported IEEE 11.8.2 top-down context propagation; use a typed intermediate expression.
+ivltests/sv_constraint_dist_wide_literal_fail.v:78: error: dist subject expression requires unsupported IEEE 11.8.2 top-down context propagation; use a typed intermediate expression.
+ivltests/sv_constraint_dist_wide_literal_fail.v:83: error: dist subject expression requires unsupported IEEE 11.8.2 top-down context propagation; use a typed intermediate expression.
+ivltests/sv_constraint_dist_wide_literal_fail.v:89: error: dist subject expression requires unsupported IEEE 11.8.2 top-down context propagation; use a typed intermediate expression.
+ivltests/sv_constraint_dist_wide_literal_fail.v:95: error: dist item or range endpoint expression requires unsupported IEEE 11.8.2 top-down context propagation; use a typed intermediate expression.
+ivltests/sv_constraint_dist_wide_literal_fail.v:108: error: dist subject expression requires unsupported IEEE 11.8.2 top-down context propagation; use a typed intermediate expression.
+ivltests/sv_constraint_dist_wide_literal_fail.v:115: error: dist subject expression requires unsupported IEEE 11.8.2 top-down context propagation; use a typed intermediate expression.
+ivltests/sv_constraint_dist_wide_literal_fail.v:121: error: dist subject expression requires unsupported IEEE 11.8.2 top-down context propagation; use a typed intermediate expression.
+ivltests/sv_constraint_dist_wide_literal_fail.v:125: error: an unbased unsized fill literal in a dist subject is not self-sized; use a typed intermediate expression.
+ivltests/sv_constraint_dist_wide_literal_fail.v:152: error: dist references a runtime storage value wider than 64 bits, which the constraint runtime cannot transfer without losing high bits; use a <=64-bit typed intermediate expression.
+ivltests/sv_constraint_dist_wide_literal_fail.v:151: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+ivltests/sv_constraint_dist_wide_literal_fail.v:163: error: a signed arithmetic dist item or range endpoint in an unsigned subject context requires unsupported IEEE 11.8.2 top-down context propagation; use a typed intermediate expression.
+ivltests/sv_constraint_dist_wide_literal_fail.v:162: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+Elaboration failed

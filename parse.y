@@ -3621,8 +3621,8 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
 	$$ = tmp;
       }
   | expression K_dist '{' dist_list_opt '}' ';'
-      { /* `dist` — lower weights ignored, ranges lowered to `inside` to
-           enforce the value domain. Proper weighted distribution is TODO. */
+      { /* `dist` shares PEInside's domain representation while retaining
+           the source operator and each item's optional weight mode. */
         if ($4) {
               PEInside*tmp = new PEInside($1, $4, true);
               FILE_NAME(tmp, @2);
@@ -3757,11 +3757,11 @@ dist_list
       { $$ = $1; if ($3) { $$->push_back(*$3); delete $3; } }
   ;
 
-/* Each dist_item extracts the value-range (scalar or [lo:hi]) and now
-   preserves the optional weight in inside_range_t.  PEInside::is_dist()
-   returns true when any range carries a weight; the constraint IR emit
-   path can use that to apply soft-assertion semantics in the Z3 backend
-   when the IR layer learns the new opcode. */
+/* Each dist_item extracts the value-range (scalar or [lo:hi]) and preserves
+   both the optional weight and its :=/:/ mode in inside_range_t. The
+   constraint IR emitter records that mode explicitly so an integral range
+   item's aggregate weight follows IEEE 1800-2023 18.5.3 semantics at
+   runtime. */
 dist_item
   : inside_value_range
       { $$ = $1; }

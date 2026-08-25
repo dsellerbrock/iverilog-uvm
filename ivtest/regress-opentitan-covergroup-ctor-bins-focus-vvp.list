@@ -1,0 +1,2 @@
+sv_covergroup_ctor_bin_ranges vvp_tests/sv_covergroup_ctor_bin_ranges.json
+sv_covergroup_ctor_bin_ranges_unresolved vvp_tests/sv_covergroup_ctor_bin_ranges_unresolved.json

@@ -1,0 +1,5 @@
+Warning: dist range exceeds the 256-member exact-sampling cap; using the weighted-soft fallback (further similar warnings suppressed).
+Warning: dist item is outside the ground <=64-bit common-order exact-sampling subset; using the weighted-soft fallback (further similar warnings suppressed).
+Warning: dist weight exceeds the exact-sampling UINT_MAX boundary; using the weighted-soft fallback (further similar warnings suppressed).
+Warning: dist weight result exceeds the runtime uint64 representation; using the weighted-soft fallback with a saturated objective (further similar warnings suppressed).
+PASSED

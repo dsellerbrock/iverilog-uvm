@@ -1,0 +1,2 @@
+L_bad; .concat has wrong number of symbols (5, expected 1-4)
+L_bad8; .concat8 has wrong number of symbols (5, expected 1-4)

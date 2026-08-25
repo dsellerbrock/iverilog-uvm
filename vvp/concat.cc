@@ -18,6 +18,7 @@
  */
 
 # include  "compile.h"
+# include  "schedule.h"
 # include  "concat.h"
 # include  <cstdlib>
 # include  <iostream>
@@ -26,9 +27,11 @@
 using namespace std;
 
 vvp_fun_concat::vvp_fun_concat(unsigned w0, unsigned w1,
-			       unsigned w2, unsigned w3)
+			       unsigned w2, unsigned w3, unsigned argc)
 : val_(w0+w1+w2+w3, BIT4_Z)
 {
+      assert(argc > 0 && argc <= 4);
+      required_ports_ = argc > 0 && argc <= 4 ? (1U << argc) - 1U : 0;
       wid_[0] = w0;
       wid_[1] = w1;
       wid_[2] = w2;
@@ -61,8 +64,24 @@ void vvp_fun_concat::recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&bit,
       for (unsigned idx = 0 ;  idx < pdx ;  idx += 1)
 	    off += wid_[idx];
 
-      if (!val_.set_vec(off, bit))
+      bool changed = val_.set_vec(off, bit);
+      bool first_complete = seen_ports_ != required_ports_;
+      seen_ports_ |= 1U << pdx;
+      first_complete &= seen_ports_ == required_ports_;
+
+      if (seen_ports_ != required_ports_)
 	    return;
+
+      if (!changed && !first_complete)
+	    return;
+
+      // A first delivery that completes after simulation startup must be
+      // visible to later processes in the same Active queue iteration.
+      // Pre-simulation completion retains the normal coalesced init event.
+      if (first_complete && schedule_simulation_started()) {
+	    port.ptr()->send_vec4(val_, 0);
+	    return;
+      }
 
       if (net_)
 	    return;
@@ -82,7 +101,18 @@ void compile_concat(char*label, unsigned w0, unsigned w1,
 		    unsigned w2, unsigned w3,
 		    unsigned argc, struct symb_s*argv)
 {
-      vvp_fun_concat*fun = new vvp_fun_concat(w0, w1, w2, w3);
+      if (argc < 1 || argc > 4) {
+	    fprintf(stderr, "%s; .concat has wrong number of symbols "
+		    "(%u, expected 1-4)\n", label, argc);
+	    compile_errors += 1;
+	    free(label);
+	    for (unsigned idx = 0 ; idx < argc ; idx += 1)
+		  free(argv[idx].text);
+	    free(argv);
+	    return;
+      }
+
+      vvp_fun_concat*fun = new vvp_fun_concat(w0, w1, w2, w3, argc);
 
       vvp_net_t*net = new vvp_net_t;
       net->fun = fun;
@@ -96,9 +126,11 @@ void compile_concat(char*label, unsigned w0, unsigned w1,
 
 
 vvp_fun_concat8::vvp_fun_concat8(unsigned w0, unsigned w1,
-			       unsigned w2, unsigned w3)
+			       unsigned w2, unsigned w3, unsigned argc)
 : val_(w0+w1+w2+w3)
 {
+      assert(argc > 0 && argc <= 4);
+      required_ports_ = argc > 0 && argc <= 4 ? (1U << argc) - 1U : 0;
       wid_[0] = w0;
       wid_[1] = w1;
       wid_[2] = w2;
@@ -146,6 +178,10 @@ void vvp_fun_concat8::recv_vec8_pv(vvp_net_ptr_t port, const vvp_vector8_t&bit,
 
       val_.set_vec(off, bit);
 
+      seen_ports_ |= 1U << pdx;
+      if (seen_ports_ != required_ports_)
+	    return;
+
       if (net_)
 	    return;
 
@@ -164,7 +200,18 @@ void compile_concat8(char*label, unsigned w0, unsigned w1,
 		     unsigned w2, unsigned w3,
 		     unsigned argc, struct symb_s*argv)
 {
-      vvp_fun_concat8*fun = new vvp_fun_concat8(w0, w1, w2, w3);
+      if (argc < 1 || argc > 4) {
+	    fprintf(stderr, "%s; .concat8 has wrong number of symbols "
+		    "(%u, expected 1-4)\n", label, argc);
+	    compile_errors += 1;
+	    free(label);
+	    for (unsigned idx = 0 ; idx < argc ; idx += 1)
+		  free(argv[idx].text);
+	    free(argv);
+	    return;
+      }
+
+      vvp_fun_concat8*fun = new vvp_fun_concat8(w0, w1, w2, w3, argc);
 
       vvp_net_t*net = new vvp_net_t;
       net->fun = fun;

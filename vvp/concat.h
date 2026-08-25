@@ -36,7 +36,7 @@ class vvp_fun_concat  : public vvp_net_fun_t, protected vvp_gen_event_s  {
 
     public:
       vvp_fun_concat(unsigned w0, unsigned w1,
-		     unsigned w2, unsigned w3);
+		     unsigned w2, unsigned w3, unsigned argc);
       ~vvp_fun_concat() override;
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
@@ -49,6 +49,8 @@ class vvp_fun_concat  : public vvp_net_fun_t, protected vvp_gen_event_s  {
 
       unsigned wid_[4];
       vvp_vector4_t val_;
+      unsigned required_ports_;
+      unsigned seen_ports_ = 0;
       vvp_net_t *net_ = nullptr;
 };
 
@@ -56,7 +58,7 @@ class vvp_fun_concat8  : public vvp_net_fun_t, protected vvp_gen_event_s {
 
     public:
       vvp_fun_concat8(unsigned w0, unsigned w1,
-		     unsigned w2, unsigned w3);
+		     unsigned w2, unsigned w3, unsigned argc);
       ~vvp_fun_concat8() override;
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
@@ -73,6 +75,8 @@ class vvp_fun_concat8  : public vvp_net_fun_t, protected vvp_gen_event_s {
 
       unsigned wid_[4];
       vvp_vector8_t val_;
+      unsigned required_ports_;
+      unsigned seen_ports_ = 0;
       vvp_net_t *net_ = nullptr;
 };
 

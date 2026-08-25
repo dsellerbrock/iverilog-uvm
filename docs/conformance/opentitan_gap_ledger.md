@@ -2724,10 +2724,152 @@ are secondary to UVM's zero-time abort. No whole-OpenTitan pass is claimed.
 Evidence and full commands are in the
 [session log](session_logs/2026-08-24_opentitan_hmac_dynamic_array_slice_rvalues.md).
 
+Follow-up on 2026-08-24: G80 fixes that next VVP frontier. The exact HMAC
+`RspZero_A`/`BUILDERR` startup failure is gone; this does not change G79's
+historical compile/runtime evidence or broaden its dynamic-array-slice subset.
+
 Indexed `+:`/`-:` slices, property/nested receivers, fixed targets, standalone
 and type-query contexts, multidimensional shapes, delayed/event/NBA forms, and
 compound assignments remain explicit loud or unclaimed work. Unpacked-union
 elements likewise remain an exact loud boundary.
+
+---
+
+## G80 — concatenation published before every input port delivered — **fixed/verified** [general]
+
+*11.4.12 [general] — atomic first publication of ordinary and strength-aware
+VVP concatenations.*
+
+VVP represents a source concatenation as a tree of `.concat` or `.concat8`
+nodes with at most four connected input ports per node. Each node intentionally
+keeps an internal Z-filled accumulator so a partial-vector input can leave its
+undriven portion at Z. The old ordinary node scheduled its first output as soon
+as any input changed that accumulator, and the strength-aware node scheduled on
+every delivery. A parent could therefore observe a child before the child's
+other connected ports had supplied their initial values. In OpenTitan HMAC,
+that transiently exposed `zzzzzzz` in an integrity field driven to zero and
+fired `tlul_rsp_intg_gen.sv:82 RspZero_A` at 0 ps.
+
+Both constructors now receive the parsed connected-input count and form the
+required mask `(1U << argc) - 1U`. The bytecode loader rejects counts outside
+1–4 before construction or shifting, releases every parsed input symbol on
+that rejection path, and the constructors retain the same range assertion as
+an internal invariant. A monotonic seen mask records one
+delivery per connected port. Ordinary vec4 delivery updates the Z accumulator
+before marking and gating; when the final port arrives, it forces one
+publication even if the complete legitimate value is still all-Z. If that
+completion occurs after simulation startup, it is forwarded immediately so a
+later process in the same Active iteration sees the continuous result. Initial
+completion before startup and later changes retain the existing `net_`
+scheduled-event coalescing. Strength-aware concat8 marks and gates readiness,
+then preserves its existing scheduling. Readiness never comes from bit
+coverage or the four stored width slots: one `.part/pv` delivery makes its
+connected port ready even when other bits intentionally stay Z, and
+zero-repeat operands elided by code generation do not create phantom ports.
+
+`sv_concat_initial_port_delivery` is registered in both permanent harnesses
+and focused lists. It embeds the exact OpenTitan-shaped packed
+struct assignment and rejects any `RspZero_A` startup tear, then covers an
+all-Z child followed by later updates, `.part/pv`, strength-aware concat8
+force/release, an anchored all-Z concat8 completion, a concat8 initialization
+tree with an exact callback/torn counter, a six-input compiler-generated
+ordinary concat tree, and zero-repeat elision. The same generated VVP image is
+red against the prior ARM64 runtime (three HMAC callbacks, plus three concat8
+tree callbacks of which two are torn) and green against the fixed runtime (two
+HMAC callbacks and one complete concat8 tree callback). The focused JSON list
+also reruns `partsel_outside_expr`, whose time-zero checker requires a
+post-start first completion to be visible in the same Active iteration. The
+focused legacy run passes 1/1 and the focused JSON/VVP run passes 2/2.
+`concat_malformed_arity.vvp` is wired into the runtime-invariant gate and pins
+the malformed five-input `.concat` and `.concat8` exact two-error result.
+
+The exact unmodified HMAC smoke no longer reports `RspZero_A` or the associated
+UVM `BUILDERR`. With only this gate it reached the next independent boolean
+`dist` solver-sort defect; with that adjacent fix in the same follow-on
+worktree it advances to 696084 ps before a scoreboard `is_idle` mismatch. This
+is frontier evidence, not a whole-HMAC pass. OpenTitan sources were not
+modified. Commands and reducer evidence are recorded in the
+[concat initial-delivery session log](session_logs/2026-08-24_opentitan_concat_initial_delivery.md).
+
+---
+
+## G81 — expression-subject `dist` sort, range modes, and exact bounded sampling — **fixed/verified subset** [general]
+
+*18.5.4 in IEEE 1800-2017 / 18.5.3 in IEEE 1800-2023; 11.8.1–11.8.2
+[general] — exact class/object sampling for the documented integral subset.*
+
+OpenTitan HMAC's legal
+`$countones(digest_size) == 1 dist {1 :/ 4, 0 :/ 1}` subject reached Z3 as a
+Bool and was compared with bitvectors, producing a wrong-sort failure. The
+pre-existing expression-subject path also represented weights as optimizer
+preferences, which selected a heavier feasible branch rather than performing
+the specified probability-proportional draw. Relational/logical subjects now
+cross the Bool-to-one-bit-integral boundary before branch matching, and an
+unguarded class/object distribution records its complete subject reference set
+for an exact draw at the appropriate `solve before` rank.
+
+The range repair in the same path preserves `:=` versus `:/` in emitted IR and
+continues to interpret historical unmarked range IR as `:/`. Exact sampling
+keeps every source item separate, chooses an item by aggregate weight, and then
+chooses uniformly among that item's feasible members. Thus `:=` retains
+`specified_weight * complete_source_span` even when other constraints prune
+members, `:/` contributes one range weight, and overlapping items remain
+additive. Typed and open endpoints use one IEEE 11.8.1 signed/unsigned order for
+the hard predicate, normalized coordinate, and final pin, including signed
+ranges crossing zero.
+
+The recursively checked compared-expression subset includes typed terminals,
+packed bit selects, constant part selects, ordinary packed concatenations,
+direct `$countones(terminal)` and `$countones(~unsigned_terminal)`, terminal
+comparisons, bounded mixed-width `+`/`-`/`*` trees, and unsigned division or
+signed/unsigned modulus by a constant nonzero terminal with an explicit
+SystemVerilog-width truncation of a composite dividend. Ground comparisons,
+ternaries, add/subtract/multiply/divide/modulus, power, shifts, and XOR fold at
+their SystemVerilog result width before validation. Constant repeated
+concatenations fold when their result is at most 64 bits. Compared bare fill
+literals and the OpenTitan `'1 - integral_literal` endpoint form materialize at
+the subject comparison width through 64 bits. Other nonground
+context-dependent unary, ternary, power, shift, and binary-bitwise trees fail
+loudly instead of being evaluated with an invented outer type.
+
+Exact source weights are limited to `UINT_MAX`, but checked item aggregates and
+their total use `uint64_t` and may exceed 32 bits. Item selection uses two
+32-bit object-RNG words as one unbiased 64-bit rejection ticket; member
+selection uses the existing unbiased rejection index. Exact range expansion is
+limited to 256 members. An aggregate-total overflow, wider source weight,
+over-cap range, nonground item, or mixed comparison order warns and preserves
+the hard domain through the documented weighted-soft fallback. Exact branch
+coordinates and current-object scalar storage remain limited to 64 bits. A
+literal/resolved constant with meaningful bits above bit 63 is a compile-time
+error because the textual IR cannot preserve it; a wider ground weight that
+fits `uint64_t` still evaluates normally.
+
+An exhaustive source audit of revision `7a3ad34` found 714 direct `.sv` `dist`
+locations across 253 files. The implemented boundary classifies 579 as
+supported and leaves 135 loud/unlowered sites; the 135 are a subset of 714, not
+an additional corpus:
+
+- 117 Flash indexed-struct-member subjects across the template, Earlgrey, and
+  English Breakfast copies. Seventy-two indexed weight expressions occur in
+  36 of these sites and therefore do not increase the site count.
+- 10 Darjeeling AC-range indexed-member subjects and one AC-range site whose
+  endpoints index `range_base`/`range_limit` dynamically.
+- two OTP package aggregate-array endpoints using
+  `PartInfo[LifeCycleIdx].offset`, and two google-riscv-dv package-array items
+  using `supported_privileged_mode[index]`.
+- three Darjeeling alert-handler distributions whose `NAlerts == 77` subjects
+  use `'1` or `'1 - 1'b1`; their required 77-bit fill/runtime coordinate is
+  outside current storage. The corresponding 64-bit Earlgrey forms are inside
+  the supported boundary.
+
+The first 132 sites require indexed-member/package-array value lowering; the
+last three require wider constant and runtime-coordinate storage. Two
+additional supported `.svh` dist macro bodies have ten source invocation
+sites, but preprocessing and target filelists make a single corpus-wide
+elaborated-node total misleading. No accepted OpenTitan expression in this
+audit was found silently mis-sized. Permanent evidence is
+`sv_constraint_dist_boolean_subject`, `sv_constraint_dist_wide_literal_fail`,
+and the historical/malformed-IR `run_dist_ir_compat.sh` gate.
 
 ---
 

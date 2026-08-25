@@ -16,6 +16,9 @@ class class_constraint_nested_state_item;
   class_constraint_nested_state_cfg cfg = new;
 
   constraint nested_state_c {
+    // int is signed; state the nonnegative domain explicitly rather than
+    // relying on a particular solver's choice among all values below limit.
+    value >= 0;
     value < cfg.limit;
     value < (2 ** cfg.field.get_n_bits());
     (2 ** cfg.field.get_n_bits()) == 16;
