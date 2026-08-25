@@ -3,6 +3,7 @@ sv_queue_slice_dollar_offset_lvalue_fail CE,-g2012 ivltests gold=sv_queue_slice_
 sv_queue_slice_nonintegral_bound_fail CE,-g2012 ivltests gold=sv_queue_slice_nonintegral_bound_fail.gold
 sv_queue_slice_variable_bounds normal,-g2012 ivltests gold=sv_queue_slice_variable_bounds.gold
 sv_packed_part_select_variable_bound_fail CE,-g2012 ivltests gold=sv_packed_part_select_variable_bound_fail.gold
+sv_dynamic_array_slice_rvalue normal,-g2012 ivltests gold=sv_dynamic_array_slice_rvalue.gold
 sv_dynamic_array_slice_variable_bound_fail CE,-g2012 ivltests gold=sv_dynamic_array_slice_variable_bound_fail.gold
 sv_associative_array_slice_fail CE,-g2012 ivltests gold=sv_associative_array_slice_fail.gold
 sv_queue_ref_persistence normal,-g2012 ivltests gold=sv_queue_ref_persistence.gold

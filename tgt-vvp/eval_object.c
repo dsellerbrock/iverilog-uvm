@@ -2806,6 +2806,21 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
       if (is_darray) {
 	    fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", nparm);
 	    fprintf(vvp_out, "    %%new/darray 3, \"%s\";\n", enc);
+	      /* A pattern element that reads outside a dynamic array is the
+	       * element type's default value. Object-backed value structs are
+	       * represented by a nil slot until first member access, so retain
+	       * their class as a prototype on this temporary. This is essential
+	       * when the completed value is copied into a class property, where
+	       * there is no signal declared_type() from which to recover it.
+	       * Class-handle elements deliberately retain null defaults. */
+	    if (etype && ivl_type_base(etype) == IVL_VT_NO_TYPE
+		&& ivl_type_properties(etype) > 0) {
+		  ensure_class_type_emitted(etype);
+		  fprintf(vvp_out,
+			  "    %%new/cobj C%p; darray pattern element prototype\n",
+			  etype);
+		  fprintf(vvp_out, "    %%dar/elem/proto;\n");
+	    }
       } else {
 	      /* Materialize the complete RHS before a bounded destination
 	       * truncates it. Besides preserving evaluation of excess operands,
@@ -2863,18 +2878,22 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 		  }
 	    }
 	    fprintf(vvp_out, "    %%dup/obj/ref;\n");
-	    if (is_darray) {
-		  fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
-		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
-	    }
 	    switch (etype ? ivl_type_base(etype) : IVL_VT_LOGIC) {
 		case IVL_VT_REAL:
 		  draw_eval_real(parm);
+		  if (is_darray) {
+			fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
+			fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+		  }
 		  emit_object_queue_store_(is_darray ? 'i' : 'b', "r",
 		                           0, 0);
 		  break;
 		case IVL_VT_STRING:
 		  draw_eval_string(parm);
+		  if (is_darray) {
+			fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
+			fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+		  }
 		  emit_object_queue_store_(is_darray ? 'i' : 'b', "str",
 		                           0, 0);
 		  break;
@@ -2883,6 +2902,10 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 		case IVL_VT_QUEUE:
 		case IVL_VT_NO_TYPE:
 		  errors += draw_eval_object(parm);
+		  if (is_darray) {
+			fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
+			fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+		  }
 		  emit_object_queue_store_(is_darray ? 'i' : 'b', "obj",
 		                           0, 0);
 		  break;
@@ -2896,6 +2919,10 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 				(etype && ivl_type_signed(etype)
 				 && ivl_expr_signed(parm)) ? 's' : 'u',
 				wid);
+		  if (is_darray) {
+			fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
+			fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+		  }
 		  emit_object_queue_store_(is_darray ? 'i' : 'b', "v",
 		                           0, wid);
 		  break;

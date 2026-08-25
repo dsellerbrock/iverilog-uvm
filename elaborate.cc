@@ -7438,6 +7438,204 @@ static bool uarray_ranges_need_reverse_(const netrange_t&dst,
       return dst_ascending != src_ascending;
 }
 
+/* Elaborate the bounded first implementation of an ordinary dynamic-array
+ * slice r-value (IEEE 1800-2017/2023 7.4.5 and 7.6). A colon slice has a
+ * fixed-size unpacked-array type, so it cannot be represented by the queue
+ * slice operations. For a direct one-dimensional dynamic-array signal and
+ * constant ascending bounds, materialize that fixed value as an array pattern
+ * of typed element reads. The dynamic-array assignment target supplies the
+ * container context that later snapshots the complete pattern before storing
+ * it, which is essential for self-slices such as `a = a[0:1]'.
+ *
+ * Return value is the elaborated expression. `handled' distinguishes an
+ * unrelated expression (which must continue through the general elaborator)
+ * from a recognized slice that failed validation and was diagnosed here. */
+static NetEConst* make_direct_darray_slice_index_(int64_t value,
+						  const LineInfo&loc)
+{
+      verinum unscaled(value);
+      verinum fixed(unscaled, 64);
+      fixed.has_sign(true);
+      NetEConst*result = new NetEConst(fixed);
+      result->set_line(loc);
+      return result;
+}
+
+static NetExpr* elaborate_direct_darray_slice_rval_(
+      Design*des, NetScope*scope, const LineInfo&loc, const PExpr*pexpr,
+      const netdarray_t*target_type, bool&handled)
+{
+      handled = false;
+      if (!target_type || dynamic_cast<const netqueue_t*>(target_type))
+	    return nullptr;
+
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(pexpr);
+      if (!ident || ident->path().name.empty())
+	    return nullptr;
+
+      const list<index_component_t>&indices =
+	    ident->path().name.back().index;
+      if (indices.size() != 1)
+	    return nullptr;
+      const index_component_t&index = indices.front();
+      if (index.sel != index_component_t::SEL_PART
+	  || !index.msb || !index.lsb)
+	    return nullptr;
+
+      symbol_search_results sr;
+      if (!symbol_search(&loc, des, scope, ident->path(),
+			 ident->lexical_pos(), &sr)
+	  || !sr.net || !sr.path_tail.empty()
+	  || sr.net->unpacked_dimensions() != 0)
+	    return nullptr;
+
+      const netdarray_t*source_type =
+	    dynamic_cast<const netdarray_t*>(sr.net->net_type());
+      if (!source_type || dynamic_cast<const netqueue_t*>(source_type))
+	    return nullptr;
+
+      handled = true;
+      ivl_type_t target_element = target_type->element_type();
+      ivl_type_t source_element = source_type->element_type();
+	/* An unpacked union is a value type and vvp_cobject gives its members
+	 * shared storage, but its default constructor currently initializes that
+	 * storage to X whenever any member is four-state. That does not implement
+	 * Table 7-1's first-member default rule. The struct prototype path below
+	 * would therefore silently expose a wrong OOB union value. Keep this
+	 * direct slice subset loud until that default semantic is represented. */
+      const netstruct_t*target_record =
+	    dynamic_cast<const netstruct_t*>(target_element);
+      const netstruct_t*source_record =
+	    dynamic_cast<const netstruct_t*>(source_element);
+      if ((target_record && target_record->union_flag()
+	   && !target_record->packed())
+	  || (source_record && source_record->union_flag()
+	      && !source_record->packed())) {
+	    cerr << loc.get_fileline() << ": sorry: dynamic-array slice r-values "
+		 << "with unpacked-union elements are not yet supported." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+      if (!target_element || !source_element
+	  || (target_element != source_element
+	      && (!target_element->type_equivalent(source_element)
+		  || !source_element->type_equivalent(target_element)))) {
+	    cerr << loc.get_fileline() << ": error: dynamic-array slice element "
+		 << "type is not equivalent to the assignment target element type."
+		 << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      NetExpr*left_expr = elab_and_eval(des, scope, index.msb, -1, false);
+      NetExpr*right_expr = elab_and_eval(des, scope, index.lsb, -1, false);
+      const NetEConst*left_const =
+	    dynamic_cast<const NetEConst*>(left_expr);
+      const NetEConst*right_const =
+	    dynamic_cast<const NetEConst*>(right_expr);
+      bool constant_integral = left_const && right_const
+	    && (left_expr->expr_type() == IVL_VT_BOOL
+		|| left_expr->expr_type() == IVL_VT_LOGIC)
+	    && (right_expr->expr_type() == IVL_VT_BOOL
+		|| right_expr->expr_type() == IVL_VT_LOGIC);
+      if (!constant_integral) {
+	    cerr << loc.get_fileline() << ": error: dynamic-array slice bounds "
+		 << "must be constant integral expressions." << endl;
+	    des->errors += 1;
+	    delete left_expr;
+	    delete right_expr;
+	    return nullptr;
+      }
+      if (!left_const->value().is_defined()
+	  || !right_const->value().is_defined()) {
+	    cerr << loc.get_fileline() << ": error: dynamic-array slice bounds "
+		 << "must be fully defined constant integral expressions." << endl;
+	    des->errors += 1;
+	    delete left_expr;
+	    delete right_expr;
+	    return nullptr;
+      }
+
+      auto constant_to_int64 = [](const verinum&value, int64_t&out) -> bool {
+	    bool negative = false;
+	    uint64_t magnitude = verinum_signed_magnitude(value, negative);
+	    const uint64_t signed_max = static_cast<uint64_t>(INT64_MAX);
+	    if (!negative) {
+		  if (magnitude > signed_max)
+			return false;
+		  out = static_cast<int64_t>(magnitude);
+		  return true;
+	    }
+	    if (magnitude > signed_max + UINT64_C(1))
+		  return false;
+	    out = magnitude == signed_max + UINT64_C(1)
+		  ? INT64_MIN : -static_cast<int64_t>(magnitude);
+	    return true;
+      };
+
+      int64_t left = 0;
+      int64_t right = 0;
+      bool bounds_fit = constant_to_int64(left_const->value(), left)
+	    && constant_to_int64(right_const->value(), right);
+      delete left_expr;
+      delete right_expr;
+      if (!bounds_fit) {
+	    cerr << loc.get_fileline() << ": sorry: dynamic-array slice bounds "
+		 << "outside the signed 64-bit index range are not yet supported."
+		 << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+      if (left > right) {
+	    cerr << loc.get_fileline() << ": error: dynamic-array slice range "
+		 << "has the opposite direction from its declared range." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      unsigned __int128 wide_count =
+	    static_cast<unsigned __int128>(
+		  static_cast<__int128>(right) - static_cast<__int128>(left)) + 1;
+      if (wide_count > UINT_MAX
+	  || wide_count - 1 > static_cast<unsigned long>(LONG_MAX)) {
+	    cerr << loc.get_fileline() << ": sorry: dynamic-array slice r-values "
+		 << "whose result range is not host-representable are not yet "
+		 << "supported."
+		 << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      const unsigned count = static_cast<unsigned>(wide_count);
+      netranges_t dimensions;
+	/* The target is a dynamic array, so only the source sequence and count
+	 * are observable here. Give the synthetic fixed result its canonical
+	 * ascending range; this keeps 64-bit source indices independent of the
+	 * host width of netrange_t::get_msb/get_lsb (notably LLP64 Windows). */
+      dimensions.push_back(netrange_t(0, static_cast<long>(count - 1)));
+      netuarray_t*result_type = new netuarray_t(dimensions, source_element);
+      vector<NetExpr*>items(count);
+      long packed_width = source_element->packed_width();
+      unsigned element_width = packed_width > 0
+	    && static_cast<unsigned long>(packed_width) <= UINT_MAX
+	    ? static_cast<unsigned>(packed_width) : 1;
+      for (unsigned offset = 0; offset < count; offset += 1) {
+	    NetESignal*receiver = new NetESignal(sr.net);
+	    receiver->set_line(loc);
+	    NetEConst*word = make_direct_darray_slice_index_(
+		  static_cast<int64_t>(static_cast<__int128>(left) + offset),
+		  loc);
+	    NetESelect*element = new NetESelect(
+		  receiver, word, element_width, source_element);
+	    element->set_line(loc);
+	    items[offset] = element;
+      }
+
+      NetEArrayPattern*result = new NetEArrayPattern(result_type, items);
+      result->set_line(loc);
+      return result;
+}
+
 NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -7722,7 +7920,24 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 	    // which mismatches and gets degraded to NetENull during the
 	    // class-cast fallback in elab_and_eval.  Leave use_lv_type
 	    // as net_type() returned it.
-	    rv = elaborate_rval_(des, scope, lv_net_type);
+	    bool slice_handled = false;
+	    const netdarray_t*target_darray =
+		  dynamic_cast<const netdarray_t*>(lv_net_type);
+	    bool direct_plain_target = delay_ == 0 && event_ == 0 && count_ == 0
+		  && !lv->word() && !lv->nest() && lv->get_property_idx() < 0
+		  && lv->sig()
+		  && !dynamic_cast<const netqueue_t*>(target_darray);
+	    rv = direct_plain_target
+		  ? elaborate_direct_darray_slice_rval_(
+			des, scope, *this, rval(), target_darray, slice_handled)
+		  : nullptr;
+	    if (!slice_handled)
+		  rv = elaborate_rval_(des, scope, lv_net_type);
+	    else if (!rv) {
+		  delete lv;
+		  delete delay;
+		  return 0;
+	    }
 
       } else if (const netuarray_t*lv_uarray =
 		 dynamic_cast<const netuarray_t*>(lv_net_type)) {

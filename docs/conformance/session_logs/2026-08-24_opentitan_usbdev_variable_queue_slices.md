@@ -176,9 +176,12 @@ an OpenTitan pass or UVM-runtime claim. No OpenTitan source was changed.
 
 ## Remaining boundaries
 
-This increment does not implement queue range l-values, the indexed-`$`
+This increment did not implement queue range l-values, the indexed-`$`
 parser form, or the fixed-size unpacked expression required for dynamic-array
-slices. It also does not upgrade clauses 7.4, 7.6, or 7.10 to full
-conformance. The dynamic-array gap is loud and type-correctly classified;
-associative range selection remains illegal; and the OpenTitan timed-register,
-randomization, and later USBDEV blockers are independent follow-on work.
+slices. The later [OpenTitan HMAC increment](2026-08-24_opentitan_hmac_dynamic_array_slice_rvalues.md)
+implements the bounded direct constant-colon blocking-assignment subset;
+indexed-variable, property/nested, standalone, and scheduled dynamic-slice
+forms remain loud. Neither increment upgrades clauses 7.4, 7.6, or 7.10 to
+full conformance. Associative range selection remains illegal, and the
+OpenTitan timed-register, randomization, and later USBDEV blockers are
+independent follow-on work.

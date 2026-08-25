@@ -2583,14 +2583,15 @@ receiver still produces an unbounded queue result, matching Slang's AST type.
 
 The syntax is deliberately discriminated from other unpacked arrays. Sections
 7.4.5, 7.4.6, and 7.6 require a dynamic-array slice to be a fixed-size
-unpacked-array expression, not a dynamic array. Legal dynamic colon and
-indexed r-values therefore produce the exact loud
+unpacked-array expression, not a dynamic array. At this G77 checkpoint, legal
+dynamic colon and indexed r-values therefore produced the exact loud
 `sorry: dynamic-array slice r-values are not yet supported as fixed-size
-unpacked-array expressions.` until that result representation exists;
-`$typename` and method contexts cannot silently claim a dynamic result.
-Illegal dynamic operands receive their standard-specific diagnostics first.
-Associative colon, `+:`, and `-:` ranges all produce
-`associative arrays cannot be indexed by a range.`
+unpacked-array expressions.` rather than claiming a false dynamic result.
+The later G79 increment implements the direct constant-colon blocking-
+assignment subset while retaining the loud indexed, nested/property, and
+standalone boundaries. Illegal dynamic operands still receive their standard-
+specific diagnostics first. Associative colon, `+:`, and `-:` ranges all
+produce `associative arrays cannot be indexed by a range.`
 
 The final focus gates pass 14/14 legacy and 9/9 JSON/VVP. The complete runners
 report 1,801/1,801 for `regress-sv.list` and 869/869 for `regress-vvp.list`;
@@ -2612,11 +2613,10 @@ also remains. No VVP image or USBDEV runtime exists, and no OpenTitan source
 was changed. This is a precise compiler-blocker removal, not a whole-design or
 UVM pass claim.
 
-Queue range l-values, an indexed `+:`/`-:` range whose base token is `$`, and
-the fixed-size result implementation for dynamic-array slices remain explicit
-boundaries. The first is loud, the indexed-`$` spelling remains a parser/
-lowering boundary, and the dynamic-array r-value boundary is loud rather than
-silently represented as the wrong type.
+Queue range l-values and an indexed `+:`/`-:` range whose base token is `$`
+remain explicit G77 boundaries. G79 subsequently implements one direct
+dynamic-array fixed-result subset; other dynamic-array slice contexts remain
+loud rather than silently represented as the wrong type.
 
 ---
 
@@ -2662,6 +2662,72 @@ not modified.
 Runtime-base indexed slices, multidimensional or typedef-nested property
 slices, property-slice r-values, NBA and non-pattern/compound stores, and
 aggregate/object elements remain explicit loud or unclaimed boundaries.
+
+---
+
+## G79 — dynamic-array fixed slice values stopped at a loud boundary — **fixed/verified direct blocking assignment subset** [general]
+
+*7.4.5 / 7.6 [general] — dynamic-array slice result typing, array assignment,
+and self-assignment snapshots.*
+
+At frozen OpenTitan commit `7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19`,
+HMAC assigns the direct dynamic array of unpacked `test_vectors_t` structs as
+`parsed_vectors = parsed_vectors[0:1]`. The clean pre-fix graph had exactly one
+hard error at `hmac_test_vectors_sha_vseq.sv:82`: the frontend correctly said
+the slice needed a fixed-size unpacked result, but could not represent it.
+
+An immediate whole assignment between direct one-dimensional plain dynamic-
+array signals now lowers a fully defined constant ascending colon range to a
+fixed `netuarray_t` array pattern of typed element reads. Equivalent element
+types are required, OOB reads retain the element default, and the dynamic
+target resizes to the fixed result count. VVP materializes the complete RHS
+before replacing the destination, so a self-slice keeps its old receiver.
+The aggregate builder also reloads each destination index after evaluating
+the source leaf, preventing nonzero source indices from clobbering vector,
+real, string, or object placement.
+
+Generated source coordinates are exact signed 64-bit constants rather than
+normal 32-bit integer-width constants. The fixed aggregate uses canonical
+`[0:count-1]`, since only its sequence and count are observable at the dynamic
+target; wide LP64 source coordinates therefore remain exact without depending
+on LLP64 `netrange_t`. Object reads check the live size and `UINT_MAX` before
+calling the runtime's unsigned-index API. Object-backed value-struct results
+also retain their element prototype, so a nil OOB slot materializes the
+integer/string/nested-dynamic-array defaults after a class-property copy;
+class-handle elements keep reference identity and a null OOB default.
+
+`sv_dynamic_array_slice_rvalue` covers all four store categories, two- and
+four-state/real/string OOB defaults, nonzero source bounds, self-assignment,
+signed `+/-4294967296` source coordinates, and non-self plus self slices of an
+HMAC-shaped unpacked struct. Partial/all-OOB structs are copied through a class
+dynamic-array property and check integer, string, and nested-array defaults;
+the far-positive case proves the source read cannot wrap onto element zero.
+Mutating the copied scalar, nested dynamic-array entry, and string proves
+value-copy independence, while class-handle coverage proves identity/null
+semantics. Its negative companion distinguishes ten standards-invalid
+forms from the still-legal indexed-variable, nested-property, and unpacked-
+union-element implementation boundaries. The union case emits a focused
+`sorry` before object lowering rather than exposing the current X
+initialization where Table 7-1 requires the first member's default; this does
+not claim global union runtime semantics.
+Slang accepts the shared positive source under both 1800-2017 and
+1800-2023 and agrees on those ten invalid forms; its signed-32-bit dynamic-
+index restriction is isolated behind the Icarus-only wide checks. Focus gates
+pass 15/15 legacy and 10/10 JSON/VVP.
+
+The exact unmodified HMAC compile now exits 0 in 3.10 seconds and emits a VVP
+image, with no remaining hard diagnostic. Its real-DPI smoke run reaches the
+UVM test but fails at 0 ps on `tlul_rsp_intg_gen.sv:82 RspZero_A`; the next
+reduced frontier is a VVP nested-concatenation initialization-order defect,
+not another dynamic-array-slice error. The 256 end-of-simulation assertions
+are secondary to UVM's zero-time abort. No whole-OpenTitan pass is claimed.
+Evidence and full commands are in the
+[session log](session_logs/2026-08-24_opentitan_hmac_dynamic_array_slice_rvalues.md).
+
+Indexed `+:`/`-:` slices, property/nested receivers, fixed targets, standalone
+and type-query contexts, multidimensional shapes, delayed/event/NBA forms, and
+compound assignments remain explicit loud or unclaimed work. Unpacked-union
+elements likewise remain an exact loud boundary.
 
 ---
 
