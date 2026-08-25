@@ -24188,9 +24188,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      return "";
 			string idx_ir = pexpr_to_constraint_ir(ic.msb, cls,
 						value_slots, scope, loop_env);
-			if (idx_ir.compare(0, 2, "c:") != 0)
+			constraint_const_ir_t index_const;
+			if (!constraint_parse_const_ir_(idx_ir, index_const)
+			    || index_const.width > 64)
 			      return "";
-			uint64_t elem = strtoull(idx_ir.c_str() + 2, nullptr, 10);
+			uint64_t elem = constraint_resize_const_bits_(
+			      index_const, 64, index_const.is_signed);
 			const netranges_t&dims = ua->static_dimensions();
 			if (dims.size() != 1)
 			      return "";
@@ -24199,9 +24202,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			  // the element solver variable e:N:W:I addresses
 			  // the canonical (0-based) slot used by the
 			  // write-back, so map declared -> canonical here.
-			  // uint64 two's-complement arithmetic keeps
-			  // negative declared bounds consistent with the
-			  // solver's constant folding.
+			  // Decode the typed constant before this subtraction. A
+			  // signed narrow negative index such as c:4294967294:32:s
+			  // must sign-extend to the same uint64 two's-complement
+			  // representation as a negative declared bound.
 			{
 			      long range_lo =
 				    dims[0].get_msb() < dims[0].get_lsb()

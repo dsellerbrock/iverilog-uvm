@@ -76,6 +76,10 @@ module main;
 
     check("with reduction constraint is satisfiable",
           with_control.randomize() == 1);
+    check("element constraints use signed declared indices",
+          with_control.values[-2] == 4'sd1
+          && with_control.values[-1] == 4'sd2
+          && with_control.values[0] == 4'sd3);
     check("with reduction uses declared nonzero indices",
           with_control.values.sum(value)
             with (value * value.index()) == -32'sd4);

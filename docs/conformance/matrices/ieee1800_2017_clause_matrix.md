@@ -97,6 +97,15 @@ diagnostics) — see **§ M14 gap closures** below.
 | Annex B | Keywords | FULL | keyword sets gated by generation (`` `begin_keywords ``). |
 | Annex C–L | (packages, tasks, misc annexes) | PARTIAL | `std::` semaphore/mailbox/process supported; `std::mailbox#(T)` via the `std::` prefix is a syntax error (bare `mailbox#(T)` works). |
 
+## 2026-08-24 clause-18 signed fixed-array index repair
+
+For the evidenced 18.5.8.2 subset, typed signed constants used to index a
+fixed-array class property in a constraint are sign-extended before
+declared-to-canonical index mapping. Negative declared indices therefore
+retain every solver leaf and agree with `iterator.index()` reduction
+semantics. `sv_constraint_fixed_array_reduction` pins the individual leaves
+and their weighted reduction result.
+
 ## 2026-08-24 clause-16 endpoint-local refinement
 
 The M9-16 bounded local-variable subset now permits a deterministic-prefix
