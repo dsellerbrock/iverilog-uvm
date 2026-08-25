@@ -127,7 +127,13 @@ Run the narrowest meaningful gate first, then widen it:
 - Distinguish unexpected failures from recorded `NI` and expected failures in every summary.
 - Preserve a reduced permanent regression for every bug fix. A red proof against the previous compiler is valuable when practical.
 - Do not call a partial feature complete while known semantic or transactional gaps remain.
-- For the real-DPI UVM regression, initialize `uvm-core`, run `make installuvm`, then use `PATH="$PWD/local-install/bin:$PATH" bash .github/uvm_test.sh`.
+- For the real-DPI UVM regression, initialize `uvm-core` before the first
+  compiler build, then run `make installuvm` and use
+  `PATH="$PWD/local-install/bin:$PATH" bash .github/uvm_test.sh`. The driver
+  bakes the bundled UVM version into `driver/main.o`; initializing the submodule
+  only after that object was built leaves `iverilog -V` reporting "not
+  installed" even though `make installuvm` later installs the sources and DPI
+  module. In that case, rebuild and reinstall `driver` after initialization.
 
 ## Regression artifacts
 
