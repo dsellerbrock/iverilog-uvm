@@ -1,6 +1,9 @@
-// M10-2: a time-consuming exported task reached from an imported DPI
-// *function* has no coroutine to park on, so it cannot be run across
-// simulation time. That case must be a LOUD diagnostic, never a crash.
+// M10-2 malformed-boundary robustness: IEEE 1800 35.8 forbids an exported
+// task from being reached through an imported DPI *function* at all. This is
+// intentionally not a VCS/Questa/Xcelium portability test. For an old image
+// or malformed foreign caller that nevertheless does it, a time-consuming
+// export has no coroutine to park on and must produce a LOUD diagnostic,
+// never a crash.
 //
 // It used to abort vvp: the inline runner spun the child past its
 // delay and then joined it while the scheduler still held a future

@@ -15,11 +15,12 @@ void c_stats(double x, double y, double*sum, double*prod)
       *prod = x * y;
 }
 
-void c_swap64(int64_t*a, int64_t*b)
+int c_swap64(int64_t*a, int64_t*b)
 {
       int64_t t = *a;
       *a = *b;
       *b = t;
+      return 0;
 }
 
 int32_t c_step(int32_t*counter, int32_t delta)

@@ -7366,12 +7366,13 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 	    fprintf(vvp_out, "    %%dpi/call/ptr \"%s|%s\", %u;\n",
 		    c_name, arg_types, ncp);
       } else if (rtype == IVL_VT_VOID) {
-	      /* A DPI import *task* (35.5) may be time-consuming — its C
-		 body may call an exported SV task that blocks — so it uses a
-		 distinct opcode that runs the C on a coroutine. A void
-		 *function* stays on the fast synchronous %dpi/call/void. */
+	      /* A DPI import *task* (35.5) may be time-consuming and has an
+		 int status ABI (35.9), so /task/ack runs C on a coroutine and
+		 validates its acknowledgement. Keep %dpi/call/task in the VVP
+		 runtime only as the old-image void-ABI compatibility path. A
+		 void *function* stays on synchronous %dpi/call/void. */
 	    fprintf(vvp_out, "    %%dpi/call/%s \"%s|%s\", %u;\n",
-		    is_task ? "task" : "void", c_name, arg_types, ncp);
+		    is_task ? "task/ack" : "void", c_name, arg_types, ncp);
       } else {
 	      /* '^<letter>' is a return-ABI prefix, followed by the existing
 		 argument signature. A new runtime still accepts old images without

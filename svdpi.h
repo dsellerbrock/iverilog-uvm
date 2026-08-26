@@ -158,6 +158,10 @@ extern void svPutLogicArrElem2(const svOpenArrayHandle d, svLogic value,
 extern void svPutLogicArrElem3(const svOpenArrayHandle d, svLogic value,
                               int indx1, int indx2, int indx3);
 
+/* Imported DPI task/function disable protocol (IEEE 1800 H.8.2). */
+extern int svIsDisabledState(void);
+extern void svAckDisabledState(void);
+
 #ifdef __cplusplus
 }
 #endif

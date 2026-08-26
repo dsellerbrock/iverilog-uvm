@@ -3,7 +3,9 @@
 // output/inout values must be copied to C before the scheduler reaps the
 // automatic function activation. The shortreal, svLogic, and string formals
 // also pin the commercial Annex-H scalar-formal C signatures on this call
-// path; the separate H.8.2 task-status protocol remains an explicit P1.
+// path. The imported task's C definition also returns the normal H.8.2
+// acknowledgement value zero; the exported void function retains its void C
+// ABI because it is a function, not a task.
 module m10_dpi_export_void_function_task_context_test;
   import "DPI-C" context task c_check_void_export(output int failures);
 

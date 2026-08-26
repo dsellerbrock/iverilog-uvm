@@ -4,7 +4,8 @@
 // declarations could not compile.
 module m10_dpi_task_alias_test;
 
-  // Imported task (context property allowed, no return value).
+  // Imported task (context property allowed, no SystemVerilog return value;
+  // its C definition returns the task-protocol acknowledgement).
   import "DPI-C" context task c_log_event(int code, string tag);
   import "DPI-C" task c_accumulate(int delta);
 

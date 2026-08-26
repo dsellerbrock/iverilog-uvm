@@ -5,15 +5,15 @@
 # include  <stdio.h>
 
 extern int  sv_zero(int a);
-extern void sv_blocks(void);
+extern int  sv_blocks(void);
 
 void c_drive(void)
 {
       int a = sv_zero(1);
       printf("  c_drive: sv_zero(1) = %d\n", a);
 
-      /* Unsupported: prints a vvp sorry, returns without blocking. */
-      sv_blocks();
+      /* Deliberately illegal 35.8 boundary: prints a vvp sorry and returns. */
+      (void)sv_blocks();
       printf("  c_drive: returned from sv_blocks\n");
 
       /* The export machinery must still be usable afterwards. */

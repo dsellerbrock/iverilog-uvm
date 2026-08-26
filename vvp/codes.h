@@ -224,6 +224,7 @@ extern bool of_DPI_CALL_SHORTREAL(vthread_t thr, vvp_code_t code);
 extern bool of_DPI_CALL_STR(vthread_t thr, vvp_code_t code);
 extern bool of_DPI_CALL_VOID(vthread_t thr, vvp_code_t code);
 extern bool of_DPI_CALL_TASK(vthread_t thr, vvp_code_t code);
+extern bool of_DPI_CALL_TASK_ACK(vthread_t thr, vvp_code_t code);
 extern bool of_DELAY(vthread_t thr, vvp_code_t code);
 extern bool of_DELAYX(vthread_t thr, vvp_code_t code);
 extern bool of_DELETE_ELEM(vthread_t thr, vvp_code_t code);
