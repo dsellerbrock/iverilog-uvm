@@ -112,6 +112,21 @@ Focused results after the final audit:
 - negative diagnostics: **136/136**;
 - build/install and `git diff --check`: **PASS**.
 
+Clean serial broad results on the committed tree:
+
+- `make check`: **PASS** (2.58 seconds);
+- legacy ivtest: **4,094 total, 4,089 pass, 0 fail, 2 NI, 3 expected fail**
+  (123.10 seconds);
+- JSON/VVP: **979 run, 0 fail** (22.69 seconds);
+- bundled VPI: **112/112** (28.25 seconds);
+- canonical unmodified UVM with the real DPI umbrella: **354/354**, 0 failed,
+  0 skipped (596.49 seconds).
+
+The ivtest harnesses share `vsim` and log names. One deliberately discarded
+run overlapped legacy and VPI and produced cross-test log contents and missing
+images; the results above are clean serial reruns. Do not run those harnesses
+concurrently in one worktree.
+
 ## OpenTitan application evidence
 
 The full native-ARM64 61-target OpenTitan UVM compile matrix completed with no

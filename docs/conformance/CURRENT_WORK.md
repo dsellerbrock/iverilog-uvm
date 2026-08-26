@@ -31,6 +31,22 @@ construction-time parent-set capture, unknown endpoints, and loud unsupported
 boundaries. Raw VVP metadata tests also pin malformed type descriptors and
 old-image compatibility. These are subset gates, not full clause-19 closure.
 
+Clean serial native-ARM64 broad validation on the committed tree reports:
+
+- `make check`: pass;
+- legacy ivtest: 4,094 total, 4,089 pass, 0 fail, 2 recorded NI, and 3
+  expected fail;
+- JSON/VVP: 979 run, 0 fail;
+- bundled VPI: 112/112;
+- negative diagnostics: 136/136;
+- focused metadata/options checks: pass; and
+- complete canonical real-DPI UVM: 354/354, 0 failed, 0 skipped (596.49
+  seconds wall).
+
+An earlier overlapping legacy/VPI invocation was discarded because both
+harnesses share `ivtest/vsim` and log names; impossible cross-test log contents
+proved workspace contamination. The clean results above are serial reruns.
+
 A native-ARM64, clean-source OpenTitan UVM compile matrix exercised all 61 UVM
 targets at OpenTitan `7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` with FuseSoC
 2.4.5 under ARM Python 3.13.15. It completed with no timeouts and changed the
