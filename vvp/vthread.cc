@@ -63,6 +63,7 @@
 # include  <vector>
 # include  <functional>
 # include  <algorithm>
+# include  <cstdarg>
 # include  <cerrno>
 # include  <cctype>
 # include  <cstdlib>
@@ -1632,6 +1633,45 @@ struct vthread_s*running_thread = 0;
  * for the duration of a C call chain. */
 static __vpiScope*dpi_active_scope_ = 0;
 
+/* IEEE 1800-2017/2023 35.9 disable protocol for one active imported DPI
+ * invocation. These records form a stack across C -> exported SV -> imported
+ * C re-entry. A coroutine saves/restores the active pointer when its private C
+ * stack parks, so concurrent imported tasks cannot see one another's state. */
+enum dpi_import_kind_t {
+      DPI_IMPORT_FUNCTION,
+      DPI_IMPORT_TASK_LEGACY,
+      DPI_IMPORT_TASK_ACK
+};
+
+struct dpi_import_call_state_s {
+      const char*c_name;
+      dpi_import_kind_t kind;
+      bool disabled;
+      bool acked;
+      dpi_import_call_state_s*prev;
+};
+
+static dpi_import_call_state_s*dpi_import_call_current_ = 0;
+
+static void dpi_protocol_fatal_(const char*fmt, ...)
+{
+      va_list ap;
+      fprintf(stderr, "DPI fatal: ");
+      va_start(ap, fmt);
+      vfprintf(stderr, fmt, ap);
+      va_end(ap);
+      fputc('\n', stderr);
+      vpip_set_return_value(1);
+      if (!schedule_finished())
+	    schedule_finish(0);
+}
+
+static void dpi_import_mark_disabled_()
+{
+      if (dpi_import_call_current_)
+	    dpi_import_call_current_->disabled = true;
+}
+
 /*
  * DPI import-task coroutine (IEEE 1800-2017 35.5 time-consuming export).
  *
@@ -1689,6 +1729,8 @@ struct dpi_coro_s {
       vvp_code_t cp;          // the %dpi/call opcode
       __vpiScope*saved_scope; // DPI globals to reinstate on each resume
       vpi_mode_t saved_mode;
+      dpi_import_call_state_s*saved_call_state;
+      dpi_import_kind_t import_kind;
 };
 
 // The coroutine whose C body is currently executing (non-null only between
@@ -1699,7 +1741,8 @@ static dpi_coro_s*dpi_coro_current = 0;
 
 #define DPI_CORO_STACK (512*1024)
 
-static bool dpi_call_common_(vthread_t, vvp_code_t, char, unsigned, char, bool);
+static bool dpi_call_common_(vthread_t, vvp_code_t, char, unsigned, char, bool,
+			     dpi_import_kind_t);
 
 #if defined(IVL_DPI_CORO_UCONTEXT)
 static void dpi_coro_trampoline_(void);
@@ -1707,7 +1750,8 @@ static void dpi_coro_trampoline_(void);
 static void WINAPI dpi_coro_trampoline_(void*);
 #endif
 
-static dpi_coro_s*dpi_coro_create_(vthread_t thr, vvp_code_t cp)
+static dpi_coro_s*dpi_coro_create_(vthread_t thr, vvp_code_t cp,
+				   dpi_import_kind_t import_kind)
 {
       dpi_coro_s*coro = new dpi_coro_s;
       coro->finished = false;
@@ -1717,6 +1761,8 @@ static dpi_coro_s*dpi_coro_create_(vthread_t thr, vvp_code_t cp)
 	// works from C) and the caller's scope as the active svScope.
       coro->saved_mode = VPI_MODE_RWSYNC;
       coro->saved_scope = thr->parent_scope;
+      coro->saved_call_state = dpi_import_call_current_;
+      coro->import_kind = import_kind;
 #if defined(IVL_DPI_CORO_UCONTEXT)
       coro->stack = (char*) malloc(DPI_CORO_STACK);
       getcontext(&coro->ctx);
@@ -1747,12 +1793,16 @@ static void dpi_coro_destroy_(dpi_coro_s*coro)
 static void dpi_coro_switch_into_(dpi_coro_s*coro)
 {
       dpi_coro_s*prev = dpi_coro_current;
+      vthread_t sched_running_thread = running_thread;
       __vpiScope*sched_scope = dpi_active_scope_;
       vpi_mode_t sched_mode = vpi_mode_flag;
+      dpi_import_call_state_s*sched_call_state = dpi_import_call_current_;
 
       dpi_coro_current = coro;
+      running_thread = coro->sv_caller;
       vpi_mode_flag = coro->saved_mode;
       dpi_active_scope_ = coro->saved_scope;
+      dpi_import_call_current_ = coro->saved_call_state;
 
 #if defined(IVL_DPI_CORO_UCONTEXT)
       swapcontext(&coro->caller_ctx, &coro->ctx);
@@ -1765,6 +1815,12 @@ static void dpi_coro_switch_into_(dpi_coro_s*coro)
       SwitchToFiber(coro->fiber);
 #endif
 
+        /* A parked coroutine leaves its active imported-call record on its
+           private C stack. Preserve that pointer with the coroutine, then
+           restore the scheduler-side nested/import state. */
+      coro->saved_call_state = dpi_import_call_current_;
+      dpi_import_call_current_ = sched_call_state;
+      running_thread = sched_running_thread;
       dpi_active_scope_ = sched_scope;
       vpi_mode_flag = sched_mode;
       dpi_coro_current = prev;
@@ -1787,7 +1843,8 @@ static void dpi_coro_yield_(dpi_coro_s*coro)
 static void dpi_coro_trampoline_(void)
 {
       dpi_coro_s*coro = dpi_coro_current;
-      dpi_call_common_(coro->sv_caller, coro->cp, 'v', 0, 'i', false);
+      dpi_call_common_(coro->sv_caller, coro->cp, 'v', 0, 'i', false,
+		       coro->import_kind);
       coro->finished = true;
       swapcontext(&coro->ctx, &coro->caller_ctx);
 }
@@ -1795,7 +1852,8 @@ static void dpi_coro_trampoline_(void)
 static void WINAPI dpi_coro_trampoline_(void*arg)
 {
       dpi_coro_s*coro = (dpi_coro_s*) arg;
-      dpi_call_common_(coro->sv_caller, coro->cp, 'v', 0, 'i', false);
+      dpi_call_common_(coro->sv_caller, coro->cp, 'v', 0, 'i', false,
+		       coro->import_kind);
       coro->finished = true;
 	// A fiber proc must never return (that would end the thread); yield
 	// back to whoever last switched in. dpi_coro_current is this coro.
@@ -10406,9 +10464,18 @@ static void resume_joining_parent_(vthread_t parent, vthread_t child)
 	   task) rather than doing the normal parent wake. */
       if (child->dpi_coro) {
 	    dpi_coro_s*coro = child->dpi_coro;
+	      /* The resumed C code may legally call another synchronous export
+		 before this import finishes. That export can disable and reap the
+		 imported-task parent (and, while unwinding its children, this old
+		 export child) before dpi_coro_switch_into_ returns. Keep both objects
+		 alive through all post-switch inspection, then reap the old child
+		 only if it is still owned by this parent. */
+	    vthread_run_pin_(parent);
+	    vthread_run_pin_(child);
 	    child->dpi_coro = 0;
 	    dpi_coro_switch_into_(coro);
-	    vthread_reap(child);
+	    if (child->parent == parent)
+		  vthread_reap(child);
 	    if (coro->finished) {
 		  parent->i_am_joining = 0;
 		  if (! parent->i_have_ended)
@@ -10418,6 +10485,8 @@ static void resume_joining_parent_(vthread_t parent, vthread_t child)
 	      /* else: the coroutine parked on a new exported task, whose
 		 dpi_export_run_ re-set parent->i_am_joining; it will re-enter
 		 here when that child ends. */
+	    vthread_run_unpin_(child);
+	    vthread_run_unpin_(parent);
 	    return;
       }
 #endif // IVL_HAVE_DPI_CORO
@@ -13024,7 +13093,8 @@ static bool dpi_return_type_width_ok_(char type, unsigned wid)
  */
 static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 			     unsigned wid, char dflt_letter,
-			     bool allow_integral_return_prefix)
+			     bool allow_integral_return_prefix,
+			     dpi_import_kind_t import_kind)
 {
       char name_buf[256];
       const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
@@ -13214,6 +13284,14 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
       int64_t ret_i = 0;
       double ret_r = 0.0;
       const char*ret_s = "";
+      bool native_call_ok = false;
+
+      dpi_import_call_state_s call_state;
+      call_state.c_name = c_name;
+      call_state.kind = import_kind;
+      call_state.disabled = false;
+      call_state.acked = false;
+      call_state.prev = dpi_import_call_current_;
 
       void*sym = return_signature_ok ? vvp_dpi_find_symbol(c_name) : 0;
       if (return_signature_ok && !sym) {
@@ -13234,11 +13312,36 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 	    dpi_active_scope_ = thr->parent_scope;
 	    if (vpi_mode_flag == VPI_MODE_NONE)
 		  vpi_mode_flag = VPI_MODE_RWSYNC;
-	    vvp_dpi_call(sym, c_name, ret_type,
-			 nargs? &args[0] : 0, nargs,
-			 &ret_i, &ret_r, &ret_s);
+	    dpi_import_call_current_ = &call_state;
+	    char native_ret_type = import_kind == DPI_IMPORT_TASK_ACK
+		  ? 'i' : ret_type;
+	    native_call_ok = vvp_dpi_call(sym, c_name, native_ret_type,
+				      nargs? &args[0] : 0, nargs,
+				      &ret_i, &ret_r, &ret_s);
+	    dpi_import_call_current_ = call_state.prev;
 	    vpi_mode_flag = saved_vpi_mode;
 	    dpi_active_scope_ = saved_dpi_scope;
+
+	      /* 35.9(b)-(c): the foreign side must acknowledge the exact
+		 disabled state. A task does that through its int ABI return;
+		 a function does it with svAckDisabledState(). */
+	    if (native_call_ok && import_kind == DPI_IMPORT_TASK_ACK) {
+		  int expected = call_state.disabled ? 1 : 0;
+		  if (ret_i != expected)
+			dpi_protocol_fatal_(
+			      "imported DPI task '%s' returned disable status %lld, expected %d",
+			      c_name, (long long)ret_i, expected);
+	    } else if (native_call_ok && import_kind == DPI_IMPORT_TASK_LEGACY
+		       && call_state.disabled) {
+		  dpi_protocol_fatal_(
+			"imported DPI task '%s': legacy VVP void task ABI cannot acknowledge disable; recompile the VVP image",
+			c_name);
+	    } else if (native_call_ok && import_kind == DPI_IMPORT_FUNCTION
+		       && call_state.disabled && !call_state.acked) {
+		  dpi_protocol_fatal_(
+			"disabled imported DPI function '%s' returned without calling svAckDisabledState()",
+			c_name);
+	    }
       }
 
 	// Push the return value FIRST: the synthesized body pops the
@@ -13349,7 +13452,8 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t cp)
 {
       unsigned wid = cp->bit_idx[1];
-      return dpi_call_common_(thr, cp, (wid > 32)? 'l' : 'i', wid, 'i', true);
+      return dpi_call_common_(thr, cp, (wid > 32)? 'l' : 'i', wid, 'i', true,
+			      DPI_IMPORT_FUNCTION);
 }
 
 /*
@@ -13360,7 +13464,8 @@ bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t cp)
  */
 bool of_DPI_CALL_PTR(vthread_t thr, vvp_code_t cp)
 {
-      return dpi_call_common_(thr, cp, 'p', 64, 'i', false);
+      return dpi_call_common_(thr, cp, 'p', 64, 'i', false,
+			      DPI_IMPORT_FUNCTION);
 }
 
 /*
@@ -13371,7 +13476,8 @@ bool of_DPI_CALL_PTR(vthread_t thr, vvp_code_t cp)
  */
 bool of_DPI_CALL_REAL(vthread_t thr, vvp_code_t cp)
 {
-      return dpi_call_common_(thr, cp, 'r', 0, 'r', false);
+      return dpi_call_common_(thr, cp, 'r', 0, 'r', false,
+			      DPI_IMPORT_FUNCTION);
 }
 
 /*
@@ -13382,7 +13488,8 @@ bool of_DPI_CALL_REAL(vthread_t thr, vvp_code_t cp)
  */
 bool of_DPI_CALL_SHORTREAL(vthread_t thr, vvp_code_t cp)
 {
-      return dpi_call_common_(thr, cp, 'f', 0, 'r', false);
+      return dpi_call_common_(thr, cp, 'f', 0, 'r', false,
+			      DPI_IMPORT_FUNCTION);
 }
 
 /*
@@ -13396,7 +13503,8 @@ bool of_DPI_CALL_SHORTREAL(vthread_t thr, vvp_code_t cp)
  */
 bool of_DPI_CALL_STR(vthread_t thr, vvp_code_t cp)
 {
-      return dpi_call_common_(thr, cp, 's', 0, 's', false);
+      return dpi_call_common_(thr, cp, 's', 0, 's', false,
+			      DPI_IMPORT_FUNCTION);
 }
 
 /*
@@ -13406,24 +13514,22 @@ bool of_DPI_CALL_STR(vthread_t thr, vvp_code_t cp)
  */
 bool of_DPI_CALL_VOID(vthread_t thr, vvp_code_t cp)
 {
-      return dpi_call_common_(thr, cp, 'v', 0, 'i', false);
+      return dpi_call_common_(thr, cp, 'v', 0, 'i', false,
+			      DPI_IMPORT_FUNCTION);
 }
 
-/*
- * %dpi/call/task is emitted for imported DPI *tasks* (35.5). A task may be
- * time-consuming — its C body may call an exported SV task that blocks —
- * so it runs on a coroutine (its own stack). If the C completes without
- * blocking, the caller continues immediately; if an exported SV task
- * suspends, the coroutine (and this SV thread) park until it completes.
- */
-bool of_DPI_CALL_TASK(vthread_t thr, vvp_code_t cp)
+/* Imported DPI tasks may be time-consuming, so their C body runs on a
+ * coroutine. The legacy opcode retains the historical void C ABI for old
+ * VVP images; the /ack opcode uses the IEEE int status ABI and checks 35.9. */
+static bool dpi_call_task_(vthread_t thr, vvp_code_t cp,
+			   dpi_import_kind_t import_kind)
 {
 #ifndef IVL_HAVE_DPI_CORO
 	// On a platform with no coroutine backend, run synchronously. A
 	// time-consuming exported task then hits the loud sorry in dpi_export_run_.
-      return dpi_call_common_(thr, cp, 'v', 0, 'i', false);
+      return dpi_call_common_(thr, cp, 'v', 0, 'i', false, import_kind);
 #else
-      dpi_coro_s*coro = dpi_coro_create_(thr, cp);
+      dpi_coro_s*coro = dpi_coro_create_(thr, cp, import_kind);
       dpi_coro_switch_into_(coro);
       if (coro->finished) {
 	    dpi_coro_destroy_(coro);
@@ -13434,6 +13540,16 @@ bool of_DPI_CALL_TASK(vthread_t thr, vvp_code_t cp)
 	// it resumes when the coroutine finishes. Suspend by returning false.
       return false;
 #endif
+}
+
+bool of_DPI_CALL_TASK(vthread_t thr, vvp_code_t cp)
+{
+      return dpi_call_task_(thr, cp, DPI_IMPORT_TASK_LEGACY);
+}
+
+bool of_DPI_CALL_TASK_ACK(vthread_t thr, vvp_code_t cp)
+{
+      return dpi_call_task_(thr, cp, DPI_IMPORT_TASK_ACK);
 }
 
 /*
@@ -13836,11 +13952,22 @@ static bool do_disable(vthread_t thr, vthread_t match)
 	    vthread_t tmp = *(thr->children.begin());
 	    assert(tmp);
 	    assert(tmp->parent == thr);
-	    thr->i_am_joining = 0;
+	    bool resume_dpi_cleanup = false;
+#ifdef IVL_HAVE_DPI_CORO
+	      /* A parent parked in an imported DPI task must retain its join
+		 relationship while the exported-task child is disabled. That lets
+		 resume_joining_parent_ switch back into C exactly once so it can
+		 observe/acknowledge the disabled state and release its resources. */
+	    resume_dpi_cleanup = thr->i_am_joining && tmp->dpi_coro;
+#endif
+	    if (!resume_dpi_cleanup)
+		  thr->i_am_joining = 0;
 	    if (do_disable(tmp, match))
 		  flag = true;
 
-	    vthread_reap(tmp);
+	      /* The DPI resume path owns and completes the child's reap. */
+	    if (!resume_dpi_cleanup)
+		  vthread_reap(tmp);
       }
 
       vthread_t parent = thr->parent;
@@ -16148,6 +16275,16 @@ static unsigned dpi_export_pick_instance_(const char*cname, unsigned n)
 static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 			    int64_t*ret_i, double*ret_r, std::string*ret_s)
 {
+	/* IEEE 1800-2017/2023 35.9(d): once an enclosing import has been
+	   disabled, C may only unwind and acknowledge it. Calling back into SV
+	   again is a protocol violation. */
+      if (dpi_import_call_current_ && dpi_import_call_current_->disabled) {
+	    dpi_protocol_fatal_(
+		  "DPI export '%s' called after imported DPI subroutine '%s' entered disabled state",
+		  cname, dpi_import_call_current_->c_name);
+	    return false;
+      }
+
 	/* Exported output/inout strings are simulator-owned. Keep copies outside
 	   an automatic invocation context so their C pointers remain valid after
 	   the child is joined and reaped, through the next DPI export call. */
@@ -16177,6 +16314,7 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 		    "'%s' not found.\n", cname, info.td_label);
 	    return false;
       }
+      const bool is_export_task = scope->get_type_code() == vpiTask;
 
 	// The SV caller is the thread that issued the enclosing %dpi/call.
 	// On a coroutine it is coro->sv_caller — NOT running_thread, which
@@ -16300,14 +16438,22 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 		 zero-time exported void function reached from an imported task;
 		 ret_sig alone intentionally does not distinguish that function from
 		 a task. */
+	    bool caller_disabled = thr->i_was_disabled;
+	    if (caller_disabled)
+		  dpi_import_mark_disabled_();
+	    if (is_export_task && ret_i)
+		  *ret_i = caller_disabled ? 1 : 0;
+
 	    bool ok = child->i_have_ended && child->parent == thr
 		  && ! vthread_is_blocked_on_wait_(child);
-	    if (ok)
+	      /* Values written by any disabled subroutine chain are undefined.
+		 Do not expose partially written output arguments to C. */
+	    if (ok && !caller_disabled)
 		  dpi_export_copy_out_(info, nargs, args, string_arg_hold,
 				       child, thr);
 	    else
 		  running_thread = thr;
-	    return ok;               // void export: no return value to read
+	    return ok;
       }
 #endif
 
@@ -16341,6 +16487,11 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
       }
 
 	/* Run the subroutine synchronously (M6-CALLF inline model). */
+        /* A synchronous export may disable its enclosing imported function.
+           do_disable() then reaps this very child while vthread_run() is
+           still unwinding. Hold one external pin until every status/result
+           inspection below is complete. */
+      vthread_run_pin_(child);
       child->is_scheduled = 1;
       vthread_run(child);
       running_thread = thr;
@@ -16362,24 +16513,34 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 	    running_thread = thr;
       }
 
-      bool ok = child->i_have_ended && child->parent == thr
+      bool caller_disabled = thr->i_was_disabled;
+      if (caller_disabled)
+	    dpi_import_mark_disabled_();
+      if (is_export_task && ret_i)
+	    *ret_i = caller_disabled ? 1 : 0;
+
+      bool body_completed = child->i_have_ended && child->parent == thr
 		&& ! vthread_is_blocked_on_wait_(child);
+        /* A caller disable is a successful 35.9 protocol transfer even
+           though do_disable() has already severed/reaped the child link. */
+      bool ok = body_completed || caller_disabled;
+      bool values_defined = body_completed && !caller_disabled;
 
       /* DPI output and inout arguments are copy-out parameters (35.5.6).
 	   Read them before joining/reaping the child, while an automatic
 	   function's invocation context is still alive. */
-      if (ok)
+      if (values_defined)
 	    dpi_export_copy_out_(info, nargs, args, string_arg_hold, child, thr);
 
 	/* Read the return value off this thread's stack (the slot the child
 	   poked) and pop the placeholder. */
       if (info.ret_sig == 'f' || info.ret_sig == 'r') {
 	    double rv = thr->peek_real(0);
-	    if (ok && ret_r) *ret_r = rv;
+	    if (values_defined && ret_r) *ret_r = rv;
 	    thr->pop_real(1);
       } else if (info.ret_sig == 's') {
 	    string rv = thr->peek_str(0);
-	    if (ok && ret_s) *ret_s = rv;
+	    if (values_defined && ret_s) *ret_s = rv;
 	    thr->pop_str(1);
       } else if (info.ret_sig != 'v') {
 	    vvp_vector4_t out = thr->peek_vec4();
@@ -16400,12 +16561,15 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 	    if (info.ret_sig == 'I' && wid > 0 && wid < 64
 		&& ((u >> (wid - 1)) & 1))
 		  s |= ~(((int64_t)1 << wid) - 1);
-	    if (ok && ret_i) *ret_i = s;
+	    if (values_defined && ret_i) *ret_i = s;
 	    thr->pop_vec4(1);
       }
 
-      if (child->i_have_ended && child->parent == thr) {
+      if (body_completed) {
 	    do_join(thr, child);
+      } else if (caller_disabled) {
+	      /* do_disable() already performed the owning reap. The external
+		 run pin keeps storage alive until the unpin below. */
       } else {
 	      /* Reached only when a suspending export could not be run
 		 time-consuming: a value-returning function that blocked
@@ -16434,6 +16598,7 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 
 	/* Restore the VPI mode the enclosing %dpi/call established. */
       vpi_mode_flag = saved_vpi_mode;
+      vthread_run_unpin_(child);
       return ok;
 }
 
@@ -16469,6 +16634,25 @@ extern "C" void __ivl_dpi_export_call_v(const char*cname, int nargs,
 					ivl_dpi_arg_t*args)
 {
       dpi_export_run_(cname, nargs, args, 0, 0, 0);
+}
+
+/* DPI disable-state protocol (IEEE 1800-2017/2023 H.8.2). */
+extern "C" int svIsDisabledState(void)
+{
+      return dpi_import_call_current_ && dpi_import_call_current_->disabled
+	    ? 1 : 0;
+}
+
+extern "C" void svAckDisabledState(void)
+{
+      if (!dpi_import_call_current_
+	  || dpi_import_call_current_->kind != DPI_IMPORT_FUNCTION
+	  || !dpi_import_call_current_->disabled) {
+	    dpi_protocol_fatal_(
+		  "svAckDisabledState() called without an active disabled imported DPI function");
+	    return;
+      }
+      dpi_import_call_current_->acked = true;
 }
 
 /*

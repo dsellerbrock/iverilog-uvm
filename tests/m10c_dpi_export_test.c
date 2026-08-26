@@ -1,4 +1,4 @@
-/* DPI companion for m10c_dpi_export_test: an imported "context" function
+/* DPI companion for m10c_dpi_export_test: an imported context task
  * that calls back into the exported SV subroutines and self-checks each
  * result. The exported symbols (f_add, f_sub, c_byte, ...) are provided by
  * the generated m10c_dpi_export_test.dpiexport.c stub compiled alongside
@@ -8,13 +8,13 @@
 
 extern int       f_add (int a, int b);
 extern int       f_sub (int a, int b);
-extern signed char c_byte(signed char x);   /* aliased C name for f_byte */
+extern char      c_byte(char x);   /* aliased C name for f_byte */
 extern long long f_long(long long x);
 extern double    f_real(double x);
 extern void      f_void(int x);
-extern void      t_task(int x);
+extern int       t_task(int x);
 
-int run_all(void)
+int run_all(int *failure_count)
 {
       int fails = 0;
 
@@ -26,9 +26,13 @@ int run_all(void)
       printf("  f_sub(10,25)=%d\n", s2);
       if (s2 != -15) fails += 1;
 
-      signed char b = c_byte(5);    /* 15 */
+      char b = c_byte(5);           /* 15 */
       printf("  c_byte(5)=%d\n", (int)b);
       if (b != 15) fails += 1;
+
+      b = c_byte(120);              /* 8-bit result 130 (0x82) */
+      printf("  c_byte(120)=0x%02x\n", (unsigned)(uint8_t)b);
+      if ((uint8_t)b != UINT8_C(0x82)) fails += 1;
 
       long long l = f_long(3000000000LL);   /* 6e9: needs 64-bit path */
       printf("  f_long(3e9)=%lld\n", l);
@@ -39,7 +43,8 @@ int run_all(void)
       if (r != 6.0) fails += 1;
 
       f_void(42);
-      t_task(99);
+      if (t_task(99) != 0) fails += 1;
 
-      return fails;
+      *failure_count = fails;
+      return 0; /* normal imported-task acknowledgement */
 }

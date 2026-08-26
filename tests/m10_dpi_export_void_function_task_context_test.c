@@ -7,7 +7,7 @@ extern void sv_void_copyout(int addend, float *out_shortreal,
                             const char **out_string,
                             const char **inout_string);
 
-void c_check_void_export(int *failures)
+int c_check_void_export(int *failures)
 {
       int count = 0;
       float out_shortreal;
@@ -30,4 +30,5 @@ void c_check_void_export(int *failures)
             count += 1;
 
       *failures = count;
+      return 0;
 }

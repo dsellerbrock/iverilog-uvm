@@ -833,6 +833,35 @@ void pform_set_dpi_export(const struct vlltype&loc, const char*c_name,
 	    return;
       }
 
+        /* IEEE 1800 permits one c_identifier per export declaration in a
+           scope. A second local declaration cannot be made unambiguous by
+           svSetScope(), and silently retaining whichever declaration was
+           resolved last produces an order-dependent C ABI. Cross-scope
+           declarations are checked after elaboration, when their complete
+           port types and bounds are available to the target. */
+      for (std::vector<pending_dpi_export_s>::const_iterator cur
+		 = pending_dpi_exports_.begin()
+		 ; cur != pending_dpi_exports_.end() ; ++cur) {
+	    if (cur->scope == lexical_scope
+		&& strcmp(cur->c_name.str(), c_name) == 0) {
+		  cerr << loc << ": error: export \"DPI-C\" C name '"
+		       << c_name << "' is already used by another export in "
+		       << "this scope (first declaration at " << cur->loc_str
+		       << ")." << endl;
+		  error_count += 1;
+		  return;
+	    }
+	    if (cur->scope == lexical_scope
+		&& strcmp(cur->sv_name.str(), sv_name) == 0) {
+		  cerr << loc << ": error: SystemVerilog subroutine '"
+		       << sv_name << "' already has a DPI export declaration "
+		       << "in this scope (first declaration at " << cur->loc_str
+		       << ")." << endl;
+		  error_count += 1;
+		  return;
+	    }
+      }
+
       std::ostringstream tmp;
       tmp << loc;
 
@@ -848,8 +877,9 @@ void pform_set_dpi_export(const struct vlltype&loc, const char*c_name,
       pending_dpi_exports_.push_back(pend);
 }
 
-void pform_resolve_dpi_exports(void)
+int pform_resolve_dpi_exports(void)
 {
+      int resolve_errors = 0;
       for (std::vector<pending_dpi_export_s>::iterator cur
 		 = pending_dpi_exports_.begin()
 		 ; cur != pending_dpi_exports_.end() ; ++cur) {
@@ -888,6 +918,7 @@ void pform_resolve_dpi_exports(void)
 			  "its scope; out-of-scope export is not yet "
 			  "supported. Calls from C to '" << cur->c_name
 		       << "' will not link." << endl;
+		  resolve_errors += 1;
 		  continue;
 	    }
 
@@ -896,12 +927,14 @@ void pform_resolve_dpi_exports(void)
 		       << "' is a DPI import; it cannot also be exported "
 			  "(IEEE 1800-2017 35.5)." << endl;
 		  error_count += 1;
+		  resolve_errors += 1;
 		  continue;
 	    }
 
 	    sub->set_dpi_export(cur->c_name.str());
       }
       pending_dpi_exports_.clear();
+      return resolve_errors;
 }
 
 PBlock* pform_push_block_scope(const struct vlltype&loc, const char*name,

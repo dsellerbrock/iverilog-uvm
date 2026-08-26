@@ -3396,6 +3396,7 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 
 struct dpi_export_entry_s {
       ivl_scope_t scope;
+      int abi_conflict;
       struct dpi_export_entry_s*next;
 };
 
@@ -3503,8 +3504,9 @@ unsupported:
 }
 
 /* Build the return/arg signatures and validate. Returns 1 if the whole
-   export is supported. Fills ret_sig (single letter, currently 'v' for a
-   task or void function pending the H.8.2 task-status split),
+   export is supported. Fills ret_sig (single letter; 'v' remains the
+   bytecode signature for both a task and a void function so existing
+   :export_dpi images stay compatible),
    arg_sig (TYPE,DIRECTION pairs per argument; direction is i/o/b for
    input/output/inout), and c-type spellings for the stub. */
 static int dpi_export_build_sig(ivl_scope_t scope, const char*c_name,
@@ -3529,7 +3531,10 @@ static int dpi_export_build_sig(ivl_scope_t scope, const char*c_name,
 
       if (is_task) {
 	    *ret_sig = 'v';
-	    *ret_ctype = "void";
+	      /* IEEE 1800-2017/2023 H.8.2: an exported task is represented
+		 as an int-returning C function. The value is the 35.9(a)
+		 disable status, not a SystemVerilog task result. */
+	    *ret_ctype = "int";
       } else {
 	    ivl_signal_t rport = ivl_scope_port(scope, 0);
 	    if (ivl_scope_func_type(scope) == IVL_VT_VOID) {
@@ -3565,9 +3570,146 @@ static int dpi_export_build_sig(ivl_scope_t scope, const char*c_name,
       return 1;
 }
 
+struct dpi_export_abi_s {
+      int is_task;
+      char ret_sig;
+      const char*ret_ctype;
+      char arg_sig[129];
+      const char*arg_ctypes[64];
+      unsigned nargs;
+};
+
+static int dpi_export_get_abi(ivl_scope_t scope, const char*c_name,
+                              struct dpi_export_abi_s*abi, int quiet)
+{
+      abi->is_task = ivl_scope_type(scope) == IVL_SCT_TASK;
+      abi->ret_sig = 'v';
+      abi->ret_ctype = "void";
+      abi->nargs = 0;
+      return dpi_export_build_sig(scope, c_name, abi->is_task,
+                                  &abi->ret_sig, &abi->ret_ctype,
+                                  abi->arg_sig, abi->arg_ctypes, 64,
+                                  &abi->nargs, quiet);
+}
+
+static int dpi_export_abis_equal(ivl_scope_t a_scope,
+                                 const struct dpi_export_abi_s*a,
+                                 ivl_scope_t b_scope,
+                                 const struct dpi_export_abi_s*b)
+{
+      unsigned idx;
+      if (a->is_task != b->is_task || a->ret_sig != b->ret_sig
+          || strcmp(a->ret_ctype, b->ret_ctype) != 0
+          || a->nargs != b->nargs
+          || strcmp(a->arg_sig, b->arg_sig) != 0)
+            return 0;
+
+      for (idx = 0 ; idx < a->nargs ; idx += 1) {
+            ivl_signal_t a_port;
+            ivl_signal_t b_port;
+            unsigned a_first = a->is_task ? 0 : 1;
+            unsigned b_first = b->is_task ? 0 : 1;
+            unsigned dim;
+
+            if (strcmp(a->arg_ctypes[idx], b->arg_ctypes[idx]) != 0)
+                  return 0;
+
+              /* V/W use the same C pointer spelling for every packed
+                 vector. Their declared packed dimensions and bounds are
+                 nevertheless part of the DPI type signature and control
+                 how the selected SV instance interprets that storage. */
+            if (a->arg_sig[2*idx] != 'V' && a->arg_sig[2*idx] != 'W')
+                  continue;
+            a_port = ivl_scope_port(a_scope, a_first + idx);
+            b_port = ivl_scope_port(b_scope, b_first + idx);
+            if (ivl_signal_signed(a_port) != ivl_signal_signed(b_port)
+                || ivl_signal_width(a_port) != ivl_signal_width(b_port)
+                || ivl_signal_packed_dimensions(a_port)
+                   != ivl_signal_packed_dimensions(b_port))
+                  return 0;
+            for (dim = 0 ; dim < ivl_signal_packed_dimensions(a_port) ;
+                 dim += 1)
+                  if (ivl_signal_packed_msb(a_port, dim)
+                        != ivl_signal_packed_msb(b_port, dim)
+                      || ivl_signal_packed_lsb(a_port, dim)
+                        != ivl_signal_packed_lsb(b_port, dim))
+                        return 0;
+      }
+      return 1;
+}
+
+/* Multiple instances may legally register the same exported C name, but
+   every registration must describe the same C entry point. In particular,
+   an exported task and a void function both use the historical 'v' runtime
+   return signature while requiring incompatible Annex H C return types
+   (int versus void). Never let list order silently select that ABI. */
+static void validate_dpi_export_abis(void)
+{
+      struct dpi_export_entry_s*base;
+      for (base = dpi_exports ; base ; base = base->next) {
+            const char*c_name = ivl_scope_dpi_export_c_name(base->scope);
+            struct dpi_export_abi_s base_abi;
+            struct dpi_export_entry_s*scan;
+            int has_previous = 0;
+
+            if (!dpi_export_get_abi(base->scope, c_name, &base_abi, 1))
+                  continue;
+
+              /* Only the first supported declaration for a C name reports
+                 a conflict. Unsupported declarations are diagnosed by the
+                 normal emission pass and must not hide a later valid one. */
+            for (scan = dpi_exports ; scan != base ; scan = scan->next) {
+                  struct dpi_export_abi_s scan_abi;
+                  if (strcmp(ivl_scope_dpi_export_c_name(scan->scope),
+                             c_name) == 0
+                      && dpi_export_get_abi(scan->scope, c_name,
+                                            &scan_abi, 1)) {
+                        has_previous = 1;
+                        break;
+                  }
+            }
+            if (has_previous)
+                  continue;
+
+            for (scan = base->next ; scan ; scan = scan->next) {
+                  struct dpi_export_abi_s scan_abi;
+                  if (strcmp(ivl_scope_dpi_export_c_name(scan->scope),
+                             c_name) != 0
+                      || !dpi_export_get_abi(scan->scope, c_name,
+                                             &scan_abi, 1))
+                        continue;
+                  if (dpi_export_abis_equal(base->scope, &base_abi,
+                                            scan->scope, &scan_abi))
+                        continue;
+
+                  fprintf(stderr, "%s:%u: error: export \"DPI-C\" C name "
+                          "'%s' has incompatible declarations; the "
+                          "declaration at %s:%u uses a different "
+                          "task/function kind or C ABI. Exports sharing a "
+                          "C name must have identical Annex H signatures.\n",
+                          ivl_scope_def_file(scan->scope),
+                          ivl_scope_def_lineno(scan->scope), c_name,
+                          ivl_scope_def_file(base->scope),
+                          ivl_scope_def_lineno(base->scope));
+                  vvp_errors += 1;
+
+                  for (scan = dpi_exports ; scan ; scan = scan->next) {
+                        struct dpi_export_abi_s ignored;
+                        if (strcmp(ivl_scope_dpi_export_c_name(scan->scope),
+                                   c_name) == 0
+                            && dpi_export_get_abi(scan->scope, c_name,
+                                                  &ignored, 1))
+                              scan->abi_conflict = 1;
+                  }
+                  break;
+            }
+      }
+}
+
 void emit_dpi_export_directives(void)
 {
       struct dpi_export_entry_s*ent;
+      validate_dpi_export_abis();
       for (ent = dpi_exports ; ent ; ent = ent->next) {
 	    ivl_scope_t scope = ent->scope;
 	    int is_task = ivl_scope_type(scope) == IVL_SCT_TASK;
@@ -3582,6 +3724,8 @@ void emit_dpi_export_directives(void)
 	    if (!dpi_export_build_sig(scope, c_name, is_task, &ret_sig,
 				      &ret_ctype, arg_sig, arg_ctypes,
 				      64, &nargs, 0))
+		  continue;
+	    if (ent->abi_conflict)
 		  continue;
 
 	    const char*td = vvp_mangle_id(ivl_scope_name(scope));
@@ -3669,25 +3813,32 @@ void emit_dpi_export_stub_file(const char*vvp_path)
 	    unsigned nargs = 0;
 	    unsigned idx;
 
+	    if (!dpi_export_build_sig(scope, c_name, is_task, &ret_sig,
+				      &ret_ctype, arg_sig, arg_ctypes,
+				      64, &nargs, 1))
+		  continue;
+	    if (ent->abi_conflict)
+		  continue;
+
 	      /* One C stub per exported C name: a multiply-instantiated
 		 module registers one export entry per instance, but the C
 		 entry point is instance-agnostic (the runtime selects the
-		 instance by svScope). Skip a name already emitted. */
+		 instance by svScope). Skip a supported name already emitted.
+		 An unsupported earlier declaration must not hide this one. */
 	    int already = 0;
 	    struct dpi_export_entry_s*prev;
 	    for (prev = dpi_exports ; prev != ent ; prev = prev->next) {
-		  if (strcmp(ivl_scope_dpi_export_c_name(prev->scope),
-			     c_name) == 0) {
+		  struct dpi_export_abi_s prev_abi;
+		  if (!prev->abi_conflict
+		      && strcmp(ivl_scope_dpi_export_c_name(prev->scope),
+			        c_name) == 0
+		      && dpi_export_get_abi(prev->scope, c_name,
+					&prev_abi, 1)) {
 			already = 1;
 			break;
 		  }
 	    }
 	    if (already)
-		  continue;
-
-	    if (!dpi_export_build_sig(scope, c_name, is_task, &ret_sig,
-				      &ret_ctype, arg_sig, arg_ctypes,
-				      64, &nargs, 1))
 		  continue;
 
 	      /* Prototype line. */
@@ -3755,7 +3906,12 @@ void emit_dpi_export_stub_file(const char*vvp_path)
 	    }
 
 	    const char*argptr = nargs ? "_a" : "0";
-	    switch (ret_sig) {
+	    if (is_task) {
+		  /* Reuse the integer dispatcher: for a ret_sig='v' task it
+		     returns the 35.9(a) status (0 normal, 1 disabled). */
+		  fprintf(out, "      int _rv = (int)__ivl_dpi_export_call_i(\"%s\", %u, %s);\n",
+			  c_name, nargs, argptr);
+	    } else switch (ret_sig) {
 		case 'v':
 		  fprintf(out, "      __ivl_dpi_export_call_v(\"%s\", %u, %s);\n",
 			  c_name, nargs, argptr);
@@ -3797,7 +3953,7 @@ void emit_dpi_export_stub_file(const char*vvp_path)
 			fprintf(out, "      if (a%u) *a%u = (%s)_a[%u].i;\n",
 				idx, idx, arg_ctypes[idx], idx);
 	    }
-	    if (ret_sig != 'v')
+	    if (is_task || ret_sig != 'v')
 		  fprintf(out, "      return _rv;\n");
 	    fprintf(out, "}\n\n");
       }

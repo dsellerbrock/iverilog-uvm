@@ -1,5 +1,6 @@
 // M6B-3: a time-consuming DPI import must participate in normal
-// scheduling -- join_any / disable fork must be able to abandon it.
+// scheduling -- join_any / disable fork must kill the SV continuation while
+// resuming the C stack once to propagate the standard disable status.
 module top;
   import "DPI-C" context task c_slow(input int d);
   export "DPI-C" task sv_wait;

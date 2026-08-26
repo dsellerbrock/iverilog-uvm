@@ -14,6 +14,5 @@ int c_call_fn(int v)
 
 int c_call_task(int d, int id)
 {
-      sv_auto_task(d, id);
-      return 0;
+      return sv_auto_task(d, id);
 }

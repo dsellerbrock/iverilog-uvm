@@ -3,14 +3,15 @@
 ## Resume state — 2026-08-26 — declaration lifetimes, call unwind, and DPI ABI
 
 Worktree:
-`iverilog-uvm-class-event-after233-arm64-20260825`
+`iverilog-uvm-opentitan-caliptra-after235-arm64-20260826`
 
-Branch: `agent/opentitan-next-after234-arm64-20260825`, based exactly on
-`origin/main` at `3fab33625e2f2ac48d574a4e786659e8ac1d488d` (0 ahead / 0
+Branch: `agent/opentitan-caliptra-after235-arm64-20260826`, based exactly on
+`origin/main` at `a375c7b69d2f033535a112a791e7ae5384e960f5` (0 ahead / 0
 behind before the pending commits).
 
-This increment closes four compiler/runtime clusters exposed by unchanged
-OpenTitan and Caliptra sources. Explicit declaration lifetimes now control
+This continuation retains the four compiler/runtime clusters exposed by
+unchanged OpenTitan and Caliptra sources and closes the recorded DPI disable
+protocol gap. Explicit declaration lifetimes now control
 storage, initialization, VPI `vpiAutomatic`, fixed-array access, event
 identity, virtual-interface dispatch, array-port context, and detached-frame
 retention independently of the containing subroutine lifetime. A self-kill
@@ -20,25 +21,30 @@ Method-local queue `.size`/`.size()` expressions now reach the constraint
 solver. The recorded DPI subset now uses Annex-H scalar/result ABIs for narrow
 integers, scalar bit/logic, shortreal, chandle, string, packed-vector formals,
 and supported export directions, including host plain-`char` polarity and
-prefixless old-image compatibility.
+prefixless old-image compatibility. Exported task C stubs now have the Annex
+H.8.2 `int` status ABI, newly compiled imported tasks use a checked integer
+acknowledgment ABI, and the runtime implements `svIsDisabledState()` plus
+`svAckDisabledState()` with per-invocation state across parked C stacks.
 
-Exact native-ARM64 validation on the current tree is clean:
+Exact native-ARM64 validation on this branch is clean:
 
 - serial build/install and `make -j1 check` pass;
 - legacy ivtest: 4,088 total, 4,083 pass, 2 recorded NI, 3 expected fail,
   0 unexpected fail;
-- JSON/VVP: 973/973;
+- JSON/VVP: 973 entries, zero harness failures;
 - bundled VPI: 103/103;
-- negative diagnostics: 131/131;
+- negative diagnostics: 136/136;
 - scheduler UVM focus: 23/23;
 - real-DPI UVM focus: 37/37;
-- complete canonical UVM harness: 353/353, zero skips, with the real DPI
-  umbrella loaded;
 - the process-kill reducer passes the modern and legacy call engines with
   exactly five abandoned call-site contexts released in each mode; and
 - parser reports remain 535 shift/reduce plus 1,115 reduce/reduce conflicts
   across 201 states; the VVP parser reports 13 shift/reduce plus 5
   reduce/reduce conflicts across 8 states.
+
+Separately, a fresh full real-DPI run on this branch is clean: the complete
+canonical UVM harness passes 354/354 with 0 failed and 0 skipped (real
+578.66s), with the real DPI umbrella loaded.
 
 Pinned Slang 11 in IEEE 1800-2017 mode accepts 10 of the 11 new
 lifetime/process sources, including the exact process-kill reducer. Its sole
@@ -46,9 +52,9 @@ rejection is fixed-array-element `force`/`release`; IEEE 1800-2017 and 2023
 §§6.4 and 10.6.2 permit a reference to the selected singular integral
 variable, so this is recorded as a differential-oracle disagreement rather
 than copied into Icarus. No VCS, Questa, or Xcelium execution was performed;
-those commercial simulators remain the practical compatibility target, not
-claimed validation evidence. Verilator was not used as a semantic or ABI
-oracle.
+their IEEE Annex-H task signature and disable behavior remain the practical
+interoperability target, not claimed validation evidence. Verilator was not
+used as a semantic or ABI oracle.
 
 The focused unchanged Caliptra `axi_pkg.sv` + `axi_if.sv` witness at
 `bd31614182fb56e55578f48086a10ded650434fd` compiles with zero diagnostics and
@@ -64,12 +70,38 @@ prints one residual vec4 stack entry while the externally interrupted HMAC
 thread is torn down, which is guard-termination noise rather than a natural
 simulation exit result.
 
-The principal remaining commercial-parity gap in this increment is IEEE
-1800-2017 §35.9 / Annex H.8.2 task-disable status and acknowledgement:
-exported tasks still lack the simulator-provided status return, imported tasks
-still lack the C-provided acknowledgement, and `svIsDisabledState` /
-`svAckDisabledState` are absent. Full OpenTitan and Caliptra application runs
-and matrices remain follow-up work; neither project source tree was modified.
+IEEE 1800-2017/2023 §35.9 and Annex H.8.2 are now implemented for the recorded
+DPI task/function subset. An exported task returns 0 after normal completion
+or a disable targeting only that export, and returns 1 when an ancestor
+disables the enclosing mixed-language chain. In the ancestor case the parked C
+stack resumes exactly once for `svIsDisabledState()` and resource cleanup; an
+imported task acknowledges with return value 1, while an imported function
+calls `svAckDisabledState()`. The disabled SV export/import tails remain dead.
+The runtime issues a fatal error for an incorrect task acknowledgment, a
+disabled function that omits its acknowledgment, or the §35.9(d)-forbidden
+attempt to call another export after entering the disabled state. Newly
+compiled task calls use `%dpi/call/task/ack`; the old `%dpi/call/task` void ABI
+remains loadable for normal legacy images and diagnoses a disabled invocation
+because that ABI has no acknowledgment channel.
+
+Permanent coverage is split deliberately: `m10l_dpi_disable_protocol_test`
+checks normal, direct-disable, ancestor-disable cleanup, synchronous-function
+acknowledgment, concurrent-call isolation, ancestor cleanup with an outstanding
+branch that survived `join_any`, and a second synchronous export that disables
+the caller immediately after C resumes from a parked export. The latter pins
+the scheduler-owned caller and completed child through re-entry so each still
+has one owning reap. Two concurrent automatic callers also verify that direct
+VPI work from resumed C runs with the imported task's caller context rather
+than the completed export child's context; the four cases in
+`run_dpi_disable_protocol_negatives.sh` require the protocol fatals; and
+`run_dpi_legacy_task_void_compat.sh` pins both normal old-image execution and
+the loud diagnostic when a disabled void-ABI image has no acknowledgment
+channel. This closes the
+disable-handshake item, not the entire DPI matrix. Imported shortreal arrays
+and legal fixed-size unpacked export formals remain loud gaps, and the
+exhaustive import/export signature cross-product remains M14B-9 work. Full
+OpenTitan and Caliptra application runs and matrices also remain follow-up
+work; neither project source tree was modified.
 
 Durable process-unwind detail is in
 `session_logs/2026-08-26_opentitan_process_kill_trampoline.md`. Exact SoC and

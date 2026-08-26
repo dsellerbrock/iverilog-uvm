@@ -1,11 +1,11 @@
-// DPI export (IEEE 1800-2017 35.5): a C function imported into SV calls
+// DPI export (IEEE 1800-2017 35.5): a C task imported into SV calls
 // back into exported SV subroutines and the results round-trip correctly.
 // Exercises int/signed/byte/longint/real returns, a void function, a task,
 // and the `export c_name = function sv_name' alias form. The exported C
 // stubs are emitted by iverilog into <out>.dpiexport.c and compiled into
 // the DPI object by the harness.
 module m10c_dpi_export_test;
-  import "DPI-C" context function int run_all();
+  import "DPI-C" context task run_all(output int failures);
 
   function int      f_add (int a, int b);      return a + b;         endfunction
   function int      f_sub (int a, int b);      return a - b;         endfunction // signed negative
@@ -24,9 +24,13 @@ module m10c_dpi_export_test;
   export "DPI-C" function f_void;
   export "DPI-C" task     t_task;
 
+  int failures;
   initial begin
-    if (run_all() == 0) $display("PASS m10c_dpi_export_test");
-    else                $display("FAIL m10c_dpi_export_test");
+    // An exported task may only be reached through a context imported task,
+    // never through an imported function (IEEE 1800 35.8).
+    run_all(failures);
+    if (failures == 0) $display("PASS m10c_dpi_export_test");
+    else               $display("FAIL m10c_dpi_export_test");
     $finish;
   end
 endmodule

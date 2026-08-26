@@ -322,6 +322,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%dpi/call/shortreal",of_DPI_CALL_SHORTREAL,2,{OA_STRING,OA_BIT1,OA_NONE} },
       { "%dpi/call/str",  of_DPI_CALL_STR,  2,{OA_STRING, OA_BIT1,   OA_NONE} },
       { "%dpi/call/task", of_DPI_CALL_TASK, 2,{OA_STRING, OA_BIT1,   OA_NONE} },
+      { "%dpi/call/task/ack",of_DPI_CALL_TASK_ACK,2,{OA_STRING,OA_BIT1,OA_NONE} },
       { "%dpi/call/vec4", of_DPI_CALL_VEC4, 3,{OA_STRING, OA_BIT1,   OA_BIT2} },
       { "%dpi/call/void", of_DPI_CALL_VOID, 2,{OA_STRING, OA_BIT1,   OA_NONE} },
       { "%dup/obj",  of_DUP_OBJ, 0, {OA_NONE,   OA_NONE,     OA_NONE} },
