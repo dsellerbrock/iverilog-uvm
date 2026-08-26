@@ -88,7 +88,7 @@ static void __compile_var_real(char*label, char*name,
 
       define_functor_symbol(label, net);
 
-      vpiHandle obj = vpip_make_real_var(name, net);
+      vpiHandle obj = vpip_make_real_var(name, net, use_auto);
       compile_vpi_symbol(label, obj);
 
       if (name) {
@@ -126,7 +126,7 @@ void compile_var_string(char*label, char*name, int lifetime_flag)
 
       define_functor_symbol(label, net);
 
-      vpiHandle obj = vpip_make_string_var(name, net);
+      vpiHandle obj = vpip_make_string_var(name, net, use_auto);
       compile_vpi_symbol(label, obj);
 
       vpip_attach_to_current_scope(obj);
@@ -163,7 +163,8 @@ void compile_var_darray(char*label, char*name, unsigned size,
 
       define_functor_symbol(label, net);
 
-      vpiHandle obj = vpip_make_darray_var(name, net, element_signed);
+      vpiHandle obj = vpip_make_darray_var(name, net, use_auto,
+                                           element_signed);
       compile_vpi_symbol(label, obj);
 
       vpip_attach_to_current_scope(obj);
@@ -202,7 +203,8 @@ void compile_var_queue(char*label, char*name, unsigned size,
 
       define_functor_symbol(label, net);
 
-      vpiHandle obj = vpip_make_queue_var(name, net, element_signed);
+      vpiHandle obj = vpip_make_queue_var(name, net, use_auto,
+                                          element_signed);
       compile_vpi_symbol(label, obj);
 
       vpip_attach_to_current_scope(obj);
@@ -250,7 +252,7 @@ void compile_var_cobject(char*label, char*name, char*type, int lifetime_flag)
 
       define_functor_symbol(label, net);
 
-      vpiHandle obj = vpip_make_cobject_var(name, net);
+      vpiHandle obj = vpip_make_cobject_var(name, net, use_auto);
       compile_vpi_symbol(label, obj);
 
       vpip_attach_to_current_scope(obj);
@@ -298,13 +300,15 @@ void compile_variable(char*label, char*name,
            of compile_vpi_lookup()'s null-handle recovery. */
 	 switch (vpi_type_code) {
 	     case vpiLogicVar:
-	       obj = vpip_make_var4(name, msb, lsb, signed_flag, net);
+	       obj = vpip_make_var4(name, msb, lsb, signed_flag, net,
+                                    use_auto);
 	       break;
 	     case vpiIntegerVar:
-	       obj = vpip_make_int4(name, msb, lsb, net);
+	       obj = vpip_make_int4(name, msb, lsb, net, use_auto);
 	       break;
 	     case vpiIntVar: // This handles all the atom2 int types
-	       obj = vpip_make_int2(name, msb, lsb, signed_flag, net);
+	       obj = vpip_make_int2(name, msb, lsb, signed_flag, net,
+                                    use_auto);
 	       break;
 	     default:
 	       fprintf(stderr, "internal error: %s: vpi_type_code=%d\n", name, vpi_type_code);
@@ -346,7 +350,9 @@ void compile_ref_variable(char*label, char*name, int msb, int lsb,
 	   attached to the scope so that $display of the formal name and
 	   the automatic-context machinery both see a signal there. */
       if (! local_flag && name) {
-	    vpiHandle obj = vpip_make_int2(name, msb, lsb, true, net);
+	    vpiHandle obj = vpip_make_int2(
+	          name, msb, lsb, true, net,
+	          vpip_peek_current_scope()->is_automatic());
 	    if (obj) {
 		  compile_vpi_symbol(label, obj);
 		  vpip_attach_to_current_scope(obj);
@@ -384,7 +390,8 @@ void compile_ref_variable_real(char*label, char*name, bool local_flag)
       define_functor_symbol(label, net);
 
       if (! local_flag && name) {
-	    vpiHandle obj = vpip_make_real_var(name, net);
+	    vpiHandle obj = vpip_make_real_var(
+	          name, net, vpip_peek_current_scope()->is_automatic());
 	    if (obj) {
 		  compile_vpi_symbol(label, obj);
 		  vpip_attach_to_current_scope(obj);
@@ -405,7 +412,8 @@ void compile_ref_variable_string(char*label, char*name, bool local_flag)
       define_functor_symbol(label, net);
 
       if (name) {
-            vpiHandle obj = vpip_make_string_var(name, net);
+            vpiHandle obj = vpip_make_string_var(
+                  name, net, vpip_peek_current_scope()->is_automatic());
             if (obj) {
                   compile_vpi_symbol(label, obj);
                   vpip_attach_to_current_scope(obj);

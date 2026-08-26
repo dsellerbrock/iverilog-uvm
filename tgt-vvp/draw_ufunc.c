@@ -725,8 +725,9 @@ static void draw_ufunc_preamble(ivl_expr_t expr)
       unsigned idx;
       unsigned first_unbound_parm = 0;
 
-        /* If this is an automatic function, allocate the local storage. */
-      if (ivl_scope_is_auto(def)) {
+        /* Allocate storage for an automatic function, or for only the
+           explicitly automatic declarations in a static function. */
+      if (scope_needs_call_frame(def)) {
             fprintf(vvp_out, "    %%alloc S_%p;\n", def);
       }
 
@@ -873,8 +874,8 @@ static void draw_ufunc_epilogue(ivl_expr_t expr)
 
       draw_copy_out_function_arguments(expr);
 
-        /* If this is an automatic function, free the local storage. */
-      if (ivl_scope_is_auto(def)) {
+        /* Release this invocation's automatic declarations. */
+      if (scope_needs_call_frame(def)) {
             fprintf(vvp_out, "    %%free S_%p;\n", def);
             fflush(vvp_out);
       }

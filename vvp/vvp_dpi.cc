@@ -15,6 +15,7 @@
 # include  <ffi.h>
 # include  "vvp_darray.h"
 # include  "svdpi.h"
+# include  <climits>
 # include  <stdarg.h>
 #endif
 
@@ -95,6 +96,27 @@ void* vvp_dpi_find_symbol(const char*name)
 
 #ifdef USE_LIBFFI
 
+/* Annex H maps a signed SystemVerilog byte to plain C char, not signed
+ * char. Plain char is unsigned on some hosts, and some ABIs distinguish
+ * its zero-extension convention from signed char's sign-extension
+ * convention. Keep the SystemVerilog signedness in the VVP metadata, but
+ * describe the actual host C prototype exactly to libffi. */
+static ffi_type*dpi_ffi_plain_char_type_(void)
+{
+#if CHAR_MIN < 0
+      return &ffi_type_sint8;
+#else
+      return &ffi_type_uint8;
+#endif
+}
+
+/* Recover the signed SystemVerilog byte value from its eight C object bits.
+ * This is independent of whether host plain char is signed or unsigned. */
+static int64_t dpi_sv_signed_byte_(unsigned char bits)
+{
+      return (bits & 0x80u) ? (int64_t)bits - 0x100 : (int64_t)bits;
+}
+
 /*
  * libffi marshaling: build an ffi_cif matching the exact signature and
  * dispatch. This handles arbitrary mixes of integer/real/string
@@ -118,10 +140,11 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 	// value bytes where the ffi_type expects them regardless of the
 	// host endianness.
       union scratch_t {
-	    int8_t      i8;  uint8_t  u8;
+	    char        chr; uint8_t  u8;
 	    int16_t     i16; uint16_t u16;
 	    int32_t     i32; uint32_t u32;
 	    int64_t     i64; uint64_t u64;
+	    float       flt;
 	    double      dbl;
 	    const char* str;
 	    void*       ptr;
@@ -133,9 +156,10 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 	    avalues[idx] = &vals[idx];
 	    switch (arg.type) {
 		case 'b':
-		  atypes[idx] = arg.is_unsigned? &ffi_type_uint8 : &ffi_type_sint8;
+		  atypes[idx] = arg.is_unsigned? &ffi_type_uint8
+		                                : dpi_ffi_plain_char_type_();
 		  if (arg.is_unsigned) vals[idx].u8 = (uint8_t)arg.ival;
-		  else                 vals[idx].i8 = (int8_t)arg.ival;
+		  else                 vals[idx].chr = (char)(uint8_t)arg.ival;
 		  break;
 		case 'h':
 		  atypes[idx] = arg.is_unsigned? &ffi_type_uint16 : &ffi_type_sint16;
@@ -158,6 +182,10 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 		case 'p': // chandle: C void*
 		  atypes[idx] = &ffi_type_pointer;
 		  vals[idx].ptr = arg.pval;
+		  break;
+		case 'f':
+		  atypes[idx] = &ffi_type_float;
+		  vals[idx].flt = (float)arg.rval;
 		  break;
 		case 'r':
 		  atypes[idx] = &ffi_type_double;
@@ -204,9 +232,17 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 
       ffi_type*rtype = 0;
       switch (ret_type) {
+	  case 'b': rtype = dpi_ffi_plain_char_type_(); break;
+	  case 'B':
+	  case 'g': rtype = &ffi_type_uint8;   break;
+	  case 'h': rtype = &ffi_type_sint16;  break;
+	  case 'H': rtype = &ffi_type_uint16;  break;
 	  case 'i': rtype = &ffi_type_sint32;  break;
+	  case 'I': rtype = &ffi_type_uint32;  break;
 	  case 'l': rtype = &ffi_type_sint64;  break;
+	  case 'L': rtype = &ffi_type_uint64;  break;
 	  case 'p': rtype = &ffi_type_pointer; break;
+	  case 'f': rtype = &ffi_type_float;   break;
 	  case 'r': rtype = &ffi_type_double;  break;
 	  case 's': rtype = &ffi_type_pointer; break;
 	  case 'v': rtype = &ffi_type_void;    break;
@@ -228,6 +264,7 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
       union {
 	    ffi_arg     as_arg;
 	    int64_t     as_i64;
+	    float       as_flt;
 	    double      as_dbl;
 	    const char* as_str;
 	    void*       as_ptr;
@@ -243,7 +280,8 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 	    switch (args[idx].type) {
 		case 'b':
 		  args[idx].ival = args[idx].is_unsigned
-			? (int64_t)vals[idx].u8 : (int64_t)vals[idx].i8;
+			? (int64_t)vals[idx].u8
+			: dpi_sv_signed_byte_((unsigned char)vals[idx].chr);
 		  break;
 		case 'h':
 		  args[idx].ival = args[idx].is_unsigned
@@ -262,6 +300,9 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 		case 'p':
 		  args[idx].pval = vals[idx].ptr;
 		  break;
+		case 'f':
+		  args[idx].rval = (double)vals[idx].flt;
+		  break;
 		case 'r':
 		  args[idx].rval = vals[idx].dbl;
 		  break;
@@ -272,9 +313,17 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
       }
 
       switch (ret_type) {
+	  case 'b': *ret_i = dpi_sv_signed_byte_((unsigned char)rbuf.as_arg); break;
+	  case 'B':
+	  case 'g': *ret_i = (uint8_t)rbuf.as_arg;   break;
+	  case 'h': *ret_i = (int16_t)rbuf.as_arg;   break;
+	  case 'H': *ret_i = (uint16_t)rbuf.as_arg;  break;
 	  case 'i': *ret_i = (int32_t)rbuf.as_arg; break;
+	  case 'I': *ret_i = (uint32_t)rbuf.as_arg; break;
 	  case 'l': *ret_i = rbuf.as_i64;          break;
+	  case 'L': *ret_i = (uint64_t)rbuf.as_i64; break;
 	  case 'p': *ret_i = (int64_t)(uintptr_t)rbuf.as_ptr; break;
+	  case 'f': *ret_r = (double)rbuf.as_flt;  break;
 	  case 'r': *ret_r = rbuf.as_dbl;          break;
 	  case 's': *ret_s = rbuf.as_str;          break;
 	  default: break;
@@ -297,9 +346,33 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 		  vvp_dpi_arg_t*args, unsigned nargs,
 		  int64_t*ret_i, double*ret_r, const char**ret_s)
 {
+	/* The legacy dispatcher below calls non-real functions through an
+	   intptr_t-return prototype. That cannot represent the Annex H char,
+	   svBit, svLogic, or short-int return ABI portably (notably on Win64,
+	   where the upper return-register bits may be unspecified). Refuse new
+	   exact narrow-return images instead of silently making the old mismatch.
+	   A libffi-enabled build handles these cases above. */
+      if (ret_type == 'b' || ret_type == 'B' || ret_type == 'g'
+	  || ret_type == 'h' || ret_type == 'H') {
+	    fprintf(stderr, "DPI error: '%s': an 8/16-bit or scalar logic "
+		    "return needs a libffi-enabled vvp build; skipping the "
+		    "call.\n", c_name);
+	    return false;
+      }
+      if (ret_type == 'f') {
+	    fprintf(stderr, "DPI error: '%s': a shortreal return needs a "
+		    "libffi-enabled vvp build; skipping the call.\n", c_name);
+	    return false;
+      }
+
       bool any_real = false, all_real = true;
       bool any_real_output = false;
       for (unsigned idx = 0 ; idx < nargs ; idx += 1) {
+	    if (args[idx].type == 'f') {
+		  fprintf(stderr, "DPI error: '%s': shortreal arguments need a "
+			  "libffi-enabled vvp build; skipping the call.\n", c_name);
+		  return false;
+	    }
 	    if (args[idx].type == 'r') {
 		  any_real = true;
 		  if (args[idx].is_output) any_real_output = true;
@@ -457,8 +530,15 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
       }
 
       switch (ret_type) {
+	  case 'b': *ret_i = (int8_t)result;       break;
+	  case 'B':
+	  case 'g': *ret_i = (uint8_t)result;      break;
+	  case 'h': *ret_i = (int16_t)result;      break;
+	  case 'H': *ret_i = (uint16_t)result;     break;
 	  case 'i': *ret_i = (int32_t)result;      break;
+	  case 'I': *ret_i = (uint32_t)result;     break;
 	  case 'l': *ret_i = (int64_t)result;      break;
+	  case 'L': *ret_i = (int64_t)(uint64_t)result; break;
 	  case 'p': *ret_i = (int64_t)(uintptr_t)result; break;
 	  case 's': *ret_s = (const char*)result;  break;
 	  default: break;

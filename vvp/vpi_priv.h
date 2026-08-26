@@ -272,6 +272,13 @@ class __vpiScope : public __vpiHandle {
       inline const char*scope_def_name() const { return tname_; }
 	// TRUE if this is an automatic func/task/block
       inline bool is_automatic() const { return is_automatic_; }
+	// TRUE if this scope owns activation contexts. This is normally the
+	// same as automatic lifetime, but a static subroutine with explicitly
+	// automatic locals owns contexts only for those locals.
+      inline bool has_automatic_context() const
+	{ return is_automatic_ || owns_automatic_context_; }
+      inline void set_owns_automatic_context()
+	{ owns_automatic_context_ = true; }
 	// TRUE if this automatic begin/fork scope is collapsed into the
 	// enclosing activation frame (".shared" scope types): its
 	// automatic locals get context indices in the frame-owning
@@ -315,6 +322,10 @@ class __vpiScope : public __vpiHandle {
       const char*tname_;
 	/* the scope may be "automatic" */
       bool is_automatic_;
+	/* Static mixed-lifetime scope (task/function/begin/fork ".ctx")
+	   ownership. This does not affect vpiAutomatic or inherited
+	   declaration lifetime. */
+      bool owns_automatic_context_ = false;
 	/* automatic begin/fork scopes collapsed into the enclosing
 	   frame (see shares_parent_frame()) */
       bool shares_parent_frame_ = false;
@@ -400,6 +411,9 @@ struct __vpiSignal : public __vpiHandle {
 	/* Flags */
       unsigned signed_flag  : 1;
       unsigned is_netarray  : 1; // This is word of a net array
+	/* Effective declared storage lifetime. This can differ from the
+	   lexical scope for an explicit static/automatic declaration. */
+      unsigned automatic_storage : 1;
 	/* The represented value is here. */
       vvp_net_t*node;
 
@@ -416,11 +430,13 @@ extern unsigned vpip_size(__vpiSignal *sig);
 extern __vpiScope* vpip_scope(__vpiSignal*sig);
 
 extern vpiHandle vpip_make_int2(const char*name, int msb, int lsb,
-			       bool signed_flag, vvp_net_t*vec);
+                               bool signed_flag, vvp_net_t*vec,
+                               bool automatic_storage);
 extern vpiHandle vpip_make_int4(const char*name, int msb, int lsb,
-			       vvp_net_t*vec);
+                               vvp_net_t*vec, bool automatic_storage);
 extern vpiHandle vpip_make_var4(const char*name, int msb, int lsb,
-			       bool signed_flag, vvp_net_t*net);
+                               bool signed_flag, vvp_net_t*net,
+                               bool automatic_storage);
 extern vpiHandle vpip_make_net4(__vpiScope*scope,
 				const char*name, int msb, int lsb,
 				bool signed_flag, vvp_net_t*node);
@@ -662,7 +678,8 @@ extern void vpip_reset_port_info_evcd_budget(void);
 class __vpiNamedEvent : public __vpiHandle {
 
     public:
-      __vpiNamedEvent(__vpiScope*scope, const char*name);
+      __vpiNamedEvent(__vpiScope*scope, const char*name,
+		      bool automatic_storage);
       ~__vpiNamedEvent() override;
 
       __vpiNamedEvent(const __vpiNamedEvent&) = delete;
@@ -690,11 +707,14 @@ class __vpiNamedEvent : public __vpiHandle {
       const char*name_;
 	/* Parent scope of this object. */
       __vpiScope*scope_;
+	/* Effective declared storage lifetime, which can override scope_. */
+      bool automatic_storage_;
 	/* List of callbacks interested in this event. */
       __vpiCallback*callbacks_;
 };
 
-extern vpiHandle vpip_make_named_event(const char*name, vvp_net_t*f);
+extern vpiHandle vpip_make_named_event(const char*name, vvp_net_t*f,
+			       bool automatic_storage);
 
 /*
  * Memory is an array of bits that is accessible in N-bit chunks, with
@@ -729,18 +749,21 @@ struct __vpiRealVar : public __vpiHandle {
       } id;
       unsigned is_netarray  : 1; // This is word of a net array
       unsigned is_wire      : 1; // This is a wire, not a variable
+      unsigned automatic_storage : 1;
       vvp_net_t*net;
 };
 
 extern __vpiScope* vpip_scope(__vpiRealVar*sig);
-extern vpiHandle vpip_make_real_var(const char*name, vvp_net_t*net);
+extern vpiHandle vpip_make_real_var(const char*name, vvp_net_t*net,
+                                    bool automatic_storage);
 extern vpiHandle vpip_make_real_net(__vpiScope*scope,
 				    const char*name, vvp_net_t*net);
 
 class __vpiBaseVar : public __vpiHandle {
 
     public:
-      __vpiBaseVar(__vpiScope*scope, const char*name, vvp_net_t*net);
+      __vpiBaseVar(__vpiScope*scope, const char*name, vvp_net_t*net,
+                   bool automatic_storage = false);
 #ifdef CHECK_WITH_VALGRIND
       ~__vpiBaseVar() override;
 #endif
@@ -748,6 +771,7 @@ class __vpiBaseVar : public __vpiHandle {
       vpiHandle vpi_handle(int code) override;
 
       inline vvp_net_t* get_net() const { return net_; }
+      inline bool automatic_storage() const { return automatic_storage_; }
 
     protected:
       __vpiScope* scope_;
@@ -755,12 +779,14 @@ class __vpiBaseVar : public __vpiHandle {
 
     private:
       vvp_net_t*net_;
+      bool automatic_storage_;
 };
 
 class __vpiStringVar : public __vpiBaseVar {
 
     public:
-      __vpiStringVar(__vpiScope*scope, const char*name, vvp_net_t*net);
+      __vpiStringVar(__vpiScope*scope, const char*name, vvp_net_t*net,
+                     bool automatic_storage);
 
       int get_type_code(void) const override;
       int vpi_get(int code) override;
@@ -768,7 +794,8 @@ class __vpiStringVar : public __vpiBaseVar {
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
 };
 
-extern vpiHandle vpip_make_string_var(const char*name, vvp_net_t*net);
+extern vpiHandle vpip_make_string_var(const char*name, vvp_net_t*net,
+                                      bool automatic_storage);
 
 struct __vpiArrayBase {
       __vpiArrayBase() : vals_words(NULL), vals_words_capacity(0) {}
@@ -829,6 +856,15 @@ struct __vpiArrayBase {
 * vector4 array works.
 */
 struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
+      enum value_kind_t {
+            ARRAY_VALUE_NONE,
+            ARRAY_VALUE_VEC4,
+            ARRAY_VALUE_INTEGRAL,
+            ARRAY_VALUE_REAL,
+            ARRAY_VALUE_STRING,
+            ARRAY_VALUE_OBJECT
+      };
+
       int get_type_code(void) const override { return vpiMemory; }
       unsigned get_size() const override { return array_count; }
       vpiHandle get_left_range() override { assert(nets == 0); return &msb; }
@@ -948,6 +984,11 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
       struct __vpiCallback *vpi_callbacks;
       bool signed_flag;
       bool swap_addr;
+	// The declared element kind and effective storage lifetime are
+	// independent of the lexical scope for explicit static/automatic
+	// declarations (IEEE 1800-2023 6.21).
+      value_kind_t value_kind;
+      bool automatic_storage;
 	// For a static unpacked array whose element is an object-backed
 	// unpacked struct, this is the element's class definition. Elements
 	// start nil; get_word_obj() lazily constructs (and caches) a default
@@ -968,7 +1009,8 @@ friend void compile_array_alias(char*label, char*name, char*src);
 
 class __vpiDarrayVar : public __vpiBaseVar, public __vpiArrayBase {
     public:
-      __vpiDarrayVar(__vpiScope*scope, const char*name, vvp_net_t*net);
+      __vpiDarrayVar(__vpiScope*scope, const char*name, vvp_net_t*net,
+                     bool automatic_storage = false);
 
 	// Record the declared signedness of the element type. Integral
 	// dynamic-array/queue elements are stored as unsigned vec4 words at
@@ -1012,23 +1054,27 @@ class __vpiDarrayVar : public __vpiBaseVar, public __vpiArrayBase {
 };
 
 extern vpiHandle vpip_make_darray_var(const char*name, vvp_net_t*net,
-				      bool element_signed = false);
+                                      bool automatic_storage,
+                                      bool element_signed = false);
 
 /* M12: queues (and associative arrays declared through the queue
  * path) share the full darray element-access machinery. */
 class __vpiQueueVar : public __vpiDarrayVar {
 
     public:
-      __vpiQueueVar(__vpiScope*scope, const char*name, vvp_net_t*net);
+      __vpiQueueVar(__vpiScope*scope, const char*name, vvp_net_t*net,
+                    bool automatic_storage);
 };
 
 extern vpiHandle vpip_make_queue_var(const char*name, vvp_net_t*net,
-				     bool element_signed = false);
+                                     bool automatic_storage,
+                                     bool element_signed = false);
 
 class __vpiCobjectVar : public __vpiBaseVar {
 
     public:
-      __vpiCobjectVar(__vpiScope*scope, const char*name, vvp_net_t*net);
+      __vpiCobjectVar(__vpiScope*scope, const char*name, vvp_net_t*net,
+                      bool automatic_storage);
 
       int get_type_code(void) const override;
       int vpi_get(int code) override;
@@ -1048,7 +1094,8 @@ class __vpiCobjectVar : public __vpiBaseVar {
       void refresh_members_();
 };
 
-extern vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net);
+extern vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net,
+                                       bool automatic_storage);
 
 /* M12-5: resolve one member name on a class VARIABLE handle or a
    nested class MEMBER handle (returns nil for anything else). */

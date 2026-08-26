@@ -9485,40 +9485,85 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
       cur->randsequence_block(randsequence_block_);
       NetBlock*prefix = 0;
 
-	// Decide whether this automatic scope needs its own activation
-	// frame. Begin blocks and blocking fork/join scopes whose parent
-	// scope is also automatic do not: their statement runs to
-	// completion before the parent resumes, so their locals ride the
-	// enclosing task/function frame (matching the upstream
-	// single-task-frame model; the scope was marked in elab_scope and
-	// the vvp side assigns such locals context indices in the
-	// frame-owning ancestor scope). A frame is still required when
-	// there is no enclosing automatic frame to ride (block-local
-	// automatic variables in a static process) and for
-	// join_any/join_none forks, which detach branches that outlive
-	// the statement.
-      bool needs_own_frame = nscope && nscope->is_auto()
-	    && nscope->auto_frame();
-
       if (nscope) {
-	      // Handle any variable initialization statements in this scope.
-	      // For automatic scopes with their own frame, stage the fresh
-	      // activation frame before any block-entry initializers run,
-	      // then free it after the block finishes. This covers automatic
-	      // named fork blocks in the same way automatic task calls use
-	      // %alloc/%free around input setup and execution. Collapsed
-	      // automatic scopes (and static scopes) handle initializers
-	      // without a frame prefix.
+	      /* Split declaration initializers by effective lifetime without
+	       * changing the lifetime of sibling declarations. A named block
+	       * inherits its enclosing lifetime; explicit automatic/static
+	       * declarations override it individually (IEEE 1800-2023 6.21). */
+	    vector<Statement*> one_shot_inits;
+	    vector<Statement*> per_entry_inits;
+	    bool has_explicit_auto = false;
+	    for (const auto&wire_item : wires)
+		  if (wire_item.second
+		      && wire_item.second->lifetime_override()
+			   == IVL_VLT_AUTOMATIC)
+			has_explicit_auto = true;
+
+	    for (Statement*stmt : var_inits) {
+		  ivl_lifetime_t lifetime = IVL_VLT_INHERITED;
+		  if (const PAssign_*as = dynamic_cast<const PAssign_*>(stmt)) {
+			if (const PEIdent*id =
+			      dynamic_cast<const PEIdent*>(as->lval())) {
+			      perm_string nm = peek_head_name(id->path());
+			      if (PWire*pw = const_cast<PBlock*>(this)->wires_find(nm))
+				    lifetime = pw->lifetime_override();
+			}
+		  }
+		  bool per_entry = nscope->is_auto()
+			? lifetime != IVL_VLT_STATIC
+			: lifetime == IVL_VLT_AUTOMATIC;
+		  (per_entry ? per_entry_inits : one_shot_inits).push_back(stmt);
+	    }
+
+	      // A block that inherits automatic lifetime may ride its enclosing
+	      // frame. An otherwise-static block with direct explicit-auto locals
+	      // has no enclosing frame and therefore owns a .ctx activation.
+	    bool needs_own_frame =
+		  (nscope->is_auto() && nscope->auto_frame())
+		  || (!nscope->is_auto() && has_explicit_auto);
+
+	      // Static initializers execute once at time zero, including an
+	      // explicit-static declaration nested in an automatic block.
+	    if (!one_shot_inits.empty()) {
+		  NetProc*one_shot = 0;
+		  if (one_shot_inits.size() == 1) {
+			one_shot = one_shot_inits[0]->elaborate(des, nscope);
+		  } else {
+			NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+			bool ok = true;
+			for (Statement*init : one_shot_inits) {
+			      NetProc*tmp = init->elaborate(des, nscope);
+			      if (tmp) blk->append(tmp);
+			      else ok = false;
+			}
+			if (ok) one_shot = blk;
+			else delete blk;
+		  }
+		  if (one_shot) {
+			NetProcTop*top =
+			      new NetProcTop(nscope, IVL_PR_INITIAL, one_shot);
+			top->set_line(*this);
+			if (gn_system_verilog())
+			      top->attribute(
+				    perm_string::literal("_ivl_schedule_init"),
+				    verinum(1));
+			des->add_process(top);
+			nscope->set_var_init(one_shot);
+		  }
+	    }
+
+	      // Frame-owning scopes allocate before their per-entry
+	      // initializers; collapsed automatic scopes run those initializers
+	      // directly in the enclosing activation.
 	    if (needs_own_frame) {
 		  prefix = new NetBlock(NetBlock::SEQU, 0);
 		  NetAlloc*ap = new NetAlloc(nscope);
 		  ap->set_line(*this);
 		  prefix->append(ap);
 
-		  NetBlock*init_block = prefix;
-		  for (unsigned idx = 0; idx < var_inits.size(); idx += 1) {
-			NetProc*tmp = var_inits[idx]->elaborate(des, nscope);
-			if (tmp) init_block->append(tmp);
+		  for (Statement*init : per_entry_inits) {
+			NetProc*tmp = init->elaborate(des, nscope);
+			if (tmp) prefix->append(tmp);
 		  }
 
 		    // The runtime initializers above live in the scope-0
@@ -9532,10 +9577,10 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 		    // read only by the constant-function evaluator, never by
 		    // code generation, so this has no runtime effect (the
 		    // prefix remains the sole runtime initialization path).
-		  if (var_inits.size() > 0) {
+		  if (!var_inits.empty()) {
 			NetBlock*ceval = new NetBlock(NetBlock::SEQU, 0);
-			for (unsigned idx = 0; idx < var_inits.size(); idx += 1) {
-			      NetProc*tmp = var_inits[idx]->elaborate(des, nscope);
+			for (Statement*init : var_inits) {
+			      NetProc*tmp = init->elaborate(des, nscope);
 			      if (tmp) ceval->append(tmp);
 			}
 			nscope->set_var_init(ceval);
@@ -9546,12 +9591,10 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 		    // time the block is entered, targeting storage in the
 		    // enclosing frame. This is also the form the constant
 		    // function evaluator walks directly.
-		  for (unsigned idx = 0; idx < var_inits.size(); idx += 1) {
-			NetProc*tmp = var_inits[idx]->elaborate(des, nscope);
+		  for (Statement*init : per_entry_inits) {
+			NetProc*tmp = init->elaborate(des, nscope);
 			if (tmp) cur->append(tmp);
 		  }
-	    } else {
-		  elaborate_var_inits_(des, nscope);
 	    }
       }
 
@@ -10767,6 +10810,23 @@ static string assertion_control_selector_(Design*des, NetScope*scope,
       ostringstream text;
       text << scope_path(container) << "." << assertion_name;
       return text.str();
+}
+
+static bool subroutine_needs_call_frame_(const NetScope*task)
+{
+      if (!task)
+	    return false;
+      if (task->is_auto())
+	    return true;
+      if (task->type() != NetScope::TASK && task->type() != NetScope::FUNC)
+	    return false;
+
+      for (const auto&entry : task->signals_map()) {
+	    const NetNet*sig = entry.second;
+	    if (sig && sig->lifetime_override() == IVL_VLT_AUTOMATIC)
+		  return true;
+      }
+      return false;
 }
 
 NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
@@ -12253,9 +12313,10 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 
       unsigned parm_count = def->port_count();
 
-	/* Handle non-automatic tasks with no parameters specially. There is
-           no need to make a sequential block to hold the generated code. */
-      if ((parm_count == 0) && !task->is_auto()) {
+	/* A zero-port task needs the fast path only when it owns no call frame.
+	   A static task with explicit automatic locals still needs its
+	   %alloc/call/%free wrapper. */
+      if ((parm_count == 0) && !subroutine_needs_call_frame_(task)) {
 	      // Check if a task call is allowed in this context.
 	    test_task_calls_ok_(des, scope);
 
@@ -15026,10 +15087,15 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    }
       }
 
-        /* If this is an automatic task, generate a statement to
-           allocate the local storage. */
+        /* An automatic subroutine owns a frame for every declaration. A
+           static subroutine can still contain declarations whose lifetime is explicitly
+           automatic (IEEE 1800-2023 6.21 and 13.3.1); those declarations
+           need a per-call frame without changing the subroutine's inherited
+           declarations or ports from static storage. */
 
-      if (task->is_auto()) {
+      bool needs_call_frame = subroutine_needs_call_frame_(task);
+
+      if (needs_call_frame) {
 	    NetAlloc*ap = new NetAlloc(task);
 	    ap->set_line(*this);
 	    block->append(ap);
@@ -15585,9 +15651,8 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    block->append(ass);
       }
 
-        /* If this is an automatic task, generate a statement to free
-           the local storage. */
-      if (task->is_auto()) {
+        /* Release the automatic declarations' call frame. */
+      if (needs_call_frame) {
 	    NetFree*fp = new NetFree(task);
 	    fp->set_line(*this);
 	    block->append(fp);
@@ -19982,82 +20047,74 @@ void PFunction::elaborate(Design*des, NetScope*scope) const
 	    }
       }
 
-	// Handle any variable initialization statements in this scope.
-	// For automatic functions, these statements need to be executed
-	// each time the function is called, so insert them at the start
-	// of the elaborated definition. For static functions, put them
-	// in a separate process that will be executed before the start
-	// of simulation.
-      if (is_auto_) {
-	      // Split var_inits by the target variable's lifetime.
-	      // Variables explicitly declared `static` inside an automatic
-	      // function should be initialized ONCE at simulation start, not
-	      // on every call. Auto-lifetime initializers go into the
-	      // function body so they run on each entry.
-	    std::vector<Statement*> static_inits;
-	    std::vector<Statement*> auto_inits;
-	    for (Statement*stmt : var_inits) {
-		  bool is_static_init = false;
-		  if (const PAssign_*as = dynamic_cast<const PAssign_*>(stmt)) {
-			if (const PEIdent*id = dynamic_cast<const PEIdent*>(as->lval())) {
-			      perm_string nm = peek_head_name(id->path());
-			      if (PWire*pw =
-				    const_cast<PFunction*>(this)->wires_find(nm)) {
-				    if (pw->lifetime_override() == IVL_VLT_STATIC)
-					  is_static_init = true;
-			      }
-			}
-		  }
-		  if (is_static_init)
-			static_inits.push_back(stmt);
-		  else
-			auto_inits.push_back(stmt);
-	    }
-
-	    if (!auto_inits.empty()) {
-		    // Get the NetBlock of the statement. If it is not a
-		    // NetBlock then create one to wrap the initialization
-		    // statements and the original statement.
-		  NetBlock*blk = dynamic_cast<NetBlock*> (st);
-		  if (blk == 0) {
-			blk = new NetBlock(NetBlock::SEQU, scope);
-			blk->set_line(*this);
-			blk->append(st);
-			st = blk;
-		  }
-		  for (size_t idx = auto_inits.size(); idx > 0; idx -= 1) {
-			NetProc*tmp = auto_inits[idx-1]->elaborate(des, scope);
-			if (tmp) blk->prepend(tmp);
+	/* Split declaration initializers by effective lifetime. This mirrors
+	   task initialization: an explicit automatic inside a static function
+	   executes per call, and an explicit static inside an automatic function
+	   executes once. */
+      std::vector<Statement*> one_shot_inits;
+      std::vector<Statement*> per_call_inits;
+      for (Statement*stmt : var_inits) {
+	    ivl_lifetime_t lifetime = IVL_VLT_INHERITED;
+	    if (const PAssign_*as = dynamic_cast<const PAssign_*>(stmt)) {
+		  if (const PEIdent*id = dynamic_cast<const PEIdent*>(as->lval())) {
+			perm_string nm = peek_head_name(id->path());
+			if (PWire*pw = const_cast<PFunction*>(this)->wires_find(nm))
+			      lifetime = pw->lifetime_override();
 		  }
 	    }
+	    bool per_call = is_auto_ ? lifetime != IVL_VLT_STATIC
+				     : lifetime == IVL_VLT_AUTOMATIC;
+	    if (per_call)
+		  per_call_inits.push_back(stmt);
+	    else
+		  one_shot_inits.push_back(stmt);
+      }
 
-	    if (!static_inits.empty()) {
-		    // Emit the static initializers as a one-shot module-init
-		    // process so each runs once at sim start.
-		  NetProc*proc = 0;
-		  if (static_inits.size() == 1) {
-			proc = static_inits[0]->elaborate(des, scope);
-		  } else {
-			NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
-			for (Statement*s : static_inits) {
-			      NetProc*tmp = s->elaborate(des, scope);
-			      if (tmp) blk->append(tmp);
-			}
+      if (!per_call_inits.empty()) {
+	    NetBlock*blk = dynamic_cast<NetBlock*>(st);
+	    if (blk == 0 || blk->type() != NetBlock::SEQU) {
+		  blk = new NetBlock(NetBlock::SEQU, scope);
+		  blk->set_line(*this);
+		  blk->append(st);
+		  st = blk;
+	    }
+	    for (size_t idx = per_call_inits.size(); idx > 0; idx -= 1) {
+		  NetProc*tmp = per_call_inits[idx-1]->elaborate(des, scope);
+		  if (tmp) blk->prepend(tmp);
+	    }
+      }
+
+      if (!one_shot_inits.empty()) {
+	    NetProc*proc = 0;
+	    if (one_shot_inits.size() == 1) {
+		  proc = one_shot_inits[0]->elaborate(des, scope);
+	    } else {
+		  NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+		  bool flag = true;
+		  for (Statement*init : one_shot_inits) {
+			NetProc*tmp = init->elaborate(des, scope);
+			if (tmp)
+			      blk->append(tmp);
+			else
+			      flag = false;
+		  }
+		  if (flag)
 			proc = blk;
-		  }
-		  if (proc) {
-			NetProcTop*top = new NetProcTop(scope, IVL_PR_INITIAL, proc);
-			if (const LineInfo*li = dynamic_cast<const LineInfo*>(this)) {
-			      top->set_line(*li);
-			}
-			if (gn_system_verilog())
-			      top->attribute(perm_string::literal("_ivl_schedule_init"),
-					     verinum(1));
-			des->add_process(top);
-		  }
 	    }
-      } else {
-	    elaborate_var_inits_(des, scope);
+	    if (proc) {
+		  NetProcTop*top = new NetProcTop(scope, IVL_PR_INITIAL, proc);
+		  top->set_line(*this);
+		  if (gn_system_verilog())
+			top->attribute(perm_string::literal("_ivl_schedule_init"),
+				       verinum(1));
+		  des->add_process(top);
+
+		    /* NetFuncDef::evaluate_function does not execute scheduled
+		       processes. Preserve the initializer process on the scope so
+		       each constant-function evaluation seeds its local context,
+		       as elaborate_var_inits_ did before lifetime splitting. */
+		  scope->set_var_init(proc);
+	    }
       }
 
       def->set_proc(st);
@@ -20302,29 +20359,68 @@ void PTask::elaborate(Design*des, NetScope*task) const
 	    }
       }
 
-	// Handle any variable initialization statements in this scope.
-	// For automatic tasks , these statements need to be executed
-	// each time the task is called, so insert them at the start
-	// of the elaborated definition. For static tasks, put them
-	// in a separate process that will be executed before the start
-	// of simulation.
-      if (is_auto_) {
-	      // Get the NetBlock of the statement. If it is not a
-	      // NetBlock then create one to wrap the initialization
-	      // statements and the original statement.
-	    NetBlock*blk = dynamic_cast<NetBlock*> (st);
-	    if ((blk == 0) && (var_inits.size() > 0)) {
+	/* Split declaration initializers by effective lifetime. In an automatic
+	   task, an explicitly static declaration is initialized once; in a
+	   static task, an explicitly automatic declaration is initialized on
+	   every entry. Inherited declarations follow the task lifetime. */
+      std::vector<Statement*> one_shot_inits;
+      std::vector<Statement*> per_call_inits;
+      for (Statement*stmt : var_inits) {
+	    ivl_lifetime_t lifetime = IVL_VLT_INHERITED;
+	    if (const PAssign_*as = dynamic_cast<const PAssign_*>(stmt)) {
+		  if (const PEIdent*id = dynamic_cast<const PEIdent*>(as->lval())) {
+			perm_string nm = peek_head_name(id->path());
+			if (PWire*pw = const_cast<PTask*>(this)->wires_find(nm))
+			      lifetime = pw->lifetime_override();
+		  }
+	    }
+	    bool per_call = is_auto_ ? lifetime != IVL_VLT_STATIC
+				     : lifetime == IVL_VLT_AUTOMATIC;
+	    if (per_call)
+		  per_call_inits.push_back(stmt);
+	    else
+		  one_shot_inits.push_back(stmt);
+      }
+
+      if (!per_call_inits.empty()) {
+	    NetBlock*blk = dynamic_cast<NetBlock*>(st);
+	    if (blk == 0 || blk->type() != NetBlock::SEQU) {
 		  blk = new NetBlock(NetBlock::SEQU, task);
 		  blk->set_line(*this);
 		  blk->append(st);
 		  st = blk;
 	    }
-	    for (unsigned idx = var_inits.size(); idx > 0; idx -= 1) {
-		  NetProc*tmp = var_inits[idx-1]->elaborate(des, task);
+	    for (size_t idx = per_call_inits.size(); idx > 0; idx -= 1) {
+		  NetProc*tmp = per_call_inits[idx-1]->elaborate(des, task);
 		  if (tmp) blk->prepend(tmp);
 	    }
-      } else {
-	    elaborate_var_inits_(des, task);
+      }
+
+      if (!one_shot_inits.empty()) {
+	    NetProc*proc = 0;
+	    if (one_shot_inits.size() == 1) {
+		  proc = one_shot_inits[0]->elaborate(des, task);
+	    } else {
+		  NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+		  bool flag = true;
+		  for (Statement*init : one_shot_inits) {
+			NetProc*tmp = init->elaborate(des, task);
+			if (tmp)
+			      blk->append(tmp);
+			else
+			      flag = false;
+		  }
+		  if (flag)
+			proc = blk;
+	    }
+	    if (proc) {
+		  NetProcTop*top = new NetProcTop(task, IVL_PR_INITIAL, proc);
+		  top->set_line(*this);
+		  if (gn_system_verilog())
+			top->attribute(perm_string::literal("_ivl_schedule_init"),
+				       verinum(1));
+		  des->add_process(top);
+	    }
       }
 
       def->set_proc(st);
@@ -25969,6 +26065,26 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		&& !call->has_scoped_type_prefix()) {
 		  string size_ir = constraint_class_container_size_ir_(cpath, cls);
 		  if (!size_ir.empty()) return size_ir;
+	    }
+	      /* If target-property lookup did not claim an unqualified receiver,
+	       * its no-argument size call is an ordinary caller-scope value. This
+	       * is the class-method form used by automatic local queues such as
+	       *
+	       *   randomize(mask) with { $countones(mask) <= q.size(); }
+	       *
+	       * Preserve target-member precedence (18.7.1) independently of
+	       * whether that target container is representable by the solver: an
+	       * unsupported target property must not fall through to a colliding
+	       * lexical variable. Explicit local:: was captured above. */
+	    if (simple_size_call && cls && value_slots && !call_iter_ctx
+		&& !call_foreach_shadow && !call_local_qualified
+		&& !call->path().package && !call->has_scoped_type_prefix()) {
+		  const netclass_t*target_owner = nullptr;
+		  pform_name_t::const_iterator target_component;
+		  if (!constraint_target_path_begin_(
+			call->path(), cls, target_owner, target_component))
+			return scope_randomize_value_slot_(
+			      call, nullptr, value_slots, 32);
 	    }
 	      /* In scope randomization, a non-random container's size is an
 	       * ordinary state value sampled at the call. Unlike a selected

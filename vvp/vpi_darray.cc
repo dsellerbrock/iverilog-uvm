@@ -38,8 +38,9 @@
 
 using namespace std;
 
-__vpiDarrayVar::__vpiDarrayVar(__vpiScope*sc, const char*na, vvp_net_t*ne)
-: __vpiBaseVar(sc, na, ne)
+__vpiDarrayVar::__vpiDarrayVar(__vpiScope*sc, const char*na, vvp_net_t*ne,
+                               bool automatic_storage)
+: __vpiBaseVar(sc, na, ne, automatic_storage)
 {
 }
 
@@ -440,6 +441,7 @@ int __vpiDarrayVar::vpi_get(int code)
 	  case vpiSize:
             return get_size();
 	  case vpiAutomatic:
+	    return automatic_storage() ? 1 : 0;
 	  case vpiSigned:
 	    return 0;
 
@@ -524,12 +526,14 @@ const vvp_assoc_base*__vpiDarrayVar::get_vvp_assoc() const
 }
 
 vpiHandle vpip_make_darray_var(const char*name, vvp_net_t*net,
-			       bool element_signed)
+			       bool automatic_storage,
+                               bool element_signed)
 {
       __vpiScope*scope = vpip_peek_current_scope();
       const char*use_name = name ? vpip_name_string(name) : NULL;
 
-      __vpiDarrayVar*obj = new __vpiDarrayVar(scope, use_name, net);
+      __vpiDarrayVar*obj = new __vpiDarrayVar(scope, use_name, net,
+                                              automatic_storage);
       obj->set_element_signed(element_signed);
 
       return obj;
@@ -539,19 +543,22 @@ vpiHandle vpip_make_darray_var(const char*name, vvp_net_t*net,
  * the queue path with 'M*' kinds) now share the full __vpiDarrayVar
  * element-access machinery; the array kind is detected from the live
  * object. */
-__vpiQueueVar::__vpiQueueVar(__vpiScope*sc, const char*na, vvp_net_t*ne)
-: __vpiDarrayVar(sc, na, ne)
+__vpiQueueVar::__vpiQueueVar(__vpiScope*sc, const char*na, vvp_net_t*ne,
+                             bool automatic_storage)
+: __vpiDarrayVar(sc, na, ne, automatic_storage)
 {
       default_array_type_ = vpiQueueArray;
 }
 
 vpiHandle vpip_make_queue_var(const char*name, vvp_net_t*net,
-			      bool element_signed)
+			      bool automatic_storage,
+                              bool element_signed)
 {
       __vpiScope*scope = vpip_peek_current_scope();
       const char*use_name = name ? vpip_name_string(name) : NULL;
 
-      __vpiQueueVar*obj = new __vpiQueueVar(scope, use_name, net);
+      __vpiQueueVar*obj = new __vpiQueueVar(scope, use_name, net,
+                                            automatic_storage);
       obj->set_element_signed(element_signed);
 
       return obj;

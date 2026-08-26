@@ -24,6 +24,7 @@
 # include  "vpi_priv.h"
 # include  "vvp_net_sig.h"
 # include  "vvp_darray.h"
+# include  "vthread.h"
 # include  "vvp_cobject.h"
 # include  "class_type.h"
 # include  "config.h"
@@ -51,6 +52,133 @@ static symbol_map_s<struct __vpiArray>* array_table =0;
 
 class vvp_fun_arrayport;
 static void array_attach_port(vvp_array_t, vvp_fun_arrayport*);
+
+/* A fixed unpacked array whose effective lifetime is automatic needs a fresh
+ * value container in every activation context. Four-state arrays already use
+ * vvp_vector4array_aa; this adapter gives the darray-backed fixed-array kinds
+ * (2-state atoms, real, string and object) the same context ownership while
+ * preserving their existing element representation and virtual interface. */
+class vvp_fixed_darray_aa : public vvp_darray, public automatic_hooks_s {
+    public:
+      explicit vvp_fixed_darray_aa(vvp_darray*prototype)
+      : prototype_(prototype), context_scope_(vpip_peek_context_scope())
+      {
+            assert(prototype_);
+            context_idx_ = vpip_add_item_to_context(this, context_scope_);
+      }
+
+      ~vvp_fixed_darray_aa() override { delete prototype_; }
+
+      void alloc_instance(vvp_context_t context) override
+      {
+            vvp_set_context_item(context, context_idx_,
+                                 prototype_->duplicate());
+      }
+
+      void reset_instance(vvp_context_t context) override
+      {
+            vvp_darray*old = static_cast<vvp_darray*>(
+                  vvp_get_context_item(context, context_idx_));
+            delete old;
+            vvp_set_context_item(context, context_idx_,
+                                 prototype_->duplicate());
+      }
+
+#ifdef CHECK_WITH_VALGRIND
+      void free_instance(vvp_context_t context) override
+      {
+            delete static_cast<vvp_darray*>(
+                  vvp_get_context_item(context, context_idx_));
+      }
+#endif
+
+      size_t get_size() const override { return prototype_->get_size(); }
+      unsigned vec4_word_width() const override
+      { return prototype_->vec4_word_width(); }
+
+      void clear() override
+      {
+            if (vvp_darray*dst = write_instance_()) dst->clear();
+      }
+
+      void set_word(unsigned adr, const vvp_vector4_t&value) override
+      {
+            if (vvp_darray*dst = write_instance_()) dst->set_word(adr, value);
+      }
+      void get_word(unsigned adr, vvp_vector4_t&value) override
+      {
+            read_instance_()->get_word(adr, value);
+      }
+      void set_word(unsigned adr, double value) override
+      {
+            if (vvp_darray*dst = write_instance_()) dst->set_word(adr, value);
+      }
+      void get_word(unsigned adr, double&value) override
+      {
+            read_instance_()->get_word(adr, value);
+      }
+      void set_word(unsigned adr, const std::string&value) override
+      {
+            if (vvp_darray*dst = write_instance_()) dst->set_word(adr, value);
+      }
+      void get_word(unsigned adr, std::string&value) override
+      {
+            read_instance_()->get_word(adr, value);
+      }
+      void set_word(unsigned adr, const vvp_object_t&value) override
+      {
+            if (vvp_darray*dst = write_instance_()) dst->set_word(adr, value);
+      }
+      void get_word(unsigned adr, vvp_object_t&value) override
+      {
+            read_instance_()->get_word(adr, value);
+      }
+
+      void shallow_copy(const vvp_object*obj) override
+      {
+            vvp_darray*dst = write_instance_();
+            if (!dst) return;
+            const vvp_fixed_darray_aa*src_aa =
+                  dynamic_cast<const vvp_fixed_darray_aa*>(obj);
+            dst->shallow_copy(src_aa ? src_aa->read_instance_() : obj);
+      }
+
+      vvp_object*duplicate() const override
+      { return read_instance_()->duplicate(); }
+
+      vvp_vector4_t get_bitstream(bool as_vec4) override
+      { return read_instance_()->get_bitstream(as_vec4); }
+
+      void*dpi_raw_data() override
+      {
+            vvp_darray*use = write_instance_();
+            return use ? use->dpi_raw_data() : 0;
+      }
+      unsigned dpi_elem_bytes() const override
+      { return prototype_->dpi_elem_bytes(); }
+      bool dpi_elem_is_real() const override
+      { return prototype_->dpi_elem_is_real(); }
+
+    private:
+      vvp_darray*write_instance_() const
+      {
+            return static_cast<vvp_darray*>(
+                  vthread_get_wt_context_item_scoped(context_idx_,
+                                                     context_scope_));
+      }
+
+      vvp_darray*read_instance_() const
+      {
+            vvp_darray*use = static_cast<vvp_darray*>(
+                  vthread_get_rd_context_item_scoped(context_idx_,
+                                                     context_scope_));
+            return use ? use : prototype_;
+      }
+
+      vvp_darray*prototype_;
+      __vpiScope*context_scope_;
+      unsigned context_idx_;
+};
 
 vvp_array_t array_find(const char*label)
 {
@@ -127,7 +255,7 @@ static bool vpi_array_is_real(const vvp_array_t arr)
       if (arr->vals4 != 0)  // A bit based variable/register array.
 	    return false;
 
-      if (dynamic_cast<vvp_darray_real*> (arr->vals))
+      if (arr->vals && arr->value_kind == __vpiArray::ARRAY_VALUE_REAL)
 	    return true;
 
       if (arr->vals != 0)
@@ -150,7 +278,7 @@ static bool vpi_array_is_string(const vvp_array_t arr)
       if (arr->vals4 != 0)  // A bit based variable/register array.
 	    return false;
 
-      if (dynamic_cast<vvp_darray_string*> (arr->vals))
+      if (arr->vals && arr->value_kind == __vpiArray::ARRAY_VALUE_STRING)
 	    return true;
 
       return false;
@@ -158,7 +286,7 @@ static bool vpi_array_is_string(const vvp_array_t arr)
 
 static bool vpi_array_is_object(const vvp_array_t arr)
 {
-      return dynamic_cast<vvp_darray_object*>(arr->vals) != 0;
+      return arr->vals && arr->value_kind == __vpiArray::ARRAY_VALUE_OBJECT;
 }
 
 bool __vpiArray::is_forceable_vec4_array() const
@@ -221,7 +349,7 @@ void __vpiArray::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 	// doing so reads the object handle as a garbage vector and aborts the
 	// decimal formatter. Render it as `'{...}` for %p / string fetches and
 	// steer vpiObjTypeVal to that path; numeric fetches return 0.
-      if (dynamic_cast<vvp_darray_object*>(vals)) {
+      if (vpi_array_is_object(this)) {
 	    switch (vp->format) {
 		case vpiObjTypeVal: {
 		  vvp_object_t oval;
@@ -364,7 +492,7 @@ int __vpiArray::vpi_get(int code)
 	    return vpiStaticArray;
 
 	  case vpiAutomatic:
-	    return scope->is_automatic()? 1 : 0;
+	    return automatic_storage ? 1 : 0;
 
 	  default:
 	    return 0;
@@ -453,7 +581,12 @@ int __vpiArrayWord::as_word_t::vpi_get(int code)
 	    return my_parent->get_word_declared_index(obj->get_index());
 
 	  case vpiAutomatic:
-	    return my_parent->get_scope()->is_automatic()? 1 : 0;
+	    if (__vpiArray*fixed = dynamic_cast<__vpiArray*>(my_parent))
+		  return fixed->automatic_storage ? 1 : 0;
+	    if (__vpiDarrayVar*dynamic =
+	          dynamic_cast<__vpiDarrayVar*>(my_parent))
+		  return dynamic->automatic_storage() ? 1 : 0;
+	    return my_parent->get_scope()->is_automatic() ? 1 : 0;
 
 #if defined(CHECK_WITH_VALGRIND) || defined(BR916_STOPGAP_FIX)
 	  case _vpiFromThr:
@@ -485,7 +618,7 @@ int __vpiArrayVthrA::vpi_get(int code)
 	    return (int)get_address() + array->first_addr.get_value();
 
 	  case vpiAutomatic:
-	    return array->get_scope()->is_automatic() ? 1 : 0;
+	    return array->automatic_storage ? 1 : 0;
 
 #if defined(CHECK_WITH_VALGRIND) || defined(BR916_STOPGAP_FIX)
 	  case _vpiFromThr:
@@ -521,7 +654,7 @@ void __vpiArrayVthrA::vpi_get_value(p_vpi_value vp)
 	// An object element (class handle or object-backed unpacked struct):
 	// render as `'{...}` for %p / string fetches; the vec4 path below reads
 	// the object handle as a garbage vector and aborts the formatter.
-      if (dynamic_cast<vvp_darray_object*>(array->vals)) {
+      if (vpi_array_is_object(array)) {
 	    switch (vp->format) {
 		case vpiObjTypeVal:
 		  vp->format = vpiIntVal;
@@ -620,7 +753,7 @@ int __vpiArrayVthrAPV::vpi_get(int code)
 	    return part_bit;
 
 	  case vpiAutomatic:
-	    return array->get_scope()->is_automatic() ? 1 : 0;
+	    return array->automatic_storage ? 1 : 0;
 
 #if defined(CHECK_WITH_VALGRIND) || defined(BR916_STOPGAP_FIX)
 	  case _vpiFromThr:
@@ -1330,6 +1463,8 @@ vpiHandle vpip_make_array(const char*label, const char*name,
       obj->vals_words = 0;
       obj->value_owner_ = obj;
       obj->value_views_.push_back(obj);
+      obj->value_kind = __vpiArray::ARRAY_VALUE_NONE;
+      obj->automatic_storage = false;
 
 	// Initialize (clear) the read-ports list.
       obj->ports_ = 0;
@@ -1415,7 +1550,7 @@ static void send_word_to_edge_probe_(__vpiArray*array, unsigned addr,
 	    probe->fun->recv_real(port, array->get_word_r(addr), 0);
       } else if (vpi_array_is_string(array)) {
 	    probe->fun->recv_string(port, array->get_word_str(addr), 0);
-      } else if (dynamic_cast<vvp_darray_object*>(array->vals)) {
+      } else if (vpi_array_is_object(array)) {
 	    vvp_object_t value;
 	    array->get_word_obj(addr, value);
 	    probe->fun->recv_object(port, value, 0);
@@ -1445,17 +1580,35 @@ void __vpiArray::attach_word_edge_probe(unsigned addr, vvp_net_t*probe)
       }
 }
 
+static bool fixed_array_is_automatic_(int storage_flag)
+{
+      if (storage_flag < 0)
+            return false;
+      if (storage_flag > 0)
+            return true;
+      return vpip_peek_current_scope()->is_automatic();
+}
+
+static vvp_darray*fixed_array_storage_(vvp_darray*storage,
+				       bool automatic_storage)
+{
+      return automatic_storage ? new vvp_fixed_darray_aa(storage) : storage;
+}
+
 void compile_var_array(char*label, char*name, int last, int first,
-		   int msb, int lsb, char signed_flag)
+		   int msb, int lsb, char signed_flag, int storage_flag)
 {
       vpiHandle obj = vpip_make_array(label, name, first, last,
                                       signed_flag != 0);
 
       struct __vpiArray*arr = dynamic_cast<__vpiArray*>(obj);
 
+      arr->automatic_storage = fixed_array_is_automatic_(storage_flag);
+      arr->value_kind = __vpiArray::ARRAY_VALUE_VEC4;
+
 	/* Make the words. */
       arr->vals_width = labs(msb-lsb) + 1;
-      if (vpip_peek_current_scope()->is_automatic()) {
+      if (arr->automatic_storage) {
             arr->vals4 = new vvp_vector4array_aa(arr->vals_width,
 						 arr->get_size());
       } else {
@@ -1477,11 +1630,14 @@ void compile_var_array(char*label, char*name, int last, int first,
 }
 
 void compile_var2_array(char*label, char*name, int last, int first,
-		   int msb, int lsb, bool signed_flag)
+		   int msb, int lsb, bool signed_flag, int storage_flag)
 {
       vpiHandle obj = vpip_make_array(label, name, first, last, signed_flag);
 
       struct __vpiArray*arr = dynamic_cast<__vpiArray*>(obj);
+
+      arr->automatic_storage = fixed_array_is_automatic_(storage_flag);
+      arr->value_kind = __vpiArray::ARRAY_VALUE_INTEGRAL;
 
 	/* Make the words. */
       arr->msb.set_value(msb);
@@ -1489,25 +1645,27 @@ void compile_var2_array(char*label, char*name, int last, int first,
       arr->vals_width = labs(msb-lsb) + 1;
 
       assert(! arr->nets);
+      vvp_darray*storage = 0;
       if (lsb == 0 && msb == 7 && signed_flag) {
-	    arr->vals = new vvp_darray_atom<int8_t>(arr->get_size());
+	    storage = new vvp_darray_atom<int8_t>(arr->get_size());
       } else if (lsb == 0 && msb == 7 && !signed_flag) {
-	    arr->vals = new vvp_darray_atom<uint8_t>(arr->get_size());
+	    storage = new vvp_darray_atom<uint8_t>(arr->get_size());
       } else if (lsb == 0 && msb == 15 && signed_flag) {
-	    arr->vals = new vvp_darray_atom<int16_t>(arr->get_size());
+	    storage = new vvp_darray_atom<int16_t>(arr->get_size());
       } else if (lsb == 0 && msb == 15 && !signed_flag) {
-	    arr->vals = new vvp_darray_atom<uint16_t>(arr->get_size());
+	    storage = new vvp_darray_atom<uint16_t>(arr->get_size());
       } else if (lsb == 0 && msb == 31 && signed_flag) {
-	    arr->vals = new vvp_darray_atom<int32_t>(arr->get_size());
+	    storage = new vvp_darray_atom<int32_t>(arr->get_size());
       } else if (lsb == 0 && msb == 31 && !signed_flag) {
-	    arr->vals = new vvp_darray_atom<uint32_t>(arr->get_size());
+	    storage = new vvp_darray_atom<uint32_t>(arr->get_size());
       } else if (lsb == 0 && msb == 63 && signed_flag) {
-	    arr->vals = new vvp_darray_atom<int64_t>(arr->get_size());
+	    storage = new vvp_darray_atom<int64_t>(arr->get_size());
       } else if (lsb == 0 && msb == 63 && !signed_flag) {
-	    arr->vals = new vvp_darray_atom<uint64_t>(arr->get_size());
+	    storage = new vvp_darray_atom<uint64_t>(arr->get_size());
       } else {
-	    arr->vals = new vvp_darray_vec2(arr->get_size(), arr->vals_width);
+	    storage = new vvp_darray_vec2(arr->get_size(), arr->vals_width);
       }
+      arr->vals = fixed_array_storage_(storage, arr->automatic_storage);
       count_var_arrays += 1;
       count_var_array_words += arr->get_size();
 
@@ -1519,14 +1677,19 @@ void compile_var2_array(char*label, char*name, int last, int first,
       delete[] name;
 }
 
-void compile_real_array(char*label, char*name, int last, int first)
+void compile_real_array(char*label, char*name, int last, int first,
+			int storage_flag)
 {
       vpiHandle obj = vpip_make_array(label, name, first, last, true);
 
       struct __vpiArray*arr = dynamic_cast<__vpiArray*>(obj);
 
+      arr->automatic_storage = fixed_array_is_automatic_(storage_flag);
+      arr->value_kind = __vpiArray::ARRAY_VALUE_REAL;
+
 	/* Make the words. */
-      arr->vals = new vvp_darray_real(arr->get_size());
+      arr->vals = fixed_array_storage_(new vvp_darray_real(arr->get_size()),
+				       arr->automatic_storage);
       arr->vals_width = 1;
 
       count_real_arrays += 1;
@@ -1540,14 +1703,19 @@ void compile_real_array(char*label, char*name, int last, int first)
       delete[] name;
 }
 
-void compile_string_array(char*label, char*name, int last, int first)
+void compile_string_array(char*label, char*name, int last, int first,
+			  int storage_flag)
 {
       vpiHandle obj = vpip_make_array(label, name, first, last, true);
 
       struct __vpiArray*arr = dynamic_cast<__vpiArray*>(obj);
 
+      arr->automatic_storage = fixed_array_is_automatic_(storage_flag);
+      arr->value_kind = __vpiArray::ARRAY_VALUE_STRING;
+
 	/* Make the words. */
-      arr->vals = new vvp_darray_string(arr->get_size());
+      arr->vals = fixed_array_storage_(new vvp_darray_string(arr->get_size()),
+				       arr->automatic_storage);
       arr->vals_width = 1;
 
       count_real_arrays += 1;
@@ -1562,14 +1730,18 @@ void compile_string_array(char*label, char*name, int last, int first)
 }
 
 void compile_object_array(char*label, char*name, int last, int first,
-			  char*element_type)
+			  int storage_flag, char*element_type)
 {
       vpiHandle obj = vpip_make_array(label, name, first, last, true);
 
       struct __vpiArray*arr = dynamic_cast<__vpiArray*>(obj);
 
+      arr->automatic_storage = fixed_array_is_automatic_(storage_flag);
+      arr->value_kind = __vpiArray::ARRAY_VALUE_OBJECT;
+
 	/* Make the words. */
-      arr->vals = new vvp_darray_object(arr->get_size());
+      arr->vals = fixed_array_storage_(new vvp_darray_object(arr->get_size()),
+				       arr->automatic_storage);
       arr->vals_width = 1;
 
 	/* An object-backed unpacked-struct element type lets get_word_obj()
@@ -1592,8 +1764,13 @@ void compile_object_array(char*label, char*name, int last, int first,
       delete[] name;
 }
 
-void compile_net_array(char*label, char*name, int last, int first)
+void compile_net_array(char*label, char*name, int last, int first,
+		       int storage_flag)
 {
+	/* Net arrays do not have variable declaration lifetime. Accept the
+	 * optional assembly field only so old and new .array grammars share a
+	 * single unambiguous production. */
+      (void)storage_flag;
 	// At this point we don't know the array data type, so we
 	// initialise signed_flag to false. This will be corrected
 	// (if necessary) when we attach words to the array.
@@ -1906,7 +2083,7 @@ void vvp_fun_arrayport_aa::check_word_change_(unsigned long addr,
 
 void vvp_fun_arrayport_aa::check_word_change(unsigned long addr)
 {
-      if (arr_->get_scope()->is_automatic()) {
+      if (arr_->automatic_storage) {
             assert(vthread_get_wt_context());
             check_word_change_(addr, vthread_get_wt_context());
       } else {
@@ -1923,7 +2100,7 @@ static void array_attach_port(vvp_array_t array, vvp_fun_arrayport*fun)
       assert(fun->next_ == 0);
       fun->next_ = array->ports_;
       array->ports_ = fun;
-      if (!array->get_scope()->is_automatic() &&
+      if (!array->automatic_storage &&
           (array->vals4 || array->vals)) {
 	      /* propagate initial values for variable arrays */
 	    if (vpi_array_is_real(array)) {
@@ -2093,10 +2270,8 @@ array_port_resolv_list_t::array_port_resolv_list_t(char *lab, bool use_addr__,
 : resolv_list_s(lab), use_addr(use_addr__), addr(addr__),
   write_port(write_port__), negedge(negedge__)
 {
-      if (vpip_peek_current_scope()->is_automatic())
-            context_scope = vpip_peek_context_scope();
-      else
-            context_scope = 0;
+      __vpiScope*owner = vpip_peek_context_scope();
+      context_scope = owner && owner->has_automatic_context() ? owner : 0;
       ptr = new vvp_net_t;
 }
 
@@ -2381,6 +2556,8 @@ void compile_array_alias(char*label, char*name, char*src)
       obj->vals  = mem->vals;
       obj->vals_width = mem->vals_width;
       obj->vals_words = mem->vals_words;
+      obj->value_kind = mem->value_kind;
+      obj->automatic_storage = mem->automatic_storage;
       obj->value_owner_ = mem->canonical_value_owner_();
       obj->value_owner_->value_views_.push_back(obj);
 

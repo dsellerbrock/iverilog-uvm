@@ -319,6 +319,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%div/wr",   of_DIV_WR,  0, {OA_NONE,   OA_NONE,     OA_NONE} },
       { "%dpi/call/ptr",  of_DPI_CALL_PTR,  2,{OA_STRING, OA_BIT1,   OA_NONE} },
       { "%dpi/call/real", of_DPI_CALL_REAL, 2,{OA_STRING, OA_BIT1,   OA_NONE} },
+      { "%dpi/call/shortreal",of_DPI_CALL_SHORTREAL,2,{OA_STRING,OA_BIT1,OA_NONE} },
       { "%dpi/call/str",  of_DPI_CALL_STR,  2,{OA_STRING, OA_BIT1,   OA_NONE} },
       { "%dpi/call/task", of_DPI_CALL_TASK, 2,{OA_STRING, OA_BIT1,   OA_NONE} },
       { "%dpi/call/vec4", of_DPI_CALL_VEC4, 3,{OA_STRING, OA_BIT1,   OA_BIT2} },
@@ -949,7 +950,7 @@ vvp_net_t* vvp_net_lookup(const char*label)
 	    assert(! vpip_peek_current_scope()->is_automatic());
 	    t0_trigger_generated = true;
 	      // Create a local event with no name for the T0 trigger
-	    compile_named_event(strdup(label), strcpy(new char [1],""), true);
+	    compile_named_event(strdup(label), strcpy(new char [1],""), 0, true);
 	    tmp = vvp_net_lookup(label);
 	    assert(tmp);
 	      // Create a trigger for the T0 event.

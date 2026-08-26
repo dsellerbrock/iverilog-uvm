@@ -39,6 +39,7 @@ NetEvent::NetEvent(perm_string n)
 {
       lexical_pos_ = 0;
       local_flag_ = false;
+      lifetime_override_ = IVL_VLT_INHERITED;
       scope_ = 0;
       snext_ = 0;
       probes_ = 0;

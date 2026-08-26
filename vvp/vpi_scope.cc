@@ -913,6 +913,15 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
       char sign_flag;
       unsigned wid;
 
+        /* A mixed-lifetime static function uses the ordinary static VPI
+           function class, with a separate context-owner bit. Canonicalize
+           its type spelling before the existing return-type decoder. */
+      bool mixed_lifetime_function = false;
+      if (strncmp(type, "function.ctx.", 13) == 0) {
+	    memmove(type + 8, type + 12, strlen(type + 12) + 1);
+	    mixed_lifetime_function = true;
+      }
+
       __vpiScope*scope;
       if (strcmp(type,"module") == 0) {
 	    scope = new vpiScopeModule(name, tname);
@@ -966,10 +975,16 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 	    scope = new vpiScopeFunction(name, tname, true, vpiOtherFunc, 0, BIT4_0);
       } else if (strcmp(type,"task") == 0) {
 	    scope = new vpiScopeTask(name, tname);
+      } else if (strcmp(type,"task.ctx") == 0) {
+	    scope = new vpiScopeTask(name, tname);
+	    scope->set_owns_automatic_context();
       } else if (strcmp(type,"autotask") == 0) {
 	    scope = new vpiScopeTaskAuto(name, tname);
       } else if (strcmp(type,"fork") == 0) {
 	    scope = new vpiScopeFork(name, tname);
+      } else if (strcmp(type,"fork.ctx") == 0) {
+	    scope = new vpiScopeFork(name, tname);
+	    scope->set_owns_automatic_context();
       } else if (strcmp(type,"autofork") == 0) {
 	    scope = new vpiScopeForkAuto(name, tname);
       } else if (strcmp(type,"autofork.shared") == 0) {
@@ -980,6 +995,9 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 	    scope->set_shares_parent_frame();
       } else if (strcmp(type,"begin") == 0) {
 	    scope = new vpiScopeBegin(name, tname);
+      } else if (strcmp(type,"begin.ctx") == 0) {
+	    scope = new vpiScopeBegin(name, tname);
+	    scope->set_owns_automatic_context();
       } else if (strcmp(type,"autobegin") == 0) {
 	    scope = new vpiScopeBeginAuto(name, tname);
       } else if (strcmp(type,"autobegin.shared") == 0) {
@@ -999,6 +1017,9 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 	    scope = new vpiScopeModule(name, tname);
 	    assert(0);
       }
+
+      if (mixed_lifetime_function)
+	    scope->set_owns_automatic_context();
 
       scope->file_idx = (unsigned) file_idx;
       scope->lineno  = (unsigned) lineno;
@@ -1077,7 +1098,7 @@ void vpip_attach_to_current_scope(vpiHandle obj)
 
 static bool scope_has_own_automatic_context_(__vpiScope*scope)
 {
-      if (!(scope && scope->is_automatic()))
+      if (!(scope && scope->has_automatic_context()))
             return false;
 
       switch (scope->get_type_code()) {
@@ -1109,7 +1130,7 @@ __vpiScope* vpip_peek_context_scope(void)
            Storage for nested scopes (named blocks) is allocated in
            the parent context. */
       while (!scope_has_own_automatic_context_(scope)
-             && scope->scope && scope->scope->is_automatic())
+             && scope->scope && scope->scope->has_automatic_context())
             scope = scope->scope;
 
       return scope;
@@ -1119,7 +1140,7 @@ unsigned vpip_add_item_to_context(automatic_hooks_s*item,
                                   __vpiScope*scope)
 {
       assert(scope);
-      assert(scope->is_automatic());
+      assert(scope->has_automatic_context());
 
       unsigned idx = scope->nitem++;
 

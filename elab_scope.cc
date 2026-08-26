@@ -3736,11 +3736,15 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       elaborate_scope_events_(des, class_scope, pclass->events);
 	// Non-static class `event` properties are per-instance: flag each
 	// so trigger/wait elaboration routes them through per-object
-	// runtime storage (IEEE 1800-2017 15.5).
+	// runtime storage (IEEE 1800-2017 15.5). An explicitly static
+	// property remains the one class-scope event shared by all objects
+	// (IEEE 1800-2017 8.9).
       for (std::map<perm_string,PEvent*>::const_iterator et = pclass->events.begin()
 		 ; et != pclass->events.end() ; ++et) {
-	    if (NetEvent*ev = class_scope->find_event(et->first))
-		  ev->set_class_event();
+	    if (NetEvent*ev = class_scope->find_event(et->first)) {
+		  if (ev->lifetime_override() != IVL_VLT_STATIC)
+			ev->set_class_event();
+	    }
       }
       elaborate_scope_enumerations(des, class_scope, pclass->enum_sets);
 
@@ -3968,11 +3972,15 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
       elaborate_scope_events_(des, class_scope, pclass->events);
 	// Non-static class `event` properties are per-instance: flag each
 	// so trigger/wait elaboration routes them through per-object
-	// runtime storage (IEEE 1800-2017 15.5).
+	// runtime storage (IEEE 1800-2017 15.5). An explicitly static
+	// property remains the one class-scope event shared by all objects
+	// (IEEE 1800-2017 8.9).
       for (std::map<perm_string,PEvent*>::const_iterator et = pclass->events.begin()
 		 ; et != pclass->events.end() ; ++et) {
-	    if (NetEvent*ev = class_scope->find_event(et->first))
-		  ev->set_class_event();
+	    if (NetEvent*ev = class_scope->find_event(et->first)) {
+		  if (ev->lifetime_override() != IVL_VLT_STATIC)
+			ev->set_class_event();
+	    }
       }
 
 	// Elaborate enum types declared in the class. We need these
@@ -5293,6 +5301,7 @@ void PEvent::elaborate_scope(Design*des, NetScope*scope) const
 {
       NetEvent*ev = new NetEvent(name_);
       ev->lexical_pos(lexical_pos_);
+      ev->lifetime_override(lifetime_override_);
       ev->set_line(*this);
 
 	// An unpacked array of named events (IEEE 1800-2017 6.20, e.g.
@@ -5445,12 +5454,12 @@ void PBlock::elaborate_scope(Design*des, NetScope*scope) const
 				    ? NetScope::FORK_JOIN
 				    : NetScope::BEGIN_END);
 	    my_scope->set_line(get_file(), get_lineno());
-	      // A block with explicitly automatic local declarations must
-	      // elaborate as an automatic scope even if the parent scope is
-	      // static. This is required so backend scope emission can mark
-	      // fork blocks as "autofork" and allocate block-entry storage.
-            my_scope->is_auto(scope->is_auto()
-			      || scope_has_automatic_signal_locals_(wires));
+	      // The block itself inherits the enclosing lifetime. An explicit
+	      // automatic declaration in a static block must not turn its
+	      // inherited siblings automatic; the declaration carries its own
+	      // lifetime marker and the backend gives this otherwise-static
+	      // block a context solely for those marked locals.
+            my_scope->is_auto(scope->is_auto());
 	      // Automatic block scopes that run to completion before the
 	      // parent resumes — named begin blocks and blocking fork/join
 	      // — are collapsed into the enclosing activation frame when

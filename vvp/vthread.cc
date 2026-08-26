@@ -83,6 +83,7 @@ using namespace std;
 # define TOP_BIT (1UL << (CPU_WORD_BITS-1))
 
 static void release_owned_context_(vthread_t thr);
+static void release_active_call_context_(vthread_t thr, const char*where);
 static void retain_context_chain_(vvp_context_t context);
 static void trace_context_event_(const char*where, vthread_t thr,
                                  __vpiScope*extra_scope = 0,
@@ -285,6 +286,15 @@ struct force_pending_s {
 	    base = 0;
 	    width = 0;
       }
+};
+
+struct active_call_context_s {
+      vvp_context_t context;
+      __vpiScope*scope;
+
+      active_call_context_s(vvp_context_t context, __vpiScope*scope)
+      : context(context), scope(scope)
+      { }
 };
 
 struct vthread_s {
@@ -759,6 +769,11 @@ struct vthread_s {
 	/* These are used to access automatically allocated items. */
       vvp_context_t wt_context, rd_context;
       vvp_context_t owned_context;
+      /* A synchronous call consumes a %alloc frame that remains owned by
+         this caller until the matching %free. Record that ownership
+         explicitly: process::kill() can terminate the complete logical
+         call stack, in which case source execution never reaches %free. */
+      std::vector<active_call_context_s> active_call_contexts;
       vvp_context_t skip_free_context;
       vvp_context_t staged_alloc_rd_context;
 	/* A frame allocated by %alloc that no call has consumed yet.
@@ -802,6 +817,8 @@ struct vthread_s {
 	    vthread_cancel_mutation_wait(this);
 	    delete force_pending;
 	    force_pending = 0;
+	    if (i_was_disabled)
+		release_active_call_context_(this, "disabled-thread-cleanup");
 	    release_owned_context_(this);
 	    while (!awaited_processes_.empty()) {
 		  vvp_process*proc = *awaited_processes_.begin();
@@ -1601,6 +1618,7 @@ static void do_join(vthread_t thr, vthread_t child);
 static std::vector<vthread_t> trampoline_call_stack;   // callers to return to
 static vthread_t trampoline_switch_to = 0;             // next frame for the loop
 static const size_t TRAMPOLINE_MAX_DEPTH = 1u << 20;   // zero-time runaway backstop
+static bool warned_callf_child_reaped = false;
 
 __vpiScope* vthread_scope(struct vthread_s*thr)
 {
@@ -1681,7 +1699,7 @@ static dpi_coro_s*dpi_coro_current = 0;
 
 #define DPI_CORO_STACK (512*1024)
 
-static bool dpi_call_common_(vthread_t, vvp_code_t, char, unsigned, char);
+static bool dpi_call_common_(vthread_t, vvp_code_t, char, unsigned, char, bool);
 
 #if defined(IVL_DPI_CORO_UCONTEXT)
 static void dpi_coro_trampoline_(void);
@@ -1769,7 +1787,7 @@ static void dpi_coro_yield_(dpi_coro_s*coro)
 static void dpi_coro_trampoline_(void)
 {
       dpi_coro_s*coro = dpi_coro_current;
-      dpi_call_common_(coro->sv_caller, coro->cp, 'v', 0, 'i');
+      dpi_call_common_(coro->sv_caller, coro->cp, 'v', 0, 'i', false);
       coro->finished = true;
       swapcontext(&coro->ctx, &coro->caller_ctx);
 }
@@ -1777,7 +1795,7 @@ static void dpi_coro_trampoline_(void)
 static void WINAPI dpi_coro_trampoline_(void*arg)
 {
       dpi_coro_s*coro = (dpi_coro_s*) arg;
-      dpi_call_common_(coro->sv_caller, coro->cp, 'v', 0, 'i');
+      dpi_call_common_(coro->sv_caller, coro->cp, 'v', 0, 'i', false);
       coro->finished = true;
 	// A fiber proc must never return (that would end the thread); yield
 	// back to whoever last switched in. dpi_coro_current is this coro.
@@ -3119,16 +3137,19 @@ bool of_UARR_ORDER(vthread_t thr, vvp_code_t cp)
       bool signed_cmp = (mode & 4) != 0;
 
       if (arr->vals && !arr->vals4) {
-	      // darray-backed word storage: string/real element kinds
-	      // dispatch by element type inside the queue helpers.
-	    switch (op) {
-		case 0: qsort_unique_dispatch_(arr->vals, false, false,
-					       signed_cmp); break;
-		case 1: qsort_unique_dispatch_(arr->vals, true, false,
-					       signed_cmp); break;
-		case 2: qreverse_dispatch_(arr->vals); break;
-		default: qshuffle_dispatch_(arr->vals); break;
-	    }
+	      /* The fixed-array automatic adapter deliberately hides its
+	       * concrete integral darray flavor, so the generic dynamic-cast
+	       * dispatcher cannot see it. Static unpacked ordering currently
+	       * admits integral elements; dispatch that exact supported subset
+	       * through the adapter's canonical vec4 representation. */
+	    if (op == 0 || op == 1)
+		  qsort_helper_<vvp_vector4_t>(
+			arr->vals, op == 1, false,
+			signed_cmp ? vec4_slt_ : vec4_lt_, vec4_eq_);
+	    else if (op == 2)
+		  qreverse_helper_<vvp_vector4_t>(arr->vals);
+	    else
+		  qshuffle_helper_<vvp_vector4_t>(arr->vals);
 	    return true;
       }
 
@@ -7413,7 +7434,7 @@ static void multiply_array_imm(unsigned long*res, const unsigned long*val,
  */
 static vvp_context_t vthread_alloc_context(__vpiScope*scope)
 {
-      assert(scope->is_automatic());
+      assert(scope->has_automatic_context());
 
       vvp_context_t context = scope->free_contexts;
       if (context) {
@@ -7448,7 +7469,7 @@ static vvp_context_t vthread_alloc_context(__vpiScope*scope)
  */
 static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
 {
-      assert(scope->is_automatic());
+      assert(scope->has_automatic_context());
       if (!context)
             return;
 
@@ -7456,7 +7477,7 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
             automatic_context_owner.find(context);
       if (owner_it != automatic_context_owner.end()) {
             __vpiScope*owner = owner_it->second;
-            if (owner && owner != scope && owner->is_automatic())
+            if (owner && owner != scope && owner->has_automatic_context())
                   scope = owner;
       }
 
@@ -7610,6 +7631,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->skip_free_scope = 0;
       thr->staged_alloc_rd_scope = 0;
       thr->pending_alloc_scope = 0;
+      thr->active_call_contexts.clear();
       thr->return_object_mirror_scope = 0;
       thr->dynamic_dispatch_base_scope = 0;
       thr->waiting_for_event = 0;
@@ -8435,7 +8457,25 @@ void vthread_run(vthread_t thr)
 			trampoline_call_stack.pop_back();
 			thr = caller;
 			running_thread = thr;
-			do_join(thr, reap);
+			/* process::kill() may terminate the logical process from
+			   inside one of its own nested function calls. do_disable()
+			   then reaps every active call frame and clears its parent
+			   link while the trampoline's run pin keeps the C++ object
+			   alive long enough to unwind. The recursive callf path
+			   already recognizes this state below; do the same here
+			   instead of trying to join a child no longer owned by this
+			   caller. Each killed trampoline frame will take this path in
+			   turn until execution returns to the killed process root. */
+			if (reap->parent == thr) {
+			      do_join(thr, reap);
+			} else {
+			      if (thr->i_was_disabled || thr->i_have_ended)
+			            release_active_call_context_(
+			                  thr, "trampoline-child-reap");
+			      else
+			            ensure_write_context_(thr,
+			                                  "trampoline-child-reap");
+			}
 			assert(!dispatch_pins.empty());
 			assert(dispatch_pins.back() == reap);
 			dispatch_pins.pop_back();
@@ -8731,7 +8771,7 @@ static bool context_live_in_owner(vvp_context_t context)
       if (owner_it == automatic_context_owner.end())
             return false;
       __vpiScope*owner = owner_it->second;
-      if (!(owner && owner->is_automatic()))
+      if (!(owner && owner->has_automatic_context()))
             return false;
       return live_automatic_contexts.count(context) != 0;
 }
@@ -8741,7 +8781,7 @@ static bool context_live_matches_scope_(vvp_context_t context, __vpiScope*ctx_sc
       if (!context)
             return false;
 
-      if (!(ctx_scope && ctx_scope->is_automatic()))
+      if (!(ctx_scope && ctx_scope->has_automatic_context()))
             return context_live_in_owner(context);
 
       unordered_map<vvp_context_t, __vpiScope*>::const_iterator owner_it =
@@ -8855,7 +8895,7 @@ static vvp_context_t first_live_stacked_context(vvp_context_t candidate, __vpiSc
       if (!candidate)
             return 0;
 
-      bool prefer_scope = (ctx_scope && ctx_scope->is_automatic());
+      bool prefer_scope = (ctx_scope && ctx_scope->has_automatic_context());
 
       if (!prefer_scope) {
             return find_stacked_context_match_(candidate, ctx_scope,
@@ -8879,14 +8919,14 @@ static vvp_context_t first_live_stacked_context(vvp_context_t candidate, __vpiSc
                         if (owner_it == automatic_context_owner.end())
                               return false;
                         __vpiScope*owner = owner_it->second;
-                        return owner && owner->is_automatic()
+                        return owner && owner->has_automatic_context()
                             && live_automatic_contexts.count(cur) != 0;
                   });
 }
 
 static vvp_context_t first_live_context_for_scope(vvp_context_t candidate, __vpiScope*ctx_scope)
 {
-      if (!(candidate && ctx_scope && ctx_scope->is_automatic()))
+      if (!(candidate && ctx_scope && ctx_scope->has_automatic_context()))
             return 0;
 
       return find_stacked_context_match_(candidate, ctx_scope,
@@ -8955,6 +8995,57 @@ vvp_context_item_t vthread_get_wt_context_item(unsigned context_idx)
 	    return 0;
       }
       running_thread->wt_context = use_context;
+      return vvp_get_context_item(use_context, context_idx);
+}
+
+vvp_context_item_t vthread_get_wt_context_item_scoped(unsigned context_idx,
+                                                       __vpiScope*ctx_scope)
+{
+      static bool warned_scoped_context_miss = false;
+
+      ctx_scope = resolve_context_scope(ctx_scope);
+      if (!(ctx_scope && ctx_scope->has_automatic_context()))
+            return vthread_get_wt_context_item(context_idx);
+      if (!running_thread)
+            return 0;
+
+      /* A caller can populate one of its automatic aggregate temporaries
+         after %alloc has pushed a callee frame. The unscoped accessor then
+         interprets CONTEXT_IDX in the callee and can fetch an unrelated
+         item at the same numeric slot. Select the activation that owns the
+         declaration instead. Writes prefer the writable chain, then the
+         exact readable/retained activation used by copy-out or a detached
+         branch. */
+      vvp_context_t use_context =
+            first_live_context_for_scope(running_thread->wt_context,
+                                         ctx_scope);
+      if (!use_context)
+            use_context = first_live_context_for_scope(
+                  running_thread->rd_context, ctx_scope);
+      if (!use_context && running_thread->owned_context
+          && context_live_matches_scope_(running_thread->owned_context,
+                                         ctx_scope))
+            use_context = running_thread->owned_context;
+      if (!use_context && ctx_scope->live_contexts
+          && vvp_get_next_context(ctx_scope->live_contexts) == 0)
+            use_context = ctx_scope->live_contexts;
+
+      if (!use_context) {
+            if (!warned_scoped_context_miss && auto_ctx_warn_enabled()) {
+                  const char*scope_name = vpi_get_str(vpiFullName, ctx_scope);
+                  fprintf(stderr,
+                          "Warning: vthread_get_wt_context_item_scoped could not find"
+                          " a live automatic context for scope=%s"
+                          " (wt=%p rd=%p owned=%p; further similar warnings suppressed)\n",
+                          scope_name ? scope_name : "<unknown>",
+                          running_thread->wt_context,
+                          running_thread->rd_context,
+                          running_thread->owned_context);
+                  warned_scoped_context_miss = true;
+            }
+            return 0;
+      }
+
       return vvp_get_context_item(use_context, context_idx);
 }
 
@@ -9028,7 +9119,7 @@ vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx, __vp
       static bool warned_scoped_context_miss = false;
 
       ctx_scope = resolve_context_scope(ctx_scope);
-      if (!(ctx_scope && ctx_scope->is_automatic()))
+      if (!(ctx_scope && ctx_scope->has_automatic_context()))
             return vthread_get_rd_context_item(context_idx);
       if (!running_thread)
             return 0;
@@ -9125,6 +9216,21 @@ vvp_context_item_t vthread_get_rd_context_item_scoped(unsigned context_idx, __vp
                   source = "wt";
                   ctx_stats_bump("rd-scoped.wt-deep");
             }
+      }
+      if (!use_context && running_thread->owned_context
+          && context_live_matches_scope_(running_thread->owned_context,
+                                         ctx_scope)) {
+            /* A detached fork branch can outlive the task call whose mixed
+               task.ctx frame it retained. The ordinary %free removes that
+               frame from the caller's wt/rd chains, but the branch's exact
+               activation remains pinned in owned_context. Prefer that
+               unambiguous per-thread owner before the single-live fallback:
+               concurrent calls leave several live frames for one scope, so
+               scope-global recovery cannot identify the branch's frame. */
+            owned_context = running_thread->owned_context;
+            use_context = owned_context;
+            source = "owned-head";
+            ctx_stats_bump("rd-scoped.owned-head");
       }
       if (!use_context) {
             /* Additive last-resort fallback (only reached when every chain
@@ -9255,7 +9361,7 @@ vvp_context_t vthread_recover_stacked_context_for_scope(
       vvp_context_t candidate, __vpiScope*scope)
 {
       scope = resolve_context_scope(scope);
-      if (!(candidate && scope && scope->is_automatic()))
+      if (!(candidate && scope && scope->has_automatic_context()))
             return 0;
       if (context_live_matches_scope_(candidate, scope))
             return candidate;
@@ -9265,7 +9371,7 @@ vvp_context_t vthread_recover_stacked_context_for_scope(
 vvp_context_t vthread_recover_unique_context_for_scope(__vpiScope*scope)
 {
       scope = resolve_context_scope(scope);
-      if (!(scope && scope->is_automatic() && scope->live_contexts))
+      if (!(scope && scope->has_automatic_context() && scope->live_contexts))
             return 0;
       if (vvp_get_next_context(scope->live_contexts))
             return 0;
@@ -9294,7 +9400,7 @@ vvp_context_t vthread_recover_context_for_scope(vvp_context_t candidate,
                                                 __vpiScope*ctx_scope)
 {
       ctx_scope = resolve_context_scope(ctx_scope);
-      if (!(ctx_scope && ctx_scope->is_automatic())) {
+      if (!(ctx_scope && ctx_scope->has_automatic_context())) {
             if (candidate && context_live_in_owner(candidate))
                   return candidate;
               /* (Thread-context fallback searches lived here for the
@@ -9370,7 +9476,7 @@ static void release_owned_context_(vthread_t thr)
             thr->wt_context = remove_context_from_stacked_chain_(thr->wt_context, owned);
             thr->rd_context = remove_context_from_stacked_chain_(thr->rd_context, owned);
 
-            if (ctx_scope && ctx_scope->is_automatic())
+            if (ctx_scope && ctx_scope->has_automatic_context())
                   vthread_free_context(owned, ctx_scope);
             /* The stacked link lives in the context object itself, not in
                the thread. Removing a self-pinned context from an ending
@@ -9440,6 +9546,66 @@ static vvp_context_t ensure_write_context_(vthread_t thr, const char*where)
       return use_context;
 }
 
+/* Release the automatic frame consumed by one synchronous call when the
+ * caller cannot execute the generated matching %free. The caller owns the
+ * original allocation; the callee merely borrows it while running. Keeping
+ * that distinction explicit is important for virtual dispatch, where the
+ * callee separately owns an override context while this record names the
+ * base-scope call-site frame. */
+static void release_active_call_context_(vthread_t thr, const char*where)
+{
+      if (!(thr && !thr->active_call_contexts.empty()))
+            return;
+
+      /* A killed nested copy-out/index call can sit above an outer completed
+         call whose generated %free has not run yet. Source execution will
+         resume for neither one, so release the caller-owned records in exact
+         LIFO order rather than discarding only the immediate callee frame. */
+      while (!thr->active_call_contexts.empty()) {
+            active_call_context_s record = thr->active_call_contexts.back();
+            thr->active_call_contexts.pop_back();
+            vvp_context_t saved_call_next =
+                  vvp_get_stacked_context(record.context);
+            bool retain_call_link = false;
+            unordered_map<vvp_context_t, unsigned>::const_iterator ref_it =
+                  automatic_context_refcount.find(record.context);
+            if (ref_it != automatic_context_refcount.end()
+                && ref_it->second > 1)
+                  retain_call_link = true;
+
+            thr->wt_context = remove_context_from_stacked_chain_(
+                  thr->wt_context, record.context);
+            thr->rd_context = remove_context_from_stacked_chain_(
+                  thr->rd_context, record.context);
+            vthread_free_context(record.context, record.scope);
+            if (retain_call_link)
+                  vvp_set_stacked_context(record.context, saved_call_next);
+            ctx_stats_bump("callf.active-release");
+            trace_context_event_("callf-active-release", thr, record.scope,
+                                 record.context);
+      }
+      ensure_write_context_(thr, where);
+}
+
+static void retire_active_call_context_(vthread_t thr,
+                                        vvp_context_t call_context)
+{
+      if (!(thr && call_context) || thr->active_call_contexts.empty())
+            return;
+      if (thr->active_call_contexts.back().context == call_context) {
+            thr->active_call_contexts.pop_back();
+            return;
+      }
+
+      /* %alloc/call/%free nesting is LIFO. A matching non-top record would
+         mean the bytecode/runtime ownership model diverged; do not silently
+         retire a different frame. */
+      for (vector<active_call_context_s>::const_reverse_iterator it =
+                 thr->active_call_contexts.rbegin()
+                 ; it != thr->active_call_contexts.rend() ; ++it)
+            assert(it->context != call_context);
+}
+
 /*
  * %abs/wr
  */
@@ -9489,7 +9655,7 @@ bool of_ALLOC(vthread_t thr, vvp_code_t cp)
          there is no live caller read context to preserve. */
       if (!(thr->rd_context && context_live_in_owner(thr->rd_context)))
             thr->rd_context = child_context;
-      else if (ctx_scope && ctx_scope->is_automatic()) {
+      else if (ctx_scope && ctx_scope->has_automatic_context()) {
             vvp_context_t caller_rd =
                   first_live_context_for_scope(thr->rd_context, ctx_scope);
             if (caller_rd && caller_rd != child_context) {
@@ -10069,7 +10235,6 @@ static int callf_depth = 0;
 static const int           CALLF_MAX_DEPTH   = 4096;  // absolute callf nesting depth
 
 static bool warned_callf_depth_fallback = false;
-static bool warned_callf_child_reaped = false;
 static bool warned_callf_rd_sync = false;
 static bool warned_callf_child_not_ended = false;
 static unsigned callf_target_trace_count = 0;
@@ -10078,7 +10243,7 @@ static std::vector<__vpiScope*> callf_scope_stack;
 
 static bool scope_has_own_automatic_context_(__vpiScope*scope)
 {
-      if (!(scope && scope->is_automatic()))
+      if (!(scope && scope->has_automatic_context()))
             return false;
 
       switch (scope->get_type_code()) {
@@ -10098,20 +10263,11 @@ static __vpiScope* resolve_context_scope(__vpiScope*scope)
       __vpiScope*orig_scope = scope;
       __vpiScope*ctx_scope = scope;
 
-      while (ctx_scope && !ctx_scope->is_automatic()) {
-            if (ctx_scope->scope && ctx_scope->scope->is_automatic()) {
-                  ctx_scope = ctx_scope->scope;
-                  break;
-            }
+      while (ctx_scope && !scope_has_own_automatic_context_(ctx_scope))
             ctx_scope = ctx_scope->scope;
-      }
 
       if (!ctx_scope)
             return orig_scope;
-
-      while (!scope_has_own_automatic_context_(ctx_scope)
-             && ctx_scope->scope && ctx_scope->scope->is_automatic())
-            ctx_scope = ctx_scope->scope;
       return ctx_scope;
 }
 
@@ -11013,8 +11169,34 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 	/* This call consumes the staged frame, so it is no longer a
 	   candidate for the %fork hand-off in of_FORK. Without this, a
 	   %fork sitting between the call and its matching %free would
-	   move the frame off this thread while it is still in use. */
-      if (thr->pending_alloc_scope == child_ctx_scope) {
+	   move the frame off this thread while it is still in use. The frame
+	   remains owned by the CALLER until %free; remember it explicitly so
+	   an abnormal process self-kill can release it without resuming source
+	   execution. A virtual override has its own callee-owned context, while
+	   this record continues to name the base-scope call-site frame. */
+      __vpiScope*call_alloc_scope = child->dynamic_dispatch_base_scope
+                                  ? resolve_context_scope(
+                                        child->dynamic_dispatch_base_scope)
+                                  : child_ctx_scope;
+      if (call_alloc_scope && call_alloc_scope->has_automatic_context()) {
+            /* Argument evaluation may itself make an automatic call after
+               the outer %alloc. That nested allocation overwrites the
+               single fork-handoff `pending_alloc_context' marker, but the
+               outer frame remains the newest live frame for its own scope
+               on the caller's write chain. The compiler emits exactly one
+               %alloc/%free pair around every such call, so this scoped head
+               is the caller-owned call-site frame even for same-scope
+               recursion and virtual dispatch through a base method. */
+            vvp_context_t call_context = first_live_context_for_scope(
+                  thr->wt_context, call_alloc_scope);
+            assert(call_context);
+            thr->active_call_contexts.push_back(active_call_context_s(
+                  call_context, call_alloc_scope));
+      }
+      if (thr->pending_alloc_scope == call_alloc_scope) {
+            assert(!thr->active_call_contexts.empty());
+            assert(thr->pending_alloc_context ==
+                   thr->active_call_contexts.back().context);
             thr->pending_alloc_context = 0;
             thr->pending_alloc_scope = 0;
       }
@@ -11101,7 +11283,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 	    return true; /* pretend it returned normally */
       }
 
-      if (child->parent_scope->is_automatic()) {
+      if (child->parent_scope->has_automatic_context()) {
 	      /* The context allocated for this child is the top entry
 		 on the write context stack */
 	    if (!child->wt_context)
@@ -11301,7 +11483,11 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
       }
 
 	      if (child->parent != thr) {
-                    ensure_write_context_(thr, "callf-child-reap");
+                    if (thr->i_was_disabled || thr->i_have_ended)
+                          release_active_call_context_(
+                                thr, "callf-child-reap");
+                    else
+                          ensure_write_context_(thr, "callf-child-reap");
 		    if (!warned_callf_child_reaped) {
 			  fprintf(stderr, "Warning: callf child thread was reaped during execution;"
 			          " treating call as completed (further similar warnings suppressed)\n");
@@ -11317,7 +11503,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 		                         child->wt_context);
 		    do_join(thr, child);
                     if (!(child->parent_scope
-                          && child->parent_scope->is_automatic())) {
+                          && child->parent_scope->has_automatic_context())) {
                           ensure_write_context_(thr, "callf-join");
                     }
 		    trace_context_event_("callf-after-join", thr, child->parent_scope,
@@ -12804,6 +12990,30 @@ static void dpi_parse_types_(const char*types, char dflt, unsigned nargs,
       }
 }
 
+static bool dpi_return_type_letter_(char type)
+{
+      return type == 'b' || type == 'B' || type == 'g'
+	  || type == 'h' || type == 'H'
+	  || type == 'i' || type == 'I'
+	  || type == 'l' || type == 'L';
+}
+
+static bool dpi_return_type_width_ok_(char type, unsigned wid)
+{
+      switch (type) {
+	  case 'b': return wid == 8;
+	  case 'B': return wid == 1 || wid == 8;
+	  case 'g': return wid == 1;
+	  case 'h':
+	  case 'H': return wid == 16;
+	  case 'i':
+	  case 'I': return wid == 32;
+	  case 'l':
+	  case 'L': return wid == 64;
+	  default:  return false;
+      }
+}
+
 /*
  * Shared worker for the %dpi/call opcodes. Pops the arguments from
  * their proper stacks per the signature string (in reverse push
@@ -12813,12 +13023,40 @@ static void dpi_parse_types_(const char*types, char dflt, unsigned nargs,
  * cannot be marshaled — a default result is pushed instead.
  */
 static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
-			     unsigned wid, char dflt_letter)
+			     unsigned wid, char dflt_letter,
+			     bool allow_integral_return_prefix)
 {
       char name_buf[256];
       const char*types = split_dpi_name_types_(cp->text, name_buf, sizeof name_buf);
       const char*c_name = name_buf;
       unsigned nargs = cp->bit_idx[0];
+      bool return_signature_ok = true;
+
+	/* New images prefix integral argument signatures with the exact Annex H
+	   return ABI. Images emitted before this prefix was introduced retain the
+	   opcode-provided width-only ret_type, so textual VVP compatibility is
+	   preserved in the forward (new-runtime/old-image) direction. A malformed
+	   prefix is diagnosed and its native call is skipped, while the opcode's
+	   legacy return kind still supplies a deterministic stack value. */
+      if (types[0] == '^') {
+	    if (!allow_integral_return_prefix) {
+		  fprintf(stderr, "DPI error: '%s': integral return ABI prefix "
+			  "is invalid for this opcode.\n", c_name);
+		  return_signature_ok = false;
+	    } else if (types[1] == 0 || !dpi_return_type_letter_(types[1])) {
+		  fprintf(stderr, "DPI error: '%s': malformed integral return "
+			  "ABI prefix.\n", c_name);
+		  return_signature_ok = false;
+	    } else if (!dpi_return_type_width_ok_(types[1], wid)) {
+		  fprintf(stderr, "DPI error: '%s': integral return ABI '%c' "
+			  "does not match %u-bit vec4 opcode width.\n",
+			  c_name, types[1], wid);
+		  return_signature_ok = false;
+	    } else {
+		  ret_type = types[1];
+	    }
+	    types += types[1] != 0 ? 2 : 1;
+      }
 
       vector<dpi_sig_tok_t> sig;
       dpi_parse_types_(types, dflt_letter, nargs, sig);
@@ -12845,6 +13083,7 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 	    arg.vbuf = 0;
 	    arg.vwid = 0;
 	    switch (sig[slot].base) {
+		case 'f':
 		case 'r':
 		  arg.rval = thr->pop_real();
 		  break;
@@ -12976,11 +13215,11 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
       double ret_r = 0.0;
       const char*ret_s = "";
 
-      void*sym = vvp_dpi_find_symbol(c_name);
-      if (!sym) {
+      void*sym = return_signature_ok ? vvp_dpi_find_symbol(c_name) : 0;
+      if (return_signature_ok && !sym) {
 	    fprintf(stderr, "DPI error: symbol '%s' not found in any "
 		    "loaded DPI library\n", c_name);
-      } else {
+      } else if (return_signature_ok) {
 	      // On marshaling failure vvp_dpi_call() has already
 	      // printed a diagnostic; fall through to push a default
 	      // result so the thread keeps a consistent stack.
@@ -13006,11 +13245,21 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 	// output-arg values (pushed above it) with %store opcodes,
 	// leaving the return value on top for %ret (which peeks).
       switch (ret_type) {
+	  case 'b':
+	  case 'B':
+	  case 'h':
+	  case 'H':
 	  case 'i':
+	  case 'I':
 	  case 'l':
+	  case 'L':
 	  case 'p':
 	    dpi_push_int64(thr, ret_i, wid);
 	    break;
+	  case 'g':
+	    dpi_push_logic_(thr, ret_i);
+	    break;
+	  case 'f':
 	  case 'r':
 	    thr->push_real(ret_r);
 	    break;
@@ -13043,6 +13292,7 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 				       (int64_t)(uintptr_t)args[ii].pval, 64);
 		          break;
 		case 'g': dpi_push_logic_(thr, args[ii].ival);    break;
+		case 'f':
 		case 'r': thr->push_real(args[ii].rval);          break;
 		case 's': thr->push_str(args[ii].sval ? args[ii].sval : "");
 			  break;
@@ -13099,7 +13349,7 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t cp)
 {
       unsigned wid = cp->bit_idx[1];
-      return dpi_call_common_(thr, cp, (wid > 32)? 'l' : 'i', wid, 'i');
+      return dpi_call_common_(thr, cp, (wid > 32)? 'l' : 'i', wid, 'i', true);
 }
 
 /*
@@ -13110,7 +13360,7 @@ bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t cp)
  */
 bool of_DPI_CALL_PTR(vthread_t thr, vvp_code_t cp)
 {
-      return dpi_call_common_(thr, cp, 'p', 64, 'i');
+      return dpi_call_common_(thr, cp, 'p', 64, 'i', false);
 }
 
 /*
@@ -13121,7 +13371,18 @@ bool of_DPI_CALL_PTR(vthread_t thr, vvp_code_t cp)
  */
 bool of_DPI_CALL_REAL(vthread_t thr, vvp_code_t cp)
 {
-      return dpi_call_common_(thr, cp, 'r', 0, 'r');
+      return dpi_call_common_(thr, cp, 'r', 0, 'r', false);
+}
+
+/*
+ * %dpi/call/shortreal "c_name|types" nargs
+ *
+ * Calls C function returning float, widens the result into vvp's internal
+ * double real stack, and otherwise shares the real-call argument machinery.
+ */
+bool of_DPI_CALL_SHORTREAL(vthread_t thr, vvp_code_t cp)
+{
+      return dpi_call_common_(thr, cp, 'f', 0, 'r', false);
 }
 
 /*
@@ -13135,7 +13396,7 @@ bool of_DPI_CALL_REAL(vthread_t thr, vvp_code_t cp)
  */
 bool of_DPI_CALL_STR(vthread_t thr, vvp_code_t cp)
 {
-      return dpi_call_common_(thr, cp, 's', 0, 's');
+      return dpi_call_common_(thr, cp, 's', 0, 's', false);
 }
 
 /*
@@ -13145,7 +13406,7 @@ bool of_DPI_CALL_STR(vthread_t thr, vvp_code_t cp)
  */
 bool of_DPI_CALL_VOID(vthread_t thr, vvp_code_t cp)
 {
-      return dpi_call_common_(thr, cp, 'v', 0, 'i');
+      return dpi_call_common_(thr, cp, 'v', 0, 'i', false);
 }
 
 /*
@@ -13158,9 +13419,9 @@ bool of_DPI_CALL_VOID(vthread_t thr, vvp_code_t cp)
 bool of_DPI_CALL_TASK(vthread_t thr, vvp_code_t cp)
 {
 #ifndef IVL_HAVE_DPI_CORO
-	// No coroutines on Windows: run synchronously. A time-consuming
-	// exported task then hits the loud sorry in dpi_export_run_.
-      return dpi_call_common_(thr, cp, 'v', 0, 'i');
+	// On a platform with no coroutine backend, run synchronously. A
+	// time-consuming exported task then hits the loud sorry in dpi_export_run_.
+      return dpi_call_common_(thr, cp, 'v', 0, 'i', false);
 #else
       dpi_coro_s*coro = dpi_coro_create_(thr, cp);
       dpi_coro_switch_into_(coro);
@@ -13241,7 +13502,7 @@ static bool validate_final_deferred_task_thunk_(vvp_code_t action)
       if (action->opcode == of_ALLOC) {
             alloc_scope = action->scope;
             if (!alloc_scope || alloc_scope->get_type_code() != vpiTask
-                || !alloc_scope->is_automatic())
+                || !alloc_scope->has_automatic_context())
                   return false;
             action = deferred_action_next_code_(action);
       }
@@ -13253,7 +13514,7 @@ static bool validate_final_deferred_task_thunk_(vvp_code_t action)
       if (alloc_scope) {
             if (action->scope != alloc_scope)
                   return false;
-      } else if (action->scope->is_automatic()) {
+      } else if (action->scope->has_automatic_context()) {
             return false;
       }
 
@@ -14632,7 +14893,7 @@ bool of_FORCE_LINK_A(vthread_t thr, vvp_code_t cp)
       unsigned wid = pending->width;
       force_pending_clear_(thr);
 
-      if (array->get_scope()->is_automatic()
+      if (array->automatic_storage
 	  || !array->is_forceable_vec4_array() || !source->fil)
 	    return true;
       array->force_link_word(word, base, wid, source);
@@ -14712,7 +14973,7 @@ bool of_FORCE_VEC4_A(vthread_t thr, vvp_code_t cp)
 	    return true;
       vvp_array_t array = resolve_runtime_array_(cp, "%force/vec4/a");
       if (!array || address < 0 || (uint64_t)address >= array->get_size()
-	  || array->get_scope()->is_automatic()
+	  || array->automatic_storage
 	  || !array->is_forceable_vec4_array())
 	    return true;
 
@@ -14847,7 +15108,7 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
             thr->staged_alloc_rd_scope = 0;
       }
 
-      if (cp->scope->is_automatic()) {
+      if (cp->scope->has_automatic_context()) {
               /* The context allocated for this child is the top entry
                  on the write context stack. */
             child->wt_context = thr->wt_context;
@@ -14875,7 +15136,7 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
                   child->owned_context_is_chain = 0;
             }
       }
-      if (!cp->scope->is_automatic()
+      if (!cp->scope->has_automatic_context()
           && thr->pending_alloc_context
           && thr->pending_alloc_context == thr->wt_context) {
               /* An %alloc that no call has consumed yet, and a fork into a
@@ -15127,6 +15388,7 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
             thr->rd_context = remove_context_from_stacked_chain_(thr->rd_context,
                                                                  skip_context);
             trace_context_event_("free-skip", thr, ctx_scope, skip_context);
+            retire_active_call_context_(thr, skip_context);
             thr->skip_free_context = 0;
             thr->skip_free_scope = 0;
             vthread_free_context(skip_context, skip_scope);
@@ -15142,7 +15404,7 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
            frame for this scope from the write stack first and scrub it from
            both chains. */
       vvp_context_t child_context = 0;
-      if (ctx_scope && ctx_scope->is_automatic()) {
+      if (ctx_scope && ctx_scope->has_automatic_context()) {
             if (thr->rd_context
                 && context_live_matches_scope_(thr->rd_context, ctx_scope))
                   child_context = thr->rd_context;
@@ -15170,6 +15432,7 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
             retain_child_link = true;
       thr->wt_context = remove_context_from_stacked_chain_(thr->wt_context, child_context);
       thr->rd_context = remove_context_from_stacked_chain_(thr->rd_context, child_context);
+      retire_active_call_context_(thr, child_context);
 
       /* If the current scope has no remaining live read frame after this
          free, hand reads back to the caller frame at the write head.
@@ -15187,7 +15450,7 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
          stores through the callee frame instead of the caller frame —
          the ref-dyn-array silent-loss bug (m7_stress_findings finding
          2). */
-      if (ctx_scope && ctx_scope->is_automatic()
+      if (ctx_scope && ctx_scope->has_automatic_context()
           && !(thr->rd_context && context_live_in_owner(thr->rd_context))) {
             /* Same-scope recursion keeps the immediate caller frame at the
                head of wt_context after the callee frame is removed. Prefer
@@ -15207,7 +15470,7 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
          release_owned_context_ and free-skip above. */
       if (retain_child_link)
             vvp_set_stacked_context(child_context, saved_child_next);
-      if (!(ctx_scope && ctx_scope->is_automatic()
+      if (!(ctx_scope && ctx_scope->has_automatic_context()
             && thr->wt_context && context_live_in_owner(thr->wt_context))) {
             ensure_write_context_(thr, "free");
       }
@@ -15646,7 +15909,7 @@ static void do_join(vthread_t thr, vthread_t child)
                   if (base_ctx_scope)
                         pop_ctx_scope = base_ctx_scope;
             }
-            if (pop_ctx_scope && pop_ctx_scope->is_automatic())
+            if (pop_ctx_scope && pop_ctx_scope->has_automatic_context())
                   child_context = first_live_context_for_scope(thr->wt_context,
                                                                pop_ctx_scope);
 
@@ -15674,7 +15937,7 @@ static void do_join(vthread_t thr, vthread_t child)
 	                  thr->rd_context = caller_rd;
 	                  vvp_set_stacked_context(child_context, thr->rd_context);
 	                  thr->rd_context = child_context;
-	                  if (!thr->wt_context && thr_ctx_scope && thr_ctx_scope->is_automatic()
+	                  if (!thr->wt_context && thr_ctx_scope && thr_ctx_scope->has_automatic_context()
 	                      && caller_rd
 	                      && context_live_matches_scope_(caller_rd, thr_ctx_scope)) {
 	                        thr->wt_context = caller_rd;
@@ -15741,17 +16004,97 @@ static void do_join(vthread_t thr, vthread_t child)
  * reusing the same inline child-thread execution the M6-CALLF path uses
  * for SV->SV calls — then marshal the result back to C.
  *
- * Supported: zero-time functions/tasks in a single static instance whose
- * arguments and return are integer atoms or real. A time-consuming export
- * (one that blocks on an event/#delay) is a loud sorry — never a silent
- * wrong answer.
+ * Supported here: functions/tasks with integer atoms, scalar bit/logic,
+ * shortreal/real, chandle, string, and packed-vector formals. A
+ * time-consuming void export reached through an imported DPI task uses the
+ * coroutine bridge; a suspending export with no such bridge is a loud sorry,
+ * never a silent wrong answer.
  */
 typedef union ivl_dpi_arg_u {
       int64_t i;
       double  r;
       const char*s;
+      void*p;
       uint32_t*v;
 } ivl_dpi_arg_t;
+
+/* Copy exported output/inout formals from the completed SV activation into
+ * the C-facing argument buffer while the activation context is still alive.
+ * Both the synchronous function path and the imported-task coroutine path
+ * must use this exact operation: the latter resumes on the C stack before the
+ * scheduler reaps its completed child. */
+static void dpi_export_copy_out_(const struct dpi_export_info_s&info,
+				 int nargs, ivl_dpi_arg_t*args,
+				 vector<string>&string_arg_hold,
+				 vthread_t child, vthread_t caller)
+{
+      /* A nested C->SV->C->SV call may have populated this same hold area
+	 while the child ran. Replace it only after the child completes, and size
+	 it before taking any c_str pointers so later elements cannot reallocate
+	 the vector. */
+      string_arg_hold.clear();
+      string_arg_hold.resize(info.nargs);
+      running_thread = child;
+      for (unsigned idx = 0 ; idx < info.nargs && (int)idx < nargs ; idx += 1) {
+	    char letter = info.arg_sig[2*idx];
+	    char direction = info.arg_sig[2*idx+1];
+	    if (direction == 'i' || info.arg_nets[idx] == 0) continue;
+	    vvp_net_t*net = info.arg_nets[idx];
+	    vvp_signal_value*sv = dynamic_cast<vvp_signal_value*>(net->fil);
+	    if (letter == 'f' || letter == 'r') {
+		  if (sv) args[idx].r = sv->real_value();
+	    } else if (letter == 's') {
+		  vvp_fun_signal_string*ss =
+			dynamic_cast<vvp_fun_signal_string*>(net->fil);
+		  if (ss) {
+			string_arg_hold[idx] = ss->get_string();
+			args[idx].s = string_arg_hold[idx].c_str();
+		  }
+	    } else if (sv) {
+		  vvp_vector4_t val;
+		  sv->vec4_value(val);
+		  if ((letter == 'V' || letter == 'W') && args[idx].v) {
+			unsigned words = (val.size() + 31) / 32;
+			for (unsigned w = 0 ; w < words ; w += 1) {
+			      if (letter == 'V') args[idx].v[w] = 0;
+			      else {
+				    args[idx].v[2*w] = 0;
+				    args[idx].v[2*w+1] = 0;
+			      }
+			}
+			for (unsigned b = 0 ; b < val.size() ; b += 1) {
+			      unsigned word = b / 32;
+			      uint32_t mask = uint32_t(1) << (b % 32);
+			      vvp_bit4_t bit = val.value(b);
+			      if (letter == 'V') {
+				    if (bit == BIT4_1) args[idx].v[word] |= mask;
+			      } else {
+				    if (bit == BIT4_1 || bit == BIT4_X)
+					  args[idx].v[2*word] |= mask;
+				    if (bit == BIT4_X || bit == BIT4_Z)
+					  args[idx].v[2*word+1] |= mask;
+			      }
+			}
+		  } else if (letter == 'g' && val.size() > 0) {
+			switch (val.value(0)) {
+			    case BIT4_0: args[idx].i = 0; break;
+			    case BIT4_1: args[idx].i = 1; break;
+			    case BIT4_Z: args[idx].i = 2; break;
+			    default:     args[idx].i = 3; break;
+			}
+		  } else {
+			uint64_t u = 0;
+			for (unsigned b = 0 ; b < val.size() && b < 64 ; b += 1)
+			      if (val.value(b) == BIT4_1) u |= uint64_t(1) << b;
+			if (letter == 'p')
+			      args[idx].p = (void*)(uintptr_t)u;
+			else
+			      args[idx].i = (int64_t)u;
+		  }
+	    }
+      }
+      running_thread = caller;
+}
 
 // Multi-instance export selection (H.9 / 35.5.2). Among the N records
 // registered for a C name (one per instance of a multiply-instantiated
@@ -15805,6 +16148,12 @@ static unsigned dpi_export_pick_instance_(const char*cname, unsigned n)
 static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 			    int64_t*ret_i, double*ret_r, std::string*ret_s)
 {
+	/* Exported output/inout strings are simulator-owned. Keep copies outside
+	   an automatic invocation context so their C pointers remain valid after
+	   the child is joined and reaped, through the next DPI export call. */
+      static vector<string> string_arg_hold;
+      string_arg_hold.clear();
+
       unsigned ninst = dpi_export_count(cname);
       if (ninst == 0) {
 	    fprintf(stderr, "vvp: internal error: DPI export '%s' is not "
@@ -15863,7 +16212,7 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 	   gives a static subroutine one copy of its arguments, so concurrent
 	   invocations alias -- exactly what a plain SV static task does. */
       vvp_context_t exp_context = 0;
-      if (scope->is_automatic()) {
+      if (scope->has_automatic_context()) {
 	    exp_context = vthread_alloc_context(scope);
 	    child->wt_context = exp_context;
 	    child->rd_context = exp_context;
@@ -15878,7 +16227,7 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 		  continue;
 	    char letter = info.arg_sig[2*idx];
 	    char direction = info.arg_sig[2*idx+1];
-	    if (letter == 'r') {
+	    if (letter == 'f' || letter == 'r') {
 		  vvp_send_real(vvp_net_ptr_t(net, 0),
 				direction == 'o' ? 0.0 : args[idx].r,
 				exp_context);
@@ -15890,8 +16239,10 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 	    } else {
 		  vvp_signal_value*sv = dynamic_cast<vvp_signal_value*>(net->fil);
 		  unsigned wid = sv ? sv->value_size() : 64;
-		  vvp_vector4_t val (wid,
-			(direction == 'o' && letter == 'W') ? BIT4_X : BIT4_0);
+		  vvp_vector4_t val (
+			wid, (direction == 'o'
+			      && (letter == 'W' || letter == 'g'))
+			     ? BIT4_X : BIT4_0);
 		  if ((letter == 'V' || letter == 'W') && direction != 'o'
 		      && args[idx].v) {
 			for (unsigned b = 0 ; b < wid ; b += 1) {
@@ -15907,9 +16258,18 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 							 : (aval ? BIT4_X : BIT4_Z));
 			      }
 			}
+		  } else if (letter == 'g' && direction != 'o' && wid == 1) {
+			switch ((unsigned)args[idx].i & 3u) {
+			    case 0: val.set_bit(0, BIT4_0); break;
+			    case 1: val.set_bit(0, BIT4_1); break;
+			    case 2: val.set_bit(0, BIT4_Z); break;
+			    default: val.set_bit(0, BIT4_X); break;
+			}
 		  } else if (letter != 'V' && letter != 'W'
 			     && direction != 'o') {
-			uint64_t u = (uint64_t) args[idx].i;
+			uint64_t u = letter == 'p'
+			      ? (uint64_t)(uintptr_t)args[idx].p
+			      : (uint64_t)args[idx].i;
 			for (unsigned b = 0 ; b < wid ; b += 1)
 			      val.set_bit(b, ((u >> (b < 64 ? b : 63)) & 1)
 					  ? BIT4_1 : BIT4_0);
@@ -15919,8 +16279,8 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
       }
 
 #ifdef IVL_HAVE_DPI_CORO
-	/* Time-consuming exported TASK path: a void export reached from an
-	   imported DPI *task* (running on a coroutine). Let the scheduler run
+	/* Coroutine export path: a void task or function reached from an imported
+	   DPI task. Let the scheduler run
 	   the child across simulation time and park the coroutine until it
 	   ends. The child is a normal join-child of thr (the SV thread that
 	   issued the %dpi/call); resume_joining_parent_ resumes this coroutine
@@ -15934,7 +16294,20 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 	    thr->i_am_joining = 1;
 	    schedule_vthread(child, 0);   // marks the child scheduled
 	    dpi_coro_yield_(coro);   // park; resumed after the child ends
-	    return true;             // void task: no return value to read
+	      /* resume_joining_parent_ switched us back in before it reaps the
+		 completed child. Copy outputs now, while an automatic activation's
+		 context and string storage are still live. This also covers a
+		 zero-time exported void function reached from an imported task;
+		 ret_sig alone intentionally does not distinguish that function from
+		 a task. */
+	    bool ok = child->i_have_ended && child->parent == thr
+		  && ! vthread_is_blocked_on_wait_(child);
+	    if (ok)
+		  dpi_export_copy_out_(info, nargs, args, string_arg_hold,
+				       child, thr);
+	    else
+		  running_thread = thr;
+	    return ok;               // void export: no return value to read
       }
 #endif
 
@@ -15953,7 +16326,7 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 	   %ret/<type> pokes the result into that slot; we read it back off
 	   our stack after the child ends. */
       unsigned ret_wid = 0;
-      if (info.ret_sig == 'r') {
+      if (info.ret_sig == 'f' || info.ret_sig == 'r') {
 	    thr->push_real(0.0);
 	    child->args_real.push_back(0);
       } else if (info.ret_sig == 's') {
@@ -15992,62 +16365,15 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
       bool ok = child->i_have_ended && child->parent == thr
 		&& ! vthread_is_blocked_on_wait_(child);
 
-	/* DPI output and inout arguments are copy-out parameters (35.5.6).
+      /* DPI output and inout arguments are copy-out parameters (35.5.6).
 	   Read them before joining/reaping the child, while an automatic
 	   function's invocation context is still alive. */
-      if (ok) {
-	    running_thread = child;
-	    for (unsigned idx = 0 ; idx < info.nargs && (int)idx < nargs ; idx += 1) {
-		  char letter = info.arg_sig[2*idx];
-		  char direction = info.arg_sig[2*idx+1];
-		  if (direction == 'i' || info.arg_nets[idx] == 0) continue;
-		  vvp_net_t*net = info.arg_nets[idx];
-		  vvp_signal_value*sv = dynamic_cast<vvp_signal_value*>(net->fil);
-		  if (letter == 'r') {
-			if (sv) args[idx].r = sv->real_value();
-		  } else if (letter == 's') {
-			vvp_fun_signal_string*ss =
-			      dynamic_cast<vvp_fun_signal_string*>(net->fil);
-			if (ss) args[idx].s = ss->get_string().c_str();
-		  } else if (sv) {
-			vvp_vector4_t val;
-			sv->vec4_value(val);
-			if ((letter == 'V' || letter == 'W') && args[idx].v) {
-			      unsigned words = (val.size() + 31) / 32;
-			      for (unsigned w = 0 ; w < words ; w += 1) {
-				    if (letter == 'V') args[idx].v[w] = 0;
-				    else {
-					  args[idx].v[2*w] = 0;
-					  args[idx].v[2*w+1] = 0;
-				    }
-			      }
-			      for (unsigned b = 0 ; b < val.size() ; b += 1) {
-				    unsigned word = b / 32;
-				    uint32_t mask = uint32_t(1) << (b % 32);
-				    vvp_bit4_t bit = val.value(b);
-				    if (letter == 'V') {
-					  if (bit == BIT4_1) args[idx].v[word] |= mask;
-				    } else {
-					  if (bit == BIT4_1 || bit == BIT4_X)
-						args[idx].v[2*word] |= mask;
-					  if (bit == BIT4_X || bit == BIT4_Z)
-						args[idx].v[2*word+1] |= mask;
-				    }
-			      }
-			} else {
-			      uint64_t u = 0;
-			      for (unsigned b = 0 ; b < val.size() && b < 64 ; b += 1)
-				    if (val.value(b) == BIT4_1) u |= uint64_t(1) << b;
-			      args[idx].i = (int64_t)u;
-			}
-		  }
-	    }
-	    running_thread = thr;
-      }
+      if (ok)
+	    dpi_export_copy_out_(info, nargs, args, string_arg_hold, child, thr);
 
 	/* Read the return value off this thread's stack (the slot the child
 	   poked) and pop the placeholder. */
-      if (info.ret_sig == 'r') {
+      if (info.ret_sig == 'f' || info.ret_sig == 'r') {
 	    double rv = thr->peek_real(0);
 	    if (ok && ret_r) *ret_r = rv;
 	    thr->pop_real(1);
@@ -16062,6 +16388,14 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 	    for (unsigned b = 0 ; b < wid && b < 64 ; b += 1)
 		  if (out.value(b) == BIT4_1)
 			u |= (uint64_t)1 << b;
+	    if (info.ret_sig == 'g' && wid > 0) {
+		  switch (out.value(0)) {
+		      case BIT4_0: u = 0; break;
+		      case BIT4_1: u = 1; break;
+		      case BIT4_Z: u = 2; break;
+		      default:     u = 3; break;
+		  }
+	    }
 	    int64_t s = (int64_t) u;
 	    if (info.ret_sig == 'I' && wid > 0 && wid < 64
 		&& ((u >> (wid - 1)) & 1))
@@ -22992,7 +23326,7 @@ bool of_RELEASE_REG_A(vthread_t thr, vvp_code_t cp)
 	    return true;
       vvp_array_t array = resolve_runtime_array_(cp, "%release/reg/a");
       if (!array || address < 0 || (uint64_t)address >= array->get_size()
-	  || array->get_scope()->is_automatic()
+	  || array->automatic_storage
 	  || !array->is_forceable_vec4_array())
 	    return true;
       unsigned word_wid = array->get_word_size();
@@ -26614,7 +26948,7 @@ static bool do_exec_ufunc(vthread_t thr, vvp_code_t cp, vthread_t child)
 
         /* If an automatic function, allocate a context for this call. */
       vvp_context_t child_context = 0;
-      if (child_scope->is_automatic()) {
+      if (child_scope->has_automatic_context()) {
             child_context = vthread_alloc_context(ctx_scope);
             thr->wt_context = child_context;
             thr->rd_context = child_context;
@@ -26693,7 +27027,7 @@ bool of_REAP_UFUNC(vthread_t thr, vvp_code_t cp)
       cp->ufunc_core_ptr->finish_thread();
 
         /* If an automatic function, free the context for this call. */
-      if (child_scope->is_automatic()) {
+      if (child_scope->has_automatic_context()) {
             vthread_free_context(thr->rd_context, ctx_scope);
             thr->wt_context = 0;
             thr->rd_context = 0;

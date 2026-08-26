@@ -46,7 +46,9 @@ static int real_var_get(int code, vpiHandle ref)
 	    return 0; // Not implemented for now!
 
 	case vpiAutomatic:
-	  return vpip_scope(rfp)->is_automatic()? 1 : 0;
+	  if (rfp->is_netarray)
+		return vpi_get(vpiAutomatic, rfp->within.parent);
+	  return rfp->automatic_storage ? 1 : 0;
       }
 
       return 0;
@@ -181,13 +183,15 @@ vpiHandle __vpiRealVar::vpi_iterate(int code)
 { return real_var_iterate(code, this); }
 
 static vpiHandle vpip_make_real_(__vpiScope*scope, const char*name,
-				 vvp_net_t*net, bool is_wire)
+				 vvp_net_t*net, bool is_wire,
+                                 bool automatic_storage)
 {
       struct __vpiRealVar*obj = new __vpiRealVar;
 
       obj->id.name = name ? vpip_name_string(name) : NULL;
       obj->is_netarray = 0;
       obj->is_wire = is_wire;
+      obj->automatic_storage = automatic_storage ? 1 : 0;
       obj->net = net;
 
       obj->within.scope = scope;
@@ -195,15 +199,17 @@ static vpiHandle vpip_make_real_(__vpiScope*scope, const char*name,
       return obj;
 }
 
-vpiHandle vpip_make_real_var(const char*name, vvp_net_t*net)
+vpiHandle vpip_make_real_var(const char*name, vvp_net_t*net,
+                             bool automatic_storage)
 {
-      return vpip_make_real_(vpip_peek_current_scope(), name, net, false);
+      return vpip_make_real_(vpip_peek_current_scope(), name, net, false,
+                             automatic_storage);
 }
 
 vpiHandle vpip_make_real_net(__vpiScope*scope,
 			     const char*name, vvp_net_t*net)
 {
-      return vpip_make_real_(scope, name, net, true);
+      return vpip_make_real_(scope, name, net, true, false);
 }
 
 #ifdef CHECK_WITH_VALGRIND

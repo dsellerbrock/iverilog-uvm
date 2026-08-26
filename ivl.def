@@ -47,6 +47,7 @@ ivl_event_basename
 ivl_event_edg
 ivl_event_is_array
 ivl_event_file
+ivl_event_lifetime
 ivl_event_lineno
 ivl_event_name
 ivl_event_nany
@@ -372,6 +373,7 @@ ivl_type_element
 ivl_type_enum
 ivl_type_is_chandle
 ivl_type_is_packed_vector
+ivl_type_is_shortreal
 ivl_type_is_tagged_union
 ivl_type_is_union
 ivl_type_name

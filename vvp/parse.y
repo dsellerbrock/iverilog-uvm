@@ -126,7 +126,7 @@ static struct __vpiModPath*modpath_dst = 0;
 
 %type <flag>  local_flag
 %type <flag>  signed_opt
-%type <numb>  storage_flag
+%type <numb>  storage_flag array_storage_flag
 %type <vpi_enum> port_type
 %type <numb>  signed_t_number
 %type <ranges> dimension dimensions dimensions_opt
@@ -242,33 +242,39 @@ statement
   /* Memory.  Definition, port, initialization */
 
         | T_LABEL K_ARRAY T_STRING ',' signed_t_number signed_t_number ',' signed_t_number signed_t_number ';'
-                { compile_var_array($1, $3, $5, $6, $8, $9, 0); }
+                { compile_var_array($1, $3, $5, $6, $8, $9, 0, 0); }
 
-        | T_LABEL K_ARRAY_2U T_STRING ',' signed_t_number signed_t_number ',' signed_t_number signed_t_number ';'
-                { compile_var2_array($1, $3, $5, $6, $8, $9, false); }
-        | T_LABEL K_ARRAY_2S T_STRING ',' signed_t_number signed_t_number ',' signed_t_number signed_t_number ';'
-                { compile_var2_array($1, $3, $5, $6, $8, $9, true); }
+        | T_LABEL K_ARRAY array_storage_flag T_STRING ',' signed_t_number signed_t_number ',' signed_t_number signed_t_number ';'
+                { compile_var_array($1, $4, $6, $7, $9, $10, 0, $3); }
 
-        | T_LABEL K_ARRAY_I T_STRING ',' signed_t_number signed_t_number ',' signed_t_number signed_t_number ';'
-                { compile_var_array($1, $3, $5, $6, $8, $9, 2); }
+        | T_LABEL K_ARRAY_2U storage_flag T_STRING ',' signed_t_number signed_t_number ',' signed_t_number signed_t_number ';'
+                { compile_var2_array($1, $4, $6, $7, $9, $10, false, $3); }
+        | T_LABEL K_ARRAY_2S storage_flag T_STRING ',' signed_t_number signed_t_number ',' signed_t_number signed_t_number ';'
+                { compile_var2_array($1, $4, $6, $7, $9, $10, true, $3); }
 
-        | T_LABEL K_ARRAY_R T_STRING ',' signed_t_number signed_t_number ';'
-                { compile_real_array($1, $3, $5, $6); }
+        | T_LABEL K_ARRAY_I storage_flag T_STRING ',' signed_t_number signed_t_number ',' signed_t_number signed_t_number ';'
+                { compile_var_array($1, $4, $6, $7, $9, $10, 2, $3); }
 
-        | T_LABEL K_ARRAY_S T_STRING ',' signed_t_number signed_t_number ',' signed_t_number signed_t_number ';'
-                { compile_var_array($1, $3, $5, $6, $8, $9, 1); }
+        | T_LABEL K_ARRAY_R storage_flag T_STRING ',' signed_t_number signed_t_number ';'
+                { compile_real_array($1, $4, $6, $7, $3); }
 
-        | T_LABEL K_ARRAY_STR T_STRING ',' signed_t_number signed_t_number ';'
-                { compile_string_array($1, $3, $5, $6); }
+        | T_LABEL K_ARRAY_S storage_flag T_STRING ',' signed_t_number signed_t_number ',' signed_t_number signed_t_number ';'
+                { compile_var_array($1, $4, $6, $7, $9, $10, 1, $3); }
 
-        | T_LABEL K_ARRAY_OBJ T_STRING ',' signed_t_number signed_t_number ';'
-                { compile_object_array($1, $3, $5, $6); }
+        | T_LABEL K_ARRAY_STR storage_flag T_STRING ',' signed_t_number signed_t_number ';'
+                { compile_string_array($1, $4, $6, $7, $3); }
 
-        | T_LABEL K_ARRAY_OBJ T_STRING ',' signed_t_number signed_t_number ',' T_SYMBOL ';'
-                { compile_object_array($1, $3, $5, $6, $8); }
+        | T_LABEL K_ARRAY_OBJ storage_flag T_STRING ',' signed_t_number signed_t_number ';'
+                { compile_object_array($1, $4, $6, $7, $3); }
+
+        | T_LABEL K_ARRAY_OBJ storage_flag T_STRING ',' signed_t_number signed_t_number ',' T_SYMBOL ';'
+                { compile_object_array($1, $4, $6, $7, $3, $9); }
 
         | T_LABEL K_ARRAY T_STRING ',' signed_t_number signed_t_number ';'
-                { compile_net_array($1, $3, $5, $6); }
+                { compile_net_array($1, $3, $5, $6, 0); }
+
+        | T_LABEL K_ARRAY array_storage_flag T_STRING ',' signed_t_number signed_t_number ';'
+                { compile_net_array($1, $4, $6, $7, $3); }
 
         | T_LABEL K_ARRAY_PORT T_SYMBOL ',' T_SYMBOL ';'
 		{ compile_array_port($1, $3, $5); }
@@ -723,8 +729,8 @@ statement
 	| T_LABEL K_EVENT K_DEBUG T_SYMBOL ',' symbols ';'
                 { compile_event($1, $4, $6.cnt, $6.vect); }
 
-	| T_LABEL K_EVENT T_STRING ';'
-		{ compile_named_event($1, $3); }
+	| T_LABEL K_EVENT storage_flag T_STRING ';'
+		{ compile_named_event($1, $4, $3); }
 
 	| T_LABEL K_EVENT_OR symbols ';'
                 { compile_event($1, 0, $3.cnt, $3.vect); }
@@ -1287,6 +1293,18 @@ storage_flag
   : '!' { $$ = -1; }
   | '^' { $$ = 1; }
   |     { $$ = 0; }
+  ;
+
+/* Plain .array also has the historical alias form
+     .array "name", source_symbol;
+   so an empty lifetime nonterminal before T_STRING makes the parser commit
+   to that alias after seeing the comma and reject ordinary four-state array
+   declarations whose next token is a number. Keep the unmarked legacy
+   productions above and use this nonempty form only for new lifetime-marked
+   records. */
+array_storage_flag
+  : '!' { $$ = -1; }
+  | '^' { $$ = 1; }
   ;
 
   /* Optional element-signedness marker on .var/darray and .var/queue

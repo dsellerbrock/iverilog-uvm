@@ -4023,6 +4023,9 @@ class NetEvent : public LineInfo {
       bool local_flag() const { return local_flag_; }
       void local_flag(bool f) { local_flag_ = f; }
 
+      ivl_lifetime_t lifetime_override() const { return lifetime_override_; }
+      void lifetime_override(ivl_lifetime_t val) { lifetime_override_ = val; }
+
 	// A non-static class `event` property is per-instance: each object
 	// owns its own runtime event. Such events are flagged here and
 	// carry a design-global unique slot used by the runtime object to
@@ -4081,6 +4084,7 @@ class NetEvent : public LineInfo {
       perm_string name_;
       unsigned lexical_pos_;
       bool local_flag_;
+      ivl_lifetime_t lifetime_override_;
 
 	// Per-instance class event support (see is_class_event()).
       bool is_class_event_ = false;

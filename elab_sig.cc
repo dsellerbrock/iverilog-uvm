@@ -66,6 +66,35 @@ static ivl_type_t resolve_class_handle_placeholder_type_weak_(Design*des,
 						      NetScope*scope,
 						      const data_type_t*type_pf);
 
+/* IEEE 1800 Annex H.8.9 restricts a DPI function result to the small-value
+ * C ABI types. Keep this check on elaborated type identity so typedef aliases
+ * work naturally, and recurse through an enum to its H.7.3 base type. */
+static bool dpi_function_result_type_allowed_(ivl_type_t type)
+{
+      if (const netenum_t*enum_type = dynamic_cast<const netenum_t*>(type))
+	    return dpi_function_result_type_allowed_(enum_type->base_type_obj());
+
+      if (dynamic_cast<const netreal_t*>(type)
+	  || dynamic_cast<const netstring_t*>(type))
+	    return true;
+
+      if (type == &netvector_t::chandle_type
+	  || type == &netvector_t::atom2s8
+	  || type == &netvector_t::atom2u8
+	  || type == &netvector_t::atom2s16
+	  || type == &netvector_t::atom2u16
+	  || type == &netvector_t::atom2s32
+	  || type == &netvector_t::atom2u32
+	  || type == &netvector_t::atom2s64
+	  || type == &netvector_t::atom2u64)
+	    return true;
+
+      const netvector_t*vec = dynamic_cast<const netvector_t*>(type);
+      return vec && vec->get_scalar()
+	  && (vec->base_type() == IVL_VT_BOOL
+	      || vec->base_type() == IVL_VT_LOGIC);
+}
+
 /* elaborate_class_property_type_ deliberately follows typedef declarations
  * directly so it can repair late class handles without re-entering a class
  * signature through typedef_t::elaborate_type. Preserve the forward-typedef
@@ -2270,9 +2299,17 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 			       * return-signal pass. Keep the return signal object-typed
 			       * so later lowering does not degrade it to a scalar. */
 			      ret_type = placeholder_ret_type;
-			}
-			ivl_assert(*this, ret_type);
-		  }
+				}
+				ivl_assert(*this, ret_type);
+				if ((is_dpi_import() || is_dpi_export())
+				    && !dpi_function_result_type_allowed_(ret_type)) {
+				      cerr << get_fileline() << ": error: DPI function result "
+				           << "type is not permitted by IEEE 1800 Annex H.8.9; "
+				           << "use void, an integer atom, scalar bit/logic, "
+				           << "shortreal, real, chandle, or string." << endl;
+				      des->errors += 1;
+				}
+			  }
 	    } else {
 		  const netvector_t*tmp = new netvector_t(IVL_VT_LOGIC);
 		  ret_type = tmp;

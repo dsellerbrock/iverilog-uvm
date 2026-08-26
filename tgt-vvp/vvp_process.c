@@ -1956,17 +1956,15 @@ static void force_real_to_lval(ivl_statement_t net)
       fprintf(vvp_out, "    %s v%p_%lu;\n", command_name, lsig, use_word);
 }
 
-/* A variable array declared in an automatic scope is currently emitted as
-   per-invocation associative storage. A force watcher cannot safely retain a
-   pointer to that storage after the invocation ends. Explicit automatic
-   lifetime in an otherwise static scope has the same restriction.
-
-   TODO: Once the .array record carries an explicit lifetime override, an
-   explicitly static array in an automatic scope can be accepted here. */
+/* A force watcher cannot safely retain a pointer to per-invocation array
+   storage after its activation ends. Explicit lifetime overrides take
+   precedence over the enclosing scope (IEEE 1800-2023 6.21). */
 static int force_array_is_automatic_(ivl_signal_t sig)
 {
-      return ivl_signal_lifetime(sig) == IVL_VLT_AUTOMATIC
-          || ivl_scope_is_auto(ivl_signal_scope(sig));
+      ivl_lifetime_t lifetime = ivl_signal_lifetime(sig);
+      return lifetime == IVL_VLT_AUTOMATIC
+          || (lifetime == IVL_VLT_INHERITED
+	      && ivl_scope_is_auto(ivl_signal_scope(sig)));
 }
 
 static int force_array_is_vec4_(ivl_signal_t sig)
@@ -4642,8 +4640,11 @@ static void emit_iface_method_call_(ivl_statement_t net, ivl_scope_t method,
       assert(mangled);
       note_td_reference(mangled);
 
-      int is_auto = ivl_scope_is_auto(method);
-      if (is_auto)
+	/* A static interface method can still own explicitly automatic
+	   declarations. Dynamic virtual-interface dispatch must allocate the
+	   same mixed-lifetime call frame as an ordinary direct call. */
+      int needs_call_frame = scope_needs_call_frame(method);
+      if (needs_call_frame)
             fprintf(vvp_out, "    %%alloc S_%p;\n", method);
 
       unsigned nparms = ivl_stmt_parm_count(net);
@@ -4699,7 +4700,7 @@ static void emit_iface_method_call_(ivl_statement_t net, ivl_scope_t method,
             fprintf(vvp_out, "    %%join;\n");
       }
 
-      if (is_auto)
+      if (needs_call_frame)
             fprintf(vvp_out, "    %%free S_%p;\n", method);
       free(mangled);
 }
@@ -7038,7 +7039,7 @@ int draw_task_definition(ivl_scope_t scope)
  * 'u' unsigned, letter 'b'/'h'/'i'/'l' by width for 2-state integer
  * atoms (byte/shortint/int/longint), 'p' chandle (void*), 'V'/'W'
  * canonical packed bit/logic vectors, 'g' 4-state scalar (svLogic),
- * 'r' real, 's' string, 'x'/'y' dynamic/open arrays of packed bit/logic
+ * 'f' shortreal, 'r' real, 's' string, 'x'/'y' dynamic/open arrays of packed bit/logic
  * vectors, 'X'/'Y' their fixed-array counterparts, and 'B'/'G' fixed arrays
  * of true scalar svBit/svLogic elements. The distinctions let the runtime
  * expose the exact Annex H C representation, including canonical packed
@@ -7063,9 +7064,31 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
       ivl_type_t return_nt = return_port
 	                  ? ivl_signal_net_type(return_port) : 0;
       int return_is_chandle = ivl_type_is_chandle(return_nt);
+      int return_is_shortreal = ivl_type_is_shortreal(return_nt);
+      int return_is_packed = return_nt
+	                  && ivl_type_is_packed_vector(return_nt);
       unsigned rwid = (rtype == IVL_VT_LOGIC || rtype == IVL_VT_BOOL)
                     ? ivl_scope_func_width(scope) : 0;
+      char return_letter = (rwid > 32) ? 'l' : 'i';
       int unsupported = 0;
+
+	/* Preserve the exact Annex H C return type through the textual VVP
+	   instruction. In particular, byte/svBit/svLogic are C byte returns,
+	   not int32_t returns. Upper-case integer letters are the unsigned
+	   counterparts of the lower-case letters; 'g' is an svLogic scalar so
+	   the runtime can restore X/Z instead of truncating its encoding. */
+      if (!is_task && (rtype == IVL_VT_LOGIC || rtype == IVL_VT_BOOL)) {
+	    if (rwid == 1)
+		  return_letter = (rtype == IVL_VT_LOGIC) ? 'g' : 'B';
+	    else if (rwid <= 8)
+		  return_letter = ivl_scope_func_signed(scope) ? 'b' : 'B';
+	    else if (rwid <= 16)
+		  return_letter = ivl_scope_func_signed(scope) ? 'h' : 'H';
+	    else if (rwid <= 32)
+		  return_letter = ivl_scope_func_signed(scope) ? 'i' : 'I';
+	    else
+		  return_letter = ivl_scope_func_signed(scope) ? 'l' : 'L';
+      }
 
       char arg_types[256];
       unsigned types_pos = 0;
@@ -7077,7 +7100,28 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		    c_name, ncp);
 	    unsupported = 1;
       }
-      if (rwid > 64) {
+      if (!is_task && return_is_packed
+	  && (rtype == IVL_VT_LOGIC || rtype == IVL_VT_BOOL)) {
+	    fprintf(stderr, "%s:%u: error: DPI import '%s': packed bit/logic "
+		    "function result is not permitted by IEEE 1800 Annex H; "
+		    "use an integer atom or scalar bit/logic result.\n",
+		    ivl_scope_def_file(scope), ivl_scope_def_lineno(scope),
+		    c_name);
+	    unsupported = 1;
+	    vvp_errors += 1;
+      } else if (!is_task && rtype != IVL_VT_VOID
+		 && rtype != IVL_VT_REAL && rtype != IVL_VT_STRING
+		 && !return_is_chandle
+		 && !((rtype == IVL_VT_LOGIC || rtype == IVL_VT_BOOL)
+		      && (rwid == 1 || rwid == 8 || rwid == 16
+			  || rwid == 32 || rwid == 64))) {
+	    fprintf(stderr, "%s:%u: error: DPI import '%s': function result "
+		    "type is not permitted by IEEE 1800 Annex H.8.9.\n",
+		    ivl_scope_def_file(scope), ivl_scope_def_lineno(scope),
+		    c_name);
+	    unsupported = 1;
+	    vvp_errors += 1;
+      } else if (rwid > 64) {
 	    fprintf(stderr, "%s:%u: sorry: DPI import '%s' returns a "
 		    "%u-bit vector; by-value DPI returns are limited to "
 		    "64 bits.\n",
@@ -7107,6 +7151,18 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 	    /* Fixed unpacked arrays use the Annex H direct C-pointer ABI.
 	       Materialize the inline word array before the call and copy it
 	       back below for output/inout directions. */
+		  ivl_type_t nt = ivl_signal_net_type(port);
+		  if (ptype == IVL_VT_REAL && ivl_type_is_shortreal(nt)) {
+			fprintf(stderr, "%s:%u: sorry: DPI import '%s': fixed "
+				"shortreal array argument '%s' needs float-array "
+				"marshaling, which is not yet supported; the call is "
+				"skipped.\n", ivl_scope_def_file(scope),
+				ivl_scope_def_lineno(scope), c_name,
+				ivl_signal_basename(port));
+			unsupported = 1;
+			vvp_errors += 1;
+			break;
+		  }
 		  int elem_ok = (ptype == IVL_VT_REAL)
 			|| ((ptype == IVL_VT_BOOL || ptype == IVL_VT_LOGIC)
 			    && pwid > 0);
@@ -7121,7 +7177,6 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 			unsupported = 1;
 			break;
 		  }
-		  ivl_type_t nt = ivl_signal_net_type(port);
 		  if (nt && ivl_type_is_packed_vector(nt)) {
 			letter = (ptype == IVL_VT_LOGIC) ? 'Y' : 'X';
 		  } else if (pwid == 1 && ptype == IVL_VT_BOOL) {
@@ -7132,7 +7187,8 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 			letter = 'O';
 		  }
 	    } else if (ptype == IVL_VT_REAL) {
-		  letter = 'r';
+		  ivl_type_t nt = ivl_signal_net_type(port);
+		  letter = ivl_type_is_shortreal(nt) ? 'f' : 'r';
 	    } else if (ptype == IVL_VT_STRING) {
 		  letter = 's';
 	    } else if (ptype == IVL_VT_DARRAY) {
@@ -7155,6 +7211,17 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  int elem_ok = (ebase == IVL_VT_REAL)
 			|| ((ebase == IVL_VT_BOOL || ebase == IVL_VT_LOGIC)
 			    && ewid > 0);
+		  if (ebase == IVL_VT_REAL && ivl_type_is_shortreal(et)) {
+			fprintf(stderr, "%s:%u: sorry: DPI import '%s': open "
+				"shortreal array argument '%s' needs float-array "
+				"marshaling, which is not yet supported; the call is "
+				"skipped.\n", ivl_scope_def_file(scope),
+				ivl_scope_def_lineno(scope), c_name,
+				ivl_signal_basename(port));
+			unsupported = 1;
+			vvp_errors += 1;
+			break;
+		  }
 		  if (! elem_ok) {
 			fprintf(stderr, "%s:%u: sorry: DPI import '%s': "
 				"open array argument '%s' must have packed "
@@ -7226,7 +7293,7 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 	      /* Load the incoming value (for outputs this seeds the
 		 pointer buffer — exact for inout, harmless for pure
 		 output whose entry value is undefined per 35.5.6.1). */
-	    if (letter == 'r')
+	    if (letter == 'r' || letter == 'f')
 		  fprintf(vvp_out, "    %%load/real v%p_0;\n", (void*)port);
 	    else if (letter == 's')
 		  fprintf(vvp_out, "    %%load/str v%p_0;\n", (void*)port);
@@ -7289,7 +7356,8 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
       // names, and the vvp lexer's strdup_and_demangle passes it through
       // as a regular character (it only unescapes \" and \\).
       if (rtype == IVL_VT_REAL) {
-	    fprintf(vvp_out, "    %%dpi/call/real \"%s|%s\", %u;\n",
+	    fprintf(vvp_out, "    %%dpi/call/%s \"%s|%s\", %u;\n",
+		    return_is_shortreal ? "shortreal" : "real",
 		    c_name, arg_types, ncp);
       } else if (rtype == IVL_VT_STRING) {
 	    fprintf(vvp_out, "    %%dpi/call/str \"%s|%s\", %u;\n",
@@ -7305,8 +7373,11 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 	    fprintf(vvp_out, "    %%dpi/call/%s \"%s|%s\", %u;\n",
 		    is_task ? "task" : "void", c_name, arg_types, ncp);
       } else {
-	    fprintf(vvp_out, "    %%dpi/call/vec4 \"%s|%s\", %u, %u;\n",
-		    c_name, arg_types, ncp, rwid);
+	      /* '^<letter>' is a return-ABI prefix, followed by the existing
+		 argument signature. A new runtime still accepts old images without
+		 this prefix and falls back to their historical width-only rule. */
+	    fprintf(vvp_out, "    %%dpi/call/vec4 \"%s|^%c%s\", %u, %u;\n",
+		    c_name, return_letter, arg_types, ncp, rwid);
       }
 
 	/* Store the callee-written output values (pushed above the
@@ -7316,6 +7387,7 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
       for (unsigned ii = nout; ii > 0; ii -= 1) {
 	    ivl_signal_t port = out_ports[ii-1];
 	    switch (out_kinds[ii-1]) {
+		case 'f':
 		case 'r':
 		  fprintf(vvp_out, "    %%store/real v%p_0;\n", (void*)port);
 		  break;

@@ -170,6 +170,8 @@ extern vvp_context_t vthread_get_rd_context();
  * of the currently running thread.
  */
 extern vvp_context_item_t vthread_get_wt_context_item(unsigned context_idx);
+extern vvp_context_item_t vthread_get_wt_context_item_scoped(unsigned context_idx,
+                                                             __vpiScope*scope);
 
 /*
  * This function returns a handle to an item in the readable context

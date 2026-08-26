@@ -1668,6 +1668,7 @@ void dll_target::event(const NetEvent*net)
 
       obj->name = net->name();
       obj->scope = scop;
+      obj->lifetime = net->lifetime_override();
       scope_add_event(scop, obj);
 
       obj->nany = 0;

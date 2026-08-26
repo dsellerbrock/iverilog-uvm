@@ -186,8 +186,9 @@ std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth)
       return out;
 }
 
-__vpiCobjectVar::__vpiCobjectVar(__vpiScope*sc, const char*na, vvp_net_t*ne)
-: __vpiBaseVar(sc, na, ne)
+__vpiCobjectVar::__vpiCobjectVar(__vpiScope*sc, const char*na, vvp_net_t*ne,
+                                 bool automatic_storage)
+: __vpiBaseVar(sc, na, ne, automatic_storage)
 {
 }
 
@@ -210,7 +211,7 @@ int __vpiCobjectVar::vpi_get(int code)
 	    return 0;
 
 	case vpiAutomatic:
-	    return 0;
+	    return automatic_storage() ? 1 : 0;
 
 #if defined(CHECK_WITH_VALGRIND) || defined(BR916_STOPGAP_FIX)
 	case _vpiFromThr:
@@ -1380,12 +1381,14 @@ vpiHandle __vpiCobjectVar::member_by_name(const char*name)
       return 0;
 }
 
-vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net)
+vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net,
+                                bool automatic_storage)
 {
       __vpiScope*scope = vpip_peek_current_scope();
       const char*use_name = name ? vpip_name_string(name) : NULL;
 
-      __vpiCobjectVar*obj = new __vpiCobjectVar(scope, use_name, net);
+      __vpiCobjectVar*obj = new __vpiCobjectVar(scope, use_name, net,
+                                                automatic_storage);
 
       return obj;
 }

@@ -167,15 +167,18 @@ static bool static_property_array_kind_matches_(const __vpiArray*array,
 	    return false;
 
       if (type == "r") {
-	    if (dynamic_cast<vvp_darray_real*>(array->vals))
+	    if (array->vals
+		&& array->value_kind == __vpiArray::ARRAY_VALUE_REAL)
 		  return true;
 	    return array->nets && array->get_size()
 		&& dynamic_cast<__vpiRealVar*>(array->nets[0]);
       }
       if (type == "S")
-	    return dynamic_cast<vvp_darray_string*>(array->vals) != 0;
+	    return array->vals
+		&& array->value_kind == __vpiArray::ARRAY_VALUE_STRING;
       if (static_property_uses_object_api_(type))
-	    return dynamic_cast<vvp_darray_object*>(array->vals) != 0;
+	    return array->vals
+		&& array->value_kind == __vpiArray::ARRAY_VALUE_OBJECT;
 
       if (array->vals4) {
 	    unsigned width = 0;
@@ -186,9 +189,8 @@ static bool static_property_array_kind_matches_(const __vpiArray*array,
       }
       if (array->vals)
 	    {
-		  bool integral = !dynamic_cast<vvp_darray_real*>(array->vals)
-		&& !dynamic_cast<vvp_darray_string*>(array->vals)
-		&& !dynamic_cast<vvp_darray_object*>(array->vals);
+		  bool integral =
+			array->value_kind == __vpiArray::ARRAY_VALUE_INTEGRAL;
 		  unsigned width = 0;
 		  bool is_signed = false;
 		  return integral

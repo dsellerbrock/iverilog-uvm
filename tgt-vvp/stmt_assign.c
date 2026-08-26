@@ -4639,7 +4639,7 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		 pass through unchanged. (IEEE 1800-2017 7.2.) */
 	    errors += draw_eval_object_value_copy(rval, ivl_signal_net_type(sig));
 
-	    if (ivl_signal_array_count(sig) > 1) {
+	    if (ivl_signal_dimensions(sig) > 0) {
 		  unsigned ix;
 		  ivl_expr_t aidx = ivl_lval_idx(lval);
 
