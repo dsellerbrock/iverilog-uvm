@@ -26,8 +26,28 @@ status=0
 
 echo "=== ivtest sweep (vendored suite) ==="
 cd "$ROOT/ivtest"
-perl vvp_reg.pl > "$WORK/ivtest.log" 2>&1
+if ! perl vvp_reg.pl > "$WORK/ivtest.log" 2>&1; then
+    echo "GATE FAIL: legacy ivtest harness exited nonzero."
+    status=1
+fi
 tail -3 "$WORK/ivtest.log"
+
+if ! awk -F'[=,]' '
+    /Total=/ {
+        found = 1
+        total = $2 + 0
+        passed = $4 + 0
+        failed = $6 + 0
+        not_impl = $8 + 0
+        expected_fail = $10 + 0
+        if (failed == 0 && total == passed + not_impl + expected_fail)
+            valid = 1
+    }
+    END { exit !(found && valid) }
+' "$WORK/ivtest.log"; then
+    echo "GATE FAIL: legacy ivtest summary is missing, inconsistent, or has failures."
+    status=1
+fi
 
 grep -E "==> Failed|Failed - missing" "$WORK/ivtest.log" \
     | awk -F: '{gsub(/ /,"",$1); print $1}' | sort -u > "$WORK/actual.txt"
@@ -88,6 +108,9 @@ if [ -z "$runtime_vvp" ] || [ -z "$runtime_iverilog" ] \
         bash tests/vvp_runtime/run_array_lifetime_legacy.sh \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_assoc_traversal_key_width.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! VVP="$runtime_vvp" \
         bash tests/vvp_runtime/run_dpi_return_prefix_malformed.sh \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! IVERILOG="$runtime_iverilog" \
@@ -101,6 +124,15 @@ if [ -z "$runtime_vvp" ] || [ -z "$runtime_iverilog" ] \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! IVERILOG="$runtime_iverilog" VVP="$runtime_vvp" \
         bash tests/vvp_runtime/run_dpi_export_output_logic_default.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! IVERILOG="$runtime_iverilog" VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_dpi_disable_protocol.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! IVERILOG="$runtime_iverilog" VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_dpi_disable_protocol_negatives.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! IVERILOG="$runtime_iverilog" VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_dpi_legacy_task_void_compat.sh \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! IVERILOG="$runtime_iverilog" VVP="$runtime_vvp" \
         bash tests/vvp_runtime/run_process_kill_call_context.sh \
@@ -125,6 +157,15 @@ if [ -z "$runtime_vvp" ] || [ -z "$runtime_iverilog" ] \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! VVP="$runtime_vvp" \
         bash tests/vvp_runtime/run_queue_slice_legacy.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_static_property_binding.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_stream_target_split_malformed.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_ufunc_resolver_malformed.sh \
         >> "$WORK/vvp-runtime.log" 2>&1; then
     cat "$WORK/vvp-runtime.log" 2>/dev/null || true
     echo "GATE FAIL: VVP bytecode invariant failed."
