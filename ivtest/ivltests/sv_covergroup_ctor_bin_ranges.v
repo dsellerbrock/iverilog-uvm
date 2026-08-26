@@ -31,6 +31,18 @@ module top;
     }
   endgroup
 
+  // OpenTitan's shared TL agent uses this precedence-sensitive expression.
+  // Additive operators bind more tightly than shifts, so width 2 creates
+  // [0:2] and width 3 creates [0:4].  Each object must retain its own range.
+  covergroup cg_tl_source(int valid_source_width)
+      with function sample(int source);
+    option.per_instance = 1;
+    cp: coverpoint source {
+      bins valid_sources[] =
+          {[0 : 2 << (valid_source_width - 1) - 1]};
+    }
+  endgroup
+
   cg narrow;
   cg wide;
   cg_mixed mixed_gap;
@@ -39,6 +51,8 @@ module top;
   cg_arrayed array_narrow;
   cg_arrayed array_wide;
   cg_plus plus_bound;
+  cg_tl_source tl_narrow;
+  cg_tl_source tl_wide;
 
   initial begin
     narrow = new(2);
@@ -102,6 +116,22 @@ module top;
     array_wide.sample(2);
     if (array_wide.get_inst_coverage() != 100.0)
       $fatal(1, "wide arrayed instance did not cover all four bins");
+
+    tl_narrow = new(2);
+    tl_wide = new(3);
+    tl_narrow.sample(4);
+    tl_wide.sample(4);
+    if (tl_narrow.get_inst_coverage() != 0.0)
+      $fatal(1, "narrow TL range accepted an out-of-range source");
+    if (tl_wide.get_inst_coverage() != 20.0)
+      $fatal(1, "wide TL range did not create five per-value bins");
+
+    for (int i = 0; i <= 2; i++) tl_narrow.sample(i);
+    for (int i = 0; i <= 3; i++) tl_wide.sample(i);
+    if (tl_narrow.get_inst_coverage() != 100.0)
+      $fatal(1, "narrow TL range did not cover all three bins");
+    if (tl_wide.get_inst_coverage() != 100.0)
+      $fatal(1, "wide TL range did not cover all five bins");
 
     $display("PASSED");
   end

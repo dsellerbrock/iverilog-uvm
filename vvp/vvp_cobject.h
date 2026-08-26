@@ -28,6 +28,15 @@
 
 class vvp_vector4_t;
 
+// A constructor-resolved dynamic coverage-bin family. Plain range and set
+// covergroup expressions are immutable after the covergroup object is built,
+// so sampling and coverage queries share this per-instance cache.
+struct covgrp_dyn_state_t {
+      const class_type::cov_dyn_bin_t*meta = 0;
+      std::vector<std::pair<uint64_t,uint64_t>> ranges;
+      unsigned __int128 total = 0;
+};
+
 class vvp_cobject : public vvp_object {
 
     public:
@@ -180,6 +189,14 @@ class vvp_cobject : public vvp_object {
       void cov_dyn_bump(unsigned family, uint64_t bin)
       { cov_dyn_counts_[std::make_pair(family, bin)] += 1;
 	defn_->dyn_type_bump(family, bin); }
+      bool cov_dyn_warn_once(unsigned family)
+      { return cov_dyn_warned_.insert(std::make_pair(family, true)).second; }
+      bool cov_dyn_resolved() const { return cov_dyn_resolved_; }
+      const std::map<unsigned,covgrp_dyn_state_t>& cov_dyn_states() const
+      { return cov_dyn_states_; }
+      void cov_dyn_resolve(std::map<unsigned,covgrp_dyn_state_t>&states,
+			   bool complete = true)
+      { cov_dyn_states_.swap(states); cov_dyn_resolved_ = complete; }
       uint64_t cov_dyn_hits(unsigned family, unsigned at_least) const
       { uint64_t hits = 0;
 	for (auto&entry : cov_dyn_counts_)
@@ -257,6 +274,9 @@ class vvp_cobject : public vvp_object {
       std::map<uint64_t, uint64_t> cov_trans_;
 	std::map<uint64_t, std::vector<cov_trans_state_t>> cov_trans_states_;
       std::map<std::pair<unsigned,uint64_t>,uint32_t> cov_dyn_counts_;
+      std::map<unsigned,bool> cov_dyn_warned_;
+      std::map<unsigned,covgrp_dyn_state_t> cov_dyn_states_;
+      bool cov_dyn_resolved_ = false;
       bool cov_enabled_ = true;
 	// Lazily-allocated per-instance event nets, keyed by event slot.
       std::map<uint32_t, class vvp_net_t*> inst_events_;

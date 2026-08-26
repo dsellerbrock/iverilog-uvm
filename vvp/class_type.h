@@ -268,6 +268,8 @@ class class_type : public __vpiHandle {
 	    std::string name;
 	    std::string lo_ir;
 	    std::string hi_ir;
+	    unsigned value_width = 64;
+	    bool value_signed = false;
 	    unsigned guard_idx = 0xFFFFFFFFu;
       };
       static const unsigned COV_NO_PROP = 0xFFFFFFFFu;
@@ -306,10 +308,13 @@ class class_type : public __vpiHandle {
 			      const std::string&name,
 			      const std::string&lo_ir,
 			      const std::string&hi_ir,
+			      unsigned value_width = 64,
+			      bool value_signed = false,
 			      unsigned guard_idx = COV_NO_GUARD)
       { cov_dyn_bin_t b;
 	b.cp_idx = cp; b.item_idx = item; b.kind = kind; b.family = family;
 	b.array_size = array_size; b.name = name; b.lo_ir = lo_ir; b.hi_ir = hi_ir;
+	b.value_width = value_width; b.value_signed = value_signed;
 	b.guard_idx = guard_idx;
 	covgrp_dyn_bins_.push_back(b); }
       size_t covgrp_dyn_bin_count() const { return covgrp_dyn_bins_.size(); }
@@ -325,6 +330,9 @@ class class_type : public __vpiHandle {
       void covgrp_init_options(class vvp_cobject*obj) const;
       bool covgrp_eval_ir(class vvp_cobject*obj, const std::string&ir,
 			  uint64_t&value) const;
+      bool covgrp_eval_ir(class vvp_cobject*obj, const std::string&ir,
+			  uint64_t&value, unsigned&width,
+			  bool&is_signed) const;
       bool is_covergroup() const
       { return !covgrp_items_.empty() || !covgrp_bins_.empty()
 	    || !covgrp_dyn_bins_.empty(); }

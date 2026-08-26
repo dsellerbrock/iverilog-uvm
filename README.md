@@ -3,18 +3,20 @@
 [![CI](https://github.com/dsellerbrock/iverilog-uvm/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/dsellerbrock/iverilog-uvm/actions/workflows/test.yml)
 
 An **experimental development fork** of [Icarus Verilog](https://github.com/steveicarus/iverilog)
-focused on broad IEEE 1800-2017 SystemVerilog conformance and running the
-unmodified [Accellera UVM Core library](https://github.com/accellera-official/uvm-core).
+targeting broad, measurable conformance with IEEE 1800-2017 and IEEE
+1800-2023, the unmodified
+[Accellera UVM Core library](https://github.com/accellera-official/uvm-core),
+and representative OpenTitan and Caliptra RTL/DV workloads.
 
-Language edition is selected with `-g`: `-g2012`, `-g2017`, `-g2023` or
-`-glatest`. IEEE 1800-2017 is a maintenance revision of 1800-2012 and adds
-no syntax, so those two accept the same language; `-g2023` additionally
-enables the 1800-2023 constructs this fork implements, and those are
-refused under an earlier edition with a diagnostic naming the construct,
-the edition and the flag. Selecting an edition does **not** claim that
-edition is fully implemented — see the
-[1800-2023 delta survey](docs/conformance/ieee1800_2023_delta.md) for
-per-item status.
+Language edition is selected with `-g`: `-g2012`, `-g2017`, `-g2023`, or
+`-glatest`. IEEE 1800-2017 and IEEE 1800-2023 are first-class conformance
+targets. Implemented edition-sensitive constructs are gated by the selected
+mode and require positive edition tests plus earlier-edition rejection tests,
+but selecting an edition does **not** claim that edition is fully implemented.
+See the
+[IEEE 1800-2017 clause matrix](docs/conformance/matrices/ieee1800_2017_clause_matrix.md)
+and [IEEE 1800-2023 survey](docs/conformance/ieee1800_2023_delta.md) for the
+measured status and known gaps.
 
 - **Upstream:** [steveicarus/iverilog](https://github.com/steveicarus/iverilog) — the original project
 - **This fork:** [dsellerbrock/iverilog-uvm](https://github.com/dsellerbrock/iverilog-uvm)
@@ -31,13 +33,20 @@ per-item status.
 > result as guilty until proven innocent, and verify independently before
 > relying on it.
 
-The project has two goals, in this order: run real UVM testbenches without
-patching the UVM library, and implement IEEE 1800 semantics systematically
-enough that support can be measured clause by clause. The
-[manifesto](docs/conformance/iverilog_ieee1800_uvm_manifesto.md) is the
-governing plan; the
-[IEEE 1800-2017 clause matrix](docs/conformance/matrices/ieee1800_2017_clause_matrix.md)
-is the measured result.
+The project's ordered goals are to implement both selected IEEE 1800 editions
+systematically; run unmodified UVM, OpenTitan, and Caliptra workloads; provide
+practical source/runtime/DPI/VPI interoperability with VCS, Questa, and Xcelium
+where their behavior agrees with IEEE; and build a standards-correct,
+formal-ready frontend and SVA/IR foundation for a future proof engine. Slang is
+used as a parser/elaboration differential. Verilator is a diagnostic
+cross-check, not the language or runtime oracle. A proof engine is future work,
+and UPF/IEEE 1801 is deliberately deferred until the IEEE 1800 frontend is
+substantially closed.
+
+The [manifesto](docs/conformance/iverilog_ieee1800_uvm_manifesto.md) governs
+that direction. The clause matrix and
+[CURRENT_WORK](docs/conformance/CURRENT_WORK.md) contain measured status; an
+application passing is evidence, never a full-edition conformance claim.
 
 ## What this fork adds
 
@@ -64,8 +73,9 @@ On top of upstream Icarus Verilog's Verilog/partial-SystemVerilog support:
   (including multidimensional fixed arrays and fixed array members of
   structs), wide vectors, time-consuming exports, the clause-35.9 disable
   cleanup protocol, and shared-library loading via `vvp -d`
-- **Functional coverage**: covergroups with full clause-19 bin semantics,
-  transitions, crosses, options, coverage queries
+- **Functional coverage**: a substantial clause-19 subset including value,
+  transition and cross bins, options, queries, and typed per-instance
+  constructor-dependent integral ranges; known semantic gaps remain explicit
 - **VPI**: SystemVerilog object model — class variables/members, containers,
   interfaces, packages, covergroup and assertion handles, callbacks
 - **`bind`**, **`let`**, specify-path and timing-check support (`-gspecify`)
@@ -109,10 +119,10 @@ CI additionally configures `--enable-libveriuser` for legacy PLI support
 
 ### Running plain SystemVerilog
 
-`-g2012` selects IEEE 1800 SystemVerilog mode — required for any SV input:
+Select the intended IEEE edition explicitly for SystemVerilog input:
 
 ```bash
-iverilog -g2012 -o hello.vvp hello.sv    # compile to VVP bytecode
+iverilog -g2017 -o hello.vvp hello.sv    # or -g2023
 vvp hello.vvp                            # simulate
 ```
 
@@ -126,7 +136,7 @@ sources, the correct include path and compile order, and the standard UVM
 DPI runtime rather than the `UVM_NO_DPI` fallback:
 
 ```bash
-iverilog -g2012 -uvm -s top -o sim.vvp my_testbench.sv
+iverilog -g2017 -uvm -s top -o sim.vvp my_testbench.sv
 vvp sim.vvp +UVM_TESTNAME=my_test
 ```
 
@@ -204,7 +214,7 @@ interface task calls `vif.apply_reset()` — works end to end. Examples:
 module-scope `virtual bus_if v;` variable is a syntax error (class-property
 form works).
 
-### Clocking blocks — supported
+### Clocking blocks — partial
 
 ```systemverilog
 interface bus_if(input clk);
@@ -220,6 +230,9 @@ Input clockvars have real sampled semantics (IEEE 1800-2017 14.13): wait on
 `@(bif.cb)` and read `bif.cb.data` for the LRM-defined race-free sample.
 Output drives, `##N`, `default clocking`, global clocking, and clocking
 through virtual interfaces work. Example: [tests/clocking_test.sv](tests/clocking_test.sv).
+Run-time-selected drives, indexed class receivers, whole unpacked clocking
+outputs, and the other boundaries recorded in the clause matrix remain loud
+gaps.
 
 ### SVA — partial (real core engine)
 
@@ -338,7 +351,7 @@ the expected-fatal and legacy-image runners are
 and
 [tests/vvp_runtime/run_dpi_legacy_task_void_compat.sh](tests/vvp_runtime/run_dpi_legacy_task_void_compat.sh).
 
-### Functional coverage — supported
+### Functional coverage — partial
 
 ```systemverilog
 covergroup cg;
@@ -346,11 +359,24 @@ covergroup cg;
 endgroup
 ```
 
-Clause-19 bin semantics: value/transition/cross bins, `binsof`/`intersect`,
-ignore/illegal/default bins, `iff` guards, options, instance and type
-coverage, `$get_coverage`, and a durable end-of-run report. Examples:
-[tests/coverage_full_test.sv](tests/coverage_full_test.sv),
-[tests/coverage_cross_test.sv](tests/coverage_cross_test.sv).
+The evidenced subset includes value/range/default/ignore/illegal bins, compact
+transitions, crosses with `binsof`/`intersect`, `iff` guards, instance and type
+options, coverage queries, and durable reports.
+
+Typed constructor-dependent integral ranges are captured once per covergroup
+object. The bounded expression grammar preserves width, signedness, X/Z
+rejection, coverpoint-domain resolution, descending-range emptiness, duplicate
+membership, and fixed-array partitioning. It includes OpenTitan's exact TL
+agent form `[0 : 2 << (valid_source_width - 1) - 1]`; paired `-g2017` and
+`-g2023` focused gates pass **8/8** in both the legacy and JSON/VVP harnesses.
+
+Clause 19 remains **PARTIAL**. Constructor `ref`/direction semantics, broader
+endpoint expressions, constructor-dependent `with` filters, dynamic-bin cross
+metadata, ignore/illegal carving from dynamic denominators, type coverage,
+reporting/VPI details, and broader option/type-option merging remain explicit
+gaps. Examples: [tests/coverage_full_test.sv](tests/coverage_full_test.sv),
+[tests/coverage_cross_test.sv](tests/coverage_cross_test.sv), and
+[ivtest/ivltests/sv_covergroup_ctor_bin_ranges.v](ivtest/ivltests/sv_covergroup_ctor_bin_ranges.v).
 
 ### VPI — substantial
 
@@ -405,26 +431,52 @@ delays. Examples:
 
 Labels: **Supported** (works within stated scope), **Substantial** (core
 solid, recorded corners), **Partial** (real subset, significant gaps).
-Every row is grounded in the empirical
-[IEEE 1800-2017 clause matrix](docs/conformance/matrices/ieee1800_2017_clause_matrix.md) —
-read it for the per-clause evidence and the complete corner ledger.
+Every row is grounded in the paired
+[IEEE 1800-2017 clause matrix](docs/conformance/matrices/ieee1800_2017_clause_matrix.md)
+and [IEEE 1800-2023 survey](docs/conformance/ieee1800_2023_delta.md). Read them
+for recorded evidence and known corners, not a completeness certificate.
 
 | Area | Status | Notes |
 |---|---|---|
 | Core classes / OOP (cl. 8) | Substantial | Interface classes, nested class declarations, module/package/compilation-unit out-of-body `extern` methods, multiple `extends`/`implements` relationships, specialization-aware casts, inherited type visibility and method-contract checks are supported |
 | UVM (Accellera core, unmodified) | Substantial | Complete canonical 354-test repository regression green (354/354, 0 failed, 0 skipped; real 578.66s), run WITHOUT `UVM_NO_DPI` via the Icarus UVM DPI backend (regex + command-line + `uvm_hdl_*` backdoor); frontdoor + user-defined backdoor work; `UVM_NO_DPI` native fallback still supported |
 | Constraints / randomization (cl. 18) | Substantial | Z3-backed, including scope `std::randomize(vars) with {...}` for simple 1–64-bit integral variables; `randcase`/`randsequence` work |
-| Containers (queues/darrays/assoc, cl. 7) | Substantial | Full method set; narrow recorded corners |
+| Containers (queues/darrays/assoc, cl. 7) | Substantial | Broad recorded method subset; explicit receiver, typing, and context gaps remain |
 | Interfaces / virtual interfaces (cl. 25) | Substantial | UVM vif pattern end-to-end; bare module-scope `virtual` var missing |
-| Clocking blocks (cl. 14) | Supported | Sampled inputs, output drives, `##N`, global clocking |
+| Clocking blocks (cl. 14) | Partial | Sampled inputs, common output drives, `##N`, and global clocking work; recorded run-time-selected, indexed-receiver, and aggregate-output gaps remain |
 | Scheduler / event regions (cl. 4) | Supported | Full stratified queue incl. Preponed, post-NBA (`cbNBASynch`), Observed and the Reactive set; assertions sample Preponed, evaluate in Observed and run their actions in Reactive; region tracing/self-test under `IVL_REGION_TRACE` / `IVL_REGION_SELFTEST` ([audit](docs/conformance/scheduler_audit_2026_07.md)) |
-| SVA (cl. 16) | Partial | Automaton (NFA) engine is the default: implication, windows/unbounded incl. mid-chain, goto/nonconsec repetition, local vars, first_match, and/or/intersect/within/throughout, strong/weak, `.triggered`/`.matched`, multiclocked `\|=>`; legacy linear engine behind `IVL_SVA_LEGACY=1`; `expect` and `checker`/`endchecker` implemented; remaining automaton-class features (cross-clock overlapping implication, mid-sequence clock flow) are loud sorries |
-| Functional coverage (cl. 19) | Supported | Full clause-19 bin semantics |
+| SVA (cl. 16) | Partial | Automaton (NFA) engine is the default: implication, windows/unbounded incl. mid-chain, goto/nonconsec repetition, local vars, first_match, and/or/intersect/within/throughout, strong/weak, `.triggered`/`.matched`, multiclocked `\|=>`; legacy linear engine behind `IVL_SVA_LEGACY=1`; `expect` and `checker`/`endchecker` implemented; remaining loud boundaries include cross-clock overlapping `\|->`, `disable iff` across a two-or-more-boundary chain, and the separately recorded branch-flow/deferred-immediate gaps |
+| Functional coverage (cl. 19) | Partial | Substantial value/transition/cross/options/query subset; typed construction-time integral ranges include the OpenTitan TL expression and pass focused legacy 8/8 plus JSON/VVP 8/8; broader constructor, dynamic `with`/cross, denominator, type-coverage, reporting, and VPI semantics remain explicit gaps |
 | DPI-C (cl. 35) | Substantial | Import: exact scalar/atom/shortreal ABI and open arrays incl. multi-dim. Export: functions plus task execution with integer/scalar bit-logic/packed-vector/shortreal/real/chandle/string/void formals, scalar output/inout, `svScope` multi-instance + context-relative selection, and time-consuming tasks through POSIX `<ucontext.h>` or Win32 Fibers; generated task stubs return the H.8.2 `int` disable status. Checked imported-task integer acknowledgments, `svIsDisabledState`, imported-function `svAckDisabledState`, C cleanup resume, and fatal enforcement of 35.9(b)–(d) are implemented; old `%dpi/call/task` void images retain their normal-call compatibility path. Identical cross-scope/multi-instance exports remain legal, while duplicate local linkage names and incompatible cross-scope C signatures are rejected. H.8.9 keeps packed-vector results illegal. Loud legal gaps: imported shortreal arrays and fixed-size unpacked export formals. Exported open arrays and class-handle formals are diagnosed as IEEE-illegal. VCS/Questa/Xcelium interoperability remains the ABI target. |
 | VPI SV object model (cl. 36) | Substantial | Classes, live direct/property containers and element callbacks, covergroups, assertions; documented whole-container-write and assertion-detail corners remain |
 | `bind` (cl. 23.11) | Substantial | Module/type, instance-path, and instance-list targets |
 | `let` (cl. 11.13) | Supported | Expression-macro semantics |
-| Specify / timing checks (cl. 30–31) | Substantial | With `-gspecify`; full checker set incl. `$timeskew`/`$fullskew`/`$nochange` |
+| Specify / timing checks (cl. 30–31) | Substantial | Recorded timing-check family under `-gspecify`, including `$timeskew`, `$fullskew`, and `$nochange`; exhaustive forms and interactions remain open |
+
+### Application-corpus checkpoint
+
+The canonical unmodified Accellera UVM harness passes **354/354** with real
+DPI at its current recorded checkpoint. Application compatibility is less
+complete:
+
+- A native-ARM64 OpenTitan 61-target UVM **compile** matrix at clean revision
+  `7a3ad34b` improved from 58 failures plus 3 setup failures to **1 semantic-
+  debt result, 57 compiler failures, and 3 setup failures**. The exact TL-agent
+  constructor range now crosses the hard-compile boundary with zero hard
+  errors, but 12 pre-existing semantic-debt diagnostics remain. Sixteen other
+  targets now first-stop at dynamic-family cross metadata; parser, provider,
+  clocking, and isolated elaboration frontiers account for the rest. This
+  matrix contains no clean application pass and did not run simulations.
+- A fresh native-ARM64 frozen Caliptra census at clean revision `bd316141`
+  reproduces Icarus +SVA, -SVA, and synthesis at **53/105** and Slang at
+  **54/105**, with zero job-level change from the prior matrix and no
+  demonstrated Icarus-only language gap. Full Caliptra DV execution remains
+  blocked by external verification inputs; a compile census is not a usable
+  full-chip runtime.
+
+Exact revisions, commands, classifications, and newer results belong in
+[CURRENT_WORK](docs/conformance/CURRENT_WORK.md), not in a rounded compatibility
+percentage.
 
 ## Known limitations
 
@@ -448,11 +500,10 @@ read it for the per-clause evidence and the complete corner ledger.
 - Recursive `randsequence` grammars, nonconstant production-actual capture,
   value-returning productions, and nested-control `rand join` lanes are
   rejected with explicit diagnostics. `wait_order` remains unsupported.
-- Of the 3217-test vendored `ivtest` suite, 44 tests currently fail (vs. 83
-  on pristine upstream at the fork base) — the live expected set is
-  [ivtest_expected_fails.list](docs/conformance/ivtest_expected_fails.list);
-  the fork-vs-upstream deltas, both directions, are itemized in the
-  [ivtest baseline](docs/conformance/ivtest_vendored_baseline_2026-07-18.txt).
+- Vendored ivtest totals evolve as tests are added. Current pass/fail/NI/EF
+  counts and exact tool provenance are recorded in
+  [CURRENT_WORK](docs/conformance/CURRENT_WORK.md); dated historical baselines
+  are retained for comparison rather than presented here as current totals.
 - The project's standing rule: unsupported constructs must fail **loudly**
   (error/sorry/warning), never silently miscompile. Suspected silent
   miscompiles are the highest-priority bug class — please report them.
@@ -473,10 +524,10 @@ bash tests/negative/run_negative.sh      # negative tests: must FAIL loudly
 bash tests/sva_nfa/run.sh                # SVA dual-run gate (legacy vs NFA engine)
 ```
 
-`./.github/test.sh` is what CI runs; it expands to
-`cd ivtest && perl vvp_reg.pl && perl vpi_reg.pl --with-pli1 && python3 vvp_reg.py`
-(the 3217-test vendored upstream suite — compare failures against the
-[recorded baseline](docs/conformance/ivtest_vendored_baseline_2026-07-18.txt)).
+`./.github/test.sh` is the integrated ivtest/VPI gate; it expands to
+`cd ivtest && perl vvp_reg.pl && perl vpi_reg.pl --with-pli1 && python3 vvp_reg.py`.
+Compare its exact results against [CURRENT_WORK](docs/conformance/CURRENT_WORK.md)
+and the corresponding dated session log rather than a frozen README total.
 `make check` runs the compiler's own self-test. The UVM sweep scores by
 explicit evidence: a test with no PASS marker and no error output counts as
 a failure, and known limitations are skipped with a stated reason. The
@@ -520,12 +571,14 @@ reports.
 **Start here**
 - [UVM usage guide](docs/uvm.md) — compile/run UVM, DPI on/off, limitations
 - [IEEE 1800-2017 clause matrix](docs/conformance/matrices/ieee1800_2017_clause_matrix.md) — per-clause conformance disposition
+- [IEEE 1800-2023 survey](docs/conformance/ieee1800_2023_delta.md) — first-class 2023 edition audit and deltas
 - [Manifesto](docs/conformance/iverilog_ieee1800_uvm_manifesto.md) — governing principles and architecture direction
 
 **Current status and plans**
 - [CURRENT_WORK](docs/conformance/CURRENT_WORK.md) — running status checkpoint
-- [Frontier roadmap](docs/conformance/frontier_roadmap_2026-07-17.md) — what's next, by tractability
-- [Milestone truth audit](docs/conformance/milestone_truth_audit_2026-07-16.md) — honest M0–M14 milestone status
+- [Roadmap](docs/conformance/ROADMAP.md) — canonical execution tracker
+- [Frontier roadmap](docs/conformance/frontier_roadmap_2026-07-17.md) — dated 2026-07-17 historical snapshot
+- [Milestone truth audit](docs/conformance/milestone_truth_audit_2026-07-16.md) — dated 2026-07-16 historical audit
 - [Test-suite audit](docs/conformance/test_suite_audit_2026-07-17.md) — harness integrity, failure dispositions
 - [ivtest baseline](docs/conformance/ivtest_vendored_baseline_2026-07-18.txt) — recorded pass/fail set vs. upstream
 

@@ -355,6 +355,8 @@ class netclass_t : public ivl_type_s {
 	    std::string name;
 	    std::string lo_ir;
 	    std::string hi_ir;
+	    unsigned value_width = 64;
+	    bool value_signed = false;
 	    unsigned guard_idx = 0xFFFFFFFFu;
       };
 
@@ -393,10 +395,13 @@ class netclass_t : public ivl_type_s {
 			      const std::string&name,
 			      const std::string&lo_ir,
 			      const std::string&hi_ir,
+			      unsigned value_width = 64,
+			      bool value_signed = false,
 			      unsigned guard_idx = COVGRP_NO_GUARD)
       { covgrp_dyn_bin_t b;
 	b.cp_idx = cp; b.item_idx = item; b.kind = kind; b.family = family;
 	b.array_size = array_size; b.name = name; b.lo_ir = lo_ir; b.hi_ir = hi_ir;
+	b.value_width = value_width; b.value_signed = value_signed;
 	b.guard_idx = guard_idx;
 	covgrp_dyn_bins_.push_back(b); }
       size_t covgrp_dyn_bin_count() const { return covgrp_dyn_bins_.size(); }

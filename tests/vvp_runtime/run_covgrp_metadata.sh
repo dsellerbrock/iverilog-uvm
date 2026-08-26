@@ -75,4 +75,4 @@ if ! cmp -s "$work_dir/options-expected-normalized" \
     exit 1
 fi
 
-echo "PASS covergroup transition/option metadata bounds (12/12)"
+echo "PASS covergroup transition/option metadata bounds"

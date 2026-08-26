@@ -4335,6 +4335,8 @@ IVL_DYN_BIN_UINT_API(ivl_type_covgrp_dyn_bin_cp, cp_idx)
 IVL_DYN_BIN_UINT_API(ivl_type_covgrp_dyn_bin_item, item_idx)
 IVL_DYN_BIN_UINT_API(ivl_type_covgrp_dyn_bin_kind, kind)
 IVL_DYN_BIN_UINT_API(ivl_type_covgrp_dyn_bin_family, family)
+IVL_DYN_BIN_UINT_API(ivl_type_covgrp_dyn_bin_value_width, value_width)
+IVL_DYN_BIN_UINT_API(ivl_type_covgrp_dyn_bin_value_signed, value_signed)
 IVL_DYN_BIN_UINT_API(ivl_type_covgrp_dyn_bin_guard, guard_idx)
 #undef IVL_DYN_BIN_UINT_API
 

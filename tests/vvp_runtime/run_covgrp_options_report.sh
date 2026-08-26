@@ -30,7 +30,7 @@ if [ -s "$work_dir/compile.stdout" ] || \
 fi
 dynamic_count=$(grep -c ' \.covgrp_dyn_bin ' "$work_dir/options.vvp" || true)
 if [ "$dynamic_count" -ne 1 ] ||
-   ! grep -Eq ' \.covgrp_dyn_bin .* "values" "setp:[0-9]+" "setp:[0-9]+" ' \
+   ! grep -Eq ' \.covgrp_dyn_bin .* "values" "setp:[0-9]+:[su][0-9]+" "setp:[0-9]+:[su][0-9]+" "[su][0-9]+" ' \
         "$work_dir/options.vvp"; then
     echo "FAIL covergroup option report: dynamic-bin metadata shape mismatch" >&2
     grep ' \.covgrp_dyn_bin ' "$work_dir/options.vvp" >&2 || true

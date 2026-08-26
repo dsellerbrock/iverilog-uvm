@@ -31,6 +31,51 @@ C0x5 .class "bad_item_narrowing" "top.bad_item_narrowing" [0]
 C0x6 .class "bad_item_guardsrc" "top.bad_item_guardsrc" [0]
  .covgrp_item 1 1 0 "cp" "" 2147483649
  ;
+C0x7 .class "bad_dynamic_empty_type" "top.bad_dynamic_empty_type" [1]
+   0: "__bin", "q0:sb32"
+ .covgrp_dyn_bin 0 0 0 0 0 "bad_empty" "c:1:0" "c:1:0" "" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ ;
+C0x8 .class "bad_dynamic_zero_type" "top.bad_dynamic_zero_type" [1]
+   0: "__bin", "q0:sb32"
+ .covgrp_dyn_bin 0 0 0 0 0 "bad_zero" "c:1:0" "c:1:0" "u0" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ ;
+C0x9 .class "bad_dynamic_wide_type" "top.bad_dynamic_wide_type" [1]
+   0: "__bin", "q0:sb32"
+ .covgrp_dyn_bin 0 0 0 0 0 "bad_wide" "c:1:0" "c:1:0" "s65" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ ;
+C0xa .class "bad_dynamic_tag_type" "top.bad_dynamic_tag_type" [1]
+   0: "__bin", "q0:sb32"
+ .covgrp_dyn_bin 0 0 0 0 0 "bad_tag" "c:1:0" "c:1:0" "x32" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ ;
+C0xb .class "bad_dynamic_tail_type" "top.bad_dynamic_tail_type" [1]
+   0: "__bin", "q0:sb32"
+ .covgrp_dyn_bin 0 0 0 0 0 "bad_tail" "c:1:0" "c:1:0" "u12junk" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ ;
+C0xc .class "valid_dynamic_typed" "top.valid_dynamic_typed" [1]
+   0: "__bin", "q0:sb32"
+ .covgrp_dyn_bin 0 0 0 0 0 "typed" "c:1:0" "c:1:0" "s3" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ ;
+C0xd .class "valid_dynamic_legacy" "top.valid_dynamic_legacy" [1]
+   0: "__bin", "q0:sb32"
+ .covgrp_dyn_bin 0 0 0 0 0 "legacy" "c:1:0" "c:1:0"
+ .covgrp_item 1 1 0 "cp" "" 0
+ ;
+C0xe .class "bad_dynamic_legacy_typed_set" "top.bad_dynamic_legacy_typed_set" [1]
+   0: "__bin", "q0:sb32"
+ .covgrp_dyn_bin 0 0 0 0 0 "bad_legacy_typed_set" "setc:0:s3" "setc:0:s3"
+ .covgrp_item 1 1 0 "cp" "" 0
+ ;
+C0xf .class "bad_dynamic_typed_legacy_set" "top.bad_dynamic_typed_legacy_set" [1]
+   0: "__bin", "q0:sb32"
+ .covgrp_dyn_bin 0 0 0 0 0 "bad_typed_legacy_set" "setc:0" "setc:0" "s3"
+ .covgrp_item 1 1 0 "cp" "" 0
+ ;
 :file_names 2;
     "N/A";
     "covgrp_metadata_malformed.vvp";

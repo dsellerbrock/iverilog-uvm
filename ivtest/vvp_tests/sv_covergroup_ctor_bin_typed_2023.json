@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_covergroup_ctor_bin_typed_2023.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_covergroup_ctor_bin_typed"
+}

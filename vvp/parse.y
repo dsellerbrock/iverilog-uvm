@@ -1181,6 +1181,9 @@ class_property
       }
   | K_COVGRP_DYN_BIN T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_STRING T_STRING T_STRING covgrp_guard_opt
       { compile_class_covgrp_dyn_bin($2, $3, $4, $5, $6, $7, $8, $9, $10); }
+  | K_COVGRP_DYN_BIN T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_STRING T_STRING T_STRING T_STRING covgrp_guard_opt
+      { compile_class_covgrp_dyn_bin($2, $3, $4, $5, $6, $7, $8, $9,
+				     $11, $10); }
   | K_COVGRP_ITEM T_NUMBER T_NUMBER T_NUMBER
       { compile_class_covgrp_item($2, $3, $4); }
   | K_COVGRP_ITEM T_NUMBER T_NUMBER T_NUMBER T_STRING

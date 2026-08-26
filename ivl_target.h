@@ -2712,6 +2712,8 @@ extern uint64_t ivl_type_covgrp_dyn_bin_array_size(ivl_type_t net, int idx);
 extern const char* ivl_type_covgrp_dyn_bin_name(ivl_type_t net, int idx);
 extern const char* ivl_type_covgrp_dyn_bin_lo_ir(ivl_type_t net, int idx);
 extern const char* ivl_type_covgrp_dyn_bin_hi_ir(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_dyn_bin_value_width(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_dyn_bin_value_signed(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_dyn_bin_guard(ivl_type_t net, int idx);
 extern int      ivl_type_covgrp_items(ivl_type_t net);
 extern unsigned ivl_type_covgrp_item_at_least(ivl_type_t net, int idx);

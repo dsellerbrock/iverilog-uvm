@@ -1,0 +1,12 @@
+WARNING: covergroup bin 'high_clipped' has a runtime range outside its unsigned 3-bit coverpoint domain; IEEE 1800 value resolution intersects the range with that domain.
+WARNING: covergroup bin 'low_clipped' has a runtime range outside its unsigned 3-bit coverpoint domain; IEEE 1800 value resolution intersects the range with that domain.
+WARNING: covergroup bin 'signed_clipped' has a runtime range outside its signed 3-bit coverpoint domain; IEEE 1800 value resolution intersects the range with that domain.
+WARNING: covergroup bin 'ctor_source_clipped' has a runtime range outside its signed 3-bit coverpoint domain; IEEE 1800 value resolution intersects the range with that domain.
+WARNING: covergroup bin 'ctor_select_clipped' has a runtime range outside its unsigned 3-bit coverpoint domain; IEEE 1800 value resolution intersects the range with that domain.
+WARNING: covergroup bin 'x_excluded' has an X/Z endpoint or invalid typed runtime expression; the affected range is excluded.
+WARNING: covergroup bin 'z_excluded' has an X/Z endpoint or invalid typed runtime expression; the affected range is excluded.
+WARNING: covergroup bin 'excluded' has a runtime range outside its unsigned 3-bit coverpoint domain; IEEE 1800 value resolution intersects the range with that domain.
+WARNING: covergroup bin 'captured_values' set element 1 is outside its signed 3-bit coverpoint domain; IEEE 1800 value resolution excludes the singleton.
+WARNING: covergroup bin 'captured_values' set element 2 is outside its signed 3-bit coverpoint domain; IEEE 1800 value resolution excludes the singleton.
+WARNING: covergroup bin 'excluded' set element 0 is outside its unsigned 3-bit coverpoint domain; IEEE 1800 value resolution excludes the singleton.
+PASSED

@@ -3,8 +3,8 @@
 This is the **single source of truth for what is left and in what order.**
 It is deliberately built to *not drift*.
 
-- **Detail & history** live in `iverilog_ieee1800_uvm_manifesto.md` (per-milestone
-  truth status) and `matrices/ieee1800_2017_clause_matrix.md` (clause dispositions).
+- **Detail & history** live in `iverilog_ieee1800_uvm_manifesto.md` (milestone
+  scope) and the paired 2017 clause matrix / 2023 survey (edition dispositions).
 - **This file** holds the stable work-breakdown, the fixed ordering rule, and the
   one derived "current focus" pointer. Nothing else.
 
@@ -37,7 +37,7 @@ principle 2 + the Execution Order note, made mechanical:
 3. **FEATURE** — a missing but self-contained construct real testbenches hit.
 4. **AUDIT** — a probe that may surface hidden silent bugs (high ROI; interleave).
 5. **ARCHITECTURE** — a rearchitecture that unblocks a cluster (staged behind a flag).
-6. **CAMPAIGN** — exhaustive subclause sweep / 2023 delta. Last.
+6. **CAMPAIGN** — exhaustive paired 2017/2023 subclause sweep. Last.
 
 **Dependency override:** an item whose `Blocked-by` names an ARCHITECTURE item
 cannot start until that item lands, regardless of nature.
@@ -45,13 +45,16 @@ cannot start until that item lands, regardless of nature.
 Every work item carries exactly one **Nature** from that list. Nature is intrinsic
 to the item and does not change; Status does.
 
-**Definition of Done:** an item is `DONE` only when it meets all 18 criteria in the
+**Definition of Done:** an item is `DONE` only when it meets all 20 criteria in the
 manifesto "Definition of done" section (clause identified → syntax → diagnostics →
 types → elaboration → runtime → scheduling/VPI/DPI where applicable → positive +
 negative + interaction tests → UVM green → baseline-clean → docs updated → committed).
 The per-item "Done when" column names the *specific* acceptance beyond that baseline.
+Definition of Done also requires paired `-g2017`/`-g2023` dispositions and
+applicable unchanged UVM, OpenTitan, and Caliptra gates.
 
-Status values: `DONE` · `PARTIAL` · `OPEN`.
+Work-item statuses are `DONE` · `PARTIAL` · `OPEN`; milestone summaries may
+add `SUBSET COMPLETE`, `SUBSTANTIAL`, or `ACTIVE` to state their bounded scope.
 
 ---
 
@@ -68,27 +71,27 @@ breakdown that follows is grouped under it.
 | — | M3A | Common class constraint solving | DONE (common) |
 | — | M4A | Core container runtime | DONE (core) |
 | — | M6A | Core scheduler/runtime repairs | DONE (subset) |
-| — | M7 | Accellera UVM qualification | DONE (harness 226/0/0, zero known-fails; issue #98 boundary verified) |
-| — | M8 | Clocking blocks & program sched | DONE (clause-14 disposition) |
+| — | M7 | Accellera UVM qualification | DONE (current harness 354/354, 0 failed/skipped) |
+| — | M8 | Clocking blocks & program sched | PARTIAL (recorded core works; known clause-14 gaps remain) |
 | — | M9A | Core SVA token pipeline | DONE |
 | — | M10A | Core DPI imports & packed vectors | DONE (subset) |
-| — | M11A | Class functional-coverage core | DONE |
+| — | M11A | Class functional-coverage core | SUBSET COMPLETE |
 | — | M12A | Core SV VPI object model | SUBSTANTIAL |
 | — | M13A | Long-tail core | DONE (subset) |
 | — | M14A | Clause matrix (top-level) | DONE |
 | 4 | **M1B** | Specialization/aggregate typing fidelity | PARTIAL |
 | 5 | **M5** | Interfaces & modports | PARTIAL |
 | 6 | **M6B** | Scheduler conformance | **COMPLETE** (all 4 items DONE) |
-| 6 | **M8** | Clocking reprobes | DONE (audit + disposition matrix) |
+| 6 | **M8** | Clocking reprobes | PARTIAL |
 | 3 | **M3B** | Full clause-18 randomization | PARTIAL |
 | 3 | **M4B** | Aggregate/container completion | PARTIAL |
-| 7 | **M9B/C/D** | SVA sequence/temporal/automaton | **COMPLETE** (automaton landed; all M9-x items DONE) |
+| 7 | **M9B/C/D** | SVA sequence/temporal/automaton | SUBSTANTIAL / PARTIAL |
 | 8 | **M10B/C** | DPI completion | SUBSTANTIAL (§35.9/H.8.2 closed; array/signature matrix open) |
 | 9 | **M11B** | Coverage declaration/sampling surface | PARTIAL |
-| 10 | **M12B/C** | VPI completion | **COMPLETE** (all 9 items DONE) |
+| 10 | **M12B/C** | Recorded VPI object-model subset | SUBSET COMPLETE (all 9 scoped items DONE; broader VPI corners remain) |
 | 11 | **M13B** | Long-tail tails | PARTIAL |
 | 12 | **M14B** | Exhaustive subclause campaign | OPEN |
-| 13 | **M15** | IEEE 1800-2023 delta | OPEN |
+| 13 | **M15** | IEEE 1800-2023 first-class campaign | ACTIVE / PARTIAL |
 | — | **M1C** | Canonical semantic-IR migration | OPEN (architecture) |
 
 ---
@@ -144,7 +147,7 @@ and indexed write through it — all correct. The general path
 the shape, and the hardcoded fallback is very likely dead code.
 **Remaining terms for M1B-3:** delete `infer_indexed_property_type_fallback_`
 and its single call site (net_expr.cc:73), then validate with a full UVM
-run (226/226) — a full run is the only evidence that can retire a
+run (currently 354/354) — a full run is the only evidence that can retire a
 UVM-specific hack.
 
 ### M4B — aggregate/container completion  (clause 7/21)
@@ -392,7 +395,7 @@ legacy-engine retirement.
 | M10-2 | DPI export (C→SV) | F | **SUBSTANTIAL — §35.9/H.8.2 DONE** | — | `export "DPI-C"` is implemented end-to-end (parse → pform resolve → t-dll → tgt-vvp directives + generated `.dpiexport.c` stub → vvp dispatcher). The recorded scalar/result ABI subset is documented in M10-10. Renamed exports, multi-instance/context selection, automatic invocation frames, reentrancy, coroutine copy-out, and time-consuming exported tasks through an imported DPI task are verified. Identical cross-scope/multi-instance declarations share one stub; duplicate local C identifiers, repeat exports of one SV subroutine, and incompatible cross-scope C signatures (including packed bounds) fail compilation instead of selecting an ABI by traversal order. A time-consuming export reached from an imported DPI function remains a loud error, as required by the function/task legality boundary. **Disable protocol closed:** generated exported-task stubs have the H.8.2 `int` signature and return 0 normally or after a disable aimed only at the export, and 1 when an ancestor disables the mixed-language call chain. The latter resumes the parked C stack exactly once for `svIsDisabledState()` and cleanup; checked `%dpi/call/task/ack` invokes an imported task with the integer ABI and verifies its 0/1 acknowledgment, while a disabled imported function must call `svAckDisabledState()`. Call state is per invocation and survives coroutine parking, so concurrent normal/disabled imports remain isolated. Wrong task status, missing function acknowledgment, and the §35.9(d)-forbidden post-disable export call are fatal. The retained `%dpi/call/task` opcode preserves the old void ABI for normal legacy images; it fails loudly if such an image is disabled because no acknowledgment channel exists. The interoperability oracle remains IEEE 1800-2017/2023 behavior as implemented by VCS, Questa, and Xcelium, not Verilator. This closes the handshake, not the full DPI surface: imported shortreal arrays and legal fixed-size unpacked export formals remain loud, and M14B-9 retains the exhaustive signature/runtime cross-product. Tests m10c/d/e/f/g/h/i/k, `m10l_dpi_disable_protocol_test`, `run_dpi_disable_protocol.sh`, the four expected-fatals in `run_dpi_disable_protocol_negatives.sh`, `run_dpi_legacy_task_void_compat.sh`, plus M10-10 reducers. |
 | M10-3 | Real context semantics / `chandle` ABI verification | A | **DONE** | — | Probing showed this already worked, so it is now pinned rather than fixed: `chandle` round-trip through an import and through an **output** formal, `chandle` stored in a class property and in an unpacked array and read back, `real` and `int` through **inout** formals, `string` through an output formal. test m10j_dpi_chandle_abi_test |
 | M10-4 | Time-consuming imported tasks | F | **DONE** | **M6-CALLF** | An imported `context task` consumes time via the coroutine path, and a time-consuming exported task reached from it runs across simulation time (probe m10_4_slowtask). **Fixed one P0 silent wrong result found by probing the boundary:** an export declared with **`automatic` lifetime** received **`x` for every argument**, even on a single non-concurrent call, so a value-returning export returned garbage and `#(d)` degenerated to a zero delay -- with no diagnostic. **Root cause:** `compile_export_dpi` (vvp/compile.cc:1250-1263) resolves `arg_nets` once at link time to the **static prototype nets**, and `dpi_export_run_` (vvp/vthread.cc) marshaled into them with a null context; an automatic body reads its per-invocation frame and never sees those nets. The dispatcher now allocates a context for an automatic export and marshals into it -- the same shape `%alloc` gives an ordinary SV call -- and hands it to the child, which owns it so `release_owned_context_` frees it on the inline, coroutine and orphaned-detach paths alike. This also makes **concurrent** invocations of one automatic exported task correct, each keeping its own arguments. **Correction:** an earlier probe read concurrent aliasing of a *static* export as a second defect; it is not. IEEE 1800-2017 13.3.1 gives a static subroutine one copy of its arguments, so concurrent invocations alias -- verified identical for a plain SV static task (probe staticsem), and deliberately preserved. Nested automatic frames inside the exported body and recursive C -> export -> C -> export re-entry both verified (probes m10_4g_nested, m10_4h_recurse). tests m10h_dpi_export_automatic_test + m10i_dpi_export_automatic_nested_test |
-| M10-5 | C→SV→C reentrancy + cross-platform DPI regressions | A | **DONE** (Linux; CI covers the rest) | M10-2 | Two-deep reentrancy `c_outer → sv_mid → c_inner → sv_leaf` returns the correct value with each SV frame entered exactly once. Already worked; now pinned. The macOS and MSYS2 legs of CI cover the cross-platform half on every push. test m10k_dpi_reentrancy_test |
+| M10-5 | C→SV→C reentrancy + cross-platform DPI regressions | A | **PARTIAL** (recorded local platform evidenced; fresh cross-platform matrix required) | M10-2 | Two-deep reentrancy `c_outer → sv_mid → c_inner → sv_leaf` returns the correct value with each SV frame entered exactly once in the recorded local test. Current macOS and Windows results must be attached before the cross-platform item can close; CI configuration alone is not execution evidence. `m10k_dpi_reentrancy_test` |
 
 ### M11B — coverage surface  (clause 19)
 
@@ -400,10 +403,10 @@ legacy-engine retirement.
 |----|------|-----|--------|-----------|-----------|
 | M11-1 | Package-scope covergroups | F | **DONE** | — | standalone covergroups declare a class type whose netclass IS the covergroup (bins as own properties); `new` instantiates; coverpoint sources elaborate at each sample site in the caller's scope. sv_covergroup_standalone |
 | M11-2 | Module/interface-scope covergroups | F | **DONE** | — | module_item grammar (+0 bison conflicts), explicit sample()/crosses/iff/per-instance state, and declaration sampling events (`covergroup cg @(posedge clk);`) synthesizing per-instance `always @(ev) inst.sample();` processes. Constructor formals on standalone covergroups are materialized as per-instance properties and are available to coverpoint sources and supported dynamic coverage metadata. sv_covergroup_standalone, sv_covergroup_constructor_scope |
-| M11-3 | Complete sampling-event forms | F | **DONE** | — | standalone forms complete (`@(edge sig)`, or-lists, plain any-change). Class-embedded `covergroup cg @(ev);` (was a hard parse error) now samples every live instance on the event: a static per-scope process runs `%covgrp/sample/all` over the runtime instance registry, reading coverpoint source and iff-guard values from each instance's parent object properties through a hidden parent handle (auto-linked when the covergroup object is stored into the parent's property). Per-instance guards, mid-sim creation, coexistence with explicit sample(), dropped handles all verified. Residual loud gap: an event coverpoint not backed by a parent property records constant 0 with a sorry. sv_covergroup_class_event |
-| M11-4 | `with function sample` formal semantics | F | **DONE** | — | formals bind positionally/by name to sample() arguments at each call site (module/package/class scope); formal shadows scope signal or parent property; iff-guard formals, crosses, arity/name mismatch loud errors. Also fixed: package ctor-parens covergroups silently collected nothing (stub class shadowed the real one). Residual loud gap: a formal inside an expression coverpoint (`coverpoint (m+1)`) samples constant 0 with a sorry. sv_covergroup_with_sample |
-| M11-5 | Coverpoint-expression + option/type_option audit | A | **DONE** | — | The audit fixed automatic-bin sizing and enum-bin construction for non-parent-property sources (19.5.1), made `option.detect_overlap` report overlaps, and verified declaration-time at_least/weight/auto_bin_max behavior. IEEE 1800-2023 §§19.5 and 19.7.1 permit hierarchical selection of labeled coverpoints/crosses and procedural access to their instance-specific options after construction. Labeled item `option.weight` and `option.at_least` are now mutable per-covergroup-object state: constant/default values initialize each object, a direct constructor-formal weight initializes after constructor formals, reads/writes select the addressed instance, and `get_inst_coverage()` uses the effective values for fixed, run-time-set/dynamic, compact-transition, and cross bins. For fixed-bin cumulative coverage, the merged model applies the §19.11.1 maximum `at_least` across accumulated live and retired instances and is receiver-independent. `sv_covergroup_procedural_item_options` pins OpenTitan's string-named associative-wrapper shape, divergent instances, constructor-formal weight initialization, zero thresholds, constructor-name collisions, dropped-handle accumulation, exact report thresholds, and emitted dynamic-bin metadata. IEEE 1800-2023 §§19.3, 19.5, and 19.5.1 also permit non-ref constructor arguments in bin-range expressions. The bounded per-instance endpoint subset is an integral constant, a direct packed-integral/enum constructor formal from 1 through 64 bits, optional unary `+` around a supported endpoint, or exactly a direct constructor formal minus an integral constant; this preserves OpenTitan's `[0:limit-1]` and unsized `bins values[] = {[0:limit-1]}` forms without truncating wider values. One bin may mix static and constructor-dependent range pairs, the constructor-reference requirement applies to the bin as a whole, and every supported pair is emitted into one dynamic family. Reference discovery still traverses unsupported binary, call, cast, concatenation, and nested trees, so those forms reach one focused diagnostic without a false constructor-formal bind warning or a silently erased bin. Genuinely unresolved endpoints retain the ordinary loud bind diagnostic. Residuals remain loud or documented: broader constructor-dependent endpoint expressions; nonconstant declaration `at_least` falls back with a diagnostic; cumulative dynamic-bin coverage and full §19.11.3 `merge_instances=false` weighted-average / `type_option.weight` semantics are not modeled; group-level procedural `inst.option.*` / `inst.type_option.*` remain loud; coverpoint/cross item options other than `at_least`/`weight` are accepted as declaration metadata but procedural access is loud; accepted-no-effect group goal/comment/name/per_instance/cross_num_print_missing/type_option declarations remain reporting metadata. sv_covergroup_options, sv_covergroup_ctor_bin_ranges |
-| M11-6 | Coverage serialization/interchange + adversarial cross/transition | A | **DONE** | — | durable text report (IVL_COVERAGE_REPORT env; type-level counters, per-bin hit/MISS) verified; adversarial audit fixed two defects: ignore_bins/illegal_bins values now carved out of the coverpoint's other bins and the cross product (19.5.5 — a fully-carved bin inflated the denominator and could never be hit), and duplicate per-scope class compiles left zero-count registry orphans that dragged $get_coverage toward 0 (registry now dedupes by dispatch prefix, newest wins). Multi-step transitions, per-instance NFA state, and binsof cross routing verified correct. sv_covergroup_adversarial |
+| M11-3 | Sampling-event forms | F | **PARTIAL** | — | Standalone `@(edge sig)`, or-lists, plain any-change, and the recorded class-embedded event subset work with per-instance guards and mid-simulation construction. An event coverpoint not backed by a parent property remains loud. `sv_covergroup_class_event` |
+| M11-4 | `with function sample` formal semantics | F | **PARTIAL** | — | Direct formals bind positionally/by name in the recorded module/package/class call sites, shadow surrounding names, and work in guards/crosses; arity/name mismatch is loud. A formal nested inside an expression coverpoint remains loud. `sv_covergroup_with_sample` |
+| M11-5 | Coverpoint-expression + option/type_option audit | A | **PARTIAL** | — | Fixed-bin option and expression subsets are evidenced. Typed per-instance constructor-dependent integral ranges now preserve width, signedness, X/Z exclusion, coverpoint-domain conversion, descending-range emptiness, duplicate membership, and fixed-array partitioning for the bounded expression grammar, including OpenTitan's TL-agent form. Paired `-g2017`/`-g2023` focused legacy and JSON/VVP gates pass 8/8 at this checkpoint. Constructor port direction/`ref` semantics, full context-sized `'1`, broader expressions, construction-time dynamic `with`, dynamic cross/named-`binsof` integration, and complete option/type-option semantics remain open or loud. `sv_covergroup_options`, `sv_covergroup_ctor_bin_ranges`, `sv_covergroup_ctor_bin_typed`, `sv_covergroup_ctor_bin_resolution`, `sv_covergroup_ctor_bin_ranges_unresolved` |
+| M11-6 | Coverage serialization/interchange + adversarial cross/transition | A | **PARTIAL** | — | Durable text reporting, the recorded fixed-bin ignore/illegal carving, duplicate registry defense, compact multi-step transitions, per-instance NFA state, and fixed `binsof` cross routing are evidenced. Dynamic-family ignore/illegal denominator carving, type-coverage integration, report/VPI detail, and dynamic cross routing remain open. `sv_covergroup_adversarial` |
 | M11-7 | Chained covergroup method calls (`obj.cg.sample()`) | F | DONE | — | sample/guard values read from the covergroup's parent object, not the caller's `this`; chained + cross-object sites correct |
 | M11-8 | Covergroup `sample()` from scope tasks/functions | C | **DONE** | — | covergroup metadata is synthesized before package/module/interface subroutine bodies are lowered. Previously `sample()` in those bodies compiled silently as a zero-coverpoint operation, leaving coverage at 0%. Direct, `with function sample`, package-task, module-task/function, interface-task, and nested class-receiver forms now preserve their coverpoint values. sv_covergroup_task_sample |
 
@@ -442,7 +445,7 @@ legacy-engine retirement.
 | M14B-3 | Subclause-level evidence + link rows to permanent tests | K | OPEN | — | every row has a test link |
 | M14B-4 | Adversarial/generated silent-miscompile hunt; zero-silent-gap policy | K | OPEN | — | generated sweep clean |
 | M14B-5 | Freeze the clean OpenTitan and Caliptra corpora as replayable conformance witnesses | K | OPEN | OpenTitan + Caliptra zero-debt gates | pinned revisions, dependency choices, command manifests and expected results replay in CI |
-| M14B-6 | Complete grammar-production and semantic-rule census | K | OPEN | M14B-5 | every 1800-2017 production/subclause is implemented, deliberately diagnosed, or linked to a failing permanent test; no unmeasured row |
+| M14B-6 | Complete grammar-production and semantic-rule census | K | OPEN | M14B-5 | every applicable 1800-2017 and 1800-2023 production/subclause is implemented, deliberately diagnosed, or linked to a failing permanent test; edition differences and unknown cells are explicit |
 | M14B-7 | Cross-context typing/lowering matrix | A | OPEN | M14B-5 | the same legal construct agrees across expression, declaration, assignment, argument, return, property/sequence, covergroup and DPI contexts |
 | M14B-8 | Parentheses-preserving and other metamorphic equivalence campaign | A | OPEN | M14B-5 | generated equivalent programs agree in acceptance, type, result, scheduling and diagnostics |
 | M14B-9 | Exhaustive DPI signature/runtime matrix | K | OPEN | M14B-5 | imports/exports, tasks/functions, directions, lifetimes, context/pure, scalar/packed/string/chandle/open arrays and re-entry have positive, negative and concurrent-runtime evidence. The commercial fixed-sized direct-array submatrix is closed by M10-9, and the §35.9/H.8.2 disable-status/acknowledgment submatrix is closed by M10-2 with positive, expected-fatal, concurrent, and old-image evidence. The exhaustive cross-product and the recorded legal array gaps remain open. For Annex-H interoperability, VCS, Questa, and Xcelium behavior is the practical simulator oracle after the IEEE text; Verilator is not an ABI oracle. |
@@ -477,7 +480,7 @@ After both corpora meet that gate, execute M14B in this fixed order:
    sv-tests revision, record their build options, and run the complete applicable
    suites. Slang is a parsing, elaboration and static-semantics comparator, not a
    substitute runtime oracle. Every disagreement is minimized and decided from
-   IEEE 1800-2017 before either implementation is called correct. For DPI binary
+   the selected IEEE 1800 edition before either implementation is called correct. For DPI binary
    interoperability, the practical simulator cross-check remains VCS, Questa,
    and Xcelium; a Verilator convention cannot substitute for that oracle or
    reorder a standard legal ABI gap below the fixed feature/audit gates.
@@ -513,13 +516,13 @@ After both corpora meet that gate, execute M14B in this fixed order:
    diagnostics, zero compile-progress behavior, zero crashes or timeouts, zero
    unresolved differential mismatches and zero applicable matrix cells without
    permanent evidence. Only this gate, not corpus compatibility alone, supports
-   a full IEEE 1800-2017 claim.
+   a full IEEE 1800-2017 or IEEE 1800-2023 claim.
 
-### M15 — IEEE 1800-2023 delta  (2023 spec)
+### M15 — IEEE 1800-2023 first-class conformance campaign
 
 | ID | Item | Nat | Status | Blocked-by | Done when |
 |----|------|-----|--------|-----------|-----------|
-| M15-1 | 2023 delta scoping + clause matrix | K | OPEN | M14B, all P0/P1 | delta enumerated |
+| M15-1 | 2023 clause/delta scoping and executable matrix | K | **PARTIAL** | — | every changed and shared 2023 rule has an explicit disposition; paired `-g2017`/`-g2023` positives, negatives, interactions, and edition-rejection tests are linked |
 
 ---
 
@@ -554,11 +557,11 @@ ARCH-3 M1C ──────▶ (reduces M1B-3 silent-fallback risk; interleave
 
 ## Compliance scorecard (measurable, clause-level)
 
-The authoritative disposition is the live
-`matrices/ieee1800_2017_clause_matrix.md`, not a cached clause count or a
-single percentage. A clause labeled `SUBSTANTIAL` or `PARTIAL` records the
-tested subset and its explicit residuals; it does not imply complete
-subclause coverage.
+The authoritative dispositions are the paired
+`matrices/ieee1800_2017_clause_matrix.md` and `ieee1800_2023_delta.md`, not a
+cached clause count or a single percentage. A clause labeled `SUBSTANTIAL` or
+`PARTIAL` records the tested subset and its explicit residuals; it does not
+imply complete subclause coverage.
 
 The current canonical UVM harness is 354/354 with real DPI, 0 failed, and 0
 skipped (real 578.66s), but that workload is evidence for its exercised
@@ -579,6 +582,22 @@ claimed and still requires the M14B subclause audit.
 Re-derive this by applying the priority rule to the OPEN items above; do not hand-edit
 the structure.
 
+**Checkpoint 2026-08-26.** Clause 19 remains PARTIAL. Paired focused gates
+pass 8/8 legacy and 8/8 JSON/VVP. The OpenTitan 61-target UVM compile matrix
+is 1 DEBT / 57 FAIL / 3 SETUP_FAIL / 0 PASS, with no simulations;
+`tl_agent_sim` is the sole status transition. The next shared coverage
+frontier is dynamic-family cross and named-`binsof` integration, followed by
+dynamic `with` and object/method-valued range forms. A fresh frozen Caliptra
+census remains 53/105 in all three Icarus lanes versus 54/105 in Slang, with
+zero job-level delta and zero demonstrated Icarus-only language gap; no full
+DV runtime is claimed.
+
+### Historical 2026-07 recovery snapshot (superseded)
+
+The remainder of this section is retained as a dated recovery narrative. Its
+ordering and completion language do not override the checkpoint or work-item
+table above.
+
 **Recovery state (2026-07-29).** The earlier "no known silent miscompiles
 outstanding" claim was overstated and is withdrawn. A fresh ground-truth
 pass on main (aa82a67) reproduced silent-wrong defects in: multi-dim
@@ -597,19 +616,22 @@ g65 family). These are the Recovery Campaign 2/3 targets, in the
 priority order silent-wrong > crash > loud, and none is DONE until its
 family passes the ten-point campaign definition of done.
 
-Recently retired (this arc): **M12B/C VPI completion — the whole
-milestone** (assertion lifecycle + step callbacks, meaningful
+Recently retired (this arc): **the nine-item recorded M12B/C VPI object-model
+subset** (assertion lifecycle + step callbacks, meaningful
 `s_vpi_attempt_info`, bit-select force/release, assoc-element writes,
 nested class-member traversal, modport metadata, covergroup
-drill-down, lifetime/free audit) · **M11B coverage — the whole
-milestone** (standalone covergroups, `with function sample`, option
-audit, ignore/illegal carving, class-embedded sampling events) ·
+drill-down, lifetime/free audit) · the recorded fixed **M11B coverage
+subsets** (standalone covergroups, `with function sample`, fixed-bin option
+audit, fixed ignore/illegal carving, class-embedded sampling events); M11B as
+a whole remains PARTIAL because typed constructor directions, dynamic
+`with`/cross/type/report semantics, and other recorded clause-19 gaps remain ·
 M9-11 (`expect`) · M9-7 D.2 (multiclock fixed-length chains) · M9-7 D.5
 (multiclock N-domain chains — the M9-7 residual, now closed) · M5-5
 (generic interface ports) · M9-9 (checkers) · M4B-1/M4B-2 (verified
 already-correct and pinned by a test).
 
-Complete milestones: M0-M8, **M9**, M11, M12. M10's former P1
+Complete milestones include M0-M7 and the recorded M12 object-model scope.
+M8, M9, and M11 retain explicit partial surfaces. M10's former P1
 §35.9/H.8.2 disable-protocol residual is closed by M10-2; M10 remains
 SUBSTANTIAL because the legal array ABI gaps and M14B-9 exhaustive cross-product
 remain explicit.
@@ -667,7 +689,7 @@ boundaries, not headline features** — every headline worked.
 7. **M1B-3 / M4C-10 / M4B-4,5** — delete the now-dead `uvm_shared` hack
    (needs a full-UVM run to retire), the automatic-event parse gap, and
    the deferred cosmetic `%p` forms.
-8. **M14B** subclause campaign → **M15** 2023 delta (CAMPAIGN; last).
+8. Paired **M14B/M15** 2017/2023 subclause campaign (CAMPAIGN; last).
 
 **Standing override:** any newly discovered silent miscompile or crash preempts this
 list (rule gates 1–2).

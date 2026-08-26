@@ -27444,13 +27444,115 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  return false;
 			    };
 
-			      // Runtime range endpoints intentionally admit only a folded
-			      // <=64-bit integral constant, a direct <=64-bit integral
-			      // constructor formal, optional unary plus around an admitted
-			      // endpoint, and the OpenTitan form `formal - constant'.
+			      // Runtime range endpoints admit a deliberately bounded typed
+			      // expression grammar. Every nonterminal child that receives
+			      // width context from its parent must already have that width;
+			      // otherwise the shared constraint IR cannot represent IEEE
+			      // 11.8 top-down sizing without an explicit typed node. This
+			      // admits homogeneous-width arithmetic/bitwise trees and
+			      // self-determined shift counts, including OpenTitan's nested
+			      // `2 << (valid_source_width - 1) - 1', while casts, calls,
+			      // division, power, concatenation, and mixed-width subtrees stay
+			      // loud rather than being evaluated with host uint64 semantics.
 			      // Return {runtime-evaluator supported, references a constructor
 			      // formal}; callers impose the reference requirement once per bin.
 			    using ctor_range_shape_t = std::pair<bool,bool>;
+			    std::function<bool(const constraint_dist_ir_shape_t&)>
+				  ctor_range_ir_safe;
+			    ctor_range_ir_safe = [&](const constraint_dist_ir_shape_t&shape)
+				  -> bool {
+				if (!shape.parsed || shape.width == 0 || shape.width > 64)
+				      return false;
+				if (shape.terminal) return shape.op.empty();
+				auto context_child_safe = [&](const constraint_dist_ir_shape_t&child,
+							 unsigned width) -> bool {
+				      if (child.terminal)
+					    return child.parsed && child.op.empty()
+						  && child.width > 0
+						  && child.width <= 64;
+				      return child.width == width && ctor_range_ir_safe(child);
+				};
+				if (shape.op == "add" || shape.op == "sub"
+				    || shape.op == "mul" || shape.op == "band"
+				    || shape.op == "bor" || shape.op == "bxor")
+				      return shape.args.size() == 2
+					    && context_child_safe(shape.args[0], shape.width)
+					    && context_child_safe(shape.args[1], shape.width);
+				if (shape.op == "neg")
+				      return shape.args.size() == 1
+					    && context_child_safe(shape.args[0], shape.width);
+				if (shape.op == "shl" || shape.op == "lshr")
+				      return shape.args.size() == 2
+					    && context_child_safe(shape.args[0], shape.width)
+					    && ctor_range_ir_safe(shape.args[1]);
+				return false;
+			    };
+			    auto ctor_range_ir = [&](const PExpr*expr) -> std::string {
+				return pexpr_to_class_constraint_ir(
+				      expr, cg_class, nullptr, des, class_scope_);
+			    };
+			    std::function<bool(const PExpr*,unsigned)>
+				  ctor_range_source_context_safe;
+			    ctor_range_source_context_safe =
+				  [&](const PExpr*expr, unsigned expected_width) -> bool {
+				if (!expr || expected_width == 0 || expected_width > 64)
+				      return false;
+				if (const PENumber*num = dynamic_cast<const PENumber*>(expr)) {
+				      const verinum&value = num->value();
+				      if (!value.is_defined()) return false;
+				      // Generic constraint IR serializes a fill literal as one
+				      // bit. Zero-extension preserves '0, but '1 must fill its
+				      // expression context and therefore needs a future typed
+				      // IR node rather than silent c:1:1 evaluation.
+				      return !value.is_single()
+					    || value.get(0) == verinum::V0;
+				}
+				if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr)) {
+				      if (unary->get_op() == '+')
+					    return ctor_range_source_context_safe(
+						  unary->get_expr(), expected_width);
+				      if (unary->get_op() != '-') return false;
+				      std::string ir = ctor_range_ir(expr);
+				      constraint_dist_ir_shape_t shape =
+					    constraint_dist_ir_shape_(ir, nullptr, des,
+							 class_scope_);
+				      return shape.parsed && shape.op == "neg"
+					    && shape.width == expected_width
+					    && shape.args.size() == 1
+					    && ctor_range_source_context_safe(
+						  unary->get_expr(), shape.width);
+				}
+				if (const PEBinary*binary = dynamic_cast<const PEBinary*>(expr)) {
+				      std::string ir = ctor_range_ir(expr);
+				      constraint_dist_ir_shape_t shape =
+					    constraint_dist_ir_shape_(
+						  ir, nullptr, des, class_scope_);
+				      if (!shape.parsed || shape.width != expected_width)
+					    return false;
+				      char op = binary->get_op();
+				      if (op == 'l' || op == 'r') {
+					    std::string right_ir =
+						  ctor_range_ir(binary->get_right());
+					    constraint_dist_ir_shape_t right_shape =
+						  constraint_dist_ir_shape_(right_ir, nullptr,
+								 des, class_scope_);
+					    return right_shape.parsed
+						  && ctor_range_source_context_safe(
+							binary->get_left(), shape.width)
+						  && ctor_range_source_context_safe(
+							binary->get_right(),
+							right_shape.width);
+				      }
+				      return ctor_range_source_context_safe(
+					    binary->get_left(), shape.width)
+					    && ctor_range_source_context_safe(
+						  binary->get_right(), shape.width);
+				}
+				std::string ir = ctor_range_ir(expr);
+				constraint_dist_ir_shape_t shape = constraint_dist_ir_shape_(
+				      ir, nullptr, des, class_scope_);
+				return shape.parsed && shape.terminal && shape.op.empty();
+			    };
 			    std::function<ctor_range_shape_t(const PExpr*)> ctor_range_shape;
 			    ctor_range_shape = [&](const PExpr*expr) -> ctor_range_shape_t {
 				  if (!expr) return std::make_pair(false, false);
@@ -27474,35 +27576,64 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr)) {
 					if (unary->get_op() == '+')
 					      return ctor_range_shape(unary->get_expr());
-					return std::make_pair(false, references_ctor);
+					if (unary->get_op() != '-')
+					      return std::make_pair(false, references_ctor);
+					ctor_range_shape_t child =
+					      ctor_range_shape(unary->get_expr());
+					std::string ir = ctor_range_ir(expr);
+					constraint_dist_ir_shape_t shape =
+					      constraint_dist_ir_shape_(ir, nullptr, des,
+								 class_scope_);
+					return std::make_pair(
+					      child.first && ctor_range_ir_safe(shape)
+						    && ctor_range_source_context_safe(
+							  expr, shape.width),
+					      references_ctor);
 				  }
 				  if (const PEBinary*binary = dynamic_cast<const PEBinary*>(expr)) {
-					if (binary->get_op() == '-'
-					    && is_direct_ctor_formal(binary->get_left())) {
-					      ctor_range_shape_t left =
-						    ctor_range_shape(binary->get_left());
-					      if (left.first
-						  && !ctor_range_references_formal(binary->get_right())) {
-						    std::string right_ir = pexpr_to_constraint_ir(
-							  binary->get_right(), cg_class, nullptr,
-							  class_scope_);
-						    constraint_const_ir_t constant;
-						    bool constant_ok = constraint_parse_const_ir_(
-							  right_ir, constant)
-							  && constant.width > 0
-							  && constant.width <= 64;
-						    return std::make_pair(constant_ok, true);
-					      }
-					}
-					return std::make_pair(false, references_ctor);
+					char op = binary->get_op();
+					bool admitted = op == '+' || op == '-' || op == '*'
+					      || op == '&' || op == '|' || op == '^'
+					      || op == 'l' || op == 'r';
+					if (!admitted)
+					      return std::make_pair(false, references_ctor);
+					ctor_range_shape_t left =
+					      ctor_range_shape(binary->get_left());
+					ctor_range_shape_t right =
+					      ctor_range_shape(binary->get_right());
+					if (!left.first || !right.first)
+					      return std::make_pair(false, references_ctor);
+					std::string ir = ctor_range_ir(expr);
+					constraint_dist_ir_shape_t shape =
+					      constraint_dist_ir_shape_(
+						    ir, nullptr, des, class_scope_);
+					return std::make_pair(
+					      !ir.empty() && ctor_range_ir_safe(shape)
+						    && ctor_range_source_context_safe(
+							  expr, shape.width),
+					      references_ctor);
 				  }
 
 				    // With no constructor reference, the endpoint is static. The
 				    // shared emitter may fold a literal, parameter, or constant
 				    // expression, but no nonconstant IR form crosses this boundary.
 				  if (!references_ctor) {
-					std::string ir = pexpr_to_constraint_ir(
-					      expr, cg_class, nullptr, class_scope_);
+					if (const PENumber*num =
+					      dynamic_cast<const PENumber*>(expr)) {
+					      const verinum&value = num->value();
+					      if (!value.is_defined())
+						    return std::make_pair(false, false);
+						// A bare '1 takes the width of the complete
+						// expression. The generic constant IR records it
+						// as one bit, so a static '1 sibling in an otherwise
+						// constructor-dependent family must stay loud until
+						// the IR has an explicit fill node. Zero-extension
+						// gives a bare '0 its correct value at every width.
+					      if (value.is_single()
+						  && value.get(0) != verinum::V0)
+						    return std::make_pair(false, false);
+					}
+					std::string ir = ctor_range_ir(expr);
 					constraint_const_ir_t constant;
 					bool supported = constraint_parse_const_ir_(ir, constant)
 					      && constant.width > 0 && constant.width <= 64;
@@ -27694,10 +27825,27 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			prop_idx = cg_class->get_properties();
 			return std::make_pair(at_prop, wt_prop);
 		    };
-		      // A coverpoint expression may combine sample() formals
-		      // (for example {valid, ready}). Bind typed placeholder
-		      // signals while sizing the expression so ordinary expression
-		      // elaboration sees the formals with their declared widths.
+		      // A coverpoint expression may select or combine constructor and
+		      // sample() formals (for example v[2:0] or {valid, ready}). Bind
+		      // typed placeholder signals while sizing the expression so
+		      // ordinary expression elaboration sees every lexical formal with
+		      // its declared width. Sample formals are installed second and
+		      // therefore retain their lexical shadowing precedence.
+		    std::vector<NetNet*> ctor_formal_placeholders;
+		    std::vector<NetNet*> ctor_formal_previous;
+		    for (perm_string formal : cgdef->ctor_formals) {
+			  int pidx = cg_class->property_idx_from_name(formal);
+			  ivl_type_t formal_type = pidx >= 0
+				? cg_class->get_prop_type((size_t)pidx)
+				: (ivl_type_t)&netvector_t::atom2s32;
+			  NetNet*placeholder = new NetNet(
+				class_scope_, class_scope_->local_symbol(),
+				NetNet::REG, formal_type);
+			  placeholder->local_flag(true);
+			  ctor_formal_placeholders.push_back(placeholder);
+			  ctor_formal_previous.push_back(class_scope_->set_signal_alias(
+				formal, placeholder));
+		    }
 		    std::vector<NetNet*> sample_formal_placeholders;
 		    std::vector<NetNet*> sample_formal_previous;
 		    for (size_t fi = 0; fi < cgdef->sample_formals.size(); fi += 1) {
@@ -27729,6 +27877,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				if (cgdef->sample_formals[fi] == comp->name) {
 				      if (fi < sample_formal_placeholders.size())
 					    type = sample_formal_placeholders[fi]->net_type();
+				      break;
+				}
+			  }
+			  if (!type) {
+				for (perm_string formal : cgdef->ctor_formals) {
+				      if (formal != comp->name) continue;
+				      int pidx = cg_class->property_idx_from_name(formal);
+				      if (pidx >= 0)
+					    type = cg_class->get_prop_type((size_t)pidx);
 				      break;
 				}
 			  }
@@ -27783,7 +27940,38 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 			  return nullptr;
 		    };
+		    auto coverpoint_effective_shape = [&](PExpr*expr,
+						     unsigned&width,
+						     bool&is_signed) -> bool {
+			  width = 0;
+			  is_signed = false;
+			  if (!expr) return false;
+			  ivl_type_t type = coverpoint_expr_type(expr);
+			  bool selected = false;
+			  if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr))
+				for (const name_component_t&component : id->path().name)
+				      selected = selected || !component.index.empty();
+			  if (!selected && type && type->packed()) {
+				width = type->packed_width();
+				is_signed = type->get_signed();
+			  } else {
+				PExpr::width_mode_t mode = PExpr::SIZED;
+				width = expr->test_width(des, class_scope_, mode);
+				is_signed = expr->has_sign();
+			  }
+			  ivl_variable_type_t base = type
+				? type->base_type() : expr->expr_type();
+			  bool integral = base == IVL_VT_BOOL || base == IVL_VT_LOGIC
+				|| (type && dynamic_cast<const netenum_t*>(type));
+			  if (width == 0 && type && type->packed())
+				width = type->packed_width();
+			  return integral && width > 0 && width <= 64;
+		    };
 		    for (auto& cp : cgdef->coverpoints) {
+			  unsigned cp_value_width = 0;
+			  bool cp_value_signed = false;
+			  bool cp_value_supported = coverpoint_effective_shape(
+				cp.expr, cp_value_width, cp_value_signed);
 			  int parent_prop = -1;
 			  if (!cg_standalone)
 			  if (const PEIdent* pe = dynamic_cast<const PEIdent*>(cp.expr)) {
@@ -27794,6 +27982,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  // the call argument, not the property.
 				bool is_formal = false;
 				for (auto&fn : cgdef->sample_formals)
+				      if (fn == cp_var_name) {
+					    is_formal = true;
+					    break;
+				      }
+				for (auto&fn : cgdef->ctor_formals)
 				      if (fn == cp_var_name) {
 					    is_formal = true;
 					    break;
@@ -28173,14 +28366,23 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				        // lifetime of a legal covergroup instance.  Preserve a
 				        // direct integral container property as compact runtime
 				        // metadata instead of flattening it at declaration time.
+				      if (!cp_value_supported) {
+					    cerr << "sorry: covergroup bin '" << bin.name
+						 << "' set expression requires an integral "
+						    "coverpoint no wider than 64 bits; the bin "
+						    "is dropped." << endl;
+					    continue;
+				      }
 				      const PEIdent*sid = dynamic_cast<const PEIdent*>(bin.set_expr);
 				      int set_prop = -1;
 				      bool set_on_parent = false;
+				      bool set_ctor_formal = false;
 				      ivl_type_t set_type = nullptr;
 				      if (sid && sid->path().size() == 1) {
 					    perm_string set_name = peek_head_name(sid->path());
 					    for (size_t ci = 0; ci < cgdef->ctor_formals.size(); ci++) {
 						  if (cgdef->ctor_formals[ci] != set_name) continue;
+						  set_ctor_formal = true;
 						  set_prop = cg_class->property_idx_from_name(set_name);
 						  if (set_prop >= 0)
 							set_type = cg_class->get_prop_type((size_t)set_prop);
@@ -28194,11 +28396,27 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  }
 					    }
 				      }
+				      if (set_ctor_formal) {
+					    cerr << "sorry: covergroup bin '" << bin.name
+						 << "' set expression cannot yet capture a "
+						    "constructor-formal container; the bin is "
+						    "dropped." << endl;
+					    continue;
+				      }
 				      const netdarray_t*set_array_type =
 					    dynamic_cast<const netdarray_t*>(set_type);
+				      const netqueue_t*set_queue_type =
+					    dynamic_cast<const netqueue_t*>(set_type);
 				      bool integral_set = set_array_type
+					    && !(set_queue_type && set_queue_type->assoc_compat())
 					    && (set_array_type->element_base_type() == IVL_VT_BOOL
 						|| set_array_type->element_base_type() == IVL_VT_LOGIC);
+				      unsigned set_value_width = integral_set
+					    ? (unsigned)set_array_type->element_width() : 0;
+				      bool set_value_signed = integral_set
+					    && set_array_type->get_signed();
+				      integral_set = integral_set && set_value_width > 0
+					    && set_value_width <= 64;
 				      uint64_t set_array_size = bin.arrayed ? 0
 							      : ~(uint64_t)0;
 				      if (bin.arrayed && bin.array_size) {
@@ -28222,10 +28440,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      unsigned family = dyn_family++;
 				      std::string set_ir = set_on_parent ? "setp:" : "setc:";
 				      set_ir += std::to_string(set_prop);
+				      set_ir += set_value_signed ? ":s" : ":u";
+				      set_ir += std::to_string(set_value_width);
 				      cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx, kindval,
-							   family, set_array_size,
-							   bin.name.str(), set_ir, set_ir,
-							   bin_guard);
+						   family, set_array_size,
+						   bin.name.str(), set_ir, set_ir,
+						   cp_value_supported ? cp_value_width : 64,
+						   cp_value_supported && cp_value_signed,
+						   bin_guard);
 				      if (set_on_parent) has_parent_set_bins = true;
 				      if (base_kind == 0) {
 					    xbin_desc_t d;
@@ -28336,8 +28558,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					// Constructor-dependent bounds are per-instance
 					  // constants (19.3), not failed declaration
 					  // constants. Preserve each endpoint as property IR.
+				      if (bin.with_expr) {
+					    cerr << "sorry: constructor-dependent covergroup bin '"
+						 << bin.name << "' uses a 'with' filter that "
+						    "cannot yet be evaluated at construction; "
+						    "the bin is dropped." << endl;
+					    continue;
+				      }
 				      std::vector<std::pair<std::string,std::string>> ir_ranges;
-				      bool dyn_ok = true;
+				      bool dyn_ok = cp_value_supported;
 				      bool bin_references_ctor = false;
 				      for (auto&range : bin.ranges) {
 					    bin_references_ctor = bin_references_ctor
@@ -28354,10 +28583,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						dyn_ok = false;
 						break;
 					    }
-					    std::string lo_ir = pexpr_to_constraint_ir(
-						  range.first, cg_class, nullptr, class_scope_);
-					    std::string hi_ir = pexpr_to_constraint_ir(
-						  range.second, cg_class, nullptr, class_scope_);
+					    std::string lo_ir = ctor_range_ir(range.first);
+					    std::string hi_ir = ctor_range_ir(range.second);
 					    if (lo_ir.empty() || hi_ir.empty()) {
 						  dyn_ok = false;
 						  break;
@@ -28391,7 +28618,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  cg_class->add_covgrp_dyn_bin(
 							cp_idx, cp_idx, kindval, family,
 							dyn_array_size, bin.name.str(),
-							ir.first, ir.second, bin_guard);
+							ir.first, ir.second,
+							cp_value_width, cp_value_signed,
+							bin_guard);
 				      if (base_kind == 0) {
 					    xbin_desc_t d;
 					    d.name = bin.name;
@@ -28811,6 +29040,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						     sample_formal_previous[fi]);
 			  delete sample_formal_placeholders[fi];
 		    }
+		    for (size_t fi = 0; fi < ctor_formal_placeholders.size(); fi += 1) {
+			  class_scope_->restore_signal_alias(cgdef->ctor_formals[fi],
+						     ctor_formal_previous[fi]);
+			  delete ctor_formal_placeholders[fi];
+		    }
 		    cg_class->set_covgrp_ncoverpoints(cp_idx);
 
 		      // Crosses (19.6): auto bins are the cartesian
@@ -28840,6 +29074,19 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							   : cross.label.str())
 				     << "' references an unknown coverpoint; "
 				     << "the cross is dropped." << endl;
+				continue;
+			  }
+			  bool has_dynamic_family = false;
+			  for (unsigned cpi : cp_indexes)
+				for (const xbin_desc_t&desc : cp_value_bins[cpi])
+				      if (desc.dyn_family >= 0) has_dynamic_family = true;
+			  if (has_dynamic_family) {
+				cerr << "sorry: cross '"
+				     << (cross.label.nil() ? "(unnamed)"
+							   : cross.label.str())
+				     << "' contains a constructor-dependent bin family "
+					"that cannot yet be represented in cross metadata; "
+					"the cross is dropped." << endl;
 				continue;
 			  }
 
