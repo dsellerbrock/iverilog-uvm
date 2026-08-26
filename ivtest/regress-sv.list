@@ -1116,6 +1116,7 @@ sv_assoc_nested_member_foreach1 normal,-g2012 ivltests
 sv_class_nested_assoc_foreach normal,-g2012 ivltests
 sv_class_event_member1 normal,-g2012 ivltests
 sv_class_event_per_instance normal,-g2012 ivltests
+sv_class_static_event_shared normal,-g2012 ivltests gold=sv_class_static_event_shared.gold
 sv_class_prop_assoc_find1 normal,-g2012 ivltests
 sv_assoc_queue_class_select1 normal,-g2012 ivltests
 sv_assoc_queue_foreach1 normal,-g2012 ivltests
@@ -1298,6 +1299,8 @@ sv_constraint_nonrand_queue_size normal,-g2012 ivltests
 sv_constraint_rand_queue_size normal,-g2012 ivltests
 sv_constraint_darray_size_parenless normal,-g2012 ivltests gold=sv_constraint_darray_size_parenless.gold
 sv_constraint_darray_size_local_scope normal,-g2012 ivltests gold=sv_constraint_darray_size_local_scope.gold
+sv_constraint_method_local_queue_size normal,-g2012 ivltests gold=sv_constraint_method_local_queue_size.gold
+sv_constraint_method_local_queue_size_unsat normal,-g2012 ivltests gold=sv_constraint_method_local_queue_size_unsat.gold
 sv_queue_of_queues normal,-g2012 ivltests
 sv_queue_slice_p normal,-g2012 ivltests
 sv_queue_slice_to_last normal,-g2012 ivltests
@@ -1505,6 +1508,7 @@ sv_stacktrace_task_call normal,-g2023 ivltests
 sv_event_array normal,-g2012 ivltests
 sv_event_array_llp64_pack normal,-g2012 ivltests gold=sv_event_array_llp64_pack.gold
 sv_event_lifetime_qualifier normal,-g2012 ivltests
+sv_automatic_task_static_event normal,-g2012 ivltests gold=sv_automatic_task_static_event.gold
 sv_deferred_flush1	CE,-g2012		ivltests
 sv_deferred_final_latest1	normal,-g2012		ivltests gold=sv_deferred_final_latest1.gold
 sv_deferred_final_order0	normal,-g2012		ivltests gold=sv_deferred_final_order0.gold
@@ -2023,6 +2027,16 @@ sv_semaphore_kill_blocked_get normal,-g2012 ivltests gold=sv_semaphore_kill_bloc
 sv_resource_wait_normal_wake normal,-g2012 ivltests gold=sv_resource_wait_normal_wake.gold
 sv_process_await_resource_wait normal,-g2012 ivltests gold=sv_process_await_resource_wait.gold
 sv_resource_wait_sync_nested normal,-g2012 ivltests gold=sv_resource_wait_sync_nested.gold
+sv_process_kill_join_reducer normal,-g2012 ivltests gold=sv_process_kill_join_reducer.gold
+
+# Explicit automatic declarations in an otherwise static subroutine (IEEE
+# 1800-2023 6.21/13.3.1): per-call storage without changing static locals.
+sv_static_task_explicit_auto_darray normal,-g2012 ivltests gold=sv_static_task_explicit_auto_darray.gold
+sv_mixed_lifetime_fixed_array_named_block normal,-g2012 ivltests gold=sv_mixed_lifetime_fixed_array_named_block.gold
+sv_subroutine_init_before_fork normal,-g2012 ivltests gold=sv_subroutine_init_before_fork.gold
+sv_vif_mixed_lifetime_call_frame normal,-g2012 ivltests gold=sv_vif_mixed_lifetime_call_frame.gold
+sv_explicit_static_fixed_array_force_release normal,-g2012 ivltests gold=sv_explicit_static_fixed_array_force_release.gold
+sv_static_task_auto_array_port_context normal,-g2012 ivltests gold=sv_static_task_auto_array_port_context.gold
 
 # IEEE 1800-2017 9.4.2/9.4.3 class-property event controls and waits
 sv_class_property_always_comb_mutation normal,-g2012,-ssv_class_property_always_comb_mutation ivltests gold=sv_class_property_always_comb_mutation.gold

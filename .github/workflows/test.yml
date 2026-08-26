@@ -53,9 +53,9 @@ jobs:
       continue-on-error: true
       run: ./.github/test.sh
 
-    # macOS UVM now builds and loads the real DPI umbrella and passes 205/0
-    # (verified in CI), so this step gates for real — a regression here fails
-    # the job instead of hiding under continue-on-error.
+    # macOS UVM builds and loads the real DPI umbrella. Keep this hard-gated;
+    # the authoritative test count comes from the current checkout rather than
+    # a stale count embedded in this workflow comment.
     - name: UVM regression tests
       run: ./.github/uvm_test.sh
 
@@ -108,6 +108,19 @@ jobs:
     # freshly installed, relocated toolchain (real DPI, custom prefix).
     - name: UVM front-end regression (hard)
       run: ./.github/uvm_frontend_test.sh
+
+    # Annex H maps SV byte to plain C char. Exercise the host branch where
+    # plain char is unsigned by rebuilding the runtime and its DPI companion
+    # with the same ABI mode; the ordinary gate above covers default-char.
+    - name: Unsigned plain-char DPI ABI
+      run: |
+        touch vvp/vvp_dpi.cc
+        make -C vvp CXXFLAGS="-g0 -O2 -std=c++11 -funsigned-char" vvp
+        IVERILOG="$(command -v iverilog)" \
+        IVPI="$(command -v iverilog-vpi)" \
+        VVP="$PWD/vvp/vvp" \
+        DPI_CHAR_CFLAGS="-funsigned-char" \
+          bash tests/vvp_runtime/run_dpi_plain_char_abi.sh
 
     - name: Documentation
       run: |
@@ -186,13 +199,10 @@ jobs:
             ./.github/test.sh
         fi
 
-    # Windows UVM runs real DPI and passes 209/0 on all three MSYS2
-    # toolchains (verified in CI after the vvp.def export, GMP-Z3 numeral
-    # extraction, and per-toolchain compiler fixes), so this step gates for
-    # real — a regression here fails the job instead of hiding under
-    # continue-on-error. The plain regression suite above keeps its soft
-    # gate: its Windows baseline has known non-UVM deltas that are tracked
-    # separately.
+    # Windows UVM runs real DPI on all three MSYS2 toolchains, so this step is
+    # hard-gated. The authoritative test count comes from the current checkout.
+    # The plain regression suite above keeps its soft gate because its Windows
+    # baseline has known non-UVM deltas that are tracked separately.
     - name: UVM regression tests
       run: ./.github/uvm_test.sh
 

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_process_kill_join_reducer.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_process_kill_join_reducer"
+}

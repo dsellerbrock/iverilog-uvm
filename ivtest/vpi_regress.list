@@ -81,6 +81,7 @@ celldefine		normal			celldefine.c		celldefine.gold
 dumpports_activity_cb	normal,-g2012		dumpports_activity_cb.c	dumpports_activity_cb.gold
 check_version		normal			check_version.c		check_version.gold
 display_array		normal,-g2009		display_array.c		display_array.gold
+class_event_lifetime	normal,-g2012		class_event_lifetime.c	class_event_lifetime.gold
 event1			normal			event1.c		event1.log
 event2			normal			event2.c		event2.log
 final			normal,-g2009		final.c			final.gold
@@ -162,6 +163,8 @@ m12_container_props normal,-g2012 m12_container_props.c m12_container_props.log
 m12_nested_members  normal,-g2012 m12_nested_members.c m12_nested_members.log
 m12_covgrp_drill  normal,-g2012 m12_covgrp_drill.c m12_covgrp_drill.log
 m12_modport_dirs  normal,-g2012 m12_modport_dirs.c m12_modport_dirs.log
+m12_decl_lifetime normal,-g2012 m12_decl_lifetime.c m12_decl_lifetime.log
+m12_decl_lifetime_words normal,-g2012 m12_decl_lifetime_words.c m12_decl_lifetime_words.log
 m12_lifetime  normal,-g2012 m12_lifetime.c m12_lifetime.log
 m12_assert_attempt  normal,-g2012 m12_assert_attempt.c m12_assert_attempt.log
 m12_bit_force  normal,-g2012 m12_bit_force.c m12_bit_force.log

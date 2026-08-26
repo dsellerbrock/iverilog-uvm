@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_constraint_method_local_queue_size_unsat.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_constraint_method_local_queue_size_unsat"
+}

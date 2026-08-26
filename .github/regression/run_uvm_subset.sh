@@ -17,7 +17,9 @@ if [ "${1:-}" = "--group" ]; then
     grp="${2:?group name required}"
     line=$(grep -E "^${grp}:" "$GROUPS_CONF" | head -1)
     [ -n "$line" ] || { echo "unknown group: $grp" >&2; exit 2; }
-    for pat in ${line#*:}; do
+    patterns=()
+    IFS=' ' read -r -a patterns <<< "${line#*:}"
+    for pat in "${patterns[@]}"; do
         for f in "$TESTS"/$pat.sv "$TESTS"/$pat; do
             [ -e "$f" ] || continue
             case "$f" in *.sv) names+=("$(basename "$f" .sv)");; esac

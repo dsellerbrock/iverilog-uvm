@@ -85,6 +85,27 @@ if [ -z "$runtime_vvp" ] || [ -z "$runtime_iverilog" ] \
         bash tests/vvp_runtime/run_darray_default_fill_malformed.sh \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_array_lifetime_legacy.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_dpi_return_prefix_malformed.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! IVERILOG="$runtime_iverilog" \
+        bash tests/vvp_runtime/run_dpi_narrow_return_metadata.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! IVERILOG="$runtime_iverilog" VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_dpi_prefixless_vec4_compat.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! IVERILOG="$runtime_iverilog" VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_dpi_plain_char_abi.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! IVERILOG="$runtime_iverilog" VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_dpi_export_output_logic_default.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! IVERILOG="$runtime_iverilog" VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_process_kill_call_context.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! VVP="$runtime_vvp" \
         bash tests/vvp_runtime/run_concat_malformed_arity.sh \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! VVP="$runtime_vvp" \

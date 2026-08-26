@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_subroutine_init_before_fork.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_subroutine_init_before_fork"
+}

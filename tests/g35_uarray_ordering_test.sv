@@ -26,6 +26,31 @@ module g35_uarray_ordering_test;
     end
   endtask
 
+  task automatic check_automatic_fixed_kinds();
+    int signed_values[4];
+    bit [7:0] bytes[4];
+    int byte_sum;
+
+    signed_values = '{3, -1, 8, 0};
+    signed_values.sort();
+    check(signed_values[0] == -1 && signed_values[1] == 0 &&
+          signed_values[2] == 3 && signed_values[3] == 8,
+          "automatic fixed signed sort");
+    signed_values.reverse();
+    check(signed_values[0] == 8 && signed_values[3] == -1,
+          "automatic fixed signed reverse");
+
+    bytes = '{8'd200, 8'd5, 8'd130, 8'd1};
+    bytes.sort();
+    check(bytes[0] == 1 && bytes[1] == 5 &&
+          bytes[2] == 130 && bytes[3] == 200,
+          "automatic fixed unsigned sort");
+    bytes.shuffle();
+    byte_sum = 0;
+    foreach (bytes[i]) byte_sum += bytes[i];
+    check(byte_sum == 336, "automatic fixed unsigned shuffle content");
+  endtask
+
   initial begin
     // reverse (G35)
     u = '{1,2,3,4,5};
@@ -67,6 +92,8 @@ module g35_uarray_ordering_test;
     da[0] = 5; da[1] = -2; da[2] = 0;
     da.sort();
     check(da[0]==-2 && da[1]==0 && da[2]==5, "darray signed sort");
+
+    check_automatic_fixed_kinds();
 
     if (errors == 0)
       $display("PASSED: all g35 uarray ordering checks");

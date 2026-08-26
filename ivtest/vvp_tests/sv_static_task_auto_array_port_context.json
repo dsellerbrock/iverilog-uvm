@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_static_task_auto_array_port_context.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_static_task_auto_array_port_context"
+}
