@@ -122,7 +122,7 @@ to pick the top module when there is more than one candidate.
 
 Pass `-uvm` and the toolchain wires up UVM for you — the bundled UVM
 sources, the correct include path and compile order, and the standard UVM
-DPI runtime — the way a commercial simulator does:
+DPI runtime rather than the `UVM_NO_DPI` fallback:
 
 ```bash
 iverilog -g2012 -uvm -s top -o sim.vvp my_testbench.sv
@@ -263,16 +263,28 @@ iverilog -g2012 -o sim.vvp tb.sv
 vvp -d ./mylib.so sim.vvp          # ./ needed: the path goes to dlopen(3)
 ```
 
-`import "DPI-C"` functions and tasks with exact libffi marshaling: int/real/
-string/chandle scalars, output/inout copy-back, open arrays (1-D and
-multi-dimensional, including whole fixed-array struct members with declared
-range preservation and copy-back, `svGetArrElemPtr` and friends),
+`import "DPI-C"` functions and tasks with exact libffi marshaling: integer
+atoms, scalar bit/logic, shortreal/real/string/chandle, output/inout copy-back, and open
+arrays (1-D and multi-dimensional, including whole fixed-array struct members
+with declared range preservation and copy-back, `svGetArrElemPtr` and friends),
 `svBitVecVal`/`svLogicVecVal` wide vectors, `c_name=` aliasing. Requires
-libffi.
+libffi. Imported signed/unsigned byte and short-int returns use their exact C
+width, scalar `shortreal` results and input/output/inout formals use C `float`,
+and an `svLogic` return preserves the Annex H X/Z encoding. Packed-vector and
+aggregate function results are rejected according to H.8.9. Shortreal arrays
+remain a loud unsupported boundary rather than being passed as `double*`.
 
-`export "DPI-C"` (C calling SV) works for functions and tasks whose
-arguments and return are integer atoms (byte/shortint/int/longint,
-signed/unsigned), real, string, or void. iverilog emits a companion
+`export "DPI-C"` (C calling SV) works for functions and tasks whose formals
+are integer atoms (byte/shortint/int/longint, signed/unsigned), scalar
+bit/logic, packed bit/logic vector formals, shortreal, real, chandle, or
+string.
+Function results support the Annex H.8.9 by-value subset (integer atoms,
+scalar bit/logic, shortreal, real, chandle, string, or void); packed-vector and
+aggregate results are illegal even though packed-vector formals are supported.
+Scalar output/inout directions use the same exact C ABI, packed-vector formals
+use `svBitVecVal`/`svLogicVecVal`, and output/inout strings are retained in
+simulator-owned storage after an automatic invocation frame is reaped.
+iverilog emits a companion
 `<out>.dpiexport.c` stub — compile it into your DPI object
 (`gcc -shared -fPIC -o mylib.so mylib.c sim.dpiexport.c`) so the exported C
 symbols resolve. An export declaration may precede or follow the subroutine
@@ -280,11 +292,21 @@ definition (resolved at end of parse). Multi-instance: `svSetScope`
 (`svGetScopeFromName("top.u1")`) selects which instance runs, and a
 `context` import that omits `svSetScope` runs the export in its own instance
 (35.5.2). **Time-consuming exported tasks** — one that blocks on
-`#delay`/`@event` — work on POSIX: the imported task's C stack is parked on
-a coroutine while simulation time advances (loud sorry on MinGW/Windows,
-which lacks `<ucontext.h>`). Still a loud sorry (never a silent miscompile):
+`#delay`/`@event` — park the imported task's C stack while simulation time
+advances, using POSIX `<ucontext.h>` on Linux/macOS and Win32 Fibers on
+MinGW/Windows. Still loud (never a silent miscompile):
 out-of-scope export, `svScope` selection through deep generate/begin
-nesting, and object/open-array/wide-vector or output/inout export arguments.
+nesting, and the legal fixed-size unpacked-array export-formal ABI, which is
+not yet implemented. Exported open-array formals are rejected as illegal by
+35.5.6.1/H.8.2; class-handle formals are outside the permitted set in 35.5.6
+(pass an opaque foreign object as `chandle`). One remaining P1
+commercial-parity area is explicit rather than included in this claim:
+exported tasks still use `void` instead of the simulator-provided `int`
+disable status required by H.8.2 and 35.9(a), while imported tasks do not
+consume the C-provided `int` acknowledgement required by 35.9(b). The runtime
+also lacks the imported-subroutine `svIsDisabledState()` query and the
+`svAckDisabledState()` acknowledgement required before a disabled imported
+function returns by 35.9(c).
 This is what lets the UVM suite run without `UVM_NO_DPI` (see
 [uvm_dpi/](uvm_dpi)). Example pairs:
 [tests/dpi_basic_test.sv](tests/dpi_basic_test.sv) (import) and
@@ -365,7 +387,7 @@ read it for the per-clause evidence and the complete corner ledger.
 | Area | Status | Notes |
 |---|---|---|
 | Core classes / OOP (cl. 8) | Substantial | Interface classes, nested class declarations, module/package/compilation-unit out-of-body `extern` methods, multiple `extends`/`implements` relationships, specialization-aware casts, inherited type visibility and method-contract checks are supported |
-| UVM (Accellera core, unmodified) | Substantial | 200-test regression green (zero skips), run WITHOUT `UVM_NO_DPI` via the Icarus UVM DPI backend (regex + command-line + `uvm_hdl_*` backdoor); frontdoor + user-defined backdoor work; `UVM_NO_DPI` native fallback still supported |
+| UVM (Accellera core, unmodified) | Substantial | Complete canonical 353-test repository regression green (zero skips), run WITHOUT `UVM_NO_DPI` via the Icarus UVM DPI backend (regex + command-line + `uvm_hdl_*` backdoor); frontdoor + user-defined backdoor work; `UVM_NO_DPI` native fallback still supported |
 | Constraints / randomization (cl. 18) | Substantial | Z3-backed, including scope `std::randomize(vars) with {...}` for simple 1–64-bit integral variables; `randcase`/`randsequence` work |
 | Containers (queues/darrays/assoc, cl. 7) | Substantial | Full method set; narrow recorded corners |
 | Interfaces / virtual interfaces (cl. 25) | Substantial | UVM vif pattern end-to-end; bare module-scope `virtual` var missing |
@@ -373,7 +395,7 @@ read it for the per-clause evidence and the complete corner ledger.
 | Scheduler / event regions (cl. 4) | Supported | Full stratified queue incl. Preponed, post-NBA (`cbNBASynch`), Observed and the Reactive set; assertions sample Preponed, evaluate in Observed and run their actions in Reactive; region tracing/self-test under `IVL_REGION_TRACE` / `IVL_REGION_SELFTEST` ([audit](docs/conformance/scheduler_audit_2026_07.md)) |
 | SVA (cl. 16) | Partial | Automaton (NFA) engine is the default: implication, windows/unbounded incl. mid-chain, goto/nonconsec repetition, local vars, first_match, and/or/intersect/within/throughout, strong/weak, `.triggered`/`.matched`, multiclocked `\|=>`; legacy linear engine behind `IVL_SVA_LEGACY=1`; `expect` and `checker`/`endchecker` implemented; remaining automaton-class features (cross-clock overlapping implication, mid-sequence clock flow) are loud sorries |
 | Functional coverage (cl. 19) | Supported | Full clause-19 bin semantics |
-| DPI-C (cl. 35) | Substantial | Import: open arrays incl. multi-dim. Export: functions + tasks (int/real/string/void), `svScope` multi-instance + context-relative selection, and time-consuming tasks (POSIX coroutine); generated C stub. Loud sorries: object/open-array/wide-vector/output export args, time-consuming export on Windows |
+| DPI-C (cl. 35) | Substantial | Import: exact scalar/atom/shortreal ABI and open arrays incl. multi-dim. Export: functions plus task execution with integer/scalar bit-logic/packed-vector/shortreal/real/chandle/string/void formals, scalar output/inout, `svScope` multi-instance + context-relative selection, and time-consuming tasks through POSIX `<ucontext.h>` or Win32 Fibers; generated C stub. H.8.9 keeps packed-vector results illegal. Loud legal gaps: imported shortreal arrays and fixed-size unpacked export formals. Exported open arrays and class-handle formals are diagnosed as IEEE-illegal. P1 parity area: exported tasks lack the simulator-provided H.8.2/35.9(a) `int` status; imported tasks lack the C-provided 35.9(b) `int` acknowledgement; `svIsDisabledState` and imported-function `svAckDisabledState` support are absent. |
 | VPI SV object model (cl. 36) | Substantial | Classes, live direct/property containers and element callbacks, covergroups, assertions; documented whole-container-write and assertion-detail corners remain |
 | `bind` (cl. 23.11) | Substantial | Module/type, instance-path, and instance-list targets |
 | `let` (cl. 11.13) | Supported | Expression-macro semantics |
@@ -383,12 +405,21 @@ read it for the per-clause evidence and the complete corner ledger.
 
 - **Experimental.** AI-assisted development, not upstream-reviewed. Verify
   results independently before relying on them.
-- `export "DPI-C"` supports functions and tasks (int/real/string/void),
+- `export "DPI-C"` supports functions and tasks with integer atoms, scalar
+  bit/logic, packed bit/logic vector formals, shortreal, real, chandle, string,
+  and void ABI forms (packed-vector function results remain illegal under H.8.9),
   `svScope` multi-instance + context-relative selection, and
-  time-consuming exported tasks on POSIX (a coroutine parks the C stack
-  across time; a loud sorry on Windows, which lacks `<ucontext.h>`).
-  Object/open-array/wide-vector and output/inout export arguments remain
-  loud sorries. UVM's `uvm_hdl_*` register **backdoor** works via the
+  time-consuming exported tasks through POSIX `<ucontext.h>` on Linux/macOS
+  or Win32 Fibers on MinGW/Windows, which park the C stack across time.
+  The legal fixed-size unpacked-array export ABI remains unimplemented but
+  loud; exported open arrays and class-handle formals are rejected as illegal
+  by 35.5.6/35.5.6.1/H.8.2. Imported shortreal arrays are also loud until
+  float-array copy marshaling is implemented. For the 35.9 disable protocol,
+  exported tasks lack the simulator-provided H.8.2/35.9(a) `int` status,
+  imported tasks lack the C-provided 35.9(b) `int` acknowledgement, and the
+  runtime lacks `svIsDisabledState()` plus imported-function
+  `svAckDisabledState()` support. This remains an explicit P1
+  commercial-parity item. UVM's `uvm_hdl_*` register **backdoor** works via the
   Icarus UVM DPI backend ([`uvm_dpi/`](uvm_dpi)), which `-uvm` installs and
   loads automatically; `--uvm-no-dpi` remains available to skip DPI.
 - Recursive `randsequence` grammars, nonconstant production-actual capture,

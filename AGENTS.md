@@ -4,6 +4,11 @@
 
 - Implement SystemVerilog behavior against IEEE 1800-2017 and run unmodified UVM workloads.
 - Use Slang as a differential semantic reference where applicable. Record intentional extensions or divergences instead of silently treating them as IEEE behavior.
+- Prioritize interoperability with commercial simulators and their standard
+  interfaces: VCS, Questa, and Xcelium behavior is the practical compatibility
+  target when it agrees with IEEE 1800. Treat Verilator as a useful diagnostic
+  cross-check, not as the language or DPI/VPI ABI oracle; do not prioritize
+  Verilator-only extensions over standard commercial-simulator forms.
 - Never turn unsupported behavior into silent success. Emit a focused `error`, `sorry`, or warning and add a regression that pins the boundary.
 - Preserve source evaluation order, scope and type provenance, scheduler-region semantics, DPI/VPI ABI behavior, and exact diagnostic counts.
 
@@ -61,6 +66,10 @@
 - On this workspace, use only this worktree's `local-install` prefix. Sibling
   Icarus install trees are Rosetta-era x86_64 artifacts, and Homebrew's arm64
   Icarus is the wrong semantic revision even though its architecture matches.
+- Make that prefix absolute before invoking a harness that changes directory.
+  From the repository root, `PATH="local-install/bin:$PATH"` becomes invalid
+  after `.github/ivtest_gate.sh` enters `ivtest` and can silently fall through
+  to Homebrew Icarus; use `PATH="$PWD/local-install/bin:$PATH"` instead.
 - Run compiler/simulator commands through
   `../evidence/arm64-tooling/resource-runner`. Do not execute the old sv-tests
   runner by its broken x86-era shebang, or a historical peak-reporting wrapper

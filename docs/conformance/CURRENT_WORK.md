@@ -1,5 +1,80 @@
 # CURRENT WORK — continuation state
 
+## Resume state — 2026-08-26 — declaration lifetimes, call unwind, and DPI ABI
+
+Worktree:
+`iverilog-uvm-class-event-after233-arm64-20260825`
+
+Branch: `agent/opentitan-next-after234-arm64-20260825`, based exactly on
+`origin/main` at `3fab33625e2f2ac48d574a4e786659e8ac1d488d` (0 ahead / 0
+behind before the pending commits).
+
+This increment closes four compiler/runtime clusters exposed by unchanged
+OpenTitan and Caliptra sources. Explicit declaration lifetimes now control
+storage, initialization, VPI `vpiAutomatic`, fixed-array access, event
+identity, virtual-interface dispatch, array-port context, and detached-frame
+retention independently of the containing subroutine lifetime. A self-kill
+from nested synchronous calls no longer rejoins already-reaped frames, and
+abandoned caller-owned automatic contexts are released in exact LIFO order.
+Method-local queue `.size`/`.size()` expressions now reach the constraint
+solver. The recorded DPI subset now uses Annex-H scalar/result ABIs for narrow
+integers, scalar bit/logic, shortreal, chandle, string, packed-vector formals,
+and supported export directions, including host plain-`char` polarity and
+prefixless old-image compatibility.
+
+Exact native-ARM64 validation on the current tree is clean:
+
+- serial build/install and `make -j1 check` pass;
+- legacy ivtest: 4,088 total, 4,083 pass, 2 recorded NI, 3 expected fail,
+  0 unexpected fail;
+- JSON/VVP: 973/973;
+- bundled VPI: 103/103;
+- negative diagnostics: 131/131;
+- scheduler UVM focus: 23/23;
+- real-DPI UVM focus: 37/37;
+- complete canonical UVM harness: 353/353, zero skips, with the real DPI
+  umbrella loaded;
+- the process-kill reducer passes the modern and legacy call engines with
+  exactly five abandoned call-site contexts released in each mode; and
+- parser reports remain 535 shift/reduce plus 1,115 reduce/reduce conflicts
+  across 201 states; the VVP parser reports 13 shift/reduce plus 5
+  reduce/reduce conflicts across 8 states.
+
+Pinned Slang 11 in IEEE 1800-2017 mode accepts 10 of the 11 new
+lifetime/process sources, including the exact process-kill reducer. Its sole
+rejection is fixed-array-element `force`/`release`; IEEE 1800-2017 and 2023
+§§6.4 and 10.6.2 permit a reference to the selected singular integral
+variable, so this is recorded as a differential-oracle disagreement rather
+than copied into Icarus. No VCS, Questa, or Xcelium execution was performed;
+those commercial simulators remain the practical compatibility target, not
+claimed validation evidence. Verilator was not used as a semantic or ABI
+oracle.
+
+The focused unchanged Caliptra `axi_pkg.sv` + `axi_if.sv` witness at
+`bd31614182fb56e55578f48086a10ded650434fd` compiles with zero diagnostics and
+its VVP image loads and exits normally. This proves only package/interface
+elaboration and image loading: it does not execute an AXI transaction or a
+full Caliptra top. The runtime-only OpenTitan HMAC replay at
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` reaches the 45-second CPU guard at
+210,327,516 ps without the scheduler assertion, another assertion, UVM error
+or fatal, loader failure, or crash. It remains short of the former
+1,339,336,540 ps failure point and is supporting frontier evidence only; the
+mainline-red exact reducers supply the red/green proof. The cleanup census
+prints one residual vec4 stack entry while the externally interrupted HMAC
+thread is torn down, which is guard-termination noise rather than a natural
+simulation exit result.
+
+The principal remaining commercial-parity gap in this increment is IEEE
+1800-2017 §35.9 / Annex H.8.2 task-disable status and acknowledgement:
+exported tasks still lack the simulator-provided status return, imported tasks
+still lack the C-provided acknowledgement, and `svIsDisabledState` /
+`svAckDisabledState` are absent. Full OpenTitan and Caliptra application runs
+and matrices remain follow-up work; neither project source tree was modified.
+
+Durable process-unwind detail is in
+`session_logs/2026-08-26_opentitan_process_kill_trampoline.md`. Exact SoC and
+full-UVM replay artifacts live outside the repository under `evidence/`.
+
 ## Resume state — 2026-08-25 — OpenTitan class events and HMAC mask path
 
 Worktree:
