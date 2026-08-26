@@ -637,6 +637,8 @@ bool dll_target::proc_condit(const NetCondit*net)
       stmt_cur_->type_ = IVL_ST_CONDIT;
       stmt_cur_->u_.condit_.stmt_ =
 	    dll_procedure_new_array<struct ivl_statement_s>(2);
+      stmt_cur_->u_.condit_.immediate_assertion =
+	    net->is_immediate_assertion();
 
       assert(expr_ == 0);
       net->expr()->expr_scan(this);

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_class_property_compound_wait.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_class_property_compound_wait" ],
+    "gold"          : "sv_class_property_compound_wait"
+}

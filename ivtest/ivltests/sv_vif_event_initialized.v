@@ -6,6 +6,7 @@
 interface vif_event_if;
   logic signal;
   logic other;
+  logic words[3];
 endinterface
 
 module sv_vif_event_initialized;
@@ -16,11 +17,15 @@ module sv_vif_event_initialized;
   bit negedge_woke;
   bit anyedge_woke;
   bit multi_woke;
+  bit selected_word_multi_woke;
 
   initial begin
     vif = actual;
     actual.signal = 0;
     actual.other = 0;
+    actual.words[0] = 0;
+    actual.words[1] = 0;
+    actual.words[2] = 0;
 
     fork
       begin
@@ -39,16 +44,29 @@ module sv_vif_event_initialized;
         @(vif.signal or vif.other);
         multi_woke = 1;
       end
+      begin
+        @(vif.words[0] or vif.words[2]);
+        selected_word_multi_woke = 1;
+      end
     join_none
 
     #1 actual.signal = 1;
     #1 actual.signal = 0;
     #1 actual.other = 1;
+    #1 actual.words[1] = 1;
+    #1;
+    if (selected_word_multi_woke) begin
+      $display("FAILED unselected VIF array word woke multi event");
+      $finish;
+    end
+    actual.words[2] = 1;
     #1;
 
-    if (!posedge_woke || !negedge_woke || !anyedge_woke || !multi_woke) begin
-      $display("FAILED pos=%0d neg=%0d any=%0d multi=%0d",
-               posedge_woke, negedge_woke, anyedge_woke, multi_woke);
+    if (!posedge_woke || !negedge_woke || !anyedge_woke || !multi_woke
+        || !selected_word_multi_woke) begin
+      $display("FAILED pos=%0d neg=%0d any=%0d multi=%0d word=%0d",
+               posedge_woke, negedge_woke, anyedge_woke, multi_woke,
+               selected_word_multi_woke);
     end else begin
       $display("PASSED");
     end

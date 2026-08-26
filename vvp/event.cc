@@ -43,6 +43,172 @@ static bool event_trace_enabled_()
       return enabled != 0;
 }
 
+/* Commercial event simulators commonly optimize side-effect-free
+   combinational procedures as a fixed-point network, while still preserving
+   ordinary procedural event/VPI semantics. Model that distinction narrowly:
+   during one statically proven pure always_comb evaluation, keep other pure
+   combinational waiters armed until every changed sensitivity leaf has its
+   final value. Ordinary waiters, event-controlled assignments, signal
+   storage, and VPI callbacks are untouched.
+
+   Event-or cascades carry no value of their own. A synchronous token around
+   the originating anyedge delivery therefore follows the cascade and records
+   which leaf caused each retained waiter head to trigger. */
+struct pure_comb_change_s {
+      vvp_vector4_t initial;
+      vvp_vector4_t final;
+};
+
+static vthread_t pure_comb_source_ = 0;
+static const void*pure_comb_origin_ = 0;
+static std::map<const void*, pure_comb_change_s> pure_comb_changes_;
+static std::map<vthread_t*, std::set<const void*> > pure_comb_wait_heads_;
+static std::vector<vthread_t*> pure_comb_wait_order_;
+
+static void pure_comb_clear_(bool wake_waiters)
+{
+      /* Clear the source before scheduling: a woken process must begin a new
+	 transaction, never inherit the interrupted source's journal. */
+      pure_comb_source_ = 0;
+      pure_comb_origin_ = 0;
+      if (wake_waiters && !schedule_finished())
+	    for (std::vector<vthread_t*>::const_iterator head =
+		       pure_comb_wait_order_.begin();
+		 head != pure_comb_wait_order_.end(); ++head)
+		  if (*head && **head)
+			vthread_schedule_pure_comb_waiters(**head);
+      pure_comb_wait_order_.clear();
+      pure_comb_wait_heads_.clear();
+      pure_comb_changes_.clear();
+}
+
+void vvp_pure_comb_evaluation_begin(vthread_t source)
+{
+      assert(source);
+      assert(pure_comb_source_ == 0);
+      assert(pure_comb_origin_ == 0);
+      assert(pure_comb_changes_.empty());
+      assert(pure_comb_wait_heads_.empty());
+      assert(pure_comb_wait_order_.empty());
+      pure_comb_source_ = source;
+}
+
+static void pure_comb_commit_()
+{
+      /* Scheduling does not execute a waiter synchronously. Clear the active
+	 source first so the next process starts a distinct transaction. */
+      pure_comb_source_ = 0;
+      pure_comb_origin_ = 0;
+
+      for (std::vector<vthread_t*>::const_iterator ordered_head =
+		 pure_comb_wait_order_.begin();
+	   ordered_head != pure_comb_wait_order_.end(); ++ordered_head) {
+	    std::map<vthread_t*, std::set<const void*> >::const_iterator head =
+		  pure_comb_wait_heads_.find(*ordered_head);
+	    assert(head != pure_comb_wait_heads_.end());
+	    bool final_change = false;
+	    for (std::set<const void*>::const_iterator origin = head->second.begin();
+		 origin != head->second.end(); ++origin) {
+		  std::map<const void*, pure_comb_change_s>::const_iterator change =
+			pure_comb_changes_.find(*origin);
+		  assert(change != pure_comb_changes_.end());
+		  if (!change->second.initial.eeq(change->second.final)) {
+			final_change = true;
+			break;
+		  }
+	    }
+	    if (final_change && head->first)
+		  vthread_schedule_pure_comb_waiters(*head->first);
+      }
+
+      pure_comb_wait_order_.clear();
+      pure_comb_wait_heads_.clear();
+      pure_comb_changes_.clear();
+}
+
+void vvp_pure_comb_evaluation_end(vthread_t source)
+{
+      /* A synchronous VPI finish/disable can close the transaction before
+	 control reaches the compiler-emitted end marker. */
+      if (!pure_comb_source_) {
+	    assert(pure_comb_origin_ == 0);
+	    assert(pure_comb_changes_.empty());
+	    assert(pure_comb_wait_heads_.empty());
+	    assert(pure_comb_wait_order_.empty());
+	    return;
+      }
+      assert(source && pure_comb_source_ == source);
+      assert(pure_comb_origin_ == 0);
+      pure_comb_commit_();
+}
+
+void vvp_pure_comb_evaluation_abort(vthread_t source)
+{
+      if (pure_comb_source_ != source)
+	    return;
+      pure_comb_clear_(true);
+}
+
+void vvp_pure_comb_evaluation_finish(void)
+{
+      if (!pure_comb_source_)
+	    return;
+
+      /* vpiFinish may be called synchronously from a value-change callback,
+	 while pure_comb_origin_ still names the transition whose delivery is on
+	 the C++ stack. The values already recorded in the journal are the final
+	 observable values at the finish boundary. Commit their net changes and
+	 release the corresponding pre-finish waiters before the scheduler closes;
+	 the transition guard restores a null origin when that callback unwinds. */
+      pure_comb_commit_();
+}
+
+bool vvp_pure_comb_evaluation_active(vthread_t source)
+{
+      return source && pure_comb_source_ == source;
+}
+
+void vvp_pure_comb_evaluation_discard(void)
+{
+      if (!pure_comb_source_)
+	    return;
+      pure_comb_clear_(false);
+}
+
+class pure_comb_transition_guard_s {
+    public:
+      pure_comb_transition_guard_s(const void*origin,
+				   const vvp_vector4_t&before,
+				   const vvp_vector4_t&after)
+	    : active_(pure_comb_source_ != 0), saved_(pure_comb_origin_)
+      {
+	    if (!active_)
+		  return;
+	    assert(origin);
+	    std::map<const void*, pure_comb_change_s>::iterator found =
+		  pure_comb_changes_.find(origin);
+	    if (found == pure_comb_changes_.end()) {
+		  pure_comb_change_s change;
+		  change.initial = before;
+		  change.final = after;
+		  pure_comb_changes_[origin] = change;
+	    } else {
+		  found->second.final = after;
+	    }
+	    pure_comb_origin_ = origin;
+      }
+
+      ~pure_comb_transition_guard_s()
+      {
+	    if (active_)
+		  pure_comb_origin_ = pure_comb_source_ ? saved_ : 0;
+      }
+
+    private:
+      bool active_;
+      const void*saved_;
+};
+
 static vvp_context_t recover_automatic_event_context_(vvp_context_t context,
                                                       __vpiScope*scope,
                                                       const char*where)
@@ -91,13 +257,33 @@ void waitable_hooks_s::run_waiting_threads_(vthread_t&threads)
 		  last = &(cur->next);
 		  cur = cur->next;
 	    }
+	      }
+
+	/* A transition token exists only while a proven-pure combinational
+	   source is synchronously propagating one sensitivity-leaf change.
+	   Wake ordinary observers now, retain pure combinational consumers,
+	   and let the source evaluation's end decide whether their inputs have
+	   a net final change. */
+      if (pure_comb_source_ && pure_comb_origin_) {
+	    if (vthread_schedule_non_pure_comb_waiters(threads)) {
+		  std::map<vthread_t*, std::set<const void*> >::iterator found =
+			pure_comb_wait_heads_.find(&threads);
+		  if (found == pure_comb_wait_heads_.end()) {
+			pure_comb_wait_order_.push_back(&threads);
+			found = pure_comb_wait_heads_
+			      .insert(std::make_pair(
+				    &threads, std::set<const void*>())).first;
+		  }
+		  found->second.insert(pure_comb_origin_);
+	    }
+	    return;
       }
 
-      vthread_t tmp = threads;
-      if (tmp == 0) return;
-      threads = 0;
-
-      vthread_schedule_list(tmp);
+	/* Before $finish, wake the whole list. During the finishing slot,
+	   wake only processes whose event control was armed before $finish;
+	   a process that completes and re-arms after $finish remains parked.
+	   This drains already-scheduled work without allowing it to respawn. */
+      vthread_schedule_event_waiters(threads);
 }
 
 evctl::evctl(unsigned long ecount)
@@ -323,10 +509,7 @@ vvp_fun_edge_sa::~vvp_fun_edge_sa()
 
 vthread_t vvp_fun_edge_sa::add_waiting_thread(vthread_t thread)
 {
-      vthread_t tmp = threads_;
-      threads_ = thread;
-
-      return tmp;
+      return vthread_add_event_wait(thread, &threads_);
 }
 
 void vvp_fun_edge_sa::add_multi_waiting_thread(vthread_t thread)
@@ -400,6 +583,7 @@ void vvp_fun_edge_aa::reset_instance(vvp_context_t context)
       vvp_fun_edge_state_s*state = static_cast<vvp_fun_edge_state_s*>
             (vvp_get_context_item(context, context_idx_));
 
+      assert(state->threads == 0);
       state->threads = 0;
       for (unsigned idx = 0 ;  idx < 4 ;  idx += 1)
             state->bits[idx] = bits_[idx];
@@ -419,10 +603,7 @@ vthread_t vvp_fun_edge_aa::add_waiting_thread(vthread_t thread)
       vvp_fun_edge_state_s*state = static_cast<vvp_fun_edge_state_s*>
             (vthread_get_wt_context_item(context_idx_));
 
-      vthread_t tmp = state->threads;
-      state->threads = thread;
-
-      return tmp;
+      return vthread_add_event_wait(thread, &state->threads);
 }
 
 void vvp_fun_edge_aa::recv_object(vvp_net_ptr_t, vvp_object_t, vvp_context_t)
@@ -483,10 +664,13 @@ class anyedge_vec4_value : public anyedge_value {
 
       void duplicate(anyedge_value*&dup) override;
 
-      bool recv_vec4(const vvp_vector4_t&bit);
+      bool recv_vec4(const vvp_vector4_t&bit,
+		     vvp_vector4_t*previous = 0);
 
       bool recv_vec4_pv(const vvp_vector4_t&bit, unsigned base,
-			unsigned vwid);
+			unsigned vwid, vvp_vector4_t*previous = 0);
+
+      const vvp_vector4_t&current() const { return old_bits; }
 
     private:
       vvp_vector4_t old_bits;
@@ -561,6 +745,32 @@ static anyedge_string_value*get_string_value(anyedge_value*&value)
       return string_value;
 }
 
+class anyedge_object_value : public anyedge_value {
+
+    public:
+      anyedge_object_value() {}
+      virtual ~anyedge_object_value() override {}
+
+      void reset() override { old_bits_ = vvp_object_t(); }
+      void set(const vvp_object_t&bit) { old_bits_ = bit; }
+      void duplicate(anyedge_value*&dup) override;
+      bool recv_object(const vvp_object_t&bit);
+
+    private:
+      vvp_object_t old_bits_;
+};
+
+static anyedge_object_value*get_object_value(anyedge_value*&value)
+{
+      anyedge_object_value*object_value =
+            dynamic_cast<anyedge_object_value*>(value);
+      if (!value) {
+            object_value = new anyedge_object_value();
+            value = object_value;
+      }
+      return object_value;
+}
+
 struct vvp_fun_anyedge_state_s : public waitable_state_s {
       vvp_fun_anyedge_state_s()
       {
@@ -577,7 +787,8 @@ struct vvp_fun_anyedge_state_s : public waitable_state_s {
       anyedge_value *last_value_[4];
 };
 
-vvp_fun_anyedge::vvp_fun_anyedge()
+vvp_fun_anyedge::vvp_fun_anyedge(bool object_handle_change)
+: object_handle_change_(object_handle_change)
 {
       for (unsigned idx = 0 ;  idx < 4 ;  idx += 1)
 	    last_value_[idx] = 0;
@@ -596,7 +807,8 @@ void anyedge_vec4_value::duplicate(anyedge_value*&dup)
       dup_vec4->set(old_bits);
 }
 
-bool anyedge_vec4_value::recv_vec4(const vvp_vector4_t&bit)
+bool anyedge_vec4_value::recv_vec4(const vvp_vector4_t&bit,
+				   vvp_vector4_t*previous)
 {
       bool flag = false;
 
@@ -626,6 +838,8 @@ bool anyedge_vec4_value::recv_vec4(const vvp_vector4_t&bit)
       }
 
       if (flag) {
+	    if (previous)
+		  *previous = old_bits;
 	    old_bits = bit;
       }
 
@@ -633,7 +847,8 @@ bool anyedge_vec4_value::recv_vec4(const vvp_vector4_t&bit)
 }
 
 bool anyedge_vec4_value::recv_vec4_pv(const vvp_vector4_t&bit, unsigned base,
-				      unsigned vwid)
+				      unsigned vwid,
+				      vvp_vector4_t*previous)
 {
       vvp_vector4_t tmp = old_bits;
       if (tmp.size() == 0)
@@ -642,7 +857,7 @@ bool anyedge_vec4_value::recv_vec4_pv(const vvp_vector4_t&bit, unsigned base,
       assert(tmp.size() == vwid);
       tmp.set_vec(base, bit);
 
-      return recv_vec4(tmp);
+      return recv_vec4(tmp, previous);
 }
 
 void anyedge_real_value::duplicate(anyedge_value*&dup)
@@ -677,8 +892,24 @@ bool anyedge_string_value::recv_string(const std::string&bit)
       return false;
 }
 
-vvp_fun_anyedge_sa::vvp_fun_anyedge_sa()
-: threads_(0)
+void anyedge_object_value::duplicate(anyedge_value*&dup)
+{
+      anyedge_object_value*dup_object = get_object_value(dup);
+      assert(dup_object);
+      dup_object->set(old_bits_);
+}
+
+bool anyedge_object_value::recv_object(const vvp_object_t&bit)
+{
+      if (old_bits_ != bit) {
+            old_bits_ = bit;
+            return true;
+      }
+      return false;
+}
+
+vvp_fun_anyedge_sa::vvp_fun_anyedge_sa(bool object_handle_change)
+: vvp_fun_anyedge(object_handle_change), threads_(0)
 {
 }
 
@@ -701,10 +932,7 @@ vvp_fun_anyedge_sa::~vvp_fun_anyedge_sa()
 
 vthread_t vvp_fun_anyedge_sa::add_waiting_thread(vthread_t thread)
 {
-      vthread_t tmp = threads_;
-      threads_ = thread;
-
-      return tmp;
+      return vthread_add_event_wait(thread, &threads_);
 }
 
 void vvp_fun_anyedge_sa::add_multi_waiting_thread(vthread_t thread)
@@ -713,6 +941,37 @@ void vvp_fun_anyedge_sa::add_multi_waiting_thread(vthread_t thread)
             return;
       multi_threads_.insert(thread);
       vif_multi_wait_anyedges_[thread].insert(this);
+}
+
+bool vvp_cancel_multi_waiting_thread(vthread_t thread)
+{
+      if (!thread)
+            return false;
+
+      bool removed = false;
+      std::map<vthread_t, std::set<vvp_fun_edge_sa*> >::iterator edge_it =
+            vif_multi_wait_edges_.find(thread);
+      if (edge_it != vif_multi_wait_edges_.end()) {
+            std::set<vvp_fun_edge_sa*> edges = edge_it->second;
+            vif_multi_wait_edges_.erase(edge_it);
+            for (std::set<vvp_fun_edge_sa*>::const_iterator edge = edges.begin();
+                 edge != edges.end(); ++edge)
+                  (*edge)->multi_threads_.erase(thread);
+            removed = true;
+      }
+
+      std::map<vthread_t, std::set<vvp_fun_anyedge_sa*> >::iterator any_it =
+            vif_multi_wait_anyedges_.find(thread);
+      if (any_it != vif_multi_wait_anyedges_.end()) {
+            std::set<vvp_fun_anyedge_sa*> edges = any_it->second;
+            vif_multi_wait_anyedges_.erase(any_it);
+            for (std::set<vvp_fun_anyedge_sa*>::const_iterator edge =
+                       edges.begin(); edge != edges.end(); ++edge)
+                  (*edge)->multi_threads_.erase(thread);
+            removed = true;
+      }
+
+      return removed;
 }
 
 void vvp_fun_anyedge_sa::run_multi_waiting_threads_()
@@ -740,7 +999,10 @@ void vvp_fun_anyedge_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 {
       anyedge_vec4_value*value = get_vec4_value(last_value_[port.port()]);
       assert(value);
-      if (value->recv_vec4(bit)) {
+	  vvp_vector4_t previous;
+      if (value->recv_vec4(bit, &previous)) {
+	    pure_comb_transition_guard_s transition(value, previous,
+						 value->current());
 	    run_waiting_threads_(threads_);
 	    run_multi_waiting_threads_();
 	    vvp_net_t*net = port.ptr();
@@ -753,7 +1015,10 @@ void vvp_fun_anyedge_sa::recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&bi
 {
       anyedge_vec4_value*value = get_vec4_value(last_value_[port.port()]);
       assert(value);
-      if (value->recv_vec4_pv(bit, base, vwid)) {
+	  vvp_vector4_t previous;
+      if (value->recv_vec4_pv(bit, base, vwid, &previous)) {
+	    pure_comb_transition_guard_s transition(value, previous,
+						 value->current());
 	    run_waiting_threads_(threads_);
 	    run_multi_waiting_threads_();
 	    vvp_net_t*net = port.ptr();
@@ -791,19 +1056,29 @@ void vvp_fun_anyedge_sa::recv_string(vvp_net_ptr_t port, const std::string&bit,
  * An anyedge receiving an object should do nothing with it, but should
  * trigger waiting threads.
  */
-void vvp_fun_anyedge_sa::recv_object(vvp_net_ptr_t port, vvp_object_t,
+void vvp_fun_anyedge_sa::recv_object(vvp_net_ptr_t port, vvp_object_t bit,
 				     vvp_context_t)
 {
       if (event_trace_enabled_()) {
             fprintf(stderr, "trace anyedge-sa recv_object net=%p\n", (void*)port.ptr());
       }
-      run_waiting_threads_(threads_);
-      run_multi_waiting_threads_();
-      vvp_net_t*net = port.ptr();
-      net->send_vec4(vvp_vector4_t(), 0);
+      bool trigger = true;
+      if (object_handle_change_) {
+            anyedge_object_value*value =
+                  get_object_value(last_value_[port.port()]);
+            assert(value);
+            trigger = value->recv_object(bit);
+      }
+      if (trigger) {
+            run_waiting_threads_(threads_);
+            run_multi_waiting_threads_();
+            vvp_net_t*net = port.ptr();
+            net->send_vec4(vvp_vector4_t(), 0);
+      }
 }
 
-vvp_fun_anyedge_aa::vvp_fun_anyedge_aa()
+vvp_fun_anyedge_aa::vvp_fun_anyedge_aa(bool object_handle_change)
+: vvp_fun_anyedge(object_handle_change)
 {
       context_scope_ = vpip_peek_context_scope();
       context_idx_ = vpip_add_item_to_context(this, context_scope_);
@@ -824,6 +1099,7 @@ void vvp_fun_anyedge_aa::reset_instance(vvp_context_t context)
       vvp_fun_anyedge_state_s*state = static_cast<vvp_fun_anyedge_state_s*>
             (vvp_get_context_item(context, context_idx_));
 
+      assert(state->threads == 0);
       state->threads = 0;
       for (unsigned idx = 0 ;  idx < 4 ;  idx += 1) {
 	    if (last_value_[idx])
@@ -847,10 +1123,7 @@ vthread_t vvp_fun_anyedge_aa::add_waiting_thread(vthread_t thread)
       vvp_fun_anyedge_state_s*state = static_cast<vvp_fun_anyedge_state_s*>
             (vthread_get_wt_context_item(context_idx_));
 
-      vthread_t tmp = state->threads;
-      state->threads = thread;
-
-      return tmp;
+      return vthread_add_event_wait(thread, &state->threads);
 }
 
 void vvp_fun_anyedge_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
@@ -970,7 +1243,7 @@ void vvp_fun_anyedge_aa::recv_string(vvp_net_ptr_t port, const std::string&bit,
       }
 }
 
-void vvp_fun_anyedge_aa::recv_object(vvp_net_ptr_t port, vvp_object_t,
+void vvp_fun_anyedge_aa::recv_object(vvp_net_ptr_t port, vvp_object_t bit,
                                      vvp_context_t context)
 {
       static bool seq_trace = (getenv("IVL_SEQ_TRACE") && *getenv("IVL_SEQ_TRACE"));
@@ -1008,9 +1281,18 @@ void vvp_fun_anyedge_aa::recv_object(vvp_net_ptr_t port, vvp_object_t,
                           "[SEQ_TRACE anyedge recv_object] ctx=%p state=%p threads=%p\n",
                           context, (void*)state, state ? (void*)state->threads : 0);
             }
-            run_waiting_threads_(state->threads);
-            vvp_net_t*net = port.ptr();
-            net->send_vec4(vvp_vector4_t(), context);
+            bool trigger = true;
+            if (object_handle_change_) {
+                  anyedge_object_value*value =
+                        get_object_value(state->last_value_[port.port()]);
+                  assert(value);
+                  trigger = value->recv_object(bit);
+            }
+            if (trigger) {
+                  run_waiting_threads_(state->threads);
+                  vvp_net_t*net = port.ptr();
+                  net->send_vec4(vvp_vector4_t(), context);
+            }
       } else {
             if (seq_trace && context_scope_) {
                   int n = 0;
@@ -1046,10 +1328,27 @@ void vvp_fun_anyedge_aa::recv_object(vvp_net_ptr_t port, vvp_object_t,
             while (context) {
                   vvp_fun_anyedge_state_s*state =
                         static_cast<vvp_fun_anyedge_state_s*>(context[context_idx_]);
-                  if (state && state->threads) {
+                  if (object_handle_change_ && state) {
+                        anyedge_object_value*value =
+                              get_object_value(
+                                    state->last_value_[port.port()]);
+                        assert(value);
+                        bool changed = value->recv_object(bit);
+                        if (changed) {
+                              run_waiting_threads_(state->threads);
+                              vvp_net_t*net = port.ptr();
+                              net->send_vec4(vvp_vector4_t(), context);
+                        }
+                  } else if (state && state->threads) {
                         recv_object(port, vvp_object_t(), context);
                   }
                   context = vvp_get_next_context(context);
+            }
+            if (object_handle_change_) {
+                  anyedge_object_value*value =
+                        get_object_value(last_value_[port.port()]);
+                  assert(value);
+                  value->set(bit);
             }
       }
 }
@@ -1074,10 +1373,7 @@ vvp_fun_event_or_sa::~vvp_fun_event_or_sa()
 
 vthread_t vvp_fun_event_or_sa::add_waiting_thread(vthread_t thread)
 {
-      vthread_t tmp = threads_;
-      threads_ = thread;
-
-      return tmp;
+      return vthread_add_event_wait(thread, &threads_);
 }
 
 void vvp_fun_event_or_sa::recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&bit,
@@ -1108,6 +1404,7 @@ void vvp_fun_event_or_aa::reset_instance(vvp_context_t context)
       waitable_state_s*state = static_cast<waitable_state_s*>
             (vvp_get_context_item(context, context_idx_));
 
+      assert(state->threads == 0);
       state->threads = 0;
 }
 
@@ -1125,10 +1422,7 @@ vthread_t vvp_fun_event_or_aa::add_waiting_thread(vthread_t thread)
       waitable_state_s*state = static_cast<waitable_state_s*>
             (vthread_get_wt_context_item(context_idx_));
 
-      vthread_t tmp = state->threads;
-      state->threads = thread;
-
-      return tmp;
+      return vthread_add_event_wait(thread, &state->threads);
 }
 
 void vvp_fun_event_or_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
@@ -1178,10 +1472,7 @@ vvp_named_event_sa::~vvp_named_event_sa()
 
 vthread_t vvp_named_event_sa::add_waiting_thread(vthread_t thread)
 {
-      vthread_t tmp = threads_;
-      threads_ = thread;
-
-      return tmp;
+      return vthread_add_event_wait(thread, &threads_);
 }
 
 void vvp_named_event::note_triggered(void)
@@ -1229,6 +1520,7 @@ void vvp_named_event_aa::reset_instance(vvp_context_t context)
       waitable_state_s*state = static_cast<waitable_state_s*>
             (vvp_get_context_item(context, context_idx_));
 
+      assert(state->threads == 0);
       state->threads = 0;
 }
 
@@ -1246,10 +1538,7 @@ vthread_t vvp_named_event_aa::add_waiting_thread(vthread_t thread)
       waitable_state_s*state = static_cast<waitable_state_s*>
             (vthread_get_wt_context_item(context_idx_));
 
-      vthread_t tmp = state->threads;
-      state->threads = thread;
-
-      return tmp;
+      return vthread_add_event_wait(thread, &state->threads);
 }
 
 vvp_named_event_dyn::vvp_named_event_dyn()
@@ -1263,10 +1552,7 @@ vvp_named_event_dyn::~vvp_named_event_dyn()
 
 vthread_t vvp_named_event_dyn::add_waiting_thread(vthread_t thread)
 {
-      vthread_t tmp = threads_;
-      threads_ = thread;
-
-      return tmp;
+      return vthread_add_event_wait(thread, &threads_);
 }
 
 void vvp_named_event_dyn::recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&,
@@ -1342,14 +1628,16 @@ void compile_event(char*label, char*type, unsigned argc, struct symb_s*argv)
 	    return;
       }
 
-      if (strcmp(type,"anyedge") == 0) {
+      if (strcmp(type,"anyedge") == 0 || strcmp(type,"handleedge") == 0) {
+
+            bool object_handle_change = strcmp(type,"handleedge") == 0;
 
 	    free(type);
 
             if (vpip_peek_current_scope()->is_automatic()) {
-                  fun = new vvp_fun_anyedge_aa;
+                  fun = new vvp_fun_anyedge_aa(object_handle_change);
             } else {
-                  fun = new vvp_fun_anyedge_sa;
+                  fun = new vvp_fun_anyedge_sa(object_handle_change);
             }
 
       } else {

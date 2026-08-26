@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_assert_preponed_resolved_net_strength.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_assert_preponed_resolved_net_strength" ],
+    "gold"          : "sv_assert_preponed_resolved_net_strength"
+}

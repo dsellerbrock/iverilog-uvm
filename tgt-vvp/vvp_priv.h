@@ -950,8 +950,29 @@ static inline int emit_property_queue_last_index_(ivl_expr_t expr,
 }
 
 /* The packed element descriptor %load/arr/dar and %store/arr/dar share
-   for a fixed unpacked array's elements. Returns 0 (and reports) when
-   the element kind has no container representation. */
+   for a fixed unpacked array's elements. Keep bits 8..13 in their original
+   positions so VVP images using the earlier 8-bit-width encoding remain
+   readable; width bits 8..23 occupy the previously unused bits 14..29.
+
+      kind bits  7..0  = element width bits 7..0
+      kind bit      8  = signed
+      kind bit      9  = four-state
+      kind bit     10  = descending source range
+      kind bit     11  = object elements
+      kind bit     12  = string elements
+      kind bit     13  = queue result
+      kind bits 29..14 = element width bits 23..8
+
+   Returns 0 (and reports) when the element kind cannot be carried. */
+#define VVP_ARRDAR_WIDTH_MAX       0x00ffffffu
+#define VVP_ARRDAR_WIDTH_KIND(w)   (((w) & 0xffu) | (((w) & 0xffff00u) << 6))
+#define VVP_ARRDAR_SIGNED          (1u << 8)
+#define VVP_ARRDAR_FOUR            (1u << 9)
+#define VVP_ARRDAR_DESC            (1u << 10)
+#define VVP_ARRDAR_OBJ             (1u << 11)
+#define VVP_ARRDAR_STRING          (1u << 12)
+#define VVP_ARRDAR_QUEUE           (1u << 13)
+
 extern int uarray_container_kind_(ivl_signal_t sig, unsigned*kind_out,
 				  const char*file, unsigned lineno);
 
@@ -962,6 +983,12 @@ extern void emit_load_arr_dar_(ivl_signal_t sig, unsigned kind);
 /* Emit the container -> fixed-array store, flat or nesting according to
    the destination's declared dimensionality. */
 extern void emit_store_arr_dar_(ivl_signal_t sig, unsigned kind);
+
+/* Sized DPI fixed-array formals use the direct C-pointer ABI, not an
+   svOpenArrayHandle. A multidimensional signal therefore needs its canonical
+   flat word storage, rather than the nested object tree used by open arrays. */
+extern void emit_load_arr_dar_dpi_(ivl_signal_t sig, unsigned kind);
+extern void emit_store_arr_dar_dpi_(ivl_signal_t sig, unsigned kind);
 
 extern int show_stmt_assign(ivl_statement_t net);
 extern int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay);

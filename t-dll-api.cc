@@ -407,6 +407,15 @@ extern "C" ivl_nexus_t ivl_event_any(ivl_event_t net, unsigned idx)
       return net->pins[idx];
 }
 
+extern "C" int ivl_event_any_is_obj_handle_change(ivl_event_t net,
+                                                    unsigned idx)
+{
+      assert(net);
+      assert(idx < net->nany);
+      assert(net->any_is_obj_handle_change.size() == net->nany);
+      return net->any_is_obj_handle_change[idx] ? 1 : 0;
+}
+
 extern "C" unsigned ivl_event_nedg(ivl_event_t net)
 {
       assert(net);
@@ -551,6 +560,54 @@ extern "C" unsigned ivl_event_obj_mutation_root_pin(ivl_event_t net,
       assert(net);
       assert(idx < net->obj_mutation_paths.size());
       return net->obj_mutation_paths[idx].root_pin;
+}
+
+extern "C" unsigned ivl_event_obj_mutation_property_N(ivl_event_t net,
+                                                        unsigned idx)
+{
+      assert(net);
+      assert(idx < net->obj_mutation_paths.size());
+      return net->obj_mutation_paths[idx].property_N;
+}
+
+extern "C" unsigned ivl_event_obj_mutation_property_word(ivl_event_t net,
+                                                           unsigned idx)
+{
+      assert(net);
+      assert(idx < net->obj_mutation_paths.size());
+      return net->obj_mutation_paths[idx].property_word;
+}
+
+extern "C" ivl_expr_t ivl_event_obj_mutation_property_word_expr(
+      ivl_event_t net, unsigned idx)
+{
+      assert(net);
+      assert(idx < net->obj_mutation_paths.size());
+      return net->obj_mutation_paths[idx].property_word_expr;
+}
+
+extern "C" unsigned ivl_event_obj_mutation_property_bit(ivl_event_t net,
+                                                          unsigned idx)
+{
+      assert(net);
+      assert(idx < net->obj_mutation_paths.size());
+      return net->obj_mutation_paths[idx].property_bit;
+}
+
+extern "C" ivl_expr_t ivl_event_obj_mutation_property_bit_expr(
+      ivl_event_t net, unsigned idx)
+{
+      assert(net);
+      assert(idx < net->obj_mutation_paths.size());
+      return net->obj_mutation_paths[idx].property_bit_expr;
+}
+
+extern "C" ivl_expr_t ivl_event_obj_mutation_owner_expr(
+      ivl_event_t net, unsigned idx)
+{
+      assert(net);
+      assert(idx < net->obj_mutation_paths.size());
+      return net->obj_mutation_paths[idx].owner_expr;
 }
 
 extern "C" const char* ivl_expr_bits(ivl_expr_t net)
@@ -3394,6 +3451,13 @@ extern "C" ivl_statement_t ivl_stmt_cond_true(ivl_statement_t net)
 	    return 0;
       else
 	    return net->u_.condit_.stmt_ + 0;
+}
+
+extern "C" unsigned ivl_stmt_is_immediate_assertion(ivl_statement_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_ST_CONDIT);
+      return net->u_.condit_.immediate_assertion;
 }
 
 extern "C" ivl_expr_t ivl_stmt_delay_expr(ivl_statement_t net)

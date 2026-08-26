@@ -23,6 +23,38 @@ using namespace std;
 static vector<ivl_dll_t> dpi_libs;
 static map<string,void*> dpi_sym_cache;
 
+static bool dpi_array_pointer_arg_(char type)
+{
+      return type == 'o' || type == 'O'
+	  || type == 'B' || type == 'G'
+	  || type == 'x' || type == 'X'
+	  || type == 'y' || type == 'Y';
+}
+
+/* Open-array formals use an svOpenArrayHandle, while a fixed unpacked-array
+ * formal uses the C pointer ABI from IEEE 1800 Annex H. The upper-case
+ * signature letters retain the fixed/open distinction all the way to this
+ * boundary so a fixed array is never accidentally passed as a handle. */
+static void*dpi_array_argument_(const vvp_dpi_arg_t&arg)
+{
+      if (!arg.aval) return 0;
+      switch (arg.type) {
+	  case 'o':
+	  case 'x':
+	  case 'y':
+	    return arg.aval;
+	  case 'O':
+	    return arg.aval->data;
+	  case 'B':
+	  case 'G':
+	  case 'X':
+	  case 'Y':
+	    return arg.aval->elem_data;
+	  default:
+	    return 0;
+      }
+}
+
 void vvp_dpi_load_lib(const char*path)
 {
       ivl_dll_t dll = ivl_dlopen(path, true);
@@ -135,10 +167,16 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 		  atypes[idx] = &ffi_type_pointer;
 		  vals[idx].str = arg.sval;
 		  break;
-		case 'o': // dynamic/open svOpenArrayHandle
-		case 'O': // fixed unpacked-array svOpenArrayHandle
+		case 'o': // generic dynamic/open svOpenArrayHandle
+		case 'O': // generic fixed unpacked-array C pointer
+		case 'B': // svBit fixed scalar unpacked-array C pointer
+		case 'G': // svLogic fixed scalar unpacked-array C pointer
+		case 'x': // packed bit dynamic/open svOpenArrayHandle
+		case 'X': // packed bit fixed-array canonical C pointer
+		case 'y': // packed logic dynamic/open svOpenArrayHandle
+		case 'Y': // packed logic fixed-array canonical C pointer
 		  atypes[idx] = &ffi_type_pointer;
-		  vals[idx].ptr = arg.aval;
+		  vals[idx].ptr = dpi_array_argument_(arg);
 		  break;
 		case 'V': // svBitVecVal*  (wide 2-state packed vector)
 		case 'W': // svLogicVecVal* (wide 4-state packed vector)
@@ -156,7 +194,7 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 	      // (seeded) typed slot; the callee writes through it.
 	      // Open arrays are already handles that share storage,
 	      // so direction changes nothing about their marshaling.
-	    if (arg.is_output && arg.type != 'o' && arg.type != 'O'
+	    if (arg.is_output && !dpi_array_pointer_arg_(arg.type)
 		&& arg.type != 'V' && arg.type != 'W') {
 		  optrs[idx] = &vals[idx];
 		  atypes[idx] = &ffi_type_pointer;
@@ -199,7 +237,7 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
       ffi_call(&cif, FFI_FN(sym), &rbuf, nargs? &avalues[0] : 0);
 
       for (unsigned idx = 0 ; idx < nargs ; idx += 1) {
-	    if (! args[idx].is_output || args[idx].type == 'o'
+	    if (! args[idx].is_output || dpi_array_pointer_arg_(args[idx].type)
 		|| args[idx].type == 'V' || args[idx].type == 'W')
 		  continue;   // 'V'/'W' write in place through the buffer
 	    switch (args[idx].type) {
@@ -335,7 +373,7 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
       memset(oval, 0, sizeof oval);
       intptr_t a[8] = {0};
       for (unsigned idx = 0 ; idx < nargs ; idx += 1) {
-	    if (args[idx].is_output && args[idx].type != 'o'
+	    if (args[idx].is_output && !dpi_array_pointer_arg_(args[idx].type)
 		&& args[idx].type != 'V' && args[idx].type != 'W') {
 		  switch (args[idx].type) {
 		      case 'b': oval[idx].i8  = (int8_t)args[idx].ival;  break;
@@ -351,8 +389,8 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 		  a[idx] = (intptr_t)args[idx].sval;
 	    else if (args[idx].type == 'p')
 		  a[idx] = (intptr_t)args[idx].pval;
-	    else if (args[idx].type == 'o')
-		  a[idx] = (intptr_t)args[idx].aval;
+	    else if (dpi_array_pointer_arg_(args[idx].type))
+		  a[idx] = (intptr_t)dpi_array_argument_(args[idx]);
 	    else if (args[idx].type == 'V' || args[idx].type == 'W')
 		  a[idx] = (intptr_t)args[idx].vbuf;
 	    else
@@ -395,7 +433,7 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
       }
 
       for (unsigned idx = 0 ; idx < nargs ; idx += 1) {
-	    if (! args[idx].is_output || args[idx].type == 'o'
+	    if (! args[idx].is_output || dpi_array_pointer_arg_(args[idx].type)
 		|| args[idx].type == 'V' || args[idx].type == 'W')
 		  continue;   // 'V'/'W' write in place through the buffer
 	    switch (args[idx].type) {
@@ -581,8 +619,8 @@ int svSizeOfArray(const void*h)
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
       if (!arr) return 0;
 
-      if (!arr->outer)
-	    return (int)(arr->length * arr->elem_bytes);
+	if (!arr->outer)
+	      return arr->data ? (int)(arr->length * arr->elem_bytes) : 0;
 
       int dims = svDimensions(h);
       size_t words = 1;
@@ -640,10 +678,12 @@ static int dpi_canon_darray_index_(const vvp_darray*arr, int index)
 void* svGetArrElemPtr1(const void*h, int indx1)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
-      if (!arr || !arr->data) return 0;
+      if (!arr) return 0;
+      void*base = arr->elem_data ? arr->elem_data : arr->data;
+      if (!base) return 0;
       int k = dpi_canon_index_(arr, indx1);
       if (k < 0 || (unsigned)k >= arr->length) return 0;
-      return (char*)arr->data + (size_t)k * arr->elem_bytes;
+      return (char*)base + (size_t)k * arr->elem_bytes;
 }
 
 /* M10B-md: 2-D element access — outer word indx1 is an inner dynamic
@@ -776,6 +816,36 @@ static vector<int> dpi_var_indices_(const void*h, int indx1, va_list ap)
 static bool dpi_get_packed_(const void*h, const vector<int>&indices,
 			    vvp_vector4_t&value)
 {
+      const vvp_dpi_open_array_t*open =
+	    static_cast<const vvp_dpi_open_array_t*>(h);
+      if (open && open->packed_scratch && indices.size() == 1) {
+	    int idx = dpi_canon_index_(open, indices[0]);
+	    if (!open->elem_data || idx < 0 || (unsigned)idx >= open->length
+		|| open->packed_width == 0)
+		  return false;
+	    unsigned value_words = (open->packed_width + 31) / 32;
+	    unsigned stride_words = value_words
+		  * (open->packed_four_state ? 2 : 1);
+	    const uint32_t*src = static_cast<const uint32_t*>(open->elem_data)
+		  + (size_t)idx * stride_words;
+	    value = vvp_vector4_t(open->packed_width, BIT4_0);
+	    for (unsigned bit = 0; bit < open->packed_width; bit += 1) {
+		  unsigned word = bit / 32;
+		  uint32_t mask = (uint32_t)1 << (bit % 32);
+		  vvp_bit4_t val;
+		  if (open->packed_four_state) {
+			bool aval = (src[2*word] & mask) != 0;
+			bool bval = (src[2*word + 1] & mask) != 0;
+			val = bval ? (aval ? BIT4_X : BIT4_Z)
+			           : (aval ? BIT4_1 : BIT4_0);
+		  } else {
+			val = (src[word] & mask) ? BIT4_1 : BIT4_0;
+		  }
+		  value.set_bit(bit, val);
+	    }
+	    return true;
+      }
+
       vvp_darray*array = 0;
       unsigned word = 0;
       if (!dpi_element_slot_(h, indices, array, word)) return false;
@@ -786,6 +856,37 @@ static bool dpi_get_packed_(const void*h, const vector<int>&indices,
 static bool dpi_put_packed_(const void*h, const vector<int>&indices,
 			    const vvp_vector4_t&value)
 {
+      const vvp_dpi_open_array_t*open =
+	    static_cast<const vvp_dpi_open_array_t*>(h);
+      if (open && open->packed_scratch && indices.size() == 1) {
+	    int idx = dpi_canon_index_(open, indices[0]);
+	    if (!open->elem_data || idx < 0 || (unsigned)idx >= open->length
+		|| open->packed_width == 0)
+		  return false;
+	    unsigned value_words = (open->packed_width + 31) / 32;
+	    unsigned stride_words = value_words
+		  * (open->packed_four_state ? 2 : 1);
+	    uint32_t*dst = static_cast<uint32_t*>(open->elem_data)
+		  + (size_t)idx * stride_words;
+	    memset(dst, 0, stride_words * sizeof(*dst));
+	    unsigned limit = value.size() < open->packed_width
+		  ? value.size() : open->packed_width;
+	    for (unsigned bit = 0; bit < limit; bit += 1) {
+		  vvp_bit4_t val = value.value(bit);
+		  unsigned word = bit / 32;
+		  uint32_t mask = (uint32_t)1 << (bit % 32);
+		  if (open->packed_four_state) {
+			if (val == BIT4_1 || val == BIT4_X)
+			      dst[2*word] |= mask;
+			if (val == BIT4_Z || val == BIT4_X)
+			      dst[2*word + 1] |= mask;
+		  } else if (val == BIT4_1) {
+			dst[word] |= mask;
+		  }
+	    }
+	    return true;
+      }
+
       vvp_darray*array = 0;
       unsigned word = 0;
       if (!dpi_element_slot_(h, indices, array, word)) return false;

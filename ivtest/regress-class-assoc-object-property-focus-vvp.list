@@ -1,0 +1,3 @@
+# Nested associative object-property wait/event controls
+sv_class_assoc_object_property_wait vvp_tests/sv_class_assoc_object_property_wait.json
+sv_class_assoc_object_property_event vvp_tests/sv_class_assoc_object_property_event.json

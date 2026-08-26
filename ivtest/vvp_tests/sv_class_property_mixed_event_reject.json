@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_class_property_mixed_event_reject.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_class_property_mixed_event_reject" ],
+    "gold"          : "sv_class_property_mixed_event_reject"
+}

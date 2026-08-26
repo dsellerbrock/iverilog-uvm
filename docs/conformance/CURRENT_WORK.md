@@ -1,5 +1,67 @@
 # CURRENT WORK — continuation state
 
+## Resume state — 2026-08-25 — OpenTitan class events and HMAC mask path
+
+Worktree:
+`iverilog-uvm-class-event-after233-arm64-20260825`
+
+Branch: `agent/opentitan-class-event-after233-arm64-20260825`, based exactly
+on `origin/main` at `92c68dd3c0b8bb0478ec9b6de77f8645ad16c180`.
+
+This increment fixes three compiler/runtime defects exposed by the unchanged
+OpenTitan HMAC image: selected class-property event controls now retain and
+filter their armed owner; strength-resolved `vec8` nets retain exact Preponed
+history; and a run-time index into a singleton outer packed dimension no
+longer subtracts the inner slice width. Permanent coverage includes direct
+and associative-owner property events, class-only compound events/waits,
+mixed ordinary/VIF-plus-property waits, disable-fork cancellation, resolved
+strength sampling, and singleton/ascending/descending packed selects.
+
+Broad native-arm64 validation is clean: legacy 4,072 pass / 2 inherited NI /
+3 expected fail / 0 unexpected fail (4,077 total); JSON/VVP 962/962; VPI
+100/100; negative diagnostics 123/123; and `make -j1 check` passes. The
+real-DPI UVM suite must
+be invoked with this worktree's `local-install/bin` first in `PATH`; otherwise
+the runner selects Homebrew's stock compiler and reports setup failures.
+
+The commercial fixed-array DPI ABI refinement is also green. The target is
+IEEE 1800-2017 Annex H compatibility with VCS, Questa, and Xcelium rather than
+a Verilator-specific convention. Open arrays continue to receive an
+`svOpenArrayHandle`; sized fixed formals now receive the direct C pointer their
+declaration requires. Scalar `bit`/`logic`, explicit packed `[0:0]`, atom,
+packed-vector, multidimensional, opposite-direction caller/formal, and
+256-/384-bit element cases all round-trip, including X/Z and output/inout
+copyback. The fixed-array focus is 12/12 and the full supported REAL-DPI group
+is 32/32, both with zero skips. Pure DPI libraries must be
+loaded with `vvp -d`; `-m` is deliberately reserved for VPI modules that
+provide `vlog_startup_routines`.
+
+The exact OpenTitan SHA-384 import now uses the same commercial ABI: its open
+message argument is a handle, while `output int unsigned hash[12]` is a direct
+pointer. A fresh compile and bounded replay of the unchanged graph reached
+218,117,052 ps and began sequence 5/33 before the 45-second CPU guard. Two
+digest predictions and two digest reads completed with zero UVM errors,
+fatals, assertions, or crashes. That is a focused ABI proof, not a claim that
+the randomized HMAC smoke completed.
+
+The current unchanged HMAC image performs real SHA/FIFO work after the packed
+mask correction, and cancellable mixed-wait lowering handles its alert/TL
+monitor patterns. The exact rebuilt image reached 3,412,009,286 ps, about 87
+times beyond the previous 39,220,884 ps blocker, without UVM errors, fatals,
+assertion failures, crashes, or a zero-time stall before the 45-second CPU
+guard. This is progress evidence, not a full OpenTitan runtime pass. The
+class-only compound `@` subset still has one explicit same-time boundary: a
+complete expression that changes and restores before its scheduled waiter
+runs can be missed. The frozen Caliptra differential remains
+Icarus 53/105 versus Slang 54/105 with zero `ICARUS_GAP`; its full compile,
+elaboration, and code-generation path is clean, while a clean application
+runtime remains outstanding. The most recent full sv-tests differential is
+1,021/1,027 for Icarus (99.4%); its six recorded residuals are separate from
+this OpenTitan increment.
+
+Durable technical detail and invocation notes are in
+`session_logs/2026-08-25_opentitan_class_events_resolved_preponed_packed_index.md`.
+
 ## Resume state — 2026-08-24 — clocking static skew and exact modports
 
 Worktree:

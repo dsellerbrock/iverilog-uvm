@@ -1630,6 +1630,27 @@ bool dll_target::end_nodes()
       return flag;
 }
 
+/* Events are emitted before the signals in their scope. Dynamic class
+ * property selectors are expressions attached to an event, so make the
+ * signals read by those expressions available before exporting the
+ * expression. The normal signal pass is idempotent and will finish the
+ * remaining scope signals and delay paths later. */
+static void materialize_event_selector_signals_(dll_target*target,
+						 const NetExpr*expr)
+{
+      NexusSet*inputs = expr->nex_input();
+      for (size_t idx = 0 ; idx < inputs->size() ; idx += 1) {
+	    const Nexus*nex = (*inputs)[idx].lnk.nexus();
+	    for (const Link*cur = nex->first_nlink()
+		       ; cur ; cur = cur->next_nlink()) {
+		  const NetNet*sig = dynamic_cast<const NetNet*>(cur->get_obj());
+		  if (sig)
+			target->signal(sig);
+	    }
+      }
+      delete inputs;
+}
+
 void dll_target::event(const NetEvent*net)
 {
       ivl_scope_t scop = find_scope(des_, net->scope());
@@ -1653,6 +1674,7 @@ void dll_target::event(const NetEvent*net)
       obj->nneg = 0;
       obj->npos = 0;
       obj->nedg = 0;
+      obj->any_is_obj_handle_change.clear();
       obj->pins_finalized = false;
       obj->is_vif_posedge = false;
       obj->is_vif_negedge = false;
@@ -1683,6 +1705,42 @@ void dll_target::event(const NetEvent*net)
 			      path.obj_pre_N = pr->obj_mutation_pre_N(pidx);
 			      path.root_pin = obj->nany
 				    + pr->obj_mutation_root_pin(pidx);
+			      path.property_N =
+				    pr->obj_mutation_property_N(pidx);
+			      path.property_word =
+				    pr->obj_mutation_property_word(pidx);
+			      path.property_word_expr = 0;
+				      if (const NetExpr*word_expr =
+					  pr->obj_mutation_property_word_expr(pidx)) {
+					    materialize_event_selector_signals_(this,
+									word_expr);
+					    assert(expr_ == 0);
+					    word_expr->expr_scan(this);
+				    path.property_word_expr = expr_;
+				    expr_ = 0;
+			      }
+			      path.property_bit =
+				    pr->obj_mutation_property_bit(pidx);
+			      path.property_bit_expr = 0;
+				      if (const NetExpr*bit_expr =
+					  pr->obj_mutation_property_bit_expr(pidx)) {
+					    materialize_event_selector_signals_(this,
+									bit_expr);
+					    assert(expr_ == 0);
+				    bit_expr->expr_scan(this);
+				    path.property_bit_expr = expr_;
+				    expr_ = 0;
+			      }
+			      path.owner_expr = 0;
+				      if (const NetExpr*owner_expr =
+					  pr->obj_mutation_owner_expr(pidx)) {
+					    materialize_event_selector_signals_(this,
+								owner_expr);
+					    assert(expr_ == 0);
+				    owner_expr->expr_scan(this);
+				    path.owner_expr = expr_;
+				    expr_ = 0;
+			      }
 			      bool duplicate = false;
 			      for (unsigned old = 0 ; old < obj->obj_mutation_paths.size();
 				   old += 1) {
@@ -1690,7 +1748,15 @@ void dll_target::event(const NetEvent*net)
 					  obj->obj_mutation_paths[old];
 				    if (prior.obj_N == path.obj_N
 					&& prior.obj_pre_N == path.obj_pre_N
-					&& prior.root_pin == path.root_pin) {
+					&& prior.root_pin == path.root_pin
+					&& prior.property_N == path.property_N
+					&& prior.property_word == path.property_word
+					&& prior.property_word_expr
+					      == path.property_word_expr
+					&& prior.property_bit == path.property_bit
+					&& prior.property_bit_expr
+					      == path.property_bit_expr
+					&& prior.owner_expr == path.owner_expr) {
 					  duplicate = true;
 					  break;
 				    }
@@ -1707,6 +1773,9 @@ void dll_target::event(const NetEvent*net)
 		  }
 		  switch (pr->edge()) {
 		      case NetEvProbe::ANYEDGE:
+			for (unsigned pin = 0; pin < pr->pin_count(); pin += 1)
+			      obj->any_is_obj_handle_change.push_back(
+				    pr->is_obj_handle_change());
 			obj->nany += pr->pin_count();
 			if (pr->is_vif_anyedge()) {
 			      obj->is_vif_anyedge = true;
@@ -1749,6 +1818,7 @@ void dll_target::event(const NetEvent*net)
 	    }
 
 	    unsigned npins = obj->nany + obj->nneg + obj->npos + obj->nedg;
+	    assert(obj->any_is_obj_handle_change.size() == obj->nany);
 	    obj->pins = static_cast<ivl_nexus_t*>(calloc(npins, sizeof(ivl_nexus_t)));
 
       } else {

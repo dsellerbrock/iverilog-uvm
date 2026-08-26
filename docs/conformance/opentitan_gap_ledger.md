@@ -2873,6 +2873,97 @@ and the historical/malformed-IR `run_dist_ir_compat.sh` gate.
 
 ---
 
+## G82 — class-property waits observed unrelated object writes — **fixed/verified selected-owner subset** [general]
+
+*9.4.2 / 9.4.3 [general] — expression event controls and `wait` over class
+properties.*
+
+Object mutation waits now retain one armed owner and filter by terminal
+property, fixed-array word, and optional packed bit. Same-value writes are
+suppressed and cancellation unlinks every waiter before its thread or owner can
+be reclaimed. Invalid/X selectors retain an inactive, cancellable owner rather
+than becoming wildcards. The direct 10/10 and OpenTitan-shaped nested 2/2
+legacy and JSON/VVP focuses pass. Class-only compound waits re-evaluate, and
+mixed ordinary/VIF-plus-property waits use isolated waiter branches with
+cancellation of the losing branch. A class-only compound `@` compares its
+scheduled result with an arm-time snapshot, but a complete expression that
+changes and restores before the waiter runs can still be missed. Mixed
+one-shot `@` remains loud. Root/handle replacement, associative delete/rekey,
+and key/index mutation while armed remain outside this selected-owner subset. See
+the [session log](session_logs/2026-08-25_opentitan_class_events_resolved_preponed_packed_index.md).
+
+---
+
+## G83 — resolved vec8 assertion operands had no Preponed history — **fixed/verified** [general]
+
+*4.4 / 16 [general] — Preponed sampling of resolved strength nets.*
+
+`%hist/on` now enables time-slot history on `vvp_wire_vec8`; the complete
+strength value is snapshotted before a driven update and reduced only when
+`%load/preponed` reads it. The exact reducer and the 57/57 legacy plus 16/16
+JSON/VVP assertion focus pass. Force overlays remain excluded consistently
+with vec4 driven history. See the [session log](session_logs/2026-08-25_opentitan_class_events_resolved_preponed_packed_index.md).
+
+---
+
+## G84 — singleton outer packed index generated an out-of-range store — **fixed/verified** [general]
+
+*7.4 / 11.5.2 [general] — run-time multidimensional packed element selection
+with a trailing indexed part select.*
+
+An element index is now normalized at width one before the remaining packed
+dimensions are applied as a stride. The old HMAC shape `[0:0][31:0]` generated
+`(index - 31) * 32` and silently discarded every mask byte store. The permanent
+reducer is baseline-red and covers singleton, ascending, and descending outer
+dimensions with run-time `+:` and `-:` bases; fixed focuses pass 2/2 legacy and
+1/1 JSON/VVP. See the [session log](session_logs/2026-08-25_opentitan_class_events_resolved_preponed_packed_index.md).
+
+---
+
+## G85 — sized fixed DPI formals did not use the commercial direct-array ABI — **fixed/verified fixed-array subset** [general]
+
+*35.5.6.1 and Annex H [general/OpenTitan] — fixed unpacked-array arguments at
+the DPI boundary.*
+
+The compatibility target is the IEEE Annex H ABI shared by VCS, Questa, and
+Xcelium, not a Verilator-specific calling convention. An unsized/open array
+formal is described by an `svOpenArrayHandle`. A sized fixed formal is a
+direct C array pointer, including output/inout, with no additional pointer
+level. The old common path handed direct fixed atom output to C as though it
+were an open-array descriptor. OpenTitan's SHA-384 C model therefore wrote the
+descriptor/scratch rather than `hash[12]`; the SV expected digest remained
+zero even though the DPI function returned.
+
+The fixed path now distinguishes direct atoms/reals, scalar `svBit` and
+`svLogic`, and packed `svBitVecVal` and `svLogicVecVal` elements. Call-scoped
+scalar storage canonicalizes `bit` to 0/1 and preserves `logic` as
+0/1/Z/X = 0/1/2/3, with copyback. An explicitly packed `[0:0]` element keeps
+the vector ABI rather than collapsing to the scalar byte ABI. Packed queue
+actuals remain open arrays: their whole-array pointer is unavailable, but
+stable canonical per-element pointers and copy accessors agree for the call's
+dynamic extent.
+
+Multidimensional sized formals bypass the nested open-array object tree and
+expose contiguous numeric-low-first storage with the rightmost dimension
+varying fastest. The separate SystemVerilog argument transaction maps actual
+to formal declared-left-to-declared-left in every dimension, then applies the
+inverse mapping for output/inout copyback; opposite actual/formal directions
+are permanently value-pinned. The array descriptor retains its historical
+flag positions and uses previously unused bits for the upper element-width
+bits. Old VVP images remain decodable, while the tested `bit[255:0]` and
+`logic[383:0]` elements no longer alias a type flag or truncate.
+
+The exact OpenTitan SHA-384 signature plus eleven scalar, packed, atom,
+open-array, direction, queue, multidimensional, and wide-element controls pass
+12/12 with REAL DPI. A fresh compile and bounded unchanged-HMAC replay reached
+218,117,052 ps and sequence 5/33, completing two predicted and two observed
+digests with zero UVM errors, fatals, assertions, or crashes before the CPU
+guard. Pure DPI bundles are loaded with `vvp -d bundle.vpi`; `-m` is the VPI
+loader and correctly expects `vlog_startup_routines`. See the
+[session log](session_logs/2026-08-25_opentitan_class_events_resolved_preponed_packed_index.md).
+
+---
+
 ## Two measurement traps worth remembering
 
 **The error count is not a progress metric while the parser can still give

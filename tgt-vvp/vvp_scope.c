@@ -1545,6 +1545,30 @@ static void draw_logic_in_scope(ivl_net_logic_t lptr)
       if (need_delay_flag) draw_logic_delay(lptr);
 }
 
+/* ANYEDGE inputs normally wake on every object delivery because class
+ * property mutation aliases intentionally re-deliver their root handle.
+ * Direct object-handle controls instead compare handle identity. Keep runs of
+ * those two semantics in separate (at most four-input) VVP functors. */
+static unsigned anyedge_group_end_(ivl_event_t obj, unsigned first,
+                                   unsigned nany, unsigned limit)
+{
+      int handle_change = ivl_event_any_is_obj_handle_change(obj, first);
+      unsigned top = first + 1;
+      while (top < nany && top - first < limit
+             && ivl_event_any_is_obj_handle_change(obj, top) == handle_change)
+            top += 1;
+      return top;
+}
+
+static unsigned anyedge_group_count_(ivl_event_t obj, unsigned nany,
+                                     unsigned limit)
+{
+      unsigned count = 0;
+      for (unsigned idx = 0; idx < nany; count += 1)
+            idx = anyedge_group_end_(obj, idx, nany, limit);
+      return count;
+}
+
 static void draw_event_in_scope(ivl_event_t obj)
 {
       char tmp[4][32];
@@ -1575,9 +1599,9 @@ static void draw_event_in_scope(ivl_event_t obj)
 
       unsigned cnt = 0;
 
-	/* Figure out how many probe functors are needed. */
+      /* Figure out how many probe functors are needed. */
       if (nany > 0)
-	    cnt += (nany+ntmp-1) / ntmp;
+	    cnt += anyedge_group_count_(obj, nany, ntmp);
 
       if (nneg > 0)
 	    cnt += (nneg+ntmp-1) / ntmp;
@@ -1600,22 +1624,23 @@ static void draw_event_in_scope(ivl_event_t obj)
 	    unsigned idx;
 	    unsigned ecnt = 0;
 
-	    for (idx = 0 ;  idx < nany ;  idx += ntmp, ecnt += 1) {
+	    for (idx = 0 ;  idx < nany ;  ecnt += 1) {
 		  unsigned sub, top;
 
-		  top = idx + ntmp;
-		  if (nany < top)
-			top = nany;
+		  top = anyedge_group_end_(obj, idx, nany, ntmp);
 		  for (sub = idx ;  sub < top ;  sub += 1) {
 			ivl_nexus_t nex = ivl_event_any(obj, sub);
 			strncpy(tmp[sub-idx], draw_input_from_net(nex, ivl_event_scope(obj)), sizeof(tmp[0]));
 		  }
 
-		  fprintf(vvp_out, "E_%p/%u .event anyedge", obj, ecnt);
+		  fprintf(vvp_out, "E_%p/%u .event %s", obj, ecnt,
+			  ivl_event_any_is_obj_handle_change(obj, idx)
+				? "handleedge" : "anyedge");
 		  for (sub = idx ;  sub < top ;  sub += 1)
 			fprintf(vvp_out, ", %s", tmp[sub-idx]);
 
 		  fprintf(vvp_out, ";\n");
+		  idx = top;
 	    }
 
 	    for (idx = 0 ;  idx < nneg ;  idx += ntmp, ecnt += 1) {
@@ -1691,7 +1716,9 @@ static void draw_event_in_scope(ivl_event_t obj)
 
 	    if (nany > 0) {
 		  assert((nneg + npos + nedg) == 0);
-		  edge = "anyedge";
+		  assert(anyedge_group_end_(obj, 0, nany, ntmp) == nany);
+		  edge = ivl_event_any_is_obj_handle_change(obj, 0)
+		       ? "handleedge" : "anyedge";
 
 		  for (idx = 0 ;  idx < nany ;  idx += 1) {
 			ivl_nexus_t nex = ivl_event_any(obj, idx);

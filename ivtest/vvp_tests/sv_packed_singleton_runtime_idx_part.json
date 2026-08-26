@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_packed_singleton_runtime_idx_part.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_packed_singleton_runtime_idx_part" ],
+    "gold"          : "sv_packed_singleton_runtime_idx_part"
+}

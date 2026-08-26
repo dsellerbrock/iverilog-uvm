@@ -1,0 +1,7 @@
+# IEEE 1800-2017 9.2.2.2.2 always_comb fixed-point scheduling and observers
+sv_always_comb_fixed_point vvp_tests/sv_always_comb_fixed_point.json
+sv_always_comb_named_fixed_point vvp_tests/sv_always_comb_named_fixed_point.json
+sv_always_comb_observer_visibility vvp_tests/sv_always_comb_observer_visibility.json
+sv_always_comb_assertion_action_visibility vvp_tests/sv_always_comb_assertion_action_visibility.json
+# IEEE 1800-2017 20.2 finish must not discard an already-triggered event
+sv_finish_event_rearm vvp_tests/sv_finish_event_rearm.json

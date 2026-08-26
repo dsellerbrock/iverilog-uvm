@@ -20,6 +20,7 @@
 # include  "config.h"
 # include  "schedule.h"
 # include  "vthread.h"
+# include  "event.h"
 # include  "vpi_priv.h"
 # include  "vvp_net_sig.h"
 # include  "slab.h"
@@ -659,6 +660,7 @@ void schedule_finish(int)
 {
       vthread_dump_running_thread("schedule-finish");
       vthread_dump_live_threads("schedule-finish");
+      vvp_pure_comb_evaluation_finish();
       schedule_runnable = false;
 }
 
@@ -1128,10 +1130,12 @@ struct assign_prop_vec4_event_s : public event_s {
 		  return;
 	    }
 	    obj.notify_signal_aliases();
-	    if (!root_obj.test_nil() && root_obj != obj) {
-		  root_obj.touch();
-		  root_obj.notify_signal_aliases();
-	    }
+	    if (!root_obj.test_nil() && root_obj != obj)
+		  root_obj.notify_alias_mutation();
+	    /* A nested property's value changed, not its root handle. The class
+	       setter above emitted the pid/word/bit mutation. Preserve root alias
+	       delivery without a wildcard root touch that would spuriously wake
+	       unrelated @(root.property) controls. */
       }
       void single_step_display(void) override
       { std::cerr << "assign_prop_vec4_event: pid=" << pid << std::endl; }
@@ -1192,10 +1196,10 @@ struct assign_prop_vec4_bits_event_s : public event_s {
 		  obj.touch();
 	    }
 	    obj.notify_signal_aliases();
-	    if (!root_obj.test_nil() && root_obj != obj) {
-		  root_obj.touch();
-		  root_obj.notify_signal_aliases();
-	    }
+	    if (!root_obj.test_nil() && root_obj != obj)
+		  root_obj.notify_alias_mutation();
+	    /* See assign_prop_vec4_event_s: do not widen this selected property
+	       update into a mutation of every property on the provenance root. */
       }
       void single_step_display(void) override
       { std::cerr << "assign_prop_vec4_bits_event: pid=" << pid
@@ -1745,6 +1749,7 @@ void schedule_simulate(void)
 				same_time_count,
 				(unsigned long long)schedule_time);
 			vthread_dump_live_threads("watchdog-zero-time-spin");
+			vvp_pure_comb_evaluation_discard();
 			schedule_runnable = false;
 			break;
 		  }

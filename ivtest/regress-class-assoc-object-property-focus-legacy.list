@@ -1,0 +1,3 @@
+# Nested associative object-property wait/event controls
+sv_class_assoc_object_property_wait normal,-g2012,-ssv_class_assoc_object_property_wait ivltests gold=sv_class_assoc_object_property_wait.gold
+sv_class_assoc_object_property_event normal,-g2012,-ssv_class_assoc_object_property_event ivltests gold=sv_class_assoc_object_property_event.gold

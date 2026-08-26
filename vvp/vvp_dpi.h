@@ -24,7 +24,9 @@ extern void* vvp_dpi_find_symbol(const char*name);
  * compiler-emitted signature string:
  *   'b' int8   'h' int16   'i' int32   'l' int64 (longint)
  *   'p' void* (chandle)
- *   'g' svLogic scalar (unsigned char, 4-state encoding 0/1/2=x/3=z)
+ *   'g' svLogic scalar (unsigned char, 4-state encoding 0/1/2=Z/3=X)
+ *   'B' svBit fixed scalar unpacked-array C pointer
+ *   'G' svLogic fixed scalar unpacked-array C pointer
  *   'r' double 's' const char*
  * is_unsigned selects the unsigned variant of the integer letters.
  * is_output marks output/inout arguments: they are passed by pointer
@@ -36,7 +38,8 @@ extern void* vvp_dpi_find_symbol(const char*name);
  * next DPI call).
  */
 /*
- * The concrete object behind an svOpenArrayHandle ('o' arguments).
+ * The concrete array view behind an svOpenArrayHandle (lower-case 'o'/'x'/'y')
+ * or a fixed unpacked-array C pointer (upper-case 'O'/'B'/'G'/'X'/'Y').
  * Directly representable one-dimensional elements expose shared storage;
  * packed and multidimensional elements retain their live container for the
  * standard canonical-copy accessors.
@@ -44,10 +47,27 @@ extern void* vvp_dpi_find_symbol(const char*name);
 class vvp_darray;
 
 struct vvp_dpi_open_array_t {
+	// Whole-array direct C layout. This remains null for a queue and for
+	// packed vector storage whose native representation is not Annex H layout.
       void* data;
+	// Per-element canonical storage. Unlike data, this may be a call-scoped
+	// scratch buffer even when the actual container has no whole-array layout.
+      void* elem_data;
       unsigned length;
       unsigned elem_bytes;
       bool elem_is_real;
+	// A fixed unpacked array of scalar bit/logic values uses a byte per
+	// element at the C ABI boundary. The scratch buffer normalizes vvp's
+	// internal scalar representation and is copied back after output/inout.
+      bool scalar_scratch;
+      bool scalar_four_state;
+	// A packed bit/logic element needs Annex H canonical storage, which may
+	// differ from vvp's native representation and is necessarily a copy for a
+	// queue. The marshaler owns data for the duration of the DPI call and
+	// copies it back for output/inout arguments.
+      bool packed_scratch;
+      unsigned packed_width;
+      bool packed_four_state;
 	// The live simulator container. Unlike data, this is also available
 	// for packed vector elements whose canonical DPI representation must
 	// be copied with svGet/Put{Bit,Logic}ArrElem*VecVal.
@@ -73,7 +93,7 @@ struct vvp_dpi_arg_t {
       double rval;
       const char* sval;
       void* pval;                    // 'p': chandle / C void*
-      vvp_dpi_open_array_t* aval; // 'o' only: the open-array handle
+      vvp_dpi_open_array_t* aval; // array letters: handle/view for the call
       uint32_t* vbuf;             // 'V'/'W': packed vector buffer (any width)
 				  //   'V' svBitVecVal[]  (2-state, one word/32 bits)
 				  //   'W' svLogicVecVal[] (4-state, aval,bval pairs)

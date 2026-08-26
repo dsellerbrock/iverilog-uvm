@@ -1161,26 +1161,27 @@ void draw_ufunc_uarray_object(ivl_expr_t expr, int as_queue,
 	    kind = 0;
 	    break;
 	  case IVL_VT_STRING:
-	    kind = (1u << 12);
+	    kind = VVP_ARRDAR_STRING;
 	    break;
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:
 	    if (wid == 0) wid = 1;
-	    if (wid > 255) {
+	    if (wid > VVP_ARRDAR_WIDTH_MAX) {
 		  fprintf(stderr, "%s:%u: sorry: fixed-array materialization "
-			  "supports integral widths up to 255 bits\n",
-			  ivl_expr_file(expr), ivl_expr_lineno(expr));
+			  "supports integral widths up to %u bits\n",
+			  ivl_expr_file(expr), ivl_expr_lineno(expr),
+			  VVP_ARRDAR_WIDTH_MAX);
 		  vvp_errors += 1;
 		  fprintf(vvp_out, "    %%null; ; wide ufunc array\n");
 		  draw_ufunc_epilogue(expr);
 		  return;
 	    }
-	    kind = (wid & 0xffu)
-		 | (ivl_signal_signed(retval) ? (1u << 8) : 0u)
-		 | ((dt == IVL_VT_LOGIC) ? (1u << 9) : 0u);
+	    kind = VVP_ARRDAR_WIDTH_KIND(wid)
+		 | (ivl_signal_signed(retval) ? VVP_ARRDAR_SIGNED : 0u)
+		 | ((dt == IVL_VT_LOGIC) ? VVP_ARRDAR_FOUR : 0u);
 	    break;
 	  case IVL_VT_CLASS:
-	    kind = (1u << 11);
+	    kind = VVP_ARRDAR_OBJ;
 	    break;
 	  default:
 	    fprintf(stderr, "%s:%u: sorry: unsupported element type %d in "
@@ -1196,7 +1197,7 @@ void draw_ufunc_uarray_object(ivl_expr_t expr, int as_queue,
       base = ivl_signal_array_base(retval);
       if (ivl_signal_array_addr_swapped(retval)) {
 	    left = base + (int)count - 1;
-	    kind |= (1u << 10);
+	    kind |= VVP_ARRDAR_DESC;
       } else {
 	    left = base;
       }
@@ -1205,7 +1206,7 @@ void draw_ufunc_uarray_object(ivl_expr_t expr, int as_queue,
 	 * object so later queue-only mutations remain valid. Other object
 	 * contexts intentionally retain dynamic-array storage. */
       if (as_queue)
-	    kind |= (1u << 13);
+	    kind |= VVP_ARRDAR_QUEUE;
 
       note_array_signal_use(retval);
       fprintf(vvp_out, "    %%load/arr/dar v%p, %u, %u;\n",

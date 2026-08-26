@@ -281,7 +281,8 @@ NexusSet* NetEvent::nex_async_()
 
       NexusSet*tmp = new NexusSet;
       for (NetEvProbe*cur = probes_ ;  cur != 0 ;  cur = cur->enext_) {
-	    if (cur->edge() != NetEvProbe::ANYEDGE) {
+	    if (cur->edge() != NetEvProbe::ANYEDGE
+	        || cur->is_obj_handle_change()) {
 		  delete tmp;
 		  return 0;
 	    }
@@ -504,6 +505,15 @@ NetEvProbe::NetEvProbe(NetScope*s, perm_string n, NetEvent*tgt,
       event_->probes_ = this;
 }
 
+void NetEvProbe::set_obj_handle_change()
+{
+      ivl_assert(*this, edge_ == ANYEDGE);
+      ivl_assert(*this, !is_vif_posedge_ && !is_vif_negedge_
+                        && !is_vif_anyedge_);
+      ivl_assert(*this, !is_obj_mutation_);
+      is_obj_handle_change_ = true;
+}
+
 void NetEvProbe::set_vif_posedge(unsigned N, unsigned M, unsigned pre_N)
 {
       is_vif_posedge_ = true;
@@ -580,7 +590,12 @@ void NetEvProbe::set_vif_anyedge_path(const vector<unsigned>&path, unsigned M,
 }
 
 void NetEvProbe::set_obj_mutation(unsigned N, unsigned pre_N,
-                                  unsigned root_pin)
+                                  unsigned root_pin, unsigned property_N,
+                                  unsigned property_word,
+                                  const NetExpr*property_word_expr,
+                                  unsigned property_bit,
+                                  const NetExpr*property_bit_expr,
+                                  const NetExpr*owner_expr)
 {
       is_obj_mutation_ = true;
       obj_N_ = N;
@@ -589,16 +604,43 @@ void NetEvProbe::set_obj_mutation(unsigned N, unsigned pre_N,
       obj_mutation_N_.clear();
       obj_mutation_pre_N_.clear();
       obj_mutation_root_pin_.clear();
-      add_obj_mutation(N, pre_N, root_pin);
+      obj_mutation_property_N_.clear();
+      obj_mutation_property_word_.clear();
+      for (NetExpr*expr : obj_mutation_property_word_expr_)
+            delete expr;
+      obj_mutation_property_word_expr_.clear();
+      obj_mutation_property_bit_.clear();
+      for (NetExpr*expr : obj_mutation_property_bit_expr_)
+            delete expr;
+      obj_mutation_property_bit_expr_.clear();
+      for (NetExpr*expr : obj_mutation_owner_expr_)
+            delete expr;
+      obj_mutation_owner_expr_.clear();
+      add_obj_mutation(N, pre_N, root_pin, property_N, property_word,
+                       property_word_expr, property_bit, property_bit_expr,
+                       owner_expr);
 }
 
 void NetEvProbe::add_obj_mutation(unsigned N, unsigned pre_N,
-                                  unsigned root_pin)
+                                  unsigned root_pin, unsigned property_N,
+                                  unsigned property_word,
+                                  const NetExpr*property_word_expr,
+                                  unsigned property_bit,
+                                  const NetExpr*property_bit_expr,
+                                  const NetExpr*owner_expr)
 {
       for (unsigned idx = 0 ; idx < obj_mutation_N_.size() ; idx += 1) {
             if (obj_mutation_N_[idx] == N
                 && obj_mutation_pre_N_[idx] == pre_N
-                && obj_mutation_root_pin_[idx] == root_pin)
+                && obj_mutation_root_pin_[idx] == root_pin
+                && obj_mutation_property_N_[idx] == property_N
+                && obj_mutation_property_word_[idx] == property_word
+                && obj_mutation_property_word_expr_[idx]
+                      == property_word_expr
+                && obj_mutation_property_bit_[idx] == property_bit
+                && obj_mutation_property_bit_expr_[idx]
+                      == property_bit_expr
+                && obj_mutation_owner_expr_[idx] == owner_expr)
                   return;
       }
 
@@ -611,10 +653,25 @@ void NetEvProbe::add_obj_mutation(unsigned N, unsigned pre_N,
       obj_mutation_N_.push_back(N);
       obj_mutation_pre_N_.push_back(pre_N);
       obj_mutation_root_pin_.push_back(root_pin);
+      obj_mutation_property_N_.push_back(property_N);
+      obj_mutation_property_word_.push_back(property_word);
+      obj_mutation_property_word_expr_.push_back(
+            property_word_expr ? property_word_expr->dup_expr() : nullptr);
+      obj_mutation_property_bit_.push_back(property_bit);
+      obj_mutation_property_bit_expr_.push_back(
+            property_bit_expr ? property_bit_expr->dup_expr() : nullptr);
+      obj_mutation_owner_expr_.push_back(
+            owner_expr ? owner_expr->dup_expr() : nullptr);
 }
 
 NetEvProbe::~NetEvProbe()
 {
+      for (NetExpr*expr : obj_mutation_property_word_expr_)
+            delete expr;
+      for (NetExpr*expr : obj_mutation_property_bit_expr_)
+            delete expr;
+      for (NetExpr*expr : obj_mutation_owner_expr_)
+            delete expr;
       if (event_->probes_ == this) {
 	    event_->probes_ = enext_;
 
@@ -669,7 +726,18 @@ void NetEvProbe::find_similar_probes(list<NetEvProbe*>&plist)
 	    if (tmp == this)
 		  continue;
 
+	      /* Object-mutation probes carry run-time property/word/bit
+	         selectors that are not represented by their nexus links. Two
+	         controls on obj.a and obj.b therefore look structurally identical
+	         here but are not interchangeable. Keep these local events
+	         distinct instead of letting nodangle discard one selector set. */
+	    if (is_obj_mutation() || tmp->is_obj_mutation())
+		  continue;
+
 	    if (edge() != tmp->edge())
+		  continue;
+
+	    if (is_obj_handle_change() != tmp->is_obj_handle_change())
 		  continue;
 
 	    bool ok_flag = true;

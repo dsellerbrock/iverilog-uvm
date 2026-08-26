@@ -2522,9 +2522,33 @@ bool vvp_wire_vec4::is_forced(unsigned idx) const
 }
 
 vvp_wire_vec8::vvp_wire_vec8(unsigned wid)
-: width_error_reported_(false), bits8_(wid)
+: needs_init_(true), width_error_reported_(false), bits8_(wid),
+  hist_enabled_(false), hist_valid_(false), hist_time_(0), hist_prev_()
 {
-      needs_init_ = true;
+}
+
+/* Preserve strength as well as logic while recording the driven value at
+   the start of the current time step. Force state is intentionally excluded,
+   matching vvp_wire_vec4: Preponed sampling observes the underlying driven
+   value, not a transient force overlay. */
+void vvp_wire_vec8::hist_snapshot_()
+{
+      if (!hist_enabled_) return;
+      vvp_time64_t now = schedule_simtime();
+      if (hist_valid_ && hist_time_ == now) return;
+      hist_prev_ = bits8_;
+      hist_time_ = now;
+      hist_valid_ = true;
+}
+
+void vvp_wire_vec8::vec4_preponed_value(vvp_vector4_t&val) const
+{
+      if (hist_enabled_ && hist_valid_
+	  && hist_time_ == schedule_simtime()) {
+	    val = reduce4(hist_prev_);
+	    return;
+      }
+      vec4_value(val);
 }
 
 vvp_net_fil_t::prop_t vvp_wire_vec8::filter_vec4(const vvp_vector4_t&bit,
@@ -2566,6 +2590,7 @@ vvp_net_fil_t::prop_t vvp_wire_vec8::filter_vec8(const vvp_vector8_t&bit, vvp_ve
       }
 	// Keep track of the value being driven from this net, even if
 	// it is not ultimately what survives the force filter.
+      hist_snapshot_();
       if (base==0 && bit.size()==vwid) {
 	    bits8_ = bit;
       } else {

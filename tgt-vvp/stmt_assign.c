@@ -605,8 +605,8 @@ static int draw_fixed_uarray_queue_object_(ivl_expr_t expr,
       }
 
       if (ivl_signal_array_addr_swapped(sig))
-            kind |= (1u << 10);            /* ARRDAR_DESC */
-      kind |= (1u << 13);                  /* ARRDAR_QUEUE */
+            kind |= VVP_ARRDAR_DESC;
+      kind |= VVP_ARRDAR_QUEUE;
 
       queue_max_size = ivl_type_queue_max_size(queue_type);
       marshal_max = queue_max_size > 0xffffffffULL
@@ -4671,17 +4671,27 @@ int uarray_container_kind_(ivl_signal_t sig, unsigned*kind_out,
 	    kind = 0;                           /* ARRDAR_REAL */
 	    break;
 	  case IVL_VT_STRING:
-	    kind = (1u << 12);                  /* ARRDAR_STRING */
+	    kind = VVP_ARRDAR_STRING;
 	    break;
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:
 	    if (wid == 0) wid = 1;
-	    kind = (wid & 0xFFu)
-		 | (ivl_signal_signed(sig) ? (1u << 8) : 0u)
-		 | ((dt == IVL_VT_LOGIC) ? (1u << 9) : 0u);
+	    if (wid > VVP_ARRDAR_WIDTH_MAX) {
+		  fprintf(stderr, "%s:%u: sorry: unpacked array `%s' has "
+			  "%u-bit elements; the VVP array descriptor supports "
+			  "integral widths through %u bits.\n",
+			  file ? file : "<unknown>", lineno,
+			  ivl_signal_basename(sig), wid,
+			  VVP_ARRDAR_WIDTH_MAX);
+		  vvp_errors += 1;
+		  return 0;
+	    }
+	    kind = VVP_ARRDAR_WIDTH_KIND(wid)
+		 | (ivl_signal_signed(sig) ? VVP_ARRDAR_SIGNED : 0u)
+		 | ((dt == IVL_VT_LOGIC) ? VVP_ARRDAR_FOUR : 0u);
 	    break;
 	  case IVL_VT_CLASS:
-	    kind = (1u << 11);
+	    kind = VVP_ARRDAR_OBJ;
 	    break;
 	  default:
 	    fprintf(stderr, "%s:%u: sorry: the whole unpacked array `%s' "
@@ -4708,7 +4718,7 @@ void emit_load_arr_dar_(ivl_signal_t sig, unsigned kind)
       int right = ivl_signal_array_dim_lsb(sig, 0);
 
       if (left > right)
-	    kind |= (1u << 10);
+	    kind |= VVP_ARRDAR_DESC;
 
       note_array_signal_use(sig);
       if (ivl_signal_dimensions(sig) > 1) {
@@ -4742,6 +4752,35 @@ void emit_store_arr_dar_(ivl_signal_t sig, unsigned kind)
       }
 
       fprintf(vvp_out, "    %%store/arr/dar v%p, %u;\n", sig, kind);
+}
+
+/* A sized DPI array is passed to C as a pointer to contiguous elements. VVP
+   stores every fixed multidimensional signal as one canonical flat word
+   array already, so constructing the nested svOpenArrayHandle object tree
+   would both be unnecessary and hide the leaf storage from the direct-pointer
+   marshaler. Preserve the one-dimensional declared-range behavior and use the
+   ordinary flat instructions for additional dimensions. */
+void emit_load_arr_dar_dpi_(ivl_signal_t sig, unsigned kind)
+{
+      if (ivl_signal_dimensions(sig) <= 1) {
+	    emit_load_arr_dar_(sig, kind);
+	    return;
+      }
+
+      note_array_signal_use(sig);
+      fprintf(vvp_out, "    %%load/arr/dar v%p, %u, 0;"
+	      " flat fixed DPI array\n", sig, kind);
+}
+
+void emit_store_arr_dar_dpi_(ivl_signal_t sig, unsigned kind)
+{
+      if (ivl_signal_dimensions(sig) <= 1) {
+	    emit_store_arr_dar_(sig, kind);
+	    return;
+      }
+
+      fprintf(vvp_out, "    %%store/arr/dar v%p, %u;"
+	      " flat fixed DPI array\n", sig, kind);
 }
 
 /* `fa = da' and its siblings: a WHOLE fixed-size unpacked array l-value

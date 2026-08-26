@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_class_property_always_comb_mutation.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_class_property_always_comb_mutation" ],
+    "gold"          : "sv_class_property_always_comb_mutation"
+}

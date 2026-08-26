@@ -2654,7 +2654,7 @@ unsigned NetCaseCmp::width() const
 }
 
 NetCondit::NetCondit(NetExpr*ex, NetProc*i, NetProc*e)
-: expr_(ex), if_(i), else_(e)
+: expr_(ex), if_(i), else_(e), immediate_assertion_(false)
 {
 }
 

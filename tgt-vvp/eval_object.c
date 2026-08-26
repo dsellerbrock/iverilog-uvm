@@ -872,14 +872,26 @@ static int eval_object_array(ivl_expr_t expr)
 		  kind = 0;                     /* ARRDAR_REAL */
 		  break;
 		case IVL_VT_STRING:
-		  kind = (1u << 12);            /* ARRDAR_STRING */
+		  kind = VVP_ARRDAR_STRING;
 		  break;
 		case IVL_VT_BOOL:
 		case IVL_VT_LOGIC:
 		  if (wid == 0) wid = 1;
-		  kind = (wid & 0xFFu)
-		       | (ivl_signal_signed(sig) ? (1u << 8) : 0u)
-		       | ((dt == IVL_VT_LOGIC) ? (1u << 9) : 0u);
+		  if (wid > VVP_ARRDAR_WIDTH_MAX) {
+			fprintf(stderr, "%s:%u: sorry: the whole unpacked "
+				"array `%s' has %u-bit elements; the VVP array "
+				"descriptor supports integral widths through %u "
+				"bits.\n",
+				ivl_expr_file(expr), ivl_expr_lineno(expr),
+				ivl_signal_basename(sig), wid,
+				VVP_ARRDAR_WIDTH_MAX);
+			vvp_errors += 1;
+			fprintf(vvp_out, "    %%null;\n");
+			return 0;
+		  }
+		  kind = VVP_ARRDAR_WIDTH_KIND(wid)
+		       | (ivl_signal_signed(sig) ? VVP_ARRDAR_SIGNED : 0u)
+		       | ((dt == IVL_VT_LOGIC) ? VVP_ARRDAR_FOUR : 0u);
 		  break;
 		case IVL_VT_CLASS:
 		    /* Handle elements: copied by reference, exactly as an
@@ -888,7 +900,7 @@ static int eval_object_array(ivl_expr_t expr)
 		       now rejected at elaboration, where the target type is
 		       visible (M10-1c), so only the legal `q = arr' shape
 		       reaches here. */
-		  kind = (1u << 11);
+		  kind = VVP_ARRDAR_OBJ;
 		  break;
 		default:
 		  fprintf(stderr, "%s:%u: sorry: the whole unpacked array "
@@ -911,7 +923,7 @@ static int eval_object_array(ivl_expr_t expr)
 	    int left;
 	    if (ivl_signal_array_addr_swapped(sig)) {
 		  left = base + (int)count - 1;
-		  kind |= (1u << 10);          /* descending */
+		  kind |= VVP_ARRDAR_DESC;
 	    } else {
 		  left = base;
 	    }

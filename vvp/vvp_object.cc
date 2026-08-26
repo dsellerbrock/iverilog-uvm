@@ -26,6 +26,7 @@
 # include  <map>
 # include  <unordered_set>
 # include  <vector>
+# include  <functional>
 
 using namespace std;
 
@@ -33,9 +34,61 @@ int vvp_object::total_active_cnt_ = 0;
 static std::unordered_set<const vvp_object*> live_vvp_objects_;
 typedef std::pair<vvp_net_t*, void*> object_alias_key_t;
 static std::map<const vvp_object*, std::set<object_alias_key_t> > object_signal_aliases_;
-static std::map<vvp_object*, std::set<vthread_t> > object_mutation_waiters_;
-static std::map<vthread_t, std::map<vvp_object*, vvp_object_t> >
+
+struct object_mutation_key_t {
+      vvp_object*object;
+      unsigned property;
+      unsigned word;
+      unsigned bit;
+      bool active;
+
+      bool operator < (const object_mutation_key_t&that) const
+      {
+            if (object != that.object)
+                  return std::less<vvp_object*>()(object, that.object);
+            if (property != that.property)
+                  return property < that.property;
+            if (word != that.word)
+                  return word < that.word;
+            if (bit != that.bit)
+                  return bit < that.bit;
+            return active < that.active;
+      }
+};
+
+static std::map<object_mutation_key_t, std::set<vthread_t> >
+      object_mutation_waiters_;
+static std::map<vthread_t,
+                std::map<object_mutation_key_t, vvp_object_t> >
       thread_mutation_objects_;
+
+static bool remove_mutation_waiter_(vthread_t thread)
+{
+      std::map<vthread_t,
+               std::map<object_mutation_key_t, vvp_object_t> >::iterator
+            thread_it = thread_mutation_objects_.find(thread);
+      if (thread_it == thread_mutation_objects_.end())
+            return false;
+
+      std::vector<object_mutation_key_t> keys;
+      for (std::map<object_mutation_key_t, vvp_object_t>::const_iterator
+           item = thread_it->second.begin(); item != thread_it->second.end();
+           ++item)
+            keys.push_back(item->first);
+
+      for (std::vector<object_mutation_key_t>::const_iterator key = keys.begin();
+           key != keys.end(); ++key) {
+            std::map<object_mutation_key_t, std::set<vthread_t> >::iterator
+                  wait_it = object_mutation_waiters_.find(*key);
+            if (wait_it == object_mutation_waiters_.end())
+                  continue;
+            wait_it->second.erase(thread);
+            if (wait_it->second.empty())
+                  object_mutation_waiters_.erase(wait_it);
+      }
+      thread_mutation_objects_.erase(thread_it);
+      return true;
+}
 
 void vvp_object::register_live_ptr_(const vvp_object*ptr)
 {
@@ -58,16 +111,23 @@ void vvp_object::cleanup(void)
 {
 }
 
-void vvp_object::add_mutation_waiter(vthread_t thread)
+void vvp_object::add_mutation_waiter(vthread_t thread, unsigned property,
+                                     unsigned word, unsigned bit, bool active)
 {
       if (!thread)
             return;
-      object_mutation_waiters_[this].insert(thread);
+      object_mutation_key_t key = {this, property, word, bit, active};
+      object_mutation_waiters_[key].insert(thread);
       thread_mutation_objects_[thread].insert(
-            std::make_pair(this, vvp_object_t(this)));
+            std::make_pair(key, vvp_object_t(this)));
 }
 
-void vvp_object::touch()
+bool vvp_object::cancel_mutation_waiter(vthread_t thread)
+{
+      return thread && remove_mutation_waiter_(thread);
+}
+
+void vvp_object::touch(unsigned property, unsigned word, unsigned bit)
 {
       mutation_epoch_ += 1;
 
@@ -78,40 +138,41 @@ void vvp_object::touch()
       // Dynamic object-property waits register here and are resumed whenever
       // the observed object mutates; the wait statement then re-evaluates its
       // expression as required by IEEE 1800-2017 9.4.3.
-      std::map<vvp_object*, std::set<vthread_t> >::iterator obj_it =
-            object_mutation_waiters_.find(this);
-      if (obj_it == object_mutation_waiters_.end())
+      std::set<vthread_t> waiters;
+      if (property == UINT_MAX) {
+            const object_mutation_key_t first = {this, 0, 0, 0, false};
+            for (std::map<object_mutation_key_t, std::set<vthread_t> >::const_iterator
+                 item = object_mutation_waiters_.lower_bound(first);
+                 item != object_mutation_waiters_.end()
+                       && item->first.object == this; ++item)
+                  if (item->first.active)
+                        waiters.insert(item->second.begin(), item->second.end());
+      } else {
+            const object_mutation_key_t keys[] = {
+                  {this, UINT_MAX, UINT_MAX, UINT_MAX, true},
+                  {this, property, UINT_MAX, UINT_MAX, true},
+                  {this, property, word, UINT_MAX, true},
+                  {this, property, word, bit, true}
+            };
+            for (unsigned idx = 0 ; idx < sizeof(keys)/sizeof(keys[0]);
+                 idx += 1) {
+                  std::map<object_mutation_key_t, std::set<vthread_t> >::const_iterator
+                        item = object_mutation_waiters_.find(keys[idx]);
+                  if (item != object_mutation_waiters_.end())
+                        waiters.insert(item->second.begin(), item->second.end());
+            }
+      }
+      if (waiters.empty())
             return;
 
       /* A single wait expression may observe several class objects. Whichever
          object mutates first wakes the thread and atomically unregisters it
          from every sibling object, preventing duplicate scheduling later. */
       vvp_object_t keep_self(this);
-      std::set<vthread_t> waiters = obj_it->second;
-      object_mutation_waiters_.erase(obj_it);
       for (std::set<vthread_t>::const_iterator cur = waiters.begin();
            cur != waiters.end(); ++cur) {
             vthread_t thread = *cur;
-            std::map<vthread_t, std::map<vvp_object*, vvp_object_t> >::iterator
-                  thread_it = thread_mutation_objects_.find(thread);
-            if (thread_it != thread_mutation_objects_.end()) {
-                  std::vector<vvp_object*> objects;
-                  for (std::map<vvp_object*, vvp_object_t>::const_iterator
-                       item = thread_it->second.begin();
-                       item != thread_it->second.end(); ++item)
-                        objects.push_back(item->first);
-                  for (std::vector<vvp_object*>::const_iterator item = objects.begin();
-                       item != objects.end(); ++item) {
-                        std::map<vvp_object*, std::set<vthread_t> >::iterator other =
-                              object_mutation_waiters_.find(*item);
-                        if (other == object_mutation_waiters_.end())
-                              continue;
-                        other->second.erase(thread);
-                        if (other->second.empty())
-                              object_mutation_waiters_.erase(other);
-                  }
-                  thread_mutation_objects_.erase(thread_it);
-            }
+            remove_mutation_waiter_(thread);
             vthread_schedule_mutation_waiter(thread);
       }
 }
@@ -190,6 +251,16 @@ void vvp_object::notify_signal_aliases() const
             vvp_send_object(vvp_net_ptr_t(cur->first, 0), self,
                             static_cast<vvp_context_t>(cur->second));
       }
+}
+
+void vvp_object::notify_alias_mutation()
+{
+      /* Provenance-root signals need a fresh epoch so same-handle signal and
+         VPI delivery is not suppressed. This deliberately does not visit the
+         property mutation waiter map: a nested leaf changed, not every
+         filtered property on the root object. */
+      mutation_epoch_ += 1;
+      notify_signal_aliases();
 }
 
 void vvp_object::shallow_copy(const vvp_object*)

@@ -1,0 +1,3 @@
+# Run-time packed element indexing, including a singleton leading dimension
+sv_packed_runtime_idx_part normal,-g2012 ivltests
+sv_packed_singleton_runtime_idx_part normal,-g2012,-ssv_packed_singleton_runtime_idx_part ivltests gold=sv_packed_singleton_runtime_idx_part.gold
