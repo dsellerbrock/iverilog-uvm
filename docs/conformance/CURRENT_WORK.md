@@ -1,5 +1,102 @@
 # CURRENT WORK — continuation state
 
+## Resume state — 2026-08-26 — typed constructor coverage and commercial direction
+
+Worktree:
+`iverilog-uvm-commercial-after237-arm64-20260826`
+
+Branch: `agent/opentitan-commercial-after237-arm64-20260826`, created exactly
+from `origin/main` at `eb68431e5937fb6a5fe6baa98ad6f3d399b924ab` before this
+increment. The source-of-truth repository and clean OpenTitan/Caliptra trees
+remain unmodified outside the Icarus worktree.
+
+This increment implements a typed, per-covergroup-object construction-time IR
+for the bounded integral constructor-dependent bin-range subset required by
+OpenTitan's TL agent. It carries the coverpoint, source value, and endpoint
+width/sign metadata through the target ABI and VVP image, evaluates each
+object's range once, applies clause-19.5.7 conversion and X/Z rejection,
+intersects ranges with the coverpoint domain, treats descending ranges as
+empty, preserves duplicate membership, and partitions fixed bin arrays with
+the remainder in the final bin. Malformed typed and legacy VVP metadata is
+bounded and rejected safely. Unsupported endpoint trees, constructor-
+dependent `with`, and dynamic crosses diagnose and drop the affected construct
+rather than silently substituting a value.
+
+The paired `-g2017`/`-g2023` focused gates pass 8/8 in the legacy harness and
+8/8 in JSON/VVP. They cover the exact OpenTitan expression
+`[0 : 2 << (valid_source_width - 1) - 1]`, typed wrap/shift/count behavior,
+mixed widths/signs, input capture, descending ranges, duplicate fixed-bin
+membership, safe `'0`, unary minus, coverpoint-domain intersection,
+construction-time parent-set capture, unknown endpoints, and loud unsupported
+boundaries. Raw VVP metadata tests also pin malformed type descriptors and
+old-image compatibility. These are subset gates, not full clause-19 closure.
+
+Clean serial native-ARM64 broad validation on the committed tree reports:
+
+- `make check`: pass;
+- legacy ivtest: 4,094 total, 4,089 pass, 0 fail, 2 recorded NI, and 3
+  expected fail;
+- JSON/VVP: 979 run, 0 fail;
+- bundled VPI: 112/112;
+- negative diagnostics: 136/136;
+- focused metadata/options checks: pass; and
+- complete canonical real-DPI UVM: 354/354, 0 failed, 0 skipped (596.49
+  seconds wall).
+
+An earlier overlapping legacy/VPI invocation was discarded because both
+harnesses share `ivtest/vsim` and log names; impossible cross-test log contents
+proved workspace contamination. The clean results above are serial reruns.
+
+A native-ARM64, clean-source OpenTitan UVM compile matrix exercised all 61 UVM
+targets at OpenTitan `7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` with FuseSoC
+2.4.5 under ARM Python 3.13.15. It completed with no timeouts and changed the
+same-scope baseline from 58 `FAIL` plus 3 `SETUP_FAIL` to 1 `DEBT`, 57 `FAIL`,
+and 3 `SETUP_FAIL`; there are still zero clean passes, and this matrix did not
+run simulations. The sole transition is `lowrisc:dv:tl_agent_sim:0.1`: the
+unmodified `valid_sources` range now compiles with zero hard errors, leaving 12
+pre-existing generic UVM semantic-debt diagnostics. Of the 57 failures, 16
+first-stop at dynamic-family cross metadata, 28 at parser/syntax frontiers, 8
+at the missing `prim_clock_gating` provider, 3 at unresolved
+`clocking_decl_assign` paths, and 2 at isolated export/hierarchical-constant
+frontiers. The three setup failures are unchanged generated-file graph issues.
+The earlier 18-core coverage-range count included the SVA-lane
+`adc_ctrl_sva`; this UVM-only matrix contains 17 such former first frontiers,
+one resolved and 16 advanced to cross integration.
+
+Evidence is outside the repository at
+`evidence/opentitan-commercial-after237-arm64-20260826/full-uvm/`; the JSON
+SHA-256 is
+`b52ce5d846544c88f24dba3fbd41b97522247c44567861be85a65d0d2c5b560f`.
+The immediate shared OpenTitan coverage frontier is construction-time dynamic
+family integration into crosses, followed by dynamic `with` and object/method-
+valued ranges. Constructor `ref`/output/inout directions, broader/context-sized
+endpoint expressions, dynamic ignore/illegal denominator carving, dynamic
+type coverage, report/VPI detail, and 2023 real/tolerance coverage remain
+explicit gaps. Unrelated parser/provider/clocking work remains larger than the
+coverage cluster.
+
+A fresh native-ARM64 frozen Caliptra census ran all 105 manifests across
+Icarus +SVA, Icarus -SVA, Icarus synthesis, and Slang: 420 serial invocations,
+zero timeouts, 53/105 in every Icarus lane and 54/105 in Slang. The classes are
+52 PASS, 1 DEBT, 51 SHARED_SOURCE_OR_CONFIG, 1 SOURCE_ORDER_DEBT, and zero
+ICARUS_GAP or SLANG_ONLY_DIFFERENCE. A job-by-job comparison against after-236
+found zero changes in classification, exit/timeout state, diagnostic counts,
+or compact diagnostics. Evidence is in
+`evidence/caliptra-commercial-after237-arm64-20260826/`; its JSON SHA-256 is
+`123e1194cd3cf5915cdcdda396f4f2f22bb1e98226fa54f247f809d67c7ab755`.
+External UVMF, ARM AXI checker, and Avery inputs still prevent a full Caliptra
+DV runtime claim.
+
+The intended audited direction for this increment is: IEEE 1800-2017 and
+1800-2023 are first-class selected editions; unchanged UVM/OpenTitan/Caliptra
+are application gates; VCS, Questa, and Xcelium are the commercial
+interoperability targets after the IEEE text; Slang is a parser/elaboration
+differential; Verilator is diagnostic evidence only; a formal proof engine is
+future work; and UPF/IEEE 1801 is deferred until the IEEE 1800 frontend and
+runtime are substantially closed. The README, manifesto, roadmap, edition
+matrices, and local-standard instructions are audited against that direction
+at each checkpoint rather than self-certifying permanent consistency.
+
 ## Resume state — 2026-08-26 — declaration lifetimes, call unwind, and DPI ABI
 
 Worktree:

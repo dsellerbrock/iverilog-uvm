@@ -6431,36 +6431,60 @@ static uint64_t covgrp_trans_term_rank_(const covgrp_trans_term_t&term,
       return covgrp_trans_sat_add_(offset, word);
 }
 
-struct covgrp_dyn_state_t {
-      const class_type::cov_dyn_bin_t*meta = 0;
-      std::vector<std::pair<uint64_t,uint64_t>> ranges;
-      unsigned __int128 total = 0;
-};
-
-static std::map<unsigned,covgrp_dyn_state_t> covgrp_dyn_states_(
+static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
       const class_type*defn, vvp_cobject*cobj)
 {
+	if (cobj->cov_dyn_resolved()) return cobj->cov_dyn_states();
       std::map<unsigned,covgrp_dyn_state_t> out;
+	bool deferred = false;
       for (size_t ri = 0; ri < defn->covgrp_dyn_bin_count(); ri += 1) {
 	    const class_type::cov_dyn_bin_t&rec = defn->covgrp_dyn_bin(ri);
+	    covgrp_dyn_state_t&state = out[rec.family];
+	    if (!state.meta) state.meta = &rec;
 	      // A set-covergroup expression backed by a direct class
 	      // container is encoded without extending the public IVL type ABI.
-	      // setc:N reads property N of the covergroup object; setp:N reads
-	      // property N of its enclosing class through __covgrp_parent.
+	      // setc:N:[su]W reads property N of the covergroup object;
+	      // setp:N:[su]W reads property N of its enclosing class through
+	      // __covgrp_parent. The type suffix retains the set element's own
+	      // signedness and width for IEEE 1800 19.5.7 value resolution.
+	      // A suffix-less record is legacy VVP and keeps its raw-bit behavior.
 	    bool set_current = rec.lo_ir.compare(0, 5, "setc:") == 0;
 	    bool set_parent = rec.lo_ir.compare(0, 5, "setp:") == 0;
 	    if ((set_current || set_parent) && rec.lo_ir == rec.hi_ir) {
 		  char*end = 0;
+		  errno = 0;
 		  unsigned long raw_prop = std::strtoul(rec.lo_ir.c_str() + 5,
 						       &end, 10);
-		  if (!end || *end != 0) continue;
+		  if (!end || end == rec.lo_ir.c_str() + 5 || errno == ERANGE)
+			continue;
+		  bool typed_set = false;
+		  bool set_signed = false;
+		  unsigned set_width = 0;
+		  if (*end == ':') {
+			const char*type = end + 1;
+			if ((type[0] != 's' && type[0] != 'u')
+			    || !std::isdigit(static_cast<unsigned char>(type[1])))
+			      continue;
+			char*type_end = 0;
+			errno = 0;
+			unsigned long parsed = std::strtoul(type + 1, &type_end, 10);
+			if (!type_end || *type_end != 0 || errno == ERANGE
+			    || parsed == 0 || parsed > 64)
+			      continue;
+			typed_set = true;
+			set_signed = type[0] == 's';
+			set_width = (unsigned)parsed;
+		  } else if (*end != 0) {
+			continue;
+		  }
 		  vvp_cobject*owner = cobj;
 		  if (set_parent) {
 			int pprop = defn->covgrp_parent_prop();
-			if (pprop < 0) continue;
+			if (pprop < 0) { deferred = true; continue; }
 			vvp_object_t parent_obj;
 			cobj->get_object((size_t)pprop, parent_obj, 0);
 			owner = parent_obj.peek<vvp_cobject>();
+			if (!owner) { deferred = true; continue; }
 		  }
 		  if (!owner || raw_prop >= owner->get_defn()->property_count())
 			continue;
@@ -6468,75 +6492,255 @@ static std::map<unsigned,covgrp_dyn_state_t> covgrp_dyn_states_(
 		  owner->get_object((size_t)raw_prop, set_obj, 0);
 		  vvp_darray*set = set_obj.peek<vvp_darray>();
 		  if (!set) continue;
-		  covgrp_dyn_state_t&state = out[rec.family];
-		  if (!state.meta) state.meta = &rec;
 		  for (size_t idx = 0; idx < set->get_size(); idx += 1) {
 			vvp_vector4_t word;
 			set->get_word((unsigned)idx, word);
 			uint64_t value = 0;
-			for (unsigned bit = 0; bit < word.size() && bit < 64; bit += 1)
-			      if (word.value(bit) == BIT4_1)
+			bool invalid = word.size() > 64
+			      || (typed_set && word.size() != set_width);
+			for (unsigned bit = 0; bit < word.size() && bit < 64; bit += 1) {
+			      vvp_bit4_t digit = word.value(bit);
+			      if (digit == BIT4_X || digit == BIT4_Z) invalid = true;
+			      else if (digit == BIT4_1)
 				    value |= (uint64_t)1 << bit;
+			}
+			if (invalid) {
+			      std::cerr << "WARNING: covergroup bin '" << rec.name
+					<< "' set element " << idx
+					<< " has an X/Z or unsupported-width value; "
+					   "the affected singleton is excluded." << std::endl;
+			      continue;
+			}
+			if (typed_set) {
+			      auto mask = [](unsigned width) -> uint64_t {
+				    return width >= 64 ? UINT64_MAX
+					  : (UINT64_C(1) << width) - 1;
+			      };
+			      value &= mask(set_width);
+			      __int128 numeric = value;
+			      if (set_signed
+				  && (value & (UINT64_C(1) << (set_width - 1)))) {
+				    if (set_width == 64)
+					  numeric = (__int128)(int64_t)value;
+				    else
+					  numeric -= (__int128)1 << set_width;
+			      }
+			      unsigned cp_width = rec.value_width;
+			        // Under normal == rules an unsigned source makes the
+			        // comparison unsigned. Thus an unsigned W-bit pattern
+			        // remains equal after a same-width cast to signed even
+			        // when its signed mathematical value is negative.
+			      bool signed_domain = rec.value_signed && set_signed;
+			      __int128 domain_lo = signed_domain
+				    ? -((__int128)1 << (cp_width - 1)) : 0;
+			      __int128 domain_hi = signed_domain
+				    ? ((__int128)1 << (cp_width - 1)) - 1
+				    : cp_width == 64 ? (__int128)UINT64_MAX
+				    : ((__int128)1 << cp_width) - 1;
+			      if (numeric < domain_lo || numeric > domain_hi) {
+				    std::cerr << "WARNING: covergroup bin '" << rec.name
+					      << "' set element " << idx << " is outside its "
+					      << (rec.value_signed ? "signed " : "unsigned ")
+					      << cp_width << "-bit coverpoint domain; IEEE 1800 "
+						 "value resolution excludes the singleton."
+					      << std::endl;
+				    continue;
+			      }
+			      if (numeric < 0) {
+				    if (cp_width == 64)
+					  value = (uint64_t)numeric;
+				    else
+					  value = (uint64_t)(((__int128)1 << cp_width)
+						+ numeric) & mask(cp_width);
+			      } else {
+				    value = (uint64_t)numeric & mask(cp_width);
+			      }
+			}
 			state.ranges.push_back(std::make_pair(value, value));
 			state.total += 1;
 		  }
 		  continue;
 	    }
-	    uint64_t lo = 0, hi = 0;
-	    if (!defn->covgrp_eval_ir(cobj, rec.lo_ir, lo)
-		|| !defn->covgrp_eval_ir(cobj, rec.hi_ir, hi))
+	    uint64_t lo_bits = 0, hi_bits = 0;
+	    unsigned lo_width = 0, hi_width = 0;
+	    bool lo_signed = false, hi_signed = false;
+	    if (!defn->covgrp_eval_ir(cobj, rec.lo_ir, lo_bits,
+				       lo_width, lo_signed)
+		|| !defn->covgrp_eval_ir(cobj, rec.hi_ir, hi_bits,
+				       hi_width, hi_signed)) {
+		  if (cobj->cov_dyn_warn_once(rec.family))
+			std::cerr << "WARNING: covergroup bin '" << rec.name
+				  << "' has an X/Z endpoint or invalid typed "
+				     "runtime expression; the affected range is "
+				     "excluded." << std::endl;
 		  continue;
-	    if (hi < lo) std::swap(lo, hi);
-	    covgrp_dyn_state_t&state = out[rec.family];
-	    if (!state.meta) state.meta = &rec;
-	    state.ranges.push_back(std::make_pair(lo, hi));
-	    state.total += (unsigned __int128)hi - (unsigned __int128)lo + 1;
+	    }
+	      // Preserve the exact raw-bit ordering used by pre-typed VVP
+	      // metadata. New compilers always emit an explicit sW/uW field.
+	    if (rec.value_width == 0) {
+		  if (hi_bits < lo_bits) std::swap(lo_bits, hi_bits);
+		  state.ranges.push_back(std::make_pair(lo_bits, hi_bits));
+		  state.total += (unsigned __int128)hi_bits
+			- (unsigned __int128)lo_bits + 1;
+		  continue;
+	    }
+
+	    auto mask = [](unsigned width) -> uint64_t {
+		  return width >= 64 ? UINT64_MAX
+			: (UINT64_C(1) << width) - 1;
+	    };
+	    auto numeric = [&](uint64_t bits, unsigned width,
+			       bool is_signed) -> __int128 {
+		  bits &= mask(width);
+		  if (is_signed && (bits & (UINT64_C(1) << (width - 1)))) {
+			if (width == 64) return (__int128)(int64_t)bits;
+			return (__int128)bits - ((__int128)1 << width);
+		  }
+		  return (__int128)bits;
+	    };
+	    unsigned value_width = rec.value_width;
+	    auto encoded = [&](const __int128&value) -> uint64_t {
+		  if (value >= 0) return (uint64_t)value & mask(value_width);
+		  if (value_width == 64) return (uint64_t)value;
+		  return (uint64_t)(((__int128)1 << value_width) + value)
+			& mask(value_width);
+	    };
+	    struct resolved_endpoint_t {
+		  __int128 effective;
+		  bool warning;
+		  bool below;
+		  bool above;
+	    };
+	    auto resolve_endpoint = [&](uint64_t bits, unsigned width,
+				    bool source_signed) -> resolved_endpoint_t {
+		  __int128 source = numeric(bits, width, source_signed);
+		    // IEEE 1800-2017/2023 19.5.7 compares the statically cast
+		    // value with the original endpoint under normal == rules. The
+		    // comparison is signed only when both operands are signed.
+		  bool signed_compare = rec.value_signed && source_signed;
+		  __int128 domain_lo = signed_compare
+			? -((__int128)1 << (value_width - 1)) : 0;
+		  __int128 domain_hi = signed_compare
+			? ((__int128)1 << (value_width - 1)) - 1
+			: value_width == 64 ? (__int128)UINT64_MAX
+			: ((__int128)1 << value_width) - 1;
+		  uint64_t cast_bits = encoded(source);
+		  __int128 source_cmp = signed_compare
+			? source : (__int128)(bits & mask(width));
+		  __int128 cast_cmp = signed_compare
+			? numeric(cast_bits, value_width, true)
+			: (__int128)cast_bits;
+		  bool explicit_negative = !rec.value_signed && source_signed
+			&& source < 0;
+		  bool below = source < domain_lo;
+		  bool above = source > domain_hi;
+		  __int128 clipped = std::max(domain_lo,
+					   std::min(source, domain_hi));
+		  resolved_endpoint_t out = {
+			numeric(encoded(clipped), value_width, rec.value_signed),
+			explicit_negative || source_cmp != cast_cmp,
+			below, above
+		  };
+		  return out;
+	    };
+	    resolved_endpoint_t lo = resolve_endpoint(lo_bits, lo_width,
+						 lo_signed);
+	    resolved_endpoint_t hi = resolve_endpoint(hi_bits, hi_width,
+						 hi_signed);
+	    bool clipped = lo.warning || hi.warning;
+	    if (clipped && cobj->cov_dyn_warn_once(rec.family))
+		  std::cerr << "WARNING: covergroup bin '" << rec.name
+			    << "' has a runtime range outside its "
+			    << (rec.value_signed ? "signed " : "unsigned ")
+			    << value_width << "-bit coverpoint domain; IEEE 1800 "
+			       "value resolution intersects the range with that "
+		       "domain." << std::endl;
+	      // If both endpoints lie entirely on the same unrepresentable side,
+	      // every value warns and the range is excluded. Otherwise order the
+	      // independently cast endpoints in the effective coverpoint type.
+	      // An explicit descending range remains empty (11.4.13).
+	    if ((lo.below && hi.below) || (lo.above && hi.above)) continue;
+	    if (lo.effective > hi.effective) continue;
+	    __int128 resolved_lo = lo.effective;
+	    __int128 resolved_hi = hi.effective;
+
+	    auto append = [&](uint64_t lo, uint64_t hi) {
+		  state.ranges.push_back(std::make_pair(lo, hi));
+		  state.total += (unsigned __int128)hi
+			- (unsigned __int128)lo + 1;
+	    };
+	    if (rec.value_signed && resolved_lo < 0 && resolved_hi >= 0) {
+		  append(encoded(resolved_lo), mask(value_width));
+		  append(0, encoded(resolved_hi));
+	    } else {
+		  append(encoded(resolved_lo), encoded(resolved_hi));
+	    }
       }
-      return out;
+	// Embedded setp: expressions cannot resolve until assignment installs
+	// __covgrp_parent after %new/cobj completes. Retain the provisional
+	// states for this construction-time call, but let the first post-link
+	// sample/query rebuild and finalize the complete cache.
+	cobj->cov_dyn_resolve(out, !deferred);
+	return cobj->cov_dyn_states();
 }
 
-/* Return the logical bin index for a value and the active family size.
- * Unsized arrays map each member of the range union to one bin; fixed arrays
- * use the same front-loaded uniform partition as declaration-time arrays. */
+// Parent-backed set expressions become resolvable immediately after a
+// class-property assignment installs __covgrp_parent. Freeze them at that
+// point so a later parent-container mutation cannot change construction-time
+// bin membership before the first sample or coverage query.
+void vvp_covgrp_finalize_parent_bins(vvp_cobject*cobj)
+{
+      if (!cobj || !cobj->get_defn()->is_covergroup()) return;
+      (void)covgrp_dyn_states_(cobj->get_defn(), cobj);
+}
+
+/* Return every logical bin index containing a value and the active family
+ * size. IEEE 1800 19.5.1 retains duplicate values in the ordered value list,
+ * so one sample may hit multiple open-array or fixed-array bins. A bin is
+ * bumped only once even if several duplicate occurrences map to that same
+ * logical bin. Unsized arrays map each occurrence to one bin. For a fixed
+ * array, assign floor(total/N), but at least one, values to each bin in order
+ * and put every remainder value in the last nonempty bin. */
 static bool covgrp_dyn_match_(const covgrp_dyn_state_t&state, uint64_t value,
-			      uint64_t&bin_index,
+			      std::vector<uint64_t>&bin_indexes,
 			      unsigned __int128&logical_count)
 {
       if (!state.meta || state.total == 0) return false;
-      unsigned __int128 ordinal = 0;
-      bool found = false;
-      for (auto&range : state.ranges) {
-	    if (value >= range.first && value <= range.second) {
-		  ordinal += (unsigned __int128)value - range.first;
-		  found = true;
-		  break;
-	    }
-	    ordinal += (unsigned __int128)range.second - range.first + 1;
-      }
-      if (!found) return false;
-
       uint64_t requested = state.meta->array_size;
       if (requested == ~(uint64_t)0) {
 	    logical_count = 1;
-	    bin_index = 0;
-	    return true;
-      }
-      if (requested == 0) {
+	} else if (requested == 0) {
 	    logical_count = state.total;
-	    bin_index = (uint64_t)ordinal;
-	    return true;
+	} else {
+	    unsigned __int128 bins = requested;
+	    if (bins > state.total) bins = state.total;
+	    logical_count = bins;
       }
-      unsigned __int128 bins = requested;
-      if (bins > state.total) bins = state.total;
-      logical_count = bins;
-      unsigned __int128 q = state.total / bins;
-      unsigned __int128 r = state.total % bins;
-      unsigned __int128 larger_values = r * (q + 1);
-      unsigned __int128 idx = ordinal < larger_values
-	   ? ordinal / (q + 1)
-	   : r + (ordinal - larger_values) / q;
-      bin_index = (uint64_t)idx;
-      return true;
+
+      auto logical_index = [&](unsigned __int128 ordinal) -> uint64_t {
+	    if (requested == ~(uint64_t)0) return 0;
+	    if (requested == 0) return (uint64_t)ordinal;
+	    unsigned __int128 q = state.total / requested;
+	    if (q == 0) q = 1;
+	    unsigned __int128 before_last = q * (requested - 1);
+	    unsigned __int128 idx = ordinal < before_last
+		  ? ordinal / q : requested - 1;
+	    return (uint64_t)idx;
+      };
+
+      std::set<uint64_t> matched;
+      unsigned __int128 ordinal = 0;
+      for (auto&range : state.ranges) {
+	    if (value >= range.first && value <= range.second) {
+		  unsigned __int128 occurrence = ordinal
+			+ (unsigned __int128)value - range.first;
+		  matched.insert(logical_index(occurrence));
+		  if (requested == ~(uint64_t)0) break;
+	    }
+	    ordinal += (unsigned __int128)range.second - range.first + 1;
+      }
+      bin_indexes.assign(matched.begin(), matched.end());
+      return !bin_indexes.empty();
 }
 
 /* %covgrp/sample ncp, guard_flags
@@ -6656,7 +6860,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 {
       const class_type*defn = cobj->get_defn();
       size_t nbins = defn->covgrp_bin_count();
-      std::map<unsigned,covgrp_dyn_state_t> dyn_states =
+      const std::map<unsigned,covgrp_dyn_state_t>&dyn_states =
 	    covgrp_dyn_states_(defn, cobj);
 
 	// Pass 1: per-coverpoint sampled/suppressed state.
@@ -6737,13 +6941,14 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    if (!state.meta || (state.meta->kind & 7) != 2
 		|| !bin_enabled(state.meta->guard_idx)) continue;
 	    unsigned cp = state.meta->cp_idx;
-	    uint64_t logical = 0;
+	    std::vector<uint64_t> logical;
 	    unsigned __int128 count = 0;
 	    if (cp < ncp && cp_sampled[cp]
 		&& covgrp_dyn_match_(state, cp_vals[cp], logical, count)) {
 		  std::cerr << "ERROR: covergroup dynamic illegal_bin matched"
 			    << " (family=" << entry.first << ")" << std::endl;
-		  cobj->cov_dyn_bump(entry.first, logical);
+		  for (uint64_t bin : logical)
+			cobj->cov_dyn_bump(entry.first, bin);
 		  cp_suppressed[cp] = true;
 	    }
       }
@@ -6763,7 +6968,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    if (!state.meta || (state.meta->kind & 7) != 1
 		|| !bin_enabled(state.meta->guard_idx)) continue;
 	    unsigned cp = state.meta->cp_idx;
-	    uint64_t logical = 0;
+	    std::vector<uint64_t> logical;
 	    unsigned __int128 count = 0;
 	    if (cp < ncp && cp_sampled[cp]
 		&& covgrp_dyn_match_(state, cp_vals[cp], logical, count))
@@ -6994,11 +7199,12 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    if (!state.meta || (state.meta->kind & 7) != 0
 		|| !bin_enabled(state.meta->guard_idx)) continue;
 	    unsigned cp = state.meta->cp_idx;
-	    uint64_t logical = 0;
+	    std::vector<uint64_t> logical;
 	    unsigned __int128 count = 0;
 	    if (cp < ncp && cp_sampled[cp] && !cp_suppressed[cp]
 		&& covgrp_dyn_match_(state, cp_vals[cp], logical, count)) {
-		  cobj->cov_dyn_bump(entry.first, logical);
+		  for (uint64_t bin : logical)
+			cobj->cov_dyn_bump(entry.first, bin);
 		  item_matched[state.meta->item_idx] = true;
 	    }
       }
@@ -7162,6 +7368,11 @@ bool of_COVGRP_OPTIONS_INIT(vthread_t thr, vvp_code_t)
 	    return true;
       }
       cobj->get_defn()->covgrp_init_options(cobj);
+	// IEEE 1800 19.3/19.5: non-ref constructor inputs are captured by
+	// new, and range/set covergroup expressions define the object's bin
+	// set at construction. Resolve once after all constructor-formal
+	// property stores rather than rebuilding it on every sample/query.
+	(void)covgrp_dyn_states_(cobj->get_defn(), cobj);
       return true;
 }
 
@@ -7239,13 +7450,15 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 	    }
 	    std::map<unsigned,long double> item_dyn_total;
 	    std::map<unsigned,long double> item_dyn_hits;
-	    std::map<unsigned,covgrp_dyn_state_t> dyn_states =
+	    const std::map<unsigned,covgrp_dyn_state_t>&dyn_states =
 		  covgrp_dyn_states_(defn, cobj);
 	    for (auto&entry : dyn_states) {
 		  const covgrp_dyn_state_t&state = entry.second;
 		  if (!state.meta || (state.meta->kind & 7) != 0) continue;
 		  unsigned __int128 logical = state.meta->array_size;
-		  if (state.meta->array_size == ~(uint64_t)0)
+		  if (state.total == 0)
+			logical = 0;
+		  else if (state.meta->array_size == ~(uint64_t)0)
 			logical = 1;
 		  else if (state.meta->array_size == 0)
 			logical = state.total;

@@ -30,6 +30,7 @@
 # include  <cstddef>
 # include  <cinttypes>
 # include  <cctype>
+# include  <cerrno>
 # include  <cstdlib>
 # include  <cstring>
 # include  <limits>
@@ -2474,26 +2475,59 @@ void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 				  uint64_t kind, uint64_t family,
 				  uint64_t array_size, char*name,
 				  char*lo_ir, char*hi_ir,
-				  uint64_t guard_idx)
+				  uint64_t guard_idx, char*value_type)
 {
       assert(compile_class);
       const uint64_t u32_max = std::numeric_limits<unsigned>::max();
+	 // A zero width marks the legacy grammar, which had no coverpoint type
+	 // field and therefore used raw unsigned endpoint bits at runtime.
+	 unsigned value_width = 0;
+	 bool value_signed = false;
+	 bool bad_type = false;
+	   // A typed set suffix and the typed coverpoint field form one metadata
+	   // ABI. Reject either mixed-generation pairing: the first would reach
+	   // runtime with value_width == 0, while the second would silently take
+	   // legacy raw-set semantics despite carrying a typed coverpoint.
+	 bool set_ir = lo_ir && hi_ir && strcmp(lo_ir, hi_ir) == 0
+	       && (strncmp(lo_ir, "setc:", 5) == 0
+		   || strncmp(lo_ir, "setp:", 5) == 0);
+	 bool typed_set_ir = set_ir && strchr(lo_ir + 5, ':');
+	 if ((!value_type && typed_set_ir) || (value_type && set_ir && !typed_set_ir))
+	       bad_type = true;
+	 if (value_type) {
+	       size_t type_len = strlen(value_type);
+	       value_signed = type_len > 0 && value_type[0] == 's';
+	       bool value_type_bad = type_len < 2
+		     || (value_type[0] != 's' && value_type[0] != 'u')
+		     || !isdigit(static_cast<unsigned char>(value_type[1]));
+	       char*end = 0;
+	       errno = 0;
+	       unsigned long parsed = value_type_bad ? 0
+		     : strtoul(value_type + 1, &end, 10);
+	       value_type_bad = value_type_bad || end == value_type + 1 || *end != 0
+		     || errno == ERANGE || parsed == 0 || parsed > 64;
+	       bad_type = bad_type || value_type_bad;
+	       if (!value_type_bad) value_width = (unsigned)parsed;
+	 }
       if (cp_idx > u32_max || item_idx > u32_max || kind > u32_max
-	  || family > u32_max || guard_idx > u32_max) {
+	  || family > u32_max || guard_idx > u32_max || bad_type) {
 	yyerror("invalid .covgrp_dyn_bin metadata value");
 	free(name);
 	free(lo_ir);
 	free(hi_ir);
+	free(value_type);
 	return;
       }
       compile_class->add_covgrp_dyn_bin((unsigned)cp_idx, (unsigned)item_idx,
 					(unsigned)kind, (unsigned)family,
 					array_size, name ? name : "",
 					lo_ir ? lo_ir : "", hi_ir ? hi_ir : "",
+					value_width, value_signed,
 					(unsigned)guard_idx);
       free(name);
       free(lo_ir);
       free(hi_ir);
+      free(value_type);
 }
 
 void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
@@ -2582,25 +2616,64 @@ void class_type::type_bump(unsigned prop) const
       type_counts_[prop] += 1;
 }
 
-/* Evaluate the deliberately small arithmetic subset used by dynamic
- * covergroup options and bounds.  The compiler emits the same prefix IR as
- * class constraints: c:V atoms, p:PID:WIDTH property atoms, and parenthesized
- * arithmetic.  Keeping this evaluator independent of Z3 is important: a
- * coverage sample must be cheap and must also work in builds without the
- * optional solver. */
+/* Evaluate the deliberately bounded arithmetic subset used by dynamic
+ * covergroup options and bounds. The compiler emits the same prefix IR as
+ * class constraints: c:V:WIDTH[:s] atoms, p:PID:WIDTH[:s] property atoms,
+ * and parenthesized arithmetic. Width and signedness are part of the value,
+ * not decoration: dropping them changes nested arithmetic and shifts. Keep
+ * this evaluator independent of Z3 so coverage construction remains cheap
+ * and works in builds without the optional solver. */
 class covgrp_ir_eval_t {
     public:
+	 struct value_t {
+	       uint64_t bits = 0;
+	       unsigned width = 1;
+	       bool is_signed = false;
+	 };
+
       covgrp_ir_eval_t(const string&text, vvp_cobject*obj)
-      : text_(text), obj_(obj), pos_(0) { }
+      : text_(text), obj_(obj), pos_(0), nodes_(0) { }
 
       bool eval(uint64_t&out)
       {
-	    if (!expr_(out)) return false;
+	    value_t value;
+	    if (!eval(value)) return false;
+	    out = value.bits;
+	    return true;
+      }
+
+      bool eval(value_t&out)
+      {
+	    if (!expr_(out, 0)) return false;
 	    skip_();
 	    return pos_ == text_.size();
       }
 
     private:
+	 static uint64_t mask_(unsigned width)
+	 {
+	       return width >= 64 ? UINT64_MAX
+		     : (UINT64_C(1) << width) - 1;
+	 }
+
+	 static uint64_t resize_(const value_t&value, unsigned width,
+				 bool sign_extend)
+	 {
+	       uint64_t bits = value.bits & mask_(value.width);
+	       if (sign_extend && value.is_signed && value.width < width
+		   && (bits & (UINT64_C(1) << (value.width - 1))))
+		     bits |= ~mask_(value.width);
+	       return bits & mask_(width);
+	 }
+
+	 static __int128 signed_value_(uint64_t bits, unsigned width)
+	 {
+	       bits &= mask_(width);
+	       if (width < 64 && (bits & (UINT64_C(1) << (width - 1))))
+		     return (__int128)bits - ((__int128)1 << width);
+	       return (__int128)(int64_t)bits;
+	 }
+
       void skip_()
       {
 	    while (pos_ < text_.size()
@@ -2618,82 +2691,213 @@ class covgrp_ir_eval_t {
 	    return text_.substr(begin, pos_ - begin);
       }
 
-      bool expr_(uint64_t&out)
+	 bool atom_value_(const string&tok, value_t&out)
+	 {
+	       bool property = tok.compare(0, 2, "p:") == 0;
+	       if (!property && tok.compare(0, 2, "c:") != 0) return false;
+
+	       const char*begin = tok.c_str() + 2;
+	       if (!isdigit(static_cast<unsigned char>(*begin))) return false;
+	       char*end = 0;
+	       errno = 0;
+	       uint64_t first = strtoull(begin, &end, 10);
+	       if (end == begin || errno == ERANGE) return false;
+
+	       unsigned width = 32;
+	       bool is_signed = false;
+	       if (*end == ':') {
+		     const char*width_begin = end + 1;
+		     if (!isdigit(static_cast<unsigned char>(*width_begin)))
+			   return false;
+		     errno = 0;
+		     unsigned long parsed = strtoul(width_begin, &end, 10);
+		     if (end == width_begin || errno == ERANGE
+			 || parsed == 0 || parsed > 64)
+			   return false;
+		     width = (unsigned)parsed;
+		     if (*end == ':' && end[1] == 's') {
+			   is_signed = true;
+			   end += 2;
+		     }
+	       } else if (property) {
+		     return false;
+	       }
+	       if (*end != 0) return false;
+
+	       out.width = width;
+	       out.is_signed = is_signed;
+	       if (!property) {
+		     out.bits = first & mask_(width);
+		     return true;
+	       }
+
+	       if (!obj_ || first >= obj_->get_defn()->property_count())
+		     return false;
+	       vvp_vector4_t value;
+	       obj_->get_vec4((size_t)first, value);
+	       if (value.size() < width) return false;
+	       out.bits = 0;
+	       for (unsigned bit = 0; bit < width; bit += 1) {
+		     vvp_bit4_t digit = value.value(bit);
+		     if (digit == BIT4_X || digit == BIT4_Z) return false;
+		     if (digit == BIT4_1) out.bits |= UINT64_C(1) << bit;
+	       }
+	       return true;
+	 }
+
+	 bool expr_(value_t&out, unsigned depth)
       {
+	    if (depth > 128 || ++nodes_ > 1024) return false;
 	    skip_();
 	    if (pos_ >= text_.size()) return false;
 	    if (text_[pos_] != '(') {
 		  string tok = atom_();
-		  if (tok.compare(0, 2, "c:") == 0) {
-			char*end = 0;
-			out = strtoull(tok.c_str() + 2, &end, 10);
-			return end != tok.c_str() + 2;
-		  }
-		  if (tok.compare(0, 2, "p:") == 0 && obj_) {
-			char*end = 0;
-			uint64_t pid = strtoull(tok.c_str() + 2, &end, 10);
-			if (end == tok.c_str() + 2 || *end != ':') return false;
-			vvp_vector4_t val;
-			obj_->get_vec4((size_t)pid, val);
-			out = 0;
-			for (unsigned bit = 0; bit < val.size() && bit < 64; bit += 1)
-			      if (val.value(bit) == BIT4_1)
-				    out |= (uint64_t)1 << bit;
-			return true;
-		  }
-		  return false;
+		  return atom_value_(tok, out);
 	    }
 
 	    pos_ += 1;
 	    string op = atom_();
-	    uint64_t a = 0, b = 0, c = 0;
-	    if (!expr_(a)) return false;
+	    value_t a, b, c;
+	    if (!expr_(a, depth + 1)) return false;
 	    bool unary = op == "not" || op == "bnot" || op == "redand"
-		       || op == "redor" || op == "redxor";
-	    if (!unary && !expr_(b)) return false;
-	    if (op == "ite" && !expr_(c)) return false;
+		       || op == "redor" || op == "redxor" || op == "neg";
+	    if (!unary && !expr_(b, depth + 1)) return false;
+	    if (op == "ite" && !expr_(c, depth + 1)) return false;
 	    skip_();
 	    if (pos_ >= text_.size() || text_[pos_] != ')') return false;
 	    pos_ += 1;
 
-	    if (op == "add") out = a + b;
-	    else if (op == "sub") out = a - b;
-	    else if (op == "mul") out = a * b;
-	    else if (op == "div") out = b ? a / b : 0;
-	    else if (op == "mod") out = b ? a % b : 0;
-	    else if (op == "band") out = a & b;
-	    else if (op == "bor") out = a | b;
-	    else if (op == "bxor") out = a ^ b;
-	    else if (op == "shl") out = b < 64 ? a << b : 0;
-	    else if (op == "lshr") out = b < 64 ? a >> b : 0;
-	    else if (op == "ashr")
-		  out = b < 64 ? (uint64_t)((int64_t)a >> b)
-			       : ((int64_t)a < 0 ? ~(uint64_t)0 : 0);
-	    else if (op == "eq") out = a == b;
-	    else if (op == "ne") out = a != b;
-	    else if (op == "lt") out = a < b;
-	    else if (op == "le") out = a <= b;
-	    else if (op == "gt") out = a > b;
-	    else if (op == "ge") out = a >= b;
-	    else if (op == "and") out = (a != 0) && (b != 0);
-	    else if (op == "or") out = (a != 0) || (b != 0);
-	    else if (op == "impl") out = (a == 0) || (b != 0);
-	    else if (op == "iff") out = (a != 0) == (b != 0);
-	    else if (op == "not") out = a == 0;
-	    else if (op == "bnot") out = ~a;
-	    else if (op == "redand") out = a == ~(uint64_t)0;
-	    else if (op == "redor") out = a != 0;
-	    else if (op == "redxor") {
-		  out = 0;
-		  while (a) { out ^= 1; a &= a - 1; }
-	    } else if (op == "ite") out = a ? b : c;
-	    else return false;
-	    return true;
+	    auto truth = [&](const value_t&value) {
+		  return (value.bits & mask_(value.width)) != 0;
+	    };
+	    if (op == "ite") {
+		  out.width = std::max(b.width, c.width);
+		  out.is_signed = b.is_signed && c.is_signed;
+		  out.bits = resize_(truth(a) ? b : c, out.width,
+				     out.is_signed);
+		  return true;
+	    }
+
+	    bool logical = op == "eq" || op == "ne" || op == "lt"
+		  || op == "le" || op == "gt" || op == "ge"
+		  || op == "and" || op == "or" || op == "impl"
+		  || op == "iff" || op == "not" || op == "redand"
+		  || op == "redor" || op == "redxor";
+	    if (logical) {
+		  bool result = false;
+		  if (op == "not") result = !truth(a);
+		  else if (op == "redand")
+			result = (a.bits & mask_(a.width)) == mask_(a.width);
+		  else if (op == "redor") result = truth(a);
+		  else if (op == "redxor") {
+			uint64_t bits = a.bits & mask_(a.width);
+			while (bits) { result = !result; bits &= bits - 1; }
+		  } else if (op == "and") result = truth(a) && truth(b);
+		  else if (op == "or") result = truth(a) || truth(b);
+		  else if (op == "impl") result = !truth(a) || truth(b);
+		  else if (op == "iff") result = truth(a) == truth(b);
+		  else {
+			unsigned width = std::max(a.width, b.width);
+			bool signed_compare = a.is_signed && b.is_signed;
+			uint64_t av = resize_(a, width, signed_compare);
+			uint64_t bv = resize_(b, width, signed_compare);
+			if (op == "eq") result = av == bv;
+			else if (op == "ne") result = av != bv;
+			else if (signed_compare) {
+			      __int128 as = signed_value_(av, width);
+			      __int128 bs = signed_value_(bv, width);
+			      if (op == "lt") result = as < bs;
+			      else if (op == "le") result = as <= bs;
+			      else if (op == "gt") result = as > bs;
+			      else result = as >= bs;
+			} else {
+			      if (op == "lt") result = av < bv;
+			      else if (op == "le") result = av <= bv;
+			      else if (op == "gt") result = av > bv;
+			      else result = av >= bv;
+			}
+		  }
+		  out.bits = result ? 1 : 0;
+		  out.width = 1;
+		  out.is_signed = false;
+		  return true;
+	    }
+
+	    if (op == "neg" || op == "bnot") {
+		  out.width = a.width;
+		  out.is_signed = a.is_signed;
+		  out.bits = op == "neg" ? UINT64_C(0) - a.bits : ~a.bits;
+		  out.bits &= mask_(out.width);
+		  return true;
+	    }
+
+	    if (op == "shl" || op == "lshr" || op == "ashr") {
+		  out.width = a.width;
+		  out.is_signed = a.is_signed;
+		  uint64_t av = a.bits & mask_(a.width);
+		  uint64_t count = b.bits & mask_(b.width);
+		  if (count >= out.width) {
+			bool fill = op == "ashr" && out.is_signed
+			      && (av & (UINT64_C(1) << (out.width - 1)));
+			out.bits = fill ? mask_(out.width) : 0;
+		  } else if (op == "shl") {
+			out.bits = (av << count) & mask_(out.width);
+		  } else if (op == "lshr" || !out.is_signed) {
+			out.bits = av >> count;
+		  } else {
+			out.bits = av >> count;
+			if (count && (av & (UINT64_C(1) << (out.width - 1))))
+			      out.bits |= mask_(out.width)
+				    & ~mask_(out.width - (unsigned)count);
+		  }
+		  return true;
+	    }
+
+	    if (op == "add" || op == "sub" || op == "mul"
+		|| op == "div" || op == "mod" || op == "band"
+		|| op == "bor" || op == "bxor" || op == "pow") {
+		  bool left_width = op == "pow";
+		  out.width = left_width ? a.width : std::max(a.width, b.width);
+		  out.is_signed = left_width ? a.is_signed
+			: a.is_signed && b.is_signed;
+		  uint64_t av = resize_(a, out.width, out.is_signed);
+		  uint64_t bv = resize_(b, out.width, out.is_signed);
+		  if (op == "add") out.bits = av + bv;
+		  else if (op == "sub") out.bits = av - bv;
+		  else if (op == "mul") out.bits = av * bv;
+		  else if (op == "band") out.bits = av & bv;
+		  else if (op == "bor") out.bits = av | bv;
+		  else if (op == "bxor") out.bits = av ^ bv;
+		  else if (op == "pow") {
+			uint64_t exponent = b.bits & mask_(b.width);
+			uint64_t power = 1;
+			uint64_t base = av;
+			while (exponent) {
+			      if (exponent & 1) power = (power * base) & mask_(out.width);
+			      exponent >>= 1;
+			      if (exponent) base = (base * base) & mask_(out.width);
+			}
+			out.bits = power;
+		  } else {
+			if (bv == 0) return false;
+			if (out.is_signed) {
+			      __int128 as = signed_value_(av, out.width);
+			      __int128 bs = signed_value_(bv, out.width);
+			      out.bits = (uint64_t)(op == "div" ? as / bs : as % bs);
+			} else {
+			      out.bits = op == "div" ? av / bv : av % bv;
+			}
+		  }
+		  out.bits &= mask_(out.width);
+		  return true;
+	    }
+	    return false;
       }
 
       const string&text_;
       vvp_cobject*obj_;
       size_t pos_;
+	 unsigned nodes_;
 };
 
 unsigned class_type::covgrp_decl_weight_(vvp_cobject*obj, size_t idx) const
@@ -2813,6 +3017,18 @@ bool class_type::covgrp_eval_ir(vvp_cobject*obj, const string&ir,
 				uint64_t&value) const
 {
       return covgrp_ir_eval_t(ir, obj).eval(value);
+}
+
+bool class_type::covgrp_eval_ir(vvp_cobject*obj, const string&ir,
+				uint64_t&value, unsigned&width,
+				bool&is_signed) const
+{
+      covgrp_ir_eval_t::value_t result;
+      if (!covgrp_ir_eval_t(ir, obj).eval(result)) return false;
+      value = result.bits;
+      width = result.width;
+      is_signed = result.is_signed;
+      return true;
 }
 
 uint32_t class_type::type_count(unsigned prop) const

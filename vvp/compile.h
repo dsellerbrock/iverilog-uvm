@@ -701,7 +701,8 @@ extern void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 					 uint64_t kind, uint64_t family,
 					 uint64_t array_size, char*name,
 					 char*lo_ir, char*hi_ir,
-					 uint64_t guard_idx = 0xFFFFFFFFu);
+					 uint64_t guard_idx = 0xFFFFFFFFu,
+					 char*value_type = 0);
 extern void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
 			      uint64_t is_cross, char*name = 0,
 			      char*weight_ir = 0,

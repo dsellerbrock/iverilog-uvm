@@ -6,15 +6,26 @@ This document is the governing implementation and conformance plan for the `dsel
 
 Its goals are:
 
-1. Run the unmodified Accellera UVM reference implementation with correct language and runtime semantics.
-2. Expand Icarus Verilog toward broad, measurable IEEE 1800-2017 conformance.
-3. Track IEEE 1800-2023 separately as a delta.
-4. Eliminate silent miscompiles.
-5. Make every support claim evidence-based and falsifiable.
+1. Implement broad, measurable IEEE 1800-2017 and IEEE 1800-2023
+   conformance as two first-class selectable language editions.
+2. Run the unmodified Accellera UVM reference implementation and make
+   representative OpenTitan and Caliptra RTL/DV flows practically usable
+   without source patches that hide compiler defects.
+3. Target source, run-time, DPI, and VPI interoperability with the commercial
+   RTL/DV ecosystem represented by VCS, Questa, and Xcelium wherever their
+   behavior agrees with IEEE 1800.
+4. Eliminate silent miscompiles and make every support claim evidence-based
+   and falsifiable.
+5. Build a standards-correct, typed, formal-ready frontend and assertion IR;
+   a proof engine is a later program, not a present capability claim.
+6. Defer UPF/IEEE 1801 and other adjacent standards until the IEEE 1800
+   language, elaboration, simulation, and verification surfaces are
+   substantially closed.
 
 This document is the implementation Bible.
 
-Passing UVM is valuable evidence. It is not proof of full IEEE 1800 conformance.
+Passing UVM, OpenTitan, or Caliptra is valuable application evidence. None is
+proof of full IEEE 1800 conformance.
 
 A milestone is not complete because unsupported corners are documented. A milestone is complete only when its defined scope is implemented, tested, and free of known in-scope gaps.
 
@@ -41,14 +52,22 @@ A loud diagnostic is better than a silent miscompile, but it is still unsupporte
 
 Use sources in this order:
 
-1. IEEE 1800-2017.
-2. IEEE 1800-2023 for explicitly tracked delta work.
-3. The unmodified Accellera UVM reference implementation.
-4. Reduced pure-SystemVerilog reproducers.
-5. Existing regression evidence.
-6. Differential simulator behavior as supporting evidence only.
+1. The selected edition of IEEE 1800: 2017 in `-g2017` mode and 2023 in
+   `-g2023` mode, including published errata applicable to that edition.
+2. Reduced positive, negative, and interaction reproducers tied to the
+   governing clause and subclause.
+3. The unmodified Accellera UVM reference implementation and unchanged
+   OpenTitan and Caliptra sources as application conformance witnesses.
+4. VCS, Questa, and Xcelium behavior as practical commercial interoperability
+   evidence after the IEEE text; disagreement must be recorded rather than
+   resolved by majority vote.
+5. Slang as a parser/elaboration differential and independent diagnostic
+   cross-check.
+6. Existing regression evidence and dated application matrices.
 
-Never invent clause semantics from memory.
+Verilator is useful diagnostic evidence, but it is not the language, run-time,
+or Annex-H ABI oracle for this project. Never invent clause semantics from
+memory or infer standards completeness from one simulator.
 
 For each feature, identify the relevant clause and subclause; record syntax, semantics, typing, scheduling, VPI/DPI implications; and add positive, negative, and interaction tests where applicable.
 
@@ -137,7 +156,13 @@ Runtime class objects should preserve concrete class type, base type, specializa
 
 ---
 
-# Current milestone truth status
+# Milestone scope and historical truth status
+
+The canonical live status and current focus are in
+[`ROADMAP.md`](ROADMAP.md); dated evidence and exact invocations are in
+[`CURRENT_WORK.md`](CURRENT_WORK.md) and the session logs. Counts embedded in
+this manifesto describe the named checkpoint and must not override newer
+evidence.
 
 ## M0 — Reproducible baseline
 
@@ -488,14 +513,16 @@ Remaining:
       recorded, so resume() continues exactly where it left off — including
       an event that fired while suspended (deferred, not lost).
       Self-suspend parks immediately. Test `sv_process_suspend_resume`.)*
-- [ ] Complete post-NBA VPI callback-region support.
-- [ ] Define scheduling for time-consuming DPI imports.
-- [ ] Complete assertion attempt lifecycle scheduling.
+- [x] Implement the recorded post-NBA `cbNBASynch` callback region.
+- [x] Define scheduling and disable cleanup for the recorded time-consuming
+      DPI import/export subset.
+- [x] Implement Preponed/Observed/Reactive assertion lifecycle scheduling for
+      the recorded operand and action subset.
 - [ ] Keep the scheduler inventory synchronized with every scheduler change.
 
 ## M7 — Accellera UVM qualification
 
-**Status: COMPLETE FOR THE HARNESS SUITE — full UVM regression 209/209, 0 skipped**
+**Status: COMPLETE FOR THE CURRENT HARNESS SUITE — 354/354, 0 failed, 0 skipped**
 
 The RAL front door and major UVM subsystems execute correctly, and the
 bundled UVM regression suite passes with zero skips.
@@ -514,14 +541,21 @@ bundled UVM regression suite passes with zero skips.
 - [x] Re-enable and verify full extract/check/report/final phase execution.
       *(m7 now ends at t=80 with all post-run phases executing.)*
 - [x] Run full RAL, sequence, objection, TLM, callback, and phasing stress
-      suites. *(UVM regression 209 passed / 0 failed / 0 skipped.)*
+      suites. *(The current canonical UVM harness passes 354/354 with real
+      DPI, 0 failed, and 0 skipped; preserve exact tool provenance in the
+      dated evidence.)*
 
 Note: the harness suite is green, but per the truth rules this is
 "COMPLETE for the probed suite," not a proof of standards-complete UVM.
 
 ## M8 — Clocking blocks and program scheduling
 
-**Status: PROVISIONAL COMPLETE**
+**Status: PARTIAL**
+
+Sampled inputs, common output drives, `##N`, default/global clocking, and the
+recorded virtual-interface paths work. Run-time-selected drives, indexed class
+receivers, whole unpacked clocking outputs, and the remaining clause-14 audit
+surface prevent a completion claim.
 
 - [ ] Reprobe edge-qualified skew forms.
 - [ ] Reprobe real/string/aggregate clockvars.
@@ -543,21 +577,17 @@ Note: the harness suite is green, but per the truth rules this is
 
 ## M9D — Advanced SVA semantics and automaton engine
 
-**Status: OPEN**
+**Status: SUBSTANTIAL / PARTIAL**
 
-- [ ] Implement goto repetition.
-- [ ] Implement nonconsecutive repetition.
-- [ ] Implement local sequence variables.
-- [ ] Implement `.matched`.
-- [ ] Complete `.triggered`.
-- [ ] Implement `expect`.
-- [ ] Support richer sequence operands for temporal operators.
-- [ ] Generalize variable-length `intersect` and `within`.
-- [ ] Implement multiclock semantics.
-- [ ] Implement full assertion attempt lifecycle.
-- [ ] Implement procedural concurrent assertion forms.
-- [ ] Implement checker constructs or create a dedicated checker milestone.
-- [ ] Introduce an automaton/state-machine engine where linear lowering is semantically insufficient.
+The automaton/NFA engine is now the default and covers the recorded implication,
+window, repetition, local-variable, `first_match`, sequence-composition,
+strength, endpoint-method, and common multiclock subsets. `expect`, checker
+constructs, and assertion lifecycle callbacks are implemented in their
+recorded scopes. The legacy linear engine remains available only as a
+diagnostic differential. Remaining loud boundaries include cross-clock
+overlapping `|->`, `disable iff` across a two-or-more-boundary chain, and the
+separately recorded branch-flow and deferred-immediate gaps. This is not a
+complete clause-16 or formal-verification claim.
 
 ## M10A — Core DPI imports and packed vectors
 
@@ -565,33 +595,48 @@ Note: the harness suite is green, but per the truth rules this is
 
 ## M10B/M10C — DPI completion
 
-**Status: PARTIAL**
+**Status: SUBSTANTIAL / PARTIAL**
 
-- [ ] Implement multidimensional open arrays.
-- [ ] Implement DPI exports / C-to-SystemVerilog calls.
-- [ ] Implement real context semantics.
-- [ ] Verify complete scope API behavior.
-- [ ] Verify `chandle` ABI representation.
-- [ ] Support time-consuming imported tasks.
-- [ ] Add C→SV→C reentrancy tests.
-- [ ] Run real DPI regressions on Linux, macOS, and Windows.
+Imports, exports/C-to-SystemVerilog calls, context and scope selection,
+multidimensional fixed/open arrays in the recorded ABI subset, scalar and
+packed types, time-consuming tasks, re-entry, and the clause-35.9 disable
+protocol have executable evidence. VCS, Questa, and Xcelium remain the
+commercial Annex-H interoperability targets. Imported shortreal arrays, legal
+fixed-size unpacked export formals, and the exhaustive signature/runtime and
+cross-platform matrix remain open, so clause 35 is not complete.
 
 ## M11A — Class-embedded functional coverage core
 
-**Status: COMPLETE**
+**Status: SUBSET COMPLETE**
+
+The fixed declaration/sampling core is stable in the recorded subset. This
+label does not include every clause-19 bin, option, constructor, reporting,
+type-coverage, VPI, or cross interaction.
 
 ## M11B — Full clause-19 declaration and sampling surface
 
 **Status: PARTIAL**
 
-- [ ] Implement package-scope covergroups.
-- [ ] Implement module/interface-scope covergroups.
-- [ ] Complete sampling-event forms.
-- [ ] Complete `with function sample` formal semantics.
-- [ ] Audit arbitrary coverpoint expressions.
-- [ ] Audit all `option` and `type_option` properties.
-- [ ] Define durable coverage serialization/interchange goals.
-- [ ] Build adversarial cross and transition coverage tests.
+- [x] Implement the recorded package/module/interface/class covergroup and
+      sampling-event subsets.
+- [x] Implement the recorded `with function sample`, options, durable text
+      report, transition, cross, and adversarial fixed-bin subsets.
+- [~] Implement typed per-instance constructor-dependent integral bin ranges.
+      The bounded construction-time grammar preserves width, signedness,
+      X/Z exclusion, coverpoint-domain conversion, descending-range emptiness,
+      duplicate membership, and fixed-bin partitioning, including OpenTitan's
+      TL-agent expression. Paired `-g2017`/`-g2023` focused legacy and JSON/VVP
+      gates pass 8/8 at this checkpoint.
+- [ ] Preserve constructor port directions, including full `ref`, `output`, and
+      `inout` semantics, across covergroup construction and sampling.
+- [ ] Implement broader endpoint expressions and context-sized fill literals.
+- [ ] Implement construction-time dynamic `with` filters and integrate dynamic
+      families into crosses and named `binsof` selections.
+- [ ] Subtract dynamic ignore/illegal values from denominators and integrate
+      dynamic families into type coverage.
+- [ ] Complete report/VPI detail, option/type-option merging, arbitrary
+      coverpoint expressions, and the remaining 2023 real/tolerance coverage
+      surface.
 
 ## M12A — Core SystemVerilog VPI object model
 
@@ -599,8 +644,9 @@ Note: the harness suite is green, but per the truth rules this is
 
 ## M12B/M12C — VPI completion
 
-**Status: COMPLETE** — all nine items done; bundled VPI suite 94/94,
-full UVM 226/226 at the current head.
+**Status: COMPLETE FOR THE RECORDED OBJECT-MODEL SUBSET** — all nine listed
+items are done. The current canonical UVM harness is 354/354; use
+`CURRENT_WORK.md` for the live VPI count and exact build provenance.
 
 - [x] Implement assertion start/step/disable lifecycle callbacks.
       *(Start/Success/Failure from the automaton checkers,
@@ -675,11 +721,15 @@ This means the matrix exists and every top-level clause has a disposition. It do
 - [ ] Repeat silent-miscompile hunting with adversarial and generated tests.
 - [ ] Maintain a zero-known-silent-gap policy.
 
-## M15 — IEEE 1800-2023 delta
+## M15 — IEEE 1800-2023 first-class conformance campaign
 
-**Status: OPEN**
+**Status: ACTIVE / PARTIAL**
 
-Do not begin broad M15 work until P0/P1 correctness blockers and the major reopened 2017 gaps are under control.
+`-g2023` is a first-class selected edition, not postponed delta work. Every
+changed or newly added 2023 rule must receive an explicit disposition and
+paired tests where the editions agree or intentionally differ. Work proceeds
+alongside 2017 closure under the same silent-miscompile-first priority rule;
+neither edition may borrow an unsupported feature claim from the other.
 
 ---
 
@@ -695,10 +745,9 @@ now have per-instance runtime storage; the shared-event cross-wake is gone.
 - [x] Add dynamic class-property event trigger operations (blocking + NB).
 - [ ] Verify event assignment/alias semantics. *(Not implemented; UVM does not use it.)*
 - [x] Verify multiple waiters.
-- [~] Re-run UVM objection and phase-hopper stress tests. *(Objection
-      cross-wake fixed and front-door stress passes; the phase-hopper
-      stress still blocks on the separate `phase_hopper_objection` count-
-      propagation gap — see M7.)*
+- [x] Re-run UVM objection and phase-hopper stress tests. *(The event
+      cross-wake and R27 detached-fork staging defect are closed; the current
+      canonical harness passes 354/354.)*
 
 Known follow-up: `obj.ev.triggered` still lowers through the shared-event
 path (the `%evtest/obj` opcode exists but isn't wired into expression
@@ -780,7 +829,11 @@ A feature is complete only when:
 15. broader regression remains baseline-clean;
 16. conformance documentation updated;
 17. no known in-scope corner remains hidden behind a completion label;
-18. work is committed and pushed.
+18. both `-g2017` and `-g2023` have an explicit, tested disposition where the
+    feature is shared or edition-sensitive;
+19. unchanged UVM, OpenTitan, and Caliptra application gates are rerun where
+    the feature is on their path, with every remaining failure classified;
+20. work is committed and pushed.
 
 ---
 
@@ -788,19 +841,22 @@ A feature is complete only when:
 
 Unless new evidence changes priorities:
 
-1. Fix per-instance class events.
-2. Fix `$unit` class timescale semantics.
-3. Fix known compiler crashes.
-4. Finish M1B type-fidelity residuals.
-5. Reaudit M5.
-6. Continue M6 scheduler/process completion.
-7. Finish M9D SVA architecture.
-8. Finish M10 DPI.
-9. Finish M11 coverage declaration/sampling surface.
-10. Finish M12 VPI.
-11. Finish M13 long-tail support.
-12. Perform M14B subclause conformance campaign.
-13. Begin M15 IEEE 1800-2023 delta.
+1. Fix newly demonstrated silent miscompiles, crashes, corruption, and
+   scheduler/runtime safety defects.
+2. Close the current unchanged OpenTitan and Caliptra compiler/runtime
+   frontier with general IEEE behavior and permanent reduced tests.
+3. Continue the paired IEEE 1800-2017/2023 subclause campaign, keeping edition
+   differences explicit and measurable.
+4. Finish the remaining M1B/M5/M6 type, interface, and scheduler foundations.
+5. Finish the M9 SVA/typed-IR surface needed by RTL DV and a future formal
+   engine; do not claim a proof engine before one exists.
+6. Finish M10 DPI and M12 VPI commercial-interoperability surfaces, using VCS,
+   Questa, and Xcelium as practical cross-checks after the IEEE text.
+7. Finish M11 functional coverage, including dynamic `with`/cross/type/report
+   semantics exposed by OpenTitan and Caliptra.
+8. Finish M13 long-tail support and the M14B exhaustive subclause campaign.
+9. Begin UPF/IEEE 1801 only after IEEE 1800 is substantially closed and the
+   architecture can represent its power-intent semantics without shortcuts.
 
 Always prioritize newly discovered silent miscompiles or crashes above this order.
 

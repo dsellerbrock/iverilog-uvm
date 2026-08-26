@@ -29,6 +29,8 @@
 
 using namespace std;
 
+extern void vvp_covgrp_finalize_parent_bins(vvp_cobject*cobj);
+
 vvp_cobject::vvp_cobject(const class_type*defn)
 : defn_(defn), properties_(defn->instance_new()),
   union_active_member_(defn->is_tagged_union_type()
@@ -965,6 +967,7 @@ void vvp_cobject::set_object(size_t pid, const vvp_object_t&val, size_t idx)
 	    if (pp >= 0 && cg != this) {
 		  vvp_object_t self(this);
 		  cg->set_object((size_t)pp, self, 0);
+		  vvp_covgrp_finalize_parent_bins(cg);
 	    }
       }
       vvp_object_t stored;

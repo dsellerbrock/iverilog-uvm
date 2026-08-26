@@ -509,7 +509,7 @@ void draw_class_in_scope(ivl_type_t classtype)
 	    for (idx = 0 ; idx < nd ; idx += 1) {
 		  fprintf(vvp_out,
 			  " .covgrp_dyn_bin %u %u %u %u %" PRIu64
-			  " \"%s\" \"%s\" \"%s\" %u\n",
+			  " \"%s\" \"%s\" \"%s\" \"%c%u\" %u\n",
 			  ivl_type_covgrp_dyn_bin_cp(classtype, idx),
 			  ivl_type_covgrp_dyn_bin_item(classtype, idx),
 			  ivl_type_covgrp_dyn_bin_kind(classtype, idx),
@@ -518,6 +518,9 @@ void draw_class_in_scope(ivl_type_t classtype)
 			  ivl_type_covgrp_dyn_bin_name(classtype, idx),
 			  ivl_type_covgrp_dyn_bin_lo_ir(classtype, idx),
 			  ivl_type_covgrp_dyn_bin_hi_ir(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_value_signed(classtype, idx)
+				? 's' : 'u',
+			  ivl_type_covgrp_dyn_bin_value_width(classtype, idx),
 			  ivl_type_covgrp_dyn_bin_guard(classtype, idx));
 	    }
 	    int ni = ivl_type_covgrp_items(classtype);
