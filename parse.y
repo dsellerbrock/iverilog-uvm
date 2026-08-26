@@ -2679,7 +2679,8 @@ class_item /* IEEE1800-2005: A.1.8 */
 	      yyerror(@2, "error: event properties cannot be declared %s "
 			  "(IEEE 1800-2017 18.4 restricts rand/randc to "
 			  "integral types).", $1.test_randc() ? "randc" : "rand");
-	if ($3) pform_make_events(@2, $3);
+	if ($3) pform_make_events(@2, $3,
+		$1.test_static() ? IVL_VLT_STATIC : IVL_VLT_INHERITED);
       }
 
   | K_local K_static data_type list_of_variable_decl_assignments ';'
@@ -8818,7 +8819,9 @@ block_item_decl
   | K_const_opt lifetime K_event event_variable_list ';'
       { pform_requires_sv(@2, "Overriding default event lifetime");
 	pform_check_event_lifetime(@2, $2);
-	if ($4) pform_make_events(@3, $4);
+	if ($4) pform_make_events(@3, $4,
+		$2 == LexicalScope::STATIC ? IVL_VLT_STATIC
+		                           : IVL_VLT_AUTOMATIC);
       }
 
   | parameter_declaration
@@ -16544,7 +16547,9 @@ statement_item /* This is roughly statement_item in the LRM */
   | lifetime K_event event_variable_list ';'
       { pform_requires_sv(@1, "Overriding default event lifetime");
 	pform_check_event_lifetime(@1, $1);
-	if ($3) pform_make_events(@2, $3);
+	if ($3) pform_make_events(@2, $3,
+		$1 == LexicalScope::STATIC ? IVL_VLT_STATIC
+		                           : IVL_VLT_AUTOMATIC);
 	$$ = nullptr;
       }
 

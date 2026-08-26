@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_automatic_task_static_event.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_automatic_task_static_event"
+}

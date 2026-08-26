@@ -3275,10 +3275,12 @@ static void pform_set_net_range(PWire *wire,
  * transfers to the PEvent.
  */
 static void pform_make_event(const struct vlltype&loc, const pform_ident_t&name,
-			      std::list<pform_range_t>*array_dims)
+			      std::list<pform_range_t>*array_dims,
+			      ivl_lifetime_t lifetime)
 {
       PEvent*event = new PEvent(name.first, name.second);
       FILE_NAME(event, loc);
+      event->lifetime_override(lifetime);
       if (array_dims) event->set_array_dims(array_dims);
 
       add_local_symbol(lexical_scope, name.first, event);
@@ -3286,10 +3288,11 @@ static void pform_make_event(const struct vlltype&loc, const pform_ident_t&name,
 }
 
 void pform_make_events(const struct vlltype&loc,
-		       const list<pform_event_ident_t*>*names)
+		       const list<pform_event_ident_t*>*names,
+		       ivl_lifetime_t lifetime)
 {
       for (auto cur = names->begin() ;  cur != names->end() ; ++ cur ) {
-	    pform_make_event(loc, (*cur)->ident, (*cur)->array_dims);
+	    pform_make_event(loc, (*cur)->ident, (*cur)->array_dims, lifetime);
 	    delete *cur;
       }
 

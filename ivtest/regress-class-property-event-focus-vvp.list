@@ -1,5 +1,7 @@
 # IEEE 1800-2017 9.2.2.2.2 always_comb implicit sensitivity
 sv_class_property_always_comb_mutation vvp_tests/sv_class_property_always_comb_mutation.json
+# IEEE 1800-2017 8.9 static class-property event lifetime
+sv_class_static_event_shared vvp_tests/sv_class_static_event_shared.json
 # IEEE 1800-2017 9.4.2.1 class-property event value changes and lifetime
 sv_class_property_event_value_change vvp_tests/sv_class_property_event_value_change.json
 sv_class_property_event_filter_isolation vvp_tests/sv_class_property_event_filter_isolation.json

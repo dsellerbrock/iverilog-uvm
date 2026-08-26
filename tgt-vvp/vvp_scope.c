@@ -596,6 +596,18 @@ static const char *storage_flag_str(ivl_signal_t sig)
       }
 }
 
+static const char *event_storage_flag_str(ivl_event_t event)
+{
+      switch (ivl_event_lifetime(event)) {
+	  case IVL_VLT_STATIC:
+	    return "!";
+	  case IVL_VLT_AUTOMATIC:
+	    return "^";
+	  default:
+	    return "";
+      }
+}
+
 /*
  * This function draws a reg/int/variable in the scope. This is a very
  * simple device to draw as there are no inputs to connect so no need
@@ -784,8 +796,8 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 		  && ivl_type_properties(arr_elem_type) > 0;
 	    if (struct_obj_elem)
 		  draw_class_in_scope(arr_elem_type);
-	    fprintf(vvp_out, "v%p .array%s \"%s\", %d %d",
-		    sig, datatype_flag,
+	    fprintf(vvp_out, "v%p .array%s %s\"%s\", %d %d",
+		    sig, datatype_flag, storage_flag,
 		    vvp_mangle_name(ivl_signal_basename(sig)),
 		    swapped ? first: last, swapped ? last : first);
 	    if (struct_obj_elem)
@@ -797,8 +809,8 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    unsigned swapped = ivl_signal_array_addr_swapped(sig);
 	    int last = ivl_signal_array_base(sig)+word_count-1;
 	    int first = ivl_signal_array_base(sig);
-	    fprintf(vvp_out, "v%p .array%s \"%s\", %d %d, %d %d;\n",
-		    sig, datatype_flag,
+	    fprintf(vvp_out, "v%p .array%s %s\"%s\", %d %d, %d %d;\n",
+		    sig, datatype_flag, storage_flag,
 		    vvp_mangle_name(ivl_signal_basename(sig)),
 		    swapped ? first: last, swapped ? last : first, msb, lsb);
 
@@ -1615,7 +1627,8 @@ static void draw_event_in_scope(ivl_event_t obj)
       if (cnt == 0) {
 	      /* If none are needed, then this is a named event. The
 		 code needed is easy. */
-	    fprintf(vvp_out, "E_%p .event \"%s\";\n", obj,
+	    fprintf(vvp_out, "E_%p .event %s\"%s\";\n", obj,
+		    event_storage_flag_str(obj),
 		    vvp_mangle_name(ivl_event_basename(obj)));
 
       } else if (cnt > 1) {
@@ -2937,6 +2950,24 @@ void reset_evcd_metadata_budget(void)
       evcd_metadata_budget_failed = 0;
 }
 
+int scope_needs_call_frame(ivl_scope_t net)
+{
+      unsigned idx;
+      ivl_scope_type_t type = ivl_scope_type(net);
+
+      if (ivl_scope_is_auto(net))
+	    return 1;
+      if (type != IVL_SCT_TASK && type != IVL_SCT_FUNCTION
+	  && type != IVL_SCT_BEGIN && type != IVL_SCT_FORK)
+	    return 0;
+
+      for (idx = 0 ; idx < ivl_scope_sigs(net) ; idx += 1)
+	    if (ivl_signal_lifetime(ivl_scope_sig(net, idx))
+		== IVL_VLT_AUTOMATIC)
+		  return 1;
+      return 0;
+}
+
 int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 {
       unsigned idx;
@@ -2950,6 +2981,13 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 
       suffix[0] = 0;
 
+        /* A static subroutine or named block can own a call frame solely for
+	   declarations that carry an explicit automatic lifetime. Keep the
+	   scope static for VPI and inherited declarations, but tell vvp that
+	   its ^-marked items have a context to register in. */
+      int mixed_lifetime_scope = !ivl_scope_is_auto(net)
+	    && scope_needs_call_frame(net);
+
       switch (ivl_scope_type(net)) {
       case IVL_SCT_MODULE:
 	    /* Program blocks elaborate as module scopes with the
@@ -2961,19 +2999,23 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 		 : ivl_scope_is_interface(net) ? "interface"
 		 : "module";
 	    break;
-      case IVL_SCT_FUNCTION: type = "function"; break;
-      case IVL_SCT_TASK:     type = "task";     break;
+      case IVL_SCT_FUNCTION:
+	    type = mixed_lifetime_scope ? "function.ctx" : "function";
+	    break;
+      case IVL_SCT_TASK:
+	    type = mixed_lifetime_scope ? "task.ctx" : "task";
+	    break;
 	/* An automatic begin/fork scope that is collapsed into the
 	   enclosing activation frame is marked ".shared": the runtime
 	   places its automatic locals in the frame-owning ancestor
 	   scope and expects no %alloc/%free for it. */
       case IVL_SCT_BEGIN:
-	    type = "begin";
+	    type = mixed_lifetime_scope ? "begin.ctx" : "begin";
 	    if (ivl_scope_is_auto(net) && !ivl_scope_auto_frame(net))
 		  snprintf(suffix, sizeof suffix, ".shared");
 	    break;
       case IVL_SCT_FORK:
-	    type = "fork";
+	    type = mixed_lifetime_scope ? "fork.ctx" : "fork";
 	    if (ivl_scope_is_auto(net) && !ivl_scope_auto_frame(net))
 		  snprintf(suffix, sizeof suffix, ".shared");
 	    break;
@@ -3376,6 +3418,7 @@ void note_dpi_export(ivl_scope_t scope)
    shape is supported. On success writes the runtime signature letter
    (*sig_letter) and the C type spelling (*c_type). Signature letters:
      'i' unsigned integer atom, 'I' signed integer atom,
+     'B' scalar bit, 'g' scalar logic, 'p' chandle, 'f' shortreal,
      'r' real (double), 's' string, 'V' packed bit vector,
      'W' packed logic vector, 'v' void (return only). */
 static int dpi_export_classify(ivl_scope_t scope, ivl_signal_t port,
@@ -3385,18 +3428,52 @@ static int dpi_export_classify(ivl_scope_t scope, ivl_signal_t port,
       ivl_variable_type_t ptype = ivl_signal_data_type(port);
       unsigned pwid = ivl_signal_width(port);
       int is_signed = ivl_signal_signed(port);
+      ivl_type_t net_type = ivl_signal_net_type(port);
       int is_return = ivl_scope_type(scope) == IVL_SCT_FUNCTION
 		   && ivl_scope_ports(scope) > 0
 		   && port == ivl_scope_port(scope, 0);
 
+      if (ivl_signal_dimensions(port) > 0) {
+	    if (!quiet) {
+		  fprintf(stderr, "%s:%u: error: export \"DPI-C\" '%s': fixed "
+			  "unpacked array argument '%s' is not yet supported for "
+			  "DPI export; the export is dropped.\n",
+			  ivl_scope_def_file(scope), ivl_scope_def_lineno(scope),
+			  c_name, ivl_signal_basename(port));
+		  vvp_errors += 1;
+	    }
+	    return 0;
+      }
+
       if (ptype == IVL_VT_REAL) {
-	    *sig_letter = 'r';
-	    *c_type = "double";
+	    int is_shortreal = ivl_type_is_shortreal(net_type);
+	    *sig_letter = is_shortreal ? 'f' : 'r';
+	    *c_type = is_shortreal ? "float" : "double";
 	    return 1;
       }
       if (ptype == IVL_VT_STRING) {
 	    *sig_letter = 's';
 	    *c_type = "const char*";
+	    return 1;
+      }
+      if ((ptype == IVL_VT_LOGIC || ptype == IVL_VT_BOOL)
+          && ivl_type_is_chandle(net_type)) {
+	    *sig_letter = 'p';
+	    *c_type = "void*";
+	    return 1;
+      }
+      if ((ptype == IVL_VT_LOGIC || ptype == IVL_VT_BOOL)
+	  && ivl_type_is_packed_vector(net_type)) {
+	    if (is_return)
+		  goto unsupported;
+	    *sig_letter = ptype == IVL_VT_BOOL ? 'V' : 'W';
+	    *c_type = ptype == IVL_VT_BOOL
+		  ? "svBitVecVal" : "svLogicVecVal";
+	    return 1;
+      }
+      if ((ptype == IVL_VT_LOGIC || ptype == IVL_VT_BOOL) && pwid == 1) {
+	    *sig_letter = ptype == IVL_VT_BOOL ? 'B' : 'g';
+	    *c_type = ptype == IVL_VT_BOOL ? "svBit" : "svLogic";
 	    return 1;
       }
       if ((ptype == IVL_VT_LOGIC || ptype == IVL_VT_BOOL)
@@ -3410,20 +3487,13 @@ static int dpi_export_classify(ivl_scope_t scope, ivl_signal_t port,
 	    }
 	    return 1;
       }
-      if ((ptype == IVL_VT_LOGIC || ptype == IVL_VT_BOOL)
-	  && !is_return && ivl_signal_packed_dimensions(port) > 0) {
-	    *sig_letter = ptype == IVL_VT_BOOL ? 'V' : 'W';
-	    *c_type = ptype == IVL_VT_BOOL
-		  ? "svBitVecVal" : "svLogicVecVal";
-	    return 1;
-      }
-
+unsupported:
       if (!quiet)
 	    fprintf(stderr, "%s:%u: sorry: export \"DPI-C\" '%s': %s '%s' has a "
-		    "type not yet supported for export (integer atoms, packed bit/"
-		    "logic vectors, strings, and real are supported). The export is "
-		    "dropped; calls from C "
-		    "will not link.\n",
+		    "type not supported for export (integer atoms, scalar bit/logic, "
+		    "chandle, strings, shortreal, and real are supported; packed "
+		    "bit/logic vectors are supported only as formals, not results). "
+		    "The export is dropped; calls from C will not link.\n",
 		    ivl_scope_def_file(scope), ivl_scope_def_lineno(scope), c_name,
 		    (port == ivl_scope_port(scope, 0)
 		     && ivl_scope_type(scope) == IVL_SCT_FUNCTION)
@@ -3433,7 +3503,8 @@ static int dpi_export_classify(ivl_scope_t scope, ivl_signal_t port,
 }
 
 /* Build the return/arg signatures and validate. Returns 1 if the whole
-   export is supported. Fills ret_sig (single letter, 'v' for a task),
+   export is supported. Fills ret_sig (single letter, currently 'v' for a
+   task or void function pending the H.8.2 task-status split),
    arg_sig (TYPE,DIRECTION pairs per argument; direction is i/o/b for
    input/output/inout), and c-type spellings for the stub. */
 static int dpi_export_build_sig(ivl_scope_t scope, const char*c_name,
@@ -3570,12 +3641,15 @@ void emit_dpi_export_stub_file(const char*vvp_path)
 	      cpath);
       fprintf(out,
 	      "#include <stdint.h>\n\n"
+	      "typedef unsigned char svBit;\n"
+	      "typedef unsigned char svLogic;\n"
 	      "typedef uint32_t svBitVecVal;\n"
 	      "typedef struct { uint32_t aval, bval; } svLogicVecVal;\n\n"
 	      "typedef union ivl_dpi_arg_u {\n"
 	      "      int64_t     i;\n"
 	      "      double      r;\n"
 	      "      const char* s;\n"
+	      "      void*       p;\n"
 	      "      uint32_t*   v;\n"
 	      "} ivl_dpi_arg_t;\n\n"
 	      "extern int64_t     __ivl_dpi_export_call_i(const char*cname, int nargs, ivl_dpi_arg_t*args);\n"
@@ -3639,22 +3713,45 @@ void emit_dpi_export_stub_file(const char*vvp_path)
 	    for (idx = 0 ; idx < nargs ; idx += 1) {
 		  char typ = arg_sig[2*idx];
 		  char dir = arg_sig[2*idx+1];
-		  const char*deref = dir == 'i' ? "" : "*";
 		  if (typ == 'V' || typ == 'W')
 			fprintf(out, "      _a[%u].v = (uint32_t*)a%u;\n",
 				idx, idx);
-		  else if (typ == 'r')
-			fprintf(out, "      _a[%u].r = %s(a%u ? %sa%u : 0.0);\n",
-				idx, dir == 'i' ? "" : "", idx, deref, idx);
-		  else if (typ == 's')
-			fprintf(out, "      _a[%u].s = a%u ? %sa%u : 0;\n",
-				idx, idx, deref, idx);
+		  else if (typ == 'f' || typ == 'r') {
+			if (dir == 'i')
+			      fprintf(out, "      _a[%u].r = (double)a%u;\n",
+				      idx, idx);
+			else if (dir == 'b')
+			      fprintf(out, "      _a[%u].r = a%u ? (double)*a%u : 0.0;\n",
+				      idx, idx, idx);
+			else
+			      fprintf(out, "      _a[%u].r = 0.0;\n", idx);
+		  } else if (typ == 'p') {
+			if (dir == 'i')
+			      fprintf(out, "      _a[%u].p = a%u;\n", idx, idx);
+			else if (dir == 'b')
+			      fprintf(out, "      _a[%u].p = a%u ? *a%u : 0;\n",
+				      idx, idx, idx);
+			else
+			      fprintf(out, "      _a[%u].p = 0;\n", idx);
+		  }
+		  else if (typ == 's') {
+			if (dir == 'i')
+			      fprintf(out, "      _a[%u].s = a%u ? a%u : 0;\n",
+				      idx, idx, idx);
+			else if (dir == 'b')
+			      fprintf(out, "      _a[%u].s = a%u ? *a%u : 0;\n",
+				      idx, idx, idx);
+			else
+			      fprintf(out, "      _a[%u].s = 0;\n", idx);
+		  }
 		  else if (dir == 'i')
 			fprintf(out, "      _a[%u].i = (int64_t)a%u;\n",
 				idx, idx);
-		  else
+		  else if (dir == 'b')
 			fprintf(out, "      _a[%u].i = a%u ? (int64_t)*a%u : 0;\n",
 				idx, idx, idx);
+		  else
+			fprintf(out, "      _a[%u].i = 0;\n", idx);
 	    }
 
 	    const char*argptr = nargs ? "_a" : "0";
@@ -3663,6 +3760,7 @@ void emit_dpi_export_stub_file(const char*vvp_path)
 		  fprintf(out, "      __ivl_dpi_export_call_v(\"%s\", %u, %s);\n",
 			  c_name, nargs, argptr);
 		  break;
+		case 'f':
 		case 'r':
 		  fprintf(out, "      %s _rv = (%s)__ivl_dpi_export_call_r(\"%s\", %u, %s);\n",
 			  ret_ctype,
@@ -3672,7 +3770,11 @@ void emit_dpi_export_stub_file(const char*vvp_path)
 		  fprintf(out, "      const char* _rv = __ivl_dpi_export_call_s(\"%s\", %u, %s);\n",
 			  c_name, nargs, argptr);
 		  break;
-		default: /* 'i' or 'I' */
+		case 'p':
+		  fprintf(out, "      void* _rv = (void*)(uintptr_t)__ivl_dpi_export_call_i(\"%s\", %u, %s);\n",
+			  c_name, nargs, argptr);
+		  break;
+		default: /* integer atom or scalar bit/logic */
 		  fprintf(out, "      %s _rv = (%s)__ivl_dpi_export_call_i(\"%s\", %u, %s);\n",
 			  ret_ctype,
 			  ret_ctype, c_name, nargs, argptr);
@@ -3682,8 +3784,11 @@ void emit_dpi_export_stub_file(const char*vvp_path)
 		  char typ = arg_sig[2*idx];
 		  char dir = arg_sig[2*idx+1];
 		  if (dir == 'i' || typ == 'V' || typ == 'W') continue;
-		  if (typ == 'r')
-			fprintf(out, "      if (a%u) *a%u = _a[%u].r;\n",
+		  if (typ == 'f' || typ == 'r')
+			fprintf(out, "      if (a%u) *a%u = (%s)_a[%u].r;\n",
+				idx, idx, arg_ctypes[idx], idx);
+		  else if (typ == 'p')
+			fprintf(out, "      if (a%u) *a%u = _a[%u].p;\n",
 				idx, idx, idx);
 		  else if (typ == 's')
 			fprintf(out, "      if (a%u) *a%u = _a[%u].s;\n",

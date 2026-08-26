@@ -94,8 +94,10 @@ void __vpiHandle::vpi_get_delays(p_vpi_delay)
 void __vpiHandle::vpi_put_delays(p_vpi_delay)
 { }
 
-__vpiBaseVar::__vpiBaseVar(__vpiScope*scope, const char*name, vvp_net_t*net)
-: scope_(scope), name_(name), net_(net)
+__vpiBaseVar::__vpiBaseVar(__vpiScope*scope, const char*name, vvp_net_t*net,
+                           bool automatic_storage)
+: scope_(scope), name_(name), net_(net),
+  automatic_storage_(automatic_storage)
 {
 }
 

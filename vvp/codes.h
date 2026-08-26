@@ -220,6 +220,7 @@ extern bool of_DEFER_FINAL_TASK_KEY(vthread_t thr, vvp_code_t code);
 extern bool of_DPI_CALL_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_DPI_CALL_PTR(vthread_t thr, vvp_code_t code);
 extern bool of_DPI_CALL_REAL(vthread_t thr, vvp_code_t code);
+extern bool of_DPI_CALL_SHORTREAL(vthread_t thr, vvp_code_t code);
 extern bool of_DPI_CALL_STR(vthread_t thr, vvp_code_t code);
 extern bool of_DPI_CALL_VOID(vthread_t thr, vvp_code_t code);
 extern bool of_DPI_CALL_TASK(vthread_t thr, vvp_code_t code);

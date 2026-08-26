@@ -1038,7 +1038,8 @@ extern void pform_mc_translate_on(bool flag);
 extern std::vector<PWire*>* pform_make_udp_input_ports(std::list<pform_ident_t>*);
 
 extern void pform_make_events(const struct vlltype&loc,
-			      const std::list<pform_event_ident_t*>*names);
+			      const std::list<pform_event_ident_t*>*names,
+			      ivl_lifetime_t lifetime = IVL_VLT_INHERITED);
 /*
  * The makegate function creates a new gate (which need not have a
  * name) and connects it to the specified wires.

@@ -439,18 +439,21 @@ extern char **compile_udp_table(char **table, char *row);
 
 extern void compile_var_array(char*label, char*name,
 			      int last, int first,
-			      int msb, int lsb, char signed_flag);
+			      int msb, int lsb, char signed_flag,
+			      int storage_flag);
 extern void compile_var2_array(char*label, char*name,
 			      int last, int first,
-			      int msb, int lsb, bool signed_flag);
+			      int msb, int lsb, bool signed_flag,
+			      int storage_flag);
 extern void compile_real_array(char*label, char*name,
-			       int last, int first);
+			       int last, int first, int storage_flag);
 extern void compile_string_array(char*label, char*name,
-				 int last, int first);
+				 int last, int first, int storage_flag);
 extern void compile_object_array(char*label, char*name,
-				 int last, int first, char*element_type = nullptr);
+				 int last, int first, int storage_flag,
+				 char*element_type = nullptr);
 extern void compile_net_array(char*label, char*name,
-			      int last, int first);
+			      int last, int first, int storage_flag);
 extern void compile_array_alias(char*label, char*name, char*src);
 
   /* Index is a net. */
@@ -491,7 +494,8 @@ extern void compile_ufunc_resolver_real(char*label, char*code, unsigned wid,
  */
 extern void compile_event(char*label, char*type,
 			  unsigned argc, struct symb_s*argv);
-extern void compile_named_event(char*label, char*type, bool local_flag=false);
+extern void compile_named_event(char*label, char*type, int lifetime_flag=0,
+				bool local_flag=false);
 
 
 /*

@@ -1,5 +1,7 @@
 # IEEE 1800-2017 9.2.2.2.2 always_comb implicit sensitivity
 sv_class_property_always_comb_mutation normal,-g2012,-ssv_class_property_always_comb_mutation ivltests gold=sv_class_property_always_comb_mutation.gold
+# IEEE 1800-2017 8.9 static class-property event lifetime
+sv_class_static_event_shared normal,-g2012 ivltests gold=sv_class_static_event_shared.gold
 # IEEE 1800-2017 9.4.2.1 class-property event value changes and lifetime
 sv_class_property_event_value_change normal,-g2012,-ssv_class_property_event_value_change ivltests gold=sv_class_property_event_value_change.gold
 sv_class_property_event_filter_isolation normal,-g2012,-ssv_class_property_event_filter_isolation ivltests gold=sv_class_property_event_filter_isolation.gold

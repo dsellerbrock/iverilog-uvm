@@ -8,10 +8,9 @@
 // on any block-local declaration says how many *instances* of that
 // identity exist across activations of the enclosing scope.
 //
-//   - `static event e;` is just an explicit spelling of the (module-
-//     inherited) default: one event instance for the life of the
-//     simulation, shared by every activation. This must trigger/wait
-//     exactly like plain `event e;`.
+//   - `static event e;` overrides an automatic task's default: one event
+//     instance is shared by every activation. This file checks trigger/wait
+//     within one call; sv_automatic_task_static_event checks concurrent calls.
 //   - `automatic event e;` asks for a *fresh* synchronization identity
 //     on every activation of the enclosing scope. Icarus elaborates a
 //     named event exactly once per lexical scope instance -- a single
@@ -33,7 +32,7 @@ module main;
                  // declarations was not touched by the M4C-10 fix.
 
   task automatic check_static;
-    static event e;   // explicit spelling of the default lifetime
+    static event e;   // explicit override of this task's automatic lifetime
     int n;
     n = 0;
     fork
@@ -50,7 +49,7 @@ module main;
   endtask
 
   task automatic check_plain;
-    event e;          // unchanged: default (inherited/static) lifetime
+    event e;          // unchanged: inherits this task's automatic lifetime
     int n;
     n = 0;
     fork

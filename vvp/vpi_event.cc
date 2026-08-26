@@ -25,10 +25,12 @@
 # include  <cassert>
 # include  "ivl_alloc.h"
 
-inline __vpiNamedEvent::__vpiNamedEvent(__vpiScope*sc, const char*nam)
+inline __vpiNamedEvent::__vpiNamedEvent(__vpiScope*sc, const char*nam,
+				       bool automatic_storage)
 {
       scope_ = sc;
       name_ = vpip_name_string(nam);
+      automatic_storage_ = automatic_storage;
       callbacks_ = 0;
 }
 
@@ -49,7 +51,7 @@ int __vpiNamedEvent::vpi_get(int code)
       switch (code) {
 
 	  case vpiAutomatic:
-	    return scope_->is_automatic()? 1 : 0;
+	    return automatic_storage_ ? 1 : 0;
       }
 
       return 0;
@@ -88,9 +90,11 @@ vpiHandle __vpiNamedEvent::vpi_handle(int code)
 }
 
 
-vpiHandle vpip_make_named_event(const char*name, vvp_net_t*funct)
+vpiHandle vpip_make_named_event(const char*name, vvp_net_t*funct,
+				bool automatic_storage)
 {
-      __vpiNamedEvent*obj = new __vpiNamedEvent(vpip_peek_current_scope(), name);
+      __vpiNamedEvent*obj = new __vpiNamedEvent(vpip_peek_current_scope(),
+					       name, automatic_storage);
 
       obj->funct = funct;
 

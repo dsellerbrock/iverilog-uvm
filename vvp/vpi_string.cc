@@ -43,8 +43,9 @@ static string string_var_value_(vvp_net_t*net)
       return string();
 }
 
-__vpiStringVar::__vpiStringVar(__vpiScope*sc, const char*na, vvp_net_t*ne)
-: __vpiBaseVar(sc, na, ne)
+__vpiStringVar::__vpiStringVar(__vpiScope*sc, const char*na, vvp_net_t*ne,
+                               bool automatic_storage)
+: __vpiBaseVar(sc, na, ne, automatic_storage)
 {
 }
 
@@ -53,6 +54,11 @@ int __vpiStringVar::get_type_code(void) const
 
 int __vpiStringVar::vpi_get(int code)
 {
+      if (code == vpiAutomatic)
+            return automatic_storage() ? 1 : 0;
+      if (code == vpiSigned)
+            return 0;
+
       string str = string_var_value_(get_net());
 
       switch (code) {
@@ -64,9 +70,6 @@ int __vpiStringVar::vpi_get(int code)
 	    return 0;
 	  case vpiRightRange:
             return str.size() - 1;
-	  case vpiAutomatic:
-	  case vpiSigned:
-	    return 0;
 	  default:
 	    fprintf(stderr, "vpi sorry: string property %d is not "
 		    "implemented.\n", code);
@@ -99,12 +102,14 @@ vpiHandle __vpiStringVar::vpi_put_value(p_vpi_value val, int)
       return 0;
 }
 
-vpiHandle vpip_make_string_var(const char*name, vvp_net_t*net)
+vpiHandle vpip_make_string_var(const char*name, vvp_net_t*net,
+                               bool automatic_storage)
 {
       __vpiScope*scope = vpip_peek_current_scope();
       const char*use_name = name ? vpip_name_string(name) : NULL;
 
-      __vpiStringVar*obj = new __vpiStringVar(scope, use_name, net);
+      __vpiStringVar*obj = new __vpiStringVar(scope, use_name, net,
+                                              automatic_storage);
 
       return obj;
 }

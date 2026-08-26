@@ -95,6 +95,10 @@ extern void emit_dpi_export_directives(void);
 extern void emit_dpi_export_stub_file(const char*vvp_path);
 
 extern int draw_scope(ivl_scope_t scope, ivl_scope_t parent);
+/* True when a subroutine needs a per-call context, either because the
+   subroutine is automatic or because a static subroutine contains explicit
+   automatic declarations. */
+extern int scope_needs_call_frame(ivl_scope_t scope);
 extern void reset_evcd_metadata_budget(void);
 extern void note_array_signal_use(ivl_signal_t sig);
 extern void emit_deferred_array_decls(void);

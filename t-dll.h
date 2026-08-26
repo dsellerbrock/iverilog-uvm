@@ -309,6 +309,7 @@ struct ivl_obj_mutation_path_s {
 struct ivl_event_s {
       perm_string name;
       ivl_scope_t scope;
+      ivl_lifetime_t lifetime;
       perm_string file;
       unsigned lineno;
       unsigned nany, nneg, npos, nedg;

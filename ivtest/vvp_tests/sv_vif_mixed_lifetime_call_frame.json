@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_vif_mixed_lifetime_call_frame.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_vif_mixed_lifetime_call_frame"
+}

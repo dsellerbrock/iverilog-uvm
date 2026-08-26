@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_class_static_event_shared.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_class_static_event_shared"
+}

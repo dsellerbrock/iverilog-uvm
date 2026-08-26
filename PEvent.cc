@@ -22,7 +22,8 @@
 # include  "PEvent.h"
 
 PEvent::PEvent(perm_string n, unsigned lexical_pos)
-: name_(n), lexical_pos_(lexical_pos), array_dims_(0)
+: name_(n), lexical_pos_(lexical_pos),
+  lifetime_override_(IVL_VLT_INHERITED), array_dims_(0)
 {
 }
 

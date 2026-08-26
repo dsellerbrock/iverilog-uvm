@@ -28,6 +28,7 @@
 # include  "netenum.h"
 # include  "netparray.h"
 # include  "netqueue.h"
+# include  "netscalar.h"
 # include  "netstruct.h"
 # include  "netvector.h"
 # include  <algorithm>
@@ -374,6 +375,12 @@ extern "C" ivl_scope_t ivl_event_scope(ivl_event_t net)
 {
       assert(net);
       return net->scope;
+}
+
+extern "C" ivl_lifetime_t ivl_event_lifetime(ivl_event_t net)
+{
+      assert(net);
+      return net->lifetime;
 }
 
 extern "C" unsigned ivl_event_is_array(ivl_event_t net)
@@ -4038,6 +4045,11 @@ extern "C" int ivl_type_is_tagged_union(ivl_type_t net)
 extern "C" int ivl_type_is_chandle(ivl_type_t net)
 {
       return net == &netvector_t::chandle_type;
+}
+
+extern "C" int ivl_type_is_shortreal(ivl_type_t net)
+{
+      return net == &netreal_t::type_shortreal;
 }
 
 extern "C" int ivl_type_packed_lsb(ivl_type_t net, unsigned dim)

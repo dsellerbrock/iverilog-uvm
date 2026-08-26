@@ -601,7 +601,8 @@ void vvp_fun_edge_aa::free_instance(vvp_context_t context)
 vthread_t vvp_fun_edge_aa::add_waiting_thread(vthread_t thread)
 {
       vvp_fun_edge_state_s*state = static_cast<vvp_fun_edge_state_s*>
-            (vthread_get_wt_context_item(context_idx_));
+            (vthread_get_wt_context_item_scoped(context_idx_,
+                                                context_scope_));
 
       return vthread_add_event_wait(thread, &state->threads);
 }
@@ -1121,7 +1122,8 @@ void vvp_fun_anyedge_aa::free_instance(vvp_context_t context)
 vthread_t vvp_fun_anyedge_aa::add_waiting_thread(vthread_t thread)
 {
       vvp_fun_anyedge_state_s*state = static_cast<vvp_fun_anyedge_state_s*>
-            (vthread_get_wt_context_item(context_idx_));
+            (vthread_get_wt_context_item_scoped(context_idx_,
+                                                context_scope_));
 
       return vthread_add_event_wait(thread, &state->threads);
 }
@@ -1420,7 +1422,8 @@ void vvp_fun_event_or_aa::free_instance(vvp_context_t context)
 vthread_t vvp_fun_event_or_aa::add_waiting_thread(vthread_t thread)
 {
       waitable_state_s*state = static_cast<waitable_state_s*>
-            (vthread_get_wt_context_item(context_idx_));
+            (vthread_get_wt_context_item_scoped(context_idx_,
+                                                context_scope_));
 
       return vthread_add_event_wait(thread, &state->threads);
 }
@@ -1536,7 +1539,8 @@ void vvp_named_event_aa::free_instance(vvp_context_t context)
 vthread_t vvp_named_event_aa::add_waiting_thread(vthread_t thread)
 {
       waitable_state_s*state = static_cast<waitable_state_s*>
-            (vthread_get_wt_context_item(context_idx_));
+            (vthread_get_wt_context_item_scoped(context_idx_,
+                                                context_scope_));
 
       return vthread_add_event_wait(thread, &state->threads);
 }
@@ -1634,7 +1638,8 @@ void compile_event(char*label, char*type, unsigned argc, struct symb_s*argv)
 
 	    free(type);
 
-            if (vpip_peek_current_scope()->is_automatic()) {
+            __vpiScope*owner = vpip_peek_context_scope();
+            if (owner && owner->has_automatic_context()) {
                   fun = new vvp_fun_anyedge_aa(object_handle_change);
             } else {
                   fun = new vvp_fun_anyedge_sa(object_handle_change);
@@ -1654,7 +1659,8 @@ void compile_event(char*label, char*type, unsigned argc, struct symb_s*argv)
 	    assert(argc <= 4);
 	    free(type);
 
-            if (vpip_peek_current_scope()->is_automatic()) {
+            __vpiScope*owner = vpip_peek_context_scope();
+            if (owner && owner->has_automatic_context()) {
                   fun = new vvp_fun_edge_aa(edge_type);
             } else {
                   fun = new vvp_fun_edge_sa(edge_type);
@@ -1675,7 +1681,8 @@ void compile_event(char*label, char*type, unsigned argc, struct symb_s*argv)
 static void compile_event_or(char*label, unsigned argc, struct symb_s*argv)
 {
       vvp_net_t*base_net = new vvp_net_t;
-      if (vpip_peek_current_scope()->is_automatic()) {
+      __vpiScope*owner = vpip_peek_context_scope();
+      if (owner && owner->has_automatic_context()) {
             base_net->fun = new vvp_fun_event_or_aa(base_net);
       } else {
             base_net->fun = new vvp_fun_event_or_sa(base_net);
@@ -1702,13 +1709,17 @@ static void compile_event_or(char*label, unsigned argc, struct symb_s*argv)
  * inputs, it is only accessed by behavioral trigger statements, which
  * in vvp are %set instructions.
  */
-void compile_named_event(char*label, char*name, bool local_flag)
+void compile_named_event(char*label, char*name, int lifetime_flag,
+			 bool local_flag)
 {
       vvp_net_t*ptr = new vvp_net_t;
 
-      vpiHandle obj = vpip_make_named_event(name, ptr);
+      bool use_auto = lifetime_flag > 0
+		   || (lifetime_flag == 0
+		       && vpip_peek_current_scope()->is_automatic());
+      vpiHandle obj = vpip_make_named_event(name, ptr, use_auto);
 
-      if (vpip_peek_current_scope()->is_automatic()) {
+      if (use_auto) {
             ptr->fun = new vvp_named_event_aa(obj);
       } else {
             ptr->fun = new vvp_named_event_sa(obj);

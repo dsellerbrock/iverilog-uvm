@@ -27,12 +27,12 @@ extern void* vvp_dpi_find_symbol(const char*name);
  *   'g' svLogic scalar (unsigned char, 4-state encoding 0/1/2=Z/3=X)
  *   'B' svBit fixed scalar unpacked-array C pointer
  *   'G' svLogic fixed scalar unpacked-array C pointer
- *   'r' double 's' const char*
+ *   'f' float (shortreal) 'r' double (real) 's' const char*
  * is_unsigned selects the unsigned variant of the integer letters.
  * is_output marks output/inout arguments: they are passed by pointer
  * (seeded with the incoming payload) and the callee-written value is
  * stored back into this struct after the call.
- * Integer payloads (including 'g') travel in ival; 'p' in pval; 'r' in
+ * Integer payloads (including 'g') travel in ival; 'p' in pval; 'f'/'r' in
  * rval; 's' in sval (storage owned by the caller, must outlive the call; for
  * outputs the returned pointer is callee-owned — copy it before the
  * next DPI call).
@@ -102,9 +102,10 @@ struct vvp_dpi_arg_t {
 
 /*
  * Call the C function at sym with the marshaled argument list.
- * ret_type is one of 'i' (int32), 'l' (int64), 'p' (void*),
- * 'r' (double), 's' (const char*), 'v' (void); the result is written through the
- * matching ret_* pointer. Output arguments are updated in args[].
+ * ret_type is one of 'b'/'B' (signed/unsigned 8-bit), 'h'/'H' (16-bit),
+ * 'i'/'I' (32-bit), 'l'/'L' (64-bit), 'g' (svLogic), 'p' (void*), 'f'
+ * (float), 'r' (double), 's' (const char*), or 'v' (void). The result is written through
+ * the matching ret_* pointer. Output arguments are updated in args[].
  * Returns false (with a diagnostic naming c_name) if the signature
  * cannot be marshaled on this build.
  */

@@ -1,0 +1,9 @@
+DPI error: 'bad_real': integral return ABI prefix is invalid for this opcode.
+DPI error: 'bad_shortreal': integral return ABI prefix is invalid for this opcode.
+DPI error: 'bad_string': integral return ABI prefix is invalid for this opcode.
+DPI error: 'bad_pointer': integral return ABI prefix is invalid for this opcode.
+DPI error: 'bad_void': integral return ABI prefix is invalid for this opcode.
+DPI error: 'bad_task': integral return ABI prefix is invalid for this opcode.
+DPI error: 'bad_width': integral return ABI 'l' does not match 32-bit vec4 opcode width.
+DPI error: 'bad_letter': malformed integral return ABI prefix.
+DPI error: 'empty_prefix': malformed integral return ABI prefix.

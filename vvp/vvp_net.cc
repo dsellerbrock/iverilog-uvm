@@ -2409,8 +2409,11 @@ void vvp_vector4array_aa::set_word(unsigned index, const vvp_vector4_t&that)
 {
       assert(index < words_);
 
-      v4cell*cell = static_cast<v4cell*>
-            (vthread_get_wt_context_item(context_idx_)) + index;
+      v4cell*base = static_cast<v4cell*>(
+            vthread_get_wt_context_item_scoped(context_idx_, context_scope_));
+      if (!base)
+            return;
+      v4cell*cell = base + index;
 
       set_word_(cell, that);
 }

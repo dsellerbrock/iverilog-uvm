@@ -417,7 +417,8 @@ void compile_part_select(char*label, char*source,
 			 unsigned base, unsigned wid)
 {
       vvp_fun_part*fun = 0;
-      if (vpip_peek_current_scope()->is_automatic()) {
+      __vpiScope*owner = vpip_peek_context_scope();
+      if (owner && owner->has_automatic_context()) {
             fun = new vvp_fun_part_aa(base, wid);
       } else {
             fun = new vvp_fun_part_sa(base, wid);
@@ -437,7 +438,8 @@ void compile_part_select_var(char*label, char*source, char*var,
 			     unsigned wid, bool is_signed)
 {
       vvp_fun_part_var*fun = 0;
-      if (vpip_peek_current_scope()->is_automatic()) {
+      __vpiScope*owner = vpip_peek_context_scope();
+      if (owner && owner->has_automatic_context()) {
             fun = new vvp_fun_part_var_aa(wid, is_signed);
       } else {
             fun = new vvp_fun_part_var_sa(wid, is_signed);

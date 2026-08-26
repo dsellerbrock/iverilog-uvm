@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_explicit_static_fixed_array_force_release.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_explicit_static_fixed_array_force_release"
+}

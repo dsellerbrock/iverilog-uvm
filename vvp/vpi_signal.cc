@@ -143,12 +143,15 @@ static vpiHandle fill_in_net4(struct __vpiSignal*obj, __vpiScope*scope,
 
 static vpiHandle fill_in_var4(struct __vpiSignal*obj,
                               const char*name, int msb, int lsb,
-                              bool signed_flag, vvp_net_t*node)
+                              bool signed_flag, vvp_net_t*node,
+                              bool automatic_storage)
 {
 	// Variable declarations are always resolved immediately,
 	// so we can assume they belong in the current scope.
-      return fill_in_net4(obj, vpip_peek_current_scope(),
-			  name, msb, lsb, signed_flag, node);
+      vpiHandle res = fill_in_net4(obj, vpip_peek_current_scope(),
+                                  name, msb, lsb, signed_flag, node);
+      obj->automatic_storage = automatic_storage ? 1 : 0;
+      return res;
 }
 
 /*
@@ -586,7 +589,9 @@ static int signal_get(int code, vpiHandle ref)
 	    return (rfp->msb.get_value() != rfp->lsb.get_value());
 
           case vpiAutomatic:
-            return vpip_scope(rfp)->is_automatic() ? 1  : 0;
+            if (rfp->is_netarray)
+                  return vpi_get(vpiAutomatic, rfp->within.parent);
+            return rfp->automatic_storage ? 1 : 0;
 
 #ifdef BR916_STOPGAP_FIX
           case _vpiFromThr:
@@ -1171,17 +1176,19 @@ struct signal_longint : public __vpiSignal {
  * to minimize the code modifications. Icarus implements integers
  * as 'reg signed [31:0]'.
  */
-vpiHandle vpip_make_int4(const char*name, int msb, int lsb, vvp_net_t*vec)
+vpiHandle vpip_make_int4(const char*name, int msb, int lsb, vvp_net_t*vec,
+                         bool automatic_storage)
 {
       __vpiSignal*obj = new signal_integer;
-      return fill_in_var4(obj, name, msb, lsb, true, vec);
+      return fill_in_var4(obj, name, msb, lsb, true, vec,
+                          automatic_storage);
 }
 
 /*
  * Construct the two-state SystemVerilog variables.
  */
 vpiHandle vpip_make_int2(const char*name, int msb, int lsb, bool signed_flag,
-                         vvp_net_t*vec)
+                         vvp_net_t*vec, bool automatic_storage)
 {
       __vpiSignal*obj;
 
@@ -1213,17 +1220,20 @@ vpiHandle vpip_make_int2(const char*name, int msb, int lsb, bool signed_flag,
 	    }
       }
 
-      return fill_in_var4(obj, name, msb, lsb, signed_flag, vec);
+      return fill_in_var4(obj, name, msb, lsb, signed_flag, vec,
+                          automatic_storage);
 }
 
 /*
  * Construct a vpiReg/vpiLogicVar object. It's like a net, except for the type.
  */
 vpiHandle vpip_make_var4(const char*name, int msb, int lsb,
-			bool signed_flag, vvp_net_t*vec)
+			bool signed_flag, vvp_net_t*vec,
+                        bool automatic_storage)
 {
       __vpiSignal*obj = new signal_reg;
-      return fill_in_var4(obj, name, msb, lsb, signed_flag, vec);
+      return fill_in_var4(obj, name, msb, lsb, signed_flag, vec,
+                          automatic_storage);
 }
 
 #ifdef CHECK_WITH_VALGRIND
@@ -1351,6 +1361,7 @@ static vpiHandle fill_in_net4(struct __vpiSignal*obj, __vpiScope*scope,
       obj->lsb = __vpiDecConst(lsb);
       obj->signed_flag = signed_flag? 1 : 0;
       obj->is_netarray = 0;
+      obj->automatic_storage = 0;
       obj->node = node;
 
 	// Place this object within a scope. If this object is
