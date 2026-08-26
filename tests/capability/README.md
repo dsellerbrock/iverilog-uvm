@@ -55,7 +55,7 @@ the failure mode the project's loud-sorry rule exists to prevent.
 | `m10_4c_trace`, `staticsem` | M10-4 — concurrent invocations of a **static** export alias their arguments. Not a defect: IEEE 1800-2017 13.3.1 gives a static subroutine one copy of its arguments, and `staticsem` shows a plain SV static task doing exactly the same |
 | `m10_4g_nested` | M10-4 — an automatic export whose body calls nested automatic subroutines and then delays; three concurrent invocations each keep their own frame |
 | `m10_4h_recurse` | M10-4 — recursive re-entry: C → automatic export → C → the same export, four levels deep, each holding its own frame |
-| `m6b3_kill` | M6B-3 — `join_any` + `disable fork` correctly abandons a blocked DPI import |
+| `m6b3_kill` | M6B-3 — `join_any` + `disable fork` kills the SV tail and unwinds a blocked DPI import with status/acknowledgement 1 |
 | `m13_1_bind_instpath`, `m13_2_bind_instlist` | M13-1/2 — bind to an instance path and to a target list, checked functionally rather than by parse |
 | `m3b4_randmode` | M3B-4 — `rand_mode()`/`constraint_mode()` in all combinations |
 | `m1b3_generic` | M1B-3 — the same shape the hardcoded `uvm_shared` fallback patches, under a different class name, works through the general path |

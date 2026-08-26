@@ -62,7 +62,8 @@ On top of upstream Icarus Verilog's Verilog/partial-SystemVerilog support:
   `cover property`)
 - **DPI-C**: `import "DPI-C"` with libffi-exact marshaling, open arrays
   (including multidimensional fixed arrays and fixed array members of
-  structs), wide vectors, shared-library loading via `vvp -d`
+  structs), wide vectors, time-consuming exports, the clause-35.9 disable
+  cleanup protocol, and shared-library loading via `vvp -d`
 - **Functional coverage**: covergroups with full clause-19 bin semantics,
   transitions, crosses, options, coverage queries
 - **VPI**: SystemVerilog object model — class variables/members, containers,
@@ -294,24 +295,48 @@ definition (resolved at end of parse). Multi-instance: `svSetScope`
 (35.5.2). **Time-consuming exported tasks** — one that blocks on
 `#delay`/`@event` — park the imported task's C stack while simulation time
 advances, using POSIX `<ucontext.h>` on Linux/macOS and Win32 Fibers on
-MinGW/Windows. Still loud (never a silent miscompile):
+MinGW/Windows. Exported task stubs use the Annex H.8.2 C signature
+`int task_name(...)`: the status is 0 after normal completion or when the
+exported task itself is disabled, and 1 when an enclosing mixed-language call
+chain is disabled. In the latter case the blocked C stack is resumed exactly
+once so it can call `svIsDisabledState()`, release its resources, and return 1
+from the imported task. A disabled imported function performs the same query
+and calls `svAckDisabledState()` before returning. Statements after the
+disabled export/import do not run; the directly-disabled-export special case
+leaves C in the normal state and C continues.
+
+Newly compiled imported tasks use the checked `%dpi/call/task/ack` integer
+ABI. The runtime retains the old `%dpi/call/task` void ABI so existing normal
+VVP images still load; an old image that is actually disabled fails loudly
+because a void call cannot acknowledge that state. Returning the wrong task
+status, omitting a function acknowledgment, or calling another export after
+the import enters the disabled state is a fatal clause-35.9 protocol error.
+The interoperability target for this ABI is IEEE 1800-2017/2023 as implemented
+by VCS, Questa, and Xcelium; Verilator is not used as the DPI ABI oracle.
+
+Still loud (never a silent miscompile):
 out-of-scope export, `svScope` selection through deep generate/begin
 nesting, and the legal fixed-size unpacked-array export-formal ABI, which is
 not yet implemented. Exported open-array formals are rejected as illegal by
 35.5.6.1/H.8.2; class-handle formals are outside the permitted set in 35.5.6
-(pass an opaque foreign object as `chandle`). One remaining P1
-commercial-parity area is explicit rather than included in this claim:
-exported tasks still use `void` instead of the simulator-provided `int`
-disable status required by H.8.2 and 35.9(a), while imported tasks do not
-consume the C-provided `int` acknowledgement required by 35.9(b). The runtime
-also lacks the imported-subroutine `svIsDisabledState()` query and the
-`svAckDisabledState()` acknowledgement required before a disabled imported
-function returns by 35.9(c).
+(pass an opaque foreign object as `chandle`). Imported shortreal arrays also
+remain a loud legal gap.
 This is what lets the UVM suite run without `UVM_NO_DPI` (see
 [uvm_dpi/](uvm_dpi)). Example pairs:
 [tests/dpi_basic_test.sv](tests/dpi_basic_test.sv) (import) and
 [tests/m10c_dpi_export_test.sv](tests/m10c_dpi_export_test.sv) /
-[tests/m10c_dpi_export_test.c](tests/m10c_dpi_export_test.c) (export).
+[tests/m10c_dpi_export_test.c](tests/m10c_dpi_export_test.c) (export). The
+positive disable/cleanup source—including concurrent-call isolation, an
+outstanding branch that survived `join_any`, and disable during C re-entry
+immediately after a parked export resumes, plus caller-specific automatic-local
+VPI writes from resumed C—is
+[tests/m10l_dpi_disable_protocol_test.sv](tests/m10l_dpi_disable_protocol_test.sv).
+Its ABI runner is
+[tests/vvp_runtime/run_dpi_disable_protocol.sh](tests/vvp_runtime/run_dpi_disable_protocol.sh);
+the expected-fatal and legacy-image runners are
+[tests/vvp_runtime/run_dpi_disable_protocol_negatives.sh](tests/vvp_runtime/run_dpi_disable_protocol_negatives.sh)
+and
+[tests/vvp_runtime/run_dpi_legacy_task_void_compat.sh](tests/vvp_runtime/run_dpi_legacy_task_void_compat.sh).
 
 ### Functional coverage — supported
 
@@ -387,7 +412,7 @@ read it for the per-clause evidence and the complete corner ledger.
 | Area | Status | Notes |
 |---|---|---|
 | Core classes / OOP (cl. 8) | Substantial | Interface classes, nested class declarations, module/package/compilation-unit out-of-body `extern` methods, multiple `extends`/`implements` relationships, specialization-aware casts, inherited type visibility and method-contract checks are supported |
-| UVM (Accellera core, unmodified) | Substantial | Complete canonical 353-test repository regression green (zero skips), run WITHOUT `UVM_NO_DPI` via the Icarus UVM DPI backend (regex + command-line + `uvm_hdl_*` backdoor); frontdoor + user-defined backdoor work; `UVM_NO_DPI` native fallback still supported |
+| UVM (Accellera core, unmodified) | Substantial | Complete canonical 354-test repository regression green (354/354, 0 failed, 0 skipped; real 578.66s), run WITHOUT `UVM_NO_DPI` via the Icarus UVM DPI backend (regex + command-line + `uvm_hdl_*` backdoor); frontdoor + user-defined backdoor work; `UVM_NO_DPI` native fallback still supported |
 | Constraints / randomization (cl. 18) | Substantial | Z3-backed, including scope `std::randomize(vars) with {...}` for simple 1–64-bit integral variables; `randcase`/`randsequence` work |
 | Containers (queues/darrays/assoc, cl. 7) | Substantial | Full method set; narrow recorded corners |
 | Interfaces / virtual interfaces (cl. 25) | Substantial | UVM vif pattern end-to-end; bare module-scope `virtual` var missing |
@@ -395,7 +420,7 @@ read it for the per-clause evidence and the complete corner ledger.
 | Scheduler / event regions (cl. 4) | Supported | Full stratified queue incl. Preponed, post-NBA (`cbNBASynch`), Observed and the Reactive set; assertions sample Preponed, evaluate in Observed and run their actions in Reactive; region tracing/self-test under `IVL_REGION_TRACE` / `IVL_REGION_SELFTEST` ([audit](docs/conformance/scheduler_audit_2026_07.md)) |
 | SVA (cl. 16) | Partial | Automaton (NFA) engine is the default: implication, windows/unbounded incl. mid-chain, goto/nonconsec repetition, local vars, first_match, and/or/intersect/within/throughout, strong/weak, `.triggered`/`.matched`, multiclocked `\|=>`; legacy linear engine behind `IVL_SVA_LEGACY=1`; `expect` and `checker`/`endchecker` implemented; remaining automaton-class features (cross-clock overlapping implication, mid-sequence clock flow) are loud sorries |
 | Functional coverage (cl. 19) | Supported | Full clause-19 bin semantics |
-| DPI-C (cl. 35) | Substantial | Import: exact scalar/atom/shortreal ABI and open arrays incl. multi-dim. Export: functions plus task execution with integer/scalar bit-logic/packed-vector/shortreal/real/chandle/string/void formals, scalar output/inout, `svScope` multi-instance + context-relative selection, and time-consuming tasks through POSIX `<ucontext.h>` or Win32 Fibers; generated C stub. H.8.9 keeps packed-vector results illegal. Loud legal gaps: imported shortreal arrays and fixed-size unpacked export formals. Exported open arrays and class-handle formals are diagnosed as IEEE-illegal. P1 parity area: exported tasks lack the simulator-provided H.8.2/35.9(a) `int` status; imported tasks lack the C-provided 35.9(b) `int` acknowledgement; `svIsDisabledState` and imported-function `svAckDisabledState` support are absent. |
+| DPI-C (cl. 35) | Substantial | Import: exact scalar/atom/shortreal ABI and open arrays incl. multi-dim. Export: functions plus task execution with integer/scalar bit-logic/packed-vector/shortreal/real/chandle/string/void formals, scalar output/inout, `svScope` multi-instance + context-relative selection, and time-consuming tasks through POSIX `<ucontext.h>` or Win32 Fibers; generated task stubs return the H.8.2 `int` disable status. Checked imported-task integer acknowledgments, `svIsDisabledState`, imported-function `svAckDisabledState`, C cleanup resume, and fatal enforcement of 35.9(b)–(d) are implemented; old `%dpi/call/task` void images retain their normal-call compatibility path. Identical cross-scope/multi-instance exports remain legal, while duplicate local linkage names and incompatible cross-scope C signatures are rejected. H.8.9 keeps packed-vector results illegal. Loud legal gaps: imported shortreal arrays and fixed-size unpacked export formals. Exported open arrays and class-handle formals are diagnosed as IEEE-illegal. VCS/Questa/Xcelium interoperability remains the ABI target. |
 | VPI SV object model (cl. 36) | Substantial | Classes, live direct/property containers and element callbacks, covergroups, assertions; documented whole-container-write and assertion-detail corners remain |
 | `bind` (cl. 23.11) | Substantial | Module/type, instance-path, and instance-list targets |
 | `let` (cl. 11.13) | Supported | Expression-macro semantics |
@@ -414,12 +439,10 @@ read it for the per-clause evidence and the complete corner ledger.
   The legal fixed-size unpacked-array export ABI remains unimplemented but
   loud; exported open arrays and class-handle formals are rejected as illegal
   by 35.5.6/35.5.6.1/H.8.2. Imported shortreal arrays are also loud until
-  float-array copy marshaling is implemented. For the 35.9 disable protocol,
-  exported tasks lack the simulator-provided H.8.2/35.9(a) `int` status,
-  imported tasks lack the C-provided 35.9(b) `int` acknowledgement, and the
-  runtime lacks `svIsDisabledState()` plus imported-function
-  `svAckDisabledState()` support. This remains an explicit P1
-  commercial-parity item. UVM's `uvm_hdl_*` register **backdoor** works via the
+  float-array copy marshaling is implemented. The 35.9/H.8.2 disable protocol
+  itself is implemented and checked; only the retained legacy
+  `%dpi/call/task` void-image path cannot acknowledge a disable and therefore
+  reports one loudly. UVM's `uvm_hdl_*` register **backdoor** works via the
   Icarus UVM DPI backend ([`uvm_dpi/`](uvm_dpi)), which `-uvm` installs and
   loads automatically; `--uvm-no-dpi` remains available to skip DPI.
 - Recursive `randsequence` grammars, nonconstant production-actual capture,
@@ -444,7 +467,7 @@ Deeper status: [clause matrix](docs/conformance/matrices/ieee1800_2017_clause_ma
 With `install/bin` on `PATH`, from the repository root:
 
 ```bash
-./.github/uvm_test.sh                    # UVM sweep: all tests/*.sv (226)
+./.github/uvm_test.sh                    # UVM sweep: every tests/*.sv case
 bash tests/negative/run_negative.sh      # negative tests: must FAIL loudly
 ./.github/test.sh                        # full ivtest + VPI regression
 bash tests/sva_nfa/run.sh                # SVA dual-run gate (legacy vs NFA engine)
