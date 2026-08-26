@@ -21,6 +21,7 @@
 
 # include  <stdlib.h>
 # include  <stdint.h>
+# include  <limits.h>
 class vvp_net_t;
 struct vthread_s;
 typedef struct vthread_s* vthread_t;
@@ -70,11 +71,18 @@ class vvp_object {
       static void cleanup(void);
       static bool pointer_is_live(const vvp_object*ptr);
       inline uint64_t mutation_epoch() const { return mutation_epoch_; }
-      void touch();
-      void add_mutation_waiter(vthread_t thread);
+      void touch(unsigned property = UINT_MAX, unsigned word = UINT_MAX,
+                 unsigned bit = UINT_MAX);
+      void add_mutation_waiter(vthread_t thread,
+                               unsigned property = UINT_MAX,
+                               unsigned word = UINT_MAX,
+                               unsigned bit = UINT_MAX,
+                               bool active = true);
+      static bool cancel_mutation_waiter(vthread_t thread);
       void register_signal_alias(vvp_net_t*net, void*context);
       void unregister_signal_alias(vvp_net_t*net, void*context);
       void notify_signal_aliases() const;
+      void notify_alias_mutation();
 
     private:
       static void register_live_ptr_(const vvp_object*ptr);
@@ -106,14 +114,18 @@ class vvp_object_t {
           { return ref_ != that.ref_; }
       inline uint64_t mutation_epoch() const
           { return ref_ ? ref_->mutation_epoch() : 0; }
-      inline void touch() const
-          { if (ref_) ref_->touch(); }
+      inline void touch(unsigned property = UINT_MAX,
+                        unsigned word = UINT_MAX,
+                        unsigned bit = UINT_MAX) const
+          { if (ref_) ref_->touch(property, word, bit); }
       inline void register_signal_alias(vvp_net_t*net, void*context) const
           { if (ref_) ref_->register_signal_alias(net, context); }
       inline void unregister_signal_alias(vvp_net_t*net, void*context) const
           { if (ref_) ref_->unregister_signal_alias(net, context); }
       inline void notify_signal_aliases() const
           { if (ref_) ref_->notify_signal_aliases(); }
+      inline void notify_alias_mutation() const
+          { if (ref_) ref_->notify_alias_mutation(); }
 
       inline void shallow_copy(const vvp_object_t&that)
           { ref_->shallow_copy(that.ref_); }

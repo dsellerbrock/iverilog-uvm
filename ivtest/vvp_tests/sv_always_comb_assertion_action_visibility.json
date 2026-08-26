@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_always_comb_assertion_action_visibility.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_always_comb_assertion_action_visibility" ],
+    "gold"          : "sv_always_comb_assertion_action_visibility"
+}

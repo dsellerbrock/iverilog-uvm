@@ -91,7 +91,7 @@ diagnostics) — see **§ M14 gap closures** below.
 | 32 | Backannotation (SDF) | PARTIAL | `$sdf_annotate` applies IOPATH delays with `-gspecify`; inert (loud warning) without it. Corner: only the first two arguments (file, scope) are used (diagnosed via warning). |
 | 33 | Configuring the contents of a design | DIAGNOSED | `config`/`endconfig` (+ `design`/`liblist`/`instance`/`cell`) parse and are skipped with an explicit sorry; the design elaborates with default bindings. Library-map files are not parsed (syntax error). |
 | 34 | Protected envelopes | PARTIAL | `` `pragma protect `` begin/end and `` `protect ``/`` `endprotect `` around **plaintext** compile and run (the envelope is transparent). Encrypted envelopes are not supported (no decryption). |
-| 35 | Direct programming interface (DPI) | FULL | **M10 CLOSED.** libffi-exact marshaling, `import "DPI-C"` task/function + `c_name=` aliasing, output/inout copy-back, open arrays, `svdpi.h`. UVM compiles without `UVM_NO_DPI`. |
+| 35 | Direct programming interface (DPI) | FULL | **M10 CLOSED.** libffi-exact marshaling, `import "DPI-C"` task/function + `c_name=` aliasing, output/inout copy-back, open arrays, `svdpi.h`. UVM compiles without `UVM_NO_DPI`. The recorded sized-fixed-array subset follows the IEEE Annex H direct-pointer ABI used by VCS, Questa, and Xcelium, while unsized/open formals retain `svOpenArrayHandle`; scalar/atom/packed, multidimensional/direction, and tested 256-/384-bit element shapes pass the 12/12 REAL-DPI focus. |
 | 36 | Programming language interface (VPI) | FULL | **M12 CLOSED for the recorded object-model scope.** Typed variables with value-change callbacks, dynamic arrays/queues/assoc with element access, class member navigation, interfaces/modports/packages as scopes, and live covergroup handles are supported. A property-aware handle may read an integral or string virtual-interface property. Its `vpi_put_value` path is deliberately read-only/write-loud: writing reports a run-time error, sets a failing status, and leaves the VIF property unchanged because a direct put would bypass 14.13 sampling, 14.16 clocking-output scheduling, or 25.5 modport direction. Ordinary class-property puts remain supported. The post-audit 97-case VPI suite and the dedicated VIF-write reducer pass. |
 | Annex A | Formal syntax | N/A | Reference grammar. |
 | Annex B | Keywords | FULL | keyword sets gated by generation (`` `begin_keywords ``). |
@@ -186,6 +186,18 @@ assignment-before-read boundary applies to every zero-inclusive continuation:
 supported. Antecedent endpoint acceptance contributes the once-per-checker/tick
 StepSuccess event even for `|=>`, while success/failure callbacks retain their
 per-resolved-obligation multiplicity.
+
+## 2026-08-25 OpenTitan event, Preponed, and packed-index refinement
+
+| Clause | Boundary | Disposition / evidence |
+|---|---|---|
+| 4.4 and 16 | Preponed reads of resolved strength nets | `%hist/on` retains a full vec8 driven-value snapshot once per time slot and `%load/preponed` reduces that saved value on read. Force overlays remain outside driven history. The exact reducer plus 57/57 legacy and 16/16 JSON/VVP assertion focuses pass. |
+| 7.4 and 11.5.2 | Run-time outer packed element index followed by an indexed part select | Every dimension's element index is normalized at width one before the residual packed width is applied as a stride. Singleton `[0:0]`, ascending, and descending outer dimensions with run-time `+:`/`-:` inner bases are permanent legacy and JSON/VVP regressions. |
+| 9.4.2 and 9.4.3 | `@(object.property)` and `wait(object.property)` through a selected owner | The armed owner expression is evaluated once; mutation wakeup is filtered by property, fixed-array word, and optional packed bit, with same-value suppression, invalid-selector parking, retained owner lifetime, and cancellation-safe unlinking. Class-only compound waits re-evaluate. Mixed ordinary/VIF-plus-property waits use isolated waiter branches and cancel the losing branch before re-evaluation. A class-only compound `@` filters scheduled wakeups against an arm-time snapshot, but a complete expression that changes and restores before that waiter runs can still be missed; mixed one-shot `@` remains loud. Root/handle replacement, associative delete/rekey, and key/index mutation while armed remain unclaimed. |
+| 13.5.2, 35.5.6.1, and Annex H | Sized fixed unpacked arrays across DPI | Sized formals use the commercial direct C-pointer ABI; open formals use `svOpenArrayHandle`. Scalar `svBit`/`svLogic` and packed `[0:0]` stay distinct, X/Z and output/inout copy back, multidimensional C storage is numeric-low-first/rightmost-fastest, and actual/formal copies map declared left to declared left per dimension. The backward-compatible 24-bit VVP element-width descriptor is tested at 256 and 384 bits. The exact OpenTitan SHA-384 ABI plus eleven controls pass 12/12 REAL DPI. Pure DPI is loaded with `vvp -d`; `-m` remains VPI-only. |
+
+Full mechanism, boundary, OpenTitan replay, and Apple Silicon invocation
+evidence are in the [session log](../session_logs/2026-08-25_opentitan_class_events_resolved_preponed_packed_index.md).
 
 ## 2026-08-24 clause-18 unpacked-struct constraint-leaf refinement
 

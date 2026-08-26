@@ -125,7 +125,19 @@ extern void vthread_run(vthread_t thr);
  * the list by the %wait instruction.
  */
 extern void vthread_schedule_list(vthread_t thr);
+extern void vthread_schedule_event_waiters(vthread_t&thr);
+/* During a side-effect-free always_comb evaluation, ordinary observers wake
+ * immediately but other proven-pure combinational processes remain armed
+ * until the source evaluation's final input values are known. */
+extern bool vthread_schedule_non_pure_comb_waiters(vthread_t&thr);
+extern void vthread_schedule_pure_comb_waiters(vthread_t&thr);
 extern void vthread_schedule_mutation_waiter(vthread_t thr);
+/* Insert THR at the intrusive wait-list HEAD and remember the exact link that
+ * owns it. This makes an ordinary event wait cancellable in O(1) when a
+ * disabled fork kills the waiting branch. */
+extern vthread_t vthread_add_event_wait(vthread_t thr, vthread_t*head);
+extern void vthread_cancel_event_wait(vthread_t thr);
+extern void vthread_cancel_mutation_wait(vthread_t thr);
 extern void vthread_dump_live_threads(const char*reason);
 extern void vthread_dump_running_thread(const char*reason);
 

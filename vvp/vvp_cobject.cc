@@ -808,6 +808,8 @@ void vvp_cobject::set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx)
 	    // two-state X/Z coercion, then copy its representation into the
 	    // union's shared integral storage. A narrower unpacked-union member
 	    // occupies the low bits; the remaining shared bits are zero.
+	    vvp_vector4_t old_shared = *union_vec4_;
+	    int old_active = union_active_member_;
 	    defn_->set_vec4(properties_, pid, val, idx);
 	    vvp_vector4_t member;
 	    defn_->get_vec4(properties_, pid, member, idx);
@@ -818,13 +820,37 @@ void vvp_cobject::set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx)
 		  shared.set_vec(0, member.subvalue(0, copy_width));
 	    *union_vec4_ = shared;
 	    union_active_member_ = (int)pid;
-	    touch();
+	    if (old_active != union_active_member_
+	        || !old_shared.eeq(*union_vec4_))
+	          touch();
 	    return;
       }
+      vvp_vector4_t old;
+      defn_->get_vec4(properties_, pid, old, idx);
+      int old_active = union_active_member_;
       defn_->set_vec4(properties_, pid, val, idx);
       if (defn_->is_union_type())
 	    union_active_member_ = (int)pid;
-      touch();
+      vvp_vector4_t stored;
+      defn_->get_vec4(properties_, pid, stored, idx);
+      if (defn_->is_union_type() && old_active != union_active_member_) {
+            /* Changing the active union member is itself observable even
+               when this member's retained backing value is unchanged. */
+            touch();
+            return;
+      }
+      if (!old.eeq(stored)) {
+            unsigned width = old.size() > stored.size()
+                           ? old.size() : stored.size();
+            for (unsigned bit = 0 ; bit < width ; bit += 1) {
+                  vvp_bit4_t old_bit = bit < old.size()
+                                     ? old.value(bit) : BIT4_0;
+                  vvp_bit4_t new_bit = bit < stored.size()
+                                     ? stored.value(bit) : BIT4_0;
+                  if (old_bit != new_bit)
+                        touch((unsigned)pid, (unsigned)idx, bit);
+            }
+      }
 }
 
 void vvp_cobject::get_vec4(size_t pid, vvp_vector4_t&val, size_t idx)
@@ -859,10 +885,18 @@ void vvp_cobject::get_vec4(size_t pid, vvp_vector4_t&val, size_t idx)
 
 void vvp_cobject::set_real(size_t pid, double val, size_t idx)
 {
+      double old = defn_->get_real(properties_, pid, idx);
+      int old_active = union_active_member_;
       defn_->set_real(properties_, pid, val, idx);
       if (defn_->is_union_type())
 	    union_active_member_ = (int)pid;
-      touch();
+      double stored = defn_->get_real(properties_, pid, idx);
+      if (defn_->is_union_type() && old_active != union_active_member_) {
+            touch();
+            return;
+      }
+      if (old != stored)
+            touch((unsigned)pid, (unsigned)idx);
 }
 
 double vvp_cobject::get_real(size_t pid, size_t idx)
@@ -874,10 +908,18 @@ double vvp_cobject::get_real(size_t pid, size_t idx)
 
 void vvp_cobject::set_string(size_t pid, const string&val, size_t idx)
 {
+      string old = defn_->get_string(properties_, pid, idx);
+      int old_active = union_active_member_;
       defn_->set_string(properties_, pid, val, idx);
       if (defn_->is_union_type())
 	    union_active_member_ = (int)pid;
-      touch();
+      string stored = defn_->get_string(properties_, pid, idx);
+      if (defn_->is_union_type() && old_active != union_active_member_) {
+            touch();
+            return;
+      }
+      if (old != stored)
+            touch((unsigned)pid, (unsigned)idx);
 }
 
 string vvp_cobject::get_string(size_t pid, size_t idx)
@@ -889,6 +931,9 @@ string vvp_cobject::get_string(size_t pid, size_t idx)
 
 void vvp_cobject::set_object(size_t pid, const vvp_object_t&val, size_t idx)
 {
+      vvp_object_t old;
+      defn_->get_object(properties_, pid, old, idx);
+      int old_active = union_active_member_;
       defn_->set_object(properties_, pid, val, idx);
       if (defn_->is_union_type())
 	    union_active_member_ = (int)pid;
@@ -922,7 +967,14 @@ void vvp_cobject::set_object(size_t pid, const vvp_object_t&val, size_t idx)
 		  cg->set_object((size_t)pp, self, 0);
 	    }
       }
-      touch();
+      vvp_object_t stored;
+      defn_->get_object(properties_, pid, stored, idx);
+      if (defn_->is_union_type() && old_active != union_active_member_) {
+            touch();
+            return;
+      }
+      if (old != stored)
+            touch((unsigned)pid, (unsigned)idx);
 }
 
 void vvp_cobject::get_object(size_t pid, vvp_object_t&val, size_t idx)

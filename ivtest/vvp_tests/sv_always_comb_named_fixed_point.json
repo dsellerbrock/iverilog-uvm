@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_always_comb_named_fixed_point.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_always_comb_named_fixed_point" ],
+    "gold"          : "sv_always_comb_named_fixed_point"
+}

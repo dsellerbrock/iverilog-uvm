@@ -40,6 +40,7 @@ ivl_enum_type
 ivl_enum_width
 
 ivl_event_any
+ivl_event_any_is_obj_handle_change
 ivl_event_array_base
 ivl_event_array_count
 ivl_event_basename
@@ -450,6 +451,12 @@ ivl_event_obj_mutation_count
 ivl_event_obj_mutation_N
 ivl_event_obj_mutation_pre_N
 ivl_event_obj_mutation_root_pin
+ivl_event_obj_mutation_property_N
+ivl_event_obj_mutation_property_word
+ivl_event_obj_mutation_property_word_expr
+ivl_event_obj_mutation_property_bit
+ivl_event_obj_mutation_property_bit_expr
+ivl_event_obj_mutation_owner_expr
 
 ivl_scope_is_dpi_import
 ivl_scope_dpi_c_name

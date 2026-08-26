@@ -2975,10 +2975,12 @@ NetExpr*collapse_dims_exprs(Design*des, NetScope*scope,
 	    unsigned long cur_slice_width = slice_width_of_dims_(pdims, idx+1);
 	    long lsb = pcur->get_lsb();
 	    long msb = pcur->get_msb();
-	      // This normalizes the expression of this index based on
-	      // the msb/lsb values.
-	    NetExpr*tmp = normalize_variable_base(*ecur, msb, lsb,
-						  cur_slice_width, msb > lsb);
+	      /* This component is an element index, not an indexed part
+	       * select. Normalize that one element with width 1, then apply
+	       * the width of the remaining dimensions as a stride below.
+	       * Passing cur_slice_width here made a singleton [0:0] range
+	       * look like a descending -: select and subtracted stride-1. */
+	    NetExpr*tmp = normalize_variable_base(*ecur, msb, lsb, 1, true);
 
 	      // If this slice has width, then scale it.
 	    if (cur_slice_width != 1) {

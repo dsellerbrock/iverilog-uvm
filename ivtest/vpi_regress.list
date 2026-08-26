@@ -122,6 +122,7 @@ pr2048463		normal			pr2048463.c		pr2048463.log
 pr2314742		normal			pr2314742.c		pr2314742.gold
 pr2966059		normal			pr2966059.c		pr2966059.gold
 pr2971220		normal			pr2971220.c		pr2971220.gold
+pure_comb_finish_cb	normal,-g2012		pure_comb_finish_cb.c	pure_comb_finish_cb.gold
 putp			PLI1			putp.c			putp.log
 putp2			PLI1			putp2.c			putp2.log
 putvalue		normal			putvalue.c		putvalue.log

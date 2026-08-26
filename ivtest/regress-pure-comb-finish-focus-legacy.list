@@ -1,0 +1,7 @@
+# IEEE 1800-2017 9.2.2.2.2 always_comb fixed-point scheduling and observers
+sv_always_comb_fixed_point normal,-g2012,-ssv_always_comb_fixed_point ivltests gold=sv_always_comb_fixed_point.gold
+sv_always_comb_named_fixed_point normal,-g2012,-ssv_always_comb_named_fixed_point ivltests gold=sv_always_comb_named_fixed_point.gold
+sv_always_comb_observer_visibility normal,-g2012,-ssv_always_comb_observer_visibility ivltests gold=sv_always_comb_observer_visibility.gold
+sv_always_comb_assertion_action_visibility normal,-g2012,-ssv_always_comb_assertion_action_visibility ivltests gold=sv_always_comb_assertion_action_visibility.gold
+# IEEE 1800-2017 20.2 finish must not discard an already-triggered event
+sv_finish_event_rearm normal,-g2012 ivltests gold=sv_finish_event_rearm.gold

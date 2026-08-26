@@ -3789,6 +3789,15 @@ class NetCondit  : public NetProc {
 	// apply a temporary conditional guard to a shared unrolled-loop body.
       NetProc* release_if_clause();
 
+	/* Preserve the source provenance of immediate assertion conditionals.
+	 * Their action blocks are observable verification behavior even when
+	 * they contain only assignments, so targets must not treat them as
+	 * ordinary side-effect-free control flow. */
+      void immediate_assertion(bool flag = true)
+	{ immediate_assertion_ = flag; }
+      bool is_immediate_assertion() const
+	{ return immediate_assertion_; }
+
 	// Replace the condition expression.
       void set_expr(NetExpr*ex);
 
@@ -3825,6 +3834,7 @@ class NetCondit  : public NetProc {
       NetExpr* expr_;
       NetProc*if_;
       NetProc*else_;
+      bool immediate_assertion_;
 };
 
 class NetContinue : public NetProc {
@@ -4374,6 +4384,12 @@ class NetEvProbe  : public NetNode {
       bool is_vif_posedge() const { return is_vif_posedge_; }
       bool is_vif_negedge() const { return is_vif_negedge_; }
       bool is_vif_anyedge() const { return is_vif_anyedge_; }
+      /* A direct class/interface handle event uses identity-change
+       * semantics. Keep this as metadata on an ANYEDGE probe so targets that
+       * do not distinguish object delivery from handle replacement retain
+       * their existing event layout. */
+      void set_obj_handle_change();
+      bool is_obj_handle_change() const { return is_obj_handle_change_; }
       unsigned vif_N() const { return vif_N_; }
       unsigned vif_M() const { return vif_M_; }
       unsigned vif_member_word() const { return vif_member_word_; }
@@ -4386,10 +4402,24 @@ class NetEvProbe  : public NetNode {
       // Dynamic class-object mutation sensitivity. For a direct property of
       // the root object obj_N is UINT_MAX. For `base.owner[N].field`, obj_N
       // selects the owner object that must wake the wait expression.
+      // property_N/property_word select the value observed by an @ event;
+      // UINT_MAX retains the wildcard invalidation used by wait(expr).
       void set_obj_mutation(unsigned N, unsigned pre_N = UINT_MAX,
-                            unsigned root_pin = 0);
+                            unsigned root_pin = 0,
+                            unsigned property_N = UINT_MAX,
+                            unsigned property_word = UINT_MAX,
+                            const NetExpr*property_word_expr = nullptr,
+                            unsigned property_bit = UINT_MAX,
+                            const NetExpr*property_bit_expr = nullptr,
+                            const NetExpr*owner_expr = nullptr);
       void add_obj_mutation(unsigned N, unsigned pre_N = UINT_MAX,
-                            unsigned root_pin = 0);
+                            unsigned root_pin = 0,
+                            unsigned property_N = UINT_MAX,
+                            unsigned property_word = UINT_MAX,
+                            const NetExpr*property_word_expr = nullptr,
+                            unsigned property_bit = UINT_MAX,
+                            const NetExpr*property_bit_expr = nullptr,
+                            const NetExpr*owner_expr = nullptr);
       bool is_obj_mutation() const { return is_obj_mutation_; }
       unsigned obj_N() const { return obj_N_; }
       unsigned obj_pre_N() const { return obj_pre_N_; }
@@ -4401,6 +4431,18 @@ class NetEvProbe  : public NetNode {
             { return obj_mutation_pre_N_.at(idx); }
       unsigned obj_mutation_root_pin(unsigned idx) const
             { return obj_mutation_root_pin_.at(idx); }
+      unsigned obj_mutation_property_N(unsigned idx) const
+            { return obj_mutation_property_N_.at(idx); }
+      unsigned obj_mutation_property_word(unsigned idx) const
+            { return obj_mutation_property_word_.at(idx); }
+      const NetExpr*obj_mutation_property_word_expr(unsigned idx) const
+            { return obj_mutation_property_word_expr_.at(idx); }
+      unsigned obj_mutation_property_bit(unsigned idx) const
+            { return obj_mutation_property_bit_.at(idx); }
+      const NetExpr*obj_mutation_property_bit_expr(unsigned idx) const
+            { return obj_mutation_property_bit_expr_.at(idx); }
+      const NetExpr*obj_mutation_owner_expr(unsigned idx) const
+            { return obj_mutation_owner_expr_.at(idx); }
 
       virtual bool emit_node(struct target_t*) const override;
       virtual void dump_node(std::ostream&, unsigned ind) const override;
@@ -4413,6 +4455,7 @@ class NetEvProbe  : public NetNode {
       bool is_vif_posedge_ = false;
       bool is_vif_negedge_ = false;
       bool is_vif_anyedge_ = false;
+      bool is_obj_handle_change_ = false;
       unsigned vif_N_ = 0;
       unsigned vif_M_ = 0;
       unsigned vif_member_word_ = UINT_MAX;
@@ -4426,6 +4469,12 @@ class NetEvProbe  : public NetNode {
       std::vector<unsigned> obj_mutation_N_;
       std::vector<unsigned> obj_mutation_pre_N_;
       std::vector<unsigned> obj_mutation_root_pin_;
+      std::vector<unsigned> obj_mutation_property_N_;
+      std::vector<unsigned> obj_mutation_property_word_;
+      std::vector<NetExpr*> obj_mutation_property_word_expr_;
+      std::vector<unsigned> obj_mutation_property_bit_;
+      std::vector<NetExpr*> obj_mutation_property_bit_expr_;
+      std::vector<NetExpr*> obj_mutation_owner_expr_;
 };
 
 /*

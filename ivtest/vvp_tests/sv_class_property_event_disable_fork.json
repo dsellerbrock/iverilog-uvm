@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_class_property_event_disable_fork.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_class_property_event_disable_fork" ],
+    "gold"          : "sv_class_property_event_disable_fork"
+}

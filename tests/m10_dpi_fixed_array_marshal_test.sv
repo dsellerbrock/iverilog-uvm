@@ -86,7 +86,8 @@ module m10_dpi_fixed_array_marshal_test;
     foreach (dyn[i]) dyn[i] = i * 7;
     check("c_dyn_plain", c_dyn_plain(dyn));
 
-    // 4. A fixed output formal remains an aggregate through both the SV
+    // 4. A fixed output formal uses the normalized direct C-array ABI (not an
+    //    svOpenArrayHandle) and remains an aggregate through both the SV
     //    wrapper and the imported DPI function call.
     begin
       int unsigned filled[3:10];

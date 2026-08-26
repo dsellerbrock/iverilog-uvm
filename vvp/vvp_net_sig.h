@@ -716,14 +716,26 @@ class vvp_wire_vec8 : public vvp_wire_base {
       vvp_bit4_t driven_value(unsigned idx) const override;
       bool is_forced(unsigned idx) const override;
 
+	// Strength-resolved twin of vvp_wire_vec4's one-step driven-value
+	// history. Preserve the full vec8 value internally; the vec4 load
+	// discards strengths only when the sampled expression consumes it.
+      void enable_sample_hist() { hist_enabled_ = true; }
+      void vec4_preponed_value(vvp_vector4_t&val) const;
+
     private:
       vvp_scalar_t filtered_value_(unsigned idx) const;
+      void hist_snapshot_();
 
     private:
       bool needs_init_;
       bool width_error_reported_;
       vvp_vector8_t bits8_;
       vvp_vector8_t force8_; // the value being forced
+
+      bool hist_enabled_;
+      bool hist_valid_;
+      vvp_time64_t hist_time_;
+      vvp_vector8_t hist_prev_; // driven bits8_ before this time step
 };
 
 class vvp_wire_real : public vvp_wire_base {

@@ -1,0 +1,27 @@
+// A one-shot dynamic property event cannot yet be combined with an ordinary
+// or virtual-interface event family.
+interface mixed_event_if;
+  logic signal;
+endinterface
+
+class mixed_event_state;
+  virtual mixed_event_if vif;
+  bit watched;
+endclass
+
+module sv_class_property_mixed_event_reject;
+  mixed_event_if vif();
+  mixed_event_state state;
+  bit ordinary;
+
+  initial begin
+    state = new;
+    @(state.watched or ordinary);
+  end
+
+  initial begin
+    state = new;
+    state.vif = vif;
+    @(state.vif.signal || state.watched);
+  end
+endmodule

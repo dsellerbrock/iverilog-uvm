@@ -30,6 +30,721 @@ unsigned thread_count = 0;
 
 unsigned transient_id = 0;
 
+/* A pure always_comb body has no procedural side effects: it consists only
+   of blocking assignments and control flow over side-effect-free
+   expressions. VVP may therefore avoid re-running such a process when a
+   combinational neighbour changes an input and restores it before the
+   neighbour completes. Keep this proof deliberately conservative. An
+   assertion, task/function call, allocation, event operation, timing
+   control, force/release, or dynamic-object access leaves the process on the
+   ordinary IEEE event path. */
+static ivl_statement_t pure_comb_top_wait_ = 0;
+
+static int pure_comb_expr_(ivl_expr_t expr)
+{
+      unsigned idx;
+
+      if (!expr)
+	    return 1;
+
+      switch (ivl_expr_type(expr)) {
+	  case IVL_EX_NONE:
+	  case IVL_EX_ENUMTYPE:
+	  case IVL_EX_NULL:
+	  case IVL_EX_NUMBER:
+	  case IVL_EX_REALNUM:
+	  case IVL_EX_STRING:
+	  case IVL_EX_ULONG:
+	    return 1;
+
+	  case IVL_EX_SIGNAL: {
+	    ivl_signal_t signal = ivl_expr_signal(expr);
+	    ivl_variable_type_t data_type = signal
+		  ? ivl_signal_data_type(signal) : IVL_VT_NO_TYPE;
+	    if (!signal || signal_is_return_value(signal)
+		|| ivl_signal_lifetime(signal) == IVL_VLT_AUTOMATIC
+		|| ivl_scope_is_auto(ivl_signal_scope(signal)))
+		  return 0;
+	    if (data_type != IVL_VT_BOOL && data_type != IVL_VT_LOGIC)
+		  return 0;
+	    if (ivl_signal_dimensions(signal) != 0)
+		  return 0;
+	    return pure_comb_expr_(ivl_expr_oper1(expr));
+      }
+
+	  case IVL_EX_MEMORY:
+	    /* The target API has no signal accessor for this legacy node kind. */
+	    return 0;
+
+	  case IVL_EX_BINARY:
+	    return pure_comb_expr_(ivl_expr_oper1(expr))
+		&& pure_comb_expr_(ivl_expr_oper2(expr));
+
+	  case IVL_EX_UNARY:
+	    switch (ivl_expr_opcode(expr)) {
+		case 'i': case 'I': case 'd': case 'D':
+		  return 0;
+		default:
+		  return pure_comb_expr_(ivl_expr_oper1(expr));
+	    }
+
+	  case IVL_EX_SELECT:
+	    return pure_comb_expr_(ivl_expr_oper1(expr))
+		&& pure_comb_expr_(ivl_expr_oper2(expr));
+
+	  case IVL_EX_TERNARY:
+	    return pure_comb_expr_(ivl_expr_oper1(expr))
+		&& pure_comb_expr_(ivl_expr_oper2(expr))
+		&& pure_comb_expr_(ivl_expr_oper3(expr));
+
+	  case IVL_EX_ARRAY_PATTERN:
+	  case IVL_EX_CONCAT:
+	    for (idx = 0; idx < ivl_expr_parms(expr); idx += 1)
+		  if (!pure_comb_expr_(ivl_expr_parm(expr, idx)))
+			return 0;
+	    return 1;
+
+	  default:
+	    /* In particular: SFUNC/UFUNC, NEW, PROPERTY, ARRAY,
+	       SHALLOWCOPY, EVENT, SCOPE, DELAY, and BACCESS. */
+	    return 0;
+      }
+}
+
+static int pure_comb_lval_(ivl_lval_t lval)
+{
+      ivl_signal_t signal = lval ? ivl_lval_sig(lval) : 0;
+      ivl_variable_type_t data_type = signal
+	    ? ivl_signal_data_type(signal) : IVL_VT_NO_TYPE;
+
+	  if (!lval || !signal || signal_is_return_value(signal)
+	      || ivl_signal_lifetime(signal) == IVL_VLT_AUTOMATIC
+	      || ivl_scope_is_auto(ivl_signal_scope(signal))
+	      || ivl_signal_type(signal) != IVL_SIT_REG
+	  || (data_type != IVL_VT_BOOL && data_type != IVL_VT_LOGIC)
+	  || ivl_signal_dimensions(signal) != 0
+	  || ivl_lval_nest(lval)
+	  || ivl_lval_property_idx(lval) >= 0
+	  || ivl_lval_is_array_slice(lval)
+	  || ivl_lval_is_queue_slice(lval)
+	  || ivl_lval_stream_range(lval) != IVL_STREAM_RANGE_NONE)
+	    return 0;
+
+      return pure_comb_expr_(ivl_lval_idx(lval))
+	  && pure_comb_expr_(ivl_lval_part_off(lval));
+}
+
+struct pure_comb_signal_set_s {
+      ivl_signal_t*items;
+      unsigned count;
+      unsigned capacity;
+};
+
+static void pure_comb_signal_set_add_(struct pure_comb_signal_set_s*set,
+				      ivl_signal_t signal)
+{
+      unsigned idx;
+
+      if (!signal)
+	    return;
+      for (idx = 0; idx < set->count; idx += 1)
+	    if (set->items[idx] == signal)
+		  return;
+      if (set->count == set->capacity) {
+	    unsigned next = set->capacity ? 2 * set->capacity : 16;
+	    ivl_signal_t*items = realloc(set->items, next * sizeof(*items));
+	    assert(items);
+	    set->items = items;
+	    set->capacity = next;
+      }
+      set->items[set->count++] = signal;
+}
+
+static void pure_comb_collect_expr_reads_(
+	ivl_expr_t expr, struct pure_comb_signal_set_s*reads)
+{
+      unsigned idx;
+
+      if (!expr)
+	    return;
+      switch (ivl_expr_type(expr)) {
+	  case IVL_EX_SIGNAL:
+	    pure_comb_signal_set_add_(reads, ivl_expr_signal(expr));
+	    pure_comb_collect_expr_reads_(ivl_expr_oper1(expr), reads);
+	    break;
+
+	  case IVL_EX_BINARY:
+	  case IVL_EX_SELECT:
+	    pure_comb_collect_expr_reads_(ivl_expr_oper1(expr), reads);
+	    pure_comb_collect_expr_reads_(ivl_expr_oper2(expr), reads);
+	    break;
+
+	  case IVL_EX_UNARY:
+	    pure_comb_collect_expr_reads_(ivl_expr_oper1(expr), reads);
+	    break;
+
+	  case IVL_EX_TERNARY:
+	    pure_comb_collect_expr_reads_(ivl_expr_oper1(expr), reads);
+	    pure_comb_collect_expr_reads_(ivl_expr_oper2(expr), reads);
+	    pure_comb_collect_expr_reads_(ivl_expr_oper3(expr), reads);
+	    break;
+
+	  case IVL_EX_ARRAY_PATTERN:
+	  case IVL_EX_CONCAT:
+	    for (idx = 0; idx < ivl_expr_parms(expr); idx += 1)
+		  pure_comb_collect_expr_reads_(ivl_expr_parm(expr, idx), reads);
+	    break;
+
+	  default:
+	    break;
+      }
+}
+
+static void pure_comb_collect_lval_reads_(
+	ivl_lval_t lval, struct pure_comb_signal_set_s*reads)
+{
+      if (!lval)
+	    return;
+      pure_comb_collect_expr_reads_(ivl_lval_idx(lval), reads);
+      pure_comb_collect_expr_reads_(ivl_lval_part_off(lval), reads);
+}
+
+static void pure_comb_collect_stmt_signals_(
+	ivl_statement_t stmt, struct pure_comb_signal_set_s*reads,
+	struct pure_comb_signal_set_s*writes)
+{
+      unsigned idx;
+
+      if (!stmt)
+	    return;
+      switch (ivl_statement_type(stmt)) {
+	  case IVL_ST_ASSIGN:
+	    pure_comb_collect_expr_reads_(ivl_stmt_rval(stmt), reads);
+	    for (idx = 0; idx < ivl_stmt_lvals(stmt); idx += 1) {
+		  ivl_lval_t lval = ivl_stmt_lval(stmt, idx);
+		  pure_comb_collect_lval_reads_(lval, reads);
+		  pure_comb_signal_set_add_(writes, ivl_lval_sig(lval));
+	    }
+	    break;
+
+	  case IVL_ST_BLOCK:
+	    for (idx = 0; idx < ivl_stmt_block_count(stmt); idx += 1)
+		  pure_comb_collect_stmt_signals_(
+			ivl_stmt_block_stmt(stmt, idx), reads, writes);
+	    break;
+
+	  case IVL_ST_CONDIT:
+	    pure_comb_collect_expr_reads_(ivl_stmt_cond_expr(stmt), reads);
+	    pure_comb_collect_stmt_signals_(
+		  ivl_stmt_cond_true(stmt), reads, writes);
+	    pure_comb_collect_stmt_signals_(
+		  ivl_stmt_cond_false(stmt), reads, writes);
+	    break;
+
+	  case IVL_ST_CASE:
+	  case IVL_ST_CASER:
+	  case IVL_ST_CASEX:
+	  case IVL_ST_CASEZ:
+	    pure_comb_collect_expr_reads_(ivl_stmt_cond_expr(stmt), reads);
+	    for (idx = 0; idx < ivl_stmt_case_count(stmt); idx += 1) {
+		  pure_comb_collect_expr_reads_(
+			ivl_stmt_case_expr(stmt, idx), reads);
+		  pure_comb_collect_stmt_signals_(
+			ivl_stmt_case_stmt(stmt, idx), reads, writes);
+	    }
+	    break;
+
+	  case IVL_ST_DO_WHILE:
+	  case IVL_ST_REPEAT:
+	  case IVL_ST_WHILE:
+	    pure_comb_collect_expr_reads_(ivl_stmt_cond_expr(stmt), reads);
+	    pure_comb_collect_stmt_signals_(
+		  ivl_stmt_sub_stmt(stmt), reads, writes);
+	    break;
+
+	  case IVL_ST_FORLOOP:
+	    pure_comb_collect_stmt_signals_(
+		  ivl_stmt_init_stmt(stmt), reads, writes);
+	    pure_comb_collect_expr_reads_(ivl_stmt_cond_expr(stmt), reads);
+	    pure_comb_collect_stmt_signals_(
+		  ivl_stmt_sub_stmt(stmt), reads, writes);
+	    pure_comb_collect_stmt_signals_(
+		  ivl_stmt_step_stmt(stmt), reads, writes);
+	    break;
+
+	  default:
+	    break;
+      }
+}
+
+static int pure_comb_signals_alias_(ivl_signal_t left, ivl_signal_t right)
+{
+      unsigned left_count, right_count, left_word, right_word;
+      uint64_t pairs;
+
+      if (left == right)
+	    return 1;
+      left_count = ivl_signal_array_count(left);
+      right_count = ivl_signal_array_count(right);
+      pairs = (uint64_t)left_count * right_count;
+
+      /* Very large unpacked arrays are not worth a quadratic alias proof.
+	 Conservatively leave such a process on the ordinary event path. */
+      if (pairs > 4096)
+	    return 1;
+      for (left_word = 0; left_word < left_count; left_word += 1) {
+	    ivl_nexus_t left_nexus = ivl_signal_nex(left, left_word);
+	    if (!left_nexus)
+		  continue;
+	    for (right_word = 0; right_word < right_count; right_word += 1)
+		  if (left_nexus == ivl_signal_nex(right, right_word))
+			return 1;
+      }
+      return 0;
+}
+
+static int pure_comb_signal_set_has_alias_(
+	const struct pure_comb_signal_set_s*set, ivl_signal_t signal)
+{
+      unsigned idx;
+
+      for (idx = 0; idx < set->count; idx += 1)
+	    if (pure_comb_signals_alias_(set->items[idx], signal))
+		  return 1;
+      return 0;
+}
+
+static int pure_comb_signal_set_contains_(
+	const struct pure_comb_signal_set_s*set, ivl_signal_t signal)
+{
+      unsigned idx;
+
+      for (idx = 0; idx < set->count; idx += 1)
+	    if (set->items[idx] == signal)
+		  return 1;
+      return 0;
+}
+
+static void pure_comb_signal_set_copy_(
+	struct pure_comb_signal_set_s*dst,
+	const struct pure_comb_signal_set_s*src)
+{
+      unsigned idx;
+
+      for (idx = 0; idx < src->count; idx += 1)
+	    pure_comb_signal_set_add_(dst, src->items[idx]);
+}
+
+static void pure_comb_signal_set_free_(struct pure_comb_signal_set_s*set)
+{
+      free(set->items);
+      set->items = 0;
+      set->count = 0;
+      set->capacity = 0;
+}
+
+static void pure_comb_signal_set_intersect_(
+	struct pure_comb_signal_set_s*dst,
+	const struct pure_comb_signal_set_s*left,
+	const struct pure_comb_signal_set_s*right)
+{
+      unsigned idx;
+
+      pure_comb_signal_set_free_(dst);
+      for (idx = 0; idx < left->count; idx += 1)
+	    if (pure_comb_signal_set_contains_(right, left->items[idx]))
+		  pure_comb_signal_set_add_(dst, left->items[idx]);
+}
+
+/* A signal written by the body is local combinational storage only when every
+ * read of it is preceded, on every path reaching that read, by a whole-signal
+ * blocking assignment in the current evaluation. This accepts the standard
+ * default-assignment/override style used by commercial-simulator RTL while
+ * rejecting stateful constructs such as "runs = runs + 1". */
+static int pure_comb_expr_definite_(
+	ivl_expr_t expr, const struct pure_comb_signal_set_s*writes,
+	const struct pure_comb_signal_set_s*defined)
+{
+      unsigned idx;
+
+      if (!expr)
+	    return 1;
+      switch (ivl_expr_type(expr)) {
+	  case IVL_EX_SIGNAL: {
+	    ivl_signal_t signal = ivl_expr_signal(expr);
+	    if (pure_comb_signal_set_has_alias_(writes, signal)
+		&& !pure_comb_signal_set_contains_(defined, signal))
+		  return 0;
+	    return pure_comb_expr_definite_(
+		  ivl_expr_oper1(expr), writes, defined);
+	  }
+
+	  case IVL_EX_BINARY:
+	  case IVL_EX_SELECT:
+	    return pure_comb_expr_definite_(
+		  ivl_expr_oper1(expr), writes, defined)
+		&& pure_comb_expr_definite_(
+		  ivl_expr_oper2(expr), writes, defined);
+
+	  case IVL_EX_UNARY:
+	    return pure_comb_expr_definite_(
+		  ivl_expr_oper1(expr), writes, defined);
+
+	  case IVL_EX_TERNARY:
+	    return pure_comb_expr_definite_(
+		  ivl_expr_oper1(expr), writes, defined)
+		&& pure_comb_expr_definite_(
+		  ivl_expr_oper2(expr), writes, defined)
+		&& pure_comb_expr_definite_(
+		  ivl_expr_oper3(expr), writes, defined);
+
+	  case IVL_EX_ARRAY_PATTERN:
+	  case IVL_EX_CONCAT:
+	    for (idx = 0; idx < ivl_expr_parms(expr); idx += 1)
+		  if (!pure_comb_expr_definite_(
+			ivl_expr_parm(expr, idx), writes, defined))
+			return 0;
+	    return 1;
+
+	  default:
+	    return 1;
+      }
+}
+
+static int pure_comb_stmt_definite_(
+	ivl_statement_t stmt, const struct pure_comb_signal_set_s*writes,
+	struct pure_comb_signal_set_s*defined)
+{
+      unsigned idx;
+
+      if (!stmt)
+	    return 1;
+      switch (ivl_statement_type(stmt)) {
+	  case IVL_ST_NOOP:
+	    return 1;
+
+	  case IVL_ST_ASSIGN:
+	    if (!pure_comb_expr_definite_(
+		  ivl_stmt_rval(stmt), writes, defined))
+		  return 0;
+	    for (idx = 0; idx < ivl_stmt_lvals(stmt); idx += 1) {
+		  ivl_lval_t lval = ivl_stmt_lval(stmt, idx);
+		  if (!pure_comb_expr_definite_(
+			ivl_lval_idx(lval), writes, defined)
+		      || !pure_comb_expr_definite_(
+			ivl_lval_part_off(lval), writes, defined))
+			return 0;
+	    }
+	    /* All selectors are evaluated from the incoming state. Do not let an
+	       earlier concatenation component appear to define storage used by a
+	       later component's selector. */
+	    for (idx = 0; idx < ivl_stmt_lvals(stmt); idx += 1) {
+		  ivl_lval_t lval = ivl_stmt_lval(stmt, idx);
+		  ivl_signal_t signal = ivl_lval_sig(lval);
+		  if (!ivl_lval_idx(lval) && !ivl_lval_part_off(lval)
+		      && ivl_lval_width(lval) == ivl_signal_width(signal))
+			pure_comb_signal_set_add_(defined, signal);
+	    }
+	    return 1;
+
+	  case IVL_ST_BLOCK:
+	    for (idx = 0; idx < ivl_stmt_block_count(stmt); idx += 1)
+		  if (!pure_comb_stmt_definite_(
+			ivl_stmt_block_stmt(stmt, idx), writes, defined))
+			return 0;
+	    return 1;
+
+	  case IVL_ST_CONDIT: {
+	    struct pure_comb_signal_set_s true_defs = { 0, 0, 0 };
+	    struct pure_comb_signal_set_s false_defs = { 0, 0, 0 };
+	    int safe;
+
+	    if (!pure_comb_expr_definite_(
+		  ivl_stmt_cond_expr(stmt), writes, defined))
+		  return 0;
+	    pure_comb_signal_set_copy_(&true_defs, defined);
+	    pure_comb_signal_set_copy_(&false_defs, defined);
+	    safe = pure_comb_stmt_definite_(
+		  ivl_stmt_cond_true(stmt), writes, &true_defs)
+		&& pure_comb_stmt_definite_(
+		  ivl_stmt_cond_false(stmt), writes, &false_defs);
+	    if (safe)
+		  pure_comb_signal_set_intersect_(
+			defined, &true_defs, &false_defs);
+	    pure_comb_signal_set_free_(&true_defs);
+	    pure_comb_signal_set_free_(&false_defs);
+	    return safe;
+	  }
+
+	  case IVL_ST_CASE:
+	  case IVL_ST_CASER:
+	  case IVL_ST_CASEX:
+	  case IVL_ST_CASEZ: {
+	    struct pure_comb_signal_set_s incoming = { 0, 0, 0 };
+	    struct pure_comb_signal_set_s merged = { 0, 0, 0 };
+	    int have_merged = 0;
+	    int has_default = 0;
+
+	    if (!pure_comb_expr_definite_(
+		  ivl_stmt_cond_expr(stmt), writes, defined))
+		  return 0;
+	    for (idx = 0; idx < ivl_stmt_case_count(stmt); idx += 1) {
+		  ivl_expr_t item_expr = ivl_stmt_case_expr(stmt, idx);
+		  if (!item_expr)
+			has_default = 1;
+		  else if (!pure_comb_expr_definite_(
+			     item_expr, writes, defined))
+			return 0;
+	    }
+
+	    pure_comb_signal_set_copy_(&incoming, defined);
+	    for (idx = 0; idx < ivl_stmt_case_count(stmt); idx += 1) {
+		  struct pure_comb_signal_set_s branch = { 0, 0, 0 };
+		  pure_comb_signal_set_copy_(&branch, &incoming);
+		  if (!pure_comb_stmt_definite_(
+			ivl_stmt_case_stmt(stmt, idx), writes, &branch)) {
+			pure_comb_signal_set_free_(&branch);
+			pure_comb_signal_set_free_(&incoming);
+			pure_comb_signal_set_free_(&merged);
+			return 0;
+		  }
+		  if (!have_merged) {
+			pure_comb_signal_set_copy_(&merged, &branch);
+			have_merged = 1;
+		  } else {
+			struct pure_comb_signal_set_s next = { 0, 0, 0 };
+			pure_comb_signal_set_intersect_(&next, &merged, &branch);
+			pure_comb_signal_set_free_(&merged);
+			merged = next;
+		  }
+		  pure_comb_signal_set_free_(&branch);
+	    }
+	    if (!has_default) {
+		  struct pure_comb_signal_set_s next = { 0, 0, 0 };
+		  if (have_merged)
+			pure_comb_signal_set_intersect_(
+			      &next, &merged, &incoming);
+		  else
+			pure_comb_signal_set_copy_(&next, &incoming);
+		  pure_comb_signal_set_free_(&merged);
+		  merged = next;
+		  have_merged = 1;
+	    }
+	    if (have_merged) {
+		  pure_comb_signal_set_free_(defined);
+		  *defined = merged;
+		  merged.items = 0;
+		  merged.count = merged.capacity = 0;
+	    }
+	    pure_comb_signal_set_free_(&incoming);
+	    pure_comb_signal_set_free_(&merged);
+	    return 1;
+	  }
+
+	  case IVL_ST_WHILE:
+	  case IVL_ST_REPEAT: {
+	    struct pure_comb_signal_set_s body_defs = { 0, 0, 0 };
+	    int safe;
+	    if (!pure_comb_expr_definite_(
+		  ivl_stmt_cond_expr(stmt), writes, defined))
+		  return 0;
+	    pure_comb_signal_set_copy_(&body_defs, defined);
+	    safe = pure_comb_stmt_definite_(
+		  ivl_stmt_sub_stmt(stmt), writes, &body_defs);
+	    pure_comb_signal_set_free_(&body_defs);
+	    return safe;
+	  }
+
+	  case IVL_ST_DO_WHILE: {
+	    struct pure_comb_signal_set_s body_defs = { 0, 0, 0 };
+	    int safe;
+	    pure_comb_signal_set_copy_(&body_defs, defined);
+	    safe = pure_comb_stmt_definite_(
+		  ivl_stmt_sub_stmt(stmt), writes, &body_defs)
+		&& pure_comb_expr_definite_(
+		  ivl_stmt_cond_expr(stmt), writes, &body_defs);
+	    if (safe) {
+		  pure_comb_signal_set_free_(defined);
+		  *defined = body_defs;
+		  body_defs.items = 0;
+		  body_defs.count = body_defs.capacity = 0;
+	    }
+	    pure_comb_signal_set_free_(&body_defs);
+	    return safe;
+	  }
+
+	  case IVL_ST_FORLOOP: {
+	    struct pure_comb_signal_set_s iteration = { 0, 0, 0 };
+	    int safe;
+	    if (!pure_comb_stmt_definite_(
+		  ivl_stmt_init_stmt(stmt), writes, defined)
+		|| !pure_comb_expr_definite_(
+		  ivl_stmt_cond_expr(stmt), writes, defined))
+		  return 0;
+	    pure_comb_signal_set_copy_(&iteration, defined);
+	    safe = pure_comb_stmt_definite_(
+		  ivl_stmt_sub_stmt(stmt), writes, &iteration)
+		&& pure_comb_stmt_definite_(
+		  ivl_stmt_step_stmt(stmt), writes, &iteration);
+	    pure_comb_signal_set_free_(&iteration);
+	    return safe;
+	  }
+
+	  default:
+	    return 0;
+	}
+}
+
+static int pure_comb_has_read_before_definition_(ivl_statement_t stmt)
+{
+      struct pure_comb_signal_set_s reads = { 0, 0, 0 };
+      struct pure_comb_signal_set_s writes = { 0, 0, 0 };
+      struct pure_comb_signal_set_s defined = { 0, 0, 0 };
+      int safe;
+
+      pure_comb_collect_stmt_signals_(stmt, &reads, &writes);
+      safe = pure_comb_stmt_definite_(stmt, &writes, &defined);
+      pure_comb_signal_set_free_(&reads);
+      pure_comb_signal_set_free_(&writes);
+      pure_comb_signal_set_free_(&defined);
+      return !safe;
+}
+
+/* Return true only when a case quality cannot produce an implicit runtime
+ * diagnostic. This keeps the pure-combinational wake optimization from
+ * suppressing warnings that a commercial event-driven simulator would emit.
+ *
+ * A priority case with a default is exhaustive. A plain (not casex/casez)
+ * unique case is also diagnostic-free when every label is an exact-width,
+ * distinct literal and unique has a default (unique0 needs no default).
+ * Qualified-if lowering is intentionally excluded because its predicates can
+ * overlap even when the generated case labels are distinct. */
+static int pure_comb_case_quality_(ivl_statement_t stmt)
+{
+      ivl_case_quality_t quality = ivl_stmt_case_quality(stmt);
+      unsigned count = ivl_stmt_case_count(stmt);
+      unsigned condition_width = ivl_expr_width(ivl_stmt_cond_expr(stmt));
+      int has_default = 0;
+      unsigned idx;
+
+      if (quality == IVL_CASE_QUALITY_BASIC)
+	    return 1;
+      if (ivl_stmt_case_is_quality_if(stmt))
+	    return 0;
+
+      for (idx = 0; idx < count; idx += 1)
+	    if (!ivl_stmt_case_expr(stmt, idx))
+		  has_default = 1;
+
+      if (quality == IVL_CASE_QUALITY_PRIORITY)
+	    return has_default;
+      if (ivl_statement_type(stmt) != IVL_ST_CASE)
+	    return 0;
+      if (quality == IVL_CASE_QUALITY_UNIQUE && !has_default)
+	    return 0;
+
+      for (idx = 0; idx < count; idx += 1) {
+	    ivl_expr_t left = ivl_stmt_case_expr(stmt, idx);
+	    unsigned other;
+	    if (!left)
+		  continue;
+	    if (ivl_expr_type(left) != IVL_EX_NUMBER
+		|| ivl_expr_width(left) != condition_width)
+		  return 0;
+	    for (other = 0; other < idx; other += 1) {
+		  ivl_expr_t right = ivl_stmt_case_expr(stmt, other);
+		  if (right && ivl_expr_type(right) == IVL_EX_NUMBER
+		      && ivl_expr_width(right) == condition_width
+		      && strcmp(ivl_expr_bits(left), ivl_expr_bits(right)) == 0)
+			return 0;
+	    }
+      }
+      return 1;
+}
+
+static int pure_comb_stmt_impl_(ivl_statement_t stmt, int allow_named_scope)
+{
+      unsigned idx;
+
+      if (!stmt)
+	    return 1;
+
+      switch (ivl_statement_type(stmt)) {
+	  case IVL_ST_NOOP:
+	    return 1;
+
+	  case IVL_ST_BREAK:
+	  case IVL_ST_CONTINUE:
+	    /* Their path-sensitive definite-assignment merge is intentionally
+	       outside this first conservative implementation. */
+	    return 0;
+
+	  case IVL_ST_ASSIGN:
+	    if (ivl_stmt_delay_expr(stmt) || ivl_stmt_opcode(stmt)
+		|| !pure_comb_expr_(ivl_stmt_rval(stmt)))
+		  return 0;
+	    for (idx = 0; idx < ivl_stmt_lvals(stmt); idx += 1)
+		  if (!pure_comb_lval_(ivl_stmt_lval(stmt, idx)))
+			return 0;
+	    return 1;
+
+	  case IVL_ST_BLOCK:
+	    if ((ivl_stmt_block_scope(stmt) && !allow_named_scope)
+		|| (ivl_stmt_block_scope(stmt)
+		    && (ivl_scope_type(ivl_stmt_block_scope(stmt))
+			!= IVL_SCT_BEGIN
+			|| ivl_scope_is_auto(ivl_stmt_block_scope(stmt))
+			|| ivl_scope_program(ivl_stmt_block_scope(stmt))))
+		|| ivl_stmt_block_randsequence(stmt) != IVL_RANDSEQ_BLOCK_NONE)
+		  return 0;
+	    for (idx = 0; idx < ivl_stmt_block_count(stmt); idx += 1)
+		  if (!pure_comb_stmt_impl_(
+			ivl_stmt_block_stmt(stmt, idx), 0))
+			return 0;
+	    return 1;
+
+	  case IVL_ST_CONDIT:
+	    return !ivl_stmt_is_immediate_assertion(stmt)
+		&& pure_comb_expr_(ivl_stmt_cond_expr(stmt))
+		&& pure_comb_stmt_impl_(ivl_stmt_cond_true(stmt), 0)
+		&& pure_comb_stmt_impl_(ivl_stmt_cond_false(stmt), 0);
+
+	  case IVL_ST_CASE:
+	  case IVL_ST_CASER:
+	  case IVL_ST_CASEX:
+	  case IVL_ST_CASEZ:
+	    if (!pure_comb_case_quality_(stmt)
+		|| !pure_comb_expr_(ivl_stmt_cond_expr(stmt)))
+		  return 0;
+	    for (idx = 0; idx < ivl_stmt_case_count(stmt); idx += 1)
+		  if (!pure_comb_expr_(ivl_stmt_case_expr(stmt, idx))
+		      || !pure_comb_stmt_impl_(
+			ivl_stmt_case_stmt(stmt, idx), 0))
+			return 0;
+	    return 1;
+
+	  case IVL_ST_DO_WHILE:
+	  case IVL_ST_REPEAT:
+	  case IVL_ST_WHILE:
+	    return pure_comb_expr_(ivl_stmt_cond_expr(stmt))
+		&& pure_comb_stmt_impl_(ivl_stmt_sub_stmt(stmt), 0);
+
+	  case IVL_ST_FORLOOP:
+	    return pure_comb_stmt_impl_(ivl_stmt_init_stmt(stmt), 0)
+		&& pure_comb_expr_(ivl_stmt_cond_expr(stmt))
+		&& pure_comb_stmt_impl_(ivl_stmt_sub_stmt(stmt), 0)
+		&& pure_comb_stmt_impl_(ivl_stmt_step_stmt(stmt), 0);
+
+	  default:
+	    return 0;
+      }
+}
+
+static int pure_comb_stmt_(ivl_statement_t stmt)
+{
+      return pure_comb_stmt_impl_(stmt, 1);
+}
+
 static char**td_refs = 0;
 static size_t td_refs_cnt = 0;
 static size_t td_refs_cap = 0;
@@ -2717,6 +3432,9 @@ static int show_stmt_utask(ivl_statement_t net)
 static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 {
       static unsigned int cascade_counter = 0;
+      int rc;
+      int pure_comb_evaluation = (net == pure_comb_top_wait_);
+      ivl_statement_t body = ivl_stmt_sub_stmt(net);
 	/* Look to see if this is a SystemVerilog wait fork. */
       if ((ivl_stmt_nevent(net) == 1) && (ivl_stmt_events(net, 0) == 0)) {
 	    assert(ivl_statement_type(ivl_stmt_sub_stmt(net)) == IVL_ST_NOOP);
@@ -2744,30 +3462,84 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 		  unsigned path_count = ivl_event_obj_mutation_count(ev);
 		  if (path_count == 0)
 			path_count = 1; /* Compatibility with older target records. */
+		  int has_property_filter = 0;
+		  if (ivl_event_obj_mutation_count(ev)) {
+			for (unsigned path = 0 ; path < path_count ; path += 1)
+			      if (ivl_event_obj_mutation_property_N(ev, path)
+				  != UINT_MAX) {
+				    has_property_filter = 1;
+				    break;
+			      }
+		  }
 		  for (unsigned path = 0 ; path < path_count ; path += 1) {
-			unsigned root_pin = ivl_event_obj_mutation_count(ev)
-			      ? ivl_event_obj_mutation_root_pin(ev, path) : 0;
-			ivl_nexus_t this_nex = ivl_event_nany(ev) > root_pin
-			      ? ivl_event_any(ev, root_pin)
-			      : ivl_event_pos(ev, root_pin);
-			const char*this_var = draw_input_from_net(this_nex,
-							      ivl_event_scope(ev));
+			ivl_expr_t owner_expr = ivl_event_obj_mutation_count(ev)
+			      ? ivl_event_obj_mutation_owner_expr(ev, path) : 0;
 			unsigned pre_N = ivl_event_obj_mutation_count(ev)
 			      ? ivl_event_obj_mutation_pre_N(ev, path)
 			      : ivl_event_obj_pre_N(ev);
 			unsigned obj_N = ivl_event_obj_mutation_count(ev)
 			      ? ivl_event_obj_mutation_N(ev, path)
 			      : ivl_event_obj_N(ev);
-			fprintf(vvp_out, "    %%load/obj %s;\n", this_var);
-			if (pre_N != UINT_MAX)
-			      fprintf(vvp_out, "    %%prop/obj %u, 0;\n", pre_N);
-			if (obj_N != UINT_MAX)
-			      fprintf(vvp_out, "    %%prop/obj %u, 0;\n", obj_N);
-			if (pre_N != UINT_MAX || obj_N != UINT_MAX)
-			      fprintf(vvp_out, "    %%pop/obj %u, 1;\n",
-				      (pre_N != UINT_MAX) + (obj_N != UINT_MAX));
+			if (owner_expr) {
+			      draw_eval_object(owner_expr);
+			} else {
+			      unsigned root_pin = ivl_event_obj_mutation_count(ev)
+				    ? ivl_event_obj_mutation_root_pin(ev, path) : 0;
+			      ivl_nexus_t this_nex = ivl_event_nany(ev) > root_pin
+				    ? ivl_event_any(ev, root_pin)
+				    : ivl_event_pos(ev, root_pin);
+			      const char*this_var = draw_input_from_net(
+				    this_nex, ivl_event_scope(ev));
+			      fprintf(vvp_out, "    %%load/obj %s;\n", this_var);
+			      if (pre_N != UINT_MAX)
+				    fprintf(vvp_out, "    %%prop/obj %u, 0;\n", pre_N);
+			      if (obj_N != UINT_MAX)
+				    fprintf(vvp_out, "    %%prop/obj %u, 0;\n", obj_N);
+			      if (pre_N != UINT_MAX || obj_N != UINT_MAX)
+				    fprintf(vvp_out, "    %%pop/obj %u, 1;\n",
+					    (pre_N != UINT_MAX)
+					    + (obj_N != UINT_MAX));
+			}
+			if (has_property_filter) {
+			      unsigned property_N =
+				    ivl_event_obj_mutation_property_N(ev, path);
+			      unsigned property_word =
+				    ivl_event_obj_mutation_property_word(ev, path);
+			      fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32;\n",
+				      property_N);
+			      ivl_expr_t word_expr =
+				    ivl_event_obj_mutation_property_word_expr(ev, path);
+			      if (word_expr)
+				    draw_eval_vec4(word_expr);
+			      else
+				    fprintf(vvp_out,
+					  "    %%pushi/vec4 %u, 0, 32;\n",
+					  property_word);
+			      unsigned property_bit =
+				    ivl_event_obj_mutation_property_bit(ev, path);
+			      ivl_expr_t bit_expr =
+				    ivl_event_obj_mutation_property_bit_expr(ev, path);
+			      if (bit_expr)
+				    draw_eval_vec4(bit_expr);
+			      else
+				    fprintf(vvp_out,
+					  "    %%pushi/vec4 %u, 0, 32;\n",
+					  property_bit);
+			      /* The numeric UINT_MAX value is the legacy fixed-selector
+			       * wildcard. Tell the runtime which selectors were evaluated
+			       * dynamically so X/Z or an invalid packed index cannot be
+			       * mistaken for that wildcard. bit 0=word, bit 1=packed bit. */
+			      fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 2;\n",
+				    (word_expr ? 1U : 0U) | (bit_expr ? 2U : 0U));
+			}
 		  }
-		  if (path_count == 1)
+		  if (has_property_filter && path_count == 1)
+			fprintf(vvp_out, "    %%wait/obj/mutation/filtered;\n");
+		  else if (has_property_filter)
+			fprintf(vvp_out,
+			      "    %%wait/obj/mutation/filtered/multi %u;\n",
+			      path_count);
+		  else if (path_count == 1)
 			fprintf(vvp_out, "    %%wait/obj/mutation;\n");
 		  else
 			fprintf(vvp_out, "    %%wait/obj/mutation/multi %u;\n",
@@ -2853,7 +3625,8 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 	    if (all_vif_anyedge) {
 		  /* A compound expression such as @(cfg.vif.a || cfg.vif.b)
 		   * produces one dynamic VIF event per member. Load every
-		   * runtime VIF object and pair it with its member index;
+		   * runtime VIF object and pair it with its member index and
+		   * optional unpacked-array word;
 		   * the multi wait resumes on the first edge and unregisters
 		   * the thread from all sibling edge functors. */
 		  for (idx = 0 ; idx < ivl_stmt_nevent(net) ; idx += 1) {
@@ -2880,6 +3653,8 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 			}
 			fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32;\n",
 			      ivl_event_vif_M(ev));
+			fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32;\n",
+			      ivl_event_vif_member_word(ev));
 		  }
 		  assert(ivl_stmt_needs_t0_trigger(net) == 0);
 		  fprintf(vvp_out, "    %%wait/vif/anyedge/multi %u;\n",
@@ -2899,7 +3674,12 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 	    }
       }
 
-      return show_statement(ivl_stmt_sub_stmt(net), sscope);
+      if (pure_comb_evaluation)
+	    fprintf(vvp_out, "    %%comb/begin;\n");
+      rc = show_statement(body, sscope);
+      if (pure_comb_evaluation)
+	    fprintf(vvp_out, "    %%comb/end;\n");
+      return rc;
 }
 
 static int expr_is_queue_expr(ivl_expr_t expr);
@@ -6083,6 +6863,7 @@ int draw_process(ivl_process_t net, void*x)
       unsigned idx;
       ivl_scope_t scope = ivl_process_scope(net);
       ivl_statement_t stmt = ivl_process_stmt(net);
+      int pure_comb_flag = 0;
 
       int init_flag = 0;
       int push_flag = 0;
@@ -6136,12 +6917,29 @@ int draw_process(ivl_process_t net, void*x)
       local_count = 0;
       fprintf(vvp_out, "    .scope S_%p;\n", scope);
 
+      if (ivl_process_type(net) == IVL_PR_ALWAYS_COMB
+	  && !ivl_scope_is_auto(scope)
+	  && !ivl_scope_program(scope)
+	  && ivl_statement_type(stmt) == IVL_ST_WAIT
+	  && ivl_stmt_needs_t0_trigger(stmt)
+	  && pure_comb_stmt_(ivl_stmt_sub_stmt(stmt))
+	  && !pure_comb_has_read_before_definition_(
+		ivl_stmt_sub_stmt(stmt)))
+	    pure_comb_flag = 1;
+
 	/* Generate the entry label. Just give the thread a number so
 	   that we are certain the label is unique. */
       fprintf(vvp_out, "T_%u ;\n", thread_count);
 
+      if (pure_comb_flag) {
+	    fprintf(vvp_out, "    %%comb/register;\n");
+	    pure_comb_top_wait_ = stmt;
+      }
+
 	/* Draw the contents of the thread. */
       rc += show_statement(stmt, scope);
+      if (pure_comb_flag)
+	    pure_comb_top_wait_ = 0;
 
 
 	/* Terminate the thread with either an %end instruction (initial
@@ -6236,11 +7034,15 @@ int draw_task_definition(ivl_scope_t scope)
  * M10: emit the synthesized body of a DPI import function: load each
  * argument onto its stack, then a %dpi/call opcode carrying the
  * per-argument signature string the runtime marshaler consumes. Each
- * signature token is [+][u]<letter>: '+' output direction (reserved),
+ * signature token is [+][u]<letter>: '+' output/inout copyback direction,
  * 'u' unsigned, letter 'b'/'h'/'i'/'l' by width for 2-state integer
  * atoms (byte/shortint/int/longint), 'p' chandle (void*), 'V'/'W'
  * canonical packed bit/logic vectors, 'g' 4-state scalar (svLogic),
- * 'r' real, 's' string.
+ * 'r' real, 's' string, 'x'/'y' dynamic/open arrays of packed bit/logic
+ * vectors, 'X'/'Y' their fixed-array counterparts, and 'B'/'G' fixed arrays
+ * of true scalar svBit/svLogic elements. The distinctions let the runtime
+ * expose the exact Annex H C representation, including canonical packed
+ * element storage when the actual is a non-contiguous queue.
  *
  * Unsupported argument shapes are diagnosed loudly (never silent) and
  * the call is not emitted — the body pushes a zero/empty result so
@@ -6302,9 +7104,9 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 	    char letter = 0;
 
 	    if (ivl_signal_dimensions(port) > 0) {
-		    /* Fixed unpacked arrays use the svOpenArrayHandle ABI too.
-		       Materialize the inline word array before the call and copy
-		       it back below for output/inout directions. */
+	    /* Fixed unpacked arrays use the Annex H direct C-pointer ABI.
+	       Materialize the inline word array before the call and copy it
+	       back below for output/inout directions. */
 		  int elem_ok = (ptype == IVL_VT_REAL)
 			|| ((ptype == IVL_VT_BOOL || ptype == IVL_VT_LOGIC)
 			    && pwid > 0);
@@ -6319,7 +7121,16 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 			unsupported = 1;
 			break;
 		  }
-		  letter = 'O';
+		  ivl_type_t nt = ivl_signal_net_type(port);
+		  if (nt && ivl_type_is_packed_vector(nt)) {
+			letter = (ptype == IVL_VT_LOGIC) ? 'Y' : 'X';
+		  } else if (pwid == 1 && ptype == IVL_VT_BOOL) {
+			letter = 'B';
+		  } else if (pwid == 1 && ptype == IVL_VT_LOGIC) {
+			letter = 'G';
+		  } else {
+			letter = 'O';
+		  }
 	    } else if (ptype == IVL_VT_REAL) {
 		  letter = 'r';
 	    } else if (ptype == IVL_VT_STRING) {
@@ -6355,7 +7166,10 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 			unsupported = 1;
 			break;
 		  }
-		  letter = 'o';
+		  if (et && ivl_type_is_packed_vector(et))
+			letter = (ebase == IVL_VT_LOGIC) ? 'y' : 'x';
+		  else
+			letter = 'o';
 	    } else if (ptype == IVL_VT_LOGIC || ptype == IVL_VT_BOOL) {
 		  ivl_type_t nt = ivl_signal_net_type(port);
 		  if (nt && ivl_type_is_chandle(nt)) {
@@ -6416,7 +7230,10 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  fprintf(vvp_out, "    %%load/real v%p_0;\n", (void*)port);
 	    else if (letter == 's')
 		  fprintf(vvp_out, "    %%load/str v%p_0;\n", (void*)port);
-	    else if (letter == 'o' || letter == 'O') {
+	    else if (letter == 'o' || letter == 'O'
+		     || letter == 'B' || letter == 'G'
+		     || letter == 'x' || letter == 'X'
+		     || letter == 'y' || letter == 'Y') {
 		  if (ivl_signal_dimensions(port) > 0) {
 			unsigned kind;
 			if (!uarray_container_kind_(port, &kind,
@@ -6425,7 +7242,7 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 			      unsupported = 1;
 			      break;
 			}
-			emit_load_arr_dar_(port, kind);
+			emit_load_arr_dar_dpi_(port, kind);
 		  } else {
 			fprintf(vvp_out, "    %%load/obj v%p_0;\n", (void*)port);
 		  }
@@ -6507,12 +7324,18 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  break;
 		case 'o':
 		case 'O':
+		case 'B':
+		case 'G':
+		case 'x':
+		case 'X':
+		case 'y':
+		case 'Y':
 		  if (ivl_signal_dimensions(port) > 0) {
 			unsigned kind;
 			if (uarray_container_kind_(port, &kind,
 						 ivl_scope_def_file(scope),
 						 ivl_scope_def_lineno(scope)))
-			      emit_store_arr_dar_(port, kind);
+			      emit_store_arr_dar_dpi_(port, kind);
 		  } else {
 			fprintf(vvp_out, "    %%store/obj v%p_0;\n", (void*)port);
 		  }

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_class_property_invalid_selector_event.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_class_property_invalid_selector_event" ],
+    "gold"          : "sv_class_property_invalid_selector_event"
+}

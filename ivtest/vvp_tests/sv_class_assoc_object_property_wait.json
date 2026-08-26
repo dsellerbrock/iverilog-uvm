@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_class_assoc_object_property_wait.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_class_assoc_object_property_wait" ],
+    "gold"          : "sv_class_assoc_object_property_wait"
+}

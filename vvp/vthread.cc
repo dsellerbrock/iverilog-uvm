@@ -637,6 +637,10 @@ struct vthread_s {
       unsigned i_have_ended      :1;
       unsigned i_was_disabled    :1;
       unsigned waiting_for_event :1;
+	/* The ordinary event control was armed after $finish. Such a waiter
+	   stays owned by its event list for cleanup but cannot spawn another
+	   evaluation in the finishing time slot. */
+      unsigned post_finish_wait  :1;
 	/* Parked inside a blocking mailbox/semaphore/process::await
 	   operation. Like waiting_for_event this means "suspended, and not
 	   runnable until something else wakes me", but the wake comes from a
@@ -659,6 +663,11 @@ struct vthread_s {
 	   vthread_run trampoline (no recursive vthread_run), not the
 	   synchronous do_callf_void loop.  Set under IVL_TRAMPOLINE_CALLF. */
       unsigned is_trampoline_child :1;
+	/* Set only for an always_comb body that tgt-vvp proved contains no
+	   procedural side effects. Such a process may skip a wake when all
+	   sensitivity inputs return to their entry values during another pure
+	   combinational evaluation. */
+      unsigned is_pure_comb_process :1;
 	/* Program-block process (IEEE 1800-2017 clause 24): scheduled
 	   in the Reactive region set.  Set at creation from the scope
 	   chain and inherited by spawned children. */
@@ -742,6 +751,11 @@ struct vthread_s {
       bool rng_seeded;
 	/* This is used for keeping wait queues. */
       struct vthread_s*wait_next;
+	/* While parked on one ordinary event list, this points to the exact
+	   head/predecessor link that owns this thread. It makes unlink on
+	   disable/reap O(1), and is null for scheduler chains and the separate
+	   resource/object/VIF-multi waiter families. */
+      struct vthread_s**event_wait_link;
 	/* These are used to access automatically allocated items. */
       vvp_context_t wt_context, rd_context;
       vvp_context_t owned_context;
@@ -777,12 +791,15 @@ struct vthread_s {
 
       inline void cleanup()
       {
+	    vvp_pure_comb_evaluation_abort(this);
 	      /* Unlink from any mailbox/semaphore/process wait collection
 		 FIRST. Everything below releases state this thread owns; a
 		 wait collection elsewhere still names this thread by raw
 		 pointer, and it must be cut loose before the storage goes
 		 away. */
 	    vthread_cancel_resource_wait(this);
+	    vthread_cancel_event_wait(this);
+	    vthread_cancel_mutation_wait(this);
 	    delete force_pending;
 	    force_pending = 0;
 	    release_owned_context_(this);
@@ -896,10 +913,14 @@ inline vthread_s::vthread_s()
 
 inline vthread_s::~vthread_s()
 {
+	/* This is normally cleared by %comb/end or the disable/reap path. */
+      vvp_pure_comb_evaluation_abort(this);
 	/* Backstop for the raw `delete' in vthreads_delete(), which bypasses
 	   cleanup(). Cancellation is idempotent, so the normal path -- where
 	   cleanup() already ran -- does nothing here. */
       vthread_cancel_resource_wait(this);
+      vthread_cancel_event_wait(this);
+      vthread_cancel_mutation_wait(this);
       delete force_pending;
 }
 
@@ -7529,6 +7550,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->dpi_coro = 0;
       thr->parent_scope = scope;
       thr->wait_next = 0;
+      thr->event_wait_link = 0;
       thr->wt_context = 0;
       thr->rd_context = 0;
 	// R3 (IEEE 1800-2017 18.13.1): every thread is seeded from the moment
@@ -7560,6 +7582,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->is_callf_child = 0;
       thr->is_fork_v_child = 0;
       thr->is_trampoline_child = 0;
+      thr->is_pure_comb_process = 0;
       thr->is_reactive_process = 0;
       thr->in_region_drain = 0;
       for (__vpiScope*sc = scope ; sc ; sc = sc->scope) {
@@ -7590,6 +7613,7 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       thr->return_object_mirror_scope = 0;
       thr->dynamic_dispatch_base_scope = 0;
       thr->waiting_for_event = 0;
+      thr->post_finish_wait = 0;
       thr->event  = 0;
       thr->ecount = 0;
 
@@ -7682,6 +7706,9 @@ static void vthread_run_unpin_(vthread_t thr)
 
 static void vthread_reap(vthread_t thr)
 {
+	/* A source killed between %comb/begin and %comb/end must release every
+	   peer it retained before its storage can disappear. */
+      vvp_pure_comb_evaluation_abort(thr);
 	/* Cut this thread out of any mailbox/semaphore/process wait
 	   collection before anything else. This has to happen ahead of the
 	   "safe to delete" test at the bottom of this function: a
@@ -7691,6 +7718,8 @@ static void vthread_reap(vthread_t thr)
 	   window in which the resource could still try to wake a thread that
 	   is already reaped. */
       vthread_cancel_resource_wait(thr);
+      vthread_cancel_event_wait(thr);
+      vthread_cancel_mutation_wait(thr);
 
 	/* Reparent children to the grandparent, emptying our child sets as
 	 * we go. Mirror of_END's while/pop erase discipline so no stale child
@@ -7953,6 +7982,66 @@ void vthread_mark_scheduled(vthread_t thr)
 }
 
 /*
+ * Cancellable ordinary event waits.
+ *
+ * waitable functors store raw vthread_t values in intrusive wait_next lists.
+ * Historically a disabled waiter stayed on that list until the event happened;
+ * a quiet event therefore retained the disabled thread and its automatic
+ * context indefinitely. Keep a pointer to the exact link that owns each
+ * waiter so disable/reap can unlink it without scanning or dereferencing a
+ * thread after its storage is released.
+ */
+vthread_t vthread_add_event_wait(vthread_t thr, vthread_t*head)
+{
+      assert(thr);
+      assert(head);
+      assert(thr->waiting_for_event);
+      assert(thr->event_wait_link == 0);
+      assert(thr->wait_next == 0);
+
+      thr->post_finish_wait = schedule_finished() ? 1 : 0;
+
+      vthread_t previous = *head;
+      thr->wait_next = previous;
+      thr->event_wait_link = head;
+      if (previous) {
+            assert(previous->event_wait_link == head);
+            previous->event_wait_link = &thr->wait_next;
+      }
+      *head = thr;
+      return previous;
+}
+
+void vthread_cancel_event_wait(vthread_t thr)
+{
+      if (!thr)
+            return;
+
+      bool removed = false;
+      if (thr->event_wait_link) {
+            vthread_t*link = thr->event_wait_link;
+            assert(*link == thr);
+            *link = thr->wait_next;
+            if (thr->wait_next)
+                  thr->wait_next->event_wait_link = link;
+            thr->event_wait_link = 0;
+            thr->wait_next = 0;
+            removed = true;
+      }
+
+      /* A VIF compound event uses set-based side tables instead of an
+         intrusive wait_next list, so cancel that mutually exclusive family
+         through its owner module as part of the same state transition. */
+      if (vvp_cancel_multi_waiting_thread(thr))
+            removed = true;
+
+      if (removed) {
+            thr->waiting_for_event = 0;
+            thr->post_finish_wait = 0;
+      }
+}
+
+/*
  * Cancellable resource waits (IEEE 1800-2017 15.4 mailboxes, 15.5
  * semaphores, 9.7 process control).
  *
@@ -8036,6 +8125,21 @@ void vthread_cancel_resource_wait(vthread_t thr)
       if (cancel)
 	    cancel(owner_id, thr);
 	/* keep_alive releases the owner here, after the unlink is complete. */
+}
+
+void vthread_cancel_mutation_wait(vthread_t thr)
+{
+      if (!thr)
+            return;
+      if (!vvp_object::cancel_mutation_waiter(thr))
+            return;
+
+      /* Mutation waits do not use an event functor's wait_next chain. Once
+         the side-table subscription is gone there is no remaining owner that
+         can wake the thread, so clear the ordinary event-wait state as part
+         of the same cancellation transaction. */
+      thr->waiting_for_event = 0;
+      thr->wait_next = 0;
 }
 
 int vthread_is_reactive(vthread_t thr)
@@ -8416,7 +8520,12 @@ void vthread_schedule_list(vthread_t thr)
 {
       for (vthread_t cur = thr ;  cur ;  cur = cur->wait_next) {
 	    assert(cur->waiting_for_event);
+	    /* The waitable functor detached its whole head before calling us.
+	       Clear every intrusive backlink before scheduling can run any member
+	       and reuse wait_next as a scheduler-region chain. */
+	    cur->event_wait_link = 0;
 	    cur->waiting_for_event = 0;
+	    cur->post_finish_wait = 0;
 	    cur->deferred_assert_flush_on_run = 1;
       }
 
@@ -8446,6 +8555,101 @@ void vthread_schedule_list(vthread_t thr)
 	    schedule_vthread(design_head, 0);
       if (reactive_head)
 	    schedule_vthread(reactive_head, 0);
+}
+
+/* Wake ordinary event waiters while honoring the $finish generation
+   boundary. Waiters armed before $finish may still be triggered by stores
+   from work already scheduled in the current slot (ivtest pr243). A process
+   that subsequently re-arms after $finish remains linked to the waitable,
+   blocked, and cancellable, but it cannot create another evaluation. */
+void vthread_schedule_event_waiters(vthread_t&threads)
+{
+      if (!threads)
+	    return;
+
+      if (!schedule_finished()) {
+	    vthread_t ready = threads;
+	    threads = 0;
+	    vthread_schedule_list(ready);
+	    return;
+      }
+
+      vthread_t ready = 0;
+      vthread_t*ready_tail = &ready;
+      vthread_t*link = &threads;
+      while (*link) {
+	    vthread_t cur = *link;
+	    if (cur->post_finish_wait) {
+		  link = &cur->wait_next;
+		  continue;
+	    }
+
+	    *link = cur->wait_next;
+	    if (*link)
+		  (*link)->event_wait_link = link;
+	    cur->event_wait_link = 0;
+	    cur->wait_next = 0;
+	    *ready_tail = cur;
+	    ready_tail = &cur->wait_next;
+      }
+
+      if (ready)
+	    vthread_schedule_list(ready);
+}
+
+/* Detach one class of waiters from an intrusive ordinary-event list. The
+   complementary class stays armed with its O(1) cancellation backlink
+   repaired. This is used only while a proven-pure always_comb source is
+   running: ordinary procedural observers still see every event immediately,
+   while pure combinational consumers wait until the source's final values are
+   known. */
+static vthread_t detach_comb_waiter_class_(vthread_t&threads,
+					   bool select_pure)
+{
+      vthread_t ready = 0;
+      vthread_t*ready_tail = &ready;
+      vthread_t*link = &threads;
+
+      while (*link) {
+	    vthread_t cur = *link;
+	    bool selected = (cur->is_pure_comb_process != 0) == select_pure;
+	    bool wakeable = !(schedule_finished() && cur->post_finish_wait);
+
+	    if (!selected || !wakeable) {
+		  link = &cur->wait_next;
+		  continue;
+	    }
+
+	    *link = cur->wait_next;
+	    if (*link)
+		  (*link)->event_wait_link = link;
+	    cur->event_wait_link = 0;
+	    cur->wait_next = 0;
+	    *ready_tail = cur;
+	    ready_tail = &cur->wait_next;
+      }
+
+      return ready;
+}
+
+bool vthread_schedule_non_pure_comb_waiters(vthread_t&threads)
+{
+      vthread_t ready = detach_comb_waiter_class_(threads, false);
+      if (ready)
+	    vthread_schedule_list(ready);
+
+      for (vthread_t cur = threads; cur; cur = cur->wait_next)
+	    if (cur->is_pure_comb_process
+		&& !(schedule_finished() && cur->post_finish_wait))
+		  return true;
+      return false;
+}
+
+void vthread_schedule_pure_comb_waiters(vthread_t&threads)
+{
+      vthread_t ready = detach_comb_waiter_class_(threads, true);
+      if (ready)
+	    vthread_schedule_list(ready);
 }
 
 void vthread_schedule_mutation_waiter(vthread_t thr)
@@ -12283,6 +12487,209 @@ static bool dpi_open_array_is_multidim_(vvp_darray*da)
       return w.peek<vvp_darray>() != 0;
 }
 
+static bool dpi_packed_open_letter_(char type)
+{
+      return type == 'x' || type == 'X' || type == 'y' || type == 'Y';
+}
+
+static bool dpi_fixed_array_letter_(char type)
+{
+      return type == 'O' || type == 'B' || type == 'G'
+	  || type == 'X' || type == 'Y';
+}
+
+static bool dpi_scalar_array_letter_(char type)
+{
+      return type == 'B' || type == 'G';
+}
+
+/* Materialize a fixed unpacked array of scalar bit/logic values as the
+ * byte-per-element C layout required by Annex H. A one-bit 2-state array is
+ * commonly held in vvp's atom container, where logical one is represented by
+ * an all-ones byte; sampling bit zero here deliberately normalizes that to an
+ * exact svBit value of 1. */
+static bool dpi_pack_scalar_array_(const char*c_name, unsigned arg_index,
+		vvp_darray*array, bool four_state,
+		vvp_dpi_open_array_t&open, vector<uint8_t>&scratch)
+{
+      size_t length = array ? array->get_size() : 0;
+      open.length = length <= UINT_MAX ? (unsigned)length : 0;
+      open.elem_bytes = 1;
+      open.scalar_scratch = true;
+      open.scalar_four_state = four_state;
+      open.storage = array;
+
+      if (length > UINT_MAX) {
+	    fprintf(stderr, "DPI error: '%s': scalar array argument %u "
+		    "has an unrepresentable element count; passing an empty "
+		    "array argument.\n", c_name, arg_index);
+	    open.length = 0;
+	    return false;
+      }
+      if (length == 0)
+	    return true;
+
+      scratch.assign(length, 0);
+      for (size_t elem = 0; elem < length; elem += 1) {
+	    vvp_vector4_t value;
+	    array->get_word((unsigned)elem, value);
+	    if (value.size() == 0) {
+		  fprintf(stderr, "DPI error: '%s': scalar array argument %u "
+			  "does not have integral elements; passing an empty "
+			  "array argument.\n", c_name, arg_index);
+		  scratch.clear();
+		  open.length = 0;
+		  return false;
+	    }
+
+	    vvp_bit4_t val = value.value(0);
+	    if (four_state) {
+		  switch (val) {
+		      case BIT4_0: scratch[elem] = 0; break;
+		      case BIT4_1: scratch[elem] = 1; break;
+		      case BIT4_Z: scratch[elem] = 2; break;
+		      case BIT4_X: scratch[elem] = 3; break;
+		  }
+	    } else {
+		  scratch[elem] = val == BIT4_1 ? 1 : 0;
+	    }
+      }
+
+      open.elem_data = scratch.empty() ? 0 : &scratch[0];
+      return true;
+}
+
+static void dpi_unpack_scalar_array_(const vvp_dpi_open_array_t&open)
+{
+      if (!open.scalar_scratch || !open.storage || !open.elem_data)
+	    return;
+
+      const uint8_t*data = static_cast<const uint8_t*>(open.elem_data);
+      for (unsigned elem = 0; elem < open.length; elem += 1) {
+	    vvp_bit4_t val = BIT4_0;
+	    if (open.scalar_four_state) {
+		  switch (data[elem]) {
+		      case 0: val = BIT4_0; break;
+		      case 1: val = BIT4_1; break;
+		      case 2: val = BIT4_Z; break;
+		      case 3: val = BIT4_X; break;
+		      default: val = BIT4_X; break;
+		  }
+	    } else {
+		  val = data[elem] == 1 ? BIT4_1 : BIT4_0;
+	    }
+	    open.storage->set_word(elem, vvp_vector4_t(1, val));
+      }
+}
+
+/* Materialize one-dimensional packed bit/logic elements in their Annex H
+ * canonical representation. This is required even for an internally
+ * contiguous vvp atom array (bit [7:0] is one svBitVecVal word, not one C
+ * byte), and it gives a non-contiguous queue a stable element pointer for the
+ * duration of the DPI call. */
+static bool dpi_pack_open_array_(const char*c_name, unsigned arg_index,
+		vvp_darray*array, bool four_state,
+		vvp_dpi_open_array_t&open, vector<uint32_t>&scratch)
+{
+      size_t length = array ? array->get_size() : 0;
+      unsigned width = array ? array->vec4_word_width() : 0;
+      if (array && width == 0 && length != 0) {
+	    vvp_vector4_t first;
+	    array->get_word(0, first);
+	    width = first.size();
+      }
+
+      open.length = length <= UINT_MAX ? (unsigned)length : 0;
+      open.packed_scratch = true;
+      open.packed_width = width;
+      open.packed_four_state = four_state;
+      open.storage = array;
+
+      if (length > UINT_MAX || (length != 0 && width == 0)) {
+	    fprintf(stderr, "DPI error: '%s': packed array argument %u "
+		    "has an unrepresentable element count or width; passing an "
+		    "empty array argument.\n", c_name, arg_index);
+	    open.length = 0;
+	    return false;
+      }
+      if (length == 0)
+	    return true;
+
+      size_t value_words = ((size_t)width + 31) / 32;
+      size_t stride_words = value_words * (four_state ? 2 : 1);
+      if (stride_words == 0 || length > SIZE_MAX / stride_words) {
+	    fprintf(stderr, "DPI error: '%s': packed array argument %u "
+		    "canonical storage size overflows; passing an empty array "
+		    "argument.\n",
+		    c_name, arg_index);
+	    open.length = 0;
+	    return false;
+      }
+
+      scratch.assign(length * stride_words, 0);
+      for (size_t elem = 0; elem < length; elem += 1) {
+	    vvp_vector4_t value;
+	    array->get_word((unsigned)elem, value);
+	    if (value.size() != width) {
+		  fprintf(stderr, "DPI error: '%s': packed array argument %u "
+			  "has inconsistent element widths; passing an empty "
+			  "array argument.\n", c_name, arg_index);
+		  scratch.clear();
+		  open.length = 0;
+		  open.packed_width = 0;
+		  return false;
+	    }
+	    uint32_t*dst = &scratch[elem * stride_words];
+	    for (unsigned bit = 0; bit < width; bit += 1) {
+		  vvp_bit4_t val = value.value(bit);
+		  unsigned word = bit / 32;
+		  uint32_t mask = (uint32_t)1 << (bit % 32);
+		  if (four_state) {
+			if (val == BIT4_1 || val == BIT4_X)
+			      dst[2*word] |= mask;
+			if (val == BIT4_Z || val == BIT4_X)
+			      dst[2*word + 1] |= mask;
+		  } else if (val == BIT4_1) {
+			dst[word] |= mask;
+		  }
+	    }
+      }
+
+      open.elem_data = scratch.empty() ? 0 : &scratch[0];
+      open.elem_bytes = (unsigned)(stride_words * sizeof(uint32_t));
+      return true;
+}
+
+static void dpi_unpack_open_array_(const vvp_dpi_open_array_t&open)
+{
+      if (!open.packed_scratch || !open.storage || !open.elem_data
+	  || open.packed_width == 0)
+	    return;
+
+      unsigned value_words = (open.packed_width + 31) / 32;
+      unsigned stride_words = value_words * (open.packed_four_state ? 2 : 1);
+      const uint32_t*data = static_cast<const uint32_t*>(open.elem_data);
+      for (unsigned elem = 0; elem < open.length; elem += 1) {
+	    const uint32_t*src = data + (size_t)elem * stride_words;
+	    vvp_vector4_t value(open.packed_width, BIT4_0);
+	    for (unsigned bit = 0; bit < open.packed_width; bit += 1) {
+		  unsigned word = bit / 32;
+		  uint32_t mask = (uint32_t)1 << (bit % 32);
+		  vvp_bit4_t val;
+		  if (open.packed_four_state) {
+			bool aval = (src[2*word] & mask) != 0;
+			bool bval = (src[2*word + 1] & mask) != 0;
+			val = bval ? (aval ? BIT4_X : BIT4_Z)
+			           : (aval ? BIT4_1 : BIT4_0);
+		  } else {
+			val = (src[word] & mask) ? BIT4_1 : BIT4_0;
+		  }
+		  value.set_bit(bit, val);
+	    }
+	    open.storage->set_word(elem, value);
+      }
+}
+
 bool of_DEBUG_THR(vthread_t thr, vvp_code_t cp)
 {
       const char*text = cp->text;
@@ -12367,10 +12774,12 @@ static const char* split_dpi_name_types_(const char*text, char*name_buf,
 /*
  * M10: parsed form of one token from the compiler-emitted types
  * string. Tokens are parsed greedily per argument: optional '+'
- * (output direction — reserved, not yet marshaled), optional 'u'
+ * (output/inout copyback direction), optional 'u'
  * (unsigned), then a base letter:
  *   'b' int8, 'h' int16, 'i' int32, 'l' int64 (longint/chandle),
- *   'g' svLogic scalar, 'r' double, 's' string.
+ *   'g' svLogic scalar, 'r' double, 's' string,
+ *   'B'/'G' fixed scalar bit/logic unpacked arrays,
+ *   'x'/'X' packed bit open/fixed array, 'y'/'Y' packed logic array.
  */
 struct dpi_sig_tok_t {
       char base;
@@ -12420,6 +12829,8 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 	// alive for the duration of the C call.
       vector<vvp_dpi_open_array_t> arr_store (nargs);
       vector<vvp_object_t> obj_store (nargs);
+      vector<vector<uint8_t> > arr_scalar_store (nargs);
+      vector<vector<uint32_t> > arr_packed_store (nargs);
       for (unsigned ii = 0 ; ii < nargs ; ii += 1) {
 	    unsigned slot = nargs - 1 - ii;
 	    vvp_dpi_arg_t&arg = args[slot];
@@ -12448,22 +12859,34 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		  arg.pval = (void*)(uintptr_t)dpi_pop_int64(thr);
 		  break;
 		case 'o':
-		case 'O': {
+		case 'O':
+		case 'B':
+		case 'G':
+		case 'x':
+		case 'X':
+		case 'y':
+		case 'Y': {
 		      thr->pop_object(obj_store[slot]);
 		      vvp_dpi_open_array_t&arr = arr_store[slot];
 		      arr.data = 0;
+		      arr.elem_data = 0;
 		      arr.length = 0;
 		      arr.elem_bytes = 0;
 		      arr.elem_is_real = false;
+		      arr.scalar_scratch = false;
+		      arr.scalar_four_state = false;
+		      arr.packed_scratch = false;
+		      arr.packed_width = 0;
+		      arr.packed_four_state = false;
 		      arr.storage = 0;
 		      arr.outer = 0;
 		      arr.has_range = false;
 		      arr.left = 0;
 		      arr.right = 0;
 	      vvp_darray*da = obj_store[slot].peek<vvp_darray>();
-	      if (da && da->dpi_has_decl_range()
-		  && (sig[slot].base == 'O'
-		      || da->sv_uses_declared_indexing())) {
+		      if (da && da->dpi_has_decl_range()
+			  && (dpi_fixed_array_letter_(sig[slot].base)
+			      || da->sv_uses_declared_indexing())) {
 			      /* M10-1: marshaled from a fixed-size array, so
 				 dimension 1 reports that array's declared
 				 range (H.10.2). */
@@ -12471,7 +12894,20 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 			    arr.left  = da->dpi_decl_left();
 			    arr.right = da->dpi_decl_right();
 		      }
-		      if (da) {
+		      if (da && dpi_scalar_array_letter_(sig[slot].base)) {
+			  dpi_pack_scalar_array_(c_name, slot+1, da,
+				sig[slot].base == 'G', arr,
+				arr_scalar_store[slot]);
+		      } else if (da && dpi_open_array_is_multidim_(da)) {
+			    /* A multidimensional actual is walked as an object tree by
+			       the dimensioned canonical-copy accessors. */
+			  arr.length = (unsigned)da->get_size();
+			  arr.outer = da;
+		      } else if (da && dpi_packed_open_letter_(sig[slot].base)) {
+			  dpi_pack_open_array_(c_name, slot+1, da,
+				sig[slot].base == 'y' || sig[slot].base == 'Y',
+				arr, arr_packed_store[slot]);
+		      } else if (da) {
 			    arr.storage = da;
 			    unsigned eb = da->dpi_elem_bytes();
 			    if (eb > 0) {
@@ -12479,15 +12915,6 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 				  arr.length = (unsigned)da->get_size();
 				  arr.elem_bytes = eb;
 				  arr.elem_is_real = da->dpi_elem_is_real();
-			    } else if (dpi_open_array_is_multidim_(da)) {
-				    /* M10B-md: an outer object array whose
-				       words are inner dynamic arrays. The
-				       accessors (svDimensions, svSize,
-				       svGetArrElemPtr2/3) walk the object
-				       tree; the outer is non-contiguous by
-				       construction. */
-				  arr.length = (unsigned)da->get_size();
-				  arr.outer = da;
 			    } else if (dynamic_cast<vvp_darray_vec2*>(da)
 				       || dynamic_cast<vvp_darray_vec4*>(da)) {
 				    /* Packed vector elements need the canonical-copy
@@ -12498,13 +12925,13 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 				  fprintf(stderr, "DPI error: '%s': open "
 					  "array argument %u does not have "
 					  "atom-typed contiguous storage; "
-					  "passing an empty handle.\n",
+				  "passing an empty array argument.\n",
 					  c_name, slot+1);
 			    }
 		      } else if (! obj_store[slot].test_nil()) {
 			    fprintf(stderr, "DPI error: '%s': open array "
 				    "argument %u is not a dynamic array; "
-				    "passing an empty handle.\n",
+			    "passing an empty array argument.\n",
 				    c_name, slot+1);
 		      }
 		      arg.aval = &arr;
@@ -12601,6 +13028,12 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
       for (unsigned ii = 0 ; ii < nargs ; ii += 1) {
 	    if (! args[ii].is_output)
 		  continue;
+	    if (dpi_scalar_array_letter_(args[ii].type)
+		&& arr_store[ii].scalar_scratch)
+		  dpi_unpack_scalar_array_(arr_store[ii]);
+	    if (dpi_packed_open_letter_(args[ii].type)
+		&& arr_store[ii].packed_scratch)
+		  dpi_unpack_open_array_(arr_store[ii]);
 	    switch (args[ii].type) {
 		case 'b': dpi_push_int64(thr, args[ii].ival, 8);  break;
 		case 'h': dpi_push_int64(thr, args[ii].ival, 16); break;
@@ -12614,7 +13047,13 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		case 's': thr->push_str(args[ii].sval ? args[ii].sval : "");
 			  break;
 		case 'o':
-		case 'O': thr->push_object(obj_store[ii]);              break;
+		case 'O':
+		case 'B':
+		case 'G':
+		case 'x':
+		case 'X':
+		case 'y':
+		case 'Y': thr->push_object(obj_store[ii]);              break;
 		case 'V':
 		case 'W': {
 			/* Unpack the (callee-updated) packed buffer back into
@@ -13097,6 +13536,12 @@ static bool do_disable(vthread_t thr, vthread_t match)
       bool flag = false;
       const bool is_match = (thr == match);
 
+	/* A named sequential block used by a proven-pure always_comb is an
+	   internal continuation of the root process. If it is killed while the
+	   synchronous block body is running, abort the root's transaction rather
+	   than leaving a partial journal active. */
+      vvp_pure_comb_evaluation_abort(logical_process_thread_(thr));
+
       if (vvp_process*proc = thr->process_obj_.peek<vvp_process>()) {
 	    if (thr->i_have_ended && !thr->i_was_disabled)
 		  proc->mark_finished();
@@ -13119,6 +13564,8 @@ static bool do_disable(vthread_t thr, vthread_t match)
 	   does not reap at all -- it leaves the parent's %join to do it --
 	   so a kill would otherwise leave the record queued until then. */
       vthread_cancel_resource_wait(thr);
+      vthread_cancel_event_wait(thr);
+      vthread_cancel_mutation_wait(thr);
 
 	/* Turn off all the children of the thread. Simulate a %join
 	   for as many times as needed to clear the results of all the
@@ -13685,6 +14132,32 @@ bool of_DUP_VEC4(vthread_t thr, vvp_code_t)
       return true;
 }
 
+/* Runtime markers emitted only for a tgt-vvp-proven side-effect-free
+   always_comb process. Registration precedes the implicit sensitivity wait,
+   so peers can identify this process even during its first time-zero wake.
+   begin/end surround one complete body evaluation (including a named-block
+   child joined by the root thread). */
+bool of_COMB_REGISTER(vthread_t thr, vvp_code_t)
+{
+      assert(thr);
+      thr->is_pure_comb_process = 1;
+      return true;
+}
+
+bool of_COMB_BEGIN(vthread_t thr, vvp_code_t)
+{
+      assert(thr && thr->is_pure_comb_process);
+      vvp_pure_comb_evaluation_begin(thr);
+      return true;
+}
+
+bool of_COMB_END(vthread_t thr, vvp_code_t)
+{
+      assert(thr && thr->is_pure_comb_process);
+      vvp_pure_comb_evaluation_end(thr);
+      return true;
+}
+
 /*
  * This terminates the current thread. If there is a parent who is
  * waiting for me to die, then I schedule it. At any rate, I mark
@@ -13692,6 +14165,7 @@ bool of_DUP_VEC4(vthread_t thr, vvp_code_t)
  */
 bool of_END(vthread_t thr, vvp_code_t)
 {
+      vvp_pure_comb_evaluation_abort(thr);
       assert(! thr->waiting_for_event);
       if (vvp_process*proc = thr->process_obj_.peek<vvp_process>())
 	    proc->mark_finished();
@@ -14509,17 +14983,29 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 	       on of_CHUNK_LINK rather than the actual next instruction. Skip
 	       through the link so the %join_detach check sees the real opcode. */
 	    { vvp_code_t next_pc = thr->pc;
+	      vthread_t pure_comb_owner = logical_process_thread_(thr);
+	      const bool synchronous_pure_named = !child_is_process
+		    && cp->scope->get_type_code() == vpiNamedBegin
+		    && !cp->scope->is_automatic()
+		    && pure_comb_owner
+		    && pure_comb_owner->is_pure_comb_process
+		    && vvp_pure_comb_evaluation_active(pure_comb_owner);
 	      if (next_pc && next_pc->opcode == of_CHUNK_LINK && next_pc->cptr)
 		    next_pc = next_pc->cptr;
-	      if (thr->i_am_in_function && !(next_pc && next_pc->opcode == of_JOIN_DETACH)) {
+	      if ((thr->i_am_in_function || synchronous_pure_named)
+		  && !(next_pc && next_pc->opcode == of_JOIN_DETACH)) {
 		    child->is_scheduled = 1;
-		    child->i_am_in_function = 1;
+		    if (thr->i_am_in_function)
+			  child->i_am_in_function = 1;
 		    const bool parent_was_delayed =
 		          pin_synchronous_run_thread_(thr);
 		    const bool child_was_delayed =
 		          pin_synchronous_run_thread_(child);
 		    vthread_run(child);
 		    running_thread = thr;
+		    if (synchronous_pure_named
+			&& (!child->i_have_ended || child->i_was_disabled))
+			  vvp_pure_comb_evaluation_abort(pure_comb_owner);
 		    unpin_synchronous_run_thread_(child, child_was_delayed);
 		    unpin_synchronous_run_thread_(thr, parent_was_delayed);
 		  } else {
@@ -16058,6 +16544,29 @@ static void notify_mutated_object_root_(vthread_t thr, const vvp_object_t&recv,
                     root_obj.peek<vvp_object>(),
                     root_obj.test_nil() ? 1 : 0);
       }
+
+      /* Class/interface property setters already performed the precise
+         value-change notification. Re-touching the receiver here would turn
+         a filtered @(obj.property) subscription back into an any-property
+         subscription; touching its provenance root would additionally make
+         a nested object's bookkeeping writes wake unrelated root fields.
+         Keep alias delivery separate from mutation sensitivity. Container
+         receivers still use the conservative wildcard propagation below. */
+      vvp_cobject*cobj = recv.peek<vvp_cobject>();
+      if ((cobj && !cobj->get_defn()->is_struct_type())
+          || recv.peek<vvp_vinterface>()) {
+            recv.notify_signal_aliases();
+            if (!root_obj.test_nil() && root_obj != recv)
+                  root_obj.notify_alias_mutation();
+            if (root_net) {
+                  const vvp_object_t&deliver = root_obj.test_nil()
+                                                ? recv : root_obj;
+                  vvp_send_object(vvp_net_ptr_t(root_net, 0), deliver,
+                                  ensure_write_context_(thr, where));
+            }
+            return;
+      }
+
       if (!root_net || root_obj.test_nil()) {
             if (!recv.test_nil()) {
                   recv.touch();
@@ -17864,14 +18373,19 @@ bool of_LOAD_OBJ(vthread_t thr, vvp_code_t cp)
  * keeps `array' and `text' in the same union -- an OA_STRING operand would
  * silently clobber the array pointer resolved by OA_ARR_PTR. Layout:
  *
- *    0                      -> real elements
- *    bits 7..0  = width
- *    bit  8     = signed
- *    bit  9     = 4-state (logic) rather than 2-state (bit)
- *    bit 10     = the declared range DESCENDS (left > right)
- *    bit 11     = object (class handle) elements
- *    bit 12     = string elements
- *    bit 13     = materialize a queue rather than a dynamic array
+ *    0                       -> real elements
+ *    bits  7..0  = width bits 7..0
+ *    bit   8     = signed
+ *    bit   9     = 4-state (logic) rather than 2-state (bit)
+ *    bit  10     = the declared range DESCENDS (left > right)
+ *    bit  11     = object (class handle) elements
+ *    bit  12     = string elements
+ *    bit  13     = materialize a queue rather than a dynamic array
+ *    bits 29..14 = width bits 23..8
+ *
+ * The flags retain their original positions. Older VVP images, which left
+ * bits 14..29 zero and therefore supported widths through 255, decode without
+ * translation; newer images extend the width in previously unused bits.
  *
  * For a dynamic-array result, bit_idx[1] carries the declared LEFT bound, so
  * the marshaled array can report its source array's range through the
@@ -17885,7 +18399,8 @@ bool of_LOAD_OBJ(vthread_t thr, vvp_code_t cp)
  * contiguity; the DPI path rejects non-atom elements upstream with its own
  * sorry, so that only affects plain SV assignment.
  */
-# define ARRDAR_WIDTH(k)  ((k) & 0xFFu)
+# define ARRDAR_WIDTH(k)  (((k) & 0xFFu) \
+			 | (((((k) >> 14) & 0xFFFFu)) << 8))
 # define ARRDAR_SIGNED(k) (((k) >> 8) & 1u)
 # define ARRDAR_FOUR(k)   (((k) >> 9) & 1u)
 # define ARRDAR_DESC(k)   (((k) >> 10) & 1u)
@@ -18399,14 +18914,16 @@ bool of_LOAD_VEC4(vthread_t thr, vvp_code_t cp)
  * input sampling, default #1step skew). Idempotent; emitted in the
  * prologue of synthesized clocking sample processes, which start
  * executing at time 0 before any clocking event can trigger. Signals
- * whose filter is not a vec4 wire (e.g. real) quietly keep the
- * current-value (alias) behavior — %load/preponed falls back too.
+ * Strength-resolved vec8 wires retain their full driven strengths and reduce
+ * only when loaded. Other filters quietly keep current-value behavior.
  */
 bool of_HIST_ON(vthread_t, vvp_code_t cp)
 {
       vvp_net_t*net = cp->net;
       if (vvp_wire_vec4*sig = dynamic_cast<vvp_wire_vec4*>(net->fil))
 	    sig->enable_sample_hist();
+      else if (vvp_wire_vec8*ssig = dynamic_cast<vvp_wire_vec8*>(net->fil))
+	    ssig->enable_sample_hist();
       else if (vvp_wire_real*rsig = dynamic_cast<vvp_wire_real*>(net->fil))
 	    rsig->enable_sample_hist();
       return true;
@@ -18418,7 +18935,7 @@ bool of_HIST_ON(vthread_t, vvp_code_t cp)
  * Push the signal's Preponed-region value: the value it held when the
  * current time step started if it changed during this step, otherwise
  * the current value. Requires a %hist/on for exact semantics; without
- * one (or on non-vec4 filters) this degrades to the current value.
+ * one (or on unsupported filters) this degrades to the current value.
  */
 bool of_LOAD_PREPONED(vthread_t thr, vvp_code_t cp)
 {
@@ -18429,6 +18946,10 @@ bool of_LOAD_PREPONED(vthread_t thr, vvp_code_t cp)
 
       if (vvp_wire_vec4*sig = dynamic_cast<vvp_wire_vec4*>(net->fil)) {
 	    sig->vec4_preponed_value(sig_value);
+	    return true;
+      }
+      if (vvp_wire_vec8*ssig = dynamic_cast<vvp_wire_vec8*>(net->fil)) {
+	    ssig->vec4_preponed_value(sig_value);
 	    return true;
       }
 
@@ -25667,15 +26188,23 @@ bool of_WAIT_VIF_ANYEDGE_I(vthread_t thr, vvp_code_t cp)
 
 /* %wait/vif/anyedge/multi <count>
  *
- * Pop <count> member indices and virtual-interface objects, then suspend
- * until any selected member changes. Each edge functor keeps a side-table
- * registration so the same thread never occupies several wait_next lists;
- * the first edge removes every sibling registration before scheduling it. */
+ * Pop <count> member/optional-unpacked-word pairs and virtual-interface
+ * objects, then suspend until any selected member changes. Each edge functor
+ * keeps a side-table registration so the same thread never occupies several
+ * wait_next lists; the first edge removes every sibling registration before
+ * scheduling it. */
 bool of_WAIT_VIF_ANYEDGE_MULTI(vthread_t thr, vvp_code_t cp)
 {
       std::set<vvp_fun_anyedge_sa*>edges;
       bool invalid_vif = false;
       for (unsigned idx = 0 ; idx < cp->number ; idx += 1) {
+            vvp_vector4_t word_vec = thr->pop_vec4();
+            unsigned word = 0;
+            for (unsigned bit = 0 ; bit < word_vec.size()
+                 && bit < 8*sizeof(word) ; bit += 1) {
+                  if (word_vec.value(bit) == BIT4_1)
+                        word |= 1U << bit;
+            }
             vvp_vector4_t member_vec = thr->pop_vec4();
             unsigned member = 0;
             for (unsigned bit = 0 ; bit < member_vec.size()
@@ -25691,7 +26220,13 @@ bool of_WAIT_VIF_ANYEDGE_MULTI(vthread_t thr, vvp_code_t cp)
                   invalid_vif = true;
                   continue;
             }
-            edges.insert(vif->get_anyedge_functor(member));
+            if (word == UINT_MAX) {
+                  edges.insert(vif->get_anyedge_functor(member));
+            } else if (vif->has_array_word(member, word)) {
+                  edges.insert(vif->get_anyedge_functor(member, word));
+            } else {
+                  invalid_vif = true;
+            }
       }
 
       if (invalid_vif)
@@ -25756,6 +26291,8 @@ bool of_WAIT_OBJ_MUTATION(vthread_t thr, vvp_code_t)
 bool of_WAIT_OBJ_MUTATION_MULTI(vthread_t thr, vvp_code_t cp)
 {
       bool registered = false;
+      thr->waiting_for_event = 1;
+      thr->wait_next = 0;
       for (unsigned idx = 0 ; idx < cp->number ; idx += 1) {
             vvp_object_t obj;
             thr->pop_object(obj);
@@ -25767,6 +26304,7 @@ bool of_WAIT_OBJ_MUTATION_MULTI(vthread_t thr, vvp_code_t cp)
       }
 
       if (!registered) {
+            thr->waiting_for_event = 0;
             static bool warned = false;
             if (!warned) {
                   fprintf(stderr,
@@ -25777,8 +26315,95 @@ bool of_WAIT_OBJ_MUTATION_MULTI(vthread_t thr, vvp_code_t cp)
             return true;
       }
 
+      return false;
+}
+
+struct mutation_selector_t {
+      unsigned value;
+      bool valid;
+};
+
+static mutation_selector_t pop_mutation_selector_(vthread_t thr)
+{
+      vvp_vector4_t value = thr->pop_vec4();
+      uint64_t result = 0;
+      for (unsigned bit = 0 ; bit < value.size() ; bit += 1) {
+            vvp_bit4_t digit = value.value(bit);
+            if (digit == BIT4_X || digit == BIT4_Z)
+                  return mutation_selector_t{UINT_MAX, false};
+            if (digit == BIT4_1) {
+                  if (bit >= 8*sizeof(unsigned))
+                        return mutation_selector_t{UINT_MAX, false};
+                  result |= UINT64_C(1) << bit;
+            }
+      }
+      if (result > UINT_MAX)
+            return mutation_selector_t{UINT_MAX, false};
+      return mutation_selector_t{static_cast<unsigned>(result), true};
+}
+
+/* Filtered class-property @ event. The target pushes pid, canonical unpacked
+ * word, packed bit (fixed UINT_MAX means the whole word), and dynamic-selector
+ * flags alongside the object on the separate vec4 and object stacks.
+ * Unlike wait(expr)'s wildcard invalidation, only an actual change to that
+ * selected value may resume the one-shot event control. */
+bool of_WAIT_OBJ_MUTATION_FILTERED(vthread_t thr, vvp_code_t)
+{
+      mutation_selector_t flags = pop_mutation_selector_(thr);
+      mutation_selector_t bit = pop_mutation_selector_(thr);
+      mutation_selector_t word = pop_mutation_selector_(thr);
+      mutation_selector_t property = pop_mutation_selector_(thr);
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj)
+            return true;
+
+      bool active = flags.valid && property.valid
+                 && (!(flags.value & 1U)
+                     || (word.valid && word.value != UINT_MAX))
+                 && (!(flags.value & 2U)
+                     || (bit.valid && bit.value != UINT_MAX));
+
       thr->waiting_for_event = 1;
       thr->wait_next = 0;
+      /* Invalid/X dynamic selectors still retain the receiver and remain on a
+         cancellable resource wait. They are deliberately inactive, so an
+         unrelated property mutation cannot turn an invalid select into a
+         wildcard wakeup. */
+      cobj->add_mutation_waiter(thr, property.value, word.value, bit.value,
+                                active);
+      return false;
+}
+
+bool of_WAIT_OBJ_MUTATION_FILTERED_MULTI(vthread_t thr, vvp_code_t cp)
+{
+      bool registered = false;
+      thr->waiting_for_event = 1;
+      thr->wait_next = 0;
+      for (unsigned idx = 0 ; idx < cp->number ; idx += 1) {
+            mutation_selector_t flags = pop_mutation_selector_(thr);
+            mutation_selector_t bit = pop_mutation_selector_(thr);
+            mutation_selector_t word = pop_mutation_selector_(thr);
+            mutation_selector_t property = pop_mutation_selector_(thr);
+            vvp_object_t obj;
+            thr->pop_object(obj);
+            vvp_cobject*cobj = obj.peek<vvp_cobject>();
+            if (!cobj)
+                  continue;
+            bool active = flags.valid && property.valid
+                       && (!(flags.value & 1U)
+                           || (word.valid && word.value != UINT_MAX))
+                       && (!(flags.value & 2U)
+                           || (bit.valid && bit.value != UINT_MAX));
+            cobj->add_mutation_waiter(thr, property.value, word.value,
+                                      bit.value, active);
+            registered = true;
+      }
+      if (!registered) {
+            thr->waiting_for_event = 0;
+            return true;
+      }
       return false;
 }
 

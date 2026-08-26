@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_class_property_compound_event_value_change.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_class_property_compound_event_value_change" ],
+    "gold"          : "sv_class_property_compound_event_value_change"
+}

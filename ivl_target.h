@@ -834,6 +834,11 @@ extern unsigned    ivl_event_array_count(ivl_event_t net);
 
 extern unsigned    ivl_event_nany(ivl_event_t net);
 extern ivl_nexus_t ivl_event_any(ivl_event_t net, unsigned idx);
+/* True when an ANYEDGE input represents the value of an object handle
+   itself. Such an input triggers only when the handle identity changes, not
+   when the same object is re-delivered to notify property sensitivities. */
+extern int         ivl_event_any_is_obj_handle_change(ivl_event_t net,
+                                                       unsigned idx);
 
 extern unsigned    ivl_event_nedg(ivl_event_t net);
 extern ivl_nexus_t ivl_event_edg(ivl_event_t net, unsigned idx);
@@ -862,6 +867,12 @@ extern unsigned    ivl_event_obj_mutation_count(ivl_event_t net);
 extern unsigned    ivl_event_obj_mutation_N(ivl_event_t net, unsigned idx);
 extern unsigned    ivl_event_obj_mutation_pre_N(ivl_event_t net, unsigned idx);
 extern unsigned    ivl_event_obj_mutation_root_pin(ivl_event_t net, unsigned idx);
+extern unsigned    ivl_event_obj_mutation_property_N(ivl_event_t net, unsigned idx);
+extern unsigned    ivl_event_obj_mutation_property_word(ivl_event_t net, unsigned idx);
+extern ivl_expr_t  ivl_event_obj_mutation_property_word_expr(ivl_event_t net, unsigned idx);
+extern unsigned    ivl_event_obj_mutation_property_bit(ivl_event_t net, unsigned idx);
+extern ivl_expr_t  ivl_event_obj_mutation_property_bit_expr(ivl_event_t net, unsigned idx);
+extern ivl_expr_t  ivl_event_obj_mutation_owner_expr(ivl_event_t net, unsigned idx);
 
 extern const char*ivl_event_file(ivl_event_t net);
 extern unsigned ivl_event_lineno(ivl_event_t net);
@@ -2471,6 +2482,8 @@ extern ivl_expr_t      ivl_stmt_cond_expr(ivl_statement_t net);
 extern ivl_statement_t ivl_stmt_cond_false(ivl_statement_t net);
   /* IVL_ST_CONDIT */
 extern ivl_statement_t ivl_stmt_cond_true(ivl_statement_t net);
+  /* True when IVL_ST_CONDIT is the lowering of an immediate assertion. */
+extern unsigned ivl_stmt_is_immediate_assertion(ivl_statement_t net);
   /* IVL_ST_ASSIGN IVL_ST_ASSIGN_NB IVL_ST_DELAYX */
 extern ivl_expr_t ivl_stmt_delay_expr(ivl_statement_t net);
   /* IVL_ST_DELAY */

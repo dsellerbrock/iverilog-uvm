@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_class_property_wait_method_receiver.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_class_property_wait_method_receiver" ],
+    "gold"          : "sv_class_property_wait_method_receiver"
+}

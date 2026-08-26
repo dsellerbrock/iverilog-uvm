@@ -298,6 +298,12 @@ struct ivl_obj_mutation_path_s {
       unsigned obj_N;
       unsigned obj_pre_N;
       unsigned root_pin;
+      unsigned property_N;
+      unsigned property_word;
+      ivl_expr_t property_word_expr;
+      unsigned property_bit;
+      ivl_expr_t property_bit_expr;
+      ivl_expr_t owner_expr;
 };
 
 struct ivl_event_s {
@@ -307,6 +313,7 @@ struct ivl_event_s {
       unsigned lineno;
       unsigned nany, nneg, npos, nedg;
       ivl_nexus_t*pins;
+      std::vector<bool> any_is_obj_handle_change;
       bool pins_finalized;
       // VIF edge support: @(posedge/negedge/edge vif.signal)
       bool is_vif_posedge;
@@ -996,6 +1003,8 @@ struct ivl_statement_s {
 		  ivl_expr_t cond_;
 		    /* This is two statements, the true and false. */
 		  struct ivl_statement_s*stmt_;
+		    /* This conditional implements an immediate assertion. */
+		  bool immediate_assertion;
 	    } condit_;
 
 	    struct { /* IVL_ST_CONTRIB */

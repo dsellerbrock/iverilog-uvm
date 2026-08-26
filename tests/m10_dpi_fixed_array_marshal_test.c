@@ -115,11 +115,10 @@ int c_dyn_plain(const svOpenArrayHandle h)
       return bad;
 }
 
-void c_fixed_fill(const svOpenArrayHandle h)
+/* A fixed unpacked-array FORMAL is a direct C array, unlike the open-array
+ * formals above. The C indices are the canonical element order of a[3:10]. */
+void c_fixed_fill(unsigned a[8])
 {
       int i;
-      for (i = svLow(h, 1); i <= svHigh(h, 1); i++) {
-            unsigned*p = (unsigned*)svGetArrElemPtr1(h, i);
-            if (p) *p = (unsigned)(i * 11);
-      }
+      for (i = 0; i < 8; i++) a[i] = (unsigned)((i + 3) * 11);
 }

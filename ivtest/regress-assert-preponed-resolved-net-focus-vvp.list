@@ -1,0 +1,2 @@
+# Strength-aware resolved-net Preponed sampling (IEEE 1800-2017 16.5.1)
+sv_assert_preponed_resolved_net_strength vvp_tests/sv_assert_preponed_resolved_net_strength.json

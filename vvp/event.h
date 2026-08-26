@@ -134,6 +134,21 @@ struct waitable_hooks_s {
       void run_waiting_threads_(vthread_t&threads);
 };
 
+/* Remove THR from every VIF multi-event side-table registration. Ordinary
+ * one-list event waits use vthread_add_event_wait()'s intrusive backlink. */
+extern bool vvp_cancel_multi_waiting_thread(vthread_t thread);
+
+/* Delimit one statically proven side-effect-free always_comb evaluation.
+ * Signal storage, VPI callbacks, and non-combinational event observers keep
+ * their ordinary behavior; only redundant wakes of other proven-pure
+ * combinational processes are coalesced. */
+extern void vvp_pure_comb_evaluation_begin(vthread_t source);
+extern void vvp_pure_comb_evaluation_end(vthread_t source);
+extern void vvp_pure_comb_evaluation_abort(vthread_t source);
+extern void vvp_pure_comb_evaluation_finish(void);
+extern void vvp_pure_comb_evaluation_discard(void);
+extern bool vvp_pure_comb_evaluation_active(vthread_t source);
+
 /*
  * This is the base object for storing state information for each instance
  * of an automatically allocated event. In the general case, all that is
@@ -190,6 +205,7 @@ class vvp_fun_edge_sa : public vvp_fun_edge {
 			unsigned base, unsigned vwid, vvp_context_t context) override;
 
     private:
+      friend bool vvp_cancel_multi_waiting_thread(vthread_t thread);
       void run_multi_waiting_threads_();
       vthread_t threads_;
       std::set<vthread_t>multi_threads_;
@@ -243,11 +259,12 @@ class anyedge_value;
 class vvp_fun_anyedge : public vvp_net_fun_t, public waitable_hooks_s {
 
     public:
-      explicit vvp_fun_anyedge();
+      explicit vvp_fun_anyedge(bool object_handle_change = false);
       virtual ~vvp_fun_anyedge() override;
 
     protected:
       anyedge_value*last_value_[4];
+      bool object_handle_change_;
 };
 
 /*
@@ -256,7 +273,7 @@ class vvp_fun_anyedge : public vvp_net_fun_t, public waitable_hooks_s {
 class vvp_fun_anyedge_sa : public vvp_fun_anyedge {
 
     public:
-      explicit vvp_fun_anyedge_sa();
+      explicit vvp_fun_anyedge_sa(bool object_handle_change = false);
       virtual ~vvp_fun_anyedge_sa() override;
 
       vthread_t add_waiting_thread(vthread_t thread) override;
@@ -276,6 +293,7 @@ class vvp_fun_anyedge_sa : public vvp_fun_anyedge {
 		       vvp_context_t context) override;
 
     private:
+      friend bool vvp_cancel_multi_waiting_thread(vthread_t thread);
       void run_multi_waiting_threads_();
       vthread_t threads_;
       std::set<vthread_t>multi_threads_;
@@ -287,7 +305,7 @@ class vvp_fun_anyedge_sa : public vvp_fun_anyedge {
 class vvp_fun_anyedge_aa : public vvp_fun_anyedge, public automatic_hooks_s {
 
     public:
-      explicit vvp_fun_anyedge_aa();
+      explicit vvp_fun_anyedge_aa(bool object_handle_change = false);
       virtual ~vvp_fun_anyedge_aa() override;
 
       void alloc_instance(vvp_context_t context) override;
