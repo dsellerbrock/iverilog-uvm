@@ -193,3 +193,49 @@ registered as a 2017/2023 pair, and the four negative tests were confirmed to
 produce byte-identical diagnostics under both editions before their gold files
 were recorded. See the 2026-08-27 section of
 `matrices/ieee1800_2017_clause_matrix.md` for the measured boundaries.
+
+## 2026-08-27 clause 23.11 — no 2017/2023 delta
+
+IEEE 1800-2023 retains the 2017 Syntax 23-9 bind target-instance shape: a
+hierarchical identifier with constant bit selections. The implementation is
+therefore shared across editions, and every new regression is registered as a
+paired `-g2017`/`-g2023` case.
+
+The paired evidence covers structured absolute, explicit `$root`, and
+module/generate-relative target paths; selected one-dimensional loop-generate
+and module-instance-array elements; declaration-scoped target-instance lists;
+and per-owner conditional alternatives whose active occurrences have different
+types or scalar/array shapes. A final instance array requires an element
+select. Genvar and parameter expressions are evaluated per elaborated owner,
+and deferred activation reaches a source-order-independent fixed point without
+activating inactive or excluded owners. The same bound-instance name is legal
+on disjoint targets and rejected on overlapping targets or existing
+declarations. Target-kind regressions cover module/interface targets, legal
+checker instantiation, and illegal checker/program/module/primitive contexts.
+IEEE 23.11 restricts an interface target to an interface or checker bound
+instantiation; the internal M13 fixture was corrected from module to interface
+to conform to that rule, not to retain a compiler compatibility extension.
+Library-only targets and paths are re-resolved after late `-y` loading, and a
+library source may append a compilation-unit bind to the same closure. A
+late-loaded UDP bound type retains the Syntax 23-9 error. Inactive/excluded
+owners do not load or diagnose their library dependency. Automatic root
+discovery accounts for a library-supplied compilation-unit bind found during
+initial bind processing; it is not retroactively recomputed when a live
+contained bind discovers one after roots were selected, so that exact-root case
+uses explicit `-s`. The direct nested conditional-generate/generate-for path is
+covered independently of bind. Dynamic, X/Z, range, path-shape, no-match,
+duplicate, and bind-under-bind failures are loud and paired between editions.
+The prior mainline rejects the selected positive paths in both editions.
+
+The final native-ARM64 focused legacy and JSON/VVP harnesses each pass 110/110.
+The full legacy manifest passes 2063/2063, the full JSON/VVP manifest passes
+1141/1141, negatives pass 136/136, VPI passes 103/103, and the real-DPI UVM
+umbrella passes 354/354 with zero failures/skips.
+The parser conflict state is unchanged at 535 shift/reduce and 1119
+reduce/reduce.
+
+This is a shared-rule checkpoint, not complete clause-23 or 2023 support.
+Multidimensional module-instance arrays remain outside the existing
+one-dimensional compiler model; an exhaustive clause-23 combination audit is
+still required for a complete claim. See the dated clause-23.11 section in
+`matrices/ieee1800_2017_clause_matrix.md` and the associated session log.

@@ -771,21 +771,63 @@ items are done. The current local canonical UVM checkpoint is 354/354. Use
 
 **Status: SUBSET COMPLETE**
 
-Includes substantial support for module/type bind, let, specify paths, common timing checks, rare net/strength constructs, and preprocessing corner cases.
+Includes substantial support for module/type bind plus a bounded structured,
+owner-scoped instance-target subset, let, specify paths, common timing checks,
+rare net/strength constructs, and preprocessing corner cases.
 
 ## M13B — Remaining long-tail support
 
 **Status: PARTIAL**
 
-- [ ] Implement bind to a specific instance path.
-- [ ] Implement bind target-instance lists.
+- [x] Implement structured absolute, explicit `$root`, and
+      module/generate-relative bind paths, including constant-selected
+      one-dimensional generate and module-instance-array targets. A final
+      instance array requires selection.
+- [x] Resolve same-named conditional alternatives per active owner even when
+      their concrete target types or scalar/array shapes differ.
+- [x] Activate a contained directive only for elaborated module/generate
+      occurrences, evaluate genvar/parameter-dependent selects per owner, and
+      reach a source-order-independent fixed point for deferred owners and
+      targets.
+- [x] Implement declaration-scoped bind target-instance lists, including
+      selected relative entries and explicit-root entries.
+- [x] Enforce the target namespace: same bound-instance names are legal on
+      disjoint targets, while overlapping applications and existing-name
+      collisions are errors; bind-under-bind is rejected in direct and
+      deferred source orders.
+- [x] Enforce module/interface target legality, including legal checker
+      instantiation into an interface and loud checker/program/illegal
+      module-or-primitive cases. IEEE 23.11 permits only interface/checker
+      instantiations into an interface target; the internal M13 fixture was
+      corrected from module to interface, which is a fixture correction rather
+      than a compiler compatibility regression.
+- [x] Re-resolve pending binds when `-y` loads a target definition, a
+      definition traversed by the target path, or a source that contributes a
+      new compilation-unit bind. A live contained owner joins that library bind
+      to the same activation closure, while inactive/excluded owners do not
+      load or diagnose their dependency. A UDP bound type loaded only from
+      `-y` retains the Syntax 23-9 rejection.
+- [x] Document the automatic-root boundary: roots account for a
+      library-supplied compilation-unit bind found during initial bind
+      processing, but are not retroactively recomputed when a live contained
+      bind discovers it after root selection; use explicit `-s` for that case.
+- [x] Pin the direct nested conditional-generate/generate-for collector with
+      paired bind cases plus a plain non-bind smoke.
+- [x] Pass the paired bind-focused legacy and JSON/VVP gates, 110/110 each,
+      with the parser conflict state unchanged at 535 shift/reduce and 1119
+      reduce/reduce.
+- [x] Pass full legacy 2063/2063, full JSON/VVP 1141/1141, negatives 136/136,
+      VPI 103/103, and the real-DPI UVM umbrella 354/354 with zero
+      failures/skips for the final branch state.
+- [ ] Extend the existing one-dimensional model to multidimensional
+      module-instance arrays; complete clause-23 closure remains an M14B audit.
 - [ ] Implement actual `config` semantics and library mapping.
 - [ ] Implement `trireg` charge semantics.
-- [ ] Implement `$nochange`.
-- [ ] Implement `$timeskew`.
-- [ ] Implement `$fullskew`.
-- [ ] Implement timing-check edge descriptor lists.
-- [ ] Implement timestamp/timecheck conditions.
+- [x] Implement `$nochange`.
+- [x] Implement `$timeskew`.
+- [x] Implement `$fullskew`.
+- [x] Implement timing-check edge descriptor lists.
+- [x] Implement timestamp/timecheck conditions.
 - [ ] Implement `pulsestyle`.
 - [ ] Implement `showcancelled`.
 

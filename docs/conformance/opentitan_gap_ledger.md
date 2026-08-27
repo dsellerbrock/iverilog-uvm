@@ -1657,18 +1657,25 @@ Two elaboration-blocking gaps exposed by the chip-level SVA graphs:
    procedural conflicts still error. Value-checked test:
    `sv_gate_output_variable`.
 
-## G58 — `bind` to a bare target instance unsupported — **fixed** [general]
+## G58 — bare bind-target lookup — **standards-corrected; OpenTitan source/config debt reopened** [general/OpenTitan]
 
-`bind i_nopass1 prim_fifo_sync_assert_fpv ...` (IEEE 23.11
-bind_target_instance) was rejected with "bind target
-module/interface 'i_nopass1' is not defined". When the target names no
-module, `pform_apply_binds` now searches the parsed instantiations for
-that instance name, derives the target module from the unique match,
-and binds through the existing plain-name instance filter (ambiguous
-names across different module types are an explicit error). OpenTitan
-`prim_fifo_sync_fpv` goes from FAIL to PASS with zero errors and zero
-debt. Value-checked test: `sv_bind_target_instance` (asserts the
-checker lands only in the named instance).
+The earlier closure searched every parsed instantiation for a matching terminal
+name and claimed an OpenTitan `prim_fifo_sync_fpv` PASS. The owner-scope audit
+showed that this was not IEEE hierarchical lookup: it could activate a
+directive whose containing module was not elaborated and could attach to an
+unrelated same-named instance elsewhere in the design. That global fallback is
+removed. A bare target now resolves lexically from its containing generate or
+module, with a local instance taking precedence over a same-named
+module/interface type; `sv_bind_target_instance` value-checks that standard
+local case.
+
+OpenTitan's `prim_fifo_sync_bind_fpv.sv` declares `bind i_nopass1 ...` in a
+wrapper module while `i_nopass1` is instantiated in sibling
+`prim_fifo_sync_tb`. Its former PASS depended on the removed global search, so
+this ledger no longer treats it as compiler closure. It remains source/fileset
+or top-structure debt until the corpus supplies a standard hierarchical target
+or commercial-simulator differential evidence establishes another intended
+invocation model.
 
 ## G59 — SVA census closure: build-mode defines and 24 upstream-invalid records
 
@@ -3017,6 +3024,79 @@ fixed-prefix maps with class-handle/container/struct values,
 associative-array-typed parameters,
 randomization, `ref`, VPI, synthesis, and complete clauses 7/10 remain open or
 loud.
+
+---
+
+## G87 — selected and relative bind target-instance paths were rejected — **fixed/verified bounded subset** [general/OpenTitan]
+
+*23.11 / Syntax 23-9 [general/OpenTitan] — constant-selected hierarchical and
+module-relative bind targets.*
+
+Earlgrey's
+`hw/top_earlgrey/dv/env/top_earlgrey_error_injection_ifs_bind.sv:14` targets
+`...gen_flash_cores[1].u_core`; the parser previously rejected the selected
+generate path. The generated SRAM-interface binds in Earlgrey `tb/tb.sv:404`
+and `:412` and Darjeeling `tb/tb.sv:259` and `:267` are relative to their
+containing module and previously failed because Icarus required a root module
+as the first path component.
+
+Bind target paths now retain structured components and constant selects,
+resolve absolute, explicit `$root`, or relative to every elaborated occurrence
+of the containing module/generate, and match exact one-dimensional
+generate/module-array indices. Same-named conditional alternatives resolve by
+each active owner's concrete type and scalar/array shape. Directives in
+inactive, excluded, or uninstantiated owners neither attach nor report false
+misses; genvar and parameter-dependent selects are evaluated per owner.
+Deferred owner/target activation reaches a source-order-independent fixed
+point, including target definitions and traversed container definitions loaded
+through `-y`. Library sources may also append compilation-unit bind directives
+to the closure. Inactive or excluded owners do not load or diagnose their
+library dependencies. Automatic roots account for a library bind found during
+the initial compilation-unit closure; they are not rebuilt when a live
+contained bind discovers one after roots were selected, so that exact-root case
+uses explicit `-s`.
+
+Permanent paired 2017/2023 reducers also pin target-instance lists, disjoint
+versus overlapping introduced-name collisions, existing-definition and
+same-base-array collisions, bind-under-bind in direct/deferred orders, and the
+module/interface/checker/program/primitive target-and-origin legality matrix.
+A final instance array requires selection. Dynamic/X/Z/range/shape/no-match
+forms fail loudly, and the direct nested conditional-generate/generate-for
+collector is exercised by both bind shapes plus a plain non-bind smoke. The
+legality matrix includes a UDP loaded only through `-y`. IEEE 23.11 permits only
+an interface or checker instantiation into an interface target; the internal
+M13 fixture was corrected module→interface to follow the standard, not to
+retain a compiler compatibility extension. The focused legacy and JSON/VVP
+lists pass 110/110 each; full legacy passes 2063/2063, full JSON/VVP passes
+1141/1141, negatives pass 136/136, VPI passes 103/103, and the real-DPI UVM
+umbrella passes 354/354 with zero failures/skips. The parser remains at 535
+shift/reduce and 1119 reduce/reduce conflicts.
+
+The controlled full-file-list replays below predate the owner/generate
+activation hardening and removal of the global terminal-name fallback. They
+show historical blocker movement but have not been revalidated against the
+final semantics. Darjeeling
+(`lowrisc:dv:top_darjeeling_chip_sim:0.1`) exits 139 after 18.77 seconds with
+both former relative-bind diagnostics absent. Earlgrey
+(`lowrisc:dv:top_earlgrey_chip_sim:0.1`) exits 139 after 18.68 seconds with the
+selected and relative bind diagnostics absent. Neither produces a `.vvp`.
+Their first new shared frontier is typed string-concatenation elaboration:
+`chip_sw_sram_ctrl_scrambled_access_vseq.sv:53` and
+`chip_sw_flash_ctrl_lc_rw_en_vseq.sv:12` reach the `ivl_type_t` default error
+in `PEConcat::elaborate_expr`. Many later independent diagnostics precede the
+exit 139; no causal link between the first typed-concatenation diagnostic and
+that later termination is established. This is not an OpenTitan compile or
+runtime-pass claim. Exact commands, baseline comparison, filtered logs, and
+remaining bind boundaries are in
+[`session_logs/2026-08-27_ieee1800_bind_target_instances.md`](session_logs/2026-08-27_ieee1800_bind_target_instances.md).
+
+Multidimensional module-instance arrays remain outside the compiler's existing
+one-dimensional representation. Automatic roots are not retroactively
+recomputed for a compilation-unit bind discovered only after a live contained
+bind loads a library; use explicit `-s` for that exact-root case. Complete
+clause-23 coverage still needs the exhaustive conformance audit. Absence of a
+bind diagnostic in a compile that later terminates is not standalone semantic
+proof.
 
 ---
 

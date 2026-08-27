@@ -442,11 +442,52 @@ bind dut_module checker_module #(.GAIN(2)) chk (.clk(clk), .v(internal_sig));
 ```
 
 Bind by module/type name works, including parameter overrides, connections
-to target-internal signals, bind into interfaces, and bound SVA checkers.
-Bind to a *specific instance path* (`bind top.u1.u2 chk c (...)`) and
-comma-separated instance lists also work; a nonexistent instance path is a
-loud elaboration error. Examples: [tests/m13_bind_test.sv](tests/m13_bind_test.sv),
-[tests/m13b_bind_instance_test.sv](tests/m13b_bind_instance_test.sv).
+to target-internal signals, legal interface/checker binding into interfaces,
+and bound SVA checkers.
+The evidenced target-instance subset preserves structured absolute,
+`$root`-qualified, and module/generate-relative dotted paths; constant-selected
+one-dimensional loop-generate and module-instance-array elements; and
+declaration-scoped target-instance lists. A final module-instance array also
+requires an element select. Same-named conditional alternatives may have
+different target types and scalar/array shapes: resolution uses only the active
+alternative for each elaborated owner occurrence.
+
+A module- or generate-contained directive activates only for elaborated
+occurrences of its declaration scope. Nearest lexical lookup wins,
+genvar/parameter-dependent selects are evaluated per owner, and deferred
+activation reaches a source-order-independent fixed point. Pending targets are
+revisited when late `-y` loading discovers their definitions, and
+compilation-unit bind directives contributed by those library sources join the
+same closure. Inactive or excluded owners do not load or diagnose their library
+dependencies. Automatic roots account for a library-supplied compilation-unit
+bind found during the initial bind closure; if a live contained bind discovers
+one only after automatic roots have been selected, the root set is not rebuilt
+retroactively, so use explicit `-s` for exact root selection. Bound-instance
+names may repeat on disjoint targets, while overlap with another bind or an
+existing declaration is diagnosed. Targets are restricted to modules and
+interfaces; checker targets and program targets
+are rejected, checker instantiation into an interface is supported, and
+module instantiation into an interface and primitive bound instantiations are
+rejected; program/checker declaration origins are rejected as well. Dynamic,
+X/Z, out-of-range, scalar-selected, and unselected array paths fail loudly.
+Binding beneath an instance introduced by another bind is also rejected in
+either source order. A direct nested conditional-generate to generate-for path
+is covered together with a non-bind smoke test. There is no designwide
+terminal-name fallback. IEEE 1800-2017/2023 23.11 permits only an interface or
+checker instantiation when the target is an interface; the internal M13 fixture
+was corrected from a module to an interface instantiation to obey that rule.
+That fixture correction is not a compiler compatibility regression.
+
+Multidimensional module-instance arrays remain outside the compiler's existing
+one-dimensional representation, and this bounded subset is not complete
+clause-23 closure. The paired bind-focused legacy and JSON/VVP gates pass
+110/110 each; the parser conflict state remains 535 shift/reduce and 1119
+reduce/reduce. Final branch-wide gates also pass full legacy 2063/2063, full
+JSON/VVP 1141/1141, negatives 136/136, VPI 103/103, and real-DPI UVM 354/354
+with zero failures or skips. Examples:
+[tests/m13_bind_test.sv](tests/m13_bind_test.sv),
+[tests/m13b_bind_instance_test.sv](tests/m13b_bind_instance_test.sv), and the
+paired `sv_bind_*` regressions in `ivtest/regress-sv.list`.
 
 ### let — supported
 
@@ -494,7 +535,7 @@ for recorded evidence and known corners, not a completeness certificate.
 | Functional coverage (cl. 19) | Partial | Substantial value/transition/cross/options/query subset. Paired legacy and JSON/VVP focus gates pass 20/20 for typed construction-time ranges, open/fixed array-bin identity and carving, per-instance dynamic cross topology, automatic and evidenced named-`binsof` routing, precedence/locality, and the constant 2023 auto-retention option. The constant option obeys the covergroup-default/cross-override scope and 2017 edition gate; coverpoint and `type_option` placements are rejected. Constructor/per-instance retention expressions, transition-term illegal crosses, remaining dynamic `with`/`matches`/set/`CrossQueueType` and broader compound selections, source denominator carving, type/report/VPI/naming, real/tolerance, and products beyond 65,536 remain open. |
 | DPI-C (cl. 35) | Substantial | Import: exact scalar/atom/shortreal ABI and open arrays incl. multi-dim. Export: functions plus task execution with integer/scalar bit-logic/packed-vector/shortreal/real/chandle/string/void formals, scalar output/inout, `svScope` multi-instance + context-relative selection, and time-consuming tasks through POSIX `<ucontext.h>` or Win32 Fibers; generated task stubs return the H.8.2 `int` disable status. Checked imported-task integer acknowledgments, `svIsDisabledState`, imported-function `svAckDisabledState`, C cleanup resume, and fatal enforcement of 35.9(b)–(d) are implemented; old `%dpi/call/task` void images retain their normal-call compatibility path. Identical cross-scope/multi-instance exports remain legal, while duplicate local linkage names and incompatible cross-scope C signatures are rejected. H.8.9 keeps packed-vector results illegal. Loud legal gaps: imported shortreal arrays and fixed-size unpacked export formals. Exported open arrays and class-handle formals are diagnosed as IEEE-illegal. VCS/Questa/Xcelium interoperability remains the ABI target. |
 | VPI SV object model (cl. 36) | Substantial | Classes, live direct/property containers and element callbacks, covergroups, assertions; documented whole-container-write and assertion-detail corners remain |
-| `bind` (cl. 23.11) | Substantial | Module/type, instance-path, and instance-list targets |
+| `bind` (cl. 23.11) | Partial | Structured absolute/`$root`/relative targets, conditional per-owner resolution, fixed-point activation, target lists, collision and target-kind legality, plus late library definitions/directives and the documented automatic-root policy in the bounded one-dimensional subset described above |
 | `let` (cl. 11.13) | Supported | Expression-macro semantics |
 | Specify / timing checks (cl. 30–31) | Substantial | Recorded timing-check family under `-gspecify`, including `$timeskew`, `$fullskew`, and `$nochange`; exhaustive forms and interactions remain open |
 
@@ -512,6 +553,15 @@ The current local canonical unmodified Accellera UVM checkpoint passes
   signals. This was a compile/elaboration/code-generation matrix and did not
   run the 61 simulations. Native ARM `regtool.py` also regenerated UART's two
   register RTL products byte-for-byte identically to the frozen checkout.
+  An earlier focused replay, made before the owner/generate activation
+  hardening and removal of the global terminal-name fallback, removed the
+  Darjeeling and Earlgrey chip targets' exact former selected/relative bind
+  diagnostics. Its first new diagnostics were typed string-concatenation
+  elaboration errors; after many later independent diagnostics, both
+  invocations exited 139 and produced no `.vvp`. This historical result has
+  not been revalidated against the final bind semantics; it is frontier
+  movement, not a compile or runtime pass. See the
+  [bind-target session log](docs/conformance/session_logs/2026-08-27_ieee1800_bind_target_instances.md).
 - The post-audit frozen Caliptra static census completes all 105 jobs and 420
   compiler invocations: Icarus is **53/105** in each assertions,
   no-assertions, and synthesis lane versus Slang **54/105**. Its classifications
