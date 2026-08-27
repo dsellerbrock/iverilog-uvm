@@ -728,7 +728,9 @@ static void delete_parmvalue_t(struct parmvalue_t*parms)
 static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
 					      const YYLTYPE&member_loc,
 					      const char*class_name,
-					      const char*member_name)
+					      const char*member_name,
+					      PPackage*package_scope = nullptr,
+					      parmvalue_t*class_type_args = nullptr)
 {
       perm_string class_key = lex_strings.make(class_name);
       perm_string member_key = lex_strings.make(member_name);
@@ -789,7 +791,14 @@ static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
 	      return (typedef_t*)0;
       };
 
-      PClass*class_scope = find_visible_class_scope(pform_peek_scope(), class_key);
+      PClass*class_scope = nullptr;
+      if (package_scope) {
+	    auto class_it = package_scope->classes.find(class_key);
+	    if (class_it != package_scope->classes.end())
+		  class_scope = class_it->second;
+      } else {
+	    class_scope = find_visible_class_scope(pform_peek_scope(), class_key);
+      }
       const typeref_t*class_alias_ref = 0;
 
       /* The left side of `::` may itself be a typedef of a class
@@ -802,8 +811,9 @@ static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
        * alias to its underlying PClass instead of requiring the spelling on
        * the left to be the declaration's original class name. */
       if (class_scope == 0) {
-	    typedef_t*class_alias = pform_test_type_identifier(class_loc,
-							 class_name);
+	    typedef_t*class_alias = package_scope
+		  ? pform_test_type_identifier(package_scope, class_name)
+		  : pform_test_type_identifier(class_loc, class_name);
 	    class_alias_ref = class_alias
 		  ? dynamic_cast<const typeref_t*>(class_alias->get_data_type())
 		  : 0;
@@ -830,67 +840,35 @@ static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
 
       if (class_scope == 0) {
 	    yyerror(class_loc, "error: %s doesn't name a visible class.", class_name);
+	    delete_parmvalue_t(class_type_args);
 	    return 0;
       }
 
       if (type == 0) {
 	    yyerror(member_loc, "error: %s doesn't name a type.", member_name);
+	    delete_parmvalue_t(class_type_args);
 	    return 0;
       }
 
-      /* If the selected member is a type parameter, a typedef of a class
-       * SPECIALIZATION selects the actual type, not the generic parameter.
-       * Type actuals are represented as PETypename nodes in the alias's
-       * parameter list. Clone the common named-type forms so each variable
-       * declaration retains independent ownership of its data_type_t. */
-      if (class_alias_ref
-	  && dynamic_cast<const type_parameter_t*>(type->get_data_type())) {
-	    const parmvalue_t*overrides = class_alias_ref->parameter_values();
-	    PExpr*actual_expr = 0;
-	    if (overrides && overrides->by_name) {
-		  for (const named_pexpr_t&item : *overrides->by_name) {
-			if (item.name == member_key) {
-			      actual_expr = item.parm;
-			      break;
-			}
-		  }
-	    } else if (overrides && overrides->by_order) {
-		  std::list<perm_string>::const_iterator name_it =
-			class_scope->parameter_order.begin();
-		  std::list<PExpr*>::const_iterator expr_it =
-			overrides->by_order->begin();
-		  while (name_it != class_scope->parameter_order.end()
-			 && expr_it != overrides->by_order->end()) {
-			if (*name_it == member_key) {
-			      actual_expr = *expr_it;
-			      break;
-			}
-			++name_it;
-			++expr_it;
-		  }
-	    }
-
-	    const PETypename*actual_name =
-		  dynamic_cast<const PETypename*>(actual_expr);
-	    const data_type_t*actual_type = actual_name
-		  ? actual_name->get_type() : 0;
-	    if (const typeref_t*actual_ref =
-		  dynamic_cast<const typeref_t*>(actual_type)) {
-		  if (actual_ref->parameter_values() == 0) {
-			data_type_t*tmp = new typeref_t(actual_ref->typedef_ref(),
-						 actual_ref->scope_ref());
-			FILE_NAME(tmp, member_loc);
-			return tmp;
-		  }
-	    } else if (const type_parameter_t*actual_param =
-		       dynamic_cast<const type_parameter_t*>(actual_type)) {
-		  data_type_t*tmp = new type_parameter_t(actual_param->name);
-		  FILE_NAME(tmp, member_loc);
-		  return tmp;
-	    }
+      /* The parameter list belongs to the class qualifier, not the selected
+         member typedef. Keep both AST nodes explicit so C#(byte)::word_t is
+         elaborated by specializing C first, then resolving word_t inside
+         that concrete class scope. */
+      typedef_t*qualifier_type = package_scope
+	    ? pform_test_type_identifier(package_scope, class_name)
+	    : pform_test_type_identifier(class_loc, class_name);
+      if (!qualifier_type) {
+	    yyerror(class_loc, "error: %s doesn't name a class type.",
+		    class_name);
+	    delete_parmvalue_t(class_type_args);
+	    return 0;
       }
 
-      typeref_t*tmp = new typeref_t(type, class_scope);
+      typeref_t*qualifier = new typeref_t(
+	    qualifier_type, package_scope, class_type_args);
+      FILE_NAME(qualifier, class_loc);
+      class_scoped_typeref_t*tmp = new class_scoped_typeref_t(
+	    type, class_scope, qualifier);
       FILE_NAME(tmp, member_loc);
       return tmp;
 }
@@ -1103,6 +1081,456 @@ static void check_for_loop(const struct vlltype&loc, const PExpr*init,
       if (!step)
 	    yyerror(loc, "error: null for-loop step requires "
                          "SystemVerilog 2012 or later.");
+}
+
+/* A declaring for-loop creates an implicit block (IEEE 1800-2017/2023
+   12.7.1). It is unnamed unless the source statement has a label. Passing a
+   null name is important: pform_push_block_scope then gives the internal
+   scope a unique implementation name without publishing it in the parent's
+   user-visible symbol table. */
+static PBlock* pform_push_for_variable_scope(const struct vlltype&loc,
+					      const char*source_label)
+{
+      return pform_push_block_scope(loc, source_label, PBlock::BL_SEQ);
+}
+
+static void pform_make_for_variable_group(
+      const struct vlltype&loc, list<decl_assignment_t*>*assign_list,
+      data_type_t*data_type)
+{
+      pform_set_var_lifetime(IVL_VLT_AUTOMATIC);
+      pform_make_var(loc, assign_list, data_type);
+      pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+}
+
+enum for_initialization_kind_t {
+      FOR_INIT_PENDING,
+      FOR_INIT_DECLARATION,
+      FOR_INIT_ASSIGNMENT,
+      FOR_INIT_SCOPED_ASSIGNMENT,
+      FOR_INIT_EMPTY
+};
+
+struct for_variable_scope_t {
+      struct vlltype loc;
+      PBlock*block;
+      LexicalScope*parent_scope;
+      size_t block_stack_depth;
+      PExpr*lvalue;
+      PExpr*initialization;
+      PExpr*condition;
+      Statement*step;
+      for_initialization_kind_t kind;
+      bool source_named;
+      bool active;
+};
+
+static void pform_unwind_for_variable_scope(for_variable_scope_t*scope)
+{
+      if (!scope || !scope->active)
+	    return;
+
+      bool inside = false;
+      for (LexicalScope*cur = pform_peek_scope(); cur;
+	   cur = cur->parent_scope()) {
+	    if (cur == scope->block) {
+		  inside = true;
+		  break;
+	    }
+      }
+
+      if (inside) {
+	    while (pform_peek_scope() != scope->parent_scope)
+		  pform_pop_scope();
+      }
+
+      while (current_block_stack.size() > scope->block_stack_depth)
+	    current_block_stack.pop();
+      scope->active = false;
+}
+
+static void pform_delete_abandoned_for_block(for_variable_scope_t*scope)
+{
+      if (!scope || !scope->block)
+	    return;
+
+      /* Named blocks are borrowed through local_symbols while their owning
+         statement tree retains the PBlock. A discarded parser guard has no
+         statement-tree owner, so remove exactly its entry before deleting
+         it. Unnamed implicit blocks were never inserted and simply miss. */
+      if (scope->parent_scope) {
+	    perm_string name = scope->block->pscope_name();
+	    auto found = scope->parent_scope->local_symbols.find(name);
+	    if (found != scope->parent_scope->local_symbols.end()
+		&& found->second == scope->block)
+		  scope->parent_scope->local_symbols.erase(found);
+      }
+
+      delete scope->block;
+      scope->block = nullptr;
+}
+
+/* A declaring for-loop must install its implicit scope before parsing the
+   body, so use a typed midrule guard. Bison invokes its destructor while
+   discarding a malformed loop, which prevents that scope from leaking into
+   the following source (and leaves reset_parser_file_state as the fallback
+   for a malformed nested block that is still above this one). */
+static void pform_destroy_for_variable_scope(for_variable_scope_t*scope)
+{
+      if (!scope)
+	    return;
+
+      pform_unwind_for_variable_scope(scope);
+      pform_delete_abandoned_for_block(scope);
+
+      delete scope->lvalue;
+      delete scope->initialization;
+      delete scope->condition;
+      delete scope->step;
+      delete scope;
+}
+
+static for_variable_scope_t* pform_start_for_loop_scope(
+      const struct vlltype&for_loc, const char*source_label)
+{
+      for_variable_scope_t*scope = new for_variable_scope_t;
+      scope->loc = for_loc;
+      scope->parent_scope = pform_peek_scope();
+      scope->block_stack_depth = current_block_stack.size();
+      scope->lvalue = nullptr;
+      scope->initialization = nullptr;
+      scope->condition = nullptr;
+      scope->step = nullptr;
+      scope->kind = FOR_INIT_PENDING;
+      scope->source_named = source_label != nullptr;
+      scope->active = false;
+
+      scope->block = pform_push_for_variable_scope(for_loc, source_label);
+      current_block_stack.push(scope->block);
+      scope->active = true;
+      return scope;
+}
+
+/* A class/package-scoped for-loop initializer can be either a declaration
+   with packed dimensions (`C::nibble_t [1:0] v = ...') or an assignment to an
+   indexed static member (`C#()::values[0] = ...'). Both spell
+   <scope-prefix> `::' <name> `[' ... `]', so the grammar parses the bracket
+   group once, through `dimensions', and only the token after it separates the
+   two. This rebuilds the l-value form from that shared carrier. */
+static PExpr* pform_make_for_scoped_indexed_lvalue(
+      const struct vlltype&loc, const char*scope_name, const char*member_name,
+      std::list<pform_range_t>*dims, parmvalue_t*type_args)
+{
+      pform_name_t hident;
+      hident.push_back(name_component_t(lex_strings.make(scope_name)));
+
+      name_component_t member(lex_strings.make(member_name));
+      if (dims) {
+	    for (pform_range_t&range : *dims) {
+		  index_component_t index;
+		  if (range.second) {
+			index.sel = index_component_t::SEL_PART;
+			index.msb = range.first;
+			index.lsb = range.second;
+		  } else {
+			index.sel = index_component_t::SEL_BIT;
+			index.msb = range.first;
+			index.lsb = nullptr;
+		  }
+		  member.index.push_back(index);
+	    }
+	    delete dims;
+      }
+      hident.push_back(member);
+
+      PEIdent*tmp = pform_new_ident(loc, hident);
+      FILE_NAME(tmp, loc);
+      if (type_args)
+	    tmp->set_leading_type_args(type_args);
+      tmp->set_scoped_type_prefix();
+      return tmp;
+}
+
+static data_type_t* pform_make_for_identifier_type(
+      const struct vlltype&loc, char*name)
+{
+      typedef_t*type = pform_test_type_identifier(loc, name);
+      if (!type) {
+	    /* Preserve the existing declaring-for treatment of a class handle
+	       whose body has not yet been seen. If the name is not a legal
+	       forward class type, the normal typedef machinery diagnoses it. */
+	    pform_forward_typedef(loc, lex_strings.make(name), typedef_t::CLASS);
+	    type = pform_test_type_identifier(loc, name);
+      }
+
+      data_type_t*res = nullptr;
+      if (type) {
+	    res = new typeref_t(type);
+	    FILE_NAME(res, loc);
+      } else {
+	    yyerror(loc, "error: %s doesn't name a type.", name);
+	      /* Keep error recovery structurally valid without silently accepting
+	         the declaration: the hard diagnostic above remains counted. */
+	    res = new vector_type_t(IVL_VT_LOGIC, false, nullptr);
+	    FILE_NAME(res, loc);
+      }
+      delete[] name;
+      return res;
+}
+
+static for_var_decl_t* pform_make_for_variable_declaration(
+      data_type_t*type, char*name, PExpr*init, const struct vlltype&loc)
+{
+      /* This helper is used only for a syntactically typed initializer. A
+         failed scoped-type lookup has already emitted its hard diagnostic,
+         but still needs an owned placeholder here: null is reserved by the
+         list carrier for a same-type continuation such as `int i=0, j=1'. */
+      if (!type) {
+	    type = new vector_type_t(IVL_VT_LOGIC, false, nullptr);
+	    FILE_NAME(type, loc);
+      }
+
+      for_var_decl_t*decl = new for_var_decl_t;
+      decl->type = type;
+      decl->name = name;
+      decl->init = init;
+      decl->loc = loc;
+      return decl;
+}
+
+static void pform_destroy_for_variable_declaration(for_var_decl_t*decl)
+{
+      if (!decl)
+	    return;
+      delete decl->type;
+      delete[] decl->name;
+      delete decl->init;
+      delete decl;
+}
+
+static void pform_destroy_for_variable_declarations(
+      std::vector<for_var_decl_t>*decls)
+{
+      if (!decls)
+	    return;
+
+      for (for_var_decl_t&decl : *decls) {
+	    delete decl.type;
+	    delete[] decl.name;
+	    delete decl.init;
+	    decl.type = nullptr;
+	    decl.name = nullptr;
+	    decl.init = nullptr;
+      }
+      delete decls;
+}
+
+/* Build the shared synthetic scope for a complete SystemVerilog
+   for_variable_declaration list. Initializers stay attached to their
+   declarations: that suppresses unpacked-struct member defaults when the
+   source provides a whole-variable initializer, and it lets the existing
+   block var-init machinery run them in lexical order in each automatic
+   activation frame. */
+static for_variable_scope_t* pform_install_for_variable_declarations(
+      for_variable_scope_t*scope, std::vector<for_var_decl_t>*decls)
+{
+      assert(scope && scope->active && scope->kind == FOR_INIT_PENDING);
+      assert(decls && !decls->empty());
+      assert(decls->front().type);
+
+      /* Retain the first initializer so the deferred control check can still
+         see that a declaring header always initializes. */
+      scope->initialization = decls->front().init;
+      scope->kind = FOR_INIT_DECLARATION;
+
+      /* A loop that declares exactly one control variable keeps the explicit
+         index/initial-value pair that NetForLoop needs to be synthesizable.
+         Synthesis unrolls from `index_' and `init_expr_'; leaving both null
+         costs `for (int i = 0; i < N; i++)' inside always_comb/always_ff its
+         synthesis support. Several declarations have no single index, so they
+         keep declaration initializers and lower like the pre-existing
+         multi-declaration rule. */
+      const bool single_control_variable = (decls->size() == 1);
+      if (single_control_variable) {
+	    pform_name_t index_path;
+	    index_path.push_back(
+		  name_component_t(lex_strings.make(decls->front().name)));
+	    PEIdent*index_ident = pform_new_ident(decls->front().loc,
+						  index_path);
+	    FILE_NAME(index_ident, decls->front().loc);
+	    scope->lvalue = index_ident;
+	      /* Ownership of the initializer moves to the loop header. */
+	    decls->front().init = nullptr;
+      }
+
+      list<decl_assignment_t*>assign_list;
+      data_type_t*group_type = nullptr;
+      struct vlltype group_loc = scope->loc;
+
+      for (for_var_decl_t&decl : *decls) {
+	    if (decl.type) {
+		  if (group_type) {
+			pform_make_for_variable_group(
+			      group_loc, &assign_list, group_type);
+		  }
+		  group_type = decl.type;
+		  group_loc = decl.loc;
+		  decl.type = nullptr;
+            }
+
+	    decl_assignment_t*assignment = new decl_assignment_t;
+	    assignment->name = { lex_strings.make(decl.name),
+				 decl.loc.lexical_pos };
+	      /* Null for the single-variable form, whose initializer is now
+	         the loop header's initial assignment. */
+	    assignment->expr.reset(decl.init);
+	    decl.init = nullptr;
+	    assign_list.push_back(assignment);
+	    delete[] decl.name;
+	    decl.name = nullptr;
+      }
+
+      pform_make_for_variable_group(group_loc, &assign_list, group_type);
+      delete decls;
+
+      return scope;
+}
+
+/* The condition and step are lexed only after this runs, which is the point:
+   `pform_make_for_variable_group' has already entered each declarator into the
+   implicit loop scope, so a declarator whose name shadows a visible typedef is
+   lexed as IDENTIFIER rather than TYPE_IDENTIFIER for the rest of the header.
+   Installing at the closing `)' instead let `for (int shadow = 0; shadow < 3;
+   shadow++)' bind the condition to the type and spin forever. */
+static for_variable_scope_t* pform_attach_for_loop_control(
+      for_variable_scope_t*scope, PExpr*condition, Statement*step)
+{
+      assert(scope && scope->active && scope->kind == FOR_INIT_DECLARATION);
+
+      /* The declaration is a real (nonnull) initialization in every
+         SystemVerilog edition. Preserve the pre-2012 check only for omitted
+         condition/step fields, not for the lowered PFor's null init slot. */
+      check_for_loop(scope->loc, scope->initialization, condition, step);
+
+      /* With a single control variable the initializer is owned here and
+         becomes the loop's initial assignment. Otherwise each initializer is
+         owned by its installed declaration and this field merely borrowed the
+         first one for the check above. */
+      if (!scope->lvalue)
+	    scope->initialization = nullptr;
+      scope->condition = condition;
+      scope->step = step;
+      return scope;
+}
+
+static for_variable_scope_t* pform_prepare_for_nondeclaration(
+      for_variable_scope_t*scope, for_initialization_kind_t kind,
+      PExpr*lvalue, PExpr*initialization, PExpr*condition, Statement*step)
+{
+      assert(scope && scope->active && scope->kind == FOR_INIT_PENDING);
+      assert(kind == FOR_INIT_ASSIGNMENT
+	     || kind == FOR_INIT_SCOPED_ASSIGNMENT
+	     || kind == FOR_INIT_EMPTY);
+
+      check_for_loop(scope->loc, initialization, condition, step);
+      scope->kind = kind;
+      scope->lvalue = lvalue;
+      scope->initialization = initialization;
+      scope->condition = condition;
+      scope->step = step;
+
+      /* An unlabeled non-declaring loop has no implicit scope. The common
+         parser prefix opened a provisional one only so an inline declaration
+         can register anonymous types before its header is parsed. Close and
+         release it before parsing an ordinary loop body. A real statement
+         label remains active and becomes the named statement scope. */
+      if (!scope->source_named) {
+	    assert(pform_peek_scope() == scope->block);
+	    assert(current_block_stack.size() == scope->block_stack_depth + 1);
+	    pform_unwind_for_variable_scope(scope);
+	    pform_delete_abandoned_for_block(scope);
+      }
+
+      return scope;
+}
+
+static Statement* pform_finish_for_nondeclaration(
+      for_variable_scope_t*scope, Statement*body)
+{
+      assert(scope && scope->kind != FOR_INIT_PENDING
+	     && scope->kind != FOR_INIT_DECLARATION);
+
+      Statement*result = nullptr;
+      if (scope->kind == FOR_INIT_SCOPED_ASSIGNMENT) {
+	    PAssign*init = new PAssign(scope->lvalue, scope->initialization);
+	    FILE_NAME(init, scope->loc);
+	    scope->lvalue = nullptr;
+	    scope->initialization = nullptr;
+
+	    PForStatement*loop = new PForStatement(
+		  nullptr, nullptr, scope->condition, scope->step, body);
+	    FILE_NAME(loop, scope->loc);
+	    scope->condition = nullptr;
+	    scope->step = nullptr;
+
+	    vector<Statement*>items;
+	    items.push_back(init);
+	    items.push_back(loop);
+	    PBlock*sequence = new PBlock(PBlock::BL_SEQ);
+	    FILE_NAME(sequence, scope->loc);
+	    sequence->set_statement(items);
+	    result = sequence;
+      } else {
+	    result = new PForStatement(
+		  scope->lvalue, scope->initialization,
+		  scope->condition, scope->step, body);
+	    FILE_NAME(result, scope->loc);
+	    scope->lvalue = nullptr;
+	    scope->initialization = nullptr;
+	    scope->condition = nullptr;
+	    scope->step = nullptr;
+      }
+
+      if (scope->active) {
+	    assert(scope->source_named);
+	    assert(pform_peek_scope() == scope->block);
+	    assert(current_block_stack.size() == scope->block_stack_depth + 1);
+	    pform_unwind_for_variable_scope(scope);
+	    PBlock*named = scope->block;
+	    scope->block = nullptr;
+	    vector<Statement*>items(1, result);
+	    named->set_statement(items);
+	    result = named;
+      }
+
+      pform_destroy_for_variable_scope(scope);
+      return result;
+}
+
+static PBlock* pform_finish_for_variable_declarations(
+      for_variable_scope_t*scope, Statement*body)
+{
+      assert(scope && scope->active);
+      assert(pform_peek_scope() == scope->block);
+      assert(current_block_stack.size() == scope->block_stack_depth + 1);
+      assert(current_block_stack.top() == scope->block);
+
+      PForStatement*tmp_for = new PForStatement(
+	    scope->lvalue, scope->initialization,
+	    scope->condition, scope->step, body);
+      FILE_NAME(tmp_for, scope->loc);
+      scope->lvalue = nullptr;
+      scope->initialization = nullptr;
+      scope->condition = nullptr;
+      scope->step = nullptr;
+
+      pform_unwind_for_variable_scope(scope);
+      PBlock*tmp_blk = scope->block;
+      scope->block = nullptr;
+      pform_destroy_for_variable_scope(scope);
+      vector<Statement*>blk_items(1, tmp_for);
+      tmp_blk->set_statement(blk_items);
+      return tmp_blk;
 }
 
 static void current_task_set_statement(const YYLTYPE&loc, std::vector<Statement*>*s)
@@ -1442,9 +1870,11 @@ static Module::port_t *module_declare_port_continuation(
       decl_assignment_t*decl_assignment;
       std::list<decl_assignment_t*>*decl_assignments;
 
-	// IEEE 1800-2017 12.7.1: the extra `, data_type name = expr'
+      // IEEE 1800-2017 12.7.1: the extra `, data_type name = expr'
 	// clauses of a multi-declaration for_initialization.
+      for_var_decl_t*for_var_decl;
       std::vector<for_var_decl_t>*for_var_decls;
+      for_variable_scope_t*for_variable_scope;
 
       struct_member_t*struct_member;
       std::list<struct_member_t*>*struct_members;
@@ -1662,6 +2092,8 @@ static Module::port_t *module_declare_port_continuation(
 %type <text> label_opt class_declaration_endlabel_opt fork_block_start
 %type <text> block_identifier_opt
 %type <text> identifier_name typedef_identifier_name bins_name class_cg_port_prefix package_cg_port_prefix module_cg_port_prefix
+%type <text> for_variable_identifier
+%destructor { delete[] $$; } for_variable_identifier
 %type <text> nettype_declaration_name nettype_name_component
 %destructor { delete[] $$; } nettype_declaration_name nettype_name_component
 %type <text> bind_instance_path
@@ -1796,7 +2228,18 @@ static Module::port_t *module_declare_port_continuation(
 
 %type <expr>  assignment_pattern expression expression_opt expr_mintypmax
 %type <expr>  sva_bool_atom
+%type <for_var_decl> for_typed_variable_initializer
+%destructor { pform_destroy_for_variable_declaration($$); }
+  for_typed_variable_initializer
 %type <for_var_decls> for_var_decl_list
+%destructor { pform_destroy_for_variable_declarations($$); }
+  for_var_decl_list
+%type <for_variable_scope> for_loop_prefix for_nondeclaration_header
+%type <for_variable_scope> for_variable_declaration_header
+%type <for_variable_scope> for_variable_declaration_prefix
+%destructor { pform_destroy_for_variable_scope($$); }
+  for_loop_prefix for_nondeclaration_header for_variable_declaration_header
+  for_variable_declaration_prefix
 %type <pattern_items> assignment_pattern_named_list
 %type <expr>  expr_primary_or_typename expr_primary parameterized_scoped_identifier
 %type <expr>  lazy_virtual_interface_default
@@ -1839,6 +2282,8 @@ static Module::port_t *module_declare_port_continuation(
 %type <data_type>  class_scoped_type_identifier
 %type <data_type>  data_type data_type_opt data_type_or_implicit data_type_or_implicit_or_void
 %type <data_type>  data_type_or_implicit_no_opt
+%type <data_type>  for_data_type for_keyword_data_type
+%destructor { delete $$; } for_data_type for_keyword_data_type
 %type <data_type>  simple_type_or_string let_formal_type
 %type <data_type>  assignment_pattern_expression_type
 %type <data_type>  packed_array_data_type
@@ -5405,247 +5850,120 @@ lifetime_opt /* IEEE1800-2005: A.2.1.3 */
   |          { $$ = LexicalScope::INHERITED; }
   ;
 
+/* Open the provisional loop scope immediately after `for ('. Anonymous enum
+   literals and other data-type side effects must be registered in the same
+   implicit scope as the declared variable, not in the enclosing block. The
+   non-declaring header path releases this provisional scope before its body. */
+for_loop_prefix
+  : K_for '('
+      { $$ = pform_start_for_loop_scope(@1, nullptr); }
+  | IDENTIFIER ':' K_for '('
+      { pform_requires_sv(@1, "Statement label");
+	$$ = pform_start_for_loop_scope(@3, $1);
+	delete[] $1;
+      }
+  | TYPE_IDENTIFIER ':' K_for '('
+      { pform_requires_sv(@1, "Statement label");
+	$$ = pform_start_for_loop_scope(@3, $1.text);
+	delete[] $1.text;
+      }
+  ;
+
+for_nondeclaration_header
+  : for_loop_prefix lpvalue '=' expression ';' expression_opt ';'
+    for_step_opt ')'
+      { $$ = pform_prepare_for_nondeclaration(
+	      $1, FOR_INIT_ASSIGNMENT, $2, $4, $6, $8);
+	$1 = nullptr;
+      }
+  | for_loop_prefix parameterized_scoped_identifier '=' expression ';'
+    expression_opt ';' for_step_opt ')'
+      { $$ = pform_prepare_for_nondeclaration(
+	      $1, FOR_INIT_SCOPED_ASSIGNMENT, $2, $4, $6, $8);
+	$1 = nullptr;
+      }
+  | for_loop_prefix ';' expression_opt ';' for_step_opt ')'
+      { $$ = pform_prepare_for_nondeclaration(
+	      $1, FOR_INIT_EMPTY, nullptr, nullptr, $3, $5);
+	$1 = nullptr;
+      }
+
+  /* Indexed assignment to a class/package-scoped static member. These spell
+     the same symbols as the dimensioned class-scoped declaration above, so
+     LALR shares one state through `dimensions' and separates them on the
+     following token: an identifier continues a declaration, `=' lands here.
+     `dimensions' is deliberately not optional; the undimensioned assignment
+     stays on the existing parameterized_scoped_identifier alternative. */
+  | for_loop_prefix TYPE_IDENTIFIER K_SCOPE_RES identifier_name dimensions
+    '=' expression ';' expression_opt ';' for_step_opt ')'
+      { PExpr*lval = pform_make_for_scoped_indexed_lvalue(
+	      @2, $2.text, $4, $5, nullptr);
+	delete[] $2.text;
+	delete[] $4;
+	$$ = pform_prepare_for_nondeclaration(
+	      $1, FOR_INIT_SCOPED_ASSIGNMENT, lval, $7, $9, $11);
+	$1 = nullptr;
+      }
+
+  | for_loop_prefix TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES
+    identifier_name dimensions '=' expression ';' expression_opt ';'
+    for_step_opt ')'
+      { PExpr*lval = pform_make_for_scoped_indexed_lvalue(
+	      @2, $2.text, $5, $6, $3);
+	delete[] $2.text;
+	delete[] $5;
+	$$ = pform_prepare_for_nondeclaration(
+	      $1, FOR_INIT_SCOPED_ASSIGNMENT, lval, $8, $10, $12);
+	$1 = nullptr;
+      }
+
+  | for_loop_prefix package_type_identifier K_SCOPE_RES identifier_name
+    dimensions '=' expression ';' expression_opt ';' for_step_opt ')'
+      { PExpr*lval = pform_make_for_scoped_indexed_lvalue(
+	      @2, $2.text, $4, $5, $2.type_args);
+	delete[] $2.text;
+	delete[] $4;
+	$$ = pform_prepare_for_nondeclaration(
+	      $1, FOR_INIT_SCOPED_ASSIGNMENT, lval, $7, $9, $11);
+	$1 = nullptr;
+      }
+  ;
+
+/* Named header carrier for a declaring for-loop. Besides making ownership
+   explicit, this gives Bison a real symbol whose destructor can roll back
+   and release the implicit lexical scope if the following body is malformed. */
+for_variable_declaration_prefix
+  : for_loop_prefix for_var_decl_list ';'
+      { $$ = pform_install_for_variable_declarations($1, $2);
+	$1 = nullptr;
+	$2 = nullptr;
+      }
+  ;
+
+for_variable_declaration_header
+  : for_variable_declaration_prefix expression_opt ';' for_step_opt ')'
+      { $$ = pform_attach_for_loop_control($1, $2, $4);
+	$1 = nullptr;
+      }
+  ;
+
   /* Loop statements are kinds of statements. */
 
 loop_statement /* IEEE1800-2005: A.6.8 */
-  : K_for '(' TYPE_IDENTIFIER IDENTIFIER '=' expression ';' expression_opt ';' for_step_opt ')'
-      { static unsigned for_counter = 0;
-	char for_block_name [64];
-	snprintf(for_block_name, sizeof for_block_name, "$ivl_for_loop%u", for_counter);
-	for_counter += 1;
-	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
-	current_block_stack.push(tmp);
-
-	list<decl_assignment_t*>assign_list;
-	decl_assignment_t*tmp_assign = new decl_assignment_t;
-	tmp_assign->name = { lex_strings.make($4), @4.lexical_pos };
-	assign_list.push_back(tmp_assign);
-	typeref_t*tmp_type = new typeref_t($3.type);
-	FILE_NAME(tmp_type, @3);
-	pform_make_var(@4, &assign_list, tmp_type);
-      }
-    statement_or_null
-      { pform_name_t tmp_hident;
-	tmp_hident.push_back(name_component_t(lex_strings.make($4)));
-
-	PEIdent*tmp_ident = pform_new_ident(@4, tmp_hident);
-	FILE_NAME(tmp_ident, @4);
-
-	check_for_loop(@1, $6, $8, $10);
-	PForStatement*tmp_for = new PForStatement(tmp_ident, $6, $8, $10, $13);
-	FILE_NAME(tmp_for, @1);
-
-	pform_pop_scope();
-	vector<Statement*>tmp_for_list (1);
-	tmp_for_list[0] = tmp_for;
-	PBlock*tmp_blk = current_block_stack.top();
-	current_block_stack.pop();
-	tmp_blk->set_statement(tmp_for_list);
-	$$ = tmp_blk;
-	delete[]$3.text;
-	delete[]$4;
+  : for_nondeclaration_header statement_or_null
+      { $$ = pform_finish_for_nondeclaration($1, $2);
+	$1 = nullptr;
       }
 
-  | K_for '(' IDENTIFIER IDENTIFIER '=' expression ';' expression_opt ';' for_step_opt ')'
-      { static unsigned for_counter = 0;
-	char for_block_name [64];
-	snprintf(for_block_name, sizeof for_block_name, "$ivl_for_loop%u", for_counter);
-	for_counter += 1;
-	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
-	current_block_stack.push(tmp);
-
-	list<decl_assignment_t*>assign_list;
-	decl_assignment_t*tmp_assign = new decl_assignment_t;
-	tmp_assign->name = { lex_strings.make($4), @4.lexical_pos };
-	assign_list.push_back(tmp_assign);
-
-	typedef_t*type = pform_test_type_identifier(@3, $3);
-	if (!type) {
-	      pform_forward_typedef(@3, lex_strings.make($3), typedef_t::CLASS);
-	      type = pform_test_type_identifier(@3, $3);
-	}
-	if (type) {
-	      typeref_t*tmp_type = new typeref_t(type);
-	      FILE_NAME(tmp_type, @3);
-	      pform_make_var(@4, &assign_list, tmp_type);
-	} else {
-	      yyerror(@3, "error: %s doesn't name a type.", $3);
-	}
-      }
-    statement_or_null
-      { pform_name_t tmp_hident;
-	tmp_hident.push_back(name_component_t(lex_strings.make($4)));
-
-	PEIdent*tmp_ident = pform_new_ident(@4, tmp_hident);
-	FILE_NAME(tmp_ident, @4);
-
-	check_for_loop(@1, $6, $8, $10);
-	PForStatement*tmp_for = new PForStatement(tmp_ident, $6, $8, $10, $13);
-	FILE_NAME(tmp_for, @1);
-
-	pform_pop_scope();
-	vector<Statement*>tmp_for_list (1);
-	tmp_for_list[0] = tmp_for;
-	PBlock*tmp_blk = current_block_stack.top();
-	current_block_stack.pop();
-	tmp_blk->set_statement(tmp_for_list);
-	$$ = tmp_blk;
-	delete[]$3;
-	delete[]$4;
-      }
-
-  | K_for '(' lpvalue '=' expression ';' expression_opt ';' for_step_opt ')'
-    statement_or_null
-      { check_for_loop(@1, $5, $7, $9);
-	PForStatement*tmp = new PForStatement($3, $5, $7, $9, $11);
-	FILE_NAME(tmp, @1);
-	$$ = tmp;
-      }
-
-  | K_for '(' parameterized_scoped_identifier '=' expression ';' expression_opt ';' for_step_opt ')'
-    statement_or_null
-      { check_for_loop(@1, $3, $7, $9);
-	PAssign*init = new PAssign($3, $5);
-	FILE_NAME(init, @3);
-	PForStatement*loop = new PForStatement(nullptr, nullptr,
-					      $7, $9, $11);
-	FILE_NAME(loop, @1);
-	vector<Statement*>stmts;
-	stmts.push_back(init);
-	stmts.push_back(loop);
-	PBlock*tmp = new PBlock(PBlock::BL_SEQ);
-	FILE_NAME(tmp, @1);
-	tmp->set_statement(stmts);
-	$$ = tmp;
-      }
-
-      // The initialization statement is optional.
-  | K_for '(' ';' expression_opt ';' for_step_opt ')'
-    statement_or_null
-      { check_for_loop(@1, nullptr, $4, $6);
-	PForStatement*tmp = new PForStatement(nullptr, nullptr, $4, $6, $8);
-	FILE_NAME(tmp, @1);
-	$$ = tmp;
-      }
-
-      // IEEE 1800-2017 12.7.1: for_initialization may hold SEVERAL
-      // comma-separated declarations, each with its own data type:
-      //
-      //   for (int i = 0, state_e s = s.first(); i < s.num(); i += 1, s = s.next())
-      //
-      // Only the single-declaration form was accepted. This rule
-      // requires the comma, so it engages only for the multi-declaration
-      // case and every existing single-declaration rule is untouched.
-      //
-      // All the declarations go into the synthetic block that already
-      // wraps a declaring for loop, and their initializers become
-      // ordinary assignments emitted IN SOURCE ORDER ahead of the loop.
-      // The loop itself then uses the no-initializer form. That ordering
-      // is what the standard requires and it matters: a later clause may
-      // read a variable an earlier one just set.
-  | K_for '(' K_var_opt data_type IDENTIFIER '=' expression ',' for_var_decl_list ';' expression_opt ';' for_step_opt ')'
-      { static unsigned for_counter = 0;
-	char for_block_name [64];
-	snprintf(for_block_name, sizeof for_block_name, "$ivl_for_loop%u", for_counter);
-	for_counter += 1;
-	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
-	current_block_stack.push(tmp);
-
-	  // Declare the first variable...
-	list<decl_assignment_t*>assign_list;
-	decl_assignment_t*tmp_assign = new decl_assignment_t;
-	tmp_assign->name = { lex_strings.make($5), @5.lexical_pos };
-	assign_list.push_back(tmp_assign);
-	pform_make_var(@5, &assign_list, $4);
-
-	  // ...then each of the rest, with its own type.
-	for (size_t idx = 0 ; idx < $9->size() ; idx += 1) {
-	      for_var_decl_t&decl = (*$9)[idx];
-	      list<decl_assignment_t*>more_list;
-	      decl_assignment_t*more_assign = new decl_assignment_t;
-	      more_assign->name = { lex_strings.make(decl.name), decl.loc.lexical_pos };
-	      more_list.push_back(more_assign);
-	      pform_make_var(decl.loc, &more_list, decl.type);
-	}
-      }
-    statement_or_null
-      { std::vector<Statement*>blk_items;
-
-	  // The initializing assignments, in source order.
-	pform_name_t first_hident;
-	first_hident.push_back(name_component_t(lex_strings.make($5)));
-	PEIdent*first_ident = pform_new_ident(@5, first_hident);
-	FILE_NAME(first_ident, @5);
-	PAssign*first_set = new PAssign(first_ident, $7);
-	FILE_NAME(first_set, @5);
-	blk_items.push_back(first_set);
-
-	for (size_t idx = 0 ; idx < $9->size() ; idx += 1) {
-	      for_var_decl_t&decl = (*$9)[idx];
-	      pform_name_t hident;
-	      hident.push_back(name_component_t(lex_strings.make(decl.name)));
-	      PEIdent*ident = pform_new_ident(decl.loc, hident);
-	      FILE_NAME(ident, decl.loc);
-	      PAssign*set = new PAssign(ident, decl.init);
-	      FILE_NAME(set, decl.loc);
-	      blk_items.push_back(set);
-	}
-
-	  // The loop proper, with the initialization already done above.
-	check_for_loop(@1, nullptr, $11, $13);
-	PForStatement*tmp_for = new PForStatement(nullptr, nullptr, $11, $13, $16);
-	FILE_NAME(tmp_for, @1);
-	blk_items.push_back(tmp_for);
-
-	pform_pop_scope();
-	PBlock*tmp_blk = current_block_stack.top();
-	current_block_stack.pop();
-	tmp_blk->set_statement(blk_items);
-	$$ = tmp_blk;
-
-	for (size_t idx = 0 ; idx < $9->size() ; idx += 1)
-	      delete[] (*$9)[idx].name;
-	delete $9;
-	delete[] $5;
-      }
-
-      // Handle for_variable_declaration syntax by wrapping the for(...)
-      // statement in a synthetic named block. We can name the block
-      // after the variable that we are creating, that identifier is
-      // safe in the controlling scope.
-  | K_for '(' K_var_opt data_type IDENTIFIER '=' expression ';' expression_opt ';' for_step_opt ')'
-      { static unsigned for_counter = 0;
-	char for_block_name [64];
-	snprintf(for_block_name, sizeof for_block_name, "$ivl_for_loop%u", for_counter);
-	for_counter += 1;
-	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
-	current_block_stack.push(tmp);
-
-	list<decl_assignment_t*>assign_list;
-	decl_assignment_t*tmp_assign = new decl_assignment_t;
-	tmp_assign->name = { lex_strings.make($5), @5.lexical_pos };
-	assign_list.push_back(tmp_assign);
-	pform_make_var(@5, &assign_list, $4);
-      }
-    statement_or_null
-      { pform_name_t tmp_hident;
-	tmp_hident.push_back(name_component_t(lex_strings.make($5)));
-
-	PEIdent*tmp_ident = pform_new_ident(@5, tmp_hident);
-	FILE_NAME(tmp_ident, @5);
-
-	check_for_loop(@1, $7, $9, $11);
-	PForStatement*tmp_for = new PForStatement(tmp_ident, $7, $9, $11, $14);
-	FILE_NAME(tmp_for, @1);
-
-	pform_pop_scope();
-	vector<Statement*>tmp_for_list (1);
-	tmp_for_list[0] = tmp_for;
-	PBlock*tmp_blk = current_block_stack.top();
-	current_block_stack.pop();
-	tmp_blk->set_statement(tmp_for_list);
-		$$ = tmp_blk;
-		delete[]$5;
+      /* IEEE 1800-2017/2023 12.7 and 12.7.1: every item is declared,
+         one declaration may contain same-type comma continuations, and a
+         later comma may start another declaration with a distinct data
+         type. The midrule creates the implicit scope before parsing the
+         body; declaration initializers have already been transferred into
+         that scope's ordered per-entry initializer list. */
+  | for_variable_declaration_header statement_or_null
+      { $$ = pform_finish_for_variable_declarations($1, $2);
+	$1 = nullptr;
       }
 
   | K_forever statement_or_null
@@ -5877,34 +6195,67 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 
   /* Error forms for loop statements. */
 
-  | K_for '(' lpvalue '=' expression ';' expression_opt ';' error ')'
+  /* These recover from a malformed loop header. They must spell the shared
+     `for_loop_prefix' carrier rather than `K_for \'(\'' directly: a second
+     literal spelling would leave both the carrier\'s reduction and these
+     alternatives live in the state after `for (\', and Bison would then
+     prefer the shift. That silently diverts every declaration-led header
+     (TYPE_IDENTIFIER, PACKAGE_IDENTIFIER, ...) and, through
+     `%precedence IDENTIFIER\', the ordinary lvalue header as well, into an
+     lpvalue that only these error rules can complete. Reducing the carrier
+     unconditionally is what keeps 12.7.1 declarations reachable at all.
+
+     A successful reduction here does not run the `for_loop_prefix\'
+     destructor, so each alternative releases the provisional scope itself. */
+  | for_loop_prefix lpvalue '=' expression ';' expression_opt ';' error ')'
     statement_or_null
-      { $$ = 0;
-	yyerror(@1, "error: Error in for loop step assignment.");
+      { const struct vlltype for_loc = $1->loc;
+	pform_destroy_for_variable_scope($1);
+	$1 = nullptr;
+	delete $2;
+	delete $4;
+	delete $6;
+	delete $10;
+	$$ = 0;
+	yyerror(for_loc, "error: Error in for loop step assignment.");
       }
 
-  | K_for '(' lpvalue '=' expression ';' error ';' for_step_opt ')'
+  | for_loop_prefix lpvalue '=' expression ';' error ';' for_step_opt ')'
     statement_or_null
-      { $$ = 0;
-	yyerror(@1, "error: Error in for loop condition expression.");
+      { const struct vlltype for_loc = $1->loc;
+	pform_destroy_for_variable_scope($1);
+	$1 = nullptr;
+	delete $2;
+	delete $4;
+	delete $8;
+	delete $10;
+	$$ = 0;
+	yyerror(for_loc, "error: Error in for loop condition expression.");
       }
 
-  | K_for '(' error ';' expression_opt ';' for_step_opt ')'
+  | for_loop_prefix error ';' expression_opt ';' for_step_opt ')'
     statement_or_null
-      { /* Recovery fallback for unsupported for-loop initializer forms
-	   (e.g. typed class/typedef declarations not currently parsed here). */
+      { /* Recovery fallback for a for-loop initializer that is neither a
+	   legal 12.7.1 declaration nor a legal assignment. */
+	const struct vlltype for_loc = $1->loc;
+	pform_destroy_for_variable_scope($1);
+	$1 = nullptr;
 	yyerrok;
-	check_for_loop(@1, nullptr, $5, $7);
-	PForStatement*tmp = new PForStatement(nullptr, nullptr, $5, $7, $9);
-	FILE_NAME(tmp, @1);
+	check_for_loop(for_loc, nullptr, $4, $6);
+	PForStatement*tmp = new PForStatement(nullptr, nullptr, $4, $6, $8);
+	FILE_NAME(tmp, for_loc);
 	warn_count += 1;
-	cerr << @1 << ": warning: unsupported for-loop initializer syntax ignored." << endl;
+	cerr << for_loc << ": warning: unsupported for-loop initializer syntax ignored." << endl;
 	$$ = tmp;
       }
 
-  | K_for '(' error ')' statement_or_null
-      { $$ = 0;
-	yyerror(@1, "error: Incomprehensible for loop.");
+  | for_loop_prefix error ')' statement_or_null
+      { const struct vlltype for_loc = $1->loc;
+	pform_destroy_for_variable_scope($1);
+	$1 = nullptr;
+	delete $4;
+	$$ = 0;
+	yyerror(for_loc, "error: Incomprehensible for loop.");
       }
 
   | K_while '(' error ')' statement_or_null
@@ -10409,26 +10760,204 @@ sva_bool_atom
       { $$ = $1; }
   ;
 
-  /* The second and later clauses of a multi-declaration
-     for_initialization (IEEE 1800-2017 12.7.1). The first clause is
-     matched inline by the loop rule; this covers everything after the
-     first comma. Each clause carries its own data type. */
+for_variable_identifier
+  : IDENTIFIER
+      { $$ = $1; }
+  | TYPE_IDENTIFIER
+      { $$ = $1.text; }
+  ;
+
+/* Keyword-led data types are separated from named types so a comma followed
+   by TYPE_IDENTIFIER can be left-factored using the next token (`=' means a
+   same-type declarator; another identifier/dimension/scope means a new typed
+   declaration). This avoids an epsilon K_var_opt decision in the ambiguous
+   LALR state. */
+for_keyword_data_type
+  : simple_packed_type
+      { $$ = $1; }
+  | non_integer_type
+      { real_type_t*tmp = new real_type_t($1);
+	FILE_NAME(tmp, @1);
+	$$ = tmp; }
+  | enum_data_type dimensions_opt
+      { if ($2) {
+	      parray_type_t*tmp = new parray_type_t($1, $2);
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
+	} else {
+	      $$ = $1;
+	} }
+  | struct_data_type dimensions_opt
+      { if ($2) {
+	      parray_type_t*tmp = new parray_type_t($1, $2);
+	      FILE_NAME(tmp, @1);
+	      $$ = tmp;
+	} else {
+	      $$ = $1;
+	} }
+  | K_string
+      { string_type_t*tmp = new string_type_t;
+	FILE_NAME(tmp, @1);
+	$$ = tmp; }
+  | K_virtual virtual_interface_type
+      { $$ = $2; }
+  ;
+
+/* Keep declaring-for's unknown/forward class spelling local to this
+   context. Explicit `var' may prefix the complete ordinary data_type grammar
+   without an epsilon production. IEEE 1800-2017/2023 Syntax 12-5 footnote
+   14 requires `var' before a type_reference in a variable declaration. */
+for_data_type
+  : for_keyword_data_type
+	{ $$ = $1; }
+  | K_var data_type
+	{ $$ = $2; }
+  | IDENTIFIER
+      { $$ = pform_make_for_identifier_type(@1, $1); }
+  | K_var IDENTIFIER
+      { $$ = pform_make_for_identifier_type(@2, $2); }
+  | K_var K_type '(' expression ')'
+      { data_type_t*tmp;
+	if (PETypename*tn = dynamic_cast<PETypename*>($4))
+	      tmp = new type_reference_t(tn->get_type());
+	else
+	      tmp = new type_reference_t($4);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
+  ;
+
+/* A typed initializer is kept as a direct terminal-prefix rule. That is
+   intentional: in the shared statement state TYPE_IDENTIFIER can also begin
+   an lvalue. Hiding it behind an empty K_var_opt makes the LALR parser choose
+   the lvalue before it sees the following declarator. */
+for_typed_variable_initializer
+  : TYPE_IDENTIFIER for_variable_identifier '=' expression
+      { pform_set_type_referenced(@1, $1.text);
+	typeref_t*type = new typeref_t($1.type);
+	FILE_NAME(type, @1);
+	$$ = pform_make_for_variable_declaration(type, $2, $4, @2);
+	delete[] $1.text; }
+  | TYPE_IDENTIFIER dimensions for_variable_identifier '=' expression
+      { pform_set_type_referenced(@1, $1.text);
+	typeref_t*base = new typeref_t($1.type);
+	FILE_NAME(base, @1);
+	parray_type_t*type = new parray_type_t(base, $2);
+	FILE_NAME(type, @1);
+	$$ = pform_make_for_variable_declaration(type, $3, $5, @3);
+	delete[] $1.text; }
+  | TYPE_IDENTIFIER type_parameter_value for_variable_identifier '=' expression
+      { pform_set_type_referenced(@1, $1.text);
+	typeref_t*type = new typeref_t($1.type, nullptr, $2);
+	FILE_NAME(type, @1);
+	$$ = pform_make_for_variable_declaration(type, $3, $5, @3);
+	delete[] $1.text; }
+  | TYPE_IDENTIFIER type_parameter_value dimensions
+    for_variable_identifier '=' expression
+      { pform_set_type_referenced(@1, $1.text);
+	typeref_t*base = new typeref_t($1.type, nullptr, $2);
+	FILE_NAME(base, @1);
+	parray_type_t*type = new parray_type_t(base, $3);
+	FILE_NAME(type, @1);
+	$$ = pform_make_for_variable_declaration(type, $4, $6, @4);
+	delete[] $1.text; }
+  | package_type_identifier for_variable_identifier '=' expression
+      { typeref_t*type = new typeref_t($1.type, $1.package, $1.type_args);
+	FILE_NAME(type, @1);
+	$$ = pform_make_for_variable_declaration(type, $2, $4, @2);
+	delete[] $1.text; }
+  | package_type_identifier dimensions for_variable_identifier '=' expression
+      { typeref_t*base = new typeref_t($1.type, $1.package, $1.type_args);
+	FILE_NAME(base, @1);
+	parray_type_t*type = new parray_type_t(base, $2);
+	FILE_NAME(type, @1);
+	$$ = pform_make_for_variable_declaration(type, $3, $5, @3);
+	delete[] $1.text; }
+  | TYPE_IDENTIFIER K_SCOPE_RES identifier_name
+    for_variable_identifier '=' expression
+      { pform_set_type_referenced(@1, $1.text);
+	data_type_t*type = make_class_scoped_typeref(@1, @3, $1.text, $3);
+	$$ = pform_make_for_variable_declaration(type, $4, $6, @4);
+	delete[] $1.text;
+	delete[] $3; }
+  | TYPE_IDENTIFIER K_SCOPE_RES identifier_name dimensions
+    for_variable_identifier '=' expression
+      { pform_set_type_referenced(@1, $1.text);
+	data_type_t*base = make_class_scoped_typeref(@1, @3, $1.text, $3);
+	if (!base) {
+	      base = new vector_type_t(IVL_VT_LOGIC, false, nullptr);
+	      FILE_NAME(base, @1);
+	}
+	data_type_t*type = new parray_type_t(base, $4);
+	FILE_NAME(type, @1);
+	$$ = pform_make_for_variable_declaration(type, $5, $7, @5);
+	delete[] $1.text;
+	delete[] $3; }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES identifier_name
+    for_variable_identifier '=' expression
+      { pform_set_type_referenced(@1, $1.text);
+	data_type_t*type = make_class_scoped_typeref(
+	      @1, @4, $1.text, $4, nullptr, $2);
+	$$ = pform_make_for_variable_declaration(type, $5, $7, @5);
+	delete[] $1.text;
+	delete[] $4; }
+  | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES identifier_name dimensions
+    for_variable_identifier '=' expression
+      { pform_set_type_referenced(@1, $1.text);
+	data_type_t*base = make_class_scoped_typeref(
+	      @1, @4, $1.text, $4, nullptr, $2);
+	if (!base) {
+	      base = new vector_type_t(IVL_VT_LOGIC, false, nullptr);
+	      FILE_NAME(base, @1);
+	}
+	data_type_t*type = new parray_type_t(base, $5);
+	FILE_NAME(type, @1);
+	$$ = pform_make_for_variable_declaration(type, $6, $8, @6);
+	delete[] $1.text;
+	delete[] $4; }
+  | package_type_identifier K_SCOPE_RES identifier_name
+    for_variable_identifier '=' expression
+      { data_type_t*type = make_class_scoped_typeref(
+	      @1, @3, $1.text, $3, $1.package, $1.type_args);
+	$$ = pform_make_for_variable_declaration(type, $4, $6, @4);
+	delete[] $1.text;
+	delete[] $3; }
+  | package_type_identifier K_SCOPE_RES identifier_name dimensions
+    for_variable_identifier '=' expression
+      { data_type_t*base = make_class_scoped_typeref(
+	      @1, @3, $1.text, $3, $1.package, $1.type_args);
+	if (!base) {
+	      base = new vector_type_t(IVL_VT_LOGIC, false, nullptr);
+	      FILE_NAME(base, @1);
+	}
+	data_type_t*type = new parray_type_t(base, $4);
+	FILE_NAME(type, @1);
+	$$ = pform_make_for_variable_declaration(type, $5, $7, @5);
+	delete[] $1.text;
+	delete[] $3; }
+  | for_data_type for_variable_identifier '=' expression
+      { $$ = pform_make_for_variable_declaration($1, $2, $4, @2); }
+  ;
+
+/* IEEE 1800-2017/2023 Syntax 12-5. The list always starts with a typed
+   declaration. A later comma can either continue that declaration (no type)
+   or start another for_variable_declaration with a new type. */
 for_var_decl_list
-  : K_var_opt data_type IDENTIFIER '=' expression
+  : for_typed_variable_initializer
       { std::vector<for_var_decl_t>*lst = new std::vector<for_var_decl_t>;
-	for_var_decl_t decl;
-	decl.type = $2;
+	lst->push_back(*$1);
+	delete $1;
+	$$ = lst; }
+  | for_var_decl_list ',' for_typed_variable_initializer
+      { $1->push_back(*$3);
+	delete $3;
+	$$ = $1; }
+  | for_var_decl_list ',' for_variable_identifier '=' expression
+      { for_var_decl_t decl;
+	decl.type = nullptr;
 	decl.name = $3;
 	decl.init = $5;
 	decl.loc  = @3;
-	lst->push_back(decl);
-	$$ = lst; }
-  | for_var_decl_list ',' K_var_opt data_type IDENTIFIER '=' expression
-      { for_var_decl_t decl;
-	decl.type = $4;
-	decl.name = $5;
-	decl.init = $7;
-	decl.loc  = @5;
 	$1->push_back(decl);
 	$$ = $1; }
   ;
