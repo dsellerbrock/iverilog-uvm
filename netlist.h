@@ -1429,6 +1429,13 @@ class NetScope : public Definitions, public Attrib {
 	// auto-sampler synthesis).
       const std::map<perm_string,NetNet*>& signals_map() const { return signals_map_; };
 
+	/* True when the runtime gives this scope its own automatic call
+	   frame: an automatic subroutine, or a static subroutine/block that
+	   still holds explicitly automatic declarations. Mirrors tgt-vvp's
+	   scope_needs_call_frame(); event state for such a scope lives in
+	   that frame, so events must not be merged across the boundary. */
+      bool owns_call_frame() const;
+
         /* Allow tracking of elaboration stages. The three stages are:
              1 - scope elaboration
              2 - signal elaboration

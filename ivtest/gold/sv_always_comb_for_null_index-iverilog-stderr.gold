@@ -1,0 +1,6 @@
+ivltests/sv_always_comb_for_null_index.v:15: warning: A for statement must have a constant initial value to be synthesized in an always_comb process.
+ivltests/sv_always_comb_for_null_index.v:15: warning: A for statement must declare a single index variable to be synthesized in an always_comb process.
+ivltests/sv_always_comb_for_null_index.v:15: sorry: Unable to synthesize for-loop without explicit index variable.
+ivltests/sv_always_comb_for_null_index.v:13: error: Unable to synthesize asynchronous process.
+ivltests/sv_always_comb_for_null_index.v:13: sorry: SystemVerilog always_* process was not synthesized by the primary synthesis pass.
+2 error(s) in post-elaboration processing.
