@@ -1,5 +1,109 @@
 # CURRENT WORK — continuation state
 
+## Active increment — 2026-08-26 — bounded dynamic-cross topology and final hardening
+
+Worktree:
+`iverilog-uvm-opentitan-dynamic-cross-after238-arm64-20260826`
+
+Branch: `agent/opentitan-dynamic-cross-after238-arm64-20260826`, created
+exactly from `origin/main` at
+`1e4df2813c1200b8cadfe6a9a3e28cb3451dadab` (PR #238 merge). OpenTitan and
+Caliptra sources remain unchanged.
+
+The direct IEEE 1800-2017/2023 clause-19 audit is implemented for a bounded
+cross subset. Integral open arrays coalesce duplicate and overlapping ranges
+into one logical bin per distinct resolved value. Fixed arrays partition
+ordered matching occurrences, put the remainder in the final nonempty bin,
+and apply ignore/illegal carving after distribution without redistribution.
+Per-covergroup-object cross plans freeze fixed, transition, and constructor-
+dependent logical-bin dimensions after constructor capture. Sampling forms the
+Cartesian product of every matched source identity. Overlapping named normal
+bins count independently but at most once each per sample; routing precedence
+is `illegal` over `ignore` over normal independent of declaration order; and an
+illegal cross match leaves its source coverpoints and unrelated crosses intact.
+
+The implemented selection IR covers automatic products,
+`binsof`/named-`binsof`, `intersect`, and Boolean `&&`/`||`/`!`; the focused
+support claim directly exercises conjunctions and cross `iff`. IEEE 1800-2017
+keeps uncovered automatic bins. IEEE 1800-2023
+`option.cross_retain_auto_bins` defaults to 1. A covergroup-level assignment is
+the default for its crosses, and a cross-local assignment overrides it;
+coverpoint and every `type_option` placement are errors. The implemented subset
+supports constant values and rejects the declaration in 2017 mode. With a
+constant zero, the runtime suppresses automatic bins when any explicit normal,
+ignore, or illegal record exists—even if its selector is empty—while a cross
+with no explicit record remains automatic. The focused retention reducer
+directly pins the normal-bin and no-explicit-bin cases, inherited covergroup
+defaults on fixed and dynamic crosses, cross-local disable and enable
+overrides, and empty ignore/illegal declaration presence. The LRM evaluates
+option expressions at covergroup construction, but that constructor/per-
+instance expression path is not yet implemented. The option is definition-
+only; dedicated procedural-write and repeated-assignment negatives remain to
+be pinned.
+
+Current native-ARM64 local compiler/runtime validation is clean:
+
+- paired clause-19 focus: legacy **20/20**, JSON/VVP **20/20**;
+- full legacy ivtest: **4,103 pass, 0 fail, 2 NI, 3 expected fail**
+  (**4,108 total**);
+- full JSON/VVP: **993/993**, after building and installing the
+  optional native-ARM64 `tgt-fpga` target required by two `-tfpga` entries;
+- negative diagnostics: **136/136**;
+- bundled VPI: **103/103**; and
+- canonical unmodified real-DPI UVM: **354/354**.
+
+The final full native-ARM64 OpenTitan UVM compile matrix at clean
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` completed 61 targets in 47.62
+seconds with **8 DEBT / 50 FAIL / 3 SETUP_FAIL / 0 PASS**, zero timeouts, and
+zero resource-limit signals, versus the previous **1 DEBT / 57 FAIL /
+3 SETUP_FAIL / 0 PASS**. The DEBT targets are `adc_ctrl`, `dma`, `hmac`, `mbx`,
+`pattgen`, `soc_dbg_ctrl`, `tl_agent`, and `uart`; seven moved FAIL→DEBT and
+`tl_agent` retained its earlier DEBT classification. Both the exact former
+constructor-dependent-cross-drop diagnostic and the generic cross-drop
+diagnostic occur zero times. The remaining failures are independent parser,
+provider, clocking, dynamic-`with`, and isolated elaboration frontiers. This is
+a compile matrix: it did not run simulations and contains no clean application
+or runtime pass.
+
+Evidence is outside the repository under
+`/Users/danielellerbrock/projects/iverilog_uvm/evidence/opentitan-dynamic-cross-final-after238-arm64-20260826T183204-0600/matrix`;
+the result JSON SHA-256 is
+`b97844e5b327b98a251e3c03f15e6939e827c0f849a88cfd538f1334b388fa55`
+and the engine SHA-256 is
+`599a85f0c35730e151227abfd6c698cf9bc8556c50f8f6b70ccf0aa728e1cff1`.
+Design, test, timing, and native-tool invocation detail is in
+[`session_logs/2026-08-26_opentitan_dynamic_cross_topology.md`](session_logs/2026-08-26_opentitan_dynamic_cross_topology.md).
+The full canonical real-DPI UVM regression is now **354/354** on the current
+tree. The final Caliptra static census completed 105 jobs and 420 compiler
+invocations in 52.33 seconds: Icarus is **53/105** in each assertions,
+no-assertions, and synthesis lane versus Slang **54/105**. Classifications are
+**52 PASS / 1 DEBT / 51 SHARED_SOURCE_OR_CONFIG / 1 SOURCE_ORDER_DEBT /
+0 ICARUS_GAP**; the sole Slang advantage is the known `csrng_raw_wrap`
+source-order debt. Evidence is
+`/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-dynamic-cross-final-after238-arm64-20260827T003032Z`
+with result JSON SHA-256
+`857e7b5a97ca35810ac21258e0367f63bd53766ee5d3ca2f65639e09e8add9fd`.
+This is static compile/elaboration/synthesis differential evidence, not full
+Caliptra DV runtime.
+
+Clause 19 remains **PARTIAL**. Constructor/per-instance expressions for the
+2023 retention option, illegal cross bins over transition terms, remaining
+dynamic `with`/`matches`/set/`CrossQueueType` selection forms, source
+ignore/illegal carving from dynamic-family denominators, type-coverage union,
+report/VPI and normative naming detail, broader signed static range/intersect
+normalization, empty trailing fixed-array-bin identity/naming, real/tolerance
+coverage, and products beyond the explicit 65,536-bin topology cap remain
+open.
+
+The project direction is unchanged: selected IEEE 1800-2017 and IEEE
+1800-2023 semantics come first; unchanged UVM, OpenTitan, and Caliptra are
+application gates; VCS, Questa, and Xcelium are the commercial RTL/DV
+interoperability targets after the IEEE text; Slang is a parser/elaboration
+differential; and Verilator is diagnostic only. The frontend, scheduler, SVA,
+and IR are being made compatible with an eventual formal engine, but formal is
+not a current capability claim. UPF/IEEE 1801 remains deferred until the IEEE
+1800 language and verification surfaces are substantially closed.
+
 ## Resume state — 2026-08-26 — typed constructor coverage and commercial direction
 
 Worktree:
@@ -16,11 +120,15 @@ OpenTitan's TL agent. It carries the coverpoint, source value, and endpoint
 width/sign metadata through the target ABI and VVP image, evaluates each
 object's range once, applies clause-19.5.7 conversion and X/Z rejection,
 intersects ranges with the coverpoint domain, treats descending ranges as
-empty, preserves duplicate membership, and partitions fixed bin arrays with
-the remainder in the final bin. Malformed typed and legacy VVP metadata is
-bounded and rejected safely. Unsupported endpoint trees, constructor-
-dependent `with`, and dynamic crosses diagnose and drop the affected construct
-rather than silently substituting a value.
+empty, and preserves the duplicate-membership behavior exercised by the
+focused tests. Malformed typed and legacy VVP metadata is bounded and rejected
+safely. Unsupported endpoint trees, constructor-dependent `with`, and dynamic
+crosses diagnose and drop the affected construct rather than silently
+substituting a value. A later direct-LRM audit found that this checkpoint did
+not establish—and the then-current static-bin path did not correctly
+implement—the distinct-value identity of open bins, fixed-array remainder
+placement, or post-distribution ignore/illegal carving. Those defects are
+recorded in the active increment above rather than hidden by the 8/8 result.
 
 The paired `-g2017`/`-g2023` focused gates pass 8/8 in the legacy harness and
 8/8 in JSON/VVP. They cover the exact OpenTitan expression

@@ -522,10 +522,13 @@ Remaining:
 
 ## M7 — Accellera UVM qualification
 
-**Status: COMPLETE FOR THE CURRENT HARNESS SUITE — 354/354, 0 failed, 0 skipped**
+**Status: COMPLETE FOR THE CURRENT LOCAL HARNESS CHECKPOINT — 354/354, 0 failed, 0 skipped**
 
 The RAL front door and major UVM subsystems execute correctly, and the
 bundled UVM regression suite passes with zero skips.
+
+The current dynamic-cross and final-hardening tree passes the complete
+canonical real-DPI harness 354/354.
 
 - [x] Fix per-instance class events so UVM objection events do not cross-wake between instances. *(Done 2026-07-21; the shared-event cross-wake is gone.)*
 - [x] Fix the `m7_objection_stress` run-phase completion blocker. *(Done
@@ -541,7 +544,7 @@ bundled UVM regression suite passes with zero skips.
 - [x] Re-enable and verify full extract/check/report/final phase execution.
       *(m7 now ends at t=80 with all post-run phases executing.)*
 - [x] Run full RAL, sequence, objection, TLM, callback, and phasing stress
-      suites. *(The current canonical UVM harness passes 354/354 with real
+      suites. *(The last merged canonical UVM checkpoint passes 354/354 with real
       DPI, 0 failed, and 0 skipped; preserve exact tool provenance in the
       dated evidence.)*
 
@@ -624,19 +627,74 @@ type-coverage, VPI, or cross interaction.
 - [~] Implement typed per-instance constructor-dependent integral bin ranges.
       The bounded construction-time grammar preserves width, signedness,
       X/Z exclusion, coverpoint-domain conversion, descending-range emptiness,
-      duplicate membership, and fixed-bin partitioning, including OpenTitan's
-      TL-agent expression. Paired `-g2017`/`-g2023` focused legacy and JSON/VVP
-      gates pass 8/8 at this checkpoint.
+      the ordered source-occurrence stream used by fixed arrays, and
+      OpenTitan's TL-agent expression. Open arrays use the distinct-value rule
+      in the next item rather than occurrence identity.
+- [x] Apply the audited bounded array-bin identity and distribution rules.
+      Integral open arrays (`bins b[]`) coalesce duplicate/overlapping ranges into one
+      value-named bin per distinct resolved value. Fixed arrays (`bins b[N]`)
+      preserve the `M` ordered matching occurrences, use
+      `B = max(floor(M/N), 1)`, assign `B` occurrences to each bin before the
+      last while values remain, place every remainder occurrence in the final
+      nonempty bin, and remove ignore/illegal values only after distribution
+      without redistribution.
+      Paired legacy and JSON/VVP gates pass 20/20 across `-g2017` and
+      `-g2023` for this and the typed-constructor subset.
 - [ ] Preserve constructor port directions, including full `ref`, `output`, and
       `inout` semantics, across covergroup construction and sampling.
 - [ ] Implement broader endpoint expressions and context-sized fill literals.
-- [ ] Implement construction-time dynamic `with` filters and integrate dynamic
-      families into crosses and named `binsof` selections.
+- [x] Integrate dynamic families into automatic crosses and the evidenced
+      named `binsof`/`intersect` conjunctions. The topology is frozen
+      per covergroup object after constructor capture, and fixed, transition,
+      and dynamic logical source bins participate in one routed product. The
+      bounded focus passes 20/20 in both harnesses; the unchanged OpenTitan
+      matrix advances seven targets from FAIL to DEBT and removes the former
+      dynamic-cross-drop diagnostic from all 20 affected targets.
+- [ ] Implement construction-time dynamic `with` filters and the remaining
+      cross selection grammar: `with`, `matches`, set expressions, and
+      `CrossQueueType`.
 - [ ] Subtract dynamic ignore/illegal values from denominators and integrate
       dynamic families into type coverage.
-- [ ] Complete report/VPI detail, option/type-option merging, arbitrary
-      coverpoint expressions, and the remaining 2023 real/tolerance coverage
-      surface.
+- [x] Enforce the audited cross routing model in the bounded fixed/dynamic
+      forms: form the Cartesian product of every source-bin identity matched
+      by a sample;
+      count overlapping named normal bins independently but at most once per
+      named bin per sample; apply `illegal` over `ignore` over normal
+      precedence independently of declaration order; and leave unrelated
+      coverpoint/cross counts intact when an illegal cross bin matches.
+- [ ] Extend illegal named-cross routing to transition source terms; the
+      current per-instance plan rejects that combination explicitly.
+- [ ] Complete report/VPI and normative naming detail, type-coverage union
+      semantics, broader signed static range/intersect normalization, empty
+      trailing fixed-array-bin identity/naming, arbitrary coverpoint
+      expressions, and products beyond the explicit 65,536-bin topology cap.
+- [ ] Implement all remaining option/type-option semantics. In particular,
+      1800-2017 retains uncovered automatic cross bins, while 1800-2023
+      `option.cross_retain_auto_bins` defaults to 1. A covergroup-level value
+      supplies the default for its crosses, and a cross-local value overrides
+      it; coverpoint and every `type_option` placement are errors. A constant
+      zero removes automatic bins when any explicit normal, ignore, or illegal
+      cross record is present, including an empty selection. Constant values,
+      scope errors, and the 2017 edition rejection are implemented. The focused
+      reducer pins normal/no-explicit cases, inherited fixed/dynamic defaults,
+      local disable/enable overrides, and empty ignore/illegal declarations.
+      Procedural-write and repeated-assignment cases remain incompletely
+      evidenced. Constructor/per-instance option expressions remain open even
+      though 19.7 requires evaluation at construction.
+- [ ] Complete the remaining IEEE 1800-2023 real/tolerance coverage surface.
+
+The current local gates pass 20/20 in each focused harness, 4,103 legacy tests
+with zero unexpected failures (2 NI and 3 expected fail, 4,108 total),
+JSON/VVP 993/993, negatives 136/136, VPI 103/103, and canonical real-DPI UVM
+354/354. The final OpenTitan compile matrix is 8 DEBT / 50 FAIL /
+3 SETUP_FAIL / 0 PASS versus 1 DEBT / 57 FAIL / 3 SETUP_FAIL / 0 PASS before
+this increment, with zero timeouts/resource-limit signals and zero exact or
+generic former cross-drop diagnostics. It is not a clean application or
+runtime pass. The final Caliptra static census is Icarus 53/105 in each
+assertions/no-assertions/synthesis lane versus Slang 54/105, with 52 PASS,
+1 DEBT, 51 SHARED_SOURCE_OR_CONFIG, 1 SOURCE_ORDER_DEBT, and 0 ICARUS_GAP.
+Its sole Slang advantage is known `csrng_raw_wrap` source-order debt; this is
+not full Caliptra DV runtime.
 
 ## M12A — Core SystemVerilog VPI object model
 
@@ -645,7 +703,7 @@ type-coverage, VPI, or cross interaction.
 ## M12B/M12C — VPI completion
 
 **Status: COMPLETE FOR THE RECORDED OBJECT-MODEL SUBSET** — all nine listed
-items are done. The current canonical UVM harness is 354/354; use
+items are done. The current local canonical UVM checkpoint is 354/354. Use
 `CURRENT_WORK.md` for the live VPI count and exact build provenance.
 
 - [x] Implement assertion start/step/disable lifecycle callbacks.
@@ -746,8 +804,8 @@ now have per-instance runtime storage; the shared-event cross-wake is gone.
 - [ ] Verify event assignment/alias semantics. *(Not implemented; UVM does not use it.)*
 - [x] Verify multiple waiters.
 - [x] Re-run UVM objection and phase-hopper stress tests. *(The event
-      cross-wake and R27 detached-fork staging defect are closed; the current
-      canonical harness passes 354/354.)*
+      cross-wake and R27 detached-fork staging defect are closed; the last
+      current local canonical checkpoint passes 354/354.)*
 
 Known follow-up: `obj.ev.triggered` still lowers through the shared-event
 path (the `%evtest/obj` opcode exists but isn't wired into expression

@@ -27324,17 +27324,33 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    };
 		      // Diagnose unknown option names loudly (accepted
 		      // no-effect options are listed).
-		    auto opt_check = [&](const std::map<perm_string,PExpr*>&opts,
-					 const char*where) {
+			    auto opt_check = [&](const std::map<perm_string,PExpr*>&opts,
+						 const char*where) {
 			  static const char*known[] = {
 				"at_least", "auto_bin_max", "weight", "goal",
 				"per_instance", "comment", "name",
 				"detect_overlap", "cross_num_print_missing",
+				"cross_retain_auto_bins",
 				"type_option.weight", "type_option.goal",
 				"type_option.comment", "type_option.strobe",
 				"type_option.merge_instances", 0 };
-			  for (auto&kv : opts) {
-				bool okopt = false;
+				  for (auto&kv : opts) {
+					if (kv.first == "type_option.cross_retain_auto_bins") {
+					      if (kv.second) cerr << kv.second->get_fileline() << ": ";
+					      cerr << "error: cross_retain_auto_bins is an instance "
+						      "option, not a type_option." << endl;
+					      des->errors += 1;
+					      continue;
+					}
+					if (kv.first == "cross_retain_auto_bins"
+					    && strcmp(where, "coverpoint") == 0) {
+					      if (kv.second) cerr << kv.second->get_fileline() << ": ";
+					      cerr << "error: option.cross_retain_auto_bins is only "
+						      "valid on a covergroup or cross." << endl;
+					      des->errors += 1;
+					      continue;
+					}
+					bool okopt = false;
 				for (const char**k = known; *k; k++)
 				      if (kv.first == *k) { okopt = true; break; }
 				if (!okopt)
@@ -27344,9 +27360,21 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 		    };
 		    opt_check(cgdef->options, "covergroup");
-		    unsigned cg_at_least = opt_uint(cgdef->options, "at_least", 1);
-		    unsigned cg_auto_bin_max = opt_uint(cgdef->options, "auto_bin_max", 64);
-		    unsigned cg_detect_overlap = opt_uint(cgdef->options, "detect_overlap", 0);
+			    unsigned cg_at_least = opt_uint(cgdef->options, "at_least", 1);
+			    unsigned cg_auto_bin_max = opt_uint(cgdef->options, "auto_bin_max", 64);
+			    unsigned cg_detect_overlap = opt_uint(cgdef->options, "detect_overlap", 0);
+			    unsigned cg_retain_auto = 1;
+			    auto cg_retain_it = cgdef->options.find(
+				  perm_string::literal("cross_retain_auto_bins"));
+			    if (cg_retain_it != cgdef->options.end()) {
+				  if (!sv_require_feature(cg_retain_it->second,
+					SVF_CROSS_RETAIN_AUTO_BINS)) {
+					des->errors += 1;
+				  } else {
+					cg_retain_auto = opt_uint(cgdef->options,
+					      "cross_retain_auto_bins", 1) ? 1 : 0;
+				  }
+			    }
 
 		      // Per-coverpoint expanded VALUE-bin descriptors,
 		      // feeding cross product generation.
@@ -27354,6 +27382,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  perm_string name;
 			  std::vector<std::pair<uint64_t,uint64_t>> ranges;
 			  bool wildcard = false;
+			    // Counter property for an ordinary fixed value bin. Dynamic
+			    // crosses use this stable identity instead of repeating the
+			    // bin's value ranges in a second metadata format.
+			  int source_prop = -1;
 			  int dyn_family = -1;
 			    // A transition coverpoint contributes the bin that
 			    // COMPLETED on this sample, not a range of its current
@@ -27761,7 +27793,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 
 		      // Wildcard patterns: read the verinum directly so
 		      // x/z/? bits become don't-cares (value, care-mask).
-		    auto eval_wildcard = [&](PExpr*pe, uint64_t&val, uint64_t&mask) -> bool {
+			    auto eval_wildcard = [&](PExpr*pe, uint64_t&val, uint64_t&mask) -> bool {
 			  PENumber*num = dynamic_cast<PENumber*>(pe);
 			  if (!num) return false;
 			  const verinum&v = num->value();
@@ -27782,13 +27814,68 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 			    // Bits above the literal width are "must be 0".
 			  if (nb < 64) mask |= ~(((uint64_t)1 << nb) - 1);
-			  return true;
-		    };
+				  return true;
+			    };
+			    auto wildcard_overlap = [](uint64_t value, uint64_t mask,
+						 uint64_t lo, uint64_t hi) -> bool {
+				  if (hi < lo) return false;
+				  signed char memo[64][2][2];
+				  memset(memo, -1, sizeof memo);
+				  std::function<bool(int,bool,bool)> visit =
+				    [&](int bit, bool tight_lo, bool tight_hi) -> bool {
+					  if (bit < 0) return true;
+					  signed char&slot = memo[bit][tight_lo ? 1 : 0]
+						[tight_hi ? 1 : 0];
+					  if (slot >= 0) return slot != 0;
+					  unsigned lo_bit = (unsigned)((lo >> bit) & 1);
+					  unsigned hi_bit = (unsigned)((hi >> bit) & 1);
+					  unsigned first = (mask >> bit) & 1
+						? (unsigned)((value >> bit) & 1) : 0;
+					  unsigned last = (mask >> bit) & 1 ? first : 1;
+					  for (unsigned digit = first; digit <= last; digit += 1) {
+						if (tight_lo && digit < lo_bit) continue;
+						if (tight_hi && digit > hi_bit) continue;
+						if (visit(bit - 1,
+						      tight_lo && digit == lo_bit,
+						      tight_hi && digit == hi_bit)) {
+						      slot = 1;
+						      return true;
+						}
+					  }
+					  slot = 0;
+					  return false;
+				    };
+				  return visit(63, true, true);
+			    };
 
-		    unsigned prop_idx = cg_class->get_properties();
-		    unsigned cp_idx  = 0;
-		    unsigned dyn_family = 0;
-		    bool has_parent_set_bins = false;
+			    unsigned prop_idx = cg_class->get_properties();
+			    unsigned cp_idx  = 0;
+			    unsigned dyn_family = 0;
+			    bool has_parent_set_bins = false;
+				    auto add_unique_cov_property = [&](const std::string&base,
+								     ivl_type_t property_type) -> int {
+					  std::string candidate = base;
+					  unsigned suffix = 0;
+					  perm_string name = lex_strings.make(candidate.c_str());
+				  while (cg_class->property_idx_from_name(name) >= 0) {
+					candidate = base + "_" + std::to_string(++suffix);
+					name = lex_strings.make(candidate.c_str());
+					  }
+					  if (!cg_class->set_property(name,
+						property_qualifier_t::make_none(),
+						property_type)) {
+						cerr << "internal error: unable to add covergroup property '"
+						     << name << "'." << endl;
+						des->errors += 1;
+					return -1;
+				  }
+				  int added = cg_class->property_idx_from_name(name);
+					  prop_idx = cg_class->get_properties();
+					  return added;
+				    };
+				    auto add_unique_cov_counter = [&](const std::string&base) -> int {
+					  return add_unique_cov_property(base, &netvector_t::atom2s32);
+				    };
 		      // IEEE 1800-2023 19.5/19.7.1: a labeled coverage
 		      // item has mutable, instance-specific option state
 		      // addressable through `instance.item.option.member'.
@@ -28097,21 +28184,21 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  auto add_value_prop = [&](const std::string&bname,
 						    const std::vector<std::pair<uint64_t,uint64_t>>&rr,
 						    unsigned kindval,
-						    unsigned guard_idx = netclass_t::COVGRP_NO_GUARD) {
-				perm_string bpp = lex_strings.make(bname.c_str());
-				cg_class->set_property(bpp,
-						       property_qualifier_t::make_none(),
-						       &netvector_t::atom2s32);
-				unsigned tup = 0;
-				for (auto&r : rr)
-				      cg_class->add_covgrp_bin(cp_idx, prop_idx,
-							       r.first, r.second,
+						    unsigned guard_idx = netclass_t::COVGRP_NO_GUARD)
+						    -> unsigned {
+					int added = add_unique_cov_counter(bname);
+					if (added < 0) return netclass_t::COVGRP_NO_PROP;
+					unsigned source_prop = (unsigned)added;
+					unsigned tup = 0;
+					for (auto&r : rr)
+					      cg_class->add_covgrp_bin(cp_idx, source_prop,
+								       r.first, r.second,
 							       kindval, tup++, cp_idx,
 							       0, 1, 1, 0, 1,
 							       netclass_t::COVGRP_NO_FAMILY,
 							       0, guard_idx);
-				prop_idx++;
-			  };
+					return source_prop;
+				  };
 
 			  for (auto& bin : cp.bins) {
 				unsigned base_kind = (unsigned)bin.kind;
@@ -28294,12 +28381,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    continue;
 				      }
 
-				      perm_string marker = lex_strings.make(
-					    (bin.arrayed ? bstem + "_marker" : bstem).c_str());
-				      cg_class->set_property(marker,
-					    property_qualifier_t::make_none(),
-					    &netvector_t::atom2s32);
-				      unsigned marker_prop = prop_idx++;
+					      int marker_added = add_unique_cov_counter(
+						    bin.arrayed ? bstem + "_marker" : bstem);
+					      if (marker_added < 0) continue;
+					      unsigned marker_prop = (unsigned)marker_added;
 				      unsigned family = bin.arrayed ? dyn_family++
 					    : netclass_t::COVGRP_NO_FAMILY;
 				      for (unsigned sq = 0; sq < programs.size(); sq++) {
@@ -28347,11 +28432,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				        // preserves illegal_bins/ignore_bins = default.
 				      unsigned default_kind = base_kind == 2 ? 5u
 							    : base_kind == 1 ? 6u : 3u;
-				      perm_string bpp = lex_strings.make(bstem.c_str());
-				      cg_class->set_property(bpp,
-						    property_qualifier_t::make_none(),
-						    &netvector_t::atom2s32);
-				      unsigned default_prop = prop_idx++;
+					      int default_added = add_unique_cov_counter(bstem);
+					      if (default_added < 0) continue;
+					      unsigned default_prop = (unsigned)default_added;
 				      cg_class->add_covgrp_bin(cp_idx, default_prop,
 							       0, ~(uint64_t)0,
 							       default_kind, 0, cp_idx,
@@ -28704,12 +28787,74 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  // Carve ignored/illegal values out of
 				  // normal bins (19.5.5); a bin with no
 				  // values left is dropped entirely.
-				if (base_kind == 0 && !bin.wildcard) {
+				if (base_kind == 0 && !bin.arrayed && !bin.wildcard) {
 				      subtract_carved(rr);
 				      if (rr.empty()) continue;
 				}
 
 				if (bin.arrayed && base_kind == 0) {
+				        // An integral unsized bin array is keyed by VALUE, not by
+				        // occurrences in the source value list (19.5.1). Merge
+				        // overlaps/duplicates before creating binname[value]. Ignore
+				        // and illegal values are removed from each already-created
+				        // logical bin below, without redistributing the survivors.
+				      if (!bin.array_size && !bin.wildcard) {
+					    std::vector<std::pair<uint64_t,uint64_t>> unique = rr;
+					    std::sort(unique.begin(), unique.end());
+					    std::vector<std::pair<uint64_t,uint64_t>> merged;
+					    for (auto&range : unique) {
+						  if (merged.empty()
+						      || (merged.back().second != UINT64_MAX
+						          && range.first > merged.back().second + 1)) {
+							merged.push_back(range);
+						  } else if (range.second > merged.back().second) {
+							merged.back().second = range.second;
+						  }
+					    }
+					    typedef unsigned __int128 cov_count_t;
+					    cov_count_t unique_total = 0;
+					    for (auto&range : merged)
+						  unique_total += (cov_count_t)range.second
+							- (cov_count_t)range.first + 1;
+					    static const uint64_t open_array_bin_limit = 65536;
+					    if (unique_total > open_array_bin_limit) {
+						  cerr << "sorry: open covergroup bin array '"
+						       << bin.name << "' needs more than "
+						       << open_array_bin_limit
+						       << " value-keyed counters; the bin is dropped."
+						       << endl;
+						  continue;
+					    }
+					    for (auto&range : merged) {
+						  uint64_t value = range.first;
+						  while (true) {
+							std::vector<std::pair<uint64_t,uint64_t>> chunk;
+							chunk.push_back(std::make_pair(value, value));
+							subtract_carved(chunk);
+							if (!chunk.empty()) {
+							      std::string bn = bstem + "_"
+								    + std::to_string(value);
+							      unsigned source_prop = add_value_prop(
+								    bn, chunk, kindval, bin_guard);
+							      xbin_desc_t d;
+							      d.name = lex_strings.make(
+								    (std::string(bin.name.str()) + "["
+								     + std::to_string(value) + "]").c_str());
+							      d.ranges = chunk;
+							      d.source_prop = (int)source_prop;
+							      d.guard_idx = bin_guard;
+							      vbins.push_back(d);
+							}
+							if (value == range.second) break;
+							value += 1;
+						  }
+					    }
+					      // An explicit family remains an explicit declaration even
+					      // when post-distribution ignore/illegal carving empties every
+					      // member; that must not synthesize unrelated automatic bins.
+					    has_value_bins = true;
+					    continue;
+				      }
 				        // Work in 128 bits so the full [0:2**64-1]
 				        // domain has a representable cardinality.  The
 				        // resulting bins remain compact ranges; do not
@@ -28748,11 +28893,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    continue;
 				      }
 				      if (nbins > total) nbins = total;
+				      if (nbins == 0) continue;
 				      size_t range_index = 0;
 				      uint64_t range_value = rr.empty() ? 0 : rr[0].first;
+				      cov_count_t per_bin = total / nbins;
+				      if (per_bin == 0) per_bin = 1;
 				      for (uint64_t k = 0; k < (uint64_t)nbins; k++) {
-					    cov_count_t cnt = total / nbins
-						       + ((cov_count_t)k < total % nbins ? 1 : 0);
+					    cov_count_t cnt = k + 1 == (uint64_t)nbins
+						       ? total - per_bin * (nbins - 1)
+						       : per_bin;
 					    std::vector<std::pair<uint64_t,uint64_t>> chunk;
 					    while (cnt != 0 && range_index < rr.size()) {
 						  const auto&r = rr[range_index];
@@ -28771,13 +28920,17 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							range_value = last + 1;
 						  }
 					    }
+					    if (!bin.wildcard) subtract_carved(chunk);
+					    if (chunk.empty()) continue;
 					    std::string bn = bstem + "_" + std::to_string(k);
-					    add_value_prop(bn, chunk, kindval, bin_guard);
+					    unsigned source_prop = add_value_prop(
+						  bn, chunk, kindval, bin_guard);
 					    xbin_desc_t d;
 					    d.name = lex_strings.make((std::string(bin.name.str())
 								       + "[" + std::to_string(k) + "]").c_str());
 					    d.ranges = chunk;
 					    d.wildcard = false;
+					    d.source_prop = (int)source_prop;
 					    d.guard_idx = bin_guard;
 					    vbins.push_back(d);
 				      }
@@ -28786,12 +28939,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				}
 
 				  // Plain (or illegal) one-counter bin.
-				add_value_prop(bstem, rr, kindval, bin_guard);
+				unsigned source_prop = add_value_prop(
+				      bstem, rr, kindval, bin_guard);
 				if (base_kind == 0) {
 				      xbin_desc_t d;
 				      d.name = bin.name;
 				      d.ranges = rr;
 				      d.wildcard = bin.wildcard;
+				      d.source_prop = (int)source_prop;
 				      d.guard_idx = bin_guard;
 				      vbins.push_back(d);
 				      has_value_bins = true;
@@ -28961,11 +29116,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    std::string bn = std::string("__bin_")
 							   + std::string(cp.label.str())
 							   + "_auto_" + std::to_string(k);
-					    add_value_prop(bn, rr1, 0);
+					    unsigned source_prop = add_value_prop(bn, rr1, 0);
 					    xbin_desc_t d;
 					    d.name = src_enum->name_at(k);
 					    d.ranges = rr1;
 					    d.wildcard = false;
+					    d.source_prop = (int)source_prop;
 					    vbins.push_back(d);
 				      }
 				} else {
@@ -28992,12 +29148,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      std::string bn = std::string("__bin_")
 						     + std::string(cp.label.str())
 						     + "_auto_" + std::to_string(k);
-				      add_value_prop(bn, rr1, 0);
+				      unsigned source_prop = add_value_prop(bn, rr1, 0);
 				      xbin_desc_t d;
 				      d.name = lex_strings.make((std::string("auto[")
 								 + std::to_string(k) + "]").c_str());
 				      d.ranges = rr1;
 				      d.wildcard = false;
+				      d.source_prop = (int)source_prop;
 				      vbins.push_back(d);
 				}
 				}
@@ -29080,20 +29237,24 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  for (unsigned cpi : cp_indexes)
 				for (const xbin_desc_t&desc : cp_value_bins[cpi])
 				      if (desc.dyn_family >= 0) has_dynamic_family = true;
-			  if (has_dynamic_family) {
-				cerr << "sorry: cross '"
-				     << (cross.label.nil() ? "(unnamed)"
-							   : cross.label.str())
-				     << "' contains a constructor-dependent bin family "
-					"that cannot yet be represented in cross metadata; "
-					"the cross is dropped." << endl;
-				continue;
-			  }
 
 			  opt_check(cross.options, "cross");
 			  unsigned x_at_least = opt_uint(cross.options, "at_least", cg_at_least);
 			  std::pair<unsigned,std::string> x_weight =
 				opt_weight(cross.options, 1);
+				  unsigned retain_auto = cg_retain_auto;
+			  auto retain_it = cross.options.find(
+				perm_string::literal("cross_retain_auto_bins"));
+			  if (retain_it != cross.options.end()) {
+				if (!sv_require_feature(retain_it->second,
+					SVF_CROSS_RETAIN_AUTO_BINS)) {
+				      des->errors += 1;
+				      continue;
+				}
+					retain_auto = opt_uint(cross.options,
+					      "cross_retain_auto_bins", cg_retain_auto)
+					      ? 1 : 0;
+			  }
 			    // Keep the runtime item index identical to the item-table
 			    // index even if an earlier malformed cross was dropped.
 			  unsigned item_idx =
@@ -29121,6 +29282,194 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						x_option_props.first,
 						x_option_props.second);
 
+			  typedef class_type_t::pform_cross_t::cross_bin_t xbin_t;
+			  typedef class_type_t::pform_cross_t::select_t sel_t;
+
+			    // A constructor-dependent source family makes the cross bin
+			    // topology object-specific. Preserve a compact plan instead of
+			    // allocating type-global counter properties for one arbitrarily
+			    // elaborated constructor value. The runtime resolves each plan
+			    // after this covergroup object's constructor state is captured.
+			  if (has_dynamic_family) {
+				std::vector<std::string> select_irs(cross.bins.size());
+				bool plan_ok = true;
+				auto append_select_token = [](std::string&out,
+							     const std::string&token) {
+				      if (!out.empty()) out += ";";
+				      out += token;
+				};
+				std::function<bool(sel_t*,std::string&)> compile_select;
+				compile_select = [&](sel_t*s, std::string&out) -> bool {
+				      if (!s) return false;
+				      switch (s->op) {
+					  case sel_t::SEL_AND:
+					  case sel_t::SEL_OR: {
+						std::string left, right;
+						if (!compile_select(s->a, left)
+						    || !compile_select(s->b, right)) return false;
+						out = left;
+						if (!right.empty()) {
+						      if (!out.empty()) out += ";";
+						      out += right;
+						}
+						append_select_token(out,
+						      s->op == sel_t::SEL_AND ? "A" : "O");
+						return true;
+					  }
+					  case sel_t::SEL_NOT:
+						if (!compile_select(s->a, out)) return false;
+						append_select_token(out, "N");
+						return true;
+					  case sel_t::SEL_BINSOF: {
+						int dim = -1;
+						for (size_t k = 0; k < cross.cp_labels.size(); k++)
+						      if (cross.cp_labels[k] == s->cp_name) {
+							dim = (int)k;
+							break;
+						      }
+						if (dim < 0) return false;
+						std::vector<std::pair<uint64_t,uint64_t>> irr;
+						if (!s->intersect_ranges.empty()
+						    && !eval_ranges(s->intersect_ranges, irr))
+						      return false;
+						std::vector<std::string> leaves;
+						const std::vector<xbin_desc_t>&descs =
+						      cp_value_bins[cp_indexes[dim]];
+						for (size_t ti = 0; ti < descs.size(); ti++) {
+						      const xbin_desc_t&d = descs[ti];
+						      if (!s->bin_name.nil()) {
+							    std::string dn = d.name.str();
+							    std::string bn = s->bin_name.str();
+							    bool match = dn == bn
+								  || (dn.size() > bn.size()
+								      && dn.compare(0, bn.size(), bn) == 0
+								      && dn[bn.size()] == '[');
+							    if (!match) continue;
+						      }
+						      std::vector<std::pair<uint64_t,uint64_t>> runtime_irr;
+						      if (!irr.empty()) {
+								    if (d.dyn_family >= 0 || d.wildcard) {
+									  runtime_irr = irr;
+								    } else {
+									  if (d.ranges.empty())
+										return false;
+								  bool overlap = false;
+								  for (auto&a : d.ranges) {
+									for (auto&b : irr)
+									      if (a.first <= b.second
+										  && b.first <= a.second) {
+										    overlap = true;
+										    break;
+									      }
+									if (overlap) break;
+								  }
+								  if (!overlap) continue;
+							    }
+						      }
+						      std::string leaf = "L," + std::to_string(dim)
+							    + "," + std::to_string(ti)
+							    + "," + std::to_string(runtime_irr.size());
+						      for (auto&range : runtime_irr)
+							    leaf += "," + std::to_string(range.first)
+								  + "," + std::to_string(range.second);
+						      leaves.push_back(leaf);
+						}
+						if (leaves.empty()) {
+						      append_select_token(out, "F");
+						      return true;
+						}
+						out = leaves[0];
+						for (size_t li = 1; li < leaves.size(); li++) {
+						      out += ";" + leaves[li];
+						      append_select_token(out, "O");
+						}
+						return true;
+					  }
+				      }
+				      return false;
+				};
+
+				for (size_t ub = 0; ub < cross.bins.size(); ub++) {
+				      xbin_t&cb = cross.bins[ub];
+				      if (cb.with_expr
+					  || !compile_select(cb.select, select_irs[ub])) {
+					    cerr << "sorry: dynamic cross bin '" << cb.name
+						 << "' uses a selection form that cannot be "
+						    "represented per instance; cross '"
+						 << (cross.label.nil() ? "(unnamed)"
+								       : cross.label.str())
+						 << "' is dropped." << endl;
+					    plan_ok = false;
+					    break;
+				      }
+				}
+				if (!plan_ok) continue;
+
+				unsigned family = dyn_family++;
+				std::vector<unsigned> dynamic_bin_props(
+				      cross.bins.size(), netclass_t::COVGRP_NO_PROP);
+				for (size_t ub = 0; ub < cross.bins.size(); ub++) {
+				      const xbin_t&cb = cross.bins[ub];
+				      if (cb.kind == xbin_t::BIN_IGNORE) continue;
+				      std::string pn = "__covgrp_cross_"
+					    + std::to_string(item_idx) + "_bin_"
+					    + std::to_string(ub);
+				      int added = add_unique_cov_counter(pn);
+				      if (added < 0) {
+					    plan_ok = false;
+					    break;
+				      }
+				      dynamic_bin_props[ub] = (unsigned)added;
+				}
+				if (!plan_ok) continue;
+				cg_class->add_covgrp_cross(family, item_idx,
+				      (unsigned)cp_indexes.size(), retain_auto);
+				for (size_t dim = 0; dim < cp_indexes.size(); dim++) {
+				      const std::vector<xbin_desc_t>&descs =
+					    cp_value_bins[cp_indexes[dim]];
+				      for (size_t ti = 0; ti < descs.size(); ti++) {
+					    const xbin_desc_t&d = descs[ti];
+					    unsigned source_kind = 0;
+					    unsigned source_id = 0;
+					    uint64_t source_aux = 0;
+					    if (d.source_prop >= 0) {
+						  source_kind = 0;
+						  source_id = (unsigned)d.source_prop;
+					    } else if (d.dyn_family >= 0) {
+						  source_kind = 1;
+						  source_id = (unsigned)d.dyn_family;
+					    } else if (d.transition_prop >= 0) {
+						  source_kind = 2;
+						  source_id = (unsigned)d.transition_prop;
+					    } else if (d.transition_family >= 0) {
+						  source_kind = 3;
+						  source_id = (unsigned)d.transition_family;
+						  source_aux = d.transition_index;
+					    } else {
+						  cerr << "sorry: cross '"
+						       << (cross.label.nil() ? "(unnamed)"
+									     : cross.label.str())
+						       << "' has a source bin without a stable "
+							  "identity; the cross is dropped." << endl;
+						  plan_ok = false;
+						  break;
+					    }
+					    cg_class->add_covgrp_cross_term(family,
+						  (unsigned)dim, (unsigned)ti,
+						  source_kind, source_id, source_aux);
+				      }
+				      if (!plan_ok) break;
+				}
+				if (!plan_ok) continue;
+				for (size_t ub = 0; ub < cross.bins.size(); ub++) {
+				      const xbin_t&cb = cross.bins[ub];
+				      cg_class->add_covgrp_cross_bin(family,
+					    (unsigned)cb.kind, dynamic_bin_props[ub],
+					    cb.name.str(), select_irs[ub]);
+				}
+				continue;
+			  }
+
 			    // M11-3: named cross bins — per product
 			    // tuple, evaluate each user bin's binsof
 			    // select.  ignore bins carve tuples out;
@@ -29128,26 +29477,26 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // error-firing counter; normal bins collect
 			    // them under one counter; unselected tuples
 			    // fall back to automatic per-tuple bins.
-			  typedef class_type_t::pform_cross_t::cross_bin_t xbin_t;
-			  typedef class_type_t::pform_cross_t::select_t sel_t;
-			  std::vector<unsigned> ubin_props(cross.bins.size(),
-							   netclass_t::COVGRP_NO_PROP);
-			  std::vector<unsigned> ubin_tuples(cross.bins.size(), 0);
-			  std::vector<bool> ubin_sorried(cross.bins.size(), false);
-			  for (size_t ub = 0; ub < cross.bins.size(); ub++) {
+				  std::vector<unsigned> ubin_props(cross.bins.size(),
+								   netclass_t::COVGRP_NO_PROP);
+				  std::vector<unsigned> ubin_tuples(cross.bins.size(), 0);
+				  std::vector<bool> ubin_sorried(cross.bins.size(), false);
+				  bool cross_props_ok = true;
+				  for (size_t ub = 0; ub < cross.bins.size(); ub++) {
 				xbin_t&cb = cross.bins[ub];
 				if (cb.kind == xbin_t::BIN_IGNORE)
 				      continue;
-				std::string pn = std::string("__xbin_")
-					+ (cross.label.nil() ? std::string("auto")
-							     : std::string(cross.label.str()))
-					+ "_" + std::string(cb.name.str());
-				perm_string bpp = lex_strings.make(pn.c_str());
-				cg_class->set_property(bpp,
-					property_qualifier_t::make_none(),
-					&netvector_t::atom2s32);
-				ubin_props[ub] = prop_idx++;
-			  }
+				std::string pn = "__covgrp_cross_"
+					+ std::to_string(item_idx) + "_bin_"
+					+ std::to_string(ub);
+					int added = add_unique_cov_counter(pn);
+					if (added < 0) {
+					      cross_props_ok = false;
+					      break;
+					}
+					ubin_props[ub] = (unsigned)added;
+				  }
+				  if (!cross_props_ok) continue;
 
 			  std::function<int(sel_t*, const std::vector<unsigned>&)> eval_sel =
 			      [&](sel_t*s, const std::vector<unsigned>&tup) -> int {
@@ -29194,12 +29543,16 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						if (!eval_ranges(s->intersect_ranges, irr))
 						      return -1;
 						bool overlap = false;
-						for (auto&ra : d.ranges) {
-						      for (auto&rb : irr) {
-							    if (ra.first <= rb.second
-								&& rb.first <= ra.second) {
-								  overlap = true;
-								  break;
+							for (auto&ra : d.ranges) {
+							      for (auto&rb : irr) {
+								    bool hit = d.wildcard
+									  ? wildcard_overlap(ra.first, ra.second,
+										  rb.first, rb.second)
+									  : ra.first <= rb.second
+										&& rb.first <= ra.second;
+								    if (hit) {
+									  overlap = true;
+									  break;
 							    }
 						      }
 						      if (overlap) break;
@@ -29217,10 +29570,17 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // products while allowing practical standards-compliant
 			    // crosses substantially larger than the historical 4096 cap.
 			  static const uint64_t cross_bin_limit = 65536;
-			  uint64_t nprod = 1;
-			  for (unsigned cpi : cp_indexes) {
-				nprod *= cp_value_bins[cpi].size();
-				if (nprod > cross_bin_limit) break;
+				  uint64_t nprod = 1;
+				  bool product_too_large = false;
+				  for (unsigned cpi : cp_indexes) {
+					uint64_t count = cp_value_bins[cpi].size();
+					if (count == 0 || count > cross_bin_limit
+					    || nprod > cross_bin_limit / count) {
+					      product_too_large = count != 0;
+					      nprod = 0;
+					      break;
+					}
+					nprod *= count;
 			  }
 			  if (getenv("IVL_COV_TRACE")) {
 				cerr << "[cov-trace] " << cgdef->name << " cross";
@@ -29229,12 +29589,14 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					   << cp_value_bins[cp_indexes[k]].size();
 				cerr << " product=" << nprod << endl;
 			  }
-			  if (nprod == 0 || nprod > cross_bin_limit) {
-				cerr << "sorry: cross '"
-				     << (cross.label.nil() ? "(unnamed)"
-							   : cross.label.str())
-				     << "' would generate " << nprod
-				     << " bins (limit " << cross_bin_limit
+				  if (nprod == 0) {
+					cerr << "sorry: cross '"
+					     << (cross.label.nil() ? "(unnamed)"
+								   : cross.label.str())
+					     << (product_too_large ? "' would generate more than "
+								   : "' would generate ")
+					     << (product_too_large ? cross_bin_limit : nprod)
+					     << " bins (limit " << cross_bin_limit
 				     << "); the cross is "
 				     << "dropped." << endl;
 				continue;
@@ -29242,7 +29604,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 
 			  std::map<unsigned, unsigned> prop_tuple_next;
 			  std::vector<unsigned> idx(cp_indexes.size(), 0);
-			  bool done = false;
+				bool done = false;
+				uint64_t auto_counter = 0;
 			  while (!done) {
 				  // Route this product tuple: ignore user
 				  // bins carve it out; a matching illegal
@@ -29250,9 +29613,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  // normal user bins each collect it; and
 				  // with no user match it gets its own
 				  // automatic bin.
-				bool skip_tuple = false;
-				std::vector<std::pair<unsigned,unsigned>> targets;
-				bool got_illegal = false;
+				bool got_ignore = false;
+				std::vector<std::pair<unsigned,unsigned>> normal_targets;
+				std::vector<std::pair<unsigned,unsigned>> illegal_targets;
 				for (size_t ub = 0; ub < cross.bins.size(); ub++) {
 				      xbin_t&cb = cross.bins[ub];
 				      int m = -1;
@@ -29302,59 +29665,73 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      }
 				      if (!m) continue;
 				      if (cb.kind == xbin_t::BIN_IGNORE) {
-					    skip_tuple = true;
-					    break;
+					    got_ignore = true;
+					    continue;
 				      }
 				      if (cb.kind == xbin_t::BIN_ILLEGAL) {
-					    targets.clear();
-					    targets.push_back(std::make_pair(ubin_props[ub], 2u));
-					    got_illegal = true;
-					    break;
+					    illegal_targets.push_back(
+						  std::make_pair(ubin_props[ub], 2u));
+					    continue;
 				      }
-				      targets.push_back(std::make_pair(ubin_props[ub], 0u));
+				      normal_targets.push_back(
+					    std::make_pair(ubin_props[ub], 0u));
 				}
-				(void)got_illegal;
+
+				  // A tuple may be selected by multiple named cross bins.
+				  // Resolve all selections before applying the special-bin
+				  // precedence, so declaration order cannot make ignore_bins
+				  // mask illegal_bins.  Within the winning normal or illegal
+				  // class, retain every overlapping named bin.
+				bool skip_tuple = false;
+				std::vector<std::pair<unsigned,unsigned>> targets;
+				if (!illegal_targets.empty())
+				      targets.swap(illegal_targets);
+				else if (got_ignore)
+				      skip_tuple = true;
+				else
+				      targets.swap(normal_targets);
 
 				if (!skip_tuple) {
-				      if (targets.empty()) {
-					    std::string bpname = std::string("__xbin_");
-					    bpname += cross.label.nil()
-							? std::string("auto")
-							: std::string(cross.label.str());
-					    for (size_t k = 0; k < idx.size(); k++) {
-						  bpname += "_";
-						  bpname += std::to_string(idx[k]);
-					    }
-					    perm_string bpp = lex_strings.make(bpname.c_str());
-					    cg_class->set_property(bpp,
-						  property_qualifier_t::make_none(),
-						  &netvector_t::atom2s32);
-					    targets.push_back(std::make_pair(prop_idx, 0u));
-					    prop_idx++;
+				      if (targets.empty()
+					  && (retain_auto || cross.bins.empty())) {
+					    std::string bpname = "__covgrp_cross_"
+						  + std::to_string(item_idx) + "_auto_"
+						  + std::to_string(auto_counter++);
+					    int added = add_unique_cov_counter(bpname);
+					    if (added >= 0)
+						  targets.push_back(std::make_pair(
+							(unsigned)added, 0u));
 				      }
+				      if (targets.empty()) skip_tuple = true;
 
 					// Tuples: cartesian product of the
 					// contributing bins' RANGES, so
 					// multi-range bins OR correctly
 					// inside the AND across coverpoints.
 				      std::vector<size_t> rsizes(idx.size());
+				      static const uint64_t cross_range_tuple_limit = 65536;
 				      uint64_t nrt = 1;
+				      bool range_product_too_large = false;
 				      for (size_t k = 0; k < idx.size(); k++) {
 					    const xbin_desc_t&d =
 						  cp_value_bins[cp_indexes[k]][idx[k]];
 					    rsizes[k] = d.ranges.size() ? d.ranges.size() : 1;
+					    if (rsizes[k] > cross_range_tuple_limit
+						|| nrt > cross_range_tuple_limit / rsizes[k]) {
+						range_product_too_large = true;
+						nrt = 0;
+						break;
+					    }
 					    nrt *= rsizes[k];
 				      }
-				      static const uint64_t cross_range_tuple_limit = 65536;
-				      if (nrt > cross_range_tuple_limit) {
+				      if (range_product_too_large) {
 					    cerr << "sorry: a cross product bin of '"
 						 << (cross.label.nil() ? "(unnamed)"
 								       : cross.label.str())
-						 << "' spans " << nrt << " range tuples "
-						 << "(limit " << cross_range_tuple_limit
+						 << "' spans more than " << cross_range_tuple_limit
+						 << " range tuples (limit " << cross_range_tuple_limit
 						 << "); the product bin never "
 						 << "matches." << endl;
-					    nrt = 0;
 				      }
 				      for (auto&tgt : targets) {
 					    std::vector<size_t> ridx(idx.size(), 0);
@@ -29429,12 +29806,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    // indexes are unchanged.
 		    if (!cg_standalone
 			&& (has_parent_set_bins || !cgdef->sample_events.empty())) {
-			  cg_class->set_property(
-				perm_string::literal("__covgrp_parent"),
-				property_qualifier_t::make_none(),
-				this);
-			  cg_class->set_covgrp_parent_prop((int)prop_idx);
-			  prop_idx++;
+				  int parent_prop = add_unique_cov_property(
+					"__covgrp_parent", this);
+				  if (parent_prop >= 0)
+					cg_class->set_covgrp_parent_prop(parent_prop);
 			    // Only an implicit sampling process needs to read the
 			    // coverpoint source through a parent property. Set bins
 			    // also need the hidden parent handle, but are evaluated by

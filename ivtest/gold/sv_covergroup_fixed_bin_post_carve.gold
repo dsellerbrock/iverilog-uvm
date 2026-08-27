@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_covergroup_fixed_bin_post_carve.v:31: $finish called at 0 (1s)

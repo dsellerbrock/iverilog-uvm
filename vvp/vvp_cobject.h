@@ -35,6 +35,42 @@ struct covgrp_dyn_state_t {
       const class_type::cov_dyn_bin_t*meta = 0;
       std::vector<std::pair<uint64_t,uint64_t>> ranges;
       unsigned __int128 total = 0;
+      bool valid = true;
+};
+
+// One per-instance logical choice for a dimension of a dynamic cross. Fixed
+// and transition terms contribute one choice; a constructor-dependent family
+// contributes one choice for each logical bin resolved for this object.
+struct covgrp_cross_choice_t {
+      unsigned term_idx = 0;
+      unsigned kind = 0;
+      unsigned source_id = 0;
+      unsigned source_aux = 0;
+      unsigned cp_idx = 0;
+      uint64_t logical_idx = 0;
+      std::vector<const class_type::cov_bin_t*> records;
+};
+
+// A routed logical cross tuple. Normal named bins may overlap, so one route
+// can bump several property counters. Illegal/ignore routing has already
+// removed the automatic bin when this cache is built.
+struct covgrp_cross_route_t {
+      std::vector<unsigned> choices;
+      std::vector<unsigned> targets;
+      std::vector<unsigned> illegal_targets;
+      uint64_t auto_bin = UINT64_MAX;
+};
+
+// Constructor-dependent cross topology. It is deliberately object-owned:
+// both the logical family cardinalities and named-bin selection can differ
+// between two instances of the same covergroup type.
+struct covgrp_cross_state_t {
+      const class_type::cov_cross_t*meta = 0;
+      std::vector<std::vector<covgrp_cross_choice_t>> dimensions;
+      std::vector<covgrp_cross_route_t> routes;
+      std::vector<unsigned> named_props;
+      uint64_t auto_total = 0;
+      bool enabled = false;
 };
 
 class vvp_cobject : public vvp_object {
@@ -196,13 +232,25 @@ class vvp_cobject : public vvp_object {
       { return cov_dyn_states_; }
       void cov_dyn_resolve(std::map<unsigned,covgrp_dyn_state_t>&states,
 			   bool complete = true)
-      { cov_dyn_states_.swap(states); cov_dyn_resolved_ = complete; }
+	{ cov_dyn_states_.swap(states); cov_dyn_resolved_ = complete;
+	  cov_cross_states_.clear(); cov_cross_resolved_ = false; }
       uint64_t cov_dyn_hits(unsigned family, unsigned at_least) const
       { uint64_t hits = 0;
 	for (auto&entry : cov_dyn_counts_)
 	      if (entry.first.first == family && entry.second >= at_least)
 		    hits += 1;
 	return hits; }
+	// Per-instance constructor-dependent cross topology. Rebuilding the
+	// dynamic-family cache invalidates this derived cache (above), including
+	// the provisional setp state before the enclosing object is linked.
+      bool cov_cross_resolved() const { return cov_cross_resolved_; }
+      const std::map<unsigned,covgrp_cross_state_t>& cov_cross_states() const
+      { return cov_cross_states_; }
+      void cov_cross_resolve(std::map<unsigned,covgrp_cross_state_t>&states,
+			     bool complete = true)
+      { cov_cross_states_.swap(states); cov_cross_resolved_ = complete; }
+      bool cov_cross_warn_once(unsigned family)
+      { return cov_cross_warned_.insert(std::make_pair(family, true)).second; }
 	// M11: covergroup start()/stop() sampling enable.
       bool cov_enabled() const { return cov_enabled_; }
       void set_cov_enabled(bool f) { cov_enabled_ = f; }
@@ -277,6 +325,9 @@ class vvp_cobject : public vvp_object {
       std::map<unsigned,bool> cov_dyn_warned_;
       std::map<unsigned,covgrp_dyn_state_t> cov_dyn_states_;
       bool cov_dyn_resolved_ = false;
+      std::map<unsigned,bool> cov_cross_warned_;
+      std::map<unsigned,covgrp_cross_state_t> cov_cross_states_;
+      bool cov_cross_resolved_ = false;
       bool cov_enabled_ = true;
 	// Lazily-allocated per-instance event nets, keyed by event slot.
       std::map<uint32_t, class vvp_net_t*> inst_events_;

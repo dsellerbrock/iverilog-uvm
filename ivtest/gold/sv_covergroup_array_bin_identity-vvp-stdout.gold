@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_covergroup_array_bin_identity.v:51: $finish called at 0 (1s)

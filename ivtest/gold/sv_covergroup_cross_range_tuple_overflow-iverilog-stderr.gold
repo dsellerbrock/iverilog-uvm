@@ -1,0 +1,1 @@
+sorry: a cross product bin of 'all' spans more than 65536 range tuples (limit 65536); the product bin never matches.

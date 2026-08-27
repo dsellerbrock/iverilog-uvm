@@ -2530,6 +2530,55 @@ void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
       free(value_type);
 }
 
+void compile_class_covgrp_cross(uint64_t family, uint64_t item_idx,
+				uint64_t n_dims, uint64_t retain_auto)
+{
+      assert(compile_class);
+      const uint64_t u32_max = std::numeric_limits<unsigned>::max();
+      if (family > u32_max || item_idx > u32_max || n_dims > u32_max
+	  || n_dims == 0 || retain_auto > 1) {
+	yyerror("invalid .covgrp_cross metadata value");
+	return;
+      }
+      compile_class->add_covgrp_cross((unsigned)family, (unsigned)item_idx,
+				      (unsigned)n_dims, retain_auto != 0);
+}
+
+void compile_class_covgrp_cross_term(uint64_t family, uint64_t dim,
+				     uint64_t term_idx, uint64_t kind,
+				     uint64_t source_id, uint64_t source_aux)
+{
+      assert(compile_class);
+      const uint64_t u32_max = std::numeric_limits<unsigned>::max();
+      if (family > u32_max || dim > u32_max || term_idx > u32_max
+	  || kind > 3 || source_id > u32_max || source_aux > u32_max) {
+	yyerror("invalid .covgrp_cross_term metadata value");
+	return;
+      }
+      compile_class->add_covgrp_cross_term((unsigned)family, (unsigned)dim,
+					   (unsigned)term_idx, (unsigned)kind,
+					   (unsigned)source_id,
+					   (unsigned)source_aux);
+}
+
+void compile_class_covgrp_cross_bin(uint64_t family, uint64_t kind,
+				    uint64_t target, char*name, char*select_ir)
+{
+      assert(compile_class);
+      const uint64_t u32_max = std::numeric_limits<unsigned>::max();
+      if (family > u32_max || kind > 2 || target > u32_max
+	  || !name || !select_ir) {
+	yyerror("invalid .covgrp_cross_bin metadata value");
+	free(name);
+	free(select_ir);
+	return;
+      }
+      compile_class->add_covgrp_cross_bin((unsigned)family, (unsigned)kind,
+					  (unsigned)target, name, select_ir);
+      free(name);
+      free(select_ir);
+}
+
 void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
 			       uint64_t is_cross, char*name, char*weight_ir,
 			       uint64_t guardsrc)

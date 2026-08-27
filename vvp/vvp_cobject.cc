@@ -1010,6 +1010,14 @@ void vvp_cobject::shallow_copy(const vvp_object*obj)
       rand_mode_leaves_ = that->rand_mode_leaves_;
       constraint_mode_ = that->constraint_mode_;
       randc_history_ = that->randc_history_;
+	// Constructor-derived coverage topology belongs to the copied property
+	// values, not to the destination's previous contents. Rebuild both caches
+	// lazily so a covergroup object copy cannot retain stale dynamic ranges or
+	// cross cardinalities.
+      cov_dyn_states_.clear();
+      cov_dyn_resolved_ = false;
+      cov_cross_states_.clear();
+      cov_cross_resolved_ = false;
       union_active_member_ = that->union_active_member_;
       if (union_vec4_ && that->union_vec4_)
 	    *union_vec4_ = *that->union_vec4_;

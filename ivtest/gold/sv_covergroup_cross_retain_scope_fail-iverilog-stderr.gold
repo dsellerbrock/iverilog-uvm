@@ -1,0 +1,3 @@
+ivltests/sv_covergroup_cross_retain_scope_fail.v:9: error: option.cross_retain_auto_bins is only valid on a covergroup or cross.
+ivltests/sv_covergroup_cross_retain_scope_fail.v:14: error: cross_retain_auto_bins is an instance option, not a type_option.
+2 error(s) during elaboration.

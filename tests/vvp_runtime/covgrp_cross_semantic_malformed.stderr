@@ -1,0 +1,11 @@
+WARNING: dynamic cross family 1 is disabled: named cross-bin selector references an unknown term.
+WARNING: dynamic cross family 1 is disabled: one cross dimension references multiple coverpoints.
+WARNING: dynamic cross family 1 is disabled: dynamic cross term family is invalid.
+WARNING: dynamic cross family 1 is disabled: duplicate dynamic cross plan for one coverage item.
+WARNING: dynamic cross family 2 is disabled: duplicate dynamic cross plan for one coverage item.
+WARNING: dynamic cross family 1 is disabled: named cross-bin counter property aliases another bin.
+WARNING: dynamic covergroup bin family 0 is disabled: inconsistent family metadata.
+WARNING: dynamic cross family 1 is disabled: dynamic cross term family is invalid.
+WARNING: dynamic cross family 1 is disabled: named cross-bin counter property aliases another bin.
+WARNING: dynamic cross family 1 is disabled: cross selector evaluation exceeds 16777216 operations.
+WARNING: dynamic cross family 1 is disabled: cross selector evaluation exceeds 16777216 operations.

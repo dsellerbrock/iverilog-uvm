@@ -18,6 +18,11 @@ The governing shared rules are IEEE 1800-2017/2023 clauses 19.3, 19.5,
 19.5.1, and 19.5.7. This checkpoint implements a bounded integral subset; it
 does not claim complete clause 19 or either complete language edition.
 
+The later bounded dynamic-cross follow-up is recorded in
+[`2026-08-26_opentitan_dynamic_cross_topology.md`](2026-08-26_opentitan_dynamic_cross_topology.md).
+It supersedes this log's forward-looking dynamic-cross status while preserving
+the measurements below as the PR #238 historical checkpoint.
+
 ## Original unmodified failure
 
 OpenTitan's TL agent declares a constructor-dependent arrayed bin range whose
@@ -64,9 +69,15 @@ The audit exposed two additional correctness/safety requirements:
   equality rules, reject X/Z, intersect partially representable ranges with
   the effective coverpoint domain, and treat explicit descending ranges as
   empty.
-- Preserve duplicate occurrences. Unsized arrays create one logical bin per
-  occurrence; fixed arrays use the required ordered partition and place the
-  remainder in the final nonempty bin.
+- The checkpoint preserved duplicate occurrences for both unsized and fixed
+  arrays. A subsequent direct-LRM audit found that rule nonconformant for
+  integral open arrays: `bins b[]` creates one value-named logical bin per
+  distinct resolved value, so duplicate and overlapping ranges coalesce.
+  Fixed arrays preserve the ordered matching occurrences, place the remainder
+  in the final nonempty bin, and apply ignore/illegal carving after
+  distribution without redistribution. The open-bin identity, fixed
+  remainder, and carving behavior are therefore recorded defects in this
+  checkpoint, not guarantees established by its 8/8 focused result.
 - Encode direct/current and parent-container set expressions with their own
   element width/sign. Freeze a parent set immediately when the parent link is
   installed so later container mutation cannot change construction-time bin
@@ -91,7 +102,9 @@ Paired `-g2017` and `-g2023` entries cover:
 - exact OpenTitan endpoint construction and distinct per-instance ranges;
 - typed shifts, arithmetic wrap, mixed widths/signs, unary minus, direct input
   capture, safe `'0`, and descending ranges;
-- duplicate membership and fixed-bin partitioning;
+- the checkpoint's duplicate-membership and fixed-bin examples (which did not
+  establish the later-audited open-bin identity, exact remainder, or
+  post-distribution carving rules);
 - unsigned-bit-pattern to signed-coverpoint conversion, inverse signed-
   negative exclusion, typed set equivalents, and both mixed-sign endpoint
   orders;
@@ -212,16 +225,50 @@ and result JSON SHA-256
 
 ## Explicit follow-up
 
-The immediate shared OpenTitan coverage frontier is dynamic-family integration
-into crosses and named `binsof`, followed by construction-time dynamic `with`
-and object/method-valued endpoints. Also open are constructor
-`ref`/output/inout direction semantics, full context-sized literals and broader
-expression evaluation, dynamic ignore/illegal denominator carving, dynamic
-type coverage, report/VPI detail, option/type-option merging, and IEEE
-1800-2023 real/tolerance coverage.
+The follow-up increment now verifies bounded dynamic-family automatic crosses
+and the evidenced named `binsof`/`intersect` conjunctions. Its paired legacy
+and JSON/VVP focus gates pass 20/20, and the OpenTitan UVM matrix moves seven
+targets from FAIL to DEBT while removing the former dynamic-cross-drop
+diagnostic from all 20 affected targets. That result closes this log's
+immediate frontier, not clause 19.
+
+After final hardening, current local gates are full legacy **4,103 pass / 0 fail
+/ 2 NI / 3 expected fail** (**4,108 total**), JSON/VVP **993/993**, negatives
+**136/136**, VPI **103/103**, canonical real-DPI UVM **354/354**, and both
+focused paths **20/20**. The final OpenTitan matrix is **8 DEBT / 50 FAIL /
+3 SETUP_FAIL / 0 PASS** versus the **1 DEBT / 57 FAIL / 3 SETUP_FAIL /
+0 PASS** historical result above. It completed in 47.62 seconds with zero
+timeouts/resource-limit signals and zero exact or generic former cross-drop
+diagnostics. This remains compile-only evidence, not a clean application or
+runtime pass. The final matrix evidence is
+`/Users/danielellerbrock/projects/iverilog_uvm/evidence/opentitan-dynamic-cross-final-after238-arm64-20260826T183204-0600/matrix`;
+its result JSON SHA-256 is
+`b97844e5b327b98a251e3c03f15e6939e827c0f849a88cfd538f1334b388fa55`
+and the compiler-engine SHA-256 is
+`599a85f0c35730e151227abfd6c698cf9bc8556c50f8f6b70ccf0aa728e1cff1`.
+
+The final Caliptra static census completed 105 jobs and 420 compiler
+invocations in 52.33 seconds: Icarus is **53/105** in each assertions,
+no-assertions, and synthesis lane, versus Slang **54/105**. Classifications are
+**52 PASS / 1 DEBT / 51 SHARED_SOURCE_OR_CONFIG / 1 SOURCE_ORDER_DEBT /
+0 ICARUS_GAP**; the sole Slang advantage is known `csrng_raw_wrap` source-order
+debt. Evidence is
+`/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-dynamic-cross-final-after238-arm64-20260827T003032Z`
+with result JSON SHA-256
+`857e7b5a97ca35810ac21258e0367f63bd53766ee5d3ca2f65639e09e8add9fd`.
+This is static compile/elaboration/synthesis differential evidence, not full DV
+runtime.
+
+Still open are constructor/per-instance expressions for 2023
+`cross_retain_auto_bins`, illegal cross bins over transition terms, remaining
+dynamic `with`/`matches`/set/`CrossQueueType` selection forms, source
+ignore/illegal carving from dynamic-family denominators, type-coverage union,
+report/VPI and normative naming detail, the explicit 65,536-bin topology cap,
+real/tolerance coverage, constructor `ref`/output/inout direction semantics,
+full context-sized literals, and broader expression evaluation.
 
 Unrelated OpenTitan parser/provider/clocking frontiers remain larger than this
 coverage cluster. Full Caliptra DV runtime still requires external verification
-inputs and may not be claimed from the frozen compile census. Formal proof
+inputs and may not be claimed from the completed static census. Formal proof
 execution and UPF/IEEE 1801 remain future programs after substantially broader
 IEEE 1800 closure.

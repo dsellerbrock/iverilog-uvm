@@ -18,7 +18,14 @@ probe is current. Secondary sources may help find deltas but cannot override
 the selected LRM. Shared rules should normally have paired `-g2017`/`-g2023`
 tests; changed rules need positive 2023 and edition-rejection evidence.
 
-## Candidate and previously probed 2023 changes; direct-LRM closure pending
+Unmodified UVM, OpenTitan, and Caliptra are application gates, not substitutes
+for the standard. VCS, Questa, and Xcelium are the practical commercial-
+simulator compatibility targets after the selected IEEE text; Slang is a
+parser/elaboration differential and Verilator is diagnostic only. The work is
+intended to leave a formal-ready frontend and SVA/IR foundation, but a proof
+engine is later work and UPF/IEEE 1801 remains deferred.
+
+## Candidate and previously probed 2023 changes; row-level direct-LRM closure pending
 
 Keep `CERTAIN` below only as the historical scoping confidence. A row is not
 closed until it has a direct-LRM citation, date, and executable edition gate.
@@ -50,14 +57,75 @@ closed until it has a direct-LRM citation, date, and executable edition gate.
 ## Current paired clause-19 checkpoint (2026-08-26)
 
 The typed constructor-dependent integral-bin work is intentionally shared
-between `-g2017` and `-g2023`. Paired focused legacy and JSON/VVP gates pass
-8/8 for each harness, including width/sign-preserving construction-time
+between `-g2017` and `-g2023`. Paired focused legacy and JSON/VVP gates now
+pass 20/20 for each harness, including width/sign-preserving construction-time
 ranges, X/Z rejection, coverpoint-domain conversion, descending ranges,
-duplicate membership, fixed partitioning, and OpenTitan's TL-agent endpoint
-expression. This is a bounded clause-19 subset, not full 2023 functional
-coverage. Constructor directions, dynamic `with` and cross integration,
-dynamic denominator/type/report semantics, and the 2023 real/tolerance
-coverage surface remain open.
+OpenTitan's TL-agent endpoint expression, open/fixed array-bin identity and
+carving, per-instance dynamic-cross topology, automatic and named routing, and
+cross-bin precedence/locality. This is a bounded clause-19 subset, not full
+2023 functional coverage.
+
+For both editions, integral `bins b[]` is value-keyed after range resolution:
+duplicates and overlaps coalesce into one bin per distinct resolved value.
+Fixed `bins b[N]` preserves ordered matching occurrences, places the remainder
+in the final nonempty bin, and removes ignore/illegal values after distribution
+without redistribution. Cross sampling uses the Cartesian product of every
+matched source-bin identity. Named routing is independent of declaration
+order, with `illegal` taking precedence over `ignore`, then normal bins; an
+overlapping named normal bin counts at most once per sample, while different
+named bins may each count.
+
+The automatic-cross-bin edition delta is now directly audited. IEEE 1800-2017
+19.6.1 p.572 requires retention of the nonintersecting automatic remainder and
+its 19.7 Table 19-1 pp.578–579 has no retention option. IEEE 1800-2023 19.6.1
+p.600 makes that behavior the default, and 19.7 Table 19-1 p.606 defines
+`cross_retain_auto_bins` with default 1. When false, the presence of any
+explicit cross bin removes every automatic bin. Syntax 19-4 pp.597–598 uses
+`bins_keyword` for a cross-bin declaration, and Syntax 19-2 p.582 defines that
+keyword as `bins`, `ignore_bins`, or `illegal_bins`; the presence rule therefore
+includes all three. Applying it when a selector is empty is the direct
+implementation consequence of “presence,” not a separate LRM example.
+
+The option is instance-specific, not static. The construction-time option
+assignment rule is on p.607; Table 19-2 p.608 permits it on a covergroup as the
+default for crosses and on a cross as an override, but not on a coverpoint.
+The implicit structures in 19.10 pp.613–614 put it in covergroup and cross
+`option` and in no `type_option`. One p.607 sentence says “covergroup or
+coverpoint definition”; that conflicts with both the table and the structures
+and is recorded as an apparent editorial typo. The implementation follows the
+table and structures.
+
+The current compiler verifies constant covergroup defaults, constant
+cross-local values, invalid coverpoint/`type_option` placement, and the 2017
+edition rejection. Constructor/per-instance nonconstant expressions remain
+open: the current `opt_uint` path diagnoses them and uses a default instead of
+evaluating them per constructed object. The runtime presence mechanism covers
+normal, ignore, and illegal records. The focused retention reducer pins an
+ordinary explicit bin, a no-explicit-bin control, inherited covergroup defaults
+on fixed and dynamic crosses, cross-local disable and enable overrides, and
+empty ignore/illegal selectors. Procedural-write and repeated-assignment
+evidence remains to be added.
+
+Dynamic-family automatic crosses and the evidenced named
+`binsof`/`intersect` conjunctions are verified with object-specific topology.
+Current local gates are legacy **4,103 pass / 0 fail / 2 NI / 3 expected fail**
+(**4,108 total**), JSON/VVP **993/993**, negatives **136/136**, VPI
+**103/103**, canonical real-DPI UVM **354/354**, and both focused paths
+**20/20**. The final OpenTitan matrix advanced seven targets from FAIL to
+DEBT—from **1 DEBT / 57 FAIL / 3 SETUP_FAIL / 0 PASS** to **8 DEBT / 50 FAIL /
+3 SETUP_FAIL / 0 PASS**—with zero timeouts/resource-limit signals and zero
+exact or generic former cross-drop diagnostics. It is a compile matrix, not a
+clean application or runtime pass. The final Caliptra static census completed
+105 jobs and 420 compiler invocations: Icarus is **53/105** in each assertions,
+no-assertions, and synthesis lane versus Slang **54/105**, with **52 PASS /
+1 DEBT / 51 SHARED_SOURCE_OR_CONFIG / 1 SOURCE_ORDER_DEBT / 0 ICARUS_GAP**.
+The sole Slang advantage is known `csrng_raw_wrap` source-order debt; this is
+static compile/elaboration/synthesis differential evidence, not full DV
+runtime. Constructor directions, transition-term illegal cross bins,
+remaining dynamic `with`/`matches`/set/`CrossQueueType` selections, source
+denominator carving, type-coverage union semantics, report/VPI and normative
+naming detail, products over the explicit 65,536-bin cap, and the 2023
+real/tolerance coverage surface remain open.
 
 ## Explicitly unverified (do not implement without direct LRM citation)
 

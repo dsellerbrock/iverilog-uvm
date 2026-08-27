@@ -365,18 +365,58 @@ options, coverage queries, and durable reports.
 
 Typed constructor-dependent integral ranges are captured once per covergroup
 object. The bounded expression grammar preserves width, signedness, X/Z
-rejection, coverpoint-domain resolution, descending-range emptiness, duplicate
-membership, and fixed-array partitioning. It includes OpenTitan's exact TL
-agent form `[0 : 2 << (valid_source_width - 1) - 1]`; paired `-g2017` and
-`-g2023` focused gates pass **8/8** in both the legacy and JSON/VVP harnesses.
+rejection, coverpoint-domain resolution, descending-range emptiness, and the
+ordered source-occurrence stream used by fixed bin arrays. It includes
+OpenTitan's exact TL agent form
+`[0 : 2 << (valid_source_width - 1) - 1]`.
+
+A direct IEEE 1800-2017/2023 audit and paired regressions now establish the
+bounded array-bin topology used by dynamic crosses. An integral open array bin
+(`bins b[]`) has one logical bin per distinct resolved value, so duplicate and
+overlapping ranges coalesce and use value-derived names. A fixed array
+(`bins b[N]`) partitions ordered matching occurrences, gives the final
+nonempty bin the remainder, and removes ignore/illegal values only after
+distribution without redistribution. Per-covergroup-object cross plans now
+combine fixed, transition, and constructor-dependent logical source bins;
+automatic products, the evidenced `binsof`/`intersect` conjunctions and named-bin
+selections, overlapping named bins, `iff`, and declaration-order-independent
+`illegal` over `ignore` over normal routing are checked at runtime. An illegal
+cross bin does not suppress its source coverpoints or unrelated crosses.
+Paired `-g2017`/`-g2023` focus gates pass **20/20** in both the legacy and
+JSON/VVP harnesses. IEEE 1800-2023 `option.cross_retain_auto_bins` defaults to
+1; a covergroup-level value is the default for its crosses and a cross-local
+value overrides it. It is not a coverpoint option or any `type_option`, and the
+same declaration is rejected in 2017 mode. The implemented subset evaluates
+constant option values only. Its runtime treats any explicit normal,
+`ignore_bins`, or `illegal_bins` cross record as explicit even when the
+selection is empty. The focused retention reducer pins ordinary-bin and
+no-explicit-bin cases, inherited covergroup defaults on fixed and dynamic
+crosses, cross-local disable and enable overrides, and empty `ignore_bins` and
+`illegal_bins` presence semantics.
 
 Clause 19 remains **PARTIAL**. Constructor `ref`/direction semantics, broader
-endpoint expressions, constructor-dependent `with` filters, dynamic-bin cross
-metadata, ignore/illegal carving from dynamic denominators, type coverage,
-reporting/VPI details, and broader option/type-option merging remain explicit
-gaps. Examples: [tests/coverage_full_test.sv](tests/coverage_full_test.sv),
+endpoint expressions, constructor/per-instance expressions for
+`cross_retain_auto_bins`, transition-term illegal cross bins, and remaining
+dynamic `with`, `matches`, set-expression, `CrossQueueType`, and broader
+compound-selection forms are explicit gaps. Source ignore/illegal values are
+not yet carved from dynamic-family denominators. Type-coverage union,
+report/VPI and normative naming detail, broader signed static range/intersect
+normalization, empty trailing fixed-array-bin identity/naming, real/tolerance
+coverage, and products beyond the explicit 65,536-bin topology cap also remain
+open. Examples:
+[tests/coverage_full_test.sv](tests/coverage_full_test.sv),
 [tests/coverage_cross_test.sv](tests/coverage_cross_test.sv), and
 [ivtest/ivltests/sv_covergroup_ctor_bin_ranges.v](ivtest/ivltests/sv_covergroup_ctor_bin_ranges.v).
+
+The current native-ARM64 local gates are clean: the paired focus passes
+**20/20** in both paths; legacy ivtest reports **4,103 pass / 0 fail / 2 NI /
+3 expected fail** (**4,108 total**); JSON/VVP passes **993/993**; negative
+diagnostics pass **136/136**; bundled VPI passes **103/103**; and the canonical
+unmodified real-DPI UVM suite passes **354/354**. The JSON total includes the
+two optional `-tfpga` entries after the native-ARM64 `tgt-fpga` target is built
+and installed. Exact design, historical timing, evidence, and invocation detail
+is in the
+[dynamic-cross session log](docs/conformance/session_logs/2026-08-26_opentitan_dynamic_cross_topology.md).
 
 ### VPI — substantial
 
@@ -439,14 +479,14 @@ for recorded evidence and known corners, not a completeness certificate.
 | Area | Status | Notes |
 |---|---|---|
 | Core classes / OOP (cl. 8) | Substantial | Interface classes, nested class declarations, module/package/compilation-unit out-of-body `extern` methods, multiple `extends`/`implements` relationships, specialization-aware casts, inherited type visibility and method-contract checks are supported |
-| UVM (Accellera core, unmodified) | Substantial | Complete canonical 354-test repository regression green (354/354, 0 failed, 0 skipped; real 578.66s), run WITHOUT `UVM_NO_DPI` via the Icarus UVM DPI backend (regex + command-line + `uvm_hdl_*` backdoor); frontdoor + user-defined backdoor work; `UVM_NO_DPI` native fallback still supported |
+| UVM (Accellera core, unmodified) | Substantial | Current local canonical checkpoint: 354/354, 0 failed, 0 skipped, run WITHOUT `UVM_NO_DPI` via the Icarus UVM DPI backend (regex + command-line + `uvm_hdl_*` backdoor); frontdoor + user-defined backdoor work; `UVM_NO_DPI` native fallback still supported. |
 | Constraints / randomization (cl. 18) | Substantial | Z3-backed, including scope `std::randomize(vars) with {...}` for simple 1–64-bit integral variables; `randcase`/`randsequence` work |
 | Containers (queues/darrays/assoc, cl. 7) | Substantial | Broad recorded method subset; explicit receiver, typing, and context gaps remain |
 | Interfaces / virtual interfaces (cl. 25) | Substantial | UVM vif pattern end-to-end; bare module-scope `virtual` var missing |
 | Clocking blocks (cl. 14) | Partial | Sampled inputs, common output drives, `##N`, and global clocking work; recorded run-time-selected, indexed-receiver, and aggregate-output gaps remain |
 | Scheduler / event regions (cl. 4) | Supported | Full stratified queue incl. Preponed, post-NBA (`cbNBASynch`), Observed and the Reactive set; assertions sample Preponed, evaluate in Observed and run their actions in Reactive; region tracing/self-test under `IVL_REGION_TRACE` / `IVL_REGION_SELFTEST` ([audit](docs/conformance/scheduler_audit_2026_07.md)) |
 | SVA (cl. 16) | Partial | Automaton (NFA) engine is the default: implication, windows/unbounded incl. mid-chain, goto/nonconsec repetition, local vars, first_match, and/or/intersect/within/throughout, strong/weak, `.triggered`/`.matched`, multiclocked `\|=>`; legacy linear engine behind `IVL_SVA_LEGACY=1`; `expect` and `checker`/`endchecker` implemented; remaining loud boundaries include cross-clock overlapping `\|->`, `disable iff` across a two-or-more-boundary chain, and the separately recorded branch-flow/deferred-immediate gaps |
-| Functional coverage (cl. 19) | Partial | Substantial value/transition/cross/options/query subset; typed construction-time integral ranges include the OpenTitan TL expression and pass focused legacy 8/8 plus JSON/VVP 8/8; broader constructor, dynamic `with`/cross, denominator, type-coverage, reporting, and VPI semantics remain explicit gaps |
+| Functional coverage (cl. 19) | Partial | Substantial value/transition/cross/options/query subset. Paired legacy and JSON/VVP focus gates pass 20/20 for typed construction-time ranges, open/fixed array-bin identity and carving, per-instance dynamic cross topology, automatic and evidenced named-`binsof` routing, precedence/locality, and the constant 2023 auto-retention option. The constant option obeys the covergroup-default/cross-override scope and 2017 edition gate; coverpoint and `type_option` placements are rejected. Constructor/per-instance retention expressions, transition-term illegal crosses, remaining dynamic `with`/`matches`/set/`CrossQueueType` and broader compound selections, source denominator carving, type/report/VPI/naming, real/tolerance, and products beyond 65,536 remain open. |
 | DPI-C (cl. 35) | Substantial | Import: exact scalar/atom/shortreal ABI and open arrays incl. multi-dim. Export: functions plus task execution with integer/scalar bit-logic/packed-vector/shortreal/real/chandle/string/void formals, scalar output/inout, `svScope` multi-instance + context-relative selection, and time-consuming tasks through POSIX `<ucontext.h>` or Win32 Fibers; generated task stubs return the H.8.2 `int` disable status. Checked imported-task integer acknowledgments, `svIsDisabledState`, imported-function `svAckDisabledState`, C cleanup resume, and fatal enforcement of 35.9(b)–(d) are implemented; old `%dpi/call/task` void images retain their normal-call compatibility path. Identical cross-scope/multi-instance exports remain legal, while duplicate local linkage names and incompatible cross-scope C signatures are rejected. H.8.9 keeps packed-vector results illegal. Loud legal gaps: imported shortreal arrays and fixed-size unpacked export formals. Exported open arrays and class-handle formals are diagnosed as IEEE-illegal. VCS/Questa/Xcelium interoperability remains the ABI target. |
 | VPI SV object model (cl. 36) | Substantial | Classes, live direct/property containers and element callbacks, covergroups, assertions; documented whole-container-write and assertion-detail corners remain |
 | `bind` (cl. 23.11) | Substantial | Module/type, instance-path, and instance-list targets |
@@ -455,24 +495,27 @@ for recorded evidence and known corners, not a completeness certificate.
 
 ### Application-corpus checkpoint
 
-The canonical unmodified Accellera UVM harness passes **354/354** with real
-DPI at its current recorded checkpoint. Application compatibility is less
-complete:
+The current local canonical unmodified Accellera UVM checkpoint passes
+**354/354** with real DPI. Application compatibility is less complete:
 
-- A native-ARM64 OpenTitan 61-target UVM **compile** matrix at clean revision
-  `7a3ad34b` improved from 58 failures plus 3 setup failures to **1 semantic-
-  debt result, 57 compiler failures, and 3 setup failures**. The exact TL-agent
-  constructor range now crosses the hard-compile boundary with zero hard
-  errors, but 12 pre-existing semantic-debt diagnostics remain. Sixteen other
-  targets now first-stop at dynamic-family cross metadata; parser, provider,
-  clocking, and isolated elaboration frontiers account for the rest. This
-  matrix contains no clean application pass and did not run simulations.
-- A fresh native-ARM64 frozen Caliptra census at clean revision `bd316141`
-  reproduces Icarus +SVA, -SVA, and synthesis at **53/105** and Slang at
-  **54/105**, with zero job-level change from the prior matrix and no
-  demonstrated Icarus-only language gap. Full Caliptra DV execution remains
-  blocked by external verification inputs; a compile census is not a usable
-  full-chip runtime.
+- The final native-ARM64 OpenTitan 61-target UVM **compile** matrix at clean
+  revision `7a3ad34b` is **8 DEBT / 50 FAIL / 3 SETUP_FAIL / 0 PASS**, versus
+  **1 DEBT / 57 FAIL / 3 SETUP_FAIL / 0 PASS** before this increment. Seven targets moved from FAIL to
+  DEBT (`adc_ctrl`, `dma`, `hmac`, `mbx`, `pattgen`, `soc_dbg_ctrl`, and
+  `uart`), while `tl_agent` remains DEBT. Both the exact former constructor-
+  dependent-cross-drop diagnostic and the generic cross-drop diagnostic occur
+  zero times. The run had zero timeouts or resource-limit signals. Remaining
+  parser, provider, clocking, dynamic-`with`, and isolated elaboration failures
+  still prevent a clean application pass. This was a compile matrix and did
+  not run simulations.
+- The final frozen Caliptra static census completes all 105 jobs and 420
+  compiler invocations: Icarus is **53/105** in each assertions,
+  no-assertions, and synthesis lane versus Slang **54/105**. Its classifications
+  are **52 PASS / 1 DEBT / 51 SHARED_SOURCE_OR_CONFIG /
+  1 SOURCE_ORDER_DEBT / 0 ICARUS_GAP**; the sole Slang advantage is the known
+  `csrng_raw_wrap` source-order debt. This is compile/elaboration/synthesis
+  differential evidence, not full Caliptra DV runtime, which still requires
+  external verification inputs.
 
 Exact revisions, commands, classifications, and newer results belong in
 [CURRENT_WORK](docs/conformance/CURRENT_WORK.md), not in a rounded compatibility

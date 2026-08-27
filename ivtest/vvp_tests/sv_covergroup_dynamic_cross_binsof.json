@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_covergroup_dynamic_cross_binsof.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_covergroup_dynamic_cross_binsof"
+}

@@ -523,6 +523,34 @@ void draw_class_in_scope(ivl_type_t classtype)
 			  ivl_type_covgrp_dyn_bin_value_width(classtype, idx),
 			  ivl_type_covgrp_dyn_bin_guard(classtype, idx));
 	    }
+	    int nx = ivl_type_covgrp_crosses(classtype);
+	    for (idx = 0 ; idx < nx ; idx += 1) {
+		  fprintf(vvp_out, " .covgrp_cross %u %u %u %u\n",
+			  ivl_type_covgrp_cross_family(classtype, idx),
+			  ivl_type_covgrp_cross_item(classtype, idx),
+			  ivl_type_covgrp_cross_n_dims(classtype, idx),
+			  ivl_type_covgrp_cross_retain_auto(classtype, idx));
+	    }
+	    int nt = ivl_type_covgrp_cross_terms(classtype);
+	    for (idx = 0 ; idx < nt ; idx += 1) {
+		  fprintf(vvp_out, " .covgrp_cross_term %u %u %u %u %u %u\n",
+			  ivl_type_covgrp_cross_term_family(classtype, idx),
+			  ivl_type_covgrp_cross_term_dim(classtype, idx),
+			  ivl_type_covgrp_cross_term_index(classtype, idx),
+			  ivl_type_covgrp_cross_term_kind(classtype, idx),
+			  ivl_type_covgrp_cross_term_source_id(classtype, idx),
+			  ivl_type_covgrp_cross_term_source_aux(classtype, idx));
+	    }
+	    int nxb = ivl_type_covgrp_cross_bins(classtype);
+	    for (idx = 0 ; idx < nxb ; idx += 1) {
+		  fprintf(vvp_out, " .covgrp_cross_bin %u %u %u \"%s\" \"%s\"\n",
+			  ivl_type_covgrp_cross_bin_family(classtype, idx),
+			  ivl_type_covgrp_cross_bin_kind(classtype, idx),
+			  ivl_type_covgrp_cross_bin_target(classtype, idx),
+			  vvp_mangle_name(
+				ivl_type_covgrp_cross_bin_name(classtype, idx)),
+			  ivl_type_covgrp_cross_bin_select_ir(classtype, idx));
+	    }
 	    int ni = ivl_type_covgrp_items(classtype);
 	    for (idx = 0 ; idx < ni ; idx += 1) {
 		    /* M12-7: the strings carry the coverpoint/cross label and

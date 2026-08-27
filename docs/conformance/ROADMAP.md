@@ -8,6 +8,16 @@ It is deliberately built to *not drift*.
 - **This file** holds the stable work-breakdown, the fixed ordering rule, and the
   one derived "current focus" pointer. Nothing else.
 
+The execution order is IEEE 1800 first: 2017 and 2023 are independently
+selected conformance targets. Unmodified UVM, OpenTitan, and Caliptra are real
+application gates, while VCS, Questa, and Xcelium define the practical
+commercial-simulator interoperability target after the selected IEEE text.
+Slang is a parser/elaboration differential and Verilator is diagnostic only.
+The frontend, scheduler, SVA, and IR should remain usable by a later formal
+engine, but no proof engine is claimed here; UPF/IEEE 1801 remains deferred
+until the IEEE 1800 language and verification surfaces are substantially
+closed.
+
 **Supersedes as a *tracking* device:** `frontier_roadmap_2026-07-17.md` and every
 `session_logs/*` "Tier 1/2/3" list. Those are dated snapshots. There is exactly one
 living tracker: this file. Do not introduce new Tier/Phase schemes.
@@ -71,7 +81,7 @@ breakdown that follows is grouped under it.
 | — | M3A | Common class constraint solving | DONE (common) |
 | — | M4A | Core container runtime | DONE (core) |
 | — | M6A | Core scheduler/runtime repairs | DONE (subset) |
-| — | M7 | Accellera UVM qualification | DONE (current harness 354/354, 0 failed/skipped) |
+| — | M7 | Accellera UVM qualification | DONE (current local harness 354/354, 0 failed/skipped) |
 | — | M8 | Clocking blocks & program sched | PARTIAL (recorded core works; known clause-14 gaps remain) |
 | — | M9A | Core SVA token pipeline | DONE |
 | — | M10A | Core DPI imports & packed vectors | DONE (subset) |
@@ -146,9 +156,9 @@ and indexed write through it — all correct. The general path
 (`ensure_property_decl()` via `NetEProperty`) therefore already resolves
 the shape, and the hardcoded fallback is very likely dead code.
 **Remaining terms for M1B-3:** delete `infer_indexed_property_type_fallback_`
-and its single call site (net_expr.cc:73), then validate with a full UVM
-run (currently 354/354) — a full run is the only evidence that can retire a
-UVM-specific hack.
+and its single call site (net_expr.cc:73), then validate that future deletion
+with a full UVM run. The current tree passes 354/354, but only a run after the
+deletion can retire a UVM-specific hack.
 
 ### M4B — aggregate/container completion  (clause 7/21)
 
@@ -405,8 +415,8 @@ legacy-engine retirement.
 | M11-2 | Module/interface-scope covergroups | F | **DONE** | — | module_item grammar (+0 bison conflicts), explicit sample()/crosses/iff/per-instance state, and declaration sampling events (`covergroup cg @(posedge clk);`) synthesizing per-instance `always @(ev) inst.sample();` processes. Constructor formals on standalone covergroups are materialized as per-instance properties and are available to coverpoint sources and supported dynamic coverage metadata. sv_covergroup_standalone, sv_covergroup_constructor_scope |
 | M11-3 | Sampling-event forms | F | **PARTIAL** | — | Standalone `@(edge sig)`, or-lists, plain any-change, and the recorded class-embedded event subset work with per-instance guards and mid-simulation construction. An event coverpoint not backed by a parent property remains loud. `sv_covergroup_class_event` |
 | M11-4 | `with function sample` formal semantics | F | **PARTIAL** | — | Direct formals bind positionally/by name in the recorded module/package/class call sites, shadow surrounding names, and work in guards/crosses; arity/name mismatch is loud. A formal nested inside an expression coverpoint remains loud. `sv_covergroup_with_sample` |
-| M11-5 | Coverpoint-expression + option/type_option audit | A | **PARTIAL** | — | Fixed-bin option and expression subsets are evidenced. Typed per-instance constructor-dependent integral ranges now preserve width, signedness, X/Z exclusion, coverpoint-domain conversion, descending-range emptiness, duplicate membership, and fixed-array partitioning for the bounded expression grammar, including OpenTitan's TL-agent form. Paired `-g2017`/`-g2023` focused legacy and JSON/VVP gates pass 8/8 at this checkpoint. Constructor port direction/`ref` semantics, full context-sized `'1`, broader expressions, construction-time dynamic `with`, dynamic cross/named-`binsof` integration, and complete option/type-option semantics remain open or loud. `sv_covergroup_options`, `sv_covergroup_ctor_bin_ranges`, `sv_covergroup_ctor_bin_typed`, `sv_covergroup_ctor_bin_resolution`, `sv_covergroup_ctor_bin_ranges_unresolved` |
-| M11-6 | Coverage serialization/interchange + adversarial cross/transition | A | **PARTIAL** | — | Durable text reporting, the recorded fixed-bin ignore/illegal carving, duplicate registry defense, compact multi-step transitions, per-instance NFA state, and fixed `binsof` cross routing are evidenced. Dynamic-family ignore/illegal denominator carving, type-coverage integration, report/VPI detail, and dynamic cross routing remain open. `sv_covergroup_adversarial` |
+| M11-5 | Coverpoint-expression + option/type_option audit | A | **PARTIAL** | — | The paired `-g2017`/`-g2023` legacy and JSON/VVP focus gates pass 20/20. The evidenced bounded subset includes typed per-instance constructor-dependent integral ranges, OpenTitan's TL-agent expression, distinct-value open-bin identity, fixed-array remainder placement, post-distribution carving, and constant 2023 `cross_retain_auto_bins`. The option defaults to 1; a covergroup value defaults its crosses and a cross-local value overrides it; coverpoint and every `type_option` placement are errors; 2017 rejects the option. The retention reducer pins inherited fixed/dynamic defaults, local disable/enable overrides, no-explicit-bin retention, and empty ignore/illegal declaration presence. Current lowering supports constants only. Constructor/per-instance option expressions, procedural/repeated-assignment diagnostics, constructor port direction/`ref` semantics, full context-sized `'1`, broader expressions, dynamic source-denominator carving, and complete option/type-option semantics remain open or incompletely evidenced. `sv_covergroup_options`, `sv_covergroup_ctor_bin_ranges`, `sv_covergroup_ctor_bin_typed`, `sv_covergroup_ctor_bin_resolution`, `sv_covergroup_ctor_bin_ranges_unresolved`, `sv_covergroup_array_bin_identity`, `sv_covergroup_fixed_bin_post_carve`, `sv_covergroup_cross_retain_auto_bins_2023`, `sv_covergroup_cross_retain_scope_fail` |
+| M11-6 | Coverage serialization/interchange + adversarial cross/transition | A | **PARTIAL** | — | Durable reports, compact transitions, fixed routing, and per-instance dynamic-family cross topology are evidenced. Automatic products plus the tested named `binsof`/`intersect` conjunctions use every matched source identity, declaration-order-independent `illegal` > `ignore` > normal precedence, and illegal-cross locality. Current local gates are focus 20/20 in both harnesses, legacy 4,103 pass / 0 fail / 2 NI / 3 expected fail (4,108 total), JSON/VVP 993/993, negatives 136/136, VPI 103/103, and canonical UVM 354/354. The final OpenTitan matrix is 8 DEBT / 50 FAIL / 3 SETUP_FAIL / 0 PASS with zero timeouts/resource-limit signals and zero exact or generic former cross-drop diagnostics; it is a compile matrix, not a clean runtime pass. The final Caliptra static census is Icarus 53/105 in each assertions/no-assertions/synthesis lane versus Slang 54/105 with 0 ICARUS_GAP; it is not full DV runtime. Transition-term illegal crosses, remaining dynamic `with`/`matches`/set/`CrossQueueType` and broader compound selectors, source denominator carving, type union, report/VPI/normative naming, broader signed static range/intersect normalization, empty trailing fixed-array-bin identity/naming, real/tolerance, and products beyond the 65,536 cap remain open. `sv_covergroup_adversarial`, `sv_covergroup_dynamic_cross`, `sv_covergroup_dynamic_cross_binsof`, `sv_covergroup_cross_bin_precedence` |
 | M11-7 | Chained covergroup method calls (`obj.cg.sample()`) | F | DONE | — | sample/guard values read from the covergroup's parent object, not the caller's `this`; chained + cross-object sites correct |
 | M11-8 | Covergroup `sample()` from scope tasks/functions | C | **DONE** | — | covergroup metadata is synthesized before package/module/interface subroutine bodies are lowered. Previously `sample()` in those bodies compiled silently as a zero-coverpoint operation, leaving coverage at 0%. Direct, `with function sample`, package-task, module-task/function, interface-task, and nested class-receiver forms now preserve their coverpoint values. sv_covergroup_task_sample |
 
@@ -563,9 +573,9 @@ cached clause count or a single percentage. A clause labeled `SUBSTANTIAL` or
 `PARTIAL` records the tested subset and its explicit residuals; it does not
 imply complete subclause coverage.
 
-The current canonical UVM harness is 354/354 with real DPI, 0 failed, and 0
-skipped (real 578.66s), but that workload is evidence for its exercised
-language surface rather than a
+The current local canonical UVM checkpoint is 354/354 with real DPI, 0 failed,
+and 0 skipped.
+That workload is evidence for its exercised language surface rather than a
 standards-completeness certificate. Important residuals include advanced SVA
 forms, imported shortreal arrays, legal fixed-size unpacked export formals, the
 exhaustive DPI signature/runtime matrix, recorded VPI object-model corners, and
@@ -583,14 +593,22 @@ Re-derive this by applying the priority rule to the OPEN items above; do not han
 the structure.
 
 **Checkpoint 2026-08-26.** Clause 19 remains PARTIAL. Paired focused gates
-pass 8/8 legacy and 8/8 JSON/VVP. The OpenTitan 61-target UVM compile matrix
-is 1 DEBT / 57 FAIL / 3 SETUP_FAIL / 0 PASS, with no simulations;
-`tl_agent_sim` is the sole status transition. The next shared coverage
-frontier is dynamic-family cross and named-`binsof` integration, followed by
-dynamic `with` and object/method-valued range forms. A fresh frozen Caliptra
-census remains 53/105 in all three Icarus lanes versus 54/105 in Slang, with
-zero job-level delta and zero demonstrated Icarus-only language gap; no full
-DV runtime is claimed.
+pass 20/20 legacy and 20/20 JSON/VVP; full legacy is 4,103 pass / 0 fail / 2
+NI / 3 expected fail (4,108 total), JSON/VVP is 993/993, negatives are
+136/136, VPI is 103/103, and canonical real-DPI UVM is 354/354. The final
+OpenTitan 61-target UVM compile matrix is 8 DEBT / 50 FAIL / 3 SETUP_FAIL /
+0 PASS versus 1 DEBT / 57 FAIL / 3 SETUP_FAIL / 0 PASS: seven targets move
+FAIL→DEBT, both exact and generic former cross-drop diagnostic counts are zero,
+and there are no timeouts or resource-limit signals. This is bounded dynamic-
+family cross and named-`binsof` closure, not a clean application, runtime, or
+clause-19 result. Constructor/per-instance retention expressions,
+transition-term illegal crosses, dynamic `with`/selection residuals, source
+denominator carving, type/report/VPI/naming, real/tolerance, and products over
+65,536 remain open. The final Caliptra static census is Icarus 53/105 in each
+assertions/no-assertions/synthesis lane versus Slang 54/105, with 52 PASS,
+1 DEBT, 51 SHARED_SOURCE_OR_CONFIG, 1 SOURCE_ORDER_DEBT, and 0 ICARUS_GAP.
+Its sole Slang advantage is known `csrng_raw_wrap` source-order debt; this is
+not full Caliptra DV runtime.
 
 ### Historical 2026-07 recovery snapshot (superseded)
 

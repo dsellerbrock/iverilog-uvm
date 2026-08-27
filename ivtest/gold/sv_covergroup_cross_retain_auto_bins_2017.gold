@@ -1,0 +1,10 @@
+./ivltests/sv_covergroup_cross_retain_auto_bins.v:16: error: option.cross_retain_auto_bins requires IEEE1800-2023; compile with -g2023 (or -glatest).
+./ivltests/sv_covergroup_cross_retain_auto_bins.v:32: error: option.cross_retain_auto_bins requires IEEE1800-2023; compile with -g2023 (or -glatest).
+./ivltests/sv_covergroup_cross_retain_auto_bins.v:47: error: option.cross_retain_auto_bins requires IEEE1800-2023; compile with -g2023 (or -glatest).
+./ivltests/sv_covergroup_cross_retain_auto_bins.v:56: error: option.cross_retain_auto_bins requires IEEE1800-2023; compile with -g2023 (or -glatest).
+./ivltests/sv_covergroup_cross_retain_auto_bins.v:69: error: option.cross_retain_auto_bins requires IEEE1800-2023; compile with -g2023 (or -glatest).
+./ivltests/sv_covergroup_cross_retain_auto_bins.v:85: error: option.cross_retain_auto_bins requires IEEE1800-2023; compile with -g2023 (or -glatest).
+./ivltests/sv_covergroup_cross_retain_auto_bins.v:91: error: option.cross_retain_auto_bins requires IEEE1800-2023; compile with -g2023 (or -glatest).
+./ivltests/sv_covergroup_cross_retain_auto_bins.v:108: error: option.cross_retain_auto_bins requires IEEE1800-2023; compile with -g2023 (or -glatest).
+./ivltests/sv_covergroup_cross_retain_auto_bins.v:112: error: option.cross_retain_auto_bins requires IEEE1800-2023; compile with -g2023 (or -glatest).
+9 error(s) during elaboration.

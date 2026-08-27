@@ -116,6 +116,8 @@
 #define SV_FEATURE_TABLE						\
       SV_FEATURE_ROW(SVF_STACKTRACE, GN_VER2023,			\
 		     "the $stacktrace system task")			\
+	SV_FEATURE_ROW(SVF_CROSS_RETAIN_AUTO_BINS, GN_VER2023,		\
+		     "option.cross_retain_auto_bins")			\
       SV_FEATURE_ROW(SVF_ITERATOR_INDEX, GN_VER2005_SV,		\
 		     "the `index' iterator method of an array "		\
 		     "manipulation method")

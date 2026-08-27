@@ -6440,7 +6440,24 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
       for (size_t ri = 0; ri < defn->covgrp_dyn_bin_count(); ri += 1) {
 	    const class_type::cov_dyn_bin_t&rec = defn->covgrp_dyn_bin(ri);
 	    covgrp_dyn_state_t&state = out[rec.family];
+	    if (state.meta
+		&& (state.meta->cp_idx != rec.cp_idx
+		    || state.meta->item_idx != rec.item_idx
+		    || state.meta->kind != rec.kind
+		    || state.meta->array_size != rec.array_size
+		    || state.meta->name != rec.name
+		    || state.meta->value_width != rec.value_width
+		    || state.meta->value_signed != rec.value_signed
+		    || state.meta->guard_idx != rec.guard_idx)) {
+		  state.valid = false;
+		  if (cobj->cov_dyn_warn_once(rec.family))
+			std::cerr << "WARNING: dynamic covergroup bin family "
+				  << rec.family << " is disabled: inconsistent "
+				     "family metadata." << std::endl;
+		  continue;
+	    }
 	    if (!state.meta) state.meta = &rec;
+	    if (!state.valid) continue;
 	      // A set-covergroup expression backed by a direct class
 	      // container is encoded without extending the public IVL type ABI.
 	      // setc:N:[su]W reads property N of the covergroup object;
@@ -6676,6 +6693,32 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 		  append(encoded(resolved_lo), encoded(resolved_hi));
 	    }
       }
+	// Integral open bin arrays are value-keyed (19.5.1): overlapping ranges
+	// and duplicate set elements create one logical bin for that resolved
+	// value. Fixed [N] arrays deliberately retain occurrence order for their
+	// normative partitioning, so normalize only the unsized [] families.
+      for (auto&entry : out) {
+	    covgrp_dyn_state_t&state = entry.second;
+	    if (!state.valid || !state.meta || state.meta->array_size != 0)
+		  continue;
+	    std::sort(state.ranges.begin(), state.ranges.end());
+	    std::vector<std::pair<uint64_t,uint64_t>> merged;
+	    for (auto&range : state.ranges) {
+		  if (merged.empty()
+		      || (merged.back().second != UINT64_MAX
+		          && range.first > merged.back().second + 1)) {
+			merged.push_back(range);
+		  } else if (range.second > merged.back().second) {
+			merged.back().second = range.second;
+		  }
+	    }
+	    state.ranges.swap(merged);
+	    state.total = 0;
+	    for (auto&range : state.ranges)
+		  state.total += (unsigned __int128)range.second
+			- (unsigned __int128)range.first + 1;
+      }
+
 	// Embedded setp: expressions cannot resolve until assignment installs
 	// __covgrp_parent after %new/cobj completes. Retain the provisional
 	// states for this construction-time call, but let the first post-link
@@ -6683,6 +6726,9 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 	cobj->cov_dyn_resolve(out, !deferred);
 	return cobj->cov_dyn_states();
 }
+
+static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
+      const class_type*defn, vvp_cobject*cobj);
 
 // Parent-backed set expressions become resolvable immediately after a
 // class-property assignment installs __covgrp_parent. Freeze them at that
@@ -6692,34 +6738,35 @@ void vvp_covgrp_finalize_parent_bins(vvp_cobject*cobj)
 {
       if (!cobj || !cobj->get_defn()->is_covergroup()) return;
       (void)covgrp_dyn_states_(cobj->get_defn(), cobj);
+      (void)covgrp_cross_states_(cobj->get_defn(), cobj);
+}
+
+static unsigned __int128 covgrp_dyn_logical_count_(
+      const covgrp_dyn_state_t&state)
+{
+	      if (!state.valid || !state.meta || state.total == 0) return 0;
+      uint64_t requested = state.meta->array_size;
+      if (requested == ~(uint64_t)0) return 1;
+      if (requested == 0) return state.total;
+      unsigned __int128 bins = requested;
+      return bins < state.total ? bins : state.total;
 }
 
 /* Return every logical bin index containing a value and the active family
- * size. IEEE 1800 19.5.1 retains duplicate values in the ordered value list,
- * so one sample may hit multiple open-array or fixed-array bins. A bin is
- * bumped only once even if several duplicate occurrences map to that same
- * logical bin. Unsized arrays map each occurrence to one bin. For a fixed
- * array, assign floor(total/N), but at least one, values to each bin in order
- * and put every remainder value in the last nonempty bin. */
+ * size. Integral unsized arrays are keyed by resolved value, so duplicate
+ * occurrences coalesce. Fixed arrays retain the ordered value list: assign
+ * floor(total/N), but at least one, values to each bin in order and put every
+ * remainder value in the last nonempty bin. */
 static bool covgrp_dyn_match_(const covgrp_dyn_state_t&state, uint64_t value,
 			      std::vector<uint64_t>&bin_indexes,
 			      unsigned __int128&logical_count)
 {
-      if (!state.meta || state.total == 0) return false;
+	      if (!state.valid || !state.meta || state.total == 0) return false;
       uint64_t requested = state.meta->array_size;
-      if (requested == ~(uint64_t)0) {
-	    logical_count = 1;
-	} else if (requested == 0) {
-	    logical_count = state.total;
-	} else {
-	    unsigned __int128 bins = requested;
-	    if (bins > state.total) bins = state.total;
-	    logical_count = bins;
-      }
+      logical_count = covgrp_dyn_logical_count_(state);
 
       auto logical_index = [&](unsigned __int128 ordinal) -> uint64_t {
 	    if (requested == ~(uint64_t)0) return 0;
-	    if (requested == 0) return (uint64_t)ordinal;
 	    unsigned __int128 q = state.total / requested;
 	    if (q == 0) q = 1;
 	    unsigned __int128 before_last = q * (requested - 1);
@@ -6732,15 +6779,800 @@ static bool covgrp_dyn_match_(const covgrp_dyn_state_t&state, uint64_t value,
       unsigned __int128 ordinal = 0;
       for (auto&range : state.ranges) {
 	    if (value >= range.first && value <= range.second) {
-		  unsigned __int128 occurrence = ordinal
-			+ (unsigned __int128)value - range.first;
-		  matched.insert(logical_index(occurrence));
+		  if (requested == 0) {
+			matched.insert(value);
+		  } else {
+			unsigned __int128 occurrence = ordinal
+			      + (unsigned __int128)value - range.first;
+			matched.insert(logical_index(occurrence));
+		  }
 		  if (requested == ~(uint64_t)0) break;
 	    }
 	    ordinal += (unsigned __int128)range.second - range.first + 1;
       }
       bin_indexes.assign(matched.begin(), matched.end());
       return !bin_indexes.empty();
+}
+
+struct covgrp_cross_select_op_t {
+      char op = 0;
+      unsigned dim = 0;
+      unsigned term = 0;
+      std::vector<std::pair<uint64_t,uint64_t>> ranges;
+};
+
+static bool covgrp_cross_parse_u64_(const std::string&text, uint64_t&value)
+{
+      if (text.empty() || text[0] == '-' || text[0] == '+') return false;
+      char*end = 0;
+      errno = 0;
+      unsigned long long parsed = strtoull(text.c_str(), &end, 10);
+      if (errno == ERANGE || end == text.c_str() || *end != 0) return false;
+      value = (uint64_t)parsed;
+      return true;
+}
+
+static bool covgrp_cross_parse_select_(const std::string&ir,
+		unsigned n_dims, std::vector<covgrp_cross_select_op_t>&ops)
+{
+      static const size_t select_op_limit = 65536;
+      std::stringstream input(ir);
+      std::string token;
+      size_t depth = 0;
+      while (std::getline(input, token, ';')) {
+	    if (token.empty()) continue;
+	    if (ops.size() >= select_op_limit) return false;
+	    covgrp_cross_select_op_t op;
+	    if (token == "A" || token == "O") {
+		  if (depth < 2) return false;
+		  depth -= 1;
+		  op.op = token[0];
+	    } else if (token == "N") {
+		  if (depth < 1) return false;
+		  op.op = 'N';
+	    } else if (token == "T" || token == "F") {
+		  depth += 1;
+		  op.op = token[0];
+	    } else {
+		  std::vector<std::string> fields;
+		  std::stringstream leaf(token);
+		  std::string field;
+		  while (std::getline(leaf, field, ',')) fields.push_back(field);
+		  if (fields.size() < 4 || fields[0] != "L") return false;
+		  uint64_t dim = 0, term = 0, nranges = 0;
+		  if (!covgrp_cross_parse_u64_(fields[1], dim)
+		      || !covgrp_cross_parse_u64_(fields[2], term)
+		      || !covgrp_cross_parse_u64_(fields[3], nranges)
+		      || dim >= n_dims || term > UINT_MAX
+		      || nranges > (select_op_limit - 4) / 2
+		      || fields.size() != 4 + 2 * (size_t)nranges)
+			return false;
+		  op.op = 'L';
+		  op.dim = (unsigned)dim;
+		  op.term = (unsigned)term;
+		  for (uint64_t idx = 0; idx < nranges; idx += 1) {
+			uint64_t lo = 0, hi = 0;
+			if (!covgrp_cross_parse_u64_(fields[4 + 2*idx], lo)
+			    || !covgrp_cross_parse_u64_(fields[5 + 2*idx], hi))
+			      return false;
+			if (hi < lo) std::swap(lo, hi);
+			op.ranges.push_back(std::make_pair(lo, hi));
+		  }
+		  depth += 1;
+	    }
+	    ops.push_back(op);
+      }
+      return depth == 1 && !ops.empty();
+}
+
+// Return whether a 64-bit wildcard pattern has at least one solution inside
+// an inclusive interval. A four-state wildcard bin is represented by fixed
+// bits (mask=1) and don't-care bits (mask=0); this small digit DP avoids
+// enumerating a wide interval merely to evaluate binsof(... ) intersect.
+static bool covgrp_cross_wildcard_overlap_(uint64_t value, uint64_t mask,
+					    uint64_t lo, uint64_t hi)
+{
+      if (hi < lo) return false;
+      signed char memo[64][2][2];
+      memset(memo, -1, sizeof memo);
+      std::function<bool(int,bool,bool)> visit =
+	[&](int bit, bool tight_lo, bool tight_hi) -> bool {
+	      if (bit < 0) return true;
+	      signed char&slot = memo[bit][tight_lo ? 1 : 0][tight_hi ? 1 : 0];
+	      if (slot >= 0) return slot != 0;
+	      unsigned lo_bit = (unsigned)((lo >> bit) & 1);
+	      unsigned hi_bit = (unsigned)((hi >> bit) & 1);
+	      unsigned first = (mask >> bit) & 1
+		    ? (unsigned)((value >> bit) & 1) : 0;
+	      unsigned last = (mask >> bit) & 1 ? first : 1;
+	      for (unsigned digit = first; digit <= last; digit += 1) {
+		    if (tight_lo && digit < lo_bit) continue;
+		    if (tight_hi && digit > hi_bit) continue;
+		    if (visit(bit - 1,
+			      tight_lo && digit == lo_bit,
+			      tight_hi && digit == hi_bit)) {
+			  slot = 1;
+			  return true;
+		    }
+	      }
+	      slot = 0;
+	      return false;
+	};
+      return visit(63, true, true);
+}
+
+static bool covgrp_cross_ranges_overlap_(uint64_t lo, uint64_t hi,
+	 const std::vector<std::pair<uint64_t,uint64_t>>&ranges)
+{
+      for (auto&range : ranges)
+	    if (lo <= range.second && range.first <= hi) return true;
+      return false;
+}
+
+static bool covgrp_cross_dyn_member_overlap_(const covgrp_dyn_state_t&state,
+	 uint64_t logical,
+	 const std::vector<std::pair<uint64_t,uint64_t>>&select_ranges)
+{
+	      if (!state.valid || !state.meta) return false;
+	      uint64_t requested = state.meta->array_size;
+		// An unsized integral bin array is value-keyed. Its logical identity
+		// can therefore be any resolved 64-bit value, not a dense ordinal less
+		// than the number of bins (for example bins each[] = {[100:101]}).
+	      if (requested == 0)
+		    return covgrp_cross_ranges_overlap_(logical, logical, select_ranges);
+	      unsigned __int128 count = covgrp_dyn_logical_count_(state);
+	      if ((unsigned __int128)logical >= count) return false;
+	      if (requested == ~(uint64_t)0) {
+		    for (auto&range : state.ranges)
+			  if (covgrp_cross_ranges_overlap_(range.first, range.second,
+						 select_ranges)) return true;
+		    return false;
+	      }
+
+	      unsigned __int128 first = 0, last = 0;
+      if ((unsigned __int128)requested >= state.total) {
+	    first = last = logical;
+      } else {
+	    unsigned __int128 per_bin = state.total / requested;
+	    first = (unsigned __int128)logical * per_bin;
+	    last = logical + 1 == requested
+		  ? state.total - 1 : first + per_bin - 1;
+      }
+      unsigned __int128 ordinal = 0;
+      for (auto&range : state.ranges) {
+	    unsigned __int128 length = (unsigned __int128)range.second
+		  - (unsigned __int128)range.first + 1;
+	    unsigned __int128 range_last = ordinal + length - 1;
+	    if (range_last >= first && ordinal <= last) {
+		  unsigned __int128 part_first = first > ordinal ? first : ordinal;
+		  unsigned __int128 part_last = last < range_last ? last : range_last;
+		  uint64_t value_first = range.first + (uint64_t)(part_first - ordinal);
+		  uint64_t value_last = range.first + (uint64_t)(part_last - ordinal);
+		  if (covgrp_cross_ranges_overlap_(value_first, value_last,
+						 select_ranges)) return true;
+	    }
+	    if (range_last >= last) break;
+	    ordinal += length;
+      }
+      return false;
+}
+
+static bool covgrp_cross_choice_overlap_(const covgrp_cross_choice_t&choice,
+	 const std::map<unsigned,covgrp_dyn_state_t>&dyn_states,
+	 const std::vector<std::pair<uint64_t,uint64_t>>&ranges)
+{
+      if (ranges.empty()) return true;
+      if (choice.kind == 0) {
+	    for (const class_type::cov_bin_t*rec : choice.records) {
+		  if (!rec) continue;
+		  if (rec->kind & 8) {
+			for (auto&range : ranges)
+			      if (covgrp_cross_wildcard_overlap_(rec->lo, rec->hi,
+							 range.first, range.second))
+				    return true;
+		  } else if (covgrp_cross_ranges_overlap_(rec->lo, rec->hi, ranges)) {
+			return true;
+		  }
+	    }
+	    return false;
+      }
+      if (choice.kind == 1) {
+	    auto found = dyn_states.find(choice.source_id);
+	    return found != dyn_states.end()
+		  && covgrp_cross_dyn_member_overlap_(found->second,
+						    choice.logical_idx, ranges);
+      }
+	// Intersect selection over a transition identity is not represented by
+	// the compact transition metadata. Generated plans do not emit it.
+      return false;
+}
+
+static bool covgrp_cross_eval_select_(
+	 const std::vector<covgrp_cross_select_op_t>&ops,
+	 const covgrp_cross_state_t&state, const std::vector<unsigned>&tuple,
+	 const std::map<unsigned,covgrp_dyn_state_t>&dyn_states)
+{
+      std::vector<bool> stack;
+      for (const covgrp_cross_select_op_t&op : ops) {
+	    if (op.op == 'T' || op.op == 'F') {
+		  stack.push_back(op.op == 'T');
+	    } else if (op.op == 'L') {
+		  if (op.dim >= state.dimensions.size()
+		      || op.dim >= tuple.size()
+		      || tuple[op.dim] >= state.dimensions[op.dim].size())
+			return false;
+		  const covgrp_cross_choice_t&choice =
+			state.dimensions[op.dim][tuple[op.dim]];
+		  stack.push_back(choice.term_idx == op.term
+			&& covgrp_cross_choice_overlap_(choice, dyn_states,
+							 op.ranges));
+	    } else if (op.op == 'N') {
+		  if (stack.empty()) return false;
+		  stack.back() = !stack.back();
+	    } else {
+		  if (stack.size() < 2) return false;
+		  bool right = stack.back(); stack.pop_back();
+		  bool left = stack.back(); stack.pop_back();
+		  stack.push_back(op.op == 'A' ? left && right : left || right);
+	    }
+      }
+      return stack.size() == 1 && stack.back();
+}
+
+static bool covgrp_cross_counter_prop_(const class_type*defn, unsigned prop)
+{
+      return prop < defn->property_count()
+	    && defn->property_vec4_width(prop) == 32
+	    && defn->property_array_size(prop) == 1
+	    && !defn->property_is_static(prop);
+}
+
+struct covgrp_cross_source_entry_t {
+	      unsigned cp_idx = UINT_MAX;
+	      bool valid = true;
+	      std::vector<const class_type::cov_bin_t*> records;
+};
+
+struct covgrp_cross_source_index_t {
+	      std::map<unsigned,covgrp_cross_source_entry_t> fixed_props;
+	      std::map<unsigned,covgrp_cross_source_entry_t> transition_props;
+	      std::map<unsigned,covgrp_cross_source_entry_t> transition_families;
+};
+
+static void covgrp_cross_index_record_(const class_type*defn,
+	 covgrp_cross_source_entry_t&entry, const class_type::cov_bin_t&rec,
+	 bool keep_record)
+{
+	      if (entry.cp_idx == UINT_MAX) entry.cp_idx = rec.cp_idx;
+	      if (entry.cp_idx != rec.cp_idx || rec.item_idx != rec.cp_idx
+		  || rec.item_idx >= defn->covgrp_item_count()
+		  || defn->covgrp_item(rec.item_idx).is_cross)
+		    entry.valid = false;
+	      if (keep_record) entry.records.push_back(&rec);
+}
+
+static covgrp_cross_source_index_t covgrp_cross_source_index_(
+	 const class_type*defn)
+{
+	      covgrp_cross_source_index_t index;
+	      for (size_t idx = 0; idx < defn->covgrp_bin_count(); idx += 1) {
+		    const class_type::cov_bin_t&rec = defn->covgrp_bin(idx);
+		    unsigned base_kind = rec.kind & 7;
+		    if (base_kind == 0 && !(rec.kind & (16u|32u))) {
+			  covgrp_cross_index_record_(defn,
+				index.fixed_props[rec.prop_idx], rec, true);
+		    } else if (base_kind == 4
+			       && rec.trans_family == class_type::COV_NO_FAMILY) {
+			  covgrp_cross_index_record_(defn,
+				index.transition_props[rec.prop_idx], rec, false);
+		    } else if (base_kind == 4) {
+			  covgrp_cross_index_record_(defn,
+				index.transition_families[rec.trans_family], rec, false);
+		    }
+	      }
+	      return index;
+}
+
+static bool covgrp_cross_source_records_(const class_type*defn,
+	 const covgrp_cross_source_index_t&index,
+	 const class_type::cov_cross_term_t&term, covgrp_cross_choice_t&choice)
+{
+	      const covgrp_cross_source_entry_t*entry = 0;
+	      if (term.kind == 0) {
+		    auto found = index.fixed_props.find(term.source_id);
+		    if (found != index.fixed_props.end()) entry = &found->second;
+		    if (term.source_aux != 0
+			|| !covgrp_cross_counter_prop_(defn, term.source_id)) return false;
+	      } else if (term.kind == 2) {
+		    auto found = index.transition_props.find(term.source_id);
+		    if (found != index.transition_props.end()) entry = &found->second;
+		    if (term.source_aux != 0
+			|| !covgrp_cross_counter_prop_(defn, term.source_id)) return false;
+	      } else if (term.kind == 3) {
+		    auto found = index.transition_families.find(term.source_id);
+		    if (found != index.transition_families.end()) entry = &found->second;
+		    if ((uint64_t)term.source_aux
+			>= defn->covgrp_trans_family_size(term.source_id)) return false;
+	      } else {
+		    return false;
+	      }
+	      if (!entry || !entry->valid || entry->cp_idx == UINT_MAX) return false;
+	      choice.cp_idx = entry->cp_idx;
+		// Only fixed value choices need their predicate records for sampling
+		// and wildcard intersection. Transition choices are identified by their
+		// property or (family,index), so copying a whole transition family into
+		// every logical member is both redundant and potentially enormous.
+	      if (term.kind == 0) choice.records = entry->records;
+	      return term.kind != 0 || !choice.records.empty();
+}
+
+static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
+      const class_type*defn, vvp_cobject*cobj)
+{
+      if (cobj->cov_cross_resolved()) return cobj->cov_cross_states();
+      const std::map<unsigned,covgrp_dyn_state_t>&dyn_states =
+	    covgrp_dyn_states_(defn, cobj);
+      std::map<unsigned,covgrp_cross_state_t> out;
+      if (!cobj->cov_dyn_resolved()) {
+	    cobj->cov_cross_resolve(out, false);
+	    return cobj->cov_cross_states();
+      }
+
+	      static const uint64_t cross_bin_limit = 65536;
+	      static const uint64_t cross_route_index_limit = 4194304;
+	      static const uint64_t cross_selector_work_limit = 16777216;
+	      const covgrp_cross_source_index_t source_index =
+		    covgrp_cross_source_index_(defn);
+	      size_t ncoverpoints = 0;
+	      while (ncoverpoints < defn->covgrp_item_count()
+		     && !defn->covgrp_item(ncoverpoints).is_cross)
+		    ncoverpoints += 1;
+	      std::map<unsigned,unsigned> header_counts;
+	      std::map<unsigned,unsigned> item_header_counts;
+	      std::map<unsigned,std::vector<const class_type::cov_cross_term_t*>>
+		    terms_by_family;
+	      std::map<unsigned,std::vector<const class_type::cov_cross_bin_t*>>
+		    bins_by_family;
+		      std::set<unsigned> reserved_coverage_props;
+		      std::map<unsigned,unsigned> cross_target_counts;
+		      for (size_t idx = 0; idx < defn->covgrp_bin_count(); idx += 1) {
+		    unsigned prop = defn->covgrp_bin(idx).prop_idx;
+		    if (prop != class_type::COV_NO_PROP)
+			  reserved_coverage_props.insert(prop);
+		      }
+		      for (size_t idx = 0; idx < defn->covgrp_item_count(); idx += 1) {
+		    const class_type::cov_item_t&item = defn->covgrp_item(idx);
+		    if (item.at_least_prop >= 0)
+			  reserved_coverage_props.insert((unsigned)item.at_least_prop);
+		    if (item.weight_prop >= 0)
+			  reserved_coverage_props.insert((unsigned)item.weight_prop);
+		      }
+		      if (defn->covgrp_parent_prop() >= 0)
+		    reserved_coverage_props.insert((unsigned)defn->covgrp_parent_prop());
+			// covgrp_srcprop, covgrp_guardsrc, and item.iff_src index
+			// properties on the PARENT object. Their numeric IDs occupy an
+			// independent namespace and therefore cannot alias a counter on
+			// this covergroup object.
+	      for (size_t idx = 0; idx < defn->covgrp_cross_count(); idx += 1) {
+		    const class_type::cov_cross_t&cross = defn->covgrp_cross(idx);
+		    header_counts[cross.family] += 1;
+		    item_header_counts[cross.item_idx] += 1;
+	      }
+	      for (size_t idx = 0; idx < defn->covgrp_cross_term_count(); idx += 1) {
+		    const class_type::cov_cross_term_t&term =
+			  defn->covgrp_cross_term(idx);
+		    terms_by_family[term.family].push_back(&term);
+	      }
+	      for (size_t idx = 0; idx < defn->covgrp_cross_bin_count(); idx += 1) {
+		    const class_type::cov_cross_bin_t&bin = defn->covgrp_cross_bin(idx);
+		    bins_by_family[bin.family].push_back(&bin);
+		    if ((bin.kind == 0 || bin.kind == 2)
+			&& bin.target != class_type::COV_NO_PROP)
+			  cross_target_counts[bin.target] += 1;
+	      }
+
+      for (size_t cross_idx = 0; cross_idx < defn->covgrp_cross_count();
+	   cross_idx += 1) {
+	    const class_type::cov_cross_t&meta = defn->covgrp_cross(cross_idx);
+	    if (out.count(meta.family)) continue;
+	    covgrp_cross_state_t&state = out[meta.family];
+	    state.meta = &meta;
+	    std::string failure;
+		    if (header_counts[meta.family] != 1)
+			  failure = "duplicate cross-family header";
+		    else if (item_header_counts[meta.item_idx] != 1)
+			  failure = "duplicate dynamic cross plan for one coverage item";
+	    else if (meta.family == class_type::COV_NO_FAMILY
+		     || meta.n_dims == 0 || meta.n_dims > cross_bin_limit)
+		  failure = "invalid cross dimensions or family";
+	    else if (meta.item_idx >= defn->covgrp_item_count()
+		     || !defn->covgrp_item(meta.item_idx).is_cross)
+		  failure = "cross item reference is invalid";
+	    else if (dyn_states.count(meta.family))
+		  failure = "cross counter family collides with a dynamic bin family";
+		    if (failure.empty()
+			&& source_index.transition_families.count(meta.family))
+			  failure = "cross counter family collides with a transition family";
+	    if (!failure.empty()) {
+		  if (cobj->cov_cross_warn_once(meta.family))
+			cerr << "WARNING: dynamic cross family " << meta.family
+			     << " is disabled: " << failure << "." << endl;
+		  continue;
+	    }
+
+		    state.dimensions.resize(meta.n_dims);
+		    std::vector<std::vector<const class_type::cov_cross_term_t*>> terms(
+			  meta.n_dims);
+		    std::vector<std::set<unsigned>> term_ids(meta.n_dims);
+		    const std::vector<const class_type::cov_cross_term_t*>&family_terms =
+			  terms_by_family[meta.family];
+		    if (family_terms.size() > cross_bin_limit)
+			  failure = "too many cross terms";
+		    for (const class_type::cov_cross_term_t*term : family_terms) {
+			  if (!failure.empty()) break;
+			  if (term->dim >= meta.n_dims) {
+				failure = "cross term dimension is out of range";
+				break;
+			  }
+			  if (!term_ids[term->dim].insert(term->term_idx).second) {
+				failure = "duplicate cross term identity";
+				break;
+			  }
+			  terms[term->dim].push_back(term);
+		    }
+
+		    uint64_t total_choices = 0;
+		    uint64_t source_record_refs = 0;
+		    for (unsigned dim = 0; failure.empty() && dim < meta.n_dims; dim += 1) {
+			  if (terms[dim].empty()) {
+			failure = "cross dimension has no terms";
+			break;
+		  }
+			  unsigned dimension_cp = UINT_MAX;
+			  for (const class_type::cov_cross_term_t*term : terms[dim]) {
+				covgrp_cross_choice_t choice;
+			choice.term_idx = term->term_idx;
+			choice.kind = term->kind;
+			choice.source_id = term->source_id;
+			choice.source_aux = term->source_aux;
+				if (term->kind == 1) {
+				      auto found = dyn_states.find(term->source_id);
+				      if (found == dyn_states.end() || !found->second.valid
+					  || !found->second.meta
+					  || term->source_aux != 0
+					  || (found->second.meta->kind & 7) != 0
+					  || found->second.meta->item_idx
+						>= defn->covgrp_item_count()
+					  || found->second.meta->item_idx
+						!= found->second.meta->cp_idx
+					  || found->second.meta->cp_idx >= ncoverpoints
+					  || defn->covgrp_item(
+						found->second.meta->item_idx).is_cross) {
+				    failure = "dynamic cross term family is invalid";
+				    break;
+			      }
+			      unsigned __int128 logical =
+				    covgrp_dyn_logical_count_(found->second);
+				      if (logical > cross_bin_limit
+					  || total_choices > cross_bin_limit - (uint64_t)logical
+					  || state.dimensions[dim].size()
+					> cross_bin_limit - (uint64_t)logical) {
+				    failure = "cross logical product exceeds 65536 bins";
+				    break;
+			      }
+			      choice.cp_idx = found->second.meta->cp_idx;
+			      if (found->second.meta->array_size == 0) {
+				    // Unsized arrays are keyed by the resolved VALUE, not
+				    // by a dense ordinal. The normalized ranges are unique,
+				    // and the cardinality guard above bounds enumeration.
+				    for (auto&range : found->second.ranges) {
+					  uint64_t value = range.first;
+					  while (true) {
+						choice.logical_idx = value;
+						state.dimensions[dim].push_back(choice);
+						if (value == range.second) break;
+						value += 1;
+					  }
+				    }
+			      } else {
+				    for (uint64_t logical_idx = 0;
+					 logical_idx < (uint64_t)logical;
+					 logical_idx += 1) {
+					  choice.logical_idx = logical_idx;
+					  state.dimensions[dim].push_back(choice);
+				    }
+					  }
+				      total_choices += (uint64_t)logical;
+				} else {
+				      if (term->kind > 3
+					  || !covgrp_cross_source_records_(
+						defn, source_index, *term, choice)) {
+					    failure = "fixed or transition cross term is invalid";
+					    break;
+				      }
+				      if (total_choices >= cross_bin_limit) {
+					    failure = "cross has more than 65536 logical choices";
+					    break;
+				      }
+				      if (choice.records.size() > cross_route_index_limit
+					  || source_record_refs > cross_route_index_limit
+						- choice.records.size()) {
+					    failure = "cross source predicates exceed 4194304 references";
+					    break;
+				      }
+				      source_record_refs += choice.records.size();
+				      total_choices += 1;
+				      if (term->kind == 3) choice.logical_idx = term->source_aux;
+				      state.dimensions[dim].push_back(choice);
+				}
+				if (dimension_cp == UINT_MAX) dimension_cp = choice.cp_idx;
+				else if (dimension_cp != choice.cp_idx) {
+				      failure = "one cross dimension references multiple coverpoints";
+				      break;
+				}
+			  }
+		    }
+
+	    uint64_t product = 1;
+	    for (unsigned dim = 0; failure.empty() && dim < meta.n_dims; dim += 1) {
+		  uint64_t count = state.dimensions[dim].size();
+		  if (count == 0) { product = 0; break; }
+		  if (product > cross_bin_limit / count) {
+			failure = "cross logical product exceeds 65536 bins";
+			break;
+			  }
+			  product *= count;
+		    }
+		    if (failure.empty() && product != 0
+			&& meta.n_dims > cross_route_index_limit / product)
+			  failure = "cross cached route topology exceeds 4194304 indices";
+
+	    struct named_bin_t {
+		  const class_type::cov_cross_bin_t*meta = 0;
+		  std::vector<covgrp_cross_select_op_t> select;
+		    };
+		    std::vector<named_bin_t> named_bins;
+		    uint64_t selector_units = 0;
+		    auto selector_capped_mul = [&](uint64_t left,
+			uint64_t right) -> uint64_t {
+			  if (left == 0 || right == 0) return 0;
+			  if (left > cross_selector_work_limit / right)
+				return cross_selector_work_limit + 1;
+			  return left * right;
+		    };
+		    const std::vector<const class_type::cov_cross_bin_t*>&family_bins =
+			  bins_by_family[meta.family];
+		    for (const class_type::cov_cross_bin_t*bin_ptr : family_bins) {
+			  if (!failure.empty()) break;
+			  const class_type::cov_cross_bin_t&bin = *bin_ptr;
+		  if (named_bins.size() >= cross_bin_limit) {
+			failure = "too many named cross bins";
+			break;
+		  }
+			  if ((bin.kind == 0 || bin.kind == 2)
+			      && !covgrp_cross_counter_prop_(defn, bin.target)) {
+				failure = "named cross-bin counter property is invalid";
+				break;
+			  }
+			  if ((bin.kind == 0 || bin.kind == 2)
+			      && (cross_target_counts[bin.target] != 1
+				  || reserved_coverage_props.count(bin.target))) {
+				failure = "named cross-bin counter property aliases another bin";
+				break;
+			  }
+		  if (bin.kind == 1 && bin.target != class_type::COV_NO_PROP) {
+			failure = "ignore cross bin unexpectedly has a counter";
+			break;
+		  }
+		  named_bin_t parsed;
+		  parsed.meta = &bin;
+			  if (!covgrp_cross_parse_select_(bin.select_ir, meta.n_dims,
+							 parsed.select)) {
+			failure = "named cross-bin selector metadata is malformed";
+				break;
+			  }
+			  for (const covgrp_cross_select_op_t&op : parsed.select) {
+				if (op.op != 'L') continue;
+				if (!term_ids[op.dim].count(op.term)) {
+				      failure = "named cross-bin selector references an unknown term";
+				      break;
+				}
+			  }
+			  if (!failure.empty()) break;
+			  for (const covgrp_cross_select_op_t&op : parsed.select) {
+				uint64_t units = 1;
+				if (op.op == 'L' && !op.ranges.empty()) {
+				      uint64_t worst_scan = 1;
+				      for (const covgrp_cross_choice_t&choice :
+					     state.dimensions[op.dim]) {
+					    if (choice.term_idx != op.term) continue;
+					    uint64_t predicates = 1;
+					    bool wildcard = false;
+					    if (choice.kind == 0) {
+						  predicates = choice.records.size();
+						  for (const class_type::cov_bin_t*rec : choice.records)
+							if (rec && (rec->kind & 8)) {
+							      wildcard = true;
+							      break;
+							}
+					    } else if (choice.kind == 1) {
+						  auto found = dyn_states.find(choice.source_id);
+						  if (found != dyn_states.end()
+						      && found->second.meta
+						      && found->second.meta->array_size != 0)
+							predicates = found->second.ranges.size();
+					    }
+					    uint64_t scan = selector_capped_mul(
+						  predicates, op.ranges.size());
+					    if (wildcard)
+						  scan = selector_capped_mul(scan, 64);
+					    if (scan > worst_scan) worst_scan = scan;
+				      }
+				      if (worst_scan >= cross_selector_work_limit) {
+					    failure = "cross selector metadata exceeds its work bound";
+					    break;
+				      }
+				      units += worst_scan;
+				}
+				if (selector_units > cross_selector_work_limit - units) {
+				      failure = "cross selector metadata exceeds its work bound";
+				      break;
+				}
+				selector_units += units;
+			  }
+			  if (!failure.empty()) break;
+			  named_bins.push_back(parsed);
+		    }
+		    if (failure.empty() && selector_units != 0 && product != 0
+			&& product > cross_selector_work_limit / selector_units)
+			  failure = "cross selector evaluation exceeds 16777216 operations";
+
+		    std::set<unsigned> active_named;
+		    std::vector<unsigned> tuple(meta.n_dims, 0);
+		    if (failure.empty()) state.routes.reserve((size_t)product);
+	    for (uint64_t tuple_no = 0; failure.empty() && tuple_no < product;
+		 tuple_no += 1) {
+		  std::set<unsigned> normal_targets;
+		  std::set<unsigned> illegal_targets;
+		  bool ignored = false;
+		  for (const named_bin_t&named : named_bins) {
+			if (!covgrp_cross_eval_select_(named.select, state, tuple,
+						      dyn_states)) continue;
+			if (named.meta->kind == 2)
+			      illegal_targets.insert(named.meta->target);
+			else if (named.meta->kind == 1)
+			      ignored = true;
+			else
+			      normal_targets.insert(named.meta->target);
+		  }
+
+		  covgrp_cross_route_t route;
+		  route.choices = tuple;
+		  if (!illegal_targets.empty()) {
+			for (unsigned dim = 0; dim < meta.n_dims; dim += 1) {
+			      const covgrp_cross_choice_t&choice =
+				    state.dimensions[dim][tuple[dim]];
+			      if (choice.kind == 2 || choice.kind == 3) {
+				    failure = "illegal cross bins over transition terms are unsupported";
+				    break;
+			      }
+			}
+			route.illegal_targets.assign(illegal_targets.begin(),
+						     illegal_targets.end());
+		  } else if (ignored) {
+			// Illegal > ignore > normal, independent of declaration order.
+		  } else {
+			route.targets.assign(normal_targets.begin(), normal_targets.end());
+			for (unsigned prop : route.targets) active_named.insert(prop);
+			// Explicit named bins replace the auto bins they claim.  A
+			// cross with no explicit bins is wholly automatic regardless
+			// of retain_auto; otherwise unclaimed tuples remain automatic
+			// only when retain_auto is set.
+			if (route.targets.empty()
+			    && (meta.retain_auto || named_bins.empty()))
+			      route.auto_bin = state.auto_total++;
+		  }
+		  if (!failure.empty()) break;
+		  if (!ignored || !illegal_targets.empty())
+			state.routes.push_back(route);
+
+		  for (unsigned dim = 0; dim < meta.n_dims; dim += 1) {
+			tuple[dim] += 1;
+			if (tuple[dim] < state.dimensions[dim].size()) break;
+			tuple[dim] = 0;
+		  }
+	    }
+
+	    if (!failure.empty()) {
+		  state.routes.clear();
+		  state.named_props.clear();
+		  state.auto_total = 0;
+		  if (cobj->cov_cross_warn_once(meta.family))
+			cerr << "WARNING: dynamic cross family " << meta.family
+			     << " is disabled: " << failure << "." << endl;
+		  continue;
+	    }
+	    state.named_props.assign(active_named.begin(), active_named.end());
+	    state.enabled = true;
+      }
+      cobj->cov_cross_resolve(out, true);
+      return cobj->cov_cross_states();
+}
+
+static bool covgrp_cross_guard_enabled_(unsigned guard,
+					 const vector<uint64_t>&bin_guards)
+{
+      return guard == class_type::COV_NO_GUARD
+	    || (guard < bin_guards.size() && bin_guards[guard] != 0);
+}
+
+static std::vector<std::set<unsigned>> covgrp_cross_matched_choices_(
+      const covgrp_cross_state_t&state,
+      const std::map<unsigned,covgrp_dyn_state_t>&dyn_states,
+      unsigned ncp, const vector<uint64_t>&cp_vals,
+      const vector<bool>&cp_sampled, const vector<bool>&cp_suppressed,
+      const vector<uint64_t>&bin_guards,
+      const std::set<unsigned>&transition_hits,
+      const std::set<std::pair<unsigned,uint64_t>>&transition_family_hits,
+      bool include_transitions, bool honor_suppression)
+{
+      std::vector<std::set<unsigned>> matched(state.dimensions.size());
+      std::set<unsigned> dyn_computed;
+      std::map<unsigned,std::set<uint64_t>> dyn_hits;
+      for (unsigned dim = 0; dim < state.dimensions.size(); dim += 1) {
+	    for (unsigned choice_idx = 0;
+		 choice_idx < state.dimensions[dim].size(); choice_idx += 1) {
+		  const covgrp_cross_choice_t&choice =
+			state.dimensions[dim][choice_idx];
+		  if (choice.cp_idx >= ncp || !cp_sampled[choice.cp_idx]
+		      || (honor_suppression && cp_suppressed[choice.cp_idx]))
+			continue;
+		  bool hit = false;
+		  if (choice.kind == 0) {
+			for (const class_type::cov_bin_t*rec : choice.records) {
+			      if (rec && covgrp_cross_guard_enabled_(rec->guard_idx,
+								 bin_guards)
+				  && covgrp_rec_match_(*rec, cp_vals[choice.cp_idx])) {
+				    hit = true;
+				    break;
+			      }
+			}
+		  } else if (choice.kind == 1) {
+			if (dyn_computed.insert(choice.source_id).second) {
+			      auto found = dyn_states.find(choice.source_id);
+			      if (found != dyn_states.end() && found->second.valid
+				  && found->second.meta
+				  && covgrp_cross_guard_enabled_(
+					found->second.meta->guard_idx, bin_guards)) {
+				    std::vector<uint64_t> logical;
+				    unsigned __int128 logical_count = 0;
+				    if (covgrp_dyn_match_(found->second,
+					  cp_vals[choice.cp_idx], logical,
+					  logical_count))
+					  dyn_hits[choice.source_id].insert(
+						logical.begin(), logical.end());
+			      }
+			}
+			hit = dyn_hits[choice.source_id].count(choice.logical_idx) != 0;
+		  } else if (include_transitions && choice.kind == 2) {
+			hit = transition_hits.count(choice.source_id) != 0;
+		  } else if (include_transitions && choice.kind == 3) {
+			hit = transition_family_hits.count(std::make_pair(
+			      choice.source_id, choice.logical_idx)) != 0;
+		  }
+		  if (hit) matched[dim].insert(choice_idx);
+	    }
+      }
+      return matched;
+}
+
+static bool covgrp_cross_route_matches_(const covgrp_cross_route_t&route,
+			 const std::vector<std::set<unsigned>>&matched)
+{
+      if (route.choices.size() != matched.size()) return false;
+      for (unsigned dim = 0; dim < route.choices.size(); dim += 1)
+	    if (!matched[dim].count(route.choices[dim])) return false;
+      return true;
 }
 
 /* %covgrp/sample ncp, guard_flags
@@ -6862,6 +7694,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
       size_t nbins = defn->covgrp_bin_count();
       const std::map<unsigned,covgrp_dyn_state_t>&dyn_states =
 	    covgrp_dyn_states_(defn, cobj);
+      const std::map<unsigned,covgrp_cross_state_t>&cross_states =
+	    covgrp_cross_states_(defn, cobj);
 
 	// Pass 1: per-coverpoint sampled/suppressed state.
 	//   sampled: guard true.  X/Z values coerce to 0-bits (2-state
@@ -6926,11 +7760,15 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 		  std::cerr << "ERROR: covergroup illegal_bin matched"
 			    << " (prop_idx=" << kv.first << ")" << std::endl;
 		  covgrp_bump_count_(cobj, kv.first);
-		  for (size_t bi : recs) {
-			const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
-			if (bin.cp_idx < ncp)
-			      cp_suppressed[bin.cp_idx] = true;
-		  }
+		    // An illegal coverpoint bin carves that coverpoint out for this
+		    // sample. An illegal CROSS bin belongs only to its cross item:
+		    // contributing coverpoints and unrelated crosses still sample.
+		  if (defn->covgrp_bin(recs[0]).item_idx < ncp)
+			for (size_t bi : recs) {
+			      const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+			      if (bin.cp_idx < ncp)
+				    cp_suppressed[bin.cp_idx] = true;
+			}
 	    }
       }
 
@@ -6938,7 +7776,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	// ordinary illegal_bins and suppress their coverpoint for this sample.
       for (auto&entry : dyn_states) {
 	    const covgrp_dyn_state_t&state = entry.second;
-	    if (!state.meta || (state.meta->kind & 7) != 2
+	    if (!state.valid || !state.meta || (state.meta->kind & 7) != 2
 		|| !bin_enabled(state.meta->guard_idx)) continue;
 	    unsigned cp = state.meta->cp_idx;
 	    std::vector<uint64_t> logical;
@@ -6950,6 +7788,40 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 		  for (uint64_t bin : logical)
 			cobj->cov_dyn_bump(entry.first, bin);
 		  cp_suppressed[cp] = true;
+	    }
+      }
+
+	// Constructor-dependent illegal CROSS bins are evaluated before ignore
+	// and normal routing, but they do not carve out their contributing
+	// coverpoints. Transition-bearing illegal routes are rejected when the
+	// per-instance plan is resolved because their completion is not known at
+	// this precedence point.
+      for (auto&entry : cross_states) {
+	    const covgrp_cross_state_t&state = entry.second;
+	    if (!state.enabled || !state.meta
+		|| !item_enabled(state.meta->item_idx)) continue;
+	    bool has_illegal = false;
+	    for (const covgrp_cross_route_t&route : state.routes)
+		  if (!route.illegal_targets.empty()) { has_illegal = true; break; }
+	    if (!has_illegal) continue;
+	    const std::set<unsigned> no_transition_props;
+	    const std::set<std::pair<unsigned,uint64_t>> no_transition_families;
+	    std::vector<std::set<unsigned>> matched =
+		  covgrp_cross_matched_choices_(state, dyn_states, ncp, cp_vals,
+			cp_sampled, cp_suppressed, bin_guards,
+			no_transition_props, no_transition_families, false, false);
+	    std::set<unsigned> illegal_hits;
+	    for (const covgrp_cross_route_t&route : state.routes) {
+		  if (route.illegal_targets.empty()
+		      || !covgrp_cross_route_matches_(route, matched)) continue;
+		  illegal_hits.insert(route.illegal_targets.begin(),
+				      route.illegal_targets.end());
+	    }
+	    for (unsigned prop : illegal_hits) {
+		  cerr << "ERROR: covergroup illegal cross bin matched"
+		       << " (family=" << entry.first << ", prop_idx="
+		       << prop << ")" << endl;
+		  covgrp_bump_count_(cobj, prop);
 	    }
       }
 
@@ -6965,7 +7837,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
       }
       for (auto&entry : dyn_states) {
 	    const covgrp_dyn_state_t&state = entry.second;
-	    if (!state.meta || (state.meta->kind & 7) != 1
+	    if (!state.valid || !state.meta || (state.meta->kind & 7) != 1
 		|| !bin_enabled(state.meta->guard_idx)) continue;
 	    unsigned cp = state.meta->cp_idx;
 	    std::vector<uint64_t> logical;
@@ -7196,7 +8068,7 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	// Normal constructor-dependent families are sampled after carve-outs.
       for (auto&entry : dyn_states) {
 	    const covgrp_dyn_state_t&state = entry.second;
-	    if (!state.meta || (state.meta->kind & 7) != 0
+	    if (!state.valid || !state.meta || (state.meta->kind & 7) != 0
 		|| !bin_enabled(state.meta->guard_idx)) continue;
 	    unsigned cp = state.meta->cp_idx;
 	    std::vector<uint64_t> logical;
@@ -7207,6 +8079,34 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 			cobj->cov_dyn_bump(entry.first, bin);
 		  item_matched[state.meta->item_idx] = true;
 	    }
+      }
+
+	// Dynamic cross plans run after transition advancement and ordinary
+	// dynamic-family matching. Their topology is cached per covergroup
+	// object; this pass only determines which cached logical choices hit on
+	// the current sample. Overlapping named bins and duplicate logical
+	// matches are deduplicated before their counters are bumped.
+      for (auto&entry : cross_states) {
+	    const covgrp_cross_state_t&state = entry.second;
+	    if (!state.enabled || !state.meta
+		|| !item_enabled(state.meta->item_idx)) continue;
+	    std::vector<std::set<unsigned>> matched =
+		  covgrp_cross_matched_choices_(state, dyn_states, ncp, cp_vals,
+			cp_sampled, cp_suppressed, bin_guards,
+			transition_hits, transition_family_hits, true, true);
+	    std::set<unsigned> named_hits;
+	    std::set<uint64_t> auto_hits;
+	    for (const covgrp_cross_route_t&route : state.routes) {
+		  if (!route.illegal_targets.empty()
+		      || !covgrp_cross_route_matches_(route, matched)) continue;
+		  named_hits.insert(route.targets.begin(), route.targets.end());
+		  if (route.auto_bin != UINT64_MAX)
+			auto_hits.insert(route.auto_bin);
+	    }
+	    for (unsigned prop : named_hits) covgrp_bump_count_(cobj, prop);
+	    for (uint64_t bin : auto_hits) cobj->cov_dyn_bump(entry.first, bin);
+	    if (!named_hits.empty() || !auto_hits.empty())
+		  item_matched[state.meta->item_idx] = true;
       }
 
 	// A default illegal/ignore bin is the complement of the ordinary
@@ -7373,6 +8273,7 @@ bool of_COVGRP_OPTIONS_INIT(vthread_t thr, vvp_code_t)
 	// set at construction. Resolve once after all constructor-formal
 	// property stores rather than rebuilding it on every sample/query.
 	(void)covgrp_dyn_states_(cobj->get_defn(), cobj);
+	(void)covgrp_cross_states_(cobj->get_defn(), cobj);
       return true;
 }
 
@@ -7454,7 +8355,8 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 		  covgrp_dyn_states_(defn, cobj);
 	    for (auto&entry : dyn_states) {
 		  const covgrp_dyn_state_t&state = entry.second;
-		  if (!state.meta || (state.meta->kind & 7) != 0) continue;
+		  if (!state.valid || !state.meta
+		      || (state.meta->kind & 7) != 0) continue;
 		  unsigned __int128 logical = state.meta->array_size;
 		  if (state.total == 0)
 			logical = 0;
@@ -7473,6 +8375,21 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 			at_least == 0 ? (long double)logical
 			      : (long double)cobj->cov_dyn_hits(entry.first,
 				    at_least);
+	    }
+	    const std::map<unsigned,covgrp_cross_state_t>&cross_states =
+		  covgrp_cross_states_(defn, cobj);
+	    for (auto&entry : cross_states) {
+		  const covgrp_cross_state_t&state = entry.second;
+		  if (!state.enabled || !state.meta) continue;
+		  unsigned item = state.meta->item_idx;
+		  for (unsigned prop : state.named_props)
+			item_props[item].insert(prop);
+		  item_dyn_total[item] += (long double)state.auto_total;
+		  unsigned at_least = item < defn->covgrp_item_count()
+			? defn->covgrp_item_at_least(cobj, item) : 1;
+		  item_dyn_hits[item] += at_least == 0
+			? (long double)state.auto_total
+			: (long double)cobj->cov_dyn_hits(entry.first, at_least);
 	    }
 	    std::set<unsigned> items;
 	    for (auto&ip : item_props) items.insert(ip.first);
