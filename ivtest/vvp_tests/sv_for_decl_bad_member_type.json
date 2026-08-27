@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_for_decl_bad_member_type.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_for_decl_bad_member_type"
+}

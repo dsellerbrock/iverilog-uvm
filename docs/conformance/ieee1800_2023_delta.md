@@ -180,3 +180,16 @@ original survey ordering, not to postpone first-class 2023 work.
 9. Assoc parameters, soft unions, `ifdef` booleans (3, 6, 17)
 10. `rand real` (defer: solver-level)
 11. `weak_reference#(T)` (defer: GC infrastructure)
+
+## 2026-08-27 clause 12.7.1 — no 2017/2023 delta
+
+IEEE 1800-2023 carries 12.7, 12.7.1, and Syntax 12-5 (including footnote 14,
+which permits a `type_reference` data type only in the `var type(expr)` form)
+unchanged from IEEE 1800-2017. The declaring for-loop implementation is
+therefore edition-independent: no `-g2023` gate was added.
+
+That is asserted rather than assumed. Every regression in the cluster is
+registered as a 2017/2023 pair, and the four negative tests were confirmed to
+produce byte-identical diagnostics under both editions before their gold files
+were recorded. See the 2026-08-27 section of
+`matrices/ieee1800_2017_clause_matrix.md` for the measured boundaries.

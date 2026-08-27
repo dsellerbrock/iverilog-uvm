@@ -19877,6 +19877,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	      // nothing -- the check silently does not exist. Those take
 	      // the error branch.
 	    if (gn_system_verilog() && !(NEED_CONST & flags) && !strict_bind_
+		&& !sr.decl_after_use
 		&& !unresolved_prefix_is_real_scope(des, scope, path_)) {
 		  // Compile-progress: clocking blocks, interface constructs.
 		  cerr << get_fileline() << ": warning: Unable to bind "
@@ -20047,7 +20048,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	// strict_bind_: see the companion site above. An identifier that
 	// came out of a concurrent assertion must not degrade to a
 	// warning here either.
-      if (gn_system_verilog() && !strict_bind_
+      if (gn_system_verilog() && !strict_bind_ && !sr.decl_after_use
 	  && !unresolved_prefix_is_real_scope(des, scope, path_)) {
 	    cerr << get_fileline() << ": warning: Unable to bind wire/reg/memory "
 		    "`" << path_ << "' in `" << scope_path(scope) << "'"
@@ -20055,6 +20056,11 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
       } else {
 	    cerr << get_fileline() << ": error: Unable to bind wire/reg/memory "
 		    "`" << path_ << "' in `" << scope_path(scope) << "'" << endl;
+	    if (sr.decl_after_use) {
+		  cerr << sr.decl_after_use->get_fileline() << ":      : "
+			  "A symbol with that name was declared here. "
+			  "Check for declaration after use." << endl;
+	    }
 	    des->errors += 1;
       }
       return 0;

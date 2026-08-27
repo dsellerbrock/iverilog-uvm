@@ -351,6 +351,7 @@ ivl_stmt_sfunc_as_task
 ivl_stmt_step_stmt
 ivl_stmt_sub_stmt
 ivl_stmt_is_super_call
+ivl_stmt_is_immediate_assertion
 
 ivl_switch_a
 ivl_switch_b

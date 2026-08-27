@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_for_decl_after_use.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_for_decl_after_use"
+}

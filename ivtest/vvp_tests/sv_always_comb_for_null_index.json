@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_always_comb_for_null_index.v",
+    "iverilog-args" : [ "-g2012", "-S" ],
+    "gold"          : "sv_always_comb_for_null_index"
+}

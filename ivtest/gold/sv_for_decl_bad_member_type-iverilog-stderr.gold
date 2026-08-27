@@ -1,0 +1,1 @@
+ivltests/sv_for_decl_bad_member_type.v:6: error: missing_t doesn't name a type.

@@ -1,0 +1,5 @@
+ivltests/sv_for_decl_bare_type_ref.v:6: syntax error
+ivltests/sv_for_decl_bare_type_ref.v:6: error: Incomprehensible for loop.
+ivltests/sv_for_decl_bare_type_ref.v:6: syntax error
+ivltests/sv_for_decl_bare_type_ref.v:6: error: Invalid module instantiation
+ivltests/sv_for_decl_bare_type_ref.v:6: error: Invalid module instantiation

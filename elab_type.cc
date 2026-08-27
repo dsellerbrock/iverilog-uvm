@@ -2233,6 +2233,26 @@ NetScope *typeref_t::find_scope(Design *des, NetScope *s) const
       return s;
 }
 
+NetScope* class_scoped_typeref_t::find_scope(Design*des, NetScope*s) const
+{
+      ivl_type_t qualifier_type = resolve_class_type_reference(
+            des, s, qualifier());
+      const netclass_t*class_type =
+            dynamic_cast<const netclass_t*>(qualifier_type);
+      if (class_type && class_type->class_scope())
+            return const_cast<NetScope*>(class_type->class_scope());
+
+      cerr << get_fileline() << ": error: Class-scoped type qualifier `";
+      qualifier()->debug_dump(cerr);
+      cerr << "' does not resolve to a class type." << endl;
+      des->errors += 1;
+
+      /* Retain the generic member scope only as diagnostic recovery. The
+         compilation is already failed, so this cannot silently substitute a
+         member from an unrelated visible class. */
+      return typeref_t::find_scope(des, s);
+}
+
 ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
 {
       if (name == "process" || name == "semaphore" || name == "mailbox") {

@@ -4024,6 +4024,16 @@ bool NetForever::check_synth(ivl_process_type_t pr_type,
 static void print_for_idx_warning(const NetProc*proc, const char*check,
                                   ivl_process_type_t pr_type, const NetNet*idx)
 {
+	// A for_initialization that declares several control variables has no
+	// single index variable, so NetForLoop::index_ is null. That is the
+	// same case NetForLoop::synth_async already rejects with a `sorry';
+	// report it here instead of dereferencing the null index.
+      if (!idx) {
+	    cerr << proc->get_fileline() << ": warning: A for statement must "
+	            "declare a single index variable to be synthesized "
+	         << get_process_type_as_string(pr_type) << endl;
+	    return;
+      }
       cerr << proc->get_fileline() << ": warning: A for statement must use "
               "the index (" << idx->name() << ") in the " << check
            << " expression to be synthesized "
@@ -4155,6 +4165,14 @@ bool NetForLoop::check_synth(ivl_process_type_t pr_type,
 //          From NetEUnary
 //            What about NetEUBits ! sig or ! (sig == constat)
 //            What about NetEUReduce &signal
+      if (!index_) {
+	      // No single index variable: emit one focused diagnostic rather
+	      // than repeating it for the condition and the step.
+	    print_for_idx_warning(this, "condition", pr_type, index_);
+	    if (statement_) result |= statement_->check_synth(pr_type, scope);
+	    return result;
+      }
+
       if (const NetESignal*tmp = dynamic_cast<const NetESignal*>(condition_)) {
 	    if (tmp->sig() != index_) {
 		  print_for_idx_warning(this, "condition", pr_type, index_);

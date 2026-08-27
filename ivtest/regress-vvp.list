@@ -1062,6 +1062,34 @@ sv_process_await_resource_wait	vvp_tests/sv_process_await_resource_wait.json
 sv_resource_wait_sync_nested	vvp_tests/sv_resource_wait_sync_nested.json
 sv_process_kill_join_reducer	vvp_tests/sv_process_kill_join_reducer.json
 
+# IEEE 1800-2017/2023 12.7.1 typedef-first, package-qualified, same-type,
+# mixed-type, ordered, and automatic-lifetime for_variable_declarations.
+sv_for_decl_type_forms	vvp_tests/sv_for_decl_type_forms.json
+sv_for_decl_type_forms_2023	vvp_tests/sv_for_decl_type_forms_2023.json
+
+# IEEE 1800-2017/2023 12.7.1 implicit-block scope: inline enum identity,
+# declarator names that shadow a type, ordered initialization against an
+# outer binding, labeled implicit scope with disable, and the automatic /
+# static / detached-frame lifetime boundaries.
+sv_for_decl_scope_forms	vvp_tests/sv_for_decl_scope_forms.json
+sv_for_decl_scope_forms_2023	vvp_tests/sv_for_decl_scope_forms_2023.json
+
+# IEEE 1800-2017/2023 12.7.1 and Syntax 12-5 footnote 14 boundaries. Each
+# pins its exact diagnostic text and count and a non-signal exit.
+sv_for_decl_dup_declarator	vvp_tests/sv_for_decl_dup_declarator.json
+sv_for_decl_dup_declarator_2023	vvp_tests/sv_for_decl_dup_declarator_2023.json
+sv_for_decl_bare_type_ref	vvp_tests/sv_for_decl_bare_type_ref.json
+sv_for_decl_bare_type_ref_2023	vvp_tests/sv_for_decl_bare_type_ref_2023.json
+sv_for_decl_bad_member_type	vvp_tests/sv_for_decl_bad_member_type.json
+sv_for_decl_bad_member_type_2023	vvp_tests/sv_for_decl_bad_member_type_2023.json
+sv_for_decl_after_use	vvp_tests/sv_for_decl_after_use.json
+sv_for_decl_after_use_2023	vvp_tests/sv_for_decl_after_use_2023.json
+
+# Latent robustness defects that declaring for-loops made reachable from
+# ordinary RTL. Both reducers abort or segfault on the previous compiler.
+sv_always_comb_for_null_index	vvp_tests/sv_always_comb_for_null_index.json
+sv_auto_block_shared_wait_event	vvp_tests/sv_auto_block_shared_wait_event.json
+
 # Explicit automatic declarations in an otherwise static subroutine (IEEE
 # 1800-2023 6.21/13.3.1): per-call storage without changing static locals.
 sv_static_task_explicit_auto_darray	vvp_tests/sv_static_task_explicit_auto_darray.json

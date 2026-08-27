@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_for_decl_type_forms_2023.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_for_decl_type_forms"
+}

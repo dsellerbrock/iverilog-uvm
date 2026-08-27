@@ -290,6 +290,28 @@ private:
       parmvalue_t* overrides;
 };
 
+/* A typedef selected from a class scope whose left-hand class may itself be
+   specialized, for example C#(byte)::word_t or pkg::C#(.T(int))::T.
+
+   The ordinary typeref_t override list specializes its own typedef. Keep the
+   class qualifier as a separate owned type node so its arguments elaborate
+   the enclosing class, then elaborate the selected member typedef in that
+   concrete class scope. Deriving from typeref_t preserves existing typedef
+   alias and aggregate-shape handling for the selected member. */
+struct class_scoped_typeref_t : public typeref_t {
+      class_scoped_typeref_t(typedef_t*member, PScope*fallback_scope,
+                             data_type_t*qualifier)
+      : typeref_t(member, fallback_scope), qualifier_(qualifier) { }
+
+      NetScope* find_scope(Design*des, NetScope*scope) const override;
+      std::ostream& debug_dump(std::ostream&out) const override;
+
+      const data_type_t* qualifier() const { return qualifier_.get(); }
+
+private:
+      std::unique_ptr<data_type_t> qualifier_;
+};
+
 /*
  * type_reference_t is the pform representation of the IEEE 1800-2017
  * 6.23 `type()` operator: `type(expression)` or `type(data_type)`.

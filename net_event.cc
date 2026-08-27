@@ -179,6 +179,32 @@ static bool vif_probes_match_(const NetEvProbe*a, const NetEvProbe*b)
 	  && a->vif_root_pin() == b->vif_root_pin();
 }
 
+/* Mirrors tgt-vvp's scope_needs_call_frame(): the runtime allocates a
+   context for an automatic subroutine, and also for a static subroutine or
+   named block that holds explicitly automatic declarations. */
+bool NetScope::owns_call_frame() const
+{
+      if (is_auto())
+	    return true;
+
+      switch (type()) {
+	  case NetScope::TASK:
+	  case NetScope::FUNC:
+	  case NetScope::BEGIN_END:
+	  case NetScope::FORK_JOIN:
+	    break;
+	  default:
+	    return false;
+      }
+
+      for (signals_map_iter_t cur = signals_map_.begin()
+		 ; cur != signals_map_.end() ; ++ cur) {
+	    if (cur->second->lifetime_override() == IVL_VLT_AUTOMATIC)
+		  return true;
+      }
+      return false;
+}
+
 void NetEvent::find_similar_event(list<NetEvent*>&event_list)
 {
       if (probes_ == 0)
@@ -242,10 +268,20 @@ void NetEvent::find_similar_event(list<NetEvent*>&event_list)
 	    if (tmp == this)
 		  continue;
 
-              /* For automatic tasks, the VVP runtime holds state for events
-                 in the automatically allocated context. This means we can't
-                 merge similar events in different automatic tasks. */
-            if (scope()->is_auto() && (tmp->scope() != scope()))
+              /* The VVP runtime holds event state for a scope that owns a
+                 call frame inside that automatically allocated context, so
+                 such an event may only merge with one in the very same
+                 scope. The test must be symmetric and must also cover a
+                 static block that merely holds automatic declarations:
+                 merging a static-scope event into that block's event leaves
+                 the surviving functor context-local, and the static-scope
+                 waiter then has no context to resolve it in. It aborts in
+                 vthread_add_event_wait on a null wait-list head -- for
+                 example a wait(...) preceding a declaring for-loop whose
+                 implicit automatic block contains an identical wait(...). */
+            if (tmp->scope() != scope()
+                && (scope()->owns_call_frame()
+                    || tmp->scope()->owns_call_frame()))
                   continue;
 
 	    unsigned tcnt = 0;

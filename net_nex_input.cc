@@ -764,7 +764,11 @@ NexusSet* NetForLoop::nex_input(bool rem_out, bool always_sens, bool nested_func
 	    delete tmp;
       }
 
-      if (gn_shared_loop_index_flag) {
+	// A for_initialization that declares several control variables has no
+	// single shared index (IEEE 1800-2017 12.7.1), so index_ is null and
+	// there is no shared-index nexus to remove. always_comb reaches this
+	// while building its implicit sensitivity list.
+      if (gn_shared_loop_index_flag && index_) {
 	    NexusSet*tmp = new NexusSet();
 	    for (unsigned idx = 0 ; idx < index_->pin_count() ; idx += 1)
 		tmp->add(index_->pin(idx).nexus(), 0, index_->vector_width());
