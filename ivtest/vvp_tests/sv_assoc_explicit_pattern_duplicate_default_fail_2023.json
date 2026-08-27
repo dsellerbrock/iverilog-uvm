@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_assoc_explicit_pattern_duplicate_default_fail.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_assoc_explicit_pattern_duplicate_default_fail"
+}

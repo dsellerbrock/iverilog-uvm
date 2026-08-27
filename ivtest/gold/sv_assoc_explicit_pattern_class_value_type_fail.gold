@@ -1,0 +1,2 @@
+./ivltests/sv_assoc_explicit_pattern_class_value_type_fail.v:12: error: A class handle cannot be assigned to a non-class target (IEEE 1800-2017 8.4).
+1 error(s) during elaboration.

@@ -290,6 +290,8 @@ static inline ivl_type_t receiver_container_type_(ivl_expr_t expr);
    left on the object stack. */
 extern int draw_eval_assoc_default(ivl_expr_t marker,
                                    ivl_type_t element_type);
+extern int draw_eval_assoc_pattern(ivl_expr_t marker,
+                                   ivl_type_t element_type);
 
 /*
  * Like draw_eval_object, but applies unpacked-struct VALUE semantics when the
@@ -526,6 +528,12 @@ static inline ivl_signal_t signal_assoc_queue_receiver_(ivl_expr_t expr)
 
       net_type = ivl_signal_net_type(sig);
       if (!net_type || ivl_type_base(net_type) != IVL_VT_QUEUE)
+            return 0;
+
+      /* A selected word of a fixed object array has no scalar v<sig>_0
+       * functor. Its canonical word expression must be evaluated and the
+       * map loaded through the object stack before exists/traversal runs. */
+      if (ivl_signal_dimensions(sig) > 0 && ivl_expr_oper1(expr))
             return 0;
 
       return ivl_type_queue_assoc_compat(net_type) ? sig : 0;

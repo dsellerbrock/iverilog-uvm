@@ -676,6 +676,53 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 	    ivl_expr_t word_ex = ivl_lval_idx(lval);
 	    ivl_type_t sig_type = ivl_signal_net_type(lval_sig);
 
+	      /* A fixed unpacked prefix around a queue, dynamic array, or
+		 associative-array leaf is stored as an object array.  The signal
+		 node's word selects that fixed slot; a separate outer l-value node
+		 carries any index/key inside the selected container.  Loading the
+		 scalar object label here drops the fixed word and makes the caller
+		 reinterpret it as the inner key. */
+	    if (word_ex && sig_type
+		&& ivl_signal_dimensions(lval_sig) > 0
+		&& (ivl_type_base(sig_type) == IVL_VT_QUEUE
+		    || ivl_type_base(sig_type) == IVL_VT_DARRAY)) {
+		  int slot_word = allocate_word();
+		  draw_eval_expr_into_integer(word_ex, slot_word);
+		  note_array_signal_use(lval_sig);
+		  fprintf(vvp_out,
+			  "    %%load/obja v%p, %d; fixed-array container slot\n",
+			  lval_sig, slot_word);
+
+		    /* Queue and associative-array variables default to an empty
+		       container. Compact fixed object-array storage starts each
+		       word nil, so materialize that default lazily on an l-value
+		       access and retain one alias as the receiver. Restore the
+		       address-validity flag before %store/obja: an X/Z or OOB slot
+		       may still evaluate its inner key and RHS, but the runtime
+		       setter must skip the write-back. Dynamic arrays deliberately
+		       remain nil until explicitly allocated. */
+		  if (ivl_type_base(sig_type) == IVL_VT_QUEUE) {
+			int slot_flag = allocate_flag();
+			fprintf(vvp_out, "    %%flag_mov %d, 4; fixed-slot validity\n",
+				slot_flag);
+			fprintf(vvp_out, "    %%test_nul/obj;\n");
+			fprintf(vvp_out, "    %%jmp/0 T_%u.%u, 4; fixed-slot container exists\n",
+				thread_count, lab_out);
+			fprintf(vvp_out, "    %%pop/obj 1, 0; replace nil fixed-slot container\n");
+			fprintf(vvp_out, "    %%new/queue \"@%u\"; fixed-slot container default\n",
+				nested_queue_spec_(sig_type));
+			fprintf(vvp_out, "    %%dup/obj/ref; retain fixed-slot receiver\n");
+			fprintf(vvp_out, "    %%flag_mov 4, %d; restore fixed-slot validity\n",
+				slot_flag);
+			fprintf(vvp_out, "    %%store/obja v%p, %d; initialize fixed-slot container\n",
+				lval_sig, slot_word);
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+			clr_flag(slot_flag);
+		  }
+		  clr_word(slot_word);
+		  return sig_type;
+	    }
+
 	      /* A static unpacked array of class handles (`c arr[N]`) reports
 		 its net_type as the ELEMENT class directly (no array wrapper),
 		 while still carrying array dimensions. Load the indexed
@@ -780,6 +827,8 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
        * how a fixed-array-of-containers chain keeps the canonical outer slot
        * distinct from an inner queue/map index. */
       if (prop_idx < 0 && ivl_lval_idx(lval_nest) && sub_type
+	  && !(ivl_lval_sig(lval_nest)
+	       && ivl_signal_dimensions(ivl_lval_sig(lval_nest)) > 0)
 	  && (ivl_type_base(sub_type) == IVL_VT_QUEUE
 	      || ivl_type_base(sub_type) == IVL_VT_DARRAY)) {
 	    ivl_expr_t container_idx = ivl_lval_idx(lval_nest);
@@ -869,6 +918,17 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
 	    return selected_type;
       }
+
+      /* A pure-index wrapper immediately outside a fixed-array signal node
+       * carries the inner queue/map index.  Its dedicated store helper owns
+       * that index, so keep the selected container and its type intact. */
+      if (prop_idx < 0 && ivl_lval_idx(lval)
+	  && ivl_lval_sig(lval_nest)
+	  && ivl_signal_dimensions(ivl_lval_sig(lval_nest)) > 0
+	  && sub_type
+	  && (ivl_type_base(sub_type) == IVL_VT_QUEUE
+	      || ivl_type_base(sub_type) == IVL_VT_DARRAY))
+	    return sub_type;
 
       if ((sub_type == 0) || (ivl_type_properties(sub_type) <= 0)) {
 	    /* Compile-progress fallback: nested receiver is not class-typed,
@@ -2465,7 +2525,15 @@ int draw_eval_assoc_default(ivl_expr_t marker, ivl_type_t element_type)
 	    break;
 	  }
 	  case IVL_VT_CLASS:
-	    errors += draw_eval_object(value);
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_NO_TYPE:
+	    if (ivl_expr_type(value) == IVL_EX_ARRAY_PATTERN
+		&& (ivl_type_base(element_type) == IVL_VT_DARRAY
+		    || ivl_type_base(element_type) == IVL_VT_QUEUE))
+		  errors += draw_eval_object_value_copy(value, element_type);
+	    else
+		  errors += draw_eval_object(value);
 	    fprintf(vvp_out, "    %%aa/new/default/obj;\n");
 	    break;
 	  default:
@@ -2479,6 +2547,204 @@ int draw_eval_assoc_default(ivl_expr_t marker, ivl_type_t element_type)
       }
 
       return errors;
+}
+
+/* Read one frontend-generated associative-pattern item tag without executing
+ * it. The complete marker is preflighted before a builder or any user
+ * expression is evaluated, so a malformed netlist cannot expose a partial
+ * literal value. NetEConst normally reaches the target as IVL_EX_NUMBER, but
+ * accept the target API's immediate form as well. */
+static int assoc_pattern_item_kind_(ivl_expr_t expr, unsigned*kind)
+{
+      unsigned idx;
+      unsigned wid;
+      const char*bits;
+
+      if (!expr || !kind)
+	    return 0;
+
+      if (ivl_expr_type(expr) == IVL_EX_ULONG) {
+	    uint64_t value = ivl_expr_uvalue(expr);
+	    if (value > 1)
+		  return 0;
+	    *kind = (unsigned)value;
+	    return 1;
+      }
+
+      if (ivl_expr_type(expr) != IVL_EX_NUMBER || number_is_unknown(expr))
+	    return 0;
+
+      wid = ivl_expr_width(expr);
+      bits = ivl_expr_bits(expr);
+      if (!bits || wid == 0)
+	    return 0;
+
+      *kind = bits[0] == '1' ? 1 : 0;
+      for (idx = 1; idx < wid; idx += 1)
+	    if (bits[idx] != '0')
+		  return 0;
+
+      return bits[0] == '0' || bits[0] == '1';
+}
+
+static int assoc_pattern_object_value_(ivl_expr_t value,
+				       ivl_type_t element_type)
+{
+      if (ivl_expr_type(value) == IVL_EX_ARRAY_PATTERN
+	  && (ivl_type_base(element_type) == IVL_VT_DARRAY
+	      || ivl_type_base(element_type) == IVL_VT_QUEUE))
+	    return draw_eval_object_value_copy(value, element_type);
+
+      return draw_eval_object(value);
+}
+
+/* Emit one value and its typed map mutation. The receiver builder remains on
+ * the object stack. Existing %aa/store operations copy array-like values into
+ * entries; the new default setter applies the same policy without clearing
+ * entries that appeared earlier in source order. */
+static int draw_assoc_pattern_value_(ivl_expr_t marker, ivl_expr_t value,
+				     ivl_type_t element_type,
+				     const char*key_kind, int is_default)
+{
+      int errors = 0;
+      const char*operation = is_default ? "set/default" : "store";
+
+      switch (ivl_type_base(element_type)) {
+	  case IVL_VT_REAL:
+	    draw_eval_real(value);
+	    if (is_default)
+		  fprintf(vvp_out, "    %%aa/%s/r;\n", operation);
+	    else
+		  fprintf(vvp_out, "    %%aa/%s/r/%s;\n", operation, key_kind);
+	    break;
+
+	  case IVL_VT_STRING:
+	    draw_eval_string(value);
+	    if (is_default)
+		  fprintf(vvp_out, "    %%aa/%s/str;\n", operation);
+	    else
+		  fprintf(vvp_out, "    %%aa/%s/str/%s;\n", operation, key_kind);
+	    break;
+
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC: {
+	    unsigned wid = ivl_type_packed_width(element_type);
+	    if (wid == 0) {
+		  fprintf(stderr, "%s:%u: internal error: zero-width integral "
+			  "associative-array pattern element\n",
+			  ivl_expr_file(marker), ivl_expr_lineno(marker));
+		  return 1;
+	    }
+	    draw_eval_vec4(value);
+	    resize_vec4_wid(value, wid);
+	    if (ivl_type_base(element_type) == IVL_VT_BOOL
+		&& ivl_expr_value(value) != IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2;\n");
+	    if (is_default)
+		  fprintf(vvp_out, "    %%aa/%s/v %u;\n", operation, wid);
+	    else
+		  fprintf(vvp_out, "    %%aa/%s/v/%s %u;\n",
+			  operation, key_kind, wid);
+	    break;
+	  }
+
+	  case IVL_VT_CLASS:
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_NO_TYPE:
+	    errors += assoc_pattern_object_value_(value, element_type);
+	    if (is_default)
+		  fprintf(vvp_out, "    %%aa/%s/obj;\n", operation);
+	    else
+		  fprintf(vvp_out, "    %%aa/%s/obj/%s;\n", operation, key_kind);
+	    break;
+
+	  default:
+	    fprintf(stderr, "%s:%u: internal error: unsupported associative "
+		    "pattern element type %d\n",
+		    ivl_expr_file(marker), ivl_expr_lineno(marker),
+		    (int)ivl_type_base(element_type));
+	    errors += 1;
+	    break;
+      }
+
+      return errors;
+}
+
+/* Materialize a nonempty associative-array literal into a fresh typed map.
+ * Parameters are source-ordered (kind,key,value) triplets: kind 0 denotes an
+ * explicit entry and kind 1 denotes default. Default's key is a dummy carrier
+ * and is deliberately not evaluated. */
+int draw_eval_assoc_pattern(ivl_expr_t marker, ivl_type_t element_type)
+{
+      ivl_type_t assoc_type = ivl_expr_net_type(marker);
+      unsigned default_count = 0;
+      unsigned parm_count = ivl_expr_parms(marker);
+      unsigned parm;
+      int errors = 0;
+
+      if (!assoc_type || !element_type || parm_count == 0
+	  || (parm_count % 3) != 0
+	  || ivl_type_base(assoc_type) != IVL_VT_QUEUE
+	  || !ivl_type_queue_assoc_compat(assoc_type))
+	    goto malformed;
+
+      switch (ivl_type_base(element_type)) {
+	  case IVL_VT_REAL:
+	  case IVL_VT_STRING:
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	  case IVL_VT_CLASS:
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	  case IVL_VT_NO_TYPE:
+	    break;
+	  default:
+	    goto malformed;
+      }
+
+      for (parm = 0; parm < parm_count; parm += 3) {
+	    unsigned kind;
+	    ivl_expr_t kind_expr = ivl_expr_parm(marker, parm);
+	    ivl_expr_t key_expr = ivl_expr_parm(marker, parm + 1);
+	    ivl_expr_t value_expr = ivl_expr_parm(marker, parm + 2);
+
+	    if (!assoc_pattern_item_kind_(kind_expr, &kind)
+		|| !key_expr || !value_expr)
+		  goto malformed;
+	    if (kind == 1 && ++default_count > 1)
+		  goto malformed;
+	    if (kind == 0 && ivl_expr_value(key_expr) == IVL_VT_REAL)
+		  goto malformed;
+      }
+
+      fprintf(vvp_out, "    %%new/queue \"@%u\"; associative pattern builder\n",
+	      nested_queue_spec_(assoc_type));
+
+      for (parm = 0; parm < parm_count; parm += 3) {
+	    unsigned kind;
+	    ivl_expr_t key_expr = ivl_expr_parm(marker, parm + 1);
+	    ivl_expr_t value_expr = ivl_expr_parm(marker, parm + 2);
+	    assoc_pattern_item_kind_(ivl_expr_parm(marker, parm), &kind);
+
+	    if (kind == 1) {
+		  errors += draw_assoc_pattern_value_(marker, value_expr,
+					       element_type, 0, 1);
+	    } else {
+		  const char*key_kind = draw_eval_assoc_key_(key_expr, &errors);
+		  errors += draw_assoc_pattern_value_(marker, value_expr,
+					       element_type, key_kind, 0);
+	    }
+      }
+
+      return errors;
+
+malformed:
+      fprintf(stderr, "%s:%u: internal error: malformed typed "
+	      "associative-array pattern marker\n",
+	      ivl_expr_file(marker), ivl_expr_lineno(marker));
+      fprintf(vvp_out, "    %%null; ; malformed associative pattern marker\n");
+      return 1;
 }
 
 /* Store into the existing suffix selected by q[lo:$].  The l-value API bit
@@ -2555,6 +2821,34 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
       ivl_type_t element_type = ivl_type_element(var_type);
 
       assert(ivl_stmt_lvals(net) == 1);
+
+	/* A signal-backed fixed unpacked prefix around a queue/associative
+	 * leaf is emitted as an object array. The sole l-value index here selects
+	 * the OUTER fixed word; it is not a queue offset or associative key.
+	 * Materialize and value-copy the complete RHS before replacing that word,
+	 * preserving the same atomic whole-container assignment used by scalar
+	 * maps. Nested element assignments retain their separate l-value chain and
+	 * do not enter this whole-slot path. */
+      if (ivl_signal_dimensions(var) > 0 && !ivl_lval_nest(lval)) {
+	    ivl_expr_t word_expr = ivl_lval_idx(lval);
+	    if (!word_expr || part || ivl_stmt_opcode(net) != 0) {
+		  fprintf(stderr, "%s:%u: sorry: a fixed unpacked-array slot "
+			  "containing a queue or associative array requires a simple "
+			  "whole-container assignment.\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return 1;
+	    }
+
+	    errors += draw_eval_object_value_copy(rval, var_type);
+	    int word = allocate_word();
+	    draw_eval_expr_into_integer(word_expr, word);
+	    note_array_signal_use(var);
+	    fprintf(vvp_out,
+		    "    %%store/obja v%p, %d; fixed-array container slot\n",
+		    var, word);
+	    clr_word(word);
+	    return errors;
+      }
 
       if (ivl_lval_is_queue_slice(lval))
 	    return show_stmt_assign_sig_queue_slice(net, lval, var,

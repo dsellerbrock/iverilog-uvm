@@ -1,0 +1,2 @@
+ivltests/sv_assoc_explicit_pattern_duplicate_default_fail.v:4: error: associative-array literal has multiple default keys.
+Elaboration failed

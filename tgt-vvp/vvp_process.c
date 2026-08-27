@@ -4077,6 +4077,25 @@ static int show_delete_method(ivl_statement_t net)
       ivl_signal_t var = ivl_expr_signal(parm);
       ivl_type_t var_type = ivl_signal_net_type(var);
 
+	/* A fully selected fixed-array word containing an associative array is
+	 * an object receiver, not the nonexistent scalar signal v<array>_0.
+	 * This mirrors exists/first/last/next/prev expression lowering and keeps
+	 * the fixed canonical word distinct from delete's optional map key. */
+      if (ivl_signal_dimensions(var) > 0 && ivl_expr_oper1(parm)
+	  && var_type && ivl_type_base(var_type) == IVL_VT_QUEUE
+	  && ivl_type_queue_assoc_compat(var_type)) {
+	    draw_eval_object(parm);
+	    if (parm_count == 2) {
+		  const char*key_kind =
+			draw_eval_assoc_key_(ivl_stmt_parm(net, 1), 0);
+		  fprintf(vvp_out, "    %%aa/delete/%s;\n", key_kind);
+	    } else {
+		  fprintf(vvp_out, "    %%aa/delete/all;\n");
+	    }
+	    fprintf(vvp_out, "    %%pop/obj 1, 0; selected fixed map receiver\n");
+	    return 0;
+      }
+
       if (expr_is_static_array_expr(parm)) {
 	    if (show_delete_static_array_signal_method(net, var, var_type, parm_count) == 0)
 		  return 0;

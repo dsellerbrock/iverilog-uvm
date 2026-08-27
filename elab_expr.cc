@@ -2553,6 +2553,74 @@ static NetExpr* apply_trailing_container_indices_(
       return cur_expr;
 }
 
+/* Select a direct associative-array leaf stored behind a fixed unpacked
+ * signal prefix, for example `string a[2][string]; a[i][key]'.  NetNet keeps
+ * the fixed shape in array_type()/unpacked_dimensions() and the map leaf in
+ * net_type().  Treating every source index as a map key either dropped the
+ * fixed word or descended the map once too far.  Canonicalize exactly the
+ * fixed prefix as a NetESignal word, then let the established container
+ * walker consume only the trailing associative indices.  This intentionally
+ * stays narrower than arbitrary fixed arrays of object/container values; the
+ * declaration diagnostic admits this same direct-associative shape only. */
+static NetExpr* elaborate_fixed_assoc_signal_select_(
+      const LineInfo&loc, Design*des, NetScope*scope, NetNet*net,
+      const list<index_component_t>&indices, bool need_const,
+      ivl_type_t&out_type)
+{
+      out_type = nullptr;
+      const netqueue_t*assoc = net ? net->queue_type() : nullptr;
+      const size_t fixed_dims = net ? net->unpacked_dimensions() : 0;
+      if (!assoc || !assoc->assoc_compat() || fixed_dims == 0
+	  || indices.size() < fixed_dims)
+	    return nullptr;
+
+      list<index_component_t>::const_iterator split = indices.begin();
+      for (size_t dim = 0 ; dim < fixed_dims ; dim += 1, ++split) {
+	    if (split->sel != index_component_t::SEL_BIT
+		|| !split->msb || split->lsb) {
+		  cerr << loc.get_fileline() << ": error: a fixed unpacked-array "
+		       << "prefix requires one simple index per dimension."
+		       << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+      }
+
+      list<index_component_t>fixed_indices(indices.begin(), split);
+      const netsarray_t*fixed_type =
+	    dynamic_cast<const netsarray_t*>(net->array_type());
+      if (!fixed_type
+	  || fixed_type->static_dimensions().size() != fixed_dims) {
+	    cerr << loc.get_fileline() << ": internal error: fixed-prefix "
+		 << "associative signal `" << net->name()
+		 << "' has inconsistent fixed-array type metadata." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+	/* A flat word-range check is insufficient for multidimensional arrays:
+	 * [0][width] can flatten to the valid word for [1][0].  Preserve every
+	 * source dimension through the checked canonicalizer so an undefined or
+	 * out-of-range component yields an invalid word instead of aliasing a
+	 * sibling.  The helper also owns and releases elaborated index nodes on
+	 * every constant/error path. */
+      NetExpr*canon = make_checked_canonical_property_index(
+	    des, scope, &loc, fixed_indices, fixed_type, need_const);
+      if (!canon)
+	    return nullptr;
+      canon->set_line(loc);
+
+      NetESignal*selected = new NetESignal(net, canon);
+      selected->set_line(loc);
+      out_type = net->net_type();
+
+      list<index_component_t>trailing_indices(split, indices.end());
+      if (trailing_indices.empty())
+	    return selected;
+      return apply_trailing_container_indices_(
+	    loc, des, scope, selected, out_type, trailing_indices, out_type);
+}
+
 static NetExpr* elaborate_static_array_property_(const LineInfo&loc, Design*des,
 						 NetNet*net,
 						 perm_string member_name)
@@ -3203,6 +3271,114 @@ unsigned PEAssignPattern::test_width(Design*, NetScope*, width_mode_t&)
       return 1;
 }
 
+enum assoc_pattern_key_result_t {
+      ASSOC_PATTERN_KEY_OK,
+      ASSOC_PATTERN_KEY_NOT_CONSTANT,
+      ASSOC_PATTERN_KEY_INVALID_BITS
+};
+
+/* Check the source category before contextual coercion can hide a conversion
+ * that is forbidden specifically for associative indices. Keep this narrow:
+ * exact assignment compatibility (including derived class handles) remains
+ * the job of elaborate_rval_expr(). */
+static bool assoc_pattern_key_category_(Design*des, NetScope*scope,
+					PExpr*expr, ivl_type_t index_type)
+{
+      PExpr::width_mode_t mode = PExpr::SIZED;
+      unsigned errors_before = des->errors;
+      expr->test_width(des, scope, mode);
+      if (des->errors != errors_before)
+	    return false;
+
+      ivl_variable_type_t source_base = expr->expr_type();
+
+      /* A wildcard index accepts integral expressions and, as a special
+       * case, string literals. Other string expressions are not literals. */
+      if (!index_type) {
+	    if (source_base == IVL_VT_BOOL || source_base == IVL_VT_LOGIC
+		|| dynamic_cast<const PEString*>(expr))
+		  return true;
+
+	    cerr << expr->get_fileline() << ": error: a wildcard associative-array "
+		 << "literal index must be integral or a string literal "
+		    "(IEEE 1800-2017 7.8.1)." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
+      if (index_type->packed()
+	  && source_base != IVL_VT_BOOL && source_base != IVL_VT_LOGIC) {
+	    cerr << expr->get_fileline() << ": error: an integral or enum "
+		 << "associative-array index requires an integral key; implicit "
+		    "conversion from this expression category is illegal "
+		    "(IEEE 1800-2017 7.8.4)." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
+      if (index_type->base_type() == IVL_VT_STRING
+	  && source_base != IVL_VT_STRING) {
+	    cerr << expr->get_fileline() << ": error: a string-indexed "
+		 << "associative array requires a string index "
+		    "(IEEE 1800-2017 7.8.2)." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
+      if (index_type->base_type() == IVL_VT_CLASS
+	  && source_base != IVL_VT_CLASS
+	  && !dynamic_cast<const PENull*>(expr)) {
+	    cerr << expr->get_fileline() << ": error: a class-indexed "
+		 << "associative array requires a compatible class handle or null "
+		    "index (IEEE 1800-2017 7.8.2)." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
+      return true;
+}
+
+/* Produce the identity used to diagnose duplicate explicit keys in an
+ * associative-array literal. The key has already been elaborated in the
+ * declared index type, so width, signedness and string conversion match the
+ * value that VVP will use. IEEE 1800-2017/2023 10.9.1 makes a repeated index
+ * an error rather than a last-write-wins construction. */
+static assoc_pattern_key_result_t assoc_pattern_key_identity_(
+		const NetExpr*expr, bool integral_index, string&identity)
+{
+      if (dynamic_cast<const NetENull*>(expr)) {
+	    identity = "o:null";
+	    return ASSOC_PATTERN_KEY_OK;
+      }
+
+      const NetEConst*constant = dynamic_cast<const NetEConst*>(expr);
+      if (!constant)
+	    return ASSOC_PATTERN_KEY_NOT_CONSTANT;
+
+      const verinum&value = constant->value();
+      if (integral_index && !value.is_defined())
+	    return ASSOC_PATTERN_KEY_INVALID_BITS;
+
+      ostringstream out;
+      if (value.is_string()) {
+	    const string text = value.as_string();
+	    out << "s:" << text.size() << ":" << text;
+      } else {
+	    out << "v:" << value.len() << ":" << (expr->has_sign() ? 's' : 'u')
+		<< ":";
+	    for (unsigned bit = 0 ; bit < value.len() ; bit += 1) {
+		  switch (value.get(bit)) {
+		      case verinum::V0: out << '0'; break;
+		      case verinum::V1: out << '1'; break;
+		      case verinum::Vx: out << 'x'; break;
+		      case verinum::Vz: out << 'z'; break;
+		  }
+	    }
+      }
+      identity = out.str();
+      return ASSOC_PATTERN_KEY_OK;
+}
+
 NetExpr*PEAssignPattern::elaborate_expr(Design*des, NetScope*scope,
 					ivl_type_t ntype, unsigned flags) const
 {
@@ -3227,6 +3403,9 @@ NetExpr*PEAssignPattern::elaborate_expr(Design*des, NetScope*scope,
 			    case IVL_VT_LOGIC:
 			    case IVL_VT_REAL:
 			    case IVL_VT_STRING:
+			    case IVL_VT_DARRAY:
+			    case IVL_VT_QUEUE:
+			    case IVL_VT_NO_TYPE:
 			      break;
 			    case IVL_VT_CLASS:
 			      if (dynamic_cast<const netclass_t*>(elem_type))
@@ -3236,10 +3415,8 @@ NetExpr*PEAssignPattern::elaborate_expr(Design*des, NetScope*scope,
 			      /* fall through */
 			    default:
 			      cerr << get_fileline() << ": sorry: associative-array "
-				   << "default assignment patterns support integral/enum, "
-				      "real, string, and class-handle element types; this "
-				      "object-backed element type requires value-copy "
-				      "semantics (IEEE 1800-2017 7.9.11)." << endl;
+				   << "default assignment pattern has an unsupported element "
+				      "type (IEEE 1800-2017 7.9.11)." << endl;
 			      des->errors += 1;
 			      return nullptr;
 			}
@@ -3256,20 +3433,155 @@ NetExpr*PEAssignPattern::elaborate_expr(Design*des, NetScope*scope,
 			return res;
 		  }
 
-		    /* Empty is the complete empty associative-array value and is
-		     * handled by the existing null-container lowering below. Any
-		     * other pattern has one or more explicit entries; the generic
-		     * queue-pattern path is positional and would silently turn the
-		     * keys into queue offsets. Keep those legal but unsupported forms
-		     * loud until associative keyed construction is implemented. */
-		  if (!parms_.empty()) {
-			cerr << get_fileline() << ": sorry: nonempty associative-array "
-			     << "assignment patterns with explicit entries are not yet "
-				"supported; only '{} and '{default:value} are implemented "
-				"(IEEE 1800-2017 7.9.11)." << endl;
-			des->errors += 1;
-			return nullptr;
-		  }
+
+	    /* Empty is the complete empty associative-array value and is
+	     * handled by the existing null-container lowering below. Every
+	     * nonempty associative literal is keyed: build a typed, fresh map
+	     * value rather than feeding it to the positional queue-pattern path.
+	     * The target evaluates the encoded items in source order and only the
+	     * enclosing assignment installs the completed object, so RHS side
+	     * effects cannot expose a partially replaced destination. */
+	  if (!parms_.empty()) {
+		if (replication_ || keys_.empty()) {
+		      cerr << get_fileline() << ": error: a nonempty associative-array "
+			   << "literal requires index:value entries (and may include "
+			      "default:value); positional or replicated assignment "
+			      "patterns are not associative-array literals "
+			      "(IEEE 1800-2017 7.9.11)." << endl;
+		      des->errors += 1;
+		      return nullptr;
+		}
+		if (keys_.size() != parms_.size()) {
+		      cerr << get_fileline() << ": internal error: associative-array "
+			   << "literal key/value count mismatch." << endl;
+		      des->errors += 1;
+		      return nullptr;
+		}
+		ivl_type_t elem_type = queue_type->element_type();
+		ivl_type_t index_type = queue_type->assoc_index_type();
+		vector<NetExpr*> marker_args;
+		marker_args.reserve(keys_.size() * 3);
+		set<string> explicit_keys;
+		bool default_seen = false;
+		bool failed = false;
+
+		for (size_t idx = 0 ; idx < keys_.size() && !failed ; idx += 1) {
+		      const assignment_pattern_key_t&key = keys_[idx];
+		      if (key.kind == assignment_pattern_key_t::TYPE) {
+			    cerr << get_fileline() << ": error: a type key is not an "
+				 << "associative-array literal index; use an explicit "
+				    "constant index or default (IEEE 1800-2017 7.9.11)."
+				 << endl;
+			    des->errors += 1;
+			    failed = true;
+			    break;
+		      }
+
+		      bool is_default = key.kind == assignment_pattern_key_t::DEFAULT;
+		      NetExpr*encoded_key = nullptr;
+		      if (is_default) {
+			    if (default_seen) {
+				  cerr << get_fileline() << ": error: associative-array "
+				       << "literal has multiple default keys." << endl;
+				  des->errors += 1;
+				  failed = true;
+				  break;
+			    }
+			    default_seen = true;
+			    encoded_key = make_const_val(0);
+			    encoded_key->set_line(*parms_[idx]);
+		      } else {
+			    if (!key.expr) {
+				  cerr << get_fileline() << ": internal error: associative-array "
+				       << "literal has an empty explicit index." << endl;
+				  des->errors += 1;
+				  failed = true;
+				  break;
+			    }
+			    if (!assoc_pattern_key_category_(des, scope, key.expr,
+						     index_type)) {
+				  failed = true;
+				  break;
+			    }
+
+			    NetExpr*key_expr = nullptr;
+			    if (index_type && !index_type->packed())
+				  key_expr = elaborate_rval_expr(des, scope, index_type,
+							 key.expr, true);
+			    else
+				  key_expr = elab_assoc_index(des, scope, key.expr,
+							 ntype, true);
+			    if (!key_expr) {
+				  failed = true;
+				  break;
+			    }
+
+			    string identity;
+			    assoc_pattern_key_result_t key_result =
+				  assoc_pattern_key_identity_(key_expr,
+							      !index_type
+							      || index_type->packed(),
+							      identity);
+			    if (key_result == ASSOC_PATTERN_KEY_INVALID_BITS) {
+				  cerr << key.expr->get_fileline() << ": error: an "
+				       << "associative-array literal index containing x or z "
+					  "is invalid (IEEE 1800-2017 7.8.1/7.8.4)."
+				       << endl;
+				  des->errors += 1;
+				  delete key_expr;
+				  failed = true;
+				  break;
+			    }
+			    if (key_result != ASSOC_PATTERN_KEY_OK) {
+				  cerr << key.expr->get_fileline() << ": error: an "
+				       << "associative-array literal index must be a "
+					  "constant expression in the declared index type."
+				       << endl;
+				  des->errors += 1;
+				  delete key_expr;
+				  failed = true;
+				  break;
+			    }
+			    if (!explicit_keys.insert(identity).second) {
+				  cerr << key.expr->get_fileline() << ": error: associative-array "
+				       << "literal specifies the same index more than once."
+				       << endl;
+				  des->errors += 1;
+				  delete key_expr;
+				  failed = true;
+				  break;
+			    }
+			    encoded_key = key_expr;
+		      }
+
+		      NetExpr*value = elaborate_rval_expr(des, scope, elem_type,
+							  parms_[idx], need_const);
+		      if (!value) {
+			    delete encoded_key;
+			    failed = true;
+			    break;
+		      }
+
+		      NetEConst*kind = make_const_val(is_default ? 1 : 0);
+		      kind->set_line(*parms_[idx]);
+		      marker_args.push_back(kind);
+		      marker_args.push_back(encoded_key);
+		      marker_args.push_back(value);
+		}
+
+		if (failed) {
+		      for (NetExpr*arg : marker_args)
+			    delete arg;
+		      return nullptr;
+		}
+
+		NetESFunc*res = new NetESFunc("$ivl_assoc_pattern", ntype,
+					       (unsigned)marker_args.size());
+		for (size_t idx = 0 ; idx < marker_args.size() ; idx += 1)
+		      res->parm((unsigned)idx, marker_args[idx]);
+		res->set_line(*this);
+		return res;
+	  }
 	    }
       }
 
@@ -7470,6 +7782,33 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 	    target_type = search_results.net->net_type();
 
       if (search_results.net
+	  && search_results.net->unpacked_dimensions() > 0
+	  && search_results.net->queue_type()
+	  && search_results.net->queue_type()->assoc_compat()
+	  && !search_results.path_head.empty()
+	  && search_results.path_head.back().index.size()
+		>= search_results.net->unpacked_dimensions()) {
+	    /* NetNet separates a signal's fixed prefix from its direct map
+	     * leaf. Consume exactly those fixed ranks before walking any
+	     * trailing map key, so maps[i].size() remains a map method. */
+	    target_type = search_results.net->net_type();
+	    const list<index_component_t>&indices =
+		  search_results.path_head.back().index;
+	    list<index_component_t>::const_iterator cur = indices.begin();
+	    std::advance(cur, search_results.net->unpacked_dimensions());
+	    for ( ; cur != indices.end() ; ++cur) {
+		  const netarray_t*array_type =
+			dynamic_cast<const netarray_t*>(target_type);
+		  if (!array_type) {
+			target_type = nullptr;
+			break;
+		  }
+		  target_type = array_type->element_type();
+	    }
+	    target_indexed = indices.size()
+		  > search_results.net->unpacked_dimensions();
+
+      } else if (search_results.net
 	  && (search_results.net->data_type()==IVL_VT_QUEUE
 	      || search_results.net->data_type()==IVL_VT_DARRAY)
 	  && !search_results.path_head.empty()
@@ -14370,6 +14709,32 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
       }
 
       bool applied_root_queue_select = false;
+	/* Select the object-array word before dispatching a method on a direct
+	 * associative leaf. Any indices beyond the fixed signal rank are then
+	 * ordinary associative indices handled by the shared container walker. */
+      if (search_results.net
+	  && search_results.net->unpacked_dimensions() > 0
+	  && search_results.net->queue_type()
+	  && search_results.net->queue_type()->assoc_compat()
+	  && !search_results.path_head.empty()
+	  && search_results.path_head.back().index.size()
+		>= search_results.net->unpacked_dimensions()) {
+	    ivl_type_t selected_type = nullptr;
+	    NetExpr*selected = elaborate_fixed_assoc_signal_select_(
+		  *this, des, scope, search_results.net,
+		  search_results.path_head.back().index, false,
+		  selected_type);
+	    if (!selected) {
+		  delete sub_expr;
+		  return nullptr;
+	    }
+	    delete sub_expr;
+	    sub_expr = selected;
+	    target_type = selected_type;
+	    target_indexed = search_results.path_head.back().index.size()
+		  > search_results.net->unpacked_dimensions();
+	    applied_root_queue_select = true;
+      }
 	/* A method on a nested container slice must retain every root
 	 * subscript in its receiver expression. The single-index path below
 	 * cannot represent dd[outer][base +: width].size(); historically the
@@ -17712,6 +18077,22 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       }
 
       const name_component_t&use_comp = path_.back();
+
+	/* A fixed signal prefix and its associative leaf are two distinct
+	 * unpacked ranks.  Build the selected outer map first, then consume any
+	 * trailing map key.  The generic typed-container path below sees only
+	 * net_type() and otherwise mistakes the fixed index for that key. */
+      if (sr.path_tail.empty() && net->unpacked_dimensions() > 0
+	  && net->queue_type() && net->queue_type()->assoc_compat()
+	  && use_comp.index.size() >= net->unpacked_dimensions()) {
+	    ivl_type_t selected_type = nullptr;
+	    NetExpr*selected = elaborate_fixed_assoc_signal_select_(
+		  *this, des, scope, net, use_comp.index, need_const,
+		  selected_type);
+	    if (!selected)
+		  return nullptr;
+	    return selected;
+      }
 
 	/* The typed container fast path below historically reduced every
 	 * subscripted container to its first element type. A direct slice then
@@ -21435,6 +21816,17 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
 		 << " but got only " << name_tail.index.size() << "." << endl;
 	    des->errors += 1;
 	    return 0;
+      }
+
+	/* The fixed dimensions select an object-array word; any further
+	 * component selects through the associative map stored in that word.
+	 * Keep those two address spaces separate instead of feeding the final
+	 * key to the packed bit-select machinery below. */
+      if (net->queue_type() && net->queue_type()->assoc_compat()) {
+	    ivl_type_t selected_type = nullptr;
+	    return elaborate_fixed_assoc_signal_select_(
+		  *this, des, scope, net, name_tail.index, need_const,
+		  selected_type);
       }
 
 	// Evaluate all the index expressions into an

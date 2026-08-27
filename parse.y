@@ -2052,52 +2052,37 @@ assignment_pattern /* IEEE1800-2005: A.6.7.1 */
       }
   ;
 
-  /* Named member assignment pattern: '{field: val, ..., default: val} */
+  /* Keyed assignment pattern: '{key: val, ..., default: val}.
+
+     IEEE 1800-2017/2023 10.9 permits an array key to be any constant
+     expression.  Keeping only IDENTIFIER and number alternatives happened
+     to cover structure members and fixed integer indices, but rejected the
+     associative-array literals used by real DV code, including string keys
+     and package-qualified enum keys (7.9.11).  Parse the complete expression
+     here; the typed elaborator below decides whether it denotes a structure
+     member, a fixed-array index, or an associative key and enforces the
+     required constancy in that context. */
 assignment_pattern_named_list
-  : IDENTIFIER ':' expression
-      { $$ = new std::list<assignment_pattern_item_t>;
-	assignment_pattern_item_t item;
-	item.key.kind = assignment_pattern_key_t::EXPR;
-	item.key.expr = new PEIdent(lex_strings.make($1), @1.lexical_pos);
-	FILE_NAME(item.key.expr, @1);
-	item.value = $3;
-	$$->push_back(item);
-	delete[] $1;
-      }
-  | K_default ':' expression
+  : K_default ':' expression
       { $$ = new std::list<assignment_pattern_item_t>;
 	assignment_pattern_item_t item;
 	item.key.kind = assignment_pattern_key_t::DEFAULT;
 	item.value = $3;
 	$$->push_back(item);
       }
-  | K_int ':' expression
+  | expression ':' expression
       { $$ = new std::list<assignment_pattern_item_t>;
 	assignment_pattern_item_t item;
-	item.key.kind = assignment_pattern_key_t::TYPE;
-	item.key.type = new atom_type_t(atom_type_t::INT, true);
-	FILE_NAME(item.key.type, @1);
+	if (PETypename*key_type = dynamic_cast<PETypename*>($1)) {
+	      item.key.kind = assignment_pattern_key_t::TYPE;
+	      item.key.type = key_type->get_type();
+	      delete key_type;
+	} else {
+	      item.key.kind = assignment_pattern_key_t::EXPR;
+	      item.key.expr = $1;
+	}
 	item.value = $3;
 	$$->push_back(item);
-      }
-  | number ':' expression
-      { $$ = new std::list<assignment_pattern_item_t>;
-	assignment_pattern_item_t item;
-	item.key.kind = assignment_pattern_key_t::EXPR;
-	item.key.expr = new PENumber($1);
-	FILE_NAME(item.key.expr, @1);
-	item.value = $3;
-	$$->push_back(item);
-      }
-  | assignment_pattern_named_list ',' IDENTIFIER ':' expression
-      { assignment_pattern_item_t item;
-	item.key.kind = assignment_pattern_key_t::EXPR;
-	item.key.expr = new PEIdent(lex_strings.make($3), @3.lexical_pos);
-	FILE_NAME(item.key.expr, @3);
-	item.value = $5;
-	$1->push_back(item);
-	delete[] $3;
-	$$ = $1;
       }
   | assignment_pattern_named_list ',' K_default ':' expression
       { assignment_pattern_item_t item;
@@ -2106,20 +2091,16 @@ assignment_pattern_named_list
 	$1->push_back(item);
 	$$ = $1;
       }
-  | assignment_pattern_named_list ',' K_int ':' expression
+  | assignment_pattern_named_list ',' expression ':' expression
       { assignment_pattern_item_t item;
-	item.key.kind = assignment_pattern_key_t::TYPE;
-	item.key.type = new atom_type_t(atom_type_t::INT, true);
-	FILE_NAME(item.key.type, @3);
-	item.value = $5;
-	$1->push_back(item);
-	$$ = $1;
-      }
-  | assignment_pattern_named_list ',' number ':' expression
-      { assignment_pattern_item_t item;
-	item.key.kind = assignment_pattern_key_t::EXPR;
-	item.key.expr = new PENumber($3);
-	FILE_NAME(item.key.expr, @3);
+	if (PETypename*key_type = dynamic_cast<PETypename*>($3)) {
+	      item.key.kind = assignment_pattern_key_t::TYPE;
+	      item.key.type = key_type->get_type();
+	      delete key_type;
+	} else {
+	      item.key.kind = assignment_pattern_key_t::EXPR;
+	      item.key.expr = $3;
+	}
 	item.value = $5;
 	$1->push_back(item);
 	$$ = $1;

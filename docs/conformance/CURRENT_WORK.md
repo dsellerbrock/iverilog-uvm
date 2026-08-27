@@ -1,5 +1,135 @@
 # CURRENT WORK — continuation state
 
+## Active increment — 2026-08-26 — associative-array assignment patterns and fixed-prefix leaves
+
+Worktree:
+`iverilog-uvm-opentitan-dynamic-with-after239-arm64-20260826`
+
+Branch: `agent/opentitan-dynamic-with-after239-arm64-20260826`, created exactly
+from `origin/main` at
+`a2ebad3b4a654d968da8c31454b408835e1591b1` (merged PR #239). All work and
+validation used native ARM64 tools. OpenTitan remained clean at
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19`; Caliptra remained clean at
+`bd31614182fb56e55578f48086a10ded650434fd`, with Adams Bridge at
+`e59eba955eac2a1adcb059f250641ede78e304be`. OpenTitan, Caliptra, and Accellera
+UVM sources were not modified.
+
+The normative audit used the ignored local IEEE 1800-2017 and IEEE 1800-2023
+PDFs, SHA-256
+`2b94a960a93c0bd2cf10305e6c05c57ba865e6fdcd20dcbbd42319f82177ce31`
+and
+`2280eb7f39532ca990b9bbd2e4226ae5c89910b51f42b2eb0e972df4403c9597`,
+against 7.4, 7.9.11, and 10.9.1. Paired `-g2017`/`-g2023` evidence now covers
+associative assignment patterns with explicit constant string, integral, and
+enum keys plus at most one non-entry fallback `default`. Duplicate converted
+keys, duplicate defaults, nonconstant keys, X/Z integral keys, and
+incompatible key/value categories are errors. Default state does not insert an
+entry or change `size()`.
+
+Pattern items evaluate exactly once in lexical order into a fresh typed value;
+the destination is replaced only after the complete right-hand side exists.
+Whole maps, queues, nested maps, and unpacked-struct values copy independently,
+while class elements preserve handle identity. The same lowering covers
+declaration and procedural assignment, typed/cast patterns, arguments,
+returns, conditional arms, and OpenTitan's enum-to-string, enum-to-queue,
+CSRNG nested-map, and fixed-outer-array forms. Direct signal-backed
+fixed-unpacked prefixes ending in integral/string/real-valued associative leaves
+retain the full product of declared fixed dimensions and separate the selected
+outer slot from the trailing associative key for whole-map and direct-entry
+reads, writes, and map methods. Explicit/default real reads, direct stores,
+sibling isolation, and constant/variable outer selectors use that same selected
+map receiver. Ascending, descending, nonzero, negative, and mixed
+multidimensional ranges remain independent. Every fixed dimension is checked
+before flattening, so an invalid, X, or out-of-range component cannot alias a
+valid sibling. Stores still evaluate address and RHS side effects once but make
+no write; reads and map methods likewise cannot touch the sibling. The raw VVP
+guard also rejects malformed
+`%aa/set/default/v` width metadata without consuming its source stacks or
+resizing storage.
+
+This is bounded support, not complete clause-7 or clause-10 closure. Packed
+bit/part/member and other deeper/partial entry tails, property/member and
+struct-nested receivers, fixed-prefix queue/dynamic-array leaves,
+fixed-prefix maps with class-handle/container/struct values,
+associative-array-typed parameters, broader receiver/context combinations,
+randomization, `ref`, VPI, and synthesis remain unsupported, unclaimed, or loud.
+
+Current native-ARM64 validation is clean:
+
+- paired associative/default focus: legacy **54/54**, JSON/VVP **54/54**;
+- canonical legacy ivtest: **4,127 pass, 0 fail, 2 NI, 3 expected fail**
+  (**4,132 total**);
+- full JSON/VVP: **1,017/1,017**;
+- bundled VPI: **103/103**;
+- negative diagnostics: **136/136**; and
+- canonical unmodified real-DPI UVM: **354/354**, with 0 failed and 0 skipped.
+
+Bison 3.8.2 reports no new parser-conflict debt against the exact parent. The
+main parser remains at 535 shift/reduce and 1,115 reduce/reduce conflicts over
+201 states, normalized descriptor SHA-256
+`b96fa4bf669e73f14ed8748e864e8b3f4cdfbdc61b45ec6d5cab66a7e6946bc8`.
+The VVP parser remains at 14 shift/reduce and 5 reduce/reduce conflicts over 9
+states, with byte-identical raw reports and normalized descriptor SHA-256
+`f9d4b8ef1d5ab7f29b5ca7ae9bce2ac780960055409d4b6ff3f47e3dcacf978d`.
+
+The fresh OpenTitan UVM compile census completed all 61 targets in **53.60
+seconds** with **8 DEBT / 50 FAIL / 3 SETUP_FAIL / 0 PASS**, zero timeouts, and
+no resource-limit signals. No former exact refusal, generic unsupported
+associative-pattern diagnostic, or associative-literal syntax diagnostic
+remains anywhere in the matrix. The affected cores now stop on independent
+language or provider frontiers; this is compile/elaboration/code-generation
+evidence, not OpenTitan simulation-pass coverage. Native ARM Python 3.13.15
+and FuseSoC 2.4.5 were also used to run `regtool.py` for UART.
+`uart_reg_pkg.sv` and `uart_reg_top.sv` were byte-for-byte identical to the
+checked-in RTL, with SHA-256
+`106f8da3d41f8cfe585a58e91c251e23e76c81d25956cb751f61644023dfa01b`
+and
+`8c40c957fbd7c1155f58d2c7696340b7ea6b82c2b0626ec684463f991538ae27`.
+
+OpenTitan evidence is outside the repository at
+`/Users/danielellerbrock/projects/iverilog_uvm/evidence/opentitan-assoc-pattern-postaudit-after239-arm64-20260826T210149-0600/`.
+The matrix JSON, Markdown, and runner-log SHA-256 values are
+`f230258ce602775f16ea75bc0450d497bce2df506ec207a765da10fed0be49ab`,
+`53d73fd3035cbf81d86e3dc7ac06dbb7bc976cc85dd35ffd7f65cf9bda4eb92e`,
+and
+`0b7d7cb3962f3a7b866a952d21ad54b103e4b893676df0a155d5767db5f480e0`.
+The captured compiler driver and engine SHA-256 values are
+`8c018567b9364148779d3351df9b8fe25a469abbaf2a0cd7e7f9538d0801db37`
+and
+`de0f462acd9d864ff6c9305902ba5d009ab9b31903ef701cfcacc6e3c61a0336`.
+Canonical regression evidence is at
+`/Users/danielellerbrock/projects/iverilog_uvm/evidence/assoc-pattern-postaudit-after239-arm64-20260826/`;
+the legacy and JSON/VVP logs have SHA-256
+`7c78283ae6e82d94a9ea9b54105bf2839479b9bfbfc3ab2aeedc2f2dd5d59d94`
+and
+`299a0b0a1612e1cb01f8c9f936f4091001cdd5c85799b11b64cbb6225337187a`;
+the VPI and real-DPI UVM logs have SHA-256
+`ee6a19505b08f9d717493a686d8b99a6b2f14996da1e78d2975b048ab07f2588`
+and
+`121c32f9c6375af0d67e50159cae85b5054c1d2488044cf2e3fa553e3a8b5b9a`.
+
+The frozen Caliptra static census completed 105 jobs and 420 compiler
+invocations in **58.30 seconds**. Icarus passes **53/105** in each assertions,
+no-assertions, and synthesis lane versus Slang **54/105**. Classification is
+**52 PASS / 1 DEBT / 51 SHARED_SOURCE_OR_CONFIG / 1 SOURCE_ORDER_DEBT /
+0 ICARUS_GAP**; the sole Slang advantage remains the known `csrng_raw_wrap`
+source-order debt. This is static compile/elaboration/synthesis differential
+evidence, not full Caliptra DV runtime. Evidence is at
+`/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-assoc-pattern-postaudit-after239-arm64-20260826T210409-0600/`;
+the result JSON, Markdown, and console-log SHA-256 values are
+`2438c1cd0930bffe915f0537c9213ddcc80761491105d66e85222d3589181d41`,
+`706b0e94b68be66fe45ea4d0885fd5f380d643d5471e96078d0bed53112959a7`,
+and
+`bc56323336a888e0ea2b96bd7d569e6890fa77db1c10ebc9bf86dba2aa9496a7`.
+Full design, test, tooling, and boundary detail is recorded in
+[`session_logs/2026-08-26_opentitan_associative_assignment_patterns.md`](session_logs/2026-08-26_opentitan_associative_assignment_patterns.md).
+
+The next independent OpenTitan frontier is the valid `for` initializer used by
+two full-chip cores that mixes an enum declaration with an integer declaration,
+including a package-qualified enum variant. Slang accepts the exact sources in
+both selected editions. This is a separate parser mechanism and belongs on the
+next fresh branch after this increment is merged.
+
 ## Active increment — 2026-08-26 — bounded dynamic-cross topology and final hardening
 
 Worktree:

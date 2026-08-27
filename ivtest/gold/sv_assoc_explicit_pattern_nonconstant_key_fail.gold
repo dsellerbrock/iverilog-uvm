@@ -1,0 +1,2 @@
+./ivltests/sv_assoc_explicit_pattern_nonconstant_key_fail.v:6: error: A reference to a net or variable (`live_key') is not allowed in a constant expression.
+Elaboration failed

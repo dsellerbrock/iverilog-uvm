@@ -3472,7 +3472,14 @@ void dll_target::convert_module_ports(const NetScope*net)
 unsigned dll_target_signal_array_words(const NetNet*net)
 {
       assert(net);
-      if (net->unpacked_dimensions() == 1)
+	/* A fixed unpacked prefix owns the signal word address space even when
+	 * its leaf is a queue or associative array. In particular, a
+	 * multidimensional `map[outer0][outer1][key]' must expose the product of
+	 * all fixed dimensions here; consulting the queue leaf's maximum size
+	 * instead truncates the emitted object array and silently drops every
+	 * canonical outer word beyond that unrelated bound. Scalar queues have no
+	 * fixed unpacked dimensions and retain the legacy maximum-size path below. */
+      if (net->unpacked_dimensions() != 0)
 	    return net->unpacked_count();
 
       if (net->net_type()->base_type() == IVL_VT_QUEUE) {

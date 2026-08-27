@@ -1,6 +1,0 @@
-{
-    "type"          : "CE",
-    "source"        : "sv_assoc_default_object_value_fail.v",
-    "iverilog-args" : [ "-g2012" ],
-    "gold"          : "sv_assoc_default_object_value_fail"
-}

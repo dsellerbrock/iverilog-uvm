@@ -60,8 +60,12 @@ On top of upstream Icarus Verilog's Verilog/partial-SystemVerilog support:
 - **Constrained randomization**: `rand`/`randc`, constraint blocks, `inside`,
   `dist`, `soft`, implication, `solve...before`, inline `with`, via a Z3 SMT
   backend
-- **Containers**: queues, dynamic and associative arrays with the clause-7
-  method set (locator/ordering/reduction methods, streaming)
+- **Containers**: queues, dynamic and associative arrays with the recorded
+  clause-7 method subset (locator/ordering/reduction methods, streaming), plus
+  the evidenced IEEE 1800-2017/2023 7.9.11/10.9.1 associative
+  assignment-pattern subset: constant string, integral, and enum keys, at most
+  one non-entry fallback `default`, independently copied recorded
+  container/struct values, and retained class-handle identity
 - **Interfaces**: modports, virtual interfaces as class properties (the UVM
   pattern), interface tasks through vif handles
 - **Clocking blocks**: sampled input semantics, output drives, `##N`, global
@@ -408,15 +412,16 @@ open. Examples:
 [tests/coverage_cross_test.sv](tests/coverage_cross_test.sv), and
 [ivtest/ivltests/sv_covergroup_ctor_bin_ranges.v](ivtest/ivltests/sv_covergroup_ctor_bin_ranges.v).
 
-The current native-ARM64 local gates are clean: the paired focus passes
-**20/20** in both paths; legacy ivtest reports **4,103 pass / 0 fail / 2 NI /
-3 expected fail** (**4,108 total**); JSON/VVP passes **993/993**; negative
-diagnostics pass **136/136**; bundled VPI passes **103/103**; and the canonical
-unmodified real-DPI UVM suite passes **354/354**. The JSON total includes the
-two optional `-tfpga` entries after the native-ARM64 `tgt-fpga` target is built
-and installed. Exact design, historical timing, evidence, and invocation detail
-is in the
-[dynamic-cross session log](docs/conformance/session_logs/2026-08-26_opentitan_dynamic_cross_topology.md).
+The current native-ARM64 local gates are clean: the paired associative-pattern
+focus passes **54/54** in both paths; legacy ivtest reports **4,127 pass / 0
+fail / 2 NI / 3 expected fail** (**4,132 total**); JSON/VVP passes
+**1,017/1,017**; negative diagnostics pass **136/136**; bundled VPI passes
+**103/103**; and the canonical unmodified real-DPI UVM suite passes
+**354/354**. The JSON total includes the two optional `-tfpga` entries after
+the native-ARM64 `tgt-fpga` target is built and installed. Both the main and
+VVP parser conflict profiles match the exact `origin/main` parent. Exact
+design, timing, evidence, and invocation detail is in the
+[associative-pattern session log](docs/conformance/session_logs/2026-08-26_opentitan_associative_assignment_patterns.md).
 
 ### VPI — substantial
 
@@ -481,7 +486,7 @@ for recorded evidence and known corners, not a completeness certificate.
 | Core classes / OOP (cl. 8) | Substantial | Interface classes, nested class declarations, module/package/compilation-unit out-of-body `extern` methods, multiple `extends`/`implements` relationships, specialization-aware casts, inherited type visibility and method-contract checks are supported |
 | UVM (Accellera core, unmodified) | Substantial | Current local canonical checkpoint: 354/354, 0 failed, 0 skipped, run WITHOUT `UVM_NO_DPI` via the Icarus UVM DPI backend (regex + command-line + `uvm_hdl_*` backdoor); frontdoor + user-defined backdoor work; `UVM_NO_DPI` native fallback still supported. |
 | Constraints / randomization (cl. 18) | Substantial | Z3-backed, including scope `std::randomize(vars) with {...}` for simple 1–64-bit integral variables; `randcase`/`randsequence` work |
-| Containers (queues/darrays/assoc, cl. 7) | Substantial | Broad recorded method subset; explicit receiver, typing, and context gaps remain |
+| Containers (queues/darrays/assoc, cl. 7) | Substantial | Broad recorded method subset. Associative-array assignment patterns support evidenced explicit constant string/integral/enum keys plus at most one non-entry fallback `default`, with integral, string, real, class-handle, queue, nested-associative, and unpacked-struct values. Direct signal-backed fixed-unpacked prefixes ending in integral/string/real-valued associative leaves match the observed OpenTitan CSRNG/EDN/entropy-src shapes plus paired real-value reducers; every fixed dimension is checked before flattening so a multidimensional OOB selector cannot alias a valid sibling map. This is not an end-to-end IP pass claim. This is bounded 7.4/7.9.11/10.9.1 support, not complete clause closure: packed bit/part/member and other deeper/partial entry tails, property/member and struct-nested receivers, fixed queue/darray leaves, fixed-prefix maps with class-handle/container/struct values, associative-array-typed parameters, and broader receiver/typing/context coverage remain loud or open. |
 | Interfaces / virtual interfaces (cl. 25) | Substantial | UVM vif pattern end-to-end; bare module-scope `virtual` var missing |
 | Clocking blocks (cl. 14) | Partial | Sampled inputs, common output drives, `##N`, and global clocking work; recorded run-time-selected, indexed-receiver, and aggregate-output gaps remain |
 | Scheduler / event regions (cl. 4) | Supported | Full stratified queue incl. Preponed, post-NBA (`cbNBASynch`), Observed and the Reactive set; assertions sample Preponed, evaluate in Observed and run their actions in Reactive; region tracing/self-test under `IVL_REGION_TRACE` / `IVL_REGION_SELFTEST` ([audit](docs/conformance/scheduler_audit_2026_07.md)) |
@@ -498,24 +503,23 @@ for recorded evidence and known corners, not a completeness certificate.
 The current local canonical unmodified Accellera UVM checkpoint passes
 **354/354** with real DPI. Application compatibility is less complete:
 
-- The final native-ARM64 OpenTitan 61-target UVM **compile** matrix at clean
-  revision `7a3ad34b` is **8 DEBT / 50 FAIL / 3 SETUP_FAIL / 0 PASS**, versus
-  **1 DEBT / 57 FAIL / 3 SETUP_FAIL / 0 PASS** before this increment. Seven targets moved from FAIL to
-  DEBT (`adc_ctrl`, `dma`, `hmac`, `mbx`, `pattgen`, `soc_dbg_ctrl`, and
-  `uart`), while `tl_agent` remains DEBT. Both the exact former constructor-
-  dependent-cross-drop diagnostic and the generic cross-drop diagnostic occur
-  zero times. The run had zero timeouts or resource-limit signals. Remaining
-  parser, provider, clocking, dynamic-`with`, and isolated elaboration failures
-  still prevent a clean application pass. This was a compile matrix and did
-  not run simulations.
-- The final frozen Caliptra static census completes all 105 jobs and 420
+- The post-audit native-ARM64 OpenTitan 61-target UVM **compile** matrix at
+  clean revision `7a3ad34b` is **8 DEBT / 50 FAIL / 3 SETUP_FAIL / 0 PASS**,
+  unchanged in classification from the preceding checkpoint. Every former
+  associative-pattern syntax/refusal diagnostic is absent; the eight affected
+  targets advance to independent parser/provider frontiers but do not yet
+  pass. The run completed in 53.60 seconds with zero timeouts or resource-limit
+  signals. This was a compile/elaboration/code-generation matrix and did not
+  run the 61 simulations. Native ARM `regtool.py` also regenerated UART's two
+  register RTL products byte-for-byte identically to the frozen checkout.
+- The post-audit frozen Caliptra static census completes all 105 jobs and 420
   compiler invocations: Icarus is **53/105** in each assertions,
   no-assertions, and synthesis lane versus Slang **54/105**. Its classifications
-  are **52 PASS / 1 DEBT / 51 SHARED_SOURCE_OR_CONFIG /
-  1 SOURCE_ORDER_DEBT / 0 ICARUS_GAP**; the sole Slang advantage is the known
-  `csrng_raw_wrap` source-order debt. This is compile/elaboration/synthesis
-  differential evidence, not full Caliptra DV runtime, which still requires
-  external verification inputs.
+  are **52 PASS / 1 DEBT / 51 SHARED_SOURCE_OR_CONFIG / 1 SOURCE_ORDER_DEBT /
+  0 ICARUS_GAP**; the sole Slang advantage is the known `csrng_raw_wrap`
+  source-order debt. The census completed in 58.30 seconds. This is
+  compile/elaboration/synthesis differential evidence, not full Caliptra DV
+  runtime, which still requires external verification inputs.
 
 Exact revisions, commands, classifications, and newer results belong in
 [CURRENT_WORK](docs/conformance/CURRENT_WORK.md), not in a rounded compatibility

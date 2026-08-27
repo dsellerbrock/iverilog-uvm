@@ -765,6 +765,16 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    datatype_flag = "/obj";
 	    vector_dims = 0;
 	    break;
+	  case IVL_VT_DARRAY:
+	  case IVL_VT_QUEUE:
+	      /* A fixed unpacked prefix around a dynamic container is an
+	       * array of independent object values, not a vector array whose
+	       * packed width happens to be one. Scalar darray/queue declarations
+	       * still take their dedicated branches below; this flag matters only
+	       * when ivl_signal_dimensions(sig) is nonzero. */
+	    datatype_flag = "/obj";
+	    vector_dims = 0;
+	    break;
 	  default:
 	    break;
       }
