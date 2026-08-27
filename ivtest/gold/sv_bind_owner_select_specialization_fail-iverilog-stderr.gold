@@ -1,0 +1,2 @@
+ivltests/sv_bind_owner_select_specialization_fail.v:14: error: bind target instance path 'children[SELECTED]' matched no elaborated module/interface instance for declaration-scope occurrence 'sv_bind_owner_select_specialization_fail.bad'; a constant select is outside the elaborated instance/generate range.
+1 error(s) during elaboration.

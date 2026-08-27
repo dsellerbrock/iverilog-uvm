@@ -1,0 +1,2 @@
+ivltests/sv_bind_same_base_array_collision_fail.v:16: error: bound instance name 'p' has already been declared in target scope 'sv_bind_same_base_array_collision_fail.target'.
+1 error(s) during elaboration.

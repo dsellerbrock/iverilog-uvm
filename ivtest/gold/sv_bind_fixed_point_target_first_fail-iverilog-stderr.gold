@@ -1,0 +1,2 @@
+ivltests/sv_bind_fixed_point_target_first_fail.v:16: error: cannot bind an instance underneath the scope of another bind instance: 'sv_bind_fixed_point_target_first_fail.late'.
+1 error(s) during elaboration.

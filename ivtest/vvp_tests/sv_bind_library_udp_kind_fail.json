@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_bind_library_udp_kind_fail.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_bind_library_udp_kind_fail", "-y", "ivltests/sv_bind_library_udp_kind_fail_lib" ],
+    "gold"          : "sv_bind_library_udp_kind_fail"
+}

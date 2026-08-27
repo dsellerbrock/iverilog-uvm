@@ -1,0 +1,3 @@
+ivltests/sv_bind_target_dynamic_select.v:16: error: bind target instance select expression is not constant: selected
+ivltests/sv_bind_target_dynamic_select.v:17: error: bind target instance select expression is not constant: selected
+2 error(s) during elaboration.

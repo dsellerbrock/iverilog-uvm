@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_bind_conditional_different_types.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_bind_conditional_different_types" ],
+    "gold"          : "sv_bind_conditional_different_types"
+}

@@ -1,0 +1,1 @@
+./ivltests/sv_bind_target_unselected_array_fail.v:14: error: bind target instance path 'sv_bind_target_unselected_array_fail.children': arrayed module instance 'children' requires a constant element select.

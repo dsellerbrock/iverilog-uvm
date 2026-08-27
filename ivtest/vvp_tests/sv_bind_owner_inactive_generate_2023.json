@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_bind_owner_inactive_generate.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_bind_owner_inactive_generate" ],
+    "gold"          : "sv_bind_owner_inactive_generate"
+}

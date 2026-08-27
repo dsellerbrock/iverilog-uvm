@@ -1,0 +1,2 @@
+ivltests/sv_bind_fixed_point_owner_overlap_fail.v:11: error: bind directive occurrences introduce the same bound instance name more than once in target scope 'sv_bind_fixed_point_owner_overlap_fail.target'.
+1 error(s) during elaboration.

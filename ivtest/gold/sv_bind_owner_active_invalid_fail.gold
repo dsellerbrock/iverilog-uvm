@@ -1,0 +1,2 @@
+./ivltests/sv_bind_owner_active_invalid_fail.v:8: error: bind target module/interface 'sv_bind_owner_active_invalid_missing' is not defined in this compilation.
+1 error(s) during elaboration.

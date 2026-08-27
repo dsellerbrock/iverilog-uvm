@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_bind_library_path.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_bind_library_path", "-y", "ivltests/sv_bind_library_path_lib" ],
+    "gold"          : "sv_bind_library_path"
+}

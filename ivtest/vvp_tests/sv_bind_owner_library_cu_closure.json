@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_bind_owner_library_cu_closure.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_bind_owner_library_cu_closure", "-y", "ivltests/sv_bind_owner_library_cu_closure_lib" ],
+    "gold"          : "sv_bind_owner_library_cu_closure"
+}

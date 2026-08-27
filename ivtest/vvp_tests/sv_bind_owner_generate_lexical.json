@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_bind_owner_generate_lexical.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_bind_owner_generate_lexical" ],
+    "gold"          : "sv_bind_owner_generate_lexical"
+}

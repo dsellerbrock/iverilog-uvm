@@ -1,0 +1,1 @@
+ivltests/sv_bind_owner_nested_first_fail.v:18: error: cannot bind an instance underneath the scope of another bind instance: 'sv_bind_owner_nested_first_fail.b1.nested'.

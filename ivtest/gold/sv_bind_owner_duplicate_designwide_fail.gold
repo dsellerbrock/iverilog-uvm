@@ -1,0 +1,2 @@
+./ivltests/sv_bind_owner_duplicate_designwide_fail.v:12: error: a designwide bind directive is elaborated 2 times because its containing scope has multiple instances; the bound instance name would be introduced more than once.
+1 error(s) during elaboration.

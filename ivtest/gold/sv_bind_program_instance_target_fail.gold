@@ -1,0 +1,2 @@
+./ivltests/sv_bind_program_instance_target_fail.v:13: error: bind target 'sv_bind_program_instance_target_subject' is a program block; module instantiations are not allowed in program blocks.
+1 error(s) during elaboration.

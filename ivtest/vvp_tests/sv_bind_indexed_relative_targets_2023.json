@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_bind_indexed_relative_targets.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_bind_indexed_relative_targets" ],
+    "gold"          : "sv_bind_indexed_relative_targets"
+}

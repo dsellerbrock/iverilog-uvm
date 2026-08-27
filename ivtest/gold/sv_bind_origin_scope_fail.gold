@@ -1,0 +1,2 @@
+./ivltests/sv_bind_origin_scope_fail.v:11: error: a bind directive may be declared only in a module, interface, or compilation-unit scope; 'sv_bind_origin_scope_program' is a program.
+./ivltests/sv_bind_origin_scope_fail.v:15: error: a bind directive may be declared only in a module, interface, or compilation-unit scope; 'sv_bind_origin_scope_checker' is a checker.

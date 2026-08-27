@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_bind_program_instance_target_fail.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_bind_program_instance_target_fail" ],
+    "gold"          : "sv_bind_program_instance_target_fail"
+}

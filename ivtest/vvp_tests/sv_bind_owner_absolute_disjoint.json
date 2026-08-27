@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_bind_owner_absolute_disjoint.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_bind_owner_absolute_disjoint" ],
+    "gold"          : "sv_bind_owner_absolute_disjoint"
+}

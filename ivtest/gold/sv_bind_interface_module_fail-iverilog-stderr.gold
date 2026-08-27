@@ -1,0 +1,2 @@
+ivltests/sv_bind_interface_module_fail.v:22: error: module 'sv_bind_interface_module_probe' cannot be bound into interface 'sv_bind_interface_module_intf'; an interface target requires an interface or checker instantiation.
+1 error(s) during elaboration.

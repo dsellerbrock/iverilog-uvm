@@ -1,0 +1,2 @@
+module sv_bind_library_target_leaf;
+endmodule

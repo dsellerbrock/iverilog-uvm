@@ -1,0 +1,2 @@
+ivltests/sv_bind_owner_absolute_overlap_fail.v:13: error: bind directive occurrences introduce the same bound instance name more than once in target scope 'sv_bind_owner_absolute_overlap_fail.targets[0]'.
+1 error(s) during elaboration.

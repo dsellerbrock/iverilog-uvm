@@ -1,0 +1,2 @@
+./ivltests/sv_bind_nested_direct_first_fail.v:13: error: cannot bind an instance underneath the scope of another bind instance: 'sv_bind_nested_direct_first_fail.b'.
+1 error(s) during elaboration.

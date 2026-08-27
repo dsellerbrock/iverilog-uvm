@@ -1,0 +1,1 @@
+ivltests/sv_bind_module_udp_fail.v:16: error: primitive 'sv_bind_module_udp_primitive' is not a permitted bind instantiation; expected a program, module, interface, or checker instantiation.

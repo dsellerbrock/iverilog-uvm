@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_bind_owner_duplicate_designwide_fail.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_bind_owner_duplicate_designwide_fail" ],
+    "gold"          : "sv_bind_owner_duplicate_designwide_fail"
+}

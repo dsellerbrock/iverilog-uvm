@@ -1,0 +1,4 @@
+module sv_bind_library_late_root_target;
+endmodule
+
+bind sv_bind_library_late_root_target sv_bind_library_late_root_probe late();

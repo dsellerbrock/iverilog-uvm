@@ -1,0 +1,2 @@
+ivltests/sv_bind_same_name_list_overlap_fail.v:13: error: bind target-instance list selects target scope 'sv_bind_same_name_list_overlap_fail.target' more than once; bound instance name 'bp' would be introduced more than once.
+1 error(s) during elaboration.

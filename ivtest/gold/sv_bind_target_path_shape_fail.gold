@@ -1,0 +1,3 @@
+./ivltests/sv_bind_target_path_shape_fail.v:17: error: bind target instance path 'scalar['sd0]': module instance 'scalar' is not arrayed and cannot be selected.
+./ivltests/sv_bind_target_path_shape_fail.v:18: error: bind target instance path 'middles.child': arrayed module instance 'middles' requires a constant element select.
+2 error(s) during elaboration.

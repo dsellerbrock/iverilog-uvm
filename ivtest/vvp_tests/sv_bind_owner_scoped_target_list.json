@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_bind_owner_scoped_target_list.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_bind_owner_scoped_target_list" ],
+    "gold"          : "sv_bind_owner_scoped_target_list"
+}
