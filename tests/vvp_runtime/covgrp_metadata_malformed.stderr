@@ -11,3 +11,9 @@ tests/vvp_runtime/covgrp_metadata_malformed.vvp:51: invalid .covgrp_dyn_bin meta
 tests/vvp_runtime/covgrp_metadata_malformed.vvp:56: invalid .covgrp_dyn_bin metadata value
 tests/vvp_runtime/covgrp_metadata_malformed.vvp:72: invalid .covgrp_dyn_bin metadata value
 tests/vvp_runtime/covgrp_metadata_malformed.vvp:77: invalid .covgrp_dyn_bin metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:80: invalid .covgrp_cross metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:83: invalid .covgrp_cross metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:86: invalid .covgrp_cross_term metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:89: invalid .covgrp_cross_term metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:92: invalid .covgrp_cross_bin metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:95: invalid .covgrp_cross_bin metadata value

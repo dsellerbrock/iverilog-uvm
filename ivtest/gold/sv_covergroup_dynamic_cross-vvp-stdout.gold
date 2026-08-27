@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_covergroup_dynamic_cross.v:41: $finish called at 0 (1s)

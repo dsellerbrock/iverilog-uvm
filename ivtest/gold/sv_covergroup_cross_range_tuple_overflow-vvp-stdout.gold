@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_covergroup_cross_range_tuple_overflow.v:32: $finish called at 0 (1s)

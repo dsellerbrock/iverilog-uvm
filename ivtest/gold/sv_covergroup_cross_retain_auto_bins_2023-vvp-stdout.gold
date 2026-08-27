@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_covergroup_cross_retain_auto_bins.v:165: $finish called at 0 (1s)

@@ -2715,6 +2715,28 @@ extern const char* ivl_type_covgrp_dyn_bin_hi_ir(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_dyn_bin_value_width(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_dyn_bin_value_signed(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_dyn_bin_guard(ivl_type_t net, int idx);
+/* Compact per-instance cross plans. Term kinds are 0=fixed normal-bin
+ * property, 1=dynamic bin family, 2=transition-bin property, and
+ * 3=logical member of a transition family. Cross-bin kinds are
+ * 0=normal, 1=ignore, and 2=illegal. */
+extern int      ivl_type_covgrp_crosses(ivl_type_t net);
+extern unsigned ivl_type_covgrp_cross_family(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_cross_item(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_cross_n_dims(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_cross_retain_auto(ivl_type_t net, int idx);
+extern int      ivl_type_covgrp_cross_terms(ivl_type_t net);
+extern unsigned ivl_type_covgrp_cross_term_family(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_cross_term_dim(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_cross_term_index(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_cross_term_kind(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_cross_term_source_id(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_cross_term_source_aux(ivl_type_t net, int idx);
+extern int      ivl_type_covgrp_cross_bins(ivl_type_t net);
+extern unsigned ivl_type_covgrp_cross_bin_family(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_cross_bin_kind(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_cross_bin_target(ivl_type_t net, int idx);
+extern const char* ivl_type_covgrp_cross_bin_name(ivl_type_t net, int idx);
+extern const char* ivl_type_covgrp_cross_bin_select_ir(ivl_type_t net, int idx);
 extern int      ivl_type_covgrp_items(ivl_type_t net);
 extern unsigned ivl_type_covgrp_item_at_least(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_item_weight(ivl_type_t net, int idx);

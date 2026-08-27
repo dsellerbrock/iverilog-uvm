@@ -1,0 +1,210 @@
+:ivl_version "13.0 (devel)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+S_unit .scope package, "$unit" "$unit" 1 1;
+ .timescale 0 0;
+S_top .scope module, "top" "top" 1 1;
+ .timescale 0 0;
+
+; Selector leaf references term 99, which the dimension does not contain.
+C0x1 .class "bad_selector_term" "top.bad_selector_term" [2]
+   0: "__src", "q0:sb32"
+   1: "__target", "q0:sb32"
+ .covgrp_bin 1 0 0 1 0 0 1 0 1 1 0 1 4294967295 0 4294967295
+ .covgrp_dyn_bin 0 0 0 0 0 "each" "c:0:32" "c:1:32" "u32" 4294967295
+ .covgrp_cross 1 2 2 1
+ .covgrp_cross_term 1 0 0 1 0 0
+ .covgrp_cross_term 1 1 0 0 0 0
+ .covgrp_cross_bin 1 0 1 "bad" "L,0,99,0"
+ .covgrp_item 1 1 0 "cp0" "" 0
+ .covgrp_item 1 1 0 "cp1" "" 0
+ .covgrp_item 1 1 1 "x" "" 0
+ ;
+
+; Two terms in one dimension name different contributing coverpoints.
+C0x2 .class "bad_dimension_sources" "top.bad_dimension_sources" [1]
+   0: "__src", "q0:sb32"
+ .covgrp_bin 1 0 0 1 0 0 1 0 1 1 0 1 4294967295 0 4294967295
+ .covgrp_dyn_bin 0 0 0 0 0 "each" "c:0:32" "c:1:32" "u32" 4294967295
+ .covgrp_cross 1 2 1 1
+ .covgrp_cross_term 1 0 0 1 0 0
+ .covgrp_cross_term 1 0 1 0 0 0
+ .covgrp_item 1 1 0 "cp0" "" 0
+ .covgrp_item 1 1 0 "cp1" "" 0
+ .covgrp_item 1 1 1 "x" "" 0
+ ;
+
+; A dynamic family must belong to the same coverpoint/item identity.
+C0x3 .class "bad_dynamic_item" "top.bad_dynamic_item" [0]
+ .covgrp_dyn_bin 0 1 0 0 0 "each" "c:0:32" "c:1:32" "u32" 4294967295
+ .covgrp_cross 1 2 1 1
+ .covgrp_cross_term 1 0 0 1 0 0
+ .covgrp_item 1 1 0 "cp0" "" 0
+ .covgrp_item 1 1 0 "cp1" "" 0
+ .covgrp_item 1 1 1 "x" "" 0
+ ;
+
+; One coverage item cannot own two dynamic cross plans.
+C0x4 .class "bad_duplicate_item_plan" "top.bad_duplicate_item_plan" [0]
+ .covgrp_dyn_bin 0 0 0 0 0 "each" "c:0:32" "c:1:32" "u32" 4294967295
+ .covgrp_cross 1 1 1 1
+ .covgrp_cross 2 1 1 1
+ .covgrp_cross_term 1 0 0 1 0 0
+ .covgrp_cross_term 2 0 0 1 0 0
+ .covgrp_item 1 1 0 "cp0" "" 0
+ .covgrp_item 1 1 1 "x" "" 0
+ ;
+
+; A dynamic named-bin counter cannot alias an ordinary source-bin counter.
+C0x5 .class "bad_target_alias" "top.bad_target_alias" [1]
+   0: "__src_and_target", "q0:sb32"
+ .covgrp_bin 1 0 0 1 0 0 1 0 1 1 0 1 4294967295 0 4294967295
+ .covgrp_dyn_bin 0 0 0 0 0 "each" "c:0:32" "c:1:32" "u32" 4294967295
+ .covgrp_cross 1 2 2 1
+ .covgrp_cross_term 1 0 0 1 0 0
+ .covgrp_cross_term 1 1 0 0 0 0
+ .covgrp_cross_bin 1 0 0 "alias" "T"
+ .covgrp_item 1 1 0 "cp0" "" 0
+ .covgrp_item 1 1 0 "cp1" "" 0
+ .covgrp_item 1 1 1 "x" "" 0
+ ;
+
+; Records in one dynamic family must describe one source-bin identity.
+C0x6 .class "bad_dynamic_family_identity" "top.bad_dynamic_family_identity" [0]
+ .covgrp_dyn_bin 0 0 0 0 0 "each" "c:0:32" "c:0:32" "u32" 4294967295
+ .covgrp_dyn_bin 1 1 0 0 0 "each" "c:1:32" "c:1:32" "u32" 4294967295
+ .covgrp_cross 1 2 1 1
+ .covgrp_cross_term 1 0 0 1 0 0
+ .covgrp_item 1 1 0 "cp0" "" 0
+ .covgrp_item 1 1 0 "cp1" "" 0
+ .covgrp_item 1 1 1 "x" "" 0
+ ;
+
+; A dynamic named-bin counter cannot alias an option/configuration property.
+C0x7 .class "bad_option_target_alias" "top.bad_option_target_alias" [1]
+   0: "__option_and_target", "q0:sb32"
+ .covgrp_dyn_bin 0 0 0 0 0 "each" "c:0:32" "c:1:32" "u32" 4294967295
+ .covgrp_cross 1 1 1 1
+ .covgrp_cross_term 1 0 0 1 0 0
+ .covgrp_cross_bin 1 0 0 "alias" "T"
+ .covgrp_item 1 1 0 "cp0" "" 0
+ .covgrp_item_options 0 1 0
+ .covgrp_item 1 1 1 "x" "" 0
+ ;
+
+; Range predicates count toward the bounded selector work budget.
+C0x8 .class "bad_selector_range_work" "top.bad_selector_range_work" [1]
+   0: "__target", "q0:sb32"
+ .covgrp_dyn_bin 0 0 0 0 0 "each" "c:0:32" "c:65535:32" "u32" 4294967295
+ .covgrp_cross 1 1 1 1
+ .covgrp_cross_term 1 0 0 1 0 0
+ .covgrp_cross_bin 1 0 0 "too_much_work" "L,0,0,256,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0"
+ .covgrp_item 1 1 0 "cp0" "" 0
+ .covgrp_item 1 1 1 "x" "" 0
+ ;
+
+; Source predicates and wildcard matching also count toward selector work.
+C0x9 .class "bad_selector_source_work" "top.bad_selector_source_work" [2]
+   0: "__source", "q0:sb32"
+   1: "__target", "q0:sb32"
+ .covgrp_bin 0 0 0 255 8 0 0 0 1 1 0 1 4294967295 0 4294967295
+ .covgrp_bin 0 0 256 511 8 1 0 0 1 1 0 1 4294967295 0 4294967295
+ .covgrp_bin 0 0 512 767 8 2 0 0 1 1 0 1 4294967295 0 4294967295
+ .covgrp_bin 0 0 768 1023 8 3 0 0 1 1 0 1 4294967295 0 4294967295
+ .covgrp_dyn_bin 1 1 0 0 0 "each" "c:0:32" "c:65534:32" "u32" 4294967295
+ .covgrp_cross 1 2 2 1
+ .covgrp_cross_term 1 0 0 0 0 0
+ .covgrp_cross_term 1 1 0 1 0 0
+ .covgrp_cross_bin 1 0 1 "too_much_source_work" "L,0,0,1,0,1023"
+ .covgrp_item 1 1 0 "cp0" "" 0
+ .covgrp_item 1 1 0 "cp1" "" 0
+ .covgrp_item 1 1 1 "x" "" 0
+ ;
+
+; Parent source/guard IDs occupy a different property namespace and may have
+; the same number as a covergroup-local cross counter without aliasing it.
+C0xa .class "valid_parent_namespace_overlap" "top.valid_parent_namespace_overlap" [1]
+   0: "__target", "q0:sb32"
+ .covgrp_dyn_bin 0 0 0 0 0 "each" "c:0:32" "c:1:32" "u32" 4294967295
+ .covgrp_cross 1 1 1 1
+ .covgrp_cross_term 1 0 0 1 0 0
+ .covgrp_cross_bin 1 0 0 "valid" "T"
+ .covgrp_item 1 1 0 "cp0" "" 0
+ .covgrp_item 1 1 1 "x" "" 1
+ .covgrp_src 1 1
+ ;
+
+    .scope S_top;
+T_0 ;
+    %new/cobj C0x1;
+    %covgrp/options/init;
+    %covgrp/get_inst_coverage;
+    %pop/real 1;
+    %end;
+    .thread T_0;
+T_1 ;
+    %new/cobj C0x2;
+    %covgrp/options/init;
+    %covgrp/get_inst_coverage;
+    %pop/real 1;
+    %end;
+    .thread T_1;
+T_2 ;
+    %new/cobj C0x3;
+    %covgrp/options/init;
+    %covgrp/get_inst_coverage;
+    %pop/real 1;
+    %end;
+    .thread T_2;
+T_3 ;
+    %new/cobj C0x4;
+    %covgrp/options/init;
+    %covgrp/get_inst_coverage;
+    %pop/real 1;
+    %end;
+    .thread T_3;
+T_4 ;
+    %new/cobj C0x5;
+    %covgrp/options/init;
+    %covgrp/get_inst_coverage;
+    %pop/real 1;
+    %end;
+    .thread T_4;
+T_5 ;
+    %new/cobj C0x6;
+    %covgrp/options/init;
+    %covgrp/get_inst_coverage;
+    %pop/real 1;
+    %end;
+    .thread T_5;
+T_6 ;
+    %new/cobj C0x7;
+    %covgrp/options/init;
+    %covgrp/get_inst_coverage;
+    %pop/real 1;
+    %end;
+    .thread T_6;
+T_7 ;
+    %new/cobj C0x8;
+    %covgrp/options/init;
+    %covgrp/get_inst_coverage;
+    %pop/real 1;
+    %end;
+    .thread T_7;
+T_8 ;
+    %new/cobj C0x9;
+    %covgrp/options/init;
+    %covgrp/get_inst_coverage;
+    %pop/real 1;
+    %end;
+    .thread T_8;
+T_9 ;
+    %new/cobj C0xa;
+    %covgrp/options/init;
+    %covgrp/get_inst_coverage;
+    %pop/real 1;
+    %end;
+    .thread T_9;
+:file_names 2;
+    "N/A";
+    "covgrp_cross_semantic_malformed.vvp";

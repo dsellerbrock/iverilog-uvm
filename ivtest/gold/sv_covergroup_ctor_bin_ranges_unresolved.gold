@@ -9,7 +9,6 @@ sorry: covergroup bin 'unsupported_fill_nested' has a runtime range expression t
 sorry: covergroup bin 'unsupported_folded_width' has a runtime range expression that cannot be represented; the bin is dropped.
 sorry: covergroup bin 'unsupported_select' has a runtime range expression that cannot be represented; the bin is dropped.
 sorry: constructor-dependent covergroup bin 'unsupported_with' uses a 'with' filter that cannot yet be evaluated at construction; the bin is dropped.
-sorry: cross 'unsupported_cross' contains a constructor-dependent bin family that cannot yet be represented in cross metadata; the cross is dropped.
 sorry: covergroup bin 'unsupported_width' has a runtime range expression that cannot be represented; the bin is dropped.
 sorry: covergroup bin 'unsupported_ctor_set' set expression cannot yet capture a constructor-formal container; the bin is dropped.
 PASSED

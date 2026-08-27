@@ -1,0 +1,4 @@
+EXPECT_ILLEGAL_BEGIN
+EXPECT_ILLEGAL_END
+PASSED
+ivltests/sv_covergroup_cross_bin_precedence.v:66: $finish called at 0 (1s)

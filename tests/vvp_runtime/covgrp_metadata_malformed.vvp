@@ -76,6 +76,24 @@ C0xf .class "bad_dynamic_typed_legacy_set" "top.bad_dynamic_typed_legacy_set" [1
  .covgrp_dyn_bin 0 0 0 0 0 "bad_typed_legacy_set" "setc:0" "setc:0" "s3"
  .covgrp_item 1 1 0 "cp" "" 0
  ;
+C0x10 .class "bad_cross_header_narrowing" "top.bad_cross_header_narrowing" [0]
+ .covgrp_cross 4294967296 0 1 1
+ ;
+C0x11 .class "bad_cross_header_shape" "top.bad_cross_header_shape" [0]
+ .covgrp_cross 0 0 0 2
+ ;
+C0x12 .class "bad_cross_term_narrowing" "top.bad_cross_term_narrowing" [0]
+ .covgrp_cross_term 0 0 0 0 0 4294967296
+ ;
+C0x13 .class "bad_cross_term_kind" "top.bad_cross_term_kind" [0]
+ .covgrp_cross_term 0 0 0 4 0 0
+ ;
+C0x14 .class "bad_cross_bin_narrowing" "top.bad_cross_bin_narrowing" [0]
+ .covgrp_cross_bin 0 0 4294967296 "bad" "T"
+ ;
+C0x15 .class "bad_cross_bin_kind" "top.bad_cross_bin_kind" [0]
+ .covgrp_cross_bin 0 3 0 "bad" "T"
+ ;
 :file_names 2;
     "N/A";
     "covgrp_metadata_malformed.vvp";

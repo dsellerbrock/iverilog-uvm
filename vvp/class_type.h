@@ -272,6 +272,27 @@ class class_type : public __vpiHandle {
 	    bool value_signed = false;
 	    unsigned guard_idx = 0xFFFFFFFFu;
       };
+      struct cov_cross_t {
+	    unsigned family = 0;
+	    unsigned item_idx = 0;
+	    unsigned n_dims = 0;
+	    bool retain_auto = false;
+      };
+      struct cov_cross_term_t {
+	    unsigned family = 0;
+	    unsigned dim = 0;
+	    unsigned term_idx = 0;
+	    unsigned kind = 0;
+	    unsigned source_id = 0;
+	    unsigned source_aux = 0;
+      };
+      struct cov_cross_bin_t {
+	    unsigned family = 0;
+	    unsigned kind = 0;
+	    unsigned target = 0;
+	    std::string name;
+	    std::string select_ir;
+      };
       static const unsigned COV_NO_PROP = 0xFFFFFFFFu;
 	static const unsigned COV_NO_FAMILY = 0xFFFFFFFFu;
 	static const unsigned COV_NO_GUARD = 0xFFFFFFFFu;
@@ -320,6 +341,38 @@ class class_type : public __vpiHandle {
       size_t covgrp_dyn_bin_count() const { return covgrp_dyn_bins_.size(); }
       const cov_dyn_bin_t& covgrp_dyn_bin(size_t idx) const
       { return covgrp_dyn_bins_[idx]; }
+      void add_covgrp_cross(unsigned family, unsigned item, unsigned n_dims,
+			    bool retain_auto)
+      { cov_cross_t cross;
+	cross.family = family; cross.item_idx = item; cross.n_dims = n_dims;
+	cross.retain_auto = retain_auto;
+	covgrp_crosses_.push_back(cross); }
+      size_t covgrp_cross_count() const { return covgrp_crosses_.size(); }
+      const cov_cross_t& covgrp_cross(size_t idx) const
+      { return covgrp_crosses_[idx]; }
+      void add_covgrp_cross_term(unsigned family, unsigned dim,
+				 unsigned term_idx, unsigned kind,
+				 unsigned source_id, unsigned source_aux)
+      { cov_cross_term_t term;
+	term.family = family; term.dim = dim; term.term_idx = term_idx;
+	term.kind = kind; term.source_id = source_id;
+	term.source_aux = source_aux;
+	covgrp_cross_terms_.push_back(term); }
+      size_t covgrp_cross_term_count() const
+      { return covgrp_cross_terms_.size(); }
+      const cov_cross_term_t& covgrp_cross_term(size_t idx) const
+      { return covgrp_cross_terms_[idx]; }
+      void add_covgrp_cross_bin(unsigned family, unsigned kind,
+				unsigned target, const std::string&name,
+				const std::string&select_ir)
+      { cov_cross_bin_t bin;
+	bin.family = family; bin.kind = kind; bin.target = target;
+	bin.name = name; bin.select_ir = select_ir;
+	covgrp_cross_bins_.push_back(bin); }
+      size_t covgrp_cross_bin_count() const
+      { return covgrp_cross_bins_.size(); }
+      const cov_cross_bin_t& covgrp_cross_bin(size_t idx) const
+      { return covgrp_cross_bins_[idx]; }
       size_t covgrp_item_count() const { return covgrp_items_.size(); }
       const cov_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
       unsigned covgrp_item_at_least(class vvp_cobject*obj, size_t idx) const;
@@ -335,7 +388,8 @@ class class_type : public __vpiHandle {
 			  bool&is_signed) const;
       bool is_covergroup() const
       { return !covgrp_items_.empty() || !covgrp_bins_.empty()
-	    || !covgrp_dyn_bins_.empty(); }
+	    || !covgrp_dyn_bins_.empty() || !covgrp_crosses_.empty()
+	    || !covgrp_cross_terms_.empty() || !covgrp_cross_bins_.empty(); }
 
 	// M11: TYPE-level (merged across all instances) hit counters
 	// indexed by counter property, and the type coverage computed
@@ -387,6 +441,9 @@ class class_type : public __vpiHandle {
     private:
       std::vector<cov_bin_t> covgrp_bins_;
       std::vector<cov_dyn_bin_t> covgrp_dyn_bins_;
+      std::vector<cov_cross_t> covgrp_crosses_;
+      std::vector<cov_cross_term_t> covgrp_cross_terms_;
+      std::vector<cov_cross_bin_t> covgrp_cross_bins_;
       std::vector<cov_item_t> covgrp_items_;
       mutable std::vector<uint32_t> type_counts_;
       mutable std::map<std::pair<unsigned,uint64_t>,uint32_t>

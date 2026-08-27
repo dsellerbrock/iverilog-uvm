@@ -360,6 +360,31 @@ class netclass_t : public ivl_type_s {
 	    unsigned guard_idx = 0xFFFFFFFFu;
       };
 
+	// Compact per-instance cross metadata. A header identifies one cross
+	// plan, terms describe its dimensions in stable source order, and named
+	// bin records retain the selection IR used to route sampled tuples.
+      struct covgrp_cross_t {
+	    unsigned family = 0;
+	    unsigned item_idx = 0;
+	    unsigned n_dims = 0;
+	    bool retain_auto = false;
+      };
+      struct covgrp_cross_term_t {
+	    unsigned family = 0;
+	    unsigned dim = 0;
+	    unsigned term_idx = 0;
+	    unsigned kind = 0;
+	    unsigned source_id = 0;
+	    unsigned source_aux = 0;
+      };
+      struct covgrp_cross_bin_t {
+	    unsigned family = 0;
+	    unsigned kind = 0;
+	    unsigned target = 0;
+	    std::string name;
+	    std::string select_ir;
+      };
+
 	// M11: per-item (coverpoint or cross) coverage options.
       struct covgrp_item_t {
 	    unsigned at_least = 1;
@@ -407,6 +432,38 @@ class netclass_t : public ivl_type_s {
       size_t covgrp_dyn_bin_count() const { return covgrp_dyn_bins_.size(); }
       const covgrp_dyn_bin_t& covgrp_dyn_bin(size_t idx) const
       { return covgrp_dyn_bins_[idx]; }
+      void add_covgrp_cross(unsigned family, unsigned item, unsigned n_dims,
+			    bool retain_auto)
+      { covgrp_cross_t cross;
+	cross.family = family; cross.item_idx = item; cross.n_dims = n_dims;
+	cross.retain_auto = retain_auto;
+	covgrp_crosses_.push_back(cross); }
+      size_t covgrp_cross_count() const { return covgrp_crosses_.size(); }
+      const covgrp_cross_t& covgrp_cross(size_t idx) const
+      { return covgrp_crosses_[idx]; }
+      void add_covgrp_cross_term(unsigned family, unsigned dim,
+				 unsigned term_idx, unsigned kind,
+				 unsigned source_id, unsigned source_aux)
+      { covgrp_cross_term_t term;
+	term.family = family; term.dim = dim; term.term_idx = term_idx;
+	term.kind = kind; term.source_id = source_id;
+	term.source_aux = source_aux;
+	covgrp_cross_terms_.push_back(term); }
+      size_t covgrp_cross_term_count() const
+      { return covgrp_cross_terms_.size(); }
+      const covgrp_cross_term_t& covgrp_cross_term(size_t idx) const
+      { return covgrp_cross_terms_[idx]; }
+      void add_covgrp_cross_bin(unsigned family, unsigned kind,
+				unsigned target, const std::string&name,
+				const std::string&select_ir)
+      { covgrp_cross_bin_t bin;
+	bin.family = family; bin.kind = kind; bin.target = target;
+	bin.name = name; bin.select_ir = select_ir;
+	covgrp_cross_bins_.push_back(bin); }
+      size_t covgrp_cross_bin_count() const
+      { return covgrp_cross_bins_.size(); }
+      const covgrp_cross_bin_t& covgrp_cross_bin(size_t idx) const
+      { return covgrp_cross_bins_[idx]; }
       void add_covgrp_item(unsigned at_least, unsigned weight, bool is_cross,
 			   perm_string name = perm_string(),
 			   const std::string&weight_ir = std::string(),
@@ -562,6 +619,9 @@ class netclass_t : public ivl_type_s {
 	std::vector<PExpr*> covgrp_ctor_defaults_;
       std::vector<covgrp_bin_t> covgrp_bins_;
       std::vector<covgrp_dyn_bin_t> covgrp_dyn_bins_;
+      std::vector<covgrp_cross_t> covgrp_crosses_;
+      std::vector<covgrp_cross_term_t> covgrp_cross_terms_;
+      std::vector<covgrp_cross_bin_t> covgrp_cross_bins_;
       std::vector<covgrp_item_t> covgrp_items_;
       std::vector<int> covgrp_cp_parent_props_;
       std::vector<PExpr*> covgrp_cp_guards_;

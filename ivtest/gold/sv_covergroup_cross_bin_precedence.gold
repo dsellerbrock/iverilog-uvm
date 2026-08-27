@@ -1,0 +1,5 @@
+EXPECT_ILLEGAL_BEGIN
+ERROR: covergroup illegal_bin matched (prop_idx=14)
+EXPECT_ILLEGAL_END
+PASSED
+./ivltests/sv_covergroup_cross_bin_precedence.v:66: $finish called at 0 (1s)
