@@ -1570,6 +1570,11 @@ sv_enum_unbased_fill normal,-g2012 ivltests
 sv_cast_size_string_literal normal,-g2012 ivltests
 sv_lnet_parray_struct_member normal,-g2012 ivltests
 sv_for_multi_var_decl normal,-g2012 ivltests
+sv_for_decl_type_forms normal,-g2017 ivltests gold=sv_for_decl_type_forms.gold
+sv_for_decl_type_forms_2023 normal,-g2023 ivltests gold=sv_for_decl_type_forms.gold
+sv_for_decl_scope_forms normal,-g2017 ivltests gold=sv_for_decl_scope_forms.gold
+sv_for_decl_scope_forms_2023 normal,-g2023 ivltests gold=sv_for_decl_scope_forms.gold
+sv_auto_block_shared_wait_event normal,-g2012 ivltests gold=sv_auto_block_shared_wait_event.gold
 sv_assert_star_unbounded normal,-g2012 ivltests
 sv_assert_impl_s_eventually normal,-g2012 ivltests
 sv_rand_conformance_pin1 normal,-g2012 ivltests

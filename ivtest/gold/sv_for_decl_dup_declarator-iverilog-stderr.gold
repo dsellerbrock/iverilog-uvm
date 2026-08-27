@@ -1,0 +1,2 @@
+ivltests/sv_for_decl_dup_declarator.v:4: error: 'd' has already been declared in this scope.
+ivltests/sv_for_decl_dup_declarator.v:4:      : It was declared here as a variable.

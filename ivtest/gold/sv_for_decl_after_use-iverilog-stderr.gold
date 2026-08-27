@@ -1,0 +1,5 @@
+ivltests/sv_for_decl_after_use.v:6: error: Unable to bind wire/reg/memory `j' in `sv_for_decl_after_use.$unm_blk_1'
+ivltests/sv_for_decl_after_use.v:6:      : A symbol with that name was declared here. Check for declaration after use.
+ivltests/sv_for_decl_after_use.v:6: error: Unable to bind wire/reg/memory `j' in `sv_for_decl_after_use.$unm_blk_1'
+ivltests/sv_for_decl_after_use.v:6:      : A symbol with that name was declared here. Check for declaration after use.
+2 error(s) during elaboration.
