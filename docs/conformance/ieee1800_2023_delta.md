@@ -108,8 +108,8 @@ evidence remains to be added.
 
 Dynamic-family automatic crosses and the evidenced named
 `binsof`/`intersect` conjunctions are verified with object-specific topology.
-Current local gates are legacy **4,103 pass / 0 fail / 2 NI / 3 expected fail**
-(**4,108 total**), JSON/VVP **993/993**, negatives **136/136**, VPI
+Current local gates are legacy **4,127 pass / 0 fail / 2 NI / 3 expected fail**
+(**4,132 total**), JSON/VVP **1,017/1,017**, negatives **136/136**, VPI
 **103/103**, canonical real-DPI UVM **354/354**, and both focused paths
 **20/20**. The final OpenTitan matrix advanced seven targets from FAIL to
 DEBT—from **1 DEBT / 57 FAIL / 3 SETUP_FAIL / 0 PASS** to **8 DEBT / 50 FAIL /
@@ -126,6 +126,32 @@ remaining dynamic `with`/`matches`/set/`CrossQueueType` selections, source
 denominator carving, type-coverage union semantics, report/VPI and normative
 naming detail, products over the explicit 65,536-bin cap, and the 2023
 real/tolerance coverage surface remain open.
+
+## Paired clauses 7 and 10 checkpoint (2026-08-26)
+
+The shared 7.4/7.9.11/10.9.1 fixed-index and associative-array
+assignment-pattern rules are now directly audited against both selected
+editions and pinned with paired
+`-g2017`/`-g2023` positive and negative evidence. The evidenced subset accepts
+explicit constant string, integral, and enum keys plus at most one non-entry
+`default`; it preserves declared-index conversion, duplicate diagnostics,
+lexical once-only evaluation, fresh-value/atomic replacement, value copying,
+and class-handle identity. Exact OpenTitan enum-to-string, enum-to-queue,
+nested-map, and selected fixed-prefix forms are included.
+
+This is a shared-rule checkpoint, not a 2023-only delta and not complete
+clause closure. In particular, row 3 above—associative-array-typed
+parameters—remains unsupported and is not implemented by assignment-pattern
+support. The fixed-prefix evidence is limited to direct signal-backed
+fixed-unpacked prefixes ending in integral/string/real-valued associative
+leaves. Explicit/default real reads and direct stores are pinned. Every fixed
+dimension is checked before flattening, so multidimensional OOB components
+cannot alias valid sibling maps in stores, reads, or method calls; stores
+retain once-only RHS evaluation. Packed bit/part/member and other
+deeper/partial entry tails, property/member and struct-nested receivers, fixed
+queue/dynamic-array leaves, fixed-prefix maps with class-handle/container/
+struct values, and broader receiver/value contexts also remain loud or open.
+The 2017 clause matrix keeps clauses 7 and 10 `PARTIAL` for those reasons.
 
 ## Explicitly unverified (do not implement without direct LRM citation)
 

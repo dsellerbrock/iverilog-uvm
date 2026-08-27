@@ -240,6 +240,15 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
             entry.value = value;
       }
 
+	// Install or replace the fallback without disturbing explicit entries.
+	// Aggregate/container elements copy by value, while class handles retain
+	// handle semantics, exactly as for ordinary associative-array elements.
+      void set_default(const TYPE&value)
+      {
+            default_value_ = assoc_value_copy_element_(value);
+            has_default_ = true;
+      }
+
 	// IEEE 1800-2017 7.9.11: assigning `'{default: value}' to an
 	// associative array replaces the complete array value. Existing entries
 	// disappear, while the supplied value becomes the fallback for subsequent
@@ -248,8 +257,7 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       void replace_default(const TYPE&value)
       {
             clear();
-            default_value_ = value;
-            has_default_ = true;
+            set_default(value);
       }
 
       bool get(const std::string&key, TYPE&value) const

@@ -1133,6 +1133,21 @@ static int eval_object_select(ivl_expr_t expr)
       }
 
       net_type = ivl_signal_net_type(sig);
+	/* `maps[outer][key]' carries the fixed word selection on SUBE. Load
+	 * that map object first; the scalar associative fast path below addresses
+	 * vSIG_0 and is valid only when the signal itself has no fixed prefix. */
+      if (net_type && ivl_type_base(net_type) == IVL_VT_QUEUE
+	  && ivl_type_queue_assoc_compat(net_type)
+	  && ivl_signal_dimensions(sig) > 0
+	  && ivl_expr_type(sube) == IVL_EX_SIGNAL
+	  && ivl_expr_oper1(sube)) {
+	    const char*key_kind;
+	    draw_eval_object(sube);
+	    key_kind = draw_eval_assoc_key_(index, 0);
+	    fprintf(vvp_out, "    %%aa/load/obj/%s;\n", key_kind);
+	    fprintf(vvp_out, "    %%pop/obj 1, 1; fixed outer map receiver\n");
+	    return 0;
+      }
       if (net_type && ivl_type_base(net_type) == IVL_VT_QUEUE
           && ivl_type_queue_assoc_compat(net_type)) {
             const char*key_kind = draw_eval_assoc_key_(index, 0);
@@ -1613,6 +1628,30 @@ static int eval_object_sfunc(ivl_expr_t expr)
 {
       const char*name = ivl_expr_name(expr);
       unsigned parm_count = ivl_expr_parms(expr);
+
+      /* A keyed associative-array assignment pattern is carried through the
+         netlist as a typed, source-ordered list of (kind,key,value) triplets.
+         Materialize its fresh map in one place so declaration initializers,
+         assignments, arguments, returns, casts and conditional arms all use
+         identical construction and replacement semantics. */
+      if (strcmp(name, "$ivl_assoc_pattern") == 0) {
+	    ivl_type_t assoc_type = ivl_expr_net_type(expr);
+	    ivl_type_t element_type = assoc_type
+		  ? ivl_type_element(assoc_type) : 0;
+
+	    if (!assoc_type || !element_type
+		|| ivl_type_base(assoc_type) != IVL_VT_QUEUE
+		|| !ivl_type_queue_assoc_compat(assoc_type)) {
+		  fprintf(stderr, "%s:%u: internal error: malformed typed "
+			  "associative-array pattern marker\n",
+			  ivl_expr_file(expr), ivl_expr_lineno(expr));
+		  fprintf(vvp_out,
+			  "    %%null; ; malformed associative pattern marker\n");
+		  return 1;
+	    }
+
+	    return draw_eval_assoc_pattern(expr, element_type);
+      }
 
       /* A lone associative-array default pattern is a first-class value in
          assignment-like contexts, including function arguments, casts and

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_assoc_default_struct_value_copy.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_assoc_default_struct_value_copy"
+}

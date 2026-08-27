@@ -1498,6 +1498,60 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 	    return 0;
       }
 
+	/* A signal-backed fixed unpacked prefix can have an associative-array
+	 * leaf, for example `string a[2][string]'.  The fixed word and the map
+	 * key are two distinct l-value ranks: a[fixed][key] first selects the
+	 * object-array slot that contains the map, then selects an entry in that
+	 * map.  Treating KEY as a packed suffix on the fixed word eventually
+	 * reaches the packed-dimension normalizers with a string expression and
+	 * used to abort in NetNet::sb_to_idx().
+	 *
+	 * Keep this initial support deliberately exact.  Whole-slot assignment
+	 * (only the fixed prefix) remains on the ordinary path below.  One final
+	 * simple index denotes an associative entry and is represented by a
+	 * nested NetAssign_.  Additional/partial ranks are rejected here rather
+	 * than being silently reinterpreted as packed selects. */
+      const netqueue_t*fixed_assoc_leaf = reg->queue_type();
+      const size_t fixed_rank = reg->unpacked_dimensions();
+      const bool selects_fixed_assoc_entry = fixed_assoc_leaf
+	    && fixed_assoc_leaf->assoc_compat()
+	    && name_tail.index.size() > fixed_rank;
+      if (selects_fixed_assoc_entry) {
+	    list<index_component_t>::const_iterator idx_it =
+		  name_tail.index.begin();
+	    for (size_t rank = 0 ; rank < fixed_rank ; ++rank, ++idx_it) {
+		  if (idx_it->sel != index_component_t::SEL_BIT
+		      || !idx_it->msb || idx_it->lsb) {
+			cerr << get_fileline() << ": error: fixed unpacked-array "
+			     << "prefix of associative-array `" << reg->name()
+			     << "' requires a simple index at rank " << rank
+			     << "." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+	    }
+
+	    if (name_tail.index.size() != fixed_rank + 1) {
+		  cerr << get_fileline() << ": sorry: assignment through fixed "
+		       << "unpacked-array associative leaf `" << reg->name()
+		       << "' supports exactly one entry index after the fixed "
+		       << "prefix; deeper or partial entry selects are not yet "
+		       << "supported." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+
+	    if (idx_it->sel != index_component_t::SEL_BIT
+		|| !idx_it->msb || idx_it->lsb) {
+		  cerr << get_fileline() << ": sorry: associative-array entry "
+		       << "assignment through fixed unpacked-array `"
+		       << reg->name() << "' requires one simple key index; "
+		       << "entry slices are not yet supported." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+      }
+
 	// Make sure there are enough indices to address an array element.
       const index_component_t&index_head = name_tail.index.front();
       if (index_head.sel == index_component_t::SEL_PART) {
@@ -1508,47 +1562,64 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
       }
 
 
-	// Evaluate all the index expressions into an
-	// "unpacked_indices" array.
-      list<NetExpr*>unpacked_indices;
-      list<long> unpacked_indices_const;
-      indices_flags flags;
-      indices_to_expressions(des, scope, this,
-			     name_tail.index, reg->unpacked_dimensions(),
-			     false,
-			     flags,
-			     unpacked_indices,
-			     unpacked_indices_const);
-
       NetExpr*canon_index = 0;
-      if (flags.invalid) {
-	    // Nothing to do.
-
-      } else if (flags.undefined) {
-	    cerr << get_fileline() << ": warning: "
-		 << "ignoring undefined l-value array access "
-		 << reg->name() << as_indices(unpacked_indices)
-		 << "." << endl;
-
-      } else if (flags.variable) {
-	    if (need_const_idx) {
-		  cerr << get_fileline() << ": error: array '" << reg->name()
-		       << "' index must be a constant in this context." << endl;
+      list<NetExpr*>unpacked_indices;
+      list<long>unpacked_indices_const;
+      indices_flags flags;
+      if (fixed_assoc_leaf && fixed_assoc_leaf->assoc_compat()) {
+	    const netsarray_t*fixed_type =
+		  dynamic_cast<const netsarray_t*>(reg->array_type());
+	    if (!fixed_type
+		|| fixed_type->static_dimensions().size() != fixed_rank) {
+		  cerr << get_fileline() << ": internal error: fixed-prefix "
+		       << "associative signal `" << reg->name()
+		       << "' has inconsistent fixed-array type metadata." << endl;
 		  des->errors += 1;
 		  return 0;
 	    }
-	    ivl_assert(*this, unpacked_indices.size() == reg->unpacked_dimensions());
-	    canon_index = normalize_variable_unpacked(reg, unpacked_indices);
 
+	    list<index_component_t>fixed_indices;
+	    list<index_component_t>::const_iterator fixed_end =
+		  name_tail.index.begin();
+	    advance(fixed_end, fixed_rank);
+	    fixed_indices.assign(name_tail.index.begin(), fixed_end);
+	    canon_index = make_checked_canonical_property_index(
+		  des, scope, this, fixed_indices, fixed_type, need_const_idx);
       } else {
-	    ivl_assert(*this, unpacked_indices_const.size() == reg->unpacked_dimensions());
-	    canon_index = normalize_variable_unpacked(reg, unpacked_indices_const);
+	      // Evaluate all the index expressions into an "unpacked_indices"
+	      // array for ordinary signal-backed fixed arrays.
+	    indices_to_expressions(des, scope, this,
+			   name_tail.index, reg->unpacked_dimensions(), false,
+			   flags, unpacked_indices, unpacked_indices_const);
 
-	    if (canon_index == 0) {
+	    if (flags.invalid) {
+		  // Nothing to do.
+	    } else if (flags.undefined) {
 		  cerr << get_fileline() << ": warning: "
-		       << "ignoring out of bounds l-value array access "
-		       << reg->name() << as_indices(unpacked_indices_const)
+		       << "ignoring undefined l-value array access "
+		       << reg->name() << as_indices(unpacked_indices)
 		       << "." << endl;
+	    } else if (flags.variable) {
+		  if (need_const_idx) {
+			cerr << get_fileline() << ": error: array '" << reg->name()
+			     << "' index must be a constant in this context." << endl;
+			des->errors += 1;
+			return 0;
+		  }
+		  ivl_assert(*this, unpacked_indices.size()
+				     == reg->unpacked_dimensions());
+		  canon_index = normalize_variable_unpacked(reg, unpacked_indices);
+	    } else {
+		  ivl_assert(*this, unpacked_indices_const.size()
+				     == reg->unpacked_dimensions());
+		  canon_index = normalize_variable_unpacked(
+			reg, unpacked_indices_const);
+		  if (canon_index == 0) {
+			cerr << get_fileline() << ": warning: "
+			     << "ignoring out of bounds l-value array access "
+			     << reg->name() << as_indices(unpacked_indices_const)
+			     << "." << endl;
+		  }
 	    }
       }
 
@@ -1578,6 +1649,27 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 
       if (debug_elaborate)
 	    cerr << get_fileline() << ": debug: Set array word=" << *canon_index << endl;
+
+	/* Preserve the fixed word and associative key as separate l-value
+	 * nodes.  The outer node's type is the map stored in the selected fixed
+	 * slot; the inner word therefore descends exactly once to its element
+	 * type, matching the r-value and method-call rank split. */
+      if (selects_fixed_assoc_entry) {
+	    list<index_component_t>::const_iterator key_it =
+		  name_tail.index.begin();
+	    advance(key_it, fixed_rank);
+	    NetExpr*key = elab_assoc_index(des, scope, key_it->msb,
+				    fixed_assoc_leaf);
+	    if (!key) {
+		  delete lv;
+		  return 0;
+	    }
+	    key->set_line(*this);
+
+	    NetAssign_*entry_lv = new NetAssign_(lv);
+	    entry_lv->set_word(key);
+	    return entry_lv;
+      }
 
 	/* set_word() preserves the unpacked address. Collapse any remaining
 	   packed suffix relative to that word, including a run-time index in

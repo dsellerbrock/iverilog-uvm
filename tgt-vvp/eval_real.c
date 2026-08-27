@@ -374,6 +374,22 @@ static void draw_select_real(ivl_expr_t expr)
       ivl_type_t net_type = ivl_signal_net_type(sig);
       assert(ivl_signal_data_type(sig) == IVL_VT_DARRAY || ivl_signal_data_type(sig) == IVL_VT_QUEUE);
 
+	/* `maps[outer][key]' carries the fixed word selection on SUBE. Load
+	 * that map object first; the scalar associative fast paths below address
+	 * vSIG_0 and are valid only when the signal itself has no fixed prefix. */
+      if (net_type && ivl_type_base(net_type) == IVL_VT_QUEUE
+	  && ivl_type_queue_assoc_compat(net_type)
+	  && ivl_signal_dimensions(sig) > 0
+	  && ivl_expr_type(sube) == IVL_EX_SIGNAL
+	  && ivl_expr_oper1(sube)) {
+	    const char*key_kind;
+	    draw_eval_object(sube);
+	    key_kind = draw_eval_assoc_key_(shift, 0);
+	    fprintf(vvp_out, "    %%aa/load/r/%s;\n", key_kind);
+	    fprintf(vvp_out, "    %%pop/obj 1, 0; fixed outer map receiver\n");
+	    return;
+      }
+
       if (net_type && ivl_type_queue_assoc_compat(net_type)
           && expr_is_object_assoc_key_(shift)) {
             draw_eval_object(shift);

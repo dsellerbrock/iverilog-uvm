@@ -328,6 +328,30 @@ Future failures belong to the underlying language/runtime subsystem unless the U
 
 **Status: PARTIAL**
 
+- [x] Implement the evidenced IEEE 1800-2017/2023 7.4/7.9.11/10.9.1
+      associative-array assignment-pattern subset. Explicit constant string,
+      integral, and enum keys plus at most one non-entry fallback `default`
+      construct a fresh typed map; right-hand-side expressions execute once in
+      lexical order before one destination replacement. Defaults remain
+      outside map membership. Whole maps and recorded container/struct values
+      copy independently, while class handles retain handle identity. Paired
+      reducers cover declaration, procedural, typed-pattern, argument, return,
+      and conditional contexts; nonconstant and X/Z keys, duplicate
+      key/default, and incompatible key/value diagnostics; and the exact
+      OpenTitan enum-to-string, enum-to-queue, and nested-map shapes. Direct
+      signal-backed fixed prefixes ending in integral, string, or real-valued
+      maps cover whole-map, entry, and map-method paths behind nonzero,
+      descending, and multidimensional ranges. Explicit/default real reads,
+      direct stores, sibling isolation, and constant/variable outer selectors
+      are value-pinned. Every fixed dimension is bounds-checked before
+      flattening, so a multidimensional OOB selector cannot alias a valid
+      sibling: whole-map and entry stores remain no-ops after once-only RHS
+      evaluation, and entry reads or map methods cannot touch the sibling.
+      Packed bit/part/member and other deeper/partial entry tails,
+      property/member and struct-nested receivers, fixed queue/darray leaves,
+      fixed-prefix maps with class-handle/container/struct values,
+      associative-array-typed parameters, broader receiver/value contexts,
+      and exhaustive clause closure remain loud or open.
 - [x] Support wildcard associative-array index declarations where required. *(Done 2026-07-21: `type name[*];` (IEEE 1800-2017 7.8.1) now parses. The lexer folds `[*` into one token (`K_LBSTAR`, shared with the SVA consecutive-repetition opener) whose comment wrongly assumed `[*` had no other use, so `variable_dimension` gained a `K_LBSTAR ']'` rule that builds an associative array with a placeholder integral index type (assoc arrays share one queue-compat runtime form regardless of declared index type). Integral keys, exists/delete/size/foreach all work. Test `sv_assoc_wildcard_index`.)*
 - [x] Correct `%p` formatting for integral aggregates. *(Done 2026-07-21:
       rewrote the `%p` handler as a recursive assignment-pattern formatter
@@ -683,18 +707,22 @@ type-coverage, VPI, or cross interaction.
       though 19.7 requires evaluation at construction.
 - [ ] Complete the remaining IEEE 1800-2023 real/tolerance coverage surface.
 
-The current local gates pass 20/20 in each focused harness, 4,103 legacy tests
-with zero unexpected failures (2 NI and 3 expected fail, 4,108 total),
-JSON/VVP 993/993, negatives 136/136, VPI 103/103, and canonical real-DPI UVM
-354/354. The final OpenTitan compile matrix is 8 DEBT / 50 FAIL /
-3 SETUP_FAIL / 0 PASS versus 1 DEBT / 57 FAIL / 3 SETUP_FAIL / 0 PASS before
-this increment, with zero timeouts/resource-limit signals and zero exact or
-generic former cross-drop diagnostics. It is not a clean application or
-runtime pass. The final Caliptra static census is Icarus 53/105 in each
-assertions/no-assertions/synthesis lane versus Slang 54/105, with 52 PASS,
-1 DEBT, 51 SHARED_SOURCE_OR_CONFIG, 1 SOURCE_ORDER_DEBT, and 0 ICARUS_GAP.
-Its sole Slang advantage is known `csrng_raw_wrap` source-order debt; this is
-not full Caliptra DV runtime.
+The current local associative-pattern focus passes 54/54 in each harness;
+canonical legacy ivtest passes 4,127 with zero unexpected failures (2 NI and
+3 expected fail, 4,132 total); JSON/VVP passes 1,017/1,017; negatives pass
+136/136; VPI passes 103/103; and canonical real-DPI UVM passes 354/354. Both
+parser conflict profiles match the exact `origin/main` parent. The post-audit
+OpenTitan compile matrix is 8 DEBT / 50 FAIL / 3 SETUP_FAIL / 0 PASS,
+unchanged in classification from the preceding checkpoint, with zero
+timeouts/resource-limit signals and zero former associative-pattern
+syntax/refusal diagnostics. The affected targets advance to independent
+frontiers; this is not a clean application or runtime pass. Native ARM
+`regtool.py` regenerates the UART register RTL byte-for-byte identically. The
+post-audit Caliptra static census is Icarus 53/105 in each
+assertions/no-assertions/synthesis lane versus Slang 54/105, with 52 PASS, 1
+DEBT, 51 SHARED_SOURCE_OR_CONFIG, 1 SOURCE_ORDER_DEBT, and 0 ICARUS_GAP. Its
+sole Slang advantage is known `csrng_raw_wrap` source-order debt; this is not
+full Caliptra DV runtime.
 
 ## M12A — Core SystemVerilog VPI object model
 

@@ -1296,6 +1296,93 @@ static NetExpr* elaborate_root_indexed_method_target_expr_(const LineInfo*li,
       if (base_index.empty())
 	    return base_expr;
 
+	/* A direct associative leaf behind a fixed signal prefix is an object
+	 * array word, not an indexed element of the map.  This is the task-style
+	 * method counterpart of the expression-side rank split: maps[i].delete()
+	 * first selects fixed word i, while maps[i][key].method() applies only
+	 * the indices after the fixed prefix to the selected map object. */
+      if (NetESignal*base_sig = dynamic_cast<NetESignal*>(base_expr)) {
+	    NetNet*sig = base_sig->sig();
+	    const netqueue_t*assoc = sig ? sig->queue_type() : nullptr;
+	    const size_t fixed_dims = sig ? sig->unpacked_dimensions() : 0;
+	    if (assoc && assoc->assoc_compat() && fixed_dims > 0
+		&& base_index.size() >= fixed_dims) {
+		  list<index_component_t>::const_iterator split =
+			base_index.begin();
+		  for (size_t dim = 0 ; dim < fixed_dims ; dim += 1, ++split) {
+			if (split->sel != index_component_t::SEL_BIT
+			    || !split->msb || split->lsb) {
+			      cerr << li->get_fileline() << ": error: a fixed "
+				   << "unpacked-array method receiver requires one "
+				      "simple index per fixed dimension." << endl;
+			      des->errors += 1;
+			      delete base_expr;
+			      return nullptr;
+			}
+		  }
+
+		  list<index_component_t>fixed_indices(base_index.begin(), split);
+		  const netsarray_t*fixed_type =
+			dynamic_cast<const netsarray_t*>(sig->array_type());
+		  if (!fixed_type
+		      || fixed_type->static_dimensions().size() != fixed_dims) {
+			cerr << li->get_fileline() << ": internal error: fixed-prefix "
+			     << "associative signal `" << sig->name()
+			     << "' has inconsistent fixed-array type metadata." << endl;
+			des->errors += 1;
+			delete base_expr;
+			return nullptr;
+		  }
+
+		  NetExpr*canon = make_checked_canonical_property_index(
+			des, scope, li, fixed_indices, fixed_type, false);
+		  if (!canon) {
+			delete base_expr;
+			return nullptr;
+		  }
+		  canon->set_line(*li);
+		  NetExpr*cur_expr = new NetESignal(sig, canon);
+		  cur_expr->set_line(*li);
+		  delete base_expr;
+		  out_type = sig->net_type();
+
+		  for ( ; split != base_index.end() ; ++split) {
+			const netarray_t*array_type =
+			      dynamic_cast<const netarray_t*>(out_type);
+			if (!array_type || split->sel != index_component_t::SEL_BIT
+			    || !split->msb || split->lsb) {
+			      cerr << li->get_fileline() << ": sorry: this trailing "
+				   << "select on a fixed-array associative method "
+				      "receiver is not supported." << endl;
+			      des->errors += 1;
+			      delete cur_expr;
+			      return nullptr;
+			}
+			NetExpr*key = elab_assoc_index(des, scope, split->msb,
+					       out_type, false);
+			if (!key) {
+			      delete cur_expr;
+			      return nullptr;
+			}
+			ivl_type_t elem_type = array_type->element_type();
+			unsigned elem_width = elem_type
+			      ? elem_type->packed_width() : 1;
+			if (const netdarray_t*darray =
+			      dynamic_cast<const netdarray_t*>(out_type))
+			      elem_width = darray->element_width();
+			if (elem_width == 0)
+			      elem_width = 1;
+			NetESelect*next = elem_type
+			      ? new NetESelect(cur_expr, key, elem_width, elem_type)
+			      : new NetESelect(cur_expr, key, elem_width);
+			next->set_line(*li);
+			cur_expr = next;
+			out_type = elem_type;
+		  }
+		  return cur_expr;
+	    }
+      }
+
       const netdarray_t*darray = dynamic_cast<const netdarray_t*>(base_type);
       if (!darray) {
 	      // Static unpacked-array method target (an array of class
@@ -30770,6 +30857,24 @@ static unsigned diagnose_signal_backed_fixed_queue_arrays_(
 		  sig->net_type(), sig->unpacked_dimensions() != 0);
 	    if (!has_fixed_queue_leaf)
 		  continue;
+
+	      /* A direct fixed prefix around an associative-array leaf is
+	       * represented by VVP's object-array storage. Each word owns one map
+	       * handle, and selected whole-map reads/writes use %load/%store/obja.
+	       * Keep diagnosing ordinary queues/darrays and every struct-nested
+	       * form: those shapes need additional aggregate/lazy-allocation
+	       * lowering and must not become silent successes. */
+	    const netqueue_t*direct_assoc =
+		  dynamic_cast<const netqueue_t*>(sig->net_type());
+	    if (sig->unpacked_dimensions() != 0 && direct_assoc
+		&& direct_assoc->assoc_compat()) {
+		  ivl_type_t elem_type = direct_assoc->element_type();
+		  ivl_variable_type_t elem_base = elem_type
+			? elem_type->base_type() : IVL_VT_NO_TYPE;
+		  if (elem_base == IVL_VT_BOOL || elem_base == IVL_VT_LOGIC
+		      || elem_base == IVL_VT_REAL || elem_base == IVL_VT_STRING)
+			continue;
+	    }
 
 	    string location = sig->get_fileline();
 	    if (scope->type() == NetScope::CLASS) {

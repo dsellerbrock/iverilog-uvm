@@ -263,7 +263,14 @@ ivl_type_t NetAssign_::lval_type() const
 	    }
       }
 
-      if (word_) {
+      if (word_ && !(sig_ && sig_->unpacked_dimensions())) {
+	    /* For a signal-backed fixed unpacked array, word_ is the
+	     * canonical address of the fixed OUTER element.  net_type() has
+	     * already returned that element type above, so do not descend a
+	     * second time merely because the element happens to be a queue,
+	     * dynamic array, or associative array.  A scalar container signal
+	     * has no unpacked dimensions; there word_ really is the container
+	     * index and still unwraps to the container element type. */
 	    if (const netdarray_t *darray = dynamic_cast<const netdarray_t*>(ntype))
 		  ntype = darray->element_type();
 	    else if (const netuarray_t *uarray = dynamic_cast<const netuarray_t*>(ntype))

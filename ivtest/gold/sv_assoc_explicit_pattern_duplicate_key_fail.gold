@@ -1,0 +1,2 @@
+./ivltests/sv_assoc_explicit_pattern_duplicate_key_fail.v:4: error: associative-array literal specifies the same index more than once.
+Elaboration failed

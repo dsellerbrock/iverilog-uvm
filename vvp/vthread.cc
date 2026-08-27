@@ -18719,6 +18719,57 @@ static bool aa_new_default(vthread_t thr, unsigned wid=0)
       return true;
 }
 
+/* Add a fallback to an associative-array value that is being assembled on
+ * the object stack. Unlike %aa/new/default, this operation deliberately
+ * preserves entries already stored in the builder, so pattern items can be
+ * evaluated and applied in source order. */
+static bool aa_set_default_stack_operands_(vthread_t thr, const char*opcode,
+					    size_t vec4_need,
+					    size_t real_need,
+					    size_t str_need,
+					    size_t obj_need)
+{
+      if (thr->vec4_stack_size() >= vec4_need
+	  && thr->real_stack_size() >= real_need
+	  && thr->str_stack_size() >= str_need
+	  && thr->object_stack_size() >= obj_need)
+	    return true;
+
+      fprintf(stderr,
+	    "vvp: malformed %s stack underflow (need vec4/real/string/object "
+	    "%zu/%zu/%zu/%zu, have %zu/%zu/%zu/%zu); default ignored; "
+	    "source stacks were not consumed.\n",
+	    opcode, vec4_need, real_need, str_need, obj_need,
+	    thr->vec4_stack_size(), thr->real_stack_size(),
+	    thr->str_stack_size(), thr->object_stack_size());
+      return false;
+}
+
+template <typename ELEM, class ASSOC>
+static bool aa_set_default(vthread_t thr, const char*opcode,
+			   unsigned receiver_depth, unsigned wid=0)
+{
+      vvp_object_t recv = thr->peek_object(receiver_depth);
+      ASSOC*assoc = recv.peek<ASSOC>();
+      if (!assoc) {
+	    fprintf(stderr,
+		    "vvp: malformed %s receiver is not the expected "
+		    "associative-array type; default ignored; source stacks "
+		    "were not consumed.\n", opcode);
+	    return true;
+      }
+
+      vvp_net_t*root_net = thr->peek_object_source_net(receiver_depth);
+      vvp_object_t root_obj = thr->peek_object_root(receiver_depth);
+
+      ELEM value;
+      pop_value(thr, value, wid);
+      assoc->set_default(value);
+      notify_mutated_object_root_(thr, recv, root_net, root_obj,
+				  "aa-set-default");
+      return true;
+}
+
 template <class ASSOC>
 static bool aa_delete_str(vthread_t thr)
 {
@@ -19443,6 +19494,60 @@ bool of_AA_NEW_DEFAULT_V(vthread_t thr, vvp_code_t cp)
 {
       return aa_new_default<vvp_vector4_t, vvp_assoc_vec4>(
             thr, cp->bit_idx[0]);
+}
+
+bool of_AA_SET_DEFAULT_OBJ(vthread_t thr, vvp_code_t)
+{
+      const char*opcode = "%aa/set/default/obj";
+      if (!aa_set_default_stack_operands_(thr, opcode, 0, 0, 0, 2))
+	    return true;
+      return aa_set_default<vvp_object_t, vvp_assoc_object>(thr, opcode, 1);
+}
+
+bool of_AA_SET_DEFAULT_R(vthread_t thr, vvp_code_t)
+{
+      const char*opcode = "%aa/set/default/r";
+      if (!aa_set_default_stack_operands_(thr, opcode, 0, 1, 0, 1))
+	    return true;
+      return aa_set_default<double, vvp_assoc_real>(thr, opcode, 0);
+}
+
+bool of_AA_SET_DEFAULT_STR(vthread_t thr, vvp_code_t)
+{
+      const char*opcode = "%aa/set/default/str";
+      if (!aa_set_default_stack_operands_(thr, opcode, 0, 0, 1, 1))
+	    return true;
+      return aa_set_default<string, vvp_assoc_string>(thr, opcode, 0);
+}
+
+bool of_AA_SET_DEFAULT_V(vthread_t thr, vvp_code_t cp)
+{
+      const char*opcode = "%aa/set/default/v";
+      unsigned wid = cp->bit_idx[0];
+      if (wid == 0) {
+	    fprintf(stderr,
+		    "vvp: malformed %s width 0; default ignored; source "
+		    "stacks were not consumed.\n", opcode);
+	    return true;
+      }
+      if (!aa_set_default_stack_operands_(thr, opcode, 1, 0, 0, 1))
+	    return true;
+
+	/* Target-generated code sizes the source vector to this operand before
+	 * executing the setter. Reject a mismatched hand-authored or stale image
+	 * without calling pop_value(), whose compatibility resize would otherwise
+	 * turn an arbitrary instruction operand into an allocation request. */
+      const vvp_vector4_t&source = thr->peek_vec4(0);
+      if (source.size() != wid) {
+	    fprintf(stderr,
+		    "vvp: malformed %s source width mismatch (need %u, have "
+		    "%u); default ignored; source stacks were not consumed.\n",
+		    opcode, wid, source.size());
+	    return true;
+      }
+
+      return aa_set_default<vvp_vector4_t, vvp_assoc_vec4>(
+	    thr, opcode, 0, wid);
 }
 
 bool of_AA_STORE_OBJ_OBJ(vthread_t thr, vvp_code_t)
@@ -25699,14 +25804,25 @@ bool of_STORE_OBJ_OPEN(vthread_t thr, vvp_code_t cp)
 bool of_STORE_OBJA(vthread_t thr, vvp_code_t cp)
 {
       unsigned idx = cp->bit_idx[0];
-      unsigned adr = thr->words[idx].w_int;
       vvp_array_t array = resolve_runtime_array_(cp, "%store/obja");
 
       vvp_object_t val;
       thr->pop_object(val);
 
-      if (array)
-	    array->set_word(adr, val);
+	/* The RHS and address expression have already been evaluated, and the RHS
+	 * must be consumed even when the outer array index is invalid. An
+	 * undefined index leaves a recovery value (commonly zero) in the integer
+	 * word and marks flag 4; using the word without the flag check corrupts a
+	 * valid slot instead of ignoring the write. Explicitly bound-check as well
+	 * so negative or too-large run-time canonical addresses are no-ops. */
+      if (!array || thr->flags[4] != BIT4_0)
+	    return true;
+
+      unsigned adr = thr->words[idx].w_int;
+      if (adr >= array->get_size())
+	    return true;
+
+      array->set_word(adr, val);
 
       return true;
 }

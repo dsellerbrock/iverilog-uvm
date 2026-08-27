@@ -1,0 +1,1 @@
+`include "ivltests/sv_assoc_explicit_pattern_class_value_type_fail.v"

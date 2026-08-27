@@ -2449,13 +2449,17 @@ unpacked-struct properties behind the same fixed prefix use type-appropriate
 defaults/no-ops too, including packed read-modify-write and exactly-once
 index/RHS evaluation.
 
-This is not full fixed-array/container closure. Signal-backed declarations and
-static class properties, a fixed queue/map array nested inside an unpacked
-struct property, direct fixed arrays of dynamic arrays, whole-outer property
-r-value reads, queue-slice l-values through the selected property, `$` as an
-l-value, methods invoked without the complete fixed prefix, and direct
-property selection from a function-call result remain loud. Randomization,
-`ref` lifetime, VPI and synthesis behavior are not claimed.
+This is not full fixed-array/container closure. The later G86 increment admits
+only a direct signal-backed fixed prefix ending in an
+integral/string/real-valued associative leaf; signal-backed
+queue/dynamic-array leaves and broader map value types remain loud. Static
+class properties, a fixed queue/map array
+nested inside an unpacked struct property, direct fixed arrays of dynamic
+arrays, whole-outer property r-value reads, queue-slice l-values through the
+selected property, `$` as an l-value, methods invoked without the complete
+fixed prefix, and direct property selection from a function-call result also
+remain loud. Randomization, `ref` lifetime, VPI and synthesis behavior are not
+claimed.
 
 Implementation scope, OpenTitan source witnesses, permanent reducer names,
 and the final ARM64 evidence are recorded in
@@ -2961,6 +2965,58 @@ digests with zero UVM errors, fatals, assertions, or crashes before the CPU
 guard. Pure DPI bundles are loaded with `vvp -d bundle.vpi`; `-m` is the VPI
 loader and correctly expects `vlog_startup_routines`. See the
 [session log](session_logs/2026-08-25_opentitan_class_events_resolved_preponed_packed_index.md).
+
+---
+
+## G86 — nonempty associative-array literals and fixed-prefix map storage were refused or misaddressed — **fixed/verified bounded subset** [general/OpenTitan]
+
+*7.4 / 7.9.11 / 10.9.1 [general/OpenTitan] — associative-array assignment
+patterns and direct fixed unpacked prefixes ending in a map.*
+
+OpenTitan's top packages, lc_ctrl, CSRNG, EDN, entropy_src, and OTP graphs use
+explicit enum/string/integral keys, optional defaults, queue and nested-map
+values, and selected fixed arrays of string-keyed maps. Icarus previously
+stopped at syntax or an explicit nonempty-pattern refusal. The first
+implementation then exposed four silent fixed-storage defects: a trailing
+map key entered packed-index normalization, multidimensional fixed prefixes
+allocated only the leaf queue's unrelated word count, and X/Z/OOB whole-map
+stores could replace slot zero. A flat check also let an invalid component of
+a multidimensional prefix flatten onto a valid sibling word. Selected
+`exists`/traversal/delete methods and real-valued entry reads also used a
+nonexistent scalar `<array>_0` receiver.
+
+The verified subset constructs a fresh typed map from explicit constant
+string/integral/enum keys and at most one non-entry `default`. It enforces
+declared-index conversion, duplicate and category diagnostics, lexical
+once-only evaluation, atomic destination replacement, value copying, and
+class-handle identity. Direct signal-backed fixed prefixes ending in
+integral/string/real-valued maps retain the complete fixed-dimension product
+and separate the canonical outer word from entry reads/writes and methods.
+Nonzero/descending and mixed 2-D/3-D ranges, lazy independent slots,
+`size`/`num`/`exists`, all traversal methods, keyed/all delete, default
+retention, and invalid outer-store side effects/no-op behavior are pinned.
+Every fixed dimension is checked before flattening, preventing OOB components
+from aliasing valid siblings through whole-map or entry stores, entry reads,
+or map methods. Paired real reducers cover explicit/default reads, direct
+stores, sibling isolation, and constant/variable outer selectors. Malformed
+default-setter width metadata is rejected before stack consumption or
+resizing.
+
+An affected eight-core unmodified OpenTitan replay removes every former
+associative-literal diagnostic. CSRNG removes 16 hard diagnostics, EDN eight,
+entropy_src eleven, and the five enum/top/OTP witnesses each remove their
+literal first stop; the full-chip graphs then reveal independent valid
+`for`-initializer and bind/parser frontiers. This is blocker movement, not a
+clean application-pass claim. Paired 2017/2023 reducers and exact commands,
+counts, hashes, and limitations are recorded in
+[`session_logs/2026-08-26_opentitan_associative_assignment_patterns.md`](session_logs/2026-08-26_opentitan_associative_assignment_patterns.md).
+
+Packed bit/part/member and other deeper/partial entry tails, property/member
+and struct-nested receivers, signal-backed fixed queue/dynamic-array leaves,
+fixed-prefix maps with class-handle/container/struct values,
+associative-array-typed parameters,
+randomization, `ref`, VPI, synthesis, and complete clauses 7/10 remain open or
+loud.
 
 ---
 

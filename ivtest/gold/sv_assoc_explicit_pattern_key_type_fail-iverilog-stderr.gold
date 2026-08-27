@@ -1,0 +1,2 @@
+ivltests/sv_assoc_explicit_pattern_key_type_fail.v:6: error: an integral or enum associative-array index requires an integral key; implicit conversion from this expression category is illegal (IEEE 1800-2017 7.8.4).
+Elaboration failed

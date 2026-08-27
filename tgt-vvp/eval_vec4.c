@@ -1202,6 +1202,24 @@ static void draw_select_vec4(ivl_expr_t expr)
 		    || (ivl_signal_data_type(sig)==IVL_VT_QUEUE) );
 
 	    assert(base);
+	      /* For `maps[outer][key]', SUBEXPR is the selected word of a
+	       * fixed object array. Use that word as the associative receiver;
+	       * the scalar fast paths below address vSIG_0 and therefore cannot
+	       * retain the fixed-prefix selection. */
+            if (net_type && ivl_type_queue_assoc_compat(net_type)
+		&& ivl_signal_dimensions(sig) > 0
+		&& ivl_expr_type(subexpr) == IVL_EX_SIGNAL
+		&& ivl_expr_oper1(subexpr)) {
+		  const char*key_kind;
+		  draw_eval_object(subexpr);
+		  key_kind = draw_eval_assoc_key_(base, 0);
+		  fprintf(vvp_out, "    %%aa/load/v/%s %u;\n", key_kind, wid);
+		  if (ivl_expr_value(expr) == IVL_VT_BOOL)
+			fprintf(vvp_out, "    %%cast2;\n");
+		  fprintf(vvp_out,
+			  "    %%pop/obj 1, 0; fixed outer map receiver\n");
+		  return;
+	    }
             if (net_type && ivl_type_queue_assoc_compat(net_type)
                 && expr_is_object_assoc_key_(base)) {
                   draw_eval_object(base);
@@ -2313,6 +2331,16 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
       if (strcmp(ivl_expr_name(expr),"$ivl_queue_method$size")==0) {
 	    ivl_expr_t arg = ivl_expr_parm(expr, 0);
 	    if (arg && ivl_expr_type(arg) == IVL_EX_SIGNAL && ivl_expr_signal(arg)) {
+		  /* A selected word of an object-backed fixed array is the
+		   * queue/map receiver.  There is no scalar v<sig>_0 functor for
+		   * such an array; evaluate the indexed object and query it through
+		   * the object stack. */
+		  if (ivl_signal_dimensions(ivl_expr_signal(arg)) > 0
+		      && ivl_expr_oper1(arg)) {
+			draw_eval_object(arg);
+			fprintf(vvp_out, "    %%qsize/o;\n");
+			return;
+		  }
 		  fprintf(vvp_out, "    %%qsize v%p_0;\n", ivl_expr_signal(arg));
 		  return;
 	    }

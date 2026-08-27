@@ -1,2 +1,0 @@
-./ivltests/sv_assoc_default_object_value_fail.v:9: sorry: associative-array default assignment patterns support integral/enum, real, string, and class-handle element types; this object-backed element type requires value-copy semantics (IEEE 1800-2017 7.9.11).
-Elaboration failed

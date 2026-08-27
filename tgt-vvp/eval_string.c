@@ -237,6 +237,23 @@ static void string_ex_select(ivl_expr_t expr)
 	    ivl_variable_type_t sig_type = ivl_signal_data_type(sig);
             ivl_type_t net_type = ivl_signal_net_type(sig);
 
+	      /* `maps[outer][key]' has a signal whose declared leaf type is
+	       * associative, but SUBE already carries the fixed outer-word
+	       * selection. Loading vSIG_0 as though the map were scalar drops
+	       * that selection. Materialize the selected map object first, then
+	       * perform the ordinary keyed read through the object-stack receiver. */
+	    if (net_type && ivl_type_queue_assoc_compat(net_type)
+		&& ivl_signal_dimensions(sig) > 0
+		&& ivl_expr_type(sube) == IVL_EX_SIGNAL
+		&& ivl_expr_oper1(sube)) {
+		  const char*key_kind;
+		  draw_eval_object(sube);
+		  key_kind = draw_eval_assoc_key_(shift, 0);
+		  fprintf(vvp_out, "    %%aa/load/str/%s;\n", key_kind);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0; fixed outer map receiver\n");
+		  return;
+	    }
+
 	      /* Dynamic array / queue of strings. */
 	    if (sig_type == IVL_VT_DARRAY || sig_type == IVL_VT_QUEUE) {
                   if (net_type && ivl_type_queue_assoc_compat(net_type)
