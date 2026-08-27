@@ -32,6 +32,60 @@ class PExpr;
 class PUdp;
 class Module;
 
+/* A bind-to-instance directive is inserted into the target module
+ * definition, then filtered against each elaborated instance of that
+ * definition. Preserve the parsed path (including selects) so array and
+ * generate indices are compared structurally instead of as flattened text.
+ * Filter objects are shared by every bound instantiation from one directive.
+ * Absolute paths keep designwide match state, while relative paths keep
+ * match and diagnostic state for each elaborated declaration-scope
+ * occurrence. */
+struct bind_instance_filter_t : public LineInfo {
+      enum mode_t { DEFINITION, ABSOLUTE, RELATIVE };
+
+      bind_instance_filter_t()
+      : mode(ABSOLUTE), origin(0), origin_generate(0),
+        relative_base_generate(0), activated(true), matched(false),
+        invalid(false), shape_matched(false), unselected_array(false)
+      { }
+
+      mode_t mode;
+      pform_name_t path;
+      const Module*origin;
+      const PGenerate*origin_generate;
+        // The first path component can resolve in an enclosing generate or
+        // module scope. Keep that lexical base separate from the scope whose
+        // elaborated occurrences activate the directive.
+      const PGenerate*relative_base_generate;
+        // Module/generate-contained directives are activated only after
+        // their containing scope has itself been elaborated. This keeps an
+        // excluded owner from mutating unrelated design roots.
+      mutable bool activated;
+      mutable bool matched;
+      mutable bool invalid;
+      mutable bool shape_matched;
+      mutable bool unselected_array;
+        // Relative directives occur once per elaborated declaration scope.
+        // Keep their state per occurrence so one valid parameter
+        // specialization cannot hide an invalid or missing sibling.
+      mutable std::set<const NetScope*>matched_origins;
+      mutable std::set<const NetScope*>invalid_origins;
+      mutable std::set<const NetScope*>shape_matched_origins;
+      mutable std::set<const NetScope*>unselected_array_origins;
+      mutable std::multimap<const NetScope*,const NetScope*>
+            relative_base_owners;
+        // An absolute path is also evaluated once per elaborated declaration
+        // scope. Different owners may legally select different designwide
+        // targets; only an actual overlap introduces a duplicate name.
+      mutable std::set<const NetScope*>absolute_owners;
+      mutable std::set<const NetScope*>duplicate_targets;
+        // Scope filtering is first performed during scope elaboration. Cache
+        // that decision so the signal and statement passes neither
+        // reevaluate select expressions nor repeat diagnostics.
+      mutable std::set<const NetScope*>evaluated_targets;
+      mutable std::set<const NetScope*>selected_targets;
+};
+
 /*
  * A PGate represents a Verilog gate. The gate has a name and other
  * properties, and a set of pins that connect to wires. It is known at
@@ -224,21 +278,27 @@ class PGModule  : public PGate {
 	// permallocated string.
       perm_string get_type() const;
 
-	// M13B: when this instantiation was created by a bind directive
-	// that targets specific instances (bind top.u1 ... / bind mod :
-	// u1, u2 ...), this filter restricts which instances of the
-	// containing module actually elaborate the bound instance. An
-	// entry without a '.' matches any containing instance with that
-	// basename; an entry with dots must equal the full hierarchical
-	// path of the containing instance. An empty filter (the normal
-	// case) applies everywhere.
-      void set_bind_instance_filter(const std::vector<std::string>&filter)
+	// When this instantiation was created by a bind directive that
+	// targets specific instances (bind top.u1 ... / bind mod : u1,
+	// u2 ...), these structured filters restrict which instances of
+	// the containing module elaborate the bound instance. An empty
+	// filter (the ordinary bind-to-definition form) applies everywhere.
+      void set_bind_instance_filter(
+            const std::vector<bind_instance_filter_t*>&filter)
       { bind_filter_ = filter; }
+      void mark_bind_instance() { is_bind_instance_ = true; }
+      bool is_bind_instance() const { return is_bind_instance_; }
+      void disable_bind_instance() { bind_disabled_ = true; }
 
     private:
       Module*bound_type_;
-      std::vector<std::string> bind_filter_;
-      bool bind_filter_ok_(NetScope*sc) const;
+      std::vector<bind_instance_filter_t*> bind_filter_;
+      bool bind_filter_ok_(Design*des, NetScope*sc) const;
+      bool is_bind_instance_;
+      bool bind_disabled_;
+      mutable std::set<const NetScope*> bind_rejected_scopes_;
+      mutable std::set<const NetScope*> bind_elaborated_scopes_;
+      mutable std::set<const NetScope*> bind_overlap_reported_scopes_;
       perm_string type_;
       std::list<PExpr*>*overrides_;
       named_pexpr_t *pins_;

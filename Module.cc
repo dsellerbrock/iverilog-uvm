@@ -37,6 +37,7 @@ Module::Module(LexicalScope*parent, perm_string n)
       library_flag = false;
       is_cell = false;
       is_interface = false;
+      is_checker = false;
       program_block = false;
       uc_drive = UCD_NONE;
 }
@@ -235,6 +236,11 @@ bool Module::can_be_toplevel() const
 {
       // Don't choose library modules.
       if (library_flag)
+	    return false;
+
+      // A checker declaration can be instantiated or bound, but is not a
+      // design-element root in IEEE 1800 automatic top discovery.
+      if (is_checker)
 	    return false;
 
       // Don't choose modules with parameters without default value

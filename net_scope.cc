@@ -116,8 +116,9 @@ void Definitions::class_definitions_changed_()
 NetScope::NetScope(NetScope*up, const hname_t&n, NetScope::TYPE t, NetScope*in_unit,
 		   bool nest, bool program, bool interface, bool compilation_unit)
 : type_(t), name_(n), nested_module_(nest), program_block_(program),
-  is_interface_(interface), is_unit_(compilation_unit), unit_(in_unit), up_(up),
-  target_scope_(0)
+  is_interface_(interface), is_unit_(compilation_unit),
+  module_definition_(0), generate_definition_(0), is_bind_instance_(false),
+  unit_(in_unit), up_(up), target_scope_(0)
 {
       imports_ = 0;
       events_ = 0;
@@ -196,6 +197,14 @@ NetScope::NetScope(NetScope*up, const hname_t&n, NetScope::TYPE t, NetScope*in_u
       loop_index_net_tmp = 0;
       tie_hi_ = 0;
       tie_lo_ = 0;
+}
+
+const PGModule* NetScope::reserve_bind_instance_name(
+      perm_string name, const PGModule*gate)
+{
+      pair<map<perm_string,const PGModule*>::iterator,bool> result
+            = bind_instance_names_.insert(make_pair(name, gate));
+      return result.first->second;
 }
 
 NetScope::~NetScope()
