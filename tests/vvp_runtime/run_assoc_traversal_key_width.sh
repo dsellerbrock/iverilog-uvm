@@ -6,7 +6,20 @@ repo_dir=$(CDPATH= cd "$script_dir/../.." && pwd)
 vvp=${VVP:-$repo_dir/vvp/vvp}
 fixture=$script_dir/assoc_traversal_key_width.vvp
 expected=$script_dir/assoc_traversal_key_width.stdout
-module_dir=${VPI_MODULE_DIR:-$repo_dir/local-install/lib/ivl}
+# Locate system.vpi the same way run_dist_ir_compat.sh does. Defaulting to
+# $repo_dir/local-install hard-codes one workspace layout: CI configures
+# without --prefix, so the modules land beside the installed vvp and
+# local-install never exists. Fall back to the installed prefix.
+module_dir=${VPI_MODULE_DIR:-}
+if [ -z "$module_dir" ]; then
+    for candidate in "$repo_dir/vpi" "$repo_dir/local-install/lib/ivl" \
+                     "$(dirname "$(command -v "$vvp")")/../lib/ivl"; do
+        if [ -f "$candidate/system.vpi" ]; then
+            module_dir=$candidate
+            break
+        fi
+    done
+fi
 work_dir=$(mktemp -d "${TMPDIR:-/tmp}/assoc-key-width.XXXXXX")
 trap 'rm -rf "$work_dir"' EXIT HUP INT TERM
 
@@ -14,8 +27,8 @@ if [ ! -x "$vvp" ]; then
     echo "error: VVP runtime is not executable: $vvp" >&2
     exit 2
 fi
-if [ ! -f "$module_dir/system.vpi" ]; then
-    echo "error: system.vpi is not installed in: $module_dir" >&2
+if [ -z "$module_dir" ] || [ ! -f "$module_dir/system.vpi" ]; then
+    echo "error: cannot locate system.vpi for $vvp" >&2
     exit 2
 fi
 
