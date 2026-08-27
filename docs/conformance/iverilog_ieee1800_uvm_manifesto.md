@@ -665,8 +665,9 @@ type-coverage, VPI, or cross interaction.
 - [ ] Extend illegal named-cross routing to transition source terms; the
       current per-instance plan rejects that combination explicitly.
 - [ ] Complete report/VPI and normative naming detail, type-coverage union
-      semantics, arbitrary coverpoint expressions, and products beyond the
-      explicit 65,536-bin topology cap.
+      semantics, broader signed static range/intersect normalization, empty
+      trailing fixed-array-bin identity/naming, arbitrary coverpoint
+      expressions, and products beyond the explicit 65,536-bin topology cap.
 - [ ] Implement all remaining option/type-option semantics. In particular,
       1800-2017 retains uncovered automatic cross bins, while 1800-2023
       `option.cross_retain_auto_bins` defaults to 1. A covergroup-level value

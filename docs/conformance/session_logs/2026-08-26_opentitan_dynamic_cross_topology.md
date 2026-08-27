@@ -249,8 +249,9 @@ This increment deliberately retains loud bounded limits:
   broader compound-selector forms are open;
 - ignore/illegal source values are not carved from a dynamic-family source
   denominator;
-- type-coverage union, detailed reporting/VPI, and complete normative naming
-  remain open;
+- type-coverage union, detailed reporting/VPI, complete normative naming,
+  broader signed static range/intersect normalization, and empty trailing
+  fixed-array-bin identity/naming remain open;
 - cross topology and explicit open-bin materialization are capped at 65,536
   logical bins/products and reject larger forms loudly; and
 - real/tolerance coverage remains future IEEE 1800-2023 work.

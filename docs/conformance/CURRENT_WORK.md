@@ -90,8 +90,10 @@ Clause 19 remains **PARTIAL**. Constructor/per-instance expressions for the
 2023 retention option, illegal cross bins over transition terms, remaining
 dynamic `with`/`matches`/set/`CrossQueueType` selection forms, source
 ignore/illegal carving from dynamic-family denominators, type-coverage union,
-report/VPI and normative naming detail, real/tolerance coverage, and products
-beyond the explicit 65,536-bin topology cap remain open.
+report/VPI and normative naming detail, broader signed static range/intersect
+normalization, empty trailing fixed-array-bin identity/naming, real/tolerance
+coverage, and products beyond the explicit 65,536-bin topology cap remain
+open.
 
 The project direction is unchanged: selected IEEE 1800-2017 and IEEE
 1800-2023 semantics come first; unchanged UVM, OpenTitan, and Caliptra are

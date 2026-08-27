@@ -400,8 +400,10 @@ endpoint expressions, constructor/per-instance expressions for
 dynamic `with`, `matches`, set-expression, `CrossQueueType`, and broader
 compound-selection forms are explicit gaps. Source ignore/illegal values are
 not yet carved from dynamic-family denominators. Type-coverage union,
-report/VPI and normative naming detail, real/tolerance coverage, and products
-beyond the explicit 65,536-bin topology cap also remain open. Examples:
+report/VPI and normative naming detail, broader signed static range/intersect
+normalization, empty trailing fixed-array-bin identity/naming, real/tolerance
+coverage, and products beyond the explicit 65,536-bin topology cap also remain
+open. Examples:
 [tests/coverage_full_test.sv](tests/coverage_full_test.sv),
 [tests/coverage_cross_test.sv](tests/coverage_cross_test.sv), and
 [ivtest/ivltests/sv_covergroup_ctor_bin_ranges.v](ivtest/ivltests/sv_covergroup_ctor_bin_ranges.v).
