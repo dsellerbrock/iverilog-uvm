@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_empty_task_input_side_effect.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_empty_task_input_side_effect",
+    "vlog95"        : { "type" : "NI" }
+}

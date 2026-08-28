@@ -21,6 +21,7 @@
 # include  <string.h>
 # include  <stdlib.h>
 # include  <assert.h>
+# include  <inttypes.h>
 
 /*
  * Map a container element type to the vvp type string used by
@@ -150,6 +151,11 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
       const char*tail = name + 12;
       int unpack = 0;
       if (strncmp(tail, "pack$", 5) == 0) {
+	    tail += 5;
+      } else if (strncmp(tail, "cast$", 5) == 0) {
+	    /* A 6.24.3 bit-stream cast has the same source flattening and
+	       left-to-right order as a right-stream with slice size 1. The
+	       caller emits a strict target conversion after this pack. */
 	    tail += 5;
       } else if (strncmp(tail, "unpack$", 7) == 0) {
 	    unpack = 1;
@@ -596,6 +602,37 @@ int vvp_expr_is_whole_fixed_array_property(ivl_expr_t expr)
       return type_is_fixed_uarray_property_(type);
 }
 
+/* True when EXPR denotes a complete fixed unpacked-array value that is
+ * materialized as passive dynamic-array storage in object context. A DPI
+ * open-array formal must activate that value's declared ranges regardless of
+ * whether the source spelling is a signal, a class property, or a function
+ * call returning a fixed-array typedef. */
+int vvp_expr_is_fixed_uarray_value(ivl_expr_t expr)
+{
+      ivl_scope_t def;
+      ivl_signal_t result;
+
+      if (!expr)
+	    return 0;
+
+      if (ivl_expr_type(expr) == IVL_EX_ARRAY)
+	    return 1;
+
+      if (ivl_expr_type(expr) == IVL_EX_ARRAY_SLICE)
+	    return 1;
+
+      if (vvp_expr_is_whole_fixed_array_property(expr))
+	    return 1;
+
+      if (ivl_expr_type(expr) != IVL_EX_UFUNC)
+	    return 0;
+
+      def = ivl_expr_def(expr);
+      result = def && ivl_scope_ports(def) > 0
+	    ? ivl_scope_port(def, 0) : 0;
+      return result && ivl_signal_dimensions(result) > 0;
+}
+
 static uint64_t fixed_uarray_property_size_(ivl_type_t type)
 {
       uint64_t size = 1;
@@ -950,6 +987,43 @@ static int eval_object_array(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%load/arr/dar v%p, %u, %u;\n",
 		    sig, kind, (unsigned)left);
       }
+      return 0;
+}
+
+/* Materialize a constant one-dimensional fixed-array slice in its selected
+ * left-to-right order. The runtime object carries the slice's own declared
+ * range as passive metadata; %store/obj/open activates it only for a DPI
+ * open-array formal. */
+static int eval_object_array_slice(ivl_expr_t expr)
+{
+      ivl_signal_t sig = ivl_expr_signal(expr);
+      long base = ivl_expr_array_slice_base(expr);
+      unsigned long count = ivl_expr_array_slice_count(expr);
+      long left = ivl_expr_array_slice_left(expr);
+      long right = ivl_expr_array_slice_right(expr);
+      unsigned kind;
+
+      if (!sig || base < 0 || count == 0
+	  || (unsigned long)(unsigned)base != (unsigned long)base
+	  || (unsigned long)(unsigned)count != count
+	  || left < INT32_MIN || left > INT32_MAX
+	  || right < INT32_MIN || right > INT32_MAX) {
+	    fprintf(stderr, "%s:%u: internal error: fixed unpacked-array "
+		    "slice metadata is not representable by the VVP runtime.\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    vvp_errors += 1;
+	    fprintf(vvp_out, "    %%null; ; malformed fixed array slice\n");
+	    return 1;
+      }
+
+      if (!uarray_container_kind_(sig, &kind, ivl_expr_file(expr),
+				   ivl_expr_lineno(expr))) {
+	    fprintf(vvp_out, "    %%null; ; unsupported fixed array slice\n");
+	    return 1;
+      }
+
+      emit_load_arr_dar_slice_(sig, kind, (unsigned)base, (unsigned)count,
+				left, right);
       return 0;
 }
 
@@ -1594,9 +1668,9 @@ int draw_array_reduce_vec4(ivl_expr_t expr)
       draw_array_elem_load_vec4_(a_sig);
       fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", iter_sig, iter_wid);
 
-	/* The materialized fixed receiver is traversed in canonical low-address
-	 * order. Expose its declared index to the with expression without using
-	 * that value as the storage address. */
+	/* The loop counter traverses the receiver's runtime storage order. The
+	 * frontend supplies a matching declared-index expression: numeric-low for
+	 * a direct fixed signal, left-to-right for a materialized fixed value. */
       if (is_fixed) {
 	    draw_eval_vec4(declared_idx_expr);
 	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n",
@@ -1679,6 +1753,14 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    return draw_eval_assoc_default(expr, element_type);
       }
 
+      /* IEEE 1800-2017/2023 6.24.1 defines a type cast as assignment to a
+         temporary of the cast type. The frontend retains that target type on
+         this internal marker so a queue/dynamic-array cast cannot inherit the
+         source object's runtime kind or identity before an outer assignment,
+         method call, or conditional context consumes it. */
+      if (strcmp(name, "$ivl_container_cast") == 0)
+	    return draw_eval_explicit_container_cast(expr);
+
       /* The frontend lowers a queue `$' object-element read to this
        * one-argument marker. Evaluate the receiver once, retain an alias for
        * the eventual element load while %qsize/o consumes its duplicate, then
@@ -1701,14 +1783,20 @@ static int eval_object_sfunc(ivl_expr_t expr)
       if (strncmp(name, "$ivl_stream$", 12) == 0) {
 	    ivl_type_t net_type = ivl_expr_net_type(expr);
 	    char elem_text[32];
+	    int strict_cast = strncmp(name, "$ivl_stream$cast$", 17) == 0;
 	    assert(net_type);
 	    stream_elem_type_text(ivl_type_element(net_type),
 				  elem_text, sizeof elem_text);
 	    draw_stream_pack_pieces(expr, 0);
-	    if (ivl_type_base(net_type) == IVL_VT_QUEUE)
-		  fprintf(vvp_out, "    %%stream/to/queue \"%s\";\n", elem_text);
-	    else
-		  fprintf(vvp_out, "    %%stream/to/dar \"%s\";\n", elem_text);
+	    if (ivl_type_base(net_type) == IVL_VT_QUEUE) {
+		  uint64_t max_size = ivl_type_queue_max_size(net_type);
+		  fprintf(vvp_out, "    %%stream/to/queue \"%s%s:%" PRIu64
+			  "\";\n", elem_text, strict_cast ? "!" : "",
+			  max_size);
+	    } else {
+		  fprintf(vvp_out, "    %%stream/to/dar \"%s%s\";\n",
+			  elem_text, strict_cast ? "!" : "");
+	    }
 	    return 0;
       }
       static int warned_non_queue = 0;
@@ -2040,9 +2128,9 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%%s v%p_0;\n", load_elem, q_sig);
 	    fprintf(vvp_out, "    %%%s;\n", store_iter);
 
-	      /* Fixed-array storage uses a canonical low-address counter, while
-	       * 7.12.4 exposes the declared index. Evaluate the explicit
-	       * low+counter expression before the user's key expression. */
+	      /* A fixed receiver is materialized in declared left-to-right order.
+	       * Evaluate the frontend's explicit declared-index expression before
+	       * the user's key expression. */
 	    if (is_fixed) {
 		  draw_eval_vec4(declared_idx_expr);
 		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n",
@@ -2539,8 +2627,8 @@ static int eval_object_sfunc(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%store/obj v%p_0;\n", iter_sig);
 	    }
 
-	      /* A materialized fixed property is traversed by canonical storage
-	       * address. Publish its declared low+canonical index before the
+	      /* A materialized fixed property is traversed in declared
+	       * left-to-right order. Publish its declared index before the
 	       * predicate so item.index() and every *_index result observe the
 	       * original declared range. */
 	    if (is_fixed_property) {
@@ -2769,9 +2857,18 @@ static int emit_aggregate_property_store_(ivl_type_t prop_type,
             fprintf(vvp_out, "    %%store/prop/str %u;\n", pidx);
             return errors;
 
-          case IVL_VT_CLASS:
           case IVL_VT_DARRAY:
-          case IVL_VT_QUEUE:
+          case IVL_VT_QUEUE: {
+            int converted = draw_eval_container_value_for_target(value_expr,
+                                                                  prop_type);
+            errors += converted >= 0
+                  ? converted
+                  : draw_eval_object_value_copy(value_expr, prop_type);
+            fprintf(vvp_out, "    %%store/prop/obj %u, 0;\n", pidx);
+            return errors;
+          }
+
+          case IVL_VT_CLASS:
           case IVL_VT_NO_TYPE:
           default:
             errors += draw_eval_object(value_expr);
@@ -2844,6 +2941,41 @@ static int eval_object_aggregate_literal_(ivl_expr_t expr)
  * forms POP the receiver, so each element store works on a
  * %dup/obj/ref ALIAS of the container handle (%dup/obj would deep-copy
  * and the stores would mutate a discarded clone). */
+static int container_pattern_operand_is_collection_(ivl_expr_t expr,
+                                                     ivl_type_t element_type)
+{
+      ivl_type_t source_type;
+      ivl_type_t source_element;
+
+      if (!expr || !type_is_object_like_(element_type))
+            return queue_pattern_operand_is_collection_(expr, element_type);
+
+      /* Context typing can give a container item the OUTER pattern type.
+       * Recover the value's declared type instead: a darray<T> used where one
+       * queue<T> element is expected is one assignment-compatible element,
+       * not a collection splice. This also covers properties and selections,
+       * whose t-dll net_type can be absent or contextual. */
+      source_type = receiver_container_type_(expr);
+      if (!type_is_runtime_container_(source_type)
+          || !type_is_runtime_container_(element_type)
+          || (ivl_type_base(source_type) == IVL_VT_QUEUE
+              && ivl_type_queue_assoc_compat(source_type))
+          || (ivl_type_base(element_type) == IVL_VT_QUEUE
+              && ivl_type_queue_assoc_compat(element_type)))
+            return queue_pattern_operand_is_collection_(expr, element_type);
+
+      source_element = ivl_type_element(source_type);
+      if (container_type_shape_eq_(source_type, element_type)
+          || container_type_shape_eq_(source_element,
+                                      ivl_type_element(element_type)))
+            return 0;
+
+      if (container_type_shape_eq_(source_element, element_type))
+            return 1;
+
+      return type_is_object_like_(source_element);
+}
+
 static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 {
       unsigned nparm = ivl_expr_parms(expr);
@@ -2889,7 +3021,7 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 	       * queue-built literals support this; a darray literal
 	       * with a runtime-sized operand cannot be pre-sized. */
 	    if (!is_darray
-		&& queue_pattern_operand_is_collection_(parm, etype)) {
+		&& container_pattern_operand_is_collection_(parm, etype)) {
 		  fprintf(vvp_out, "    %%dup/obj/ref;\n");
 		  errors += draw_eval_object(parm);
 		  switch (etype ? ivl_type_base(etype) : IVL_VT_LOGIC) {
@@ -2903,7 +3035,7 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 		      case IVL_VT_DARRAY:
 		      case IVL_VT_QUEUE:
 		      case IVL_VT_NO_TYPE:
-			fprintf(vvp_out, "    %%append/qo/obj;\n");
+			emit_append_object_collection(etype);
 			break;
 		      default: {
 			unsigned wid = etype ? ivl_type_packed_width(etype) : 32;
@@ -2915,7 +3047,7 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 		  continue;
 	    }
 	    if (is_darray
-		&& queue_pattern_operand_is_collection_(parm, etype)) {
+		&& container_pattern_operand_is_collection_(parm, etype)) {
 		  static int warned_darray_splice = 0;
 		  if (!warned_darray_splice) {
 			fprintf(stderr, "Warning: draw_eval_object: a"
@@ -2948,9 +3080,20 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 		  emit_object_queue_store_(is_darray ? 'i' : 'b', "str",
 		                           0, 0);
 		  break;
-		case IVL_VT_CLASS:
 		case IVL_VT_DARRAY:
-		case IVL_VT_QUEUE:
+		case IVL_VT_QUEUE: {
+		  int converted = draw_eval_container_value_for_target(parm,
+		                                                        etype);
+		  errors += converted >= 0 ? converted : draw_eval_object(parm);
+		  if (is_darray) {
+			fprintf(vvp_out, "    %%ix/load 3, %u, 0;\n", idx);
+			fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+		  }
+		  emit_object_queue_store_(is_darray ? 'i' : 'b', "obj",
+		                           0, 0);
+		  break;
+		}
+		case IVL_VT_CLASS:
 		case IVL_VT_NO_TYPE:
 		  errors += draw_eval_object(parm);
 		  if (is_darray) {
@@ -3086,6 +3229,9 @@ int draw_eval_object(ivl_expr_t ex)
 
 	  case IVL_EX_ARRAY:
 	    return eval_object_array(ex);
+
+	  case IVL_EX_ARRAY_SLICE:
+	    return eval_object_array_slice(ex);
 
 	  case IVL_EX_UFUNC:
 	    return eval_object_ufunc(ex);

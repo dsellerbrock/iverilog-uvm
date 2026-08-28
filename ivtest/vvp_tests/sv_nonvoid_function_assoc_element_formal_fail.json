@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_nonvoid_function_assoc_element_formal_fail.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_nonvoid_function_assoc_element_formal_fail" ],
+    "gold"          : "sv_nonvoid_function_assoc_element_formal_fail"
+}

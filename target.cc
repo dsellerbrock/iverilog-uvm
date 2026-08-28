@@ -534,6 +534,12 @@ void expr_scan_t::expr_array_pattern(const NetEArrayPattern*)
 	    "unhandled expr_array_pattern." << endl;
 }
 
+void expr_scan_t::expr_array_slice(const NetEArraySlice*)
+{
+      cerr << "expr_scan_t (" << typeid(*this).name() << "): "
+	    "unhandled expr_array_slice." << endl;
+}
+
 void expr_scan_t::expr_const(const NetEConst*)
 {
       cerr << "expr_scan_t (" << typeid(*this).name() << "): "

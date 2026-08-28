@@ -495,6 +495,206 @@ static void put_vec_to_lval(ivl_statement_t net, struct vec_slice_info*slices)
       }
 }
 
+/* Queue/dynamic-array assignment creates a value of the destination type
+ * (IEEE 1800-2017/2023 7.6), and a bounded queue discards excess source
+ * elements (7.10.5). Different runtime kinds and bounded same-kind queues
+ * therefore need a destination-typed temporary before an object-backed store.
+ * The documented ordinary-assignment bit/logic extension also comes through
+ * this path; its 2-state destination conversion maps X/Z to zero as required
+ * by 6.11.2. FORCE is used by an explicit cast, whose 6.24.1 temporary must be
+ * fresh even when source and destination have the same unbounded kind. */
+static ivl_type_t container_materialization_target_element_(
+      ivl_type_t source_type, ivl_type_t target_type, int force)
+{
+      ivl_variable_type_t source_kind;
+      ivl_variable_type_t target_kind;
+      ivl_type_t target_element;
+      int bounded_target;
+
+      if (!source_type || !target_type)
+            return 0;
+
+      source_kind = ivl_type_base(source_type);
+      target_kind = ivl_type_base(target_type);
+      if ((source_kind != IVL_VT_DARRAY && source_kind != IVL_VT_QUEUE)
+          || (target_kind != IVL_VT_DARRAY && target_kind != IVL_VT_QUEUE))
+            return 0;
+
+      /* Associative-array compatibility queues have a different key/value
+       * representation and are not positional queue/darray values. */
+      if ((source_kind == IVL_VT_QUEUE
+           && ivl_type_queue_assoc_compat(source_type))
+          || (target_kind == IVL_VT_QUEUE
+              && ivl_type_queue_assoc_compat(target_type)))
+            return 0;
+
+      bounded_target = target_kind == IVL_VT_QUEUE
+          && ivl_type_queue_max_size(target_type) != 0;
+      if (!force && source_kind == target_kind && !bounded_target)
+            return 0;
+
+      target_element = ivl_type_element(target_type);
+      if (!target_element)
+            return 0;
+
+      return target_element;
+}
+
+static int draw_convert_container_value_for_target_(ivl_type_t source_type,
+                                                     ivl_type_t target_type,
+                                                     int force)
+{
+      ivl_type_t target_element = container_materialization_target_element_(
+            source_type, target_type, force);
+      char element_text[32];
+
+      if (!target_element)
+            return 0;
+
+      stream_elem_type_text(target_element, element_text,
+                            sizeof element_text);
+      if (ivl_type_base(target_type) == IVL_VT_DARRAY) {
+            fprintf(vvp_out, "    %%queue/to/darray \"%s\";"
+                    " destination-typed container copy\n", element_text);
+      } else {
+            fprintf(vvp_out, "    %%container/to/queue \"%s\", %u;"
+                    " destination-typed container copy\n",
+                    element_text, queue_type_max_count_(target_type));
+      }
+
+      /* A property or nested container has no signal declaration from which
+       * VVP can recover an unpacked-struct element prototype. Install the
+       * destination declaration's prototype on the materialized value. */
+      if (ivl_type_base(target_element) == IVL_VT_NO_TYPE
+          && ivl_type_properties(target_element) > 0) {
+            ensure_class_type_emitted(target_element);
+            fprintf(vvp_out,
+                    "    %%new/cobj C%p; destination element prototype\n",
+                    target_element);
+            fprintf(vvp_out, "    %%dar/elem/proto;\n");
+      }
+
+      return 1;
+}
+
+int draw_convert_container_value_for_target(ivl_type_t source_type,
+                                             ivl_type_t target_type)
+{
+      return draw_convert_container_value_for_target_(source_type,
+                                                       target_type, 0);
+}
+
+int draw_eval_container_value_for_target(ivl_expr_t expr,
+                                          ivl_type_t target_type)
+{
+      ivl_type_t source_type = receiver_container_type_(expr);
+      int errors;
+
+      if (!container_materialization_target_element_(source_type,
+                                                     target_type, 0))
+            return -1;
+
+      errors = draw_eval_object(expr);
+      assert(draw_convert_container_value_for_target_(source_type,
+                                                      target_type, 0));
+      return errors;
+}
+
+int draw_eval_explicit_container_cast(ivl_expr_t marker)
+{
+      ivl_expr_t source;
+      ivl_type_t source_type;
+      ivl_type_t target_type;
+      int errors;
+
+      if (!marker || ivl_expr_parms(marker) != 1) {
+            fprintf(stderr, "%s:%u: internal error: malformed explicit "
+                    "container-cast marker\n",
+                    marker ? ivl_expr_file(marker) : "<unknown>",
+                    marker ? ivl_expr_lineno(marker) : 0);
+            fprintf(vvp_out,
+                    "    %%null; ; malformed explicit container cast\n");
+            return 1;
+      }
+
+      source = ivl_expr_parm(marker, 0);
+      source_type = receiver_container_type_(source);
+      target_type = ivl_expr_net_type(marker);
+
+      /* A conditional can legally select between queue and dynamic-array
+       * arms with equivalent elements. The frontend validates every arm
+       * before creating this marker, but the target's generic provenance
+       * helper deliberately reports no single kind for a mixed-kind ternary.
+       * Both materialization opcodes accept either positional runtime kind,
+       * so use the already-validated target as the force-copy descriptor. */
+      if (!source_type && ivl_expr_type(source) == IVL_EX_TERNARY)
+            source_type = target_type;
+      if (!container_materialization_target_element_(source_type,
+                                                     target_type, 1)) {
+            fprintf(stderr, "%s:%u: internal error: explicit container cast "
+                    "lost its positional source or target type\n",
+                    ivl_expr_file(marker), ivl_expr_lineno(marker));
+            fprintf(vvp_out,
+                    "    %%null; ; invalid explicit container cast\n");
+            return 1;
+      }
+
+      errors = draw_eval_object(source);
+      assert(draw_convert_container_value_for_target_(source_type,
+                                                      target_type, 1));
+      return errors;
+}
+
+void emit_append_object_collection(ivl_type_t target_element_type)
+{
+      ivl_type_t inner_element;
+      char element_text[32];
+      int has_struct_prototype;
+
+      if (!target_element_type
+          || (ivl_type_base(target_element_type) != IVL_VT_DARRAY
+              && ivl_type_base(target_element_type) != IVL_VT_QUEUE)
+          || (ivl_type_base(target_element_type) == IVL_VT_QUEUE
+              && ivl_type_queue_assoc_compat(target_element_type))) {
+            fprintf(vvp_out, "    %%append/qo/obj;\n");
+            return;
+      }
+
+      inner_element = ivl_type_element(target_element_type);
+      if (!inner_element) {
+            fprintf(vvp_out, "    %%append/qo/obj;\n");
+            return;
+      }
+
+      stream_elem_type_text(inner_element, element_text,
+                            sizeof element_text);
+      has_struct_prototype = ivl_type_base(inner_element) == IVL_VT_NO_TYPE
+          && ivl_type_properties(inner_element) > 0;
+      if (has_struct_prototype)
+            ensure_class_type_emitted(inner_element);
+
+      if (ivl_type_base(target_element_type) == IVL_VT_DARRAY) {
+            if (has_struct_prototype)
+                  fprintf(vvp_out,
+                          "    %%append/qo/obj/darray/proto \"%s\", C%p;\n",
+                          element_text, inner_element);
+            else
+                  fprintf(vvp_out,
+                          "    %%append/qo/obj/darray \"%s\";\n",
+                          element_text);
+      } else if (has_struct_prototype) {
+            fprintf(vvp_out,
+                    "    %%append/qo/obj/queue/proto \"%s\", %u, C%p;\n",
+                    element_text, queue_type_max_count_(target_element_type),
+                    inner_element);
+      } else {
+            fprintf(vvp_out,
+                    "    %%append/qo/obj/queue \"%s\", %u;\n",
+                    element_text,
+                    queue_type_max_count_(target_element_type));
+      }
+}
+
 /* Evaluate a value that is about to become an object-backed container
  * element. RUNTIME_COPIES says the receiving opcode applies
  * value_copy_element(); property stores do not, so selected container values
@@ -507,14 +707,19 @@ static int draw_eval_nested_object_value_(ivl_expr_t expr,
                                           ivl_type_t element_type,
                                           int runtime_copies)
 {
-      int errors = runtime_copies
-            ? draw_eval_object(expr)
-            : draw_eval_object_value_copy(expr, element_type);
+      int errors = draw_eval_container_value_for_target(expr, element_type);
       uint64_t max_size;
       int saved_index;
       int saved_x_flag;
       unsigned lab_trim;
       unsigned lab_done;
+
+      if (errors >= 0)
+            return errors;
+
+      errors = runtime_copies
+            ? draw_eval_object(expr)
+            : draw_eval_object_value_copy(expr, element_type);
 
       if (!element_type
           || (ivl_type_base(element_type) != IVL_VT_QUEUE
@@ -2139,7 +2344,7 @@ static int show_stmt_assign_darray_pattern(ivl_statement_t net)
                                       elem_wid);
                               break;
                             default:
-                              fprintf(vvp_out, "    %%append/qo/obj;\n");
+                              emit_append_object_collection(element_type);
                               break;
                         }
                         continue;
@@ -2279,7 +2484,9 @@ static void show_stmt_assign_sig_darray_queue_mux(ivl_statement_t net)
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_QUEUE:
 		    assert(ivl_stmt_opcode(net) == 0);
-		    draw_eval_object(rval);
+		    if (draw_eval_container_value_for_target(rval,
+							 element_type) < 0)
+			  draw_eval_object(rval);
 		    draw_eval_expr_into_integer(mux, 3);
 		    break;
 	  default:
@@ -2393,6 +2600,16 @@ static int show_stmt_assign_sig_darray(ivl_statement_t net)
       } else if (ivl_expr_type(rval) == IVL_EX_SIGNAL
 		 || ivl_expr_type(rval) == IVL_EX_PROPERTY) {
 	    assert(ivl_stmt_opcode(net) == 0);
+	    int converted = draw_eval_container_value_for_target(rval,
+							    var_type);
+	    if (converted >= 0) {
+		  errors += converted;
+		  fprintf(vvp_out,
+			  "    %%store/obj v%p_0; %s:%u: %s = <converted container>\n",
+			  var, ivl_stmt_file(net), ivl_stmt_lineno(net),
+			  ivl_signal_basename(var));
+		  return errors;
+	    }
 
 	    // There is no l-value mux, and the r-value expression is
 	    // a "signal" (or class-property) expression, i.e. a live
@@ -2406,7 +2623,8 @@ static int show_stmt_assign_sig_darray(ivl_statement_t net)
 	    // along on the duplicate).
 	    int fixed_open_actual =
 		  ivl_signal_port(var) != IVL_SIP_NONE
-		  && vvp_expr_is_whole_fixed_array_property(rval);
+		  && ivl_scope_is_dpi_import(ivl_signal_scope(var))
+		  && vvp_expr_is_fixed_uarray_value(rval);
 	    errors += draw_eval_object(rval);
 	    fprintf(vvp_out, "    %%dup/obj;\n");
 	    fprintf(vvp_out, "    %%store/obj%s v%p_0; %s:%u: %s = <signal>\n",
@@ -2421,11 +2639,16 @@ static int show_stmt_assign_sig_darray(ivl_statement_t net)
 	    // assignment to the array as a whole. Evaluate the
 	    // "object", copy any selected value-container result, and store the
 	    // independent value. SELECT nodes are live element aliases in VVP.
-	    errors += draw_eval_object_value_copy(rval, var_type);
+	    int converted = draw_eval_container_value_for_target(rval,
+							    var_type);
+	    if (converted >= 0)
+		  errors += converted;
+	    else
+		  errors += draw_eval_object_value_copy(rval, var_type);
 	    int fixed_open_actual =
 		  ivl_signal_port(var) != IVL_SIP_NONE
-		  && (ivl_expr_type(rval) == IVL_EX_ARRAY
-		      || vvp_expr_is_whole_fixed_array_property(rval));
+		  && ivl_scope_is_dpi_import(ivl_signal_scope(var))
+		  && vvp_expr_is_fixed_uarray_value(rval);
 	    fprintf(vvp_out, "    %%store/obj%s v%p_0; %s:%u: %s = <expr type %d>\n",
 		    fixed_open_actual ? "/open" : "",
 		    var, ivl_stmt_file(net), ivl_stmt_lineno(net),
@@ -2528,12 +2751,18 @@ int draw_eval_assoc_default(ivl_expr_t marker, ivl_type_t element_type)
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_QUEUE:
 	  case IVL_VT_NO_TYPE:
-	    if (ivl_expr_type(value) == IVL_EX_ARRAY_PATTERN
+	    {
+	      int converted = draw_eval_container_value_for_target(
+		    value, element_type);
+	      if (converted >= 0)
+		    errors += converted;
+	      else if (ivl_expr_type(value) == IVL_EX_ARRAY_PATTERN
 		&& (ivl_type_base(element_type) == IVL_VT_DARRAY
 		    || ivl_type_base(element_type) == IVL_VT_QUEUE))
-		  errors += draw_eval_object_value_copy(value, element_type);
-	    else
-		  errors += draw_eval_object(value);
+		    errors += draw_eval_object_value_copy(value, element_type);
+	      else
+		    errors += draw_eval_object(value);
+	    }
 	    fprintf(vvp_out, "    %%aa/new/default/obj;\n");
 	    break;
 	  default:
@@ -2590,6 +2819,11 @@ static int assoc_pattern_item_kind_(ivl_expr_t expr, unsigned*kind)
 static int assoc_pattern_object_value_(ivl_expr_t value,
 				       ivl_type_t element_type)
 {
+      int converted = draw_eval_container_value_for_target(value,
+						    element_type);
+      if (converted >= 0)
+	    return converted;
+
       if (ivl_expr_type(value) == IVL_EX_ARRAY_PATTERN
 	  && (ivl_type_base(element_type) == IVL_VT_DARRAY
 	      || ivl_type_base(element_type) == IVL_VT_QUEUE))
@@ -2776,9 +3010,18 @@ static int show_stmt_assign_sig_queue_slice(ivl_statement_t net,
 
       /* Match ordinary blocking container assignment evaluation: form the
 	 * complete RHS value first, then evaluate the l-value index exactly once.
+	 * IEEE 1800-2017/2023 7.6 permits an equivalent-element dynamic array
+	 * here, but %store/qslice dispatches by the destination queue's concrete
+	 * runtime element class. Materialize a destination-typed queue before the
+	 * store so the outer container kind does not leak into that dispatch.
 	 * Keeping the RHS on the object stack is safe across the scalar bound
 	 * evaluation and lets the runtime take a full snapshot before mutation. */
-      errors += draw_eval_object(rval);
+      int converted = draw_eval_container_value_for_target(
+	    rval, ivl_signal_net_type(var));
+      if (converted >= 0)
+	    errors += converted;
+      else
+	    errors += draw_eval_object(rval);
       int lo_word = allocate_word();
       draw_eval_expr_into_integer(lo, lo_word);
 
@@ -2839,7 +3082,12 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
 		  return 1;
 	    }
 
-	    errors += draw_eval_object_value_copy(rval, var_type);
+	    int converted = draw_eval_container_value_for_target(rval,
+							    var_type);
+	    if (converted >= 0)
+		  errors += converted;
+	    else
+		  errors += draw_eval_object_value_copy(rval, var_type);
 	    int word = allocate_word();
 	    draw_eval_expr_into_integer(word_expr, word);
 	    note_array_signal_use(var);
@@ -3005,7 +3253,12 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
 	      /* There is no l-value mux, so this must be an
 		 assignment to the array as a whole. Evaluate the
 		 "object", and store the evaluated result. */
-	    errors += draw_eval_object(rval);
+	    int converted = draw_eval_container_value_for_target(rval,
+							    var_type);
+	    if (converted >= 0)
+		  errors += converted;
+	    else
+		  errors += draw_eval_object(rval);
 	    if (ivl_type_queue_assoc_compat(var_type)) {
 		  /* Assoc-compat queues are represented as associative-array
 		   * objects at runtime. Copy the whole container object, do not
@@ -3170,7 +3423,7 @@ static int show_stmt_assign_sig_assoc_index(ivl_statement_t net,
           case IVL_VT_QUEUE:
           case IVL_VT_NO_TYPE:
               /* %aa/store/sig/obj applies container/struct value semantics. */
-            errors += draw_eval_object(rval);
+            errors += draw_eval_nested_object_value_(rval, element_type, 1);
             fprintf(vvp_out, "    %%aa/store/sig/obj/%s v%p_0;\n", key_kind, var);
             return errors;
           default:
@@ -3321,7 +3574,8 @@ static int show_stmt_assign_sig_prop_queue_index(ivl_statement_t net,
 		       so every element written from one struct variable
 		       ended up sharing it -- silently. The module-scope
 		       store already copies; this one has to as well. */
-		  errors += draw_eval_object_value_copy(rval, element_type);
+		  errors += draw_eval_nested_object_value_(rval, element_type,
+							       0);
 		  fprintf(vvp_out, "    %%set/dar/obj/obj %d;\n", idx_word);
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 		  clr_word(idx_word);
@@ -3415,7 +3669,7 @@ static int show_stmt_assign_sig_prop_darray_index(ivl_statement_t net,
             fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
             fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
               /* Value-copy an unpacked-struct element -- see above. */
-            errors += draw_eval_object_value_copy(rval, element_type);
+            errors += draw_eval_nested_object_value_(rval, element_type, 0);
             fprintf(vvp_out, "    %%set/dar/obj/obj %d;\n", idx_word);
             fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
             clr_word(idx_word);
@@ -3498,7 +3752,7 @@ static int show_stmt_assign_sig_prop_assoc_index(ivl_statement_t net,
 	  case IVL_VT_QUEUE:
 	  case IVL_VT_NO_TYPE:
 	      /* %aa/store/obj applies container/struct value semantics. */
-	    errors += draw_eval_object(rval);
+	    errors += draw_eval_nested_object_value_(rval, element_type, 1);
 	    fprintf(vvp_out, "    %%aa/store/obj/%s;\n", key_kind);
 	    fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
 	    return errors;
@@ -4271,8 +4525,8 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			      errors += draw_eval_nested_object_value_(
 				    rval, fixed_slot_type, 1);
 			} else {
-			      errors += draw_eval_object_value_copy(
-				    rval, fixed_slot_type);
+			      errors += draw_eval_nested_object_value_(
+				    rval, fixed_slot_type, 0);
 			}
 			slot_word = allocate_word();
 			draw_fixed_uarray_slot_index_(fixed_slot_expr, prop_type,
@@ -4678,7 +4932,13 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			  /* The property is a darray, and there is no mux
 			     expression to the assignment is of an entire
 			     array object. */
-			errors += draw_eval_object_value_copy(rval, prop_type);
+			int converted = draw_eval_container_value_for_target(
+			      rval, prop_type);
+			if (converted >= 0)
+			      errors += converted;
+			else
+			      errors += draw_eval_object_value_copy(rval,
+								    prop_type);
 			fprintf(vvp_out, "    %%store/prop/obj %d, %d; IVL_VT_DARRAY\n",
 			        prop_idx, idx);
 			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
@@ -5029,6 +5289,24 @@ void emit_load_arr_dar_(ivl_signal_t sig, unsigned kind)
 	      sig, kind, (unsigned)left);
 }
 
+void emit_load_arr_dar_slice_(ivl_signal_t sig, unsigned kind,
+			      unsigned canonical_base, unsigned count,
+			      int left, int right)
+{
+      assert(ivl_signal_dimensions(sig) == 1);
+      assert(count > 0);
+      if (left > right)
+	    kind |= VVP_ARRDAR_DESC;
+      else
+	    kind &= ~VVP_ARRDAR_DESC;
+
+      note_array_signal_use(sig);
+      fprintf(vvp_out, "    %%slice/push %u, %u;\n",
+	      canonical_base, count);
+      fprintf(vvp_out, "    %%load/arr/dar/slice v%p, %u, %u;\n",
+	      sig, kind, (unsigned)left);
+}
+
 /* Emit the container -> fixed-array store for one signal. A
    multi-dimensional destination is stored as one flat word array, so
    the declared shape has to be handed over separately before the
@@ -5045,7 +5323,28 @@ void emit_store_arr_dar_(ivl_signal_t sig, unsigned kind)
 	    return;
       }
 
+      if (ivl_signal_array_dim_msb(sig, 0)
+	  > ivl_signal_array_dim_lsb(sig, 0))
+	    kind |= VVP_ARRDAR_DESC;
+
       fprintf(vvp_out, "    %%store/arr/dar v%p, %u;\n", sig, kind);
+}
+
+void emit_store_arr_dar_slice_(ivl_signal_t sig, unsigned kind,
+			       unsigned canonical_base, unsigned count,
+			       int left, int right)
+{
+      assert(ivl_signal_dimensions(sig) == 1);
+      assert(count > 0);
+      if (left > right)
+	    kind |= VVP_ARRDAR_DESC;
+      else
+	    kind &= ~VVP_ARRDAR_DESC;
+
+      fprintf(vvp_out, "    %%slice/push %u, %u;\n",
+	      canonical_base, count);
+      fprintf(vvp_out, "    %%store/arr/dar/slice v%p, %u;\n",
+	      sig, kind);
 }
 
 /* A sized DPI array is passed to C as a pointer to contiguous elements. VVP
@@ -5057,7 +5356,12 @@ void emit_store_arr_dar_(ivl_signal_t sig, unsigned kind)
 void emit_load_arr_dar_dpi_(ivl_signal_t sig, unsigned kind)
 {
       if (ivl_signal_dimensions(sig) <= 1) {
-	    emit_load_arr_dar_(sig, kind);
+	      /* Sized DPI arrays use Annex H's canonical C layout (numeric
+	       * low index first). Do not apply the SystemVerilog value-assignment
+	       * direction bit used by emit_load_arr_dar_. */
+	    note_array_signal_use(sig);
+	    fprintf(vvp_out, "    %%load/arr/dar v%p, %u, 0;"
+		    " flat fixed DPI array\n", sig, kind);
 	    return;
       }
 
@@ -5069,7 +5373,11 @@ void emit_load_arr_dar_dpi_(ivl_signal_t sig, unsigned kind)
 void emit_store_arr_dar_dpi_(ivl_signal_t sig, unsigned kind)
 {
       if (ivl_signal_dimensions(sig) <= 1) {
-	    emit_store_arr_dar_(sig, kind);
+	      /* A sized DPI array uses Annex H's canonical C layout (numeric
+	       * low index first), not SystemVerilog 7.6 left-to-right value
+	       * assignment. Keep its store descriptor direction-neutral. */
+	    fprintf(vvp_out, "    %%store/arr/dar v%p, %u;"
+		    " flat fixed DPI array\n", sig, kind);
 	    return;
       }
 

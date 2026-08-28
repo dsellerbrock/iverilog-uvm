@@ -247,6 +247,7 @@ typedef enum ivl_expr_type_e {
       IVL_EX_NULL   = 22,
       IVL_EX_NUMBER = 5,
       IVL_EX_ARRAY_PATTERN  = 26,
+      IVL_EX_ARRAY_SLICE = 27,
       IVL_EX_PROPERTY = 24,
       IVL_EX_REALNUM  = 16,
       IVL_EX_SCOPE  = 6,
@@ -947,6 +948,14 @@ extern unsigned ivl_event_lineno(ivl_event_t net);
  * ivl_expr_signal returns the ivl_signal_t of the array object, and
  * from that all the properties of the array can be determined.
  *
+ * - IVL_EX_ARRAY_SLICE
+ * This expression is a constant slice of a one-dimensional fixed unpacked
+ * array signal. ivl_expr_signal() identifies the complete backing signal;
+ * ivl_expr_array_slice_base() and ivl_expr_array_slice_count() identify the
+ * selected words in its canonical increasing-index storage. The left/right
+ * accessors preserve the selected source range and its direction for
+ * left-to-right value marshalling and DPI open-array bounds.
+ *
  * - IVL_EX_BINARY
  *
  * - IVL_EX_PROPERTY
@@ -1034,6 +1043,12 @@ extern ivl_variable_type_t ivl_expr_value(ivl_expr_t net);
 extern const char*ivl_expr_file(ivl_expr_t net);
 extern unsigned ivl_expr_lineno(ivl_expr_t net);
 
+  /* IVL_EX_ARRAY_SLICE */
+extern long          ivl_expr_array_slice_base(ivl_expr_t net);
+extern unsigned long ivl_expr_array_slice_count(ivl_expr_t net);
+extern long          ivl_expr_array_slice_left(ivl_expr_t net);
+extern long          ivl_expr_array_slice_right(ivl_expr_t net);
+
   /* IVL_EX_NUMBER */
 extern const char* ivl_expr_bits(ivl_expr_t net);
   /* IVL_EX_BACCESS */
@@ -1048,7 +1063,8 @@ extern uint64_t ivl_expr_delay_val(ivl_expr_t net);
 extern double ivl_expr_dvalue(ivl_expr_t net);
   /* IVL_EX_ENUMTYPE */
 extern ivl_enumtype_t ivl_expr_enumtype(ivl_expr_t net);
-  /* IVL_EX_PROPERTY IVL_EX_SIGNAL IVL_EX_SFUNC IVL_EX_VARIABLE */
+  /* IVL_EX_ARRAY_SLICE IVL_EX_PROPERTY IVL_EX_SIGNAL IVL_EX_SFUNC
+     IVL_EX_VARIABLE */
 extern const char* ivl_expr_name(ivl_expr_t net);
   /* IVL_EX_BACCESS */
 extern ivl_nature_t ivl_expr_nature(ivl_expr_t net);
@@ -1078,7 +1094,7 @@ extern ivl_event_t ivl_expr_event(ivl_expr_t net);
 extern int ivl_expr_property_idx(ivl_expr_t net);
   /* IVL_EX_SCOPE */
 extern ivl_scope_t ivl_expr_scope(ivl_expr_t net);
-  /* IVL_EX_PROPERTY IVL_EX_SIGNAL */
+  /* IVL_EX_ARRAY_SLICE IVL_EX_PROPERTY IVL_EX_SIGNAL */
 extern ivl_signal_t ivl_expr_signal(ivl_expr_t net);
   /* any expression */
 extern int         ivl_expr_signed(ivl_expr_t net);

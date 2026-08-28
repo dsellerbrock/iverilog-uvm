@@ -348,6 +348,13 @@ struct vthread_s {
 	// the array pointer already occupies it.
       vector<pair<int,int> > dim_stack;
 
+	// Canonical base/count descriptions accumulated by %slice/push and
+	// consumed by the next flat fixed-array slice marshal/unmarshal opcode.
+	// Keep this separate from dim_stack: declared multidimensional bounds and
+	// storage windows are different concepts and may be nested by generated
+	// argument-evaluation code.
+      vector<pair<size_t,size_t> > array_slice_stack;
+
     private:
       vector<vvp_vector4_t>stack_vec4_;
     public:
@@ -20296,9 +20303,63 @@ static vvp_darray* arrdar_leaf_(uint32_t kind, size_t count)
       return new vvp_darray_vec4(count, wid);
 }
 
-bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
+/* Fixed unpacked storage is canonical numeric-low first, while ordinary
+ * SystemVerilog array assignment maps source and destination left-to-right
+ * (IEEE 1800-2017/2023 7.6). Materialized container values therefore use
+ * left-to-right order at every dimension. The declared ranges remain passive
+ * metadata; %store/obj/open applies this involution a second time before
+ * activating the numeric-canonical view required by the DPI C ABI. */
+static void reverse_descending_fixed_dimensions_(vvp_darray*array)
 {
-      vvp_array_t array = resolve_runtime_array_(cp, "%load/arr/dar");
+      if (!array || !array->dpi_has_decl_range())
+	    return;
+
+      if (array->dpi_decl_left() > array->dpi_decl_right()) {
+	    size_t count = array->get_size();
+	    qreverse_dispatch_(array);
+	      /* qreverse_dispatch_ carries queue-member identity itself. These
+	       * fixed-derived dynamic arrays also carry per-element random state
+	       * and captured references, so move that metadata with the values. */
+	    if (!dynamic_cast<vvp_queue*>(array)) {
+		  vector<size_t> permutation(count);
+		  for (size_t idx = 0 ; idx < count ; idx += 1)
+			permutation[idx] = count - 1 - idx;
+		  array->reorder_element_refs(permutation);
+		  array->reorder_rand_modes(permutation);
+	    }
+      }
+
+      vvp_darray_object*objects = dynamic_cast<vvp_darray_object*>(array);
+      if (!objects)
+	    return;
+
+      for (size_t idx = 0 ; idx < objects->get_size() ; idx += 1) {
+	    vvp_object_t word;
+	    objects->get_word((unsigned)idx, word);
+	    reverse_descending_fixed_dimensions_(word.peek<vvp_darray>());
+      }
+}
+
+static size_t fixed_copy_source_index_(
+      const vvp_darray*source, bool destination_descending, size_t index,
+      size_t count)
+{
+      /* A DPI open-array formal is activated over numeric-canonical fixed
+	 * storage. Ordinary dynamic arrays and queues are left-to-right values.
+	 * A descending fixed destination therefore reverses only the ordinary
+	 * source at each unpacked dimension. */
+      bool canonical_dpi_view = source && source->sv_uses_declared_indexing()
+	    && source->dpi_has_decl_range();
+      if (!canonical_dpi_view && destination_descending)
+	    return count - 1 - index;
+      return index;
+}
+
+static bool load_arr_dar_window_(vthread_t thr, vvp_code_t cp,
+				 vvp_array_t array, size_t base, size_t count,
+				 int left, unsigned queue_max_size,
+				 const char*opcode)
+{
       uint32_t kind = cp->bit_idx[0];
 
       if (!array) {
@@ -20306,7 +20367,16 @@ bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
 	    return true;
       }
 
-      size_t count = array->get_size();
+      size_t array_count = array->get_size();
+      if (count == 0 || base > array_count || count > array_count - base) {
+	    cerr << thr->get_fileline() << "RUN-TIME ERROR: " << opcode
+		 << " window base=" << base << " count=" << count
+		 << " is outside an unpacked array of size " << array_count
+		 << "." << endl;
+	    thr->push_object(vvp_object_t());
+	    return true;
+      }
+
       bool is_real = ARRDAR_REAL(kind);
       bool is_string = ARRDAR_STRING(kind) != 0;
       vvp_object_t obj = vvp_object_t(arrdar_leaf_(kind, count));
@@ -20316,17 +20386,17 @@ bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
 	/* A bounded queue assignment retains the source prefix that fits. Do
 	 * not attempt extra push_back operations: those are user mutations and
 	 * warn at the bound, whereas whole-queue assignment truncates here. */
-      unsigned queue_max_size = queue ? cp->bit_idx[1] : 0;
+      if (!queue)
+	    queue_max_size = 0;
       size_t copy_count = count;
       if (queue_max_size && copy_count > queue_max_size)
 	    copy_count = queue_max_size;
       for (size_t idx = 0 ; dar && idx < copy_count ; idx += 1) {
-	      /* Fixed-array storage is canonical-index ordered. Queue
-	       * assignment correspondence is declared left-to-right, so a
-	       * descending source is read from the opposite storage end. Keep
-	       * generic darray materialization's established storage walk. */
-	    size_t source_idx = queue && ARRDAR_DESC(kind)
-		  ? count - 1 - idx : idx;
+	      /* Fixed-array storage is canonical-index ordered. Every value
+	       * container is ordered from its logical left edge, so a descending
+	       * source is read from the opposite storage end. */
+	    size_t source_idx = base
+		+ (ARRDAR_DESC(kind) ? count - 1 - idx : idx);
 	    if (ARRDAR_OBJ(kind)) {
 		  vvp_object_t w;
 		  array->get_word_obj((unsigned)source_idx, w);
@@ -20358,7 +20428,6 @@ bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
 	/* Record the source array's declared range so the DPI open-array
 	   accessors report it instead of 0..N-1. */
       if (dar && count > 0 && !queue) {
-	    int left = (int)(int32_t)cp->bit_idx[1];
 	    int span = (int)count - 1;
 	    int right = ARRDAR_DESC(kind) ? (left - span) : (left + span);
 	    dar->dpi_set_decl_range(left, right);
@@ -20366,6 +20435,37 @@ bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
 
       thr->push_object(obj);
       return true;
+}
+
+bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_array_t array = resolve_runtime_array_(cp, "%load/arr/dar");
+      size_t count = array ? array->get_size() : 0;
+      uint32_t kind = cp->bit_idx[0];
+      unsigned second = cp->bit_idx[1];
+      int left = ARRDAR_QUEUE(kind) ? 0 : (int)(int32_t)second;
+      unsigned queue_max_size = ARRDAR_QUEUE(kind) ? second : 0;
+      return load_arr_dar_window_(thr, cp, array, 0, count, left,
+				  queue_max_size, "%load/arr/dar");
+}
+
+bool of_LOAD_ARR_DAR_SLICE(vthread_t thr, vvp_code_t cp)
+{
+      if (thr->array_slice_stack.empty()) {
+	    cerr << thr->get_fileline()
+		 << "RUN-TIME ERROR: %load/arr/dar/slice has no preceding "
+		    "%slice/push descriptor." << endl;
+	    thr->push_object(vvp_object_t());
+	    return true;
+      }
+
+      pair<size_t,size_t> window = thr->array_slice_stack.back();
+      thr->array_slice_stack.pop_back();
+      vvp_array_t array = resolve_runtime_array_(cp, "%load/arr/dar/slice");
+      int left = (int)(int32_t)cp->bit_idx[1];
+      return load_arr_dar_window_(thr, cp, array, window.first,
+				  window.second, left, 0,
+				  "%load/arr/dar/slice");
 }
 
 /*
@@ -20389,56 +20489,88 @@ bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
  * mismatch is reported and the destination is left alone rather than
  * partially overwritten.
  */
-bool of_STORE_ARR_DAR(vthread_t thr, vvp_code_t cp)
+static bool store_arr_dar_window_(vthread_t thr, vvp_code_t cp,
+				  const vvp_object_t&val, vvp_array_t array,
+				  size_t base, size_t count,
+				  const char*opcode)
 {
-      vvp_object_t val;
-      thr->pop_object(val);
-
-      vvp_array_t array = resolve_runtime_array_(cp, "%store/arr/dar");
       if (!array)
 	    return true;
 
+      uint32_t kind = cp->bit_idx[0];
+      size_t array_count = array->get_size();
       vvp_darray*dar = val.peek<vvp_darray>();
-      if (!dar) {
-	      /* A nil container: 7.6 has nothing to copy. Leave the
-		 destination as it is. */
+      size_t source_count = dar ? dar->get_size() : 0;
+      if (count == 0 || base > array_count || count > array_count - base) {
+	    cerr << thr->get_fileline() << "RUN-TIME ERROR: " << opcode
+		 << " window base=" << base << " count=" << count
+		 << " is outside an unpacked array of size " << array_count
+		 << "; the array is unchanged." << endl;
 	    return true;
       }
-
-      uint32_t kind = cp->bit_idx[0];
-      size_t count = array->get_size();
-      if (dar->get_size() != count) {
+      if (!dar || source_count != count) {
 	    cerr << "RUN-TIME ERROR: cannot copy a container of size "
-		 << dar->get_size() << " into an unpacked array of size "
-		 << count << " (IEEE 1800-2017 7.6 requires equal element "
+		 << source_count << " into an unpacked array of size "
+		 << count << " (IEEE 1800-2017/2023 7.6 requires equal element "
 		    "counts); the array is unchanged." << endl;
 	    return true;
       }
 
       for (size_t idx = 0 ; idx < count ; idx += 1) {
+	    size_t source_idx = fixed_copy_source_index_(
+		  dar, ARRDAR_DESC(kind) != 0, idx, count);
 	    if (ARRDAR_OBJ(kind)) {
 		  vvp_object_t w;
-		  dar->get_word((unsigned)idx, w);
-		  array->set_word((unsigned)idx, w);
+		  dar->get_word((unsigned)source_idx, w);
+		  array->set_word((unsigned)(base + idx), w);
 	    } else if (ARRDAR_STRING(kind)) {
 		  string w;
-		  dar->get_word((unsigned)idx, w);
-		  array->set_word((unsigned)idx, w);
+		  dar->get_word((unsigned)source_idx, w);
+		  array->set_word((unsigned)(base + idx), w);
 	    } else if (ARRDAR_REAL(kind)) {
 		  double w = 0.0;
-		  dar->get_word((unsigned)idx, w);
-		  array->set_word((unsigned)idx, w);
+		  dar->get_word((unsigned)source_idx, w);
+		  array->set_word((unsigned)(base + idx), w);
 	    } else {
 		  vvp_vector4_t w;
-		  dar->get_word((unsigned)idx, w);
+		  dar->get_word((unsigned)source_idx, w);
 		  unsigned wid = ARRDAR_WIDTH(kind);
 		  if (wid && w.size() != wid)
 			w = coerce_to_width(w, wid);
-		  array->set_word((unsigned)idx, 0, w);
+		  array->set_word((unsigned)(base + idx), 0, w);
 	    }
       }
 
       return true;
+}
+
+bool of_STORE_ARR_DAR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t val;
+      thr->pop_object(val);
+      vvp_array_t array = resolve_runtime_array_(cp, "%store/arr/dar");
+      size_t count = array ? array->get_size() : 0;
+      return store_arr_dar_window_(thr, cp, val, array, 0, count,
+				   "%store/arr/dar");
+}
+
+bool of_STORE_ARR_DAR_SLICE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t val;
+      thr->pop_object(val);
+
+      if (thr->array_slice_stack.empty()) {
+	    cerr << thr->get_fileline()
+		 << "RUN-TIME ERROR: %store/arr/dar/slice has no preceding "
+		    "%slice/push descriptor; the array is unchanged." << endl;
+	    return true;
+      }
+
+      pair<size_t,size_t> window = thr->array_slice_stack.back();
+      thr->array_slice_stack.pop_back();
+      vvp_array_t array = resolve_runtime_array_(cp, "%store/arr/dar/slice");
+      return store_arr_dar_window_(thr, cp, val, array, window.first,
+				   window.second, "%store/arr/dar/slice");
 }
 
 /*
@@ -20455,10 +20587,75 @@ bool of_DIM_PUSH(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/*
+ * %slice/push <canonical-base>, <count>
+ *
+ * Describe a constant one-dimensional fixed-array storage window for the
+ * next %load/arr/dar/slice or %store/arr/dar/slice. Both values are unsigned;
+ * the selected range's signed declared LEFT bound rides on the load opcode.
+ */
+bool of_SLICE_PUSH(vthread_t thr, vvp_code_t cp)
+{
+      thr->array_slice_stack.push_back(
+	    make_pair((size_t)cp->bit_idx[0], (size_t)cp->bit_idx[1]));
+      return true;
+}
+
 static size_t md_range_size_(const pair<int,int>&r)
 {
-      int span = r.first > r.second ? r.first - r.second : r.second - r.first;
-      return (size_t)span + 1;
+      return r.first > r.second
+	   ? (size_t)((int64_t)r.first - r.second) + 1
+	   : (size_t)((int64_t)r.second - r.first) + 1;
+}
+
+struct fixed_array_shape_mismatch_t {
+      size_t dimension;
+      size_t source_count;
+      size_t target_count;
+};
+
+/* Validate every source dimension before copyback starts. A size check at
+ * only the outer dimension is insufficient: one later dynamic subarray may
+ * be short after earlier siblings have already been stored. IEEE 1800
+ * 7.6 requires the failed assignment to perform no operation. */
+static bool fixed_array_source_shape_matches_(
+      vvp_darray*source, const vector<pair<int,int> >&dimensions, size_t dim,
+      fixed_array_shape_mismatch_t&mismatch)
+{
+      if (dim >= dimensions.size())
+	    return true;
+
+      size_t target_count = md_range_size_(dimensions[dim]);
+      size_t source_count = source ? source->get_size() : 0;
+      if (!source || source_count != target_count) {
+	    mismatch.dimension = dim;
+	    mismatch.source_count = source_count;
+	    mismatch.target_count = target_count;
+	    return false;
+      }
+
+      if (dim + 1 == dimensions.size())
+	    return true;
+
+      for (size_t idx = 0 ; idx < source_count ; idx += 1) {
+	    vvp_object_t child;
+	    source->get_word((unsigned)idx, child);
+	    if (!fixed_array_source_shape_matches_(
+		      child.peek<vvp_darray>(), dimensions, dim + 1,
+		      mismatch))
+		  return false;
+      }
+      return true;
+}
+
+static void report_fixed_array_shape_mismatch_(
+      const fixed_array_shape_mismatch_t&mismatch)
+{
+      cerr << "RUN-TIME ERROR: cannot copy a container dimension of size "
+	   << mismatch.source_count << " into fixed unpacked array dimension "
+	   << (mismatch.dimension + 1) << " of size " << mismatch.target_count
+	   << " (IEEE 1800-2017/2023 7.6 requires equal element counts); "
+	      "the array is unchanged." << endl;
 }
 
 /*
@@ -20534,8 +20731,11 @@ static void md_copy_back_(vvp_array_t array, uint32_t kind,
 
       if (dim + 1 < dims.size()) {
 	    for (size_t idx = 0 ; idx < count ; idx += 1) {
+		  size_t source_idx = fixed_copy_source_index_(
+			level, dims[dim].first > dims[dim].second,
+			idx, count);
 		  vvp_object_t inner;
-		  level->get_word((unsigned)idx, inner);
+		  level->get_word((unsigned)source_idx, inner);
 		  md_copy_back_(array, kind, inner, dims, dim + 1, flat);
 	    }
 	    return;
@@ -20544,21 +20744,23 @@ static void md_copy_back_(vvp_array_t array, uint32_t kind,
       for (size_t idx = 0 ; idx < count ; idx += 1, flat += 1) {
 	    if (flat >= array->get_size())
 		  break;
+	    size_t source_idx = fixed_copy_source_index_(
+		  level, dims[dim].first > dims[dim].second, idx, count);
 	    if (ARRDAR_OBJ(kind)) {
 		  vvp_object_t w;
-		  level->get_word((unsigned)idx, w);
+		  level->get_word((unsigned)source_idx, w);
 		  array->set_word((unsigned)flat, w);
 	    } else if (ARRDAR_STRING(kind)) {
 		  string w;
-		  level->get_word((unsigned)idx, w);
+		  level->get_word((unsigned)source_idx, w);
 		  array->set_word((unsigned)flat, w);
 	    } else if (ARRDAR_REAL(kind)) {
 		  double w = 0.0;
-		  level->get_word((unsigned)idx, w);
+		  level->get_word((unsigned)source_idx, w);
 		  array->set_word((unsigned)flat, w);
 	    } else {
 		  vvp_vector4_t w;
-		  level->get_word((unsigned)idx, w);
+		  level->get_word((unsigned)source_idx, w);
 		  unsigned wid = ARRDAR_WIDTH(kind);
 		  if (wid && w.size() != wid)
 			w = coerce_to_width(w, wid);
@@ -20586,7 +20788,10 @@ bool of_LOAD_ARR_DAR_MD(vthread_t thr, vvp_code_t cp)
       }
 
       size_t flat = 0;
-      thr->push_object(md_materialize_(array, cp->bit_idx[0], dims, 0, flat));
+      vvp_object_t value = md_materialize_(
+	    array, cp->bit_idx[0], dims, 0, flat);
+      reverse_descending_fixed_dimensions_(value.peek<vvp_darray>());
+      thr->push_object(value);
       return true;
 }
 
@@ -20605,8 +20810,15 @@ bool of_STORE_ARR_DAR_MD(vthread_t thr, vvp_code_t cp)
       thr->pop_object(val);
 
       vvp_array_t array = resolve_runtime_array_(cp, "%store/arr/dar/md");
-      if (!array || dims.empty() || !val.peek<vvp_darray>())
+      if (!array || dims.empty())
 	    return true;
+
+      fixed_array_shape_mismatch_t mismatch;
+      if (!fixed_array_source_shape_matches_(
+		val.peek<vvp_darray>(), dims, 0, mismatch)) {
+	    report_fixed_array_shape_mismatch_(mismatch);
+	    return true;
+      }
 
       size_t total = 1;
       for (size_t idx = 0 ; idx < dims.size() ; idx += 1)
@@ -22408,6 +22620,71 @@ bool of_STREAM_SPLIT_REM(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+struct stream_container_encoding_t {
+      unsigned element_width;
+      bool four_state;
+      bool strict_cast;
+      uint64_t queue_max;
+};
+
+static bool decode_stream_container_encoding_(
+      const char*text, bool as_queue, stream_container_encoding_t&enc)
+{
+      enc.element_width = 0;
+      enc.four_state = false;
+      enc.strict_cast = false;
+      enc.queue_max = 0;
+      if (!text)
+	    return false;
+
+      const char*cursor = text;
+      if (*cursor == 's')
+	    cursor += 1;
+      if (*cursor != 'b' && *cursor != 'v')
+	    return false;
+      enc.four_state = *cursor == 'v';
+      cursor += 1;
+
+      if (!isdigit(static_cast<unsigned char>(*cursor)))
+	    return false;
+      errno = 0;
+      char*end = 0;
+      unsigned long long width = strtoull(cursor, &end, 10);
+      if (errno == ERANGE || end == cursor || width == 0 || width > UINT_MAX)
+	    return false;
+      enc.element_width = static_cast<unsigned>(width);
+      cursor = end;
+
+      if (*cursor == '!') {
+	    enc.strict_cast = true;
+	    cursor += 1;
+      }
+
+      if (*cursor == ':') {
+	    if (!as_queue)
+		  return false;
+	    cursor += 1;
+	    if (!isdigit(static_cast<unsigned char>(*cursor)))
+		  return false;
+	    errno = 0;
+	    unsigned long long maximum = strtoull(cursor, &end, 10);
+	    if (errno == ERANGE || end == cursor)
+		  return false;
+	    enc.queue_max = static_cast<uint64_t>(maximum);
+	    cursor = end;
+      }
+
+      return *cursor == 0;
+}
+
+bool vvp_stream_container_encoding_is_valid(const char*text, bool as_queue)
+{
+      stream_container_encoding_t enc;
+      return decode_stream_container_encoding_(text, as_queue, enc);
+}
+
+static bool container_opcode_runtime_fatal_();
+
 /*
  * %stream/to/queue "<t>" and %stream/to/dar "<t>"
  *
@@ -22420,38 +22697,42 @@ bool of_STREAM_SPLIT_REM(vthread_t thr, vvp_code_t cp)
  */
 static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
 {
-      static bool warned_bad_type = false;
-
       const char*text = cp->text;
       vvp_vector4_t val = thr->pop_vec4();
 
-	// Parse the element type string: [s] (b|v) <wid>
-      const char*tp = text;
-      if (*tp == 's') tp += 1;
-      unsigned ewid = 0;
-      if (*tp == 'b' || *tp == 'v')
-	    ewid = (unsigned)strtoul(tp+1, 0, 10);
-      bool four_state = *tp == 'v';
-      const char*max_sep = strchr(tp+1, ':');
-      uint64_t queue_max = max_sep ? strtoull(max_sep+1, 0, 10) : 0;
-
-      if (ewid == 0) {
-	    if (!warned_bad_type) {
-		  cerr << thr->get_fileline()
-		       << "VVP error: unsupported element type '" << text
-		       << "' for streaming into a dynamic container; "
-		          "pushing empty container (further similar "
-		          "messages suppressed)." << endl;
-		  warned_bad_type = true;
-	    }
+      stream_container_encoding_t enc;
+      if (!decode_stream_container_encoding_(text, as_queue, enc)) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: malformed stream container encoding '"
+		 << (text ? text : "<null>") << "'." << endl;
 	    vvp_object_t nil;
 	    thr->push_object(nil);
-	    return true;
+	    return container_opcode_runtime_fatal_();
       }
+
+      unsigned ewid = enc.element_width;
+      bool four_state = enc.four_state;
+      bool strict_cast = enc.strict_cast;
+      uint64_t queue_max = enc.queue_max;
 
       unsigned w = val.size();
       size_t count = w / ewid + ((w % ewid) != 0);
-      if (count > STREAM_WITH_MAX_BITS/ewid) {
+      bool cast_size_error = strict_cast && (w % ewid) != 0;
+      bool cast_bound_error = strict_cast && as_queue && queue_max
+	    && count > queue_max;
+      if (cast_size_error || cast_bound_error) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: bit-stream cast source size " << w
+		 << " does not fit the destination";
+	    if (cast_bound_error)
+		  cerr << " bounded queue capacity " << queue_max;
+	    else
+		  cerr << " element width " << ewid;
+	    cerr << "." << endl;
+	    count = 0;
+      }
+      bool runtime_limit_error = count > STREAM_WITH_MAX_BITS/ewid;
+      if (runtime_limit_error) {
 	    cerr << thr->get_fileline()
 		 << "VVP error: streaming target container exceeds the bounded "
 		    "runtime width; producing an empty container." << endl;
@@ -22472,7 +22753,10 @@ static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
 		  unsigned avail = (top >= ewid) ? ewid : top;
 		  elem.set_vec(ewid - avail, val.subvalue(top - avail, avail));
 		  elem = coerce_stream_elem_(elem, four_state);
-		  res->push_back(elem, (unsigned)queue_max);
+		  /* COUNT was already clipped or validated against the full
+		   * uint64_t bound. Reapplying it through the legacy unsigned API
+		   * would wrap bounds above UINT_MAX. */
+		  res->push_back(elem, 0);
 	    }
 	    vvp_object_t obj(res);
 	    thr->push_object(obj);
@@ -22489,6 +22773,14 @@ static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
 	    }
 	    vvp_object_t obj(res);
 	    thr->push_object(obj);
+      }
+
+      if (cast_size_error || cast_bound_error
+	  || (strict_cast && runtime_limit_error)) {
+	    vpip_set_return_value(1);
+	    if (!schedule_finished())
+		  schedule_finish(0);
+	    return false;
       }
 
       return true;
@@ -22810,7 +23102,9 @@ static vvp_object_t make_darray_for_enc_(const char*text, size_t size)
       size_t n;
 
       vvp_object_t obj;
-      if (strcmp(text,"b8") == 0) {
+      if (!text) {
+	    return obj;
+      } else if (strcmp(text,"b8") == 0) {
 	    obj = new vvp_darray_atom<uint8_t>(size);
       } else if (strcmp(text,"b16") == 0) {
 	    obj = new vvp_darray_atom<uint16_t>(size);
@@ -22851,6 +23145,109 @@ static vvp_object_t make_darray_for_enc_(const char*text, size_t size)
       return obj;
 }
 
+enum container_element_kind_t {
+      CONTAINER_ELEMENT_INVALID,
+      CONTAINER_ELEMENT_REAL,
+      CONTAINER_ELEMENT_STRING,
+      CONTAINER_ELEMENT_OBJECT,
+      CONTAINER_ELEMENT_VECTOR
+};
+
+struct container_element_encoding_t {
+      container_element_kind_t kind;
+      unsigned word_wid;
+      bool four_state;
+      bool is_signed;
+};
+
+/* Decode the element spelling shared by %new/darray, %new/queue, and the
+ * destination-typed container conversion opcodes. Signedness affects vector
+ * extension; b/sb selects IEEE 1800-2017/2023 6.11.2 2-state coercion while
+ * v/sv preserves X/Z. */
+static bool decode_container_element_encoding_(
+      const char*text, container_element_encoding_t&enc)
+{
+      size_t n = 0;
+
+      enc.kind = CONTAINER_ELEMENT_INVALID;
+      enc.word_wid = 0;
+      enc.four_state = false;
+      enc.is_signed = false;
+      if (!text)
+	    return false;
+
+      if (strcmp(text, "r") == 0) {
+	    enc.kind = CONTAINER_ELEMENT_REAL;
+	    return true;
+      }
+      if (strcmp(text, "S") == 0) {
+	    enc.kind = CONTAINER_ELEMENT_STRING;
+	    return true;
+      }
+      if (strcmp(text, "o") == 0) {
+	    enc.kind = CONTAINER_ELEMENT_OBJECT;
+	    return true;
+      }
+
+      if ((1 == sscanf(text, "b%u%zn", &enc.word_wid, &n))
+	  && n == strlen(text)) {
+	    enc.kind = CONTAINER_ELEMENT_VECTOR;
+      } else if ((1 == sscanf(text, "sb%u%zn", &enc.word_wid, &n))
+		 && n == strlen(text)) {
+	    enc.kind = CONTAINER_ELEMENT_VECTOR;
+	    enc.is_signed = true;
+      } else if ((1 == sscanf(text, "v%u%zn", &enc.word_wid, &n))
+		 && n == strlen(text)) {
+	    enc.kind = CONTAINER_ELEMENT_VECTOR;
+	    enc.four_state = true;
+      } else if ((1 == sscanf(text, "sv%u%zn", &enc.word_wid, &n))
+		 && n == strlen(text)) {
+	    enc.kind = CONTAINER_ELEMENT_VECTOR;
+	    enc.four_state = true;
+	    enc.is_signed = true;
+      }
+
+      if (enc.kind == CONTAINER_ELEMENT_VECTOR && enc.word_wid == 0) {
+	    enc.kind = CONTAINER_ELEMENT_INVALID;
+	    return false;
+      }
+      return enc.kind != CONTAINER_ELEMENT_INVALID;
+}
+
+bool vvp_container_element_encoding_is_valid(const char*text)
+{
+      container_element_encoding_t enc;
+      return decode_container_element_encoding_(text, enc);
+}
+
+/* Runtime validation is a defensive backstop for internally constructed or
+ * corrupted code records. Parsed VVP images are rejected by compile.cc before
+ * scheduling. Keep the opcode fallback non-asserting and return a process
+ * failure so malformed bytecode cannot turn into SIGABRT. */
+static bool container_opcode_runtime_fatal_()
+{
+      vpip_set_return_value(1);
+      if (!schedule_finished())
+	    schedule_finish(0);
+      return false;
+}
+
+static vvp_vector4_t coerce_container_vector_(
+      const vvp_vector4_t&value, const container_element_encoding_t&enc)
+{
+      vvp_bit4_t fill = BIT4_0;
+      if (enc.is_signed && value.size() != 0)
+	    fill = value.value(value.size()-1);
+
+      vvp_vector4_t result(enc.word_wid, fill);
+      unsigned copy_wid = min(enc.word_wid, value.size());
+      if (copy_wid)
+	    result.set_vec(0, value.subvalue(0, copy_wid));
+      if (!enc.four_state)
+	    result = vector2_to_vector4(vvp_vector2_t(result), result.size());
+      return result;
+}
+
 bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)
 {
       const char*text = cp->text;
@@ -22868,67 +23265,81 @@ bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* Build a fresh destination-typed dynamic-array value from any positional
+ * runtime collection. This is shared by whole-container conversion and by
+ * object-collection splices whose declared inner element is a darray. A null
+ * or non-container source intentionally produces an empty declared target;
+ * the splice caller diagnoses a non-container element at its own boundary. */
+static vvp_object_t materialize_darray_for_enc_(
+      const vvp_object_t&src_obj, const char*text,
+      const class_type*elem_class_override, bool&valid)
+{
+      vvp_darray*src = src_obj.peek<vvp_darray>();
+      size_t size = src ? src->get_size() : 0;
+      container_element_encoding_t enc;
+      vvp_object_t dst_obj = make_darray_for_enc_(text, size);
+      vvp_darray*dst = dst_obj.peek<vvp_darray>();
+
+      valid = decode_container_element_encoding_(text, enc) && dst;
+      if (!valid)
+	    return vvp_object_t();
+
+      if (src) {
+            for (size_t idx = 0; idx < size; idx += 1) {
+		  if (enc.kind == CONTAINER_ELEMENT_REAL) {
+                        double value = 0.0;
+                        src->get_word(idx, value);
+                        dst->set_word(idx, value);
+		  } else if (enc.kind == CONTAINER_ELEMENT_STRING) {
+                        string value;
+                        src->get_word(idx, value);
+                        dst->set_word(idx, value);
+		  } else if (enc.kind == CONTAINER_ELEMENT_OBJECT) {
+                        vvp_object_t value;
+                        src->get_word(idx, value);
+                        dst->set_word(idx, value.value_copy_element());
+		  } else {
+			vvp_vector4_t value;
+                        src->get_word(idx, value);
+			dst->set_word(idx,
+			      coerce_container_vector_(value, enc));
+                  }
+            }
+	    src->copy_passive_value_metadata_to(dst);
+      }
+
+      if (elem_class_override)
+	    dst->set_elem_class(elem_class_override);
+
+      return dst_obj;
+}
+
 /*
  * %queue/to/darray "<element-encoding>"
  *
- * Finish an unpacked-array concatenation whose runtime-sized operands were
- * accumulated in a temporary queue. Pops the queue and pushes a new dynamic
- * array with the same elements, preserving the declared container kind for
- * later indexing and DPI operations (IEEE 1800-2017 7.5 and 10.10).
+ * Pop any queue/dynamic-array value and push a fresh destination-typed dynamic
+ * array with the same elements. The legacy opcode spelling is retained for
+ * generated-image compatibility. Besides unpacked-array concatenations, this
+ * supports whole-container assignment without leaking the source's runtime
+ * kind into later indexing or DPI operations (IEEE 1800-2017/2023 7.6).
+ * The original concatenation use remains governed by 7.5 and 10.10.
  */
 bool of_QUEUE_TO_DARRAY(vthread_t thr, vvp_code_t cp)
 {
       vvp_object_t src_obj;
       thr->pop_object(src_obj);
-      vvp_darray*src = src_obj.peek<vvp_darray>();
-      size_t size = src ? src->get_size() : 0;
-      vvp_object_t dst_obj = make_darray_for_enc_(cp->text, size);
-      vvp_darray*dst = dst_obj.peek<vvp_darray>();
+      bool valid = false;
+      vvp_object_t dst_obj = materialize_darray_for_enc_(
+	    src_obj, cp->text, 0, valid);
 
-      if (!dst) {
-            cerr << get_fileline()
-                 << "Internal error: Unsupported dynamic array type: "
-                 << cp->text << "." << endl;
-            assert(0);
-      }
-
-      if (src) {
-            unsigned word_wid = 0;
-            size_t n = 0;
-            bool is_real = strcmp(cp->text, "r") == 0;
-            bool is_string = strcmp(cp->text, "S") == 0;
-            bool is_object = strcmp(cp->text, "o") == 0;
-            bool is_vector =
-                  ((1 == sscanf(cp->text, "b%u%zn", &word_wid, &n))
-                   && n == strlen(cp->text))
-                  || ((1 == sscanf(cp->text, "sb%u%zn", &word_wid, &n))
-                      && n == strlen(cp->text))
-                  || ((1 == sscanf(cp->text, "v%u%zn", &word_wid, &n))
-                      && n == strlen(cp->text))
-                  || ((1 == sscanf(cp->text, "sv%u%zn", &word_wid, &n))
-                      && n == strlen(cp->text));
-
-            for (size_t idx = 0; idx < size; idx += 1) {
-                  if (is_real) {
-                        double value = 0.0;
-                        src->get_word(idx, value);
-                        dst->set_word(idx, value);
-                  } else if (is_string) {
-                        string value;
-                        src->get_word(idx, value);
-                        dst->set_word(idx, value);
-                  } else if (is_object) {
-                        vvp_object_t value;
-                        src->get_word(idx, value);
-                        dst->set_word(idx, value.value_copy_element());
-                  } else if (is_vector) {
-                        vvp_vector4_t value(word_wid, BIT4_X);
-                        src->get_word(idx, value);
-                        dst->set_word(idx, value);
-                  }
-            }
-            if (src->elem_class())
-                  dst->set_elem_class(src->elem_class());
+      if (!valid) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: malformed %queue/to/darray element encoding '"
+		 << (cp->text ? cp->text : "<null>") << "'." << endl;
+	    /* The opcode consumes one object and produces one object even on
+	     * failure, so a diagnostic path cannot unbalance its caller. */
+	    thr->push_object(dst_obj);
+	    return container_opcode_runtime_fatal_();
       }
 
       thr->push_object(dst_obj);
@@ -22946,7 +23357,9 @@ static vvp_object_t make_queue_for_enc_(const char*text)
       size_t n;
 
       vvp_object_t obj;
-      if ((1 == sscanf(text, "@%u%zn", &container_spec, &n))
+      if (!text) {
+	    return obj;
+      } else if ((1 == sscanf(text, "@%u%zn", &container_spec, &n))
 	  && (n == strlen(text))) {
 	    obj = make_dynamic_container_from_code_(container_spec);
       } else if (strcmp(text, "r") == 0) {
@@ -22969,6 +23382,70 @@ static vvp_object_t make_queue_for_enc_(const char*text)
 	    obj = new vvp_queue_vec4;
       }
       return obj;
+}
+
+/* Build a fresh destination-typed queue value from any positional runtime
+ * collection. A zero maximum is unbounded. Passive value metadata follows the
+ * copy, after which a declared unpacked-struct prototype (when supplied) wins
+ * over metadata carried by the source object's runtime type. */
+static vvp_object_t materialize_queue_for_enc_(
+      const vvp_object_t&src_obj, const char*text, unsigned max_size,
+      const class_type*elem_class_override, bool&valid)
+{
+      vvp_darray*src = src_obj.peek<vvp_darray>();
+      container_element_encoding_t enc;
+      vvp_object_t dst_obj = make_queue_for_enc_(text);
+      vvp_queue*dst = dst_obj.peek<vvp_queue>();
+
+      valid = decode_container_element_encoding_(text, enc) && dst;
+      if (!valid)
+	    return vvp_object_t();
+
+      if (src) {
+	    dst->copy_elems(src_obj, max_size);
+	    if (enc.kind == CONTAINER_ELEMENT_VECTOR) {
+		  for (size_t idx = 0; idx < dst->get_size(); idx += 1) {
+			vvp_vector4_t value;
+			dst->get_word(idx, value);
+			dst->set_word(idx,
+			      coerce_container_vector_(value, enc));
+		  }
+	    }
+	    src->copy_passive_value_metadata_to(dst);
+      }
+
+      if (elem_class_override)
+	    dst->set_elem_class(elem_class_override);
+
+      return dst_obj;
+}
+
+/*
+ * %container/to/queue "<element-encoding>", <max>
+ *
+ * Pop any queue/dynamic-array value and push a fresh destination-typed queue.
+ * A zero maximum is unbounded. Element copying goes through the destination
+ * encoding, including IEEE 1800-2017/2023 6.11.2 X/Z-to-zero coercion for
+ * b/sb elements.
+ */
+bool of_CONTAINER_TO_QUEUE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t src_obj;
+      thr->pop_object(src_obj);
+      bool valid = false;
+      vvp_object_t dst_obj = materialize_queue_for_enc_(
+	    src_obj, cp->text, cp->bit_idx[0], 0, valid);
+
+      if (!valid) {
+	    cerr << get_fileline()
+		 << "VVP error: malformed %container/to/queue element encoding '"
+		 << (cp->text ? cp->text : "<null>") << "'." << endl;
+	    thr->push_object(dst_obj);
+	    return container_opcode_runtime_fatal_();
+      }
+
+      thr->push_object(dst_obj);
+      return true;
 }
 
 bool of_NEW_QUEUE(vthread_t thr, vvp_code_t cp)
@@ -23465,6 +23942,14 @@ static size_t fixed_prop_subtree_size_(
       return size;
 }
 
+static size_t fixed_prop_copy_source_index_(
+      const vvp_darray*array, const pair<int,int>&destination, size_t index,
+      size_t count)
+{
+      return fixed_copy_source_index_(
+	    array, destination.first > destination.second, index, count);
+}
+
 static void fixed_prop_copy_back_(
       const fixed_prop_receiver_t&recv, size_t pid, vvp_darray*array,
       const vector<pair<int,int> >&dimensions, size_t dim, size_t&flat)
@@ -23476,9 +23961,11 @@ static void fixed_prop_copy_back_(
       size_t available = array ? min(count, array->get_size()) : 0;
       if (dim + 1 < dimensions.size()) {
 	    for (size_t idx = 0 ; idx < count ; idx += 1) {
-		  if (idx < available) {
+		  size_t source_idx = fixed_prop_copy_source_index_(
+			array, dimensions[dim], idx, count);
+		  if (source_idx < available) {
 			vvp_object_t word;
-			array->get_word((unsigned)idx, word);
+			array->get_word((unsigned)source_idx, word);
 			fixed_prop_copy_back_(recv, pid,
 					     word.peek<vvp_darray>(),
 					     dimensions, dim + 1, flat);
@@ -23492,23 +23979,25 @@ static void fixed_prop_copy_back_(
       const class_type*defn = recv.defn();
       const string&type = defn->property_base_type(pid);
       for (size_t idx = 0 ; idx < count ; idx += 1, flat += 1) {
-	    if (idx >= available)
+	    size_t source_idx = fixed_prop_copy_source_index_(
+		  array, dimensions[dim], idx, count);
+	    if (source_idx >= available)
 		  continue;
 	    if (type == "r") {
 		  double val = 0.0;
-		  array->get_word((unsigned)idx, val);
+		  array->get_word((unsigned)source_idx, val);
 		  recv.set_real(pid, val, flat);
 	    } else if (type == "S") {
 		  string val;
-		  array->get_word((unsigned)idx, val);
+		  array->get_word((unsigned)source_idx, val);
 		  recv.set_string(pid, val, flat);
 	    } else if (type == "o" || type.compare(0, 3, "oc:") == 0) {
 		  vvp_object_t val;
-		  array->get_word((unsigned)idx, val);
+		  array->get_word((unsigned)source_idx, val);
 		  recv.set_object(pid, val, flat);
 	    } else {
 		  vvp_vector4_t val;
-		  array->get_word((unsigned)idx, val);
+		  array->get_word((unsigned)source_idx, val);
 		  recv.set_vec4(pid, val, flat);
 	    }
       }
@@ -23693,6 +24182,7 @@ bool of_PROP_ARR_DAR(vthread_t thr, vvp_code_t cp)
       size_t flat = 0;
       vvp_object_t val = fixed_prop_materialize_(
 	    recv, pid, defn->property_dimensions(pid), 0, flat);
+      reverse_descending_fixed_dimensions_(val.peek<vvp_darray>());
       thr->push_object(val, thr->peek_object_source_net(0),
 		       thr->peek_object_root(0));
       return true;
@@ -25880,7 +26370,10 @@ static void activate_open_array_indices_(vvp_darray*array)
  */
 bool of_STORE_OBJ_OPEN(vthread_t thr, vvp_code_t cp)
 {
-      activate_open_array_indices_(thr->peek_object().peek<vvp_darray>());
+      vvp_darray*array = thr->peek_object().peek<vvp_darray>();
+      if (array && !array->sv_uses_declared_indexing())
+	    reverse_descending_fixed_dimensions_(array);
+      activate_open_array_indices_(array);
       return of_STORE_OBJ(thr, cp);
 }
 
@@ -26022,9 +26515,16 @@ bool of_STORE_PROP_ARR_DAR(vthread_t thr, vvp_code_t cp)
       };
       const class_type*defn = recv.defn();
       vvp_darray*array = val.peek<vvp_darray>();
-      if (!defn || !array || pid >= defn->property_count()
+      if (!defn || pid >= defn->property_count()
 	  || defn->property_dimensions(pid).empty())
 	    return true;
+
+      fixed_array_shape_mismatch_t mismatch;
+      if (!fixed_array_source_shape_matches_(
+		array, defn->property_dimensions(pid), 0, mismatch)) {
+	    report_fixed_array_shape_mismatch_(mismatch);
+	    return true;
+      }
 
       size_t flat = 0;
       fixed_prop_copy_back_(recv, pid, array,
@@ -26889,12 +27389,15 @@ static bool store_qobj(vthread_t thr, vvp_code_t cp, unsigned wid=0)
       vvp_object_t src;
       thr->pop_object(src);
 
-        // If it is null just clear the queue
-      if (src.test_nil())
+	// If it is null just clear the queue
+      if (src.test_nil()) {
 	    queue->erase_tail(0);
-      else {
+	    queue->reset_passive_value_metadata();
+      } else {
 	    unsigned max_size = thr->words[cp->bit_idx[0]].w_int;
 	    queue->copy_elems(src, max_size);
+	    if (vvp_darray*src_container = src.peek<vvp_darray>())
+		  src_container->copy_passive_value_metadata_to(queue);
       }
       notify_mutated_object_signal_(thr, net, "store-qobj");
 
@@ -27135,6 +27638,133 @@ static bool append_qo(vthread_t thr, unsigned wid=0)
 bool of_APPEND_QO_OBJ(vthread_t thr, vvp_code_t)
 {
       return append_qo<vvp_object_t, vvp_queue_object>(thr);
+}
+
+/*
+ * %append/qo/obj/darray "<inner-encoding>"
+ * %append/qo/obj/darray/proto "<inner-encoding>", C<class>
+ * %append/qo/obj/queue "<inner-encoding>", <inner-max>
+ * %append/qo/obj/queue/proto "<inner-encoding>", <inner-max>, C<class>
+ *
+ * Destination-typed object-collection splice. The outer receiver is still the
+ * queue<object> expression builder used by %append/qo/obj, but each source
+ * object element is materialized as a fresh inner container of the declared
+ * destination kind before it is appended. This prevents a queue/darray source
+ * runtime handle from leaking through a cross-kind aggregate splice.
+ */
+static bool append_qo_obj_container_(vthread_t thr, vvp_code_t cp,
+				     bool inner_is_queue, bool has_proto)
+{
+      /* Preserve the original splice stack contract: source first, receiver
+       * second. Even an invalid receiver consumes both operands. */
+      vvp_object_t src_obj;
+      thr->pop_object(src_obj);
+
+      vvp_object_t recv_obj;
+      vvp_queue_object*receiver =
+	    pop_queue_receiver_<vvp_queue_object>(thr, recv_obj);
+      if (!receiver)
+	    return true;
+
+      const vvp_container_opcode_data_s*data =
+	    has_proto ? cp->container_data : 0;
+      if (has_proto && !data) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: malformed object-collection splice /proto "
+		    "descriptor." << endl;
+	    return container_opcode_runtime_fatal_();
+      }
+
+      const char*element_encoding =
+	    data ? data->element_encoding : cp->text;
+      const unsigned inner_max =
+	    data ? data->max_size : cp->bit_idx[0];
+      container_element_encoding_t enc;
+      if (!decode_container_element_encoding_(element_encoding, enc)) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: malformed object-collection splice inner "
+		 << (inner_is_queue ? "queue" : "dynamic array")
+		 << " element encoding '"
+		 << (element_encoding ? element_encoding : "<null>")
+		 << "'." << endl;
+	    return container_opcode_runtime_fatal_();
+      }
+
+      const class_type*elem_class = 0;
+      if (has_proto) {
+	    elem_class = dynamic_cast<const class_type*>(data->prototype);
+	    if (!elem_class || !elem_class->is_struct_type()) {
+		  cerr << thr->get_fileline()
+		       << "VVP error: object-collection splice /proto operand "
+			  "is not an unpacked-struct/union definition." << endl;
+		  return container_opcode_runtime_fatal_();
+	    }
+      }
+
+      if (src_obj.test_nil())
+	    return true;
+
+      vvp_darray*source = src_obj.peek<vvp_darray>();
+      if (!source) {
+	    cerr << thr->get_fileline()
+		 << "Warning: queue splice source is not a collection;"
+		    " the operand was skipped." << endl;
+	    return true;
+      }
+
+      const size_t source_size = source->get_size();
+      for (size_t idx = 0; idx < source_size; idx += 1) {
+	    vvp_object_t inner_source;
+	    source->get_word((unsigned)idx, inner_source);
+
+	    bool valid = false;
+	    vvp_object_t inner_target = inner_is_queue
+		  ? materialize_queue_for_enc_(inner_source, element_encoding,
+			inner_max, elem_class, valid)
+		  : materialize_darray_for_enc_(inner_source, element_encoding,
+			elem_class, valid);
+	    if (!valid) {
+		  cerr << thr->get_fileline()
+		       << "VVP error: object-collection splice could not "
+			  "materialize its declared inner container." << endl;
+		  return container_opcode_runtime_fatal_();
+	    }
+
+	    if (!inner_source.test_nil()
+	        && !inner_source.peek<vvp_darray>()) {
+		  cerr << thr->get_fileline()
+		       << "Warning: object-collection splice element " << idx
+		       << " is not a queue or dynamic array; an empty declared "
+		       << (inner_is_queue ? "queue" : "dynamic array")
+		       << " was appended." << endl;
+	    }
+
+	    /* inner_target is already a fresh value object, so storing its handle
+	     * directly preserves the one materialization/copy per source element. */
+	    receiver->push_back(inner_target, 0);
+      }
+
+      return true;
+}
+
+bool of_APPEND_QO_OBJ_DARRAY(vthread_t thr, vvp_code_t cp)
+{
+      return append_qo_obj_container_(thr, cp, false, false);
+}
+
+bool of_APPEND_QO_OBJ_DARRAY_PROTO(vthread_t thr, vvp_code_t cp)
+{
+      return append_qo_obj_container_(thr, cp, false, true);
+}
+
+bool of_APPEND_QO_OBJ_QUEUE(vthread_t thr, vvp_code_t cp)
+{
+      return append_qo_obj_container_(thr, cp, true, false);
+}
+
+bool of_APPEND_QO_OBJ_QUEUE_PROTO(vthread_t thr, vvp_code_t cp)
+{
+      return append_qo_obj_container_(thr, cp, true, true);
 }
 
 bool of_APPEND_QO_R(vthread_t thr, vvp_code_t)

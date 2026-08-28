@@ -1,0 +1,2 @@
+./ivltests/sv_container_explicit_cast_fail.v:13: error: cannot cast between queue/dynamic-array types with non-equivalent element types.
+Elaboration failed

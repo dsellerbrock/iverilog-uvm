@@ -728,9 +728,11 @@ int svSizeOfArray(const void*h)
 /*
  * H.10.3: element access uses the DECLARED index, so an array marshaled
  * from `int a[3:10]' is addressed 3..10 and one from `int a[10:3]' is
- * addressed 10..3. Storage is canonically ascending in both cases -- the
- * marshal copies word k as declared index low+k -- so the translation is
- * the same either way: subtract the low bound.
+ * addressed 10..3. Installing a fixed-derived value into an open-array
+ * formal canonicalizes its storage to numeric-low first; passive native-SV
+ * copies remain left-to-right and are never exposed through this accessor.
+ * The active DPI translation is therefore the same for either declaration
+ * direction: subtract the low bound.
  *
  * This has to agree with svLow/svHigh, or a C model looping
  * `for (i = svLow; i <= svHigh; i++) svGetArrElemPtr1(h, i)' reads the

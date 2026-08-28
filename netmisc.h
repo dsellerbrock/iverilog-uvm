@@ -477,6 +477,17 @@ extern unsigned count_lval_width(const class NetAssign_*first);
  */
 class PExpr;
 
+/* Queue and dynamic-array assignment compatibility is shared by casts and
+ * subroutine copy boundaries. The return value reports element equivalence;
+ * handled is set only when both types are positional containers (rather than
+ * the associative-array representation that also derives from netqueue_t). */
+extern bool positional_container_type_match(ivl_type_t target,
+					     ivl_type_t source,
+					     bool&handled);
+extern bool positional_container_expr_type_match(ivl_type_t target,
+						  const NetExpr*source,
+						  bool&handled);
+
 /* netqueue_t is also the internal carrier for associative arrays. Its
  * inherited equivalence check covers the queue category and element type,
  * but not the associative key type or wildcard state. Keep the stricter
@@ -519,7 +530,8 @@ extern NetExpr* elab_and_eval(Design*des, NetScope*scope,
  */
 extern NetExpr* elab_and_eval(Design*des, NetScope*scope,
 			      PExpr*expr, ivl_type_t lv_net_type,
-			      bool need_const);
+			      bool need_const,
+			      unsigned extra_flags = 0);
 
 /* IEEE 1800-2017 7.9.1: an associative-array index expression is evaluated
  * in the assignment context of the declared index type. The queue carrier is
@@ -554,14 +566,16 @@ extern NetExpr* elaborate_rval_expr(Design*des, NetScope*scope,
 				    ivl_variable_type_t lv_type,
 				    unsigned lv_width, PExpr*expr,
 				    bool need_const =false,
-				    bool force_unsigned =false);
+				    bool force_unsigned =false,
+				    unsigned extra_flags =0);
 /*
  * Same as above, but lv_width and lv_type are derived from the lv_net_type.
  */
 extern NetExpr* elaborate_rval_expr(Design *des, NetScope *scope,
 				    ivl_type_t lv_net_type, PExpr *expr,
 				    bool need_const = false,
-				    bool force_unsigned = false);
+				    bool force_unsigned = false,
+				    unsigned extra_flags = 0);
 
 extern bool evaluate_range(Design*des, NetScope*scope, const LineInfo*li,
                            const pform_range_t&range,
@@ -819,13 +833,28 @@ extern void warn_ref_formal_fork_hazard(const NetNet*port, const Statement*task_
 
 /*
  * True when a dynamic array or queue holds elements that a fixed-size
- * unpacked array can receive verbatim (IEEE 1800-2017 7.6: equivalent
- * element types). The ELEMENT COUNT is deliberately not part of this
- * test -- a dynamic source does not have one until run time, so the
- * count is checked by %store/arr/dar when the copy happens.
+ * unpacked array can receive at their single permitted array-kind boundary
+ * (IEEE 1800-2017/2023 7.6). For a multidimensional fixed array, every
+ * faster-varying dimension is part of the element type and must remain
+ * equivalent. The outer ELEMENT COUNT is deliberately not part of this test
+ * -- a dynamic source does not have one until run time, so the count is
+ * checked by %store/arr/dar when the copy happens.
  */
 extern bool uarray_element_matches_container_(const netuarray_t*dst,
 					      const netdarray_t*src);
+
+/* Strict counterpart for native task/function formal binding. Unlike
+ * ordinary assignment, this does not apply the documented packed bit/logic
+ * cross-state interoperability conversion. */
+extern bool uarray_element_equivalent_container_(const netuarray_t*actual,
+						 const netdarray_t*formal);
+
+/* DPI open-array formals are a distinct boundary: every unsized unpacked
+ * dimension adopts the corresponding actual range (IEEE 1800-2017/2023
+ * 35.5.6.1). Match a fixed actual against that complete formal shape without
+ * applying the native-subroutine one-kind-boundary rule above. */
+extern bool uarray_matches_dpi_open_array_(const netuarray_t*actual,
+					   const netdarray_t*formal);
 
 /*
  * A class body may contain a call through a type-parameter receiver before

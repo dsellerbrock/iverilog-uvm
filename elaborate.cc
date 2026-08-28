@@ -6888,6 +6888,105 @@ NetExpr* PAssign_::elaborate_rval_(Design*des, NetScope*scope,
       return 0;
 }
 
+/* Admit the commercial-simulator spelling of a whole queue/dynamic-array
+ * assignment whose packed integral elements differ only in 2-state versus
+ * 4-state representation. IEEE 1800-2017/2023 6.22.2 requires matching state
+ * representation for equivalent packed integral types; 6.22.3 and 7.6 then
+ * require equivalent element types for queue/dynamic-array assignment. This
+ * is therefore a narrow compatibility extension, deliberately confined to an
+ * ordinary PAssign r-value path rather than relaxing type_compatible():
+ * ref/formal binding and every other typed-expression context must continue
+ * to require their established type equivalence.
+ *
+ * Elaborating the identifier in its own declared type is essential. The VVP
+ * target needs both that source type and NetAssign_'s destination type in
+ * order to choose the destination container and element conversion. */
+NetExpr* PAssign_::elaborate_direct_integral_container_rval_(
+      Design*des, NetScope*scope, ivl_type_t target_type, bool&handled) const
+{
+      handled = false;
+
+	/* Initializers, constant assignments, borrowed declaration defaults and
+	 * intra-assignment timing controls retain the general elaboration rules. */
+      if (is_constant_ || is_init_ || !delete_rval_
+	  || delay_ || event_ || count_)
+	    return nullptr;
+
+      const PEIdent*source_ident = dynamic_cast<const PEIdent*>(rval_);
+      if (!source_ident || source_ident->leading_type_args())
+	    return nullptr;
+
+	/* Keep this first admission intentionally to a bare identifier. Indexed,
+	 * selected, scoped and property expressions need separate source-type
+	 * provenance before they can share this conversion. */
+      const pform_scoped_name_t&source_path = source_ident->path();
+      if (source_path.package != 0 || source_path.name.size() != 1
+	  || !source_path.name.front().index.empty())
+	    return nullptr;
+
+      const netdarray_t*target_container =
+	    dynamic_cast<const netdarray_t*>(target_type);
+      if (!target_container)
+	    return nullptr;
+      if (const netqueue_t*target_queue =
+	    dynamic_cast<const netqueue_t*>(target_container)) {
+	    if (target_queue->assoc_compat())
+		  return nullptr;
+      }
+
+      NetScope*rval_scope = elaborate_rval_scope_(des, scope);
+      if (!rval_scope)
+	    return nullptr;
+      ivl_type_t source_type =
+	    source_ident->test_type_of_ident(des, rval_scope);
+      const netdarray_t*source_container =
+	    dynamic_cast<const netdarray_t*>(source_type);
+      if (!source_container)
+	    return nullptr;
+
+	/* The compatibility extension is cross-kind only. Same-kind bit/logic
+	 * container assignment remains the IEEE type error pinned by the existing
+	 * sv_darray_assign_fail1 and sv_queue_assign_fail1 regressions. */
+      if (target_container->base_type() == source_container->base_type())
+	    return nullptr;
+
+      if (const netqueue_t*source_queue =
+	    dynamic_cast<const netqueue_t*>(source_container)) {
+	    if (source_queue->assoc_compat())
+		  return nullptr;
+      }
+
+      ivl_type_t target_element = target_container->element_type();
+      ivl_type_t source_element = source_container->element_type();
+      const netvector_t*target_vector =
+	    dynamic_cast<const netvector_t*>(target_element);
+      const netvector_t*source_vector =
+	    dynamic_cast<const netvector_t*>(source_element);
+      if (!target_vector || !source_vector
+	  || !target_vector->packed() || !source_vector->packed()
+	  || target_element == &netvector_t::chandle_type
+	  || source_element == &netvector_t::chandle_type
+	  || dynamic_cast<const netenum_t*>(target_element)
+	  || dynamic_cast<const netenum_t*>(source_element))
+	    return nullptr;
+
+      ivl_variable_type_t target_base = target_vector->base_type();
+      ivl_variable_type_t source_base = source_vector->base_type();
+      bool target_is_integral = target_base == IVL_VT_BOOL
+	    || target_base == IVL_VT_LOGIC;
+      bool source_is_integral = source_base == IVL_VT_BOOL
+	    || source_base == IVL_VT_LOGIC;
+      if (!target_is_integral || !source_is_integral
+	  || target_base == source_base
+	  || target_vector->packed_width() <= 0
+	  || target_vector->packed_width() != source_vector->packed_width()
+	  || target_vector->get_signed() != source_vector->get_signed())
+	    return nullptr;
+
+      handled = true;
+      return elaborate_rval_expr(des, rval_scope, source_type, rval_, false);
+}
+
 NetExpr* PAssign_::elaborate_rval_(Design*des, NetScope*scope,
 				   ivl_type_t lv_net_type,
 				   ivl_variable_type_t lv_type,
@@ -7625,12 +7724,15 @@ static NetProc* make_uarray_signal_range_copy_(NetScope*scope,
  * array signals. This is the aggregate equivalent of the scalar copy loop
  * above, with explicit source and destination bases so a subroutine actual
  * such as a[3:10] can be materialized and copied back without pretending
- * the slice is a packed part select. */
+ * the slice is a packed part select. Reverse the source canonical walk when
+ * the source and destination declarations have opposite directions so their
+ * leftmost elements still correspond under 7.6. */
 static NetProc* make_uarray_signal_slice_copy_loop_(NetScope*scope,
 						    const LineInfo&loc,
 						    NetNet*dst_sig, long dst_base,
 						    NetNet*src_sig, long src_base,
-						    unsigned long count)
+						    unsigned long count,
+						    bool reverse_src)
 {
       NetNet*idx_sig = new NetNet(scope, scope->local_symbol(),
 				  NetNet::REG, &netvector_t::atom2s32);
@@ -7652,9 +7754,16 @@ static NetProc* make_uarray_signal_slice_copy_loop_(NetScope*scope,
       NetAssign*step = new NetAssign(step_lv, '+', step_val);
       step->set_line(loc);
 
-      auto word_index = [&](long base) -> NetExpr* {
+	      auto word_index = [&](long base, bool reverse = false) -> NetExpr* {
 	    NetESignal*idx = new NetESignal(idx_sig);
 	    idx->set_line(loc);
+	    if (reverse) {
+		  NetEConst*last = make_const_val_s(base + (long)count - 1);
+		  last->set_line(loc);
+		  NetEBAdd*rev = new NetEBAdd('-', last, idx, 32, true);
+		  rev->set_line(loc);
+		  return rev;
+	    }
 	    if (base == 0)
 		  return idx;
 	    NetEConst*off = make_const_val_s(base);
@@ -7666,7 +7775,8 @@ static NetProc* make_uarray_signal_slice_copy_loop_(NetScope*scope,
 
       NetAssign_*lv = new NetAssign_(dst_sig);
       lv->set_word(word_index(dst_base));
-      NetESignal*rv = new NetESignal(src_sig, word_index(src_base));
+      NetESignal*rv = new NetESignal(
+	    src_sig, word_index(src_base, reverse_src));
       rv->set_line(loc);
       NetAssign*body = new NetAssign(lv, rv);
       body->set_line(loc);
@@ -8479,18 +8589,26 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 	    // which mismatches and gets degraded to NetENull during the
 	    // class-cast fallback in elab_and_eval.  Leave use_lv_type
 	    // as net_type() returned it.
-	    bool slice_handled = false;
+	    bool specialized_handled = false;
 	    const netdarray_t*target_darray =
 		  dynamic_cast<const netdarray_t*>(lv_net_type);
+	    rv = elaborate_direct_integral_container_rval_(
+		  des, scope, lv_net_type, specialized_handled);
+
+	    bool slice_handled = false;
 	    bool direct_plain_target = delay_ == 0 && event_ == 0 && count_ == 0
 		  && !lv->word() && !lv->nest() && lv->get_property_idx() < 0
 		  && lv->sig()
 		  && !dynamic_cast<const netqueue_t*>(target_darray);
-	    rv = direct_plain_target
-		  ? elaborate_direct_darray_slice_rval_(
-			des, scope, *this, rval(), target_darray, slice_handled)
-		  : nullptr;
-	    if (!slice_handled)
+	    if (!specialized_handled) {
+		rv = direct_plain_target
+		      ? elaborate_direct_darray_slice_rval_(
+			    des, scope, *this, rval(), target_darray,
+			    slice_handled)
+		      : nullptr;
+		specialized_handled = slice_handled;
+	    }
+	    if (!specialized_handled)
 		  rv = elaborate_rval_(des, scope, lv_net_type);
 	    else if (!rv) {
 		  delete lv;
@@ -11478,13 +11596,14 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
  *  end
  */
 /*
- * M10-6/M4B-15: an OUTPUT open-array formal still has to be copied IN.
+ * M10-6/M4B-15: a DPI OUTPUT open-array formal still needs the caller's
+ * storage descriptor before entering C.
  *
  * The output values are write-only, but an open formal's shape comes
  * from its actual. This is observable in ordinary SV through foreach
  * and the array query functions, and in DPI through the H.10 accessors.
- * Copying the container in supplies that shape; the callee remains free
- * to overwrite every element before the ordinary copy-out.
+ * Passing the container supplies that shape; the imported C routine remains
+ * free to overwrite every element before the ordinary output update.
  *
  * Skipping the copy-in handed C an unallocated formal, so
  *
@@ -11498,12 +11617,23 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
  * dyn.size() == 0. The caller's array was destroyed, with no
  * diagnostic and a clean exit.
  *
- * Restrict this exception to open-array formals. Scalar and other
- * aggregate output arguments retain the ordinary 13.5.2 behavior.
+ * Restrict this marshalling exception to DPI imports with open-array formals.
+ * A native SystemVerilog output argument is copy-out only: automatic task
+ * storage receives its declared default on entry and static task storage
+ * retains its prior value (13.3.2 and 13.5).
  */
-static bool open_array_formal_needs_copy_in_(const NetNet*port)
+static bool dpi_open_array_formal_needs_copy_in_(
+	const NetNet*port, const NetScope*subroutine)
 {
-      if (!port)
+      if (!port || !subroutine)
+	    return false;
+
+      const PTaskFunc*pform = nullptr;
+      if (subroutine->type() == NetScope::TASK)
+	    pform = subroutine->task_pform();
+      else if (subroutine->type() == NetScope::FUNC)
+	    pform = subroutine->func_pform();
+      if (!pform || !pform->is_dpi_import())
 	    return false;
 
       ivl_type_t pt = port->net_type();
@@ -14964,9 +15094,9 @@ NetProc* PCallTask::elaborate_void_function_(Design*des, NetScope*scope,
 		 << endl;
       }
 
-	// If we haven't already elaborated the function, do so now.
-	// This allows elaborate_build_call_ to elide the function call
-	// if the function body is empty.
+	// If we haven't already elaborated the function, do so now. Even an
+	// empty body retains argument evaluation, call-frame, dispatch, and
+	// copyback semantics in elaborate_build_call_ below.
       if (dscope->elab_stage() < 3) {
 	    const PFunction*pfunc = dscope->func_pform();
 	    ivl_assert(*this, pfunc);
@@ -15311,7 +15441,7 @@ static bool subroutine_uarray_slice_matches_formal_(
       if (const netdarray_t*open =
 	    dynamic_cast<const netdarray_t*>(port->net_type())) {
 	    netuarray_t slice_type(slice.dims, slice.element_type);
-	    return uarray_element_matches_container_(&slice_type, open);
+	    return uarray_element_equivalent_container_(&slice_type, open);
       }
       return false;
 }
@@ -15321,10 +15451,16 @@ static NetProc* copy_subroutine_uarray_slice_to_signal_(
 		NetNet*dst, long dst_base,
 		const subroutine_uarray_slice_actual_t&slice)
 {
+      const netuarray_t*dst_type =
+	    dynamic_cast<const netuarray_t*>(dst->array_type());
+      ivl_assert(loc, dst_type && dst_type->static_dimensions().size() == 1);
+      bool reverse_src = uarray_ranges_need_reverse_(
+	    dst_type->static_dimensions()[0], slice.dims[0]);
+
       if (slice.sig)
 	    return make_uarray_signal_slice_copy_loop_(
 		  scope, loc, dst, dst_base,
-		  slice.sig, slice.base, slice.count);
+		  slice.sig, slice.base, slice.count, reverse_src);
 
       ivl_assert(loc, slice.property_owner && slice.property_idx >= 0);
       NetESignal*owner = new NetESignal(slice.property_owner);
@@ -15333,7 +15469,7 @@ static NetProc* copy_subroutine_uarray_slice_to_signal_(
       src->set_line(loc);
       NetProc*copy = make_uarray_copy_loop_(
 	    des, scope, loc, new NetAssign_(dst), slice.count,
-	    0, src, false, dst_base, slice.base);
+	    0, src, false, dst_base, slice.base, reverse_src);
       delete src;
       return copy;
 }
@@ -15343,16 +15479,23 @@ static NetProc* copy_signal_to_subroutine_uarray_slice_(
 		const subroutine_uarray_slice_actual_t&slice,
 		NetNet*src, long src_base)
 {
+      const netuarray_t*src_type =
+	    dynamic_cast<const netuarray_t*>(src->array_type());
+      ivl_assert(loc, src_type && src_type->static_dimensions().size() == 1);
+      bool reverse_src = uarray_ranges_need_reverse_(
+	    slice.dims[0], src_type->static_dimensions()[0]);
+
       if (slice.sig)
 	    return make_uarray_signal_slice_copy_loop_(
 		  scope, loc, slice.sig, slice.base,
-		  src, src_base, slice.count);
+		  src, src_base, slice.count, reverse_src);
 
       ivl_assert(loc, slice.property_owner && slice.property_idx >= 0);
       NetAssign_*dst = new NetAssign_(slice.property_owner);
       dst->set_property(slice.property_name, slice.property_idx);
       return make_uarray_copy_loop_(des, scope, loc, dst, slice.count,
-				     src, 0, false, slice.base, src_base);
+				     src, 0, false, slice.base, src_base,
+				     reverse_src);
 }
 
 NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
@@ -15473,43 +15616,12 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    }
       }
 
-	/* Detect the case where the definition of the task is known
-
-	   empty. In this case, we need not bother with calls to the
-	   task, all the assignments, etc. Just return a no-op. */
-
-      if (const NetBlock*tp = dynamic_cast<const NetBlock*>(def->proc())) {
-	    if (tp->proc_first() == 0) {
-		  bool keep_for_dynamic_dispatch = false;
-		    /* M10: a DPI import has an empty pform body, but the
-		       code generator synthesizes the real body (the
-		       %dpi/call). Never elide calls to DPI imports. */
-		  if (task->type() == NetScope::FUNC && task->func_pform()
-		      && task->func_pform()->is_dpi_import()) {
-			keep_for_dynamic_dispatch = true;
-		  }
-		  if (task->type() == NetScope::TASK && task->task_pform()
-		      && task->task_pform()->is_dpi_import()) {
-			keep_for_dynamic_dispatch = true;
-		  }
-		  if (!super_call && use_this && task->parent()
-		      && task->parent()->type() == NetScope::CLASS) {
-			/* Preserve empty base-method calls for dynamic dispatch.
-			 * UVM registry wrappers rely on queue/base-handle calls such as
-			 * uvm_deferred_init[idx].initialize(), where the static target
-			 * is the empty uvm_object_wrapper.initialize() prototype and the
-			 * real work lives in derived overrides selected at runtime. */
-			keep_for_dynamic_dispatch = true;
-		  }
-		  if (!keep_for_dynamic_dispatch) {
-			if (debug_elaborate) {
-			      cerr << get_fileline() << ": PCallTask::elaborate_build_call_: "
-				   << "Eliding call to empty task " << task->basename() << endl;
-			}
-			return block;
-		  }
-	    }
-      }
+	/* Even an empty native body has observable call semantics. Inputs and
+	 * defaults are evaluated, automatic outputs receive their entry defaults,
+	 * static ports retain prior values, output/inout values copy back, and a
+	 * virtual call may dispatch to a nonempty override (IEEE 1800-2017/2023
+	 * 13.3.2 and 13.5). Do not elide the surrounding call protocol based only
+	 * on an empty NetBlock. */
 
         /* An automatic subroutine owns a frame for every declaration. A
            static subroutine can still contain declarations whose lifetime is explicitly
@@ -15557,6 +15669,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	   this records that temporary. */
       vector<NetNet*> copy_via (parm_count, static_cast<NetNet*>(0));
       vector<bool> ref_bound (parm_count, false);
+      vector<bool> copy_in_error (parm_count, false);
       vector<subroutine_uarray_slice_actual_t> slice_actuals (parm_count);
       vector<NetNet*> slice_temps (parm_count, static_cast<NetNet*>(0));
       for (unsigned int idx = off; idx < parm_count; idx++) {
@@ -15594,7 +15707,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		  const netdarray_t*open_formal =
 			dynamic_cast<const netdarray_t*>(port->net_type());
 		  bool needs_copy_in = port->port_type() != NetNet::POUTPUT
-			|| open_array_formal_needs_copy_in_(port);
+			|| dpi_open_array_formal_needs_copy_in_(port, task);
 
 		  if (open_formal) {
 			NetNet*tmp = make_subroutine_uarray_slice_temp_(
@@ -15637,7 +15750,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    }
 
 	    if (port->port_type() == NetNet::POUTPUT
-		&& !open_array_formal_needs_copy_in_(port))
+		&& !dpi_open_array_formal_needs_copy_in_(port, task))
 		  continue;
 
 	    NetAssign_*lv = new NetAssign_(copy_via[idx] ? copy_via[idx] : port);
@@ -15647,6 +15760,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    NetExpr*rv = 0;
 
 	    if (args[parms_idx]) {
+		  unsigned copy_in_errors_before = des->errors;
 		    // A fixed unpacked-array formal's NetNet::net_type() is
 		    // only its ELEMENT type; its complete formal type (including
 		    // dimensions) is carried by array_type().  The actual is in an
@@ -15657,6 +15771,13 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		  ivl_type_t formal_type = port->unpacked_dimensions() > 0
 			? static_cast<ivl_type_t>(port->array_type())
 			: port->net_type();
+		  bool dpi_open_argument =
+			dpi_open_array_formal_needs_copy_in_(port, task);
+		  unsigned argument_flags =
+			dynamic_cast<const netdarray_t*>(formal_type)
+			? (dpi_open_argument ? PExpr::DPI_OPEN_ARRAY_ARG
+					     : PExpr::NATIVE_ARRAY_FORMAL_ARG)
+			: PExpr::NO_FLAGS;
 
 		    // The vvp target has no single whole-fixed-array store.
 		    // Lower copy-in to a fixed-array task formal exactly like a
@@ -15703,8 +15824,9 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			}
 
 			if (fdims.size() == 1) {
-			      rv = elaborate_rval_expr(des, scope, formal_type,
-					       args[parms_idx]);
+			      rv = elaborate_rval_expr(
+				    des, scope, formal_type, args[parms_idx],
+				    false, false, argument_flags);
 			      if (NetEProperty*rprop =
 				    dynamic_cast<NetEProperty*>(rv)) {
 				const netuarray_t*src_ua =
@@ -15716,9 +15838,14 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 				      if (uarray_copy_shapes_compatible_(
 					    formal_ua, src_count,
 					    src_ua->element_type())) {
+					    bool reverse_src =
+						  uarray_ranges_need_reverse_(
+							fdims[0],
+							src_ua->static_dimensions()[0]);
 					    NetProc*copy = make_uarray_copy_loop_(
 						  des, scope, *this, lv,
-						  src_count, 0, rprop);
+						  src_count, 0, rprop, false,
+						  0, 0, reverse_src);
 					    block->append(copy);
 					    delete rv;
 					    continue;
@@ -15728,8 +15855,10 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			}
 		  }
 		  if (!rv)
-			rv = elaborate_rval_expr(des, scope, formal_type,
-						 args[parms_idx]);
+			rv = elaborate_rval_expr(
+			      des, scope, formal_type, args[parms_idx],
+			      false, false, argument_flags);
+		  copy_in_error[idx] = des->errors != copy_in_errors_before;
 		  if (const NetEEvent*evt = dynamic_cast<NetEEvent*> (rv)) {
 			cerr << evt->get_fileline() << ": error: An event '"
 			     << evt->event()->name() << "' can not be a user "
@@ -15797,6 +15926,8 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    if (port->port_type() == NetNet::PINPUT)
 		  continue;
 	    if (ref_bound[idx])
+		  continue;
+	    if (copy_in_error[idx])
 		  continue;
 
 	      /* Direction-correct companion of the slice copy-in above.
@@ -15900,6 +16031,46 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		  }
 	    }
 
+	      /* A pure output never elaborates its actual as an r-value, so the
+		 old copy-in path cannot validate its container element type. Do the
+		 type-only formal-to-actual assignment check now, after l-value
+		 elaboration but before any special lowering. This deliberately does
+		 not evaluate the actual, and it keeps the ordinary-assignment-only
+		 bit/logic interoperability extension out of subroutine passing. */
+	    bool positional_copyback = false;
+	    bool positional_compatible = positional_container_type_match(
+		  lv->net_type(), copy_src_type, positional_copyback);
+	    bool copies_back = port->port_type() == NetNet::POUTPUT
+		  || port->port_type() == NetNet::PINOUT;
+	    const netuarray_t*fixed_actual =
+		  dynamic_cast<const netuarray_t*>(lv->net_type());
+	    const netdarray_t*container_formal =
+		  dynamic_cast<const netdarray_t*>(copy_src_type);
+	    if (copies_back && fixed_actual && container_formal
+		&& !dpi_open_array_formal_needs_copy_in_(port, task)
+		&& !uarray_element_equivalent_container_(
+		      fixed_actual, container_formal)) {
+		  cerr << get_fileline() << ": error: task fixed unpacked-array "
+		       << "actual and queue/dynamic-array formal may differ only "
+			  "in the slowest-varying unpacked dimension and require "
+			  "equivalent element types (IEEE 1800-2017/2023 7.6)."
+		       << endl;
+		  des->errors += 1;
+		  delete lv;
+		  continue;
+	    }
+	    if (copies_back && positional_copyback && !positional_compatible) {
+		  cerr << get_fileline() << ": error: task "
+		       << (port->port_type() == NetNet::POUTPUT
+			   ? "output " : "inout ")
+		       << "queue/dynamic-array formal and actual require "
+		          "equivalent element types (IEEE 1800-2017/2023 7.6)."
+		       << endl;
+		  des->errors += 1;
+		  delete lv;
+		  continue;
+	    }
+
 	      /* Copy-back into a FIXED unpacked array actual from an
 		 open-array (or queue) formal -- `task t(inout int q[])'
 		 called as `t(fa)' where `fa' is `int fa[3]'.
@@ -15964,9 +16135,15 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			unsigned long count = copy_src->unpacked_count();
 			if (src_fixed && uarray_copy_shapes_compatible_(
 				      lv_ua, count, copy_src->net_type())) {
+			      ivl_assert(*this,
+				    lv_ua->static_dimensions().size() == 1
+				    && src_fixed->static_dimensions().size() == 1);
+			      bool reverse_src = uarray_ranges_need_reverse_(
+				    lv_ua->static_dimensions()[0],
+				    src_fixed->static_dimensions()[0]);
 			      block->append(make_uarray_copy_loop_(
 				    des, scope, *this, lv, count,
-				    copy_src, 0));
+				    copy_src, 0, false, 0, 0, reverse_src));
 			      continue;
 			}
 		  }
@@ -15978,12 +16155,12 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			     from a NESTED formal, one container level
 			     per declared dimension, so unwrap to the
 			     leaf before comparing element types. */
-			size_t levels = lv_ua->static_dimensions().size();
-			for (size_t lv = 1 ; lv < levels && src_da ; lv += 1)
-			      src_da = dynamic_cast<const netdarray_t*>
-				    (src_da->element_type());
-			if (levels < 1
-			    || !uarray_element_matches_container_(lv_ua, src_da)) {
+			bool dpi_open_copyback =
+			      dpi_open_array_formal_needs_copy_in_(port, task);
+			bool source_matches = dpi_open_copyback
+			      ? uarray_matches_dpi_open_array_(lv_ua, src_da)
+			      : uarray_element_equivalent_container_(lv_ua, src_da);
+			if (!source_matches) {
 			      cerr << get_fileline() << ": sorry: "
 				   << "Cannot copy subroutine port " << (idx+1)
 				   << " back into '" << lv->name()

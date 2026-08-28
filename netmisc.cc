@@ -53,6 +53,59 @@ static bool assoc_array_type_is_direct_(ivl_type_t type)
       return queue && queue->assoc_compat();
 }
 
+static bool assoc_array_component_equivalent_(ivl_type_t left,
+					       ivl_type_t right);
+
+bool positional_container_type_match(ivl_type_t target, ivl_type_t source,
+				     bool&handled)
+{
+      handled = false;
+      const netdarray_t*target_container =
+	    dynamic_cast<const netdarray_t*>(target);
+      const netdarray_t*source_container =
+	    dynamic_cast<const netdarray_t*>(source);
+      if (!target_container || !source_container)
+	    return false;
+
+      const netqueue_t*target_queue =
+	    dynamic_cast<const netqueue_t*>(target_container);
+      const netqueue_t*source_queue =
+	    dynamic_cast<const netqueue_t*>(source_container);
+      if ((target_queue && target_queue->assoc_compat())
+	  || (source_queue && source_queue->assoc_compat()))
+	    return false;
+
+      handled = true;
+      return assoc_array_component_equivalent_(
+	    target_container->element_type(), source_container->element_type());
+}
+
+bool positional_container_expr_type_match(ivl_type_t target,
+					  const NetExpr*source,
+					  bool&handled)
+{
+      handled = false;
+      if (!source)
+	    return false;
+
+      if (source->net_type())
+	    return positional_container_type_match(
+		  target, source->net_type(), handled);
+
+      const NetETernary*ternary = dynamic_cast<const NetETernary*>(source);
+      if (!ternary)
+	    return false;
+
+      bool true_handled = false;
+      bool false_handled = false;
+      bool true_match = positional_container_expr_type_match(
+	    target, ternary->true_expr(), true_handled);
+      bool false_match = positional_container_expr_type_match(
+	    target, ternary->false_expr(), false_handled);
+      handled = true_handled && false_handled;
+      return handled && true_match && false_match;
+}
+
 static bool assoc_array_type_contains_(ivl_type_t type,
 				       set<ivl_type_t>&seen)
 {
@@ -1762,7 +1815,8 @@ cast_done:
 }
 
 NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
-		       ivl_type_t lv_net_type, bool need_const)
+		       ivl_type_t lv_net_type, bool need_const,
+		       unsigned extra_flags)
 {
       if (debug_elaborate) {
 	    cerr << pe->get_fileline() << ": " << __func__ << ": "
@@ -1772,7 +1826,7 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 
 	// Elaborate the expression using the more general
 	// elaborate_expr method.
-      unsigned flags = PExpr::NO_FLAGS;
+      unsigned flags = extra_flags;
       if (need_const)
             flags |= PExpr::NEED_CONST;
 
@@ -1929,8 +1983,24 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 	    switch (cast_type) {
 		case IVL_VT_DARRAY:
 		case IVL_VT_QUEUE:
-		  if ((expr_type == IVL_VT_DARRAY) || (expr_type == IVL_VT_QUEUE))
-			return tmp;
+		  if ((expr_type == IVL_VT_DARRAY) || (expr_type == IVL_VT_QUEUE)) {
+			bool positional = false;
+			bool positional_match =
+			      positional_container_expr_type_match(
+				    lv_net_type, tmp, positional);
+			bool element_typed_builder =
+			      dynamic_cast<PEConcat*>(pe)
+			      || dynamic_cast<PEAssignPattern*>(pe);
+			/* Queue and dynamic-array kinds may differ at the
+			 * slowest-varying dimension, but the complete element type
+			 * (including every faster-varying dimension) must be
+			 * equivalent (IEEE 1800-2017/2023 7.6). Concatenations and
+			 * assignment patterns validate and convert each destination-
+			 * typed element in their own lowering, so do not reject those
+			 * builders as one whole-container assignment here. */
+			if (!positional || positional_match || element_typed_builder)
+			      return tmp;
+		  }
 
 		    // An open unpacked-array formal accepts a fixed unpacked
 		    // array actual with the same element type. Integral element
@@ -1970,31 +2040,36 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 						      (esig->sig()->array_type());
 			      }
 			}
-			  /* A MULTI-dimensional actual for a nested open
-			     formal (`int m[2][3]' for `int q[][]'). The
-			     element types to compare are the LEAF of the
-			     actual against the innermost element of the
-			     formal, one unwrap per dimension. */
-			if (fixed_actual
-			    && fixed_actual->static_dimensions().size() > 1) {
-			      const netdarray_t*inner = formal_array;
-			      size_t levels =
-				    fixed_actual->static_dimensions().size();
-			      for (size_t lv = 1 ; lv < levels && inner ; lv += 1)
-				    inner = dynamic_cast<const netdarray_t*>
-					  (inner->element_type());
-			      if (inner && inner->element_type()
-				  && fixed_actual->element_type()
-				  && inner->element_type()->type_equivalent(
-					fixed_actual->element_type()))
-				    return tmp;
+			  /* Only the slowest-varying unpacked dimension may
+			     differ in array kind (7.6). A multi-dimensional
+			     fixed actual therefore does not match `T formal[][]':
+			     the formal's dynamic inner element type is not
+			     equivalent to the actual's fixed inner array. */
+			bool fixed_match = false;
+			if (fixed_actual) {
+			      if (extra_flags & PExpr::DPI_OPEN_ARRAY_ARG)
+				    fixed_match = uarray_matches_dpi_open_array_(
+					  fixed_actual, formal_array);
+			      else if (extra_flags & PExpr::NATIVE_ARRAY_FORMAL_ARG)
+				    fixed_match =
+					  uarray_element_equivalent_container_(
+						fixed_actual, formal_array);
+			      else
+				    fixed_match = uarray_element_matches_container_(
+					  fixed_actual, formal_array);
 			}
-			if (fixed_actual
-			    && formal_array->element_type()
-			    && fixed_actual->element_type()
-			    && formal_array->element_type()->type_equivalent(
-				  fixed_actual->element_type()))
+			if (fixed_match)
 			      return tmp;
+			if (fixed_actual) {
+			      cerr << tmp->get_fileline() << ": error: fixed unpacked-"
+				      "array value and queue/dynamic-array context may "
+				      "differ only in the slowest-varying unpacked "
+				      "dimension and require equivalent element types "
+				      "(IEEE 1800-2017/2023 7.6)." << endl;
+			      des->errors += 1;
+			      delete tmp;
+			      return 0;
+			}
 		  }
 
 		  // This is needed to handle the special case of `'{}` which
@@ -3548,16 +3623,34 @@ NetNet* find_implicit_this_handle(Design*des, NetScope*scope)
  * Print a warning if we find a mixture of default and explicit timescale
  * based delays in the design, since this is likely an error.
  */
-bool uarray_element_matches_container_(const netuarray_t*dst,
-				       const netdarray_t*src)
+static bool uarray_element_matches_container_(const netuarray_t*dst,
+					      const netdarray_t*src,
+					      bool allow_vector_conversion)
 {
       if (dst == 0 || src == 0)
 	    return false;
 
-      ivl_type_t dst_elem = dst->element_type();
-      ivl_type_t src_elem = src->element_type();
-      if (dst_elem == 0 || src_elem == 0)
+      const netranges_t&dst_dims = dst->static_dimensions();
+      if (dst_dims.empty())
 	    return false;
+
+      ivl_type_t src_elem = src->element_type();
+      if (src_elem == 0 || dst->element_type() == 0)
+	    return false;
+
+	/* A fixed array stores all of its unpacked dimensions in one
+	 * netuarray_t. At the one array-kind boundary permitted by IEEE
+	 * 1800-2017/2023 7.6, its outer element is either the scalar leaf
+	 * (one dimension) or the fixed suffix made from every remaining
+	 * dimension. Do not flatten that suffix to the scalar leaf: doing so
+	 * wrongly makes int[2][3] assignment-compatible with int[][]. */
+      if (dst_dims.size() > 1) {
+	    netranges_t suffix(dst_dims.begin() + 1, dst_dims.end());
+	    netuarray_t dst_elem(suffix, dst->element_type());
+	    return assoc_array_component_equivalent_(&dst_elem, src_elem);
+      }
+
+      ivl_type_t dst_elem = dst->element_type();
 
       if (dst_elem->packed_width() != src_elem->packed_width())
 	    return false;
@@ -3569,9 +3662,59 @@ bool uarray_element_matches_container_(const netuarray_t*dst,
       auto is_vec = [](ivl_variable_type_t vt) {
 	    return vt == IVL_VT_BOOL || vt == IVL_VT_LOGIC;
       };
-      if (is_vec(dst_vt) && is_vec(src_vt))
+      if (allow_vector_conversion && is_vec(dst_vt) && is_vec(src_vt))
 	    return true;
-      return dst_vt == src_vt;
+      return assoc_array_component_equivalent_(dst_elem, src_elem);
+}
+
+bool uarray_element_matches_container_(const netuarray_t*dst,
+				       const netdarray_t*src)
+{
+      return uarray_element_matches_container_(dst, src, true);
+}
+
+bool uarray_element_equivalent_container_(const netuarray_t*actual,
+					 const netdarray_t*formal)
+{
+      return uarray_element_matches_container_(actual, formal, false);
+}
+
+bool uarray_matches_dpi_open_array_(const netuarray_t*actual,
+					   const netdarray_t*formal)
+{
+      if (!actual || !formal || !actual->element_type())
+	    return false;
+
+      const netranges_t&actual_dims = actual->static_dimensions();
+      if (actual_dims.empty())
+	    return false;
+
+      ivl_type_t formal_part = formal;
+      size_t consumed = 0;
+      while (consumed < actual_dims.size()) {
+	    const netdarray_t*open_dim =
+		  dynamic_cast<const netdarray_t*>(formal_part);
+	    if (!open_dim)
+		  break;
+	    const netqueue_t*queue_dim =
+		  dynamic_cast<const netqueue_t*>(open_dim);
+	    if (queue_dim && queue_dim->assoc_compat())
+		  return false;
+	    formal_part = open_dim->element_type();
+	    consumed += 1;
+      }
+
+      if (consumed == actual_dims.size())
+	    return assoc_array_component_equivalent_(
+		  actual->element_type(), formal_part);
+
+	/* Any dimensions left after the unsized DPI prefix must match a sized
+	 * fixed suffix of the formal. netuarray_t equivalence compares dimension
+	 * counts and widths while allowing different declared bounds/directions. */
+      netranges_t actual_suffix(
+	    actual_dims.begin() + consumed, actual_dims.end());
+      netuarray_t actual_part(actual_suffix, actual->element_type());
+      return assoc_array_component_equivalent_(&actual_part, formal_part);
 }
 
 /*

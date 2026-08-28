@@ -6,6 +6,7 @@
 class fixed_reduction_holder;
   logic signed [7:0] signed_values[4:1];
   logic        [7:0] indexed_values[4:1];
+  logic        [7:0] direction_values[4:1];
   logic        [7:0] factors[-2:1];
   logic        [7:0] masks[7:4];
   logic        [3:0] unknowns[0:1];
@@ -13,6 +14,8 @@ endclass
 
 module main;
   fixed_reduction_holder holder;
+  logic [7:0] direct_descending[4:1];
+  logic [7:0] direct_ascending[1:4];
   int receiver_calls;
   int value_calls;
   bit failed;
@@ -63,6 +66,33 @@ module main;
                   with (entry * entry.index());
     check("arbitrary receiver evaluated once", receiver_calls == 1);
     check("declared descending nonzero indexes", indexed_sum == 30);
+
+    holder.direction_values[4] = 8'd1;
+    holder.direction_values[3] = 8'd2;
+    holder.direction_values[2] = 8'd4;
+    holder.direction_values[1] = 8'd8;
+    indexed_sum = holder.direction_values.sum(entry)
+                  with (entry * entry.index());
+    check("materialized descending property pairs values with declared indexes",
+          indexed_sum == 26);
+
+    direct_descending[4] = 8'd1;
+    direct_descending[3] = 8'd2;
+    direct_descending[2] = 8'd4;
+    direct_descending[1] = 8'd8;
+    indexed_sum = direct_descending.sum(entry)
+                  with (entry * entry.index());
+    check("direct descending signal pairs values with declared indexes",
+          indexed_sum == 26);
+
+    direct_ascending[1] = 8'd1;
+    direct_ascending[2] = 8'd2;
+    direct_ascending[3] = 8'd4;
+    direct_ascending[4] = 8'd8;
+    indexed_sum = direct_ascending.sum(entry)
+                  with (entry * entry.index());
+    check("direct ascending signal pairs values with declared indexes",
+          indexed_sum == 49);
 
     value_calls = 0;
     check("$bits does not evaluate with expression",

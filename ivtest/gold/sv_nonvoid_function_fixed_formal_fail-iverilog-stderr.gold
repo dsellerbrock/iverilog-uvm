@@ -1,0 +1,4 @@
+ivltests/sv_nonvoid_function_fixed_formal_fail.v:23: error: function fixed unpacked-array formal and actual require matching dimension counts/sizes and equivalent element types (IEEE 1800-2017/2023 7.6/7.7).
+ivltests/sv_nonvoid_function_fixed_formal_fail.v:24: error: function fixed unpacked-array formal and actual require matching dimension counts/sizes and equivalent element types (IEEE 1800-2017/2023 7.6/7.7).
+ivltests/sv_nonvoid_function_fixed_formal_fail.v:25: error: unpacked-array slice [0:1] has the opposite direction from declared range [3:0].
+3 error(s) during elaboration.

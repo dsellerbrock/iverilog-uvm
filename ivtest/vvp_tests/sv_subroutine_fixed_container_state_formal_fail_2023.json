@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_subroutine_fixed_container_state_formal_fail.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_subroutine_fixed_container_state_formal_fail" ],
+    "gold"          : "sv_subroutine_fixed_container_state_formal_fail"
+}

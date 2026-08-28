@@ -132,15 +132,12 @@ module main;
     chk("assign fixed <- queue [0]",   fa[0], 40);
     chk("assign fixed <- queue [2]",   fa[2], 60);
 
-    // A descending declared range. Both directions address the array
-    // by its canonical word, so element 0 of the container is the
-    // LOWEST declared index either way -- which is what makes the round
-    // trip below exact. The outbound half of that is pre-existing
-    // (M10-1) and this side matches it deliberately: a copy out and
-    // back must return the array it started from.
+    // A descending declared range. IEEE 7.6 maps elements left-to-right:
+    // dynamic element 0 corresponds to desc[2], not the numerically lowest
+    // declared index. A copy out and back must still be exact.
     desc = da;
-    chk("assign into a descending array [0]", desc[0], 10);
-    chk("assign into a descending array [2]", desc[2], 30);
+    chk("assign into a descending array [2]", desc[2], 10);
+    chk("assign into a descending array [0]", desc[0], 30);
     begin
       int desc_back[2:0];
       desc[2] = 100; desc[1] = 200; desc[0] = 300;

@@ -22,6 +22,7 @@
 # include  "netenum.h"
 # include  "netclass.h"
 # include  "netdarray.h"
+# include  "netparray.h"
 # include  "netstruct.h"
 # include  "netscalar.h"
 # include  "compiler.h"
@@ -142,6 +143,40 @@ NetEArrayPattern::~NetEArrayPattern()
 {
       for (size_t idx = 0 ; idx < items_.size() ; idx += 1)
 	    delete items_[idx];
+}
+
+NetEArraySlice::NetEArraySlice(NetNet*signal,
+			       const netuarray_t*slice_type,
+			       long canonical_base, unsigned long count,
+			       const netrange_t&selected_range)
+: NetExpr(slice_type), signal_(signal), slice_type_(slice_type),
+  canonical_base_(canonical_base), count_(count),
+  selected_range_(selected_range)
+{
+      ivl_assert(*this, signal_);
+      ivl_assert(*this, slice_type_);
+      ivl_assert(*this, signal_->unpacked_dimensions() == 1);
+      ivl_assert(*this, slice_type_->static_dimensions().size() == 1);
+      ivl_assert(*this, selected_range_.defined());
+      ivl_assert(*this,
+	    slice_type_->static_dimensions().front() == selected_range_);
+      ivl_assert(*this, canonical_base_ >= 0);
+      ivl_assert(*this, count_ > 0);
+      ivl_assert(*this, count_ == selected_range_.width());
+      ivl_assert(*this,
+	    static_cast<unsigned long>(canonical_base_)
+		  <= signal_->unpacked_count());
+      ivl_assert(*this,
+	    count_ <= signal_->unpacked_count()
+		      - static_cast<unsigned long>(canonical_base_));
+
+      signal_->incr_eref();
+      set_line(*signal_);
+}
+
+NetEArraySlice::~NetEArraySlice()
+{
+      signal_->decr_eref();
 }
 
 /*

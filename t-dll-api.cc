@@ -204,6 +204,34 @@ extern "C" unsigned ivl_expr_lineno(ivl_expr_t net)
       return static_cast<unsigned>(net->location_);
 }
 
+extern "C" long ivl_expr_array_slice_base(ivl_expr_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_EX_ARRAY_SLICE);
+      return net->u_.array_slice_.canonical_base;
+}
+
+extern "C" unsigned long ivl_expr_array_slice_count(ivl_expr_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_EX_ARRAY_SLICE);
+      return net->u_.array_slice_.count;
+}
+
+extern "C" long ivl_expr_array_slice_left(ivl_expr_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_EX_ARRAY_SLICE);
+      return net->u_.array_slice_.left;
+}
+
+extern "C" long ivl_expr_array_slice_right(ivl_expr_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_EX_ARRAY_SLICE);
+      return net->u_.array_slice_.right;
+}
+
 extern "C" ivl_variable_type_t ivl_const_type(ivl_net_const_t net)
 {
       assert(net);
@@ -692,6 +720,9 @@ extern "C" const char* ivl_expr_name(ivl_expr_t net)
 	  case IVL_EX_SIGNAL:
 	    return ivl_signal_basename(net->u_.signal_.sig);
 
+	  case IVL_EX_ARRAY_SLICE:
+	    return ivl_signal_basename(net->u_.array_slice_.sig);
+
 	  case IVL_EX_PROPERTY:
 	      { ivl_signal_t sig = ivl_expr_signal(net);
 		ivl_type_t use_type;
@@ -933,6 +964,9 @@ extern "C" ivl_signal_t ivl_expr_signal(ivl_expr_t net)
 	  case IVL_EX_SIGNAL:
 	  case IVL_EX_ARRAY:
 	    return net->u_.signal_.sig;
+
+	  case IVL_EX_ARRAY_SLICE:
+	    return net->u_.array_slice_.sig;
 
 	  case IVL_EX_PROPERTY:
 	    return net->property_signal_

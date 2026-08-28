@@ -1,0 +1,37 @@
+ivltests/sv_queue_darray_state_compat_fail.v:30: error: the type of the variable 'logic_q' doesn't match the context type.
+ivltests/sv_queue_darray_state_compat_fail.v:30:      : variable type=queue of netvector_t:logic unsigned[7:0]
+ivltests/sv_queue_darray_state_compat_fail.v:30:      : context type=dynamic array of netvector_t:bool unsigned[7:0]
+ivltests/sv_queue_darray_state_compat_fail.v:42: error: the type of the variable 'width_q' doesn't match the context type.
+ivltests/sv_queue_darray_state_compat_fail.v:42:      : variable type=queue of netvector_t:logic unsigned[7:0]
+ivltests/sv_queue_darray_state_compat_fail.v:42:      : context type=dynamic array of netvector_t:bool unsigned[6:0]
+ivltests/sv_queue_darray_state_compat_fail.v:43: error: the type of the variable 'signed_q' doesn't match the context type.
+ivltests/sv_queue_darray_state_compat_fail.v:43:      : variable type=queue of netvector_t:logic signed[7:0]
+ivltests/sv_queue_darray_state_compat_fail.v:43:      : context type=dynamic array of netvector_t:bool unsigned[7:0]
+ivltests/sv_queue_darray_state_compat_fail.v:44: error: the type of the variable 'plain_q' doesn't match the context type.
+ivltests/sv_queue_darray_state_compat_fail.v:44:      : variable type=queue of netvector_t:logic unsigned[7:0]
+ivltests/sv_queue_darray_state_compat_fail.v:44:      : context type=dynamic array of 9netenum_t
+ivltests/sv_queue_darray_state_compat_fail.v:46: error: the type of the variable 'logic_q' doesn't match the context type.
+ivltests/sv_queue_darray_state_compat_fail.v:46:      : variable type=queue of netvector_t:logic unsigned[7:0]
+ivltests/sv_queue_darray_state_compat_fail.v:46:      : context type=queue of netvector_t:bool unsigned[7:0]
+ivltests/sv_queue_darray_state_compat_fail.v:47: error: the type of the variable 'bit_q' doesn't match the context type.
+ivltests/sv_queue_darray_state_compat_fail.v:47:      : variable type=queue of netvector_t:bool unsigned[7:0]
+ivltests/sv_queue_darray_state_compat_fail.v:47:      : context type=queue of netvector_t:logic unsigned[7:0]
+ivltests/sv_queue_darray_state_compat_fail.v:48: error: the type of the variable 'logic_d' doesn't match the context type.
+ivltests/sv_queue_darray_state_compat_fail.v:48:      : variable type=dynamic array of netvector_t:logic unsigned[7:0]
+ivltests/sv_queue_darray_state_compat_fail.v:48:      : context type=dynamic array of netvector_t:bool unsigned[7:0]
+ivltests/sv_queue_darray_state_compat_fail.v:49: error: the type of the variable 'bit_d' doesn't match the context type.
+ivltests/sv_queue_darray_state_compat_fail.v:49:      : variable type=dynamic array of netvector_t:bool unsigned[7:0]
+ivltests/sv_queue_darray_state_compat_fail.v:49:      : context type=dynamic array of netvector_t:logic unsigned[7:0]
+ivltests/sv_queue_darray_state_compat_fail.v:51: error: the type of the variable 'chandle_q' doesn't match the context type.
+ivltests/sv_queue_darray_state_compat_fail.v:51:      : variable type=queue of netvector_t:bool unsigned[63:0]
+ivltests/sv_queue_darray_state_compat_fail.v:51:      : context type=dynamic array of netvector_t:logic unsigned[63:0]
+ivltests/sv_queue_darray_state_compat_fail.v:52: error: the type of the variable 'logic64_q' doesn't match the context type.
+ivltests/sv_queue_darray_state_compat_fail.v:52:      : variable type=queue of netvector_t:logic unsigned[63:0]
+ivltests/sv_queue_darray_state_compat_fail.v:52:      : context type=dynamic array of netvector_t:bool unsigned[63:0]
+ivltests/sv_queue_darray_state_compat_fail.v:55: error: the type of the variable 'logic_q' doesn't match the context type.
+ivltests/sv_queue_darray_state_compat_fail.v:55:      : variable type=queue of netvector_t:logic unsigned[7:0]
+ivltests/sv_queue_darray_state_compat_fail.v:55:      : context type=dynamic array of netvector_t:bool unsigned[7:0]
+ivltests/sv_queue_darray_state_compat_fail.v:56: error: the type of the variable 'logic_q' doesn't match the context type.
+ivltests/sv_queue_darray_state_compat_fail.v:56:      : variable type=queue of netvector_t:logic unsigned[7:0]
+ivltests/sv_queue_darray_state_compat_fail.v:56:      : context type=dynamic array of netvector_t:bool unsigned[7:0]
+12 error(s) during elaboration.

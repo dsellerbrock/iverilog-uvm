@@ -1,7 +1,8 @@
-// IEEE 1800-2017 7.4.6, 13.5.1/13.5.2 and 35.5.6.1:
+// IEEE 1800-2017/2023 7.4.6, 7.6, 7.7 and 13.3.2/13.5:
 // a fixed unpacked-array slice is an aggregate subroutine actual. Copy-in
-// and copy-out operate element-for-element, and an open formal observes the
-// slice's declared bounds (including a descending range).
+// and copy-out operate element-for-element. A native `int a[]` formal is a
+// dynamic array, not a DPI open array: it uses normalized dynamic-array
+// indices, and an automatic output formal begins empty under 13.3.2.
 module m10_subroutine_array_slice_test;
   class SliceHolder;
     int errors;
@@ -18,7 +19,7 @@ module m10_subroutine_array_slice_test;
     endtask
 
     task automatic open_bump(inout int a[]);
-      if ($left(a) != 3 || $right(a) != 6) errors++;
+      if (a.size() != 4 || $left(a) != 0 || $right(a) != 3) errors++;
       for (int i = $low(a); i <= $high(a); i++) a[i] += 40;
     endtask
 
@@ -63,23 +64,24 @@ module m10_subroutine_array_slice_test;
       input  int a[],
       output int b[],
       inout  int c[]);
-    if (a.size() != 4 || b.size() != 4 || c.size() != 4) errors++;
-    if ($left(a) != 1 || $right(a) != 4) errors++;
-    if (a[1] != 101 || a[4] != 104) errors++;
-    for (int i = $low(a); i <= $high(a); i++) begin
+    if (a.size() != 4 || b.size() != 0 || c.size() != 4) errors++;
+    if ($left(a) != 0 || $right(a) != 3) errors++;
+    if (a[0] != 101 || a[3] != 104) errors++;
+    b = new[4];
+    for (int i = 0; i < 4; i++) begin
       b[i] = 300 + i;
       c[i] += 30;
     end
   endtask
 
   task automatic descending_open(input int a[]);
-    if (a.size() != 4 || $left(a) != 8 || $right(a) != 5
-        || $increment(a) != 1) begin
+    if (a.size() != 4 || $left(a) != 0 || $right(a) != 3
+        || $increment(a) != -1) begin
       $display("descending bounds size=%0d left=%0d right=%0d increment=%0d",
                a.size(), $left(a), $right(a), $increment(a));
       errors++;
     end
-    if (a[5] != 1005 || a[8] != 1008) errors++;
+    if (a[0] != 1008 || a[3] != 1005) errors++;
   endtask
 
   initial begin
@@ -101,7 +103,7 @@ module m10_subroutine_array_slice_test;
 
     open_ports(src[1:4], open_out[1:4], open_io[1:4]);
     for (int i = 0; i < 4; i++) begin
-      if (open_out[1+i] != 301+i) errors++;
+      if (open_out[1+i] != 300+i) errors++;
       if (open_io[1+i] != 3031+i) errors++;
     end
 

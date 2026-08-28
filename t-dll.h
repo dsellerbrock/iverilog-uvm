@@ -214,6 +214,7 @@ struct dll_target  : public target_t, public expr_scan_t {
       struct ivl_expr_s*expr_;
       void expr_access_func(const NetEAccess*) override;
       void expr_array_pattern(const NetEArrayPattern*) override;
+      void expr_array_slice(const NetEArraySlice*) override;
       void expr_binary(const NetEBinary*) override;
       void expr_concat(const NetEConcat*) override;
       void expr_const(const NetEConst*) override;
@@ -381,6 +382,14 @@ struct ivl_expr_s {
 	    } array_pattern_;
 
 	    struct {
+		  ivl_signal_t sig;
+		  long canonical_base;
+		  unsigned long count;
+		  long left;
+		  long right;
+	    } array_slice_;
+
+	    struct {
 		  ivl_select_type_t  sel_type_;
 		  ivl_expr_t expr_;
 		  ivl_expr_t base_;
@@ -489,7 +498,7 @@ struct ivl_expr_s {
       void  operator delete(void*obj, size_t s); // Not implemented
 };
 
-static_assert(IVL_EX_ARRAY_PATTERN < 256,
+static_assert(IVL_EX_ARRAY_SLICE < 256,
 	      "ivl_expr_s expression tag exceeds packed storage");
 static_assert(IVL_VT_QUEUE < 256,
 	      "ivl_expr_s value tag exceeds packed storage");

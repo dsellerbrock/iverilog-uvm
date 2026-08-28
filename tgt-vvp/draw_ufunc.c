@@ -78,16 +78,31 @@ static int ref_actual_is_nameable_(ivl_expr_t expr)
       return 1;
 }
 
-static int function_port_is_assoc_output_(ivl_signal_t port)
+static int function_port_is_container_output_(ivl_signal_t port)
 {
       ivl_type_t type;
 
-      if (!port || ivl_signal_port(port) != IVL_SIP_OUTPUT
-	  || ivl_signal_dimensions(port) > 0)
+      if (!port || ivl_signal_port(port) != IVL_SIP_OUTPUT)
 	    return 0;
+
+	/* A DPI open array is a handle onto the caller's existing storage, even
+	 * when its direction is output (IEEE 1800-2017/2023 35.5.6.1). Its size
+	 * and backing object must therefore be sent to C; treating it as an
+	 * ordinary copy-out-only dynamic-array value replaces the handle with a
+	 * null static formal and makes every output open array appear empty. */
+      if (ivl_scope_is_dpi_import(ivl_signal_scope(port)))
+	    return 0;
+
+	/* A native fixed-array output is copy-out only just like a native
+	 * dynamic array or queue. Its automatic frame storage is already
+	 * default-initialized; a static function's storage deliberately retains
+	 * its prior value (IEEE 1800-2017/2023 13.4.2, 13.5). */
+      if (ivl_signal_dimensions(port) > 0)
+	    return 1;
+
       type = ivl_signal_net_type(port);
-      return type && ivl_type_base(type) == IVL_VT_QUEUE
-	  && ivl_type_queue_assoc_compat(type);
+      return type && (ivl_type_base(type) == IVL_VT_DARRAY
+	  || ivl_type_base(type) == IVL_VT_QUEUE);
 }
 
 /* Bind one `ref' formal (IEEE 1800-2017 13.5.2). An actual that cannot
@@ -113,6 +128,7 @@ static void draw_eval_function_argument(ivl_signal_t port, ivl_expr_t expr)
       static int warned_unsupported_arg_type = 0;
       static int warned_aggregate_arg_skip = 0;
       ivl_variable_type_t dtype = ivl_signal_data_type(port);
+      ivl_type_t port_type = ivl_signal_net_type(port);
 
 	/* A ref formal is bound, not copied. The bind is emitted in its
 	   own pass (it must land after every argument has been
@@ -120,11 +136,11 @@ static void draw_eval_function_argument(ivl_signal_t port, ivl_expr_t expr)
       if (ivl_signal_port(port) == IVL_SIP_REF)
 	    return;
 
-	/* A pure output formal starts with its type's default value (IEEE
-	 * 1800-2017 13.5.2); evaluating the caller's associative actual here
-	 * copied its existing entries into the callee before the call. The send
-	 * pass below installs a fresh empty value instead. */
-      if (function_port_is_assoc_output_(port))
+	/* An output argument is copy-out only (IEEE 1800-2017/2023 13.5).
+	 * Evaluating the caller here would copy in a value that is not an input and
+	 * would evaluate an indexed actual twice. Automatic output storage receives
+	 * its default in the send pass; static output storage retains its value. */
+      if (function_port_is_container_output_(port))
 	    return;
 
 	/* An unpacked fixed-array formal can retain its element data type
@@ -164,9 +180,11 @@ static void draw_eval_function_argument(ivl_signal_t port, ivl_expr_t expr)
 	    draw_eval_string(expr);
 	    break;
 	  case IVL_VT_DARRAY:
-	    vvp_errors += draw_eval_object(expr);
-	    break;
 	  case IVL_VT_QUEUE:
+	    vvp_errors += draw_eval_object(expr);
+	    draw_convert_container_value_for_target(
+		  receiver_container_type_(expr), port_type);
+	    break;
 	  case IVL_VT_NO_TYPE:
 	    vvp_errors += draw_eval_object(expr);
 	    break;
@@ -182,11 +200,10 @@ static void draw_eval_function_argument(ivl_signal_t port, ivl_expr_t expr)
       }
 }
 
-static int fixed_array_open_actual_(ivl_expr_t expr)
+static int fixed_array_open_actual_(ivl_signal_t port, ivl_expr_t expr)
 {
-      return expr
-	  && (ivl_expr_type(expr) == IVL_EX_ARRAY
-	      || vvp_expr_is_whole_fixed_array_property(expr));
+      return port && ivl_scope_is_dpi_import(ivl_signal_scope(port))
+	  && vvp_expr_is_fixed_uarray_value(expr);
 }
 
 static void draw_send_function_argument(ivl_signal_t port, ivl_expr_t actual)
@@ -198,11 +215,41 @@ static void draw_send_function_argument(ivl_signal_t port, ivl_expr_t actual)
       if (ivl_signal_port(port) == IVL_SIP_REF)
 	    return;
 
-	/* Do not copy an associative actual into a pure output formal. Reset even
-	 * a static function's port on every call; the typed signal lazily creates
-	 * a fresh empty associative object when the function first reads/writes it. */
-      if (function_port_is_assoc_output_(port)) {
-	    fprintf(vvp_out, "    %%null; ; default value for output associative array\n");
+	/* IEEE 1800-2017/2023 13.4.2 gives static functions persistent formal
+	 * storage. Do not reset a static output between calls. Automatic output
+	 * storage is initialized on each entry; materialize its declared container
+	 * default here because the ordinary argument stack has no copy-in value. */
+      if (function_port_is_container_output_(port)) {
+	    ivl_type_t port_type = ivl_signal_net_type(port);
+
+	    if (ivl_signal_dimensions(port) > 0)
+		  return;
+
+	    if (!ivl_scope_is_auto(ivl_signal_scope(port)))
+		  return;
+
+	    if (ivl_type_base(port_type) == IVL_VT_QUEUE
+		&& !ivl_type_queue_assoc_compat(port_type)) {
+		  ivl_type_t element_type = ivl_type_element(port_type);
+		  char element_text[32];
+		  stream_elem_type_text(element_type, element_text,
+					sizeof element_text);
+		  fprintf(vvp_out,
+			  "    %%new/queue \"%s\"; default value for output queue\n",
+			  element_text);
+		  if (element_type
+		      && ivl_type_base(element_type) == IVL_VT_NO_TYPE
+		      && ivl_type_properties(element_type) > 0) {
+			ensure_class_type_emitted(element_type);
+			fprintf(vvp_out,
+				"    %%new/cobj C%p; output queue element prototype\n",
+				element_type);
+			fprintf(vvp_out, "    %%dar/elem/proto;\n");
+		  }
+	    } else {
+		  fprintf(vvp_out,
+			  "    %%null; ; default value for output container\n");
+	    }
 	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", port);
 	    return;
       }
@@ -270,7 +317,7 @@ static void draw_send_function_argument(ivl_signal_t port, ivl_expr_t actual)
 		 passes return early on IVL_SIP_REF. */
 	    fprintf(vvp_out, "    %%dup/obj; pass by value (IEEE 13.5.1)\n");
 	    fprintf(vvp_out, "    %%store/obj%s v%p_0;\n",
-		    fixed_array_open_actual_(actual) ? "/open" : "", port);
+		    fixed_array_open_actual_(port, actual) ? "/open" : "", port);
 	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	    break;
 	  case IVL_VT_QUEUE:
@@ -313,6 +360,28 @@ static int function_argument_actual_signal_(ivl_expr_t expr,
       return sig && *sig;
 }
 
+/* The formal value is already on the object stack. A queue/dynamic-array
+   output or inout is copied by value (13.5), so leave one independent value
+   for the actual's store. Cross-kind copies materialize the actual's declared
+   container kind; same-kind copies duplicate the formal and discard its live
+   storage alias. Class handles and other object kinds remain references. */
+static void draw_copy_out_container_value_(ivl_signal_t port,
+                                            ivl_expr_t actual)
+{
+      ivl_type_t port_type = ivl_signal_net_type(port);
+      ivl_type_t actual_type = receiver_container_type_(actual);
+
+      if (!type_is_runtime_container_(port_type))
+	    return;
+
+      if (draw_convert_container_value_for_target(port_type, actual_type))
+	    return;
+
+      fprintf(vvp_out, "    %%dup/obj; container copy-out value\n");
+      fprintf(vvp_out,
+	      "    %%pop/obj 1, 1; discard output formal storage alias\n");
+}
+
 static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual)
 {
       static int warned_unsupported_copy_out = 0;
@@ -322,6 +391,37 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 
       if (port_is_unsupported_aggregate_formal_(port))
 	    return;
+
+	/* A direct fixed-array slice actual retains its backing signal and
+	   canonical storage window in IVL_EX_ARRAY_SLICE. Materialize the formal
+	   value, then atomically copy exactly that window back in the actual's
+	   selected direction. Active DPI open-array objects are already in
+	   numeric-canonical order; passive native values remain left-to-right. */
+      if (ivl_expr_type(actual) == IVL_EX_ARRAY_SLICE) {
+	    ivl_signal_t asig = ivl_expr_signal(actual);
+	    unsigned akind;
+	    if (!asig || !uarray_container_kind_(
+		  asig, &akind, ivl_expr_file(actual), ivl_expr_lineno(actual)))
+		  return;
+
+	    if (ivl_signal_dimensions(port) > 0) {
+		  unsigned pkind;
+		  if (!uarray_container_kind_(port, &pkind,
+			ivl_expr_file(actual), ivl_expr_lineno(actual)))
+			return;
+		  emit_load_arr_dar_(port, pkind);
+	    } else {
+		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+	    }
+
+	    emit_store_arr_dar_slice_(
+		  asig, akind,
+		  (unsigned)ivl_expr_array_slice_base(actual),
+		  (unsigned)ivl_expr_array_slice_count(actual),
+		  (int)ivl_expr_array_slice_left(actual),
+		  (int)ivl_expr_array_slice_right(actual));
+	    return;
+      }
 
 	/* Whole fixed-array output/inout copy-back. Both sides use inline
 	   word storage, so marshal the formal through the same temporary
@@ -425,6 +525,7 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 		      case IVL_VT_NO_TYPE:
 		      default:
 			fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+			draw_copy_out_container_value_(port, actual);
 			fprintf(vvp_out, "    %%aa/store/obj/%s;\n", key_kind);
 			break;
 		  }
@@ -435,12 +536,129 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 
       if (ivl_expr_type(actual) == IVL_EX_PROPERTY) {
 	    ivl_signal_t base_sig = ivl_expr_signal(actual);
-	    /* If an index is set, the actual is an assoc-array / queue / array
-	       entry of a class property (e.g. cfg.vifs[key]). We don't yet
-	       emit a proper %aa/store sequence here — fall through with a
-	       warning so the call still elaborates (the value just won't be
-	       written back to the indexed slot). */
+	    ivl_expr_t base_expr = ivl_expr_oper2(actual);
+	    /* The target API exports an associative/positional container-property
+	       element or fixed-uarray property slot directly as
+	       PROPERTY(oper1=index), not as SELECT(PROPERTY,index). These actuals
+	       are legal output/inout lvalues. Evaluate their key/index here, during
+	       the return copy-out required by IEEE 1800-2017/2023 13.5, and exactly
+	       once for this copy operation. Pure output actuals were deliberately
+	       not evaluated in the preamble. */
 	    if (ivl_expr_oper1(actual)) {
+		  ivl_expr_t idx_expr = ivl_expr_oper1(actual);
+		  ivl_type_t prop_type = property_expr_type_(actual);
+		  ivl_type_t actual_type = receiver_container_type_(actual);
+		  int assoc_container_value = prop_type
+			&& ivl_type_base(prop_type) == IVL_VT_QUEUE
+			&& ivl_type_queue_assoc_compat(prop_type)
+			&& type_is_runtime_container_(actual_type);
+		  int positional_container_value = prop_type
+			&& (ivl_type_base(prop_type) == IVL_VT_DARRAY
+			    || (ivl_type_base(prop_type) == IVL_VT_QUEUE
+				&& !ivl_type_queue_assoc_compat(prop_type)))
+			&& type_is_runtime_container_(actual_type);
+		  int fixed_container_slot =
+			type_is_fixed_uarray_property_(prop_type)
+			&& type_is_runtime_container_(actual_type);
+
+		  if (assoc_container_value || positional_container_value
+		      || fixed_container_slot) {
+			int pidx = (int)ivl_expr_property_idx(actual);
+
+			if (base_sig) {
+			      fprintf(vvp_out, "    %%load/obj v%p_0;\n", base_sig);
+			} else if (base_expr) {
+			      draw_eval_object(base_expr);
+			} else {
+			      if (!warned_unsupported_copy_out) {
+				    fprintf(stderr,
+					    "Warning: Skipping indexed property copy-out"
+					    " for %s: no receiver (further similar"
+					    " warnings suppressed)\n",
+					    ivl_signal_basename(port));
+				    warned_unsupported_copy_out = 1;
+			      }
+			      return;
+			}
+
+			if (assoc_container_value) {
+			      const char*key_kind;
+
+			      fprintf(vvp_out, "    %%prop/obj %d, 0; output associative property\n",
+				      pidx);
+			      fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+			      key_kind = draw_eval_assoc_key_(idx_expr, 0);
+			      fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+			      draw_copy_out_container_value_(port, actual);
+			      fprintf(vvp_out, "    %%aa/store/obj/%s;\n", key_kind);
+			      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			      return;
+			}
+
+			if (positional_container_value) {
+			      int element_word = allocate_word();
+
+			      draw_eval_expr_into_integer(idx_expr, element_word);
+			      fprintf(vvp_out,
+				      "    %%prop/obj %d, 0; output positional container property\n",
+				      pidx);
+			      fprintf(vvp_out, "    %%pop/obj 1, 1; keep output container property\n");
+			      fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+			      draw_copy_out_container_value_(port, actual);
+			      fprintf(vvp_out,
+				      "    %%set/dar/obj/obj %d; output positional container element\n",
+				      element_word);
+			      fprintf(vvp_out, "    %%pop/obj 1, 0; discard output container property\n");
+			      clr_word(element_word);
+			      return;
+			}
+
+			{
+			      int slot_word = allocate_word();
+			      int slot_x_flag = -1;
+			      int slot_in_range_flag = -1;
+			      unsigned lab_bad_slot = local_count++;
+			      unsigned lab_slot_done = local_count++;
+
+			      draw_fixed_uarray_slot_index_(idx_expr, prop_type,
+						   slot_word, &slot_x_flag,
+						   &slot_in_range_flag);
+			      fprintf(vvp_out,
+				      "    %%jmp/1xz T_%u.%u, %d; output fixed property slot X/Z\n",
+				      thread_count, lab_bad_slot, slot_x_flag);
+			      if (slot_in_range_flag >= 0)
+				    fprintf(vvp_out,
+					    "    %%jmp/0xz T_%u.%u, %d; output fixed property slot OOB\n",
+					    thread_count, lab_bad_slot,
+					    slot_in_range_flag);
+			      fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+			      draw_copy_out_container_value_(port, actual);
+			      fprintf(vvp_out,
+				      "    %%store/prop/obj %d, %d; output fixed container slot\n",
+				      pidx, slot_word);
+			      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			      fprintf(vvp_out, "    %%jmp T_%u.%u;\n",
+				      thread_count, lab_slot_done);
+			      fprintf(vvp_out, "T_%u.%u;\n",
+				      thread_count, lab_bad_slot);
+			      fprintf(vvp_out,
+				      "    %%vpi_call/w %u %u \"$warning\", "
+				      "\"fixed unpacked-array property index is undefined or out of range; "
+				      "function copy-out was ignored\" {0 0 0 0};\n",
+				      ivl_file_table_index(ivl_expr_file(idx_expr)),
+				      ivl_expr_lineno(idx_expr));
+			      fprintf(vvp_out,
+				      "    %%pop/obj 1, 0; invalid output fixed container slot\n");
+			      fprintf(vvp_out, "T_%u.%u;\n",
+				      thread_count, lab_slot_done);
+			      clr_word(slot_word);
+			      clr_flag(slot_x_flag);
+			      if (slot_in_range_flag >= 0)
+				    clr_flag(slot_in_range_flag);
+			      return;
+			}
+		  }
+
 		  if (!warned_unsupported_copy_out) {
 			fprintf(stderr,
 				"Warning: Skipping indexed property copy-out for"
@@ -462,7 +680,6 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 	    if (base_sig) {
 		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", base_sig);
 	    } else {
-		  ivl_expr_t base_expr = ivl_expr_oper2(actual);
 		  if (!base_expr) {
 			if (!warned_unsupported_copy_out) {
 			      fprintf(stderr,
@@ -476,6 +693,25 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 		  }
 		  draw_eval_object(base_expr);
 	    }
+
+	    if (fixed_array_property) {
+		  if (ivl_signal_dimensions(port) > 0) {
+			unsigned kind;
+			if (!uarray_container_kind_(port, &kind,
+			      ivl_expr_file(actual), ivl_expr_lineno(actual))) {
+			      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			      return;
+			}
+			emit_load_arr_dar_(port, kind);
+		  } else {
+			fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+			draw_copy_out_container_value_(port, actual);
+		  }
+		  fprintf(vvp_out, "    %%store/prop/arr/dar %d;\n", pidx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  return;
+	    }
+
 	    switch (dtype) {
 		case IVL_VT_BOOL:
 		case IVL_VT_LOGIC:
@@ -495,19 +731,13 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 		  break;
 	    case IVL_VT_DARRAY:
-		  if (fixed_array_property) {
-			fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
-			fprintf(vvp_out,
-				"    %%store/prop/arr/dar %d;\n", pidx);
-			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
-			break;
-		  }
 		  /* fall through */
 	    case IVL_VT_CLASS:
 	    case IVL_VT_QUEUE:
 		case IVL_VT_NO_TYPE:
 		default:
 		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+		  draw_copy_out_container_value_(port, actual);
 		  fprintf(vvp_out, "    %%store/prop/obj %d, 0;\n", pidx);
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 		  break;
@@ -633,6 +863,7 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 		case IVL_VT_QUEUE:
 		case IVL_VT_NO_TYPE:
 		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+		  draw_copy_out_container_value_(port, actual);
 		  fprintf(vvp_out, "    %%store/obja v%p, %u;\n", sig, ix);
 		  break;
 		default:
@@ -679,6 +910,7 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 	  case IVL_VT_QUEUE:
 	  case IVL_VT_NO_TYPE:
 	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+	    draw_copy_out_container_value_(port, actual);
 	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
 	    break;
 	  default:
@@ -1124,11 +1356,11 @@ void draw_ufunc_uarray(ivl_expr_t expr, ivl_signal_t dst_sig,
 }
 
 /*
- * Call a function whose result is a one-dimensional fixed unpacked array
- * and materialize that result as dynamic-array storage on the object stack.
- * Array methods on arbitrary expressions use this form: the function's
- * automatic frame must remain live until %load/arr/dar has copied all return
- * words, so the ordinary object-return path cannot be used.
+ * Call a function whose result is a fixed unpacked array and materialize
+ * that result as dynamic-array storage on the object stack. Array methods on
+ * arbitrary expressions and DPI open-array actuals use this form: the
+ * function's automatic frame must remain live until the flat return storage
+ * has been copied, so the ordinary object-return path cannot be used.
  */
 void draw_ufunc_uarray_object(ivl_expr_t expr, int as_queue,
 			      unsigned queue_max_size)
@@ -1146,16 +1378,6 @@ void draw_ufunc_uarray_object(ivl_expr_t expr, int as_queue,
       assert(ivl_signal_dimensions(retval) > 0);
 
       draw_ufunc_preamble(expr);
-
-      if (ivl_signal_dimensions(retval) != 1) {
-	    fprintf(stderr, "%s:%u: sorry: an unpacked-array function result "
-		    "used as an object must be one-dimensional\n",
-		    ivl_expr_file(expr), ivl_expr_lineno(expr));
-	    vvp_errors += 1;
-	    fprintf(vvp_out, "    %%null; ; multidimensional ufunc array\n");
-	    draw_ufunc_epilogue(expr);
-	    return;
-      }
 
       switch (dt) {
 	  case IVL_VT_REAL:
@@ -1206,6 +1428,21 @@ void draw_ufunc_uarray_object(ivl_expr_t expr, int as_queue,
 	 * ordinary %store/qobj copy path. Ask the marshaller for a real queue
 	 * object so later queue-only mutations remain valid. Other object
 	 * contexts intentionally retain dynamic-array storage. */
+      if (ivl_signal_dimensions(retval) > 1) {
+	    if (as_queue) {
+		  fprintf(stderr, "%s:%u: sorry: a multidimensional fixed-array "
+			  "function result cannot yet be materialized as a queue\n",
+			  ivl_expr_file(expr), ivl_expr_lineno(expr));
+		  vvp_errors += 1;
+		  fprintf(vvp_out,
+			  "    %%null; ; multidimensional ufunc queue\n");
+	    } else {
+		  emit_load_arr_dar_(retval, kind);
+	    }
+	    draw_ufunc_epilogue(expr);
+	    return;
+      }
+
       if (as_queue)
 	    kind |= VVP_ARRDAR_QUEUE;
 

@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_positional_container_bitstream_cast.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_positional_container_bitstream_cast",
+    "vlog95"        : { "type" : "NI" }
+}

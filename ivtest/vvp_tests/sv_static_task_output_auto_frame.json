@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_static_task_output_auto_frame.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_static_task_output_auto_frame",
+    "vlog95"        : { "type" : "NI" }
+}

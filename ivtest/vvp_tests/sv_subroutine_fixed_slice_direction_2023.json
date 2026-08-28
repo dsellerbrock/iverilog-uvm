@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_subroutine_fixed_slice_direction_2023.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_subroutine_fixed_slice_direction",
+    "vlog95"        : { "type" : "NI" }
+}

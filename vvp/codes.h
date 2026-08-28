@@ -144,6 +144,10 @@ extern bool of_ALLOC(vthread_t thr, vvp_code_t code);
 extern bool of_AND(vthread_t thr, vvp_code_t code);
 extern bool of_ANDR(vthread_t thr, vvp_code_t code);
 extern bool of_APPEND_QO_OBJ(vthread_t thr, vvp_code_t code);
+extern bool of_APPEND_QO_OBJ_DARRAY(vthread_t thr, vvp_code_t code);
+extern bool of_APPEND_QO_OBJ_DARRAY_PROTO(vthread_t thr, vvp_code_t code);
+extern bool of_APPEND_QO_OBJ_QUEUE(vthread_t thr, vvp_code_t code);
+extern bool of_APPEND_QO_OBJ_QUEUE_PROTO(vthread_t thr, vvp_code_t code);
 extern bool of_APPEND_QO_R(vthread_t thr, vvp_code_t code);
 extern bool of_APPEND_QO_STR(vthread_t thr, vvp_code_t code);
 extern bool of_APPEND_QO_V(vthread_t thr, vvp_code_t code);
@@ -211,6 +215,7 @@ extern bool of_REP_STR_U(vthread_t thr, vvp_code_t code);
 extern bool of_CONCATI_STR(vthread_t thr, vvp_code_t code);
 extern bool of_CONCAT_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_CONCATI_VEC4(vthread_t thr, vvp_code_t code);
+extern bool of_CONTAINER_TO_QUEUE(vthread_t thr, vvp_code_t code);
 extern bool of_CVT_RV(vthread_t thr, vvp_code_t code);
 extern bool of_CVT_RV_S(vthread_t thr, vvp_code_t code);
 extern bool of_CVT_SR(vthread_t thr, vvp_code_t code);
@@ -243,6 +248,7 @@ extern bool of_DISABLE_FLOW(vthread_t thr, vvp_code_t code);
 extern bool of_DISABLE_FLOW_CHILD(vthread_t thr, vvp_code_t code);
 extern bool of_DISABLE_FORK(vthread_t thr, vvp_code_t code);
 extern bool of_DIM_PUSH(vthread_t thr, vvp_code_t code);
+extern bool of_SLICE_PUSH(vthread_t thr, vvp_code_t code);
 extern bool of_DIV(vthread_t thr, vvp_code_t code);
 extern bool of_DIV_S(vthread_t thr, vvp_code_t code);
 extern bool of_DIV_WR(vthread_t thr, vvp_code_t code);
@@ -328,6 +334,7 @@ extern bool of_LOAD_QO_STR(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_QO_V(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t code);
+extern bool of_LOAD_ARR_DAR_SLICE(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_ARR_DAR_MD(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_OBJA(vthread_t thr, vvp_code_t code);
 extern bool of_HIST_ON_AV(vthread_t thr, vvp_code_t code);
@@ -517,6 +524,7 @@ extern bool of_SPLIT_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_STD_RANDOMIZE_LOAD(vthread_t thr, vvp_code_t code);
 extern bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_ARR_DAR(vthread_t thr, vvp_code_t code);
+extern bool of_STORE_ARR_DAR_SLICE(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_ARR_DAR_MD(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_DAR_R(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_DAR_STR(vthread_t thr, vvp_code_t code);
@@ -644,6 +652,15 @@ extern bool of_REAP_UFUNC(vthread_t thr, vvp_code_t code);
 
 extern bool of_CHUNK_LINK(vthread_t thr, vvp_code_t code);
 
+/* Only the destination-typed object splice opcodes need all three of these
+ * operands at once. Keep them out of vvp_code_s so the common instruction
+ * remains three machine words; the descriptor is owned by code space. */
+struct vvp_container_opcode_data_s {
+      const char*element_encoding;
+      uint32_t max_size;
+      class __vpiHandle*prototype;
+};
+
 /*
  * This is the format of a machine code instruction.
  */
@@ -658,6 +675,7 @@ struct vvp_code_s {
 	    class __vpiHandle*handle;
 	    __vpiScope*scope;
 	    const char*text;
+	    struct vvp_container_opcode_data_s*container_data;
       };
 
       union {

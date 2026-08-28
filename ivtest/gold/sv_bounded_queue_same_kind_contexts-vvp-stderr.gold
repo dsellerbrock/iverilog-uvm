@@ -1,0 +1,8 @@
+Warning: queue<real> is bounded to have at most 2 elements, source has 4 elements.
+Warning: queue<real> is bounded to have at most 2 elements, source has 4 elements.
+Warning: queue<real> is bounded to have at most 2 elements, source has 4 elements.
+Warning: queue<real> is bounded to have at most 2 elements, source has 4 elements.
+Warning: queue<real> is bounded to have at most 2 elements, source has 4 elements.
+Warning: queue<real> is bounded to have at most 2 elements, source has 4 elements.
+Warning: queue<real> is bounded to have at most 2 elements, source has 4 elements.
+Warning: push_back(61) skipped for already full bounded queue<real> [2].
