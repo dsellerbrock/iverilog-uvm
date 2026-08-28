@@ -5107,6 +5107,55 @@ virtual_interface_type
 	if ($2) delete $2;
 	$$ = tmp;
       }
+    /* IEEE 1800-2017/2023 25.9 and A.2.2.1 make the `interface'
+       keyword optional in a virtual-interface type.  Keep explicit-keyword
+       forms in this class-property helper so the post-`virtual' class state
+       shifts K_interface instead of reducing toward a virtual class
+       declaration. */
+  | K_interface TYPE_IDENTIFIER parameter_value_opt
+      { interface_type_t*tmp;
+	if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0)
+	      yyerror(@2, "error: virtual may only be used with interface types.");
+	tmp = new interface_type_t(lex_strings.make($2.text));
+	FILE_NAME(tmp, @1);
+	tmp->has_param_override = ($3 != 0);
+	$$ = tmp;
+	delete[] $2.text;
+	if ($3) delete $3;
+      }
+  | K_interface IDENTIFIER parameter_value_opt
+      { /* Forward-referenced interface with the explicit keyword. */
+	interface_type_t*tmp = new interface_type_t(lex_strings.make($2));
+	FILE_NAME(tmp, @1);
+	tmp->has_param_override = ($3 != 0);
+	delete[] $2;
+	if ($3) delete $3;
+	$$ = tmp;
+      }
+  | K_interface TYPE_IDENTIFIER parameter_value_opt '.' IDENTIFIER
+      { interface_type_t*tmp;
+	if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0)
+	      yyerror(@2, "error: virtual may only be used with interface types.");
+	tmp = new interface_type_t(lex_strings.make($2.text));
+	FILE_NAME(tmp, @1);
+	tmp->has_param_override = ($3 != 0);
+	tmp->modport = lex_strings.make($5);
+	$$ = tmp;
+	delete[] $2.text;
+	delete[] $5;
+	if ($3) delete $3;
+      }
+  | K_interface IDENTIFIER parameter_value_opt '.' IDENTIFIER
+      { /* Forward-referenced, modport-qualified explicit form. */
+	interface_type_t*tmp = new interface_type_t(lex_strings.make($2));
+	FILE_NAME(tmp, @1);
+	tmp->has_param_override = ($3 != 0);
+	tmp->modport = lex_strings.make($5);
+	delete[] $2;
+	delete[] $5;
+	if ($3) delete $3;
+	$$ = tmp;
+      }
   ;
 
 /* Data type or nothing, but not implicit */
