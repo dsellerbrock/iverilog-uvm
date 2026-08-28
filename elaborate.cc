@@ -17495,6 +17495,109 @@ bool PEventStatement::has_conditional_event_() const
       return false;
 }
 
+/* Join a set of independently lowered one-shot event waiters and cancel every
+ * loser as soon as one branch completes. Keep the selector in an isolated
+ * helper process: the generated disable fork must unlink only these sibling
+ * waiters, never a detached child that already belongs to the caller. */
+static NetProc* join_any_event_waiters_(const LineInfo&loc,
+					std::vector<NetProc*>&waiters)
+{
+      ivl_assert(loc, !waiters.empty());
+      if (waiters.size() == 1)
+	    return waiters.front();
+
+      NetBlock*select = new NetBlock(NetBlock::PARA_JOIN_ANY, nullptr);
+      select->set_line(loc);
+      for (NetProc*wait : waiters)
+	    select->append(wait);
+
+      NetBlock*select_and_cancel = new NetBlock(NetBlock::SEQU, nullptr);
+      select_and_cancel->set_line(loc);
+      select_and_cancel->append(select);
+      NetDisable*cancel = new NetDisable(nullptr);
+      cancel->set_line(loc);
+      select_and_cancel->append(cancel);
+
+      NetBlock*isolated = new NetBlock(NetBlock::PARA, nullptr);
+      isolated->set_line(loc);
+      isolated->append(select_and_cancel);
+      NetBlock*noop = new NetBlock(NetBlock::SEQU, nullptr);
+      noop->set_line(loc);
+      isolated->append(noop);
+      return isolated;
+}
+
+struct event_leaf_dynamic_kind_t {
+      bool object = false;
+      bool vif = false;
+      bool compound = false;
+};
+
+/* Class-property and virtual-interface event leaves are selected dynamically
+ * when the wait arms. Classify a prospective leaf without changing the
+ * established lowering of ordinary event lists. A failed elaboration is left
+ * to the normal event path so it retains its existing diagnostic. */
+static event_leaf_dynamic_kind_t classify_dynamic_event_leaf_(
+		Design*des, NetScope*scope, const PEEvent*event)
+{
+      event_leaf_dynamic_kind_t res;
+      if (!gn_system_verilog() || !event || !event->expr()
+	  || event->type() != PEEvent::ANYEDGE)
+	    return res;
+
+      unsigned errors_before = des->errors;
+      NetExpr*expr = elab_and_eval(des, scope, event->expr(), -1);
+      if (!expr || des->errors != errors_before) {
+	    delete expr;
+	    return res;
+      }
+
+      std::vector<class_property_mutation_dep_t> object_deps;
+      collect_class_property_mutation_deps_(expr, object_deps);
+      res.object = !object_deps.empty();
+
+      std::vector<vif_member_path_t> vif_paths;
+      collect_vif_member_paths_(expr, vif_paths);
+      res.vif = !vif_paths.empty();
+
+      bool direct_vif = false;
+      if (const NetEProperty*property =
+		dynamic_cast<const NetEProperty*>(expr)) {
+	    vif_member_path_t path;
+	    direct_vif = decode_vif_member_path_(property, path);
+      }
+      res.compound = (res.object && !is_direct_class_property_event_expr_(expr))
+		  || (res.vif && !direct_vif);
+
+      delete expr;
+      return res;
+}
+
+/* A shared NetEvWait remains the compact, established representation for
+ * ordinary event-or lists and for the already-supported homogeneous direct
+ * object-mutation list. Split only lists whose dynamically selected waiter
+ * cannot safely share that representation: a compound dynamic leaf needs its
+ * own value filter, while an object-mutation leaf mixed with another waiter
+ * family needs independent cancellation/unlinking. */
+static bool event_list_needs_dynamic_split_(Design*des, NetScope*scope,
+				 const std::vector<PEEvent*>&events)
+{
+      if (events.size() < 2)
+	    return false;
+
+      bool has_object = false;
+      bool has_non_object = false;
+      bool has_compound_dynamic = false;
+      for (const PEEvent*event : events) {
+	    event_leaf_dynamic_kind_t kind =
+		  classify_dynamic_event_leaf_(des, scope, event);
+	    has_object = has_object || kind.object;
+	    has_non_object = has_non_object || !kind.object || kind.vif;
+	    has_compound_dynamic = has_compound_dynamic || kind.compound;
+      }
+      return has_compound_dynamic || (has_object && has_non_object);
+}
+
 /* IEEE 1800-2017 9.4.2.3 qualifies each event-expression leaf
  * independently. A simple `if (guard)' around the delayed statement is not
  * sufficient: a one-shot event control must keep waiting when an edge occurs
@@ -17569,37 +17672,7 @@ NetProc* PEventStatement::elaborate_conditional_(Design*des, NetScope*scope,
 	    waiters.push_back(wait);
       }
 
-      ivl_assert(*this, !waiters.empty());
-      NetProc*qualified_wait = nullptr;
-      if (waiters.size() == 1) {
-	    qualified_wait = waiters.front();
-      } else {
-	    NetBlock*select = new NetBlock(NetBlock::PARA_JOIN_ANY, nullptr);
-	    select->set_line(*this);
-	    for (NetProc*wait : waiters)
-		  select->append(wait);
-
-	    NetBlock*select_and_cancel = new NetBlock(NetBlock::SEQU, nullptr);
-	    select_and_cancel->set_line(*this);
-	    select_and_cancel->append(select);
-	    NetDisable*cancel = new NetDisable(nullptr);
-	    cancel->set_line(*this);
-	    select_and_cancel->append(cancel);
-
-	      /* `disable fork' operates on every detached child of the
-	       * process that executes it. Run the selector in its own helper
-	       * process so cancelling the losing event waiters cannot also
-	       * cancel an unrelated user `fork ... join_none' child. A second,
-	       * empty branch keeps the outer parallel block from being reduced
-	       * to its sole child by the target's one-statement optimization. */
-	    NetBlock*isolated = new NetBlock(NetBlock::PARA, nullptr);
-	    isolated->set_line(*this);
-	    isolated->append(select_and_cancel);
-	    NetBlock*noop = new NetBlock(NetBlock::SEQU, nullptr);
-	    noop->set_line(*this);
-	    isolated->append(noop);
-	    qualified_wait = isolated;
-      }
+      NetProc*qualified_wait = join_any_event_waiters_(*this, waiters);
 
       NetBlock*result = new NetBlock(NetBlock::SEQU, nullptr);
       result->set_line(*this);
@@ -17630,6 +17703,36 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 
       if (has_conditional_event_())
 	    return elaborate_conditional_(des, scope, enet);
+
+      /* A dynamically selected class/VIF leaf cannot share one VVP waiter
+       * record with an ordinary event family, and a compound dynamic leaf
+       * needs the single-leaf value-change filter around its own wait. Lower
+       * only those mixed lists as independent one-shot waits under join_any;
+       * the ordinary event-list path below remains unchanged. */
+      if (event_list_needs_dynamic_split_(des, scope, expr_)) {
+	    std::vector<NetProc*>waiters;
+	    for (PEEvent*event : expr_) {
+		  ivl_assert(*this, event);
+		  PEEvent raw_event(event->type(), event->expr());
+		  raw_event.set_line(*event);
+		  PEventStatement raw_wait(&raw_event);
+		  raw_wait.set_line(*this);
+		  NetProc*wait = raw_wait.elaborate(des, scope);
+		  if (!wait) {
+			for (NetProc*item : waiters)
+			      delete item;
+			return nullptr;
+		  }
+		  waiters.push_back(wait);
+	    }
+
+	    NetBlock*result = new NetBlock(NetBlock::SEQU, nullptr);
+	    result->set_line(*this);
+	    result->append(join_any_event_waiters_(*this, waiters));
+	    if (enet)
+		  result->append(enet);
+	    return result;
+      }
 
       if (expr_.size() == 1) {
 	    /* IEEE 1800-2017 14.14: @($global_clock) — substitute the
