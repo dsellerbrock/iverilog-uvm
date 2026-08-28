@@ -1,0 +1,3 @@
+./ivltests/sv_positional_assoc_element_cast_fail.v:18: error: cannot cast between queue/dynamic-array types with non-equivalent element types.
+./ivltests/sv_positional_assoc_element_cast_fail.v:19: error: cannot cast between queue/dynamic-array types with non-equivalent element types.
+2 error(s) during elaboration.

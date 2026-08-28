@@ -53,6 +53,59 @@ static bool assoc_array_type_is_direct_(ivl_type_t type)
       return queue && queue->assoc_compat();
 }
 
+static bool assoc_array_component_equivalent_(ivl_type_t left,
+					       ivl_type_t right);
+
+bool positional_container_type_match(ivl_type_t target, ivl_type_t source,
+				     bool&handled)
+{
+      handled = false;
+      const netdarray_t*target_container =
+	    dynamic_cast<const netdarray_t*>(target);
+      const netdarray_t*source_container =
+	    dynamic_cast<const netdarray_t*>(source);
+      if (!target_container || !source_container)
+	    return false;
+
+      const netqueue_t*target_queue =
+	    dynamic_cast<const netqueue_t*>(target_container);
+      const netqueue_t*source_queue =
+	    dynamic_cast<const netqueue_t*>(source_container);
+      if ((target_queue && target_queue->assoc_compat())
+	  || (source_queue && source_queue->assoc_compat()))
+	    return false;
+
+      handled = true;
+      return assoc_array_component_equivalent_(
+	    target_container->element_type(), source_container->element_type());
+}
+
+bool positional_container_expr_type_match(ivl_type_t target,
+					  const NetExpr*source,
+					  bool&handled)
+{
+      handled = false;
+      if (!source)
+	    return false;
+
+      if (source->net_type())
+	    return positional_container_type_match(
+		  target, source->net_type(), handled);
+
+      const NetETernary*ternary = dynamic_cast<const NetETernary*>(source);
+      if (!ternary)
+	    return false;
+
+      bool true_handled = false;
+      bool false_handled = false;
+      bool true_match = positional_container_expr_type_match(
+	    target, ternary->true_expr(), true_handled);
+      bool false_match = positional_container_expr_type_match(
+	    target, ternary->false_expr(), false_handled);
+      handled = true_handled && false_handled;
+      return handled && true_match && false_match;
+}
+
 static bool assoc_array_type_contains_(ivl_type_t type,
 				       set<ivl_type_t>&seen)
 {

@@ -159,6 +159,9 @@ if [ -z "$runtime_vvp" ] || [ -z "$runtime_iverilog" ] \
         bash tests/vvp_runtime/run_force_array_runtime.sh \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_container_conversion.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! VVP="$runtime_vvp" \
         bash tests/vvp_runtime/run_queue_slice_legacy.sh \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! IVERILOG="$runtime_iverilog" VVP="$runtime_vvp" \

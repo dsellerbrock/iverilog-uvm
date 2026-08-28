@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_nonvoid_function_container_formal_fail.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_nonvoid_function_container_formal_fail" ],
+    "gold"          : "sv_nonvoid_function_container_formal_fail"
+}

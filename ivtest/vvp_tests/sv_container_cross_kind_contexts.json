@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_container_cross_kind_contexts.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_container_cross_kind_contexts",
+    "vlog95"        : { "type" : "NI" }
+}

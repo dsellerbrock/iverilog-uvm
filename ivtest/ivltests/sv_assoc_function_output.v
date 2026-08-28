@@ -1,5 +1,7 @@
-// Pure output associative formals start empty on every call and copy their
-// final value back to direct and class-property actuals.
+// Automatic pure-output associative formals start empty on every call;
+// static function formals retain their own storage between calls. Both copy
+// their final value back to direct and class-property actuals without copying
+// the caller's prior value in (IEEE 1800-2017/2023 13.4.2 and 13.5).
 module sv_assoc_function_output;
   typedef int assoc_t[string];
   typedef int wildcard_t[*];
@@ -69,6 +71,10 @@ module sv_assoc_function_output;
     seen = replace_auto(actual);
     if (seen != 0 || actual.exists("old") || actual["auto"] != 22)
       $fatal(1, "FAILED -- automatic output default/copyback");
+    actual["again_auto"] = 23;
+    seen = replace_auto(actual);
+    if (seen != 0 || actual.exists("again_auto") || actual["auto"] != 22)
+      $fatal(1, "FAILED -- automatic output resets each invocation");
 
     actual["old"] = 12;
     seen = replace_static(actual);
@@ -76,8 +82,9 @@ module sv_assoc_function_output;
       $fatal(1, "FAILED -- static output first call");
     actual["again"] = 13;
     seen = replace_static(actual);
-    if (seen != 0 || actual.exists("again") || actual["static"] != 33)
-      $fatal(1, "FAILED -- static output reset");
+    if (seen != 1 || actual.exists("again") || actual.size() != 1
+        || actual["static"] != 33)
+      $fatal(1, "FAILED -- static output formal retention");
 
     actual["old"] = 15;
     seen = replace_default(actual);

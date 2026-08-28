@@ -1,0 +1,13 @@
+tests/vvp_runtime/container_conversion_malformed_encoding.vvp:12: invalid container element encoding 'bogus' for %container/to/queue
+tests/vvp_runtime/container_conversion_malformed_encoding.vvp:13: invalid container element encoding 'bogus' for %queue/to/darray
+tests/vvp_runtime/container_conversion_malformed_encoding.vvp:14: invalid container element encoding 'bogus' for %append/qo/obj/darray
+tests/vvp_runtime/container_conversion_malformed_encoding.vvp:15: invalid container element encoding 'bogus' for %append/qo/obj/darray/proto
+tests/vvp_runtime/container_conversion_malformed_encoding.vvp:16: invalid container element encoding 'bogus' for %append/qo/obj/queue
+tests/vvp_runtime/container_conversion_malformed_encoding.vvp:17: invalid container element encoding 'bogus' for %append/qo/obj/queue/proto
+tests/vvp_runtime/container_conversion_malformed_encoding.vvp:18: %append/qo/obj/darray/proto /proto requires object element encoding 'o', got 'v8'
+tests/vvp_runtime/container_conversion_malformed_encoding.vvp:19: invalid stream container encoding 'b16!:garbage' for %stream/to/queue
+tests/vvp_runtime/container_conversion_malformed_encoding.vvp:20: invalid stream container encoding 'x16!' for %stream/to/dar
+tests/vvp_runtime/container_conversion_malformed_encoding.vvp:21: invalid stream container encoding 'b16!junk' for %stream/to/dar
+tests/vvp_runtime/container_conversion_malformed_encoding.vvp:22: invalid stream container encoding 'b0:0' for %stream/to/queue
+tests/vvp_runtime/container_conversion_malformed_encoding.vvp:23: invalid stream container encoding 'b4294967296!' for %stream/to/dar
+tests/vvp_runtime/container_conversion_malformed_encoding.vvp:24: invalid stream container encoding 'b16!:18446744073709551616' for %stream/to/queue

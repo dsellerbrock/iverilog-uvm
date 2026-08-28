@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_container_explicit_cast_fail_reverse_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_container_explicit_cast_fail_reverse" ],
+    "gold"          : "sv_container_explicit_cast_fail_reverse_2023"
+}

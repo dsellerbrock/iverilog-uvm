@@ -3742,11 +3742,13 @@ static unsigned dynamic_container_spec_(ivl_type_t container_type)
       return kind;
 }
 
-/* A queue used as another queue's element has value semantics.  Object-store
- * opcodes make the final copy, but have no target-type operand from which to
- * learn an inner queue's bound.  Make a private copy and trim it before the
- * store.  Keep word 3/flag 4 intact because insert() evaluates its position
- * before its value. */
+/* A queue/darray used as another container's element has value semantics.
+ * Materialize a cross-kind RHS as the destination's declared container kind;
+ * the receiving object-store opcode otherwise sees only the source object's
+ * concrete runtime kind. Object-store opcodes make the final ordinary copy,
+ * but have no target-type operand from which to learn an inner queue's bound.
+ * Make a private copy and trim it before the store. Keep word 3/flag 4 intact
+ * because insert() evaluates its position before its value. */
 static void draw_queue_element_object_value_(ivl_expr_t expr,
                                              ivl_type_t element_type)
 {
@@ -3756,7 +3758,8 @@ static void draw_queue_element_object_value_(ivl_expr_t expr,
       unsigned lab_trim;
       unsigned lab_done;
 
-      draw_eval_object(expr);
+      if (draw_eval_container_value_for_target(expr, element_type) < 0)
+            draw_eval_object(expr);
       if (!element_type || ivl_type_base(element_type) != IVL_VT_QUEUE
           || ivl_type_queue_assoc_compat(element_type))
             return;
@@ -4684,6 +4687,14 @@ static void emit_iface_method_call_(ivl_statement_t net, ivl_scope_t method,
             ivl_signal_t port = ivl_scope_port(method,
                                                port_base + i - parm_base);
             if (!port) continue;
+            if (ivl_signal_port(port) != IVL_SIP_INPUT) {
+                  fprintf(stderr, "%s:%u: internal error: dynamic "
+                          "virtual-interface dispatch reached a non-input "
+                          "argument without copy-back support\n",
+                          ivl_stmt_file(net), ivl_stmt_lineno(net));
+                  vvp_errors += 1;
+                  continue;
+            }
             ivl_variable_type_t pt = ivl_signal_data_type(port);
             switch (pt) {
                 case IVL_VT_BOOL:
@@ -4702,9 +4713,15 @@ static void emit_iface_method_call_(ivl_statement_t net, ivl_scope_t method,
                   fprintf(vvp_out, "    %%store/str v%p_0;\n", port);
                   break;
                 case IVL_VT_CLASS:
+                  draw_eval_object(pe);
+                  fprintf(vvp_out, "    %%store/obj v%p_0;\n", port);
+                  break;
                 case IVL_VT_DARRAY:
                 case IVL_VT_QUEUE:
-                  draw_eval_object(pe);
+                  if (draw_eval_container_value_for_target(
+                            pe, ivl_signal_net_type(port)) < 0)
+                        draw_eval_object_value_copy(
+                              pe, ivl_signal_net_type(port));
                   fprintf(vvp_out, "    %%store/obj v%p_0;\n", port);
                   break;
                 default:

@@ -22408,6 +22408,71 @@ bool of_STREAM_SPLIT_REM(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+struct stream_container_encoding_t {
+      unsigned element_width;
+      bool four_state;
+      bool strict_cast;
+      uint64_t queue_max;
+};
+
+static bool decode_stream_container_encoding_(
+      const char*text, bool as_queue, stream_container_encoding_t&enc)
+{
+      enc.element_width = 0;
+      enc.four_state = false;
+      enc.strict_cast = false;
+      enc.queue_max = 0;
+      if (!text)
+	    return false;
+
+      const char*cursor = text;
+      if (*cursor == 's')
+	    cursor += 1;
+      if (*cursor != 'b' && *cursor != 'v')
+	    return false;
+      enc.four_state = *cursor == 'v';
+      cursor += 1;
+
+      if (!isdigit(static_cast<unsigned char>(*cursor)))
+	    return false;
+      errno = 0;
+      char*end = 0;
+      unsigned long long width = strtoull(cursor, &end, 10);
+      if (errno == ERANGE || end == cursor || width == 0 || width > UINT_MAX)
+	    return false;
+      enc.element_width = static_cast<unsigned>(width);
+      cursor = end;
+
+      if (*cursor == '!') {
+	    enc.strict_cast = true;
+	    cursor += 1;
+      }
+
+      if (*cursor == ':') {
+	    if (!as_queue)
+		  return false;
+	    cursor += 1;
+	    if (!isdigit(static_cast<unsigned char>(*cursor)))
+		  return false;
+	    errno = 0;
+	    unsigned long long maximum = strtoull(cursor, &end, 10);
+	    if (errno == ERANGE || end == cursor)
+		  return false;
+	    enc.queue_max = static_cast<uint64_t>(maximum);
+	    cursor = end;
+      }
+
+      return *cursor == 0;
+}
+
+bool vvp_stream_container_encoding_is_valid(const char*text, bool as_queue)
+{
+      stream_container_encoding_t enc;
+      return decode_stream_container_encoding_(text, as_queue, enc);
+}
+
+static bool container_opcode_runtime_fatal_();
+
 /*
  * %stream/to/queue "<t>" and %stream/to/dar "<t>"
  *
@@ -22420,38 +22485,42 @@ bool of_STREAM_SPLIT_REM(vthread_t thr, vvp_code_t cp)
  */
 static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
 {
-      static bool warned_bad_type = false;
-
       const char*text = cp->text;
       vvp_vector4_t val = thr->pop_vec4();
 
-	// Parse the element type string: [s] (b|v) <wid>
-      const char*tp = text;
-      if (*tp == 's') tp += 1;
-      unsigned ewid = 0;
-      if (*tp == 'b' || *tp == 'v')
-	    ewid = (unsigned)strtoul(tp+1, 0, 10);
-      bool four_state = *tp == 'v';
-      const char*max_sep = strchr(tp+1, ':');
-      uint64_t queue_max = max_sep ? strtoull(max_sep+1, 0, 10) : 0;
-
-      if (ewid == 0) {
-	    if (!warned_bad_type) {
-		  cerr << thr->get_fileline()
-		       << "VVP error: unsupported element type '" << text
-		       << "' for streaming into a dynamic container; "
-		          "pushing empty container (further similar "
-		          "messages suppressed)." << endl;
-		  warned_bad_type = true;
-	    }
+      stream_container_encoding_t enc;
+      if (!decode_stream_container_encoding_(text, as_queue, enc)) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: malformed stream container encoding '"
+		 << (text ? text : "<null>") << "'." << endl;
 	    vvp_object_t nil;
 	    thr->push_object(nil);
-	    return true;
+	    return container_opcode_runtime_fatal_();
       }
+
+      unsigned ewid = enc.element_width;
+      bool four_state = enc.four_state;
+      bool strict_cast = enc.strict_cast;
+      uint64_t queue_max = enc.queue_max;
 
       unsigned w = val.size();
       size_t count = w / ewid + ((w % ewid) != 0);
-      if (count > STREAM_WITH_MAX_BITS/ewid) {
+      bool cast_size_error = strict_cast && (w % ewid) != 0;
+      bool cast_bound_error = strict_cast && as_queue && queue_max
+	    && count > queue_max;
+      if (cast_size_error || cast_bound_error) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: bit-stream cast source size " << w
+		 << " does not fit the destination";
+	    if (cast_bound_error)
+		  cerr << " bounded queue capacity " << queue_max;
+	    else
+		  cerr << " element width " << ewid;
+	    cerr << "." << endl;
+	    count = 0;
+      }
+      bool runtime_limit_error = count > STREAM_WITH_MAX_BITS/ewid;
+      if (runtime_limit_error) {
 	    cerr << thr->get_fileline()
 		 << "VVP error: streaming target container exceeds the bounded "
 		    "runtime width; producing an empty container." << endl;
@@ -22472,7 +22541,10 @@ static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
 		  unsigned avail = (top >= ewid) ? ewid : top;
 		  elem.set_vec(ewid - avail, val.subvalue(top - avail, avail));
 		  elem = coerce_stream_elem_(elem, four_state);
-		  res->push_back(elem, (unsigned)queue_max);
+		  /* COUNT was already clipped or validated against the full
+		   * uint64_t bound. Reapplying it through the legacy unsigned API
+		   * would wrap bounds above UINT_MAX. */
+		  res->push_back(elem, 0);
 	    }
 	    vvp_object_t obj(res);
 	    thr->push_object(obj);
@@ -22489,6 +22561,14 @@ static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
 	    }
 	    vvp_object_t obj(res);
 	    thr->push_object(obj);
+      }
+
+      if (cast_size_error || cast_bound_error
+	  || (strict_cast && runtime_limit_error)) {
+	    vpip_set_return_value(1);
+	    if (!schedule_finished())
+		  schedule_finish(0);
+	    return false;
       }
 
       return true;
@@ -22810,7 +22890,9 @@ static vvp_object_t make_darray_for_enc_(const char*text, size_t size)
       size_t n;
 
       vvp_object_t obj;
-      if (strcmp(text,"b8") == 0) {
+      if (!text) {
+	    return obj;
+      } else if (strcmp(text,"b8") == 0) {
 	    obj = new vvp_darray_atom<uint8_t>(size);
       } else if (strcmp(text,"b16") == 0) {
 	    obj = new vvp_darray_atom<uint16_t>(size);
@@ -22851,6 +22933,109 @@ static vvp_object_t make_darray_for_enc_(const char*text, size_t size)
       return obj;
 }
 
+enum container_element_kind_t {
+      CONTAINER_ELEMENT_INVALID,
+      CONTAINER_ELEMENT_REAL,
+      CONTAINER_ELEMENT_STRING,
+      CONTAINER_ELEMENT_OBJECT,
+      CONTAINER_ELEMENT_VECTOR
+};
+
+struct container_element_encoding_t {
+      container_element_kind_t kind;
+      unsigned word_wid;
+      bool four_state;
+      bool is_signed;
+};
+
+/* Decode the element spelling shared by %new/darray, %new/queue, and the
+ * destination-typed container conversion opcodes. Signedness affects vector
+ * extension; b/sb selects IEEE 1800-2017/2023 6.11.2 2-state coercion while
+ * v/sv preserves X/Z. */
+static bool decode_container_element_encoding_(
+      const char*text, container_element_encoding_t&enc)
+{
+      size_t n = 0;
+
+      enc.kind = CONTAINER_ELEMENT_INVALID;
+      enc.word_wid = 0;
+      enc.four_state = false;
+      enc.is_signed = false;
+      if (!text)
+	    return false;
+
+      if (strcmp(text, "r") == 0) {
+	    enc.kind = CONTAINER_ELEMENT_REAL;
+	    return true;
+      }
+      if (strcmp(text, "S") == 0) {
+	    enc.kind = CONTAINER_ELEMENT_STRING;
+	    return true;
+      }
+      if (strcmp(text, "o") == 0) {
+	    enc.kind = CONTAINER_ELEMENT_OBJECT;
+	    return true;
+      }
+
+      if ((1 == sscanf(text, "b%u%zn", &enc.word_wid, &n))
+	  && n == strlen(text)) {
+	    enc.kind = CONTAINER_ELEMENT_VECTOR;
+      } else if ((1 == sscanf(text, "sb%u%zn", &enc.word_wid, &n))
+		 && n == strlen(text)) {
+	    enc.kind = CONTAINER_ELEMENT_VECTOR;
+	    enc.is_signed = true;
+      } else if ((1 == sscanf(text, "v%u%zn", &enc.word_wid, &n))
+		 && n == strlen(text)) {
+	    enc.kind = CONTAINER_ELEMENT_VECTOR;
+	    enc.four_state = true;
+      } else if ((1 == sscanf(text, "sv%u%zn", &enc.word_wid, &n))
+		 && n == strlen(text)) {
+	    enc.kind = CONTAINER_ELEMENT_VECTOR;
+	    enc.four_state = true;
+	    enc.is_signed = true;
+      }
+
+      if (enc.kind == CONTAINER_ELEMENT_VECTOR && enc.word_wid == 0) {
+	    enc.kind = CONTAINER_ELEMENT_INVALID;
+	    return false;
+      }
+      return enc.kind != CONTAINER_ELEMENT_INVALID;
+}
+
+bool vvp_container_element_encoding_is_valid(const char*text)
+{
+      container_element_encoding_t enc;
+      return decode_container_element_encoding_(text, enc);
+}
+
+/* Runtime validation is a defensive backstop for internally constructed or
+ * corrupted code records. Parsed VVP images are rejected by compile.cc before
+ * scheduling. Keep the opcode fallback non-asserting and return a process
+ * failure so malformed bytecode cannot turn into SIGABRT. */
+static bool container_opcode_runtime_fatal_()
+{
+      vpip_set_return_value(1);
+      if (!schedule_finished())
+	    schedule_finish(0);
+      return false;
+}
+
+static vvp_vector4_t coerce_container_vector_(
+      const vvp_vector4_t&value, const container_element_encoding_t&enc)
+{
+      vvp_bit4_t fill = BIT4_0;
+      if (enc.is_signed && value.size() != 0)
+	    fill = value.value(value.size()-1);
+
+      vvp_vector4_t result(enc.word_wid, fill);
+      unsigned copy_wid = min(enc.word_wid, value.size());
+      if (copy_wid)
+	    result.set_vec(0, value.subvalue(0, copy_wid));
+      if (!enc.four_state)
+	    result = vector2_to_vector4(vvp_vector2_t(result), result.size());
+      return result;
+}
+
 bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)
 {
       const char*text = cp->text;
@@ -22868,67 +23053,81 @@ bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* Build a fresh destination-typed dynamic-array value from any positional
+ * runtime collection. This is shared by whole-container conversion and by
+ * object-collection splices whose declared inner element is a darray. A null
+ * or non-container source intentionally produces an empty declared target;
+ * the splice caller diagnoses a non-container element at its own boundary. */
+static vvp_object_t materialize_darray_for_enc_(
+      const vvp_object_t&src_obj, const char*text,
+      const class_type*elem_class_override, bool&valid)
+{
+      vvp_darray*src = src_obj.peek<vvp_darray>();
+      size_t size = src ? src->get_size() : 0;
+      container_element_encoding_t enc;
+      vvp_object_t dst_obj = make_darray_for_enc_(text, size);
+      vvp_darray*dst = dst_obj.peek<vvp_darray>();
+
+      valid = decode_container_element_encoding_(text, enc) && dst;
+      if (!valid)
+	    return vvp_object_t();
+
+      if (src) {
+            for (size_t idx = 0; idx < size; idx += 1) {
+		  if (enc.kind == CONTAINER_ELEMENT_REAL) {
+                        double value = 0.0;
+                        src->get_word(idx, value);
+                        dst->set_word(idx, value);
+		  } else if (enc.kind == CONTAINER_ELEMENT_STRING) {
+                        string value;
+                        src->get_word(idx, value);
+                        dst->set_word(idx, value);
+		  } else if (enc.kind == CONTAINER_ELEMENT_OBJECT) {
+                        vvp_object_t value;
+                        src->get_word(idx, value);
+                        dst->set_word(idx, value.value_copy_element());
+		  } else {
+			vvp_vector4_t value;
+                        src->get_word(idx, value);
+			dst->set_word(idx,
+			      coerce_container_vector_(value, enc));
+                  }
+            }
+	    src->copy_passive_value_metadata_to(dst);
+      }
+
+      if (elem_class_override)
+	    dst->set_elem_class(elem_class_override);
+
+      return dst_obj;
+}
+
 /*
  * %queue/to/darray "<element-encoding>"
  *
- * Finish an unpacked-array concatenation whose runtime-sized operands were
- * accumulated in a temporary queue. Pops the queue and pushes a new dynamic
- * array with the same elements, preserving the declared container kind for
- * later indexing and DPI operations (IEEE 1800-2017 7.5 and 10.10).
+ * Pop any queue/dynamic-array value and push a fresh destination-typed dynamic
+ * array with the same elements. The legacy opcode spelling is retained for
+ * generated-image compatibility. Besides unpacked-array concatenations, this
+ * supports whole-container assignment without leaking the source's runtime
+ * kind into later indexing or DPI operations (IEEE 1800-2017/2023 7.6).
+ * The original concatenation use remains governed by 7.5 and 10.10.
  */
 bool of_QUEUE_TO_DARRAY(vthread_t thr, vvp_code_t cp)
 {
       vvp_object_t src_obj;
       thr->pop_object(src_obj);
-      vvp_darray*src = src_obj.peek<vvp_darray>();
-      size_t size = src ? src->get_size() : 0;
-      vvp_object_t dst_obj = make_darray_for_enc_(cp->text, size);
-      vvp_darray*dst = dst_obj.peek<vvp_darray>();
+      bool valid = false;
+      vvp_object_t dst_obj = materialize_darray_for_enc_(
+	    src_obj, cp->text, 0, valid);
 
-      if (!dst) {
-            cerr << get_fileline()
-                 << "Internal error: Unsupported dynamic array type: "
-                 << cp->text << "." << endl;
-            assert(0);
-      }
-
-      if (src) {
-            unsigned word_wid = 0;
-            size_t n = 0;
-            bool is_real = strcmp(cp->text, "r") == 0;
-            bool is_string = strcmp(cp->text, "S") == 0;
-            bool is_object = strcmp(cp->text, "o") == 0;
-            bool is_vector =
-                  ((1 == sscanf(cp->text, "b%u%zn", &word_wid, &n))
-                   && n == strlen(cp->text))
-                  || ((1 == sscanf(cp->text, "sb%u%zn", &word_wid, &n))
-                      && n == strlen(cp->text))
-                  || ((1 == sscanf(cp->text, "v%u%zn", &word_wid, &n))
-                      && n == strlen(cp->text))
-                  || ((1 == sscanf(cp->text, "sv%u%zn", &word_wid, &n))
-                      && n == strlen(cp->text));
-
-            for (size_t idx = 0; idx < size; idx += 1) {
-                  if (is_real) {
-                        double value = 0.0;
-                        src->get_word(idx, value);
-                        dst->set_word(idx, value);
-                  } else if (is_string) {
-                        string value;
-                        src->get_word(idx, value);
-                        dst->set_word(idx, value);
-                  } else if (is_object) {
-                        vvp_object_t value;
-                        src->get_word(idx, value);
-                        dst->set_word(idx, value.value_copy_element());
-                  } else if (is_vector) {
-                        vvp_vector4_t value(word_wid, BIT4_X);
-                        src->get_word(idx, value);
-                        dst->set_word(idx, value);
-                  }
-            }
-            if (src->elem_class())
-                  dst->set_elem_class(src->elem_class());
+      if (!valid) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: malformed %queue/to/darray element encoding '"
+		 << (cp->text ? cp->text : "<null>") << "'." << endl;
+	    /* The opcode consumes one object and produces one object even on
+	     * failure, so a diagnostic path cannot unbalance its caller. */
+	    thr->push_object(dst_obj);
+	    return container_opcode_runtime_fatal_();
       }
 
       thr->push_object(dst_obj);
@@ -22946,7 +23145,9 @@ static vvp_object_t make_queue_for_enc_(const char*text)
       size_t n;
 
       vvp_object_t obj;
-      if ((1 == sscanf(text, "@%u%zn", &container_spec, &n))
+      if (!text) {
+	    return obj;
+      } else if ((1 == sscanf(text, "@%u%zn", &container_spec, &n))
 	  && (n == strlen(text))) {
 	    obj = make_dynamic_container_from_code_(container_spec);
       } else if (strcmp(text, "r") == 0) {
@@ -22969,6 +23170,70 @@ static vvp_object_t make_queue_for_enc_(const char*text)
 	    obj = new vvp_queue_vec4;
       }
       return obj;
+}
+
+/* Build a fresh destination-typed queue value from any positional runtime
+ * collection. A zero maximum is unbounded. Passive value metadata follows the
+ * copy, after which a declared unpacked-struct prototype (when supplied) wins
+ * over metadata carried by the source object's runtime type. */
+static vvp_object_t materialize_queue_for_enc_(
+      const vvp_object_t&src_obj, const char*text, unsigned max_size,
+      const class_type*elem_class_override, bool&valid)
+{
+      vvp_darray*src = src_obj.peek<vvp_darray>();
+      container_element_encoding_t enc;
+      vvp_object_t dst_obj = make_queue_for_enc_(text);
+      vvp_queue*dst = dst_obj.peek<vvp_queue>();
+
+      valid = decode_container_element_encoding_(text, enc) && dst;
+      if (!valid)
+	    return vvp_object_t();
+
+      if (src) {
+	    dst->copy_elems(src_obj, max_size);
+	    if (enc.kind == CONTAINER_ELEMENT_VECTOR) {
+		  for (size_t idx = 0; idx < dst->get_size(); idx += 1) {
+			vvp_vector4_t value;
+			dst->get_word(idx, value);
+			dst->set_word(idx,
+			      coerce_container_vector_(value, enc));
+		  }
+	    }
+	    src->copy_passive_value_metadata_to(dst);
+      }
+
+      if (elem_class_override)
+	    dst->set_elem_class(elem_class_override);
+
+      return dst_obj;
+}
+
+/*
+ * %container/to/queue "<element-encoding>", <max>
+ *
+ * Pop any queue/dynamic-array value and push a fresh destination-typed queue.
+ * A zero maximum is unbounded. Element copying goes through the destination
+ * encoding, including IEEE 1800-2017/2023 6.11.2 X/Z-to-zero coercion for
+ * b/sb elements.
+ */
+bool of_CONTAINER_TO_QUEUE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t src_obj;
+      thr->pop_object(src_obj);
+      bool valid = false;
+      vvp_object_t dst_obj = materialize_queue_for_enc_(
+	    src_obj, cp->text, cp->bit_idx[0], 0, valid);
+
+      if (!valid) {
+	    cerr << get_fileline()
+		 << "VVP error: malformed %container/to/queue element encoding '"
+		 << (cp->text ? cp->text : "<null>") << "'." << endl;
+	    thr->push_object(dst_obj);
+	    return container_opcode_runtime_fatal_();
+      }
+
+      thr->push_object(dst_obj);
+      return true;
 }
 
 bool of_NEW_QUEUE(vthread_t thr, vvp_code_t cp)
@@ -26889,12 +27154,15 @@ static bool store_qobj(vthread_t thr, vvp_code_t cp, unsigned wid=0)
       vvp_object_t src;
       thr->pop_object(src);
 
-        // If it is null just clear the queue
-      if (src.test_nil())
+	// If it is null just clear the queue
+      if (src.test_nil()) {
 	    queue->erase_tail(0);
-      else {
+	    queue->reset_passive_value_metadata();
+      } else {
 	    unsigned max_size = thr->words[cp->bit_idx[0]].w_int;
 	    queue->copy_elems(src, max_size);
+	    if (vvp_darray*src_container = src.peek<vvp_darray>())
+		  src_container->copy_passive_value_metadata_to(queue);
       }
       notify_mutated_object_signal_(thr, net, "store-qobj");
 
@@ -27135,6 +27403,133 @@ static bool append_qo(vthread_t thr, unsigned wid=0)
 bool of_APPEND_QO_OBJ(vthread_t thr, vvp_code_t)
 {
       return append_qo<vvp_object_t, vvp_queue_object>(thr);
+}
+
+/*
+ * %append/qo/obj/darray "<inner-encoding>"
+ * %append/qo/obj/darray/proto "<inner-encoding>", C<class>
+ * %append/qo/obj/queue "<inner-encoding>", <inner-max>
+ * %append/qo/obj/queue/proto "<inner-encoding>", <inner-max>, C<class>
+ *
+ * Destination-typed object-collection splice. The outer receiver is still the
+ * queue<object> expression builder used by %append/qo/obj, but each source
+ * object element is materialized as a fresh inner container of the declared
+ * destination kind before it is appended. This prevents a queue/darray source
+ * runtime handle from leaking through a cross-kind aggregate splice.
+ */
+static bool append_qo_obj_container_(vthread_t thr, vvp_code_t cp,
+				     bool inner_is_queue, bool has_proto)
+{
+      /* Preserve the original splice stack contract: source first, receiver
+       * second. Even an invalid receiver consumes both operands. */
+      vvp_object_t src_obj;
+      thr->pop_object(src_obj);
+
+      vvp_object_t recv_obj;
+      vvp_queue_object*receiver =
+	    pop_queue_receiver_<vvp_queue_object>(thr, recv_obj);
+      if (!receiver)
+	    return true;
+
+      const vvp_container_opcode_data_s*data =
+	    has_proto ? cp->container_data : 0;
+      if (has_proto && !data) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: malformed object-collection splice /proto "
+		    "descriptor." << endl;
+	    return container_opcode_runtime_fatal_();
+      }
+
+      const char*element_encoding =
+	    data ? data->element_encoding : cp->text;
+      const unsigned inner_max =
+	    data ? data->max_size : cp->bit_idx[0];
+      container_element_encoding_t enc;
+      if (!decode_container_element_encoding_(element_encoding, enc)) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: malformed object-collection splice inner "
+		 << (inner_is_queue ? "queue" : "dynamic array")
+		 << " element encoding '"
+		 << (element_encoding ? element_encoding : "<null>")
+		 << "'." << endl;
+	    return container_opcode_runtime_fatal_();
+      }
+
+      const class_type*elem_class = 0;
+      if (has_proto) {
+	    elem_class = dynamic_cast<const class_type*>(data->prototype);
+	    if (!elem_class || !elem_class->is_struct_type()) {
+		  cerr << thr->get_fileline()
+		       << "VVP error: object-collection splice /proto operand "
+			  "is not an unpacked-struct/union definition." << endl;
+		  return container_opcode_runtime_fatal_();
+	    }
+      }
+
+      if (src_obj.test_nil())
+	    return true;
+
+      vvp_darray*source = src_obj.peek<vvp_darray>();
+      if (!source) {
+	    cerr << thr->get_fileline()
+		 << "Warning: queue splice source is not a collection;"
+		    " the operand was skipped." << endl;
+	    return true;
+      }
+
+      const size_t source_size = source->get_size();
+      for (size_t idx = 0; idx < source_size; idx += 1) {
+	    vvp_object_t inner_source;
+	    source->get_word((unsigned)idx, inner_source);
+
+	    bool valid = false;
+	    vvp_object_t inner_target = inner_is_queue
+		  ? materialize_queue_for_enc_(inner_source, element_encoding,
+			inner_max, elem_class, valid)
+		  : materialize_darray_for_enc_(inner_source, element_encoding,
+			elem_class, valid);
+	    if (!valid) {
+		  cerr << thr->get_fileline()
+		       << "VVP error: object-collection splice could not "
+			  "materialize its declared inner container." << endl;
+		  return container_opcode_runtime_fatal_();
+	    }
+
+	    if (!inner_source.test_nil()
+	        && !inner_source.peek<vvp_darray>()) {
+		  cerr << thr->get_fileline()
+		       << "Warning: object-collection splice element " << idx
+		       << " is not a queue or dynamic array; an empty declared "
+		       << (inner_is_queue ? "queue" : "dynamic array")
+		       << " was appended." << endl;
+	    }
+
+	    /* inner_target is already a fresh value object, so storing its handle
+	     * directly preserves the one materialization/copy per source element. */
+	    receiver->push_back(inner_target, 0);
+      }
+
+      return true;
+}
+
+bool of_APPEND_QO_OBJ_DARRAY(vthread_t thr, vvp_code_t cp)
+{
+      return append_qo_obj_container_(thr, cp, false, false);
+}
+
+bool of_APPEND_QO_OBJ_DARRAY_PROTO(vthread_t thr, vvp_code_t cp)
+{
+      return append_qo_obj_container_(thr, cp, false, true);
+}
+
+bool of_APPEND_QO_OBJ_QUEUE(vthread_t thr, vvp_code_t cp)
+{
+      return append_qo_obj_container_(thr, cp, true, false);
+}
+
+bool of_APPEND_QO_OBJ_QUEUE_PROTO(vthread_t thr, vvp_code_t cp)
+{
+      return append_qo_obj_container_(thr, cp, true, true);
 }
 
 bool of_APPEND_QO_R(vthread_t thr, vvp_code_t)

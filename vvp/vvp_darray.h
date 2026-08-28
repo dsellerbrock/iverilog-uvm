@@ -28,6 +28,16 @@
 
 class vvp_darray;
 
+/* Return true for the compact element spellings accepted by destination-
+ * typed queue/dynamic-array conversion opcodes. The VVP loader and runtime
+ * share this check so malformed images cannot drift between the two paths. */
+extern bool vvp_container_element_encoding_is_valid(const char*text);
+
+/* Validate the complete compact encoding used by %stream/to/dar and
+ * %stream/to/queue. Queue spellings may carry a 64-bit maximum after ':'. */
+extern bool vvp_stream_container_encoding_is_valid(const char*text,
+						    bool as_queue);
+
 /*
  * A stable reference to one element of a variable-size array.
  *
@@ -132,6 +142,23 @@ class vvp_darray : public vvp_object {
       std::vector<bool>&randc_history(size_t idx);
       void inherit_randc_histories(const vvp_darray&that);
 
+	// Copy the passive state that belongs to a container value. This carries
+	// declared DPI geometry, the value-element prototype, and per-element
+	// random state, but deliberately does not activate the source's temporary
+	// declared-index view in the destination.
+      void copy_passive_value_metadata_to(vvp_darray*that) const
+      { copy_value_metadata_(that); }
+      void reset_passive_value_metadata()
+      {
+	    dpi_left_ = 0;
+	    dpi_right_ = 0;
+	    dpi_has_range_ = false;
+	    elem_class_ = 0;
+	    rand_mode_default_ = true;
+	    rand_modes_.clear();
+	    randc_histories_.clear();
+      }
+
 	// M10-1: a dynamic array is 0-based, but one MARSHALED from a
 	// fixed-size array carries that array's DECLARED range so the DPI
 	// open-array accessors can report it (IEEE 1800-2017 H.10.2).
@@ -205,8 +232,9 @@ class vvp_darray : public vvp_object {
 	// dynamic-array copy is 0-based (IEEE 1800-2017 7.5).
       void copy_value_metadata_(vvp_darray*that) const
       {
-	    if (dpi_has_range_)
-		  that->dpi_set_decl_range(dpi_left_, dpi_right_);
+	    that->dpi_left_ = dpi_left_;
+	    that->dpi_right_ = dpi_right_;
+	    that->dpi_has_range_ = dpi_has_range_;
 	    that->elem_class_ = elem_class_;
 	    that->inherit_rand_modes(*this);
 	    that->inherit_randc_histories(*this);

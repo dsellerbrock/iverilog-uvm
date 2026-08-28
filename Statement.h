@@ -147,6 +147,9 @@ class PAssign_  : public Statement {
 			       bool force_unsigned =false) const;
       NetExpr* elaborate_rval_(Design*, NetScope*, ivl_type_t ntype) const;
 
+      NetExpr* elaborate_direct_integral_container_rval_(
+	    Design*, NetScope*, ivl_type_t target_type, bool&handled) const;
+
       NetScope* elaborate_rval_scope_(Design*, NetScope*) const;
 
       NetExpr* elaborate_rval_obj_(Design*, NetScope*,

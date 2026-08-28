@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_container_explicit_cast.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_container_explicit_cast",
+    "vlog95"        : { "type" : "NI" }
+}

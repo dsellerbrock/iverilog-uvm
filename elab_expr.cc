@@ -14618,7 +14618,10 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 
 	    if (tmp) {
 		  const NetNet*formal = def->port(pidx);
-		    // IEEE 1800-2017 13.5.2: output and inout actuals must be
+		  ivl_type_t formal_type = formal->unpacked_dimensions() > 0
+			? formal->array_type() : formal->net_type();
+		  ivl_type_t actual_lval_type = nullptr;
+		    // IEEE 1800-2017 13.5: output and inout actuals must be
 		    // valid procedural assignment l-values.  Function arguments
 		    // are otherwise elaborated only as r-values below, which used
 		    // to accept an assignment pattern such as
@@ -14636,13 +14639,30 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 			      parm_errors += 1;
 			      continue;
 			}
+
+			bool positional_actual = false;
+			bool positional_compatible = positional_container_type_match(
+			      lval->net_type(), formal_type, positional_actual);
+			if (positional_actual && !positional_compatible) {
+			      cerr << tmp->get_fileline() << ": error: function "
+				   << "output/inout queue/dynamic-array formal and "
+				      "actual require equivalent element types "
+				      "(IEEE 1800-2017/2023 7.6)." << endl;
+			      des->errors += 1;
+			      parm_errors += 1;
+			      delete lval;
+			      continue;
+			}
+			actual_lval_type = lval->net_type();
 			delete lval;
 		  }
-		  ivl_type_t formal_type = formal->unpacked_dimensions() > 0
-			? formal->array_type() : formal->net_type();
+		  ivl_type_t argument_type = formal_type;
+		  if (formal->port_type() == NetNet::POUTPUT
+		      && actual_lval_type)
+			argument_type = actual_lval_type;
 		  parms[pidx] = elaborate_rval_expr(des, scope,
-						    formal_type,
-						    tmp, need_const);
+					    argument_type,
+					    tmp, need_const);
 		  if (parms[pidx] == 0) {
 			parm_errors += 1;
 			continue;
@@ -16413,6 +16433,172 @@ unsigned PECastType::test_width(Design*des, NetScope*scope, width_mode_t&)
       return expr_width_;
 }
 
+static bool bitstream_cast_type_(ivl_type_t type, bool destination,
+				 set<ivl_type_t>&active)
+{
+      if (!type)
+	    return false;
+      if (type == &netvector_t::chandle_type)
+	    return false;
+      if (type->packed() || dynamic_cast<const netstring_t*>(type))
+	    return true;
+      if (!active.insert(type).second)
+	    return false;
+
+      bool result = false;
+      if (const netqueue_t*queue = dynamic_cast<const netqueue_t*>(type)) {
+	    result = !(destination && queue->assoc_compat())
+		  && bitstream_cast_type_(queue->element_type(), destination,
+					  active);
+      } else if (const netarray_t*array =
+		       dynamic_cast<const netarray_t*>(type)) {
+	    result = bitstream_cast_type_(array->element_type(), destination,
+					  active);
+      } else if (const netstruct_t*record =
+		       dynamic_cast<const netstruct_t*>(type)) {
+	    /* Packed unions returned above. Clause 6.24.3 names unpacked
+	       structures/classes but does not define an unpacked-union stream
+	       layout, so do not invent one. */
+	    result = !record->union_flag();
+	    for (const netstruct_t::member_t&member : record->members())
+		  result = result && bitstream_cast_type_(
+			member.net_type, destination, active);
+      } else if (const netclass_t*class_type =
+		       dynamic_cast<const netclass_t*>(type)) {
+	    /* A class is not a legal bit-stream destination. As a source, its
+	       instance properties must themselves be bit-stream types, and the
+	       general cast cannot reach local/protected state (6.24.3). */
+	    result = !destination;
+	    for (size_t idx = 0 ; result && idx < class_type->get_properties();
+		 idx += 1) {
+		  property_qualifier_t qual = class_type->get_prop_qual(idx);
+		  if (qual.test_static())
+			continue;
+		  result = !qual.test_local() && !qual.test_protected()
+			&& bitstream_cast_type_(class_type->get_prop_type(idx),
+						 false, active);
+	    }
+      }
+
+      active.erase(type);
+      return result;
+}
+
+static bool bitstream_cast_type_(ivl_type_t type, bool destination)
+{
+      set<ivl_type_t>active;
+      return bitstream_cast_type_(type, destination, active);
+}
+
+static bool positional_container_integral_elements_(ivl_type_t type)
+{
+      const netdarray_t*container = dynamic_cast<const netdarray_t*>(type);
+      const netqueue_t*queue = dynamic_cast<const netqueue_t*>(container);
+      if (!container || (queue && queue->assoc_compat()))
+	    return false;
+      ivl_type_t element = container->element_type();
+      return element && element->packed() && element->packed_width() > 0
+	    && type_is_vectorable(element->base_type());
+}
+
+static bool positional_container_expr_bitstream_(const NetExpr*source)
+{
+      if (!source)
+	    return false;
+      if (source->net_type())
+	    return bitstream_cast_type_(source->net_type(), false);
+      const NetETernary*ternary = dynamic_cast<const NetETernary*>(source);
+      return ternary
+	    && positional_container_expr_bitstream_(ternary->true_expr())
+	    && positional_container_expr_bitstream_(ternary->false_expr());
+}
+
+static bool positional_container_expr_integral_elements_(
+      const NetExpr*source)
+{
+      if (!source)
+	    return false;
+      if (source->net_type())
+	    return positional_container_integral_elements_(source->net_type());
+      const NetETernary*ternary = dynamic_cast<const NetETernary*>(source);
+      return ternary
+	    && positional_container_expr_integral_elements_(ternary->true_expr())
+	    && positional_container_expr_integral_elements_(ternary->false_expr());
+}
+
+/* A queue/dynamic-array cast first follows assignment compatibility
+ * (6.24.1 and 7.6). A non-assignment-compatible pair can still be a legal
+ * bit-stream cast under 6.24.3, so equivalent elements use the ordinary
+ * typed-copy marker while supported integral bit streams use the existing
+ * stream pack/unpack carrier. Both produce a fresh object of TARGET_TYPE
+ * before an enclosing assignment or method call can obscure the cast. */
+enum positional_container_cast_status_t {
+      POSITIONAL_CAST_NOT_APPLICABLE,
+      POSITIONAL_CAST_MATERIALIZED,
+      POSITIONAL_CAST_REENTER_WIDTH,
+      POSITIONAL_CAST_ERROR
+};
+
+enum positional_container_cast_diag_t {
+      POSITIONAL_CAST_DIAG_DEFER,
+      POSITIONAL_CAST_DIAG_REPORT,
+      POSITIONAL_CAST_DIAG_SUPPRESS
+};
+
+static NetExpr* make_positional_container_cast_(
+      Design*des, const LineInfo&loc, ivl_type_t target_type,
+      NetExpr*source, positional_container_cast_status_t&status,
+      positional_container_cast_diag_t diag_mode)
+{
+      status = POSITIONAL_CAST_NOT_APPLICABLE;
+      if (!source)
+	    return nullptr;
+
+      bool positional = false;
+      bool equivalent = positional_container_expr_type_match(
+	    target_type, source, positional);
+      if (!positional)
+	    return nullptr;
+
+      const char*marker_name = "$ivl_container_cast";
+      if (!equivalent) {
+	    bool bitstream_pair = bitstream_cast_type_(target_type, true)
+		  && positional_container_expr_bitstream_(source);
+	    if (bitstream_pair
+		&& positional_container_integral_elements_(target_type)
+		&& positional_container_expr_integral_elements_(source)) {
+		  marker_name = "$ivl_stream$cast$r$1";
+	    } else if (bitstream_pair) {
+		  /* Preserve the existing general bit-stream cast path for legal
+		     recursive aggregate shapes not yet represented by the integral
+		     dynamic-container stream opcode. */
+		  status = POSITIONAL_CAST_REENTER_WIDTH;
+		  return nullptr;
+	    } else {
+		  if (diag_mode == POSITIONAL_CAST_DIAG_DEFER) {
+			status = POSITIONAL_CAST_REENTER_WIDTH;
+			return nullptr;
+		  }
+		  if (diag_mode == POSITIONAL_CAST_DIAG_REPORT) {
+			cerr << loc.get_fileline() << ": error: cannot cast between "
+			     << "queue/dynamic-array types with non-equivalent "
+				"element types." << endl;
+			des->errors += 1;
+		  }
+		  delete source;
+		  status = POSITIONAL_CAST_ERROR;
+		  return nullptr;
+	    }
+      }
+
+      NetESFunc*cast = new NetESFunc(
+	    marker_name, target_type, 1);
+      cast->parm(0, source);
+      cast->set_line(loc);
+      status = POSITIONAL_CAST_MATERIALIZED;
+      return cast;
+}
+
 NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
                                     ivl_type_t type, unsigned flags) const
 {
@@ -16466,6 +16652,29 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
         PExpr::width_mode_t mode = PExpr::SIZED;
         unsigned use_wid = base_->test_width(des, scope, mode);
         NetExpr*base = base_->elaborate_expr(des, scope, use_wid, NO_FLAGS);
+	if (!base)
+	      return nullptr;
+
+	/* Do not let the enclosing assignment's legacy packed-vector-to-array
+	 * path bypass this explicit cast's own source/target validation. */
+	positional_container_cast_status_t container_cast_status;
+	NetExpr*container_cast = make_positional_container_cast_(
+	      des, *this, target_type_, base, container_cast_status,
+	      POSITIONAL_CAST_DIAG_DEFER);
+	if (container_cast_status == POSITIONAL_CAST_MATERIALIZED
+	    || container_cast_status == POSITIONAL_CAST_ERROR)
+	      return container_cast;
+	if (container_cast_status == POSITIONAL_CAST_REENTER_WIDTH) {
+	      delete base;
+	      return elaborate_expr(des, scope, (unsigned)0, flags);
+	}
+
+	/* The width-based path owns the complete associative-array boundary.
+	 * Re-enter it rather than treating a keyed map as a packed bit stream. */
+	if (assoc_array_expr_contains(base)) {
+	      delete base;
+	      return elaborate_expr(des, scope, (unsigned)0, flags);
+	}
 
         ivl_assert(*this, vector->packed_width() > 0);
         ivl_assert(*this, base->expr_width() > 0);
@@ -16571,7 +16780,11 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	    dynamic_cast<const netqueue_t*>(target_type_);
       bool target_is_direct_assoc = direct_assoc_target
 	    && direct_assoc_target->assoc_compat();
+      bool positional_pair = false;
+      positional_container_expr_type_match(
+	    target_type_, sub, positional_pair);
       if (!target_is_direct_assoc
+	  && !positional_pair
 	  && (assoc_array_type_contains(target_type_)
 	      || assoc_array_expr_contains(sub))) {
 	    assoc_array_type_match_t match =
@@ -16592,6 +16805,21 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	    }
 	    return sub;
       }
+
+	/* Associative arrays were handled by the stricter boundary above. For
+	 * positional containers, retain a typed cast temporary in the netlist. */
+      positional_container_cast_status_t container_cast_status;
+      bool report_container_cast_error = positional_cast_error_scope_ != scope;
+      NetExpr*container_cast = make_positional_container_cast_(
+	    des, *this, target_type_, sub, container_cast_status,
+	    report_container_cast_error ? POSITIONAL_CAST_DIAG_REPORT
+					: POSITIONAL_CAST_DIAG_SUPPRESS);
+      if (container_cast_status == POSITIONAL_CAST_ERROR
+	  && report_container_cast_error)
+	    positional_cast_error_scope_ = scope;
+      if (container_cast_status == POSITIONAL_CAST_MATERIALIZED
+	  || container_cast_status == POSITIONAL_CAST_ERROR)
+	    return container_cast;
 
       NetExpr*tmp = 0;
       if (dynamic_cast<const netreal_t*>(target_type_)) {

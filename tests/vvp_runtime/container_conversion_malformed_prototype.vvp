@@ -1,0 +1,20 @@
+:ivl_version "13.0 (devel)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+S_unit .scope package, "$unit" "$unit" 1 1;
+ .timescale 0 0;
+S_top .scope module, "top" "top" 1 1;
+ .timescale 0 0;
+C_not_struct .class "not_struct" "top.not_struct" [0]
+ ;
+v_not_class .var "not_class", 0 0;
+    .scope S_top;
+T_0 ;
+    %append/qo/obj/darray/proto "o", v_not_class;
+    %append/qo/obj/queue/proto "o", 0, C_not_struct;
+    %append/qo/obj/darray/proto "o", C_missing;
+    %end;
+    .thread T_0;
+:file_names 2;
+    "N/A";
+    "tests/vvp_runtime/container_conversion_malformed_prototype.vvp";

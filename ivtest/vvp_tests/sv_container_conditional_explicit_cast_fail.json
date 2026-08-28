@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_container_conditional_explicit_cast_fail.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_container_conditional_explicit_cast_fail" ],
+    "gold"          : "sv_container_conditional_explicit_cast_fail"
+}

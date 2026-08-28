@@ -31,6 +31,8 @@
 # include  "vpi_priv.h"
 # include  "parse_misc.h"
 # include  "statistics.h"
+# include  "class_type.h"
+# include  "vvp_darray.h"
 # include  "schedule.h"
 # include  <iostream>
 # include  <list>
@@ -90,7 +92,16 @@ enum operand_e {
 	/* The operand is a second VPI handle */
       OA_VPI_PTR2,
 	/* String */
-      OA_STRING
+      OA_STRING,
+	/* A validated destination-container element encoding. */
+      OA_CONTAINER_STRING,
+	/* Exact stream-to-container encodings, with an optional queue maximum. */
+      OA_STREAM_DAR_STRING,
+      OA_STREAM_QUEUE_STRING,
+	/* Fields of the descriptor used only by object splice /proto opcodes. */
+      OA_CONTAINER_DATA_STRING,
+      OA_CONTAINER_DATA_MAX,
+      OA_CONTAINER_DATA_PROTO
 };
 
 struct opcode_table_s {
@@ -214,6 +225,15 @@ static const struct opcode_table_s opcode_table[] = {
       { "%and",    of_AND,    0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%and/r",  of_ANDR,   0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%append/qo/obj", of_APPEND_QO_OBJ, 0, {OA_NONE, OA_NONE, OA_NONE} },
+      { "%append/qo/obj/darray", of_APPEND_QO_OBJ_DARRAY, 1,
+	{OA_CONTAINER_STRING, OA_NONE, OA_NONE} },
+      { "%append/qo/obj/darray/proto", of_APPEND_QO_OBJ_DARRAY_PROTO, 2,
+	{OA_CONTAINER_DATA_STRING, OA_CONTAINER_DATA_PROTO, OA_NONE} },
+      { "%append/qo/obj/queue", of_APPEND_QO_OBJ_QUEUE, 2,
+	{OA_CONTAINER_STRING, OA_BIT1, OA_NONE} },
+      { "%append/qo/obj/queue/proto", of_APPEND_QO_OBJ_QUEUE_PROTO, 3,
+	{OA_CONTAINER_DATA_STRING, OA_CONTAINER_DATA_MAX,
+	 OA_CONTAINER_DATA_PROTO} },
       { "%append/qo/r",   of_APPEND_QO_R,   0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%append/qo/str", of_APPEND_QO_STR, 0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%append/qo/v",   of_APPEND_QO_V,   1, {OA_BIT1, OA_NONE, OA_NONE} },
@@ -285,6 +305,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%concati/vec4",of_CONCATI_VEC4,3,{OA_BIT1,  OA_BIT2,  OA_NUMBER} },
       { "%constraint_mode", of_CONSTRAINT_MODE, 1,{OA_NUMBER, OA_NONE,OA_NONE} },
       { "%constraint_mode/get", of_CONSTRAINT_MODE_GET, 1,{OA_NUMBER, OA_NONE,OA_NONE} },
+      { "%container/to/queue",of_CONTAINER_TO_QUEUE,2,
+	{OA_CONTAINER_STRING,OA_BIT1,OA_NONE} },
       { "%covgrp/get_all", of_COVGRP_GET_ALL, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/get_coverage", of_COVGRP_GET_COVERAGE, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/get_inst_coverage", of_COVGRP_GET_INST_COVERAGE, 0,{OA_NONE,OA_NONE,OA_NONE} },
@@ -527,7 +549,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%qsort/keys", of_QSORT_KEYS,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%qsort/r",    of_QSORT_R, 2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
       { "%queue/to/darray", of_QUEUE_TO_DARRAY, 1,
-                                      {OA_STRING,OA_NONE,OA_NONE} },
+	                                      {OA_CONTAINER_STRING,OA_NONE,OA_NONE} },
       { "%qunique",    of_QUNIQUE, 2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
       { "%qunique/keys",of_QUNIQUE_KEYS,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%qunique_copy",of_QUNIQUE_COPY,2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
@@ -681,9 +703,9 @@ static const struct opcode_table_s opcode_table[] = {
       { "%stream/take/left",of_STREAM_TAKE_LEFT,1, {OA_NUMBER, OA_NONE, OA_NONE} },
       { "%stream/take/left/rem",of_STREAM_TAKE_LEFT_REM,1,{OA_NUMBER, OA_NONE, OA_NONE} },
       { "%stream/take/left/with",of_STREAM_TAKE_LEFT_WITH,3, {OA_STRING, OA_BIT1, OA_BIT2} },
-      { "%stream/to/dar",   of_STREAM_TO_DAR,   1, {OA_STRING, OA_NONE, OA_NONE} },
+      { "%stream/to/dar",   of_STREAM_TO_DAR,   1, {OA_STREAM_DAR_STRING, OA_NONE, OA_NONE} },
       { "%stream/to/dar/with",of_STREAM_TO_DAR_WITH,3,{OA_STRING, OA_BIT1, OA_BIT2} },
-      { "%stream/to/queue", of_STREAM_TO_QUEUE, 1, {OA_STRING, OA_NONE, OA_NONE} },
+      { "%stream/to/queue", of_STREAM_TO_QUEUE, 1, {OA_STREAM_QUEUE_STRING, OA_NONE, OA_NONE} },
       { "%stream/to/queue/with",of_STREAM_TO_QUEUE_WITH,3,{OA_STRING, OA_BIT1, OA_BIT2} },
       { "%stream/unpack/l", of_STREAM_UNPACK_L, 2, {OA_BIT1,   OA_BIT2,  OA_NONE} },
       { "%stream/unpack/r", of_STREAM_UNPACK_R, 2, {OA_BIT1,   OA_BIT2,  OA_NONE} },
@@ -1218,6 +1240,73 @@ void compile_vpi_lookup(vpiHandle *handle, char*label)
 	    = new struct vpi_handle_resolv_list_s(label);
 
       res->handle = handle;
+      resolv_submit(res);
+}
+
+/* A /proto operand is narrower than a generic VPI reference: it must resolve
+ * to the class_type record that describes the value element. Validate it in
+ * the deferred resolver so forward labels are accepted, while wrong-kind and
+ * unresolved handles make the VVP image non-runnable instead of surviving to
+ * a runtime dynamic_cast/assert. */
+struct container_prototype_resolv_list_s: public resolv_list_s {
+      container_prototype_resolv_list_s(char*lab,
+	    struct vvp_container_opcode_data_s*data_arg,
+	    const char*opcode_arg, const char*path_arg, unsigned line_arg)
+	: resolv_list_s(lab), data(data_arg), opcode(strdup(opcode_arg)),
+	  path(strdup(path_arg ? path_arg : "<unknown>")), line(line_arg)
+      { }
+
+      ~container_prototype_resolv_list_s() override
+      { free(opcode); free(path); }
+
+      bool resolve(bool mes) override;
+
+      struct vvp_container_opcode_data_s*data;
+      char*opcode;
+      char*path;
+      unsigned line;
+};
+
+bool container_prototype_resolv_list_s::resolve(bool mes)
+{
+      symbol_value_t val = sym_get_value(sym_vpi, label());
+      if (val.ptr) {
+	    __vpiHandle*handle = static_cast<__vpiHandle*>(val.ptr);
+	    const class_type*prototype =
+		  dynamic_cast<const class_type*>(handle);
+	    if (prototype && prototype->is_struct_type()) {
+		  data->prototype = handle;
+		  return true;
+	    }
+
+	    if (prototype)
+		  fprintf(stderr,
+			  "%s:%u: %s prototype '%s' is not an unpacked-struct/union definition\n",
+			  path, line, opcode, label());
+	    else
+		  fprintf(stderr,
+			  "%s:%u: %s prototype '%s' is not a class definition\n",
+			  path, line, opcode, label());
+	    compile_errors += 1;
+	    return true;
+      }
+
+      if (!mes)
+	    return false;
+
+      fprintf(stderr, "%s:%u: %s prototype '%s' is unresolved\n",
+	      path, line, opcode, label());
+      compile_errors += 1;
+      return true;
+}
+
+static void compile_container_prototype_lookup(
+      struct vvp_container_opcode_data_s*data, char*label,
+      const char*opcode)
+{
+      struct container_prototype_resolv_list_s*res =
+	    new struct container_prototype_resolv_list_s(
+		  label, data, opcode, yypath, yyline);
       resolv_submit(res);
 }
 
@@ -2641,6 +2730,33 @@ char **compile_udp_table(char **table, char *row)
   return table;
 }
 
+static bool validate_container_element_encoding_(const char*opcode,
+					 const char*text)
+{
+      if (vvp_container_element_encoding_is_valid(text))
+	    return true;
+
+      fprintf(stderr,
+	      "%s:%u: invalid container element encoding '%s' for %s\n",
+	      yypath ? yypath : "<unknown>", yyline,
+	      text ? text : "<null>", opcode);
+      compile_errors += 1;
+      return false;
+}
+
+static void validate_stream_container_encoding_(const char*opcode,
+					 const char*text, bool as_queue)
+{
+      if (vvp_stream_container_encoding_is_valid(text, as_queue))
+	    return;
+
+      fprintf(stderr,
+	      "%s:%u: invalid stream container encoding '%s' for %s\n",
+	      yypath ? yypath : "<unknown>", yyline,
+	      text ? text : "<null>", opcode);
+      compile_errors += 1;
+}
+
 
 /*
  * The parser uses this function to compile and link an executable
@@ -2798,6 +2914,80 @@ void compile_code(char*label, char*mnem, comp_operands_t opa)
 		  }
 
 		  code->text = opa->argv[idx].text;
+		  break;
+
+		case OA_CONTAINER_STRING:
+		  if (opa->argv[idx].ltype != L_STRING) {
+			yyerror("container element encoding must be a string");
+			compile_errors += 1;
+			break;
+		  }
+
+		  code->text = opa->argv[idx].text;
+		  validate_container_element_encoding_(mnem, code->text);
+		  break;
+
+		case OA_STREAM_DAR_STRING:
+		case OA_STREAM_QUEUE_STRING:
+		  if (opa->argv[idx].ltype != L_STRING) {
+			yyerror("stream container encoding must be a string");
+			compile_errors += 1;
+			break;
+		  }
+
+		  code->text = opa->argv[idx].text;
+		  validate_stream_container_encoding_(
+			mnem, code->text, op->argt[idx] == OA_STREAM_QUEUE_STRING);
+		  break;
+
+		case OA_CONTAINER_DATA_STRING:
+		  code->container_data = new vvp_container_opcode_data_s;
+		  code->container_data->element_encoding = 0;
+		  code->container_data->max_size = 0;
+		  code->container_data->prototype = 0;
+		  if (opa->argv[idx].ltype != L_STRING) {
+			yyerror("container element encoding must be a string");
+			compile_errors += 1;
+			break;
+		  }
+
+		  code->container_data->element_encoding = opa->argv[idx].text;
+		  if (validate_container_element_encoding_(
+			mnem, code->container_data->element_encoding)
+		      && strcmp(code->container_data->element_encoding, "o") != 0) {
+			fprintf(stderr,
+			      "%s:%u: %s /proto requires object element "
+			      "encoding 'o', got '%s'\n",
+			      yypath ? yypath : "<unknown>", yyline, mnem,
+			      code->container_data->element_encoding);
+			compile_errors += 1;
+		  }
+		  break;
+
+		case OA_CONTAINER_DATA_MAX:
+		  if (opa->argv[idx].ltype != L_NUMB) {
+			yyerror("container maximum must be numeric");
+			compile_errors += 1;
+			break;
+		  }
+		  if (opa->argv[idx].numb > UINT32_MAX) {
+			yyerror("container maximum out of range");
+			compile_errors += 1;
+			break;
+		  }
+		  assert(code->container_data);
+		  code->container_data->max_size = opa->argv[idx].numb;
+		  break;
+
+		case OA_CONTAINER_DATA_PROTO:
+		  if (opa->argv[idx].ltype != L_SYMB) {
+			yyerror("container prototype must be a symbol");
+			compile_errors += 1;
+			break;
+		  }
+		  assert(code->container_data);
+		  compile_container_prototype_lookup(code->container_data,
+			opa->argv[idx].symb.text, mnem);
 		  break;
 	    }
       }

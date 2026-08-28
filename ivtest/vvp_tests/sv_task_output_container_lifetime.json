@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_task_output_container_lifetime.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_task_output_container_lifetime",
+    "vlog95"        : { "type" : "NI" }
+}

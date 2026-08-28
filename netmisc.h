@@ -477,6 +477,17 @@ extern unsigned count_lval_width(const class NetAssign_*first);
  */
 class PExpr;
 
+/* Queue and dynamic-array assignment compatibility is shared by casts and
+ * subroutine copy boundaries. The return value reports element equivalence;
+ * handled is set only when both types are positional containers (rather than
+ * the associative-array representation that also derives from netqueue_t). */
+extern bool positional_container_type_match(ivl_type_t target,
+					     ivl_type_t source,
+					     bool&handled);
+extern bool positional_container_expr_type_match(ivl_type_t target,
+						  const NetExpr*source,
+						  bool&handled);
+
 /* netqueue_t is also the internal carrier for associative arrays. Its
  * inherited equivalence check covers the queue category and element type,
  * but not the associative key type or wildcard state. Keep the stricter

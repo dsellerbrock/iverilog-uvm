@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_positional_assoc_element_same_type_2023.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_positional_assoc_element_same_type",
+    "vlog95"        : { "type" : "NI" }
+}

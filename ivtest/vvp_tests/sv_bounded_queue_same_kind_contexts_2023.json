@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_bounded_queue_same_kind_contexts_2023.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_bounded_queue_same_kind_contexts",
+    "vlog95"        : { "type" : "NI" }
+}

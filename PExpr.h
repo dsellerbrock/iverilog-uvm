@@ -1596,6 +1596,7 @@ class PECastType  : public PExpr {
     private:
       data_type_t* target_;
       mutable ivl_type_t target_type_;
+      mutable const NetScope* positional_cast_error_scope_ = nullptr;
       PExpr* base_;
 };
 

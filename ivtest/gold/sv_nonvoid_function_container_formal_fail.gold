@@ -1,0 +1,5 @@
+./ivltests/sv_nonvoid_function_container_formal_fail.v:35: error: function output/inout queue/dynamic-array formal and actual require equivalent element types (IEEE 1800-2017/2023 7.6).
+./ivltests/sv_nonvoid_function_container_formal_fail.v:36: error: function output/inout queue/dynamic-array formal and actual require equivalent element types (IEEE 1800-2017/2023 7.6).
+./ivltests/sv_nonvoid_function_container_formal_fail.v:37: error: function output/inout queue/dynamic-array formal and actual require equivalent element types (IEEE 1800-2017/2023 7.6).
+./ivltests/sv_nonvoid_function_container_formal_fail.v:38: error: function output/inout queue/dynamic-array formal and actual require equivalent element types (IEEE 1800-2017/2023 7.6).
+4 error(s) during elaboration.

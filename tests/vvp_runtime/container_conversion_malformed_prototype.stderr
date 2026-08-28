@@ -1,0 +1,3 @@
+tests/vvp_runtime/container_conversion_malformed_prototype.vvp:13: %append/qo/obj/darray/proto prototype 'v_not_class' is not a class definition
+tests/vvp_runtime/container_conversion_malformed_prototype.vvp:14: %append/qo/obj/queue/proto prototype 'C_not_struct' is not an unpacked-struct/union definition
+tests/vvp_runtime/container_conversion_malformed_prototype.vvp:15: %append/qo/obj/darray/proto prototype 'C_missing' is unresolved
