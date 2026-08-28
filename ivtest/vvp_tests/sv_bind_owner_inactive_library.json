@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_bind_owner_inactive_library.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_bind_owner_inactive_library", "-y", "ivltests/sv_bind_owner_inactive_library_lib" ],
+    "gold"          : "sv_bind_owner_inactive_library"
+}

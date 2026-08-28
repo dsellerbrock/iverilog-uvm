@@ -4742,6 +4742,7 @@ bool PGenerate::generate_scope_loop_(Design*des, NetScope*container)
 
 	    NetScope*scope = new NetScope(container, use_name,
 					  NetScope::GENBLOCK);
+	    scope->set_generate_definition(this);
 	    scope->set_line(get_file(), get_lineno());
 	    scope->add_imports(&explicit_imports);
 
@@ -4821,6 +4822,7 @@ bool PGenerate::generate_scope_condit_(Design*des, NetScope*container, bool else
 	// If this is not directly nested, then generate a scope
 	// for myself. That is what I will pass to the subscope.
       NetScope*scope = new NetScope(container, use_name, NetScope::GENBLOCK);
+      scope->set_generate_definition(this);
       scope->set_line(get_file(), get_lineno());
       scope->add_imports(&explicit_imports);
 
@@ -4922,6 +4924,7 @@ bool PGenerate::generate_scope_case_(Design*des, NetScope*container)
 
       NetScope*scope = new NetScope(container, use_name,
 				    NetScope::GENBLOCK);
+      scope->set_generate_definition(item);
       scope->set_line(get_file(), get_lineno());
       scope->add_imports(&explicit_imports);
 
@@ -4939,6 +4942,7 @@ bool PGenerate::generate_scope_nblock_(Design*des, NetScope*container)
 
       NetScope*scope = new NetScope(container, use_name,
 				    NetScope::GENBLOCK);
+      scope->set_generate_definition(this);
       scope->set_line(get_file(), get_lineno());
       scope->add_imports(&explicit_imports);
 
@@ -4949,6 +4953,7 @@ bool PGenerate::generate_scope_nblock_(Design*des, NetScope*container)
 
 void PGenerate::elaborate_subscope_direct_(Design*des, NetScope*scope)
 {
+      scope->add_active_generate(this);
       typedef list<PGenerate*>::const_iterator generate_it_t;
       for (generate_it_t cur = generate_schemes.begin()
 		 ; cur != generate_schemes.end() ; ++ cur ) {
@@ -5085,6 +5090,17 @@ void PGModule::elaborate_scope_mod_(Design*des, Module*mod, NetScope*sc) const
 	// check for recursive instantiation by scanning the current
 	// scope and its parents. Look for a module instantiation of
 	// the same module, but farther up in the scope.
+      bool selected_bind_target = false;
+      if (is_bind_instance_) {
+	    for (vector<bind_instance_filter_t*>::const_iterator filter
+		       = bind_filter_.begin() ; filter != bind_filter_.end()
+		       ; ++filter) {
+		  if ((*filter)->mode != bind_instance_filter_t::DEFINITION) {
+			selected_bind_target = true;
+			break;
+		  }
+	    }
+      }
       unsigned rl_count = 0;
       bool in_genblk = false;
       for (NetScope*scn = sc ;  scn ;  scn = scn->parent()) {
@@ -5098,6 +5114,7 @@ void PGModule::elaborate_scope_mod_(Design*des, Module*mod, NetScope*sc) const
 	    if (scn->type() != NetScope::MODULE) continue;
 
 	    if (strcmp(mod->mod_name(), scn->module_name()) != 0) continue;
+	    if (selected_bind_target) continue;
 
 	      // We allow nested scopes if they are inside a generate block,
 	      // but only to a certain nesting depth.
@@ -5199,6 +5216,8 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
 					     bound_type_? true : false,
 					     mod->program_block,
 					     mod->is_interface);
+	    my_scope->set_module_definition(mod);
+	    my_scope->is_bind_instance(is_bind_instance_);
 	    my_scope->set_line(get_file(), mod->get_file(),
 	                       get_lineno(), mod->get_lineno());
 	    my_scope->set_module_name(mod->mod_name());

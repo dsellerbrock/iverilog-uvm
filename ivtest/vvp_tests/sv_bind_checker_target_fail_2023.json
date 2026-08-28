@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_bind_checker_target_fail.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_bind_checker_target_fail" ],
+    "gold"          : "sv_bind_checker_target_fail"
+}

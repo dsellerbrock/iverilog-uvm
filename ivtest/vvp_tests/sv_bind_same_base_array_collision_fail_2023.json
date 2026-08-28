@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_bind_same_base_array_collision_fail.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_bind_same_base_array_collision_fail" ],
+    "gold"          : "sv_bind_same_base_array_collision_fail"
+}

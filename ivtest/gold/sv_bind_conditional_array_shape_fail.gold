@@ -1,0 +1,2 @@
+./ivltests/sv_bind_conditional_array_shape_fail.v:19: error: bind target instance path 'selected.child' matched no elaborated module/interface instance for declaration-scope occurrence 'sv_bind_conditional_array_shape_fail.arrayed'; an arrayed target requires a constant element select.
+1 error(s) during elaboration.

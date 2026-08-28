@@ -6290,39 +6290,256 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
 // not name. All three passes (scope/sig/statement) consult it, so a
 // filtered-out instance never creates the child scope and the later
 // passes' instance_arrays lookups simply find nothing.
-bool PGModule::bind_filter_ok_(NetScope*sc) const
+static bool bind_filter_component_match_(Design*des, NetScope*eval_scope,
+					 bind_instance_filter_t*filter,
+					 const NetScope*occurrence,
+					 const name_component_t&expected,
+					 const hname_t&actual)
 {
-      if (bind_filter_.empty()) return true;
+      if (actual.peek_name() != expected.name)
+	    return false;
 
-      std::ostringstream base_os;
-      base_os << sc->basename();
-      std::string base = base_os.str();
-
-      std::vector<const NetScope*> chain;
-      for (const NetScope*cur = sc ; cur ; cur = cur->parent())
-	    chain.push_back(cur);
-      std::ostringstream full_os;
-      for (std::vector<const NetScope*>::reverse_iterator it = chain.rbegin()
-		 ; it != chain.rend() ; ++it) {
-	    if (it != chain.rbegin()) full_os << ".";
-	    full_os << (*it)->basename();
+        // A bind target names one module/interface instance. An unselected
+        // component therefore cannot match an element of an instance array;
+        // Syntax 23-9 requires the constant bit select that names the element.
+      if (expected.index.empty()) {
+	    if (!actual.has_numbers())
+		  return true;
+	    if (occurrence)
+		  filter->unselected_array_origins.insert(occurrence);
+	    else
+		  filter->unselected_array = true;
+	    return false;
       }
-      std::string full = full_os.str();
 
-      for (std::vector<std::string>::const_iterator cur = bind_filter_.begin()
-		 ; cur != bind_filter_.end() ; ++cur) {
-	    if (cur->find('.') == std::string::npos) {
-		  if (*cur == base) return true;
-	    } else {
-		  if (*cur == full) return true;
+      if (occurrence) {
+	    if (filter->invalid_origins.count(occurrence))
+		  return false;
+      } else if (filter->invalid) {
+	    return false;
+      }
+
+      ivl_assert(*filter, expected.index.size() == 1);
+      const index_component_t&select = expected.index.front();
+      ivl_assert(*filter, select.sel == index_component_t::SEL_BIT);
+
+      unsigned saved_opt_const_func = opt_const_func;
+      opt_const_func = std::max(opt_const_func, 2u);
+      unsigned errors_before = des->errors;
+      unique_ptr<NetExpr>index_expr(
+	    elab_and_eval(des, eval_scope, select.msb, -1, false));
+      opt_const_func = saved_opt_const_func;
+
+      const NetEConst*constant
+	    = index_expr? dynamic_cast<const NetEConst*>(index_expr.get()) : 0;
+      if (!constant) {
+	    if (des->errors == errors_before) {
+		  cerr << select.msb->get_fileline() << ": error: bind target "
+		       << "instance select expression is not constant: "
+		       << *select.msb << endl;
+		  des->errors += 1;
+	    }
+	    if (occurrence)
+		  filter->invalid_origins.insert(occurrence);
+	    else
+		  filter->invalid = true;
+	    return false;
+      }
+
+      const verinum&value = constant->value();
+      if (!value.is_defined()) {
+	    cerr << select.msb->get_fileline() << ": error: bind target "
+		 << "instance select contains x/z bits: " << value << endl;
+	    des->errors += 1;
+	    if (occurrence)
+		  filter->invalid_origins.insert(occurrence);
+	    else
+		  filter->invalid = true;
+	    return false;
+      }
+
+      bool negative = false;
+      uint64_t magnitude = verinum_signed_magnitude(value, negative);
+      uint64_t negative_limit
+	    = static_cast<uint64_t>(-(static_cast<int64_t>(INT_MIN)));
+      if ((!negative && magnitude > static_cast<uint64_t>(INT_MAX))
+	  || (negative && magnitude > negative_limit)) {
+	    cerr << select.msb->get_fileline() << ": error: bind target "
+		 << "instance select is outside the supported instance-index "
+		 << "range: " << value << endl;
+	    des->errors += 1;
+	    if (occurrence)
+		  filter->invalid_origins.insert(occurrence);
+	    else
+		  filter->invalid = true;
+	    return false;
+      }
+      int selected_value = negative
+	    ? (magnitude == negative_limit? INT_MIN
+	       : -static_cast<int>(magnitude))
+	    : static_cast<int>(magnitude);
+      return hname_t(expected.name, selected_value) == actual;
+}
+
+static NetScope* bind_filter_declaration_scope_(
+		const vector<const NetScope*>&chain,
+		const bind_instance_filter_t*filter)
+{
+      if (filter->origin) {
+	    for (vector<const NetScope*>::const_iterator cur = chain.begin()
+		       ; cur != chain.end() ; ++cur) {
+		  if ((*cur)->type() == NetScope::MODULE
+		      && (*cur)->module_definition() == filter->origin)
+			return const_cast<NetScope*>(*cur);
 	    }
       }
-      return false;
+      NetScope*root = const_cast<NetScope*>(chain.front());
+      return root->unit()? root->unit() : root;
+}
+
+static bool bind_filter_path_match_(Design*des, NetScope*eval_scope,
+				    bind_instance_filter_t*filter,
+				    const NetScope*occurrence,
+				    const vector<const NetScope*>&chain,
+				    size_t start)
+{
+      if (chain.size()-start != filter->path.size())
+	    return false;
+
+      pform_name_t::const_iterator expected = filter->path.begin();
+      for (size_t idx = start ; idx < chain.size() ; ++idx, ++expected) {
+	    if (chain[idx]->fullname().peek_name() != expected->name)
+		  return false;
+      }
+	if (occurrence)
+	      filter->shape_matched_origins.insert(occurrence);
+	else
+	      filter->shape_matched = true;
+
+      expected = filter->path.begin();
+      for (size_t idx = start ; idx < chain.size() ; ++idx, ++expected) {
+	    if (!bind_filter_component_match_(des, eval_scope, filter,
+					       occurrence,
+					       *expected,
+					       chain[idx]->fullname()))
+		  return false;
+      }
+      return true;
+}
+
+bool PGModule::bind_filter_ok_(Design*des, NetScope*sc) const
+{
+      if (bind_disabled_)
+	    return false;
+      if (bind_filter_.empty()) return true;
+
+      vector<const NetScope*> chain;
+      for (const NetScope*cur = sc ; cur ; cur = cur->parent())
+	    chain.push_back(cur);
+      reverse(chain.begin(), chain.end());
+
+      unsigned selected_count = 0;
+      for (vector<bind_instance_filter_t*>::const_iterator cur
+		 = bind_filter_.begin()
+		 ; cur != bind_filter_.end() ; ++cur) {
+	    bind_instance_filter_t*filter = *cur;
+	    if (!filter->activated)
+		  continue;
+	    if (filter->evaluated_targets.count(sc)) {
+		  if (filter->selected_targets.count(sc))
+			selected_count += 1;
+		  continue;
+	    }
+
+	    bool match = false;
+	    if (filter->mode == bind_instance_filter_t::DEFINITION) {
+		  match = true;
+	    } else if (filter->mode == bind_instance_filter_t::ABSOLUTE) {
+		  if (filter->origin) {
+			for (set<const NetScope*>::const_iterator owner
+			       = filter->absolute_owners.begin()
+			       ; owner != filter->absolute_owners.end(); ++owner) {
+			      bool occurrence_match = bind_filter_path_match_(
+				    des, const_cast<NetScope*>(*owner), filter,
+				    *owner, chain, 0);
+			      if (!occurrence_match)
+				    continue;
+			      filter->matched_origins.insert(*owner);
+			      if (match
+				  && filter->duplicate_targets.insert(sc).second) {
+				    cerr << filter->get_fileline() << ": error: bind "
+					 << "directive occurrences introduce the same "
+					 << "bound instance name more than once in target "
+				     << "scope '" << scope_path(sc) << "'." << endl;
+				    des->errors += 1;
+			      }
+			      match = true;
+			}
+		  } else {
+			NetScope*eval_scope
+			      = bind_filter_declaration_scope_(chain, filter);
+			match = bind_filter_path_match_(des, eval_scope, filter,
+						      0, chain, 0);
+		  }
+	    } else {
+		  ivl_assert(*filter, filter->origin);
+		  for (size_t idx = chain.size() ; idx > 0 ; --idx) {
+			const NetScope*base = chain[idx-1];
+			pair<multimap<const NetScope*,const NetScope*>::const_iterator,
+			     multimap<const NetScope*,const NetScope*>::const_iterator>
+			      occurrences
+			      = filter->relative_base_owners.equal_range(base);
+			if (occurrences.first == occurrences.second)
+			      continue;
+			if (chain.size()-idx != filter->path.size())
+			      continue;
+			for (multimap<const NetScope*,const NetScope*>::const_iterator
+				   occurrence = occurrences.first
+				   ; occurrence != occurrences.second ; ++occurrence) {
+			      const NetScope*owner = occurrence->second;
+			      bool occurrence_match = bind_filter_path_match_(
+				    des, const_cast<NetScope*>(owner), filter,
+				    owner, chain, idx);
+			      if (!occurrence_match)
+				    continue;
+			      filter->matched_origins.insert(owner);
+			      if (match
+				  && filter->duplicate_targets.insert(sc).second) {
+				    cerr << filter->get_fileline() << ": error: bind "
+					 << "directive occurrences introduce the same "
+					 << "bound instance name more than once in target "
+				     << "scope '" << scope_path(sc) << "'." << endl;
+				    des->errors += 1;
+			      }
+			      match = true;
+			}
+			break;
+		  }
+	    }
+	    filter->evaluated_targets.insert(sc);
+	    if (match) {
+		  filter->selected_targets.insert(sc);
+		  if (filter->mode != bind_instance_filter_t::RELATIVE)
+			filter->matched = true;
+		  selected_count += 1;
+	    }
+      }
+      if (selected_count > 1
+	  && bind_overlap_reported_scopes_.insert(sc).second) {
+	    cerr << get_fileline() << ": error: bind target-instance list "
+		 << "selects target scope '" << scope_path(sc)
+		 << "' more than once; bound instance name '" << get_name()
+		 << "' would be introduced more than once." << endl;
+	    des->errors += 1;
+      }
+      return selected_count != 0;
 }
 
 bool PGModule::elaborate_sig(Design*des, NetScope*scope) const
 {
-      if (!bind_filter_ok_(scope))
+      if (bind_rejected_scopes_.count(scope))
+	    return true;
+      if (!bind_filter_ok_(des, scope))
 	    return true;
 
       if (bound_type_) {
@@ -6348,7 +6565,9 @@ bool PGModule::elaborate_sig(Design*des, NetScope*scope) const
 
 void PGModule::elaborate(Design*des, NetScope*scope) const
 {
-      if (!bind_filter_ok_(scope))
+      if (bind_rejected_scopes_.count(scope))
+	    return;
+      if (!bind_filter_ok_(des, scope))
 	    return;
 
       if (bound_type_) {
@@ -6379,8 +6598,126 @@ void PGModule::elaborate(Design*des, NetScope*scope) const
 
 void PGModule::elaborate_scope(Design*des, NetScope*sc) const
 {
-      if (!bind_filter_ok_(sc))
+      if (!bind_filter_ok_(des, sc))
 	    return;
+      if (bind_rejected_scopes_.count(sc))
+	    return;
+
+      if (is_bind_instance_) {
+	    if (bind_elaborated_scopes_.count(sc))
+		  return;
+
+	    for (const NetScope*scope = sc ; scope ; scope = scope->parent()) {
+		  if (!scope->is_bind_instance())
+			continue;
+		  cerr << get_fileline() << ": error: cannot bind an instance "
+		       << "underneath the scope of another bind instance: '"
+		       << scope_path(sc) << "'." << endl;
+		  des->errors += 1;
+		  bind_rejected_scopes_.insert(sc);
+		  return;
+	    }
+
+	    const Module*target_definition = sc->module_definition();
+	    const Module*bound_definition = bound_type_;
+	    if (!bound_definition) {
+		  map<perm_string,Module*>::const_iterator found
+			= pform_modules.find(type_);
+		  if (found != pform_modules.end())
+			bound_definition = found->second;
+	    }
+	    bool bound_primitive
+		  = pform_primitives.find(type_) != pform_primitives.end();
+	    if (!bound_definition && !bound_primitive) {
+		  int parser_errors = 0;
+		  if (load_module(type_, parser_errors)) {
+			map<perm_string,Module*>::const_iterator found
+			      = pform_modules.find(type_);
+			if (found != pform_modules.end())
+			      bound_definition = found->second;
+			bound_primitive
+			      = pform_primitives.find(type_) != pform_primitives.end();
+		  }
+		  if (parser_errors) {
+			cerr << get_fileline()
+			     << ": error: Failed to parse library file." << endl;
+			des->errors += parser_errors + 1;
+			bind_rejected_scopes_.insert(sc);
+			return;
+		  }
+	    }
+	    if (bound_primitive) {
+		  cerr << get_fileline() << ": error: primitive '" << type_
+		       << "' is not a permitted bind instantiation; expected a "
+		       << "program, module, interface, or checker instantiation."
+		       << endl;
+		  des->errors += 1;
+		  bind_rejected_scopes_.insert(sc);
+		  return;
+	    }
+	    if (sc->program_block()) {
+		  cerr << get_fileline() << ": error: bind target '"
+		       << sc->module_name() << "' is a program block; module "
+		       << "instantiations are not allowed in program blocks."
+		       << endl;
+		  des->errors += 1;
+		  bind_rejected_scopes_.insert(sc);
+		  return;
+	    }
+	    if (target_definition && target_definition->is_checker) {
+		  cerr << get_fileline() << ": error: bind target '"
+		       << target_definition->mod_name()
+		       << "' is a checker; a bind target scope shall be a "
+		       << "module or interface." << endl;
+		  des->errors += 1;
+		  bind_rejected_scopes_.insert(sc);
+		  return;
+	    }
+	    if (sc->is_interface() && bound_definition
+		&& !bound_definition->is_interface
+		&& !bound_definition->is_checker) {
+		  const char*kind
+			= bound_definition->program_block? "program" : "module";
+		  cerr << get_fileline() << ": error: " << kind << " '"
+		       << bound_definition->mod_name()
+		       << "' cannot be bound into interface '"
+		       << sc->module_name() << "'; an interface target requires "
+		       << "an interface or checker instantiation." << endl;
+		  des->errors += 1;
+		  bind_rejected_scopes_.insert(sc);
+		  return;
+	    }
+
+	    bool name_collision
+		  = sc->instance_arrays.find(get_name())
+		      != sc->instance_arrays.end()
+		  || sc->child_byname(get_name()) != 0;
+	    if (target_definition) {
+		  map<perm_string,PNamedItem*>::const_iterator declaration
+			= target_definition->local_symbols.find(get_name());
+		  if (declaration != target_definition->local_symbols.end()
+		      && declaration->second != this)
+			name_collision = true;
+	    }
+	    if (name_collision) {
+		  cerr << get_fileline() << ": error: bound instance name '"
+		       << get_name() << "' has already been declared in target "
+		       << "scope '" << scope_path(sc) << "'." << endl;
+		  des->errors += 1;
+		  bind_rejected_scopes_.insert(sc);
+		  return;
+	    }
+	    if (get_name() != ""
+		&& sc->reserve_bind_instance_name(get_name(), this) != this) {
+		  cerr << get_fileline() << ": error: bound instance name '"
+		       << get_name() << "' has already been declared in target "
+		       << "scope '" << scope_path(sc) << "'." << endl;
+		  des->errors += 1;
+		  bind_rejected_scopes_.insert(sc);
+		  return;
+	    }
+	    bind_elaborated_scopes_.insert(sc);
+      }
 
 	// If the module type is known by design, then go right to it.
       if (bound_type_) {
@@ -31099,6 +31436,7 @@ Design* elaborate(list<perm_string>roots)
 	    NetScope*scope = des->make_root_scope(*root, unit_scope,
 						  rmod->program_block,
 						  rmod->is_interface);
+	    scope->set_module_definition(rmod);
 
 	      // Collect some basic properties of this scope from the
 	      // Module definition.
@@ -31123,6 +31461,7 @@ Design* elaborate(list<perm_string>roots)
 	// Run the work list of scope elaborations until the list is
 	// empty. This list is initially populated above where the
 	// initial root scopes are primed.
+      do {
       while (! des->elaboration_work_list.empty()) {
 	      // Push a work item to process the defparams of any scopes
 	      // that are elaborated during this pass. For the first pass
@@ -31150,6 +31489,13 @@ Design* elaborate(list<perm_string>roots)
 		  des->elaboration_work_list.push_back(new later_defparams(des));
 	    }
       }
+      } while (pform_activate_deferred_binds(des));
+
+        // Bind-to-instance filters run while module scopes are created.
+        // Audit them only after every delayed generate/instance-array work
+        // item has completed, so a miss cannot be mistaken for an instance
+        // that simply had not been elaborated yet.
+      pform_check_bind_matches(des);
 
       if (debug_elaborate) {
 	    cerr << "<toplevel>: elaborate: "

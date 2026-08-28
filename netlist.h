@@ -55,6 +55,7 @@
 
 class Design;
 class Link;
+class Module;
 class Nexus;
 class NetEvent;
 class NetNet;
@@ -87,8 +88,10 @@ class NetEvWait;
 class PClass;
 class PExpr;
 class PLet;
+class PGModule;
 class PTask;
 class PFunction;
+class PGenerate;
 class PPackage;
 class PTaskFunc;
 class PWire;
@@ -1393,6 +1396,20 @@ class NetScope : public Definitions, public Attrib {
       void set_func_def(NetFuncDef*);
       void set_class_def(netclass_t*);
       void set_module_name(perm_string);
+      void set_module_definition(const Module*def) { module_definition_ = def; }
+      const Module* module_definition() const { return module_definition_; }
+      void set_generate_definition(const PGenerate*def)
+            { generate_definition_ = def; }
+      const PGenerate* generate_definition() const
+            { return generate_definition_; }
+      void add_active_generate(const PGenerate*def)
+            { active_generate_definitions_.insert(def); }
+      bool has_active_generate(const PGenerate*def) const
+            { return active_generate_definitions_.count(def) != 0; }
+      void is_bind_instance(bool flag) { is_bind_instance_ = flag; }
+      bool is_bind_instance() const { return is_bind_instance_; }
+      const PGModule* reserve_bind_instance_name(perm_string name,
+                                                  const PGModule*gate);
 
       NetTaskDef* task_def();
       NetFuncDef* func_def();
@@ -1732,6 +1749,11 @@ class NetScope : public Definitions, public Attrib {
       typedef std::map<perm_string,NetNet*>::const_iterator signals_map_iter_t;
       std::map <perm_string,NetNet*> signals_map_;
       perm_string module_name_;
+      const Module*module_definition_;
+      const PGenerate*generate_definition_;
+      std::set<const PGenerate*>active_generate_definitions_;
+      bool is_bind_instance_;
+      std::map<perm_string,const PGModule*>bind_instance_names_;
       std::vector<NetNet*> port_nets;
 
       std::vector<PortInfo> ports_;

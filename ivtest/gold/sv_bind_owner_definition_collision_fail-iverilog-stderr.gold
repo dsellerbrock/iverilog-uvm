@@ -1,0 +1,3 @@
+ivltests/sv_bind_owner_definition_collision_fail.v:13: error: 'p' has already been declared in this scope.
+ivltests/sv_bind_owner_definition_collision_fail.v:9:      : It was declared here as an instance name.
+1 error(s) during elaboration.

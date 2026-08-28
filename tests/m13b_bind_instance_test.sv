@@ -1,9 +1,8 @@
 // M13B: bind-to-instance forms (IEEE 1800-2017 23.11).
 //  - bind <hier.path> ...        : bound instance appears ONLY in that
 //                                  one target instance;
-//  - bind <mod> : <inst list> ...: bound instance appears in every
-//                                  instance of <mod> whose instance
-//                                  name is listed;
+//  - bind <mod> : <inst list> ...: bound instance appears in each
+//                                  hierarchically named list entry;
 //  - bind <mod> ...              : (pre-existing) every instance.
 // The counters verify the exact activation counts: 1 for the path
 // form, 2 for the list form (u_b in both mids), 4 for the definition
@@ -62,7 +61,9 @@ endmodule
 
 // Only inside the one named instance.
 bind m13b_bind_instance_test.m1.u_a m13b_checker_path cp(.d(data));
-// Any instance of m13b_leaf named u_b (one in each mid).
-bind m13b_leaf : u_b m13b_checker_list cl(.d(data));
+// The two explicitly named u_b instances.
+bind m13b_leaf : m13b_bind_instance_test.m1.u_b,
+                  m13b_bind_instance_test.m2.u_b
+  m13b_checker_list cl(.d(data));
 // Every instance of m13b_leaf (pre-existing definition bind).
 bind m13b_leaf m13b_checker_def cd(.d(data));

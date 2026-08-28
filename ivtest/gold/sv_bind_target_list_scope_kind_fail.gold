@@ -1,0 +1,2 @@
+./ivltests/sv_bind_target_list_scope_kind_fail.v:13: error: bind target 'sv_bind_target_list_scope_kind_program' is a program block; a bind target scope shall be a module or interface.
+./ivltests/sv_bind_target_list_scope_kind_fail.v:16: error: bind target 'sv_bind_target_list_scope_kind_checker' is a checker; a bind target scope shall be a module or interface.

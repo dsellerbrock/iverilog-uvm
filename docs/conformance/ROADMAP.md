@@ -439,13 +439,14 @@ legacy-engine retirement.
 
 | ID | Item | Nat | Status | Blocked-by | Done when |
 |----|------|-----|--------|-----------|-----------|
-| M13-1 | Bind to specific instance path | F | **VERIFIED WORKING** | — | Probe m13_1_bind_instpath: functionally checked, not just parsed — the bound checker observed the correct value from its target instance. **Terms:** pin the probe as a regression test, then close |
-| M13-2 | Bind target-instance lists | F | **VERIFIED WORKING** | — | Probe m13_2_bind_instlist: list-target bind reaches every named instance. **Terms:** pin the probe as a regression test, then close |
+| M13-1 | Bind to specific instance path | F | **PARTIAL** (bounded subset pinned) | — | Paired 2017/2023 regressions pin structured absolute, explicit `$root`, and module/generate-relative dotted targets; selected one-dimensional loop-generate and module-instance-array elements; and per-owner conditional alternatives with different target types or scalar/array shapes. A final array requires selection. Activation is lexical, per elaborated owner, fixed-point, and source-order independent; inactive/excluded owners neither attach nor load/diagnose a `-y` dependency. Same bound-instance names are legal on disjoint targets, but overlap with another bind or an existing declaration is rejected. Target-kind rules cover module/interface targets, checker instantiation, and loud checker/program/illegal module-or-primitive cases, including a UDP type loaded only from `-y`. Late-loaded sources may contribute compilation-unit binds to the closure. Automatic roots account for one found during initial bind processing; a compilation-unit bind discovered only after a live contained bind loads a library uses explicit `-s`, because the already selected automatic-root set is not rebuilt. Bind-under-bind is rejected in direct and deferred orders, and the direct nested conditional-generate/generate-for collector has a non-bind smoke test. Multidimensional instance arrays remain outside the current representation. See the paired `sv_bind_*` focus manifests. |
+| M13-2 | Bind target-instance lists | F | **DONE** (bounded declaration-scoped subset) | — | `m13b_bind_instance_test`, `sv_bind_owner_scoped_target_list{,_2023}`, and `sv_bind_explicit_root_target_list{,_2023}` pin absolute, explicit-root, declaration-relative, and selected one-dimensional entries. Invalid-entry diagnostics are source-order independent, and overlapping list/direct applications participate in the same target-namespace collision check. Exhaustive clause-23 combinations remain an M14B audit item rather than a known semantic exception. |
 | M13-3 | `config` semantics + library mapping | F | OPEN (loud) | — | Unimplemented and diagnosed with a sorry — no silent-miscompile risk. **Terms:** real config/library resolution |
 | M13-4 | `trireg` charge semantics | F | OPEN (loud) | — | Unimplemented and diagnosed with a sorry — no silent-miscompile risk. **Terms:** charge decay model |
 | M13-5 | `$nochange` / `$timeskew` / `$fullskew` | F | **DONE** (row was wrong) | — | All three are implemented and **fire on violation**, together with `$width`, `$period`, `$setup`, `$hold`, `$recovery`, `$removal`, `$recrem` and `$setuphold` (probe fires: violations reported for `$width`@12/18, `$period`@16/28, `$nochange`@48, `$fullskew`@48, `$timeskew`@48). Unsupported *shapes* are a loud sorry, e.g. `$nochange` with non-zero start/end offsets. **The earlier accepted-noop reading was a probe error:** the whole specify block -- path delays and timing checks alike -- is inert without `-gspecify`, which is the established opt-in contract, and the probes had omitted the flag. Re-probed with `-gspecify` and the checks work |
 | M13-6 | Timing-check edge-descriptor lists + timestamp/timecheck conds | F | **DONE** | — | Edge descriptors select which transitions arm a check, and `&&&` conditions gate the body. **Fixed a real silent defect found by probing this functionally rather than by parse:** the synthesized previous-value tracker was written only from an `always @(sig)` block, which never runs at time 0, so it sat at the `x` sentinel until the first transition -- and that transition therefore matched no descriptor. The failure mode was worse than ignoring the descriptor: for a signal starting at 0, `$setup(edge[01] d, ...)` reported **nothing** where plain `$setup(d, ...)` reported the violation, so adding a descriptor silently discarded a real violation. The tracker is now primed at time 0 from the signal's own value. `edge[01]`, `edge[10]` and multi-entry lists all verified to select exactly the right transitions. test sv_timing_check_edge_descriptor |
 | M13-7 | `pulsestyle` / `showcancelled` | F | OPEN (loud) | — | `pulsestyle_onevent`/`pulsestyle_ondetect`/`showcancelled`/`noshowcancelled` are accepted and have no effect on pulse propagation. This was already loud under `-gspecify`, but the warning read "Timing checks are not supported" -- naming the wrong construct entirely, since these are pulse-filtering controls. The message now names the specific directive and says pulse filtering is not modelled, so cancelled and short pulses propagate as usual. **Terms:** model pulse filtering in the path-delay engine (reject/error limits, cancelled-pulse propagation) |
+| M13-8 | Remaining selected bind-target contexts | F | **PARTIAL** (one-dimensional owner-scoped subset done) | M13-1 | Enclosing generate declaration identity is preserved, genvar-dependent target selects resolve per generated directive, conditional alternatives resolve by each active owner's concrete type and shape, and selected interface/module occurrences obey their target-specific legality. IEEE 23.11 permits only interface/checker instantiations into an interface target; the internal M13 fixture was corrected from module to interface to follow that rule, not to preserve a compiler compatibility extension. The explicit compiler-model residual is multidimensional module-instance arrays; exhaustive cross-context coverage remains part of M14B. |
 
 ### M14B — exhaustive subclause campaign  (all clauses)
 
@@ -593,6 +594,26 @@ claimed and still requires the M14B subclause audit.
 Re-derive this by applying the priority rule to the OPEN items above; do not hand-edit
 the structure.
 
+**Checkpoint 2026-08-27.** Clause 23 remains PROVISIONAL. The bounded 23.11
+bind-target cluster now passes 110/110 in both the paired legacy and JSON/VVP
+focus gates. It covers structured absolute/`$root`/relative paths,
+one-dimensional selections and target lists, per-owner conditional type/shape,
+fixed-point source-order-independent activation, target-namespace collisions,
+the evidenced module/interface/checker/program/primitive legality matrix, and
+late `-y` discovery of target/traversed-container definitions and
+library-supplied compilation-unit bind directives. Inactive/excluded owners do
+not load their library dependencies. Automatic roots are not recomputed when a
+live contained bind discovers a compilation-unit bind after root selection;
+use explicit `-s` for that exact-root case. The final full legacy gate is
+2,063/2,063, full JSON/VVP is 1,141/1,141, negatives are 136/136, and VPI is
+103/103; the real-DPI UVM umbrella is 354/354 with zero failures/skips. The
+parser remains at 535 shift/reduce and 1119 reduce/reduce conflicts.
+Multidimensional module-instance arrays are the explicit compiler-model
+residual; the complete
+clause-23 combination audit remains open. The dated OpenTitan bind replay
+predates the final owner/fixed-point hardening and was not rerun, so it remains
+historical frontier evidence rather than a current application result.
+
 **Checkpoint 2026-08-26.** Clause 19 remains PARTIAL. Paired focused gates
 pass 20/20 legacy and 20/20 JSON/VVP; full legacy is 4,127 pass / 0 fail / 2
 NI / 3 expected fail (4,132 total), JSON/VVP is 1,017/1,017, negatives are
@@ -689,13 +710,15 @@ boundaries, not headline features** — every headline worked.
      M10-2 is also closed. M10's remaining legal gaps are imported shortreal
      arrays and fixed-size unpacked export formals, plus M14B-9's campaign-level
      cross-product; commercial-simulator interoperability remains their oracle.**
-2. **M13-5/6/7 accepted-noops** — timing checks, edge descriptors and
-   `pulsestyle`/`showcancelled` are accepted and silently ignored. Under
-   the loud-sorry rule an accepted-noop ranks above ordinary unimplemented
-   work, and a tracked diagnostic is a small change.
-3. **Pin the six verified-working items** (M13-1, M13-2, M3B-4, M6B-3,
-   M10-3, M10-5) with their probes as regression tests and close them.
-   Cheap, and it stops the rows from going stale again.
+2. **M13-7 pulse filtering** — M13-5/6 timing checks, conditions, and edge
+   descriptors are implemented and functionally pinned. The remaining
+   `pulsestyle`/`showcancelled` forms are loud but do not yet model cancelled
+   or short-pulse propagation.
+3. **Pin the remaining verified-working items** (M3B-4, M6B-3, M10-3,
+   M10-5) with their probes as regression tests and close them. M13-1's
+   bounded structured, owner-scoped selected/relative subset and M13-2's
+   declaration-scoped lists are now permanent regressions; M13-8 records the
+   multidimensional module-instance-array model as the explicit residual.
 4. **M6B-2** — define `cbNBASynch` and give it a post-NBA queue. Already
    loud (undefined macro → user compile error), so it is ordinary work.
 5. **M13-3/M13-4** — `config` + library mapping, `trireg` charge decay.

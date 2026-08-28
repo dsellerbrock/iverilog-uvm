@@ -36,6 +36,7 @@
 # include  <iostream>
 # include  <string>
 # include  <list>
+# include  <map>
 # include  <memory>
 # include  <cstdio>
 
@@ -144,6 +145,7 @@ extern PWire* pform_get_make_wire_in_scope(const struct vlltype&li,
  */
 extern void pform_startmodule(const struct vlltype&loc, const char*name,
 			      bool program_block, bool is_interface,
+			      bool is_checker,
 			      LexicalScope::lifetime_t lifetime,
 			      std::list<named_pexpr_t>*attr);
 extern void pform_module_set_ports(std::vector<Module::port_t*>*);
@@ -1067,18 +1069,23 @@ extern void pform_make_modgates(const struct vlltype&loc,
      bind <mod> : <inst_list> ...   target is the module name and
                                     inst_paths lists the instances;
      bind <hier.path> ...           target is empty ("") and inst_paths
-                                    holds the single dot-joined path.
-   Each entry is either a plain instance name (matches any instance of
-   the target module with that name) or a dot-joined hierarchical path
-   starting at a root module. nullptr means bind to the definition
-   (every instance), the pre-existing behavior. */
+                                    holds the single structured path.
+   Each path retains its constant bit selects. Target-list entries use the
+   same hierarchical lookup as a direct bind target: first relative to the
+   containing generate/module scope, then as an absolute path rooted at a
+   module/interface definition. There is no designwide terminal-name search.
+   nullptr means bind to the definition (every instance). */
 extern void pform_bind_directive(const struct vlltype&loc,
 				 perm_string target,
 				 perm_string type,
 				 struct parmvalue_t*overrides,
 				 std::vector<lgate>*gates,
-				 std::list<std::string>*inst_paths = nullptr);
+				 std::list<pform_name_t>*inst_paths = nullptr);
 extern void pform_apply_binds(void);
+extern void pform_find_bind_module_mentions(
+				std::map<perm_string,bool>&mentions);
+extern bool pform_activate_deferred_binds(Design*des);
+extern void pform_check_bind_matches(Design*des);
 
 /* Make a continuous assignment node, with optional bit- or part- select. */
 extern void pform_make_pgassign_list(const struct vlltype&loc,

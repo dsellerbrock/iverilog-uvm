@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_bind_conditional_generate_scalar_shape.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_bind_conditional_generate_scalar_shape" ],
+    "gold"          : "sv_bind_conditional_generate_scalar_shape"
+}

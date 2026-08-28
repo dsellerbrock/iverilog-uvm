@@ -1783,6 +1783,8 @@ static Module::port_t *module_declare_port_continuation(
 
       pform_name_t*pform_name;
 
+      std::list<pform_name_t>*pform_names;
+
       pform_clocking_skew_t*clocking_skew;
 
       ivl_discipline_t discipline;
@@ -2096,8 +2098,9 @@ static Module::port_t *module_declare_port_continuation(
 %destructor { delete[] $$; } for_variable_identifier
 %type <text> nettype_declaration_name nettype_name_component
 %destructor { delete[] $$; } nettype_declaration_name nettype_name_component
-%type <text> bind_instance_path
-%type <strings> bind_instance_path_list
+%type <pform_name> bind_instance_path bind_root_instance_path
+%type <pform_names> bind_instance_path_list
+%destructor { delete $$; } bind_instance_path bind_root_instance_path bind_instance_path_list
 %type <event_ident> event_variable
 %type <event_idents> event_variable_list
 %type <identifiers> class_type_parameter_port_list class_type_parameter_port_list_opt
@@ -5364,65 +5367,70 @@ description_list
   | description_list description
   ;
 
-  /* SystemVerilog bind directive (IEEE1800-2017: A.1.4 / 23.11). The
-     supported form targets a module (or interface) DEFINITION, so the
-     bound instance appears inside every instance of the target:
-       bind <target_module> <bound_module> [#(...)] <inst> (...);
-     The directive is legal both at the description level and as a
-     module item; both feed the same pending-bind list, applied after
-     all files are parsed (pform_apply_binds). The bind-to-specific-
-     instance and instance-list forms are not implemented and get a
-     loud diagnostic rather than a silent drop. */
+  /* SystemVerilog bind directive (IEEE 1800-2017/2023: A.1.4 / 23.11).
+     Module/interface targets, selected hierarchical instance targets,
+     relative instance targets, and target instance lists all feed the
+     same pending-bind list. Resolve them only after every source file
+     has been parsed (pform_apply_binds). */
 bind_directive
-  : K_bind IDENTIFIER IDENTIFIER parameter_value_opt gate_instance_list ';'
-      { perm_string target = lex_strings.make($2);
-	perm_string type = lex_strings.make($3);
-	pform_bind_directive(@1, target, type, $4, $5);
-	delete[]$2;
+  : /* Bind to a specific hierarchical instance (IEEE 1800-2017/2023
+     Syntax 23-9). Keep the path structured so constant selects on
+     generate scopes and module instance arrays survive parsing:
+       bind top.g[1].u <bound_module> <instance> (...);
+       bind children[2] <bound_module> <instance> (...);
+     A one-component, unselected name is disambiguated after parsing:
+     a local instance wins over a same-named module/interface type. */
+    K_bind bind_instance_path IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { perm_string target;
+	std::list<pform_name_t>*paths = 0;
+	if ($2->size() == 1 && $2->front().index.empty()) {
+	      target = $2->front().name;
+	} else {
+	      target = lex_strings.make("");
+	      paths = new std::list<pform_name_t>;
+	      paths->push_back(*$2);
+	}
+	pform_bind_directive(@1, target, lex_strings.make($3),
+			     $4, $5, paths);
+	delete $2;
 	delete[]$3;
       }
-  | K_bind IDENTIFIER TYPE_IDENTIFIER parameter_value_opt gate_instance_list ';'
-      { perm_string target = lex_strings.make($2);
-	perm_string type = lex_strings.make($3.text);
-	pform_bind_directive(@1, target, type, $4, $5);
-	delete[]$2;
+  | K_bind bind_root_instance_path IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { std::list<pform_name_t>*paths = new std::list<pform_name_t>;
+	paths->push_back(*$2);
+	pform_bind_directive(@1, lex_strings.make(""), lex_strings.make($3),
+			     $4, $5, paths);
+	delete $2;
+	delete[]$3;
+      }
+  | K_bind bind_instance_path TYPE_IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { perm_string target;
+	std::list<pform_name_t>*paths = 0;
+	if ($2->size() == 1 && $2->front().index.empty()) {
+	      target = $2->front().name;
+	} else {
+	      target = lex_strings.make("");
+	      paths = new std::list<pform_name_t>;
+	      paths->push_back(*$2);
+	}
+	pform_bind_directive(@1, target, lex_strings.make($3.text),
+			     $4, $5, paths);
+	delete $2;
 	delete[]$3.text;
       }
-  | K_bind TYPE_IDENTIFIER IDENTIFIER parameter_value_opt gate_instance_list ';'
-      { perm_string target = lex_strings.make($2.text);
-	perm_string type = lex_strings.make($3);
-	pform_bind_directive(@1, target, type, $4, $5);
-	delete[]$2.text;
-	delete[]$3;
-      }
-  /* Bind to a specific hierarchical instance (IEEE 1800-2017 23.11):
-       bind top.u1[.u2...] <bound_module> [#(...)] <inst> (...);
-     The path must start at a root module and name plain (non-arrayed,
-     non-generate) instances; pform_apply_binds resolves it and the
-     bound instance elaborates only inside that one target instance. */
-  | K_bind IDENTIFIER '.' bind_instance_path IDENTIFIER parameter_value_opt gate_instance_list ';'
-      { std::list<std::string>*paths = new std::list<std::string>;
-	paths->push_back(std::string($2) + "." + $4);
+  | K_bind bind_root_instance_path TYPE_IDENTIFIER parameter_value_opt gate_instance_list ';'
+      { std::list<pform_name_t>*paths = new std::list<pform_name_t>;
+	paths->push_back(*$2);
 	pform_bind_directive(@1, lex_strings.make(""),
-			     lex_strings.make($5), $6, $7, paths);
-	delete[]$2;
-	delete[]$4;
-	delete[]$5;
-      }
-  | K_bind IDENTIFIER '.' bind_instance_path TYPE_IDENTIFIER parameter_value_opt gate_instance_list ';'
-      { std::list<std::string>*paths = new std::list<std::string>;
-	paths->push_back(std::string($2) + "." + $4);
-	pform_bind_directive(@1, lex_strings.make(""),
-			     lex_strings.make($5.text), $6, $7, paths);
-	delete[]$2;
-	delete[]$4;
-	delete[]$5.text;
+			     lex_strings.make($3.text), $4, $5, paths);
+	delete $2;
+	delete[]$3.text;
       }
   /* Bind with a target instance list:
        bind <target_module> : <inst>[, <inst>...] <bound_module> ...;
-     A plain name matches any instance of the target module with that
-     instance name; a dotted path must be the full hierarchical path of
-     one instance of the target module. */
+     Entries use hierarchical lookup from the directive's containing
+     generate/module scope, or an absolute path rooted at a module/interface
+     definition. They are never resolved by a global terminal-name search. */
   | K_bind IDENTIFIER ':' bind_instance_path_list IDENTIFIER parameter_value_opt gate_instance_list ';'
       { pform_bind_directive(@1, lex_strings.make($2),
 			     lex_strings.make($5), $6, $7, $4);
@@ -5435,18 +5443,11 @@ bind_directive
 	delete[]$2;
 	delete[]$5.text;
       }
-  | K_bind IDENTIFIER '.' error ';'
-      { yyerror(@1, "error: malformed bind target instance path. "
-	        "Supported: bind <root>.<inst>[.<inst>...] <module> "
-	        "<instance> (...); (instance-array selects in bind "
-	        "paths are not supported yet).");
-	delete[]$2;
-      }
   | K_bind IDENTIFIER ':' error ';'
       { yyerror(@1, "error: malformed bind target instance list. "
 	        "Supported: bind <module> : <inst>[, <inst>...] "
-	        "<module> <instance> (...); (instance-array selects "
-	        "are not supported yet).");
+	        "<module> <instance> (...); constant instance-array "
+	        "selects are allowed.");
 	delete[]$2;
       }
   | K_bind IDENTIFIER error ';'
@@ -5457,35 +5458,77 @@ bind_directive
       }
   ;
 
-  /* Dot-joined hierarchical instance path for bind directives. Plain
-     identifiers only -- instance-array selects are rejected by the
-     error recovery above with a loud message. */
+  /* Hierarchical instance path for bind directives. This deliberately
+     accepts only bit selects: Syntax 23-9 permits constant_bit_select,
+     not part-select or indexed-part-select forms. Constancy and range
+     are checked against the elaborated instance hierarchy. */
 bind_instance_path
   : IDENTIFIER
-      { $$ = $1; }
-  | bind_instance_path '.' IDENTIFIER
-      { size_t len = strlen($1) + strlen($3) + 2;
-	char*tmp = new char[len];
-	strcpy(tmp, $1);
-	strcat(tmp, ".");
-	strcat(tmp, $3);
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t(lex_strings.make($1)));
 	delete[]$1;
+      }
+  | TYPE_IDENTIFIER
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t(lex_strings.make($1.text)));
+	delete[]$1.text;
+      }
+  | bind_instance_path '.' IDENTIFIER
+      { pform_name_t*tmp = $1;
+	tmp->push_back(name_component_t(lex_strings.make($3)));
 	delete[]$3;
 	$$ = tmp;
+      }
+  | bind_instance_path '.' TYPE_IDENTIFIER
+      { pform_name_t*tmp = $1;
+	tmp->push_back(name_component_t(lex_strings.make($3.text)));
+	delete[]$3.text;
+	$$ = tmp;
+      }
+  | bind_instance_path '[' expression ']'
+      { pform_name_t*tmp = $1;
+	index_component_t select;
+	select.sel = index_component_t::SEL_BIT;
+	select.msb = $3;
+	tmp->back().index.push_back(select);
+	$$ = tmp;
+      }
+  ;
+
+bind_root_instance_path
+  : SYSTEM_IDENTIFIER '.' bind_instance_path
+      { if (strcmp($1, "$root") != 0)
+	      yyerror(@1, "error: Only $root may prefix a bind target path.");
+	name_component_t root(lex_strings.make("$root"));
+	$3->push_front(root);
+	delete[]$1;
+	$$ = $3;
       }
   ;
 
 bind_instance_path_list
   : bind_instance_path
-      { std::list<std::string>*tmp = new std::list<std::string>;
-	tmp->push_back($1);
-	delete[]$1;
+      { std::list<pform_name_t>*tmp = new std::list<pform_name_t>;
+	tmp->push_back(*$1);
+	delete $1;
+	$$ = tmp;
+      }
+  | bind_root_instance_path
+      { std::list<pform_name_t>*tmp = new std::list<pform_name_t>;
+	tmp->push_back(*$1);
+	delete $1;
 	$$ = tmp;
       }
   | bind_instance_path_list ',' bind_instance_path
-      { std::list<std::string>*tmp = $1;
-	tmp->push_back($3);
-	delete[]$3;
+      { std::list<pform_name_t>*tmp = $1;
+	tmp->push_back(*$3);
+	delete $3;
+	$$ = tmp;
+      }
+  | bind_instance_path_list ',' bind_root_instance_path
+      { std::list<pform_name_t>*tmp = $1;
+	tmp->push_back(*$3);
+	delete $3;
 	$$ = tmp;
       }
   ;
@@ -14100,7 +14143,8 @@ cont_assign_list
 
 module
   : attribute_list_opt module_start lifetime_opt IDENTIFIER
-      { pform_startmodule(@2, $4, $2==K_program, $2==K_interface, $3, $1);
+      { pform_startmodule(@2, $4, $2==K_program, $2==K_interface,
+			  $2==K_checker, $3, $1);
         port_declaration_context_init();
 	  // Checker formals without an explicit direction are INPUTS
 	  // (IEEE 1800-2017 17.4); module ports default to inout.

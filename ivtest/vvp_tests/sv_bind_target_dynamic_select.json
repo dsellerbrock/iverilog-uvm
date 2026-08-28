@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_bind_target_dynamic_select.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_bind_target_dynamic_select" ],
+    "gold"          : "sv_bind_target_dynamic_select"
+}

@@ -1,0 +1,1 @@
+./ivltests/sv_bind_checker_target_fail.v:10: error: bind target 'sv_bind_checker_target_subject' is a checker; a bind target scope shall be a module or interface.

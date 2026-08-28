@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_bind_owner_excluded_absolute.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_bind_owner_excluded_absolute" ],
+    "gold"          : "sv_bind_owner_excluded_absolute"
+}

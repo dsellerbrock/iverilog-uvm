@@ -35,10 +35,10 @@ interface m13b_bus_if(input logic clk);
   logic valid;
 endinterface
 
-module m13b_ifc_chk(input logic clk, input logic v);
+interface m13b_ifc_chk(input logic clk, input logic v);
   int vcount = 0;
   always @(posedge clk) if (v) vcount++;
-endmodule
+endinterface
 
 // Description-level binds: named parameter override observing an
 // INTERNAL signal; positional override with two instances at once.
@@ -46,7 +46,8 @@ bind m13b_dut m13b_watcher #(.GAIN(10)) w_q(.clk(clk), .v(q));
 bind m13b_dut m13b_watcher #(2) w_d(.clk(clk), .v(d)), w_d2(.clk(clk), .v(d));
 // SVA checker bound into the fifo, reading its internal count.
 bind m13b_fifo m13b_sva_chk chk(.clk(clk), .cnt(count));
-// Bind into an interface definition.
+// IEEE 1800-2017 23.11 requires an interface or checker instantiation when
+// the bind target is an interface.
 bind m13b_bus_if m13b_ifc_chk pc(.clk(clk), .v(valid));
 
 module m13b_mid(input logic clk);

@@ -1,0 +1,2 @@
+ivltests/sv_bind_owner_nonroot_absolute_fail.v:18: error: bind target instance path 'sv_bind_owner_nonroot_absolute_child.u' matched no elaborated module/interface instance.
+1 error(s) during elaboration.

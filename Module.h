@@ -134,6 +134,10 @@ class Module : public PScopeExtra, public PNamedItem {
 	   content restrictions and some extra allowed items. */
       bool is_interface;
 
+	/* Checkers are module-like scopes, but IEEE 1800 permits a checker
+	 * (unlike an ordinary module) to be bound into an interface. */
+      bool is_checker;
+
       enum UCDriveType { UCD_NONE, UCD_PULL0, UCD_PULL1 };
       UCDriveType uc_drive;
 

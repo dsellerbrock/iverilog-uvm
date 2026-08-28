@@ -1230,6 +1230,7 @@ int main(int argc, char*argv[])
 		       ; mod != pform_modules.end() ; ++ mod ) {
 		  find_module_mention(mentioned_p, mod->second);
 	    }
+	    pform_find_bind_module_mentions(mentioned_p);
 
 	    for (mod = pform_modules.begin()
 		       ; mod != pform_modules.end() ; ++ mod ) {

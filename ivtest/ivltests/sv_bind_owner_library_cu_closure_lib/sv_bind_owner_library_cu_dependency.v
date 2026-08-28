@@ -1,0 +1,5 @@
+module sv_bind_owner_library_cu_dependency;
+endmodule
+
+bind sv_bind_owner_library_cu_closure_target
+  sv_bind_owner_library_cu_closure_probe late_probe();

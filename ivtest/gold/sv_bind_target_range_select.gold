@@ -1,0 +1,4 @@
+./ivltests/sv_bind_target_range_select.v:17: error: bind target instance select contains x/z bits: 1'bx
+./ivltests/sv_bind_target_range_select.v:15: error: bind target instance path 'lanes['sd7].child' matched no elaborated module/interface instance for declaration-scope occurrence 'sv_bind_target_range_select'; a constant select is outside the elaborated instance/generate range.
+./ivltests/sv_bind_target_range_select.v:16: error: bind target instance path 'children['sd0]' matched no elaborated module/interface instance for declaration-scope occurrence 'sv_bind_target_range_select'; a constant select is outside the elaborated instance/generate range.
+3 error(s) during elaboration.

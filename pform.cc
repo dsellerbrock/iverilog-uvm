@@ -37,6 +37,7 @@
 # include  "PTimingCheck.h"
 # include  "pform_sva_nfa.h"
 # include  "discipline.h"
+# include  "util.h"
 # include  <list>
 # include  <map>
 # include  <set>
@@ -2394,7 +2395,7 @@ verinum* pform_verinum_with_size(verinum*siz, verinum*val,
 }
 
 void pform_startmodule(const struct vlltype&loc, const char*name,
-		       bool program_block, bool is_interface,
+		       bool program_block, bool is_interface, bool is_checker,
 		       LexicalScope::lifetime_t lifetime,
 		       list<named_pexpr_t>*attr)
 {
@@ -2417,7 +2418,7 @@ void pform_startmodule(const struct vlltype&loc, const char*name,
 		  error_count += 1;
 	    }
 	    if (pform_cur_module.front()->is_interface
-		&& !(program_block || is_interface)) {
+		&& !(program_block || is_interface || is_checker)) {
 		  cerr << loc << ": error: module declarations are not "
 				 "allowed in interfaces." << endl;
 		  error_count += 1;
@@ -2428,6 +2429,7 @@ void pform_startmodule(const struct vlltype&loc, const char*name,
       Module*cur_module = new Module(lexical_scope, lex_name);
       cur_module->program_block = program_block;
       cur_module->is_interface = is_interface;
+      cur_module->is_checker = is_checker;
       cur_module->default_lifetime = find_lifetime(lifetime);
 
       FILE_NAME(cur_module, loc);
@@ -2642,7 +2644,9 @@ void pform_start_generate_for(const struct vlltype&li,
 			      PExpr*test,
 			      char*ident2, PExpr*next)
 {
-      PGenerate*gen = new PGenerate(lexical_scope, ++lexical_scope->generate_counter);
+      unsigned id_number = detect_directly_nested_generate();
+
+      PGenerate*gen = new PGenerate(lexical_scope, id_number);
       lexical_scope = gen;
 
       FILE_NAME(gen, li);
@@ -3678,42 +3682,40 @@ struct pending_bind_t {
       perm_string type;
       struct parmvalue_t*overrides;
       std::vector<lgate>*gates;
-	// Bind-to-instance forms: entries are plain instance names or
-	// dot-joined hierarchical paths. Null for bind-to-definition.
-      std::list<std::string>*inst_paths;
+	// Bind-to-instance forms retain their parsed hierarchy and selects.
+	// Null for bind-to-definition.
+      std::list<pform_name_t>*inst_paths;
+      Module*origin;
+      PGenerate*origin_generate;
+      bool applied;
 };
-static vector<pending_bind_t> pending_binds;
+/* Library loading can parse more bind directives while an existing batch is
+ * being resolved. Keep node addresses stable across those appends. */
+static list<pending_bind_t> pending_binds;
+static vector<bind_instance_filter_t*> bind_instance_filters;
+static map<Module*,set<perm_string> > bind_introduced_child_names;
+typedef set<Module*> bind_target_set_t;
+static set<perm_string> bind_library_load_attempts;
 
-/*
- * A bind directive is a generate item (IEEE 1800-2017 27.2), so a
- * directive in an unselected conditional-generate arm must not be applied.
- * Binds are normally moved into their target module after parsing, before
- * generate elaboration takes place.  Preserve the important constant-literal
- * case here rather than losing the enclosing generate context.  This is the
- * form produced by preprocessor configuration switches (for example,
- * OpenTitan's ``if (`EN_MASKING) bind ...'').
- *
- * Non-literal generate conditions continue through the normal path: they can
- * depend on parameters and therefore require the later, parameter-aware bind
- * elaboration path.  Do not guess their value here.
- */
-static bool bind_in_statically_unselected_generate_()
+static Module* bind_find_or_load_module_(perm_string type)
 {
-      for (const PGenerate*gen = pform_cur_generate ; gen ; ) {
-	    if (gen->scheme_type == PGenerate::GS_CONDIT
-		|| gen->scheme_type == PGenerate::GS_ELSE) {
-		  const PENumber*num = dynamic_cast<const PENumber*>(gen->loop_test);
-		  if (num && num->value().is_defined()) {
-			bool selected = !num->value().is_zero();
-			if (gen->scheme_type == PGenerate::GS_ELSE)
-			      selected = !selected;
-			if (!selected) return true;
-		  }
-	    }
+      map<perm_string,Module*>::iterator found = pform_modules.find(type);
+      if (found != pform_modules.end())
+	    return found->second;
 
-	    gen = dynamic_cast<const PGenerate*>(gen->parent_scope());
-      }
-      return false;
+      if (!bind_library_load_attempts.insert(type).second)
+	    return 0;
+
+	/* pform_parse() resets error_count for the newly loaded file. Preserve
+	 * diagnostics already issued by pform_finish(), then include every parse
+	 * error from the library file in the caller's total. */
+      unsigned saved_errors = error_count;
+      int parser_errors = 0;
+      load_module(type, parser_errors);
+      error_count = saved_errors + parser_errors;
+
+      found = pform_modules.find(type);
+      return found == pform_modules.end()? 0 : found->second;
 }
 
 void pform_bind_directive(const struct vlltype&loc,
@@ -3721,11 +3723,18 @@ void pform_bind_directive(const struct vlltype&loc,
 			  perm_string type,
 			  struct parmvalue_t*overrides,
 			  std::vector<lgate>*gates,
-			  std::list<std::string>*inst_paths)
+			  std::list<pform_name_t>*inst_paths)
 {
-      if (bind_in_statically_unselected_generate_())
+      Module*origin = pform_cur_module.empty()? 0 : pform_cur_module.front();
+      if (origin && (origin->program_block || origin->is_checker)) {
+	    cerr << loc << ": error: a bind directive may be declared only "
+		 << "in a module, interface, or compilation-unit scope; '"
+		 << origin->mod_name() << "' is "
+		 << (origin->program_block? "a program" : "a checker") << "."
+		 << endl;
+	    error_count += 1;
 	    return;
-
+      }
       pending_bind_t cur;
       FILE_NAME(&cur.li, loc);
       cur.target = target;
@@ -3733,81 +3742,398 @@ void pform_bind_directive(const struct vlltype&loc,
       cur.overrides = overrides;
       cur.gates = gates;
       cur.inst_paths = inst_paths;
+      cur.origin = origin;
+      cur.origin_generate = pform_cur_generate;
+      cur.applied = false;
       pending_binds.push_back(cur);
 }
 
-/*
- * Resolve a dot-joined hierarchical instance path against the parsed
- * module tree and return the module DEFINITION instantiated at that
- * path. The first component must name a root module (root scopes take
- * their module's name); each later component must be a module instance
- * inside the previous module's definition. This is a purely syntactic
- * walk over pform, so paths that thread through generate blocks or
- * instance arrays cannot be resolved here and get a loud diagnostic.
- */
-static Module* bind_resolve_instance_path_(const LineInfo&li,
-					   const std::string&path)
+static PGate* bind_find_gate_(Module*mod, PGenerate*gen, perm_string name)
 {
-      vector<string> comps;
-      string::size_type pos = 0;
-      while (pos <= path.size()) {
-	    string::size_type dot = path.find('.', pos);
-	    if (dot == string::npos) {
-		  comps.push_back(path.substr(pos));
-		  break;
-	    }
-	    comps.push_back(path.substr(pos, dot-pos));
-	    pos = dot + 1;
+      if (mod) {
+	    PGate*gate = mod->get_gate(name);
+	    PGModule*module_gate = dynamic_cast<PGModule*>(gate);
+	    return module_gate && module_gate->is_bind_instance()? 0 : gate;
       }
-
-      map<perm_string,Module*>::iterator match
-	    = pform_modules.find(lex_strings.make(comps[0].c_str()));
-      if (match == pform_modules.end()) {
-	    cerr << li.get_fileline() << ": error: "
-		 << "bind target instance path '" << path
-		 << "': '" << comps[0] << "' does not name a module; "
-		 << "the path must start at a root (top-level) module."
-		 << endl;
-	    error_count += 1;
-	    return 0;
+      assert(gen);
+      for (list<PGate*>::iterator cur = gen->gates.begin()
+		 ; cur != gen->gates.end() ; ++cur) {
+	    if ((*cur)->get_name() == name)
+		  return *cur;
       }
-      Module*cur = match->second;
-
-      for (size_t idx = 1 ; idx < comps.size() ; idx += 1) {
-	    perm_string iname = lex_strings.make(comps[idx].c_str());
-	    PGate*gate = cur->get_gate(iname);
-	    PGModule*modgate = dynamic_cast<PGModule*>(gate);
-	    if (modgate == 0) {
-		  cerr << li.get_fileline() << ": error: "
-		       << "bind target instance path '" << path
-		       << "': no module instance '" << comps[idx]
-		       << "' inside module '" << cur->mod_name()
-		       << "'. Note: bind instance paths cannot reach "
-		       << "through generate blocks or instance arrays."
-		       << endl;
-		  error_count += 1;
-		  return 0;
-	    }
-	    map<perm_string,Module*>::iterator next
-		  = pform_modules.find(modgate->get_type());
-	    if (next == pform_modules.end()) {
-		  cerr << li.get_fileline() << ": error: "
-		       << "bind target instance path '" << path
-		       << "': instance '" << comps[idx]
-		       << "' is of type '" << modgate->get_type()
-		       << "', which is not a module defined in this "
-		       << "compilation." << endl;
-		  error_count += 1;
-		  return 0;
-	    }
-	    cur = next->second;
-      }
-      return cur;
+      return 0;
 }
 
-static void bind_apply_one(Module*scope, pending_bind_t&bind,
-			   const std::vector<std::string>&inst_filter)
+static void bind_collect_generates_(const list<PGenerate*>&schemes,
+				    perm_string name,
+				    vector<PGenerate*>&matches)
 {
+      for (list<PGenerate*>::const_iterator cur = schemes.begin()
+		 ; cur != schemes.end() ; ++cur) {
+	    PGenerate*scheme = *cur;
+	    if (scheme->scheme_type == PGenerate::GS_CASE) {
+		  for (list<PGenerate*>::const_iterator item
+			     = scheme->generate_schemes.begin()
+			     ; item != scheme->generate_schemes.end() ; ++item) {
+			if ((*item)->directly_nested)
+			      bind_collect_generates_((*item)->generate_schemes,
+						      name, matches);
+			else if ((*item)->scope_name == name)
+			      matches.push_back(*item);
+		  }
+		  continue;
+	    }
+	    if (scheme->directly_nested) {
+		  bind_collect_generates_(scheme->generate_schemes,
+					  name, matches);
+		  continue;
+	    }
+	    if (scheme->scope_name == name)
+		  matches.push_back(scheme);
+      }
+}
+
+static void bind_find_generates_(Module*mod, PGenerate*gen, perm_string name,
+				 vector<PGenerate*>&matches)
+{
+      const list<PGenerate*>&schemes = mod? mod->generate_schemes
+						 : gen->generate_schemes;
+      bind_collect_generates_(schemes, name, matches);
+}
+
+static PGenerate* bind_find_generate_(Module*mod, PGenerate*gen,
+				      perm_string name)
+{
+      vector<PGenerate*>matches;
+      bind_find_generates_(mod, gen, name, matches);
+      return matches.empty()? 0 : matches.front();
+}
+
+static bool bind_validate_select_(const LineInfo&li,
+				  const pform_name_t&path,
+				  const name_component_t&component,
+				  bool is_array, bool require_select,
+				  const char*kind, bool diagnose)
+{
+      if (component.index.size() > 1) {
+	    if (diagnose) {
+		  cerr << li.get_fileline() << ": error: bind target instance "
+		       << "path '" << path << "': " << kind << " '"
+		       << component.name << "' has more than one select; "
+		       << "Icarus supports one-dimensional instance arrays."
+		       << endl;
+		  error_count += 1;
+	    }
+	    return false;
+      }
+      if (!component.index.empty() && !is_array) {
+	    if (diagnose) {
+		  cerr << li.get_fileline() << ": error: bind target instance "
+		       << "path '" << path << "': " << kind << " '"
+		       << component.name << "' is not arrayed and cannot be "
+		       << "selected." << endl;
+		  error_count += 1;
+	    }
+	    return false;
+      }
+	      if (component.index.empty() && is_array && require_select) {
+	    if (diagnose) {
+		  cerr << li.get_fileline() << ": error: bind target instance "
+		       << "path '" << path << "': arrayed " << kind
+		       << " '" << component.name << "' requires a constant "
+		       << "element select." << endl;
+		  error_count += 1;
+	    }
+	    return false;
+      }
+      return true;
+}
+
+static void bind_walk_instance_path_from_(
+		const LineInfo&li, const pform_name_t&path,
+		Module*mod, PGenerate*gen,
+		pform_name_t::const_iterator cur, bind_target_set_t&targets,
+		bool diagnose, bool defer_shape = false)
+{
+      ivl_assert(li, cur != path.end());
+      pform_name_t::const_iterator next = cur;
+      ++next;
+      bool final_component = next == path.end();
+
+      PGate*gate = bind_find_gate_(mod, gen, cur->name);
+      vector<PGenerate*>child_generates;
+      bind_find_generates_(mod, gen, cur->name, child_generates);
+      if (gate && !child_generates.empty()) {
+	    if (diagnose) {
+		  cerr << li.get_fileline() << ": error: bind target instance "
+		       << "path '" << path << "': '" << cur->name
+		       << "' ambiguously names both an instance and a generate "
+		       << "scope." << endl;
+		  error_count += 1;
+	    }
+	    return;
+      }
+
+      if (gate) {
+	    PGModule*modgate = dynamic_cast<PGModule*>(gate);
+	    if (!modgate) {
+		  if (diagnose) {
+			cerr << li.get_fileline() << ": error: bind target instance "
+			     << "path '" << path << "': '" << cur->name
+			     << "' is not a module/interface instance." << endl;
+			error_count += 1;
+		  }
+		  return;
+	    }
+	    if (cur->index.size() > 1) {
+		  bind_validate_select_(li, path, *cur, modgate->is_array(),
+					modgate->is_array(), "module instance",
+					diagnose);
+		  return;
+	    }
+	    if (!defer_shape
+		&& !bind_validate_select_(li, path, *cur, modgate->is_array(),
+					  modgate->is_array(), "module instance",
+					  diagnose))
+		  return;
+
+	    Module*child_module
+		  = bind_find_or_load_module_(modgate->get_type());
+	    if (!child_module) {
+		  if (diagnose) {
+			cerr << li.get_fileline() << ": error: bind target instance "
+			     << "path '" << path << "': instance '" << cur->name
+			     << "' has undefined type '" << modgate->get_type()
+			     << "'." << endl;
+			error_count += 1;
+		  }
+		  return;
+	    }
+	    if (final_component) {
+		  targets.insert(child_module);
+		  return;
+	    }
+	    bind_walk_instance_path_from_(li, path, child_module, 0, next,
+					 targets, diagnose, defer_shape);
+	    return;
+      }
+
+      if (!child_generates.empty()) {
+	    bool loop_array
+		  = child_generates.front()->scheme_type == PGenerate::GS_LOOP;
+	    bool mixed_shape = false;
+	    for (vector<PGenerate*>::const_iterator candidate
+		       = child_generates.begin()+1
+		       ; candidate != child_generates.end() ; ++candidate) {
+		  bool candidate_array
+			= (*candidate)->scheme_type == PGenerate::GS_LOOP;
+		  mixed_shape = mixed_shape || candidate_array != loop_array;
+	    }
+	    if (cur->index.size() > 1) {
+		  bind_validate_select_(li, path, *cur, loop_array, true,
+					"generate scope", diagnose);
+		  return;
+	    }
+	    if (!defer_shape && !mixed_shape
+		&& !bind_validate_select_(li, path, *cur, loop_array, true,
+					  "generate scope", diagnose))
+		  return;
+	    if (final_component) {
+		  if (diagnose) {
+			cerr << li.get_fileline() << ": error: bind target instance "
+			     << "path '" << path << "' ends at generate scope '"
+			     << cur->name << "', not a module/interface instance."
+			     << endl;
+			error_count += 1;
+		  }
+		  return;
+	    }
+
+	    bind_target_set_t candidate_targets;
+	    bool candidate_defer_shape
+		  = defer_shape || child_generates.size() > 1;
+	    for (vector<PGenerate*>::const_iterator candidate
+		       = child_generates.begin()
+		       ; candidate != child_generates.end() ; ++candidate) {
+		  bind_walk_instance_path_from_(li, path, 0, *candidate, next,
+						 candidate_targets, false,
+						 candidate_defer_shape);
+	    }
+	    if (!candidate_targets.empty()) {
+		  targets.insert(candidate_targets.begin(),
+				 candidate_targets.end());
+		  return;
+	    }
+	    if (diagnose)
+		  bind_walk_instance_path_from_(li, path, 0,
+					 child_generates.front(), next, targets,
+					 true, candidate_defer_shape);
+	    return;
+      }
+
+      if (diagnose) {
+	    if (mod && bind_introduced_child_names[mod].count(cur->name)) {
+		  cerr << li.get_fileline() << ": error: cannot bind an instance "
+		       << "underneath the scope of another bind instance: '"
+		       << path << "'." << endl;
+	    } else {
+		  cerr << li.get_fileline() << ": error: bind target instance "
+		       << "path '" << path << "': no child instance or "
+		       << "generate scope named '" << cur->name << "'." << endl;
+	    }
+	    error_count += 1;
+      }
+      return;
+}
+
+/* Walk path components below a parsed module definition. This resolves only
+ * the structural names and target module type; select values are evaluated
+ * later against parameter-specialized NetScope instances. */
+static void bind_walk_instance_path_(const LineInfo&li,
+				     const pform_name_t&path, Module*start,
+				     pform_name_t::const_iterator cur,
+				     bind_target_set_t&targets, bool diagnose)
+{
+      bind_walk_instance_path_from_(li, path, start, 0, cur, targets,
+					    diagnose);
+}
+
+static void bind_resolve_absolute_path_(const LineInfo&li,
+					const pform_name_t&path,
+					bind_target_set_t&targets,
+					bool diagnose)
+{
+      ivl_assert(li, !path.empty());
+      const name_component_t&root = path.front();
+      Module*root_module = root.index.empty()
+	  ? bind_find_or_load_module_(root.name) : 0;
+      if (!root_module || !root.index.empty()) {
+	    if (diagnose) {
+		  cerr << li.get_fileline() << ": error: bind target instance "
+		       << "path '" << path << "' must start at an unselected "
+		       << "root module/interface name." << endl;
+		  error_count += 1;
+	    }
+	    return;
+      }
+      pform_name_t::const_iterator cur = path.begin();
+      if (++cur == path.end()) {
+	    targets.insert(root_module);
+	    return;
+      }
+	bind_walk_instance_path_(li, path, root_module, cur, targets,
+				       diagnose);
+}
+
+static bool bind_find_relative_base_(Module*origin,
+				     PGenerate*origin_generate,
+				     perm_string name,
+				     PGenerate*&base_generate)
+{
+      for (PGenerate*gen = origin_generate ; gen ; ) {
+	    if (bind_find_gate_(0, gen, name)
+		|| bind_find_generate_(0, gen, name)) {
+		  base_generate = gen;
+		  return true;
+	    }
+	    gen = dynamic_cast<PGenerate*>(gen->parent_scope());
+      }
+      base_generate = 0;
+      return origin && (bind_find_gate_(origin, 0, name)
+			|| bind_find_generate_(origin, 0, name));
+}
+
+static void bind_resolve_instance_path_types_(
+		const LineInfo&li, const pform_name_t&path, Module*origin,
+		PGenerate*origin_generate, bind_instance_filter_t::mode_t&mode,
+		PGenerate*&relative_base_generate, bind_target_set_t&targets,
+		bool diagnose = true)
+{
+      if (path.front().name == "$root") {
+	    pform_name_t absolute_path(path);
+	    absolute_path.pop_front();
+	    ivl_assert(li, !absolute_path.empty());
+	    relative_base_generate = 0;
+	    bind_resolve_absolute_path_(li, absolute_path, targets, diagnose);
+	    if (!targets.empty())
+		  mode = bind_instance_filter_t::ABSOLUTE;
+	    return;
+      }
+      if (origin && bind_find_relative_base_(
+			  origin, origin_generate, path.front().name,
+			  relative_base_generate)) {
+	    bind_walk_instance_path_from_(
+		  li, path, relative_base_generate? 0 : origin,
+		  relative_base_generate, path.begin(), targets, false);
+	    if (!targets.empty()) {
+		  mode = bind_instance_filter_t::RELATIVE;
+		  return;
+	    }
+	      // Once the first component resolves locally, IEEE hierarchical
+	      // lookup remains relative. A bad suffix must not fall back to a
+	      // same-named root module.
+	    if (diagnose)
+		  bind_walk_instance_path_from_(
+			li, path, relative_base_generate? 0 : origin,
+			relative_base_generate, path.begin(), targets, true);
+	    return;
+      }
+
+      relative_base_generate = 0;
+      bind_resolve_absolute_path_(li, path, targets, false);
+      if (!targets.empty()) {
+	    mode = bind_instance_filter_t::ABSOLUTE;
+	    return;
+      }
+
+      if (diagnose)
+	    bind_resolve_absolute_path_(li, path, targets, true);
+}
+
+static Module* bind_resolve_instance_path_(
+		const LineInfo&li, const pform_name_t&path, Module*origin,
+		PGenerate*origin_generate, bind_instance_filter_t::mode_t&mode,
+		PGenerate*&relative_base_generate, bool diagnose = true)
+{
+      bind_target_set_t targets;
+      bind_resolve_instance_path_types_(li, path, origin, origin_generate,
+					mode, relative_base_generate, targets,
+					diagnose);
+      if (targets.size() == 1)
+	    return *targets.begin();
+      if (targets.size() > 1 && diagnose) {
+	    cerr << li.get_fileline() << ": error: bind target instance path '"
+		 << path << "' reaches different module/interface types across "
+		 << "conditional generate alternatives; this bind form requires "
+		 << "one target type." << endl;
+	    error_count += 1;
+      }
+      return 0;
+}
+
+static bind_instance_filter_t* bind_make_filter_(
+		const LineInfo&li, const pform_name_t&path,
+		bind_instance_filter_t::mode_t mode, Module*origin,
+		PGenerate*origin_generate,
+		PGenerate*relative_base_generate)
+{
+      bind_instance_filter_t*filter = new bind_instance_filter_t;
+      filter->set_line(li);
+      filter->mode = mode;
+      filter->path = path;
+      if (!filter->path.empty() && filter->path.front().name == "$root")
+	    filter->path.pop_front();
+      filter->origin = origin;
+      filter->origin_generate = origin_generate;
+      filter->relative_base_generate = relative_base_generate;
+      return filter;
+}
+
+static vector<PGModule*> bind_apply_one(
+		Module*scope, pending_bind_t&bind,
+		const std::vector<bind_instance_filter_t*>&inst_filter)
+{
+      vector<PGModule*> created;
       for (unsigned idx = 0 ; idx < bind.gates->size() ; idx += 1) {
 	    lgate&cur = (*bind.gates)[idx];
 	    perm_string cur_name = lex_strings.make(cur.name);
@@ -3831,15 +4157,13 @@ static void bind_apply_one(Module*scope, pending_bind_t&bind,
 		  }
 		  gate = new PGModule(bind.type, cur_name, pins, npins);
 	    } else {
-		  list<PExpr*>*wires = cur.parms;
-		  if (wires && wires->size() == 1 && wires->front() == 0) {
+		  list<PExpr*>*wires = cur.parms
+			? new list<PExpr*>(*cur.parms) : new list<PExpr*>;
+		  if (wires->size() == 1 && wires->front() == 0) {
 			  /* The parser reports an empty port list as one
 			     null parameter. Fix that. */
-			delete wires;
-			wires = new list<PExpr*>;
+			wires->clear();
 		  }
-		  if (wires == 0)
-			wires = new list<PExpr*>;
 		  for (list<PExpr*>::iterator wdx = wires->begin()
 			     ; wdx != wires->end() ; ++wdx) {
 			if (*wdx) (*wdx)->reloc_lexical_pos_bind();
@@ -3848,6 +4172,7 @@ static void bind_apply_one(Module*scope, pending_bind_t&bind,
 	    }
 	    gate->set_line(bind.li);
 	    gate->set_ranges(cur.ranges);
+	    gate->mark_bind_instance();
 
 	    if (cur.ranges) {
 		  for (list<pform_range_t>::iterator rdx = cur.ranges->begin()
@@ -3878,166 +4203,719 @@ static void bind_apply_one(Module*scope, pending_bind_t&bind,
 	    if (!inst_filter.empty())
 		  gate->set_bind_instance_filter(inst_filter);
 
-	    if (cur_name != "")
+	      // A filtered directive may be inactive or may share a bound name
+	      // with a disjoint target. Its collision domain is the selected
+	      // elaborated NetScope, not the unconditional module definition.
+	    if (cur_name != "" && inst_filter.empty()) {
+		  if (scope->local_symbols.find(cur_name)
+		      != scope->local_symbols.end()) {
+			add_local_symbol(scope, cur_name, gate);
+			gate->disable_bind_instance();
+			continue;
+		  }
 		  add_local_symbol(scope, cur_name, gate);
+	    }
 	    scope->add_gate(gate);
+	    created.push_back(gate);
+      }
+      return created;
+}
+
+struct resolved_bind_t {
+      pending_bind_t*source;
+      vector<Module*>targets;
+      vector<bind_instance_filter_t*>filters;
+};
+
+struct bind_application_t {
+      Module*target;
+      vector<PGModule*>gates;
+};
+static vector<bind_application_t> bind_applications;
+
+struct deferred_bind_t {
+      LineInfo li;
+      Module*origin;
+      PGenerate*origin_generate;
+      vector<bind_application_t>applications;
+      vector<bind_instance_filter_t*>filters;
+      set<const NetScope*>processed_owners;
+      bool definition_registered;
+      bool definition_duplicate_reported;
+};
+static vector<deferred_bind_t> deferred_binds;
+
+static void bind_discard_filters_(vector<bind_instance_filter_t*>&filters)
+{
+      for (vector<bind_instance_filter_t*>::iterator cur = filters.begin()
+		 ; cur != filters.end() ; ++cur)
+	    delete *cur;
+      filters.clear();
+}
+
+static void bind_collect_introduced_child_names_(
+		const vector<pending_bind_t*>&batch, bool reset)
+{
+      if (reset)
+	    bind_introduced_child_names.clear();
+      for (vector<pending_bind_t*>::const_iterator cur = batch.begin()
+		 ; cur != batch.end() ; ++cur) {
+	    pending_bind_t*bind = *cur;
+
+	      // Resolve the bind-instantiation kind while this directive is
+	      // active. Besides making interface/checker/program/UDP legality
+	      // independent of whether a target occurrence exists, this drains
+	      // any further directives parsed from the library file before the
+	      // batch mutates a target definition.
+	    bind_find_or_load_module_(bind->type);
+
+	    bind_target_set_t targets;
+	    if (bind->target == "") {
+		  ivl_assert(bind->li, bind->inst_paths
+			     && bind->inst_paths->size() == 1);
+		  bind_instance_filter_t::mode_t mode;
+		  PGenerate*relative_base = 0;
+		  bind_resolve_instance_path_types_(
+			bind->li, bind->inst_paths->front(), bind->origin,
+			bind->origin_generate, mode, relative_base, targets,
+			false);
+	    } else if (!bind->inst_paths && bind->origin) {
+		  PGenerate*unused_base = 0;
+		  if (bind_find_relative_base_(bind->origin,
+			      bind->origin_generate, bind->target, unused_base)) {
+			pform_name_t path;
+			path.push_back(name_component_t(bind->target));
+			bind_instance_filter_t::mode_t mode;
+			PGenerate*relative_base = 0;
+			bind_resolve_instance_path_types_(
+			      bind->li, path, bind->origin,
+			      bind->origin_generate, mode, relative_base,
+			      targets, false);
+		  }
+	    }
+	    if (targets.empty() && bind->target != "") {
+		  Module*found = bind_find_or_load_module_(bind->target);
+		  if (found)
+			targets.insert(found);
+	    }
+
+	      // The target-scope/list form above needs the declared target type
+	      // for its collision domain, but every list entry may traverse a
+	      // different library-only container. Preload those structural paths
+	      // as well so resolving the eventual batch cannot append work behind
+	      // the batch snapshot.
+	    if (bind->target != "" && bind->inst_paths) {
+		  for (list<pform_name_t>::const_iterator path
+			     = bind->inst_paths->begin()
+			 ; path != bind->inst_paths->end() ; ++path) {
+			bind_target_set_t path_targets;
+			bind_instance_filter_t::mode_t mode;
+			PGenerate*relative_base = 0;
+			bind_resolve_instance_path_types_(
+			      bind->li, *path, bind->origin,
+			      bind->origin_generate, mode, relative_base,
+			      path_targets, false);
+		  }
+	    }
+	    if (targets.empty())
+		  continue;
+
+	    for (vector<lgate>::iterator gate = bind->gates->begin()
+		       ; gate != bind->gates->end() ; ++gate) {
+		  perm_string name = lex_strings.make(gate->name);
+		  if (name == "")
+			continue;
+		  for (bind_target_set_t::iterator target = targets.begin()
+			     ; target != targets.end() ; ++target)
+			bind_introduced_child_names[*target].insert(name);
+	    }
       }
 }
 
-/*
- * Existence check for the plain-name entries of a bind instance list
- * (bind <mod> : u1, ...). A plain name matches any instance of the
- * target module with that instance name, wherever it occurs, so scan
- * every parsed module definition for at least one such instantiation
- * and complain loudly if there is none (a typo would otherwise make
- * the bind a silent no-op).
- */
-static bool bind_instance_name_exists_(perm_string iname, perm_string type)
+static void bind_resolve_batch_(const vector<pending_bind_t*>&batch,
+				vector<resolved_bind_t>&resolved)
 {
-      for (map<perm_string,Module*>::iterator mod = pform_modules.begin()
-		 ; mod != pform_modules.end() ; ++mod) {
-	    PGModule*modgate
-		  = dynamic_cast<PGModule*>(mod->second->get_gate(iname));
-	    if (modgate && modgate->get_type() == type)
-		  return true;
+      for (vector<pending_bind_t*>::const_iterator cur = batch.begin()
+		 ; cur != batch.end() ; ++cur) {
+	    pending_bind_t*bind = *cur;
+	    bind->applied = true;
+
+	    bind_target_set_t target_mods;
+	    vector<bind_instance_filter_t*> inst_filter;
+	    bool target_scope_form = false;
+	    bool definition_target = false;
+
+	    if (bind->target == "") {
+		  // bind <hier.path> <type> <inst> (...): the target
+		  // module is whatever the path instantiates.
+		  ivl_assert(bind->li, bind->inst_paths
+			     && bind->inst_paths->size() == 1);
+		  const pform_name_t&path = bind->inst_paths->front();
+		  bind_instance_filter_t::mode_t mode;
+		  PGenerate*relative_base_generate = 0;
+		  bind_resolve_instance_path_types_(
+			bind->li, path, bind->origin, bind->origin_generate,
+			mode, relative_base_generate, target_mods);
+		  if (target_mods.empty())
+			continue;
+		  inst_filter.push_back(bind_make_filter_(
+			bind->li, path, mode, bind->origin,
+			bind->origin_generate, relative_base_generate));
+	    } else {
+		    // In the grammar, a one-component unselected name can be
+		    // either a module/interface type or a relative instance.
+		    // IEEE 1800-2017/2023 23.11 gives the instance precedence.
+		  bool local_target = false;
+		  if (!bind->inst_paths && bind->origin) {
+			PGenerate*unused_base = 0;
+			local_target = bind_find_relative_base_(
+			      bind->origin, bind->origin_generate, bind->target,
+			      unused_base);
+		  }
+		  if (local_target) {
+			pform_name_t path;
+			path.push_back(name_component_t(bind->target));
+			bind_instance_filter_t::mode_t mode;
+			PGenerate*relative_base_generate = 0;
+			bind_resolve_instance_path_types_(
+			      bind->li, path, bind->origin,
+			      bind->origin_generate, mode,
+			      relative_base_generate, target_mods);
+			if (target_mods.empty())
+			      continue;
+			inst_filter.push_back(bind_make_filter_(
+			      bind->li, path, mode, bind->origin,
+			      bind->origin_generate, relative_base_generate));
+		  }
+
+		  if (target_mods.empty()) {
+			Module*match = bind_find_or_load_module_(bind->target);
+			if (match) {
+			      // In the target-scope forms, the declared scope kind is
+			      // independently constrained to module or interface. Check
+			      // it before resolving the optional instance list so a bad
+			      // or empty selection cannot mask the declaration error.
+			      if (match->is_checker) {
+				    cerr << bind->li.get_fileline()
+					 << ": error: bind target '"
+					 << match->mod_name()
+					 << "' is a checker; a bind target scope "
+					 << "shall be a module or interface." << endl;
+				    error_count += 1;
+				    continue;
+			      }
+			      if (match->program_block) {
+				    cerr << bind->li.get_fileline()
+					 << ": error: bind target '"
+					 << match->mod_name()
+					 << "' is a program block; a bind target "
+					 << "scope shall be a module or interface."
+					 << endl;
+				    error_count += 1;
+				    continue;
+			      }
+			      target_mods.insert(match);
+			      target_scope_form = true;
+			      definition_target = bind->inst_paths == 0;
+			} else {
+			      cerr << bind->li.get_fileline() << ": error: "
+				   << "bind target module/interface '"
+				   << bind->target << "' is not defined in this "
+				   << "compilation." << endl;
+			      error_count += 1;
+			      continue;
+			}
+		  }
+
+		  if (bind->inst_paths) {
+			ivl_assert(bind->li, target_mods.size() == 1);
+			Module*target_mod = *target_mods.begin();
+			// Every target-list entry is a hierarchical name. Resolve
+			// one-component entries in the declaration scope too; a
+			// terminal-name designwide search is not IEEE name lookup.
+			bool bad = false;
+			for (list<pform_name_t>::iterator pp = bind->inst_paths->begin()
+				   ; pp != bind->inst_paths->end() ; ++pp) {
+			      bind_instance_filter_t::mode_t mode;
+			      PGenerate*relative_base_generate = 0;
+			      Module*at = bind_resolve_instance_path_(
+				    bind->li, *pp, bind->origin,
+				    bind->origin_generate, mode,
+				    relative_base_generate);
+			      if (at == 0) {
+				    bad = true;
+				    continue;
+			      }
+			      if (at != target_mod) {
+				    cerr << bind->li.get_fileline()
+					 << ": error: bind instance list entry '"
+					 << *pp << "' is an instance of module '"
+					 << at->mod_name() << "', not of the bind "
+					 << "target '" << bind->target << "'." << endl;
+				    error_count += 1;
+				    bad = true;
+				    continue;
+			      }
+			      inst_filter.push_back(bind_make_filter_(
+				    bind->li, *pp, mode, bind->origin,
+				    bind->origin_generate, relative_base_generate));
+			}
+			if (bad) {
+			      bind_discard_filters_(inst_filter);
+			      continue;
+			}
+		  }
+	    }
+
+	    bool bad_target = false;
+	    map<perm_string,Module*>::iterator bound_definition
+		  = pform_modules.find(bind->type);
+	    bool bound_primitive
+		  = pform_primitives.find(bind->type) != pform_primitives.end();
+	    if (bound_primitive) {
+		  cerr << bind->li.get_fileline() << ": error: primitive '"
+		       << bind->type << "' is not a permitted bind "
+		       << "instantiation; expected a program, module, "
+		       << "interface, or checker instantiation." << endl;
+		  error_count += 1;
+		  bind_discard_filters_(inst_filter);
+		  continue;
+	    }
+	    for (bind_target_set_t::iterator target = target_mods.begin()
+		 ; target_scope_form && target != target_mods.end() ; ++target) {
+		  Module*target_mod = *target;
+		  if (definition_target
+		      && bind->type == target_mod->mod_name()) {
+			cerr << bind->li.get_fileline() << ": error: "
+			     << "bind of module '" << bind->type
+			     << "' into itself would recurse forever." << endl;
+			error_count += 1;
+			bad_target = true;
+			continue;
+		  }
+		  if (target_mod->is_interface
+		      && bound_definition != pform_modules.end()
+		      && !bound_definition->second->is_interface
+		      && !bound_definition->second->is_checker) {
+			cerr << bind->li.get_fileline() << ": error: "
+			     << (bound_definition->second->program_block
+				   ? "program '" : "module '")
+			     << bind->type << "' cannot be bound into interface '"
+			     << target_mod->mod_name() << "'; an interface target "
+			     << "requires an interface or checker instantiation."
+			     << endl;
+			error_count += 1;
+			bad_target = true;
+		  }
+	    }
+	    if (bad_target) {
+		  bind_discard_filters_(inst_filter);
+		  continue;
+	    }
+
+	      // A directive declared in a module or generated scope exists
+	      // once per elaborated occurrence of that declaration scope. Add a
+	      // definition-wide filter when the syntax itself supplied no path,
+	      // and defer every such directive until its owner scopes are known.
+	    if (bind->origin && inst_filter.empty()) {
+		  pform_name_t empty_path;
+		  inst_filter.push_back(bind_make_filter_(
+			bind->li, empty_path, bind_instance_filter_t::DEFINITION,
+			bind->origin, bind->origin_generate, 0));
+	    }
+	    if (bind->origin) {
+		  for (vector<bind_instance_filter_t*>::iterator filter
+			     = inst_filter.begin()
+			     ; filter != inst_filter.end() ; ++filter)
+			(*filter)->activated = false;
+	    }
+
+	    resolved_bind_t item;
+	    item.source = bind;
+	    item.targets.assign(target_mods.begin(), target_mods.end());
+	    item.filters.swap(inst_filter);
+	    resolved.push_back(item);
       }
-      return false;
+
+}
+
+static void bind_apply_resolved_(vector<resolved_bind_t>&resolved)
+{
+        // Only now mutate the target definitions. Every target in this batch
+        // was resolved against the same pre-bind hierarchy, so source order
+        // cannot make a later target traverse an earlier bound instance.
+      for (vector<resolved_bind_t>::iterator cur = resolved.begin()
+		 ; cur != resolved.end() ; ++cur) {
+	    bind_instance_filters.insert(bind_instance_filters.end(),
+					 cur->filters.begin(), cur->filters.end());
+
+	    deferred_bind_t deferred;
+	    if (cur->source->origin) {
+		  deferred.li = cur->source->li;
+		  deferred.origin = cur->source->origin;
+		  deferred.origin_generate = cur->source->origin_generate;
+		  deferred.filters = cur->filters;
+		  deferred.definition_registered = false;
+		  deferred.definition_duplicate_reported = false;
+	    }
+
+	    for (vector<Module*>::iterator target = cur->targets.begin()
+		       ; target != cur->targets.end() ; ++target) {
+		  bind_application_t application;
+		  application.target = *target;
+		  application.gates
+			= bind_apply_one(*target, *cur->source, cur->filters);
+		  bind_applications.push_back(application);
+		  if (cur->source->origin)
+			deferred.applications.push_back(application);
+	    }
+	    if (cur->source->origin)
+		  deferred_binds.push_back(deferred);
+      }
 }
 
 void pform_apply_binds(void)
 {
-      for (vector<pending_bind_t>::iterator cur = pending_binds.begin()
-		 ; cur != pending_binds.end() ; ++cur) {
+      vector<pending_bind_t*>batch;
+      set<pending_bind_t*>queued;
+      bool reset_names = true;
 
-	    Module*target_mod = 0;
-	    std::vector<std::string> inst_filter;
-
-	    if (cur->target == "") {
-		    // bind <hier.path> <type> <inst> (...): the target
-		    // module is whatever the path instantiates.
-		  ivl_assert(cur->li, cur->inst_paths
-			     && cur->inst_paths->size() == 1);
-		  const string&path = cur->inst_paths->front();
-		  target_mod = bind_resolve_instance_path_(cur->li, path);
-		  if (target_mod == 0)
+	// Loading either a target path or the bound instantiation type may parse
+	// another compilation-unit bind. Build one closed batch before applying
+	// any of it, preserving source-order independence and ensuring automatic
+	// root discovery sees every compilation-unit bind reached by this initial
+	// compilation-unit dependency closure.
+      while (true) {
+	    bool progress = false;
+	    vector<pending_bind_t*>fresh;
+	    for (list<pending_bind_t>::iterator cur = pending_binds.begin()
+		       ; cur != pending_binds.end() ; ++cur) {
+		  if (cur->origin || cur->applied || queued.count(&*cur))
 			continue;
-		  inst_filter.push_back(path);
+		  queued.insert(&*cur);
+		  fresh.push_back(&*cur);
+	    }
+	    if (!fresh.empty()) {
+		  bind_collect_introduced_child_names_(fresh, reset_names);
+		  reset_names = false;
+		  batch.insert(batch.end(), fresh.begin(), fresh.end());
+		  progress = true;
+	    }
 
-	    } else {
-		  map<perm_string,Module*>::iterator match
-			= pform_modules.find(cur->target);
-		  if (match == pform_modules.end()) {
-			  // IEEE 1800-2017 23.11: a target that names no
-			  // module may be a bind_target_instance. Search
-			  // the parsed modules for an instantiation with
-			  // this instance name; when every such instance
-			  // has one module type, bind into those
-			  // instances via the plain-name filter.
-			perm_string inst_type;
-			bool ambiguous = false;
-			for (map<perm_string,Module*>::iterator mod = pform_modules.begin()
-				   ; mod != pform_modules.end() ; ++mod) {
-			      PGModule*modgate = dynamic_cast<PGModule*>
-				    (mod->second->get_gate(cur->target));
-			      if (modgate == 0)
+	    if (!progress)
+		  break;
+      }
+
+      vector<resolved_bind_t>resolved;
+      bind_resolve_batch_(batch, resolved);
+      bind_apply_resolved_(resolved);
+}
+
+void pform_find_bind_module_mentions(map<perm_string,bool>&mentions)
+{
+	// A contained directive is activated only for a live declaration-scope
+	// occurrence, but its bind instantiation is still a syntactic module-like
+	// instantiation for automatic root selection, just as an instantiation in
+	// an inactive generate arm is. Do not select that bound definition as an
+	// unrelated extra root before owner activation runs.
+      for (list<pending_bind_t>::const_iterator bind = pending_binds.begin()
+		 ; bind != pending_binds.end() ; ++bind) {
+	    if (pform_modules.find(bind->type) != pform_modules.end())
+		  mentions[bind->type] = true;
+      }
+}
+
+static void bind_collect_elaborated_scopes_(Design*des,
+					    vector<NetScope*>&out)
+{
+      const list<NetScope*>&roots = des->find_root_scopes();
+      out.insert(out.end(), roots.begin(), roots.end());
+      for (size_t idx = 0 ; idx < out.size() ; ++idx) {
+	    const map<hname_t,NetScope*>&children = out[idx]->children();
+	    for (map<hname_t,NetScope*>::const_iterator cur = children.begin()
+		       ; cur != children.end() ; ++cur)
+		  out.push_back(cur->second);
+      }
+}
+
+static bool bind_is_origin_scope_(const NetScope*scope, const Module*origin,
+				  const PGenerate*origin_generate)
+{
+      if (origin_generate)
+	    return scope->generate_definition() == origin_generate
+		|| scope->has_active_generate(origin_generate);
+      return scope->type() == NetScope::MODULE
+	    && scope->module_definition() == origin;
+}
+
+static bool bind_is_origin_scope_(const NetScope*scope,
+				  const bind_instance_filter_t*filter)
+{
+      return bind_is_origin_scope_(scope, filter->origin,
+					   filter->origin_generate);
+}
+
+static const NetScope* bind_relative_base_scope_(
+		const NetScope*owner, const bind_instance_filter_t*filter)
+{
+      for (const NetScope*scope = owner ; scope ; scope = scope->parent()) {
+	    if (filter->relative_base_generate) {
+		  if (scope->generate_definition()
+			      == filter->relative_base_generate
+		      || scope->has_active_generate(
+			      filter->relative_base_generate))
+			return scope;
+	    } else if (scope->type() == NetScope::MODULE
+		       && scope->module_definition() == filter->origin) {
+		  return scope;
+	    }
+      }
+      return 0;
+}
+
+bool pform_activate_deferred_binds(Design*des)
+{
+      size_t pending_count_before = pending_binds.size();
+      unsigned discovery_errors_before = error_count;
+      vector<NetScope*>scopes;
+      bind_collect_elaborated_scopes_(des, scopes);
+      bool changed = false;
+
+        // A contained bind directive does not exist until at least one
+        // elaborated occurrence of its declaration scope exists. Resolve all
+        // newly live directives as one batch before inserting any gates;
+        // inactive generate arms and excluded owner modules therefore neither
+        // diagnose nor mutate target definitions.
+      vector<pending_bind_t*>batch;
+      set<pending_bind_t*>queued;
+      while (true) {
+	    vector<pending_bind_t*>fresh;
+	    for (list<pending_bind_t>::iterator bind = pending_binds.begin()
+		       ; bind != pending_binds.end() ; ++bind) {
+		  if (bind->applied || queued.count(&*bind))
+			continue;
+
+		  bool live = bind->origin == 0;
+		  for (vector<NetScope*>::iterator scope = scopes.begin()
+			     ; !live && scope != scopes.end() ; ++scope) {
+			if (bind_is_origin_scope_(*scope, bind->origin,
+						  bind->origin_generate))
+			      live = true;
+		  }
+		  if (!live)
+			continue;
+
+		  queued.insert(&*bind);
+		  fresh.push_back(&*bind);
+	    }
+	    if (fresh.empty())
+		  break;
+
+	      // Loading a dependency of a live contained directive may append
+	      // compilation-unit directives from the same library file. Drain
+	      // that dependency closure before resolving or mutating any target
+	      // definition, just as the initial compilation-unit pass does.
+	    bind_collect_introduced_child_names_(fresh, false);
+	    batch.insert(batch.end(), fresh.begin(), fresh.end());
+      }
+      if (!batch.empty()) {
+	    vector<resolved_bind_t>resolved;
+	    bind_resolve_batch_(batch, resolved);
+	    bind_apply_resolved_(resolved);
+	    des->errors += error_count >= discovery_errors_before
+		  ? error_count - discovery_errors_before : error_count;
+	    changed = true;
+      }
+
+      for (vector<deferred_bind_t>::iterator cur = deferred_binds.begin()
+		 ; cur != deferred_binds.end() ; ++cur) {
+	    vector<NetScope*>owners;
+	    vector<NetScope*>new_owners;
+	    for (vector<NetScope*>::iterator scope = scopes.begin()
+		       ; scope != scopes.end() ; ++scope) {
+		  if (!bind_is_origin_scope_(*scope, cur->filters.front()))
+			continue;
+		  owners.push_back(*scope);
+		  if (!cur->processed_owners.count(*scope))
+			new_owners.push_back(*scope);
+	    }
+	    if (new_owners.empty())
+		  continue;
+
+	    bool definition = cur->filters.size() == 1
+		  && cur->filters.front()->mode
+		       == bind_instance_filter_t::DEFINITION;
+	    if (definition && owners.size() > 1) {
+		  if (!cur->definition_duplicate_reported) {
+			cerr << cur->li.get_fileline() << ": error: a designwide "
+			     << "bind directive is elaborated " << owners.size()
+			     << " times because its containing scope has multiple "
+			     << "instances; the bound instance name would be "
+			     << "introduced more than once." << endl;
+			des->errors += 1;
+			cur->definition_duplicate_reported = true;
+		  }
+		  cur->processed_owners.insert(new_owners.begin(),
+					       new_owners.end());
+		  changed = true;
+		  continue;
+	    }
+
+	      // A live definition bind mutates the target definition exactly
+	      // once, even when that target currently has no elaborated instance.
+	      // Delay this namespace reservation until owner activation so an
+	      // excluded owner remains semantically absent.
+	    if (definition && !cur->definition_registered) {
+		  unsigned errors_before = error_count;
+		  for (vector<bind_application_t>::iterator application
+			     = cur->applications.begin()
+			     ; application != cur->applications.end(); ++application) {
+			for (vector<PGModule*>::iterator gate
+			       = application->gates.begin()
+			       ; gate != application->gates.end(); ++gate) {
+			      perm_string name = (*gate)->get_name();
+			      if (name == "")
 				    continue;
-			      if (!inst_type.nil()
-				  && inst_type != modgate->get_type())
-				    ambiguous = true;
-			      inst_type = modgate->get_type();
-			}
-			if (!inst_type.nil() && !ambiguous) {
-			      map<perm_string,Module*>::iterator tmatch
-				    = pform_modules.find(inst_type);
-			      if (tmatch != pform_modules.end()) {
-				    target_mod = tmatch->second;
-				    inst_filter.push_back(string(cur->target));
+			      if (application->target->local_symbols.find(name)
+				  != application->target->local_symbols.end()) {
+				    add_local_symbol(application->target, name, *gate);
+				    (*gate)->disable_bind_instance();
+				    continue;
 			      }
+			      add_local_symbol(application->target, name, *gate);
 			}
-			if (target_mod == 0) {
-			      if (ambiguous) {
-				    cerr << cur->li.get_fileline() << ": error: "
-					 << "bind target instance '" << cur->target
-					 << "' matches instances of different "
-					 << "module types; qualify the path." << endl;
-			      } else {
-				    cerr << cur->li.get_fileline() << ": error: "
-					 << "bind target module/interface '" << cur->target
-					 << "' is not defined in this compilation." << endl;
-			      }
-			      error_count += 1;
-			      continue;
-			}
-		  } else {
-		  target_mod = match->second;
+		  }
+		  des->errors += error_count - errors_before;
+		  cur->definition_registered = true;
+	    }
 
-		  if (cur->inst_paths) {
-			  // bind <mod> : <inst list> ...: validate every
-			  // entry now so a typo cannot silently bind
-			  // nothing.
-			bool bad = false;
-			for (list<string>::iterator pp = cur->inst_paths->begin()
-				   ; pp != cur->inst_paths->end() ; ++pp) {
-			      if (pp->find('.') == string::npos) {
-				    perm_string iname
-					  = lex_strings.make(pp->c_str());
-				    if (!bind_instance_name_exists_(iname, target_mod->mod_name())) {
-					  cerr << cur->li.get_fileline()
-					       << ": error: bind instance "
-					       << "list entry '" << *pp
-					       << "': no instance of module '"
-					       << cur->target << "' with that "
-					       << "instance name exists." << endl;
-					  error_count += 1;
-					  bad = true;
-					  continue;
-				    }
-			      } else {
-				    Module*at = bind_resolve_instance_path_(cur->li, *pp);
-				    if (at == 0) {
-					  bad = true;
-					  continue;
-				    }
-				    if (at != target_mod) {
-					  cerr << cur->li.get_fileline()
-					       << ": error: bind instance "
-					       << "list entry '" << *pp
-					       << "' is an instance of module '"
-					       << at->mod_name() << "', not of "
-					       << "the bind target '"
-					       << cur->target << "'." << endl;
-					  error_count += 1;
-					  bad = true;
-					  continue;
-				    }
-			      }
-			      inst_filter.push_back(*pp);
+	    for (vector<bind_instance_filter_t*>::iterator filter
+		       = cur->filters.begin() ; filter != cur->filters.end()
+		       ; ++filter) {
+		  (*filter)->activated = true;
+		  (*filter)->evaluated_targets.clear();
+		  (*filter)->selected_targets.clear();
+		  if ((*filter)->mode == bind_instance_filter_t::ABSOLUTE) {
+			(*filter)->absolute_owners.insert(new_owners.begin(),
+						  new_owners.end());
+		  } else if ((*filter)->mode
+			     == bind_instance_filter_t::RELATIVE) {
+			for (vector<NetScope*>::iterator owner = new_owners.begin()
+				   ; owner != new_owners.end() ; ++owner) {
+			      const NetScope*base
+				    = bind_relative_base_scope_(*owner, *filter);
+			      ivl_assert(cur->li, base);
+			      (*filter)->relative_base_owners.insert(
+				    make_pair(base, *owner));
 			}
-			if (bad)
-			      continue;
 		  }
 	    }
-	    }
 
-	    if (cur->type == target_mod->mod_name()) {
-		  cerr << cur->li.get_fileline() << ": error: "
-		       << "bind of module '" << cur->type
-		       << "' into itself would recurse forever." << endl;
-		  error_count += 1;
-		  continue;
-	    }
-	    if (target_mod->program_block) {
-		  cerr << cur->li.get_fileline() << ": error: "
-		       << "bind target '" << target_mod->mod_name()
-		       << "' is a program block; module instantiations "
-		       << "are not allowed in program blocks." << endl;
-		  error_count += 1;
-		  continue;
-	    }
-
-	    bind_apply_one(target_mod, *cur, inst_filter);
+	    cur->processed_owners.insert(new_owners.begin(), new_owners.end());
+	    changed = true;
       }
-      pending_binds.clear();
+
+	// Apply every active bind to a fixed point over the concrete scope
+	// tree. A scalar bind can create a new target scope synchronously; replay
+	// all applications against that scope before declaring the activation
+	// wave complete so source order cannot hide bind-under-bind or collision
+	// diagnostics. This also applies compilation-unit binds parsed by a
+	// library file after the initial pform_apply_binds() pass.
+      bool scopes_added;
+      do {
+	    vector<NetScope*>current_scopes;
+	    bind_collect_elaborated_scopes_(des, current_scopes);
+	    size_t scope_count = current_scopes.size();
+	    for (vector<bind_application_t>::iterator application
+		       = bind_applications.begin()
+		       ; application != bind_applications.end(); ++application) {
+		  for (vector<NetScope*>::iterator scope = current_scopes.begin()
+			     ; scope != current_scopes.end() ; ++scope) {
+			if ((*scope)->type() != NetScope::MODULE
+			    || (*scope)->module_definition() != application->target)
+			      continue;
+			for (vector<PGModule*>::iterator gate
+			       = application->gates.begin()
+			       ; gate != application->gates.end() ; ++gate)
+			      (*gate)->elaborate_scope(des, *scope);
+		  }
+	    }
+	    vector<NetScope*>recounted_scopes;
+	    bind_collect_elaborated_scopes_(des, recounted_scopes);
+	    scopes_added = recounted_scopes.size() > scope_count;
+	    changed = changed || scopes_added;
+      } while (scopes_added);
+
+	// A library load during this activation may have parsed another bind.
+	// Force another turn for newly appended work, but not for intentionally
+	// dormant directives in inactive generate arms or excluded modules.
+      changed = changed || pending_binds.size() > pending_count_before;
+      return changed;
+}
+
+static void bind_report_no_match_(Design*des,
+				  const bind_instance_filter_t*filter,
+				  const NetScope*occurrence,
+				  bool shape_matched)
+{
+      cerr << filter->get_fileline() << ": error: bind target instance path '"
+	   << filter->path << "' matched no elaborated module/interface instance";
+      if (occurrence)
+	    cerr << " for declaration-scope occurrence '"
+		 << scope_path(occurrence) << "'";
+      if ((occurrence && filter->unselected_array_origins.count(occurrence))
+	  || (!occurrence && filter->unselected_array))
+	    cerr << "; an arrayed target requires a constant element select";
+      else if (shape_matched)
+	    cerr << "; a constant select is outside the elaborated "
+		 << "instance/generate range";
+      cerr << "." << endl;
+      des->errors += 1;
+}
+
+void pform_check_bind_matches(Design*des)
+{
+      vector<NetScope*>scopes;
+      bind_collect_elaborated_scopes_(des, scopes);
+
+      for (vector<bind_instance_filter_t*>::iterator cur
+		 = bind_instance_filters.begin()
+		 ; cur != bind_instance_filters.end() ; ++cur) {
+	    bind_instance_filter_t*filter = *cur;
+	    if (!filter->activated
+		|| filter->mode == bind_instance_filter_t::DEFINITION)
+		  continue;
+
+	    if (filter->mode == bind_instance_filter_t::ABSOLUTE) {
+		  if (filter->origin) {
+			for (set<const NetScope*>::const_iterator owner
+			       = filter->absolute_owners.begin()
+			       ; owner != filter->absolute_owners.end(); ++owner) {
+			      if (filter->matched_origins.count(*owner)
+				  || filter->invalid_origins.count(*owner))
+				    continue;
+			      bind_report_no_match_(
+				    des, filter, *owner,
+				    filter->shape_matched_origins.count(*owner) != 0);
+			}
+		  } else if (!filter->matched && !filter->invalid) {
+			bind_report_no_match_(des, filter, 0,
+					      filter->shape_matched);
+		  }
+		  continue;
+	    }
+
+	    for (vector<NetScope*>::iterator scope = scopes.begin()
+		       ; scope != scopes.end() ; ++scope) {
+		  if (!bind_is_origin_scope_(*scope, filter)
+		      || filter->matched_origins.count(*scope)
+		      || filter->invalid_origins.count(*scope))
+			continue;
+		  bind_report_no_match_(
+			des, filter, *scope,
+			filter->shape_matched_origins.count(*scope) != 0);
+	    }
+      }
 }
 
 static PGAssign* pform_make_pgassign(PExpr*lval, PExpr*rval,

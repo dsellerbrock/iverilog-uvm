@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_bind_nested_direct_first_fail.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_bind_nested_direct_first_fail" ],
+    "gold"          : "sv_bind_nested_direct_first_fail"
+}

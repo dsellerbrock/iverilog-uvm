@@ -1,0 +1,2 @@
+ivltests/sv_bind_same_name_target_overlap_fail.v:15: error: bound instance name 'bp' has already been declared in target scope 'sv_bind_same_name_target_overlap_fail.target'.
+1 error(s) during elaboration.

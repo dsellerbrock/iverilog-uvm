@@ -1,0 +1,2 @@
+ivltests/sv_bind_target_list_invalid_last_fail.v:14: error: bind target instance select expression is not constant: IDX
+1 error(s) during elaboration.
