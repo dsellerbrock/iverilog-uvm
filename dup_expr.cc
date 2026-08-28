@@ -46,6 +46,15 @@ NetEArrayPattern*NetEArrayPattern::dup_expr() const
       return res;
 }
 
+NetEArraySlice*NetEArraySlice::dup_expr() const
+{
+      NetEArraySlice*res = new NetEArraySlice(signal_, slice_type_,
+					      canonical_base_, count_,
+					      selected_range_);
+      res->set_line(*this);
+      return res;
+}
+
 NetEBinary* NetEBinary::dup_expr() const
 {
       ivl_assert(*this, 0);

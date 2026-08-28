@@ -1,6 +1,6 @@
-// A whole fixed unpacked-array member of an unpacked struct is a legal
-// actual for an open-array formal. Preserve the actual's shape, declared
-// indices, element type, values, and output/inout copyback.
+// IEEE 1800-2017/2023 7.6, 7.7 and 13.5: a one-dimensional fixed
+// unpacked-array member is a legal actual for a native dynamic-array formal.
+// The formal is normalized to 0..N-1; values and copyback map left-to-right.
 interface payload_if;
   typedef struct {
     int asc[3:5];
@@ -56,12 +56,6 @@ module main;
     return sum;
   endfunction
 
-  function automatic int sum_md(input int a[][]);
-    int sum;
-    foreach (a[i,j]) sum += a[i][j];
-    return sum;
-  endfunction
-
   function automatic int sum_byte(input byte a[]);
     int sum;
     foreach (a[i]) sum += a[i];
@@ -80,22 +74,19 @@ module main;
     return sum;
   endfunction
 
-  function automatic bit geometry_1d(input int a[], int left, int right);
+  function automatic bit geometry_1d(input int a[]);
     return $size(a) == 3
-        && $left(a) == left && $right(a) == right
-        && $low(a) == ((left < right) ? left : right)
-        && $high(a) == ((left > right) ? left : right)
-        && $increment(a) == ((left >= right) ? 1 : -1);
+        && $left(a) == 0 && $right(a) == 2
+        && $low(a) == 0 && $high(a) == 2
+        && $increment(a) == -1;
   endfunction
 
-  function automatic bit geometry_md(input int a[][]);
-    return $unpacked_dimensions(a) == 2
-        && $size(a, 1) == 2 && $left(a, 1) == 1
-        && $right(a, 1) == 2 && $increment(a, 1) == -1
-        && $size(a, 2) == 3 && $left(a, 2) == 7
-        && $right(a, 2) == 5 && $low(a, 2) == 5
-        && $high(a, 2) == 7 && $increment(a, 2) == 1
-        && a[$left(a, 1)][$left(a, 2)] == 107;
+  function automatic bit descending_fill_order(input int a[]);
+    return a[0] == 70 && a[1] == 71 && a[2] == 72;
+  endfunction
+
+  function automatic bit descending_input_order(input int a[]);
+    return a[0] == 205 && a[1] == 204 && a[2] == 203;
   endfunction
 
   task automatic bump(input int delta, inout int a[]);
@@ -103,11 +94,15 @@ module main;
   endtask
 
   task automatic fill(output int a[]);
+    // An automatic output formal starts at its type default; it does not
+    // borrow the fixed actual's shape or values (13.3.2). Allocate the
+    // dynamic formal explicitly before the ordinary positional copy-out.
+    if (a.size() != 0) begin
+      fails++;
+      $display("FAILED -- output formal copied in an actual shape");
+    end
+    a = new[3];
     foreach (a[i]) a[i] = 70 + i;
-  endtask
-
-  task automatic bump_md(input int delta, inout int a[][]);
-    foreach (a[i,j]) a[i][j] = a[i][j] + delta;
   endtask
 
   task automatic bump_real(input real delta, inout real a[]);
@@ -139,11 +134,10 @@ module main;
     dynamic_copy = direct.asc;
 
     check("ascending input and geometry",
-          sum_int(direct.asc) == 312 && geometry_1d(direct.asc, 3, 5));
+          sum_int(direct.asc) == 312 && geometry_1d(direct.asc));
     check("descending input and geometry",
-          sum_int(direct.desc) == 612 && geometry_1d(direct.desc, 5, 3));
-    check("multidimensional shape/index/value",
-          sum_md(direct.md) == 936 && geometry_md(direct.md));
+          sum_int(direct.desc) == 612 && geometry_1d(direct.desc)
+          && descending_input_order(direct.desc));
     check("byte/shortint/real element types",
           sum_byte(direct.bytes) == 30
           && sum_short(direct.shorts) == 84
@@ -166,13 +160,18 @@ module main;
     check("direct inout copyback",
           direct.asc[3] == 113 && direct.asc[5] == 115);
     check("direct output copyback",
-          direct.desc[3] == 73 && direct.desc[5] == 75);
+          direct.desc[5] == 70 && direct.desc[3] == 72);
 
     bump(10, holder.data.asc);
     fill(holders[0].data.desc);
     check("class/container copyback",
           sum_int(holder.data.asc) == 342
-          && sum_int(holders[0].data.desc) == 222);
+          && sum_int(holders[0].data.desc) == 213);
+    check("class descending copyback order",
+          descending_fill_order(holders[0].data.desc)
+          && queued_holder.data.desc[5] == 70
+          && queued_holder.data.desc[4] == 71
+          && queued_holder.data.desc[3] == 72);
 
     bump(5, payloads[payload_idx].asc);
     check("runtime-container struct copyback",
@@ -182,13 +181,12 @@ module main;
     fill(vif.data.desc);
     check("direct/virtual interface copyback",
           sum_int(pif.data.asc) == 318
-          && sum_int(pif.data.desc) == 222);
-
-    bump_md(1000, direct.md);
-    check("multidimensional inout copyback",
-          sum_md(direct.md) == 6936
-          && direct.md[1][7] == 1107
-          && direct.md[2][5] == 1205);
+          && sum_int(pif.data.desc) == 213);
+    check("virtual-interface descending copyback order",
+          descending_fill_order(pif.data.desc)
+          && pif.data.desc[5] == 70
+          && pif.data.desc[4] == 71
+          && pif.data.desc[3] == 72);
 
     bump_real(1.0, direct.reals);
     check("real-element inout copyback",

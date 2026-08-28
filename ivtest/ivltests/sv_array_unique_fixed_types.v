@@ -413,9 +413,9 @@ module main;
     check_text_values("fixed-derived dynamic unique_index", text_result, 0);
     string_roundtrip = string_dynamic;
     check("dynamic to descending fixed string round trip",
-          string_roundtrip[4] == "red" && string_roundtrip[5] == "blue"
-          && string_roundtrip[6] == "red"
-          && string_roundtrip[7] == "green");
+          string_roundtrip[7] == "red" && string_roundtrip[6] == "blue"
+          && string_roundtrip[5] == "red"
+          && string_roundtrip[4] == "green");
     string_dynamic = string_roundtrip;
     check("descending fixed string back to dynamic",
           string_dynamic.size() == 4 && string_dynamic[0] == "red"

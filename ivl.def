@@ -59,6 +59,10 @@ ivl_event_pos
 ivl_event_scope
 
 ivl_expr_type
+ivl_expr_array_slice_base
+ivl_expr_array_slice_count
+ivl_expr_array_slice_left
+ivl_expr_array_slice_right
 ivl_expr_bits
 ivl_expr_branch
 ivl_expr_def

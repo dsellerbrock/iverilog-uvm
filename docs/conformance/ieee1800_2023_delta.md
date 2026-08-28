@@ -324,3 +324,76 @@ Multidimensional module-instance arrays remain outside the existing
 one-dimensional compiler model; an exhaustive clause-23 combination audit is
 still required for a complete claim. See the dated clause-23.11 section in
 `matrices/ieee1800_2017_clause_matrix.md` and the associated session log.
+
+## 2026-08-28 clauses 6.24, 7.6, 7.10.5, and 13.3–13.5 — no implemented edition delta
+
+IEEE 1800-2023 retains the 2017 rules used by this increment. Under 7.6,
+positional unpacked arrays with equivalent slowest-varying element types are
+assignment compatible even when that outer dimension is a queue on one side
+and a dynamic array on the other. A queue or dynamic-array destination is
+resized to the source element count and populated in left-to-right order. That
+weaker kind rule applies only to the slowest-varying dimension; all faster-
+varying dimensions remain part of the element type and must be equivalent.
+Under 6.24.1, an assignment-compatible explicit cast has the same value as an
+assignment to a temporary of the cast type; a non-assignment-compatible
+bit-stream cast instead follows 6.24.3. Both editions put index zero in the
+MSBs of a queue or dynamic-array bit stream and require a detectable dynamic
+size mismatch to be an error. Both editions also retain 7.10.5 bounded-queue
+discard-and-warning behavior for ordinary writes and the 13.3.2/13.5
+task-lifetime and copy-in/copy-out rules, with the corresponding function
+lifetime in 13.4.2.
+
+The implementation is shared by `-g2017` and `-g2023`, with paired tests in
+both modes. Equivalent-element assignment, input passing, output/inout
+copy-back, and assignment-compatible casts materialize an independent value
+of the destination, actual, or cast kind. Covered expression/store paths
+include direct, selected and nested properties, conditional and function
+results, aggregate/pattern builders, queue methods, bounded queues, passive
+metadata and unpacked-struct prototypes. Native task outputs now start from
+the automatic default or retained static formal value rather than copying in
+the actual, and an empty task body no longer removes argument or copy-back
+effects. The caller-shape copy-in exception remains only for DPI imported
+open-array output formals. Accepting queue/dynamic-array outputs at that DPI
+boundary is an interoperability extension and is not evidence for native
+subroutine semantics.
+
+The value-returning function follow-on is also edition-independent. A legal
+direct one-dimensional fixed-array slice remains an aggregate actual under
+7.4.5, 7.6, 7.7, and 13.5. Native fixed and unsized formals preserve
+left-to-right input/output/inout correspondence, while a DPI open formal
+retains the actual slice bounds required by 35.5.6.1. Automatic fixed outputs
+start at their default and static outputs retain formal storage. Paired
+2017/2023 tests also pin fixed shape/leaf mismatches and the illegal case where
+the slice itself runs opposite to its backing array. There is no `-g2023`-only
+lowering or diagnostic in this subset.
+
+The evidenced non-assignment-compatible cast carrier is deliberately smaller
+than the recursive 6.24.3 type universe. Integral queue/dynamic-array casts
+may change element width when the complete bit stream divides exactly into
+the destination elements. A nondivisible stream, an oversized bounded-queue
+result, or the existing runtime-width guard fails loudly and does not pad or
+truncate a strict cast. General recursive aggregate/class/structure
+bit-stream shapes still use legacy paths and are not claimed by this entry.
+The direct cast encoding preserves a queue bound above `UINT_MAX`; ordinary
+queue signal and method storage still has older unsigned-bound paths.
+
+The `logic [7:0][$]` / `bit [7:0][]` ordinary assignment used by OpenTitan is
+not promoted to IEEE equivalence in either edition. It remains a narrow,
+edition-independent interoperability extension for a blocking cross-kind
+assignment with equal width and signedness and no enum element. Same-kind
+assignment, initialization, formal/ref binding, delayed/nonblocking contexts,
+width, signedness, and enum identity remain strict. Conversion to a 2-state
+destination follows 6.11.2 and maps X/Z to zero. Slang rejects the exact source
+under both selected editions and its VCS compatibility mode; no VCS, Questa,
+or Xcelium executable was available for this checkpoint.
+
+The final container-focused gates pass **79/79 legacy** and **72 JSON/VVP
+entries with 0 failures**. The slice-focused gates pass **24/24 legacy** and
+**21/21 JSON/VVP**, with **1/1** focused real-DPI and **7/7** textual-IR
+recovery checks. The last completed broad checkpoint remains **2,137/2,137**
+legacy, **1,215/1,215** JSON/VVP, **136/136** negative diagnostics, and
+**103/103** VPI; those broad totals are not presented as a post-slice replay.
+These paired checks
+show no implemented 2017/2023 difference for this bounded cluster; they do not
+claim complete clauses 6, 7, or 13. See the dated section in
+`matrices/ieee1800_2017_clause_matrix.md` and the associated session log.

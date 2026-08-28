@@ -848,6 +848,47 @@ static bool validate_array_locator_iterator_(
       return true;
 }
 
+/* Array-method temporaries materialize a fixed receiver in declared
+ * left-to-right order. Translate their zero-based loop ordinal back to the
+ * receiver's declared index for iterator.index and unique_index. */
+static NetExpr* make_fixed_array_method_declared_index_(
+      const LineInfo&loc, NetNet*ordinal, const netrange_t&range)
+{
+      NetESignal*ordinal_ref = new NetESignal(ordinal);
+      ordinal_ref->set_line(loc);
+      long left = range.get_msb();
+      if (left == 0 && left <= range.get_lsb())
+            return ordinal_ref;
+
+      NetEConst*left_ref = make_const_val_s(left);
+      left_ref->set_line(loc);
+      NetEBAdd*declared = new NetEBAdd(
+            left <= range.get_lsb() ? '+' : '-', left_ref, ordinal_ref,
+            32, true);
+      declared->set_line(loc);
+      return declared;
+}
+
+/* A direct fixed-array signal is traversed by VVP in canonical numeric-low
+ * storage order. Translate its zero-based storage ordinal to the declared
+ * numeric index without applying the source declaration's direction. */
+static NetExpr* make_fixed_array_method_canonical_index_(
+      const LineInfo&loc, NetNet*ordinal, const netrange_t&range)
+{
+      NetESignal*ordinal_ref = new NetESignal(ordinal);
+      ordinal_ref->set_line(loc);
+      long low = std::min(range.get_msb(), range.get_lsb());
+      if (low == 0)
+            return ordinal_ref;
+
+      NetEConst*low_ref = make_const_val_s(low);
+      low_ref->set_line(loc);
+      NetEBAdd*declared = new NetEBAdd(
+            '+', low_ref, ordinal_ref, 32, true);
+      declared->set_line(loc);
+      return declared;
+}
+
 /* Build the value-returning unique/unique_index implementation shared by
  * queues and dynamic arrays. Plain calls support the scalar element kinds
  * whose equality semantics are represented directly by VVP. This helper
@@ -979,9 +1020,8 @@ static NetExpr* make_array_unique_expr_(
             idx_net->set_line(*li);
             idx_net->local_flag(true);
 
-              /* Fixed storage is canonical low-address first. Keep that
-               * counter private and expose low+counter as the iterator's
-               * declared index. Dynamic/queue calls use the counter itself. */
+              /* The materialized receiver is left-to-right. Keep its ordinal
+	       * private and expose the corresponding declared index. */
             NetNet*visible_idx_net = idx_net;
             NetExpr*declared_idx_expr = nullptr;
             if (fixed_type) {
@@ -992,14 +1032,9 @@ static NetExpr* make_array_unique_expr_(
                   visible_idx_net->local_flag(true);
                   const netrange_t&range =
                         fixed_type->static_dimensions().front();
-                  long low = std::min(range.get_msb(), range.get_lsb());
-                  NetESignal*canonical_ref = new NetESignal(idx_net);
-                  canonical_ref->set_line(*li);
-                  NetEConst*low_ref = make_const_val_s(low);
-                  low_ref->set_line(*li);
-                  declared_idx_expr = new NetEBAdd(
-                        '+', canonical_ref, low_ref, 32, true);
-                  declared_idx_expr->set_line(*li);
+                  declared_idx_expr =
+                        make_fixed_array_method_declared_index_(
+                              *li, idx_net, range);
             }
 
             NetExpr*key_expr = nullptr;
@@ -1256,17 +1291,12 @@ static NetExpr* make_queue_locator_with_expr_(
 	    visible_idx_net->local_flag(true);
 
 	    const netrange_t&range = fixed_type->static_dimensions().front();
-	    long low = std::min(range.get_msb(), range.get_lsb());
-	    NetESignal*canonical_ref = new NetESignal(idx_net);
-	    canonical_ref->set_line(*call);
-	    NetEConst*low_ref = make_const_val_s(low);
-	    low_ref->set_line(*call);
-	    declared_idx_expr = new NetEBAdd(
-		  '+', canonical_ref, low_ref, 32, true);
-	    declared_idx_expr->set_line(*call);
+	    declared_idx_expr = make_fixed_array_method_declared_index_(
+		  *call, idx_net, range);
 
-	    fixed_desc_expr = make_const_val(
-		  range.get_msb() > range.get_lsb() ? 1 : 0);
+	      /* The materialized receiver is already in declared order, so
+	       * find_first/find_last use their ordinary forward-scan policy. */
+	    fixed_desc_expr = make_const_val(0);
 	    fixed_desc_expr->set_line(*call);
       }
 
@@ -1580,8 +1610,10 @@ static NetExpr* make_array_reduction_expr_(
 	    return 0;
       }
 
+      const bool fixed_materialized = fixed_type
+	    && !dynamic_cast<NetESignal*>(array_expr);
       NetNet*recv_net = 0;
-      if (fixed_type && !dynamic_cast<NetESignal*>(array_expr)) {
+      if (fixed_materialized) {
 	      /* A fixed unpacked array has no object handle that the common
 	       * array-method loop can retain. Materialize the complete value once
 	       * into a hidden dynamic array. This is also the only faithful path
@@ -1621,14 +1653,11 @@ static NetExpr* make_array_reduction_expr_(
 	    visible_idx_net->set_line(*li);
 	    visible_idx_net->local_flag(true);
 	    const netrange_t&range = fixed_type->static_dimensions().front();
-	    long low = std::min(range.get_msb(), range.get_lsb());
-	    NetESignal*canonical_ref = new NetESignal(idx_net);
-	    canonical_ref->set_line(*li);
-	    NetEConst*low_ref = make_const_val_s(low);
-	    low_ref->set_line(*li);
-	    declared_idx_expr = new NetEBAdd(
-		  '+', canonical_ref, low_ref, 32, true);
-	    declared_idx_expr->set_line(*li);
+	    declared_idx_expr = fixed_materialized
+		  ? make_fixed_array_method_declared_index_(
+			*li, idx_net, range)
+		  : make_fixed_array_method_canonical_index_(
+			*li, idx_net, range);
       }
 
 	/* The per-element value: the with expression (evaluated with
@@ -3019,12 +3048,13 @@ static NetBranch* find_existing_implicit_branch(NetNet*sig, NetNet*gnd)
 }
 
 NetExpr* elaborate_rval_expr(Design *des, NetScope *scope, ivl_type_t lv_net_type,
-			     PExpr *expr, bool need_const, bool force_unsigned)
+			     PExpr *expr, bool need_const, bool force_unsigned,
+			     unsigned extra_flags)
 {
       return elaborate_rval_expr(des, scope, lv_net_type,
 				 lv_net_type->base_type(),
 				 lv_net_type->packed_width(),
-				 expr, need_const, force_unsigned);
+				 expr, need_const, force_unsigned, extra_flags);
 }
 
 /*
@@ -3050,7 +3080,8 @@ static bool expr_needs_typed_elab_(const PExpr*expr)
 
 NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 			     ivl_variable_type_t lv_type, unsigned lv_width,
-			     PExpr*expr, bool need_const, bool force_unsigned)
+			     PExpr*expr, bool need_const, bool force_unsigned,
+			     unsigned extra_flags)
 {
       if (debug_elaborate) {
 	    cerr << expr->get_fileline() << ": elaborate_rval_expr: "
@@ -3129,10 +3160,11 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
       }
 
       if (lv_net_type && typed_elab) {
-	    rval = elab_and_eval(des, scope, expr, lv_net_type, need_const);
+	    rval = elab_and_eval(
+		  des, scope, expr, lv_net_type, need_const, extra_flags);
       } else {
 	    rval = elab_and_eval(des, scope, expr, context_wid, need_const,
-				 false, lv_type, force_unsigned);
+				 false, lv_type, force_unsigned, extra_flags);
       }
       if (rval == 0)
 	    return 0;
@@ -14587,6 +14619,58 @@ NetExpr* PECallFunction::elaborate_base_(Design*des, NetScope*scope, NetScope*ds
  * so that parms[0] can hold the "this" argument. In this latter case,
  * def->port(0) will be the "this" argument and should be skipped.
  */
+static bool function_fixed_uarray_shapes_equivalent_(
+		const netuarray_t*formal, const netuarray_t*actual)
+{
+      if (!formal || !actual)
+	    return false;
+
+      const netranges_t&formal_dims = formal->static_dimensions();
+      const netranges_t&actual_dims = actual->static_dimensions();
+      if (formal_dims.size() != actual_dims.size())
+	    return false;
+      for (size_t idx = 0 ; idx < formal_dims.size() ; idx += 1) {
+	    if (formal_dims[idx].width() != actual_dims[idx].width())
+		  return false;
+      }
+
+      ivl_type_t formal_elem = formal->element_type();
+      ivl_type_t actual_elem = actual->element_type();
+      return formal_elem && actual_elem
+	    && (formal_elem == actual_elem
+		|| (formal_elem->type_equivalent(actual_elem)
+		    && actual_elem->type_equivalent(formal_elem)));
+}
+
+static bool function_uarray_slice_matches_formal_(
+		const fixed_uarray_slice_t&slice, const NetNet*formal,
+		bool dpi_import)
+{
+      if (const netuarray_t*fixed = dynamic_cast<const netuarray_t*>(
+		formal->array_type())) {
+	    const netranges_t&dims = fixed->static_dimensions();
+	    if (dims.size() != 1 || dims.front().width() != slice.count)
+		  return false;
+	    ivl_type_t formal_elem = fixed->element_type();
+	    return formal_elem && slice.element_type
+		&& (formal_elem == slice.element_type
+		    || (formal_elem->type_equivalent(slice.element_type)
+			&& slice.element_type->type_equivalent(formal_elem)));
+      }
+
+      const netdarray_t*container = dynamic_cast<const netdarray_t*>(
+	    formal->net_type());
+      if (!container)
+	    return false;
+
+      netranges_t dims;
+      dims.push_back(slice.selected_range);
+      netuarray_t slice_type(dims, slice.element_type);
+      return dpi_import
+	    ? uarray_matches_dpi_open_array_(&slice_type, container)
+	    : uarray_element_equivalent_container_(&slice_type, container);
+}
+
 unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 					      const NetFuncDef*def, bool need_const,
 					      vector<NetExpr*>&parms,
@@ -14611,6 +14695,8 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
       }
 
       auto args = map_named_args(des, def, parms_, parm_off);
+      const PFunction*function_pform = def->scope()->func_pform();
+      bool dpi_import = function_pform && function_pform->is_dpi_import();
 
       for (unsigned idx = 0 ; idx < parm_count ; idx += 1) {
 	    unsigned pidx = idx + parm_off;
@@ -14620,6 +14706,70 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 		  const NetNet*formal = def->port(pidx);
 		  ivl_type_t formal_type = formal->unpacked_dimensions() > 0
 			? formal->array_type() : formal->net_type();
+		  bool positional_array_formal =
+			dynamic_cast<const netdarray_t*>(formal_type);
+		  bool dpi_open_formal = dpi_import && positional_array_formal;
+
+		    /* A fixed unpacked-array slice is an aggregate argument, not
+		       a word followed by a packed range select. Preserve its backing
+		       signal, canonical storage window and selected direction as one
+		       expression so tgt-vvp can copy input/output/inout values and a
+		       DPI open formal can expose the actual per-call bounds (IEEE
+		       1800-2017/2023 7.4.6, 7.6, 7.7, 13.5 and 35.5.6.1). */
+		  fixed_uarray_slice_t slice;
+		  int slice_kind = decode_fixed_uarray_slice(
+			des, scope, *tmp, tmp, false, slice);
+		  if (slice_kind < 0) {
+			parm_errors += 1;
+			continue;
+		  }
+		  if (slice_kind > 0) {
+			if (formal->port_type() == NetNet::PREF) {
+			      cerr << tmp->get_fileline() << ": sorry: a fixed "
+				   << "unpacked-array slice actual for a nonvoid function "
+				      "ref formal is not yet supported." << endl;
+			      des->errors += 1;
+			      parm_errors += 1;
+			      continue;
+			}
+
+			if (formal->port_type() == NetNet::POUTPUT
+			    || formal->port_type() == NetNet::PINOUT) {
+			      unsigned errors_before = des->errors;
+			      NetAssign_*lval = tmp->elaborate_lval(
+				    des, scope, false, false);
+			      if (!lval) {
+				    if (des->errors == errors_before)
+					  des->errors += 1;
+				    parm_errors += 1;
+				    continue;
+			      }
+			      delete lval;
+			}
+
+			if (!function_uarray_slice_matches_formal_(
+			      slice, formal, dpi_import)) {
+			      cerr << tmp->get_fileline() << ": error: function "
+				   << "unpacked-array slice actual is not assignment "
+				      "compatible with the formal (IEEE 1800-2017/2023 "
+				      "7.6/7.7)." << endl;
+			      des->errors += 1;
+			      parm_errors += 1;
+			      continue;
+			}
+
+			netranges_t slice_dims;
+			slice_dims.push_back(slice.selected_range);
+			netuarray_t*slice_type = new netuarray_t(
+			      slice_dims, slice.element_type);
+			NetEArraySlice*slice_expr = new NetEArraySlice(
+			      slice.signal, slice_type, slice.canonical_base,
+			      slice.count, slice.selected_range);
+			slice_expr->set_line(*tmp);
+			parms[pidx] = slice_expr;
+			continue;
+		  }
+
 		  ivl_type_t actual_lval_type = nullptr;
 		    // IEEE 1800-2017 13.5: output and inout actuals must be
 		    // valid procedural assignment l-values.  Function arguments
@@ -14637,6 +14787,49 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 			      if (des->errors == errors_before)
 				    des->errors += 1;
 			      parm_errors += 1;
+			      continue;
+			}
+
+			const netuarray_t*fixed_actual =
+			      dynamic_cast<const netuarray_t*>(lval->net_type());
+			const netuarray_t*fixed_formal =
+			      dynamic_cast<const netuarray_t*>(formal_type);
+			const netdarray_t*container_formal =
+			      dynamic_cast<const netdarray_t*>(formal_type);
+			if (fixed_actual && fixed_formal
+			    && !function_fixed_uarray_shapes_equivalent_(
+				  fixed_formal, fixed_actual)) {
+			      cerr << tmp->get_fileline() << ": error: function fixed "
+				   << "unpacked-array formal and actual require matching "
+				      "dimension counts/sizes and equivalent element types "
+				      "(IEEE 1800-2017/2023 7.6/7.7)." << endl;
+			      des->errors += 1;
+			      parm_errors += 1;
+			      delete lval;
+			      continue;
+			}
+			bool fixed_container_match = fixed_actual && container_formal
+			      ? (dpi_import
+				 ? uarray_matches_dpi_open_array_(fixed_actual,
+							    container_formal)
+				 : uarray_element_equivalent_container_(fixed_actual,
+							       container_formal))
+			      : true;
+			if (!fixed_container_match) {
+			      cerr << tmp->get_fileline() << ": error: function "
+				   << (dpi_import
+				       ? "DPI open-array formal and fixed unpacked-array "
+					 "actual require matching unpacked dimensions and "
+					 "equivalent element types (IEEE 1800-2017/2023 "
+					 "35.5.6.1)."
+				       : "fixed unpacked-array actual and queue/dynamic-"
+					 "array formal may differ only in the slowest-"
+					 "varying unpacked dimension and require equivalent "
+					 "element types (IEEE 1800-2017/2023 7.6).")
+				   << endl;
+			      des->errors += 1;
+			      parm_errors += 1;
+			      delete lval;
 			      continue;
 			}
 
@@ -14660,9 +14853,13 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 		  if (formal->port_type() == NetNet::POUTPUT
 		      && actual_lval_type)
 			argument_type = actual_lval_type;
+		  unsigned argument_flags = positional_array_formal
+			? (dpi_open_formal ? PExpr::DPI_OPEN_ARRAY_ARG
+					   : PExpr::NATIVE_ARRAY_FORMAL_ARG)
+			: PExpr::NO_FLAGS;
 		  parms[pidx] = elaborate_rval_expr(des, scope,
-					    argument_type,
-					    tmp, need_const);
+				    argument_type, tmp, need_const, false,
+				    argument_flags);
 		  if (parms[pidx] == 0) {
 			parm_errors += 1;
 			continue;
@@ -17276,9 +17473,151 @@ static bool string_concat_contains_string_expr_(const PExpr*operand)
 // Keep track of the concatenation/repeat depth.
 static int concat_depth = 0;
 
+/* IEEE 1800-2017/2023 10.10 gives each unpacked-concatenation item two
+ * legal shapes: one value assignment-compatible with the destination
+ * element, or a positional collection whose members are each compatible
+ * with that element. Validate the elaborated type here, after contextual
+ * builders and casts have acquired their real type. This prevents the
+ * legacy scalar-to-dynamic-array elaboration relaxation from turning a
+ * scalar item into a malformed container element. */
+static bool unpacked_concat_strict_equivalent_(ivl_type_t target,
+					       ivl_type_t source)
+{
+      if (!target || !source)
+	    return false;
+      if (assoc_array_type_contains(target)
+	  || assoc_array_type_contains(source))
+	    return assoc_array_type_match(target, source)
+		  == ASSOC_ARRAY_TYPE_MATCH;
+      return target->type_equivalent(source);
+}
+
+static bool unpacked_concat_value_type_matches_(ivl_type_t target,
+					        ivl_type_t source)
+{
+      if (!target || !source)
+	    return false;
+
+      if (assoc_array_type_contains(target)
+	  || assoc_array_type_contains(source))
+	    return assoc_array_type_match(target, source)
+		  == ASSOC_ARRAY_TYPE_MATCH;
+
+      bool positional = false;
+      bool positional_match = positional_container_type_match(
+	    target, source, positional);
+      if (positional)
+	    return positional_match;
+
+      const netdarray_t*target_container =
+	    dynamic_cast<const netdarray_t*>(target);
+      const netdarray_t*source_container =
+	    dynamic_cast<const netdarray_t*>(source);
+      const netuarray_t*target_fixed =
+	    dynamic_cast<const netuarray_t*>(target);
+      const netuarray_t*source_fixed =
+	    dynamic_cast<const netuarray_t*>(source);
+
+      if (target_container && source_fixed
+	  && source_fixed->static_dimensions().size() == 1)
+	    return unpacked_concat_strict_equivalent_(
+		  target_container->element_type(),
+		  source_fixed->element_type());
+      if (target_fixed && target_fixed->static_dimensions().size() == 1
+	  && source_container)
+	    return unpacked_concat_strict_equivalent_(
+		  target_fixed->element_type(),
+		  source_container->element_type());
+
+      return target->type_compatible(source);
+}
+
+static ivl_type_t unpacked_concat_source_type_(const NetExpr*source)
+{
+      if (!source)
+	    return nullptr;
+
+      if (const NetESignal*signal = dynamic_cast<const NetESignal*>(source)) {
+	    if (signal->sig() && !signal->word_index()
+		&& signal->sig()->array_type())
+		  return signal->sig()->array_type();
+      }
+      if (const NetEUFunc*call = dynamic_cast<const NetEUFunc*>(source)) {
+	    const NetESignal*result = call->result_sig();
+	    if (result && result->sig() && result->sig()->array_type())
+		  return result->sig()->array_type();
+      }
+      return source->net_type();
+}
+
+static bool unpacked_concat_item_type_matches_(ivl_type_t target_element,
+					       const NetExpr*source)
+{
+      if (!target_element || !source)
+	    return false;
+
+      ivl_type_t source_type = unpacked_concat_source_type_(source);
+      if (source_type) {
+	    if (unpacked_concat_value_type_matches_(
+		  target_element, source_type))
+		  return true;
+
+	    ivl_type_t source_element = nullptr;
+	    if (const netdarray_t*source_container =
+		  dynamic_cast<const netdarray_t*>(source_type)) {
+		  const netqueue_t*source_queue =
+			dynamic_cast<const netqueue_t*>(source_type);
+		  if (!source_queue || !source_queue->assoc_compat())
+			source_element = source_container->element_type();
+	    } else if (const netuarray_t*source_fixed =
+		       dynamic_cast<const netuarray_t*>(source_type)) {
+		  const netranges_t&dimensions =
+			source_fixed->static_dimensions();
+		  if (dimensions.size() == 1) {
+			source_element = source_fixed->element_type();
+		  } else if (dimensions.size() > 1) {
+			/* One item of a multidimensional fixed array is the
+			 * subarray formed by removing its slowest-varying
+			 * dimension, not the final scalar leaf. Reconstruct that
+			 * suffix type for the 10.10 collection-element check. */
+			netranges_t remaining(dimensions.begin() + 1,
+					      dimensions.end());
+			netuarray_t source_suffix(
+			      remaining, source_fixed->element_type());
+			return unpacked_concat_value_type_matches_(
+			      target_element, &source_suffix);
+		  }
+	    }
+	    return source_element
+		&& unpacked_concat_value_type_matches_(
+		      target_element, source_element);
+      }
+
+      const NetETernary*ternary = dynamic_cast<const NetETernary*>(source);
+      return ternary
+	    && unpacked_concat_item_type_matches_(
+		  target_element, ternary->true_expr())
+	    && unpacked_concat_item_type_matches_(
+		  target_element, ternary->false_expr());
+}
+
 NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 				  ivl_type_t ntype, unsigned flags) const
 {
+	/* IEEE 1800-2017/2023 10.10 permits an unpacked-array
+	 * concatenation only for fixed-size unpacked arrays, queues, and
+	 * dynamic arrays. Associative arrays use keyed assignment patterns;
+	 * context-typing this expression as their queue-backed internal type
+	 * must not silently admit a positional concatenation. */
+      const netqueue_t*queue_type = dynamic_cast<const netqueue_t*>(ntype);
+      if (queue_type && queue_type->assoc_compat()) {
+	    cerr << get_fileline() << ": error: unpacked array concatenation "
+		 "cannot target an associative array (IEEE "
+		 "1800-2017/2023 10.10)." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
 	/* An unpacked-array assignment may use an array concatenation such as
 	 * `int a[4] = {0,1,2,3};` (IEEE 1800-2017 10.10). In this context the
 	 * operands are positional array elements, not one flattened packed-bit
@@ -17395,12 +17734,49 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 		  vector<NetExpr*> elem_exprs (parms_.size());
 		  for (size_t idx = 0 ; idx < parms_.size() ; idx += 1) {
 			ivl_type_t want_type = elem_type;
+			unsigned item_flags = flags;
+			/* A multidimensional fixed-array operand contributes one
+			 * item per member of its slowest-varying dimension. Its
+			 * ordinary expression category is just the scalar leaf, so
+			 * recover the declared type before elaboration and retain the
+			 * outer concatenation context needed to materialize the whole
+			 * collection. A one-dimensional fixed array can instead be one
+			 * assignment-compatible dynamic-array element and remains in
+			 * the element context. */
+			if (const PEIdent*ident =
+			      dynamic_cast<const PEIdent*>(parms_[idx])) {
+			      ivl_type_t declared =
+				    ident->test_type_of_ident(des, scope);
+			      const netuarray_t*fixed =
+				    dynamic_cast<const netuarray_t*>(declared);
+			      if (fixed
+				  && fixed->static_dimensions().size() > 1) {
+				    want_type = ntype;
+				    item_flags |= PExpr::CONTAINER_SPLICE_ARG;
+			      }
+			}
 			PExpr::width_mode_t mode = PExpr::SIZED;
 			parms_[idx]->test_width(des, scope, mode);
 			if (parms_[idx]->expr_type() == IVL_VT_QUEUE
-			    || parms_[idx]->expr_type() == IVL_VT_DARRAY)
+			    || parms_[idx]->expr_type() == IVL_VT_DARRAY) {
 			      want_type = ntype;
-			NetExpr*tmp = parms_[idx]->elaborate_expr(des, scope, want_type, flags);
+			      item_flags |= PExpr::CONTAINER_SPLICE_ARG;
+			}
+			NetExpr*tmp = parms_[idx]->elaborate_expr(
+			      des, scope, want_type, item_flags);
+			if (tmp && dynamic_cast<const netdarray_t*>(elem_type)
+			    && !unpacked_concat_item_type_matches_(elem_type, tmp)) {
+			      cerr << parms_[idx]->get_fileline()
+				   << ": error: unpacked array concatenation item "
+				      "is neither assignment-compatible with the "
+				      "destination element nor a compatible collection "
+				      "(IEEE 1800-2017/2023 10.10)." << endl;
+			      des->errors += 1;
+			      delete tmp;
+			      for (size_t prev = 0 ; prev < idx ; prev += 1)
+				    delete elem_exprs[prev];
+			      return nullptr;
+			}
 			elem_exprs[idx] = tmp;
 		  }
 
@@ -19068,22 +19444,50 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 						return sel;
 					  };
 
+				    bool indexed_fixed_property = false;
 				    if (cur_struct->packed()) {
 					  unsigned long member_width = member_type->packed_width();
 					  NetExpr*offset_expr = make_const_val(member_off);
 					  NetESelect*sel = new NetESelect(base_expr, offset_expr,
-									  member_width, member_type);
+								  member_width, member_type);
 					  sel->set_line(*this);
 					  base_expr = sel;
 				    } else {
 					  const auto&members = cur_struct->members();
 					  size_t member_idx = member - &members.front();
-					  NetEProperty*prop = new NetEProperty(base_expr, member_idx, nullptr);
+					  NetExpr*widx = nullptr;
+					  if (!tail_comp.index.empty()) {
+						const netuarray_t*member_ua =
+						      dynamic_cast<const netuarray_t*>(member_type);
+						if (member_ua) {
+						      const auto&dims = member_ua->static_dimensions();
+						      if (dims.size() != tail_comp.index.size()) {
+							    cerr << get_fileline() << ": error: Got "
+								 << tail_comp.index.size()
+								 << " indices, expecting " << dims.size()
+								 << " to index struct member "
+								 << tail_comp.name << "." << endl;
+							    des->errors += 1;
+							    delete base_expr;
+							    return nullptr;
+						      }
+						      widx = make_canonical_property_index_(
+							    des, scope, this, tail_comp.index,
+							    member_ua, false);
+						      if (!widx) {
+							    delete base_expr;
+							    return nullptr;
+						      }
+						      indexed_fixed_property = true;
+						      cur_type = member_ua->element_type();
+						}
+					  }
+					  NetEProperty*prop = new NetEProperty(base_expr, member_idx, widx);
 					  prop->set_line(*this);
 					  base_expr = prop;
 				    }
 
-				    if (!tail_comp.index.empty()) {
+				    if (!tail_comp.index.empty() && !indexed_fixed_property) {
 					    // Packed-vector member: canonical
 					    // bit/part/indexed select of the
 					    // member value (7.2.1 + 11.5.1),
@@ -19122,7 +19526,7 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 						cur_type = member_index_result_type
 						      ? member_index_result_type : member_type;
 					  }
-				    } else {
+				    } else if (!indexed_fixed_property) {
 					  cur_type = member_type;
 				    }
 			      } else if (cur_class) {
@@ -19271,46 +19675,32 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       }
 
       ivl_type_t indexed_elem_type = 0;
-      if (!use_comp.index.empty() && net->unpacked_dimensions() == 0) {
-	    if (const netdarray_t*darray = net->darray_type()) {
-		  indexed_elem_type = darray->element_type();
-	    } else if (const netqueue_t*queue = net->queue_type()) {
-		  indexed_elem_type = queue->element_type();
-	    }
+      if (sr.path_tail.empty() && !use_comp.index.empty()
+	  && net->unpacked_dimensions() == 0
+	  && (net->darray_type() || net->queue_type())) {
+	    unsigned remaining_indices = 0;
+	    indexed_elem_type = resolve_type_(des, sr, remaining_indices);
+	    if (remaining_indices != 0)
+		  indexed_elem_type = nullptr;
       }
 
       ivl_type_t have_type = indexed_elem_type ? indexed_elem_type : net->net_type();
       ivl_type_t check_type = indexed_elem_type ? indexed_elem_type : ntype;
       if (const netdarray_t*array_type = dynamic_cast<const netdarray_t*> (ntype)) {
             if (have_type && array_type->type_compatible(have_type)) {
-                  // C3 (Phase 62n): if the source has a subscript
-                  // (`pool[K]` reading from an assoc-of-queue), build
-                  // the NetESelect so tgt-vvp emits %aa/load/sig/obj/*
-                  // instead of degrading to a whole-container %load/obj.
+                  // An indexed container must retain every select so tgt-vvp
+                  // emits the selected value rather than degrading to a
+                  // whole-container %load/obj.
                   if (indexed_elem_type
                       && (net->darray_type() || net->queue_type())
                       && !use_comp.index.empty()) {
-                        NetESignal*node = new NetESignal(net);
-                        node->set_line(*this);
-                        const index_component_t&idx = use_comp.index.back();
-                        bool need_const = NEED_CONST & flags;
-                        NetExpr*mux = idx.msb
-                              ? elab_and_eval(des, scope, idx.msb, -1, need_const)
-                              : nullptr;
-                        if (mux) {
-                              unsigned elem_width = 1;
-                              if (const netdarray_t*el =
-                                  dynamic_cast<const netdarray_t*>(indexed_elem_type))
-                                    elem_width = el->element_width();
-                              else if (const netvector_t*vt =
-                                  dynamic_cast<const netvector_t*>(indexed_elem_type))
-                                    elem_width = vt->packed_width();
-                              NetESelect*sel =
-                                    new NetESelect(node, mux, elem_width, indexed_elem_type);
-                              sel->set_line(*this);
-                              return sel;
-                        }
-                        // Fall through to whole-signal fallback if mux failed.
+                        NetESignal*base_expr = new NetESignal(net);
+                        base_expr->set_line(*this);
+                        ivl_type_t selected_type = nullptr;
+                        return apply_trailing_container_indices_(
+                              *this, des, scope, base_expr,
+                              net->net_type(), use_comp.index,
+                              selected_type);
                   }
                   NetESignal*tmp = new NetESignal(net);
                   tmp->set_line(*this);
@@ -19405,75 +19795,86 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 			  }
 		    }
 
-		      /* A dynamic array or queue read in the context of a
-			 fixed-size unpacked array (IEEE 1800-2017 7.6:
-			 `fa = da', and the copy-back of an open-array
-			 formal into a fixed-array actual). The two have
-			 different representations but the same element
-			 values, so this is a copy, not a type error. The
-			 element counts can only be compared at run time
-			 for a dynamic source; %store/arr/dar does that. */
-		      /* A MULTI-dimensional fixed array read in the
-			 context of a nested open-array formal
-			 (`int m[2][3]' for `int q[][]'). As above, the
-			 array type is on the SIGNAL -- net_type() gives
-			 the element type -- which is why this context
-			 check never saw it either. */
+		      /* A fixed unpacked array read in a dynamic-array or queue
+			 context. IEEE 1800-2017/2023 7.6 permits the array kind
+			 to differ at the slowest-varying dimension only. Recover
+			 the declared fixed type from the signal and compare its
+			 complete outer element (including any fixed suffix). */
 		    if (const netdarray_t*want_da =
 			      dynamic_cast<const netdarray_t*>(ntype)) {
 			  const netuarray_t*act_ua =
 				dynamic_cast<const netuarray_t*>(net->array_type());
-			  if (act_ua && act_ua->static_dimensions().size() > 1) {
-				const netdarray_t*inner = want_da;
-				size_t levels =
-				      act_ua->static_dimensions().size();
-				for (size_t lv = 1 ; lv < levels && inner ; lv += 1)
-				      inner = dynamic_cast<const netdarray_t*>
-					    (inner->element_type());
-				if (inner && inner->element_type()
-				    && act_ua->element_type()
-				    && inner->element_type()->type_equivalent(
-					  act_ua->element_type())) {
+			  bool fixed_match = false;
+			  if (act_ua) {
+				if (flags & PExpr::DPI_OPEN_ARRAY_ARG)
+				      fixed_match = uarray_matches_dpi_open_array_(
+					    act_ua, want_da);
+				else if (flags & PExpr::NATIVE_ARRAY_FORMAL_ARG)
+				      fixed_match = uarray_element_equivalent_container_(
+					    act_ua, want_da);
+				else
+				      fixed_match = uarray_element_matches_container_(
+					    act_ua, want_da);
+			  }
+			  if (fixed_match) {
 				      NetESignal*tmp = new NetESignal(net);
 				      tmp->set_line(*this);
 				      return tmp;
-				}
 			  }
 
-			    /* A NESTED CONTAINER actual for a nested
-			       open-array formal -- `int qq[$][$]' passed
-			       to `int q[][]'. A queue and a dynamic array
-			       are not type_compatible with each other, so
-			       the check failed at the INNER level even
-			       though the outer one already had a
-			       queue/darray passthrough. They share
-			       vvp_darray at run time and an open formal
-			       does not care which spelling it was given,
-			       so walk the levels treating the two as
-			       equivalent and compare the leaf. */
-			  if (const netdarray_t*act_da =
-				    dynamic_cast<const netdarray_t*>(net->net_type())) {
-				const netdarray_t*wl = want_da;
-				const netdarray_t*al = act_da;
-				while (wl && al) {
-				      const netdarray_t*wn =
-					    dynamic_cast<const netdarray_t*>
-						  (wl->element_type());
-				      const netdarray_t*an =
-					    dynamic_cast<const netdarray_t*>
-						  (al->element_type());
-				      if (!wn || !an)
-					    break;
-				      wl = wn;
-				      al = an;
-				}
-				if (wl && al && wl->element_type()
-				    && al->element_type()
-				    && wl->element_type()->type_equivalent(
-					  al->element_type())) {
+			    /* An unpacked concatenation can splice a collection into
+			       its destination. That operation assigns each SOURCE
+			       element to one destination element, so apply 7.6 at that
+			       element boundary. Do not use this exception for an
+			       ordinary whole-container value: only its slowest-varying
+			       dimension may differ in kind. */
+			  if ((flags & PExpr::CONTAINER_SPLICE_ARG) && act_ua
+			      && act_ua->static_dimensions().size() > 1) {
+				const netranges_t&dims =
+				      act_ua->static_dimensions();
+				netranges_t suffix(dims.begin() + 1, dims.end());
+				netuarray_t item_type(
+				      suffix, act_ua->element_type());
+				const netdarray_t*want_item =
+				      dynamic_cast<const netdarray_t*>(
+					    want_da->element_type());
+				if (want_item
+				    && uarray_element_matches_container_(
+					  &item_type, want_item)) {
 				      NetESignal*tmp = new NetESignal(net);
 				      tmp->set_line(*this);
 				      return tmp;
+				}
+			  } else if (flags & PExpr::CONTAINER_SPLICE_ARG) {
+				const netdarray_t*act_da =
+				      dynamic_cast<const netdarray_t*>(have_type);
+				bool item_is_positional = false;
+				bool item_matches =
+				      positional_container_type_match(
+					    want_da->element_type(), have_type,
+					    item_is_positional);
+				bool element_is_positional = false;
+				bool element_matches = act_da
+				      && positional_container_type_match(
+					    want_da->element_type(),
+					    act_da->element_type(),
+					    element_is_positional);
+				if ((item_is_positional && item_matches)
+				    || (element_is_positional && element_matches)) {
+				      NetESignal*base_expr = new NetESignal(net);
+				      base_expr->set_line(*this);
+				      if (use_comp.index.empty())
+					    return base_expr;
+
+					/* Preserve the selected collection. Rebuilding only the
+					 * root signal here silently turned `{src[1]}' into
+					 * `{src}'. The common container walker retains each
+					 * source index and the selected element type. */
+				      ivl_type_t selected_type = nullptr;
+				      return apply_trailing_container_indices_(
+					    *this, des, scope, base_expr,
+					    net->net_type(), use_comp.index,
+					    selected_type);
 				}
 			  }
 		    }
@@ -20144,6 +20545,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 						return sel;
 					  };
 
+				    bool indexed_fixed_property = false;
 				    if (cur_struct->packed()) {
 					  unsigned long member_width = member_type->packed_width();
 					  NetExpr*offset_expr = make_const_val(member_off);
@@ -20154,12 +20556,39 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				    } else {
 					  const auto&members = cur_struct->members();
 					  size_t member_idx = member - &members.front();
-					  NetEProperty*prop = new NetEProperty(base_expr, member_idx, nullptr);
+					  NetExpr*widx = nullptr;
+					  if (!tail_comp.index.empty()) {
+						const netuarray_t*member_ua =
+						      dynamic_cast<const netuarray_t*>(member_type);
+						if (member_ua) {
+						      const auto&dims = member_ua->static_dimensions();
+						      if (dims.size() != tail_comp.index.size()) {
+							    cerr << get_fileline() << ": error: Got "
+								 << tail_comp.index.size()
+								 << " indices, expecting " << dims.size()
+								 << " to index struct member "
+								 << tail_comp.name << "." << endl;
+							    des->errors += 1;
+							    delete base_expr;
+							    return nullptr;
+						      }
+						      widx = make_canonical_property_index_(
+							    des, scope, this, tail_comp.index,
+							    member_ua, false);
+						      if (!widx) {
+							    delete base_expr;
+							    return nullptr;
+						      }
+						      indexed_fixed_property = true;
+						      cur_type = member_ua->element_type();
+						}
+					  }
+					  NetEProperty*prop = new NetEProperty(base_expr, member_idx, widx);
 					  prop->set_line(*this);
 					  base_expr = prop;
 				    }
 
-				    if (!tail_comp.index.empty()) {
+				    if (!tail_comp.index.empty() && !indexed_fixed_property) {
 					    // Packed-vector member: canonical
 					    // bit/part/indexed select of the
 					    // member value (7.2.1 + 11.5.1).
@@ -20196,7 +20625,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 						cur_type = member_index_result_type
 						      ? member_index_result_type : member_type;
 					  }
-				    } else {
+				    } else if (!indexed_fixed_property) {
 					  cur_type = member_type;
 				    }
 			      } else if (cur_class) {
@@ -25142,11 +25571,13 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 		   * Running the ordinary typed checker here does not evaluate the dead
 		   * arm at run time. */
 		  NetExpr*dead_expr = elab_and_eval(des, scope, dead, type,
-					       NEED_CONST & flags);
+					       (flags & NEED_CONST) != 0,
+					       flags & ~NEED_CONST);
 		  delete dead_expr;
 		  delete con;
 		  return elab_and_eval(des, scope, live, type,
-				       NEED_CONST & flags);
+				       (flags & NEED_CONST) != 0,
+				       flags & ~NEED_CONST);
 	    }
 	      // An x/z condition has to blend both arms.
       }

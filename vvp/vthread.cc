@@ -348,6 +348,13 @@ struct vthread_s {
 	// the array pointer already occupies it.
       vector<pair<int,int> > dim_stack;
 
+	// Canonical base/count descriptions accumulated by %slice/push and
+	// consumed by the next flat fixed-array slice marshal/unmarshal opcode.
+	// Keep this separate from dim_stack: declared multidimensional bounds and
+	// storage windows are different concepts and may be nested by generated
+	// argument-evaluation code.
+      vector<pair<size_t,size_t> > array_slice_stack;
+
     private:
       vector<vvp_vector4_t>stack_vec4_;
     public:
@@ -20296,9 +20303,63 @@ static vvp_darray* arrdar_leaf_(uint32_t kind, size_t count)
       return new vvp_darray_vec4(count, wid);
 }
 
-bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
+/* Fixed unpacked storage is canonical numeric-low first, while ordinary
+ * SystemVerilog array assignment maps source and destination left-to-right
+ * (IEEE 1800-2017/2023 7.6). Materialized container values therefore use
+ * left-to-right order at every dimension. The declared ranges remain passive
+ * metadata; %store/obj/open applies this involution a second time before
+ * activating the numeric-canonical view required by the DPI C ABI. */
+static void reverse_descending_fixed_dimensions_(vvp_darray*array)
 {
-      vvp_array_t array = resolve_runtime_array_(cp, "%load/arr/dar");
+      if (!array || !array->dpi_has_decl_range())
+	    return;
+
+      if (array->dpi_decl_left() > array->dpi_decl_right()) {
+	    size_t count = array->get_size();
+	    qreverse_dispatch_(array);
+	      /* qreverse_dispatch_ carries queue-member identity itself. These
+	       * fixed-derived dynamic arrays also carry per-element random state
+	       * and captured references, so move that metadata with the values. */
+	    if (!dynamic_cast<vvp_queue*>(array)) {
+		  vector<size_t> permutation(count);
+		  for (size_t idx = 0 ; idx < count ; idx += 1)
+			permutation[idx] = count - 1 - idx;
+		  array->reorder_element_refs(permutation);
+		  array->reorder_rand_modes(permutation);
+	    }
+      }
+
+      vvp_darray_object*objects = dynamic_cast<vvp_darray_object*>(array);
+      if (!objects)
+	    return;
+
+      for (size_t idx = 0 ; idx < objects->get_size() ; idx += 1) {
+	    vvp_object_t word;
+	    objects->get_word((unsigned)idx, word);
+	    reverse_descending_fixed_dimensions_(word.peek<vvp_darray>());
+      }
+}
+
+static size_t fixed_copy_source_index_(
+      const vvp_darray*source, bool destination_descending, size_t index,
+      size_t count)
+{
+      /* A DPI open-array formal is activated over numeric-canonical fixed
+	 * storage. Ordinary dynamic arrays and queues are left-to-right values.
+	 * A descending fixed destination therefore reverses only the ordinary
+	 * source at each unpacked dimension. */
+      bool canonical_dpi_view = source && source->sv_uses_declared_indexing()
+	    && source->dpi_has_decl_range();
+      if (!canonical_dpi_view && destination_descending)
+	    return count - 1 - index;
+      return index;
+}
+
+static bool load_arr_dar_window_(vthread_t thr, vvp_code_t cp,
+				 vvp_array_t array, size_t base, size_t count,
+				 int left, unsigned queue_max_size,
+				 const char*opcode)
+{
       uint32_t kind = cp->bit_idx[0];
 
       if (!array) {
@@ -20306,7 +20367,16 @@ bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
 	    return true;
       }
 
-      size_t count = array->get_size();
+      size_t array_count = array->get_size();
+      if (count == 0 || base > array_count || count > array_count - base) {
+	    cerr << thr->get_fileline() << "RUN-TIME ERROR: " << opcode
+		 << " window base=" << base << " count=" << count
+		 << " is outside an unpacked array of size " << array_count
+		 << "." << endl;
+	    thr->push_object(vvp_object_t());
+	    return true;
+      }
+
       bool is_real = ARRDAR_REAL(kind);
       bool is_string = ARRDAR_STRING(kind) != 0;
       vvp_object_t obj = vvp_object_t(arrdar_leaf_(kind, count));
@@ -20316,17 +20386,17 @@ bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
 	/* A bounded queue assignment retains the source prefix that fits. Do
 	 * not attempt extra push_back operations: those are user mutations and
 	 * warn at the bound, whereas whole-queue assignment truncates here. */
-      unsigned queue_max_size = queue ? cp->bit_idx[1] : 0;
+      if (!queue)
+	    queue_max_size = 0;
       size_t copy_count = count;
       if (queue_max_size && copy_count > queue_max_size)
 	    copy_count = queue_max_size;
       for (size_t idx = 0 ; dar && idx < copy_count ; idx += 1) {
-	      /* Fixed-array storage is canonical-index ordered. Queue
-	       * assignment correspondence is declared left-to-right, so a
-	       * descending source is read from the opposite storage end. Keep
-	       * generic darray materialization's established storage walk. */
-	    size_t source_idx = queue && ARRDAR_DESC(kind)
-		  ? count - 1 - idx : idx;
+	      /* Fixed-array storage is canonical-index ordered. Every value
+	       * container is ordered from its logical left edge, so a descending
+	       * source is read from the opposite storage end. */
+	    size_t source_idx = base
+		+ (ARRDAR_DESC(kind) ? count - 1 - idx : idx);
 	    if (ARRDAR_OBJ(kind)) {
 		  vvp_object_t w;
 		  array->get_word_obj((unsigned)source_idx, w);
@@ -20358,7 +20428,6 @@ bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
 	/* Record the source array's declared range so the DPI open-array
 	   accessors report it instead of 0..N-1. */
       if (dar && count > 0 && !queue) {
-	    int left = (int)(int32_t)cp->bit_idx[1];
 	    int span = (int)count - 1;
 	    int right = ARRDAR_DESC(kind) ? (left - span) : (left + span);
 	    dar->dpi_set_decl_range(left, right);
@@ -20366,6 +20435,37 @@ bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
 
       thr->push_object(obj);
       return true;
+}
+
+bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_array_t array = resolve_runtime_array_(cp, "%load/arr/dar");
+      size_t count = array ? array->get_size() : 0;
+      uint32_t kind = cp->bit_idx[0];
+      unsigned second = cp->bit_idx[1];
+      int left = ARRDAR_QUEUE(kind) ? 0 : (int)(int32_t)second;
+      unsigned queue_max_size = ARRDAR_QUEUE(kind) ? second : 0;
+      return load_arr_dar_window_(thr, cp, array, 0, count, left,
+				  queue_max_size, "%load/arr/dar");
+}
+
+bool of_LOAD_ARR_DAR_SLICE(vthread_t thr, vvp_code_t cp)
+{
+      if (thr->array_slice_stack.empty()) {
+	    cerr << thr->get_fileline()
+		 << "RUN-TIME ERROR: %load/arr/dar/slice has no preceding "
+		    "%slice/push descriptor." << endl;
+	    thr->push_object(vvp_object_t());
+	    return true;
+      }
+
+      pair<size_t,size_t> window = thr->array_slice_stack.back();
+      thr->array_slice_stack.pop_back();
+      vvp_array_t array = resolve_runtime_array_(cp, "%load/arr/dar/slice");
+      int left = (int)(int32_t)cp->bit_idx[1];
+      return load_arr_dar_window_(thr, cp, array, window.first,
+				  window.second, left, 0,
+				  "%load/arr/dar/slice");
 }
 
 /*
@@ -20389,56 +20489,88 @@ bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
  * mismatch is reported and the destination is left alone rather than
  * partially overwritten.
  */
-bool of_STORE_ARR_DAR(vthread_t thr, vvp_code_t cp)
+static bool store_arr_dar_window_(vthread_t thr, vvp_code_t cp,
+				  const vvp_object_t&val, vvp_array_t array,
+				  size_t base, size_t count,
+				  const char*opcode)
 {
-      vvp_object_t val;
-      thr->pop_object(val);
-
-      vvp_array_t array = resolve_runtime_array_(cp, "%store/arr/dar");
       if (!array)
 	    return true;
 
+      uint32_t kind = cp->bit_idx[0];
+      size_t array_count = array->get_size();
       vvp_darray*dar = val.peek<vvp_darray>();
-      if (!dar) {
-	      /* A nil container: 7.6 has nothing to copy. Leave the
-		 destination as it is. */
+      size_t source_count = dar ? dar->get_size() : 0;
+      if (count == 0 || base > array_count || count > array_count - base) {
+	    cerr << thr->get_fileline() << "RUN-TIME ERROR: " << opcode
+		 << " window base=" << base << " count=" << count
+		 << " is outside an unpacked array of size " << array_count
+		 << "; the array is unchanged." << endl;
 	    return true;
       }
-
-      uint32_t kind = cp->bit_idx[0];
-      size_t count = array->get_size();
-      if (dar->get_size() != count) {
+      if (!dar || source_count != count) {
 	    cerr << "RUN-TIME ERROR: cannot copy a container of size "
-		 << dar->get_size() << " into an unpacked array of size "
-		 << count << " (IEEE 1800-2017 7.6 requires equal element "
+		 << source_count << " into an unpacked array of size "
+		 << count << " (IEEE 1800-2017/2023 7.6 requires equal element "
 		    "counts); the array is unchanged." << endl;
 	    return true;
       }
 
       for (size_t idx = 0 ; idx < count ; idx += 1) {
+	    size_t source_idx = fixed_copy_source_index_(
+		  dar, ARRDAR_DESC(kind) != 0, idx, count);
 	    if (ARRDAR_OBJ(kind)) {
 		  vvp_object_t w;
-		  dar->get_word((unsigned)idx, w);
-		  array->set_word((unsigned)idx, w);
+		  dar->get_word((unsigned)source_idx, w);
+		  array->set_word((unsigned)(base + idx), w);
 	    } else if (ARRDAR_STRING(kind)) {
 		  string w;
-		  dar->get_word((unsigned)idx, w);
-		  array->set_word((unsigned)idx, w);
+		  dar->get_word((unsigned)source_idx, w);
+		  array->set_word((unsigned)(base + idx), w);
 	    } else if (ARRDAR_REAL(kind)) {
 		  double w = 0.0;
-		  dar->get_word((unsigned)idx, w);
-		  array->set_word((unsigned)idx, w);
+		  dar->get_word((unsigned)source_idx, w);
+		  array->set_word((unsigned)(base + idx), w);
 	    } else {
 		  vvp_vector4_t w;
-		  dar->get_word((unsigned)idx, w);
+		  dar->get_word((unsigned)source_idx, w);
 		  unsigned wid = ARRDAR_WIDTH(kind);
 		  if (wid && w.size() != wid)
 			w = coerce_to_width(w, wid);
-		  array->set_word((unsigned)idx, 0, w);
+		  array->set_word((unsigned)(base + idx), 0, w);
 	    }
       }
 
       return true;
+}
+
+bool of_STORE_ARR_DAR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t val;
+      thr->pop_object(val);
+      vvp_array_t array = resolve_runtime_array_(cp, "%store/arr/dar");
+      size_t count = array ? array->get_size() : 0;
+      return store_arr_dar_window_(thr, cp, val, array, 0, count,
+				   "%store/arr/dar");
+}
+
+bool of_STORE_ARR_DAR_SLICE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t val;
+      thr->pop_object(val);
+
+      if (thr->array_slice_stack.empty()) {
+	    cerr << thr->get_fileline()
+		 << "RUN-TIME ERROR: %store/arr/dar/slice has no preceding "
+		    "%slice/push descriptor; the array is unchanged." << endl;
+	    return true;
+      }
+
+      pair<size_t,size_t> window = thr->array_slice_stack.back();
+      thr->array_slice_stack.pop_back();
+      vvp_array_t array = resolve_runtime_array_(cp, "%store/arr/dar/slice");
+      return store_arr_dar_window_(thr, cp, val, array, window.first,
+				   window.second, "%store/arr/dar/slice");
 }
 
 /*
@@ -20455,10 +20587,75 @@ bool of_DIM_PUSH(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/*
+ * %slice/push <canonical-base>, <count>
+ *
+ * Describe a constant one-dimensional fixed-array storage window for the
+ * next %load/arr/dar/slice or %store/arr/dar/slice. Both values are unsigned;
+ * the selected range's signed declared LEFT bound rides on the load opcode.
+ */
+bool of_SLICE_PUSH(vthread_t thr, vvp_code_t cp)
+{
+      thr->array_slice_stack.push_back(
+	    make_pair((size_t)cp->bit_idx[0], (size_t)cp->bit_idx[1]));
+      return true;
+}
+
 static size_t md_range_size_(const pair<int,int>&r)
 {
-      int span = r.first > r.second ? r.first - r.second : r.second - r.first;
-      return (size_t)span + 1;
+      return r.first > r.second
+	   ? (size_t)((int64_t)r.first - r.second) + 1
+	   : (size_t)((int64_t)r.second - r.first) + 1;
+}
+
+struct fixed_array_shape_mismatch_t {
+      size_t dimension;
+      size_t source_count;
+      size_t target_count;
+};
+
+/* Validate every source dimension before copyback starts. A size check at
+ * only the outer dimension is insufficient: one later dynamic subarray may
+ * be short after earlier siblings have already been stored. IEEE 1800
+ * 7.6 requires the failed assignment to perform no operation. */
+static bool fixed_array_source_shape_matches_(
+      vvp_darray*source, const vector<pair<int,int> >&dimensions, size_t dim,
+      fixed_array_shape_mismatch_t&mismatch)
+{
+      if (dim >= dimensions.size())
+	    return true;
+
+      size_t target_count = md_range_size_(dimensions[dim]);
+      size_t source_count = source ? source->get_size() : 0;
+      if (!source || source_count != target_count) {
+	    mismatch.dimension = dim;
+	    mismatch.source_count = source_count;
+	    mismatch.target_count = target_count;
+	    return false;
+      }
+
+      if (dim + 1 == dimensions.size())
+	    return true;
+
+      for (size_t idx = 0 ; idx < source_count ; idx += 1) {
+	    vvp_object_t child;
+	    source->get_word((unsigned)idx, child);
+	    if (!fixed_array_source_shape_matches_(
+		      child.peek<vvp_darray>(), dimensions, dim + 1,
+		      mismatch))
+		  return false;
+      }
+      return true;
+}
+
+static void report_fixed_array_shape_mismatch_(
+      const fixed_array_shape_mismatch_t&mismatch)
+{
+      cerr << "RUN-TIME ERROR: cannot copy a container dimension of size "
+	   << mismatch.source_count << " into fixed unpacked array dimension "
+	   << (mismatch.dimension + 1) << " of size " << mismatch.target_count
+	   << " (IEEE 1800-2017/2023 7.6 requires equal element counts); "
+	      "the array is unchanged." << endl;
 }
 
 /*
@@ -20534,8 +20731,11 @@ static void md_copy_back_(vvp_array_t array, uint32_t kind,
 
       if (dim + 1 < dims.size()) {
 	    for (size_t idx = 0 ; idx < count ; idx += 1) {
+		  size_t source_idx = fixed_copy_source_index_(
+			level, dims[dim].first > dims[dim].second,
+			idx, count);
 		  vvp_object_t inner;
-		  level->get_word((unsigned)idx, inner);
+		  level->get_word((unsigned)source_idx, inner);
 		  md_copy_back_(array, kind, inner, dims, dim + 1, flat);
 	    }
 	    return;
@@ -20544,21 +20744,23 @@ static void md_copy_back_(vvp_array_t array, uint32_t kind,
       for (size_t idx = 0 ; idx < count ; idx += 1, flat += 1) {
 	    if (flat >= array->get_size())
 		  break;
+	    size_t source_idx = fixed_copy_source_index_(
+		  level, dims[dim].first > dims[dim].second, idx, count);
 	    if (ARRDAR_OBJ(kind)) {
 		  vvp_object_t w;
-		  level->get_word((unsigned)idx, w);
+		  level->get_word((unsigned)source_idx, w);
 		  array->set_word((unsigned)flat, w);
 	    } else if (ARRDAR_STRING(kind)) {
 		  string w;
-		  level->get_word((unsigned)idx, w);
+		  level->get_word((unsigned)source_idx, w);
 		  array->set_word((unsigned)flat, w);
 	    } else if (ARRDAR_REAL(kind)) {
 		  double w = 0.0;
-		  level->get_word((unsigned)idx, w);
+		  level->get_word((unsigned)source_idx, w);
 		  array->set_word((unsigned)flat, w);
 	    } else {
 		  vvp_vector4_t w;
-		  level->get_word((unsigned)idx, w);
+		  level->get_word((unsigned)source_idx, w);
 		  unsigned wid = ARRDAR_WIDTH(kind);
 		  if (wid && w.size() != wid)
 			w = coerce_to_width(w, wid);
@@ -20586,7 +20788,10 @@ bool of_LOAD_ARR_DAR_MD(vthread_t thr, vvp_code_t cp)
       }
 
       size_t flat = 0;
-      thr->push_object(md_materialize_(array, cp->bit_idx[0], dims, 0, flat));
+      vvp_object_t value = md_materialize_(
+	    array, cp->bit_idx[0], dims, 0, flat);
+      reverse_descending_fixed_dimensions_(value.peek<vvp_darray>());
+      thr->push_object(value);
       return true;
 }
 
@@ -20605,8 +20810,15 @@ bool of_STORE_ARR_DAR_MD(vthread_t thr, vvp_code_t cp)
       thr->pop_object(val);
 
       vvp_array_t array = resolve_runtime_array_(cp, "%store/arr/dar/md");
-      if (!array || dims.empty() || !val.peek<vvp_darray>())
+      if (!array || dims.empty())
 	    return true;
+
+      fixed_array_shape_mismatch_t mismatch;
+      if (!fixed_array_source_shape_matches_(
+		val.peek<vvp_darray>(), dims, 0, mismatch)) {
+	    report_fixed_array_shape_mismatch_(mismatch);
+	    return true;
+      }
 
       size_t total = 1;
       for (size_t idx = 0 ; idx < dims.size() ; idx += 1)
@@ -23730,6 +23942,14 @@ static size_t fixed_prop_subtree_size_(
       return size;
 }
 
+static size_t fixed_prop_copy_source_index_(
+      const vvp_darray*array, const pair<int,int>&destination, size_t index,
+      size_t count)
+{
+      return fixed_copy_source_index_(
+	    array, destination.first > destination.second, index, count);
+}
+
 static void fixed_prop_copy_back_(
       const fixed_prop_receiver_t&recv, size_t pid, vvp_darray*array,
       const vector<pair<int,int> >&dimensions, size_t dim, size_t&flat)
@@ -23741,9 +23961,11 @@ static void fixed_prop_copy_back_(
       size_t available = array ? min(count, array->get_size()) : 0;
       if (dim + 1 < dimensions.size()) {
 	    for (size_t idx = 0 ; idx < count ; idx += 1) {
-		  if (idx < available) {
+		  size_t source_idx = fixed_prop_copy_source_index_(
+			array, dimensions[dim], idx, count);
+		  if (source_idx < available) {
 			vvp_object_t word;
-			array->get_word((unsigned)idx, word);
+			array->get_word((unsigned)source_idx, word);
 			fixed_prop_copy_back_(recv, pid,
 					     word.peek<vvp_darray>(),
 					     dimensions, dim + 1, flat);
@@ -23757,23 +23979,25 @@ static void fixed_prop_copy_back_(
       const class_type*defn = recv.defn();
       const string&type = defn->property_base_type(pid);
       for (size_t idx = 0 ; idx < count ; idx += 1, flat += 1) {
-	    if (idx >= available)
+	    size_t source_idx = fixed_prop_copy_source_index_(
+		  array, dimensions[dim], idx, count);
+	    if (source_idx >= available)
 		  continue;
 	    if (type == "r") {
 		  double val = 0.0;
-		  array->get_word((unsigned)idx, val);
+		  array->get_word((unsigned)source_idx, val);
 		  recv.set_real(pid, val, flat);
 	    } else if (type == "S") {
 		  string val;
-		  array->get_word((unsigned)idx, val);
+		  array->get_word((unsigned)source_idx, val);
 		  recv.set_string(pid, val, flat);
 	    } else if (type == "o" || type.compare(0, 3, "oc:") == 0) {
 		  vvp_object_t val;
-		  array->get_word((unsigned)idx, val);
+		  array->get_word((unsigned)source_idx, val);
 		  recv.set_object(pid, val, flat);
 	    } else {
 		  vvp_vector4_t val;
-		  array->get_word((unsigned)idx, val);
+		  array->get_word((unsigned)source_idx, val);
 		  recv.set_vec4(pid, val, flat);
 	    }
       }
@@ -23958,6 +24182,7 @@ bool of_PROP_ARR_DAR(vthread_t thr, vvp_code_t cp)
       size_t flat = 0;
       vvp_object_t val = fixed_prop_materialize_(
 	    recv, pid, defn->property_dimensions(pid), 0, flat);
+      reverse_descending_fixed_dimensions_(val.peek<vvp_darray>());
       thr->push_object(val, thr->peek_object_source_net(0),
 		       thr->peek_object_root(0));
       return true;
@@ -26145,7 +26370,10 @@ static void activate_open_array_indices_(vvp_darray*array)
  */
 bool of_STORE_OBJ_OPEN(vthread_t thr, vvp_code_t cp)
 {
-      activate_open_array_indices_(thr->peek_object().peek<vvp_darray>());
+      vvp_darray*array = thr->peek_object().peek<vvp_darray>();
+      if (array && !array->sv_uses_declared_indexing())
+	    reverse_descending_fixed_dimensions_(array);
+      activate_open_array_indices_(array);
       return of_STORE_OBJ(thr, cp);
 }
 
@@ -26287,9 +26515,16 @@ bool of_STORE_PROP_ARR_DAR(vthread_t thr, vvp_code_t cp)
       };
       const class_type*defn = recv.defn();
       vvp_darray*array = val.peek<vvp_darray>();
-      if (!defn || !array || pid >= defn->property_count()
+      if (!defn || pid >= defn->property_count()
 	  || defn->property_dimensions(pid).empty())
 	    return true;
+
+      fixed_array_shape_mismatch_t mismatch;
+      if (!fixed_array_source_shape_matches_(
+		array, defn->property_dimensions(pid), 0, mismatch)) {
+	    report_fixed_array_shape_mismatch_(mismatch);
+	    return true;
+      }
 
       size_t flat = 0;
       fixed_prop_copy_back_(recv, pid, array,

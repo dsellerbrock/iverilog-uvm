@@ -602,6 +602,37 @@ int vvp_expr_is_whole_fixed_array_property(ivl_expr_t expr)
       return type_is_fixed_uarray_property_(type);
 }
 
+/* True when EXPR denotes a complete fixed unpacked-array value that is
+ * materialized as passive dynamic-array storage in object context. A DPI
+ * open-array formal must activate that value's declared ranges regardless of
+ * whether the source spelling is a signal, a class property, or a function
+ * call returning a fixed-array typedef. */
+int vvp_expr_is_fixed_uarray_value(ivl_expr_t expr)
+{
+      ivl_scope_t def;
+      ivl_signal_t result;
+
+      if (!expr)
+	    return 0;
+
+      if (ivl_expr_type(expr) == IVL_EX_ARRAY)
+	    return 1;
+
+      if (ivl_expr_type(expr) == IVL_EX_ARRAY_SLICE)
+	    return 1;
+
+      if (vvp_expr_is_whole_fixed_array_property(expr))
+	    return 1;
+
+      if (ivl_expr_type(expr) != IVL_EX_UFUNC)
+	    return 0;
+
+      def = ivl_expr_def(expr);
+      result = def && ivl_scope_ports(def) > 0
+	    ? ivl_scope_port(def, 0) : 0;
+      return result && ivl_signal_dimensions(result) > 0;
+}
+
 static uint64_t fixed_uarray_property_size_(ivl_type_t type)
 {
       uint64_t size = 1;
@@ -956,6 +987,43 @@ static int eval_object_array(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%load/arr/dar v%p, %u, %u;\n",
 		    sig, kind, (unsigned)left);
       }
+      return 0;
+}
+
+/* Materialize a constant one-dimensional fixed-array slice in its selected
+ * left-to-right order. The runtime object carries the slice's own declared
+ * range as passive metadata; %store/obj/open activates it only for a DPI
+ * open-array formal. */
+static int eval_object_array_slice(ivl_expr_t expr)
+{
+      ivl_signal_t sig = ivl_expr_signal(expr);
+      long base = ivl_expr_array_slice_base(expr);
+      unsigned long count = ivl_expr_array_slice_count(expr);
+      long left = ivl_expr_array_slice_left(expr);
+      long right = ivl_expr_array_slice_right(expr);
+      unsigned kind;
+
+      if (!sig || base < 0 || count == 0
+	  || (unsigned long)(unsigned)base != (unsigned long)base
+	  || (unsigned long)(unsigned)count != count
+	  || left < INT32_MIN || left > INT32_MAX
+	  || right < INT32_MIN || right > INT32_MAX) {
+	    fprintf(stderr, "%s:%u: internal error: fixed unpacked-array "
+		    "slice metadata is not representable by the VVP runtime.\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    vvp_errors += 1;
+	    fprintf(vvp_out, "    %%null; ; malformed fixed array slice\n");
+	    return 1;
+      }
+
+      if (!uarray_container_kind_(sig, &kind, ivl_expr_file(expr),
+				   ivl_expr_lineno(expr))) {
+	    fprintf(vvp_out, "    %%null; ; unsupported fixed array slice\n");
+	    return 1;
+      }
+
+      emit_load_arr_dar_slice_(sig, kind, (unsigned)base, (unsigned)count,
+				left, right);
       return 0;
 }
 
@@ -1600,9 +1668,9 @@ int draw_array_reduce_vec4(ivl_expr_t expr)
       draw_array_elem_load_vec4_(a_sig);
       fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", iter_sig, iter_wid);
 
-	/* The materialized fixed receiver is traversed in canonical low-address
-	 * order. Expose its declared index to the with expression without using
-	 * that value as the storage address. */
+	/* The loop counter traverses the receiver's runtime storage order. The
+	 * frontend supplies a matching declared-index expression: numeric-low for
+	 * a direct fixed signal, left-to-right for a materialized fixed value. */
       if (is_fixed) {
 	    draw_eval_vec4(declared_idx_expr);
 	    fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n",
@@ -2060,9 +2128,9 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%%s v%p_0;\n", load_elem, q_sig);
 	    fprintf(vvp_out, "    %%%s;\n", store_iter);
 
-	      /* Fixed-array storage uses a canonical low-address counter, while
-	       * 7.12.4 exposes the declared index. Evaluate the explicit
-	       * low+counter expression before the user's key expression. */
+	      /* A fixed receiver is materialized in declared left-to-right order.
+	       * Evaluate the frontend's explicit declared-index expression before
+	       * the user's key expression. */
 	    if (is_fixed) {
 		  draw_eval_vec4(declared_idx_expr);
 		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, 32;\n",
@@ -2559,8 +2627,8 @@ static int eval_object_sfunc(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%store/obj v%p_0;\n", iter_sig);
 	    }
 
-	      /* A materialized fixed property is traversed by canonical storage
-	       * address. Publish its declared low+canonical index before the
+	      /* A materialized fixed property is traversed in declared
+	       * left-to-right order. Publish its declared index before the
 	       * predicate so item.index() and every *_index result observe the
 	       * original declared range. */
 	    if (is_fixed_property) {
@@ -3161,6 +3229,9 @@ int draw_eval_object(ivl_expr_t ex)
 
 	  case IVL_EX_ARRAY:
 	    return eval_object_array(ex);
+
+	  case IVL_EX_ARRAY_SLICE:
+	    return eval_object_array_slice(ex);
 
 	  case IVL_EX_UFUNC:
 	    return eval_object_ufunc(ex);

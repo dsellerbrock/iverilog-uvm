@@ -62,10 +62,23 @@ On top of upstream Icarus Verilog's Verilog/partial-SystemVerilog support:
   backend
 - **Containers**: queues, dynamic and associative arrays with the recorded
   clause-7 method subset (locator/ordering/reduction methods, streaming), plus
-  the evidenced IEEE 1800-2017/2023 7.9.11/10.9.1 associative
+  destination-kind-preserving IEEE 1800-2017/2023 7.6 assignment between
+  queues and dynamic arrays with equivalent element types. Assignment-
+  compatible explicit casts create an independent value of the cast type;
+  the evidenced integral bit-stream-cast subset also supports element-width
+  changes when the complete stream fits, with loud size and bounded-queue
+  failures. Task and function output/inout copy-back preserves the actual's
+  container kind, and native task output lifetime follows the static versus
+  automatic rules even for an empty body. This is bounded 6.24/7.6/13.5
+  support, not general recursive aggregate bit-stream-cast closure. Also
+  included is the evidenced IEEE 1800-2017/2023 7.9.11/10.9.1 associative
   assignment-pattern subset: constant string, integral, and enum keys, at most
   one non-entry fallback `default`, independently copied recorded
-  container/struct values, and retained class-handle identity
+  container/struct values, and retained class-handle identity. A separately
+  documented OpenTitan commercial-flow compatibility extension admits only an
+  ordinary cross-kind queue/dynamic-array assignment whose packed `bit`/`logic`
+  elements otherwise have equal width and signedness; it is not claimed as
+  IEEE element-type equivalence
 - **Interfaces**: modports, virtual interfaces as class properties (the UVM
   pattern), interface tasks through vif handles
 - **Clocking blocks**: sampled input semantics, output drives, `##N`, global
@@ -527,7 +540,7 @@ for recorded evidence and known corners, not a completeness certificate.
 | Core classes / OOP (cl. 8) | Substantial | Interface classes, nested class declarations, module/package/compilation-unit out-of-body `extern` methods, multiple `extends`/`implements` relationships, specialization-aware casts, inherited type visibility and method-contract checks are supported |
 | UVM (Accellera core, unmodified) | Substantial | Current local canonical checkpoint: 354/354, 0 failed, 0 skipped, run WITHOUT `UVM_NO_DPI` via the Icarus UVM DPI backend (regex + command-line + `uvm_hdl_*` backdoor); frontdoor + user-defined backdoor work; `UVM_NO_DPI` native fallback still supported. |
 | Constraints / randomization (cl. 18) | Substantial | Z3-backed, including scope `std::randomize(vars) with {...}` for simple 1–64-bit integral variables; `randcase`/`randsequence` work |
-| Containers (queues/darrays/assoc, cl. 7) | Substantial | Broad recorded method subset. Associative-array assignment patterns support evidenced explicit constant string/integral/enum keys plus at most one non-entry fallback `default`, with integral, string, real, class-handle, queue, nested-associative, and unpacked-struct values. Direct signal-backed fixed-unpacked prefixes ending in integral/string/real-valued associative leaves match the observed OpenTitan CSRNG/EDN/entropy-src shapes plus paired real-value reducers; every fixed dimension is checked before flattening so a multidimensional OOB selector cannot alias a valid sibling map. This is not an end-to-end IP pass claim. This is bounded 7.4/7.9.11/10.9.1 support, not complete clause closure: packed bit/part/member and other deeper/partial entry tails, property/member and struct-nested receivers, fixed queue/darray leaves, fixed-prefix maps with class-handle/container/struct values, associative-array-typed parameters, and broader receiver/typing/context coverage remain loud or open. |
+| Containers (queues/darrays/assoc, cl. 7) | Substantial | Broad recorded method subset. Under 7.6, equivalent-element queue/dynamic-array assignment, input copying, and output/inout copy-back create the destination or actual's declared runtime kind across direct, property, selected, conditional, function-result, aggregate, and nested stores; a real queue-to-dynamic assignment is pinned through the dynamic array's contiguous DPI representation. Assignment-compatible casts follow 6.24.1. The evidenced 6.24.3 integral bit-stream-cast subset changes element width only when the complete source bit count fits the destination and a bounded queue can hold every result element; mismatches terminate loudly instead of padding or truncating. Native output formals follow 13.3.2/13.4.2 static/automatic lifetime and 13.5 copy-out rules, and empty calls retain argument and copy-back effects. Value-returning native and DPI functions now accept direct one-dimensional fixed unpacked-array slice input/output/inout actuals, preserve each slice's bounds and direction, copy fixed/native values left-to-right, activate the numeric-indexed DPI view, copy back only the selected window, and reject fixed shape/element mismatches before lowering. The separate OpenTitan commercial-flow extension is deliberately restricted to an ordinary blocking cross-kind assignment between equal-width, equal-signedness packed `bit`/`logic` elements, with 4-state-to-2-state X/Z conversion governed by 6.11.2. Same-kind assignments, initialization, formal binding, enum identity, width, and signedness remain strict; the extension does not widen explicit casts or subroutine binding. Associative-array assignment patterns support evidenced explicit constant string/integral/enum keys plus at most one non-entry fallback `default`, with integral, string, real, class-handle, queue, nested-associative, and unpacked-struct values. Direct signal-backed fixed-unpacked prefixes ending in integral/string/real-valued associative leaves match the observed OpenTitan CSRNG/EDN/entropy-src shapes plus paired real-value reducers; every fixed dimension is checked before flattening so a multidimensional OOB selector cannot alias a valid sibling map. This is not an end-to-end IP pass claim. This is bounded clause-7 support, not complete closure: multidimensional and property-backed slice actuals, general recursive aggregate bit-stream casts, selected/scoped/property/function-return source forms for the narrow state extension, ordinary queue signal/method bounds above `UINT_MAX`, and previously recorded deeper aggregate/receiver/typing contexts remain legacy, loud, or open. |
 | Interfaces / virtual interfaces (cl. 25) | Substantial | UVM vif pattern end-to-end; bare module-scope `virtual` var missing |
 | Clocking blocks (cl. 14) | Partial | Sampled inputs, common output drives, `##N`, and global clocking work; recorded run-time-selected, indexed-receiver, and aggregate-output gaps remain |
 | Scheduler / event regions (cl. 4) | Supported | Full stratified queue incl. Preponed, post-NBA (`cbNBASynch`), Observed and the Reactive set; assertions sample Preponed, evaluate in Observed and run their actions in Reactive; region tracing/self-test under `IVL_REGION_TRACE` / `IVL_REGION_SELFTEST` ([audit](docs/conformance/scheduler_audit_2026_07.md)) |
@@ -553,15 +566,21 @@ The current local canonical unmodified Accellera UVM checkpoint passes
   signals. This was a compile/elaboration/code-generation matrix and did not
   run the 61 simulations. Native ARM `regtool.py` also regenerated UART's two
   register RTL products byte-for-byte identically to the frozen checkout.
-  Earlier same-branch authentic Darjeeling and Earlgrey top-chip replays,
-  performed before the final generic-class deferral hardening, move their former
-  internal typed string-concatenation counts from **10/18** to **0/0**. Both now
-  first report the independent queue-versus-dynamic-array context mismatch at
-  `spi_agent_cfg.sv:139`; after a much larger later diagnostic path, each
-  compiler invocation still exits 139 and produces no `.vvp`. The tops do not
-  elaborate, and no new full 61-target matrix has been run, so the matrix
-  classification above is unchanged; the final narrow deferral change has not
-  been replayed across those tops. The typed-string increment also retains
+  Earlier same-branch authentic Darjeeling and Earlgrey top-chip replays moved
+  their former internal typed string-concatenation counts from **10/18** to
+  **0/0**. A newer targeted authentic replay covers `spi_device_sim`,
+  `spi_host_sim`, Darjeeling, and Earlgrey with the destination-typed
+  queue/dynamic-array conversion. All four contain zero occurrences of the
+  former `spi_agent_cfg.sv:139`/`:143` context mismatch and reach independent
+  later frontiers: `spi_device_scoreboard.sv:1177`,
+  `spi_host_env_cfg.sv:36`, or the compound class-property event at
+  `spi_host_driver.sv:40`. Historical red counterparts prove removal for the
+  Darjeeling and Earlgrey top-chip closures; older standalone `spi_device_sim`
+  and `spi_host_sim` evidence stopped at the later frontiers and does not prove
+  that the mismatch was formerly reached in those targets. All four still
+  classify **FAIL** and produce no application pass claim. No new full
+  61-target matrix has been run, so the matrix classification above remains
+  the last full census. The typed-string increment also retains
   nested literal groups through run-time string replication in direct-target,
   whole-cast, and comparison contexts; rejects string replication assigned to
   an integral target; and makes a zero multiplier produce an empty string

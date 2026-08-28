@@ -76,6 +76,10 @@ static int pure_comb_expr_(ivl_expr_t expr)
 	    /* The target API has no signal accessor for this legacy node kind. */
 	    return 0;
 
+	  case IVL_EX_ARRAY_SLICE:
+	    /* Aggregate array reads remain on the ordinary event path. */
+	    return 0;
+
 	  case IVL_EX_BINARY:
 	    return pure_comb_expr_(ivl_expr_oper1(expr))
 		&& pure_comb_expr_(ivl_expr_oper2(expr));
@@ -168,6 +172,10 @@ static void pure_comb_collect_expr_reads_(
       if (!expr)
 	    return;
       switch (ivl_expr_type(expr)) {
+	  case IVL_EX_ARRAY_SLICE:
+	    pure_comb_signal_set_add_(reads, ivl_expr_signal(expr));
+	    break;
+
 	  case IVL_EX_SIGNAL:
 	    pure_comb_signal_set_add_(reads, ivl_expr_signal(expr));
 	    pure_comb_collect_expr_reads_(ivl_expr_oper1(expr), reads);
@@ -370,6 +378,14 @@ static int pure_comb_expr_definite_(
       if (!expr)
 	    return 1;
       switch (ivl_expr_type(expr)) {
+	  case IVL_EX_ARRAY_SLICE: {
+	    ivl_signal_t signal = ivl_expr_signal(expr);
+	    if (pure_comb_signal_set_has_alias_(writes, signal)
+		&& !pure_comb_signal_set_contains_(defined, signal))
+		  return 0;
+	    return 1;
+	  }
+
 	  case IVL_EX_SIGNAL: {
 	    ivl_signal_t signal = ivl_expr_signal(expr);
 	    if (pure_comb_signal_set_has_alias_(writes, signal)
@@ -3203,6 +3219,7 @@ static int deferred_final_task_passive_expr_(ivl_expr_t expr)
 
       switch (ivl_expr_type(expr)) {
           case IVL_EX_ARRAY:
+          case IVL_EX_ARRAY_SLICE:
           case IVL_EX_BACCESS:
           case IVL_EX_ENUMTYPE:
           case IVL_EX_EVENT:

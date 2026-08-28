@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_selected_container_struct_fixed_member_read.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_selected_container_struct_fixed_member_read" ],
+    "gold"          : "sv_selected_container_struct_fixed_member_read",
+    "vlog95"        : { "type" : "NI" }
+}

@@ -18,6 +18,7 @@
 # define E_ELEM   0x080
 # define E_WALK   0x100
 # define E_OOR    0x200
+# define E_DIMS   0x400
 
 static int chk(int got, int want, int bit, const char*what)
 {
@@ -91,6 +92,99 @@ int c_fixed_desc(const svOpenArrayHandle h)
 {
       return check_range(h, /*left*/10, /*right*/3, /*low*/3, /*high*/10,
                          /*incr*/1);
+}
+
+/* The same descending geometry delivered by a fixed-array-valued SV
+ * function call rather than a signal-backed fixed array. */
+int c_fixed_desc_ufunc(const svOpenArrayHandle h)
+{
+      return check_range(h, /*left*/10, /*right*/3, /*low*/3, /*high*/10,
+                         /*incr*/1);
+}
+
+int c_fixed_desc_utask(const svOpenArrayHandle h, int*status)
+{
+      *status = check_range(h, /*left*/10, /*right*/3,
+                           /*low*/3, /*high*/10, /*incr*/1);
+      return 0;
+}
+
+int c_fixed_md_ufunc(const svOpenArrayHandle h)
+{
+      int bad = 0;
+      int i;
+      int j;
+
+      bad |= chk(svDimensions(h), 2, E_SIZE, "svDimensions");
+      bad |= chk(svLeft(h, 1), 2, E_LEFT, "svLeft(1)");
+      bad |= chk(svRight(h, 1), 1, E_RIGHT, "svRight(1)");
+      bad |= chk(svLeft(h, 2), 4, E_LEFT, "svLeft(2)");
+      bad |= chk(svRight(h, 2), 2, E_RIGHT, "svRight(2)");
+      bad |= chk(svSize(h, 1), 2, E_SIZE, "svSize(1)");
+      bad |= chk(svSize(h, 2), 3, E_SIZE, "svSize(2)");
+
+      for (i = 1; i <= 2; i += 1) {
+            for (j = 2; j <= 4; j += 1) {
+                  int*p = (int*)svGetArrElemPtr2(h, i, j);
+                  if (!p || *p != i * 100 + j)
+                        bad |= E_ELEM;
+            }
+      }
+      return bad;
+}
+
+static int check_slice_geometry(const svOpenArrayHandle h,
+                                int left, int right)
+{
+      int low = left < right ? left : right;
+      int high = left < right ? right : left;
+      int bad = 0;
+
+      bad |= chk(svDimensions(h), 1, E_DIMS, "svDimensions");
+      bad |= chk(svSize(h, 1), high - low + 1, E_SIZE, "svSize(1)");
+      bad |= chk(svLow(h, 1), low, E_LOW, "svLow(1)");
+      bad |= chk(svHigh(h, 1), high, E_HIGH, "svHigh(1)");
+      bad |= chk(svLeft(h, 1), left, E_LEFT, "svLeft(1)");
+      bad |= chk(svRight(h, 1), right, E_RIGHT, "svRight(1)");
+      bad |= chk(svIncrement(h, 1), left < right ? -1 : 1,
+                 E_INCR, "svIncrement(1)");
+      bad |= chk(svSizeOfArray(h),
+                 (high - low + 1) * (int)sizeof(int),
+                 E_BYTES, "svSizeOfArray");
+      if (svGetArrElemPtr1(h, low - 1)) bad |= E_OOR;
+      if (svGetArrElemPtr1(h, high + 1)) bad |= E_OOR;
+      return bad;
+}
+
+/* A value-returning import exercises PECallFunction rather than the imported
+ * task/void-function path. The output handle's initial element values are
+ * intentionally never read: Annex H leaves them undetermined. */
+int c_fixed_slice_ufunc(const svOpenArrayHandle value_in,
+                        const svOpenArrayHandle value_out,
+                        const svOpenArrayHandle value_io)
+{
+      int bad = 0;
+      int i;
+
+      bad |= check_slice_geometry(value_in, 3, 6);
+      bad |= check_slice_geometry(value_out, 8, 5);
+      bad |= check_slice_geometry(value_io, 2, 5);
+
+      for (i = 3; i <= 6; i += 1) {
+            int*p = (int*)svGetArrElemPtr1(value_in, i);
+            if (!p || *p != 20000 + i) bad |= E_ELEM;
+      }
+      for (i = 5; i <= 8; i += 1) {
+            int*p = (int*)svGetArrElemPtr1(value_out, i);
+            if (!p) bad |= E_ELEM;
+            else *p = 30000 + i;
+      }
+      for (i = 2; i <= 5; i += 1) {
+            int*p = (int*)svGetArrElemPtr1(value_io, i);
+            if (!p || *p != 40000 + i) bad |= E_ELEM;
+            else *p = 50000 + i;
+      }
+      return bad;
 }
 
 /* An ordinary dynamic array has no declared range: 0-based, and the

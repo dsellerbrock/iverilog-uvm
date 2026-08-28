@@ -7724,12 +7724,15 @@ static NetProc* make_uarray_signal_range_copy_(NetScope*scope,
  * array signals. This is the aggregate equivalent of the scalar copy loop
  * above, with explicit source and destination bases so a subroutine actual
  * such as a[3:10] can be materialized and copied back without pretending
- * the slice is a packed part select. */
+ * the slice is a packed part select. Reverse the source canonical walk when
+ * the source and destination declarations have opposite directions so their
+ * leftmost elements still correspond under 7.6. */
 static NetProc* make_uarray_signal_slice_copy_loop_(NetScope*scope,
 						    const LineInfo&loc,
 						    NetNet*dst_sig, long dst_base,
 						    NetNet*src_sig, long src_base,
-						    unsigned long count)
+						    unsigned long count,
+						    bool reverse_src)
 {
       NetNet*idx_sig = new NetNet(scope, scope->local_symbol(),
 				  NetNet::REG, &netvector_t::atom2s32);
@@ -7751,9 +7754,16 @@ static NetProc* make_uarray_signal_slice_copy_loop_(NetScope*scope,
       NetAssign*step = new NetAssign(step_lv, '+', step_val);
       step->set_line(loc);
 
-      auto word_index = [&](long base) -> NetExpr* {
+	      auto word_index = [&](long base, bool reverse = false) -> NetExpr* {
 	    NetESignal*idx = new NetESignal(idx_sig);
 	    idx->set_line(loc);
+	    if (reverse) {
+		  NetEConst*last = make_const_val_s(base + (long)count - 1);
+		  last->set_line(loc);
+		  NetEBAdd*rev = new NetEBAdd('-', last, idx, 32, true);
+		  rev->set_line(loc);
+		  return rev;
+	    }
 	    if (base == 0)
 		  return idx;
 	    NetEConst*off = make_const_val_s(base);
@@ -7765,7 +7775,8 @@ static NetProc* make_uarray_signal_slice_copy_loop_(NetScope*scope,
 
       NetAssign_*lv = new NetAssign_(dst_sig);
       lv->set_word(word_index(dst_base));
-      NetESignal*rv = new NetESignal(src_sig, word_index(src_base));
+      NetESignal*rv = new NetESignal(
+	    src_sig, word_index(src_base, reverse_src));
       rv->set_line(loc);
       NetAssign*body = new NetAssign(lv, rv);
       body->set_line(loc);
@@ -15430,7 +15441,7 @@ static bool subroutine_uarray_slice_matches_formal_(
       if (const netdarray_t*open =
 	    dynamic_cast<const netdarray_t*>(port->net_type())) {
 	    netuarray_t slice_type(slice.dims, slice.element_type);
-	    return uarray_element_matches_container_(&slice_type, open);
+	    return uarray_element_equivalent_container_(&slice_type, open);
       }
       return false;
 }
@@ -15440,10 +15451,16 @@ static NetProc* copy_subroutine_uarray_slice_to_signal_(
 		NetNet*dst, long dst_base,
 		const subroutine_uarray_slice_actual_t&slice)
 {
+      const netuarray_t*dst_type =
+	    dynamic_cast<const netuarray_t*>(dst->array_type());
+      ivl_assert(loc, dst_type && dst_type->static_dimensions().size() == 1);
+      bool reverse_src = uarray_ranges_need_reverse_(
+	    dst_type->static_dimensions()[0], slice.dims[0]);
+
       if (slice.sig)
 	    return make_uarray_signal_slice_copy_loop_(
 		  scope, loc, dst, dst_base,
-		  slice.sig, slice.base, slice.count);
+		  slice.sig, slice.base, slice.count, reverse_src);
 
       ivl_assert(loc, slice.property_owner && slice.property_idx >= 0);
       NetESignal*owner = new NetESignal(slice.property_owner);
@@ -15452,7 +15469,7 @@ static NetProc* copy_subroutine_uarray_slice_to_signal_(
       src->set_line(loc);
       NetProc*copy = make_uarray_copy_loop_(
 	    des, scope, loc, new NetAssign_(dst), slice.count,
-	    0, src, false, dst_base, slice.base);
+	    0, src, false, dst_base, slice.base, reverse_src);
       delete src;
       return copy;
 }
@@ -15462,16 +15479,23 @@ static NetProc* copy_signal_to_subroutine_uarray_slice_(
 		const subroutine_uarray_slice_actual_t&slice,
 		NetNet*src, long src_base)
 {
+      const netuarray_t*src_type =
+	    dynamic_cast<const netuarray_t*>(src->array_type());
+      ivl_assert(loc, src_type && src_type->static_dimensions().size() == 1);
+      bool reverse_src = uarray_ranges_need_reverse_(
+	    slice.dims[0], src_type->static_dimensions()[0]);
+
       if (slice.sig)
 	    return make_uarray_signal_slice_copy_loop_(
 		  scope, loc, slice.sig, slice.base,
-		  src, src_base, slice.count);
+		  src, src_base, slice.count, reverse_src);
 
       ivl_assert(loc, slice.property_owner && slice.property_idx >= 0);
       NetAssign_*dst = new NetAssign_(slice.property_owner);
       dst->set_property(slice.property_name, slice.property_idx);
       return make_uarray_copy_loop_(des, scope, loc, dst, slice.count,
-				     src, 0, false, slice.base, src_base);
+				     src, 0, false, slice.base, src_base,
+				     reverse_src);
 }
 
 NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
@@ -15747,6 +15771,13 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		  ivl_type_t formal_type = port->unpacked_dimensions() > 0
 			? static_cast<ivl_type_t>(port->array_type())
 			: port->net_type();
+		  bool dpi_open_argument =
+			dpi_open_array_formal_needs_copy_in_(port, task);
+		  unsigned argument_flags =
+			dynamic_cast<const netdarray_t*>(formal_type)
+			? (dpi_open_argument ? PExpr::DPI_OPEN_ARRAY_ARG
+					     : PExpr::NATIVE_ARRAY_FORMAL_ARG)
+			: PExpr::NO_FLAGS;
 
 		    // The vvp target has no single whole-fixed-array store.
 		    // Lower copy-in to a fixed-array task formal exactly like a
@@ -15793,8 +15824,9 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			}
 
 			if (fdims.size() == 1) {
-			      rv = elaborate_rval_expr(des, scope, formal_type,
-					       args[parms_idx]);
+			      rv = elaborate_rval_expr(
+				    des, scope, formal_type, args[parms_idx],
+				    false, false, argument_flags);
 			      if (NetEProperty*rprop =
 				    dynamic_cast<NetEProperty*>(rv)) {
 				const netuarray_t*src_ua =
@@ -15806,9 +15838,14 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 				      if (uarray_copy_shapes_compatible_(
 					    formal_ua, src_count,
 					    src_ua->element_type())) {
+					    bool reverse_src =
+						  uarray_ranges_need_reverse_(
+							fdims[0],
+							src_ua->static_dimensions()[0]);
 					    NetProc*copy = make_uarray_copy_loop_(
 						  des, scope, *this, lv,
-						  src_count, 0, rprop);
+						  src_count, 0, rprop, false,
+						  0, 0, reverse_src);
 					    block->append(copy);
 					    delete rv;
 					    continue;
@@ -15818,8 +15855,9 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			}
 		  }
 		  if (!rv)
-			rv = elaborate_rval_expr(des, scope, formal_type,
-						 args[parms_idx]);
+			rv = elaborate_rval_expr(
+			      des, scope, formal_type, args[parms_idx],
+			      false, false, argument_flags);
 		  copy_in_error[idx] = des->errors != copy_in_errors_before;
 		  if (const NetEEvent*evt = dynamic_cast<NetEEvent*> (rv)) {
 			cerr << evt->get_fileline() << ": error: An event '"
@@ -16004,6 +16042,23 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		  lv->net_type(), copy_src_type, positional_copyback);
 	    bool copies_back = port->port_type() == NetNet::POUTPUT
 		  || port->port_type() == NetNet::PINOUT;
+	    const netuarray_t*fixed_actual =
+		  dynamic_cast<const netuarray_t*>(lv->net_type());
+	    const netdarray_t*container_formal =
+		  dynamic_cast<const netdarray_t*>(copy_src_type);
+	    if (copies_back && fixed_actual && container_formal
+		&& !dpi_open_array_formal_needs_copy_in_(port, task)
+		&& !uarray_element_equivalent_container_(
+		      fixed_actual, container_formal)) {
+		  cerr << get_fileline() << ": error: task fixed unpacked-array "
+		       << "actual and queue/dynamic-array formal may differ only "
+			  "in the slowest-varying unpacked dimension and require "
+			  "equivalent element types (IEEE 1800-2017/2023 7.6)."
+		       << endl;
+		  des->errors += 1;
+		  delete lv;
+		  continue;
+	    }
 	    if (copies_back && positional_copyback && !positional_compatible) {
 		  cerr << get_fileline() << ": error: task "
 		       << (port->port_type() == NetNet::POUTPUT
@@ -16080,9 +16135,15 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			unsigned long count = copy_src->unpacked_count();
 			if (src_fixed && uarray_copy_shapes_compatible_(
 				      lv_ua, count, copy_src->net_type())) {
+			      ivl_assert(*this,
+				    lv_ua->static_dimensions().size() == 1
+				    && src_fixed->static_dimensions().size() == 1);
+			      bool reverse_src = uarray_ranges_need_reverse_(
+				    lv_ua->static_dimensions()[0],
+				    src_fixed->static_dimensions()[0]);
 			      block->append(make_uarray_copy_loop_(
 				    des, scope, *this, lv, count,
-				    copy_src, 0));
+				    copy_src, 0, false, 0, 0, reverse_src));
 			      continue;
 			}
 		  }
@@ -16094,12 +16155,12 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			     from a NESTED formal, one container level
 			     per declared dimension, so unwrap to the
 			     leaf before comparing element types. */
-			size_t levels = lv_ua->static_dimensions().size();
-			for (size_t lv = 1 ; lv < levels && src_da ; lv += 1)
-			      src_da = dynamic_cast<const netdarray_t*>
-				    (src_da->element_type());
-			if (levels < 1
-			    || !uarray_element_matches_container_(lv_ua, src_da)) {
+			bool dpi_open_copyback =
+			      dpi_open_array_formal_needs_copy_in_(port, task);
+			bool source_matches = dpi_open_copyback
+			      ? uarray_matches_dpi_open_array_(lv_ua, src_da)
+			      : uarray_element_equivalent_container_(lv_ua, src_da);
+			if (!source_matches) {
 			      cerr << get_fileline() << ": sorry: "
 				   << "Cannot copy subroutine port " << (idx+1)
 				   << " back into '" << lv->name()

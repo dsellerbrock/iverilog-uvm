@@ -278,6 +278,7 @@ extern void draw_eval_string(ivl_expr_t ex);
  */
 extern int draw_eval_object(ivl_expr_t ex);
 extern int vvp_expr_is_whole_fixed_array_property(ivl_expr_t ex);
+extern int vvp_expr_is_fixed_uarray_value(ivl_expr_t ex);
 
 /* Evaluate a whole positional queue/dynamic-array value and materialize the
    destination declaration when its runtime kind differs or TARGET_TYPE is a
@@ -477,9 +478,22 @@ static inline int queue_pattern_operand_is_object_collection_(ivl_expr_t expr,
       if (!expr || !type_is_object_like_(element_type))
             return 0;
 
+      /* t-dll exports a whole fixed array as IVL_EX_ARRAY, while its
+       * ivl_signal_net_type is only the scalar leaf. A multidimensional
+       * operand is therefore a collection of subarrays: splice its
+       * slowest-varying members into an object-container destination. A
+       * one-dimensional fixed array remains one assignment-compatible
+       * queue/dynamic-array element. */
+      if (ivl_expr_type(expr) == IVL_EX_ARRAY
+          && ivl_expr_signal(expr)
+          && ivl_signal_dimensions(ivl_expr_signal(expr)) > 0)
+            return ivl_signal_dimensions(ivl_expr_signal(expr)) > 1;
+
       if ((ivl_expr_type(expr) == IVL_EX_SIGNAL
            || ivl_expr_type(expr) == IVL_EX_ARRAY)
-          && !ivl_expr_oper1(expr) && ivl_expr_signal(expr))
+          && (ivl_expr_type(expr) == IVL_EX_ARRAY
+              || !ivl_expr_oper1(expr))
+          && ivl_expr_signal(expr))
             expr_type = ivl_signal_net_type(ivl_expr_signal(expr));
       else
             expr_type = ivl_expr_net_type(expr);
@@ -520,7 +534,9 @@ static inline int queue_pattern_operand_is_collection_(ivl_expr_t expr,
             return queue_pattern_operand_is_object_collection_(expr, element_type);
       if ((ivl_expr_type(expr) == IVL_EX_SIGNAL
            || ivl_expr_type(expr) == IVL_EX_ARRAY)
-          && !ivl_expr_oper1(expr) && ivl_expr_signal(expr))
+          && (ivl_expr_type(expr) == IVL_EX_ARRAY
+              || !ivl_expr_oper1(expr))
+          && ivl_expr_signal(expr))
             expr_type = ivl_signal_net_type(ivl_expr_signal(expr));
       else
             expr_type = ivl_expr_net_type(expr);
@@ -726,7 +742,9 @@ static inline ivl_type_t receiver_container_type_(ivl_expr_t expr)
          Keep indexed signals on the selected/contextual path below. */
       if ((ivl_expr_type(expr) == IVL_EX_SIGNAL
            || ivl_expr_type(expr) == IVL_EX_ARRAY)
-          && !ivl_expr_oper1(expr) && ivl_expr_signal(expr)) {
+          && (ivl_expr_type(expr) == IVL_EX_ARRAY
+              || !ivl_expr_oper1(expr))
+          && ivl_expr_signal(expr)) {
             type = ivl_signal_net_type(ivl_expr_signal(expr));
             if (type_is_runtime_container_(type))
                   return type;
@@ -1056,7 +1074,7 @@ static inline int emit_property_queue_last_index_(ivl_expr_t expr,
       kind bits  7..0  = element width bits 7..0
       kind bit      8  = signed
       kind bit      9  = four-state
-      kind bit     10  = descending source range
+      kind bit     10  = descending fixed range (load source/store target)
       kind bit     11  = object elements
       kind bit     12  = string elements
       kind bit     13  = queue result
@@ -1079,9 +1097,19 @@ extern int uarray_container_kind_(ivl_signal_t sig, unsigned*kind_out,
    the source's declared dimensionality. */
 extern void emit_load_arr_dar_(ivl_signal_t sig, unsigned kind);
 
+/* Flat one-dimensional fixed-array slice variants. canonical_base/count
+   address numeric-low storage; left/right preserve the selected range's
+   declared order for SystemVerilog value correspondence and DPI metadata. */
+extern void emit_load_arr_dar_slice_(ivl_signal_t sig, unsigned kind,
+				     unsigned canonical_base, unsigned count,
+				     int left, int right);
+
 /* Emit the container -> fixed-array store, flat or nesting according to
    the destination's declared dimensionality. */
 extern void emit_store_arr_dar_(ivl_signal_t sig, unsigned kind);
+extern void emit_store_arr_dar_slice_(ivl_signal_t sig, unsigned kind,
+				      unsigned canonical_base, unsigned count,
+				      int left, int right);
 
 /* Sized DPI fixed-array formals use the direct C-pointer ABI, not an
    svOpenArrayHandle. A multidimensional signal therefore needs its canonical

@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_unpacked_concat_nested_scalar_fail.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_unpacked_concat_nested_scalar_fail" ],
+    "gold"          : "sv_unpacked_concat_nested_scalar_fail"
+}

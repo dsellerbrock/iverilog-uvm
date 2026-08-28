@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_subroutine_nested_container_formal_fail.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_subroutine_nested_container_formal_fail" ],
+    "gold"          : "sv_subroutine_nested_container_formal_fail"
+}

@@ -5,4 +5,8 @@ Warning: push_back(<object>) skipped for already full bounded queue<object> [2].
 Warning: insert(1, <object>) removed tail from already full bounded queue<object> [2].
 Warning: push_back(<object>) skipped for already full bounded queue<object> [2].
 Warning: insert(1, <object>) removed tail from already full bounded queue<object> [2].
+Warning: queue<vector> is bounded to have at most 2 elements, source has 3 elements.
+Warning: queue<vector> is bounded to have at most 2 elements, source has 3 elements.
+Warning: queue<vector> is bounded to have at most 2 elements, source has 3 elements.
+Warning: queue<vector> is bounded to have at most 2 elements, source has 3 elements.
 PASSED

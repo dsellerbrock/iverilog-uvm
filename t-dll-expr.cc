@@ -238,6 +238,27 @@ void dll_target::expr_array_pattern(const NetEArrayPattern*net)
       expr_ = expr_tmp;
 }
 
+void dll_target::expr_array_slice(const NetEArraySlice*net)
+{
+      ivl_signal_t sig = find_signal(net->signal());
+
+      assert(expr_ == 0);
+      expr_ = new struct ivl_expr_s();
+      expr_->type_ = IVL_EX_ARRAY_SLICE;
+      expr_->value_ = net->expr_type();
+      expr_->net_type = net->net_type();
+      expr_->width_ = 0;
+      expr_->signed_ = 0;
+      expr_->sized_ = 1;
+      FILE_NAME(expr_, net);
+
+      expr_->u_.array_slice_.sig = sig;
+      expr_->u_.array_slice_.canonical_base = net->canonical_base();
+      expr_->u_.array_slice_.count = net->count();
+      expr_->u_.array_slice_.left = net->selected_left();
+      expr_->u_.array_slice_.right = net->selected_right();
+}
+
 void dll_target::expr_binary(const NetEBinary*net)
 {
       assert(expr_ == 0);

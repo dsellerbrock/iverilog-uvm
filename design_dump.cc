@@ -1764,6 +1764,13 @@ void NetEArrayPattern::dump(ostream&fd) const
       fd << "'{" << items_ << "}";
 }
 
+void NetEArraySlice::dump(ostream&fd) const
+{
+      fd << signal_->name() << "[" << selected_left() << ":"
+	 << selected_right() << "]"
+	 << "<canonical=" << canonical_base_ << ",count=" << count_ << ">";
+}
+
 void NetEBinary::dump(ostream&o) const
 {
       if (op_ == 'm' || op_ == 'M') {

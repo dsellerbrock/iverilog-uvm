@@ -1,0 +1,4 @@
+./ivltests/sv_unpacked_concat_nested_scalar_fail.v:20: error: unpacked array concatenation item is neither assignment-compatible with the destination element nor a compatible collection (IEEE 1800-2017/2023 10.10).
+./ivltests/sv_unpacked_concat_nested_scalar_fail.v:21: error: unpacked array concatenation item is neither assignment-compatible with the destination element nor a compatible collection (IEEE 1800-2017/2023 10.10).
+./ivltests/sv_unpacked_concat_nested_scalar_fail.v:22: error: unpacked array concatenation cannot target an associative array (IEEE 1800-2017/2023 10.10).
+3 error(s) during elaboration.

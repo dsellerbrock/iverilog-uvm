@@ -1,0 +1,6 @@
+RUN-TIME ERROR: cannot copy a container of size 2 into an unpacked array of size 3 (IEEE 1800-2017/2023 7.6 requires equal element counts); the array is unchanged.
+RUN-TIME ERROR: cannot copy a container of size 4 into an unpacked array of size 3 (IEEE 1800-2017/2023 7.6 requires equal element counts); the array is unchanged.
+RUN-TIME ERROR: cannot copy a container dimension of size 2 into fixed unpacked array dimension 1 of size 3 (IEEE 1800-2017/2023 7.6 requires equal element counts); the array is unchanged.
+RUN-TIME ERROR: cannot copy a container dimension of size 2 into fixed unpacked array dimension 1 of size 3 (IEEE 1800-2017/2023 7.6 requires equal element counts); the array is unchanged.
+RUN-TIME ERROR: cannot copy a container of size 2 into an unpacked array of size 3 (IEEE 1800-2017/2023 7.6 requires equal element counts); the array is unchanged.
+RUN-TIME ERROR: cannot copy a container of size 4 into an unpacked array of size 3 (IEEE 1800-2017/2023 7.6 requires equal element counts); the array is unchanged.

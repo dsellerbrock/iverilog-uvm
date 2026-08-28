@@ -75,6 +75,28 @@ NexusSet* NetEArrayPattern::nex_input(bool rem_out, bool always_sens, bool neste
       return result;
 }
 
+NexusSet* NetEArraySlice::nex_input(bool, bool, bool) const
+{
+      NexusSet*result = new NexusSet;
+
+	/* Match NetESignal: local temporaries do not contribute to an implicit
+	 * sensitivity list, except for compiler-generated module-output bridges.
+	 * A slice has constant bounds, so only its selected array words are read. */
+      bool force_local_sensitivity = signal_->attribute(perm_string::literal(
+	    "_ivl_implicit_sensitivity")).as_ulong() != 0;
+      if (signal_->local_flag() && !force_local_sensitivity)
+	    return result;
+
+      unsigned long first = static_cast<unsigned long>(canonical_base_);
+      unsigned long limit = first + count_;
+      assert(limit <= signal_->pin_count());
+      for (unsigned long word = first ; word < limit ; word += 1)
+	    result->add(signal_->pin(word).nexus(), 0,
+			signal_->vector_width());
+
+      return result;
+}
+
 NexusSet* NetEBinary::nex_input(bool rem_out, bool always_sens, bool nested_func) const
 {
       NexusSet*result = left_->nex_input(rem_out, always_sens, nested_func);

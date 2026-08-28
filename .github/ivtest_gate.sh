@@ -114,6 +114,9 @@ if [ -z "$runtime_vvp" ] || [ -z "$runtime_iverilog" ] \
         bash tests/vvp_runtime/run_assoc_set_default_malformed_width.sh \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_array_slice_marshal_malformed.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! VVP="$runtime_vvp" \
         bash tests/vvp_runtime/run_dpi_return_prefix_malformed.sh \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! IVERILOG="$runtime_iverilog" \

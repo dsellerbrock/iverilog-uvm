@@ -2623,7 +2623,8 @@ static int show_stmt_assign_sig_darray(ivl_statement_t net)
 	    // along on the duplicate).
 	    int fixed_open_actual =
 		  ivl_signal_port(var) != IVL_SIP_NONE
-		  && vvp_expr_is_whole_fixed_array_property(rval);
+		  && ivl_scope_is_dpi_import(ivl_signal_scope(var))
+		  && vvp_expr_is_fixed_uarray_value(rval);
 	    errors += draw_eval_object(rval);
 	    fprintf(vvp_out, "    %%dup/obj;\n");
 	    fprintf(vvp_out, "    %%store/obj%s v%p_0; %s:%u: %s = <signal>\n",
@@ -2646,8 +2647,8 @@ static int show_stmt_assign_sig_darray(ivl_statement_t net)
 		  errors += draw_eval_object_value_copy(rval, var_type);
 	    int fixed_open_actual =
 		  ivl_signal_port(var) != IVL_SIP_NONE
-		  && (ivl_expr_type(rval) == IVL_EX_ARRAY
-		      || vvp_expr_is_whole_fixed_array_property(rval));
+		  && ivl_scope_is_dpi_import(ivl_signal_scope(var))
+		  && vvp_expr_is_fixed_uarray_value(rval);
 	    fprintf(vvp_out, "    %%store/obj%s v%p_0; %s:%u: %s = <expr type %d>\n",
 		    fixed_open_actual ? "/open" : "",
 		    var, ivl_stmt_file(net), ivl_stmt_lineno(net),
@@ -5288,6 +5289,24 @@ void emit_load_arr_dar_(ivl_signal_t sig, unsigned kind)
 	      sig, kind, (unsigned)left);
 }
 
+void emit_load_arr_dar_slice_(ivl_signal_t sig, unsigned kind,
+			      unsigned canonical_base, unsigned count,
+			      int left, int right)
+{
+      assert(ivl_signal_dimensions(sig) == 1);
+      assert(count > 0);
+      if (left > right)
+	    kind |= VVP_ARRDAR_DESC;
+      else
+	    kind &= ~VVP_ARRDAR_DESC;
+
+      note_array_signal_use(sig);
+      fprintf(vvp_out, "    %%slice/push %u, %u;\n",
+	      canonical_base, count);
+      fprintf(vvp_out, "    %%load/arr/dar/slice v%p, %u, %u;\n",
+	      sig, kind, (unsigned)left);
+}
+
 /* Emit the container -> fixed-array store for one signal. A
    multi-dimensional destination is stored as one flat word array, so
    the declared shape has to be handed over separately before the
@@ -5304,7 +5323,28 @@ void emit_store_arr_dar_(ivl_signal_t sig, unsigned kind)
 	    return;
       }
 
+      if (ivl_signal_array_dim_msb(sig, 0)
+	  > ivl_signal_array_dim_lsb(sig, 0))
+	    kind |= VVP_ARRDAR_DESC;
+
       fprintf(vvp_out, "    %%store/arr/dar v%p, %u;\n", sig, kind);
+}
+
+void emit_store_arr_dar_slice_(ivl_signal_t sig, unsigned kind,
+			       unsigned canonical_base, unsigned count,
+			       int left, int right)
+{
+      assert(ivl_signal_dimensions(sig) == 1);
+      assert(count > 0);
+      if (left > right)
+	    kind |= VVP_ARRDAR_DESC;
+      else
+	    kind &= ~VVP_ARRDAR_DESC;
+
+      fprintf(vvp_out, "    %%slice/push %u, %u;\n",
+	      canonical_base, count);
+      fprintf(vvp_out, "    %%store/arr/dar/slice v%p, %u;\n",
+	      sig, kind);
 }
 
 /* A sized DPI array is passed to C as a pointer to contiguous elements. VVP
@@ -5316,7 +5356,12 @@ void emit_store_arr_dar_(ivl_signal_t sig, unsigned kind)
 void emit_load_arr_dar_dpi_(ivl_signal_t sig, unsigned kind)
 {
       if (ivl_signal_dimensions(sig) <= 1) {
-	    emit_load_arr_dar_(sig, kind);
+	      /* Sized DPI arrays use Annex H's canonical C layout (numeric
+	       * low index first). Do not apply the SystemVerilog value-assignment
+	       * direction bit used by emit_load_arr_dar_. */
+	    note_array_signal_use(sig);
+	    fprintf(vvp_out, "    %%load/arr/dar v%p, %u, 0;"
+		    " flat fixed DPI array\n", sig, kind);
 	    return;
       }
 
@@ -5328,7 +5373,11 @@ void emit_load_arr_dar_dpi_(ivl_signal_t sig, unsigned kind)
 void emit_store_arr_dar_dpi_(ivl_signal_t sig, unsigned kind)
 {
       if (ivl_signal_dimensions(sig) <= 1) {
-	    emit_store_arr_dar_(sig, kind);
+	      /* A sized DPI array uses Annex H's canonical C layout (numeric
+	       * low index first), not SystemVerilog 7.6 left-to-right value
+	       * assignment. Keep its store descriptor direction-neutral. */
+	    fprintf(vvp_out, "    %%store/arr/dar v%p, %u;"
+		    " flat fixed DPI array\n", sig, kind);
 	    return;
       }
 

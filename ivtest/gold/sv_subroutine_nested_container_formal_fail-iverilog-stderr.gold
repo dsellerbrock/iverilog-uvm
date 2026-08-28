@@ -1,0 +1,37 @@
+ivltests/sv_subroutine_nested_container_formal_fail.v:39: error: the type of the variable 'queue_of_queues' doesn't match the context type.
+ivltests/sv_subroutine_nested_container_formal_fail.v:39:      : variable type=queue of queue of netvector_t:bool signed[31:0]
+ivltests/sv_subroutine_nested_container_formal_fail.v:39:      : context type=dynamic array of dynamic array of netvector_t:bool signed[31:0]
+ivltests/sv_subroutine_nested_container_formal_fail.v:40: error: task output queue/dynamic-array formal and actual require equivalent element types (IEEE 1800-2017/2023 7.6).
+ivltests/sv_subroutine_nested_container_formal_fail.v:41: error: the type of the variable 'queue_of_queues' doesn't match the context type.
+ivltests/sv_subroutine_nested_container_formal_fail.v:41:      : variable type=queue of queue of netvector_t:bool signed[31:0]
+ivltests/sv_subroutine_nested_container_formal_fail.v:41:      : context type=dynamic array of dynamic array of netvector_t:bool signed[31:0]
+ivltests/sv_subroutine_nested_container_formal_fail.v:42: error: the type of the variable 'queue_of_queues' doesn't match the context type.
+ivltests/sv_subroutine_nested_container_formal_fail.v:42:      : variable type=queue of queue of netvector_t:bool signed[31:0]
+ivltests/sv_subroutine_nested_container_formal_fail.v:42:      : context type=dynamic array of dynamic array of netvector_t:bool signed[31:0]
+ivltests/sv_subroutine_nested_container_formal_fail.v:43: error: function output/inout queue/dynamic-array formal and actual require equivalent element types (IEEE 1800-2017/2023 7.6).
+ivltests/sv_subroutine_nested_container_formal_fail.v:44: error: function output/inout queue/dynamic-array formal and actual require equivalent element types (IEEE 1800-2017/2023 7.6).
+ivltests/sv_subroutine_nested_container_formal_fail.v:45: error: the type of the variable 'queue_of_queues' doesn't match the context type.
+ivltests/sv_subroutine_nested_container_formal_fail.v:45:      : variable type=queue of queue of netvector_t:bool signed[31:0]
+ivltests/sv_subroutine_nested_container_formal_fail.v:45:      : context type=dynamic array of dynamic array of netvector_t:bool signed[31:0]
+ivltests/sv_subroutine_nested_container_formal_fail.v:46: error: the type of the variable 'dynamic_of_dynamic' doesn't match the context type.
+ivltests/sv_subroutine_nested_container_formal_fail.v:46:      : variable type=dynamic array of dynamic array of netvector_t:bool signed[31:0]
+ivltests/sv_subroutine_nested_container_formal_fail.v:46:      : context type=queue of queue of netvector_t:bool signed[31:0]
+ivltests/sv_subroutine_nested_container_formal_fail.v:47: error: the type of the variable 'fixed_of_fixed' doesn't match the context type.
+ivltests/sv_subroutine_nested_container_formal_fail.v:47:      : variable type=netvector_t:bool signed[31:0]
+ivltests/sv_subroutine_nested_container_formal_fail.v:47:      : context type=dynamic array of dynamic array of netvector_t:bool signed[31:0]
+ivltests/sv_subroutine_nested_container_formal_fail.v:48: error: task fixed unpacked-array actual and queue/dynamic-array formal may differ only in the slowest-varying unpacked dimension and require equivalent element types (IEEE 1800-2017/2023 7.6).
+ivltests/sv_subroutine_nested_container_formal_fail.v:49: error: the type of the variable 'fixed_of_fixed' doesn't match the context type.
+ivltests/sv_subroutine_nested_container_formal_fail.v:49:      : variable type=netvector_t:bool signed[31:0]
+ivltests/sv_subroutine_nested_container_formal_fail.v:49:      : context type=dynamic array of dynamic array of netvector_t:bool signed[31:0]
+ivltests/sv_subroutine_nested_container_formal_fail.v:50: error: the type of the variable 'fixed_of_fixed' doesn't match the context type.
+ivltests/sv_subroutine_nested_container_formal_fail.v:50:      : variable type=netvector_t:bool signed[31:0]
+ivltests/sv_subroutine_nested_container_formal_fail.v:50:      : context type=dynamic array of dynamic array of netvector_t:bool signed[31:0]
+ivltests/sv_subroutine_nested_container_formal_fail.v:51: error: function fixed unpacked-array actual and queue/dynamic-array formal may differ only in the slowest-varying unpacked dimension and require equivalent element types (IEEE 1800-2017/2023 7.6).
+ivltests/sv_subroutine_nested_container_formal_fail.v:52: error: function fixed unpacked-array actual and queue/dynamic-array formal may differ only in the slowest-varying unpacked dimension and require equivalent element types (IEEE 1800-2017/2023 7.6).
+ivltests/sv_subroutine_nested_container_formal_fail.v:53: error: the type of the variable 'fixed_of_fixed' doesn't match the context type.
+ivltests/sv_subroutine_nested_container_formal_fail.v:53:      : variable type=netvector_t:bool signed[31:0]
+ivltests/sv_subroutine_nested_container_formal_fail.v:53:      : context type=dynamic array of dynamic array of netvector_t:bool signed[31:0]
+ivltests/sv_subroutine_nested_container_formal_fail.v:54: error: the type of the variable 'dynamic_of_dynamic' doesn't match the context type.
+ivltests/sv_subroutine_nested_container_formal_fail.v:54:      : variable type=dynamic array of dynamic array of netvector_t:bool signed[31:0]
+ivltests/sv_subroutine_nested_container_formal_fail.v:54:      : context type=11netuarray_t
+16 error(s) during elaboration.

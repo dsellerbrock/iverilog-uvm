@@ -1,5 +1,172 @@
 # CURRENT WORK — continuation state
 
+## Active increment — 2026-08-28 — positional container conversion and call boundaries
+
+Worktree:
+`iverilog-uvm-opentitan-array-conversion-after244-arm64-20260828`
+
+Branch `agent/opentitan-array-conversion-after244-arm64-20260828` was created
+exactly from `origin/main` at
+`00c21f05c6cf818a4d626237e8c2301d7379518b` after PR #244 merged. Production
+code and permanent regressions are committed and pushed as `674e38b5f`. The
+active compiler and VVP runtime were built with native ARM64 tools and
+Homebrew Bison 3.8.x through the shared CPU guard without an RSS ceiling.
+OpenTitan, Caliptra, Accellera UVM, and generated application source remain
+unmodified.
+
+The normative audit separates four related boundaries:
+
+- IEEE 1800-2017/2023 7.6 permits a fixed unpacked array, dynamic array, queue,
+  or slice to be assignment compatible with another such value when their
+  slowest-varying element types are equivalent (and a fixed destination has
+  the same element count). Only that slowest-varying dimension may differ in
+  array kind; every faster-varying dimension is part of the element type and
+  must be equivalent. A queue or dynamic-array target is resized to the source
+  count and receives elements in left-to-right order.
+- Under 6.24.1, an assignment-compatible explicit cast has the value that a
+  temporary of the cast type would receive by assignment. If ordinary
+  assignment compatibility does not apply and the types are bit-stream types,
+  6.24.1 directs the cast to 6.24.3. The evidenced integral-container subset
+  packs index 0 at the MSBs and accepts an element-width change only when the
+  complete source stream fits the destination exactly.
+- Clause 13.5 copies input/inout values into a native subroutine and copies
+  output/inout values back on return. Clause 13.3.2 initializes an automatic
+  task's output storage to its declared default on every invocation, while a
+  static task's ports retain their values between invocations; 13.4.2 supplies
+  the corresponding function lifetime rule. An empty body does not erase
+  argument evaluation, dispatch, frame, or copy-back effects.
+- Clause 7.10.5 applies the declared bound after every ordinary bounded-queue
+  write, discarding excess tail elements and warning. A bit-stream cast is
+  different: 6.24.3 requires a size mismatch to fail once detectable, so it
+  cannot use ordinary bounded-assignment truncation to make an oversized cast
+  appear successful.
+
+The implementation now carries both source and destination type provenance
+through assignment, explicit casts, function/task arguments, aggregate
+builders, and VVP lowering. Equivalent-element queue/dynamic-array transfers
+materialize a fresh value of the destination or actual's declared kind before
+it can be hidden by an enclosing assignment or method call. Direct signals,
+class properties, selected/nested properties, conditional and function
+results, input and output/inout copy boundaries, queue methods, assignment
+patterns, nested containers, and unpacked-struct members use this common
+destination-typed path. Nested container and unpacked-struct values are copied
+independently; class elements remain shared handles; struct prototypes and
+passive container metadata are retained; and a side-effecting destination
+selector is evaluated once.
+
+Explicit positional-container casts now have their own frontend marker.
+Assignment-compatible casts, including same-kind casts and cross-kind `real`
+containers, use the ordinary typed-copy path. Non-assignment-compatible
+integral queue/dynamic-array casts use a strict pack/unpack marker: the tested
+byte-queue to word-dynamic-array round trip preserves index-zero/MSB ordering,
+materializes independent destination storage, and carries a 64-bit queue bound
+without wrapping through the older unsigned queue API. A source bit count not
+divisible by the destination element width, a result larger than a bounded
+queue, or the existing bounded runtime-width guard terminates with a stable
+VVP error and a nonzero status. The conditional-source path checks both arms.
+Nested associative-array element comparisons include key type and wildcard
+metadata instead of accepting the coarse internal queue representation.
+
+Native task output queue and dynamic-array formals are no longer copied in
+from the caller. An
+automatic output therefore begins empty on every call, while a static output
+retains its private prior value and is copied independently to successive
+actuals. The pre-existing caller-shape copy-in is now confined to imported DPI
+open-array output formals, where the foreign routine needs the actual's
+descriptor. Task and nonvoid-function output/inout actuals are validated as
+lvalues and require equivalent positional-container elements in both
+directions; the ordinary OpenTitan assignment extension does not leak into
+formal binding. Calls with empty native bodies are retained so input side
+effects and untouched output defaults remain observable. DPI queue/dynamic-
+array output acceptance remains an interoperability boundary rather than a
+native-language conformance claim.
+
+The follow-on array audit closes the corresponding direct fixed-array slice
+gap in value-returning calls. `PECallFunction` now recognizes a legal constant
+one-dimensional slice before scalar rvalue elaboration, retains its backing
+signal plus canonical storage window in `NetEArraySlice`, and applies the same
+fixed shape/element and output-lvalue checks as a whole-array actual. Native
+fixed formals copy elements left-to-right even when formal and actual ranges
+run in opposite directions. Automatic pure outputs start from their element
+defaults, static outputs retain their formal storage, and copyback changes
+only the selected actual words. DPI open formals activate the slice's declared
+bounds for Annex-H access while the C view remains numeric-indexed; the C
+regression never reads an output formal's unspecified initial contents.
+Malformed `%slice/push`, `%load/arr/dar/slice`, and
+`%store/arr/dar/slice` images recover without an assertion or partial store.
+Multidimensional and class/property slice actuals remain explicit follow-on
+work rather than part of this direct-signal subset.
+
+The VVP text contract keeps the legacy `%queue/to/darray` spelling, adds
+`%container/to/queue`, and adds typed object-collection splice forms with an
+out-of-line prototype descriptor. Keeping that descriptor outside
+`vvp_code_s` preserves the common instruction at three machine words (24 bytes
+on this ARM64 build). The loader validates exact arity, element and stream
+encodings, 64-bit stream queue bounds, and resolved unpacked-struct prototypes
+before scheduling. Runtime fallbacks remain non-asserting and keep their stack
+contract if an internally constructed record is malformed.
+
+OpenTitan's `spi_agent_cfg::swap_byte_order` still motivates one deliberately
+narrow interoperability extension. Its ordinary assignment between
+`logic [7:0][$]` and `bit [7:0][]` is not IEEE element equivalence. Only an
+ordinary blocking cross-kind queue/dynamic-array assignment between non-enum
+packed `bit`/`logic` elements of equal nonzero width and signedness is widened;
+same-kind assignment, initialization, delayed/nonblocking assignment, formal
+or ref binding, width, signedness, and enum identity remain strict. Conversion
+to a 2-state destination maps X/Z to zero under 6.11.2. Slang
+11.0.448+e222e7dc0 rejects the four paired state-changing assignments in both
+editions and its VCS compatibility mode. No VCS, Questa, or Xcelium executable
+was available, so this is labeled an interoperability extension rather than a
+commercial-simulator differential or standards claim.
+
+The last full native-ARM64 checkpoint and the newer focused slice evidence are:
+
+| Gate | Result |
+|---|---:|
+| Chapter-7 focused legacy | **71/71** |
+| Chapter-7 focused JSON/VVP | **64 ran, 0 failed** |
+| Direct container conversion/runtime/parser invariants | **42/42** |
+| Negative diagnostics | **136/136** |
+| Full legacy SystemVerilog | **2,137/2,137** |
+| Full JSON/VVP | **1,215 ran, 0 failed** |
+| VPI | **103/103** |
+| Fixed-slice focused legacy | **24/24** |
+| Fixed-slice focused JSON/VVP | **21/21** |
+| Real-DPI fixed-slice reducer | **1/1** |
+| Hand-written slice-opcode recovery invariants | **7/7** |
+
+The canonical real-DPI UVM gate is still running for this final compiler
+state; its result is not inferred from the completed rows. The earlier
+isolated real-DPI reducer established the original runtime-kind defect:
+rebuilt previous main passed 9/10 and failed only
+`queue_to_dynamic_runtime_kind`, while the destination-typed branch passed
+10/10 at that checkpoint.
+
+An authentic FuseSoC 2.4.5/Edalize 0.6.3 OpenTitan replay gathered before the
+later cast and subroutine hardening used clean revision
+`7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19` and covered `spi_device_sim`,
+`spi_host_sim`, Darjeeling, and Earlgrey. The former
+`spi_agent_cfg.sv:139`/`:143` mismatch has zero occurrences in all four current
+logs, which reach independent later frontiers at
+`spi_device_scoreboard.sv:1177`, `spi_host_env_cfg.sv:36`, or
+`spi_host_driver.sv:40`. Recorded prior red counterparts prove removal for the
+Darjeeling and Earlgrey top-chip closures. The older standalone
+`spi_device_sim` and `spi_host_sim` logs stopped earlier and do not establish a
+red-to-green transition for that diagnostic. All four remain **FAIL**; this is
+an unblocked-source-path result, not four OpenTitan passes. No final full
+61-target OpenTitan census and no new Caliptra replay belong to this commit
+yet.
+
+Boundaries remain explicit. General recursive 6.24.3 bit-stream types are
+recognized conservatively, but aggregate/class/structure shapes outside the
+integral positional-container carrier still follow legacy lowering and are
+not claimed here. The direct strict cast path preserves a queue bound above
+`UINT_MAX`, but ordinary queue signal/method storage still uses the older
+unsigned maximum in several paths, so this is not general 64-bit queue-bound
+support. The mixed-state extension still requires a bare direct-identifier
+RHS. Full IEEE clauses 6, 7, and 13, complete OpenTitan and Caliptra DV/runtime
+flows, formal-source elaboration, and commercial-simulator parity remain open.
+
 ## Active increment — 2026-08-27 — typed string concatenation and selected-byte conversion
 
 Worktree:
@@ -787,11 +954,14 @@ per level, iterate, index, and pass to open-array formals. Nothing there
 needed building. R19 is withdrawn; R24 records the withdrawal so the
 claim is not rediscovered.
 
-That re-probe did turn up one real gap, now fixed: a **queue of queues**
-was refused as an open-array actual. The outer level had a queue/darray
-passthrough, but inner levels were compared strictly, and a queue is not
-`type_compatible` with a dynamic array even though they share
-`vvp_darray` at run time.
+**2026-08-28 correction:** the conclusion in the preceding re-probe was
+wrong. A native `int q[][]` formal is a nested dynamic-array formal, not a DPI
+open array. Under 7.6/7.7, only its slowest-varying dimension may differ in
+array kind; `int[$][$]` has a non-equivalent queue at the faster dimension and
+shall be rejected. The positive regression now uses the legal
+`int[$][]` queue-of-dynamic-arrays spelling, and a paired compile-error test
+pins task/function input, output, and inout rejection of the queue-of-queues
+form in both editions.
 
 ### Next frontier
 

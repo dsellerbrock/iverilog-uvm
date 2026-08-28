@@ -828,6 +828,11 @@ void NetEArrayPattern::expr_scan(struct expr_scan_t*tgt) const
       tgt->expr_array_pattern(this);
 }
 
+void NetEArraySlice::expr_scan(struct expr_scan_t*tgt) const
+{
+      tgt->expr_array_slice(this);
+}
+
 void NetEBinary::expr_scan(struct expr_scan_t*tgt) const
 {
       tgt->expr_binary(this);

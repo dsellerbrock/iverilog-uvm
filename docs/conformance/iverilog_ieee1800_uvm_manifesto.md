@@ -191,6 +191,62 @@ Unify behavior for static arrays, dynamic arrays, queues, associative arrays, pa
 
 Shared operations should cover indexing, slicing, iteration, resizing, copying, comparison, sorting, reduction, locator methods, assignment compatibility, aggregate layout, VPI, and DPI.
 
+The 2026-08-28 positional-container audit is a concrete checkpoint for this
+program. A queue/dynamic-array value is not just a sequence behind a nominal
+type: its runtime representation, bound, element prototype, value metadata,
+and copy boundary are observable. Equivalent-element assignment, subroutine
+passing, aggregate construction, and assignment-compatible explicit casts now
+materialize an independent value with the destination, actual, or cast type's
+runtime kind instead of storing a duplicated source object under a different
+declaration. The DPI boundary exposes this distinction because a real dynamic
+array requires contiguous atom storage that a queue does not provide.
+The weaker queue/dynamic-array compatibility applies only at the slowest-
+varying dimension. Faster dimensions remain part of the element type, and a
+dedicated task/function input/output/inout negative now prevents a runtime-
+representation shortcut from weakening that language rule.
+
+The same audit requires semantic boundaries to survive optimization. A native
+output formal is copy-out only; automatic output storage receives its default
+on every entry, static output storage retains its private value, and an empty
+body does not erase input side effects, frame/dispatch behavior, or copy-back.
+Task and function output/inout actuals are checked as lvalues and for complete
+positional-container element equivalence before the destination-typed copy.
+DPI imported open-array outputs retain their distinct caller-shape marshalling
+exception because foreign code needs the actual descriptor.
+
+The direct fixed-array slice follow-on makes that copy boundary explicit in
+the semantic IR. A value-returning native or imported DPI function sees one
+aggregate `NetEArraySlice`, not a scalar word plus a packed select. The node
+retains exact selected-word sensitivity, canonical storage bounds, and the
+slice's declared direction through target lowering. Native copies map
+left-to-left; the DPI handle exposes declared bounds over numeric-indexed C
+storage; output/inout copyback is bounds-checked and atomic. Shape, element,
+lvalue, and illegal reverse-slice checks happen before lowering. This is a
+direct one-dimensional signal subset, not permission to silently scalarize
+multidimensional or property-backed slice actuals.
+
+Explicit casts follow the standard decision tree rather than ordinary stream
+padding. Assignment-compatible casts use the typed-copy path from 6.24.1. The
+implemented integral subset of 6.24.3 permits element-width changes only when
+the complete source stream fits the target exactly; a partial element or an
+oversized bounded-queue result fails loudly. General recursive aggregate
+bit-stream casts remain a recorded legacy boundary. Loader validation is part
+of the language/runtime contract: malformed arity, encodings, and prototype
+descriptors must be rejected before scheduling, without increasing the common
+VVP instruction size or relying on runtime assertions.
+
+The audit also records a deliberately narrow commercial-flow compatibility
+extension motivated by unmodified OpenTitan: ordinary blocking assignment may
+cross between a queue and a dynamic array when packed integral elements differ
+only in `bit` versus `logic`, have equal nonzero width and signedness, and are
+not enums. IEEE 1800-2017/2023 do not make those element types equivalent, so
+same-kind assignment, initializers, formal/ref binding, casts, and other typed
+contexts remain strict. Conversion to a 2-state destination follows 6.11.2 and
+maps X/Z to zero. No direct VCS, Questa, or Xcelium executable was available;
+the behavior is labeled as an interoperability extension and direction toward
+commercial-simulator support, never as standards closure or an application-
+pass claim.
+
 ### Runtime class identity
 
 Runtime class objects should preserve concrete class type, base type, specialization identity, property descriptors, virtual method identity, cast relationships, factory-visible type names, and VPI-visible metadata.
@@ -368,6 +424,16 @@ Future failures belong to the underlying language/runtime subsystem unless the U
 ## M4B — Aggregate/container completion
 
 **Status: PARTIAL**
+
+- [x] Pass direct one-dimensional fixed unpacked-array slices through
+      value-returning native and DPI function input/output/inout formals as
+      aggregate values. *(Done 2026-08-28: `NetEArraySlice` preserves the
+      selected storage window and declared bounds; `%slice/push` plus bounded
+      load/store opcodes preserve left-to-right native correspondence,
+      numeric-indexed DPI access, untouched neighbors, automatic output
+      defaults, static output retention, and atomic recovery from malformed
+      textual IR. Multidimensional and class/property slice actuals remain
+      open.)*
 
 - [x] Implement the evidenced IEEE 1800-2017/2023 7.4/7.9.11/10.9.1
       associative-array assignment-pattern subset. Explicit constant string,
@@ -668,7 +734,10 @@ complete clause-16 or formal-verification claim.
 Imports, exports/C-to-SystemVerilog calls, context and scope selection,
 multidimensional fixed/open arrays in the recorded ABI subset, scalar and
 packed types, time-consuming tasks, re-entry, and the clause-35.9 disable
-protocol have executable evidence. VCS, Questa, and Xcelium remain the
+protocol have executable evidence. Direct fixed-array slices passed to a
+value-returning imported function now retain their own open-array bounds for
+input/output/inout access and copy back only the selected words. VCS, Questa,
+and Xcelium remain the
 commercial Annex-H interoperability targets. Imported shortreal arrays, legal
 fixed-size unpacked export formals, and the exhaustive signature/runtime and
 cross-platform matrix remain open, so clause 35 is not complete.

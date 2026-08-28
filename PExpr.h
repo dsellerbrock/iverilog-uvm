@@ -93,6 +93,20 @@ class PExpr : public LineInfo {
       // Permit the symbolic unbounded value only while evaluating a value
       // parameter assignment or the argument of $isunbounded().
       static const unsigned ALLOW_UNBOUNDED = 0x8;
+      // A queue/dynamic-array concatenation collection operand is converted
+      // one member at a time to the destination element type. This permits
+      // the member's slowest-varying array kind to differ without weakening
+      // whole-container assignment checks.
+      static const unsigned CONTAINER_SPLICE_ARG = 0x10;
+      // A fixed-array actual passed to an unsized DPI open-array formal keeps
+      // every actual unpacked range (IEEE 1800-2017/2023 35.5.6.1). Native
+      // subroutine formals deliberately do not receive this relaxation.
+      static const unsigned DPI_OPEN_ARRAY_ARG = 0x20;
+      // Native task/function positional-array formals require equivalent
+      // element types at their one permitted array-kind boundary. Keep the
+      // ordinary-assignment bit/logic interoperability extension out of this
+      // path.
+      static const unsigned NATIVE_ARRAY_FORMAL_ARG = 0x40;
 
 	// Convert width mode to human-readable form.
       static const char*width_mode_name(width_mode_t mode);

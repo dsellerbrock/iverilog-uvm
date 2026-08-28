@@ -1,0 +1,5 @@
+RUN-TIME ERROR: %load/arr/dar/slice has no preceding %slice/push descriptor.
+RUN-TIME ERROR: %store/arr/dar/slice has no preceding %slice/push descriptor; the array is unchanged.
+RUN-TIME ERROR: %load/arr/dar/slice window base=3 count=2 is outside an unpacked array of size 4.
+RUN-TIME ERROR: %store/arr/dar/slice window base=3 count=2 is outside an unpacked array of size 4; the array is unchanged.
+RUN-TIME ERROR: cannot copy a container of size 2 into an unpacked array of size 3 (IEEE 1800-2017/2023 7.6 requires equal element counts); the array is unchanged.

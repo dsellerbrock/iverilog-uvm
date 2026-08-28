@@ -2631,6 +2631,47 @@ class NetEArrayPattern  : public NetExpr {
 };
 
 /*
+ * A constant slice of a one-dimensional fixed unpacked-array signal.
+ *
+ * canonical_base/count identify the selected words in the signal's flat,
+ * increasing-numeric-index storage. selected_range preserves the range the
+ * source program presented, including its direction, so targets can marshal
+ * values in SystemVerilog left-to-right order and retain DPI actual bounds.
+ * The signal and selected array type are borrowed from the elaborated design;
+ * the expression reference-counts the signal but does not own either object.
+ */
+class NetEArraySlice : public NetExpr {
+
+    public:
+      NetEArraySlice(NetNet*signal, const netuarray_t*slice_type,
+		     long canonical_base, unsigned long count,
+		     const netrange_t&selected_range);
+      ~NetEArraySlice() override;
+
+      NetNet* signal() { return signal_; }
+      const NetNet* signal() const { return signal_; }
+      const netuarray_t* slice_type() const { return slice_type_; }
+      long canonical_base() const { return canonical_base_; }
+      unsigned long count() const { return count_; }
+      const netrange_t& selected_range() const { return selected_range_; }
+      long selected_left() const { return selected_range_.get_msb(); }
+      long selected_right() const { return selected_range_.get_lsb(); }
+
+      void expr_scan(struct expr_scan_t*) const override;
+      void dump(std::ostream&) const override;
+      NetEArraySlice* dup_expr() const override;
+      NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
+			  bool nested_func = false) const override;
+
+    private:
+      NetNet*signal_;
+      const netuarray_t*slice_type_;
+      long canonical_base_;
+      unsigned long count_;
+      netrange_t selected_range_;
+};
+
+/*
  * The expression constant is slightly special, and is sometimes
  * returned from other classes that can be evaluated at compile
  * time. This class represents constant values in expressions.

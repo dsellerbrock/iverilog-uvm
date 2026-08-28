@@ -82,8 +82,7 @@ static int function_port_is_container_output_(ivl_signal_t port)
 {
       ivl_type_t type;
 
-      if (!port || ivl_signal_port(port) != IVL_SIP_OUTPUT
-	  || ivl_signal_dimensions(port) > 0)
+      if (!port || ivl_signal_port(port) != IVL_SIP_OUTPUT)
 	    return 0;
 
 	/* A DPI open array is a handle onto the caller's existing storage, even
@@ -93,6 +92,13 @@ static int function_port_is_container_output_(ivl_signal_t port)
 	 * null static formal and makes every output open array appear empty. */
       if (ivl_scope_is_dpi_import(ivl_signal_scope(port)))
 	    return 0;
+
+	/* A native fixed-array output is copy-out only just like a native
+	 * dynamic array or queue. Its automatic frame storage is already
+	 * default-initialized; a static function's storage deliberately retains
+	 * its prior value (IEEE 1800-2017/2023 13.4.2, 13.5). */
+      if (ivl_signal_dimensions(port) > 0)
+	    return 1;
 
       type = ivl_signal_net_type(port);
       return type && (ivl_type_base(type) == IVL_VT_DARRAY
@@ -194,11 +200,10 @@ static void draw_eval_function_argument(ivl_signal_t port, ivl_expr_t expr)
       }
 }
 
-static int fixed_array_open_actual_(ivl_expr_t expr)
+static int fixed_array_open_actual_(ivl_signal_t port, ivl_expr_t expr)
 {
-      return expr
-	  && (ivl_expr_type(expr) == IVL_EX_ARRAY
-	      || vvp_expr_is_whole_fixed_array_property(expr));
+      return port && ivl_scope_is_dpi_import(ivl_signal_scope(port))
+	  && vvp_expr_is_fixed_uarray_value(expr);
 }
 
 static void draw_send_function_argument(ivl_signal_t port, ivl_expr_t actual)
@@ -216,6 +221,9 @@ static void draw_send_function_argument(ivl_signal_t port, ivl_expr_t actual)
 	 * default here because the ordinary argument stack has no copy-in value. */
       if (function_port_is_container_output_(port)) {
 	    ivl_type_t port_type = ivl_signal_net_type(port);
+
+	    if (ivl_signal_dimensions(port) > 0)
+		  return;
 
 	    if (!ivl_scope_is_auto(ivl_signal_scope(port)))
 		  return;
@@ -309,7 +317,7 @@ static void draw_send_function_argument(ivl_signal_t port, ivl_expr_t actual)
 		 passes return early on IVL_SIP_REF. */
 	    fprintf(vvp_out, "    %%dup/obj; pass by value (IEEE 13.5.1)\n");
 	    fprintf(vvp_out, "    %%store/obj%s v%p_0;\n",
-		    fixed_array_open_actual_(actual) ? "/open" : "", port);
+		    fixed_array_open_actual_(port, actual) ? "/open" : "", port);
 	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	    break;
 	  case IVL_VT_QUEUE:
@@ -383,6 +391,37 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 
       if (port_is_unsupported_aggregate_formal_(port))
 	    return;
+
+	/* A direct fixed-array slice actual retains its backing signal and
+	   canonical storage window in IVL_EX_ARRAY_SLICE. Materialize the formal
+	   value, then atomically copy exactly that window back in the actual's
+	   selected direction. Active DPI open-array objects are already in
+	   numeric-canonical order; passive native values remain left-to-right. */
+      if (ivl_expr_type(actual) == IVL_EX_ARRAY_SLICE) {
+	    ivl_signal_t asig = ivl_expr_signal(actual);
+	    unsigned akind;
+	    if (!asig || !uarray_container_kind_(
+		  asig, &akind, ivl_expr_file(actual), ivl_expr_lineno(actual)))
+		  return;
+
+	    if (ivl_signal_dimensions(port) > 0) {
+		  unsigned pkind;
+		  if (!uarray_container_kind_(port, &pkind,
+			ivl_expr_file(actual), ivl_expr_lineno(actual)))
+			return;
+		  emit_load_arr_dar_(port, pkind);
+	    } else {
+		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+	    }
+
+	    emit_store_arr_dar_slice_(
+		  asig, akind,
+		  (unsigned)ivl_expr_array_slice_base(actual),
+		  (unsigned)ivl_expr_array_slice_count(actual),
+		  (int)ivl_expr_array_slice_left(actual),
+		  (int)ivl_expr_array_slice_right(actual));
+	    return;
+      }
 
 	/* Whole fixed-array output/inout copy-back. Both sides use inline
 	   word storage, so marshal the formal through the same temporary
@@ -654,6 +693,25 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 		  }
 		  draw_eval_object(base_expr);
 	    }
+
+	    if (fixed_array_property) {
+		  if (ivl_signal_dimensions(port) > 0) {
+			unsigned kind;
+			if (!uarray_container_kind_(port, &kind,
+			      ivl_expr_file(actual), ivl_expr_lineno(actual))) {
+			      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+			      return;
+			}
+			emit_load_arr_dar_(port, kind);
+		  } else {
+			fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+			draw_copy_out_container_value_(port, actual);
+		  }
+		  fprintf(vvp_out, "    %%store/prop/arr/dar %d;\n", pidx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  return;
+	    }
+
 	    switch (dtype) {
 		case IVL_VT_BOOL:
 		case IVL_VT_LOGIC:
@@ -673,13 +731,6 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 		  break;
 	    case IVL_VT_DARRAY:
-		  if (fixed_array_property) {
-			fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
-			fprintf(vvp_out,
-				"    %%store/prop/arr/dar %d;\n", pidx);
-			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
-			break;
-		  }
 		  /* fall through */
 	    case IVL_VT_CLASS:
 	    case IVL_VT_QUEUE:
@@ -1305,11 +1356,11 @@ void draw_ufunc_uarray(ivl_expr_t expr, ivl_signal_t dst_sig,
 }
 
 /*
- * Call a function whose result is a one-dimensional fixed unpacked array
- * and materialize that result as dynamic-array storage on the object stack.
- * Array methods on arbitrary expressions use this form: the function's
- * automatic frame must remain live until %load/arr/dar has copied all return
- * words, so the ordinary object-return path cannot be used.
+ * Call a function whose result is a fixed unpacked array and materialize
+ * that result as dynamic-array storage on the object stack. Array methods on
+ * arbitrary expressions and DPI open-array actuals use this form: the
+ * function's automatic frame must remain live until the flat return storage
+ * has been copied, so the ordinary object-return path cannot be used.
  */
 void draw_ufunc_uarray_object(ivl_expr_t expr, int as_queue,
 			      unsigned queue_max_size)
@@ -1327,16 +1378,6 @@ void draw_ufunc_uarray_object(ivl_expr_t expr, int as_queue,
       assert(ivl_signal_dimensions(retval) > 0);
 
       draw_ufunc_preamble(expr);
-
-      if (ivl_signal_dimensions(retval) != 1) {
-	    fprintf(stderr, "%s:%u: sorry: an unpacked-array function result "
-		    "used as an object must be one-dimensional\n",
-		    ivl_expr_file(expr), ivl_expr_lineno(expr));
-	    vvp_errors += 1;
-	    fprintf(vvp_out, "    %%null; ; multidimensional ufunc array\n");
-	    draw_ufunc_epilogue(expr);
-	    return;
-      }
 
       switch (dt) {
 	  case IVL_VT_REAL:
@@ -1387,6 +1428,21 @@ void draw_ufunc_uarray_object(ivl_expr_t expr, int as_queue,
 	 * ordinary %store/qobj copy path. Ask the marshaller for a real queue
 	 * object so later queue-only mutations remain valid. Other object
 	 * contexts intentionally retain dynamic-array storage. */
+      if (ivl_signal_dimensions(retval) > 1) {
+	    if (as_queue) {
+		  fprintf(stderr, "%s:%u: sorry: a multidimensional fixed-array "
+			  "function result cannot yet be materialized as a queue\n",
+			  ivl_expr_file(expr), ivl_expr_lineno(expr));
+		  vvp_errors += 1;
+		  fprintf(vvp_out,
+			  "    %%null; ; multidimensional ufunc queue\n");
+	    } else {
+		  emit_load_arr_dar_(retval, kind);
+	    }
+	    draw_ufunc_epilogue(expr);
+	    return;
+      }
+
       if (as_queue)
 	    kind |= VVP_ARRDAR_QUEUE;
 
