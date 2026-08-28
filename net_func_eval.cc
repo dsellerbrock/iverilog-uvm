@@ -1508,7 +1508,7 @@ NetExpr* NetESFunc::evaluate_function(const LineInfo&loc,
 	    if (const NetEConst*arg_const = dynamic_cast<const NetEConst*>(arg)) {
 		  const verinum&value = arg_const->value();
 		  if (value.is_string())
-			len = static_cast<long>(value.as_string().size());
+			len = static_cast<long>(value.as_raw_string().size());
 	    }
 	    delete arg;
 	    NetEConst*res = new NetEConst(verinum(verinum(len), integer_width));

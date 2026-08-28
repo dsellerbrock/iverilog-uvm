@@ -29,31 +29,38 @@ static void fallback_eval(ivl_expr_t expr)
 
 static void string_ex_concat(ivl_expr_t expr)
 {
-      unsigned repeat;
+      unsigned repeat = ivl_expr_repeat(expr);
+      unsigned idx;
 
       assert(ivl_expr_parms(expr) != 0);
-      assert(ivl_expr_repeat(expr) != 0);
 
-	/* Push the first string onto the stack, no matter what. */
+	/* IEEE 1800-2017/2023 11.4.12.1 evaluates each operand exactly
+	 * once, then replicates the completed unit string. The old nested
+	 * repeat loop re-evaluated calls and other side-effecting operands
+	 * once per copy. */
       draw_eval_string(ivl_expr_parm(expr,0));
 
-      for (repeat = 0 ; repeat < ivl_expr_repeat(expr) ; repeat += 1) {
-	    unsigned idx;
-	    for (idx = (repeat==0)? 1 : 0 ; idx < ivl_expr_parms(expr) ; idx += 1) {
-		  ivl_expr_t sub = ivl_expr_parm(expr,idx);
+      for (idx = 1 ; idx < ivl_expr_parms(expr) ; idx += 1) {
+	    ivl_expr_t sub = ivl_expr_parm(expr,idx);
 
-		    /* Special case: If operand is a string literal,
-		       then concat it using the %concati/str
-		       instruction. */
-		  if (ivl_expr_type(sub) == IVL_EX_STRING) {
-			fprintf(vvp_out, "    %%concati/str \"%s\";\n",
-				ivl_expr_string(sub));
-			continue;
-		  }
-
-		  draw_eval_string(sub);
-		  fprintf(vvp_out, "    %%concat/str;\n");
+	      /* Special case: If operand is a string literal,
+	         then concat it using the %concati/str instruction. */
+	    if (ivl_expr_type(sub) == IVL_EX_STRING) {
+		  fprintf(vvp_out, "    %%concati/str \"%s\";\n",
+			  ivl_expr_string(sub));
+		  continue;
 	    }
+
+	    draw_eval_string(sub);
+	    fprintf(vvp_out, "    %%concat/str;\n");
+      }
+
+      if (repeat != 1) {
+	    int repeat_ix = allocate_word();
+	    fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32;\n", repeat);
+	    fprintf(vvp_out, "    %%ix/vec4 %d;\n", repeat_ix);
+	    fprintf(vvp_out, "    %%rep/str/u %d;\n", repeat_ix);
+	    clr_word(repeat_ix);
       }
 }
 
@@ -178,6 +185,18 @@ static void string_ex_signal(ivl_expr_t expr)
 
 static void string_ex_select(ivl_expr_t expr)
 {
+	/* An integral select can reach this evaluator through an explicit
+	 * string cast, or through the narrow string-byte-select concatenation
+	 * compatibility path. Evaluate the selected vector exactly once and
+	 * convert its bytes; treating every non-container select as an
+	 * unsupported string container silently produced the empty string. */
+      if (ivl_expr_value(expr) == IVL_VT_BOOL
+	  || ivl_expr_value(expr) == IVL_VT_LOGIC) {
+	    draw_eval_vec4(expr);
+	    fprintf(vvp_out, "    %%pushv/str; Cast selected BOOL/LOGIC to string\n");
+	    return;
+      }
+
 	/* The sube references the expression to be selected from. */
       ivl_expr_t sube = ivl_expr_oper1(expr);
 	/* This is the select expression */
@@ -549,12 +568,20 @@ void draw_eval_string(ivl_expr_t expr)
 	    }
 	    else if (strcmp(ivl_expr_name(expr), "$ivl_string$repeat") == 0) {
 		  /* Phase 63b/string-replicate: parm0=unit string,
-		     parm1=count vec4.  Build unit string, push count
-		     to ix4, emit %rep/str. */
+		     parm1=count vec4. Build the unit string, preserve every
+		     caller-owned index register while evaluating the count, and
+		     retain the count's declared signedness in the repetition
+		     opcode. */
+		  int repeat_ix = allocate_word();
 		  draw_eval_string(ivl_expr_parm(expr, 0));
 		  draw_eval_vec4(ivl_expr_parm(expr, 1));
-		  fprintf(vvp_out, "    %%ix/vec4 4;\n");
-		  fprintf(vvp_out, "    %%rep/str 4;\n");
+		  fprintf(vvp_out, ivl_expr_signed(ivl_expr_parm(expr, 1))
+			? "    %%ix/vec4/s %d;\n" : "    %%ix/vec4 %d;\n",
+			repeat_ix);
+		  fprintf(vvp_out, ivl_expr_signed(ivl_expr_parm(expr, 1))
+			? "    %%rep/str/s %d;\n" : "    %%rep/str/u %d;\n",
+			repeat_ix);
+		  clr_word(repeat_ix);
 	    }
 	    else
 		  draw_sfunc_string(expr);

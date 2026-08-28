@@ -1,0 +1,28 @@
+ivltests/sv_typed_string_method_arity_fail.v:11: error: String method `len' requires 0 arguments, got 1.
+ivltests/sv_typed_string_method_arity_fail.v:12: error: String method `atoi' requires 0 arguments, got 1.
+ivltests/sv_typed_string_method_arity_fail.v:13: error: String method `atoreal' requires 0 arguments, got 1.
+ivltests/sv_typed_string_method_arity_fail.v:14: error: String method `atohex' requires 0 arguments, got 1.
+ivltests/sv_typed_string_method_arity_fail.v:15: error: String method `atobin' requires 0 arguments, got 1.
+ivltests/sv_typed_string_method_arity_fail.v:16: error: String method `atooct' requires 0 arguments, got 1.
+ivltests/sv_typed_string_method_arity_fail.v:17: error: String method `toupper' requires 0 arguments, got 1.
+ivltests/sv_typed_string_method_arity_fail.v:18: error: String method `tolower' requires 0 arguments, got 1.
+ivltests/sv_typed_string_method_arity_fail.v:19: error: String method `substr' requires 2 arguments, got 1.
+ivltests/sv_typed_string_method_arity_fail.v:20: error: String method `compare' requires 1 argument, got 0.
+ivltests/sv_typed_string_method_arity_fail.v:21: error: String method `icompare' requires 1 argument, got 0.
+ivltests/sv_typed_string_method_arity_fail.v:22: error: String method `getc' requires 1 argument, got 0.
+ivltests/sv_typed_string_method_arity_fail.v:23: error: String method `len' requires 0 arguments, got 1.
+ivltests/sv_typed_string_method_arity_fail.v:24: error: String method `atoi' requires 0 arguments, got 1.
+ivltests/sv_typed_string_method_arity_fail.v:25: error: String method `atoreal' requires 0 arguments, got 1.
+ivltests/sv_typed_string_method_arity_fail.v:26: error: String method `atohex' requires 0 arguments, got 1.
+ivltests/sv_typed_string_method_arity_fail.v:27: error: String method `atobin' requires 0 arguments, got 1.
+ivltests/sv_typed_string_method_arity_fail.v:28: error: String method `atooct' requires 0 arguments, got 1.
+ivltests/sv_typed_string_method_arity_fail.v:29: error: String method `toupper' requires 0 arguments, got 1.
+ivltests/sv_typed_string_method_arity_fail.v:30: error: String method `tolower' requires 0 arguments, got 1.
+ivltests/sv_typed_string_method_arity_fail.v:31: error: String method `substr' requires 2 arguments, got 1.
+ivltests/sv_typed_string_method_arity_fail.v:32: error: String method `compare' requires 1 argument, got 0.
+ivltests/sv_typed_string_method_arity_fail.v:33: error: String method `icompare' requires 1 argument, got 0.
+ivltests/sv_typed_string_method_arity_fail.v:34: error: String method `getc' requires 1 argument, got 0.
+ivltests/sv_typed_string_method_arity_fail.v:35: error: No argument called `wrong`.
+ivltests/sv_typed_string_method_arity_fail.v:36: error: No argument called `wrong`.
+ivltests/sv_typed_string_method_arity_fail.v:37: error: No argument called `wrong`.
+27 error(s) during elaboration.

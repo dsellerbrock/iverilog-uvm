@@ -1,0 +1,2 @@
+./ivltests/sv_typed_string_concat_type_parameter_fail.v:7: error: String concatenation operand 2 must be a string literal or an expression of string type: value
+1 error(s) during elaboration.

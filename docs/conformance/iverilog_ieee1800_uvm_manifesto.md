@@ -134,6 +134,47 @@ Required work:
 - preserve specialization through variables, properties, locals, formals, returns, and containers;
 - make unsupported semantic shapes explicit.
 
+The 2026-08-27 typed-string audit is a concrete checkpoint for this program:
+the destination string type now reaches concatenation elaboration, width probes
+retain string-method and scoped-function return types, constant folding keeps
+string identity, and VVP performs the selected integral-to-string conversion
+instead of reconstructing intent from vector bits. Operator legality is checked
+where the concatenation is formed, including beneath a conditional or whole
+string cast. Nested run-time literal replication keeps string type through
+direct targets, whole string casts, and comparisons, rejects integral targets,
+and gives zero/nonzero repeats the same once-only operand evaluation. String
+methods on data objects and constant parameters carry their exact result
+types, enforce arity before lowering, accept a nested-concatenation receiver,
+and reject a selected byte as a string-method receiver. Review hardening also
+removes the arbitrary repeat cutoff from new typed VVP images, preserves the
+legacy unsuffixed opcode for old-image compatibility, preserves multiplier
+signedness into the runtime index, diagnoses invalid runtime counts, and keeps
+empty/nonprinting/backslash/quote constant-parameter data as semantic bytes.
+Constant parameter receivers accept runtime method arguments, comparisons fold
+symmetrically, and repetition cannot overwrite a caller-owned VVP index word.
+Generic parameterized-class bodies retain parse-form declared-type provenance:
+a direct formal/local/property tied to an unresolved type parameter defers the
+concat legality decision, while every concrete specialization is checked.
+The permanent positive covers string formal/property bindings and the paired
+negative retains the integer-binding error.
+The legal 1,048,576-byte repeat, error paths, and textual bytecode compatibility
+contract are permanent regressions.
+Direct `string[index]` concatenation and the literal-only `br_gh800` spelling
+remain narrow, documented compatibility extensions rather than general
+integral acceptance or IEEE claims. Final validation passes 23/23 focused
+legacy, 24/24 focused JSON/VVP, 2,083/2,083 full legacy, 1,161 full JSON/VVP
+entries with 0 failures (1,144 executed/pass plus 17 NI), 136/136 negatives,
+103/103 VPI, 6/6 textual VVP compatibility, and 354/354 canonical real-DPI
+UVM with 0 failures or skips.
+Bounded residuals are recorded instead of hidden: fixed-size unpacked-array
+string-element method value propagation, argument-type enforcement such as
+`s.compare(65)`, reverse mixed comparison, and class-scoped no-parentheses
+constant-call legality. Earlier same-branch authentic OpenTitan
+Darjeeling/Earlgrey replays, before final generic-class deferral hardening, move
+their former internal typed-expression counts from 10/18 to 0/0, but both tops
+still fail later; the final narrow change has not been replayed across those
+tops, so this evidence does not promote either clause to complete.
+
 Do not attempt an all-at-once rewrite.
 
 ### Scheduler remediation

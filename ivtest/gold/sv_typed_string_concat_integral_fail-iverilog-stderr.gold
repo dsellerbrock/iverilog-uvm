@@ -1,0 +1,2 @@
+ivltests/sv_typed_string_concat_integral_fail.v:5: error: An integral concatenation cannot be implicitly converted to string; use an explicit string cast.
+1 error(s) during elaboration.

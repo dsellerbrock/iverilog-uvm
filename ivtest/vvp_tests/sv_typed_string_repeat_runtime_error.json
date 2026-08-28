@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_typed_string_repeat_runtime_error.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_typed_string_repeat_runtime_error",
+    "vlog95"        : { "type" : "NI" }
+}

@@ -479,6 +479,7 @@ void PEConcat::reloc_lexical_pos_bind(bool parameter_context)
 PEConcat::~PEConcat()
 {
       delete repeat_;
+      delete runtime_repeat_;
 }
 
 void PEConcat::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)

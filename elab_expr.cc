@@ -24,6 +24,7 @@
 # include  <cstdlib>
 # include  <cstring>
 # include  <cctype>
+# include  <cstdint>
 # include  <climits>
 # include  <functional>
 # include  <iterator>
@@ -2877,7 +2878,8 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
 						   const pform_scoped_name_t&path,
 						   const parmvalue_t*leading_type_args = 0,
 						   bool*illegal_bare_generic = 0,
-						   perm_string*nonclass_typedef = 0)
+						   perm_string*nonclass_typedef = 0,
+						   bool declaration_probe = false)
 {
       static int trace_class_method = -1;
       auto scope_text = [](const NetScope*use_scope) -> std::string {
@@ -2945,10 +2947,10 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
             }
 	    if (!class_type)
 		  return nullptr;
-	    if (first_comp && leading_type_args) {
-		  NetScope*spec_scope = comp_scope;
+	    if (first_comp && leading_type_args && !declaration_probe) {
+		  NetScope*spec_scope = scope;
 		  // Keep the current lexical scope so block-local typedefs used in
-		  // type arguments remain visible during specialization.
+		  // type/value arguments remain visible during specialization.
 		  class_type = elaborate_specialized_class_type(des, spec_scope,
 						       class_type,
 						       leading_type_args,
@@ -2958,7 +2960,8 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
 		  if (const netclass_t*current_class =
 			scoped_class_current_specialization_(scope, class_type)) {
 			class_type = current_class;
-		  } else if (scoped_class_is_unspecialized_parameterized_(
+		  } else if (!declaration_probe
+			     && scoped_class_is_unspecialized_parameterized_(
 				   class_type)) {
 			if (illegal_bare_generic)
 			      *illegal_bare_generic = true;
@@ -3076,7 +3079,13 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 	    typed_elab = true;
 	    break;
 	  case IVL_VT_REAL:
+	    break;
 	  case IVL_VT_STRING:
+	      /* A concatenation needs the complete string target type so its
+	       * operands can be checked against Table 6-9. Keep other string
+	       * expressions on the established width-based path. */
+	    if (dynamic_cast<PEConcat*>(expr) || dynamic_cast<PETernary*>(expr))
+		  typed_elab = true;
 	    break;
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:
@@ -3127,6 +3136,23 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
       }
       if (rval == 0)
 	    return 0;
+
+	/* A nonconstant replication of string data is intrinsically string,
+	 * even when all of its operands are literals (Table 6-9). A string
+	 * expression is not implicitly assignment-compatible with an integral
+	 * target; only a string literal has that exception. Keep the check
+	 * source-shaped to concatenations so unrelated legacy string coercions
+	 * are not changed by this clause-focused repair. */
+      if (type_is_vectorable(lv_type)
+	  && dynamic_cast<PEConcat*>(expr)
+	  && expr->expr_type() == IVL_VT_STRING) {
+	    cerr << expr->get_fileline() << ": error: A string concatenation or "
+		 << "replication cannot be assigned to an integral target without "
+		 << "an explicit cast." << endl;
+	    des->errors += 1;
+	    delete rval;
+	    return 0;
+      }
 
 	/* M10-1c: a WHOLE unpacked array is not assignment-compatible with a
 	   single class handle (IEEE 1800-2017 7.4/8.3):
@@ -5031,16 +5057,54 @@ unsigned PEBComp::test_width(Design*des, NetScope*scope, width_mode_t&)
         // affect each other, but not the result.
       width_mode_t mode = SIZED;
 
-      unsigned r_width = right_->test_width(des, scope, mode);
+      PEConcat*l_concat = dynamic_cast<PEConcat*>(left_);
+      PEConcat*r_concat = dynamic_cast<PEConcat*>(right_);
+      unsigned l_width;
+      unsigned r_width;
 
-      width_mode_t saved_mode = mode;
-
-      unsigned l_width = left_->test_width(des, scope, mode);
-
-        // If the width mode changed, retest the right operand, as it
-        // may choose a different width if it is in a lossless context.
-      if ((mode >= LOSSLESS) && (saved_mode < LOSSLESS))
+      if (r_concat && !l_concat) {
+	      /* An all-literal concatenation used in a comparison against a
+	       * string expression is implicitly converted to string (Table
+	       * 6-9). Probe the non-concatenation operand first so a runtime
+	       * string replication is not prematurely required to be constant. */
+	    l_width = left_->test_width(des, scope, mode);
+	    width_mode_t saved_mode = mode;
+	    if (left_->expr_type() == IVL_VT_STRING)
+		  r_width = r_concat->test_width_string_context(des, scope, mode);
+	    else
+		  r_width = right_->test_width(des, scope, mode);
+	    if ((mode >= LOSSLESS) && (saved_mode < LOSSLESS))
+		  l_width = left_->test_width(des, scope, mode);
+      } else {
 	    r_width = right_->test_width(des, scope, mode);
+	    width_mode_t saved_mode = mode;
+	    if (l_concat && right_->expr_type() == IVL_VT_STRING)
+		  l_width = l_concat->test_width_string_context(des, scope, mode);
+	    else
+		  l_width = left_->test_width(des, scope, mode);
+
+          // If the width mode changed, retest the right operand, as it
+          // may choose a different width if it is in a lossless context.
+	    if ((mode >= LOSSLESS) && (saved_mode < LOSSLESS)) {
+		  if (r_concat && left_->expr_type() == IVL_VT_STRING)
+			r_width = r_concat->test_width_string_context(
+			      des, scope, mode);
+		  else
+			r_width = right_->test_width(des, scope, mode);
+	    }
+      }
+
+	/* When both operands are concatenations, the ordinary probe above has
+	 * to choose one side first. If that side is the literal-only operand, it
+	 * remains integral until the other side reveals the string context. Make
+	 * the contextual conversion symmetric after both types are known; the
+	 * source order of equivalent comparisons must not change their meaning. */
+      if (l_concat && right_->expr_type() == IVL_VT_STRING
+	  && left_->expr_type() != IVL_VT_STRING)
+	    l_width = l_concat->test_width_string_context(des, scope, mode);
+      if (r_concat && left_->expr_type() == IVL_VT_STRING
+	  && right_->expr_type() != IVL_VT_STRING)
+	    r_width = r_concat->test_width_string_context(des, scope, mode);
 
       ivl_variable_type_t l_type =  left_->expr_type();
       ivl_variable_type_t r_type = right_->expr_type();
@@ -7655,6 +7719,80 @@ static bool is_deferred_type_parameter_expr_receiver_(
       return class_type_parameter_is_deferred(des, class_scope, parameter_name);
 }
 
+/* Return true only when DECLARED_TYPE names a type parameter whose concrete
+ * binding is deliberately unavailable in the current generic/forwarded class
+ * body. The resolved ivl_type_t cannot answer this: generic elaboration has
+ * already collapsed it to the parameter's fallback/default type. */
+static bool is_deferred_class_type_parameter_declared_type_(
+	Design*des, NetScope*scope, const data_type_t*declared_type)
+{
+      const NetScope*class_scope = scope ? scope->get_class_scope() : 0;
+      if (!class_scope || !declared_type)
+	    return false;
+
+      perm_string parameter_name;
+      return find_class_type_parameter_reference(
+		  class_scope, declared_type, parameter_name)
+	    && class_type_parameter_is_deferred(
+		  des, class_scope, parameter_name);
+}
+
+/* A concat operand can be a formal/local or an implicit-this property whose
+ * declared type is a class type parameter. Preserve that parse-form
+ * provenance so the generic template pass does not reject a use that a
+ * concrete specialization may make string-typed. Concrete specializations
+ * still take the ordinary legality path and therefore reject integral
+ * bindings normally. */
+static bool is_deferred_type_parameter_concat_operand_(
+	Design*des, NetScope*scope, const PExpr*operand)
+{
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(operand);
+      if (!ident || !scope)
+	    return false;
+
+      const pform_scoped_name_t&path = ident->path();
+      if (path.package || path.name.empty())
+	    return false;
+
+      symbol_search_results sr;
+      symbol_search(ident, des, scope, path, ident->lexical_pos(), &sr);
+      if (sr.scope_index_error)
+	    return false;
+
+      /* A formal/local shadows a same-named class property. Recognize the
+	 * exact root signal first and do not fall through to the property table
+	 * when its declared type is concrete. */
+      const name_component_t&root = path.name.front();
+      if (sr.net && sr.net->name() == root.name && sr.net->scope()) {
+	    PWire*wire = sr.net->scope()->find_signal_placeholder(sr.net->name());
+	    return wire && is_deferred_class_type_parameter_declared_type_(
+		  des, scope, wire->data_type());
+      }
+
+      perm_string property_name;
+      if (path.name.size() == 1) {
+	    property_name = root.name;
+      } else if (path.name.size() == 2
+		 && root.name == perm_string::literal("this")
+		 && root.index.empty()) {
+	    property_name = path.name.back().name;
+      } else {
+	    return false;
+      }
+
+      const NetScope*class_scope = scope->get_class_scope();
+      const PClass*pclass = class_scope ? class_scope->class_pform() : 0;
+      if (!pclass || !pclass->type)
+	    return false;
+
+      std::map<perm_string,class_type_t::prop_info_t>::const_iterator prop =
+	    pclass->type->properties.find(property_name);
+      return prop != pclass->type->properties.end()
+	    && prop->second.type
+	    && is_deferred_class_type_parameter_declared_type_(
+		  des, scope, prop->second.type.get());
+}
+
 /* Preserve real dispatch when the type parameter's current/default value is
  * itself a valid receiver. Defer only when the generic or partial-specialized
  * body demonstrably cannot resolve the call. */
@@ -8147,6 +8285,59 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  signed_flag_= false;
 		  return expr_width_;
 	    }
+      }
+
+      // Built-in string method result types (IEEE 1800-2017 6.16). The
+      // expression elaborator already implements these methods, but width
+      // probing used to fall through with an unknown type. That made a
+      // string-returning call such as s.substr(i,j) look integral to any
+      // enclosing expression.
+      if (target_type && dynamic_cast<const netstring_t*>(target_type)) {
+	    if (method_name == "substr" || method_name == "toupper"
+		|| method_name == "tolower") {
+		  expr_type_ = IVL_VT_STRING;
+		  expr_width_ = 1;
+		  min_width_ = 1;
+		  signed_flag_ = false;
+		  return expr_width_;
+	    }
+	    if (method_name == "atoreal") {
+		  expr_type_ = IVL_VT_REAL;
+		  expr_width_ = 1;
+		  min_width_ = 1;
+		  signed_flag_ = true;
+		  return expr_width_;
+	    }
+	    if (method_name == "len") {
+		  expr_type_ = IVL_VT_BOOL;
+		  expr_width_ = 32;
+		  min_width_ = 32;
+		  signed_flag_ = true;
+		  return expr_width_;
+	    }
+	    if (method_name == "atoi" || method_name == "atohex"
+		|| method_name == "atobin" || method_name == "atooct") {
+		  expr_type_ = IVL_VT_LOGIC;
+		  expr_width_ = integer_width;
+		  min_width_ = integer_width;
+		  signed_flag_ = true;
+		  return expr_width_;
+	    }
+	    if (method_name == "compare" || method_name == "icompare") {
+		  expr_type_ = IVL_VT_BOOL;
+		  expr_width_ = 32;
+		  min_width_ = 32;
+		  signed_flag_ = true;
+		  return expr_width_;
+	    }
+	    if (method_name == "getc") {
+		  expr_type_ = IVL_VT_BOOL;
+		  expr_width_ = 8;
+		  min_width_ = 8;
+		  signed_flag_ = true;
+		  return expr_width_;
+	    }
+	    return 0;
       }
 
       // Queue variable without a select expression. The method applies to the
@@ -14229,6 +14420,18 @@ NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 {
       const netdarray_t*darray = dynamic_cast<const netdarray_t*>(type);
       unsigned int width = 1;
+	/* String system functions use a zero packed width to mean a value on the
+	 * VVP string stack. The historical typed fallback's arbitrary width of one
+	 * wrapped $sformatf in a one-bit NetESelect; string lowering cannot select
+	 * from that object and substituted "". Discover and preserve the call's
+	 * self-determined width before elaborating it in a string target context. */
+      if (type && type->base_type() == IVL_VT_STRING) {
+	    width_mode_t mode = SIZED;
+	    unsigned error_count = des->errors;
+	    width = const_cast<PECallFunction*>(this)->test_width(des, scope, mode);
+	    if (des->errors != error_count)
+		  return nullptr;
+      }
         // Icarus allows a dynamic array to be initialised with a single
         // elementary value, in that case the expression needs to be evaluated
         // with the rigth width.
@@ -14638,6 +14841,20 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		       << "search_results.type: " << *search_results.type << endl;
       }
 
+	/* Indexing a string yields byte, not another string object. Do not let a
+	 * method on a selected character silently dispatch on the unselected
+	 * parameter value. */
+      if (search_results.par_val && search_results.type
+	  && dynamic_cast<const netstring_t*>(search_results.type)
+	  && !search_results.path_head.empty()
+	  && !search_results.path_head.back().index.empty()) {
+	    cerr << get_fileline() << ": error: A selected string character has "
+		 << "byte type and cannot be the receiver of a string method."
+		 << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
       if (search_results.par_val && search_results.type) {
 	    return elaborate_expr_method_par_(des, scope, search_results);
       }
@@ -14647,6 +14864,10 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
       bool target_indexed = search_results.net
 			  && !search_results.path_head.empty()
 			  && !search_results.path_head.back().index.empty();
+      bool selected_string_byte = search_results.net
+	    && search_results.net->data_type() == IVL_VT_STRING
+	    && search_results.net->unpacked_dimensions() == 0
+	    && target_indexed;
 
 	// IEEE 1800-2017 7.12.4: the call form of the iterator index
 	// query (`item.index()`, optional dimension defaulting to 1).
@@ -14899,6 +15120,9 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 				      return 0;
 
 				ivl_type_t member_type = member->net_type;
+				if (dynamic_cast<const netstring_t*>(member_type)
+				    && !prop_comp.index.empty())
+				      selected_string_byte = true;
 				active_modport = member->interface_modport;
 				if (struct_type->packed()) {
 				      unsigned long member_width = member_type->packed_width();
@@ -14930,6 +15154,11 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 				class_type, prop_comp.name);
 		    int pidx = ensure_class_property_idx_(
 			  des, class_type, prop_comp.name);
+		    if (pidx >= 0
+			&& dynamic_cast<const netstring_t*>(
+			      class_type->get_prop_type(pidx))
+			&& !prop_comp.index.empty())
+			  selected_string_byte = true;
 		    perm_string next_modport = pidx >= 0
 			  ? class_type->get_prop_interface_modport(pidx)
 			  : perm_string();
@@ -15029,6 +15258,15 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		  stub->mark_deferred_type_parameter_stub();
 	    delete sub_expr;
 	    return stub;
+      }
+
+      if (selected_string_byte) {
+	    cerr << get_fileline() << ": error: A selected string character has "
+		 << "byte type and cannot be the receiver of string method `"
+		 << method_name << "'." << endl;
+	    des->errors += 1;
+	    delete sub_expr;
+	    return 0;
       }
 
       return elaborate_method_dispatch_(des, scope, sub_expr, target_type,
@@ -15625,10 +15863,14 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 
       // String methods.
       if (sub_expr->expr_type()==IVL_VT_STRING) {
+	    if (!check_string_method_arity_(des, method_name)) {
+		  delete sub_expr;
+		  return 0;
+	    }
 
 	    if (method_name == "len") {
 		  NetESFunc*sys_expr = new NetESFunc("$ivl_string_method$len",
-						     &netvector_t::atom2u32, 1);
+						     &netvector_t::atom2s32, 1);
 		  sys_expr->parm(0, sub_expr);
 		  return sys_expr;
 	    }
@@ -15669,16 +15911,16 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 	    }
 
 	    if (method_name == "substr") {
-		  if (parms_.size() != 2)
-			cerr << get_fileline() << ": error: Method `substr()`"
-			     << " requires 2 arguments, got " << parms_.size()
-			     << "." << endl;
-
 		  static const std::vector<perm_string> parm_names = {
 			perm_string::literal("i"),
 			perm_string::literal("j")
 		  };
+		  unsigned errors_before = des->errors;
 		  auto args = map_named_args(des, parm_names, parms_);
+		  if (des->errors != errors_before || !args[0] || !args[1]) {
+			delete sub_expr;
+			return 0;
+		  }
 
 		  NetESFunc*sys_expr = new NetESFunc("$ivl_string_method$substr",
 						     &netstring_t::type_string, 3);
@@ -15692,7 +15934,7 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 			      continue;
 
 			auto expr = elaborate_rval_expr(des, scope,
-						        &netvector_t::atom2u32,
+						        &netvector_t::atom2s32,
 						        args[i], false);
 			sys_expr->parm(i + 1, expr);
 		  }
@@ -15707,19 +15949,20 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		  static const std::vector<perm_string> cmp_parm_names = {
 			perm_string::literal("s")
 		  };
+		  unsigned errors_before = des->errors;
 		  auto args = map_named_args(des, cmp_parm_names, parms_);
+		  if (des->errors != errors_before || !args[0]) {
+			delete sub_expr;
+			return 0;
+		  }
 		  NetESFunc*sys_expr = new NetESFunc(sysname,
-						     netvector_t::integer_type(), 2);
+						     &netvector_t::atom2s32, 2);
 		  sys_expr->set_line(*this);
 		  sys_expr->parm(0, sub_expr);
-		  if (args[0]) {
-			NetExpr*s2_e = elaborate_rval_expr(des, scope,
-							   &netstring_t::type_string,
-							   args[0], false);
-			sys_expr->parm(1, s2_e);
-		  } else {
-			sys_expr->parm(1, new NetECString(string()));
-		  }
+		  NetExpr*s2_e = elaborate_rval_expr(des, scope,
+						     &netstring_t::type_string,
+						     args[0], false);
+		  sys_expr->parm(1, s2_e);
 		  return sys_expr;
 	    }
 
@@ -15727,19 +15970,20 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		  static const std::vector<perm_string> getc_parm_names = {
 			perm_string::literal("i")
 		  };
+		  unsigned errors_before = des->errors;
 		  auto args = map_named_args(des, getc_parm_names, parms_);
+		  if (des->errors != errors_before || !args[0]) {
+			delete sub_expr;
+			return 0;
+		  }
 		  NetESFunc*sys_expr = new NetESFunc("$ivl_string_method$getc",
-						     netvector_t::integer_type(), 2);
+						     &netvector_t::atom2s8, 2);
 		  sys_expr->set_line(*this);
 		  sys_expr->parm(0, sub_expr);
-		  if (args[0]) {
-			NetExpr*idx_e = elaborate_rval_expr(des, scope,
-							    &netvector_t::atom2u32,
-							    args[0], false);
-			sys_expr->parm(1, idx_e);
-		  } else {
-			sys_expr->parm(1, make_const_val(0));
-		  }
+		  NetExpr*idx_e = elaborate_rval_expr(des, scope,
+						      &netvector_t::atom2s32,
+						      args[0], false);
+		  sys_expr->parm(1, idx_e);
 		  return sys_expr;
 	    }
 
@@ -15777,13 +16021,71 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
       return 0;
 }
 
+bool PECallFunction::check_string_method_arity_(Design*des,
+					 perm_string method_name) const
+{
+      size_t expected_args = static_cast<size_t>(-1);
+      if (method_name == "len" || method_name == "atoi"
+	  || method_name == "atoreal" || method_name == "atohex"
+	  || method_name == "atobin" || method_name == "atooct"
+	  || method_name == "toupper" || method_name == "tolower")
+	    expected_args = 0;
+      else if (method_name == "compare" || method_name == "icompare"
+	       || method_name == "getc")
+	    expected_args = 1;
+      else if (method_name == "substr")
+	    expected_args = 2;
+
+      if (expected_args == static_cast<size_t>(-1))
+	    return true;
+
+      size_t supplied_args = 0;
+      for (const named_pexpr_t&arg : parms_)
+	    if (arg.parm) supplied_args += 1;
+      if (parms_.size() == expected_args && supplied_args == expected_args)
+	    return true;
+
+      cerr << get_fileline() << ": error: String method `"
+	   << method_name << "' requires " << expected_args
+	   << " argument" << (expected_args == 1 ? "" : "s")
+	   << ", got " << supplied_args << "." << endl;
+      des->errors += 1;
+      return false;
+}
+
 /*
  * Handle parameters differently because some must constant elimination is
  * possible here. We know by definition that the par_val is a constant
  * expression of some sort (it's a parameter value) and most methods are
  * stable in the sense that they generate a constant value for a constant input.
  */
-NetExpr* PECallFunction::elaborate_expr_method_par_(Design*des, const NetScope*scope,
+static int32_t string_method_parse_integer_(const string&text, unsigned base)
+{
+      uint32_t value = 0;
+      bool saw_digit = false;
+      for (unsigned char ch : text) {
+	    if (ch == '_')
+		  continue;
+
+	    unsigned digit;
+	    if (ch >= '0' && ch <= '9')
+		  digit = ch - '0';
+	    else if (ch >= 'a' && ch <= 'f')
+		  digit = ch - 'a' + 10;
+	    else if (ch >= 'A' && ch <= 'F')
+		  digit = ch - 'A' + 10;
+	    else
+		  break;
+
+	    if (digit >= base)
+		  break;
+	    saw_digit = true;
+	    value = value * base + digit;
+      }
+      return saw_digit ? static_cast<int32_t>(value) : 0;
+}
+
+NetExpr* PECallFunction::elaborate_expr_method_par_(Design*des, NetScope*scope,
 						    const symbol_search_results&search_results)
 						    const
 {
@@ -15799,21 +16101,35 @@ NetExpr* PECallFunction::elaborate_expr_method_par_(Design*des, const NetScope*s
       // expression is a constant string, it should be able to calculate the
       // result at compile time.
       if (dynamic_cast<const netstring_t*>(par_type)) {
+	    if (!check_string_method_arity_(des, method_name))
+		  return 0;
 
 	    const NetECString*par_string = dynamic_cast<const NetECString*>(par_val);
 	    ivl_assert(*par_val, par_string);
-	    string par_value = par_string->value().as_string();
+	    string par_value = par_string->value().as_raw_string();
+	    auto make_integral = [&](ivl_type_t result_type,
+				     int64_t value) -> NetEConst* {
+		  unsigned width = result_type->packed_width();
+		  verinum bits(static_cast<uint64_t>(value), width);
+		  bits.has_sign(result_type->get_signed());
+		  NetEConst*res = new NetEConst(result_type, bits);
+		  res->set_line(*this);
+		  return res;
+	    };
+	    auto make_receiver = [&]() -> NetECString* {
+		  NetECString*receiver = new NetECString(par_string->value());
+		  receiver->set_line(*this);
+		  return receiver;
+	    };
 
 	    if (method_name=="len") {
-		  NetEConst*use_val = make_const_val(par_value.size());
-		  use_val->set_line(*this);
-		  return use_val;
+		  return make_integral(&netvector_t::atom2s32,
+				       static_cast<int32_t>(par_value.size()));
 	    }
 
 	    if (method_name == "atoi") {
-		  NetEConst*use_val = make_const_val(atoi(par_value.c_str()));
-		  use_val->set_line(*this);
-		  return use_val;
+		  return make_integral(netvector_t::integer_type(),
+				       string_method_parse_integer_(par_value, 10));
 	    }
 
 	    if (method_name == "atoreal") {
@@ -15823,17 +16139,162 @@ NetExpr* PECallFunction::elaborate_expr_method_par_(Design*des, const NetScope*s
 	    }
 
 	    if (method_name == "atohex") {
-		  NetEConst*use_val = make_const_val(strtoul(par_value.c_str(),0,16));
+		  return make_integral(netvector_t::integer_type(),
+				       string_method_parse_integer_(par_value, 16));
+	    }
+
+	    if (method_name == "atooct") {
+		  return make_integral(netvector_t::integer_type(),
+				       string_method_parse_integer_(par_value, 8));
+	    }
+
+	    if (method_name == "atobin") {
+		  return make_integral(netvector_t::integer_type(),
+				       string_method_parse_integer_(par_value, 2));
+	    }
+
+	    if (method_name == "toupper" || method_name == "tolower") {
+		  string result = par_value;
+		  for (char&ch : result) {
+			unsigned char uch = static_cast<unsigned char>(ch);
+			ch = static_cast<char>(method_name == "toupper"
+			      ? toupper(uch) : tolower(uch));
+		  }
+		  NetECString*use_val = new NetECString(
+			verinum::from_raw_string(result));
 		  use_val->set_line(*this);
 		  return use_val;
 	    }
 
-	    // Returning 0 here will cause the caller to print an error
-	    // message and increment the error count, so there is no need to
-	    // increment des->error_count here.
+	    if (method_name == "compare" || method_name == "icompare") {
+		  static const vector<perm_string> names = {
+			perm_string::literal("s")
+		  };
+		  vector<PExpr*>args = map_named_args(des, names, parms_);
+		  if (!args[0]) return 0;
+		  NetExpr*rhs_expr = elaborate_rval_expr(
+			des, scope, &netstring_t::type_string, args[0], false);
+		  if (!rhs_expr) return 0;
+
+		  const NetEConst*constant =
+			dynamic_cast<const NetEConst*>(rhs_expr);
+		  if (constant && constant->value().is_string()) {
+			string rhs = constant->value().as_raw_string();
+			int result = 0;
+			if (method_name == "compare") {
+			      result = strcmp(par_value.c_str(), rhs.c_str());
+			} else {
+			      size_t idx = 0;
+			      while (idx < par_value.size() && idx < rhs.size()
+				     && tolower(static_cast<unsigned char>(par_value[idx]))
+					== tolower(static_cast<unsigned char>(rhs[idx])))
+				    idx += 1;
+			      unsigned lhs_ch = idx < par_value.size()
+				    ? tolower(static_cast<unsigned char>(par_value[idx])) : 0;
+			      unsigned rhs_ch = idx < rhs.size()
+				    ? tolower(static_cast<unsigned char>(rhs[idx])) : 0;
+			      result = static_cast<int>(lhs_ch)
+				     - static_cast<int>(rhs_ch);
+			}
+			delete rhs_expr;
+			return make_integral(&netvector_t::atom2s32, result);
+		  }
+
+		  const char*sysname = method_name == "compare"
+			? "$ivl_string_method$compare"
+			: "$ivl_string_method$icompare";
+		  NetESFunc*sys_expr = new NetESFunc(
+			sysname, &netvector_t::atom2s32, 2);
+		  sys_expr->set_line(*this);
+		  sys_expr->parm(0, make_receiver());
+		  sys_expr->parm(1, rhs_expr);
+		  return sys_expr;
+	    }
+
+	    if (method_name == "getc") {
+		  static const vector<perm_string> names = {
+			perm_string::literal("i")
+		  };
+		  vector<PExpr*>args = map_named_args(des, names, parms_);
+		  if (!args[0]) return 0;
+		  NetExpr*index_expr = elaborate_rval_expr(
+			des, scope, &netvector_t::atom2s32, args[0], false);
+		  if (!index_expr) return 0;
+
+		  if (const NetEConst*constant =
+			dynamic_cast<const NetEConst*>(index_expr)) {
+			if (constant->value().is_defined()) {
+			      long index = constant->value().as_long();
+			      unsigned value = index >= 0
+				    && static_cast<size_t>(index) < par_value.size()
+				  ? static_cast<unsigned char>(par_value[index]) : 0;
+			      delete index_expr;
+			      return make_integral(&netvector_t::atom2s8, value);
+			}
+		  }
+
+		  NetESFunc*sys_expr = new NetESFunc(
+			"$ivl_string_method$getc", &netvector_t::atom2s8, 2);
+		  sys_expr->set_line(*this);
+		  sys_expr->parm(0, make_receiver());
+		  sys_expr->parm(1, index_expr);
+		  return sys_expr;
+	    }
+
+	    if (method_name == "substr") {
+		  static const vector<perm_string> names = {
+			perm_string::literal("i"), perm_string::literal("j")
+		  };
+		  vector<PExpr*>args = map_named_args(des, names, parms_);
+		  if (!args[0] || !args[1]) return 0;
+		  NetExpr*first_expr = elaborate_rval_expr(
+			des, scope, &netvector_t::atom2s32, args[0], false);
+		  if (!first_expr) return 0;
+		  NetExpr*last_expr = elaborate_rval_expr(
+			des, scope, &netvector_t::atom2s32, args[1], false);
+		  if (!last_expr) {
+			delete first_expr;
+			return 0;
+		  }
+
+		  const NetEConst*first_constant =
+			dynamic_cast<const NetEConst*>(first_expr);
+		  const NetEConst*last_constant =
+			dynamic_cast<const NetEConst*>(last_expr);
+		  if (first_constant && last_constant
+		      && first_constant->value().is_defined()
+		      && last_constant->value().is_defined()) {
+			long first = first_constant->value().as_long();
+			long last = last_constant->value().as_long();
+			string result;
+			if (first >= 0 && last >= first
+			    && static_cast<size_t>(last) < par_value.size())
+			      result = par_value.substr(static_cast<size_t>(first),
+						static_cast<size_t>(last-first+1));
+			delete first_expr;
+			delete last_expr;
+			NetECString*use_val = new NetECString(
+			      verinum::from_raw_string(result));
+			use_val->set_line(*this);
+			return use_val;
+		  }
+
+		  NetESFunc*sys_expr = new NetESFunc(
+			"$ivl_string_method$substr", &netstring_t::type_string, 3);
+		  sys_expr->set_line(*this);
+		  sys_expr->parm(0, make_receiver());
+		  sys_expr->parm(1, first_expr);
+		  sys_expr->parm(2, last_expr);
+		  return sys_expr;
+	    }
+
+	    // This parameter-specialized path owns the diagnostic. Increment the
+	    // design error count here so an unknown method cannot compile with a
+	    // successful status merely because no generic dispatcher is reached.
 	    cerr << get_fileline() << ": error: "
-		 << "Unknown or unsupport string method: " << method_name
+		 << "Unknown or unsupported string method: " << method_name
 		 << endl;
+	    des->errors += 1;
 	    return 0;
       }
 
@@ -15925,7 +16386,14 @@ unsigned PECastType::test_width(Design*des, NetScope*scope, width_mode_t&)
       target_type_ = target_->elaborate_type(des, scope);
 
       width_mode_t tmp_mode = PExpr::SIZED;
-      base_->test_width(des, scope, tmp_mode);
+      if (dynamic_cast<const netstring_t*>(target_type_)) {
+	    if (PEConcat*concat = dynamic_cast<PEConcat*>(base_))
+		  concat->test_width_string_context(des, scope, tmp_mode);
+	    else
+		  base_->test_width(des, scope, tmp_mode);
+      } else {
+	    base_->test_width(des, scope, tmp_mode);
+      }
 
       if (const netdarray_t*use_darray = dynamic_cast<const netdarray_t*>(target_type_)) {
 	    expr_type_  = use_darray->element_base_type();
@@ -15948,6 +16416,16 @@ unsigned PECastType::test_width(Design*des, NetScope*scope, width_mode_t&)
 NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
                                     ivl_type_t type, unsigned flags) const
 {
+    /* The typed entry point is used directly by typed parameters and
+       assignment patterns, without the generic caller's usual test_width
+       pass. Resolve this cast and size its operand before delegating to the
+       width-based implementation. */
+    width_mode_t cast_mode = SIZED;
+    unsigned error_count = des->errors;
+    const_cast<PECastType*>(this)->test_width(des, scope, cast_mode);
+    if (des->errors != error_count)
+          return nullptr;
+
     const netdarray_t*darray = NULL;
     const netvector_t*vector = NULL;
 
@@ -16006,7 +16484,37 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
     }
 
     // Fallback
-    return elaborate_expr(des, scope, (unsigned) 0, flags);
+    NetExpr*result = elaborate_expr(des, scope, (unsigned) 0, flags);
+
+    /* A constant integral-to-string cast must expose a string-typed
+       constant to the typed parameter compatibility check. The ordinary
+       procedural path leaves a nonconstant vector for VVP to convert, but
+       a constant can be normalized completely here (IEEE 1800-2017 6.16). */
+    if (result && (flags & NEED_CONST)
+	&& dynamic_cast<const netstring_t*>(target_type_)
+	&& !dynamic_cast<NetECString*>(result)) {
+	  eval_expr(result, -1);
+	  if (const NetEConst*constant = dynamic_cast<const NetEConst*>(result)) {
+		unsigned source_width = constant->value().len();
+		unsigned string_width = (source_width + 7) & ~7U;
+		verinum value(verinum::V0, string_width, true);
+		for (unsigned idx = 0; idx < source_width; idx += 1)
+		      value.set(idx, constant->value()[idx]);
+
+		string text = value.as_string();
+		const string null_escape = "\\000";
+		for (size_t pos = text.find(null_escape);
+		     pos != string::npos;
+		     pos = text.find(null_escape, pos))
+		      text.erase(pos, null_escape.size());
+
+		NetECString*cast = new NetECString(text);
+		cast->set_line(*result);
+		delete result;
+		result = cast;
+	  }
+    }
+    return result;
 }
 
 NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
@@ -16241,8 +16749,31 @@ NetExpr* PECastSign::elaborate_expr(Design *des, NetScope *scope,
       return cast_to_width(sub, expr_wid, signed_flag_, *this);
 }
 
-unsigned PEConcat::test_width(Design*des, NetScope*scope, width_mode_t&)
+static bool valid_string_concat_operand_(Design*des, NetScope*scope,
+					 const PExpr*operand);
+static bool string_concat_literal_only_(const PExpr*operand,
+					bool&has_string_literal);
+static bool string_concat_contains_string_expr_(const PExpr*operand);
+
+unsigned PEConcat::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 {
+      return test_width_(des, scope, mode, false);
+}
+
+unsigned PEConcat::test_width_string_context(Design*des, NetScope*scope,
+					      width_mode_t&mode)
+{
+      return test_width_(des, scope, mode, true);
+}
+
+unsigned PEConcat::test_width_(Design*des, NetScope*scope, width_mode_t&,
+				       bool string_context)
+{
+      if (string_operand_error_scope_ != scope) {
+	    string_operand_error_reported_ = false;
+	    string_operand_error_scope_ = scope;
+      }
+
       expr_width_ = 0;
       enum {NO, MAYBE, YES} expr_is_string = MAYBE;
       for (unsigned idx = 0 ; idx < parms_.size() ; idx += 1) {
@@ -16253,20 +16784,83 @@ unsigned PEConcat::test_width(Design*des, NetScope*scope, width_mode_t&)
 	    if (expr_is_string == NO)
 		  continue;
 
+	      // If this is a string literal, then this may yet be a string.
+	    if (dynamic_cast<PEString*> (parms_[idx]))
+		  continue;
+
 	      // If this expression is a string, then the
 	      // concatenation is a string until we find a reason to
-	      // deny it.
+	      // deny it. Test literals first: a string literal is an
+	      // integral packed value until a string context converts it
+	      // (IEEE 1800-2017 Table 6-9).
 	    if (parms_[idx]->expr_type()==IVL_VT_STRING) {
 		  expr_is_string = YES;
 		  continue;
 	    }
 
-	      // If this is a string literal, then this may yet be a string.
-	    if (dynamic_cast<PEString*> (parms_[idx]))
-		  continue;
-
 	      // Failed to allow a string result.
 	    expr_is_string = NO;
+      }
+
+      /* Operand legality belongs to the concatenation operator itself, not
+	 only to a direct string assignment. Diagnose a real string expression
+	 mixed with an integral expression here so a ternary or whole-expression
+	 cast cannot hide the invalid operator. String literals are deliberately
+	 excluded from has_string_expr: literal-only concatenations retain their
+	 self-determined integral behavior. */
+      bool has_string_expr = false;
+      const PExpr*bad_string_operand = nullptr;
+      size_t bad_string_operand_idx = 0;
+      for (size_t idx = 0; idx < parms_.size(); idx += 1) {
+	    if (string_concat_contains_string_expr_(parms_[idx]))
+		  has_string_expr = true;
+	    if (!bad_string_operand
+		&& !valid_string_concat_operand_(des, scope, parms_[idx])) {
+		  bad_string_operand = parms_[idx];
+		  bad_string_operand_idx = idx;
+	    }
+      }
+      if (has_string_expr && bad_string_operand) {
+	    if (!string_operand_error_reported_) {
+		  cerr << bad_string_operand->get_fileline() << ": error: String "
+		       << "concatenation operand " << (bad_string_operand_idx + 1)
+		       << " must be a string literal or an expression of "
+		       << "string type: " << *bad_string_operand << endl;
+		  des->errors += 1;
+		  string_operand_error_reported_ = true;
+	    }
+	    return 0;
+      }
+
+      /* Operand order cannot change the result type. Once any operand is a
+	 real string expression and every operand is a legal string-concat
+	 operand, Table 6-9 makes the whole concatenation string. This also
+	 converts a nested all-literal group in expressions such as
+	 {{"A","B"}, string_value}. */
+      if (has_string_expr && !bad_string_operand)
+	    expr_is_string = YES;
+
+      /* A target string context also makes a nested all-string-literal group
+	 string data for replication. Without this contextual classification,
+	 {n{{"A","B"}}} was incorrectly subjected to the integral rule that n
+	 be constant even though string replication permits a runtime multiplier. */
+      if (string_context && !parms_.empty()) {
+	    bool all_valid = true;
+	    bool has_string_operand = false;
+	    bool literal_only = true;
+	    bool has_string_literal = false;
+	    for (PExpr*operand : parms_) {
+		  if (valid_string_concat_operand_(des, scope, operand))
+			has_string_operand = true;
+		  else
+			all_valid = false;
+		  if (!string_concat_literal_only_(operand,
+						   has_string_literal))
+			literal_only = false;
+	    }
+	    if ((all_valid && has_string_operand)
+		|| (literal_only && has_string_literal))
+		  expr_is_string = YES;
       }
 
       expr_type_   = (expr_is_string==YES) ? IVL_VT_STRING : IVL_VT_LOGIC;
@@ -16279,7 +16873,18 @@ unsigned PEConcat::test_width(Design*des, NetScope*scope, width_mode_t&)
 	      // count (e.g. {m{"-"}}) is supported at runtime.  Use
 	      // need_const=false so variables don't cause errors, then
 	      // check whether the result is actually constant.
-	    bool sv_string = gn_system_verilog() && (expr_is_string != NO);
+	    /* A nonconstant multiplier makes a replication of string literals
+	     * (including a nested literal concatenation) intrinsically string;
+	     * it does not need an enclosing assignment to provide string context
+	     * (IEEE 1800 Table 6-9). Keep constant literal replication
+	     * self-determined as integral by promoting the result only in the
+	     * nonconstant branch below. */
+	    bool string_repeat_candidate = !parms_.empty();
+	    for (PExpr*operand : parms_)
+		  if (!valid_string_concat_operand_(des, scope, operand))
+			string_repeat_candidate = false;
+	    bool sv_string = gn_system_verilog()
+		  && ((expr_is_string != NO) || string_repeat_candidate);
 	    NetExpr*tmp = elab_and_eval(des, scope, repeat_, -1, !sv_string);
 	    if (tmp == 0) return 0;
 
@@ -16287,6 +16892,16 @@ unsigned PEConcat::test_width(Design*des, NetScope*scope, width_mode_t&)
 		  cerr << tmp->get_fileline() << ": error: Concatenation "
 		       << "repeat expression can not be REAL." << endl;
 		  des->errors += 1;
+		  delete tmp;
+		  return 0;
+	    }
+
+	    if (tmp->expr_type() != IVL_VT_BOOL
+		&& tmp->expr_type() != IVL_VT_LOGIC) {
+		  cerr << tmp->get_fileline() << ": error: Concatenation "
+		       << "repeat expression must have integral type." << endl;
+		  des->errors += 1;
+		  delete tmp;
 		  return 0;
 	    }
 
@@ -16300,6 +16915,7 @@ unsigned PEConcat::test_width(Design*des, NetScope*scope, width_mode_t&)
 			  // Phase 63b: save the elaborated repeat expr so
 			  // elaborate_expr can plumb it to NetEConcat.
 			repeat_count_ = 1;
+			expr_type_ = IVL_VT_STRING;
 			tested_scope_ = scope;
 			if (!runtime_repeat_)
 			      runtime_repeat_ = tmp;  // ownership transferred
@@ -16313,6 +16929,7 @@ unsigned PEConcat::test_width(Design*des, NetScope*scope, width_mode_t&)
 		  cerr << get_fileline() << ":      : The expression is: "
 		       << *tmp << endl;
 		  des->errors += 1;
+		  delete tmp;
 		  return 0;
 	    }
 
@@ -16321,6 +16938,7 @@ unsigned PEConcat::test_width(Design*des, NetScope*scope, width_mode_t&)
 		       << "may not be undefined (" << rep->value()
 		       << ")." << endl;
 		  des->errors += 1;
+		  delete tmp;
 		  return 0;
 	    }
 
@@ -16329,18 +16947,102 @@ unsigned PEConcat::test_width(Design*des, NetScope*scope, width_mode_t&)
 		       << "may not be negative (" << rep->value().as_long()
 		       << ")." << endl;
 		  des->errors += 1;
+		  delete tmp;
 		  return 0;
 	    }
 
             repeat_count_ = rep->value().as_ulong();
+	    if (repeat_count_ == 0 && string_repeat_candidate)
+		  expr_type_ = IVL_VT_STRING;
 
             tested_scope_ = scope;
+	    delete tmp;
       }
 repeat_done:
       expr_width_ *= repeat_count_;
       min_width_   = expr_width_;
 
       return expr_width_;
+}
+
+/* A nested concatenation of string-literal groups is still convertible as
+ * part of an enclosing string context. Keep the test recursive so an
+ * integral expression hidden anywhere in the group remains an error. All
+ * nodes have already had test_width called by the outer PEConcat. */
+static bool valid_string_concat_operand_(Design*des, NetScope*scope,
+					 const PExpr*operand)
+{
+      if (dynamic_cast<const PEString*>(operand)
+	  || operand->expr_type() == IVL_VT_STRING)
+	    return true;
+
+      if (const PEIdent*ident = dynamic_cast<const PEIdent*>(operand)) {
+	    ivl_type_t ident_type = ident->test_type_of_ident(des, scope);
+	    if (ident_type && ident_type->base_type() == IVL_VT_STRING)
+		  return true;
+
+	      /* OpenTitan's commercial-simulator DV sources use a selected string
+	       * character directly in a string concatenation.
+	       * Table 6-9 types the select itself as a byte, so keep this a narrow
+	       * compatibility exception: the selected object must be string. */
+	    if (ident->is_string_byte_select(des, scope))
+		  return true;
+      }
+
+      if (is_deferred_type_parameter_concat_operand_(des, scope, operand))
+	    return true;
+
+      const PEConcat*nested = dynamic_cast<const PEConcat*>(operand);
+      if (!nested || nested->stream_parms().empty())
+	    return false;
+
+      for (const PExpr*item : nested->stream_parms()) {
+	    if (!valid_string_concat_operand_(des, scope, item))
+		  return false;
+      }
+      return true;
+}
+
+/* Icarus has historically accepted a self-determined literal concatenation
+ * containing both string and integral literals before a string assignment.
+ * Slang accepts the same form (for example br_gh800's {"A",8'o15,"B"}).
+ * Preserve that compatibility without admitting a variable, select, call, or
+ * other integral expression into a true string-expression concatenation. */
+static bool string_concat_literal_only_(const PExpr*operand,
+					bool&has_string_literal)
+{
+      if (dynamic_cast<const PEString*>(operand)) {
+	    has_string_literal = true;
+	    return true;
+      }
+      if (dynamic_cast<const PENumber*>(operand))
+	    return true;
+
+      const PEConcat*nested = dynamic_cast<const PEConcat*>(operand);
+      if (!nested || nested->stream_parms().empty())
+	    return false;
+      for (const PExpr*item : nested->stream_parms()) {
+	    if (!string_concat_literal_only_(item, has_string_literal))
+		  return false;
+      }
+      return true;
+}
+
+static bool string_concat_contains_string_expr_(const PExpr*operand)
+{
+      if (dynamic_cast<const PEString*>(operand))
+	    return false;
+      if (operand->expr_type() == IVL_VT_STRING)
+	    return true;
+
+      const PEConcat*nested = dynamic_cast<const PEConcat*>(operand);
+      if (!nested)
+	    return false;
+      for (const PExpr*item : nested->stream_parms()) {
+	    if (string_concat_contains_string_expr_(item))
+		  return true;
+      }
+      return false;
 }
 
 // Keep track of the concatenation/repeat depth.
@@ -16380,6 +17082,66 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
       }
 
       switch (ntype->base_type()) {
+	  case IVL_VT_STRING: {
+	      /* IEEE 1800-2017 11.4.12.2 and Table 6-9: when a
+	       * concatenation is used in a string assignment context, each
+	       * operand must be either a string literal or an expression of
+	       * string type. A concatenation made entirely from string
+	       * literals is self-determined as integral, but the assignment
+	       * context converts its result to string. */
+	    if (parms_.empty()) {
+		  cerr << get_fileline() << ": error: An empty concatenation "
+		       << "cannot be converted to string." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+
+	    PEConcat*self = const_cast<PEConcat*>(this);
+	    width_mode_t mode = SIZED;
+	    unsigned error_count = des->errors;
+	    unsigned use_wid = self->test_width_(des, scope, mode, true);
+	    if (des->errors != error_count)
+		  return nullptr;
+
+	    bool has_string_operand = false;
+	    bool has_string_literal = false;
+	    bool literal_only = true;
+	    for (PExpr*operand : parms_) {
+		  if (valid_string_concat_operand_(des, scope, operand)) {
+			has_string_operand = true;
+		  }
+		  if (!string_concat_literal_only_(operand,
+						   has_string_literal))
+			literal_only = false;
+	    }
+	    if (!has_string_operand) {
+		  cerr << get_fileline() << ": error: An integral concatenation "
+		       << "cannot be implicitly converted to string; use an "
+		       << "explicit string cast." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+
+	    for (size_t idx = 0; idx < parms_.size(); idx += 1) {
+		  PExpr*operand = parms_[idx];
+		  if (valid_string_concat_operand_(des, scope, operand)
+		      || (literal_only && has_string_literal))
+			continue;
+
+		  cerr << operand->get_fileline() << ": error: String "
+		       << "concatenation operand " << (idx + 1)
+		       << " must be a string literal or an expression of "
+		       << "string type: " << *operand << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+
+	      /* test_width deliberately leaves an all-literal concatenation
+	       * integral in a self-determined context. The string assignment
+	       * context is what converts that otherwise-integral result. */
+	    self->expr_type_ = IVL_VT_STRING;
+	    return elaborate_expr(des, scope, use_wid, flags);
+	  }
 	  case IVL_VT_QUEUE:
 // FIXME: Does a DARRAY support a zero size?
 	  case IVL_VT_DARRAY:
@@ -16419,10 +17181,12 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 		  return res;
 	    }
 	  default:
-	    cerr << get_fileline() << ": internal error: "
-		 << "I don't know how to elaborate(ivl_type_t)"
-		 << " this expression: " << *this << endl;
-	    return 0;
+	    cerr << get_fileline() << ": error: A concatenation cannot be "
+		 << "elaborated in an assignment context of type `";
+	    ntype->debug_dump(cerr);
+	    cerr << "'." << endl;
+	    des->errors += 1;
+	    return nullptr;
       }
 }
 
@@ -16431,6 +17195,12 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 {
       flags &= ~SYS_TASK_ARG; // don't propagate the SYS_TASK_ARG flag
 
+	/* test_width already emitted the focused mixed string/integral operand
+	 * diagnostic. Do not continue into a surrounding cast and add a
+	 * misleading cast fallback warning. */
+      if (string_operand_error_reported_)
+	    return nullptr;
+
       concat_depth += 1;
 
       if (debug_elaborate) {
@@ -16438,7 +17208,8 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 		 << ", expr_wid=" << expr_wid << endl;
       }
 
-      if (repeat_count_ == 0 && concat_depth < 2) {
+      if (repeat_count_ == 0 && expr_type_ != IVL_VT_STRING
+	  && concat_depth < 2) {
             cerr << get_fileline() << ": error: Concatenation repeat "
                  << "may not be zero in this context." << endl;
             des->errors += 1;
@@ -17192,7 +17963,8 @@ ivl_type_t PEIdent::test_type_of_ident(Design*des, NetScope*scope) const
       bool scoped_candidate = path_.name.size() >= 2
 	    && (leading_type_args()
 		|| !found_symbol || sr.is_scope()
-		|| (sr.net && sr.path_tail.empty())
+		|| (has_scoped_type_prefix() && sr.net
+		    && sr.path_tail.empty())
 		|| (has_scoped_type_prefix() && sr.par_val && sr.scope
 		    && sr.scope->type() == NetScope::CLASS));
       if (scoped_candidate) {
@@ -17257,6 +18029,30 @@ ivl_type_t PEIdent::test_type_of_ident(Design*des, NetScope*scope) const
       return resolve_type_packed_select_(type, index_depth, sr, select_width);
 }
 
+bool PEIdent::is_string_byte_select(Design*des, NetScope*scope) const
+{
+      symbol_search_results sr;
+      if (!symbol_search(this, des, scope, path_, lexical_pos_, &sr)
+	  || sr.scope_index_error || sr.path_head.empty())
+	    return false;
+
+      unsigned index_depth = 0;
+      ivl_type_t selected_from = nullptr;
+      ivl_type_t selected_type = resolve_type_(des, sr, index_depth,
+					       &selected_from);
+      if (!selected_from
+	  || selected_from->base_type() != IVL_VT_STRING
+	  || !selected_type || !selected_type->packed()
+	  || selected_type->packed_width() != 8)
+	    return false;
+
+      const name_component_t&component = sr.path_tail.empty()
+	    ? sr.path_head.back() : sr.path_tail.back();
+      if (component.index.empty())
+	    return false;
+      return component.index.back().sel == index_component_t::SEL_BIT;
+}
+
 unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 {
 	// M13: a bare reference to a let in scope expands by
@@ -17299,7 +18095,8 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
       bool scoped_static_candidate = path_.name.size() >= 2
 	    && (leading_type_args()
 		|| !found_symbol || sr.is_scope()
-		|| (sr.net && sr.path_tail.empty())
+		|| (has_scoped_type_prefix() && sr.net
+		    && sr.path_tail.empty())
 		|| (has_scoped_type_prefix() && sr.par_val && sr.scope
 		    && sr.scope->type() == NetScope::CLASS));
       if (scoped_static_candidate) {
@@ -17352,6 +18149,67 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 		  signed_flag_ = static_prop->has_sign();
 		  delete static_prop;
 		  return expr_width_;
+	    }
+      }
+
+	/* A zero-argument static function may omit its parentheses. First probe
+	 * the unspecialized declaration so a static property is not mistaken for
+	 * a call and its type arguments are not evaluated speculatively. */
+      if (gn_system_verilog() && scoped_static_candidate) {
+	    NetScope*decl_scope = resolve_scoped_class_method_func_(
+		  des, scope, path_, leading_type_args(), nullptr, nullptr, true);
+	    NetScope*func_scope = decl_scope
+		  ? resolve_scoped_class_method_func_(
+			des, scope, path_, leading_type_args()) : nullptr;
+	    if (NetFuncDef*def = find_function_definition(des, scope,
+						     func_scope)) {
+		  if (!def->is_void()) {
+			const NetNet*res = nullptr;
+			if (NetScope*dscope = def->scope())
+			      res = dscope->find_signal(dscope->basename());
+			if (!res)
+			      res = def->return_sig();
+			if (res) {
+			      expr_type_ = res->data_type();
+			      expr_width_ = res->vector_width();
+			      min_width_ = expr_width_;
+			      signed_flag_ = res->get_signed();
+			      return expr_width_;
+			}
+		  }
+	    }
+
+	      /* A UVM registry type parameter commonly supplies type_name() in
+	       * the omitted-parentheses form. Match only an actual type parameter,
+	       * not an ordinary value parameter that happens to share its name. */
+	    if (!path_.package && path_.name.size() == 2
+		&& path_.name.front().index.empty()
+		&& path_.name.back().index.empty()
+		&& path_.name.back().name
+		     == perm_string::literal("type_name")) {
+		  perm_string parameter_name = path_.name.front().name;
+		  for (NetScope*cur = scope ; cur ; cur = cur->parent()) {
+			std::map<perm_string,NetScope::param_expr_t>::const_iterator pit =
+			      cur->parameters.find(parameter_name);
+			if (pit != cur->parameters.end() && pit->second.type_flag) {
+			      expr_type_ = IVL_VT_STRING;
+			      expr_width_ = 1;
+			      min_width_ = 1;
+			      signed_flag_ = false;
+			      return expr_width_;
+			}
+		  }
+		  if (NetScope*unit = scope ? scope->unit() : nullptr) {
+			std::map<perm_string,NetScope::param_expr_t>::const_iterator pit =
+			      unit->parameters.find(parameter_name);
+			if (pit != unit->parameters.end() && pit->second.type_flag) {
+			      expr_type_ = IVL_VT_STRING;
+			      expr_width_ = 1;
+			      min_width_ = 1;
+			      signed_flag_ = false;
+			      return expr_width_;
+			}
+		  }
 	    }
       }
 
@@ -17697,7 +18555,8 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       bool scoped_static_candidate = path_.name.size() >= 2
 	    && (leading_type_args()
 		|| !sr.is_found() || sr.is_scope()
-		|| (sr.net && sr.path_tail.empty())
+		|| (has_scoped_type_prefix() && sr.net
+		    && sr.path_tail.empty())
 		|| (has_scoped_type_prefix() && sr.par_val && sr.scope
 		    && sr.scope->type() == NetScope::CLASS));
       if (scoped_static_candidate) {
@@ -18650,7 +19509,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
       bool scoped_static_candidate = path_.name.size() >= 2
 	    && (leading_type_args()
 		|| !sr.is_found() || sr.is_scope()
-		|| (sr.net && sr.path_tail.empty())
+		|| (has_scoped_type_prefix() && sr.net
+		    && sr.path_tail.empty())
 		|| (has_scoped_type_prefix() && sr.par_val && sr.scope
 		    && sr.scope->type() == NetScope::CLASS));
       bool scoped_class_parameter = false;
@@ -19760,6 +20620,30 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				    des, scope, path_, this, leading_type_args()))
 			  return static_prop;
 
+		      // SV permits a 0-arg static function call without parens
+		      // (e.g. `MyClass::type_name`). Prefer the real declared
+		      // function over the UVM compile-progress fallback below.
+		    if (gn_system_verilog() && path_.name.size() >= 2) {
+			  NetScope*decl_scope = resolve_scoped_class_method_func_(
+				des, scope, path_, leading_type_args(), nullptr,
+				nullptr, true);
+			  if (decl_scope && resolve_scoped_class_method_func_(
+				des, scope, path_, leading_type_args())) {
+				std::vector<named_pexpr_t> empty_parms;
+				PECallFunction*call = new PECallFunction(
+				      path_.name, empty_parms);
+				call->set_borrowed_leading_type_args(
+				      leading_type_args());
+				call->set_scoped_type_prefix(
+				      has_scoped_type_prefix());
+				call->set_line(*this);
+				NetExpr*r = call->elaborate_expr(
+				      des, scope, expr_wid, flags);
+				delete call;
+				if (r) return r;
+			  }
+		    }
+
 		      // For unresolved type-parameter forms such as
 		      // TYPE::type_name (UVM passes RAL_T or similar through
 		      // a parameter list), look up the underlying type. If
@@ -19831,21 +20715,6 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 											      expr_wid, flags);
 				      }
 				}
-			  }
-		    }
-
-		      // SV permits a 0-arg static function call without parens
-		      // (e.g. `MyClass::type_name`). Try to resolve the path as
-		      // a class static method before reporting it unbindable.
-		    if (gn_system_verilog() && path_.name.size() >= 2) {
-			  if (resolve_scoped_class_method_func_(des, scope, path_,
-								nullptr)) {
-				std::vector<named_pexpr_t> empty_parms;
-				PECallFunction*call = new PECallFunction(path_.name, empty_parms);
-				call->set_line(*this);
-				NetExpr*r = call->elaborate_expr(des, scope, expr_wid, flags);
-				delete call;
-				if (r) return r;
 			  }
 		    }
 
@@ -23985,6 +24854,38 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 {
       if (type == 0)
 	    return elaborate_expr(des, scope, 1u, flags);
+
+	/* The full-type elab_and_eval entry point deliberately skips test_width:
+	 * assignment patterns obtain their shape from the target type and do not
+	 * need a self-determined sizing pass. A string conditional is different:
+	 * ordinary arms such as $sformatf(...) still need that pass to discover
+	 * their string result before the two elaborated arms are compared below.
+	 * Without it, the call retained IVL_VT_NO_TYPE and a standard expression
+	 * such as `string s = c ? "..." : $sformatf(...)' was rejected as having
+	 * incompatible arms (including three occurrences in uvm-core). A concat
+	 * arm needs the surrounding string context rather than its ordinary
+	 * self-determined integral classification, so route that exact node
+	 * through the contextual width probe. */
+      if (type->base_type() == IVL_VT_STRING) {
+	    unsigned error_count = des->errors;
+	    width_mode_t tru_mode = SIZED;
+	    if (PEConcat*concat = dynamic_cast<PEConcat*>(tru_))
+		  concat->test_width_string_context(des, scope, tru_mode);
+	    else
+		  tru_->test_width(des, scope, tru_mode);
+
+	    width_mode_t fal_mode = SIZED;
+	    if (PEConcat*concat = dynamic_cast<PEConcat*>(fal_))
+		  concat->test_width_string_context(des, scope, fal_mode);
+	    else
+		  fal_->test_width(des, scope, fal_mode);
+
+	    /* A failed contextual probe has already emitted the operator-local
+	     * diagnostic. Do not elaborate the same malformed arm again and repeat
+	     * that diagnostic through the full-type path. */
+	    if (des->errors != error_count)
+		  return nullptr;
+      }
 
       flags &= ~SYS_TASK_ARG;
 

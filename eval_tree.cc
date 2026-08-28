@@ -319,10 +319,34 @@ NetEConst* NetEBBits::eval_arguments_(const NetExpr*l, const NetExpr*r) const
       return tmp;
 }
 
+static NetEConst* eval_string_relation_(const NetExpr*le, const NetExpr*re,
+					char op)
+{
+      const NetEConst*lc = dynamic_cast<const NetEConst*>(le);
+      const NetEConst*rc = dynamic_cast<const NetEConst*>(re);
+      if (!lc || !rc || !lc->value().is_string() || !rc->value().is_string())
+	    return nullptr;
+
+      int cmp = lc->value().as_raw_string().compare(
+	    rc->value().as_raw_string());
+      bool result = false;
+      switch (op) {
+	  case '<': result = cmp < 0; break;
+	  case 'L': result = cmp <= 0; break;
+	  case '>': result = cmp > 0; break;
+	  case 'G': result = cmp >= 0; break;
+	  default: ivl_assert(*le, false);
+      }
+      return new NetEConst(verinum(result ? verinum::V1 : verinum::V0, 1));
+}
+
 NetEConst* NetEBComp::eval_less_(const NetExpr*le, const NetExpr*re) const
 {
       if (le->expr_type() == IVL_VT_REAL || re->expr_type() == IVL_VT_REAL)
 	    return eval_leeq_real_(le, re, false);
+
+      if (NetEConst*res = eval_string_relation_(le, re, '<'))
+	    return res;
 
       const NetEConst*rc = dynamic_cast<const NetEConst*>(re);
       if (rc == 0) return 0;
@@ -409,6 +433,9 @@ NetEConst* NetEBComp::eval_leeq_(const NetExpr*le, const NetExpr*re) const
       if (le->expr_type() == IVL_VT_REAL || re->expr_type() == IVL_VT_REAL)
 	    return eval_leeq_real_(le, re, true);
 
+      if (NetEConst*res = eval_string_relation_(le, re, 'L'))
+	    return res;
+
       const NetEConst*r = dynamic_cast<const NetEConst*>(re);
       if (r == 0) return 0;
 
@@ -450,6 +477,9 @@ NetEConst* NetEBComp::eval_gt_(const NetExpr*le, const NetExpr*re) const
       if (le->expr_type() == IVL_VT_REAL || re->expr_type() == IVL_VT_REAL)
 	    return eval_leeq_real_(re, le, false);
 
+      if (NetEConst*res = eval_string_relation_(le, re, '>'))
+	    return res;
+
       const NetEConst*l = dynamic_cast<const NetEConst*>(le);
       if (l == 0) return 0;
 
@@ -490,6 +520,9 @@ NetEConst* NetEBComp::eval_gteq_(const NetExpr*le, const NetExpr*re) const
 {
       if (le->expr_type() == IVL_VT_REAL || re->expr_type() == IVL_VT_REAL)
 	    return eval_leeq_real_(re, le, true);
+
+      if (NetEConst*res = eval_string_relation_(le, re, 'G'))
+	    return res;
 
       const NetEConst*l = dynamic_cast<const NetEConst*>(le);
       if (l == 0) return 0;
@@ -568,7 +601,7 @@ NetEConst* NetEBComp::eval_eqeq_(bool ne_flag, const NetExpr*le, const NetExpr*r
 
 	// String equality: compare as strings (lengths may differ for different-length strings).
       if (lv.is_string() && rv.is_string()) {
-	    bool strings_equal = (lv.as_string() == rv.as_string());
+	    bool strings_equal = (lv.as_raw_string() == rv.as_raw_string());
 	    verinum::V res = (strings_equal ? eq_res : ne_res);
 	    return new NetEConst(verinum(res, 1));
       }
@@ -1187,11 +1220,27 @@ NetEConst* NetEConcat::eval_arguments_(const vector<NetExpr*>&vals,
 	    is_string_flag = is_string_flag && tmp.is_string();
       }
 
-	/* If all the values were strings, then re-stringify this
+      /* If all the values were strings, then re-stringify this
 	   constant. This might be useful information in the code
 	   generator or other optimizer steps. */
-      if (is_string_flag) {
-	    val = verinum(val.as_string());
+      if (expr_type() == IVL_VT_STRING || is_string_flag) {
+	    string text = val.as_string();
+	      /* IEEE 1800-2017 6.16 removes null bytes when an integral
+	       * value is converted to string. String literals use one null
+	       * byte as their packed representation of "", so contextual
+	       * string concatenation must remove those bytes before the
+	       * folded value becomes a NetECString. verinum::as_string()
+	       * renders every such byte canonically as the octal escape
+	       * "\\000"; an actual backslash byte is rendered "\\134" and
+	       * cannot be mistaken for this marker. */
+	    if (expr_type() == IVL_VT_STRING) {
+		  const string null_escape = "\\000";
+		  for (size_t pos = text.find(null_escape);
+		       pos != string::npos;
+		       pos = text.find(null_escape, pos))
+			text.erase(pos, null_escape.size());
+	    }
+	    val = verinum(text);
       }
 
 	// Normally, concatenations are unsigned. However, the
@@ -1199,7 +1248,9 @@ NetEConst* NetEConcat::eval_arguments_(const vector<NetExpr*>&vals,
 	// signed, so we really have to check.
       val.has_sign( this->has_sign() );
 
-      NetEConst*res = new NetEConst(val);
+      NetEConst*res = (expr_type() == IVL_VT_STRING)
+	  ? static_cast<NetEConst*>(new NetECString(val))
+	  : new NetEConst(val);
       ivl_assert(*this, res);
       eval_debug(this, res, false);
       return res;

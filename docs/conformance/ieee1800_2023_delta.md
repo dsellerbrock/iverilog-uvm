@@ -181,6 +181,91 @@ original survey ordering, not to postpone first-class 2023 work.
 10. `rand real` (defer: solver-level)
 11. `weak_reference#(T)` (defer: GC infrastructure)
 
+## 2026-08-27 clauses 6.16 and 11.4.12.2 — shared 2017/2023 rules
+
+The implemented typed-string concatenation subset is shared between IEEE
+1800-2017 and IEEE 1800-2023. Paired `-g2017`/`-g2023` regressions cover
+contextual conversion of string literals, nested literal/string groups,
+string expressions, explicit integral-to-string casts, fixed string-array
+parameters, procedural assignments, and integral run-time replication. A
+nested all-literal replicated group remains string-typed in a direct target,
+a whole string cast, and both comparison operand orders. A string replication
+or string-expression concatenation assigned to an integral target is rejected.
+Zero and nonzero multipliers evaluate the replicated operand exactly once; a
+zero multiplier produces the empty string.
+
+For a concat operand whose parse-form declaration is a class type parameter,
+the generic template body defers the hard operand-category decision until the
+binding is concrete. Paired checks cover formal and property operands under a
+`string` specialization and retain a hard error for the corresponding `int`
+specialization. This is shared 2017/2023 specialization behavior, not an
+edition delta.
+
+Review hardening removes the implementation-specific runtime cutoff from new
+typed bytecode. A legal **1,048,576-byte** variable repeat passes; lowering
+preserves the multiplier's signedness; and negative, X/Z, or
+runtime-index-width failure is diagnosed before returning the empty result. The
+unsuffixed VVP opcode retains its historical behavior for existing textual
+images and is covered by an independent fixture. These are shared 2017/2023
+execution rules, not edition deltas. A host allocation exception also has a
+controlled runtime diagnostic, but is not forced by a deterministic test.
+
+String built-ins retain their exact `int`, `byte`, `integer`, `real`, or
+`string` result type for data objects and constant string parameters. Their
+zero-, one-, or two-argument arity is enforced before lowering, a method may
+use a nested string concatenation as its receiver, and a scalar selected
+string character is rejected as a string-method receiver because the select
+has byte type. Constant parameter evaluation operates on semantic bytes, so
+empty, nonprinting, backslash, and quote contents survive method folding.
+Runtime indices and comparison operands remain legal when the receiver is a
+constant string parameter, and constant string comparisons fold from semantic
+bytes in either operand order.
+Parentheses-free zero-argument static functions retain string
+result type through the supported run-time concatenation. A static call in a
+constant `localparam` concatenation remains a current gap, and the pre-existing
+acceptance of a non-static `C::f` call is not included in the static-call
+claim.
+
+A real string expression mixed with an uncast integral expression is rejected
+where the concatenation operator is formed. A conditional arm or a
+whole-expression string cast therefore cannot hide the invalid operand. An
+integral-only group still requires an explicit cast. The separately retained
+`br_gh800` spelling is a narrow literal-only compatibility extension: it may
+mix string and integral literals, but it does not admit an integral variable,
+select, call, or other expression into a true string-expression
+concatenation.
+
+The positive reducer also distinguishes an all-literal group used in a string
+context from the same literals used as a packed integral expression, and pins
+null-byte removal during integral-to-string conversion. Final gates pass
+**23/23 focused legacy**, **24/24 focused JSON/VVP**, **2,083/2,083 full
+legacy**, **1,161 full JSON/VVP entries with 0 failures** (1,144 executed/pass
+and 17 NI), **136/136 negatives**, **103/103 VPI**, **6/6 textual VVP
+compatibility**, and **354/354 canonical real-DPI UVM** with no failures or
+skips. Earlier same-branch OpenTitan Darjeeling/Earlgrey top replays, before
+the final generic-class deferral hardening, move their former internal
+typed-concatenation counts from **10/18** to **0/0**, but both tops still fail
+later and no new full 61-target matrix was run. The final narrow deferral
+change has not been replayed across those tops.
+
+Two boundaries are intentionally not promoted to shared IEEE support. First,
+direct `string[index]` is a byte expression; Slang 11 rejects that expression
+as a string-concatenation operand. The narrowly admitted OpenTitan spelling is
+therefore recorded as a compatibility extension, while an ordinary vector
+select remains illegal without an explicit string cast. No VCS, Questa, or
+Xcelium run was made. Second, Slang 11 rejects the standalone
+`{0{"A"}}` string-context reducer because it permits a zero replication only
+inside an enclosing concatenation. The implementation follows the direct
+shared 2017/2023 string-replication interpretation and records this as a
+narrow differential disagreement, not as a 2023-only rule.
+
+Other bounded residuals are edition-independent and remain outside this
+subset: a fixed-size unpacked signal-array string element has the correct
+value but a wrong direct `.len()` result; `s.compare(65)` and the reverse mixed
+comparison `{8'h41} == s` are pre-existing wrong acceptances; and a
+parentheses-free static class call in a constant `localparam` concatenation is
+still rejected. This section does not claim complete closure of either clause.
+
 ## 2026-08-27 clause 12.7.1 — no 2017/2023 delta
 
 IEEE 1800-2023 carries 12.7, 12.7.1, and Syntax 12-5 (including footnote 14,

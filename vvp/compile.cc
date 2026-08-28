@@ -559,6 +559,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%release/reg/a",of_RELEASE_REG_A,3,{OA_ARR_PTR,OA_BIT1,OA_BIT2} },
       { "%release/wr", of_RELEASE_WR, 2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
       { "%rep/str",   of_REP_STR,     1,{OA_NUMBER,  OA_NONE,OA_NONE} },
+      { "%rep/str/s", of_REP_STR_S,   1,{OA_NUMBER,  OA_NONE,OA_NONE} },
+      { "%rep/str/u", of_REP_STR_U,   1,{OA_NUMBER,  OA_NONE,OA_NONE} },
       { "%replicate", of_REPLICATE,   1,{OA_NUMBER,  OA_NONE,OA_NONE} },
       { "%ret/obj",   of_RET_OBJ,     1,{OA_NUMBER,  OA_NONE,OA_NONE} },
       { "%ret/real",  of_RET_REAL,    1,{OA_NUMBER,  OA_NONE,OA_NONE} },

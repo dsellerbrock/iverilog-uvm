@@ -47,6 +47,10 @@ class verinum {
       verinum(double val, bool);
       verinum(const verinum&);
 
+	// Construct a string value from semantic bytes, without interpreting
+	// backslashes as Verilog source escapes.
+      static verinum from_raw_string(const std::string&str);
+
 	// Create a signed number, with an unspecified number of bits.
       explicit verinum(int64_t val);
 
@@ -108,6 +112,12 @@ class verinum {
 
       signed long   as_long() const;
       double as_double() const;
+
+	// Return the semantic string bytes. Unlike as_string(), this does not
+	// quote backslashes, quotes, or non-printing characters. SystemVerilog
+	// strings do not retain null bytes, so those are omitted (including the
+	// one-byte packed sentinel used to represent the empty string).
+      std::string as_raw_string() const;
       std::string as_string() const;
     private:
       void signed_trim();

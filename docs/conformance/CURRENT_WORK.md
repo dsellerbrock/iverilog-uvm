@@ -1,5 +1,152 @@
 # CURRENT WORK — continuation state
 
+## Active increment — 2026-08-27 — typed string concatenation and selected-byte conversion
+
+Worktree:
+`iverilog-uvm-opentitan-typed-string-after242-arm64-20260827`
+
+Branch: `agent/opentitan-typed-string-after242-arm64-20260827`, created from
+`origin/main` at
+`6bfe64ce55e399b8154b5fe95e5fbbdf89a6f911` after PR #242 merged. All
+validation used the worktree-local native-ARM64 compiler and runtime through
+the shared resource runner. OpenTitan, Caliptra, and Accellera UVM sources
+remain unmodified.
+
+This increment implements the evidenced IEEE 1800-2017/2023 6.16, Table 6-9,
+and 11.4.12.2 typed-string concatenation subset. A concatenation now receives
+its complete string assignment context for parameters, fixed string arrays,
+and procedural assignments. String expressions and literals, nested groups,
+string-returning methods, and parentheses-free zero-argument static functions
+retain string type through width probing, elaboration, constant folding, and
+VVP lowering. All-literal groups are converted by a string context but retain
+packed-integral behavior outside it. Uncast integral-only and mixed
+string/integral operands are focused errors; the check is operator-local, so a
+conditional arm or a whole-expression `string'(...)` cast cannot hide a real
+string expression mixed with an uncast integral expression. An explicit cast
+of the integral operand is the supported conversion and removes null bytes.
+Constant and run-time integral string replication is pinned, including the
+form `{repeat_count{{"A", "B"}}}` in a direct string target, a whole string
+cast, and both comparison operand orders. A nonintegral multiplier is
+rejected, and a string replication or string-expression concatenation cannot
+be assigned to an integral target. In a string context, a zero multiplier
+produces the empty string and the replicated operand is evaluated exactly once,
+just as it is for a nonzero multiplier.
+
+Parameterized-class template elaboration now preserves the declared-type
+provenance of a direct formal, local, or property concat operand. If that type
+is an unresolved class type parameter, the generic body defers the hard
+Table 6-9 decision; each concrete specialization is checked normally. The
+paired positive path covers formal and property operands specialized as
+`string`, while a dedicated paired negative requires `#(int)` to remain a
+focused mixed-operand error.
+
+Review hardening removes the former `count < (1<<20)` cutoff from newly
+generated string replication rather than replacing it with another arbitrary
+compiler limit. A legal variable repeat now produces and checks all
+**1,048,576 bytes**. New images use explicit signed or unsigned VVP opcodes;
+the unsuffixed opcode retains its old signed and copy-boundary semantics for
+textual-image compatibility and has an independent pinned fixture. The typed
+runtime diagnoses a negative signed count, X/Z count, or value wider than its
+index representation before returning the empty result. Allocation is
+otherwise bounded by the string implementation's representable size. A host
+allocation exception is converted to a controlled diagnostic in the runtime,
+but is not forced by a deterministic regression.
+
+One legacy spelling remains deliberately narrower than general uncast integral
+acceptance. The `br_gh800`-style literal-only group containing at least one
+string literal plus integral literals is retained as a compatibility extension.
+It does not admit an integral variable, select, call, or other expression into
+a concatenation that contains a true string expression.
+
+The implementation also repairs an adjacent runtime value defect. An explicit
+`string'(source[index])` formerly passed a selected integral value through the
+string-container evaluator and produced an empty string. VVP now evaluates the
+selected vector once and converts it to the expected one-character string.
+
+Built-in string method typing now matches the declared result categories for
+data objects and constant string parameters: `len`, `compare`, and `icompare`
+return `int`; `getc` returns `byte`; the four integer conversions return
+`integer`; `atoreal` returns `real`; and `toupper`, `tolower`, and `substr`
+return `string`. The same typing reaches a method called directly on a nested
+concatenation. Each built-in arity is checked before lowering: the zero-, one-,
+and two-argument families emit one hard diagnostic instead of silently
+ignoring an argument, synthesizing a missing argument, or continuing into a
+malformed call. Argument-type checking is not generalized by that arity work;
+the pre-existing acceptance of `s.compare(65)` remains a bounded residual.
+Review also changed constant string-parameter evaluation to consume semantic
+raw bytes instead of rendered display text. Empty strings, nonprinting bytes,
+and literal backslash/quote data now retain their actual length, character,
+case-conversion, and substring values.
+Variable indices and comparison operands on a constant parameter receiver now
+lower normally instead of being rejected as nonconstant. Constant string
+comparisons fold on semantic bytes in both operand orders. String repetition
+uses an allocated VVP index word, preserving a bounded queue's live maximum
+index while its RHS is evaluated.
+
+Direct `string[index]` remains byte-typed under the IEEE rules, and Slang 11
+rejects it as a direct string-concatenation operand. OpenTitan uses that
+spelling in commercial-simulator-targeted source, so the compiler admits only
+a final 8-bit select whose underlying object has string type. This is a narrow,
+documented compatibility extension, not an IEEE claim. Ordinary vector selects
+and integral-returning functions still require an explicit string cast. VCS,
+Questa, and Xcelium were not run. The selected character remains `byte` outside
+that concatenation exception; applying a string method such as `.len()` to a
+direct, parameter, struct, or class-property selected character is now a hard
+type error rather than dispatching the method on the unselected whole string.
+
+Final native-ARM64 validation is clean: focused legacy **23/23**; focused
+JSON/VVP **24/24**; full legacy **2,083/2,083**; full JSON/VVP **1,161
+entries, 0 failed** (**1,144 executed/pass plus 17 recorded NI**); negative
+diagnostics **136/136**; VPI **103/103**; textual VVP compatibility **6/6**;
+and canonical unmodified real-DPI UVM **354/354**, 0 failed, 0 skipped.
+
+The expanded current positive reducer is red against the clean canonical
+`origin/main` compiler at
+`6bfe64ce55e399b8154b5fe95e5fbbdf89a6f911`: it emits two internal
+typed-expression diagnostics and reaches the `par_string` assertion (exit
+134). The final compiler runs that exact source to `PASSED`. A separate
+minimal type-parameter control passes on both main and the final branch; the
+review regression was the intermediate branch's premature generic-body error,
+which is now pinned by the specialization positive and concrete negative.
+
+An earlier same-branch unmodified OpenTitan Darjeeling and Earlgrey top-chip
+replay, performed before the final generic-class deferral hardening, moved
+their former internal typed-concatenation counts from **10/18** to **0/0**.
+Both now first report the independent queue-versus-dynamic-array context
+mismatch at `src/lowrisc_dv_spi_agent_0.1/spi_agent_cfg.sv:139`. Each then
+traverses a much larger later diagnostic path before the compiler segfaults
+and emits no VVP image. The tops still do not elaborate. No new full 61-target
+OpenTitan matrix has been run; the last matrix remains **8 DEBT / 50 FAIL / 3
+SETUP_FAIL / 0 PASS** and is not reclassified by these two replays. The final
+narrow deferral change has not been replayed across those application tops.
+
+Caliptra was not rerun. Its last audited 105-job static census remains **52
+PASS / 1 DEBT / 51 SHARED_SOURCE_OR_CONFIG / 1 SOURCE_ORDER_DEBT / 0
+ICARUS_GAP**: 52 clean and 53 debt/shared-source cases. It remains static
+compile/elaboration/synthesis differential evidence rather than full DV
+runtime.
+
+The shared IEEE 1800-2017/2023 zero-multiplier and once-only operand-evaluation
+behavior is implemented. Slang 11 rejects the standalone zero-replication
+reducer with its narrower rule that zero replication is permitted only inside
+an enclosing concatenation; that exact disagreement is recorded rather than
+used to override the direct IEEE interpretation.
+
+Bounded residuals remain explicit. A direct string element of a fixed-size
+unpacked signal array retains the correct two-character value but reports
+`.len()` as 1; the same probe works for dynamic arrays, queues, and a fixed
+array inside a class property. The pre-existing compiler also accepts
+`s.compare(65)`, the reverse mixed comparison `{8'h41} == s`, and a non-static
+method called as `C::f`, all of which Slang rejects. A static zero-argument
+class function without parentheses retains its string type in the supported
+run-time concatenation, but its use in a constant `localparam` concatenation is
+still rejected by the current branch. These cases are not included in the
+implemented subset. The next independent OpenTitan source frontier is the
+`spi_agent_cfg.sv:139` context mismatch; the later broad-graph compiler
+segfault also needs a separately reduced witness. Full mechanism, regressions,
+and application evidence are in
+[`session_logs/2026-08-27_opentitan_typed_string_concatenation.md`](session_logs/2026-08-27_opentitan_typed_string_concatenation.md).
+
 ## Active increment — 2026-08-26 — associative-array assignment patterns and fixed-prefix leaves
 
 Worktree:

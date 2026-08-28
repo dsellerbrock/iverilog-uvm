@@ -71,6 +71,8 @@
 # include  <cstring>
 # include  <cmath>
 # include  <cassert>
+# include  <new>
+# include  <stdexcept>
 
 # include  <iostream>
 # include  <sstream>
@@ -13658,21 +13660,105 @@ bool of_CONCAT_STR(vthread_t thr, vvp_code_t)
       return true;
 }
 
-/* Phase 63b: %rep/str <ix-reg> — replace top-of-str-stack `unit`
- * with `words[ix-reg]` copies of `unit` concatenated.  Used by
- * the string codegen when {N{x}} has a runtime-variable N. */
+/* Keep the original %rep/str behavior for textual VVP compatibility. Images
+ * produced before the signedness split use %ix/vec4 even for signed counts,
+ * then rely on this opcode reading the same word as int64_t. The historical
+ * one-megabyte-count ceiling is likewise part of that bytecode contract; new
+ * compiler output uses the explicitly typed opcodes below and has no such
+ * language-level ceiling. */
 bool of_REP_STR(vthread_t thr, vvp_code_t cp)
 {
       unsigned use_idx = cp->number;
       int64_t count = thr->words[use_idx].w_int;
       string unit = thr->pop_str();
       string out;
-      if (count > 0 && count < (1<<20)) {  // 1M cap
-            out.reserve(unit.size() * (size_t)count);
-            for (int64_t i = 0; i < count; i++) out += unit;
+      if (count > 0 && count < (1<<20)) {
+	    out.reserve(unit.size() * static_cast<size_t>(count));
+	    for (int64_t idx = 0; idx < count; idx += 1)
+		  out.append(unit);
       }
       thr->push_str(out);
       return true;
+}
+
+/* %rep/str/u and %rep/str/s replace the top string-stack value with the
+ * requested number of copies. The signed opcode is distinct because an
+ * unsigned count with bit 63 set is not a negative multiplier. */
+static bool of_REP_STR_common(vthread_t thr, vvp_code_t cp, bool signed_count)
+{
+      unsigned use_idx = cp->number;
+      string unit = thr->pop_str();
+
+      if (thr->flags[4] != BIT4_0) {
+	    cerr << thr->get_fileline()
+		 << (thr->flags[4] == BIT4_1
+		       ? "VVP error: string replication count contains X/Z; "
+		       : "VVP error: string replication count exceeds the "
+			 "runtime index width; ")
+		 << "treating result as empty." << endl;
+	    thr->push_str(string());
+	    return true;
+      }
+
+      if (signed_count && thr->words[use_idx].w_int < 0) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: string replication count is negative ("
+		 << thr->words[use_idx].w_int
+		 << "); treating result as empty." << endl;
+	    thr->push_str(string());
+	    return true;
+      }
+
+      uint64_t copies = signed_count
+	    ? static_cast<uint64_t>(thr->words[use_idx].w_int)
+	    : thr->words[use_idx].w_uint;
+      string out;
+      if (copies == 0 || unit.empty()) {
+	    thr->push_str(out);
+	    return true;
+      }
+
+      size_t max_copies = out.max_size() / unit.size();
+      if (copies > static_cast<uint64_t>(max_copies)) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: string replication count " << copies
+		 << " with unit size " << unit.size()
+		 << " exceeds the maximum representable string size; "
+		 << "treating result as empty." << endl;
+	    thr->push_str(out);
+	    return true;
+      }
+
+      size_t result_size = unit.size() * static_cast<size_t>(copies);
+      try {
+	    out.reserve(result_size);
+	    for (uint64_t idx = 0; idx < copies; idx += 1)
+		  out.append(unit);
+      } catch (const bad_alloc&) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: unable to allocate " << result_size
+		 << " bytes for string replication; treating result as empty."
+		 << endl;
+	    out.clear();
+      } catch (const length_error&) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: string replication size " << result_size
+		 << " is not supported by this runtime; treating result as empty."
+		 << endl;
+	    out.clear();
+      }
+      thr->push_str(out);
+      return true;
+}
+
+bool of_REP_STR_U(vthread_t thr, vvp_code_t cp)
+{
+      return of_REP_STR_common(thr, cp, false);
+}
+
+bool of_REP_STR_S(vthread_t thr, vvp_code_t cp)
+{
+      return of_REP_STR_common(thr, cp, true);
 }
 
 /*

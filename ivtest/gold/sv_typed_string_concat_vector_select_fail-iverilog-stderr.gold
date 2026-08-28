@@ -1,0 +1,7 @@
+ivltests/sv_typed_string_concat_vector_select_fail.v:31: error: String concatenation operand 2 must be a string literal or an expression of string type: packed_value['sd7:'sd0]
+ivltests/sv_typed_string_concat_vector_select_fail.v:32: error: String concatenation operand 2 must be a string literal or an expression of string type: sv_typed_string_integral_source.value
+ivltests/sv_typed_string_concat_vector_select_fail.v:33: error: A selected string character has byte type and cannot be the receiver of string method `len'.
+ivltests/sv_typed_string_concat_vector_select_fail.v:34: error: A selected string character has byte type and cannot be the receiver of a string method.
+ivltests/sv_typed_string_concat_vector_select_fail.v:35: error: A selected string character has byte type and cannot be the receiver of string method `len'.
+ivltests/sv_typed_string_concat_vector_select_fail.v:37: error: A selected string character has byte type and cannot be the receiver of string method `len'.
+6 error(s) during elaboration.

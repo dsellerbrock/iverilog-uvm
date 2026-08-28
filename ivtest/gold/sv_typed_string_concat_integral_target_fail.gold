@@ -1,0 +1,3 @@
+./ivltests/sv_typed_string_concat_integral_target_fail.v:10: error: A string concatenation or replication cannot be assigned to an integral target without an explicit cast.
+./ivltests/sv_typed_string_concat_integral_target_fail.v:11: error: A string concatenation or replication cannot be assigned to an integral target without an explicit cast.
+2 error(s) during elaboration.

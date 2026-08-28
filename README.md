@@ -553,15 +553,44 @@ The current local canonical unmodified Accellera UVM checkpoint passes
   signals. This was a compile/elaboration/code-generation matrix and did not
   run the 61 simulations. Native ARM `regtool.py` also regenerated UART's two
   register RTL products byte-for-byte identically to the frozen checkout.
-  An earlier focused replay, made before the owner/generate activation
-  hardening and removal of the global terminal-name fallback, removed the
-  Darjeeling and Earlgrey chip targets' exact former selected/relative bind
-  diagnostics. Its first new diagnostics were typed string-concatenation
-  elaboration errors; after many later independent diagnostics, both
-  invocations exited 139 and produced no `.vvp`. This historical result has
-  not been revalidated against the final bind semantics; it is frontier
-  movement, not a compile or runtime pass. See the
-  [bind-target session log](docs/conformance/session_logs/2026-08-27_ieee1800_bind_target_instances.md).
+  Earlier same-branch authentic Darjeeling and Earlgrey top-chip replays,
+  performed before the final generic-class deferral hardening, move their former
+  internal typed string-concatenation counts from **10/18** to **0/0**. Both now
+  first report the independent queue-versus-dynamic-array context mismatch at
+  `spi_agent_cfg.sv:139`; after a much larger later diagnostic path, each
+  compiler invocation still exits 139 and produces no `.vvp`. The tops do not
+  elaborate, and no new full 61-target matrix has been run, so the matrix
+  classification above is unchanged; the final narrow deferral change has not
+  been replayed across those tops. The typed-string increment also retains
+  nested literal groups through run-time string replication in direct-target,
+  whole-cast, and comparison contexts; rejects string replication assigned to
+  an integral target; and makes a zero multiplier produce an empty string
+  after evaluating its operand exactly once. Mixed string-expression/integral
+  concatenations are rejected at the operator even beneath a conditional or
+  whole string cast. Built-in string methods retain their exact result types
+  for data objects and constant string parameters, work on a nested
+  concatenation, reject scalar selected-byte receivers, and emit hard arity
+  diagnostics. Review hardening removes the old implementation-specific
+  replication cutoff from newly generated typed bytecode: a legal
+  **1,048,576-byte** variable repeat passes, signedness reaches the VVP repeat
+  index, and negative, X/Z, or index-width-overflow counts are diagnosed. The
+  unsuffixed opcode retains its historical behavior for old textual VVP images
+  and is pinned independently. Constant string-parameter methods preserve
+  semantic bytes for empty, nonprinting, backslash, and quote data, accept
+  runtime method arguments, and retain exact conversion result types.
+  Generic parameterized-class bodies defer concat-operand legality for a
+  formal/local/property declared through an unresolved type parameter, then
+  check each concrete specialization; string bindings pass and an integer
+  binding remains a focused error.
+  The `br_gh800` mixed-literal spelling and direct
+  `string[index]` concatenation are retained only as narrow compatibility
+  extensions, not as general uncast integral acceptance or IEEE behavior. The
+  expanded paired focus passes **23/23 legacy** and **24/24 JSON/VVP**. Full
+  validation is **2,083/2,083 legacy**, **1,161 JSON/VVP entries with 0
+  failures** (1,144 executed/pass and 17 NI), **136/136 negatives**,
+  **103/103 VPI**, **6/6 textual VVP compatibility**, and **354/354 canonical
+  real-DPI UVM** with 0 failed and 0 skipped. See the
+  [typed-string session log](docs/conformance/session_logs/2026-08-27_opentitan_typed_string_concatenation.md).
 - The post-audit frozen Caliptra static census completes all 105 jobs and 420
   compiler invocations: Icarus is **53/105** in each assertions,
   no-assertions, and synthesis lane versus Slang **54/105**. Its classifications
