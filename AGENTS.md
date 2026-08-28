@@ -29,6 +29,20 @@
 - Work only in the intended repository/worktree. Inspect `pwd`, `git status --short --branch`, and the current upstream before editing.
 - Preserve unrelated user changes and dirty worktrees. Do not reset, clean, or overwrite them.
 - Once a PR is merged, stop using its branch. Fetch `origin/main`, verify the merge is present, and start the next change on a fresh branch/worktree based on the updated `origin/main`.
+- The agent that creates a linked worktree owns retiring it after its PR is
+  merged and before creating the next worktree. From a different retained
+  checkout, run `scripts/retire-agent-worktree.sh <path>` to audit it, then
+  rerun with `--remove` only when the dry run accepts it. Never use raw `rm`,
+  delete the branch during worktree cleanup, or bypass a refusal.
+- Audit `git worktree list` at each logical checkpoint and before adding a
+  worktree. A dirty or non-ancestor tree is not automatically valuable:
+  compare its commits, PR history, and uncommitted diff with current main, but
+  require explicit review before retiring it.
+- Keep the primary checkout, the `main` checkout, active work, detached
+  comparisons, and dirty/locked worktrees. Create a comparison baseline
+  detached and immediately run
+  `git worktree lock --reason "baseline: <purpose>" <path>` so routine cleanup
+  cannot retire it.
 - Stage explicit paths with `git add -- <paths>`; do not use `git add -A` in a mixed or generated worktree.
 - Do not commit build products, dependency files, local installation trees, logs, cores, `a.out`, generated parser files, or `.dSYM` content.
 
