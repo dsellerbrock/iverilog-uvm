@@ -250,7 +250,7 @@ The paired 2017/2023 sources and direct VVP fixtures cover:
 - malformed VVP arity, element/stream encodings, prototype descriptors, and
   the strict runtime-width failure without a signal termination.
 
-The last full checkpoint plus the focused final-state evidence is:
+The final full checkpoint plus the focused evidence is:
 
 | Gate | Result |
 |---|---:|
@@ -258,17 +258,18 @@ The last full checkpoint plus the focused final-state evidence is:
 | Chapter-7 focused JSON/VVP | **72 ran, 0 failed** |
 | Direct container conversion/runtime/parser invariants | **42/42** |
 | Negative diagnostics | **136/136** |
-| Prior full legacy SystemVerilog checkpoint | **2,137/2,137** |
-| Prior full JSON/VVP checkpoint | **1,215 ran, 0 failed** |
-| Prior VPI checkpoint | **103/103** |
+| Full legacy SystemVerilog | **2,151/2,151** |
+| Full JSON/VVP | **1,229 ran, 0 failed** |
+| VPI | **103/103** |
+| Canonical real-DPI UVM | **354/354, 0 failed, 0 skipped** |
 | Fixed-slice focused legacy | **24/24** |
 | Fixed-slice focused JSON/VVP | **21 ran, 0 failed** |
 | Real-DPI fixed-slice reducer | **1/1** |
 | Hand-written slice-opcode recovery invariants | **7/7** |
 
-The complete canonical real-DPI UVM suite has not yet been repeated after the
-slice follow-on. Its result is intentionally not inferred from the focused
-real-DPI reducer.
+The complete canonical real-DPI UVM suite completed in 664.82 seconds wall
+time using the worktree-local compiler and VVP runtime. It loaded the real DPI
+umbrella; no `UVM_NO_DPI` fallback was used.
 
 ## OpenTitan application evidence
 
@@ -315,8 +316,9 @@ for the final commit.
   scoped, property, nested, and function-return sources remain strict.
 - DPI queue/dynamic-array output behavior remains an interoperability area and
   is not used to broaden the native SystemVerilog conformance claim.
-- Full regression, VPI, UVM, OpenTitan, and Caliptra evidence for the final
-  commit remains to be gathered separately.
+- A fresh full OpenTitan matrix and Caliptra application replay remain to be
+  gathered after this compiler checkpoint; the compiler's full local legacy,
+  JSON/VVP, negative, VPI, and canonical real-DPI UVM gates are complete.
 
 Full IEEE 1800 clauses 6, 7, and 13, full OpenTitan and Caliptra DV/runtime
 flows, SVA/formal-source elaboration, and commercial-simulator parity remain

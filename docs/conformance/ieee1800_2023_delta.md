@@ -390,10 +390,9 @@ or Xcelium executable was available for this checkpoint.
 The final container-focused gates pass **79/79 legacy** and **72 JSON/VVP
 entries with 0 failures**. The slice-focused gates pass **24/24 legacy** and
 **21/21 JSON/VVP**, with **1/1** focused real-DPI and **7/7** textual-IR
-recovery checks. The last completed broad checkpoint remains **2,137/2,137**
-legacy, **1,215/1,215** JSON/VVP, **136/136** negative diagnostics, and
-**103/103** VPI; those broad totals are not presented as a post-slice replay.
-These paired checks
-show no implemented 2017/2023 difference for this bounded cluster; they do not
+recovery checks. The post-slice broad replay passes **2,151/2,151** legacy,
+**1,229/1,229** JSON/VVP, **136/136** negative diagnostics, **103/103** VPI,
+and **354/354** canonical real-DPI UVM with no failures or skips. These paired
+checks show no implemented 2017/2023 difference for this bounded cluster; they do not
 claim complete clauses 6, 7, or 13. See the dated section in
 `matrices/ieee1800_2017_clause_matrix.md` and the associated session log.

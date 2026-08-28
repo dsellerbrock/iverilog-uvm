@@ -119,24 +119,25 @@ editions and its VCS compatibility mode. No VCS, Questa, or Xcelium executable
 was available, so this is labeled an interoperability extension rather than a
 commercial-simulator differential or standards claim.
 
-The last full native-ARM64 checkpoint and the newer focused slice evidence are:
+The final native-ARM64 checkpoint and focused slice evidence are:
 
 | Gate | Result |
 |---|---:|
-| Chapter-7 focused legacy | **71/71** |
-| Chapter-7 focused JSON/VVP | **64 ran, 0 failed** |
+| Chapter-7 focused legacy | **79/79** |
+| Chapter-7 focused JSON/VVP | **72 ran, 0 failed** |
 | Direct container conversion/runtime/parser invariants | **42/42** |
 | Negative diagnostics | **136/136** |
-| Full legacy SystemVerilog | **2,137/2,137** |
-| Full JSON/VVP | **1,215 ran, 0 failed** |
+| Full legacy SystemVerilog | **2,151/2,151** |
+| Full JSON/VVP | **1,229 ran, 0 failed** |
 | VPI | **103/103** |
+| Canonical real-DPI UVM | **354/354, 0 failed, 0 skipped** |
 | Fixed-slice focused legacy | **24/24** |
 | Fixed-slice focused JSON/VVP | **21/21** |
 | Real-DPI fixed-slice reducer | **1/1** |
 | Hand-written slice-opcode recovery invariants | **7/7** |
 
-The canonical real-DPI UVM gate is still running for this final compiler
-state; its result is not inferred from the completed rows. The earlier
+The canonical real-DPI UVM gate completed in 664.82 seconds wall time and
+loaded the real DPI umbrella without the `UVM_NO_DPI` fallback. The earlier
 isolated real-DPI reducer established the original runtime-kind defect:
 rebuilt previous main passed 9/10 and failed only
 `queue_to_dynamic_runtime_kind`, while the destination-typed branch passed
