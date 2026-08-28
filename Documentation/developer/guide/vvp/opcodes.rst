@@ -1040,6 +1040,23 @@ Release the force on the real signal that is represented by the functor
 statement. The <type> is 0 for nets and 1 for registers. See the other
 %release commands above.
 
+* %rep/str <index>
+* %rep/str/s <index>
+* %rep/str/u <index>
+
+Pop a string value and push its replication by the count held in integer
+register <index>. New code uses the /s form for a signed count and /u for an
+unsigned count. Flag 4 must be zero for those typed forms; a nonzero flag means
+the preceding vec4-to-index conversion contained X/Z or exceeded the runtime
+index width, so the runtime reports the condition and pushes an empty string.
+A negative /s count is handled the same way. Zero produces an empty string.
+
+The unsuffixed form is retained for compatibility with VVP images produced
+before the count-signedness split. It reads the register as signed, silently
+produces an empty string for nonpositive counts, and preserves the historical
+``count < 2**20`` copy boundary. Current code generators must not emit the
+unsuffixed form.
+
 * %replicate <count>
 
 Pop the vec4 value, replicate it <count> times, then push the

@@ -1,0 +1,2 @@
+ivltests/sv_typed_string_concat_repeat_type_fail.v:6: error: Concatenation repeat expression must have integral type.
+Elaboration failed

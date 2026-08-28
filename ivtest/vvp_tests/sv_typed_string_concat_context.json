@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_typed_string_concat_context.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_typed_string_concat_context",
+    "vlog95"        : { "type" : "NI" }
+}

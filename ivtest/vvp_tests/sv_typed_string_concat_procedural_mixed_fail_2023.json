@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_typed_string_concat_procedural_mixed_fail.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_typed_string_concat_procedural_mixed_fail" ],
+    "gold"          : "sv_typed_string_concat_procedural_mixed_fail"
+}

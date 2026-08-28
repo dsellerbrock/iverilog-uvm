@@ -1,0 +1,5 @@
+./ivltests/sv_typed_string_concat_procedural_mixed_fail.v:20: error: String concatenation operand 2 must be a string literal or an expression of string type: code
+./ivltests/sv_typed_string_concat_procedural_mixed_fail.v:21: error: String concatenation operand 2 must be a string literal or an expression of string type: code
+./ivltests/sv_typed_string_concat_procedural_mixed_fail.v:22: error: String concatenation operand 2 must be a string literal or an expression of string type: code
+./ivltests/sv_typed_string_concat_procedural_mixed_fail.v:23: error: String concatenation operand 2 must be a string literal or an expression of string type: sv_typed_string_property_collision_obj.f
+4 error(s) during elaboration.

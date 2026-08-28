@@ -390,6 +390,13 @@ class PEConcat : public PExpr {
       virtual unsigned test_width(Design*des, NetScope*scope,
 				  width_mode_t&mode) override;
 
+	// A surrounding string operator or cast converts an otherwise
+	// self-determined all-literal concatenation to string (IEEE 1800
+	// Table 6-9). Keep that context explicit instead of globally changing
+	// the integral meaning of an all-literal concatenation.
+      unsigned test_width_string_context(Design*des, NetScope*scope,
+					 width_mode_t&mode);
+
       virtual NetNet* elaborate_lnet(Design*des, NetScope*scope,
                                      bool var_allowed_in_sv) const override;
       virtual NetNet* elaborate_bi_net(Design*des, NetScope*scope,
@@ -409,6 +416,8 @@ class PEConcat : public PExpr {
       virtual bool is_collapsible_net(Design*des, NetScope*scope,
                                       NetNet::PortType port_type) const override;
     private:
+      unsigned test_width_(Design*des, NetScope*scope, width_mode_t&mode,
+			   bool string_context);
       NetNet* elaborate_lnet_common_(Design*des, NetScope*scope,
 				     bool bidirectional_flag,
 				     bool var_allowed_in_sv) const;
@@ -426,6 +435,8 @@ class PEConcat : public PExpr {
       // mutable because elaborate_expr is a const member but needs
       // to take ownership.
       mutable NetExpr*runtime_repeat_ = nullptr;
+      bool string_operand_error_reported_ = false;
+      NetScope*string_operand_error_scope_ = nullptr;
 };
 
 /*
@@ -606,6 +617,12 @@ class PEIdent : public PExpr {
 	// for diagnosing that (no diagnostic is emitted here on failure,
 	// so callers that tolerate a null result don't get double errors).
       ivl_type_t test_type_of_ident(Design*des, NetScope*scope) const;
+
+	// A string character select has integral byte type, but OpenTitan's
+	// commercial-simulator DV sources use it directly in a string concat.
+	// Distinguish that exact source shape from an arbitrary byte expression
+	// without evaluating the index.
+      bool is_string_byte_select(Design*des, NetScope*scope) const;
 
 	// Constraint legality checks must inspect the expression after `let'
 	// substitution as well as the surface call/reference. This accessor uses
@@ -1470,6 +1487,9 @@ class PECallFunction : public PExpr {
 
       bool check_call_matches_definition_(Design*des, NetScope*dscope) const;
 
+      bool check_string_method_arity_(Design*des,
+				      perm_string method_name) const;
+
 
       NetExpr* cast_to_width_(NetExpr*expr, unsigned wid) const;
 
@@ -1479,7 +1499,7 @@ class PECallFunction : public PExpr {
       NetExpr* elaborate_expr_method_(Design*des, NetScope*scope,
 				      symbol_search_results&search_results)
 				      const;
-      NetExpr* elaborate_expr_method_par_(Design*des, const NetScope*scope,
+      NetExpr* elaborate_expr_method_par_(Design*des, NetScope*scope,
 					  const symbol_search_results&search_results)
 					  const;
 

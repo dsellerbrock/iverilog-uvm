@@ -182,6 +182,20 @@ verinum::verinum(const string&s)
       }
 }
 
+verinum verinum::from_raw_string(const string&str)
+{
+      string encoded;
+      encoded.reserve(str.size()*4);
+      for (unsigned char ch : str) {
+	    if (ch == 0)
+		  continue;
+	    char tmp[5];
+	    snprintf(tmp, sizeof tmp, "\\%03o", ch);
+	    encoded += tmp;
+      }
+      return verinum(encoded);
+}
+
 verinum::verinum(verinum::V val, unsigned n, bool h)
 : has_len_(h), has_sign_(false), is_single_(false), string_flag_(false)
 {
@@ -581,6 +595,27 @@ string verinum::as_string() const
 		  snprintf(tmp, sizeof tmp, "\\%03o", (unsigned char)char_val);
 		  res = res + tmp;
 	    }
+      }
+      return res;
+}
+
+string verinum::as_raw_string() const
+{
+      assert(nbits_%8 == 0);
+
+      string res;
+      res.reserve(nbits_/8);
+      for (unsigned idx = nbits_ ; idx > 0 ; idx -= 8) {
+	    unsigned char char_val = 0;
+	    for (unsigned bit = 0 ; bit < 8 ; bit += 1) {
+		  V value = bits_[idx-8+bit];
+		  assert(value == V0 || value == V1);
+		  if (value == V1)
+			char_val |= static_cast<unsigned char>(1U << bit);
+	    }
+
+	    if (char_val != 0)
+		  res += static_cast<char>(char_val);
       }
       return res;
 }

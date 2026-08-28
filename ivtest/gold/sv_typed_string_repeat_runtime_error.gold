@@ -1,0 +1,5 @@
+VVP error: string replication count is negative (-1); treating result as empty.
+VVP error: string replication count contains X/Z; treating result as empty.
+VVP error: string replication count exceeds the runtime index width; treating result as empty.
+VVP error: string replication count exceeds the runtime index width; treating result as empty.
+PASSED
