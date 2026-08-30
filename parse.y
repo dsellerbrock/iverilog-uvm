@@ -2245,7 +2245,6 @@ static Module::port_t *module_declare_port_continuation(
   for_variable_declaration_prefix
 %type <pattern_items> assignment_pattern_named_list
 %type <expr>  expr_primary_or_typename expr_primary parameterized_scoped_identifier
-%type <expr>  lazy_virtual_interface_default
 %type <expr>  package_scoped_lvalue
 %type <expr>  class_new dynamic_array_new
 %type <expr>  var_decl_initializer_opt initializer_opt parameter_initializer_opt
@@ -2295,6 +2294,8 @@ static Module::port_t *module_declare_port_continuation(
 %destructor { delete[] $$.text; delete_parmvalue_t($$.type_args); }
   package_type_identifier package_type_identifier_base
 %type <data_type>  virtual_interface_type
+%type <type_identifier> virtual_interface_identifier
+%destructor { delete[] $$.text; } virtual_interface_identifier
 %type <data_type>  simple_packed_type
 %type <data_type>  class_scope
 %type <data_type>  interconnect_implicit_type
@@ -2675,12 +2676,7 @@ class_type_parameter_port_list
   ;
 
 class_type_parameter_port_item
-  : K_type IDENTIFIER '=' lazy_virtual_interface_default
-      { pending_class_param_t tmp = { lex_strings.make($2), true, 0, $4 };
-	pending_class_params.push_back(tmp);
-	$$ = list_from_identifier($2, @2.lexical_pos);
-      }
-  | K_type IDENTIFIER initializer_opt
+  : K_type IDENTIFIER initializer_opt
       { mark_lazy_virtual_interface_default_($3);
 	pending_class_param_t tmp = { lex_strings.make($2), true, 0, $3 };
 	pending_class_params.push_back(tmp);
@@ -2688,17 +2684,6 @@ class_type_parameter_port_item
       }
   /* Support shorthand continuation after a type parameter, e.g.
      #(type KEY=int, T=uvm_void) */
-  | IDENTIFIER '=' lazy_virtual_interface_default
-      { if (!pending_class_params.empty() && pending_class_params.back().is_type) {
-	      pending_class_param_t tmp = { lex_strings.make($1), true, 0, $3 };
-	      pending_class_params.push_back(tmp);
-	      $$ = list_from_identifier($1, @1.lexical_pos);
-	} else {
-	      yyerror(@1, "error: Class parameter %s is missing a preceding type parameter.", $1);
-	      delete $3;
-	      $$ = list_from_identifier($1, @1.lexical_pos);
-	}
-      }
   | IDENTIFIER initializer_opt
       { if (!pending_class_params.empty() && pending_class_params.back().is_type) {
 	      mark_lazy_virtual_interface_default_($2);
@@ -2721,11 +2706,6 @@ class_type_parameter_port_item
 	      $$ = list_from_identifier($1, @1.lexical_pos);
 	}
       }
-  | K_parameter K_type IDENTIFIER '=' lazy_virtual_interface_default
-      { pending_class_param_t tmp = { lex_strings.make($3), true, 0, $5 };
-	pending_class_params.push_back(tmp);
-	$$ = list_from_identifier($3, @3.lexical_pos);
-      }
   | K_parameter K_type IDENTIFIER initializer_opt
       { mark_lazy_virtual_interface_default_($4);
 	pending_class_param_t tmp = { lex_strings.make($3), true, 0, $4 };
@@ -2741,71 +2721,6 @@ class_type_parameter_port_item
       { pending_class_param_t tmp = { lex_strings.make($3), false, $2, $4 };
 	pending_class_params.push_back(tmp);
 	$$ = list_from_identifier($3, @3.lexical_pos);
-      }
-  ;
-
-/* The optional `interface` keyword in a virtual-interface type is accepted
-   here at its only currently-needed ambiguity-free site: a class type-
-   parameter default. Keeping this narrow avoids perturbing the heavily shared
-   general data_type declaration-start states. */
-lazy_virtual_interface_default
-  : K_virtual K_interface IDENTIFIER parameter_value_opt
-      { interface_type_t*interface_type =
-	      new interface_type_t(lex_strings.make($3));
-	FILE_NAME(interface_type, @1);
-	interface_type->has_param_override = ($4 != 0);
-	interface_type->allow_unresolved = true;
-	PETypename*type_expr = new PETypename(interface_type);
-	FILE_NAME(type_expr, @1);
-	delete[] $3;
-	if ($4) delete $4;
-	$$ = type_expr;
-      }
-  | K_virtual K_interface TYPE_IDENTIFIER parameter_value_opt
-      { interface_type_t*interface_type =
-	      new interface_type_t(lex_strings.make($3.text));
-	if (dynamic_cast<const interface_type_t*>(
-	      $3.type->get_data_type()) == 0)
-	      yyerror(@3, "error: virtual may only be used with interface types.");
-	FILE_NAME(interface_type, @1);
-	interface_type->has_param_override = ($4 != 0);
-	interface_type->allow_unresolved = true;
-	PETypename*type_expr = new PETypename(interface_type);
-	FILE_NAME(type_expr, @1);
-	delete[] $3.text;
-	if ($4) delete $4;
-	$$ = type_expr;
-      }
-  | K_virtual K_interface IDENTIFIER parameter_value_opt '.' IDENTIFIER
-      { interface_type_t*interface_type =
-	      new interface_type_t(lex_strings.make($3));
-	FILE_NAME(interface_type, @1);
-	interface_type->has_param_override = ($4 != 0);
-	interface_type->allow_unresolved = true;
-	interface_type->modport = lex_strings.make($6);
-	PETypename*type_expr = new PETypename(interface_type);
-	FILE_NAME(type_expr, @1);
-	delete[] $3;
-	delete[] $6;
-	if ($4) delete $4;
-	$$ = type_expr;
-      }
-  | K_virtual K_interface TYPE_IDENTIFIER parameter_value_opt '.' IDENTIFIER
-      { interface_type_t*interface_type =
-	      new interface_type_t(lex_strings.make($3.text));
-	if (dynamic_cast<const interface_type_t*>(
-	      $3.type->get_data_type()) == 0)
-	      yyerror(@3, "error: virtual may only be used with interface types.");
-	FILE_NAME(interface_type, @1);
-	interface_type->has_param_override = ($4 != 0);
-	interface_type->allow_unresolved = true;
-	interface_type->modport = lex_strings.make($6);
-	PETypename*type_expr = new PETypename(interface_type);
-	FILE_NAME(type_expr, @1);
-	delete[] $3.text;
-	delete[] $6;
-	if ($4) delete $4;
-	$$ = type_expr;
       }
   ;
 
@@ -5003,157 +4918,60 @@ data_type /* IEEE1800-2005: A.2.2.1 */
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
-  | K_virtual TYPE_IDENTIFIER parameter_value_opt
-      { interface_type_t*tmp;
-	if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0)
-	      yyerror(@2, "error: virtual may only be used with interface types.");
-	tmp = new interface_type_t(lex_strings.make($2.text));
-	FILE_NAME(tmp, @1);
-	tmp->has_param_override = ($3 != 0);
-	$$ = tmp;
-	delete[] $2.text;
-	if ($3) delete $3;
+  | K_virtual virtual_interface_type
+      { FILE_NAME($2, @1);
+	$$ = $2;
       }
-    /* Modport-qualified virtual interface (IEEE 1800-2017 25.9 /
-       A.2.2.1): `virtual iface [#(...)] .modport'. The standard UVM
-       agent idiom. The modport name is recorded on the type; the handle
-       itself still exposes the whole interface, so what is accepted is a
-       SUPERSET of the modport's view -- direction enforcement through a
-       modport-qualified handle is a follow-up, and is noted as such
-       rather than silently implied. */
-  | K_virtual TYPE_IDENTIFIER parameter_value_opt '.' IDENTIFIER
-      { interface_type_t*tmp;
-	if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0)
-	      yyerror(@2, "error: virtual may only be used with interface types.");
-	tmp = new interface_type_t(lex_strings.make($2.text));
-	FILE_NAME(tmp, @1);
-	tmp->has_param_override = ($3 != 0);
-	tmp->modport = lex_strings.make($5);
-	$$ = tmp;
-	delete[] $2.text;
-	delete[] $5;
-	if ($3) delete $3;
+  ;
+
+virtual_interface_identifier
+  : TYPE_IDENTIFIER
+      { $$ = $1; }
+  | IDENTIFIER
+      { $$.text = $1;
+	$$.type = nullptr;
       }
-  | K_virtual IDENTIFIER parameter_value_opt
-      { /* Forward-referenced or un-typed interface — create by name */
-	interface_type_t*tmp = new interface_type_t(lex_strings.make($2));
-	FILE_NAME(tmp, @1);
-	tmp->has_param_override = ($3 != 0);
-	delete[] $2;
-	if ($3) delete $3;
-	$$ = tmp;
+  | K_interface TYPE_IDENTIFIER
+      { $$ = $2;
+	@$ = @2;
       }
-  | K_virtual IDENTIFIER parameter_value_opt '.' IDENTIFIER
-      { /* Forward-referenced interface, modport-qualified. */
-	interface_type_t*tmp = new interface_type_t(lex_strings.make($2));
-	FILE_NAME(tmp, @1);
-	tmp->has_param_override = ($3 != 0);
-	tmp->modport = lex_strings.make($5);
-	delete[] $2;
-	delete[] $5;
-	if ($3) delete $3;
-	$$ = tmp;
+  | K_interface IDENTIFIER
+      { $$.text = $2;
+	$$.type = nullptr;
+	@$ = @2;
       }
   ;
 
 virtual_interface_type
-  : TYPE_IDENTIFIER parameter_value_opt
-      { interface_type_t*tmp;
-	if (dynamic_cast<const interface_type_t*>($1.type->get_data_type()) == 0) {
+  : virtual_interface_identifier parameter_value_opt
+      { if ($1.type
+	    && dynamic_cast<const interface_type_t*>(
+		  $1.type->get_data_type()) == nullptr)
 	      yyerror(@1, "error: virtual may only be used with interface types.");
-	      tmp = new interface_type_t(lex_strings.make($1.text));
-	} else {
-	      tmp = new interface_type_t(lex_strings.make($1.text));
-	}
+	interface_type_t*tmp =
+	      new interface_type_t(lex_strings.make($1.text));
 	FILE_NAME(tmp, @1);
 	  /* Record that a parameter override was given so elaboration can
 	     diagnose the unmodeled specialization instead of silently using
 	     the interface's default parameters. */
-	tmp->has_param_override = ($2 != 0);
-	$$ = tmp;
+	tmp->has_param_override = ($2 != nullptr);
 	delete[] $1.text;
-	if ($2) delete $2;
-      }
-  /* Forward-referenced or unknown interface — accept IDENTIFIER form too */
-  | IDENTIFIER parameter_value_opt
-      { interface_type_t*tmp = new interface_type_t(lex_strings.make($1));
-	FILE_NAME(tmp, @1);
-	tmp->has_param_override = ($2 != 0);
-	delete[] $1;
-	if ($2) delete $2;
+	delete_parmvalue_t($2);
 	$$ = tmp;
       }
-    /* Modport-qualified forms, for the class-property path (25.9). */
-  | TYPE_IDENTIFIER parameter_value_opt '.' IDENTIFIER
-      { interface_type_t*tmp;
-	if (dynamic_cast<const interface_type_t*>($1.type->get_data_type()) == 0)
+  | virtual_interface_identifier parameter_value_opt '.' IDENTIFIER
+      { if ($1.type
+	    && dynamic_cast<const interface_type_t*>(
+		  $1.type->get_data_type()) == nullptr)
 	      yyerror(@1, "error: virtual may only be used with interface types.");
-	tmp = new interface_type_t(lex_strings.make($1.text));
+	interface_type_t*tmp =
+	      new interface_type_t(lex_strings.make($1.text));
 	FILE_NAME(tmp, @1);
-	tmp->has_param_override = ($2 != 0);
+	tmp->has_param_override = ($2 != nullptr);
 	tmp->modport = lex_strings.make($4);
-	$$ = tmp;
 	delete[] $1.text;
+	delete_parmvalue_t($2);
 	delete[] $4;
-	if ($2) delete $2;
-      }
-  | IDENTIFIER parameter_value_opt '.' IDENTIFIER
-      { interface_type_t*tmp = new interface_type_t(lex_strings.make($1));
-	FILE_NAME(tmp, @1);
-	tmp->has_param_override = ($2 != 0);
-	tmp->modport = lex_strings.make($4);
-	delete[] $1;
-	delete[] $4;
-	if ($2) delete $2;
-	$$ = tmp;
-      }
-    /* IEEE 1800-2017/2023 25.9 and A.2.2.1 make the `interface'
-       keyword optional in a virtual-interface type.  Keep explicit-keyword
-       forms in this class-property helper so the post-`virtual' class state
-       shifts K_interface instead of reducing toward a virtual class
-       declaration. */
-  | K_interface TYPE_IDENTIFIER parameter_value_opt
-      { interface_type_t*tmp;
-	if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0)
-	      yyerror(@2, "error: virtual may only be used with interface types.");
-	tmp = new interface_type_t(lex_strings.make($2.text));
-	FILE_NAME(tmp, @1);
-	tmp->has_param_override = ($3 != 0);
-	$$ = tmp;
-	delete[] $2.text;
-	if ($3) delete $3;
-      }
-  | K_interface IDENTIFIER parameter_value_opt
-      { /* Forward-referenced interface with the explicit keyword. */
-	interface_type_t*tmp = new interface_type_t(lex_strings.make($2));
-	FILE_NAME(tmp, @1);
-	tmp->has_param_override = ($3 != 0);
-	delete[] $2;
-	if ($3) delete $3;
-	$$ = tmp;
-      }
-  | K_interface TYPE_IDENTIFIER parameter_value_opt '.' IDENTIFIER
-      { interface_type_t*tmp;
-	if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0)
-	      yyerror(@2, "error: virtual may only be used with interface types.");
-	tmp = new interface_type_t(lex_strings.make($2.text));
-	FILE_NAME(tmp, @1);
-	tmp->has_param_override = ($3 != 0);
-	tmp->modport = lex_strings.make($5);
-	$$ = tmp;
-	delete[] $2.text;
-	delete[] $5;
-	if ($3) delete $3;
-      }
-  | K_interface IDENTIFIER parameter_value_opt '.' IDENTIFIER
-      { /* Forward-referenced, modport-qualified explicit form. */
-	interface_type_t*tmp = new interface_type_t(lex_strings.make($2));
-	FILE_NAME(tmp, @1);
-	tmp->has_param_override = ($3 != 0);
-	tmp->modport = lex_strings.make($5);
-	delete[] $2;
-	delete[] $5;
-	if ($3) delete $3;
 	$$ = tmp;
       }
   ;
@@ -7211,48 +7029,9 @@ package_item /* IEEE1800-2005 A.1.10 */
      TYPE_IDENTIFIER) is unreachable here — after K_virtual the parser
      state only expects K_class (class_declaration). These dedicated
      alternatives give that state the TYPE_IDENTIFIER/IDENTIFIER shifts. */
-  | K_virtual TYPE_IDENTIFIER parameter_value_opt list_of_variable_decl_assignments ';'
-      { interface_type_t*itype;
-	if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0)
-	      yyerror(@2, "error: virtual may only be used with interface types.");
-	itype = new interface_type_t(lex_strings.make($2.text));
-	FILE_NAME(itype, @1);
-	itype->has_param_override = ($3 != 0);
-	pform_make_var(@2, $4, itype, nullptr, false);
-	delete[] $2.text;
-	if ($3) delete $3;
-      }
-    /* Modport-qualified (IEEE 1800-2017 25.9): `virtual iface.mp v;'. */
-  | K_virtual TYPE_IDENTIFIER parameter_value_opt '.' IDENTIFIER list_of_variable_decl_assignments ';'
-      { interface_type_t*itype;
-	if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0)
-	      yyerror(@2, "error: virtual may only be used with interface types.");
-	itype = new interface_type_t(lex_strings.make($2.text));
-	FILE_NAME(itype, @1);
-	itype->has_param_override = ($3 != 0);
-	itype->modport = lex_strings.make($5);
-	pform_make_var(@2, $6, itype, nullptr, false);
-	delete[] $2.text;
-	delete[] $5;
-	if ($3) delete $3;
-      }
-  | K_virtual IDENTIFIER parameter_value_opt '.' IDENTIFIER list_of_variable_decl_assignments ';'
-      { interface_type_t*itype = new interface_type_t(lex_strings.make($2));
-	FILE_NAME(itype, @1);
-	itype->has_param_override = ($3 != 0);
-	itype->modport = lex_strings.make($5);
-	pform_make_var(@2, $6, itype, nullptr, false);
-	delete[] $2;
-	delete[] $5;
-	if ($3) delete $3;
-      }
-  | K_virtual IDENTIFIER parameter_value_opt list_of_variable_decl_assignments ';'
-      { interface_type_t*itype = new interface_type_t(lex_strings.make($2));
-	FILE_NAME(itype, @1);
-	itype->has_param_override = ($3 != 0);
-	pform_make_var(@2, $4, itype, nullptr, false);
-	delete[] $2;
-	if ($3) delete $3;
+  | K_virtual virtual_interface_type list_of_variable_decl_assignments ';'
+      { FILE_NAME($2, @1);
+	pform_make_var(@1, $3, $2, nullptr, false);
       }
   ;
 
@@ -14968,49 +14747,9 @@ module_item
      expects K_class (class_declaration). These dedicated alternatives
      give that state the TYPE_IDENTIFIER/IDENTIFIER shifts; the reduce
      to K_virtual_opt stays confined to the K_class lookahead. */
-  | K_virtual TYPE_IDENTIFIER parameter_value_opt list_of_variable_decl_assignments ';'
-      { interface_type_t*itype;
-	if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0)
-	      yyerror(@2, "error: virtual may only be used with interface types.");
-	itype = new interface_type_t(lex_strings.make($2.text));
-	FILE_NAME(itype, @1);
-	itype->has_param_override = ($3 != 0);
-	pform_make_var(@2, $4, itype, nullptr, false);
-	delete[] $2.text;
-	if ($3) delete $3;
-      }
-    /* Modport-qualified (IEEE 1800-2017 25.9): `virtual iface.mp v;'. */
-  | K_virtual TYPE_IDENTIFIER parameter_value_opt '.' IDENTIFIER list_of_variable_decl_assignments ';'
-      { interface_type_t*itype;
-	if (dynamic_cast<const interface_type_t*>($2.type->get_data_type()) == 0)
-	      yyerror(@2, "error: virtual may only be used with interface types.");
-	itype = new interface_type_t(lex_strings.make($2.text));
-	FILE_NAME(itype, @1);
-	itype->has_param_override = ($3 != 0);
-	itype->modport = lex_strings.make($5);
-	pform_make_var(@2, $6, itype, nullptr, false);
-	delete[] $2.text;
-	delete[] $5;
-	if ($3) delete $3;
-      }
-  | K_virtual IDENTIFIER parameter_value_opt '.' IDENTIFIER list_of_variable_decl_assignments ';'
-      { interface_type_t*itype = new interface_type_t(lex_strings.make($2));
-	FILE_NAME(itype, @1);
-	itype->has_param_override = ($3 != 0);
-	itype->modport = lex_strings.make($5);
-	pform_make_var(@2, $6, itype, nullptr, false);
-	delete[] $2;
-	delete[] $5;
-	if ($3) delete $3;
-      }
-  | K_virtual IDENTIFIER parameter_value_opt list_of_variable_decl_assignments ';'
-      { /* Forward-referenced or not-yet-registered interface name. */
-	interface_type_t*itype = new interface_type_t(lex_strings.make($2));
-	FILE_NAME(itype, @1);
-	itype->has_param_override = ($3 != 0);
-	pform_make_var(@2, $4, itype, nullptr, false);
-	delete[] $2;
-	if ($3) delete $3;
+  | K_virtual virtual_interface_type list_of_variable_decl_assignments ';'
+      { FILE_NAME($2, @1);
+	pform_make_var(@1, $3, $2, nullptr, false);
       }
 
   | task_declaration

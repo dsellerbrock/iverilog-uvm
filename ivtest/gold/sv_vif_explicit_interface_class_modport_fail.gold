@@ -1,0 +1,2 @@
+./ivltests/sv_vif_explicit_interface_class_modport_fail.v:22: error: cannot access 'hidden' through modport 'observe' of interface 'sv_vif_explicit_class_modport_if' — it is not listed in that modport (IEEE 1800-2017 25.5).
+1 error(s) during elaboration.

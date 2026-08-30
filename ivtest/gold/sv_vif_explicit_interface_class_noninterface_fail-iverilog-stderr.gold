@@ -1,0 +1,1 @@
+ivltests/sv_vif_explicit_interface_class_noninterface_fail.v:7: error: virtual may only be used with interface types.

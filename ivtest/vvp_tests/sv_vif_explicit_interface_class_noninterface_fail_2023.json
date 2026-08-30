@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_vif_explicit_interface_class_noninterface_fail.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_vif_explicit_interface_class_noninterface_fail" ],
+    "gold"          : "sv_vif_explicit_interface_class_noninterface_fail"
+}
