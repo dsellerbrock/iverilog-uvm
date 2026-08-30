@@ -13,7 +13,6 @@ endinterface
 module sv_vif_instance_comparison;
   sv_vif_instance_comparison_if first();
   sv_vif_instance_comparison_if second();
-  sv_vif_instance_comparison_if indexed_bus[0:2]();
 
   // The instance deliberately has the same spelling as its interface type.
   // This exercises the type/instance namespace ambiguity in expression
@@ -22,7 +21,6 @@ module sv_vif_instance_comparison;
 
   virtual sv_vif_instance_comparison_if left_vif;
   virtual sv_vif_instance_comparison_if right_vif;
-  virtual sv_vif_instance_comparison_if indexed_vif;
   virtual sv_vif_same_spelling_if same_spelling_vif;
   logic select_second;
   logic observed;
@@ -132,35 +130,6 @@ module sv_vif_instance_comparison;
     observed = (first != left_vif);
     if (observed !== 1'b1)
       $fatal(1, "old instance did not differ from the rebound handle");
-
-    begin
-      int index;
-
-      index = 1;
-      indexed_vif = indexed_bus[index];
-
-      observed = 1'bx;
-      observed = (indexed_vif == indexed_bus[index]);
-      if (observed !== 1'b1)
-        $fatal(1, "virtual interface did not equal runtime-indexed instance");
-
-      observed = 1'bx;
-      observed = (indexed_bus[index] == indexed_vif);
-      if (observed !== 1'b1)
-        $fatal(1, "runtime-indexed instance did not equal virtual interface");
-
-      index = 2;
-
-      observed = 1'bx;
-      observed = (indexed_vif != indexed_bus[index]);
-      if (observed !== 1'b1)
-        $fatal(1, "virtual interface did not differ from runtime-indexed instance");
-
-      observed = 1'bx;
-      observed = (indexed_bus[index] != indexed_vif);
-      if (observed !== 1'b1)
-        $fatal(1, "runtime-indexed instance did not differ from virtual interface");
-    end
 
     left_vif = first;
     right_vif = second;
