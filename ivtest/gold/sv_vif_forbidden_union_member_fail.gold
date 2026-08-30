@@ -1,0 +1,7 @@
+./ivltests/sv_vif_forbidden_union_member_fail.v:29: error: a virtual interface shall not be used as a union member (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_forbidden_union_member_fail.v:39: error: a virtual interface shall not be used as a union member (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_forbidden_union_member_fail.v:34: error: a virtual interface shall not be used as a union member (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_forbidden_union_member_fail.v:47: error: a virtual interface shall not be used as a union member (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_forbidden_union_member_fail.v:57: error: a virtual interface shall not be used as a union member (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_forbidden_union_member_fail.v:66: error: a virtual interface shall not be used as a union member (IEEE 1800-2017/2023 25.9).
+6 error(s) during elaboration.

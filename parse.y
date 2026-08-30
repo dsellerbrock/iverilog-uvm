@@ -3088,6 +3088,14 @@ class_item /* IEEE1800-2005: A.1.8 */
 			     $3, $4);
       }
 
+    /* `virtual` also starts a virtual method declaration in a class.
+       Preserve an explicit path after a nonempty class-item qualifier so
+       legal properties such as `local virtual interface bus_if vif;` do
+       not commit to the method grammar (IEEE 1800-2017/2023 8.5, 25.9). */
+  | class_item_qualifier_opt K_virtual virtual_interface_type
+    list_of_variable_decl_assignments ';'
+      { pform_class_property(@3, $1, $3, $4); }
+
     /* IEEEE1800-2017: A.1.9 Class items: class_item ::= { property_qualifier} data_declaration */
 
     /* TODO: Restrict the access based on the property qualifier. */
@@ -3135,10 +3143,6 @@ class_item /* IEEE1800-2005: A.1.8 */
       { /* The task_declaration rule puts this into the class */ }
   | K_protected K_static function_declaration
       { /* The function_declaration rule puts this into the class */ }
-  | K_protected K_virtual task_declaration
-      { pform_mark_recent_class_method_virtual(); }
-  | K_protected K_virtual function_declaration
-      { pform_mark_recent_class_method_virtual(); }
   | K_static K_protected task_declaration
       { /* The task_declaration rule puts this into the class */ }
   | K_static K_protected function_declaration
@@ -4949,7 +4953,7 @@ virtual_interface_type
 		  $1.type->get_data_type()) == nullptr)
 	      yyerror(@1, "error: virtual may only be used with interface types.");
 	interface_type_t*tmp =
-	      new interface_type_t(lex_strings.make($1.text));
+	      new interface_type_t(lex_strings.make($1.text), true);
 	FILE_NAME(tmp, @1);
 	  /* Record that a parameter override was given so elaboration can
 	     diagnose the unmodeled specialization instead of silently using
@@ -4965,7 +4969,7 @@ virtual_interface_type
 		  $1.type->get_data_type()) == nullptr)
 	      yyerror(@1, "error: virtual may only be used with interface types.");
 	interface_type_t*tmp =
-	      new interface_type_t(lex_strings.make($1.text));
+	      new interface_type_t(lex_strings.make($1.text), true);
 	FILE_NAME(tmp, @1);
 	tmp->has_param_override = ($2 != nullptr);
 	tmp->modport = lex_strings.make($4);

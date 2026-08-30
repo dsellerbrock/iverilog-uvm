@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_vif_forbidden_union_member_fail.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_vif_forbidden_union_member_fail" ],
+    "gold"          : "sv_vif_forbidden_union_member_fail"
+}

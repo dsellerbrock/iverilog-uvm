@@ -1730,6 +1730,20 @@ ivl_type_t struct_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 	    if (mem_vec == 0)
 		  continue;
 
+	      // IEEE 1800-2017/2023 25.9 permits virtual-interface handles
+	      // in unpacked structs, but explicitly forbids them as union
+	      // members. Check the source type (including typedef and array
+	      // carriers) so ordinary interface-port types remain unaffected.
+	    if (union_flag
+		&& pform_is_virtual_interface_type(
+		      des, scope, curp->type.get())) {
+		  cerr << curp->get_fileline() << ": error: a virtual interface "
+		       << "shall not be used as a union member "
+		       << "(IEEE 1800-2017/2023 25.9)." << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+
 	    if (!packed_flag && !union_flag && has_direct_defaults
 		&& !reported_union_member) {
 		  const netstruct_t*nested = net_type_struct_or_union_(mem_vec);

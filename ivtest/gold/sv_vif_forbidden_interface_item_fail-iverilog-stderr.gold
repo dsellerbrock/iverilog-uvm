@@ -1,0 +1,2 @@
+ivltests/sv_vif_forbidden_interface_item_fail.v:13: error: virtual interface variable `direct_vif' shall not be declared as an interface item (IEEE 1800-2017/2023 25.9).
+ivltests/sv_vif_forbidden_interface_item_fail.v:14: error: virtual interface variable `typedef_vif' shall not be declared as an interface item (IEEE 1800-2017/2023 25.9).
