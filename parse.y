@@ -11515,6 +11515,17 @@ parameterized_scoped_identifier
 	tmp->append_index(idx);
 	$$ = tmp;
       }
+  | parameterized_scoped_identifier '[' '$' ':' expression ']'
+      { pform_requires_sv(@3, "Queue slice [$:hi]");
+	PEIdent*tmp = dynamic_cast<PEIdent*>($1);
+	assert(tmp);
+	index_component_t idx;
+	idx.sel = index_component_t::SEL_PART_LEFT_LAST;
+	idx.msb = 0;
+	idx.lsb = $5;
+	tmp->append_index(idx);
+	$$ = tmp;
+      }
   | parameterized_scoped_identifier '[' expression ':' '$' ']'
       { pform_requires_sv(@5, "Queue slice [lo:$]");
 	PEIdent*tmp = dynamic_cast<PEIdent*>($1);
@@ -13667,6 +13678,17 @@ hierarchy_identifier
 	index_component_t itmp;
 	itmp.sel = index_component_t::SEL_PART;
 	itmp.msb = $3;
+	itmp.lsb = $5;
+	tail.index.push_back(itmp);
+	$$ = tmp;
+      }
+  | hierarchy_identifier '[' '$' ':' expression ']'
+      { pform_requires_sv(@3, "Queue slice [$:hi]");
+	pform_name_t * tmp = $1;
+	name_component_t&tail = tmp->back();
+	index_component_t itmp;
+	itmp.sel = index_component_t::SEL_PART_LEFT_LAST;
+	itmp.msb = 0;
 	itmp.lsb = $5;
 	tail.index.push_back(itmp);
 	$$ = tmp;

@@ -1,0 +1,6 @@
+ivltests/sv_queue_slice_dollar_left_fail.v:17: error: `$' is only valid as a queue slice endpoint.
+ivltests/sv_queue_slice_dollar_left_fail.v:18: error: associative arrays cannot be indexed by a range.
+ivltests/sv_queue_slice_dollar_left_fail.v:19: error: `$' is only valid as a queue slice endpoint.
+ivltests/sv_queue_slice_dollar_left_fail.v:20: error: `$' is only valid as a queue slice endpoint.
+ivltests/sv_queue_slice_dollar_left_fail.v:21: error: queue slice bound must be an integral expression.
+5 error(s) during elaboration.

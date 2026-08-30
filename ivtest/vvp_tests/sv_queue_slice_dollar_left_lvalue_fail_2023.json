@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_queue_slice_dollar_left_lvalue_fail_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_queue_slice_dollar_left_lvalue_fail" ],
+    "gold"          : "sv_queue_slice_dollar_left_lvalue_fail_2023"
+}

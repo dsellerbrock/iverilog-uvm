@@ -139,7 +139,8 @@ struct pform_port_t {
  */
 struct index_component_t {
       enum ctype_t { SEL_NONE, SEL_BIT, SEL_BIT_LAST, SEL_PART, SEL_IDX_UP, SEL_IDX_DO,
-		     SEL_PART_LAST /* [lo:$] or [lo:$-offset] queue slice */ };
+		     SEL_PART_LAST, /* [lo:$] or [lo:$-offset] queue slice */
+		     SEL_PART_LEFT_LAST /* [$:hi] queue slice */ };
 
       index_component_t() : sel(SEL_NONE), msb(0), lsb(0) { };
       ~index_component_t() { }

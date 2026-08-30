@@ -71,6 +71,14 @@ ostream& operator<< (ostream&out, const index_component_t&that)
 	  case index_component_t::SEL_PART:
 	    out << *that.msb << ":" << *that.lsb;
 	    break;
+	  case index_component_t::SEL_PART_LAST:
+	    out << *that.msb << ":$";
+	    if (that.lsb)
+		  out << "-" << *that.lsb;
+	    break;
+	  case index_component_t::SEL_PART_LEFT_LAST:
+	    out << "$:" << *that.lsb;
+	    break;
 	  case index_component_t::SEL_IDX_UP:
 	    out << *that.msb << "+:" << *that.lsb;
 	    break;
@@ -566,16 +574,24 @@ void PEPostSelect::dump(ostream&out) const
       if (base_) out << *base_;
       else out << "<nil>";
       out << ")[";
-      if (index_.msb) out << *index_.msb;
-      if (index_.sel == index_component_t::SEL_PART) {
-            out << ":";
+      if (index_.sel == index_component_t::SEL_PART_LEFT_LAST) {
+            out << "$:";
             if (index_.lsb) out << *index_.lsb;
-      } else if (index_.sel == index_component_t::SEL_IDX_UP) {
-            out << "+:";
-            if (index_.lsb) out << *index_.lsb;
-      } else if (index_.sel == index_component_t::SEL_IDX_DO) {
-            out << "-:";
-            if (index_.lsb) out << *index_.lsb;
+      } else {
+            if (index_.msb) out << *index_.msb;
+	    if (index_.sel == index_component_t::SEL_PART) {
+		  out << ":";
+		  if (index_.lsb) out << *index_.lsb;
+	    } else if (index_.sel == index_component_t::SEL_PART_LAST) {
+		  out << ":$";
+		  if (index_.lsb) out << "-" << *index_.lsb;
+	    } else if (index_.sel == index_component_t::SEL_IDX_UP) {
+		  out << "+:";
+		  if (index_.lsb) out << *index_.lsb;
+	    } else if (index_.sel == index_component_t::SEL_IDX_DO) {
+		  out << "-:";
+		  if (index_.lsb) out << *index_.lsb;
+	    }
       }
       out << "]";
 }

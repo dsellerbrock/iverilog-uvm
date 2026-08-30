@@ -58,6 +58,7 @@ static void unresolved_warn_once(const char*kind, const char*label, const char*d
  * retained below so VVP files produced by earlier 13.x compilers remain
  * runnable; those legacy instructions interpret both bounds as signed. */
 extern bool of_QSLICE_F(vthread_t thr, vvp_code_t code);
+extern bool of_QSLICE_LEFT_F(vthread_t thr, vvp_code_t code);
 extern bool of_QSLICE_IDX_Q_DOWN(vthread_t thr, vvp_code_t code);
 extern bool of_QSLICE_IDX_Q_UP(vthread_t thr, vvp_code_t code);
 extern bool of_QSLICE_LAST_F(vthread_t thr, vvp_code_t code);
@@ -544,6 +545,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%qslice/idx/q/up",of_QSLICE_IDX_Q_UP,3,{OA_STRING,OA_BIT1,OA_BIT2} },
       { "%qslice/last",  of_QSLICE_LAST,  0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%qslice/last/f",of_QSLICE_LAST_F,1,{OA_BIT1,OA_NONE,OA_NONE} },
+	{ "%qslice/left",  of_QSLICE_LEFT,  0,{OA_NONE,OA_NONE,OA_NONE} },
+	{ "%qslice/left/f",of_QSLICE_LEFT_F,1,{OA_BIT1,OA_NONE,OA_NONE} },
       { "%qslice/off",   of_QSLICE_OFF,   0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%qslice/off/f", of_QSLICE_OFF_F, 2,{OA_BIT1,OA_BIT2,OA_NONE} },
       { "%qsort",      of_QSORT,   2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },

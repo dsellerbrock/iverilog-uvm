@@ -2165,8 +2165,8 @@ static NetExpr* unsupported_dynamic_array_slice_(const LineInfo&loc,
       return recovery_expr;
 }
 
-/* Build the queue-valued expression for q[lo:hi], q[lo:$], or
- * q[lo:$-offset] (IEEE 1800-2017 7.10.1). Ordinary dynamic-array
+/* Build the queue-valued expression for q[lo:hi], q[lo:$], q[lo:$-offset],
+ * or q[$:hi] (IEEE 1800-2017/2023 7.10.1). Ordinary dynamic-array
  * colon slices are validated here too, but stop with an explicit unsupported
  * diagnostic because 7.4.5 gives them a fixed-size unpacked-array result,
  * not a dynamic-array result. This consumes container_expr on every path.
@@ -2186,10 +2186,19 @@ static NetExpr* make_queue_slice_expr_(const LineInfo&loc,
 	    dynamic_cast<const netdarray_t*>(container_type);
       const netqueue_t*queue_type =
 	    dynamic_cast<const netqueue_t*>(container_type);
-      if (!array_type
-	  || (index.sel != index_component_t::SEL_PART
-	      && index.sel != index_component_t::SEL_PART_LAST)
-	  || !index.msb) {
+      const bool left_last =
+	    index.sel == index_component_t::SEL_PART_LEFT_LAST;
+      if (!array_type) {
+	    cerr << loc.get_fileline() << ": error: `$' is only valid as a queue "
+		 << "slice endpoint." << endl;
+	    des->errors += 1;
+	    delete container_expr;
+	    return nullptr;
+      }
+      if ((index.sel != index_component_t::SEL_PART
+	   && index.sel != index_component_t::SEL_PART_LAST
+	   && !left_last)
+	  || (left_last ? !index.lsb : !index.msb)) {
 	    delete container_expr;
 	    return nullptr;
       }
@@ -2204,18 +2213,24 @@ static NetExpr* make_queue_slice_expr_(const LineInfo&loc,
       }
 
       const bool plain_darray = !queue_type;
-      if (plain_darray && index.sel == index_component_t::SEL_PART_LAST) {
+      if (plain_darray && (index.sel == index_component_t::SEL_PART_LAST
+			  || left_last)) {
 	    cerr << loc.get_fileline() << ": error: `$' is only valid as a queue "
 		 << "slice endpoint." << endl;
 	    des->errors += 1;
 	    return container_expr;
       }
 
-      NetExpr*lo = elab_and_eval(des, scope, index.msb, -1, false);
+      NetExpr*lo = left_last ? nullptr
+	    : elab_and_eval(des, scope, index.msb, -1, false);
       NetExpr*hi = nullptr;
       const char*func_name = "$ivl_queue$slice";
       unsigned parm_count = 3;
-      if (index.sel == index_component_t::SEL_PART_LAST) {
+      if (left_last) {
+	    hi = elab_and_eval(des, scope, index.lsb, -1, false);
+	    func_name = "$ivl_queue$slice_left_last";
+	    parm_count = 2;
+      } else if (index.sel == index_component_t::SEL_PART_LAST) {
 	    if (index.lsb) {
 		  hi = elab_and_eval(des, scope, index.lsb, -1, false);
 		  func_name = "$ivl_queue$slice_offset";
@@ -2227,7 +2242,7 @@ static NetExpr* make_queue_slice_expr_(const LineInfo&loc,
 	    hi = elab_and_eval(des, scope, index.lsb, -1, false);
       }
 
-      if (!lo || (parm_count == 3 && !hi)) {
+      if ((left_last ? !hi : !lo) || (parm_count == 3 && !hi)) {
 	    delete lo;
 	    delete hi;
 	    delete container_expr;
@@ -2290,14 +2305,16 @@ static NetExpr* make_queue_slice_expr_(const LineInfo&loc,
 	    return unsupported_dynamic_array_slice_(loc, des, container_expr);
       }
 
-      bool integral_bounds = lo->expr_type() == IVL_VT_BOOL
-	    || lo->expr_type() == IVL_VT_LOGIC;
+      NetExpr*first_bound = left_last ? hi : lo;
+      const PExpr*first_source = left_last ? index.lsb : index.msb;
+      bool integral_bounds = first_bound->expr_type() == IVL_VT_BOOL
+	    || first_bound->expr_type() == IVL_VT_LOGIC;
       if (!integral_bounds) {
-	    cerr << index.msb->get_fileline() << ": error: queue slice bound "
+	    cerr << first_source->get_fileline() << ": error: queue slice bound "
 		 << "must be an integral expression." << endl;
 	    des->errors += 1;
       }
-      if (hi && hi->expr_type() != IVL_VT_BOOL
+      if (!left_last && hi && hi->expr_type() != IVL_VT_BOOL
 	  && hi->expr_type() != IVL_VT_LOGIC) {
 	    cerr << index.lsb->get_fileline() << ": error: queue slice bound "
 		 << "must be an integral expression." << endl;
@@ -2318,7 +2335,7 @@ static NetExpr* make_queue_slice_expr_(const LineInfo&loc,
       NetESFunc*fn = new NetESFunc(func_name, result_type, parm_count);
       fn->set_line(loc);
       fn->parm(0, container_expr);
-      fn->parm(1, lo);
+      fn->parm(1, left_last ? hi : lo);
       if (parm_count == 3)
 	    fn->parm(2, hi);
       return fn;
@@ -2328,6 +2345,7 @@ static bool is_unpacked_array_slice_select_(index_component_t::ctype_t sel)
 {
       return sel == index_component_t::SEL_PART
 	  || sel == index_component_t::SEL_PART_LAST
+	  || sel == index_component_t::SEL_PART_LEFT_LAST
 	  || sel == index_component_t::SEL_IDX_UP
 	  || sel == index_component_t::SEL_IDX_DO;
 }
@@ -10632,6 +10650,15 @@ bool calculate_part(const LineInfo*li, Design*des, NetScope*scope,
 	    return false;
       }
 
+      /* A symbolic queue endpoint is resolved from the live receiver by
+	 make_queue_slice_expr_(). It has no compile-time packed-part offset. */
+      if (index.sel == index_component_t::SEL_PART_LEFT_LAST) {
+	    cerr << li->get_fileline() << ": error: `$' is only valid as a queue "
+		 << "slice endpoint." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
 	// Evaluate the last index expression into a constant long.
       NetExpr*texpr = elab_and_eval(des, scope, index.msb, -1, true);
       long msb;
@@ -10692,6 +10719,10 @@ bool calculate_part(const LineInfo*li, Design*des, NetScope*scope,
 	    off = msb;
 	    wid = 1;
 	    return true;
+
+	  case index_component_t::SEL_PART_LEFT_LAST:
+	    ivl_assert(*li, 0);
+	    return false;
 
 	  default:
 	    cerr << li->get_fileline() << ": sorry: this select form is"
@@ -18901,6 +18932,9 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 	  case index_component_t::SEL_PART_LAST:
 	    // [lo:$] queue slice — width is dynamic; treat as unbounded
 	    break;
+	  case index_component_t::SEL_PART_LEFT_LAST:
+	    // [$:hi] queue slice — width is dynamic; treat as unbounded
+	    break;
 	  default:
 	    ivl_assert(*this, 0);
       }
@@ -19120,6 +19154,30 @@ static bool parameter_array_select_retains_dimension_(
       for (size_t dim = 0 ; dim < ndims ; dim += 1, ++cur)
 	    if (cur->sel != index_component_t::SEL_BIT)
 		  return true;
+      return false;
+}
+
+/* A `$' endpoint gets its value from a live queue. It therefore cannot
+ * consume one of a signal's declared fixed unpacked dimensions. Only inspect
+ * that fixed prefix: a later [$:hi] may legally slice a queue-valued word. */
+static bool reject_left_last_in_fixed_unpacked_prefix_(
+		const LineInfo&loc, Design*des, const NetNet*net,
+		const name_component_t&component)
+{
+      std::list<index_component_t>::const_iterator index_it =
+	    component.index.begin();
+      for (size_t depth = 0;
+	   depth < net->unpacked_dimensions()
+	   && index_it != component.index.end();
+	   depth += 1, ++index_it) {
+	    if (index_it->sel != index_component_t::SEL_PART_LEFT_LAST)
+		  continue;
+
+	    cerr << loc.get_fileline() << ": error: `$' is only valid as a "
+		 << "queue slice endpoint." << endl;
+	    des->errors += 1;
+	    return true;
+      }
       return false;
 }
 
@@ -19568,6 +19626,11 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       }
 
       const name_component_t&use_comp = path_.back();
+
+      if (sr.path_tail.empty()
+	  && reject_left_last_in_fixed_unpacked_prefix_(
+		*this, des, net, use_comp))
+	    return nullptr;
 
 	/* A fixed signal prefix and its associative leaf are two distinct
 	 * unpacked ranks.  Build the selected outer map first, then consume any
@@ -23350,6 +23413,10 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
 	    return 0;
       }
 
+      if (reject_left_last_in_fixed_unpacked_prefix_(
+		*this, des, net, name_tail))
+	    return nullptr;
+
 	/* The fixed dimensions select an object-array word; any further
 	 * component selects through the associative map stored in that word.
 	 * Keep those two address spaces separate instead of feeding the final
@@ -23467,6 +23534,13 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
       if (word_sel == index_component_t::SEL_BIT)
 	    return elaborate_expr_net_bit_(des, scope, res, found_in,
                                            need_const);
+
+      if (word_sel == index_component_t::SEL_PART_LAST
+	  || word_sel == index_component_t::SEL_PART_LEFT_LAST) {
+	    const index_component_t&index_tail = name_tail.index.back();
+	    return make_queue_slice_expr_(*this, des, scope, res,
+				  res->net_type(), index_tail);
+      }
 
       ivl_assert(*this, word_sel == index_component_t::SEL_NONE);
 
@@ -24578,15 +24652,14 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 	    return elaborate_expr_net_bit_last_(des, scope, node, found_in,
 						need_const);
 
-      if (use_sel == index_component_t::SEL_PART_LAST) {
-	      // IEEE 1800-2017 7.10.1: q[lo:$] is a queue-valued slice
-	      // from lo through the queue's current last element.  It is not
-	      // q[$], which returns one element.  Reuse the same runtime slice
-	      // helper as q[lo:hi], with NetELast supplying the dynamic upper
-	      // bound at the point the expression is evaluated.
+      if (use_sel == index_component_t::SEL_PART_LAST
+	  || use_sel == index_component_t::SEL_PART_LEFT_LAST) {
+	      // IEEE 1800-2017/2023 7.10.1: a `$' endpoint is resolved from
+	      // the live queue by the runtime slice helper. It is not q[$],
+	      // which returns one element.
 	    if (!node->sig()->darray_type()) {
-		  cerr << get_fileline() << ": error: [lo:$] is only valid "
-		       << "as a queue or dynamic-array slice." << endl;
+		  cerr << get_fileline() << ": error: `$' is only valid as a "
+		       << "queue slice endpoint." << endl;
 		  des->errors += 1;
 		  delete node;
 		  return 0;
