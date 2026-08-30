@@ -17533,32 +17533,169 @@ struct event_leaf_dynamic_kind_t {
       bool compound = false;
 };
 
-/* Class-property and virtual-interface event leaves are selected dynamically
- * when the wait arms. Classify a prospective leaf without changing the
- * established lowering of ordinary event lists. A failed elaboration is left
- * to the normal event path so it retains its existing diagnostic. */
-static event_leaf_dynamic_kind_t classify_dynamic_event_leaf_(
-		Design*des, NetScope*scope, const PEEvent*event)
-{
-      event_leaf_dynamic_kind_t res;
-      if (!gn_system_verilog() || !event || !event->expr()
-	  || event->type() != PEEvent::ANYEDGE)
-	    return res;
+struct prepared_event_leaf_t {
+      unique_ptr<NetExpr> expr;
+      NetEvent*named_event = nullptr;
+      bool elaborated = false;
+      bool preserve_pform = false;
+      event_leaf_dynamic_kind_t kind;
+};
 
-      unsigned errors_before = des->errors;
-      NetExpr*expr = elab_and_eval(des, scope, event->expr(), -1);
-      if (!expr || des->errors != errors_before) {
-	    delete expr;
-	    return res;
+/* A split event list still uses the complete single-leaf elaborator. Transfer
+ * its already-elaborated expression through this pform adapter so classification
+ * and lowering never elaborate the source leaf twice. The adapter owns the
+ * netlist expression until elaborate_expr() transfers it to the normal path. */
+class PECachedEventExpr : public PExpr {
+    public:
+      PECachedEventExpr(PExpr*source, unique_ptr<NetExpr>expr)
+      : source_(source), expr_(std::move(expr))
+      {
+	    set_line(*source_);
       }
+
+      void dump(ostream&out) const override
+      {
+	    source_->dump(out);
+      }
+
+      unsigned test_width(Design*, NetScope*, width_mode_t&) override
+      {
+	    if (expr_) {
+		  expr_type_ = expr_->expr_type();
+		  expr_width_ = expr_->expr_width();
+		  min_width_ = expr_width_;
+		  signed_flag_ = expr_->has_sign();
+	    } else {
+		  expr_type_ = IVL_VT_LOGIC;
+		  expr_width_ = 1;
+		  min_width_ = 1;
+		  signed_flag_ = false;
+	    }
+	    return expr_width_;
+      }
+
+      NetExpr* elaborate_expr(Design*, NetScope*, unsigned,
+			      unsigned) const override
+      {
+	    return expr_.release();
+      }
+
+    private:
+      PExpr*source_;
+      mutable unique_ptr<NetExpr>expr_;
+};
+
+/* Diagnose an illegal edge qualifier on a named event in the same form as the
+ * established shared-list path. */
+static void check_named_event_edge_(Design*des, const LineInfo&loc,
+			    const PEEvent*event, const NetEvent*named_event)
+{
+      if (event->type() == PEEvent::ANYEDGE)
+	    return;
+
+      cerr << loc.get_fileline() << ": error: ";
+      switch (event->type()) {
+	  case PEEvent::POSEDGE:
+	    cerr << "posedge";
+	    break;
+	  case PEEvent::NEGEDGE:
+	    cerr << "negedge";
+	    break;
+	  default:
+	    cerr << "unknown edge type!";
+	    ivl_assert(loc, 0);
+      }
+      cerr << " can not be used with a named event ("
+	   << named_event->name() << ")." << endl;
+      des->errors += 1;
+}
+
+/* Class-property and virtual-interface event leaves are selected dynamically
+ * when the wait arms. Elaborate each prospective leaf exactly once, retain the
+ * result for whichever lowering path wins, and classify that retained tree.
+ * A failed leaf is also marked elaborated so the normal path does not repeat
+ * its diagnostics. Named events are resolved without expression elaboration. */
+static void prepare_event_leaf_(Design*des, NetScope*scope,
+			const LineInfo&loc, const PEEvent*event,
+			prepared_event_leaf_t&res)
+{
+      if (!event || !event->expr())
+	    return;
+
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(event->expr())) {
+	    unsigned errors_before = des->errors;
+	    symbol_search_results sr;
+	    symbol_search(&loc, des, scope, id->path(), id->lexical_pos(), &sr);
+	    if (des->errors != errors_before) {
+		  res.elaborated = true;
+		  return;
+	    }
+	    res.named_event = resolve_named_event_member_from_search_(sr);
+	    if (res.named_event && res.named_event->is_class_event()) {
+		  res.named_event = nullptr;
+		  res.preserve_pform = true;
+		  return;
+	    }
+	    if (sr.eve && sr.eve->is_event_array()) {
+		  res.preserve_pform = true;
+		  return;
+	    }
+
+	    size_t clocking_components = 0;
+	    if (resolve_interface_clocking_block_from_search_(
+		  sr, clocking_components)
+		|| sr.is_scope() || !sr.is_found()) {
+		  res.preserve_pform = true;
+		  return;
+	    }
+
+	    if (!res.named_event && gn_system_verilog()
+		&& id->path().size() == 1
+		&& id->path().back().index.empty()
+		&& id->path().back().name == perm_string::literal("on")) {
+		  pform_scoped_name_t mapped_path = id->path();
+		  mapped_path.name.back().name = perm_string::literal("m_event");
+		  symbol_search_results mapped_sr;
+		  symbol_search(&loc, des, scope, mapped_path,
+				id->lexical_pos(), &mapped_sr);
+		  if (des->errors != errors_before) {
+			res.elaborated = true;
+			return;
+		  }
+		  res.named_event =
+			resolve_named_event_member_from_search_(mapped_sr);
+	    }
+	    if (res.named_event)
+		  return;
+      }
+
+      if (const PECallFunction*call =
+		dynamic_cast<const PECallFunction*>(event->expr())) {
+	    if (call->path().name.size() == 1) {
+		  perm_string name = call->path().name.back().name;
+		  if (name == perm_string::literal("$global_clock")
+		      || name == perm_string::literal("$ivl_default_clock")) {
+			res.preserve_pform = true;
+			return;
+		  }
+	    }
+      }
+
+      res.elaborated = true;
+      res.expr.reset(elab_and_eval(des, scope, event->expr(), -1));
+      if (!gn_system_verilog() || !res.expr)
+	    return;
+
+      NetExpr*expr = res.expr.get();
 
       std::vector<class_property_mutation_dep_t> object_deps;
       collect_class_property_mutation_deps_(expr, object_deps);
-      res.object = !object_deps.empty();
+      res.kind.object = event->type() == PEEvent::ANYEDGE
+			&& !object_deps.empty();
 
       std::vector<vif_member_path_t> vif_paths;
       collect_vif_member_paths_(expr, vif_paths);
-      res.vif = !vif_paths.empty();
+      res.kind.vif = !vif_paths.empty();
 
       bool direct_vif = false;
       if (const NetEProperty*property =
@@ -17566,36 +17703,43 @@ static event_leaf_dynamic_kind_t classify_dynamic_event_leaf_(
 	    vif_member_path_t path;
 	    direct_vif = decode_vif_member_path_(property, path);
       }
-      res.compound = (res.object && !is_direct_class_property_event_expr_(expr))
-		  || (res.vif && !direct_vif);
-
-      delete expr;
-      return res;
+      res.kind.compound =
+	    (res.kind.object && !is_direct_class_property_event_expr_(expr))
+	 || (res.kind.vif && !direct_vif);
 }
 
 /* A shared NetEvWait remains the compact, established representation for
  * ordinary event-or lists and for the already-supported homogeneous direct
  * object-mutation list. Split only lists whose dynamically selected waiter
  * cannot safely share that representation: a compound dynamic leaf needs its
- * own value filter, while an object-mutation leaf mixed with another waiter
- * family needs independent cancellation/unlinking. */
-static bool event_list_needs_dynamic_split_(Design*des, NetScope*scope,
-				 const std::vector<PEEvent*>&events)
+ * own value filter, while an object-mutation or virtual-interface leaf mixed
+ * with another waiter family needs independent cancellation/unlinking. */
+static bool prepare_event_list_(Design*des, NetScope*scope,
+			const LineInfo&loc,
+			const std::vector<PEEvent*>&events,
+			std::vector<prepared_event_leaf_t>&prepared)
 {
-      if (events.size() < 2)
+      if (!gn_system_verilog() || events.size() < 2)
 	    return false;
 
+      prepared.resize(events.size());
       bool has_object = false;
       bool has_non_object = false;
+      bool has_vif = false;
+      bool has_non_vif = false;
       bool has_compound_dynamic = false;
-      for (const PEEvent*event : events) {
-	    event_leaf_dynamic_kind_t kind =
-		  classify_dynamic_event_leaf_(des, scope, event);
+      for (unsigned idx = 0; idx < events.size(); idx += 1) {
+	    prepare_event_leaf_(des, scope, loc, events[idx], prepared[idx]);
+	    const event_leaf_dynamic_kind_t&kind = prepared[idx].kind;
 	    has_object = has_object || kind.object;
 	    has_non_object = has_non_object || !kind.object || kind.vif;
+	    has_vif = has_vif || kind.vif;
+	    has_non_vif = has_non_vif || !kind.vif || kind.object;
 	    has_compound_dynamic = has_compound_dynamic || kind.compound;
       }
-      return has_compound_dynamic || (has_object && has_non_object);
+      return has_compound_dynamic
+	  || (has_object && has_non_object)
+	  || (has_vif && has_non_vif);
 }
 
 /* IEEE 1800-2017 9.4.2.3 qualifies each event-expression leaf
@@ -17704,16 +17848,38 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
       if (has_conditional_event_())
 	    return elaborate_conditional_(des, scope, enet);
 
+      std::vector<prepared_event_leaf_t>prepared;
+
       /* A dynamically selected class/VIF leaf cannot share one VVP waiter
        * record with an ordinary event family, and a compound dynamic leaf
        * needs the single-leaf value-change filter around its own wait. Lower
        * only those mixed lists as independent one-shot waits under join_any;
        * the ordinary event-list path below remains unchanged. */
-      if (event_list_needs_dynamic_split_(des, scope, expr_)) {
+      if (prepare_event_list_(des, scope, *this, expr_, prepared)) {
 	    std::vector<NetProc*>waiters;
-	    for (PEEvent*event : expr_) {
+	    for (unsigned idx = 0; idx < expr_.size(); idx += 1) {
+		  PEEvent*event = expr_[idx];
 		  ivl_assert(*this, event);
-		  PEEvent raw_event(event->type(), event->expr());
+
+		  if (prepared[idx].named_event) {
+			check_named_event_edge_(des, *this, event,
+					prepared[idx].named_event);
+			NetEvWait*wait = new NetEvWait(nullptr);
+			wait->set_line(*event);
+			wait->add_event(prepared[idx].named_event);
+			waiters.push_back(wait);
+			continue;
+		  }
+
+		  unique_ptr<PECachedEventExpr>cached_expr;
+		  PExpr*raw_expr = event->expr();
+		  if (prepared[idx].elaborated
+		      && !prepared[idx].preserve_pform) {
+			cached_expr.reset(new PECachedEventExpr(
+			      event->expr(), std::move(prepared[idx].expr)));
+			raw_expr = cached_expr.get();
+		  }
+		  PEEvent raw_event(event->type(), raw_expr);
 		  raw_event.set_line(*event);
 		  PEventStatement raw_wait(&raw_event);
 		  raw_wait.set_line(*this);
@@ -18167,6 +18333,14 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		 named event, then handle this case all at once and
 		 skip the rest of the expression handling. */
 
+		    if (!prepared.empty() && prepared[idx].named_event) {
+			  wa->add_event(prepared[idx].named_event);
+			  check_named_event_edge_(des, *this, expr_[idx],
+					  prepared[idx].named_event);
+			  continue;
+		    }
+
+		    if (prepared.empty() || prepared[idx].preserve_pform)
 		    if (const PEIdent*id = dynamic_cast<PEIdent*>(expr_[idx]->expr())) {
 			  symbol_search_results sr;
 			  symbol_search(this, des, scope, id->path(), id->lexical_pos(), &sr);
@@ -18232,7 +18406,10 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		 the sub-expression as a net and decide how to handle
 		 the edge. */
 
-	    NetExpr*tmp = elab_and_eval(des, scope, expr_[idx]->expr(), -1);
+	    NetExpr*tmp = !prepared.empty() && prepared[idx].elaborated
+		  && !prepared[idx].preserve_pform
+		  ? prepared[idx].expr.release()
+		  : elab_and_eval(des, scope, expr_[idx]->expr(), -1);
 	    if (tmp == 0) {
 		  // Compile-progress: clocking block or complex VIF event references
 		  // (e.g. @(vif.mp.cb)) may not yet be resolvable. Warn and skip.

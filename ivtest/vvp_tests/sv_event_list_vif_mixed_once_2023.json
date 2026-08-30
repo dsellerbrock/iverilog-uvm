@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_event_list_vif_mixed_once_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_event_list_vif_mixed_once" ],
+    "gold"          : "sv_event_list_vif_mixed_once"
+}
