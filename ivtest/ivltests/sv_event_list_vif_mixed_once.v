@@ -126,6 +126,6 @@ module sv_event_list_vif_mixed_once;
       $fatal(1, "homogeneous ordinary list did not wake exactly once");
 
     $display("PASSED");
-    $finish;
+    $finish(0);
   end
 endmodule

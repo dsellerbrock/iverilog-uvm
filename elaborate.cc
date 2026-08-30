@@ -927,7 +927,7 @@ static NetExpr* elaborate_class_event_target_(Design*des, NetScope*scope,
 
 /*
  * Resolve an indexed reference into a named-event array, e.g. `arr[i]`
- * used by `->arr[i]`, `->>arr[i]`, or `@(arr[i])` (IEEE 1800-2017 6.20:
+ * used by `->arr[i]`, `->>arr[i]`, or `@(arr[i])` (IEEE 1800-2017 6.17:
  * an unpacked array of events, where each element is its own
  * independent named event). Returns the array's group NetEvent
  * (is_event_array()==true) and, in idx_out, the elaborated index
@@ -19706,7 +19706,7 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 
 	/* A wait on a single named-event array element (`@(arr[i])`):
 	   each element is its own independent named event
-	   (IEEE 1800-2017 6.20). */
+	   (IEEE 1800-2017 6.17). */
       if (expr_.size() == 1 && expr_[0]
 	  && (expr_[0]->type() == PEEvent::POSITIVE
 	      || expr_[0]->type() == PEEvent::ANYEDGE)
@@ -21326,7 +21326,7 @@ NetProc* PTrigger::elaborate(Design*des, NetScope*scope) const
 
 	// A trigger on a named-event array element (`->arr[i]`): each
 	// element is its own independent named event (IEEE 1800-2017
-	// 6.20).
+	// 6.17).
       {
 	    NetExpr*idx = 0;
 	    if (NetEvent*ev = elaborate_event_array_target_(des, scope,

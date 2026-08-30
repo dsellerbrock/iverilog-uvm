@@ -1,0 +1,2 @@
+./ivltests/sv_event_list_prepare_static_diag_fail.v:10: error: posedge can not be used with a named event (named_source).
+1 error(s) during elaboration.

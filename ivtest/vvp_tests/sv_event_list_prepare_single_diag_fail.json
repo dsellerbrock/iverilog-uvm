@@ -1,6 +1,6 @@
 {
     "type"          : "CE",
     "source"        : "sv_event_list_prepare_single_diag_fail.v",
-    "iverilog-args" : [ "-g2012", "-s", "sv_event_list_prepare_single_diag_fail" ],
+    "iverilog-args" : [ "-g2017", "-s", "sv_event_list_prepare_single_diag_fail" ],
     "gold"          : "sv_event_list_prepare_single_diag_fail"
 }

@@ -2,5 +2,5 @@
     "type"          : "CE",
     "source"        : "sv_event_list_prepare_single_diag_fail_2023.v",
     "iverilog-args" : [ "-g2023", "-s", "sv_event_list_prepare_single_diag_fail" ],
-    "gold"          : "sv_event_list_prepare_single_diag_fail"
+    "gold"          : "sv_event_list_prepare_single_diag_fail_2023"
 }
