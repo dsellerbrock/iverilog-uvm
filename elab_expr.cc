@@ -5046,6 +5046,12 @@ static bool elaborate_fixed_uarray_comparison_(Design*des, NetScope*scope,
       return true;
 }
 
+static NetScope* visible_interface_instance_array_(
+		Design*des, NetScope*scope, perm_string name,
+		unsigned lexical_pos);
+static NetScope* comparison_interface_instance_scope_(
+		const PExpr*expr, Design*des, NetScope*scope);
+
 unsigned PEBComp::test_width(Design*des, NetScope*scope, width_mode_t&)
 {
       ivl_assert(*this, left_);
@@ -5084,6 +5090,24 @@ unsigned PEBComp::test_width(Design*des, NetScope*scope, width_mode_t&)
 
 	      return expr_width_;
 	}
+      }
+
+	/* An interface-instance operand gets its type from a same-type virtual
+	 * interface in elaborate_expr(). In particular, a runtime index into an
+	 * instance array cannot be sent through either fixed-array decoding or an
+	 * ordinary width probe: both use symbol_search(), which requires scope
+	 * indices to be constant. Defer that operand to the semantic VIF path. */
+      NetScope*left_interface_instance =
+	    comparison_interface_instance_scope_(left_, des, scope);
+      NetScope*right_interface_instance =
+	    comparison_interface_instance_scope_(right_, des, scope);
+      if (left_interface_instance || right_interface_instance) {
+	    width_mode_t instance_mode = SIZED;
+	    l_width_ = left_interface_instance
+		  ? 1 : left_->test_width(des, scope, instance_mode);
+	    r_width_ = right_interface_instance
+		  ? 1 : right_->test_width(des, scope, instance_mode);
+	    return expr_width_;
       }
 
 	// Whole fixed arrays and unpacked slices have no scalar expression
@@ -5246,7 +5270,8 @@ unsigned PEBComp::test_width(Design*des, NetScope*scope, width_mode_t&)
 	      // language mode: silently continuing let a width-0 null
 	      // expression reach the eval_tree must_be_leeq_ optimization,
 	      // which aborted on its expr_width()>0 assertion (br_gh440).
-	    if (l_type == IVL_VT_CLASS || r_type == IVL_VT_CLASS) {
+	    if ((l_type == IVL_VT_CLASS || r_type == IVL_VT_CLASS)
+		&& op_ != 'w' && op_ != 'W') {
 		  cerr << get_fileline() << ": error: "
 		       << "Class/null is not allowed with the '"
 		       << human_readable_op(op_) << "' operator." << endl;
@@ -5258,12 +5283,58 @@ unsigned PEBComp::test_width(Design*des, NetScope*scope, width_mode_t&)
       return expr_width_;
 }
 
-static const netclass_t* comparison_virtual_interface_type_(
-		const NetExpr*expr)
+static NetScope* visible_interface_instance_array_(
+		Design*des, NetScope*scope, perm_string name,
+		unsigned lexical_pos)
 {
-      const netclass_t*type = expr
-	    ? dynamic_cast<const netclass_t*>(expr->net_type()) : 0;
-      return type && type->is_interface() ? type : 0;
+      for (NetScope*cur = scope ; cur ; cur = cur->parent()) {
+	    /* Match symbol_search()'s lexical object-before-child ordering
+	       without evaluating the runtime index. Any visible object with the
+	       same name shadows an outer instance array. */
+	    if ((cur->genvar_tmp.str() && cur->genvar_tmp == name)
+		|| (cur->find_signal(name)
+		    && cur->find_signal(name)->lexical_pos() <= lexical_pos)
+		|| (cur->find_event(name)
+		    && cur->find_event(name)->lexical_pos() <= lexical_pos))
+		  return 0;
+
+	    std::map<perm_string,NetScope::param_expr_t>::const_iterator param =
+		  cur->parameters.find(name);
+	    if (param != cur->parameters.end()
+		&& param->second.lexical_pos <= lexical_pos)
+		  return 0;
+
+	    PWire*wire = cur->find_signal_placeholder(name);
+	    if (wire && wire->lexical_pos() <= lexical_pos)
+		  return 0;
+	    if (cur->enumeration_expr(name))
+		  return 0;
+	    if (cur->type() == NetScope::CLASS && cur->class_def()
+		&& cur->class_def()->property_idx_from_name(name) >= 0)
+		  return 0;
+
+	    bool named_child = false;
+	    const std::map<hname_t,NetScope*>&children = cur->children();
+	    for (std::map<hname_t,NetScope*>::const_iterator it =
+		   children.begin(); it != children.end(); ++it) {
+		  const hname_t&hname = it->first;
+		  if (hname.peek_name() != name)
+			continue;
+		  named_child = true;
+		  NetScope*child = it->second;
+		  if (hname.has_numbers() && child && child->is_interface())
+			return child;
+	    }
+	    if (named_child || cur->find_import(des, name))
+		  return 0;
+
+	    /* Unqualified object names do not cross a non-nested module
+	       boundary. This also prevents finding a sibling instance array in
+	       an enclosing design hierarchy. */
+	    if (cur->type() == NetScope::MODULE && !cur->nested_module())
+		  break;
+      }
+      return 0;
 }
 
 static NetScope* comparison_interface_instance_scope_(
@@ -5273,6 +5344,18 @@ static NetScope* comparison_interface_instance_scope_(
       if (!ident)
 	    return 0;
 
+      /* A nonconstant select into an interface-instance array cannot go
+	 through symbol_search(): scope indices are normally required to be
+	 constant, and that path diagnoses before the typed VIF dispatch can
+	 synthesize its runtime selection table. A representative child is enough
+	 here to establish that the operand denotes an interface instance and to
+	 check its interface definition. */
+      const pform_scoped_name_t&path = ident->path();
+      if (!path.package && path.name.size() == 1
+	  && !path.name.front().index.empty())
+	    return visible_interface_instance_array_(
+		  des, scope, path.name.front().name, ident->lexical_pos());
+
       symbol_search_results sr;
       if (!symbol_search(ident, des, scope, ident->path(),
 			 ident->lexical_pos(), &sr)
@@ -5280,6 +5363,36 @@ static NetScope* comparison_interface_instance_scope_(
 	  || !sr.scope->is_interface() || !sr.path_tail.empty())
 	    return 0;
       return sr.scope;
+}
+
+static const netclass_t* comparison_virtual_interface_type_(
+		const NetExpr*expr)
+{
+      const netclass_t*type = expr
+	    ? dynamic_cast<const netclass_t*>(expr->net_type()) : 0;
+      if (type && type->is_interface())
+	    return type;
+
+      /* Runtime selection from an interface-instance array is represented as
+	 a nested object ternary whose leaves are typed NetEScope handles and null.
+	 Preserve that semantic type for comparison validation without globally
+	 changing the type rules of every NetETernary. This also recognizes a
+	 user-written conditional between same-type virtual interfaces. */
+      const NetETernary*ternary = dynamic_cast<const NetETernary*>(expr);
+      if (!ternary)
+	    return 0;
+      const NetExpr*true_expr = ternary->true_expr();
+      const NetExpr*false_expr = ternary->false_expr();
+      const netclass_t*true_type = comparison_virtual_interface_type_(true_expr);
+      const netclass_t*false_type = comparison_virtual_interface_type_(false_expr);
+      if (true_type && dynamic_cast<const NetENull*>(false_expr))
+	    return true_type;
+      if (false_type && dynamic_cast<const NetENull*>(true_expr))
+	    return false_type;
+      if (true_type && false_type
+	  && true_type->type_equivalent(false_type))
+	    return true_type;
+      return 0;
 }
 
 static void report_virtual_interface_comparison_error_(
@@ -5298,11 +5411,18 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
       ivl_assert(*this, left_);
       ivl_assert(*this, right_);
 
-      NetExpr*array_comparison = 0;
-      if (elaborate_fixed_uarray_comparison_(des, scope, this, flags,
-						     array_comparison)) {
-	    if (!array_comparison) return 0;
-	    return pad_to_width(array_comparison, expr_wid, false, *this);
+      NetScope*left_instance =
+	    comparison_interface_instance_scope_(left_, des, scope);
+      NetScope*right_instance =
+	    comparison_interface_instance_scope_(right_, des, scope);
+
+      if (!left_instance && !right_instance) {
+	    NetExpr*array_comparison = 0;
+	    if (elaborate_fixed_uarray_comparison_(des, scope, this, flags,
+						       array_comparison)) {
+		  if (!array_comparison) return 0;
+		  return pad_to_width(array_comparison, expr_wid, false, *this);
+	    }
       }
 
       { const type_reference_t*l_tref = type_operator_reference(left_);
@@ -5351,21 +5471,26 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
       NetExpr*lp = 0;
       NetExpr*rp = 0;
 
-      /* IEEE 1800-2017/2023 25.9 permits a virtual interface to be
-	 compared with a same-type concrete interface instance using == or
-	 !=. Interface instances are scopes, not ordinary signal expressions,
-	 and therefore need the virtual-interface type as their elaboration
-	 context. Elaborate the known object operand first, then propagate its
-	 exact interface type symmetrically to the scope operand. Do not use
-	 SYS_TASK_ARG: that would make arbitrary scope names legal expressions. */
-      const bool comparison_operator = op_ == 'e' || op_ == 'n'
-	    || op_ == 'E' || op_ == 'N' || op_ == 'w' || op_ == 'W';
+	/* IEEE 1800-2017/2023 25.9 permits a virtual interface to be
+	   compared with a same-type concrete interface instance using == or
+	   !=. Interface instances are scopes, not ordinary signal expressions,
+	   and therefore need the virtual-interface type as their elaboration
+	   context. Elaborate the known object operand first, then propagate its
+	   exact interface type symmetrically to the scope operand. Do not use
+	   SYS_TASK_ARG: that would make arbitrary scope names legal expressions. */
+      const bool valid_vif_operator = op_ == 'e' || op_ == 'n';
       const bool left_object = left_->expr_type() == IVL_VT_CLASS;
       const bool right_object = right_->expr_type() == IVL_VT_CLASS;
 
-      if (comparison_operator && !left_object && !right_object
-	  && (comparison_interface_instance_scope_(left_, des, scope)
-	      || comparison_interface_instance_scope_(right_, des, scope))) {
+      if ((left_instance || right_instance) && !valid_vif_operator) {
+	    report_virtual_interface_comparison_error_(
+		  des, *this,
+		  "Virtual interfaces support only == and != comparisons");
+	    return 0;
+      }
+
+      if (!left_object && !right_object
+	  && (left_instance || right_instance)) {
 	    report_virtual_interface_comparison_error_(
 		  des, *this,
 		  "An interface instance may be compared only with a same-type "
@@ -5373,37 +5498,85 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 	    return 0;
       }
 
-      if (comparison_operator && left_object && !right_object) {
+      if (left_object && !right_object) {
 	    lp = left_->elaborate_expr(des, scope, l_width_, flags);
 	    const netclass_t*vif_type =
 		  comparison_virtual_interface_type_(lp);
 	    if (vif_type) {
-		  if (op_ == 'E' || op_ == 'N') {
+		  if (!valid_vif_operator) {
 			report_virtual_interface_comparison_error_(
 			      des, *this,
 			      "Virtual interfaces support only == and != comparisons");
 			delete lp;
 			return 0;
 		  }
+		  if (right_instance
+		      && right_instance->module_name() != vif_type->get_name()) {
+			report_virtual_interface_comparison_error_(
+			      des, *this,
+			      "Virtual-interface comparison operands must have the same type");
+			delete lp;
+			return 0;
+		  }
 		  rp = right_->elaborate_expr(
 			des, scope, static_cast<ivl_type_t>(vif_type), flags);
+		  if (rp && !comparison_virtual_interface_type_(rp)) {
+			report_virtual_interface_comparison_error_(
+			      des, *this,
+			      "A virtual interface may be compared only with null, a "
+			      "same-type virtual interface, or a same-type interface instance");
+			delete lp;
+			delete rp;
+			return 0;
+		  }
+	    } else if (right_instance) {
+		  report_virtual_interface_comparison_error_(
+			des, *this,
+			"An interface instance may be compared only with a same-type "
+			"virtual interface using == or !=");
+		  delete lp;
+		  return 0;
 	    } else {
 		  rp = right_->elaborate_expr(des, scope, r_width_, flags);
 	    }
-      } else if (comparison_operator && right_object && !left_object) {
+      } else if (right_object && !left_object) {
 	    rp = right_->elaborate_expr(des, scope, r_width_, flags);
 	    const netclass_t*vif_type =
 		  comparison_virtual_interface_type_(rp);
 	    if (vif_type) {
-		  if (op_ == 'E' || op_ == 'N') {
+		  if (!valid_vif_operator) {
 			report_virtual_interface_comparison_error_(
 			      des, *this,
 			      "Virtual interfaces support only == and != comparisons");
 			delete rp;
 			return 0;
 		  }
+		  if (left_instance
+		      && left_instance->module_name() != vif_type->get_name()) {
+			report_virtual_interface_comparison_error_(
+			      des, *this,
+			      "Virtual-interface comparison operands must have the same type");
+			delete rp;
+			return 0;
+		  }
 		  lp = left_->elaborate_expr(
 			des, scope, static_cast<ivl_type_t>(vif_type), flags);
+		  if (lp && !comparison_virtual_interface_type_(lp)) {
+			report_virtual_interface_comparison_error_(
+			      des, *this,
+			      "A virtual interface may be compared only with null, a "
+			      "same-type virtual interface, or a same-type interface instance");
+			delete lp;
+			delete rp;
+			return 0;
+		  }
+	    } else if (left_instance) {
+		  report_virtual_interface_comparison_error_(
+			des, *this,
+			"An interface instance may be compared only with a same-type "
+			"virtual interface using == or !=");
+		  delete rp;
+		  return 0;
 	    } else {
 		  lp = left_->elaborate_expr(des, scope, l_width_, flags);
 	    }
@@ -5430,7 +5603,7 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
       const netclass_t*left_vif = comparison_virtual_interface_type_(lp);
       const netclass_t*right_vif = comparison_virtual_interface_type_(rp);
       if (left_vif || right_vif) {
-	    if (op_ == 'E' || op_ == 'N') {
+	    if (!valid_vif_operator) {
 		  report_virtual_interface_comparison_error_(
 			des, *this,
 			"Virtual interfaces support only == and != comparisons");
@@ -19197,6 +19370,7 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 static NetExpr* elaborate_vif_instance_array_dispatch_(const LineInfo*loc,
 						       Design*des, NetScope*scope,
 						       const pform_name_t&path,
+						       unsigned lexical_pos,
 						       ivl_type_t ntype)
 {
       const netclass_t*want_class = dynamic_cast<const netclass_t*>(ntype);
@@ -19211,22 +19385,26 @@ static NetExpr* elaborate_vif_instance_array_dispatch_(const LineInfo*loc,
       if (ic.sel != index_component_t::SEL_BIT || ic.msb == 0)
 	    return 0;
 
+      NetScope*representative = visible_interface_instance_array_(
+	    des, scope, comp.name, lexical_pos);
+      if (!representative
+	  || representative->module_name() != want_class->get_name())
+	    return 0;
+
 	// Collect interface-instance child scopes `name[k]' of the wanted
-	// type. The instances live in the module scope, which may be a parent
-	// of the current (e.g. for-loop) scope — walk up like symbol_search.
+	// type from the exact lexical scope selected above.
       std::map<long,NetScope*> insts;
-      for (NetScope*s = scope ; s && insts.empty() ; s = s->parent()) {
-	    const std::map<hname_t,NetScope*>&kids = s->children();
-	    for (std::map<hname_t,NetScope*>::const_iterator it = kids.begin()
-		   ; it != kids.end() ; ++it) {
-		  const hname_t&hn = it->first;
-		  if (hn.peek_name() != comp.name) continue;
-		  if (hn.has_numbers() != 1) continue;
-		  NetScope*cs = it->second;
-		  if (!cs || !cs->is_interface()) continue;
-		  if (cs->module_name() != want_class->get_name()) continue;
-		  insts[hn.peek_number(0)] = cs;
-	    }
+      NetScope*owner = representative->parent();
+      const std::map<hname_t,NetScope*>&kids = owner->children();
+      for (std::map<hname_t,NetScope*>::const_iterator it = kids.begin()
+	     ; it != kids.end() ; ++it) {
+	    const hname_t&hn = it->first;
+	    if (hn.peek_name() != comp.name) continue;
+	    if (hn.has_numbers() != 1) continue;
+	    NetScope*cs = it->second;
+	    if (!cs || !cs->is_interface()) continue;
+	    if (cs->module_name() != want_class->get_name()) continue;
+	    insts[hn.peek_number(0)] = cs;
       }
       if (insts.empty())
 	    return 0;
@@ -19319,7 +19497,8 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 	// a virtual-interface value becomes a runtime dispatch table.
       if (path_.package == 0) {
 	    if (NetExpr*disp = elaborate_vif_instance_array_dispatch_(this, des,
-							scope, path_.name, ntype))
+							scope, path_.name,
+							lexical_pos_, ntype))
 		  return disp;
       }
 
