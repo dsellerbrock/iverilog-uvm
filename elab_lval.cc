@@ -684,6 +684,17 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 				    bool is_init) const
 {
 
+      for (const name_component_t&component : path_.name) {
+	    for (const index_component_t&index : component.index) {
+		  if (index.sel != index_component_t::SEL_PART_LEFT_LAST)
+			continue;
+		  cerr << get_fileline() << ": sorry: assignment to queue slice"
+		       << " [$:hi] is not yet supported." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+      }
+
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PEIdent::elaborate_lval: "
 		 << "Elaborate l-value ident expression: " << *this << endl;

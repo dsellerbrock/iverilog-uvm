@@ -3428,6 +3428,32 @@ bool of_QSLICE_F(vthread_t thr, vvp_code_t cp)
       return qslice_(thr, cp->bit_idx[0] != 0, cp->bit_idx[1] != 0);
 }
 
+/* %qslice/left pops q[$:hi]. The lower bound is the last index of the
+ * already-evaluated source object, so a side-effecting receiver runs once. */
+static bool qslice_left_(vthread_t thr, bool hi_signed)
+{
+      int64_t hi = 0;
+      vvp_vector4_t hiv = thr->pop_vec4();
+      bool hi_defined = qslice_bound_value_(hiv, hi_signed, hi);
+
+      vvp_object_t src_obj;
+      thr->pop_object(src_obj);
+      if (!hi_defined)
+	    return qslice_result_(thr, src_obj, 1, 0);
+      return qslice_result_(thr, src_obj,
+			    qslice_last_index_(src_obj.peek<vvp_darray>()), hi);
+}
+
+bool of_QSLICE_LEFT(vthread_t thr, vvp_code_t)
+{
+      return qslice_left_(thr, true);
+}
+
+bool of_QSLICE_LEFT_F(vthread_t thr, vvp_code_t cp)
+{
+      return qslice_left_(thr, cp->bit_idx[0] != 0);
+}
+
 /* Copy one slice element into a freshly-created result container. Object
  * elements use value_copy_element(): nested value containers and unpacked
  * structs are copied, while class handles deliberately remain shared. */
@@ -13363,8 +13389,11 @@ bool of_CMPIS(vthread_t thr, vvp_code_t cp)
 
 /*
  * %cmp/obj
- * Compare two object handles on the object stack for pointer identity.
- * Pops both, sets flag 4 = 1 if equal (same object), 0 if not.
+ * Compare two object handles on the object stack. Ordinary class handles use
+ * pointer identity. A virtual interface represents an interface INSTANCE, so
+ * separately materialized wrappers compare by their bound scope and interface
+ * definition (IEEE 1800-2017/2023 25.9).
+ * Pops both, sets flag 4 = 1 if equal, 0 if not.
  */
 bool of_CMPOBJ(vthread_t thr, vvp_code_t)
 {
@@ -13374,6 +13403,12 @@ bool of_CMPOBJ(vthread_t thr, vvp_code_t)
       thr->pop_object(le);
 
       bool eq = (le == re);
+      vvp_vinterface*left_vif = le.peek<vvp_vinterface>();
+      vvp_vinterface*right_vif = re.peek<vvp_vinterface>();
+      if (left_vif && right_vif) {
+	    eq = left_vif->vif_scope() == right_vif->vif_scope()
+	       && left_vif->get_defn() == right_vif->get_defn();
+      }
       thr->flags[4] = eq ? BIT4_1 : BIT4_0;
 
       const char*scope_name = scope_name_or_unknown_(thr->parent_scope);

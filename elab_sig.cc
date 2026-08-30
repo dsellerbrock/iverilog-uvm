@@ -2833,6 +2833,43 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
       if (NetNet*sig = scope->find_signal(name_))
             return sig;
 
+	// IEEE 1800-2017/2023 25.9 forbids a virtual-interface variable
+	// from being used as any module, interface, or program port. Ordinary
+	// interface ports use the same eventual netclass representation, so
+	// key this check to the preserved source-type provenance instead.
+      const bool source_virtual_interface = set_data_type_
+	    && pform_is_virtual_interface_type(set_data_type_.get());
+      const bool resolved_virtual_interface = set_data_type_
+	    && (source_virtual_interface || pform_is_virtual_interface_type(
+		  des, scope, set_data_type_.get()));
+      const NetScope*interface_item_scope = scope;
+      while (interface_item_scope->type() == NetScope::GENBLOCK)
+	    interface_item_scope = interface_item_scope->parent();
+      if (scope->type() == NetScope::MODULE
+	  && port_type_ != NetNet::NOT_A_PORT
+	  && resolved_virtual_interface) {
+	    cerr << get_fileline() << ": error: virtual interface variable `"
+		 << name_ << "' shall not be used as a module, interface, or "
+		 << "program port (IEEE 1800-2017/2023 25.9)." << endl;
+	    des->errors += 1;
+      }
+
+	// Direct and typedef-led interface items are diagnosed during parsing.
+	// A type parameter needs the concrete elaborated value before its
+	// virtual-interface provenance is known, so catch that remaining form
+	// in the instantiated interface or interface-generate scope without
+	// duplicating the earlier diagnostic.
+      if (interface_item_scope->type() == NetScope::MODULE
+	  && interface_item_scope->is_interface()
+	  && port_type_ == NetNet::NOT_A_PORT
+	  && resolved_virtual_interface
+	  && !virtual_interface_item_error_reported()) {
+	    cerr << get_fileline() << ": error: virtual interface variable `"
+		 << name_ << "' shall not be declared as an interface item "
+		 << "(IEEE 1800-2017/2023 25.9)." << endl;
+	    des->errors += 1;
+      }
+
       NetNet::Type wtype = type_;
       if (wtype == NetNet::IMPLICIT)
 	    wtype = NetNet::WIRE;

@@ -1,0 +1,3 @@
+./ivltests/sv_event_list_prepare_single_diag_fail.v:13: error: Class event_list_prepare_single_diag_state has no property missing.
+./ivltests/sv_event_list_prepare_single_diag_fail.v:13: warning: Failed to evaluate event expression 'state.missing' (compile-progress: event skipped).
+1 error(s) during elaboration.

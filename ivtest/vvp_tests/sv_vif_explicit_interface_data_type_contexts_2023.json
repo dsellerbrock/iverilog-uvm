@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_vif_explicit_interface_data_type_contexts.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_vif_explicit_interface_data_type_contexts" ],
+    "gold"          : "sv_vif_explicit_interface_data_type_contexts"
+}

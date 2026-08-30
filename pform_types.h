@@ -139,7 +139,8 @@ struct pform_port_t {
  */
 struct index_component_t {
       enum ctype_t { SEL_NONE, SEL_BIT, SEL_BIT_LAST, SEL_PART, SEL_IDX_UP, SEL_IDX_DO,
-		     SEL_PART_LAST /* [lo:$] or [lo:$-offset] queue slice */ };
+		     SEL_PART_LAST, /* [lo:$] or [lo:$-offset] queue slice */
+		     SEL_PART_LEFT_LAST /* [$:hi] queue slice */ };
 
       index_component_t() : sel(SEL_NONE), msb(0), lsb(0) { };
       ~index_component_t() { }
@@ -525,11 +526,17 @@ struct string_type_t : public data_type_t {
 };
 
 struct interface_type_t : public data_type_t {
-      inline explicit interface_type_t(perm_string n) : name(n) { }
+      inline explicit interface_type_t(perm_string n, bool is_virtual = false)
+      : name(n), virtual_type(is_virtual) { }
 
       ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override;
 
       perm_string name;
+      // interface_type_t also represents ordinary interface ports. Preserve
+      // whether the source type was introduced by the `virtual` data_type
+      // production so IEEE 1800-2017/2023 25.9 context restrictions do not
+      // accidentally reject real interface ports.
+      bool virtual_type = false;
       // A parameter override on the virtual-interface type (e.g.
       // `virtual bus_if #(16) v;`). Parameterized virtual-interface
       // SPECIALIZATION is not yet modeled: all specializations of an
@@ -559,6 +566,15 @@ struct interface_type_t : public data_type_t {
 /* Return the modport carried by a virtual-interface parse type. Arrays and
    typedefs preserve the qualifier of their underlying interface type. */
 perm_string pform_interface_modport(const data_type_t*type);
+
+/* True when the parse-form type is, or aliases/arrays, a source-level
+   `virtual interface` type. This is deliberately distinct from an ordinary
+   interface port type, although both elaborate to an interface netclass. */
+bool pform_is_virtual_interface_type(const data_type_t*type);
+
+/* Resolve the same provenance through a concrete type parameter actual. */
+bool pform_is_virtual_interface_type(Design*des, NetScope*scope,
+				     const data_type_t*type);
 
 /* Resolve the same qualifier in an elaborated scope. This additionally
    follows concrete type-parameter actuals, retaining the lexical scope in

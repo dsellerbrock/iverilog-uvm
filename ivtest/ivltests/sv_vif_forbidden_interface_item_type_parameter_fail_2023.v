@@ -1,0 +1,1 @@
+`include "ivltests/sv_vif_forbidden_interface_item_type_parameter_fail.v"

@@ -1,0 +1,6 @@
+./ivltests/sv_vif_forbidden_interface_item_type_parameter_fail.v:25: error: virtual interface variable `forward_completed_vif' shall not be declared as an interface item (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_forbidden_interface_item_type_parameter_fail.v:35: error: virtual interface variable `default_vif' shall not be declared as an interface item (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_forbidden_interface_item_type_parameter_fail.v:41: error: virtual interface variable `actual_vif' shall not be declared as an interface item (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_forbidden_interface_item_type_parameter_fail.v:43: error: virtual interface variable `generated_vif' shall not be declared as an interface item (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_forbidden_interface_item_type_parameter_fail.v:50: error: virtual interface variable `type_expression_vif' shall not be declared as an interface item (IEEE 1800-2017/2023 25.9).
+5 error(s) during elaboration.

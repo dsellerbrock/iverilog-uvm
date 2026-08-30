@@ -1,0 +1,8 @@
+./ivltests/sv_vif_forbidden_port_fail.v:19: error: virtual interface variable `vif' shall not be used as a module, interface, or program port (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_forbidden_port_fail.v:23: error: virtual interface variable `vif' shall not be used as a module, interface, or program port (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_forbidden_port_fail.v:27: error: virtual interface variable `vif' shall not be used as a module, interface, or program port (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_forbidden_port_fail.v:31: error: virtual interface variable `vif' shall not be used as a module, interface, or program port (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_forbidden_port_fail.v:35: error: virtual interface variable `vif' shall not be used as a module, interface, or program port (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_forbidden_port_fail.v:40: error: virtual interface variable `vif' shall not be used as a module, interface, or program port (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_forbidden_port_fail.v:45: error: virtual interface variable `vif' shall not be used as a module, interface, or program port (IEEE 1800-2017/2023 25.9).
+7 error(s) during elaboration.

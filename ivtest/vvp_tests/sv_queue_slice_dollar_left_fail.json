@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_queue_slice_dollar_left_fail.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_queue_slice_dollar_left_fail" ],
+    "gold"          : "sv_queue_slice_dollar_left_fail"
+}

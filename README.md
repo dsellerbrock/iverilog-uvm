@@ -70,7 +70,11 @@ On top of upstream Icarus Verilog's Verilog/partial-SystemVerilog support:
   failures. Task and function output/inout copy-back preserves the actual's
   container kind, and native task output lifetime follows the static versus
   automatic rules even for an empty body. This is bounded 6.24/7.6/13.5
-  support, not general recursive aggregate bit-stream-cast closure. Also
+  support, not general recursive aggregate bit-stream-cast closure. Clause
+  7.10.1 r-value queue slices include `q[$:hi]`: `$` is taken from the live
+  queue after evaluating the receiver once, `hi` is evaluated once, and the
+  result is an unbounded queue; the corresponding slice l-value is still a
+  loud unsupported boundary. Also
   included is the evidenced IEEE 1800-2017/2023 7.9.11/10.9.1 associative
   assignment-pattern subset: constant string, integral, and enum keys, at most
   one non-entry fallback `default`, independently copied recorded
@@ -79,8 +83,9 @@ On top of upstream Icarus Verilog's Verilog/partial-SystemVerilog support:
   ordinary cross-kind queue/dynamic-array assignment whose packed `bit`/`logic`
   elements otherwise have equal width and signedness; it is not claimed as
   IEEE element-type equivalence
-- **Interfaces**: modports, virtual interfaces as class properties (the UVM
-  pattern), interface tasks through vif handles
+- **Interfaces**: modports, explicit virtual-interface data types across the
+  legal declaration contexts, §25.9 identity comparisons, the UVM class-
+  property pattern, and interface tasks through vif handles
 - **Clocking blocks**: sampled input semantics, output drives, `##N`, global
   clocking
 - **SVA**: a real concurrent-assertion engine (implication, delay/repetition
@@ -227,9 +232,42 @@ The UVM pattern — `virtual bus_if vif;` as a class property, passed through
 `uvm_config_db#(virtual bus_if)::set/get`, with `@(posedge vif.clk)` and
 interface task calls `vif.apply_reset()` — works end to end. Examples:
 [tests/vif_config_db_test.sv](tests/vif_config_db_test.sv),
-[tests/vif_method_test.sv](tests/vif_method_test.sv). Corner: a bare
-module-scope `virtual bus_if v;` variable is a syntax error (class-property
-form works).
+[tests/vif_method_test.sv](tests/vif_method_test.sv).
+
+The IEEE 1800-2017/2023 25.9 spellings `virtual bus_if` and
+`virtual interface bus_if` are supported directly and through typedefs in
+compilation-unit, package, module, block, declaring-for, unpacked-struct,
+class-property, and task/function/method argument and return contexts. The
+frontend preserves source-level virtual-interface provenance through arrays,
+forward and package-qualified typedefs, concrete type parameters, and
+`type(expression)`. It therefore rejects virtual interfaces as module,
+interface, or program ports, interface items, and union members without
+mistaking an ordinary interface port for a forbidden virtual-interface port.
+
+Logical `==` and `!=` compare a virtual interface with `null`, another
+same-type virtual interface, or a same-type concrete interface instance.
+Identity follows the bound interface instance, including constant selection
+from the evidenced one-dimensional instance-array form and same-type
+conditional virtual-interface expressions; separately allocated
+wrappers for one instance compare equal. Case and wildcard equality, scalar
+operands, different interface definitions, and concrete-instance-to-concrete-
+instance comparisons are focused errors. Ordinary class-handle comparison
+retains pointer identity. Parameter-specialization and modport selection are
+not yet complete parts of virtual-interface comparison type identity, and a
+parameterized virtual-interface declaration still warns that default member
+widths are used. The separately tested unqualified one-dimensional run-time
+interface-instance-array select is an intentional application-compatibility
+extension: IEEE 1800-2017/2023 23.6 requires a constant expression for an
+instance-array select in a hierarchical name. Hierarchical and
+multidimensional run-time dispatch are not claimed.
+
+Explicit event-or lists under 9.4.2 may mix a dynamically selected virtual-
+interface member or class-property expression with ordinary signals, named
+events, run-time-selected event-array elements, and direct/default/global
+clocking events. Each leaf is prepared once, the winner wakes the statement
+once, and every losing registration is cancelled without affecting an
+unrelated detached child. A single event-expression leaf that itself combines
+virtual-interface and class/ordinary dependencies remains a loud boundary.
 
 ### Clocking blocks — partial
 
@@ -541,7 +579,7 @@ for recorded evidence and known corners, not a completeness certificate.
 | UVM (Accellera core, unmodified) | Substantial | Current local canonical checkpoint: 354/354, 0 failed, 0 skipped, run WITHOUT `UVM_NO_DPI` via the Icarus UVM DPI backend (regex + command-line + `uvm_hdl_*` backdoor); frontdoor + user-defined backdoor work; `UVM_NO_DPI` native fallback still supported. |
 | Constraints / randomization (cl. 18) | Substantial | Z3-backed, including scope `std::randomize(vars) with {...}` for simple 1–64-bit integral variables; `randcase`/`randsequence` work |
 | Containers (queues/darrays/assoc, cl. 7) | Substantial | Broad recorded method subset. Under 7.6, equivalent-element queue/dynamic-array assignment, input copying, and output/inout copy-back create the destination or actual's declared runtime kind across direct, property, selected, conditional, function-result, aggregate, and nested stores; a real queue-to-dynamic assignment is pinned through the dynamic array's contiguous DPI representation. Assignment-compatible casts follow 6.24.1. The evidenced 6.24.3 integral bit-stream-cast subset changes element width only when the complete source bit count fits the destination and a bounded queue can hold every result element; mismatches terminate loudly instead of padding or truncating. Native output formals follow 13.3.2/13.4.2 static/automatic lifetime and 13.5 copy-out rules, and empty calls retain argument and copy-back effects. Value-returning native and DPI functions now accept direct one-dimensional fixed unpacked-array slice input/output/inout actuals, preserve each slice's bounds and direction, copy fixed/native values left-to-right, activate the numeric-indexed DPI view, copy back only the selected window, and reject fixed shape/element mismatches before lowering. The separate OpenTitan commercial-flow extension is deliberately restricted to an ordinary blocking cross-kind assignment between equal-width, equal-signedness packed `bit`/`logic` elements, with 4-state-to-2-state X/Z conversion governed by 6.11.2. Same-kind assignments, initialization, formal binding, enum identity, width, and signedness remain strict; the extension does not widen explicit casts or subroutine binding. Associative-array assignment patterns support evidenced explicit constant string/integral/enum keys plus at most one non-entry fallback `default`, with integral, string, real, class-handle, queue, nested-associative, and unpacked-struct values. Direct signal-backed fixed-unpacked prefixes ending in integral/string/real-valued associative leaves match the observed OpenTitan CSRNG/EDN/entropy-src shapes plus paired real-value reducers; every fixed dimension is checked before flattening so a multidimensional OOB selector cannot alias a valid sibling map. This is not an end-to-end IP pass claim. This is bounded clause-7 support, not complete closure: multidimensional and property-backed slice actuals, general recursive aggregate bit-stream casts, selected/scoped/property/function-return source forms for the narrow state extension, ordinary queue signal/method bounds above `UINT_MAX`, and previously recorded deeper aggregate/receiver/typing contexts remain legacy, loud, or open. |
-| Interfaces / virtual interfaces (cl. 25) | Substantial | UVM vif pattern end-to-end; bare module-scope `virtual` var missing |
+| Interfaces / virtual interfaces (cl. 25) | Substantial | UVM vif pattern end-to-end; both Syntax 25-3 spellings in the evidenced legal contexts; provenance-aware forbidden-context diagnostics; unparameterized `==`/`!=` identity against null, same-type VIFs, and concrete instances. Parameter/modport comparison identity remains open. |
 | Clocking blocks (cl. 14) | Partial | Sampled inputs, common output drives, `##N`, and global clocking work; recorded run-time-selected, indexed-receiver, and aggregate-output gaps remain |
 | Scheduler / event regions (cl. 4) | Supported | Full stratified queue incl. Preponed, post-NBA (`cbNBASynch`), Observed and the Reactive set; assertions sample Preponed, evaluate in Observed and run their actions in Reactive; region tracing/self-test under `IVL_REGION_TRACE` / `IVL_REGION_SELFTEST` ([audit](docs/conformance/scheduler_audit_2026_07.md)) |
 | SVA (cl. 16) | Partial | Automaton (NFA) engine is the default: implication, windows/unbounded incl. mid-chain, goto/nonconsec repetition, local vars, first_match, and/or/intersect/within/throughout, strong/weak, `.triggered`/`.matched`, multiclocked `\|=>`; legacy linear engine behind `IVL_SVA_LEGACY=1`; `expect` and `checker`/`endchecker` implemented; remaining loud boundaries include cross-clock overlapping `\|->`, `disable iff` across a two-or-more-boundary chain, and the separately recorded branch-flow/deferred-immediate gaps |

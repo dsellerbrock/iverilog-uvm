@@ -927,7 +927,7 @@ static NetExpr* elaborate_class_event_target_(Design*des, NetScope*scope,
 
 /*
  * Resolve an indexed reference into a named-event array, e.g. `arr[i]`
- * used by `->arr[i]`, `->>arr[i]`, or `@(arr[i])` (IEEE 1800-2017 6.20:
+ * used by `->arr[i]`, `->>arr[i]`, or `@(arr[i])` (IEEE 1800-2017 6.17:
  * an unpacked array of events, where each element is its own
  * independent named event). Returns the array's group NetEvent
  * (is_event_array()==true) and, in idx_out, the elaborated index
@@ -17495,6 +17495,253 @@ bool PEventStatement::has_conditional_event_() const
       return false;
 }
 
+/* Join a set of independently lowered one-shot event waiters and cancel every
+ * loser as soon as one branch completes. Keep the selector in an isolated
+ * helper process: the generated disable fork must unlink only these sibling
+ * waiters, never a detached child that already belongs to the caller. */
+static NetProc* join_any_event_waiters_(const LineInfo&loc,
+					std::vector<NetProc*>&waiters)
+{
+      ivl_assert(loc, !waiters.empty());
+      if (waiters.size() == 1)
+	    return waiters.front();
+
+      NetBlock*select = new NetBlock(NetBlock::PARA_JOIN_ANY, nullptr);
+      select->set_line(loc);
+      for (NetProc*wait : waiters)
+	    select->append(wait);
+
+      NetBlock*select_and_cancel = new NetBlock(NetBlock::SEQU, nullptr);
+      select_and_cancel->set_line(loc);
+      select_and_cancel->append(select);
+      NetDisable*cancel = new NetDisable(nullptr);
+      cancel->set_line(loc);
+      select_and_cancel->append(cancel);
+
+      NetBlock*isolated = new NetBlock(NetBlock::PARA, nullptr);
+      isolated->set_line(loc);
+      isolated->append(select_and_cancel);
+      NetBlock*noop = new NetBlock(NetBlock::SEQU, nullptr);
+      noop->set_line(loc);
+      isolated->append(noop);
+      return isolated;
+}
+
+struct event_leaf_dynamic_kind_t {
+      bool object = false;
+      bool vif = false;
+      bool compound = false;
+};
+
+struct prepared_event_leaf_t {
+      unique_ptr<NetExpr> expr;
+      NetEvent*named_event = nullptr;
+      bool elaborated = false;
+      bool preserve_pform = false;
+      event_leaf_dynamic_kind_t kind;
+};
+
+/* A split event list still uses the complete single-leaf elaborator. Transfer
+ * its already-elaborated expression through this pform adapter so classification
+ * and lowering never elaborate the source leaf twice. The adapter owns the
+ * netlist expression until elaborate_expr() transfers it to the normal path. */
+class PECachedEventExpr : public PExpr {
+    public:
+      PECachedEventExpr(PExpr*source, unique_ptr<NetExpr>expr)
+      : source_(source), expr_(std::move(expr))
+      {
+	    set_line(*source_);
+      }
+
+      void dump(ostream&out) const override
+      {
+	    source_->dump(out);
+      }
+
+      unsigned test_width(Design*, NetScope*, width_mode_t&) override
+      {
+	    if (expr_) {
+		  expr_type_ = expr_->expr_type();
+		  expr_width_ = expr_->expr_width();
+		  min_width_ = expr_width_;
+		  signed_flag_ = expr_->has_sign();
+	    } else {
+		  expr_type_ = IVL_VT_LOGIC;
+		  expr_width_ = 1;
+		  min_width_ = 1;
+		  signed_flag_ = false;
+	    }
+	    return expr_width_;
+      }
+
+      NetExpr* elaborate_expr(Design*, NetScope*, unsigned,
+			      unsigned) const override
+      {
+	    return expr_.release();
+      }
+
+    private:
+      PExpr*source_;
+      mutable unique_ptr<NetExpr>expr_;
+};
+
+/* Diagnose an illegal edge qualifier on a named event in the same form as the
+ * established shared-list path. */
+static void check_named_event_edge_(Design*des, const LineInfo&loc,
+			    const PEEvent*event, const NetEvent*named_event)
+{
+      if (event->type() == PEEvent::ANYEDGE)
+	    return;
+
+      cerr << loc.get_fileline() << ": error: ";
+      switch (event->type()) {
+	  case PEEvent::POSEDGE:
+	    cerr << "posedge";
+	    break;
+	  case PEEvent::NEGEDGE:
+	    cerr << "negedge";
+	    break;
+	  default:
+	    cerr << "unknown edge type!";
+	    ivl_assert(loc, 0);
+      }
+      cerr << " can not be used with a named event ("
+	   << named_event->name() << ")." << endl;
+      des->errors += 1;
+}
+
+/* Class-property and virtual-interface event leaves are selected dynamically
+ * when the wait arms. Elaborate each prospective leaf exactly once, retain the
+ * result for whichever lowering path wins, and classify that retained tree.
+ * A failed leaf is also marked elaborated so the normal path does not repeat
+ * its diagnostics. Named events are resolved without expression elaboration. */
+static void prepare_event_leaf_(Design*des, NetScope*scope,
+			const LineInfo&loc, const PEEvent*event,
+			prepared_event_leaf_t&res)
+{
+      if (!event || !event->expr())
+	    return;
+
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(event->expr())) {
+	    unsigned errors_before = des->errors;
+	    symbol_search_results sr;
+	    symbol_search(&loc, des, scope, id->path(), id->lexical_pos(), &sr);
+	    if (des->errors != errors_before) {
+		  res.elaborated = true;
+		  return;
+	    }
+	    res.named_event = resolve_named_event_member_from_search_(sr);
+	    if (res.named_event && res.named_event->is_class_event()) {
+		  res.named_event = nullptr;
+		  res.preserve_pform = true;
+		  return;
+	    }
+	    if (sr.eve && sr.eve->is_event_array()) {
+		  res.preserve_pform = true;
+		  return;
+	    }
+
+	    size_t clocking_components = 0;
+	    if (resolve_interface_clocking_block_from_search_(
+		  sr, clocking_components)
+		|| sr.is_scope() || !sr.is_found()) {
+		  res.preserve_pform = true;
+		  return;
+	    }
+
+	    if (!res.named_event && gn_system_verilog()
+		&& id->path().size() == 1
+		&& id->path().back().index.empty()
+		&& id->path().back().name == perm_string::literal("on")) {
+		  pform_scoped_name_t mapped_path = id->path();
+		  mapped_path.name.back().name = perm_string::literal("m_event");
+		  symbol_search_results mapped_sr;
+		  symbol_search(&loc, des, scope, mapped_path,
+				id->lexical_pos(), &mapped_sr);
+		  if (des->errors != errors_before) {
+			res.elaborated = true;
+			return;
+		  }
+		  res.named_event =
+			resolve_named_event_member_from_search_(mapped_sr);
+	    }
+	    if (res.named_event)
+		  return;
+      }
+
+      if (const PECallFunction*call =
+		dynamic_cast<const PECallFunction*>(event->expr())) {
+	    if (call->path().name.size() == 1) {
+		  perm_string name = call->path().name.back().name;
+		  if (name == perm_string::literal("$global_clock")
+		      || name == perm_string::literal("$ivl_default_clock")) {
+			res.preserve_pform = true;
+			return;
+		  }
+	    }
+      }
+
+      res.elaborated = true;
+      res.expr.reset(elab_and_eval(des, scope, event->expr(), -1));
+      if (!gn_system_verilog() || !res.expr)
+	    return;
+
+      NetExpr*expr = res.expr.get();
+
+      std::vector<class_property_mutation_dep_t> object_deps;
+      collect_class_property_mutation_deps_(expr, object_deps);
+      res.kind.object = event->type() == PEEvent::ANYEDGE
+			&& !object_deps.empty();
+
+      std::vector<vif_member_path_t> vif_paths;
+      collect_vif_member_paths_(expr, vif_paths);
+      res.kind.vif = !vif_paths.empty();
+
+      bool direct_vif = false;
+      if (const NetEProperty*property =
+		dynamic_cast<const NetEProperty*>(expr)) {
+	    vif_member_path_t path;
+	    direct_vif = decode_vif_member_path_(property, path);
+      }
+      res.kind.compound =
+	    (res.kind.object && !is_direct_class_property_event_expr_(expr))
+	 || (res.kind.vif && !direct_vif);
+}
+
+/* A shared NetEvWait remains the compact, established representation for
+ * ordinary event-or lists and for the already-supported homogeneous direct
+ * object-mutation list. Split only lists whose dynamically selected waiter
+ * cannot safely share that representation: a compound dynamic leaf needs its
+ * own value filter, while an object-mutation or virtual-interface leaf mixed
+ * with another waiter family needs independent cancellation/unlinking. */
+static bool prepare_event_list_(Design*des, NetScope*scope,
+			const LineInfo&loc,
+			const std::vector<PEEvent*>&events,
+			std::vector<prepared_event_leaf_t>&prepared)
+{
+      if (!gn_system_verilog() || events.size() < 2)
+	    return false;
+
+      prepared.resize(events.size());
+      bool has_object = false;
+      bool has_non_object = false;
+      bool has_vif = false;
+      bool has_non_vif = false;
+      bool has_compound_dynamic = false;
+      for (unsigned idx = 0; idx < events.size(); idx += 1) {
+	    prepare_event_leaf_(des, scope, loc, events[idx], prepared[idx]);
+	    const event_leaf_dynamic_kind_t&kind = prepared[idx].kind;
+	    has_object = has_object || kind.object;
+	    has_non_object = has_non_object || !kind.object || kind.vif;
+	    has_vif = has_vif || kind.vif;
+	    has_non_vif = has_non_vif || !kind.vif || kind.object;
+	    has_compound_dynamic = has_compound_dynamic || kind.compound;
+      }
+      return has_compound_dynamic
+	  || (has_object && has_non_object)
+	  || (has_vif && has_non_vif);
+}
+
 /* IEEE 1800-2017 9.4.2.3 qualifies each event-expression leaf
  * independently. A simple `if (guard)' around the delayed statement is not
  * sufficient: a one-shot event control must keep waiting when an edge occurs
@@ -17569,37 +17816,7 @@ NetProc* PEventStatement::elaborate_conditional_(Design*des, NetScope*scope,
 	    waiters.push_back(wait);
       }
 
-      ivl_assert(*this, !waiters.empty());
-      NetProc*qualified_wait = nullptr;
-      if (waiters.size() == 1) {
-	    qualified_wait = waiters.front();
-      } else {
-	    NetBlock*select = new NetBlock(NetBlock::PARA_JOIN_ANY, nullptr);
-	    select->set_line(*this);
-	    for (NetProc*wait : waiters)
-		  select->append(wait);
-
-	    NetBlock*select_and_cancel = new NetBlock(NetBlock::SEQU, nullptr);
-	    select_and_cancel->set_line(*this);
-	    select_and_cancel->append(select);
-	    NetDisable*cancel = new NetDisable(nullptr);
-	    cancel->set_line(*this);
-	    select_and_cancel->append(cancel);
-
-	      /* `disable fork' operates on every detached child of the
-	       * process that executes it. Run the selector in its own helper
-	       * process so cancelling the losing event waiters cannot also
-	       * cancel an unrelated user `fork ... join_none' child. A second,
-	       * empty branch keeps the outer parallel block from being reduced
-	       * to its sole child by the target's one-statement optimization. */
-	    NetBlock*isolated = new NetBlock(NetBlock::PARA, nullptr);
-	    isolated->set_line(*this);
-	    isolated->append(select_and_cancel);
-	    NetBlock*noop = new NetBlock(NetBlock::SEQU, nullptr);
-	    noop->set_line(*this);
-	    isolated->append(noop);
-	    qualified_wait = isolated;
-      }
+      NetProc*qualified_wait = join_any_event_waiters_(*this, waiters);
 
       NetBlock*result = new NetBlock(NetBlock::SEQU, nullptr);
       result->set_line(*this);
@@ -17630,6 +17847,58 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 
       if (has_conditional_event_())
 	    return elaborate_conditional_(des, scope, enet);
+
+      std::vector<prepared_event_leaf_t>prepared;
+
+      /* A dynamically selected class/VIF leaf cannot share one VVP waiter
+       * record with an ordinary event family, and a compound dynamic leaf
+       * needs the single-leaf value-change filter around its own wait. Lower
+       * only those mixed lists as independent one-shot waits under join_any;
+       * the ordinary event-list path below remains unchanged. */
+      if (prepare_event_list_(des, scope, *this, expr_, prepared)) {
+	    std::vector<NetProc*>waiters;
+	    for (unsigned idx = 0; idx < expr_.size(); idx += 1) {
+		  PEEvent*event = expr_[idx];
+		  ivl_assert(*this, event);
+
+		  if (prepared[idx].named_event) {
+			check_named_event_edge_(des, *this, event,
+					prepared[idx].named_event);
+			NetEvWait*wait = new NetEvWait(nullptr);
+			wait->set_line(*event);
+			wait->add_event(prepared[idx].named_event);
+			waiters.push_back(wait);
+			continue;
+		  }
+
+		  unique_ptr<PECachedEventExpr>cached_expr;
+		  PExpr*raw_expr = event->expr();
+		  if (prepared[idx].elaborated
+		      && !prepared[idx].preserve_pform) {
+			cached_expr.reset(new PECachedEventExpr(
+			      event->expr(), std::move(prepared[idx].expr)));
+			raw_expr = cached_expr.get();
+		  }
+		  PEEvent raw_event(event->type(), raw_expr);
+		  raw_event.set_line(*event);
+		  PEventStatement raw_wait(&raw_event);
+		  raw_wait.set_line(*this);
+		  NetProc*wait = raw_wait.elaborate(des, scope);
+		  if (!wait) {
+			for (NetProc*item : waiters)
+			      delete item;
+			return nullptr;
+		  }
+		  waiters.push_back(wait);
+	    }
+
+	    NetBlock*result = new NetBlock(NetBlock::SEQU, nullptr);
+	    result->set_line(*this);
+	    result->append(join_any_event_waiters_(*this, waiters));
+	    if (enet)
+		  result->append(enet);
+	    return result;
+      }
 
       if (expr_.size() == 1) {
 	    /* IEEE 1800-2017 14.14: @($global_clock) — substitute the
@@ -18064,6 +18333,14 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		 named event, then handle this case all at once and
 		 skip the rest of the expression handling. */
 
+		    if (!prepared.empty() && prepared[idx].named_event) {
+			  wa->add_event(prepared[idx].named_event);
+			  check_named_event_edge_(des, *this, expr_[idx],
+					  prepared[idx].named_event);
+			  continue;
+		    }
+
+		    if (prepared.empty() || prepared[idx].preserve_pform)
 		    if (const PEIdent*id = dynamic_cast<PEIdent*>(expr_[idx]->expr())) {
 			  symbol_search_results sr;
 			  symbol_search(this, des, scope, id->path(), id->lexical_pos(), &sr);
@@ -18129,7 +18406,10 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		 the sub-expression as a net and decide how to handle
 		 the edge. */
 
-	    NetExpr*tmp = elab_and_eval(des, scope, expr_[idx]->expr(), -1);
+	    NetExpr*tmp = !prepared.empty() && prepared[idx].elaborated
+		  && !prepared[idx].preserve_pform
+		  ? prepared[idx].expr.release()
+		  : elab_and_eval(des, scope, expr_[idx]->expr(), -1);
 	    if (tmp == 0) {
 		  // Compile-progress: clocking block or complex VIF event references
 		  // (e.g. @(vif.mp.cb)) may not yet be resolvable. Warn and skip.
@@ -19426,7 +19706,7 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 
 	/* A wait on a single named-event array element (`@(arr[i])`):
 	   each element is its own independent named event
-	   (IEEE 1800-2017 6.20). */
+	   (IEEE 1800-2017 6.17). */
       if (expr_.size() == 1 && expr_[0]
 	  && (expr_[0]->type() == PEEvent::POSITIVE
 	      || expr_[0]->type() == PEEvent::ANYEDGE)
@@ -21046,7 +21326,7 @@ NetProc* PTrigger::elaborate(Design*des, NetScope*scope) const
 
 	// A trigger on a named-event array element (`->arr[i]`): each
 	// element is its own independent named event (IEEE 1800-2017
-	// 6.20).
+	// 6.17).
       {
 	    NetExpr*idx = 0;
 	    if (NetEvent*ev = elaborate_event_array_target_(des, scope,

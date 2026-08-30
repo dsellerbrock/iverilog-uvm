@@ -175,6 +175,27 @@ their former internal typed-expression counts from 10/18 to 0/0, but both tops
 still fail later; the final narrow change has not been replayed across those
 tops, so this evidence does not promote either clause to complete.
 
+The 2026-08-30 virtual-interface audit is another checkpoint for the semantic
+type program. The compiler now retains the source fact that an interface type
+was introduced by IEEE 1800-2017/2023 Syntax 25-3 instead of attempting to
+reconstruct it from the shared elaborated interface netclass. That provenance
+is followed through arrays, typedefs, concrete type parameters, and
+`type(expression)` in the declaration's lexical scope, which permits the legal
+compilation-unit/package/module/block/struct/class/subroutine contexts while
+enforcing 25.9's port, interface-item, and union-member exclusions. The same
+audit gives `==` and `!=` a typed virtual-interface path: null, an equivalent
+virtual-interface operand, and a same-definition concrete interface instance
+are admitted; other operators and operand classes are rejected before generic
+object/integral lowering. VVP compares the bound interface scope and definition
+without changing ordinary class pointer identity. Parameter specialization and
+modport selection are still missing from comparison type identity, and a
+parameterized virtual-interface declaration continues to warn that default
+member widths are used. This is a named unparameterized subset, not complete
+25.9 conformance. The separately pinned run-time-variable select from a
+one-dimensional interface-instance array is labeled as an intentional
+application-compatibility extension, because 23.6 requires that selection in
+a hierarchical name to be constant; it is not counted as 25.9 conformance.
+
 Do not attempt an all-at-once rewrite.
 
 ### Scheduler remediation
@@ -184,6 +205,19 @@ Maintain an inventory mapping every scheduling path to runtime API, queue, IEEE 
 Cover Active, Inactive, NBA, Observed, Reactive, Re-Inactive, Re-NBA, Postponed, program scheduling, assertion sampling/evaluation, clocking sampling/driving, named events, nonblocking event triggers, VPI callbacks, DPI task suspension/resumption, end-of-step cleanup, and finalization.
 
 Do not claim scheduler completion until region ownership is documented and race-sensitive litmus tests cover all major paths.
+
+The 2026-08-30 event-list audit makes one scheduling ownership rule concrete.
+Each leaf of an explicit 9.4.2 `or`/comma list is prepared exactly once. A
+dynamically selected virtual-interface member or class-property expression is
+lowered as an independently cancellable one-shot waiter when mixed with an
+ordinary signal, named event, event-array element, or direct/default/global
+clocking event. The selector runs in an isolated helper process so cancelling
+losers cannot kill a detached child belonging to the user's waiting process;
+simultaneous winners still resume the statement once. Special leaves retain
+their single-leaf lowering and a rejected leaf reports once. A single leaf
+whose expression itself mixes virtual-interface and class/ordinary
+dependencies remains a loud unsupported boundary, so this does not claim all
+event-expression dependency shapes.
 
 ### Aggregate and container model
 
@@ -246,6 +280,16 @@ maps X/Z to zero. No direct VCS, Questa, or Xcelium executable was available;
 the behavior is labeled as an interoperability extension and direction toward
 commercial-simulator support, never as standards closure or an application-
 pass claim.
+
+The 2026-08-30 queue-slice follow-on implements the 7.10.1 r-value spelling
+`q[$:hi]`. The run time derives `$` from the already-evaluated source queue's
+live final index and evaluates `hi` once. Reversed, unknown, or empty ranges
+produce an empty unbounded queue; nested value elements are copied and class
+elements retain handle identity. The source-type check rejects `$` on fixed,
+dynamic, associative, or packed arrays, and the bound must be integral.
+Assignment to a left-`$` queue slice remains a focused loud boundary until the
+l-value ABI can carry both dynamic endpoints; an indexed `+:`/`-:` selector
+whose base is `$` is likewise not claimed.
 
 ### Runtime class identity
 

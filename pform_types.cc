@@ -20,8 +20,11 @@
 
 # include  "pform_types.h"
 # include  "pform.h"
+# include  "netclass.h"
+# include  "netmisc.h"
 # include  "PExpr.h"
 # include  "PPackage.h"
+# include  "PWire.h"
 # include  <set>
 
 namespace {
@@ -177,6 +180,192 @@ static perm_string resolve_interface_modport_type_(
       return result;
 }
 
+struct virtual_interface_resolver_t {
+      explicit virtual_interface_resolver_t(Design*design) : des(design) { }
+
+      Design*des;
+      std::set<const data_type_t*>active_types;
+      std::set<const typedef_t*>active_typedefs;
+      std::set<std::pair<const NetScope*,perm_string> >active_parameters;
+};
+
+static bool resolve_virtual_interface_type_(
+      virtual_interface_resolver_t&resolver, NetScope*scope,
+      const data_type_t*type);
+
+static bool resolve_virtual_interface_parameter_(
+      virtual_interface_resolver_t&resolver, NetScope*scope,
+      perm_string name);
+
+static const data_type_t* find_virtual_interface_expression_declared_type_(
+      virtual_interface_resolver_t&resolver, NetScope*scope,
+      const PEIdent*ident)
+{
+      if (!resolver.des || !scope)
+	    return 0;
+
+      symbol_search_results search;
+      if (!symbol_search(ident, resolver.des, scope, ident->path(),
+			 ident->lexical_pos(), &search)
+	  || search.scope_index_error || !search.scope || !search.net
+	  || !search.path_tail.empty())
+	    return 0;
+
+      PWire*wire = search.scope->find_signal_placeholder(search.net->name());
+      return wire ? wire->data_type() : 0;
+}
+
+static bool resolve_virtual_interface_expr_(
+      virtual_interface_resolver_t&resolver, NetScope*scope,
+      const PExpr*expr)
+{
+      if (!expr)
+	    return false;
+
+      if (const PETypename*type_expr = dynamic_cast<const PETypename*>(expr))
+	    return resolve_virtual_interface_type_(
+		  resolver, scope, type_expr->get_type());
+
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(expr);
+      if (!ident)
+	    return false;
+
+      const pform_scoped_name_t&path = ident->path();
+      if (path.name.size() != 1 || !path.name.front().index.empty())
+	    return false;
+
+      NetScope*lookup_scope = scope;
+      if (path.package) {
+	    if (!resolver.des)
+		  return false;
+	    lookup_scope = resolver.des->find_package(
+		  path.package->pscope_name());
+	    if (!lookup_scope)
+		  return false;
+      } else if (find_type_parameter_scope_(lookup_scope,
+					     path.name.front().name)) {
+	    return resolve_virtual_interface_parameter_(
+		  resolver, lookup_scope, path.name.front().name);
+      }
+
+      if (!resolver.des || !lookup_scope)
+	    return false;
+
+      typedef_t*type_decl = lookup_scope->find_typedef(
+	    resolver.des, path.name.front().name);
+      if (!type_decl)
+	    return false;
+
+      return resolve_virtual_interface_type_(
+	    resolver, lookup_scope, type_decl->get_data_type());
+}
+
+static bool resolve_virtual_interface_parameter_(
+      virtual_interface_resolver_t&resolver, NetScope*scope,
+      perm_string name)
+{
+      NetScope*parameter_scope = find_type_parameter_scope_(scope, name);
+      if (!parameter_scope)
+	    return false;
+
+      const std::pair<const NetScope*,perm_string>key(parameter_scope, name);
+      if (!resolver.active_parameters.insert(key).second)
+	    return false;
+
+      std::map<perm_string,NetScope::param_expr_t>::const_iterator param =
+	    parameter_scope->parameters.find(name);
+      const NetScope::param_expr_t&record = param->second;
+      NetScope*value_scope = record.val_scope
+	    ? record.val_scope : parameter_scope;
+      bool result = resolve_virtual_interface_expr_(
+	    resolver, value_scope, record.val_expr);
+      if (!result && record.source_expr
+	  && record.source_expr != record.val_expr) {
+	    NetScope*source_scope = record.source_scope
+		  ? record.source_scope : value_scope;
+	    result = resolve_virtual_interface_expr_(
+		  resolver, source_scope, record.source_expr);
+      }
+      if (!result && record.val_type)
+	    result = resolve_virtual_interface_type_(
+		  resolver, value_scope, record.val_type);
+
+      resolver.active_parameters.erase(key);
+      return result;
+}
+
+static bool resolve_virtual_interface_type_(
+      virtual_interface_resolver_t&resolver, NetScope*scope,
+      const data_type_t*type)
+{
+      if (!type)
+	    return false;
+
+      if (const interface_type_t*interface_type =
+		dynamic_cast<const interface_type_t*>(type))
+	    return interface_type->virtual_type;
+
+      if (!resolver.active_types.insert(type).second)
+	    return false;
+
+      bool result = false;
+      if (const array_base_t*array_type =
+		dynamic_cast<const array_base_t*>(type)) {
+	    result = resolve_virtual_interface_type_(
+		  resolver, scope, array_type->base_type.get());
+
+      } else if (const type_parameter_t*type_parameter =
+		       dynamic_cast<const type_parameter_t*>(type)) {
+	    if (resolver.des && scope)
+		  result = resolve_virtual_interface_parameter_(
+			resolver, scope, type_parameter->name);
+
+      } else if (const typeref_t*type_ref =
+		       dynamic_cast<const typeref_t*>(type)) {
+	    const typedef_t*typedef_decl = type_ref->typedef_ref();
+	    if (typedef_decl
+		&& resolver.active_typedefs.insert(typedef_decl).second) {
+		  NetScope*definition_scope = scope;
+		  if (resolver.des && scope) {
+			if (NetScope*found = scope->find_typedef_scope(
+			      resolver.des, typedef_decl))
+			      definition_scope = found;
+		  }
+		  result = resolve_virtual_interface_type_(
+			resolver, definition_scope,
+			typedef_decl->get_data_type());
+		  resolver.active_typedefs.erase(typedef_decl);
+	    }
+
+      } else if (const type_reference_t*type_reference =
+		       dynamic_cast<const type_reference_t*>(type)) {
+	    if (type_reference->named_type) {
+		  result = resolve_virtual_interface_type_(
+			resolver, scope, type_reference->named_type);
+	    } else if (resolver.des && scope && type_reference->expr) {
+		  const PEIdent*ident = dynamic_cast<const PEIdent*>(
+			type_reference->expr);
+		  const data_type_t*declared_type = ident
+			? find_virtual_interface_expression_declared_type_(
+			      resolver, scope, ident) : 0;
+		  if (declared_type) {
+			result = resolve_virtual_interface_type_(
+			      resolver, scope, declared_type);
+		  } else {
+			ivl_type_t expression_type =
+			      const_cast<type_reference_t*>(type_reference)
+				    ->elaborate_type(resolver.des, scope);
+			const netclass_t*interface_type =
+			      dynamic_cast<const netclass_t*>(expression_type);
+			result = interface_type && interface_type->is_interface();
+		  }
+	    }
+      }
+
+      resolver.active_types.erase(type);
+      return result;
+}
+
 } // namespace
 
 perm_string pform_interface_modport(const data_type_t*type)
@@ -190,6 +379,19 @@ perm_string pform_interface_modport(Design*des, NetScope*scope,
 {
       interface_modport_resolver_t resolver(des);
       return resolve_interface_modport_type_(resolver, scope, type);
+}
+
+bool pform_is_virtual_interface_type(const data_type_t*type)
+{
+      virtual_interface_resolver_t resolver(0);
+      return resolve_virtual_interface_type_(resolver, 0, type);
+}
+
+bool pform_is_virtual_interface_type(Design*des, NetScope*scope,
+				     const data_type_t*type)
+{
+      virtual_interface_resolver_t resolver(des);
+      return resolve_virtual_interface_type_(resolver, scope, type);
 }
 
 nettype_t::nettype_t(perm_string name, data_type_t*type,

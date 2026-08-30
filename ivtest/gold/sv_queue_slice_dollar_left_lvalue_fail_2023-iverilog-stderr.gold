@@ -1,0 +1,4 @@
+./ivltests/sv_queue_slice_dollar_left_lvalue_fail.v:25: sorry: assignment to queue slice [$:hi] is not yet supported.
+./ivltests/sv_queue_slice_dollar_left_lvalue_fail.v:26: sorry: assignment to queue slice [$:hi] is not yet supported.
+./ivltests/sv_queue_slice_dollar_left_lvalue_fail.v:27: sorry: assignment to queue slice [$:hi] is not yet supported.
+3 error(s) during elaboration.

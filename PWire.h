@@ -96,6 +96,11 @@ class PWire : public PNamedItem {
       void set_data_type(data_type_t*type);
       const data_type_t* data_type() const { return set_data_type_.get(); }
 
+      void mark_virtual_interface_item_error()
+      { virtual_interface_item_error_reported_ = true; }
+      bool virtual_interface_item_error_reported() const
+      { return virtual_interface_item_error_reported_; }
+
       bool set_net_delay(const std::shared_ptr<PDelays>&delay);
       const PDelays* net_delay() const { return net_delay_.get(); }
 
@@ -134,6 +139,12 @@ class PWire : public PNamedItem {
       bool is_const_ = false;
 
       bool is_elaborating_ = false;
+
+      // The parse pass diagnoses interface items whenever their virtual-
+      // interface provenance is already known. Elaboration uses this marker
+      // to avoid duplicating that diagnostic while still catching forward
+      // typedefs and concrete type-parameter carriers.
+      bool virtual_interface_item_error_reported_ = false;
 
 	// These members hold expressions for the bit width of the
 	// wire. If they do not exist, the wire is 1 bit wide. If they

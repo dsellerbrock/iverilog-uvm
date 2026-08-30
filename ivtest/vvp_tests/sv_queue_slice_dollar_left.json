@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_queue_slice_dollar_left.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_queue_slice_dollar_left" ],
+    "gold"          : "sv_queue_slice_dollar_left"
+}

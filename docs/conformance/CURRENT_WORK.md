@@ -1,5 +1,107 @@
 # CURRENT WORK — continuation state
 
+## Active increment — 2026-08-30 — virtual interfaces, dynamic event lists, and left-`$` queue slices
+
+Worktree:
+`iverilog-uvm-opentitan-syntax-event-frontiers-after245-arm64-20260828`
+
+Branch `agent/opentitan-syntax-event-frontiers-after245-arm64-20260828` was
+created from `origin/main` at
+`affd74d41` (the PR #245 merge). At this documentation checkpoint its nine
+production/test commits run from `b5692b918` through `00e3d74dd`. The compiler
+and VVP runtime were rebuilt with native ARM64 tools and Homebrew Bison 3.8.x
+through the shared CPU guard without an RSS ceiling.
+
+This branch closes three bounded, edition-paired language clusters:
+
+- IEEE 1800-2017/2023 25.9 and Syntax 25-3: both `virtual iface` and
+  `virtual interface iface` are accepted as data types in the evidenced legal
+  contexts. Parse-form provenance records that the type is virtual rather than
+  an ordinary interface-port type and follows arrays, forward and package
+  typedefs, concrete type-parameter defaults/actuals, and `type(expression)`
+  using lexical lookup. Module/interface/program ports, interface items, and
+  union members are rejected; compilation-unit/package/module/block variables,
+  declaring-for variables, unpacked-struct members, qualified class properties,
+  and task/function/method arguments and returns remain legal.
+- Clause 25.9 logical equality and inequality: `==` and `!=` accept `null`, an
+  equivalent virtual interface, or a same-definition concrete interface
+  instance in either operand order. VVP compares the bound scope and interface
+  definition, so separate wrappers around one instance compare equal without
+  changing ordinary class pointer identity. The focused positive includes
+  constant selection from an unqualified one-dimensional interface-instance
+  array, same-type conditional handles, rebinding, null, different instances,
+  and an instance whose name matches its interface type.
+  Width probing and comparison elaboration share a non-evaluating lexical
+  preflight so a local scalar array can shadow an outer interface-instance
+  array instead of being silently rebound. Different interface definitions,
+  scalars, two concrete instances, `===`/`!==`, and `==?`/`!=?` are exact
+  errors.
+- Clause 9.4.2, with preserved leaf semantics from 6.17, 14.10/14.12/14.14,
+  and 15.5: every leaf of a mixed explicit `or`/comma event list is prepared
+  once. A dynamically selected VIF member or class-property expression may be
+  mixed with ordinary signals, named events, a run-time-selected event-array
+  element, and direct/default/global clocking events. Each dynamic family gets
+  an independently cancellable one-shot waiter. The isolated join-any helper
+  resumes the statement once and unlinks every loser without cancelling a
+  detached child owned by the user's process. Retaining the prepared netlist
+  expression prevents repeated side effects and duplicate diagnostics while
+  special leaves still use their complete single-leaf lowering.
+- Clause 7.10.1: the r-value spelling `q[$:hi]` is parsed and lowered without
+  evaluating the source twice. `$` is the last index of the live, already-
+  evaluated queue; `hi` is evaluated once. Exact and above-last upper bounds
+  select the final element, while a lower/reversed or X/Z bound and an empty
+  source produce an empty result. The result is an unbounded queue even when
+  the source is bounded. Integral, logic, real, string, class-handle, nested-
+  container, selected class-property, static-property, method, and unevaluated
+  type-query paths are pinned; nested values copy while class handles preserve
+  identity.
+
+The focused native checkpoint is:
+
+| Gate | Result |
+|---|---:|
+| Virtual-interface context/comparison/extension legacy | **22/22** |
+| Virtual-interface context/comparison/extension JSON/VVP | **22/22** |
+| Chapter-9 statement/event focus legacy | **14/14** |
+| Chapter-9 statement/event focus JSON/VVP | **14/14** |
+| New left-`$` queue rows, legacy | **6/6** |
+| New left-`$` queue rows, JSON/VVP | **6/6** |
+| Full legacy | **2,188/2,188** |
+| Full JSON/VVP | **1,266 ran, 0 failed** (**1,249 pass, 17 unchanged NI**) |
+| Negative diagnostics | **149/149** |
+| VPI | **103/103** |
+| Canonical real-DPI UVM | **354/354** |
+
+Homebrew Bison 3.8.2 reports 533 shift/reduce and 1119 reduce/reduce conflicts,
+versus 535/1119 on the merge base. Canonical conflicting-state item-core
+comparison found no unintended terminal-action changes; the two removed shift
+conflicts came from redundant `protected virtual` method-only shortcuts that
+the shared class-item dispatch now subsumes.
+
+Boundaries remain explicit. Parameter overrides on virtual-interface types
+still warn because specialization identity and nondefault member widths use the
+interface defaults. Modport selection and parameter specialization are not yet
+complete components of virtual-interface comparison type identity. IEEE
+1800-2017/2023 23.6 requires an instance-array selection in a hierarchical name
+to be a constant expression. The separately registered unqualified
+one-dimensional run-time bit-select therefore records an intentional
+application-compatibility extension, not 25.9 conformance; hierarchical and
+multidimensional run-time dispatch are not claimed. Slang 11 accepts the core
+25.9 positive in both editions and rejects that extension, but accepts the
+case/wildcard VIF operators that 25.9 does not list; Icarus retains its
+normative diagnostics. A single event-expression leaf that itself mixes VIF and
+class/ordinary dependencies remains a focused error, and the older root/key/
+index mutation and compound snapshot boundaries are unchanged. A left-`$`
+queue slice is implemented only as an r-value: assignment to `q[$:hi]` is a
+loud `sorry`, and `$` as the base of an indexed `+:`/`-:` selector remains
+separate work. Nonqueue receivers and nonintegral explicit bounds fail loudly.
+
+The full compiler regressions above are attributed to this checkpoint. No
+OpenTitan or Caliptra application matrix was replayed, and no application
+pass/fail counts or source-frontier movement are changed by this branch.
+Durable mechanism and invocation detail is in
+[`session_logs/2026-08-30_virtual_interface_event_list_queue_slice.md`](session_logs/2026-08-30_virtual_interface_event_list_queue_slice.md).
+
 ## Active increment — 2026-08-28 — positional container conversion and call boundaries
 
 Worktree:

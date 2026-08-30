@@ -6490,10 +6490,22 @@ void pform_set_data_type(const struct vlltype&li, data_type_t*data_type,
       }
 
       const vector_type_t*vec_type = dynamic_cast<vector_type_t*> (data_type);
+      const bool virtual_interface_type =
+	    pform_is_virtual_interface_type(data_type);
 
       for (std::vector<PWire*>::iterator it= wires->begin();
 	   it != wires->end() ; ++it) {
 	    PWire *wire = *it;
+
+	    if (virtual_interface_type
+		&& wire->get_port_type() == NetNet::NOT_A_PORT
+		&& pform_in_interface() && pform_at_module_level()) {
+		  cerr << li.get_fileline() << ": error: virtual interface variable `"
+		       << wire->basename() << "' shall not be declared as an "
+		       << "interface item (IEEE 1800-2017/2023 25.9)." << endl;
+		  error_count += 1;
+		  wire->mark_virtual_interface_item_error();
+	    }
 
 	    pform_set_net_range(wire, vec_type);
 

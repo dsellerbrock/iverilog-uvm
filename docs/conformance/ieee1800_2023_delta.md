@@ -325,6 +325,54 @@ one-dimensional compiler model; an exhaustive clause-23 combination audit is
 still required for a complete claim. See the dated clause-23.11 section in
 `matrices/ieee1800_2017_clause_matrix.md` and the associated session log.
 
+## 2026-08-30 clauses 7.10.1, 9.4.2, 23.6, and 25.9 — no implemented edition delta
+
+IEEE 1800-2023 retains the 2017 rules used by this increment. Under 25.9 and
+Syntax 25-3, both `virtual iface` and `virtual interface iface` identify a
+virtual-interface type; the evidenced legal declaration contexts and the
+port, interface-item, and union-member exclusions are the same in both
+editions. The shared `==`/`!=` lowering admits null, an equivalent
+unparameterized VIF, or a same-definition concrete interface instance and
+compares bound-instance identity without changing ordinary class pointer
+identity. Case/wildcard equality, scalar operands, different interface
+definitions, and concrete-to-concrete comparison retain the same focused
+diagnostics in each mode. Parameter-specialization and modport-aware comparison
+identity and nondefault parameterized-interface member widths are not claimed.
+
+Both editions also retain 23.6's requirement that an instance-array select in
+a hierarchical name be a constant expression. The separately registered
+unqualified one-dimensional run-time-variable interface-instance-array select
+is therefore an intentional application-compatibility extension, not a 25.9
+conformance result. Slang 11 accepts the core 25.9 positive and rejects that
+extension under both editions. Its acceptance of VIF `===`/`!==` and
+`==?`/`!=?` is recorded only as an oracle disagreement; it does not displace
+the operator set stated by 25.9 or the normative Icarus diagnostics.
+
+The 9.4.2 event-control path likewise has one implementation in both modes.
+Each leaf of an explicit `or`/comma list is prepared once, allowing a dynamic
+VIF-member or class-property leaf to coexist with ordinary signals, named
+events, a run-time-selected event-array element, and direct/default/global
+clocking events while preserving the individual 6.17, 14.10/14.12/14.14, and
+15.5 leaf behavior. The isolated one-shot waiters cancel their losing
+registrations and resume once. A single leaf expression that itself mixes VIF
+and class/ordinary dependencies remains outside this subset.
+
+For 7.10.1, `q[$:hi]` derives `$` from the already-evaluated queue's live last
+index and evaluates the explicit integral `hi` once. Exact or above-last `hi`
+returns the last item; a lower/reversed or X/Z bound and an empty source return
+an empty unbounded queue. The l-value form and `$` as an indexed `+:`/`-:` base
+remain loud boundaries in both editions.
+
+The paired VIF context/comparison/extension lists pass **22/22** in each legacy
+and JSON/VVP path, the chapter-9 lists pass **14/14** in each path, and the new
+left-`$` queue rows pass **6/6** in each path. The broad replay passes
+**2,188/2,188** legacy, **1,266 JSON/VVP entries with 0 failures** (1,249 pass
+and 17 unchanged NI), **149/149** negatives, **103/103** VPI, and **354/354**
+canonical real-DPI UVM. No OpenTitan or Caliptra application matrix was
+replayed. See the dated section in
+`matrices/ieee1800_2017_clause_matrix.md` and the associated
+[session log](session_logs/2026-08-30_virtual_interface_event_list_queue_slice.md).
+
 ## 2026-08-28 clauses 6.24, 7.6, 7.10.5, and 13.3–13.5 — no implemented edition delta
 
 IEEE 1800-2023 retains the 2017 rules used by this increment. Under 7.6,

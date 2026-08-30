@@ -2225,6 +2225,21 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    return errors;
       }
 
+      /* q[$:hi] derives its lower bound from the same already-evaluated
+       * source object. This preserves one evaluation for side-effecting
+       * class, virtual-interface, method, and indexed receivers. */
+      if (strcmp(name, "$ivl_queue$slice_left_last") == 0) {
+	    if (parm_count != 2) {
+		  fprintf(vvp_out, "    %%null; ; qslice/left: bad parm count\n");
+		  return 0;
+	    }
+	    int errors = draw_eval_object(ivl_expr_parm(expr, 0));
+	    draw_eval_vec4(ivl_expr_parm(expr, 1));
+	    fprintf(vvp_out, "    %%qslice/left/f %u;\n",
+		    ivl_expr_signed(ivl_expr_parm(expr, 1)) ? 1U : 0U);
+	    return errors;
+      }
+
       /* Indexed queue slice Q[base +: width] / Q[base -: width]. Keep width
        * as a vec4 operand instead of truncating it to a C integer here: the
        * runtime can reject or clamp an arbitrary-width value without

@@ -1,3 +1,2 @@
-./ivltests/sv_class_property_mixed_event_reject.v:19: error: a class-property mutation event cannot yet be combined with an ordinary, named, virtual-interface, or separately lowered dynamic event.
-./ivltests/sv_class_property_mixed_event_reject.v:25: error: event expression mixes virtual-interface member dependencies with class-property or ordinary signal dependencies; this combination is not yet supported.
-2 error(s) during elaboration.
+./ivltests/sv_class_property_mixed_event_reject.v:20: error: event expression mixes virtual-interface member dependencies with class-property or ordinary signal dependencies; this combination is not yet supported.
+1 error(s) during elaboration.

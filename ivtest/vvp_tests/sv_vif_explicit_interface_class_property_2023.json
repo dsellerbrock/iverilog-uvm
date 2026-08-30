@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_vif_explicit_interface_class_property.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_vif_explicit_interface_class_property" ],
+    "gold"          : "sv_vif_explicit_interface_class_property"
+}
