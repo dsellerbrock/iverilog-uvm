@@ -13389,8 +13389,11 @@ bool of_CMPIS(vthread_t thr, vvp_code_t cp)
 
 /*
  * %cmp/obj
- * Compare two object handles on the object stack for pointer identity.
- * Pops both, sets flag 4 = 1 if equal (same object), 0 if not.
+ * Compare two object handles on the object stack. Ordinary class handles use
+ * pointer identity. A virtual interface represents an interface INSTANCE, so
+ * separately materialized wrappers compare by their bound scope and interface
+ * definition (IEEE 1800-2017/2023 25.9).
+ * Pops both, sets flag 4 = 1 if equal, 0 if not.
  */
 bool of_CMPOBJ(vthread_t thr, vvp_code_t)
 {
@@ -13400,6 +13403,12 @@ bool of_CMPOBJ(vthread_t thr, vvp_code_t)
       thr->pop_object(le);
 
       bool eq = (le == re);
+      vvp_vinterface*left_vif = le.peek<vvp_vinterface>();
+      vvp_vinterface*right_vif = re.peek<vvp_vinterface>();
+      if (left_vif && right_vif) {
+	    eq = left_vif->vif_scope() == right_vif->vif_scope()
+	       && left_vif->get_defn() == right_vif->get_defn();
+      }
       thr->flags[4] = eq ? BIT4_1 : BIT4_0;
 
       const char*scope_name = scope_name_or_unknown_(thr->parent_scope);

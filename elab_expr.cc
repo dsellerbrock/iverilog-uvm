@@ -5258,6 +5258,38 @@ unsigned PEBComp::test_width(Design*des, NetScope*scope, width_mode_t&)
       return expr_width_;
 }
 
+static const netclass_t* comparison_virtual_interface_type_(
+		const NetExpr*expr)
+{
+      const netclass_t*type = expr
+	    ? dynamic_cast<const netclass_t*>(expr->net_type()) : 0;
+      return type && type->is_interface() ? type : 0;
+}
+
+static NetScope* comparison_interface_instance_scope_(
+		const PExpr*expr, Design*des, NetScope*scope)
+{
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(expr);
+      if (!ident)
+	    return 0;
+
+      symbol_search_results sr;
+      if (!symbol_search(ident, des, scope, ident->path(),
+			 ident->lexical_pos(), &sr)
+	  || sr.scope_index_error || !sr.is_scope() || !sr.scope
+	  || !sr.scope->is_interface() || !sr.path_tail.empty())
+	    return 0;
+      return sr.scope;
+}
+
+static void report_virtual_interface_comparison_error_(
+		Design*des, const LineInfo&loc, const char*message)
+{
+      cerr << loc.get_fileline() << ": error: " << message
+	   << " (IEEE 1800-2017/2023 25.9)." << endl;
+      des->errors += 1;
+}
+
 NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 				 unsigned expr_wid, unsigned flags) const
 {
@@ -5316,12 +5348,74 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
       if (type_is_vectorable(right_->expr_type()) && !right_->has_sign())
 	    left_->cast_signed(false);
 
-      NetExpr*lp =  left_->elaborate_expr(des, scope, l_width_, flags);
+      NetExpr*lp = 0;
+      NetExpr*rp = 0;
+
+      /* IEEE 1800-2017/2023 25.9 permits a virtual interface to be
+	 compared with a same-type concrete interface instance using == or
+	 !=. Interface instances are scopes, not ordinary signal expressions,
+	 and therefore need the virtual-interface type as their elaboration
+	 context. Elaborate the known object operand first, then propagate its
+	 exact interface type symmetrically to the scope operand. Do not use
+	 SYS_TASK_ARG: that would make arbitrary scope names legal expressions. */
+      const bool comparison_operator = op_ == 'e' || op_ == 'n'
+	    || op_ == 'E' || op_ == 'N' || op_ == 'w' || op_ == 'W';
+      const bool left_object = left_->expr_type() == IVL_VT_CLASS;
+      const bool right_object = right_->expr_type() == IVL_VT_CLASS;
+
+      if (comparison_operator && !left_object && !right_object
+	  && (comparison_interface_instance_scope_(left_, des, scope)
+	      || comparison_interface_instance_scope_(right_, des, scope))) {
+	    report_virtual_interface_comparison_error_(
+		  des, *this,
+		  "An interface instance may be compared only with a same-type "
+		  "virtual interface using == or !=");
+	    return 0;
+      }
+
+      if (comparison_operator && left_object && !right_object) {
+	    lp = left_->elaborate_expr(des, scope, l_width_, flags);
+	    const netclass_t*vif_type =
+		  comparison_virtual_interface_type_(lp);
+	    if (vif_type) {
+		  if (op_ == 'E' || op_ == 'N') {
+			report_virtual_interface_comparison_error_(
+			      des, *this,
+			      "Virtual interfaces support only == and != comparisons");
+			delete lp;
+			return 0;
+		  }
+		  rp = right_->elaborate_expr(
+			des, scope, static_cast<ivl_type_t>(vif_type), flags);
+	    } else {
+		  rp = right_->elaborate_expr(des, scope, r_width_, flags);
+	    }
+      } else if (comparison_operator && right_object && !left_object) {
+	    rp = right_->elaborate_expr(des, scope, r_width_, flags);
+	    const netclass_t*vif_type =
+		  comparison_virtual_interface_type_(rp);
+	    if (vif_type) {
+		  if (op_ == 'E' || op_ == 'N') {
+			report_virtual_interface_comparison_error_(
+			      des, *this,
+			      "Virtual interfaces support only == and != comparisons");
+			delete rp;
+			return 0;
+		  }
+		  lp = left_->elaborate_expr(
+			des, scope, static_cast<ivl_type_t>(vif_type), flags);
+	    } else {
+		  lp = left_->elaborate_expr(des, scope, l_width_, flags);
+	    }
+      } else {
+	    lp = left_->elaborate_expr(des, scope, l_width_, flags);
+	    rp = right_->elaborate_expr(des, scope, r_width_, flags);
+      }
+
       if (lp && debug_elaborate) {
 	    cerr << get_fileline() << ": PEBComp::elaborate_expr: "
 		 << "Elaborated left_: " << *lp << endl;
       }
-      NetExpr*rp = right_->elaborate_expr(des, scope, r_width_, flags);
       if (rp && debug_elaborate) {
 	    cerr << get_fileline() << ": PEBComp::elaborate_expr: "
 		 << "Elaborated right_: " << *rp << endl;
@@ -5332,6 +5426,41 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 	    delete rp;
 	    return 0;
       }
+
+      const netclass_t*left_vif = comparison_virtual_interface_type_(lp);
+      const netclass_t*right_vif = comparison_virtual_interface_type_(rp);
+      if (left_vif || right_vif) {
+	    if (op_ == 'E' || op_ == 'N') {
+		  report_virtual_interface_comparison_error_(
+			des, *this,
+			"Virtual interfaces support only == and != comparisons");
+		  delete lp;
+		  delete rp;
+		  return 0;
+	    }
+
+	    const bool left_valid = left_vif || dynamic_cast<NetENull*>(lp);
+	    const bool right_valid = right_vif || dynamic_cast<NetENull*>(rp);
+	    if (!left_valid || !right_valid) {
+		  report_virtual_interface_comparison_error_(
+			des, *this,
+			"A virtual interface may be compared only with null, a "
+			"same-type virtual interface, or a same-type interface instance");
+		  delete lp;
+		  delete rp;
+		  return 0;
+	    }
+
+	    if (left_vif && right_vif
+		&& !left_vif->type_equivalent(right_vif)) {
+		  report_virtual_interface_comparison_error_(
+			des, *this,
+			"Virtual-interface comparison operands must have the same type");
+		  delete lp;
+		  delete rp;
+		  return 0;
+	    }
+	}
 
       eval_expr(lp, l_width_);
       eval_expr(rp, r_width_);
