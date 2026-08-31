@@ -2320,6 +2320,8 @@ vpiHandle class_type::vpi_handle(int code)
 }
 
 static class_type*compile_class = 0;
+static bool compile_class_covgrp_parent_required = false;
+static bool compile_class_covgrp_parent_seen = false;
 
 static string build_scope_path_(__vpiScope*scope)
 {
@@ -2344,10 +2346,182 @@ static string build_scope_path_(__vpiScope*scope)
       return path;
 }
 
+enum covgrp_ir_atom_kind_t {
+      COVGRP_IR_ATOM_CONSTANT,
+      COVGRP_IR_ATOM_PROPERTY,
+      COVGRP_IR_ATOM_PARENT_PROPERTY
+};
+
+struct covgrp_ir_atom_t {
+      covgrp_ir_atom_kind_t kind = COVGRP_IR_ATOM_CONSTANT;
+      uint64_t first = 0;
+      unsigned width = 32;
+      bool is_signed = false;
+};
+
+/* Decode the typed scalar atoms shared by the coverage IR loader and
+ * evaluator. A constant retains the historical optional width (default 32),
+ * while both property forms require an explicit 1..64-bit type. Keeping this
+ * parser in one place prevents malformed pp: metadata from being accepted by
+ * the loader but interpreted differently at runtime. */
+static bool covgrp_ir_parse_atom_(const string&tok, covgrp_ir_atom_t&out)
+{
+      size_t prefix = 0;
+      if (tok.compare(0, 3, "pp:") == 0) {
+	    out.kind = COVGRP_IR_ATOM_PARENT_PROPERTY;
+	    prefix = 3;
+      } else if (tok.compare(0, 2, "p:") == 0) {
+	    out.kind = COVGRP_IR_ATOM_PROPERTY;
+	    prefix = 2;
+      } else if (tok.compare(0, 2, "c:") == 0) {
+	    out.kind = COVGRP_IR_ATOM_CONSTANT;
+	    prefix = 2;
+      } else {
+	    return false;
+      }
+
+      const char*begin = tok.c_str() + prefix;
+      if (!isdigit(static_cast<unsigned char>(*begin))) return false;
+      char*end = 0;
+      errno = 0;
+      uint64_t first = strtoull(begin, &end, 10);
+      if (end == begin || errno == ERANGE) return false;
+
+      unsigned width = 32;
+      bool is_signed = false;
+      if (*end == ':') {
+	    const char*width_begin = end + 1;
+	    if (!isdigit(static_cast<unsigned char>(*width_begin))) return false;
+	    errno = 0;
+	    unsigned long parsed = strtoul(width_begin, &end, 10);
+	    if (end == width_begin || errno == ERANGE
+		|| parsed == 0 || parsed > 64)
+		  return false;
+	    width = (unsigned)parsed;
+	    if (*end == ':' && end[1] == 's') {
+		  is_signed = true;
+		  end += 2;
+	    }
+      } else if (out.kind != COVGRP_IR_ATOM_CONSTANT) {
+	    return false;
+      }
+      if (*end != 0) return false;
+
+      out.first = first;
+      out.width = width;
+      out.is_signed = is_signed;
+      return true;
+}
+
+static bool covgrp_ir_mentions_parent_(const string&text)
+{
+	/* Keep this first-pass detector at least as broad as the runtime's
+	 * deferred-parent check. Otherwise a malformed atom such as
+	 * c:0pp:1:32 can evade load-time validation, then look parent-backed to
+	 * covgrp_dyn_states_ and be deferred forever without a diagnostic. */
+	if (text.find("pp:") != string::npos)
+	      return true;
+
+      for (size_t pos = 0; pos < text.size(); pos += 1) {
+	    bool boundary = pos == 0 || isspace(static_cast<unsigned char>(text[pos-1]))
+		  || text[pos-1] == '(';
+	    if (!boundary || text.compare(pos, 2, "pp") != 0) continue;
+	    size_t after = pos + 2;
+	    if (after == text.size() || text[after] == ':' || text[after] == ')'
+		|| isspace(static_cast<unsigned char>(text[after])))
+		  return true;
+      }
+      return false;
+}
+
+/* Validate only the bounded expression grammar implemented by
+ * covgrp_ir_eval_t. The caller deliberately invokes this for pp:-bearing
+ * records only, so historical p:/c:-only bytecode keeps its existing loader
+ * compatibility. */
+class covgrp_ir_syntax_t {
+    public:
+      explicit covgrp_ir_syntax_t(const string&text)
+      : text_(text), pos_(0), nodes_(0), uses_parent_(false) { }
+
+      bool validate(bool&uses_parent)
+      {
+	    bool valid = expr_(0);
+	    skip_();
+	    uses_parent = uses_parent_;
+	    return valid && pos_ == text_.size();
+      }
+
+    private:
+      void skip_()
+      {
+	    while (pos_ < text_.size()
+		   && isspace(static_cast<unsigned char>(text_[pos_])))
+		  pos_ += 1;
+      }
+
+      string atom_()
+      {
+	    skip_();
+	    size_t begin = pos_;
+	    while (pos_ < text_.size() && text_[pos_] != ')'
+		   && !isspace(static_cast<unsigned char>(text_[pos_])))
+		  pos_ += 1;
+	    return text_.substr(begin, pos_ - begin);
+      }
+
+      bool expr_(unsigned depth)
+      {
+	    if (depth > 128 || ++nodes_ > 1024) return false;
+	    skip_();
+	    if (pos_ >= text_.size()) return false;
+	    if (text_[pos_] != '(') {
+		  covgrp_ir_atom_t atom;
+		  if (!covgrp_ir_parse_atom_(atom_(), atom)) return false;
+		  if (atom.kind == COVGRP_IR_ATOM_PARENT_PROPERTY)
+			uses_parent_ = true;
+		  return true;
+	    }
+
+	    pos_ += 1;
+	    string op = atom_();
+	    unsigned arity = 0;
+	    if (op == "not" || op == "bnot" || op == "redand"
+		|| op == "redor" || op == "redxor" || op == "neg") {
+		  arity = 1;
+	    } else if (op == "ite") {
+		  arity = 3;
+	    } else if (op == "eq" || op == "ne" || op == "lt"
+		       || op == "le" || op == "gt" || op == "ge"
+		       || op == "and" || op == "or" || op == "impl"
+		       || op == "iff" || op == "shl" || op == "lshr"
+		       || op == "ashr" || op == "add" || op == "sub"
+		       || op == "mul" || op == "div" || op == "mod"
+		       || op == "band" || op == "bor" || op == "bxor"
+		       || op == "pow") {
+		  arity = 2;
+	    } else {
+		  return false;
+	    }
+	    for (unsigned idx = 0; idx < arity; idx += 1)
+		  if (!expr_(depth + 1)) return false;
+	    skip_();
+	    if (pos_ >= text_.size() || text_[pos_] != ')') return false;
+	    pos_ += 1;
+	    return true;
+      }
+
+      const string&text_;
+      size_t pos_;
+      unsigned nodes_;
+      bool uses_parent_;
+};
+
 void compile_class_start(char*lab, char*nam, char*dispatch_prefix,
                          char*super_dispatch_prefix, unsigned ntype)
 {
       assert(compile_class == 0);
+      compile_class_covgrp_parent_required = false;
+      compile_class_covgrp_parent_seen = false;
       compile_class = new class_type(nam, ntype);
       if (dispatch_prefix && *dispatch_prefix)
             compile_class->set_dispatch_prefix(dispatch_prefix);
@@ -2494,6 +2668,18 @@ void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 	 bool typed_set_ir = set_ir && strchr(lo_ir + 5, ':');
 	 if ((!value_type && typed_set_ir) || (value_type && set_ir && !typed_set_ir))
 	       bad_type = true;
+	 bool parent_ir = lo_ir && covgrp_ir_mentions_parent_(lo_ir);
+	 parent_ir = parent_ir || (hi_ir && covgrp_ir_mentions_parent_(hi_ir));
+	 bool valid_parent_ir = true;
+	 if (parent_ir) {
+	       bool lo_uses_parent = false;
+	       bool hi_uses_parent = false;
+	       valid_parent_ir = value_type && lo_ir && hi_ir
+		     && covgrp_ir_syntax_t(lo_ir).validate(lo_uses_parent)
+		     && covgrp_ir_syntax_t(hi_ir).validate(hi_uses_parent)
+		     && (lo_uses_parent || hi_uses_parent);
+	       bad_type = bad_type || !valid_parent_ir;
+	 }
 	 if (value_type) {
 	       size_t type_len = strlen(value_type);
 	       value_signed = type_len > 0 && value_type[0] == 's';
@@ -2518,6 +2704,8 @@ void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 	free(value_type);
 	return;
       }
+	 if (parent_ir && valid_parent_ir)
+	       compile_class_covgrp_parent_required = true;
       compile_class->add_covgrp_dyn_bin((unsigned)cp_idx, (unsigned)item_idx,
 					(unsigned)kind, (unsigned)family,
 					array_size, name ? name : "",
@@ -2647,6 +2835,20 @@ void compile_class_covgrp_item_options(uint64_t item_idx,
 void compile_class_covgrp_parent(uint64_t prop)
 {
       assert(compile_class);
+      compile_class_covgrp_parent_seen = true;
+      bool valid = prop <= (uint64_t)std::numeric_limits<int>::max()
+	    && prop < compile_class->property_count();
+      if (valid) {
+	    size_t idx = (size_t)prop;
+	    valid = !compile_class->property_is_static(idx)
+		  && compile_class->property_array_size(idx) == 1
+		  && compile_class->property_name(idx) == "__covgrp_parent"
+		  && compile_class->property_base_type(idx) == "o";
+      }
+      if (!valid) {
+	    yyerror("invalid .covgrp_parent metadata value");
+	    return;
+      }
       compile_class->set_covgrp_parent_prop((int)prop);
 }
 
@@ -2743,65 +2945,83 @@ class covgrp_ir_eval_t {
 
 	 bool atom_value_(const string&tok, value_t&out)
 	 {
-	       bool property = tok.compare(0, 2, "p:") == 0;
-	       bool parent_property = tok.compare(0, 3, "pp:") == 0;
-	       if (!property && !parent_property
-		   && tok.compare(0, 2, "c:") != 0) return false;
+	       covgrp_ir_atom_t atom;
+	       if (!covgrp_ir_parse_atom_(tok, atom)) return false;
+	       bool property = atom.kind == COVGRP_IR_ATOM_PROPERTY;
+	       bool parent_property = atom.kind == COVGRP_IR_ATOM_PARENT_PROPERTY;
 
-	       const char*begin = tok.c_str() + (parent_property ? 3 : 2);
-	       if (!isdigit(static_cast<unsigned char>(*begin))) return false;
-	       char*end = 0;
-	       errno = 0;
-	       uint64_t first = strtoull(begin, &end, 10);
-	       if (end == begin || errno == ERANGE) return false;
-
-	       unsigned width = 32;
-	       bool is_signed = false;
-	       if (*end == ':') {
-		     const char*width_begin = end + 1;
-		     if (!isdigit(static_cast<unsigned char>(*width_begin)))
-			   return false;
-		     errno = 0;
-		     unsigned long parsed = strtoul(width_begin, &end, 10);
-		     if (end == width_begin || errno == ERANGE
-			 || parsed == 0 || parsed > 64)
-			   return false;
-		     width = (unsigned)parsed;
-		     if (*end == ':' && end[1] == 's') {
-			   is_signed = true;
-			   end += 2;
-		     }
-	       } else if (property || parent_property) {
-		     return false;
-	       }
-	       if (*end != 0) return false;
-
-	       out.width = width;
-	       out.is_signed = is_signed;
+	       out.width = atom.width;
+	       out.is_signed = atom.is_signed;
 	       if (!property && !parent_property) {
-		     out.bits = first & mask_(width);
+		     out.bits = atom.first & mask_(atom.width);
 		     return true;
 	       }
 
 	       vvp_cobject*owner = obj_;
 	       if (parent_property) {
 		     if (!owner) return false;
-		     int parent_prop = owner->get_defn()->covgrp_parent_prop();
-		     if (parent_prop < 0) return false;
+		     const class_type*covergroup_defn = owner->get_defn();
+		     int parent_prop = covergroup_defn->covgrp_parent_prop();
+		     if (parent_prop < 0
+			 || (size_t)parent_prop >= covergroup_defn->property_count()
+			 || covergroup_defn->property_is_static((size_t)parent_prop)
+			 || covergroup_defn->property_array_size((size_t)parent_prop) != 1
+			 || covergroup_defn->property_base_type((size_t)parent_prop) != "o")
+			   return false;
 		     vvp_object_t parent;
 		     owner->get_object((size_t)parent_prop, parent, 0);
 		     owner = parent.peek<vvp_cobject>();
+		     const class_type*declared_parent =
+			   covergroup_defn->property_declared_class_type(
+				 (size_t)parent_prop);
+		     if (!owner || !declared_parent
+			 || !owner->get_defn()->assignment_compatible_with(
+			       declared_parent))
+			   return false;
+
+		       /* pp: property indexes are compiled against the declared
+			* enclosing-class type. An assignment-compatible derived object
+			* may have additional properties, but those are not in the
+			* lexical namespace that produced this metadata. Validate the
+			* declared slot before consulting the live object's matching
+			* inherited slot. */
+		     unsigned declared_width = 0;
+		     bool declared_signed = false;
+		     if (atom.first >= declared_parent->property_count()
+			 || (declared_parent->property_qualifier(
+			       (size_t)atom.first) & 32) == 0
+			 || declared_parent->property_array_size(
+			       (size_t)atom.first) != 1
+			 || !static_property_integral_shape_(
+			       declared_parent->property_base_type(
+				     (size_t)atom.first),
+			       declared_width, declared_signed)
+			 || declared_width != atom.width
+			 || declared_signed != atom.is_signed)
+			   return false;
 	       }
-	       if (!owner || first >= owner->get_defn()->property_count())
+	       if (!owner || atom.first >= owner->get_defn()->property_count())
 		     return false;
-	       if (parent_property
-		   && (owner->get_defn()->property_qualifier((size_t)first) & 32) == 0)
-		     return false;
+	       if (parent_property) {
+		     const class_type*parent_defn = owner->get_defn();
+		     size_t parent_idx = (size_t)atom.first;
+		     unsigned actual_width = 0;
+		     bool actual_signed = false;
+		     if ((parent_defn->property_qualifier(parent_idx) & 32) == 0
+			 || parent_defn->property_array_size(parent_idx) != 1
+			 || !static_property_integral_shape_(
+			       parent_defn->property_base_type(parent_idx),
+			       actual_width, actual_signed)
+			 || actual_width != atom.width
+			 || actual_signed != atom.is_signed)
+			   return false;
+	       }
 	       vvp_vector4_t value;
-	       owner->get_vec4((size_t)first, value);
-	       if (value.size() < width) return false;
+	       owner->get_vec4((size_t)atom.first, value);
+	       if (parent_property ? value.size() != atom.width
+		   : value.size() < atom.width) return false;
 	       out.bits = 0;
-	       for (unsigned bit = 0; bit < width; bit += 1) {
+	       for (unsigned bit = 0; bit < atom.width; bit += 1) {
 		     vvp_bit4_t digit = value.value(bit);
 		     if (digit == BIT4_X || digit == BIT4_Z) return false;
 		     if (digit == BIT4_1) out.bits |= UINT64_C(1) << bit;
@@ -3322,6 +3542,9 @@ void compile_class_done(void)
       __vpiScope*scope = vpip_peek_current_scope();
       assert(scope);
       assert(compile_class);
+      if (compile_class_covgrp_parent_required
+	  && !compile_class_covgrp_parent_seen)
+	    yyerror("parent-dependent .covgrp_dyn_bin has no .covgrp_parent metadata");
       compile_class->set_scope_path(build_scope_path_(scope));
       if (compile_class->dispatch_prefix().empty()) {
             string prefix = compile_class->scope_path();

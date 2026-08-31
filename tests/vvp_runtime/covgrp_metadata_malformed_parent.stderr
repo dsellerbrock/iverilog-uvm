@@ -1,0 +1,5 @@
+WARNING: covergroup bin 'nonconst' has an X/Z endpoint or invalid typed runtime expression; the affected range is excluded.
+WARNING: covergroup bin 'width' has an X/Z endpoint or invalid typed runtime expression; the affected range is excluded.
+WARNING: covergroup bin 'sign' has an X/Z endpoint or invalid typed runtime expression; the affected range is excluded.
+WARNING: covergroup bin 'owner' has an X/Z endpoint or invalid typed runtime expression; the affected range is excluded.
+WARNING: covergroup bin 'derived_only' has an X/Z endpoint or invalid typed runtime expression; the affected range is excluded.

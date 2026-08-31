@@ -6,10 +6,12 @@ repo_dir=$(CDPATH= cd "$script_dir/../.." && pwd)
 vvp=${VVP:-$repo_dir/vvp/vvp}
 boundary=tests/vvp_runtime/covgrp_metadata_boundary.vvp
 malformed=tests/vvp_runtime/covgrp_metadata_malformed.vvp
+parent_malformed=tests/vvp_runtime/covgrp_metadata_malformed_parent.vvp
 sample_malformed=tests/vvp_runtime/covgrp_sample_malformed.vvp
 options_malformed=tests/vvp_runtime/covgrp_options_malformed.vvp
 cross_semantic_malformed=tests/vvp_runtime/covgrp_cross_semantic_malformed.vvp
 expected=$script_dir/covgrp_metadata_malformed.stderr
+parent_expected=$script_dir/covgrp_metadata_malformed_parent.stderr
 sample_expected=$script_dir/covgrp_sample_malformed.stderr
 options_expected=$script_dir/covgrp_options_malformed.stderr
 cross_semantic_expected=$script_dir/covgrp_cross_semantic_malformed.stderr
@@ -42,6 +44,22 @@ if ! cmp -s "$work_dir/expected-normalized" "$work_dir/stderr-normalized"; then
     echo "FAIL covergroup metadata: stderr mismatch" >&2
     diff -u "$work_dir/expected-normalized" \
         "$work_dir/stderr-normalized" >&2 || true
+    exit 1
+fi
+
+"$vvp" "$parent_malformed" > "$work_dir/parent.stdout" \
+    2> "$work_dir/parent.stderr"
+if [ -s "$work_dir/parent.stdout" ]; then
+    echo "FAIL covergroup metadata: expected empty parent-metadata stdout" >&2
+    exit 1
+fi
+tr -d '\r' < "$parent_expected" > "$work_dir/parent-expected-normalized"
+tr -d '\r' < "$work_dir/parent.stderr" > "$work_dir/parent-stderr-normalized"
+if ! cmp -s "$work_dir/parent-expected-normalized" \
+          "$work_dir/parent-stderr-normalized"; then
+    echo "FAIL covergroup metadata: parent-metadata stderr mismatch" >&2
+    diff -u "$work_dir/parent-expected-normalized" \
+        "$work_dir/parent-stderr-normalized" >&2 || true
     exit 1
 fi
 
@@ -95,4 +113,4 @@ if ! cmp -s "$work_dir/cross-semantic-expected-normalized" \
     exit 1
 fi
 
-echo "PASS covergroup transition/option/cross metadata bounds"
+echo "PASS covergroup transition/option/cross/parent metadata bounds"
