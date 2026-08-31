@@ -2667,8 +2667,9 @@ void class_type::type_bump(unsigned prop) const
 
 /* Evaluate the deliberately bounded arithmetic subset used by dynamic
  * covergroup options and bounds. The compiler emits the same prefix IR as
- * class constraints: c:V:WIDTH[:s] atoms, p:PID:WIDTH[:s] property atoms,
- * and parenthesized arithmetic. Width and signedness are part of the value,
+ * class constraints: c:V:WIDTH[:s] atoms, p:PID:WIDTH[:s] current-object
+ * property atoms, pp:PID:WIDTH[:s] enclosing-covergroup-parent atoms, and
+ * parenthesized arithmetic. Width and signedness are part of the value,
  * not decoration: dropping them changes nested arithmetic and shifts. Keep
  * this evaluator independent of Z3 so coverage construction remains cheap
  * and works in builds without the optional solver. */
@@ -2743,9 +2744,11 @@ class covgrp_ir_eval_t {
 	 bool atom_value_(const string&tok, value_t&out)
 	 {
 	       bool property = tok.compare(0, 2, "p:") == 0;
-	       if (!property && tok.compare(0, 2, "c:") != 0) return false;
+	       bool parent_property = tok.compare(0, 3, "pp:") == 0;
+	       if (!property && !parent_property
+		   && tok.compare(0, 2, "c:") != 0) return false;
 
-	       const char*begin = tok.c_str() + 2;
+	       const char*begin = tok.c_str() + (parent_property ? 3 : 2);
 	       if (!isdigit(static_cast<unsigned char>(*begin))) return false;
 	       char*end = 0;
 	       errno = 0;
@@ -2768,22 +2771,34 @@ class covgrp_ir_eval_t {
 			   is_signed = true;
 			   end += 2;
 		     }
-	       } else if (property) {
+	       } else if (property || parent_property) {
 		     return false;
 	       }
 	       if (*end != 0) return false;
 
 	       out.width = width;
 	       out.is_signed = is_signed;
-	       if (!property) {
+	       if (!property && !parent_property) {
 		     out.bits = first & mask_(width);
 		     return true;
 	       }
 
-	       if (!obj_ || first >= obj_->get_defn()->property_count())
+	       vvp_cobject*owner = obj_;
+	       if (parent_property) {
+		     if (!owner) return false;
+		     int parent_prop = owner->get_defn()->covgrp_parent_prop();
+		     if (parent_prop < 0) return false;
+		     vvp_object_t parent;
+		     owner->get_object((size_t)parent_prop, parent, 0);
+		     owner = parent.peek<vvp_cobject>();
+	       }
+	       if (!owner || first >= owner->get_defn()->property_count())
+		     return false;
+	       if (parent_property
+		   && (owner->get_defn()->property_qualifier((size_t)first) & 32) == 0)
 		     return false;
 	       vvp_vector4_t value;
-	       obj_->get_vec4((size_t)first, value);
+	       owner->get_vec4((size_t)first, value);
 	       if (value.size() < width) return false;
 	       out.bits = 0;
 	       for (unsigned bit = 0; bit < width; bit += 1) {

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_covergroup_class_const_bin_ranges_2023.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_covergroup_class_const_bin_ranges"
+}

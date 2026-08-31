@@ -6613,6 +6613,23 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 		  }
 		  continue;
 	    }
+	      // pp:N:W endpoints read an enclosing-class instance constant through
+	      // __covgrp_parent. Construction evaluates dynamic metadata before the
+	      // covergroup RHS is stored in its parent property, so defer the whole
+	      // family rather than diagnosing a transient missing link. The property
+	      // assignment finalizes and freezes the ranges immediately afterwards.
+	    bool endpoint_parent = rec.lo_ir.find("pp:") != string::npos
+		  || rec.hi_ir.find("pp:") != string::npos;
+	    if (endpoint_parent) {
+		  int pprop = defn->covgrp_parent_prop();
+		  vvp_object_t parent_obj;
+		  if (pprop >= 0)
+			cobj->get_object((size_t)pprop, parent_obj, 0);
+		  if (pprop < 0 || !parent_obj.peek<vvp_cobject>()) {
+			deferred = true;
+			continue;
+		  }
+	    }
 	    uint64_t lo_bits = 0, hi_bits = 0;
 	    unsigned lo_width = 0, hi_width = 0;
 	    bool lo_signed = false, hi_signed = false;
