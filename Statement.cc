@@ -390,10 +390,14 @@ class pform_constructor_order_audit_t {
       {
 	    collect_(statement);
 	    for (const std::pair<const Statement*const,assignment_info_t>&entry :
-		 assignments_)
-		  if (entry.second.initializes_constant)
+		 assignments_) {
+		  if (entry.second.initializes_constant) {
 			result_.authorized_instance_constant_initializers.insert(
 			      entry.first);
+			result_.instance_constant_initializer_properties[entry.first] =
+			      entry.second.initialized_property;
+		  }
+	    }
 	    check_forbidden_regions_();
 
 	    ctor_order_flow_t flow = flow_(statement, initially_initialized_);
@@ -686,7 +690,7 @@ class pform_constructor_order_audit_t {
 		  }
 	    }
 	    if (info.initializes_constant) {
-		  if (input.maybe_initialized.count(info.initialized_property)) {
+		  if (input.definitely_initialized.count(info.initialized_property)) {
 			std::tuple<const Statement*,size_t>key(
 			      statement, info.initialized_property);
 			if (reported_reassignment_.insert(key).second) {
@@ -888,8 +892,31 @@ class pform_constructor_order_audit_t {
 	    if (const PForeach*loop = dynamic_cast<const PForeach*>(statement))
 		  return flow_zero_trip_loop_(loop->statement_, input);
 
-	    if (const PRepeat*loop = dynamic_cast<const PRepeat*>(statement))
+	    if (const PRepeat*loop = dynamic_cast<const PRepeat*>(statement)) {
+		  if (const PENumber*count =
+			dynamic_cast<const PENumber*>(loop->expr_)) {
+			const verinum&value = count->value();
+			if (value.is_defined()) {
+			      long iterations = value.as_long();
+			      if (iterations <= 0)
+				    return ctor_order_identity_(input);
+			      if (iterations == 1) {
+				    ctor_order_flow_t body =
+					  flow_(loop->statement_, input);
+				    ctor_order_flow_t result;
+				    ctor_order_merge_alternatives_(result.normal,
+							 body.normal);
+				    ctor_order_merge_alternatives_(result.normal,
+							 body.broken);
+				    ctor_order_merge_alternatives_(result.normal,
+							 body.continued);
+				    result.returned = body.returned;
+				    return result;
+			      }
+			}
+		  }
 		  return flow_zero_trip_loop_(loop->statement_, input);
+	    }
 
 	    if (const PWhile*loop = dynamic_cast<const PWhile*>(statement))
 		  return flow_zero_trip_loop_(loop->statement_, input);

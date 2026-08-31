@@ -1311,6 +1311,11 @@ bool class_type::property_is_static(size_t idx) const
       return idx < properties_.size() && (properties_[idx].qualifier & 1);
 }
 
+bool class_type::property_is_const(size_t idx) const
+{
+      return idx < properties_.size() && (properties_[idx].qualifier & 32);
+}
+
 bool class_type::property_is_enum(size_t idx) const
 {
       return idx < properties_.size() && !properties_[idx].enum_values.empty();

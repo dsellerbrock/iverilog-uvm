@@ -5203,6 +5203,25 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 {
       const char*stmt_name = ivl_stmt_name(net);
 
+	/* IEEE 1800-2017/2023 8.19. This compiler-generated guard surrounds
+	 * one authorized source assignment before that assignment is lowered
+	 * into any element-wise stores. The receiver is always the constructor's
+	 * implicit this object; %prop/const/init consumes it and test-and-sets the
+	 * absolute property ID on that object. */
+      if (strcmp(stmt_name, "$ivl_instance_const_init") == 0) {
+	    if (ivl_stmt_parm_count(net) != 2
+		|| ivl_expr_type(ivl_stmt_parm(net, 1)) != IVL_EX_NUMBER) {
+		  fprintf(stderr, "%s:%u: internal error: malformed instance "
+			  "constant assignment guard.\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return 1;
+	    }
+	    int errors = draw_eval_object(ivl_stmt_parm(net, 0));
+	    fprintf(vvp_out, "    %%prop/const/init %lu;\n",
+		    ivl_expr_uvalue(ivl_stmt_parm(net, 1)));
+	    return errors;
+      }
+
 	/* A queue-valued function used as a statement still evaluates the
 	 * expression, but discards its result. In particular, unique() is a
 	 * 7.12.1 locator and must not mutate its receiver. */

@@ -2353,7 +2353,8 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 				      initially_initialized);
       set_constructor_initializer_sites(
 	    order.authorized_instance_constant_initializers,
-	    order.rejected_instance_constant_initializers);
+	    order.rejected_instance_constant_initializers,
+	    order.instance_constant_initializer_properties);
       report_constructor_order_violations_(des, this, order);
       if (order.has_reachable_exit)
 	    set_constructor_definitely_initialized(

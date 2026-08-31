@@ -599,9 +599,11 @@ class netclass_t : public ivl_type_s {
       };
       void set_constructor_initializer_sites(
 	    const std::set<const Statement*>&authorized,
-	    const std::set<const Statement*>&rejected);
+	    const std::set<const Statement*>&rejected,
+	    const std::map<const Statement*,size_t>&properties);
       constructor_initializer_site_status_t
       constructor_initializer_site_status(const Statement*statement) const;
+      int constructor_initializer_property(const Statement*statement) const;
       bool has_embedded_covergroups() const { return has_embedded_cgs_; }
       void set_has_embedded_covergroups(bool f) { has_embedded_cgs_ = f; }
       unsigned covgrp_ncoverpoints() const { return covgrp_ncoverpoints_; }
@@ -698,6 +700,7 @@ class netclass_t : public ivl_type_s {
 	bool constructor_initialization_audited_ = false;
 	std::set<const Statement*>constructor_initializer_sites_;
 	std::set<const Statement*>rejected_constructor_initializer_sites_;
+	std::map<const Statement*,size_t>constructor_initializer_properties_;
       std::vector<covgrp_bin_t> covgrp_bins_;
       std::vector<covgrp_dyn_bin_t> covgrp_dyn_bins_;
       std::vector<covgrp_cross_t> covgrp_crosses_;

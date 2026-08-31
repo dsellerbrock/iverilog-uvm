@@ -491,6 +491,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%process/status",of_PROCESS_STATUS,0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%process/suspend",of_PROCESS_SUSPEND,0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%prop/arr/dar",of_PROP_ARR_DAR,1,{OA_NUMBER, OA_NONE, OA_NONE} },
+      { "%prop/const/init",of_PROP_CONST_INIT,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%prop/index/check",of_PROP_INDEX_CHECK,1,{OA_STRING,OA_NONE,OA_NONE} },
       { "%prop/obj",of_PROP_OBJ,2,  {OA_NUMBER,   OA_BIT1,     OA_NONE} },
       { "%prop/r",  of_PROP_R,  1,  {OA_NUMBER,   OA_NONE,     OA_NONE} },

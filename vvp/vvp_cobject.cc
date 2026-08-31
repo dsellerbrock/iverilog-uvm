@@ -35,6 +35,8 @@ vvp_cobject::vvp_cobject(const class_type*defn)
 : defn_(defn), properties_(defn->instance_new()),
   union_active_member_(defn->is_tagged_union_type()
 		       && defn->property_count() ? 0 : -1), union_vec4_(0),
+  instance_constant_initialized_(defn->property_count(), false),
+  instance_constant_reassignment_reported_(defn->property_count(), false),
   rand_mode_(defn->property_count(), true),
   constraint_mode_(defn->constraint_count(), true)
 {
@@ -989,6 +991,22 @@ void vvp_cobject::get_object(size_t pid, vvp_object_t&val, size_t idx)
       return defn_->get_object(properties_, pid, val, idx);
 }
 
+bool vvp_cobject::claim_instance_constant_assignment(size_t pid, bool&report)
+{
+      assert(pid < instance_constant_initialized_.size());
+      report = false;
+      if (!instance_constant_initialized_[pid]) {
+	    instance_constant_initialized_[pid] = true;
+	    return true;
+      }
+
+      if (!instance_constant_reassignment_reported_[pid]) {
+	    instance_constant_reassignment_reported_[pid] = true;
+	    report = true;
+      }
+      return false;
+}
+
 void vvp_cobject::shallow_copy(const vvp_object*obj)
 {
       const vvp_cobject*that = dynamic_cast<const vvp_cobject*>(obj);
@@ -1001,6 +1019,13 @@ void vvp_cobject::shallow_copy(const vvp_object*obj)
 		  continue;
 	    defn_->copy_property(properties_, idx, that->properties_);
       }
+	// IEEE 1800-2023 8.11 copies all class properties and internal object
+	// state without running the constructor. Preserve which source instance
+	// constants already received their one constructor assignment, while a
+	// fresh destination owns its own diagnostic-suppression state.
+      instance_constant_initialized_ = that->instance_constant_initialized_;
+      instance_constant_reassignment_reported_.assign(
+	    defn_->property_count(), false);
 	// Shallow object copy includes per-object randomization control and
 	// committed cycle state. Static mode/history is intentionally absent
 	// here: it is already shared by declaration through class_type's

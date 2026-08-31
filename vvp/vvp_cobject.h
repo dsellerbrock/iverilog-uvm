@@ -106,6 +106,12 @@ class vvp_cobject : public vvp_object {
       void set_object(size_t pid, const vvp_object_t&val, size_t idx);
       void get_object(size_t pid, vvp_object_t&val, size_t idx);
 
+      // IEEE 1800-2017/2023 8.19: an authorized constructor assignment
+      // may initialize a non-static instance constant exactly once on each
+      // object. REPORT is true only for the first duplicate claim so
+      // concurrent detached branches cannot flood the diagnostic stream.
+      bool claim_instance_constant_assignment(size_t pid, bool&report);
+
       int union_active_member(void) const { return union_active_member_; }
 
 	// Per-instance dynamic named event storage (IEEE 1800-2017 15.5).
@@ -284,6 +290,8 @@ class vvp_cobject : public vvp_object {
       class_type::inst_t properties_;
       int union_active_member_;
       vvp_vector4_t*union_vec4_;
+      std::vector<bool> instance_constant_initialized_;
+      std::vector<bool> instance_constant_reassignment_reported_;
       std::vector<bool> rand_mode_;
       std::map<randc_key_t, bool> rand_mode_leaves_;
       std::vector<bool> constraint_mode_;

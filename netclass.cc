@@ -660,10 +660,12 @@ ivl_signal_t netclass_t::get_prop_static_target(size_t idx) const
 
 void netclass_t::set_constructor_initializer_sites(
       const set<const Statement*>&authorized,
-      const set<const Statement*>&rejected)
+      const set<const Statement*>&rejected,
+      const map<const Statement*,size_t>&properties)
 {
       constructor_initializer_sites_ = authorized;
       rejected_constructor_initializer_sites_ = rejected;
+      constructor_initializer_properties_ = properties;
 }
 
 netclass_t::constructor_initializer_site_status_t
@@ -677,6 +679,19 @@ netclass_t::constructor_initializer_site_status(
       if (constructor_initializer_sites_.count(statement))
 	    return CONSTRUCTOR_INITIALIZER_AUTHORIZED;
       return CONSTRUCTOR_INITIALIZER_NOT_APPLICABLE;
+}
+
+int netclass_t::constructor_initializer_property(
+      const Statement*statement) const
+{
+      if (constructor_initializer_site_status(statement)
+	  != CONSTRUCTOR_INITIALIZER_AUTHORIZED)
+	    return -1;
+      map<const Statement*,size_t>::const_iterator found =
+	    constructor_initializer_properties_.find(statement);
+      if (found == constructor_initializer_properties_.end())
+	    return -1;
+      return static_cast<int>(found->second);
 }
 
 bool netclass_t::get_prop_initialized(size_t idx) const
@@ -708,7 +723,12 @@ bool netclass_t::test_for_missing_initializers() const
       for (size_t idx = 0 ; idx < property_table_.size() ; idx += 1) {
 	    if (property_table_[idx].initialized_flag)
 		  continue;
-	    if (property_table_[idx].qual.test_const())
+	    // IEEE 1800-2017/2023 8.19 says an instance constant *can* be
+	    // assigned in its corresponding constructor; it does not require a
+	    // constructor assignment. A static/global constant, in contrast,
+	    // must have its declaration initializer.
+	    if (property_table_[idx].qual.test_const()
+		&& property_table_[idx].qual.test_static())
 		  return true;
       }
 

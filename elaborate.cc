@@ -8325,6 +8325,46 @@ static NetExpr* elaborate_direct_darray_slice_rval_(
 
 NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 {
+      NetProc*result = elaborate_unwrapped_(des, scope);
+      if (!result)
+	    return nullptr;
+
+      const netclass_t*class_type = find_class_containing_scope(*this, scope);
+      int property_idx = class_type
+	    ? class_type->constructor_initializer_property(this) : -1;
+      if (property_idx < 0)
+	    return result;
+
+      NetNet*this_handle = find_implicit_this_handle(des, scope);
+      if (!this_handle) {
+	    cerr << get_fileline() << ": internal error: authorized instance "
+		 << "constant initializer has no implicit this handle." << endl;
+	    des->errors += 1;
+	    delete result;
+	    return nullptr;
+      }
+
+      vector<NetExpr*>argv;
+      NetESignal*receiver = new NetESignal(this_handle);
+      receiver->set_line(*this);
+      argv.push_back(receiver);
+      NetEConst*pid = new NetEConst(verinum(
+	    static_cast<uint64_t>(property_idx), 32));
+      pid->set_line(*this);
+      argv.push_back(pid);
+
+      NetSTask*guard = new NetSTask("$ivl_instance_const_init",
+	    IVL_SFUNC_AS_TASK_IGNORE, argv);
+      guard->set_line(*this);
+      NetBlock*block = new NetBlock(NetBlock::SEQU, nullptr);
+      block->set_line(*this);
+      block->append(guard);
+      block->append(result);
+      return block;
+}
+
+NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
+{
       ivl_assert(*this, scope);
 
 	/* If this is a compressed assignment, then handle the

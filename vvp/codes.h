@@ -503,6 +503,7 @@ extern bool of_QSLICE_OFF(vthread_t thr, vvp_code_t code);
 extern bool of_QUNIQUE_COPY(vthread_t thr, vvp_code_t code);
 extern bool of_QUNIQUE_IDX(vthread_t thr, vvp_code_t code);
 extern bool of_QUNIQUE_KEYS(vthread_t thr, vvp_code_t code);
+extern bool of_PROP_CONST_INIT(vthread_t thr, vvp_code_t code);
 extern bool of_RET_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_RET_REAL(vthread_t thr, vvp_code_t code);
 extern bool of_RET_STR(vthread_t thr, vvp_code_t code);

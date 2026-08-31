@@ -22,6 +22,7 @@
 # include  <string>
 # include  <vector>
 # include  <list>
+# include  <map>
 # include  <set>
 # include  "ivl_target.h"
 # include  "StringHeap.h"
@@ -202,6 +203,7 @@ class PAssign  : public PAssign_ {
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
 
     private:
+      NetProc* elaborate_unwrapped_(Design*des, NetScope*scope) const;
       NetProc* elaborate_compressed_(Design*des, NetScope*scope) const;
       char op_;
 };
@@ -1057,6 +1059,7 @@ struct pform_constructor_order_result_t {
       std::set<size_t> definitely_initialized_at_exit;
       std::set<const Statement*>authorized_instance_constant_initializers;
       std::set<const Statement*>rejected_instance_constant_initializers;
+      std::map<const Statement*,size_t> instance_constant_initializer_properties;
       std::vector<pform_constructor_order_violation_t> violations;
       bool has_reachable_exit = false;
 };
