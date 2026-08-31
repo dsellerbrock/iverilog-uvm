@@ -25,6 +25,7 @@
 # include  "property_qual.h"
 # include  <iostream>
 # include  <map>
+# include  <set>
 
 class Design;
 class NetExpr;
@@ -44,7 +45,8 @@ class netclass_t : public ivl_type_s {
 	// present, then return false.
       bool set_property(perm_string pname, property_qualifier_t qual,
 			ivl_type_t ptype,
-			perm_string interface_modport = perm_string());
+			perm_string interface_modport = perm_string(),
+			bool has_decl_initializer = false);
 
 	// Set the scope for the class. The scope has no parents and
 	// is used for the elaboration of methods
@@ -95,6 +97,8 @@ class netclass_t : public ivl_type_s {
       const char*get_prop_name(size_t idx) const;
       property_qualifier_t get_prop_qual(size_t idx) const;
       ivl_type_t get_prop_type(size_t idx) const;
+      bool get_prop_has_decl_initializer(size_t idx) const;
+      const netclass_t*get_prop_declaring_class(size_t idx) const;
       perm_string get_prop_interface_modport(size_t idx) const;
 
 	// Return the declaring class-scope signal for a static property.
@@ -249,6 +253,7 @@ class netclass_t : public ivl_type_s {
 	    property_qualifier_t qual;
 	    ivl_type_t type;
 	    perm_string interface_modport;
+	    bool has_decl_initializer;
 	    mutable bool initialized_flag;
 	    mutable ivl_signal_t static_target;
       };
@@ -519,16 +524,68 @@ class netclass_t : public ivl_type_s {
 	// these slots once, and dynamic coverage metadata reads them from
 	// the particular instance being sampled.
       void add_covgrp_ctor_formal(perm_string name, unsigned prop,
-				   ivl_type_t type, PExpr*defe)
+				   ivl_type_t type, PExpr*defe, bool is_ref)
       { covgrp_ctor_names_.push_back(name);
 	covgrp_ctor_props_.push_back(prop);
 	covgrp_ctor_types_.push_back(type);
-	covgrp_ctor_defaults_.push_back(defe); }
+	covgrp_ctor_defaults_.push_back(defe);
+	covgrp_ctor_is_ref_.push_back(is_ref); }
       size_t covgrp_ctor_formal_count() const { return covgrp_ctor_names_.size(); }
       perm_string covgrp_ctor_formal_name(size_t i) const { return covgrp_ctor_names_[i]; }
       unsigned covgrp_ctor_formal_prop(size_t i) const { return covgrp_ctor_props_[i]; }
       ivl_type_t covgrp_ctor_formal_type(size_t i) const { return covgrp_ctor_types_[i]; }
       PExpr* covgrp_ctor_formal_default(size_t i) const { return covgrp_ctor_defaults_[i]; }
+      bool covgrp_ctor_formal_is_ref(size_t i) const
+      { return i < covgrp_ctor_is_ref_.size() && covgrp_ctor_is_ref_[i]; }
+
+	// Semantic binding for direct identifiers used in covergroup range
+	// expressions. A found-but-illegal symbol is retained here so later
+	// constant evaluation cannot accidentally fall through to a parameter or
+	// enum with the same spelling.
+      enum covgrp_range_ref_kind_t {
+	    COVGRP_RANGE_CTOR_VALUE,
+	    COVGRP_RANGE_CTOR_REF,
+	    COVGRP_RANGE_PARENT_GLOBAL_CONST,
+	    COVGRP_RANGE_PARENT_INSTANCE_CONST,
+	    COVGRP_RANGE_PARENT_MUTABLE,
+	    COVGRP_RANGE_PARENT_LOCAL,
+	    COVGRP_RANGE_PARENT_BAD_CONST
+      };
+      struct covgrp_range_ref_t {
+	    covgrp_range_ref_kind_t kind;
+	    int parent_prop;
+	    unsigned ctor_formal;
+      };
+      struct covgrp_parent_const_dep_t {
+	    unsigned parent_prop;
+	    const PExpr*ref_site;
+      };
+      void bind_covgrp_range_ref(const PExpr*expr, covgrp_range_ref_kind_t kind,
+				 int parent_prop = -1,
+				 unsigned ctor_formal = 0);
+      const covgrp_range_ref_t*covgrp_range_ref(const PExpr*expr) const;
+      void add_covgrp_parent_const_dependency(unsigned parent_prop,
+					       const PExpr*ref_site);
+      const std::vector<covgrp_parent_const_dep_t>&
+      covgrp_parent_const_dependencies() const
+      { return covgrp_parent_const_dependencies_; }
+      void set_covgrp_range_bindings_complete(bool value)
+      { covgrp_range_bindings_complete_ = value; }
+      bool covgrp_range_bindings_complete() const
+      { return covgrp_range_bindings_complete_; }
+
+	// Definite initialization summary for IEEE 1800 8.19 instance
+	// constants at every reachable exit from this class's constructor. The
+	// superclass is signature-elaborated first, so a derived-class covergroup
+	// can use this proof for an inherited protected/public dependency.
+      void set_constructor_definitely_initialized(
+	    const std::set<size_t>&properties)
+      { constructor_definitely_initialized_ = properties;
+	constructor_initialization_audited_ = true; }
+      const std::set<size_t>&constructor_definitely_initialized() const
+      { return constructor_definitely_initialized_; }
+      bool constructor_initialization_audited() const
+      { return constructor_initialization_audited_; }
       bool has_embedded_covergroups() const { return has_embedded_cgs_; }
       void set_has_embedded_covergroups(bool f) { has_embedded_cgs_ = f; }
       unsigned covgrp_ncoverpoints() const { return covgrp_ncoverpoints_; }
@@ -617,6 +674,12 @@ class netclass_t : public ivl_type_s {
 	std::vector<unsigned> covgrp_ctor_props_;
 	std::vector<ivl_type_t> covgrp_ctor_types_;
 	std::vector<PExpr*> covgrp_ctor_defaults_;
+	std::vector<bool> covgrp_ctor_is_ref_;
+	std::map<const PExpr*,covgrp_range_ref_t> covgrp_range_refs_;
+	std::vector<covgrp_parent_const_dep_t> covgrp_parent_const_dependencies_;
+	bool covgrp_range_bindings_complete_ = false;
+	std::set<size_t> constructor_definitely_initialized_;
+	bool constructor_initialization_audited_ = false;
       std::vector<covgrp_bin_t> covgrp_bins_;
       std::vector<covgrp_dyn_bin_t> covgrp_dyn_bins_;
       std::vector<covgrp_cross_t> covgrp_crosses_;

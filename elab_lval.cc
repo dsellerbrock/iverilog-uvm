@@ -26,6 +26,7 @@
 # include  "PExpr.h"
 # include  "PPackage.h"
 # include  "PClass.h"
+# include  "PTask.h"
 # include  "netlist.h"
 # include  "netmisc.h"
 # include  "netstruct.h"
@@ -3153,18 +3154,61 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				   << " is constant in this method."
 				   << " (scope=" << scope_path(scope) << ")" << endl;
 			      des->errors++;
-		       } else if (scope->basename() != "new" && scope->basename() != "new@") {
-			      cerr << get_fileline() << ": error: "
-				   << "Property " << owner_class->get_prop_name(pidx)
-				   << " is constant in this method."
-				   << " (scope=" << scope_path(scope) << ")" << endl;
-			      des->errors++;
 		       } else {
-			      owner_class->set_prop_initialized(pidx);
+			      // An instance constant may be initialized anywhere in the
+			      // corresponding constructor's statement tree. In particular,
+			      // named begin/end blocks introduce child NetScopes, so testing
+			      // the immediate scope basename incorrectly rejects a legal
+			      // initializer nested in such a block. Extern constructors need
+			      // the same containing-method lookup because their method scope
+			      // is not necessarily parented directly by the class scope.
+			      NetScope*method_scope =
+				    find_method_containing_scope(*this, scope);
+			      perm_string containing_method_name = method_scope
+				    ? method_scope->basename() : perm_string();
+			      const netclass_t*declaring_class =
+				    owner_class->get_prop_declaring_class((size_t)pidx);
+			      const PFunction*method_pform = method_scope
+				    ? method_scope->func_pform() : nullptr;
+			      const NetScope*declaring_scope = declaring_class
+				    ? declaring_class->class_scope() : nullptr;
+			      const PClass*declaring_pform = declaring_scope
+				    ? declaring_scope->class_pform() : nullptr;
+			      // In-class method scopes do not consistently retain a
+			      // func_pform pointer during l-value elaboration, but their
+			      // enclosing CLASS scope is authoritative. Extern methods have
+			      // no enclosing CLASS scope, so use their parse-form owner as
+			      // the fallback.
+			      const netclass_t*method_class =
+				    find_class_containing_scope(*this, method_scope);
+			      bool corresponding_class = method_class
+				    ? method_class == declaring_class
+				    : method_pform && declaring_pform
+				      && method_pform->method_of() == declaring_pform->type;
+			      if (containing_method_name != perm_string::literal("new")
+				  && containing_method_name != perm_string::literal("new@")) {
+				    cerr << get_fileline() << ": error: "
+					 << "Property " << owner_class->get_prop_name(pidx)
+					 << " is constant in this method."
+					 << " (scope=" << scope_path(scope) << ")" << endl;
+				    des->errors++;
+			      } else if (!corresponding_class) {
+				    cerr << get_fileline()
+					 << ": error: Instance constant `"
+					 << owner_class->get_prop_name(pidx)
+					 << "' may be initialized only in the constructor "
+					    "of its declaring class (IEEE 1800 8.19)."
+					 << endl;
+				    des->errors++;
+			      } else {
+				    owner_class->set_prop_initialized(pidx);
 
-			      if (debug_elaborate) {
-				    cerr << get_fileline() << ": PEIdent::elaborate_lval_method_class_member_: "
-					 << "Found initializers for property " << owner_class->get_prop_name(pidx) << endl;
+				    if (debug_elaborate) {
+					  cerr << get_fileline()
+					       << ": PEIdent::elaborate_lval_method_class_member_: "
+					       << "Found initializers for property "
+					       << owner_class->get_prop_name(pidx) << endl;
+				    }
 			      }
 		       }
 		  }

@@ -19,6 +19,11 @@
 
 # include "config.h"
 
+# include  <algorithm>
+# include  <iterator>
+# include  <map>
+# include  <tuple>
+
 # include  "Statement.h"
 # include  "PExpr.h"
 # include  "pform.h"
@@ -299,6 +304,606 @@ bool PRepeat::contains_detached_fork() const
 bool PWhile::contains_detached_fork() const
 {
       return statement_ && statement_->contains_detached_fork();
+}
+
+namespace {
+
+typedef std::set<size_t> ctor_order_state_t;
+
+struct ctor_order_channel_t {
+      bool reachable = false;
+      ctor_order_state_t state;
+};
+
+struct ctor_order_flow_t {
+      ctor_order_channel_t normal;
+      ctor_order_channel_t returned;
+      ctor_order_channel_t broken;
+      ctor_order_channel_t continued;
+};
+
+static ctor_order_state_t ctor_order_intersection_(
+      const ctor_order_state_t&left, const ctor_order_state_t&right)
+{
+      ctor_order_state_t result;
+      std::set_intersection(left.begin(), left.end(), right.begin(), right.end(),
+			    std::inserter(result, result.end()));
+      return result;
+}
+
+static void ctor_order_merge_alternatives_(ctor_order_channel_t&dst,
+					    const ctor_order_channel_t&src)
+{
+      if (!src.reachable)
+	    return;
+      if (!dst.reachable) {
+	    dst = src;
+	    return;
+      }
+      dst.state = ctor_order_intersection_(dst.state, src.state);
+}
+
+static ctor_order_flow_t ctor_order_identity_(const ctor_order_state_t&state)
+{
+      ctor_order_flow_t result;
+      result.normal.reachable = true;
+      result.normal.state = state;
+      return result;
+}
+
+} // namespace
+
+/*
+ * Keep this analysis on the pform tree. The ordinary statement elaborators
+ * intentionally fold constant conditionals, elaborate one case body more than
+ * once when it has multiple guards, and lower some loops into quite different
+ * NetProc shapes. None of those transformations preserve the source-order and
+ * common-loop/fork facts required by IEEE 1800-2017 19.5.
+ */
+class pform_constructor_order_audit_t {
+    public:
+      pform_constructor_order_audit_t(
+	    const pform_constructor_order_classifier_t&classifier,
+	    const ctor_order_state_t&initially_initialized)
+      : classifier_(classifier), initially_initialized_(initially_initialized)
+      { }
+
+      pform_constructor_order_result_t run(const Statement*statement)
+      {
+	    collect_(statement);
+	    check_forbidden_regions_();
+
+	    ctor_order_flow_t flow = flow_(statement, initially_initialized_);
+	    ctor_order_channel_t exits;
+	    ctor_order_merge_alternatives_(exits, flow.normal);
+	    ctor_order_merge_alternatives_(exits, flow.returned);
+	    result_.has_reachable_exit = exits.reachable;
+	    if (exits.reachable)
+		  result_.definitely_initialized_at_exit = exits.state;
+	    return result_;
+      }
+
+    private:
+      enum region_kind_t { REGION_LOOP, REGION_JOIN_NONE };
+
+      struct region_t {
+	    region_kind_t kind;
+	    const Statement*statement;
+
+	    bool operator==(const region_t&that) const
+	    { return kind == that.kind && statement == that.statement; }
+      };
+
+      struct assignment_info_t {
+	    pform_constructor_order_assignment_t assignment;
+	    bool initializes_constant = false;
+	    size_t initialized_property = 0;
+	    bool constructs_covergroup = false;
+	    std::vector<pform_constructor_order_dependency_t> dependencies;
+	    std::vector<region_t> regions;
+      };
+
+      const pform_constructor_order_classifier_t&classifier_;
+      const ctor_order_state_t initially_initialized_;
+      std::vector<const PBlock*>block_stack_;
+      std::vector<region_t>region_stack_;
+      std::map<const Statement*,assignment_info_t>assignments_;
+      std::map<size_t,std::vector<const assignment_info_t*> >initializers_;
+      std::vector<const assignment_info_t*>constructors_;
+      pform_constructor_order_result_t result_;
+      std::set<std::tuple<const Statement*,size_t> >reported_order_;
+      std::set<std::tuple<const Statement*,size_t,const Statement*,int> >
+	    reported_region_;
+
+      void collect_assignment_(const Statement*statement, const PExpr*lval,
+			       const PExpr*rval, bool for_initializer)
+      {
+	    assignment_info_t info;
+	    info.assignment.statement = statement;
+	    info.assignment.lval = lval;
+	    info.assignment.rval = rval;
+	    info.assignment.block_stack = &block_stack_;
+	    info.assignment.for_initializer = for_initializer;
+	    if (for_initializer) {
+		  info.assignment.plain_blocking = true;
+	    } else if (const PAssign*assign =
+		       dynamic_cast<const PAssign*>(statement)) {
+		  info.assignment.plain_blocking =
+			assign->op() == 0 && !assign->has_timing_control();
+	    }
+
+	    info.initializes_constant =
+		  classifier_.classify_instance_constant_initializer(
+			info.assignment, info.initialized_property);
+	    info.constructs_covergroup =
+		  classifier_.classify_embedded_covergroup_constructor(
+			info.assignment, info.dependencies);
+	    info.regions = region_stack_;
+
+	    if (!info.initializes_constant && !info.constructs_covergroup)
+		  return;
+
+	    std::pair<std::map<const Statement*,assignment_info_t>::iterator,bool>
+		  inserted = assignments_.insert(std::make_pair(statement, info));
+	    assignment_info_t*stored = &inserted.first->second;
+	    if (stored->initializes_constant)
+		  initializers_[stored->initialized_property].push_back(stored);
+	    if (stored->constructs_covergroup)
+		  constructors_.push_back(stored);
+      }
+
+      void collect_(const Statement*statement)
+      {
+	    if (!statement)
+		  return;
+
+	    if (const PAssign_*assign = dynamic_cast<const PAssign_*>(statement)) {
+		  collect_assignment_(statement, assign->lval(), assign->rval(), false);
+		  return;
+	    }
+
+	    if (const PBlock*block = dynamic_cast<const PBlock*>(statement)) {
+		  block_stack_.push_back(block);
+		  bool join_none = block->bl_type_ == PBlock::BL_JOIN_NONE;
+		  if (join_none)
+			region_stack_.push_back(region_t{REGION_JOIN_NONE, block});
+		  for (const Statement*child : block->list_)
+			collect_(child);
+		  if (join_none)
+			region_stack_.pop_back();
+		  block_stack_.pop_back();
+		  return;
+	    }
+
+	    if (const PCondit*cond = dynamic_cast<const PCondit*>(statement)) {
+		  collect_(cond->if_clause());
+		  collect_(cond->else_clause());
+		  return;
+	    }
+
+	    if (const PCase*pcase = dynamic_cast<const PCase*>(statement)) {
+		  if (pcase->items_)
+			for (const PCase::Item*item : *pcase->items_)
+			      if (item) collect_(item->stat);
+		  return;
+	    }
+
+	    if (const PRandCase*pcase = dynamic_cast<const PRandCase*>(statement)) {
+		  if (pcase->items_)
+			for (const PCase::Item*item : *pcase->items_)
+			      if (item) collect_(item->stat);
+		  return;
+	    }
+
+	    if (const PCaseMatches*pcase =
+		  dynamic_cast<const PCaseMatches*>(statement)) {
+		  if (pcase->items_)
+			for (const PCaseMatches::Item*item : *pcase->items_)
+			      if (item) collect_(item->stat);
+		  return;
+	    }
+
+	    if (const PDelayStatement*delay =
+		  dynamic_cast<const PDelayStatement*>(statement)) {
+		  collect_(delay->statement_);
+		  return;
+	    }
+
+	    if (const PCycleDelay*delay = dynamic_cast<const PCycleDelay*>(statement)) {
+		  collect_(delay->statement_);
+		  return;
+	    }
+
+	    if (const PEventStatement*event =
+		  dynamic_cast<const PEventStatement*>(statement)) {
+		  collect_(event->statement());
+		  return;
+	    }
+
+	    if (const PDoWhile*loop = dynamic_cast<const PDoWhile*>(statement)) {
+		  region_stack_.push_back(region_t{REGION_LOOP, loop});
+		  collect_(loop->statement_);
+		  region_stack_.pop_back();
+		  return;
+	    }
+
+	    if (const PForeach*loop = dynamic_cast<const PForeach*>(statement)) {
+		  region_stack_.push_back(region_t{REGION_LOOP, loop});
+		  collect_(loop->statement_);
+		  region_stack_.pop_back();
+		  return;
+	    }
+
+	    if (const PForever*loop = dynamic_cast<const PForever*>(statement)) {
+		  region_stack_.push_back(region_t{REGION_LOOP, loop});
+		  collect_(loop->statement_);
+		  region_stack_.pop_back();
+		  return;
+	    }
+
+	    if (const PForStatement*loop =
+		  dynamic_cast<const PForStatement*>(statement)) {
+		  if (loop->name1_)
+			collect_assignment_(loop, loop->name1_, loop->expr1_, true);
+		  region_stack_.push_back(region_t{REGION_LOOP, loop});
+		  collect_(loop->statement_);
+		  region_stack_.pop_back();
+		  collect_(loop->step_);
+		  return;
+	    }
+
+	    if (const PRepeat*loop = dynamic_cast<const PRepeat*>(statement)) {
+		  region_stack_.push_back(region_t{REGION_LOOP, loop});
+		  collect_(loop->statement_);
+		  region_stack_.pop_back();
+		  return;
+	    }
+
+	    if (const PWhile*loop = dynamic_cast<const PWhile*>(statement)) {
+		  region_stack_.push_back(region_t{REGION_LOOP, loop});
+		  collect_(loop->statement_);
+		  region_stack_.pop_back();
+		  return;
+	    }
+      }
+
+      const LineInfo*initializer_site_(const assignment_info_t&info) const
+      {
+	    return info.assignment.lval
+		  ? static_cast<const LineInfo*>(info.assignment.lval)
+		  : static_cast<const LineInfo*>(info.assignment.statement);
+      }
+
+      const LineInfo*constructor_site_(const assignment_info_t&info) const
+      {
+	    return info.assignment.rval
+		  ? static_cast<const LineInfo*>(info.assignment.rval)
+		  : static_cast<const LineInfo*>(info.assignment.statement);
+      }
+
+      void check_forbidden_regions_()
+      {
+	    for (const assignment_info_t*constructor : constructors_) {
+		  for (const pform_constructor_order_dependency_t&dependency :
+		       constructor->dependencies) {
+			std::map<size_t,std::vector<const assignment_info_t*> >::const_iterator
+			      found = initializers_.find(dependency.property_idx);
+			if (found == initializers_.end())
+			      continue;
+			for (const assignment_info_t*initializer : found->second) {
+			      for (const region_t&left : initializer->regions) {
+				    for (const region_t&right : constructor->regions) {
+					  if (!(left == right))
+						continue;
+					  std::tuple<const Statement*,size_t,const Statement*,int>
+						key(constructor->assignment.statement,
+						    dependency.property_idx, left.statement,
+						    static_cast<int>(left.kind));
+					  if (!reported_region_.insert(key).second)
+						continue;
+					  // The structural prohibition is the more specific
+					  // IEEE 1800 19.5 failure.  Suppress a second generic
+					  // before-initialization diagnostic if this same call
+					  // appears earlier than the initializer in the region.
+					  reported_order_.insert(std::make_tuple(
+						constructor->assignment.statement,
+						dependency.property_idx));
+					  pform_constructor_order_violation_t violation;
+					  violation.kind = left.kind == REGION_LOOP
+						? PFORM_CTOR_ORDER_SHARED_LOOP
+						: PFORM_CTOR_ORDER_SHARED_JOIN_NONE;
+					  violation.property_idx = dependency.property_idx;
+					  violation.initializer_site =
+						initializer_site_(*initializer);
+					  violation.constructor_site =
+						constructor_site_(*constructor);
+					  violation.reference_site = dependency.reference_site;
+					  violation.covergroup_name = dependency.covergroup_name;
+					  violation.region = left.statement;
+					  result_.violations.push_back(violation);
+				    }
+			      }
+			}
+		  }
+	    }
+      }
+
+      ctor_order_state_t apply_assignment_(const Statement*statement,
+					    const ctor_order_state_t&input)
+      {
+	    ctor_order_state_t output = input;
+	    std::map<const Statement*,assignment_info_t>::const_iterator found =
+		  assignments_.find(statement);
+	    if (found == assignments_.end())
+		  return output;
+
+	    const assignment_info_t&info = found->second;
+	    // The new expression is evaluated before its assignment takes effect.
+	    // Check the covergroup dependencies before marking this assignment as
+	    // an instance-constant initializer.
+	    if (info.constructs_covergroup) {
+		  for (const pform_constructor_order_dependency_t&dependency :
+		       info.dependencies) {
+			if (input.count(dependency.property_idx))
+			      continue;
+			std::tuple<const Statement*,size_t>key(
+			      statement, dependency.property_idx);
+			if (!reported_order_.insert(key).second)
+			      continue;
+			pform_constructor_order_violation_t violation;
+			violation.kind = PFORM_CTOR_ORDER_NOT_INITIALIZED;
+			violation.property_idx = dependency.property_idx;
+			violation.constructor_site = constructor_site_(info);
+			violation.reference_site = dependency.reference_site;
+			violation.covergroup_name = dependency.covergroup_name;
+			result_.violations.push_back(violation);
+		  }
+	    }
+	    if (info.initializes_constant)
+		  output.insert(info.initialized_property);
+	    return output;
+      }
+
+      static ctor_order_channel_t channel_(const ctor_order_state_t&state)
+      {
+	    ctor_order_channel_t result;
+	    result.reachable = true;
+	    result.state = state;
+	    return result;
+      }
+
+      ctor_order_flow_t flow_sequence_(const std::vector<Statement*>&statements,
+					 const ctor_order_state_t&input)
+      {
+	    ctor_order_flow_t result;
+	    ctor_order_channel_t current = channel_(input);
+	    for (const Statement*statement : statements) {
+		  if (!current.reachable)
+			break;
+		  ctor_order_flow_t child = flow_(statement, current.state);
+		  ctor_order_merge_alternatives_(result.returned, child.returned);
+		  ctor_order_merge_alternatives_(result.broken, child.broken);
+		  ctor_order_merge_alternatives_(result.continued, child.continued);
+		  current = child.normal;
+	    }
+	    result.normal = current;
+	    return result;
+      }
+
+      static void merge_flow_alternatives_(ctor_order_flow_t&dst,
+					     const ctor_order_flow_t&src)
+      {
+	    ctor_order_merge_alternatives_(dst.normal, src.normal);
+	    ctor_order_merge_alternatives_(dst.returned, src.returned);
+	    ctor_order_merge_alternatives_(dst.broken, src.broken);
+	    ctor_order_merge_alternatives_(dst.continued, src.continued);
+      }
+
+      ctor_order_flow_t flow_parallel_(const PBlock*block,
+					 const ctor_order_state_t&input)
+      {
+	    std::vector<ctor_order_flow_t>branches;
+	    for (const Statement*statement : block->list_)
+		  branches.push_back(flow_(statement, input));
+
+	    if (block->bl_type_ == PBlock::BL_JOIN_NONE)
+		  return ctor_order_identity_(input);
+
+	    ctor_order_flow_t result;
+	    if (branches.empty())
+		  return ctor_order_identity_(input);
+
+	    if (block->bl_type_ == PBlock::BL_PAR) {
+		  // Every normally completing branch has finished at join, so a
+		  // property initialized by any such branch is definite afterward.
+		  result.normal = channel_(input);
+		  for (const ctor_order_flow_t&branch : branches) {
+			if (branch.normal.reachable)
+			      result.normal.state.insert(branch.normal.state.begin(),
+						 branch.normal.state.end());
+			ctor_order_merge_alternatives_(result.returned,
+						 branch.returned);
+		  }
+		  return result;
+	    }
+
+	    // join_any may resume after any branch, while all other branches are
+	    // still live. Only facts true after every possible first finisher are
+	    // definite at the continuation.
+	    for (const ctor_order_flow_t&branch : branches)
+		  ctor_order_merge_alternatives_(result.normal, branch.normal);
+	    if (!result.normal.reachable)
+		  result.normal = channel_(input);
+	    return result;
+      }
+
+      ctor_order_flow_t flow_zero_trip_loop_(const Statement*body,
+					       const ctor_order_state_t&input)
+      {
+	    ctor_order_flow_t body_flow = flow_(body, input);
+	    ctor_order_flow_t result = ctor_order_identity_(input);
+	    result.returned = body_flow.returned;
+	    // A zero-iteration path always exists, so body initializations do not
+	    // become definite after while/for/repeat/foreach.
+	    return result;
+      }
+
+      ctor_order_flow_t flow_(const Statement*statement,
+			      const ctor_order_state_t&input)
+      {
+	    if (!statement)
+		  return ctor_order_identity_(input);
+
+	    if (dynamic_cast<const PAssign_*>(statement)) {
+		  return ctor_order_identity_(apply_assignment_(statement, input));
+	    }
+
+	    if (const PBlock*block = dynamic_cast<const PBlock*>(statement)) {
+		  if (block->bl_type_ == PBlock::BL_SEQ)
+			return flow_sequence_(block->list_, input);
+		  return flow_parallel_(block, input);
+	    }
+
+	    if (const PCondit*cond = dynamic_cast<const PCondit*>(statement)) {
+		  ctor_order_flow_t result;
+		  merge_flow_alternatives_(result, flow_(cond->if_clause(), input));
+		  merge_flow_alternatives_(result, flow_(cond->else_clause(), input));
+		  return result;
+	    }
+
+	    if (const PCase*pcase = dynamic_cast<const PCase*>(statement)) {
+		  ctor_order_flow_t result;
+		  bool has_default = false;
+		  if (pcase->items_) {
+			for (const PCase::Item*item : *pcase->items_) {
+			      if (!item) continue;
+			      has_default = has_default || item->expr.empty();
+			      merge_flow_alternatives_(result,
+					       flow_(item->stat, input));
+			}
+		  }
+		  if (!has_default)
+			merge_flow_alternatives_(result,
+					 ctor_order_identity_(input));
+		  return result;
+	    }
+
+	    if (const PRandCase*pcase = dynamic_cast<const PRandCase*>(statement)) {
+		  ctor_order_flow_t result = ctor_order_identity_(input);
+		  if (pcase->items_)
+			for (const PCase::Item*item : *pcase->items_)
+			      if (item) merge_flow_alternatives_(
+				    result, flow_(item->stat, input));
+		  // A zero total weight executes no branch.
+		  return result;
+	    }
+
+	    if (const PCaseMatches*pcase =
+		  dynamic_cast<const PCaseMatches*>(statement)) {
+		  ctor_order_flow_t result;
+		  bool has_default = false;
+		  if (pcase->items_) {
+			for (const PCaseMatches::Item*item : *pcase->items_) {
+			      if (!item) continue;
+			      has_default = has_default || item->is_default;
+			      merge_flow_alternatives_(result,
+					       flow_(item->stat, input));
+			}
+		  }
+		  if (!has_default)
+			merge_flow_alternatives_(result,
+					 ctor_order_identity_(input));
+		  return result;
+	    }
+
+	    if (const PDelayStatement*delay =
+		  dynamic_cast<const PDelayStatement*>(statement))
+		  return flow_(delay->statement_, input);
+
+	    if (const PCycleDelay*delay = dynamic_cast<const PCycleDelay*>(statement))
+		  return flow_(delay->statement_, input);
+
+	    if (const PEventStatement*event =
+		  dynamic_cast<const PEventStatement*>(statement))
+		  return flow_(event->statement(), input);
+
+	    if (const PDoWhile*loop = dynamic_cast<const PDoWhile*>(statement)) {
+		  ctor_order_flow_t body = flow_(loop->statement_, input);
+		  ctor_order_flow_t result;
+		  ctor_order_merge_alternatives_(result.normal, body.normal);
+		  ctor_order_merge_alternatives_(result.normal, body.broken);
+		  ctor_order_merge_alternatives_(result.normal, body.continued);
+		  result.returned = body.returned;
+		  return result;
+	    }
+
+	    if (const PForeach*loop = dynamic_cast<const PForeach*>(statement))
+		  return flow_zero_trip_loop_(loop->statement_, input);
+
+	    if (const PRepeat*loop = dynamic_cast<const PRepeat*>(statement))
+		  return flow_zero_trip_loop_(loop->statement_, input);
+
+	    if (const PWhile*loop = dynamic_cast<const PWhile*>(statement))
+		  return flow_zero_trip_loop_(loop->statement_, input);
+
+	    if (const PForever*loop = dynamic_cast<const PForever*>(statement)) {
+		  ctor_order_flow_t body = flow_(loop->statement_, input);
+		  ctor_order_flow_t result;
+		  result.normal = body.broken;
+		  result.returned = body.returned;
+		  return result;
+	    }
+
+	    if (const PForStatement*loop =
+		  dynamic_cast<const PForStatement*>(statement)) {
+		  ctor_order_state_t before_loop = input;
+		  if (loop->name1_)
+			before_loop = apply_assignment_(loop, before_loop);
+
+		  ctor_order_flow_t body = flow_(loop->statement_, before_loop);
+		  ctor_order_channel_t step_input;
+		  ctor_order_merge_alternatives_(step_input, body.normal);
+		  ctor_order_merge_alternatives_(step_input, body.continued);
+		  ctor_order_flow_t step;
+		  if (loop->step_ && step_input.reachable)
+			step = flow_(loop->step_, step_input.state);
+
+		  ctor_order_flow_t result = ctor_order_identity_(before_loop);
+		  result.returned = body.returned;
+		  ctor_order_merge_alternatives_(result.returned, step.returned);
+		  return result;
+	    }
+
+	    if (dynamic_cast<const PReturn*>(statement)) {
+		  ctor_order_flow_t result;
+		  result.returned = channel_(input);
+		  return result;
+	    }
+
+	    if (dynamic_cast<const PBreak*>(statement)) {
+		  ctor_order_flow_t result;
+		  result.broken = channel_(input);
+		  return result;
+	    }
+
+	    if (dynamic_cast<const PContinue*>(statement)) {
+		  ctor_order_flow_t result;
+		  result.continued = channel_(input);
+		  return result;
+	    }
+
+	    return ctor_order_identity_(input);
+      }
+};
+
+pform_constructor_order_result_t audit_pform_constructor_order(
+      const Statement*statement,
+      const pform_constructor_order_classifier_t&classifier,
+      const std::set<size_t>&initially_initialized)
+{
+      pform_constructor_order_audit_t audit(classifier,
+					     initially_initialized);
+      return audit.run(statement);
 }
 
 PCallTask::PCallTask(const pform_name_t &n, const list<named_pexpr_t> &p)

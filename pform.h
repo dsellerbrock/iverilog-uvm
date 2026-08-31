@@ -247,6 +247,7 @@ extern void pform_class_covergroup(const struct vlltype&loc,
 				    std::vector<PEEvent*>*sample_events = nullptr,
 				    std::vector<perm_string>*ctor_formals = nullptr,
 				    std::vector<data_type_t*>*ctor_formal_types = nullptr,
+				    std::vector<bool>*ctor_formal_is_ref = nullptr,
 				    std::vector<PExpr*>*ctor_defaults = nullptr,
 				    std::vector<PExpr*>*sample_formal_defaults = nullptr);
 
@@ -262,6 +263,7 @@ extern void pform_standalone_covergroup(const struct vlltype&loc,
 				    std::vector<data_type_t*>*sample_formal_types = nullptr,
 				    std::vector<perm_string>*ctor_formals = nullptr,
 				    std::vector<data_type_t*>*ctor_formal_types = nullptr,
+				    std::vector<bool>*ctor_formal_is_ref = nullptr,
 				    std::vector<PExpr*>*ctor_defaults = nullptr,
 				    std::vector<PExpr*>*sample_formal_defaults = nullptr);
 

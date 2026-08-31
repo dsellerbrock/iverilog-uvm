@@ -22,6 +22,7 @@
 # include  <string>
 # include  <vector>
 # include  <list>
+# include  <set>
 # include  "ivl_target.h"
 # include  "StringHeap.h"
 # include  "PDelays.h"
@@ -34,6 +35,7 @@ class PChainConstructor;
 class PPackage;
 class Statement;
 class PEventStatement;
+class pform_constructor_order_audit_t;
 class Design;
 class NetAssign_;
 class NetCAssign;
@@ -274,6 +276,7 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       SymbolType symbol_type() const override;
 
     private:
+      friend class pform_constructor_order_audit_t;
       BL_TYPE bl_type_;
       ivl_randsequence_block_t randsequence_block_ = IVL_RANDSEQ_BLOCK_NONE;
       std::vector<Statement*>list_;
@@ -414,6 +417,7 @@ class PCase  : public Statement {
       bool contains_detached_fork() const override;
 
     private:
+      friend class pform_constructor_order_audit_t;
       ivl_case_quality_t quality_;
       NetCase::TYPE type_;
       PExpr*expr_;
@@ -446,6 +450,7 @@ class PRandCase : public Statement {
       bool contains_detached_fork() const override;
 
     private:
+      friend class pform_constructor_order_audit_t;
       std::vector<PCase::Item*>*items_;
 
     private: // not implemented
@@ -478,6 +483,7 @@ class PCaseMatches : public Statement {
       virtual void dump(std::ostream&out, unsigned ind) const override;
 
     private:
+      friend class pform_constructor_order_audit_t;
       PExpr *expr_;
       std::vector<Item*>*items_;
       NetCase::TYPE case_type_;
@@ -639,6 +645,7 @@ class PDelayStatement  : public Statement {
       bool contains_detached_fork() const override;
 
     private:
+      friend class pform_constructor_order_audit_t;
       PExpr*delay_;
       Statement*statement_;
 };
@@ -663,6 +670,7 @@ class PCycleDelay : public Statement {
       bool contains_detached_fork() const override;
 
     private:
+      friend class pform_constructor_order_audit_t;
       PExpr*count_;
       Statement*statement_;
 };
@@ -700,6 +708,7 @@ class PDoWhile  : public Statement {
       bool contains_detached_fork() const override;
 
     private:
+      friend class pform_constructor_order_audit_t;
       PExpr*cond_;
       Statement*statement_;
 };
@@ -797,6 +806,7 @@ class PForeach : public Statement {
       bool contains_detached_fork() const override;
 
     private:
+      friend class pform_constructor_order_audit_t;
 	// Iterate a target that resolved to a SIGNAL (a net or variable),
 	// whatever the path shape was. A hierarchical target -- an array
 	// member of an interface INSTANCE, `foreach (sif.arr[i])' -- lands
@@ -838,6 +848,7 @@ class PForever : public Statement {
       bool contains_detached_fork() const override;
 
     private:
+      friend class pform_constructor_order_audit_t;
       Statement*statement_;
 };
 
@@ -855,6 +866,7 @@ class PForStatement  : public Statement {
       bool contains_detached_fork() const override;
 
     private:
+      friend class pform_constructor_order_audit_t;
       PExpr* name1_;
       PExpr* expr1_;
 
@@ -889,6 +901,7 @@ class PRepeat : public Statement {
       Statement* body() const { return statement_; }
 
     private:
+      friend class pform_constructor_order_audit_t;
       PExpr*expr_;
       Statement*statement_;
 };
@@ -974,8 +987,85 @@ class PWhile  : public Statement {
       bool contains_detached_fork() const override;
 
     private:
+      friend class pform_constructor_order_audit_t;
       PExpr*cond_;
       Statement*statement_;
 };
+
+/*
+ * IEEE 1800-2017 19.5 gives an embedded covergroup constructor a
+ * source-order dependency on every enclosing instance constant used by the
+ * covergroup expression.  This interface deliberately separates semantic
+ * classification (which needs the elaborated class/property tables) from the
+ * pform statement walk (which alone still has the original branch, loop, and
+ * fork structure).
+ *
+ * The classifier is called for each procedural assignment and for the
+ * initialization assignment in a for-loop header. PROPERTY_IDX is an opaque,
+ * class-relative identity selected by the caller; the walker only compares
+ * identities. BLOCK_STACK contains the enclosing pform blocks, outermost
+ * first, and is valid only for the duration of the callback.
+ */
+struct pform_constructor_order_assignment_t {
+      const Statement*statement = nullptr;
+      const PExpr*lval = nullptr;
+      const PExpr*rval = nullptr;
+      const std::vector<const PBlock*>*block_stack = nullptr;
+      bool for_initializer = false;
+      bool plain_blocking = false;
+};
+
+struct pform_constructor_order_dependency_t {
+      size_t property_idx = 0;
+      const LineInfo*reference_site = nullptr;
+      const char*covergroup_name = nullptr;
+};
+
+class pform_constructor_order_classifier_t {
+    public:
+      virtual ~pform_constructor_order_classifier_t() = default;
+
+      virtual bool classify_instance_constant_initializer(
+            const pform_constructor_order_assignment_t&assignment,
+            size_t&property_idx) const = 0;
+
+      virtual bool classify_embedded_covergroup_constructor(
+            const pform_constructor_order_assignment_t&assignment,
+            std::vector<pform_constructor_order_dependency_t>&dependencies)
+            const = 0;
+};
+
+enum pform_constructor_order_violation_kind_t {
+      PFORM_CTOR_ORDER_NOT_INITIALIZED,
+      PFORM_CTOR_ORDER_SHARED_LOOP,
+      PFORM_CTOR_ORDER_SHARED_JOIN_NONE
+};
+
+struct pform_constructor_order_violation_t {
+      pform_constructor_order_violation_kind_t kind =
+            PFORM_CTOR_ORDER_NOT_INITIALIZED;
+      size_t property_idx = 0;
+      const LineInfo*initializer_site = nullptr;
+      const LineInfo*constructor_site = nullptr;
+      const LineInfo*reference_site = nullptr;
+      const char*covergroup_name = nullptr;
+      const Statement*region = nullptr;
+};
+
+struct pform_constructor_order_result_t {
+      std::set<size_t> definitely_initialized_at_exit;
+      std::vector<pform_constructor_order_violation_t> violations;
+      bool has_reachable_exit = false;
+};
+
+/*
+ * Analyze one already-blended constructor body. INITIALLY_INITIALIZED is used
+ * for inherited instance constants whose declaring-class constructor has
+ * already been proved, and is normally empty for locally declared constants.
+ */
+extern pform_constructor_order_result_t audit_pform_constructor_order(
+      const Statement*statement,
+      const pform_constructor_order_classifier_t&classifier,
+      const std::set<size_t>&initially_initialized = std::set<size_t>());
 
 #endif /* IVL_Statement_H */

@@ -227,7 +227,8 @@ bool netclass_t::implements_interface(const netclass_t*interface_type) const
 
 bool netclass_t::set_property(perm_string pname, property_qualifier_t qual,
 				      ivl_type_t ptype,
-				      perm_string interface_modport)
+				      perm_string interface_modport,
+				      bool has_decl_initializer)
 {
       map<perm_string,size_t>::const_iterator cur;
       cur = properties_.find(pname);
@@ -236,6 +237,9 @@ bool netclass_t::set_property(perm_string pname, property_qualifier_t qual,
       if (cur != properties_.end()) {
 	    if (!interface_modport.nil())
 		  property_table_[cur->second].interface_modport = interface_modport;
+	    property_table_[cur->second].has_decl_initializer =
+		  property_table_[cur->second].has_decl_initializer
+		  || has_decl_initializer;
 	    return false;
       }
 
@@ -244,6 +248,7 @@ bool netclass_t::set_property(perm_string pname, property_qualifier_t qual,
       tmp.qual = qual;
       tmp.type = ptype;
       tmp.interface_modport = interface_modport;
+      tmp.has_decl_initializer = has_decl_initializer;
       tmp.initialized_flag = false;
       tmp.static_target = 0;
       property_table_.push_back(tmp);
@@ -334,10 +339,11 @@ int netclass_t::ensure_property_decl(Design*des, perm_string pname)
             ivl_type_t use_type = 0;
 
             if (properties_.find(cur->first) != properties_.end()) {
-                  set_property(cur->first, cur->second.qual,
-                               property_table_[properties_[cur->first]].type,
-                               pform_interface_modport(
-                                     des, class_scope_, cur->second.type.get()));
+		  set_property(cur->first, cur->second.qual,
+			       property_table_[properties_[cur->first]].type,
+			       pform_interface_modport(
+				     des, class_scope_, cur->second.type.get()),
+			       cur->second.has_decl_initializer);
                   continue;
             }
 
@@ -361,8 +367,9 @@ int netclass_t::ensure_property_decl(Design*des, perm_string pname)
             perm_string interface_modport =
                   pform_interface_modport(
                         des, class_scope_, cur->second.type.get());
-            bool added = set_property(cur->first, cur->second.qual, use_type,
-                                      interface_modport);
+	    bool added = set_property(cur->first, cur->second.qual, use_type,
+				      interface_modport,
+				      cur->second.has_decl_initializer);
             if (added && cur->second.qual.test_static()) {
                   NetNet*sig = class_scope_->find_signal(cur->first);
                   if (sig == 0)
@@ -427,11 +434,12 @@ void netclass_t::ensure_all_properties_declared(Design*des)
                                     if (dynamic_cast<const netclass_t*>(repaired))
                                           property_table_[already->second].type = repaired;
                               }
-                              set_property(cur->first, cur->second.qual,
-                                           property_table_[already->second].type,
-                                           pform_interface_modport(
-                                                 des, class_scope_,
-                                                 cur->second.type.get()));
+			      set_property(cur->first, cur->second.qual,
+					   property_table_[already->second].type,
+					   pform_interface_modport(
+						 des, class_scope_,
+						 cur->second.type.get()),
+					   cur->second.has_decl_initializer);
                               continue;
                         }
 
@@ -454,8 +462,9 @@ void netclass_t::ensure_all_properties_declared(Design*des)
                         perm_string interface_modport =
                               pform_interface_modport(
                                     des, class_scope_, cur->second.type.get());
-                        bool added = set_property(cur->first, cur->second.qual,
-                                                  use_type, interface_modport);
+			bool added = set_property(cur->first, cur->second.qual,
+						  use_type, interface_modport,
+						  cur->second.has_decl_initializer);
                         if (added && cur->second.qual.test_static()) {
                               NetNet*sig = class_scope_->find_signal(cur->first);
                               if (sig == 0)
@@ -537,6 +546,53 @@ ivl_type_t netclass_t::get_prop_type(size_t idx) const
 	    return super_->get_prop_type(idx);
       else
 	    return property_table_[idx-super_size].type;
+}
+
+bool netclass_t::get_prop_has_decl_initializer(size_t idx) const
+{
+      size_t super_size = super_ ? super_->get_properties() : 0;
+      assert(idx < (super_size + property_table_.size()));
+      if (idx < super_size)
+	    return super_->get_prop_has_decl_initializer(idx);
+      return property_table_[idx-super_size].has_decl_initializer;
+}
+
+const netclass_t*netclass_t::get_prop_declaring_class(size_t idx) const
+{
+      size_t super_size = super_ ? super_->get_properties() : 0;
+      assert(idx < (super_size + property_table_.size()));
+      if (idx < super_size)
+	    return super_->get_prop_declaring_class(idx);
+      return this;
+}
+
+void netclass_t::bind_covgrp_range_ref(const PExpr*expr,
+				       covgrp_range_ref_kind_t kind,
+				       int parent_prop,
+				       unsigned ctor_formal)
+{
+      if (!expr) return;
+      covgrp_range_ref_t ref = { kind, parent_prop, ctor_formal };
+      covgrp_range_refs_.insert(std::make_pair(expr, ref));
+}
+
+const netclass_t::covgrp_range_ref_t*
+netclass_t::covgrp_range_ref(const PExpr*expr) const
+{
+      std::map<const PExpr*,covgrp_range_ref_t>::const_iterator it =
+	    covgrp_range_refs_.find(expr);
+      return it == covgrp_range_refs_.end() ? 0 : &it->second;
+}
+
+void netclass_t::add_covgrp_parent_const_dependency(unsigned parent_prop,
+					     const PExpr*ref_site)
+{
+      for (const covgrp_parent_const_dep_t&dep :
+		   covgrp_parent_const_dependencies_)
+	    if (dep.parent_prop == parent_prop)
+		  return;
+      covgrp_parent_const_dep_t dep = { parent_prop, ref_site };
+      covgrp_parent_const_dependencies_.push_back(dep);
 }
 
 perm_string netclass_t::get_prop_interface_modport(size_t idx) const

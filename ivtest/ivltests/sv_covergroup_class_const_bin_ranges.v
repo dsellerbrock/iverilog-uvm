@@ -8,6 +8,8 @@ module top;
     const bit [7:0] shift_base;
     const int signed shift_count;
     const logic [3:0] maybe_high;
+    const int signed declaration_global_low = -4;
+    const int signed declaration_global_high = -2;
     static const int signed GLOBAL_CENTER = -1;
     const static int signed GLOBAL_RADIUS = 2;
 
@@ -41,6 +43,12 @@ module top;
                           (GLOBAL_CENTER+GLOBAL_RADIUS)]};
       }
     endgroup
+    covergroup declaration_global_cg with function sample(int signed value);
+      option.per_instance = 1;
+      cp: coverpoint value {
+        bins values = {[declaration_global_low:declaration_global_high]};
+      }
+    endgroup
 
     function new(int unsigned unsigned_high_arg,
                  int signed signed_low_arg,
@@ -61,6 +69,7 @@ module top;
       shift_cg = new;
       xz_cg = new;
       global_cg = new;
+      declaration_global_cg = new;
     endfunction
   endclass
 
@@ -133,6 +142,9 @@ module top;
     narrow.global_cg.sample(-3);
     if (narrow.global_cg.get_inst_coverage() != 20.0)
       $fatal(1, "global class-constant arithmetic was not resolved");
+    narrow.declaration_global_cg.sample(-3);
+    if (narrow.declaration_global_cg.get_inst_coverage() != 100.0)
+      $fatal(1, "declaration-initialized class constants were not resolved");
     $display("PASSED");
   end
 endmodule

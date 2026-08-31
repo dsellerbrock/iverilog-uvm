@@ -25984,6 +25984,38 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    bool local_qualified = !id->path().name.empty()
 		  && id->path().name.front().local_scope;
 
+	      // A signature-time covergroup binding is authoritative. In
+	      // particular, found-but-illegal parent properties and ref formals
+	      // must stop here instead of falling through to unrelated constants.
+	    if (constraint_covergroup_parent_cls_ && cls) {
+		  const netclass_t::covgrp_range_ref_t*ref =
+			cls->covgrp_range_ref(expr);
+		  if (ref) {
+			if (ref->kind == netclass_t::COVGRP_RANGE_CTOR_REF
+			    || ref->kind == netclass_t::COVGRP_RANGE_PARENT_MUTABLE
+			    || ref->kind == netclass_t::COVGRP_RANGE_PARENT_LOCAL
+			    || ref->kind == netclass_t::COVGRP_RANGE_PARENT_BAD_CONST)
+			      return "";
+			if (ref->kind == netclass_t::COVGRP_RANGE_PARENT_GLOBAL_CONST
+			    || ref->kind ==
+				  netclass_t::COVGRP_RANGE_PARENT_INSTANCE_CONST) {
+			      if (ref->parent_prop < 0) return "";
+			      ivl_type_t ptype = constraint_covergroup_parent_cls_
+				    ->get_prop_type((size_t)ref->parent_prop);
+			      ivl_variable_type_t base = ptype
+				    ? ptype->base_type() : IVL_VT_NO_TYPE;
+			      bool integral = ptype && ptype->packed()
+				    && (base == IVL_VT_BOOL || base == IVL_VT_LOGIC
+					|| dynamic_cast<const netenum_t*>(ptype));
+			      unsigned wid = integral ? ptype->packed_width() : 0;
+			      if (wid == 0 || wid > 64) return "";
+			      return "pp:" + to_string(ref->parent_prop) + ":"
+				    + to_string(wid)
+				    + (ptype->get_signed() ? ":s" : "");
+			}
+		  }
+	    }
+
 	      /* The iterator declared by an array-method with clause shadows
 	       * class properties and enclosing foreach variables. Support both
 	       * the value itself and the paren-less iterator.index form here;
@@ -28178,7 +28210,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  if (ctor_prop >= 0)
 				cg_class->add_covgrp_ctor_formal(
 				      cgdef->ctor_formals[ci], (unsigned)ctor_prop,
-				      ctor_type, ctor_default);
+				      ctor_type, ctor_default,
+				      ci < cgdef->ctor_formal_is_ref.size()
+					    && cgdef->ctor_formal_is_ref[ci]);
 		    }
 
 		      // M11-4: `with function sample(<formals>)` names.
@@ -28203,6 +28237,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		      // supported runtime option lowering and loud constant-only
 		      // fallback diagnostics do not first emit a misleading bind warning.
 		    auto is_direct_ctor_formal = [&](const PExpr*expr) -> bool {
+			  if (const netclass_t::covgrp_range_ref_t*ref =
+				    cg_class->covgrp_range_ref(expr))
+				return ref->kind == netclass_t::COVGRP_RANGE_CTOR_VALUE;
 			  const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
 			  if (!id || id->path().size() != 1) return false;
 			  perm_string name = peek_head_name(id->path());
@@ -28349,6 +28386,18 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						 int*prop_out = nullptr,
 						 ivl_type_t*type_out = nullptr) -> bool {
 			  if (cg_standalone) return false;
+			  if (const netclass_t::covgrp_range_ref_t*ref =
+				    cg_class->covgrp_range_ref(expr)) {
+				bool legal = ref->kind ==
+				      netclass_t::COVGRP_RANGE_PARENT_GLOBAL_CONST
+				      || ref->kind ==
+				      netclass_t::COVGRP_RANGE_PARENT_INSTANCE_CONST;
+				if (!legal || ref->parent_prop < 0) return false;
+				if (prop_out) *prop_out = ref->parent_prop;
+				if (type_out)
+				      *type_out = get_prop_type((size_t)ref->parent_prop);
+				return true;
+			  }
 			  const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
 			  if (!id || id->path().package || id->has_scoped_type_prefix()
 			      || id->path().size() != 1
@@ -28373,8 +28422,18 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  return true;
 		    };
 		    std::function<bool(const PExpr*)> range_references_runtime;
+		    auto direct_range_binding_illegal = [&](const PExpr*expr) -> bool {
+			  const netclass_t::covgrp_range_ref_t*ref =
+				cg_class->covgrp_range_ref(expr);
+			  if (!ref) return false;
+			  return ref->kind == netclass_t::COVGRP_RANGE_CTOR_REF
+				|| ref->kind == netclass_t::COVGRP_RANGE_PARENT_MUTABLE
+				|| ref->kind == netclass_t::COVGRP_RANGE_PARENT_LOCAL
+				|| ref->kind == netclass_t::COVGRP_RANGE_PARENT_BAD_CONST;
+		    };
 		    range_references_runtime = [&](const PExpr*expr) -> bool {
 			  if (!expr) return false;
+			  if (cg_class->covgrp_range_ref(expr)) return true;
 			  if (is_direct_ctor_formal(expr)
 			      || is_direct_parent_const(expr)) return true;
 				  if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
@@ -28441,8 +28500,75 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					  || range_references_runtime(range.weight))
 						    return true;
 				  }
-				  return false;
-			    };
+			  return false;
+		    };
+		    std::function<bool(const PExpr*)> range_has_binding_error;
+		    range_has_binding_error = [&](const PExpr*expr) -> bool {
+			  if (!expr) return false;
+			  if (direct_range_binding_illegal(expr)) return true;
+			  if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+				for (const name_component_t&component : id->path().name)
+				      for (const index_component_t&index : component.index)
+					    if (range_has_binding_error(index.msb)
+						|| range_has_binding_error(index.lsb))
+						  return true;
+				return false;
+			  }
+			  if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr))
+				return range_has_binding_error(unary->get_expr());
+			  if (const PEBinary*binary = dynamic_cast<const PEBinary*>(expr))
+				return range_has_binding_error(binary->get_left())
+				      || range_has_binding_error(binary->get_right());
+			  if (const PETernary*ternary =
+				      dynamic_cast<const PETernary*>(expr))
+				return range_has_binding_error(ternary->get_cond())
+				      || range_has_binding_error(ternary->get_true())
+				      || range_has_binding_error(ternary->get_false());
+			  if (const PECallFunction*call =
+				      dynamic_cast<const PECallFunction*>(expr)) {
+				if (range_has_binding_error(call->receiver_expr())) return true;
+				for (const named_pexpr_t&parm : call->get_parms())
+				      if (range_has_binding_error(parm.parm)) return true;
+				for (const PExpr*with : call->with_constraints())
+				      if (range_has_binding_error(with)) return true;
+				return false;
+			  }
+			  if (const PEMemberAccess*member =
+				      dynamic_cast<const PEMemberAccess*>(expr))
+				return range_has_binding_error(member->base());
+			  if (const PEConcat*concat = dynamic_cast<const PEConcat*>(expr)) {
+				if (range_has_binding_error(concat->repeat_expr())) return true;
+				for (const PExpr*part : concat->stream_parms())
+				      if (range_has_binding_error(part)) return true;
+				return false;
+			  }
+			  if (const PEAssignPattern*pattern =
+				      dynamic_cast<const PEAssignPattern*>(expr)) {
+				if (range_has_binding_error(pattern->replication())) return true;
+				for (const PExpr*part : pattern->parms())
+				      if (range_has_binding_error(part)) return true;
+				return false;
+			  }
+			  if (const PEStreaming*stream =
+				      dynamic_cast<const PEStreaming*>(expr))
+				return range_has_binding_error(stream->get_inner());
+			  if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr))
+				return range_has_binding_error(cast->cast_size())
+				      || range_has_binding_error(cast->cast_base());
+			  if (const PECastType*cast = dynamic_cast<const PECastType*>(expr))
+				return range_has_binding_error(cast->cast_base());
+			  if (const PECastSign*cast = dynamic_cast<const PECastSign*>(expr))
+				return range_has_binding_error(cast->cast_base());
+			  if (const PEInside*inside = dynamic_cast<const PEInside*>(expr)) {
+				if (range_has_binding_error(inside->get_expr())) return true;
+				for (const inside_range_t&range : inside->get_ranges())
+				      if (range_has_binding_error(range.lo)
+					  || range_has_binding_error(range.hi)
+					  || range_has_binding_error(range.weight))
+						return true;
+			  }
+			  return false;
+		    };
 
 			      // Runtime range endpoints admit a deliberately bounded typed
 			      // expression grammar. Every nonterminal child that receives
@@ -29626,14 +29752,18 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						    "the bin is dropped." << endl;
 					    continue;
 				      }
-				      std::vector<std::pair<std::string,std::string>> ir_ranges;
-				      bool dyn_ok = cp_value_supported;
-			      bool bin_references_runtime = false;
-			      for (auto&range : bin.ranges) {
-				    bin_references_runtime = bin_references_runtime
-					  || range_references_runtime(range.first)
-					  || range_references_runtime(range.second);
-				      }
+			      std::vector<std::pair<std::string,std::string>> ir_ranges;
+			      bool dyn_ok = cp_value_supported;
+		      bool bin_references_runtime = false;
+		      bool bin_has_binding_error = false;
+		      for (auto&range : bin.ranges) {
+			    bin_references_runtime = bin_references_runtime
+				  || range_references_runtime(range.first)
+				  || range_references_runtime(range.second);
+			    bin_has_binding_error = bin_has_binding_error
+				  || range_has_binding_error(range.first)
+				  || range_has_binding_error(range.second);
+			      }
 				      for (auto&range : bin.ranges) {
 					    if (!range.first || !range.second) continue;
 					    ctor_range_shape_t lo_shape =
@@ -29667,8 +29797,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  delete se;
 					    }
 				      }
-				      if (!dyn_ok || ir_ranges.empty()) {
-					    cerr << "sorry: covergroup bin '" << bin.name
+			      if (!dyn_ok || ir_ranges.empty()) {
+				    if (bin_has_binding_error)
+					  continue;
+				    cerr << "sorry: covergroup bin '" << bin.name
 						 << "' has a runtime range expression that "
 						 << "cannot be represented; the bin is dropped."
 						 << endl;
