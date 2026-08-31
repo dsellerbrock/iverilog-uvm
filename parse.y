@@ -91,6 +91,7 @@ static std::vector<class_type_t::pform_cross_t::cross_bin_t> pending_cross_bins_
 static uint64_t pending_cross_expr_serial_ = 0;
 static std::vector<perm_string>* pending_cg_ctor_names_ = nullptr;
 static std::vector<data_type_t*>* pending_cg_ctor_types_ = nullptr;
+static std::vector<bool>* pending_cg_ctor_is_ref_ = nullptr;
 static std::vector<PExpr*>* pending_cg_ctor_defaults_ = nullptr;
 
 /* M13B: map a lexer edge-descriptor ("01", "0x", "z1", ...) to the
@@ -174,16 +175,19 @@ static void cov_capture_ctor_ports_(
       const std::vector<pform_tf_port_t>*ports,
       std::vector<perm_string>*&names,
       std::vector<data_type_t*>*&types,
+      std::vector<bool>*&is_ref,
       std::vector<PExpr*>*&defaults)
 {
       if (!ports) return;
       names = new std::vector<perm_string>;
       types = new std::vector<data_type_t*>;
+      is_ref = new std::vector<bool>;
       defaults = new std::vector<PExpr*>;
       for (const auto&port : *ports) {
 	    if (!port.port) continue;
 	    names->push_back(port.port->basename());
 	    types->push_back(const_cast<data_type_t*>(port.port->data_type()));
+	    is_ref->push_back(port.port->get_port_type() == NetNet::PREF);
 	    defaults->push_back(port.defe);
       }
 }
@@ -2915,6 +2919,7 @@ class_cg_port_prefix
       { if ($4) current_function->set_ports($4);
 	cov_capture_ctor_ports_($4, pending_cg_ctor_names_,
 				pending_cg_ctor_types_,
+				pending_cg_ctor_is_ref_,
 				pending_cg_ctor_defaults_);
 	$$ = $2;
       }
@@ -2934,6 +2939,7 @@ module_cg_port_prefix
       { if ($4) current_function->set_ports($4);
 	cov_capture_ctor_ports_($4, pending_cg_ctor_names_,
 				pending_cg_ctor_types_,
+				pending_cg_ctor_is_ref_,
 				pending_cg_ctor_defaults_);
 	$$ = $2;
       }
@@ -3564,9 +3570,11 @@ class_item /* IEEE1800-2005: A.1.8 */
       { pform_pop_scope(); current_function = 0;
 	pform_class_covergroup(@1, $1, $3, nullptr, nullptr, nullptr,
 			       pending_cg_ctor_names_, pending_cg_ctor_types_,
+			       pending_cg_ctor_is_ref_,
 			       pending_cg_ctor_defaults_);
 	pending_cg_ctor_names_ = nullptr;
 	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_is_ref_ = nullptr;
 	pending_cg_ctor_defaults_ = nullptr;
 	delete[] $1; if ($5) delete[] $5;
       }
@@ -3578,9 +3586,11 @@ class_item /* IEEE1800-2005: A.1.8 */
       { pform_pop_scope(); current_function = 0;
 	pform_class_covergroup(@1, $1, $7, nullptr, nullptr, $4,
 			       pending_cg_ctor_names_, pending_cg_ctor_types_,
+			       pending_cg_ctor_is_ref_,
 			       pending_cg_ctor_defaults_);
 	pending_cg_ctor_names_ = nullptr;
 	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_is_ref_ = nullptr;
 	pending_cg_ctor_defaults_ = nullptr;
 	delete[] $1; if ($9) delete[] $9;
       }
@@ -3614,9 +3624,11 @@ class_item /* IEEE1800-2005: A.1.8 */
         pform_pop_scope(); current_function = 0;
         pform_class_covergroup(@1, $1, $8, formals__, ftypes__, nullptr,
 			       pending_cg_ctor_names_, pending_cg_ctor_types_,
+			       pending_cg_ctor_is_ref_,
 			       pending_cg_ctor_defaults_, fdefaults__);
 	pending_cg_ctor_names_ = nullptr;
 	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_is_ref_ = nullptr;
 	pending_cg_ctor_defaults_ = nullptr;
 	delete[] $1; delete[] $4;
 	if ($10) delete[] $10;
@@ -3628,9 +3640,11 @@ class_item /* IEEE1800-2005: A.1.8 */
 	yyerrok;
 	delete pending_cg_ctor_names_;
 	delete pending_cg_ctor_types_;
+	delete pending_cg_ctor_is_ref_;
 	delete pending_cg_ctor_defaults_;
 	pending_cg_ctor_names_ = nullptr;
 	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_is_ref_ = nullptr;
 	pending_cg_ctor_defaults_ = nullptr;
 	delete[] $1; if ($5) delete[] $5;
       }
@@ -3645,9 +3659,11 @@ class_item /* IEEE1800-2005: A.1.8 */
 	yyerrok;
 	delete pending_cg_ctor_names_;
 	delete pending_cg_ctor_types_;
+	delete pending_cg_ctor_is_ref_;
 	delete pending_cg_ctor_defaults_;
 	pending_cg_ctor_names_ = nullptr;
 	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_is_ref_ = nullptr;
 	pending_cg_ctor_defaults_ = nullptr;
 	delete[] $1; delete[] $4; if ($6) delete $6;
 	if ($10) delete[] $10;
@@ -7056,6 +7072,7 @@ package_cg_port_prefix
       { if ($4) current_function->set_ports($4);
 	cov_capture_ctor_ports_($4, pending_cg_ctor_names_,
 				pending_cg_ctor_types_,
+				pending_cg_ctor_is_ref_,
 				pending_cg_ctor_defaults_);
         $$ = $2; /* pass name up for deletion */ }
   ;
@@ -7074,9 +7091,11 @@ package_covergroup_declaration
         pform_standalone_covergroup(@2, $1, $3, nullptr, nullptr, nullptr,
 				    pending_cg_ctor_names_,
 				    pending_cg_ctor_types_,
+				    pending_cg_ctor_is_ref_,
 				    pending_cg_ctor_defaults_);
 	pending_cg_ctor_names_ = nullptr;
 	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_is_ref_ = nullptr;
 	pending_cg_ctor_defaults_ = nullptr;
         delete[] $1; if ($5) delete[] $5; }
   | package_cg_port_prefix K_with K_function function_identifier
@@ -7107,19 +7126,37 @@ package_covergroup_declaration
         pform_standalone_covergroup(@2, $1, $8, nullptr, formals__, ftypes__,
 				    pending_cg_ctor_names_,
 				    pending_cg_ctor_types_,
+				    pending_cg_ctor_is_ref_,
 				    pending_cg_ctor_defaults_, fdefaults__);
 	pending_cg_ctor_names_ = nullptr;
 	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_is_ref_ = nullptr;
 	pending_cg_ctor_defaults_ = nullptr;
         delete[] $1; delete[] $4; if ($10) delete[] $10; }
   | package_cg_port_prefix ';' error K_endgroup label_opt
       { pform_pop_scope(); current_function = 0; yyerrok;
+	delete pending_cg_ctor_names_;
+	delete pending_cg_ctor_types_;
+	delete pending_cg_ctor_is_ref_;
+	delete pending_cg_ctor_defaults_;
+	pending_cg_ctor_names_ = nullptr;
+	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_is_ref_ = nullptr;
+	pending_cg_ctor_defaults_ = nullptr;
         delete[] $1; if ($5) delete[] $5; }
   | package_cg_port_prefix K_with K_function function_identifier
       { pform_pop_scope();
         current_function = pform_push_function_scope_unbound(@4, $4, LexicalScope::INHERITED, false); }
     tf_port_list_parens_opt ';' error K_endgroup label_opt
       { pform_pop_scope(); current_function = 0; yyerrok;
+	delete pending_cg_ctor_names_;
+	delete pending_cg_ctor_types_;
+	delete pending_cg_ctor_is_ref_;
+	delete pending_cg_ctor_defaults_;
+	pending_cg_ctor_names_ = nullptr;
+	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_is_ref_ = nullptr;
+	pending_cg_ctor_defaults_ = nullptr;
         delete[] $1; delete[] $4; if ($6) delete $6; if ($10) delete[] $10; }
   ;
 
@@ -14687,9 +14724,11 @@ module_item
 	pform_standalone_covergroup(@1, $1, $3, nullptr, nullptr, nullptr,
 				    pending_cg_ctor_names_,
 				    pending_cg_ctor_types_,
+				    pending_cg_ctor_is_ref_,
 				    pending_cg_ctor_defaults_);
 	pending_cg_ctor_names_ = nullptr;
 	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_is_ref_ = nullptr;
 	pending_cg_ctor_defaults_ = nullptr;
 	delete[] $1; if ($5) delete[] $5;
       }
@@ -14698,9 +14737,11 @@ module_item
 	pform_standalone_covergroup(@1, $1, $7, $4, nullptr, nullptr,
 				    pending_cg_ctor_names_,
 				    pending_cg_ctor_types_,
+				    pending_cg_ctor_is_ref_,
 				    pending_cg_ctor_defaults_);
 	pending_cg_ctor_names_ = nullptr;
 	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_is_ref_ = nullptr;
 	pending_cg_ctor_defaults_ = nullptr;
 	delete[] $1; if ($9) delete[] $9;
       }
@@ -14735,9 +14776,11 @@ module_item
 	pform_standalone_covergroup(@1, $1, $8, nullptr, formals__, ftypes__,
 				    pending_cg_ctor_names_,
 				    pending_cg_ctor_types_,
+				    pending_cg_ctor_is_ref_,
 				    pending_cg_ctor_defaults_, fdefaults__);
 	pending_cg_ctor_names_ = nullptr;
 	pending_cg_ctor_types_ = nullptr;
+	pending_cg_ctor_is_ref_ = nullptr;
 	pending_cg_ctor_defaults_ = nullptr;
 	delete[] $1; delete[] $4;
 	if ($10) delete[] $10;

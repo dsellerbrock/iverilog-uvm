@@ -1,0 +1,19 @@
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:10: error: covergroup bin `mutable_shadow' range expression references mutable enclosing-class property `SHADOW_LIMIT'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:19: error: covergroup bin `nested_mutable' range expression references mutable enclosing-class property `NESTED_LIMIT'; IEEE 1800 19.5 permits only constant expressions, enclosing-class global or instance constants, or non-ref covergroup arguments.
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:28: error: covergroup bin `ref_formal' range expression references ref covergroup argument `REF_LIMIT'; IEEE 1800 19.5 permits only non-ref covergroup arguments.
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:41: error: enclosing-class instance constant `LATE_LIMIT' used by covergroup `cg_late' must be initialized before the covergroup constructor call (IEEE 1800 19.5).
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:37: note: covergroup expression reference is here.
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:56: error: enclosing-class instance constant `CONDITIONAL_LIMIT' used by covergroup `cg_conditional' must be initialized before the covergroup constructor call (IEEE 1800 19.5).
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:50: note: covergroup expression reference is here.
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:70: error: initializer for enclosing-class instance constant `LOOP_LIMIT' and covergroup `cg_loop' constructor call may not appear in the same looping statement (IEEE 1800 19.5).
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:69: note: instance constant initializer is here.
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:64: note: covergroup expression reference is here.
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:86: error: initializer for enclosing-class instance constant `FORK_LIMIT' and covergroup `cg_fork' constructor call may not appear in the same fork-join_none statement (IEEE 1800 19.5).
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:85: note: instance constant initializer is here.
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:79: note: covergroup expression reference is here.
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:99: error: covergroup bin `base_local' range expression references local property `LOCAL_LIMIT' of base class `c08a_local_base'; it is not visible in the derived enclosing class (IEEE 1800 8.18, 19.4).
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:108: error: covergroup bin `static_missing' range expression references static const enclosing-class property `STATIC_LIMIT' without a declaration initializer; IEEE 1800 8.19 requires a global constant to be initialized in its declaration.
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:117: error: instance constant `DUPLICATE_LIMIT' can be assigned only once along every reachable path through its corresponding class constructor (IEEE 1800 8.19).
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:126: error: instance constant `POSSIBLE_LIMIT' can be assigned only once along every reachable path through its corresponding class constructor (IEEE 1800 8.19).
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:104: error: Const properties of class c09_static_const_missing are missing initialization.
+12 error(s) during elaboration.

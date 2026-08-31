@@ -26,6 +26,7 @@
 # include  "PExpr.h"
 # include  "PPackage.h"
 # include  "PClass.h"
+# include  "PTask.h"
 # include  "netlist.h"
 # include  "netmisc.h"
 # include  "netstruct.h"
@@ -922,7 +923,7 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
       ivl_assert(*this, !sr.path_head.empty());
       NetAssign_*res = elaborate_lval_var_(des, scope, is_force, is_cassign,
 					 reg, sr.type, member_path,
-					 sr.path_head.back().index);
+					 sr.path_head.back().index, is_init);
       if (is_force && res)
 	    res->mark_force_lval();
       return res;
@@ -932,7 +933,8 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 				        bool is_force, bool is_cassign,
 					NetNet *reg, ivl_type_t data_type,
 					const pform_name_t tail_path,
-					const list<index_component_t>&base_index) const
+					const list<index_component_t>&base_index,
+					bool is_init) const
 {
 	// We are processing the tail of a string of names. For
 	// example, the Verilog may be "a.b.c", so we are processing
@@ -1118,7 +1120,8 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	    if (class_type || (struct_type && !struct_type->packed()))
 		  return elaborate_lval_net_class_member_(des, scope, member_root_type,
 							  reg, tail_path, base_index,
-							  is_cassign || is_force);
+							  is_cassign || is_force,
+							  is_init);
       }
 
 
@@ -2659,7 +2662,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				    ivl_type_t root_type, NetNet*sig,
 				    pform_name_t member_path,
 				    const list<index_component_t>&base_index,
-				    bool need_const_idx) const
+				    bool need_const_idx, bool is_init) const
 {
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PEIdent::elaborate_lval_net_class_member_: "
@@ -3065,7 +3068,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				    return elaborate_lval_net_class_member_(
 					  des, scope, psig->net_type(), psig,
 					  member_path, member_cur.index,
-					  need_const_idx);
+					  need_const_idx, is_init);
 			      }
 			      cerr << get_fileline() << ": sorry: member"
 				   << " access into an indexed static-property"
@@ -3147,26 +3150,89 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			return 0;
 
 		  } else if (qual.test_const()) {
-		       if (owner_class->get_prop_initialized(pidx)) {
+			// Instance-constant writes are authorized per assignment site by
+			// the unlowered constructor control-flow audit. A single mutable
+			// bit cannot decide this: assignments in mutually exclusive arms
+			// are both legal even though both sites are elaborated.
+			NetScope*method_scope =
+			      find_method_containing_scope(*this, scope);
+			perm_string containing_method_name = method_scope
+			      ? method_scope->basename() : perm_string();
+			const netclass_t*declaring_class =
+			      owner_class->get_prop_declaring_class((size_t)pidx);
+			const PFunction*method_pform = method_scope
+			      ? method_scope->func_pform() : nullptr;
+			const NetScope*declaring_scope = declaring_class
+			      ? declaring_class->class_scope() : nullptr;
+			const PClass*declaring_pform = declaring_scope
+			      ? declaring_scope->class_pform() : nullptr;
+			// In-class method scopes do not consistently retain a func_pform
+			// pointer during l-value elaboration. Extern methods have no
+			// enclosing CLASS scope, so retain the parse-form owner fallback.
+			const netclass_t*method_class =
+			      find_class_containing_scope(*this, method_scope);
+			bool corresponding_class = method_class
+			      ? method_class == declaring_class
+			      : method_pform && declaring_pform
+				&& method_pform->method_of() == declaring_pform->type;
+			bool corresponding_constructor =
+			      (containing_method_name == perm_string::literal("new")
+			       || containing_method_name == perm_string::literal("new@"));
+			bool declaration_initializer =
+			      owner_class->get_prop_has_decl_initializer((size_t)pidx);
+
+			if (!corresponding_constructor) {
 			      cerr << get_fileline() << ": error: "
 				   << "Property " << owner_class->get_prop_name(pidx)
 				   << " is constant in this method."
 				   << " (scope=" << scope_path(scope) << ")" << endl;
 			      des->errors++;
-		       } else if (scope->basename() != "new" && scope->basename() != "new@") {
-			      cerr << get_fileline() << ": error: "
-				   << "Property " << owner_class->get_prop_name(pidx)
-				   << " is constant in this method."
-				   << " (scope=" << scope_path(scope) << ")" << endl;
+			} else if (!corresponding_class) {
+			      cerr << get_fileline()
+				   << ": error: Instance constant `"
+				   << owner_class->get_prop_name(pidx)
+				   << "' may be initialized only in the constructor "
+				      "of its declaring class (IEEE 1800 8.19)."
+				   << endl;
 			      des->errors++;
-		       } else {
-			      owner_class->set_prop_initialized(pidx);
+			} else if (!is_init) {
+			      if (declaration_initializer) {
+				    cerr << get_fileline() << ": error: Global constant "
+					 << "class property `"
+					 << owner_class->get_prop_name(pidx)
+					 << "' may be initialized only in its declaration "
+					    "(IEEE 1800 8.19)." << endl;
+			      } else {
+				    cerr << get_fileline() << ": error: Assignment to "
+					 << "instance constant `"
+					 << owner_class->get_prop_name(pidx)
+					 << "' is not an authorized single assignment in "
+					    "its corresponding class constructor "
+					    "(IEEE 1800 8.19)." << endl;
+			      }
+			      des->errors++;
+			} else if (declaration_initializer
+				   && owner_class->get_prop_initialized(pidx)) {
+			      cerr << get_fileline() << ": error: Global constant "
+				   << "class property `"
+				   << owner_class->get_prop_name(pidx)
+				   << "' has more than one declaration initializer."
+				   << endl;
+			      des->errors++;
+			} else {
+			      // Keep the existing class-level missing-initializer
+			      // bookkeeping, but never use it to authorize or reject a
+			      // procedural instance-constant assignment site.
+			      if (!owner_class->get_prop_initialized(pidx))
+				    owner_class->set_prop_initialized(pidx);
 
 			      if (debug_elaborate) {
-				    cerr << get_fileline() << ": PEIdent::elaborate_lval_method_class_member_: "
-					 << "Found initializers for property " << owner_class->get_prop_name(pidx) << endl;
+				    cerr << get_fileline()
+					 << ": PEIdent::elaborate_lval_method_class_member_: "
+					 << "Found authorized initializer for property "
+					 << owner_class->get_prop_name(pidx) << endl;
 			      }
-		       }
+			}
 		  }
 
 		  ptype = owner_class->get_prop_type(pidx);

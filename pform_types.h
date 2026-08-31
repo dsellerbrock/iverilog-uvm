@@ -614,8 +614,11 @@ struct class_type_t : public data_type_t {
 
 	// This is a map of the properties. Map the name to the type.
       struct prop_info_t : public LineInfo {
-	    inline prop_info_t() : qual(property_qualifier_t::make_none()) { }
-	    inline prop_info_t(property_qualifier_t q, data_type_t*t) : qual(q), type(t) { }
+	    inline prop_info_t()
+	    : qual(property_qualifier_t::make_none()), has_decl_initializer(false) { }
+	    inline prop_info_t(property_qualifier_t q, data_type_t*t,
+			       bool has_initializer = false)
+	    : qual(q), type(t), has_decl_initializer(has_initializer) { }
 	    prop_info_t(prop_info_t&&) = default;
 	    prop_info_t& operator=(prop_info_t&&) = default;
 	      // M11: one data_type_t is shared by every declarator of
@@ -626,6 +629,11 @@ struct class_type_t : public data_type_t {
 	    ~prop_info_t() { type.release(); }
 	    property_qualifier_t qual;
 	    std::unique_ptr<data_type_t> type;
+	      // IEEE 1800-2017 8.19 distinguishes a global constant from an
+	      // instance constant by the presence of a declaration initializer,
+	      // not by the static qualifier. Keep that syntactic provenance after
+	      // the initializer is lowered into the synthetic constructor.
+	    bool has_decl_initializer;
       };
       std::map<perm_string, struct prop_info_t> properties;
       std::vector<perm_string> property_order;
@@ -771,6 +779,7 @@ struct class_type_t : public data_type_t {
 	      // `with function sample` formals.
 	    std::vector<perm_string> ctor_formals;
 	    std::vector<data_type_t*> ctor_formal_types;
+	    std::vector<bool> ctor_formal_is_ref;
 	    std::vector<PExpr*> ctor_defaults;
 	      // M11-2: the declaration's sampling event
 	      // (`covergroup cg @(posedge clk);`) — instances get a

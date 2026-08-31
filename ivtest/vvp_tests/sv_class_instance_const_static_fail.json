@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_class_instance_const_static_fail.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_class_instance_const_static_fail"
+}

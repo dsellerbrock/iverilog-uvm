@@ -964,6 +964,15 @@ an arrayed property. If the <idx> value is 0, then use index value
 zero instead of reading index register zero. Use this form for
 non-arrayed properties.
 
+* %prop/const/init <pid>
+
+Pop a class object from the object stack and atomically test-and-set the
+per-object initialization state for non-static constant property <pid>. The
+first claim succeeds. A later claim reports an IEEE 1800 8.19 run-time error
+and ends the simulation with failure. The compiler emits this instruction
+once per authorized source assignment, before any aggregate assignment is
+lowered into element stores.
+
 * %pushi/real <mant>, <exp>
 
 This opcode loads an immediate value, floating point, into the real

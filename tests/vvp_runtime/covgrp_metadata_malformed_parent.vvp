@@ -1,0 +1,120 @@
+:ivl_version "13.0 (devel)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+S_unit .scope package, "$unit" "$unit" 1 1;
+ .timescale 0 0;
+S_top .scope module, "top" "top" 1 1;
+ .timescale 0 0;
+C0x1 .class "nonconst_cg" "top.nonconst_cg" [2]
+   0: "__bin", "q0:sb32"
+   1: "__covgrp_parent", "q0:oh:C0x2"
+ .covgrp_dyn_bin 0 0 0 0 0 "nonconst" "pp:0:32" "c:1:32" "u32" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_parent 1
+ ;
+C0x2 .class "nonconst_parent" "top.nonconst_parent" [2]
+   0: "limit", "q0:b32"
+   1: "cg", "q0:oh:C0x1"
+ ;
+C0x3 .class "width_cg" "top.width_cg" [2]
+   0: "__bin", "q0:sb32"
+   1: "__covgrp_parent", "q0:oh:C0x4"
+ .covgrp_dyn_bin 0 0 0 0 0 "width" "pp:0:32" "c:1:32" "u32" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_parent 1
+ ;
+C0x4 .class "width_parent" "top.width_parent" [2]
+   0: "limit", "q20:b16"
+   1: "cg", "q0:oh:C0x3"
+ ;
+C0x5 .class "sign_cg" "top.sign_cg" [2]
+   0: "__bin", "q0:sb32"
+   1: "__covgrp_parent", "q0:oh:C0x6"
+ .covgrp_dyn_bin 0 0 0 0 0 "sign" "pp:0:32" "c:1:32" "u32" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_parent 1
+ ;
+C0x6 .class "sign_parent" "top.sign_parent" [2]
+   0: "limit", "q20:sb32"
+   1: "cg", "q0:oh:C0x5"
+ ;
+C0x7 .class "declared_parent" "top.declared_parent" [1]
+   0: "limit", "q20:b32"
+ ;
+C0x8 .class "owner_cg" "top.owner_cg" [2]
+   0: "__bin", "q0:sb32"
+   1: "__covgrp_parent", "q0:oh:C0x7"
+ .covgrp_dyn_bin 0 0 0 0 0 "owner" "pp:0:32" "c:1:32" "u32" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_parent 1
+ ;
+C0x9 .class "actual_parent" "top.actual_parent" [2]
+   0: "limit", "q20:b32"
+   1: "cg", "q0:oh:C0x8"
+ ;
+C0xa .class "valid_cg" "top.valid_cg" [2]
+   0: "__bin", "q0:sb32"
+   1: "__covgrp_parent", "q0:oh:C0xb"
+ .covgrp_dyn_bin 0 0 0 0 0 "valid" "pp:0:32" "c:1:32" "u32" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_parent 1
+ ;
+C0xb .class "valid_parent" "top.valid_parent" [2]
+   0: "limit", "q20:b32"
+   1: "cg", "q0:oh:C0xa"
+ ;
+C0xc .class "declared_base" "top.declared_base" [1]
+   0: "base_limit", "q20:b32"
+ ;
+C0xd .class "derived_only_cg" "top.derived_only_cg" [2]
+   0: "__bin", "q0:sb32"
+   1: "__covgrp_parent", "q0:oh:C0xc"
+ .covgrp_dyn_bin 0 0 0 0 0 "derived_only" "pp:1:32" "c:1:32" "u32" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_parent 1
+ ;
+C0xe .class "actual_derived" "top.actual_derived" "top.declared_base" [3]
+   0: "base_limit", "q20:b32"
+   1: "derived_limit", "q20:b32"
+   2: "cg", "q0:oh:C0xd"
+ ;
+    .scope S_top;
+T_0 ;
+    %new/cobj C0xa;
+    %covgrp/options/init;
+    %pop/obj 1, 0;
+    %new/cobj C0x2;
+    %new/cobj C0x1;
+    %covgrp/options/init;
+    %store/prop/obj 1, 0;
+    %pop/obj 1, 0;
+    %new/cobj C0x4;
+    %new/cobj C0x3;
+    %covgrp/options/init;
+    %store/prop/obj 1, 0;
+    %pop/obj 1, 0;
+    %new/cobj C0x6;
+    %new/cobj C0x5;
+    %covgrp/options/init;
+    %store/prop/obj 1, 0;
+    %pop/obj 1, 0;
+    %new/cobj C0x9;
+    %new/cobj C0x8;
+    %covgrp/options/init;
+    %store/prop/obj 1, 0;
+    %pop/obj 1, 0;
+    %new/cobj C0xb;
+    %new/cobj C0xa;
+    %covgrp/options/init;
+    %store/prop/obj 1, 0;
+    %pop/obj 1, 0;
+    %new/cobj C0xe;
+    %new/cobj C0xd;
+    %covgrp/options/init;
+    %store/prop/obj 2, 0;
+    %pop/obj 1, 0;
+    %end;
+    .thread T_0;
+:file_names 2;
+    "N/A";
+    "covgrp_metadata_malformed_parent.vvp";

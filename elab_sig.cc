@@ -1596,6 +1596,478 @@ static void validate_external_class_constraints_(Design*des, PClass*pclass)
       }
 }
 
+/* PExpr keeps source syntax, not a persistent symbol binding. Bind names in
+ * covergroup ranges as soon as the enclosing class signature is complete so a
+ * found mutable/ref/inaccessible name cannot later fall through to an enum or
+ * parameter with the same spelling. */
+static void bind_covergroup_range_expr_(
+      Design*des, netclass_t*parent, netclass_t*cg_class,
+      const class_type_t::pform_covergroup_t*cgdef, perm_string bin_name,
+      const PExpr*expr, bool standalone)
+{
+      if (!expr) return;
+
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+	    const pform_scoped_name_t&path = id->path();
+	    bool direct = !path.package && !id->has_scoped_type_prefix()
+		  && path.size() == 1 && !path.name.front().local_scope
+		  && path.name.front().index.empty();
+	    if (direct && !cg_class->covgrp_range_ref(expr)) {
+		  perm_string name = peek_head_name(path);
+		  for (size_t idx = 0; idx < cgdef->ctor_formals.size(); idx += 1) {
+			if (cgdef->ctor_formals[idx] != name) continue;
+			bool is_ref = idx < cgdef->ctor_formal_is_ref.size()
+			      && cgdef->ctor_formal_is_ref[idx];
+			cg_class->bind_covgrp_range_ref(
+			      expr, is_ref ? netclass_t::COVGRP_RANGE_CTOR_REF
+					   : netclass_t::COVGRP_RANGE_CTOR_VALUE,
+			      -1, (unsigned)idx);
+			if (is_ref) {
+			      cerr << expr->get_fileline()
+				   << ": error: covergroup bin `" << bin_name
+				   << "' range expression references ref covergroup "
+				      "argument `" << name
+				   << "'; IEEE 1800 19.5 permits only non-ref "
+				      "covergroup arguments." << endl;
+			      des->errors += 1;
+			}
+			return;
+		  }
+
+		  if (!standalone) {
+			int prop = parent->property_idx_from_name(name);
+			if (prop >= 0) {
+			      property_qualifier_t qual =
+				    parent->get_prop_qual((size_t)prop);
+			      const netclass_t*owner =
+				    parent->get_prop_declaring_class((size_t)prop);
+			      bool has_initializer =
+				    parent->get_prop_has_decl_initializer((size_t)prop);
+			      netclass_t::covgrp_range_ref_kind_t kind;
+			      if (qual.test_local() && owner != parent)
+				    kind = netclass_t::COVGRP_RANGE_PARENT_LOCAL;
+			      else if (!qual.test_const())
+				    kind = netclass_t::COVGRP_RANGE_PARENT_MUTABLE;
+			      else if (qual.test_static() && !has_initializer)
+				    kind = netclass_t::COVGRP_RANGE_PARENT_BAD_CONST;
+			      else if (has_initializer)
+				    kind = netclass_t::COVGRP_RANGE_PARENT_GLOBAL_CONST;
+			      else
+				    kind = netclass_t::COVGRP_RANGE_PARENT_INSTANCE_CONST;
+
+			      cg_class->bind_covgrp_range_ref(expr, kind, prop);
+			      if (kind == netclass_t::COVGRP_RANGE_PARENT_INSTANCE_CONST)
+				    cg_class->add_covgrp_parent_const_dependency(
+					  (unsigned)prop, expr);
+
+			      if (kind == netclass_t::COVGRP_RANGE_PARENT_MUTABLE) {
+				    cerr << expr->get_fileline()
+					 << ": error: covergroup bin `" << bin_name
+					 << "' range expression references mutable "
+					 << (qual.test_static() ? "static " : "")
+					 << "enclosing-class property `" << name
+					 << "'; IEEE 1800 19.5 permits only constant "
+					    "expressions, enclosing-class global or "
+					    "instance constants, or non-ref covergroup "
+					    "arguments." << endl;
+				    des->errors += 1;
+			      } else if (kind == netclass_t::COVGRP_RANGE_PARENT_LOCAL) {
+				    cerr << expr->get_fileline()
+					 << ": error: covergroup bin `" << bin_name
+					 << "' range expression references local property `"
+					 << name << "' of base class `" << owner->get_name()
+					 << "'; it is not visible in the derived enclosing "
+					    "class (IEEE 1800 8.18, 19.4)." << endl;
+				    des->errors += 1;
+			      } else if (kind == netclass_t::COVGRP_RANGE_PARENT_BAD_CONST) {
+				    cerr << expr->get_fileline()
+					 << ": error: covergroup bin `" << bin_name
+					 << "' range expression references static const "
+					    "enclosing-class property `" << name
+					 << "' without a declaration initializer; IEEE "
+					    "1800 8.19 requires a global constant to be "
+					    "initialized in its declaration." << endl;
+				    des->errors += 1;
+			      }
+			      return;
+			}
+		  }
+	    }
+
+	    for (const name_component_t&component : path.name)
+		  for (const index_component_t&index : component.index) {
+			bind_covergroup_range_expr_(des, parent, cg_class, cgdef,
+						    bin_name, index.msb,
+						    standalone);
+			bind_covergroup_range_expr_(des, parent, cg_class, cgdef,
+						    bin_name, index.lsb,
+						    standalone);
+		  }
+	    return;
+      }
+      if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr)) {
+	    bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					unary->get_expr(), standalone);
+	    return;
+      }
+      if (const PEBinary*binary = dynamic_cast<const PEBinary*>(expr)) {
+	    bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					binary->get_left(), standalone);
+	    bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					binary->get_right(), standalone);
+	    return;
+      }
+      if (const PETernary*ternary = dynamic_cast<const PETernary*>(expr)) {
+	    bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					ternary->get_cond(), standalone);
+	    bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					ternary->get_true(), standalone);
+	    bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					ternary->get_false(), standalone);
+	    return;
+      }
+      if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(expr)) {
+	    bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					call->receiver_expr(), standalone);
+	    for (const named_pexpr_t&parm : call->get_parms())
+		  bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					      parm.parm, standalone);
+	    for (const PExpr*with : call->with_constraints())
+		  bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					      with, standalone);
+	    return;
+      }
+      if (const PEMemberAccess*member = dynamic_cast<const PEMemberAccess*>(expr)) {
+	    bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					member->base(), standalone);
+	    return;
+      }
+      if (const PEConcat*concat = dynamic_cast<const PEConcat*>(expr)) {
+	    bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					concat->repeat_expr(), standalone);
+	    for (const PExpr*part : concat->stream_parms())
+		  bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					      part, standalone);
+	    return;
+      }
+      if (const PEAssignPattern*pattern = dynamic_cast<const PEAssignPattern*>(expr)) {
+	    bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					pattern->replication(), standalone);
+	    for (const PExpr*part : pattern->parms())
+		  bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					      part, standalone);
+	    return;
+      }
+      if (const PEStreaming*stream = dynamic_cast<const PEStreaming*>(expr)) {
+	    bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					stream->get_inner(), standalone);
+	    return;
+      }
+      if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr)) {
+	    bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					cast->cast_size(), standalone);
+	    bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					cast->cast_base(), standalone);
+	    return;
+      }
+      if (const PECastType*cast = dynamic_cast<const PECastType*>(expr)) {
+	    bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					cast->cast_base(), standalone);
+	    return;
+      }
+      if (const PECastSign*cast = dynamic_cast<const PECastSign*>(expr)) {
+	    bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					cast->cast_base(), standalone);
+	    return;
+      }
+      if (const PEInside*inside = dynamic_cast<const PEInside*>(expr)) {
+	    bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					inside->get_expr(), standalone);
+	    for (const inside_range_t&range : inside->get_ranges()) {
+		  bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					      range.lo, standalone);
+		  bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					      range.hi, standalone);
+		  bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					      range.weight, standalone);
+	    }
+      }
+}
+
+static void bind_covergroup_select_ranges_(
+      Design*des, netclass_t*parent, netclass_t*cg_class,
+      const class_type_t::pform_covergroup_t*cgdef, perm_string bin_name,
+      const class_type_t::pform_cross_t::select_t*select, bool standalone)
+{
+      if (!select) return;
+      for (const std::pair<PExpr*,PExpr*>&range : select->intersect_ranges) {
+	    bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					range.first, standalone);
+	    bind_covergroup_range_expr_(des, parent, cg_class, cgdef, bin_name,
+					range.second, standalone);
+      }
+      bind_covergroup_select_ranges_(des, parent, cg_class, cgdef, bin_name,
+				     select->a, standalone);
+      bind_covergroup_select_ranges_(des, parent, cg_class, cgdef, bin_name,
+				     select->b, standalone);
+}
+
+static void bind_covergroup_ranges_(
+      Design*des, netclass_t*parent, netclass_t*cg_class,
+      const class_type_t::pform_covergroup_t*cgdef, bool standalone)
+{
+      if (!cg_class || cg_class->covgrp_range_bindings_complete()) return;
+
+      for (const class_type_t::pform_coverpoint_t&cp : cgdef->coverpoints)
+	    for (const class_type_t::pform_cov_bins_t&bin : cp.bins) {
+		  for (const std::pair<PExpr*,PExpr*>&range : bin.ranges) {
+			bind_covergroup_range_expr_(des, parent, cg_class, cgdef,
+						    bin.name, range.first,
+						    standalone);
+			bind_covergroup_range_expr_(des, parent, cg_class, cgdef,
+						    bin.name, range.second,
+						    standalone);
+		  }
+		  for (const std::vector<class_type_t::pform_cov_trans_term_t>&seq :
+		       bin.trans_seqs)
+			for (const class_type_t::pform_cov_trans_term_t&term : seq) {
+			      for (const std::pair<PExpr*,PExpr*>&range : term.ranges) {
+				    bind_covergroup_range_expr_(
+					  des, parent, cg_class, cgdef, bin.name,
+					  range.first, standalone);
+				    bind_covergroup_range_expr_(
+					  des, parent, cg_class, cgdef, bin.name,
+					  range.second, standalone);
+			      }
+			      bind_covergroup_range_expr_(des, parent, cg_class,
+						  cgdef, bin.name,
+						  term.repeat_lo, standalone);
+			      bind_covergroup_range_expr_(des, parent, cg_class,
+						  cgdef, bin.name,
+						  term.repeat_hi, standalone);
+			}
+	    }
+
+      for (const class_type_t::pform_cross_t&cross : cgdef->crosses)
+	    for (const class_type_t::pform_cross_t::cross_bin_t&bin : cross.bins)
+		  bind_covergroup_select_ranges_(des, parent, cg_class, cgdef,
+					 bin.name, bin.select, standalone);
+
+      cg_class->set_covgrp_range_bindings_complete(true);
+}
+
+/* Resolve only the two pform l-value spellings that can denote a property of
+ * the object being constructed: `prop' and `this.prop'.  Keep this binding
+ * deliberately narrower than PEIdent elaboration.  In particular, a method
+ * local/formal must win over an unqualified property name, and assigning a
+ * selected element is not initialization of the instance constant itself. */
+class covergroup_constructor_order_classifier_t :
+      public pform_constructor_order_classifier_t {
+    public:
+      covergroup_constructor_order_classifier_t(
+	    const netclass_t*parent, const PFunction*constructor,
+	    const map<size_t,const netclass_t*>&embedded_covergroups)
+      : parent_(parent), constructor_(constructor),
+	embedded_covergroups_(embedded_covergroups)
+      { }
+
+      bool classify_instance_constant_initializer(
+	    const pform_constructor_order_assignment_t&assignment,
+	    size_t&property_idx) const override
+      {
+	    if (!assignment.plain_blocking)
+		  return false;
+
+	    int prop = property_from_lval_(assignment);
+	    if (prop < 0)
+		  return false;
+
+	    size_t idx = static_cast<size_t>(prop);
+	    property_qualifier_t qual = parent_->get_prop_qual(idx);
+	    if (!qual.test_const() || qual.test_static()
+		|| parent_->get_prop_has_decl_initializer(idx)
+		|| parent_->get_prop_declaring_class(idx) != parent_)
+		  return false;
+
+	    property_idx = idx;
+	    return true;
+      }
+
+      bool classify_embedded_covergroup_constructor(
+	    const pform_constructor_order_assignment_t&assignment,
+	    vector<pform_constructor_order_dependency_t>&dependencies)
+	    const override
+      {
+	    if (!assignment.plain_blocking
+		|| !dynamic_cast<const PENewClass*>(assignment.rval))
+		  return false;
+
+	    int prop = property_from_lval_(assignment);
+	    if (prop < 0)
+		  return false;
+
+	    map<size_t,const netclass_t*>::const_iterator found =
+		  embedded_covergroups_.find(static_cast<size_t>(prop));
+	    if (found == embedded_covergroups_.end() || !found->second
+		|| !found->second->covgrp_range_bindings_complete())
+		  return false;
+
+	    for (const netclass_t::covgrp_parent_const_dep_t&dep :
+		 found->second->covgrp_parent_const_dependencies()) {
+		  pform_constructor_order_dependency_t use_dep;
+		  use_dep.property_idx = dep.parent_prop;
+		  use_dep.reference_site = dep.ref_site;
+		  use_dep.covergroup_name = parent_->get_prop_name((size_t)prop);
+		  dependencies.push_back(use_dep);
+	    }
+	    return !dependencies.empty();
+      }
+
+    private:
+      const netclass_t*parent_;
+      const PFunction*constructor_;
+      const map<size_t,const netclass_t*>&embedded_covergroups_;
+
+      static bool scope_declares_(const LexicalScope*scope, perm_string name)
+      {
+	    return scope && (scope->wires.find(name) != scope->wires.end()
+			     || scope->local_symbols.find(name)
+				!= scope->local_symbols.end());
+      }
+
+      bool unqualified_name_is_shadowed_(
+	    perm_string name,
+	    const vector<const PBlock*>*block_stack) const
+      {
+	    if (block_stack)
+		  for (vector<const PBlock*>::const_reverse_iterator cur =
+		       block_stack->rbegin(); cur != block_stack->rend(); ++cur)
+			if (scope_declares_(*cur, name))
+			      return true;
+
+	    if (scope_declares_(constructor_, name))
+		  return true;
+
+	    const vector<pform_tf_port_t>*ports = constructor_
+		  ? constructor_->peek_ports() : nullptr;
+	    if (ports)
+		  for (const pform_tf_port_t&port : *ports)
+			if (port.port && port.port->basename() == name)
+			      return true;
+	    return false;
+      }
+
+      int property_from_lval_(
+	    const pform_constructor_order_assignment_t&assignment) const
+      {
+	    perm_string property_name;
+	    bool explicit_this = false;
+
+	    if (const PEIdent*ident =
+		  dynamic_cast<const PEIdent*>(assignment.lval)) {
+		  const pform_scoped_name_t&path = ident->path();
+		  if (path.package || ident->has_scoped_type_prefix()
+		      || path.name.empty())
+			return -1;
+
+		  pform_name_t::const_iterator cur = path.name.begin();
+		  if (path.size() == 1) {
+			if (cur->local_scope || !cur->index.empty())
+			      return -1;
+			property_name = cur->name;
+		  } else if (path.size() == 2
+			     && cur->name == perm_string::literal(THIS_TOKEN)
+			     && !cur->local_scope && cur->index.empty()) {
+			explicit_this = true;
+			++cur;
+			if (cur->local_scope || !cur->index.empty())
+			      return -1;
+			property_name = cur->name;
+		  } else {
+			return -1;
+		  }
+	    } else if (const PEMemberAccess*member =
+		       dynamic_cast<const PEMemberAccess*>(assignment.lval)) {
+		  const PEIdent*base = dynamic_cast<const PEIdent*>(member->base());
+		  if (!base)
+			return -1;
+		  const pform_scoped_name_t&path = base->path();
+		  if (path.package || base->has_scoped_type_prefix()
+		      || path.size() != 1 || path.name.front().local_scope
+		      || !path.name.front().index.empty()
+		      || path.name.front().name
+			   != perm_string::literal(THIS_TOKEN))
+			return -1;
+		  explicit_this = true;
+		  property_name = member->member_name();
+	    } else {
+		  return -1;
+	    }
+
+	    if (property_name.nil()
+		|| (!explicit_this && unqualified_name_is_shadowed_(
+		      property_name, assignment.block_stack)))
+		  return -1;
+	    return parent_->property_idx_from_name(property_name);
+      }
+};
+
+static void report_constructor_order_violations_(
+      Design*des, const netclass_t*parent,
+      const pform_constructor_order_result_t&result)
+{
+      for (const pform_constructor_order_violation_t&violation :
+	   result.violations) {
+	    const char*property = parent->get_prop_name(violation.property_idx);
+	    const char*covergroup = violation.covergroup_name
+		  ? violation.covergroup_name : "<unknown>";
+	    const LineInfo*site = violation.constructor_site
+		  ? violation.constructor_site
+		  : violation.initializer_site
+		    ? violation.initializer_site : violation.reference_site;
+	    string fileline = site ? site->get_fileline() : string("<unknown>");
+
+	    cerr << fileline << ": error: ";
+	    switch (violation.kind) {
+		case PFORM_CTOR_ORDER_NOT_INITIALIZED:
+		  cerr << "enclosing-class instance constant `" << property
+		       << "' used by covergroup `" << covergroup
+		       << "' must be initialized before the covergroup constructor "
+			  "call (IEEE 1800 19.5).";
+		  break;
+		case PFORM_CTOR_ORDER_SHARED_LOOP:
+		  cerr << "initializer for enclosing-class instance constant `"
+		       << property << "' and covergroup `" << covergroup
+		       << "' constructor call may not appear in the same looping "
+			  "statement (IEEE 1800 19.5).";
+		  break;
+		case PFORM_CTOR_ORDER_SHARED_JOIN_NONE:
+		  cerr << "initializer for enclosing-class instance constant `"
+		       << property << "' and covergroup `" << covergroup
+		       << "' constructor call may not appear in the same "
+			  "fork-join_none statement (IEEE 1800 19.5).";
+		  break;
+		case PFORM_CTOR_ORDER_REASSIGNMENT:
+		  cerr << "instance constant `" << property
+		       << "' can be assigned only once along every reachable path "
+			  "through its corresponding class constructor "
+			  "(IEEE 1800 8.19).";
+		  break;
+	    }
+	    cerr << endl;
+	    des->errors += 1;
+
+	    if (violation.initializer_site
+		&& (violation.kind == PFORM_CTOR_ORDER_SHARED_LOOP
+		    || violation.kind == PFORM_CTOR_ORDER_SHARED_JOIN_NONE))
+		  cerr << violation.initializer_site->get_fileline()
+		       << ": note: instance constant initializer is here." << endl;
+	    if (violation.reference_site)
+		  cerr << violation.reference_site->get_fileline()
+		       << ": note: covergroup expression reference is here." << endl;
+      }
+}
+
 void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 {
       if (sig_elaborated_ || sig_elaborating_)
@@ -1778,7 +2250,7 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		  pform_interface_modport(
 			des, class_scope_, cur->second.type.get());
 	    set_property(cur->first, cur->second.qual, use_type,
-			 interface_modport);
+			 interface_modport, cur->second.has_decl_initializer);
 
 	    if (! cur->second.qual.test_static())
 		  continue;
@@ -1821,25 +2293,74 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
       // visible inside the constructor (new()) when it is elaborated.
       // This must happen before function body elaboration, which may be
       // triggered lazily by PENew before netclass_t::elaborate() has run.
+      map<size_t,const netclass_t*> embedded_covergroups;
       for (auto* cgdef : pclass->type->covergroups) {
 	    if (!cgdef) continue;
-	    // M11-1/2: a STANDALONE covergroup class IS the covergroup —
-	    // no handle property (its own properties are the bins).
-	    if (pclass->type->is_covergroup_standalone)
-		  continue;
-	    // Skip if the property was already added (e.g. by a prior elaborate() call).
-	    if (property_idx_from_name(cgdef->name) >= 0)
-		  continue;
-	    string cg_cname = string("__covgrp_")
-			      + string(name_.str())
-			      + "_" + string(cgdef->name.str()) + "_t";
-	    perm_string cg_class_pname = lex_strings.make(cg_cname.c_str());
-	    netclass_t* cg_class = new netclass_t(cg_class_pname, nullptr);
-	    cg_class->set_scope_ready(true);
-	    cg_class->set_body_elaborated(true);
-	    cg_class->set_is_covergroup(true);
-	    set_property(cgdef->name, property_qualifier_t::make_none(), cg_class);
+	    bool standalone = pclass->type->is_covergroup_standalone;
+	    netclass_t*cg_class = standalone ? this : nullptr;
+	    if (!standalone) {
+		  int existing = property_idx_from_name(cgdef->name);
+		  if (existing >= 0)
+			cg_class = const_cast<netclass_t*>(
+			      dynamic_cast<const netclass_t*>(
+				    get_prop_type((size_t)existing)));
+		  if (!cg_class) {
+			string cg_cname = string("__covgrp_")
+				      + string(name_.str())
+				      + "_" + string(cgdef->name.str()) + "_t";
+			perm_string cg_class_pname =
+			      lex_strings.make(cg_cname.c_str());
+			cg_class = new netclass_t(cg_class_pname, nullptr);
+			cg_class->set_scope_ready(true);
+			cg_class->set_body_elaborated(true);
+			cg_class->set_is_covergroup(true);
+			set_property(cgdef->name,
+				     property_qualifier_t::make_none(), cg_class);
+		  }
+	    }
+	    bind_covergroup_ranges_(des, this, cg_class, cgdef, standalone);
+	    if (!standalone && cg_class) {
+		  int cg_property = property_idx_from_name(cgdef->name);
+		  if (cg_property >= 0)
+			embedded_covergroups[static_cast<size_t>(cg_property)] =
+			      cg_class;
+	    }
       }
+
+      // A `new' expression can lazily enter PFunction::elaborate before
+      // netclass_t::elaborate.  Audit the unlowered constructor here, after
+      // all covergroup dependency metadata is stable and before function
+      // signatures or bodies can be elaborated.
+      map<perm_string,PFunction*>::const_iterator constructor =
+	    pclass->funcs.find(perm_string::literal("new"));
+      if (constructor == pclass->funcs.end())
+	    constructor = pclass->funcs.find(perm_string::literal("new@"));
+      const PFunction*constructor_function =
+	    constructor == pclass->funcs.end() ? nullptr : constructor->second;
+      const Statement*constructor_body = constructor_function
+	    ? constructor_function->get_statement() : nullptr;
+
+      covergroup_constructor_order_classifier_t classifier(
+	    this, constructor_function, embedded_covergroups);
+      set<size_t> initially_initialized;
+      const netclass_t*super = get_super();
+      if (super && super->constructor_initialization_audited())
+	    initially_initialized =
+		  super->constructor_definitely_initialized();
+
+      pform_constructor_order_result_t order =
+	    audit_pform_constructor_order(constructor_body, classifier,
+				      initially_initialized);
+      set_constructor_initializer_sites(
+	    order.authorized_instance_constant_initializers,
+	    order.rejected_instance_constant_initializers,
+	    order.instance_constant_initializer_properties);
+      report_constructor_order_violations_(des, this, order);
+      if (order.has_reachable_exit)
+	    set_constructor_definitely_initialized(
+		  order.definitely_initialized_at_exit);
+      else
+	    set_constructor_definitely_initialized(set<size_t>());
 
       for (map<perm_string,PFunction*>::iterator cur = pclass->funcs.begin()
 		 ; cur != pclass->funcs.end() ; ++ cur) {
@@ -2086,7 +2607,8 @@ static void seed_super_chain_properties_(Design*des, const netclass_t*cls)
 		  pform_interface_modport(
 			des, super_scope_mut, cur->second.type.get());
 	    super_mut->set_property(cur->first, cur->second.qual, use_type,
-				    interface_modport);
+				    interface_modport,
+				    cur->second.has_decl_initializer);
 	    if (cur->second.qual.test_static()) {
 		  NetNet*sig = super_scope_mut->find_signal(cur->first);
 		if (sig == 0)
@@ -2142,7 +2664,8 @@ static void seed_class_scope_properties_for_method_elab_(Design*des,
 		  pform_interface_modport(
 			des, class_scope, cur->second.type.get());
 	    clsnet->set_property(cur->first, cur->second.qual, use_type,
-				 interface_modport);
+				 interface_modport,
+				 cur->second.has_decl_initializer);
 	    if (cur->second.qual.test_static()) {
 		  NetNet*sig = class_scope->find_signal(cur->first);
 		if (sig == 0)

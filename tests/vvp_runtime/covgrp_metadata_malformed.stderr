@@ -17,3 +17,16 @@ tests/vvp_runtime/covgrp_metadata_malformed.vvp:86: invalid .covgrp_cross_term m
 tests/vvp_runtime/covgrp_metadata_malformed.vvp:89: invalid .covgrp_cross_term metadata value
 tests/vvp_runtime/covgrp_metadata_malformed.vvp:92: invalid .covgrp_cross_bin metadata value
 tests/vvp_runtime/covgrp_metadata_malformed.vvp:95: invalid .covgrp_cross_bin metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:100: invalid .covgrp_dyn_bin metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:107: invalid .covgrp_dyn_bin metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:114: invalid .covgrp_dyn_bin metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:121: invalid .covgrp_dyn_bin metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:128: invalid .covgrp_dyn_bin metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:135: invalid .covgrp_dyn_bin metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:142: invalid .covgrp_dyn_bin metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:150: invalid .covgrp_dyn_bin metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:158: parent-dependent .covgrp_dyn_bin has no .covgrp_parent metadata
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:162: invalid .covgrp_parent metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:167: invalid .covgrp_parent metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:171: invalid .covgrp_parent metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:183: invalid .covgrp_dyn_bin metadata value

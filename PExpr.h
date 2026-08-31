@@ -709,7 +709,8 @@ class PEIdent : public PExpr {
 				      bool is_force, bool is_cassign,
 				      NetNet *reg, ivl_type_t data_type,
 				      pform_name_t tail_path,
-				      const std::list<index_component_t>&base_index) const;
+				      const std::list<index_component_t>&base_index,
+				      bool is_init) const;
       NetAssign_*elaborate_lval_net_word_(Design*, NetScope*, NetNet*,
 					  bool need_const_idx, bool is_force) const;
       bool elaborate_lval_net_bit_(Design*, NetScope*, NetAssign_*,
@@ -724,7 +725,8 @@ class PEIdent : public PExpr {
 						   NetNet*,
 						   pform_name_t,
 						   const std::list<index_component_t>&base_index,
-						   bool need_const_idx) const;
+						   bool need_const_idx,
+						   bool is_init) const;
       bool elaborate_lval_net_packed_member_(Design*, NetScope*,
 					     NetAssign_*,
 					     pform_name_t member_path, bool is_force) const;

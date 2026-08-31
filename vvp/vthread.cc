@@ -6613,6 +6613,23 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 		  }
 		  continue;
 	    }
+	      // pp:N:W endpoints read an enclosing-class instance constant through
+	      // __covgrp_parent. Construction evaluates dynamic metadata before the
+	      // covergroup RHS is stored in its parent property, so defer the whole
+	      // family rather than diagnosing a transient missing link. The property
+	      // assignment finalizes and freezes the ranges immediately afterwards.
+	    bool endpoint_parent = rec.lo_ir.find("pp:") != string::npos
+		  || rec.hi_ir.find("pp:") != string::npos;
+	    if (endpoint_parent) {
+		  int pprop = defn->covgrp_parent_prop();
+		  vvp_object_t parent_obj;
+		  if (pprop >= 0)
+			cobj->get_object((size_t)pprop, parent_obj, 0);
+		  if (pprop < 0 || !parent_obj.peek<vvp_cobject>()) {
+			deferred = true;
+			continue;
+		  }
+	    }
 	    uint64_t lo_bits = 0, hi_bits = 0;
 	    unsigned lo_width = 0, hi_width = 0;
 	    bool lo_signed = false, hi_signed = false;
@@ -25688,6 +25705,49 @@ bool of_SCOPY(vthread_t thr, vvp_code_t)
 	    dest.shallow_copy(tmp);
 
       return true;
+}
+
+/*
+ * %prop/const/init <pid>
+ *
+ * Pop the receiver class object and claim the one constructor assignment
+ * allowed for this non-static instance constant by IEEE 1800-2017/2023 8.19.
+ * The compiler emits this once per authorized source assignment, before any
+ * aggregate lowering, so an array assignment does not claim once per element.
+ */
+bool of_PROP_CONST_INIT(vthread_t thr, vvp_code_t cp)
+{
+      size_t pid = cp->number;
+      vvp_object_t object;
+      thr->pop_object(object);
+      vvp_cobject*cobj = object.peek<vvp_cobject>();
+      const class_type*defn = cobj ? cobj->get_defn() : nullptr;
+
+      if (!defn || pid >= defn->property_count()
+	  || !defn->property_is_const(pid) || defn->property_is_static(pid)) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: %prop/const/init requires a non-static const "
+		 << "class property receiver (pid=" << pid << ")." << endl;
+	    vpip_set_return_value(1);
+	    if (!schedule_finished())
+		  schedule_finish(0);
+	    return false;
+      }
+
+      bool report = false;
+      if (cobj->claim_instance_constant_assignment(pid, report))
+	    return true;
+
+      if (report)
+	    cerr << thr->get_fileline()
+		 << "runtime error: instance constant `" << defn->property_name(pid)
+		 << "' of class `" << defn->class_name()
+		 << "' was assigned more than once in its corresponding class "
+		 << "constructor (IEEE 1800 8.19)." << endl;
+      vpip_set_return_value(1);
+      if (!schedule_finished())
+	    schedule_finish(0);
+      return false;
 }
 
 static void thread_peek(vthread_t thr, double&value)

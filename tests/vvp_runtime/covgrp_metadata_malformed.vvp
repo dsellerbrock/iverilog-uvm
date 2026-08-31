@@ -94,6 +94,95 @@ C0x14 .class "bad_cross_bin_narrowing" "top.bad_cross_bin_narrowing" [0]
 C0x15 .class "bad_cross_bin_kind" "top.bad_cross_bin_kind" [0]
  .covgrp_cross_bin 0 3 0 "bad" "T"
  ;
+C0x16 .class "bad_parent_atom_missing_pid" "top.bad_parent_atom_missing_pid" [2]
+   0: "__bin", "q0:sb32"
+   1: "__covgrp_parent", "q0:o"
+ .covgrp_dyn_bin 0 0 0 0 0 "bad_missing_pid" "pp::32" "c:1:32" "u32" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_parent 1
+ ;
+C0x17 .class "bad_parent_atom_missing_width" "top.bad_parent_atom_missing_width" [2]
+   0: "__bin", "q0:sb32"
+   1: "__covgrp_parent", "q0:o"
+ .covgrp_dyn_bin 0 0 0 0 0 "bad_missing_width" "pp:0" "c:1:32" "u32" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_parent 1
+ ;
+C0x18 .class "bad_parent_atom_zero_width" "top.bad_parent_atom_zero_width" [2]
+   0: "__bin", "q0:sb32"
+   1: "__covgrp_parent", "q0:o"
+ .covgrp_dyn_bin 0 0 0 0 0 "bad_zero_width" "pp:0:0" "c:1:32" "u32" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_parent 1
+ ;
+C0x19 .class "bad_parent_atom_wide" "top.bad_parent_atom_wide" [2]
+   0: "__bin", "q0:sb32"
+   1: "__covgrp_parent", "q0:o"
+ .covgrp_dyn_bin 0 0 0 0 0 "bad_wide" "pp:0:65" "c:1:32" "u32" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_parent 1
+ ;
+C0x1a .class "bad_parent_atom_pid_overflow" "top.bad_parent_atom_pid_overflow" [2]
+   0: "__bin", "q0:sb32"
+   1: "__covgrp_parent", "q0:o"
+ .covgrp_dyn_bin 0 0 0 0 0 "bad_pid_overflow" "pp:18446744073709551616:32" "c:1:32" "u32" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_parent 1
+ ;
+C0x1b .class "bad_parent_atom_suffix" "top.bad_parent_atom_suffix" [2]
+   0: "__bin", "q0:sb32"
+   1: "__covgrp_parent", "q0:o"
+ .covgrp_dyn_bin 0 0 0 0 0 "bad_suffix" "pp:0:32:u" "c:1:32" "u32" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_parent 1
+ ;
+C0x1c .class "bad_parent_atom_trailing" "top.bad_parent_atom_trailing" [2]
+   0: "__bin", "q0:sb32"
+   1: "__covgrp_parent", "q0:o"
+ .covgrp_dyn_bin 0 0 0 0 0 "bad_trailing" "pp:0:32 c:1:32" "c:1:32" "u32" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_parent 1
+ ;
+C0x1d .class "bad_parent_atom_legacy" "top.bad_parent_atom_legacy" [2]
+   0: "__bin", "q0:sb32"
+   1: "__covgrp_parent", "q0:o"
+ .covgrp_dyn_bin 0 0 0 0 0 "bad_legacy" "pp:0:32" "c:1:32"
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_parent 1
+ ;
+C0x1e .class "bad_parent_missing_link_metadata" "top.bad_parent_missing_link_metadata" [2]
+   0: "__bin", "q0:sb32"
+   1: "__covgrp_parent", "q0:o"
+ .covgrp_dyn_bin 0 0 0 0 0 "bad_missing_link" "pp:0:32" "c:1:32" "u32" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ ;
+C0x1f .class "bad_parent_index_narrowing" "top.bad_parent_index_narrowing" [2]
+   0: "__bin", "q0:sb32"
+   1: "__covgrp_parent", "q0:o"
+ .covgrp_parent 2147483648
+ ;
+C0x20 .class "bad_parent_index_bounds" "top.bad_parent_index_bounds" [2]
+   0: "__bin", "q0:sb32"
+   1: "__covgrp_parent", "q0:o"
+ .covgrp_parent 2
+ ;
+C0x21 .class "bad_parent_property_type" "top.bad_parent_property_type" [1]
+   0: "__covgrp_parent", "q0:b32"
+ .covgrp_parent 0
+ ;
+C0x22 .class "valid_parent_atom_boundaries" "top.valid_parent_atom_boundaries" [2]
+   0: "__bin", "q0:sb32"
+   1: "__covgrp_parent", "q0:o"
+ .covgrp_dyn_bin 0 0 0 0 0 "valid_width_one" "pp:0:1" "c:1:1" "u1" 4294967295
+ .covgrp_dyn_bin 0 0 0 1 0 "valid_signed_width_64" "pp:0:64:s" "c:9223372036854775807:64:s" "s64" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_parent 1
+ ;
+C0x23 .class "bad_parent_atom_embedded" "top.bad_parent_atom_embedded" [1]
+   0: "__bin", "q0:sb32"
+ .covgrp_dyn_bin 0 0 0 0 0 "bad_embedded" "c:0pp:0:32" "c:1:32" "u32" 4294967295
+ .covgrp_item 1 1 0 "cp" "" 0
+ ;
 :file_names 2;
     "N/A";
     "covgrp_metadata_malformed.vvp";
