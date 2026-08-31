@@ -8,6 +8,7 @@ module top;
     const bit [7:0] shift_base;
     const int signed shift_count;
     const logic [3:0] maybe_high;
+    const int unsigned branch_high;
     const int signed declaration_global_low = -4;
     const int signed declaration_global_high = -2;
     static const int signed GLOBAL_CENTER = -1;
@@ -49,6 +50,10 @@ module top;
         bins values = {[declaration_global_low:declaration_global_high]};
       }
     endgroup
+    covergroup branch_cg with function sample(int unsigned value);
+      option.per_instance = 1;
+      cp: coverpoint value { bins values = {[0:branch_high]}; }
+    endgroup
 
     function new(int unsigned unsigned_high_arg,
                  int signed signed_low_arg,
@@ -56,13 +61,18 @@ module top;
                  bit [7:0] shift_base_arg,
                  int signed shift_count_arg,
                  logic [3:0] maybe_high_arg,
-                 int signed bias_arg);
+                 int signed bias_arg,
+                 bit branch_wide_arg);
       unsigned_high = unsigned_high_arg;
       signed_low = signed_low_arg;
       signed_high = signed_high_arg;
       shift_base = shift_base_arg;
       shift_count = shift_count_arg;
       maybe_high = maybe_high_arg;
+      if (branch_wide_arg)
+        branch_high = 3;
+      else
+        this.branch_high = 1;
       unsigned_cg = new;
       signed_cg = new;
       arithmetic_cg = new(bias_arg);
@@ -70,6 +80,7 @@ module top;
       xz_cg = new;
       global_cg = new;
       declaration_global_cg = new;
+      branch_cg = new;
     endfunction
   endclass
 
@@ -78,9 +89,9 @@ module top;
   model narrow_again;
 
   initial begin
-    narrow = new(1, -2, 1, 8'h80, 1, 4'bx001, 1);
-    wide = new(3, 2, 5, 8'h03, 1, 4'h3, 1);
-    narrow_again = new(1, -2, 1, 8'h80, 1, 4'h0, 1);
+    narrow = new(1, -2, 1, 8'h80, 1, 4'bx001, 1, 0);
+    wide = new(3, 2, 5, 8'h03, 1, 4'h3, 1, 1);
+    narrow_again = new(1, -2, 1, 8'h80, 1, 4'h0, 1, 0);
 
     narrow.unsigned_cg.sample(3);
     wide.unsigned_cg.sample(3);
@@ -145,6 +156,14 @@ module top;
     narrow.declaration_global_cg.sample(-3);
     if (narrow.declaration_global_cg.get_inst_coverage() != 100.0)
       $fatal(1, "declaration-initialized class constants were not resolved");
+
+    narrow.branch_cg.sample(2);
+    wide.branch_cg.sample(2);
+    narrow_again.branch_cg.sample(2);
+    if (narrow.branch_cg.get_inst_coverage() != 0.0 ||
+        wide.branch_cg.get_inst_coverage() != 100.0 ||
+        narrow_again.branch_cg.get_inst_coverage() != 0.0)
+      $fatal(1, "mutually exclusive const initializers were not path-correct");
     $display("PASSED");
   end
 endmodule

@@ -109,4 +109,21 @@ module top;
       }
     endgroup
   endclass
+
+  class c10_straight_reassignment;
+    const int DUPLICATE_LIMIT;
+    function new;
+      DUPLICATE_LIMIT = 1;
+      DUPLICATE_LIMIT = 2;
+    endfunction
+  endclass
+
+  class c11_possible_reassignment;
+    const int POSSIBLE_LIMIT;
+    function new(bit take_first);
+      if (take_first)
+        POSSIBLE_LIMIT = 1;
+      this.POSSIBLE_LIMIT = 2;
+    endfunction
+  endclass
 endmodule

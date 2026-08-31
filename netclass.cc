@@ -658,6 +658,27 @@ ivl_signal_t netclass_t::get_prop_static_target(size_t idx) const
       return prop.qual.test_static() ? prop.static_target : 0;
 }
 
+void netclass_t::set_constructor_initializer_sites(
+      const set<const Statement*>&authorized,
+      const set<const Statement*>&rejected)
+{
+      constructor_initializer_sites_ = authorized;
+      rejected_constructor_initializer_sites_ = rejected;
+}
+
+netclass_t::constructor_initializer_site_status_t
+netclass_t::constructor_initializer_site_status(
+      const Statement*statement) const
+{
+      if (!statement)
+	    return CONSTRUCTOR_INITIALIZER_NOT_APPLICABLE;
+      if (rejected_constructor_initializer_sites_.count(statement))
+	    return CONSTRUCTOR_INITIALIZER_REJECTED;
+      if (constructor_initializer_sites_.count(statement))
+	    return CONSTRUCTOR_INITIALIZER_AUTHORIZED;
+      return CONSTRUCTOR_INITIALIZER_NOT_APPLICABLE;
+}
+
 bool netclass_t::get_prop_initialized(size_t idx) const
 {
       size_t super_size = 0;

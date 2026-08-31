@@ -6815,7 +6815,25 @@ NetAssign_* PAssign_::elaborate_lval(Design*des, NetScope*scope) const
 		 << "lval_ expr type = " << typeid(*lval_).name() << endl;
       }
 
-      return lval_->elaborate_lval(des, scope, false, false, is_init_);
+      bool authorized_initializer = is_init_;
+      if (!authorized_initializer) {
+	    const netclass_t*class_type =
+		  find_class_containing_scope(*this, scope);
+	    if (class_type) {
+		  netclass_t::constructor_initializer_site_status_t status =
+			class_type->constructor_initializer_site_status(this);
+		  // Both audited outcomes must continue through ordinary l-value
+		  // and r-value elaboration. The control-flow audit already owns the
+		  // focused reassignment diagnostic for a rejected site; treating it
+		  // as an initializer here suppresses only a redundant const-write
+		  // error, without hiding independent expression diagnostics.
+		  authorized_initializer =
+			status != netclass_t::CONSTRUCTOR_INITIALIZER_NOT_APPLICABLE;
+	    }
+      }
+
+      return lval_->elaborate_lval(des, scope, false, false,
+				    authorized_initializer);
 }
 
 NetScope* PAssign_::elaborate_rval_scope_(Design*des, NetScope*scope) const

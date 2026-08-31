@@ -34,6 +34,7 @@ class NetScope;
 class PClass;
 class PExpr;
 class PEventStatement;
+class Statement;
 
 class netclass_t : public ivl_type_s {
     public:
@@ -586,6 +587,21 @@ class netclass_t : public ivl_type_s {
       { return constructor_definitely_initialized_; }
       bool constructor_initialization_audited() const
       { return constructor_initialization_audited_; }
+
+	// The unlowered constructor control-flow audit is authoritative for
+	// procedural writes to IEEE 1800 8.19 instance constants. Parse-form
+	// statements may be shared by parameterized specializations, so retain
+	// the decision on this elaborated class type rather than on Statement.
+      enum constructor_initializer_site_status_t {
+	    CONSTRUCTOR_INITIALIZER_NOT_APPLICABLE,
+	    CONSTRUCTOR_INITIALIZER_AUTHORIZED,
+	    CONSTRUCTOR_INITIALIZER_REJECTED
+      };
+      void set_constructor_initializer_sites(
+	    const std::set<const Statement*>&authorized,
+	    const std::set<const Statement*>&rejected);
+      constructor_initializer_site_status_t
+      constructor_initializer_site_status(const Statement*statement) const;
       bool has_embedded_covergroups() const { return has_embedded_cgs_; }
       void set_has_embedded_covergroups(bool f) { has_embedded_cgs_ = f; }
       unsigned covgrp_ncoverpoints() const { return covgrp_ncoverpoints_; }
@@ -680,6 +696,8 @@ class netclass_t : public ivl_type_s {
 	bool covgrp_range_bindings_complete_ = false;
 	std::set<size_t> constructor_definitely_initialized_;
 	bool constructor_initialization_audited_ = false;
+	std::set<const Statement*>constructor_initializer_sites_;
+	std::set<const Statement*>rejected_constructor_initializer_sites_;
       std::vector<covgrp_bin_t> covgrp_bins_;
       std::vector<covgrp_dyn_bin_t> covgrp_dyn_bins_;
       std::vector<covgrp_cross_t> covgrp_crosses_;

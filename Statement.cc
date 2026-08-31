@@ -308,7 +308,10 @@ bool PWhile::contains_detached_fork() const
 
 namespace {
 
-typedef std::set<size_t> ctor_order_state_t;
+struct ctor_order_state_t {
+      std::set<size_t> definitely_initialized;
+      std::set<size_t> maybe_initialized;
+};
 
 struct ctor_order_channel_t {
       bool reachable = false;
@@ -322,12 +325,20 @@ struct ctor_order_flow_t {
       ctor_order_channel_t continued;
 };
 
-static ctor_order_state_t ctor_order_intersection_(
-      const ctor_order_state_t&left, const ctor_order_state_t&right)
+static std::set<size_t> ctor_order_intersection_(
+      const std::set<size_t>&left, const std::set<size_t>&right)
 {
-      ctor_order_state_t result;
+      std::set<size_t> result;
       std::set_intersection(left.begin(), left.end(), right.begin(), right.end(),
 			    std::inserter(result, result.end()));
+      return result;
+}
+
+static std::set<size_t> ctor_order_union_(
+      const std::set<size_t>&left, const std::set<size_t>&right)
+{
+      std::set<size_t> result = left;
+      result.insert(right.begin(), right.end());
       return result;
 }
 
@@ -340,7 +351,11 @@ static void ctor_order_merge_alternatives_(ctor_order_channel_t&dst,
 	    dst = src;
 	    return;
       }
-      dst.state = ctor_order_intersection_(dst.state, src.state);
+      dst.state.definitely_initialized = ctor_order_intersection_(
+	    dst.state.definitely_initialized,
+	    src.state.definitely_initialized);
+      dst.state.maybe_initialized = ctor_order_union_(
+	    dst.state.maybe_initialized, src.state.maybe_initialized);
 }
 
 static ctor_order_flow_t ctor_order_identity_(const ctor_order_state_t&state)
@@ -364,13 +379,21 @@ class pform_constructor_order_audit_t {
     public:
       pform_constructor_order_audit_t(
 	    const pform_constructor_order_classifier_t&classifier,
-	    const ctor_order_state_t&initially_initialized)
-      : classifier_(classifier), initially_initialized_(initially_initialized)
-      { }
+	    const std::set<size_t>&initially_initialized)
+	  : classifier_(classifier)
+	  {
+	    initially_initialized_.definitely_initialized = initially_initialized;
+	    initially_initialized_.maybe_initialized = initially_initialized;
+	  }
 
       pform_constructor_order_result_t run(const Statement*statement)
       {
 	    collect_(statement);
+	    for (const std::pair<const Statement*const,assignment_info_t>&entry :
+		 assignments_)
+		  if (entry.second.initializes_constant)
+			result_.authorized_instance_constant_initializers.insert(
+			      entry.first);
 	    check_forbidden_regions_();
 
 	    ctor_order_flow_t flow = flow_(statement, initially_initialized_);
@@ -379,7 +402,8 @@ class pform_constructor_order_audit_t {
 	    ctor_order_merge_alternatives_(exits, flow.returned);
 	    result_.has_reachable_exit = exits.reachable;
 	    if (exits.reachable)
-		  result_.definitely_initialized_at_exit = exits.state;
+		  result_.definitely_initialized_at_exit =
+			exits.state.definitely_initialized;
 	    return result_;
       }
 
@@ -404,7 +428,7 @@ class pform_constructor_order_audit_t {
       };
 
       const pform_constructor_order_classifier_t&classifier_;
-      const ctor_order_state_t initially_initialized_;
+      ctor_order_state_t initially_initialized_;
       std::vector<const PBlock*>block_stack_;
       std::vector<region_t>region_stack_;
       std::map<const Statement*,assignment_info_t>assignments_;
@@ -412,6 +436,7 @@ class pform_constructor_order_audit_t {
       std::vector<const assignment_info_t*>constructors_;
       pform_constructor_order_result_t result_;
       std::set<std::tuple<const Statement*,size_t> >reported_order_;
+      std::set<std::tuple<const Statement*,size_t> >reported_reassignment_;
       std::set<std::tuple<const Statement*,size_t,const Statement*,int> >
 	    reported_region_;
 
@@ -644,7 +669,8 @@ class pform_constructor_order_audit_t {
 	    if (info.constructs_covergroup) {
 		  for (const pform_constructor_order_dependency_t&dependency :
 		       info.dependencies) {
-			if (input.count(dependency.property_idx))
+			if (input.definitely_initialized.count(
+			      dependency.property_idx))
 			      continue;
 			std::tuple<const Statement*,size_t>key(
 			      statement, dependency.property_idx);
@@ -659,8 +685,25 @@ class pform_constructor_order_audit_t {
 			result_.violations.push_back(violation);
 		  }
 	    }
-	    if (info.initializes_constant)
-		  output.insert(info.initialized_property);
+	    if (info.initializes_constant) {
+		  if (input.maybe_initialized.count(info.initialized_property)) {
+			std::tuple<const Statement*,size_t>key(
+			      statement, info.initialized_property);
+			if (reported_reassignment_.insert(key).second) {
+			      pform_constructor_order_violation_t violation;
+			      violation.kind = PFORM_CTOR_ORDER_REASSIGNMENT;
+			      violation.property_idx = info.initialized_property;
+			      violation.initializer_site = initializer_site_(info);
+			      result_.violations.push_back(violation);
+			}
+			result_.authorized_instance_constant_initializers.erase(
+			      statement);
+			result_.rejected_instance_constant_initializers.insert(
+			      statement);
+		  }
+		  output.definitely_initialized.insert(info.initialized_property);
+		  output.maybe_initialized.insert(info.initialized_property);
+	    }
 	    return output;
       }
 
@@ -718,9 +761,14 @@ class pform_constructor_order_audit_t {
 		  // property initialized by any such branch is definite afterward.
 		  result.normal = channel_(input);
 		  for (const ctor_order_flow_t&branch : branches) {
-			if (branch.normal.reachable)
-			      result.normal.state.insert(branch.normal.state.begin(),
-						 branch.normal.state.end());
+			if (branch.normal.reachable) {
+			      result.normal.state.definitely_initialized.insert(
+				    branch.normal.state.definitely_initialized.begin(),
+				    branch.normal.state.definitely_initialized.end());
+			      result.normal.state.maybe_initialized.insert(
+				    branch.normal.state.maybe_initialized.begin(),
+				    branch.normal.state.maybe_initialized.end());
+			}
 			ctor_order_merge_alternatives_(result.returned,
 						 branch.returned);
 		  }

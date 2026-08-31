@@ -1038,7 +1038,8 @@ class pform_constructor_order_classifier_t {
 enum pform_constructor_order_violation_kind_t {
       PFORM_CTOR_ORDER_NOT_INITIALIZED,
       PFORM_CTOR_ORDER_SHARED_LOOP,
-      PFORM_CTOR_ORDER_SHARED_JOIN_NONE
+      PFORM_CTOR_ORDER_SHARED_JOIN_NONE,
+      PFORM_CTOR_ORDER_REASSIGNMENT
 };
 
 struct pform_constructor_order_violation_t {
@@ -1054,6 +1055,8 @@ struct pform_constructor_order_violation_t {
 
 struct pform_constructor_order_result_t {
       std::set<size_t> definitely_initialized_at_exit;
+      std::set<const Statement*>authorized_instance_constant_initializers;
+      std::set<const Statement*>rejected_instance_constant_initializers;
       std::vector<pform_constructor_order_violation_t> violations;
       bool has_reachable_exit = false;
 };

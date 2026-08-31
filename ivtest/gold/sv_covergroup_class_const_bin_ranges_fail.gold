@@ -13,5 +13,7 @@
 ./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:79: note: covergroup expression reference is here.
 ./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:99: error: covergroup bin `base_local' range expression references local property `LOCAL_LIMIT' of base class `c08a_local_base'; it is not visible in the derived enclosing class (IEEE 1800 8.18, 19.4).
 ./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:108: error: covergroup bin `static_missing' range expression references static const enclosing-class property `STATIC_LIMIT' without a declaration initializer; IEEE 1800 8.19 requires a global constant to be initialized in its declaration.
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:117: error: instance constant `DUPLICATE_LIMIT' can be assigned only once along every reachable path through its corresponding class constructor (IEEE 1800 8.19).
+./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:126: error: instance constant `POSSIBLE_LIMIT' can be assigned only once along every reachable path through its corresponding class constructor (IEEE 1800 8.19).
 ./ivltests/sv_covergroup_class_const_bin_ranges_fail.v:104: error: Const properties of class c09_static_const_missing are missing initialization.
-10 error(s) during elaboration.
+12 error(s) during elaboration.

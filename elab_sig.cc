@@ -2012,7 +2012,7 @@ class covergroup_constructor_order_classifier_t :
       }
 };
 
-static void report_covergroup_constructor_order_violations_(
+static void report_constructor_order_violations_(
       Design*des, const netclass_t*parent,
       const pform_constructor_order_result_t&result)
 {
@@ -2022,7 +2022,9 @@ static void report_covergroup_constructor_order_violations_(
 	    const char*covergroup = violation.covergroup_name
 		  ? violation.covergroup_name : "<unknown>";
 	    const LineInfo*site = violation.constructor_site
-		  ? violation.constructor_site : violation.reference_site;
+		  ? violation.constructor_site
+		  : violation.initializer_site
+		    ? violation.initializer_site : violation.reference_site;
 	    string fileline = site ? site->get_fileline() : string("<unknown>");
 
 	    cerr << fileline << ": error: ";
@@ -2045,12 +2047,19 @@ static void report_covergroup_constructor_order_violations_(
 		       << "' constructor call may not appear in the same "
 			  "fork-join_none statement (IEEE 1800 19.5).";
 		  break;
+		case PFORM_CTOR_ORDER_REASSIGNMENT:
+		  cerr << "instance constant `" << property
+		       << "' can be assigned only once along every reachable path "
+			  "through its corresponding class constructor "
+			  "(IEEE 1800 8.19).";
+		  break;
 	    }
 	    cerr << endl;
 	    des->errors += 1;
 
 	    if (violation.initializer_site
-		&& violation.kind != PFORM_CTOR_ORDER_NOT_INITIALIZED)
+		&& (violation.kind == PFORM_CTOR_ORDER_SHARED_LOOP
+		    || violation.kind == PFORM_CTOR_ORDER_SHARED_JOIN_NONE))
 		  cerr << violation.initializer_site->get_fileline()
 		       << ": note: instance constant initializer is here." << endl;
 	    if (violation.reference_site)
@@ -2342,7 +2351,10 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
       pform_constructor_order_result_t order =
 	    audit_pform_constructor_order(constructor_body, classifier,
 				      initially_initialized);
-      report_covergroup_constructor_order_violations_(des, this, order);
+      set_constructor_initializer_sites(
+	    order.authorized_instance_constant_initializers,
+	    order.rejected_instance_constant_initializers);
+      report_constructor_order_violations_(des, this, order);
       if (order.has_reachable_exit)
 	    set_constructor_definitely_initialized(
 		  order.definitely_initialized_at_exit);
