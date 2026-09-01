@@ -6818,7 +6818,7 @@ NetAssign_* PAssign_::elaborate_lval(Design*des, NetScope*scope) const
       bool authorized_initializer = is_init_;
       if (!authorized_initializer) {
 	    const netclass_t*class_type =
-		  find_class_containing_scope(*this, scope);
+		  find_method_containing_class(des, *this, scope);
 	    if (class_type) {
 		  netclass_t::constructor_initializer_site_status_t status =
 			class_type->constructor_initializer_site_status(this);
@@ -8329,7 +8329,8 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
       if (!result)
 	    return nullptr;
 
-      const netclass_t*class_type = find_class_containing_scope(*this, scope);
+      const netclass_t*class_type =
+	    find_method_containing_class(des, *this, scope);
       int property_idx = class_type
 	    ? class_type->constructor_initializer_property(this) : -1;
       if (property_idx < 0)
@@ -20794,47 +20795,46 @@ NetProc* PForeach::elaborate_assoc_array_(Design*des, NetScope*scope,
  */
 NetProc* PForStatement::elaborate(Design*des, NetScope*scope) const
 {
-      NetExpr*initial_expr;
-      NetNet*sig;
+      NetExpr*initial_expr = nullptr;
+      NetNet*sig = nullptr;
+      NetProc*initial_statement = nullptr;
       bool error_flag = false;
       ivl_assert(*this, scope);
+      ivl_assert(*this, (initialization_ == nullptr) == (name1_ == nullptr));
 
       if (!name1_) {
 	    // If there is no initial assignment expression, then mark that
 	    // fact with null pointers.
 	    ivl_assert(*this, !expr1_);
-	    sig = nullptr;
-	    initial_expr = nullptr;
-
-      } else if (const PEIdent*id1 = dynamic_cast<const PEIdent*>(name1_)) {
-	    // If there is an initialization assignment, make the expression,
-	    // and later the initial assignment to the condition variable. The
-	    // statement in the for loop is very specifically an assignment.
-	    sig = des->find_signal(scope, id1->path().name);
-	    if (sig == 0) {
-		  cerr << id1->get_fileline() << ": register ``" << id1->path()
-		       << "'' unknown in " << scope_path(scope) << "." << endl;
-		  des->errors += 1;
-		  return 0;
-	    }
-
-	    // Make the r-value of the initial assignment, and size it
-	    // properly. Then use it to build the assignment statement.
-	    initial_expr = elaborate_rval_expr(des, scope, sig->net_type(),
-					       expr1_);
-	    if (!initial_expr)
-		  error_flag = true;
-
-	    if (debug_elaborate && initial_expr) {
-		  cerr << get_fileline() << ": debug: FOR initial assign: "
-		       << sig->name() << " = " << *initial_expr << endl;
-	    }
-
       } else {
-	    cerr << get_fileline() << ": internal error: "
-		 << "Index name " << *name1_ << " is not a PEIdent." << endl;
-	    des->errors += 1;
-	    return 0;
+	    ivl_assert(*this, expr1_ && initialization_);
+	    if (const PEIdent*id1 = dynamic_cast<const PEIdent*>(name1_))
+		  sig = des->find_signal(scope, id1->path().name);
+
+	    if (sig && !sig->get_const()) {
+		  // Preserve the direct signal representation used by synthesis: its
+		  // index and initial expression remain on NetForLoop.
+		  initial_expr = elaborate_rval_expr(des, scope, sig->net_type(),
+						 expr1_);
+		  if (!initial_expr)
+			error_flag = true;
+
+		  if (debug_elaborate && initial_expr) {
+			cerr << get_fileline() << ": debug: FOR initial assign: "
+			     << sig->name() << " = " << *initial_expr << endl;
+		  }
+	    } else {
+		  sig = nullptr;
+		  // A class property (and any other nonsignal l-value) needs the
+		  // ordinary assignment path for l-value typing, independent r-value
+		  // diagnostics, and the per-object instance-constant guard. A const
+		  // NetNet (notably a static class constant) also belongs here so its
+		  // ordinary const-write legality is never bypassed by the synthesis
+		  // fast path.
+		  initial_statement = initialization_->elaborate(des, scope);
+		  if (!initial_statement)
+			error_flag = true;
+	    }
       }
 
       // Elaborate the statement that is contained in the for
@@ -20886,6 +20886,7 @@ NetProc* PForStatement::elaborate(Design*des, NetScope*scope) const
       // expressions, give up now. Error counts where handled elsewhere.
       if (error_flag) {
 	    if (initial_expr) delete initial_expr;
+	    if (initial_statement) delete initial_statement;
 	    if (ce) delete ce;
 	    if (step) delete step;
 	    if (sub) delete sub;
@@ -20900,7 +20901,14 @@ NetProc* PForStatement::elaborate(Design*des, NetScope*scope) const
 
       NetForLoop*loop = new NetForLoop(sig, initial_expr, ce, sub, step);
       loop->set_line(*this);
-      return loop;
+      if (!initial_statement)
+	    return loop;
+
+      NetBlock*sequence = new NetBlock(NetBlock::SEQU, nullptr);
+      sequence->set_line(*this);
+      sequence->append(initial_statement);
+      sequence->append(loop);
+      return sequence;
 }
 
 /*

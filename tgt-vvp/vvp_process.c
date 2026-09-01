@@ -5216,6 +5216,7 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 			  ivl_stmt_file(net), ivl_stmt_lineno(net));
 		  return 1;
 	    }
+	    show_stmt_file_line(net, "Instance constant initialization guard.");
 	    int errors = draw_eval_object(ivl_stmt_parm(net, 0));
 	    fprintf(vvp_out, "    %%prop/const/init %lu;\n",
 		    ivl_expr_uvalue(ivl_stmt_parm(net, 1)));

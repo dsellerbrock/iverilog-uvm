@@ -426,6 +426,7 @@ legacy-engine retirement.
 | M11-6 | Coverage serialization/interchange + adversarial cross/transition | A | **PARTIAL** | — | Durable reports, compact transitions, fixed routing, and per-instance dynamic-family cross topology are evidenced. Automatic products plus the tested named `binsof`/`intersect` conjunctions use every matched source identity, declaration-order-independent `illegal` > `ignore` > normal precedence, and illegal-cross locality. Current local gates are focus 20/20 in both harnesses, legacy 4,127 pass / 0 fail / 2 NI / 3 expected fail (4,132 total), JSON/VVP 1,017/1,017, negatives 136/136, VPI 103/103, and canonical UVM 354/354. The final OpenTitan matrix is 8 DEBT / 50 FAIL / 3 SETUP_FAIL / 0 PASS with zero timeouts/resource-limit signals and zero exact or generic former cross-drop diagnostics; it is a compile matrix, not a clean runtime pass. The final Caliptra static census is Icarus 53/105 in each assertions/no-assertions/synthesis lane versus Slang 54/105 with 0 ICARUS_GAP; it is not full DV runtime. Transition-term illegal crosses, remaining dynamic `with`/`matches`/set/`CrossQueueType` and broader compound selectors, source denominator carving, type union, report/VPI/normative naming, broader signed static range/intersect normalization, empty trailing fixed-array-bin identity/naming, real/tolerance, and products beyond the 65,536 cap remain open. `sv_covergroup_adversarial`, `sv_covergroup_dynamic_cross`, `sv_covergroup_dynamic_cross_binsof`, `sv_covergroup_cross_bin_precedence` |
 | M11-7 | Chained covergroup method calls (`obj.cg.sample()`) | F | DONE | — | sample/guard values read from the covergroup's parent object, not the caller's `this`; chained + cross-object sites correct |
 | M11-8 | Covergroup `sample()` from scope tasks/functions | C | **DONE** | — | covergroup metadata is synthesized before package/module/interface subroutine bodies are lowered. Previously `sample()` in those bodies compiled silently as a zero-coverpoint operation, leaving coverage at 0%. Direct, `with function sample`, package-task, module-task/function, interface-task, and nested class-receiver forms now preserve their coverpoint values. sv_covergroup_task_sample |
+| M11-9 | Class instance-constant / embedded-covergroup constructor order (8.19/19.5) | C | **PARTIAL** (recorded flow/runtime subset) | — | Corresponding-constructor source authorization, definite-order and same-loop/`join_none` checks, a per-object repeated-write guard, procedural `for` header/body/step flow, and repeat-count shadowing have paired 2017/2023 positive, negative, runtime, and malformed-IR evidence. Nonliteral constant-condition proof and exhaustive constructor flow remain M14B work. |
 
 ### M12B/C — VPI completion  (clause 36/38/40)
 
@@ -599,6 +600,18 @@ claimed and still requires the M14B subclause audit.
 
 Re-derive this by applying the priority rule to the OPEN items above; do not hand-edit
 the structure.
+
+**Checkpoint 2026-09-01.** Clauses 8 and 19 remain PARTIAL. The recorded
+8.19/19.5 constructor-order subset now passes 44/44 in both focused harnesses,
+2,212/2,212 full SystemVerilog, 1,290 JSON/VVP entries with zero failures,
+149/149 negatives, 103/103 VPI, and 354/354 real-DPI UVM. Source auditing and
+the per-object runtime guard cover the evidenced conditional, return, loop,
+step/continue/break, repeat, and detached-fork paths without changing the
+ordinary mutable-index synthesis representation. A clean, unmodified
+OpenTitan `rv_timer_sim` UVM compile improves from FAIL to DEBT with setup and
+compile return 0, zero hard errors, and 17 unrelated loud debt diagnostics.
+Nonliteral constant-condition proof and exhaustive constructor flow remain
+open; this checkpoint is not clause or application closure.
 
 **Checkpoint 2026-08-27.** Clause 23 remains PROVISIONAL. The bounded 23.11
 bind-target cluster now passes 110/110 in both the paired legacy and JSON/VVP

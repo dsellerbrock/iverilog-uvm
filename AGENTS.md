@@ -130,6 +130,12 @@
   PATH="$PWD/../local-install/bin:$PATH" python3 ./vvp_reg.py <list>
   ```
 
+- `perl ./vvp_reg.pl regress-synth.list` does **not** inject `-S`: the Perl
+  runner adds its synthesis flag only when invoked without an explicit list.
+  Use the no-argument full runner or put `-S` on every targeted synthesis
+  entry/command; otherwise negative synthesis tests misleadingly report that
+  no error occurred.
+
 - When a generated artifact's shebang may select a stale runtime, invoke the current repository `vvp/vvp` explicitly.
 - Record the exact compiler/runtime path in failure reports when tool provenance could affect the result.
 - Run legacy and JSON ivtest focus harnesses serially unless each has an

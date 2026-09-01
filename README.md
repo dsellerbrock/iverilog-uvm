@@ -56,7 +56,9 @@ On top of upstream Icarus Verilog's Verilog/partial-SystemVerilog support:
   config-db, phasing/objections, sequences, TLM, analysis ports, resource db,
   register layer (frontdoor)
 - **Classes**: parameterized classes, virtual dispatch, `$cast`, static
-  members, typed method-chain dispatch
+  members, typed method-chain dispatch, and the recorded IEEE 1800-2017/2023
+  8.19 constructor-only instance-constant subset with per-object repeated-write
+  enforcement
 - **Constrained randomization**: `rand`/`randc`, constraint blocks, `inside`,
   `dist`, `soft`, implication, `solve...before`, inline `with`, via a Z3 SMT
   backend
@@ -97,7 +99,10 @@ On top of upstream Icarus Verilog's Verilog/partial-SystemVerilog support:
   cleanup protocol, and shared-library loading via `vvp -d`
 - **Functional coverage**: a substantial clause-19 subset including value,
   transition and cross bins, options, queries, and typed per-instance
-  constructor-dependent integral ranges; known semantic gaps remain explicit
+  constructor-dependent integral ranges. The recorded 19.5 subset also checks
+  definite instance-constant initialization before embedded-covergroup
+  construction and rejects same-loop or `fork...join_none` placement; known
+  semantic gaps remain explicit
 - **VPI**: SystemVerilog object model — class variables/members, containers,
   interfaces, packages, covergroup and assertion handles, callbacks
 - **`bind`**, **`let`**, specify-path and timing-check support (`-gspecify`)
@@ -418,6 +423,14 @@ The evidenced subset includes value/range/default/ignore/illegal bins, compact
 transitions, crosses with `binsof`/`intersect`, `iff` guards, instance and type
 options, coverage queries, and durable reports.
 
+Paired 2017/2023 evidence also covers a bounded constructor-order subset. Only
+the corresponding class constructor may initialize a non-static instance
+constant; at most one assignment may execute per object; and an embedded
+covergroup that refers to the constant requires definite prior initialization.
+An initializer and referring construction may not share one loop or
+`fork...join_none` region. This is recorded 8.19/19.5 support, not clause
+closure.
+
 Typed constructor-dependent integral ranges are captured once per covergroup
 object. The bounded expression grammar preserves width, signedness, X/Z
 rejection, coverpoint-domain resolution, descending-range emptiness, and the
@@ -575,7 +588,7 @@ for recorded evidence and known corners, not a completeness certificate.
 
 | Area | Status | Notes |
 |---|---|---|
-| Core classes / OOP (cl. 8) | Substantial | Interface classes, nested class declarations, module/package/compilation-unit out-of-body `extern` methods, multiple `extends`/`implements` relationships, specialization-aware casts, inherited type visibility and method-contract checks are supported |
+| Core classes / OOP (cl. 8) | Substantial | Interface classes, nested class declarations, module/package/compilation-unit out-of-body `extern` methods, multiple `extends`/`implements` relationships, specialization-aware casts, inherited type visibility and method-contract checks are supported. The recorded 8.19 subset authorizes non-static instance-constant writes only in the corresponding constructor and enforces at most one executed write per object across evidenced conditional, loop, return, and detached-fork paths. |
 | UVM (Accellera core, unmodified) | Substantial | Current local canonical checkpoint: 354/354, 0 failed, 0 skipped, run WITHOUT `UVM_NO_DPI` via the Icarus UVM DPI backend (regex + command-line + `uvm_hdl_*` backdoor); frontdoor + user-defined backdoor work; `UVM_NO_DPI` native fallback still supported. |
 | Constraints / randomization (cl. 18) | Substantial | Z3-backed, including scope `std::randomize(vars) with {...}` for simple 1–64-bit integral variables; `randcase`/`randsequence` work |
 | Containers (queues/darrays/assoc, cl. 7) | Substantial | Broad recorded method subset. Under 7.6, equivalent-element queue/dynamic-array assignment, input copying, and output/inout copy-back create the destination or actual's declared runtime kind across direct, property, selected, conditional, function-result, aggregate, and nested stores; a real queue-to-dynamic assignment is pinned through the dynamic array's contiguous DPI representation. Assignment-compatible casts follow 6.24.1. The evidenced 6.24.3 integral bit-stream-cast subset changes element width only when the complete source bit count fits the destination and a bounded queue can hold every result element; mismatches terminate loudly instead of padding or truncating. Native output formals follow 13.3.2/13.4.2 static/automatic lifetime and 13.5 copy-out rules, and empty calls retain argument and copy-back effects. Value-returning native and DPI functions now accept direct one-dimensional fixed unpacked-array slice input/output/inout actuals, preserve each slice's bounds and direction, copy fixed/native values left-to-right, activate the numeric-indexed DPI view, copy back only the selected window, and reject fixed shape/element mismatches before lowering. The separate OpenTitan commercial-flow extension is deliberately restricted to an ordinary blocking cross-kind assignment between equal-width, equal-signedness packed `bit`/`logic` elements, with 4-state-to-2-state X/Z conversion governed by 6.11.2. Same-kind assignments, initialization, formal binding, enum identity, width, and signedness remain strict; the extension does not widen explicit casts or subroutine binding. Associative-array assignment patterns support evidenced explicit constant string/integral/enum keys plus at most one non-entry fallback `default`, with integral, string, real, class-handle, queue, nested-associative, and unpacked-struct values. Direct signal-backed fixed-unpacked prefixes ending in integral/string/real-valued associative leaves match the observed OpenTitan CSRNG/EDN/entropy-src shapes plus paired real-value reducers; every fixed dimension is checked before flattening so a multidimensional OOB selector cannot alias a valid sibling map. This is not an end-to-end IP pass claim. This is bounded clause-7 support, not complete closure: multidimensional and property-backed slice actuals, general recursive aggregate bit-stream casts, selected/scoped/property/function-return source forms for the narrow state extension, ordinary queue signal/method bounds above `UINT_MAX`, and previously recorded deeper aggregate/receiver/typing contexts remain legacy, loud, or open. |
@@ -583,7 +596,7 @@ for recorded evidence and known corners, not a completeness certificate.
 | Clocking blocks (cl. 14) | Partial | Sampled inputs, common output drives, `##N`, and global clocking work; recorded run-time-selected, indexed-receiver, and aggregate-output gaps remain |
 | Scheduler / event regions (cl. 4) | Supported | Full stratified queue incl. Preponed, post-NBA (`cbNBASynch`), Observed and the Reactive set; assertions sample Preponed, evaluate in Observed and run their actions in Reactive; region tracing/self-test under `IVL_REGION_TRACE` / `IVL_REGION_SELFTEST` ([audit](docs/conformance/scheduler_audit_2026_07.md)) |
 | SVA (cl. 16) | Partial | Automaton (NFA) engine is the default: implication, windows/unbounded incl. mid-chain, goto/nonconsec repetition, local vars, first_match, and/or/intersect/within/throughout, strong/weak, `.triggered`/`.matched`, multiclocked `\|=>`; legacy linear engine behind `IVL_SVA_LEGACY=1`; `expect` and `checker`/`endchecker` implemented; remaining loud boundaries include cross-clock overlapping `\|->`, `disable iff` across a two-or-more-boundary chain, and the separately recorded branch-flow/deferred-immediate gaps |
-| Functional coverage (cl. 19) | Partial | Substantial value/transition/cross/options/query subset. Paired legacy and JSON/VVP focus gates pass 20/20 for typed construction-time ranges, open/fixed array-bin identity and carving, per-instance dynamic cross topology, automatic and evidenced named-`binsof` routing, precedence/locality, and the constant 2023 auto-retention option. The constant option obeys the covergroup-default/cross-override scope and 2017 edition gate; coverpoint and `type_option` placements are rejected. Constructor/per-instance retention expressions, transition-term illegal crosses, remaining dynamic `with`/`matches`/set/`CrossQueueType` and broader compound selections, source denominator carving, type/report/VPI/naming, real/tolerance, and products beyond 65,536 remain open. |
+| Functional coverage (cl. 19) | Partial | Substantial value/transition/cross/options/query subset. Paired legacy and JSON/VVP constructor-order/coverage focus gates pass 44/44 for typed construction-time ranges, open/fixed array-bin identity and carving, per-instance dynamic cross topology, automatic and evidenced named-`binsof` routing, precedence/locality, the constant 2023 auto-retention option, and the recorded 19.5 definite-initialization/same-loop/`join_none` rules. The constant option obeys the covergroup-default/cross-override scope and 2017 edition gate; coverpoint and `type_option` placements are rejected. Constructor/per-instance retention expressions, nonliteral constant-condition proof, exhaustive constructor flow, transition-term illegal crosses, remaining dynamic `with`/`matches`/set/`CrossQueueType` and broader compound selections, source denominator carving, type/report/VPI/naming, real/tolerance, and products beyond 65,536 remain open. |
 | DPI-C (cl. 35) | Substantial | Import: exact scalar/atom/shortreal ABI and open arrays incl. multi-dim. Export: functions plus task execution with integer/scalar bit-logic/packed-vector/shortreal/real/chandle/string/void formals, scalar output/inout, `svScope` multi-instance + context-relative selection, and time-consuming tasks through POSIX `<ucontext.h>` or Win32 Fibers; generated task stubs return the H.8.2 `int` disable status. Checked imported-task integer acknowledgments, `svIsDisabledState`, imported-function `svAckDisabledState`, C cleanup resume, and fatal enforcement of 35.9(b)–(d) are implemented; old `%dpi/call/task` void images retain their normal-call compatibility path. Identical cross-scope/multi-instance exports remain legal, while duplicate local linkage names and incompatible cross-scope C signatures are rejected. H.8.9 keeps packed-vector results illegal. Loud legal gaps: imported shortreal arrays and fixed-size unpacked export formals. Exported open arrays and class-handle formals are diagnosed as IEEE-illegal. VCS/Questa/Xcelium interoperability remains the ABI target. |
 | VPI SV object model (cl. 36) | Substantial | Classes, live direct/property containers and element callbacks, covergroups, assertions; documented whole-container-write and assertion-detail corners remain |
 | `bind` (cl. 23.11) | Partial | Structured absolute/`$root`/relative targets, conditional per-owner resolution, fixed-point activation, target lists, collision and target-kind legality, plus late library definitions/directives and the documented automatic-root policy in the bounded one-dimensional subset described above |

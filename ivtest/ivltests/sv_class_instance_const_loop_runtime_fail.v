@@ -2,8 +2,11 @@
 // repeatedly, but the second execution on the same object is illegal.
 module top;
   class loop_c;
+    int mutable_prefix;
+    const bit [7:0] untouched;
     const bit [7:0] value;
     function new(int count);
+      mutable_prefix = count;
       repeat (count)
         value = 8'h81;
     endfunction

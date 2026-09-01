@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_class_repeat_count_probe_warning.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_class_repeat_count_probe_warning"
+}

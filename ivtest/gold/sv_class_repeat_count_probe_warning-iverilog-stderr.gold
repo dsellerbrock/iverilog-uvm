@@ -1,0 +1,4 @@
+ivltests/sv_class_repeat_count_probe_warning.v:8: warning: Unable to bind wire/reg/memory `missing_count' in `top.missing_repeat_c.new' (compile-progress: unresolved reference).
+ivltests/sv_class_repeat_count_probe_warning.v:8: Unable to elaborate repeat expression.
+ivltests/sv_class_repeat_count_probe_warning.v:8: error: Unable to elaborate statement in function new.
+2 error(s) during elaboration.

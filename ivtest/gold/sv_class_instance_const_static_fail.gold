@@ -1,0 +1,5 @@
+./ivltests/sv_class_instance_const_static_fail.v:8: error: instance constant `value' can be assigned only once along every reachable path through its corresponding class constructor (IEEE 1800 8.19).
+./ivltests/sv_class_instance_const_static_fail.v:17: error: Property value is constant in this method. (scope=top.outside_c.mutate)
+./ivltests/sv_class_instance_const_static_fail.v:30: error: Instance constant `value' may be initialized only in the constructor of its declaring class (IEEE 1800 8.19).
+./ivltests/sv_class_instance_const_static_fail.v:37: error: Assignment to instance constant `value' is not an authorized single assignment in its corresponding class constructor (IEEE 1800 8.19).
+4 error(s) during elaboration.

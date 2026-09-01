@@ -1,0 +1,11 @@
+ivltests/sv_class_repeat_count_shadow_fail.v:36: error: enclosing-class instance constant `limit' used by covergroup `cg' must be initialized before the covergroup constructor call (IEEE 1800 19.5).
+ivltests/sv_class_repeat_count_shadow_fail.v:27: note: covergroup expression reference is here.
+ivltests/sv_class_repeat_count_shadow_fail.v:19: error: enclosing-class instance constant `limit' used by covergroup `cg' must be initialized before the covergroup constructor call (IEEE 1800 19.5).
+ivltests/sv_class_repeat_count_shadow_fail.v:12: note: covergroup expression reference is here.
+ivltests/sv_class_repeat_count_shadow_fail.v:50: error: enclosing-class instance constant `limit' used by covergroup `cg' must be initialized before the covergroup constructor call (IEEE 1800 19.5).
+ivltests/sv_class_repeat_count_shadow_fail.v:44: note: covergroup expression reference is here.
+ivltests/sv_class_repeat_count_shadow_fail.v:64: error: enclosing-class instance constant `limit' used by covergroup `cg' must be initialized before the covergroup constructor call (IEEE 1800 19.5).
+ivltests/sv_class_repeat_count_shadow_fail.v:58: note: covergroup expression reference is here.
+warning: verinum::as_long() truncated 65 bits to 63, returns 1
+warning: verinum::as_long() truncated 65 bits to 63, returns 1
+4 error(s) during elaboration.

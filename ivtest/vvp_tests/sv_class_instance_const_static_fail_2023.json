@@ -2,5 +2,5 @@
     "type"          : "CE",
     "source"        : "sv_class_instance_const_static_fail_2023.v",
     "iverilog-args" : [ "-g2023" ],
-    "gold"          : "sv_class_instance_const_static_fail"
+    "gold"          : "sv_class_instance_const_static_fail_2023"
 }
