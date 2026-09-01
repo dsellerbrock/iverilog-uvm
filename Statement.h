@@ -869,6 +869,10 @@ class PForStatement  : public Statement {
 
     private:
       friend class pform_constructor_order_audit_t;
+        // The assignment carrier owns NAME1_/EXPR1_. The aliases are retained
+        // because the direct NetForLoop signal path needs the original parsed
+        // operands for synthesis metadata.
+      PAssign*initialization_;
       PExpr* name1_;
       PExpr* expr1_;
 
@@ -1013,7 +1017,6 @@ struct pform_constructor_order_assignment_t {
       const PExpr*lval = nullptr;
       const PExpr*rval = nullptr;
       const std::vector<const PBlock*>*block_stack = nullptr;
-      bool for_initializer = false;
       bool plain_blocking = false;
 };
 
@@ -1035,6 +1038,18 @@ class pform_constructor_order_classifier_t {
             const pform_constructor_order_assignment_t&assignment,
             std::vector<pform_constructor_order_dependency_t>&dependencies)
             const = 0;
+
+      // Return a concrete repeat count only when the expression folds in the
+      // current constructor specialization without expression elaboration.
+      // BLOCK_STACK preserves lexical shadowing at the repeat site. A runtime
+      // expression is not an error and is reported by returning false. This
+      // callback is observational: it must not mutate the design, elaborate
+      // an expression, or report a diagnostic.
+      virtual bool classify_repeat_count(const PExpr*count,
+                                         const std::vector<const PBlock*>*
+                                               block_stack,
+                                         long&iterations) const
+      { (void)count; (void)block_stack; (void)iterations; return false; }
 };
 
 enum pform_constructor_order_violation_kind_t {

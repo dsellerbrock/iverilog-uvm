@@ -808,6 +808,13 @@ type-coverage, VPI, or cross interaction.
       the ordered source-occurrence stream used by fixed arrays, and
       OpenTitan's TL-agent expression. Open arrays use the distinct-value rule
       in the next item rather than occurrence identity.
+- [~] Enforce the recorded 8.19/19.5 class instance-constant and embedded-
+      covergroup constructor-order subset. Corresponding-constructor source
+      authorization, definite prior initialization, same-loop/`join_none`
+      rejection, and a per-object repeated-write guard have paired 2017/2023
+      evidence across the recorded flow shapes. Nonliteral constant-condition
+      proof and exhaustive constructor flow remain open; this is not clause-8
+      or clause-19 closure.
 - [x] Apply the audited bounded array-bin identity and distribution rules.
       Integral open arrays (`bins b[]`) coalesce duplicate/overlapping ranges into one
       value-named bin per distinct resolved value. Fixed arrays (`bins b[N]`)

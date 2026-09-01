@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_class_repeat_count_probe_warning_2023.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_class_repeat_count_probe_warning_2023"
+}

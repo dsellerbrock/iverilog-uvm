@@ -37,4 +37,5 @@ module top;
       value[0] = 1'b1;
     endfunction
   endclass
+
 endmodule

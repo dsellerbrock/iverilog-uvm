@@ -3474,16 +3474,18 @@ NetScope* find_method_containing_scope(const LineInfo&, NetScope*scope)
 	    return method_containing_scope_cache_[origin_scope];
 
       // Extern class methods are not nested under a CLASS scope; their parent
-      // is typically a package scope. Detect those directly from the function
-      // pform metadata.
+      // is typically a package scope. Detect those directly from the
+      // function/task pform metadata.
       for (NetScope*cur = scope ; cur ; cur = cur->parent()) {
-	    if (cur->type() == NetScope::FUNC) {
-		  const PFunction*pfunc = cur->func_pform();
-		  if (pfunc && pfunc->method_of()) {
-			method_containing_scope_cache_[origin_scope] = cur;
-			method_containing_scope_cache_valid_[origin_scope] = true;
-			return cur;
-		  }
+	    const PTaskFunc*method_pform = 0;
+	    if (cur->type() == NetScope::FUNC)
+		  method_pform = cur->func_pform();
+	    else if (cur->type() == NetScope::TASK)
+		  method_pform = cur->task_pform();
+	    if (method_pform && method_pform->method_of()) {
+		  method_containing_scope_cache_[origin_scope] = cur;
+		  method_containing_scope_cache_valid_[origin_scope] = true;
+		  return cur;
 	    }
       }
 
@@ -3616,6 +3618,47 @@ NetNet* find_implicit_this_handle(Design*des, NetScope*scope)
       implicit_this_handle_cache_[origin_scope] = 0;
       implicit_this_handle_cache_valid_[origin_scope] = true;
       return 0;
+}
+
+/* Resolve the class whose current object a method body is operating on.
+ * Ordinary/nested method scopes retain their enclosing CLASS scope, which is
+ * also the authoritative identity for a parameterized specialization.
+ * Out-of-block method bodies can instead live below a package scope. For
+ * those, prefer the elaborated implicit `this' type (again preserving a
+ * concrete specialization), and use the parse-form method owner only as the
+ * early-elaboration fallback. */
+const netclass_t* find_method_containing_class(
+      Design*des, const LineInfo&loc, NetScope*scope)
+{
+      if (const netclass_t*class_type =
+	    find_class_containing_scope(loc, scope))
+	    return class_type;
+
+      NetScope*method_scope = find_method_containing_scope(loc, scope);
+      if (!method_scope)
+	    return 0;
+
+      NetNet*this_handle = method_scope->find_signal(
+	    perm_string::literal(THIS_TOKEN));
+      if (!this_handle)
+	    this_handle = find_implicit_this_handle(des, method_scope);
+      if (this_handle) {
+	    if (const netclass_t*class_type =
+		  dynamic_cast<const netclass_t*>(this_handle->net_type()))
+		  return class_type;
+      }
+
+      const PTaskFunc*method_pform = 0;
+      if (method_scope->type() == NetScope::FUNC)
+	    method_pform = method_scope->func_pform();
+      else if (method_scope->type() == NetScope::TASK)
+	    method_pform = method_scope->task_pform();
+      if (!method_pform || !method_pform->method_of())
+	    return 0;
+
+      ivl_type_t method_type =
+	    method_pform->method_of()->elaborate_type_raw(des, method_scope);
+      return dynamic_cast<const netclass_t*>(method_type);
 }
 
 

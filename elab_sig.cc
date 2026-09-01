@@ -1923,6 +1923,61 @@ class covergroup_constructor_order_classifier_t :
 	    return !dependencies.empty();
       }
 
+      bool classify_repeat_count(const PExpr*count,
+				 const vector<const PBlock*>*block_stack,
+				 long&iterations) const override
+      {
+	    const PEIdent*ident = dynamic_cast<const PEIdent*>(count);
+	    if (!ident || !parent_)
+		  return false;
+
+	    const pform_scoped_name_t&path = ident->path();
+	    if (path.package || ident->has_scoped_type_prefix()
+		|| path.size() != 1 || path.name.front().local_scope
+		|| !path.name.front().index.empty())
+		  return false;
+
+	    perm_string name = path.name.front().name;
+	    if (unqualified_name_is_shadowed_(name, block_stack))
+		  return false;
+
+	    // Stay aligned with ordinary unqualified constructor-body lookup:
+	    // inherited value parameters are not currently resolved there, so
+	    // recognizing them only in this audit would create a semantic split.
+	    const NetScope*class_scope = parent_->class_scope();
+	    if (!class_scope)
+		  return false;
+	    map<perm_string,NetScope::param_expr_t>::const_iterator found =
+		  class_scope->parameters.find(name);
+	    if (found == class_scope->parameters.end())
+		  return false;
+
+	    const NetScope::param_expr_t&parameter = found->second;
+	    // The class-scope pass evaluates specialization parameters before
+	    // this audit. Never force evaluation here: doing so would repeat
+	    // diagnostics and elaborate method expressions out of order.
+	    if (parameter.type_flag || parameter.is_array_param
+		|| parameter.val_expr || !parameter.val)
+		  return false;
+
+	    const NetEConst*constant =
+		  dynamic_cast<const NetEConst*>(parameter.val);
+	    if (!constant || constant->is_unbounded()
+		|| !constant->value().is_defined())
+		  return false;
+
+	    const verinum&value = constant->value();
+	    if (value.is_zero() || value.is_negative()) {
+		  iterations = 0;
+		  return true;
+	    }
+	    if (value.as_ulong64() == 1) {
+		  iterations = 1;
+		  return true;
+	    }
+	    return false;
+      }
+
     private:
       const netclass_t*parent_;
       const PFunction*constructor_;
@@ -1932,7 +1987,9 @@ class covergroup_constructor_order_classifier_t :
       {
 	    return scope && (scope->wires.find(name) != scope->wires.end()
 			     || scope->local_symbols.find(name)
-				!= scope->local_symbols.end());
+				!= scope->local_symbols.end()
+			     || scope->explicit_imports.find(name)
+				!= scope->explicit_imports.end());
       }
 
       bool unqualified_name_is_shadowed_(
@@ -2339,7 +2396,6 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	    constructor == pclass->funcs.end() ? nullptr : constructor->second;
       const Statement*constructor_body = constructor_function
 	    ? constructor_function->get_statement() : nullptr;
-
       covergroup_constructor_order_classifier_t classifier(
 	    this, constructor_function, embedded_covergroups);
       set<size_t> initially_initialized;

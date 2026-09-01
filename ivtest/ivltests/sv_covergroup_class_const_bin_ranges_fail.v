@@ -118,12 +118,66 @@ module top;
     endfunction
   endclass
 
-  class c11_possible_reassignment;
-    const int POSSIBLE_LIMIT;
-    function new(bit take_first);
-      if (take_first)
-        POSSIBLE_LIMIT = 1;
-      this.POSSIBLE_LIMIT = 2;
+  class c11_repeat_local_shadow #(int N = 1);
+    const int SHADOWED_REPEAT_LIMIT;
+    covergroup cg_repeat_shadow with function sample(int value);
+      cp: coverpoint value {
+        bins shadowed_repeat = {[0:SHADOWED_REPEAT_LIMIT]};
+      }
+    endgroup
+    function new;
+      begin
+        int N = 0;
+        repeat (N)
+          SHADOWED_REPEAT_LIMIT = 8;
+      end
+      cg_repeat_shadow = new;
     endfunction
   endclass
+
+  class c12_repeat_formal_shadow #(int N = 1);
+    const int FORMAL_REPEAT_LIMIT;
+    covergroup cg_repeat_formal with function sample(int value);
+      cp: coverpoint value {
+        bins formal_repeat = {[0:FORMAL_REPEAT_LIMIT]};
+      }
+    endgroup
+    function new(int N);
+      repeat (N)
+        FORMAL_REPEAT_LIMIT = 9;
+      cg_repeat_formal = new;
+    endfunction
+  endclass
+
+  class c13_repeat_parameter_zero #(int N = 0);
+    const int ZERO_REPEAT_LIMIT;
+    covergroup cg_repeat_zero with function sample(int value);
+      cp: coverpoint value {
+        bins zero_repeat = {[0:ZERO_REPEAT_LIMIT]};
+      }
+    endgroup
+    function new;
+      repeat (N)
+        ZERO_REPEAT_LIMIT = 10;
+      cg_repeat_zero = new;
+    endfunction
+  endclass
+
+  class c14_for_step_same_loop;
+    const int STEP_LIMIT;
+    covergroup cg_for_step with function sample(int value);
+      cp: coverpoint value {
+        bins for_step = {[0:STEP_LIMIT]};
+      }
+    endgroup
+    function new(bit enter);
+      // The body and step are both in the repeated loop region. The
+      // initializer and referring constructor may not appear together there.
+      for (; enter; STEP_LIMIT = 11) begin
+        cg_for_step = new;
+        enter = 0;
+      end
+    endfunction
+  endclass
+
 endmodule

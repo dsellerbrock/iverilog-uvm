@@ -325,6 +325,22 @@ one-dimensional compiler model; an exhaustive clause-23 combination audit is
 still required for a complete claim. See the dated clause-23.11 section in
 `matrices/ieee1800_2017_clause_matrix.md` and the associated session log.
 
+## 2026-09-01 clauses 8.19 and 19.5 — no implemented edition delta
+
+The recorded class instance-constant and embedded-covergroup constructor-order
+mechanism is shared by `-g2017` and `-g2023`. Paired regressions in both modes
+cover corresponding-constructor source authorization, one executed assignment
+per object, definite initialization before referring covergroup construction,
+same-loop/`fork...join_none` rejection, procedural `for` header/body/step flow,
+repeat-count shadowing, and malformed VVP guard metadata.
+
+The static flow proof recognizes omitted and direct defined-literal `for`
+conditions as guaranteed true or false. Other folded expressions remain
+conservative and exhaustive constructor-flow proof remains open. This entry
+records no 2023-only syntax, lowering, or diagnostic and does not claim closure
+of clause 8 or 19. See
+`session_logs/2026-09-01_class_instance_constant_constructor_order.md`.
+
 ## 2026-08-30 clauses 7.10.1, 9.4.2, 23.6, and 25.9 — no implemented edition delta
 
 IEEE 1800-2023 retains the 2017 rules used by this increment. Under 25.9 and

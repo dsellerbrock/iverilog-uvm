@@ -1,0 +1,2 @@
+./ivltests/sv_class_instance_const_flow.v:182: warning: condition expression of for-loop is constant.
+./ivltests/sv_class_instance_const_flow.v:199: warning: condition expression of for-loop is constant.

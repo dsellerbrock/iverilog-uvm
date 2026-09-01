@@ -1,5 +1,68 @@
 # CURRENT WORK — continuation state
 
+## Active increment — 2026-09-01 — class instance constants and constructor order
+
+Worktree:
+`iverilog-uvm-opentitan-instance-const-after247-arm64-20260830`
+
+Branch `agent/opentitan-instance-const-after247-arm64-20260830` remains based
+exactly on `origin/main` at `1a877231f` (the PR #247 merge). The compiler and
+VVP runtime were rebuilt with native ARM64 tools and Homebrew Bison through the
+shared 45-second CPU guard with no RSS ceiling.
+
+This increment implements a bounded IEEE 1800-2017/2023 8.19/19.5 subset:
+
+- Parsed procedural `for` initializers now have a stable ordinary assignment
+  carrier. A mutable signal retains the direct `NetForLoop` synthesis path;
+  class-property, other nonsignal, and const-signal l-values use ordinary
+  assignment elaboration before the loop, preserving typing and const-write
+  legality.
+- Constructor-flow analysis authorizes only corresponding-constructor
+  instance-constant writes, requires definite initialization before a referring
+  embedded-covergroup constructor, and rejects initializer/construction pairs
+  in one loop or `fork...join_none` region. A header initializer is outside the
+  repeated region; body and step share it. Literal-false, omitted or direct
+  literal-true, normal, `continue`, `break`, and return channels are modeled.
+- Literal and already-evaluated class-parameter repeat counts are observed
+  without speculative expression elaboration or duplicate diagnostics.
+  Lexical formals, locals, and explicit or pinned wildcard imports shadow class
+  parameters; unary minus retains the literal width and signedness.
+- VVP records the authorized property ID and enforces at most one executed
+  assignment per object. Malformed `%prop/const/init` metadata fails cleanly
+  rather than underflowing or accepting a wrapped property index.
+
+Paired permanent evidence includes `sv_class_instance_const_flow`, the
+conditional/loop/fork/for-step runtime-failure families,
+`sv_class_instance_const_static_fail`,
+`sv_covergroup_class_const_bin_ranges_fail`, the repeat-count flow/shadow/probe
+families, `sv_class_static_const_for_init_fail`, and the malformed VVP runner.
+A separately built clean-main compiler accepts the isolated static-const
+for-header reducer in both editions; this branch rejects it with the exact
+ordinary const-write diagnostic.
+
+Final native ARM64 gates:
+
+- focused legacy **44/44** and JSON/VVP **44/44**;
+- full SystemVerilog **2,212/2,212**;
+- full JSON/VVP **1,290 entries, 0 failed**;
+- negatives **149/149**, VPI **103/103**, malformed VVP **1/1**;
+- real-DPI UVM **354/354**, 0 failed, 0 skipped;
+- nine positive synthesis loop reducers plus one negative sentinel, all with
+  the ordinary mutable-index `NetForLoop` path retained.
+
+The focused unmodified OpenTitan `lowrisc:dv:rv_timer_sim:0.1` UVM core at
+clean revision `7a3ad34b` improves from FAIL to **DEBT**: setup and compile
+return 0, hard errors are 0, and the four former instance-constant range drops
+are absent. Seventeen unrelated loud debt diagnostics remain, so this is not a
+runtime or application pass. The pinned ARM64 Python 3.13/FuseSoC toolchain was
+used. `util/regtool.py` also regenerates the UART register RTL byte-for-byte
+identically to the unmodified checked-in sources.
+
+The remaining boundary is deliberately explicit: nonliteral constant-condition
+proof and exhaustive constructor control flow are not claimed. Next after this
+increment lands is the statically diagnosed Ubuntu Actions repair requested by
+the user; no VM or emulator is authorized.
+
 ## Active increment — 2026-08-30 — virtual interfaces, dynamic event lists, and left-`$` queue slices
 
 Worktree:

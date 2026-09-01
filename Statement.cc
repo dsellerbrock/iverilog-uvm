@@ -436,6 +436,7 @@ class pform_constructor_order_audit_t {
       std::vector<const PBlock*>block_stack_;
       std::vector<region_t>region_stack_;
       std::map<const Statement*,assignment_info_t>assignments_;
+      std::map<const PRepeat*,long>repeat_counts_;
       std::map<size_t,std::vector<const assignment_info_t*> >initializers_;
       std::vector<const assignment_info_t*>constructors_;
       pform_constructor_order_result_t result_;
@@ -443,19 +444,17 @@ class pform_constructor_order_audit_t {
       std::set<std::tuple<const Statement*,size_t> >reported_reassignment_;
       std::set<std::tuple<const Statement*,size_t,const Statement*,int> >
 	    reported_region_;
+      unsigned runtime_loop_depth_ = 0;
 
       void collect_assignment_(const Statement*statement, const PExpr*lval,
-			       const PExpr*rval, bool for_initializer)
+			       const PExpr*rval)
       {
 	    assignment_info_t info;
 	    info.assignment.statement = statement;
 	    info.assignment.lval = lval;
 	    info.assignment.rval = rval;
 	    info.assignment.block_stack = &block_stack_;
-	    info.assignment.for_initializer = for_initializer;
-	    if (for_initializer) {
-		  info.assignment.plain_blocking = true;
-	    } else if (const PAssign*assign =
+	    if (const PAssign*assign =
 		       dynamic_cast<const PAssign*>(statement)) {
 		  info.assignment.plain_blocking =
 			assign->op() == 0 && !assign->has_timing_control();
@@ -481,13 +480,45 @@ class pform_constructor_order_audit_t {
 		  constructors_.push_back(stored);
       }
 
+      static bool repeat_literal_count_(const PExpr*count, long&iterations)
+      {
+	    const PENumber*number = dynamic_cast<const PENumber*>(count);
+	    bool negate = false;
+	    if (!number) {
+		  const PEUnary*unary = dynamic_cast<const PEUnary*>(count);
+		  if (!unary || unary->get_op() != '-')
+			return false;
+		  number = dynamic_cast<const PENumber*>(unary->get_expr());
+		  negate = true;
+	    }
+	    if (!number || !number->value().is_defined())
+		  return false;
+
+	    // Apply unary minus with the expression value's own width and signedness.
+	    // For example, -32'hffff_ffff is the one-iteration value 32'h1, not a
+	    // blanket negative/zero-iteration classification.
+	    const verinum value = negate ? -number->value() : number->value();
+	    if (value.is_zero() || value.is_negative()) {
+		  iterations = 0;
+		  return true;
+	    }
+	    if (value.as_ulong64() == 1) {
+		  iterations = 1;
+		  return true;
+	    }
+	    // The audit only distinguishes no iteration, exactly one, and a
+	    // potentially repeated/runtime loop. Leave larger literals in the
+	    // conservative third class without narrowing through host `long'.
+	    return false;
+      }
+
       void collect_(const Statement*statement)
       {
 	    if (!statement)
 		  return;
 
 	    if (const PAssign_*assign = dynamic_cast<const PAssign_*>(statement)) {
-		  collect_assignment_(statement, assign->lval(), assign->rval(), false);
+		  collect_assignment_(statement, assign->lval(), assign->rval());
 		  return;
 	    }
 
@@ -572,16 +603,23 @@ class pform_constructor_order_audit_t {
 
 	    if (const PForStatement*loop =
 		  dynamic_cast<const PForStatement*>(statement)) {
-		  if (loop->name1_)
-			collect_assignment_(loop, loop->name1_, loop->expr1_, true);
+		  // IEEE 1800 12.7.1 executes the initializer once, before
+		  // testing the condition. It is not part of the repeated loop
+		  // region for the 19.5 same-loop structural prohibition.
+		  collect_(loop->initialization_);
 		  region_stack_.push_back(region_t{REGION_LOOP, loop});
 		  collect_(loop->statement_);
-		  region_stack_.pop_back();
 		  collect_(loop->step_);
+		  region_stack_.pop_back();
 		  return;
 	    }
 
 	    if (const PRepeat*loop = dynamic_cast<const PRepeat*>(statement)) {
+		  long iterations = 0;
+		  if (repeat_literal_count_(loop->expr_, iterations)
+		      || classifier_.classify_repeat_count(
+			    loop->expr_, &block_stack_, iterations))
+			repeat_counts_[loop] = iterations;
 		  region_stack_.push_back(region_t{REGION_LOOP, loop});
 		  collect_(loop->statement_);
 		  region_stack_.pop_back();
@@ -690,7 +728,9 @@ class pform_constructor_order_audit_t {
 		  }
 	    }
 	    if (info.initializes_constant) {
-		  if (input.definitely_initialized.count(info.initialized_property)) {
+		  if (runtime_loop_depth_ == 0
+		      && input.definitely_initialized.count(
+			    info.initialized_property)) {
 			std::tuple<const Statement*,size_t>key(
 			      statement, info.initialized_property);
 			if (reported_reassignment_.insert(key).second) {
@@ -792,12 +832,37 @@ class pform_constructor_order_audit_t {
       ctor_order_flow_t flow_zero_trip_loop_(const Statement*body,
 					       const ctor_order_state_t&input)
       {
+	    runtime_loop_depth_ += 1;
 	    ctor_order_flow_t body_flow = flow_(body, input);
+	    runtime_loop_depth_ -= 1;
 	    ctor_order_flow_t result = ctor_order_identity_(input);
 	    result.returned = body_flow.returned;
 	    // A zero-iteration path always exists, so body initializations do not
 	    // become definite after while/for/repeat/foreach.
 	    return result;
+      }
+
+      enum for_condition_kind_t {
+	    FOR_CONDITION_RUNTIME,
+	    FOR_CONDITION_FALSE,
+	    FOR_CONDITION_TRUE
+      };
+
+      static for_condition_kind_t classify_for_condition_(
+	    const PExpr*condition)
+      {
+	    // An omitted condition is the `for (;;)' form. For now keep the
+	    // constant conclusions deliberately limited to that form and a
+	    // defined literal; arbitrary constant folding is owned by elaboration
+	    // and must not be repeated speculatively here.
+	    if (!condition)
+		  return FOR_CONDITION_TRUE;
+
+	    const PENumber*number = dynamic_cast<const PENumber*>(condition);
+	    if (!number || !number->value().is_defined())
+		  return FOR_CONDITION_RUNTIME;
+	    return number->value().is_zero()
+		  ? FOR_CONDITION_FALSE : FOR_CONDITION_TRUE;
       }
 
       ctor_order_flow_t flow_(const Statement*statement,
@@ -893,27 +958,18 @@ class pform_constructor_order_audit_t {
 		  return flow_zero_trip_loop_(loop->statement_, input);
 
 	    if (const PRepeat*loop = dynamic_cast<const PRepeat*>(statement)) {
-		  if (const PENumber*count =
-			dynamic_cast<const PENumber*>(loop->expr_)) {
-			const verinum&value = count->value();
-			if (value.is_defined()) {
-			      long iterations = value.as_long();
-			      if (iterations <= 0)
-				    return ctor_order_identity_(input);
-			      if (iterations == 1) {
-				    ctor_order_flow_t body =
-					  flow_(loop->statement_, input);
-				    ctor_order_flow_t result;
-				    ctor_order_merge_alternatives_(result.normal,
-							 body.normal);
-				    ctor_order_merge_alternatives_(result.normal,
-							 body.broken);
-				    ctor_order_merge_alternatives_(result.normal,
-							 body.continued);
-				    result.returned = body.returned;
-				    return result;
-			      }
-			}
+		  std::map<const PRepeat*,long>::const_iterator count =
+			repeat_counts_.find(loop);
+		  if (count != repeat_counts_.end() && count->second <= 0)
+			return ctor_order_identity_(input);
+		  if (count != repeat_counts_.end() && count->second == 1) {
+			ctor_order_flow_t body = flow_(loop->statement_, input);
+			ctor_order_flow_t result;
+			ctor_order_merge_alternatives_(result.normal, body.normal);
+			ctor_order_merge_alternatives_(result.normal, body.broken);
+			ctor_order_merge_alternatives_(result.normal, body.continued);
+			result.returned = body.returned;
+			return result;
 		  }
 		  return flow_zero_trip_loop_(loop->statement_, input);
 	    }
@@ -932,18 +988,46 @@ class pform_constructor_order_audit_t {
 	    if (const PForStatement*loop =
 		  dynamic_cast<const PForStatement*>(statement)) {
 		  ctor_order_state_t before_loop = input;
-		  if (loop->name1_)
-			before_loop = apply_assignment_(loop, before_loop);
+		  if (loop->initialization_)
+			before_loop = apply_assignment_(loop->initialization_,
+						    before_loop);
+		  const for_condition_kind_t condition =
+			classify_for_condition_(loop->cond_);
+		  if (condition == FOR_CONDITION_FALSE)
+			return ctor_order_identity_(before_loop);
 
+		  runtime_loop_depth_ += 1;
 		  ctor_order_flow_t body = flow_(loop->statement_, before_loop);
 		  ctor_order_channel_t step_input;
 		  ctor_order_merge_alternatives_(step_input, body.normal);
 		  ctor_order_merge_alternatives_(step_input, body.continued);
 		  ctor_order_flow_t step;
-		  if (loop->step_ && step_input.reachable)
-			step = flow_(loop->step_, step_input.state);
+		  if (step_input.reachable) {
+			if (loop->step_)
+			      step = flow_(loop->step_, step_input.state);
+			else
+			      step = ctor_order_identity_(step_input.state);
+		  }
+		  runtime_loop_depth_ -= 1;
 
-		  ctor_order_flow_t result = ctor_order_identity_(before_loop);
+		  ctor_order_flow_t result;
+		  // A possibly-false condition admits the zero-trip path. An
+		  // omitted or literal-true condition does not: its only normal
+		  // exits are explicit breaks from the body (or, defensively, the
+		  // step statement). This preserves definite initialization in
+		  // `for (;;) begin value = ...; break; end'.
+		  if (condition == FOR_CONDITION_RUNTIME)
+			result.normal = channel_(before_loop);
+		  // A normally completing/continued step reaches the condition
+		  // again. For a possibly-false condition, that backedge may then
+		  // become a normal loop exit; for a guaranteed-true condition it
+		  // remains inside the loop.
+		  if (condition == FOR_CONDITION_RUNTIME) {
+			ctor_order_merge_alternatives_(result.normal, step.normal);
+			ctor_order_merge_alternatives_(result.normal, step.continued);
+		  }
+		  ctor_order_merge_alternatives_(result.normal, body.broken);
+		  ctor_order_merge_alternatives_(result.normal, step.broken);
 		  result.returned = body.returned;
 		  ctor_order_merge_alternatives_(result.returned, step.returned);
 		  return result;
@@ -1229,12 +1313,17 @@ PForever::~PForever()
 
 PForStatement::PForStatement(PExpr*n1, PExpr*e1, PExpr*cond,
 			     Statement*step, Statement*st)
-: name1_(n1), expr1_(e1), cond_(cond), step_(step), statement_(st)
+: initialization_(n1 && e1 ? new PAssign(n1, e1) : nullptr),
+  name1_(n1), expr1_(e1), cond_(cond), step_(step), statement_(st)
 {
+      assert((name1_ == nullptr) == (expr1_ == nullptr));
+      if (initialization_)
+	    initialization_->set_line(*name1_);
 }
 
 PForStatement::~PForStatement()
 {
+      delete initialization_;
 }
 
 PProcess::~PProcess()

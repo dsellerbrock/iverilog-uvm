@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_class_static_const_for_init_fail_2023.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_class_static_const_for_init_fail_2023"
+}

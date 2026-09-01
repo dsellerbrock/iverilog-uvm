@@ -25717,23 +25717,37 @@ bool of_SCOPY(vthread_t thr, vvp_code_t)
  */
 bool of_PROP_CONST_INIT(vthread_t thr, vvp_code_t cp)
 {
-      size_t pid = cp->number;
-      vvp_object_t object;
-      thr->pop_object(object);
-      vvp_cobject*cobj = object.peek<vvp_cobject>();
-      const class_type*defn = cobj ? cobj->get_defn() : nullptr;
-
-      if (!defn || pid >= defn->property_count()
-	  || !defn->property_is_const(pid) || defn->property_is_static(pid)) {
+      const uint64_t pid_raw = cp->number;
+      if (thr->object_stack_size() < 1) {
 	    cerr << thr->get_fileline()
-		 << "VVP error: %prop/const/init requires a non-static const "
-		 << "class property receiver (pid=" << pid << ")." << endl;
+		 << "VVP error: %prop/const/init requires one class object "
+		 << "on the object stack." << endl;
 	    vpip_set_return_value(1);
 	    if (!schedule_finished())
 		  schedule_finish(0);
 	    return false;
       }
 
+      vvp_object_t object;
+      thr->pop_object(object);
+      vvp_cobject*cobj = object.peek<vvp_cobject>();
+      const class_type*defn = cobj ? cobj->get_defn() : nullptr;
+
+	/* Keep the parsed uint64_t intact through the range check. This avoids
+	 * accepting a wrapped property ID on hosts where size_t is narrower. */
+      if (!defn || pid_raw >= defn->property_count()
+	  || !defn->property_is_const(static_cast<size_t>(pid_raw))
+	  || defn->property_is_static(static_cast<size_t>(pid_raw))) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: %prop/const/init requires a non-static const "
+		 << "class property receiver (pid=" << pid_raw << ")." << endl;
+	    vpip_set_return_value(1);
+	    if (!schedule_finished())
+		  schedule_finish(0);
+	    return false;
+      }
+
+      const size_t pid = static_cast<size_t>(pid_raw);
       bool report = false;
       if (cobj->claim_instance_constant_assignment(pid, report))
 	    return true;

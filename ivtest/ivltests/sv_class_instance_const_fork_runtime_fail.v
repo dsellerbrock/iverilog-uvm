@@ -17,6 +17,6 @@ module top;
   initial begin
     object = new(1);
     #0;
-    $display("FAILED");
+    #1 $fatal(1, "duplicate detached assignment was not rejected");
   end
 endmodule
