@@ -4798,11 +4798,17 @@ static int emit_iface_method_call_(const iface_call_payload_t*call,
             if (call->expr)
                   is_default[idx] = ivl_expr_vif_parm_is_default(
                         call->expr, parm_base + idx) ? 1 : 0;
-            if (!port || !argv[idx]
-                || ivl_signal_port(port) != IVL_SIP_INPUT) {
+            if (!port || ivl_signal_port(port) != IVL_SIP_INPUT) {
                   fprintf(stderr, "%s:%u: vvp.tgt error: dynamic "
                           "virtual-interface method %s requires input-only "
                           "arguments\n",
+                          iface_call_file_(call), iface_call_lineno_(call),
+                          ivl_scope_name(method));
+                  errors += 1;
+            } else if (call->expr && !argv[idx]) {
+                  fprintf(stderr, "%s:%u: vvp.tgt error: dynamic "
+                          "virtual-interface function %s has a missing or "
+                          "failed-to-elaborate actual argument\n",
                           iface_call_file_(call), iface_call_lineno_(call),
                           ivl_scope_name(method));
                   errors += 1;
@@ -4844,7 +4850,7 @@ static int emit_iface_method_call_(const iface_call_payload_t*call,
             errors += draw_vif_function_input_arguments(
                   method, port_base, user_ports, argv, is_default);
       else
-            errors += draw_function_input_arguments(
+            errors += draw_vif_statement_input_arguments(
                   method, port_base, user_ports, argv);
       if (errors) {
             if (vif_function_expr)

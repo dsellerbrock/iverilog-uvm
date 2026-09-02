@@ -114,6 +114,10 @@ extern int draw_function_input_arguments(ivl_scope_t scope,
                                          unsigned port_base,
                                          unsigned argc,
                                          ivl_expr_t const*argv);
+extern int draw_vif_statement_input_arguments(ivl_scope_t scope,
+                                              unsigned port_base,
+                                              unsigned argc,
+                                              ivl_expr_t const*argv);
 extern int draw_vif_function_input_arguments(ivl_scope_t scope,
                                              unsigned port_base,
                                              unsigned argc,

@@ -2,6 +2,8 @@
 # candidate-row/default dispatch, nested static calls, null receivers, and
 # typed discarded results; plus the 9.2.2.2.1 interface-port-array
 # always_comb sensitivity boundary.
+sv_inherited_class_parameter_vif_task vvp_tests/sv_inherited_class_parameter_vif_task.json
+sv_inherited_class_parameter_vif_task_2023 vvp_tests/sv_inherited_class_parameter_vif_task_2023.json
 sv_vif_function_dispatch vvp_tests/sv_vif_function_dispatch.json
 sv_vif_function_dispatch_2023 vvp_tests/sv_vif_function_dispatch_2023.json
 sv_vif_function_static_formal_semantics vvp_tests/sv_vif_function_static_formal_semantics.json

@@ -345,8 +345,11 @@ static void draw_send_function_argument(ivl_signal_t port, ivl_expr_t actual)
  * change void functions, DPI exports and output/ref paths that are outside
  * dynamic virtual-interface dispatch. Automatic subroutines have a private
  * frame and can install each argument immediately. */
-int draw_function_input_arguments(ivl_scope_t scope, unsigned port_base,
-                                  unsigned argc, ivl_expr_t const*argv)
+static int draw_function_input_arguments_(ivl_scope_t scope,
+                                          unsigned port_base,
+                                          unsigned argc,
+                                          ivl_expr_t const*argv,
+                                          int allow_sparse)
 {
       unsigned idx;
       int errors = 0;
@@ -362,7 +365,7 @@ int draw_function_input_arguments(ivl_scope_t scope, unsigned port_base,
 
       for (idx = 0 ; idx < argc ; idx += 1) {
             ivl_signal_t port = ivl_scope_port(scope, port_base + idx);
-            if (!port || !argv[idx]) {
+            if (!port || (!argv[idx] && !allow_sparse)) {
                   fprintf(stderr,
                           "vvp.tgt error: missing argument %u or formal port "
                           "for %s\n",
@@ -376,6 +379,8 @@ int draw_function_input_arguments(ivl_scope_t scope, unsigned port_base,
       if (ivl_scope_is_auto(scope)) {
             for (idx = 0 ; idx < argc ; idx += 1) {
                   ivl_signal_t port = ivl_scope_port(scope, port_base + idx);
+                  if (!argv[idx])
+                        continue;
                   if (ivl_signal_port(port) == IVL_SIP_REF) {
                         draw_bind_function_ref_argument(port, argv[idx]);
                   } else {
@@ -388,20 +393,48 @@ int draw_function_input_arguments(ivl_scope_t scope, unsigned port_base,
 
       for (idx = 0 ; idx < argc ; idx += 1) {
             ivl_signal_t port = ivl_scope_port(scope, port_base + idx);
+            if (!argv[idx])
+                  continue;
             draw_eval_function_argument(port, argv[idx]);
       }
       for (idx = argc ; idx > 0 ; idx -= 1) {
             ivl_signal_t port = ivl_scope_port(
                   scope, port_base + idx - 1);
+            if (!argv[idx - 1])
+                  continue;
             draw_send_function_argument(port, argv[idx - 1]);
       }
       for (idx = 0 ; idx < argc ; idx += 1) {
             ivl_signal_t port = ivl_scope_port(scope, port_base + idx);
+            if (!argv[idx])
+                  continue;
             if (ivl_signal_port(port) == IVL_SIP_REF)
                   draw_bind_function_ref_argument(port, argv[idx]);
       }
 
       return 0;
+}
+
+int draw_function_input_arguments(ivl_scope_t scope, unsigned port_base,
+                                  unsigned argc, ivl_expr_t const*argv)
+{
+      return draw_function_input_arguments_(
+            scope, port_base, argc, argv, 0);
+}
+
+/* A statement-position virtual-interface call can retain a null expression
+ * after the frontend has issued a compile-progress warning for an actual it
+ * could not elaborate. The historical VIF task emitter skipped that store,
+ * leaving the formal's ordinary initial value in place. Keep that behavior
+ * local to statement rows: value-returning VIF functions and ordinary
+ * subroutine calls remain strict. */
+int draw_vif_statement_input_arguments(ivl_scope_t scope,
+                                       unsigned port_base,
+                                       unsigned argc,
+                                       ivl_expr_t const*argv)
+{
+      return draw_function_input_arguments_(
+            scope, port_base, argc, argv, 1);
 }
 
 static int formal_effectively_static_(ivl_scope_t scope, ivl_signal_t port)

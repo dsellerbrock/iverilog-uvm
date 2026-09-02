@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_inherited_class_parameter_vif_task_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_inherited_class_parameter_vif_task" ],
+    "gold"          : "sv_inherited_class_parameter_vif_task"
+}
