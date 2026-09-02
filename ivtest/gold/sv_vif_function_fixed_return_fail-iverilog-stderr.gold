@@ -1,0 +1,3 @@
+ivltests/sv_vif_function_fixed_return_fail.v:8: error: Array value needs an array index here.
+ivltests/sv_vif_function_fixed_return_fail.v:6: sorry: virtual-interface function `make' has a fixed unpacked-array return value; dynamic-dispatch return marshalling is not yet supported.
+2 error(s) during elaboration.

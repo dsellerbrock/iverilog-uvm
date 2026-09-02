@@ -52,6 +52,7 @@
 # include  "netstruct.h"
 # include  "netscalar.h"
 # include  "util.h"
+# include  "elab_vif.h"
 # include  "ivl_assert.h"
 # include  "map_named_args.h"
 
@@ -8902,6 +8903,24 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  signed_flag_ = false;
 		  return expr_width_;
 	    }
+	    if (class_type->is_interface()) {
+		  bool recognized = false;
+		  bool hard_error = false;
+		  const NetFuncDef*def = resolve_interface_function_signature(
+			des, scope, class_type, method_name, nullptr,
+			recognized, hard_error);
+		  if (recognized) {
+			if (!def)
+			      return 0;
+			const NetNet*res = def->return_sig();
+			ivl_assert(*this, res);
+			expr_type_ = res->data_type();
+			expr_width_ = res->vector_width();
+			min_width_ = expr_width_;
+			signed_flag_ = res->get_signed();
+			return expr_width_;
+		  }
+	    }
 	    if (!class_type->scope_ready()) {
 		  if (netclass_t*visible_class = ensure_visible_class_type(des, scope,
 								       class_type->get_name()))
@@ -16258,6 +16277,16 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 				sys->parm(0, sub_expr);
 				return sys;
 			  }
+		    }
+
+		    if (class_type->is_interface()) {
+			  bool recognized = false;
+			  bool hard_error = false;
+			  NetESFunc*call = elaborate_dynamic_interface_function_call(
+				*this, des, scope, class_type, method_name,
+				sub_expr, parms_, recognized, hard_error);
+			  if (recognized)
+				return call;
 		    }
 
 		    NetScope*method = class_type->resolve_method_call_scope(des, method_name);

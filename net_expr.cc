@@ -641,7 +641,8 @@ ivl_variable_type_t NetESelect::expr_type() const
 
 NetESFunc::NetESFunc(const char*n, ivl_variable_type_t t,
 		     unsigned width, unsigned np, bool is_overridden)
-: name_(0), type_(t), parms_(np), is_overridden_(is_overridden)
+: name_(0), type_(t), parms_(np), vif_default_parms_(np, false),
+  is_overridden_(is_overridden)
 {
       name_ = lex_strings.add(n);
       expr_width(width);
@@ -649,7 +650,7 @@ NetESFunc::NetESFunc(const char*n, ivl_variable_type_t t,
 
 NetESFunc::NetESFunc(const char*n, ivl_type_t rtype, unsigned np)
 : NetExpr(rtype), name_(0), type_(rtype->base_type()), parms_(np),
-  is_overridden_(false)
+  vif_default_parms_(np, false), is_overridden_(false)
 {
       name_ = lex_strings.add(n);
 }
@@ -692,6 +693,36 @@ NetExpr* NetESFunc::parm(unsigned idx)
 {
       ivl_assert(*this, idx < parms_.size());
       return parms_[idx];
+}
+
+void NetESFunc::add_vif_method(NetScope*method)
+{
+      ivl_assert(*this, method);
+      ivl_assert(*this, method->type() == NetScope::FUNC);
+      vif_methods_.push_back(method);
+}
+
+unsigned NetESFunc::vif_method_count() const
+{
+      return vif_methods_.size();
+}
+
+const NetScope* NetESFunc::vif_method(unsigned idx) const
+{
+      ivl_assert(*this, idx < vif_methods_.size());
+      return vif_methods_[idx];
+}
+
+void NetESFunc::mark_vif_parm_default(unsigned idx)
+{
+      ivl_assert(*this, idx < vif_default_parms_.size());
+      vif_default_parms_[idx] = true;
+}
+
+bool NetESFunc::vif_parm_is_default(unsigned idx) const
+{
+      ivl_assert(*this, idx < vif_default_parms_.size());
+      return vif_default_parms_[idx];
 }
 
 NetEAssignExpr::NetEAssignExpr(const char*name, ivl_variable_type_t type,

@@ -24,6 +24,7 @@
 # include  <cassert>
 # include  <typeinfo>
 # include  "compiler.h"
+# include  "ivl_assert.h"
 # include  "netlist.h"
 # include  "netmisc.h"
 # include  <cstring>
@@ -307,17 +308,36 @@ NexusSet* NetESelect::nex_input(bool rem_out, bool always_sens, bool nested_func
 /*
  * The $fread, etc. system functions can have NULL arguments.
  */
+static void func_always_sens(const NetFuncDef*func, NexusSet*result,
+			     bool rem_out, bool nested_func);
+
 NexusSet* NetESFunc::nex_input(bool rem_out, bool always_sens, bool nested_func) const
 {
       NexusSet*result = new NexusSet;
-
-      if (parms_.empty()) return result;
 
       for (unsigned idx = 0 ;  idx < parms_.size() ;  idx += 1) {
 	    if (parms_[idx]) {
 		  NexusSet*tmp = parms_[idx]->nex_input(rem_out, always_sens, nested_func);
 		  result->add(*tmp);
 		  delete tmp;
+	    }
+      }
+
+	/* The selected function can read interface state that is absent from
+	 * the explicit receiver/argument rows. always_comb sensitivity must
+	 * therefore conservatively include every run-time candidate body. Clear
+	 * func_always_sens' recursion set only for the first outer candidate;
+	 * subsequent candidates belong to the same sensitivity traversal. */
+      if (always_sens) {
+	    bool candidate_nested = nested_func;
+	    for (unsigned idx = 0 ; idx < vif_method_count() ; idx += 1) {
+		  const NetScope*method = vif_method(idx);
+		  ivl_assert(*this, method);
+		  const NetFuncDef*func = method->func_def();
+		  ivl_assert(*this, func);
+		  ivl_assert(*this, func->proc());
+		  func_always_sens(func, result, rem_out, candidate_nested);
+		  candidate_nested = true;
 	    }
       }
 
@@ -451,11 +471,11 @@ NexusSet* NetETernary::nex_input(bool rem_out, bool always_sens, bool nested_fun
 }
 
 // Get the contribution of a function call in a always_comb block
-static void func_always_sens(NetFuncDef *func, NexusSet *result,
+static void func_always_sens(const NetFuncDef*func, NexusSet*result,
 			     bool rem_out, bool nested_func)
 {
 	  // Avoid recursive function calls.
-	static set<NetFuncDef*> func_set;
+	static set<const NetFuncDef*> func_set;
 	if (!nested_func)
 	      func_set.clear();
 

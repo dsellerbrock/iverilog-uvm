@@ -269,7 +269,8 @@ def build_vvp_return(expected_fail: bool, res: subprocess.CompletedProcess) -> l
     return []
 
 def do_run_normal(options: dict, cfg: dict, expected_fail: bool,
-                  translation_fail: bool) -> list:
+                  translation_fail: bool,
+                  exact_fail_output: bool = False) -> list:
     '''Run the iverilog and vvp commands.
 
     In this case, run the compiler to generate a vvp output file, and
@@ -315,14 +316,24 @@ def do_run_normal(options: dict, cfg: dict, expected_fail: bool,
     vvp_res = run_cmd(vvp_cmd)
     log_results(it_key, "vvp", vvp_res)
 
-    vvp_rtn = build_vvp_return(expected_fail, vvp_res)
-    if vvp_rtn:
-        return vvp_rtn
-
     log_list = ["iverilog-stdout", "iverilog-stderr",
                 "vvp-stdout", "vvp-stderr"]
     if cfg['vlog95']:
         log_list[2:2] = ["iverilog-vlog95-stdout", "iverilog-vlog95-stderr"]
+
+    # A run-time-error regression must distinguish the intended diagnostic
+    # from an unrelated nonzero exit (including an assertion or crash). The
+    # historical EF type intentionally accepts any ordinary failure; RE adds
+    # exact split-stream gold checking without changing those existing tests.
+    if exact_fail_output:
+        if vvp_res.returncode <= 0 or vvp_res.returncode >= 256:
+            return [1, "Failed - RE (no ordinary run-time error reported)."]
+        return check_run_outputs(options, vvp_res.stdout.decode('ascii'),
+                                 log_list, True)
+
+    vvp_rtn = build_vvp_return(expected_fail, vvp_res)
+    if vvp_rtn:
+        return vvp_rtn
 
     return check_run_outputs(options, vvp_res.stdout.decode('ascii'), log_list, expected_fail)
 
@@ -335,6 +346,14 @@ def run_normal(options: dict, cfg: dict) -> list:
 def run_EF(options: dict, cfg: dict) -> list:
     '''Run an expected fail test'''
     return do_run_normal(options, cfg, True, False)
+
+
+# pylint: disable-next=invalid-name
+def run_RE(options: dict, cfg: dict) -> list:
+    '''Run an expected run-time-error test and check its exact output'''
+    if options['gold'] is None:
+        return [1, "Failed - RE requires exact gold output."]
+    return do_run_normal(options, cfg, True, False, True)
 
 
 # pylint: disable-next=invalid-name

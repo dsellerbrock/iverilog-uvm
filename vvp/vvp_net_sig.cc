@@ -1865,6 +1865,10 @@ void vvp_fun_signal_object_sa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
 {
       assert(ptr.port() == 0);
       attached_net_ = ptr.ptr();
+      vvp_object_t no_root;
+      if (vthread_vif_overlay_put_object(
+            attached_net_, bit, attached_net_, no_root))
+            return;
       uint64_t bit_epoch = bit.mutation_epoch();
       bool handle_changed = needs_init_ || value_ != bit;
 
@@ -1884,6 +1888,25 @@ void vvp_fun_signal_object_sa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
 
 vvp_object_t vvp_fun_signal_object_sa::get_object() const
 {
+      vvp_object_t staged;
+      vvp_object_t staged_root;
+      vvp_net_t*staged_root_net = 0;
+      if (attached_net_ && vthread_vif_overlay_get_object(
+            attached_net_, staged, staged_root_net, staged_root)) {
+	    if (staged.test_nil()
+	        && (init_defn_ || default_object_kind() != INIT_OBJ_NONE)) {
+	          staged = init_defn_
+	                 ? vvp_object_t(new vvp_cobject(init_defn_))
+	                 : make_default_object();
+	          if (staged_root.test_nil())
+	                staged_root = staged;
+	          if (!staged_root_net)
+	                staged_root_net = attached_net_;
+	          vthread_vif_overlay_put_object(
+	                attached_net_, staged, staged_root_net, staged_root);
+	    }
+	    return staged;
+      }
       if (value_.test_nil() && (init_defn_ || default_object_kind() != INIT_OBJ_NONE)) {
 	    value_ = init_defn_
 	           ? vvp_object_t(new vvp_cobject(init_defn_))
@@ -1895,16 +1918,34 @@ vvp_object_t vvp_fun_signal_object_sa::get_object() const
 
 vvp_object_t vvp_fun_signal_object_sa::peek_object() const
 {
+      vvp_object_t staged;
+      vvp_object_t staged_root;
+      vvp_net_t*staged_root_net = 0;
+      if (attached_net_ && vthread_vif_overlay_get_object(
+            attached_net_, staged, staged_root_net, staged_root))
+	    return staged;
       return value_;
 }
 
 vvp_net_t* vvp_fun_signal_object_sa::get_root_net() const
 {
+      vvp_object_t staged;
+      vvp_object_t staged_root;
+      vvp_net_t*staged_root_net = 0;
+      if (attached_net_ && vthread_vif_overlay_get_object(
+            attached_net_, staged, staged_root_net, staged_root))
+	    return staged_root_net;
       return root_net_;
 }
 
 vvp_object_t vvp_fun_signal_object_sa::get_root_object() const
 {
+      vvp_object_t staged;
+      vvp_object_t staged_root;
+      vvp_net_t*staged_root_net = 0;
+      if (attached_net_ && vthread_vif_overlay_get_object(
+            attached_net_, staged, staged_root_net, staged_root))
+	    return staged_root;
       return root_obj_;
 }
 
@@ -1912,6 +1953,9 @@ void vvp_fun_signal_object_sa::set_root_provenance(vvp_net_t*root_net,
                                                    const vvp_object_t&root_obj,
                                                    vvp_context_t)
 {
+      if (attached_net_ && vthread_vif_overlay_put_object_root(
+            attached_net_, root_net, root_obj))
+	    return;
       root_net_ = root_net;
       root_obj_ = root_obj;
 }

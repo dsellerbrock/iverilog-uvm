@@ -1082,6 +1082,11 @@ extern ivl_parameter_t ivl_expr_parameter(ivl_expr_t net);
 extern ivl_expr_t  ivl_expr_parm(ivl_expr_t net, unsigned idx);
   /* IVL_EX_ARRAY_PATTERN IVL_EX_CONCAT IVL_EX_SFUNC IVL_EX_UFUNC */
 extern unsigned    ivl_expr_parms(ivl_expr_t net);
+  /* IVL_EX_SFUNC: exact concrete virtual-interface function candidates. */
+extern ivl_scope_t ivl_expr_vif_method(ivl_expr_t net, unsigned idx);
+extern unsigned    ivl_expr_vif_methods(ivl_expr_t net);
+extern int         ivl_expr_vif_parm_is_default(ivl_expr_t net,
+                                                unsigned idx);
   /* IVL_EX_ARRAY_PATTERN: selected unpacked-union member, or -1. */
 extern int         ivl_expr_union_active_member(ivl_expr_t net);
   /* IVL_EX_CONCAT */

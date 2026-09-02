@@ -1133,6 +1133,12 @@ class NetBaseDef {
       NetNet*port(unsigned idx) const;
       NetExpr*port_defe(unsigned idx) const;
 
+	/* A function signature may need to be published before its default
+	 * expressions are elaborated: a default is allowed to call the same
+	 * function recursively. Replace the provisional null defaults once that
+	 * declaration-context elaboration completes. */
+      void replace_port_defaults(const std::vector<NetExpr*>&pd);
+
 	/* Default argument expressions are only consulted during elaboration.
 	 * Release their owned trees before target materialization. */
       void release_port_defaults();
@@ -5679,6 +5685,15 @@ class NetESFunc  : public NetExpr {
       NetExpr* parm(unsigned idx);
       const NetExpr* parm(unsigned idx) const;
 
+	/* A dynamic virtual-interface function expression can select one of
+	 * several concrete interface-instance method scopes at run time. The
+	 * Design owns these scopes; this expression only borrows their pointers. */
+      void add_vif_method(NetScope*method);
+      unsigned vif_method_count() const;
+      const NetScope* vif_method(unsigned idx) const;
+      void mark_vif_parm_default(unsigned idx);
+      bool vif_parm_is_default(unsigned idx) const;
+
       virtual NetExpr* eval_tree() override;
       virtual NetExpr* evaluate_function(const LineInfo&loc,
 					 std::map<perm_string,LocalVar>&ctx) const override;
@@ -5762,6 +5777,8 @@ class NetESFunc  : public NetExpr {
       const char* name_;
       ivl_variable_type_t type_;
       std::vector<NetExpr*>parms_;
+      std::vector<NetScope*>vif_methods_;
+      std::vector<bool>vif_default_parms_;
       bool is_overridden_;
 
       ID built_in_id_() const;

@@ -1,0 +1,2 @@
+ivltests/sv_vif_null_function_no_instance_missing_arg_fail.v:15: error: Missing argument 1 ('value') in virtual-interface method call: the formal has no default value.
+1 error(s) during elaboration.

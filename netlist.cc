@@ -2768,6 +2768,14 @@ NetExpr* NetBaseDef::port_defe(unsigned idx) const
       return pdefaults_[idx];
 }
 
+void NetBaseDef::replace_port_defaults(const vector<NetExpr*>&pd)
+{
+      assert(pd.size() == ports_.size());
+      for (NetExpr*expr : pdefaults_)
+	    delete expr;
+      pdefaults_ = pd;
+}
+
 void NetBaseDef::release_port_defaults()
 {
       for (vector<NetExpr*>::iterator cur = pdefaults_.begin()

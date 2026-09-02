@@ -255,6 +255,186 @@ netclass_t* make_builtin_mailbox_type_()
 
 static map<Module*, netclass_t*> interface_type_cache_;
 static map<NetScope*, netclass_t*> interface_instance_type_cache_;
+static map<pair<Design*,Module*>, NetScope*>
+      interface_declaration_scope_cache_;
+
+static NetScope* interface_definition_unit_scope_(Design*des,
+						   NetScope*caller_scope,
+						   Module*mod)
+{
+      NetScope*unit_scope = nullptr;
+      if (const PScope*lexical_parent =
+		dynamic_cast<const PScope*>(mod->parent_scope()))
+	    unit_scope = des->find_package(lexical_parent->pscope_name());
+
+        // SystemVerilog modules normally have a compilation-unit PScope as
+        // their lexical parent. Keep a conservative fallback for parse forms
+        // that lack that parent without borrowing the caller as a hierarchy
+        // parent: only the caller's compilation-unit link is relevant here.
+      if (!unit_scope && caller_scope)
+	    unit_scope = caller_scope->unit();
+      return unit_scope;
+}
+
+/* Create only the declaration object needed for name/type binding in a
+ * rootless interface signature scope. PWire::elaborate_sig() is intentionally
+ * not used here: net declaration delays, supplies, resolvers and similar
+ * constructs add target-visible Design nodes. A rootless signal is never
+ * emitted by the target scope walk, so such a node would reference an
+ * unexported nexus. Concrete interface instances still use the complete
+ * PWire path and retain all of those run-time semantics. */
+static NetNet* elaborate_interface_declaration_signal_(
+		Design*des, NetScope*scope, PWire*wire)
+{
+      if (!des || !scope || !wire)
+	    return nullptr;
+      if (NetNet*existing = scope->find_signal(wire->basename()))
+	    return existing;
+
+      ivl_type_t type = wire->elaborate_sig_type(des, scope);
+      if (!type)
+	    return nullptr;
+
+      netranges_t unpacked_dimensions;
+      while (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type)) {
+	    unpacked_dimensions.insert(unpacked_dimensions.begin(),
+		  array->static_dimensions().begin(),
+		  array->static_dimensions().end());
+	    type = array->element_type();
+      }
+
+      NetNet::Type wire_type = wire->get_wire_type();
+      if (wire_type == NetNet::IMPLICIT)
+	    wire_type = NetNet::WIRE;
+      else if (wire_type == NetNet::IMPLICIT_REG)
+	    wire_type = NetNet::REG;
+      if (const netclass_t*class_type = dynamic_cast<const netclass_t*>(type))
+	    if (class_type->is_interface())
+		  wire_type = NetNet::REG;
+
+      NetNet*signal = new NetNet(
+	    scope, wire->basename(), wire_type, unpacked_dimensions, type);
+      if (wire_type == NetNet::WIRE)
+	    signal->devirtualize_pins();
+      signal->set_line(*wire);
+      signal->port_type(wire->get_port_type());
+      signal->lexical_pos(wire->lexical_pos());
+      signal->set_const(wire->get_const());
+      signal->lifetime_override(wire->lifetime_override());
+      if (ivl_discipline_t discipline = wire->get_discipline())
+	    signal->set_discipline(discipline);
+      if (const nettype_t*user_type = wire->user_nettype())
+	    signal->set_user_nettype(scope->elaborate_nettype(des, user_type));
+      return signal;
+}
+
+static NetScope* ensure_interface_declaration_scope_(Design*des,
+						      NetScope*caller_scope,
+						      Module*mod)
+{
+      if (!des || !mod || !mod->is_interface)
+	    return nullptr;
+
+      pair<Design*,Module*>key(des, mod);
+      map<pair<Design*,Module*>,NetScope*>::const_iterator found =
+	    interface_declaration_scope_cache_.find(key);
+      if (found != interface_declaration_scope_cache_.end())
+	    return found->second;
+
+        // This scope represents the interface declaration, not an elaborated
+        // instance. In particular it has no hierarchy parent and is never
+        // registered as a Design root, so runtime method candidate walks
+        // cannot observe it.
+      NetScope*scope = new NetScope(
+	    nullptr, hname_t(mod->mod_name()), NetScope::MODULE,
+	    interface_definition_unit_scope_(des, caller_scope, mod),
+	    false, mod->program_block, true, false);
+      scope->set_module_definition(mod);
+      scope->set_module_name(mod->mod_name());
+      scope->set_line(mod);
+      scope->time_unit(mod->time_unit);
+      scope->time_precision(mod->time_precision);
+      scope->time_from_timescale(mod->has_explicit_timescale());
+      des->set_precision(mod->time_precision);
+
+        // Publish the stable identity before filling it. Type elaboration can
+        // recursively ask for the same interface declaration.
+      interface_declaration_scope_cache_[key] = scope;
+
+      scope->add_imports(&mod->explicit_imports);
+      scope->add_typedefs(&mod->typedefs);
+      scope->add_nettypes(des, &mod->nettypes);
+      for (map<perm_string,LexicalScope::param_expr_t*>::const_iterator cur =
+		 mod->parameters.begin(); cur != mod->parameters.end(); ++cur)
+	    scope->set_parameter(cur->first, false, *cur->second, nullptr);
+      elaborate_scope_declaration_enumerations(des, scope, mod->enum_sets);
+
+        // A function-port default is elaborated in the declaration scope,
+        // not the caller's scope (IEEE 1800-2017 13.5.3). Mirror the
+        // declaration namespace that such an expression can name. Add every
+        // member placeholder first so declarations may depend on later
+        // members, and create every sibling subroutine scope before any
+        // signature is requested so a default may call a later function.
+      for (map<perm_string,PWire*>::const_iterator cur = mod->wires.begin();
+		 cur != mod->wires.end(); ++cur)
+	    if (cur->second)
+		  scope->add_signal_placeholder(cur->second);
+
+      for (map<perm_string,PLet*>::const_iterator cur = mod->lets.begin();
+		 cur != mod->lets.end(); ++cur)
+	    scope->add_let(cur->first, cur->second);
+
+      for (map<perm_string,PTask*>::const_iterator cur = mod->tasks.begin();
+		 cur != mod->tasks.end(); ++cur) {
+	    hname_t use_name(cur->first);
+	    if (!scope->child(use_name))
+		  new NetScope(scope, use_name, NetScope::TASK);
+      }
+      for (map<perm_string,PFunction*>::const_iterator cur = mod->funcs.begin();
+		 cur != mod->funcs.end(); ++cur) {
+	    hname_t use_name(cur->first);
+	    if (!scope->child(use_name))
+		  new NetScope(scope, use_name, NetScope::FUNC);
+      }
+
+      for (map<perm_string,PTask*>::const_iterator cur = mod->tasks.begin();
+		 cur != mod->tasks.end(); ++cur) {
+	    NetScope*method_scope = scope->child(hname_t(cur->first));
+	    if (!method_scope || method_scope->type() != NetScope::TASK
+		|| method_scope->task_pform())
+		  continue;
+	    method_scope->is_auto(cur->second->is_auto());
+	    method_scope->is_virtual_method(cur->second->is_virtual_method());
+	    method_scope->set_line(cur->second);
+	    method_scope->add_imports(&cur->second->explicit_imports);
+	    cur->second->elaborate_scope(des, method_scope);
+      }
+      for (map<perm_string,PFunction*>::const_iterator cur = mod->funcs.begin();
+		 cur != mod->funcs.end(); ++cur) {
+	    NetScope*method_scope = scope->child(hname_t(cur->first));
+	    if (!method_scope || method_scope->type() != NetScope::FUNC
+		|| method_scope->func_pform())
+		  continue;
+	    method_scope->is_auto(cur->second->is_auto());
+	    method_scope->is_virtual_method(cur->second->is_virtual_method());
+	    method_scope->set_line(cur->second);
+	    method_scope->add_imports(&cur->second->explicit_imports);
+	    cur->second->elaborate_scope(des, method_scope);
+      }
+
+        // Defaults need actual declaration NetNets, rather than only PWire
+        // placeholders, when they bind an interface member. This remains a
+        // signature-only scope: declaration initializers and processes are
+        // deliberately not elaborated here.
+      for (map<perm_string,PWire*>::const_iterator cur = mod->wires.begin();
+		 cur != mod->wires.end(); ++cur)
+	    if (cur->second)
+		  elaborate_interface_declaration_signal_(
+			des, scope, cur->second);
+      scope->elaborate_nettypes(des);
+
+      return scope;
+}
 
 static void populate_interface_type_(Design*des, NetScope*member_scope,
 				     Module*mod, netclass_t*iface_type)
@@ -418,54 +598,33 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
       //     is not in root_scopes_ — its scope is created later via PGModule.
       //  2. The root scope exists but hasn't had its parameters collected yet
       //     because packages elaborate before root-scope work items run.
-      // In both cases we build a minimal temporary scope from the module's
-      // pform parameters so wire dimensions can be resolved.
+      // In the first case retain a minimal declaration scope; in the second,
+      // finish seeding the real scope. Either way the module's pform defaults
+      // are then available while member dimensions are resolved.
       NetScope*iface_scope = des->find_scope(hname_t(mod->mod_name()));
-      NetScope*temp_scope = nullptr;
       if (!iface_scope || (iface_scope->parameters.empty() && !mod->parameters.empty())) {
 	    if (!iface_scope) {
-		  // Preserve the interface definition's compilation-unit
-		  // visibility. A wildcard import at $unit may be the source of
-		  // constants used by member dimensions, and the disposable type
-		  // scope must search that same unit just like an instantiated or
-		  // root interface scope does.
-		  NetScope*unit_scope = nullptr;
-		  if (const PScope*lexical_parent =
-			dynamic_cast<const PScope*>(mod->parent_scope()))
-			unit_scope = des->find_package(
-			      lexical_parent->pscope_name());
-		  // Interface is NOT a root — create a disposable scope.
-		  temp_scope = new NetScope(nullptr, hname_t(mod->mod_name()),
-			   NetScope::MODULE, unit_scope,
-			   false, false, true, false);
-		  temp_scope->time_unit(mod->time_unit);
-		  temp_scope->time_precision(mod->time_precision);
-		  temp_scope->time_from_timescale(mod->has_explicit_timescale());
-		  des->set_precision(mod->time_precision);
-		  iface_scope = temp_scope;
+		  // Interface is NOT a root. Retain one declaration-only scope so
+		  // member types and lazily requested method signatures share the
+		  // same stable type-definition context.
+		  iface_scope = ensure_interface_declaration_scope_(
+			des, scope, mod);
 	    }
 	    // Pre-populate default parameters so dimension expressions resolve.
 	    for (auto& kv : mod->parameters)
-		  iface_scope->set_parameter(kv.first, false, *kv.second, nullptr);
+		  if (iface_scope->parameters.find(kv.first)
+		      == iface_scope->parameters.end())
+			iface_scope->set_parameter(
+			      kv.first, false, *kv.second, nullptr);
       }
 
       // Named package imports declared in the interface body participate in
       // member dimensions and types just like interface parameters do. The
       // regular instantiated/root interface scopes receive these imports in
-      // elaborate_scope; the temporary scope used to construct a virtual-
-      // interface type must mirror them as well (for example,
+      // elaborate_scope; the retained declaration scope used to construct a
+      // virtual-interface type must mirror them as well (for example,
       // `import pkg::Width; logic [Width-1:0] data;`).
       iface_scope->add_imports(&mod->explicit_imports);
-
-      // Interface-local typedefs (e.g. `typedef struct packed {...} pkt_t;`
-      // declared inside the interface, then used as a member type) must be
-      // resolvable when the member property types are elaborated below. A
-      // disposable temp_scope carries only parameters, so a member typed by an
-      // interface-local typedef would otherwise degrade to a 32-bit integer
-      // (losing struct/enum structure) — which breaks `vif.member.field`
-      // access. Register the module's typedefs into the elaboration scope.
-      if (temp_scope)
-	    temp_scope->add_typedefs(&mod->typedefs);
 
       populate_interface_type_(des, iface_scope, mod, iface_type);
 
@@ -505,10 +664,73 @@ static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*
       // is what keeps elaboration moving.  Setting it to true here turns
       // those into hard errors.
 
-      delete temp_scope;
       return iface_type;
 }
 
+}
+
+NetScope* ensure_interface_declaration_method_scope(
+		Design*des, NetScope*caller_scope,
+		perm_string interface_name, perm_string method_name)
+{
+      if (!des || !interface_name || !method_name)
+	    return nullptr;
+
+      map<perm_string,Module*>::const_iterator module_it =
+	    pform_modules.find(interface_name);
+      if (module_it == pform_modules.end()
+	  || !module_it->second || !module_it->second->is_interface)
+	    return nullptr;
+
+      Module*mod = module_it->second;
+      PTask*task = nullptr;
+      PFunction*func = nullptr;
+      map<perm_string,PTask*>::const_iterator task_it =
+	    mod->tasks.find(method_name);
+      if (task_it != mod->tasks.end()) {
+	    task = task_it->second;
+      } else {
+	    map<perm_string,PFunction*>::const_iterator func_it =
+		  mod->funcs.find(method_name);
+	    if (func_it != mod->funcs.end())
+		  func = func_it->second;
+      }
+      if (!task && !func)
+	    return nullptr;
+
+      NetScope*interface_scope = ensure_interface_declaration_scope_(
+	    des, caller_scope, mod);
+      if (!interface_scope)
+	    return nullptr;
+
+      hname_t use_name(method_name);
+      if (NetScope*existing = interface_scope->child(use_name)) {
+	    if (task && existing->type() == NetScope::TASK
+		&& existing->task_pform() == task)
+		  return existing;
+	    if (func && existing->type() == NetScope::FUNC
+		&& existing->func_pform() == func)
+		  return existing;
+	    return nullptr;
+      }
+
+      NetScope*method_scope = new NetScope(
+	    interface_scope, use_name,
+	    task ? NetScope::TASK : NetScope::FUNC);
+      if (task) {
+	    method_scope->is_auto(task->is_auto());
+	    method_scope->is_virtual_method(task->is_virtual_method());
+	    method_scope->set_line(task);
+	    method_scope->add_imports(&task->explicit_imports);
+	    task->elaborate_scope(des, method_scope);
+      } else {
+	    method_scope->is_auto(func->is_auto());
+	    method_scope->is_virtual_method(func->is_virtual_method());
+	    method_scope->set_line(func);
+	    method_scope->add_imports(&func->explicit_imports);
+	    func->elaborate_scope(des, method_scope);
+      }
+      return method_scope;
 }
 
 const netclass_t* elaborate_interface_instance_type(Design*des,

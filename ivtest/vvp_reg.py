@@ -138,6 +138,9 @@ def process_test(item: list, cfg: list) -> str:
     elif it_type == "EF":
         res = run_ivl.run_EF(it_opts, cfg)
 
+    elif it_type == "RE":
+        res = run_ivl.run_RE(it_opts, cfg)
+
     elif it_type == "TE":
         res = run_ivl.run_TE(it_opts, cfg)
 

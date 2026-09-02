@@ -439,6 +439,19 @@ static void string_ex_pop(ivl_expr_t expr)
 
 static void draw_sfunc_string(ivl_expr_t expr)
 {
+	if (strncmp(ivl_expr_name(expr), "$ivl_vif_func$", 14) == 0) {
+	      if (ivl_expr_value(expr) == IVL_VT_STRING) {
+		    vvp_errors += draw_vif_function_call(expr);
+		    return;
+	      }
+	      if (ivl_expr_value(expr) == IVL_VT_BOOL
+		  || ivl_expr_value(expr) == IVL_VT_LOGIC) {
+		    vvp_errors += draw_vif_function_call(expr);
+		    fprintf(vvp_out, "    %%pushv/str; Cast VIF result to string\n");
+		    return;
+	      }
+	}
+
 	/* A system function used where a string is required, but whose
 	   own value type is not a string. This used to be a bare
 	   assert(), so `string s; s = $time();' -- or any typo'd
