@@ -1297,7 +1297,17 @@ int draw_capture_lval_ref(ivl_lval_t lval)
             return 1;
       }
 
-      if (sig) {
+        /* A property target names storage INSIDE the object the signal
+         * holds, not the handle signal itself, so it belongs to the
+         * property path below whether the owner arrives through a nested
+         * l-value or directly through this signal. Letting it fall into the
+         * signal path captured the class handle instead: an indexed
+         * property (`h.values[0]') reported "unsupported indexed mailbox
+         * ref-output signal shape", and an unindexed one (`h.value')
+         * silently emitted a plain capture of the handle and then aborted
+         * vvp at run time with "vvp_fun_signal_object_sa: recv_vec4 not
+         * implemented" when the retrieved value was written back. */
+      if (sig && property < 0) {
             ivl_type_t sig_type = ivl_signal_net_type(sig);
 
             if (index && sig_type
@@ -1367,7 +1377,10 @@ int draw_capture_lval_ref(ivl_lval_t lval)
             return 0;
       }
 
-      if (property >= 0 && ivl_lval_nest(lval)) {
+        /* draw_lval_expr() pushes the owning object for a nested l-value AND
+         * for one that names its owner directly through a signal, so this
+         * path serves both spellings. */
+      if (property >= 0) {
             ivl_type_t owner_type = draw_lval_expr(lval);
             if (!owner_type || property >= ivl_type_properties(owner_type)) {
                   fprintf(stderr, "vvp.tgt error: cannot resolve mailbox "

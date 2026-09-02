@@ -1,2 +1,0 @@
-ivltests/sv_signal_fixed_array_container_fail.v:4: sorry: array of queue type is not yet supported for signal-backed declarations; this form is currently supported only as a non-static instance-class property.
-1 error(s) during elaboration.

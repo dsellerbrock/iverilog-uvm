@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_signal_fixed_array_container.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"          : "sv_signal_fixed_array_container"
+}

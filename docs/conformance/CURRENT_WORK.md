@@ -38,10 +38,14 @@ expression calls to `put`, `get`, `peek`, `try_put`, `try_get`, and
 runtime can capture that l-value before a blocking operation. Direct scalar,
 string, real and object destinations, packed selects, properties, fixed words,
 and queue/dynamic-array elements are represented; successful try calls write
-back and an empty try leaves the target unchanged. This mailbox work is still
-an implementation checkpoint: its final installed-tool reducer gate and
-associative-element reference lifetime are pending, so no mailbox pass count
-is claimed here.
+back and an empty try leaves the target unchanged. The mailbox reducer gate is now
+CLOSED: a ref-output target naming storage inside an object is captured through
+the property path whichever way its owner is spelled, which removed both the
+"unsupported indexed mailbox ref-output signal shape" refusal and an internal
+vvp assertion (`vvp_fun_signal_object_sa: recv_vec4 not implemented`) that an
+accepted program could reach. A signal-backed associative element
+(`mi.get(assoc[key])`) still fails to create or write its entry; that is
+pre-existing on mainline and remains open.
 
 Measured focused evidence currently available:
 
@@ -55,7 +59,9 @@ Measured focused evidence currently available:
 | Interface-port-array cluster | **4/4** |
 | Fixed-array-of-container 2017/2023 pair | **2/2** |
 | Modport parser recovery | **verified against exact golds** |
-| Typed-mailbox final reducer gate | **pending** |
+| Typed-mailbox final reducer gate | **closed — 2/2 rows** |
+| Paired VIF specialization focus gate | **68/68 legacy + 68/68 JSON/VVP** |
+| OpenTitan array-of-containers focus gate | **18/18 legacy + 18/18 JSON/VVP** |
 
 These are focused mechanism results, not a broad-regression or application
 closeout. The full legacy, JSON/VVP, negative, VPI, real-DPI UVM, OpenTitan,

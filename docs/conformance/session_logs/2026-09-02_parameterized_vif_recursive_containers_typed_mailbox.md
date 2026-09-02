@@ -365,3 +365,65 @@ object, and that the bounded recursion terminated with no grandchild. It also
 covers the four rows this defect was breaking:
 `sv_class_assoc_recursive_find1`, `sv_class_recursive_new_prop1`,
 `sv_class_derived_ctor_state1` and `sv_class_recursive_ctor_add1`.
+
+## Addendum 3 — 2026-09-02 — mailbox ref-output into a class property
+
+Closing out the rows the full sweep still showed red.
+
+### Defect
+
+IEEE 1800-2017/2023 15.4.5-15.4.8. A mailbox `get`/`peek`/`try_get`/`try_peek`
+target that names storage inside an object, reached DIRECTLY through a handle
+signal rather than through a nested l-value, took the plain-signal path in
+`draw_capture_lval_ref` (tgt-vvp/stmt_assign.c) and captured the class HANDLE
+instead of the property. The property path immediately below it already
+implemented every shape needed -- scalar, container element and associative
+element -- but was gated on `ivl_lval_nest(lval)`, which a direct
+`handle.property` spelling does not set.
+
+Two failure modes, one cause:
+
+- `mi.get(h.values[0])` and `mi.get(h.int_map[5])` reported
+  "sorry: unsupported indexed mailbox ref-output signal shape";
+- `mi.get(h.value)` compiled CLEAN and then aborted vvp at run time with
+  "internal error: 24vvp_fun_signal_object_sa: recv_vec4 not implemented",
+  an internal assertion reached from an accepted program.
+
+The second is the more serious of the two: an accepted program must not reach
+an internal assertion, and nothing in the compile output warned about it.
+
+### Implementation
+
+A property target names storage inside the object, not the handle signal, so
+it now belongs to the property path whichever way the owner is spelled. The
+signal path is guarded with `property < 0` and the property path's gate drops
+`ivl_lval_nest`; `draw_lval_expr()` already pushes the owning object for a
+direct-signal l-value as well as a nested one, so both spellings share the
+existing emission.
+
+### Test correction, not a compiler change
+
+`sv_mailbox_ref_output_lvalue` then reached its `packed part RMW` check and
+failed it. The compiler is right and the test was wrong: the check ran after
+the preceding `packed bit RMW` had already left `packed_value` at `16'ha558`,
+so replacing `[11:8]` with `3` yields `16'ha358`, not the `16'ha35a` the test
+asserted -- that value ignores the earlier read-modify-write. Measured against
+the exact-main compiler, which implements neither RMW and leaves `16'ha55a`
+untouched, this branch produces `a558` then `a358`, both correct. Only the
+expectation was corrected.
+
+### Regression
+
+`sv_mailbox_ref_output_class_property`, paired for `-g2017`/`-g2023`. It covers
+the unindexed property (the former assertion abort), the queue-element and
+associative-element properties (the former `sorry`), a signal-backed queue
+element as a control for the path that already worked, a successful `try_get`
+through a property, and an empty `try_get` leaving the property untouched. On
+the exact-main compiler four of its checks are red.
+
+### Known limitation, unchanged
+
+`mi.get(assoc[key])` on a SIGNAL-backed associative array still fails to create
+or write the element -- `plain_map[3]` stays 0 and `size()` stays 0. That is
+pre-existing on `origin/main` at `dcd3f8fc1` and is a separate defect from the
+property path fixed here; it is not addressed in this increment.

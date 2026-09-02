@@ -134,7 +134,8 @@ module sv_mailbox_ref_output_lvalue;
     nibble = 4'h3;
     mn.put(nibble);
     ok = mn.try_get(packed_value[11:8]);
-    check("packed part RMW", ok && packed_value == 16'ha35a);
+    // a558 (left by the preceding bit RMW) with [11:8] replaced by 3.
+    check("packed part RMW", ok && packed_value == 16'ha358);
 
     // Class property, fixed word, dynamic-array element and queue element.
     holder0.value = -1;
