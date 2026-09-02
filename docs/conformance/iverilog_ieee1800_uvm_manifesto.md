@@ -196,6 +196,30 @@ one-dimensional interface-instance array is labeled as an intentional
 application-compatibility extension, because 23.6 requires that selection in
 a hierarchical name to be constant; it is not counted as 25.9 conformance.
 
+The 2026-09-01 virtual-interface function audit carries that semantic identity
+across a complete value-returning call. Frontend resolution records every
+compatible concrete interface-method candidate instead of choosing the first
+instance during elaboration; VVP selects the candidate from the handle's bound
+scope before evaluating that candidate's argument row. Declaration-scoped
+defaults can therefore read interface members and earlier formals, and
+automatic/static functions preserve their distinct lifetime rules through
+nested setup and recursion. Scalar, wide packed, real, string, class, queue,
+and dynamic-array results, discarded results, null-receiver failure, and
+function-body `always_comb` dependencies are permanent paired 2017/2023
+evidence. Static call setup uses an invocation-local typed overlay until the
+selected argument row is complete, then commits to the function's shared
+storage before executing the body; recursion from that body remains shared as
+13.4.2 requires. The runtime object stack now grows on demand instead of
+asserting after 32 object-valued actuals. This remains a named input-only
+subset: output/inout/ref and fixed-unpacked virtual-interface function formals
+or returns, complete parameterized-interface specialization, and synthesis
+lowering are loud or documented boundaries rather than implied support.
+The OpenTitan UART replay also exposed and closed the adjacent 8.13 lookup path:
+unqualified value parameters in a derived method now follow the specialized
+superclass chain nearest-first. This matters independently of dispatch—the
+legal OpenTitan UART actual now evaluates to 160 instead of reaching target
+recovery as a null expression—and it is pinned as a paired 2017/2023 reducer.
+
 Do not attempt an all-at-once rewrite.
 
 ### Scheduler remediation
@@ -868,22 +892,20 @@ type-coverage, VPI, or cross interaction.
       though 19.7 requires evaluation at construction.
 - [ ] Complete the remaining IEEE 1800-2023 real/tolerance coverage surface.
 
-The current local associative-pattern focus passes 54/54 in each harness;
-canonical legacy ivtest passes 4,127 with zero unexpected failures (2 NI and
-3 expected fail, 4,132 total); JSON/VVP passes 1,017/1,017; negatives pass
-136/136; VPI passes 103/103; and canonical real-DPI UVM passes 354/354. Both
-parser conflict profiles match the exact `origin/main` parent. The post-audit
-OpenTitan compile matrix is 8 DEBT / 50 FAIL / 3 SETUP_FAIL / 0 PASS,
-unchanged in classification from the preceding checkpoint, with zero
-timeouts/resource-limit signals and zero former associative-pattern
-syntax/refusal diagnostics. The affected targets advance to independent
-frontiers; this is not a clean application or runtime pass. Native ARM
-`regtool.py` regenerates the UART register RTL byte-for-byte identically. The
-post-audit Caliptra static census is Icarus 53/105 in each
-assertions/no-assertions/synthesis lane versus Slang 54/105, with 52 PASS, 1
-DEBT, 51 SHARED_SOURCE_OR_CONFIG, 1 SOURCE_ORDER_DEBT, and 0 ICARUS_GAP. Its
-sole Slang advantage is known `csrng_raw_wrap` source-order debt; this is not
-full Caliptra DV runtime.
+The current post-fix validation is 2,242/2,242 legacy SV, 1,320 JSON/VVP
+entries with zero failures, 149/149 negatives, 103/103 VPI, and 354/354
+real-DPI UVM with zero skips. The native-ARM64 OpenTitan closeout classifies
+all 530 unmodified rows: 192 PASS, 20 DEBT, 104 FAIL, 16 RUNTIME_FAIL, 157
+DEPENDENCY_ONLY, 35 UPSTREAM_INVALID, and 6 SETUP_FAIL. UART alone advances
+relative to the pre-follow-on replay: its compile row moves from FAIL to DEBT,
+and its runtime row moves from FAIL to RUNTIME_FAIL before exposing a separate
+null virtual-interface call. The setup-ready UVM compile-through count is
+12/58 versus 8/58 at the recorded mainline application baseline; this is
+material forward progress, not a clean OpenTitan UVM pass. The frozen Caliptra
+static census remains Icarus 53/105 in each assertions/no-assertions/synthesis
+lane versus Slang 54/105, with 52 PASS, 1 DEBT, 51
+SHARED_SOURCE_OR_CONFIG, and 1 SOURCE_ORDER_DEBT. It has zero recorded deltas
+and is an RTL/SVA/synthesis manifest census, not complete Caliptra DV/UVM.
 
 ## M12A — Core SystemVerilog VPI object model
 

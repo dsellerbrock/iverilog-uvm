@@ -460,3 +460,26 @@ and **354/354** canonical real-DPI UVM with no failures or skips. These paired
 checks show no implemented 2017/2023 difference for this bounded cluster; they do not
 claim complete clauses 6, 7, or 13. See the dated section in
 `matrices/ieee1800_2017_clause_matrix.md` and the associated session log.
+
+## 2026-09-01 clauses 8.13, 9.2.2.2.1, 13.4, 13.5, and 25.9 — no implemented edition delta
+
+IEEE 1800-2023 retains the 2017 inheritance, subroutine-lifetime,
+argument/default, virtual-interface, and `always_comb` rules used by this
+increment. One implementation serves both selected editions, and every new
+language reducer has paired `-g2017` and `-g2023` registrations.
+
+The shared subset dynamically selects an unparameterized virtual-interface
+function candidate, evaluates that candidate's input-only argument/default row,
+preserves automatic versus static formal lifetime, and returns packed, real,
+string, class-handle, queue, or dynamic-array values. Null receivers fail at
+runtime, discarded results still execute, and a constant interface-port-array
+function read contributes to `always_comb` sensitivity. Unqualified value
+parameters inherited through a specialized superclass are also resolved in
+both modes.
+
+The paired focused legacy and JSON/VVP lists each pass **31/31**. This entry
+does not claim a 2023-only feature or complete clauses 8, 9, 13, or 25.
+Output/inout/ref VIF-function arguments, fixed-unpacked arguments or returns,
+complete parameterized-interface/modport specialization, and synthesis
+lowering remain explicit boundaries. See the dated 2017 matrix section and
+`session_logs/2026-09-01_virtual_interface_functions.md`.

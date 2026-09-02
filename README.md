@@ -266,6 +266,26 @@ extension: IEEE 1800-2017/2023 23.6 requires a constant expression for an
 instance-array select in a hierarchical name. Hierarchical and
 multidimensional run-time dispatch are not claimed.
 
+Value-returning function calls through an unparameterized virtual interface
+select the concrete interface instance at run time. The selected candidate's
+input signature and declaration-scoped defaults are used before the call, so
+rebinding, named and omitted arguments, an earlier formal referenced by a
+later default, nested argument calls, and automatic or static recursion retain
+the selected instance and the required formal lifetime. Recorded return types
+include packed scalar/wide values, real, string, class handles, queues, and
+dynamic arrays; discarding a result still executes the call. A null receiver
+terminates loudly. Function-body reads reached through a constant element of
+an interface-port array also contribute to `always_comb` sensitivity. This is
+a bounded 13.4/13.5/25.9 subset: output, inout, and ref virtual-interface
+function arguments, fixed unpacked arguments or returns, full parameterized
+interface specialization, and synthesis lowering remain explicit unsupported
+boundaries.
+
+Unqualified value parameters inherited by a derived class method follow the
+specialized superclass chain nearest-first. This includes using the inherited
+value as an actual for an implicit-input virtual-interface task formal; local
+members still shadow inherited names.
+
 Explicit event-or lists under 9.4.2 may mix a dynamically selected virtual-
 interface member or class-property expression with ordinary signals, named
 events, run-time-selected event-array elements, and direct/default/global
@@ -592,7 +612,7 @@ for recorded evidence and known corners, not a completeness certificate.
 | UVM (Accellera core, unmodified) | Substantial | Current local canonical checkpoint: 354/354, 0 failed, 0 skipped, run WITHOUT `UVM_NO_DPI` via the Icarus UVM DPI backend (regex + command-line + `uvm_hdl_*` backdoor); frontdoor + user-defined backdoor work; `UVM_NO_DPI` native fallback still supported. |
 | Constraints / randomization (cl. 18) | Substantial | Z3-backed, including scope `std::randomize(vars) with {...}` for simple 1–64-bit integral variables; `randcase`/`randsequence` work |
 | Containers (queues/darrays/assoc, cl. 7) | Substantial | Broad recorded method subset. Under 7.6, equivalent-element queue/dynamic-array assignment, input copying, and output/inout copy-back create the destination or actual's declared runtime kind across direct, property, selected, conditional, function-result, aggregate, and nested stores; a real queue-to-dynamic assignment is pinned through the dynamic array's contiguous DPI representation. Assignment-compatible casts follow 6.24.1. The evidenced 6.24.3 integral bit-stream-cast subset changes element width only when the complete source bit count fits the destination and a bounded queue can hold every result element; mismatches terminate loudly instead of padding or truncating. Native output formals follow 13.3.2/13.4.2 static/automatic lifetime and 13.5 copy-out rules, and empty calls retain argument and copy-back effects. Value-returning native and DPI functions now accept direct one-dimensional fixed unpacked-array slice input/output/inout actuals, preserve each slice's bounds and direction, copy fixed/native values left-to-right, activate the numeric-indexed DPI view, copy back only the selected window, and reject fixed shape/element mismatches before lowering. The separate OpenTitan commercial-flow extension is deliberately restricted to an ordinary blocking cross-kind assignment between equal-width, equal-signedness packed `bit`/`logic` elements, with 4-state-to-2-state X/Z conversion governed by 6.11.2. Same-kind assignments, initialization, formal binding, enum identity, width, and signedness remain strict; the extension does not widen explicit casts or subroutine binding. Associative-array assignment patterns support evidenced explicit constant string/integral/enum keys plus at most one non-entry fallback `default`, with integral, string, real, class-handle, queue, nested-associative, and unpacked-struct values. Direct signal-backed fixed-unpacked prefixes ending in integral/string/real-valued associative leaves match the observed OpenTitan CSRNG/EDN/entropy-src shapes plus paired real-value reducers; every fixed dimension is checked before flattening so a multidimensional OOB selector cannot alias a valid sibling map. This is not an end-to-end IP pass claim. This is bounded clause-7 support, not complete closure: multidimensional and property-backed slice actuals, general recursive aggregate bit-stream casts, selected/scoped/property/function-return source forms for the narrow state extension, ordinary queue signal/method bounds above `UINT_MAX`, and previously recorded deeper aggregate/receiver/typing contexts remain legacy, loud, or open. |
-| Interfaces / virtual interfaces (cl. 25) | Substantial | UVM vif pattern end-to-end; both Syntax 25-3 spellings in the evidenced legal contexts; provenance-aware forbidden-context diagnostics; unparameterized `==`/`!=` identity against null, same-type VIFs, and concrete instances. Parameter/modport comparison identity remains open. |
+| Interfaces / virtual interfaces (cl. 25) | Substantial | UVM vif pattern end-to-end; both Syntax 25-3 spellings in the evidenced legal contexts; provenance-aware forbidden-context diagnostics; unparameterized `==`/`!=` identity against null, same-type VIFs, and concrete instances; value-returning input-only function dispatch with candidate-specific defaults, typed results, static/automatic recursion, and null failure. A direct function call through a constant interface-port-array element contributes to `always_comb` sensitivity. Output/inout/ref function arguments, fixed-unpacked function arguments/returns, complete parameterized-interface and modport-specialized dispatch/type identity, and synthesis lowering remain open. |
 | Clocking blocks (cl. 14) | Partial | Sampled inputs, common output drives, `##N`, and global clocking work; recorded run-time-selected, indexed-receiver, and aggregate-output gaps remain |
 | Scheduler / event regions (cl. 4) | Supported | Full stratified queue incl. Preponed, post-NBA (`cbNBASynch`), Observed and the Reactive set; assertions sample Preponed, evaluate in Observed and run their actions in Reactive; region tracing/self-test under `IVL_REGION_TRACE` / `IVL_REGION_SELFTEST` ([audit](docs/conformance/scheduler_audit_2026_07.md)) |
 | SVA (cl. 16) | Partial | Automaton (NFA) engine is the default: implication, windows/unbounded incl. mid-chain, goto/nonconsec repetition, local vars, first_match, and/or/intersect/within/throughout, strong/weak, `.triggered`/`.matched`, multiclocked `\|=>`; legacy linear engine behind `IVL_SVA_LEGACY=1`; `expect` and `checker`/`endchecker` implemented; remaining loud boundaries include cross-clock overlapping `\|->`, `disable iff` across a two-or-more-boundary chain, and the separately recorded branch-flow/deferred-immediate gaps |
@@ -608,67 +628,30 @@ for recorded evidence and known corners, not a completeness certificate.
 The current local canonical unmodified Accellera UVM checkpoint passes
 **354/354** with real DPI. Application compatibility is less complete:
 
-- The post-audit native-ARM64 OpenTitan 61-target UVM **compile** matrix at
-  clean revision `7a3ad34b` is **8 DEBT / 50 FAIL / 3 SETUP_FAIL / 0 PASS**,
-  unchanged in classification from the preceding checkpoint. Every former
-  associative-pattern syntax/refusal diagnostic is absent; the eight affected
-  targets advance to independent parser/provider frontiers but do not yet
-  pass. The run completed in 53.60 seconds with zero timeouts or resource-limit
-  signals. This was a compile/elaboration/code-generation matrix and did not
-  run the 61 simulations. Native ARM `regtool.py` also regenerated UART's two
-  register RTL products byte-for-byte identically to the frozen checkout.
-  Earlier same-branch authentic Darjeeling and Earlgrey top-chip replays moved
-  their former internal typed string-concatenation counts from **10/18** to
-  **0/0**. A newer targeted authentic replay covers `spi_device_sim`,
-  `spi_host_sim`, Darjeeling, and Earlgrey with the destination-typed
-  queue/dynamic-array conversion. All four contain zero occurrences of the
-  former `spi_agent_cfg.sv:139`/`:143` context mismatch and reach independent
-  later frontiers: `spi_device_scoreboard.sv:1177`,
-  `spi_host_env_cfg.sv:36`, or the compound class-property event at
-  `spi_host_driver.sv:40`. Historical red counterparts prove removal for the
-  Darjeeling and Earlgrey top-chip closures; older standalone `spi_device_sim`
-  and `spi_host_sim` evidence stopped at the later frontiers and does not prove
-  that the mismatch was formerly reached in those targets. All four still
-  classify **FAIL** and produce no application pass claim. No new full
-  61-target matrix has been run, so the matrix classification above remains
-  the last full census. The typed-string increment also retains
-  nested literal groups through run-time string replication in direct-target,
-  whole-cast, and comparison contexts; rejects string replication assigned to
-  an integral target; and makes a zero multiplier produce an empty string
-  after evaluating its operand exactly once. Mixed string-expression/integral
-  concatenations are rejected at the operator even beneath a conditional or
-  whole string cast. Built-in string methods retain their exact result types
-  for data objects and constant string parameters, work on a nested
-  concatenation, reject scalar selected-byte receivers, and emit hard arity
-  diagnostics. Review hardening removes the old implementation-specific
-  replication cutoff from newly generated typed bytecode: a legal
-  **1,048,576-byte** variable repeat passes, signedness reaches the VVP repeat
-  index, and negative, X/Z, or index-width-overflow counts are diagnosed. The
-  unsuffixed opcode retains its historical behavior for old textual VVP images
-  and is pinned independently. Constant string-parameter methods preserve
-  semantic bytes for empty, nonprinting, backslash, and quote data, accept
-  runtime method arguments, and retain exact conversion result types.
-  Generic parameterized-class bodies defer concat-operand legality for a
-  formal/local/property declared through an unresolved type parameter, then
-  check each concrete specialization; string bindings pass and an integer
-  binding remains a focused error.
-  The `br_gh800` mixed-literal spelling and direct
-  `string[index]` concatenation are retained only as narrow compatibility
-  extensions, not as general uncast integral acceptance or IEEE behavior. The
-  expanded paired focus passes **23/23 legacy** and **24/24 JSON/VVP**. Full
-  validation is **2,083/2,083 legacy**, **1,161 JSON/VVP entries with 0
-  failures** (1,144 executed/pass and 17 NI), **136/136 negatives**,
-  **103/103 VPI**, **6/6 textual VVP compatibility**, and **354/354 canonical
-  real-DPI UVM** with 0 failed and 0 skipped. See the
-  [typed-string session log](docs/conformance/session_logs/2026-08-27_opentitan_typed_string_concatenation.md).
-- The post-audit frozen Caliptra static census completes all 105 jobs and 420
-  compiler invocations: Icarus is **53/105** in each assertions,
-  no-assertions, and synthesis lane versus Slang **54/105**. Its classifications
-  are **52 PASS / 1 DEBT / 51 SHARED_SOURCE_OR_CONFIG / 1 SOURCE_ORDER_DEBT /
-  0 ICARUS_GAP**; the sole Slang advantage is the known `csrng_raw_wrap`
-  source-order debt. The census completed in 58.30 seconds. This is
-  compile/elaboration/synthesis differential evidence, not full Caliptra DV
-  runtime, which still requires external verification inputs.
+- The native-ARM64 OpenTitan closeout classifies all **530/530** unmodified
+  rows at clean revision `7a3ad34b`: **192 PASS / 20 DEBT / 104 FAIL / 16
+  RUNTIME_FAIL / 157 DEPENDENCY_ONLY / 35 UPSTREAM_INVALID / 6 SETUP_FAIL**.
+  RTL is 93 pass / 153 dependency / 18 upstream-invalid. SVA is 99 pass / 6
+  debt / 2 fail / 4 dependency / 17 upstream-invalid. UVM compile is 12 debt /
+  46 fail / 3 setup-fail; runtime is 2 debt / 56 fail / 16 runtime-fail / 3
+  setup-fail. The inherited-parameter fix advances UART compile from `FAIL` to
+  `DEBT` and its runtime row from `FAIL` to `RUNTIME_FAIL`; simulation reports
+  a later null virtual-interface call near 497,725,923 ps and continues to the
+  504,840,923 ps UVM marker. The setup-ready UVM compile-through count is 12/58
+  versus 8/58 at the recorded mainline application baseline. No clean
+  OpenTitan UVM compile or runtime pass is claimed, and `DEBT` is not a pass.
+- The frozen Caliptra/Adams Bridge static census completes all **105** manifest
+  jobs and 420 compiler invocations without a timeout: Icarus is **53/105** in
+  each assertions, no-assertions, and synthesis lane versus Slang **54/105**.
+  Its classifications are **52 PASS / 1 DEBT / 51 SHARED_SOURCE_OR_CONFIG / 1
+  SOURCE_ORDER_DEBT**. Every recorded field is unchanged from the prior final
+  and available clean post-#241 mainline census. This is an RTL/SVA/synthesis
+  manifest census, not complete Caliptra DV/UVM; that flow still requires
+  external verification inputs.
+- The post-fix compiler sweep passes **2,242/2,242 legacy SV**, **1,320
+  JSON/VVP entries with 0 failures**, **149/149 negatives**, **103/103 VPI**,
+  and **354/354 real-DPI UVM** with zero skips. See the
+  [virtual-interface function session log](docs/conformance/session_logs/2026-09-01_virtual_interface_functions.md).
 
 Exact revisions, commands, classifications, and newer results belong in
 [CURRENT_WORK](docs/conformance/CURRENT_WORK.md), not in a rounded compatibility

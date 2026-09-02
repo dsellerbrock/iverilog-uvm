@@ -618,3 +618,24 @@ This is bounded clause-8/19 support, not closure. Nonliteral constant-condition
 proof, exhaustive constructor control flow, broader covergroup expressions,
 and the previously recorded clause-19 gaps remain open. See the
 [session log](../session_logs/2026-09-01_class_instance_constant_constructor_order.md).
+
+## 2026-09-01 clauses 8.13, 9.2.2.2.1, 13.4, 13.5, and 25.9 virtual-interface functions
+
+Every language regression in this section is paired under `-g2017` and
+`-g2023`.
+
+| Boundary | Disposition / evidence |
+|---|---|
+| 25.9 value-returning dynamic dispatch | FIXED for unparameterized virtual interfaces. The frontend records every compatible concrete interface-function scope and a scope-keyed argument row. VVP compares the receiver's bound instance, selects exactly one candidate, evaluates only its row, and enters that method. Rebinding and multiple concrete instances are runtime-pinned. |
+| 13.5.1/13.5.3 arguments and defaults | FIXED for input-only scalar/container formals in the recorded subset. Named and positional actuals are assignment-contextualized against each candidate. An omitted argument clones that candidate's declaration-scoped default, including interface-member reads, earlier-formal references, and nested VIF-function calls. Missing required actuals and named-then-positional calls remain hard errors. |
+| 13.4.1/13.4.2 automatic and static lifetime | FIXED for the recorded typed forms. Automatic functions allocate their own frame. Static-formal setup is staged in an invocation-local typed overlay and committed immediately before the body; recursion from the body still observes shared static storage. Nested setup and automatic/static recursion are checked. |
+| Typed and discarded results | FIXED for packed scalar/wide, real, string, class-handle, queue, and dynamic-array results. A statement-position cast/discard executes the selected function and balances the corresponding VVP stack. The object stack grows on demand beyond the former 32-value limit. |
+| Null receiver | FIXED. A null dynamic VIF function receiver terminates at runtime. The no-concrete-instance case still elaborates explicit actuals against the declaration signature before emitting the required null failure. |
+| 9.2.2.2.1 `always_comb` sensitivity | FIXED for a function-body read through a constant element of an interface-port array. Dependency discovery includes the selected member while declaration-only interface scopes remain absent from target conversion. |
+| 8.13 inherited value parameters | FIXED for unqualified lookup in a derived class method. After local lookup, specialized superclass scopes are searched nearest-first. `sv_inherited_class_parameter_vif_task` passes the inherited value 80 * 2 into an implicit-input VIF task formal; exact main warns and observes 0. |
+| Statement-row compile-progress compatibility | PRESERVED and isolated. If frontend recovery has already produced a null actual for a VIF task statement, target lowering skips only that store as main did. This does not relax value-returning VIF expressions, ordinary subroutine calls, formal-direction checks, or legal-source diagnostics. |
+| Unsupported boundaries | LOUD or documented. Output/inout/ref VIF-function arguments, fixed-unpacked arguments/returns, complete parameterized-interface and modport specialization, and synthesis lowering remain outside this subset. |
+| Focused validation | The paired legacy and JSON/VVP lists each pass **31/31**. Final broad and application totals are recorded in the associated session log. |
+
+This is a bounded cluster, not complete clause 8, 9, 13, or 25 support. See
+the [session log](../session_logs/2026-09-01_virtual_interface_functions.md).
