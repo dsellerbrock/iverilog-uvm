@@ -1,0 +1,6 @@
+{
+    "type"          : "RE",
+    "source"        : "sv_vif_null_function_fail_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_vif_null_function_fail" ],
+    "gold"          : "sv_vif_null_function_fail"
+}

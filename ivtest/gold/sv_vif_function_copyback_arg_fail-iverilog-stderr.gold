@@ -1,0 +1,3 @@
+ivltests/sv_vif_function_copyback_arg_fail.v:5: sorry: virtual-interface function input argument 1 requires output, inout, or ref copy-back; dynamic function dispatch does not yet support that direction.
+ivltests/sv_vif_function_copyback_arg_fail.v:5: sorry: virtual-interface function input argument 1 requires output, inout, or ref copy-back; dynamic function dispatch does not yet support that direction.
+2 error(s) during elaboration.

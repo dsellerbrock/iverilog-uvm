@@ -717,6 +717,13 @@ static void elaborate_scope_enumerations(Design*des, NetScope*scope,
       }
 }
 
+void elaborate_scope_declaration_enumerations(
+		Design*des, NetScope*scope,
+		const vector<enum_type_t*>&enum_types)
+{
+      elaborate_scope_enumerations(des, scope, enum_types);
+}
+
 /*
  * If the pclass includes an implicit and explicit constructor, then
  * merge the implicit constructor into the explicit constructor as

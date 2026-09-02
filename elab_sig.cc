@@ -2948,6 +2948,39 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
       vector<NetNet*>ports;
       vector<NetExpr*>pdef;
       vector<perm_string> port_names;
+
+        /* Publish an interface function's structural signature before
+	 * elaborating its defaults. A default expression is evaluated in the
+	 * declaration scope and may recursively call this same function. Without
+	 * the provisional definition, the recursive resolver observes elab_stage
+	 * 2 but no NetFuncDef and incorrectly treats the method as unresolved.
+	 * The port signals already exist from elaborate_sig_wires_; only their
+	 * default-expression trees are still pending. */
+      bool provisional_interface_def = false;
+      if (!scope->func_def() && scope->parent()
+	  && scope->parent()->type() == NetScope::MODULE
+	  && scope->parent()->is_interface()) {
+	    const vector<pform_tf_port_t>*pform_ports = peek_ports();
+	    vector<NetNet*>provisional_ports;
+	    if (pform_ports)
+		  provisional_ports.resize(pform_ports->size(), nullptr);
+	    bool complete = true;
+	    for (size_t idx = 0 ; pform_ports && idx < pform_ports->size(); idx += 1) {
+		  PWire*port = pform_ports->at(idx).port;
+		  provisional_ports[idx] = port
+			? scope->find_signal(port->basename()) : nullptr;
+		  if (!provisional_ports[idx])
+			complete = false;
+	    }
+	    if (complete) {
+		  vector<NetExpr*>provisional_defaults(
+			provisional_ports.size(), nullptr);
+		  scope->set_func_def(new NetFuncDef(
+			scope, ret_sig, provisional_ports, provisional_defaults));
+		  provisional_interface_def = true;
+	    }
+      }
+
       elaborate_sig_ports_(des, scope, ports, pdef, port_names);
 
       if (gn_system_verilog()
@@ -2976,6 +3009,11 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
 		       << "." << endl;
 
 	    scope->set_func_def(def);
+	} else if (provisional_interface_def) {
+	    ivl_assert(*this, def->port_count() == ports.size());
+	    for (unsigned idx = 0 ; idx < ports.size() ; idx += 1)
+		  ivl_assert(*this, def->port(idx) == ports[idx]);
+	    def->replace_port_defaults(pdef);
       }
 
       if (trace_func_sig) {

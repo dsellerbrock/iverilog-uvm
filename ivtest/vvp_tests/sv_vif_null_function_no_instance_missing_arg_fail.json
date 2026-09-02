@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_vif_null_function_no_instance_missing_arg_fail.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_vif_null_function_no_instance_missing_arg_fail" ],
+    "gold"          : "sv_vif_null_function_no_instance_missing_arg_fail"
+}

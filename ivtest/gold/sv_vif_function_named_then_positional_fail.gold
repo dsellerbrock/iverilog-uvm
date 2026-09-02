@@ -1,0 +1,2 @@
+./ivltests/sv_vif_function_named_then_positional_fail.v:17: error: Positional arguments must precede named arguments.
+1 error(s) during elaboration.

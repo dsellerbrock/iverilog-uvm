@@ -38,6 +38,21 @@ typedef struct vthread_s* vthread_t;
 typedef struct vvp_code_s*vvp_code_t;
 class __vpiScope;
 
+/* Static virtual-interface function argument staging. Object signal functors
+ * use these hooks because queue/darray mutation opcodes can reach the functor
+ * directly without passing through %load/obj or %store/obj. */
+extern bool vthread_vif_overlay_get_object(vvp_net_t*net,
+                                           vvp_object_t&value,
+                                           vvp_net_t*&root_net,
+                                           vvp_object_t&root_object);
+extern bool vthread_vif_overlay_put_object(vvp_net_t*net,
+                                           const vvp_object_t&value,
+                                           vvp_net_t*root_net,
+                                           const vvp_object_t&root_object);
+extern bool vthread_vif_overlay_put_object_root(
+      vvp_net_t*net, vvp_net_t*root_net,
+      const vvp_object_t&root_object);
+
 /*
  * Blocking runtime objects (mailbox, semaphore, process::await) retain a
  * thread until their condition becomes ready.  The thread in turn retains

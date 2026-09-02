@@ -37,9 +37,10 @@ std::vector<PExpr*> map_named_args(Design *des,
 
 		  if (seen_named) {
 		      std::cerr << parms[i].get_fileline() << ": error: "
-		           << "Positional argument must preceded "
+		           << "Positional arguments must precede "
 			   << "named arguments."
 			   << std::endl;
+		      des->errors++;
 		  } else if (i < args.size()) {
 			args[i] = parms[i].parm;
 		  }
@@ -91,9 +92,10 @@ std::vector<PExpr*> map_named_args(Design *des, const NetBaseDef *def,
 
 		  if (seen_named) {
 		      std::cerr << parms[i].get_fileline() << ": error: "
-		           << "Positional argument must preceded "
+		           << "Positional arguments must precede "
 			   << "named arguments."
 			   << std::endl;
+		      des->errors++;
 		  } else if (i < args.size()) {
 			args[i] = parms[i].parm;
 		  }

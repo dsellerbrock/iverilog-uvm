@@ -913,6 +913,30 @@ extern "C" unsigned ivl_expr_parms(ivl_expr_t net)
       }
 }
 
+extern "C" ivl_scope_t ivl_expr_vif_method(ivl_expr_t net, unsigned idx)
+{
+      assert(net);
+      assert(net->type_ == IVL_EX_SFUNC);
+      assert(idx < net->u_.sfunc_.vif_methods);
+      return net->u_.sfunc_.vif_method[idx];
+}
+
+extern "C" unsigned ivl_expr_vif_methods(ivl_expr_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_EX_SFUNC);
+      return net->u_.sfunc_.vif_methods;
+}
+
+extern "C" int ivl_expr_vif_parm_is_default(ivl_expr_t net, unsigned idx)
+{
+      assert(net);
+      assert(net->type_ == IVL_EX_SFUNC);
+      assert(idx < net->u_.sfunc_.parms);
+      return net->u_.sfunc_.vif_parm_default
+	   && net->u_.sfunc_.vif_parm_default[idx];
+}
+
 extern "C" int ivl_expr_union_active_member(ivl_expr_t net)
 {
       assert(net);

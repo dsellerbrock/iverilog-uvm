@@ -340,6 +340,221 @@ static void draw_send_function_argument(ivl_signal_t port, ivl_expr_t actual)
       }
 }
 
+/* Marshal ordinary task/function arguments. Static subroutines retain the
+ * historical evaluate-all/then-send ordering: changing it here would also
+ * change void functions, DPI exports and output/ref paths that are outside
+ * dynamic virtual-interface dispatch. Automatic subroutines have a private
+ * frame and can install each argument immediately. */
+static int draw_function_input_arguments_(ivl_scope_t scope,
+                                          unsigned port_base,
+                                          unsigned argc,
+                                          ivl_expr_t const*argv,
+                                          int allow_sparse)
+{
+      unsigned idx;
+      int errors = 0;
+
+      if (!scope || (argc && !argv)
+          || port_base > ivl_scope_ports(scope)
+          || argc > ivl_scope_ports(scope) - port_base) {
+            fprintf(stderr, "vvp.tgt error: malformed argument list for %s\n",
+                    scope && ivl_scope_name(scope)
+                          ? ivl_scope_name(scope) : "<unknown subroutine>");
+            return 1;
+      }
+
+      for (idx = 0 ; idx < argc ; idx += 1) {
+            ivl_signal_t port = ivl_scope_port(scope, port_base + idx);
+            if (!port || (!argv[idx] && !allow_sparse)) {
+                  fprintf(stderr,
+                          "vvp.tgt error: missing argument %u or formal port "
+                          "for %s\n",
+                          idx, ivl_scope_name(scope));
+                  errors += 1;
+            }
+      }
+      if (errors)
+            return errors;
+
+      if (ivl_scope_is_auto(scope)) {
+            for (idx = 0 ; idx < argc ; idx += 1) {
+                  ivl_signal_t port = ivl_scope_port(scope, port_base + idx);
+                  if (!argv[idx])
+                        continue;
+                  if (ivl_signal_port(port) == IVL_SIP_REF) {
+                        draw_bind_function_ref_argument(port, argv[idx]);
+                  } else {
+                        draw_eval_function_argument(port, argv[idx]);
+                        draw_send_function_argument(port, argv[idx]);
+                  }
+            }
+            return 0;
+      }
+
+      for (idx = 0 ; idx < argc ; idx += 1) {
+            ivl_signal_t port = ivl_scope_port(scope, port_base + idx);
+            if (!argv[idx])
+                  continue;
+            draw_eval_function_argument(port, argv[idx]);
+      }
+      for (idx = argc ; idx > 0 ; idx -= 1) {
+            ivl_signal_t port = ivl_scope_port(
+                  scope, port_base + idx - 1);
+            if (!argv[idx - 1])
+                  continue;
+            draw_send_function_argument(port, argv[idx - 1]);
+      }
+      for (idx = 0 ; idx < argc ; idx += 1) {
+            ivl_signal_t port = ivl_scope_port(scope, port_base + idx);
+            if (!argv[idx])
+                  continue;
+            if (ivl_signal_port(port) == IVL_SIP_REF)
+                  draw_bind_function_ref_argument(port, argv[idx]);
+      }
+
+      return 0;
+}
+
+int draw_function_input_arguments(ivl_scope_t scope, unsigned port_base,
+                                  unsigned argc, ivl_expr_t const*argv)
+{
+      return draw_function_input_arguments_(
+            scope, port_base, argc, argv, 0);
+}
+
+/* A statement-position virtual-interface call can retain a null expression
+ * after the frontend has issued a compile-progress warning for an actual it
+ * could not elaborate. The historical VIF task emitter skipped that store,
+ * leaving the formal's ordinary initial value in place. Keep that behavior
+ * local to statement rows: value-returning VIF functions and ordinary
+ * subroutine calls remain strict. */
+int draw_vif_statement_input_arguments(ivl_scope_t scope,
+                                       unsigned port_base,
+                                       unsigned argc,
+                                       ivl_expr_t const*argv)
+{
+      return draw_function_input_arguments_(
+            scope, port_base, argc, argv, 1);
+}
+
+static int formal_effectively_static_(ivl_scope_t scope, ivl_signal_t port)
+{
+      ivl_lifetime_t lifetime = ivl_signal_lifetime(port);
+      return lifetime == IVL_VLT_STATIC
+          || (lifetime == IVL_VLT_INHERITED && !ivl_scope_is_auto(scope));
+}
+
+static int static_function_setup_enabled_(ivl_scope_t scope)
+{
+      if (!scope || ivl_scope_type(scope) != IVL_SCT_FUNCTION)
+            return 0;
+      for (unsigned idx = 1 ; idx < ivl_scope_ports(scope) ; idx += 1) {
+            ivl_signal_t port = ivl_scope_port(scope, idx);
+            if (port && ivl_signal_port(port) == IVL_SIP_INPUT
+                && formal_effectively_static_(scope, port))
+                  return 1;
+      }
+      return 0;
+}
+
+/* Begin one static function's argument-setup interval. The runtime stages a
+ * private row until every actual/default has been evaluated, then commits it
+ * immediately before %callf. This protocol is emitted only for
+ * value-returning dynamic virtual-interface calls, whose frontend signature
+ * is input-only. Recursion from the executing body retains IEEE 13.4.2
+ * shared-static behavior. */
+void draw_static_function_setup_begin(ivl_scope_t scope)
+{
+      if (!static_function_setup_enabled_(scope))
+            return;
+
+      fprintf(vvp_out, "    %%static/call/enter S_%p;\n", scope);
+      for (unsigned idx = 1 ; idx < ivl_scope_ports(scope) ; idx += 1) {
+            ivl_signal_t port = ivl_scope_port(scope, idx);
+            ivl_variable_type_t dtype;
+
+            if (!port || ivl_signal_port(port) != IVL_SIP_INPUT
+                || !formal_effectively_static_(scope, port))
+                  continue;
+            assert(ivl_signal_dimensions(port) == 0);
+            dtype = ivl_signal_data_type(port);
+            switch (dtype) {
+                case IVL_VT_BOOL:
+                case IVL_VT_LOGIC:
+                  fprintf(vvp_out, "    %%static/save/vec4 v%p_0;\n", port);
+                  break;
+                case IVL_VT_REAL:
+                  fprintf(vvp_out,
+                          "    %%static/save/real v%p_0, v%p_0;\n",
+                          port, port);
+                  break;
+                case IVL_VT_STRING:
+                  fprintf(vvp_out, "    %%static/save/str v%p_0;\n", port);
+                  break;
+                case IVL_VT_CLASS:
+                case IVL_VT_DARRAY:
+                case IVL_VT_QUEUE:
+                case IVL_VT_NO_TYPE:
+                default:
+                  fprintf(vvp_out, "    %%static/save/obj v%p_0;\n", port);
+                  break;
+            }
+      }
+}
+
+void draw_static_function_setup_exec(ivl_scope_t scope)
+{
+      if (static_function_setup_enabled_(scope))
+            fprintf(vvp_out, "    %%static/call/exec S_%p;\n", scope);
+}
+
+void draw_static_function_arg_mode(ivl_scope_t scope, unsigned mode)
+{
+      if (static_function_setup_enabled_(scope))
+            fprintf(vvp_out, "    %%static/call/arg S_%p, %u;\n",
+                    scope, mode);
+}
+
+void draw_static_function_setup_leave(ivl_scope_t scope)
+{
+      if (static_function_setup_enabled_(scope))
+            fprintf(vvp_out, "    %%static/call/leave S_%p;\n", scope);
+}
+
+/* Dynamic VIF functions are input-only, so their static formals can be
+ * installed sequentially. That is required for a declaration-scoped default
+ * to observe an earlier formal. The mode markers let the runtime distinguish
+ * caller-expression side effects from the marshaller's own stores while a
+ * nested invocation temporarily preserves the outer setup. */
+int draw_vif_function_input_arguments(ivl_scope_t scope, unsigned port_base,
+                                      unsigned argc,
+                                      ivl_expr_t const*argv,
+                                      const unsigned char*is_default)
+{
+      int errors = 0;
+      if (!scope || (argc && (!argv || !is_default))
+          || port_base > ivl_scope_ports(scope)
+          || argc > ivl_scope_ports(scope) - port_base)
+            return 1;
+
+      for (unsigned idx = 0 ; idx < argc ; idx += 1) {
+            ivl_signal_t port = ivl_scope_port(scope, port_base + idx);
+            if (!port || !argv[idx]
+                || ivl_signal_port(port) != IVL_SIP_INPUT) {
+                  errors += 1;
+                  continue;
+            }
+            /* 1=explicit caller expression, 2=declaration default,
+             * 3=marshaller store, 0=idle. */
+            draw_static_function_arg_mode(scope, is_default[idx] ? 2 : 1);
+            draw_eval_function_argument(port, argv[idx]);
+            draw_static_function_arg_mode(scope, 3);
+            draw_send_function_argument(port, argv[idx]);
+            draw_static_function_arg_mode(scope, 0);
+      }
+      return errors;
+}
+
 static int function_argument_actual_signal_(ivl_expr_t expr,
 					    ivl_signal_t*sig,
 					    ivl_expr_t*word)
@@ -954,7 +1169,6 @@ static void draw_copy_out_function_arguments(ivl_expr_t expr)
 static void draw_ufunc_preamble(ivl_expr_t expr)
 {
       ivl_scope_t def = ivl_expr_def(expr);
-      unsigned idx;
       unsigned first_unbound_parm = 0;
 
         /* Allocate storage for an automatic function, or for only the
@@ -982,32 +1196,26 @@ static void draw_ufunc_preamble(ivl_expr_t expr)
 	    }
       }
 
-	/* Evaluate the expressions and send the results to the
-	   function ports. Do this in two passes - evaluate,
-	   then send - this avoids the function input variables
-	   being overwritten if the same (non-automatic) function
-	   is called in one of the expressions. */
-
       assert(ivl_expr_parms(expr) == (ivl_scope_ports(def)-1));
-      for (idx = first_unbound_parm ;
-	   idx < ivl_expr_parms(expr) ; idx += 1) {
-	    ivl_signal_t port = ivl_scope_port(def, idx+1);
-	    draw_eval_function_argument(port, ivl_expr_parm(expr, idx));
-      }
-	for (idx = ivl_expr_parms(expr) ;
-	     idx > first_unbound_parm ; idx -= 1) {
-	    ivl_signal_t port = ivl_scope_port(def, idx);
-	    draw_send_function_argument(port, ivl_expr_parm(expr, idx-1));
-      }
-
-	/* Bind the ref formals last, so that evaluating any argument --
-	   which may itself call a function, allocating and freeing
-	   frames -- is finished before this frame's bindings are set. */
-      for (idx = first_unbound_parm ;
-	   idx < ivl_expr_parms(expr) ; idx += 1) {
-	    ivl_signal_t port = ivl_scope_port(def, idx+1);
-	    if (ivl_signal_port(port) == IVL_SIP_REF)
-		  draw_bind_function_ref_argument(port, ivl_expr_parm(expr, idx));
+      {
+            unsigned argc = ivl_expr_parms(expr) - first_unbound_parm;
+            ivl_expr_t*argv = argc
+                  ? calloc(argc, sizeof(ivl_expr_t)) : 0;
+            unsigned idx;
+            if (argc && !argv) {
+                  fprintf(stderr,
+                          "vvp.tgt error: unable to allocate argument list "
+                          "for %s\n",
+                          ivl_scope_name(def));
+                  vvp_errors += 1;
+            } else {
+                  for (idx = 0 ; idx < argc ; idx += 1)
+                        argv[idx] = ivl_expr_parm(
+                              expr, first_unbound_parm + idx);
+                  vvp_errors += draw_function_input_arguments(
+                        def, first_unbound_parm + 1, argc, argv);
+            }
+            free(argv);
       }
 
 	/* Call the function */

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_interface_port_array_function_sensitivity_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_interface_port_array_function_sensitivity" ],
+    "gold"          : "sv_interface_port_array_function_sensitivity"
+}

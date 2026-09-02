@@ -460,6 +460,11 @@ static void real_ex_pop(ivl_expr_t expr)
 
 static void draw_sfunc_real(ivl_expr_t expr)
 {
+      if (strncmp(ivl_expr_name(expr), "$ivl_vif_func$", 14) == 0) {
+            vvp_errors += draw_vif_function_call(expr);
+            return;
+      }
+
       /* R11: $ivl_clocking_sample(r) on a REAL operand -- the Preponed
        * value of the raw signal (IEEE 1800-2017 16.5.1). The vec4 form of
        * this lives in eval_vec4.c; a real operand needs the real-valued

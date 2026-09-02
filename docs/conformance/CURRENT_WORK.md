@@ -1,5 +1,98 @@
 # CURRENT WORK — continuation state
 
+## Active increment — 2026-09-01 — virtual-interface functions and inherited class parameters
+
+Worktree:
+`iverilog-uvm-opentitan-vif-function-after248-arm64-20260901`
+
+Branch `agent/opentitan-vif-function-after248-arm64-20260901` starts exactly
+at `origin/main` `99bf9c549` (the PR #248 merge). Production checkpoints
+`5efa20856` and `e41b32d14` are pushed. The compiler and VVP runtime use native
+ARM64 tools, Homebrew Bison 3.8.x, and the shared 45-second CPU guard without a
+memory ceiling.
+
+This increment implements a bounded IEEE 1800-2017/2023 8.13, 9.2.2.2.1,
+13.4, 13.5, and 25.9 cluster:
+
+- A value-returning call through an unparameterized virtual interface records
+  every compatible concrete interface-function candidate. VVP selects the
+  candidate from the receiver's bound instance and evaluates that candidate's
+  typed argument/default row before entering the method.
+- Packed, real, string, class-handle, queue, and dynamic-array returns retain
+  their result stacks. Statement-position discarded results still execute,
+  and a null receiver terminates loudly.
+- Declaration-scoped defaults may read interface members and earlier formals.
+  Automatic calls use private frames. Static-formal setup uses an
+  invocation-local typed overlay until the complete selected row is ready,
+  then commits to shared storage before the body executes; body recursion
+  retains the shared-static semantics required by 13.4.2.
+- Function-body reads reached through a constant interface-port-array element
+  contribute to `always_comb` sensitivity without emitting declaration-only
+  delay, supply, or resolver nodes into the target netlist.
+- The VVP object stack grows on demand instead of asserting after 32
+  object-valued actuals.
+- Unqualified value parameters inherited from a specialized base class are
+  resolved nearest-superclass-first after local lookup. This fixes the legal
+  OpenTitan use of `CyclesWithNoAccessesThreshold * 2` as an actual for
+  `virtual_interface.wait_clks(...)`.
+- VIF task statement rows retain the existing compile-progress policy for
+  an actual that already failed frontend elaboration: only that store is
+  skipped. Expression-position VIF functions remain strict, and a missing
+  actual is no longer misreported as a formal-direction failure.
+
+The paired `sv_inherited_class_parameter_vif_task` reducer is red on the
+separately built exact main compiler: it warns twice that the inherited
+parameter is unresolved and observes 0 instead of 160. The branch resolves
+160 under both `-g2017` and `-g2023`. The complete focused legacy and JSON/VVP
+lists each pass **31/31**.
+
+The final native-ARM64 OpenTitan closeout classifies all 530 unmodified rows at
+clean revision `7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19`:
+192 `PASS`, 20 `DEBT`, 104 `FAIL`, 16 `RUNTIME_FAIL`, 157
+`DEPENDENCY_ONLY`, 35 `UPSTREAM_INVALID`, and 6 `SETUP_FAIL`. The lane totals
+are RTL 93 pass / 153 dependency / 18 upstream-invalid; SVA 99 pass / 6 debt /
+2 fail / 4 dependency / 17 upstream-invalid; UVM compile 12 debt / 46 fail /
+3 setup-fail; and UVM runtime 2 debt / 56 fail / 16 runtime-fail / 3
+setup-fail. `DEBT` is not counted as a pass.
+
+The first stable replay had exposed one direct branch regression in UART: the
+branch retained main's two unresolved-parameter warnings and added two VVP
+target diagnostics, turning a warning-only compile into `FAIL`. The follow-on
+removes both the diagnostics and the underlying warnings. Relative to that
+replay, UART is the only final row delta: its compile row advances
+`FAIL` to `DEBT`, and its runtime row advances `FAIL` to `RUNTIME_FAIL`. It
+reports a separate null virtual-interface method call near 497,725,923 ps and
+continues through the UVM sequence's 504,840,923 ps marker. The setup-ready
+UVM compile-through count is 12/58 versus 8/58 at the recorded mainline
+application baseline and 11/58 before this follow-on; no clean OpenTitan UVM
+compile or runtime pass is claimed.
+
+The raw concurrent runtime campaign recorded 300-second timeout classifications
+for ADC and TL-agent while the canonical UVM sweep loaded the host. Exact
+single-row replays through the required 45-second CPU guard restored both to
+their prior `RUNTIME_FAIL` classifications. The raw campaign remains preserved;
+only those two guarded classifications are used in the final aggregate.
+
+The post-fix frozen Caliptra/Adams Bridge static census completed all 105
+manifest jobs (420 compiler invocations) in 86.361 seconds with no timeout:
+52 `PASS`, 1 `DEBT`, 51 `SHARED_SOURCE_OR_CONFIG`, and 1
+`SOURCE_ORDER_DEBT`. Icarus reaches 53/105 in each assertions,
+no-assertions, and synthesis lane versus Slang 54/105. Every classification,
+outcome, diagnostic, and manifest-metadata field matches the prior final and
+available clean post-#241 mainline census. This is a frozen RTL/SVA/synthesis
+manifest census, not a complete Caliptra DV/UVM run.
+
+The authoritative post-fix compiler sweep is also clean: 1,320 JSON/VVP entries
+ran with zero failures (17 NI and 45 expected-fail), legacy SV is 2,242/2,242,
+negative tests are 149/149, real-DPI UVM is 354/354 with zero skips, and VPI is
+103/103. The shared `ivtest/vsim` harnesses were run sequentially.
+
+Boundaries remain explicit. Dynamic VIF function output/inout/ref arguments,
+fixed-unpacked arguments or returns, complete parameterized-interface and
+modport specialization, and synthesis lowering are not claimed. The full
+mechanism, application evidence, and invocation notes are in
+[`session_logs/2026-09-01_virtual_interface_functions.md`](session_logs/2026-09-01_virtual_interface_functions.md).
+
 ## Active increment — 2026-09-01 — class instance constants and constructor order
 
 Worktree:

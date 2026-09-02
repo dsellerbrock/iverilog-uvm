@@ -437,6 +437,9 @@ struct ivl_expr_s {
 		  const char *name_;
 		  ivl_expr_t *parm;
 		  unsigned   parms;
+		  ivl_scope_t *vif_method;
+		  unsigned   vif_methods;
+		  unsigned char *vif_parm_default;
 	    } sfunc_;
 
 	    struct {

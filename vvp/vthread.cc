@@ -300,6 +300,47 @@ struct active_call_context_s {
       { }
 };
 
+/* Static VIF-function input formals live in shared storage. Stage one private
+ * value per effective-static formal while actual/default expressions are
+ * evaluated, then commit the complete row immediately before %callf. This
+ * makes nested argument setup reentrant without turning execution of a static
+ * function body into an automatic activation. */
+enum static_formal_snapshot_kind_t {
+      STATIC_FORMAL_VEC4,
+      STATIC_FORMAL_REAL,
+      STATIC_FORMAL_STRING,
+      STATIC_FORMAL_OBJECT
+};
+
+struct static_formal_snapshot_s {
+      static_formal_snapshot_kind_t kind;
+      vvp_net_t*net;
+      __vpiHandle*handle;
+      vvp_vector4_t vec4;
+      double real;
+      string str;
+      vvp_object_t object;
+      vvp_net_t*object_root_net;
+      vvp_object_t object_root;
+      static_formal_snapshot_s(static_formal_snapshot_kind_t kind)
+      : kind(kind), net(0), handle(0), real(0.0), object_root_net(0)
+      { }
+};
+
+struct static_call_setup_s {
+      enum state_t { SETUP, EXECUTING };
+      enum arg_mode_t { IDLE = 0, EXPLICIT = 1, DEFAULT_VALUE = 2,
+                        MARSHALLER_STORE = 3 };
+      __vpiScope*scope;
+      state_t state;
+      arg_mode_t arg_mode;
+      vector<static_formal_snapshot_s> formals;
+
+      explicit static_call_setup_s(__vpiScope*scope)
+      : scope(scope), state(SETUP), arg_mode(IDLE)
+      { }
+};
+
 struct vthread_s {
       vthread_s();
       ~vthread_s();
@@ -558,10 +599,14 @@ struct vthread_s {
 
 	/* Objects are also operated on in a stack. */
     private:
-      enum { STACK_OBJ_MAX_SIZE = 32 };
-      vvp_object_t stack_obj_[STACK_OBJ_MAX_SIZE];
-      vvp_object_t stack_obj_root_[STACK_OBJ_MAX_SIZE];
-      vvp_net_t* stack_obj_net_[STACK_OBJ_MAX_SIZE];
+      /* Keep these deques parallel. Object expressions can legitimately
+       * exceed the old fixed 32-entry ceiling (for example, a static
+       * function with 32 object arguments needs one transient slot while
+       * preserving its actuals). Deques grow on demand and, unlike vectors,
+       * retain references returned by peek_object() across pushes. */
+      deque<vvp_object_t> stack_obj_;
+      deque<vvp_object_t> stack_obj_root_;
+      deque<vvp_net_t*> stack_obj_net_;
       unsigned stack_obj_size_;
     public:
       inline vvp_object_t& peek_object(void)
@@ -594,9 +639,9 @@ struct vthread_s {
 	    assert(stack_obj_size_ > 0);
 	    stack_obj_size_ -= 1;
 	    obj = stack_obj_[stack_obj_size_];
-	    stack_obj_[stack_obj_size_].reset(0);
-            stack_obj_root_[stack_obj_size_].reset(0);
-            stack_obj_net_[stack_obj_size_] = 0;
+	    stack_obj_.pop_back();
+            stack_obj_root_.pop_back();
+            stack_obj_net_.pop_back();
       }
       inline void pop_object(unsigned cnt, unsigned skip =0)
       {
@@ -611,20 +656,16 @@ struct vthread_s {
                   stack_obj_net_[dst + idx] = stack_obj_net_[src + idx];
             }
 
-	    for (size_t idx = dst + skip ; idx < old_size ; idx += 1) {
-		  stack_obj_[idx].reset(0);
-                  stack_obj_root_[idx].reset(0);
-                  stack_obj_net_[idx] = 0;
-            }
-
 	    stack_obj_size_ = old_size - cnt;
+	    stack_obj_.resize(stack_obj_size_);
+            stack_obj_root_.resize(stack_obj_size_);
+            stack_obj_net_.resize(stack_obj_size_);
       }
       inline void push_object(const vvp_object_t&obj)
       {
-	    assert(stack_obj_size_ < STACK_OBJ_MAX_SIZE);
-	    stack_obj_[stack_obj_size_] = obj;
-            stack_obj_root_[stack_obj_size_].reset(0);
-            stack_obj_net_[stack_obj_size_] = 0;
+	    stack_obj_.push_back(obj);
+            stack_obj_root_.push_back(vvp_object_t());
+            stack_obj_net_.push_back(0);
 	    stack_obj_size_ += 1;
       }
       inline size_t object_stack_size(void) const
@@ -634,12 +675,50 @@ struct vthread_s {
       inline void push_object(const vvp_object_t&obj, vvp_net_t*root_net,
                               const vvp_object_t&root_obj)
       {
-            assert(stack_obj_size_ < STACK_OBJ_MAX_SIZE);
-            stack_obj_[stack_obj_size_] = obj;
-            stack_obj_root_[stack_obj_size_] = root_obj;
-            stack_obj_net_[stack_obj_size_] = root_net;
+            stack_obj_.push_back(obj);
+            stack_obj_root_.push_back(root_obj);
+            stack_obj_net_.push_back(root_net);
             stack_obj_size_ += 1;
       }
+
+    private:
+      vector<static_call_setup_s> static_call_setups_;
+      static_call_setup_s* static_setup_for_save_();
+      static_formal_snapshot_s* static_call_overlay_(
+            static_formal_snapshot_kind_t kind, vvp_net_t*net,
+            bool write);
+      static_formal_snapshot_s* static_call_overlay_real_(
+            __vpiHandle*handle);
+    public:
+      void static_call_setup_enter(__vpiScope*scope);
+      void static_call_setup_mark_executing(__vpiScope*scope);
+      void static_call_setup_argument_mode(__vpiScope*scope, unsigned mode);
+      void static_call_setup_save_vec4(vvp_net_t*net);
+      void static_call_setup_save_real(vvp_net_t*net, __vpiHandle*handle);
+      void static_call_setup_save_string(vvp_net_t*net);
+      void static_call_setup_save_object(vvp_net_t*net);
+      bool static_call_overlay_load_vec4(vvp_net_t*net,
+                                         vvp_vector4_t&value);
+      bool static_call_overlay_store_vec4(vvp_net_t*net,
+                                          const vvp_vector4_t&value,
+                                          int64_t offset);
+      bool static_call_overlay_load_real(__vpiHandle*handle, double&value);
+      bool static_call_overlay_store_real(vvp_net_t*net, double value);
+      bool static_call_overlay_load_string(vvp_net_t*net, string&value);
+      bool static_call_overlay_store_string(vvp_net_t*net,
+                                             const string&value);
+      bool static_call_overlay_load_object(vvp_net_t*net,
+                                           vvp_object_t&value,
+                                           vvp_net_t*&root_net,
+                                           vvp_object_t&root_object);
+      bool static_call_overlay_store_object(vvp_net_t*net,
+                                            const vvp_object_t&value,
+                                            vvp_net_t*root_net,
+                                            const vvp_object_t&root_object);
+      bool static_call_overlay_store_object_root(
+            vvp_net_t*net, vvp_net_t*root_net,
+            const vvp_object_t&root_object);
+      void static_call_setup_leave(__vpiScope*scope);
 
       vvp_object_t process_obj_;
       set<vvp_process*> awaited_processes_;
@@ -890,6 +969,85 @@ struct vthread_s {
       }
 };
 
+static_call_setup_s* vthread_s::static_setup_for_save_()
+{
+      if (static_call_setups_.empty())
+            return 0;
+      return &static_call_setups_.back();
+}
+
+static_formal_snapshot_s*
+vthread_s::static_call_overlay_(static_formal_snapshot_kind_t kind,
+                                vvp_net_t*net, bool write)
+{
+      /* SETUP/EXPLICIT is caller evaluation and intentionally skips the new
+       * callee row. SETUP/DEFAULT exposes that row. MARSHALLER_STORE directs
+       * only the final formal store into it. EXECUTING is a barrier: static
+       * body recursion uses the committed physical storage. */
+      for (vthread_t line = this ; line ;
+           line = line->is_callf_child ? line->parent : 0) {
+            for (vector<static_call_setup_s>::reverse_iterator frame
+                       = line->static_call_setups_.rbegin();
+                 frame != line->static_call_setups_.rend(); ++frame) {
+                  if (frame->state == static_call_setup_s::EXECUTING)
+                        return 0;
+                  bool active = frame->arg_mode
+                        == static_call_setup_s::DEFAULT_VALUE
+                        || (write && frame->arg_mode
+                                      == static_call_setup_s::MARSHALLER_STORE);
+                  if (!active)
+                        continue;
+                  for (vector<static_formal_snapshot_s>::iterator formal
+                             = frame->formals.begin();
+                       formal != frame->formals.end(); ++formal) {
+                        if (formal->kind != kind || formal->net != net)
+                              continue;
+                        return &*formal;
+                  }
+            }
+      }
+      return 0;
+}
+
+static_formal_snapshot_s*
+vthread_s::static_call_overlay_real_(__vpiHandle*handle)
+{
+      for (vthread_t line = this ; line ;
+           line = line->is_callf_child ? line->parent : 0) {
+            for (vector<static_call_setup_s>::reverse_iterator frame
+                       = line->static_call_setups_.rbegin();
+                 frame != line->static_call_setups_.rend(); ++frame) {
+                  if (frame->state == static_call_setup_s::EXECUTING)
+                        return 0;
+                  if (frame->arg_mode
+                        != static_call_setup_s::DEFAULT_VALUE)
+                        continue;
+                  for (vector<static_formal_snapshot_s>::iterator formal
+                             = frame->formals.begin();
+                       formal != frame->formals.end(); ++formal)
+                        if (formal->kind == STATIC_FORMAL_REAL
+                            && formal->handle == handle)
+                              return &*formal;
+            }
+      }
+      return 0;
+}
+
+void vthread_s::static_call_setup_enter(__vpiScope*scope)
+{
+      static_call_setups_.push_back(static_call_setup_s(scope));
+}
+
+void vthread_s::static_call_setup_argument_mode(__vpiScope*scope,
+                                                unsigned mode)
+{
+      assert(!static_call_setups_.empty());
+      assert(static_call_setups_.back().scope == scope);
+      assert(mode <= static_call_setup_s::MARSHALLER_STORE);
+      static_call_setups_.back().arg_mode =
+            static_cast<static_call_setup_s::arg_mode_t>(mode);
+}
+
 /*
  * True when THR is suspended waiting for something outside itself to wake
  * it: an event functor (%wait), or a blocking mailbox/semaphore/process
@@ -916,8 +1074,6 @@ inline vthread_s::vthread_s()
       stream_plan_second_reg = 0;
       force_pending = 0;
       stack_obj_size_ = 0;
-      for (unsigned idx = 0; idx < STACK_OBJ_MAX_SIZE; idx += 1)
-            stack_obj_net_[idx] = 0;
       filenm_ = 0;
       lineno_ = 0;
       waiting_for_resource = 0;
@@ -18301,6 +18457,259 @@ static vvp_fun_signal_object* signal_object_fun_(vvp_net_t*net)
       return fun;
 }
 
+void vthread_s::static_call_setup_save_vec4(vvp_net_t*net)
+{
+      static_call_setup_s*frame = static_setup_for_save_();
+      if (!frame)
+            return;
+
+      vvp_signal_value*sig = net && net->fil
+                           ? net->fil->as_signal_value() : 0;
+      assert(sig);
+      frame->formals.push_back(
+            static_formal_snapshot_s(STATIC_FORMAL_VEC4));
+      static_formal_snapshot_s&save = frame->formals.back();
+      save.net = net;
+      if (!static_call_overlay_load_vec4(net, save.vec4))
+            sig->vec4_value(save.vec4);
+}
+
+void vthread_s::static_call_setup_save_real(vvp_net_t*net,
+                                            __vpiHandle*handle)
+{
+      static_call_setup_s*frame = static_setup_for_save_();
+      if (!frame)
+            return;
+
+      assert(handle);
+      frame->formals.push_back(
+            static_formal_snapshot_s(STATIC_FORMAL_REAL));
+      static_formal_snapshot_s&save = frame->formals.back();
+      save.net = net;
+      save.handle = handle;
+      if (!static_call_overlay_load_real(handle, save.real)) {
+            t_vpi_value value;
+            value.format = vpiRealVal;
+            handle->vpi_get_value(&value);
+            save.real = value.value.real;
+      }
+}
+
+void vthread_s::static_call_setup_save_string(vvp_net_t*net)
+{
+      static_call_setup_s*frame = static_setup_for_save_();
+      if (!frame)
+            return;
+
+      vvp_fun_signal_string*fun = net
+            ? dynamic_cast<vvp_fun_signal_string*>(net->fun) : 0;
+      assert(fun);
+      frame->formals.push_back(
+            static_formal_snapshot_s(STATIC_FORMAL_STRING));
+      static_formal_snapshot_s&save = frame->formals.back();
+      save.net = net;
+      if (!static_call_overlay_load_string(net, save.str))
+            save.str = fun->get_string();
+}
+
+void vthread_s::static_call_setup_save_object(vvp_net_t*net)
+{
+      static_call_setup_s*frame = static_setup_for_save_();
+      if (!frame)
+            return;
+
+      vvp_fun_signal_object*fun = signal_object_fun_(net);
+      assert(fun);
+      frame->formals.push_back(
+            static_formal_snapshot_s(STATIC_FORMAL_OBJECT));
+      static_formal_snapshot_s&save = frame->formals.back();
+      save.net = net;
+      if (!static_call_overlay_load_object(
+            net, save.object, save.object_root_net, save.object_root)) {
+            save.object = fun->peek_object();
+            save.object_root_net = fun->get_root_net();
+            save.object_root = fun->get_root_object();
+      }
+}
+
+bool vthread_s::static_call_overlay_load_vec4(vvp_net_t*net,
+                                              vvp_vector4_t&value)
+{
+      static_formal_snapshot_s*save = static_call_overlay_(
+            STATIC_FORMAL_VEC4, net, false);
+      if (!save)
+            return false;
+      value = save->vec4;
+      return true;
+}
+
+bool vthread_s::static_call_overlay_store_vec4(
+      vvp_net_t*net, const vvp_vector4_t&value, int64_t offset)
+{
+      static_formal_snapshot_s*save = static_call_overlay_(
+            STATIC_FORMAL_VEC4, net, true);
+      if (!save)
+            return false;
+      for (unsigned idx = 0 ; idx < value.size(); idx += 1) {
+            int64_t dst = offset + idx;
+            if (dst >= 0 && (uint64_t)dst < save->vec4.size())
+                  save->vec4.set_bit((unsigned)dst, value.value(idx));
+      }
+      return true;
+}
+
+bool vthread_s::static_call_overlay_load_real(__vpiHandle*handle,
+                                              double&value)
+{
+      static_formal_snapshot_s*save = static_call_overlay_real_(handle);
+      if (!save)
+            return false;
+      value = save->real;
+      return true;
+}
+
+bool vthread_s::static_call_overlay_store_real(vvp_net_t*net, double value)
+{
+      static_formal_snapshot_s*save = static_call_overlay_(
+            STATIC_FORMAL_REAL, net, true);
+      if (!save)
+            return false;
+      save->real = value;
+      return true;
+}
+
+bool vthread_s::static_call_overlay_load_string(vvp_net_t*net, string&value)
+{
+      static_formal_snapshot_s*save = static_call_overlay_(
+            STATIC_FORMAL_STRING, net, false);
+      if (!save)
+            return false;
+      value = save->str;
+      return true;
+}
+
+bool vthread_s::static_call_overlay_store_string(vvp_net_t*net,
+                                                  const string&value)
+{
+      static_formal_snapshot_s*save = static_call_overlay_(
+            STATIC_FORMAL_STRING, net, true);
+      if (!save)
+            return false;
+      save->str = value;
+      return true;
+}
+
+bool vthread_s::static_call_overlay_load_object(
+      vvp_net_t*net, vvp_object_t&value, vvp_net_t*&root_net,
+      vvp_object_t&root_object)
+{
+      static_formal_snapshot_s*save = static_call_overlay_(
+            STATIC_FORMAL_OBJECT, net, false);
+      if (!save)
+            return false;
+      value = save->object;
+      root_net = save->object_root_net;
+      root_object = save->object_root;
+      return true;
+}
+
+bool vthread_s::static_call_overlay_store_object(
+      vvp_net_t*net, const vvp_object_t&value, vvp_net_t*root_net,
+      const vvp_object_t&root_object)
+{
+      static_formal_snapshot_s*save = static_call_overlay_(
+            STATIC_FORMAL_OBJECT, net, true);
+      if (!save)
+            return false;
+      save->object = value;
+      save->object_root_net = root_net ? root_net : net;
+      save->object_root = root_object.test_nil() ? value : root_object;
+      return true;
+}
+
+bool vthread_s::static_call_overlay_store_object_root(
+      vvp_net_t*net, vvp_net_t*root_net, const vvp_object_t&root_object)
+{
+      static_formal_snapshot_s*save = static_call_overlay_(
+            STATIC_FORMAL_OBJECT, net, true);
+      if (!save)
+            return false;
+      save->object_root_net = root_net;
+      save->object_root = root_object;
+      return true;
+}
+
+void vthread_s::static_call_setup_mark_executing(__vpiScope*scope)
+{
+      assert(!static_call_setups_.empty());
+      assert(static_call_setups_.back().scope == scope);
+      static_call_setup_s&frame = static_call_setups_.back();
+      frame.state = static_call_setup_s::EXECUTING;
+      frame.arg_mode = static_call_setup_s::IDLE;
+
+      for (vector<static_formal_snapshot_s>::iterator cur
+                 = frame.formals.begin(); cur != frame.formals.end(); ++cur) {
+            switch (cur->kind) {
+                case STATIC_FORMAL_VEC4:
+                  vvp_send_vec4(vvp_net_ptr_t(cur->net, 0), cur->vec4,
+                                ensure_write_context_(
+                                      this, "static-call-commit-vec4"));
+                  break;
+                case STATIC_FORMAL_REAL: {
+                  t_vpi_value value;
+                  value.format = vpiRealVal;
+                  value.value.real = cur->real;
+                  cur->handle->vpi_put_value(&value, vpiNoDelay);
+                  break;
+                }
+                case STATIC_FORMAL_STRING:
+                  vvp_send_string(vvp_net_ptr_t(cur->net, 0), cur->str,
+                                  ensure_write_context_(
+                                        this, "static-call-commit-string"));
+                  break;
+                case STATIC_FORMAL_OBJECT: {
+                  vvp_context_t context = ensure_write_context_(
+                        this, "static-call-commit-object");
+                  vvp_fun_signal_object*fun = signal_object_fun_(cur->net);
+                  if (fun)
+                        fun->set_root_provenance(cur->object_root_net,
+                                                 cur->object_root, context);
+                  vvp_send_object(vvp_net_ptr_t(cur->net, 0), cur->object,
+                                  context);
+                  break;
+                }
+            }
+      }
+}
+
+bool vthread_vif_overlay_get_object(vvp_net_t*net, vvp_object_t&value,
+                                    vvp_net_t*&root_net,
+                                    vvp_object_t&root_object)
+{
+      return running_thread
+          && running_thread->static_call_overlay_load_object(
+                net, value, root_net, root_object);
+}
+
+bool vthread_vif_overlay_put_object(vvp_net_t*net,
+                                    const vvp_object_t&value,
+                                    vvp_net_t*root_net,
+                                    const vvp_object_t&root_object)
+{
+      return running_thread
+          && running_thread->static_call_overlay_store_object(
+                net, value, root_net, root_object);
+}
+
+bool vthread_vif_overlay_put_object_root(
+      vvp_net_t*net, vvp_net_t*root_net,
+      const vvp_object_t&root_object)
+{
+      return running_thread
+          && running_thread->static_call_overlay_store_object_root(
+                net, root_net, root_object);
+}
+
 static void notify_mutated_object_signal_(vthread_t thr, vvp_net_t*net, const char*where)
 {
       vvp_fun_signal_object*fun = signal_object_fun_(net);
@@ -20887,6 +21296,61 @@ bool of_STORE_ARR_DAR_MD(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+void vthread_s::static_call_setup_leave(__vpiScope*scope)
+{
+      assert(!static_call_setups_.empty());
+      assert(static_call_setups_.back().scope == scope);
+      static_call_setups_.pop_back();
+}
+
+bool of_STATIC_CALL_ENTER(vthread_t thr, vvp_code_t cp)
+{
+      thr->static_call_setup_enter(cp->scope);
+      return true;
+}
+
+bool of_STATIC_CALL_EXEC(vthread_t thr, vvp_code_t cp)
+{
+      thr->static_call_setup_mark_executing(cp->scope);
+      return true;
+}
+
+bool of_STATIC_CALL_ARG(vthread_t thr, vvp_code_t cp)
+{
+      thr->static_call_setup_argument_mode(cp->scope, cp->bit_idx[0]);
+      return true;
+}
+
+bool of_STATIC_CALL_LEAVE(vthread_t thr, vvp_code_t cp)
+{
+      thr->static_call_setup_leave(cp->scope);
+      return true;
+}
+
+bool of_STATIC_SAVE_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      thr->static_call_setup_save_vec4(cp->net);
+      return true;
+}
+
+bool of_STATIC_SAVE_REAL(vthread_t thr, vvp_code_t cp)
+{
+      thr->static_call_setup_save_real(cp->net2, cp->handle);
+      return true;
+}
+
+bool of_STATIC_SAVE_STR(vthread_t thr, vvp_code_t cp)
+{
+      thr->static_call_setup_save_string(cp->net);
+      return true;
+}
+
+bool of_STATIC_SAVE_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      thr->static_call_setup_save_object(cp->net);
+      return true;
+}
+
 bool of_LOAD_OBJA(vthread_t thr, vvp_code_t cp)
 {
       unsigned idx = cp->bit_idx[0];
@@ -20919,6 +21383,12 @@ bool of_LOAD_REAL(vthread_t thr, vvp_code_t cp)
       __vpiHandle*tmp = cp->handle;
       t_vpi_value val;
 
+      double staged;
+      if (thr->static_call_overlay_load_real(tmp, staged)) {
+            thr->push_real(staged);
+            return true;
+      }
+
       val.format = vpiRealVal;
       vpi_get_value(tmp, &val);
 
@@ -20933,6 +21403,12 @@ bool of_LOAD_REAL(vthread_t thr, vvp_code_t cp)
 bool of_LOAD_STR(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_t*net = cp->net;
+
+      string staged;
+      if (thr->static_call_overlay_load_string(net, staged)) {
+            thr->push_str(staged);
+            return true;
+      }
 
       vvp_fun_signal_string*fun = dynamic_cast<vvp_fun_signal_string*> (net->fun);
       vvp_ref_signal_aa*ref = dynamic_cast<vvp_ref_signal_aa*> (net->fun);
@@ -20980,6 +21456,12 @@ bool of_LOAD_STRA(vthread_t thr, vvp_code_t cp)
  */
 bool of_LOAD_VEC4(vthread_t thr, vvp_code_t cp)
 {
+	vvp_vector4_t staged;
+	if (thr->static_call_overlay_load_vec4(cp->net, staged)) {
+	      thr->push_vec4(staged);
+	      return true;
+	}
+
 	// Push a placeholder onto the stack in order to reserve the
 	// stack space. Use a reference for the stack top as a target
 	// for the load.
@@ -27991,7 +28473,11 @@ static bool store(vthread_t thr, vvp_code_t cp)
 
 bool of_STORE_REAL(vthread_t thr, vvp_code_t cp)
 {
-      return store<double>(thr, cp);
+      double value;
+      pop_value(thr, value, 0);
+      if (!thr->static_call_overlay_store_real(cp->net, value))
+            vvp_send(thr, vvp_net_ptr_t(cp->net, 0), value);
+      return true;
 }
 
 template <typename ELEM>
@@ -28021,7 +28507,11 @@ bool of_STORE_REALA(vthread_t thr, vvp_code_t cp)
 
 bool of_STORE_STR(vthread_t thr, vvp_code_t cp)
 {
-      return store<string>(thr, cp);
+      string value;
+      pop_value(thr, value, 0);
+      if (!thr->static_call_overlay_store_string(cp->net, value))
+            vvp_send(thr, vvp_net_ptr_t(cp->net, 0), value);
+      return true;
 }
 
 /*
@@ -28083,6 +28573,11 @@ bool of_STORE_VEC4(vthread_t thr, vvp_code_t cp)
       if (!resize_rval_vec(val, off, sig_value_size)) {
 	    thr->pop_vec4(1);
 	    return true;
+      }
+
+      if (thr->static_call_overlay_store_vec4(cp->net, val, off)) {
+            thr->pop_vec4(1);
+            return true;
       }
 
       vvp_context_t write_context = ensure_write_context_(thr, "store-vec4");

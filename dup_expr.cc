@@ -293,9 +293,14 @@ NetESFunc* NetESFunc::dup_expr() const
 	    tmp->set_net_type(net_type());
 
       tmp->cast_signed(has_sign());
+      for (unsigned idx = 0 ; idx < vif_method_count() ; idx += 1)
+	    tmp->add_vif_method(
+		  const_cast<NetScope*>(vif_method(idx)));
       for (unsigned idx = 0 ;  idx < nparms() ;  idx += 1) {
 	    ivl_assert(*this, parm(idx));
 	    tmp->parm(idx, parm(idx)->dup_expr());
+	    if (vif_parm_is_default(idx))
+	          tmp->mark_vif_parm_default(idx);
       }
 
       tmp->set_line(*this);

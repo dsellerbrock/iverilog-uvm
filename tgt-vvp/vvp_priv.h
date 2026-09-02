@@ -110,6 +110,24 @@ extern void draw_ufunc_vec4(ivl_expr_t expr);
 extern void draw_ufunc_real(ivl_expr_t expr);
 extern void draw_ufunc_string(ivl_expr_t expr);
 extern void draw_ufunc_object(ivl_expr_t expr);
+extern int draw_function_input_arguments(ivl_scope_t scope,
+                                         unsigned port_base,
+                                         unsigned argc,
+                                         ivl_expr_t const*argv);
+extern int draw_vif_statement_input_arguments(ivl_scope_t scope,
+                                              unsigned port_base,
+                                              unsigned argc,
+                                              ivl_expr_t const*argv);
+extern int draw_vif_function_input_arguments(ivl_scope_t scope,
+                                             unsigned port_base,
+                                             unsigned argc,
+                                             ivl_expr_t const*argv,
+                                             const unsigned char*is_default);
+extern void draw_static_function_setup_begin(ivl_scope_t scope);
+extern void draw_static_function_setup_exec(ivl_scope_t scope);
+extern void draw_static_function_arg_mode(ivl_scope_t scope, unsigned mode);
+extern void draw_static_function_setup_leave(ivl_scope_t scope);
+extern int draw_vif_function_call(ivl_expr_t expr);
 extern void draw_ufunc_uarray(ivl_expr_t expr, ivl_signal_t dst_sig,
 			      unsigned dst_base);
 extern void draw_ufunc_uarray_object(ivl_expr_t expr, int as_queue,

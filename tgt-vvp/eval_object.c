@@ -1703,6 +1703,18 @@ static int eval_object_sfunc(ivl_expr_t expr)
       const char*name = ivl_expr_name(expr);
       unsigned parm_count = ivl_expr_parms(expr);
 
+      if (strncmp(name, "$ivl_vif_func$", 14) == 0) {
+            switch (ivl_expr_value(expr)) {
+                case IVL_VT_CLASS:
+                case IVL_VT_DARRAY:
+                case IVL_VT_QUEUE:
+                case IVL_VT_NO_TYPE:
+                  return draw_vif_function_call(expr);
+                default:
+                  break;
+            }
+      }
+
       /* A keyed associative-array assignment pattern is carried through the
          netlist as a typed, source-ordered list of (kind,key,value) triplets.
          Materialize its fresh map in one place so declaration initializers,

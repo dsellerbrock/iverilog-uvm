@@ -449,6 +449,9 @@ void dll_target::expr_last(const NetELast*net)
       expr->u_.sfunc_.parms = 1;
       expr->u_.sfunc_.parm = dll_procedure_new_array<ivl_expr_t>(1);
       expr->u_.sfunc_.parm[0] = esig;
+      expr->u_.sfunc_.vif_methods = 0;
+      expr->u_.sfunc_.vif_method = 0;
+      expr->u_.sfunc_.vif_parm_default = 0;
 
       expr_ = expr;
 }
@@ -687,6 +690,28 @@ void dll_target::expr_sfunc(const NetESFunc*net)
       unsigned cnt = net->nparms();
       expr->u_.sfunc_.parms = cnt;
       expr->u_.sfunc_.parm = dll_procedure_new_array<ivl_expr_t>(cnt);
+
+	/* Preserve the exact concrete interface-function candidates selected by
+	 * the frontend. The scope records are Design-owned and already exist by
+	 * expression export time; the procedure arena owns only this pointer
+	 * array. */
+      unsigned vif_methods = net->vif_method_count();
+      expr->u_.sfunc_.vif_methods = vif_methods;
+      expr->u_.sfunc_.vif_method = vif_methods
+	    ? dll_procedure_new_array<ivl_scope_t>(vif_methods) : 0;
+      expr->u_.sfunc_.vif_parm_default = vif_methods && cnt
+	    ? dll_procedure_new_array<unsigned char>(cnt) : 0;
+      for (unsigned idx = 0 ; idx < cnt ; idx += 1)
+	    if (expr->u_.sfunc_.vif_parm_default)
+	          expr->u_.sfunc_.vif_parm_default[idx] =
+		        net->vif_parm_is_default(idx) ? 1 : 0;
+      for (unsigned idx = 0 ; idx < vif_methods ; idx += 1) {
+	    const NetScope*method = net->vif_method(idx);
+	    assert(method);
+	    assert(method->type() == NetScope::FUNC);
+	    expr->u_.sfunc_.vif_method[idx] = lookup_scope_(method);
+	    assert(expr->u_.sfunc_.vif_method[idx]);
+      }
 
 	/* make up the parameter expressions. */
       for (unsigned idx = 0 ;  idx < cnt ;  idx += 1) {

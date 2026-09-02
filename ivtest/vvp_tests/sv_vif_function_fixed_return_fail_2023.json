@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_vif_function_fixed_return_fail_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_vif_function_fixed_return_fail" ],
+    "gold"          : "sv_vif_function_fixed_return_fail_2023"
+}

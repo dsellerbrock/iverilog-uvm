@@ -405,6 +405,37 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 			}
 		  }
 
+		    // A value parameter declared in a base class is inherited in the
+		    // same way as an enum literal or typedef (IEEE 1800-2017/2023
+		    // 8.13). NetScope::get_parameter() is deliberately local to one
+		    // scope, so an unqualified reference in a derived method needs the
+		    // specialized superclass walk here. Search nearest-first after the
+		    // current class so ordinary shadowing remains unchanged.
+		  if (scope->type() == NetScope::CLASS) {
+			const netclass_t*clsnet = scope->class_def();
+			for (const netclass_t*sup = clsnet ? clsnet->get_super() : 0;
+			     sup ; sup = sup->get_super()) {
+			      NetScope*sup_scope =
+				    const_cast<NetScope*>(sup->class_scope());
+			      if (!sup_scope)
+				    continue;
+
+			      ivl_type_t parameter_type = nullptr;
+			      const NetExpr*inherited = sup_scope->get_parameter(
+				    des, path_tail.name, parameter_type);
+			      if (!inherited)
+				    continue;
+
+			      path.push_back(path_tail);
+			      res->scope = sup_scope;
+			      res->par_val = inherited;
+			      res->type = parameter_type
+				    ? parameter_type : inherited->net_type();
+			      res->path_head = path;
+			      return true;
+			}
+		  }
+
 		    // Enum literals declared in a base class are inherited class
 		    // members (IEEE 1800-2017 8.3). Definitions::enumeration_expr()
 		    // is intentionally local to one scope, so walk the superclass

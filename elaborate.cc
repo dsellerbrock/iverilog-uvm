@@ -58,6 +58,7 @@
 # include  "netclass.h"
 # include  "netstruct.h"
 # include  "netmisc.h"
+# include  "elab_vif.h"
 # include  "util.h"
 # include  "parse_api.h"
 # include  "compiler.h"
@@ -12100,6 +12101,299 @@ static NetSTask* elaborate_dynamic_interface_method_call_(
       return sys;
 }
 
+static bool interface_function_dynamic_signature_(
+		const NetScope*loc, Design*des, const NetFuncDef*def)
+{
+      if (!loc || !def || !def->scope()
+	  || def->scope()->type() != NetScope::FUNC)
+	    return false;
+
+      const NetNet*result = def->return_sig();
+      if (!result) {
+	    cerr << loc->get_fileline() << ": error: virtual-interface function `"
+		 << def->scope()->basename()
+		 << "' has no return value." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+      if (result->unpacked_dimensions() > 0) {
+	    cerr << loc->get_fileline() << ": sorry: virtual-interface function `"
+		 << def->scope()->basename()
+		 << "' has a fixed unpacked-array return value; dynamic-dispatch "
+		    "return marshalling is not yet supported." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
+      for (unsigned idx = 0 ; idx < def->port_count() ; idx += 1) {
+	    const NetNet*port = def->port(idx);
+	    if (!port || port->port_type() != NetNet::PINPUT) {
+		  cerr << loc->get_fileline() << ": sorry: virtual-interface "
+		       << "function input argument " << (idx+1)
+		       << " requires output, inout, or ref copy-back; dynamic "
+			  "function dispatch does not yet support that direction."
+		       << endl;
+		  des->errors += 1;
+		  return false;
+	    }
+	    if (port->unpacked_dimensions() > 0) {
+		  cerr << loc->get_fileline() << ": sorry: virtual-interface "
+		       << "function input argument " << (idx+1) << " ('"
+		       << port->name() << "') is a fixed unpacked array; "
+			  "dynamic-dispatch array marshalling is not yet supported."
+		       << endl;
+		  des->errors += 1;
+		  return false;
+	    }
+      }
+      return true;
+}
+
+static bool interface_function_result_equivalent_(
+		const NetNet*expected, const NetNet*actual)
+{
+      if (!expected || !actual)
+	    return expected == actual;
+      if (expected->data_type() != actual->data_type()
+	  || expected->vector_width() != actual->vector_width()
+	  || expected->get_signed() != actual->get_signed()
+	  || expected->unpacked_dimensions() != actual->unpacked_dimensions())
+	    return false;
+
+      ivl_type_t expected_type = expected->net_type();
+      ivl_type_t actual_type = actual->net_type();
+      return expected_type == actual_type
+	  || (expected_type && actual_type
+	      && expected_type->type_equivalent(actual_type)
+	      && actual_type->type_equivalent(expected_type));
+}
+
+const NetFuncDef* resolve_interface_function_signature(
+		Design*des, NetScope*caller_scope,
+		const netclass_t*interface_type, perm_string method_name,
+		vector<NetScope*>*candidates,
+		bool&recognized, bool&hard_error)
+{
+      recognized = false;
+      hard_error = false;
+      if (candidates)
+	    candidates->clear();
+      if (!des || !caller_scope || !interface_type
+	  || !interface_type->is_interface())
+	    return nullptr;
+
+      vector<NetScope*>methods = collect_interface_method_scopes_(
+	    des, interface_type->get_name(), method_name);
+      NetScope*signature_scope = nullptr;
+
+        // The expression type, rather than hierarchy traversal order,
+        // determines the call's static result type. A concrete per-instance
+        // interface type names its own declaration scope; the canonical
+        // virtual-interface type uses the retained default-parameter
+        // declaration scope below. Runtime instances are considered only
+        // after that signature has been fixed.
+      NetScope*type_scope =
+	    const_cast<netclass_t*>(interface_type)->definition_scope();
+      if (type_scope && type_scope->type() == NetScope::MODULE
+	  && type_scope->is_interface()
+	  && type_scope->module_name() == interface_type->get_name()) {
+	    NetScope*method = type_scope->child(hname_t(method_name));
+	    if (method && (method->func_pform() || method->task_pform()))
+		  signature_scope = method;
+      }
+      if (!signature_scope)
+	    signature_scope = ensure_interface_declaration_method_scope(
+		  des, caller_scope, interface_type->get_name(), method_name);
+
+      if (!signature_scope) {
+	    interface_method_pform_info_t pform_method =
+		  find_interface_method_pform_(
+			interface_type->get_name(), method_name);
+	    if (!pform_method.method)
+		  return nullptr;
+	    recognized = true;
+	    cerr << caller_scope->get_fileline()
+		 << ": error: Unable to elaborate the declaration signature for "
+		 << "virtual-interface method `" << method_name << "'." << endl;
+	    des->errors += 1;
+	    hard_error = true;
+	    return nullptr;
+      }
+
+      recognized = true;
+      if (signature_scope->type() != NetScope::FUNC) {
+	    cerr << signature_scope->get_fileline()
+		 << ": error: Task `" << method_name
+		 << "' cannot be called as a function through a virtual interface."
+		 << endl;
+	    des->errors += 1;
+	    hard_error = true;
+	    return nullptr;
+      }
+
+      const NetFuncDef*signature = dynamic_cast<const NetFuncDef*>(
+	    ensure_interface_method_def_(des, signature_scope));
+      if (!interface_function_dynamic_signature_(
+	    signature_scope, des, signature)) {
+	    hard_error = true;
+	    return nullptr;
+      }
+
+      const NetNet*result = signature->return_sig();
+      const unsigned count = signature->port_count();
+      vector<NetScope*>compatible_methods;
+      compatible_methods.reserve(methods.size());
+      for (NetScope*method : methods) {
+	    if (!method || method->type() != NetScope::FUNC) {
+		  cerr << (method ? method->get_fileline()
+			   : caller_scope->get_fileline())
+		       << ": error: virtual-interface method `" << method_name
+		       << "' is not consistently declared as a function."
+		       << endl;
+		  des->errors += 1;
+		  hard_error = true;
+		  return nullptr;
+	    }
+	    const NetFuncDef*def = dynamic_cast<const NetFuncDef*>(
+		  ensure_interface_method_def_(des, method));
+	    if (!def) {
+		  cerr << method->get_fileline()
+		       << ": error: Unable to elaborate the declaration signature "
+			  "for virtual-interface function `" << method_name << "'."
+		       << endl;
+		  des->errors += 1;
+		  hard_error = true;
+		  return nullptr;
+	    }
+	    if (def->port_count() != count
+		|| !interface_function_result_equivalent_(
+		     result, def->return_sig()))
+		  continue;
+	    if (!interface_function_dynamic_signature_(method, des, def)) {
+		  hard_error = true;
+		  return nullptr;
+	    }
+	    compatible_methods.push_back(method);
+      }
+
+      if (candidates)
+	    candidates->swap(compatible_methods);
+      return signature;
+}
+
+NetESFunc* elaborate_dynamic_interface_function_call(
+		const LineInfo&loc, Design*des, NetScope*caller_scope,
+		const netclass_t*interface_type, perm_string method_name,
+		NetExpr*receiver, const vector<named_pexpr_t>&parms,
+		bool&recognized, bool&hard_error)
+{
+      vector<NetScope*>methods;
+      const NetFuncDef*signature = resolve_interface_function_signature(
+	    des, caller_scope, interface_type, method_name, &methods,
+	    recognized, hard_error);
+      if (!recognized)
+	    return nullptr;
+      if (!receiver || !signature) {
+	    delete receiver;
+	    hard_error = true;
+	    return nullptr;
+      }
+
+      const unsigned errors_before_arguments = des->errors;
+
+      vector<const NetFuncDef*>defs;
+      defs.reserve(methods.size());
+      for (NetScope*method : methods) {
+	    const PFunction*pfunc = method->func_pform();
+	    const NetFuncDef*def = method->func_def();
+	    if ((!def || !def->proc()) && pfunc
+		&& method->elab_stage() < 3) {
+		  elaborate_function_outside_caller_fork_(des, pfunc, method);
+		  def = method->func_def();
+	    }
+	    if (!def || (!def->proc() && method->elab_stage() < 3)) {
+		  cerr << method->get_fileline()
+		       << ": error: virtual-interface function `" << method_name
+		       << "' has no elaborated function body." << endl;
+		  des->errors += 1;
+		  delete receiver;
+		  hard_error = true;
+		  return nullptr;
+	    }
+	      // elab_stage 3 with no procedure is the in-progress recursive
+	      // case. Retain the stable definition now; the outer elaboration
+	      // attaches its procedure before target conversion begins.
+	    defs.push_back(def);
+      }
+
+      const unsigned count = signature->port_count();
+      if (parms.size() > count) {
+	    cerr << loc.get_fileline() << ": error: Too many arguments ("
+		 << parms.size() << ", expecting " << count
+		 << ") in virtual-interface function call." << endl;
+	    des->errors += 1;
+      }
+      vector<PExpr*>actuals = map_named_args(des, signature, parms, 0);
+
+      if (methods.empty()) {
+	    /* The receiver is necessarily null, but still elaborate every actual
+	     * against the declaration signature so invalid calls cannot hide behind
+	     * the required run-time fatal. There is no callable row to retain. */
+	    vector<NetExpr*>checked = elaborate_interface_method_argument_row_(
+		  loc, des, caller_scope, signature, actuals, true);
+	    for (NetExpr*expr : checked)
+		  delete expr;
+	  }
+
+      vector<NetExpr*>argv;
+      argv.push_back(receiver);
+      for (size_t idx = 0 ; idx < methods.size() ; idx += 1) {
+	    ostringstream key_text;
+	    key_text << scope_path(methods[idx]);
+	    NetECString*key = new NetECString(key_text.str());
+	    key->set_line(loc);
+	    argv.push_back(key);
+
+	    vector<NetExpr*>row = elaborate_interface_method_argument_row_(
+		  loc, des, caller_scope, defs[idx], actuals, idx == 0);
+	    argv.insert(argv.end(), row.begin(), row.end());
+      }
+
+      bool missing = false;
+      for (NetExpr*expr : argv)
+	    if (!expr)
+		  missing = true;
+      if (missing || des->errors != errors_before_arguments) {
+	    for (NetExpr*expr : argv)
+		  delete expr;
+	    hard_error = true;
+	    return nullptr;
+      }
+
+      const NetNet*result = signature->return_sig();
+      ivl_assert(loc, result);
+      ivl_assert(loc, result->net_type());
+      string call_name = "$ivl_vif_func$";
+      call_name += interface_type->get_name().str();
+      call_name += "$";
+      call_name += method_name.str();
+      NetESFunc*call = new NetESFunc(
+	    call_name.c_str(), result->net_type(), argv.size());
+      call->set_line(loc);
+      for (unsigned idx = 0 ; idx < argv.size() ; idx += 1)
+	    call->parm(idx, argv[idx]);
+      for (unsigned candidate = 0, flat = 1 ;
+	   candidate < methods.size(); candidate += 1) {
+	    flat += 1; // candidate scope-name key
+	    for (unsigned arg = 0 ; arg < count ; arg += 1, flat += 1)
+	          if (!actuals[arg])
+		        call->mark_vif_parm_default(flat);
+      }
+      for (NetScope*method : methods)
+	    call->add_vif_method(method);
+      return call;
+}
+
 NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -17539,6 +17833,9 @@ static bool expr_has_user_function_call_(const NetExpr*expr)
             return false;
       }
       if (const NetESFunc*system = dynamic_cast<const NetESFunc*>(expr)) {
+	    if (system->vif_method_count() > 0
+		|| strncmp(system->name(), "$ivl_vif_func$", 14) == 0)
+		  return true;
             for (unsigned idx = 0; idx < system->nparms(); idx += 1)
                   if (expr_has_user_function_call_(system->parm(idx)))
                         return true;

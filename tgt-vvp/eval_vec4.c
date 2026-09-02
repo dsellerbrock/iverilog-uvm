@@ -1797,6 +1797,11 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 {
       unsigned parm_count = ivl_expr_parms(expr);
 
+      if (strncmp(ivl_expr_name(expr), "$ivl_vif_func$", 14) == 0) {
+            vvp_errors += draw_vif_function_call(expr);
+            return;
+      }
+
       if (strncmp(ivl_expr_name(expr), "$ivl_assign_expr$", 17) == 0) {
             draw_assign_expr_vec4(expr);
             return;

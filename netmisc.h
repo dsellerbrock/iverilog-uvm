@@ -858,6 +858,22 @@ extern bool uarray_element_equivalent_container_(const netuarray_t*actual,
 extern bool uarray_matches_dpi_open_array_(const netuarray_t*actual,
 					   const netdarray_t*formal);
 
+/* Populate enum types and their literal names in a declaration-only scope.
+ * This is the same scope pass used by ordinary modules/packages, exposed
+ * narrowly for rootless interface signature elaboration. */
+extern void elaborate_scope_declaration_enumerations(
+		Design*des, NetScope*scope,
+		const std::vector<enum_type_t*>&enum_types);
+
+/* Materialize one declaration-only interface method scope for signature
+ * elaboration when no concrete interface instance exists. The retained
+ * interface scope is rootless and is therefore neither a hierarchy root nor
+ * a runtime virtual-interface dispatch candidate. The caller remains
+ * responsible for invoking PFunction/PTask::elaborate_sig when required. */
+extern NetScope* ensure_interface_declaration_method_scope(
+		Design*des, NetScope*caller_scope,
+		perm_string interface_name, perm_string method_name);
+
 /*
  * A class body may contain a call through a type-parameter receiver before
  * that parameter has a concrete specialization. Keep the parse-form type
