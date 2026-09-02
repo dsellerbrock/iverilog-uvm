@@ -53,6 +53,11 @@ jobs:
       continue-on-error: true
       run: ./.github/test.sh
 
+    # The broad lane above has historical soft failures. Keep newly merged
+    # virtual-interface function semantics zero-tolerance on every host.
+    - name: Virtual-interface function focus (hard)
+      run: bash .github/ivtest_focus_gate.sh regress-vif-function-focus-legacy.list regress-vif-function-focus-vvp.list
+
     # macOS UVM builds and loads the real DPI umbrella. Keep this hard-gated;
     # the authoritative test count comes from the current checkout rather than
     # a stale count embedded in this workflow comment.
@@ -100,6 +105,11 @@ jobs:
 
     - name: ivtest gate (name-diff, hard)
       run: ./.github/ivtest_gate.sh
+
+    # Re-run the small paired focus, including the JSON/VVP descriptor path
+    # omitted by the full hard gate above, as a cross-harness feature gate.
+    - name: Virtual-interface function focus (hard)
+      run: bash .github/ivtest_focus_gate.sh regress-vif-function-focus-legacy.list regress-vif-function-focus-vvp.list
 
     - name: UVM regression tests (hard)
       run: ./.github/uvm_test.sh
@@ -198,6 +208,11 @@ jobs:
         else
             ./.github/test.sh
         fi
+
+    # Windows' broad regression has recorded unrelated failures and remains a
+    # soft signal. This focused pair is the hard feature-specific protection.
+    - name: Virtual-interface function focus (hard)
+      run: bash .github/ivtest_focus_gate.sh regress-vif-function-focus-legacy.list regress-vif-function-focus-vvp.list
 
     # Windows UVM runs real DPI on all three MSYS2 toolchains, so this step is
     # hard-gated. The authoritative test count comes from the current checkout.
