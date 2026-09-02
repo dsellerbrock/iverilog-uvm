@@ -29,11 +29,13 @@
 ## Validation
 
 <!-- Check what you ran; delete lines that genuinely don't apply. -->
+<!-- These commands assume a POSIX shell. On Windows, run them from MSYS2
+     Bash, which is also the shell used by the Windows CI jobs. -->
 
 - [ ] Focused tests for this change pass
-- [ ] Negative tests pass where applicable (`tests/negative/run_negative.sh`)
-- [ ] UVM regression passes where applicable (`./.github/uvm_test.sh`)
-- [ ] ivtest regression checked where applicable (`cd ivtest && perl vvp_reg.pl`) — no new failures vs. the recorded baseline
+- [ ] Negative tests pass where applicable (`bash tests/negative/run_negative.sh`)
+- [ ] UVM regression passes where applicable (`bash .github/uvm_test.sh`)
+- [ ] ivtest regression checked where applicable (`cd ivtest && perl ./vvp_reg.pl && python3 ./vvp_reg.py`) — no new failures vs. the recorded baseline
 - [ ] VPI regression checked where applicable (`cd ivtest && perl vpi_reg.pl`)
 - [ ] No new silent fallback introduced (unsupported paths are a loud error/sorry/warning)
 - [ ] Remaining unsupported behavior is documented (clause matrix / recorded corners)
