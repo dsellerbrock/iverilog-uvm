@@ -8484,7 +8484,45 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  target_type = array_locator_queue_type_(queue->element_type());
 		  target_indexed = false;
 	    } else {
-		  if (darray)
+		    /* Consume EVERY index component, not just one. A
+		     * receiver like qdq[i][j] selects two container
+		     * levels, and stepping the element type once left
+		     * the method typed against the container a level
+		     * too shallow: a scalar result came back as the
+		     * inner queue and failed as an unpacked aggregate
+		     * assigned to a scalar target. This mirrors the
+		     * associative walk above and the expression-side
+		     * apply_trailing_container_indices_(). Restricted to
+		     * plain bit selects so slice-bearing receivers keep
+		     * their established typing. */
+		  bool all_bit_selects = indices.size() > 1;
+		  for (list<index_component_t>::const_iterator cur =
+			     indices.begin()
+			   ; all_bit_selects && cur != indices.end() ; ++cur) {
+			if (cur->sel != index_component_t::SEL_BIT
+			    || !cur->msb || cur->lsb)
+			      all_bit_selects = false;
+		  }
+
+		  ivl_type_t walked = nullptr;
+		  if (all_bit_selects) {
+			walked = search_results.net->net_type();
+			for (list<index_component_t>::const_iterator cur =
+				   indices.begin()
+			       ; cur != indices.end() ; ++cur) {
+			      const netarray_t*array_type =
+				    dynamic_cast<const netarray_t*>(walked);
+			      if (!array_type) {
+				    walked = nullptr;
+				    break;
+			      }
+			      walked = array_type->element_type();
+			}
+		  }
+
+		  if (walked)
+			target_type = walked;
+		  else if (darray)
 			target_type = darray->element_type();
 		  target_indexed = true;
 	    }
@@ -15786,6 +15824,33 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 	  && search_results.path_head.back().index.size() > 1
 	  && is_unpacked_array_slice_select_(
 		search_results.path_head.back().index.back().sel)) {
+	    ivl_type_t selected_type = nullptr;
+	    sub_expr = apply_trailing_container_indices_(
+		  *this, des, scope, sub_expr, search_results.net->net_type(),
+		  search_results.path_head.back().index, selected_type);
+	    if (!sub_expr)
+		  return 0;
+	    target_type = selected_type;
+	    target_indexed = false;
+	    applied_root_queue_select = true;
+      }
+
+	/* A receiver may select through SEVERAL container levels
+	 * (qdq[i][j].size()). The single-index branch below matches only
+	 * one component and the slice branch above only a trailing
+	 * slice, so a two-or-more index receiver used to match neither:
+	 * no select was built at all and the method dispatched against
+	 * the BARE ROOT SIGNAL, silently returning another object's
+	 * result. Route those through the same walker the slice case
+	 * uses; it consumes every component and reports a focused
+	 * diagnostic for a chain it cannot represent, so no index
+	 * component is ever dropped silently. */
+      if (search_results.net
+	  && !applied_root_queue_select
+	  && (search_results.net->data_type()==IVL_VT_QUEUE
+	      || search_results.net->data_type()==IVL_VT_DARRAY)
+	  && search_results.net->darray_type()
+	  && search_results.path_head.back().index.size() > 1) {
 	    ivl_type_t selected_type = nullptr;
 	    sub_expr = apply_trailing_container_indices_(
 		  *this, des, scope, sub_expr, search_results.net->net_type(),

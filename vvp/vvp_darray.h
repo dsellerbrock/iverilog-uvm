@@ -433,11 +433,18 @@ class vvp_queue : public vvp_darray {
     protected:
       void apply_declared_container_layout_own(
 	    const vvp_container_layout_t&layout) override;
+
+	/* Element-type name used by the bounded-queue diagnostics. Applying
+	 * a declared layout can discard elements, and that must report the
+	 * same "bounded to have at most N" warning the counted copy path
+	 * emits rather than truncating silently. */
+      virtual const char*queue_element_type_name(void) const { return 0; }
 };
 
 class vvp_queue_real : public vvp_queue {
 
     public:
+      const char*queue_element_type_name(void) const override { return "real"; }
       ~vvp_queue_real() override;
       size_t get_size(void) const override { return queue.size(); };
       vvp_object* duplicate(void) const override;
@@ -462,6 +469,7 @@ class vvp_queue_real : public vvp_queue {
 class vvp_queue_string : public vvp_queue {
 
     public:
+      const char*queue_element_type_name(void) const override { return "string"; }
       ~vvp_queue_string() override;
       size_t get_size(void) const override { return queue.size(); };
       vvp_object* duplicate(void) const override;
@@ -487,6 +495,7 @@ class vvp_queue_string : public vvp_queue {
 class vvp_queue_vec4 : public vvp_queue {
 
     public:
+      const char*queue_element_type_name(void) const override { return "vector"; }
       ~vvp_queue_vec4() override;
       size_t get_size(void) const override { return queue.size(); };
       vvp_object* duplicate(void) const override;
@@ -512,6 +521,7 @@ class vvp_queue_vec4 : public vvp_queue {
 class vvp_queue_object : public vvp_queue {
 
     public:
+      const char*queue_element_type_name(void) const override { return "object"; }
       ~vvp_queue_object() override;
       size_t get_size(void) const override { return queue.size(); };
       vvp_object* duplicate(void) const override;

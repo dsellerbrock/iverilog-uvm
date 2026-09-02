@@ -341,6 +341,10 @@ sv_class_prop_packed_member_var normal,-g2012 ivltests
 sv_class_prop_struct_member_index normal,-g2012 ivltests
 sv_class_static_prop_arrays normal,-g2012 ivltests
 sv_class_static_struct_pool normal,-g2012 ivltests
+sv_class_nested_ctor_provenance normal,-g2017,-s,sv_class_nested_ctor_provenance ivltests gold=sv_class_nested_ctor_provenance.gold
+sv_class_nested_ctor_provenance_2023 normal,-g2023,-s,sv_class_nested_ctor_provenance ivltests gold=sv_class_nested_ctor_provenance.gold
+sv_container_method_multi_index_receiver normal,-g2017,-s,sv_container_method_multi_index_receiver ivltests gold=sv_container_method_multi_index_receiver.gold
+sv_container_method_multi_index_receiver_2023 normal,-g2023,-s,sv_container_method_multi_index_receiver ivltests gold=sv_container_method_multi_index_receiver.gold
 sv_container_elem_queue_autoviv normal,-g2012 ivltests
 sv_container_whole_copy_value normal,-g2012 ivltests
 sv_fork_auto_init1	normal,-g2012		ivltests

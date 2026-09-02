@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_container_method_multi_index_receiver.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_container_method_multi_index_receiver" ],
+    "gold"          : "sv_container_method_multi_index_receiver"
+}

@@ -27610,7 +27610,27 @@ bool of_STORE_OBJ(vthread_t thr, vvp_code_t cp)
 	     * and make it the destination root whenever the receive changed the
 	     * handle. Class handles are not copied and retain their existing alias
 	     * provenance. */
-	    const vvp_object_t stored_val = fun->peek_object();
+	      /* Only a CONTAINER is received by copy, so only a container can
+	       * come back from the functor as a different, private handle. A
+	       * class handle is stored as-is.
+	       *
+	       * The read-back matters because peek_object() resolves an
+	       * automatic signal through the thread's READ context while the
+	       * store above went through its WRITE context. Inside a
+	       * constructor invoked from another constructor those are
+	       * different frames, so peeking a class-handle `this' returned
+	       * the CALLER's object and redirected the destination's
+	       * provenance at it -- a nested `new' then aliased its own
+	       * parent (`root.child == root') and the inner property writes
+	       * landed on the outer object. Restricting the read-back to
+	       * containers keeps the Q/D/A copy fix and leaves class handles
+	       * on the unambiguous stored value. */
+	      /* Q and D are vvp_darray; A is vvp_assoc_base, a SIBLING of it
+	       * rather than a subclass, so both must be named here. */
+	    const bool received_by_copy = val.peek<vvp_darray>() != 0
+	          || val.peek<vvp_assoc_base>() != 0;
+	    const vvp_object_t stored_val = received_by_copy
+	          ? fun->peek_object() : val;
             /* If the incoming provenance refers to a different object than
              * the handle we are storing, this assignment creates a new alias
              * boundary and the destination handle must become the canonical

@@ -1221,6 +1221,17 @@ void vvp_queue::apply_declared_container_layout_own(
       const uint64_t max_size = layout->queue_max_size;
       if (static_cast<uint64_t>(get_size()) <= max_size)
 	    return;
+
+	/* Applying a declared bound here DISCARDS elements, so it owes the
+	 * same diagnostic the counted copy path emits. Reaching this point
+	 * silently would truncate a too-long source without a word, which is
+	 * exactly the silent degradation this compiler must never produce. */
+      if (const char*qtype = queue_element_type_name())
+	    cerr << get_fileline()
+		 << "Warning: queue<" << qtype << "> is bounded to have at most "
+		 << max_size << " elements, source has " << get_size()
+		 << " elements." << endl;
+
       if (max_size <= UINT_MAX) {
 	    erase_tail(static_cast<unsigned>(max_size));
 	    return;

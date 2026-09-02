@@ -193,3 +193,175 @@ complete parameterized/modport VIF behavior; arbitrary recursive aggregate
 semantics; full mailbox reference lifetime; full UVM compatibility; or a clean
 OpenTitan/Caliptra application flow. It closes measured mechanisms and leaves
 the remaining validation and unsupported shapes visible.
+
+## Addendum — 2026-09-02 — multi-index container method receiver
+
+Running the pending focused gate turned up one red row,
+`sv_vif_parameter_specialization_queue_bound_layout`, in both editions. The
+reported symptom was misleading and the investigation is recorded here because
+the conclusion changed twice.
+
+The row's own message said the Q<D<Q>> copy had not recursively enforced the
+destination bound. That is not what happened. Routing the same read through a
+temporary returns the correct sizes:
+
+    ta = a[0][0]; tb = b[0][0];   ->  ta.size() = 3, tb.size() = 5
+
+so the recursive bound enforcement implemented by this increment is correct.
+The assertion failed because it reads `deep_qdq_2[0][0].size()` directly, and
+that read returned the wrong object.
+
+### Defect
+
+IEEE 1800-2017 7.4, 7.8, 7.10, 7.12. A built-in container method whose
+receiver carries two or more index components was dispatched against the
+**bare root signal**; every index component was dropped and no diagnostic was
+emitted. With an outer queue of 2, a darray of 3 and an inner queue of 4:
+
+    b.size()        = 2
+    b[0].size()     = 3
+    b[0][0].size()  = 2      <- returned b.size(); wants 4
+
+Two sites, both in `elab_expr.cc`:
+
+- `PECallFunction::elaborate_expr_method_`: the root-container-index branch was
+  guarded on `path_head.back().index.size()==1`, and the branch above it only
+  matched a trailing unpacked-array slice. A two-or-more index receiver matched
+  neither, so no select was built at all.
+- `PECallFunction::test_width_method_`: the companion type analysis stepped
+  `darray->element_type()` exactly once regardless of the index count, leaving
+  the method typed a container level too shallow. This is why
+  `qdq[0][0].pop_front()` failed elaboration as an unpacked aggregate assigned
+  to a scalar target rather than yielding `int`.
+
+### Provenance
+
+Pre-existing on `origin/main` at `dcd3f8fc1`, not introduced by this increment.
+The exact-main compiler built in the `iverilog-uvm-svtests-qualified-if-20260813`
+worktree reproduces the reducer identically. The depth-three test added by this
+increment merely made a latent defect reachable, so it is fixed as its own
+commit with its own regression.
+
+### Implementation
+
+The expression site now routes any receiver with more than one index component
+through `apply_trailing_container_indices_()`, the walker the trailing-slice
+case already used. It consumes every component and reports a focused diagnostic
+for a chain it cannot represent, so no index is dropped silently: the
+previously silent `b[0 +: 2][0].size()` now reports
+"sorry: this container slice/index chain is not yet supported."
+The width site consumes every component for all-bit-select receivers, mirroring
+the associative walk directly above it; slice-bearing receivers keep their
+established typing so the fix cannot disturb them.
+
+A second, separate silent degradation was found while reconciling the row's
+gold. `vvp_queue::apply_declared_container_layout_own()` discards elements when
+it applies a declared bound, but did so without the
+"queue<...> is bounded to have at most N elements" warning that the counted
+copy path emits. A whole-queue copy of a 5-element source into a bound-3
+destination truncated correctly but silently. The trim now reports through a
+new `queue_element_type_name()` hook on the queue subclasses.
+
+The three gold files for `sv_vif_parameter_specialization_queue_bound_layout`
+were authored earlier in this increment and had never been validated against a
+built tool. They are regenerated here, and every line was traced to an
+intentional action in the source: the bound-enforcement warnings, the
+indexed-store refusal at line 115, the four recursive-trim warnings from the
+A-to-Q, D-to-Q, Q<D<Q>> and Q<A<Q>> copies, and the two
+`container index 4294967296 exceeds the runtime index range` diagnostics from
+the deliberate `wide_index = 64'h1_0000_0000` selector rejection.
+
+### Regression
+
+`sv_container_method_multi_index_receiver`, paired for `-g2017`/`-g2023` in
+`regress-sv.list`, `regress-vvp.list` and `ivtest/vvp_tests/`. Each nesting
+level carries a distinct population so any wrong receiver is observable rather
+than aliasing a correct answer. It is red on the exact-main compiler and green
+here.
+
+### Known limitation, not addressed here
+
+The statement/task path keeps its existing single-index restriction:
+`b[0][0].push_back(9)` reports
+"sorry: Only single-dimension index of dynamic/queue method targets is
+supported." (`elaborate.cc:1535`, `elaborate_root_indexed_method_target_expr_`).
+That path is loud rather than silent, so it is a visible gap and not a
+correctness defect. Closing it needs the container walker, currently a static
+in `elab_expr.cc`, to be shared with `elaborate.cc`; that is deliberately left
+out of this commit rather than widened into it.
+
+## Addendum 2 — 2026-09-02 — nested constructor aliased its caller's object
+
+The first full `vvp_reg.pl` sweep of this increment did not finish: it stopped
+on `sv_class_assoc_recursive_find1`, which spun in `vvp` producing no output at
+all. `origin/main` at `dcd3f8fc1` runs the same row to `PASSED` in under a
+second, so this was a regression introduced by this increment and not by the
+multi-index receiver fix recorded above. That was established by reverting
+files individually and rebuilding each time: reverting `elab_expr.cc` alone
+still hung, and reverting `vvp/vvp_darray.{cc,h}` as well — the pure checkpoint
+`cab3515d6` — still hung.
+
+Note for future sweeps: run them as `ulimit -t 45 && perl vvp_reg.pl`.
+`vvp_reg.pl` does not itself apply the campaign's per-process CPU guard, so a
+single spinning row stalls the entire run and no summary is ever printed.
+
+### Defect
+
+IEEE 1800-2017 8.7, 8.10. `of_STORE_OBJ` read the destination signal's
+post-store value back with `fun->peek_object()` in order to detect the private
+handle that a Q/D/A signal substitutes when it receives a container by copy.
+For an automatic signal `peek_object()` resolves through the thread's READ
+context, while the store immediately above it goes through the thread's WRITE
+context. Inside a constructor invoked from another constructor of the same
+class those are different frames:
+
+    scope=$unit::C.new fun=object_aa wt=0x105d47e30 rd=0x105d49fa0
+
+so the read-back returned the CALLER's `this` and the destination's alias
+provenance was redirected at the caller's object. A nested `new` therefore
+aliased its own parent and the inner constructor's property writes landed on
+the outer object:
+
+    root = new("common", 0);        // root.child === root
+    root.nm    = "common"   d = 1   // outer depth overwritten by the child
+    child.nm   = "common"   d = 1   // inner name never reached its own object
+
+The formals themselves were always passed correctly — tracing the constructor
+shows `name=common_end depth=1` on entry to the nested call — which is why this
+presented as corrupted properties rather than as a call-argument fault.
+
+The non-termination follows from the same aliasing. A constructor whose
+recursion is bounded by an argument, which is the ordinary UVM phase-graph
+shape, builds its terminal child with a different type and a non-null parent.
+With the child observing the parent's arguments the stopping guard never became
+false, so `sv_class_assoc_recursive_find1` recursed without end.
+
+### Implementation
+
+The read-back is now taken only when the stored value is actually received by
+copy, that is when it is a container. A class handle is stored as-is and keeps
+the unambiguous stored value as its provenance. This preserves the Q/D/A copy
+fix the read-back was added for and removes the cross-context read for the case
+where it was never meaningful.
+
+The container test must name two types. Queues and dynamic arrays are
+`vvp_darray`, but an associative array is `vvp_assoc_base`, which is a SIBLING
+of `vvp_darray` and not a subclass. A first version of this fix tested only
+`vvp_darray` and so dropped associative arrays out of the copy path; the full
+sweep caught it immediately as six newly red rows -- `sv_assoc_default_values`,
+`sv_assoc_default_struct_value_copy`, `sv_assoc_explicit_pattern_values`,
+`sv_assoc_function_output`, `sv_assoc_signed_traversal` and their 2023 pairs.
+This is precisely why the acceptance criterion is a diff of failure NAME SETS
+against a freshly built main and not a pass count: the count moved 16 -> 18,
+which looks like noise, while the set showed four rows repaired and six
+distinct rows broken.
+
+### Regression
+
+`sv_class_nested_ctor_provenance`, paired for `-g2017`/`-g2023`. It asserts the
+nested `new` produced a distinct object, that the outer frame's name, depth and
+parent all survive the inner invocation, that the inner actuals reach the inner
+object, and that the bounded recursion terminated with no grandchild. It also
+covers the four rows this defect was breaking:
+`sv_class_assoc_recursive_find1`, `sv_class_recursive_new_prop1`,
+`sv_class_derived_ctor_state1` and `sv_class_recursive_ctor_add1`.

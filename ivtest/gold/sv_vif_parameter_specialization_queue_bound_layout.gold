@@ -1,4 +1,18 @@
 Warning: push_back(32'b00000000000000000000000000000100) skipped for already full bounded queue<vector[32]> [3].
 Warning: push_back(32'b00000000000000000000000000011000) skipped for already full bounded queue<vector[32]> [3].
-Warning: push_back(32'b00000000000000000000000000101110) skipped for already full bounded queue<vector[32]> [3].
+Warning: queue<vector> is bounded to have at most 3 elements, source has 5 elements.
+Warning: assigning to queue<vector>[3] is outside bound (3). 32'b00000000000000000000000000101110 was not added.
+Warning: insert(1, 32'b00000000000000000000000011001100) removed 32'b00000000000000000000000011001011 from already full bounded queue<vector[32]> [3].
+Warning: push_front(32'b00000000000000000000000011001000) removed 32'b00000000000000000000000011001010 from already full bounded queue<vector[32]> [3].
+Warning: insert(1, 32'b00000000000000000000000110010100) removed 32'b00000000000000000000000110010011 from already full bounded queue<vector[32]> [3].
+Warning: push_front(32'b00000000000000000000000110010000) removed 32'b00000000000000000000000110010010 from already full bounded queue<vector[32]> [3].
+Warning: queue<vector> is bounded to have at most 3 elements, source has 5 elements.
+Warning: queue<vector> is bounded to have at most 3 elements, source has 5 elements.
+Warning: queue<vector> is bounded to have at most 3 elements, source has 5 elements.
+Warning: queue<vector> is bounded to have at most 3 elements, source has 5 elements.
+Warning: push_back(32'b00000000000000000000001001011100) skipped for already full bounded queue<vector[32]> [3].
+Warning: push_back(32'b00000000000000000000001011000000) skipped for already full bounded queue<vector[32]> [3].
+Warning: push_back(32'b00000000000000000000001100100100) skipped for already full bounded queue<vector[32]> [3].
+Warning: container index 4294967296 exceeds the runtime index range (0:4294967295); operation was ignored.
+Warning: container index 4294967296 exceeds the runtime index range (0:4294967295); operation was ignored.
 PASSED
