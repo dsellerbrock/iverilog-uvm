@@ -1082,6 +1082,8 @@ extern ivl_parameter_t ivl_expr_parameter(ivl_expr_t net);
 extern ivl_expr_t  ivl_expr_parm(ivl_expr_t net, unsigned idx);
   /* IVL_EX_ARRAY_PATTERN IVL_EX_CONCAT IVL_EX_SFUNC IVL_EX_UFUNC */
 extern unsigned    ivl_expr_parms(ivl_expr_t net);
+  /* IVL_EX_SFUNC: optional compiler-known ref-output destination. */
+extern ivl_lval_t  ivl_expr_ref_lval(ivl_expr_t net);
   /* IVL_EX_SFUNC: exact concrete virtual-interface function candidates. */
 extern ivl_scope_t ivl_expr_vif_method(ivl_expr_t net, unsigned idx);
 extern unsigned    ivl_expr_vif_methods(ivl_expr_t net);
@@ -2549,6 +2551,11 @@ extern char ivl_stmt_opcode(ivl_statement_t net);
 extern ivl_expr_t ivl_stmt_parm(ivl_statement_t net, unsigned idx);
   /* IVL_ST_STASK */
 extern unsigned ivl_stmt_parm_count(ivl_statement_t net);
+  /* IVL_ST_STASK: optional compiler-known ref-output destination. */
+extern ivl_lval_t ivl_stmt_ref_lval(ivl_statement_t net);
+  /* IVL_ST_STASK: exact dynamic virtual-interface method candidates. */
+extern ivl_scope_t ivl_stmt_vif_method(ivl_statement_t net, unsigned idx);
+extern unsigned    ivl_stmt_vif_methods(ivl_statement_t net);
   /* IVL_ST_ASSIGN IVL_ST_ASSIGN_NB IVL_ST_CASSIGN IVL_ST_CONTRIB
      IVL_ST_FORCE */
 extern ivl_expr_t ivl_stmt_rval(ivl_statement_t net);
@@ -2680,6 +2687,8 @@ extern ivl_type_t ivl_type_super(ivl_type_t net);
  * superclass chain (IEEE 1800-2017 8.26). */
 extern unsigned ivl_type_interface_count(ivl_type_t net);
 extern ivl_type_t ivl_type_interface(ivl_type_t net, unsigned idx);
+/* Return TRUE for the synthetic class carrier of an interface/VIF type. */
+extern int ivl_type_is_interface(ivl_type_t net);
 extern const char* ivl_type_method_prefix(ivl_type_t net);
 extern int ivl_type_queue_assoc_compat(ivl_type_t net);
 /* Return the maximum number of elements in a bounded queue, or zero for an

@@ -641,8 +641,8 @@ ivl_variable_type_t NetESelect::expr_type() const
 
 NetESFunc::NetESFunc(const char*n, ivl_variable_type_t t,
 		     unsigned width, unsigned np, bool is_overridden)
-: name_(0), type_(t), parms_(np), vif_default_parms_(np, false),
-  is_overridden_(is_overridden)
+: name_(0), type_(t), parms_(np), ref_output_(0),
+  vif_default_parms_(np, false), is_overridden_(is_overridden)
 {
       name_ = lex_strings.add(n);
       expr_width(width);
@@ -650,7 +650,7 @@ NetESFunc::NetESFunc(const char*n, ivl_variable_type_t t,
 
 NetESFunc::NetESFunc(const char*n, ivl_type_t rtype, unsigned np)
 : NetExpr(rtype), name_(0), type_(rtype->base_type()), parms_(np),
-  vif_default_parms_(np, false), is_overridden_(false)
+  ref_output_(0), vif_default_parms_(np, false), is_overridden_(false)
 {
       name_ = lex_strings.add(n);
 }
@@ -661,6 +661,7 @@ NetESFunc::~NetESFunc()
       for (unsigned idx = 0 ;  idx < parms_.size() ;  idx += 1)
 	    if (parms_[idx] && freed_parms.insert(parms_[idx]).second)
 		  delete parms_[idx];
+      delete ref_output_;
 
 	/* name_ string ls lex_strings allocated. */
 }
@@ -693,6 +694,13 @@ NetExpr* NetESFunc::parm(unsigned idx)
 {
       ivl_assert(*this, idx < parms_.size());
       return parms_[idx];
+}
+
+void NetESFunc::set_ref_output(NetAssign_*lval)
+{
+      ivl_assert(*this, lval);
+      ivl_assert(*this, ref_output_ == 0);
+      ref_output_ = lval;
 }
 
 void NetESFunc::add_vif_method(NetScope*method)

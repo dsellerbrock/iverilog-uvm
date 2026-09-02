@@ -557,7 +557,7 @@ static int draw_convert_container_value_for_target_(ivl_type_t source_type,
             fprintf(vvp_out, "    %%queue/to/darray \"%s\";"
                     " destination-typed container copy\n", element_text);
       } else {
-            fprintf(vvp_out, "    %%container/to/queue \"%s\", %u;"
+            fprintf(vvp_out, "    %%container/to/queue \"%s\", %" PRIu64 ";"
                     " destination-typed container copy\n",
                     element_text, queue_type_max_count_(target_type));
       }
@@ -684,12 +684,12 @@ void emit_append_object_collection(ivl_type_t target_element_type)
                           element_text);
       } else if (has_struct_prototype) {
             fprintf(vvp_out,
-                    "    %%append/qo/obj/queue/proto \"%s\", %u, C%p;\n",
+                          "    %%append/qo/obj/queue/proto \"%s\", %" PRIu64 ", C%p;\n",
                     element_text, queue_type_max_count_(target_element_type),
                     inner_element);
       } else {
             fprintf(vvp_out,
-                    "    %%append/qo/obj/queue \"%s\", %u;\n",
+                    "    %%append/qo/obj/queue \"%s\", %" PRIu64 ";\n",
                     element_text,
                     queue_type_max_count_(target_element_type));
       }
@@ -709,10 +709,6 @@ static int draw_eval_nested_object_value_(ivl_expr_t expr,
 {
       int errors = draw_eval_container_value_for_target(expr, element_type);
       uint64_t max_size;
-      int saved_index;
-      int saved_x_flag;
-      unsigned lab_trim;
-      unsigned lab_done;
 
       if (errors >= 0)
             return errors;
@@ -731,7 +727,7 @@ static int draw_eval_nested_object_value_(ivl_expr_t expr,
             return errors;
 
       max_size = ivl_type_queue_max_size(element_type);
-      if (max_size == 0 || max_size >= UINT_MAX)
+      if (max_size == 0)
             return errors;
 
       /* A runtime store will make the assignment copy after this helper. Make
@@ -746,35 +742,8 @@ static int draw_eval_nested_object_value_(ivl_expr_t expr,
                     "    %%pop/obj 1, 1; discard bounded queue source\n");
       }
 
-      saved_index = allocate_word();
-      saved_x_flag = allocate_flag();
-      lab_trim = local_count++;
-      lab_done = local_count++;
-
-      fprintf(vvp_out, "    %%ix/mov %d, 3; preserve destination index\n",
-              saved_index);
-      fprintf(vvp_out, "    %%flag_mov %d, 4; preserve destination X/Z\n",
-              saved_x_flag);
-      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_trim);
-      fprintf(vvp_out, "    %%dup/obj/ref; bounded queue size receiver\n");
-      fprintf(vvp_out, "    %%qsize/o;\n");
-      fprintf(vvp_out, "    %%cmpi/u %u, 0, 32; queue size <= %u\n",
-              (unsigned)max_size + 1, (unsigned)max_size);
-      fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 5; bounded queue fits\n",
-              thread_count, lab_done);
-      fprintf(vvp_out, "    %%dup/obj/ref; bounded queue trim receiver\n");
-      fprintf(vvp_out, "    %%ix/load 3, %u, 0; first excess element\n",
-              (unsigned)max_size);
-      fprintf(vvp_out, "    %%flag_set/imm 4, 0; known queue index\n");
-      fprintf(vvp_out, "    %%delete/o/elem;\n");
-      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_trim);
-      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_done);
-      fprintf(vvp_out, "    %%ix/mov 3, %d; restore destination index\n",
-              saved_index);
-      fprintf(vvp_out, "    %%flag_mov 4, %d; restore destination X/Z\n",
-              saved_x_flag);
-      clr_word(saved_index);
-      clr_flag(saved_x_flag);
+      fprintf(vvp_out, "    %%queue/trim/o %" PRIu64
+              "; destination-bound nested queue copy\n", max_size);
       return errors;
 }
 
@@ -814,12 +783,14 @@ static int draw_fixed_uarray_queue_object_(ivl_expr_t expr,
       kind |= VVP_ARRDAR_QUEUE;
 
       queue_max_size = ivl_type_queue_max_size(queue_type);
-      marshal_max = queue_max_size > 0xffffffffULL
+      marshal_max = queue_max_size > UINT32_MAX
             ? 0 : (unsigned)queue_max_size;
       note_array_signal_use(sig);
       fprintf(vvp_out, "    %%load/arr/dar v%p, %u, %u;"
               " fixed array to queue property\n",
               sig, kind, marshal_max);
+      fprintf(vvp_out, "    %%container/layout/q %" PRIu64
+              "; exact fixed-array queue layout\n", queue_max_size);
       return 0;
 }
 
@@ -916,10 +887,12 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 			fprintf(vvp_out, "    %%pop/obj 1, 0; replace nil fixed-slot container\n");
 			fprintf(vvp_out, "    %%new/queue \"@%u\"; fixed-slot container default\n",
 				nested_queue_spec_(sig_type));
-			fprintf(vvp_out, "    %%dup/obj/ref; retain fixed-slot receiver\n");
 			fprintf(vvp_out, "    %%flag_mov 4, %d; restore fixed-slot validity\n",
 				slot_flag);
 			fprintf(vvp_out, "    %%store/obja v%p, %d; initialize fixed-slot container\n",
+				lval_sig, slot_word);
+			fprintf(vvp_out,
+				"    %%load/obja v%p, %d; reload destination-bound fixed-slot receiver\n",
 				lval_sig, slot_word);
 			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
 			clr_flag(slot_flag);
@@ -1255,6 +1228,253 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 	    return element_type;
 
       return prop_type;
+}
+
+/* Value-kind tags shared with vvp_lvalue_ref::value_kind_t. Keep the text
+ * target independent of the C++ header while retaining one compact opcode
+ * family for all four VVP value stacks. */
+static unsigned mailbox_ref_value_kind_(ivl_type_t type)
+{
+      switch (type ? ivl_type_base(type) : IVL_VT_LOGIC) {
+          case IVL_VT_REAL:   return 1;
+          case IVL_VT_STRING: return 2;
+          case IVL_VT_CLASS:
+          case IVL_VT_DARRAY:
+          case IVL_VT_QUEUE:
+          case IVL_VT_NO_TYPE:
+            return 3;
+          default:
+            return 0;
+      }
+}
+
+static unsigned mailbox_ref_storage_width_(ivl_type_t type,
+                                            unsigned fallback)
+{
+      if (type) {
+            long width = ivl_type_packed_width(type);
+            if (width > 0 && (uint64_t)width <= UINT32_MAX)
+                  return (unsigned)width;
+      }
+      return fallback ? fallback : 1;
+}
+
+static void mailbox_ref_apply_part_(ivl_lval_t lval)
+{
+      ivl_expr_t part = ivl_lval_part_off(lval);
+      if (!part) return;
+      draw_eval_expr_into_integer(part, 3);
+      fprintf(vvp_out, "    %%ref/part; capture packed output selection\n");
+}
+
+static ivl_signal_t mailbox_ref_base_signal_(ivl_lval_t lval)
+{
+      for (ivl_lval_t cur = lval; cur; cur = ivl_lval_nest(cur))
+            if (ivl_lval_sig(cur)) return ivl_lval_sig(cur);
+      return 0;
+}
+
+/*
+ * Capture an arbitrary mailbox ref-output target before the mailbox access.
+ * The returned object names physical storage, not merely the expression that
+ * reached it, so a blocking get/peek cannot be retargeted by later changes to
+ * a receiver handle or index expression.
+ */
+int draw_capture_lval_ref(ivl_lval_t lval)
+{
+      ivl_signal_t sig = ivl_lval_sig(lval);
+      ivl_expr_t index = ivl_lval_idx(lval);
+      int property = ivl_lval_property_idx(lval);
+
+      if (ivl_lval_is_array_slice(lval) || ivl_lval_is_queue_slice(lval)) {
+            ivl_signal_t base = mailbox_ref_base_signal_(lval);
+            fprintf(stderr, "%s:%u: sorry: mailbox ref-output array and queue "
+                    "slices are not supported.\n",
+                    base ? ivl_signal_file(base) : "<unknown>",
+                    base ? ivl_signal_lineno(base) : 0);
+            vvp_errors += 1;
+            fprintf(vvp_out, "    %%null; unsupported mailbox output slice\n");
+            return 1;
+      }
+
+      if (sig) {
+            ivl_type_t sig_type = ivl_signal_net_type(sig);
+
+            if (index && sig_type
+                && (ivl_type_base(sig_type) == IVL_VT_QUEUE
+                    || ivl_type_base(sig_type) == IVL_VT_DARRAY)) {
+                  if (ivl_type_base(sig_type) == IVL_VT_QUEUE
+                      && ivl_type_queue_assoc_compat(sig_type)) {
+                        ivl_type_t element = ivl_type_element(sig_type);
+                        unsigned kind = mailbox_ref_value_kind_(element);
+                        unsigned width = mailbox_ref_storage_width_(
+                              element, ivl_lval_width(lval));
+                        const char*key_kind = draw_eval_assoc_key_(index, 0);
+                        fprintf(vvp_out,
+                                "    %%ref/capture/aa/%s v%p_0, %u, %u; mailbox associative element\n",
+                                key_kind, sig, kind, width);
+                        mailbox_ref_apply_part_(lval);
+                        return 0;
+                  }
+                  ivl_type_t element = ivl_type_element(sig_type);
+                  unsigned kind = mailbox_ref_value_kind_(element);
+                  unsigned width = mailbox_ref_storage_width_(
+                        element, ivl_lval_width(lval));
+                  draw_eval_expr_into_integer(index, 3);
+                  fprintf(vvp_out,
+                          "    %%ref/capture/el v%p_0, %u, %u; mailbox container element\n",
+                          sig, kind, width);
+                  mailbox_ref_apply_part_(lval);
+                  return 0;
+            }
+
+            if (index && ivl_signal_dimensions(sig) > 0) {
+                  ivl_type_t value_type = ivl_lval_net_type(lval);
+                  unsigned kind = mailbox_ref_value_kind_(value_type);
+                  unsigned width = ivl_signal_width(sig);
+                  if (!width)
+                        width = mailbox_ref_storage_width_(
+                              value_type, ivl_lval_width(lval));
+                  draw_eval_expr_into_integer(index, 3);
+                  note_array_signal_use(sig);
+                  fprintf(vvp_out,
+                          "    %%ref/capture/w v%p, %u, %u; mailbox fixed-array word\n",
+                          sig, kind, width);
+                  mailbox_ref_apply_part_(lval);
+                  return 0;
+            }
+
+            if (index) {
+                  fprintf(stderr, "%s:%u: sorry: unsupported indexed mailbox "
+                          "ref-output signal shape.\n",
+                          ivl_signal_file(sig), ivl_signal_lineno(sig));
+                  vvp_errors += 1;
+                  draw_eval_expr_into_integer(index, 3);
+                  fprintf(vvp_out, "    %%null; unsupported indexed mailbox output\n");
+                  return 1;
+            }
+
+            ivl_type_t value_type = ivl_lval_net_type(lval);
+            unsigned kind = mailbox_ref_value_kind_(value_type);
+            unsigned width = ivl_signal_width(sig);
+            if (!width)
+                  width = mailbox_ref_storage_width_(value_type,
+                                                     ivl_lval_width(lval));
+            fprintf(vvp_out,
+                    "    %%ref/capture v%p_0, %u, %u; mailbox variable output\n",
+                    sig, kind, width);
+            mailbox_ref_apply_part_(lval);
+            return 0;
+      }
+
+      if (property >= 0 && ivl_lval_nest(lval)) {
+            ivl_type_t owner_type = draw_lval_expr(lval);
+            if (!owner_type || property >= ivl_type_properties(owner_type)) {
+                  fprintf(stderr, "vvp.tgt error: cannot resolve mailbox "
+                          "ref-output property %d.\n", property);
+                  vvp_errors += 1;
+                  fprintf(vvp_out, "    %%pop/obj 1, 0; malformed mailbox receiver\n");
+                  fprintf(vvp_out, "    %%null; malformed mailbox output\n");
+                  return 1;
+            }
+
+            ivl_type_t prop_type = ivl_type_prop_type(owner_type, property);
+            ivl_type_t value_type = prop_type;
+
+            if (index && type_is_fixed_uarray_property_(prop_type)) {
+                  value_type = ivl_type_element(prop_type);
+                  unsigned kind = mailbox_ref_value_kind_(value_type);
+                  unsigned width = mailbox_ref_storage_width_(
+                        value_type, ivl_lval_width(lval));
+                  int slot = allocate_word();
+                  int x_flag = -1;
+                  int range_flag = -1;
+                  unsigned bad = local_count++;
+                  unsigned done = local_count++;
+                  draw_fixed_uarray_slot_index_(index, prop_type, slot,
+                                                &x_flag, &range_flag);
+                  fprintf(vvp_out, "    %%jmp/1xz T_%u.%u, %d; mailbox property index X/Z\n",
+                          thread_count, bad, x_flag);
+                  if (range_flag >= 0)
+                        fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; mailbox property index OOB\n",
+                                thread_count, bad, range_flag);
+                  fprintf(vvp_out, "    %%ix/mov 3, %d; captured property word\n",
+                          slot);
+                  fprintf(vvp_out,
+                          "    %%ref/capture/pr/i %d, %u, %u; mailbox property word\n",
+                          property, kind, width);
+                  fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, done);
+                  fprintf(vvp_out, "T_%u.%u;\n", thread_count, bad);
+                  fprintf(vvp_out, "    %%pop/obj 1, 0; invalid mailbox property receiver\n");
+                  fprintf(vvp_out, "    %%null; invalid mailbox property word\n");
+                  fprintf(vvp_out, "T_%u.%u;\n", thread_count, done);
+                  clr_word(slot);
+                  if (x_flag >= 0) clr_flag(x_flag);
+                  if (range_flag >= 0) clr_flag(range_flag);
+                  mailbox_ref_apply_part_(lval);
+                  return 0;
+            }
+
+            if (index && prop_type
+                && (ivl_type_base(prop_type) == IVL_VT_QUEUE
+                    || ivl_type_base(prop_type) == IVL_VT_DARRAY)) {
+                  if (ivl_type_base(prop_type) == IVL_VT_QUEUE
+                      && ivl_type_queue_assoc_compat(prop_type)) {
+                        value_type = ivl_type_element(prop_type);
+                        unsigned kind = mailbox_ref_value_kind_(value_type);
+                        unsigned width = mailbox_ref_storage_width_(
+                              value_type, ivl_lval_width(lval));
+                        fprintf(vvp_out,
+                                "    %%prop/obj %d, 0; mailbox associative property\n",
+                                property);
+                        fprintf(vvp_out,
+                                "    %%pop/obj 1, 1; retain selected associative array\n");
+                        const char*key_kind = draw_eval_assoc_key_(index, 0);
+                        fprintf(vvp_out,
+                                "    %%ref/capture/aa/o/%s %u, %u; mailbox associative property element\n",
+                                key_kind, kind, width);
+                        mailbox_ref_apply_part_(lval);
+                        return 0;
+                  }
+                  value_type = ivl_type_element(prop_type);
+                  unsigned kind = mailbox_ref_value_kind_(value_type);
+                  unsigned width = mailbox_ref_storage_width_(
+                        value_type, ivl_lval_width(lval));
+                  fprintf(vvp_out, "    %%prop/obj %d, 0; mailbox container property\n",
+                          property);
+                  fprintf(vvp_out, "    %%pop/obj 1, 1; retain selected container\n");
+                  draw_eval_expr_into_integer(index, 3);
+                  fprintf(vvp_out,
+                          "    %%ref/capture/el/o %u, %u; mailbox property element\n",
+                          kind, width);
+                  mailbox_ref_apply_part_(lval);
+                  return 0;
+            }
+
+            if (index) {
+                  fprintf(stderr, "vvp.tgt sorry: unsupported indexed mailbox "
+                          "ref-output property shape.\n");
+                  vvp_errors += 1;
+                  draw_eval_expr_into_integer(index, 3);
+                  fprintf(vvp_out, "    %%pop/obj 1, 0; unsupported mailbox receiver\n");
+                  fprintf(vvp_out, "    %%null; unsupported indexed mailbox property\n");
+                  return 1;
+            }
+
+            unsigned kind = mailbox_ref_value_kind_(prop_type);
+            unsigned width = mailbox_ref_storage_width_(
+                  prop_type, ivl_lval_width(lval));
+            fprintf(vvp_out,
+                    "    %%ref/capture/pr %d, %u, %u; mailbox property output\n",
+                    property, kind, width);
+            mailbox_ref_apply_part_(lval);
+            return 0;
+      }
+
+      fprintf(stderr, "vvp.tgt error: malformed mailbox ref-output l-value.\n");
+      vvp_errors += 1;
+      fprintf(vvp_out, "    %%null; malformed mailbox ref-output\n");
+      return 1;
 }
 
 /*
@@ -2353,11 +2573,13 @@ static int show_stmt_assign_darray_pattern(ivl_statement_t net)
                   switch (ivl_type_base(element_type)) {
                       case IVL_VT_REAL:
                         draw_eval_real(parm);
-                        emit_object_queue_store_('b', "r", 0, 0);
+                        emit_object_queue_store_('b', "r",
+                                                 queue_live_max_operand_(0), 0);
                         break;
                       case IVL_VT_STRING:
                         draw_eval_string(parm);
-                        emit_object_queue_store_('b', "str", 0, 0);
+                        emit_object_queue_store_('b', "str",
+                                                 queue_live_max_operand_(0), 0);
                         break;
                       case IVL_VT_BOOL:
                       case IVL_VT_LOGIC:
@@ -2367,11 +2589,14 @@ static int show_stmt_assign_darray_pattern(ivl_statement_t net)
                                       (ivl_type_signed(element_type)
                                        && ivl_expr_signed(parm)) ? 's' : 'u',
                                       elem_wid);
-                        emit_object_queue_store_('b', "v", 0, elem_wid);
+                        emit_object_queue_store_('b', "v",
+                                                 queue_live_max_operand_(0),
+                                                 elem_wid);
                         break;
                       default:
                         errors += draw_eval_object(parm);
-                        emit_object_queue_store_('b', "obj", 0, 0);
+                        emit_object_queue_store_('b', "obj",
+                                                 queue_live_max_operand_(0), 0);
                         break;
                   }
             }
@@ -2509,6 +2734,35 @@ static int show_stmt_assign_sig_darray(ivl_statement_t net)
       ivl_type_t element_type = ivl_type_element(var_type);
 
       assert(ivl_stmt_lvals(net) == 1);
+
+	/* A fixed unpacked prefix around a dynamic-array leaf is represented by
+	 * object-array storage. Its sole direct l-value index selects the fixed
+	 * WORD, not an element inside a scalar darray v<sig>_0. Replace that whole
+	 * word with an independently copied, destination-typed container value. */
+      if (ivl_signal_dimensions(var) > 0 && !ivl_lval_nest(lval)) {
+	    ivl_expr_t word_expr = ivl_lval_idx(lval);
+	    if (!word_expr || part || ivl_stmt_opcode(net) != 0) {
+		  fprintf(stderr, "%s:%u: sorry: a fixed unpacked-array slot "
+			  "containing a dynamic array requires a simple "
+			  "whole-container assignment.\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return 1;
+	    }
+
+	    int converted = draw_eval_container_value_for_target(rval, var_type);
+	    if (converted >= 0)
+		  errors += converted;
+	    else
+		  errors += draw_eval_object_value_copy(rval, var_type);
+	    int word = allocate_word();
+	    draw_eval_expr_into_integer(word_expr, word);
+	    note_array_signal_use(var);
+	    fprintf(vvp_out,
+		    "    %%store/obja v%p, %d; fixed-array darray slot\n",
+		    var, word);
+	    clr_word(word);
+	    return errors;
+      }
 
 	/* Part/bit-select store into a dynamic-array (or queue) element
 	   whose base type is a packed vector: d[i][off +: wid] = rhs. Lower
@@ -4031,7 +4285,7 @@ static int show_stmt_assign_nested_index_vec4(ivl_statement_t net)
 	    fprintf(vvp_out, "    %%flag_mov 4, %d;\n", idx_flag);
 	    fprintf(vvp_out, "    %%ix/mov 3, %d;\n", idx_word);
 	    emit_object_queue_store_('i', "v",
-	                             queue_type_max_count_(container_type),
+	                             queue_live_max_operand_(container_type),
 	                             elem_wid);
 	    clr_flag(idx_flag);
 	    clr_word(idx_word);
@@ -4183,7 +4437,7 @@ static int show_stmt_assign_nested_index_object(ivl_statement_t net)
                   fprintf(vvp_out, "    %%flag_mov 4, %d;\n", idx_flag);
                   fprintf(vvp_out, "    %%ix/mov 3, %d;\n", idx_word);
                   emit_object_queue_store_('i', "r",
-                                           queue_type_max_count_(container_type),
+					   queue_live_max_operand_(container_type),
                                            0);
                   break;
                 case IVL_VT_STRING:
@@ -4191,7 +4445,7 @@ static int show_stmt_assign_nested_index_object(ivl_statement_t net)
                   fprintf(vvp_out, "    %%flag_mov 4, %d;\n", idx_flag);
                   fprintf(vvp_out, "    %%ix/mov 3, %d;\n", idx_word);
                   emit_object_queue_store_('i', "str",
-                                           queue_type_max_count_(container_type),
+					   queue_live_max_operand_(container_type),
                                            0);
                   break;
                 case IVL_VT_CLASS:
@@ -4205,7 +4459,7 @@ static int show_stmt_assign_nested_index_object(ivl_statement_t net)
                   /* This opcode checks flag4 and applies container value-copy
                    * semantics. %set/dar/obj/obj did neither. */
                   emit_object_queue_store_('i', "obj",
-                                           queue_type_max_count_(container_type),
+					   queue_live_max_operand_(container_type),
                                            0);
                   break;
                 default:
@@ -4507,13 +4761,11 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 				    rval, fixed_slot_type);
 			} else if (rv_ret && ivl_signal_dimensions(rv_ret) > 0) {
 			      if (ivl_type_base(fixed_slot_type) == IVL_VT_QUEUE) {
-				    uint64_t queue_max_size =
-					  ivl_type_queue_max_size(fixed_slot_type);
-				    unsigned marshal_max = queue_max_size > 0xffffffffULL
-					  ? 0 : (unsigned)queue_max_size;
 				    /* Convert a fixed-array result to the selected queue
 				     * leaf and enforce that leaf's declared bound. */
-				    draw_ufunc_uarray_object(rval, 1, marshal_max);
+				    draw_ufunc_uarray_object(
+					  rval, 1,
+					  ivl_type_queue_max_size(fixed_slot_type));
 			      } else {
 				    draw_ufunc_uarray_object(rval, 0, 0);
 			      }
@@ -5001,14 +5253,8 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			       * function as vec4/real/string even though %callf/void leaves
 			       * no such stack value. Materialize directly as a queue and
 			       * store that queue object in the property. */
-			      uint64_t queue_max_size =
-				    ivl_type_queue_max_size(prop_type);
-				/* VVP instruction operands are 32 bits. A larger bound
-				 * cannot truncate a fixed source whose exported count is
-				 * itself unsigned, so zero (unbounded) is equivalent here. */
-			      unsigned marshal_max = queue_max_size > 0xffffffffULL
-				    ? 0 : (unsigned)queue_max_size;
-			      draw_ufunc_uarray_object(rval, 1, marshal_max);
+			      draw_ufunc_uarray_object(
+				    rval, 1, ivl_type_queue_max_size(prop_type));
 			      fprintf(vvp_out, "    %%store/prop/obj %d, 0;"
 				      " fixed-array function return to queue\n",
 				      prop_idx);
@@ -5598,16 +5844,16 @@ static int store_dynamic_stream_lval_(ivl_lval_t lval)
 
       assert(base == IVL_VT_QUEUE);
       uint64_t max_size = ivl_type_queue_max_size(type);
-      unsigned max_count = max_size > UINT_MAX ? 0 : (unsigned)max_size;
       int max_idx = allocate_word();
-      fprintf(vvp_out, "    %%stream/to/queue \"%s:%u\";\n",
-	      elem_text, max_count);
+      fprintf(vvp_out, "    %%stream/to/queue \"%s:%" PRIu64 "\";\n",
+	      elem_text, max_size);
       if (is_property) {
 	    fprintf(vvp_out, "    %%store/prop/obj %d, 0;\n", prop_idx);
 	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
       } else {
-	    fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", max_idx,
-	      ivl_signal_array_count(sig));
+	    fprintf(vvp_out, "    %%ix/load %d, %" PRIu32 ", %" PRIu32
+		    "; exact queue maximum fallback\n", max_idx,
+		    (uint32_t)max_size, (uint32_t)(max_size >> 32));
 	    fprintf(vvp_out, "    %%store/qobj/v v%p_0, %d, %u;\n",
 	      sig, max_idx, ivl_type_packed_width(elem));
       }
@@ -5667,10 +5913,10 @@ static int store_dynamic_stream_lval_with_(ivl_lval_t lval,
 
       assert(base == IVL_VT_QUEUE);
       uint64_t max_size = ivl_type_queue_max_size(type);
-      unsigned max_count = max_size > UINT_MAX ? 0 : (unsigned)max_size;
       fprintf(vvp_out,
-	      "    %%stream/to/queue/with \"%s:%s:%u\", %d, %d;\n",
-	      kind, elem_text, max_count, first_reg, second_reg);
+	      "    %%stream/to/queue/with \"%s:%s:%" PRIu64
+	      "\", %d, %d;\n",
+	      kind, elem_text, max_size, first_reg, second_reg);
       if (prop_idx >= 0) {
 	    fprintf(vvp_out,
 		    "    %%store/prop/obj %d, 0; ranged queue property\n",
@@ -5678,7 +5924,9 @@ static int store_dynamic_stream_lval_with_(ivl_lval_t lval,
 	    fprintf(vvp_out, "    %%pop/obj 1, 0; drop property receiver\n");
       } else {
 	    int max_idx = allocate_word();
-	    fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", max_idx, max_count);
+	    fprintf(vvp_out, "    %%ix/load %d, %" PRIu32 ", %" PRIu32
+		    "; exact queue maximum fallback\n", max_idx,
+		    (uint32_t)max_size, (uint32_t)(max_size >> 32));
 	    fprintf(vvp_out, "    %%store/qobj/v v%p_0, %d, %u;\n",
 		    sig, max_idx, ivl_type_packed_width(elem));
 	    clr_word(max_idx);

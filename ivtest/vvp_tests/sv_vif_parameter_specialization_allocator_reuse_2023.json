@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_vif_parameter_specialization_allocator_reuse_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_vif_parameter_specialization_allocator_reuse" ],
+    "gold"          : "sv_vif_parameter_specialization_allocator_reuse"
+}

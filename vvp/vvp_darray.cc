@@ -101,12 +101,12 @@ void vvp_darray_element_ref::shift_down(size_t after)
       if (owner_ && index_ > after) index_ -= 1;
 }
 
-void vvp_darray_element_ref::set_value(const vvp_vector4_t&value)
+void vvp_darray_element_ref::set_value(const vvp_vector4_t&value, bool notify)
 {
       if (kind_ != ELEM_VEC4 || !valid_) return;
       if (owner_) {
             owner_->set_word((unsigned)index_, value);
-            owner_->notify_signal_aliases();
+            if (notify) owner_->notify_signal_aliases();
       }
       else vec4_value_ = value;
       touch();
@@ -122,12 +122,12 @@ void vvp_darray_element_ref::get_value(vvp_vector4_t&value)
       else value = vec4_value_;
 }
 
-void vvp_darray_element_ref::set_value(double value)
+void vvp_darray_element_ref::set_value(double value, bool notify)
 {
       if (kind_ != ELEM_REAL || !valid_) return;
       if (owner_) {
             owner_->set_word((unsigned)index_, value);
-            owner_->notify_signal_aliases();
+            if (notify) owner_->notify_signal_aliases();
       }
       else real_value_ = value;
       touch();
@@ -143,12 +143,12 @@ void vvp_darray_element_ref::get_value(double&value)
       else value = real_value_;
 }
 
-void vvp_darray_element_ref::set_value(const string&value)
+void vvp_darray_element_ref::set_value(const string&value, bool notify)
 {
       if (kind_ != ELEM_STRING || !valid_) return;
       if (owner_) {
             owner_->set_word((unsigned)index_, value);
-            owner_->notify_signal_aliases();
+            if (notify) owner_->notify_signal_aliases();
       }
       else string_value_ = value;
       touch();
@@ -164,12 +164,12 @@ void vvp_darray_element_ref::get_value(string&value)
       else value = string_value_;
 }
 
-void vvp_darray_element_ref::set_value(const vvp_object_t&value)
+void vvp_darray_element_ref::set_value(const vvp_object_t&value, bool notify)
 {
       if (kind_ != ELEM_OBJECT || !valid_) return;
       if (owner_) {
             owner_->set_word((unsigned)index_, value);
-            owner_->notify_signal_aliases();
+            if (notify) owner_->notify_signal_aliases();
       }
       else object_value_ = value;
       touch();
@@ -183,6 +183,11 @@ void vvp_darray_element_ref::get_value(vvp_object_t&value)
       }
       if (owner_) owner_->get_word((unsigned)index_, value);
       else value = object_value_;
+}
+
+vvp_object_t vvp_darray_element_ref::attached_owner() const
+{
+      return owner_ ? vvp_object_t(owner_) : vvp_object_t();
 }
 
 void vvp_darray_element_ref::shallow_copy(const vvp_object*that)
@@ -948,15 +953,21 @@ void vvp_darray_object::shallow_copy(const vvp_object*obj)
 	    vvp_object_t tmp;
 	    for (unsigned idx = 0 ; idx < num_items ; idx += 1) {
 		  const_cast<vvp_darray*>(src)->get_word(idx, tmp);
-		  this->set_word(idx, tmp);
+		  this->set_word(idx, tmp.value_copy_element());
 	    }
+	    if (declared_element_container_layout())
+		  rebind_declared_element_container_layout(
+			declared_element_container_layout());
 	    touch();
 	    return;
       }
 
       unsigned num_items = min(array_.size(), that->array_.size());
       for (unsigned idx = 0 ; idx < num_items ; idx += 1)
-	    array_[idx] = that->array_[idx];
+	    array_[idx] = that->array_[idx].value_copy_element();
+      if (declared_element_container_layout())
+	    rebind_declared_element_container_layout(
+		  declared_element_container_layout());
       touch();
 }
 
@@ -971,6 +982,14 @@ vvp_object* vvp_darray_object::duplicate(void) const
 
       copy_value_metadata_(that);
       return that;
+}
+
+void vvp_darray_object::rebind_declared_element_container_layout(
+      const vvp_container_layout_t&element_layout)
+{
+      for (size_t idx = 0 ; idx < array_.size() ; idx += 1)
+	    if (vvp_object*value = array_[idx].peek<vvp_object>())
+		  value->set_declared_container_layout(element_layout);
 }
 
 vvp_darray_real::~vvp_darray_real()
@@ -1192,87 +1211,105 @@ vvp_queue::~vvp_queue()
 {
 }
 
-void vvp_queue::copy_elems(vvp_object_t, unsigned)
+void vvp_queue::apply_declared_container_layout_own(
+      const vvp_container_layout_t&layout)
+{
+      if (!layout || layout->kind != VVP_CONTAINER_QUEUE
+	  || !layout->queue_bound_known || layout->queue_max_size == 0)
+	    return;
+
+      const uint64_t max_size = layout->queue_max_size;
+      if (static_cast<uint64_t>(get_size()) <= max_size)
+	    return;
+      if (max_size <= UINT_MAX) {
+	    erase_tail(static_cast<unsigned>(max_size));
+	    return;
+      }
+      while (static_cast<uint64_t>(get_size()) > max_size)
+	    pop_back();
+}
+
+void vvp_queue::copy_elems(vvp_object_t, uint64_t)
 {
       cerr << "Sorry: copy_elems() not implemented for " << typeid(*this).name() << endl;
 }
 
-void vvp_queue::set_word_max(unsigned, const vvp_vector4_t&, unsigned)
+void vvp_queue::set_word_max(unsigned, const vvp_vector4_t&, uint64_t)
 {
       cerr << "XXXX set_word_max(vvp_vector4_t) not implemented for " << typeid(*this).name() << endl;
 }
 
-void vvp_queue::insert(unsigned, const vvp_vector4_t&, unsigned)
+void vvp_queue::insert(unsigned, const vvp_vector4_t&, uint64_t)
 {
       cerr << "XXXX insert(vvp_vector4_t) not implemented for " << typeid(*this).name() << endl;
 }
 
-void vvp_queue::push_back(const vvp_vector4_t&, unsigned)
+void vvp_queue::push_back(const vvp_vector4_t&, uint64_t)
 {
       cerr << "XXXX push_back(vvp_vector4_t) not implemented for " << typeid(*this).name() << endl;
 }
 
-void vvp_queue::push_front(const vvp_vector4_t&, unsigned)
+void vvp_queue::push_front(const vvp_vector4_t&, uint64_t)
 {
       cerr << "XXXX push_front(vvp_vector4_t) not implemented for " << typeid(*this).name() << endl;
 }
 
-void vvp_queue::set_word_max(unsigned, double, unsigned)
+void vvp_queue::set_word_max(unsigned, double, uint64_t)
 {
       cerr << "XXXX set_word_max(double) not implemented for " << typeid(*this).name() << endl;
 }
 
-void vvp_queue::insert(unsigned, double, unsigned)
+void vvp_queue::insert(unsigned, double, uint64_t)
 {
       cerr << "XXXX set_word_max(double) not implemented for " << typeid(*this).name() << endl;
 }
 
-void vvp_queue::push_back(double, unsigned)
+void vvp_queue::push_back(double, uint64_t)
 {
       cerr << "XXXX push_back(double) not implemented for " << typeid(*this).name() << endl;
 }
 
-void vvp_queue::push_front(double, unsigned)
+void vvp_queue::push_front(double, uint64_t)
 {
       cerr << "XXXX push_front(double) not implemented for " << typeid(*this).name() << endl;
 }
 
-void vvp_queue::set_word_max(unsigned, const string&, unsigned)
+void vvp_queue::set_word_max(unsigned, const string&, uint64_t)
 {
       cerr << "XXXX set_word_max(string) not implemented for " << typeid(*this).name() << endl;
 }
 
-void vvp_queue::insert(unsigned, const string&, unsigned)
+void vvp_queue::insert(unsigned, const string&, uint64_t)
 {
       cerr << "XXXX set_word_max(string) not implemented for " << typeid(*this).name() << endl;
 }
 
-void vvp_queue::push_back(const string&, unsigned)
+void vvp_queue::push_back(const string&, uint64_t)
 {
       cerr << "XXXX push_back(string) not implemented for " << typeid(*this).name() << endl;
 }
 
-void vvp_queue::push_front(const string&, unsigned)
+void vvp_queue::push_front(const string&, uint64_t)
 {
       cerr << "XXXX push_front(string) not implemented for " << typeid(*this).name() << endl;
 }
 
-void vvp_queue::set_word_max(unsigned, const vvp_object_t&, unsigned)
+void vvp_queue::set_word_max(unsigned, const vvp_object_t&, uint64_t)
 {
       cerr << "XXXX set_word_max(vvp_object_t) not implemented for " << typeid(*this).name() << endl;
 }
 
-void vvp_queue::insert(unsigned, const vvp_object_t&, unsigned)
+void vvp_queue::insert(unsigned, const vvp_object_t&, uint64_t)
 {
       cerr << "XXXX insert(vvp_object_t) not implemented for " << typeid(*this).name() << endl;
 }
 
-void vvp_queue::push_back(const vvp_object_t&, unsigned)
+void vvp_queue::push_back(const vvp_object_t&, uint64_t)
 {
       cerr << "XXXX push_back(vvp_object_t) not implemented for " << typeid(*this).name() << endl;
 }
 
-void vvp_queue::push_front(const vvp_object_t&, unsigned)
+void vvp_queue::push_front(const vvp_object_t&, uint64_t)
 {
       cerr << "XXXX push_front(vvp_object_t) not implemented for " << typeid(*this).name() << endl;
 }
@@ -1280,29 +1317,29 @@ void vvp_queue::push_front(const vvp_object_t&, unsigned)
 /*
  * Helper functions used while copying multiple elements into a queue.
  */
-static void print_copy_is_too_big(size_t src_size, unsigned max_size, const string&qtype)
+static void print_copy_is_too_big(size_t src_size, uint64_t max_size, const string&qtype)
 {
       cerr << get_fileline()
            << "Warning: queue<" << qtype << "> is bounded to have at most "
            << max_size << " elements, source has " << src_size << " elements." << endl;
 }
 
-static void print_copy_is_too_big(double&, size_t src_size, unsigned max_size)
+static void print_copy_is_too_big(double&, size_t src_size, uint64_t max_size)
 {
       print_copy_is_too_big(src_size, max_size, "real");
 }
 
-static void print_copy_is_too_big(string&, size_t src_size, unsigned max_size)
+static void print_copy_is_too_big(string&, size_t src_size, uint64_t max_size)
 {
       print_copy_is_too_big(src_size, max_size, "string");
 }
 
-static void print_copy_is_too_big(vvp_vector4_t&, size_t src_size, unsigned max_size)
+static void print_copy_is_too_big(vvp_vector4_t&, size_t src_size, uint64_t max_size)
 {
       print_copy_is_too_big(src_size, max_size, "vector");
 }
 
-static void print_copy_is_too_big(vvp_object_t&, size_t src_size, unsigned max_size)
+static void print_copy_is_too_big(vvp_object_t&, size_t src_size, uint64_t max_size)
 {
       print_copy_is_too_big(src_size, max_size, "object");
 }
@@ -1319,22 +1356,23 @@ static inline void copy_element_value_(std::string&) { }
 static inline void copy_element_value_(vvp_vector4_t&) { }
 
 template <typename ELEM, class QTYPE, class SRC_TYPE>
-static void copy_elements(QTYPE*queue, SRC_TYPE*src, unsigned max_size)
+static void copy_elements(QTYPE*queue, SRC_TYPE*src, uint64_t max_size)
 {
       size_t src_size = src->get_size();
       if ((max_size != 0) && (src_size > max_size)) {
 	    ELEM tmp;
 	    print_copy_is_too_big(tmp, src_size, max_size);
       }
-      unsigned copy_size = ((src_size < max_size) ||
-                            (max_size == 0)) ? src_size : max_size;
+      size_t copy_size = ((max_size == 0)
+			  || static_cast<uint64_t>(src_size) < max_size)
+	    ? src_size : static_cast<size_t>(max_size);
       if (copy_size < queue->get_size())
 	    queue->erase_tail(copy_size);
-      for (unsigned idx=0; idx < copy_size; ++idx) {
+      for (size_t idx=0; idx < copy_size; ++idx) {
 	    ELEM value;
-	    src->get_word(idx, value);
+	    src->get_word(static_cast<unsigned>(idx), value);
 	    copy_element_value_(value);
-	    queue->set_word_max(idx, value, max_size);
+	    queue->set_word_max(static_cast<unsigned>(idx), value, max_size);
       }
 }
 
@@ -1343,7 +1381,7 @@ vvp_queue_real::~vvp_queue_real()
       element_refs_detach_all();
 }
 
-void vvp_queue_real::copy_elems(vvp_object_t src, unsigned max_size)
+void vvp_queue_real::copy_elems(vvp_object_t src, uint64_t max_size)
 {
       element_refs_detach_all();
       if (vvp_queue*src_queue = src.peek<vvp_queue>())
@@ -1362,7 +1400,7 @@ vvp_object* vvp_queue_real::duplicate(void) const
       return that;
 }
 
-void vvp_queue_real::set_word_max(unsigned adr, double value, unsigned max_size)
+void vvp_queue_real::set_word_max(unsigned adr, double value, uint64_t max_size)
 {
       if (adr == queue.size())
 	    if (!max_size || (queue.size() < max_size))
@@ -1395,7 +1433,7 @@ void vvp_queue_real::get_word(unsigned adr, double&value)
 	    value = queue[adr];
 }
 
-void vvp_queue_real::insert(unsigned idx, double value, unsigned max_size)
+void vvp_queue_real::insert(unsigned idx, double value, uint64_t max_size)
 {
 	// Inserting past the end of the queue
       if (idx > queue.size())
@@ -1428,7 +1466,7 @@ void vvp_queue_real::insert(unsigned idx, double value, unsigned max_size)
       }
 }
 
-void vvp_queue_real::push_back(double value, unsigned max_size)
+void vvp_queue_real::push_back(double value, uint64_t max_size)
 {
       if (!max_size || (queue.size() < max_size))
 	    rand_mode_push_back(), queue.push_back(value), touch();
@@ -1439,7 +1477,7 @@ void vvp_queue_real::push_back(double value, unsigned max_size)
 	         << max_size << "]." << endl;
 }
 
-void vvp_queue_real::push_front(double value, unsigned max_size)
+void vvp_queue_real::push_front(double value, uint64_t max_size)
 {
       if (max_size && (queue.size() == max_size)) {
 	    cerr << get_fileline()
@@ -1478,7 +1516,7 @@ vvp_queue_string::~vvp_queue_string()
       element_refs_detach_all();
 }
 
-void vvp_queue_string::copy_elems(vvp_object_t src, unsigned max_size)
+void vvp_queue_string::copy_elems(vvp_object_t src, uint64_t max_size)
 {
       element_refs_detach_all();
       if (vvp_queue*src_queue = src.peek<vvp_queue>())
@@ -1497,7 +1535,7 @@ vvp_object* vvp_queue_string::duplicate(void) const
       return that;
 }
 
-void vvp_queue_string::set_word_max(unsigned adr, const string&value, unsigned max_size)
+void vvp_queue_string::set_word_max(unsigned adr, const string&value, uint64_t max_size)
 {
       if (adr == queue.size())
 	    if (!max_size || (queue.size() < max_size))
@@ -1530,7 +1568,7 @@ void vvp_queue_string::get_word(unsigned adr, string&value)
 	    value = queue[adr];
 }
 
-void vvp_queue_string::insert(unsigned idx, const string&value, unsigned max_size)
+void vvp_queue_string::insert(unsigned idx, const string&value, uint64_t max_size)
 {
 	// Inserting past the end of the queue
       if (idx > queue.size())
@@ -1563,7 +1601,7 @@ void vvp_queue_string::insert(unsigned idx, const string&value, unsigned max_siz
       }
 }
 
-void vvp_queue_string::push_back(const string&value, unsigned max_size)
+void vvp_queue_string::push_back(const string&value, uint64_t max_size)
 {
       if (!max_size || (queue.size() < max_size))
 	    rand_mode_push_back(), queue.push_back(value), touch();
@@ -1574,7 +1612,7 @@ void vvp_queue_string::push_back(const string&value, unsigned max_size)
 	         << max_size << "]." << endl;
 }
 
-void vvp_queue_string::push_front(const string&value, unsigned max_size)
+void vvp_queue_string::push_front(const string&value, uint64_t max_size)
 {
       if (max_size && (queue.size() == max_size)) {
 	    cerr << get_fileline()
@@ -1637,7 +1675,7 @@ vvp_queue_vec4::~vvp_queue_vec4()
       element_refs_detach_all();
 }
 
-void vvp_queue_vec4::copy_elems(vvp_object_t src, unsigned max_size)
+void vvp_queue_vec4::copy_elems(vvp_object_t src, uint64_t max_size)
 {
       element_refs_detach_all();
       if (vvp_queue*src_queue = src.peek<vvp_queue>())
@@ -1656,7 +1694,7 @@ vvp_object* vvp_queue_vec4::duplicate(void) const
       return that;
 }
 
-void vvp_queue_vec4::set_word_max(unsigned adr, const vvp_vector4_t&value, unsigned max_size)
+void vvp_queue_vec4::set_word_max(unsigned adr, const vvp_vector4_t&value, uint64_t max_size)
 {
       if (adr == queue.size())
 	    if (!max_size || (queue.size() < max_size))
@@ -1689,7 +1727,7 @@ void vvp_queue_vec4::get_word(unsigned adr, vvp_vector4_t&value)
 	    value = queue[adr];
 }
 
-void vvp_queue_vec4::insert(unsigned idx, const vvp_vector4_t&value, unsigned max_size)
+void vvp_queue_vec4::insert(unsigned idx, const vvp_vector4_t&value, uint64_t max_size)
 {
 	// Inserting past the end of the queue
       if (idx > queue.size())
@@ -1722,7 +1760,7 @@ void vvp_queue_vec4::insert(unsigned idx, const vvp_vector4_t&value, unsigned ma
       }
 }
 
-void vvp_queue_vec4::push_back(const vvp_vector4_t&value, unsigned max_size)
+void vvp_queue_vec4::push_back(const vvp_vector4_t&value, uint64_t max_size)
 {
       if (!max_size || (queue.size() < max_size))
 	    rand_mode_push_back(), queue.push_back(value), touch();
@@ -1733,7 +1771,7 @@ void vvp_queue_vec4::push_back(const vvp_vector4_t&value, unsigned max_size)
 	         << value.size() << "]> [" << max_size << "]." << endl;
 }
 
-void vvp_queue_vec4::push_front(const vvp_vector4_t&value, unsigned max_size)
+void vvp_queue_vec4::push_front(const vvp_vector4_t&value, uint64_t max_size)
 {
       if (max_size && (queue.size() == max_size)) {
 	    cerr << get_fileline()
@@ -1799,7 +1837,7 @@ vvp_queue_object::~vvp_queue_object()
       element_refs_detach_all();
 }
 
-void vvp_queue_object::copy_elems(vvp_object_t src, unsigned max_size)
+void vvp_queue_object::copy_elems(vvp_object_t src, uint64_t max_size)
 {
       element_refs_detach_all();
       if (vvp_queue*src_queue = src.peek<vvp_queue>())
@@ -1822,7 +1860,15 @@ vvp_object* vvp_queue_object::duplicate(void) const
       return that;
 }
 
-void vvp_queue_object::set_word_max(unsigned adr, const vvp_object_t&value, unsigned max_size)
+void vvp_queue_object::rebind_declared_element_container_layout(
+      const vvp_container_layout_t&element_layout)
+{
+      for (size_t idx = 0 ; idx < queue.size() ; idx += 1)
+	    if (vvp_object*value = queue[idx].peek<vvp_object>())
+		  value->set_declared_container_layout(element_layout);
+}
+
+void vvp_queue_object::set_word_max(unsigned adr, const vvp_object_t&value, uint64_t max_size)
 {
       if (adr == queue.size())
 	    if (!max_size || (queue.size() < max_size))
@@ -1867,7 +1913,7 @@ void vvp_queue_object::get_word(unsigned adr, vvp_object_t&value)
 	    value = queue[adr];
 }
 
-void vvp_queue_object::insert(unsigned idx, const vvp_object_t&value, unsigned max_size)
+void vvp_queue_object::insert(unsigned idx, const vvp_object_t&value, uint64_t max_size)
 {
       if (idx > queue.size()) {
 	    cerr << get_fileline()
@@ -1898,7 +1944,7 @@ void vvp_queue_object::insert(unsigned idx, const vvp_object_t&value, unsigned m
       }
 }
 
-void vvp_queue_object::push_back(const vvp_object_t&value, unsigned max_size)
+void vvp_queue_object::push_back(const vvp_object_t&value, uint64_t max_size)
 {
       if (!max_size || (queue.size() < max_size))
 	    rand_mode_push_back(), queue.push_back(value), touch();
@@ -1908,7 +1954,7 @@ void vvp_queue_object::push_back(const vvp_object_t&value, unsigned max_size)
 	            " queue<object> [" << max_size << "]." << endl;
 }
 
-void vvp_queue_object::push_front(const vvp_object_t&value, unsigned max_size)
+void vvp_queue_object::push_front(const vvp_object_t&value, uint64_t max_size)
 {
       if (max_size && (queue.size() == max_size)) {
 	    cerr << get_fileline()

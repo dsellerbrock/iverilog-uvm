@@ -270,6 +270,22 @@ statement
         | T_LABEL K_ARRAY_OBJ storage_flag T_STRING ',' signed_t_number signed_t_number ',' T_SYMBOL ';'
                 { compile_object_array($1, $4, $6, $7, $3, $9); }
 
+        | T_LABEL K_ARRAY_OBJ storage_flag T_STRING ',' signed_t_number signed_t_number ',' T_STRING ';'
+		{
+		      char*container_type = $9 ? strdup($9) : 0;
+		      delete[] $9;
+		      compile_object_array($1, $4, $6, $7, $3, 0,
+				   container_type);
+		}
+
+        | T_LABEL K_ARRAY_OBJ storage_flag T_STRING ',' signed_t_number signed_t_number ',' T_STRING ',' T_SYMBOL ';'
+		{
+		      char*container_type = $9 ? strdup($9) : 0;
+		      delete[] $9;
+		      compile_object_array($1, $4, $6, $7, $3, $11,
+				   container_type);
+		}
+
         | T_LABEL K_ARRAY T_STRING ',' signed_t_number signed_t_number ';'
                 { compile_net_array($1, $3, $5, $6, 0); }
 
@@ -923,6 +939,22 @@ statement
   | T_LABEL K_VAR_DARRAY local_flag storage_flag T_STRING ',' T_NUMBER signed_opt ';'
       { (void)$3; compile_var_darray($1, $5, $7, $4, $8); }
 
+  /* New darray images carry their complete recursive Q/D/A declaration
+     layout in a strict string suffix; the loader also accepts legacy D#N. */
+  | T_LABEL K_VAR_DARRAY storage_flag T_STRING ',' T_NUMBER signed_opt ',' T_STRING ';'
+      {
+            char*container_type = $9 ? strdup($9) : 0;
+            delete[] $9;
+            compile_var_darray($1, $4, $6, $3, $7, 0, container_type);
+      }
+  | T_LABEL K_VAR_DARRAY local_flag storage_flag T_STRING ',' T_NUMBER signed_opt ',' T_STRING ';'
+      {
+            char*container_type = $10 ? strdup($10) : 0;
+            delete[] $10;
+            (void)$3;
+            compile_var_darray($1, $5, $7, $4, $8, 0, container_type);
+      }
+
   /* .var/darray with a trailing element class-type symbol: a dynamic array
      of an object-backed unpacked struct records its element type so nil
      elements can be lazily default-constructed on member access. */
@@ -930,6 +962,19 @@ statement
       { compile_var_darray($1, $4, $6, $3, $7, $9); }
   | T_LABEL K_VAR_DARRAY local_flag storage_flag T_STRING ',' T_NUMBER signed_opt ',' T_SYMBOL ';'
       { (void)$3; compile_var_darray($1, $5, $7, $4, $8, $10); }
+  | T_LABEL K_VAR_DARRAY storage_flag T_STRING ',' T_NUMBER signed_opt ',' T_STRING ',' T_SYMBOL ';'
+      {
+            char*container_type = $9 ? strdup($9) : 0;
+            delete[] $9;
+            compile_var_darray($1, $4, $6, $3, $7, $11, container_type);
+      }
+  | T_LABEL K_VAR_DARRAY local_flag storage_flag T_STRING ',' T_NUMBER signed_opt ',' T_STRING ',' T_SYMBOL ';'
+      {
+            char*container_type = $10 ? strdup($10) : 0;
+            delete[] $10;
+            (void)$3;
+            compile_var_darray($1, $5, $7, $4, $8, $12, container_type);
+      }
 
   | T_LABEL K_VAR_QUEUE storage_flag T_STRING  ',' T_NUMBER signed_opt ';'
       { compile_var_queue($1, $4, $6, 0, $3, $7); }

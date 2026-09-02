@@ -35,6 +35,7 @@
 # include  "netdarray.h"
 # include  "netqueue.h"
 # include  "netstruct.h"
+# include  "netscalar.h"
 # include  "PExpr.h"
 # include  "PTask.h"
 # include  "Statement.h"
@@ -46,6 +47,145 @@
 # include  "ivl_assert.h"
 
 using namespace std;
+
+ivl_type_t netexpr_type_for_equivalence(const NetExpr*expr)
+{
+      if (!expr)
+	    return nullptr;
+
+      ivl_type_t type = expr->net_type();
+      if (type && type->base_type() == expr->expr_type()) {
+	    if ((expr->expr_type() != IVL_VT_BOOL
+		 && expr->expr_type() != IVL_VT_LOGIC)
+		|| (expr->expr_width() != 0
+		    && type->packed_width() == (long)expr->expr_width()))
+		  return type;
+      }
+
+      switch (expr->expr_type()) {
+	  case IVL_VT_STRING:
+	    return &netstring_t::type_string;
+	  case IVL_VT_REAL:
+	    return &netreal_t::type_real;
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC: {
+	    unsigned wid = expr->expr_width();
+	    if (wid == 0)
+		  return nullptr;
+	    return new netvector_t(expr->expr_type(), (long)wid-1, 0,
+				   expr->has_sign());
+	  }
+	  case IVL_VT_CLASS:
+	    /* Class equivalence is nominal, so an absent declared type cannot be
+	     * reconstructed from the expression category alone. */
+	    return type;
+	  default:
+	    return nullptr;
+      }
+}
+
+ivl_type_t netassign_type_for_equivalence(const NetAssign_*lval)
+{
+      if (!lval)
+	    return nullptr;
+
+      ivl_type_t type = lval->net_type();
+      if (type && type->base_type() == lval->expr_type()) {
+	    if ((lval->expr_type() != IVL_VT_BOOL
+		 && lval->expr_type() != IVL_VT_LOGIC)
+		|| (lval->lwidth() != 0
+		    && type->packed_width() == (long)lval->lwidth()))
+		  return type;
+      }
+
+      switch (lval->expr_type()) {
+	  case IVL_VT_STRING:
+	    return &netstring_t::type_string;
+	  case IVL_VT_REAL:
+	    return &netreal_t::type_real;
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC: {
+	    unsigned wid = lval->lwidth();
+	    if (wid == 0)
+		  return nullptr;
+	    return new netvector_t(lval->expr_type(), (long)wid-1, 0,
+				   lval->get_signed());
+	  }
+	  case IVL_VT_CLASS:
+	    /* Class equivalence is nominal, so a missing declared type cannot
+	     * be reconstructed from the storage category alone. */
+	    return type;
+	  default:
+	    return type;
+      }
+}
+
+static const netclass_t* virtual_interface_type_(ivl_type_t type)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(type);
+      return class_type && class_type->is_interface() ? class_type : nullptr;
+}
+
+static bool virtual_interface_expr_assignment_compatible_(
+		const netclass_t*target, const NetExpr*source)
+{
+      if (!target || !source)
+	    return false;
+
+      if (const netclass_t*source_type =
+		virtual_interface_type_(source->net_type()))
+	    return target->interface_assignment_compatible_from(source_type);
+
+      /* A context-typed conditional carries the semantic types on its arms.
+	 The literal-null arm is rebuilt with the target type, and every non-null
+	 arm must independently cross this same assignment boundary. */
+      if (const NetETernary*ternary = dynamic_cast<const NetETernary*>(source))
+	    return virtual_interface_expr_assignment_compatible_(
+		  target, ternary->true_expr())
+		  && virtual_interface_expr_assignment_compatible_(
+			target, ternary->false_expr());
+
+      return false;
+}
+
+static const NetScope* virtual_interface_expr_unbindable_instance_(
+		const NetExpr*source)
+{
+      if (!source)
+	    return nullptr;
+
+      if (const NetEScope*scope_expr = dynamic_cast<const NetEScope*>(source)) {
+	    const NetScope*instance_scope = scope_expr->scope();
+	    if (!interface_instance_vif_bindable(instance_scope))
+		  return instance_scope;
+	    return nullptr;
+      }
+
+      if (const NetETernary*ternary = dynamic_cast<const NetETernary*>(source)) {
+	    if (const NetScope*instance_scope =
+		  virtual_interface_expr_unbindable_instance_(
+			ternary->true_expr()))
+		  return instance_scope;
+	    return virtual_interface_expr_unbindable_instance_(
+		  ternary->false_expr());
+      }
+
+      return nullptr;
+}
+
+static void report_virtual_interface_assignment_mismatch_(
+		Design*des, const LineInfo&loc, const netclass_t*target,
+		const netclass_t*source)
+{
+      ivl_assert(loc, des);
+      ivl_assert(loc, target && target->is_interface());
+      (void)source;
+
+      cerr << loc.get_fileline() << ": error: Virtual-interface assignment "
+	   << "operands must have assignment-compatible interface types "
+	   << "(IEEE 1800-2017/2023 25.9)." << endl;
+      des->errors += 1;
+}
 
 static bool assoc_array_type_is_direct_(ivl_type_t type)
 {
@@ -1833,6 +1973,42 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
       NetExpr*tmp = pe->elaborate_expr(des, scope, lv_net_type, flags);
       if (tmp == 0) return 0;
 
+	/* IEEE 1800-2017/2023 25.9 makes the complete interface
+	 * specialization (effective parameter values AND types, plus the selected
+	 * modport) part of a virtual-interface type. Check that boundary before the
+	 * generic CLASS-category handling below: those fallbacks intentionally turn
+	 * lost or incompatible class expressions into NetENull, which must never
+	 * make an incompatible interface specialization look like literal `null'. */
+      if (const netclass_t*target_vif = virtual_interface_type_(lv_net_type)) {
+	    if (dynamic_cast<const PENull*>(pe)) {
+		  /* Preserve literal-null provenance by shaping only the parse-level
+		     `null' token to its context. Compiler recovery NetENull nodes remain
+		     untyped and are rejected by the source-type check below. */
+		  if (dynamic_cast<NetENull*>(tmp)) {
+			NetENull*literal_null = new NetENull(lv_net_type);
+			literal_null->set_line(*tmp);
+			delete tmp;
+			tmp = literal_null;
+		  } else {
+			report_virtual_interface_assignment_mismatch_(
+			      des, *pe, target_vif, nullptr);
+			delete tmp;
+			return nullptr;
+		  }
+	    } else {
+		  const netclass_t*source_vif =
+			virtual_interface_type_(tmp->net_type());
+		  if (virtual_interface_expr_unbindable_instance_(tmp)
+		      || !virtual_interface_expr_assignment_compatible_(
+			target_vif, tmp)) {
+			report_virtual_interface_assignment_mismatch_(
+			      des, *pe, target_vif, source_vif);
+			delete tmp;
+			return nullptr;
+		  }
+	    }
+      }
+
       ivl_variable_type_t cast_type = ivl_type_base(lv_net_type);
       ivl_variable_type_t expr_type = tmp->expr_type();
 
@@ -2262,6 +2438,31 @@ NetExpr* elab_sys_task_arg(Design*des, NetScope*scope, perm_string name,
                   ce->trim();
       }
 
+      return tmp;
+}
+
+NetExpr* elab_typed_mailbox_input(Design*des, NetScope*scope,
+                                  perm_string method_name, PExpr*pe)
+{
+      if (!pe)
+	    return nullptr;
+
+      PExpr::width_mode_t mode = PExpr::SIZED;
+      pe->test_width(des, scope, mode);
+      if (pe->expr_type() != IVL_VT_STRING)
+	    return elab_sys_task_arg(des, scope, method_name, 0, pe);
+
+	/* The width overload of PEString::elaborate_expr deliberately produces
+	 * packed bytes for ordinary system tasks. Select the declared-type
+	 * overload for a dynamic string mailbox value. This does not context-cast
+	 * a non-string actual: test_width() established its self-determined string
+	 * category before this call. */
+      NetExpr*tmp = pe->elaborate_expr(des, scope,
+				    &netstring_t::type_string,
+				    PExpr::SYS_TASK_ARG);
+      if (!tmp)
+	    return nullptr;
+      eval_expr(tmp, -1);
       return tmp;
 }
 

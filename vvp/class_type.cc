@@ -768,8 +768,23 @@ class property_object : public class_property_t {
    starts nil (a darray is null until new[n]) -- only copy() differs. */
 class property_darray : public property_object {
     public:
-      inline explicit property_darray(uint64_t as)
-      : property_object(as), array_size_(as==0? 1 : as) { }
+      inline explicit property_darray(uint64_t as,
+				      const vvp_container_layout_t&layout)
+      : property_object(as), array_size_(as==0? 1 : as),
+	layout_(layout) { }
+
+      void set_object(char*buf, const vvp_object_t&val, uint64_t idx) override
+      {
+	    if (idx >= array_size_)
+		  return;
+	    vvp_object_t stored = val;
+	    if (!val.test_nil()
+		&& (val.peek<vvp_darray>() || val.peek<vvp_assoc_base>()))
+		  stored = val.duplicate();
+	    if (vvp_object*value = stored.peek<vvp_object>())
+		  value->set_declared_container_layout(layout_);
+	    property_object::set_object(buf, stored, idx);
+      }
 
       void copy(char*dst, char*src) override
       {
@@ -782,11 +797,14 @@ class property_darray : public property_object {
 			dst_obj[idx] = src_obj[idx].duplicate();
 		  else
 			dst_obj[idx] = src_obj[idx];
+		  if (vvp_object*value = dst_obj[idx].peek<vvp_object>())
+			value->set_declared_container_layout(layout_);
 	    }
       }
 
     private:
       size_t array_size_;
+      vvp_container_layout_t layout_;
 };
 
 class property_cobject : public class_property_t {
@@ -813,7 +831,9 @@ class property_cobject : public class_property_t {
 
 template <class QUEUE_TYPE> class property_queue : public class_property_t {
     public:
-      inline explicit property_queue(uint64_t as): array_size_(as==0? 1 : as) { }
+      inline explicit property_queue(uint64_t as,
+				     const vvp_container_layout_t&layout)
+	: array_size_(as==0? 1 : as), layout_(layout) { }
       ~property_queue() override { }
 
       size_t instance_size() const override { return array_size_ * sizeof(vvp_object_t); }
@@ -821,8 +841,12 @@ template <class QUEUE_TYPE> class property_queue : public class_property_t {
     public:
       void construct(char*buf) const override
       {
-	    for (size_t idx = 0 ; idx < array_size_ ; idx += 1)
-		  new (buf+offset_ + idx*sizeof(vvp_object_t)) vvp_object_t(new QUEUE_TYPE);
+	    for (size_t idx = 0 ; idx < array_size_ ; idx += 1) {
+		  QUEUE_TYPE*value = new QUEUE_TYPE;
+		  if (vvp_object*object = dynamic_cast<vvp_object*>(value))
+			object->set_declared_container_layout(layout_);
+		  new (buf+offset_ + idx*sizeof(vvp_object_t)) vvp_object_t(value);
+	    }
       }
 
       void destruct(char*buf) const override
@@ -859,11 +883,13 @@ template <class QUEUE_TYPE> class property_queue : public class_property_t {
 	    vvp_object_t*tmp = reinterpret_cast<vvp_object_t*>(buf+offset_);
             if (val.test_nil()) {
                   tmp[idx].reset();
-            } else if (val.peek<QUEUE_TYPE>()) {
+            } else if (val.peek<vvp_darray>() || val.peek<vvp_assoc_base>()) {
                   tmp[idx] = val.duplicate();
             } else {
                   tmp[idx] = val;
             }
+	    if (vvp_object*object = tmp[idx].peek<vvp_object>())
+		  object->set_declared_container_layout(layout_);
       }
 
       void get_object(char*buf, vvp_object_t&val, uint64_t idx) override
@@ -895,16 +921,20 @@ template <class QUEUE_TYPE> class property_queue : public class_property_t {
 	    for (size_t idx = 0 ; idx < array_size_ ; idx += 1) {
                   if (src_obj[idx].test_nil()) {
                         dst_obj[idx].reset();
-                  } else if (src_obj[idx].peek<QUEUE_TYPE>()) {
+                  } else if (src_obj[idx].peek<vvp_darray>()
+			     || src_obj[idx].peek<vvp_assoc_base>()) {
                         dst_obj[idx] = src_obj[idx].duplicate();
                   } else {
 		        dst_obj[idx] = src_obj[idx];
                   }
+		  if (vvp_object*object = dst_obj[idx].peek<vvp_object>())
+			object->set_declared_container_layout(layout_);
             }
       }
 
     private:
       size_t array_size_;
+      vvp_container_layout_t layout_;
 };
 
 template <class T> void property_atom<T>::set_vec4(char*buf, const vvp_vector4_t&val)
@@ -1643,6 +1673,16 @@ uint64_t class_type::property_array_size(size_t idx) const
       return properties_[idx].array_size;
 }
 
+uint64_t class_type::property_queue_max_size(size_t idx) const
+{
+      if (idx >= properties_.size())
+	    return 0;
+      const vvp_container_layout_t&layout =
+	    properties_[idx].container_layout;
+      return layout && layout->kind == VVP_CONTAINER_QUEUE
+	    && layout->queue_bound_known ? layout->queue_max_size : 0;
+}
+
 const vector<pair<int,int> >& class_type::property_dimensions(size_t idx) const
 {
       static const vector<pair<int,int> > nil;
@@ -1843,6 +1883,35 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
 			       strdup(base_type.c_str()+3));
 	    base_type = "o";
       }
+
+	/* New records use one strict suffix for the complete recursive Q/D/A
+	 * declaration chain. Legacy @N/#N records remain loadable. Parse before
+	 * normalizing the element-storage code so malformed suffixes are loud. */
+	const string::size_type layout_marker = base_type.find_first_of("@#!");
+	const bool is_container = !base_type.empty()
+	    && (base_type[0] == 'Q' || base_type[0] == 'M'
+		|| base_type[0] == 'D');
+	if (is_container) {
+	    const vvp_container_layout_kind_t outer = base_type[0] == 'Q'
+		  ? VVP_CONTAINER_QUEUE : (base_type[0] == 'M'
+		  ? VVP_CONTAINER_ASSOC : VVP_CONTAINER_DARRAY);
+	    size_t base_length = 0;
+	    vvp_container_layout_t layout;
+	    if (!vvp_parse_container_layout_type(
+		  base_type.c_str(), outer, layout, base_length)) {
+		  yyerror("malformed or overflowing container-layout suffix in "
+			  "class-property type encoding");
+		  compile_errors += 1;
+	    } else {
+		  properties_[idx].container_layout = layout;
+	    }
+	    if (layout_marker != string::npos)
+		  base_type.erase(layout_marker);
+	} else if (layout_marker != string::npos) {
+	    yyerror("container-layout suffix attached to a non-container "
+		    "class-property type encoding");
+	    compile_errors += 1;
+	}
       const string&type_to_use = base_type;
 
       properties_[idx].base_type = base_type;
@@ -1883,30 +1952,39 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
 	    properties_[idx].type = prop;
       }
       else if (!t.empty() && t[0] == 'D')
-	    properties_[idx].type = new property_darray(array_size);
+	    properties_[idx].type = new property_darray(
+		  array_size, properties_[idx].container_layout);
       else if (t == "Qr")
-	    properties_[idx].type = new property_queue<vvp_queue_real>(array_size);
+	    properties_[idx].type = new property_queue<vvp_queue_real>(
+		  array_size, properties_[idx].container_layout);
       else if (t == "QS")
-	    properties_[idx].type = new property_queue<vvp_queue_string>(array_size);
+	    properties_[idx].type = new property_queue<vvp_queue_string>(
+		  array_size, properties_[idx].container_layout);
       else if (t == "Qv")
-	    properties_[idx].type = new property_queue<vvp_queue_vec4>(array_size);
+	    properties_[idx].type = new property_queue<vvp_queue_vec4>(
+		  array_size, properties_[idx].container_layout);
       else if (t == "Qo")
-	    properties_[idx].type = new property_queue<vvp_queue_object>(array_size);
+	    properties_[idx].type = new property_queue<vvp_queue_object>(
+		  array_size, properties_[idx].container_layout);
       else if (t == "Mr")
-	    properties_[idx].type = new property_queue<vvp_assoc_real>(array_size);
+	    properties_[idx].type = new property_queue<vvp_assoc_real>(
+		  array_size, properties_[idx].container_layout);
       else if (t == "MS")
-	    properties_[idx].type = new property_queue<vvp_assoc_string>(array_size);
+	    properties_[idx].type = new property_queue<vvp_assoc_string>(
+		  array_size, properties_[idx].container_layout);
       else if (t == "Mo")
-	    properties_[idx].type = new property_queue<vvp_assoc_object>(array_size);
+	    properties_[idx].type = new property_queue<vvp_assoc_object>(
+		  array_size, properties_[idx].container_layout);
       else if (t.size() >= 2 && t[0] == 'M' && t[1] == 'v')
-	    properties_[idx].type = new property_queue<vvp_assoc_vec4>(array_size);
-      else if (t[0] == 'b') {
+	    properties_[idx].type = new property_queue<vvp_assoc_vec4>(
+		  array_size, properties_[idx].container_layout);
+      else if (!t.empty() && t[0] == 'b') {
 	    size_t wid = strtoul(t.c_str()+1, 0, 0);
 	    properties_[idx].type = new property_bit(wid, array_size);
       } else if (t.size() >= 2 && t[0] == 's' && t[1] == 'b') {
 	    size_t wid = strtoul(t.c_str()+2, 0, 0);
 	    properties_[idx].type = new property_bit(wid, array_size);
-      } else if (t[0] == 'L') {
+      } else if (!t.empty() && t[0] == 'L') {
 	    size_t wid = strtoul(t.c_str()+1,0,0);
 	    properties_[idx].type = new property_logic(wid, array_size);
       } else if (t.size() >= 2 && t[0] == 's' && t[1] == 'L') {

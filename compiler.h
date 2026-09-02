@@ -22,11 +22,14 @@
 # include  <list>
 # include  <map>
 # include  <cstddef>
+# include  <string>
 # include  "netlist.h"
 # include  "StringHeap.h"
 
 struct parmvalue_t;
 class Design;
+class Module;
+class LineInfo;
 
 /* Ask the platform allocator to return unused pages after a terminal
  * compiler phase. Platforms without an explicit facility return zero. */
@@ -128,6 +131,26 @@ extern bool debug_optimizer;
 void finalize_pending_specialized_class_elaboration(Design*des);
 void repair_specialized_class_property_types(Design*des);
 void release_elaboration_specialization_caches();
+void release_elaboration_interface_caches();
+void release_elaboration_interface_types();
+void collect_module_parameter_declarations(Design*des, NetScope*scope,
+                                           const Module*module);
+void elaborate_interface_declaration_classes(Design*des, NetScope*scope,
+                                             Module*module);
+bool evaluated_parameter_signature(Design*des, NetScope*scope,
+                                   const std::list<perm_string>&formal_order,
+                                   std::string&result);
+bool evaluated_parameter_signatures(Design*des, NetScope*scope,
+                                    const std::list<perm_string>&formal_order,
+                                    std::string&matching_result,
+                                    std::string&layout_result);
+bool evaluated_type_signature(Design*des, ivl_type_t type,
+                              std::string&result);
+extern const netclass_t* elaborate_builtin_mailbox_specialization(
+                                                          Design*des,
+                                                          NetScope*call_scope,
+                                                          const parmvalue_t*overrides,
+                                                          const LineInfo*location);
 
 extern const netclass_t* elaborate_specialized_class_type(Design*des,
                                                           NetScope*call_scope,
@@ -136,7 +159,10 @@ extern const netclass_t* elaborate_specialized_class_type(Design*des,
                                                           bool fully_elaborate = true);
 extern const netclass_t* elaborate_interface_instance_type(
                                                           Design*des,
-                                                          NetScope*actual_interface_scope);
+                                                          NetScope*actual_interface_scope,
+                                                          perm_string modport = perm_string());
+extern bool interface_instance_vif_bindable(
+                                                          const NetScope*actual_interface_scope);
 extern netclass_t* ensure_visible_class_type(Design*des,
                                              NetScope*scope,
                                              perm_string name);

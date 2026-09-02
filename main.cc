@@ -905,6 +905,13 @@ inline static double cycles_diff(struct tms *, struct tms *) { return 0; }
 
 static void EOC_cleanup(void)
 {
+	/* Interface-layout scopes/views and typed built-in carriers are target-
+	 * visible types. Their cache indexes retire before code generation, while
+	 * this final owner release runs only after emission (or on a terminal error
+	 * path where no target can observe them). */
+      release_elaboration_interface_caches();
+      release_elaboration_interface_types();
+
       cleanup_sys_func_table();
 
       for (list<const char*>::iterator suf = library_suff.begin() ;
@@ -1368,6 +1375,12 @@ int main(int argc, char*argv[])
 	 * behavioral parse trees after every post-elaboration functor and dump,
 	 * but before the target constructs its second representation. */
       pform_release_elaboration_memory();
+
+        /* Parameterized virtual-interface interning retains rootless
+         * declaration scopes through every post-elaboration pass. Its
+         * source-key and scratch-scope indexes are no longer needed by target
+         * emission; release them while their owning pform modules still exist. */
+      release_elaboration_interface_caches();
 
 	/* Done with the top-level module containers. Task/function descriptors
 	 * remain separately allocated because target metadata borrows them. */

@@ -1,0 +1,3 @@
+./ivltests/sv_interface_port_selected_actual_access_fail.v:11: error: cannot write to 'listed_input' through modport 'restricted' of interface 'selected_access_if' — it is an input in that modport (IEEE 1800-2017 25.5).
+./ivltests/sv_interface_port_selected_actual_access_fail.v:15: error: cannot access 'hidden' through modport 'restricted' of interface 'selected_access_if' — it is not listed in that modport (IEEE 1800-2017 25.5).
+2 error(s) during elaboration.

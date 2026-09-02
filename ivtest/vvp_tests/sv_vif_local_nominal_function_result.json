@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_vif_local_nominal_function_result.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_vif_local_nominal_function_result" ],
+    "gold"          : "sv_vif_local_nominal_function_result"
+}

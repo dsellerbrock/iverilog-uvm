@@ -1222,6 +1222,20 @@ static int eval_object_select(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%pop/obj 1, 1; fixed outer map receiver\n");
 	    return 0;
       }
+
+	/* A selected word of a fixed object array can itself be a positional
+	 * queue/darray. Preserve that fixed selection as the receiver, then apply
+	 * INDEX inside the runtime container. The scalar vSIG_0 form below does
+	 * not exist for object-array storage. */
+      if (expr_selects_fixed_container_slot_(sube)) {
+	    draw_eval_object(sube);
+	    if (index)
+		  draw_eval_expr_into_integer(index, 3);
+	    else
+		  fprintf(vvp_out, "    %%ix/load 3, 0, 0;\n");
+	    fprintf(vvp_out, "    %%load/qo/obj; fixed container slot element\n");
+	    return 0;
+      }
       if (net_type && ivl_type_base(net_type) == IVL_VT_QUEUE
           && ivl_type_queue_assoc_compat(net_type)) {
             const char*key_kind = draw_eval_assoc_key_(index, 0);
@@ -1853,7 +1867,9 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    const char*fb = (strcmp(name, "$ivl_queue_method$pop_back")==0) ? "b" : "f";
 	    ivl_expr_t arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
 
-	    if (arg && ivl_expr_type(arg) == IVL_EX_SIGNAL && ivl_expr_signal(arg)) {
+	    if (arg && ivl_expr_type(arg) == IVL_EX_SIGNAL
+		&& ivl_expr_signal(arg)
+		&& !expr_selects_fixed_container_slot_(arg)) {
 		  fprintf(vvp_out, "    %%qpop/%s/obj v%p_0;\n", fb, ivl_expr_signal(arg));
 		  return 0;
 	    }
@@ -3096,7 +3112,7 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 			fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
 		  }
 		  emit_object_queue_store_(is_darray ? 'i' : 'b', "r",
-		                           0, 0);
+		                           queue_live_max_operand_(0), 0);
 		  break;
 		case IVL_VT_STRING:
 		  draw_eval_string(parm);
@@ -3105,7 +3121,7 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 			fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
 		  }
 		  emit_object_queue_store_(is_darray ? 'i' : 'b', "str",
-		                           0, 0);
+		                           queue_live_max_operand_(0), 0);
 		  break;
 		case IVL_VT_DARRAY:
 		case IVL_VT_QUEUE: {
@@ -3117,7 +3133,7 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 			fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
 		  }
 		  emit_object_queue_store_(is_darray ? 'i' : 'b', "obj",
-		                           0, 0);
+		                           queue_live_max_operand_(0), 0);
 		  break;
 		}
 		case IVL_VT_CLASS:
@@ -3128,7 +3144,7 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 			fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
 		  }
 		  emit_object_queue_store_(is_darray ? 'i' : 'b', "obj",
-		                           0, 0);
+		                           queue_live_max_operand_(0), 0);
 		  break;
 		default: {
 		  unsigned wid = etype ? ivl_type_packed_width(etype) : 0;
@@ -3145,7 +3161,7 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 			fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
 		  }
 		  emit_object_queue_store_(is_darray ? 'i' : 'b', "v",
-		                           0, wid);
+		                           queue_live_max_operand_(0), wid);
 		  break;
 		}
 	    }

@@ -84,10 +84,17 @@ On top of upstream Icarus Verilog's Verilog/partial-SystemVerilog support:
   documented OpenTitan commercial-flow compatibility extension admits only an
   ordinary cross-kind queue/dynamic-array assignment whose packed `bit`/`logic`
   elements otherwise have equal width and signedness; it is not claimed as
-  IEEE element-type equivalence
+  IEEE element-type equivalence. The current recursive-layout subset also
+  preserves nested Q/D/A kind, queue bounds, value-copy independence, and
+  mutation provenance, including fixed unpacked-array elements whose values
+  are queues, dynamic arrays, associative arrays, or the recorded D/Q and A/Q
+  compositions
 - **Interfaces**: modports, explicit virtual-interface data types across the
   legal declaration contexts, §25.9 identity comparisons, the UVM class-
-  property pattern, and interface tasks through vif handles
+  property pattern, and interface tasks through vif handles. The current
+  parameterized-dispatch subset retains evaluated interface specialization and
+  modport selection, interface-local nominal function results, and scalar
+  task `output`/`inout`/`ref` copyback through the bound physical instance
 - **Clocking blocks**: sampled input semantics, output drives, `##N`, global
   clocking
 - **SVA**: a real concurrent-assertion engine (implication, delay/repetition
@@ -257,29 +264,39 @@ conditional virtual-interface expressions; separately allocated
 wrappers for one instance compare equal. Case and wildcard equality, scalar
 operands, different interface definitions, and concrete-instance-to-concrete-
 instance comparisons are focused errors. Ordinary class-handle comparison
-retains pointer identity. Parameter-specialization and modport selection are
-not yet complete parts of virtual-interface comparison type identity, and a
-parameterized virtual-interface declaration still warns that default member
-widths are used. The separately tested unqualified one-dimensional run-time
-interface-instance-array select is an intentional application-compatibility
-extension: IEEE 1800-2017/2023 23.6 requires a constant expression for an
-instance-array select in a hierarchical name. Hierarchical and
-multidimensional run-time dispatch are not claimed.
+retains pointer identity. The current call/physical-port refinement carries
+evaluated parameter specialization and selected modport in its named subset;
+complete comparison/operator identity across every specialization and modport
+combination is not claimed. The separately tested unqualified one-dimensional
+run-time interface-instance-array select is an intentional application-
+compatibility extension: IEEE 1800-2017/2023 23.6 requires a constant
+expression for an instance-array select in a hierarchical name. Hierarchical
+and multidimensional run-time dispatch are not claimed.
 
-Value-returning function calls through an unparameterized virtual interface
-select the concrete interface instance at run time. The selected candidate's
-input signature and declaration-scoped defaults are used before the call, so
-rebinding, named and omitted arguments, an earlier formal referenced by a
-later default, nested argument calls, and automatic or static recursion retain
-the selected instance and the required formal lifetime. Recorded return types
-include packed scalar/wide values, real, string, class handles, queues, and
-dynamic arrays; discarding a result still executes the call. A null receiver
-terminates loudly. Function-body reads reached through a constant element of
+Value-returning function calls through the evidenced unparameterized and
+parameter-specialized virtual-interface call sites select the concrete
+interface instance at run time. The selected candidate's input signature and
+declaration-scoped defaults are used before the call, so rebinding, named and
+omitted arguments, an earlier formal referenced by a later default, nested
+argument calls, and automatic or static recursion retain the selected
+instance and the required formal lifetime. Recorded return types include
+packed scalar/wide values, real, string, class handles, queues, and dynamic
+arrays; the current specialization refinement also maps interface-local enum,
+unpacked-record, and class results back to their corresponding declaration
+without admitting an unrelated specialization. Discarding a result still
+executes the call, and a null receiver terminates loudly. Scalar task
+`output`, `inout`, and `ref` rows select and write back through the same bound
+physical instance. Function-body reads reached through a constant element of
 an interface-port array also contribute to `always_comb` sensitivity. This is
 a bounded 13.4/13.5/25.9 subset: output, inout, and ref virtual-interface
-function arguments, fixed unpacked arguments or returns, full parameterized
-interface specialization, and synthesis lowering remain explicit unsupported
-boundaries.
+**function** arguments, arbitrary fixed-unpacked arguments or returns,
+complete specialization interactions, and synthesis lowering remain explicit
+unsupported boundaries.
+
+Full modport prototypes are validated with the 6.22.1 matching relation;
+typed-mailbox calls use the separate 6.22.2 equivalence relation. Malformed
+modport prototypes recover without leaking parser state into a later modport
+or the next physical source file.
 
 Unqualified value parameters inherited by a derived class method follow the
 specialized superclass chain nearest-first. This includes using the inherited
@@ -611,8 +628,9 @@ for recorded evidence and known corners, not a completeness certificate.
 | Core classes / OOP (cl. 8) | Substantial | Interface classes, nested class declarations, module/package/compilation-unit out-of-body `extern` methods, multiple `extends`/`implements` relationships, specialization-aware casts, inherited type visibility and method-contract checks are supported. The recorded 8.19 subset authorizes non-static instance-constant writes only in the corresponding constructor and enforces at most one executed write per object across evidenced conditional, loop, return, and detached-fork paths. |
 | UVM (Accellera core, unmodified) | Substantial | Current local canonical checkpoint: 354/354, 0 failed, 0 skipped, run WITHOUT `UVM_NO_DPI` via the Icarus UVM DPI backend (regex + command-line + `uvm_hdl_*` backdoor); frontdoor + user-defined backdoor work; `UVM_NO_DPI` native fallback still supported. |
 | Constraints / randomization (cl. 18) | Substantial | Z3-backed, including scope `std::randomize(vars) with {...}` for simple 1–64-bit integral variables; `randcase`/`randsequence` work |
-| Containers (queues/darrays/assoc, cl. 7) | Substantial | Broad recorded method subset. Under 7.6, equivalent-element queue/dynamic-array assignment, input copying, and output/inout copy-back create the destination or actual's declared runtime kind across direct, property, selected, conditional, function-result, aggregate, and nested stores; a real queue-to-dynamic assignment is pinned through the dynamic array's contiguous DPI representation. Assignment-compatible casts follow 6.24.1. The evidenced 6.24.3 integral bit-stream-cast subset changes element width only when the complete source bit count fits the destination and a bounded queue can hold every result element; mismatches terminate loudly instead of padding or truncating. Native output formals follow 13.3.2/13.4.2 static/automatic lifetime and 13.5 copy-out rules, and empty calls retain argument and copy-back effects. Value-returning native and DPI functions now accept direct one-dimensional fixed unpacked-array slice input/output/inout actuals, preserve each slice's bounds and direction, copy fixed/native values left-to-right, activate the numeric-indexed DPI view, copy back only the selected window, and reject fixed shape/element mismatches before lowering. The separate OpenTitan commercial-flow extension is deliberately restricted to an ordinary blocking cross-kind assignment between equal-width, equal-signedness packed `bit`/`logic` elements, with 4-state-to-2-state X/Z conversion governed by 6.11.2. Same-kind assignments, initialization, formal binding, enum identity, width, and signedness remain strict; the extension does not widen explicit casts or subroutine binding. Associative-array assignment patterns support evidenced explicit constant string/integral/enum keys plus at most one non-entry fallback `default`, with integral, string, real, class-handle, queue, nested-associative, and unpacked-struct values. Direct signal-backed fixed-unpacked prefixes ending in integral/string/real-valued associative leaves match the observed OpenTitan CSRNG/EDN/entropy-src shapes plus paired real-value reducers; every fixed dimension is checked before flattening so a multidimensional OOB selector cannot alias a valid sibling map. This is not an end-to-end IP pass claim. This is bounded clause-7 support, not complete closure: multidimensional and property-backed slice actuals, general recursive aggregate bit-stream casts, selected/scoped/property/function-return source forms for the narrow state extension, ordinary queue signal/method bounds above `UINT_MAX`, and previously recorded deeper aggregate/receiver/typing contexts remain legacy, loud, or open. |
-| Interfaces / virtual interfaces (cl. 25) | Substantial | UVM vif pattern end-to-end; both Syntax 25-3 spellings in the evidenced legal contexts; provenance-aware forbidden-context diagnostics; unparameterized `==`/`!=` identity against null, same-type VIFs, and concrete instances; value-returning input-only function dispatch with candidate-specific defaults, typed results, static/automatic recursion, and null failure. A direct function call through a constant interface-port-array element contributes to `always_comb` sensitivity. Output/inout/ref function arguments, fixed-unpacked function arguments/returns, complete parameterized-interface and modport-specialized dispatch/type identity, and synthesis lowering remain open. |
+| Containers (queues/darrays/assoc, cl. 7) | Substantial | Broad recorded method subset. Under 7.6, equivalent-element queue/dynamic-array assignment, input copying, and output/inout copy-back create the destination or actual's declared runtime kind across direct, property, selected, conditional, function-result, aggregate, and nested stores; a real queue-to-dynamic assignment is pinned through the dynamic array's contiguous DPI representation. Assignment-compatible casts follow 6.24.1. The evidenced 6.24.3 integral bit-stream-cast subset changes element width only when the complete source bit count fits the destination and a bounded queue can hold every result element; mismatches terminate loudly instead of padding or truncating. Native output formals follow 13.3.2/13.4.2 static/automatic lifetime and 13.5 copy-out rules, and empty calls retain argument and copy-back effects. Value-returning native and DPI functions now accept direct one-dimensional fixed unpacked-array slice input/output/inout actuals, preserve each slice's bounds and direction, copy fixed/native values left-to-right, activate the numeric-indexed DPI view, copy back only the selected window, and reject fixed shape/element mismatches before lowering. The separate OpenTitan commercial-flow extension is deliberately restricted to an ordinary blocking cross-kind assignment between equal-width, equal-signedness packed `bit`/`logic` elements, with 4-state-to-2-state X/Z conversion governed by 6.11.2. Same-kind assignments, initialization, formal binding, enum identity, width, and signedness remain strict; the extension does not widen explicit casts or subroutine binding. Associative-array assignment patterns support evidenced explicit constant string/integral/enum keys plus at most one non-entry fallback `default`, with integral, string, real, class-handle, queue, nested-associative, and unpacked-struct values. Direct signal-backed fixed-unpacked prefixes ending in integral/string/real-valued associative leaves match the observed OpenTitan CSRNG/EDN/entropy-src shapes plus paired real-value reducers; every fixed dimension is checked before flattening so a multidimensional OOB selector cannot alias a valid sibling map. The current recursive carrier additionally retains complete nested Q/D/A kind, queue bounds, copy independence, and mutation-root provenance. A fixed unpacked-array word may hold a queue, dynamic array, associative array, or the recorded D/Q and A/Q compositions without losing a rank or receiver identity; the focused recursive regression cluster is 13/13 and the paired fixed-container reducer is 2/2. This is not an end-to-end IP pass claim. This is bounded clause-7 support, not complete closure: multidimensional and property-backed slice actuals, general recursive aggregate bit-stream casts, selected/scoped/property/function-return source forms for the narrow state extension, arbitrary recursive aggregate layouts, and previously recorded deeper aggregate/receiver/typing contexts remain legacy, loud, or open. |
+| Interfaces / virtual interfaces (cl. 25) | Substantial | UVM vif pattern end-to-end; both Syntax 25-3 spellings in the evidenced legal contexts; provenance-aware forbidden-context diagnostics; unparameterized `==`/`!=` identity against null, same-type VIFs, and concrete instances; value-returning dispatch with candidate-specific defaults, typed results, static/automatic recursion, null failure, and the evidenced parameterized/interface-local nominal-result subset. Scalar task output/inout/ref copyback follows the bound physical instance. Selected-modport actuals retain specialization through the recorded physical-port forms, full prototypes use 6.22.1 matching, and parser recovery does not contaminate later declarations. A direct function call through a constant interface-port-array element contributes to `always_comb` sensitivity. Output/inout/ref function arguments, arbitrary fixed-unpacked function arguments/returns, exhaustive parameterized/modport dispatch and comparison identity, and synthesis lowering remain open. |
+| Mailboxes (cl. 15.4) | Partial | The current source implements typed-mailbox specialization and 6.22.2 equivalence checking for statement/expression message methods, plus retained l-values for retrieval copyback. The final installed-tool reducer run and associative-element reference lifetime remain pending, so no passing mailbox count or complete support claim is made at this checkpoint. |
 | Clocking blocks (cl. 14) | Partial | Sampled inputs, common output drives, `##N`, and global clocking work; recorded run-time-selected, indexed-receiver, and aggregate-output gaps remain |
 | Scheduler / event regions (cl. 4) | Supported | Full stratified queue incl. Preponed, post-NBA (`cbNBASynch`), Observed and the Reactive set; assertions sample Preponed, evaluate in Observed and run their actions in Reactive; region tracing/self-test under `IVL_REGION_TRACE` / `IVL_REGION_SELFTEST` ([audit](docs/conformance/scheduler_audit_2026_07.md)) |
 | SVA (cl. 16) | Partial | Automaton (NFA) engine is the default: implication, windows/unbounded incl. mid-chain, goto/nonconsec repetition, local vars, first_match, and/or/intersect/within/throughout, strong/weak, `.triggered`/`.matched`, multiclocked `\|=>`; legacy linear engine behind `IVL_SVA_LEGACY=1`; `expect` and `checker`/`endchecker` implemented; remaining loud boundaries include cross-clock overlapping `\|->`, `disable iff` across a two-or-more-boundary chain, and the separately recorded branch-flow/deferred-immediate gaps |
@@ -626,7 +644,13 @@ for recorded evidence and known corners, not a completeness certificate.
 ### Application-corpus checkpoint
 
 The current local canonical unmodified Accellera UVM checkpoint passes
-**354/354** with real DPI. Application compatibility is less complete:
+**354/354** with real DPI. Those figures and the application counts below are
+the last completed baseline, not results from the current 2026-09-02 branch.
+That branch has focused VIF/container evidence—8/8 in each VIF harness with
+exact-main red proofs of 0/8 in both harnesses, recursive containers 13/13,
+interface arrays 4/4, and fixed containers 2/2—but its full compiler/UVM,
+OpenTitan, and Caliptra replays remain pending. Application compatibility is
+less complete:
 
 - The native-ARM64 OpenTitan closeout classifies all **530/530** unmodified
   rows at clean revision `7a3ad34b`: **192 PASS / 20 DEBT / 104 FAIL / 16
@@ -648,9 +672,10 @@ The current local canonical unmodified Accellera UVM checkpoint passes
   and available clean post-#241 mainline census. This is an RTL/SVA/synthesis
   manifest census, not complete Caliptra DV/UVM; that flow still requires
   external verification inputs.
-- The post-fix compiler sweep passes **2,242/2,242 legacy SV**, **1,320
+- The previous completed compiler sweep passes **2,242/2,242 legacy SV**, **1,320
   JSON/VVP entries with 0 failures**, **149/149 negatives**, **103/103 VPI**,
-  and **354/354 real-DPI UVM** with zero skips. See the
+  and **354/354 real-DPI UVM** with zero skips. It is not yet a broad result
+  for the current branch. See the
   [virtual-interface function session log](docs/conformance/session_logs/2026-09-01_virtual_interface_functions.md).
 
 Exact revisions, commands, classifications, and newer results belong in

@@ -1,0 +1,2 @@
+./ivltests/sv_interface_port_selected_actual_export_missing_fail.v:12: error: Modport `provider' exports task/function `transmit', but connected module `selected_export_consumer' has no implementation for interface port `bus' (IEEE 1800-2017/2023 25.7).
+1 error(s) during elaboration.

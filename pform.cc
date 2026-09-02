@@ -371,8 +371,45 @@ static list<set<perm_string> > conditional_block_names;
   /* This tracks the current modport list being processed. This is
      always within an interface. */
 static PModport*pform_cur_modport = 0;
+static bool pform_parsing_modport_tf_prototype = false;
+static bool pform_pending_modport_tf_prototype = false;
+static perm_string pform_pending_modport_tf_name;
+static bool pform_pending_modport_tf_is_function = false;
+static data_type_t*pform_pending_modport_tf_return_type = nullptr;
+static vector<pform_tf_port_t>*pform_pending_modport_tf_ports = nullptr;
 static Module::PClocking*pform_cur_clocking = 0;
 static bool pform_cur_clocking_is_global = false;
+
+static void delete_modport_tf_prototype_(data_type_t*return_type,
+                                         vector<pform_tf_port_t>*ports)
+{
+      delete return_type;
+      if (ports) {
+            /* Prototype formals are deliberately not registered in the
+             * interface scope. Their PWire/type graph otherwise has the same
+             * compilation lifetime as ordinary parse-form declarations, but
+             * defaults are uniquely owned by this rejected prototype. */
+            for (pform_tf_port_t&port : *ports) {
+                  delete port.defe;
+                  port.defe = nullptr;
+            }
+            delete ports;
+      }
+}
+
+void pform_discard_modport_tf_prototype(void)
+{
+      if (pform_pending_modport_tf_prototype)
+            delete_modport_tf_prototype_(
+                  pform_pending_modport_tf_return_type,
+                  pform_pending_modport_tf_ports);
+      pform_parsing_modport_tf_prototype = false;
+      pform_pending_modport_tf_prototype = false;
+      pform_pending_modport_tf_name = perm_string();
+      pform_pending_modport_tf_is_function = false;
+      pform_pending_modport_tf_return_type = nullptr;
+      pform_pending_modport_tf_ports = nullptr;
+}
 
 static NetNet::Type pform_default_nettype = NetNet::WIRE;
 
@@ -5970,8 +6007,19 @@ vector<pform_tf_port_t>*pform_make_task_ports(const struct vlltype&loc,
 
       for (list<pform_port_t>::iterator cur = ports->begin();
 	   cur != ports->end(); ++cur) {
-	    PWire*curw = pform_get_or_make_wire(loc, cur->name,
-						NetNet::IMPLICIT_REG, pt, rt);
+	    /* A full modport import/export prototype introduces a private
+	     * prototype formal scope (25.7). Do not register those formals in
+	     * the containing interface, where a second prototype with the same
+	     * argument names would otherwise look like a redeclaration. */
+	    PWire*curw;
+	    if (pform_parsing_modport_tf_prototype) {
+		  curw = new PWire(cur->name.first, cur->name.second,
+				       NetNet::IMPLICIT_REG, pt, rt);
+		  FILE_NAME(curw, loc);
+	    } else {
+		  curw = pform_get_or_make_wire(loc, cur->name,
+					       NetNet::IMPLICIT_REG, pt, rt);
+	    }
 	    if (rt == SR_BOTH)
 		  curw->set_data_type(vtype);
 
@@ -6933,17 +6981,136 @@ void pform_start_modport_item(const struct vlltype&loc, const char*name)
 void pform_end_modport_item(const struct vlltype&loc)
 {
       ivl_assert(loc, pform_cur_modport);
+      pform_discard_modport_tf_prototype();
       pform_cur_modport = 0;
 }
 
-void pform_add_modport_tf_port(const struct vlltype&loc,
+/* A syntax error can leave the mid-rule modport action active and bypass the
+ * normal ')' reduction. Remove that incomplete declaration from both lookup
+ * maps before the generic module-item recovery resumes; otherwise the next
+ * modport asserts in pform_start_modport_item(). */
+void pform_abort_modport_item(void)
+{
+      pform_discard_modport_tf_prototype();
+      if (!pform_cur_modport)
+            return;
+
+      Module*scope = pform_cur_module.empty() ? nullptr
+            : pform_cur_module.front();
+      if (scope) {
+            perm_string name = pform_cur_modport->name();
+            auto modport = scope->modports.find(name);
+            if (modport != scope->modports.end()
+                && modport->second == pform_cur_modport)
+                  scope->modports.erase(modport);
+            auto symbol = scope->local_symbols.find(name);
+            if (symbol != scope->local_symbols.end()
+                && symbol->second == pform_cur_modport)
+                  scope->local_symbols.erase(symbol);
+      }
+      delete pform_cur_modport;
+      pform_cur_modport = nullptr;
+}
+
+bool pform_modport_item_pending(void)
+{
+      return pform_cur_modport || pform_parsing_modport_tf_prototype
+            || pform_pending_modport_tf_prototype;
+}
+
+bool pform_add_modport_tf_port(const struct vlltype&loc,
                                bool is_import, perm_string name)
 {
       ivl_assert(loc, pform_cur_modport);
-      if (is_import)
-	    pform_cur_modport->import_ports.insert(name);
-      else
-	    pform_cur_modport->export_ports.insert(name);
+      std::set<perm_string>&same_ports = is_import
+	    ? pform_cur_modport->import_ports
+	    : pform_cur_modport->export_ports;
+      const std::set<perm_string>&opposite_ports = is_import
+	    ? pform_cur_modport->export_ports
+	    : pform_cur_modport->import_ports;
+
+      if (same_ports.count(name)) {
+	    cerr << loc << ": error: duplicate task/function `" << name
+		 << "' in modport `" << pform_cur_modport->name()
+		 << "' (IEEE 1800-2017/2023 25.7)." << endl;
+	    error_count += 1;
+	    return false;
+      }
+      if (opposite_ports.count(name)) {
+	    cerr << loc << ": error: task/function `" << name
+		 << "' cannot be both imported and exported by modport `"
+		 << pform_cur_modport->name()
+		 << "' (IEEE 1800-2017/2023 25.7)." << endl;
+	    error_count += 1;
+	    return false;
+      }
+
+      same_ports.insert(name);
+      return true;
+}
+
+void pform_start_modport_tf_prototype(const struct vlltype&loc)
+{
+      ivl_assert(loc, pform_cur_modport);
+      if (pform_parsing_modport_tf_prototype
+          || pform_pending_modport_tf_prototype) {
+            cerr << loc << ": error: malformed preceding task/function "
+                 << "prototype in modport declaration." << endl;
+            error_count += 1;
+            pform_discard_modport_tf_prototype();
+      }
+      pform_parsing_modport_tf_prototype = true;
+}
+
+void pform_finish_modport_tf_prototype(
+                               const struct vlltype&loc,
+                               perm_string name, bool is_function,
+                               data_type_t*return_type,
+                               vector<pform_tf_port_t>*ports)
+{
+      ivl_assert(loc, pform_cur_modport);
+      if (!pform_parsing_modport_tf_prototype
+          || pform_pending_modport_tf_prototype) {
+            cerr << loc << ": error: malformed task/function prototype in "
+                 << "modport declaration." << endl;
+            error_count += 1;
+            delete_modport_tf_prototype_(return_type, ports);
+            pform_discard_modport_tf_prototype();
+            return;
+      }
+      pform_parsing_modport_tf_prototype = false;
+      pform_pending_modport_tf_prototype = true;
+      pform_pending_modport_tf_name = name;
+      pform_pending_modport_tf_is_function = is_function;
+      pform_pending_modport_tf_return_type = return_type;
+      pform_pending_modport_tf_ports = ports;
+}
+
+void pform_commit_modport_tf_prototype(const struct vlltype&loc,
+                                       bool is_import)
+{
+      ivl_assert(loc, pform_cur_modport);
+      if (!pform_pending_modport_tf_prototype) {
+            cerr << loc << ": error: malformed task/function prototype in "
+                 << "modport declaration." << endl;
+            error_count += 1;
+            return;
+      }
+      if (!pform_add_modport_tf_port(
+            loc, is_import, pform_pending_modport_tf_name)) {
+	    pform_discard_modport_tf_prototype();
+	    return;
+      }
+      pform_cur_modport->add_tf_port_prototype(
+            is_import, pform_pending_modport_tf_name,
+            pform_pending_modport_tf_is_function,
+            pform_pending_modport_tf_return_type,
+            pform_pending_modport_tf_ports);
+      pform_pending_modport_tf_prototype = false;
+      pform_pending_modport_tf_name = perm_string();
+      pform_pending_modport_tf_is_function = false;
+      pform_pending_modport_tf_return_type = nullptr;
+      pform_pending_modport_tf_ports = nullptr;
 }
 
 void pform_add_modport_clocking_port(const struct vlltype&loc,
@@ -23414,6 +23581,10 @@ extern void reset_lexor();
 
 int pform_parse(const char*path)
 {
+        /* A fatal parse can bypass the grammar's module-item recovery.  A
+           file boundary must never carry its partially built modport or
+           pending prototype into the next file of the compilation unit. */
+      pform_abort_modport_item();
       vl_file = path;
       if (strcmp(path, "-") == 0) {
 	    vl_input = stdin;
@@ -23463,6 +23634,7 @@ int pform_parse(const char*path)
             pform_cur_module.clear();
             pform_cur_generate = 0;
             pform_cur_modport = 0;
+            pform_discard_modport_tf_prototype();
 
 	    pform_set_timescale(def_ts_units, def_ts_prec, 0, 0);
 
@@ -23477,6 +23649,11 @@ int pform_parse(const char*path)
       warn_count = 0;
       if (getenv("IVL_PARSE_TRACE")) VLdebug = 1;
       int rc = VLparse();
+
+        /* Also release the incomplete declaration immediately: this covers
+           a final input file and keeps ownership independent of whether a
+           caller attempts another parse. */
+      pform_abort_modport_item();
 
 	/* M9-10: an unclocked assertion outside any module never reaches
 	   pform_endmodule, so drain the park list here too. */

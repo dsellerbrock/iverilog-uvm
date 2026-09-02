@@ -1,0 +1,2 @@
+ivltests/sv_vif_modport_hidden_method_fail.v:17: error: Task/function `hidden' is not visible through modport `restricted' (IEEE 1800-2017/2023 25.7/25.10).
+1 error(s) during elaboration.

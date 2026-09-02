@@ -51,6 +51,15 @@ extern bool pform_in_compilation_unit_scope();
 extern bool pform_in_task_function_scope();
 
 # define YY_USER_INIT do { reset_lexor(); yylloc.lexical_pos = 0; } while (0);
+# define YY_USER_ACTION do { \
+      if (pending_source_close_token) { \
+            int token__ = pending_source_close_token; \
+            pending_source_close_token = 0; \
+            yyless(0); \
+            return token__; \
+      } \
+      apply_pending_source_location(); \
+} while (0);
 # define yylval VLlval
 
 # define YY_NO_INPUT
@@ -110,8 +119,24 @@ static const char* set_file_name(char*text)
 
 void reset_lexor();
 static void line_directive();
-static void line_directive2();
+static bool line_directive2();
 static void reset_all();
+
+static bool pending_source_location = false;
+static const char*pending_source_file = nullptr;
+static unsigned pending_source_line = 0;
+static int pending_source_close_token = 0;
+
+static void apply_pending_source_location()
+{
+      if (!pending_source_location)
+            return;
+      yylloc.text = pending_source_file;
+      yylloc.first_line = pending_source_line;
+      pending_source_location = false;
+      pending_source_file = nullptr;
+      pending_source_line = 0;
+}
 
 verinum*make_unsized_binary(const char*txt);
 verinum*make_undef_highz_dec(const char*txt);
@@ -198,7 +223,7 @@ TU [munpf]
 
   /* Recognize the various line directives. */
 ^"#line"[ \t]+.+ { line_directive(); }
-^[ \t]*"`line"[ \t]+.+ { line_directive2(); }
+^[ \t]*"`line"[ \t]+.+ { if (line_directive2()) return K_SOURCE_FILE_BOUNDARY; }
 
 [ \t\b\f\r] { ; }
 \n { yylloc.first_line += 1; }
@@ -1747,7 +1772,7 @@ static void line_directive()
  * calls this function. Here I parse out the file name and line
  * number, and change the yylloc to suite. M is ignored.
  */
-static void line_directive2()
+static bool line_directive2()
 {
       char *cpr;
 	/* Skip any leading space. */
@@ -1760,11 +1785,11 @@ static void line_directive2()
       long lineno = strtol(cp, &cpr, 10);
       if (cp == cpr) {
 	    VLerror(yylloc, "error: Invalid line number for `line directive.");
-	    return;
+	    return false;
       }
       if (lineno < 1) {
 	    VLerror(yylloc, "error: Line number for `line directive most be greater than zero.");
-	    return;
+	    return false;
       }
       cp = cpr;
 
@@ -1773,7 +1798,7 @@ static void line_directive2()
       if (cp == cpr) {
 	    VLerror(yylloc, "error: Invalid `line directive (missing space "
 	                    "after line number).");
-	    return;
+	    return false;
       }
       cp = cpr;
 
@@ -1781,7 +1806,7 @@ static void line_directive2()
       char *fn_start = strchr(cp, '"');
       if (cp != fn_start) {
 	    VLerror(yylloc, "error: Invalid `line directive (file name start).");
-	    return;
+	    return false;
       }
       fn_start += 1;
 
@@ -1789,7 +1814,7 @@ static void line_directive2()
       char*fn_end = strrchr(fn_start, '"');
       if (!fn_end) {
 	    VLerror(yylloc, "error: Invalid `line directive (file name end).");
-	    return;
+	    return false;
       }
 
 	/* Skip the space after the file name. */
@@ -1799,15 +1824,16 @@ static void line_directive2()
       if (cp == cpr) {
 	    VLerror(yylloc, "error: Invalid `line directive (missing space "
 	                    "after file name).");
-	    return;
+	    return false;
       }
       cp = cpr;
 
-	/* Check that the level is correct, we do not need the level. */
+	/* Level zero is emitted by ivlpp when it starts a top-level source. */
       if (strspn(cp, "012") != 1) {
 	    VLerror(yylloc, "error: Invalid level for `line directive.");
-	    return;
+	    return false;
       }
+      const unsigned level = static_cast<unsigned>(*cp - '0');
       cp += 1;
 
 	/* Verify that only space and/or a single line comment is left. */
@@ -1816,16 +1842,35 @@ static void line_directive2()
           (size_t)(cp-yytext) != strlen(yytext)) {
 	    VLerror(yylloc, "error: Invalid `line directive (extra garbage "
 	                    "after level).");
-	    return;
+	    return false;
       }
 
-	/* Copy the file name and assign it and the line number to yylloc. */
+	/* Copy the file name and assign it and the line number to yylloc.  If
+	 * a malformed modport is still open when ivlpp advances to another
+	 * top-level source, return a parser recovery token at the old EOF
+	 * location. YY_USER_ACTION first supplies the matching endinterface,
+	 * then installs the new location before scanning the first real token
+	 * from that source. */
       char*buf = new char[fn_end-fn_start+1];
       strncpy(buf, fn_start, fn_end-fn_start);
       buf[fn_end-fn_start] = 0;
 
-      yylloc.text = set_file_name(buf);
-      yylloc.first_line = lineno-1;
+	  const char*next_file = set_file_name(buf);
+	  const bool boundary = level == 0 && pform_modport_item_pending()
+		&& yylloc.text && strcmp(yylloc.text, next_file) != 0;
+	  if (boundary) {
+		pending_source_location = true;
+		pending_source_file = next_file;
+		pending_source_line = static_cast<unsigned>(lineno-1);
+		pending_source_close_token = K_endinterface;
+		if (yylloc.first_line > 1)
+		      yylloc.first_line -= 1;
+		return true;
+	  }
+
+	  yylloc.text = next_file;
+	  yylloc.first_line = lineno-1;
+	  return false;
 }
 
 /*

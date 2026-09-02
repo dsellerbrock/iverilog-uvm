@@ -1991,10 +1991,15 @@ void NetESelect::dump(ostream&o) const
 void NetESFunc::dump(ostream&o) const
 {
       o << name_ << "(";
-      if (nparms() > 0)
-	    o << *parm(0);
-      for (unsigned idx = 1 ;  idx < nparms() ;  idx += 1)
-	    o << ", " << *parm(idx);
+      if (nparms() > 0) {
+	    if (parm(0)) o << *parm(0);
+	    else o << "<ref-output>";
+      }
+      for (unsigned idx = 1 ;  idx < nparms() ;  idx += 1) {
+	    o << ", ";
+	    if (parm(idx)) o << *parm(idx);
+	    else o << "<ref-output>";
+      }
       o << ")";
 }
 

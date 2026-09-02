@@ -21,6 +21,8 @@
 
 # include  "vvp_config.h"
 # include  "ivl_target.h"
+# include  <inttypes.h>
+# include  <limits.h>
 # include  <stdio.h>
 # include  <string.h>
 
@@ -118,6 +120,10 @@ extern int draw_vif_statement_input_arguments(ivl_scope_t scope,
                                               unsigned port_base,
                                               unsigned argc,
                                               ivl_expr_t const*argv);
+extern int draw_vif_statement_output_arguments(ivl_scope_t scope,
+                                               unsigned port_base,
+                                               unsigned argc,
+                                               ivl_expr_t const*argv);
 extern int draw_vif_function_input_arguments(ivl_scope_t scope,
                                              unsigned port_base,
                                              unsigned argc,
@@ -131,7 +137,7 @@ extern int draw_vif_function_call(ivl_expr_t expr);
 extern void draw_ufunc_uarray(ivl_expr_t expr, ivl_signal_t dst_sig,
 			      unsigned dst_base);
 extern void draw_ufunc_uarray_object(ivl_expr_t expr, int as_queue,
-				     unsigned queue_max_size);
+				     uint64_t queue_max_size);
 
 extern char* process_octal_codes(const char*txt, unsigned wid);
 
@@ -728,6 +734,24 @@ static inline int type_is_runtime_container_(ivl_type_t type)
                       || ivl_type_base(type) == IVL_VT_DARRAY);
 }
 
+/* A direct word selection from a fixed unpacked array whose leaf is a
+ * queue/dynamic/associative array is still exported as IVL_EX_SIGNAL. It is
+ * nevertheless an object-array WORD, not the scalar v<sig>_0 container used
+ * by the traditional signal fast paths. Keep that distinction centralized so
+ * every read/method family retains the fixed prefix. */
+static inline int expr_selects_fixed_container_slot_(ivl_expr_t expr)
+{
+      ivl_signal_t sig;
+
+      if (!expr || (ivl_expr_type(expr) != IVL_EX_SIGNAL
+                    && ivl_expr_type(expr) != IVL_EX_ARRAY))
+            return 0;
+
+      sig = ivl_expr_signal(expr);
+      return sig && ivl_signal_dimensions(sig) > 0 && ivl_expr_oper1(expr)
+          && type_is_runtime_container_(ivl_signal_net_type(sig));
+}
+
 /* Recover the declared runtime-container type of an expression value rather
    than its assignment-context type. t-dll intentionally omits net_type from
    SELECT, TERNARY, and UFUNC nodes, and a PROPERTY node can carry the outer
@@ -815,36 +839,76 @@ extern void draw_fixed_uarray_slot_index_(ivl_expr_t expr, ivl_type_t type,
                                           int word, int*x_flag,
                                           int*in_range_flag);
 
-/* Runtime queue mutation opcodes use zero for an unbounded queue and an
- * unsigned element count for a bounded queue. Keep that conversion identical
- * at every object-receiver emitter. Associative queues and dynamic arrays do
- * not have a positional maximum. */
-static inline unsigned queue_type_max_count_(ivl_type_t type)
-{
-      uint64_t max_size;
+/* Evaluate one mailbox ref-output l-value now and leave a captured writable
+ * target on the object stack. The target remains valid across a blocking
+ * %mbx/get or %mbx/peek and consumes the returned value through
+ * %ref/store/mbx. */
+extern int draw_capture_lval_ref(ivl_lval_t lval);
 
+/* Runtime queue mutation operands are exact 64-bit element counts. Zero is
+ * the static spelling for unbounded, while a live declaration carrier keeps
+ * known-unbounded distinct from absent metadata. */
+static inline uint64_t queue_type_max_count_(ivl_type_t type)
+{
       if (!type || ivl_type_base(type) != IVL_VT_QUEUE
           || ivl_type_queue_assoc_compat(type))
             return 0;
+      return ivl_type_queue_max_size(type);
+}
 
-      max_size = ivl_type_queue_max_size(type);
-      return max_size > 0xffffffffULL ? 0 : (unsigned)max_size;
+/* Object-receiver runtime handlers always prefer live declaration metadata
+ * and use this exact operand only when an older value lacks such metadata. */
+static inline uint64_t queue_live_max_operand_(ivl_type_t type)
+{
+      return queue_type_max_count_(type);
+}
+
+static inline uint64_t queue_receiver_max_operand_(ivl_expr_t receiver,
+					    ivl_type_t type)
+{
+      (void)receiver;
+      return queue_live_max_operand_(type);
+}
+
+/* Emit the strict recursive container-layout suffix understood by new VVP.
+ * Q0 means a known-unbounded queue; D and A carry no bound. The element chain
+ * stops at the first non-container type. */
+static inline void emit_container_layout_suffix_(ivl_type_t type)
+{
+      ivl_type_t cur = type;
+      int emitted = 0;
+      while (cur) {
+            const ivl_variable_type_t base = ivl_type_base(cur);
+            if (base != IVL_VT_QUEUE && base != IVL_VT_DARRAY)
+                  break;
+            fputc(emitted ? ',' : '!', vvp_out);
+            if (base == IVL_VT_DARRAY) {
+                  fputc('D', vvp_out);
+            } else if (ivl_type_queue_assoc_compat(cur)) {
+                  fputc('A', vvp_out);
+            } else {
+                  fprintf(vvp_out, "Q%" PRIu64,
+                          ivl_type_queue_max_size(cur));
+            }
+            emitted = 1;
+            cur = ivl_type_element(cur);
+      }
 }
 
 /* Keep the legacy zero-bound VVP spellings intact so older generated VVP
  * remains parseable. Bounded object receivers use explicit /max variants. */
 static inline void emit_object_queue_insert_(const char*kind,
-                                             unsigned max_count,
+                                             uint64_t max_count,
                                              unsigned vec_width)
 {
       if (strcmp(kind, "v") == 0) {
             if (max_count)
-                  fprintf(vvp_out, "    %%qinsert/o/v/max %u, %u;\n",
+                  fprintf(vvp_out, "    %%qinsert/o/v/max %" PRIu64 ", %u;\n",
                           max_count, vec_width);
             else
                   fprintf(vvp_out, "    %%qinsert/o/v %u;\n", vec_width);
       } else if (max_count) {
-            fprintf(vvp_out, "    %%qinsert/o/%s/max %u;\n",
+            fprintf(vvp_out, "    %%qinsert/o/%s/max %" PRIu64 ";\n",
                     kind, max_count);
       } else {
             fprintf(vvp_out, "    %%qinsert/o/%s;\n", kind);
@@ -852,18 +916,18 @@ static inline void emit_object_queue_insert_(const char*kind,
 }
 
 static inline void emit_object_queue_store_(char mode, const char*kind,
-                                            unsigned max_count,
+                                            uint64_t max_count,
                                             unsigned vec_width)
 {
       if (strcmp(kind, "v") == 0) {
             if (max_count)
-                  fprintf(vvp_out, "    %%store/qo/%c/v/max %u, %u;\n",
+                  fprintf(vvp_out, "    %%store/qo/%c/v/max %" PRIu64 ", %u;\n",
                           mode, max_count, vec_width);
             else
                   fprintf(vvp_out, "    %%store/qo/%c/v %u;\n",
                           mode, vec_width);
       } else if (max_count) {
-            fprintf(vvp_out, "    %%store/qo/%c/%s/max %u;\n",
+            fprintf(vvp_out, "    %%store/qo/%c/%s/max %" PRIu64 ";\n",
                     mode, kind, max_count);
       } else {
             fprintf(vvp_out, "    %%store/qo/%c/%s;\n", mode, kind);

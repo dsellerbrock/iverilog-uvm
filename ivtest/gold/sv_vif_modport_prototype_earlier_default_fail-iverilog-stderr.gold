@@ -1,0 +1,2 @@
+ivltests/sv_vif_modport_prototype_earlier_default_fail.v:23: error: Default for modport prototype argument 2 ('second') references earlier formal `first'; dynamic virtual-interface dispatch cannot bind that default yet (IEEE 1800-2017/2023 13.5.3/25.7).
+1 error(s) during elaboration.

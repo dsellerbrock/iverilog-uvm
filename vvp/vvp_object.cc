@@ -27,8 +27,154 @@
 # include  <unordered_set>
 # include  <vector>
 # include  <functional>
+# include  <limits>
+# include  <cstring>
 
 using namespace std;
+
+vvp_container_layout_t vvp_make_container_layout(
+      vvp_container_layout_kind_t kind, bool queue_bound_known,
+      uint64_t queue_max_size, const vvp_container_layout_t&element)
+{
+      return vvp_container_layout_t(new vvp_container_layout_s(
+            kind, queue_bound_known, queue_max_size, element));
+}
+
+static bool parse_layout_uint64_(const char*&cur, uint64_t&value)
+{
+      if (!cur || *cur < '0' || *cur > '9')
+            return false;
+      uint64_t parsed = 0;
+      do {
+            const unsigned digit = static_cast<unsigned>(*cur - '0');
+            if (parsed > (numeric_limits<uint64_t>::max() - digit) / 10)
+                  return false;
+            parsed = parsed * 10 + digit;
+            ++cur;
+      } while (*cur >= '0' && *cur <= '9');
+      value = parsed;
+      return true;
+}
+
+static bool parse_strict_container_layout_(
+      const char*cur, vvp_container_layout_kind_t expected_outer,
+      vvp_container_layout_t&layout)
+{
+      vector<vvp_container_layout_kind_t> kinds;
+      vector<uint64_t> queue_bounds;
+      if (!cur || *cur != '!')
+            return false;
+      ++cur;
+
+      while (*cur) {
+            if (*cur == 'Q') {
+                  ++cur;
+                  uint64_t bound = 0;
+                  if (!parse_layout_uint64_(cur, bound))
+                        return false;
+                  kinds.push_back(VVP_CONTAINER_QUEUE);
+                  queue_bounds.push_back(bound);
+            } else if (*cur == 'D') {
+                  ++cur;
+                  kinds.push_back(VVP_CONTAINER_DARRAY);
+                  queue_bounds.push_back(0);
+            } else if (*cur == 'A') {
+                  ++cur;
+                  kinds.push_back(VVP_CONTAINER_ASSOC);
+                  queue_bounds.push_back(0);
+            } else {
+                  return false;
+            }
+            if (!*cur)
+                  break;
+            if (*cur != ',')
+                  return false;
+            ++cur;
+            if (!*cur)
+                  return false;
+      }
+
+      if (kinds.empty() || kinds.front() != expected_outer)
+            return false;
+      vvp_container_layout_t result;
+      for (size_t idx = kinds.size(); idx > 0; --idx) {
+            const vvp_container_layout_kind_t kind = kinds[idx-1];
+            result = vvp_make_container_layout(
+                  kind, kind == VVP_CONTAINER_QUEUE,
+                  queue_bounds[idx-1], result);
+      }
+      layout = result;
+      return true;
+}
+
+bool vvp_parse_container_layout_type(
+      const char*text, vvp_container_layout_kind_t expected_outer,
+      vvp_container_layout_t&layout, size_t&base_length)
+{
+      layout.reset();
+      base_length = 0;
+      if (!text || !*text)
+            return false;
+
+      const char*suffix = strpbrk(text, "@#!");
+      base_length = suffix ? static_cast<size_t>(suffix - text) : strlen(text);
+      if (base_length == 0)
+            return false;
+
+      if (suffix && *suffix == '!')
+            return parse_strict_container_layout_(suffix, expected_outer,
+                                                  layout);
+
+      bool own_bound_known = false;
+      uint64_t own_bound = 0;
+      bool child_bound_known = false;
+      uint64_t child_bound = 0;
+      const char*cur = suffix;
+      if (cur && *cur == '@') {
+            if (expected_outer != VVP_CONTAINER_QUEUE)
+                  return false;
+            ++cur;
+            if (!parse_layout_uint64_(cur, own_bound) || own_bound == 0)
+                  return false;
+            own_bound_known = true;
+      }
+      if (cur && *cur == '#') {
+            ++cur;
+            if (!parse_layout_uint64_(cur, child_bound))
+                  return false;
+            child_bound_known = true;
+      }
+      if (cur && *cur)
+            return false;
+
+      vvp_container_layout_t child;
+      if (child_bound_known)
+            child = vvp_make_container_layout(
+                  VVP_CONTAINER_QUEUE, true, child_bound,
+                  vvp_container_layout_t());
+      layout = vvp_make_container_layout(
+            expected_outer, own_bound_known, own_bound, child);
+      return true;
+}
+
+void vvp_object::set_declared_container_layout(
+      const vvp_container_layout_t&value)
+{
+      declared_container_layout_ = value;
+      apply_declared_container_layout_own(value);
+      if (value && value->element)
+	    rebind_declared_element_container_layout(value->element);
+}
+
+void vvp_object::apply_declared_container_layout_own(
+      const vvp_container_layout_t&)
+{
+}
+
+void vvp_object::rebind_declared_element_container_layout(
+      const vvp_container_layout_t&)
+{
+}
 
 int vvp_object::total_active_cnt_ = 0;
 static std::unordered_set<const vvp_object*> live_vvp_objects_;

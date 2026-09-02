@@ -2,10 +2,9 @@
 // keyword is part of a virtual-interface type. Exercise class properties
 // with interfaces known before the class and forward referenced after it,
 // with and without a modport, and with multiple property declarators.
-// The parameter-spelled row deliberately uses the interface's default width:
-// it pins syntax and type retention only.  IEEE 1800-2017/2023 25.9
-// parameter-specialization identity remains a separate semantic gap, kept
-// visible by this test's expected compiler warning.
+// The parameter-spelled row deliberately uses the interface's default width;
+// the parameter-specialization focus separately pins distinct effective
+// parameter values/types, nondefault widths, and modport-aware identity.
 interface sv_vif_explicit_known_if;
   logic [7:0] data;
 endinterface

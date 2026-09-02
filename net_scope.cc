@@ -641,6 +641,8 @@ void NetScope::replace_parameter(Design *des, perm_string key, PExpr*val,
       ref.val_scope = scope;
       ref.source_expr = val;
       ref.source_scope = scope;
+      if (defparam)
+	    ref.defparam_source_scopes.insert(scope);
 }
 
 bool NetScope::make_parameter_unannotatable(perm_string key)

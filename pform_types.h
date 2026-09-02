@@ -528,8 +528,14 @@ struct string_type_t : public data_type_t {
 struct interface_type_t : public data_type_t {
       inline explicit interface_type_t(perm_string n, bool is_virtual = false)
       : name(n), virtual_type(is_virtual) { }
+      ~interface_type_t() override;
 
       ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override;
+
+      inline const parmvalue_t* parameter_values() const
+            { return parameter_values_; }
+      inline void set_parameter_values(parmvalue_t*values)
+            { parameter_values_ = values; }
 
       perm_string name;
       // interface_type_t also represents ordinary interface ports. Preserve
@@ -537,15 +543,12 @@ struct interface_type_t : public data_type_t {
       // production so IEEE 1800-2017/2023 25.9 context restrictions do not
       // accidentally reject real interface ports.
       bool virtual_type = false;
-      // A parameter override on the virtual-interface type (e.g.
-      // `virtual bus_if #(16) v;`). Parameterized virtual-interface
-      // SPECIALIZATION is not yet modeled: all specializations of an
-      // interface share one netclass elaborated with the interface's DEFAULT
-      // parameters, so a non-default override would silently use the default
-      // member widths. This flag lets elaboration diagnose that loudly instead
-      // of miscompiling silently (IEEE 1800-2017 25.9). Overrides are not yet
-      // honored; when they are, this becomes the specialization key.
-      bool has_param_override = false;
+      // IEEE 1800-2017/2023 25.9 makes the complete effective parameter list
+      // part of a virtual-interface type. Retain the source actuals until
+      // elaboration so ordered/named/default spellings can be evaluated in
+      // the declaration's lexical scope and interned by semantic identity.
+      // This node owns the parse expressions, exactly like typeref_t.
+      parmvalue_t* parameter_values_ = nullptr;
       // IEEE 1800-2017 6.20.3 permits a type-parameter default to carry a
       // virtual-interface type that is never selected/used. Keep that narrow
       // declaration context lazy; every ordinary virtual-interface use still

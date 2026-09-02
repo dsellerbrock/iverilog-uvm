@@ -1,0 +1,7 @@
+./ivltests/sv_typed_mailbox_expression_type_fail.v:20: error: Argument to typed mailbox method 'try_put' must have a type equivalent to the mailbox message type (IEEE 1800-2017/2023 15.4.9).
+./ivltests/sv_typed_mailbox_expression_type_fail.v:21: error: Argument to typed mailbox method 'try_get' must have a type equivalent to the mailbox message type (IEEE 1800-2017/2023 15.4.9).
+./ivltests/sv_typed_mailbox_expression_type_fail.v:22: error: Argument to typed mailbox method 'try_peek' must have a type equivalent to the mailbox message type (IEEE 1800-2017/2023 15.4.9).
+./ivltests/sv_typed_mailbox_expression_type_fail.v:23: error: Argument to typed mailbox method 'try_put' must have a type equivalent to the mailbox message type (IEEE 1800-2017/2023 15.4.9).
+./ivltests/sv_typed_mailbox_expression_type_fail.v:24: error: Argument to typed mailbox method 'try_get' must have a type equivalent to the mailbox message type (IEEE 1800-2017/2023 15.4.9).
+./ivltests/sv_typed_mailbox_expression_type_fail.v:25: error: Argument to typed mailbox method 'try_peek' must have a type equivalent to the mailbox message type (IEEE 1800-2017/2023 15.4.9).
+6 error(s) during elaboration.

@@ -340,6 +340,9 @@ static void draw_send_function_argument(ivl_signal_t port, ivl_expr_t actual)
       }
 }
 
+static void draw_copy_out_function_argument(ivl_signal_t port,
+					     ivl_expr_t actual);
+
 /* Marshal ordinary task/function arguments. Static subroutines retain the
  * historical evaluate-all/then-send ordering: changing it here would also
  * change void functions, DPI exports and output/ref paths that are outside
@@ -349,7 +352,8 @@ static int draw_function_input_arguments_(ivl_scope_t scope,
                                           unsigned port_base,
                                           unsigned argc,
                                           ivl_expr_t const*argv,
-                                          int allow_sparse)
+                                          int allow_sparse,
+					  int vif_copyback)
 {
       unsigned idx;
       int errors = 0;
@@ -379,9 +383,13 @@ static int draw_function_input_arguments_(ivl_scope_t scope,
       if (ivl_scope_is_auto(scope)) {
             for (idx = 0 ; idx < argc ; idx += 1) {
                   ivl_signal_t port = ivl_scope_port(scope, port_base + idx);
-                  if (!argv[idx])
-                        continue;
-                  if (ivl_signal_port(port) == IVL_SIP_REF) {
+	                  if (!argv[idx])
+	                        continue;
+	                  if (vif_copyback
+			      && ivl_signal_port(port) == IVL_SIP_OUTPUT
+			      && !function_port_is_container_output_(port))
+				continue;
+	                  if (ivl_signal_port(port) == IVL_SIP_REF) {
                         draw_bind_function_ref_argument(port, argv[idx]);
                   } else {
                         draw_eval_function_argument(port, argv[idx]);
@@ -393,16 +401,24 @@ static int draw_function_input_arguments_(ivl_scope_t scope,
 
       for (idx = 0 ; idx < argc ; idx += 1) {
             ivl_signal_t port = ivl_scope_port(scope, port_base + idx);
-            if (!argv[idx])
-                  continue;
-            draw_eval_function_argument(port, argv[idx]);
+	            if (!argv[idx])
+	                  continue;
+	            if (vif_copyback
+			&& ivl_signal_port(port) == IVL_SIP_OUTPUT
+			&& !function_port_is_container_output_(port))
+			  continue;
+	            draw_eval_function_argument(port, argv[idx]);
       }
       for (idx = argc ; idx > 0 ; idx -= 1) {
             ivl_signal_t port = ivl_scope_port(
                   scope, port_base + idx - 1);
-            if (!argv[idx - 1])
-                  continue;
-            draw_send_function_argument(port, argv[idx - 1]);
+	            if (!argv[idx - 1])
+	                  continue;
+	            if (vif_copyback
+			&& ivl_signal_port(port) == IVL_SIP_OUTPUT
+			&& !function_port_is_container_output_(port))
+			  continue;
+	            draw_send_function_argument(port, argv[idx - 1]);
       }
       for (idx = 0 ; idx < argc ; idx += 1) {
             ivl_signal_t port = ivl_scope_port(scope, port_base + idx);
@@ -419,22 +435,21 @@ int draw_function_input_arguments(ivl_scope_t scope, unsigned port_base,
                                   unsigned argc, ivl_expr_t const*argv)
 {
       return draw_function_input_arguments_(
-            scope, port_base, argc, argv, 0);
+	    scope, port_base, argc, argv, 0, 0);
 }
 
-/* A statement-position virtual-interface call can retain a null expression
- * after the frontend has issued a compile-progress warning for an actual it
- * could not elaborate. The historical VIF task emitter skipped that store,
- * leaving the formal's ordinary initial value in place. Keep that behavior
- * local to statement rows: value-returning VIF functions and ordinary
- * subroutine calls remain strict. */
+/* A statement-position virtual-interface call can retain a null input after
+ * the frontend has issued a compile-progress warning. Keep that historical
+ * sparse-input behavior local to statement rows. Pure scalar outputs are not
+ * evaluated or copied in; automatic queue/darray outputs still run the
+ * existing declaration-default initializer before the selected call. */
 int draw_vif_statement_input_arguments(ivl_scope_t scope,
                                        unsigned port_base,
                                        unsigned argc,
                                        ivl_expr_t const*argv)
 {
       return draw_function_input_arguments_(
-            scope, port_base, argc, argv, 1);
+	    scope, port_base, argc, argv, 1, 1);
 }
 
 static int formal_effectively_static_(ivl_scope_t scope, ivl_signal_t port)
@@ -1140,6 +1155,51 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
       }
 }
 
+/* Finish one receiver-selected virtual-interface task branch.  The frontend
+ * keeps each caller actual in the candidate row, so output/inout values are
+ * copied from the concrete physical method's formal only after that method
+ * returns. A directly nameable ref actual was bound before the call and needs
+ * no copy; a ref companion uses the ordinary copy-out path. */
+int draw_vif_statement_output_arguments(ivl_scope_t scope,
+					unsigned port_base,
+					unsigned argc,
+					ivl_expr_t const*argv)
+{
+      int errors = 0;
+
+      if (!scope || (argc && !argv)
+	  || port_base > ivl_scope_ports(scope)
+	  || argc > ivl_scope_ports(scope) - port_base)
+	    return 1;
+
+      for (unsigned idx = 0 ; idx < argc ; idx += 1) {
+	    ivl_signal_t port = ivl_scope_port(scope, port_base + idx);
+	    ivl_signal_port_t direction = port
+		  ? ivl_signal_port(port) : IVL_SIP_NONE;
+	    if (!port) {
+		  errors += 1;
+		  continue;
+	    }
+	    if (!argv[idx]) {
+		  if (direction == IVL_SIP_OUTPUT
+		      || direction == IVL_SIP_INOUT
+		      || direction == IVL_SIP_REF)
+			errors += 1;
+		  continue;
+	    }
+	    if (direction == IVL_SIP_REF) {
+		  if (ref_actual_is_nameable_(argv[idx]))
+			continue;
+	    } else if (direction != IVL_SIP_OUTPUT
+		       && direction != IVL_SIP_INOUT) {
+		  continue;
+	    }
+	    draw_copy_out_function_argument(port, argv[idx]);
+      }
+
+      return errors;
+}
+
 static void draw_copy_out_function_arguments(ivl_expr_t expr)
 {
       ivl_scope_t def = ivl_expr_def(expr);
@@ -1571,7 +1631,7 @@ void draw_ufunc_uarray(ivl_expr_t expr, ivl_signal_t dst_sig,
  * has been copied, so the ordinary object-return path cannot be used.
  */
 void draw_ufunc_uarray_object(ivl_expr_t expr, int as_queue,
-			      unsigned queue_max_size)
+			      uint64_t queue_max_size)
 {
       ivl_scope_t def = ivl_expr_def(expr);
       ivl_signal_t retval = ivl_scope_port(def, 0);
@@ -1655,7 +1715,17 @@ void draw_ufunc_uarray_object(ivl_expr_t expr, int as_queue,
 	    kind |= VVP_ARRDAR_QUEUE;
 
       note_array_signal_use(retval);
-      fprintf(vvp_out, "    %%load/arr/dar v%p, %u, %u;\n",
-	      retval, kind, as_queue ? queue_max_size : (unsigned)left);
+      if (as_queue) {
+	    const unsigned marshal_max = queue_max_size > UINT32_MAX
+		  ? 0 : (unsigned)queue_max_size;
+	    fprintf(vvp_out, "    %%load/arr/dar v%p, %u, %u;\n",
+		    retval, kind, marshal_max);
+	    fprintf(vvp_out, "    %%container/layout/q %" PRIu64
+		    "; exact fixed-array return queue layout\n",
+		    queue_max_size);
+      } else {
+	    fprintf(vvp_out, "    %%load/arr/dar v%p, %u, %u;\n",
+		    retval, kind, (unsigned)left);
+      }
       draw_ufunc_epilogue(expr);
 }

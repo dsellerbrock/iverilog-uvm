@@ -55,14 +55,15 @@ class vvp_darray_element_ref : public vvp_object {
                              kind_t kind, unsigned vec4_width);
       ~vvp_darray_element_ref() override;
 
-      void set_value(const vvp_vector4_t&value);
+      void set_value(const vvp_vector4_t&value, bool notify = true);
       void get_value(vvp_vector4_t&value);
-      void set_value(double value);
+      void set_value(double value, bool notify = true);
       void get_value(double&value);
-      void set_value(const std::string&value);
+      void set_value(const std::string&value, bool notify = true);
       void get_value(std::string&value);
-      void set_value(const vvp_object_t&value);
+      void set_value(const vvp_object_t&value, bool notify = true);
       void get_value(vvp_object_t&value);
+      vvp_object_t attached_owner() const;
 
       void shallow_copy(const vvp_object*that) override;
       vvp_object* duplicate(void) const override;
@@ -147,7 +148,7 @@ class vvp_darray : public vvp_object {
 	// random state, but deliberately does not activate the source's temporary
 	// declared-index view in the destination.
       void copy_passive_value_metadata_to(vvp_darray*that) const
-      { copy_value_metadata_(that); }
+	{ copy_passive_value_metadata_(that); }
       void reset_passive_value_metadata()
       {
 	    dpi_left_ = 0;
@@ -230,7 +231,7 @@ class vvp_darray : public vvp_object {
 	// flag is deliberately not copied — it is scoped to an
 	// open-array formal installation (%store/obj/open) and a plain
 	// dynamic-array copy is 0-based (IEEE 1800-2017 7.5).
-      void copy_value_metadata_(vvp_darray*that) const
+      void copy_passive_value_metadata_(vvp_darray*that) const
       {
 	    that->dpi_left_ = dpi_left_;
 	    that->dpi_right_ = dpi_right_;
@@ -238,6 +239,16 @@ class vvp_darray : public vvp_object {
 	    that->elem_class_ = elem_class_;
 	    that->inherit_rand_modes(*this);
 	    that->inherit_randc_histories(*this);
+      }
+
+	// A duplicate is the same declared container value in new storage, so it
+	// shares the immutable declaration layout as well as passive metadata.
+	// Assignment into named/property storage subsequently rebinds the copy to
+	// the destination's immutable layout.
+      void copy_value_metadata_(vvp_darray*that) const
+      {
+	    copy_passive_value_metadata_(that);
+	    copy_declared_queue_layout_metadata_to(that);
       }
 
     private:
@@ -376,6 +387,10 @@ class vvp_darray_object : public vvp_darray {
       void shallow_copy(const vvp_object*obj) override;
       vvp_object* duplicate(void) const override;
 
+    protected:
+      void rebind_declared_element_container_layout(
+	    const vvp_container_layout_t&element_layout) override;
+
     private:
       std::vector<vvp_object_t> array_;
 };
@@ -388,32 +403,36 @@ class vvp_queue : public vvp_darray {
 
       virtual size_t get_size(void) const override =0;
       void clear(void) override { erase_tail(0); }
-      virtual void copy_elems(vvp_object_t src, unsigned max_size);
+      virtual void copy_elems(vvp_object_t src, uint64_t max_size);
 
-      virtual void set_word_max(unsigned adr, const vvp_vector4_t&value, unsigned max_size);
-      virtual void insert(unsigned idx, const vvp_vector4_t&value, unsigned max_size);
-      virtual void push_back(const vvp_vector4_t&value, unsigned max_size);
-      virtual void push_front(const vvp_vector4_t&value, unsigned max_size);
+      virtual void set_word_max(unsigned adr, const vvp_vector4_t&value, uint64_t max_size);
+      virtual void insert(unsigned idx, const vvp_vector4_t&value, uint64_t max_size);
+      virtual void push_back(const vvp_vector4_t&value, uint64_t max_size);
+      virtual void push_front(const vvp_vector4_t&value, uint64_t max_size);
 
-      virtual void set_word_max(unsigned adr, double value, unsigned max_size);
-      virtual void insert(unsigned idx, double value, unsigned max_size);
-      virtual void push_back(double value, unsigned max_size);
-      virtual void push_front(double value, unsigned max_size);
+      virtual void set_word_max(unsigned adr, double value, uint64_t max_size);
+      virtual void insert(unsigned idx, double value, uint64_t max_size);
+      virtual void push_back(double value, uint64_t max_size);
+      virtual void push_front(double value, uint64_t max_size);
 
-      virtual void set_word_max(unsigned adr, const std::string&value, unsigned max_size);
-      virtual void insert(unsigned idx, const std::string&value, unsigned max_size);
-      virtual void push_back(const std::string&value, unsigned max_size);
-      virtual void push_front(const std::string&value, unsigned max_size);
+      virtual void set_word_max(unsigned adr, const std::string&value, uint64_t max_size);
+      virtual void insert(unsigned idx, const std::string&value, uint64_t max_size);
+      virtual void push_back(const std::string&value, uint64_t max_size);
+      virtual void push_front(const std::string&value, uint64_t max_size);
 
-      virtual void set_word_max(unsigned adr, const vvp_object_t&value, unsigned max_size);
-      virtual void insert(unsigned idx, const vvp_object_t&value, unsigned max_size);
-      virtual void push_back(const vvp_object_t&value, unsigned max_size);
-      virtual void push_front(const vvp_object_t&value, unsigned max_size);
+      virtual void set_word_max(unsigned adr, const vvp_object_t&value, uint64_t max_size);
+      virtual void insert(unsigned idx, const vvp_object_t&value, uint64_t max_size);
+      virtual void push_back(const vvp_object_t&value, uint64_t max_size);
+      virtual void push_front(const vvp_object_t&value, uint64_t max_size);
 
       virtual void pop_back(void) =0;
       virtual void pop_front(void)=0;
       virtual void erase(unsigned idx)=0;
       virtual void erase_tail(unsigned idx)=0;
+
+    protected:
+      void apply_declared_container_layout_own(
+	    const vvp_container_layout_t&layout) override;
 };
 
 class vvp_queue_real : public vvp_queue {
@@ -422,13 +441,13 @@ class vvp_queue_real : public vvp_queue {
       ~vvp_queue_real() override;
       size_t get_size(void) const override { return queue.size(); };
       vvp_object* duplicate(void) const override;
-      void copy_elems(vvp_object_t src, unsigned max_size) override;
-      void set_word_max(unsigned adr, double value, unsigned max_size) override;
+      void copy_elems(vvp_object_t src, uint64_t max_size) override;
+      void set_word_max(unsigned adr, double value, uint64_t max_size) override;
       void set_word(unsigned adr, double value) override;
       void get_word(unsigned adr, double&value) override;
-      void insert(unsigned idx, double value, unsigned max_size) override;
-      void push_back(double value, unsigned max_size) override;
-      void push_front(double value, unsigned max_size) override;
+      void insert(unsigned idx, double value, uint64_t max_size) override;
+      void push_back(double value, uint64_t max_size) override;
+      void push_front(double value, uint64_t max_size) override;
       void pop_back(void) override
       { element_refs_pop_back(); rand_mode_pop_back(); queue.pop_back(); touch(); };
       void pop_front(void) override
@@ -446,13 +465,13 @@ class vvp_queue_string : public vvp_queue {
       ~vvp_queue_string() override;
       size_t get_size(void) const override { return queue.size(); };
       vvp_object* duplicate(void) const override;
-      void copy_elems(vvp_object_t src, unsigned max_size) override;
-      void set_word_max(unsigned adr, const std::string&value, unsigned max_size) override;
+      void copy_elems(vvp_object_t src, uint64_t max_size) override;
+      void set_word_max(unsigned adr, const std::string&value, uint64_t max_size) override;
       void set_word(unsigned adr, const std::string&value) override;
       void get_word(unsigned adr, std::string&value) override;
-      void insert(unsigned idx, const std::string&value, unsigned max_size) override;
-      void push_back(const std::string&value, unsigned max_size) override;
-      void push_front(const std::string&value, unsigned max_size) override;
+      void insert(unsigned idx, const std::string&value, uint64_t max_size) override;
+      void push_back(const std::string&value, uint64_t max_size) override;
+      void push_front(const std::string&value, uint64_t max_size) override;
       void pop_back(void) override
       { element_refs_pop_back(); rand_mode_pop_back(); queue.pop_back(); touch(); };
       void pop_front(void) override
@@ -471,13 +490,13 @@ class vvp_queue_vec4 : public vvp_queue {
       ~vvp_queue_vec4() override;
       size_t get_size(void) const override { return queue.size(); };
       vvp_object* duplicate(void) const override;
-      void copy_elems(vvp_object_t src, unsigned max_size) override;
-      void set_word_max(unsigned adr, const vvp_vector4_t&value, unsigned max_size) override;
+      void copy_elems(vvp_object_t src, uint64_t max_size) override;
+      void set_word_max(unsigned adr, const vvp_vector4_t&value, uint64_t max_size) override;
       void set_word(unsigned adr, const vvp_vector4_t&value) override;
       void get_word(unsigned adr, vvp_vector4_t&value) override;
-      void insert(unsigned idx, const vvp_vector4_t&value, unsigned max_size) override;
-      void push_back(const vvp_vector4_t&value, unsigned max_size) override;
-      void push_front(const vvp_vector4_t&value, unsigned max_size) override;
+      void insert(unsigned idx, const vvp_vector4_t&value, uint64_t max_size) override;
+      void push_back(const vvp_vector4_t&value, uint64_t max_size) override;
+      void push_front(const vvp_vector4_t&value, uint64_t max_size) override;
       void pop_back(void) override
       { element_refs_pop_back(); rand_mode_pop_back(); queue.pop_back(); touch(); };
       void pop_front(void) override
@@ -496,8 +515,8 @@ class vvp_queue_object : public vvp_queue {
       ~vvp_queue_object() override;
       size_t get_size(void) const override { return queue.size(); };
       vvp_object* duplicate(void) const override;
-      void copy_elems(vvp_object_t src, unsigned max_size) override;
-      void set_word_max(unsigned adr, const vvp_object_t&value, unsigned max_size) override;
+      void copy_elems(vvp_object_t src, uint64_t max_size) override;
+      void set_word_max(unsigned adr, const vvp_object_t&value, uint64_t max_size) override;
       void set_word(unsigned adr, const vvp_object_t&value) override;
       void get_word(unsigned adr, vvp_object_t&value) override;
       // I7: silent override for the vec4 variant.  The base vvp_darray
@@ -506,15 +525,19 @@ class vvp_queue_object : public vvp_queue {
       // type-mismatch (caller should use the vvp_object_t variant) is a
       // separate code-gen gap; meanwhile, return an empty vec4 quietly.
       void get_word(unsigned, vvp_vector4_t&out) override { out = vvp_vector4_t(); }
-      void insert(unsigned idx, const vvp_object_t&value, unsigned max_size) override;
-      void push_back(const vvp_object_t&value, unsigned max_size) override;
-      void push_front(const vvp_object_t&value, unsigned max_size) override;
+      void insert(unsigned idx, const vvp_object_t&value, uint64_t max_size) override;
+      void push_back(const vvp_object_t&value, uint64_t max_size) override;
+      void push_front(const vvp_object_t&value, uint64_t max_size) override;
       void pop_back(void) override
       { element_refs_pop_back(); rand_mode_pop_back(); queue.pop_back(); touch(); };
       void pop_front(void) override
       { element_refs_pop_front(); rand_mode_pop_front(); queue.pop_front(); touch(); };
       void erase(unsigned idx) override;
       void erase_tail(unsigned idx) override;
+
+    protected:
+      void rebind_declared_element_container_layout(
+	    const vvp_container_layout_t&element_layout) override;
 
     private:
       std::deque<vvp_object_t> queue;

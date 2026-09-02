@@ -220,6 +220,22 @@ superclass chain nearest-first. This matters independently of dispatch—the
 legal OpenTitan UART actual now evaluates to 160 instead of reaching target
 recovery as a null expression—and it is pinned as a paired 2017/2023 reducer.
 
+The 2026-09-02 specialization audit extends that rule from an unparameterized
+call carrier to the evidenced parameterized-interface and modport subset.
+Evaluated interface parameters, selected modport, and physical-instance scope
+remain distinct pieces of identity. Interface-local enum, unpacked-record, and
+class function results map back to their corresponding parsed declarations
+without allowing an unrelated specialization, while scalar VIF-task
+`output`, `inout`, and `ref` rows follow the same runtime-selected physical
+candidate. Modport full prototypes use the strict 6.22.1 matching relation;
+typed-mailbox arguments use the separate 6.22.2 equivalence relation required
+by 15.4.9. Retrieval calls now have a semantic l-value carrier through netlist
+and target APIs rather than reconstructing a destination from an r-value.
+Focused VIF evidence is 8/8 in each harness with exact-main red proofs of 0/8
+in both harnesses, and parser recovery is exact-gold pinned. The mailbox
+reducer gate and broad/application replays remain pending, so this paragraph
+is not a complete type-system, clause-15, or clause-25 claim.
+
 Do not attempt an all-at-once rewrite.
 
 ### Scheduler remediation
@@ -314,6 +330,19 @@ dynamic, associative, or packed arrays, and the bound must be integral.
 Assignment to a left-`$` queue slice remains a focused loud boundary until the
 l-value ABI can carry both dynamic endpoints; an indexed `+:`/`-:` selector
 whose base is `$` is likewise not claimed.
+
+The 2026-09-02 recursive-container audit replaces outer-kind-only metadata
+with a Q/D/A layout tree that survives construction, value copying, assignment,
+fixed-slot selection, method mutation, and nested insertion. Queue bounds and
+child layouts are declaration properties; root provenance follows the actual
+copied value so a later mutation cannot write an obsolete pre-copy object back
+to its signal or property. Fixed unpacked-array words may contain queues,
+dynamic arrays, associative arrays, and the recorded D/Q and A/Q compositions
+without being scalarized. The isolated existing-regression cluster passes
+13/13 and the paired fixed-container reducer passes 2/2. New textual metadata
+is strict and validated while legacy images retain their compatibility path.
+Arbitrary recursive aggregates, full VPI/DPI exposure, broad bit-stream casts,
+and the full compiler/UVM/application replay remain open.
 
 ### Runtime class identity
 
@@ -581,6 +610,16 @@ Future failures belong to the underlying language/runtime subsystem unless the U
       array-capable real/string cobject property storage + indexed opcodes
       `%store/prop/{r,str}/i` / `%prop/{r,str}/i`. Test
       `sv_class_prop_real_string_array`. Issue #100.)*
+- [~] Preserve recursive Q/D/A layout and mutation provenance through the
+      runtime carrier. *(2026-09-02 focused checkpoint: container kind,
+      nested child layout, full queue-bound state, value-copy independence,
+      and root notification survive the recorded construction, assignment,
+      ordering/randomization method, and nested-element paths. Fixed
+      unpacked-array words may hold Q/D/A values plus the tested D/Q and A/Q
+      compositions. The isolated regression cluster passes 13/13 and the
+      paired fixed-container reducer passes 2/2. Broad compiler/UVM and
+      application replay is pending; arbitrary recursive aggregates, complete
+      VPI/DPI exposure, and general bit-stream casts remain open.)*
 - [ ] Continue adversarial nested-container testing.
 - [ ] Reaudit nested property read/write/method shapes after future typing changes.
 
@@ -619,6 +658,19 @@ Future failures belong to the underlying language/runtime subsystem unless the U
 - [x] Verify per-specialization interface typing. *(2026-07-21: verified —
       two specializations of a parameterized interface keep distinct
       widths/parameter values, both data and methods.)*
+- [~] Carry specialization and modport identity through dynamic VIF calls.
+      *(2026-09-02 focused checkpoint: evaluated interface parameters and the
+      selected modport survive physical-port binding and candidate dispatch;
+      interface-local enum/unpacked-record/class results correspond only to
+      the compatible parsed declaration, and scalar task output/inout/ref
+      writeback follows the bound physical instance. Full modport prototypes
+      are checked with 6.22.1 matching rather than 6.22.2 equivalence.
+      Malformed prototypes recover within an item and across a source-file
+      boundary. New VIF rows pass 8/8 in each harness with exact-main red
+      proofs of 0/8 in both harnesses; the interface-array cluster passes 4/4.
+      Output/inout/ref VIF-function formals, arbitrary fixed-unpacked
+      formals/returns, exhaustive specialization interactions, synthesis, and
+      the broad/application replay remain open.)*
 - [~] Stress parameterized virtual-interface arrays. *(2026-07-21:
       constant-index vif-array binding (`vp[2] = pins[2]`) and
       element-indexed method dispatch work; binding with a RUNTIME index
@@ -906,6 +958,12 @@ static census remains Icarus 53/105 in each assertions/no-assertions/synthesis
 lane versus Slang 54/105, with 52 PASS, 1 DEBT, 51
 SHARED_SOURCE_OR_CONFIG, and 1 SOURCE_ORDER_DEBT. It has zero recorded deltas
 and is an RTL/SVA/synthesis manifest census, not complete Caliptra DV/UVM.
+
+The 2026-09-02 parameterized-VIF/recursive-container/typed-mailbox increment
+has not replayed these broad or application gates. Its focused evidence must
+not be used to advance the application totals: OpenTitan remains 192 PASS of
+530 classified rows, and the Caliptra static differential remains Icarus
+53/105 versus Slang 54/105 until fresh unmodified replays prove otherwise.
 
 ## M12A — Core SystemVerilog VPI object model
 

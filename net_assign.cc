@@ -83,6 +83,40 @@ NetAssign_::~NetAssign_()
       delete stream_range_second_;
 }
 
+NetAssign_* NetAssign_::dup_lval() const
+{
+      NetAssign_*copy = nest_ ? new NetAssign_(nest_->dup_lval())
+                              : new NetAssign_(sig_);
+
+      if (!member_.nil())
+	    copy->set_property(member_, member_idx_);
+
+      if (word_) {
+	    if (slice_type_)
+		  copy->set_array_slice(word_->dup_expr(), slice_type_);
+	    else
+		  copy->set_word(word_->dup_expr());
+      }
+
+      if (base_) {
+	    if (part_data_type_)
+		  copy->set_part(base_->dup_expr(), part_data_type_);
+	    else
+		  copy->set_part(base_->dup_expr(), lwid_, sel_type_);
+      }
+
+      if (stream_range_ != IVL_STREAM_RANGE_NONE)
+	    copy->set_stream_range(stream_range_,
+		  stream_range_first_->dup_expr(),
+		  stream_range_second_ ? stream_range_second_->dup_expr() : 0);
+
+      copy->signed_ = signed_;
+      copy->force_lval_ = force_lval_;
+      if (more)
+	    copy->more = more->dup_lval();
+      return copy;
+}
+
 void NetAssign_::set_stream_range(ivl_stream_range_t kind, NetExpr*first,
                                   NetExpr*second)
 {

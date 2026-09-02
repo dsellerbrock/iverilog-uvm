@@ -301,8 +301,20 @@ extern PExpr* pform_package_ident(const struct vlltype&loc,
  */
 extern void pform_start_modport_item(const struct vlltype&loc, const char*name);
 extern void pform_end_modport_item(const struct vlltype&loc);
-extern void pform_add_modport_tf_port(const struct vlltype&loc,
+extern void pform_abort_modport_item(void);
+extern bool pform_modport_item_pending(void);
+extern bool pform_add_modport_tf_port(const struct vlltype&loc,
                                       bool is_import, perm_string name);
+extern void pform_start_modport_tf_prototype(const struct vlltype&loc);
+extern void pform_finish_modport_tf_prototype(
+                                      const struct vlltype&loc,
+                                      perm_string name,
+                                      bool is_function,
+                                      data_type_t*return_type,
+                                      std::vector<pform_tf_port_t>*ports);
+extern void pform_commit_modport_tf_prototype(const struct vlltype&loc,
+                                              bool is_import);
+extern void pform_discard_modport_tf_prototype(void);
 extern void pform_add_modport_clocking_port(const struct vlltype&loc,
                                             perm_string name);
 extern void pform_add_modport_port(const struct vlltype&loc,

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_vif_parameter_specialization_queue_bound_layout.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_vif_parameter_specialization_queue_bound_layout" ],
+    "gold"          : "sv_vif_parameter_specialization_queue_bound_layout"
+}

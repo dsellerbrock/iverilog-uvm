@@ -85,6 +85,7 @@ ivl_expr_parms
 ivl_expr_union_active_member
 ivl_expr_property_idx
 ivl_expr_repeat
+ivl_expr_ref_lval
 ivl_expr_scope
 ivl_expr_sel_type
 ivl_expr_signal
@@ -353,12 +354,15 @@ ivl_stmt_nevent
 ivl_stmt_opcode
 ivl_stmt_parm
 ivl_stmt_parm_count
+ivl_stmt_ref_lval
 ivl_stmt_rval
 ivl_stmt_sfunc_as_task
 ivl_stmt_step_stmt
 ivl_stmt_sub_stmt
 ivl_stmt_is_super_call
 ivl_stmt_is_immediate_assertion
+ivl_stmt_vif_method
+ivl_stmt_vif_methods
 
 ivl_switch_a
 ivl_switch_b
@@ -398,6 +402,7 @@ ivl_type_signed
 ivl_type_super
 ivl_type_interface_count
 ivl_type_interface
+ivl_type_is_interface
 ivl_type_method_prefix
 ivl_type_queue_assoc_compat
 ivl_type_queue_max_size

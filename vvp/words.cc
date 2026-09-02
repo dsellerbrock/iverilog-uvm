@@ -29,6 +29,9 @@
 # include  <cstdio>
 # include  <cstdlib>
 # include  <cstring>
+# include  <cctype>
+# include  <cerrno>
+# include  <limits>
 # include  <iostream>
 # include  <cassert>
 
@@ -50,21 +53,33 @@ static vvp_fun_signal_object::init_obj_kind_t queue_init_kind_from_text_(const c
       if (!type || !*type)
             return init_t::INIT_OBJ_NONE;
 
-      if (strcmp(type, "Qr") == 0)
+      if (strncmp(type, "Qr", 2) == 0
+	  && (type[2] == '\0' || type[2] == '@' || type[2] == '#'
+	      || type[2] == '!'))
             return init_t::INIT_OBJ_QUEUE_REAL;
-      if (strcmp(type, "QS") == 0)
+      if (strncmp(type, "QS", 2) == 0
+	  && (type[2] == '\0' || type[2] == '@' || type[2] == '#'
+	      || type[2] == '!'))
             return init_t::INIT_OBJ_QUEUE_STRING;
-      if (strcmp(type, "Qv") == 0)
+      if (strncmp(type, "Qv", 2) == 0
+	  && (type[2] == '\0' || type[2] == '@' || type[2] == '#'
+	      || type[2] == '!'))
             return init_t::INIT_OBJ_QUEUE_VEC4;
-      if (strcmp(type, "Qo") == 0)
+      if (strncmp(type, "Qo", 2) == 0
+	  && (type[2] == '\0' || type[2] == '@' || type[2] == '#'
+	      || type[2] == '!'))
             return init_t::INIT_OBJ_QUEUE_OBJECT;
-      if (strcmp(type, "Mr") == 0)
+      if (strncmp(type, "Mr", 2) == 0
+	  && (type[2] == '\0' || type[2] == '#' || type[2] == '!'))
             return init_t::INIT_OBJ_ASSOC_REAL;
-      if (strcmp(type, "MS") == 0)
+      if (strncmp(type, "MS", 2) == 0
+	  && (type[2] == '\0' || type[2] == '#' || type[2] == '!'))
             return init_t::INIT_OBJ_ASSOC_STRING;
-      if (strcmp(type, "Mv") == 0)
+      if (strncmp(type, "Mv", 2) == 0
+	  && (type[2] == '\0' || type[2] == '#' || type[2] == '!'))
             return init_t::INIT_OBJ_ASSOC_VEC4;
-      if (strcmp(type, "Mo") == 0)
+      if (strncmp(type, "Mo", 2) == 0
+	  && (type[2] == '\0' || type[2] == '#' || type[2] == '!'))
             return init_t::INIT_OBJ_ASSOC_OBJECT;
 
       return init_t::INIT_OBJ_NONE;
@@ -136,7 +151,7 @@ void compile_var_string(char*label, char*name, int lifetime_flag)
 
 void compile_var_darray(char*label, char*name, unsigned size,
 			int lifetime_flag, bool element_signed,
-			char*element_type)
+			char*element_type, char*container_type)
 {
       vvp_net_t*net = new vvp_net_t;
       bool use_auto = use_automatic_storage_(lifetime_flag);
@@ -161,6 +176,23 @@ void compile_var_darray(char*label, char*name, unsigned size,
 				     (&obj->declared_type_ref()), element_type);
       }
 
+	/* New images carry the complete Q/D/A declaration chain. Legacy D#N is
+	 * accepted as a one-child chain. */
+      if (container_type) {
+	    vvp_container_layout_t layout;
+	    size_t base_length = 0;
+	    if (!vvp_parse_container_layout_type(
+		  container_type, VVP_CONTAINER_DARRAY, layout, base_length)
+		|| base_length != 1 || container_type[0] != 'D') {
+		  yyerror("malformed container-layout suffix in .var/darray "
+			  "type encoding");
+		  compile_errors += 1;
+	    } else if (vvp_fun_signal_object*obj =
+		       dynamic_cast<vvp_fun_signal_object*>(net->fun)) {
+		  obj->default_container_layout(layout);
+	    }
+      }
+
       define_functor_symbol(label, net);
 
       vpiHandle obj = vpip_make_darray_var(name, net, use_auto,
@@ -170,6 +202,7 @@ void compile_var_darray(char*label, char*name, unsigned size,
       vpip_attach_to_current_scope(obj);
       free(label);
       delete[] name;
+      free(container_type);
 }
 
 void compile_var_queue(char*label, char*name, unsigned size,
@@ -190,7 +223,32 @@ void compile_var_queue(char*label, char*name, unsigned size,
 
       if (vvp_fun_signal_object*obj =
               dynamic_cast<vvp_fun_signal_object*>(net->fun)) {
-            obj->default_object_kind(queue_init_kind_from_text_(type));
+	      /* Historical images used the three-operand .var/queue form and
+	       * supplied no runtime element-kind or declaration-layout record.
+	       * Preserve that deliberately unknown state: legacy opcodes provide
+	       * their static fallback when they later materialize or mutate it. */
+	    if (type) {
+		  const vvp_fun_signal_object::init_obj_kind_t init_kind =
+			queue_init_kind_from_text_(type);
+		  const bool is_queue = type[0] == 'Q';
+		  const bool is_assoc = type[0] == 'M';
+		  vvp_container_layout_t layout;
+		  size_t base_length = 0;
+		  if (init_kind == vvp_fun_signal_object::INIT_OBJ_NONE
+		      || (!is_queue && !is_assoc)
+		      || !vvp_parse_container_layout_type(
+			    type, is_queue ? VVP_CONTAINER_QUEUE
+					   : VVP_CONTAINER_ASSOC,
+			    layout, base_length)
+		      || base_length != 2) {
+			yyerror("malformed container-layout suffix in .var/queue "
+				"type encoding");
+			compile_errors += 1;
+		  } else {
+			obj->default_object_kind(init_kind);
+			obj->default_container_layout(layout);
+		  }
+	    }
 	      // An object-backed unpacked-struct element type: record the
 	      // element class definition so an absent element can be lazily
 	      // default-constructed and inserted on the first member write
@@ -198,7 +256,7 @@ void compile_var_queue(char*label, char*name, unsigned size,
 	      // type and their elements correctly default to null.
 	    if (element_type)
 		  compile_vpi_lookup(reinterpret_cast<vpiHandle*>
-				     (&obj->declared_type_ref()), element_type);
+			     (&obj->declared_type_ref()), element_type);
       }
 
       define_functor_symbol(label, net);

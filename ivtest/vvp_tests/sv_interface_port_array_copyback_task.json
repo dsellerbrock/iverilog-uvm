@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_interface_port_array_copyback_task.v",
+    "iverilog-args" : [ "-g2012", "-s", "sv_interface_port_array_copyback_task" ],
+    "gold"          : "sv_interface_port_array_copyback_task"
+}

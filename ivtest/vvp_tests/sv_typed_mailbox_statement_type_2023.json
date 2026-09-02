@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_typed_mailbox_statement_type_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_typed_mailbox_statement_type" ],
+    "gold"          : "sv_typed_mailbox_statement_type"
+}

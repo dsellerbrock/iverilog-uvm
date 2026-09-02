@@ -26,6 +26,7 @@
 # include  "LineInfo.h"
 # include  <vector>
 # include  <map>
+# include  <string>
 
 class NetScope;
 
@@ -43,6 +44,17 @@ class netenum_t : public LineInfo, public ivl_type_s {
       bool get_signed() const override;
       bool get_isint() const;
       ivl_type_t base_type_obj() const;
+
+	/* Preserve the parsed declaration and its parameterized lexical owner.
+	 * A rootless interface/class signature may elaborate the same declaration
+	 * more than once, so the netenum_t allocation address is not a stable
+	 * nominal-type key. */
+      void set_nominal_identity(const void*definition,
+				const std::string&owner)
+      { definition_ = definition; owner_identity_ = owner; }
+      const void* nominal_definition() const { return definition_; }
+      const std::string& nominal_owner_identity() const
+      { return owner_identity_; }
 
 	// The size() is the number of enumeration literals.
       size_t size() const;
@@ -76,6 +88,9 @@ class netenum_t : public LineInfo, public ivl_type_s {
       ivl_type_t base_type_;
       bool integer_flag_;
       bool names_closed_;
+
+      const void*definition_ = nullptr;
+      std::string owner_identity_;
 
       std::map<perm_string,verinum> names_map_;
       std::vector<perm_string> names_;

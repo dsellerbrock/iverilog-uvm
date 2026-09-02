@@ -39,6 +39,7 @@
 # include  "netvector.h"
 # include  "netmisc.h"
 # include  <algorithm>
+# include  <functional>
 # include  <set>
 # include  <sstream>
 # include  <typeinfo>
@@ -253,10 +254,187 @@ netclass_t* make_builtin_mailbox_type_()
       return builtin_mailbox_type;
 }
 
-static map<Module*, netclass_t*> interface_type_cache_;
-static map<NetScope*, netclass_t*> interface_instance_type_cache_;
-static map<pair<Design*,Module*>, NetScope*>
-      interface_declaration_scope_cache_;
+struct typed_mailbox_key_t {
+      Design*design;
+      string message_type;
+
+      bool operator < (const typed_mailbox_key_t&that) const
+      {
+	    if (design != that.design)
+		  return std::less<Design*>()(design, that.design);
+	    return message_type < that.message_type;
+      }
+};
+
+static map<typed_mailbox_key_t,netclass_t*> typed_mailbox_cache_;
+
+static ivl_type_t elaborate_mailbox_message_type_(
+		Design*des, NetScope*scope, const PExpr*actual)
+{
+      if (!des || !scope || !actual)
+	    return nullptr;
+
+      if (const PETypename*type_actual =
+		dynamic_cast<const PETypename*>(actual)) {
+	    ivl_type_t type = resolve_class_type_reference(
+		  des, scope, type_actual->get_type());
+	    if (!type)
+		  type = const_cast<data_type_t*>(
+			type_actual->get_type())->elaborate_type(des, scope);
+	    return type;
+      }
+
+	/* A forwarded class type parameter can retain its bare identifier
+	 * expression instead of PETypename. Resolve only the unqualified type
+	 * namespaces here; an ordinary value expression is not a legal mailbox
+	 * message-type actual. */
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(actual);
+      if (!ident)
+	    return nullptr;
+      const pform_scoped_name_t&path = ident->path();
+      if (path.package || path.name.size() != 1
+	  || !path.name.front().index.empty())
+	    return nullptr;
+
+      perm_string name = path.name.front().name;
+      ivl_type_t parameter_type = nullptr;
+      scope->get_parameter(des, name, parameter_type);
+      if (parameter_type)
+	    return parameter_type;
+      if (typedef_t*td = scope->find_typedef(des, name))
+	    return td->elaborate_type(des, scope);
+      return nullptr;
+}
+
+static const netclass_t* elaborate_builtin_mailbox_specialization_(
+		Design*des, NetScope*scope, const parmvalue_t*actuals,
+		const LineInfo*location)
+{
+      netclass_t*untyped = make_builtin_mailbox_type_();
+      if (!actuals)
+	    return untyped;
+
+      const bool has_named = actuals->by_name && !actuals->by_name->empty();
+      const size_t ordered_count = actuals->by_order
+	    ? actuals->by_order->size() : 0;
+      if (!has_named && ordered_count == 0)
+	    return untyped;
+
+      const PExpr*actual = nullptr;
+      if (!has_named && ordered_count == 1)
+	    actual = actuals->by_order->front();
+	/* Preserve explicit mailbox#() as the untyped mailbox. Some parser paths
+	 * retain the empty slot as a null list element. */
+      if (!has_named && ordered_count == 1 && !actual)
+	    return untyped;
+      if (has_named || ordered_count != 1 || !actual) {
+	    cerr << (location ? location->get_fileline() : string("<unknown>"))
+		 << ": error: mailbox#(...) accepts "
+		 << "either no type actual or exactly one message type."
+		 << endl;
+	    des->errors += 1;
+	    return untyped;
+      }
+
+      ivl_type_t message_type = elaborate_mailbox_message_type_(
+	    des, scope, actual);
+      if (!message_type) {
+	    cerr << (location ? location->get_fileline() : string("<unknown>"))
+		 << ": error: mailbox#(...) message "
+		 << "parameter must be a data type." << endl;
+	    des->errors += 1;
+	    return untyped;
+      }
+
+      string matching_key;
+      if (!evaluated_type_signature(des, message_type, matching_key))
+	    return untyped;
+      typed_mailbox_key_t key = { des, matching_key };
+      map<typed_mailbox_key_t,netclass_t*>::const_iterator found =
+	    typed_mailbox_cache_.find(key);
+      if (found != typed_mailbox_cache_.end())
+	    return found->second;
+
+      netclass_t*typed = new netclass_t(
+	    perm_string::literal("mailbox"), nullptr);
+      typed->set_mailbox_message_type(message_type, matching_key);
+	/* Built-in dispatch is name/metadata based and owns no PClass scope. Mark
+	 * this complete so generic late-visibility repair cannot replace the
+	 * specialized carrier with the untyped singleton. */
+      typed->set_scope_ready(true);
+      typed->set_specialized_instance(true);
+      typed_mailbox_cache_[key] = typed;
+      return typed;
+}
+
+struct interface_layout_key_t {
+      Design*design;
+      Module*definition;
+      string layout_parameters;
+
+      bool operator < (const interface_layout_key_t&that) const
+      {
+	    if (design != that.design)
+		  return std::less<Design*>()(design, that.design);
+	    if (definition != that.definition)
+		  return std::less<Module*>()(definition, that.definition);
+	    return layout_parameters < that.layout_parameters;
+      }
+};
+
+struct interface_layout_record_t {
+      Design*design;
+      Module*definition;
+      string parameters;
+      string layout_parameters;
+      NetScope*declaration_scope;
+      // perm_string's ordering requires a non-null interned string. The
+      // unqualified interface view is represented by a nil perm_string, so
+      // use an ordinary string key and reserve the impossible empty
+      // SystemVerilog identifier for that view.
+      map<string,netclass_t*>views;
+      bool complete;
+};
+
+struct interface_instance_view_key_t {
+      Design*design;
+      NetScope*instance_scope;
+      // Empty means the unqualified view. Keep nullable perm_string values
+      // out of ordered containers because their comparator dereferences the
+      // interned spelling.
+      string modport;
+
+      bool operator < (const interface_instance_view_key_t&that) const
+      {
+	    if (design != that.design)
+		  return std::less<Design*>()(design, that.design);
+	    if (instance_scope != that.instance_scope)
+		  return std::less<NetScope*>()(instance_scope,
+					that.instance_scope);
+	    return modport < that.modport;
+      }
+};
+
+static map<interface_layout_key_t,interface_layout_record_t*>
+      interface_layout_cache_;
+static map<interface_instance_view_key_t,netclass_t*>
+      interface_instance_type_cache_;
+
+/* Published layout types and their rootless declaration scopes remain part of
+ * the elaborated Net* type graph through target emission. Cache retirement
+ * therefore transfers ownership here instead of losing the final owning
+ * pointers or deleting them while target callbacks can still dereference
+ * class_scope()/definition_scope(). */
+static vector<interface_layout_record_t*> retired_interface_layouts_;
+static vector<netclass_t*> retired_interface_instance_types_;
+static vector<netclass_t*> retired_typed_mailboxes_;
+
+/* A semantic cache hit has already caused parameter data types to remember
+ * this Definitions* as an elaboration-cache key. Release its evaluated values
+ * immediately, but retain the empty scope object until the terminal
+ * elaboration boundary so allocator address reuse cannot turn that dangling
+ * key into a false cache hit. */
+static vector<NetScope*> discarded_interface_parameter_scopes_;
 
 static NetScope* interface_definition_unit_scope_(Design*des,
 						   NetScope*caller_scope,
@@ -328,18 +506,12 @@ static NetNet* elaborate_interface_declaration_signal_(
       return signal;
 }
 
-static NetScope* ensure_interface_declaration_scope_(Design*des,
-						      NetScope*caller_scope,
-						      Module*mod)
+static NetScope* make_interface_parameter_scope_(Design*des,
+						   NetScope*caller_scope,
+						   Module*mod)
 {
       if (!des || !mod || !mod->is_interface)
 	    return nullptr;
-
-      pair<Design*,Module*>key(des, mod);
-      map<pair<Design*,Module*>,NetScope*>::const_iterator found =
-	    interface_declaration_scope_cache_.find(key);
-      if (found != interface_declaration_scope_cache_.end())
-	    return found->second;
 
         // This scope represents the interface declaration, not an elaborated
         // instance. In particular it has no hierarchy parent and is never
@@ -357,16 +529,120 @@ static NetScope* ensure_interface_declaration_scope_(Design*des,
       scope->time_from_timescale(mod->has_explicit_timescale());
       des->set_precision(mod->time_precision);
 
-        // Publish the stable identity before filling it. Type elaboration can
-        // recursively ask for the same interface declaration.
-      interface_declaration_scope_cache_[key] = scope;
-
       scope->add_imports(&mod->explicit_imports);
       scope->add_typedefs(&mod->typedefs);
+      collect_module_parameter_declarations(des, scope, mod);
+      return scope;
+}
+
+static void discard_interface_parameter_scope_(NetScope*scope)
+{
+      if (!scope)
+	    return;
+      scope->release_parameters();
+      discarded_interface_parameter_scopes_.push_back(scope);
+}
+
+static bool apply_interface_parameter_actuals_(
+		Design*des, NetScope*parameter_scope, NetScope*caller_scope,
+		Module*mod, const parmvalue_t*actuals)
+{
+      if (!des || !parameter_scope || !mod || !actuals)
+	    return true;
+
+      const unsigned errors_before = des->errors;
+      if (actuals->by_order) {
+	    list<perm_string>::const_iterator formal = mod->param_names.begin();
+	    list<PExpr*>::const_iterator actual = actuals->by_order->begin();
+	    for (; actual != actuals->by_order->end()
+		   && formal != mod->param_names.end(); ++actual, ++formal) {
+		  if (*actual)
+			parameter_scope->replace_parameter(
+			      des, *formal, *actual, caller_scope, false);
+	    }
+	    if (actual != actuals->by_order->end()) {
+		  const PExpr*where = *actual;
+		  cerr << (where ? where->get_fileline() : mod->get_fileline())
+		       << ": error: Too many parameter overrides for interface `"
+		       << mod->mod_name() << "' (got "
+		       << actuals->by_order->size() << ", expecting at most "
+		       << mod->param_names.size() << ")." << endl;
+		  des->errors += 1;
+	    }
+	}
+
+      if (actuals->by_name) {
+	    set<perm_string>seen;
+	    for (list<named_pexpr_t>::const_iterator actual =
+		       actuals->by_name->begin();
+		 actual != actuals->by_name->end(); ++actual) {
+		  if (!seen.insert(actual->name).second) {
+			cerr << (actual->parm ? actual->parm->get_fileline()
+					     : mod->get_fileline())
+			     << ": error: Parameter `" << actual->name
+			     << "' is overridden more than once for interface `"
+			     << mod->mod_name() << "'." << endl;
+			des->errors += 1;
+			continue;
+		  }
+		  if (find(mod->param_names.begin(), mod->param_names.end(),
+			   actual->name) == mod->param_names.end()) {
+			cerr << actual->get_fileline()
+			     << ": error: Parameter `" << actual->name
+			     << "' is not declared in interface `"
+			     << mod->mod_name() << "'." << endl;
+			des->errors += 1;
+			continue;
+		  }
+		  if (actual->parm)
+			parameter_scope->replace_parameter(
+			      des, actual->name, actual->parm,
+			      caller_scope, false);
+	    }
+	}
+
+      return des->errors == errors_before;
+}
+
+static bool apply_interface_instance_parameters_(
+		Design*des, NetScope*parameter_scope,
+		NetScope*actual_interface_scope, Module*mod)
+{
+      if (!des || !parameter_scope || !actual_interface_scope || !mod)
+	    return false;
+
+      const unsigned errors_before = des->errors;
+      for (list<perm_string>::const_iterator formal = mod->param_names.begin();
+		 formal != mod->param_names.end(); ++formal) {
+	    map<perm_string,NetScope::param_expr_t>::const_iterator actual =
+		  actual_interface_scope->parameters.find(*formal);
+	    if (actual == actual_interface_scope->parameters.end()) {
+		  cerr << actual_interface_scope->get_fileline()
+		       << ": error: Interface instance `"
+		       << scope_path(actual_interface_scope)
+		       << "' has no effective value for parameter `" << *formal
+		       << "'." << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+	    if (actual->second.source_expr) {
+		  NetScope*source_scope = actual->second.source_scope
+			? actual->second.source_scope : actual_interface_scope;
+		  parameter_scope->replace_parameter(
+			des, *formal, actual->second.source_expr,
+			source_scope, false);
+	    }
+	}
+      return des->errors == errors_before;
+}
+
+static void finish_interface_declaration_scope_(Design*des, NetScope*scope,
+						  Module*mod)
+{
+      ivl_assert(*mod, des);
+      ivl_assert(*mod, scope);
+
       scope->add_nettypes(des, &mod->nettypes);
-      for (map<perm_string,LexicalScope::param_expr_t*>::const_iterator cur =
-		 mod->parameters.begin(); cur != mod->parameters.end(); ++cur)
-	    scope->set_parameter(cur->first, false, *cur->second, nullptr);
       elaborate_scope_declaration_enumerations(des, scope, mod->enum_sets);
 
         // A function-port default is elaborated in the declaration scope,
@@ -383,6 +659,12 @@ static NetScope* ensure_interface_declaration_scope_(Design*des,
       for (map<perm_string,PLet*>::const_iterator cur = mod->lets.begin();
 		 cur != mod->lets.end(); ++cur)
 	    scope->add_let(cur->first, cur->second);
+
+	/* Match Module::elaborate_scope's enum-then-class declaration order.
+	 * The detached scope already has evaluated interface parameters and member
+	 * placeholders, so a local class specialization can resolve outer values
+	 * such as C#(N+1) without borrowing a concrete instance's class scope. */
+      elaborate_interface_declaration_classes(des, scope, mod);
 
       for (map<perm_string,PTask*>::const_iterator cur = mod->tasks.begin();
 		 cur != mod->tasks.end(); ++cur) {
@@ -432,8 +714,6 @@ static NetScope* ensure_interface_declaration_scope_(Design*des,
 		  elaborate_interface_declaration_signal_(
 			des, scope, cur->second);
       scope->elaborate_nettypes(des);
-
-      return scope;
 }
 
 static void populate_interface_type_(Design*des, NetScope*member_scope,
@@ -576,113 +856,209 @@ static void populate_interface_type_(Design*des, NetScope*member_scope,
       }
 }
 
-static netclass_t* elaborate_interface_type_(Design*des, NetScope*scope, Module*mod)
+static netclass_t* interface_layout_view_(
+		interface_layout_record_t*layout, perm_string modport)
 {
-      map<Module*, netclass_t*>::const_iterator found = interface_type_cache_.find(mod);
-      if (found != interface_type_cache_.end())
+      if (!layout || !layout->definition || !layout->declaration_scope)
+	    return nullptr;
+
+      if (!modport.nil()
+	  && layout->definition->modports.find(modport)
+		== layout->definition->modports.end()) {
+	    cerr << layout->definition->get_fileline()
+		 << ": error: Interface `" << layout->definition->mod_name()
+		 << "' has no modport named `" << modport << "'." << endl;
+	    layout->design->errors += 1;
+	    return nullptr;
+      }
+
+	const string view_key = modport.nil() ? string() : modport.str();
+	map<string,netclass_t*>::const_iterator found =
+	    layout->views.find(view_key);
+      if (found != layout->views.end())
 	    return found->second;
 
-      netclass_t*iface_type = new netclass_t(mod->mod_name(), 0);
+      netclass_t*iface_type = new netclass_t(
+	    layout->definition->mod_name(), nullptr);
       iface_type->set_interface(true);
-      iface_type->set_definition_scope(scope);
-      interface_type_cache_[mod] = iface_type;
+        // Publish complete semantic identity before this type can enter a
+        // recursive member or class-specialization cache.
+      iface_type->set_interface_identity(
+	    layout->definition, layout->parameters,
+	    layout->layout_parameters, modport);
+      iface_type->set_definition_scope(layout->declaration_scope);
+      iface_type->set_class_scope(layout->declaration_scope);
+      layout->views[view_key] = iface_type;
 
-      // Use the interface module's own root scope (which has its parameters
-      // bound to defaults) instead of the calling scope (which may be a class
-      // scope that doesn't contain the interface's parameter names).
-      // This avoids "Unable to bind parameter" errors for parameterized
-      // interfaces used as virtual interface types in parameterized classes.
-      //
-      // Two cases where the normal root scope isn't ready:
-      //  1. The interface is also instantiated in the design (tb.sv), so it
-      //     is not in root_scopes_ — its scope is created later via PGModule.
-      //  2. The root scope exists but hasn't had its parameters collected yet
-      //     because packages elaborate before root-scope work items run.
-      // In the first case retain a minimal declaration scope; in the second,
-      // finish seeding the real scope. Either way the module's pform defaults
-      // are then available while member dimensions are resolved.
-      NetScope*iface_scope = des->find_scope(hname_t(mod->mod_name()));
-      if (!iface_scope || (iface_scope->parameters.empty() && !mod->parameters.empty())) {
-	    if (!iface_scope) {
-		  // Interface is NOT a root. Retain one declaration-only scope so
-		  // member types and lazily requested method signatures share the
-		  // same stable type-definition context.
-		  iface_scope = ensure_interface_declaration_scope_(
-			des, scope, mod);
-	    }
-	    // Pre-populate default parameters so dimension expressions resolve.
-	    for (auto& kv : mod->parameters)
-		  if (iface_scope->parameters.find(kv.first)
-		      == iface_scope->parameters.end())
-			iface_scope->set_parameter(
-			      kv.first, false, *kv.second, nullptr);
+      if (layout->complete) {
+	    populate_interface_type_(layout->design, layout->declaration_scope,
+				     layout->definition, iface_type);
+	    iface_type->set_scope_ready(true);
       }
-
-      // Named package imports declared in the interface body participate in
-      // member dimensions and types just like interface parameters do. The
-      // regular instantiated/root interface scopes receive these imports in
-      // elaborate_scope; the retained declaration scope used to construct a
-      // virtual-interface type must mirror them as well (for example,
-      // `import pkg::Width; logic [Width-1:0] data;`).
-      iface_scope->add_imports(&mod->explicit_imports);
-
-      populate_interface_type_(des, iface_scope, mod, iface_type);
-
-      // If a real interface instance scope exists somewhere in the design,
-      // attach it as the netclass_t's class_scope so virtual-interface method
-      // dispatch (`vif.task()` / `vif.func()`) can find the per-instance task
-      // and function child scopes. Without this, `method_from_name` returns
-      // null and the elaborator falls into the "scope incomplete" warn-and-noop
-      // path. module_name() asserts type_==MODULE||PACKAGE, so we must guard
-      // the call when walking arbitrary children.
-      NetScope*method_scope = des->find_scope(hname_t(mod->mod_name()));
-      if (method_scope && method_scope->type() != NetScope::MODULE)
-            method_scope = nullptr;
-      if (!method_scope) {
-            // The interface might be instantiated as a child of some other
-            // module (the typical OpenTitan tb.sv pattern). Walk every root
-            // scope and its MODULE children whose module_name matches.
-            for (NetScope*root_scope : des->find_root_scopes()) {
-                  for (auto&kv : root_scope->children()) {
-                        NetScope*child = kv.second;
-                        if (!child || child->type() != NetScope::MODULE)
-                              continue;
-                        if (child->module_name() == mod->mod_name()) {
-                              method_scope = child;
-                              break;
-                        }
-                  }
-                  if (method_scope) break;
-            }
-      }
-      if (method_scope && iface_type->class_scope() == nullptr)
-            iface_type->set_class_scope(method_scope);
-
-      // Do NOT set scope_ready=true unconditionally: when the interface has
-      // tasks that the design references but that don't actually exist in
-      // class_scope_ (typical compile-progress scenarios), the noop fallback
-      // is what keeps elaboration moving.  Setting it to true here turns
-      // those into hard errors.
-
       return iface_type;
 }
 
+static interface_layout_record_t* publish_interface_layout_(
+		Design*des, Module*mod, const string&parameter_key,
+		const string&layout_parameter_key,
+		NetScope*parameter_scope)
+{
+      interface_layout_key_t key = { des, mod, layout_parameter_key };
+      map<interface_layout_key_t,interface_layout_record_t*>::const_iterator
+	    found = interface_layout_cache_.find(key);
+      if (found != interface_layout_cache_.end()) {
+	    discard_interface_parameter_scope_(parameter_scope);
+	    return found->second;
+      }
+
+      interface_layout_record_t*layout = new interface_layout_record_t;
+      layout->design = des;
+      layout->definition = mod;
+      layout->parameters = parameter_key;
+      layout->layout_parameters = layout_parameter_key;
+      layout->declaration_scope = parameter_scope;
+      layout->complete = false;
+      interface_layout_cache_[key] = layout;
+
+	/* Nominal declarations inside two specializations of the same parsed
+	 * interface are distinct even when their visible member shapes happen to
+	 * match. Publish the semantic owner before enumerations, structs, classes,
+	 * members, or method signatures are elaborated in this detached scope. */
+      ostringstream owner;
+      owner << "interface@" << (const void*)mod
+	    << ":parameters=" << parameter_key.size() << ":";
+      owner.write(parameter_key.data(), parameter_key.size());
+      parameter_scope->type_owner_identity(owner.str());
+
+        // The unqualified view is the recursion anchor. Its identity must be
+        // visible before member and method types are elaborated.
+      interface_layout_view_(layout, perm_string());
+      finish_interface_declaration_scope_(des, parameter_scope, mod);
+
+        // A member can recursively request another modport view while the
+        // declaration scope is being completed. Populate every view exactly
+        // once, including any view inserted during this loop.
+      set<netclass_t*>populated;
+      while (populated.size() < layout->views.size()) {
+	    for (map<string,netclass_t*>::iterator cur =
+		       layout->views.begin(); cur != layout->views.end(); ++cur) {
+		  if (!populated.insert(cur->second).second)
+			continue;
+		  populate_interface_type_(des, parameter_scope, mod, cur->second);
+	    }
+      }
+      layout->complete = true;
+      for (map<string,netclass_t*>::iterator cur = layout->views.begin();
+	 cur != layout->views.end(); ++cur)
+	    cur->second->set_scope_ready(true);
+      return layout;
+}
+
+static interface_layout_record_t* elaborate_interface_layout_(
+		Design*des, NetScope*caller_scope, Module*mod,
+		const parmvalue_t*actuals, NetScope*actual_interface_scope)
+{
+      if (!des || !mod || !mod->is_interface)
+	    return nullptr;
+
+        // Concrete instances already hold their final values after ordinary
+        // override/defparam elaboration. Use that evaluated identity for the
+        // fast lookup, then reconstruct a rootless declaration scope only on
+        // a semantic cache miss.
+      string actual_parameter_key;
+      string actual_layout_parameter_key;
+      if (actual_interface_scope) {
+	    if (!evaluated_parameter_signatures(
+		  des, actual_interface_scope, mod->param_names,
+		  actual_parameter_key, actual_layout_parameter_key))
+		  return nullptr;
+	    interface_layout_key_t actual_key = {
+		  des, mod, actual_layout_parameter_key
+	    };
+	    map<interface_layout_key_t,
+		interface_layout_record_t*>::const_iterator found =
+		  interface_layout_cache_.find(actual_key);
+	    if (found != interface_layout_cache_.end())
+		  return found->second;
+      }
+
+      NetScope*parameter_scope = make_interface_parameter_scope_(
+	    des, caller_scope ? caller_scope : actual_interface_scope, mod);
+      if (!parameter_scope)
+	    return nullptr;
+
+      const unsigned errors_before = des->errors;
+      bool applied = actual_interface_scope
+	    ? apply_interface_instance_parameters_(
+		  des, parameter_scope, actual_interface_scope, mod)
+	    : apply_interface_parameter_actuals_(
+		  des, parameter_scope,
+		  caller_scope ? caller_scope : parameter_scope,
+		  mod, actuals);
+      string parameter_key;
+      string layout_parameter_key;
+	      bool evaluated = applied && evaluated_parameter_signatures(
+	    des, parameter_scope, mod->param_names, parameter_key,
+	    layout_parameter_key);
+      if (!evaluated || des->errors != errors_before) {
+	    discard_interface_parameter_scope_(parameter_scope);
+	    return nullptr;
+      }
+
+      if (actual_interface_scope
+	  && (parameter_key != actual_parameter_key
+	      || layout_parameter_key != actual_layout_parameter_key)) {
+	    cerr << actual_interface_scope->get_fileline()
+		 << ": error: Internal interface-specialization reconstruction "
+		    "mismatch for `" << scope_path(actual_interface_scope) << "'."
+		 << " Reconstructed matching/layout key lengths "
+		 << parameter_key.size() << "/" << layout_parameter_key.size()
+		 << ", effective key lengths " << actual_parameter_key.size()
+		 << "/" << actual_layout_parameter_key.size()
+		 << endl;
+	    des->errors += 1;
+	    discard_interface_parameter_scope_(parameter_scope);
+	    return nullptr;
+      }
+
+      return publish_interface_layout_(des, mod, parameter_key,
+					layout_parameter_key, parameter_scope);
+}
+
+static netclass_t* elaborate_interface_type_(
+		Design*des, NetScope*scope, Module*mod,
+		const parmvalue_t*actuals = nullptr,
+		perm_string modport = perm_string())
+{
+      interface_layout_record_t*layout = elaborate_interface_layout_(
+	    des, scope, mod, actuals, nullptr);
+      return interface_layout_view_(layout, modport);
+}
+
+}
+
+const netclass_t* elaborate_builtin_mailbox_specialization(
+		Design*des, NetScope*scope, const parmvalue_t*actuals,
+		const LineInfo*location)
+{
+      return elaborate_builtin_mailbox_specialization_(
+	    des, scope, actuals, location);
 }
 
 NetScope* ensure_interface_declaration_method_scope(
 		Design*des, NetScope*caller_scope,
-		perm_string interface_name, perm_string method_name)
+		const netclass_t*interface_type, perm_string method_name)
 {
-      if (!des || !interface_name || !method_name)
+      if (!des || !interface_type || !interface_type->is_interface()
+	  || !method_name)
 	    return nullptr;
 
-      map<perm_string,Module*>::const_iterator module_it =
-	    pform_modules.find(interface_name);
-      if (module_it == pform_modules.end()
-	  || !module_it->second || !module_it->second->is_interface)
+      Module*mod = const_cast<Module*>(interface_type->interface_definition());
+      NetScope*interface_scope =
+	    const_cast<netclass_t*>(interface_type)->definition_scope();
+      if (!mod || !interface_scope || !mod->is_interface)
 	    return nullptr;
-
-      Module*mod = module_it->second;
+      (void)caller_scope;
       PTask*task = nullptr;
       PFunction*func = nullptr;
       map<perm_string,PTask*>::const_iterator task_it =
@@ -696,11 +1072,6 @@ NetScope* ensure_interface_declaration_method_scope(
 		  func = func_it->second;
       }
       if (!task && !func)
-	    return nullptr;
-
-      NetScope*interface_scope = ensure_interface_declaration_scope_(
-	    des, caller_scope, mod);
-      if (!interface_scope)
 	    return nullptr;
 
       hname_t use_name(method_name);
@@ -734,7 +1105,8 @@ NetScope* ensure_interface_declaration_method_scope(
 }
 
 const netclass_t* elaborate_interface_instance_type(Design*des,
-					     NetScope*actual_interface_scope)
+						     NetScope*actual_interface_scope,
+						     perm_string modport)
 {
       if (!des || !actual_interface_scope
 	  || actual_interface_scope->type() != NetScope::MODULE
@@ -746,30 +1118,153 @@ const netclass_t* elaborate_interface_instance_type(Design*des,
       if (module_it == pform_modules.end() || !module_it->second->is_interface)
 	    return 0;
 
-      Module*mod = module_it->second;
-      if (mod->parameters.empty()) {
-	    netclass_t*canonical = elaborate_interface_type_(
-		  des, actual_interface_scope, mod);
-	    if (canonical && !canonical->class_scope())
-		  canonical->set_class_scope(actual_interface_scope);
-	    return canonical;
-      }
-
-      map<NetScope*,netclass_t*>::const_iterator found =
-	    interface_instance_type_cache_.find(actual_interface_scope);
+      interface_instance_view_key_t instance_key = {
+	    des, actual_interface_scope,
+	    modport.nil() ? string() : string(modport.str())
+      };
+      map<interface_instance_view_key_t,netclass_t*>::const_iterator found =
+	    interface_instance_type_cache_.find(instance_key);
       if (found != interface_instance_type_cache_.end())
 	    return found->second;
 
-      netclass_t*iface_type = new netclass_t(mod->mod_name(), 0);
+      Module*mod = module_it->second;
+      interface_layout_record_t*layout = elaborate_interface_layout_(
+	    des, actual_interface_scope, mod, nullptr, actual_interface_scope);
+      if (!layout || !interface_layout_view_(layout, modport))
+	    return nullptr;
+
+	/* The layout view is the semantic type used for 6.22.1/25.9 matching,
+	 * but a physical interface handle must retain the exact instance scope.
+	 * VVP class definitions use netclass_t identity and class_scope() to bind
+	 * their properties to a vvp_vinterface. Reusing one layout view for several
+	 * physical instances makes an interface-port object and its backing scope
+	 * acquire unrelated target class identities (notably for port arrays).
+	 *
+	 * Publish this exact carrier before populating it so recursive member types
+	 * see one stable object for this instance/view. Its semantic identity remains
+	 * the layout's parameter key, so distinct instances still compare and assign
+	 * according to their matching interface type rather than pointer identity. */
+      netclass_t*iface_type = new netclass_t(mod->mod_name(), nullptr);
       iface_type->set_interface(true);
+      iface_type->set_interface_identity(
+	    mod, layout->parameters, layout->layout_parameters, modport);
       iface_type->set_definition_scope(actual_interface_scope);
       iface_type->set_class_scope(actual_interface_scope);
-
-        // Cache before member elaboration so recursive member type graphs see
-        // one stable type for this concrete interface instance.
-      interface_instance_type_cache_[actual_interface_scope] = iface_type;
+      interface_instance_type_cache_[instance_key] = iface_type;
       populate_interface_type_(des, actual_interface_scope, mod, iface_type);
       return iface_type;
+}
+
+bool interface_instance_vif_bindable(const NetScope*actual_interface_scope)
+{
+      if (!actual_interface_scope
+	  || actual_interface_scope->type() != NetScope::MODULE
+	  || !actual_interface_scope->is_interface())
+	    return false;
+
+      vector<const NetScope*>pending(1, actual_interface_scope);
+      while (!pending.empty()) {
+	    const NetScope*target_scope = pending.back();
+	    pending.pop_back();
+
+	    for (map<perm_string,NetScope::param_expr_t>::const_iterator cur =
+		       target_scope->parameters.begin();
+		 cur != target_scope->parameters.end(); ++cur) {
+		  const set<const NetScope*>&declarations =
+			cur->second.defparam_source_scopes;
+		  for (set<const NetScope*>::const_iterator declaration =
+			     declarations.begin();
+		       declaration != declarations.end(); ++declaration) {
+			bool declared_within_interface = false;
+			for (const NetScope*owner = *declaration; owner;
+			     owner = owner->parent()) {
+			      if (owner == actual_interface_scope) {
+				    declared_within_interface = true;
+				    break;
+			      }
+			}
+			if (!declared_within_interface)
+			      return false;
+		  }
+	    }
+
+	    const map<hname_t,NetScope*>&children = target_scope->children();
+	    for (map<hname_t,NetScope*>::const_iterator child = children.begin();
+		 child != children.end(); ++child)
+		  if (child->second)
+			pending.push_back(child->second);
+      }
+      return true;
+}
+
+void release_elaboration_interface_caches()
+{
+      for (map<interface_layout_key_t,
+		interface_layout_record_t*>::iterator cur =
+		   interface_layout_cache_.begin();
+	   cur != interface_layout_cache_.end(); ++cur) {
+	    if (cur->second) {
+		  if (cur->second->declaration_scope)
+			cur->second->declaration_scope->release_elaboration_caches();
+		  for (map<string,netclass_t*>::iterator view =
+			     cur->second->views.begin();
+		       view != cur->second->views.end(); ++view)
+			view->second->retire_interface_definition();
+		  retired_interface_layouts_.push_back(cur->second);
+	    }
+      }
+      interface_layout_cache_.clear();
+
+      for (map<interface_instance_view_key_t,netclass_t*>::iterator cur =
+		 interface_instance_type_cache_.begin();
+	   cur != interface_instance_type_cache_.end(); ++cur) {
+	    if (!cur->second)
+		  continue;
+	    cur->second->retire_interface_definition();
+	    retired_interface_instance_types_.push_back(cur->second);
+      }
+      interface_instance_type_cache_.clear();
+
+      for (map<typed_mailbox_key_t,netclass_t*>::iterator cur =
+		 typed_mailbox_cache_.begin();
+	   cur != typed_mailbox_cache_.end(); ++cur)
+	    retired_typed_mailboxes_.push_back(cur->second);
+      typed_mailbox_cache_.clear();
+
+      for (vector<NetScope*>::iterator cur =
+		 discarded_interface_parameter_scopes_.begin();
+	   cur != discarded_interface_parameter_scopes_.end(); ++cur)
+	    delete *cur;
+      vector<NetScope*>().swap(discarded_interface_parameter_scopes_);
+}
+
+void release_elaboration_interface_types()
+{
+      for (vector<interface_layout_record_t*>::iterator cur =
+		 retired_interface_layouts_.begin();
+	   cur != retired_interface_layouts_.end(); ++cur) {
+	    interface_layout_record_t*layout = *cur;
+	    if (!layout)
+		  continue;
+	    for (map<string,netclass_t*>::iterator view = layout->views.begin();
+		 view != layout->views.end(); ++view)
+		  delete view->second;
+	    delete layout->declaration_scope;
+	    delete layout;
+      }
+      vector<interface_layout_record_t*>().swap(retired_interface_layouts_);
+
+      for (vector<netclass_t*>::iterator cur =
+		 retired_interface_instance_types_.begin();
+	   cur != retired_interface_instance_types_.end(); ++cur)
+	    delete *cur;
+      vector<netclass_t*>().swap(retired_interface_instance_types_);
+
+      for (vector<netclass_t*>::iterator cur =
+		 retired_typed_mailboxes_.begin();
+	   cur != retired_typed_mailboxes_.end(); ++cur)
+	    delete *cur;
+      vector<netclass_t*>().swap(retired_typed_mailboxes_);
 }
 
 ivl_type_t resolve_class_type_reference(Design*des, NetScope*scope,
@@ -1649,29 +2144,8 @@ ivl_type_t interface_type_t::elaborate_type_raw(Design*des, NetScope*scope) cons
 	    return 0;
       }
 
-	// Parameterized virtual-interface SPECIALIZATION is not yet modeled:
-	// every specialization of an interface shares one netclass elaborated
-	// with the interface's DEFAULT parameters (see elaborate_interface_type_).
-	// A non-default parameter override therefore does NOT change the member
-	// widths of a `virtual iface #(...)` handle — a member WRITE through it
-	// would truncate to the default width. Diagnose that loudly (once)
-	// rather than miscompiling silently (IEEE 1800-2017 25.9). The override
-	// is honored only when it is absent or the interface has no parameters.
-      if (has_param_override && !cur->second->parameters.empty()) {
-	    static bool warned_vif_param_override = false;
-	    if (!warned_vif_param_override) {
-		  cerr << get_fileline() << ": warning: parameter overrides on a "
-		          "virtual interface type (`" << name << "') are not yet "
-		          "honored — all specializations share the interface's "
-		          "default parameters, so member widths use the defaults "
-		          "(a non-default member write would truncate). "
-		          "(IEEE 1800-2017 25.9; further similar warnings "
-		          "suppressed.)" << endl;
-		  warned_vif_param_override = true;
-	    }
-      }
-
-      return elaborate_interface_type_(des, scope, cur->second);
+      return elaborate_interface_type_(
+	    des, scope, cur->second, parameter_values_, modport);
 }
 
 /*
@@ -1680,6 +2154,24 @@ ivl_type_t interface_type_t::elaborate_type_raw(Design*des, NetScope*scope) cons
  * available at the right time. At that time, the netenum_t* object is
  * stashed in the scope so that I can retrieve it here.
  */
+static string nominal_type_owner_key_(const NetScope*scope)
+{
+      if (!scope)
+	    return string();
+      if (!scope->type_owner_identity().empty())
+	    return scope->type_owner_identity();
+
+	/* IEEE 1800-2017/2023 6.22 gives an in-instance user-defined type a
+	 * distinct nominal identity. Package and compilation-unit declarations
+	 * naturally share their one declaration scope, while concrete module
+	 * hierarchy paths keep otherwise identical instance-local declarations
+	 * separate. Detached parameterized interface/class scopes use the
+	 * semantic owner installed above instead. */
+      ostringstream out;
+      out << scope_path(scope);
+      return out.str();
+}
+
 ivl_type_t enum_type_t::elaborate_type_raw(Design *des, NetScope *scope) const
 {
       ivl_type_t base = base_type->elaborate_type(des, scope);
@@ -1703,6 +2195,8 @@ ivl_type_t enum_type_t::elaborate_type_raw(Design *des, NetScope *scope) const
 	    integer_flag = vec_type->get_isint();
 
       netenum_t *type = new netenum_t(base, names->size(), integer_flag);
+      type->set_nominal_identity(
+	    this, nominal_type_owner_key_(scope));
       type->set_line(*this);
 
       scope->add_enumeration_set(this, type);
@@ -1900,6 +2394,8 @@ static bool elaborate_struct_member_default_(Design*des, NetScope*scope,
 ivl_type_t struct_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 {
       netstruct_t*res = new netstruct_t;
+      res->set_nominal_identity(
+	    this, nominal_type_owner_key_(scope));
 
       res->set_line(*this);
 
@@ -2214,27 +2710,17 @@ static ivl_type_t elaborate_assoc_array_type(Design *des, NetScope *scope,
 // If dims is not empty create an unpacked array type and clear dims, otherwise
 // return the base type. Also check that we actually support the base type.
 //
-// Keep a queue/associative-array leaf here. Non-static instance-class
-// properties store fixed unpacked arrays in class-property storage, which can
-// represent one independent queue/map object per fixed slot. Signal-backed
-// declarations use a different storage path; elaborate.cc diagnoses those
-// after PWire/static-property materialization, when that distinction is known.
-static ivl_type_t elaborate_static_array_type(Design *des, const LineInfo &li,
+// Keep a dynamic-container leaf here. A fixed unpacked array of queue,
+// dynamic-array, or associative-array values is a legal SystemVerilog type;
+// the object-array backend represents one independent container value per
+// fixed slot. Unsupported aggregate nestings are diagnosed after signal and
+// class-property materialization, when their storage path is unambiguous.
+static ivl_type_t elaborate_static_array_type(Design*, const LineInfo&,
 					      ivl_type_t base_type,
 					      netranges_t &dims)
 {
       if (dims.empty())
 	    return base_type;
-
-      if (dynamic_cast<const netdarray_t*>(base_type)
-	  && !dynamic_cast<const netqueue_t*>(base_type)) {
-	    cerr << li.get_fileline() << ": sorry: "
-		 << "array of dynamic array type is not yet supported."
-		 << endl;
-	    des->errors++;
-	    // Recover
-	    base_type = new netvector_t(IVL_VT_LOGIC);
-      }
 
       ivl_type_t type = new netuarray_t(dims, base_type);
       dims.clear();
@@ -2364,14 +2850,39 @@ ivl_type_t typeref_t::elaborate_type_raw(Design*des, NetScope*s) const
 	    return use_type;
       }
 
-      // Built-in class types (mailbox, semaphore, process) are not template
-      // classes — their "type parameter" is used only for SV type-checking.
-      // Do not specialize them; return the base built-in class type so that
-      // method dispatch (e.g. mailbox.put/get) continues to work.
+      /* The parser represents an explicit parameterized interface port such
+	 as `bus_if #(16) p` as a typeref to its synthetic interface typedef
+	 followed by this override list. Interface implementations share the
+	 netclass carrier with classes, but their #(...) suffix is IEEE 1800
+	 interface specialization, not class specialization. Route it through the
+	 semantic interface interner and preserve any selected modport from the
+	 base type. */
+      if (class_type->is_interface()) {
+	    Module*definition =
+		  const_cast<Module*>(class_type->interface_definition());
+	    if (!definition)
+		  return use_type;
+	    NetScope*call_scope = s_type_elaborate_caller_scope_
+		  ? s_type_elaborate_caller_scope_ : s;
+	    return elaborate_interface_type_(
+		  des, call_scope, definition, overrides,
+		  class_type->interface_modport());
+      }
+
+	/* A typed mailbox is a real parameterized built-in class for matching and
+	 * method checking (IEEE 1800-2017/2023 15.4.9). Its method implementation
+	 * remains built-in, but its message actual must survive elaboration on a
+	 * distinct, semantically interned carrier. */
       {
 	    perm_string cn = class_type->get_name();
-	    if (cn == perm_string::literal("mailbox") ||
-		cn == perm_string::literal("semaphore") ||
+	    if (cn == perm_string::literal("mailbox")) {
+		  NetScope*call_scope = s_type_elaborate_caller_scope_
+			? s_type_elaborate_caller_scope_ : s;
+		  return const_cast<netclass_t*>(
+			elaborate_builtin_mailbox_specialization(
+			      des, call_scope, overrides, this));
+	    }
+	    if (cn == perm_string::literal("semaphore") ||
 		cn == perm_string::literal("process"))
 		  return use_type;
       }
@@ -2522,7 +3033,8 @@ ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
 			pform_modules.find(name);
 		  if (im != pform_modules.end() && im->second->is_interface) {
 			ivl_type_t itype = elaborate_interface_type_(
-			      des, nullptr, im->second);
+			      des, nullptr, im->second, nullptr,
+			      perm_string());
 			if (itype)
 			      return itype;
 		  }

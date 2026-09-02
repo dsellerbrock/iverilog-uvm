@@ -1,0 +1,3 @@
+./ivltests/sv_vif_parameter_specialization_defparam_fail.v:33: error: Virtual-interface assignment operands must have assignment-compatible interface types (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_parameter_specialization_defparam_fail.v:36: error: Virtual-interface assignment operands must have assignment-compatible interface types (IEEE 1800-2017/2023 25.9).
+2 error(s) during elaboration.

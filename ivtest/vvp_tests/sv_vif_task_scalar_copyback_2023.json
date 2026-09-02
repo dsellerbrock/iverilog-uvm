@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_vif_task_scalar_copyback_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_vif_task_scalar_copyback" ],
+    "gold"          : "sv_vif_task_scalar_copyback"
+}

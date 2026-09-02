@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_fixed_container_array_elements.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_fixed_container_array_elements" ],
+    "gold"          : "sv_fixed_container_array_elements"
+}

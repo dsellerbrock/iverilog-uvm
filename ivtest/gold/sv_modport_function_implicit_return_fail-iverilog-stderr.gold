@@ -1,0 +1,2 @@
+ivltests/sv_modport_function_implicit_return_fail.v:9: syntax error
+ivltests/sv_modport_function_implicit_return_fail.v:9: error: Invalid module item.
