@@ -13598,6 +13598,24 @@ foreach_array_identifier
 	delete[]$1;
 	delete[]$3;
       }
+
+    /* The lexer hands back PACKAGE_IDENTIFIER, not IDENTIFIER, for a
+       package it has already seen, so the IDENTIFIER K_SCOPE_RES form
+       above never fires for a real package-qualified foreach target
+       (`foreach (pkg::q[i])'). Without these the whole production fails
+       to match and the statement dies as a bare "syntax error". */
+  | PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t($1->pscope_name()));
+	$$->push_back(name_component_t(lex_strings.make($3)));
+	delete[]$3;
+      }
+  | PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t($1->pscope_name()));
+	$$->push_back(name_component_t(lex_strings.make($3.text)));
+	delete[]$3.text;
+      }
   | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
       { $$ = new pform_name_t;
 	$$->push_back(name_component_t(lex_strings.make($1)));
