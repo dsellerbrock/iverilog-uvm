@@ -3444,10 +3444,45 @@ double class_type::type_coverage(vvp_cobject*) const
 	    if (bin.prop_idx == COV_NO_PROP) continue;
 	    item_props[bin.item_idx].insert(bin.prop_idx);
       }
+	// Constructor-dependent VALUE families. A static bin carries its own
+	// counter property, which type_count() reads directly; a runtime
+	// family instead resolves a per-instance bin set, so its hits live in
+	// the merged (family, bin) map and its size comes from what the
+	// instances registered. Omitting this block made such a family
+	// contribute neither a hit nor a denominator, so a covergroup whose
+	// only bins were runtime-valued reported 0.00 type coverage while
+	// reading 100.00 per instance.
+	std::map<unsigned,uint64_t> item_dyn_total;
+	std::map<unsigned,uint64_t> item_dyn_hits;
+	std::set<unsigned> seen_dyn_families;
+      for (size_t bi = 0 ; bi < covgrp_dyn_bins_.size() ; bi += 1) {
+	    const cov_dyn_bin_t&rec = covgrp_dyn_bins_[bi];
+	    if ((rec.kind & 7) != 0) continue;
+	    if (!seen_dyn_families.insert(rec.family).second) continue;
+	    unsigned at_least = rec.item_idx < covgrp_items_.size()
+		  ? covgrp_cumulative_at_least_(rec.item_idx) : 1;
+	    uint64_t hits = at_least == 0
+		  ? 0 : dyn_type_hits(rec.family, at_least);
+	      // The registered size is the widest set any instance resolved;
+	      // the hit map is a true union, so a genuinely disjoint
+	      // resolution across instances raises the denominator instead of
+	      // reporting more hits than bins.
+	    unsigned __int128 sized = dyn_type_total(rec.family);
+	    if ((unsigned __int128)hits > sized) sized = hits;
+	    if (sized == 0) continue;
+	    uint64_t total = sized > (unsigned __int128)UINT64_MAX
+		  ? UINT64_MAX : (uint64_t)sized;
+	    if (at_least == 0) hits = total;
+	    item_dyn_total[rec.item_idx] =
+		  cov_sat_add_(item_dyn_total[rec.item_idx], total);
+	    item_dyn_hits[rec.item_idx] =
+		  cov_sat_add_(item_dyn_hits[rec.item_idx], hits);
+      }
       double wsum = 0.0, wcov = 0.0;
 	 std::set<unsigned> items;
 	 for (auto&ip : item_props) items.insert(ip.first);
 	 for (auto&ip : item_trans_total) items.insert(ip.first);
+	 for (auto&ip : item_dyn_total) items.insert(ip.first);
 	 for (unsigned item_idx : items) {
 	    unsigned at_least = 1, weight = 1;
 	    if (item_idx < covgrp_items_.size()) {
@@ -3455,13 +3490,15 @@ double class_type::type_coverage(vvp_cobject*) const
 		  weight = covgrp_items_[item_idx].weight;
 	    }
 	    uint64_t total = item_trans_total[item_idx];
-	    unsigned hits = 0;
+	    uint64_t hits = 0;
 	    for (unsigned prop : item_props[item_idx]) {
 		  total += 1;
 		  if (type_count(prop) >= at_least)
 			hits += 1;
 	    }
 	    hits += item_trans_hits[item_idx];
+	    total = cov_sat_add_(total, item_dyn_total[item_idx]);
+	    hits = cov_sat_add_(hits, item_dyn_hits[item_idx]);
 	    if (total == 0) continue;
 	    wsum += (double)weight;
 	    wcov += (double)weight
