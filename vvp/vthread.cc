@@ -6622,6 +6622,9 @@ static uint64_t covgrp_trans_term_rank_(const covgrp_trans_term_t&term,
       return covgrp_trans_sat_add_(offset, word);
 }
 
+static unsigned __int128 covgrp_dyn_logical_count_(
+      const covgrp_dyn_state_t&state);
+
 static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
       const class_type*defn, vvp_cobject*cobj)
 {
@@ -6925,6 +6928,22 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 	    for (auto&range : state.ranges)
 		  state.total += (unsigned __int128)range.second
 			- (unsigned __int128)range.first + 1;
+      }
+
+	// Publish each resolved family's logical bin count to the type view.
+	// type_coverage() has no instance to resolve against, so without this
+	// a constructor-dependent value family contributed neither hits nor a
+	// denominator and vanished from get_coverage()/$get_coverage() while
+	// reading correctly per instance. Register only complete resolutions:
+	// a deferred setp: family re-resolves on the first post-link sample.
+      if (!deferred) {
+	    for (auto&entry : out) {
+		  const covgrp_dyn_state_t&state = entry.second;
+		  if (!state.valid || !state.meta) continue;
+		  if ((state.meta->kind & 7) != 0) continue;
+		  defn->dyn_type_register_total(entry.first,
+					   covgrp_dyn_logical_count_(state));
+	    }
       }
 
 	// Embedded setp: expressions cannot resolve until assignment installs
