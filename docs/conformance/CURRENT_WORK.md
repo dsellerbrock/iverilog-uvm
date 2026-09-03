@@ -62,6 +62,9 @@ Measured focused evidence currently available:
 | Typed-mailbox final reducer gate | **closed — 2/2 rows** |
 | Paired VIF specialization focus gate | **68/68 legacy + 68/68 JSON/VVP** |
 | OpenTitan array-of-containers focus gate | **18/18 legacy + 18/18 JSON/VVP** |
+| Full legacy ivtest sweep | **0 failed** |
+| Full JSON/VVP ivtest suite | **0 failed** |
+| UVM suite (`.github/uvm_test.sh`) | **355 passed, 0 failed** |
 
 These are focused mechanism results, not a broad-regression or application
 closeout. The full legacy, JSON/VVP, negative, VPI, real-DPI UVM, OpenTitan,

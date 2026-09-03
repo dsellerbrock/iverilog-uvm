@@ -27683,7 +27683,25 @@ bool of_STORE_OBJ_OPEN(vthread_t thr, vvp_code_t cp)
       if (array && !array->sv_uses_declared_indexing())
 	    reverse_descending_fixed_dimensions_(array);
       activate_open_array_indices_(array);
-      return of_STORE_OBJ(thr, cp);
+      bool rc = of_STORE_OBJ(thr, cp);
+
+	/* A destination that carries a declared container layout receives the
+	 * container BY COPY, and the declared-INDEXING activation is
+	 * deliberately not carried onto a value copy (an ordinary
+	 * fixed-to-dynamic assignment is 0-based, IEEE 1800-2017 7.5). The
+	 * activation above therefore landed on the source handle while the
+	 * open-array formal goes on to read the destination's private copy,
+	 * which reported 0..N-1 instead of the actual's declared range and
+	 * broke every H.10.2 bound accessor. Re-activate on the value the
+	 * formal will actually see; the range itself is passive metadata and
+	 * has already been copied. */
+      if (vvp_fun_signal_object*fun = signal_object_fun_(cp->net)) {
+	    vvp_object_t stored = fun->peek_object();
+	    if (vvp_darray*dst = stored.peek<vvp_darray>())
+		  if (dst != array)
+			activate_open_array_indices_(dst);
+      }
+      return rc;
 }
 
 /*

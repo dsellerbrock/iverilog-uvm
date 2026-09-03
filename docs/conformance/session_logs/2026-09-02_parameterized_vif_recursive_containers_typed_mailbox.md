@@ -427,3 +427,62 @@ the exact-main compiler four of its checks are red.
 or write the element -- `plain_map[3]` stays 0 and `size()` stays 0. That is
 pre-existing on `origin/main` at `dcd3f8fc1` and is a separate defect from the
 property path fixed here; it is not addressed in this increment.
+
+## Addendum 4 — 2026-09-02 — DPI open-array declared range lost to a destination copy
+
+The UVM suite showed two failures this increment introduced:
+`m10_dpi_fixed_array_marshal_test` and `m4b_struct_array_member_open_test`.
+Both pass on the exact-main compiler and both fail on the pure checkpoint
+`cab3515d6`, so neither belongs to the fixes recorded above; that was
+established by reverting all five touched files to the checkpoint, rebuilding,
+and re-running.
+
+### Defect
+
+IEEE 1800-2017 H.10.2/H.10.3. An open-array formal must report the DECLARED
+range of the fixed-size actual it was marshaled from, and element access must
+use that declared index. Every bound accessor instead reported 0..N-1:
+
+    int asc[3:10] passed to  import "DPI-C" function int f(input int a[]);
+    svLeft=0 svRight=7 svLow=0 svHigh=7      (want 3, 10, 3, 10)
+
+The failure masks named exactly LEFT/RIGHT/LOW/HIGH/ELEM (plus INCR for a
+descending actual) while SIZE, BYTES and DIMS stayed correct, which is what
+made this look like a range-reporting fault rather than a marshaling one.
+
+### Root cause
+
+`%store/obj/open` activates the declared-index view on the object it is about
+to store, then stores it. The activation flag `sv_declared_indexing_` is
+deliberately NOT carried onto a value copy, because an ordinary
+fixed-to-dynamic assignment is 0-based (7.5); only the range itself is passive
+metadata that copies.
+
+This increment gave the DPI formal's temporary a declared container layout.
+The generated code is otherwise byte-identical to mainline's -- the whole
+difference for the reducer is one signal declaration:
+
+    main:   v... .var/darray "a", 32+;
+    branch: v... .var/darray "a", 32+, "D!D";
+
+A destination carrying a layout receives the container BY COPY, so the
+activation landed on the source handle while the formal went on to read the
+destination's private copy, which had never been activated. Instrumenting the
+DPI argument setup showed the object arriving with `has_range=1` but
+`declidx=0`, so neither arm of the `has_range` condition held.
+
+### Implementation
+
+`of_STORE_OBJ_OPEN` re-activates the declared-index view on the value the
+formal will actually read, after the store, and only when the destination
+really did substitute a different handle. The range is already present on the
+copy as passive metadata, so only the activation needed re-applying. Ordinary
+fixed-to-dynamic assignments are untouched and stay 0-based.
+
+### Regression
+
+`tests/m10_dpi_open_array_layout_range_test` (.sv + .c) pins the mechanism
+directly: both range directions, svSize/svLeft/svRight/svLow/svHigh/
+svIncrement, element access by declared index, and no resolution just outside
+the declared range. On the pre-fix build the same reducer reports
+`svLeft=0 svRight=7`.
