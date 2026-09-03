@@ -297,11 +297,13 @@ NetESFunc* NetESFunc::dup_expr() const
 	    tmp->add_vif_method(
 		  const_cast<NetScope*>(vif_method(idx)));
       for (unsigned idx = 0 ;  idx < nparms() ;  idx += 1) {
-	    ivl_assert(*this, parm(idx));
-	    tmp->parm(idx, parm(idx)->dup_expr());
+	    if (parm(idx))
+		  tmp->parm(idx, parm(idx)->dup_expr());
 	    if (vif_parm_is_default(idx))
 	          tmp->mark_vif_parm_default(idx);
       }
+      if (ref_output())
+	    tmp->set_ref_output(ref_output()->dup_lval());
 
       tmp->set_line(*this);
       return tmp;

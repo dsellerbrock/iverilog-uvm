@@ -58,6 +58,26 @@
 
 using namespace std;
 
+static const netclass_t* virtual_interface_type_(ivl_type_t type)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(type);
+      return class_type && class_type->is_interface() ? class_type : nullptr;
+}
+
+static void report_virtual_interface_assignment_mismatch_(
+		Design*des, const LineInfo&loc, const netclass_t*target,
+		const netclass_t*source)
+{
+      ivl_assert(loc, des);
+      ivl_assert(loc, target && target->is_interface());
+      (void)source;
+
+      cerr << loc.get_fileline() << ": error: Virtual-interface assignment "
+	   << "operands must have assignment-compatible interface types "
+	   << "(IEEE 1800-2017/2023 25.9)." << endl;
+      des->errors += 1;
+}
+
 unsigned PEStreamWith::test_width(Design*des, NetScope*scope,
                                   width_mode_t&mode)
 {
@@ -542,42 +562,33 @@ static bool is_assoc_unique_scalar_or_class_type_(ivl_type_t type)
       }
 }
 
-/* Preserve the runtime category and full packed width of a unique() with
- * expression in the hidden comparison queue. The queue is internal, so an
- * anonymous packed type is sufficient when the expression does not carry a
- * declared net type of its own. */
-static ivl_type_t array_unique_comparison_type_(NetExpr*expr)
+static bool typed_mailbox_type_equivalent_(
+		const LineInfo&location, Design*des,
+		const netclass_t*mailbox_type, perm_string method_name,
+		ivl_type_t actual_type)
 {
-      ivl_assert(*expr, expr);
+      if (!mailbox_type || !mailbox_type->is_typed_mailbox())
+	    return true;
 
-      ivl_type_t type = expr->net_type();
-      if (type && type->base_type() == expr->expr_type()) {
-	    if ((expr->expr_type() != IVL_VT_BOOL
-		 && expr->expr_type() != IVL_VT_LOGIC)
-		|| (expr->expr_width() != 0
-		    && type->packed_width() == (long)expr->expr_width()))
-		  return type;
-      }
+      if (mailbox_type->mailbox_message_type_equivalent(actual_type))
+	    return true;
 
-      switch (expr->expr_type()) {
-          case IVL_VT_STRING:
-            return &netstring_t::type_string;
-          case IVL_VT_REAL:
-            return &netreal_t::type_real;
-          case IVL_VT_BOOL:
-          case IVL_VT_LOGIC: {
-            unsigned wid = expr->expr_width();
-            if (wid == 0)
-                  return nullptr;
-            return new netvector_t(expr->expr_type(), (long)wid-1, 0,
-                                   expr->has_sign());
-          }
-          case IVL_VT_CLASS:
-              /* A class expression must retain its declared class type. */
-            return type;
-          default:
-            return nullptr;
-      }
+      cerr << location.get_fileline() << ": error: Argument to typed mailbox "
+	   << "method '" << method_name << "' must have a type equivalent to "
+	      "the mailbox message type (IEEE 1800-2017/2023 15.4.9)."
+	   << endl;
+      des->errors += 1;
+      return false;
+}
+
+static bool typed_mailbox_argument_equivalent_(
+		const LineInfo&location, Design*des,
+		const netclass_t*mailbox_type, perm_string method_name,
+		NetExpr*argument)
+{
+      return typed_mailbox_type_equivalent_(location, des, mailbox_type,
+					     method_name,
+					     netexpr_type_for_equivalence(argument));
 }
 
 static NetExpr* make_assoc_unique_element_expr_(
@@ -721,7 +732,7 @@ static NetExpr* make_assoc_array_unique_expr_(
                   delete array_expr;
                   return nullptr;
             }
-            comparison_type = array_unique_comparison_type_(comparison_expr);
+            comparison_type = netexpr_type_for_equivalence(comparison_expr);
       } else {
             comparison_expr = new NetESignal(iter_net);
             comparison_expr->set_line(*li);
@@ -1057,7 +1068,7 @@ static NetExpr* make_array_unique_expr_(
             }
 
             ivl_type_t key_element_type =
-                  array_unique_comparison_type_(key_expr);
+                  netexpr_type_for_equivalence(key_expr);
             if (!key_element_type
                 || !is_assoc_unique_scalar_or_class_type_(
                       key_element_type)) {
@@ -5051,7 +5062,8 @@ static NetScope* visible_interface_instance_array_(
 		Design*des, NetScope*scope, perm_string name,
 		unsigned lexical_pos);
 static NetScope* comparison_interface_instance_scope_(
-		const PExpr*expr, Design*des, NetScope*scope);
+		const PExpr*expr, Design*des, NetScope*scope,
+		perm_string*selected_modport = nullptr);
 
 unsigned PEBComp::test_width(Design*des, NetScope*scope, width_mode_t&)
 {
@@ -5338,12 +5350,70 @@ static NetScope* visible_interface_instance_array_(
       return 0;
 }
 
+static bool interface_scope_view_type_(Design*des, NetScope*instance_scope,
+				       const pform_name_t&path_tail,
+				       const pform_name_t&path_head,
+				       const pform_name_t&source_path,
+				       const netclass_t*&type,
+				       perm_string&selected_modport)
+{
+      type = nullptr;
+      selected_modport = perm_string();
+      if (!instance_scope || !instance_scope->is_interface())
+	    return false;
+
+      perm_string candidate_modport;
+      bool candidate_required = false;
+      if (!path_tail.empty()) {
+	    if (path_tail.size() != 1 || !path_tail.front().index.empty())
+		  return false;
+	    candidate_modport = path_tail.front().name;
+	    candidate_required = true;
+	  /* symbol_search() can consume an explicit `.modport' component while
+	     returning the enclosing interface scope and an empty path_tail. Keep
+	     the parse spelling as the authoritative view qualifier in that case. */
+      } else if (source_path.size() >= 2
+		 && source_path.back().index.empty()) {
+	    /* If lookup stopped one component before the parse path, that
+	       unresolved component must be a modport for this to be an interface
+	       value. A successful hierarchical lookup, on the other hand, ends in
+	       the instance's own basename and remains an unqualified view. */
+	    if (path_head.size() < source_path.size()) {
+		  candidate_modport = source_path.back().name;
+		  candidate_required = true;
+	    } else if (source_path.back().name != instance_scope->basename()) {
+		  candidate_modport = source_path.back().name;
+	    }
+      }
+
+      if (!candidate_modport.nil()) {
+	    map<perm_string,Module*>::const_iterator module =
+		  pform_modules.find(instance_scope->module_name());
+	    if (module == pform_modules.end()
+		|| !module->second->is_interface
+		|| !module->second->modports.count(candidate_modport)) {
+		  if (candidate_required)
+			return false;
+	    } else {
+		  selected_modport = candidate_modport;
+	    }
+      }
+
+      type = elaborate_interface_instance_type(
+	    des, instance_scope, selected_modport);
+      return type && type->is_interface();
+}
+
 static NetScope* comparison_interface_instance_scope_(
-		const PExpr*expr, Design*des, NetScope*scope)
+		const PExpr*expr, Design*des, NetScope*scope,
+		perm_string*selected_modport)
 {
       const PEIdent*ident = dynamic_cast<const PEIdent*>(expr);
       if (!ident)
 	    return 0;
+
+      if (selected_modport)
+	    *selected_modport = perm_string();
 
       /* A nonconstant select into an interface-instance array cannot go
 	 through symbol_search(): scope indices are normally required to be
@@ -5358,12 +5428,71 @@ static NetScope* comparison_interface_instance_scope_(
 		  des, scope, path.name.front().name, ident->lexical_pos());
 
       symbol_search_results sr;
-      if (!symbol_search(ident, des, scope, ident->path(),
-			 ident->lexical_pos(), &sr)
-	  || sr.scope_index_error || !sr.is_scope() || !sr.scope
-	  || !sr.scope->is_interface() || !sr.path_tail.empty())
+      symbol_search(ident, des, scope, ident->path(),
+		    ident->lexical_pos(), &sr);
+      if (sr.scope_index_error || !sr.is_scope() || !sr.scope
+	  || !sr.scope->is_interface())
 	    return 0;
+
+      const netclass_t*source_type = nullptr;
+      perm_string modport;
+      if (!interface_scope_view_type_(
+	    des, sr.scope, sr.path_tail, sr.path_head, ident->path().name,
+	    source_type, modport))
+	    return 0;
+      if (selected_modport)
+	    *selected_modport = modport;
       return sr.scope;
+}
+
+static const netclass_t* comparison_parse_virtual_interface_type_(
+		const PExpr*expr, Design*des, NetScope*scope)
+{
+      if (!expr || dynamic_cast<const PENull*>(expr))
+	    return nullptr;
+
+      perm_string selected_modport;
+      if (NetScope*instance = comparison_interface_instance_scope_(
+	    expr, des, scope, &selected_modport))
+	    return elaborate_interface_instance_type(
+		  des, instance, selected_modport);
+
+      if (const PEIdent*ident = dynamic_cast<const PEIdent*>(expr))
+	    return virtual_interface_type_(
+		  ident->test_type_of_ident(des, scope));
+
+      if (const PETernary*ternary = dynamic_cast<const PETernary*>(expr)) {
+	    const netclass_t*true_type = comparison_parse_virtual_interface_type_(
+		  ternary->get_true(), des, scope);
+	    const netclass_t*false_type = comparison_parse_virtual_interface_type_(
+		  ternary->get_false(), des, scope);
+	    if (!true_type)
+		  return false_type;
+	    if (!false_type || true_type->same_interface_type(false_type))
+		  return true_type;
+      }
+
+      return nullptr;
+}
+
+static bool comparison_parse_operand_compatible_(
+		const PExpr*expr, const netclass_t*required_type,
+		Design*des, NetScope*scope)
+{
+      if (!expr || !required_type)
+	    return true;
+      if (dynamic_cast<const PENull*>(expr))
+	    return true;
+
+      if (const PETernary*ternary = dynamic_cast<const PETernary*>(expr))
+	    return comparison_parse_operand_compatible_(
+		  ternary->get_true(), required_type, des, scope)
+		  && comparison_parse_operand_compatible_(
+			ternary->get_false(), required_type, des, scope);
+
+      const netclass_t*actual_type =
+	    comparison_parse_virtual_interface_type_(expr, des, scope);
+      return !actual_type || required_type->same_interface_type(actual_type);
 }
 
 static const netclass_t* comparison_virtual_interface_type_(
@@ -5391,7 +5520,7 @@ static const netclass_t* comparison_virtual_interface_type_(
       if (false_type && dynamic_cast<const NetENull*>(true_expr))
 	    return false_type;
       if (true_type && false_type
-	  && true_type->type_equivalent(false_type))
+	  && true_type->same_interface_type(false_type))
 	    return true_type;
       return 0;
 }
@@ -5412,10 +5541,18 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
       ivl_assert(*this, left_);
       ivl_assert(*this, right_);
 
-      NetScope*left_instance =
-	    comparison_interface_instance_scope_(left_, des, scope);
-      NetScope*right_instance =
-	    comparison_interface_instance_scope_(right_, des, scope);
+      perm_string left_instance_modport;
+      perm_string right_instance_modport;
+      NetScope*left_instance = comparison_interface_instance_scope_(
+	    left_, des, scope, &left_instance_modport);
+      NetScope*right_instance = comparison_interface_instance_scope_(
+	    right_, des, scope, &right_instance_modport);
+      const netclass_t*left_instance_type = left_instance
+	    ? elaborate_interface_instance_type(
+		  des, left_instance, left_instance_modport) : nullptr;
+      const netclass_t*right_instance_type = right_instance
+	    ? elaborate_interface_instance_type(
+		  des, right_instance, right_instance_modport) : nullptr;
 
       if (!left_instance && !right_instance) {
 	    NetExpr*array_comparison = 0;
@@ -5499,6 +5636,28 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 	    return 0;
       }
 
+	/* A comparison does not inherit assignment's one-way unqualified-source
+	   to selected-modport relaxation. Preflight statically visible VIF and
+	   concrete-instance leaves, including conditional arms, before ordinary
+	   typed expression elaboration can issue an assignment diagnostic for an
+	   incompatible arm. Unknown function/property results are still checked
+	   from their elaborated NetExpr types below. */
+      const netclass_t*left_parse_type =
+	    comparison_parse_virtual_interface_type_(left_, des, scope);
+      const netclass_t*right_parse_type =
+	    comparison_parse_virtual_interface_type_(right_, des, scope);
+      if ((left_parse_type
+	   && !comparison_parse_operand_compatible_(
+		 right_, left_parse_type, des, scope))
+	  || (right_parse_type
+	      && !comparison_parse_operand_compatible_(
+		    left_, right_parse_type, des, scope))) {
+	    report_virtual_interface_comparison_error_(
+		  des, *this,
+		  "Virtual-interface comparison operands must have the same type");
+	    return 0;
+      }
+
       if (left_object && !right_object) {
 	    lp = left_->elaborate_expr(des, scope, l_width_, flags);
 	    const netclass_t*vif_type =
@@ -5512,7 +5671,9 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 			return 0;
 		  }
 		  if (right_instance
-		      && right_instance->module_name() != vif_type->get_name()) {
+		      && (!right_instance_type
+			  || !vif_type->same_interface_type(
+				right_instance_type))) {
 			report_virtual_interface_comparison_error_(
 			      des, *this,
 			      "Virtual-interface comparison operands must have the same type");
@@ -5520,7 +5681,9 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 			return 0;
 		  }
 		  rp = right_->elaborate_expr(
-			des, scope, static_cast<ivl_type_t>(vif_type), flags);
+			des, scope,
+			static_cast<ivl_type_t>(right_instance_type
+			      ? right_instance_type : vif_type), flags);
 		  if (rp && !comparison_virtual_interface_type_(rp)) {
 			report_virtual_interface_comparison_error_(
 			      des, *this,
@@ -5553,7 +5716,9 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 			return 0;
 		  }
 		  if (left_instance
-		      && left_instance->module_name() != vif_type->get_name()) {
+		      && (!left_instance_type
+			  || !vif_type->same_interface_type(
+				left_instance_type))) {
 			report_virtual_interface_comparison_error_(
 			      des, *this,
 			      "Virtual-interface comparison operands must have the same type");
@@ -5561,7 +5726,9 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 			return 0;
 		  }
 		  lp = left_->elaborate_expr(
-			des, scope, static_cast<ivl_type_t>(vif_type), flags);
+			des, scope,
+			static_cast<ivl_type_t>(left_instance_type
+			      ? left_instance_type : vif_type), flags);
 		  if (lp && !comparison_virtual_interface_type_(lp)) {
 			report_virtual_interface_comparison_error_(
 			      des, *this,
@@ -5613,8 +5780,12 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 		  return 0;
 	    }
 
-	    const bool left_valid = left_vif || dynamic_cast<NetENull*>(lp);
-	    const bool right_valid = right_vif || dynamic_cast<NetENull*>(rp);
+	    const bool left_literal_null = dynamic_cast<const PENull*>(left_)
+		  && dynamic_cast<NetENull*>(lp);
+	    const bool right_literal_null = dynamic_cast<const PENull*>(right_)
+		  && dynamic_cast<NetENull*>(rp);
+	    const bool left_valid = left_vif || left_literal_null;
+	    const bool right_valid = right_vif || right_literal_null;
 	    if (!left_valid || !right_valid) {
 		  report_virtual_interface_comparison_error_(
 			des, *this,
@@ -5626,7 +5797,7 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 	    }
 
 	    if (left_vif && right_vif
-		&& !left_vif->type_equivalent(right_vif)) {
+		&& !left_vif->same_interface_type(right_vif)) {
 		  report_virtual_interface_comparison_error_(
 			des, *this,
 			"Virtual-interface comparison operands must have the same type");
@@ -8313,7 +8484,45 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 		  target_type = array_locator_queue_type_(queue->element_type());
 		  target_indexed = false;
 	    } else {
-		  if (darray)
+		    /* Consume EVERY index component, not just one. A
+		     * receiver like qdq[i][j] selects two container
+		     * levels, and stepping the element type once left
+		     * the method typed against the container a level
+		     * too shallow: a scalar result came back as the
+		     * inner queue and failed as an unpacked aggregate
+		     * assigned to a scalar target. This mirrors the
+		     * associative walk above and the expression-side
+		     * apply_trailing_container_indices_(). Restricted to
+		     * plain bit selects so slice-bearing receivers keep
+		     * their established typing. */
+		  bool all_bit_selects = indices.size() > 1;
+		  for (list<index_component_t>::const_iterator cur =
+			     indices.begin()
+			   ; all_bit_selects && cur != indices.end() ; ++cur) {
+			if (cur->sel != index_component_t::SEL_BIT
+			    || !cur->msb || cur->lsb)
+			      all_bit_selects = false;
+		  }
+
+		  ivl_type_t walked = nullptr;
+		  if (all_bit_selects) {
+			walked = search_results.net->net_type();
+			for (list<index_component_t>::const_iterator cur =
+				   indices.begin()
+			       ; cur != indices.end() ; ++cur) {
+			      const netarray_t*array_type =
+				    dynamic_cast<const netarray_t*>(walked);
+			      if (!array_type) {
+				    walked = nullptr;
+				    break;
+			      }
+			      walked = array_type->element_type();
+			}
+		  }
+
+		  if (walked)
+			target_type = walked;
+		  else if (darray)
 			target_type = darray->element_type();
 		  target_indexed = true;
 	    }
@@ -15129,7 +15338,8 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 		    // to accept an assignment pattern such as
 		    // `fill('{default:9})' and silently discard the copy-out.
 		  if (formal->port_type() == NetNet::POUTPUT
-		      || formal->port_type() == NetNet::PINOUT) {
+		      || formal->port_type() == NetNet::PINOUT
+		      || formal->port_type() == NetNet::PREF) {
 			unsigned errors_before = des->errors;
 			NetAssign_*lval = tmp->elaborate_lval(des, scope,
 						       false, false);
@@ -15199,6 +15409,34 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 			      continue;
 			}
 			actual_lval_type = lval->net_type();
+			const netclass_t*formal_vif =
+			      virtual_interface_type_(formal_type);
+			const netclass_t*actual_vif =
+			      virtual_interface_type_(actual_lval_type);
+			if (formal_vif || actual_vif) {
+			      bool vif_compatible = formal_vif && actual_vif;
+			      if (vif_compatible
+				  && formal->port_type() == NetNet::PREF)
+				    vif_compatible =
+					  formal_vif->same_interface_type(actual_vif);
+			      else if (vif_compatible)
+				    /* output/inout copy formal -> actual. The inout
+				       copy in the opposite direction is checked by the
+				       typed r-value boundary below. */
+				    vif_compatible =
+					  actual_vif->interface_assignment_compatible_from(
+						formal_vif);
+			      if (!vif_compatible) {
+				    const netclass_t*diag_target = actual_vif
+					  ? actual_vif : formal_vif;
+				    report_virtual_interface_assignment_mismatch_(
+					  des, *tmp, diag_target,
+					  actual_vif ? formal_vif : nullptr);
+				    parm_errors += 1;
+				    delete lval;
+				    continue;
+			      }
+			}
 			delete lval;
 		  }
 		  ivl_type_t argument_type = formal_type;
@@ -15500,29 +15738,80 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 
       bool applied_root_queue_select = false;
 	/* Select the object-array word before dispatching a method on a direct
-	 * associative leaf. Any indices beyond the fixed signal rank are then
-	 * ordinary associative indices handled by the shared container walker. */
+	 * Q/D/A leaf. Any indices beyond the fixed signal rank are then ordinary
+	 * dynamic-container indices handled by the shared container walker. Keep
+	 * the fixed-prefix canonicalization as one operation so every source index
+	 * is evaluated exactly once. An unindexed receiver remains the complete
+	 * fixed array and is deliberately handled by the fixed-array method path. */
       if (search_results.net
 	  && search_results.net->unpacked_dimensions() > 0
-	  && search_results.net->queue_type()
-	  && search_results.net->queue_type()->assoc_compat()
+	  && search_results.net->darray_type()
 	  && !search_results.path_head.empty()
-	  && search_results.path_head.back().index.size()
-		>= search_results.net->unpacked_dimensions()) {
-	    ivl_type_t selected_type = nullptr;
-	    NetExpr*selected = elaborate_fixed_assoc_signal_select_(
-		  *this, des, scope, search_results.net,
-		  search_results.path_head.back().index, false,
-		  selected_type);
-	    if (!selected) {
+	  && !search_results.path_head.back().index.empty()) {
+	    NetNet*net = search_results.net;
+	    const list<index_component_t>&indices =
+		  search_results.path_head.back().index;
+	    const size_t fixed_dims = net->unpacked_dimensions();
+	    if (indices.size() < fixed_dims) {
+		  cerr << get_fileline() << ": error: fixed unpacked-array `"
+		       << net->name() << "' needs " << fixed_dims
+		       << " indices before a contained method can be selected; got "
+		       << indices.size() << "." << endl;
+		  des->errors += 1;
 		  delete sub_expr;
 		  return nullptr;
 	    }
+
+	    list<index_component_t>::const_iterator split = indices.begin();
+	    for (size_t dim = 0 ; dim < fixed_dims ; dim += 1, ++split) {
+		  if (split->sel != index_component_t::SEL_BIT
+		      || !split->msb || split->lsb) {
+			cerr << get_fileline() << ": error: a fixed unpacked-array "
+			     << "method receiver requires one simple index per fixed "
+			     << "dimension." << endl;
+			des->errors += 1;
+			delete sub_expr;
+			return nullptr;
+		  }
+	    }
+
+	    const netsarray_t*fixed_type =
+		  dynamic_cast<const netsarray_t*>(net->array_type());
+	    if (!fixed_type
+		|| fixed_type->static_dimensions().size() != fixed_dims) {
+		  cerr << get_fileline() << ": internal error: fixed-prefix "
+		       << "dynamic-container signal `" << net->name()
+		       << "' has inconsistent fixed-array type metadata." << endl;
+		  des->errors += 1;
+		  delete sub_expr;
+		  return nullptr;
+	    }
+
+	    list<index_component_t>fixed_indices(indices.begin(), split);
+	    NetExpr*canon = make_checked_canonical_property_index(
+		  des, scope, this, fixed_indices, fixed_type, false);
+	    if (!canon) {
+		  delete sub_expr;
+		  return nullptr;
+	    }
+	    canon->set_line(*this);
+	    NetExpr*selected = new NetESignal(net, canon);
+	    selected->set_line(*this);
 	    delete sub_expr;
 	    sub_expr = selected;
-	    target_type = selected_type;
-	    target_indexed = search_results.path_head.back().index.size()
-		  > search_results.net->unpacked_dimensions();
+	    target_type = net->net_type();
+
+	    list<index_component_t>trailing_indices(split, indices.end());
+	    if (!trailing_indices.empty()) {
+		  ivl_type_t selected_type = nullptr;
+		  sub_expr = apply_trailing_container_indices_(
+			*this, des, scope, sub_expr, target_type,
+			trailing_indices, selected_type);
+		  if (!sub_expr)
+			return nullptr;
+		  target_type = selected_type;
+	    }
+	    target_indexed = !trailing_indices.empty();
 	    applied_root_queue_select = true;
       }
 	/* A method on a nested container slice must retain every root
@@ -15535,6 +15824,33 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 	  && search_results.path_head.back().index.size() > 1
 	  && is_unpacked_array_slice_select_(
 		search_results.path_head.back().index.back().sel)) {
+	    ivl_type_t selected_type = nullptr;
+	    sub_expr = apply_trailing_container_indices_(
+		  *this, des, scope, sub_expr, search_results.net->net_type(),
+		  search_results.path_head.back().index, selected_type);
+	    if (!sub_expr)
+		  return 0;
+	    target_type = selected_type;
+	    target_indexed = false;
+	    applied_root_queue_select = true;
+      }
+
+	/* A receiver may select through SEVERAL container levels
+	 * (qdq[i][j].size()). The single-index branch below matches only
+	 * one component and the slice branch above only a trailing
+	 * slice, so a two-or-more index receiver used to match neither:
+	 * no select was built at all and the method dispatched against
+	 * the BARE ROOT SIGNAL, silently returning another object's
+	 * result. Route those through the same walker the slice case
+	 * uses; it consumes every component and reports a focused
+	 * diagnostic for a chain it cannot represent, so no index
+	 * component is ever dropped silently. */
+      if (search_results.net
+	  && !applied_root_queue_select
+	  && (search_results.net->data_type()==IVL_VT_QUEUE
+	      || search_results.net->data_type()==IVL_VT_DARRAY)
+	  && search_results.net->darray_type()
+	  && search_results.path_head.back().index.size() > 1) {
 	    ivl_type_t selected_type = nullptr;
 	    sub_expr = apply_trailing_container_indices_(
 		  *this, des, scope, sub_expr, search_results.net->net_type(),
@@ -16209,6 +16525,34 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 			    if (method_name == perm_string::literal("try_get")
 				|| method_name == perm_string::literal("try_peek")
 				|| method_name == perm_string::literal("try_put")) {
+				  if (parms_.size() != 1) {
+					cerr << get_fileline() << ": error: Mailbox method '"
+					     << method_name
+					     << "' requires exactly one message argument "
+						"(IEEE 1800-2017/2023 15.4)."
+					     << endl;
+					des->errors += 1;
+					delete sub_expr;
+					return 0;
+				  }
+				  static const vector<perm_string> message_names = {
+					perm_string::literal("message")
+				  };
+				  unsigned errors_before = des->errors;
+				  auto message_args = map_named_args(
+					des, message_names, parms_);
+				  if (message_args.empty() || !message_args[0]) {
+					if (des->errors == errors_before) {
+					      cerr << get_fileline()
+						   << ": error: Mailbox method '"
+						   << method_name
+						   << "' requires a message argument."
+						   << endl;
+					      des->errors += 1;
+					}
+					delete sub_expr;
+					return 0;
+				  }
 				  // Returns bit (1=success, 0=fail)
 				  const char*sname =
 				      method_name==perm_string::literal("try_get")
@@ -16216,18 +16560,64 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 				      : (method_name==perm_string::literal("try_peek")
 				         ? "$ivl_mailbox$try_peek"
 				         : "$ivl_mailbox$try_put");
-				  unsigned nargs = parms_.empty() ? 0 : 1;
-				  NetESFunc*sys = new NetESFunc(sname,
-							       &netvector_t::atom2u32,
-							       1 + nargs);
-				  sys->set_line(*this);
-				  sys->parm(0, sub_expr);
-				  if (nargs > 0 && parms_[0].parm) {
-				      NetExpr*a = elab_and_eval(des, scope,
-							       parms_[0].parm,
-							       -1, false, false);
-				      if (a) sys->parm(1, a);
+			      NetESFunc*sys = new NetESFunc(sname,
+						       &netvector_t::atom2u32,
+						       2);
+			      sys->set_line(*this);
+			      sys->parm(0, sub_expr);
+			      if (method_name == perm_string::literal("try_get")
+				  || method_name == perm_string::literal("try_peek")) {
+				    unsigned lval_errors_before = des->errors;
+				    NetAssign_*lval = message_args[0]->elaborate_lval(
+					  des, scope, false, false);
+				    if (!lval) {
+					  if (des->errors == lval_errors_before) {
+						cerr << message_args[0]->get_fileline()
+						     << ": error: Mailbox method '"
+						     << method_name
+						     << "' output argument must be a writable "
+							"variable l-value (IEEE 1800-2017/2023 "
+							"15.4)." << endl;
+						des->errors += 1;
+					  }
+					  delete sys;
+					  return 0;
+				    }
+				    if (lval->more) {
+					  cerr << message_args[0]->get_fileline()
+					       << ": error: Mailbox method '" << method_name
+					       << "' ref output must name one variable, not "
+						  "an l-value concatenation (IEEE "
+						  "1800-2017/2023 15.4)." << endl;
+					  des->errors += 1;
+					  delete lval;
+					  delete sys;
+					  return 0;
+				    }
+				    if (!typed_mailbox_type_equivalent_(
+						*this, des, class_type, method_name,
+						netassign_type_for_equivalence(lval))) {
+					  delete lval;
+					  delete sys;
+					  return 0;
+				    }
+				    sys->set_ref_output(lval);
+				    return sys;
+			      }
+			      NetExpr*a = elab_typed_mailbox_input(
+				    des, scope, method_name, message_args[0]);
+				  if (!a) {
+					delete sys;
+					return 0;
 				  }
+				  if (!typed_mailbox_argument_equivalent_(
+						*this, des, class_type,
+						method_name, a)) {
+					delete a;
+					delete sys;
+					return 0;
+				  }
+				  if (a) sys->parm(1, a);
 				  return sys;
 			    }
 			}
@@ -19416,13 +19806,22 @@ static NetExpr* elaborate_vif_instance_array_dispatch_(const LineInfo*loc,
 
       NetScope*representative = visible_interface_instance_array_(
 	    des, scope, comp.name, lexical_pos);
-      if (!representative
-	  || representative->module_name() != want_class->get_name())
+      if (!representative)
 	    return 0;
+      const netclass_t*representative_type =
+	    elaborate_interface_instance_type(des, representative);
+      if (!representative_type
+	  || !want_class->interface_assignment_compatible_from(
+		representative_type)) {
+	    report_virtual_interface_assignment_mismatch_(
+		  des, *loc, want_class, representative_type);
+	    return nullptr;
+      }
 
 	// Collect interface-instance child scopes `name[k]' of the wanted
 	// type from the exact lexical scope selected above.
       std::map<long,NetScope*> insts;
+      const netclass_t*dispatch_type = nullptr;
       NetScope*owner = representative->parent();
       const std::map<hname_t,NetScope*>&kids = owner->children();
       for (std::map<hname_t,NetScope*>::const_iterator it = kids.begin()
@@ -19433,9 +19832,24 @@ static NetExpr* elaborate_vif_instance_array_dispatch_(const LineInfo*loc,
 	    NetScope*cs = it->second;
 	    if (!cs || !cs->is_interface()) continue;
 	    if (cs->module_name() != want_class->get_name()) continue;
+	    const netclass_t*source_type =
+		  elaborate_interface_instance_type(des, cs);
+	    if (!source_type
+		|| !want_class->interface_assignment_compatible_from(source_type)) {
+		  report_virtual_interface_assignment_mismatch_(
+			des, *loc, want_class, source_type);
+		  return nullptr;
+	    }
+	    if (!dispatch_type)
+		  dispatch_type = source_type;
+	    else if (!dispatch_type->same_interface_type(source_type)) {
+		  report_virtual_interface_assignment_mismatch_(
+			des, *loc, want_class, source_type);
+		  return nullptr;
+	    }
 	    insts[hn.peek_number(0)] = cs;
       }
-      if (insts.empty())
+      if (insts.empty() || !dispatch_type)
 	    return 0;
 
 	// Only synthesize the table for a NON-constant index; a constant
@@ -19447,11 +19861,12 @@ static NetExpr* elaborate_vif_instance_array_dispatch_(const LineInfo*loc,
 
       unsigned wid = ntype->packed_width();
       if (wid == 0) wid = 32;
-      NetExpr*acc = new NetENull;
+      NetExpr*acc = new NetENull(static_cast<ivl_type_t>(dispatch_type));
       acc->set_line(*loc);
       for (std::map<long,NetScope*>::reverse_iterator it = insts.rbegin()
 	     ; it != insts.rend() ; ++it) {
-	    NetEScope*handle = new NetEScope(it->second, ntype);
+	    NetEScope*handle = new NetEScope(
+		  it->second, static_cast<ivl_type_t>(dispatch_type));
 	    handle->set_line(*loc);
 	    verinum kval ((uint64_t)it->first, 32);
 	    NetEConst*kc = new NetEConst(kval);
@@ -19525,10 +19940,13 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 	// M5-3: a non-constant index into an interface-instance array used as
 	// a virtual-interface value becomes a runtime dispatch table.
       if (path_.package == 0) {
+	    unsigned dispatch_errors = des->errors;
 	    if (NetExpr*disp = elaborate_vif_instance_array_dispatch_(this, des,
 							scope, path_.name,
 							lexical_pos_, ntype))
 		  return disp;
+	    if (des->errors != dispatch_errors)
+		  return nullptr;
       }
 
 	// M13: expand let uses by substitution.
@@ -19630,12 +20048,27 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       if (!sr.net) {
 	    const netclass_t*want_class = dynamic_cast<const netclass_t*>(ntype);
 	    if (want_class && want_class->is_interface()
-		&& sr.scope && sr.path_tail.empty()
-		&& sr.scope->is_interface()
-		&& sr.scope->module_name() == want_class->get_name()) {
-		  NetEScope*tmp = new NetEScope(sr.scope, ntype);
-		  tmp->set_line(*this);
-		  return tmp;
+		&& sr.scope && sr.scope->is_interface()) {
+		  const netclass_t*source_type = nullptr;
+		  perm_string selected_modport;
+		  if (interface_scope_view_type_(
+			des, sr.scope, sr.path_tail, sr.path_head, path_.name,
+			source_type, selected_modport)) {
+			if (!want_class->interface_assignment_compatible_from(
+			      source_type)) {
+			      report_virtual_interface_assignment_mismatch_(
+				    des, *this, want_class, source_type);
+			      return nullptr;
+			}
+			/* Keep the source view on the scope expression. In particular,
+			   an unselected instance assigned to a selected-modport VIF is
+			   legal, but it does not retroactively change the instance's
+			   own type. */
+			NetEScope*tmp = new NetEScope(
+			      sr.scope, static_cast<ivl_type_t>(source_type));
+			tmp->set_line(*this);
+			return tmp;
+		  }
 	    }
 
 	    /* SV permits calling a 0-arg static function without parens:
@@ -23755,15 +24188,56 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
 	    return nullptr;
 
 	/* The fixed dimensions select an object-array word; any further
-	 * component selects through the associative map stored in that word.
-	 * Keep those two address spaces separate instead of feeding the final
-	 * key to the packed bit-select machinery below. */
-      if (net->queue_type() && net->queue_type()->assoc_compat()) {
-	    ivl_type_t selected_type = nullptr;
-	    return elaborate_fixed_assoc_signal_select_(
-		  *this, des, scope, net, name_tail.index, need_const,
-		  selected_type);
-      }
+	 * components select through the Q/D/A value stored in that word. Keep
+	 * those two address spaces separate instead of feeding a dynamic index to
+	 * the packed bit-select machinery below. The checked canonicalizer retains
+	 * every declared fixed dimension and evaluates each source index once. */
+	if (net->darray_type()) {
+	      const size_t fixed_dims = net->unpacked_dimensions();
+	      list<index_component_t>::const_iterator split =
+		    name_tail.index.begin();
+	      for (size_t dim = 0 ; dim < fixed_dims ; dim += 1, ++split) {
+		    if (split->sel != index_component_t::SEL_BIT
+			|| !split->msb || split->lsb) {
+			  cerr << get_fileline() << ": error: a fixed "
+			       << "unpacked-array dynamic-container value requires "
+			       << "one simple index per fixed dimension." << endl;
+			  des->errors += 1;
+			  return nullptr;
+		    }
+	      }
+
+	      const netsarray_t*fixed_type =
+		    dynamic_cast<const netsarray_t*>(net->array_type());
+	      if (!fixed_type
+		  || fixed_type->static_dimensions().size() != fixed_dims) {
+		    cerr << get_fileline() << ": internal error: fixed-prefix "
+			 << "dynamic-container signal `" << net->name()
+			 << "' has inconsistent fixed-array type metadata." << endl;
+		    des->errors += 1;
+		    return nullptr;
+	      }
+
+	      list<index_component_t>fixed_indices(
+		    name_tail.index.begin(), split);
+	      NetExpr*canon = make_checked_canonical_property_index(
+		    des, scope, this, fixed_indices, fixed_type, need_const);
+	      if (!canon)
+		    return nullptr;
+	      canon->set_line(*this);
+	      NetExpr*selected = new NetESignal(net, canon);
+	      selected->set_line(*this);
+
+	      list<index_component_t>trailing_indices(
+		    split, name_tail.index.end());
+	      if (trailing_indices.empty())
+		    return selected;
+
+	      ivl_type_t selected_type = net->net_type();
+	      return apply_trailing_container_indices_(
+		    *this, des, scope, selected, selected_type,
+		    trailing_indices, selected_type);
+	}
 
 	// Evaluate all the index expressions into an
 	// "unpacked_indices" array.
@@ -26007,10 +26481,17 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 	    return 0;
       }
 
-      NetExpr*tru = tru_->elaborate_expr(des, scope, type, flags);
+      const bool vif_context = virtual_interface_type_(type);
+      NetExpr*tru = vif_context
+	    ? elab_and_eval(des, scope, tru_, type,
+			    (flags & NEED_CONST) != 0, flags & ~NEED_CONST)
+	    : tru_->elaborate_expr(des, scope, type, flags);
       if (tru == 0) { delete con; return 0; }
 
-      NetExpr*fal = fal_->elaborate_expr(des, scope, type, flags);
+      NetExpr*fal = vif_context
+	    ? elab_and_eval(des, scope, fal_, type,
+			    (flags & NEED_CONST) != 0, flags & ~NEED_CONST)
+	    : fal_->elaborate_expr(des, scope, type, flags);
       if (fal == 0) { delete con; delete tru; return 0; }
 
       if (! NetETernary::test_operand_compat(tru->expr_type(), fal->expr_type())) {
@@ -26283,27 +26764,35 @@ NetExpr*PETypename::elaborate_expr(Design*des, NetScope*scope_in,
                   symbol_search(this, des, scope_in, hident, /*lex_pos*/0, &sr);
                   if (sr.is_found() && sr.is_scope()
                       && sr.scope && sr.scope->is_interface()) {
-                        const netclass_t*want_class =
-                              dynamic_cast<const netclass_t*>(want_type);
-                        if (!want_type
-                            || (want_class && want_class->is_interface())) {
-                              ivl_type_t use_type = want_type
-                                    ? want_type
-                                    : (ivl_type_t)sr.scope->class_def();
-                              if (!use_type) {
-                                    // Fall back: still build a NetEScope so
-                                    // downstream uses the real instance, even
-                                    // if its type isn't fully known yet.
-                                    NetEScope*tmp = new NetEScope(sr.scope, nullptr);
-                                    tmp->set_line(*this);
-                                    return tmp;
-                              }
-                              NetEScope*tmp = new NetEScope(sr.scope, use_type);
-                              tmp->set_line(*this);
-                              return tmp;
-                        }
-                  }
-            }
+			const netclass_t*want_class =
+			      dynamic_cast<const netclass_t*>(want_type);
+			if (!want_type
+			    || (want_class && want_class->is_interface())) {
+			      const netclass_t*source_class =
+				    elaborate_interface_instance_type(des, sr.scope);
+			      ivl_type_t use_type =
+				    static_cast<ivl_type_t>(source_class);
+			      if (want_class && source_class
+				  && !want_class->interface_assignment_compatible_from(
+					source_class)) {
+				    report_virtual_interface_assignment_mismatch_(
+					  des, *this, want_class, source_class);
+				    return nullptr;
+			      }
+			      if (!use_type) {
+				      // Fall back: still build a NetEScope so
+				      // downstream uses the real instance, even
+				      // if its type isn't fully known yet.
+				    NetEScope*tmp = new NetEScope(sr.scope, nullptr);
+				    tmp->set_line(*this);
+				    return tmp;
+			      }
+			      NetEScope*tmp = new NetEScope(sr.scope, use_type);
+			      tmp->set_line(*this);
+			      return tmp;
+			}
+		  }
+	    }
       }
       (void)flags;
       if (gn_system_verilog()) {

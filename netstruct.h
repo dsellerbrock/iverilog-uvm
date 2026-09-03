@@ -24,6 +24,7 @@
 # include  "ivl_target.h"
 # include  "nettypes.h"
 # include  "property_qual.h"
+# include  <string>
 
 class Design;
 
@@ -60,6 +61,16 @@ class netstruct_t : public LineInfo, public ivl_type_s {
       unsigned tag_bits() const;
       // Index of a member by name (0..N-1), or (unsigned)-1 if not found.
       unsigned member_index(perm_string name) const;
+
+	/* Preserve nominal provenance for every record. IEEE 1800 type matching
+	 * is stricter than packed-type equivalence, so two declarations must not
+	 * alias merely because their visible shapes happen to match. */
+      void set_nominal_identity(const void*definition,
+				const std::string&owner)
+      { definition_ = definition; owner_identity_ = owner; }
+      const void* nominal_definition() const { return definition_; }
+      const std::string& nominal_owner_identity() const
+      { return owner_identity_; }
 
       void packed(bool flag);
       bool packed(void) const override;
@@ -98,6 +109,8 @@ class netstruct_t : public LineInfo, public ivl_type_s {
       bool packed_;
       bool signed_;
       bool tagged_ = false;
+      const void*definition_ = nullptr;
+      std::string owner_identity_;
       std::vector<member_t>members_;
 };
 

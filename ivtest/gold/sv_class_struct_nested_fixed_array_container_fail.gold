@@ -1,2 +1,2 @@
-./ivltests/sv_class_struct_nested_fixed_array_container_fail.v:11: sorry: a fixed array of queues or associative arrays nested inside an unpacked-struct class property is not yet supported; the supported instance-class form is a direct fixed array property.
+./ivltests/sv_class_struct_nested_fixed_array_container_fail.v:11: sorry: a fixed array of dynamic-container values nested inside an unpacked-struct class property is not yet supported; the supported instance-class form is a direct fixed array property.
 1 error(s) during elaboration.

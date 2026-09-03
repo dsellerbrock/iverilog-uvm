@@ -22,9 +22,59 @@
 # include  <stdlib.h>
 # include  <stdint.h>
 # include  <limits.h>
+# include  <memory>
 class vvp_net_t;
 struct vthread_s;
 typedef struct vthread_s* vthread_t;
+
+/*
+ * Runtime layout of the variable-size container layers in a declaration.
+ *
+ * Queue type matching deliberately ignores the queue bound, but every write
+ * uses the destination queue's declared bound. A selected physical value can
+ * therefore carry a different layout than the expression type used to reach
+ * it. Keep the complete Q/D/A chain on the live destination object and hand
+ * the immutable tail to each newly-created child container.
+ *
+ * A Q layer with queue_bound_known=true and queue_max_size=0 is explicitly
+ * unbounded. A Q layer with queue_bound_known=false comes only from a legacy
+ * VVP image that supplied no declaration metadata and must use an opcode's
+ * static fallback.
+ */
+enum vvp_container_layout_kind_t {
+      VVP_CONTAINER_QUEUE,
+      VVP_CONTAINER_DARRAY,
+      VVP_CONTAINER_ASSOC
+};
+
+struct vvp_container_layout_s;
+typedef std::shared_ptr<const vvp_container_layout_s>
+      vvp_container_layout_t;
+
+struct vvp_container_layout_s {
+      vvp_container_layout_s(vvp_container_layout_kind_t kind,
+                             bool bound_known, uint64_t max_size,
+                             const vvp_container_layout_t&child)
+      : kind(kind), queue_bound_known(bound_known),
+        queue_max_size(max_size), element(child) { }
+
+      vvp_container_layout_kind_t kind;
+      bool queue_bound_known;
+      uint64_t queue_max_size;
+      vvp_container_layout_t element;
+};
+
+extern vvp_container_layout_t vvp_make_container_layout(
+      vvp_container_layout_kind_t kind, bool queue_bound_known,
+      uint64_t queue_max_size, const vvp_container_layout_t&element);
+
+/* Parse the suffix of a queue/darray/associative type record. New images use
+ * !Q0,D,A,Q3 (the first layer must match expected_outer); legacy @N/#N
+ * spellings remain accepted. base_length receives the prefix before the
+ * suffix so callers can normalize their element-kind record. */
+extern bool vvp_parse_container_layout_type(
+      const char*text, vvp_container_layout_kind_t expected_outer,
+      vvp_container_layout_t&layout, size_t&base_length);
 
 inline bool vvp_object_ptr_is_poisoned(const class vvp_object*ptr)
 {
@@ -68,6 +118,27 @@ class vvp_object {
       virtual void shallow_copy(const vvp_object*that);
       virtual vvp_object* duplicate(void) const;
 
+       /* Declaration layout is not passive value metadata. Named signals and
+	 * class properties install their immutable destination layout after a
+	 * value copy; temporary duplicates may share this immutable chain. */
+      void set_declared_container_layout(const vvp_container_layout_t&value);
+      const vvp_container_layout_t&declared_container_layout() const
+	{ return declared_container_layout_; }
+      vvp_container_layout_t declared_element_container_layout() const
+	{ return declared_container_layout_
+	       ? declared_container_layout_->element : vvp_container_layout_t(); }
+      uint64_t declared_queue_max_size() const
+	{ return declared_queue_bound_known()
+	       ? declared_container_layout_->queue_max_size : 0; }
+      bool declared_queue_bound_known() const
+	{ return declared_container_layout_
+	       && declared_container_layout_->kind == VVP_CONTAINER_QUEUE
+	       && declared_container_layout_->queue_bound_known; }
+      void reset_declared_queue_layout_metadata()
+	{ declared_container_layout_.reset(); }
+      void copy_declared_queue_layout_metadata_to(vvp_object*that) const
+	{ that->set_declared_container_layout(declared_container_layout_); }
+
       static void cleanup(void);
       static bool pointer_is_live(const vvp_object*ptr);
       inline uint64_t mutation_epoch() const { return mutation_epoch_; }
@@ -91,6 +162,22 @@ class vvp_object {
       friend class vvp_object_t;
       int ref_cnt_;
       uint64_t mutation_epoch_;
+      vvp_container_layout_t declared_container_layout_;
+
+    protected:
+       /* A queue applies its own declared maximum before descendants are
+	* rebound. Keeping this virtual here avoids teaching the common object
+	* layer about darray subclasses while making whole-value assignment trim
+	* every populated queue in a recursive Q/D/A layout. */
+      virtual void apply_declared_container_layout_own(
+	    const vvp_container_layout_t&layout);
+
+       /* Object-valued containers override this to install ELEMENT_LAYOUT on
+	 * every already-populated child. The layout chain is finite, so the
+	 * recursive setter also repairs descendants copied from a differently
+	 * bounded source without needing target-type operands on every load. */
+      virtual void rebind_declared_element_container_layout(
+	    const vvp_container_layout_t&element_layout);
 
       static int total_active_cnt_;
 };

@@ -1,2 +1,2 @@
-./ivltests/sv_assoc_fixed_prefix_entry_select_fail.v:7: sorry: assignment through fixed unpacked-array associative leaf `packed_values' supports exactly one entry index after the fixed prefix; deeper or partial entry selects are not yet supported.
+./ivltests/sv_assoc_fixed_prefix_entry_select_fail.v:7: sorry: assignment through fixed unpacked-array dynamic-container `packed_values' requires one simple index at each trailing Q/D/A level; slices and packed tails are not yet supported.
 Elaboration failed

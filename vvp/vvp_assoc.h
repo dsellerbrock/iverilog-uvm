@@ -22,6 +22,7 @@
 # include  <map>
 # include  <iterator>
 # include  <cassert>
+# include  <set>
 # include  <string>
 # include  <vector>
 # include  "vvp_net.h"
@@ -34,6 +35,66 @@
 extern unsigned vpip_vec4_to_dec_str(const vvp_vector4_t&vec4,
 				     char *buf, unsigned int nbuf,
 				     int signed_flag);
+
+class vvp_assoc_base;
+
+/*
+ * A stable reference to one associative-array element.
+ *
+ * IEEE 1800-2017/2023 13.5.2 requires an element passed by ref to remain
+ * alive until the subroutine completes. Deleting that key (or the complete
+ * array) detaches the reference with a private copy; a later insertion at
+ * the same key is a distinct element and must not be changed through the
+ * outdated reference. While attached, ordinary writes to the key remain
+ * visible through this object.
+ */
+class vvp_assoc_element_ref : public vvp_object {
+    public:
+      enum kind_t { ELEM_VEC4, ELEM_REAL, ELEM_STRING, ELEM_OBJECT };
+
+      vvp_assoc_element_ref(vvp_assoc_base*owner, const std::string&key,
+                            kind_t kind, unsigned vec4_width);
+      vvp_assoc_element_ref(vvp_assoc_base*owner, const vvp_object_t&key,
+                            kind_t kind, unsigned vec4_width);
+      vvp_assoc_element_ref(vvp_assoc_base*owner, const vvp_vector4_t&key,
+                            kind_t kind, unsigned vec4_width);
+      ~vvp_assoc_element_ref() override;
+
+      void set_value(const vvp_vector4_t&value, bool notify = true);
+      void get_value(vvp_vector4_t&value);
+      void set_value(double value, bool notify = true);
+      void get_value(double&value);
+      void set_value(const std::string&value, bool notify = true);
+      void get_value(std::string&value);
+      void set_value(const vvp_object_t&value, bool notify = true);
+      void get_value(vvp_object_t&value);
+      vvp_object_t attached_owner() const;
+
+      void shallow_copy(const vvp_object*that) override;
+      vvp_object* duplicate(void) const override;
+
+    private:
+      friend class vvp_assoc_base;
+
+      enum key_kind_t { KEY_STRING, KEY_OBJECT, KEY_VEC4 };
+
+      void detach();
+      bool matches(const std::string&key) const;
+      bool matches(const vvp_object_t&key) const;
+      bool matches(const vvp_vector4_t&key) const;
+
+      vvp_assoc_base*owner_;
+      key_kind_t key_kind_;
+      kind_t kind_;
+      bool valid_;
+      std::string string_key_;
+      vvp_object_t object_key_;
+      vvp_vector4_t vec4_key_;
+      vvp_vector4_t vec4_value_;
+      double real_value_;
+      std::string string_value_;
+      vvp_object_t object_value_;
+};
 
 class vvp_assoc_base : public vvp_object {
     public:
@@ -67,6 +128,19 @@ class vvp_assoc_base : public vvp_object {
 	// ALL entries. No single-key primitive can express this; the
 	// %aa/delete/all opcode calls it.
       virtual void clear() =0;
+
+	// Capture one evaluated key as a stable ref target. Missing elements are
+	// represented without inserting an entry; the first attached write creates
+	// the element, matching ordinary associative-array l-value semantics.
+      vvp_object_t capture_element_ref(const std::string&key,
+				       vvp_assoc_element_ref::kind_t kind,
+				       unsigned vec4_width);
+      vvp_object_t capture_element_ref(const vvp_object_t&key,
+				       vvp_assoc_element_ref::kind_t kind,
+				       unsigned vec4_width);
+      vvp_object_t capture_element_ref(const vvp_vector4_t&key,
+				       vvp_assoc_element_ref::kind_t kind,
+				       unsigned vec4_width);
 
 	// M12 VPI: positional element peek in key order (string keys
 	// first, then object keys, then vector keys — the same order
@@ -116,8 +190,16 @@ class vvp_assoc_base : public vvp_object {
       void inherit_randc_histories(const vvp_assoc_base&that);
 
     protected:
+      friend class vvp_assoc_element_ref;
+
       static const vvp_object* object_key_(const vvp_object_t&key);
       static std::string vec4_key_(const vvp_vector4_t&key);
+      void register_element_ref_(vvp_assoc_element_ref*ref);
+      void unregister_element_ref_(vvp_assoc_element_ref*ref);
+      void element_refs_detach_all_();
+      void element_refs_remove_(const std::string&key);
+      void element_refs_remove_(const vvp_object_t&key);
+      void element_refs_remove_(const vvp_vector4_t&key);
       void erase_rand_mode_(const std::string&key);
       void erase_rand_mode_(const vvp_object_t&key);
       void erase_rand_mode_(const vvp_vector4_t&key);
@@ -135,6 +217,7 @@ class vvp_assoc_base : public vvp_object {
       std::map<std::string, std::vector<bool> > randc_history_str_;
       std::map<const vvp_object*, std::vector<bool> > randc_history_obj_;
       std::map<std::string, std::vector<bool> > randc_history_vec_;
+      std::set<vvp_assoc_element_ref*> element_refs_;
 };
 
 /* An associative-array value and its per-element random modes are copied by
@@ -154,15 +237,29 @@ assoc_value_copy_element_(const vvp_object_t&value)
       return value.value_copy_element();
 }
 
+template <class TYPE>
+static inline void assoc_rebind_container_layout_(
+      TYPE&, const vvp_container_layout_t&)
+{
+}
+
+static inline void assoc_rebind_container_layout_(
+      vvp_object_t&value, const vvp_container_layout_t&layout)
+{
+      if (vvp_object*object = value.peek<vvp_object>())
+	    object->set_declared_container_layout(layout);
+}
+
 template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
     public:
       inline vvp_assoc_map() : has_default_(false), default_value_() { }
-      ~vvp_assoc_map() override { }
+      ~vvp_assoc_map() override { element_refs_detach_all_(); }
 
       size_t size() const override
       { return str_map_.size() + obj_map_.size() + vec_map_.size(); }
       void clear() override
       {
+            element_refs_detach_all_();
             clear_rand_modes_();
             clear_randc_histories_();
             str_map_.clear();
@@ -206,12 +303,14 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       { return prev_key_(vec_map_, key, signed_order); }
       void erase_key(const std::string&key) override
       {
+            element_refs_remove_(key);
             erase_rand_mode_(key);
             erase_randc_history_(key);
             str_map_.erase(key);
       }
       void erase_key(const vvp_object_t&key) override
       {
+            element_refs_remove_(key);
             const vvp_object*raw_key = object_key_(key);
             erase_rand_mode_(key);
             erase_randc_history_(key);
@@ -220,6 +319,7 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       }
       void erase_key(const vvp_vector4_t&key) override
       {
+            element_refs_remove_(key);
             erase_rand_mode_(key);
             erase_randc_history_(key);
             vec_map_.erase(vec4_key_(key));
@@ -308,7 +408,14 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
             assert(that);
             if (that == this)
                   return;
+            element_refs_detach_all_();
+            const vvp_container_layout_t destination_layout =
+                  declared_container_layout();
             copy_from_(*that);
+              /* Assignment changes the associative-array value, never the
+               * destination declaration. Do not import layout metadata from
+               * the source, even when this legacy destination has none. */
+            set_declared_container_layout(destination_layout);
             inherit_rand_modes(*that);
             inherit_randc_histories(*that);
             touch();
@@ -318,9 +425,28 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       {
             vvp_assoc_map<TYPE>*that = new vvp_assoc_map<TYPE>();
             that->copy_from_(*this);
+            copy_declared_queue_layout_metadata_to(that);
             that->inherit_rand_modes(*this);
             that->inherit_randc_histories(*this);
             return that;
+      }
+
+    protected:
+      void rebind_declared_element_container_layout(
+	    const vvp_container_layout_t&element_layout) override
+      {
+	    for (typename std::map<std::string, TYPE>::iterator cur =
+		       str_map_.begin(); cur != str_map_.end(); ++cur)
+		  assoc_rebind_container_layout_(cur->second, element_layout);
+	    for (typename std::map<const vvp_object*, TYPE>::iterator cur =
+		       obj_map_.begin(); cur != obj_map_.end(); ++cur)
+		  assoc_rebind_container_layout_(cur->second, element_layout);
+	    for (typename std::map<std::string, vec_entry_t>::iterator cur =
+		       vec_map_.begin(); cur != vec_map_.end(); ++cur)
+		  assoc_rebind_container_layout_(cur->second.value,
+					 element_layout);
+	    if (has_default_)
+		  assoc_rebind_container_layout_(default_value_, element_layout);
       }
 
     private:

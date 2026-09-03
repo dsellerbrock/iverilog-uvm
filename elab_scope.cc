@@ -62,6 +62,7 @@
 # include  "netenum.h"
 # include  "netqueue.h"
 # include  "netstruct.h"
+# include  "netscalar.h"
 # include  "parse_api.h"
 # include  "util.h"
 # include  <typeinfo>
@@ -447,6 +448,14 @@ static void collect_scope_parameters(Design*des, NetScope*scope,
 
 	    collect_parm_item(des, scope, cur->first, *(cur->second), false);
       }
+}
+
+void collect_module_parameter_declarations(Design*des, NetScope*scope,
+                                            const Module*module)
+{
+      if (!module)
+            return;
+      collect_scope_parameters(des, scope, module->parameters);
 }
 
 static void collect_scope_specparams(Design*des, NetScope*scope,
@@ -876,8 +885,6 @@ static bool cache_value_parameter_is_deferred_(Design*des, NetScope*scope,
  * hiding it in function-static maps that survive target emission. */
 static std::map<const NetScope*,std::string> specialization_scope_path_cache_;
 static std::map<const PExpr*,std::string> specialization_pexpr_dump_cache_;
-static std::map<const NetExpr*,std::string>
-      specialization_netexpr_value_key_cache_;
 static std::map<ivl_type_t,std::string> specialization_type_dump_cache_;
 static std::map<const data_type_t*,std::string>
       specialization_data_type_dump_cache_;
@@ -1022,24 +1029,6 @@ static void append_cache_netexpr_value_key_(std::ostringstream&out,
       out << ">";
 }
 
-static const std::string& cached_netexpr_value_key_(const NetExpr*expr)
-{
-      if (!expr) {
-	static const std::string nil("<nil-value>");
-	return nil;
-      }
-
-      std::map<const NetExpr*,std::string>::iterator it =
-	specialization_netexpr_value_key_cache_.find(expr);
-      if (it != specialization_netexpr_value_key_cache_.end())
-	return it->second;
-
-      std::ostringstream out;
-      append_cache_netexpr_value_key_(out, expr);
-      return specialization_netexpr_value_key_cache_
-	.insert(std::make_pair(expr, out.str())).first->second;
-}
-
 static const std::string& cached_type_dump_(ivl_type_t type)
 {
       if (!type) {
@@ -1058,9 +1047,82 @@ static const std::string& cached_type_dump_(ivl_type_t type)
 	    .insert(std::make_pair(type, out.str())).first->second;
 }
 
+static void append_cache_string_key_(std::ostringstream&out,
+				      const std::string&value)
+{
+      out << value.size() << ":";
+      out.write(value.data(), value.size());
+}
+
+static void append_cache_perm_string_key_(std::ostringstream&out,
+					   perm_string value)
+{
+      if (value.nil()) {
+	out << "0:";
+	return;
+      }
+      append_cache_string_key_(out, value.str());
+}
+
+/* IEEE 1800-2017/2023 6.22 makes a type declaration inside each physical
+ * module/interface/program/generate instance nominally distinct. A detached
+ * virtual-interface declaration scope is not a physical instance, but it has
+ * the semantic layout owner installed by elab_type.cc. Use that semantic owner
+ * when present and the exact elaborated scope otherwise. This also naturally
+ * handles classes nested in a parameterized class: their definition scope owns
+ * the enclosing specialization's semantic identity. */
+static void append_cache_declaration_owner_key_(std::ostringstream&out,
+						 const NetScope*scope)
+{
+      if (!scope) {
+	out << "<nil-declaration-owner>";
+	return;
+      }
+
+      const std::string&semantic_owner = scope->type_owner_identity();
+      if (!semantic_owner.empty()) {
+	out << "semantic=";
+	append_cache_string_key_(out, semantic_owner);
+	return;
+      }
+
+      out << "scope@" << (const void*)scope;
+}
+
+static void append_cache_class_owner_key_(std::ostringstream&out,
+					   const netclass_t*class_type)
+{
+      NetScope*definition_scope = class_type
+	    ? const_cast<netclass_t*>(class_type)->definition_scope() : 0;
+      append_cache_declaration_owner_key_(out, definition_scope);
+}
+
+static void append_cache_ranges_key_(std::ostringstream&out,
+				      const netranges_t&ranges)
+{
+      out << ranges.size() << ":";
+      for (netranges_t::const_iterator cur = ranges.begin();
+	   cur != ranges.end(); ++cur) {
+	if (!cur->defined()) {
+	      out << "undefined;";
+	      continue;
+	}
+	out << cur->get_msb() << ":" << cur->get_lsb() << ";";
+      }
+}
+
+static void append_cache_nominal_key_(std::ostringstream&out,
+				       const void*definition,
+				       const std::string&owner)
+{
+      out << "definition@" << definition << ":owner=";
+      append_cache_string_key_(out, owner);
+}
+
 static void append_cache_ivl_type_key_(Design*des, std::ostringstream&out,
 				       ivl_type_t type,
-				       std::set<ivl_type_t>&active)
+				       std::set<ivl_type_t>&active,
+				       bool exact_layout)
 {
       if (!type) {
 	    out << "<nil-ivl-type>";
@@ -1068,15 +1130,72 @@ static void append_cache_ivl_type_key_(Design*des, std::ostringstream&out,
       }
 
       if (!active.insert(type).second) {
-	    if (const netclass_t*class_type = dynamic_cast<const netclass_t*>(type))
-		  out << "<type-cycle:" << specialization_perf_base_label_(class_type) << ">";
+	    if (const netclass_t*class_type = dynamic_cast<const netclass_t*>(type)) {
+		  out << "<type-cycle:" << specialization_perf_base_label_(class_type)
+		      << ":owner=";
+		  append_cache_class_owner_key_(out, class_type);
+		  out << ">";
+	    }
+	    else if (const netenum_t*enum_type =
+		       dynamic_cast<const netenum_t*>(type)) {
+		  out << "<enum-type-cycle:";
+		  append_cache_nominal_key_(out,
+			enum_type->nominal_definition(),
+			enum_type->nominal_owner_identity());
+		  out << ">";
+	    } else if (const netstruct_t*record =
+			 dynamic_cast<const netstruct_t*>(type)) {
+		  out << "<record-type-cycle:";
+		  append_cache_nominal_key_(out,
+			record->nominal_definition(),
+			record->nominal_owner_identity());
+		  out << ">";
+	    }
 	    else
-		  out << "<type-cycle:" << cached_type_dump_(type) << ">";
+		  out << "<type-cycle:" << typeid(*type).name()
+		      << "@" << (const void*)type << ">";
 	    return;
       }
 
-      if (const netclass_t*class_type = dynamic_cast<const netclass_t*>(type)) {
-	    out << "<class-type:" << specialization_perf_base_label_(class_type);
+	      if (const netclass_t*class_type = dynamic_cast<const netclass_t*>(type)) {
+		    if (class_type->is_interface()
+			&& class_type->interface_definition_id()) {
+			  const std::string&parameters =
+				exact_layout
+				? class_type->interface_layout_parameter_key()
+				: class_type->interface_parameter_key();
+		  perm_string modport = class_type->interface_modport();
+		  const std::string modport_name = modport.nil()
+			? std::string() : std::string(modport.str());
+		  out << "<interface-type:def@"
+		      << class_type->interface_definition_id()
+		      << ":parameters=" << parameters.size() << ":";
+		  out.write(parameters.data(), parameters.size());
+		  out << ":modport=" << modport_name.size() << ":";
+		  out.write(modport_name.data(), modport_name.size());
+		  out << ">";
+		  active.erase(type);
+			  return;
+		    }
+		    if (class_type->is_typed_mailbox()) {
+			  out << "<typed-mailbox:message=";
+			  if (exact_layout) {
+				append_cache_ivl_type_key_(
+				      des, out, class_type->mailbox_message_type(),
+				      active, true);
+			  } else {
+				const std::string&message_key =
+				      class_type->mailbox_message_type_key();
+				out << message_key.size() << ":";
+				out.write(message_key.data(), message_key.size());
+			  }
+			  out << ">";
+			  active.erase(type);
+			  return;
+		    }
+	    out << "<class-type:" << specialization_perf_base_label_(class_type)
+		<< ":owner=";
+	    append_cache_class_owner_key_(out, class_type);
 	    const NetScope*class_scope = class_type->class_scope();
 	    const PClass*pclass = class_scope ? class_scope->class_pform() : 0;
 	    if (class_scope && pclass && !pclass->parameter_order.empty()) {
@@ -1121,12 +1240,14 @@ static void append_cache_ivl_type_key_(Design*des, std::ostringstream&out,
 			 * also part of class-specialization identity. */
 			if (type_parameter) {
 			      if (parm_type)
-				    append_cache_ivl_type_key_(des, out, parm_type, active);
+				    append_cache_ivl_type_key_(des, out, parm_type,
+						       active, exact_layout);
 			      else
 				    out << "<unset-type>";
 			} else if (deferred_value) {
 			      if (parm_type) {
-				    append_cache_ivl_type_key_(des, out, parm_type, active);
+				    append_cache_ivl_type_key_(des, out, parm_type,
+						       active, exact_layout);
 				    out << "=";
 			      }
 			      out << "<forwarded-value-param@"
@@ -1134,11 +1255,12 @@ static void append_cache_ivl_type_key_(Design*des, std::ostringstream&out,
 				  << (const void*)source_expr << ">";
 			} else if (parm_type || parm_expr) {
 			      if (parm_type)
-				    append_cache_ivl_type_key_(des, out, parm_type, active);
+				    append_cache_ivl_type_key_(des, out, parm_type,
+						       active, exact_layout);
 			      if (parm_expr) {
 				    if (parm_type)
 					  out << "=";
-				    out << cached_netexpr_value_key_(parm_expr);
+				    append_cache_netexpr_value_key_(out, parm_expr);
 			      }
 			} else {
 			      out << "<unset>";
@@ -1152,21 +1274,308 @@ static void append_cache_ivl_type_key_(Design*des, std::ostringstream&out,
       }
 
       if (const netenum_t*enum_type = dynamic_cast<const netenum_t*>(type)) {
-	    out << "<enum-type:@" << (const void*)enum_type
-	        << ":base=" << cached_type_dump_(type) << ">";
+	    out << "<enum-type:";
+	    append_cache_nominal_key_(out,
+		  enum_type->nominal_definition(),
+		  enum_type->nominal_owner_identity());
+	    out << ":integer=" << enum_type->get_isint() << ":base=";
+		    append_cache_ivl_type_key_(des, out,
+			  enum_type->base_type_obj(), active, exact_layout);
+	    out << ":closed=" << enum_type->names_closed()
+		<< ":names=" << enum_type->size() << ":";
+	    if (enum_type->names_closed()) {
+		  for (size_t idx = 0; idx < enum_type->size(); ++idx) {
+			append_cache_perm_string_key_(out,
+			      enum_type->name_at(idx));
+			append_exact_verinum_key_(out,
+			      enum_type->value_at(idx));
+			out << ";";
+		  }
+	    }
+	    out << ">";
 	    active.erase(type);
 	    return;
       }
 
-      out << cached_type_dump_(type);
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+	    out << "<record-type:";
+	    append_cache_nominal_key_(out,
+		  record->nominal_definition(),
+		  record->nominal_owner_identity());
+	    out << ":packed=" << record->packed()
+		<< ":union=" << record->union_flag()
+		<< ":tagged=" << record->tagged_flag()
+		<< ":signed=" << record->get_signed()
+		<< ":members=" << record->members().size() << ":";
+	    const vector<netstruct_t::member_t>&members = record->members();
+	    for (vector<netstruct_t::member_t>::const_iterator cur =
+		       members.begin(); cur != members.end(); ++cur) {
+		  append_cache_perm_string_key_(out, cur->name);
+		  out << "qualifier=" << cur->qualifier.mask() << ":modport=";
+		  append_cache_perm_string_key_(out, cur->interface_modport);
+		  out << ":type=";
+			  append_cache_ivl_type_key_(des, out, cur->net_type,
+					     active, exact_layout);
+		  out << ";";
+	    }
+	    out << ">";
+	    active.erase(type);
+	    return;
+      }
+
+	/* netqueue_t derives from netdarray_t, so classify it first. IEEE
+	 * 1800-2023 6.22.1(f) deliberately excludes a queue's optional bound from
+	 * matching-type identity: queue[$:2] and queue[$:4] match when their element
+	 * types match. The bound remains on netqueue_t for runtime behavior, but is
+	 * not a type-parameter/specialization key. The associative-array
+	 * compatibility carrier additionally owns its exact index type and wildcard
+	 * distinction. */
+	      if (const netqueue_t*queue = dynamic_cast<const netqueue_t*>(type)) {
+		    out << "<queue-type:assoc=" << queue->assoc_compat()
+			<< ":wildcard=" << queue->assoc_wildcard();
+		    if (exact_layout && !queue->assoc_compat())
+			  out << ":max-index=" << queue->max_idx();
+		    out
+			<< ":index=";
+		    append_cache_ivl_type_key_(des, out,
+			  queue->assoc_index_type(), active, exact_layout);
+		    out << ":element=";
+		    append_cache_ivl_type_key_(des, out, queue->element_type(),
+					       active, exact_layout);
+	    out << ">";
+	    active.erase(type);
+	    return;
+      }
+
+      if (const netdarray_t*array = dynamic_cast<const netdarray_t*>(type)) {
+	    out << "<dynamic-array-type:element=";
+		    append_cache_ivl_type_key_(des, out, array->element_type(),
+					       active, exact_layout);
+	    out << ">";
+	    active.erase(type);
+	    return;
+      }
+
+      if (const netparray_t*array = dynamic_cast<const netparray_t*>(type)) {
+	    out << "<packed-array-type:ranges=";
+	    append_cache_ranges_key_(out, array->static_dimensions());
+	    out << ":element=";
+		    append_cache_ivl_type_key_(des, out, array->element_type(),
+					       active, exact_layout);
+	    out << ">";
+	    active.erase(type);
+	    return;
+      }
+
+      if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type)) {
+	    out << "<unpacked-array-type:ranges=";
+	    append_cache_ranges_key_(out, array->static_dimensions());
+	    out << ":element=";
+		    append_cache_ivl_type_key_(des, out, array->element_type(),
+					       active, exact_layout);
+	    out << ">";
+	    active.erase(type);
+	    return;
+      }
+
+      if (type == &netvector_t::chandle_type) {
+	    out << "<chandle-type>";
+	    active.erase(type);
+	    return;
+      }
+
+      if (const netvector_t*vector_type =
+		    dynamic_cast<const netvector_t*>(type)) {
+	    /* IEEE 1800-2023 6.22.1(e) makes a predefined-width simple
+	     * bit-vector type match the corresponding explicitly ranged vector.
+	     * netvector_t::isint_ and implicit_ record source spelling/elaboration
+	     * provenance, not matching-type identity. Predefined carriers already
+	     * expose their canonical [width-1:0] range here, so state, signedness,
+	     * and dimensions are the complete key. */
+	    out << "<vector-type:base="
+		<< static_cast<int>(vector_type->base_type())
+		<< ":signed=" << vector_type->get_signed()
+		<< ":ranges=";
+	    append_cache_ranges_key_(out, vector_type->packed_dims());
+	    out << ">";
+	    active.erase(type);
+	    return;
+      }
+
+      if (const netreal_t*real_type = dynamic_cast<const netreal_t*>(type)) {
+	    if (real_type == &netreal_t::type_real)
+		  out << "<real-type>";
+	    else if (real_type == &netreal_t::type_shortreal)
+		  out << "<shortreal-type>";
+	    else
+		  out << "<real-type@" << (const void*)real_type << ">";
+	    active.erase(type);
+	    return;
+      }
+
+      if (dynamic_cast<const netstring_t*>(type)) {
+	    out << "<string-type>";
+	    active.erase(type);
+	    return;
+      }
+
+	/* Unknown carriers must never collapse merely because ivl_type_s's
+	 * default debug_dump prints only the dynamic C++ type name. Pointer
+	 * identity is conservative: it may miss a cache reuse, but cannot merge
+	 * two distinct SystemVerilog types. */
+	out << "<opaque-type:" << typeid(*type).name()
+	    << "@" << (const void*)type << ":dump="
+	    << cached_type_dump_(type) << ">";
       active.erase(type);
 }
 
 static void append_cache_ivl_type_key_(Design*des, std::ostringstream&out,
-				       ivl_type_t type)
+			       ivl_type_t type)
 {
       std::set<ivl_type_t> active;
-      append_cache_ivl_type_key_(des, out, type, active);
+      append_cache_ivl_type_key_(des, out, type, active, false);
+}
+
+static void append_cache_ivl_layout_type_key_(Design*des,
+					       std::ostringstream&out,
+					       ivl_type_t type)
+{
+      std::set<ivl_type_t> active;
+      append_cache_ivl_type_key_(des, out, type, active, true);
+}
+
+bool evaluated_type_signature(Design*des, ivl_type_t type,
+			      std::string&result)
+{
+      if (!des || !type)
+	    return false;
+      std::ostringstream out;
+      append_cache_ivl_type_key_(des, out, type);
+      result = out.str();
+      return true;
+}
+
+static bool evaluated_parameter_signature_(
+		Design*des, NetScope*scope,
+		const std::list<perm_string>&formal_order,
+		std::string&result, bool exact_layout)
+{
+      if (!des || !scope)
+	    return false;
+
+      const unsigned errors_before = des->errors;
+      std::ostringstream out;
+      out << "parameters=" << formal_order.size();
+      for (std::list<perm_string>::const_iterator cur = formal_order.begin()
+		 ; cur != formal_order.end(); ++cur) {
+	    std::map<perm_string,NetScope::param_expr_t>::const_iterator formal =
+		  scope->parameters.find(*cur);
+	    if (formal == scope->parameters.end())
+		  return false;
+
+	    ivl_type_t parameter_type = 0;
+	    const NetExpr*parameter_value = scope->get_parameter(
+		  des, *cur, parameter_type);
+	    if (!parameter_type
+		|| (!formal->second.type_flag && !parameter_value))
+		  return false;
+
+	    const std::string formal_name(cur->str());
+	    std::ostringstream item;
+	    item << "name=" << formal_name.size() << ":";
+	    item.write(formal_name.data(), formal_name.size());
+	    item
+		 << ":kind=" << (formal->second.type_flag ? "type" : "value")
+		 << ":type=";
+	    if (exact_layout)
+		  append_cache_ivl_layout_type_key_(des, item, parameter_type);
+	    else
+		  append_cache_ivl_type_key_(des, item, parameter_type);
+	    if (formal->second.is_array_param) {
+		  if (!formal->second.array_bounds_known)
+			return false;
+
+		  const netranges_t&dimensions = formal->second.array_dims;
+		  item << ":array-dimensions=" << dimensions.size();
+		  size_t expected_elements = 1;
+		  for (netranges_t::const_iterator dimension = dimensions.begin();
+		       dimension != dimensions.end(); ++dimension) {
+			item << ":[" << dimension->get_msb()
+			     << ":" << dimension->get_lsb() << "]";
+			if (dimension->width() >
+			    std::numeric_limits<size_t>::max() / expected_elements)
+			      return false;
+			expected_elements *= dimension->width();
+		  }
+
+		  const std::string element_prefix = formal_name + "[";
+		  std::vector<perm_string>elements;
+		  for (std::map<perm_string,NetScope::param_expr_t>::const_iterator
+			     element = scope->parameters.begin();
+		       element != scope->parameters.end(); ++element) {
+			const std::string element_name(element->first.str());
+			if (element_name.compare(0, element_prefix.size(),
+					 element_prefix) == 0)
+			      elements.push_back(element->first);
+		  }
+		  if (elements.size() != expected_elements)
+			return false;
+
+		  item << ":array-elements=" << elements.size();
+		  for (std::vector<perm_string>::const_iterator element =
+			     elements.begin(); element != elements.end(); ++element) {
+			ivl_type_t element_type = 0;
+			const NetExpr*element_value = scope->get_parameter(
+			      des, *element, element_type);
+			if (!element_type || !element_value)
+			      return false;
+			const std::string element_name(element->str());
+			item << ":element-name=" << element_name.size() << ":";
+			item.write(element_name.data(), element_name.size());
+			item << ":element-type=";
+				if (exact_layout)
+				      append_cache_ivl_layout_type_key_(
+					    des, item, element_type);
+				else
+				      append_cache_ivl_type_key_(
+					    des, item, element_type);
+			item << ":element-value=";
+			append_cache_netexpr_value_key_(item, element_value);
+		  }
+	    } else if (!formal->second.type_flag) {
+		  item << ":value=";
+		  append_cache_netexpr_value_key_(item, parameter_value);
+	    }
+	    const std::string item_key = item.str();
+	    out << ":item=" << item_key.size() << ":";
+	    out.write(item_key.data(), item_key.size());
+      }
+
+      if (des->errors != errors_before)
+	    return false;
+      result = out.str();
+      return true;
+}
+
+bool evaluated_parameter_signature(
+		Design*des, NetScope*scope,
+		const std::list<perm_string>&formal_order,
+		std::string&result)
+{
+      return evaluated_parameter_signature_(
+	    des, scope, formal_order, result, false);
+}
+
+bool evaluated_parameter_signatures(
+		Design*des, NetScope*scope,
+		const std::list<perm_string>&formal_order,
+		std::string&matching_result, std::string&layout_result)
+{
+      if (!evaluated_parameter_signature_(
+	    des, scope, formal_order, matching_result, false))
+	    return false;
+      return evaluated_parameter_signature_(
+	    des, scope, formal_order, layout_result, true);
 }
 
 static bool expr_cache_key_needs_scope_(const PExpr*expr)
@@ -1767,7 +2176,7 @@ static void append_cache_expr_key_(Design*des, NetScope*call_scope,
 			      if (resolved_expr) {
 				    if (resolved_type)
 					  out << "=";
-				    out << cached_netexpr_value_key_(resolved_expr);
+				    append_cache_netexpr_value_key_(out, resolved_expr);
 			      }
 			      close_forward();
 			      return;
@@ -3258,7 +3667,6 @@ void release_elaboration_specialization_caches()
 {
       specialization_scope_path_cache_.clear();
       specialization_pexpr_dump_cache_.clear();
-      specialization_netexpr_value_key_cache_.clear();
       specialization_type_dump_cache_.clear();
       specialization_data_type_dump_cache_.clear();
       specialized_class_source_key_cache_.clear();
@@ -3551,6 +3959,21 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       if (!base_class || !overrides)
 	    return base_class;
 
+	/* Weak/circular class-handle resolution reaches this generic entry point
+	 * before typeref_t::elaborate_type_raw(). Built-in mailbox has no PClass
+	 * scope, so route its actual through the typed built-in interner here;
+	 * otherwise mailbox#(T) would silently collapse to the untyped singleton. */
+      if (!base_class->class_scope()
+	  && base_class->get_name() == perm_string::literal("mailbox")) {
+	    const LineInfo*location = nullptr;
+	    if (overrides->by_order && !overrides->by_order->empty())
+		  location = overrides->by_order->front();
+	    else if (overrides->by_name && !overrides->by_name->empty())
+		  location = overrides->by_name->front().parm;
+	    return elaborate_builtin_mailbox_specialization(
+		  des, call_scope, overrides, location);
+      }
+
       const NetScope*base_scope_const = base_class->class_scope();
       NetScope*base_scope = const_cast<NetScope*>(base_scope_const);
       NetScope*definition_scope = const_cast<netclass_t*>(base_class)->definition_scope();
@@ -3568,12 +3991,17 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       }
 
       std::ostringstream key_prefix;
-	// Use the pclass (parse-tree) pointer as the stable key prefix.
-	// The netclass_t (base_class) pointer is NOT stable — the same
-	// parsed class can be elaborated into multiple netclass_t objects
-	// when mutual-reference cycles are resolved.  pclass is the
-	// unique canonical representative of the class definition.
-      key_prefix << (const void*)pclass << "|";
+	/* Use the pclass (parse-tree) pointer as the stable declaration prefix.
+	 * The netclass_t (base_class) pointer is NOT stable -- the same parsed
+	 * class can be elaborated into multiple netclass_t objects while resolving
+	 * mutual-reference cycles. The parsed declaration alone is insufficient,
+	 * however: 6.22 gives that declaration a distinct nominal type in every
+	 * physical interface/module instance. Pair it with the exact declaration
+	 * owner; rootless VIF layouts carry a semantic owner and therefore remain
+	 * canonical across repeated uses of one layout. */
+      key_prefix << (const void*)pclass << "|owner=";
+      append_cache_declaration_owner_key_(key_prefix, definition_scope);
+      key_prefix << "|";
       const std::string source_key_str = key_prefix.str()
 	    + parmvalue_cache_key_(des, call_scope, overrides, pclass);
       const std::string semantic_parms = canonical_specialization_parm_key_(
@@ -3595,17 +4023,18 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 	    cerr << endl;
       }
 	      const netclass_t*cached_result = 0;
-	      std::map<std::string,const netclass_t*>::const_iterator cached =
-		    specialized_class_source_key_cache_.find(source_key_str);
-	      if (cached != specialized_class_source_key_cache_.end()) {
-		    cached_result = cached->second;
-	      } else if (has_semantic_key) {
+	      if (has_semantic_key) {
 		    std::map<std::string,const netclass_t*>::const_iterator semantic_cached =
 			  specialized_class_semantic_key_cache_.find(semantic_key_str);
 		    if (semantic_cached != specialized_class_semantic_key_cache_.end()) {
 			  cached_result = semantic_cached->second;
 			  specialized_class_source_key_cache_[source_key_str] = cached_result;
 		    }
+	      } else {
+		    std::map<std::string,const netclass_t*>::const_iterator cached =
+			  specialized_class_source_key_cache_.find(source_key_str);
+		    if (cached != specialized_class_source_key_cache_.end())
+			  cached_result = cached->second;
 	      }
 	      if (cached_result) {
 		    note_specialization_cache_hit_();
@@ -3645,6 +4074,12 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       class_scope->set_line(pclass);
       class_scope->set_class_def(use_class);
       class_scope->set_class_pform(pclass);
+	/* A parameterized class can declare nominal enum/struct types. Bind
+	 * those declarations to this canonical specialization rather than to an
+	 * allocation address or a hierarchy spelling that rootless interface
+	 * scopes can share. */
+      class_scope->type_owner_identity(
+	    has_semantic_key ? semantic_key_str : source_key_str);
       use_class->set_class_scope(class_scope);
       use_class->set_definition_scope(definition_scope);
       use_class->set_virtual(use_type->virtual_class);
@@ -4106,6 +4541,29 @@ static void elaborate_scope_classes(Design*des, NetScope*scope,
 	    blend_class_constructors(classes[idx]);
 	    elaborate_scope_class(des, scope, classes[idx]);
       }
+}
+
+/* A parameter-specialized virtual interface owns a detached declaration
+ * scope. Classes declared in the interface must be elaborated into that exact
+ * scope before member types such as C#(N+1) are resolved; otherwise lookup can
+ * fall through to a concrete interface instance (or the generic class master)
+ * and make two interface layouts share the wrong class specialization.
+ *
+ * Reuse the ordinary class-scope path so constructor blending, parameters,
+ * inheritance, nested declarations, and method signatures have identical
+ * semantics. The caller deliberately keeps `scope' parentless and outside the
+ * Design root set, so this creates declaration/type objects only and cannot
+ * add a target-visible hierarchy instance. */
+void elaborate_interface_declaration_classes(Design*des, NetScope*scope,
+					     Module*module)
+{
+      if (!des || !scope || !module)
+	    return;
+
+      ivl_assert(*module, module->is_interface);
+      ivl_assert(*module, module->classes.size()
+			       == module->classes_lexical.size());
+      elaborate_scope_classes(des, scope, module->classes_lexical);
 }
 
 static void replace_scope_parameters(Design *des, NetScope*scope, const LineInfo&loc,

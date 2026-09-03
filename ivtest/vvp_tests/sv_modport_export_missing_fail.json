@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_modport_export_missing_fail.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_modport_export_missing_fail" ],
+    "gold"          : "sv_modport_export_missing_fail"
+}

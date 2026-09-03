@@ -4415,8 +4415,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    bool is_randc = defn->property_is_randc(sv.idx);
 	    if (desc.is_queue) {
 		  vvp_queue*queue = dynamic_cast<vvp_queue*>(da);
-		  unsigned queue_max = desc.max_size <= UINT_MAX
-			? (unsigned)desc.max_size : 0;
+		  const uint64_t queue_max = desc.max_size;
 		  for (uint64_t adr = 0 ; queue && adr < new_size ; adr += 1) {
 			vvp_vector4_t nv(desc.elem_width, BIT4_0);
 			bool active = rand_elem_active_(defn, cobj, prop_active,

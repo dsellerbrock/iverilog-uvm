@@ -477,6 +477,14 @@ extern unsigned count_lval_width(const class NetAssign_*first);
  */
 class PExpr;
 
+/* Return the complete declared type of an elaborated expression when it has
+ * one, or synthesize the self-determined scalar type carried only by the
+ * expression width/state/sign fields. This is for IEEE 1800 type-equivalence
+ * checks (6.22.2), not assignment-context conversion. The synthesized type is
+ * compiler-lifetime storage, like the other elaborated anonymous types. */
+extern ivl_type_t netexpr_type_for_equivalence(const NetExpr*expr);
+extern ivl_type_t netassign_type_for_equivalence(const NetAssign_*lval);
+
 /* Queue and dynamic-array assignment compatibility is shared by casts and
  * subroutine copy boundaries. The return value reports element equivalence;
  * handled is set only when both types are positional containers (rather than
@@ -550,6 +558,15 @@ extern NetExpr* cast_assoc_index(NetExpr*expr, ivl_type_t container_type,
 extern NetExpr* elab_sys_task_arg(Design*des, NetScope*scope,
                                   perm_string name, unsigned arg_idx,
                                   PExpr*pe, bool need_const =false);
+
+/* Elaborate a typed-mailbox input without losing the dynamic string category.
+ * Generic system-task arguments intentionally lower a string literal through
+ * the width-based packed-constant path; mailbox#(string) instead needs a
+ * NetECString so both the 15.4.9 equivalence check and VVP value transport see
+ * a string value. */
+extern NetExpr* elab_typed_mailbox_input(Design*des, NetScope*scope,
+                                         perm_string method_name,
+                                         PExpr*pe);
 /*
  * This function elaborates an expression as if it is for the r-value
  * of an assignment, The lv_type and lv_width are the type and width
@@ -872,7 +889,7 @@ extern void elaborate_scope_declaration_enumerations(
  * responsible for invoking PFunction/PTask::elaborate_sig when required. */
 extern NetScope* ensure_interface_declaration_method_scope(
 		Design*des, NetScope*caller_scope,
-		perm_string interface_name, perm_string method_name);
+		const netclass_t*interface_type, perm_string method_name);
 
 /*
  * A class body may contain a call through a type-parameter receiver before

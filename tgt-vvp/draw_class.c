@@ -221,6 +221,14 @@ static void show_prop_type_enum(ivl_enumtype_t enumtype,
 	      ivl_enum_width(enumtype));
 }
 
+static void show_queue_type_(const char*rand_prefix,
+			     const char*code, ivl_type_t type)
+{
+      fprintf(vvp_out, "\"%s%s", rand_prefix ? rand_prefix : "", code);
+      emit_container_layout_suffix_(type);
+      fputc('"', vvp_out);
+}
+
 static void show_prop_type_queue(ivl_type_t ptype, const char*rand_prefix)
 {
       ivl_type_t element_type = ivl_type_element(ptype);
@@ -228,33 +236,37 @@ static void show_prop_type_queue(ivl_type_t ptype, const char*rand_prefix)
       const char*rp = rand_prefix ? rand_prefix : "";
 
       if (!element_type) {
-	    fprintf(vvp_out, assoc_compat ? "\"%sMo\"" : "\"%sQo\"", rp);
+	    show_queue_type_(rp, assoc_compat ? "Mo" : "Qo", ptype);
 	    return;
       }
 
       switch (ivl_type_base(element_type)) {
 	  case IVL_VT_REAL:
-	    fprintf(vvp_out, assoc_compat ? "\"%sMr\"" : "\"%sQr\"", rp);
+	    show_queue_type_(rp, assoc_compat ? "Mr" : "Qr", ptype);
 	    break;
 	  case IVL_VT_STRING:
-	    fprintf(vvp_out, assoc_compat ? "\"%sMS\"" : "\"%sQS\"", rp);
+	    show_queue_type_(rp, assoc_compat ? "MS" : "QS", ptype);
 	    break;
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:
-	    if (assoc_compat)
-		  fprintf(vvp_out, "\"%sMv%u\"", rp, ivl_type_packed_width(element_type));
-	    else
-		  fprintf(vvp_out, "\"%sQv\"", rp);
+	    if (assoc_compat) {
+		  char code[32];
+		  snprintf(code, sizeof code, "Mv%u",
+			   ivl_type_packed_width(element_type));
+		  show_queue_type_(rp, code, ptype);
+	    } else {
+		  show_queue_type_(rp, "Qv", ptype);
+	    }
 	    break;
 	  case IVL_VT_CLASS:
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_QUEUE:
 	  case IVL_VT_NO_TYPE:
 	  case IVL_VT_VOID:
-	    fprintf(vvp_out, assoc_compat ? "\"%sMo\"" : "\"%sQo\"", rp);
+	    show_queue_type_(rp, assoc_compat ? "Mo" : "Qo", ptype);
 	    break;
 	  default:
-	    fprintf(vvp_out, assoc_compat ? "\"%sMo\"" : "\"%sQo\"", rp);
+	    show_queue_type_(rp, assoc_compat ? "Mo" : "Qo", ptype);
 	    break;
       }
 }
@@ -271,29 +283,34 @@ static void show_prop_type_darray(ivl_type_t ptype, const char*rand_prefix)
 {
       ivl_type_t element_type = ivl_type_element(ptype);
       const char*rp = rand_prefix ? rand_prefix : "";
+      const char*code = "Do";
 
       if (!element_type) {
-	    fprintf(vvp_out, "\"%sDo\"", rp);
-	    return;
-      }
-
-      switch (ivl_type_base(element_type)) {
+	    /* Keep the generic object element code. */
+      } else switch (ivl_type_base(element_type)) {
 	  case IVL_VT_REAL:
-	    fprintf(vvp_out, "\"%sDr\"", rp);
+	    code = "Dr";
 	    break;
 	  case IVL_VT_STRING:
-	    fprintf(vvp_out, "\"%sDS\"", rp);
+	    code = "DS";
 	    break;
 	  case IVL_VT_BOOL:
-	  case IVL_VT_LOGIC:
-	    fprintf(vvp_out, "\"%sD%sv%u\"", rp,
-		    ivl_type_signed(element_type) ? "s" : "",
-		    ivl_type_packed_width(element_type));
-	    break;
+	  case IVL_VT_LOGIC: {
+	    char dynamic_code[48];
+	    snprintf(dynamic_code, sizeof dynamic_code, "D%sv%u",
+		     ivl_type_signed(element_type) ? "s" : "",
+		     ivl_type_packed_width(element_type));
+	    fprintf(vvp_out, "\"%s%s", rp, dynamic_code);
+	    emit_container_layout_suffix_(ptype);
+	    fputc('"', vvp_out);
+	    return;
+	  }
 	  default:
-	    fprintf(vvp_out, "\"%sDo\"", rp);
 	    break;
       }
+      fprintf(vvp_out, "\"%s%s", rp, code);
+      emit_container_layout_suffix_(ptype);
+      fputc('"', vvp_out);
 }
 
 static void show_prop_type(ivl_type_t ptype, const char*rand_prefix)

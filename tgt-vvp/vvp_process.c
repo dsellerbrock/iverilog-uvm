@@ -3770,10 +3770,6 @@ static void draw_queue_element_object_value_(ivl_expr_t expr,
                                              ivl_type_t element_type)
 {
       uint64_t max_size;
-      int saved_index;
-      int saved_x_flag;
-      unsigned lab_trim;
-      unsigned lab_done;
 
       if (draw_eval_container_value_for_target(expr, element_type) < 0)
             draw_eval_object(expr);
@@ -3782,7 +3778,7 @@ static void draw_queue_element_object_value_(ivl_expr_t expr,
             return;
 
       max_size = ivl_type_queue_max_size(element_type);
-      if (max_size == 0 || max_size >= UINT_MAX)
+      if (max_size == 0)
             return;
 
       /* Trimming must never mutate the RHS. Only bounded queue elements need
@@ -3791,35 +3787,8 @@ static void draw_queue_element_object_value_(ivl_expr_t expr,
       fprintf(vvp_out, "    %%dup/obj; bounded queue element value copy\n");
       fprintf(vvp_out, "    %%pop/obj 1, 1; discard source queue value\n");
 
-      saved_index = allocate_word();
-      saved_x_flag = allocate_flag();
-      lab_trim = local_count++;
-      lab_done = local_count++;
-
-      fprintf(vvp_out, "    %%ix/mov %d, 3; preserve queue-method index\n",
-              saved_index);
-      fprintf(vvp_out, "    %%flag_mov %d, 4; preserve queue-method X/Z\n",
-              saved_x_flag);
-      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_trim);
-      fprintf(vvp_out, "    %%dup/obj/ref; bounded queue size receiver\n");
-      fprintf(vvp_out, "    %%qsize/o;\n");
-      fprintf(vvp_out, "    %%cmpi/u %u, 0, 32; queue size <= %u\n",
-              (unsigned)max_size + 1, (unsigned)max_size);
-      fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 5; bounded queue fits\n",
-              thread_count, lab_done);
-      fprintf(vvp_out, "    %%dup/obj/ref; bounded queue trim receiver\n");
-      fprintf(vvp_out, "    %%ix/load 3, %u, 0; first excess element\n",
-              (unsigned)max_size);
-      fprintf(vvp_out, "    %%flag_set/imm 4, 0; known queue index\n");
-      fprintf(vvp_out, "    %%delete/o/elem;\n");
-      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_trim);
-      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_done);
-      fprintf(vvp_out, "    %%ix/mov 3, %d; restore queue-method index\n",
-              saved_index);
-      fprintf(vvp_out, "    %%flag_mov 4, %d; restore queue-method X/Z\n",
-              saved_x_flag);
-      clr_word(saved_index);
-      clr_flag(saved_x_flag);
+      fprintf(vvp_out, "    %%queue/trim/o %" PRIu64
+              "; destination-bound queue element copy\n", max_size);
 }
 
 static int show_delete_static_array_signal_method(ivl_statement_t net,
@@ -4097,6 +4066,16 @@ static int show_delete_method(ivl_statement_t net)
       ivl_signal_t var = ivl_expr_signal(parm);
       ivl_type_t var_type = ivl_signal_net_type(var);
 
+	/* The API keeps a selected fixed container word in IVL_EX_SIGNAL form,
+	 * but it has no scalar v<array>_0 storage. Route every Q/D/A fixed word
+	 * through the object-receiver implementation before the scalar/static
+	 * signal cases below. */
+      if (expr_selects_fixed_container_slot_(parm)) {
+	    if (show_delete_queue_object_method(net, parm, parm_count) == 0)
+		  return 0;
+	    return -1;
+      }
+
 	/* A fully selected fixed-array word containing an associative array is
 	 * an object receiver, not the nonexistent scalar signal v<array>_0.
 	 * This mirrors exists/first/last/next/prev expression lowering and keeps
@@ -4196,6 +4175,56 @@ static int expr_is_static_array_expr(ivl_expr_t expr)
       return net_type && ivl_type_element(net_type) != 0;
 }
 
+/* Evaluate one selected word of a fixed object array as a live container
+ * receiver. Queue/associative-array words have an empty-container default,
+ * while compact object-array storage starts nil, so materialize that default
+ * on first mutating use and reload the destination-bound copy. The fixed index
+ * is evaluated exactly once and retained across the nil test. */
+static int show_fixed_container_slot_receiver_(ivl_expr_t parm)
+{
+      ivl_signal_t sig;
+      ivl_type_t type;
+      ivl_expr_t slot_expr;
+      int slot_word;
+
+      if (!expr_selects_fixed_container_slot_(parm))
+	    return -1;
+
+      sig = ivl_expr_signal(parm);
+      type = ivl_signal_net_type(sig);
+      slot_expr = ivl_expr_oper1(parm);
+      slot_word = allocate_word();
+      draw_eval_expr_into_integer(slot_expr, slot_word);
+      note_array_signal_use(sig);
+      fprintf(vvp_out, "    %%load/obja v%p, %d; selected fixed container receiver\n",
+	      sig, slot_word);
+
+      if (ivl_type_base(type) == IVL_VT_QUEUE) {
+	    int slot_flag = allocate_flag();
+	    unsigned lab_ready = local_count++;
+
+	    fprintf(vvp_out, "    %%flag_mov %d, 4; preserve fixed-slot validity\n",
+		    slot_flag);
+	    fprintf(vvp_out, "    %%test_nul/obj;\n");
+	    fprintf(vvp_out, "    %%jmp/0 T_%u.%u, 4; fixed-slot container exists\n",
+		    thread_count, lab_ready);
+	    fprintf(vvp_out, "    %%pop/obj 1, 0; replace nil fixed-slot container\n");
+	    fprintf(vvp_out, "    %%new/queue \"@%u\"; fixed-slot container default\n",
+		    dynamic_container_spec_(type));
+	    fprintf(vvp_out, "    %%flag_mov 4, %d; restore fixed-slot validity\n",
+		    slot_flag);
+	    fprintf(vvp_out, "    %%store/obja v%p, %d; initialize fixed-slot container\n",
+		    sig, slot_word);
+	    fprintf(vvp_out, "    %%load/obja v%p, %d; reload fixed-slot receiver\n",
+		    sig, slot_word);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_ready);
+	    clr_flag(slot_flag);
+      }
+
+      clr_word(slot_word);
+      return 0;
+}
+
 static int show_queue_object_receiver(ivl_expr_t parm)
 {
       if (getenv("IVL_QRECV_TRACE")) {
@@ -4215,6 +4244,9 @@ static int show_queue_object_receiver(ivl_expr_t parm)
 	      if (!expr_is_dynarray_container_(parm)
 		  && !expr_is_assoc_queue_container_(parm))
 		    return -1;
+
+      if (show_fixed_container_slot_receiver_(parm) == 0)
+	    return 0;
 
       if (ivl_expr_type(parm) == IVL_EX_SELECT) {
 	    ivl_expr_t sube = ivl_expr_oper1(parm);
@@ -4294,8 +4326,11 @@ static int show_queue_object_receiver(ivl_expr_t parm)
 		&& !ivl_type_queue_assoc_compat(recv_type)) {
 		  char enc[32];
 		  queue_elem_enc_(recv_type, enc, sizeof enc);
+		  if (expr_selects_fixed_container_slot_(sube))
+			show_fixed_container_slot_receiver_(sube);
+		  else
+			fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
 		  draw_eval_expr_into_integer(index, 3);
-		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
 		  fprintf(vvp_out, "    %%qdar/loadlv/o \"%s\";\n", enc);
 		  return 0;
 	    }
@@ -4304,10 +4339,18 @@ static int show_queue_object_receiver(ivl_expr_t parm)
 		&& base_type && ivl_type_base(base_type) == IVL_VT_QUEUE
 		&& ivl_type_queue_assoc_compat(base_type)
 		&& recv_type && ivl_type_base(recv_type) == IVL_VT_QUEUE) {
-		  const char*key_kind = draw_eval_assoc_key_(index, 0);
+		  const char*key_kind;
 		  unsigned spec = dynamic_container_spec_(recv_type);
-		  fprintf(vvp_out, "    %%aa/viv/sig/%s v%p_0, %u;\n",
-			  key_kind, sig, spec);
+		  if (expr_selects_fixed_container_slot_(sube)) {
+			show_fixed_container_slot_receiver_(sube);
+			key_kind = draw_eval_assoc_key_(index, 0);
+			fprintf(vvp_out, "    %%aa/viv/o/%s %u;\n",
+				key_kind, spec);
+		  } else {
+			key_kind = draw_eval_assoc_key_(index, 0);
+			fprintf(vvp_out, "    %%aa/viv/sig/%s v%p_0, %u;\n",
+				key_kind, sig, spec);
+		  }
 		  return 0;
 	    }
       }
@@ -4329,7 +4372,8 @@ static int show_insert_method(ivl_statement_t net)
       }
 
       ivl_expr_t parm0 = ivl_stmt_parm(net,0);
-      if (ivl_expr_type(parm0) != IVL_EX_SIGNAL) {
+      if (ivl_expr_type(parm0) != IVL_EX_SIGNAL
+	  || expr_selects_fixed_container_slot_(parm0)) {
             if (show_queue_object_receiver(parm0) == 0) {
                   ivl_expr_t parm2 = ivl_stmt_parm(net,2);
                   ivl_type_t recv_type = receiver_container_type_(parm0);
@@ -4337,7 +4381,8 @@ static int show_insert_method(ivl_statement_t net)
                         ? ivl_type_element(recv_type) : 0;
                   ivl_variable_type_t elem_kind = elem_type
                         ? ivl_type_base(elem_type) : ivl_expr_value(parm2);
-                  unsigned max_count = queue_type_max_count_(recv_type);
+                  uint64_t max_count = queue_receiver_max_operand_(
+			parm0, recv_type);
                   int insert_word = allocate_word();
                   int insert_flag = allocate_flag();
 		  draw_eval_expr_into_integer(ivl_stmt_parm(net,1), 3);
@@ -4491,7 +4536,8 @@ static int show_push_frontback_method(ivl_statement_t net, bool is_front)
       }
 
       ivl_expr_t parm0 = ivl_stmt_parm(net,0);
-	      if (ivl_expr_type(parm0) != IVL_EX_SIGNAL) {
+	      if (ivl_expr_type(parm0) != IVL_EX_SIGNAL
+		  || expr_selects_fixed_container_slot_(parm0)) {
             if (show_queue_object_receiver(parm0) == 0) {
                   ivl_expr_t parm1 = ivl_stmt_parm(net,1);
 			  if (!parm1) {
@@ -4513,7 +4559,8 @@ static int show_push_frontback_method(ivl_statement_t net, bool is_front)
                         ? ivl_type_element(parm0_type) : 0;
                   ivl_variable_type_t elem_kind = elem_type
                         ? ivl_type_base(elem_type) : ivl_expr_value(parm1);
-                  unsigned max_count = queue_type_max_count_(parm0_type);
+                  uint64_t max_count = queue_receiver_max_operand_(
+			parm0, parm0_type);
                   switch (elem_kind) {
                       case IVL_VT_REAL:
                         draw_eval_real(parm1);
@@ -4602,30 +4649,6 @@ static int show_push_frontback_method(ivl_statement_t net, bool is_front)
       clr_word(idx);
 
       return 0;
-}
-
-/* Collect ALL module-scope instances of a given definition name into a
- * dynamically grown list. There is deliberately no fixed cap: an earlier
- * VIF_DISPATCH_MAX=64 limit SILENTLY dropped instances beyond it, so a
- * design with more than 64 instances of an interface dispatched virtual
- * calls to only the first 64 handles and quietly skipped the rest. */
-static void collect_module_scopes_(ivl_scope_t node, const char*target,
-                                   ivl_scope_t**list, unsigned*count,
-                                   unsigned*cap)
-{
-      if (!node) return;
-      if (ivl_scope_type(node) == IVL_SCT_MODULE
-          && strcmp(ivl_scope_tname(node), target) == 0) {
-            if (*count >= *cap) {
-                  *cap = (*cap == 0) ? 16 : (*cap * 2);
-                  *list = realloc(*list, *cap * sizeof(ivl_scope_t));
-                  assert(*list);
-            }
-            (*list)[*count] = node;
-            *count += 1;
-      }
-      for (size_t i = 0 ; i < ivl_scope_childs(node) ; i += 1)
-            collect_module_scopes_(ivl_scope_child(node, i), target, list, count, cap);
 }
 
 typedef struct iface_call_payload_s {
@@ -4798,12 +4821,12 @@ static int emit_iface_method_call_(const iface_call_payload_t*call,
             if (call->expr)
                   is_default[idx] = ivl_expr_vif_parm_is_default(
                         call->expr, parm_base + idx) ? 1 : 0;
-            if (!port || ivl_signal_port(port) != IVL_SIP_INPUT) {
-                  fprintf(stderr, "%s:%u: vvp.tgt error: dynamic "
-                          "virtual-interface method %s requires input-only "
-                          "arguments\n",
-                          iface_call_file_(call), iface_call_lineno_(call),
-                          ivl_scope_name(method));
+	            if (!port || ivl_signal_port(port) == IVL_SIP_NONE) {
+	                  fprintf(stderr, "%s:%u: vvp.tgt error: dynamic "
+	                          "virtual-interface method %s has an argument "
+	                          "without a callable port direction\n",
+	                          iface_call_file_(call), iface_call_lineno_(call),
+	                          ivl_scope_name(method));
                   errors += 1;
             } else if (call->expr && !argv[idx]) {
                   fprintf(stderr, "%s:%u: vvp.tgt error: dynamic "
@@ -4921,12 +4944,16 @@ static int emit_iface_method_call_(const iface_call_payload_t*call,
                         break;
                   }
             }
-      } else {
-            fprintf(vvp_out, "    %%fork TD_%s, S_%p;\n", mangled, method);
-            fprintf(vvp_out, "    %%join;\n");
-      }
+	      } else {
+	            fprintf(vvp_out, "    %%fork TD_%s, S_%p;\n", mangled, method);
+	            fprintf(vvp_out, "    %%join;\n");
+	      }
 
-      if (vif_function_expr)
+	      if (!call->expr)
+	            errors += draw_vif_statement_output_arguments(
+	                  method, port_base, user_ports, argv);
+
+	      if (vif_function_expr)
             draw_static_function_setup_leave(method);
       if (needs_call_frame)
             fprintf(vvp_out, "    %%free S_%p;\n", method);
@@ -4934,38 +4961,6 @@ static int emit_iface_method_call_(const iface_call_payload_t*call,
       free(argv);
       free(mangled);
       return errors;
-}
-
-/* Find the named task/function child of an instance scope. */
-static ivl_scope_t find_iface_method_child_(ivl_scope_t found,
-                                            const char*method_name)
-{
-      for (size_t i = 0 ; i < ivl_scope_childs(found) ; i += 1) {
-            ivl_scope_t ch = ivl_scope_child(found, i);
-            if (ch && (ivl_scope_type(ch) == IVL_SCT_TASK
-                       || ivl_scope_type(ch) == IVL_SCT_FUNCTION)
-                && strcmp(ivl_scope_basename(ch), method_name) == 0)
-                  return ch;
-      }
-      return 0;
-}
-
-/* Resolve a method below a named interface instance contained in another
- * interface instance. The outer instance is selected dynamically from its
- * virtual-interface handle; only then is the fixed nested child descended. */
-static ivl_scope_t find_nested_iface_method_(ivl_scope_t outer,
-                                             const char*nested_name,
-                                             const char*method_name)
-{
-      if (!outer) return 0;
-      for (size_t i = 0 ; i < ivl_scope_childs(outer) ; i += 1) {
-            ivl_scope_t child = ivl_scope_child(outer, i);
-            if (!child || ivl_scope_type(child) != IVL_SCT_MODULE
-                || strcmp(ivl_scope_basename(child), nested_name) != 0)
-                  continue;
-            return find_iface_method_child_(child, method_name);
-      }
-      return 0;
 }
 
 /* Dynamic virtual-interface dispatch through one nested interface instance:
@@ -4980,14 +4975,20 @@ static int show_vif_nested_dyn_call(ivl_statement_t net)
       static const char prefix[] = "$ivl_vif_nested_call$";
       iface_call_payload_t call = { net, 0 };
       const char*stmt_name = ivl_stmt_name(net);
-      const char*p = stmt_name + strlen(prefix);
-      const char*sep_outer = strchr(p, '$');
+      const char*p = stmt_name ? stmt_name + sizeof(prefix) - 1 : 0;
+      const char*sep_outer = p ? strchr(p, '$') : 0;
       const char*sep_nested = sep_outer ? strchr(sep_outer + 1, '$') : 0;
-      if (!sep_outer || !sep_nested) {
+      if (!stmt_name
+          || strncmp(stmt_name, prefix, sizeof(prefix) - 1) != 0
+          || !p || !*p || !sep_outer || sep_outer == p
+          || !sep_outer[1] || !sep_nested || sep_nested == sep_outer + 1
+          || !sep_nested[1]) {
             fprintf(stderr,
-                    "Warning: malformed $ivl_vif_nested_call name '%s'; skipping\n",
-                    stmt_name);
-            return 0;
+                    "%s:%u: vvp.tgt error: malformed dynamic nested "
+                    "virtual-interface task statement %s\n",
+                    ivl_stmt_file(net), ivl_stmt_lineno(net),
+                    stmt_name ? stmt_name : "<unnamed>");
+            return 1;
       }
 
       char outer_name[256];
@@ -5006,22 +5007,24 @@ static int show_vif_nested_dyn_call(ivl_statement_t net)
 
       ivl_expr_t recv = (ivl_stmt_parm_count(net) > 0)
             ? ivl_stmt_parm(net, 0) : 0;
-      ivl_design_t des = vvp_get_saved_design();
-      if (!des || !recv) return 0;
-
-      ivl_scope_t*roots = 0;
-      unsigned nroots = 0;
-      ivl_design_roots(des, &roots, &nroots);
-      ivl_scope_t*insts = 0;
-      unsigned ninst = 0, insts_cap = 0;
-      for (unsigned i = 0 ; i < nroots ; i += 1)
-            collect_module_scopes_(roots[i], outer_name, &insts, &ninst,
-                                   &insts_cap);
+      unsigned ninst = ivl_stmt_vif_methods(net);
+      if (!recv) {
+            fprintf(stderr, "%s:%u: vvp.tgt error: dynamic nested "
+                    "virtual-interface task call has no receiver\n",
+                    ivl_stmt_file(net), ivl_stmt_lineno(net));
+            return 1;
+      }
 
       if (ninst == 0) {
+            if (ivl_stmt_parm_count(net) != 1) {
+                  fprintf(stderr, "%s:%u: vvp.tgt error: candidate-free "
+                          "nested virtual-interface task call has argument "
+                          "rows\n", ivl_stmt_file(net),
+                          ivl_stmt_lineno(net));
+                  return 1;
+            }
             draw_eval_object(recv);
             fprintf(vvp_out, "    %%vif/fatal;\n");
-            free(insts);
             return 0;
       }
 
@@ -5029,22 +5032,37 @@ static int show_vif_nested_dyn_call(ivl_statement_t net)
       unsigned*lab_inst = calloc(ninst, sizeof(unsigned));
       unsigned*row_base = calloc(ninst, sizeof(unsigned));
       ivl_scope_t*methods = calloc(ninst, sizeof(ivl_scope_t));
+      ivl_scope_t*insts = calloc(ninst, sizeof(ivl_scope_t));
       assert(lab_inst);
       assert(row_base);
       assert(methods);
+      assert(insts);
 
       int malformed = 0;
       for (unsigned i = 0 ; i < ninst ; i += 1) {
-            methods[i] = find_nested_iface_method_(
-                  insts[i], nested_name, method_name);
+            methods[i] = ivl_stmt_vif_method(net, i);
+            ivl_scope_t nested = methods[i]
+                  ? ivl_scope_parent(methods[i]) : 0;
+            insts[i] = nested ? ivl_scope_parent(nested) : 0;
             row_base[i] = methods[i]
                   ? find_iface_method_row_(&call, methods[i]) : UINT_MAX;
-            if (!methods[i] || row_base[i] == UINT_MAX) {
+            if (!methods[i]
+                || (ivl_scope_type(methods[i]) != IVL_SCT_TASK
+                    && ivl_scope_type(methods[i]) != IVL_SCT_FUNCTION)
+                || !ivl_scope_basename(methods[i])
+                || strcmp(ivl_scope_basename(methods[i]), method_name) != 0
+                || !nested || ivl_scope_type(nested) != IVL_SCT_MODULE
+                || !ivl_scope_basename(nested)
+                || strcmp(ivl_scope_basename(nested), nested_name) != 0
+                || !insts[i] || ivl_scope_type(insts[i]) != IVL_SCT_MODULE
+                || !ivl_scope_tname(insts[i])
+                || strcmp(ivl_scope_tname(insts[i]), outer_name) != 0
+                || row_base[i] == UINT_MAX) {
                   fprintf(stderr,
-                          "error: nested virtual-interface call %s.%s.%s"
-                          " has no argument row for instance %s.\n",
-                          outer_name, nested_name, method_name,
-                          ivl_scope_name(insts[i]));
+                          "%s:%u: vvp.tgt error: invalid candidate %u in "
+                          "nested virtual-interface task dispatch %s\n",
+                          ivl_stmt_file(net), ivl_stmt_lineno(net), i,
+                          stmt_name);
                   malformed = 1;
             }
       }
@@ -5083,21 +5101,26 @@ static int show_vif_nested_dyn_call(ivl_statement_t net)
 
 /* Dynamic virtual-interface method dispatch:
  *   $ivl_vif_call$<iface>$<method>(receiver, args...)
- * The receiver handle is evaluated once; a %jmp/vif compare chain
- * branches to the per-instance argument stores + fork for whichever
- * interface INSTANCE the handle is bound to (IEEE 1800-2023 25.9 —
- * a method call through a virtual interface applies to the instance
- * the handle designates, not to a statically chosen one). */
+ * The frontend exports the exact concrete method scopes represented by its
+ * keyed argument rows. The receiver handle is evaluated once; a %jmp/vif
+ * compare chain branches to the matching candidate instance's argument
+ * stores + invocation (IEEE 1800-2023 25.9). */
 static int show_vif_dyn_call(ivl_statement_t net)
 {
+      static const char prefix[] = "$ivl_vif_call$";
       iface_call_payload_t call = { net, 0 };
       const char*stmt_name = ivl_stmt_name(net);
-      const char*p = stmt_name + 14; /* skip "$ivl_vif_call$" */
-      const char*sep = strchr(p, '$');
-      if (!sep) {
-            fprintf(stderr, "Warning: malformed $ivl_vif_call name '%s'; skipping\n",
-                    stmt_name);
-            return 0;
+      const char*p = stmt_name ? stmt_name + sizeof(prefix) - 1 : 0;
+      const char*sep = p ? strchr(p, '$') : 0;
+      if (!stmt_name
+          || strncmp(stmt_name, prefix, sizeof(prefix) - 1) != 0
+          || !p || !*p || !sep || sep == p || !sep[1]) {
+            fprintf(stderr,
+                    "%s:%u: vvp.tgt error: malformed dynamic "
+                    "virtual-interface task statement %s\n",
+                    ivl_stmt_file(net), ivl_stmt_lineno(net),
+                    stmt_name ? stmt_name : "<unnamed>");
+            return 1;
       }
       char iface_name[256];
       size_t ifn_len = sep - p;
@@ -5108,22 +5131,23 @@ static int show_vif_dyn_call(ivl_statement_t net)
 
       ivl_expr_t recv = (ivl_stmt_parm_count(net) > 0)
             ? ivl_stmt_parm(net, 0) : 0;
-
-      ivl_design_t des = vvp_get_saved_design();
-      if (!des || !recv) return 0;
-      ivl_scope_t*roots = 0;
-      unsigned nroots = 0;
-      ivl_design_roots(des, &roots, &nroots);
-      ivl_scope_t*insts = 0;
-      unsigned ninst = 0, insts_cap = 0;
-      for (unsigned i = 0 ; i < nroots ; i += 1)
-            collect_module_scopes_(roots[i], iface_name, &insts, &ninst,
-                                   &insts_cap);
+      unsigned ninst = ivl_stmt_vif_methods(net);
+      if (!recv) {
+            fprintf(stderr, "%s:%u: vvp.tgt error: dynamic "
+                    "virtual-interface task call has no receiver\n",
+                    ivl_stmt_file(net), ivl_stmt_lineno(net));
+            return 1;
+      }
 
       if (ninst == 0) {
+            if (ivl_stmt_parm_count(net) != 1) {
+                  fprintf(stderr, "%s:%u: vvp.tgt error: candidate-free "
+                          "virtual-interface task call has argument rows\n",
+                          ivl_stmt_file(net), ivl_stmt_lineno(net));
+                  return 1;
+            }
             draw_eval_object(recv);
             fprintf(vvp_out, "    %%vif/fatal;\n");
-            free(insts);
             return 0;
       }
 
@@ -5131,21 +5155,32 @@ static int show_vif_dyn_call(ivl_statement_t net)
       unsigned*lab_inst = calloc(ninst, sizeof(unsigned));
       unsigned*row_base = calloc(ninst, sizeof(unsigned));
       ivl_scope_t*methods = calloc(ninst, sizeof(ivl_scope_t));
+      ivl_scope_t*insts = calloc(ninst, sizeof(ivl_scope_t));
       assert(lab_inst);
       assert(row_base);
       assert(methods);
+      assert(insts);
 
       int malformed = 0;
       for (unsigned i = 0 ; i < ninst ; i += 1) {
-            methods[i] = find_iface_method_child_(insts[i], method_name);
+            methods[i] = ivl_stmt_vif_method(net, i);
+            insts[i] = methods[i] ? ivl_scope_parent(methods[i]) : 0;
             row_base[i] = methods[i]
                   ? find_iface_method_row_(&call, methods[i]) : UINT_MAX;
-            if (!methods[i] || row_base[i] == UINT_MAX) {
+            if (!methods[i]
+                || (ivl_scope_type(methods[i]) != IVL_SCT_TASK
+                    && ivl_scope_type(methods[i]) != IVL_SCT_FUNCTION)
+                || !ivl_scope_basename(methods[i])
+                || strcmp(ivl_scope_basename(methods[i]), method_name) != 0
+                || !insts[i] || ivl_scope_type(insts[i]) != IVL_SCT_MODULE
+                || !ivl_scope_tname(insts[i])
+                || strcmp(ivl_scope_tname(insts[i]), iface_name) != 0
+                || row_base[i] == UINT_MAX) {
                   fprintf(stderr,
-                          "error: virtual-interface call %s.%s has no"
-                          " argument row for instance %s.\n",
-                          iface_name, method_name,
-                          ivl_scope_name(insts[i]));
+                          "%s:%u: vvp.tgt error: invalid candidate %u in "
+                          "virtual-interface task dispatch %s\n",
+                          ivl_stmt_file(net), ivl_stmt_lineno(net), i,
+                          stmt_name);
                   malformed = 1;
             }
       }
@@ -5758,23 +5793,20 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	  || strcmp(stmt_name,"$ivl_queue_method$shuffle") == 0) {
 	    ivl_expr_t parm0 = (ivl_stmt_parm_count(net) > 0)
 		  ? ivl_stmt_parm(net, 0) : 0;
-	    ivl_expr_t recv_parm = (ivl_stmt_parm_count(net) > 1)
-		  ? ivl_stmt_parm(net, 1) : 0;
 	    ivl_signal_t sig = 0;
+	    int object_receiver = 0;
 	    if (parm0 && ivl_expr_type(parm0) == IVL_EX_SIGNAL
-		&& ivl_expr_signal(parm0)) {
+		&& ivl_expr_signal(parm0)
+		&& !expr_selects_fixed_container_slot_(parm0)) {
 		  sig = ivl_expr_signal(parm0);
-	    } else if (parm0 && recv_parm
-		       && ivl_expr_type(recv_parm) == IVL_EX_SIGNAL
-		       && ivl_expr_signal(recv_parm)) {
-		    /* Non-signal receiver (class property, nested chain):
-		       evaluate the receiver object once and run the
-		       opcode against the hidden net holding its handle
-		       (queue/darray variables hold containers by handle,
-		       so the in-place reorder reaches the property). */
-		  sig = ivl_expr_signal(recv_parm);
-		  draw_eval_object(parm0);
-		  fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
+	    } else if (parm0 && show_queue_object_receiver(parm0) == 0) {
+		    /* A queue/darray property or nested selection is a value
+		       receiver, not a handle alias.  Storing it in the hidden
+		       scratch signal invokes the normal value-copy boundary, so an
+		       in-place signal opcode would reorder only the copy. Keep the
+		       evaluated receiver (and its mutation provenance) on the object
+		       stack and use the object form of the ordering opcode. */
+		  object_receiver = 1;
 	    } else {
 		  static int warned_recv = 0;
 		  if (!warned_recv) {
@@ -5785,22 +5817,34 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		  }
 		  return 0;
 	    }
-	    const char*opcode =
-		  (strcmp(stmt_name,"$ivl_queue_method$sort")==0)    ? "%qsort"    :
-		  (strcmp(stmt_name,"$ivl_queue_method$rsort")==0)   ? "%qsort/r"  :
-		  (strcmp(stmt_name,"$ivl_queue_method$reverse")==0) ? "%qreverse" :
-		  (strcmp(stmt_name,"$ivl_queue_method$shuffle")==0) ? "%qshuffle" :
-		                                                       "%qunique";
+	    const char*opcode = object_receiver
+		  ? ((strcmp(stmt_name,"$ivl_queue_method$sort")==0)    ? "%qsort/o"    :
+		     (strcmp(stmt_name,"$ivl_queue_method$rsort")==0)   ? "%qsort/r/o"  :
+		     (strcmp(stmt_name,"$ivl_queue_method$reverse")==0) ? "%qreverse/o" :
+		     (strcmp(stmt_name,"$ivl_queue_method$shuffle")==0) ? "%qshuffle/o" :
+		                                                          "%qunique/o")
+		  : ((strcmp(stmt_name,"$ivl_queue_method$sort")==0)    ? "%qsort"    :
+		     (strcmp(stmt_name,"$ivl_queue_method$rsort")==0)   ? "%qsort/r"  :
+		     (strcmp(stmt_name,"$ivl_queue_method$reverse")==0) ? "%qreverse" :
+		     (strcmp(stmt_name,"$ivl_queue_method$shuffle")==0) ? "%qshuffle" :
+		                                                          "%qunique");
 	    if (strcmp(opcode, "%qreverse") == 0
-		|| strcmp(opcode, "%qshuffle") == 0) {
-		  fprintf(vvp_out, "    %s v%p_0;\n", opcode, sig);
+		|| strcmp(opcode, "%qshuffle") == 0
+		|| strcmp(opcode, "%qreverse/o") == 0
+		|| strcmp(opcode, "%qshuffle/o") == 0) {
+		  if (object_receiver)
+			fprintf(vvp_out, "    %s;\n", opcode);
+		  else
+			fprintf(vvp_out, "    %s v%p_0;\n", opcode, sig);
 	    } else {
 		    /* Sorting compares element VALUES: pass the declared
 		     * element signedness (G72 — vec4-backed queues do not
 		     * carry it, so negative ints sorted in unsigned word
 		     * order without this flag). */
 		  int sflag = 0;
-		  ivl_type_t cont_type = ivl_signal_net_type(sig);
+		  ivl_type_t cont_type = object_receiver
+			? receiver_container_type_(parm0)
+			: ivl_signal_net_type(sig);
 		  ivl_type_t elem_type = 0;
 		  if (cont_type
 		      && (ivl_type_base(cont_type) == IVL_VT_QUEUE
@@ -5808,7 +5852,10 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 			elem_type = ivl_type_element(cont_type);
 		  if (elem_type && ivl_type_signed(elem_type))
 			sflag = 1;
-		  fprintf(vvp_out, "    %s v%p_0, %d;\n", opcode, sig, sflag);
+		  if (object_receiver)
+			fprintf(vvp_out, "    %s %d;\n", opcode, sflag);
+		  else
+			fprintf(vvp_out, "    %s v%p_0, %d;\n", opcode, sig, sflag);
 	    }
 	    return 0;
       }
@@ -5844,15 +5891,21 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		|| !idx_arg || ivl_expr_type(idx_arg) != IVL_EX_SIGNAL
 		|| !pred) return 0;
 	    ivl_signal_t q_sig = 0;
+	    int object_receiver = 0;
 	    if (ivl_expr_type(q_arg) == IVL_EX_SIGNAL
 		&& ivl_expr_signal(q_arg)) {
 		  q_sig = ivl_expr_signal(q_arg);
 	    } else if (recv_parm
 		       && ivl_expr_type(recv_parm) == IVL_EX_SIGNAL
 		       && ivl_expr_signal(recv_parm)) {
-		    /* Non-signal receiver: see the plain family above. */
+		    /* Retain the one-time-evaluated original receiver, including its
+		       root provenance, for the final in-place reorder. The hidden
+		       signal holds only a value snapshot used while evaluating keys. */
 		  q_sig = ivl_expr_signal(recv_parm);
-		  draw_eval_object(q_arg);
+		  if (show_queue_object_receiver(q_arg) != 0)
+			return 0;
+		  object_receiver = 1;
+		  fprintf(vvp_out, "    %%dup/obj/ref; keyed ordering snapshot\n");
 		  fprintf(vvp_out, "    %%store/obj v%p_0;\n", q_sig);
 	    }
 	    ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
@@ -5914,9 +5967,15 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 				stmt_name, (int)bt);
 			warned = 1;
 		  }
-		  fprintf(vvp_out, "    %s v%p_0;\n",
-			  is_unique ? "%qunique" : (is_rsort ? "%qsort/r" : "%qsort"),
-			  q_sig);
+		  if (object_receiver)
+			fprintf(vvp_out, "    %s 0;\n",
+				is_unique ? "%qunique/o"
+				          : (is_rsort ? "%qsort/r/o" : "%qsort/o"));
+		  else
+			fprintf(vvp_out, "    %s v%p_0, 0;\n",
+				is_unique ? "%qunique"
+				          : (is_rsort ? "%qsort/r" : "%qsort"),
+				q_sig);
 		  return 0;
 	    }
 
@@ -5984,7 +6043,13 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, outer_end);
 
 	    /* Step 4: emit the runtime opcode that sorts q by keys */
-	    if (is_unique) {
+	    if (object_receiver && is_unique) {
+		  fprintf(vvp_out, "    %%qunique/keys/o v%p_0;\n", keys_sig);
+	    } else if (object_receiver && is_rsort) {
+		  fprintf(vvp_out, "    %%qrsort/keys/o v%p_0;\n", keys_sig);
+	    } else if (object_receiver) {
+		  fprintf(vvp_out, "    %%qsort/keys/o v%p_0;\n", keys_sig);
+	    } else if (is_unique) {
 		  fprintf(vvp_out, "    %%qunique/keys v%p_0, v%p_0;\n",
 			  q_sig, keys_sig);
 	    } else if (is_rsort) {
@@ -6129,7 +6194,7 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		    unsigned spec = dynamic_container_spec_(inner_type);
 		    int inner_keyed = spec >= 4;
 		    unsigned vkind = spec & 3;
-		    unsigned inner_max_count = queue_type_max_count_(inner_type);
+		    uint64_t inner_max_count = queue_live_max_operand_(inner_type);
 		    ivl_type_t inner_element_type = ivl_type_element(inner_type);
 		    unsigned inner_element_width = inner_element_type
 			  ? ivl_type_packed_width(inner_element_type) : 0;
@@ -6238,7 +6303,10 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
        * aborts the runtime. */
 #define EMIT_MBX_PUSH_ITEM(item_expr) \
       do { \
-	    if ((item_expr) && ivl_expr_value(item_expr) == IVL_VT_CLASS) { \
+	    if ((item_expr) && (ivl_expr_value(item_expr) == IVL_VT_CLASS \
+			       || ivl_expr_value(item_expr) == IVL_VT_DARRAY \
+			       || ivl_expr_value(item_expr) == IVL_VT_QUEUE \
+			       || ivl_expr_value(item_expr) == IVL_VT_NO_TYPE)) { \
 		  draw_eval_object(item_expr); \
 	    } else if ((item_expr) && (ivl_expr_value(item_expr) == IVL_VT_STRING \
 				       || ivl_expr_type(item_expr) == IVL_EX_STRING)) { \
@@ -6306,8 +6374,15 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
       if (strcmp(stmt_name, "$ivl_mailbox$get") == 0) {
 	    ivl_expr_t mbx = ivl_stmt_parm(net, 0);
 	    if (mbx) draw_eval_object(mbx);
+	    if (ivl_stmt_ref_lval(net)) {
+		  draw_capture_lval_ref(ivl_stmt_ref_lval(net));
+		  fprintf(vvp_out, "    %%swap/obj; mailbox receiver above captured output\n");
+	    }
 	    fprintf(vvp_out, "    %%mbx/get;\n");
-	    EMIT_MBX_STORE_ITEM(1);
+	    if (ivl_stmt_ref_lval(net))
+		  fprintf(vvp_out, "    %%ref/store/mbx;\n");
+	    else
+		  EMIT_MBX_STORE_ITEM(1);
 	    return 0;
       }
 
@@ -6316,8 +6391,15 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
       if (strcmp(stmt_name, "$ivl_mailbox$peek") == 0) {
 	    ivl_expr_t mbx = ivl_stmt_parm(net, 0);
 	    if (mbx) draw_eval_object(mbx);
+	    if (ivl_stmt_ref_lval(net)) {
+		  draw_capture_lval_ref(ivl_stmt_ref_lval(net));
+		  fprintf(vvp_out, "    %%swap/obj; mailbox receiver above captured output\n");
+	    }
 	    fprintf(vvp_out, "    %%mbx/peek;\n");
-	    EMIT_MBX_STORE_ITEM(1);
+	    if (ivl_stmt_ref_lval(net))
+		  fprintf(vvp_out, "    %%ref/store/mbx;\n");
+	    else
+		  EMIT_MBX_STORE_ITEM(1);
 	    return 0;
       }
 
@@ -6337,10 +6419,30 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
        * Non-blocking get. In task context result (1/0) is discarded. */
       if (strcmp(stmt_name, "$ivl_mailbox$try_get") == 0) {
 	    ivl_expr_t mbx = ivl_stmt_parm(net, 0);
+	    int success_flag = allocate_flag();
+	    unsigned lab_fail = local_count++;
+	    unsigned lab_done = local_count++;
 	    if (mbx) draw_eval_object(mbx);
+	    if (ivl_stmt_ref_lval(net)) {
+		  draw_capture_lval_ref(ivl_stmt_ref_lval(net));
+		  fprintf(vvp_out, "    %%swap/obj; mailbox receiver above captured output\n");
+	    }
 	    fprintf(vvp_out, "    %%mbx/try_get;\n");
-	    fprintf(vvp_out, "    %%pop/vec4 1;\n");  /* discard result in task ctx */
-	    EMIT_MBX_STORE_ITEM(1);
+	    fprintf(vvp_out, "    %%flag_set/vec4 %d; consume task-context result\n",
+		    success_flag);
+	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; failed try_get leaves output unchanged\n",
+		    thread_count, lab_fail, success_flag);
+	    if (ivl_stmt_ref_lval(net))
+		  fprintf(vvp_out, "    %%ref/store/mbx;\n");
+	    else
+		  EMIT_MBX_STORE_ITEM(1);
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_done);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_fail);
+	    fprintf(vvp_out, "    %%pop/obj %u, 0; discard failed mailbox item%s\n",
+		    ivl_stmt_ref_lval(net) ? 2U : 1U,
+		    ivl_stmt_ref_lval(net) ? " and captured output" : "");
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_done);
+	    clr_flag(success_flag);
 	    return 0;
       }
 
@@ -6348,10 +6450,30 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
        * Non-blocking peek. In task context result (1/0) is discarded. */
       if (strcmp(stmt_name, "$ivl_mailbox$try_peek") == 0) {
 	    ivl_expr_t mbx = ivl_stmt_parm(net, 0);
+	    int success_flag = allocate_flag();
+	    unsigned lab_fail = local_count++;
+	    unsigned lab_done = local_count++;
 	    if (mbx) draw_eval_object(mbx);
+	    if (ivl_stmt_ref_lval(net)) {
+		  draw_capture_lval_ref(ivl_stmt_ref_lval(net));
+		  fprintf(vvp_out, "    %%swap/obj; mailbox receiver above captured output\n");
+	    }
 	    fprintf(vvp_out, "    %%mbx/try_peek;\n");
-	    fprintf(vvp_out, "    %%pop/vec4 1;\n");  /* discard result in task ctx */
-	    EMIT_MBX_STORE_ITEM(1);
+	    fprintf(vvp_out, "    %%flag_set/vec4 %d; consume task-context result\n",
+		    success_flag);
+	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; failed try_peek leaves output unchanged\n",
+		    thread_count, lab_fail, success_flag);
+	    if (ivl_stmt_ref_lval(net))
+		  fprintf(vvp_out, "    %%ref/store/mbx;\n");
+	    else
+		  EMIT_MBX_STORE_ITEM(1);
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_done);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_fail);
+	    fprintf(vvp_out, "    %%pop/obj %u, 0; discard failed mailbox item%s\n",
+		    ivl_stmt_ref_lval(net) ? 2U : 1U,
+		    ivl_stmt_ref_lval(net) ? " and captured output" : "");
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_done);
+	    clr_flag(success_flag);
 	    return 0;
       }
 

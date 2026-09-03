@@ -449,6 +449,11 @@ string_type_t::~string_type_t()
 {
 }
 
+interface_type_t::~interface_type_t()
+{
+      delete_parmvalue(parameter_values_);
+}
+
 typeref_t::~typeref_t()
 {
       delete_parmvalue(overrides);

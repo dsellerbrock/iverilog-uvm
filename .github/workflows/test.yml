@@ -58,6 +58,9 @@ jobs:
     - name: Virtual-interface function focus (hard)
       run: bash .github/ivtest_focus_gate.sh regress-vif-function-focus-legacy.list regress-vif-function-focus-vvp.list
 
+    - name: Parameterized virtual-interface specialization focus (hard)
+      run: bash .github/ivtest_focus_gate.sh regress-vif-parameter-specialization-focus-legacy.list regress-vif-parameter-specialization-focus-vvp.list
+
     # macOS UVM builds and loads the real DPI umbrella. Keep this hard-gated;
     # the authoritative test count comes from the current checkout rather than
     # a stale count embedded in this workflow comment.
@@ -110,6 +113,9 @@ jobs:
     # omitted by the full hard gate above, as a cross-harness feature gate.
     - name: Virtual-interface function focus (hard)
       run: bash .github/ivtest_focus_gate.sh regress-vif-function-focus-legacy.list regress-vif-function-focus-vvp.list
+
+    - name: Parameterized virtual-interface specialization focus (hard)
+      run: bash .github/ivtest_focus_gate.sh regress-vif-parameter-specialization-focus-legacy.list regress-vif-parameter-specialization-focus-vvp.list
 
     - name: UVM regression tests (hard)
       run: ./.github/uvm_test.sh
@@ -213,6 +219,9 @@ jobs:
     # soft signal. This focused pair is the hard feature-specific protection.
     - name: Virtual-interface function focus (hard)
       run: bash .github/ivtest_focus_gate.sh regress-vif-function-focus-legacy.list regress-vif-function-focus-vvp.list
+
+    - name: Parameterized virtual-interface specialization focus (hard)
+      run: bash .github/ivtest_focus_gate.sh regress-vif-parameter-specialization-focus-legacy.list regress-vif-parameter-specialization-focus-vvp.list
 
     # Windows UVM runs real DPI on all three MSYS2 toolchains, so this step is
     # hard-gated. The authoritative test count comes from the current checkout.

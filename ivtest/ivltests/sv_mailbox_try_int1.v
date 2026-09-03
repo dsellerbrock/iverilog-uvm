@@ -1,3 +1,5 @@
+// IEEE 1800-2017/2023 15.4.6: try_get() returns zero when the mailbox is
+// empty and does not retrieve a message, so the ref output remains unchanged.
 module test;
   mailbox #(int) mbx;
   int v;
@@ -27,7 +29,7 @@ module test;
 
     v = -1;
     ok = mbx.try_get(v);
-    if (ok || v !== 0) begin
+    if (ok || v !== -1) begin
       $display("FAILED: empty try_get ok=%0d v=%0d", ok, v);
       $finish;
     end

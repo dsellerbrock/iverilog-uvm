@@ -1,0 +1,4 @@
+./ivltests/sv_vif_task_scalar_copyback_fail.v:22: error: Constant values not allowed in l-value expressions.
+./ivltests/sv_vif_task_scalar_copyback_fail.v:23: error: Constant values not allowed in l-value expressions.
+./ivltests/sv_vif_task_scalar_copyback_fail.v:24: error: Constant values not allowed in l-value expressions.
+3 error(s) during elaboration.

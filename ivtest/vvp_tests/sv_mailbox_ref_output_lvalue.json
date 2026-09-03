@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_mailbox_ref_output_lvalue.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_mailbox_ref_output_lvalue" ],
+    "gold"          : "sv_mailbox_ref_output_lvalue"
+}

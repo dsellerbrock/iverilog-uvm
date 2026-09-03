@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_vif_parameter_specialization_class_cache_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_vif_parameter_specialization_class_cache" ],
+    "gold"          : "sv_vif_parameter_specialization_class_cache"
+}

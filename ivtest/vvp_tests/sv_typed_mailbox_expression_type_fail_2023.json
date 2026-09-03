@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_typed_mailbox_expression_type_fail_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_typed_mailbox_expression_type_fail" ],
+    "gold"          : "sv_typed_mailbox_expression_type_fail_2023"
+}

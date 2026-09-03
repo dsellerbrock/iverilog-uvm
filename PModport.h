@@ -42,13 +42,42 @@ class PModport : public PNamedItem {
       typedef std::pair <NetNet::PortType,PExpr*> simple_port_t;
       std::map<perm_string,simple_port_t> simple_ports;
 
-	// Task/function ports (IEEE 1800-2017 25.5.4): `import`ed and
-	// `export`ed subroutine names. In this implementation modports
-	// do not restrict access, so recording the names makes the
-	// declarations legal; the referenced task/function is reached
-	// through the interface handle as usual.
+	// Task/function ports (IEEE 1800-2017/2023 25.7): `import`ed names
+	// refer to interface subroutines, while `export`ed names require a
+	// provider in the module connected to the interface port. Keep the
+	// two sets distinct so export is never mistaken for interface-local
+	// method dispatch.
       std::set<perm_string> import_ports;
       std::set<perm_string> export_ports;
+
+      /* IEEE 1800-2017/2023 25.7: A task/function modport item may carry a
+       * complete prototype. Keep that prototype separate from the interface
+       * implementation declaration: its formal names control named binding,
+       * and its defaults are evaluated in the prototype's declaration scope.
+       * The parse-form objects have compilation lifetime, like the rest of
+       * the Module/PModport tree. */
+      struct tf_port_prototype_t {
+            bool is_function;
+            data_type_t*return_type;
+            std::vector<pform_tf_port_t>*ports;
+
+            tf_port_prototype_t(bool function_flag = false,
+                                data_type_t*return_type_arg = nullptr,
+                                std::vector<pform_tf_port_t>*ports_arg = nullptr)
+            : is_function(function_flag), return_type(return_type_arg),
+              ports(ports_arg) { }
+      };
+
+      void add_tf_port_prototype(bool is_import, perm_string name,
+                                 bool is_function,
+                                 data_type_t*return_type,
+                                 std::vector<pform_tf_port_t>*ports);
+      const tf_port_prototype_t* find_tf_port_prototype(
+                                 bool is_import,
+                                 perm_string name) const;
+
+      std::map<perm_string,tf_port_prototype_t> import_prototypes;
+      std::map<perm_string,tf_port_prototype_t> export_prototypes;
 
       // Clocking blocks exported by `modport mp(clocking cb)'. Keep these
       // names so virtual-interface event resolution can treat the modport as

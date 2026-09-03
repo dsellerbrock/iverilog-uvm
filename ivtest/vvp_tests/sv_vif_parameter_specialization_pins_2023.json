@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_vif_parameter_specialization_pins_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_vif_parameter_specialization_pins" ],
+    "gold"          : "sv_vif_parameter_specialization_pins"
+}

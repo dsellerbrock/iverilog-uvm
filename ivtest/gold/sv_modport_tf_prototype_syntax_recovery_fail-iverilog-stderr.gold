@@ -1,0 +1,4 @@
+ivltests/sv_modport_tf_prototype_syntax_recovery_fail.v:8: syntax error
+ivltests/sv_modport_tf_prototype_syntax_recovery_fail.v:8: error: Error in task/function port item after port name value.
+ivltests/sv_modport_tf_prototype_syntax_recovery_fail.v:8: syntax error
+ivltests/sv_modport_tf_prototype_syntax_recovery_fail.v:8: error: Invalid module item.

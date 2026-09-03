@@ -1,1 +1,0 @@
-ivltests/sv_vif_explicit_interface_class_property.v:20: warning: parameter overrides on a virtual interface type (`sv_vif_explicit_parameter_if') are not yet honored — all specializations share the interface's default parameters, so member widths use the defaults (a non-default member write would truncate). (IEEE 1800-2017 25.9; further similar warnings suppressed.)

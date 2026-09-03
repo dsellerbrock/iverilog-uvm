@@ -1404,6 +1404,13 @@ class NetScope : public Definitions, public Attrib {
       void set_module_name(perm_string);
       void set_module_definition(const Module*def) { module_definition_ = def; }
       const Module* module_definition() const { return module_definition_; }
+	/* Stable semantic owner for nominal types elaborated in detached,
+	 * parameter-specialized declaration scopes. Ordinary hierarchy scopes
+	 * leave this empty and use their parsed declaration identity. */
+      void type_owner_identity(const std::string&key)
+      { type_owner_identity_ = key; }
+      const std::string& type_owner_identity() const
+      { return type_owner_identity_; }
       void set_generate_definition(const PGenerate*def)
             { generate_definition_ = def; }
       const PGenerate* generate_definition() const
@@ -1616,9 +1623,9 @@ class NetScope : public Definitions, public Attrib {
 	   access to these things to make up the parameter lists. */
       struct param_expr_t : public LineInfo {
 	    param_expr_t() : val_expr(0), source_expr(0), val_type(0),
-		             val_scope(0), source_scope(0),
-		             solving(false), is_annotatable(false),
-		             local_flag(false),
+			     val_scope(0), source_scope(0),
+			     solving(false), is_annotatable(false),
+			     local_flag(false),
 		             range(0), val(0), ivl_type(0) { }
 	    // Source expression and data type (before elaboration)
 	    PExpr*val_expr;
@@ -1638,6 +1645,11 @@ class NetScope : public Definitions, public Attrib {
 	    bool local_flag;
 	    // Can it be overridden?
 	    bool overridable = false;
+	    // Preserve every defparam declaration scope after value evaluation.
+	    // IEEE 1800-2017/2023 25.9 needs this provenance to distinguish a
+	    // declaration inside an interface from one outside it, including a
+	    // defparam that targets a parameter deeper in the interface hierarchy.
+	    std::set<const NetScope*> defparam_source_scopes;
 	    // Is it a type parameter
 	    bool type_flag = false;
 	    // Is it an unpacked array parameter (elements stored as "name[i]")
@@ -1756,6 +1768,7 @@ class NetScope : public Definitions, public Attrib {
       std::map <perm_string,NetNet*> signals_map_;
       perm_string module_name_;
       const Module*module_definition_;
+      std::string type_owner_identity_;
       const PGenerate*generate_definition_;
       std::set<const PGenerate*>active_generate_definitions_;
       bool is_bind_instance_;
@@ -3410,6 +3423,12 @@ class NetAssign_ {
       NetAssign_(const NetAssign_&) = delete;
       NetAssign_& operator=(const NetAssign_&) = delete;
 
+	// Make an owned semantic copy of this complete l-value chain. This is
+	// used by expression nodes that can be duplicated after elaboration but
+	// must retain the original writable destination (for example a mailbox
+	// ref-output argument).
+      NetAssign_* dup_lval() const;
+
 	// This is so NetAssign_ objects can be passed to ivl_assert
 	// and other macros that call this method.
       std::string get_fileline() const;
@@ -4814,6 +4833,20 @@ class NetSTask  : public NetProc {
 
       const NetExpr* parm(unsigned idx) const;
 
+	/* Some built-in system tasks have a true ref-output actual. Keep its
+	 * assignment l-value separate from the ordinary expression arguments so
+	 * targets neither lose the destination shape nor evaluate it as an
+	 * r-value. This object owns the l-value after set_ref_output(). */
+      void set_ref_output(NetAssign_*lval);
+      const NetAssign_* ref_output() const { return ref_output_; }
+
+	/* A dynamic virtual-interface task call carries the exact concrete
+	 * method scopes represented by its instance-keyed argument rows. The
+	 * Design owns these scopes; this statement only borrows their pointers. */
+      void add_vif_method(NetScope*method);
+      unsigned vif_method_count() const;
+      const NetScope* vif_method(unsigned idx) const;
+
 	/* This call came from an immediate-assertion action block. It remains
 	   executable in simulation, but it is verification-only and must not
 	   be diagnosed as logic that the containing procedural block needs to
@@ -4838,6 +4871,8 @@ class NetSTask  : public NetProc {
       const char* name_;
       ivl_sfunc_as_task_t sfunc_as_task_;
       std::vector<NetExpr*>parms_;
+      NetAssign_*ref_output_;
+      std::vector<NetScope*>vif_methods_;
       bool assertion_action_ = false;
 };
 
@@ -5685,6 +5720,11 @@ class NetESFunc  : public NetExpr {
       NetExpr* parm(unsigned idx);
       const NetExpr* parm(unsigned idx) const;
 
+	/* Optional true ref-output actual for compiler-known system functions.
+	 * It is not an r-value parameter and is owned by this expression. */
+      void set_ref_output(NetAssign_*lval);
+      const NetAssign_* ref_output() const { return ref_output_; }
+
 	/* A dynamic virtual-interface function expression can select one of
 	 * several concrete interface-instance method scopes at run time. The
 	 * Design owns these scopes; this expression only borrows their pointers. */
@@ -5777,6 +5817,7 @@ class NetESFunc  : public NetExpr {
       const char* name_;
       ivl_variable_type_t type_;
       std::vector<NetExpr*>parms_;
+      NetAssign_*ref_output_;
       std::vector<NetScope*>vif_methods_;
       std::vector<bool>vif_default_parms_;
       bool is_overridden_;

@@ -806,12 +806,27 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 		  && ivl_type_properties(arr_elem_type) > 0;
 	    if (struct_obj_elem)
 		  draw_class_in_scope(arr_elem_type);
+	    int container_obj_elem =
+		  (ivl_signal_data_type(sig) == IVL_VT_QUEUE
+		   || ivl_signal_data_type(sig) == IVL_VT_DARRAY)
+		  && arr_elem_type;
 	    fprintf(vvp_out, "v%p .array%s %s\"%s\", %d %d",
 		    sig, datatype_flag, storage_flag,
 		    vvp_mangle_name(ivl_signal_basename(sig)),
 		    swapped ? first: last, swapped ? last : first);
 	    if (struct_obj_elem)
 		  fprintf(vvp_out, ", C%p", arr_elem_type);
+	    else if (container_obj_elem) {
+		  fputs(", \"", vvp_out);
+		  if (ivl_type_base(arr_elem_type) == IVL_VT_DARRAY)
+			fputc('D', vvp_out);
+		  else if (ivl_type_queue_assoc_compat(arr_elem_type))
+			fputc('A', vvp_out);
+		  else
+			fputc('Q', vvp_out);
+		  emit_container_layout_suffix_(arr_elem_type);
+		  fputc('"', vvp_out);
+	    }
 	    fprintf(vvp_out, ";\n");
 
       } else if (ivl_signal_dimensions(sig) > 0) {
@@ -850,6 +865,9 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 		      /* '+' marks a signed integral element so %p and
 		         vpiDecStrVal render negatives correctly. */
 		    (element_type && ivl_type_signed(element_type)) ? "+" : "");
+	    fprintf(vvp_out, ", \"D");
+	    emit_container_layout_suffix_(var_type);
+	    fputc('"', vvp_out);
 	    if (struct_obj_elem)
 		  fprintf(vvp_out, ", C%p", element_type);
 	    fprintf(vvp_out, ";%s\n",
@@ -903,13 +921,15 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    if (struct_obj_elem)
 		  draw_class_in_scope(element_type);
 
-	    fprintf(vvp_out, "v%p_0 .var/queue %s\"%s\", %u%s, \"%s\"", sig,
+	    fprintf(vvp_out, "v%p_0 .var/queue %s\"%s\", %u%s, \"%s", sig,
 		    storage_flag,
 		    vvp_mangle_name(ivl_signal_basename(sig)),
 		    ivl_type_packed_width(element_type),
 		      /* '+' marks a signed integral element (see .var/darray). */
 		    (element_type && ivl_type_signed(element_type)) ? "+" : "",
 		    queue_kind);
+	    emit_container_layout_suffix_(var_type);
+	    fprintf(vvp_out, "\"");
 	    if (struct_obj_elem)
 		  fprintf(vvp_out, ", C%p", element_type);
 	    fprintf(vvp_out, ";%s\n",

@@ -1,0 +1,2 @@
+./ivltests/sv_modport_export_missing_fail.v:13: error: Modport `provider' exports task/function `send', but connected module `export_missing_provider' has no implementation for interface port `bus' (IEEE 1800-2017/2023 25.7).
+1 error(s) during elaboration.

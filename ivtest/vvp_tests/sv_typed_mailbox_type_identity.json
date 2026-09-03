@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_typed_mailbox_type_identity.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_typed_mailbox_type_identity" ],
+    "gold"          : "sv_typed_mailbox_type_identity"
+}

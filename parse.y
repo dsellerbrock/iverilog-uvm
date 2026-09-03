@@ -1976,6 +1976,7 @@ static Module::port_t *module_declare_port_continuation(
 %token <number> BASED_NUMBER DEC_NUMBER UNBASED_NUMBER
 %token <realtime> REALTIME
 %token K_PLUS_EQ K_MINUS_EQ K_INCR K_DECR
+%token K_SOURCE_FILE_BOUNDARY
 %token K_LE K_GE K_EG K_EQ K_NE K_CEQ K_CNE K_WEQ K_WNE K_LP K_LS K_RS K_RSS K_SG
  /* K_CONTRIBUTE is <+, the contribution assign. */
 %token K_CONTRIBUTE
@@ -2286,7 +2287,8 @@ static Module::port_t *module_declare_port_continuation(
 %type <decl_assignments> list_of_variable_decl_assignments
 
 %type <data_type>  class_scoped_type_identifier
-%type <data_type>  data_type data_type_opt data_type_or_implicit data_type_or_implicit_or_void
+%type <data_type>  data_type data_type_opt data_type_or_implicit data_type_or_void
+%type <data_type>  data_type_or_implicit_or_void
 %type <data_type>  data_type_or_implicit_no_opt
 %type <data_type>  for_data_type for_keyword_data_type
 %destructor { delete $$; } for_data_type for_keyword_data_type
@@ -4971,12 +4973,8 @@ virtual_interface_type
 	interface_type_t*tmp =
 	      new interface_type_t(lex_strings.make($1.text), true);
 	FILE_NAME(tmp, @1);
-	  /* Record that a parameter override was given so elaboration can
-	     diagnose the unmodeled specialization instead of silently using
-	     the interface's default parameters. */
-	tmp->has_param_override = ($2 != nullptr);
+	tmp->set_parameter_values($2);
 	delete[] $1.text;
-	delete_parmvalue_t($2);
 	$$ = tmp;
       }
   | virtual_interface_identifier parameter_value_opt '.' IDENTIFIER
@@ -4987,10 +4985,9 @@ virtual_interface_type
 	interface_type_t*tmp =
 	      new interface_type_t(lex_strings.make($1.text), true);
 	FILE_NAME(tmp, @1);
-	tmp->has_param_override = ($2 != nullptr);
+	tmp->set_parameter_values($2);
 	tmp->modport = lex_strings.make($4);
 	delete[] $1.text;
-	delete_parmvalue_t($2);
 	delete[] $4;
 	$$ = tmp;
       }
@@ -5078,6 +5075,16 @@ interconnect_implicit_type
       }
   ;
 
+
+data_type_or_void
+  : data_type
+      { $$ = $1; }
+  | K_void
+      { void_type_t*tmp = new void_type_t;
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  ;
 
 data_type_or_implicit_or_void
   : data_type_or_implicit
@@ -6371,9 +6378,13 @@ modport_ports_list
 	delete $3;
       }
   | modport_ports_list ',' modport_tf_port
-      { if (last_modport_port.type != MP_TF)
-	      yyerror(@3, "error: task/function declaration not allowed here.");
-      }
+	      { if (last_modport_port.type != MP_TF) {
+		      yyerror(@3, "error: task/function declaration not allowed here.");
+		      pform_discard_modport_tf_prototype();
+		} else
+		      pform_commit_modport_tf_prototype(
+			    @3, last_modport_port.is_import);
+	      }
   | modport_ports_list ',' IDENTIFIER
       { if (last_modport_port.type == MP_SIMPLE) {
 	      pform_add_modport_port(@3, last_modport_port.direction,
@@ -6405,10 +6416,11 @@ modport_ports_declaration
 	delete $3;
 	delete $1;
       }
-  /* Task/function modport ports (IEEE 1800-2017 25.5.4). Modports in
-     this implementation do not restrict member access, so recording
-     the imported/exported subroutine name is sufficient: the
-     task/function is reached through the interface handle. */
+  /* Task/function modport ports (IEEE 1800-2017/2023 25.7). An import
+     identifies an interface subroutine. An export instead names a provider
+     in the module connected to the interface port; keep that polarity for
+     elaboration even though qualified provider definitions are not yet
+     representable by this parser. */
   | attribute_list_opt import_export IDENTIFIER
       { last_modport_port.type = MP_TF;
 	last_modport_port.is_import = $2;
@@ -6419,6 +6431,7 @@ modport_ports_declaration
   | attribute_list_opt import_export modport_tf_port
       { last_modport_port.type = MP_TF;
 	last_modport_port.is_import = $2;
+	pform_commit_modport_tf_prototype(@3, $2);
 	delete $1;
       }
   | attribute_list_opt K_clocking IDENTIFIER
@@ -6431,14 +6444,18 @@ modport_ports_declaration
   ;
 
 modport_tf_port
-  : K_task IDENTIFIER tf_port_list_parens_opt
-      { /* Prototype form: record the name (import/export are not
-	   access-enforced in this implementation). */
-	pform_add_modport_tf_port(@2, true, lex_strings.make($2));
+  : K_task IDENTIFIER
+      { pform_start_modport_tf_prototype(@2); }
+    tf_port_list_parens_opt
+      { pform_finish_modport_tf_prototype(
+	      @2, lex_strings.make($2), false, nullptr, $4);
 	delete[] $2;
       }
-  | K_function data_type_or_implicit_or_void function_identifier tf_port_list_parens_opt
-      { pform_add_modport_tf_port(@3, true, lex_strings.make($3));
+  | K_function data_type_or_void function_identifier
+      { pform_start_modport_tf_prototype(@3); }
+    tf_port_list_parens_opt
+      { pform_finish_modport_tf_prototype(
+	      @3, lex_strings.make($3), true, $2, $5);
 	delete[] $3;
       }
   ;
@@ -14511,12 +14528,7 @@ module_item
 
   /* */
 
-  | K_defparam
-      { if (pform_in_interface())
-	      yyerror(@1, "error: Parameter overrides are not allowed "
-			  "in interfaces.");
-      }
-    defparam_assign_list ';'
+  | K_defparam defparam_assign_list ';'
 
   /* Most gate types have an optional drive strength and optional
      two/three-value delay. These rules handle the different cases.
@@ -14888,7 +14900,19 @@ module_item
      reasonable error message can be produced. */
 
   | error ';'
-      { yyerror(@2, "error: Invalid module item.");
+
+      { pform_abort_modport_item();
+	yyerror(@2, "error: Invalid module item.");
+	yyerrok;
+      }
+
+    /* ivlpp concatenates top-level sources. If one ends inside a modport
+       prototype, consume its level-0 boundary as the missing module-item
+       terminator. The lexer follows it with a synthetic endinterface, so the
+       ordinary module reduction unwinds exactly that incomplete interface
+       before scanning the next physical source. */
+  | error K_SOURCE_FILE_BOUNDARY
+      { pform_abort_modport_item();
 	yyerrok;
       }
 

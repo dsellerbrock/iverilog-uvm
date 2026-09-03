@@ -701,6 +701,7 @@ void dll_target::expr_sfunc(const NetESFunc*net)
 	    ? dll_procedure_new_array<ivl_scope_t>(vif_methods) : 0;
       expr->u_.sfunc_.vif_parm_default = vif_methods && cnt
 	    ? dll_procedure_new_array<unsigned char>(cnt) : 0;
+      expr->u_.sfunc_.ref_lval = 0;
       for (unsigned idx = 0 ; idx < cnt ; idx += 1)
 	    if (expr->u_.sfunc_.vif_parm_default)
 	          expr->u_.sfunc_.vif_parm_default[idx] =
@@ -713,12 +714,19 @@ void dll_target::expr_sfunc(const NetESFunc*net)
 	    assert(expr->u_.sfunc_.vif_method[idx]);
       }
 
-	/* make up the parameter expressions. */
+      /* make up the parameter expressions. */
       for (unsigned idx = 0 ;  idx < cnt ;  idx += 1) {
-	    net->parm(idx)->expr_scan(this);
-	    assert(expr_);
+	    if (net->parm(idx))
+		  net->parm(idx)->expr_scan(this);
 	    expr->u_.sfunc_.parm[idx] = expr_;
 	    expr_ = 0;
+      }
+
+      if (net->ref_output()) {
+	    expr->u_.sfunc_.ref_lval =
+		  dll_procedure_new<struct ivl_lval_s>();
+	    make_single_lval_(net, expr->u_.sfunc_.ref_lval,
+			      net->ref_output());
       }
 
       expr_ = expr;

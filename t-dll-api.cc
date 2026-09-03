@@ -913,6 +913,13 @@ extern "C" unsigned ivl_expr_parms(ivl_expr_t net)
       }
 }
 
+extern "C" ivl_lval_t ivl_expr_ref_lval(ivl_expr_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_EX_SFUNC);
+      return net->u_.sfunc_.ref_lval;
+}
+
 extern "C" ivl_scope_t ivl_expr_vif_method(ivl_expr_t net, unsigned idx)
 {
       assert(net);
@@ -3840,6 +3847,29 @@ extern "C" unsigned ivl_stmt_parm_count(ivl_statement_t net)
       return 0;
 }
 
+extern "C" ivl_lval_t ivl_stmt_ref_lval(ivl_statement_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_ST_STASK);
+      return net->u_.stask_.ref_lval_;
+}
+
+extern "C" ivl_scope_t ivl_stmt_vif_method(ivl_statement_t net,
+					      unsigned idx)
+{
+      assert(net);
+      assert(net->type_ == IVL_ST_STASK);
+      assert(idx < net->u_.stask_.vif_methods_);
+      return net->u_.stask_.vif_method_[idx];
+}
+
+extern "C" unsigned ivl_stmt_vif_methods(ivl_statement_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_ST_STASK);
+      return net->u_.stask_.vif_methods_;
+}
+
 extern "C" ivl_expr_t ivl_stmt_rval(ivl_statement_t net)
 {
       assert(net);
@@ -4156,6 +4186,12 @@ extern "C" ivl_type_t ivl_type_interface(ivl_type_t net, unsigned idx)
 	    return 0;
 
       return const_cast<netclass_t*>(class_type->interface_types()[idx]);
+}
+
+extern "C" int ivl_type_is_interface(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type && class_type->is_interface() ? 1 : 0;
 }
 
 extern "C" const char* ivl_type_method_prefix(ivl_type_t net)

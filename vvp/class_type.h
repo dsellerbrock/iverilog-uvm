@@ -26,6 +26,7 @@
 # include  <utility>
 # include  <vector>
 # include  "vpi_priv.h"
+# include  "vvp_object.h"
 
 class class_property_t;
 class vvp_vector4_t;
@@ -139,6 +140,7 @@ class class_type : public __vpiHandle {
       bool property_is_void(size_t idx) const;
       const class_type*property_declared_class_type(size_t idx) const;
       uint64_t property_array_size(size_t idx) const;
+      uint64_t property_queue_max_size(size_t idx) const;
       const std::vector<std::pair<int,int> >&
             property_dimensions(size_t idx) const;
 
@@ -192,6 +194,7 @@ class class_type : public __vpiHandle {
 	    std::vector<vvp_vector4_t> enum_values;
 	    vpiHandle declared_class_type = 0;
 	    uint64_t array_size = 1;
+	    vvp_container_layout_t container_layout;
 	    std::vector<std::pair<int,int> > dimensions;
       };
       std::vector<prop_t> properties_;

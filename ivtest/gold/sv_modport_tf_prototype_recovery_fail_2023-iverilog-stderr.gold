@@ -1,0 +1,2 @@
+./ivltests/sv_modport_tf_prototype_recovery_fail.v:9: error: task/function declaration not allowed here.
+./ivltests/sv_modport_tf_prototype_recovery_fail.v:10: error: task/function declaration not allowed here.

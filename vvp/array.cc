@@ -24,6 +24,7 @@
 # include  "vpi_priv.h"
 # include  "vvp_net_sig.h"
 # include  "vvp_darray.h"
+# include  "vvp_assoc.h"
 # include  "vthread.h"
 # include  "vvp_cobject.h"
 # include  "class_type.h"
@@ -49,6 +50,24 @@ unsigned long count_real_arrays = 0;
 unsigned long count_real_array_words = 0;
 
 static symbol_map_s<struct __vpiArray>* array_table =0;
+
+static bool object_matches_container_layout_(
+      const vvp_object_t&value, const vvp_container_layout_t&layout)
+{
+      if (!layout || value.test_nil())
+	    return false;
+
+      switch (layout->kind) {
+      case VVP_CONTAINER_QUEUE:
+	    return value.peek<vvp_queue>() != 0;
+      case VVP_CONTAINER_DARRAY:
+	    return value.peek<vvp_darray>() != 0
+		  && value.peek<vvp_queue>() == 0;
+      case VVP_CONTAINER_ASSOC:
+	    return value.peek<vvp_assoc_base>() != 0;
+      }
+      return false;
+}
 
 class vvp_fun_arrayport;
 static void array_attach_port(vvp_array_t, vvp_fun_arrayport*);
@@ -1265,7 +1284,13 @@ void __vpiArray::set_word(unsigned address, const vvp_object_t&val)
       if (address >= vals->get_size())
 	    return;
 
-      vals->set_word(address, val);
+      vvp_object_t stored = val;
+      if (object_matches_container_layout_(val, element_container_layout_)) {
+	    stored = val.duplicate();
+	    stored.peek<vvp_object>()->set_declared_container_layout(
+		  element_container_layout_);
+      }
+      vals->set_word(address, stored);
       word_change(address);
 }
 
@@ -1383,6 +1408,14 @@ void __vpiArray::get_word_obj(unsigned address, vvp_object_t&val)
 	    }
 
 	    vals->get_word(address, val);
+	    if (object_matches_container_layout_(val,
+					   element_container_layout_)) {
+		  vvp_object*object = val.peek<vvp_object>();
+		  if (object->declared_container_layout()
+		      != element_container_layout_)
+			object->set_declared_container_layout(
+			      element_container_layout_);
+	    }
 	      // Lazily default-construct an object-backed unpacked-struct
 	      // element on first access so member writes (`arr[i].field = ...`)
 	      // to a never-whole-assigned element address a real object rather
@@ -1730,7 +1763,8 @@ void compile_string_array(char*label, char*name, int last, int first,
 }
 
 void compile_object_array(char*label, char*name, int last, int first,
-			  int storage_flag, char*element_type)
+			  int storage_flag, char*element_type,
+			  char*container_type)
 {
       vpiHandle obj = vpip_make_array(label, name, first, last, true);
 
@@ -1743,6 +1777,28 @@ void compile_object_array(char*label, char*name, int last, int first,
       arr->vals = fixed_array_storage_(new vvp_darray_object(arr->get_size()),
 				       arr->automatic_storage);
       arr->vals_width = 1;
+
+      if (container_type) {
+	    const bool is_queue = container_type[0] == 'Q';
+	    const bool is_assoc = container_type[0] == 'A';
+	    const bool is_darray = container_type[0] == 'D';
+	    vvp_container_layout_t layout;
+	    size_t base_length = 0;
+	    if ((!is_queue && !is_assoc && !is_darray)
+		|| !vvp_parse_container_layout_type(
+		      container_type,
+		      is_queue ? VVP_CONTAINER_QUEUE
+		      : (is_assoc ? VVP_CONTAINER_ASSOC
+				  : VVP_CONTAINER_DARRAY),
+		      layout, base_length)
+		|| base_length != 1) {
+		  yyerror("malformed container-layout suffix in .array/obj "
+			  "type encoding");
+		  compile_errors += 1;
+	    } else {
+		  arr->element_container_layout_ = layout;
+	    }
+      }
 
 	/* An object-backed unpacked-struct element type lets get_word_obj()
 	   default-construct elements lazily (see __vpiArray::element_defn_).
@@ -1762,6 +1818,7 @@ void compile_object_array(char*label, char*name, int last, int first,
 
       free(label);
       delete[] name;
+      free(container_type);
 }
 
 void compile_net_array(char*label, char*name, int last, int first,
@@ -2558,6 +2615,11 @@ void compile_array_alias(char*label, char*name, char*src)
       obj->vals_words = mem->vals_words;
       obj->value_kind = mem->value_kind;
       obj->automatic_storage = mem->automatic_storage;
+	/* The canonical owner applies this metadata to shared word storage, but
+	 * retain it on every VPI alias as well for consistent introspection. */
+      obj->element_container_layout_ =
+	    mem->canonical_value_owner_()->element_container_layout_;
+      obj->element_defn_ = mem->canonical_value_owner_()->element_defn_;
       obj->value_owner_ = mem->canonical_value_owner_();
       obj->value_owner_->value_views_.push_back(obj);
 

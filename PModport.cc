@@ -20,6 +20,25 @@
 # include "config.h"
 
 # include  "PModport.h"
+# include  "PExpr.h"
+
+static void release_tf_port_prototype_(
+      PModport::tf_port_prototype_t&prototype)
+{
+      delete prototype.return_type;
+      prototype.return_type = nullptr;
+      if (prototype.ports) {
+            /* Prototype PWire nodes follow the compilation-lifetime convention
+             * used by ordinary subroutine ports. Defaults and the private row
+             * carrier are uniquely owned here and can be reclaimed safely. */
+            for (pform_tf_port_t&port : *prototype.ports) {
+                  delete port.defe;
+                  port.defe = nullptr;
+            }
+            delete prototype.ports;
+            prototype.ports = nullptr;
+      }
+}
 
 PModport::PModport(perm_string n)
 : name_(n)
@@ -28,6 +47,36 @@ PModport::PModport(perm_string n)
 
 PModport::~PModport()
 {
+      for (auto&port : simple_ports)
+            delete port.second.second;
+      for (auto&prototype : import_prototypes)
+            release_tf_port_prototype_(prototype.second);
+      for (auto&prototype : export_prototypes)
+            release_tf_port_prototype_(prototype.second);
+}
+
+void PModport::add_tf_port_prototype(bool is_import, perm_string name,
+                                     bool is_function,
+                                     data_type_t*return_type,
+                                     std::vector<pform_tf_port_t>*ports)
+{
+      tf_port_prototype_t prototype(is_function, return_type, ports);
+      std::map<perm_string,tf_port_prototype_t>&prototypes =
+            is_import ? import_prototypes : export_prototypes;
+      auto prior = prototypes.find(name);
+      if (prior != prototypes.end())
+            release_tf_port_prototype_(prior->second);
+      prototypes[name] = prototype;
+}
+
+const PModport::tf_port_prototype_t* PModport::find_tf_port_prototype(
+                                     bool is_import, perm_string name) const
+{
+      const std::map<perm_string,tf_port_prototype_t>&prototypes =
+            is_import ? import_prototypes : export_prototypes;
+      std::map<perm_string,tf_port_prototype_t>::const_iterator found =
+            prototypes.find(name);
+      return found == prototypes.end() ? nullptr : &found->second;
 }
 
 PNamedItem::SymbolType PModport::symbol_type() const

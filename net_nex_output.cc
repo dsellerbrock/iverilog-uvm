@@ -332,8 +332,10 @@ void NetRepeat::nex_output(NexusSet&out)
  * all. This is OK because most system tasks are not synthesizable in
  * the first place.
  */
-void NetSTask::nex_output(NexusSet&)
+void NetSTask::nex_output(NexusSet&out)
 {
+      if (ref_output_)
+	    ref_output_->nex_output(out);
 }
 
 /*

@@ -1,13 +1,10 @@
 // Virtual-interface member read/write at correct widths (IEEE 1800-2017 25.9).
 // A member write through a virtual interface handle must reach the full width
-// of the interface member. Pins the cases that work correctly today:
+// of the interface member. This baseline pins:
 //   - a non-parameterized interface,
 //   - a parameterized interface used at its DEFAULT parameter.
-// (Parameterized virtual-interface SPECIALIZATION with a NON-default override
-// is a recorded limitation: all specializations share one netclass elaborated
-// with the interface defaults, so a non-default member write would truncate.
-// That case is diagnosed with a loud one-time warning at elaboration; see
-// docs/conformance/repros/param_vif_member_write_truncation.sv.)
+// The paired sv_vif_parameter_specialization_members cluster separately pins
+// nondefault W13/W21 specialization reads and writes.
 module sv_vif_member_access;
   int errors = 0;
 

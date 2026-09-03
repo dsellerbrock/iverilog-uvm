@@ -1,0 +1,38 @@
+:ivl_version "13.0 (devel)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+S_unit .scope package, "$unit" "$unit" 1 1;
+ .timescale 0 0;
+S_top .scope module, "top" "top" 1 1;
+ .timescale 0 0;
+C_bad .class "bad" "top.bad" [7]
+   0: "bad_queue_digits", "q0:Qv!Q"
+   1: "bad_queue_overflow", "q0:Qo!Q18446744073709551616"
+   2: "bad_queue_outer", "q0:Qv!D"
+   3: "bad_assoc_outer", "q0:Mo!Q2"
+   4: "bad_trailing", "q0:Do!D,Q2,"
+   5: "bad_empty_layer", "q0:Qo!Q2,,D"
+   6: "bad_suffix_junk", "q0:Qv!Q2X"
+ ;
+v_bad_empty .var/queue "bad_empty", 1, "Qv!";
+v_bad_outer .var/queue "bad_outer", 1, "QS!A";
+v_bad_overflow .var/queue "bad_overflow", 1, "Qr!Q18446744073709551616";
+v_bad_trailing .var/queue "bad_trailing", 1, "Qo!Q2,";
+v_bad_darray_outer .var/darray "bad_darray_outer", 1, "D!Q2";
+v_bad_darray_trailing .var/darray "bad_darray_trailing", 1, "D!D,";
+a_bad_outer .array/obj "bad_array_outer", 0 0, "Q!D";
+a_bad_empty .array/obj "bad_array_empty", 0 0, "A!A,,Q2";
+
+v_legacy_absent .var/queue "legacy_absent", 1;
+v_legacy_queue .var/queue "legacy_queue", 1, "Qv@3#2";
+v_legacy_darray .var/darray "legacy_darray", 1, "D#2";
+v_strict_queue .var/queue "strict_queue", 1, "Qo!Q0,D,Q3";
+v_strict_darray .var/darray "strict_darray", 1, "D!D,A,Q4";
+a_legacy_queue .array/obj "legacy_array", 0 0, "Q";
+a_strict_queue .array/obj "strict_array", 0 0, "Q!Q0,D,Q3";
+T_0 ;
+    %end;
+    .thread T_0;
+:file_names 2;
+    "N/A";
+    "bounded_queue_metadata_malformed.vvp";

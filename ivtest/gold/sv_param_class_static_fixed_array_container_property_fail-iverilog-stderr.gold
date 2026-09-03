@@ -1,2 +1,2 @@
-ivltests/sv_param_class_static_fixed_array_container_property_fail.v:6: sorry: array of queue type is not yet supported for signal-backed declarations; this form is currently supported only as a non-static instance-class property.
+ivltests/sv_param_class_static_fixed_array_container_property_fail.v:6: sorry: this fixed array of dynamic-container values has an aggregate nesting that object-array storage does not yet represent.
 1 error(s) during elaboration.

@@ -997,6 +997,12 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
 	// null for class-handle arrays, whose elements correctly stay nil.
       class class_type*element_defn_ = nullptr;
 
+	// A fixed unpacked array whose word is itself a queue/darray/assoc has
+	// no object-signal functor on which to keep declaration metadata. Carry
+	// the complete immutable word layout here so every slot assignment and
+	// lazy reload rebinds nested queue bounds to the destination declaration.
+      vvp_container_layout_t element_container_layout_;
+
 private:
       unsigned array_count;
       __vpiScope*scope;

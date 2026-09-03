@@ -1,0 +1,6 @@
+./ivltests/sv_vif_parameter_specialization_comparison_fail.v:32: error: Virtual-interface comparison operands must have the same type (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_parameter_specialization_comparison_fail.v:33: error: Virtual-interface comparison operands must have the same type (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_parameter_specialization_comparison_fail.v:36: error: Virtual-interface comparison operands must have the same type (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_parameter_specialization_comparison_fail.v:37: error: Virtual-interface comparison operands must have the same type (IEEE 1800-2017/2023 25.9).
+./ivltests/sv_vif_parameter_specialization_comparison_fail.v:40: error: Virtual-interface comparison operands must have the same type (IEEE 1800-2017/2023 25.9).
+5 error(s) during elaboration.

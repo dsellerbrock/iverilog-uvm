@@ -2821,7 +2821,7 @@ const NetNet* NetFuncDef::return_sig() const
 
 NetSTask::NetSTask(const char*na, ivl_sfunc_as_task_t sfat,
                    const vector<NetExpr*>&pa)
-: name_(0), sfunc_as_task_(sfat), parms_(pa)
+: name_(0), sfunc_as_task_(sfat), parms_(pa), ref_output_(0)
 {
       name_ = lex_strings.add(na);
       ivl_assert(*this, name_[0] == '$');
@@ -2831,6 +2831,7 @@ NetSTask::~NetSTask()
 {
       for (unsigned idx = 0 ;  idx < parms_.size() ;  idx += 1)
 	    delete parms_[idx];
+      delete ref_output_;
 
 	/* The name_ string is perm-allocated in lex_strings. */
 }
@@ -2853,6 +2854,13 @@ unsigned NetSTask::nparms() const
 const NetExpr* NetSTask::parm(unsigned idx) const
 {
       return parms_[idx];
+}
+
+void NetSTask::set_ref_output(NetAssign_*lval)
+{
+      ivl_assert(*this, lval);
+      ivl_assert(*this, ref_output_ == 0);
+      ref_output_ = lval;
 }
 
 /* A fixed unpacked function return uses the result NetNet's array_type();

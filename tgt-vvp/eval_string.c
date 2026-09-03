@@ -415,7 +415,8 @@ static void string_ex_pop(ivl_expr_t expr)
 	    fb = "f";
 
       arg = ivl_expr_parm(expr, 0);
-      if (ivl_expr_type(arg) != IVL_EX_SIGNAL) {
+	    if (ivl_expr_type(arg) != IVL_EX_SIGNAL
+		|| expr_selects_fixed_container_slot_(arg)) {
 	    ivl_type_t net_type = ivl_expr_net_type(arg);
 	    if ((net_type && ivl_type_base(net_type) == IVL_VT_QUEUE)
 	        || ivl_expr_value(arg) == IVL_VT_QUEUE) {

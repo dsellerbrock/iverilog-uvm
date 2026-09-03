@@ -30,7 +30,7 @@ interface bus_if;
   bit [7:0] arr[4];
   bit       clk;
 
-  modport drv (output data, output arr, input clk);
+  modport drv (output data, output arr, input clk, import send);
   modport mon (input data, input arr, input clk);
 
   task send(bit [7:0] v); data = v; endtask

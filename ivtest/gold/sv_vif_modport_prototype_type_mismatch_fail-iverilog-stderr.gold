@@ -1,0 +1,7 @@
+ivltests/sv_vif_modport_prototype_type_mismatch_fail.v:19: error: Modport prototype for `aggregate' does not match its interface subroutine declaration (IEEE 1800-2017/2023 25.7).
+ivltests/sv_vif_modport_prototype_type_mismatch_fail.v:24: error: Modport prototype for `assoc_index' does not match its interface subroutine declaration (IEEE 1800-2017/2023 25.7).
+ivltests/sv_vif_modport_prototype_type_mismatch_fail.v:21: error: Modport prototype for `fixed_bounds' does not match its interface subroutine declaration (IEEE 1800-2017/2023 25.7).
+ivltests/sv_vif_modport_prototype_type_mismatch_fail.v:20: error: Modport prototype for `named_array' does not match its interface subroutine declaration (IEEE 1800-2017/2023 25.7).
+ivltests/sv_vif_modport_prototype_type_mismatch_fail.v:22: error: Modport prototype for `packed_shape' does not match its interface subroutine declaration (IEEE 1800-2017/2023 25.7).
+ivltests/sv_vif_modport_prototype_type_mismatch_fail.v:23: error: Modport prototype for `queue_kind' does not match its interface subroutine declaration (IEEE 1800-2017/2023 25.7).
+6 error(s) during elaboration.

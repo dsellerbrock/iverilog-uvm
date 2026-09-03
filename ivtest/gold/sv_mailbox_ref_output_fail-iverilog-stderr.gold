@@ -1,0 +1,11 @@
+ivltests/sv_mailbox_ref_output_fail.v:14: Assignment l-value too complex.
+ivltests/sv_mailbox_ref_output_fail.v:14: error: Mailbox method `get' output argument must be a writable variable l-value (IEEE 1800-2017/2023 15.4).
+ivltests/sv_mailbox_ref_output_fail.v:15: error: Mailbox method `peek' ref output must name one variable, not an l-value concatenation (IEEE 1800-2017/2023 15.4).
+ivltests/sv_mailbox_ref_output_fail.v:18: error: put() method takes 1 arguments, got 2.
+ivltests/sv_mailbox_ref_output_fail.v:19: error: get() method takes 1 arguments, got 2.
+ivltests/sv_mailbox_ref_output_fail.v:20: error: peek() method takes 1 arguments, got 0.
+ivltests/sv_mailbox_ref_output_fail.v:23: error: Mailbox method 'try_get' requires exactly one message argument (IEEE 1800-2017/2023 15.4).
+ivltests/sv_mailbox_ref_output_fail.v:24: error: Mailbox method 'try_peek' requires exactly one message argument (IEEE 1800-2017/2023 15.4).
+ivltests/sv_mailbox_ref_output_fail.v:25: error: Mailbox method 'try_get' requires a message argument.
+ivltests/sv_mailbox_ref_output_fail.v:26: error: No argument called `unknown`.
+9 error(s) during elaboration.

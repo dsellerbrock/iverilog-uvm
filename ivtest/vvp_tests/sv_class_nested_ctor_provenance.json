@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_class_nested_ctor_provenance.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_class_nested_ctor_provenance" ],
+    "gold"          : "sv_class_nested_ctor_provenance"
+}

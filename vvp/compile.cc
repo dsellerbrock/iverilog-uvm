@@ -231,7 +231,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%append/qo/obj/darray/proto", of_APPEND_QO_OBJ_DARRAY_PROTO, 2,
 	{OA_CONTAINER_DATA_STRING, OA_CONTAINER_DATA_PROTO, OA_NONE} },
       { "%append/qo/obj/queue", of_APPEND_QO_OBJ_QUEUE, 2,
-	{OA_CONTAINER_STRING, OA_BIT1, OA_NONE} },
+	{OA_CONTAINER_DATA_STRING, OA_CONTAINER_DATA_MAX, OA_NONE} },
       { "%append/qo/obj/queue/proto", of_APPEND_QO_OBJ_QUEUE_PROTO, 3,
 	{OA_CONTAINER_DATA_STRING, OA_CONTAINER_DATA_MAX,
 	 OA_CONTAINER_DATA_PROTO} },
@@ -306,8 +306,10 @@ static const struct opcode_table_s opcode_table[] = {
       { "%concati/vec4",of_CONCATI_VEC4,3,{OA_BIT1,  OA_BIT2,  OA_NUMBER} },
       { "%constraint_mode", of_CONSTRAINT_MODE, 1,{OA_NUMBER, OA_NONE,OA_NONE} },
       { "%constraint_mode/get", of_CONSTRAINT_MODE_GET, 1,{OA_NUMBER, OA_NONE,OA_NONE} },
+      { "%container/layout/q",of_CONTAINER_LAYOUT_Q,1,
+	{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%container/to/queue",of_CONTAINER_TO_QUEUE,2,
-	{OA_CONTAINER_STRING,OA_BIT1,OA_NONE} },
+	{OA_CONTAINER_DATA_STRING,OA_CONTAINER_DATA_MAX,OA_NONE} },
       { "%covgrp/get_all", of_COVGRP_GET_ALL, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/get_coverage", of_COVGRP_GET_COVERAGE, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/get_inst_coverage", of_COVGRP_GET_INST_COVERAGE, 0,{OA_NONE,OA_NONE,OA_NONE} },
@@ -536,8 +538,11 @@ static const struct opcode_table_s opcode_table[] = {
       { "%qpop/o/f/v",   of_QPOP_O_F_V,   1,{OA_BIT1, OA_NONE, OA_NONE} },
       { "%qrange/o",   of_QRANGE_O, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%qreverse",   of_QREVERSE, 1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
+	{ "%qreverse/o", of_QREVERSE_O,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%qrsort/keys",of_QRSORT_KEYS,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
+	{ "%qrsort/keys/o",of_QRSORT_KEYS_O,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%qshuffle",   of_QSHUFFLE, 1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
+	{ "%qshuffle/o", of_QSHUFFLE_O,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%qsize",      of_QSIZE,   1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%qsize/o",    of_QSIZE_O, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%qslice",       of_QSLICE,       0,{OA_NONE,OA_NONE,OA_NONE} },
@@ -552,11 +557,18 @@ static const struct opcode_table_s opcode_table[] = {
       { "%qslice/off/f", of_QSLICE_OFF_F, 2,{OA_BIT1,OA_BIT2,OA_NONE} },
       { "%qsort",      of_QSORT,   2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
       { "%qsort/keys", of_QSORT_KEYS,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
+	{ "%qsort/keys/o",of_QSORT_KEYS_O,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
+	{ "%qsort/o",    of_QSORT_O, 1,{OA_BIT1,OA_NONE,OA_NONE} },
       { "%qsort/r",    of_QSORT_R, 2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
+	{ "%qsort/r/o",  of_QSORT_R_O,1,{OA_BIT1,OA_NONE,OA_NONE} },
       { "%queue/to/darray", of_QUEUE_TO_DARRAY, 1,
 	                                      {OA_CONTAINER_STRING,OA_NONE,OA_NONE} },
+      { "%queue/trim/o", of_QUEUE_TRIM_O, 1,
+	                                      {OA_NUMBER,OA_NONE,OA_NONE} },
       { "%qunique",    of_QUNIQUE, 2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
       { "%qunique/keys",of_QUNIQUE_KEYS,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
+	{ "%qunique/keys/o",of_QUNIQUE_KEYS_O,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
+	{ "%qunique/o",  of_QUNIQUE_O,1,{OA_BIT1,OA_NONE,OA_NONE} },
       { "%qunique_copy",of_QUNIQUE_COPY,2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
       { "%qunique_idx",of_QUNIQUE_IDX, 1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%rand/active",    of_RAND_ACTIVE,     1,{OA_STRING, OA_NONE,OA_NONE} },
@@ -581,6 +593,20 @@ static const struct opcode_table_s opcode_table[] = {
       { "%ref/bind/f",of_REF_BIND_F,  2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%ref/bind/pr",of_REF_BIND_PR,2,{OA_FUNC_PTR,OA_BIT1,     OA_NONE} },
       { "%ref/bind/w",of_REF_BIND_W,  2,{OA_ARR_PTR, OA_FUNC_PTR2,OA_NONE} },
+      { "%ref/capture",of_REF_CAPTURE,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
+      { "%ref/capture/aa/o/obj",of_REF_CAPTURE_AA_O_OBJ,2,{OA_BIT1,OA_BIT2,OA_NONE} },
+      { "%ref/capture/aa/o/str",of_REF_CAPTURE_AA_O_STR,2,{OA_BIT1,OA_BIT2,OA_NONE} },
+      { "%ref/capture/aa/o/v",of_REF_CAPTURE_AA_O_V,2,{OA_BIT1,OA_BIT2,OA_NONE} },
+      { "%ref/capture/aa/obj",of_REF_CAPTURE_AA_OBJ,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
+      { "%ref/capture/aa/str",of_REF_CAPTURE_AA_STR,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
+      { "%ref/capture/aa/v",of_REF_CAPTURE_AA_V,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
+      { "%ref/capture/el",of_REF_CAPTURE_EL,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
+      { "%ref/capture/el/o",of_REF_CAPTURE_EL_O,2,{OA_NUMBER,OA_BIT1,OA_NONE} },
+      { "%ref/capture/pr",of_REF_CAPTURE_PR,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
+      { "%ref/capture/pr/i",of_REF_CAPTURE_PR_I,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
+      { "%ref/capture/w",of_REF_CAPTURE_W,3,{OA_ARR_PTR,OA_BIT1,OA_BIT2} },
+      { "%ref/part",of_REF_PART,0,{OA_NONE,OA_NONE,OA_NONE} },
+      { "%ref/store/mbx",of_REF_STORE_MBX,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%release/net",of_RELEASE_NET,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
       { "%release/reg",of_RELEASE_REG,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
       { "%release/reg/a",of_RELEASE_REG_A,3,{OA_ARR_PTR,OA_BIT1,OA_BIT2} },
@@ -729,6 +755,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%subi",   of_SUBI,   3,  {OA_BIT1,     OA_BIT2,     OA_NUMBER} },
       { "%substr",     of_SUBSTR,     2,{OA_BIT1,    OA_BIT2, OA_NONE} },
       { "%substr/vec4",of_SUBSTR_VEC4,2,{OA_BIT1,    OA_BIT2, OA_NONE} },
+      { "%swap/obj",of_SWAP_OBJ,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%test/class",   of_TEST_CLASS,   1,{OA_VPI_PTR, OA_NONE,    OA_NONE} },
       { "%test_nul",     of_TEST_NUL,     1,{OA_FUNC_PTR,OA_NONE,    OA_NONE} },
       { "%test_nul/a",   of_TEST_NUL_A,   2,{OA_ARR_PTR, OA_BIT1,    OA_NONE} },
@@ -2969,6 +2996,7 @@ void compile_code(char*label, char*mnem, comp_operands_t opa)
 		  code->container_data->element_encoding = opa->argv[idx].text;
 		  if (validate_container_element_encoding_(
 			mnem, code->container_data->element_encoding)
+		      && strstr(mnem, "/proto")
 		      && strcmp(code->container_data->element_encoding, "o") != 0) {
 			fprintf(stderr,
 			      "%s:%u: %s /proto requires object element "
@@ -2979,14 +3007,9 @@ void compile_code(char*label, char*mnem, comp_operands_t opa)
 		  }
 		  break;
 
-		case OA_CONTAINER_DATA_MAX:
+	case OA_CONTAINER_DATA_MAX:
 		  if (opa->argv[idx].ltype != L_NUMB) {
 			yyerror("container maximum must be numeric");
-			compile_errors += 1;
-			break;
-		  }
-		  if (opa->argv[idx].numb > UINT32_MAX) {
-			yyerror("container maximum out of range");
 			compile_errors += 1;
 			break;
 		  }

@@ -119,7 +119,9 @@ void codespace_delete(void)
 		  } else if ((cur+idx)->opcode == &of_FILE_LINE) {
 			delete((cur+idx)->handle);
 		  } else if (((cur+idx)->opcode == &of_APPEND_QO_OBJ_DARRAY_PROTO) ||
-		             ((cur+idx)->opcode == &of_APPEND_QO_OBJ_QUEUE_PROTO)) {
+		             ((cur+idx)->opcode == &of_APPEND_QO_OBJ_QUEUE) ||
+		             ((cur+idx)->opcode == &of_APPEND_QO_OBJ_QUEUE_PROTO) ||
+		             ((cur+idx)->opcode == &of_CONTAINER_TO_QUEUE)) {
 			struct vvp_container_opcode_data_s*data =
 			      (cur+idx)->container_data;
 			if (data) {
@@ -127,9 +129,7 @@ void codespace_delete(void)
 			      delete data;
 			}
 		  } else if (((cur+idx)->opcode == &of_APPEND_QO_OBJ_DARRAY) ||
-		             ((cur+idx)->opcode == &of_APPEND_QO_OBJ_QUEUE) ||
 		             ((cur+idx)->opcode == &of_CONCATI_STR) ||
-		             ((cur+idx)->opcode == &of_CONTAINER_TO_QUEUE) ||
 		             ((cur+idx)->opcode == &of_NEW_DARRAY) ||
 		             ((cur+idx)->opcode == &of_PUSHI_STR) ||
 		             ((cur+idx)->opcode == &of_QUEUE_TO_DARRAY)) {

@@ -1,2 +1,0 @@
-ivltests/sv_interface_port_array_copyback_task_fail.v:15: sorry: Task method `read_value' with output, inout, or ref arguments through an interface-port array requires per-word dynamic copy-back, which is not yet supported.
-1 error(s) during elaboration.

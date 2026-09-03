@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_modport_tf_duplicate_fail_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_modport_tf_duplicate_fail" ],
+    "gold"          : "sv_modport_tf_duplicate_fail_2023"
+}

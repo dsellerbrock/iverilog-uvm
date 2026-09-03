@@ -939,12 +939,36 @@ void dll_target::proc_stask(const NetSTask*net)
       stmt_cur_->u_.stask_.nparm_= nparms;
       stmt_cur_->u_.stask_.parms_ = static_cast<ivl_expr_t*>(
 	    dll_procedure_calloc(nparms, sizeof(ivl_expr_t)));
+      stmt_cur_->u_.stask_.ref_lval_ = 0;
+
+	/* Preserve the exact concrete interface task/function candidates
+	 * selected by the frontend. The scope records are Design-owned; the
+	 * procedure arena owns only this pointer array. */
+      unsigned vif_methods = net->vif_method_count();
+      stmt_cur_->u_.stask_.vif_methods_ = vif_methods;
+      stmt_cur_->u_.stask_.vif_method_ = vif_methods
+	    ? dll_procedure_new_array<ivl_scope_t>(vif_methods) : 0;
+      for (unsigned idx = 0 ; idx < vif_methods ; idx += 1) {
+	    const NetScope*method = net->vif_method(idx);
+	    assert(method);
+	    assert(method->type() == NetScope::TASK
+		   || method->type() == NetScope::FUNC);
+	    stmt_cur_->u_.stask_.vif_method_[idx] = lookup_scope_(method);
+	    assert(stmt_cur_->u_.stask_.vif_method_[idx]);
+      }
 
       for (unsigned idx = 0 ;  idx < nparms ;  idx += 1) {
 	    if (net->parm(idx))
 		  net->parm(idx)->expr_scan(this);
 	    stmt_cur_->u_.stask_.parms_[idx] = expr_;
 	    expr_ = 0;
+      }
+
+      if (net->ref_output()) {
+	    stmt_cur_->u_.stask_.ref_lval_ =
+		  dll_procedure_new<struct ivl_lval_s>();
+	    make_single_lval_(net, stmt_cur_->u_.stask_.ref_lval_,
+			      net->ref_output());
       }
 
 }

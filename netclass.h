@@ -23,14 +23,17 @@
 # include  "ivl_target.h"
 # include  "nettypes.h"
 # include  "property_qual.h"
+# include  <cstdint>
 # include  <iostream>
 # include  <map>
 # include  <set>
+# include  <string>
 
 class Design;
 class NetExpr;
 class NetNet;
 class NetScope;
+class Module;
 class PClass;
 class PExpr;
 class PEventStatement;
@@ -188,10 +191,40 @@ class netclass_t : public ivl_type_s {
       bool is_interface_class() const { return interface_class_type_; }
       void set_interface(bool interface_type) { interface_type_ = interface_type; }
       bool is_interface() const { return interface_type_; }
+      void set_interface_identity(const Module*definition,
+                                  const std::string&parameter_key,
+                                  const std::string&layout_parameter_key,
+                                  perm_string modport);
+      const Module* interface_definition() const
+            { return interface_definition_; }
+      std::uintptr_t interface_definition_id() const
+            { return interface_definition_id_; }
+      void retire_interface_definition() { interface_definition_ = nullptr; }
+      const std::string& interface_parameter_key() const
+            { return interface_parameter_key_; }
+      const std::string& interface_layout_parameter_key() const
+            { return interface_layout_parameter_key_; }
+      perm_string interface_modport() const { return interface_modport_; }
+      bool same_interface_layout(const netclass_t*that) const;
+      bool same_interface_type(const netclass_t*that) const;
+      bool interface_assignment_compatible_from(const netclass_t*source) const;
       void set_unresolved_interface(bool flag)
 	    { unresolved_interface_type_ = flag; }
       bool is_unresolved_interface() const
-	    { return unresolved_interface_type_; }
+		    { return unresolved_interface_type_; }
+
+	/* A typed mailbox is a built-in parameterized class. Keep the
+	 * elaborated message type on the carrier instead of borrowing its
+	 * short-lived parse-form #(...) expression. The semantic key is owned by
+	 * this object and lets specialization/cache serializers distinguish
+	 * mailbox#(T) even though built-ins have no PClass parameter scope. */
+      void set_mailbox_message_type(ivl_type_t type,
+                                    const std::string&matching_key);
+      bool is_typed_mailbox() const { return mailbox_message_type_ != 0; }
+      ivl_type_t mailbox_message_type() const { return mailbox_message_type_; }
+      const std::string& mailbox_message_type_key() const
+            { return mailbox_message_type_key_; }
+      bool mailbox_message_type_equivalent(ivl_type_t actual) const;
       void set_sig_elaborated(bool flag) { sig_elaborated_ = flag; }
       bool sig_elaborated() const { return sig_elaborated_; }
       void set_sig_elaborating(bool flag) { sig_elaborating_ = flag; }
@@ -236,6 +269,7 @@ class netclass_t : public ivl_type_s {
 
     protected:
       bool test_compatibility(ivl_type_t that) const override;
+      bool test_equivalence(ivl_type_t that) const override;
 
     private:
       void add_derived_type_(const netclass_t*derived);
@@ -269,7 +303,14 @@ class netclass_t : public ivl_type_s {
       bool virtual_class_;
       bool interface_class_type_;
       bool interface_type_;
+      const Module*interface_definition_;
+      std::uintptr_t interface_definition_id_;
+      std::string interface_parameter_key_;
+      std::string interface_layout_parameter_key_;
+      perm_string interface_modport_;
       bool unresolved_interface_type_;
+      ivl_type_t mailbox_message_type_;
+      std::string mailbox_message_type_key_;
       bool sig_elaborated_;
       bool sig_elaborating_;
       bool props_declaring_;  // guard for ensure_all_properties_declared re-entry

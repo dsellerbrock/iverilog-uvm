@@ -323,6 +323,13 @@ NexusSet* NetESFunc::nex_input(bool rem_out, bool always_sens, bool nested_func)
 	    }
       }
 
+      if (ref_output_) {
+	    NexusSet*tmp = ref_output_->nex_input(rem_out, always_sens,
+					   nested_func);
+	    result->add(*tmp);
+	    delete tmp;
+      }
+
 	/* The selected function can read interface state that is absent from
 	 * the explicit receiver/argument rows. always_comb sensitivity must
 	 * therefore conservatively include every run-time candidate body. Clear
@@ -877,6 +884,13 @@ NexusSet* NetSTask::nex_input(bool rem_out, bool always_sens, bool nested_func) 
 		  result->add(*tmp);
 		  delete tmp;
 	    }
+      }
+
+      if (ref_output_) {
+	    NexusSet*tmp = ref_output_->nex_input(rem_out, always_sens,
+					   nested_func);
+	    result->add(*tmp);
+	    delete tmp;
       }
 
       return result;

@@ -98,7 +98,8 @@ static void collect_unique_method_overrides_(const netclass_t*base_type,
 netclass_t::netclass_t(perm_string name, const netclass_t*super)
 : name_(name), super_(super), class_scope_(0), definition_scope_(0),
   virtual_class_(false), interface_class_type_(false), interface_type_(false),
-  unresolved_interface_type_(false),
+  interface_definition_(0), interface_definition_id_(0),
+  unresolved_interface_type_(false), mailbox_message_type_(0),
   sig_elaborated_(false), sig_elaborating_(false),
   props_declaring_(false),
   body_elaborated_(false), body_elaborating_(false),
@@ -893,6 +894,12 @@ const NetExpr* netclass_t::get_parameter(Design *des, perm_string name,
 
 bool netclass_t::test_compatibility(ivl_type_t that) const
 {
+      if (is_interface()) {
+            const netclass_t*source = dynamic_cast<const netclass_t*>(that);
+            return source && source->is_interface()
+                  && interface_assignment_compatible_from(source);
+      }
+
       for (const netclass_t *class_type = dynamic_cast<const netclass_t *>(that);
 	    class_type; class_type = class_type->get_super()) {
 	    if (class_type == this)
@@ -902,6 +909,82 @@ bool netclass_t::test_compatibility(ivl_type_t that) const
       }
 
       return false;
+}
+
+bool netclass_t::test_equivalence(ivl_type_t that) const
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(that);
+      if (is_interface())
+            return class_type && class_type->is_interface()
+                  && same_interface_type(class_type);
+      return false;
+}
+
+void netclass_t::set_interface_identity(const Module*definition,
+                                        const std::string&parameter_key,
+                                        const std::string&layout_parameter_key,
+                                        perm_string modport)
+{
+      assert(is_interface());
+      assert(definition);
+      assert(interface_definition_ == 0);
+      assert(interface_definition_id_ == 0);
+      interface_definition_ = definition;
+      interface_definition_id_ = reinterpret_cast<std::uintptr_t>(definition);
+      interface_parameter_key_ = parameter_key;
+      interface_layout_parameter_key_ = layout_parameter_key;
+      interface_modport_ = modport;
+}
+
+void netclass_t::set_mailbox_message_type(
+      ivl_type_t type, const std::string&matching_key)
+{
+      assert(get_name() == perm_string::literal("mailbox"));
+      assert(type);
+      assert(mailbox_message_type_ == 0);
+      mailbox_message_type_ = type;
+      mailbox_message_type_key_ = matching_key;
+}
+
+bool netclass_t::mailbox_message_type_equivalent(ivl_type_t actual) const
+{
+      if (!mailbox_message_type_ || !actual)
+            return false;
+      if (mailbox_message_type_ == actual)
+            return true;
+      return mailbox_message_type_->type_equivalent(actual)
+            && actual->type_equivalent(mailbox_message_type_);
+}
+
+bool netclass_t::same_interface_layout(const netclass_t*that) const
+{
+      if (!that || !is_interface() || !that->is_interface())
+            return false;
+      if (interface_definition_id_ && that->interface_definition_id_)
+	    return interface_definition_id_ == that->interface_definition_id_
+                  && interface_parameter_key_ == that->interface_parameter_key_;
+      return this == that;
+}
+
+bool netclass_t::same_interface_type(const netclass_t*that) const
+{
+      return same_interface_layout(that)
+            && interface_modport_ == that->interface_modport_;
+}
+
+bool netclass_t::interface_assignment_compatible_from(
+      const netclass_t*source) const
+{
+      if (!same_interface_layout(source))
+            return false;
+
+      // IEEE 1800-2017/2023 25.9: exact modport views are compatible,
+      // and an unqualified interface/VIF may flow into a selected-modport
+      // destination. The reverse direction and two different selections are
+      // not assignment compatible.
+      if (interface_modport_ == source->interface_modport_)
+            return true;
+      return !interface_modport_.nil() && source->interface_modport_.nil();
 }
 
 void netclass_t::add_constraint_ir(const string&name, const string&ir)

@@ -483,3 +483,49 @@ Output/inout/ref VIF-function arguments, fixed-unpacked arguments or returns,
 complete parameterized-interface/modport specialization, and synthesis
 lowering remain explicit boundaries. See the dated 2017 matrix section and
 `session_logs/2026-09-01_virtual_interface_functions.md`.
+
+## 2026-09-02 clauses 6.22, 7.4-7.10, 13.5, 15.4.5-15.4.9, and 25.5/25.7/25.9 — no implemented edition delta
+
+IEEE 1800-2023 retains the 2017 matching, equivalence, container,
+subroutine-argument, mailbox, modport-prototype, and virtual-interface rules
+used by this increment. One editorial navigation difference matters to the
+clause citations: the multidimensional-array rule is 7.4.5 in IEEE 1800-2017
+and 7.4.4 in IEEE 1800-2023. The fixed-unpacked-array rule remains 7.4.2 and
+the dynamic-array, assignment, associative-array, and queue rules remain
+7.5, 7.6, 7.8, and 7.10 in both editions.
+
+The shared implementation distinguishes two type relations that must not be
+collapsed. Section 25.7 requires a full modport prototype to **match** its
+subroutine declaration under 6.22.1. Section 15.4.9 instead requires a typed
+mailbox method's message actual to be **equivalent** to the mailbox type under
+6.22.2. Thus two packed declarations can be legal for a typed mailbox while
+remaining illegal as a modport prototype pair.
+
+The paired VIF subset retains evaluated parameter specialization, selected
+modport, physical-instance dispatch, interface-local nominal result identity,
+and scalar task output/inout/ref copyback. Its four positive/negative
+basenames produce eight edition rows: the legacy and JSON/VVP harnesses each
+pass **8/8**, while the separately built exact-main compiler is **0/8** in
+each harness on the same rows. Modport parser recovery is also pinned across
+an item and a two-file EOF boundary.
+
+The recursive-container carrier retains complete Q/D/A child layout, queue
+bounds, value-copy independence, and mutation-root provenance. The isolated
+regression cluster passes **13/13**, the interface-port-array cluster passes
+**4/4**, and `sv_fixed_container_array_elements` passes its paired **2/2**
+2017/2023 rows. These counts are focused evidence only.
+
+Typed-mailbox specialization/equivalence and retrieval l-value capture are
+implemented in the current source, but the coherent installed-tool mailbox
+reducer run and associative-element reference lifetime are still pending. No
+mailbox passing count is claimed. The full legacy, JSON/VVP, negative, VPI,
+real-DPI UVM, OpenTitan, and Caliptra replays are also pending for this
+increment. Consequently the recorded application baselines remain OpenTitan
+**192 PASS of 530 classified rows** and Caliptra Icarus **53/105** versus
+Slang **54/105** in its static census.
+
+This is not complete 2017 or 2023 support for clauses 6, 7, 13, 15, or 25.
+Complete parameterized/modport VIF interactions, arbitrary recursive aggregate
+semantics, mailbox reference lifetime, and application closure remain open.
+See the dated 2017 matrix section and
+`session_logs/2026-09-02_parameterized_vif_recursive_containers_typed_mailbox.md`.

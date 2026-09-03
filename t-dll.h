@@ -440,6 +440,7 @@ struct ivl_expr_s {
 		  ivl_scope_t *vif_method;
 		  unsigned   vif_methods;
 		  unsigned char *vif_parm_default;
+		  ivl_lval_t ref_lval;
 	    } sfunc_;
 
 	    struct {
@@ -1060,6 +1061,9 @@ struct ivl_statement_s {
 		  ivl_sfunc_as_task_t sfunc_as_task_;
 		  unsigned   nparm_;
 		  ivl_expr_t*parms_;
+		  ivl_scope_t*vif_method_;
+		  unsigned   vif_methods_;
+		  ivl_lval_t ref_lval_;
 	    } stask_;
 
 	    struct { /* IVL_ST_UTASK */

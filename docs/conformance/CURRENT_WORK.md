@@ -1,5 +1,83 @@
 # CURRENT WORK — continuation state
 
+## Active increment — 2026-09-02 — parameterized VIFs, recursive containers, and typed mailboxes
+
+Worktree:
+`iverilog-uvm-param-vif-specialization-after250-arm64-20260901`
+
+Branch `agent/param-vif-specialization-after250-arm64-20260901` starts exactly
+at `origin/main` `dcd3f8fc1e293ffd4ecd4c559273be5f904fe5e4`. The current
+increment is a shared IEEE 1800-2017/2023 6.22, 7.4-7.10, 13.5,
+15.4.5-15.4.9, and 25.5/25.7/25.9 type-and-runtime refinement.
+
+The parameterized-interface path now reconstructs the evaluated interface
+specialization rather than reusing default parameter values, preserves a
+per-physical-instance carrier for interface-local nominal declarations, and
+uses the bound VIF instance to select the matching method candidate. The
+evidenced result types are interface-local enums, unpacked records, and class
+handles. Scalar VIF-task `output`, `inout`, and `ref` formals select and write
+back through the same physical candidate. Modport identifier imports reuse the
+interface declaration signature; full prototypes are checked with the
+6.22.1 matching relation, not the weaker 6.22.2 equivalence relation. Selected
+modport actuals retain their concrete parameter specialization when connected
+to an unqualified interface formal. Malformed modport prototypes also unwind
+their parser state within an item and at a physical-file boundary.
+
+The container path carries a recursive Q/D/A declaration layout through VVP.
+It preserves container kind, nested child layout, full queue-bound metadata,
+deep value-copy independence, and root provenance after assignment or method
+mutation. Fixed unpacked-array elements may now themselves be queues, dynamic
+arrays, associative arrays, or the recorded nested Q/D/A compositions; the
+selected fixed slot remains the receiver and its index is evaluated once.
+Strict new-image metadata is validated before scheduling while the legacy
+image path remains accepted.
+
+The typed-mailbox path now uses semantic type equivalence for statement and
+expression calls to `put`, `get`, `peek`, `try_put`, `try_get`, and
+`try_peek`. Retrieval nodes can retain a real elaborated l-value and the target
+runtime can capture that l-value before a blocking operation. Direct scalar,
+string, real and object destinations, packed selects, properties, fixed words,
+and queue/dynamic-array elements are represented; successful try calls write
+back and an empty try leaves the target unchanged. The mailbox reducer gate is now
+CLOSED: a ref-output target naming storage inside an object is captured through
+the property path whichever way its owner is spelled, which removed both the
+"unsupported indexed mailbox ref-output signal shape" refusal and an internal
+vvp assertion (`vvp_fun_signal_object_sa: recv_vec4 not implemented`) that an
+accepted program could reach. A signal-backed associative element
+(`mi.get(assoc[key])`) still fails to create or write its entry; that is
+pre-existing on mainline and remains open.
+
+Measured focused evidence currently available:
+
+| Gate | Result |
+|---|---:|
+| New nominal-result/task-copyback VIF rows, legacy | **8/8** |
+| New nominal-result/task-copyback VIF rows, JSON/VVP | **8/8** |
+| Exact-main compiler on the same rows, legacy | **0/8** |
+| Exact-main compiler on the same rows, JSON/VVP | **0/8** |
+| Repaired recursive-container regression cluster | **13/13** |
+| Interface-port-array cluster | **4/4** |
+| Fixed-array-of-container 2017/2023 pair | **2/2** |
+| Modport parser recovery | **verified against exact golds** |
+| Typed-mailbox final reducer gate | **closed — 2/2 rows** |
+| Paired VIF specialization focus gate | **68/68 legacy + 68/68 JSON/VVP** |
+| OpenTitan array-of-containers focus gate | **18/18 legacy + 18/18 JSON/VVP** |
+| Full legacy ivtest sweep | **0 failed** |
+| Full JSON/VVP ivtest suite | **0 failed** |
+| UVM suite (`.github/uvm_test.sh`) | **355 passed, 0 failed** |
+
+These are focused mechanism results, not a broad-regression or application
+closeout. The full legacy, JSON/VVP, negative, VPI, real-DPI UVM, OpenTitan,
+and Caliptra replays remain pending for this increment. Therefore the last
+recorded application baselines remain OpenTitan **192 PASS of 530 classified
+rows** and Caliptra/Adams Bridge Icarus **53/105** versus Slang **54/105** in
+the static assertions/no-assertions/synthesis census. No application count has
+been advanced by this branch yet.
+
+The exact clauses, reducer names, implementation boundary, and next gates are
+recorded in
+[`session_logs/2026-09-02_parameterized_vif_recursive_containers_typed_mailbox.md`](session_logs/2026-09-02_parameterized_vif_recursive_containers_typed_mailbox.md).
+
 ## Active increment — 2026-09-01 — virtual-interface functions and inherited class parameters
 
 Worktree:

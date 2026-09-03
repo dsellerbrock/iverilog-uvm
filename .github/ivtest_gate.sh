@@ -105,6 +105,9 @@ if [ -z "$runtime_vvp" ] || [ -z "$runtime_iverilog" ] \
         bash tests/vvp_runtime/run_prop_const_init_malformed.sh \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_bounded_queue_metadata_malformed.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! VVP="$runtime_vvp" \
         bash tests/vvp_runtime/run_darray_default_fill_malformed.sh \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! VVP="$runtime_vvp" \

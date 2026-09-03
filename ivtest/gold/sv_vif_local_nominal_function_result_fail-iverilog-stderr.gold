@@ -1,0 +1,4 @@
+ivltests/sv_vif_local_nominal_function_result_fail.v:4: error: Modport prototype for `class_value' does not match its interface subroutine declaration (IEEE 1800-2017/2023 25.7).
+ivltests/sv_vif_local_nominal_function_result_fail.v:4: error: Modport prototype for `enum_value' does not match its interface subroutine declaration (IEEE 1800-2017/2023 25.7).
+ivltests/sv_vif_local_nominal_function_result_fail.v:4: error: Modport prototype for `record_value' does not match its interface subroutine declaration (IEEE 1800-2017/2023 25.7).
+3 error(s) during elaboration.

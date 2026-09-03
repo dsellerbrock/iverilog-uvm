@@ -1220,6 +1220,19 @@ static void draw_select_vec4(ivl_expr_t expr)
 			  "    %%pop/obj 1, 0; fixed outer map receiver\n");
 		  return;
 	    }
+	      /* A positional queue/darray selected from a fixed object array has
+	       * the same IVL_EX_SIGNAL shape as a scalar dynamic container, but no
+	       * vSIG_0 functor exists. Evaluate the fixed word exactly once and use
+	       * the object-stack positional load for its trailing runtime index. */
+            if (expr_selects_fixed_container_slot_(subexpr)) {
+		  draw_eval_object(subexpr);
+		  draw_eval_expr_into_integer(base, 3);
+		  fprintf(vvp_out, "    %%load/qo/v %u; fixed container slot element\n",
+		          wid);
+		  if (ivl_expr_value(expr) == IVL_VT_BOOL)
+			fprintf(vvp_out, "    %%cast2;\n");
+		  return;
+	    }
             if (net_type && ivl_type_queue_assoc_compat(net_type)
                 && expr_is_object_assoc_key_(base)) {
                   draw_eval_object(base);
@@ -1320,7 +1333,8 @@ static void draw_darray_pop(ivl_expr_t expr)
 	    fb = "f";
 
       ivl_expr_t arg = ivl_expr_parm(expr, 0);
-      if (ivl_expr_type(arg) != IVL_EX_SIGNAL) {
+	    if (ivl_expr_type(arg) != IVL_EX_SIGNAL
+		|| expr_selects_fixed_container_slot_(arg)) {
 	    if (expr_is_queue_container_(arg)) {
 		  draw_eval_object(arg);
 		  fprintf(vvp_out, "    %%qpop/o/%s/v %u;\n",
@@ -2421,7 +2435,10 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    ivl_expr_t item_e = (parm_count > 1) ? ivl_expr_parm(expr, 1) : 0;
 	    if (mbx_e)  draw_eval_object(mbx_e);
 	    if (item_e) {
-		  if (ivl_expr_value(item_e) == IVL_VT_CLASS) {
+		  if (ivl_expr_value(item_e) == IVL_VT_CLASS
+		      || ivl_expr_value(item_e) == IVL_VT_DARRAY
+		      || ivl_expr_value(item_e) == IVL_VT_QUEUE
+		      || ivl_expr_value(item_e) == IVL_VT_NO_TYPE) {
 			draw_eval_object(item_e);
 		  } else if (ivl_expr_value(item_e) == IVL_VT_STRING
 			     || ivl_expr_type(item_e) == IVL_EX_STRING) {
@@ -2451,10 +2468,27 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    int is_peek = (strcmp(ivl_expr_name(expr), "$ivl_mailbox$try_peek") == 0);
 	    ivl_expr_t mbx_e  = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
 	    ivl_expr_t item_e = (parm_count > 1) ? ivl_expr_parm(expr, 1) : 0;
+	    ivl_lval_t ref_lval = ivl_expr_ref_lval(expr);
+	    int success_flag = allocate_flag();
+	    unsigned lab_fail = local_count++;
+	    unsigned lab_done = local_count++;
 	    if (mbx_e) draw_eval_object(mbx_e);
+	    if (ref_lval) {
+		  draw_capture_lval_ref(ref_lval);
+		  fprintf(vvp_out, "    %%swap/obj; mailbox receiver above captured output\n");
+	    }
 	    fprintf(vvp_out, "    %s;\n", is_peek ? "%mbx/try_peek" : "%mbx/try_get");
-	    /* If there's an item output arg (signal), store the result */
-	    if (item_e && ivl_expr_type(item_e) == IVL_EX_SIGNAL
+	    /* Preserve the expression result while using a duplicate to gate
+	       ref-output writeback. A failed try leaves the actual unchanged. */
+	    fprintf(vvp_out, "    %%dup/vec4;\n");
+	    fprintf(vvp_out, "    %%flag_set/vec4 %d; test mailbox result\n",
+		    success_flag);
+	    fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; failed mailbox try\n",
+		    thread_count, lab_fail, success_flag);
+	    if (ref_lval) {
+		  fprintf(vvp_out, "    %%ref/store/mbx;\n");
+	    /* Legacy target input: if there's a signal output arg, store it. */
+	    } else if (item_e && ivl_expr_type(item_e) == IVL_EX_SIGNAL
 		&& ivl_expr_signal(item_e)) {
 		  ivl_signal_t sig = ivl_expr_signal(item_e);
 		  if (ivl_signal_data_type(sig) == IVL_VT_CLASS) {
@@ -2475,6 +2509,12 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  /* No output var — discard item off obj stack */
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	    }
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_done);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_fail);
+	    fprintf(vvp_out, "    %%pop/obj %u, 0; discard failed mailbox item%s\n",
+		    ref_lval ? 2U : 1U, ref_lval ? " and captured output" : "");
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_done);
+	    clr_flag(success_flag);
 	    if (ivl_expr_width(expr) > 1)
 		  fprintf(vvp_out, "    %%pad/u %u;\n", ivl_expr_width(expr));
 	    return;

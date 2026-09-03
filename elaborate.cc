@@ -93,6 +93,86 @@ extern NetESFunc* make_std_randomize_with_expr(
 
 using namespace std;
 
+static const netclass_t* virtual_interface_type_(ivl_type_t type)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(type);
+      return class_type && class_type->is_interface() ? class_type : nullptr;
+}
+
+static void report_virtual_interface_assignment_mismatch_(
+		Design*des, const LineInfo&loc, const netclass_t*target,
+		const netclass_t*source)
+{
+      ivl_assert(loc, des);
+      ivl_assert(loc, target && target->is_interface());
+      (void)source;
+
+      cerr << loc.get_fileline() << ": error: Virtual-interface assignment "
+	   << "operands must have assignment-compatible interface types "
+	   << "(IEEE 1800-2017/2023 25.9)." << endl;
+      des->errors += 1;
+}
+
+/* Physical interface-port connections use the 25.3/25.5 connection rules,
+ * not the one-way virtual-interface assignment rule in 25.9. Either side may
+ * be unqualified; two explicit modport selections must name the same view. */
+static bool interface_port_connection_compatible_(
+		const netclass_t*formal, const netclass_t*actual)
+{
+      if (!formal || !actual || !formal->same_interface_layout(actual))
+	    return false;
+      return formal->interface_modport().nil()
+	    || actual->interface_modport().nil()
+	    || formal->interface_modport() == actual->interface_modport();
+}
+
+static bool validate_interface_port_modport_exports_(
+		const LineInfo&loc, Design*des, const Module*provider,
+		perm_string port_name, const netclass_t*interface_type,
+		perm_string modport_name)
+{
+      if (!provider || !interface_type || modport_name.nil())
+	    return true;
+
+      auto interface_module = pform_modules.find(interface_type->get_name());
+      const PModport*view = nullptr;
+      if (interface_module != pform_modules.end()
+	  && interface_module->second) {
+	    auto found = interface_module->second->modports.find(modport_name);
+	    if (found != interface_module->second->modports.end())
+		  view = found->second;
+      }
+      if (!view)
+	    return true;
+
+      bool valid = true;
+      for (perm_string method : view->export_ports) {
+	    const PModport::tf_port_prototype_t*prototype =
+		  view->find_tf_port_prototype(false, method);
+	    const char*kind = prototype
+		  ? (prototype->is_function ? "function" : "task")
+		  : "task/function";
+	    const bool unqualified_declaration = provider->tasks.count(method)
+		  || provider->funcs.count(method);
+	    if (unqualified_declaration) {
+		  cerr << loc.get_fileline() << ": sorry: Modport `"
+		       << modport_name << "' exports " << kind << " `" << method
+		       << "' from module `" << provider->mod_name()
+		       << "', but interface-port-qualified provider subroutines are "
+			  "not yet supported (IEEE 1800-2017/2023 25.7)." << endl;
+	    } else {
+		  cerr << loc.get_fileline() << ": error: Modport `"
+		       << modport_name << "' exports " << kind << " `" << method
+		       << "', but connected module `" << provider->mod_name()
+		       << "' has no implementation for interface port `"
+		       << port_name << "' (IEEE 1800-2017/2023 25.7)." << endl;
+	    }
+	    des->errors += 1;
+	    valid = false;
+      }
+      return valid;
+}
+
 namespace {
 
 struct pattern_subject_t {
@@ -1297,17 +1377,28 @@ static NetExpr* elaborate_root_indexed_method_target_expr_(const LineInfo*li,
       if (base_index.empty())
 	    return base_expr;
 
-	/* A direct associative leaf behind a fixed signal prefix is an object
-	 * array word, not an indexed element of the map.  This is the task-style
-	 * method counterpart of the expression-side rank split: maps[i].delete()
-	 * first selects fixed word i, while maps[i][key].method() applies only
-	 * the indices after the fixed prefix to the selected map object. */
+	/* A direct Q/D/A leaf behind a fixed signal prefix is an object-array
+	 * word, not an indexed element of the dynamic container. This is the
+	 * task-style method counterpart of the expression-side rank split:
+	 * queues[i].push_back() first selects fixed word i, while
+	 * arrays[i][element].method() applies only the trailing indices to the
+	 * selected container value. Canonicalizing the complete fixed prefix in
+	 * one operation also guarantees that each source index is evaluated once. */
       if (NetESignal*base_sig = dynamic_cast<NetESignal*>(base_expr)) {
 	    NetNet*sig = base_sig->sig();
-	    const netqueue_t*assoc = sig ? sig->queue_type() : nullptr;
+	    const netdarray_t*container = sig ? sig->darray_type() : nullptr;
 	    const size_t fixed_dims = sig ? sig->unpacked_dimensions() : 0;
-	    if (assoc && assoc->assoc_compat() && fixed_dims > 0
-		&& base_index.size() >= fixed_dims) {
+	    if (container && fixed_dims > 0) {
+		  if (base_index.size() < fixed_dims) {
+			cerr << li->get_fileline() << ": error: fixed unpacked-array `"
+			     << sig->name() << "' needs " << fixed_dims
+			     << " indices before a method can be selected; got "
+			     << base_index.size() << "." << endl;
+			des->errors += 1;
+			delete base_expr;
+			return nullptr;
+		  }
+
 		  list<index_component_t>::const_iterator split =
 			base_index.begin();
 		  for (size_t dim = 0 ; dim < fixed_dims ; dim += 1, ++split) {
@@ -1328,7 +1419,7 @@ static NetExpr* elaborate_root_indexed_method_target_expr_(const LineInfo*li,
 		  if (!fixed_type
 		      || fixed_type->static_dimensions().size() != fixed_dims) {
 			cerr << li->get_fileline() << ": internal error: fixed-prefix "
-			     << "associative signal `" << sig->name()
+			     << "dynamic-container signal `" << sig->name()
 			     << "' has inconsistent fixed-array type metadata." << endl;
 			des->errors += 1;
 			delete base_expr;
@@ -1353,8 +1444,8 @@ static NetExpr* elaborate_root_indexed_method_target_expr_(const LineInfo*li,
 			if (!array_type || split->sel != index_component_t::SEL_BIT
 			    || !split->msb || split->lsb) {
 			      cerr << li->get_fileline() << ": sorry: this trailing "
-				   << "select on a fixed-array associative method "
-				      "receiver is not supported." << endl;
+				   << "select on a fixed-array dynamic-container "
+				      "method receiver is not supported." << endl;
 			      des->errors += 1;
 			      delete cur_expr;
 			      return nullptr;
@@ -4717,6 +4808,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
       vector<PExpr*>pins (rmod->port_count());
       vector<bool>pins_fromwc (rmod->port_count(), false);
       vector<bool>pins_is_explicitly_not_connected (rmod->port_count(), false);
+      vector<bool>interface_type_error (rmod->port_count(), false);
 
 	// If the instance has a pins_ member, then we know we are
 	// binding by name. Therefore, make up a pins array that
@@ -4856,8 +4948,10 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  }
 		  continue;
 	    }
+
 	    NetScope*actual_iface_scope = 0;
 	    const netclass_t*actual_ifc = 0;
+	    perm_string actual_modport;
 	    if (const PEIdent*aid = dynamic_cast<const PEIdent*>(pins[idx])) {
 		  const pform_name_t&ap = aid->path().name;
 		  if (ap.size() >= 1 && ap.size() <= 2
@@ -4875,11 +4969,12 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 				  && pm->second->is_interface)
 				    actual_iface_scope = iscope;
 			}
-			  // A whole interface instance array has no unindexed child
-			  // scope. Its canonical elements live in instance_arrays;
-			  // every element of one instance array shares the same
-			  // parameter overrides, so the first element supplies the
-			  // formal's member specialization.
+
+			  /* A whole interface instance array has no unindexed child
+			     scope. Its canonical elements live in instance_arrays;
+			     every element of one instance array shares the same
+			     parameter overrides, so the first element supplies the
+			     formal's member specialization. */
 			if (!actual_iface_scope && ap.size() == 1) {
 			      map<perm_string,NetScope::scope_vec_t>::const_iterator
 				    actual_array = scope->instance_arrays.find(
@@ -4901,12 +4996,13 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 					  }
 				    }
 				    if (same_interface)
-					  actual_iface_scope = first;
+				      actual_iface_scope = first;
 			      }
 			}
-			  // Pass-through: the actual is an interface-typed
-			  // signal in the parent (an already-retyped
-			  // interface port handle being forwarded).
+
+			  /* Pass-through: the actual is an interface-typed signal in
+			     the parent (an already-retyped interface port handle being
+			     forwarded). */
 			if (!actual_iface_scope && ap.size() == 1) {
 			      if (NetNet*asig = scope->find_signal(ap.front().name)) {
 				    const netclass_t*ac =
@@ -4916,17 +5012,90 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			      }
 			}
 		  }
+		  if (actual_iface_scope && ap.size() == 2
+		      && ap.back().index.empty()
+		      && ap.back().name != actual_iface_scope->basename()) {
+			auto pm = pform_modules.find(
+			      actual_iface_scope->module_name());
+			if (pm != pform_modules.end()
+			    && pm->second->modports.count(ap.back().name))
+			      actual_modport = ap.back().name;
+		  }
 	    }
 	    if (actual_iface_scope)
 		  actual_ifc = elaborate_interface_instance_type(
-			des, actual_iface_scope);
+			des, actual_iface_scope, actual_modport);
+	    perm_string effective_modport = actual_ifc
+		  ? actual_ifc->interface_modport() : perm_string();
 
-	      // An explicitly typed formal must retain its declared interface
-	      // identity. The later binding pass emits the established detailed
-	      // diagnostic for a mismatched actual; do not hide it by retyping.
+	      /* ANSI interface_port_header syntax cannot express parameter
+	       * overrides (23.3.3.4). A named interface formal therefore acquires
+	       * the actual instance's parameter layout, while its declared
+	       * interface definition and modport selection remain constraints on
+	       * the connection (25.3/25.5). This is a physical port connection,
+	       * not a 25.9 assignment between two already-complete VIF types. */
 	    if (actual_ifc && formal_ifc && formal_ifc->is_interface()
-		&& formal_ifc->get_name() != actual_ifc->get_name())
-		  actual_ifc = 0;
+		&& !generic_iface) {
+		  const bool same_definition =
+			formal_ifc->interface_definition_id()
+			&& actual_ifc->interface_definition_id()
+			? formal_ifc->interface_definition_id()
+			  == actual_ifc->interface_definition_id()
+			: formal_ifc->get_name() == actual_ifc->get_name();
+		  const perm_string formal_modport =
+			formal_ifc->interface_modport();
+		  const perm_string selected_actual_modport =
+			actual_ifc->interface_modport();
+		  effective_modport = formal_modport.nil()
+			? selected_actual_modport : formal_modport;
+		  const bool modport_ok = formal_modport.nil()
+			|| selected_actual_modport.nil()
+			|| selected_actual_modport == formal_modport;
+		  if (!same_definition || !modport_ok) {
+			cerr << pins[idx]->get_fileline() << ": error: Interface port `"
+			     << port_name << "' of module `" << rmod->mod_name()
+			     << "' and its actual have incompatible interface "
+				"definitions or modport selections "
+				"(IEEE 1800-2017/2023 25.3/25.5)." << endl;
+			des->errors += 1;
+			interface_type_error[idx] = true;
+			continue;
+		  }
+
+		  if (actual_iface_scope) {
+			actual_ifc = elaborate_interface_instance_type(
+			      des, actual_iface_scope, effective_modport);
+		  } else if (actual_ifc->interface_modport() != effective_modport) {
+			NetScope*layout_scope = const_cast<netclass_t*>(
+			      actual_ifc)->definition_scope();
+			const netclass_t*formal_view =
+			      elaborate_interface_instance_type(
+				    des, layout_scope, effective_modport);
+			actual_ifc = formal_view
+			      && actual_ifc->same_interface_layout(formal_view)
+			      ? formal_view : nullptr;
+		  }
+		  if (!actual_ifc) {
+			cerr << pins[idx]->get_fileline() << ": error: Unable to "
+			     << "construct the actual parameter layout for interface "
+				"port `" << port_name << "' of module `"
+			     << rmod->mod_name() << "'." << endl;
+			des->errors += 1;
+			interface_type_error[idx] = true;
+			continue;
+		  }
+	    }
+
+	      /* A selected actual remains selected even when the physical formal
+	       * is unqualified (25.5/25.10). Validate exports against that effective
+	       * view as well: a generic or unqualified formal must not erase the
+	       * provider obligation selected at the connection. */
+	    if (actual_ifc && !validate_interface_port_modport_exports_(
+		  *pins[idx], des, rmod, port_name, actual_ifc,
+		  effective_modport)) {
+		  interface_type_error[idx] = true;
+		  continue;
+	    }
 
 	    if (!actual_ifc || !actual_ifc->is_interface()) {
 		  if (generic_iface) {
@@ -4940,17 +5109,22 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  continue;
 	    }
 	    for (unsigned inst = 0 ; inst < instance.size() ; inst += 1) {
-		  if (NetNet*isig = instance[inst]->find_signal(pname))
+		  if (NetNet*isig = instance[inst]->find_signal(pname)) {
 			isig->set_net_type(actual_ifc);
-            }
+			if (!effective_modport.nil())
+			      isig->attribute(
+				    perm_string::literal("ivl_modport"),
+				    verinum(std::string(effective_modport.str())));
+		  }
+	    }
       }
 
       /* Resolve generic net types before the recursive statement pass.  A
        * child is then elaborated with the concrete scalar/vector/real/UDNT
        * type that arrives through its port instead of the logic placeholder. */
       for (unsigned idx = 0; idx < pins.size(); idx += 1) {
-            if (!pins[idx])
-                  continue;
+	    if (!pins[idx] || interface_type_error[idx])
+		  continue;
             vector<PEIdent*>mport = rmod->get_port(idx);
             prebind_interconnect_port_(des, scope, pins[idx], mport, instance);
       }
@@ -4980,6 +5154,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    bool using_default = false;
 
 	    perm_string port_name = rmod->get_port_name(idx);
+	    if (interface_type_error[idx])
+		  continue;
 
 	      // If the port is unconnected, substitute the default
 	      // value. The parser ensures that a default value only
@@ -5169,9 +5345,11 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 					&& actual->second.size() == prts[0]->pin_count()) {
 					  bool types_ok = true;
 					  for (NetScope*actual_scope : actual->second) {
-						if (!actual_scope
-						    || actual_scope->module_name()
-						       != ifc->get_name()) {
+						const netclass_t*actual_type = actual_scope
+						      ? elaborate_interface_instance_type(
+							    des, actual_scope) : nullptr;
+						if (!interface_port_connection_compatible_(
+						      ifc, actual_type)) {
 						      types_ok = false;
 						      break;
 						}
@@ -5227,7 +5405,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 						? dynamic_cast<const netclass_t*>(
 						      actual_signal->net_type()) : 0;
 					  if (actual_ifc && actual_ifc->is_interface()
-					      && actual_ifc->get_name() == ifc->get_name()
+					      && interface_port_connection_compatible_(
+						    ifc, actual_ifc)
 					      && actual_signal->unpacked_dimensions() > 0) {
 						const netranges_t&formal_dims =
 						      prts[0]->unpacked_dims();
@@ -5329,17 +5508,25 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 						      hname_t(ap.front().name));
 					  if (iscope
 					      && iscope->type() == NetScope::MODULE
-					      && iscope->module_name() == ifc->get_name()) {
+					      && iscope->is_interface()) {
+						perm_string selected_modport;
 						bool sel_ok = ap.size() == 1;
 						if (!sel_ok) {
 						      auto pm = pform_modules.find(
 							    iscope->module_name());
 						      if (pm != pform_modules.end()
 							  && pm->second->modports.count(
-								ap.back().name))
+								ap.back().name)) {
+							    selected_modport = ap.back().name;
 							    sel_ok = true;
+						      }
 						}
-						if (sel_ok) {
+						const netclass_t*actual_type = sel_ok
+						      ? elaborate_interface_instance_type(
+							    des, iscope, selected_modport)
+						      : nullptr;
+						if (interface_port_connection_compatible_(
+						      ifc, actual_type)) {
 						      NetEScope*se = new NetEScope(
 							    iscope,
 							    static_cast<ivl_type_t>(ifc));
@@ -5349,11 +5536,12 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 					  }
 				    }
 			      }
+			      unsigned vif_errors = des->errors;
 			      if (!vif)
 				    vif = pins[idx]->elaborate_expr(
 					  des, scope,
 					  static_cast<ivl_type_t>(ifc), 0u);
-			      if (!vif) {
+			      if (!vif && des->errors == vif_errors) {
 				    cerr << pins[idx]->get_fileline()
 					 << ": error: Cannot bind interface"
 					 << " port `" << port_name
@@ -5364,6 +5552,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 				    des->errors += 1;
 				    continue;
 			      }
+			      if (!vif)
+				    continue;
 
 			      /* Keep the statically-known binding in the netlist as
 			       * well as in the simulation initializer. Synthesis uses
@@ -11759,49 +11949,64 @@ static NetProc* elaborate_scope_randomize_task_(
  * first referenced while packages are elaborated, before that cache is
  * attached, but the completed scope tree still contains the declaration
  * scopes needed to elaborate default arguments. */
+static bool interface_scope_matches_layout_(
+		Design*des, NetScope*scope, const netclass_t*required_type)
+{
+      if (!required_type)
+	    return true;
+      const netclass_t*scope_type =
+	    elaborate_interface_instance_type(des, scope);
+      return scope_type && required_type->same_interface_layout(scope_type);
+}
+
 static void collect_interface_method_scopes_recurse_(
-		NetScope*scope, perm_string interface_name,
-		perm_string method_name, vector<NetScope*>&methods)
-{
-      if (!scope)
-	    return;
-
-      if (scope->type() == NetScope::MODULE
-	  && scope->module_name() == interface_name) {
-	    if (NetScope*method = scope->child(hname_t(method_name)))
-		  methods.push_back(method);
-      }
-
-      for (const auto&child : scope->children()) {
-	    collect_interface_method_scopes_recurse_(
-		  child.second, interface_name, method_name, methods);
-      }
-}
-
-static vector<NetScope*> collect_interface_method_scopes_(
-		Design*des, perm_string interface_name,
-		perm_string method_name)
-{
-      vector<NetScope*>methods;
-      if (!des)
-	    return methods;
-      for (NetScope*root : des->find_root_scopes()) {
-	    collect_interface_method_scopes_recurse_(
-		  root, interface_name, method_name, methods);
-      }
-      return methods;
-}
-
-static void collect_nested_interface_method_scopes_recurse_(
-		NetScope*scope, perm_string outer_name,
-		perm_string nested_name, perm_string method_name,
+		Design*des, NetScope*scope, perm_string interface_name,
+		perm_string method_name, const netclass_t*required_type,
 		vector<NetScope*>&methods)
 {
       if (!scope)
 	    return;
 
       if (scope->type() == NetScope::MODULE
-	  && scope->module_name() == outer_name) {
+	  && scope->module_name() == interface_name
+	  && interface_scope_matches_layout_(des, scope, required_type)) {
+	    if (NetScope*method = scope->child(hname_t(method_name)))
+		  methods.push_back(method);
+      }
+
+      for (const auto&child : scope->children()) {
+	    collect_interface_method_scopes_recurse_(
+		  des, child.second, interface_name, method_name,
+		  required_type, methods);
+      }
+}
+
+static vector<NetScope*> collect_interface_method_scopes_(
+		Design*des, perm_string interface_name,
+		perm_string method_name, const netclass_t*required_type)
+{
+      vector<NetScope*>methods;
+      if (!des)
+	    return methods;
+      for (NetScope*root : des->find_root_scopes()) {
+	    collect_interface_method_scopes_recurse_(
+		  des, root, interface_name, method_name, required_type, methods);
+      }
+      return methods;
+}
+
+static void collect_nested_interface_method_scopes_recurse_(
+		Design*des, NetScope*scope, perm_string outer_name,
+		perm_string nested_name, perm_string method_name,
+		const netclass_t*required_outer_type,
+		vector<NetScope*>&methods)
+{
+      if (!scope)
+	    return;
+
+      if (scope->type() == NetScope::MODULE
+	  && scope->module_name() == outer_name
+	  && interface_scope_matches_layout_(des, scope, required_outer_type)) {
 	    NetScope*nested = scope->child(hname_t(nested_name));
 	    if (nested && nested->type() == NetScope::MODULE) {
 		  if (NetScope*method = nested->child(hname_t(method_name)))
@@ -11811,20 +12016,23 @@ static void collect_nested_interface_method_scopes_recurse_(
 
       for (const auto&child : scope->children()) {
 	    collect_nested_interface_method_scopes_recurse_(
-		  child.second, outer_name, nested_name, method_name, methods);
+		  des, child.second, outer_name, nested_name, method_name,
+		  required_outer_type, methods);
       }
 }
 
 static vector<NetScope*> collect_nested_interface_method_scopes_(
 		Design*des, perm_string outer_name,
-		perm_string nested_name, perm_string method_name)
+		perm_string nested_name, perm_string method_name,
+		const netclass_t*required_outer_type)
 {
       vector<NetScope*>methods;
       if (!des)
 	    return methods;
       for (NetScope*root : des->find_root_scopes()) {
 	    collect_nested_interface_method_scopes_recurse_(
-		  root, outer_name, nested_name, method_name, methods);
+		  des, root, outer_name, nested_name, method_name,
+		  required_outer_type, methods);
       }
       return methods;
 }
@@ -11865,6 +12073,102 @@ static interface_method_pform_info_t find_interface_method_pform_(
       return find_interface_method_pform_(module_it->second, method_name);
 }
 
+static const PModport* find_interface_modport_view_(
+		const netclass_t*interface_type)
+{
+      if (!interface_type || !interface_type->is_interface()
+	  || interface_type->interface_modport().nil())
+	    return nullptr;
+
+      auto module_it = pform_modules.find(interface_type->get_name());
+      if (module_it == pform_modules.end() || !module_it->second)
+	    return nullptr;
+      auto modport_it = module_it->second->modports.find(
+	    interface_type->interface_modport());
+      return modport_it == module_it->second->modports.end()
+	    ? nullptr : modport_it->second;
+}
+
+static bool validate_interface_modport_method_access_(
+		const LineInfo&loc, Design*des,
+		const netclass_t*interface_type, perm_string method_name)
+{
+      const PModport*view = find_interface_modport_view_(interface_type);
+      if (!view || view->import_ports.count(method_name)
+	  || view->export_ports.count(method_name))
+	    return true;
+
+      cerr << loc.get_fileline() << ": error: Task/function `" << method_name
+	   << "' is not visible through modport `"
+	   << interface_type->interface_modport()
+	   << "' (IEEE 1800-2017/2023 25.7/25.10)." << endl;
+      des->errors += 1;
+      return false;
+}
+
+static const PModport::tf_port_prototype_t*
+find_interface_modport_method_prototype_(
+		const netclass_t*interface_type, perm_string method_name)
+{
+      const PModport*view = find_interface_modport_view_(interface_type);
+      return view ? view->find_tf_port_prototype(true, method_name) : nullptr;
+}
+
+static bool reject_interface_modport_export_call_(
+		const LineInfo&loc, Design*des,
+		const netclass_t*interface_type, perm_string method_name)
+{
+      const PModport*view = find_interface_modport_view_(interface_type);
+      if (!view || view->export_ports.count(method_name) == 0)
+	    return false;
+
+      const PModport::tf_port_prototype_t*prototype =
+	    view->find_tf_port_prototype(false, method_name);
+      const char*kind = prototype
+	    ? (prototype->is_function ? "function" : "task")
+	    : "task/function";
+      cerr << loc.get_fileline() << ": sorry: Call to exported " << kind
+	   << " `" << method_name << "' through modport `"
+	   << interface_type->interface_modport()
+	   << "' requires a connected-module provider; interface-port-qualified "
+	      "provider subroutines are not yet supported "
+	      "(IEEE 1800-2017/2023 25.7)." << endl;
+      des->errors += 1;
+      return true;
+}
+
+static void report_modport_full_prototype_required_(
+		const LineInfo&loc, Design*des, perm_string method_name)
+{
+      cerr << loc.get_fileline() << ": error: A full modport prototype is "
+	   << "required for named argument binding or default arguments in `"
+	   << method_name << "' (IEEE 1800-2017/2023 25.7)." << endl;
+      des->errors += 1;
+}
+
+static bool modport_call_uses_named_arguments_(
+		const vector<named_pexpr_t>&parms)
+{
+      for (const named_pexpr_t&parm : parms)
+	    if (!parm.name.nil())
+		  return true;
+      return false;
+}
+
+static bool modport_prototype_names_significant_(
+		const PModport::tf_port_prototype_t*prototype,
+		const vector<named_pexpr_t>&parms)
+{
+      if (modport_call_uses_named_arguments_(parms))
+	    return true;
+      if (prototype && prototype->ports)
+	    for (const pform_tf_port_t&port : *prototype->ports)
+		  if (port.defe || (port.port
+		      && !port.port->unpacked_indices().empty()))
+			return true;
+      return false;
+}
+
 static interface_method_pform_info_t find_nested_interface_method_pform_(
 		perm_string outer_name, perm_string nested_name,
 		perm_string method_name)
@@ -11893,11 +12197,13 @@ static interface_method_pform_info_t find_nested_interface_method_pform_(
 static void validate_uninstantiated_interface_method_call_(
 		const LineInfo&loc, Design*des, NetScope*caller_scope,
 		perm_string method_name, const PTaskFunc*method,
+		const PModport::tf_port_prototype_t*prototype,
 		const vector<named_pexpr_t>&parms)
 {
       if (!method)
 	    return;
-      const vector<pform_tf_port_t>*ports = method->peek_ports();
+      const vector<pform_tf_port_t>*ports = prototype
+	    ? prototype->ports : method->peek_ports();
       const unsigned count = ports ? static_cast<unsigned>(ports->size()) : 0;
       if (parms.size() > count) {
 	    cerr << loc.get_fileline() << ": error: Too many arguments ("
@@ -11968,11 +12274,20 @@ static bool interface_method_dynamic_signature_(
 	    return false;
       for (unsigned idx = 0 ; idx < def->port_count() ; idx += 1) {
 	    const NetNet*port = def->port(idx);
-	    if (!port || port->port_type() != NetNet::PINPUT)
+	    if (!port || port->port_type() == NetNet::NOT_A_PORT
+		|| port->port_type() == NetNet::PIMPLICIT) {
+		  cerr << loc.get_fileline() << ": error: virtual-interface "
+		       << "method argument " << (idx+1)
+		       << " has no callable port direction." << endl;
+		  des->errors += 1;
+		  hard_error = true;
 		  return false;
+	    }
 	    if (port->unpacked_dimensions() > 0) {
 		  cerr << loc.get_fileline() << ": sorry: virtual-interface "
-		       << "method input argument " << (idx+1) << " ('"
+		       << "method "
+		       << (port->port_type() == NetNet::PINPUT ? "input " : "")
+		       << "argument " << (idx+1) << " ('"
 		       << port->name() << "') is a fixed unpacked array; "
 		       << "dynamic-dispatch array marshalling is not yet supported."
 		       << endl;
@@ -11984,6 +12299,232 @@ static bool interface_method_dynamic_signature_(
       return true;
 }
 
+static ivl_type_t interface_method_formal_type_(const NetNet*port)
+{
+      if (!port)
+	    return nullptr;
+      return port->unpacked_dimensions() > 0 && port->array_type()
+	    ? static_cast<ivl_type_t>(port->array_type()) : port->net_type();
+}
+
+/* ivl_type_s::type_equivalent deliberately treats a packed aggregate and a
+ * same-width vector as equivalent for assignment. A modport prototype instead
+ * requires matching types (25.7), so retain the elaborated type category and
+ * nominal record/enum provenance before applying structural equivalence. */
+static bool interface_modport_prototype_type_matches_(
+		ivl_type_t left, ivl_type_t right)
+{
+      if (left == right)
+	    return true;
+      if (!left || !right || typeid(*left) != typeid(*right))
+	    return false;
+
+      const netvector_t*left_vector =
+	    dynamic_cast<const netvector_t*>(left);
+      const netvector_t*right_vector =
+	    dynamic_cast<const netvector_t*>(right);
+      if (left_vector || right_vector)
+	    return left_vector && right_vector
+		  && left_vector->base_type() == right_vector->base_type()
+		  && left_vector->get_signed() == right_vector->get_signed()
+		  && left_vector->packed_dims() == right_vector->packed_dims();
+
+      const netstruct_t*left_record =
+	    dynamic_cast<const netstruct_t*>(left);
+      const netstruct_t*right_record =
+	    dynamic_cast<const netstruct_t*>(right);
+      if (left_record || right_record) {
+	    if (!left_record || !right_record)
+		  return false;
+	    const void*left_definition = left_record->nominal_definition();
+	    const void*right_definition = right_record->nominal_definition();
+	    return left_definition && right_definition
+		  && left_definition == right_definition
+		  && left_record->nominal_owner_identity()
+		     == right_record->nominal_owner_identity();
+      }
+
+      const netenum_t*left_enum = dynamic_cast<const netenum_t*>(left);
+      const netenum_t*right_enum = dynamic_cast<const netenum_t*>(right);
+      if (left_enum || right_enum) {
+	    if (!left_enum || !right_enum)
+		  return false;
+	    const void*left_definition = left_enum->nominal_definition();
+	    const void*right_definition = right_enum->nominal_definition();
+	    return left_definition && right_definition
+		  && left_definition == right_definition
+		  && left_enum->nominal_owner_identity()
+		     == right_enum->nominal_owner_identity();
+      }
+
+      const netqueue_t*left_queue = dynamic_cast<const netqueue_t*>(left);
+      const netqueue_t*right_queue = dynamic_cast<const netqueue_t*>(right);
+      if (left_queue || right_queue) {
+	    if (!left_queue || !right_queue
+		|| left_queue->assoc_compat() != right_queue->assoc_compat())
+		  return false;
+	    if (left_queue->assoc_compat()) {
+		  if (left_queue->assoc_wildcard()
+		      != right_queue->assoc_wildcard())
+			return false;
+		  if (!left_queue->assoc_wildcard()
+		      && !interface_modport_prototype_type_matches_(
+			    left_queue->assoc_index_type(),
+			    right_queue->assoc_index_type()))
+			return false;
+	    }
+	    return interface_modport_prototype_type_matches_(
+		  left_queue->element_type(), right_queue->element_type());
+      }
+
+      const netarray_t*left_array = dynamic_cast<const netarray_t*>(left);
+      const netarray_t*right_array = dynamic_cast<const netarray_t*>(right);
+      if (left_array || right_array) {
+	    if (!left_array || !right_array)
+		  return false;
+	    const netsarray_t*left_static =
+		  dynamic_cast<const netsarray_t*>(left);
+	    const netsarray_t*right_static =
+		  dynamic_cast<const netsarray_t*>(right);
+	    if ((left_static || right_static)
+		&& (!left_static || !right_static
+		    || left_static->static_dimensions()
+		       != right_static->static_dimensions()))
+		  return false;
+	    return interface_modport_prototype_type_matches_(
+		  left_array->element_type(), right_array->element_type());
+      }
+
+      return left->type_equivalent(right)
+	    && right->type_equivalent(left);
+}
+
+static bool interface_modport_prototype_matches_method_(
+		const LineInfo&loc, Design*des,
+		const PModport::tf_port_prototype_t*prototype,
+		const NetScope*method_scope, const NetBaseDef*def,
+		bool require_matching_names, bool diagnose)
+{
+      if (!prototype)
+	    return true;
+
+      const bool method_is_function = method_scope
+	    && method_scope->type() == NetScope::FUNC;
+
+      NetScope*declaration_scope = method_scope
+	    ? const_cast<NetScope*>(method_scope->parent()) : nullptr;
+      const vector<pform_tf_port_t>*ports = prototype->ports;
+      const unsigned prototype_count = ports
+	    ? static_cast<unsigned>(ports->size()) : 0;
+      bool matches = method_scope && def
+	    && prototype->is_function == method_is_function
+	    && prototype_count == def->port_count();
+
+      if (matches && method_is_function) {
+	    const NetFuncDef*function_def =
+		  dynamic_cast<const NetFuncDef*>(def);
+	    const NetNet*implementation_result = function_def
+		  ? function_def->return_sig() : nullptr;
+	    const bool prototype_is_void = dynamic_cast<const void_type_t*>(
+		  prototype->return_type) != nullptr;
+	    if (prototype_is_void) {
+		  matches = implementation_result == nullptr;
+	    } else if (!prototype->return_type || !implementation_result) {
+		  matches = false;
+	    } else {
+		  ivl_type_t prototype_result =
+			prototype->return_type->elaborate_type(
+			      des, declaration_scope);
+		  ivl_type_t implementation_result_type =
+			interface_method_formal_type_(implementation_result);
+		  matches = interface_modport_prototype_type_matches_(
+			prototype_result, implementation_result_type);
+	    }
+      }
+
+      for (unsigned idx = 0 ; matches && idx < prototype_count ; idx += 1) {
+	    const pform_tf_port_t&prototype_port = (*ports)[idx];
+	    const NetNet*implementation_port = def->port(idx);
+	    if (!prototype_port.port || !implementation_port
+		|| prototype_port.port->get_port_type()
+		   != implementation_port->port_type()
+		|| (require_matching_names
+		    && prototype_port.port->basename()
+		       != implementation_port->name())) {
+		  matches = false;
+		  break;
+	    }
+
+	    ivl_type_t prototype_type = prototype_port.port->elaborate_sig_type(
+		  des, declaration_scope);
+	    ivl_type_t implementation_type =
+		  interface_method_formal_type_(implementation_port);
+	    if (!interface_modport_prototype_type_matches_(
+		  prototype_type, implementation_type))
+		  matches = false;
+	    if (prototype_port.defe
+		&& implementation_port->port_type() != NetNet::PINPUT)
+		  matches = false;
+      }
+
+      if (!matches && diagnose) {
+	    cerr << loc.get_fileline() << ": error: Modport prototype for `"
+		 << (method_scope ? method_scope->basename() : perm_string())
+		 << "' does not match its interface subroutine declaration "
+		    "(IEEE 1800-2017/2023 25.7)." << endl;
+	    des->errors += 1;
+      }
+      return matches;
+}
+
+/* Full import prototypes are declarations whose signatures must match even if
+ * no call appears in the design (25.7). Validate them once the concrete
+ * interface subroutine definitions have been elaborated. Export prototypes
+ * are checked at their physical provider connection instead, because their
+ * implementation lives in the connected module, not in the interface. */
+static void validate_interface_modport_import_prototypes_(
+		const Module*interface_module, Design*des, NetScope*scope)
+{
+      if (!interface_module || !interface_module->is_interface)
+	    return;
+
+      static const vector<named_pexpr_t>no_actuals;
+      for (const auto&view_entry : interface_module->modports) {
+	    const PModport*view = view_entry.second;
+	    if (!view)
+		  continue;
+	    for (const auto&prototype_entry : view->import_prototypes) {
+		  perm_string method_name = prototype_entry.first;
+		  const PModport::tf_port_prototype_t*prototype =
+			&prototype_entry.second;
+		  NetScope*method = scope->child(hname_t(method_name));
+		  const NetBaseDef*def = ensure_interface_method_def_(des, method);
+		  if (!method || !def) {
+			string location = interface_module->get_fileline();
+			if (prototype->ports && !prototype->ports->empty()
+			    && prototype->ports->front().port)
+			      location = prototype->ports->front().port->get_fileline();
+			cerr << location << ": error: Modport prototype for `"
+			     << method_name
+			     << "' has no matching interface subroutine declaration "
+				"(IEEE 1800-2017/2023 25.7)." << endl;
+			des->errors += 1;
+			continue;
+		  }
+		  const bool require_matching_names =
+			modport_prototype_names_significant_(
+			      prototype, no_actuals);
+		  const LineInfo*prototype_location = interface_module;
+		  if (prototype->ports && !prototype->ports->empty()
+		      && prototype->ports->front().port)
+			prototype_location = prototype->ports->front().port;
+		  interface_modport_prototype_matches_method_(
+			*prototype_location, des, prototype, method, def,
+			require_matching_names, true);
+	    }
+      }
+}
+
 /* Explicit actuals are caller expressions. Omitted arguments are declaration
  * expressions: elaborate_sig_ports_ has already bound package imports,
  * interface names and the formal's assignment context, and dup_expr keeps a
@@ -11991,9 +12532,12 @@ static bool interface_method_dynamic_signature_(
 static vector<NetExpr*> elaborate_interface_method_argument_row_(
 		const LineInfo&loc, Design*des, NetScope*caller_scope,
 		const NetBaseDef*def, const vector<PExpr*>&actuals,
-		bool diagnose_missing)
+		const PModport::tf_port_prototype_t*prototype,
+		const NetScope*prototype_scope,
+		bool diagnose_missing, bool&hard_error)
 {
       vector<NetExpr*>result;
+	  hard_error = false;
       if (!def)
 	    return result;
 
@@ -12002,16 +12546,97 @@ static vector<NetExpr*> elaborate_interface_method_argument_row_(
       for (unsigned idx = 0 ; idx < count ; idx += 1) {
 	    NetNet*port = def->port(idx);
 	    if (actuals[idx]) {
-		  ivl_type_t formal_type = port->unpacked_dimensions() > 0
-			&& port->array_type()
-			? static_cast<ivl_type_t>(port->array_type())
-			: port->net_type();
+		  ivl_type_t formal_type = interface_method_formal_type_(port);
+		  ivl_type_t argument_type = formal_type;
+		  if (port && port->port_type() != NetNet::PINPUT) {
+			unsigned errors_before = des->errors;
+			NetAssign_*lval = actuals[idx]->elaborate_lval(
+			      des, caller_scope, false, false);
+			if (!lval) {
+			      if (des->errors == errors_before)
+				    des->errors += 1;
+			      hard_error = true;
+			      continue;
+			}
+			/* Preserve the actual's nameable expression shape for a pure
+			 * output.  The selected target branch reads the concrete formal
+			 * only after the call and writes it through this expression; it
+			 * must not turn the actual into an input conversion first. */
+			if (port->port_type() == NetNet::POUTPUT
+			    && lval->net_type())
+			      argument_type = lval->net_type();
+			delete lval;
+		  }
 		  result[idx] = elaborate_rval_expr(
-			des, caller_scope, formal_type, actuals[idx], false);
+			des, caller_scope, argument_type, actuals[idx], false);
+		  if (!result[idx])
+			hard_error = true;
 		  continue;
 	    }
 
-	    if (const NetExpr*default_value = def->port_defe(idx)) {
+	    if (prototype) {
+		  const vector<pform_tf_port_t>*prototype_ports = prototype->ports;
+		  PExpr*default_value = prototype_ports
+			&& idx < prototype_ports->size()
+			? (*prototype_ports)[idx].defe : nullptr;
+		  if (default_value) {
+			perm_string earlier_formal;
+			vector<PExpr*>reads;
+			collect_pform_reads_(default_value, reads);
+			for (PExpr*read : reads) {
+			      const PEIdent*identifier =
+				    dynamic_cast<const PEIdent*>(read);
+			      if (!identifier || identifier->path().package
+				  || identifier->path().name.empty())
+				    continue;
+			      perm_string head = identifier->path().name.front().name;
+			      for (unsigned prior = 0 ; prior < idx ; prior += 1) {
+				    const pform_tf_port_t&earlier =
+					  (*prototype_ports)[prior];
+				    if (earlier.port
+					&& earlier.port->basename() == head) {
+					  earlier_formal = head;
+					  break;
+				    }
+			      }
+			      if (!earlier_formal.nil())
+				    break;
+			}
+			if (!earlier_formal.nil()) {
+			      if (diagnose_missing) {
+				    cerr << loc.get_fileline() << ": error: Default for "
+					 << "modport prototype argument " << (idx+1)
+					 << " ('" << port->name()
+					 << "') references earlier formal `"
+					 << earlier_formal << "'; dynamic virtual-interface "
+					    "dispatch cannot bind that default yet "
+					    "(IEEE 1800-2017/2023 13.5.3/25.7)."
+					 << endl;
+				    des->errors += 1;
+			      }
+			      hard_error = true;
+			      continue;
+			}
+			ivl_type_t formal_type = interface_method_formal_type_(port);
+			result[idx] = elaborate_rval_expr(
+			      des, const_cast<NetScope*>(prototype_scope), formal_type,
+			      default_value, false);
+			if (!result[idx]) {
+			      if (diagnose_missing) {
+				    cerr << loc.get_fileline() << ": error: Unable to "
+					 << "elaborate default for modport prototype "
+					 << "argument " << (idx+1) << " ('"
+					 << port->name() << "'); dynamic dispatch will "
+					    "not substitute a stub value "
+					    "(IEEE 1800-2017/2023 13.5.3/25.7)."
+					 << endl;
+				    des->errors += 1;
+			      }
+			      hard_error = true;
+			}
+			continue;
+		  }
+	    } else if (const NetExpr*default_value = def->port_defe(idx)) {
 		  result[idx] = default_value->dup_expr();
 		  continue;
 	    }
@@ -12023,6 +12648,7 @@ static vector<NetExpr*> elaborate_interface_method_argument_row_(
 			  "default value." << endl;
 		  des->errors += 1;
 	    }
+	    hard_error = true;
       }
       return result;
 }
@@ -12037,11 +12663,27 @@ static NetSTask* elaborate_dynamic_interface_method_call_(
 		const LineInfo&loc, Design*des, NetScope*caller_scope,
 		const string&call_name, NetExpr*receiver,
 		const vector<NetScope*>&methods,
+		const netclass_t*interface_type,
+		const PModport::tf_port_prototype_t*prototype,
+		bool selected_modport, perm_string method_name,
 		const vector<named_pexpr_t>&parms, bool&hard_error)
 {
       hard_error = false;
       if (!receiver)
 	    return nullptr;
+
+      if (reject_interface_modport_export_call_(
+	    loc, des, interface_type, method_name)) {
+	    hard_error = true;
+	    return nullptr;
+      }
+
+      if (selected_modport && !prototype
+	  && modport_call_uses_named_arguments_(parms)) {
+	    report_modport_full_prototype_required_(loc, des, method_name);
+	    hard_error = true;
+	    return nullptr;
+      }
 
       if (methods.empty()) {
 	    vector<NetExpr*>argv;
@@ -12055,11 +12697,20 @@ static NetSTask* elaborate_dynamic_interface_method_call_(
 
       vector<const NetBaseDef*>defs;
       defs.reserve(methods.size());
-      for (NetScope*method : methods) {
+      const bool require_matching_names =
+	    modport_prototype_names_significant_(prototype, parms);
+      for (size_t idx = 0 ; idx < methods.size() ; idx += 1) {
+	    NetScope*method = methods[idx];
 	    const NetBaseDef*def = ensure_interface_method_def_(des, method);
 	    if (!interface_method_dynamic_signature_(
 		  loc, des, def, hard_error))
 		  return nullptr;
+	    if (!interface_modport_prototype_matches_method_(
+		  loc, des, prototype, method, def,
+		  require_matching_names, idx == 0)) {
+		  hard_error = true;
+		  return nullptr;
+	    }
 	    defs.push_back(def);
       }
 
@@ -12079,7 +12730,29 @@ static NetSTask* elaborate_dynamic_interface_method_call_(
 		 << ") in virtual-interface method call." << endl;
 	    des->errors += 1;
       }
-      vector<PExpr*>actuals = map_named_args(des, defs.front(), parms, 0);
+      vector<PExpr*>actuals;
+      if (prototype) {
+	    vector<perm_string>names;
+	    if (prototype->ports) {
+		  names.reserve(prototype->ports->size());
+		  for (const pform_tf_port_t&port : *prototype->ports)
+			names.push_back(port.port
+			      ? port.port->basename() : perm_string());
+	    }
+	    actuals = map_named_args(des, names, parms);
+      } else {
+	    actuals = map_named_args(des, defs.front(), parms, 0);
+	    if (selected_modport) {
+		  for (unsigned idx = 0 ; idx < count ; idx += 1) {
+			if (!actuals[idx] && defs.front()->port_defe(idx)) {
+			      report_modport_full_prototype_required_(
+				    loc, des, method_name);
+			      hard_error = true;
+			      return nullptr;
+			}
+		  }
+	    }
+      }
 
       vector<NetExpr*>argv;
       argv.push_back(receiver);
@@ -12090,13 +12763,25 @@ static NetSTask* elaborate_dynamic_interface_method_call_(
 	    key->set_line(loc);
 	    argv.push_back(key);
 
+	    bool row_error = false;
 	    vector<NetExpr*>row = elaborate_interface_method_argument_row_(
-		  loc, des, caller_scope, defs[idx], actuals, idx == 0);
+		  loc, des, caller_scope, defs[idx], actuals,
+		  prototype, methods[idx]->parent(), idx == 0, row_error);
 	    argv.insert(argv.end(), row.begin(), row.end());
+	    if (row_error) {
+		  /* The caller still owns the receiver on a hard task-dispatch
+		   * failure; reclaim only keys/argument rows built here. */
+		  for (size_t cleanup = 1 ; cleanup < argv.size(); cleanup += 1)
+			delete argv[cleanup];
+		  hard_error = true;
+		  return nullptr;
+	    }
       }
 
       perm_string name = lex_strings.make(call_name.c_str());
       NetSTask*sys = new NetSTask(name.str(), IVL_SFUNC_AS_TASK_IGNORE, argv);
+      for (NetScope*method : methods)
+	    sys->add_vif_method(method);
       sys->set_line(loc);
       return sys;
 }
@@ -12149,8 +12834,63 @@ static bool interface_function_dynamic_signature_(
       return true;
 }
 
+static bool interface_local_function_result_corresponds_(
+		const NetScope*expected_scope, ivl_type_t expected_type,
+		const NetScope*actual_scope, ivl_type_t actual_type)
+{
+      /* A rootless virtual-interface declaration scope and a physical
+       * interface instance elaborate interface-local nominal declarations as
+       * distinct netlist objects.  They nevertheless denote the same result
+       * declaration when both method scopes came from the same parsed
+       * function.  Keep this exception local to dynamic VIF candidate
+       * selection: globally collapsing these objects would lose the nominal
+       * distinction between interface specializations (6.22.1/25.9). */
+      if (!expected_scope || !actual_scope
+	  || !expected_scope->func_pform()
+	  || expected_scope->func_pform() != actual_scope->func_pform()
+	  || !expected_type || !actual_type)
+	    return false;
+
+      const netenum_t*expected_enum =
+	    dynamic_cast<const netenum_t*>(expected_type);
+      const netenum_t*actual_enum = dynamic_cast<const netenum_t*>(actual_type);
+      if (expected_enum || actual_enum)
+	    return expected_enum && actual_enum
+		  && expected_enum->nominal_definition()
+		  && expected_enum->nominal_definition()
+		     == actual_enum->nominal_definition();
+
+      const netstruct_t*expected_record =
+	    dynamic_cast<const netstruct_t*>(expected_type);
+      const netstruct_t*actual_record =
+	    dynamic_cast<const netstruct_t*>(actual_type);
+      if (expected_record || actual_record)
+	    return expected_record && actual_record
+		  && expected_record->nominal_definition()
+		  && expected_record->nominal_definition()
+		     == actual_record->nominal_definition();
+
+      const netclass_t*expected_class =
+	    dynamic_cast<const netclass_t*>(expected_type);
+      const netclass_t*actual_class =
+	    dynamic_cast<const netclass_t*>(actual_type);
+      if (expected_class || actual_class) {
+	    const NetScope*expected_class_scope = expected_class
+		  ? expected_class->class_scope() : nullptr;
+	    const NetScope*actual_class_scope = actual_class
+		  ? actual_class->class_scope() : nullptr;
+	    return expected_class_scope && actual_class_scope
+		  && expected_class_scope->class_pform()
+		  && expected_class_scope->class_pform()
+		     == actual_class_scope->class_pform();
+      }
+
+      return false;
+}
+
 static bool interface_function_result_equivalent_(
-		const NetNet*expected, const NetNet*actual)
+		const NetScope*expected_scope, const NetNet*expected,
+		const NetScope*actual_scope, const NetNet*actual)
 {
       if (!expected || !actual)
 	    return expected == actual;
@@ -12165,7 +12905,9 @@ static bool interface_function_result_equivalent_(
       return expected_type == actual_type
 	  || (expected_type && actual_type
 	      && expected_type->type_equivalent(actual_type)
-	      && actual_type->type_equivalent(expected_type));
+	      && actual_type->type_equivalent(expected_type))
+	  || interface_local_function_result_corresponds_(
+		expected_scope, expected_type, actual_scope, actual_type);
 }
 
 const NetFuncDef* resolve_interface_function_signature(
@@ -12183,7 +12925,7 @@ const NetFuncDef* resolve_interface_function_signature(
 	    return nullptr;
 
       vector<NetScope*>methods = collect_interface_method_scopes_(
-	    des, interface_type->get_name(), method_name);
+	    des, interface_type->get_name(), method_name, interface_type);
       NetScope*signature_scope = nullptr;
 
         // The expression type, rather than hierarchy traversal order,
@@ -12203,7 +12945,7 @@ const NetFuncDef* resolve_interface_function_signature(
       }
       if (!signature_scope)
 	    signature_scope = ensure_interface_declaration_method_scope(
-		  des, caller_scope, interface_type->get_name(), method_name);
+		  des, caller_scope, interface_type, method_name);
 
       if (!signature_scope) {
 	    interface_method_pform_info_t pform_method =
@@ -12241,6 +12983,7 @@ const NetFuncDef* resolve_interface_function_signature(
 
       const NetNet*result = signature->return_sig();
       const unsigned count = signature->port_count();
+      const bool had_physical_candidates = !methods.empty();
       vector<NetScope*>compatible_methods;
       compatible_methods.reserve(methods.size());
       for (NetScope*method : methods) {
@@ -12267,13 +13010,24 @@ const NetFuncDef* resolve_interface_function_signature(
 	    }
 	    if (def->port_count() != count
 		|| !interface_function_result_equivalent_(
-		     result, def->return_sig()))
+		     signature_scope, result, method, def->return_sig()))
 		  continue;
 	    if (!interface_function_dynamic_signature_(method, des, def)) {
 		  hard_error = true;
 		  return nullptr;
 	    }
 	    compatible_methods.push_back(method);
+      }
+
+      if (had_physical_candidates && compatible_methods.empty()) {
+	    cerr << signature_scope->get_fileline()
+		 << ": error: No physical interface instance compatible with `"
+		 << method_name << "' retains the function result type of the "
+		    "selected virtual-interface specialization (IEEE "
+		    "1800-2017/2023 6.22.1/25.9)." << endl;
+	    des->errors += 1;
+	    hard_error = true;
+	    return nullptr;
       }
 
       if (candidates)
@@ -12287,6 +13041,25 @@ NetESFunc* elaborate_dynamic_interface_function_call(
 		NetExpr*receiver, const vector<named_pexpr_t>&parms,
 		bool&recognized, bool&hard_error)
 {
+      if (!validate_interface_modport_method_access_(
+	    loc, des, interface_type, method_name)) {
+	    recognized = true;
+	    hard_error = true;
+	    delete receiver;
+	    return nullptr;
+      }
+      if (reject_interface_modport_export_call_(
+	    loc, des, interface_type, method_name)) {
+	    recognized = true;
+	    hard_error = true;
+	    delete receiver;
+	    return nullptr;
+      }
+      const PModport::tf_port_prototype_t*prototype =
+	    find_interface_modport_method_prototype_(
+		  interface_type, method_name);
+      const bool selected_modport = interface_type
+	    && !interface_type->interface_modport().nil();
       vector<NetScope*>methods;
       const NetFuncDef*signature = resolve_interface_function_signature(
 	    des, caller_scope, interface_type, method_name, &methods,
@@ -12294,6 +13067,24 @@ NetESFunc* elaborate_dynamic_interface_function_call(
       if (!recognized)
 	    return nullptr;
       if (!receiver || !signature) {
+	    delete receiver;
+	    hard_error = true;
+	    return nullptr;
+      }
+
+      if (selected_modport && !prototype
+	  && modport_call_uses_named_arguments_(parms)) {
+	    report_modport_full_prototype_required_(loc, des, method_name);
+	    delete receiver;
+	    hard_error = true;
+	    return nullptr;
+      }
+
+      const bool require_matching_names =
+	    modport_prototype_names_significant_(prototype, parms);
+      if (!interface_modport_prototype_matches_method_(
+	    loc, des, prototype, signature->scope(), signature,
+	    require_matching_names, true)) {
 	    delete receiver;
 	    hard_error = true;
 	    return nullptr;
@@ -12320,6 +13111,13 @@ NetESFunc* elaborate_dynamic_interface_function_call(
 		  hard_error = true;
 		  return nullptr;
 	    }
+	    if (!interface_modport_prototype_matches_method_(
+		  loc, des, prototype, method, def,
+		  require_matching_names, false)) {
+		  delete receiver;
+		  hard_error = true;
+		  return nullptr;
+	    }
 	      // elab_stage 3 with no procedure is the in-progress recursive
 	      // case. Retain the stable definition now; the outer elaboration
 	      // attaches its procedure before target conversion begins.
@@ -12333,16 +13131,46 @@ NetESFunc* elaborate_dynamic_interface_function_call(
 		 << ") in virtual-interface function call." << endl;
 	    des->errors += 1;
       }
-      vector<PExpr*>actuals = map_named_args(des, signature, parms, 0);
+      vector<PExpr*>actuals;
+      if (prototype) {
+	    vector<perm_string>names;
+	    if (prototype->ports) {
+		  names.reserve(prototype->ports->size());
+		  for (const pform_tf_port_t&port : *prototype->ports)
+			names.push_back(port.port
+			      ? port.port->basename() : perm_string());
+	    }
+	    actuals = map_named_args(des, names, parms);
+      } else {
+	    actuals = map_named_args(des, signature, parms, 0);
+	    if (selected_modport) {
+		  for (unsigned idx = 0 ; idx < count ; idx += 1) {
+			if (!actuals[idx] && signature->port_defe(idx)) {
+			      report_modport_full_prototype_required_(
+				    loc, des, method_name);
+			      delete receiver;
+			      hard_error = true;
+			      return nullptr;
+			}
+		  }
+	    }
+      }
 
       if (methods.empty()) {
 	    /* The receiver is necessarily null, but still elaborate every actual
 	     * against the declaration signature so invalid calls cannot hide behind
 	     * the required run-time fatal. There is no callable row to retain. */
+	    bool checked_error = false;
 	    vector<NetExpr*>checked = elaborate_interface_method_argument_row_(
-		  loc, des, caller_scope, signature, actuals, true);
+		  loc, des, caller_scope, signature, actuals,
+		  prototype, signature->scope()->parent(), true, checked_error);
 	    for (NetExpr*expr : checked)
 		  delete expr;
+	    if (checked_error) {
+		  delete receiver;
+		  hard_error = true;
+		  return nullptr;
+	    }
 	  }
 
       vector<NetExpr*>argv;
@@ -12354,9 +13182,17 @@ NetESFunc* elaborate_dynamic_interface_function_call(
 	    key->set_line(loc);
 	    argv.push_back(key);
 
+	    bool row_error = false;
 	    vector<NetExpr*>row = elaborate_interface_method_argument_row_(
-		  loc, des, caller_scope, defs[idx], actuals, idx == 0);
+		  loc, des, caller_scope, defs[idx], actuals,
+		  prototype, methods[idx]->parent(), idx == 0, row_error);
 	    argv.insert(argv.end(), row.begin(), row.end());
+	    if (row_error) {
+		  for (NetExpr*expr : argv)
+			delete expr;
+		  hard_error = true;
+		  return nullptr;
+	    }
       }
 
       bool missing = false;
@@ -12469,7 +13305,7 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		  if (outer_type && outer_type->is_interface()) {
 			methods = collect_nested_interface_method_scopes_(
 			      des, outer_type->get_name(), nested_it->name,
-			      method_it->name);
+			      method_it->name, outer_type);
 			pform_method = find_nested_interface_method_pform_(
 			      outer_type->get_name(), nested_it->name,
 			      method_it->name);
@@ -12485,11 +13321,12 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 			if (methods.empty())
 			      validate_uninstantiated_interface_method_call_(
 				    *this, des, scope, method_it->name,
-				    pform_method.method, parms_);
+				    pform_method.method, nullptr, parms_);
 			bool dynamic_error = false;
 			if (NetSTask*sys = elaborate_dynamic_interface_method_call_(
 			      *this, des, scope, call_name, outer_expr,
-			      methods, parms_, dynamic_error)) {
+			      methods, nullptr, nullptr, false, method_it->name,
+			      parms_, dynamic_error)) {
 			      bool is_task = methods.empty()
 				    ? pform_method.is_task
 				    : methods.front()->type() == NetScope::TASK;
@@ -13248,9 +14085,7 @@ NetProc* PCallTask::elaborate_sys_task_method_(Design*des, NetScope*scope,
 					       const std::vector<perm_string> &parm_names) const
 {
       unsigned nparms = parms_.size();
-
-      vector<NetExpr*>argv (1 + nparms);
-      argv[0] = obj;
+      bool bad_arity = false;
 
       if (method_name == "delete") {
 	      // The queue delete method takes an optional element.
@@ -13260,34 +14095,143 @@ NetProc* PCallTask::elaborate_sys_task_method_(Design*des, NetScope*scope,
 			cerr << get_fileline() << ": error: queue delete() "
 			     << "method takes zero or one argument." << endl;
 			des->errors += 1;
+			bad_arity = true;
 		  }
 	    } else if (nparms > 0) {
 		  cerr << get_fileline() << ": error: darray delete() "
 		       << "method takes no arguments." << endl;
 		  des->errors += 1;
+		  bad_arity = true;
 	    }
       } else if (parm_names.size() != parms_.size()) {
 	    cerr << get_fileline() << ": error: " << method_name
 	         << "() method takes " << parm_names.size() << " arguments, got "
 		 << parms_.size() << "." << endl;
 	    des->errors++;
+	    bad_arity = true;
+      }
+
+      if (bad_arity) {
+	    delete obj;
+	    /* The built-in was recognized and diagnosed. Do not map or elaborate
+	       surplus actuals: map_named_args() is formal-sized, so indexing it by
+	       the caller count used to read past the vector during error recovery. */
+	    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+	    noop->set_line(*this);
+	    return noop;
       }
 
       auto args = map_named_args(des, parm_names, parms_);
       for (unsigned idx = 0 ; idx < nparms ; idx += 1) {
+	    if (args[idx])
+		  continue;
+	    delete obj;
+	    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+	    noop->set_line(*this);
+	    return noop;
+      }
+
+      vector<NetExpr*>argv (1 + nparms);
+      argv[0] = obj;
+      NetAssign_*mailbox_ref_output = 0;
+      const netclass_t*class_type =
+	    dynamic_cast<const netclass_t*>(obj_type);
+      const bool mailbox_output_method =
+	    class_type
+	    && class_type->get_name() == perm_string::literal("mailbox")
+	    && (method_name == perm_string::literal("get")
+		|| method_name == perm_string::literal("peek")
+		|| method_name == perm_string::literal("try_get")
+		|| method_name == perm_string::literal("try_peek"));
+      for (unsigned idx = 0 ; idx < nparms ; idx += 1) {
+	    if (mailbox_output_method && idx == 0) {
+		  unsigned errors_before = des->errors;
+		  mailbox_ref_output = args[idx]->elaborate_lval(
+			des, scope, false, false);
+		  if (!mailbox_ref_output) {
+			if (des->errors == errors_before) {
+			      cerr << args[idx]->get_fileline()
+				   << ": error: Mailbox method `" << method_name
+				   << "' output argument must be a writable variable "
+				      "l-value (IEEE 1800-2017/2023 15.4)."
+				   << endl;
+			      des->errors += 1;
+			}
+			for (NetExpr*expr : argv)
+			      delete expr;
+			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+			noop->set_line(*this);
+			return noop;
+		  }
+		  if (mailbox_ref_output->more) {
+			cerr << args[idx]->get_fileline()
+			     << ": error: Mailbox method `" << method_name
+			     << "' ref output must name one variable, not an "
+				"l-value concatenation (IEEE 1800-2017/2023 "
+				"15.4)." << endl;
+			des->errors += 1;
+			delete mailbox_ref_output;
+			for (NetExpr*expr : argv)
+			      delete expr;
+			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+			noop->set_line(*this);
+			return noop;
+		  }
+		  /* Preserve the formal slot for target ABI compatibility. Its
+		   * value is carried exclusively by the ref-output l-value. */
+		  argv[idx + 1] = 0;
+		  continue;
+	    }
 	    const netqueue_t*queue =
 		  dynamic_cast<const netqueue_t*>(obj_type);
 	    if (method_name == "delete" && idx == 0 && queue
 		&& queue->assoc_compat())
 		  argv[idx + 1] = elab_assoc_index(des, scope, args[idx],
 						obj_type, false);
+	    else if (class_type && class_type->is_typed_mailbox()
+		     && (method_name == perm_string::literal("put")
+			 || method_name == perm_string::literal("try_put")))
+		  argv[idx + 1] = elab_typed_mailbox_input(
+			des, scope, method_name, args[idx]);
 	    else
 		  argv[idx + 1] = elab_sys_task_arg(des, scope, method_name,
-						idx, args[idx]);
+							idx, args[idx]);
+      }
+
+      const bool mailbox_message_method =
+	    method_name == perm_string::literal("put")
+	    || method_name == perm_string::literal("get")
+	    || method_name == perm_string::literal("peek")
+	    || method_name == perm_string::literal("try_put")
+	    || method_name == perm_string::literal("try_get")
+	    || method_name == perm_string::literal("try_peek");
+      if (class_type && class_type->is_typed_mailbox()
+	  && mailbox_message_method && nparms == 1
+	  && (mailbox_ref_output || argv[1])
+	  && !class_type->mailbox_message_type_equivalent(
+		mailbox_ref_output
+		      ? netassign_type_for_equivalence(mailbox_ref_output)
+		      : netexpr_type_for_equivalence(argv[1]))) {
+	    cerr << get_fileline() << ": error: Typed mailbox method `"
+		 << method_name << "' argument must have a type equivalent to the "
+		    "mailbox message type (IEEE 1800-2017/2023 15.4.9)."
+		 << endl;
+	    des->errors += 1;
+	    for (NetExpr*expr : argv)
+		  delete expr;
+	    delete mailbox_ref_output;
+	    /* The builtin was recognized and diagnosed. Return a handled no-op so
+	     * the outer method dispatcher does not add an unrelated unknown-task
+	     * recovery warning. */
+	    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+	    noop->set_line(*this);
+	    return noop;
       }
 
       NetSTask*sys = new NetSTask(sys_task_name, IVL_SFUNC_AS_TASK_IGNORE, argv);
       sys->set_line(*this);
+      if (mailbox_ref_output)
+	    sys->set_ref_output(mailbox_ref_output);
       return sys;
 }
 
@@ -15196,12 +16140,25 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			// dynamic VIF protocol instead of selecting a static best/first
 			// instance (25.9).
 			if (class_type->is_interface() && gn_system_verilog()) {
+			      if (!validate_interface_modport_method_access_(
+				    *this, des, class_type, method_name)) {
+				    delete obj_expr;
+				    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+				    noop->set_line(*this);
+				    return noop;
+			      }
 			      vector<NetScope*>methods = collect_interface_method_scopes_(
-				    des, class_type->get_name(), method_name);
+				    des, class_type->get_name(), method_name,
+				    class_type);
 			      interface_method_pform_info_t pform_method =
 				    find_interface_method_pform_(
 					  class_type->get_name(), method_name);
 			      if (!methods.empty() || pform_method.method) {
+				    const PModport::tf_port_prototype_t*prototype =
+					  find_interface_modport_method_prototype_(
+						class_type, method_name);
+				    const bool selected_modport =
+					  !class_type->interface_modport().nil();
 				    std::string call_name = "$ivl_vif_call$";
 				    call_name += class_type->get_name().str();
 				    call_name += "$";
@@ -15209,12 +16166,14 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				    if (methods.empty())
 					  validate_uninstantiated_interface_method_call_(
 						*this, des, scope, method_name,
-						pform_method.method, parms_);
+						pform_method.method, prototype, parms_);
 				    bool dynamic_error = false;
 				    if (NetSTask*sys =
 					  elaborate_dynamic_interface_method_call_(
 						*this, des, scope, call_name, obj_expr,
-						methods, parms_, dynamic_error)) {
+						methods, class_type, prototype,
+						selected_modport,
+						method_name, parms_, dynamic_error)) {
 					  bool is_task = methods.empty()
 						? pform_method.is_task
 						: methods.front()->type() == NetScope::TASK;
@@ -15224,7 +16183,9 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				    }
 				    if (dynamic_error) {
 					  delete obj_expr;
-					  return 0;
+					  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+					  noop->set_line(*this);
+					  return noop;
 				    }
 			      }
 			}
@@ -15261,59 +16222,77 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    // first port (IEEE 1800-2023 25.9). The call must apply to the
 	    // instance the HANDLE designates, so emit the dynamic-dispatch
 	    // form $ivl_vif_call$<iface>$<method>(receiver, args...) — the
-	    // code generator compares the handle's bound scope against every
-	    // instance of the interface and calls that instance's method. The
-	    // internal payload carries one scope-keyed argument row per instance,
-	    // preserving declaration-scope defaults and instance formal types.
-	    // Tasks with output/inout/ref ports keep the legacy static call
-	    // (single attached instance): the dynamic form has no
-	    // copy-back path yet (recorded approximation).
+	    // code generator compares the handle's bound scope against the exact
+	    // compatible candidates exported with the statement and calls the
+	    // selected instance's method. The internal payload carries one
+	    // scope-keyed argument row per candidate, preserving declaration-scope
+		    // defaults and instance formal types. The selected target branch
+		    // binds ref formals and copies output/inout values back through the
+		    // retained caller expressions before it leaves that branch.
 	    if (class_type->is_interface()) {
+		  if (!validate_interface_modport_method_access_(
+			*this, des, class_type, method_name)) {
+			delete obj_expr;
+			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+			noop->set_line(*this);
+			return noop;
+		  }
 		  vector<NetScope*>methods = collect_interface_method_scopes_(
-			des, class_type->get_name(), method_name);
-		  if (!methods.empty()) {
+			des, class_type->get_name(), method_name, class_type);
+		  interface_method_pform_info_t pform_method =
+			find_interface_method_pform_(
+			      class_type->get_name(), method_name);
+		  if (!methods.empty() || pform_method.method) {
+			const PModport::tf_port_prototype_t*prototype =
+			      find_interface_modport_method_prototype_(
+				    class_type, method_name);
+			const bool selected_modport =
+			      !class_type->interface_modport().nil();
 			std::string call_name = "$ivl_vif_call$";
 			call_name += class_type->get_name().str();
 			call_name += "$";
 			call_name += method_name.str();
+			if (methods.empty())
+			      validate_uninstantiated_interface_method_call_(
+				    *this, des, scope, method_name,
+				    pform_method.method, prototype, parms_);
 			bool dynamic_error = false;
-			if (NetSTask*sys = elaborate_dynamic_interface_method_call_(
-			      *this, des, scope, call_name, obj_expr,
-			      methods, parms_, dynamic_error)) {
-			      if (methods.front()->type() == NetScope::TASK)
+				if (NetSTask*sys = elaborate_dynamic_interface_method_call_(
+				      *this, des, scope, call_name, obj_expr,
+				      methods, class_type, prototype, selected_modport,
+				      method_name, parms_, dynamic_error)) {
+			      bool is_task = methods.empty()
+				    ? pform_method.is_task
+				    : methods.front()->type() == NetScope::TASK;
+			      if (is_task)
 				test_task_calls_ok_(des, scope);
 			      return sys;
 			}
-			if (dynamic_error) {
-			      delete obj_expr;
-			      return 0;
-			}
-		  }
-		  if (net->port_type() != NetNet::NOT_A_PORT
-		      && net->unpacked_dimensions() > 0) {
-			cerr << get_fileline() << ": sorry: Task method `"
-			     << method_name << "' with output, inout, or ref "
-				"arguments through an interface-port array requires "
-				"per-word dynamic copy-back, which is not yet "
-				"supported." << endl;
-			des->errors += 1;
-			delete obj_expr;
-			return 0;
-		  }
-		  static bool warned_vif_static_call = false;
-		  if (!warned_vif_static_call) {
-			cerr << get_fileline() << ": warning: interface method "
-			     << method_name << " has output/inout/ref ports;"
-			     << " the call binds to a single attached instance"
-			     << " of " << class_type->get_name()
-			     << " (dynamic-dispatch copy-back not yet"
-			     << " implemented; further similar warnings"
-			     << " suppressed)." << endl;
-			warned_vif_static_call = true;
-		  }
-		  delete obj_expr;
-		  return elaborate_build_call_(des, scope, task, nullptr);
-	    }
+				if (dynamic_error) {
+				      delete obj_expr;
+				      NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+				      noop->set_line(*this);
+				      return noop;
+				}
+			cerr << get_fileline() << ": error: Unable to lower dynamic "
+			     << "virtual-interface call to `" << method_name
+			     << "' without selecting a physical instance." << endl;
+				des->errors += 1;
+				delete obj_expr;
+				NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+				noop->set_line(*this);
+				return noop;
+			  }
+		  cerr << get_fileline() << ": error: No compatible physical "
+		       << "interface instance provides task `" << method_name
+		       << "' for dynamic virtual-interface dispatch (IEEE "
+			  "1800-2017/2023 25.9)." << endl;
+			  des->errors += 1;
+			  delete obj_expr;
+			  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+			  noop->set_line(*this);
+			  return noop;
+		    }
 	    return elaborate_build_call_(des, scope, task, obj_expr, explicit_super);
       }
 
@@ -15520,6 +16499,22 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
       }
 
       if (NetAssign_*lv = actual->elaborate_lval(des, scope, false, false)) {
+	    const netclass_t*formal_vif =
+		  virtual_interface_type_(port->net_type());
+	    const netclass_t*actual_vif =
+		  virtual_interface_type_(lv->net_type());
+	    if ((formal_vif || actual_vif)
+		&& !(formal_vif && actual_vif
+		     && formal_vif->same_interface_type(actual_vif))) {
+		  const netclass_t*diag_target = actual_vif
+			? actual_vif : formal_vif;
+		  report_virtual_interface_assignment_mismatch_(
+			des, *actual, diag_target,
+			actual_vif ? formal_vif : nullptr);
+		  delete lv;
+		  return nullptr;
+	    }
+
 	      /* Only a whole variable can be named. Anything with a word
 		 index, a part select, a property or a slice designates
 		 storage inside a variable, which %ref/bind cannot
@@ -16351,6 +17346,24 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		  && copy_src->array_type()
 		  ? static_cast<ivl_type_t>(copy_src->array_type())
 		  : copy_src->net_type();
+	    const netclass_t*actual_vif =
+		  virtual_interface_type_(lv->net_type());
+	    const netclass_t*formal_vif =
+		  virtual_interface_type_(copy_src_type);
+	    if (actual_vif || formal_vif) {
+		  bool vif_compatible = actual_vif && formal_vif
+			&& actual_vif->interface_assignment_compatible_from(
+			      formal_vif);
+		  if (!vif_compatible) {
+			const netclass_t*diag_target = actual_vif
+			      ? actual_vif : formal_vif;
+			report_virtual_interface_assignment_mismatch_(
+			      des, *this, diag_target,
+			      actual_vif ? formal_vif : nullptr);
+			delete lv;
+			continue;
+		  }
+	    }
 	    bool assoc_copyback = port->port_type() == NetNet::POUTPUT
 		  && (assoc_array_type_contains(lv->net_type())
 		      || assoc_array_type_contains(copy_src_type));
@@ -22911,6 +23924,11 @@ bool Module::elaborate(Design*des, NetScope*scope) const
 	      // behaviors so that task calls may reference these, and after
 	      // the signals so that the tasks can reference them.
 	    elaborate_tasks(des, scope, tasks);
+
+	      // A full modport import prototype is checked at elaboration even
+	      // when no virtual-interface call uses it (IEEE 1800-2017/2023 25.7).
+	    if (is_interface)
+		  validate_interface_modport_import_prototypes_(this, des, scope);
 
 	      // M11-2/3: auto-sampling processes for standalone
 	      // covergroup instances and class-embedded covergroups
@@ -32137,21 +33155,27 @@ static void seed_design_precision_(Design*des)
 	des->set_precision(unit->time_precision);
 }
 
-/* Return true when TYPE contains a queue/associative-array leaf below a fixed
+/* Return true when TYPE contains a dynamic-container leaf below a fixed
  * unpacked dimension. Signal-backed unpacked structs retain member types as a
  * nested netstruct_t, so checking only the NetNet's top-level shape would let
- * `struct { int q[N][$]; }' escape the storage boundary. Do not descend through
- * class handles: their non-static instance properties have their own storage. */
-static bool type_has_fixed_queue_leaf_(ivl_type_t type, bool below_fixed)
+ * `struct { int q[N][$]; }' escape the storage boundary. Descend through Q/D/A
+ * containers so a still-unsupported fixed layer inside a recursive container
+ * cannot escape merely because the outermost leaf is now supported. Do not
+ * descend through class handles: their non-static instance properties have
+ * their own storage. */
+static bool type_has_fixed_container_leaf_(ivl_type_t type, bool below_fixed)
 {
       if (!type)
 	    return false;
 
-      if (dynamic_cast<const netqueue_t*>(type))
-	    return below_fixed;
-
       if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type))
-	    return type_has_fixed_queue_leaf_(array->element_type(), true);
+	    return type_has_fixed_container_leaf_(array->element_type(), true);
+
+      if (const netdarray_t*array = dynamic_cast<const netdarray_t*>(type)) {
+	    if (below_fixed)
+		  return true;
+	    return type_has_fixed_container_leaf_(array->element_type(), false);
+      }
 
       if (const netstruct_t*struct_type =
 	    dynamic_cast<const netstruct_t*>(type)) {
@@ -32160,7 +33184,7 @@ static bool type_has_fixed_queue_leaf_(ivl_type_t type, bool below_fixed)
 		     * member remains independent in every struct value even when the
 		     * struct itself is in a fixed signal array. Only fixed dimensions
 		     * introduced inside the member type cross the unsupported boundary. */
-		  if (type_has_fixed_queue_leaf_(member.net_type, false))
+		  if (type_has_fixed_container_leaf_(member.net_type, false))
 			return true;
 	    }
       }
@@ -32176,30 +33200,29 @@ static bool type_has_fixed_queue_leaf_(ivl_type_t type, bool below_fixed)
  * a legal mutator into a silent no-op. Container wrappers outside the struct
  * do not change this boundary; class handles do, and are intentionally not
  * traversed. */
-static bool type_has_struct_nested_fixed_queue_leaf_(ivl_type_t type)
+static bool type_has_struct_nested_fixed_container_leaf_(ivl_type_t type)
 {
       if (!type || dynamic_cast<const netclass_t*>(type))
 	    return false;
 
       if (const netstruct_t*struct_type =
 	    dynamic_cast<const netstruct_t*>(type))
-	    return type_has_fixed_queue_leaf_(struct_type, false);
+	    return type_has_fixed_container_leaf_(struct_type, false);
 
       if (const netarray_t*array_type =
 	    dynamic_cast<const netarray_t*>(type))
-	    return type_has_struct_nested_fixed_queue_leaf_(
+	    return type_has_struct_nested_fixed_container_leaf_(
 		  array_type->element_type());
 
       return false;
 }
 
-/* A fixed unpacked array with a queue/associative-array leaf is currently
- * representable only by non-static instance-class property storage. PWire and
- * static class properties flatten the fixed dimensions onto a NetNet and
- * leave the queue leaf in net_type(); the VVP signal-array backend cannot
- * construct an independent queue/map object in every word yet. Diagnose that
- * boundary after signal elaboration, when the same source type's property-vs-
- * signal storage is unambiguous. */
+/* A direct fixed unpacked prefix around a Q/D/A leaf is represented by object
+ * array storage: the fixed dimensions live in array_type() and the recursive
+ * dynamic-container value lives in net_type(). Aggregate layers between those
+ * two storage domains still lack a faithful slot carrier. Diagnose only that
+ * residual boundary after signal elaboration, when the same source type's
+ * property-vs-signal storage is unambiguous. */
 static unsigned diagnose_signal_backed_fixed_queue_arrays_(
       Design*des, NetScope*scope, set<const NetScope*>&seen)
 {
@@ -32225,11 +33248,11 @@ static unsigned diagnose_signal_backed_fixed_queue_arrays_(
 			      continue;
 			ivl_type_t prop_type = class_type->get_prop_type(
 			      static_cast<size_t>(pidx));
-			if (!type_has_struct_nested_fixed_queue_leaf_(prop_type))
+			if (!type_has_struct_nested_fixed_container_leaf_(prop_type))
 			      continue;
 
 			cerr << decl.second.get_fileline() << ": sorry: a fixed array "
-			     << "of queues or associative arrays nested inside an "
+			     << "of dynamic-container values nested inside an "
 			     << "unpacked-struct class property is not yet supported; "
 			     << "the supported instance-class form is a direct fixed "
 			     << "array property." << endl;
@@ -32244,28 +33267,19 @@ static unsigned diagnose_signal_backed_fixed_queue_arrays_(
 	    if (!sig)
 		  continue;
 
-	    const bool has_fixed_queue_leaf = type_has_fixed_queue_leaf_(
+	    const bool has_fixed_queue_leaf = type_has_fixed_container_leaf_(
 		  sig->net_type(), sig->unpacked_dimensions() != 0);
 	    if (!has_fixed_queue_leaf)
 		  continue;
 
-	      /* A direct fixed prefix around an associative-array leaf is
-	       * represented by VVP's object-array storage. Each word owns one map
-	       * handle, and selected whole-map reads/writes use %load/%store/obja.
-	       * Keep diagnosing ordinary queues/darrays and every struct-nested
-	       * form: those shapes need additional aggregate/lazy-allocation
-	       * lowering and must not become silent successes. */
-	    const netqueue_t*direct_assoc =
-		  dynamic_cast<const netqueue_t*>(sig->net_type());
-	    if (sig->unpacked_dimensions() != 0 && direct_assoc
-		&& direct_assoc->assoc_compat()) {
-		  ivl_type_t elem_type = direct_assoc->element_type();
-		  ivl_variable_type_t elem_base = elem_type
-			? elem_type->base_type() : IVL_VT_NO_TYPE;
-		  if (elem_base == IVL_VT_BOOL || elem_base == IVL_VT_LOGIC
-		      || elem_base == IVL_VT_REAL || elem_base == IVL_VT_STRING)
-			continue;
-	    }
+	      /* Every direct fixed Q/D/A leaf is an object-array word. The runtime
+	       * carrier preserves the leaf's complete recursive Q/D/A layout. A
+	       * further fixed layer within that dynamic chain remains unsupported,
+	       * so test the leaf independently before admitting this shape. */
+	    if (sig->unpacked_dimensions() != 0
+		&& dynamic_cast<const netdarray_t*>(sig->net_type())
+		&& !type_has_fixed_container_leaf_(sig->net_type(), false))
+		  continue;
 
 	    string location = sig->get_fileline();
 	    if (scope->type() == NetScope::CLASS) {
@@ -32279,10 +33293,9 @@ static unsigned diagnose_signal_backed_fixed_queue_arrays_(
 		  }
 	    }
 
-	    cerr << location << ": sorry: array of queue type is not yet "
-		 << "supported for signal-backed declarations; this form is "
-		 << "currently supported only as a non-static instance-class "
-		 << "property." << endl;
+	    cerr << location << ": sorry: this fixed array of dynamic-container "
+		 << "values has an aggregate nesting that object-array storage "
+		 << "does not yet represent." << endl;
 	    des->errors += 1;
 	    count += 1;
       }

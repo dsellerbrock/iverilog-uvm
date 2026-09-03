@@ -1,0 +1,7 @@
+./ivltests/sv_vif_modport_prototype_fail.v:9: error: Modport prototype for `calculate' does not match its interface subroutine declaration (IEEE 1800-2017/2023 25.7).
+./ivltests/sv_vif_modport_prototype_fail.v:17: error: Modport prototype for `calculate' does not match its interface subroutine declaration (IEEE 1800-2017/2023 25.7).
+./ivltests/sv_vif_modport_prototype_fail.v:52: error: Modport prototype for `calculate' does not match its interface subroutine declaration (IEEE 1800-2017/2023 25.7).
+./ivltests/sv_vif_modport_prototype_fail.v:53: error: Modport prototype for `calculate' does not match its interface subroutine declaration (IEEE 1800-2017/2023 25.7).
+./ivltests/sv_vif_modport_prototype_fail.v:54: error: A full modport prototype is required for named argument binding or default arguments in `calculate' (IEEE 1800-2017/2023 25.7).
+./ivltests/sv_vif_modport_prototype_fail.v:55: error: A full modport prototype is required for named argument binding or default arguments in `calculate' (IEEE 1800-2017/2023 25.7).
+6 error(s) during elaboration.

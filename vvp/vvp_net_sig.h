@@ -357,6 +357,15 @@ class vvp_fun_signal_object : public vvp_fun_signal_base {
       class_type*& declared_type_ref() { return declared_type_; }
       void default_object_kind(init_obj_kind_t kind) { default_object_kind_ = kind; }
       init_obj_kind_t default_object_kind() const { return default_object_kind_; }
+      void default_container_layout(const vvp_container_layout_t&value)
+      { default_container_layout_ = value; }
+      const vvp_container_layout_t&default_container_layout() const
+      { return default_container_layout_; }
+      uint64_t default_queue_max_size() const
+      { return default_container_layout_
+             && default_container_layout_->kind == VVP_CONTAINER_QUEUE
+             && default_container_layout_->queue_bound_known
+             ? default_container_layout_->queue_max_size : 0; }
 
       virtual vvp_object_t get_object() const =0;
       virtual vvp_object_t peek_object() const =0;
@@ -366,10 +375,13 @@ class vvp_fun_signal_object : public vvp_fun_signal_base {
                                        vvp_context_t context) =0;
     protected:
       vvp_object_t make_default_object() const;
+      vvp_object_t prepare_received_container_object(
+	    const vvp_object_t&incoming, const vvp_object_t&current) const;
     private:
       unsigned size_;
       class_type* declared_type_;
       init_obj_kind_t default_object_kind_ = INIT_OBJ_NONE;
+      vvp_container_layout_t default_container_layout_;
 };
 
 /*
@@ -587,6 +599,80 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
       unsigned context_idx_;
       unsigned size_;
       mutable std::string string_cache_;
+};
+
+/*
+ * A captured writable expression used by mailbox get/peek methods.
+ *
+ * The mailbox operations can suspend, so evaluating an output argument
+ * after %mbx/get resumes is observably wrong: its receiver or index may
+ * have changed in the meantime. This small object records the selected
+ * storage before the mailbox operation and owns every handle needed to
+ * keep that storage alive. It is intentionally a value on the object
+ * stack, so normal thread teardown also releases a capture abandoned by a
+ * killed blocked process.
+ */
+class vvp_lvalue_ref : public vvp_object {
+    public:
+      enum value_kind_t { VALUE_VEC4, VALUE_REAL, VALUE_STRING, VALUE_OBJECT };
+
+      static vvp_object_t capture_net(vvp_net_t*net, vvp_context_t context,
+                                      value_kind_t kind, unsigned width);
+      static vvp_object_t capture_property(const vvp_object_t&receiver,
+                                           unsigned property, int64_t index,
+                                           value_kind_t kind, unsigned width);
+      static vvp_object_t capture_element(const vvp_object_t&container,
+                                          int64_t index, value_kind_t kind,
+                                          unsigned width);
+      static vvp_object_t capture_assoc_element(
+            const vvp_object_t&container, const std::string&key,
+            value_kind_t kind, unsigned width);
+      static vvp_object_t capture_assoc_element(
+            const vvp_object_t&container, const vvp_object_t&key,
+            value_kind_t kind, unsigned width);
+      static vvp_object_t capture_assoc_element(
+            const vvp_object_t&container, const vvp_vector4_t&key,
+            value_kind_t kind, unsigned width);
+      static vvp_object_t capture_word(struct __vpiArray*array,
+                                       int64_t index, value_kind_t kind,
+                                       unsigned width);
+
+      ~vvp_lvalue_ref() override;
+      void shallow_copy(const vvp_object*that) override;
+      vvp_object*duplicate(void) const override;
+
+      value_kind_t value_kind() const { return value_kind_; }
+      unsigned value_width() const { return width_; }
+      vvp_object_t mutation_receiver() const;
+      void set_part(int64_t base, bool valid);
+      void store_vec4(const vvp_vector4_t&value);
+      void store_real(double value);
+      void store_string(const std::string&value);
+      void store_object(const vvp_object_t&value);
+
+    private:
+      enum storage_kind_t { STORAGE_NET, STORAGE_PROPERTY,
+                            STORAGE_ELEMENT, STORAGE_WORD };
+
+      vvp_lvalue_ref(storage_kind_t storage, value_kind_t value,
+                     unsigned width);
+      bool read_vec4_(vvp_vector4_t&value) const;
+      void write_vec4_(const vvp_vector4_t&value);
+
+      storage_kind_t storage_kind_;
+      value_kind_t value_kind_;
+      unsigned width_;
+      bool part_select_;
+      bool part_valid_;
+      int64_t part_base_;
+
+      vvp_net_t*net_;
+      vvp_context_t context_;
+      vvp_object_t object_;
+      vvp_container_layout_t object_layout_;
+      unsigned property_;
+      int64_t index_;
+      struct __vpiArray*array_;
 };
 
 

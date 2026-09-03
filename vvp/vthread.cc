@@ -672,6 +672,15 @@ struct vthread_s {
       {
             return stack_obj_size_;
       }
+      inline void swap_object_top(void)
+      {
+            assert(stack_obj_size_ >= 2);
+            size_t top = stack_obj_size_ - 1;
+            size_t below = stack_obj_size_ - 2;
+            std::swap(stack_obj_[top], stack_obj_[below]);
+            std::swap(stack_obj_root_[top], stack_obj_root_[below]);
+            std::swap(stack_obj_net_[top], stack_obj_net_[below]);
+      }
       inline void push_object(const vvp_object_t&obj, vvp_net_t*root_net,
                               const vvp_object_t&root_obj)
       {
@@ -2750,6 +2759,7 @@ template <class VVP_QUEUE> static vvp_queue*get_queue_object(vthread_t thr, vvp_
 		  }
 	    }
 	    queue = new VVP_QUEUE;
+	    queue->set_declared_container_layout(obj->default_container_layout());
 	    vvp_object_t val (queue);
 	    vvp_net_ptr_t ptr (net, 0);
 	    vvp_send_object(ptr, val, ensure_write_context_(thr, "queue-init"));
@@ -3267,6 +3277,34 @@ static bool qshuffle_dispatch_(vvp_darray*arr)
       return true;
 }
 
+/* Pop a value-container ordering receiver together with its mutation root.
+ * The three object-stack deques are consumed through pop_object(), keeping
+ * the value/root/net entries aligned. This is required for property and
+ * nested receivers: routing them through a named scratch signal performs a
+ * SystemVerilog value copy and would reorder only the scratch value. */
+static vvp_darray* pop_queue_order_receiver_(
+      vthread_t thr, const char*opcode, vvp_object_t&recv,
+      vvp_net_t*&root_net, vvp_object_t&root_obj)
+{
+      if (thr->object_stack_size() == 0) {
+            cerr << thr->get_fileline() << "VVP error: malformed " << opcode
+                 << " has no object receiver." << endl;
+            root_net = 0;
+            root_obj = vvp_object_t();
+            recv = vvp_object_t();
+            return 0;
+      }
+
+      root_net = thr->peek_object_source_net(0);
+      root_obj = thr->peek_object_root(0);
+      thr->pop_object(recv);
+      vvp_darray*arr = recv.peek<vvp_darray>();
+      if (!arr)
+            cerr << thr->get_fileline() << "Warning: " << opcode
+                 << " on a null or non-container value was skipped." << endl;
+      return arr;
+}
+
 bool of_QREVERSE(vthread_t thr, vvp_code_t cp)
 {
       (void)thr;
@@ -3277,6 +3315,19 @@ bool of_QREVERSE(vthread_t thr, vvp_code_t cp)
       return qreverse_dispatch_(arr);
 }
 
+bool of_QREVERSE_O(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t recv, root_obj;
+      vvp_net_t*root_net = 0;
+      vvp_darray*arr = pop_queue_order_receiver_(
+            thr, "%qreverse/o", recv, root_net, root_obj);
+      if (!arr) return true;
+      qreverse_dispatch_(arr);
+      notify_mutated_object_root_(thr, recv, root_net, root_obj,
+                                  "queue-reverse-object");
+      return true;
+}
+
 bool of_QSHUFFLE(vthread_t thr, vvp_code_t cp)
 {
       (void)thr;
@@ -3285,6 +3336,19 @@ bool of_QSHUFFLE(vthread_t thr, vvp_code_t cp)
       vvp_object_t obj = fun->get_object();
       vvp_darray*arr = obj.peek<vvp_darray>();
       return qshuffle_dispatch_(arr);
+}
+
+bool of_QSHUFFLE_O(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t recv, root_obj;
+      vvp_net_t*root_net = 0;
+      vvp_darray*arr = pop_queue_order_receiver_(
+            thr, "%qshuffle/o", recv, root_net, root_obj);
+      if (!arr) return true;
+      qshuffle_dispatch_(arr);
+      notify_mutated_object_root_(thr, recv, root_net, root_obj,
+                                  "queue-shuffle-object");
+      return true;
 }
 
 /*
@@ -4222,12 +4286,12 @@ static void qsort_by_keys_elem_dispatch_(vvp_darray*q, vector<KEY>&keys,
             qsort_with_keys_helper_<vvp_vector4_t, KEY>(q, keys, reverse);
 }
 
-static void qsort_with_keys_dispatch_(vvp_darray*q, vvp_darray*keys_arr,
+static bool qsort_with_keys_dispatch_(vvp_darray*q, vvp_darray*keys_arr,
                                       bool reverse)
 {
-      if (!q || !keys_arr) return;
+      if (!q || !keys_arr) return false;
       size_t sz = q->get_size();
-      if (sz != keys_arr->get_size()) return;
+      if (sz != keys_arr->get_size()) return false;
 
       if (dynamic_cast<vvp_queue_string*>(keys_arr)
           || dynamic_cast<vvp_darray_string*>(keys_arr)) {
@@ -4235,7 +4299,7 @@ static void qsort_with_keys_dispatch_(vvp_darray*q, vvp_darray*keys_arr,
             for (size_t i = 0; i < sz; i++)
                   keys_arr->get_word((unsigned)i, keys[i]);
             qsort_by_keys_elem_dispatch_<string>(q, keys, reverse);
-            return;
+            return true;
       }
 
       if (dynamic_cast<vvp_queue_real*>(keys_arr)
@@ -4244,7 +4308,7 @@ static void qsort_with_keys_dispatch_(vvp_darray*q, vvp_darray*keys_arr,
             for (size_t i = 0; i < sz; i++)
                   keys_arr->get_word((unsigned)i, keys[i]);
             qsort_by_keys_elem_dispatch_<double>(q, keys, reverse);
-            return;
+            return true;
       }
 
       // Default: signed 32-bit integral keys.
@@ -4258,6 +4322,7 @@ static void qsort_with_keys_dispatch_(vvp_darray*q, vvp_darray*keys_arr,
             keys[i] = (int32_t)u;
       }
       qsort_by_keys_elem_dispatch_<int32_t>(q, keys, reverse);
+      return true;
 }
 
 bool of_QSORT_KEYS(vthread_t thr, vvp_code_t cp)
@@ -4282,6 +4347,36 @@ bool of_QRSORT_KEYS(vthread_t thr, vvp_code_t cp)
       vvp_darray*k = kfun->get_object().peek<vvp_darray>();
       qsort_with_keys_dispatch_(q, k, true);
       return true;
+}
+
+static bool qsort_keys_object_receiver_(vthread_t thr, vvp_code_t cp,
+                                        bool reverse, const char*opcode,
+                                        const char*where)
+{
+      vvp_object_t recv, root_obj;
+      vvp_net_t*root_net = 0;
+      vvp_darray*q = pop_queue_order_receiver_(
+            thr, opcode, recv, root_net, root_obj);
+      vvp_fun_signal_object*kfun = cp->net
+            ? dynamic_cast<vvp_fun_signal_object*>(cp->net->fun) : 0;
+      vvp_darray*k = kfun ? kfun->get_object().peek<vvp_darray>() : 0;
+      if (!q || !k) return true;
+
+      if (qsort_with_keys_dispatch_(q, k, reverse))
+            notify_mutated_object_root_(thr, recv, root_net, root_obj, where);
+      return true;
+}
+
+bool of_QSORT_KEYS_O(vthread_t thr, vvp_code_t cp)
+{
+      return qsort_keys_object_receiver_(thr, cp, false, "%qsort/keys/o",
+                                         "queue-sort-keys-object");
+}
+
+bool of_QRSORT_KEYS_O(vthread_t thr, vvp_code_t cp)
+{
+      return qsort_keys_object_receiver_(thr, cp, true, "%qrsort/keys/o",
+                                         "queue-rsort-keys-object");
 }
 
 /* unique with key extractor: retain one element for each distinct key. */
@@ -4335,17 +4430,11 @@ static void qunique_by_keys_elem_dispatch_(vvp_darray*q, vector<KEY>&keys)
             qunique_keys_helper_<vvp_vector4_t, KEY>(q, keys);
 }
 
-bool of_QUNIQUE_KEYS(vthread_t thr, vvp_code_t cp)
+static bool qunique_with_keys_dispatch_(vvp_darray*q, vvp_darray*k)
 {
-      (void)thr;
-      vvp_fun_signal_object*qfun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
-      vvp_fun_signal_object*kfun = dynamic_cast<vvp_fun_signal_object*>(cp->net2->fun);
-      if (!qfun || !kfun) return true;
-      vvp_darray*q = qfun->get_object().peek<vvp_darray>();
-      vvp_darray*k = kfun->get_object().peek<vvp_darray>();
-      if (!q || !k) return true;
+      if (!q || !k) return false;
       size_t sz = q->get_size();
-      if (sz != k->get_size()) return true;
+      if (sz != k->get_size()) return false;
 
       if (dynamic_cast<vvp_queue_string*>(k)
           || dynamic_cast<vvp_darray_string*>(k)) {
@@ -4382,10 +4471,53 @@ bool of_QUNIQUE_KEYS(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+bool of_QUNIQUE_KEYS(vthread_t thr, vvp_code_t cp)
+{
+      (void)thr;
+      vvp_fun_signal_object*qfun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
+      vvp_fun_signal_object*kfun = dynamic_cast<vvp_fun_signal_object*>(cp->net2->fun);
+      if (!qfun || !kfun) return true;
+      qunique_with_keys_dispatch_(
+            qfun->get_object().peek<vvp_darray>(),
+            kfun->get_object().peek<vvp_darray>());
+      return true;
+}
+
+bool of_QUNIQUE_KEYS_O(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t recv, root_obj;
+      vvp_net_t*root_net = 0;
+      vvp_darray*q = pop_queue_order_receiver_(
+            thr, "%qunique/keys/o", recv, root_net, root_obj);
+      vvp_fun_signal_object*kfun = cp->net
+            ? dynamic_cast<vvp_fun_signal_object*>(cp->net->fun) : 0;
+      vvp_darray*k = kfun ? kfun->get_object().peek<vvp_darray>() : 0;
+      if (q && qunique_with_keys_dispatch_(q, k))
+            notify_mutated_object_root_(thr, recv, root_net, root_obj,
+                                        "queue-unique-keys-object");
+      return true;
+}
+
 /* %qsort <sig>, <signed-flag> (and /r, %qunique): the flag carries
  * the declared element signedness — vec4-backed queues do not encode
  * it in their C++ type (G72: negative ints sorted in unsigned word
  * order without it). */
+static bool qsort_object_receiver_(vthread_t thr, vvp_code_t cp,
+                                   bool reverse, bool unique_only,
+                                   const char*opcode, const char*where)
+{
+      vvp_object_t recv, root_obj;
+      vvp_net_t*root_net = 0;
+      vvp_darray*arr = pop_queue_order_receiver_(
+            thr, opcode, recv, root_net, root_obj);
+      if (!arr) return true;
+
+      qsort_unique_dispatch_(arr, reverse, unique_only,
+                             cp->bit_idx[0] != 0);
+      notify_mutated_object_root_(thr, recv, root_net, root_obj, where);
+      return true;
+}
+
 bool of_QSORT(vthread_t thr, vvp_code_t cp)
 {
       vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
@@ -4393,6 +4525,12 @@ bool of_QSORT(vthread_t thr, vvp_code_t cp)
       vvp_object_t obj = fun->get_object();
       vvp_darray*arr = obj.peek<vvp_darray>();
       return qsort_unique_dispatch_(arr, false, false, cp->bit_idx[0] != 0);
+}
+
+bool of_QSORT_O(vthread_t thr, vvp_code_t cp)
+{
+      return qsort_object_receiver_(thr, cp, false, false, "%qsort/o",
+                                    "queue-sort-object");
 }
 
 bool of_QSORT_R(vthread_t thr, vvp_code_t cp)
@@ -4404,6 +4542,12 @@ bool of_QSORT_R(vthread_t thr, vvp_code_t cp)
       return qsort_unique_dispatch_(arr, true, false, cp->bit_idx[0] != 0);
 }
 
+bool of_QSORT_R_O(vthread_t thr, vvp_code_t cp)
+{
+      return qsort_object_receiver_(thr, cp, true, false, "%qsort/r/o",
+                                    "queue-rsort-object");
+}
+
 bool of_QUNIQUE(vthread_t thr, vvp_code_t cp)
 {
       vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*>(cp->net->fun);
@@ -4411,6 +4555,12 @@ bool of_QUNIQUE(vthread_t thr, vvp_code_t cp)
       vvp_object_t obj = fun->get_object();
       vvp_darray*arr = obj.peek<vvp_darray>();
       return qsort_unique_dispatch_(arr, false, true, cp->bit_idx[0] != 0);
+}
+
+bool of_QUNIQUE_O(vthread_t thr, vvp_code_t cp)
+{
+      return qsort_object_receiver_(thr, cp, false, true, "%qunique/o",
+                                    "queue-unique-object");
 }
 
 /* Snapshot every runtime representation a rand property can use. A recursive
@@ -8726,6 +8876,26 @@ inline static void print_queue_value(const vvp_vector4_t&value)
 inline static void print_queue_value(const vvp_object_t&)
 {
       cerr << "<object>";
+}
+
+/* Queue/darray storage still exposes unsigned element indexes. Keep exact
+ * uint64_t declaration bounds separate from that ABI and reject a selector
+ * that would otherwise wrap to an unrelated element. */
+static bool container_index_fits_runtime_api_(int64_t index)
+{
+      return index >= 0 && static_cast<uint64_t>(index) <= UINT_MAX;
+}
+
+static bool container_index_exceeds_runtime_range_(vthread_t thr,
+						   int64_t index)
+{
+      if (index < 0 || container_index_fits_runtime_api_(index))
+	    return false;
+      cerr << thr->get_fileline()
+	   << "Warning: container index " << index
+	   << " exceeds the runtime index range (0:" << UINT_MAX
+	   << "); operation was ignored." << endl;
+      return true;
 }
 
 /*
@@ -15221,6 +15391,8 @@ bool of_DELETE_ELEM(vthread_t thr, vvp_code_t cp)
 	         << endl;
 	    return true;
       }
+      if (container_index_exceeds_runtime_range_(thr, idx_val))
+	    return true;
       size_t idx = idx_val;
 
       vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (net->fun);
@@ -15276,6 +15448,11 @@ bool of_DELETE_O_ELEM(vthread_t thr, vvp_code_t)
 		    cerr << thr->get_fileline()
 		         << "Warning: skipping queue delete() with negative index."
 		         << endl;
+		    return true;
+	      }
+	      if (container_index_exceeds_runtime_range_(thr, idx_val)) {
+		    vvp_object_t ignored_receiver;
+		    thr->pop_object(ignored_receiver);
 		    return true;
 	      }
 	      size_t idx = idx_val;
@@ -15948,7 +16125,16 @@ bool of_DUP_OBJ(vthread_t thr, vvp_code_t)
 bool of_DUP_OBJ_REF(vthread_t thr, vvp_code_t)
 {
       vvp_object_t src = thr->peek_object();
-      thr->push_object(src);
+      vvp_net_t*root_net = thr->peek_object_source_net(0);
+      vvp_object_t root_obj = thr->peek_object_root(0);
+      thr->push_object(src, root_net, root_obj);
+      return true;
+}
+
+/* Swap the top two object values together with their alias provenance. */
+bool of_SWAP_OBJ(vthread_t thr, vvp_code_t)
+{
+      thr->swap_object_top();
       return true;
 }
 
@@ -18436,8 +18622,10 @@ bool of_LOAD_DAR_OBJ_VEC4(vthread_t thr, vvp_code_t cp)
       adr = darray_canonical_index_(darray, adr);
 
       vvp_vector4_t word;
-      if (darray && (adr >= 0) && (thr->flags[4] == BIT4_0))
-            darray->get_word((unsigned)adr, word);
+      if (darray && container_index_fits_runtime_api_(adr)
+	  && (thr->flags[4] == BIT4_0)
+	  && static_cast<uint64_t>(adr) < darray->get_size())
+            darray->get_word(static_cast<unsigned>(adr), word);
 
 
       thr->push_vec4(word);
@@ -19196,6 +19384,26 @@ static inline void container_value_copy_(vvp_vector4_t&) { }
 static inline void container_value_copy_(double&) { }
 static inline void container_value_copy_(std::string&) { }
 
+static inline void apply_declared_child_container_layout_(
+      const vvp_object*parent, vvp_object_t&child)
+{
+      if (!parent)
+	    return;
+      const vvp_container_layout_t child_layout =
+	    parent->declared_element_container_layout();
+      if (vvp_object*value = child.peek<vvp_object>()) {
+	    /* Repeated element mutations normally revisit a bound child. Avoid
+	     * walking its complete populated subtree unless the declaration tail
+	     * actually changes. Whole-container stores call the setter directly
+	     * and deliberately force recursive rebinding. */
+	    if (value->declared_container_layout() != child_layout)
+		  value->set_declared_container_layout(child_layout);
+      }
+}
+template <typename VALUE>
+static inline void apply_declared_child_container_layout_(
+      const vvp_object*, VALUE&) { }
+
 template <typename ELEM, class ASSOC>
 static bool aa_store_str(vthread_t thr, unsigned wid=0)
 {
@@ -19207,6 +19415,7 @@ static bool aa_store_str(vthread_t thr, unsigned wid=0)
       vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
       if (assoc) {
+	    apply_declared_child_container_layout_(assoc, value);
 	    assoc->set(key, value);
 	    notify_mutated_object_root_(thr, recv,
 					thr->peek_object_source_net(0),
@@ -19230,6 +19439,7 @@ static bool aa_store_obj(vthread_t thr, unsigned wid=0)
       vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
       if (assoc) {
+	    apply_declared_child_container_layout_(assoc, value);
 	    assoc->set(key, value);
 	    notify_mutated_object_root_(thr, recv,
 					thr->peek_object_source_net(0),
@@ -19262,6 +19472,7 @@ static bool aa_store_vec(vthread_t thr, unsigned wid=0)
       vvp_object_t recv = thr->peek_object();
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
       if (assoc) {
+	    apply_declared_child_container_layout_(assoc, value);
 	    assoc->set(key, value);
 	    notify_mutated_object_root_(thr, recv,
 					thr->peek_object_source_net(0),
@@ -19674,6 +19885,7 @@ static bool aa_store_signal(vthread_t thr, vvp_net_t*net, unsigned wid=0)
       KEY key = pop_assoc_key_<KEY>(thr);
       ASSOC*assoc = ensure_signal_assoc_<ASSOC>(thr, net, "aa-store-sig");
       if (assoc) {
+	    apply_declared_child_container_layout_(assoc, value);
             assoc->set(key, value);
 	    notify_mutated_object_signal_(thr, net, "aa-store-sig");
       }
@@ -19748,6 +19960,7 @@ static vvp_object_t aa_viv_common_(vthread_t thr, vvp_assoc_object*assoc,
 		  assoc->set(key, value);
 		  changed = true;
 	    }
+	    apply_declared_child_container_layout_(assoc, value);
       }
       return value;
 }
@@ -20500,10 +20713,13 @@ static bool aa_loadlv_o_queue(vthread_t thr, const char*enc)
 
       if (assoc && (!have || value.test_nil())) {
 	    value = make_queue_for_enc_(enc);
+	    apply_declared_child_container_layout_(assoc, value);
 	    if (!value.test_nil()) {
 		  assoc->set(key, value);
 		  changed = true;
 	    }
+      } else if (assoc) {
+	    apply_declared_child_container_layout_(assoc, value);
       }
 
       if (changed)
@@ -20550,10 +20766,13 @@ bool of_QDAR_LOADLV_O(vthread_t thr, vvp_code_t cp)
 	    arr->get_word((unsigned)adr, value);
 	    if (value.test_nil()) {
 		  value = make_queue_for_enc_(cp->text);
+		  apply_declared_child_container_layout_(arr, value);
 		  if (!value.test_nil()) {
 			arr->set_word((unsigned)adr, value);
 			changed = true;
 		  }
+	    } else {
+		  apply_declared_child_container_layout_(arr, value);
 	    }
       }
 
@@ -20837,7 +21056,7 @@ static size_t fixed_copy_source_index_(
 
 static bool load_arr_dar_window_(vthread_t thr, vvp_code_t cp,
 				 vvp_array_t array, size_t base, size_t count,
-				 int left, unsigned queue_max_size,
+				 int left, uint64_t queue_max_size,
 				 const char*opcode)
 {
       uint32_t kind = cp->bit_idx[0];
@@ -20913,6 +21132,11 @@ static bool load_arr_dar_window_(vthread_t thr, vvp_code_t cp,
 	    dar->dpi_set_decl_range(left, right);
       }
 
+      if (queue)
+	    queue->set_declared_container_layout(vvp_make_container_layout(
+		  VVP_CONTAINER_QUEUE, true, queue_max_size,
+		  vvp_container_layout_t()));
+
       thr->push_object(obj);
       return true;
 }
@@ -20924,7 +21148,7 @@ bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t cp)
       uint32_t kind = cp->bit_idx[0];
       unsigned second = cp->bit_idx[1];
       int left = ARRDAR_QUEUE(kind) ? 0 : (int)(int32_t)second;
-      unsigned queue_max_size = ARRDAR_QUEUE(kind) ? second : 0;
+      uint64_t queue_max_size = ARRDAR_QUEUE(kind) ? second : 0;
       return load_arr_dar_window_(thr, cp, array, 0, count, left,
 				  queue_max_size, "%load/arr/dar");
 }
@@ -21382,13 +21606,16 @@ bool of_LOAD_OBJA(vthread_t thr, vvp_code_t cp)
 	    return true;
       }
 
-	/* The result is 0.0 if the address is undefined. */
-      if (thr->flags[4] == BIT4_1) {
-	    ; // Return nil
-      } else {
-	    unsigned adr = thr->words[idx].w_int;
-	    array->get_word_obj(adr, word);
-      }
+	/* An undefined or unrepresentable selector returns nil. Do not narrow a
+	 * legal 64-bit SystemVerilog index through the unsigned fixed-array API:
+	 * 64'h1_0000_0000 must not alias word zero. */
+	const int64_t adr = thr->words[idx].w_int;
+	/* Legacy images use %ix/load for a constant object-array address without
+	 * clearing flag 4. A fresh thread initializes that flag to X, so only the
+	 * explicit BIT4_1 invalid-address marker may suppress this load. */
+	if (thr->flags[4] != BIT4_1
+	    && container_index_fits_runtime_api_(adr))
+	      array->get_word_obj(static_cast<unsigned>(adr), word);
 
       thr->push_object(word);
       return true;
@@ -22251,6 +22478,8 @@ struct stream_with_desc_t {
       bool four_state;
       int64_t aux1;
       int64_t aux2;
+      uint64_t unsigned_aux1;
+      bool aux1_is_unsigned;
 };
 
 struct stream_with_plan_t {
@@ -22264,7 +22493,8 @@ enum stream_with_plan_phase_t {
 };
 
 static bool parse_stream_with_desc_(vthread_t thr, const char*text,
-				     stream_with_desc_t&desc)
+				     stream_with_desc_t&desc,
+				     bool allow_unsigned_aux1 = false)
 {
       static bool warned_malformed = false;
       const auto malformed = [&]() {
@@ -22310,6 +22540,8 @@ static bool parse_stream_with_desc_(vthread_t thr, const char*text,
       desc.four_state = true;
       desc.aux1 = 0;
       desc.aux2 = 0;
+      desc.unsigned_aux1 = 0;
+      desc.aux1_is_unsigned = false;
       if (!text) return malformed();
 
       string spec(text);
@@ -22341,7 +22573,15 @@ static bool parse_stream_with_desc_(vthread_t thr, const char*text,
 	    string aux1 = spec.substr(max_colon + 1,
 		  aux2_colon == string::npos ? string::npos
 		                              : aux2_colon-max_colon-1);
-	    if (!parse_int(aux1, desc.aux1)) return malformed();
+	    if (!parse_int(aux1, desc.aux1)) {
+		  if (!allow_unsigned_aux1
+		      || !parse_uint(aux1, desc.unsigned_aux1))
+			return malformed();
+		  desc.aux1_is_unsigned = true;
+	    } else if (allow_unsigned_aux1 && desc.aux1 >= 0) {
+		  desc.unsigned_aux1 = static_cast<uint64_t>(desc.aux1);
+		  desc.aux1_is_unsigned = true;
+	    }
 	    if (aux2_colon != string::npos) {
 		  string aux2 = spec.substr(aux2_colon + 1);
 		  if (!parse_int(aux2, desc.aux2)) return malformed();
@@ -22831,7 +23071,7 @@ static bool stream_to_container_with_(vthread_t thr, vvp_code_t cp,
       vvp_vector4_t selected = thr->pop_vec4();
       vvp_object_t old_obj;
       thr->pop_object(old_obj);
-	  if (!parse_stream_with_desc_(thr, cp->text, desc)
+	  if (!parse_stream_with_desc_(thr, cp->text, desc, as_queue)
 	      || !make_stream_with_plan_(thr, cp, desc, plan, false,
 					 STREAM_PLAN_TARGET_SECOND)) {
 	    thr->push_object(old_obj);
@@ -22849,7 +23089,10 @@ static bool stream_to_container_with_(vthread_t thr, vvp_code_t cp,
       uint64_t wanted_size = plan.count ? max(old_size, max_index+1)
 	                               : old_size;
       uint64_t limit_elems = STREAM_WITH_MAX_BITS / desc.elem_width;
-      uint64_t queue_max = desc.aux1 > 0 ? (uint64_t)desc.aux1 : 0;
+      vvp_queue*old_queue = old_obj.peek<vvp_queue>();
+      uint64_t queue_max = old_queue && old_queue->declared_queue_bound_known()
+	    ? old_queue->declared_queue_max_size()
+	    : (desc.aux1_is_unsigned ? desc.unsigned_aux1 : 0);
       if (as_queue && queue_max && wanted_size > queue_max) {
 	    cerr << thr->get_fileline()
 		 << "VVP error: streaming `with' selection exceeds bounded queue "
@@ -22882,7 +23125,7 @@ static bool stream_to_container_with_(vthread_t thr, vvp_code_t cp,
 	    vvp_queue_vec4*q = new vvp_queue_vec4;
 	    for (uint64_t pos = 0 ; pos < wanted_size ; pos += 1) {
 		  vvp_vector4_t elem = normalize_stream_elem_(old, pos, desc, false);
-		  q->push_back(elem, (unsigned)queue_max);
+		  q->push_back(elem, queue_max);
 	    }
 	    result_obj = vvp_object_t(q);
 	    result = q;
@@ -22913,6 +23156,15 @@ static bool stream_to_container_with_(vthread_t thr, vvp_code_t cp,
 			       selected.subvalue(top-avail, avail));
 	    elem = coerce_stream_elem_(elem, desc.four_state);
 	    result->set_word((unsigned)index, elem);
+      }
+
+      if (vvp_object*object = result_obj.peek<vvp_object>()) {
+	    const vvp_container_layout_t old_layout = old
+		  ? old->declared_container_layout() : vvp_container_layout_t();
+	    object->set_declared_container_layout(old_layout ? old_layout
+		  : vvp_make_container_layout(
+			as_queue ? VVP_CONTAINER_QUEUE : VVP_CONTAINER_DARRAY,
+			as_queue, queue_max, vvp_container_layout_t()));
       }
       thr->push_object(result_obj);
       return true;
@@ -23306,12 +23558,14 @@ static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
 		  unsigned avail = (top >= ewid) ? ewid : top;
 		  elem.set_vec(ewid - avail, val.subvalue(top - avail, avail));
 		  elem = coerce_stream_elem_(elem, four_state);
-		  /* COUNT was already clipped or validated against the full
-		   * uint64_t bound. Reapplying it through the legacy unsigned API
-		   * would wrap bounds above UINT_MAX. */
-		  res->push_back(elem, 0);
+		  /* COUNT was already clipped or validated against the exact
+		   * uint64_t declaration bound. */
+		  res->push_back(elem, queue_max);
 	    }
 	    vvp_object_t obj(res);
+	    res->set_declared_container_layout(vvp_make_container_layout(
+		  VVP_CONTAINER_QUEUE, true, queue_max,
+		  vvp_container_layout_t()));
 	    thr->push_object(obj);
       } else {
 	    vvp_darray*res = four_state
@@ -23325,6 +23579,8 @@ static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
 		  res->set_word((unsigned)i, elem);
 	    }
 	    vvp_object_t obj(res);
+	    res->set_declared_container_layout(vvp_make_container_layout(
+		  VVP_CONTAINER_DARRAY, false, 0, vvp_container_layout_t()));
 	    thr->push_object(obj);
       }
 
@@ -23785,6 +24041,70 @@ static bool container_opcode_runtime_fatal_()
       return false;
 }
 
+/* Install an exact queue declaration bound on the object at the top of the
+ * stack without changing the stack. This complements legacy materialization
+ * instructions whose packed operands cannot carry a uint64_t maximum. */
+bool of_CONTAINER_LAYOUT_Q(vthread_t thr, vvp_code_t cp)
+{
+      if (thr->object_stack_size() < 1) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: %container/layout/q is missing its queue receiver."
+		 << endl;
+	    return container_opcode_runtime_fatal_();
+      }
+      vvp_object_t&obj = thr->peek_object();
+      if (obj.test_nil())
+	    return true;
+      vvp_queue*queue = obj.peek<vvp_queue>();
+      if (!queue) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: %container/layout/q receiver is not a queue."
+		 << endl;
+	    return container_opcode_runtime_fatal_();
+      }
+      queue->set_declared_container_layout(vvp_make_container_layout(
+	    VVP_CONTAINER_QUEUE, true, cp->number,
+	    queue->declared_element_container_layout()));
+      return true;
+}
+
+/* Apply the destination queue's declared upper bound after a value has been
+ * privately copied. The common queue indexing API is unsigned, but a bound
+ * above UINT_MAX remains exact: such a queue can only be shortened by
+ * removing its tail one element at a time if it ever grows that large. */
+bool of_QUEUE_TRIM_O(vthread_t thr, vvp_code_t cp)
+{
+      if (thr->object_stack_size() < 1) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: %queue/trim/o is missing its queue receiver."
+		 << endl;
+	    return container_opcode_runtime_fatal_();
+      }
+      vvp_object_t&obj = thr->peek_object();
+      if (obj.test_nil())
+	    return true;
+      vvp_queue*queue = obj.peek<vvp_queue>();
+      if (!queue) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: %queue/trim/o receiver is not a queue." << endl;
+	    return container_opcode_runtime_fatal_();
+      }
+
+      const uint64_t max_size = cp->number;
+      if (max_size && static_cast<uint64_t>(queue->get_size()) > max_size) {
+	    if (max_size <= UINT_MAX) {
+		  queue->erase_tail(static_cast<unsigned>(max_size));
+	    } else {
+		  while (static_cast<uint64_t>(queue->get_size()) > max_size)
+			queue->pop_back();
+	    }
+      }
+      queue->set_declared_container_layout(vvp_make_container_layout(
+	    VVP_CONTAINER_QUEUE, true, max_size,
+	    queue->declared_element_container_layout()));
+      return true;
+}
+
 static vvp_vector4_t coerce_container_vector_(
       const vvp_vector4_t&value, const container_element_encoding_t&enc)
 {
@@ -23812,6 +24132,10 @@ bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)
                  << text << "." << endl;
             assert(0);
       }
+
+      if (vvp_object*value = obj.peek<vvp_object>())
+	    value->set_declared_container_layout(vvp_make_container_layout(
+		  VVP_CONTAINER_DARRAY, false, 0, vvp_container_layout_t()));
 
       thr->push_object(obj);
 
@@ -23860,6 +24184,11 @@ static vvp_object_t materialize_darray_for_enc_(
             }
 	    src->copy_passive_value_metadata_to(dst);
       }
+	/* This destination-typed temporary starts a dynamic-array layout. A
+	 * named/property destination or outer parent later installs the complete
+	 * declaration chain. */
+      dst->set_declared_container_layout(vvp_make_container_layout(
+	    VVP_CONTAINER_DARRAY, false, 0, vvp_container_layout_t()));
 
       if (elem_class_override)
 	    dst->set_elem_class(elem_class_override);
@@ -23942,7 +24271,7 @@ static vvp_object_t make_queue_for_enc_(const char*text)
  * copy, after which a declared unpacked-struct prototype (when supplied) wins
  * over metadata carried by the source object's runtime type. */
 static vvp_object_t materialize_queue_for_enc_(
-      const vvp_object_t&src_obj, const char*text, unsigned max_size,
+      const vvp_object_t&src_obj, const char*text, uint64_t max_size,
       const class_type*elem_class_override, bool&valid)
 {
       vvp_darray*src = src_obj.peek<vvp_darray>();
@@ -23967,6 +24296,9 @@ static vvp_object_t materialize_queue_for_enc_(
 	    src->copy_passive_value_metadata_to(dst);
       }
 
+      dst->set_declared_container_layout(vvp_make_container_layout(
+	    VVP_CONTAINER_QUEUE, true, max_size, vvp_container_layout_t()));
+
       if (elem_class_override)
 	    dst->set_elem_class(elem_class_override);
 
@@ -23985,14 +24317,17 @@ bool of_CONTAINER_TO_QUEUE(vthread_t thr, vvp_code_t cp)
 {
       vvp_object_t src_obj;
       thr->pop_object(src_obj);
+      const vvp_container_opcode_data_s*data = cp->container_data;
       bool valid = false;
       vvp_object_t dst_obj = materialize_queue_for_enc_(
-	    src_obj, cp->text, cp->bit_idx[0], 0, valid);
+	    src_obj, data ? data->element_encoding : 0,
+	    data ? data->max_size : 0, 0, valid);
 
-      if (!valid) {
+	if (!data || !valid) {
 	    cerr << get_fileline()
 		 << "VVP error: malformed %container/to/queue element encoding '"
-		 << (cp->text ? cp->text : "<null>") << "'." << endl;
+		 << (data && data->element_encoding
+		       ? data->element_encoding : "<null>") << "'." << endl;
 	    thr->push_object(dst_obj);
 	    return container_opcode_runtime_fatal_();
       }
@@ -24011,6 +24346,13 @@ bool of_NEW_QUEUE(vthread_t thr, vvp_code_t cp)
 		 << "Internal error: Unsupported queue type: "
 		 << text << "." << endl;
 	    assert(0);
+      }
+
+      if (vvp_object*value = obj.peek<vvp_object>()) {
+	    const bool is_assoc = obj.peek<vvp_assoc_base>() != 0;
+	    value->set_declared_container_layout(vvp_make_container_layout(
+		  is_assoc ? VVP_CONTAINER_ASSOC : VVP_CONTAINER_QUEUE,
+		  !is_assoc, 0, vvp_container_layout_t()));
       }
 
       thr->push_object(obj);
@@ -25339,6 +25681,7 @@ static bool qinsert(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 
       vvp_queue*queue = get_queue_object<QTYPE>(thr, net);
       assert(queue);
+      apply_declared_child_container_layout_(queue, value);
       if (idx < 0) {
 	    cerr << thr->get_fileline()
 	         << "Warning: cannot insert at a negative "
@@ -25352,8 +25695,10 @@ static bool qinsert(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 	         << get_queue_type(value) << " index. ";
 	    print_queue_value(value);
 	    cerr << " was not added." << endl;
+      } else if (container_index_exceeds_runtime_range_(thr, idx)) {
+	    /* The value has already been popped; keep this a diagnosed no-op. */
       } else {
-	    unsigned max_size = thr->words[cp->bit_idx[0]].w_int;
+	    const uint64_t max_size = thr->words[cp->bit_idx[0]].w_uint;
 	    queue->insert(idx, value, max_size);
             notify_mutated_object_signal_(thr, net, "queue-insert");
       }
@@ -25392,9 +25737,19 @@ bool of_QINSERT_V(vthread_t thr, vvp_code_t cp)
       return qinsert<vvp_vector4_t, vvp_queue_vec4>(thr, cp, cp->bit_idx[1]);
 }
 
-static unsigned object_queue_max_count_(vvp_code_t cp)
+static uint64_t object_queue_max_count_(vvp_code_t cp,
+					  const vvp_queue*queue = 0)
 {
-      return cp->number > UINT_MAX ? UINT_MAX : (unsigned)cp->number;
+      if (queue && queue->declared_queue_bound_known())
+	    return queue->declared_queue_max_size();
+      return cp->number;
+}
+
+static uint64_t live_queue_max_count_(const vvp_queue*queue)
+{
+      if (!queue || !queue->declared_queue_bound_known())
+	    return 0;
+      return queue->declared_queue_max_size();
 }
 
 template <typename ELEM, class QTYPE>
@@ -25410,6 +25765,7 @@ static bool qinsert_o(vthread_t thr, vvp_code_t cp, unsigned wid=0)
       QTYPE*queue = pop_queue_receiver_<QTYPE>(thr, recv, root_net, root_obj);
       if (!queue)
 	    return true;
+      apply_declared_child_container_layout_(queue, value);
 
       if (idx < 0) {
 	    cerr << thr->get_fileline()
@@ -25424,8 +25780,10 @@ static bool qinsert_o(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 	         << get_queue_type(value) << " index. ";
 	    print_queue_value(value);
 	    cerr << " was not added." << endl;
+      } else if (container_index_exceeds_runtime_range_(thr, idx)) {
+	    /* Never narrow an SV index through vvp_queue::insert(unsigned). */
       } else {
-            queue->insert(idx, value, object_queue_max_count_(cp));
+            queue->insert(idx, value, object_queue_max_count_(cp, queue));
             notify_mutated_object_root_(thr, recv, root_net, root_obj,
                                         "queue-insert-o");
       }
@@ -25841,6 +26199,366 @@ bool of_REF_BIND_W(vthread_t thr, vvp_code_t cp)
 	    formal->bind_word(0, 0);
       else
 	    formal->bind_word(cp->array, (unsigned)use_index);
+      return true;
+}
+
+static bool captured_ref_kind_(vthread_t thr, uint64_t raw,
+                               vvp_lvalue_ref::value_kind_t&kind)
+{
+      if (raw <= (uint64_t)vvp_lvalue_ref::VALUE_OBJECT) {
+            kind = static_cast<vvp_lvalue_ref::value_kind_t>(raw);
+            return true;
+      }
+      cerr << thr->get_fileline() << "Invalid mailbox ref-output value kind "
+           << raw << "." << endl;
+      return false;
+}
+
+static int64_t captured_ref_index_(vthread_t thr, bool honor_flag = true)
+{
+      if (honor_flag && thr->flags[4] != BIT4_0)
+            return -1;
+      return thr->words[3].w_int;
+}
+
+/* %ref/capture <net>, <kind>, <width> */
+bool of_REF_CAPTURE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_lvalue_ref::value_kind_t kind;
+      if (!captured_ref_kind_(thr, cp->bit_idx[0], kind)) {
+            thr->push_object(vvp_object_t());
+            return true;
+      }
+      thr->push_object(vvp_lvalue_ref::capture_net(
+            cp->net, vthread_get_rd_context(), kind, cp->bit_idx[1]));
+      return true;
+}
+
+/* %ref/capture/el <container-net>, <kind>, <width> -- index is ix3. */
+bool of_REF_CAPTURE_EL(vthread_t thr, vvp_code_t cp)
+{
+      vvp_lvalue_ref::value_kind_t kind;
+      if (!captured_ref_kind_(thr, cp->bit_idx[0], kind)) {
+            thr->push_object(vvp_object_t());
+            return true;
+      }
+      vvp_object_t container;
+      if (vvp_fun_signal_object*fun = signal_object_fun_(cp->net))
+            container = fun->peek_object();
+      vvp_object_t ref = vvp_lvalue_ref::capture_element(
+            container, captured_ref_index_(thr), kind, cp->bit_idx[1]);
+        /* Do not retain the selected container as its own provenance root.
+         * A whole assignment while get/peek is blocked must be able to
+         * destroy the old container and detach this element ref. The live
+         * cell supplies the current receiver again at writeback. */
+      thr->push_object(ref, cp->net, vvp_object_t());
+      return true;
+}
+
+/* One flag for the whole runtime, not one per instantiation: the capture
+ * helper below is a template over the key type, so a function-local static
+ * would warn once for integer keys and again for string keys. */
+static bool warned_assoc_capture_nil_ = false;
+
+template <class KEY>
+static bool ref_capture_assoc_signal_(vthread_t thr, vvp_code_t cp,
+                                      const KEY&key)
+{
+      vvp_lvalue_ref::value_kind_t kind;
+      if (!captured_ref_kind_(thr, cp->bit_idx[0], kind)) {
+            thr->push_object(vvp_object_t());
+            return true;
+      }
+      vvp_object_t container;
+      if (vvp_fun_signal_object*fun = signal_object_fun_(cp->net)) {
+            container = fun->peek_object();
+
+	      /* An associative-array VARIABLE that has never been written
+	       * still holds nil, because its empty default container is
+	       * materialized lazily on first l-value access. Capturing a ref
+	       * against that nil silently dropped the retrieval: the element
+	       * was never created and the map stayed empty, so
+	       * `mbx.get(map[key])' on a fresh map left the target at its
+	       * default and size() at 0 with no diagnostic. Materialize the
+	       * same empty default the store path installs, then capture
+	       * against it. */
+            if (!container.peek<vvp_assoc_base>()) {
+                  vvp_object_t fresh;
+                  switch (kind) {
+                      case vvp_lvalue_ref::VALUE_VEC4:
+                        fresh = vvp_object_t(new vvp_assoc_map<vvp_vector4_t>);
+                        break;
+                      case vvp_lvalue_ref::VALUE_REAL:
+                        fresh = vvp_object_t(new vvp_assoc_map<double>);
+                        break;
+                      case vvp_lvalue_ref::VALUE_STRING:
+                        fresh = vvp_object_t(new vvp_assoc_map<string>);
+                        break;
+                      case vvp_lvalue_ref::VALUE_OBJECT:
+                        fresh = vvp_object_t(new vvp_assoc_map<vvp_object_t>);
+                        break;
+                  }
+                  if (!fresh.test_nil()) {
+                        vvp_send_object(vvp_net_ptr_t(cp->net, 0), fresh,
+                                        ensure_write_context_(
+                                              thr, "mbx-aa-capture"));
+                        container = fun->peek_object();
+                  }
+
+                    /* Degrade loudly instead of capturing against nil a
+                     * second time. Falling through silently here is the
+                     * exact failure this change removes, so an unhandled
+                     * value kind or a store that does not take effect must
+                     * not look like a map the program simply left empty. */
+                  if (!container.peek<vvp_assoc_base>()
+                      && !warned_assoc_capture_nil_) {
+                        warned_assoc_capture_nil_ = true;
+                        fprintf(stderr, "Warning: could not materialize the "
+                                "associative container for a mailbox "
+                                "ref-output target; the retrieved value is "
+                                "dropped.\n");
+                  }
+            }
+      }
+      vvp_object_t ref = vvp_lvalue_ref::capture_assoc_element(
+            container, key, kind, cp->bit_idx[1]);
+      thr->push_object(ref, cp->net, vvp_object_t());
+      return true;
+}
+
+/* %ref/capture/aa/{obj,str,v} <net>, <kind>, <width> -- pop key. */
+bool of_REF_CAPTURE_AA_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t key;
+      thr->pop_object(key);
+      return ref_capture_assoc_signal_(thr, cp, key);
+}
+
+bool of_REF_CAPTURE_AA_STR(vthread_t thr, vvp_code_t cp)
+{
+      string key = thr->pop_str();
+      return ref_capture_assoc_signal_(thr, cp, key);
+}
+
+bool of_REF_CAPTURE_AA_V(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t key = thr->pop_vec4();
+      return ref_capture_assoc_signal_(thr, cp, key);
+}
+
+template <class KEY>
+static bool ref_capture_assoc_object_(vthread_t thr, vvp_code_t cp,
+                                      const KEY&key,
+                                      const vvp_object_t&container,
+                                      vvp_net_t*root_net,
+                                      vvp_object_t root_obj)
+{
+      vvp_lvalue_ref::value_kind_t kind;
+      if (!captured_ref_kind_(thr, cp->bit_idx[0], kind)) {
+            thr->push_object(vvp_object_t(), root_net, root_obj);
+            return true;
+      }
+      if (root_obj == container) root_obj = vvp_object_t();
+      vvp_object_t ref = vvp_lvalue_ref::capture_assoc_element(
+            container, key, kind, cp->bit_idx[1]);
+      thr->push_object(ref, root_net, root_obj);
+      return true;
+}
+
+/* %ref/capture/aa/o/{str,v} <kind>, <width> -- pop container; key is on
+ * its value stack. */
+bool of_REF_CAPTURE_AA_O_STR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*root_net = thr->peek_object_source_net(0);
+      vvp_object_t root_obj = thr->peek_object_root(0);
+      string key = thr->pop_str();
+      vvp_object_t container;
+      thr->pop_object(container);
+      return ref_capture_assoc_object_(thr, cp, key, container,
+                                       root_net, root_obj);
+}
+
+bool of_REF_CAPTURE_AA_O_V(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*root_net = thr->peek_object_source_net(0);
+      vvp_object_t root_obj = thr->peek_object_root(0);
+      vvp_vector4_t key = thr->pop_vec4();
+      vvp_object_t container;
+      thr->pop_object(container);
+      return ref_capture_assoc_object_(thr, cp, key, container,
+                                       root_net, root_obj);
+}
+
+/* Object keys and the receiver share the object stack: key is depth zero,
+ * receiver/provenance is depth one. */
+bool of_REF_CAPTURE_AA_O_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*root_net = thr->peek_object_source_net(1);
+      vvp_object_t root_obj = thr->peek_object_root(1);
+      vvp_object_t key;
+      thr->pop_object(key);
+      vvp_object_t container;
+      thr->pop_object(container);
+      return ref_capture_assoc_object_(thr, cp, key, container,
+                                       root_net, root_obj);
+}
+
+/* %ref/capture/el/o <kind>, <width> -- pop container, index is ix3. */
+bool of_REF_CAPTURE_EL_O(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*root_net = thr->peek_object_source_net(0);
+      vvp_object_t root_obj = thr->peek_object_root(0);
+      vvp_object_t container;
+      thr->pop_object(container);
+      vvp_lvalue_ref::value_kind_t kind;
+      if (!captured_ref_kind_(thr, cp->number, kind)) {
+            thr->push_object(vvp_object_t(), root_net, root_obj);
+            return true;
+      }
+      vvp_object_t ref = vvp_lvalue_ref::capture_element(
+            container, captured_ref_index_(thr), kind, cp->bit_idx[0]);
+      if (root_obj == container) root_obj = vvp_object_t();
+      thr->push_object(ref, root_net, root_obj);
+      return true;
+}
+
+/* %ref/capture/pr <pid>, <kind>, <width> -- pop receiver. */
+bool of_REF_CAPTURE_PR(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*root_net = thr->peek_object_source_net(0);
+      vvp_object_t root_obj = thr->peek_object_root(0);
+      vvp_object_t receiver;
+      thr->pop_object(receiver);
+      vvp_lvalue_ref::value_kind_t kind;
+      if (!captured_ref_kind_(thr, cp->bit_idx[0], kind)) {
+            thr->push_object(vvp_object_t(), root_net, root_obj);
+            return true;
+      }
+      vvp_object_t ref = vvp_lvalue_ref::capture_property(
+            receiver, (unsigned)cp->number, 0, kind, cp->bit_idx[1]);
+      thr->push_object(ref, root_net, root_obj);
+      return true;
+}
+
+/* %ref/capture/pr/i <pid>, <kind>, <width> -- property index is ix3. */
+bool of_REF_CAPTURE_PR_I(vthread_t thr, vvp_code_t cp)
+{
+      vvp_net_t*root_net = thr->peek_object_source_net(0);
+      vvp_object_t root_obj = thr->peek_object_root(0);
+      vvp_object_t receiver;
+      thr->pop_object(receiver);
+      vvp_lvalue_ref::value_kind_t kind;
+      if (!captured_ref_kind_(thr, cp->bit_idx[0], kind)) {
+            thr->push_object(vvp_object_t(), root_net, root_obj);
+            return true;
+      }
+      vvp_object_t ref = vvp_lvalue_ref::capture_property(
+            receiver, (unsigned)cp->number,
+            captured_ref_index_(thr, false), kind, cp->bit_idx[1]);
+      thr->push_object(ref, root_net, root_obj);
+      return true;
+}
+
+/* %ref/capture/w <array>, <kind>, <width> -- canonical word is ix3. */
+bool of_REF_CAPTURE_W(vthread_t thr, vvp_code_t cp)
+{
+      vvp_lvalue_ref::value_kind_t kind;
+      if (!captured_ref_kind_(thr, cp->bit_idx[0], kind)) {
+            thr->push_object(vvp_object_t());
+            return true;
+      }
+      int64_t index = captured_ref_index_(thr);
+      vvp_array_t array = resolve_runtime_array_(cp, "%ref/capture/w");
+      if (index < 0 || (uint64_t)index > UINT_MAX)
+            array = 0;
+      thr->push_object(vvp_lvalue_ref::capture_word(
+            array, index, kind, cp->bit_idx[1]));
+      return true;
+}
+
+/* %ref/part -- packed selection base is ix3 and validity is flag 4. */
+bool of_REF_PART(vthread_t thr, vvp_code_t)
+{
+      vvp_lvalue_ref*ref = thr->peek_object().peek<vvp_lvalue_ref>();
+      if (!ref) {
+            cerr << thr->get_fileline()
+                 << "%ref/part requires a captured l-value target." << endl;
+            return true;
+      }
+      ref->set_part(thr->words[3].w_int, thr->flags[4] == BIT4_0);
+      return true;
+}
+
+/*
+ * %ref/store/mbx
+ * Stack (top->bottom): mailbox item, captured target. Both are consumed.
+ */
+bool of_REF_STORE_MBX(vthread_t thr, vvp_code_t)
+{
+      if (thr->object_stack_size() < 2) {
+            cerr << thr->get_fileline()
+                 << "%ref/store/mbx object-stack underflow." << endl;
+            if (thr->object_stack_size()) thr->pop_object(1);
+            return true;
+      }
+
+      vvp_net_t*root_net = thr->peek_object_source_net(1);
+      vvp_object_t root_obj = thr->peek_object_root(1);
+      vvp_object_t target_obj = thr->peek_object(1);
+      vvp_lvalue_ref*target = target_obj.peek<vvp_lvalue_ref>();
+      vvp_object_t item;
+      thr->pop_object(item);
+      thr->pop_object(1);
+      if (!target) return true;
+
+      switch (target->value_kind()) {
+          case vvp_lvalue_ref::VALUE_VEC4: {
+            vvp_vector4_t value(target->value_width(), BIT4_0);
+            if (vvp_boxed_vec4*box = item.peek<vvp_boxed_vec4>())
+                  value = box->get_value();
+            target->store_vec4(value);
+            break;
+          }
+          case vvp_lvalue_ref::VALUE_REAL: {
+            vvp_boxed_real*box = item.peek<vvp_boxed_real>();
+            target->store_real(box ? box->get_value() : 0.0);
+            break;
+          }
+          case vvp_lvalue_ref::VALUE_STRING: {
+            vvp_boxed_string*box = item.peek<vvp_boxed_string>();
+            target->store_string(box ? box->get_value() : string());
+            break;
+          }
+          case vvp_lvalue_ref::VALUE_OBJECT:
+            target->store_object(item);
+            break;
+      }
+
+      vvp_object_t receiver = target->mutation_receiver();
+      if (!receiver.test_nil()) {
+            if (root_net && root_obj.test_nil()) root_obj = receiver;
+              /* A receiver or root variable can be rebound while the mailbox
+               * operation is parked. The captured element/property still
+               * belongs to the old object, but sending that old root through
+               * the variable's net would undo the later assignment. Preserve
+               * notifications on the retained objects without writing the
+               * stale handle back into a net that no longer aliases it. */
+            if (root_net && !root_obj.test_nil()) {
+                  vvp_fun_signal_object*root_fun =
+                        signal_object_fun_(root_net);
+                  if (!root_fun || root_fun->peek_object() != root_obj) {
+                        receiver.touch();
+                        receiver.notify_signal_aliases();
+                        if (root_obj != receiver) {
+                              root_obj.touch();
+                              root_obj.notify_signal_aliases();
+                        }
+                        return true;
+                  }
+            }
+            notify_mutated_object_root_(thr, receiver, root_net, root_obj,
+                                        "mailbox-ref-output");
+      }
       return true;
 }
 
@@ -26391,8 +27109,11 @@ bool of_FILL_DAR_OBJ_OBJ(vthread_t thr, vvp_code_t)
 
       vvp_object_t&top = thr->peek_object();
 
-      for (size_t idx = 0 ; idx < darray->get_size() ; idx += 1)
-	    darray->set_word((unsigned)idx, value.value_copy_element());
+      for (size_t idx = 0 ; idx < darray->get_size() ; idx += 1) {
+	    vvp_object_t stored = value.value_copy_element();
+	    apply_declared_child_container_layout_(darray, stored);
+	    darray->set_word((unsigned)idx, stored);
+      }
 
       notify_mutated_object_root_(thr, top, thr->peek_object_source_net(0),
 				  thr->peek_object_root(0), "fill-dar-obj-obj");
@@ -26425,17 +27146,20 @@ static bool set_dar_obj(vthread_t thr, vvp_code_t cp)
       if (vvp_queue*queue = top.peek<vvp_queue>()) {
 	    adr = darray_canonical_index_(queue, adr);
 	    if (adr < 0) return true;
+	    if (container_index_exceeds_runtime_range_(thr, adr)) return true;
 	    if (set_dar_obj_skip_obj_queue_(value) &&
 	        dynamic_cast<vvp_queue_object*>(queue)) {
 		  /* No-op: vec4-into-object-queue silently absorbed. */
 	    } else {
-		  queue->set_word_max(adr, value, 0);
+		  queue->set_word_max(
+			adr, value, live_queue_max_count_(queue));
 	    }
       } else {
 	    vvp_darray*darray = top.peek<vvp_darray>();
 	    if (!darray) return true;
 	    adr = darray_canonical_index_(darray, adr);
 	    if (adr < 0) return true;
+	    if (container_index_exceeds_runtime_range_(thr, adr)) return true;
 	    if (set_dar_obj_skip_obj_queue_(value) &&
 	        dynamic_cast<vvp_darray_object*>(darray)) {
 		  /* No-op. */
@@ -26465,17 +27189,22 @@ bool of_SET_DAR_OBJ_OBJ(vthread_t thr, vvp_code_t cp)
 
       vvp_object_t value;
       thr->pop_object(value);
+      container_value_copy_(value);
 
       vvp_object_t&top = thr->peek_object();
       if (vvp_queue*queue = top.peek<vvp_queue>()) {
 	    adr = darray_canonical_index_(queue, adr);
 	    if (adr < 0) return true;
-	    queue->set_word_max(adr, value, 0);
+	    if (container_index_exceeds_runtime_range_(thr, adr)) return true;
+	    apply_declared_child_container_layout_(queue, value);
+	    queue->set_word_max(adr, value, live_queue_max_count_(queue));
       } else {
 	    vvp_darray*darray = top.peek<vvp_darray>();
 	    assert(darray);
 	    adr = darray_canonical_index_(darray, adr);
 	    if (adr < 0) return true;
+	    if (container_index_exceeds_runtime_range_(thr, adr)) return true;
+	    apply_declared_child_container_layout_(darray, value);
 	    darray->set_word(adr, value);
       }
       notify_mutated_object_root_(thr, top, thr->peek_object_source_net(0),
@@ -26733,6 +27462,9 @@ static bool store_dar(vthread_t thr, vvp_code_t cp)
 	    cerr << thr->get_fileline()
 	         << "Warning: cannot write to an undefined " << get_darray_type(value)
 	         << " index." << endl;
+      else if (container_index_exceeds_runtime_range_(thr, adr)) {
+	    /* Diagnosed no-op: the darray API cannot represent this selector. */
+      }
       else if (darray) {
 	    /* Phase 63b/runtime-cleanup: object queues silently
 	       reject vec4 stores because the codegen sometimes emits
@@ -26824,6 +27556,9 @@ bool of_STORE_DAR_VEC4_OFF(vthread_t thr, vvp_code_t cp)
       else if (thr->flags[4] != BIT4_0)
 	    cerr << thr->get_fileline()
 	         << "Warning: cannot write to an undefined darray index." << endl;
+      else if (container_index_exceeds_runtime_range_(thr, adr)) {
+	    /* Diagnosed no-op: never narrow ADR below. */
+      }
       else if (darray) {
 	    vvp_vector4_t elem;
 	    darray->get_word(adr, elem);
@@ -26876,8 +27611,14 @@ bool of_STORE_DAR_OBJ(vthread_t thr, vvp_code_t cp)
 	    cerr << thr->get_fileline()
 	         << "Warning: cannot write to an undefined darray<object>"
 	         << " index." << endl;
+      else if (container_index_exceeds_runtime_range_(thr, adr)) {
+	    /* Diagnosed no-op: never narrow ADR below. */
+      }
       else if (darray)
-	    darray->set_word(adr, value);
+	    {
+	      apply_declared_child_container_layout_(darray, value);
+	      darray->set_word(adr, value);
+	    }
       else
 	    cerr << thr->get_fileline()
 	         << "Warning: cannot write to an undefined darray<object>"
@@ -26933,13 +27674,43 @@ bool of_STORE_OBJ(vthread_t thr, vvp_code_t cp)
 
       vvp_send_object(ptr, val, ensure_write_context_(thr, "store-obj"));
       if (vvp_fun_signal_object*fun = signal_object_fun_(cp->net)) {
+	    /* A Q/D/A signal receives values by copy. The receive functor can
+	     * therefore replace VAL with a private destination handle before
+	     * provenance is installed below. Recording VAL as the root would make
+	     * the first in-place element mutation send the stale source copy back
+	     * through CP->NET, erasing that mutation. Read the post-receive value
+	     * and make it the destination root whenever the receive changed the
+	     * handle. Class handles are not copied and retain their existing alias
+	     * provenance. */
+	      /* Only a CONTAINER is received by copy, so only a container can
+	       * come back from the functor as a different, private handle. A
+	       * class handle is stored as-is.
+	       *
+	       * The read-back matters because peek_object() resolves an
+	       * automatic signal through the thread's READ context while the
+	       * store above went through its WRITE context. Inside a
+	       * constructor invoked from another constructor those are
+	       * different frames, so peeking a class-handle `this' returned
+	       * the CALLER's object and redirected the destination's
+	       * provenance at it -- a nested `new' then aliased its own
+	       * parent (`root.child == root') and the inner property writes
+	       * landed on the outer object. Restricting the read-back to
+	       * containers keeps the Q/D/A copy fix and leaves class handles
+	       * on the unambiguous stored value. */
+	      /* Q and D are vvp_darray; A is vvp_assoc_base, a SIBLING of it
+	       * rather than a subclass, so both must be named here. */
+	    const bool received_by_copy = val.peek<vvp_darray>() != 0
+	          || val.peek<vvp_assoc_base>() != 0;
+	    const vvp_object_t stored_val = received_by_copy
+	          ? fun->peek_object() : val;
             /* If the incoming provenance refers to a different object than
              * the handle we are storing, this assignment creates a new alias
              * boundary and the destination handle must become the canonical
              * wakeup root for later in-place mutations. */
-            if (!src_root_net || src_root_obj.test_nil() || src_root_obj != val) {
+            if (stored_val != val || !src_root_net || src_root_obj.test_nil()
+		|| src_root_obj != val) {
                   src_root_net = cp->net;
-                  src_root_obj = val;
+		  src_root_obj = stored_val != val ? stored_val : val;
             }
             fun->set_root_provenance(src_root_net, src_root_obj,
                                      ensure_write_context_(thr, "store-obj-root"));
@@ -26984,7 +27755,25 @@ bool of_STORE_OBJ_OPEN(vthread_t thr, vvp_code_t cp)
       if (array && !array->sv_uses_declared_indexing())
 	    reverse_descending_fixed_dimensions_(array);
       activate_open_array_indices_(array);
-      return of_STORE_OBJ(thr, cp);
+      bool rc = of_STORE_OBJ(thr, cp);
+
+	/* A destination that carries a declared container layout receives the
+	 * container BY COPY, and the declared-INDEXING activation is
+	 * deliberately not carried onto a value copy (an ordinary
+	 * fixed-to-dynamic assignment is 0-based, IEEE 1800-2017 7.5). The
+	 * activation above therefore landed on the source handle while the
+	 * open-array formal goes on to read the destination's private copy,
+	 * which reported 0..N-1 instead of the actual's declared range and
+	 * broke every H.10.2 bound accessor. Re-activate on the value the
+	 * formal will actually see; the range itself is passive metadata and
+	 * has already been copied. */
+      if (vvp_fun_signal_object*fun = signal_object_fun_(cp->net)) {
+	    vvp_object_t stored = fun->peek_object();
+	    if (vvp_darray*dst = stored.peek<vvp_darray>())
+		  if (dst != array)
+			activate_open_array_indices_(dst);
+      }
+      return rc;
 }
 
 /*
@@ -27007,11 +27796,13 @@ bool of_STORE_OBJA(vthread_t thr, vvp_code_t cp)
       if (!array || thr->flags[4] != BIT4_0)
 	    return true;
 
-      unsigned adr = thr->words[idx].w_int;
-      if (adr >= array->get_size())
+      int64_t adr_wide = thr->words[idx].w_int;
+      if (adr_wide < 0
+	  || container_index_exceeds_runtime_range_(thr, adr_wide)
+	  || static_cast<uint64_t>(adr_wide) >= array->get_size())
 	    return true;
 
-      array->set_word(adr, val);
+      array->set_word(static_cast<unsigned>(adr_wide), val);
 
       return true;
 }
@@ -27640,12 +28431,13 @@ static bool store_qb(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 {
       ELEM value;
       vvp_net_t*net = cp->net;
-      unsigned max_size = thr->words[cp->bit_idx[0]].w_int;
+      const uint64_t max_size = thr->words[cp->bit_idx[0]].w_uint;
       pop_value(thr, value, wid); // Pop the value to store.
       container_value_copy_(value);
 
       vvp_queue*queue = get_queue_object<QTYPE>(thr, net);
       assert(queue);
+      apply_declared_child_container_layout_(queue, value);
       queue->push_back(value, max_size);
       notify_mutated_object_signal_(thr, net, "store-qb");
       return true;
@@ -27696,7 +28488,8 @@ static bool store_qo_b(vthread_t thr, vvp_code_t cp, unsigned wid=0)
       if (!queue)
 	    return true;
 
-      queue->push_back(value, object_queue_max_count_(cp));
+      apply_declared_child_container_layout_(queue, value);
+      queue->push_back(value, object_queue_max_count_(cp, queue));
       notify_mutated_object_root_(thr, recv, root_net, root_obj, "store-qo-b");
       return true;
 }
@@ -27749,8 +28542,12 @@ static bool store_qo_i(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 	         << " index; element was not stored." << endl;
 	    return true;
       }
+      if (container_index_exceeds_runtime_range_(thr, idx))
+	    return true;
       if (vvp_queue*queue = dynamic_cast<vvp_queue*>(dar)) {
-            queue->set_word_max(idx, value, object_queue_max_count_(cp));
+            apply_declared_child_container_layout_(queue, value);
+            queue->set_word_max(
+		  idx, value, object_queue_max_count_(cp, queue));
       } else {
 	    if ((uint64_t)idx >= dar->get_size()) {
 		  cerr << thr->get_fileline()
@@ -27759,6 +28556,7 @@ static bool store_qo_i(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 		       << "); element was not stored." << endl;
 		  return true;
 	    }
+	    apply_declared_child_container_layout_(dar, value);
 	    dar->set_word((unsigned)idx, value);
       }
       notify_mutated_object_root_(thr, recv, root_net, root_obj, "store-qo-i");
@@ -27817,6 +28615,7 @@ static bool store_qdar(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 
       vvp_queue*queue = get_queue_object<QTYPE>(thr, net);
       assert(queue);
+      apply_declared_child_container_layout_(queue, value);
       if (idx < 0) {
 	    cerr << thr->get_fileline()
 	         << "Warning: cannot assign to a negative "
@@ -27835,8 +28634,10 @@ static bool store_qdar(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 	         << get_queue_type(value) << " index. ";
 	    print_queue_value(value);
 	    cerr << " was not added." << endl;
+      } else if (container_index_exceeds_runtime_range_(thr, idx)) {
+	    /* Do not wrap through vvp_queue::set_word_max(unsigned). */
       } else {
-	    unsigned max_size = thr->words[cp->bit_idx[0]].w_int;
+	    const uint64_t max_size = thr->words[cp->bit_idx[0]].w_uint;
 	    queue->set_word_max(idx, value, max_size);
             notify_mutated_object_signal_(thr, net, "store-qdar");
       }
@@ -27882,6 +28683,7 @@ bool of_STORE_QDAR_OBJ(vthread_t thr, vvp_code_t cp)
       vvp_net_t*net = cp->net;
       vvp_queue*queue = get_queue_object<vvp_queue_object>(thr, net);
       assert(queue);
+      apply_declared_child_container_layout_(queue, value);
 
       if (idx < 0) {
 	    cerr << thr->get_fileline()
@@ -27889,11 +28691,14 @@ bool of_STORE_QDAR_OBJ(vthread_t thr, vvp_code_t cp)
 	         << " index (" << idx << "). Object was not added." << endl;
       } else {
 	    if (thr->flags[4] != BIT4_0) {
-		    /* Compile-progress fallback: undefined queue<object> index.
-		     * Skip the write silently. */
+		  cerr << thr->get_fileline()
+		       << "Warning: cannot assign to an undefined queue<object>"
+		       << " index. Object was not added." << endl;
 		  return true;
 	    }
-	    unsigned max_size = thr->words[cp->bit_idx[0]].w_int;
+	    if (container_index_exceeds_runtime_range_(thr, idx))
+		  return true;
+	    const uint64_t max_size = thr->words[cp->bit_idx[0]].w_uint;
 	    queue->set_word_max(idx, value, max_size);
             notify_mutated_object_signal_(thr, net, "store-qdar-obj");
       }
@@ -27905,12 +28710,13 @@ static bool store_qf(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 {
       ELEM value;
       vvp_net_t*net = cp->net;
-      unsigned max_size = thr->words[cp->bit_idx[0]].w_int;
+      const uint64_t max_size = thr->words[cp->bit_idx[0]].w_uint;
       pop_value(thr, value, wid); // Pop the value to store.
       container_value_copy_(value);
 
       vvp_queue*queue = get_queue_object<QTYPE>(thr, net);
       assert(queue);
+      apply_declared_child_container_layout_(queue, value);
       queue->push_front(value, max_size);
       notify_mutated_object_signal_(thr, net, "store-qf");
       return true;
@@ -27960,7 +28766,8 @@ static bool store_qo_f(vthread_t thr, vvp_code_t cp, unsigned wid=0)
       if (!queue)
 	    return true;
 
-      queue->push_front(value, object_queue_max_count_(cp));
+      apply_declared_child_container_layout_(queue, value);
+      queue->push_front(value, object_queue_max_count_(cp, queue));
       notify_mutated_object_root_(thr, recv, root_net, root_obj, "store-qo-f");
       return true;
 }
@@ -27995,6 +28802,13 @@ static bool store_qobj(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 
       vvp_queue*queue = get_queue_object<QTYPE>(thr, net);
       assert(queue);
+	/* The queue object is the storage owned by the destination variable.
+	 * Whole-container assignment copies the source value and its passive
+	 * element metadata, but it must not replace the destination declaration's
+	 * bounded-queue capacity. A later mutation through a matching VIF recovers
+	 * this exact bound from the live object. */
+      const vvp_container_layout_t destination_layout =
+	    queue->declared_container_layout();
 
       vvp_object_t src;
       thr->pop_object(src);
@@ -28004,11 +28818,14 @@ static bool store_qobj(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 	    queue->erase_tail(0);
 	    queue->reset_passive_value_metadata();
       } else {
-	    unsigned max_size = thr->words[cp->bit_idx[0]].w_int;
+	    const uint64_t max_size = queue->declared_queue_bound_known()
+		  ? queue->declared_queue_max_size()
+		  : thr->words[cp->bit_idx[0]].w_uint;
 	    queue->copy_elems(src, max_size);
 	    if (vvp_darray*src_container = src.peek<vvp_darray>())
 		  src_container->copy_passive_value_metadata_to(queue);
       }
+      queue->set_declared_container_layout(destination_layout);
       notify_mutated_object_signal_(thr, net, "store-qobj");
 
       return true;
@@ -28167,7 +28984,7 @@ bool of_STORE_QSLICE_V(vthread_t thr, vvp_code_t cp)
 
 template <typename ELEM, class DST_QTYPE, class SRC_TYPE>
 static void append_qobj_elements_(DST_QTYPE*queue, SRC_TYPE*src,
-                                  unsigned max_size, unsigned wid=0)
+                                  uint64_t max_size, unsigned wid=0)
 {
       size_t src_size = src->get_size();
 
@@ -28175,6 +28992,8 @@ static void append_qobj_elements_(DST_QTYPE*queue, SRC_TYPE*src,
             ELEM value;
             dq_default(value, wid);
             src->get_word(idx, value);
+	    container_value_copy_(value);
+	    apply_declared_child_container_layout_(queue, value);
             queue->push_back(value, max_size);
       }
 }
@@ -28192,7 +29011,7 @@ static bool append_qobj(vthread_t thr, vvp_code_t cp, unsigned wid=0)
       if (src.test_nil())
             return true;
 
-      unsigned max_size = thr->words[cp->bit_idx[0]].w_int;
+      const uint64_t max_size = thr->words[cp->bit_idx[0]].w_uint;
       if (vvp_queue*src_queue = src.peek<vvp_queue>())
             append_qobj_elements_<ELEM, QTYPE, vvp_queue>(
                   static_cast<QTYPE*>(queue), src_queue, max_size, wid);
@@ -28277,17 +29096,16 @@ static bool append_qo_obj_container_(vthread_t thr, vvp_code_t cp,
 	    return true;
 
       const vvp_container_opcode_data_s*data =
-	    has_proto ? cp->container_data : 0;
-      if (has_proto && !data) {
+	    inner_is_queue ? cp->container_data : 0;
+      if (inner_is_queue && !data) {
 	    cerr << thr->get_fileline()
-		 << "VVP error: malformed object-collection splice /proto "
+		 << "VVP error: malformed object-collection queue splice "
 		    "descriptor." << endl;
 	    return container_opcode_runtime_fatal_();
       }
 
-      const char*element_encoding =
-	    data ? data->element_encoding : cp->text;
-      const unsigned inner_max =
+      const char*element_encoding = data ? data->element_encoding : cp->text;
+      const uint64_t inner_max =
 	    data ? data->max_size : cp->bit_idx[0];
       container_element_encoding_t enc;
       if (!decode_container_element_encoding_(element_encoding, enc)) {
@@ -28348,6 +29166,8 @@ static bool append_qo_obj_container_(vthread_t thr, vvp_code_t cp,
 		       << (inner_is_queue ? "queue" : "dynamic array")
 		       << " was appended." << endl;
 	    }
+
+	    apply_declared_child_container_layout_(receiver, inner_target);
 
 	    /* inner_target is already a fresh value object, so storing its handle
 	     * directly preserves the one materialization/copy per source element. */
@@ -29847,6 +30667,10 @@ bool of_MBX_PUT(vthread_t thr, vvp_code_t)
 {
       vvp_object_t item_obj;
       thr->pop_object(item_obj);
+	/* The mailbox input formal is by value. Containers and unpacked
+	 * structs therefore get their own value here, while class handles and
+	 * immutable primitive boxes retain ordinary handle semantics. */
+      item_obj = item_obj.value_copy_element();
       vvp_object_t mbx_obj;
       thr->pop_object(mbx_obj);
 
@@ -29942,6 +30766,7 @@ bool of_MBX_TRY_PUT(vthread_t thr, vvp_code_t)
 {
       vvp_object_t item_obj;
       thr->pop_object(item_obj);
+      item_obj = item_obj.value_copy_element();
       vvp_object_t mbx_obj;
       thr->pop_object(mbx_obj);
 
