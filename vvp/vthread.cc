@@ -26236,6 +26236,11 @@ bool of_REF_CAPTURE_EL(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* One flag for the whole runtime, not one per instantiation: the capture
+ * helper below is a template over the key type, so a function-local static
+ * would warn once for integer keys and again for string keys. */
+static bool warned_assoc_capture_nil_ = false;
+
 template <class KEY>
 static bool ref_capture_assoc_signal_(vthread_t thr, vvp_code_t cp,
                                       const KEY&key)
@@ -26246,8 +26251,56 @@ static bool ref_capture_assoc_signal_(vthread_t thr, vvp_code_t cp,
             return true;
       }
       vvp_object_t container;
-      if (vvp_fun_signal_object*fun = signal_object_fun_(cp->net))
+      if (vvp_fun_signal_object*fun = signal_object_fun_(cp->net)) {
             container = fun->peek_object();
+
+	      /* An associative-array VARIABLE that has never been written
+	       * still holds nil, because its empty default container is
+	       * materialized lazily on first l-value access. Capturing a ref
+	       * against that nil silently dropped the retrieval: the element
+	       * was never created and the map stayed empty, so
+	       * `mbx.get(map[key])' on a fresh map left the target at its
+	       * default and size() at 0 with no diagnostic. Materialize the
+	       * same empty default the store path installs, then capture
+	       * against it. */
+            if (!container.peek<vvp_assoc_base>()) {
+                  vvp_object_t fresh;
+                  switch (kind) {
+                      case vvp_lvalue_ref::VALUE_VEC4:
+                        fresh = vvp_object_t(new vvp_assoc_map<vvp_vector4_t>);
+                        break;
+                      case vvp_lvalue_ref::VALUE_REAL:
+                        fresh = vvp_object_t(new vvp_assoc_map<double>);
+                        break;
+                      case vvp_lvalue_ref::VALUE_STRING:
+                        fresh = vvp_object_t(new vvp_assoc_map<string>);
+                        break;
+                      case vvp_lvalue_ref::VALUE_OBJECT:
+                        fresh = vvp_object_t(new vvp_assoc_map<vvp_object_t>);
+                        break;
+                  }
+                  if (!fresh.test_nil()) {
+                        vvp_send_object(vvp_net_ptr_t(cp->net, 0), fresh,
+                                        ensure_write_context_(
+                                              thr, "mbx-aa-capture"));
+                        container = fun->peek_object();
+                  }
+
+                    /* Degrade loudly instead of capturing against nil a
+                     * second time. Falling through silently here is the
+                     * exact failure this change removes, so an unhandled
+                     * value kind or a store that does not take effect must
+                     * not look like a map the program simply left empty. */
+                  if (!container.peek<vvp_assoc_base>()
+                      && !warned_assoc_capture_nil_) {
+                        warned_assoc_capture_nil_ = true;
+                        fprintf(stderr, "Warning: could not materialize the "
+                                "associative container for a mailbox "
+                                "ref-output target; the retrieved value is "
+                                "dropped.\n");
+                  }
+            }
+      }
       vvp_object_t ref = vvp_lvalue_ref::capture_assoc_element(
             container, key, kind, cp->bit_idx[1]);
       thr->push_object(ref, cp->net, vvp_object_t());

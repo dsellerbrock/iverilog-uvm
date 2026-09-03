@@ -421,12 +421,64 @@ element as a control for the path that already worked, a successful `try_get`
 through a property, and an empty `try_get` leaving the property untouched. On
 the exact-main compiler four of its checks are red.
 
-### Known limitation, unchanged
+### Follow-on: the signal-backed associative element (now fixed)
 
-`mi.get(assoc[key])` on a SIGNAL-backed associative array still fails to create
-or write the element -- `plain_map[3]` stays 0 and `size()` stays 0. That is
-pre-existing on `origin/main` at `dcd3f8fc1` and is a separate defect from the
-property path fixed here; it is not addressed in this increment.
+`mi.get(assoc[key])` on a SIGNAL-backed associative array failed to create or
+write the element -- the target read back as its default and `size()` stayed 0,
+with no diagnostic at compile or run time. Pre-existing on `origin/main` at
+`dcd3f8fc1`, and fixed here rather than deferred.
+
+An associative-array VARIABLE that has never been written still holds nil,
+because its empty default container is materialized lazily on first l-value
+access. `ref_capture_assoc_signal_()` captured against that nil and silently
+dropped the retrieval. On this branch a map written first already worked, which
+is exactly why the remaining half hid:
+
+    int m1[int];  mi.put(9); mi.get(m1[3]);   -> m1[3]=0, size=0   (want 9, 1)
+    int m2[int];  m2[1]=5; mi.put(7); mi.get(m2[3]); -> m2[3]=7    correct
+
+**That second line holds only against this branch's HEAD, not against main.**
+Measured on three separately built compilers, because the two baselines
+disagree and quoting the wrong one would credit this change with a fix an
+earlier commit made:
+
+| build | `sv_mailbox_ref_output_assoc_signal` |
+| --- | --- |
+| `origin/main` dcd3f8fc1 | 13 checks red -- the primed map fails here too |
+| branch HEAD 47103c725 (this fix stashed) | 11 checks red, primed map green |
+| branch HEAD + this fix | PASSED, `-g2017` and `-g2023` |
+
+The primed map was repaired by `c2f7ef393` (the class-property capture change),
+one commit earlier on this same branch, not by anything here. So it is a valid
+control for *this* increment and must not be described as untouched by the
+branch as a whole.
+
+The capture now materializes the same empty default the store path installs,
+selecting the container class from the captured value kind, and then captures
+against it. If that container still does not appear -- an unhandled value kind,
+or a store that does not take effect -- it now warns once on stderr rather than
+capturing against nil a second time, since a silent fall-through is the exact
+failure being removed.
+
+Regression `sv_mailbox_ref_output_assoc_signal` covers all four element
+representations the capture can select (vec4, string, real and object -- each
+is a distinct container class, so each is a distinct code path), a string key
+as an independent axis, and the primed-map control.
+
+Two `try_get` checks guard the fix rather than demonstrate it, and pass on all
+three builds by design: the capture materializes the empty container *before*
+it knows the retrieval will succeed, so a failing `try_get` is checked both on
+a map still nil at capture time (`never`) and on one an earlier successful
+`get` had already materialized (`vm`). Neither leaves an element behind.
+
+No test can reach the new warning, so it was exercised by temporarily forcing
+its guard true, and that immediately paid for itself: it printed **twice**.
+`ref_capture_assoc_signal_()` is a template over the key type, so the
+`static bool warned` idiom used elsewhere in this file becomes one flag per
+instantiation inside it — once for integer keys, once for string keys. The
+flag is now a file-scope `warned_assoc_capture_nil_`, re-forced to confirm a
+single line, and the force reverted. Worth remembering before reusing that
+idiom in any other template here.
 
 ## Addendum 4 — 2026-09-02 — DPI open-array declared range lost to a destination copy
 
