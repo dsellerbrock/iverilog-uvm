@@ -2147,17 +2147,25 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  if (slot) draw_eval_vec4(slot);
 		  else fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
 	    }
-	      /* Arm the 18.11 selector last, so nothing between it and
-	       * %randomize/with can consume it. */
-	    if (have_sel)
-		  fprintf(vvp_out, "    %%rand/active \"%.*s\";\n",
-			  (int)sel_len, sel_beg);
 	      /* %randomize/with consumes its object, so give it an aliasing
 	       * duplicate and retain the original for conditional post hooks. */
 	    if (obj_arg)
 		  fprintf(vvp_out, "    %%dup/obj/ref; randomize/with solve receiver\n");
-	    fprintf(vvp_out, "    %%randomize/with \"%s\", %u;\n", ir,
-		    n_vals | (scope_form ? 0x80000000u : 0u));
+            assert(parm_count > n_vals);
+            unsigned n_objs = parm_count - 1 - n_vals;
+            for (unsigned i = 0; i < n_objs; ++i)
+                  draw_eval_object(ivl_expr_parm(expr, 1 + n_vals + i));
+            /* Capture selected state queues after pre_randomize and keep
+             * them above the solve receiver. Arm its selector last. */
+            if (have_sel)
+                  fprintf(vvp_out, "    %%rand/active \"%.*s\";\n",
+                          (int)sel_len, sel_beg);
+            if (n_objs)
+                  fprintf(vvp_out, "    %%randomize/with/objects \"%s\", %u, %u;\n",
+                          ir, n_vals | (scope_form ? 0x80000000u : 0u), n_objs);
+            else
+                  fprintf(vvp_out, "    %%randomize/with \"%s\", %u;\n", ir,
+                          n_vals | (scope_form ? 0x80000000u : 0u));
 	    if (post && obj_arg)
 		  emit_conditional_post_randomize_from_stack_(post);
 	    else if (post_dyn && obj_arg)

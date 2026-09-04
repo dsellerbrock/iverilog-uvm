@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_constraint_foreach_index_signed.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_constraint_foreach_index_signed"
+}

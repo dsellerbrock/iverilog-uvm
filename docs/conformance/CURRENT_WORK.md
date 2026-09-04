@@ -9,6 +9,27 @@ Bison 3.8.x, absolute worktree `local-install/bin` first on PATH, and no RSS
 or output-size ceiling remain required. Earlier 45-second measurements below
 are historical evidence; they do not set the current limit.
 
+## Active increment — 2026-09-04 — hierarchical state foreach
+
+Branch `agent/xbar-foreach-after254-arm64-20260904` now contains the xbar
+foreach implementation in the retained worktree. It preserves selected-owner
+identity, guard errors, typed indices, target lookup and failed-solve state.
+The prerequisite nested-queue assignment defect is also repaired. Focused
+legacy and JSON checks pass 14/14. The final full gate passes legacy
+4551/4556 (0 failed), JSON 1445/0, VPI 103/103, negative 149/0, runtime
+invariants and real-DPI UVM 355/0/0. Caliptra remains 52 PASS / ICARUS_GAP 0
+with all 105 jobs unchanged. The complete OpenTitan census has 210 PASS (+15), no lost PASS, and summed
+debt 2223 (20 actual warning removals plus 2 diagnostic-interleaving count
+artifacts). All eight xbar compile rows and seven runtime rows became PASS.
+ADC and Darjeeling-main census timeouts did not reproduce in isolation:
+116.449s and 109.677s respectively, with matching baseline runtime metrics
+and diagnostic/output evidence. Raw census counts are retained. All xbar
+smokes report zero scoreboard items, so meaningful DV traffic remains an
+open issue despite the compile/constraint progress.
+See [the implementation and validation record](session_logs/2026-09-04_hierarchical_state_foreach.md).
+The installed compiler contains this active increment, so the checkpoint
+counts below remain the historical pre-xbar checkpoint.
+
 ## Latest validated checkpoint — 2026-09-04
 
 PR #254 is merged as `bafc8b5b4`. The final reviewed compiler checkpoint
@@ -21,9 +42,9 @@ offsetting line-count artifacts from interleaved undefined-macro warnings.
 
 See [the September 4 session log](session_logs/2026-09-04_unqualified_parenless_method_and_frontier_retriage.md)
 for per-core comparisons and raw diagnostic checks. Full application DV is
-still incomplete. Next: scope-correct hierarchical constraint foreach over
-`xbar_devices[device_id].addr_ranges[i]`, preserving runtime enforcement and
-explicit diagnostics for unsupported cases.
+still incomplete. The hierarchical foreach increment above is validated;
+next investigate why the unmodified xbar smokes finish with zero scoreboard
+items before treating runtime census PASS as meaningful DV completion.
 
 ## Active increment — 2026-09-02 — parameterized VIFs, recursive containers, and typed mailboxes
 

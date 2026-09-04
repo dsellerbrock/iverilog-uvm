@@ -1908,12 +1908,12 @@ void vvp_queue_object::set_word(unsigned adr, const vvp_object_t&value)
 	    return;
       }
 
-      // Compile-progress fallback: permit sparse queue<object> indexed stores
-      // by growing and null-filling intermediate elements.
-      while (queue.size() < adr + 1) rand_mode_push_back();
-      queue.resize(adr+1);
-      queue[adr] = value;
-      touch();
+      // IEEE 1800-2017/2023 7.10.1: a write beyond $+1 is ignored
+      // with a warning. Do not grow a sparse queue (or spin without growth).
+      cerr << get_fileline()
+           << "Warning: assigning to queue<object>[" << adr << "] is outside "
+              "of size (" << queue.size() << "). Object was not added."
+           << endl;
 }
 
 void vvp_queue_object::get_word(unsigned adr, vvp_object_t&value)

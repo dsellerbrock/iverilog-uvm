@@ -5657,7 +5657,7 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
       return true;
 }
 
-bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
+static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
 {
 	// code->text      = IR string (with possible "v:N:W" slot placeholders)
 	// code->bit_idx[0] = number of runtime value slots on the vec4 stack;
@@ -5666,11 +5666,24 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
       bool scope_form = (code->bit_idx[0] & 0x80000000u) != 0;
       unsigned n_vals = code->bit_idx[0] & 0x7fffffffu;
       const char* ir_text = code->text ? code->text : "";
+      unsigned n_objects = object_form ? code->bit_idx[1] : 0;
+      if (object_form && (thr->vec4_stack_size() < n_vals
+          || thr->object_stack_size() <= n_objects)) {
+            fprintf(stderr, "VVP error: malformed %%randomize/with/objects stack counts.\n");
+            vpip_set_return_value(1);
+            if (!schedule_finished()) schedule_finish(0);
+            return false;
+      }
+      vector<vvp_vector4_t> slot_words(object_form ? n_vals : 0);
+      vector<vvp_object_t> objects(n_objects);
+      for (unsigned i = n_objects; i > 0; --i)
+            thr->pop_object(objects[i - 1]);
 
 	// Pop runtime slot values (pushed in reverse: slot 0 is deepest).
       vector<uint64_t> slot_vals(n_vals);
       for (unsigned i = n_vals ; i > 0 ; i--) {
 	    vvp_vector4_t v = thr->pop_vec4();
+            if (object_form) slot_words[i - 1] = v;
 	    uint64_t bits = 0;
 	    unsigned wid = v.size(); if (wid > 64) wid = 64;
 	    for (unsigned b = 0 ; b < wid ; b++)
@@ -5693,7 +5706,11 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
       }
 
       vector<string> extra_ir;
-      if (ir_text && *ir_text) extra_ir.push_back(string(ir_text));
+      string expanded;
+      bool expansion_ok = !object_form
+            || vvp_z3_expand_state_foreach(ir_text, slot_words, objects, cobj, sel, expanded);
+      if (object_form) extra_ir.push_back(expanded);
+      else if (ir_text && *ir_text) extra_ir.push_back(string(ir_text));
 
       vthread_t scope_rng_owner = scope_form
 	    ? logical_process_thread_(thr) : nullptr;
@@ -5708,8 +5725,8 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	    options.next_random = &scope_random;
 
       randomize_graph_session_t session;
-      bool solve_ok = cobj
-	    ? randomize_cobject_(session, cobj, sel, &options) : true;
+      bool solve_ok = expansion_ok && (cobj
+	    ? randomize_cobject_(session, cobj, sel, &options) : true);
       if (!solve_ok)
 	    session.rollback();
       else
@@ -5722,6 +5739,16 @@ bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
       result.set_bit(0, solve_ok ? BIT4_1 : BIT4_0);
       thr->push_vec4(result);
       return true;
+}
+
+bool of_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
+{
+      return randomize_with_(thr, code, false);
+}
+
+bool of_RANDOMIZE_WITH_OBJECTS(vthread_t thr, vvp_code_t code)
+{
+      return randomize_with_(thr, code, true);
 }
 
 /*

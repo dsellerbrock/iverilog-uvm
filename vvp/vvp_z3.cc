@@ -939,7 +939,8 @@ static string capture_balanced_form(IRParser& par)
       return text;
 }
 
-/* Substitute the standalone loop token `L` with "c:<i>" (token
+/* IEEE 1800-2017 18.5.8.1 / 1800-2023 18.5.7.1: queue/darray
+ * indices are signed int. Substitute `L` with "c:<i>:32:s" (token
  * boundaries only — L may not appear inside other tokens, but guard
  * anyway). */
 static string subst_loop_token(const string& body, uint64_t i)
@@ -953,7 +954,7 @@ static string subst_loop_token(const string& body, uint64_t i)
       char prev = ' ';
       while (*p) {
 	    if (*p == 'L' && is_delim(prev) && is_delim(p[1])) {
-		  out += "c:" + to_string(i);
+		  out += "c:" + to_string(i) + ":32:s";
 		  prev = 'L';
 		  p++;
 		  continue;
@@ -1117,9 +1118,11 @@ static Z3_ast build_z3_atom(IRParser& par, Z3Builder& b)
  * transactional: a nonground/malformed expression restores the cursor so a
  * caller can recover without corrupting the surrounding branch parse. */
 static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
-				     uint64_t& out, bool& overflow)
+				     uint64_t& out, bool& overflow,
+                                     bool*negative = nullptr)
 {
       overflow = false;
+      if (negative) *negative = false;
       const char* start = par.p;
       Z3Builder value_builder(b.ctx, b.defn, b.cobj);
       Z3_ast value = build_z3_atom(par, value_builder);
@@ -1130,6 +1133,7 @@ static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
 
       Z3_sort sort = Z3_get_sort(b.ctx, value);
       bool was_bool = Z3_get_sort_kind(b.ctx, sort) == Z3_BOOL_SORT;
+      bool was_signed = !was_bool && value_builder.is_signed(value);
       unsigned semantic_width = was_bool ? 1 : value_builder.sv_of(value);
       if (was_bool)
 	    value = bool_to_bv1(b.ctx, value);
@@ -1186,8 +1190,13 @@ static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
 	    return false;
       }
       value = Z3_simplify(b.ctx, value);
-      if (z3_ground_uint64(b.ctx, value, out))
-	    return true;
+      if (z3_ground_uint64(b.ctx, value, out)) {
+            // A queue index retains its signed expression type, even when
+            // narrower than int (IEEE 1800-2017/2023 7.10.1, 11.8.1).
+            if (negative && was_signed && semantic_width <= 64)
+                  *negative = (out >> (semantic_width - 1)) & 1;
+            return true;
+      }
 
 	/* For a ground bitvector wider than uint64, prove whether every high bit
 	 * is zero instead of relying on host extraction. This remains valid on
@@ -1611,10 +1620,14 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 	    no = bool_to_bv1(b.ctx, no);
 	    unsigned sw = b.sv_of(yes);
 	    if (b.sv_of(no) > sw) sw = b.sv_of(no);
-	    yes = b.coerce(yes, sw);
-	    no = b.coerce(no, sw);
+            // Both arms determine the common type, including the unchosen
+            // arm (IEEE 1800-2017/2023 11.6.1, 11.8.1, 11.8.2).
+            bool result_signed = b.is_signed(yes) && b.is_signed(no);
+	    yes = b.coerce_in_context(yes, sw, result_signed);
+	    no = b.coerce_in_context(no, sw, result_signed);
 	    Z3_ast out = Z3_mk_ite(b.ctx, cond, yes, no);
 	    b.set_sv(out, sw);
+            if (result_signed) b.signed_vars.insert(out);
 	    return out;
       }
 
@@ -2873,6 +2886,424 @@ static string substitute_scope_object_slots(
 	    }
       }
       return result;
+}
+
+static bool rand_active_(const class_type*, vvp_cobject*,
+                         const vector<bool>*, unsigned);
+static bool rand_member_active_(const class_type*, vvp_cobject*,
+                                const vector<bool>*, unsigned, unsigned);
+
+/* IEEE 1800-2017 18.5.8.1/18.5.13 and 1800-2023 18.5.7.1/18.5.12:
+ * expand state collections before solving, preserving predicate guards.
+ * Reuse IRParser and the typed Z3 evaluator. Evaluation errors are carried
+ * until enclosing guards are evaluated; an excluded null/OOB read is not an
+ * error, regardless of the order of the guard's subexpressions. */
+struct state_foreach_value_t {
+      string text;
+      string error;
+      bool ground = false;
+};
+
+class state_foreach_expander_t {
+      const vector<vvp_vector4_t>&slots_;
+      const vector<vvp_object_t>&objects_;
+      vector<vvp_object_t> queues_;
+      vvp_cobject*receiver_;
+      const vector<bool>*active_;
+      Z3_context context_;
+      unsigned template_depth_ = 0;
+
+      static bool decimal_(const string&text, uint64_t&value)
+      {
+            if (text.empty()) return false;
+            value = 0;
+            for (char c : text) {
+                  if (c < '0' || c > '9'
+                      || value > (UINT64_MAX - (c - '0')) / 10) return false;
+                  value = value * 10 + (c - '0');
+            }
+            return true;
+      }
+
+      static bool unsigned_token_(const string&text, unsigned&value)
+      {
+            uint64_t number;
+            if (!decimal_(text, number) || number > UINT_MAX) return false;
+            value = number;
+            return true;
+      }
+
+      static bool header_(const string&text, const char*prefix,
+                          unsigned&slot, unsigned&member, unsigned&width,
+                          bool&sign, bool field)
+      {
+            if (text.compare(0, strlen(prefix), prefix) != 0) return false;
+            istringstream input(text.substr(strlen(prefix)));
+            string part;
+            if (!getline(input, part, ':') || !unsigned_token_(part, slot)) return false;
+            if (field && (!getline(input, part, ':')
+                || !unsigned_token_(part, member))) return false;
+            if (!getline(input, part, ':') || !unsigned_token_(part, width)
+                || width == 0 || width > 64) return false;
+            sign = !input.eof();
+            return !sign || (getline(input, part) && part == "s");
+      }
+
+      static void constant_(state_foreach_value_t&out, uint64_t value,
+                            unsigned width = 1, bool sign = false)
+      {
+            out.text = "c:" + to_string(value) + ":" + to_string(width)
+                  + (sign ? ":s" : "");
+            out.error.clear();
+            out.ground = true;
+      }
+
+      static void error_(state_foreach_value_t&out, const string&message,
+                         unsigned width = 1, bool sign = false)
+      {
+            constant_(out, 0, width, sign);
+            out.error = message;
+            out.ground = false;
+      }
+
+      bool number_(const state_foreach_value_t&value, uint64_t&bits,
+                   bool*negative = nullptr)
+      {
+            if (!value.ground || !value.error.empty()) return false;
+            IRParser parser(value.text);
+            Z3Builder builder(context_, nullptr, nullptr);
+            bool overflow = false;
+            return eval_runtime_integral_ir(parser, builder, bits, overflow, negative)
+                  && !overflow && parser.at_end();
+      }
+
+      static void word_(state_foreach_value_t&out, const vvp_vector4_t&word,
+                        unsigned width, bool sign)
+      {
+            if (word.size() != width) {
+                  error_(out, "state value width does not match constraint metadata", width, sign);
+                  return;
+            }
+            uint64_t bits = 0;
+            for (unsigned bit = 0; bit < width; ++bit) {
+                  if (word.value(bit) != BIT4_0 && word.value(bit) != BIT4_1) {
+                        error_(out, "X/Z state value in constraint (IEEE 1800-2017/2023 18.3)", width, sign);
+                        return;
+                  }
+                  if (word.value(bit) == BIT4_1) bits |= UINT64_C(1) << bit;
+            }
+            constant_(out, bits, width, sign);
+      }
+
+      static void field_(state_foreach_value_t&out, vvp_cobject*record,
+                         unsigned member, unsigned width, bool sign)
+      {
+            if (!record) {
+                  error_(out, "null/non-class state foreach element", width, sign);
+                  return;
+            }
+            const class_type*type = record->get_defn();
+            if (member >= type->property_count()
+                || type->property_array_size(member) != 1
+                || type->property_vec4_width(member) != width) {
+                  error_(out, "invalid state foreach field metadata", width, sign);
+                  return;
+            }
+            vvp_vector4_t word;
+            record->get_vec4(member, word);
+            word_(out, word, width, sign);
+      }
+
+      bool property_(state_foreach_value_t&out)
+      {
+            string token = out.text;
+            vector<unsigned> path;
+            unsigned first = 0, member = 0, width = 0; bool sign = false;
+            bool scalar = token[0] == 'p', aggregate = token[0] == 'm';
+            if (scalar || aggregate) {
+                  if (!header_(token, scalar ? "p:" : "m:", first, member,
+                               width, sign, aggregate)) return false;
+                  path.push_back(first);
+                  if (aggregate) path.push_back(member);
+            } else {
+                  size_t end = token.find(':', 2);
+                  if (end == string::npos || !header_("0:" + token.substr(end+1),
+                      "", first, member, width, sign, false)) return false;
+                  istringstream input(token.substr(2, end-2));
+                  string part;
+                  while (getline(input, part, '.')) {
+                        if (!unsigned_token_(part, first)) return false;
+                        path.push_back(first);
+                  }
+                  if (path.empty() || token[end-1] == '.') return false;
+            }
+            vvp_cobject*record = receiver_;
+            for (size_t i = 0; record && i + 1 < path.size(); ++i) {
+                  const class_type*type = record->get_defn();
+                  if (path[i] >= type->property_count()
+                      || type->property_array_size(path[i]) != 1
+                      || type->property_base_type(path[i]) != "o") return false;
+                  vvp_object_t child;
+                  record->get_object(path[i], child, 0);
+                  record = child.peek<vvp_cobject>();
+            }
+            if (record && (path.back() >= record->get_defn()->property_count()
+                || record->get_defn()->property_vec4_width(path.back()) != width)) return false;
+            if (scalar && rand_active_(receiver_->get_defn(), receiver_, active_, first))
+                  return true;
+            if (aggregate && record && rand_member_active_(receiver_->get_defn(),
+                receiver_, active_, path[0], path[1])) return true;
+            field_(out, record, path.back(), width, sign);
+            return true;
+      }
+
+      vvp_darray*queue_(unsigned slot, state_foreach_value_t&out)
+      {
+            const vvp_object_t&object = queues_[slot];
+            if (object.test_nil()) return nullptr; // empty, unallocated storage
+            if (!object.peek<vvp_darray_object>() && !object.peek<vvp_queue_object>()) {
+                  error_(out, "state foreach object is not a queue/dynamic array of objects");
+                  return nullptr;
+            }
+            return object.peek<vvp_darray>();
+      }
+
+    public:
+      state_foreach_expander_t(const vector<vvp_vector4_t>&slots,
+                              const vector<vvp_object_t>&objects,
+                              vvp_cobject*receiver, const vector<bool>*active)
+      : slots_(slots), objects_(objects), queues_(objects.size()),
+        receiver_(receiver), active_(active)
+      {
+            Z3_config config = Z3_mk_config();
+            context_ = Z3_mk_context(config);
+            Z3_del_config(config);
+      }
+      ~state_foreach_expander_t() { Z3_del_context(context_); }
+
+      bool expression(IRParser&parser, state_foreach_value_t&out)
+      {
+            if (parser.peek() == '[') {
+                  parser.consume();
+                  state_foreach_value_t lo, hi;
+                  if (!expression(parser, lo) || !parser.expect(',')
+                      || !expression(parser, hi) || !parser.expect(']')) return false;
+                  out.text = "[" + lo.text + "," + hi.text + "]";
+                  out.error = lo.error.empty() ? hi.error : lo.error;
+                  out.ground = lo.ground && hi.ground;
+                  return true;
+            }
+            if (parser.peek() != '(') {
+                  out.text = parser.read_token();
+                  if (out.text.empty()) return false;
+                  if (out.text == "L") return template_depth_ != 0;
+                  if (out.text.compare(0, 2, "v:") == 0) {
+                        unsigned slot = 0, member = 0, width = 0; bool sign = false;
+                        if (!header_(out.text, "v:", slot, member, width, sign, false)
+                            || slot >= slots_.size()) return false;
+                        word_(out, slots_[slot], width, sign);
+                  } else if (out.text.compare(0, 2, "c:") == 0) {
+                        string spec = out.text.substr(2);
+                        size_t colon = spec.find(':');
+                        uint64_t value;
+                        unsigned width = 32, member = 0, unused = 0;
+                        bool sign = false;
+                        if (!decimal_(spec.substr(0, colon), value)) return false;
+                        if (colon != string::npos
+                            && !header_("0:" + spec.substr(colon + 1), "",
+                                        unused, member, width, sign, false)) return false;
+                        out.ground = true;
+                  } else if (out.text.compare(0, 2, "p:") == 0
+                             || out.text.compare(0, 2, "m:") == 0
+                             || out.text.compare(0, 2, "r:") == 0) {
+                        if (!property_(out)) return false;
+                  } else if (out.text.compare(0, 2, "s:") != 0
+                             && out.text.compare(0, 2, "e:") != 0
+                             && out.text != ":=" && out.text != ":/") return false;
+                  return true;
+            }
+            parser.consume();
+            string op = parser.read_token();
+            if (op.empty()) return false;
+            // Independent rand-array templates still belong to the existing
+            // size/element solver passes (2017 18.5.8.1 / 2023 18.5.7.1).
+            // Check their structure, then retain the original template: its
+            // L is not an index into this state collection.
+            if (op == "dynforeach" || op == "delem" || op == "qmelem") {
+                  const char*begin = parser.p;
+                  unsigned property = 0, member = 0, width = 0; bool sign = false;
+                  if (!header_(parser.read_token(), "", property, member, width,
+                               sign, op == "qmelem")
+                      || property >= receiver_->get_defn()->property_count()) return false;
+                  bool loop = op == "dynforeach";
+                  if (loop && template_depth_) return false;
+                  if (loop) ++template_depth_;
+                  state_foreach_value_t ignored;
+                  bool valid = expression(parser, ignored);
+                  if (loop) --template_depth_;
+                  if (!valid || !parser.expect(')')) return false;
+                  out.text = "(" + op + string(begin, parser.p - begin);
+                  return true;
+            }
+            if (op == "qforeach") {
+                  unsigned slot = 0, member = 0;
+                  if (template_depth_ || !unsigned_token_(parser.read_token(), slot)
+                      || slot >= objects_.size()
+                      || !unsigned_token_(parser.read_token(), member)) return false;
+                  parser.skip_ws();
+                  const char*begin = parser.p;
+                  state_foreach_value_t ignored;
+                  ++template_depth_;
+                  bool valid = expression(parser, ignored);
+                  --template_depth_;
+                  string body(begin, parser.p - begin);
+                  if (!valid || !parser.expect(')')) return false;
+                  vvp_cobject*owner = objects_[slot].peek<vvp_cobject>();
+                  if (!owner) {
+                        error_(out, "null/non-class state foreach collection owner");
+                        return true;
+                  }
+                  const class_type*type = owner->get_defn();
+                  if (member >= type->property_count()
+                      || type->property_array_size(member) != 1) return false;
+                  const string&base_type = type->property_base_type(member);
+                  if (base_type.empty() || (base_type[0] != 'Q' && base_type[0] != 'D'))
+                        return false;
+                  owner->get_object(member, queues_[slot], 0);
+                  vvp_darray*queue = queue_(slot, out);
+                  if (!out.error.empty()) return true;
+                  constant_(out, 1);
+                  for (size_t i = 0; queue && i < queue->get_size(); ++i) {
+                        string instance = subst_loop_token(body, i);
+                        IRParser expanded(instance);
+                        state_foreach_value_t item;
+                        if (!expression(expanded, item) || !expanded.at_end()) return false;
+                        if (!item.error.empty()) { out = item; return true; }
+                        out.text = "(and " + out.text + " " + item.text + ")";
+                        out.ground = out.ground && item.ground;
+                  }
+                  return true;
+            }
+            if (op == "qfield") {
+                  unsigned slot = 0, member = 0, width = 0; bool sign = false;
+                  if (!header_(parser.read_token(), "qf:", slot, member, width, sign, true)
+                      || slot >= objects_.size()) return false;
+                  state_foreach_value_t index;
+                  if (!expression(parser, index) || !parser.expect(')')) return false;
+                  if (template_depth_) { out.text = "L"; return true; }
+                  uint64_t offset = 0;
+                  bool negative = false;
+                  if (!number_(index, offset, &negative)) {
+                        error_(out, index.error.empty() ? "non-state index in state foreach" : index.error, width, sign);
+                        return true;
+                  }
+                  vvp_darray*queue = queue_(slot, out);
+                  if (!out.error.empty()) return true;
+                  if (negative || !queue || offset >= queue->get_size() || offset > UINT_MAX) {
+                        error_(out, "out-of-bounds state foreach index", width, sign);
+                        return true;
+                  }
+                  vvp_object_t object;
+                  queue->get_word((unsigned)offset, object);
+                  field_(out, object.peek<vvp_cobject>(), member, width, sign);
+                  return true;
+            }
+            vector<state_foreach_value_t> args;
+            while (parser.peek() && parser.peek() != ')') {
+                  state_foreach_value_t arg;
+                  if (!expression(parser, arg)) return false;
+                  args.push_back(arg);
+            }
+            if (!parser.expect(')')) return false;
+            // Validate before calling the older, permissive solver parser.
+            static const map<string, unsigned> arities = {
+                  {"not",1}, {"neg",1}, {"bnot",1}, {"redand",1},
+                  {"redor",1}, {"redxor",1}, {"countones",1},
+                  {"onehot",1}, {"onehot0",1}, {"soft",1}, {"disable-soft",1},
+                  {"add",2}, {"sub",2}, {"mul",2}, {"div",2}, {"mod",2},
+                  {"pow",2}, {"lt",2}, {"le",2}, {"gt",2}, {"ge",2},
+                  {"eq",2}, {"ne",2}, {"and",2}, {"or",2}, {"impl",2},
+                  {"iff",2}, {"band",2}, {"bor",2}, {"bxor",2},
+                  {"shl",2}, {"lshr",2}, {"ashr",2}, {"bit",2},
+                  {"order",2}, {"ite",3}, {"part",3}
+            };
+            auto arity = arities.find(op);
+            bool directive = op == "order" || op == "vars" || op == "dist"
+                  || op == "b" || op == "soft" || op == "disable-soft";
+            if (arity != arities.end()) {
+                  if (args.size() != arity->second) return false;
+            } else if (op.compare(0, 6, "trunc:") == 0) {
+                  unsigned unused = 0, member = 0, width = 0; bool sign = false;
+                  if (args.size() != 1 || !header_("0:" + op.substr(6), "",
+                      unused, member, width, sign, false)) return false;
+            } else if (op == "inside" || op == "dist") {
+                  if (args.size() < 2) return false;
+            } else if (op == "b") {
+                  if (args.size() != 2 && args.size() != 3) return false;
+            } else if (op != "concat" && op != "vars") return false;
+            out.text = "(" + op;
+            out.ground = !directive;
+            for (const auto&arg : args) {
+                  out.text += " " + arg.text;
+                  out.ground = out.ground && arg.ground;
+                  if (out.error.empty()) out.error = arg.error;
+            }
+            out.text += ")";
+            uint64_t bits = 0;
+            if (op == "impl" || op == "and" || op == "or") {
+                  if (args.size() != 2) return false;
+                  if (op == "impl" && number_(args[0], bits)) {
+                        if (!bits) constant_(out, 1);
+                        else out = args[1];
+                  } else if (op != "impl") {
+                        for (const auto&arg : args)
+                              if (number_(arg, bits) && ((op == "and" && !bits)
+                                  || (op == "or" && bits))) {
+                                    constant_(out, op == "or");
+                                    break;
+                              }
+                  }
+            } else if (op == "ite" && number_(args[0], bits)) {
+                  // Preserve both typed arms: pruning changes ternary width
+                  // and signedness (IEEE 1800-2017/2023 11.6.1, 11.8.2).
+                  out.error = args[bits ? 1 : 2].error;
+                  out.ground = args[bits ? 1 : 2].ground;
+            } else if ((op == "div" || op == "mod")
+                       && number_(args[1], bits) && !bits) {
+                  // IEEE 1800-2017/2023 11.4.3, 18.3: zero division
+                  // produces X, which cannot be used as a constraint value.
+                  // Keep the expression's type for an enclosing ternary.
+                  out.error = "division/remainder by zero in state constraint";
+                  out.ground = false;
+            }
+            return true;
+      }
+};
+
+bool vvp_z3_expand_state_foreach(const string&ir,
+      const vector<vvp_vector4_t>&slot_vals,
+      const vector<vvp_object_t>&objects, vvp_cobject*receiver,
+      const vector<bool>*active, string&expanded)
+{
+      if (!receiver) {
+            fprintf(stderr, "ERROR: state foreach constraint: null/non-class randomize receiver.\n");
+            return false;
+      }
+      state_foreach_expander_t expander(slot_vals, objects, receiver, active);
+      IRParser parser(ir);
+      expanded.clear();
+      while (!parser.at_end()) {
+            state_foreach_value_t result;
+            if (!expander.expression(parser, result) || !result.error.empty()) {
+                  fprintf(stderr, "ERROR: state foreach constraint: %s.\n",
+                          result.error.empty() ? "malformed object/constraint metadata"
+                                               : result.error.c_str());
+                  return false;
+            }
+            if (!expanded.empty()) expanded += " ";
+            expanded += result.text;
+      }
+      return true;
 }
 
 /* Result of one solve pass. SAT_APPLIED: a model was found and written

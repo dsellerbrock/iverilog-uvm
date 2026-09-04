@@ -145,6 +145,19 @@ associative constant-expression keys were wholly unimplemented; it does not
 close the separate simple/user-defined type-key or general assignment-pattern
 residuals.
 
+## 2026-09-04 hierarchical state foreach (bounded increment)
+
+The new inline class-constraint path covers a selected caller/package owner
+whose queue/dynamic-array member holds class handles or unpacked structs,
+with integral fields up to 64 bits. It preserves iterator type/scope and guard
+errors (IEEE 1800-2017 18.5.8.1/18.5.13; IEEE 1800-2023 18.5.7.1/18.5.12),
+including empty queues, null owners, typed ternary indices, and failed-solve
+rollback. Independent rand-array foreach templates retain their original
+size/element passes. Target-root/selectors requiring additional resolution,
+nested hierarchical templates, and broader paths remain diagnosed. Clause 18
+remains **PARTIAL**; application counts require the complete census diff.
+See the [implementation, boundaries and validation record](../session_logs/2026-09-04_hierarchical_state_foreach.md).
+
 ## 2026-08-24 clause-18 signed fixed-array index repair
 
 For the evidenced 18.5.8.2 subset, typed signed constants used to index a

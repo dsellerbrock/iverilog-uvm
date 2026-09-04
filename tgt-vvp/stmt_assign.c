@@ -101,12 +101,10 @@ static int show_stmt_assign_sig_assoc_index(ivl_statement_t net,
 
 static ivl_expr_t prop_lval_index_expr_(ivl_lval_t lval)
 {
-      ivl_expr_t idx_expr = ivl_lval_idx(lval);
-
-      if (!idx_expr && ivl_lval_nest(lval))
-            idx_expr = ivl_lval_idx(ivl_lval_nest(lval));
-
-      return idx_expr;
+      /* The enclosing index selects the receiver in a[i].queue, not an
+       * element of queue. Only this l-value's own index selects a queue
+       * element (IEEE 1800-2017/2023 7.10.1). */
+      return ivl_lval_idx(lval);
 }
 
 static void get_vec_from_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice,
