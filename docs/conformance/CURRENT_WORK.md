@@ -1,5 +1,30 @@
 # CURRENT WORK — continuation state
 
+## Current execution policy — 2026-09-04
+
+The user explicitly raised the per-process CPU guard from 45 to **300 seconds
+(5 minutes)**. Use `../evidence/arm64-tooling/resource-runner` or inherit
+`ulimit -t 300` for new compiler/simulator sweeps. Native ARM64, Homebrew
+Bison 3.8.x, absolute worktree `local-install/bin` first on PATH, and no RSS
+or output-size ceiling remain required. Earlier 45-second measurements below
+are historical evidence; they do not set the current limit.
+
+## Latest validated checkpoint — 2026-09-04
+
+PR #254 is merged as `bafc8b5b4`. The final reviewed compiler checkpoint
+`1819a3ee5` passes legacy ivtest (4537/4542, 0 failed), JSON/VVP (1431/0),
+VPI (103/103), negative tests (149/0) and real-DPI UVM (355/0/0). The full
+300-second censuses preserve all 530 OpenTitan classifications (195 PASS)
+and all 105 Caliptra classifications (52 PASS, ICARUS_GAP 0). OpenTitan's
+summed debt count is 2245; eight constraint warnings disappeared, with three
+offsetting line-count artifacts from interleaved undefined-macro warnings.
+
+See [the September 4 session log](session_logs/2026-09-04_unqualified_parenless_method_and_frontier_retriage.md)
+for per-core comparisons and raw diagnostic checks. Full application DV is
+still incomplete. Next: scope-correct hierarchical constraint foreach over
+`xbar_devices[device_id].addr_ranges[i]`, preserving runtime enforcement and
+explicit diagnostics for unsupported cases.
+
 ## Active increment — 2026-09-02 — parameterized VIFs, recursive containers, and typed mailboxes
 
 Worktree:

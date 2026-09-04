@@ -354,3 +354,118 @@ legacy/JSON lists, `.github/ivtest_gate.sh`, and `.github/uvm_test.sh`.
 The full JSON run is `python3 vvp_reg.py` from `ivtest`, after the legacy
 sweep finishes. `checkpoint-build.json` records the installed engine/runtime
 hashes. Application-level claims await the following per-core censuses.
+
+## 12. Authorized Caliptra re-census at 1819a3ee5
+
+All 105 job classifications and all three tool-mode diagnostic/exit-code
+comparisons are unchanged from
+`caliptra-constraint-after253-arm64-20260904/caliptra-static-census.json`.
+The measured result remains **52 PASS, ICARUS_GAP 0**, with 1 DEBT,
+51 SHARED_SOURCE_OR_CONFIG and 1 SOURCE_ORDER_DEBT. No added/removed jobs,
+new warnings/errors, changed diagnostics, input changes or timeouts. This is
+the static fileset census, not a claim of full DV runtime completion.
+
+Caliptra revision `bd31614182fb56e55578f48086a10ded650434fd` and Adams Bridge
+`e59eba955eac2a1adcb059f250641ede78e304be` are unchanged; the checkout is
+clean. Compile YAML, compile specs, RTL filelist and fileset-top hashes match
+the baseline. The copied evidence harness changes only its output location,
+operational limits and stale descriptive text: the final re-census applies
+the user-authorized 300-second CPU guard and 300-second wall timeout, removes
+the previous output-size cap and uses 3 workers.
+The prior run used a 190-second CPU limit, a 32 MiB output cap and 4 workers;
+no command times out under the current limits. Slang 11.0.448 remains an
+independent comparison.
+
+Result: workspace
+`evidence/caliptra-clog2-300s-after253-arm64-20260904/caliptra-static-census.json`.
+Per-job comparison: `evidence/clog2-xbar-codex-arm64-20260904/caliptra-300s-diff.json`.
+The run log contains `CALIPTRA_CLOG2_300S_DONE=0`. The comparison also checks
+per-mode error/warning totals and diagnostics, so unchanged totals alone
+are not the basis of the no-regression finding.
+
+## 13. Five-minute guard update
+
+The user explicitly changed the per-process CPU guard to 300 seconds on
+September 4. The shared ARM64 resource runner and current execution guidance
+now use that limit. Section 11's complete local gates passed under the previous
+45-second limit and remain valid; their evidence has not been rewritten.
+
+The first OpenTitan checkpoint census inherited the 45-second limit in its
+Python coordinator as well as its children. The coordinator exhausted that
+limit after saving 505 of 530 rows. Its partial report and the interrupted
+remaining-row replay are retained as historical evidence, not a complete
+comparison. New OpenTitan and Caliptra censuses use separate `clog2-300s`
+evidence directories and the unchanged installed `1819a3ee5` binaries.
+`checkpoint-300s-census-build.json` verifies both binary hashes and the
+shared runner's actual CPU limit of 300.
+
+## 14. Complete OpenTitan checkpoint census and per-core comparison
+
+The 300-second census completed all 530 rows on installed compiler
+`1819a3ee5`. Its completion marker is `CLOG2_300S_CENSUS_DONE=1`: the exit
+status reflects the existing unsuccessful rows, not an interrupted census.
+All 530 classifications match the refformal baseline, with no added/removed
+rows and no lost PASS row:
+
+| Status | Before and after |
+|---|---:|
+| PASS | 195 |
+| DEPENDENCY_ONLY | 157 |
+| UPSTREAM_INVALID | 39 |
+| FAIL | 84 |
+| DEBT | 33 |
+| SETUP_FAIL | 6 |
+| RUNTIME_FAIL | 15 |
+| RUNTIME_TIMEOUT | 1 |
+
+The summed `semantic_debt_count` changes from **2250 to 2245**. The complete
+per-core count changes are:
+
+| Core / lane | Before | After | Classification |
+|---|---:|---:|---|
+| uart_sim / uvm | 4 | 2 | DEBT |
+| uart_sim / runtime | 4 | 2 | RUNTIME_FAIL |
+| darjeeling rstmgr_sim / uvm and runtime, each | 2 | 1 | UPSTREAM_INVALID |
+| earlgrey rstmgr_sim / uvm and runtime, each | 2 | 1 | UPSTREAM_INVALID |
+| entropy_src_sim / uvm | 124 | 126 | FAIL |
+| entropy_src_sim / runtime | 126 | 127 | FAIL |
+
+The actual removed diagnostics are eight constraint warnings: two UART
+`$clog2` bounds per lane, and one rstmgr `start_reset_c` warning per lane and
+top variant. Entropy's apparent increase is an interleaved-output counting
+artifact. Each of its four raw logs contains the identical 127 undefined
+macro warnings (123 RNG_BUS_WIDTH, 2 DISTR_FIFO_DEPTH and 2
+RNG_BUS_BIT_SEL_WIDTH), 119 error tokens and compiler return code 239.
+Preprocessor warnings interleave with compiler messages, changing how many
+lines match the existing census patterns. AES also has differently merged
+warning lines with identical macro-message multisets and unchanged counts.
+No classifier or baseline was changed to hide this variation.
+
+The comparison reads complete compile logs, not the truncated stored
+`semantic_debt` lists. Runtime return codes, timeout flags, error/debt counts
+and pass-banner results are all unchanged. Timing varies and is not a pass
+criterion. The corpus revision, target inventory/configuration hashes and
+FuseSoC inputs match; installed compiler/runtime hashes were checked before
+and after the run. OpenTitan, Caliptra and Adams Bridge sources remain
+unmodified. There are no observed classification or semantic regressions
+in this checkpoint, and no new core PASS claim.
+
+Evidence, relative to workspace `evidence/`:
+
+- `opentitan-clog2-300s-after253-arm64-20260904/opentitan-matrix.json` and `.md`
+- `clog2-xbar-codex-arm64-20260904/opentitan-300s-diff.json`
+- `clog2-xbar-codex-arm64-20260904/opentitan-300s-raw-diagnostic-diff.json`
+- `clog2-xbar-codex-arm64-20260904/macro-diagnostic-interleaving-proof.json`
+- `clog2-xbar-codex-arm64-20260904/opentitan-300s-input-check.json`
+
+Exact run commands are preserved in `run-opentitan-300s-census.sh` and
+`run-caliptra-300s-census.sh` in that evidence directory. Per-core comparison:
+`python3 compare-censuses.py BEFORE_JSON AFTER_JSON OUTPUT_JSON`.
+
+GitHub records PR #254 merged by dsellerbrock at 2026-09-04 20:55:21 UTC,
+as `bafc8b5b4`; this agent did not merge it. The canonical main checkout and
+shared code graph were updated. All old worktrees are retained. The next
+branch starts from that merged main; the hierarchical foreach implementation
+is still pending. A fresh design review and a failing signed-index reducer
+are recorded in `xbar-design-review.md` and `foreach-index-signed-red.sv` in
+the evidence directory.
