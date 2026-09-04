@@ -346,3 +346,94 @@ core leaves FAIL if only this is addressed. The fix belongs in the census
 driver, rooting the bind-carrying module alongside the declared toplevel, and
 needs a full 530-job census to validate. That is next-branch harness work, not a
 compiler change.
+
+## Addendum 2: the CI blocker was two defects in the container-conversion path
+
+PR #253 could not merge: `.github/ivtest_gate.sh` chains the VVP runtime
+invariants and `run_container_conversion.sh` failed inside that chain, so the
+log showed only `GATE FAIL: VVP bytecode invariant failed.` Fixed by
+`f3418ca67` (diagnosability) and `60973cb2e` (the defects).
+
+### Defect 1 -- a union member read through the wrong discriminator
+
+`vvp_code_s` keeps `text` and `container_data` in the **same union**
+(`vvp/codes.h` ~705), so the opcode's operand table alone decides which member
+is live:
+
+| opcode | operands | live member |
+|---|---|---|
+| `%append/qo/obj/darray` | `OA_CONTAINER_STRING` | `text` |
+| `%append/qo/obj/darray/proto` | `OA_CONTAINER_DATA_*` | **`container_data`** |
+| `%append/qo/obj/queue[/proto]` | `OA_CONTAINER_DATA_*` | `container_data` |
+
+The splice helper keyed the choice on `inner_is_queue` alone, so
+`/darray/proto` -- which stores `container_data` but is not a queue -- read the
+struct pointer back as a `const char*`. The decode then reported an element
+encoding assembled from raw pointer bytes and aborted the run. The `has_proto`
+branch below dereferences `data->prototype` unguarded, so that path also held a
+latent NULL dereference which the garbage decode was masking.
+
+Fix: `(inner_is_queue || has_proto)`.
+
+**Rule worth carrying: in `vvp_code_s`, never infer the live union member from
+a runtime flag. Only `compile.cc`'s operand table knows.**
+
+### Defect 2 -- the fixture encoded pre-conformance bounded-queue behaviour
+
+With the abort gone the fixture still failed, on an assertion older than the
+bound work: it pushes a third element onto a bound-2 queue and expects size 3.
+
+IEEE 1800-2017/2023 **7.10.5**: "Operations on bounded queues shall behave
+exactly as if the queue were unbounded except that if, after any operation that
+writes to a bounded queue variable, that variable has any elements beyond its
+bound, then all such out-of-bounds elements shall be discarded and a warning
+shall be issued."
+
+That expectation passed only because converted queues did not carry their
+bound. `materialize_queue_for_enc_()` gained
+`set_declared_container_layout(VVP_CONTAINER_QUEUE, true, max_size, ...)` in
+`8236b9f8c` (#252) -- the parent has no such call -- and #252 states it
+preserves "queue-bound metadata ... across assignment and method mutation". The
+retention is deliberate and LRM-correct; #252 simply missed this older fixture,
+whose gold dates from `674e38b5f`.
+
+The assertions were therefore **corrected, not relaxed**: sizes 3 -> 2 where the
+queue is observed after the discarded push, and the `[2] == 90` element check
+dropped because 7.10.5 requires that element not to exist. The discard is still
+proven, through the gold stderr's `push_back(8'b01011010) skipped for already
+full bounded queue<vector[8]> [2]` line. Nothing became silent, and the gold's
+three original warnings all still appear in order -- two of them were previously
+unreachable because the union misread aborted the run first.
+
+### Why it was invisible
+
+1. The script ran the positive fixture unguarded under `set -eu`, so a non-zero
+   `vvp` exit killed it with **no output at all**. The CI log showed only the
+   PRECEDING check's PASS, which is why the failure was first misattributed to
+   the following check by position.
+2. Checking it as `bash run_container_conversion.sh | tail -20; echo $?` reports
+   **tail's** status, not the script's, so it looked like it passed locally. It
+   never did.
+3. Only the `lin` CI job runs `ivtest_gate.sh`; the macOS job runs a lighter
+   regression step and the Windows jobs only build and self-check, so their
+   green ticks never covered it. The bug reproduces on macOS/ARM64 -- it was
+   never platform-specific, only under-tested.
+
+### Measured
+
+Full `.github/ivtest_gate.sh` as CI runs it, **exit 0**: container conversion
+PASS (42/42); ivtest Total=4526 Passed=4521 Failed=0 NI=2 EF=3; name-diff gate
+clean; bundled VPI 103/103; negative 149/0. Plus UVM 355/0/0 and JSON/VVP
+Ran 1415 Failed 0.
+
+OpenTitan census, evidence `opentitan-splicefix-after252-arm64-20260904`:
+**zero status changes** -- PASS 192, FAIL 88, DEBT 36, UPSTREAM_INVALID 35,
+RUNTIME_FAIL 15, DEPENDENCY_ONLY 157, SETUP_FAIL 6, RUNTIME_TIMEOUT 1. The
+compiler engine hash is **unchanged** at `aac0c4d5b7…`, which is the expected
+and useful signal: this commit touches only `vvp/`, so the compile engine is
+byte-identical and the change is provably runtime-isolated.
+
+Caliptra, evidence `caliptra-splicefix-after252-arm64-20260904`: **52 PASS,
+ICARUS_GAP 0**, SLANG_ONLY_DIFFERENCE 0, TIMEOUT 0, 105 jobs, corpus bd316141
+unmodified. Re-run rather than inherited, because a runtime change is exactly
+the shape that could break a passing core.
