@@ -26191,7 +26191,9 @@ NetExpr* PENewClass::elaborate_expr(Design*des, NetScope*scope,
 
 	      /* Inside the template seed there is nothing to report: that body
 	         is elaborated with the declared defaults and never executed. */
-	    if (scoped_class_is_unspecialized_parameterized_(param_owner->class_def())) {
+	    if (scoped_class_is_unspecialized_parameterized_(param_owner->class_def())
+		|| (param_owner->class_def()
+		    && param_owner->class_def()->seed_derived())) {
 		  NetENull*tmp = new NetENull();
 		  tmp->set_line(*this);
 		  return tmp;

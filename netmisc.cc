@@ -1671,8 +1671,8 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 			const netclass_t*cd = cscope->class_def();
 			const PClass*pclass = cscope->class_pform();
 			in_unspecialized_param_class =
-			      cd && !cd->specialized_instance()
-			   && pclass && pclass->has_parameter_port_list;
+			      cd && pclass && pclass->has_parameter_port_list
+			   && (!cd->specialized_instance() || cd->seed_derived());
 		  }
 		  bool class_new_hard_error = is_class_new
 			&& cast_type != IVL_VT_LOGIC

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_class_seed_derived_specialization.v",
+    "iverilog-args" : [ "-g2017", "-s", "main" ],
+    "gold"          : "sv_class_seed_derived_specialization"
+}
