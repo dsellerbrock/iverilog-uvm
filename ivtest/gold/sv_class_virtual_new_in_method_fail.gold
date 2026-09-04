@@ -1,0 +1,3 @@
+./ivltests/sv_class_virtual_new_in_method_fail.v:15: error: Can not create object of virtual class `base`.
+./ivltests/sv_class_virtual_new_in_method_fail.v:15: error: Unable to elaborate statement in function mk.
+2 error(s) during elaboration.

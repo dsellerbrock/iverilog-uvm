@@ -26008,25 +26008,59 @@ NetExpr* PENewClass::elaborate_expr(Design*des, NetScope*scope,
 	      // BASE class, so a hard error there breaks all of UVM; keep
 	      // the null degrade but make it loud.
       if (ctype->is_virtual()) {
-	    bool in_class_method = false;
-	    for (NetScope*sc = scope ; sc ; sc = sc->parent()) {
-		  if (sc->type() == NetScope::CLASS || sc->class_def()) {
-			in_class_method = true;
-			break;
-		  }
+	      /* IEEE 1800-2017/2023 8.21: an abstract class can never be
+	         instantiated. The ONLY legitimate way to reach here with a
+	         virtual type is 8.25's template seed -- the body of an
+	         UNSPECIALIZED parameterized class is elaborated with the
+	         declared default type parameters, so `T obj; obj = new();'
+	         whose T defaults to a virtual base (uvm_component_registry
+	         #(T)'s shape) is seen as a `new' on that base even though it
+	         is valid in every real specialization. That body is never
+	         executed, so it needs no diagnostic and no object.
+
+	         The previous gate was "anywhere inside any class scope", which
+	         was far too wide: it degraded a plain `new' on a virtual class
+	         in an ORDINARY class method to null with only a warning, so
+	         illegal source compiled and ran with a null handle. slang
+	         rejects that program. Narrowing the gate to the template seed
+	         restores 8.21 there while keeping the UVM registry shape
+	         working -- pinned by sv_class_virtual_new_in_method_fail and
+	         sv_class_type_param_virtual_default_seed. */
+	    const NetScope*class_scope = scope ? scope->get_class_scope() : 0;
+	    const NetScope*param_owner = 0;
+	    for (const NetScope*cs = class_scope ; cs ; cs = cs->parent()) {
+		  const PClass*pc = cs->class_pform();
+		  if (pc && pc->has_parameter_port_list) { param_owner = cs; break; }
+		  if (cs->type() != NetScope::CLASS && !cs->class_def()) break;
 	    }
-	    if (!in_class_method) {
+
+	      /* No parameterized class anywhere up the chain means no type
+	         parameter could have collapsed, so 8.21 applies in full. This
+	         is the case the old any-class-scope gate wrongly degraded. */
+	    if (!param_owner) {
 		  cerr << get_fileline() << ": error: "
 		       << "Can not create object of virtual class `"
 		       << ctype->get_name() << "`." << endl;
 		  des->errors++;
 		  return 0;
 	    }
+
+	      /* Inside the template seed there is nothing to report: that body
+	         is elaborated with the declared defaults and never executed. */
+	    if (scoped_class_is_unspecialized_parameterized_(param_owner->class_def())) {
+		  NetENull*tmp = new NetENull();
+		  tmp->set_line(*this);
+		  return tmp;
+	    }
+
+	      /* A real specialization reaching here means our own type-parameter
+	         handling collapsed a concrete T to its virtual base -- a known
+	         defect, not something the source did wrong. Degrade, but stay
+	         LOUD so the collapse is never mistaken for correct compilation. */
 	    cerr << get_fileline() << ": warning: "
 		 << "new of virtual class `" << ctype->get_name()
-		 << "` degraded to null (type-parameter typing may have "
-		 << "collapsed to the virtual base; compile-progress)."
-		 << endl;
+		 << "` degraded to null (type-parameter typing collapsed to the "
+		 << "virtual base; compile-progress)." << endl;
 	    NetENull*tmp = new NetENull();
 	    tmp->set_line(*this);
 	    return tmp;
