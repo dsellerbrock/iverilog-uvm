@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_interface_instance_name_collision.v",
+    "iverilog-args" : [ "-g2017", "-s", "main" ],
+    "gold"          : "sv_interface_instance_name_collision"
+}
