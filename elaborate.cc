@@ -25001,9 +25001,12 @@ static string constraint_constant_ir_(const PEIdent*id,
 static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
 {
       if (!ptype) return false;
+      bool indexed_assoc = false;
       if (indexed) {
 	    const netuarray_t*ua = dynamic_cast<const netuarray_t*>(ptype);
 	    const netdarray_t*da = dynamic_cast<const netdarray_t*>(ptype);
+	    if (const netqueue_t*qq = dynamic_cast<const netqueue_t*>(ptype))
+		  indexed_assoc = qq->assoc_compat();
 	    if (ua) ptype = ua->element_type();
 	    else if (da) ptype = da->element_type();
 	    else return false;
@@ -25013,6 +25016,20 @@ static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
 	    return nv->packed_width() > 0;
       if (const netenum_t*ne = dynamic_cast<const netenum_t*>(ptype))
 	    return ne->packed_width() > 0;
+	/* An INDEXED queue/dynamic array of class handles is readable state:
+	   the element is not integral, but its scalar PROPERTIES are, and
+	   that is what the body reads. The member is validated at the
+	   reference site.
+
+	   ASSOCIATIVE arrays are deliberately excluded. There the foreach
+	   loop variable is a KEY, which may itself be class-typed and which
+	   SHADOWS a same-named class property (sv_randc_constraint_provenance
+	   pins exactly that: `foreach (q[i]) soft (i.cyc == 0)' with a
+	   property also called `i'). Admitting them made that constraint
+	   analyzable and resolved `i' to the property instead of the key. */
+      if (indexed && !indexed_assoc
+	  && dynamic_cast<const netclass_t*>(ptype))
+	    return true;
       return false;
 }
 
@@ -27361,6 +27378,45 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       }
 
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+	      /* One scalar PROPERTY of an element of the OBJECT array iterated
+	         by an enclosing dynamic foreach:
+	             foreach (in_use[i]) { ... in_use[i].lo ... }
+	         Handles are never rand, so the runtime pins this to the value
+	         the element holds now. */
+	    if (dynforeach_emit_ctx_ && cls
+		&& id->path().name.size() == 2
+		&& id->path().name.front().index.size() == 1
+		&& id->path().name.back().index.empty()) {
+		  const name_component_t&qroot = id->path().name.front();
+		  const name_component_t&qmem  = id->path().name.back();
+		  int qidx = cls->property_idx_from_name(qroot.name);
+		  if (qidx >= 0
+		      && (unsigned)qidx == dynforeach_emit_ctx_->prop_idx) {
+			const netarray_t*qarr = dynamic_cast<const netarray_t*>(
+				    cls->get_prop_type((size_t)qidx));
+			const netclass_t*ecls = qarr
+			      ? dynamic_cast<const netclass_t*>(
+					qarr->element_type()) : 0;
+			const index_component_t&qic = qroot.index.front();
+			if (ecls && qic.msb && !qic.lsb
+			    && qic.sel == index_component_t::SEL_BIT) {
+			      int midx = ecls->property_idx_from_name(qmem.name);
+			      if (midx >= 0) {
+				    ivl_type_t mt = ecls->get_prop_type((size_t)midx);
+				    unsigned mw = mt ? mt->packed_width() : 0;
+				    if (mw == 0) mw = 32;
+				    string msfx = (mt && mt->get_signed()) ? ":s" : "";
+				    string qidx_ir = pexpr_to_constraint_ir(
+					  qic.msb, cls, value_slots, scope, loop_env);
+				    if (!qidx_ir.empty())
+					  return "(qmelem " + to_string(qidx)
+					      + ":" + to_string(midx)
+					      + ":" + to_string(mw)
+					      + msfx + " " + qidx_ir + ")";
+			      }
+			}
+		  }
+	    }
 	    perm_string name = id->path().back().name;
 	    bool local_qualified = !id->path().name.empty()
 		  && id->path().name.front().local_scope;
@@ -28692,7 +28748,6 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		    // Only integral elements are expressible.
 		  if (etype && (etype->base_type() == IVL_VT_REAL
 				|| etype->base_type() == IVL_VT_STRING
-				|| etype->base_type() == IVL_VT_CLASS
 				|| etype->base_type() == IVL_VT_DARRAY
 				|| etype->base_type() == IVL_VT_QUEUE))
 			return "";
