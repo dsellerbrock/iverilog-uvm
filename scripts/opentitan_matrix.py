@@ -1883,7 +1883,13 @@ def validated_top_options(
     # 23.11 inserts an instance-list-free bind "designwide", but the directive
     # must still be elaborated. A simulator handed the whole filelist roots
     # every top-level module, so root these the same way.
-    if kept:
+    # NOT in the sva lane. sva_testbench_wrapper() below wraps the declared
+    # top in a generated tb/dut pair, and it bails out when `len(tops) != 1'.
+    # Adding a second root here therefore SILENTLY disables that wrapping, and
+    # the SVA collateral's `tb.dut...' hierarchical references stop resolving
+    # (i2c_sva went PASS -> FAIL that way, plus five more rows). The sva lane
+    # builds its own topology; leave it alone.
+    if kept and job.lane != "sva":
         bind_modules = sorted(
             name
             for name in modules
