@@ -17074,7 +17074,22 @@ NetExpr* PECallFunction::elaborate_expr_method_par_(Design*des, NetScope*scope,
 		  return 0;
 
 	    const NetECString*par_string = dynamic_cast<const NetECString*>(par_val);
-	    ivl_assert(*par_val, par_string);
+	      /* A string-typed parameter does not always carry a constant
+	         string value here. An ARRAY parameter's own value is a
+	         sentinel -- the elements are separate parameters -- so a
+	         method called on an element the elaborator could not resolve
+	         to one constant (a variable index, say) arrives with the
+	         sentinel instead. That used to abort the compiler on this
+	         assertion, which is strictly worse than the `sorry:' already
+	         reported for the unresolved index just above it. */
+	    if (!par_string) {
+		  cerr << get_fileline() << ": sorry: the `" << method_name
+		       << "' method needs a value that is a constant string at "
+		          "elaboration; this parameter reference does not "
+		          "resolve to one." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
 	    string par_value = par_string->value().as_raw_string();
 	    auto make_integral = [&](ivl_type_t result_type,
 				     int64_t value) -> NetEConst* {

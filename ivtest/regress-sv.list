@@ -2501,3 +2501,6 @@ sv_param_string_override_untyped_2023 normal,-g2023,-s,main ivltests gold=sv_par
 sv_param_string_cast_fail CE,-g2012 ivltests gold=sv_param_string_cast_fail.gold
 sv_interface_instance_name_collision normal,-g2017,-s,main ivltests gold=sv_interface_instance_name_collision.gold
 sv_interface_instance_name_collision_2023 normal,-g2023,-s,main ivltests gold=sv_interface_instance_name_collision.gold
+sv_param_unsized_unpacked_dimension normal,-g2017,-s,main ivltests gold=sv_param_unsized_unpacked_dimension.gold
+sv_param_unsized_unpacked_dimension_2023 normal,-g2023,-s,main ivltests gold=sv_param_unsized_unpacked_dimension.gold
+sv_param_unsized_multidim_fail CE,-g2012 ivltests gold=sv_param_unsized_multidim_fail.gold
