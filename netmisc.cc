@@ -28,6 +28,7 @@
 # include  <algorithm>
 # include  <limits>
 # include  "netlist.h"
+# include  "PClass.h"
 # include  "netparray.h"
 # include  "netvector.h"
 # include  "netmisc.h"
@@ -1653,10 +1654,35 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 			      break;
 			}
 		  }
+		    /* The body of an UNSPECIALIZED parameterized class sees a
+		     * type parameter's DEFAULT here -- uvm_class_pair's
+		     * `type T1=int' makes `T1 first; first = new;' read as
+		     * `int first; first = new;'. IEEE 8.25: that body is not a
+		     * type and is never executed, so it needs no diagnostic.
+		     * A REAL specialization reaching this point means our own
+		     * type-parameter handling collapsed, which is our defect
+		     * and stays loud below; so does the forward-referenced
+		     * class collapse (a LOGIC target at package/module scope).
+		     * This mirrors how the virtual-class `new' degrade was
+		     * narrowed. */
+		  bool in_unspecialized_param_class = false;
+		  if (const NetScope*cscope =
+			    scope ? scope->get_class_scope() : 0) {
+			const netclass_t*cd = cscope->class_def();
+			const PClass*pclass = cscope->class_pform();
+			in_unspecialized_param_class =
+			      cd && !cd->specialized_instance()
+			   && pclass && pclass->has_parameter_port_list;
+		  }
 		  bool class_new_hard_error = is_class_new
 			&& cast_type != IVL_VT_LOGIC
 			&& !in_class_scope;
 		  if (is_class_new && !class_new_hard_error) {
+			if (in_unspecialized_param_class) {
+			      NetENull*seed = new NetENull;
+			      seed->set_line(*pe);
+			      return seed;
+			}
 			cerr << pe->get_fileline() << ": warning: 'new' into a "
 			     << "4-state l-value: treating the target as a "
 			     << "class variable whose type did not resolve "
