@@ -296,6 +296,53 @@ down, this would have been filed as UPSTREAM_INVALID.
 | generic body whose type-parameter default is a class lacking the method | still reports, so two errors where slang gives one; erring toward reporting cannot create silent success | `sv_class_type_param_bound_missing_fail` |
 | `LEAFS.size()` / `LEAFS[i]` on a string array parameter | loud `sorry:` | next frontier above |
 | an ORDINARY class nested inside a parameterized one | takes the loud degrade rather than the hard error, because the scope walk stops at the first parameterized ancestor. Conservative on purpose: it keeps UVM working and cannot create silent success | scope walk in `elab_expr.cc` |
-| `dut.*_sva_if` bind failures | untriaged | rstmgr census rows |
+| `dut.*_sva_if` bind failures | **triaged: not an Icarus defect** -- see below | rstmgr / lc_ctrl census rows |
 
 No clause-matrix row is promoted to complete.
+
+## Addendum: the `dut.*_sva_if` bind failures are root selection, not a defect
+
+The last untriaged rstmgr mechanism. OpenTitan carries its bind directives in a
+module that exists only to hold them and is never instantiated:
+
+```systemverilog
+module rstmgr_bind;
+  bind rstmgr rstmgr_cascading_sva_if rstmgr_cascading_sva_if ( ... );
+  bind rstmgr pwrmgr_rstmgr_sva_if #(...) pwrmgr_rstmgr_sva_if ( ... );
+endmodule
+```
+
+and `tb.sv` then reaches the inserted instance hierarchically:
+
+```systemverilog
+uvm_config_db#(virtual pwrmgr_rstmgr_sva_if)::set(null, "*.env", "pwrmgr_rstmgr_sva_vif",
+                                                  dut.pwrmgr_rstmgr_sva_if);
+```
+
+Reduced (`red5/bind_in_uninstantiated_module.sv`) and measured. **Icarus and
+slang agree exactly**, which is what settles it:
+
+| Root selection | Icarus | slang 1800-2017 |
+|---|---|---|
+| explicit top only (`-s main` / `--top main`) | `Unable to bind variable dut.sva_if` | `could not resolve hierarchical path name 'sva_if'` |
+| both tops (`-s main -s bindmod`) | compiles, PASSED | 0 errors |
+| no explicit top (all modules root) | compiles, PASSED | 0 errors |
+
+IEEE 1800-2023 23.11 says a bind directive without an instance list is inserted
+"into all instances of the specified target scope, **designwide**" -- but the
+directive must itself be elaborated, and a module nothing instantiates is not.
+Both tools take the same view.
+
+**Not caused by `660ee9379`.** The initial suspicion was that this branch's own
+census-driver change introduced it by rooting `tb`. The record disproves that:
+rstmgr's `top_options` is `['-stb']` with **no substitution note**, so `-s tb`
+came from the core's own declared toplevel through Edalize, not from the
+substitution branch. That branch only fires where the driver previously gave up.
+
+**Scope, and why it is not fixed here.** Six rows across three cores
+(rstmgr darjeeling/earlgrey, lc_ctrl), and in each the bind errors are a
+minority of the row's hard errors -- 2 of 17 for rstmgr, 1 of 5 for lc_ctrl. No
+core leaves FAIL if only this is addressed. The fix belongs in the census
+driver, rooting the bind-carrying module alongside the declared toplevel, and
+needs a full 530-job census to validate. That is next-branch harness work, not a
+compiler change.
