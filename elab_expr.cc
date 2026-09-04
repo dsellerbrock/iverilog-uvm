@@ -13299,6 +13299,55 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			continue;
 		  }
 
+		    /* IEEE 1800-2017/2023 13.4.2: a function with no arguments
+		     * may be called without its parentheses. The parser leaves
+		     * `obj.m' as a member component rather than a
+		     * PECallFunction, so a zero-argument METHOD reached through
+		     * a class PROPERTY never became a call -- it fell through to
+		     * the property walk, matched no property, and yielded 0.
+		     * Silently wrong, and the reason uvm_driver's connectivity
+		     * check reported `condition expression failed to elaborate;
+		     * ASSUMING FALSE':
+		     *
+		     *     function int size ();           // uvm_port_base
+		     *     if (seq_item_port.size < 1)     // uvm_driver.svh:100
+		     *
+		     * The same call through a plain object VARIABLE already
+		     * worked, which is why this looked shape-dependent. Only the
+		     * LAST component is handled: chaining off the result would
+		     * need the walk to continue on a call expression, which is
+		     * separate work, and the unhandled form keeps its existing
+		     * behaviour. */
+		  if (cur_class && gn_system_verilog() && tail_is_last
+		      && tail_comp.index.empty()
+		      && cur_class->property_idx_from_name(tail_comp.name) < 0) {
+			if (NetScope*mscope =
+			      cur_class->method_from_name(tail_comp.name)) {
+			      const NetFuncDef*mdef =
+				    mscope->type() == NetScope::FUNC
+					  ? mscope->func_def() : 0;
+			      bool implicit_this =
+				    mdef && scope_method_uses_implicit_this(des, mscope);
+			      unsigned want = implicit_this ? 1u : 0u;
+			      if (mdef && mdef->port_count() == want) {
+				    NetNet*res =
+					  mscope->find_signal(mscope->basename());
+				    if (!res)
+					  res = const_cast<NetNet*>(mdef->return_sig());
+				    if (res) {
+					  std::vector<NetExpr*> parms(mdef->port_count());
+					  if (implicit_this)
+						parms[0] = base_expr;
+					  NetESignal*eres = new NetESignal(res);
+					  NetEUFunc*call = new NetEUFunc(
+						scope, mscope, eres, parms, false);
+					  call->set_line(*this);
+					  return call;
+				    }
+			      }
+			}
+		  }
+
 		    // M11-5: procedural covergroup option access
 		    // (cg_inst.option.goal, cg_inst.type_option.weight).
 		    // The option structs are not modeled as runtime
