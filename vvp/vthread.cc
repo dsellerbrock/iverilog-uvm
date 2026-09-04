@@ -29095,8 +29095,15 @@ static bool append_qo_obj_container_(vthread_t thr, vvp_code_t cp,
       if (!receiver)
 	    return true;
 
+	/* `text' and `container_data' share a union in vvp_code_s, so the
+	 * operand table alone decides which member is live. BOTH queue forms
+	 * and the /darray/proto form declare OA_CONTAINER_DATA_*, so keying
+	 * this on inner_is_queue made /darray/proto read the struct pointer
+	 * back as a `const char*' -- the decode below then reported a garbage
+	 * element encoding, and the has_proto branch further down would have
+	 * dereferenced a null `data' had it ever been reached. */
       const vvp_container_opcode_data_s*data =
-	    inner_is_queue ? cp->container_data : 0;
+	    (inner_is_queue || has_proto) ? cp->container_data : 0;
       if (inner_is_queue && !data) {
 	    cerr << thr->get_fileline()
 		 << "VVP error: malformed object-collection queue splice "
