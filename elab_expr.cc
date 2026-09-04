@@ -7822,6 +7822,74 @@ static bool class_is_uvm_provenance_(const netclass_t*class_type)
       return false;
 }
 
+/* IEEE 1800-2017/2023 8.25: "A generic class is not a type; only a concrete
+ * specialization represents a type."  The body of an unspecialized
+ * parameterized class is a template seed: it is elaborated with the declared
+ * default type parameters and never executed.  A static call through a type
+ * parameter that is not bound to a class in that body therefore has nothing
+ * to check yet -- each real specialization checks it again.  That is the same
+ * principle specialize_bare_class_at_concrete_use() already applies in
+ * elab_scope.cc ("a template seed, not a concrete use site") and that
+ * resolve_scoped_class_type_name_task_() applies on the statement path; only
+ * the scoped-static-call expression form was missing it.
+ *
+ * Reporting here is a FALSE POSITIVE: it fires once per parameterized class,
+ * from a body the design never instantiates.  UVM's uvm_registry_common
+ * #(type Tregistry=int, type Tcreator=int, ...) is the canonical case --
+ * under its own defaults `Tcreator::create_by_type(Tregistry::get(), ...)'
+ * reads as `int::create_by_type(int::get(), ...)', meaningless until
+ * specialized.
+ *
+ * Deliberately narrow, so genuine errors stay loud.  BOTH conditions must
+ * hold: the leading name resolves to a type_parameter_t, AND that parameter
+ * binds to no class type in this scope.  A concrete specialization -- an
+ * explicitly used default specialization C#() included -- binds the
+ * parameter, so a method genuinely missing from the bound type is still
+ * reported there.  An ordinary class is untouched: it has no type parameter
+ * to resolve. */
+static bool scoped_call_through_unbound_type_parameter_(Design*des,
+							NetScope*scope,
+							const pform_scoped_name_t&path)
+{
+      if (!scope || path.name.size() < 2)
+	    return false;
+
+	/* Only inside the body of an UNSPECIALIZED parameterized class.  A real
+	   specialization is a concrete use site and must still report -- and
+	   that includes the default specialization C#() used explicitly, which
+	   8.25 makes a specialization like any other even though its parameter
+	   may bind to a non-class type such as `int'. */
+      const NetScope*class_scope = scope->get_class_scope();
+      if (!class_scope
+	  || !scoped_class_is_unspecialized_parameterized_(class_scope->class_def()))
+	    return false;
+
+      perm_string root = path.name.front().name;
+
+      typedef_t*td = scope->find_typedef(des, root);
+      if (!td || !dynamic_cast<const type_parameter_t*>(td->get_data_type()))
+	    return false;
+
+	/* Resolve the parameter the way the statement path does.  If it binds
+	   to a class anywhere up the scope chain (or in $unit) this is a real
+	   specialization, and a missing method there is a real error. */
+      NetScope*owner = scope->find_typedef_scope(des, td);
+      for (NetScope*cur = owner ? owner : scope ; cur ; cur = cur->parent()) {
+	    ivl_type_t param_type = nullptr;
+	    (void) cur->get_parameter(des, root, param_type);
+	    if (dynamic_cast<const netclass_t*>(param_type))
+		  return false;
+      }
+      if (NetScope*unit = scope->unit()) {
+	    ivl_type_t param_type = nullptr;
+	    (void) unit->get_parameter(des, root, param_type);
+	    if (dynamic_cast<const netclass_t*>(param_type))
+		  return false;
+      }
+
+      return true;
+}
+
 /* Loud, de-duplicated (per method/site shape) warning that a
  * compile-progress stub fired. Never silent: the FIRST time a given
  * (site, method) shape fires we print; further identical shapes are
@@ -14719,6 +14787,17 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		  delete fun;
 	    }
 
+	      /* A template seed carries no debt: see 8.25 above.  Checked
+	         before the UVM-provenance stub so it applies to ordinary
+	         SystemVerilog too, and warned about by neither -- there is
+	         nothing wrong to report until a specialization exists. */
+	    if (scoped_call_through_unbound_type_parameter_(des, scope, path_)) {
+		  if (NetExpr*seed = elaborate_compile_progress_expr_method_stub_(
+			    this,
+			    unspecialized_type_parameter_expr_stub_kind_(
+				  path_.name, 0, peek_tail_name(path_))))
+			return seed;
+	    }
 	    if (NetExpr*stub = elaborate_compile_progress_expr_method_stub_(
 			  this,
 			  classify_compile_progress_unresolved_func_stub_(

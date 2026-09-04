@@ -1,0 +1,3 @@
+./ivltests/sv_class_type_param_bound_missing_fail.v:11: error: No function named `Treg.tag' found in this context (main.common.poke).
+./ivltests/sv_class_type_param_bound_missing_fail.v:11: error: No function named `Treg.tag' found in this context (main._ivl_0.poke).
+2 error(s) during elaboration.

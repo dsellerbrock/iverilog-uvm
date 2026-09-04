@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_class_type_param_scoped_call_template_seed.v",
+    "iverilog-args" : [ "-g2017", "-s", "main" ],
+    "gold"          : "sv_class_type_param_scoped_call_template_seed"
+}

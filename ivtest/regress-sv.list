@@ -2504,3 +2504,7 @@ sv_interface_instance_name_collision_2023 normal,-g2023,-s,main ivltests gold=sv
 sv_param_unsized_unpacked_dimension normal,-g2017,-s,main ivltests gold=sv_param_unsized_unpacked_dimension.gold
 sv_param_unsized_unpacked_dimension_2023 normal,-g2023,-s,main ivltests gold=sv_param_unsized_unpacked_dimension.gold
 sv_param_unsized_multidim_fail CE,-g2012 ivltests gold=sv_param_unsized_multidim_fail.gold
+sv_class_type_param_scoped_call_template_seed normal,-g2017,-s,main ivltests gold=sv_class_type_param_scoped_call_template_seed.gold
+sv_class_type_param_scoped_call_template_seed_2023 normal,-g2023,-s,main ivltests gold=sv_class_type_param_scoped_call_template_seed.gold
+sv_class_type_param_bound_missing_fail CE,-g2012 ivltests gold=sv_class_type_param_bound_missing_fail.gold
+sv_class_type_param_default_spec_fail CE,-g2012 ivltests gold=sv_class_type_param_default_spec_fail.gold
