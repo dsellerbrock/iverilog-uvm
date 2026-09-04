@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_param_string_array_runtime_access.v",
+    "iverilog-args" : [ "-g2017", "-s", "main" ],
+    "gold"          : "sv_param_string_array_runtime_access"
+}

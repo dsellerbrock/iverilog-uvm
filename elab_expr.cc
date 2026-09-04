@@ -17144,6 +17144,38 @@ NetExpr* PECallFunction::elaborate_expr_method_par_(Design*des, NetScope*scope,
       ivl_type_t par_type = search_results.type;
       perm_string method_name = search_results.path_tail.back().name;
 
+	/* An array parameter's declared `type' is its ELEMENT type: see
+	 * PEIdent::elaborate_expr_param_array_, which reads the unpacked
+	 * bounds out of the scope precisely because the type does not carry
+	 * them. A query method on the ARRAY therefore arrives here typed as
+	 * the element, so `parameter string LEAFS[]' sends LEAFS.size() into
+	 * the string-method branch below and is rejected for not being a
+	 * constant string -- dispatching the array's own method against one
+	 * of its elements. Answer it from the recorded bounds instead; the
+	 * element count is known at elaboration.
+	 *
+	 * Only an UNINDEXED receiver is the array. `LEAFS[1].len()' keeps its
+	 * existing element-method behaviour. */
+      if (search_results.scope
+	  && !search_results.path_head.empty()
+	  && search_results.path_head.back().index.empty()
+	  && method_name == perm_string::literal("size")) {
+	    perm_string par_name = search_results.path_head.back().name;
+	    std::map<perm_string,NetScope::param_expr_t>::const_iterator pit =
+		  search_results.scope->parameters.find(par_name);
+	    if (pit != search_results.scope->parameters.end()
+		&& pit->second.array_bounds_known) {
+		  if (!check_string_method_arity_(des, method_name))
+			return 0;
+		  uint64_t count = 1;
+		  for (size_t k = 0 ; k < pit->second.array_dims.size() ; k += 1)
+			count *= pit->second.array_dims[k].width();
+		  NetEConst*res = new NetEConst(verinum(count, 32));
+		  res->set_line(*this);
+		  return res;
+	    }
+      }
+
       // If the parameter is of type string, then look for the standard string
       // methods. Return an error if not found. Since we are assured that the
       // expression is a constant string, it should be able to calculate the
@@ -23112,6 +23144,69 @@ NetExpr* PEIdent::elaborate_expr_param_array_(Design*des, NetScope*scope,
 	    lo[k] = (l <= r) ? l : r;
 	    hi[k] = (l <= r) ? r : l;
 	    total *= (size_t)adims[k].width();
+      }
+
+	/* A string element cannot go into the flat packed table below. That
+	 * lowering exists to turn the whole array into one wide vector and
+	 * bit-select it, which needs integral elements of equal width; a
+	 * string has neither property, which is why the variable-index path
+	 * used to reject string arrays outright even though a CONSTANT index
+	 * already worked through elem_by_index() above.
+	 *
+	 * The elements are elaboration constants, so selecting among them
+	 * with a chain of conditionals on the index is exact and needs no
+	 * runtime array object. This is the same accumulate-a-NetETernary
+	 * idiom the array min/max reduction uses.
+	 *
+	 * Deliberately restricted to ONE dimension -- the shape string array
+	 * parameters actually take (OpenTitan's `parameter string
+	 * LIST_OF_LEAFS[]'). A multi-dimensional string array keeps the loud
+	 * diagnostic below rather than getting a guessed lowering. */
+      if (ndims == 1 && name_tail.index.size() == 1 && total > 0
+	  && !need_const) {
+	    std::vector<const NetEConst*> sel (total);
+	    bool all_string = true;
+	    long sidx = lo[0];
+	    for (size_t slot = 0 ; slot < total ; slot += 1, sidx += 1) {
+		  std::vector<long> one (1, sidx);
+		  ivl_type_t et = 0;
+		  const NetEConst*ec =
+			dynamic_cast<const NetEConst*>(elem_by_index(one, et));
+		  if (!ec || !ec->value().is_string()) { all_string = false; break; }
+		  sel[slot] = ec;
+	    }
+
+	    if (all_string) {
+		  NetExpr*ix = elab_and_eval(des, scope,
+					     name_tail.index.front().msb,
+					     -1, false);
+		  if (!ix) return 0;
+
+		  unsigned wid = 0;
+		  for (size_t slot = 0 ; slot < total ; slot += 1)
+			if (sel[slot]->expr_width() > wid)
+			      wid = sel[slot]->expr_width();
+
+		    /* Out-of-range selects answer the last element's shape
+		       rather than x: a string has no x, and an empty string is
+		       the closest well-defined answer. */
+		  NetExpr*acc = new NetECString(std::string(""));
+		  acc->set_line(*this);
+		  for (size_t slot = total ; slot-- > 0 ; ) {
+			NetEConst*key = new NetEConst(
+			      verinum((uint64_t)(lo[0] + (long)slot), 32));
+			key->set_line(*this);
+			NetEBComp*cmp = new NetEBComp('e', ix->dup_expr(), key);
+			cmp->set_line(*this);
+			NetExpr*val = new NetECString(sel[slot]->value());
+			val->set_line(*this);
+			NetETernary*tmp = new NetETernary(cmp, val, acc, wid, false);
+			tmp->set_line(*this);
+			acc = tmp;
+		  }
+		  delete ix;
+		  return acc;
+	    }
       }
 
       unsigned long elem_wid = 0;

@@ -2511,3 +2511,5 @@ sv_class_type_param_default_spec_fail CE,-g2012 ivltests gold=sv_class_type_para
 sv_class_type_param_virtual_default_seed normal,-g2017,-s,main ivltests gold=sv_class_type_param_virtual_default_seed.gold
 sv_class_type_param_virtual_default_seed_2023 normal,-g2023,-s,main ivltests gold=sv_class_type_param_virtual_default_seed.gold
 sv_class_virtual_new_in_method_fail CE,-g2012 ivltests gold=sv_class_virtual_new_in_method_fail.gold
+sv_param_string_array_runtime_access normal,-g2017,-s,main ivltests gold=sv_param_string_array_runtime_access.gold
+sv_param_string_array_runtime_access_2023 normal,-g2023,-s,main ivltests gold=sv_param_string_array_runtime_access.gold
