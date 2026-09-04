@@ -19584,6 +19584,74 @@ bool PEIdent::is_string_byte_select(Design*des, NetScope*scope) const
       return component.index.back().sel == index_component_t::SEL_BIT;
 }
 
+
+/*
+ * IEEE 1800-2017 13.4.2: "the parentheses may be omitted" on a call to a
+ * subroutine that takes no arguments. An unqualified identifier appearing
+ * inside a class method may therefore be a paren-less call to a zero-argument
+ * method of the enclosing class, or of one it inherits -- `get_full_name' in
+ * a uvm_object subclass is the common case.
+ *
+ * This runs only after ordinary signal binding has already failed, so it can
+ * never shadow a real signal of the same name. Without it the reference
+ * elaborates to nothing and the read silently yields a zero/empty value
+ * rather than the method result. The scoped form (`Cls::name') is resolved
+ * separately by resolve_scoped_class_method_func_().
+ */
+static NetExpr* paren_less_class_method_call_(Design*des, NetScope*scope,
+					      const PEIdent*self,
+					      const pform_scoped_name_t&path,
+					      unsigned expr_wid, unsigned flags)
+{
+      if (!gn_system_verilog())
+	    return 0;
+      if (path.package || path.name.size() != 1)
+	    return 0;
+      if (!path.name.back().index.empty())
+	    return 0;
+
+      const NetScope*cscope = scope ? scope->get_class_scope() : 0;
+      if (!cscope)
+	    return 0;
+      const netclass_t*cdef = cscope->class_def();
+      if (!cdef)
+	    return 0;
+
+      NetScope*mscope = cdef->method_from_name(peek_tail_name(path.name));
+	/* Only a function can appear in an expression, and only a
+	   zero-argument one may drop its parentheses. A method whose
+	   signature has not been published yet is left alone rather than
+	   guessed at. */
+      if (!mscope || mscope->type() != NetScope::FUNC)
+	    return 0;
+      const NetFuncDef*fdef = mscope->func_def();
+      if (!fdef)
+	    return 0;
+
+	/* A non-static class method carries the synthetic THIS_TOKEN ("@")
+	   port ahead of its declared arguments; a static one does not.
+	   Discount it the same way elab_sig.cc does, so that "takes no
+	   arguments" means the same thing for both. */
+      unsigned nports = fdef->port_count();
+      if (nports >= 1
+	  && fdef->port(0)->name() == perm_string::literal(THIS_TOKEN))
+	    nports -= 1;
+      if (nports != 0)
+	    return 0;
+
+      std::vector<named_pexpr_t> empty_parms;
+      PECallFunction*call = new PECallFunction(path.name, empty_parms);
+      call->set_line(*self);
+      NetExpr*res = call->elaborate_expr(des, scope, expr_wid, flags);
+      delete call;
+
+      if (res && debug_elaborate)
+	    cerr << self->get_fileline() << ": debug: Resolved unqualified `"
+		 << path << "' as a paren-less call to a zero-argument "
+		    "class method (IEEE 1800-2017 13.4.2)." << endl;
+      return res;
+}
+
 unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 {
 	// M13: a bare reference to a let in scope expands by
@@ -22404,6 +22472,15 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	      // the user's own reference to the same name reports it.
 	    if (quiet_bind_) return 0;
 
+	      /* IEEE 1800-2017 13.4.2: an unqualified name in a class
+		 method may be a paren-less call to a zero-argument method
+		 of the enclosing class or one it inherits. Only reachable
+		 once ordinary signal binding has failed. */
+	    if (NetExpr*r = paren_less_class_method_call_(des, scope, this,
+							  path_, expr_wid,
+							  flags))
+		  return r;
+
 	      // strict_bind_ marks identifiers that came out of a
 	      // concurrent assertion. The compile-progress warning keeps
 	      // UVM-heavy code building, but in an assertion it leaves a
@@ -22578,6 +22655,14 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	// Compiler-generated bookkeeping reference: stay silent, the
 	// user's own reference to the same name reports it.
       if (quiet_bind_) return 0;
+
+	/* IEEE 1800-2017 13.4.2 paren-less zero-argument method call.
+	   See paren_less_class_method_call_ -- the companion binding
+	   failure path above calls it too. */
+      if (NetExpr*r = paren_less_class_method_call_(des, scope, this, path_,
+						    expr_wid, flags))
+	    return r;
+
 
 	// strict_bind_: see the companion site above. An identifier that
 	// came out of a concurrent assertion must not degrade to a

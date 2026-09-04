@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_class_parenless_unqualified_method.v",
+    "iverilog-args" : [ "-g2023", "-s", "main" ],
+    "gold"          : "sv_class_parenless_unqualified_method"
+}
