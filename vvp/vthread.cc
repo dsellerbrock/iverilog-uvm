@@ -889,6 +889,7 @@ struct vthread_s {
       __vpiScope*skip_free_scope;
       __vpiScope*staged_alloc_rd_scope;
       __vpiScope*pending_alloc_scope;
+      __vpiScope*randomize_hook_scope = nullptr;
       __vpiScope*return_object_mirror_scope;
       __vpiScope*dynamic_dispatch_base_scope;
 	/* These are used to pass non-blocking event control information. */
@@ -12256,6 +12257,28 @@ static bool build_dynamic_method_label_(const class_type*defn,
       }
       label += ".";
       label += method_name;
+
+      /* IEEE 1800-2017/2023 5.6.1: escaped class/method identifiers use
+       * the same labels as statically emitted calls. Match vvp_mangle_id
+       * in tgt-vvp/vvp_scope.c, including its short escapes. */
+      string encoded;
+      static const char nosym[] = "!\"#%&'()*+,-/:;<=>?@[\\]^`{|}~";
+      static const char hex[] = "0123456789ABCDEF";
+      for (unsigned char ch : label) {
+            if (!strchr(nosym, ch)) {
+                  encoded += ch;
+            } else {
+                  encoded += '\\';
+                  if (ch == '\\' || ch == '/' || ch == '<' || ch == '>')
+                        encoded += ch;
+                  else {
+                        encoded += 'x';
+                        encoded += hex[ch >> 4];
+                        encoded += hex[ch & 15];
+                  }
+            }
+      }
+      label.swap(encoded);
       return true;
 }
 
@@ -13287,6 +13310,63 @@ bool of_CALLF_VEC4_V(vthread_t thr, vvp_code_t cp)
       child->args_vec4.push_back(0);
 
       return do_callf_void(thr, child);
+}
+
+/* IEEE 1800-2017/2023 18.6.2/18.6.3: automatic randomize callbacks
+ * appear virtual, but direct calls to the same methods remain nonvirtual.
+ * Resolve each hook independently from the dynamic class, with exact labels:
+ * suffix matching could select an unrelated same-named class in a package.
+ *
+ * The receiver and success word stay on the caller's stacks. Re-enter this
+ * instruction after the existing synchronous function trampoline returns to
+ * free its automatic frame, just like the generated %alloc/%callf/%free trio.
+ */
+bool of_RANDOMIZE_HOOK(vthread_t thr, vvp_code_t cp)
+{
+      vvp_code_s frame = {};
+      if (thr->randomize_hook_scope) {
+            frame.scope = thr->randomize_hook_scope;
+            thr->randomize_hook_scope = nullptr;
+            return of_FREE(thr, &frame);
+      }
+      const bool post = cp->bit_idx[0] != 0;
+      if (post && thr->peek_vec4().value(0) != BIT4_1)
+            return true;
+      const vvp_object_t&receiver = thr->peek_object();
+      vvp_cobject*cobj = receiver.peek<vvp_cobject>();
+      if (!cobj) return true;
+
+      vvp_code_t target = nullptr;
+      __vpiScope*scope = nullptr;
+      const char*hook = post ? "post_randomize" : "pre_randomize";
+      for (const class_type*type = cobj->get_defn(); type;
+           type = type->runtime_super()) {
+            string label;
+            if (build_dynamic_method_label_(type, hook, label)
+                && compile_lookup_code_scope(label.c_str(), &target, &scope, true))
+                  break;
+      }
+      if (!target) return true; // The implicit callback has an empty body.
+      vpiHandle this_item = scope ? lookup_scope_item_(scope, "@") : nullptr;
+      if (!this_item || !scope->is_automatic()) {
+            cerr << "runtime error: invalid randomize callback frame for "
+                 << hook << endl;
+            vpip_set_return_value(1);
+            schedule_finish(1);
+            return false;
+      }
+      frame.scope = scope;
+      of_ALLOC(thr, &frame);
+      if (!write_handle_object_to_context_(this_item, receiver, thr->wt_context)) {
+            of_FREE(thr, &frame);
+            cerr << "runtime error: cannot bind randomize callback receiver" << endl;
+            vpip_set_return_value(1);
+            schedule_finish(1);
+            return false;
+      }
+      thr->randomize_hook_scope = scope;
+      thr->pc -= 1;
+      return do_callf_void(thr, vthread_new(target, scope));
 }
 
 bool of_CALLF_VOID(vthread_t thr, vvp_code_t cp)

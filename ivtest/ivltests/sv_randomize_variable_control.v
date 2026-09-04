@@ -281,11 +281,12 @@ module main;
     chk("post_randomize did NOT run on failure", h.post_calls, 1);
     chk("a failed randomize() left the variable alone", h.v, x0);
 
-    // randomize(null) runs neither hook
+    // IEEE 1800-2017/2023 18.6.2 and 18.11: checker calls still run
+    // the root callbacks; only the solver treats all members as state.
     h.make_impossible = 0;
     void'(h.randomize(null));
-    chk("randomize(null) did not call pre_randomize",  h.pre_calls,  2);
-    chk("randomize(null) did not call post_randomize", h.post_calls, 1);
+    chk("randomize(null) called pre_randomize",  h.pre_calls,  3);
+    chk("randomize(null) called post_randomize", h.post_calls, 2);
 
     // The expression-form with-clause carries the argument list too.
     // The bare and void-cast statement siblings are pinned separately

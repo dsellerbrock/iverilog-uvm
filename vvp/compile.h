@@ -79,7 +79,7 @@ extern void wide_inputs_connect(vvp_wide_fun_core*core,
 extern vvp_net_t* vvp_net_lookup(const char*label);
 extern vpiHandle vvp_lookup_handle(const char*label);
 extern bool compile_lookup_code_scope(const char*label, vvp_code_t*code,
-                                      __vpiScope**scope);
+                                      __vpiScope**scope, bool exact = false);
 
 /*
  * DPI export (IEEE 1800-2017 35.5). compile_export_dpi registers one
