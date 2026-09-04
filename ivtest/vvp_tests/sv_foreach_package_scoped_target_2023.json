@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_foreach_package_scoped_target_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "main" ],
+    "gold"          : "sv_foreach_package_scoped_target"
+}

@@ -907,6 +907,44 @@ void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 	         parameter `N'". Overriding nothing, or overriding only
 	         `N', both worked -- which is why this hid for so long. */
 	    bool ok = true;
+	      /* IEEE 1800-2017 6.20.2 / A.2.4: a parameter may leave a single
+	         unpacked dimension UNSIZED and take its size from the
+	         initializer -- OpenTitan's rstmgr_env_pkg writes
+
+	             parameter string LIST_OF_LEAFS[] = { "u_daon_lc", ... };
+
+	         evaluate_range() rejects an unsized dimension outright (its own
+	         comment says such a dimension must be resolved before it is
+	         called), so this only needs the count, which the initializer
+	         already carries. Restricted to a lone dimension: inferring one
+	         size from a flat element count says nothing about how a
+	         multi-dimensional array should be split, so those stay a loud
+	         error rather than a guess. */
+	    size_t inferred = 0;
+	    bool infer_first = false;
+	    if (cur->second.udims->size() == 1
+		&& cur->second.udims->front().first == 0) {
+		  if (PEAssignPattern*ipat =
+			  dynamic_cast<PEAssignPattern*>(cur->second.val_expr)) {
+			std::vector<PExpr*> ielems;
+			if (ipat->expand_replication_(des, cur->second.val_scope,
+						      ielems)) {
+			      inferred = ielems.size();
+			      infer_first = true;
+			}
+		  } else if (PEConcat*icat =
+			  dynamic_cast<PEConcat*>(cur->second.val_expr)) {
+			if (!icat->has_repeat()) {
+			      inferred = icat->stream_parms().size();
+			      infer_first = true;
+			}
+		  }
+		  if (infer_first && inferred == 0)
+			infer_first = false;
+	    }
+	    if (infer_first) {
+		  dims.push_back(netrange_t(0, (long)inferred - 1));
+	    } else
 	    for (std::list<pform_range_t>::const_iterator dcur
 		       = cur->second.udims->begin()
 		       ; dcur != cur->second.udims->end() ; ++dcur) {
@@ -1396,6 +1434,28 @@ void NetScope::evaluate_parameter_logic_(Design*des, param_ref_t cur)
 	    }
 	    break;
 
+	  case IVL_VT_STRING:
+	      /* An UNTYPED parameter takes its type from the value it is
+		 finally assigned (IEEE 1800-2017/2023 6.20.2), and that value
+		 may be a string: prim_lfsr's `parameter LfsrType = "GAL_XOR"'
+		 is overridden from a `localparam string'. A string LITERAL
+		 override arrives as a vector and lands in the IVL_VT_LOGIC arm
+		 below, so only an override that keeps its string type reaches
+		 here -- which is why this case was missing. */
+	    if (! dynamic_cast<const NetECString*>(expr)) {
+		  cerr << expr->get_fileline()
+		       << ": error: Unable to evaluate string parameter "
+		       << (*cur).first << " value: " << *expr << endl;
+		  des->errors += 1;
+		  return;
+	    }
+
+	    if (param_type==0) {
+		  param_type = &netstring_t::type_string;
+		  cur->second.ivl_type = param_type;
+	    }
+	    break;
+
 	  case IVL_VT_LOGIC:
 	  case IVL_VT_BOOL:
 	    if (! dynamic_cast<const NetEConst*>(expr)) {
@@ -1442,7 +1502,13 @@ void NetScope::evaluate_parameter_logic_(Design*des, param_ref_t cur)
 		 << expr->expr_type() << "?" << endl;
 	    cerr << expr->get_fileline()
 		 << ":               : "
-		 << "param_type: " << *param_type << endl;
+		 << "param_type: ";
+	      /* param_type is null for an untyped parameter -- the arms above
+		 all test for that and infer a type. Dereferencing it here
+		 crashed the compiler while it was printing this very message. */
+	    if (param_type) cerr << *param_type;
+	    else cerr << "<none: the parameter is untyped>";
+	    cerr << endl;
 	    des->errors += 1;
 	    return;
       }

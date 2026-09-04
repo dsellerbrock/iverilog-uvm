@@ -1,3 +1,4 @@
 Warning: queue<vector> is bounded to have at most 2 elements, source has 3 elements.
+Warning: push_back(8'b01011010) skipped for already full bounded queue<vector[8]> [2].
 Warning: queue<vector> is bounded to have at most 2 elements, source has 3 elements.
 Warning: object-collection splice element 1 is not a queue or dynamic array; an empty declared queue was appended.

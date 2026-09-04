@@ -7822,6 +7822,74 @@ static bool class_is_uvm_provenance_(const netclass_t*class_type)
       return false;
 }
 
+/* IEEE 1800-2017/2023 8.25: "A generic class is not a type; only a concrete
+ * specialization represents a type."  The body of an unspecialized
+ * parameterized class is a template seed: it is elaborated with the declared
+ * default type parameters and never executed.  A static call through a type
+ * parameter that is not bound to a class in that body therefore has nothing
+ * to check yet -- each real specialization checks it again.  That is the same
+ * principle specialize_bare_class_at_concrete_use() already applies in
+ * elab_scope.cc ("a template seed, not a concrete use site") and that
+ * resolve_scoped_class_type_name_task_() applies on the statement path; only
+ * the scoped-static-call expression form was missing it.
+ *
+ * Reporting here is a FALSE POSITIVE: it fires once per parameterized class,
+ * from a body the design never instantiates.  UVM's uvm_registry_common
+ * #(type Tregistry=int, type Tcreator=int, ...) is the canonical case --
+ * under its own defaults `Tcreator::create_by_type(Tregistry::get(), ...)'
+ * reads as `int::create_by_type(int::get(), ...)', meaningless until
+ * specialized.
+ *
+ * Deliberately narrow, so genuine errors stay loud.  BOTH conditions must
+ * hold: the leading name resolves to a type_parameter_t, AND that parameter
+ * binds to no class type in this scope.  A concrete specialization -- an
+ * explicitly used default specialization C#() included -- binds the
+ * parameter, so a method genuinely missing from the bound type is still
+ * reported there.  An ordinary class is untouched: it has no type parameter
+ * to resolve. */
+static bool scoped_call_through_unbound_type_parameter_(Design*des,
+							NetScope*scope,
+							const pform_scoped_name_t&path)
+{
+      if (!scope || path.name.size() < 2)
+	    return false;
+
+	/* Only inside the body of an UNSPECIALIZED parameterized class.  A real
+	   specialization is a concrete use site and must still report -- and
+	   that includes the default specialization C#() used explicitly, which
+	   8.25 makes a specialization like any other even though its parameter
+	   may bind to a non-class type such as `int'. */
+      const NetScope*class_scope = scope->get_class_scope();
+      if (!class_scope
+	  || !scoped_class_is_unspecialized_parameterized_(class_scope->class_def()))
+	    return false;
+
+      perm_string root = path.name.front().name;
+
+      typedef_t*td = scope->find_typedef(des, root);
+      if (!td || !dynamic_cast<const type_parameter_t*>(td->get_data_type()))
+	    return false;
+
+	/* Resolve the parameter the way the statement path does.  If it binds
+	   to a class anywhere up the scope chain (or in $unit) this is a real
+	   specialization, and a missing method there is a real error. */
+      NetScope*owner = scope->find_typedef_scope(des, td);
+      for (NetScope*cur = owner ? owner : scope ; cur ; cur = cur->parent()) {
+	    ivl_type_t param_type = nullptr;
+	    (void) cur->get_parameter(des, root, param_type);
+	    if (dynamic_cast<const netclass_t*>(param_type))
+		  return false;
+      }
+      if (NetScope*unit = scope->unit()) {
+	    ivl_type_t param_type = nullptr;
+	    (void) unit->get_parameter(des, root, param_type);
+	    if (dynamic_cast<const netclass_t*>(param_type))
+		  return false;
+      }
+
+      return true;
+}
+
 /* Loud, de-duplicated (per method/site shape) warning that a
  * compile-progress stub fired. Never silent: the FIRST time a given
  * (site, method) shape fires we print; further identical shapes are
@@ -14719,6 +14787,17 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		  delete fun;
 	    }
 
+	      /* A template seed carries no debt: see 8.25 above.  Checked
+	         before the UVM-provenance stub so it applies to ordinary
+	         SystemVerilog too, and warned about by neither -- there is
+	         nothing wrong to report until a specialization exists. */
+	    if (scoped_call_through_unbound_type_parameter_(des, scope, path_)) {
+		  if (NetExpr*seed = elaborate_compile_progress_expr_method_stub_(
+			    this,
+			    unspecialized_type_parameter_expr_stub_kind_(
+				  path_.name, 0, peek_tail_name(path_))))
+			return seed;
+	    }
 	    if (NetExpr*stub = elaborate_compile_progress_expr_method_stub_(
 			  this,
 			  classify_compile_progress_unresolved_func_stub_(
@@ -17074,7 +17153,22 @@ NetExpr* PECallFunction::elaborate_expr_method_par_(Design*des, NetScope*scope,
 		  return 0;
 
 	    const NetECString*par_string = dynamic_cast<const NetECString*>(par_val);
-	    ivl_assert(*par_val, par_string);
+	      /* A string-typed parameter does not always carry a constant
+	         string value here. An ARRAY parameter's own value is a
+	         sentinel -- the elements are separate parameters -- so a
+	         method called on an element the elaborator could not resolve
+	         to one constant (a variable index, say) arrives with the
+	         sentinel instead. That used to abort the compiler on this
+	         assertion, which is strictly worse than the `sorry:' already
+	         reported for the unresolved index just above it. */
+	    if (!par_string) {
+		  cerr << get_fileline() << ": sorry: the `" << method_name
+		       << "' method needs a value that is a constant string at "
+		          "elaboration; this parameter reference does not "
+		          "resolve to one." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
 	    string par_value = par_string->value().as_raw_string();
 	    auto make_integral = [&](ivl_type_t result_type,
 				     int64_t value) -> NetEConst* {
@@ -25914,25 +26008,59 @@ NetExpr* PENewClass::elaborate_expr(Design*des, NetScope*scope,
 	      // BASE class, so a hard error there breaks all of UVM; keep
 	      // the null degrade but make it loud.
       if (ctype->is_virtual()) {
-	    bool in_class_method = false;
-	    for (NetScope*sc = scope ; sc ; sc = sc->parent()) {
-		  if (sc->type() == NetScope::CLASS || sc->class_def()) {
-			in_class_method = true;
-			break;
-		  }
+	      /* IEEE 1800-2017/2023 8.21: an abstract class can never be
+	         instantiated. The ONLY legitimate way to reach here with a
+	         virtual type is 8.25's template seed -- the body of an
+	         UNSPECIALIZED parameterized class is elaborated with the
+	         declared default type parameters, so `T obj; obj = new();'
+	         whose T defaults to a virtual base (uvm_component_registry
+	         #(T)'s shape) is seen as a `new' on that base even though it
+	         is valid in every real specialization. That body is never
+	         executed, so it needs no diagnostic and no object.
+
+	         The previous gate was "anywhere inside any class scope", which
+	         was far too wide: it degraded a plain `new' on a virtual class
+	         in an ORDINARY class method to null with only a warning, so
+	         illegal source compiled and ran with a null handle. slang
+	         rejects that program. Narrowing the gate to the template seed
+	         restores 8.21 there while keeping the UVM registry shape
+	         working -- pinned by sv_class_virtual_new_in_method_fail and
+	         sv_class_type_param_virtual_default_seed. */
+	    const NetScope*class_scope = scope ? scope->get_class_scope() : 0;
+	    const NetScope*param_owner = 0;
+	    for (const NetScope*cs = class_scope ; cs ; cs = cs->parent()) {
+		  const PClass*pc = cs->class_pform();
+		  if (pc && pc->has_parameter_port_list) { param_owner = cs; break; }
+		  if (cs->type() != NetScope::CLASS && !cs->class_def()) break;
 	    }
-	    if (!in_class_method) {
+
+	      /* No parameterized class anywhere up the chain means no type
+	         parameter could have collapsed, so 8.21 applies in full. This
+	         is the case the old any-class-scope gate wrongly degraded. */
+	    if (!param_owner) {
 		  cerr << get_fileline() << ": error: "
 		       << "Can not create object of virtual class `"
 		       << ctype->get_name() << "`." << endl;
 		  des->errors++;
 		  return 0;
 	    }
+
+	      /* Inside the template seed there is nothing to report: that body
+	         is elaborated with the declared defaults and never executed. */
+	    if (scoped_class_is_unspecialized_parameterized_(param_owner->class_def())) {
+		  NetENull*tmp = new NetENull();
+		  tmp->set_line(*this);
+		  return tmp;
+	    }
+
+	      /* A real specialization reaching here means our own type-parameter
+	         handling collapsed a concrete T to its virtual base -- a known
+	         defect, not something the source did wrong. Degrade, but stay
+	         LOUD so the collapse is never mistaken for correct compilation. */
 	    cerr << get_fileline() << ": warning: "
 		 << "new of virtual class `" << ctype->get_name()
-		 << "` degraded to null (type-parameter typing may have "
-		 << "collapsed to the virtual base; compile-progress)."
-		 << endl;
+		 << "` degraded to null (type-parameter typing collapsed to the "
+		 << "virtual base; compile-progress)." << endl;
 	    NetENull*tmp = new NetENull();
 	    tmp->set_line(*this);
 	    return tmp;

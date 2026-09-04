@@ -13431,6 +13431,29 @@ hierarchy_identifier
 	$$->push_back(name_component_t(lex_strings.make($1.text)));
 	delete[]$1.text;
       }
+    /* An interface INSTANCE may be named after its own interface type
+       (`rstmgr_if rstmgr_if(...)', `tl_if tl_if(...)'), which is pervasive in
+       OpenTitan DV. The lexer then hands the name back as TYPE_IDENTIFIER, and
+       `expr_primary: TYPE_IDENTIFIER' -- declared earlier, so it wins the
+       reduce/reduce -- swallowed it. Member access still parsed, but the result
+       could not be indexed and was not a valid l-value:
+
+	   assign w = rstmgr_if.resets_o;      // accepted
+	   assign w = rstmgr_if.resets_o[0];   // syntax error
+	   rstmgr_if.resets_o = 4'd1;          // syntax error
+
+       Spelling the two-token form as one production gives the parser a SHIFT at
+       the TYPE_IDENTIFIER decision point, and bison prefers shift over reduce,
+       so expr_primary keeps winning wherever a `.' does NOT follow -- which is
+       what that rule exists for (type names as parameter actuals, e.g.
+       uvm_object_registry #(uvm_pool #(KEY,T))). */
+  | TYPE_IDENTIFIER '.' IDENTIFIER
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t(lex_strings.make($1.text)));
+	$$->push_back(name_component_t(lex_strings.make($3)));
+	delete[]$1.text;
+	delete[]$3;
+      }
   /* local::var — retain the qualifier for inline-constraint binding. */
   | K_local K_SCOPE_RES IDENTIFIER
       { $$ = new pform_name_t;
@@ -13597,6 +13620,24 @@ foreach_array_identifier
 	$$->push_back(name_component_t(lex_strings.make($3)));
 	delete[]$1;
 	delete[]$3;
+      }
+
+    /* The lexer hands back PACKAGE_IDENTIFIER, not IDENTIFIER, for a
+       package it has already seen, so the IDENTIFIER K_SCOPE_RES form
+       above never fires for a real package-qualified foreach target
+       (`foreach (pkg::q[i])'). Without these the whole production fails
+       to match and the statement dies as a bare "syntax error". */
+  | PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t($1->pscope_name()));
+	$$->push_back(name_component_t(lex_strings.make($3)));
+	delete[]$3;
+      }
+  | PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t($1->pscope_name()));
+	$$->push_back(name_component_t(lex_strings.make($3.text)));
+	delete[]$3.text;
       }
   | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
       { $$ = new pform_name_t;

@@ -54,17 +54,17 @@ T_0 ;
     %jmp/1 T_bad, 4;
     %dup/obj/ref;
     %pushi/vec4 90, 0, 8;
-    %store/qo/b/v 8;
+    %store/qo/b/v 8;   ; IEEE 7.10.5: beyond the bound -> discarded + warning
     %dup/obj/ref;
     %qsize/o;
-    %cmpi/ne 3, 0, 32;
+    %cmpi/ne 2, 0, 32;
     %jmp/1 T_bad, 4;
 
     %queue/to/darray "v8";
     %queue/to/darray "v8";
     %dup/obj/ref;
     %qsize/o;
-    %cmpi/ne 3, 0, 32;
+    %cmpi/ne 2, 0, 32;
     %jmp/1 T_bad, 4;
     %dup/obj/ref;
     %ix/load 3, 0, 0;
@@ -77,12 +77,6 @@ T_0 ;
     %flag_set/imm 4, 0;
     %load/qo/v 8;
     %cmpi/ne 60, 0, 8;
-    %jmp/1 T_bad, 4;
-    %dup/obj/ref;
-    %ix/load 3, 2, 0;
-    %flag_set/imm 4, 0;
-    %load/qo/v 8;
-    %cmpi/ne 90, 0, 8;
     %jmp/1 T_bad, 4;
 
     %pop/obj 1, 0;

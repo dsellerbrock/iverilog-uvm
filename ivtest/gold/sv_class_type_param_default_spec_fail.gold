@@ -1,0 +1,2 @@
+./ivltests/sv_class_type_param_default_spec_fail.v:14: error: No function named `Treg.tag' found in this context (main._ivl_0.poke).
+1 error(s) during elaboration.
