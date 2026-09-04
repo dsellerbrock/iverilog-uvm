@@ -2496,3 +2496,6 @@ sv_fixed_container_array_elements normal,-g2017,-s,sv_fixed_container_array_elem
 sv_fixed_container_array_elements_2023 normal,-g2023,-s,sv_fixed_container_array_elements ivltests gold=sv_fixed_container_array_elements.gold
 sv_foreach_package_scoped_target normal,-g2017,-s,main ivltests gold=sv_foreach_package_scoped_target.gold
 sv_foreach_package_scoped_target_2023 normal,-g2023,-s,main ivltests gold=sv_foreach_package_scoped_target.gold
+sv_param_string_override_untyped normal,-g2017,-s,main ivltests gold=sv_param_string_override_untyped.gold
+sv_param_string_override_untyped_2023 normal,-g2023,-s,main ivltests gold=sv_param_string_override_untyped.gold
+sv_param_string_cast_fail CE,-g2012 ivltests gold=sv_param_string_cast_fail.gold

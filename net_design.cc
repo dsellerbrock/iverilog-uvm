@@ -1396,6 +1396,28 @@ void NetScope::evaluate_parameter_logic_(Design*des, param_ref_t cur)
 	    }
 	    break;
 
+	  case IVL_VT_STRING:
+	      /* An UNTYPED parameter takes its type from the value it is
+		 finally assigned (IEEE 1800-2017/2023 6.20.2), and that value
+		 may be a string: prim_lfsr's `parameter LfsrType = "GAL_XOR"'
+		 is overridden from a `localparam string'. A string LITERAL
+		 override arrives as a vector and lands in the IVL_VT_LOGIC arm
+		 below, so only an override that keeps its string type reaches
+		 here -- which is why this case was missing. */
+	    if (! dynamic_cast<const NetECString*>(expr)) {
+		  cerr << expr->get_fileline()
+		       << ": error: Unable to evaluate string parameter "
+		       << (*cur).first << " value: " << *expr << endl;
+		  des->errors += 1;
+		  return;
+	    }
+
+	    if (param_type==0) {
+		  param_type = &netstring_t::type_string;
+		  cur->second.ivl_type = param_type;
+	    }
+	    break;
+
 	  case IVL_VT_LOGIC:
 	  case IVL_VT_BOOL:
 	    if (! dynamic_cast<const NetEConst*>(expr)) {
@@ -1442,7 +1464,13 @@ void NetScope::evaluate_parameter_logic_(Design*des, param_ref_t cur)
 		 << expr->expr_type() << "?" << endl;
 	    cerr << expr->get_fileline()
 		 << ":               : "
-		 << "param_type: " << *param_type << endl;
+		 << "param_type: ";
+	      /* param_type is null for an untyped parameter -- the arms above
+		 all test for that and infer a type. Dereferencing it here
+		 crashed the compiler while it was printing this very message. */
+	    if (param_type) cerr << *param_type;
+	    else cerr << "<none: the parameter is untyped>";
+	    cerr << endl;
 	    des->errors += 1;
 	    return;
       }
