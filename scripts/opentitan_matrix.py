@@ -1811,6 +1811,23 @@ def validated_top_options(
                 f"declared toplevel {option[2:]!r} is not in the source "
                 f"list; rooting the core's own modules {own_modules!r}"
             )
+        elif "tb" in modules:
+            # OpenTitan DV cores universally name their testbench module `tb`,
+            # and dvsim roots it explicitly. Several sim cores contribute only
+            # INCLUDE files of their own (so own_modules is empty) while
+            # declaring a toplevel that no longer exists -- xbar_dbg_sim
+            # declares `xbar_tb_top', whose module is nowhere in the fileset.
+            # Falling through to "let the compiler choose" makes EVERY
+            # uninstantiated module a root, including prim_clock_gating_sync,
+            # which lowrisc:prim:all ships without depending on
+            # lowrisc:prim:clock_gating. That reports a missing module the
+            # design never instantiates. Root `tb' the way the real flow does.
+            kept.append("-stb")
+            notes.append(
+                f"declared toplevel {option[2:]!r} is not in the source "
+                "list; rooted the conventional OpenTitan DV testbench "
+                "module 'tb'"
+            )
         else:
             notes.append(
                 f"declared toplevel {option[2:]!r} is not in the source "
