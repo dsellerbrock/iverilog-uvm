@@ -1173,3 +1173,82 @@ unsigned PEInside::test_width(Design*, NetScope*, width_mode_t&)
 
 /* Note: PEInside::elaborate_expr is implemented in elab_expr.cc
  * where netlist.h, NetEBComp, NetEBLogic, NetESFunc, etc. are available. */
+
+/*
+ * refs_name -- a conservative "might this expression refer to `name'?"
+ * search, supporting the IEEE 1800-2017 9.3.2 check in
+ * Statement::detached_fork_refs_name().
+ *
+ * The base answers TRUE: an expression kind that does not override this is
+ * assumed to refer to the name. That way a kind nobody thought to handle
+ * keeps the existing diagnostic instead of silently suppressing it -- a
+ * missing override costs precision, never soundness.
+ */
+bool PExpr::refs_name(perm_string) const
+{
+      return true;
+}
+
+bool PENumber::refs_name(perm_string) const  { return false; }
+bool PEFNumber::refs_name(perm_string) const { return false; }
+bool PEString::refs_name(perm_string) const  { return false; }
+bool PENull::refs_name(perm_string) const    { return false; }
+
+bool PEIdent::refs_name(perm_string name) const
+{
+      return pform_name_refs_name(path_.name, name);
+}
+
+bool PECallFunction::refs_name(perm_string name) const
+{
+	/* The path head carries the receiver of a method call, so
+	   `q.push_back(x)' refers to `q' here. */
+      if (pform_name_refs_name(path_.name, name))
+	    return true;
+      if (receiver_ && receiver_->refs_name(name))
+	    return true;
+      for (const named_pexpr_t&parm : parms_)
+	    if (parm.parm && parm.parm->refs_name(name))
+		  return true;
+      for (const PExpr*with : with_constraints_)
+	    if (with && with->refs_name(name))
+		  return true;
+      return false;
+}
+
+bool PEBinary::refs_name(perm_string name) const
+{
+      return (left_ && left_->refs_name(name))
+	  || (right_ && right_->refs_name(name));
+}
+
+bool PEUnary::refs_name(perm_string name) const
+{
+      return expr_ && expr_->refs_name(name);
+}
+
+bool PETernary::refs_name(perm_string name) const
+{
+      return (expr_ && expr_->refs_name(name))
+	  || (tru_ && tru_->refs_name(name))
+	  || (fal_ && fal_->refs_name(name));
+}
+
+bool PEConcat::refs_name(perm_string name) const
+{
+      for (const PExpr*parm : parms_)
+	    if (parm && parm->refs_name(name))
+		  return true;
+      return repeat_ && repeat_->refs_name(name);
+}
+
+bool PEMemberAccess::refs_name(perm_string name) const
+{
+      return base_ && base_->refs_name(name);
+}
+
+bool PEEvent::refs_name(perm_string name) const
+{
+      return (expr_ && expr_->refs_name(name))
+	  || (condition_ && condition_->refs_name(name));
+}

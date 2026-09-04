@@ -58,8 +58,10 @@ module top;
       $display("Failed with param. -(2**30-1), expected 32, got %d", prm30);
       pass = 1'b0;
     end
-    if (prm31 !== 32) begin
-      $display("Failed with param. -(2**31), expected 32, got %d", prm31);
+    // IEEE 1800-2017/2023 20.8.1: the 32-bit argument 80000000 is
+    // treated as unsigned, so its ceiling log2 is 31.
+    if (prm31 !== 31) begin
+      $display("Failed with param. -(2**31), expected 31, got %d", prm31);
       pass = 1'b0;
     end
     if (prm32 !== 32) begin
@@ -139,8 +141,8 @@ module top;
     end
 
     result = $clog2(-(2**31));
-    if (result !== 32) begin
-      $display("Failed with -(2**31), expected 32, got %d", result);
+    if (result !== 31) begin
+      $display("Failed with -(2**31), expected 31, got %d", result);
       pass = 1'b0;
     end
 

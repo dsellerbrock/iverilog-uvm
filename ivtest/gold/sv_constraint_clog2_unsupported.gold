@@ -1,0 +1,14 @@
+./ivltests/sv_constraint_clog2_unsupported.v:11: error: Array reduction method sum() has a with expression that is not representable in the constraint solver; the constraint was not weakened.
+./ivltests/sv_constraint_clog2_unsupported.v:11: error: Array reduction method sum() has a with expression that is not representable in the constraint solver; the constraint was not weakened.
+./ivltests/sv_constraint_clog2_unsupported.v:25: warning: constraint `(v)==($clog2(N))' could not be translated and is being ignored (compile-progress fallback).
+./ivltests/sv_constraint_clog2_unsupported.v:26: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+./ivltests/sv_constraint_clog2_unsupported.v:27: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+./ivltests/sv_constraint_clog2_unsupported.v:28: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+./ivltests/sv_constraint_clog2_unsupported.v:29: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+./ivltests/sv_constraint_clog2_unsupported.v:30: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+./ivltests/sv_constraint_clog2_unsupported.v:31: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+./ivltests/sv_constraint_clog2_unsupported.v:32: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+./ivltests/sv_constraint_clog2_unsupported.v:35: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+./ivltests/sv_constraint_clog2_unsupported.v:39: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+./ivltests/sv_constraint_clog2_unsupported.v:44: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+12 error(s) during elaboration.

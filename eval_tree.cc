@@ -1746,12 +1746,13 @@ NetEConst* NetESFunc::evaluate_clog2_(const NetExpr*arg_) const
 	    bool is_neg = false;
 	    uint64_t res = 0;
 
-	    if (arg.is_negative()) {
+	    // IEEE 1800-2017/2023 20.8.1 treats the declared bits as unsigned.
+	    // Only an unsized negative literal needs the integer-width floor.
+	    if (arg.is_negative() && !arg.has_len()) {
 		  is_neg = true;
 		    // If the length is not defined, then work with
 		    // the trimmed version of the number.
-		  if (! arg.has_len())
-			arg = trim_vnum(arg);
+		  arg = trim_vnum(arg);
 	    }
 	    arg.has_sign(false);  // $unsigned()
 

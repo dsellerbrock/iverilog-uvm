@@ -172,6 +172,38 @@ class UpstreamDefect:
 
 KNOWN_UPSTREAM_DEFECTS = (
     UpstreamDefect(
+        "lowrisc:darjeeling_dv:rstmgr_sim",
+        "compile",
+        re.compile(
+            r"fixed unpacked-array value and queue/dynamic-array context "
+            r"may differ only in the slowest-varying unpacked dimension"
+        ),
+        "rstmgr_base_vseq.sv passes ral.sw_rst_ctrl_n -- a FIXED unpacked "
+        "array of a DERIVED register type -- to rstmgr_csr_wr_unpack's "
+        "`input uvm_object ptr[]', a dynamic array of the BASE class. IEEE "
+        "1800-2017/2023 7.6 permits fixed <-> dynamic assignment only when "
+        "the element types are EQUIVALENT; base and derived class handles "
+        "are assignment-compatible but not equivalent. slang 11.0.448 "
+        "rejects the identical line under --std 1800-2017 and 1800-2023, "
+        "and the equivalent-element case compiles and runs correctly on "
+        "Icarus, so this is not a fixed-to-dynamic gap.",
+    ),
+    UpstreamDefect(
+        "lowrisc:earlgrey_dv:rstmgr_sim",
+        "compile",
+        re.compile(
+            r"fixed unpacked-array value and queue/dynamic-array context "
+            r"may differ only in the slowest-varying unpacked dimension"
+        ),
+        "rstmgr_base_vseq.sv passes ral.sw_rst_ctrl_n -- a FIXED unpacked "
+        "array of a DERIVED register type -- to rstmgr_csr_wr_unpack's "
+        "`input uvm_object ptr[]', a dynamic array of the BASE class. IEEE "
+        "1800-2017/2023 7.6 permits fixed <-> dynamic assignment only when "
+        "the element types are EQUIVALENT; base and derived class handles "
+        "are assignment-compatible but not equivalent. slang 11.0.448 "
+        "rejects the identical line under both editions.",
+    ),
+    UpstreamDefect(
         "lowrisc:ip:ascon",
         "compile",
         re.compile(r"This assignment requires an explicit cast"),
@@ -1833,6 +1865,44 @@ def validated_top_options(
                 f"declared toplevel {option[2:]!r} is not in the source "
                 "list; letting the compiler select the root modules"
             )
+    # A module that exists only to carry `bind' directives -- OpenTitan's
+    # <ip>_bind convention -- is never instantiated by anything. An explicit
+    # root therefore excludes it, its bind directives never elaborate, and
+    # tb.sv cannot resolve the interface they were supposed to insert:
+    #
+    #     module rstmgr_bind;
+    #       bind rstmgr rstmgr_cascading_sva_if rstmgr_cascading_sva_if (...);
+    #     endmodule
+    #     ...
+    #     uvm_config_db#(virtual ...)::set(..., dut.rstmgr_cascading_sva_if);
+    #     -> error: Unable to bind variable `dut.rstmgr_cascading_sva_if'
+    #
+    # This is root selection, not a compiler defect: slang reports the same
+    # unresolved hierarchical name under an explicit --top, and both tools
+    # accept the design once the bind module is also a top. IEEE 1800-2023
+    # 23.11 inserts an instance-list-free bind "designwide", but the directive
+    # must still be elaborated. A simulator handed the whole filelist roots
+    # every top-level module, so root these the same way.
+    # NOT in the sva lane. sva_testbench_wrapper() below wraps the declared
+    # top in a generated tb/dut pair, and it bails out when `len(tops) != 1'.
+    # Adding a second root here therefore SILENTLY disables that wrapping, and
+    # the SVA collateral's `tb.dut...' hierarchical references stop resolving
+    # (i2c_sva went PASS -> FAIL that way, plus five more rows). The sva lane
+    # builds its own topology; leave it alone.
+    if kept and job.lane != "sva":
+        bind_modules = sorted(
+            name
+            for name in modules
+            if name.endswith("_bind") and f"-s{name}" not in kept
+        )
+        if bind_modules:
+            kept.extend(f"-s{name}" for name in bind_modules)
+            notes.append(
+                f"also rooted bind-carrying module(s) {bind_modules!r}: "
+                "nothing instantiates them, so an explicit root would drop "
+                "their bind directives"
+            )
+
     wrapper: Path | None = None
     if not kept and not modules:
         stub = work_root / "matrix-package-root.sv"

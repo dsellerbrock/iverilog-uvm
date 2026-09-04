@@ -248,6 +248,17 @@ class netclass_t : public ivl_type_s {
       void set_specialized_instance(bool flag) { specialized_instance_ = flag; }
       bool specialized_instance() const { return specialized_instance_; }
 
+	/* True when this specialization was materialised WHILE ELABORATING a
+	   template seed, from that seed's own default type parameters -- e.g.
+	   `class C #(type T = int) extends B #(uvm_class_pair #(T,T))' makes
+	   uvm_class_pair#(int,int) while C's own generic body is elaborated.
+	   Nothing in the design instantiates such a class, so IEEE 8.25's
+	   "a generic class is not a type" reasoning extends to it: it is part
+	   of the seed, and diagnostics from its body are false positives.
+	   It is still a specialized_instance() for every other purpose. */
+      void set_seed_derived(bool flag) { seed_derived_ = flag; }
+      bool seed_derived() const { return seed_derived_; }
+
       struct clocking_block_t {
 	    perm_string name;
 	    const PEventStatement* event;
@@ -320,6 +331,7 @@ class netclass_t : public ivl_type_s {
       bool constraints_elaborating_ = false;
       bool scope_ready_;
       bool specialized_instance_;
+      bool seed_derived_ = false;
       std::map<perm_string,size_t> clocking_blocks_;
       std::vector<clocking_block_t> clocking_table_;
 

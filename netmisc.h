@@ -851,6 +851,13 @@ extern bool ref_formal_is_bound(const NetNet*port);
 extern void warn_ref_formal_fork_hazard(const NetNet*port, const Statement*task_body);
 
 /*
+ * Conservative "does this pform path mention `name'?" test, shared by the
+ * PExpr and Statement refs_name() walks that back the IEEE 1800-2017 9.3.2
+ * check. Index expressions are searched too.
+ */
+extern bool pform_name_refs_name(const pform_name_t&path, perm_string name);
+
+/*
  * True when a dynamic array or queue holds elements that a fixed-size
  * unpacked array can receive at their single permitted array-kind boundary
  * (IEEE 1800-2017/2023 7.6). For a multidimensional fixed array, every

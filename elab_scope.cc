@@ -4089,6 +4089,31 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       if (!use_type->covergroups.empty())
 	    use_class->set_has_embedded_covergroups(true);
       use_class->set_specialized_instance(true);
+
+	/* Propagate seed-ness. A specialization materialised WHILE the caller
+	   is elaborating a template seed comes from that seed's own default
+	   type parameters, so nothing in the design instantiates it:
+
+	       class uvm_in_order_class_comparator #(type T = int)
+		 extends uvm_in_order_comparator #(T, ...,
+						   uvm_class_pair #(T, T));
+
+	   elaborating that seed makes uvm_class_pair#(int,int), whose body
+	   then reports `int first; first = new'. It is a real
+	   specialized_instance() and stays one; it is additionally marked
+	   seed-derived so the compile-progress degrades treat it as part of
+	   the seed rather than as a use site. */
+      if (call_scope) {
+	    if (const NetScope*cs = call_scope->get_class_scope()) {
+		  const netclass_t*cd = cs->class_def();
+		  const PClass*cpf = cs->class_pform();
+		  bool caller_is_seed =
+			cd && cpf && cpf->has_parameter_port_list
+			&& (!cd->specialized_instance() || cd->seed_derived());
+		  if (caller_is_seed)
+			use_class->set_seed_derived(true);
+	    }
+      }
       if (all_specialized_class_set_.insert(use_class).second)
 	    all_specialized_classes_.push_back(use_class);
       set_scope_timescale(des, class_scope, pclass);

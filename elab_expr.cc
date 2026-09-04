@@ -13299,6 +13299,55 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 			continue;
 		  }
 
+		    /* IEEE 1800-2017/2023 13.4.2: a function with no arguments
+		     * may be called without its parentheses. The parser leaves
+		     * `obj.m' as a member component rather than a
+		     * PECallFunction, so a zero-argument METHOD reached through
+		     * a class PROPERTY never became a call -- it fell through to
+		     * the property walk, matched no property, and yielded 0.
+		     * Silently wrong, and the reason uvm_driver's connectivity
+		     * check reported `condition expression failed to elaborate;
+		     * ASSUMING FALSE':
+		     *
+		     *     function int size ();           // uvm_port_base
+		     *     if (seq_item_port.size < 1)     // uvm_driver.svh:100
+		     *
+		     * The same call through a plain object VARIABLE already
+		     * worked, which is why this looked shape-dependent. Only the
+		     * LAST component is handled: chaining off the result would
+		     * need the walk to continue on a call expression, which is
+		     * separate work, and the unhandled form keeps its existing
+		     * behaviour. */
+		  if (cur_class && gn_system_verilog() && tail_is_last
+		      && tail_comp.index.empty()
+		      && cur_class->property_idx_from_name(tail_comp.name) < 0) {
+			if (NetScope*mscope =
+			      cur_class->method_from_name(tail_comp.name)) {
+			      const NetFuncDef*mdef =
+				    mscope->type() == NetScope::FUNC
+					  ? mscope->func_def() : 0;
+			      bool implicit_this =
+				    mdef && scope_method_uses_implicit_this(des, mscope);
+			      unsigned want = implicit_this ? 1u : 0u;
+			      if (mdef && mdef->port_count() == want) {
+				    NetNet*res =
+					  mscope->find_signal(mscope->basename());
+				    if (!res)
+					  res = const_cast<NetNet*>(mdef->return_sig());
+				    if (res) {
+					  std::vector<NetExpr*> parms(mdef->port_count());
+					  if (implicit_this)
+						parms[0] = base_expr;
+					  NetESignal*eres = new NetESignal(res);
+					  NetEUFunc*call = new NetEUFunc(
+						scope, mscope, eres, parms, false);
+					  call->set_line(*this);
+					  return call;
+				    }
+			      }
+			}
+		  }
+
 		    // M11-5: procedural covergroup option access
 		    // (cg_inst.option.goal, cg_inst.type_option.weight).
 		    // The option structs are not modeled as runtime
@@ -17144,6 +17193,38 @@ NetExpr* PECallFunction::elaborate_expr_method_par_(Design*des, NetScope*scope,
       ivl_type_t par_type = search_results.type;
       perm_string method_name = search_results.path_tail.back().name;
 
+	/* An array parameter's declared `type' is its ELEMENT type: see
+	 * PEIdent::elaborate_expr_param_array_, which reads the unpacked
+	 * bounds out of the scope precisely because the type does not carry
+	 * them. A query method on the ARRAY therefore arrives here typed as
+	 * the element, so `parameter string LEAFS[]' sends LEAFS.size() into
+	 * the string-method branch below and is rejected for not being a
+	 * constant string -- dispatching the array's own method against one
+	 * of its elements. Answer it from the recorded bounds instead; the
+	 * element count is known at elaboration.
+	 *
+	 * Only an UNINDEXED receiver is the array. `LEAFS[1].len()' keeps its
+	 * existing element-method behaviour. */
+      if (search_results.scope
+	  && !search_results.path_head.empty()
+	  && search_results.path_head.back().index.empty()
+	  && method_name == perm_string::literal("size")) {
+	    perm_string par_name = search_results.path_head.back().name;
+	    std::map<perm_string,NetScope::param_expr_t>::const_iterator pit =
+		  search_results.scope->parameters.find(par_name);
+	    if (pit != search_results.scope->parameters.end()
+		&& pit->second.array_bounds_known) {
+		  if (!check_string_method_arity_(des, method_name))
+			return 0;
+		  uint64_t count = 1;
+		  for (size_t k = 0 ; k < pit->second.array_dims.size() ; k += 1)
+			count *= pit->second.array_dims[k].width();
+		  NetEConst*res = new NetEConst(verinum(count, 32));
+		  res->set_line(*this);
+		  return res;
+	    }
+      }
+
       // If the parameter is of type string, then look for the standard string
       // methods. Return an error if not found. Since we are assured that the
       // expression is a constant string, it should be able to calculate the
@@ -19501,6 +19582,74 @@ bool PEIdent::is_string_byte_select(Design*des, NetScope*scope) const
       if (component.index.empty())
 	    return false;
       return component.index.back().sel == index_component_t::SEL_BIT;
+}
+
+
+/*
+ * IEEE 1800-2017 13.4.2: "the parentheses may be omitted" on a call to a
+ * subroutine that takes no arguments. An unqualified identifier appearing
+ * inside a class method may therefore be a paren-less call to a zero-argument
+ * method of the enclosing class, or of one it inherits -- `get_full_name' in
+ * a uvm_object subclass is the common case.
+ *
+ * This runs only after ordinary signal binding has already failed, so it can
+ * never shadow a real signal of the same name. Without it the reference
+ * elaborates to nothing and the read silently yields a zero/empty value
+ * rather than the method result. The scoped form (`Cls::name') is resolved
+ * separately by resolve_scoped_class_method_func_().
+ */
+static NetExpr* paren_less_class_method_call_(Design*des, NetScope*scope,
+					      const PEIdent*self,
+					      const pform_scoped_name_t&path,
+					      unsigned expr_wid, unsigned flags)
+{
+      if (!gn_system_verilog())
+	    return 0;
+      if (path.package || path.name.size() != 1)
+	    return 0;
+      if (!path.name.back().index.empty())
+	    return 0;
+
+      const NetScope*cscope = scope ? scope->get_class_scope() : 0;
+      if (!cscope)
+	    return 0;
+      const netclass_t*cdef = cscope->class_def();
+      if (!cdef)
+	    return 0;
+
+      NetScope*mscope = cdef->method_from_name(peek_tail_name(path.name));
+	/* Only a function can appear in an expression, and only a
+	   zero-argument one may drop its parentheses. A method whose
+	   signature has not been published yet is left alone rather than
+	   guessed at. */
+      if (!mscope || mscope->type() != NetScope::FUNC)
+	    return 0;
+      const NetFuncDef*fdef = mscope->func_def();
+      if (!fdef)
+	    return 0;
+
+	/* A non-static class method carries the synthetic THIS_TOKEN ("@")
+	   port ahead of its declared arguments; a static one does not.
+	   Discount it the same way elab_sig.cc does, so that "takes no
+	   arguments" means the same thing for both. */
+      unsigned nports = fdef->port_count();
+      if (nports >= 1
+	  && fdef->port(0)->name() == perm_string::literal(THIS_TOKEN))
+	    nports -= 1;
+      if (nports != 0)
+	    return 0;
+
+      std::vector<named_pexpr_t> empty_parms;
+      PECallFunction*call = new PECallFunction(path.name, empty_parms);
+      call->set_line(*self);
+      NetExpr*res = call->elaborate_expr(des, scope, expr_wid, flags);
+      delete call;
+
+      if (res && debug_elaborate)
+	    cerr << self->get_fileline() << ": debug: Resolved unqualified `"
+		 << path << "' as a paren-less call to a zero-argument "
+		    "class method (IEEE 1800-2017 13.4.2)." << endl;
+      return res;
 }
 
 unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
@@ -22323,6 +22472,15 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	      // the user's own reference to the same name reports it.
 	    if (quiet_bind_) return 0;
 
+	      /* IEEE 1800-2017 13.4.2: an unqualified name in a class
+		 method may be a paren-less call to a zero-argument method
+		 of the enclosing class or one it inherits. Only reachable
+		 once ordinary signal binding has failed. */
+	    if (NetExpr*r = paren_less_class_method_call_(des, scope, this,
+							  path_, expr_wid,
+							  flags))
+		  return r;
+
 	      // strict_bind_ marks identifiers that came out of a
 	      // concurrent assertion. The compile-progress warning keeps
 	      // UVM-heavy code building, but in an assertion it leaves a
@@ -22497,6 +22655,14 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	// Compiler-generated bookkeeping reference: stay silent, the
 	// user's own reference to the same name reports it.
       if (quiet_bind_) return 0;
+
+	/* IEEE 1800-2017 13.4.2 paren-less zero-argument method call.
+	   See paren_less_class_method_call_ -- the companion binding
+	   failure path above calls it too. */
+      if (NetExpr*r = paren_less_class_method_call_(des, scope, this, path_,
+						    expr_wid, flags))
+	    return r;
+
 
 	// strict_bind_: see the companion site above. An identifier that
 	// came out of a concurrent assertion must not degrade to a
@@ -23112,6 +23278,69 @@ NetExpr* PEIdent::elaborate_expr_param_array_(Design*des, NetScope*scope,
 	    lo[k] = (l <= r) ? l : r;
 	    hi[k] = (l <= r) ? r : l;
 	    total *= (size_t)adims[k].width();
+      }
+
+	/* A string element cannot go into the flat packed table below. That
+	 * lowering exists to turn the whole array into one wide vector and
+	 * bit-select it, which needs integral elements of equal width; a
+	 * string has neither property, which is why the variable-index path
+	 * used to reject string arrays outright even though a CONSTANT index
+	 * already worked through elem_by_index() above.
+	 *
+	 * The elements are elaboration constants, so selecting among them
+	 * with a chain of conditionals on the index is exact and needs no
+	 * runtime array object. This is the same accumulate-a-NetETernary
+	 * idiom the array min/max reduction uses.
+	 *
+	 * Deliberately restricted to ONE dimension -- the shape string array
+	 * parameters actually take (OpenTitan's `parameter string
+	 * LIST_OF_LEAFS[]'). A multi-dimensional string array keeps the loud
+	 * diagnostic below rather than getting a guessed lowering. */
+      if (ndims == 1 && name_tail.index.size() == 1 && total > 0
+	  && !need_const) {
+	    std::vector<const NetEConst*> sel (total);
+	    bool all_string = true;
+	    long sidx = lo[0];
+	    for (size_t slot = 0 ; slot < total ; slot += 1, sidx += 1) {
+		  std::vector<long> one (1, sidx);
+		  ivl_type_t et = 0;
+		  const NetEConst*ec =
+			dynamic_cast<const NetEConst*>(elem_by_index(one, et));
+		  if (!ec || !ec->value().is_string()) { all_string = false; break; }
+		  sel[slot] = ec;
+	    }
+
+	    if (all_string) {
+		  NetExpr*ix = elab_and_eval(des, scope,
+					     name_tail.index.front().msb,
+					     -1, false);
+		  if (!ix) return 0;
+
+		  unsigned wid = 0;
+		  for (size_t slot = 0 ; slot < total ; slot += 1)
+			if (sel[slot]->expr_width() > wid)
+			      wid = sel[slot]->expr_width();
+
+		    /* Out-of-range selects answer the last element's shape
+		       rather than x: a string has no x, and an empty string is
+		       the closest well-defined answer. */
+		  NetExpr*acc = new NetECString(std::string(""));
+		  acc->set_line(*this);
+		  for (size_t slot = total ; slot-- > 0 ; ) {
+			NetEConst*key = new NetEConst(
+			      verinum((uint64_t)(lo[0] + (long)slot), 32));
+			key->set_line(*this);
+			NetEBComp*cmp = new NetEBComp('e', ix->dup_expr(), key);
+			cmp->set_line(*this);
+			NetExpr*val = new NetECString(sel[slot]->value());
+			val->set_line(*this);
+			NetETernary*tmp = new NetETernary(cmp, val, acc, wid, false);
+			tmp->set_line(*this);
+			acc = tmp;
+		  }
+		  delete ix;
+		  return acc;
+	    }
       }
 
       unsigned long elem_wid = 0;
@@ -26047,7 +26276,9 @@ NetExpr* PENewClass::elaborate_expr(Design*des, NetScope*scope,
 
 	      /* Inside the template seed there is nothing to report: that body
 	         is elaborated with the declared defaults and never executed. */
-	    if (scoped_class_is_unspecialized_parameterized_(param_owner->class_def())) {
+	    if (scoped_class_is_unspecialized_parameterized_(param_owner->class_def())
+		|| (param_owner->class_def()
+		    && param_owner->class_def()->seed_derived())) {
 		  NetENull*tmp = new NetENull();
 		  tmp->set_line(*this);
 		  return tmp;

@@ -28,6 +28,7 @@
 # include  "PExpr.h"
 # include  "pform.h"
 # include  "ivl_assert.h"
+# include  "netmisc.h"
 
 using namespace std;
 
@@ -1389,4 +1390,251 @@ PWhile::~PWhile()
 {
       delete cond_;
       delete statement_;
+}
+
+/*
+ * refs_name / detached_fork_refs_name -- the pform side of the
+ * IEEE 1800-2017 9.3.2 check (see Statement.h and
+ * warn_ref_formal_fork_hazard() in netmisc.cc).
+ *
+ * refs_name() answers TRUE by default, so a statement kind nobody handled
+ * here keeps whatever diagnostic the caller would otherwise emit.
+ * detached_fork_refs_name() answers FALSE by default and is overridden in
+ * exactly the kinds that override contains_detached_fork(), so it locates
+ * detached forks as completely as that walk does.
+ */
+bool Statement::refs_name(perm_string) const
+{
+      return true;
+}
+
+bool Statement::detached_fork_refs_name(perm_string) const
+{
+      return false;
+}
+
+bool PNoop::refs_name(perm_string) const     { return false; }
+bool PBreak::refs_name(perm_string) const    { return false; }
+bool PContinue::refs_name(perm_string) const { return false; }
+
+bool PBlock::refs_name(perm_string name) const
+{
+      for (unsigned idx = 0 ; idx < list_.size() ; idx += 1)
+	    if (list_[idx] && list_[idx]->refs_name(name))
+		  return true;
+      return false;
+}
+
+bool PBlock::detached_fork_refs_name(perm_string name) const
+{
+	/* A detached fork: every branch of it is in scope for 9.3.2. The
+	   exception the clause carves out -- a reference in the
+	   initialization value expression of a variable declared in the
+	   fork's own block_item_declaration -- is legal, and those
+	   initializers are not part of the statement list walked here. */
+      if (bl_type_ == BL_JOIN_NONE || bl_type_ == BL_JOIN_ANY)
+	    return refs_name(name);
+      for (unsigned idx = 0 ; idx < list_.size() ; idx += 1)
+	    if (list_[idx] && list_[idx]->detached_fork_refs_name(name))
+		  return true;
+      return false;
+}
+
+static bool case_items_ref_name_(const std::vector<PCase::Item*>*items,
+				 perm_string name)
+{
+      if (!items) return false;
+      for (PCase::Item*cur : *items) {
+	    if (!cur) continue;
+	    for (PExpr*e : cur->expr)
+		  if (e && e->refs_name(name))
+			return true;
+	    if (cur->stat && cur->stat->refs_name(name))
+		  return true;
+      }
+      return false;
+}
+
+static bool case_items_fork_ref_name_(const std::vector<PCase::Item*>*items,
+				      perm_string name)
+{
+      if (!items) return false;
+      for (PCase::Item*cur : *items)
+	    if (cur && cur->stat && cur->stat->detached_fork_refs_name(name))
+		  return true;
+      return false;
+}
+
+bool PCase::refs_name(perm_string name) const
+{
+      if (expr_ && expr_->refs_name(name))
+	    return true;
+      return case_items_ref_name_(items_, name);
+}
+
+bool PCase::detached_fork_refs_name(perm_string name) const
+{
+      return case_items_fork_ref_name_(items_, name);
+}
+
+bool PRandCase::refs_name(perm_string name) const
+{
+      return case_items_ref_name_(items_, name);
+}
+
+bool PRandCase::detached_fork_refs_name(perm_string name) const
+{
+      return case_items_fork_ref_name_(items_, name);
+}
+
+bool PCondit::refs_name(perm_string name) const
+{
+      return (expr_ && expr_->refs_name(name))
+	  || (if_ && if_->refs_name(name))
+	  || (else_ && else_->refs_name(name));
+}
+
+bool PCondit::detached_fork_refs_name(perm_string name) const
+{
+      return (if_ && if_->detached_fork_refs_name(name))
+	  || (else_ && else_->detached_fork_refs_name(name));
+}
+
+bool PWhile::refs_name(perm_string name) const
+{
+      return (cond_ && cond_->refs_name(name))
+	  || (statement_ && statement_->refs_name(name));
+}
+
+bool PWhile::detached_fork_refs_name(perm_string name) const
+{
+      return statement_ && statement_->detached_fork_refs_name(name);
+}
+
+bool PDoWhile::refs_name(perm_string name) const
+{
+      return (cond_ && cond_->refs_name(name))
+	  || (statement_ && statement_->refs_name(name));
+}
+
+bool PDoWhile::detached_fork_refs_name(perm_string name) const
+{
+      return statement_ && statement_->detached_fork_refs_name(name);
+}
+
+bool PForever::refs_name(perm_string name) const
+{
+      return statement_ && statement_->refs_name(name);
+}
+
+bool PForever::detached_fork_refs_name(perm_string name) const
+{
+      return statement_ && statement_->detached_fork_refs_name(name);
+}
+
+bool PRepeat::refs_name(perm_string name) const
+{
+      return (expr_ && expr_->refs_name(name))
+	  || (statement_ && statement_->refs_name(name));
+}
+
+bool PRepeat::detached_fork_refs_name(perm_string name) const
+{
+      return statement_ && statement_->detached_fork_refs_name(name);
+}
+
+bool PDelayStatement::refs_name(perm_string name) const
+{
+      return (delay_ && delay_->refs_name(name))
+	  || (statement_ && statement_->refs_name(name));
+}
+
+bool PDelayStatement::detached_fork_refs_name(perm_string name) const
+{
+      return statement_ && statement_->detached_fork_refs_name(name);
+}
+
+bool PCycleDelay::refs_name(perm_string name) const
+{
+      return (count_ && count_->refs_name(name))
+	  || (statement_ && statement_->refs_name(name));
+}
+
+bool PCycleDelay::detached_fork_refs_name(perm_string name) const
+{
+      return statement_ && statement_->detached_fork_refs_name(name);
+}
+
+bool PEventStatement::refs_name(perm_string name) const
+{
+      for (unsigned idx = 0 ; idx < expr_.size() ; idx += 1)
+	    if (expr_[idx] && expr_[idx]->refs_name(name))
+		  return true;
+      return statement_ && statement_->refs_name(name);
+}
+
+bool PEventStatement::detached_fork_refs_name(perm_string name) const
+{
+      return statement_ && statement_->detached_fork_refs_name(name);
+}
+
+bool PForeach::refs_name(perm_string name) const
+{
+      if (pform_name_refs_name(array_path_, name))
+	    return true;
+      return statement_ && statement_->refs_name(name);
+}
+
+bool PForeach::detached_fork_refs_name(perm_string name) const
+{
+      return statement_ && statement_->detached_fork_refs_name(name);
+}
+
+bool PForStatement::refs_name(perm_string name) const
+{
+      return (name1_ && name1_->refs_name(name))
+	  || (expr1_ && expr1_->refs_name(name))
+	  || (cond_ && cond_->refs_name(name))
+	  || (step_ && step_->refs_name(name))
+	  || (statement_ && statement_->refs_name(name));
+}
+
+bool PForStatement::detached_fork_refs_name(perm_string name) const
+{
+      return statement_ && statement_->detached_fork_refs_name(name);
+}
+
+bool PCallTask::refs_name(perm_string name) const
+{
+	/* The path head carries the receiver of a method call, so
+	   `q.push_back(x)' refers to `q' here. */
+      if (pform_name_refs_name(path_, name))
+	    return true;
+      if (receiver_ && receiver_->refs_name(name))
+	    return true;
+      for (const named_pexpr_t&parm : parms_)
+	    if (parm.parm && parm.parm->refs_name(name))
+		  return true;
+      for (const PExpr*with : with_constraints_)
+	    if (with && with->refs_name(name))
+		  return true;
+      return false;
+}
+
+bool PAssign_::refs_name(perm_string name) const
+{
+      return (lval_ && lval_->refs_name(name))
+	  || (rval_ && rval_->refs_name(name))
+	  || (delay_ && delay_->refs_name(name))
+	  || (count_ && count_->refs_name(name));
+}
+
+bool PDisable::refs_name(perm_string name) const
+{
+      return pform_name_refs_name(scope_, name);
+}
+
+bool PReturn::refs_name(perm_string name) const
+{
+      return expr_ && expr_->refs_name(name);
 }

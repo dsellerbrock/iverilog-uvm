@@ -82,6 +82,13 @@ class PMatchPattern : public LineInfo {
 class PExpr : public LineInfo {
 
     public:
+
+	// Conservative name search supporting the IEEE 1800-2017 9.3.2
+	// check in Statement::detached_fork_refs_name(). Returns true if
+	// this expression MIGHT refer to `name'. An expression kind that
+	// does not override this is assumed to refer to it, so a missing
+	// override costs precision, never soundness.
+      virtual bool refs_name(perm_string name) const;
 	// Mode values used by test_width() (see below for description).
       enum width_mode_t { SIZED, UNSIZED, EXPAND, LOSSLESS, UPSIZE };
 
@@ -382,6 +389,7 @@ class PEAssignPattern : public PExpr {
 class PEConcat : public PExpr {
 
     public:
+      bool refs_name(perm_string name) const override;
       explicit PEConcat(const std::list<PExpr*>&p, PExpr*r =0);
       ~PEConcat() override;
 
@@ -463,6 +471,7 @@ class PEConcat : public PExpr {
 class PEEvent : public PExpr {
 
     public:
+      bool refs_name(perm_string name) const override;
       enum edge_t {ANYEDGE, POSEDGE, NEGEDGE, EDGE, POSITIVE};
 
 	// Use this constructor to create events based on edges or levels.
@@ -492,6 +501,7 @@ class PEEvent : public PExpr {
 class PEFNumber : public PExpr {
 
     public:
+      bool refs_name(perm_string name) const override;
       explicit PEFNumber(verireal*vp);
       ~PEFNumber() override;
 
@@ -514,6 +524,7 @@ class PEFNumber : public PExpr {
 class PEIdent : public PExpr {
 
     public:
+      bool refs_name(perm_string name) const override;
       explicit PEIdent(perm_string, unsigned lexical_pos, bool no_implicit_sig=false);
       explicit PEIdent(PPackage*pkg, const pform_name_t&name, unsigned lexical_pos);
       explicit PEIdent(const pform_name_t&, unsigned lexical_pos);
@@ -878,6 +889,7 @@ class PEIdent : public PExpr {
 class PEMemberAccess : public PExpr {
 
     public:
+      bool refs_name(perm_string name) const override;
       explicit PEMemberAccess(PExpr*base, perm_string member_name);
       ~PEMemberAccess() override;
 
@@ -1011,6 +1023,7 @@ class PENewCopy : public PExpr {
 
 class PENull : public PExpr {
     public:
+      bool refs_name(perm_string name) const override;
       explicit PENull();
       ~PENull() override;
 
@@ -1054,6 +1067,7 @@ class PEAssocType : public PExpr {
 class PENumber : public PExpr {
 
     public:
+      bool refs_name(perm_string name) const override;
       explicit PENumber(verinum*vp);
       ~PENumber() override;
 
@@ -1110,6 +1124,7 @@ class PEUnbounded : public PExpr {
 class PEString : public PExpr {
 
     public:
+      bool refs_name(perm_string name) const override;
       explicit PEString(char*s);
       ~PEString() override;
 
@@ -1161,6 +1176,7 @@ class PETypename : public PExpr {
 class PEUnary : public PExpr {
 
     public:
+      bool refs_name(perm_string name) const override;
       explicit PEUnary(char op, PExpr*ex);
       ~PEUnary() override;
 
@@ -1194,6 +1210,7 @@ class PEUnary : public PExpr {
 class PEBinary : public PExpr {
 
     public:
+      bool refs_name(perm_string name) const override;
       explicit PEBinary(char op, PExpr*l, PExpr*r);
       ~PEBinary() override;
 
@@ -1340,6 +1357,7 @@ class PEBShift  : public PEBLeftWidth {
 class PETernary : public PExpr {
 
     public:
+      bool refs_name(perm_string name) const override;
       explicit PETernary(PExpr*e, PExpr*t, PExpr*f);
       ~PETernary() override;
 
@@ -1388,6 +1406,7 @@ class PETernary : public PExpr {
  */
 class PECallFunction : public PExpr {
     public:
+      bool refs_name(perm_string name) const override;
       explicit PECallFunction(const pform_name_t &n, const std::vector<named_pexpr_t> &parms);
 	// Call function defined in package.
       explicit PECallFunction(PPackage *pkg, const pform_name_t &n, const std::list<named_pexpr_t> &parms);

@@ -108,6 +108,22 @@ class Statement : virtual public LineInfo {
 	// iteration produces a distinct copy (IEEE 1800-2017 9.3.2).
       virtual bool contains_detached_fork() const { return false; }
 
+	// Conservative "might this statement refer to `name'?" search.
+	// The base answers TRUE: a statement kind that does not override
+	// this is assumed to refer to the name, so a kind nobody handled
+	// keeps the existing diagnostic rather than silently suppressing
+	// it -- a missing override costs precision, never soundness.
+      virtual bool refs_name(perm_string name) const;
+
+	// IEEE 1800-2017 9.3.2: "Within a fork-join_any or fork-join_none
+	// block, it shall be illegal to refer to formal arguments passed
+	// by reference other than in the initialization value expressions
+	// of variables declared in a block_item_declaration of the fork."
+	// Answers whether this subtree contains a detached fork that
+	// refers to `name'. Overridden in exactly the kinds that override
+	// contains_detached_fork(), so it is as complete as that walk.
+      virtual bool detached_fork_refs_name(perm_string name) const;
+
       std::map<perm_string,PExpr*> attributes;
 };
 
@@ -118,6 +134,7 @@ class Statement : virtual public LineInfo {
  */
 class PAssign_  : public Statement {
     public:
+      bool refs_name(perm_string name) const override;
       explicit PAssign_(PExpr*lval, PExpr*ex, bool is_constant,
 			bool is_init = false, bool delete_rval = true,
 			const typedef_t*rval_typedef = 0);
@@ -234,6 +251,8 @@ class PAssignNB  : public PAssign_ {
 class PBlock  : public PScope, public Statement, public PNamedItem {
 
     public:
+      bool refs_name(perm_string name) const override;
+      bool detached_fork_refs_name(perm_string name) const override;
       enum BL_TYPE { BL_SEQ, BL_PAR, BL_JOIN_NONE, BL_JOIN_ANY };
 
 	// If the block has a name, it is a scope and also has a parent.
@@ -286,6 +305,7 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
 
 class PBreak : public Statement {
     public:
+      bool refs_name(perm_string name) const override;
       explicit PBreak(ivl_flow_control_t kind = IVL_FLOW_LOOP_BREAK)
       : kind_(kind) { }
       ivl_flow_control_t flow_control() const { return kind_; }
@@ -299,6 +319,7 @@ class PBreak : public Statement {
 class PCallTask  : public Statement {
 
     public:
+      bool refs_name(perm_string name) const override;
       explicit PCallTask(PPackage *pkg, const pform_name_t &n, const std::list<named_pexpr_t> &parms);
       explicit PCallTask(const pform_name_t &n, const std::list<named_pexpr_t> &parms);
       explicit PCallTask(perm_string n, const std::list<named_pexpr_t> &parms);
@@ -400,6 +421,8 @@ class PCallTask  : public Statement {
 class PCase  : public Statement {
 
     public:
+      bool refs_name(perm_string name) const override;
+      bool detached_fork_refs_name(perm_string name) const override;
       struct Item {
 	    std::list<PExpr*>expr;
 	    // M14: for `case (x) inside`, range items [lo:hi] are held
@@ -441,6 +464,8 @@ class PCase  : public Statement {
 class PRandCase : public Statement {
 
     public:
+      bool refs_name(perm_string name) const override;
+      bool detached_fork_refs_name(perm_string name) const override;
       explicit PRandCase(std::vector<PCase::Item*>*items)
 	    : items_(items) {}
       ~PRandCase() override;
@@ -558,6 +583,8 @@ class PChainConstructor : public Statement {
 class PCondit  : public Statement {
 
     public:
+      bool refs_name(perm_string name) const override;
+      bool detached_fork_refs_name(perm_string name) const override;
       PCondit(PExpr*ex, Statement*i, Statement*e);
       ~PCondit() override;
 
@@ -614,6 +641,7 @@ class PCondit  : public Statement {
 class PContinue : public Statement {
 
     public:
+      bool refs_name(perm_string name) const override;
       virtual void dump(std::ostream&out, unsigned ind) const override;
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
 };
@@ -637,6 +665,8 @@ class PDeassign  : public Statement {
 class PDelayStatement  : public Statement {
 
     public:
+      bool refs_name(perm_string name) const override;
+      bool detached_fork_refs_name(perm_string name) const override;
       PDelayStatement(PExpr*d, Statement*st);
       ~PDelayStatement() override;
 
@@ -662,6 +692,8 @@ class PDelayStatement  : public Statement {
 class PCycleDelay : public Statement {
 
     public:
+      bool refs_name(perm_string name) const override;
+      bool detached_fork_refs_name(perm_string name) const override;
       PCycleDelay(PExpr*count, Statement*st);
       ~PCycleDelay() override;
 
@@ -684,6 +716,7 @@ class PCycleDelay : public Statement {
 class PDisable  : public Statement {
 
     public:
+      bool refs_name(perm_string name) const override;
       explicit PDisable(const pform_name_t&sc);
       ~PDisable() override;
 
@@ -697,6 +730,8 @@ class PDisable  : public Statement {
 class PDoWhile  : public Statement {
 
     public:
+      bool refs_name(perm_string name) const override;
+      bool detached_fork_refs_name(perm_string name) const override;
       PDoWhile(PExpr*ex, Statement*st);
       ~PDoWhile() override;
 
@@ -726,6 +761,8 @@ class PDoWhile  : public Statement {
 class PEventStatement  : public Statement {
 
     public:
+      bool refs_name(perm_string name) const override;
+      bool detached_fork_refs_name(perm_string name) const override;
 
       explicit PEventStatement(const std::vector<PEEvent*>&ee);
       explicit PEventStatement(PEEvent*ee);
@@ -792,6 +829,8 @@ class PForce  : public Statement {
 
 class PForeach : public Statement {
     public:
+      bool refs_name(perm_string name) const override;
+      bool detached_fork_refs_name(perm_string name) const override;
       explicit PForeach(const pform_name_t&var,
                         const std::list<perm_string>&ix,
                         Statement*stmt,
@@ -837,6 +876,8 @@ class PForeach : public Statement {
 
 class PForever : public Statement {
     public:
+      bool refs_name(perm_string name) const override;
+      bool detached_fork_refs_name(perm_string name) const override;
       explicit PForever(Statement*s);
       ~PForever() override;
 
@@ -857,6 +898,8 @@ class PForever : public Statement {
 class PForStatement  : public Statement {
 
     public:
+      bool refs_name(perm_string name) const override;
+      bool detached_fork_refs_name(perm_string name) const override;
       PForStatement(PExpr*n1, PExpr*e1, PExpr*cond,
 		    Statement*step, Statement*body);
       ~PForStatement() override;
@@ -886,12 +929,15 @@ class PForStatement  : public Statement {
 class PNoop  : public Statement {
 
     public:
+      bool refs_name(perm_string name) const override;
       PNoop() { }
       ~PNoop() override { }
 };
 
 class PRepeat : public Statement {
     public:
+      bool refs_name(perm_string name) const override;
+      bool detached_fork_refs_name(perm_string name) const override;
       explicit PRepeat(PExpr*expr, Statement*s);
       ~PRepeat() override;
 
@@ -931,6 +977,7 @@ class PRelease  : public Statement {
 class PReturn  : public Statement {
 
     public:
+      bool refs_name(perm_string name) const override;
       explicit PReturn(PExpr*e);
       ~PReturn() override;
 
@@ -980,6 +1027,8 @@ class PNBTrigger  : public Statement {
 class PWhile  : public Statement {
 
     public:
+      bool refs_name(perm_string name) const override;
+      bool detached_fork_refs_name(perm_string name) const override;
       PWhile(PExpr*ex, Statement*st);
       ~PWhile() override;
 

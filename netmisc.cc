@@ -28,6 +28,7 @@
 # include  <algorithm>
 # include  <limits>
 # include  "netlist.h"
+# include  "PClass.h"
 # include  "netparray.h"
 # include  "netvector.h"
 # include  "netmisc.h"
@@ -1653,10 +1654,35 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 			      break;
 			}
 		  }
+		    /* The body of an UNSPECIALIZED parameterized class sees a
+		     * type parameter's DEFAULT here -- uvm_class_pair's
+		     * `type T1=int' makes `T1 first; first = new;' read as
+		     * `int first; first = new;'. IEEE 8.25: that body is not a
+		     * type and is never executed, so it needs no diagnostic.
+		     * A REAL specialization reaching this point means our own
+		     * type-parameter handling collapsed, which is our defect
+		     * and stays loud below; so does the forward-referenced
+		     * class collapse (a LOGIC target at package/module scope).
+		     * This mirrors how the virtual-class `new' degrade was
+		     * narrowed. */
+		  bool in_unspecialized_param_class = false;
+		  if (const NetScope*cscope =
+			    scope ? scope->get_class_scope() : 0) {
+			const netclass_t*cd = cscope->class_def();
+			const PClass*pclass = cscope->class_pform();
+			in_unspecialized_param_class =
+			      cd && pclass && pclass->has_parameter_port_list
+			   && (!cd->specialized_instance() || cd->seed_derived());
+		  }
 		  bool class_new_hard_error = is_class_new
 			&& cast_type != IVL_VT_LOGIC
 			&& !in_class_scope;
 		  if (is_class_new && !class_new_hard_error) {
+			if (in_unspecialized_param_class) {
+			      NetENull*seed = new NetENull;
+			      seed->set_line(*pe);
+			      return seed;
+			}
 			cerr << pe->get_fileline() << ": warning: 'new' into a "
 			     << "4-state l-value: treating the target as a "
 			     << "class variable whose type did not resolve "
@@ -4058,6 +4084,21 @@ bool ref_formal_is_bound(const NetNet*port)
       }
 }
 
+bool pform_name_refs_name(const pform_name_t&path, perm_string name)
+{
+      for (const name_component_t&comp : path) {
+	    if (comp.name == name)
+		  return true;
+	    for (const index_component_t&idx : comp.index) {
+		  if (idx.msb && idx.msb->refs_name(name))
+			return true;
+		  if (idx.lsb && idx.lsb->refs_name(name))
+			return true;
+	    }
+      }
+      return false;
+}
+
 void warn_ref_formal_fork_hazard(const NetNet*port, const Statement*task_body)
 {
       if (port == 0 || task_body == 0)
@@ -4088,7 +4129,23 @@ void warn_ref_formal_fork_hazard(const NetNet*port, const Statement*task_body)
 	    return;
       }
 
-      if (!task_body->contains_detached_fork())
+	/* IEEE 1800-2017 9.3.2 (identically worded in 1800-2023, which adds
+	   a `ref static' exception): "Within a fork-join_any or
+	   fork-join_none block, it shall be illegal to refer to formal
+	   arguments passed by reference other than in the initialization
+	   value expressions of variables declared in a
+	   block_item_declaration of the fork."
+	
+	   The value-copy binding only loses a write if that write happens
+	   in a branch still running when the task returns -- which requires
+	   referring to the formal from inside a detached fork, and that is
+	   exactly what the clause forbids. So the hazard this diagnostic
+	   describes cannot arise in legal code, and asking merely whether
+	   the task contains a detached fork ANYWHERE reports it on programs
+	   that never touch the formal there. Ask the precise question
+	   instead. refs_name() answers conservatively, so any statement or
+	   expression kind the walk does not model still reports. */
+      if (!task_body->detached_fork_refs_name(port->name()))
 	    return;
 
       cerr << port->get_fileline() << ": warning: ref formal `"
@@ -4097,12 +4154,14 @@ void warn_ref_formal_fork_hazard(const NetNet*port, const Statement*task_body)
 	      "13.5.2 requires a `ref' argument to be a reference to the "
 	      "actual) -- the reads/writes this shape needs go through a "
 	      "type-specific functor the reference-binding path does not "
-	      "implement. This task contains a detached fork "
-	      "(join_none/join_any): a write to `" << port->name()
-	   << "' from a branch that is still running when this task "
-	      "itself returns is LOST, silently -- the copy-out back to "
-	      "the caller's actual runs at the task's own join, before "
-	      "such a branch gets to execute." << endl;
+	      "implement. `" << port->name() << "' is referred to inside a "
+	      "detached fork (join_none/join_any) in this task, which "
+	      "IEEE 1800-2017 9.3.2 makes ILLEGAL for a formal passed by "
+	      "reference; with the value-copy binding a write from a branch "
+	      "still running when this task returns is additionally LOST, "
+	      "silently -- the copy-out back to the caller's actual runs at "
+	      "the task's own join, before such a branch gets to execute."
+	   << endl;
 }
 
 void check_for_inconsistent_delays(const NetScope*scope)

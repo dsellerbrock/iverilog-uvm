@@ -419,6 +419,32 @@ struct Z3Builder {
 	    Z3_ast var;
       };
       vector<MemberVar> member_vars;
+
+	// One scalar property of ONE ELEMENT of an object-handle array
+	// property. Handles are never rand, so these are pinned to their
+	// current value in EVERY solver instance (opt/base and chk).
+      struct QElemVar {
+	    unsigned qprop; unsigned elem; unsigned member;
+	    unsigned width; Z3_ast var;
+      };
+      vector<QElemVar> qelem_vars;
+
+      Z3_ast get_qelem_var(unsigned qprop, unsigned elem, unsigned member,
+			   unsigned width) {
+	    for (auto& v : qelem_vars)
+		  if (v.qprop == qprop && v.elem == elem && v.member == member)
+			return v.var;
+	    char nm[64];
+	    snprintf(nm, sizeof(nm), "qm%u_%u_%u", qprop, elem, member);
+	    Z3_sort srt = Z3_mk_bv_sort(ctx, width ? width : 32);
+	    Z3_ast var = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, nm), srt);
+	    QElemVar qv;
+	    qv.qprop = qprop; qv.elem = elem; qv.member = member;
+	    qv.width = width ? width : 32; qv.var = var;
+	    qelem_vars.push_back(qv);
+	    return var;
+      }
+
       const class_type* defn;
       vvp_cobject* cobj;
       // C7 (Phase 62b): optional optimize handle for soft asserts.
@@ -743,6 +769,8 @@ static uint64_t cobj_prop_bits(vvp_cobject* cobj, unsigned idx);
 static uint64_t cobj_member_bits(vvp_cobject* cobj, unsigned outer,
 				 unsigned member);
 static uint64_t cobj_elem_bits(vvp_cobject* cobj, unsigned idx, unsigned elem);
+static uint64_t cobj_qelem_member_bits(vvp_cobject* cobj, unsigned qprop,
+				       unsigned elem, unsigned member);
 static uint64_t cobj_darray_size(vvp_cobject* cobj, unsigned idx);
 
 // Parse "p:N:W[:s]" — returns Z3 bitvector variable
@@ -1316,6 +1344,31 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b)
 
 	/* Element reference within an expanded dynforeach body:
 	 * (delem P:W[:s] <const-index-ir>) -> element variable. */
+      /* (qmelem <qprop>:<member>:<width>[:s] <const-index-ir>) */
+      if (op == "qmelem") {
+	    string hdr = par.read_token();
+	    unsigned qprop = 0, member = 0, width = 32; bool sflag = false;
+	    { const char*c = hdr.c_str();
+	      qprop = (unsigned)atoi(c);
+	      while (*c && *c != ':') ++c;
+	      if (*c == ':') { member = (unsigned)atoi(c+1); ++c; }
+	      while (*c && *c != ':') ++c;
+	      if (*c == ':') { width = (unsigned)atoi(c+1); ++c; }
+	      while (*c && *c != ':') ++c;
+	      sflag = (*c == ':' && c[1] == 's'); }
+	    if (width == 0) width = 32;
+	    uint64_t idx64 = 0;
+	    bool ok = eval_const_ir(par, idx64);
+	    par.skip_ws(); par.expect(')');
+	    if (!ok) return mk_free_bv(b, width);
+	    if (b.collect_refs_only)
+		  return Z3_mk_unsigned_int64(b.ctx, 0,
+					      Z3_mk_bv_sort(b.ctx, width));
+	    Z3_ast var = b.get_qelem_var(qprop, (unsigned)idx64, member, width);
+	    if (sflag) b.signed_vars.insert(var);
+	    return var;
+      }
+
       if (op == "delem") {
 	    string hdr = par.read_token();
 	    unsigned pidx, ewid; bool esig;
@@ -2581,6 +2634,22 @@ static vvp_darray* make_random_container_(const random_container_desc_t&desc,
 
 /* Read the current bits of an array-property element (darray object or
  * static array), for the satisfied-already pre-check and xor targets. */
+/* One scalar property of ONE ELEMENT of an object-handle array property. */
+static uint64_t cobj_qelem_member_bits(vvp_cobject* cobj, unsigned qprop,
+				       unsigned elem, unsigned member)
+{
+      if (!cobj) return 0;
+      vvp_object_t propobj;
+      cobj->get_object(qprop, propobj, 0);
+      vvp_darray*da = propobj.peek<vvp_darray>();
+      if (!da || elem >= da->get_size()) return 0;
+      vvp_object_t elemobj;
+      da->get_word(elem, elemobj);
+      vvp_cobject*eco = elemobj.peek<vvp_cobject>();
+      if (!eco) return 0;
+      return cobj_prop_bits(eco, member);
+}
+
 static uint64_t cobj_elem_bits(vvp_cobject* cobj, unsigned idx, unsigned elem)
 {
       vvp_object_t propobj;
@@ -3407,6 +3476,16 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_optimize_assert(ctx, opt, eq);
 	    Z3_solver_assert(ctx, base, eq);
       }
+	// Object-element property reads are never rand: pin each to the value
+	// the element holds now, in this solver AND in the chk precheck below.
+      for (auto& qv : builder.qelem_vars) {
+	    Z3_sort qs = Z3_mk_bv_sort(ctx, qv.width);
+	    Z3_ast qcv = Z3_mk_unsigned_int64(ctx,
+		  cobj_qelem_member_bits(cobj, qv.qprop, qv.elem, qv.member), qs);
+	    Z3_ast qeq = Z3_mk_eq(ctx, qv.var, qcv);
+	    Z3_optimize_assert(ctx, opt, qeq);
+	    Z3_solver_assert(ctx, base, qeq);
+      }
       for (auto& mv : builder.member_vars) {
 	    if (rand_member_active_(defn, cobj, prop_active,
 				    mv.outer, mv.member))
@@ -3576,6 +3655,13 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  Z3_sort sort = Z3_mk_bv_sort(ctx, pv.width);
 		  Z3_ast cv = Z3_mk_unsigned_int64(ctx, bits, sort);
 		  Z3_solver_assert(ctx, chk, Z3_mk_eq(ctx, pv.var, cv));
+	    }
+	    for (auto& qv : builder.qelem_vars) {
+		  uint64_t qb = cobj_qelem_member_bits(cobj, qv.qprop,
+						       qv.elem, qv.member);
+		  Z3_sort qs = Z3_mk_bv_sort(ctx, qv.width);
+		  Z3_ast qcv = Z3_mk_unsigned_int64(ctx, qb, qs);
+		  Z3_solver_assert(ctx, chk, Z3_mk_eq(ctx, qv.var, qcv));
 	    }
 	    for (auto& mv : builder.member_vars) {
 		  uint64_t bits = cobj_member_bits(cobj, mv.outer, mv.member);
