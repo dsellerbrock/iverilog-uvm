@@ -24929,7 +24929,9 @@ string pexpr_to_rooted_class_constraint_ir(
 }
 
 static string constraint_constant_ir_(const PEIdent*id,
-				       const NetScope*scope)
+				       const NetScope*scope,
+				       const netclass_t*cls,
+				       verinum*full_value = nullptr)
 {
       Design*des = constraint_ir_design_ctx_;
       if (!des || !scope || !id || id->path().name.empty()) return "";
@@ -24938,42 +24940,69 @@ static string constraint_constant_ir_(const PEIdent*id,
 	    const NetEConst*val = dynamic_cast<const NetEConst*>(expr);
 	    if (!val || !val->value().is_defined()) return "";
 	    const verinum&v = val->value();
-	    if (constraint_dist_reject_wide_value_(id, v)) return "";
+	    if (full_value) {
+		  if (val->expr_type() == IVL_VT_STRING) return "";
+		  *full_value = v;
+	    } else if (constraint_dist_reject_wide_value_(id, v)) return "";
 	    return "c:" + to_string(v.as_ulong64()) + ":"
 		  + to_string(v.len()) + (v.has_sign() ? ":s" : "");
       };
+      bool declared = false;
       auto in_scope = [&](NetScope*sc, perm_string name) -> string {
+	    declared = false;
 	    if (!sc) return "";
 	    ivl_type_t type = nullptr;
-	    string out = const_ir(sc->get_parameter(des, name, type));
-	    if (!out.empty()) return out;
+	    const NetExpr*value = sc->get_parameter(des, name, type);
+	    if (value || sc->find_signal(name) || sc->child_byname(name)
+		|| sc->find_event(name)) {
+		  declared = true;
+		  return const_ir(value);
+	    }
 	    NetScope*imported = sc->find_import(des, name);
-	    if (imported)
-		  return const_ir(imported->get_parameter(des, name, type));
+	    if (imported) {
+		  declared = true;
+		  value = imported->get_parameter(des, name, type);
+		  return const_ir(value);
+	    }
 	    return "";
       };
 
       const pform_scoped_name_t&path = id->path();
       perm_string name = path.name.back().name;
+      if (id->leading_type_args()) return "";
 
-      /* Explicit pkg::name.  Depending on parser context, the package may
-       * be retained in path.package or represented as the first component. */
-      if (path.package) {
-	    NetScope*pkg = des->find_package(path.package->pscope_name());
-	    string out = in_scope(pkg, name);
-	    if (!out.empty()) return out;
+      if (path.name.size() != 1 || id->has_scoped_type_prefix()) {
+	    if (full_value) return "";
+	    // Preserve genuine hierarchy references without discarding their
+	    // prefixes and accidentally binding an unrelated lexical constant.
+	    symbol_search_results found;
+	    if (symbol_search(id, des, const_cast<NetScope*>(scope), path,
+			      id->lexical_pos(), &found) && found.path_tail.empty())
+		  return const_ir(found.par_val);
+	    return "";
       }
-      if (!path.package && path.name.size() == 2
-	  && path.name.front().index.empty()) {
-	    if (NetScope*pkg = des->find_package(path.name.front().name)) {
-		  string out = in_scope(pkg, name);
-		  if (!out.empty()) return out;
+      if (path.package)
+	    return in_scope(des->find_package(path.package->pscope_name()), name);
+
+      // IEEE 1800-2017/2023 7.12: a with iterator shadows outer names.
+      if (!path.name.front().local_scope && constraint_array_iter_ctx_find_(name))
+	    return "";
+
+      // IEEE 1800-2017/2023 18.7.1: target members precede caller names.
+      if (cls && !path.package && path.name.size() == 1
+	  && !path.name.front().local_scope && constraint_inline_target_name_(name)) {
+	    if (cls->property_idx_from_name(name) >= 0) return "";
+	    for (const netclass_t*owner = cls; owner; owner = owner->get_super()) {
+		  string out = in_scope(const_cast<NetScope*>(owner->class_scope()), name);
+		  if (declared) return out;
 	    }
       }
 
       for (const NetScope*cur = scope ; cur ; cur = cur->parent()) {
+	    // IEEE 1800-2017/2023 23.9: a nearer declaration shadows outer names,
+	    // even when its value cannot be represented by this converter.
 	    string out = in_scope(const_cast<NetScope*>(cur), name);
-	    if (!out.empty()) return out;
+	    if (declared) return out;
 	    /* A class scope is deliberately detached from its lexical
 	     * definition scope.  Search that scope before falling through to
 	     * the compilation unit. */
@@ -24981,7 +25010,7 @@ static string constraint_constant_ir_(const PEIdent*id,
 		  NetScope*def = const_cast<netclass_t*>(
 			cur->class_def())->definition_scope();
 		  out = in_scope(def, name);
-		  if (!out.empty()) return out;
+		  if (declared) return out;
 	    }
       }
       if (NetScope*unit = const_cast<NetScope*>(scope)->unit())
@@ -27514,7 +27543,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			   id->path().name.front().name))
 			direct_package_value = true;
 		  if (direct_package_value) {
-			string constant = constraint_constant_ir_(id, scope);
+			string constant = constraint_constant_ir_(id, scope, cls);
 			if (!constant.empty())
 			      return constant;
 		  }
@@ -28080,32 +28109,9 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			}
 		  }
 	    }
-	      // Enumeration literal (IEEE 1800-2017 18.5.3: sets may name
-	      // enum values): resolve to its constant through the scope
-	      // chain. Without this, enum names silently vanish from
-	      // inside/dist sets and under-constrain the solve (G18).
-	    if (id->path().size() == 1) {
-		  for (const NetScope*sc = scope ; sc ; sc = sc->parent()) {
-			const NetExpr*en =
-			      const_cast<NetScope*>(sc)->enumeration_expr(name);
-			if (!en) continue;
-			if (const NetEConst*ec =
-			    dynamic_cast<const NetEConst*>(en)) {
-			      if (constraint_dist_reject_wide_value_(id, ec->value()))
-				    return "";
-			      uint64_t val = ec->value().as_unsigned();
-			      return "c:" + to_string(val) + ":"
-				    + to_string(ec->value().len())
-				    + (ec->value().has_sign() ? ":s" : "");
-			}
-			break;
-		  }
-	    }
-	    /* Parameters and imported enum literals are ordinary constants in
-	     * constraint expressions (18.5.3).  Resolve them after properties
-	     * so a class member keeps the required member-name precedence. */
+	    // Parameters and enum literals retain target-class name precedence.
 	    {
-		  string constant = constraint_constant_ir_(id, scope);
+		  string constant = constraint_constant_ir_(id, scope, cls);
 		  if (!constant.empty()) return constant;
 	    }
 	    // Non-class-property identifier: treat as caller-scope runtime value.
@@ -28202,6 +28208,58 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    const pform_name_t&cpath = call->path().name;
 	    bool call_local_qualified = !cpath.empty()
 		  && cpath.front().local_scope;
+
+	      /* IEEE 1800-2017/2023 20.8.1: fold integral literals and named
+	       * constants before the 64-bit IR representation loses high bits.
+	       * Keep source types and inline member lookup; caller-scope
+	       * elaboration of the whole call would lose both. Composite and
+	       * foreach-dependent arguments retain the existing diagnostic. */
+	    if (!call->path().package && cpath.size() == 1
+		&& cpath.front().name == perm_string::literal("$clog2")
+		&& cpath.front().index.empty() && call->with_constraints().empty()
+		&& call->get_parms().size() == 1 && call->get_parms()[0].parm
+		&& call->get_parms()[0].name.nil()
+		&& (!loop_env || loop_env->empty()) && !dynforeach_emit_ctx_) {
+		  const PExpr*arg = call->get_parms()[0].parm;
+		  verinum value;
+		  bool constant = false;
+		  if (const PENumber*num = dynamic_cast<const PENumber*>(arg)) {
+			value = num->value();
+			constant = true;
+		  } else if (const PEIdent*id = dynamic_cast<const PEIdent*>(arg)) {
+			bool unselected = true;
+			for (const auto&part : id->path().name)
+			      unselected = unselected && part.index.empty();
+			if (unselected)
+			      constant = !constraint_constant_ir_(id, scope, cls, &value).empty();
+		  } else if (const PEUnary*un = dynamic_cast<const PEUnary*>(arg)) {
+			// A signed numeric literal uses a unary source node.
+			if ((un->get_op() == '-' || un->get_op() == '+')
+			    && dynamic_cast<const PENumber*>(un->get_expr())
+			    && constraint_ir_design_ctx_ && scope) {
+			      unique_ptr<NetExpr> folded(elab_and_eval(
+				    constraint_ir_design_ctx_, const_cast<NetScope*>(scope),
+				    const_cast<PExpr*>(arg), -1, false));
+			      if (const NetEConst*literal = dynamic_cast<const NetEConst*>(folded.get())) {
+				    value = literal->value();
+				    constant = true;
+			      }
+			}
+		  }
+		  if (constant && value.is_defined()) {
+			NetESFunc fold("$clog2", IVL_VT_LOGIC, integer_width, 1);
+			fold.parm(0, new NetEConst(value));
+			unique_ptr<NetExpr> result(fold.eval_tree());
+			if (const NetEConst*num = dynamic_cast<const NetEConst*>(result.get())) {
+			      constraint_const_ir_t out;
+			      out.value = num->value().as_ulong64();
+			      out.width = integer_width;
+			      out.is_signed = true;
+			      return constraint_format_const_ir_(out);
+			}
+		  }
+		  // A failed fold must fall through to the existing call handling.
+	    }
 
 	      /* The parenthesized spelling of an array-method iterator's
 	       * index query is represented as a call. The paren-less spelling is

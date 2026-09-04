@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_constraint_const_sysfunc_clog2.v",
+    "iverilog-args" : [ "-g2023", "-s", "main" ],
+    "gold"          : "sv_constraint_const_sysfunc_clog2"
+}

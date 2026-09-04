@@ -242,10 +242,115 @@ rather than an unsupported-but-safe fallback. The fix direction is to evaluate
 an elaboration-time-constant sub-expression and emit it as an IR literal, which
 covers `$clog2`, `$bits` and the rest at once.
 
-## 9. Note on predicted movement
+## 9. Constant $clog2 constraints and review corrections
+
+IEEE 1800-2017 and IEEE 1800-2023 **20.8.1** require an arbitrary-width
+integral argument interpreted as unsigned, with zero producing zero.
+`uart_base_vseq.sv:109-110` uses `value <= $clog2(RxFifoDepth)` and a related
+minus-one bound. Before this increment, the converter dropped these constraint
+items with a warning; the reduced `v <= $clog2(64)` produced `v=2915189536`.
+
+The converter now obtains the full `verinum` for integral numeric literals,
+unary +/- numeric literals, and simple named integral constants, including
+direct package constants. It calls the existing `NetESFunc` evaluator before
+encoding the result in the constraint IR. It does not implement another
+logarithm algorithm. Unknown, runtime, cast, composite, qualified-class and
+foreach-context arguments retain the existing unsupported handling. A failed
+fold falls through; it does not intercept unrelated system functions.
+
+Constant lookup preserves target-object precedence, `local::` and explicit
+inline identifier lists (**18.7.1**, both editions), array-method iterator
+shadowing (**7.12**), and nearest-declaration lookup (**23.9**). A declaration
+that is not an integral constant stops the search. Hierarchical references
+outside the new bounded fold use the existing `symbol_search` resolver, so
+`main.N` retains its prefix rather than becoming an unrelated bare `N`.
+
+### Review findings and their disposition
+
+Fresh agent review, a user-authorized Claude Code CLI review, and a final
+bounded fresh review found concrete defects in intermediate drafts:
+
+- The original 64-bit fold returned 0 for `128'h10000000000000000`; full-width
+  evaluation returns 64. A 128-bit package parameter also checks a non-power
+  value whose result is 65.
+- The shared evaluator incorrectly applied an integer-width floor to sized
+  negative operands. It now preserves the operand's declared bits:
+  `8'shff` gives 8, `1'sb1` gives 0, and `16'sh8000` gives 15. Unary signed
+  literals and runtime signed variables are checked against ordinary folding.
+- Re-elaborating the whole call in caller scope misbound target parameters and
+  enums. Tests cover the target, `local::`, an explicit `with(v)` list, and a
+  non-default specialization.
+- With clauses, named arguments, real/string casts, unknown values, and
+  iterator/class-member shadowing could be silently accepted or misbound.
+  Negative tests pin the diagnostics. Nearer nonintegral parameters, variables,
+  functions and events stop the constant search.
+- Over-restricting the shared helper lost a genuine hierarchical constant.
+  A runtime assertion now retains `main.N` through `symbol_search`.
+
+The existing `clog2.v` had two stale expectations of 32 for
+`$clog2(-(2**31))`. The direct argument is 32 bits, `80000000`; interpreted as
+unsigned under **20.8.1**, it is exactly 2**31 and the answer is 31. Both
+assertions now require 31. The recorded reducer also reports
+`$clog2($unsigned(-(2**31))) == 31`, including strict expression-width mode.
+An unsized *parameter* can have a different width under Icarus's existing
+extension; that behavior is not conflated with the direct expression.
+
+Earlier drafts also used `need_const=true`, which introduced hidden
+elaboration errors, and returned early for all unhandled system calls, which
+made unrelated `std::randomize() with` calls fail. Both approaches were
+rejected. Every elaboration revision is checked against the real UART core.
+
+### Regressions and evidence
+
+`sv_constraint_const_sysfunc_clog2` repeatedly enforces the [3,6] and [0,5]
+bands, checks exact edge values and lookup, and exercises the ordinary/runtime
+signed-value path. `sv_constraint_clog2_unsupported` checks diagnostics for
+unsupported and invalid inputs. Both have 2017/2023 legacy and JSON entries.
+Slang is an independent parser/elaborator comparison; the local IEEE texts
+remain normative.
+
+Evidence is under
+`evidence/clog2-xbar-codex-arm64-20260904/` at workspace level. It includes
+review artifacts, the Claude CLI result and reconciliation, reducers, build
+logs, focused results, gate markers and application comparisons. Copyrighted
+LRM text remains untracked. The originally inherited gate 4 completed, but
+its results do not validate the subsequent review changes; the checkpoint
+requires a fresh full gate and per-core censuses.
+
+## 10. Note on predicted movement
 
 The 8 xbar cores appear in both lanes with identical debt, but the lanes do not
 share a PASS criterion. Clearing compile debt makes the **uvm** rows PASS; the
 **runtime** rows will then attempt execution for the first time and may land in
 RUNTIME_FAIL or RUNTIME_TIMEOUT. No core count will be claimed before the
 per-core census diff says so.
+
+## 11. Reviewed $clog2 checkpoint validation
+
+Native ARM64, Homebrew Bison 3.8.2, `make -j1 && make install`, absolute
+worktree `local-install/bin` first on PATH, and the 45-second CPU guard:
+
+| Check | Measured result |
+|---|---|
+| Focused legacy (including existing clog2 tests) | 6/6 |
+| Focused JSON, both editions | 4/4 |
+| Full legacy | 4537/4542, 0 failed, 2 NI, 3 EF |
+| Name-diff gate | Clean, 0 unexplained |
+| Full JSON/VVP | 1431 tests, 0 failed |
+| VPI | 103/103 |
+| Negative suite | 149 passed, 0 failed |
+| Malformed-bytecode/runtime invariants | Pass |
+| UVM with real DPI | 355 passed, 0 failed, 0 skipped |
+
+Completion markers: `gate-checkpoint.log` contains
+`CLOG2_CHECKPOINT_GATE_DONE` and `CLOG2_CHECKPOINT_GATE_EXIT=0`;
+`json-checkpoint.log` contains `JSON_CHECKPOINT_GATE_EXIT=0`. Full UVM
+output is `uvm-checkpoint.log`. These are under the evidence directory in
+section 9. The UART checkpoint replay compiles with the same two remaining
+port/driver diagnostics; the constraint warnings are absent.
+
+Commands are preserved in `run-checkpoint-gate.sh`; it runs the focused
+legacy/JSON lists, `.github/ivtest_gate.sh`, and `.github/uvm_test.sh`.
+The full JSON run is `python3 vvp_reg.py` from `ivtest`, after the legacy
+sweep finishes. `checkpoint-build.json` records the installed engine/runtime
+hashes. Application-level claims await the following per-core censuses.
