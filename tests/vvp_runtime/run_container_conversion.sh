@@ -54,8 +54,27 @@ compare_output() {
 }
 
 cd "$repo_dir"
+# The positive fixture is expected to run to completion (rc=0). Capture the
+# status the same way run_rejected_image does rather than letting `set -e' kill
+# the script: an unguarded failure here exits SILENTLY, with no FAIL line, no
+# diff and no stderr, which is indistinguishable from the gate never reaching
+# this step. That is exactly how this check failed on Linux while passing on
+# macOS and MSYS2 -- undiagnosable from the CI log alone.
+set +e
 run_vvp tests/vvp_runtime/container_conversion.vvp \
     "$work_dir/positive.stdout" "$work_dir/positive.stderr"
+positive_rc=$?
+set -e
+if [ "$positive_rc" -ge 128 ]; then
+    echo "FAIL container conversion: VVP terminated by signal (rc=$positive_rc)" >&2
+    cat "$work_dir/positive.stderr" >&2
+    exit 1
+fi
+if [ "$positive_rc" -ne 0 ]; then
+    echo "FAIL container conversion: expected rc=0, got rc=$positive_rc" >&2
+    cat "$work_dir/positive.stderr" >&2
+    exit 1
+fi
 compare_output "container conversion" \
     "$script_dir/container_conversion.stdout" \
     "$script_dir/container_conversion.stderr" \
