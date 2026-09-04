@@ -90,7 +90,7 @@ is required. That, not env-var propagation, is why probes appeared not to fire.
 - All 8 xbar cores carry `get_full_name` as their **only** unresolved name, so
   the mechanism is fully cleared for the whole family.
 
-## 4. Re-classified, not implemented: the ref-formal warning
+## 4. The ref-formal warning: re-classified, then fixed
 
 Checked before writing code, and the answer changed the plan:
 
@@ -127,7 +127,122 @@ any statement is elaborated, and it would under-count queue mutations such as
 
 Neither clears a row alone — every xbar core needs all three.
 
-## 6. Note on predicted movement
+## 6. Recorded, not chased: unresolved `i` in a constraint foreach
+
+18 occurrences across i2c_sim and the two `*_chip_sim` cores, reported as
+`Unable to bind wire/reg/memory `i''. The reported line is a blank line at the
+end of a task -- a macro-expansion artifact. The real construct is inside
+`DV_CHECK_RANDOMIZE_WITH_FATAL`, e.g. `spi_host_seq.sv`:
+
+```systemverilog
+foreach (data[i]) {
+  data[i] == local::data[i];
+}
+```
+
+The gap is that the constraint `foreach` loop variable is not bound when
+resolving an index inside a `local::`-qualified reference (IEEE 1800-2017
+18.7.1, `local::` scope resolution inside `randomize() with`). Not chased:
+the affected cores carry other blockers, so clearing it alone moves nothing.
+
+## 7. Ref-formal: clause verified and blast radius measured
+
+Recorded here because an earlier note cited "IEEE 1800-2023 ~line 16150", which
+is a LINE number, not a clause. The actual citation is **IEEE 1800-2017 9.3.2
+(Parallel blocks)**, identically worded in 1800-2023 except for an added
+`ref static` exception:
+
+> Within a fork-join_any or fork-join_none block, it shall be illegal to refer
+> to formal arguments passed by reference other than in the initialization
+> value expressions of variables declared in a block_item_declaration of the
+> fork[, unless the argument is declared ref static].
+
+Note the exception the earlier note omitted: a reference IS legal in the
+initialization value expression of a fork-local variable.
+
+Blast radius, measured before implementing: the warning has exactly **one**
+site in the entire corpus -- `shadowed_csr` in `glitch_shadowed_reset` -- with
+71 occurrences across 17 cores. In that task the formal is referenced only in a
+plain `foreach` at lines 228-233; there are no literal fork/join tokens, and
+the sole detached fork comes from `DV_SPINWAIT` (which expands to nested
+`fork ... join_any` via `DV_SPINWAIT_EXIT`) whose arguments do not mention the
+formal.
+
+So narrowing the gate to "the formal is referenced inside a detached fork
+subtree" clears all 71 lines, and the error branch is **dead code on this
+corpus** -- no core can move backward.
+
+### Implemented
+
+Gate changed from `task_body->contains_detached_fork()` to
+`task_body->detached_fork_refs_name(port->name())`, backed by two pform
+virtuals:
+
+- `Statement::refs_name(perm_string)` -- default **true**, overridden in ~20
+  kinds; `PExpr::refs_name(perm_string)` -- default **true**, overridden in 12.
+- `Statement::detached_fork_refs_name(perm_string)` -- default **false**,
+  overridden in exactly the kinds that override `contains_detached_fork()`, so
+  it locates detached forks as completely as that already-trusted walk.
+
+The polarity is the entire safety argument: an unmodelled node kind answers
+"referenced", so the diagnostic is retained. A missing override costs
+precision, never soundness.
+
+The message now cites 9.3.2 and says the construct is illegal, rather than
+describing only the lost-write symptom.
+
+Verified: `top_darjeeling_xbar_dbg_sim` drops from 3 debt lines to **1** (the
+constraint alone). slang agrees in both directions -- it rejects the illegal
+shape with `-Wref-arg-in-fork-join` and accepts the legal one with 0 warnings.
+
+Two paired regressions: `sv_ref_queue_formal_unrelated_fork` (legal shape must
+stay quiet, and writes through the reference must still reach the caller) and
+`sv_ref_queue_formal_fork_illegal_warn` (the 9.3.2 violation). The second one's
+gold is a live demonstration rather than a text pin -- it prints
+`caller sees size 1 (the branch's write is lost)`. Writing it exposed a first
+draft where the branch finished BEFORE the task returned, so the copy-out
+captured the write and nothing was lost; the delays had to be inverted to make
+the hazard real.
+
+## 8. The constraint frontier is five mechanisms, not one
+
+Aggregating by message makes "constraint `X' could not be translated" look
+like a single family (42 occurrences, 15 cores). Decomposing by the actual
+constraint TEXT shows five unrelated mechanisms, in rising order of cost:
+
+| Shape | Occ | Nature |
+|---|---|---|
+| `(value) <= ($clog2(RxFifoDepth))` (uart_base_vseq.sv:109-110) | 4 | A constant system function -- see below. Cheapest of the set. |
+| `(num_lanes) == (cfg.get_sio_size())`, `...idcode.get_n_bits()`, `(m_data_pkt.data.size()) == (num_of_bytes)` | 8 | A method call on a NON-RANDOM state object. Needs solve-time evaluation of an arbitrary state expression -- the general feature the `delem`/`qmelem` nodes only do for properties. |
+| `foreach (data_q[...])` (spi_host_tpm_seq.sv:60) | 4 | A second foreach shape. |
+| kmac `local::`-qualified compounds | 8 | Mixed; not yet decomposed. |
+| `if (use_last_item_addr) { ... } else { ... }` (xbar_tl_host_seq.sv:46) | 20 | The hierarchical `foreach` target -- `elaborate.cc` bails deliberately on `has_hierarchical_target()`. Needs hierarchical path storage plus package-scope resolution in the constraint IR. Most expensive, and the last xbar blocker. |
+
+The same lesson as section 1 applies: the message is not the mechanism.
+
+### The `$clog2` case is a silent wrong answer, and it is general
+
+Reduced, it is not about parameters or even about randomization:
+
+```systemverilog
+class it;  rand int unsigned v;  constraint c { v <= $clog2(64); }  endclass
+class it2; rand int unsigned v;  constraint c { v <= $bits(int); }  endclass
+```
+
+Both constraints are DROPPED -- `warning: Constraint item ... is not
+representable in the constraint solver and is ignored` -- and both variables
+come back completely unconstrained (observed 2915189536 and 3905576338 against
+bounds of 6 and 32). A LITERAL argument fails, so this is not a missing
+constant-fold of a parameter reference: the constraint IR converter handles no
+constant system function at all.
+
+This is the same defect class as the `get_full_name` one fixed in this branch:
+a "compile-progress" warning standing in front of a silently wrong answer
+rather than an unsupported-but-safe fallback. The fix direction is to evaluate
+an elaboration-time-constant sub-expression and emit it as an IR literal, which
+covers `$clog2`, `$bits` and the rest at once.
+
+## 9. Note on predicted movement
 
 The 8 xbar cores appear in both lanes with identical debt, but the lanes do not
 share a PASS criterion. Clearing compile debt makes the **uvm** rows PASS; the
