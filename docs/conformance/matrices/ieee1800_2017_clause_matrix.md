@@ -767,3 +767,12 @@ all 530 OpenTitan/105 Caliptra rows with no status changes or lost PASS. OpenTit
 static 52 PASS/ICARUS_GAP0. Debt matched-line sum 2221→2223 is reconciled output
 interleaving with unchanged diagnostic tokens, not semantic change. See
 [enum-method session](../session_logs/2026-09-04_enum_method_values.md).
+
+Selected-member procedural foreach (2026-09-05): IEEE 1800-2017/2023 12.7.3,
+23.7, 26.3 and Annex A.6.8. The identifier-prefix carrier now selects an existing
+index and declares only terminal iterators, with ordinary import recording and
+explicit invalid-prefix diagnostics. Focused legacy 14/14 and JSON 10/10 pass.
+Full legacy 4641/4646 with zero failed and a clean name diff, JSON 1535/0,
+VPI 103/103, negative 149/0, runtime invariants and real-DPI UVM 355/0/0 pass.
+Fresh census comparison is pending. Selected associative key typing remains open. See
+[selected-member session](../session_logs/2026-09-05_foreach_selected_target.md).
