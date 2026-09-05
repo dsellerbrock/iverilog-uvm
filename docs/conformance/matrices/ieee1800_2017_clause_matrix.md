@@ -774,5 +774,10 @@ index and declares only terminal iterators, with ordinary import recording and
 explicit invalid-prefix diagnostics. Focused legacy 14/14 and JSON 10/10 pass.
 Full legacy 4641/4646 with zero failed and a clean name diff, JSON 1535/0,
 VPI 103/103, negative 149/0, runtime invariants and real-DPI UVM 355/0/0 pass.
-Fresh census comparison is pending. Selected associative key typing remains open. See
+All 530 OpenTitan/105 Caliptra classifications and inputs remain unchanged:
+203 OpenTitan PASS, eight xbar runtime timeouts, Caliptra static 52 PASS/GAP0.
+Twenty-three raw wrong-device scoreboard reports disappear across five xbar runs;
+remaining runtime payloads match except termination times. Debt 2223→2222 is
+output interleaving with unchanged diagnostic tokens. Selected associative key
+typing and full DV remain open. See
 [selected-member session](../session_logs/2026-09-05_foreach_selected_target.md).

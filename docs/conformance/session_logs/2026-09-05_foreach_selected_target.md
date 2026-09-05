@@ -63,15 +63,51 @@ integrated gate passes: legacy 4641/4646, zero failed, two not implemented and
 three expected failures, with a clean name diff; JSON 1535/0; VPI 103/103;
 negative 149/0; runtime invariants including state foreach 15/15; real-DPI UVM
 355 passed, zero failed and zero skipped. The final marker is
-FOREACH_SELECTED_GATE_DONE=0. Fresh OpenTitan and Caliptra censuses are running
-against the same frozen compiler; their per-core comparison remains pending.
+FOREACH_SELECTED_GATE_DONE=0.
+
+The fresh application comparison is complete: all 530 OpenTitan and 105 Caliptra
+rows match the previous classifications, with no lost PASS or changed inputs.
+OpenTitan remains 203 PASS, 157 DEPENDENCY_ONLY, 39 UPSTREAM_INVALID, 84 FAIL,
+17 DEBT, 6 SETUP_FAIL, 16 RUNTIME_FAIL and 8 RUNTIME_TIMEOUT. All eight xbar UVM
+compile rows pass; all eight runtime rows still time out. Caliptra remains
+52 PASS / ICARUS_GAP 0 in its static census, with every per-job record unchanged.
+Only the Caliptra harness output directory differs; source/configuration and
+fileset-wrapper hashes match.
+
+The selector fix removes 23 raw wrong-device scoreboard reports across five
+xbar runs (21 distinct diagnostic strings in the census). Darjeeling debug,
+main and peripheral remove 1, 6 and 3 reports; Earlgrey main removes 6 and
+English Breakfast main removes 7. After removing those exact report blocks,
+the complete runtime payloads match except for termination-assertion timestamps.
+Outstanding-request assertions and missing pass banners remain; this is not
+full DV completion. The other three xbar payloads differ only in those timestamps.
+
+All 18 changed row records are reconciled: eight xbar runtime records, seven
+shell PID/temporary-path differences and three compiler/preprocessor diagnostic
+interleaving differences. A full raw-log comparison also finds three macro rows
+with reordered but identical line multisets. Summed semantic_debt_count changes
+2223 to 2222 only because runtime entropy_src interleaves one formerly separate
+matched line. AES similarly loses one counted hard-error line. All 12
+macro-affected rows retain identical macro/error/warning token counts and
+compile return codes; no semantic-debt reduction is claimed.
+
+The first census stopped with disk exhaustion after 403 saved rows and remains
+preserved. Completed temporary UVM images were removed after name/source checks;
+older completed census images were transparently compressed with unchanged
+content hashes. The fresh complete retry uses the identical frozen compiler
+and original command options. FOREACH_SELECTED_CENSUS2_DONE=0 and the final
+fingerprint audit confirm completion.
 
 Evidence under evidence/xbar-zero-traffic-after255-arm64-20260904 includes
 foreach-selected-build1-result.json, foreach-selected-build1-fingerprints.json,
 foreach-selected-final-gate1-result.json,
 foreach-selected-direct-green1-results.json, foreach-selected-registration-audit.json,
 foreach-selected-v2-code-review.md, bison-foreach-standard-plan2/proposed-v2-comparison.json,
-and the retained foreach-selected-candidates-v2/final-candidates-red-results.json.
+the retained foreach-selected-candidates-v2/final-candidates-red-results.json,
+foreach-selected-final-census-reconciliation.json,
+foreach-selected-census2-per-row-diff.json, foreach-selected-xbar-raw-output-proof.json,
+foreach-selected-census2-raw-log-comparison2.json and
+opentitan-foreach-selected-census2-300s-audit.json.
 
 ## Remaining boundaries
 
@@ -83,6 +119,5 @@ being developed; it is not part of this increment and is not a passing test.
 A same-name prefix/terminal-iterator research probe has unresolved scope
 expectations and is not registered as a conformance test.
 
-The separately completed enum-build baseline is OpenTitan 203 PASS with eight
-xbar runtime timeouts, Caliptra static 52 PASS / ICARUS_GAP 0. No new application
-count is claimed before the selected-build per-core comparison completes.
+The measured selected-build totals remain OpenTitan 203 PASS with eight xbar
+runtime timeouts, and Caliptra static 52 PASS / ICARUS_GAP 0. Full DV remains open.
