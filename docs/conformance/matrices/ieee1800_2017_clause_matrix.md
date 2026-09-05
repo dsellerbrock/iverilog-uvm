@@ -760,3 +760,10 @@ negative149/0, runtime invariants, real-DPI UVM355/0/0. A two-state enum wider
 than64 bits still asserts in the target emitter; four-state65 is covered.
 The bounded xbar diagnostic clears enum printing and exposes a scoreboard
 mismatch, not a completed test. See the [session record](../session_logs/2026-09-04_enum_method_values.md).
+
+Enum-method application checkpoint (2026-09-05): fresh enum-build censuses compare
+all 530 OpenTitan/105 Caliptra rows with no status changes or lost PASS. OpenTitan
+203 PASS, eight xbar UVM compile PASS and eight runtime timeouts; Caliptra
+static 52 PASS/ICARUS_GAP0. Debt matched-line sum 2221→2223 is reconciled output
+interleaving with unchanged diagnostic tokens, not semantic change. See
+[enum-method session](../session_logs/2026-09-04_enum_method_values.md).

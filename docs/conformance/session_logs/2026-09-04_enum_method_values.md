@@ -70,9 +70,33 @@ request at0xdc and reports a mismatch; a0xdc comparison then passes at the same
 simulation time. The diagnostic was deliberately wall-limited and is not a
 completed application test. See enum-methods-xbar-high1/result.json and runtime.log.
 
-The preceding components-build3 census remains separate evidence: OpenTitan
-203 PASS with eight xbar runtime timeouts; Caliptra static52 PASS/ICARUS_GAP0.
-Application censuses have not yet been repeated for this enum runtime.
+Fresh enum-build censuses completed after the full gate. All 530 OpenTitan and
+105 Caliptra rows were compared against components build3, with no status
+changes or lost PASS rows. OpenTitan remains 203 PASS, 157 DEPENDENCY_ONLY,
+39 UPSTREAM_INVALID, 84 FAIL, 17 DEBT, 6 SETUP_FAIL, 16 RUNTIME_FAIL and 8 RUNTIME_TIMEOUT.
+All eight xbar UVM compile rows remain PASS; their runtime rows still time out.
+Earlier scoreboard diagnostics match exactly; only the termination assertion's
+simulation timestamp changes. These are not completed DV passes.
+
+The semantic_debt_count sum is 2221→2223: runtime EDN and UVM entropy_src each
+have one more matched diagnostic line because compiler/preprocessor output
+interleaves differently. All 12 macro-affected rows have identical macro,
+error and warning token counts and compile returncodes. The remaining changed
+compiler diagnostics differ only in process IDs and temporary paths. All 20
+changed OpenTitan rows are reconciled; this is not a semantic-debt increase.
+Compile commands, runtime commands, providers and source lists match.
+
+Caliptra remains static 52 PASS/ICARUS_GAP0; all 105 per-job records are unchanged.
+Source/config hashes match and its harness differs only in the output directory.
+The installed enum-build fingerprints match after both censuses. Evidence:
+`enum-methods-census-per-row-diff.json`, `opentitan-enum-methods-300s-audit.json`,
+and `enum-methods-final-census-reconciliation.json` under the evidence directory
+above. This preserves the static baseline; full Caliptra DV remains the goal.
+
+The next xbar compiler defect is reduced independently: procedural
+`foreach(devices[i].ranges[j])` incorrectly declares another i and traverses
+all devices, causing wrong-device scoreboard routing. Its parser fix is a
+separate increment; application sources remain untouched.
 
 A separately probed two-state enum wider than64 bits still asserts in the
 existing target emitter before runtime. That adjacent compiler limitation is
