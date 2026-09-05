@@ -727,7 +727,7 @@ including all eight xbars at cfg.randomize. TL agent changes from timeout to
 explicit failure. These are documented boundaries, not runtime completion gains.
 
 
-**Independent-component follow-up, local gate complete:** IEEE 1800-2017
+**Independent-component follow-up, local gate and application comparison complete:** IEEE 1800-2017
 18.5.9/18.5.10 and IEEE 1800-2023 18.5.8/18.5.9 now have complete projected
 sampling per syntactically independent factor while retaining one global hard
 problem. The 1024-tuple proof bound applies per factor. One unconditional hard
@@ -738,4 +738,10 @@ multiple distributions, active weights, partial range exclusion, and
 solve-before fail explicitly. Three new paired families and 34 legacy focus
 checks pass. Full gate: legacy4627/4632 (0failed,2NI,3EF), JSON1521/0,
 VPI103/103, negative149/0, runtimeinvariants, real-DPI UVM355/0/0. The fresh
-application census comparison is pending.
+530-row OpenTitan comparison retains 203 PASS with no lost PASS; all eight xbar
+runtime rows now time out after the earlier constraint boundary. There is no
+completed application gain. The stored semantic_debt_count sum is 2221 versus
+2223 solely because two pairs of diagnostics interleaved onto shared log lines;
+warning/error tokens and compiler return codes match, so no semantic debt
+improvement is claimed. Caliptra's 105 static rows are unchanged at52 PASS and
+ICARUS_GAP0. The session record links the complete per-row/input/raw-log audit.

@@ -278,8 +278,8 @@ weight validation; the permanent negative reducer now exercises the correction.
 One draft test used the reserved word `bins` as a class name; both compilers
 rejected it, and the test identifier was corrected. No grammar change was made.
 
-Full components gate1 passes on frozen build3. The earlier application census
-results above remain build18 evidence until fresh per-row comparisons finish.
+Full components gate1 passes on build3. The earlier application census
+results above are build18 evidence; the fresh build3 comparison is recorded below.
 The targeted xbar probe reuses unchanged baseline bytecode with the new runtime;
 it is diagnostic evidence, not a completed census. No new core count is claimed.
 
@@ -303,10 +303,42 @@ reset is 22:30 America/Denver. No cross-model review is claimed for this delta;
 the two native reviews above are complete. The older Claude review2 remains
 valid only for its earlier recorded snapshot.
 
-Components build3 is frozen with the complete local gate passing. The fresh
-OpenTitan census has started; Caliptra and the per-row diff follow in the owned
-coordinator. No new application count or full-DV completion is claimed. See
-N/global-components-final-gate1-result.json and the census coordinator record.
-The next enum frontier has a module-scalar reproducer in both edition modes;
-class-property/method controls pass. N/global-components-next-enum-frontier.md
-records that distinction. No enum runtime change is included in this increment.
+## Components build3 application census — complete
+
+All 530 OpenTitan rows and 105 Caliptra rows were compared against the preceding
+build18 census, with no lost PASS rows and no source/command/provider changes.
+The coordinator finished both matrices and their diff before the separate enum
+build began. These application results describe components build3 only.
+
+OpenTitan retains 203 PASS, 157 DEPENDENCY_ONLY, 39 UPSTREAM_INVALID, 84 FAIL,
+17 DEBT, and 6 SETUP_FAIL. Runtime outcomes are now 16 RUNTIME_FAIL and
+8 RUNTIME_TIMEOUT. The only status changes are the eight xbar runtime rows,
+which formerly stopped at cfg.randomize and now exceed the runtime time limit.
+All eight xbar UVM compile rows remain PASS. Five xbar runtime logs contain
+scoreboard mismatches; all eight report outstanding requests on termination,
+and none has a passing completion banner. TL agent remains RUNTIME_FAIL, now
+at its UVM phase timeout. Eleven other changed runtime rows retain the explicit
+solve-before rejection with narrower wording. There is no completed application
+gain at this checkpoint.
+
+Summing every semantic_debt_count field yields 2223 -> 2221. This is not a
+semantic improvement: one fewer diagnostic line was counted in each of runtime
+AES and EDN because multiple messages interleaved onto a line. All macro-warning,
+error, and warning token totals and compiler return codes match. Other compile
+log changes are the same interleaving or process IDs/temporary paths in existing
+crash messages. No diagnostic was removed to improve the result.
+
+Caliptra retains 52 PASS / ICARUS_GAP 0; all 105 per-job records are unchanged.
+Its remaining classifications are 51 SHARED_SOURCE_OR_CONFIG, 1 DEBT, and
+1 SOURCE_ORDER_DEBT. The harness differs only in OUT; wrapper, RTL filesets,
+compile YAML, and other source/config hashes match. This is a static census,
+not a claim of full Caliptra DV.
+
+Evidence under N: global-components-census-per-row-diff.json,
+opentitan-components-300s-audit.json, and
+global-components-final-census-reconciliation.json. Fresh roots:
+`evidence/opentitan-global-components-300s-after258-arm64-20260904/` and
+`evidence/caliptra-global-components-300s-after258-arm64-20260904/`.
+
+The enum/VPI scalar crash is a separate next increment. It is not included in
+this solver checkpoint or its application census evidence.
