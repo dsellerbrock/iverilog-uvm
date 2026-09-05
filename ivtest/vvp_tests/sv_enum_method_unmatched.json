@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_enum_method_unmatched.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_enum_method_unmatched"
+}
