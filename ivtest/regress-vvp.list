@@ -1639,3 +1639,9 @@ sv_randomize_global_dist_components	vvp_tests/sv_randomize_global_dist_component
 sv_randomize_global_dist_components_2023	vvp_tests/sv_randomize_global_dist_components_2023.json
 sv_randomize_global_components_fail	vvp_tests/sv_randomize_global_components_fail.json
 sv_randomize_global_components_fail_2023	vvp_tests/sv_randomize_global_components_fail_2023.json
+
+# IEEE 1800-2017/2023 6.19.5.3/.4/.6: exact enum values and invalid defaults.
+sv_enum_method_values	vvp_tests/sv_enum_method_values.json
+sv_enum_method_values_2023	vvp_tests/sv_enum_method_values_2023.json
+sv_enum_method_unmatched	vvp_tests/sv_enum_method_unmatched.json
+sv_enum_method_unmatched_2023	vvp_tests/sv_enum_method_unmatched_2023.json

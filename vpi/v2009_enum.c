@@ -157,55 +157,25 @@ static PLI_INT32 ivl_enum_method_next_prev_compiletf(ICARUS_VPI_CONST PLI_BYTE8*
 }
 
 /*
- * Compare it two values are equal to each other.
+ * IEEE 1800-2017 and IEEE 1800-2023 6.19.5.3, 6.19.5.4, 6.19.5.6:
+ * locate the exact enum value, including X/Z and bits above bit 31.
+ * Request vectors at every value read (38.15); object-type values can
+ * otherwise use different carriers or truncate two-state enumerators.
  */
 static int compare_value_eequal(s_vpi_value*ref1, s_vpi_value*ref2,
                                 PLI_INT32 wid)
 {
-	/* Two integer values are easy. */
-      if (ref1->format == vpiIntVal && ref2->format == vpiIntVal)
-	    return ref1->value.integer == ref2->value.integer;
+      PLI_INT32 words = (wid-1)/32 + 1;
+      PLI_INT32 idx;
 
-	/* For two vectors compare them word by word. */
-      if (ref1->format == vpiVectorVal && ref2->format == vpiVectorVal) {
-	    PLI_INT32 words = (wid-1)/32 + 1;
-	    PLI_INT32 idx;
-
-	    for (idx = 0 ; idx < words ; idx += 1) {
-		  if (ref1->value.vector[idx].aval !=
-		      ref2->value.vector[idx].aval) return 0;
-		  if (ref1->value.vector[idx].bval !=
-		      ref2->value.vector[idx].bval) return 0;
-	    }
-	    return 1;
+      assert(ref1->format == vpiVectorVal && ref2->format == vpiVectorVal);
+      for (idx = 0 ; idx < words ; idx += 1) {
+	    if (ref1->value.vector[idx].aval !=
+	        ref2->value.vector[idx].aval) return 0;
+	    if (ref1->value.vector[idx].bval !=
+	        ref2->value.vector[idx].bval) return 0;
       }
-
-	/* Swap the order so the code below can be used. */
-      if (ref1->format == vpiVectorVal && ref2->format == vpiIntVal) {
-	    s_vpi_value*tmp = ref1;
-	    ref1 = ref2;
-	    ref2 = tmp;
-      }
-
-	/* Compare an integer to a vector. */
-      if (ref1->format == vpiIntVal && ref2->format == vpiVectorVal) {
-	    PLI_INT32 aval = ref1->value.integer;
-	    PLI_INT32 words = (wid-1)/32 + 1;
-	    PLI_INT32 idx;
-
-	    for (idx = 0 ; idx < words ; idx += 1) {
-		  if (aval != ref2->value.vector[idx].aval) return 0;
-		  if (ref2->value.vector[idx].bval) return 0;
-
-		  aval = 0;
-	    }
-	    return 1;
-      }
-
-	/* Unsupported types. */
-      vpi_printf("XXXX formats are: %d vs %d\n", ref1->format, ref2->format);
-      assert(0);
-      return 0;
+      return 1;
 }
 
 /*
@@ -270,14 +240,8 @@ static PLI_INT32 ivl_enum_method_next_prev_calltf(ICARUS_VPI_CONST PLI_BYTE8*nam
       }
 
 	/* Get the current value. */
-      var_val.format = vpiObjTypeVal;
+      var_val.format = vpiVectorVal;
       vpi_get_value(arg_var, &var_val);
-
-	/* If the count is zero then just return the current value. */
-      if (count == 0) {
-	    vpi_put_value(sys, &var_val, 0, vpiNoDelay);
-	    return 0;
-      }
 
 	/* If the current value is a vector, then make a safe copy of
 	   it so that other vpi_get_value() calls don't trash the value. */
@@ -292,14 +256,16 @@ static PLI_INT32 ivl_enum_method_next_prev_calltf(ICARUS_VPI_CONST PLI_BYTE8*nam
 	    var_val.value.vector = nvec;
       }
 
-	/* Search for the current value in the enumeration list. */
+	/* IEEE 1800-2017 and IEEE 1800-2023 6.19.5.3/.4 require
+	 * membership even for a zero count: an invalid value returns the
+	 * base type's default initial value, not the current value. */
       enum_list = vpi_iterate(vpiEnumConst, arg_enum);
       assert(enum_list);
       do {
 	    cur = vpi_scan(enum_list);
 	    if (cur == 0) break;
 
-	    cur_val.format = vpiObjTypeVal;
+	    cur_val.format = vpiVectorVal;
 	    vpi_get_value(cur, &cur_val);
 	    assert(var_width == vpi_get(vpiSize, cur));
 	    loc += 1;
@@ -355,7 +321,7 @@ static PLI_INT32 ivl_enum_method_next_prev_calltf(ICARUS_VPI_CONST PLI_BYTE8*nam
 	    vpi_free_object(enum_list);
 
 	      /* Get the value and return it. */
-	    cur_val.format = vpiObjTypeVal;
+	    cur_val.format = vpiVectorVal;
 	    vpi_get_value(cur, &cur_val);
 	    vpi_put_value(sys, &cur_val, 0, vpiNoDelay);
       }
@@ -471,7 +437,7 @@ static PLI_INT32 ivl_enum_method_name_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       vpi_free_object(argv);
 
 	/* Get the current value. */
-      var_val.format = vpiObjTypeVal;
+      var_val.format = vpiVectorVal;
       vpi_get_value(arg_var, &var_val);
 
 	/* If the current value is a vector, then make a safe copy of
@@ -494,7 +460,7 @@ static PLI_INT32 ivl_enum_method_name_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	    cur = vpi_scan(enum_list);
 	    if (cur == 0) break;
 
-	    cur_val.format = vpiObjTypeVal;
+	    cur_val.format = vpiVectorVal;
 	    vpi_get_value(cur, &cur_val);
 	    assert(var_width == vpi_get(vpiSize, cur));
       } while (! compare_value_eequal(&cur_val, &var_val, var_width));

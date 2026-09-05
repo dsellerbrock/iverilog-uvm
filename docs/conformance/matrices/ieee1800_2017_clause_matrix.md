@@ -745,3 +745,18 @@ completed application gain. The stored semantic_debt_count sum is 2221 versus
 warning/error tokens and compiler return codes match, so no semantic debt
 improvement is claimed. Caliptra's 105 static rows are unchanged at52 PASS and
 ICARUS_GAP0. The session record links the complete per-row/input/raw-log audit.
+
+
+## 2026-09-04 enum method value representation
+
+**Fixed runtime subset; adjacent emitter limit remains.** IEEE 1800-2017 and
+IEEE 1800-2023 6.19.5.3/.4/.6 and38.15: enum name/next/prev use full-width
+four-state VPI vectors for receiver, membership, and return values, preserving
+temporary-buffer ownership. Scalar receivers no longer assert; wide two-state
+values are not truncated to32 bits. Invalid-member next/prev returns the base
+default even for zero/full-cycle counts. Two paired families and existing
+controls pass. Full gate: legacy4631/4636 (0failed,2NI,3EF), JSON1525/0, VPI103/103,
+negative149/0, runtime invariants, real-DPI UVM355/0/0. A two-state enum wider
+than64 bits still asserts in the target emitter; four-state65 is covered.
+The bounded xbar diagnostic clears enum printing and exposes a scoreboard
+mismatch, not a completed test. See the [session record](../session_logs/2026-09-04_enum_method_values.md).
