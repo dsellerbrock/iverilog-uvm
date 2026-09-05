@@ -24002,6 +24002,15 @@ struct dynforeach_emit_ctx_t {
 };
 static const dynforeach_emit_ctx_t*dynforeach_emit_ctx_ = nullptr;
 
+/* IEEE 1800-2017 18.5.8.1 / 1800-2023 18.5.7.1: a selected
+ * caller-state queue is captured once, then iterated at randomize time. */
+struct stateforeach_emit_ctx_t {
+      const PEConstraintForeach*source;
+      ivl_type_t element_type;
+      unsigned object_slot;
+};
+static const stateforeach_emit_ctx_t*stateforeach_emit_ctx_ = nullptr;
+
 /* An array-method with expression has its own iterator scope (7.12). While
  * translating one element of a fixed-array reduction constraint, references
  * to that iterator become the corresponding static element leaf and
@@ -24851,6 +24860,8 @@ string pexpr_to_scope_constraint_ir(
       Design*des, const NetScope*scope)
 {
       Design*save_ir_design = constraint_ir_design_ctx_;
+      const stateforeach_emit_ctx_t*save_foreach = stateforeach_emit_ctx_;
+      stateforeach_emit_ctx_ = nullptr;
       const map<perm_string,string>*save = scope_randomize_emit_ctx_;
       const map<perm_string,ivl_type_t>*save_types = scope_randomize_type_ctx_;
       vector<NetNet*>*save_signals = scope_randomize_signal_slots_;
@@ -24876,6 +24887,7 @@ string pexpr_to_scope_constraint_ir(
       scope_randomize_object_slots_ = save_objects;
       scope_randomize_design_ctx_ = save_design;
       constraint_ir_design_ctx_ = save_ir_design;
+      stateforeach_emit_ctx_ = save_foreach;
       return out;
 }
 
@@ -24883,9 +24895,14 @@ string pexpr_to_class_constraint_ir(
       const PExpr*expr, const netclass_t*cls,
       vector<const PExpr*>*value_slots, Design*des,
       const NetScope*scope,
-      const vector<perm_string>*inline_member_names = nullptr)
+      const vector<perm_string>*inline_member_names = nullptr,
+      vector<NetExpr*>*object_slots = nullptr)
 {
       Design*save = constraint_ir_design_ctx_;
+      vector<NetExpr*>*save_objects = scope_randomize_object_slots_;
+      const stateforeach_emit_ctx_t*save_foreach = stateforeach_emit_ctx_;
+      scope_randomize_object_slots_ = object_slots;
+      stateforeach_emit_ctx_ = nullptr;
       const vector<perm_string>*save_inline =
 	    constraint_inline_member_names_;
       constraint_ir_design_ctx_ = des;
@@ -24899,6 +24916,8 @@ string pexpr_to_class_constraint_ir(
       out = constraint_ir_shape_value_slots_(out, value_slots, des, scope);
       constraint_inline_member_names_ = save_inline;
       constraint_ir_design_ctx_ = save;
+      scope_randomize_object_slots_ = save_objects;
+      stateforeach_emit_ctx_ = save_foreach;
       return out;
 }
 
@@ -24918,12 +24937,13 @@ string pexpr_to_rooted_class_constraint_ir(
       const PExpr*expr, const netclass_t*cls, perm_string root,
       vector<const PExpr*>*value_slots, Design*des,
       const NetScope*scope,
-      const vector<perm_string>*inline_member_names = nullptr)
+      const vector<perm_string>*inline_member_names = nullptr,
+      vector<NetExpr*>*object_slots = nullptr)
 {
       perm_string save_root = constraint_class_object_root_;
       constraint_class_object_root_ = root;
       string out = pexpr_to_class_constraint_ir(
-	    expr, cls, value_slots, des, scope, inline_member_names);
+            expr, cls, value_slots, des, scope, inline_member_names, object_slots);
       constraint_class_object_root_ = save_root;
       return out;
 }
@@ -25494,6 +25514,7 @@ static const netclass_t* constraint_scoped_path_owner_(
 	    const constraint_reduction_iter_ctx_t*saved_reduction =
 		  constraint_reduction_iter_ctx_;
 	    const dynforeach_emit_ctx_t*saved_dynforeach = dynforeach_emit_ctx_;
+            const stateforeach_emit_ctx_t*saved_stateforeach = stateforeach_emit_ctx_;
 	    const map<perm_string,string>*saved_scope_emit =
 		  scope_randomize_emit_ctx_;
 	    const map<perm_string,ivl_type_t>*saved_scope_types =
@@ -25507,6 +25528,7 @@ static const netclass_t* constraint_scoped_path_owner_(
 	    constraint_randc_capture_ = nullptr;
 	    constraint_reduction_iter_ctx_ = nullptr;
 	    dynforeach_emit_ctx_ = nullptr;
+            stateforeach_emit_ctx_ = nullptr;
 	    scope_randomize_emit_ctx_ = nullptr;
 	    scope_randomize_type_ctx_ = nullptr;
 	    scope_randomize_signal_slots_ = nullptr;
@@ -25520,6 +25542,7 @@ static const netclass_t* constraint_scoped_path_owner_(
 	    constraint_randc_capture_ = saved_capture;
 	    constraint_reduction_iter_ctx_ = saved_reduction;
 	    dynforeach_emit_ctx_ = saved_dynforeach;
+            stateforeach_emit_ctx_ = saved_stateforeach;
 	    scope_randomize_emit_ctx_ = saved_scope_emit;
 	    scope_randomize_type_ctx_ = saved_scope_types;
 	    scope_randomize_signal_slots_ = saved_scope_signals;
@@ -27333,6 +27356,44 @@ static string constraint_class_container_size_ir_(
       return "s:" + to_string(idx) + ":" + ttext;
 }
 
+/* IEEE 1800-2017/2023 18.7.1: any target declaration shadows caller
+ * state, including parameters, enum literals and methods. */
+/* IEEE 1800-2017/2023 8.18: lowering a state path must not bypass
+ * local/protected access checks merely because its index is symbolic. */
+static bool constraint_state_member_visible_(const netclass_t*type, unsigned member,
+                                            const NetScope*scope, const PExpr*site)
+{
+      property_qualifier_t qual = type->get_prop_qual(member);
+      if (!qual.test_local() && !qual.test_protected()) return true;
+      const netclass_t*owner = type->get_prop_declaring_class(member);
+      const NetScope*enclosing = scope ? scope->get_class_scope() : nullptr;
+      const netclass_t*access = enclosing ? enclosing->class_def() : nullptr;
+      for (; access; access = qual.test_protected() ? access->get_super() : nullptr)
+            if (access == owner) return true;
+      cerr << site->get_fileline() << ": error: "
+           << (qual.test_local() ? "Local" : "Protected") << " property "
+           << type->get_prop_name(member)
+           << " is not accessible in this state foreach constraint." << endl;
+      constraint_ir_design_ctx_->errors += 1;
+      return false;
+}
+
+static bool constraint_target_declares_(const netclass_t*cls, perm_string name)
+{
+      if (!cls || !constraint_inline_target_name_(name)) return false;
+      if (cls->property_idx_from_name(name) >= 0) return true;
+      for (const netclass_t*owner = cls; owner; owner = owner->get_super()) {
+            NetScope*sc = const_cast<NetScope*>(owner->class_scope());
+            ivl_type_t type = nullptr;
+            if (sc->get_parameter(constraint_ir_design_ctx_, name, type)
+                || sc->find_signal(name) || sc->child_byname(name)
+                || sc->find_event(name)
+                || sc->find_import(constraint_ir_design_ctx_, name))
+                  return true;
+      }
+      return false;
+}
+
 string pexpr_to_constraint_ir(const PExpr*expr,
 			      const netclass_t*cls,
 			      vector<const PExpr*>*value_slots,
@@ -27373,7 +27434,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  pform_scoped_name_t scoped(flat_path);
 		  const netclass_t*target_owner = nullptr;
 		  pform_name_t::const_iterator target_component;
-		  if (constraint_target_path_begin_(
+		  if (stateforeach_emit_ctx_ || constraint_target_path_begin_(
 			scoped, cls, target_owner, target_component)) {
 			PEIdent flat(flat_path, UINT_MAX);
 			flat.set_file(expr->get_file());
@@ -27407,6 +27468,66 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       }
 
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+            /* Resolve the full state path before scalar capture can bind
+             * the loop index to an unrelated caller declaration. */
+            if (stateforeach_emit_ctx_) {
+                  const stateforeach_emit_ctx_t&ctx = *stateforeach_emit_ctx_;
+                  const PEConstraintForeach*fe = ctx.source;
+                  perm_string loop = fe->loop_vars()[0];
+                  const pform_name_t&path = id->path().name;
+                  if (!id->path().package && !id->has_scoped_type_prefix()
+                      && path.size() == 1 && path.front().name == loop
+                      && path.front().index.empty() && !path.front().local_scope
+                      && !constraint_array_iter_ctx_find_(loop))
+                        return "L";
+                  if (!id->path().package && !id->has_scoped_type_prefix()
+                      && path.size() == 3) {
+                        auto root = path.begin();
+                        auto queue = next(root);
+                        auto member = next(queue);
+                        bool same = root->name == fe->array_name()
+                              && !root->local_scope
+                              && root->index.size() == fe->prefix_names().size()
+                              && queue->name == fe->member_name()
+                              && queue->index.size() == 1
+                              && member->index.empty();
+                        unsigned pos = 0;
+                        for (const index_component_t&ic : root->index) {
+                              const PEIdent*prefix = dynamic_cast<const PEIdent*>(ic.msb);
+                              same = same && ic.sel == index_component_t::SEL_BIT
+                                    && !ic.lsb && prefix && !prefix->path().package
+                                    && prefix->path().size() == 1
+                                    && prefix->path().name.front().index.empty()
+                                    && !prefix->path().name.front().local_scope
+                                    && pos < fe->prefix_names().size()
+                                    && prefix->path().name.front().name == fe->prefix_names()[pos];
+                              ++pos;
+                        }
+                        if (same) {
+                              const netstruct_t*st = dynamic_cast<const netstruct_t*>(ctx.element_type);
+                              const netclass_t*ct = dynamic_cast<const netclass_t*>(ctx.element_type);
+                              int pid = st ? (int)st->member_index(member->name)
+                                    : ct ? ct->property_idx_from_name(member->name) : -1;
+                              if (ct && pid >= 0 && !constraint_state_member_visible_(ct, pid, scope, expr))
+                                    return "";
+                              ivl_type_t type = pid < 0 ? nullptr
+                                    : st ? st->members()[pid].net_type
+                                    : ct->get_prop_type(pid);
+                              unsigned width = type ? type->packed_width() : 0;
+                              const index_component_t&ic = queue->index.front();
+                              if (!type || !type->packed() || width == 0 || width > 64
+                                  || ic.sel != index_component_t::SEL_BIT || !ic.msb || ic.lsb)
+                                    return "";
+                              string index = pexpr_to_constraint_ir(ic.msb, cls, value_slots, scope, loop_env);
+                              if (index.empty()) return "";
+                              return "(qfield qf:" + to_string(ctx.object_slot)
+                                    + ":" + to_string(pid) + ":" + to_string(width)
+                                    + (type->get_signed() ? ":s" : "") + " " + index + ")";
+                        }
+                  }
+                  if (id->refs_name(loop) && !constraint_array_iter_ctx_find_(loop))
+                        return "";
+            }
 	      /* One scalar PROPERTY of an element of the OBJECT array iterated
 	         by an enclosing dynamic foreach:
 	             foreach (in_use[i]) { ... in_use[i].lo ... }
@@ -28718,23 +28839,74 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (cfe->loop_vars().size() != 1 || cfe->loop_vars()[0].nil())
 		  return "";
 
-	      /* foreach (array_name[prefix_index].member_name[loop_var]):
-	         resolving `array_name' when it is not a rand property of
-	         the object being randomized -- the common real case,
-	         e.g. a package-scope lookup table referenced from an
-	         enclosing method's `with' block -- needs hierarchical
-	         path storage plus enclosing-scope/package property
-	         resolution this generator does not have. Do not fall
-	         through to the single-level `array_name()' lookup below:
-	         if `array_name' happens to also name an unrelated rand
-	         property of `cls', that lookup would silently succeed
-	         and iterate the WRONG array, ignoring `.member_name'
-	         entirely -- a wrong answer, not just an incomplete one.
-	         Reported loudly by the caller (make_randomize_with_expr
-	         / this function's other callers all already warn on an
-	         empty IR result here). */
-	    if (cfe->has_hierarchical_target())
-		  return "";
+            /* IEEE 1800-2017 18.5.8.1 / 1800-2023 18.5.7.1: capture
+             * the full caller-state collection, never just its root array.
+             * Target-member roots and selectors need target-first resolution
+             * (18.7.1); leave unsupported shapes on the diagnostic path. */
+            if (stateforeach_emit_ctx_) return ""; // nested templates need separate bindings
+	    if (cfe->has_hierarchical_target()) {
+                  if (!cls || !value_slots || !scope_randomize_object_slots_
+                      || !constraint_ir_design_ctx_ || !scope
+                      || stateforeach_emit_ctx_ || dynforeach_emit_ctx_
+                      || constraint_target_declares_(cls, cfe->array_name()))
+                        return "";
+                  for (perm_string name : cfe->prefix_names())
+                        if (name.nil() || name == cfe->loop_vars()[0]
+                            || constraint_target_declares_(cls, name))
+                              return "";
+                  pform_name_t path;
+                  name_component_t root(cfe->array_name());
+                  for (perm_string name : cfe->prefix_names()) {
+                        index_component_t index;
+                        index.sel = index_component_t::SEL_BIT;
+                        index.msb = new PEIdent(name, UINT_MAX);
+                        index.msb->set_line(*cfe);
+                        index.lsb = nullptr;
+                        root.index.push_back(index);
+                  }
+                  path.push_back(root);
+                  PEIdent selected(path, UINT_MAX);
+                  selected.set_line(*cfe);
+                  NetScope*caller = const_cast<NetScope*>(scope);
+                  ivl_type_t owner = selected.test_type_of_ident(constraint_ir_design_ctx_, caller);
+                  const netstruct_t*st = dynamic_cast<const netstruct_t*>(owner);
+                  const netclass_t*ct = dynamic_cast<const netclass_t*>(owner);
+                  int member = st ? (int)st->member_index(cfe->member_name())
+                        : ct ? ct->property_idx_from_name(cfe->member_name()) : -1;
+                  if (member < 0 || (ct && !constraint_state_member_visible_(ct, member, scope, cfe)))
+                        return "";
+                  ivl_type_t type = st ? st->members()[member].net_type : ct->get_prop_type(member);
+                  const netdarray_t*array = dynamic_cast<const netdarray_t*>(type);
+                  if (!array) return "";
+                  const netstruct_t*record = dynamic_cast<const netstruct_t*>(array->element_type());
+                  if (!(record && !record->packed())
+                      && !dynamic_cast<const netclass_t*>(array->element_type()))
+                        return "";
+                  NetExpr*object = elab_and_eval(constraint_ir_design_ctx_, caller,
+                                                &selected, -1, false);
+                  if (!object) return "";
+                  unsigned slot = scope_randomize_object_slots_->size();
+                  scope_randomize_object_slots_->push_back(object);
+                  stateforeach_emit_ctx_t ctx = {cfe, array->element_type(), slot};
+                  stateforeach_emit_ctx_ = &ctx;
+                  string body;
+                  bool ok = true;
+                  for (const PExpr*item : cfe->items()) {
+                        string ir = pexpr_to_constraint_ir(item, cls, value_slots, scope, loop_env);
+                        if (ir.empty()) { ok = false; break; }
+                        body = body.empty() ? ir : "(and " + body + " " + ir + ")";
+                  }
+                  stateforeach_emit_ctx_ = nullptr;
+                  if (!ok || body.empty()) {
+                        delete scope_randomize_object_slots_->back();
+                        scope_randomize_object_slots_->pop_back();
+                        return "";
+                  }
+                  // Capture the owner, so a null/out-of-bounds owner cannot
+                  // masquerade as its valid but empty queue member.
+                  return "(qforeach " + to_string(slot) + " "
+                        + to_string(member) + " " + body + ")";
+            }
 
 	      /* Scope-form std::randomize() may iterate a packed local/state
 	         vector (OpenTitan uses foreach(valid_mask[i])). Unlike a class

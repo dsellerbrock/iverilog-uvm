@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "sv_constraint_foreach_member_access.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_constraint_foreach_member_access"
+}

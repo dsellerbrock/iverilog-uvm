@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_queue_selected_receiver_assign.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_queue_selected_receiver_assign"
+}

@@ -118,12 +118,14 @@ extern string pexpr_to_class_constraint_ir(
       const PExpr*expr, const netclass_t*cls,
       vector<const PExpr*>*value_slots, Design*des,
       const NetScope*scope,
-      const vector<perm_string>*inline_member_names = nullptr);
+      const vector<perm_string>*inline_member_names = nullptr,
+      vector<NetExpr*>*object_slots = nullptr);
 extern string pexpr_to_rooted_class_constraint_ir(
       const PExpr*expr, const netclass_t*cls, perm_string root,
       vector<const PExpr*>*value_slots, Design*des,
       const NetScope*scope,
-      const vector<perm_string>*inline_member_names = nullptr);
+      const vector<perm_string>*inline_member_names = nullptr,
+      vector<NetExpr*>*object_slots = nullptr);
 
 /* In-line random variable control (IEEE 1800-2017 18.11). Turn the
  * ARGUMENT list of obj.randomize(...) into the selector the %rand/active
@@ -194,7 +196,8 @@ static perm_string randomize_receiver_root_(const pform_name_t&path)
  * The mangled function name encodes the N_vals count, the 18.11
  * argument selector and the IR string so tgt-vvp can emit the correct
  * %randomize/with instruction.
- * The constructed call has [0]=object and [1..N_vals]=runtime values. */
+ * The constructed call has [0]=receiver, [1..N_vals]=scalar values,
+ * and the remaining parameters are captured state collections. */
 NetESFunc* make_randomize_with_expr(
       const LineInfo*call,
       const vector<named_pexpr_t>&parms,
@@ -209,6 +212,7 @@ NetESFunc* make_randomize_with_expr(
 {
       string combined_ir;
       vector<const PExpr*> value_slots;
+      vector<NetExpr*> object_slots;
       const vector<perm_string>*member_names = with_identifiers.empty()
 	    ? nullptr : &with_identifiers;
 
@@ -228,14 +232,21 @@ NetESFunc* make_randomize_with_expr(
 	    if (!wc) continue;
 	    if (!identifier_list_ok) continue;
 	    unsigned errors_before = des->errors;
+            size_t saved_values = value_slots.size();
+            size_t saved_objects = object_slots.size();
 	    string ir = object_root.nil()
 		  ? pexpr_to_class_constraint_ir(
 			wc, class_type, &value_slots, des, scope,
-			member_names)
+			member_names, &object_slots)
 		  : pexpr_to_rooted_class_constraint_ir(
 			wc, class_type, object_root,
-			&value_slots, des, scope, member_names);
+			&value_slots, des, scope, member_names, &object_slots);
 	    if (ir.empty()) {
+                  value_slots.resize(saved_values);
+                  while (object_slots.size() > saved_objects) {
+                        delete object_slots.back();
+                        object_slots.pop_back();
+                  }
 		    // A top-level `with' constraint item this pass could not
 		    // translate to solver IR is silently dropped -- the
 		    // randomize() call still succeeds, just without that
@@ -270,7 +281,8 @@ NetESFunc* make_randomize_with_expr(
 		     + combined_ir;
 
       NetESFunc*rand_expr = new NetESFunc(mangled.c_str(),
-					 IVL_VT_BOOL, 1, 1 + n_vals);
+					 IVL_VT_BOOL, 1,
+                                         1 + n_vals + object_slots.size());
       rand_expr->parm(0, obj_expr);
 
       for (unsigned i = 0 ; i < n_vals ; i++) {
@@ -285,6 +297,8 @@ NetESFunc* make_randomize_with_expr(
 	    if (!slot_ne) slot_ne = new NetEConst(verinum(verinum::V0, 32));
 	    rand_expr->parm(1 + i, slot_ne);
       }
+      for (unsigned i = 0 ; i < object_slots.size() ; ++i)
+            rand_expr->parm(1 + n_vals + i, object_slots[i]);
 
       return rand_expr;
 }

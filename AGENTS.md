@@ -88,8 +88,10 @@
   `../evidence/arm64-tooling/resource-runner`. Do not execute the old sv-tests
   runner by its broken x86-era shebang, or a historical peak-reporting wrapper
   unless abnormal growth is being investigated deliberately. The
-  shared ARM64 runner retains the 45-second CPU guard and has no compiler RSS
-  ceiling. Do not invoke a legacy wrapper that supplies a default memory cap.
+  shared ARM64 runner uses the user-authorized 300-second (5-minute)
+  per-process CPU guard and has no compiler RSS ceiling. This September 4
+  update supersedes the earlier 45-second limit. Do not invoke a legacy
+  wrapper that supplies a default memory cap.
   Observe memory and investigate genuinely abnormal growth instead of
   terminating a legitimate large elaboration at a fixed byte threshold.
 - OpenTitan pins FuseSoC 2.4.5. Invoke `scripts/opentitan_matrix.py` with the

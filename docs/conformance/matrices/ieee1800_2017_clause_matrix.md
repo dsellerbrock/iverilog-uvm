@@ -145,6 +145,19 @@ associative constant-expression keys were wholly unimplemented; it does not
 close the separate simple/user-defined type-key or general assignment-pattern
 residuals.
 
+## 2026-09-04 hierarchical state foreach (bounded increment)
+
+The new inline class-constraint path covers a selected caller/package owner
+whose queue/dynamic-array member holds class handles or unpacked structs,
+with integral fields up to 64 bits. It preserves iterator type/scope and guard
+errors (IEEE 1800-2017 18.5.8.1/18.5.13; IEEE 1800-2023 18.5.7.1/18.5.12),
+including empty queues, null owners, typed ternary indices, and failed-solve
+rollback. Independent rand-array foreach templates retain their original
+size/element passes. Target-root/selectors requiring additional resolution,
+nested hierarchical templates, and broader paths remain diagnosed. Clause 18
+remains **PARTIAL**; application counts require the complete census diff.
+See the [implementation, boundaries and validation record](../session_logs/2026-09-04_hierarchical_state_foreach.md).
+
 ## 2026-08-24 clause-18 signed fixed-array index repair
 
 For the evidenced 18.5.8.2 subset, typed signed constants used to index a
@@ -661,3 +674,9 @@ semantics. Its multidimensional-array text is numbered 7.4.4 rather than
 2017's 7.4.5. See the
 [session log](../session_logs/2026-09-02_parameterized_vif_recursive_containers_typed_mailbox.md)
 and the paired-edition delta entry.
+
+## 2026-09-04 dynamic root randomization callbacks
+
+| Clause | Mechanism | Status | Evidence / remaining boundary |
+|---|---|---|---|
+| 18.6.2 / 18.6.3 / 18.11 | Dynamic root pre/post callbacks, including checker calls | PARTIAL | Runtime dispatch selects the actual class's independently nearest callbacks; direct nonvirtual calls stay static. Root pre runs before inline state capture; post runs only on successful solve. Paired 2017/2023 regressions cover sibling/inherited classes, parameterization, escaped identifiers (5.6.1), virtual method encoding (8.20), receiver identity, nested frames and null checker side effects. Enabled-member callbacks and simultaneous global constraints remain open; the real xbar now exposes the latter as a failing solve. See the [session record](../session_logs/2026-09-04_dynamic_root_randomize_hooks.md) for exact validation and limitations. |

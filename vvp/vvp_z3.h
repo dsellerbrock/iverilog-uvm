@@ -10,6 +10,15 @@
 
 class class_type;
 class vvp_cobject;
+class vvp_object_t;
+class vvp_vector4_t;
+
+/* Ground selected state queues before any class solve pass. Foreach guards
+ * exclude inactive field reads (2017 18.5.8.1 / 2023 18.5.7.1). */
+bool vvp_z3_expand_state_foreach(const std::string&ir,
+      const std::vector<vvp_vector4_t>&slot_vals,
+      const std::vector<vvp_object_t>&objects, vvp_cobject*receiver,
+      const std::vector<bool>*active, std::string&expanded);
 
 /*
  * Apply constraints to a cobject's rand properties using Z3.

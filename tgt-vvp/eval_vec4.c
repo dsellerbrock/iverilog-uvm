@@ -1468,293 +1468,6 @@ static int draw_assoc_traversal_vec4(ivl_expr_t expr)
       return 1;
 }
 
-/* Phase 50e: Locate pre_randomize / post_randomize child scopes on a
- * class given the receiver expression for a randomize() call.
- *
- * Per IEEE 1800-2017 §18.10 randomize() must invoke pre_randomize()
- * before constraint solving and post_randomize() after.  These hooks
- * are not virtual, so static lookup from the receiver's declared type
- * is correct.  The class type's method_prefix is the full scope path
- * of the class scope (e.g. "$unit.Cfg" or "pkg::Cfg") which we match
- * against ivl_scope_name walking the design tree.  Walks the
- * superclass chain via ivl_type_super so a hook defined on the base
- * class is still found for derived receivers.
- */
-typedef struct rand_hook_pair_s {
-      const char*prefix;
-      ivl_type_t type;
-      ivl_scope_t pre;
-      ivl_scope_t post;
-      struct rand_hook_pair_s*next;
-} rand_hook_pair_t;
-
-static rand_hook_pair_t*rand_hook_cache = 0;
-static int rand_hook_cache_built = 0;
-
-static void rand_hook_walk_(ivl_scope_t scope)
-{
-      if (!scope) return;
-      if (ivl_scope_type(scope) == IVL_SCT_CLASS) {
-            const char*full = ivl_scope_name(scope);
-            size_t nch = ivl_scope_childs(scope);
-            ivl_scope_t pre = 0, post = 0;
-            if (getenv("IVL_RAND_HOOKS_DBG"))
-                  fprintf(stderr, "[RHK]   class scope '%s' nch=%zu\n",
-                          full ?: "<n>", nch);
-            for (size_t i = 0 ; i < nch ; i += 1) {
-                  ivl_scope_t ch = ivl_scope_child(scope, i);
-                  if (!ch) continue;
-		  /* IEEE 1800-2023 18.6.2 callbacks are void functions. Keep
-		   * target lookup defensive even though the front end diagnoses an
-		   * illegal task declaration before target emission. */
-		  if (ivl_scope_type(ch) != IVL_SCT_FUNCTION) continue;
-                  const char*base = ivl_scope_basename(ch);
-                  if (getenv("IVL_RAND_HOOKS_DBG"))
-                        fprintf(stderr, "[RHK]     child[%zu] type=%d base=%s\n",
-                                i, (int)ivl_scope_type(ch), base ?: "<n>");
-                  if (!base) continue;
-                  if (strcmp(base, "pre_randomize") == 0)  pre  = ch;
-                  if (strcmp(base, "post_randomize") == 0) post = ch;
-            }
-            if (full && (pre || post)) {
-                  rand_hook_pair_t*p = (rand_hook_pair_t*)
-                        calloc(1, sizeof(rand_hook_pair_t));
-                  /* ivl_scope_name() returns a pointer to a static
-                   * buffer that is rewritten on each call, so copy it
-                   * before storing. */
-                  p->prefix = strdup(full);
-                  p->pre  = pre;
-                  p->post = post;
-                  p->next = rand_hook_cache;
-                  rand_hook_cache = p;
-            }
-      }
-      for (size_t i = 0 ; i < ivl_scope_childs(scope) ; i += 1)
-            rand_hook_walk_(ivl_scope_child(scope, i));
-}
-
-/* Class scopes and class type objects are exposed separately by the target
- * API. Attach each cached hook scope to the corresponding type so a call
- * through a base-typed handle can recognize a unique derived callback. */
-static void rand_hook_attach_types_(ivl_scope_t scope)
-{
-      if (!scope) return;
-      for (unsigned idx = 0 ; idx < ivl_scope_classes(scope) ; idx += 1) {
-            ivl_type_t type = ivl_scope_class(scope, idx);
-            const char*prefix = type ? ivl_type_method_prefix(type) : 0;
-            if (!prefix || !*prefix) continue;
-            for (rand_hook_pair_t*p = rand_hook_cache ; p ; p = p->next)
-                  if (!p->type && strcmp(p->prefix, prefix) == 0)
-                        p->type = type;
-      }
-      for (size_t idx = 0 ; idx < ivl_scope_childs(scope) ; idx += 1)
-            rand_hook_attach_types_(ivl_scope_child(scope, idx));
-}
-
-static void rand_hook_build_cache_(void)
-{
-      ivl_design_t des = vvp_get_saved_design();
-      if (!des) return;
-      ivl_scope_t*roots = 0;
-      unsigned nroots = 0;
-      ivl_design_roots(des, &roots, &nroots);
-      for (unsigned i = 0 ; i < nroots ; i += 1)
-            rand_hook_walk_(roots[i]);
-      for (unsigned i = 0 ; i < nroots ; i += 1)
-            rand_hook_attach_types_(roots[i]);
-      rand_hook_cache_built = 1;
-      if (getenv("IVL_RAND_HOOKS_DBG")) {
-            fprintf(stderr, "[RHK] cache contents (nroots=%u):\n", nroots);
-            for (rand_hook_pair_t*p = rand_hook_cache ; p ; p = p->next) {
-                  fprintf(stderr, "[RHK]   '%s' pre=%p post=%p\n",
-                          p->prefix, (void*)p->pre, (void*)p->post);
-            }
-      }
-}
-
-static int rand_type_is_descendant_(ivl_type_t candidate, ivl_type_t base)
-{
-      const char*base_prefix = base ? ivl_type_method_prefix(base) : 0;
-      for (ivl_type_t walk = candidate ; walk ; walk = ivl_type_super(walk)) {
-            if (walk == base) return 1;
-            const char*walk_prefix = ivl_type_method_prefix(walk);
-            if (base_prefix && walk_prefix
-                && strcmp(base_prefix, walk_prefix) == 0)
-                  return 1;
-      }
-      return 0;
-}
-
-/* If the static receiver type has no callback, find a single callback first
- * introduced by one of its derived classes. The generated call is guarded by
- * a run-time is-a check, so a plain base object does not execute a derived
- * method. This is required for factory-created objects: OpenTitan stores a
- * cip_tl_seq_item in a tl_seq_item handle and relies on the dynamic object's
- * post_randomize() to compute TileLink integrity bits. */
-static rand_hook_pair_t*rand_unique_derived_hook_(ivl_type_t base, int want_pre)
-{
-      rand_hook_pair_t*found = 0;
-      if (!base) return 0;
-      if (!rand_hook_cache_built)
-            rand_hook_build_cache_();
-      for (rand_hook_pair_t*p = rand_hook_cache ; p ; p = p->next) {
-            ivl_scope_t hook = want_pre ? p->pre : p->post;
-            if (!hook || !p->type || !rand_type_is_descendant_(p->type, base))
-                  continue;
-            if (!found) {
-                  found = p;
-                  continue;
-            }
-            if ((want_pre ? found->pre : found->post) != hook)
-                  return 0;
-      }
-      return found;
-}
-
-static rand_hook_pair_t*rand_hook_find_(const char*prefix)
-{
-      if (!prefix) return 0;
-      if (!rand_hook_cache_built)
-            rand_hook_build_cache_();
-      for (rand_hook_pair_t*p = rand_hook_cache ; p ; p = p->next) {
-            if (strcmp(p->prefix, prefix) == 0)
-                  return p;
-      }
-      return 0;
-}
-
-/* Walk the class type's super chain (including the type itself) and
- * collect the first non-NULL pre_randomize and the first non-NULL
- * post_randomize.  Returns 1 if either hook was found. */
-static int rand_hooks_for_type_(ivl_type_t classtype,
-                                ivl_scope_t*pre_out, ivl_scope_t*post_out)
-{
-      *pre_out = 0;
-      *post_out = 0;
-      ivl_type_t t = classtype;
-      int debug = getenv("IVL_RAND_HOOKS_DBG") ? 1 : 0;
-      while (t && (!*pre_out || !*post_out)) {
-            const char*prefix = ivl_type_method_prefix(t);
-            if (debug)
-                  fprintf(stderr, "[RHK]   walk t=%p prefix=%s\n",
-                          (void*)t, prefix ?: "<null>");
-            if (prefix && *prefix) {
-                  rand_hook_pair_t*p = rand_hook_find_(prefix);
-                  if (debug)
-                        fprintf(stderr, "[RHK]   lookup '%s' -> %p\n", prefix,
-                                (void*)p);
-                  if (p) {
-                        if (!*pre_out  && p->pre)  *pre_out  = p->pre;
-                        if (!*post_out && p->post) *post_out = p->post;
-                  }
-            }
-            t = ivl_type_super(t);
-      }
-      return (*pre_out != 0) || (*post_out != 0);
-}
-
-/* Emit the bytecode sequence to invoke a void method that takes only
- * the implicit `this` argument. The receiver is already on top of the
- * object stack and must remain there for the rest of randomize(): one
- * source expression denotes one receiver for pre_randomize(), solving,
- * and post_randomize() (IEEE 1800-2017 13.4.1 / 18.6.2). Use the aliasing
- * duplicate: %dup/obj would deep-copy container-like object values and
- * could make the hook observe a different receiver. */
-static void emit_void_this_method_call_from_stack_(ivl_scope_t target)
-{
-      if (!target) return;
-      unsigned nports = ivl_scope_ports(target);
-      /* Class methods: port[0] is the return slot (or unused for void),
-       * port[1] is the implicit `this`.  Try port[1] first; fall back
-       * to port[0] for the (rare) case of a non-method void task. */
-      ivl_signal_t this_port = (nports >= 2) ? ivl_scope_port(target, 1)
-                                              : ivl_scope_port(target, 0);
-      const char*mangled = vvp_mangle_id(ivl_scope_name(target));
-      if (!this_port || !mangled) return;
-      note_td_reference(mangled);
-
-      int is_auto = ivl_scope_is_auto(target);
-      if (is_auto)
-            fprintf(vvp_out, "    %%alloc S_%p;\n", target);
-      fprintf(vvp_out, "    %%dup/obj/ref; randomize receiver\n");
-      fprintf(vvp_out, "    %%store/obj v%p_0;\n", this_port);
-      int use_virtual = ivl_scope_is_virtual_method(target);
-      fprintf(vvp_out, "    %%callf/void%s TD_%s, S_%p;\n",
-              use_virtual ? "/v" : "", mangled, target);
-      if (is_auto)
-            fprintf(vvp_out, "    %%free S_%p;\n", target);
-}
-
-/* Invoke TARGET only when the receiver already on the object stack has
- * dynamic type TYPE or a subtype. Preserve that receiver on every path. */
-static void emit_dynamic_void_this_method_call_from_stack_(ivl_scope_t target,
-                                                           ivl_type_t type)
-{
-      if (!target || !type) return;
-      unsigned lab_null = local_count++;
-      unsigned lab_done = local_count++;
-
-      draw_class_in_scope(type);
-      fprintf(vvp_out, "    %%dup/obj/ref; randomize dynamic guard\n");
-      fprintf(vvp_out, "    %%test_nul/obj; randomize hook dynamic guard\n");
-      fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
-              thread_count, lab_null);
-      fprintf(vvp_out, "    %%test/class C%p; randomize hook dynamic guard\n",
-              type);
-      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
-      fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, 4;\n",
-              thread_count, lab_done);
-      emit_void_this_method_call_from_stack_(target);
-      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_done);
-      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
-      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
-      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_done);
-}
-
-/* M3B-14 (IEEE 1800-2017 18.6.2): post_randomize() runs only when
- * randomize() SUCCEEDED. On a failed call the object still holds its
- * pre-call values, so a post_randomize that derives fields from the
- * solved ones would compute them from stale state — and it used to run
- * unconditionally, with nothing to tell it apart from a real solve.
- *
- * %randomize leaves its 32-bit success word on top of the vec4 stack
- * and that word is this expression's value, so branch on a duplicate of
- * it and leave the original in place. */
-static void emit_conditional_post_randomize_from_stack_(ivl_scope_t post)
-{
-      unsigned lab_skip = local_count++;
-      int flag = allocate_flag();
-
-      fprintf(vvp_out, "    %%dup/vec4;\n");
-      fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", flag);
-      fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d;\n",
-              thread_count, lab_skip, flag);
-      /* %callf/void preserves the parent's vec4 stack, so the success
-       * word survives the call untouched. */
-      emit_void_this_method_call_from_stack_(post);
-      fprintf(vvp_out, "T_%u.%u ; end post_randomize (skipped when "
-              "randomize() failed)\n", thread_count, lab_skip);
-      clr_flag(flag);
-}
-
-static void emit_conditional_dynamic_post_randomize_from_stack_(
-                                                      ivl_scope_t post,
-                                                      ivl_type_t type)
-{
-      unsigned lab_skip = local_count++;
-      int flag = allocate_flag();
-
-      fprintf(vvp_out, "    %%dup/vec4;\n");
-      fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", flag);
-      fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d;\n",
-              thread_count, lab_skip, flag);
-      emit_dynamic_void_this_method_call_from_stack_(post, type);
-      fprintf(vvp_out, "T_%u.%u ; end dynamic post_randomize (skipped when "
-              "randomize() failed or receiver type did not match)\n",
-              thread_count, lab_skip);
-      clr_flag(flag);
-}
-
 static void draw_assign_expr_vec4(ivl_expr_t expr)
 {
       static const char prefix[] = "$ivl_assign_expr$";
@@ -2026,51 +1739,16 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	       * argument list. NULL here means the plain form. */
 	    const char*sel = strchr(ivl_expr_name(expr), '|');
 	    if (sel) sel += 1;
-	    /* Phase 50e: invoke pre_randomize / post_randomize hooks on
-	     * the receiver class (and inherited from super) per IEEE
-	     * 1800-2017 §18.10.  Without these, OpenTitan's
-	     * dv_base_env_cfg::post_randomize never runs and class
-	     * properties such as clk_freqs_mhz["uart_reg_block"] read 0. */
-	    ivl_scope_t pre = 0, post = 0;
-	    ivl_type_t rt = 0;
-	    rand_hook_pair_t*pre_dyn = 0;
-	    rand_hook_pair_t*post_dyn = 0;
-	    if (arg) {
-		  rt = ivl_expr_net_type(arg);
-		  if (!rt && ivl_expr_type(arg) == IVL_EX_SIGNAL) {
-			ivl_signal_t sig = ivl_expr_signal(arg);
-			if (sig) rt = ivl_signal_net_type(sig);
-		  }
-		  if (rt && ivl_type_base(rt) == IVL_VT_CLASS) {
-			rand_hooks_for_type_(rt, &pre, &post);
-			if (!pre) pre_dyn = rand_unique_derived_hook_(rt, 1);
-			if (!post) post_dyn = rand_unique_derived_hook_(rt, 0);
-		  }
-		  if (getenv("IVL_RAND_HOOKS_DBG"))
-			fprintf(stderr, "[RHK] rand rt=%p prefix=%s pre=%p post=%p"
-				" pre_dyn=%p post_dyn=%p\n",
-				(void*)rt,
-				rt ? (ivl_type_method_prefix(rt) ?: "<n>") : "<no rt>",
-				(void*)pre, (void*)post,
-				(void*)pre_dyn, (void*)post_dyn);
-	    }
-	      /* randomize(null) is a constraint CHECK (18.11): it changes
-	       * nothing, so neither hook runs. */
-	    if (sel && sel[0] == 0) {
-		  pre = post = 0;
-		  pre_dyn = post_dyn = 0;
-	    }
 	      /* Evaluate the method receiver exactly once. Keep this original
 	       * handle on the object stack; hooks consume aliasing duplicates
 	       * and %randomize consumes one final aliasing duplicate. */
 	    if (arg)
 		  draw_eval_object(arg);
-	    if (pre && arg) {
-		  emit_void_this_method_call_from_stack_(pre);
-	    } else if (pre_dyn && arg) {
-		  emit_dynamic_void_this_method_call_from_stack_(pre_dyn->pre,
-							  pre_dyn->type);
-	    }
+	    /* IEEE 1800-2017/2023 18.6.2: the virtual built-in randomize
+	     * selects callbacks from the receiver's dynamic class. This also
+	     * applies to randomize(null), whose selector only affects solving. */
+	    if (arg)
+		  fprintf(vvp_out, "    %%randomize/hook 0;\n");
 	    if (sel)
 		  fprintf(vvp_out, "    %%rand/active \"%s\";\n", sel);
 	    if (arg)
@@ -2078,11 +1756,8 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	      /* %randomize peeks at the object stack and pops it, then
 	       * pushes 1 (success) onto the vec4 stack. */
 	    fprintf(vvp_out, "    %%randomize;\n");
-	    if (post && arg)
-		  emit_conditional_post_randomize_from_stack_(post);
-	    else if (post_dyn && arg)
-		  emit_conditional_dynamic_post_randomize_from_stack_(post_dyn->post,
-								  post_dyn->type);
+	    if (arg)
+		  fprintf(vvp_out, "    %%randomize/hook 1;\n");
 	    if (arg)
 		  fprintf(vvp_out, "    %%pop/obj 1, 0; randomize receiver\n");
 	    return;
@@ -2107,39 +1782,13 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    if (*rest == '|') rest++;
 	    const char*ir = rest;
 	    int have_sel = !(sel_len == 1 && sel_beg[0] == '*');
-	    int is_null_form = have_sel && sel_len == 0;
 	    ivl_expr_t obj_arg = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
-	      /* Phase 50e: pre/post_randomize hooks for randomize() with {...}
-	       * see plain randomize() above. */
-	    ivl_scope_t pre = 0, post = 0;
-	    ivl_type_t rt = 0;
-	    rand_hook_pair_t*pre_dyn = 0;
-	    rand_hook_pair_t*post_dyn = 0;
-	    if (obj_arg && !scope_form) {
-		  rt = ivl_expr_net_type(obj_arg);
-		  if (!rt && ivl_expr_type(obj_arg) == IVL_EX_SIGNAL) {
-			ivl_signal_t sig = ivl_expr_signal(obj_arg);
-			if (sig) rt = ivl_signal_net_type(sig);
-		  }
-		  if (rt && ivl_type_base(rt) == IVL_VT_CLASS) {
-			rand_hooks_for_type_(rt, &pre, &post);
-			if (!pre) pre_dyn = rand_unique_derived_hook_(rt, 1);
-			if (!post) post_dyn = rand_unique_derived_hook_(rt, 0);
-		  }
-	    }
-	      /* randomize(null) with {...} checks only, so no hooks. */
-	    if (is_null_form) {
-		  pre = post = 0;
-		  pre_dyn = post_dyn = 0;
-	    }
 	      /* As for plain randomize(), retain one evaluation of the receiver
 	       * across hooks, runtime with-clause slot evaluation, and solving. */
 	    if (obj_arg)
 		  draw_eval_object(obj_arg);
-	    if (pre && obj_arg) emit_void_this_method_call_from_stack_(pre);
-	    else if (pre_dyn && obj_arg)
-		  emit_dynamic_void_this_method_call_from_stack_(pre_dyn->pre,
-							  pre_dyn->type);
+	    if (obj_arg && !scope_form)
+		  fprintf(vvp_out, "    %%randomize/hook 0;\n");
 	      /* Push runtime slot values (vec4 stack) first so they're
 	       * under the result when %randomize/with pops them. */
 	    for (unsigned i = 0 ; i < n_vals ; i++) {
@@ -2147,22 +1796,27 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  if (slot) draw_eval_vec4(slot);
 		  else fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
 	    }
-	      /* Arm the 18.11 selector last, so nothing between it and
-	       * %randomize/with can consume it. */
-	    if (have_sel)
-		  fprintf(vvp_out, "    %%rand/active \"%.*s\";\n",
-			  (int)sel_len, sel_beg);
 	      /* %randomize/with consumes its object, so give it an aliasing
 	       * duplicate and retain the original for conditional post hooks. */
 	    if (obj_arg)
 		  fprintf(vvp_out, "    %%dup/obj/ref; randomize/with solve receiver\n");
-	    fprintf(vvp_out, "    %%randomize/with \"%s\", %u;\n", ir,
-		    n_vals | (scope_form ? 0x80000000u : 0u));
-	    if (post && obj_arg)
-		  emit_conditional_post_randomize_from_stack_(post);
-	    else if (post_dyn && obj_arg)
-		  emit_conditional_dynamic_post_randomize_from_stack_(post_dyn->post,
-								  post_dyn->type);
+            assert(parm_count > n_vals);
+            unsigned n_objs = parm_count - 1 - n_vals;
+            for (unsigned i = 0; i < n_objs; ++i)
+                  draw_eval_object(ivl_expr_parm(expr, 1 + n_vals + i));
+            /* Capture selected state queues after pre_randomize and keep
+             * them above the solve receiver. Arm its selector last. */
+            if (have_sel)
+                  fprintf(vvp_out, "    %%rand/active \"%.*s\";\n",
+                          (int)sel_len, sel_beg);
+            if (n_objs)
+                  fprintf(vvp_out, "    %%randomize/with/objects \"%s\", %u, %u;\n",
+                          ir, n_vals | (scope_form ? 0x80000000u : 0u), n_objs);
+            else
+                  fprintf(vvp_out, "    %%randomize/with \"%s\", %u;\n", ir,
+                          n_vals | (scope_form ? 0x80000000u : 0u));
+	    if (obj_arg && !scope_form)
+		  fprintf(vvp_out, "    %%randomize/hook 1;\n");
 	    if (obj_arg)
 		  fprintf(vvp_out, "    %%pop/obj 1, 0; randomize/with receiver\n");
 	    return;

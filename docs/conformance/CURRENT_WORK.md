@@ -1,5 +1,73 @@
 # CURRENT WORK — continuation state
 
+## Current execution policy — 2026-09-04
+
+The user explicitly raised the per-process CPU guard from 45 to **300 seconds
+(5 minutes)**. Use `../evidence/arm64-tooling/resource-runner` or inherit
+`ulimit -t 300` for new compiler/simulator sweeps. Native ARM64, Homebrew
+Bison 3.8.x, absolute worktree `local-install/bin` first on PATH, and no RSS
+or output-size ceiling remain required. Earlier 45-second measurements below
+are historical evidence; they do not set the current limit.
+
+## Active increment — 2026-09-04 — dynamic root randomize callbacks
+
+Branch `agent/randomize-hooks-after255-arm64-20260904` is based on
+`167e8bf5d` (draft PR #255). The validated installed build4 fixes dynamic
+root callback dispatch and root callbacks on `randomize(null)`, with exact
+2017/2023 regressions, including the reviewed escaped-identifier correction.
+Ten focused executions and the fresh complete build4 gate pass: legacy
+4557/4562 (0 failed), JSON 1451/0, VPI 103/103, negative 149/0, runtime
+invariants, and real-DPI UVM 355/0/0. Compiler fingerprints stayed fixed.
+Both censuses completed with unchanged binaries and inputs. OpenTitan has
+203 PASS (210 previously): seven zero-traffic xbar runtime passes now fail,
+and Darjeeling-main changes from timeout to the same time-zero randomization
+failure. All compile classifications are unchanged. ADC completes with the
+prior isolated replay's metrics and full output-line multiset. Summed debt
+2223 → 2222 is solely diagnostic interleaving, not semantic progress.
+Caliptra remains 52 PASS / ICARUS_GAP 0, all 105 jobs unchanged. Its invalid
+first attempt omitted a baseline harness wrapper; the corrected full rerun
+is recorded separately. Enabled-member callbacks and simultaneous random
+object graph constraints remain next requirements. Native and Claude CLI reviews are complete
+and reconciled; both conditional Claude questions were resolved using the
+actual label matcher, a forced-fallback probe and both IEEE editions. See [the callback session record](session_logs/2026-09-04_dynamic_root_randomize_hooks.md).
+
+## Previous validated increment — 2026-09-04 — hierarchical state foreach
+
+Branch `agent/xbar-foreach-after254-arm64-20260904` now contains the xbar
+foreach implementation in the retained worktree. It preserves selected-owner
+identity, guard errors, typed indices, target lookup and failed-solve state.
+The prerequisite nested-queue assignment defect is also repaired. Focused
+legacy and JSON checks pass 14/14. The final full gate passes legacy
+4551/4556 (0 failed), JSON 1445/0, VPI 103/103, negative 149/0, runtime
+invariants and real-DPI UVM 355/0/0. Caliptra remains 52 PASS / ICARUS_GAP 0
+with all 105 jobs unchanged. The complete OpenTitan census has 210 PASS (+15), no lost PASS, and summed
+debt 2223 (20 actual warning removals plus 2 diagnostic-interleaving count
+artifacts). All eight xbar compile rows and seven runtime rows became PASS.
+ADC and Darjeeling-main census timeouts did not reproduce in isolation:
+116.449s and 109.677s respectively, with matching baseline runtime metrics
+and diagnostic/output evidence. Raw census counts are retained. All xbar
+smokes report zero scoreboard items, so meaningful DV traffic remains an
+open issue despite the compile/constraint progress.
+See [the implementation and validation record](session_logs/2026-09-04_hierarchical_state_foreach.md).
+The previous validated compiler contains this increment, so the checkpoint
+counts below remain the historical pre-xbar checkpoint.
+
+## Latest validated checkpoint — 2026-09-04
+
+PR #254 is merged as `bafc8b5b4`. The final reviewed compiler checkpoint
+`1819a3ee5` passes legacy ivtest (4537/4542, 0 failed), JSON/VVP (1431/0),
+VPI (103/103), negative tests (149/0) and real-DPI UVM (355/0/0). The full
+300-second censuses preserve all 530 OpenTitan classifications (195 PASS)
+and all 105 Caliptra classifications (52 PASS, ICARUS_GAP 0). OpenTitan's
+summed debt count is 2245; eight constraint warnings disappeared, with three
+offsetting line-count artifacts from interleaved undefined-macro warnings.
+
+See [the September 4 session log](session_logs/2026-09-04_unqualified_parenless_method_and_frontier_retriage.md)
+for per-core comparisons and raw diagnostic checks. Full application DV is
+still incomplete. The hierarchical foreach increment above is validated;
+next investigate why the unmodified xbar smokes finish with zero scoreboard
+items before treating runtime census PASS as meaningful DV completion.
+
 ## Active increment — 2026-09-02 — parameterized VIFs, recursive containers, and typed mailboxes
 
 Worktree:

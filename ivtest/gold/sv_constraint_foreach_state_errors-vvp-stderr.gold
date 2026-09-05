@@ -1,0 +1,5 @@
+ERROR: state foreach constraint: out-of-bounds state foreach index.
+ERROR: state foreach constraint: division/remainder by zero in state constraint.
+ERROR: state foreach constraint: X/Z state value in constraint (IEEE 1800-2017/2023 18.3).
+ERROR: state foreach constraint: null/non-class state foreach element.
+ERROR: state foreach constraint: null/non-class state foreach collection owner.
