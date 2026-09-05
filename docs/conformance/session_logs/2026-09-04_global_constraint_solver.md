@@ -210,3 +210,26 @@ The complete PR therefore adds five member families plus 27 global families,
 64 entries per harness. No merge was performed or authorized for this agent.
 Additional frontend gaps include hierarchical `solve before`, nested
 class-to-struct paths, and hierarchical `constraint_mode`.
+
+## PR258 portability follow-up — installed build19
+
+The initial Ubuntu 24.04 CI job failed compiling `vvp_z3.cc`: its typed handle
+reader uses `std::function` without directly including `<functional>`. Apple
+libc++ supplied that declaration transitively. The correction adds that single
+standard-library include. IEEE references are N/A for this C++ build correction;
+SystemVerilog semantics and the regression expectations are unchanged.
+
+Native Homebrew GCC 16.1.0 (`aarch64-apple-darwin25`) reproduced the missing-type
+error using the actual make compile flags with `-fsyntax-only`. The same command
+passes after the include. Its pre-existing shadow warning remains. Evidence:
+`pr258-functional-include-gcc-red.json`, `pr258-functional-include-gcc-green.json`,
+and the retained initial Ubuntu CI log under N.
+
+Serial ARM64 make followed by make install passed as build19 with the 300s CPU
+guard and Homebrew Bison 3.8.2. Its broader timestamp-triggered rebuild reports
+existing source/generated-parser warnings; this is not a warning-free build.
+All 58 existing direct handle/guard/state checks pass in both edition modes, with
+installed binary fingerprints unchanged during the checks. See
+`global-build19-fingerprints.json`, `global-build19.log`, and
+`global-handle-build19-results.json`. The complete gate and application censuses
+above were run on build18; they were not repeated for this include-only change.

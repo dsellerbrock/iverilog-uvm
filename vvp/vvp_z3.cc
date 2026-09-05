@@ -42,6 +42,7 @@
 # include  <stdint.h>
 # include  <climits>
 # include  <algorithm>
+# include  <functional>
 # include  <memory>
 
 using namespace std;
