@@ -546,3 +546,13 @@ global constraints are still open. The latter clause is numbered **18.5.9
 in 2017** and **18.5.8 in 2023**; foreach is **18.5.8.1 in 2017** and
 **18.5.7.1 in 2023**. See the [root callback session record](session_logs/2026-09-04_dynamic_root_randomize_hooks.md)
 for the completed gate and application evidence.
+
+## 2026-09-04 clauses 18.6.2-18.6.3, 18.8 and 18.11 — enabled member callbacks
+
+The member callback rules implemented here are shared by IEEE 1800-2017 and
+IEEE 1800-2023. Both editions have permanent tests for enabled member traversal,
+pre side effects on failure, retained post receivers, element modes, temporary
+root selection and nested automatic callbacks. The full legacy/JSON, VPI,
+negative, runtime-invariant and real-DPI UVM gates pass. Application censuses
+have unchanged classifications (OT203 PASS; Caliptra52 PASS/GAP0); global constraints (2023 18.5.8 /2017 18.5.9)
+remain open. See the [member callback record](session_logs/2026-09-04_enabled_member_randomize_hooks.md).

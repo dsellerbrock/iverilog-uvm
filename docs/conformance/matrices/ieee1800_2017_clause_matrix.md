@@ -680,3 +680,13 @@ and the paired-edition delta entry.
 | Clause | Mechanism | Status | Evidence / remaining boundary |
 |---|---|---|---|
 | 18.6.2 / 18.6.3 / 18.11 | Dynamic root pre/post callbacks, including checker calls | PARTIAL | Runtime dispatch selects the actual class's independently nearest callbacks; direct nonvirtual calls stay static. Root pre runs before inline state capture; post runs only on successful solve. Paired 2017/2023 regressions cover sibling/inherited classes, parameterization, escaped identifiers (5.6.1), virtual method encoding (8.20), receiver identity, nested frames and null checker side effects. Enabled-member callbacks and simultaneous global constraints remain open; the real xbar now exposes the latter as a failing solve. See the [session record](../session_logs/2026-09-04_dynamic_root_randomize_hooks.md) for exact validation and limitations. |
+
+## 2026-09-04 enabled random-member callback increment
+
+IEEE 1800-2017 18.6.2/18.6.3, 18.8 and 18.11: enabled member pre callbacks
+precede graph snapshots; posts use retained successful participants. Aliases,
+cycles, callback-created edges, explicit selection, element modes and nested
+automatic frames have paired regressions. Status remains **PARTIAL**, with
+complete regression gates passing and both application classifications
+unchanged (OT203 PASS, Caliptra52 PASS/GAP0). Simultaneous global constraints
+remain open. See the [member callback record](../session_logs/2026-09-04_enabled_member_randomize_hooks.md).
