@@ -1,0 +1,2 @@
+ERROR: resizing a random class-handle collection during a global solve is not yet supported.
+PASSED

@@ -293,9 +293,11 @@ static void draw_binary_vec4_compare_class(ivl_expr_t expr)
       if (ivl_expr_type(le)==IVL_EX_NULL && ivl_expr_type(re)==IVL_EX_NULL) {
 	    switch (ivl_expr_opcode(expr)) {
 		case 'e': /* == */
+		case 'E': /* === (IEEE 1800-2017/2023 8.4, 11.4.5) */
 		  fprintf(vvp_out, "    %%pushi/vec4 1, 0, 1;\n");
 		  break;
 		case 'n': /* != */
+		case 'N': /* !== */
 		  fprintf(vvp_out, "    %%pushi/vec4 0, 0, 1;\n");
 		  break;
 		default:
@@ -351,7 +353,8 @@ static void draw_binary_vec4_compare_class(ivl_expr_t expr)
 		  draw_eval_vec4(le);
 		  fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", wid);
 		  fprintf(vvp_out, "    %%cmp/u;\n");
-		  if (ivl_expr_opcode(expr) == 'n')
+		  if (ivl_expr_opcode(expr) == 'n'
+                      || ivl_expr_opcode(expr) == 'N')
 			fprintf(vvp_out, "    %%flag_inv 4;\n");
 		  fprintf(vvp_out, "    %%flag_get/vec4 4;\n");
 		  return;
@@ -372,7 +375,8 @@ static void draw_binary_vec4_compare_class(ivl_expr_t expr)
 	    }
 	    fprintf(vvp_out, "    %%test_nul/prop %u, %d;\n", pidx, idx);
 	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
-	    if (ivl_expr_opcode(expr) == 'n')
+	    if (ivl_expr_opcode(expr) == 'n'
+                || ivl_expr_opcode(expr) == 'N')
 		  fprintf(vvp_out, "    %%flag_inv 4;\n");
 	    fprintf(vvp_out, "    %%flag_get/vec4 4;\n");
 
@@ -1748,7 +1752,8 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	     * selects callbacks from the receiver's dynamic class. This also
 	     * applies to randomize(null), whose selector only affects solving. */
 	    if (arg)
-		  fprintf(vvp_out, "    %%randomize/hook 0;\n");
+		  fprintf(vvp_out, "    %%randomize/pre \"%s\";\n",
+                          sel ? sel : "*");
 	    if (sel)
 		  fprintf(vvp_out, "    %%rand/active \"%s\";\n", sel);
 	    if (arg)
@@ -1788,7 +1793,8 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    if (obj_arg)
 		  draw_eval_object(obj_arg);
 	    if (obj_arg && !scope_form)
-		  fprintf(vvp_out, "    %%randomize/hook 0;\n");
+		  fprintf(vvp_out, "    %%randomize/pre \"%.*s\";\n",
+                          (int)sel_len, sel_beg);
 	      /* Push runtime slot values (vec4 stack) first so they're
 	       * under the result when %randomize/with pops them. */
 	    for (unsigned i = 0 ; i < n_vals ; i++) {

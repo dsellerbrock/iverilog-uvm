@@ -2547,3 +2547,83 @@ sv_randomize_hook_context normal,-g2017,-s,main ivltests gold=sv_randomize_hook_
 sv_randomize_hook_context_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_hook_context.gold
 sv_randomize_hook_escaped_names normal,-g2017,-s,main ivltests gold=sv_randomize_hook_escaped_names.gold
 sv_randomize_hook_escaped_names_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_hook_escaped_names.gold
+sv_randomize_member_hooks normal,-g2017,-s,main ivltests gold=sv_randomize_member_hooks.gold
+sv_randomize_member_hooks_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_member_hooks.gold
+sv_randomize_member_reachability normal,-g2017,-s,main ivltests gold=sv_randomize_member_reachability.gold
+sv_randomize_member_reachability_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_member_reachability.gold
+sv_randomize_member_selection normal,-g2017,-s,main ivltests gold=sv_randomize_member_selection.gold
+sv_randomize_member_selection_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_member_selection.gold
+sv_randomize_member_container_modes normal,-g2017,-s,main ivltests gold=sv_randomize_member_container_modes.gold
+sv_randomize_member_container_modes_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_member_container_modes.gold
+sv_randomize_member_nested_hooks normal,-g2017,-s,main ivltests gold=sv_randomize_member_nested_hooks.gold
+sv_randomize_member_nested_hooks_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_member_nested_hooks.gold
+
+# Simultaneous global constraints and priority.
+sv_randomize_global_domain normal,-g2017,-s,main ivltests gold=sv_randomize_global_domain.gold
+sv_randomize_global_domain_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_domain.gold
+sv_randomize_global_alias_soft normal,-g2017,-s,main ivltests gold=sv_randomize_global_alias_soft.gold
+sv_randomize_global_alias_soft_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_alias_soft.gold
+sv_randomize_global_soft_order normal,-g2017,-s,main ivltests gold=sv_randomize_global_soft_order.gold
+sv_randomize_global_soft_order_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_soft_order.gold
+sv_randomize_global_randc normal,-g2017,-s,main ivltests gold=sv_randomize_global_randc.gold
+sv_randomize_global_randc_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_randc.gold
+sv_randomize_global_owner_domains normal,-g2017,-s,main ivltests gold=sv_randomize_global_owner_domains.gold
+sv_randomize_global_owner_domains_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_owner_domains.gold
+sv_randomize_global_source_priority normal,-g2017,-s,main ivltests gold=sv_randomize_global_source_priority.gold
+sv_randomize_global_source_priority_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_source_priority.gold
+sv_randomize_global_handle_size_fail normal,-g2017,-s,main ivltests gold=sv_randomize_global_handle_size_fail.gold
+sv_randomize_global_handle_size_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_handle_size_fail.gold
+sv_randomize_global_cycle_fail normal,-g2017,-s,main ivltests gold=sv_randomize_global_cycle_fail.gold
+sv_randomize_global_cycle_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_cycle_fail.gold
+
+# Bounded joint sampling and constraint prototype identity.
+sv_randomize_global_uniform normal,-g2017,-s,main ivltests gold=sv_randomize_global_uniform.gold
+sv_randomize_global_uniform_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_uniform.gold
+sv_randomize_global_sampling_fail normal,-g2017,-s,main ivltests gold=sv_randomize_global_sampling_fail.gold
+sv_randomize_global_sampling_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_sampling_fail.gold
+sv_constraint_prototype_collision_fail CE,-g2017,-s,main ivltests gold=sv_constraint_prototype_collision_fail.gold
+sv_constraint_prototype_collision_fail_2023 CE,-g2023,-s,main ivltests gold=sv_constraint_prototype_collision_fail.gold
+
+# Joint randc history admission and deferred container rollback.
+sv_randomize_global_history_fail normal,-g2017,-s,main ivltests gold=sv_randomize_global_history_fail.gold
+sv_randomize_global_history_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_history_fail.gold
+sv_randomize_global_container_history normal,-g2017,-s,main ivltests gold=sv_randomize_global_container_history.gold
+sv_randomize_global_container_history_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_container_history.gold
+
+# Queue cyclic history width and fixed-word boundary.
+sv_randomize_global_queue_fail normal,-g2017,-s,main ivltests gold=sv_randomize_global_queue_fail.gold
+sv_randomize_global_queue_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_queue_fail.gold
+
+# Typed handle identity and IEEE constraint guards.
+sv_constraint_handle_identity normal,-g2017,-s,main ivltests gold=sv_constraint_handle_identity.gold
+sv_constraint_handle_identity_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_handle_identity.gold
+sv_constraint_handle_inline normal,-g2017,-s,main ivltests gold=sv_constraint_handle_inline.gold
+sv_constraint_handle_inline_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_handle_inline.gold
+sv_constraint_handle_rollback normal,-g2017,-s,main ivltests gold=sv_constraint_handle_rollback.gold
+sv_constraint_handle_rollback_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_handle_rollback.gold
+sv_constraint_handle_state_guard normal,-g2017,-s,main ivltests gold=sv_constraint_handle_state_guard.gold
+sv_constraint_handle_state_guard_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_handle_state_guard.gold
+sv_constraint_handle_selection normal,-g2017,-s,main ivltests gold=sv_constraint_handle_selection.gold
+sv_constraint_handle_selection_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_handle_selection.gold
+sv_constraint_handle_guard_xz normal,-g2017,-s,main ivltests gold=sv_constraint_handle_guard_xz.gold
+sv_constraint_handle_guard_xz_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_handle_guard_xz.gold
+sv_constraint_handle_foreach normal,-g2017,-s,main ivltests gold=sv_constraint_handle_foreach.gold
+sv_constraint_handle_foreach_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_handle_foreach.gold
+sv_constraint_handle_case_fail CE,-g2017,-s,main ivltests gold=sv_constraint_handle_case_fail.gold
+sv_constraint_handle_case_fail_2023 CE,-g2023,-s,main ivltests gold=sv_constraint_handle_case_fail.gold
+sv_constraint_handle_inline_case_fail CE,-g2017,-s,main ivltests gold=sv_constraint_handle_inline_case_fail.gold
+sv_constraint_handle_inline_case_fail_2023 CE,-g2023,-s,main ivltests gold=sv_constraint_handle_inline_case_fail.gold
+sv_constraint_handle_scope_case_fail CE,-g2017,-s,main ivltests gold=sv_constraint_handle_scope_case_fail.gold
+sv_constraint_handle_scope_case_fail_2023 CE,-g2023,-s,main ivltests gold=sv_constraint_handle_scope_case_fail.gold
+sv_constraint_foreach_global_alias normal,-g2017,-s,main ivltests gold=sv_constraint_foreach_global_alias.gold
+sv_constraint_foreach_global_alias_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_foreach_global_alias.gold
+sv_constraint_foreach_inactive_width normal,-g2017,-s,main ivltests gold=sv_constraint_foreach_inactive_width.gold
+sv_constraint_foreach_inactive_width_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_foreach_inactive_width.gold
+sv_constraint_foreach_assoc_state normal,-g2017,-s,main ivltests gold=sv_constraint_foreach_assoc_state.gold
+sv_constraint_foreach_assoc_state_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_foreach_assoc_state.gold
+sv_randomize_global_components normal,-g2017,-s,main ivltests gold=sv_randomize_global_components.gold
+sv_randomize_global_components_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_components.gold
+sv_randomize_global_dist_components normal,-g2017,-s,main ivltests gold=sv_randomize_global_dist_components.gold
+sv_randomize_global_dist_components_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_dist_components.gold
+sv_randomize_global_components_fail normal,-g2017,-s,main ivltests gold=sv_randomize_global_components_fail.gold
+sv_randomize_global_components_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_components_fail.gold

@@ -1,0 +1,7 @@
+./ivltests/sv_randomize_global_history_fail.v:7: warning: randc property 'data' of class array_leaf has a 21-bit cyclic leaf, beyond the 20-bit randc cycle-tracking cap; it will randomize as plain (non-cyclic) rand instead of guaranteeing a full permutation before any repeat.
+./ivltests/sv_randomize_global_history_fail.v:3: warning: randc property 'value' of class scalar_leaf has a 21-bit cyclic leaf, beyond the 20-bit randc cycle-tracking cap; it will randomize as plain (non-cyclic) rand instead of guaranteeing a full permutation before any repeat.
+./ivltests/sv_randomize_global_history_fail.v:11: warning: randc property 'value' of class unconstrained_leaf has a 21-bit cyclic leaf, beyond the 20-bit randc cycle-tracking cap; it will randomize as plain (non-cyclic) rand instead of guaranteeing a full permutation before any repeat.
+ERROR: global constraint sampling failed: a randc leaf exceeds the supported history representation.
+ERROR: global constraint sampling failed: a randc leaf exceeds the supported history representation.
+ERROR: global constraint sampling failed: a randc leaf exceeds the supported history representation.
+PASSED

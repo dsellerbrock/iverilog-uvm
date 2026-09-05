@@ -1,0 +1,1 @@
+ivltests/sv_randomize_global_queue_fail.v:3: warning: randc property 'data' of class wide_leaf has a 21-bit cyclic leaf, beyond the 20-bit randc cycle-tracking cap; it will randomize as plain (non-cyclic) rand instead of guaranteeing a full permutation before any repeat.

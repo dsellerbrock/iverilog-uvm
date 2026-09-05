@@ -440,6 +440,7 @@ extern bool of_CONSTRAINT_MODE_GET(vthread_t thr, vvp_code_t code);
 extern bool of_RAND_ACTIVE(vthread_t thr, vvp_code_t code);
 extern bool of_RANDOMIZE(vthread_t thr, vvp_code_t code);
 extern bool of_RANDOMIZE_HOOK(vthread_t thr, vvp_code_t code);
+extern bool of_RANDOMIZE_PRE(vthread_t thr, vvp_code_t code);
 extern bool of_SRANDOM(vthread_t thr, vvp_code_t code);
 extern bool of_GET_RANDSTATE(vthread_t thr, vvp_code_t code);
 extern bool of_SET_RANDSTATE(vthread_t thr, vvp_code_t code);

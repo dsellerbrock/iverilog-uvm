@@ -680,3 +680,68 @@ and the paired-edition delta entry.
 | Clause | Mechanism | Status | Evidence / remaining boundary |
 |---|---|---|---|
 | 18.6.2 / 18.6.3 / 18.11 | Dynamic root pre/post callbacks, including checker calls | PARTIAL | Runtime dispatch selects the actual class's independently nearest callbacks; direct nonvirtual calls stay static. Root pre runs before inline state capture; post runs only on successful solve. Paired 2017/2023 regressions cover sibling/inherited classes, parameterization, escaped identifiers (5.6.1), virtual method encoding (8.20), receiver identity, nested frames and null checker side effects. Enabled-member callbacks and simultaneous global constraints remain open; the real xbar now exposes the latter as a failing solve. See the [session record](../session_logs/2026-09-04_dynamic_root_randomize_hooks.md) for exact validation and limitations. |
+
+## 2026-09-04 enabled random-member callback increment
+
+IEEE 1800-2017 18.6.2/18.6.3, 18.8 and 18.11: enabled member pre callbacks
+precede graph snapshots; posts use retained successful participants. Aliases,
+cycles, callback-created edges, explicit selection, element modes and nested
+automatic frames have paired regressions. Status remains **PARTIAL**, with
+complete regression gates passing and both application classifications
+unchanged (OT203 PASS, Caliptra52 PASS/GAP0). Simultaneous global constraints
+remain open. See the [member callback record](../session_logs/2026-09-04_enabled_member_randomize_hooks.md).
+
+## 2026-09-04 global constraint solver working increment
+
+**PARTIAL; full repository gate and application comparisons complete.** IEEE 1800-2017
+18.5.9/18.5.10 and IEEE 1800-2023 18.5.8/18.5.9 have an owner-aware joint
+solver and bounded complete-tuple sampler. Declaration-order soft priority,
+static identity, transaction rollback, and constrained randc stages have paired
+regressions. Unsupported staged distributions and history/size bounds fail
+explicitly on the new route. This does not complete these clauses or full DV.
+
+Both editions 8.4/11.4.5/18.4: typed constraint handle identity and procedural
+null-property case inequality. IEEE 2017 18.5.13 / 2023 18.5.12: guards retain
+state/random/error classification under call selection. Both editions 18.3:
+constraint case operators hard-error; associative state reads retain X/Z rejection.
+State foreach shares the canonical active selection (2017 18.5.8.1/18.5.9;
+2023 18.5.7.1/18.5.8), including static aliases and inactive ternary-arm typing
+(both editions 11.6.1/11.8.2).
+
+Build18 grounds inactive scalar storage before expression expansion while
+retaining provenance, signedness, and X/Z errors. The existing nested-state UVM
+test recovers from a 60s timeout to less than 0.3s. State distribution endpoints
+now qualify for the existing exact sampler (2017 18.5.4; 2023 18.5.3); active
+endpoint controls retain the documented fallback warning. All 58 direct checks,
+the corrected legacy diagnostic case, and 166 JSON focus cases pass. Full gate5
+passes: legacy 4621/4626 (0 failed, 2 NI, 3 EF), JSON 1515/0, VPI 103/103, negative
+149/0, runtime invariants, and real-DPI UVM 355/0/0.
+
+See the [session record](../session_logs/2026-09-04_global_constraint_solver.md)
+for exact gates, review findings, explicit boundaries, and application baselines.
+
+The final census diff retains all 203 OpenTitan PASS rows and summed compile
+debt 2223; Caliptra remains 52 PASS / ICARUS_GAP 0 across all 105 unchanged rows.
+Twenty already-failing OpenTitan runtime rows now reject joint dist/order earlier,
+including all eight xbars at cfg.randomize. TL agent changes from timeout to
+explicit failure. These are documented boundaries, not runtime completion gains.
+
+
+**Independent-component follow-up, local gate and application comparison complete:** IEEE 1800-2017
+18.5.9/18.5.10 and IEEE 1800-2023 18.5.8/18.5.9 now have complete projected
+sampling per syntactically independent factor while retaining one global hard
+problem. The 1024-tuple proof bound applies per factor. One unconditional hard
+distribution on a canonical scalar/element is supported per factor, with
+state-only weights and fully feasible ground ranges (2017 18.5.4; 2023 18.5.3).
+Residual tuples are conditionally uniform. Unsupported soft/guarded/coupled
+multiple distributions, active weights, partial range exclusion, and
+solve-before fail explicitly. Three new paired families and 34 legacy focus
+checks pass. Full gate: legacy4627/4632 (0failed,2NI,3EF), JSON1521/0,
+VPI103/103, negative149/0, runtimeinvariants, real-DPI UVM355/0/0. The fresh
+530-row OpenTitan comparison retains 203 PASS with no lost PASS; all eight xbar
+runtime rows now time out after the earlier constraint boundary. There is no
+completed application gain. The stored semantic_debt_count sum is 2221 versus
+2223 solely because two pairs of diagnostics interleaved onto shared log lines;
+warning/error tokens and compiler return codes match, so no semantic debt
+improvement is claimed. Caliptra's 105 static rows are unchanged at52 PASS and
+ICARUS_GAP0. The session record links the complete per-row/input/raw-log audit.

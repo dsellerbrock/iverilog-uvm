@@ -1,0 +1,2 @@
+ERROR: global constraint sampling failed: a randc leaf exceeds the supported history representation.
+ERROR: global constraint sampling failed: randc fixed arrays of queues are not yet supported.

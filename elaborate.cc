@@ -27373,7 +27373,7 @@ static bool constraint_state_member_visible_(const netclass_t*type, unsigned mem
       cerr << site->get_fileline() << ": error: "
            << (qual.test_local() ? "Local" : "Protected") << " property "
            << type->get_prop_name(member)
-           << " is not accessible in this state foreach constraint." << endl;
+           << " is not accessible in this constraint." << endl;
       constraint_ir_design_ctx_->errors += 1;
       return false;
 }
@@ -27392,6 +27392,296 @@ static bool constraint_target_declares_(const netclass_t*cls, perm_string name)
                   return true;
       }
       return false;
+}
+
+/* IEEE 1800-2017/2023 8.4, 11.4.5 and 18.4: a handle comparison
+ * observes object identity, including for a rand handle. Keep its operands
+ * out of scalar capture/get_vec4, which exposes only a handle's nullness. */
+struct constraint_handle_operand_t {
+      const netclass_t*type = nullptr;
+      bool null_value = false;
+      bool caller_value = false;
+      string ir;
+};
+
+static string constraint_handle_index_ir_(
+      const index_component_t&index, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env)
+{
+      if (index.sel != index_component_t::SEL_BIT || !index.msb || index.lsb)
+            return "";
+      string ir = pexpr_to_constraint_ir(index.msb, cls, value_slots, scope, loop_env);
+      constraint_const_ir_t value;
+      return ir == "L" || constraint_parse_const_ir_(ir, value) ? ir : string();
+}
+
+static constraint_handle_operand_t constraint_handle_operand_(
+      const PExpr*expr, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env)
+{
+      constraint_handle_operand_t out;
+      if (dynamic_cast<const PENull*>(expr)) {
+            out.null_value = true;
+            out.ir = "h:null";
+            return out;
+      }
+
+      const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
+      pform_name_t flattened;
+      unique_ptr<PEIdent> flat;
+      if (!id && constraint_flatten_member_path_(expr, flattened)) {
+            flat.reset(new PEIdent(flattened, UINT_MAX));
+            flat->set_line(*expr);
+            id = flat.get();
+      }
+      if (id && !id->path().name.empty() && !id->path().package
+          && !id->has_scoped_type_prefix()) {
+            const pform_name_t&path = id->path().name;
+            const name_component_t&root = path.front();
+            /* A foreach index shadows a same-named handle property. */
+            if (root.index.empty() && !root.local_scope
+                && ((loop_env && loop_env->count(root.name))
+                    || (dynforeach_emit_ctx_
+                        && dynforeach_emit_ctx_->loop_var == root.name)
+                    || (stateforeach_emit_ctx_
+                        && stateforeach_emit_ctx_->source->loop_vars()[0] == root.name))
+                && !constraint_array_iter_ctx_find_(root.name))
+                  return out;
+
+            if (cls && path.size() == 1 && root.index.empty()
+                && !root.local_scope
+                && (constraint_this_name_(root.name)
+                    || constraint_super_name_(root.name)
+                    || (!constraint_class_object_root_.nil()
+                        && root.name == constraint_class_object_root_))) {
+                  out.type = constraint_super_name_(root.name) ? cls->get_super() : cls;
+                  out.ir = out.type ? "h:this" : "";
+                  return out;
+            }
+
+            /* Match the selected state queue before probing lexical types:
+             * its loop variable does not exist in the caller's scope. */
+            if (stateforeach_emit_ctx_ && (path.size() == 2 || path.size() == 3)) {
+                  const stateforeach_emit_ctx_t&ctx = *stateforeach_emit_ctx_;
+                  const PEConstraintForeach*fe = ctx.source;
+                  auto queue = next(path.begin());
+                  bool same = root.name == fe->array_name() && !root.local_scope
+                        && root.index.size() == fe->prefix_names().size()
+                        && queue->name == fe->member_name() && queue->index.size() == 1;
+                  unsigned pos = 0;
+                  for (const index_component_t&ic : root.index) {
+                        const PEIdent*prefix = dynamic_cast<const PEIdent*>(ic.msb);
+                        same = same && ic.sel == index_component_t::SEL_BIT && !ic.lsb
+                              && prefix && !prefix->path().package
+                              && prefix->path().size() == 1
+                              && prefix->path().name.front().index.empty()
+                              && !prefix->path().name.front().local_scope
+                              && pos < fe->prefix_names().size()
+                              && prefix->path().name.front().name == fe->prefix_names()[pos];
+                        ++pos;
+                  }
+                  if (same) {
+                        ivl_type_t type = ctx.element_type;
+                        int member = -1;
+                        const netclass_t*owner = dynamic_cast<const netclass_t*>(type);
+                        if (path.size() == 3) {
+                              auto tail = next(queue);
+                              const netstruct_t*record = dynamic_cast<const netstruct_t*>(type);
+                              member = !tail->index.empty() ? -1
+                                    : owner ? owner->property_idx_from_name(tail->name)
+                                    : record ? (int)record->member_index(tail->name) : -1;
+                              type = member < 0 ? nullptr
+                                    : owner ? owner->get_prop_type(member)
+                                    : (unsigned)member < record->members().size()
+                                      ? record->members()[member].net_type : nullptr;
+                        }
+                        out.type = dynamic_cast<const netclass_t*>(type);
+                        if (!out.type) return out;
+                        if (member >= 0 && owner
+                            && !constraint_state_member_visible_(owner, member, scope, expr))
+                              return out;
+                        string index = constraint_handle_index_ir_(
+                              queue->index.front(), cls, value_slots, scope, loop_env);
+                        if (index.empty()) return out;
+                        out.ir = member < 0
+                              ? "(qhandle " + to_string(ctx.object_slot) + " " + index + ")"
+                              : "(qfield qf:" + to_string(ctx.object_slot) + ":"
+                                + to_string(member) + ":32 " + index + ")";
+                        return out;
+                  }
+            }
+      }
+
+      constraint_source_type_t source = constraint_source_expr_type_(
+            expr, cls, value_slots, scope);
+      if (!source.unpacked_dimensions)
+            out.type = dynamic_cast<const netclass_t*>(source.type);
+      if (!out.type || !id || id->path().name.empty()) return out;
+
+      const netclass_t*owner = nullptr;
+      pform_name_t::const_iterator component;
+      bool target = !id->has_scoped_type_prefix()
+            && constraint_target_path_begin_(id->path(), cls, owner, component);
+      if (!target) {
+            /* Only a bare caller handle is safe to capture eagerly. A member
+             * read can fail through null and must remain inside the guard's
+             * ERROR propagation (2017 18.5.13 / 2023 18.5.12). */
+            out.caller_value = id->path().size() == 1
+                  && id->path().name.front().index.empty()
+                  && !constraint_array_iter_ctx_find_(id->path().name.front().name)
+                  && (id->path().package || id->path().name.front().local_scope
+                      || !constraint_target_declares_(cls, id->path().name.front().name));
+            return out;
+      }
+
+      vector<unsigned> properties;
+      for (; component != id->path().name.end(); ++component) {
+            int property = owner ? owner->property_idx_from_name(component->name) : -1;
+            if (property < 0) return out;
+            if (!constraint_state_member_visible_(owner, property, scope, expr))
+                  return out;
+            properties.push_back(property);
+            ivl_type_t type = owner->get_prop_type(property);
+            auto tail = next(component);
+            if (!component->index.empty()) {
+                  if (properties.size() != 1 || component->index.size() != 1) return out;
+                  const netarray_t*array = dynamic_cast<const netarray_t*>(type);
+                  if (!array || array->packed()) return out;
+                  if (const netqueue_t*queue = dynamic_cast<const netqueue_t*>(array))
+                        if (queue->assoc_compat()) return out;
+                  string index = constraint_handle_index_ir_(
+                        component->index.front(), cls, value_slots, scope, loop_env);
+                  if (index.empty()) return out;
+                  if (tail != id->path().name.end()) {
+                        const netclass_t*element = dynamic_cast<const netclass_t*>(array->element_type());
+                        if (!element || !tail->index.empty()
+                            || next(tail) != id->path().name.end()
+                            || !dynamic_cast<const netdarray_t*>(array)) return out;
+                        int member = element->property_idx_from_name(tail->name);
+                        if (member < 0 || !constraint_state_member_visible_(element, member, scope, expr))
+                              return out;
+                        out.ir = "(qmelem " + to_string(property) + ":"
+                              + to_string(member) + ":32 " + index + ")";
+                        return out;
+                  }
+                  if (const netuarray_t*fixed = dynamic_cast<const netuarray_t*>(array)) {
+                        constraint_const_ir_t value;
+                        if (!constraint_parse_const_ir_(index, value) || value.width > 64
+                            || fixed->static_dimensions().size() != 1) return out;
+                        const netrange_t&range = fixed->static_dimensions()[0];
+                        uint64_t word = constraint_resize_const_bits_(value, 64, value.is_signed);
+                        word -= (uint64_t)min(range.get_msb(), range.get_lsb());
+                        if (word >= range.width()) return out;
+                        out.ir = "e:" + to_string(property) + ":32:" + to_string(word);
+                  } else if (dynamic_cast<const netdarray_t*>(array)) {
+                        out.ir = "(delem " + to_string(property) + ":32 " + index + ")";
+                  }
+                  return out;
+            }
+            if (tail == id->path().name.end()) {
+                  if (properties.size() == 1)
+                        out.ir = "p:" + to_string(property) + ":32";
+                  else {
+                        out.ir = "r:";
+                        for (unsigned part : properties)
+                              out.ir += (out.ir.size() == 2 ? "" : ".") + to_string(part);
+                        out.ir += ":32";
+                  }
+                  return out;
+            }
+            if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+                  if (record->packed() || properties.size() != 1
+                      || next(tail) != id->path().name.end() || !tail->index.empty()) return out;
+                  unsigned member = record->member_index(tail->name);
+                  if (member < record->members().size())
+                        out.ir = "m:" + to_string(property) + ":" + to_string(member) + ":32";
+                  return out;
+            }
+            owner = dynamic_cast<const netclass_t*>(type);
+      }
+      return out;
+}
+
+static bool constraint_handle_comparison_ir_(
+      const PEBinary*expr, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env, string&ir)
+{
+      char op = expr->get_op();
+      if (op != 'e' && op != 'n' && op != 'E' && op != 'N') return false;
+      if (!constraint_ir_design_ctx_) return false;
+      // IEEE 1800-2017/2023 18.3 disallows four-state operators in
+      // constraints even though 8.4 permits procedural handle case equality.
+      if (op == 'E' || op == 'N') {
+            cerr << expr->get_fileline()
+                 << ": error: case equality/inequality is illegal in a constraint (IEEE 1800-2017/2023 18.3)."
+                 << endl;
+            constraint_ir_design_ctx_->errors += 1;
+            return true;
+      }
+      unsigned errors_before = constraint_ir_design_ctx_->errors;
+      constraint_handle_operand_t left = constraint_handle_operand_(
+            expr->get_left(), cls, value_slots, scope, loop_env);
+      constraint_handle_operand_t right = constraint_handle_operand_(
+            expr->get_right(), cls, value_slots, scope, loop_env);
+      if (!left.type && !right.type && !left.null_value && !right.null_value) return false;
+      bool inequality = op == 'n';
+      if ((!left.type && !left.null_value) || (!right.type && !right.null_value)
+          || (left.type && left.type->is_interface())
+          || (right.type && right.type->is_interface())
+          || (left.type && right.type
+              && !left.type->type_compatible(right.type)
+              && !right.type->type_compatible(left.type))) {
+            cerr << expr->get_fileline() << ": error: constraint handle comparison requires "
+                 << "assignment-compatible class handles or literal null." << endl;
+            constraint_ir_design_ctx_->errors += 1;
+            return true;
+      }
+      if (left.null_value && right.null_value) {
+            ir = inequality ? "c:0:1" : "c:1:1";
+            return true;
+      }
+      if (value_slots && (left.caller_value || left.null_value)
+          && (right.caller_value || right.null_value)) {
+            ir = scope_randomize_value_slot_(expr, nullptr, value_slots, 1);
+            return true;
+      }
+      auto capture = [&](constraint_handle_operand_t&operand, const PExpr*source) {
+            if (!operand.caller_value || !cls || !scope_randomize_object_slots_) return;
+            NetExpr*object = elab_and_eval(constraint_ir_design_ctx_,
+                                          const_cast<NetScope*>(scope),
+                                          const_cast<PExpr*>(source), -1, false);
+            if (!object) return;
+            const netclass_t*actual = dynamic_cast<const netclass_t*>(object->net_type());
+            if (object->expr_type() != IVL_VT_CLASS || !actual || actual->is_interface()
+                || (!operand.type->type_compatible(actual)
+                    && !actual->type_compatible(operand.type))) {
+                  cerr << source->get_fileline()
+                       << ": error: constraint caller capture did not resolve to the expected class handle."
+                       << endl;
+                  constraint_ir_design_ctx_->errors += 1;
+                  delete object;
+                  return;
+            }
+            unsigned slot = scope_randomize_object_slots_->size();
+            scope_randomize_object_slots_->push_back(object);
+            operand.ir = "h:" + to_string(slot);
+      };
+      capture(left, expr->get_left());
+      capture(right, expr->get_right());
+      if (left.ir.empty() || right.ir.empty()) {
+            if (constraint_ir_design_ctx_->errors == errors_before) {
+                  cerr << expr->get_fileline() << ": sorry: class-handle comparison path "
+                       << "is not representable without losing identity or constraint guard errors."
+                       << endl;
+                  constraint_ir_design_ctx_->errors += 1;
+            }
+            return true;
+      }
+      ir = string(inequality ? "(hne " : "(heq ") + left.ir + " " + right.ir + ")";
+      return true;
 }
 
 string pexpr_to_constraint_ir(const PExpr*expr,
@@ -29387,6 +29677,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       }
 
       if (const PEBinary*bin = dynamic_cast<const PEBinary*>(expr)) {
+	    string handle_ir;
+	    if (constraint_handle_comparison_ir_(bin, cls, value_slots, scope,
+	                                         loop_env, handle_ir))
+		  return handle_ir;
 	    string left = pexpr_to_constraint_ir(bin->get_left(), cls, value_slots, scope, loop_env);
 	    string right = pexpr_to_constraint_ir(bin->get_right(), cls, value_slots, scope, loop_env);
 	    if (left.empty() || right.empty()) return "";
@@ -29722,7 +30016,10 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 
       /* Convert every source constraint block to solver IR after property
 	 types and specialization parameters are final. */
-      for (auto&cit : pclass->type->constraints) {
+      for (perm_string name : pclass->type->constraint_order) {
+            auto found = pclass->type->constraints.find(name);
+            if (found == pclass->type->constraints.end()) continue;
+            const auto&cit = *found;
 	    string ir;
 	    for (PExpr*item : cit.second) {
 		  if (!item) continue;

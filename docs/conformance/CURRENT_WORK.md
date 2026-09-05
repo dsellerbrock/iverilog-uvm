@@ -9,7 +9,29 @@ Bison 3.8.x, absolute worktree `local-install/bin` first on PATH, and no RSS
 or output-size ceiling remain required. Earlier 45-second measurements below
 are historical evidence; they do not set the current limit.
 
-## Active increment — 2026-09-04 — dynamic root randomize callbacks
+## Validated increment — 2026-09-04 — enabled random-member callbacks
+
+Branch `agent/member-randomize-hooks-after256-arm64-20260904` starts at
+`c5d07f600` (draft PR #256, stacked on #255). The runtime adds
+member pre/post traversal with immutable root selection, nested call contexts,
+pre-before-snapshot timing and retained successful post receivers. Five paired
+regressions pass in both callf modes; native traversal/frame reviews found no
+issues. Build3 removes a redundant shadowing declaration and restores comment
+indentation. Both focused harnesses pass 16/16 after correcting the 2023
+adapter include paths. Final gate3 passes legacy4567/4572 (zero failed),
+JSON1461/0, VPI103/103, negative149/0, invariants and real-DPI UVM355/0/0.
+Claude CLI review is reconciled; two existing tests retain its coverage gaps
+and pass eight direct runs plus both focused harnesses16/16. Sequential
+censuses pass their baseline comparison on unchanged build3: all 530
+OpenTitan classifications are unchanged (203 PASS), as are all 105 Caliptra
+classifications (52 PASS / ICARUS_GAP 0). Summed OT debt2222 ->2223 is solely
+raw diagnostic interleaving; all runtime output line multisets match except
+the harness duration header. See the
+[member callback record](session_logs/2026-09-04_enabled_member_randomize_hooks.md).
+All eight xbar runtime rows still fail randomization with zero traffic.
+Simultaneous global constraints remain the next requirement. All six worktrees stay.
+
+## Previous validated increment — 2026-09-04 — dynamic root randomize callbacks
 
 Branch `agent/randomize-hooks-after255-arm64-20260904` is based on
 `167e8bf5d` (draft PR #255). The validated installed build4 fixes dynamic

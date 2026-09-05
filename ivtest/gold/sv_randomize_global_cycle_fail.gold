@@ -1,0 +1,2 @@
+ERROR: soft constraint priority on a cyclic object graph is not yet supported.
+PASSED
