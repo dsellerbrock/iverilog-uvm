@@ -725,3 +725,17 @@ debt 2223; Caliptra remains 52 PASS / ICARUS_GAP 0 across all 105 unchanged rows
 Twenty already-failing OpenTitan runtime rows now reject joint dist/order earlier,
 including all eight xbars at cfg.randomize. TL agent changes from timeout to
 explicit failure. These are documented boundaries, not runtime completion gains.
+
+
+**Independent-component follow-up, local gate complete:** IEEE 1800-2017
+18.5.9/18.5.10 and IEEE 1800-2023 18.5.8/18.5.9 now have complete projected
+sampling per syntactically independent factor while retaining one global hard
+problem. The 1024-tuple proof bound applies per factor. One unconditional hard
+distribution on a canonical scalar/element is supported per factor, with
+state-only weights and fully feasible ground ranges (2017 18.5.4; 2023 18.5.3).
+Residual tuples are conditionally uniform. Unsupported soft/guarded/coupled
+multiple distributions, active weights, partial range exclusion, and
+solve-before fail explicitly. Three new paired families and 34 legacy focus
+checks pass. Full gate: legacy4627/4632 (0failed,2NI,3EF), JSON1521/0,
+VPI103/103, negative149/0, runtimeinvariants, real-DPI UVM355/0/0. The fresh
+application census comparison is pending.

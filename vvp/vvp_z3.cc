@@ -607,6 +607,7 @@ struct Z3Builder {
 	    std::vector<DistBranch> branches;
 	    std::vector<SoftAssert> fallback;
 	    bool exact_supported;
+            bool state_weights;
 	    bool disableable;
       };
       std::vector<DistSpec> dist_specs;
@@ -1445,19 +1446,29 @@ static Z3_ast build_z3_atom(IRParser&par, Z3Builder&b, Z3_lbool*guard)
  * caller can recover without corrupting the surrounding branch parse. */
 static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
 				     uint64_t& out, bool& overflow,
-                                     bool*negative = nullptr)
+                                     bool*negative = nullptr,
+                                     bool*state_value = nullptr)
 {
+      if (state_value) *state_value = false;
       overflow = false;
       if (negative) *negative = false;
       const char* start = par.p;
       Z3Builder value_builder(b.ctx, b.defn, b.cobj, b.graph);
       value_builder.object_vals = b.object_vals;
       value_builder.prop_active = b.prop_active;
+      set<Z3Builder::VarRef> refs;
+      if (state_value) value_builder.collect_refs = &refs;
       Z3_ast value = build_z3_atom(par, value_builder);
       if (par.p == start || !value_builder.state_errors.empty()) {
 	    par.p = start;
 	    return false;
       }
+
+      // Retain source activity before legacy prefill substitutions. The joint
+      // sampler admits state weights only (2017 18.5.4; 2023 18.5.3).
+      if (state_value)
+            *state_value = state_guard_truth_(value_builder, value, refs) != Z3_L_UNDEF
+                  && value_builder.state_errors.empty();
 
       Z3_sort sort = Z3_get_sort(b.ctx, value);
       bool was_bool = Z3_get_sort_kind(b.ctx, sort) == Z3_BOOL_SORT;
@@ -2507,6 +2518,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    dspec.refs = subject_refs;
 	    dspec.disable_refs.clear();
 	    dspec.exact_supported = false;
+            dspec.state_weights = true;
 	    dspec.disableable = b.soft_keyword_depth != 0;
 	    bool exact_supported = true;
 	    auto warn_exact_item_boundary = []() {
@@ -2628,8 +2640,10 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  }
 		  uint64_t weight64 = 1;
 		  bool weight_overflow = false;
+                  bool state_weight = false;
 		  if (!eval_runtime_integral_ir(par, b, weight64,
-						 weight_overflow)) {
+						 weight_overflow, nullptr, &state_weight)) {
+                        state_weight = false;
 			static bool warned_weight = false;
 			if (!warned_weight) {
 			      fprintf(stderr, "Warning: dist weight expression could "
@@ -2647,6 +2661,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			if (par.p == before && !par.at_end()) par.consume();
 			weight64 = 0;
 		  }
+                  dspec.state_weights = dspec.state_weights && state_weight;
 		  if (weight_overflow) {
 			static bool warned_weight_overflow = false;
 			if (!warned_weight_overflow) {
@@ -2833,7 +2848,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    dspec.exact_supported = exact_supported && !dspec.branches.empty()
 		  && b.soft_guards.empty();
 	    if (b.collect_preferences && b.defn != nullptr
-		&& !dspec.fallback.empty())
+		&& (!dspec.fallback.empty() || !dspec.state_weights))
 		  b.dist_specs.push_back(dspec);
 	    if (hard_clauses.empty())
 		  return saw_branch ? b.mk_false() : b.mk_true();
@@ -4296,7 +4311,8 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
                                    Z3_optimize opt,
                                    const Z3Builder::DistSpec& spec,
 				   z3_rng_stream_t& rng,
-                                   uint64_t& chosen)
+                                   uint64_t& chosen,
+                                   bool require_complete_ranges = false)
 {
       static const uint64_t RANGE_EXPAND_CAP = 256;
       auto candidate_pin = [&](uint64_t v, unsigned vw,
@@ -4381,6 +4397,11 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
 			item.values.push_back(v);
 		  if (coord == UINT64_MAX) break;
 	    }
+            // 2023 18.5.3 explicitly retains the complete range weight after
+            // exclusion; 2017 18.5.4 lacks that clarification. The new shared
+            // joint subset admits only fully feasible positive-weight ranges.
+            if (require_complete_ranges && br.is_range && item.values.size() != span)
+                  return false;
 	    if (!item.values.empty() && item.aggregate_weight > 0)
 		  items.push_back(item);
       }
@@ -4427,8 +4448,8 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
 /* IEEE 1800-2017 18.5.10 / 1800-2023 18.5.9: sample complete legal
  * combinations, not independently uniform conditional projections. Block
  * only semantic variables, so auxiliary model assignments are not counted.
- * ponytail: bounded enumeration; partition independent components when the
- * complete joint set exceeds ENUM_DOMAIN_CAP. Never sample a partial set. */
+ * ponytail: bounded enumeration within independent components; use a proved
+ * symbolic sampler when a coupled component exceeds the cap. No partial sets. */
 static Z3_lbool z3_enumerate_joint_(Z3_context ctx, Z3_solver base,
       const vector<Z3_ast>&variables, size_t cap,
       vector<vector<uint64_t> >&tuples, const char*&reason)
@@ -4484,6 +4505,76 @@ static Z3_lbool z3_enumerate_joint_(Z3_context ctx, Z3_solver base,
             return Z3_L_TRUE;
       }
       return result;
+}
+
+/* IEEE 1800-2017 18.5.9/18.5.10; IEEE 1800-2023 18.5.8/18.5.9:
+ * independent factors have a Cartesian product of legal projected tuples.
+ * Split only conjunctions. Include every symbolic constant, even state and
+ * auxiliary bindings, so indirect dependencies cannot disappear from a factor.
+ * Keep the shared solver for feasibility; this partitions sampling, not solving. */
+static bool z3_joint_components_(Z3_context ctx, Z3_solver base,
+      const vector<Z3_ast>&variables, vector<vector<Z3_ast> >&components)
+{
+      map<Z3_ast, Z3_ast> parent;
+      auto root = [&](Z3_ast var) {
+            if (!parent.count(var)) parent[var] = var;
+            Z3_ast node = var;
+            while (parent[node] != node) node = parent[node];
+            while (parent[var] != var) {
+                  Z3_ast next = parent[var];
+                  parent[var] = node;
+                  var = next;
+            }
+            return node;
+      };
+      vector<Z3_ast> clauses;
+      Z3_ast_vector assertions = Z3_solver_get_assertions(ctx, base);
+      Z3_ast_vector_inc_ref(ctx, assertions);
+      for (unsigned i = 0; i < Z3_ast_vector_size(ctx, assertions); ++i)
+            clauses.push_back(Z3_ast_vector_get(ctx, assertions, i));
+      Z3_ast_vector_dec_ref(ctx, assertions);
+      while (!clauses.empty()) {
+            Z3_ast clause = clauses.back();
+            clauses.pop_back();
+            if (Z3_get_ast_kind(ctx, clause) == Z3_APP_AST) {
+                  Z3_app app = Z3_to_app(ctx, clause);
+                  if (Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx, app)) == Z3_OP_AND) {
+                        for (unsigned i = 0; i < Z3_get_app_num_args(ctx, app); ++i)
+                              clauses.push_back(Z3_get_app_arg(ctx, app, i));
+                        continue;
+                  }
+            }
+            vector<Z3_ast> pending(1, clause);
+            set<Z3_ast> visited;
+            Z3_ast first = nullptr;
+            while (!pending.empty()) {
+                  Z3_ast node = pending.back();
+                  pending.pop_back();
+                  if (!visited.insert(node).second) continue;
+                  Z3_ast_kind kind = Z3_get_ast_kind(ctx, node);
+                  if (kind == Z3_NUMERAL_AST) continue;
+                  if (kind != Z3_APP_AST) return false;
+                  Z3_app app = Z3_to_app(ctx, node);
+                  unsigned count = Z3_get_app_num_args(ctx, app);
+                  if (Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx, app)) == Z3_OP_UNINTERPRETED) {
+                        if (count) return false;
+                        if (!first) first = node;
+                        parent[root(node)] = root(first);
+                  }
+                  for (unsigned i = 0; i < count; ++i)
+                        pending.push_back(Z3_get_app_arg(ctx, app, i));
+            }
+      }
+      // Preserve first semantic occurrence order, independent of AST addresses.
+      map<Z3_ast, size_t> positions;
+      components.clear();
+      for (Z3_ast var : variables) {
+            Z3_ast representative = root(var);
+            auto inserted = positions.emplace(representative, components.size());
+            if (inserted.second) components.emplace_back();
+            components[inserted.first->second].push_back(var);
+      }
+      return true;
 }
 
 static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
@@ -4961,10 +5052,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       }
 
       if (exact_joint) {
-            // Dist and explicit ordering require their own proved staged
-            // distributions (2017 18.5.4/18.5.10; 2023 18.5.3/18.5.9).
-            if (!builder.dist_specs.empty() || !builder.order_pairs.empty())
-                  return fail_joint("dist and solve-before stages across objects are not yet supported");
+            // Explicit ordering requires proved staged distributions
+            // (IEEE 1800-2017 18.5.10; IEEE 1800-2023 18.5.9).
+            if (!builder.order_pairs.empty())
+                  return fail_joint("solve-before stages across objects are not yet supported");
             vector<Z3_ast> sizes;
             for (const auto&sv : builder.size_vars) sizes.push_back(sv.var);
             if (!sizes.empty()) {
@@ -5035,6 +5126,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       std::set<Z3_ast> dist_fallback_vars;
       std::set<Z3Builder::VarRef> dist_fallback_refs;
       auto resolve_dist = [&](size_t spec_index) {
+            // Joint draws occur only after complete component proofs, and never
+            // in the preliminary pass before dynamic foreach expansion.
+            if (exact_joint) return;
 	    if (dist_handled.count(spec_index)) return;
 	    dist_handled.insert(spec_index);
 	    const Z3Builder::DistSpec&spec = builder.dist_specs[spec_index];
@@ -5264,18 +5358,67 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             // Canonical graph struct leaves are PropVars, not MemberVars.
             if (!builder.member_vars.empty())
                   return fail_joint("an unpacked-struct leaf lacks canonical storage");
-            vector<vector<uint64_t> > tuples;
-            const char*reason = nullptr;
-            if (z3_enumerate_joint_(ctx, base, variables, ENUM_DOMAIN_CAP, tuples, reason) != Z3_L_TRUE)
-                  return fail_joint(reason);
-            // Root-owned draw for one coupled model (2017/2023 18.14.1/.3).
-            // A singleton has no choice and consumes no additional entropy.
-            const auto&chosen = tuples[tuples.size() == 1 ? 0 : root_rng.uniform_index(tuples.size())];
-            for (size_t i = 0; i < variables.size(); ++i) {
-                  Z3_ast value = Z3_mk_unsigned_int64(ctx, chosen[i], Z3_get_sort(ctx, variables[i]));
-                  Z3_ast pin = Z3_mk_eq(ctx, variables[i], value);
-                  Z3_solver_assert(ctx, base, pin);
-                  Z3_optimize_assert(ctx, opt, pin);
+            vector<vector<Z3_ast> > components;
+            if (!z3_joint_components_(ctx, base, variables, components))
+                  return fail_joint("the joint dependency graph contains an unsupported expression");
+            vector<const Z3Builder::DistSpec*> distributions(components.size(), nullptr);
+            vector<size_t> subject_columns(components.size());
+            for (const auto&spec : builder.dist_specs) {
+                  if (dist_disabled(spec)) continue;
+                  // IEEE 1800-2017 18.5.4; IEEE 1800-2023 18.5.3.
+                  // A discarded soft owner, conditional activation, or active
+                  // weight needs more metadata before exact marginal sampling.
+                  if (spec.disableable || !spec.exact_supported || !spec.state_weights)
+                        return fail_joint("joint dist requires an unconditional hard distribution with state-only weights and ground items");
+                  if (!dist_active(spec)) continue;
+                  bool found = false;
+                  for (size_t ci = 0; ci < components.size(); ++ci) {
+                        const auto&component = components[ci];
+                        auto subject = find(component.begin(), component.end(), spec.subject);
+                        if (subject == component.end()) continue;
+                        if (distributions[ci])
+                              return fail_joint("multiple distributions in a coupled component are not yet supported");
+                        distributions[ci] = &spec;
+                        subject_columns[ci] = subject - component.begin();
+                        found = true;
+                        break;
+                  }
+                  if (!found)
+                        return fail_joint("joint dist requires a direct canonical scalar or element subject");
+            }
+            // Prove every complete factor before drawing. A cap/UNKNOWN after
+            // choosing a weighted value could otherwise bias successful calls.
+            vector<vector<vector<uint64_t> > > tables(components.size());
+            for (size_t ci = 0; ci < components.size(); ++ci) {
+                  const char*reason = nullptr;
+                  if (z3_enumerate_joint_(ctx, base, components[ci], ENUM_DOMAIN_CAP, tables[ci], reason) != Z3_L_TRUE)
+                        return fail_joint(reason);
+            }
+            for (size_t ci = 0; ci < components.size(); ++ci) {
+                  const auto&component = components[ci];
+                  auto&tuples = tables[ci];
+                  if (const auto*spec = distributions[ci]) {
+                        uint64_t subject = 0;
+                        if (!z3_resolve_dist_exact(ctx, base, opt, *spec,
+                              owner_rng(spec->rng_owner), subject, true))
+                              return fail_joint("a joint distribution has an excluded range member or could not be sampled exactly");
+                        unsigned width = bv_width(ctx, spec->subject);
+                        if (width < 64) subject &= (uint64_t(1) << width) - 1;
+                        size_t column = subject_columns[ci];
+                        tuples.erase(remove_if(tuples.begin(), tuples.end(),
+                              [&](const vector<uint64_t>&tuple) { return tuple[column] != subject; }), tuples.end());
+                        if (tuples.empty())
+                              return fail_joint("the sampled distribution value has no proved joint tuple");
+                  }
+                  // A distribution sets its subject's marginal; the remaining
+                  // complete fiber is uniform. Independent factors multiply.
+                  const auto&chosen = tuples[tuples.size() == 1 ? 0 : root_rng.uniform_index(tuples.size())];
+                  for (size_t i = 0; i < component.size(); ++i) {
+                        Z3_ast value = Z3_mk_unsigned_int64(ctx, chosen[i], Z3_get_sort(ctx, component[i]));
+                        Z3_ast pin = Z3_mk_eq(ctx, component[i], value);
+                        Z3_solver_assert(ctx, base, pin);
+                        Z3_optimize_assert(ctx, opt, pin);
+                  }
             }
       }
 

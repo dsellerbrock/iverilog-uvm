@@ -1,0 +1,8 @@
+ERROR: global constraint sampling failed: the complete joint solution set exceeds the enumeration limit.
+ERROR: global constraint sampling failed: joint dist requires an unconditional hard distribution with state-only weights and ground items.
+ERROR: global constraint sampling failed: joint dist requires an unconditional hard distribution with state-only weights and ground items.
+Warning: dist weight expression could not be evaluated at randomize time; its branch has zero weight (further similar warnings suppressed).
+ERROR: global constraint sampling failed: joint dist requires an unconditional hard distribution with state-only weights and ground items.
+ERROR: global constraint sampling failed: joint dist requires an unconditional hard distribution with state-only weights and ground items.
+ERROR: global constraint sampling failed: a joint distribution has an excluded range member or could not be sampled exactly.
+ERROR: global constraint sampling failed: multiple distributions in a coupled component are not yet supported.

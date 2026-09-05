@@ -233,3 +233,80 @@ installed binary fingerprints unchanged during the checks. See
 `global-build19-fingerprints.json`, `global-build19.log`, and
 `global-handle-build19-results.json`. The complete gate and application censuses
 above were run on build18; they were not repeated for this include-only change.
+
+## Independent components and bounded joint distributions — local gate complete
+
+Components build3 extends the shared sampler under IEEE 1800-2017
+18.5.9/18.5.10 and IEEE 1800-2023 18.5.8/18.5.9. It partitions complete hard
+assertions after soft selection and randc pins. Only top-level conjunctions
+split; all symbolic constants, including auxiliary/state bindings, connect
+factors. Every factor uses the same global solver. Complete projected tables
+are proved before any ordinary draw, with the existing 1024-tuple cap per
+factor. No Cartesian product is materialized, and no partial set is sampled.
+
+One unconditional hard distribution per independent factor is supported under
+IEEE 1800-2017 18.5.4 and IEEE 1800-2023 18.5.3. Its subject must be a direct
+canonical scalar/element variable, its weights must be state-only, and its
+items must fit the existing ground exact-sampling representation. The existing
+sampler chooses the subject; a uniform draw from the proved conditional rows
+selects the remainder. State weight provenance is collected before prefill
+substitution, including for an inactive subject. Global array preprocessing
+consumes no distribution draw before final foreach expansion.
+
+Soft/guarded distributions, active weights, multiple distributions in a coupled
+factor, and solve-before remain explicit boundaries. The new common subset
+also rejects positive ranges with excluded members: the 2023 clause explicitly
+retains original range mass after exclusion, whereas the 2017 text does not
+establish the same policy. Legacy range behavior is unchanged. Existing size,
+width, history, and solver-UNKNOWN limits remain. This is not full distribution
+or ordering conformance.
+
+Three paired families cover independent domains larger than the whole-tuple
+cap, uniform products of coupled tuples, RNG replay, weighted marginal/fiber
+probabilities, four unequal-size bins with equal mass, zero weights, coupled
+OR limits, active/X weights including inactive subjects, and unsupported
+soft/range/multiple-distribution cases. The old sampling-boundary test now
+requires its newly supported weighted solve to succeed and preserve its hard
+relation; all original size/cap/ordering failures remain. The diagnostic diff
+is audited in N/global-components-sampling-boundary-gold-audit.json.
+
+Direct checks and the 34-test legacy focus pass in both edition modes. Native
+GCC16 syntax checking passes with its existing shadow warning. The independent
+component and distribution reviews are recorded in global-components-code-review1.md
+and global-dist-code-review1.md. Review found an inactive-subject bypass of
+weight validation; the permanent negative reducer now exercises the correction.
+One draft test used the reserved word `bins` as a class name; both compilers
+rejected it, and the test identifier was corrected. No grammar change was made.
+
+Full components gate1 passes on frozen build3. The earlier application census
+results above remain build18 evidence until fresh per-row comparisons finish.
+The targeted xbar probe reuses unchanged baseline bytecode with the new runtime;
+it is diagnostic evidence, not a completed census. No new core count is claimed.
+
+The full legacy portion now passes 4627/4632 (0 failed, 2 NI, 3 EF), clean
+name diff, VPI 103/103, negative 149/0, and runtime invariants. Full JSON passes
+1521/0; UVM completes 355 passed / 0 failed / 0 skipped. An additional edition-paired array-distribution
+check passes with fixed-size foreach, weighted element marginals, callback counts,
+and RNG replay (N/global-components-array-dist-results.json).
+
+The targeted baseline-bytecode xbar probe reached the 300s CPU guard (signal24),
+without completing. A separate 40s unbuffered trace shows configuration and smoke
+sequence solves succeeding before host sequences; a scoreboard comparison fails
+at 1681844ps in scoreboard_queue.sv:108. Raising verbosity to UVM_HIGH in another
+bounded diagnostic exposes an existing enum/VPI format comparison assertion at
+v2009_enum.c:207 (formats6vs5, signal6). These are recorded frontiers, not passing
+application results: see N/global-components-xbar-frontier.json.
+
+Claude Code CLI review1 was attempted on an immutable snapshot but returned
+API429/session limit before reading code (zero input/output tokens). Its reported
+reset is 22:30 America/Denver. No cross-model review is claimed for this delta;
+the two native reviews above are complete. The older Claude review2 remains
+valid only for its earlier recorded snapshot.
+
+Components build3 is frozen with the complete local gate passing. The fresh
+OpenTitan census has started; Caliptra and the per-row diff follow in the owned
+coordinator. No new application count or full-DV completion is claimed. See
+N/global-components-final-gate1-result.json and the census coordinator record.
+The next enum frontier has a module-scalar reproducer in both edition modes;
+class-property/method controls pass. N/global-components-next-enum-frontier.md
+records that distinction. No enum runtime change is included in this increment.

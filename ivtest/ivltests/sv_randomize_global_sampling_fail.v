@@ -56,7 +56,8 @@ module main;
     s.low_bound=65537; s.high_bound=65537;
     if (s.randomize() || s.data.size()!=2 || s.posts)
       $fatal(1, "unsupported fixed size silently clamped");
-    if (w.randomize()) $fatal(1, "weighted graph silently used uniform tuples");
+    if (!w.randomize() || w.child.value > w.value)
+      $fatal(1, "supported weighted graph failed or broke its hard relation");
     if (o.randomize()) $fatal(1, "ordered graph silently used uniform tuples");
     $display("PASSED");
   end
