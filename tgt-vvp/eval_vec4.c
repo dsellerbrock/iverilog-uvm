@@ -1748,7 +1748,8 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	     * selects callbacks from the receiver's dynamic class. This also
 	     * applies to randomize(null), whose selector only affects solving. */
 	    if (arg)
-		  fprintf(vvp_out, "    %%randomize/hook 0;\n");
+		  fprintf(vvp_out, "    %%randomize/pre \"%s\";\n",
+                          sel ? sel : "*");
 	    if (sel)
 		  fprintf(vvp_out, "    %%rand/active \"%s\";\n", sel);
 	    if (arg)
@@ -1788,7 +1789,8 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    if (obj_arg)
 		  draw_eval_object(obj_arg);
 	    if (obj_arg && !scope_form)
-		  fprintf(vvp_out, "    %%randomize/hook 0;\n");
+		  fprintf(vvp_out, "    %%randomize/pre \"%.*s\";\n",
+                          (int)sel_len, sel_beg);
 	      /* Push runtime slot values (vec4 stack) first so they're
 	       * under the result when %randomize/with pops them. */
 	    for (unsigned i = 0 ; i < n_vals ; i++) {
