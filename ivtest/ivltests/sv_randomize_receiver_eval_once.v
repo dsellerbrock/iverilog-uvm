@@ -57,15 +57,15 @@ module test;
 
     if (!holder.items[next_index()].randomize(null))
       $fatal(1, "randomize(null) check failed");
-    if (receiver_evals != 3 || holder.items[0].pre_calls != 2
-        || holder.items[0].post_calls != 1)
+    if (receiver_evals != 3 || holder.items[0].pre_calls != 3
+        || holder.items[0].post_calls != 2)
       $fatal(1, "null receiver/hooks: eval=%0d pre=%0d post=%0d",
              receiver_evals, holder.items[0].pre_calls,
              holder.items[0].post_calls);
 
     void'(holder.items[next_index()].randomize() with { value == 7; });
-    if (receiver_evals != 4 || holder.items[0].pre_calls != 3
-        || holder.items[0].post_calls != 2 || holder.items[0].value != 7)
+    if (receiver_evals != 4 || holder.items[0].pre_calls != 4
+        || holder.items[0].post_calls != 3 || holder.items[0].value != 7)
       $fatal(1, "with receiver/hooks/value: eval=%0d pre=%0d post=%0d value=%0d",
              receiver_evals, holder.items[0].pre_calls,
              holder.items[0].post_calls, holder.items[0].value);

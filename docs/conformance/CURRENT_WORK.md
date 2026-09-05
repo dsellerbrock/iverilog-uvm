@@ -9,7 +9,29 @@ Bison 3.8.x, absolute worktree `local-install/bin` first on PATH, and no RSS
 or output-size ceiling remain required. Earlier 45-second measurements below
 are historical evidence; they do not set the current limit.
 
-## Active increment — 2026-09-04 — hierarchical state foreach
+## Active increment — 2026-09-04 — dynamic root randomize callbacks
+
+Branch `agent/randomize-hooks-after255-arm64-20260904` is based on
+`167e8bf5d` (draft PR #255). The validated installed build4 fixes dynamic
+root callback dispatch and root callbacks on `randomize(null)`, with exact
+2017/2023 regressions, including the reviewed escaped-identifier correction.
+Ten focused executions and the fresh complete build4 gate pass: legacy
+4557/4562 (0 failed), JSON 1451/0, VPI 103/103, negative 149/0, runtime
+invariants, and real-DPI UVM 355/0/0. Compiler fingerprints stayed fixed.
+Both censuses completed with unchanged binaries and inputs. OpenTitan has
+203 PASS (210 previously): seven zero-traffic xbar runtime passes now fail,
+and Darjeeling-main changes from timeout to the same time-zero randomization
+failure. All compile classifications are unchanged. ADC completes with the
+prior isolated replay's metrics and full output-line multiset. Summed debt
+2223 → 2222 is solely diagnostic interleaving, not semantic progress.
+Caliptra remains 52 PASS / ICARUS_GAP 0, all 105 jobs unchanged. Its invalid
+first attempt omitted a baseline harness wrapper; the corrected full rerun
+is recorded separately. Enabled-member callbacks and simultaneous random
+object graph constraints remain next requirements. Native and Claude CLI reviews are complete
+and reconciled; both conditional Claude questions were resolved using the
+actual label matcher, a forced-fallback probe and both IEEE editions. See [the callback session record](session_logs/2026-09-04_dynamic_root_randomize_hooks.md).
+
+## Previous validated increment — 2026-09-04 — hierarchical state foreach
 
 Branch `agent/xbar-foreach-after254-arm64-20260904` now contains the xbar
 foreach implementation in the retained worktree. It preserves selected-owner
@@ -27,7 +49,7 @@ and diagnostic/output evidence. Raw census counts are retained. All xbar
 smokes report zero scoreboard items, so meaningful DV traffic remains an
 open issue despite the compile/constraint progress.
 See [the implementation and validation record](session_logs/2026-09-04_hierarchical_state_foreach.md).
-The installed compiler contains this active increment, so the checkpoint
+The previous validated compiler contains this increment, so the checkpoint
 counts below remain the historical pre-xbar checkpoint.
 
 ## Latest validated checkpoint — 2026-09-04

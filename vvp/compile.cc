@@ -586,6 +586,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%rand_mode/p/i",  of_RAND_MODE_P_I,   3,{OA_NUMBER, OA_BIT1,OA_BIT2} },
       { "%rand_mode/p/last",of_RAND_MODE_P_LAST,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%randomize",      of_RANDOMIZE,      0,{OA_NONE,   OA_NONE,OA_NONE} },
+      { "%randomize/hook", of_RANDOMIZE_HOOK,  1,{OA_BIT1,   OA_NONE,OA_NONE} },
       { "%randomize/with", of_RANDOMIZE_WITH,  2,{OA_STRING, OA_BIT1,OA_NONE} },
       { "%randomize/with/objects", of_RANDOMIZE_WITH_OBJECTS, 3,{OA_STRING, OA_BIT1,OA_BIT2} },
       { "%reactive/process",of_REACTIVE_PROCESS,0,{OA_NONE,OA_NONE,OA_NONE} },
@@ -1466,7 +1467,7 @@ void code_label_lookup(struct vvp_code_s *code, char *label, bool cptr2)
 }
 
 bool compile_lookup_code_scope(const char*label, vvp_code_t*code,
-                               __vpiScope**scope)
+                               __vpiScope**scope, bool exact)
 {
       if (!label)
             return false;
@@ -1481,7 +1482,7 @@ bool compile_lookup_code_scope(const char*label, vvp_code_t*code,
             return true;
       }
 
-      if (runtime_lookup_code_scope_by_suffix_(label, code, scope))
+      if (!exact && runtime_lookup_code_scope_by_suffix_(label, code, scope))
             return true;
 
       if (!sym_codespace)

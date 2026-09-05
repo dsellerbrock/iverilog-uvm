@@ -529,3 +529,20 @@ Complete parameterized/modport VIF interactions, arbitrary recursive aggregate
 semantics, mailbox reference lifetime, and application closure remain open.
 See the dated 2017 matrix section and
 `session_logs/2026-09-02_parameterized_vif_recursive_containers_typed_mailbox.md`.
+
+## 2026-09-04 clauses 5.6.1, 8.20, 18.6.2-18.6.3, and 18.11 — root randomize callbacks
+
+The implemented root-callback rules are the same in IEEE 1800-2017 and
+IEEE 1800-2023. Automatic pre/post calls independently select the nearest
+declaration in the receiver's dynamic class, while direct calls retain their
+declared virtual/nonvirtual behavior. Checker calls using `randomize(null)`
+still invoke root pre and, on success, root post. Escaped method labels use
+the target's existing identifier encoding. Paired-edition tests cover these
+rules, automatic frames, parameterization, receiver identity and inline
+state capture after pre.
+
+This remains partial support: enabled-member callbacks and simultaneous
+global constraints are still open. The latter clause is numbered **18.5.9
+in 2017** and **18.5.8 in 2023**; foreach is **18.5.8.1 in 2017** and
+**18.5.7.1 in 2023**. See the [root callback session record](session_logs/2026-09-04_dynamic_root_randomize_hooks.md)
+for the completed gate and application evidence.
