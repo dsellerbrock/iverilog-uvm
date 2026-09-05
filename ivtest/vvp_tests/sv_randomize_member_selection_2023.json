@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_randomize_member_selection_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_randomize_member_selection"
+}

@@ -300,6 +300,20 @@ struct active_call_context_s {
       { }
 };
 
+/* IEEE 1800-2017/2023 18.6.2: one callback context spans pre callbacks,
+ * inline captures, solving and post callbacks. Inline captures can themselves
+ * randomize, so the caller owns a stack rather than one pending receiver. */
+struct randomize_call_context_s {
+      enum phase_t { PRE, READY, SOLVED, POST } phase = PRE;
+      vvp_object_t root;
+      bool explicit_selection = false;
+      std::vector<bool> selection;
+      std::map<vvp_cobject*, vvp_object_t> pre_called;
+      std::vector<vvp_object_t> post_objects;
+      size_t post_index = 0;
+      __vpiScope*frame_scope = nullptr;
+};
+
 /* Static VIF-function input formals live in shared storage. Stage one private
  * value per effective-static formal while actual/default expressions are
  * evaluated, then commit the complete row immediately before %callf. This
@@ -890,6 +904,7 @@ struct vthread_s {
       __vpiScope*staged_alloc_rd_scope;
       __vpiScope*pending_alloc_scope;
       __vpiScope*randomize_hook_scope = nullptr;
+      std::vector<randomize_call_context_s> randomize_calls;
       __vpiScope*return_object_mirror_scope;
       __vpiScope*dynamic_dispatch_base_scope;
 	/* These are used to pass non-blocking event control information. */
@@ -4804,6 +4819,13 @@ class randomize_graph_session_t {
 		  value.defn->static_randomize_transaction_commit(value.pid);
       }
 
+      void callback_objects(std::vector<vvp_object_t>&objects) const
+      {
+            for (const randomize_graph_entry_s&entry : entries_)
+                  if (!entry.cobj->get_defn()->is_struct_type())
+                        objects.push_back(entry.hold);
+      }
+
       void rollback()
       {
 	    for (std::vector<randomize_graph_entry_s>::reverse_iterator it =
@@ -5151,113 +5173,120 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 			       const std::vector<bool>*sel,
 			       const randomize_solve_options_s*options = nullptr);
 
-/* Recurse through one object-valued aggregate element. Unpacked structs are
- * value aggregates and consume the containing object's RNG; class handles
- * are independent randomizable objects and consume their own RNG. Nested
- * D/Q/M containers are traversed so every non-null class handle participates
- * in the same outer graph transaction. */
-static bool randomize_object_value_(randomize_graph_session_t&session,
-				    const vvp_object_t&obj,
-				    const std::function<unsigned()>&next_random,
-				    bool*aggregate_changed = nullptr)
-{
-      if (vvp_cobject*subcobj = obj.peek<vvp_cobject>()) {
-	    if (subcobj->get_defn()->is_struct_type()) {
-		  bool ok = randomize_struct_members_(session, subcobj,
-						      subcobj->get_defn(),
-						      next_random);
-		  if (ok && aggregate_changed) *aggregate_changed = true;
-		  return ok;
-	    }
-	    return randomize_cobject_(session, subcobj, nullptr);
-      }
-
-      if (vvp_darray*array = obj.peek<vvp_darray>()) {
-	    for (size_t idx = 0 ; idx < array->get_size() ; idx += 1) {
-		  vvp_object_t elem;
-		  array->get_word((unsigned)idx, elem);
-		  if (!randomize_object_value_(session, elem, next_random,
-						aggregate_changed))
-			return false;
-	    }
-	    return true;
-      }
-
-      if (vvp_assoc_object*assoc = obj.peek<vvp_assoc_object>()) {
-	    std::string skey;
-	    for (bool ok = assoc->first_key(skey); ok;
-		 ok = assoc->next_key(skey)) {
-		  vvp_object_t elem;
-		  if (assoc->get(skey, elem)
-		      && !randomize_object_value_(session, elem, next_random,
-						 aggregate_changed))
-			return false;
-	    }
-
-	    vvp_object_t okey;
-	    for (bool ok = assoc->first_key(okey); ok;
-		 ok = assoc->next_key(okey)) {
-		  vvp_object_t elem;
-		  if (assoc->get(okey, elem)
-		      && !randomize_object_value_(session, elem, next_random,
-						 aggregate_changed))
-			return false;
-	    }
-
-	    vvp_vector4_t vkey;
-	    for (bool ok = assoc->first_key(vkey); ok;
-		 ok = assoc->next_key(vkey)) {
-		  vvp_object_t elem;
-		  if (assoc->get(vkey, elem)
-		      && !randomize_object_value_(session, elem, next_random,
-						 aggregate_changed))
-			return false;
-	    }
-	    return true;
-      }
-
-      return true;
-}
+/* Pure object enumeration is shared by callback discovery and solving. It
+ * never snapshots, fills random values, or retains iterators across callbacks. */
+using randomize_object_visitor_t = std::function<bool(const vvp_object_t&)>;
 
 template <class KEY>
-static bool randomize_assoc_object_key_(randomize_graph_session_t&session,
-					vvp_assoc_object*assoc,
-					const KEY&key,
-					const std::function<unsigned()>&next_random,
-					bool*aggregate_changed)
+static bool randomize_visit_assoc_key_(vvp_assoc_object*assoc, const KEY&key,
+                                      const randomize_object_visitor_t&visit)
 {
       vvp_object_t elem;
-      return !assoc->get(key, elem)
-	    || randomize_object_value_(session, elem, next_random,
-				       aggregate_changed);
+      return !assoc->get(key, elem) || visit(elem);
 }
 
-static bool randomize_assoc_objects_(randomize_graph_session_t&session,
-				     vvp_assoc_object*assoc,
-				     const std::function<unsigned()>&next_random,
-				     bool all_active,
-				     bool*aggregate_changed)
+static bool randomize_visit_assoc_(vvp_assoc_object*assoc, bool all_active,
+                                   const randomize_object_visitor_t&visit)
 {
       if (!assoc) return true;
       std::string skey;
       for (bool ok = assoc->first_key(skey); ok; ok = assoc->next_key(skey))
-	    if ((all_active || assoc->rand_mode(skey))
-		&& !randomize_assoc_object_key_(session, assoc, skey,
-					       next_random, aggregate_changed))
-		  return false;
+            if ((all_active || assoc->rand_mode(skey))
+                && !randomize_visit_assoc_key_(assoc, skey, visit))
+                  return false;
       vvp_object_t okey;
       for (bool ok = assoc->first_key(okey); ok; ok = assoc->next_key(okey))
-	    if ((all_active || assoc->rand_mode(okey))
-		&& !randomize_assoc_object_key_(session, assoc, okey,
-					       next_random, aggregate_changed))
-		  return false;
+            if ((all_active || assoc->rand_mode(okey))
+                && !randomize_visit_assoc_key_(assoc, okey, visit))
+                  return false;
       vvp_vector4_t vkey;
       for (bool ok = assoc->first_key(vkey); ok; ok = assoc->next_key(vkey))
-	    if ((all_active || assoc->rand_mode(vkey))
-		&& !randomize_assoc_object_key_(session, assoc, vkey,
-					       next_random, aggregate_changed))
-		  return false;
+            if ((all_active || assoc->rand_mode(vkey))
+                && !randomize_visit_assoc_key_(assoc, vkey, visit))
+                  return false;
       return true;
+}
+
+static bool randomize_visit_object_value_(const vvp_object_t&obj,
+                                         const randomize_object_visitor_t&visit)
+{
+      if (obj.peek<vvp_cobject>()) return visit(obj);
+      if (vvp_darray*array = obj.peek<vvp_darray>()) {
+            for (size_t idx = 0; idx < array->get_size(); ++idx) {
+                  vvp_object_t elem;
+                  array->get_word((unsigned)idx, elem);
+                  if (!randomize_visit_object_value_(elem, visit)) return false;
+            }
+      } else if (vvp_assoc_object*assoc = obj.peek<vvp_assoc_object>()) {
+            return randomize_visit_assoc_(assoc, true,
+                  [&](const vvp_object_t&elem) {
+                        return randomize_visit_object_value_(elem, visit);
+                  });
+      }
+      return true;
+}
+
+/* IEEE 1800-2017/2023 18.8/18.11: fixed words, direct D/Q elements and
+ * typed associative keys have separate modes. Explicit selection overrides
+ * those modes at this object only. The visitor also receives the property
+ * word so solver writes retain their existing static dirty-marking scope. */
+static bool randomize_visit_property_objects_(vvp_cobject*cobj,
+      const std::vector<bool>*sel, size_t pid,
+      const std::function<bool(const vvp_object_t&, size_t)>&visit)
+{
+      const class_type*defn = cobj->get_defn();
+      if (!rand_call_active_(defn, cobj, sel, pid)) return true;
+      const std::string&bt = defn->property_base_type(pid);
+      if (!(bt == "o" || bt.compare(0, 3, "oc:") == 0
+            || bt == "Do" || bt == "Qo" || bt == "Mo")) return true;
+      uint64_t count = defn->property_array_size(pid);
+      if (count < 1) count = 1;
+      bool all_active = sel && pid < sel->size() && (*sel)[pid];
+      if (count == 1 && (bt == "Do" || bt == "Qo")) {
+            vvp_object_t obj;
+            cobj->get_object(pid, obj, 0);
+            if (vvp_darray*array = obj.peek<vvp_darray>()) {
+                  for (size_t idx = 0; idx < array->get_size(); ++idx) {
+                        if (!all_active && !cobj->rand_mode(pid, idx)) continue;
+                        vvp_object_t elem;
+                        array->get_word((unsigned)idx, elem);
+                        if (!visit(elem, 0)) return false;
+                  }
+            }
+            return true;
+      }
+      if (count == 1 && bt == "Mo") {
+            vvp_object_t obj;
+            cobj->get_object(pid, obj, 0);
+            return randomize_visit_assoc_(obj.peek<vvp_assoc_object>(), all_active,
+                  [&](const vvp_object_t&elem) { return visit(elem, 0); });
+      }
+      for (uint64_t adr = 0; adr < count; ++adr) {
+            if (!rand_leaf_active_(defn, cobj, sel, pid, (size_t)adr)) continue;
+            vvp_object_t obj;
+            cobj->get_object(pid, obj, adr);
+            if (!visit(obj, (size_t)adr)) return false;
+      }
+      return true;
+}
+
+/* Struct values consume the containing RNG; class handles use their own RNG.
+ * Both remain in the existing outer graph transaction. */
+static bool randomize_object_value_(randomize_graph_session_t&session,
+                                    const vvp_object_t&obj,
+                                    const std::function<unsigned()>&next_random,
+                                    bool*aggregate_changed = nullptr)
+{
+      return randomize_visit_object_value_(obj, [&](const vvp_object_t&leaf) {
+            vvp_cobject*subcobj = leaf.peek<vvp_cobject>();
+            if (subcobj->get_defn()->is_struct_type()) {
+                  bool ok = randomize_struct_members_(session, subcobj,
+                        subcobj->get_defn(), next_random);
+                  if (ok && aggregate_changed) *aggregate_changed = true;
+                  return ok;
+            }
+            return randomize_cobject_(session, subcobj, nullptr);
+      });
 }
 
 template <class KEY>
@@ -5342,141 +5371,65 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 	    if (!rand_call_active_(defn, cobj, sel, pid))
 		  continue;
 
-	      // Unpacked-struct and class-handle rand properties: no bits
-	      // of their own to pre-fill here -- struct members get filled
-	      // member-wise, and a non-null handle gets its own randomize()
-	      // (see the two helpers above). A null handle stays null.
-	    {
-		  const std::string&bt = defn->property_base_type(pid);
-		  bool is_struct_prop = bt.compare(0, 3, "oc:") == 0;
-		  bool is_handle_prop = (bt == "o");
-		  if (is_struct_prop || is_handle_prop) {
-			uint64_t hsize = defn->property_array_size(pid);
-			if (hsize < 1) hsize = 1;
-			for (uint64_t adr = 0 ; adr < hsize ; adr += 1) {
-			      if (!rand_leaf_active_(defn, cobj, sel, pid,
-					       (size_t)adr))
-				    continue;
-			      vvp_object_t propobj;
-			      cobj->get_object(pid, propobj, adr);
-			      vvp_cobject*subcobj = propobj.peek<vvp_cobject>();
-			      if (!subcobj) continue;
-			      if (is_struct_prop) {
-				    if (!randomize_struct_members_(session, subcobj,
-						       subcobj->get_defn(),
-						       next_random,
-						       &deferred_struct_transactions))
-					  solve_ok = false;
-				    if (defn->property_is_static(pid))
-					  defn->static_randomize_transaction_mark_dirty(
-						pid, (size_t)adr);
-			      } else if (!randomize_cobject_(session, subcobj,
-							 nullptr))
-				    solve_ok = false;
-			}
-			continue;
-		  }
-	    }
+            const std::string&bt = defn->property_base_type(pid);
+            bool is_struct_prop = bt.compare(0, 3, "oc:") == 0;
+            if (is_struct_prop || bt == "o" || bt == "Do"
+                || bt == "Qo" || bt == "Mo") {
+                  bool deferred_dirty = false;
+                  randomize_visit_property_objects_(cobj, sel, pid,
+                        [&](const vvp_object_t&obj, size_t adr) {
+                              bool changed = false;
+                              if (is_struct_prop) {
+                                    if (vvp_cobject*sub = obj.peek<vvp_cobject>()) {
+                                          if (!randomize_struct_members_(session, sub,
+                                                sub->get_defn(), next_random,
+                                                &deferred_struct_transactions))
+                                                solve_ok = false;
+                                          changed = true;
+                                    }
+                              } else if (!randomize_object_value_(session, obj,
+                                                next_random, &changed)) {
+                                    solve_ok = false;
+                              }
+                              if (changed && defn->property_is_static(pid)) {
+                                    if (!is_struct_prop && bt != "o"
+                                        && defn->property_array_size(pid) <= 1)
+                                          deferred_dirty = true;
+                                    else
+                                          defn->static_randomize_transaction_mark_dirty(pid, adr);
+                              }
+                              // Preserve the direct-handle/struct loop's traversal
+                              // on failure; container recursion stops at its failure.
+                              return (is_struct_prop || bt == "o") || solve_ok;
+                        });
+                  if (deferred_dirty)
+                        defn->static_randomize_transaction_mark_dirty(pid, 0);
+                  continue;
+            }
 
-	      // Object-backed D/Q/M properties may themselves be fixed arrays.
-	      // Traverse each active outer property word before the generic
-	      // fixed-array bit path, which is only valid for integral storage.
-	    {
-		  const std::string&bt = defn->property_base_type(pid);
-		  if (bt == "Do" || bt == "Qo"
-		      || (!bt.empty() && bt[0] == 'M')) {
-			uint64_t count = defn->property_array_size(pid);
-			if (count < 1) count = 1;
-			bool all_active = sel && pid < sel->size() && (*sel)[pid];
-
-			  // A direct D/Q property has one class slot but one random
-			  // variable per live container element. Do not use the
-			  // aggregate all-enabled query for that one slot: a single
-			  // disabled element must pause only itself.
-			if ((bt == "Do" || bt == "Qo") && count == 1) {
-			      vvp_object_t propobj;
-			      cobj->get_object(pid, propobj, 0);
-			      if (vvp_darray*array = propobj.peek<vvp_darray>()) {
-				    bool aggregate_changed = false;
-				    for (size_t idx = 0 ; solve_ok
-					 && idx < array->get_size() ; idx += 1) {
-					  if (!all_active
-					      && !cobj->rand_mode(pid, idx))
-						continue;
-					  vvp_object_t elem;
-					  array->get_word((unsigned)idx, elem);
-					  if (!randomize_object_value_(session, elem,
-						 next_random, &aggregate_changed))
-						solve_ok = false;
-				    }
-				    if (aggregate_changed
-					&& defn->property_is_static(pid))
-					  defn->static_randomize_transaction_mark_dirty(
-						pid, 0);
-			      }
-			      continue;
-			}
-
-			  // A direct associative property likewise controls each
-			  // existing typed key independently. Missing keys are not
-			  // variables and an indexed setter/query is a no-op/zero.
-			if (!bt.empty() && bt[0] == 'M' && count == 1) {
-			      vvp_object_t propobj;
-			      cobj->get_object(pid, propobj, 0);
-			      bool aggregate_changed = false;
-			      if (vvp_assoc_object*assoc =
-					propobj.peek<vvp_assoc_object>()) {
-				    if (!randomize_assoc_objects_(session, assoc,
-					     next_random, all_active,
-					     &aggregate_changed))
-					  solve_ok = false;
-			      } else if (vvp_assoc_vec4*assoc_vec =
-					       propobj.peek<vvp_assoc_vec4>()) {
-				    randomize_assoc_vec4_(cobj, pid, 0, assoc_vec,
-						   defn->property_is_randc(pid),
-						   all_active, next_random);
-				    aggregate_changed = assoc_vec->size() != 0;
-			      }
-			      if (aggregate_changed
-				  && defn->property_is_static(pid))
-				    defn->static_randomize_transaction_mark_dirty(pid, 0);
-			      continue;
-			}
-
-			  // A fixed outer array of object-backed values is controlled
-			  // by its fixed-array leaf modes; selecting one outer word
-			  // controls that entire contained aggregate.
-			for (uint64_t adr = 0 ; solve_ok && adr < count ;
-			     adr += 1) {
-			      if (!rand_leaf_active_(defn, cobj, sel, pid,
-					       (size_t)adr))
-				    continue;
-			      vvp_object_t propobj;
-			      cobj->get_object(pid, propobj, adr);
-			      if (bt == "Do" || bt == "Qo" || bt == "Mo") {
-				    bool aggregate_changed = false;
-				    if (!randomize_object_value_(session, propobj,
-							 next_random,
-							 &aggregate_changed))
-					  solve_ok = false;
-				    if (aggregate_changed
-					&& defn->property_is_static(pid))
-					  defn->static_randomize_transaction_mark_dirty(
-						pid, (size_t)adr);
-			      } else if (vvp_assoc_vec4*assoc =
-					       propobj.peek<vvp_assoc_vec4>()) {
-				    randomize_assoc_vec4_(cobj, pid, (size_t)adr,
-						   assoc,
-						   defn->property_is_randc(pid),
-						   true, next_random);
-				    if (defn->property_is_static(pid))
-					  defn->static_randomize_transaction_mark_dirty(
-						pid, (size_t)adr);
-			      }
-			}
-			continue;
-		  }
-	    }
+            // Integral associative values retain their existing pre-fill order.
+            if (!bt.empty() && bt[0] == 'M') {
+                  uint64_t count = defn->property_array_size(pid);
+                  if (count < 1) count = 1;
+                  bool all_active = sel && pid < sel->size() && (*sel)[pid];
+                  for (uint64_t adr = 0; adr < count; ++adr) {
+                        if (count > 1 && !rand_leaf_active_(defn, cobj, sel,
+                                                          pid, (size_t)adr))
+                              continue;
+                        vvp_object_t obj;
+                        cobj->get_object(pid, obj, adr);
+                        if (vvp_assoc_vec4*assoc = obj.peek<vvp_assoc_vec4>()) {
+                              randomize_assoc_vec4_(cobj, pid, (size_t)adr,
+                                    assoc, defn->property_is_randc(pid),
+                                    count > 1 || all_active, next_random);
+                              if (defn->property_is_static(pid)
+                                  && (count > 1 || assoc->size() != 0))
+                                    defn->static_randomize_transaction_mark_dirty(
+                                          pid, (size_t)adr);
+                        }
+                  }
+                  continue;
+            }
 
 	      // Fixed integral rand properties randomize every active leaf.
 	      // Object-backed and associative properties were handled above.
@@ -5513,7 +5466,6 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 	      // them). Pre-fill them here; a constrained solve may subsequently
 	      // replace the tentative value/mark with its authoritative model.
 	    if (rand_prop_is_container_(defn, pid)) {
-		  const std::string&bt = defn->property_base_type(pid);
 		  if (defn->property_is_randc(pid) && !bt.empty()
 		      && (bt[0] == 'D' || bt[0] == 'Q')) {
 			vvp_object_t object;
@@ -5615,6 +5567,20 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
       return solve_ok;
 }
 
+/* Retain the actual successful participants before the transaction journal
+ * dies. Post callbacks may replace graph edges, so a later rewalk is wrong.
+ * A nested capture or scope solve must not complete an outer call context. */
+static void randomize_callbacks_solved_(vthread_t thr, vvp_cobject*cobj,
+      const randomize_graph_session_t&session, bool success)
+{
+      if (thr->randomize_calls.empty()) return;
+      randomize_call_context_s&call = thr->randomize_calls.back();
+      if (call.phase != randomize_call_context_s::READY
+          || call.root.peek<vvp_cobject>() != cobj) return;
+      call.phase = randomize_call_context_s::SOLVED;
+      if (success) session.callback_objects(call.post_objects);
+}
+
 /*
  * %randomize
  *
@@ -5646,6 +5612,8 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 	    session.rollback();
       else
 	    session.commit();
+
+      randomize_callbacks_solved_(thr, cobj, session, solve_ok);
 
       vvp_object_t tmp;
       thr->pop_object(tmp);
@@ -5732,6 +5700,9 @@ static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
 	    session.rollback();
       else
 	    session.commit();
+
+      if (!scope_form)
+            randomize_callbacks_solved_(thr, cobj, session, solve_ok);
 
       vvp_object_t tmp;
       thr->pop_object(tmp);
@@ -6277,21 +6248,24 @@ bool of_RAND_MODE_GET_A_V(vthread_t thr, vvp_code_t cp)
  * randomized and the call only reports whether the constraints are
  * satisfiable.
  */
-bool of_RAND_ACTIVE(vthread_t thr, vvp_code_t cp)
+static void randomize_parse_selection_(const char*text, std::vector<bool>&sel)
 {
-      thr->rand_sel_armed = true;
-      thr->rand_sel.clear();
-
-      for (const char*cur = cp->text ? cp->text : "" ; *cur ; ) {
+      sel.clear();
+      for (const char*cur = text ? text : "" ; *cur ; ) {
 	    char*end = 0;
 	    unsigned long pid = strtoul(cur, &end, 10);
 	    if (end == cur) break;
-	    if (thr->rand_sel.size() <= pid)
-		  thr->rand_sel.resize(pid + 1, false);
-	    thr->rand_sel[pid] = true;
+	    if (sel.size() <= pid) sel.resize(pid + 1, false);
+	    sel[pid] = true;
 	    cur = end;
 	    while (*cur == ',') cur += 1;
       }
+}
+
+bool of_RAND_ACTIVE(vthread_t thr, vvp_code_t cp)
+{
+      thr->rand_sel_armed = true;
+      randomize_parse_selection_(cp->text, thr->rand_sel);
       return true;
 }
 
@@ -13312,30 +13286,14 @@ bool of_CALLF_VEC4_V(vthread_t thr, vvp_code_t cp)
       return do_callf_void(thr, child);
 }
 
-/* IEEE 1800-2017/2023 18.6.2/18.6.3: automatic randomize callbacks
- * appear virtual, but direct calls to the same methods remain nonvirtual.
- * Resolve each hook independently from the dynamic class, with exact labels:
- * suffix matching could select an unrelated same-named class in a package.
- *
- * The receiver and success word stay on the caller's stacks. Re-enter this
- * instruction after the existing synchronous function trampoline returns to
- * free its automatic frame, just like the generated %alloc/%callf/%free trio.
- */
-bool of_RANDOMIZE_HOOK(vthread_t thr, vvp_code_t cp)
+/* IEEE 1800-2017/2023 18.6.2/18.6.3: automatic callbacks resolve
+ * independently from the dynamic class; direct method calls are unchanged.
+ * The caller owns the ordinary automatic frame until instruction re-entry. */
+static bool randomize_invoke_hook_(vthread_t thr, const vvp_object_t&receiver,
+                                   bool post, __vpiScope*&frame_scope)
 {
-      vvp_code_s frame = {};
-      if (thr->randomize_hook_scope) {
-            frame.scope = thr->randomize_hook_scope;
-            thr->randomize_hook_scope = nullptr;
-            return of_FREE(thr, &frame);
-      }
-      const bool post = cp->bit_idx[0] != 0;
-      if (post && thr->peek_vec4().value(0) != BIT4_1)
-            return true;
-      const vvp_object_t&receiver = thr->peek_object();
       vvp_cobject*cobj = receiver.peek<vvp_cobject>();
       if (!cobj) return true;
-
       vvp_code_t target = nullptr;
       __vpiScope*scope = nullptr;
       const char*hook = post ? "post_randomize" : "pre_randomize";
@@ -13355,6 +13313,7 @@ bool of_RANDOMIZE_HOOK(vthread_t thr, vvp_code_t cp)
             schedule_finish(1);
             return false;
       }
+      vvp_code_s frame = {};
       frame.scope = scope;
       of_ALLOC(thr, &frame);
       if (!write_handle_object_to_context_(this_item, receiver, thr->wt_context)) {
@@ -13364,9 +13323,107 @@ bool of_RANDOMIZE_HOOK(vthread_t thr, vvp_code_t cp)
             schedule_finish(1);
             return false;
       }
-      thr->randomize_hook_scope = scope;
+      frame_scope = scope;
       thr->pc -= 1;
       return do_callf_void(thr, vthread_new(target, scope));
+}
+
+static bool randomize_free_hook_(vthread_t thr, __vpiScope*&scope)
+{
+      if (!scope) return true;
+      vvp_code_s frame = {};
+      frame.scope = scope;
+      scope = nullptr;
+      return of_FREE(thr, &frame);
+}
+
+static bool randomize_find_pre_(const vvp_object_t&obj,
+      const std::vector<bool>*sel, randomize_call_context_s&call,
+      std::set<vvp_cobject*>&seen, vvp_object_t&next)
+{
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      // Unpacked structs are values, not callback receivers. Their unsupported
+      // active handle/container members still fail in the existing solver.
+      if (!cobj || cobj->get_defn()->is_struct_type()
+          || !seen.insert(cobj).second) return false;
+      if (!call.pre_called.count(cobj)) {
+            next = obj;
+            return true;
+      }
+      for (size_t pid = 0; pid < cobj->get_defn()->property_count(); ++pid) {
+            bool done = randomize_visit_property_objects_(cobj, sel, pid,
+                  [&](const vvp_object_t&value, size_t) {
+                        return randomize_visit_object_value_(value,
+                              [&](const vvp_object_t&leaf) {
+                                    return !randomize_find_pre_(leaf, nullptr,
+                                                               call, seen, next);
+                              });
+                  });
+            if (!done) return true;
+      }
+      return false;
+}
+
+bool of_RANDOMIZE_PRE(vthread_t thr, vvp_code_t cp)
+{
+      if (thr->randomize_calls.empty()
+          || thr->randomize_calls.back().phase != randomize_call_context_s::PRE) {
+            thr->randomize_calls.emplace_back();
+            randomize_call_context_s&call = thr->randomize_calls.back();
+            call.root = thr->peek_object();
+            const char*sel = cp->text ? cp->text : "*";
+            call.explicit_selection = strcmp(sel, "*") != 0;
+            if (call.explicit_selection)
+                  randomize_parse_selection_(sel, call.selection);
+      }
+      randomize_call_context_s&call = thr->randomize_calls.back();
+      if (!randomize_free_hook_(thr, call.frame_scope)) return false;
+      // ponytail: O(V*(V+E)) repeated scans; keep this until measured graph
+      // sizes justify an incremental reachability index. A pre callback can
+      // attach beneath an already visited object or detach a pending object.
+      while (true) {
+            std::set<vvp_cobject*> seen;
+            vvp_object_t next;
+            const std::vector<bool>*sel = call.explicit_selection
+                  ? &call.selection : nullptr;
+            if (!randomize_find_pre_(call.root, sel, call, seen, next)) break;
+            call.pre_called.emplace(next.peek<vvp_cobject>(), next);
+            bool ok = randomize_invoke_hook_(thr, next, false, call.frame_scope);
+            if (!ok || call.frame_scope) return ok;
+      }
+      call.pre_called.clear();
+      call.phase = randomize_call_context_s::READY;
+      return true;
+}
+
+bool of_RANDOMIZE_HOOK(vthread_t thr, vvp_code_t cp)
+{
+      const bool post = cp->bit_idx[0] != 0;
+      if (post && !thr->randomize_calls.empty()) {
+            randomize_call_context_s&call = thr->randomize_calls.back();
+            if ((call.phase == randomize_call_context_s::SOLVED
+                 || call.phase == randomize_call_context_s::POST)
+                && call.root.peek<vvp_cobject>()
+                   == thr->peek_object().peek<vvp_cobject>()) {
+                  call.phase = randomize_call_context_s::POST;
+                  if (!randomize_free_hook_(thr, call.frame_scope)) return false;
+                  while (call.post_index < call.post_objects.size()) {
+                        const vvp_object_t&receiver = call.post_objects[call.post_index++];
+                        bool ok = randomize_invoke_hook_(thr, receiver, true,
+                                                        call.frame_scope);
+                        if (!ok || call.frame_scope) return ok;
+                  }
+                  // Failure has an empty cohort and must also pop its context.
+                  thr->randomize_calls.pop_back();
+                  return true;
+            }
+      }
+      // Preserve root-only behavior for previously emitted bytecode.
+      if (thr->randomize_hook_scope)
+            return randomize_free_hook_(thr, thr->randomize_hook_scope);
+      if (post && thr->peek_vec4().value(0) != BIT4_1) return true;
+      return randomize_invoke_hook_(thr, thr->peek_object(), post,
+                                    thr->randomize_hook_scope);
 }
 
 bool of_CALLF_VOID(vthread_t thr, vvp_code_t cp)
