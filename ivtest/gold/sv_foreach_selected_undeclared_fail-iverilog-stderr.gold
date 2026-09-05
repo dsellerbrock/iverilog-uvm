@@ -1,0 +1,4 @@
+ivltests/sv_foreach_selected_undeclared_fail.v:7: warning: Unable to bind wire/reg/memory `missing' in `main.$ivl_foreach0' (compile-progress: unresolved reference).
+ivltests/sv_foreach_selected_undeclared_fail.v:7: warning: Unable to bind wire/reg/memory `missing' in `main.$ivl_foreach0' (compile-progress: unresolved reference).
+ivltests/sv_foreach_selected_undeclared_fail.v:7: error: Unable to resolve foreach target rows[missing].values in scope main.$ivl_foreach0.
+1 error(s) during elaboration.

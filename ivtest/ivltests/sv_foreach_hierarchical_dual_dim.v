@@ -1,18 +1,6 @@
-// IEEE 1800-2017 11.7 extended to a hierarchical target:
-// `foreach (a[k1,...].b[i1,...])' declares NEW loop variables for
-// EACH bracket group and iterates every combination -- there is no
-// standard "fixed outer index, loop the inner dimension" reading for
-// a bare identifier in the outer bracket (that shape needs a genuine
-// expression, e.g. `a[k+0].b[i]`, to disambiguate from a loop-variable
-// declaration).
-//
-// This construct used to be a parser stub: the grammar action built
-// no PForeach node at all and unconditionally discarded the loop
-// body, with no diagnostic in the common case (the only guard,
-// pform_requires_sv(), is a silent no-op once SystemVerilog mode is
-// active, which it is for virtually all real input) -- a fully silent
-// zero-iteration bug. Reduced from OpenTitan xbar_env_pkg.sv's
-// `foreach (xbar_devices[i].addr_ranges[j])`.
+// IEEE 1800-2017/2023 12.7.3 and 23.7: the prefix selects a data object;
+// only the terminal bracket declares foreach loop variables. Iterating
+// both arrays requires two foreach statements.
 typedef struct { int v[3]; } holder_t;
 
 module main;
@@ -31,9 +19,8 @@ module main;
     h[0].v = '{5, 9, 20};
     h[1].v = '{1, 2, 3};
 
-    foreach (h[k].v[i]) begin
-      seen[k][i] = h[k].v[i];
-    end
+    foreach (h[k])
+      foreach (h[k].v[i]) seen[k][i] = h[k].v[i];
 
     check("h[0].v[0]", seen[0][0], 5);
     check("h[0].v[1]", seen[0][1], 9);
@@ -42,21 +29,25 @@ module main;
     check("h[1].v[1]", seen[1][1], 2);
     check("h[1].v[2]", seen[1][2], 3);
 
-    // A loop variable name that shadows an already-declared outer
-    // variable of the same name is standard-compliant (the loop
-    // variable is a fresh local, IEEE 1800-2017 11.7) -- confirm the
-    // shadowing itself does not crash or misbehave, without asserting
-    // anything about the (unrelated) outer variable's own value.
     begin
-      int k;
-      k = 77;
+      int k, i, visits;
+      k = 1;
+      i = 77;
+      visits = 0;
+      seen[0] = '{-1, -1, -1};
       foreach (h[k].v[i]) begin
+        visits++;
         seen[k][i] = h[k].v[i];
       end
-      check("outer k unaffected by loop-var shadow", k, 77);
+      check("selected member visits", visits, 3);
+      check("prefix k unchanged", k, 1);
+      check("terminal loop variable shadows outer i", i, 77);
+      check("unselected h[0].v[0] untouched", seen[0][0], -1);
+      check("unselected h[0].v[1] untouched", seen[0][1], -1);
+      check("unselected h[0].v[2] untouched", seen[0][2], -1);
     end
 
-    if (errors == 0) $display("PASSED");
-    else $display("%0d checks failed", errors);
+    if (errors) $fatal(1, "%0d checks failed", errors);
+    $display("PASSED");
   end
 endmodule

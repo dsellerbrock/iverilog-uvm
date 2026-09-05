@@ -6052,19 +6052,28 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	$$ = tmp_blk;
       }
 
-      // foreach(a[k1,...].b[i1,...]): IEEE 1800-2017 11.7 extended to a
-      // hierarchical target. Lowered to nested foreach statements --
-      // foreach (a[k1,...]) foreach (a[k1,...].b[i1,...]) BODY -- so
-      // each level reuses the already-correct single-target
-      // elaboration path (pform_make_foreach/PForeach) rather than
-      // adding a second one. This used to be a stub: it built no
-      // PForeach node at all and discarded the loop body outright,
-      // with no diagnostic in the common case (pform_requires_sv() is
-      // a silent no-op once SystemVerilog mode is active, which it is
-      // for virtually all real input).
+      // IEEE 1800-2017/2023 12.7.3, 23.7, and Annex A.6.8: in
+      // foreach(a[k].b[i]), k selects the target and only i is declared.
+      // Keep this carrier because a bare identifier before ']' reduces to
+      // loop_variables instead of expression; it is not an outer loop.
   | K_foreach '(' foreach_array_identifier '[' loop_variables ']' '.'
     foreach_array_identifier '[' loop_variables ']' ')'
       {
+	// Resolve the prefix at its use site, before the implicit loop
+	// scope or body can shadow a wildcard import (26.3 in both editions).
+	pform_name_t inner_shape_path(*$3);
+	inner_shape_path.splice(inner_shape_path.end(), pform_name_t(*$8));
+	if ($5->size() == 1 && !$5->front().nil()) {
+	      pform_name_t prefix_name;
+	      prefix_name.push_back(name_component_t($5->front()));
+	      index_component_t itmp;
+	      itmp.sel = index_component_t::SEL_BIT;
+	      itmp.msb = pform_new_ident(@5, prefix_name);
+	      FILE_NAME(itmp.msb, @5);
+	      itmp.lsb = 0;
+	      $3->back().index.push_back(itmp);
+	}
+
 	char for_block_name[64];
 	snprintf(for_block_name, sizeof for_block_name, "$ivl_foreach%u", foreach_block_counter);
 	foreach_block_counter += 1;
@@ -6072,54 +6081,23 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
 	current_block_stack.push(tmp);
 
-	  // Outer loop variables (one per dimension of $3) take their
-	  // index type from $3's own declared dimensions.
-	pform_make_foreach_declarations(@1, $3, $5);
-
-	  // Inner loop variables (one per dimension of the hierarchical
-	  // member $8) take their index type from the combined,
-	  // UNINDEXED path $3.$8 -- a dimension's shape does not depend
-	  // on which element of $3 is selected.
-	pform_name_t inner_shape_path(*$3);
-	inner_shape_path.splice(inner_shape_path.end(), pform_name_t(*$8));
+	  // Keep the unindexed member path for terminal index-type lookup.
 	pform_make_foreach_declarations(@1, &inner_shape_path, $10);
       }
     statement_or_null
-      { bool prefix_ok = true;
-	for (std::list<perm_string>::const_iterator cur = $5->begin()
-		   ; cur != $5->end() ; ++cur) {
-	      if (cur->nil()) {
-		    yyerror(@5, "error: Errors in foreach loop variables list.");
-		    prefix_ok = false;
-	      }
-	}
+      { bool prefix_ok = $5->size() == 1 && !$5->front().nil();
+	if (!prefix_ok)
+	      yyerror(@5, "error: Foreach member target requires one selected prefix index.");
 
 	PForeach*tmp_for = 0;
 	if (prefix_ok) {
-		// Inner target path: a copy of $3 with one SEL_BIT index
-		// component per outer loop variable (referencing that
-		// variable, declared above), followed by $8's components.
-	      pform_name_t*inner_path = new pform_name_t(*$3);
-	      name_component_t&inner_tail = inner_path->back();
-	      for (std::list<perm_string>::const_iterator cur = $5->begin()
-			 ; cur != $5->end() ; ++cur) {
-		    index_component_t itmp;
-		    itmp.sel = index_component_t::SEL_BIT;
-		    itmp.msb = new PEIdent(*cur, 0);
-		    itmp.lsb = 0;
-		    inner_tail.index.push_back(itmp);
-	      }
-	      inner_path->splice(inner_path->end(), pform_name_t(*$8));
-
-	      PForeach*inner_for = pform_make_foreach(@1, *inner_path, $10, $14);
-	      delete inner_path;
-
-	      tmp_for = pform_make_foreach(@1, *$3, $5, inner_for);
+	      $3->splice($3->end(), *$8);
+	      tmp_for = pform_make_foreach(@1, *$3, $10, $14);
 	} else {
-	      delete $5;
 	      delete $10;
 	      delete $14;
 	}
+	delete $5;
 	delete $8;
 	delete $3;
 

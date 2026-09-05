@@ -1,0 +1,1 @@
+ivltests/sv_foreach_selected_import_late_fail.v:16: error: 'chosen' has already been imported into this scope from package 'foreach_late_pkg'.

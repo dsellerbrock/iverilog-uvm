@@ -1875,67 +1875,44 @@ error is gone; the file now advances to later, unrelated gaps
 offset expression `$-(i+1)`, both read and lvalue-write forms, and
 confirms the pre-existing bare `q[$]` form is unaffected).
 
-## G65 — `foreach (a[k].b[i])` was a stub that silently discarded the loop body — **fixed** [general] (was ⚠ silent)
+## G65 — Selected-member procedural foreach — prefix binding corrected
 
-IEEE 1800-2017 11.7 extended to a hierarchical target:
-`foreach (a[k1,...].b[i1,...])` declares a FRESH loop variable per
-bracket group and iterates every combination — there is no standard
-"fixed outer index, loop the inner dimension" reading for a bare
-identifier in the outer bracket (that needs a genuine expression,
-e.g. `a[k+0].b[i]`, to disambiguate from a loop-variable declaration;
-confirmed against slang, which accepts `h[idx].v[i]` and — per the
-LRM, the only legal reading — treats `idx` as a fresh loop variable
-shadowing any outer one of the same name).
+IEEE 1800-2017 and IEEE 1800-2023 12.7.3 and Annex A.6.8 give a foreach target
+one terminal loop-variable list. Both editions 23.7 distinguish data-object
+member selection from hierarchical scope lookup. In `foreach(a[k].b[i])`,
+`a[k].b` is the selected target and `i` is the terminal iterator. An existing
+selector `k` must not become an additional loop over every element of `a`.
+The earlier entry's citation of 11.7 and its extra-loop interpretation were
+incorrect; 11.7 concerns signed expressions.
 
-The grammar production for this shape (parse.y, `K_foreach '('
-foreach_array_identifier '[' loop_variables ']' '.'
-foreach_array_identifier '[' loop_variables ']' ')'`) was a
-DOCUMENTED STUB: its comment read "these still elaborate as
-hierarchical targets and currently fall back to the existing warning",
-but the action built no `PForeach` node at all and did
-`delete $14;` — unconditionally discarding the parsed loop body — then
-called `pform_requires_sv()`, which is a **silent no-op** once
-SystemVerilog mode is active (true for virtually all real input), and
-incremented an internal `warn_count` that is never printed anywhere.
-Net effect: the construct compiled clean and executed zero times, with
-no diagnostic in the common case. Reduced from OpenTitan
-`xbar_env_pkg.sv`'s `foreach (xbar_devices[i].addr_ranges[j])`.
+The earlier parser repair stopped discarding the body, but lowered this form
+into two loops and declared both bracket groups. That silently changed selected
+member traversal. OpenTitan's nested `foreach(xbar_devices[i])` and
+`foreach(xbar_devices[i].addr_ranges[j])` consequently scanned other devices'
+ranges after matching one device name, causing wrong-device scoreboard routing.
+A reduced address map reproduces the error; parenthesizing the existing prefix
+uses a different, correct single-target parser action.
 
-Implemented for real by lowering to nested `foreach` statements —
-`foreach (a[k1,...]) foreach (a[k1,...].b[i1,...]) BODY` — so each
-level reuses the already-correct single-target elaboration path
-(`pform_make_foreach`/`PForeach`) instead of adding a second one. The
-outer loop variables are declared with `pform_make_foreach_declarations`
-typed against `a`'s own dimensions (as usual); the inner loop
-variables are typed against the combined, unindexed path `a.b` (a
-dimension's shape does not depend on which element of `a` is
-selected); the inner target is built by appending one `SEL_BIT` index
-component per outer loop variable — each referencing that
-variable — to a copy of `a`'s path, followed by `b`'s own components.
+The identifier-prefix grammar alternative remains because deleting it leaves
+the parser reducing a bare identifier to `loop_variables` and then rejecting
+the member dot. Its action now treats the sole prefix name as an expression,
+records its ordinary identifier/import reference before creating the loop scope
+(both editions 26.3), and builds only the terminal member PForeach. Malformed
+comma/omitted prefix lists fail explicitly; unresolved selectors reach a hard
+elaboration error. Existing selected-path and signal-probe elaboration remain.
 
-This exposed a second, general bug: `Design::find_signal()` — whose
-own contract for every other kind of miss is "return 0, say nothing"
-(callers, prominently `PForeach::elaborate()`, use it to PROBE whether
-a hierarchical name is a signal, falling back to ordinary expression
-elaboration when it is not) — hard-errored
-("Scope index expression is not constant") when a path prefix's index
-was a plain runtime variable rather than a module/generate-block
-instance selector, because it unconditionally tries `eval_scope_path`
-first. `eval_scope_path`/`eval_path_component` now take an optional
-`quiet` parameter (default `false`, preserving the diagnostic for
-every genuine scope-path caller) that `find_signal` passes as `true`,
-matching its own established silent-miss contract.
+The old `sv_foreach_hierarchical_dual_dim` test retains its six value checks
+under explicit nested loops and adds selected-row visit counts, untouched
+sentinels and legitimate terminal-variable shadowing. New paired regressions
+cover fixed arrays, queues, function selectors, wildcard imports and exact
+negative diagnostics. Independent Bison generation preserves 541 shift/reduce,
+1122 reduce/reduce conflicts and all 5,871 normalized parser states.
 
-Verified the new grammar production changes bison's conflict counts by
-zero (551 shift/reduce, 1186 reduce/reduce, identical before and
-after) before committing to this approach. Confirmed on the real
-OpenTitan job: `xbar_env_pkg.sv`'s errors are gone;
-`top_darjeeling_xbar_dbg_sim` advances to the unrelated `xbar_tl_host_seq.sv`
-constraint-`foreach` gap (G66) and an unrelated `xbar_error_test.sv`
-parse error. Value-checked test: `sv_foreach_hierarchical_dual_dim`
-(all six iterations of a real 2×3 double-dimension case, plus a
-loop-variable-name-shadows-an-outer-variable case confirming the outer
-variable is genuinely unaffected).
+Selected associative member key typing remains a separate compiler defect:
+existing selected paths can use an integer loop key for a string-indexed member.
+This increment does not claim full foreach conformance or completed OpenTitan DV.
+See [selected-member session](session_logs/2026-09-05_foreach_selected_target.md)
+for current validation and measured application results.
 
 ---
 
