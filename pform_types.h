@@ -654,6 +654,9 @@ struct class_type_t : public data_type_t {
       // Named constraint blocks: map from constraint name to list of
       // constraint expressions (PEInside, comparisons, etc.).
       std::map<perm_string, std::vector<PExpr*>> constraints;
+      // IEEE 1800-2017 18.5.14.1 / 1800-2023 18.5.13.1: declaration
+      // order (the prototype for external blocks) determines soft priority.
+      std::vector<perm_string> constraint_order;
 
 	// Source and qualifier metadata for each concrete constraint block.
 	// The solver IR does not distinguish static constraints, but declaration

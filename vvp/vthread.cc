@@ -4770,6 +4770,32 @@ struct randomize_graph_entry_s {
  * object instead of recursion, double consumption, or an abort. */
 class randomize_graph_session_t {
     public:
+      explicit randomize_graph_session_t(bool joint = false) : joint_(joint) {}
+      bool joint() const { return joint_; }
+      std::vector<vvp_z3_object_s> solve_objects;
+      std::map<vvp_cobject*, size_t> object_indices;
+
+      bool begin_prefill(vvp_cobject*cobj, const std::vector<bool>*sel,
+                         vvp_cobject*rng_owner = nullptr)
+      {
+            if (!joint_) return enter(cobj, sel);
+            if (!prefilled_.insert(cobj).second) return false;
+            if (rng_owner) solve_objects.at(object_indices.at(cobj)).rng_owner = rng_owner;
+            return true;
+      }
+
+      void begin_randc(vvp_cobject*cobj)
+      {
+            cobj->randc_transaction_begin();
+            if (joint_) pending_randc_.push_back(cobj);
+      }
+
+      bool prefill_property(const class_type*defn, size_t pid)
+      {
+            return !joint_ || !defn->property_is_static(pid)
+                  || prefilled_static_.insert(defn->static_property_storage(pid)).second;
+      }
+
       bool enter(vvp_cobject*cobj, const std::vector<bool>*sel)
       {
 	    if (!cobj || visited_.count(cobj)) return false;
@@ -4813,10 +4839,16 @@ class randomize_graph_session_t {
 	    return true;
       }
 
-      void commit()
+      bool commit()
       {
+            while (!pending_randc_.empty()) {
+                  vvp_cobject*object = pending_randc_.back();
+                  pending_randc_.pop_back();
+                  if (!object->randc_transaction_commit()) return false;
+            }
 	    for (const randomize_static_value_s&value : static_values_)
 		  value.defn->static_randomize_transaction_commit(value.pid);
+            return true;
       }
 
       void callback_objects(std::vector<vvp_object_t>&objects) const
@@ -4828,6 +4860,10 @@ class randomize_graph_session_t {
 
       void rollback()
       {
+            while (!pending_randc_.empty()) {
+                  pending_randc_.back()->randc_transaction_rollback();
+                  pending_randc_.pop_back();
+            }
 	    for (std::vector<randomize_graph_entry_s>::reverse_iterator it =
 		       entries_.rbegin(); it != entries_.rend(); ++it) {
 		  randomize_restore_(it->cobj, it->values);
@@ -4842,6 +4878,10 @@ class randomize_graph_session_t {
       }
 
     private:
+      bool joint_;
+      std::set<vvp_cobject*> prefilled_;
+      std::set<vpiHandle> prefilled_static_;
+      std::vector<vvp_cobject*> pending_randc_;
       std::set<vvp_cobject*> visited_;
       std::vector<randomize_graph_entry_s> entries_;
       std::vector<randomize_static_value_s> static_values_;
@@ -5037,13 +5077,15 @@ static void collect_unmerged_base_constraints_(const class_type*defn,
 
       for (const class_type*walker = defn->runtime_super(); walker;
 	   walker = walker->runtime_super()) {
+            vector<string> inherited;
 	    for (size_t ci = 0 ; ci < walker->constraint_count() ; ci += 1) {
 		  const string&nm = walker->constraint_name(ci);
 		  if (have.count(nm)) continue;
 		  have.insert(nm);
 		  const string&ir = walker->constraint_ir(ci);
-		  if (!ir.empty()) extra.push_back(ir);
+		  if (!ir.empty()) inherited.push_back(ir);
 	    }
+            extra.insert(extra.begin(), inherited.begin(), inherited.end());
       }
 }
 
@@ -5062,12 +5104,13 @@ static bool randomize_struct_members_(randomize_graph_session_t&session,
 				      vvp_cobject*subcobj,
 				      const class_type*subdefn,
 				      const std::function<unsigned()>&next_random,
+                                      vvp_cobject*rng_owner,
 				      vector<vvp_cobject*>*deferred = nullptr)
 {
       if (!subcobj || !subdefn) return true;
-      if (!session.enter(subcobj, nullptr)) return true;
-      subcobj->randc_transaction_begin();
-      if (deferred) deferred->push_back(subcobj);
+      if (!session.begin_prefill(subcobj, nullptr, rng_owner)) return true;
+      session.begin_randc(subcobj);
+      if (deferred && !session.joint()) deferred->push_back(subcobj);
 
       bool ok = true;
       for (size_t mpid = 0 ; ok && mpid < subdefn->property_count() ; mpid += 1) {
@@ -5097,7 +5140,7 @@ static bool randomize_struct_members_(randomize_graph_session_t&session,
 			if (vvp_cobject*nested = propobj.peek<vvp_cobject>())
 			      ok = randomize_struct_members_(session, nested,
 						     nested->get_defn(),
-						     next_random, deferred);
+						     next_random, rng_owner, deferred);
 		  }
 		  continue;
 	    }
@@ -5153,6 +5196,7 @@ static bool randomize_struct_members_(randomize_graph_session_t&session,
 	    }
       }
 
+      if (session.joint()) return ok;
       if (!ok) {
 	    if (!deferred) subcobj->randc_transaction_rollback();
 	    return false;
@@ -5164,6 +5208,8 @@ static bool randomize_struct_members_(randomize_graph_session_t&session,
 struct randomize_solve_options_s {
       const std::vector<std::string>*extra_ir = nullptr;
       const std::vector<uint64_t>*slot_vals = nullptr;
+      const std::vector<vvp_vector4_t>*slot_words = nullptr;
+      const std::vector<vvp_object_t>*object_vals = nullptr;
       const std::function<unsigned()>*next_random = nullptr;
       bool include_class_constraints = true;
 };
@@ -5270,22 +5316,107 @@ static bool randomize_visit_property_objects_(vvp_cobject*cobj,
       return true;
 }
 
+/* IEEE 1800-2017 18.5.9 / 1800-2023 18.5.8: select and journal the
+ * complete active graph before filling any values. Static aggregate journals
+ * can install value copies, so enumerate their children after enter(). Soft
+ * priority follows containment and declaration order, including later aliases
+ * (2017 18.5.14.1 / 2023 18.5.13.1), rather than first-visit order. */
+static bool randomize_collect_graph_(randomize_graph_session_t&session,
+      vvp_cobject*root, const std::vector<bool>*selection,
+      const randomize_solve_options_s*options)
+{
+      if (!root) return true;
+      auto&indices = session.object_indices;
+      std::vector<vvp_cobject*> path;
+      std::function<bool(vvp_cobject*, vvp_cobject*, const std::vector<size_t>&)> visit;
+      visit = [&](vvp_cobject*object, vvp_cobject*rng_owner,
+                  const std::vector<size_t>&priority) {
+            auto found = indices.find(object);
+            auto cycle = std::find(path.begin(), path.end(), object);
+            if (cycle != path.end()) {
+                  for (; cycle != path.end(); ++cycle)
+                        session.solve_objects[indices.at(*cycle)].cyclic = true;
+                  return true;
+            }
+            size_t index;
+            if (found == indices.end()) {
+                  index = session.solve_objects.size();
+                  indices[object] = index;
+                  vvp_z3_object_s scope;
+                  scope.object = object;
+                  scope.rng_owner = rng_owner;
+                  scope.priority = priority;
+                  if (object == root) {
+                        scope.explicit_selection = selection != nullptr;
+                        if (selection) scope.active = *selection;
+                        if (options) {
+                              scope.include_class_constraints = options->include_class_constraints;
+                              if (options->slot_vals) scope.slot_vals = *options->slot_vals;
+                              if (options->slot_words) scope.slot_words = *options->slot_words;
+                              if (options->object_vals) scope.object_vals = *options->object_vals;
+                        }
+                  }
+                  if (scope.include_class_constraints)
+                        collect_unmerged_base_constraints_(object->get_defn(), scope.inherited_ir);
+                  if (object == root && options && options->extra_ir)
+                        scope.extra_ir.insert(scope.extra_ir.end(),
+                              options->extra_ir->begin(), options->extra_ir->end());
+                  session.enter(object, scope.selection());
+                  session.solve_objects.push_back(std::move(scope));
+            } else {
+                  index = found->second;
+                  const auto&old = session.solve_objects[index].priority;
+                  size_t pos = 0;
+                  while (pos < old.size() && pos < priority.size()
+                         && old[pos] == priority[pos]) ++pos;
+                  bool higher = pos < old.size() && pos < priority.size()
+                        ? priority[pos] > old[pos] : priority.size() < old.size();
+                  if (!higher) return true;
+                  session.solve_objects[index].priority = priority;
+            }
+            path.push_back(object);
+            const class_type*type = object->get_defn();
+            // A recursive push can move solve_objects, so keep a local selector.
+            const vvp_z3_object_s scope = session.solve_objects[index];
+            for (size_t pid = 0; pid < type->property_count(); ++pid) {
+                  size_t ordinal = 0;
+                  bool ok = randomize_visit_property_objects_(object, scope.selection(), pid,
+                        [&](const vvp_object_t&value, size_t) {
+                              return randomize_visit_object_value_(value,
+                                    [&](const vvp_object_t&leaf) {
+                                          vvp_cobject*child = leaf.peek<vvp_cobject>();
+                                          auto child_priority = priority;
+                                          child_priority.push_back(pid);
+                                          child_priority.push_back(ordinal++);
+                                          return visit(child, child->get_defn()->is_struct_type()
+                                                ? rng_owner : child, child_priority);
+                                    });
+                        });
+                  if (!ok) { path.pop_back(); return false; }
+            }
+            path.pop_back();
+            return true;
+      };
+      return visit(root, root, {});
+}
+
 /* Struct values consume the containing RNG; class handles use their own RNG.
  * Both remain in the existing outer graph transaction. */
 static bool randomize_object_value_(randomize_graph_session_t&session,
                                     const vvp_object_t&obj,
                                     const std::function<unsigned()>&next_random,
+                                    vvp_cobject*rng_owner,
                                     bool*aggregate_changed = nullptr)
 {
       return randomize_visit_object_value_(obj, [&](const vvp_object_t&leaf) {
             vvp_cobject*subcobj = leaf.peek<vvp_cobject>();
             if (subcobj->get_defn()->is_struct_type()) {
                   bool ok = randomize_struct_members_(session, subcobj,
-                        subcobj->get_defn(), next_random);
+                        subcobj->get_defn(), next_random, rng_owner);
                   if (ok && aggregate_changed) *aggregate_changed = true;
                   return ok;
             }
-            return randomize_cobject_(session, subcobj, nullptr);
+            return session.joint() || randomize_cobject_(session, subcobj, nullptr);
       });
 }
 
@@ -5338,18 +5469,17 @@ static void randomize_assoc_vec4_(vvp_cobject*cobj, size_t pid, size_t word,
 					 vkey, is_randc, next_random);
 }
 
-/* IEEE 1800-2017 18.4/18.6.1: every non-null rand handle is randomized as
- * part of one outer call. Each object solves its own constraint set, but the
- * graph session makes the observable call atomic: a failure anywhere restores
- * every visited value/history bank, and an alias or cycle is visited once. */
+/* IEEE 1800-2017 18.5.9 / 1800-2023 18.5.8: prefill each selected object
+ * once. Joint calls defer solving and history commit until the whole graph
+ * succeeds. Scope-form calls retain their separate scalar solve path. */
 static bool randomize_cobject_(randomize_graph_session_t&session,
 			       vvp_cobject*cobj,
 			       const std::vector<bool>*sel,
 			       const randomize_solve_options_s*options)
 {
       if (!cobj) return true;
-      if (!session.enter(cobj, sel)) return true;
-      cobj->randc_transaction_begin();
+      if (!session.begin_prefill(cobj, sel)) return true;
+      session.begin_randc(cobj);
 
       bool solve_ok = true;
       const class_type*defn = cobj->get_defn();
@@ -5368,8 +5498,11 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 	// Fill this call's random variables with random bits first.
       for (size_t pid = 0 ; solve_ok && pid < defn->property_count() ;
 	   pid += 1) {
+
 	    if (!rand_call_active_(defn, cobj, sel, pid))
 		  continue;
+
+            if (!session.prefill_property(defn, pid)) continue;
 
             const std::string&bt = defn->property_base_type(pid);
             bool is_struct_prop = bt.compare(0, 3, "oc:") == 0;
@@ -5382,13 +5515,13 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
                               if (is_struct_prop) {
                                     if (vvp_cobject*sub = obj.peek<vvp_cobject>()) {
                                           if (!randomize_struct_members_(session, sub,
-                                                sub->get_defn(), next_random,
+                                                sub->get_defn(), next_random, cobj,
                                                 &deferred_struct_transactions))
                                                 solve_ok = false;
                                           changed = true;
                                     }
                               } else if (!randomize_object_value_(session, obj,
-                                                next_random, &changed)) {
+                                                next_random, cobj, &changed)) {
                                     solve_ok = false;
                               }
                               if (changed && defn->property_is_static(pid)) {
@@ -5523,7 +5656,7 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 	// ONE solve over the complete inherited constraint set --
 	// see collect_unmerged_base_constraints_ for why solving the
 	// chain class by class silently violates derived constraints.
-      {
+      if (!session.joint()) {
 	    vector<string> extra_ir;
 	    bool include_class_constraints = !options
 		  || options->include_class_constraints;
@@ -5538,9 +5671,11 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 					 : empty_slots;
 	    if (solve_ok && !vvp_z3_randomize(defn, cobj, extra_ir,
 					       slot_vals, sel,
-					       include_class_constraints))
+					       include_class_constraints,
+                                               options ? options->object_vals : nullptr))
 		  solve_ok = false;
       }
+      if (session.joint()) return solve_ok;
       size_t pending_struct_transactions =
 	    deferred_struct_transactions.size();
       if (solve_ok) {
@@ -5565,6 +5700,26 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 	    solve_ok = false;
       }
       return solve_ok;
+}
+
+static bool randomize_solve_(randomize_graph_session_t&session,
+      vvp_cobject*cobj, const std::vector<bool>*sel,
+      const randomize_solve_options_s*options = nullptr)
+{
+      if (!cobj) return true;
+      if (!session.joint()) return randomize_cobject_(session, cobj, sel, options);
+      if (!randomize_collect_graph_(session, cobj, sel, options)) return false;
+      if (!vvp_z3_graph_history_supported(session.solve_objects)) return false;
+      // Prefill in collection order so the first active static owner stages
+      // its history exactly once. Class recursion is deferred to this loop;
+      // value structs still consume their containing object's RNG in place.
+      for (const auto&scope : session.solve_objects) {
+            if (scope.object->get_defn()->is_struct_type()) continue;
+            if (!randomize_cobject_(session, scope.object, scope.selection())) {
+                  return false;
+            }
+      }
+      return vvp_z3_randomize_graph(session.solve_objects);
 }
 
 /* Retain the actual successful participants before the transaction journal
@@ -5605,13 +5760,11 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 	    thr->rand_sel.clear();
       }
 
-      randomize_graph_session_t session;
-      bool solve_ok = cobj
-	    ? randomize_cobject_(session, cobj, sel) : true;
+      randomize_graph_session_t session(true);
+      bool solve_ok = randomize_solve_(session, cobj, sel);
+      if (solve_ok) solve_ok = session.commit();
       if (!solve_ok)
 	    session.rollback();
-      else
-	    session.commit();
 
       randomize_callbacks_solved_(thr, cobj, session, solve_ok);
 
@@ -5676,9 +5829,11 @@ static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
 
       vector<string> extra_ir;
       string expanded;
-      bool expansion_ok = !object_form
+      bool state_foreach = object_form && (scope_form || !cobj)
+            && strstr(ir_text, "(qforeach ");
+      bool expansion_ok = !state_foreach
             || vvp_z3_expand_state_foreach(ir_text, slot_words, objects, cobj, sel, expanded);
-      if (object_form) extra_ir.push_back(expanded);
+      if (state_foreach) extra_ir.push_back(expanded);
       else if (ir_text && *ir_text) extra_ir.push_back(string(ir_text));
 
       vthread_t scope_rng_owner = scope_form
@@ -5689,17 +5844,17 @@ static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
       randomize_solve_options_s options;
       options.extra_ir = &extra_ir;
       options.slot_vals = &slot_vals;
+      options.slot_words = &slot_words;
+      options.object_vals = &objects;
       options.include_class_constraints = !scope_form;
       if (scope_form)
 	    options.next_random = &scope_random;
 
-      randomize_graph_session_t session;
-      bool solve_ok = expansion_ok && (cobj
-	    ? randomize_cobject_(session, cobj, sel, &options) : true);
+      randomize_graph_session_t session(!scope_form);
+      bool solve_ok = expansion_ok && randomize_solve_(session, cobj, sel, &options);
+      if (solve_ok) solve_ok = session.commit();
       if (!solve_ok)
 	    session.rollback();
-      else
-	    session.commit();
 
       if (!scope_form)
             randomize_callbacks_solved_(thr, cobj, session, solve_ok);

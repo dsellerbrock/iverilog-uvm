@@ -1,0 +1,5 @@
+ERROR: global constraint sampling failed: the complete joint solution set exceeds the enumeration limit.
+ERROR: global constraint sampling failed: global array sizes must have one proven value before element solving.
+ERROR: global constraint sampling failed: a fixed array size exceeds the supported allocation limit.
+ERROR: global constraint sampling failed: dist and solve-before stages across objects are not yet supported.
+ERROR: global constraint sampling failed: dist and solve-before stages across objects are not yet supported.

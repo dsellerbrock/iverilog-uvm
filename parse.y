@@ -4156,7 +4156,11 @@ constraint_expression_list /* */
 
 constraint_prototype /* IEEE1800-2005: A.1.9 */
   : K_static_opt K_constraint IDENTIFIER ';'
-      { delete[] $3; /* silently accept constraint prototype */ }
+      { /* An implicit prototype can remain empty, but its declaration
+           position supplies soft priority if a later body is provided
+           (IEEE 1800-2017 18.5.1/18.5.14.1; 2023 18.5.1/18.5.13.1). */
+        pform_class_constraint_prototype(@2, $1, $3, false); delete[] $3;
+      }
   | K_pure K_constraint IDENTIFIER ';'
       { pform_class_pure_constraint(@1, $3); delete[] $3; }
   /* An explicit external prototype requires a matching out-of-body

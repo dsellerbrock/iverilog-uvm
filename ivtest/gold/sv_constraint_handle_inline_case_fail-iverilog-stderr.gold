@@ -1,0 +1,2 @@
+ivltests/sv_constraint_handle_inline_case_fail.v:15: error: case equality/inequality is illegal in a constraint (IEEE 1800-2017/2023 18.3).
+1 error(s) during elaboration.

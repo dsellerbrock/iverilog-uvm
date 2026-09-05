@@ -7,14 +7,42 @@
 
 # include  <string>
 # include  <vector>
+# include  <cstddef>
+# include  <cstdint>
 
 class class_type;
 class vvp_cobject;
 class vvp_object_t;
 class vvp_vector4_t;
 
-/* Ground selected state queues before any class solve pass. Foreach guards
- * exclude inactive field reads (2017 18.5.8.1 / 2023 18.5.7.1). */
+/* IEEE 1800-2017 18.5.9 / 1800-2023 18.5.8: one selected object graph
+ * contributes one constraint problem. The caller retains the actual objects
+ * and journals their values/history until every solve pass has succeeded. */
+struct vvp_z3_object_s {
+      vvp_cobject*object = nullptr;
+      vvp_cobject*rng_owner = nullptr;
+      bool explicit_selection = false;
+      std::vector<bool> active;
+      bool include_class_constraints = true;
+      std::vector<std::string> inherited_ir;
+      std::vector<std::string> extra_ir;
+      std::vector<uint64_t> slot_vals;
+      std::vector<vvp_vector4_t> slot_words;
+      std::vector<vvp_object_t> object_vals;
+      std::vector<size_t> priority;
+      bool cyclic = false;
+
+      const std::vector<bool>*selection() const
+            { return explicit_selection ? &active : nullptr; }
+};
+
+// Reject unsupported cyclic storage before prefill mutates any participant.
+bool vvp_z3_graph_history_supported(const std::vector<vvp_z3_object_s>&objects);
+bool vvp_z3_randomize_graph(const std::vector<vvp_z3_object_s>&objects);
+
+/* Expand selected state queues for the legacy scope route. The object graph
+ * route expands with its canonical selections during each solve pass.
+ * Foreach guards exclude inactive reads (2017 18.5.8.1 / 2023 18.5.7.1). */
 bool vvp_z3_expand_state_foreach(const std::string&ir,
       const std::vector<vvp_vector4_t>&slot_vals,
       const std::vector<vvp_object_t>&objects, vvp_cobject*receiver,
@@ -45,7 +73,8 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
                       const std::vector<std::string>& extra_ir   = {},
                       const std::vector<uint64_t>&    slot_vals  = {},
                       const std::vector<bool>*        prop_active = nullptr,
-                      bool include_class_constraints = true);
+                      bool include_class_constraints = true,
+                      const std::vector<vvp_object_t>*object_vals = nullptr);
 
 /*
  * Solve a scope-form std::randomize(vars) with-clause. Variable N is

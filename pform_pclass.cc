@@ -423,6 +423,9 @@ void pform_class_constraint(const struct vlltype&loc,
 	    error_count += 1;
       }
       auto proto = pform_cur_class->type->extern_constraints.find(pname);
+      if (proto == pform_cur_class->type->extern_constraints.end()
+          && pform_cur_class->type->constraints.count(pname) == 0)
+            pform_cur_class->type->constraint_order.push_back(pname);
       if (proto != pform_cur_class->type->extern_constraints.end()) {
 	    if (proto->second.is_static != is_static) {
 		  cerr << loc << ": error: Out-of-body definition of constraint `"
@@ -441,7 +444,7 @@ void pform_class_constraint(const struct vlltype&loc,
 
 void pform_class_constraint_prototype(const struct vlltype&loc,
 				      bool is_static,
-				      const char*name)
+				      const char*name, bool is_extern)
 {
       if (!pform_cur_class || !name)
 	    return;
@@ -456,6 +459,17 @@ void pform_class_constraint_prototype(const struct vlltype&loc,
 		 << "' is already declared in this class." << endl;
 	    error_count += 1;
 	    return;
+      }
+      type->constraint_order.push_back(pname);
+      if (!is_extern) {
+            // An implicit prototype may remain empty (IEEE 1800-2017/2023
+            // 18.5.1). It is a declaration, never a definition that consumes
+            // an existing extern prototype or changes its required-body check.
+            type->constraints[pname];
+            class_type_t::constraint_decl_info_t&decl = type->constraint_declarations[pname];
+            FILE_NAME(&decl, loc);
+            decl.is_static = is_static;
+            return;
       }
       class_type_t::extern_constraint_info_t&info =
 	    type->extern_constraints[pname];

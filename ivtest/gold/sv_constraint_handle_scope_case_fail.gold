@@ -1,0 +1,3 @@
+./ivltests/sv_constraint_handle_scope_case_fail.v:9: error: case equality/inequality is illegal in a constraint (IEEE 1800-2017/2023 18.3).
+./ivltests/sv_constraint_handle_scope_case_fail.v:9: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+2 error(s) during elaboration.

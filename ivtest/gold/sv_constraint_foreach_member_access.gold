@@ -1,3 +1,3 @@
-./ivltests/sv_constraint_foreach_member_access.v:22: error: Local property lo is not accessible in this state foreach constraint.
-./ivltests/sv_constraint_foreach_member_access.v:25: error: Protected property ranges is not accessible in this state foreach constraint.
+./ivltests/sv_constraint_foreach_member_access.v:22: error: Local property lo is not accessible in this constraint.
+./ivltests/sv_constraint_foreach_member_access.v:25: error: Protected property ranges is not accessible in this constraint.
 2 error(s) during elaboration.
