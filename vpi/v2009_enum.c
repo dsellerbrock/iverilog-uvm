@@ -269,8 +269,15 @@ static PLI_INT32 ivl_enum_method_next_prev_calltf(ICARUS_VPI_CONST PLI_BYTE8*nam
 	    vpi_free_object(argv);
       }
 
-	/* Get the current value. */
-      var_val.format = vpiObjTypeVal;
+	/* Get the current value. Request vpiVectorVal explicitly instead of
+	 * vpiObjTypeVal: for a 1-bit-wide variable, vpiObjTypeVal resolves to
+	 * vpiScalarVal, while an enum constant's natural format (below)
+	 * resolves to vpiIntVal (2-state) or vpiVectorVal (4-state). That
+	 * mismatch reaches compare_value_eequal(), which only understands
+	 * vpiIntVal/vpiVectorVal pairs and asserts on anything else. Forcing
+	 * vpiVectorVal on both sides keeps them consistent for every width
+	 * and preserves four-state identity. */
+      var_val.format = vpiVectorVal;
       vpi_get_value(arg_var, &var_val);
 
 	/* If the count is zero then just return the current value. */
@@ -299,7 +306,7 @@ static PLI_INT32 ivl_enum_method_next_prev_calltf(ICARUS_VPI_CONST PLI_BYTE8*nam
 	    cur = vpi_scan(enum_list);
 	    if (cur == 0) break;
 
-	    cur_val.format = vpiObjTypeVal;
+	    cur_val.format = vpiVectorVal;
 	    vpi_get_value(cur, &cur_val);
 	    assert(var_width == vpi_get(vpiSize, cur));
 	    loc += 1;
@@ -470,8 +477,10 @@ static PLI_INT32 ivl_enum_method_name_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	/* Free the argument iterator. */
       vpi_free_object(argv);
 
-	/* Get the current value. */
-      var_val.format = vpiObjTypeVal;
+	/* Get the current value. See the matching comment in
+	 * ivl_enum_method_next_prev_calltf() for why vpiVectorVal is
+	 * requested explicitly instead of vpiObjTypeVal. */
+      var_val.format = vpiVectorVal;
       vpi_get_value(arg_var, &var_val);
 
 	/* If the current value is a vector, then make a safe copy of
@@ -494,7 +503,7 @@ static PLI_INT32 ivl_enum_method_name_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	    cur = vpi_scan(enum_list);
 	    if (cur == 0) break;
 
-	    cur_val.format = vpiObjTypeVal;
+	    cur_val.format = vpiVectorVal;
 	    vpi_get_value(cur, &cur_val);
 	    assert(var_width == vpi_get(vpiSize, cur));
       } while (! compare_value_eequal(&cur_val, &var_val, var_width));
