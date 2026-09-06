@@ -342,3 +342,58 @@ global-components-final-census-reconciliation.json. Fresh roots:
 
 The enum/VPI scalar crash is a separate next increment. It is not included in
 this solver checkpoint or its application census evidence.
+
+## Enum/VPI scalar format assertion — fixed, focused pass only
+
+Branch/HEAD: `claude/enum-vpi-format-assertion-gxjldy` at commit f64e497
+("vpi: fix compare_value_eequal() format mismatch for 1-bit enums"), not
+pushed. Changed: `vpi/v2009_enum.c`; new
+`ivtest/ivltests/sv_enum_vpi_scalar_format{,_2023}.v`,
+`ivtest/vvp_tests/sv_enum_vpi_scalar_format{,_2023}.json`; registrations in
+`ivtest/regress-sv.list` and `ivtest/regress-vvp.list`.
+
+Root cause: `ivl_enum_method_next_prev_calltf()`/`ivl_enum_method_name_calltf()`
+fetch the enum variable and each candidate constant with `vpiObjTypeVal`,
+then compare via `compare_value_eequal()`, which only handles
+vpiIntVal/vpiVectorVal pairs. For a 1-bit-wide variable, `vpiObjTypeVal`
+resolves to vpiScalarVal (`__vpiSignal::vpi_get_value`,
+vvp/vpi_signal.cc:951), but an enum constant's natural format resolves to
+vpiIntVal for a 2-state base type (`vpip_vec2_get_value`) or vpiVectorVal
+for 4-state (`vpip_vec4_get_value`) — never vpiScalarVal. That is the exact
+"formats are: 6 vs 5" (IntVal vs ScalarVal) assert at v2009_enum.c:207.
+
+Fix: request `vpiVectorVal` explicitly instead of `vpiObjTypeVal` for both
+operands at both call sites; `compare_value_eequal()` itself is unchanged.
+
+Reducer: a `typedef enum bit { OFF, ON }` variable's `.next()/.prev()/.name()`
+call. Baseline reproduction: built the pre-fix `vpi/v2009_enum.c` into a
+standalone `v2009.vpi`, swapped it into an otherwise-fixed `local-install`,
+and ran the reducer under `vvp` — it aborted with
+`vvp: v2009_enum.c:207: compare_value_eequal: Assertion \`0' failed.`
+(exit 134). Swapping the fixed module back in, the same bytecode passes.
+
+Commands run (this container, Ubuntu, fresh checkout — not the campaign's
+Apple Silicon toolchain): installed `flex`, `gperf`, `libz3-dev` via apt;
+`sh autoconf.sh`; `./configure --prefix=$PWD/local-install
+--enable-libveriuser` with `CFLAGS/CXXFLAGS="-g0 -O2"`; `make -j4`; `make
+install` (UVM submodule not checked out — installuvm skipped, irrelevant to
+this fix). Then: `vvp_reg.py` on a 2-line subset list (JSON harness) — both
+`sv_enum_vpi_scalar_format`/`_2023` Passed; `vvp_reg.pl` on the matching
+2-line `regress-sv.list` subset — both Passed. Manually reran
+`enum_method_signed1..4`, `tests/enum_method_test.sv`,
+`tests/packed_struct_enum_method_test.sv`,
+`tests/unpacked_struct_enum_method_test.sv` against the fixed install — all
+still pass (no regression in neighboring enum/VPI coverage).
+
+Not run (out of scope/budget for this focused pass): the full
+`regress-sv.list`/`regress-vvp.list`/`vpi_regress.list` gates, JSON 1515+,
+UVM real-DPI, or either application census. This change was not validated
+against those gates and must not be treated as passing them. The commit is
+local only — not pushed, no PR opened, per this task's explicit
+instruction not to push/merge without existing authorization.
+
+Next command for whoever picks this up: from a clean shell,
+`cd ivtest && PATH="$PWD/../local-install/bin:$PATH" perl vvp_reg.pl
+regress-sv.list` (and the JSON equivalent) to run the full gate before any
+merge decision; then `git push -u origin claude/enum-vpi-format-assertion-gxjldy`
+and open the PR once that gate is green.

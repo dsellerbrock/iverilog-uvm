@@ -1874,6 +1874,8 @@ sv_enum_return_provenance_fail CE,-g2012 ivltests gold=sv_enum_return_provenance
 sv_enum_class_typedef_identity normal,-g2012 ivltests gold=sv_enum_class_typedef_identity.gold
 sv_enum_class_typedef_shadow normal,-g2012 ivltests gold=sv_enum_class_typedef_shadow.gold
 sv_enum_class_typedef_mismatch_fail CE,-g2012 ivltests gold=sv_enum_class_typedef_mismatch_fail.gold
+sv_enum_vpi_scalar_format normal,-g2017 ivltests
+sv_enum_vpi_scalar_format_2023 normal,-g2023 ivltests
 sv_class_static_get_specialization_reentry normal,-g2012 ivltests gold=sv_class_static_get_specialization_reentry.gold
 sv_class_static_get_recursive_control normal,-g2012 ivltests gold=sv_class_static_get_recursive_control.gold
 sv_class_static_get_bad_receiver_fail CE,-g2012 ivltests gold=sv_class_static_get_bad_receiver_fail.gold
