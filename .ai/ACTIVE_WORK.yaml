@@ -1,0 +1,71 @@
+# Operational-work authority (AGENTS.md Level 3).
+#
+# This file is the ONLY implementation authorization. If `status` below is
+# not `in_progress`, no semantic implementation work is authorized — not
+# even a blocker that looks "obviously next" in BLOCKERS.md or a session
+# log. Selecting a new blocker requires a human (or an explicitly
+# authorized agent action) to replace this document's contents with a new
+# ticket in `in_progress` status, pointing at one blocker ID from
+# docs/conformance/BLOCKERS.md.
+
+id: GOV-BOOTSTRAP-001
+title: "Governance/documentation bootstrap for targeted-fix workflow"
+type: governance
+status: completed  # inactive — no implementation authorized by this ticket
+goal: >
+  Stand up the minimum documentation/governance structure (AGENTS.md
+  policy, BLOCKERS.md backlog format, DISCOVERED_DEBT.md parking lot,
+  session-log evidence policy, manifesto tightening) so a future agent
+  can run the one-blocker targeted-fix protocol without re-deriving it
+  from scratch or from stale historical documents.
+
+allowed_scope:
+  - AGENTS.md
+  - .ai/ACTIVE_WORK.yaml
+  - docs/conformance/BLOCKERS.md
+  - docs/conformance/DISCOVERED_DEBT.md
+  - docs/conformance/session_logs/README.md
+  - docs/conformance/iverilog_ieee1800_uvm_manifesto.md (governance-note
+    insertion only, not a full restructure)
+
+forbidden_scope:
+  - Any parser/elaborator/VVP/VPI/DPI/solver/SVA/coverage source file
+  - Any test/regression source, gold, or harness registration
+  - Rewriting or reclassifying historical session logs
+  - Running OpenTitan/Caliptra censuses or full builds/regressions
+  - Migrating every blocker_inventory.json row into BLOCKERS.md
+  - Inventing conformance percentages or claiming semantic improvement
+
+completion_requirements:
+  - AGENTS.md adopts the targeted-fix policy (one blocker per run,
+    ACTIVE_WORK as sole authority, REPRODUCED->...->STOP lifecycle,
+    scope lock, discovered-issue parking, ponytail/minimal-implementation
+    wording, graph-navigation wording, semantic-degradation prohibition,
+    separated 2017/2023/UVM/application/formal goals, documentation
+    authority levels, Definition of Done doc-update requirement) while
+    preserving prior repository-specific build/tooling instructions.
+  - docs/conformance/BLOCKERS.md exists with a canonical entry format,
+    status vocabulary, and a small seed set of high-confidence blockers
+    (not a full migration of the 134-row audit).
+  - docs/conformance/DISCOVERED_DEBT.md exists with the parking-lot
+    template and the "recording completes responsibility" rule.
+  - docs/conformance/session_logs/README.md (or equivalent notice)
+    states session logs are revision-scoped historical evidence, not
+    current-work authorization.
+  - Manifesto carries a short governance note establishing constitution
+    status, no-backlog status, and pointing operational work at
+    BLOCKERS.md/.ai/ACTIVE_WORK.yaml, without a full rewrite.
+  - This file itself demonstrates the schema future tickets should use.
+
+discovered_issue_policy: >
+  Anything noticed while writing this governance patch (stale docs,
+  conflicting status claims, etc.) is recorded in
+  docs/conformance/DISCOVERED_DEBT.md, not fixed here.
+
+stop_after_completion: true
+
+notes: >
+  No semantic bug was selected or fixed by this ticket. Do not treat its
+  completion as authorization to start docs/conformance/BLOCKERS.md's
+  first row (or any other blocker) — that requires a new ACTIVE_WORK
+  ticket with status: in_progress naming that specific blocker ID.

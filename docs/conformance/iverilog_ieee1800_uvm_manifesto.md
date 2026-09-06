@@ -31,6 +31,46 @@ A milestone is not complete because unsupported corners are documented. A milest
 
 ---
 
+## Governance note (2026-09-06 bootstrap patch)
+
+This document is **Level 1 — constitution** (see `AGENTS.md` →
+Documentation authority): mission, correctness policy, and Definition of
+Done. **It is not a backlog.** The milestone list and "Highest-priority
+correctness backlog" / "Execution order" sections below are retained
+planning history — useful context, but they do not by themselves authorize
+picking up work. Current operational work lives in
+`docs/conformance/BLOCKERS.md` (backlog) and `.ai/ACTIVE_WORK.yaml` (the
+only implementation authorization, one blocker at a time).
+
+Four points this patch tightens without a full restructure:
+
+1. **Semantic correctness over compilation progress.** A construct parsing,
+   compiling, or letting UVM terminate is not evidence it is implemented —
+   see "Eliminate silent miscompiles first" below and the semantic-degradation
+   prohibition in `AGENTS.md`.
+2. **IMPLEMENTED != QUALIFIED.** Passing a focused test proves the tested
+   shape works; it does not qualify the full clause, edition, or
+   application surface. Use the conformance-matrix vocabulary in
+   `AGENTS.md` (`UNASSESSED` / `UNSUPPORTED` / `PARTIAL` / `IMPLEMENTED` /
+   `QUALIFIED`) rather than a milestone label alone.
+3. **One-blocker targeted development.** Implementation proceeds one
+   `.ai/ACTIVE_WORK.yaml` ticket at a time (`AGENTS.md` → Targeted-fix
+   protocol); this manifesto's milestone ordering is not a queue an agent
+   pulls from unilaterally.
+4. **IEEE 1800-2017, IEEE 1800-2023, UVM/1800.2, application DV, and the
+   formal-verification program are five separate goals with separate
+   evidence.** Closing one does not imply progress on another; do not
+   collapse them into a single completion claim.
+
+**Follow-up ticket:** the milestone/backlog/execution-order sections below
+predate this operational split and would benefit from a full restructure
+(splitting historical record from any still-live planning content) once
+budget allows. That restructure is out of scope for this bootstrap patch —
+open it as its own `.ai/ACTIVE_WORK.yaml` documentation ticket rather than
+folding it into a semantic-fix PR.
+
+---
+
 ## Strict honesty policy
 
 The project must distinguish exactly between:

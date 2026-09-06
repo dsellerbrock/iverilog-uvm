@@ -1,0 +1,174 @@
+# Blockers registry (Level 3 — operational backlog)
+
+This file is a **backlog**, not an authorization to implement. Per
+`AGENTS.md`, only `.ai/ACTIVE_WORK.yaml` (status: `in_progress`, naming a
+blocker ID from this file) authorizes implementation work. Reading a row
+here as "next" and starting to code is exactly the failure mode this file
+exists to prevent.
+
+This is a **seed set**, not a migrated copy of `iverilog_uvm_blocker_audit.md`
+/ `blocker_inventory.json` (134 grouped entries). Those documents remain the
+fuller inventory; entries here were promoted because they have concrete
+source/recorded evidence and a plausible closure test. Promote additional
+rows from the audit into this format as they are picked up — do not bulk
+import.
+
+## Status vocabulary
+
+| Status | Meaning |
+|---|---|
+| `OPEN` | Identified, not yet reproduced on current HEAD. |
+| `REPRODUCED` | A current-HEAD failing reducer exists. |
+| `IN_PROGRESS` | An `.ai/ACTIVE_WORK.yaml` ticket currently targets this ID. |
+| `BLOCKED` | Requires architecture change or a decision beyond scope lock; see its entry for what's blocking. |
+| `CLOSED` | Fixed, tested, and documented per the manifesto's Definition of Done. Record the closing PR. |
+| `WONTFIX` | Deliberately out of scope (e.g. illegal-source rejection working as intended); record why. |
+
+## Confidence vocabulary (carried from the audit)
+
+`SOURCE` (inspected implementation path), `RECORDED` (a repo record/PR
+states it — re-verify before implementing, some are stale), `QUALIFICATION`
+(missing evidence for a claimed scope, not a proven wrong result),
+`UNRESOLVED` (record explicitly leaves it tentative), `ARCHITECTURE`
+(requirement for a future declared capability, not a reproduced defect).
+
+## Entry format
+
+```markdown
+### <ID> — <title>
+
+- **Area / edition:** <e.g. Randomization / edition-agnostic>
+- **State:** OPEN | REPRODUCED | IN_PROGRESS | BLOCKED | CLOSED | WONTFIX
+- **Confidence:** SOURCE | RECORDED | QUALIFICATION | UNRESOLVED | ARCHITECTURE
+- **Evidence / reproducer:** <file:line, PR #, or session log pointer; a
+  reducer path once one exists>
+- **What it blocks:** <application workload / qualification claim / clause>
+- **Closure requirements:** <what a CLOSED verdict must demonstrate>
+- **Last verified revision:** <commit sha, or "not re-verified since audit">
+```
+
+---
+
+### U01 — Xbar runtime/scoreboard/outstanding-request failures
+
+- **Area / edition:** UVM and applications / edition-agnostic
+- **State:** OPEN
+- **Confidence:** RECORDED
+- **Evidence / reproducer:** `docs/conformance/session_logs/2026-09-04_global_constraint_solver.md`
+  (5 xbar runtime logs show scoreboard mismatches; all 8 report outstanding
+  requests on termination); PR #258; PR #261 (enum fix is explicitly not
+  evidence these are fixed). No reducer exists yet — the session log notes
+  the targeted probe hit the 300s CPU guard before completing.
+- **What it blocks:** Real xbar application-level DV evidence; any claim of
+  "OpenTitan xbar works."
+- **Closure requirements:** Reproduce the first divergence with a bounded
+  probe, reduce the simulator mechanism it exposes, and demonstrate at least
+  one xbar smoke reaching normal completion with matched, checked
+  request/response traffic and zero outstanding transactions at end of test.
+- **Last verified revision:** components build3 (2026-09-04 session log);
+  not re-verified against current `main`.
+
+### Z01 — Joint solve-before stages unsupported
+
+- **Area / edition:** Randomization / edition-agnostic
+- **State:** OPEN
+- **Confidence:** SOURCE
+- **Evidence / reproducer:** `vvp/vvp_z3.cc` explicitly rejects
+  `order_pairs` in the joint route ("solve before stages across objects are
+  not supported"); PR #258.
+- **What it blocks:** Any DV workload using cross-object `solve ... before`
+  ordering under the joint solver (recorded as a shared xbar/runtime
+  frontier in the same session log as U01).
+- **Closure requirements:** Small-domain staged distributions with correct
+  marginal/conditional probabilities and graph rollback on failure; explicit
+  rejection preserved for shapes still out of scope after the fix.
+- **Last verified revision:** components build3 (PR #258); not re-verified
+  against current `main`.
+
+### C01 — Untranslated inline constraints are discarded (semantic degradation)
+
+- **Area / edition:** Frontend/randomization / edition-agnostic
+- **State:** OPEN
+- **Confidence:** SOURCE
+- **Evidence / reproducer:** `make_randomize_with_expr()` in `elab_expr.cc`
+  warns and continues when an inline constraint cannot be lowered, instead
+  of hard-erroring — the call can be built without the requested constraint.
+- **What it blocks:** Trustworthiness of any `randomize() with { ... }` call
+  whose constraint shape isn't recognized; a silent-degradation risk, not
+  merely a missing feature.
+- **Closure requirements:** Reduce a live unsupported inline-constraint
+  shape; require either correct constraint execution or an explicit failure
+  — never a successful solve that silently dropped the constraint.
+- **Last verified revision:** not re-verified since the audit; confirm the
+  exact code path on current `main` before starting.
+
+### S01 — Cross-clock overlapping implication (SVA boundary)
+
+- **Area / edition:** Assertions/SVA / edition-agnostic
+- **State:** OPEN
+- **Confidence:** RECORDED
+- **Evidence / reproducer:** `docs/conformance/ROADMAP.md` /
+  `docs/conformance/matrices/ieee1800_2017_clause_matrix.md` record
+  overlapping implication across different clock domains as explicitly
+  excluded by the current lowering strategy.
+- **What it blocks:** Multi-clock-domain SVA properties, common in
+  real DUTs with independent clock/reset trees.
+- **Closure requirements:** Coincident-edge-aware lowering with
+  source-order-independent antecedent/consequent start behavior; positive
+  and negative tests across at least two independent clocks.
+- **Last verified revision:** not re-verified since the audit.
+
+### V01 — Exact merged type-coverage bin universe (coverage correctness)
+
+- **Area / edition:** Functional coverage / edition-agnostic
+- **State:** OPEN
+- **Confidence:** SOURCE
+- **Evidence / reproducer:** `vvp/class_type.cc`'s `type_coverage` uses a
+  maximum registered dynamic-family size raised to the hit count — not an
+  exact union for arbitrary disjoint instance bin sets.
+- **What it blocks:** Correct type-coverage denominators/percentages for
+  class-type coverage with disjoint or partially overlapping instance bin
+  sets; any claim of coverage-number correctness beyond the all-hit case.
+- **Closure requirements:** Disjoint and overlapping instance domains with
+  known union sizes, including partial (non-100%) coverage results checked
+  against a hand-computed oracle, not just "coverage reaches 100%."
+- **Last verified revision:** not re-verified since the audit.
+
+### F00 — Hardware formal proof backend (PROGRAM item, not a bug)
+
+- **Area / edition:** Formal verification / N/A
+- **State:** OPEN
+- **Confidence:** ARCHITECTURE
+- **Evidence / reproducer:** `docs/conformance/iverilog_ieee1800_uvm_manifesto.md`
+  places a proof engine in a later program; the audit's F01–F09 rows (sound
+  transition-system lowering, property roles, bounded/unbounded search,
+  counterexample replay, vacuity checks, backend soundness validation) are
+  facets of this one program, not nine independent reproduced defects.
+- **What it blocks:** Any claim of formal/model-checking capability beyond
+  constrained-random Z3 solving for randomization (which is explicitly not a
+  hardware model checker).
+- **Closure requirements:** A published supported profile (finite state,
+  legal constructs, reset/clock/X-Z treatment) plus a sound lowering,
+  bounded-safety/cover search, and soundness qualification against known
+  passing/failing designs — this is a multi-increment program; do not close
+  it as one PR. Track F01–F09 as its sub-items when work actually starts.
+- **Last verified revision:** N/A (architecture item).
+
+---
+
+## Excluded / already reconciled (do not re-open without new evidence)
+
+These were checked during the audit that seeded this file and found to be
+stale or already addressed — listed so they aren't accidentally re-promoted
+from `blocker_inventory.json` as if still open:
+
+- One-bit enum VPI-format assertion — fixed by merged PR #261.
+- "Joint parent/child constraints entirely missing" — PR #258 implements a
+  bounded joint route; only its residual contract (Z01 above, and the
+  other Z02–Z14 rows in the fuller audit) remains open.
+- "Solver UNKNOWN accepted as a successful model" — `vvp_z3.cc` returns
+  failure and rolls back on UNKNOWN; an old lenient-UNKNOWN note is stale.
+
+See `blocker_inventory.json` / `iverilog_uvm_blocker_audit.md` (as supplied
+to the governance-bootstrap session) for the full 134-row inventory this
+seed set was drawn from, and for the complete excluded/reconciled list.
