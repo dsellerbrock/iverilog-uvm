@@ -110,3 +110,53 @@ P03 implementation scope is closed locally; no PR was merged and remote CI is
 still required before merge. The campaign may proceed with sequential validated
 commits on this branch; no instruction requires an intervening merge. P01 and
 P02 remain unresolved, application success is unchanged, and formal is unchanged.
+
+## P01 resumed on validated P03
+
+P03 checkpoint b9ffa4994 is the last integrated local good revision. Resumed
+P01 tests from the preserved Git stash without applying unrelated original
+changes. Baseline in both editions: null-child reducer exits 1 at time 5
+(join_any lost its null child); empty-child reducer exits 1 at time 2 (empty
+block child lost); deferred null-action control passes. Logs/emitted VVP are
+in `../evidence/campaign-20260908/p01-red`.
+
+Parser uses a dedicated parallel statement list to preserve direct nulls as
+empty sequential PBlocks while ordinary nulls/assertion actions and declaration
+carriers retain their existing representation. Elaborator no longer discards
+empty NetBlocks when collecting parallel children. Existing backend lowering
+already spawns the retained children. Singleton collapse remains P02; no claim
+that all empty/singleton process semantics are complete is made here.
+
+Both editions 9.3.2/Table 9-1 and A.6.3 ground parallel child semantics. The
+null assertion control guards the separate 16.4/A.6.4 action representation.
+P03 prevents newly retained trailing empty children from exposing premature
+function-spawned execution.
+
+Focused gates: 6/6 legacy, 6/6 JSON (both editions); neighbors: 74/74 legacy,
+49/49 JSON, including fork/process/deferred-assertion tests. Bison fresh reports
+are 541 SR/1122 RR before, 563 SR/1122 RR after. Normalizing rule/state numbers,
+whitespace, and parallel-list names adds exactly one existing attribute/null
+conflict signature and removes none; see `p01-bison-signature.json`. This does
+not claim all parser states are identical. Source/tool hashes are in
+`p01-fingerprints.txt`.
+
+Commands: serial root make with configured Bison/flex, then make install;
+paired focus gate `regress-campaign-p01-legacy.list` /
+`regress-campaign-p01-vvp.list`; integrated commands as P03 above.
+Integrated, real-DPI UVM, full JSON and independent review remain pending.
+
+P01 independent review found no actionable defects. Reviewer independently
+confirmed raw Bison states: baseline 1635 matches patched 1635 and 3620 after
+normalization, with the same 22 rejected variable_lifetime_opt reductions.
+Declaration carriers remain filtered and deferred-action semantics unchanged.
+`make check` passed. Integrated suites are still running; no closure yet.
+
+P01 integrated gate exited 0: legacy total 4642, passed 4637, failed 0,
+not implemented 2, expected fail 3; name diff clean. VPI 103/103, negative
+149/149 and runtime invariants passed. Full JSON exited 0: 1531 tests,
+0 failures. Real-DPI UVM is still pending; P01 remains awaiting validation.
+
+P01 real-DPI UVM exited 0: 355 passed, 0 failed, 0 skipped (-g2012). All
+required local gates passed. P01 closes only null/empty parallel-child
+preservation; singleton identity remains P02. No application or formal gain
+is claimed. Remote CI remains required before merge.

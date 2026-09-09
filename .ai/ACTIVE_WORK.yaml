@@ -1,19 +1,22 @@
-id: P03
+id: P01
 
-title: Defer every function-spawned fork child until parent suspension
+title: Preserve null and empty parallel child processes
 status: completed
 phase: locally_validated
-base_revision: 49505f514ca2729d597d4a2d7347fd639a1209a3
+base_revision: b9ffa4994
 standards:
-  - IEEE 1800-2017 clauses 9.3.2/Table 9-1 and 13.4.4 (verified local LRM text)
-  - IEEE 1800-2023 clauses 9.3.2/Table 9-1 and 13.4.4 (verified local LRM text)
-expected_behavior: Every join_none child spawned in a function waits for parent suspension or termination; synchronous named sequential continuations still finish immediately.
-observed_behavior: Fresh baseline compiles in both editions but runtime exits 1 at time zero with function child ran before parent blocked; evidence/campaign-20260908/p03-red.
+  - IEEE 1800-2017 clause 9.3.2 and Table 9-1 (verified local LRM text)
+  - IEEE 1800-2023 clause 9.3.2 and Table 9-1 (verified local LRM text)
+expected_behavior: Null and empty fork children terminate processes and release join_any; join waits for all children and join_none does not suspend its parent.
+observed_behavior: Both editions compile but join_any loses null and empty children (runtime exits 1 at times 5 and 2 respectively); deferred null actions pass. Evidence in campaign-20260908/p01-red.
 reproducers:
-  - ivtest/ivltests/sv_fork_function_children.v
-hypothesis: do_fork_ uses adjacency to join_detach to suppress synchronous function execution; non-final genuine child processes wrongly enter that synchronous path.
+  - ivtest/ivltests/sv_fork_null_child.v
+  - ivtest/ivltests/sv_fork_empty_child.v
+  - ivtest/ivltests/sv_fork_deferred_null_action.v
+hypothesis: Parser drops direct null children and elaborator drops empty NetBlocks before parallel lowering.
 allowed_scope:
-  - vvp/vthread.cc (do_fork_ scheduling discriminator only)
+  - parse.y (parallel statement list only)
+  - elaborate.cc (PBlock empty-child preservation only)
   - ivtest (focused sources, gold, registration)
   - .ai/ACTIVE_WORK.yaml
   - .ai/CAMPAIGN.yaml
@@ -21,7 +24,7 @@ allowed_scope:
   - docs/conformance/matrices/ieee1800_2017_clause_matrix.md
   - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
 non_goals:
-  - Empty-child preservation and singleton process identity remain separate items.
+  - Singleton process identity and function-spawn scheduling are separate successive items.
   - Deferred assertion implementation, joint solver stages, unrelated application defects.
 invariants:
   - Sequential nulls and assertion null actions retain current representation.
@@ -29,11 +32,12 @@ invariants:
 required_gates:
   - Baseline failure and patched positive/boundary/interaction reducers in g2017 and g2023.
   - Focused legacy and JSON ivtest, exact output checks.
+  - Bison conflict count/signature comparison.
   - Integrated ivtest gate, VPI/negative suites and real-DPI UVM regression.
   - Review and documentation; required CI before any merge.
-dependencies: []
-completion: Close only this exact function-spawn scheduling scope after required gates pass; otherwise awaiting_validation.
+dependencies: [P03 locally validated at b9ffa4994]
+completion: Close only this exact child-preservation scope after required gates pass; otherwise awaiting_validation.
 discovery_policy: Record unrelated discoveries only; proven prerequisites require coordinator boundary.
 stop_after_completion: true
 
-validation: All required local gates passed; remote CI remains required before any merge.
+validation: All required local gates passed; required remote CI remains a merge gate.

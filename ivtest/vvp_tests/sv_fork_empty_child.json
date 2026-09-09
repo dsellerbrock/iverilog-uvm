@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_fork_empty_child.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_fork_empty_child"
+}

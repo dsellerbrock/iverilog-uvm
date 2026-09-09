@@ -2345,6 +2345,8 @@ static Module::port_t *module_declare_port_continuation(
 %type <statement> simple_immediate_assertion_statement
 %type <statement> procedural_assertion_statement
 %type <statement_list> statement_or_null_list statement_or_null_list_opt
+%type <statement_list> parallel_statement_or_null_list parallel_statement_or_null_list_opt
+%type <statement> parallel_statement_or_null
 
 %type <statement> analog_statement
 
@@ -17404,7 +17406,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	      {
 		if (!$1 && $3) pform_requires_sv(@3, "Variable declaration in unnamed block");
 	      }
-	    statement_or_null_list_opt join_keyword label_opt
+	    parallel_statement_or_null_list_opt join_keyword label_opt
 	      { PBlock*tmp;
 		/* Inline SV-style var decls in statements also need the SV check. */
 		if (!$1 && !$3 && !pform_block_scope_is_empty())
@@ -18688,6 +18690,34 @@ compressed_statement
 	$$ = tmp;
       }
    ;
+
+/* Direct parallel null statements must remain child processes (IEEE
+   1800-2017/2023 9.3.2, Table 9-1). Keep this distinct from the ordinary
+   null representation used by assertion actions and sequential lists. */
+parallel_statement_or_null_list_opt
+  : parallel_statement_or_null_list { $$ = $1; }
+  | { $$ = nullptr; }
+  ;
+
+parallel_statement_or_null_list
+  : parallel_statement_or_null_list parallel_statement_or_null
+      { if ($2) $1->push_back($2);
+	$$ = $1;
+      }
+  | parallel_statement_or_null
+      { $$ = new std::vector<Statement*>;
+	if ($1) $$->push_back($1);
+      }
+  ;
+
+parallel_statement_or_null
+  : statement { $$ = $1; }
+  | attribute_list_opt ';'
+      { PBlock*tmp = new PBlock(PBlock::BL_SEQ);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
+  ;
 
 statement_or_null_list_opt
   : statement_or_null_list

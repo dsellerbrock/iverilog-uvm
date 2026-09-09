@@ -178,13 +178,13 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 ### P01 — Null and empty parallel children are discarded
 
 - **Area / edition:** Process execution / IEEE 1800-2017 and 2023 §9.3.2.
-- **State:** BLOCKED
-- **Prerequisite:** P03; retained trailing empty children expose early function-child execution (review1 source trace, current reproduction pending). Reducers preserved in named Git stash and original worktree.
+- **State:** CLOSED (bounded local implementation; not merged)
+- **Prerequisite:** P03 resolved and locally validated at b9ffa4994. Reducers resumed from preserved Git stash.
 - **Confidence:** SOURCE
 - **Evidence / reproducer:** Existing fork-process-preservation patch; `ivtest/ivltests/sv_fork_null_child.v` and `sv_fork_empty_child.v` (current baseline verification pending).
 - **What it blocks:** Correct join_any termination and process creation for empty children.
 - **Closure requirements:** Correct join/join_any/join_none behavior; preserve sequential/assertion null actions; focused and integrated gates.
-- **Last verified revision:** Current source inspection at 49505f514; runtime verification pending.
+- **Last verified revision:** Campaign P01 checkpoint on b9ffa4994; all required local gates passed. See 2026-09-08 campaign evidence; closing PR/remote CI pending before merge.
 
 ### P02 — Singleton forks lose process identity
 

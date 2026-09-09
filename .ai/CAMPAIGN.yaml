@@ -1,14 +1,14 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: P03
+current_blocker: P01
 phase: coordinator_selection
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: P03 checkpoint (this commit; fingerprints in campaign evidence)
-next_selection: Resume P01 after P03; then P02; then verify Z01 against current source and LRM
+last_integrated_good_revision: P01 checkpoint (this commit; p01-fingerprints.txt)
+next_selection: P02; then verify Z01 against current source and LRM
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
 pending_gates: []
 merge_requirements: Required remote CI and existing merge permissions remain in force.
-next_command: git stash show --stat stash@{0}
-suspended_parent: P01 (reducers in named Git stash; contract in ../evidence/campaign-20260908/P01-suspended-contract.yaml)
+next_command: cat ../iverilog-uvm-string-array-param-after253-arm64-20260904/ivtest/ivltests/sv_fork_singleton_control.v
+suspended_parent: none

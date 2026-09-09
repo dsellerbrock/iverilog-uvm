@@ -759,3 +759,9 @@ continuations. Evidence and exact qualification status:
 Empty-child preservation (P01), singleton process identity (P02), broader
 process conformance, UVM qualification, application DV and formal remain
 separate obligations.
+
+P01: IMPLEMENTED for retaining direct null and empty parallel child statements
+under 9.3.2/Table 9-1 (2017 and 2023). All required local gates passed at the
+P01 campaign checkpoint; remote CI/merge pending. Join, join_any, join_none,
+automatic/named/folded empty children and null assertion controls are covered.
+Singleton identity (P02) remains separate and open. See campaign evidence.
