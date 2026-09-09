@@ -160,3 +160,50 @@ P01 real-DPI UVM exited 0: 355 passed, 0 failed, 0 skipped (-g2012). All
 required local gates passed. P01 closes only null/empty parallel-child
 preservation; singleton identity remains P02. No application or formal gain
 is claimed. Remote CI remains required before merge.
+
+## P02 singleton process boundary
+
+P01 checkpoint a5788c259 is the last integrated good revision. On it, both
+editions compile but the singleton process reducer exits 1 at time zero
+(parent and child process handles equal), and singleton wait/disable control
+exits 1 at time 10 (wait fork incorrectly waited for a sibling). Raw logs/VVP
+are in `p02-red`. The patch restricts dll_target::proc_block wrapper elimination
+to NetBlock::SEQU. NetBlock::emit_proc dispatches here; downstream VVP lowering
+already supports a singleton join/join_any using one fork/p and one join.
+
+Both LRMs 9.3.2 establish each parallel statement as a process; 9.6.1/9.6.3
+scope wait/disable to descendants; 9.7 describes independent process handles
+and controls; 18.14.1/18.14.2 require hierarchical parent RNG seeding. Read local
+2017 lines 14535 and 35315 onward, and 2023 lines 15622 and 36818 onward,
+in addition to the parallel-block sections cited above.
+
+Tests cover identity, completed status, exactly one parent RNG draw per child,
+task/sequential controls, empty singleton children, sibling wait/disable
+isolation, suspended delay/resume, and child kill releasing join without
+killing its caller. Focused gate: 4/4 legacy and 4/4 JSON pass; neighbors:
+55/55 legacy and 31/31 JSON pass. Commands follow the same root make/install
+and paired-focus conventions, using regress-campaign-p02 lists.
+
+Independent review: no actionable VVP defect; verified backend singleton
+counts and test timing. Preserving the construct exposes existing non-VVP
+translation limitations (tgt-vhdl fork and tgt-vlog95 join_any unsupported).
+Those targets are not claimed qualified by this VVP process-boundary fix.
+No translation workaround is included. Integrated gates remain pending.
+
+P02 make check and integrated hard gate exited 0. Legacy: total 4646, passed
+4641, failed 0, not implemented 2, expected fail 3; name diff clean. VPI
+103/103, negative 149/149, runtime invariants pass. Full JSON: 1535 tests,
+0 failures, exit 0. Real-DPI UVM still pending.
+
+Application milestone preparation inspected the existing process-change replay
+commands only. The historical Caliptra launcher invokes the prior output-root
+script and its coordinator failed looking for a new-root result. Any fresh
+replay must use a new output root and the campaign compiler explicitly; this
+historical launch is not evidence of a fresh application pass. No application
+source or harness has been changed during P02.
+
+P02 real-DPI UVM exited 0: 355 passed, 0 failed, 0 skipped (-g2012). All
+required local gates passed. P02 closes the singleton VVP process-boundary
+fix only. Combined P03/P01/P02 source remains unmerged; remote CI is still
+required before merge. No broad process, application, UVM-standard, or formal
+qualification claim follows from these three fixes. Next: current Z01 verification.

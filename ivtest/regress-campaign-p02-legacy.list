@@ -1,0 +1,4 @@
+sv_fork_singleton_process normal,-g2017 ivltests gold=sv_fork_singleton_process.gold
+sv_fork_singleton_process_2023 normal,-g2023 ivltests gold=sv_fork_singleton_process.gold
+sv_fork_singleton_control normal,-g2017 ivltests gold=sv_fork_singleton_control.gold
+sv_fork_singleton_control_2023 normal,-g2023 ivltests gold=sv_fork_singleton_control.gold

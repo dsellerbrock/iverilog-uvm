@@ -1,0 +1,4 @@
+sv_fork_singleton_process	vvp_tests/sv_fork_singleton_process.json
+sv_fork_singleton_process_2023	vvp_tests/sv_fork_singleton_process_2023.json
+sv_fork_singleton_control	vvp_tests/sv_fork_singleton_control.json
+sv_fork_singleton_control_2023	vvp_tests/sv_fork_singleton_control_2023.json

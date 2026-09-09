@@ -189,12 +189,12 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 ### P02 — Singleton forks lose process identity
 
 - **Area / edition:** Process execution / IEEE 1800-2017 and 2023.
-- **State:** OPEN
+- **State:** CLOSED (bounded local implementation; not merged)
 - **Confidence:** SOURCE
 - **Evidence / reproducer:** Preserved original worktree `sv_fork_singleton_process.v`; `dll_target::proc_block` flattens singleton joins.
 - **What it blocks:** Process identity/control and per-child random stability.
 - **Closure requirements:** Process identity, RNG ownership, suspend/resume/kill and task/sequential controls with required gates.
-- **Last verified revision:** Not yet reproduced on current main.
+- **Last verified revision:** Campaign P02 checkpoint on a5788c259; all required local gates passed. See 2026-09-08 campaign evidence; closing PR/remote CI pending before merge.
 
 ### P03 — Function-spawned fork children execute synchronously
 

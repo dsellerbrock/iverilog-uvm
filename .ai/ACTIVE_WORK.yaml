@@ -1,43 +1,37 @@
-id: P01
-
-title: Preserve null and empty parallel child processes
+id: P02
+title: Preserve process identity for singleton fork joins
 status: completed
 phase: locally_validated
-base_revision: b9ffa4994
+base_revision: a5788c259
 standards:
-  - IEEE 1800-2017 clause 9.3.2 and Table 9-1 (verified local LRM text)
-  - IEEE 1800-2023 clause 9.3.2 and Table 9-1 (verified local LRM text)
-expected_behavior: Null and empty fork children terminate processes and release join_any; join waits for all children and join_none does not suspend its parent.
-observed_behavior: Both editions compile but join_any loses null and empty children (runtime exits 1 at times 5 and 2 respectively); deferred null actions pass. Evidence in campaign-20260908/p01-red.
+  - IEEE 1800-2017 and 2023 clauses 9.3.2, 9.6.1, 9.6.3, 9.7, 18.14.1 and 18.14.2 (local text verified)
+expected_behavior: Every fork child is an independent process with its own descendant controls and RNG, including singleton join and join_any.
+observed_behavior: Both editions fail identity at time zero and wait-fork sibling isolation at time 10 on a5788c259; logs in campaign-20260908/p02-red.
+hypothesis: dll_target::proc_block treats singleton parallel blocks as sequential statements and removes their process boundary before VVP lowering.
 reproducers:
-  - ivtest/ivltests/sv_fork_null_child.v
-  - ivtest/ivltests/sv_fork_empty_child.v
-  - ivtest/ivltests/sv_fork_deferred_null_action.v
-hypothesis: Parser drops direct null children and elaborator drops empty NetBlocks before parallel lowering.
+  - ivtest/ivltests/sv_fork_singleton_process.v
+  - ivtest/ivltests/sv_fork_singleton_control.v
 allowed_scope:
-  - parse.y (parallel statement list only)
-  - elaborate.cc (PBlock empty-child preservation only)
-  - ivtest (focused sources, gold, registration)
+  - t-dll-proc.cc (proc_block singleton elimination predicate only)
+  - ivtest (singleton regression sources, gold and registrations)
   - .ai/ACTIVE_WORK.yaml
   - .ai/CAMPAIGN.yaml
   - docs/conformance/BLOCKERS.md
   - docs/conformance/matrices/ieee1800_2017_clause_matrix.md
   - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
 non_goals:
-  - Singleton process identity and function-spawn scheduling are separate successive items.
-  - Deferred assertion implementation, joint solver stages, unrelated application defects.
+  - Scheduler redesign, deferred assertions, randomization solver, unrelated applications.
 invariants:
-  - Sequential nulls and assertion null actions retain current representation.
-  - Event regions, join semantics, process ownership, RNG seeding remain intact.
+  - Sequential blocks and synchronous task calls retain enclosing process identity.
+  - Preserve named blocks, randsequence blocks, RNG ownership and existing event regions.
+dependencies: [P01 and P03 locally validated]
 required_gates:
-  - Baseline failure and patched positive/boundary/interaction reducers in g2017 and g2023.
-  - Focused legacy and JSON ivtest, exact output checks.
-  - Bison conflict count/signature comparison.
-  - Integrated ivtest gate, VPI/negative suites and real-DPI UVM regression.
-  - Review and documentation; required CI before any merge.
-dependencies: [P03 locally validated at b9ffa4994]
-completion: Close only this exact child-preservation scope after required gates pass; otherwise awaiting_validation.
+  - Both-edition baseline red and patched focused reducers.
+  - Focused legacy and JSON positive/control/neighbor tests.
+  - Integrated ivtest/VPI/negative/runtime gate, full JSON, real-DPI UVM and make check.
+  - Independent review, documentation and diff check; remote CI remains required before merge.
+completion: Close only singleton process boundary elimination after required local gates pass; broader process conformance remains separate.
 discovery_policy: Record unrelated discoveries only; proven prerequisites require coordinator boundary.
 stop_after_completion: true
 
-validation: All required local gates passed; required remote CI remains a merge gate.
+validation: All required local gates passed; remote CI remains a merge gate.

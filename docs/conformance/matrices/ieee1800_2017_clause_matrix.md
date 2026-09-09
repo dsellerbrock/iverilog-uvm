@@ -765,3 +765,9 @@ under 9.3.2/Table 9-1 (2017 and 2023). All required local gates passed at the
 P01 campaign checkpoint; remote CI/merge pending. Join, join_any, join_none,
 automatic/named/folded empty children and null assertion controls are covered.
 Singleton identity (P02) remains separate and open. See campaign evidence.
+
+P02: IMPLEMENTED for preserving singleton join/join_any process boundaries
+in VVP (2017/2023 9.3.2, 9.6, 9.7, 18.14). All required local gates passed
+at the P02 campaign checkpoint. Identity, RNG seeding, descendant controls and
+suspend/resume/kill are covered. Non-VVP translation limitations remain;
+remote CI/merge and broader process qualification are separate.
