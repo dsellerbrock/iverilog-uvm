@@ -110,8 +110,20 @@ SELECTED
   -> STOP
 ```
 
-Do not automatically choose another blocker after completion. Backlog
-triage and implementation are separate activities.
+In an explicitly authorized continuous campaign, stop changing the completed
+patch, return to coordinator selection, and activate the next concrete blocker
+without another user message. Keep one implementation blocker active at a time.
+Standalone one-ticket tasks stop after completion. Backlog selection and
+implementation remain separate phases.
+
+The coordinator may replace ACTIVE_WORK after closure or safe suspension with
+preserved work and a recorded prerequisite. Unrelated discoveries remain
+record-only during implementation. An empty ready queue calls for bounded
+assessment of one unqualified requirement cluster, not campaign completion.
+At an execution or authority boundary, preserve the active phase, last validated
+revision, outstanding gates, next action, and exact next command in
+`.ai/CAMPAIGN.yaml`. All correctness, toolchain, worktree, and permission
+safeguards remain in force.
 
 Before modifying implementation code establish:
 
@@ -517,14 +529,16 @@ A semantic blocker is DONE only when:
 - [ ] reducer passes;
 - [ ] permanent regression exists;
 - [ ] focused neighboring tests pass;
-- [ ] applicable integrated gates pass or are explicitly reported
-      pending;
+- [ ] all applicable required integrated gates pass; pending required
+      gates mean awaiting validation, not DONE, CLOSED, or QUALIFIED;
 - [ ] no semantic fallback was introduced;
 - [ ] documentation/blocker state is updated;
 - [ ] unrelated discoveries were parked rather than fixed;
 - [ ] claims do not exceed evidence.
 
-Then STOP. Do not automatically begin the next blocker.
+Then stop changing this patch. In an authorized continuous campaign, return
+to coordinator selection; otherwise STOP. Do not build dependent fixes on
+an unvalidated semantic baseline.
 
 ## Commit and pull request
 
