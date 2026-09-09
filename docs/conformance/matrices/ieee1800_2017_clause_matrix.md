@@ -771,3 +771,12 @@ in VVP (2017/2023 9.3.2, 9.6, 9.7, 18.14). All required local gates passed
 at the P02 campaign checkpoint. Identity, RNG seeding, descendant controls and
 suspend/resume/kill are covered. Non-VVP translation limitations remain;
 remote CI/merge and broader process qualification are separate.
+
+
+Z01A: IMPLEMENTED (bounded local scope; unmerged) for bounded canonical integral joint solve-before
+stages (2017 18.5.9/18.5.10 and 2023 18.5.8/18.5.9). Exact component tables
+support stage projection sampling within the existing 1024-tuple ceiling.
+All required local gates and independent review passed; remote CI/merge
+remain pending. Ordered dist, active randc, non-scalar stages, static-alias ordering
+qualification, larger components and broader Z01 remain outside this claim.
+See the campaign session log for separate edition evidence and limitations.

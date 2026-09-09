@@ -82,8 +82,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 - **Closure requirements:** Small-domain staged distributions with correct
   marginal/conditional probabilities and graph rollback on failure; explicit
   rejection preserved for shapes still out of scope after the fix.
-- **Last verified revision:** components build3 (PR #258); not re-verified
-  against current `main`.
+- **Last verified revision:** b9de0be7f reproduced both editions. Z01A resolves bounded canonical integral stages locally; ordered dist/randc and non-scalar/large-domain cases remain open.
 
 ### C01 — Untranslated inline constraints are discarded (semantic degradation)
 
@@ -205,3 +204,14 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 - **What it blocks:** Background process scheduling in functions.
 - **Closure requirements:** Child execution starts after parent suspension/termination, including multiple children; required gates.
 - **Last verified revision:** Campaign P03 checkpoint based on 49505f514; see 2026-09-08 campaign evidence. All required local gates passed; closing PR/remote CI pending before merge.
+
+### Z01A — Bounded canonical integral joint ordering stages
+
+- **Area / edition:** Randomization / IEEE 1800-2017 18.5.10, 2023 18.5.9.
+- **State:** CLOSED (bounded local implementation; unmerged)
+- **Parent:** Z01 (remains open beyond this bounded subcase).
+- **Confidence:** REPRODUCED
+- **Evidence / reproducer:** exact_joint rejects all order_pairs at current b9de0be7f; root-local ordering in existing sv_randomize_global_sampling_fail is legal but unsupported.
+- **What it blocks:** Ordered small-domain parent/member-object sampling.
+- **Closure requirements:** Exact stage projections, latest partial ordering, rollback, replay, callbacks/activation and required gates; keep ordered dist and non-scalar stages explicit unsupported.
+- **Last verified revision:** b9de0be7f red reducer in both editions; candidate patch passes all required local gates and independent review; remote CI/merge pending.

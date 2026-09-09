@@ -1,14 +1,16 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: P02
-phase: coordinator_selection
+current_blocker: Z01A
+phase: checkpoint
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: P02 checkpoint (this commit; p02-fingerprints.txt)
-next_selection: Verify Z01 against current source and LRM
+last_integrated_good_revision: b9de0be7f
+next_selection: Reverify C01 inline-constraint discard risk after Z01A validation; retain residual Z01 requirements
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: []
+pending_gates: [remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
-next_command: graphify query "joint solve before order_pairs" --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json
 suspended_parent: none
+next_command: "tail -20 ../evidence/campaign-20260908/z01a/uvm.log"
+next_command_cwd: repository root
+next_action: Checkpoint Z01A, then verify C01 against current source and LRM.

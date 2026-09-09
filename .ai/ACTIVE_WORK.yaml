@@ -1,37 +1,39 @@
-id: P02
-title: Preserve process identity for singleton fork joins
-status: completed
-phase: locally_validated
-base_revision: a5788c259
+id: Z01A
+title: Exact bounded integral stages in the joint solver
+status: completed_local
+phase: checkpoint
+base_revision: b9de0be7f
+parent: Z01
 standards:
-  - IEEE 1800-2017 and 2023 clauses 9.3.2, 9.6.1, 9.6.3, 9.7, 18.14.1 and 18.14.2 (local text verified)
-expected_behavior: Every fork child is an independent process with its own descendant controls and RNG, including singleton join and join_any.
-observed_behavior: Both editions fail identity at time zero and wait-fork sibling isolation at time 10 on a5788c259; logs in campaign-20260908/p02-red.
-hypothesis: dll_target::proc_block treats singleton parallel blocks as sequential statements and removes their process boundary before VVP lowering.
-reproducers:
-  - ivtest/ivltests/sv_fork_singleton_process.v
-  - ivtest/ivltests/sv_fork_singleton_control.v
+  - IEEE 1800-2017 18.5.9 global constraints and 18.5.10 ordering (verified local LRM)
+  - IEEE 1800-2023 18.5.8 global constraints and 18.5.9 ordering (verified local LRM)
+expected_behavior: Legal integral solve-before directives retain the joint hard solution space and sample each stage uniformly over its distinct feasible projections; unordered/partially ordered values are deferred as late as possible.
+observed_behavior: exact_joint currently rejects every nonempty order_pairs vector, even root-local scalar ordering in a coupled parent/child graph.
+hypothesis: The joint component tuple sampler lacks rank-local projection sampling; reusing the non-joint Optimize diversity path would not prove ordered probabilities.
+reproducer: evidence/campaign-20260908/z01a/reducer.sv (reproduced in both editions)
 allowed_scope:
-  - t-dll-proc.cc (proc_block singleton elimination predicate only)
-  - ivtest (singleton regression sources, gold and registrations)
+  - vvp/vvp_z3.cc (bounded joint ordering and tuple sampling)
+  - ivtest (ordered joint regression and now-stale unsupported expectation only)
   - .ai/ACTIVE_WORK.yaml
   - .ai/CAMPAIGN.yaml
   - docs/conformance/BLOCKERS.md
+  - docs/conformance/DISCOVERED_DEBT.md
   - docs/conformance/matrices/ieee1800_2017_clause_matrix.md
   - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
 non_goals:
-  - Scheduler redesign, deferred assertions, randomization solver, unrelated applications.
+  - Non-joint solver repair or architectural redesign.
+  - Ordered joint dist/active randc, real variables, dynamic-size/element ordering, or larger-than-cap components.
+  - Frontend expansion of new hierarchical ordering spellings.
 invariants:
-  - Sequential blocks and synchronous task calls retain enclosing process identity.
-  - Preserve named blocks, randsequence blocks, RNG ownership and existing event regions.
-dependencies: [P01 and P03 locally validated]
+  - Keep complete component feasibility proofs before joint tuple-sampling RNG draws; no cap increase or prefix sampling.
+  - Preserve hard/soft constraints, canonical identity, graph rollback, callbacks, rand_mode and deterministic joint RNG ownership/replay.
+  - Rank partially ordered variables as late as allowed; keep broader Z01 open.
 required_gates:
-  - Both-edition baseline red and patched focused reducers.
-  - Focused legacy and JSON positive/control/neighbor tests.
-  - Integrated ivtest/VPI/negative/runtime gate, full JSON, real-DPI UVM and make check.
-  - Independent review, documentation and diff check; remote CI remains required before merge.
-completion: Close only singleton process boundary elimination after required local gates pass; broader process conformance remains separate.
-discovery_policy: Record unrelated discoveries only; proven prerequisites require coordinator boundary.
-stop_after_completion: true
-
-validation: All required local gates passed; remote CI remains a merge gate.
+  - Both-edition reducer red then permanent small-domain probability, replay, alias/activation/callback and rollback tests.
+  - Negative unsupported shapes and cycle checks; focused legacy and JSON tests.
+  - Integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM, make check, independent review.
+  - Remote CI before merge.
+dependencies: []
+completion: All required local gates passed; bounded canonical integral stages resolved, parent Z01 remains partial, remote CI required before merge.
+discovery_policy: Unrelated findings are record-only; proven prerequisites require a preserved-work coordinator boundary.
+stop_after_completion: false
