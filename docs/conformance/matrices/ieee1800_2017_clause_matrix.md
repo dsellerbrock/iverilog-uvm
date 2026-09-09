@@ -780,3 +780,12 @@ All required local gates and independent review passed; remote CI/merge
 remain pending. Ordered dist, active randc, non-scalar stages, static-alias ordering
 qualification, larger components and broader Z01 remain outside this claim.
 See the campaign session log for separate edition evidence and limitations.
+
+
+C01: IMPLEMENTED (bounded diagnostic correctness; unmerged) for rejecting untranslated inline constraint items
+instead of accepting a partial randomize call (2017/2023 18.7). Both-edition
+red runtime evidence confirms lost constraints on 8f298eefe. The candidate
+passes paired focused rejection and supported/no-op controls. This is a
+semantic-degradation fix, not implementation of the unsupported expressions.
+All required local gates and review pass; remote CI/merge remain pending.
+See campaign evidence.

@@ -262,3 +262,55 @@ All required local gates and independent review pass. Close only bounded
 canonical integral joint ordering; parent Z01 remains open. Remote CI is
 required before merge. Next selection: reverify C01 because discarding a
 requested inline constraint could invalidate successful DV checking.
+
+
+## C01 — refuse successful inline-constraint omission (in progress)
+
+On baseline 8f298eefe, both -g2017 and -g2023 compile the selected foreach
+reducer with a warning and return randomize success while addr is 412736472
+instead of the requested 123. Evidence: ../evidence/campaign-20260908/c01.
+Verified both editions' 18.7 requirement that inline constraints apply along
+with object constraints. The shared make_randomize_with_expr fallback now
+increments Design::errors and issues a hard diagnostic, preventing codegen
+without changing the owned expression/task construction path. Existing
+specific errors suppress the generic fallback message as before.
+
+Five permanent rejection sites exercise implicit object calls, scope-form
+class properties, explicit expressions, task-style calls and std::randomize
+with an object argument. Existing selected-foreach/clog2 diagnostic gold gains
+one error apiece. Historical sv_randomize_with_unresolvable_dropped explicitly
+expected warning-and-success; it now requires CE with an exact diagnostic.
+This removes a misleading success expectation, not a supported feature.
+Empty with blocks, zero-iteration dynamic foreach, adjacent constraints and
+successful task calls remain covered by positive tests in both editions.
+
+Independent review found no actionable defect. A suspected empty nested-set
+regression was checked against the parser: that shape was already rejected,
+so no translator expansion was made. Empty top-level blocks bypass the item
+loop and zero-iteration dynamic templates retain nonempty IR. The new 2023
+JSON rejection test initially differed only in include-path spelling; its
+source configuration now follows the existing direct-source edition pattern.
+Final paired focus passed 24/24 legacy and 21/21 JSON. Required integrated,
+full JSON, real-DPI UVM and make check remain pending. This ticket only closes
+silent constraint omission; unsupported legal shapes remain unimplemented.
+
+First integrated run: one legacy failure, sv_constraint_foreach_hierarchical.
+Its source explicitly expected successful randomize with a dropped hierarchical
+item. Converted it to CE with the lowering diagnostic (thereby still testing
+parser reachability); added JSON coverage for both historical discard tests.
+No compiler source changed. Other 4650 legacy cases passed; VPI 103/103,
+negative 149/149, runtime 15/15. Focus and integrated will rerun without an
+expected-failure waiver. make check passed; UVM remains running on same source.
+
+C01 final focus: 25/25 legacy and 23/23 JSON, exit 0. Review accepts both
+historical-test conversions as exact lowering diagnostics without a broader
+feature claim. Integrated rerun exited 0: 4656 total, 4651 passed, zero
+failed, 2 not implemented, 3 expected failures; name comparison clean.
+VPI 103/103, negative 149/149, runtime invariants 15/15. Full JSON and UVM pending.
+
+C01 full JSON exited 0: 1547 tests, zero failures. Real-DPI UVM exited 0:
+355 passed, zero failed/skipped (actual -g2012). All required local gates
+and independent review pass. Close the silent-discard defect only; no claim
+that unsupported foreach/clog2 shapes are implemented. Remote CI/merge
+remain pending. Worktree audit unchanged; unrelated trees remain preserved.
+Next: current U01 unmodified application frontier at this coherent milestone.

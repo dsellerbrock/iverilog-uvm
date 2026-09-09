@@ -1,16 +1,16 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: Z01A
+current_blocker: C01
 phase: checkpoint
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: b9de0be7f
-next_selection: Reverify C01 inline-constraint discard risk after Z01A validation; retain residual Z01 requirements
+last_integrated_good_revision: 8f298eefe
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
 pending_gates: [remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: none
-next_command: "tail -20 ../evidence/campaign-20260908/z01a/uvm.log"
-next_command_cwd: repository root
-next_action: Checkpoint Z01A, then verify C01 against current source and LRM.
+next_command: 'PATH="$PWD/../local-install/bin:$PATH" ../../evidence/arm64-tooling/resource-runner python3 ./vvp_reg.py'
+next_command_cwd: ivtest
+next_action: Checkpoint C01, then verify the U01 unmodified application frontier.
+next_selection: Reassess U01 unmodified application frontier after C01 validation.

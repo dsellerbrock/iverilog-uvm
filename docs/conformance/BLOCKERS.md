@@ -87,8 +87,8 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 ### C01 — Untranslated inline constraints are discarded (semantic degradation)
 
 - **Area / edition:** Frontend/randomization / edition-agnostic
-- **State:** OPEN
-- **Confidence:** SOURCE
+- **State:** CLOSED (silent-discard defect only; local implementation unmerged)
+- **Confidence:** REPRODUCED
 - **Evidence / reproducer:** `make_randomize_with_expr()` in `elab_expr.cc`
   warns and continues when an inline constraint cannot be lowered, instead
   of hard-erroring — the call can be built without the requested constraint.
@@ -98,8 +98,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 - **Closure requirements:** Reduce a live unsupported inline-constraint
   shape; require either correct constraint execution or an explicit failure
   — never a successful solve that silently dropped the constraint.
-- **Last verified revision:** not re-verified since the audit; confirm the
-  exact code path on current `main` before starting.
+- **Last verified revision:** 8f298eefe accepts and discards a selected foreach item in both editions; runtime returns success with 412736472 instead of required 123. Candidate passes all required local gates and review; remote CI required before merge. Unsupported expressions remain unimplemented.
 
 ### S01 — Cross-clock overlapping implication (SVA boundary)
 

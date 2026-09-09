@@ -247,18 +247,16 @@ NetESFunc* make_randomize_with_expr(
                         delete object_slots.back();
                         object_slots.pop_back();
                   }
-		    // A top-level `with' constraint item this pass could not
-		    // translate to solver IR is silently dropped -- the
-		    // randomize() call still succeeds, just without that
-		    // constraint in effect. That is a real behavioral gap
-		    // (the LRM has no notion of a partially-applied
-		    // constraint), so make it loud instead of silent.
+                  // IEEE 1800 18.7 requires every inline item to apply.
+                  // Keep the normal ownership path, but prevent code generation
+                  // for a call whose requested constraints cannot be lowered.
 		  if (des->errors == errors_before) {
 			ostringstream item_text;
 			wc->dump(item_text);
-			cerr << wc->get_fileline() << ": warning: constraint `"
+			cerr << wc->get_fileline() << ": error: constraint `"
 			     << item_text.str() << "' could not be translated and "
-			     << "is being ignored (compile-progress fallback)." << endl;
+			     << "the randomize call cannot be compiled." << endl;
+                        des->errors += 1;
 		  }
 		  continue;
 	    }

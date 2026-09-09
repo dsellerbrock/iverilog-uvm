@@ -1836,8 +1836,8 @@ sv_class_var_shadows_type normal,-g2012 ivltests
 sv_const_decl_not_first normal,-g2012 ivltests
 sv_default_arg_assign_pattern normal,-g2012 ivltests
 sv_iter_ctx_cache_stale normal,-g2023 ivltests
-sv_randomize_with_unresolvable_dropped normal,-g2012 ivltests
-sv_constraint_foreach_hierarchical normal,-g2012 ivltests
+sv_randomize_with_unresolvable_dropped CE,-g2012 ivltests gold=sv_randomize_with_unresolvable_dropped.gold
+sv_constraint_foreach_hierarchical CE,-g2012 ivltests gold=sv_constraint_foreach_hierarchical.gold
 sv_queue_dollar_arithmetic normal,-g2012 ivltests
 sv_foreach_hierarchical_dual_dim normal,-g2012 ivltests
 concat_unsized_literal_reject CE,-g2012 ivltests
@@ -2650,3 +2650,7 @@ sv_randomize_global_ordered_fail normal,-g2017,-s,main ivltests gold=sv_randomiz
 sv_randomize_global_ordered_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_ordered_fail.gold
 sv_randomize_global_ordered_limit normal,-g2017,-s,main ivltests gold=sv_randomize_global_ordered_limit.gold
 sv_randomize_global_ordered_limit_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_ordered_limit.gold
+sv_constraint_inline_reject CE,-g2017,-s,main ivltests gold=sv_constraint_inline_reject.gold
+sv_constraint_inline_reject_2023 CE,-g2023,-s,main ivltests gold=sv_constraint_inline_reject.gold
+sv_constraint_inline_empty normal,-g2017,-s,main ivltests gold=sv_constraint_inline_empty.gold
+sv_constraint_inline_empty_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_inline_empty.gold
