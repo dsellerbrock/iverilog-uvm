@@ -346,3 +346,42 @@ comments cite 11.7 incorrectly and assert the erroneous extra-loop behavior.
 U01 is suspended at this explicit coordinator boundary. Its reducer, full
 fresh replay and contract are preserved under u01. L01 is the sole active
 implementation blocker; after its semantic gates pass, resume the exact smoke.
+
+
+L01 changes only the existing identifier-prefix grammar action: retain the
+selection expression in the enclosing scope, declare only terminal indices,
+and build one foreach. The grammar productions and Bison automaton are
+unchanged (563 shift/reduce, 1122 reduce/reduce; raw parse.output identical).
+The synthesized PEIdent retains source/lexical position, the prefix list is
+freed separately, and existing terminal index-type inference is preserved.
+
+Both-edition lookup, constant selectors, selected-row-only traversal, explicit
+outer loops and normal multidimensional loops pass. Undefined and empty/comma
+prefixes are rejected. The old dual_dim test asserted a false extra outer loop;
+it now tests proper selection and explicit nested traversal. Independent review
+found no semantic issue, verified identical Bison output, and noted an empty
+prefix diagnostic pointing to line 1. Changed that diagnostic to the foreach
+location and reran build/focus before integrated validation.
+
+A diagnostic associative-string member probe still creates an int loop key
+and executes zero iterations with both the retained pre-L01 compiler and the
+campaign compiler. This is DD-002, outside L01; old-compiler bytecode was used
+only for that diagnostic comparison, not as qualification evidence. No claim
+of associative-string member foreach completion is made.
+
+L01 final focus passes 53/53 legacy and 34/34 JSON, exit 0. make check
+passes. Final raw Bison output remains identical to baseline. Integrated and
+real-DPI UVM are running; full JSON follows integrated.
+
+L01 integrated gate exited 0: legacy 4662 total, 4657 passed, zero failed,
+2 not implemented, 3 expected failures; name comparison clean. VPI 103/103,
+negative 149/149, runtime 15/15. Full JSON and real-DPI UVM remain pending.
+
+L01 full JSON exited 0: 1554 tests, zero failures. Real-DPI UVM remains
+the required local semantic gate; U01 replay follows the validated checkpoint.
+
+L01 real-DPI UVM exited 0: 355 passed, zero failed/skipped (-g2012).
+All required local semantic gates and review pass. Checkpoint implementation
+as awaiting the required U01 application replay, not CLOSED. Worktree audit
+unchanged; no sibling trees removed. Next: rebuild the same smoke into a fresh
+u01-after-l01 root with unchanged application sources, providers and options.

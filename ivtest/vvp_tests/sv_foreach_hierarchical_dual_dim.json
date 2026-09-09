@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_foreach_hierarchical_dual_dim.v",
+    "iverilog-args": [
+        "-g2012"
+    ],
+    "gold": "sv_foreach_hierarchical_dual_dim"
+}

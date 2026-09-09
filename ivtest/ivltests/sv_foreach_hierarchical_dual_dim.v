@@ -1,62 +1,30 @@
-// IEEE 1800-2017 11.7 extended to a hierarchical target:
-// `foreach (a[k1,...].b[i1,...])' declares NEW loop variables for
-// EACH bracket group and iterates every combination -- there is no
-// standard "fixed outer index, loop the inner dimension" reading for
-// a bare identifier in the outer bracket (that shape needs a genuine
-// expression, e.g. `a[k+0].b[i]`, to disambiguate from a loop-variable
-// declaration).
-//
-// This construct used to be a parser stub: the grammar action built
-// no PForeach node at all and unconditionally discarded the loop
-// body, with no diagnostic in the common case (the only guard,
-// pform_requires_sv(), is a silent no-op once SystemVerilog mode is
-// active, which it is for virtually all real input) -- a fully silent
-// zero-iteration bug. Reduced from OpenTitan xbar_env_pkg.sv's
-// `foreach (xbar_devices[i].addr_ranges[j])`.
+// IEEE 1800-2017/2023 12.7.3: only the final list declares loop variables.
+// Historical basename retained; traversal of both levels needs two loops.
 typedef struct { int v[3]; } holder_t;
-
 module main;
   holder_t h[2];
-  int errors = 0;
-  int seen[2][3];
-
-  task check(string what, int got, int exp);
-    if (got !== exp) begin
-      $display("FAIL %s: got %0d expect %0d", what, got, exp);
-      errors++;
-    end
-  endtask
-
+  int matrix[2][3];
+  localparam int ROW = 1;
+  int selected, count, sum;
   initial begin
-    h[0].v = '{5, 9, 20};
-    h[1].v = '{1, 2, 3};
-
-    foreach (h[k].v[i]) begin
-      seen[k][i] = h[k].v[i];
-    end
-
-    check("h[0].v[0]", seen[0][0], 5);
-    check("h[0].v[1]", seen[0][1], 9);
-    check("h[0].v[2]", seen[0][2], 20);
-    check("h[1].v[0]", seen[1][0], 1);
-    check("h[1].v[1]", seen[1][1], 2);
-    check("h[1].v[2]", seen[1][2], 3);
-
-    // A loop variable name that shadows an already-declared outer
-    // variable of the same name is standard-compliant (the loop
-    // variable is a fresh local, IEEE 1800-2017 11.7) -- confirm the
-    // shadowing itself does not crash or misbehave, without asserting
-    // anything about the (unrelated) outer variable's own value.
-    begin
-      int k;
-      k = 77;
-      foreach (h[k].v[i]) begin
-        seen[k][i] = h[k].v[i];
-      end
-      check("outer k unaffected by loop-var shadow", k, 77);
-    end
-
-    if (errors == 0) $display("PASSED");
-    else $display("%0d checks failed", errors);
+    h[0].v = '{5, 9, 20}; h[1].v = '{1, 2, 3};
+    selected = 1;
+    count = 0; sum = 0;
+    foreach (h[selected].v[i]) begin count++; sum += h[selected].v[i]; end
+    if (count != 3 || sum != 6 || selected != 1)
+      $fatal(1, "selected prefix was iterated or changed");
+    count = 0; sum = 0;
+    foreach (h[ROW].v[i]) begin count++; sum += h[ROW].v[i]; end
+    if (count != 3 || sum != 6) $fatal(1, "constant prefix changed");
+    count = 0; sum = 0;
+    foreach (h[selected+0].v[i]) begin count++; sum += h[selected].v[i]; end
+    if (count != 3 || sum != 6) $fatal(1, "expression prefix changed");
+    count = 0; sum = 0;
+    foreach (h[k]) foreach (h[k].v[i]) begin count++; sum += h[k].v[i]; end
+    if (count != 6 || sum != 40) $fatal(1, "explicit nested traversal failed");
+    count = 0;
+    foreach (matrix[i,j]) begin matrix[i][j] = i*3+j; count++; end
+    if (count != 6 || matrix[1][2] != 5) $fatal(1, "ordinary multidimensional loop changed");
+    $display("PASSED");
   end
 endmodule

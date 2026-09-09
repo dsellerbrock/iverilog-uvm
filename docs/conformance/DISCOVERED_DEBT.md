@@ -44,3 +44,14 @@ requires parking. Use the format above for the next agent's discoveries.
 - **Evidence:** Independent Z01A source review; ordered active-randc is explicitly excluded/rejected by Z01A.
 - **Reproducer status:** sketched
 - **Triage status:** untriaged
+
+
+### DD-002 — associative member foreach loses string key type
+
+- **Discovered while working:** L01
+- **Observation:** foreach(boxes[selector].values[key]) with class member values[string] declares key as int and iterates zero entries. Same output and int key declaration with retained pre-L01 compiler and campaign runtime; not caused by the selected-prefix fix.
+- **File/function:** pform_make_foreach_declarations / foreach_index_type_t unindexed member type resolution.
+- **Possible clause:** IEEE 1800-2017/2023 12.7.3 implicit index type.
+- **Evidence:** evidence/campaign-20260908/l01/typed*.sv, .vvp and logs; old compiler from preserved string-array-param-after253 worktree, a diagnostic comparison rather than a campaign qualification gate.
+- **Reproducer status:** confirmed
+- **Triage status:** untriaged; no repair included in L01.

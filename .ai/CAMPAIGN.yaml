@@ -1,15 +1,14 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: L01
-phase: trace_implementation
+phase: application_replay
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: c57fbe3c5
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [L01_focus, bison, integrated, full_JSON, UVM, make_check, review, U01_replay, remote_CI_before_merge]
+pending_gates: [U01_replay, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: U01
-next_action: Correct only selected-prefix procedural foreach lowering, then validate and resume U01.
-next_command: "sed -n '6060,6142p' parse.y"
 next_selection: Resume U01 from preserved current-source bytecode and lookup reducer.
+next_action: Rebuild and run the same U01 debug-xbar smoke in a fresh post-L01 output root.

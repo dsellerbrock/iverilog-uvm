@@ -789,3 +789,13 @@ passes paired focused rejection and supported/no-op controls. This is a
 semantic-degradation fix, not implementation of the unsupported expressions.
 All required local gates and review pass; remote CI/merge remain pending.
 See campaign evidence.
+
+
+L01: AWAITING VALIDATION for selected-prefix procedural member foreach
+(2017/2023 12.7.3). The selected prefix is no longer redeclared and iterated;
+only terminal loop variables are introduced. Both-edition lookup and traversal
+controls pass, along with 53 legacy/34 JSON focused cases and unchanged Bison
+automaton. All local semantic gates and review passed; application replay
+remains pending. DD-002 associative string
+index typing remains a separate unqualified gap. U01 requires a fresh replay
+after local semantic validation; no xbar application pass is yet established.

@@ -218,10 +218,10 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 ### L01 — Procedural member foreach replaces a selected prefix with a new loop
 
 - **Area / edition:** Procedural iteration / IEEE 1800-2017 and 2023 12.7.3.
-- **State:** IN_PROGRESS
+- **State:** AWAITING_VALIDATION (local semantic gates pass; application replay pending)
 - **Confidence:** REPRODUCED
 - **Parent:** U01, preserved under evidence/campaign-20260908/u01.
 - **Evidence / reproducer:** lookup.sv fails both editions at c57fbe3c5; inner foreach visits all device ranges despite an enclosing selected-device filter. Slang accepts both editions; Verilator runtime produces correct membership.
 - **What it blocks:** Correct selected member iteration and unmodified xbar scoreboard address routing.
 - **Closure requirements:** Correct terminal-only loop declarations/iteration, constant/variable/nested controls, Bison/focused/integrated gates and independent review; then replay U01.
-- **Last verified revision:** c57fbe3c5.
+- **Last verified revision:** c57fbe3c5 red; candidate passes paired/focused/integrated/full JSON/UVM and review, application replay pending.
