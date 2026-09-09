@@ -745,3 +745,17 @@ completed application gain. The stored semantic_debt_count sum is 2221 versus
 warning/error tokens and compiler return codes match, so no semantic debt
 improvement is claimed. Caliptra's 105 static rows are unchanged at52 PASS and
 ICARUS_GAP0. The session record links the complete per-row/input/raw-log audit.
+
+## Campaign process-execution increments (2026-09-08)
+
+P03 targets only function-spawned `fork...join_none` child scheduling under
+9.3.2/Table 9-1 and 13.4.4, in both IEEE 1800-2017 and IEEE 1800-2023.
+Current status: IMPLEMENTED for this bounded scheduling fix; all required local
+gates passed, with remote CI/merge still pending. The baseline executes
+non-final children before parent suspension; the candidate retains the existing
+queued process path for all genuine children while preserving synchronous call
+continuations. Evidence and exact qualification status:
+[2026-09-08 campaign](../session_logs/2026-09-08_continuous_campaign.md).
+Empty-child preservation (P01), singleton process identity (P02), broader
+process conformance, UVM qualification, application DV and formal remain
+separate obligations.

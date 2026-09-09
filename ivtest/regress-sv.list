@@ -2629,3 +2629,6 @@ sv_randomize_global_dist_components normal,-g2017,-s,main ivltests gold=sv_rando
 sv_randomize_global_dist_components_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_dist_components.gold
 sv_randomize_global_components_fail normal,-g2017,-s,main ivltests gold=sv_randomize_global_components_fail.gold
 sv_randomize_global_components_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_components_fail.gold
+
+sv_fork_function_children normal,-g2017,-s,main ivltests gold=sv_fork_function_children.gold
+sv_fork_function_children_2023 normal,-g2023,-s,main ivltests gold=sv_fork_function_children.gold

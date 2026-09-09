@@ -172,3 +172,36 @@ from `blocker_inventory.json` as if still open:
 See `blocker_inventory.json` / `iverilog_uvm_blocker_audit.md` (as supplied
 to the governance-bootstrap session) for the full 134-row inventory this
 seed set was drawn from, and for the complete excluded/reconciled list.
+
+## Campaign-resumed process work
+
+### P01 — Null and empty parallel children are discarded
+
+- **Area / edition:** Process execution / IEEE 1800-2017 and 2023 §9.3.2.
+- **State:** BLOCKED
+- **Prerequisite:** P03; retained trailing empty children expose early function-child execution (review1 source trace, current reproduction pending). Reducers preserved in named Git stash and original worktree.
+- **Confidence:** SOURCE
+- **Evidence / reproducer:** Existing fork-process-preservation patch; `ivtest/ivltests/sv_fork_null_child.v` and `sv_fork_empty_child.v` (current baseline verification pending).
+- **What it blocks:** Correct join_any termination and process creation for empty children.
+- **Closure requirements:** Correct join/join_any/join_none behavior; preserve sequential/assertion null actions; focused and integrated gates.
+- **Last verified revision:** Current source inspection at 49505f514; runtime verification pending.
+
+### P02 — Singleton forks lose process identity
+
+- **Area / edition:** Process execution / IEEE 1800-2017 and 2023.
+- **State:** OPEN
+- **Confidence:** SOURCE
+- **Evidence / reproducer:** Preserved original worktree `sv_fork_singleton_process.v`; `dll_target::proc_block` flattens singleton joins.
+- **What it blocks:** Process identity/control and per-child random stability.
+- **Closure requirements:** Process identity, RNG ownership, suspend/resume/kill and task/sequential controls with required gates.
+- **Last verified revision:** Not yet reproduced on current main.
+
+### P03 — Function-spawned fork children execute synchronously
+
+- **Area / edition:** Process execution / IEEE 1800-2017 and 2023.
+- **State:** CLOSED (bounded local implementation; not merged)
+- **Confidence:** SOURCE
+- **Evidence / reproducer:** Preserved original worktree `sv_fork_function_children.v`; `do_fork_` function path can synchronously execute non-final children.
+- **What it blocks:** Background process scheduling in functions.
+- **Closure requirements:** Child execution starts after parent suspension/termination, including multiple children; required gates.
+- **Last verified revision:** Campaign P03 checkpoint based on 49505f514; see 2026-09-08 campaign evidence. All required local gates passed; closing PR/remote CI pending before merge.
