@@ -1,34 +1,36 @@
-id: C01
-title: Reject untranslated inline constraints instead of solving without them
-status: completed_local
-phase: checkpoint
-base_revision: 8f298eefe
+id: L01
+title: Preserve selected-prefix identifiers in procedural member foreach
+status: in_progress
+phase: trace_implementation
+base_revision: c57fbe3c5
+parent: U01
 standards:
-  - IEEE 1800-2017 18.7 inline constraints
-  - IEEE 1800-2023 18.7 inline constraints
-expected_behavior: A randomize with call applies every requested constraint; unsupported lowering must fail explicitly, never emit a successful partial solve.
-observed_behavior: make_randomize_with_expr still warns and continues when an item yields empty IR without an existing error.
-hypothesis: The shared inline class builder fails to increment Design errors on its fallback path.
+  - IEEE 1800-2017 and IEEE 1800-2023 12.7.3 and Annex A.6.8/A.9.3 (terminal loop-variable list and selected target).
+expected_behavior: In foreach(devices[selected].ranges[j]), selected resolves in the enclosing scope and only j is declared/iterated by this loop.
+observed_behavior: The bare-identifier grammar alternative declares a new selected loop variable and traverses every outer device. The two-device lookup admits 0x2309 into the 0..0x1ff device.
+reproducer: ../evidence/campaign-20260908/u01/lookup.sv (both editions fail; Slang accepts both, Verilator runtime passes).
+causal_mechanism: parse.y hierarchical loop_variables alternative synthesizes nested outer and inner PForeach nodes, unlike the existing expression-prefix alternative.
 allowed_scope:
-  - elab_expr.cc (shared inline constraint failure path)
-  - ivtest (focused failure and supported controls; affected diagnostic gold)
+  - parse.y (selected member foreach action only)
+  - ivtest (permanent selected-prefix regression and correction of false dual-loop expectation)
   - .ai/ACTIVE_WORK.yaml
   - .ai/CAMPAIGN.yaml
   - docs/conformance/BLOCKERS.md
   - docs/conformance/matrices/ieee1800_2017_clause_matrix.md
   - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
 non_goals:
-  - Implement unsupported expression shapes or broader constraint semantics.
-  - Change unrelated class-declaration or runtime solver behavior.
+  - No unrelated foreach/constraint grammar redesign or new array type support.
+  - No edits to the pinned OpenTitan corpus or its checking/traffic.
 invariants:
-  - Preserve existing precise diagnostics; no duplicate generic error after a diagnosed failure.
-  - Preserve receiver/capture ownership and all shared expression/task callers.
-  - Explicit failure does not qualify the unsupported legal feature as implemented.
+  - Only terminal loop variables are local; preserve selected prefix lookup and capture semantics.
+  - Preserve existing expression-prefix and ordinary multidimensional comma-list behavior.
+  - Retain index typing, automatic scope lifetime, nested returns and bounds.
 required_gates:
-  - Both-edition red acceptance/constraint-loss reducer and permanent rejection regression.
-  - Supported inline expression/task controls and focused legacy/JSON diagnostics.
-  - Integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM, make check and independent review.
+  - Both-edition selected prefix, constant prefix, nested member queues/arrays and ordinary foreach controls.
+  - Bison conflict count/signature check; focused legacy and JSON regressions.
+  - Integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM, make check, independent review.
+  - Replay U01 after local semantic gates pass; do not close U01 without checked application completion.
   - Remote CI before merge.
-completion: Silent-discard defect resolved; all required local gates passed. Unsupported shapes remain unimplemented; remote CI/merge pending.
-discovery_policy: Unrelated discoveries are record-only.
+completion: Resolve only selected-prefix iteration defect after all required local semantic gates; then resume U01.
+discovery_policy: Unrelated findings are record-only.
 stop_after_completion: false

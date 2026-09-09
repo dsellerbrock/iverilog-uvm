@@ -52,8 +52,8 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 ### U01 — Xbar runtime/scoreboard/outstanding-request failures
 
 - **Area / edition:** UVM and applications / edition-agnostic
-- **State:** OPEN
-- **Confidence:** RECORDED
+- **State:** IN_PROGRESS (suspended for L01 prerequisite)
+- **Confidence:** REPRODUCED
 - **Evidence / reproducer:** `docs/conformance/session_logs/2026-09-04_global_constraint_solver.md`
   (5 xbar runtime logs show scoreboard mismatches; all 8 report outstanding
   requests on termination); PR #258; PR #261 (enum fix is explicitly not
@@ -65,8 +65,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
   probe, reduce the simulator mechanism it exposes, and demonstrate at least
   one xbar smoke reaching normal completion with matched, checked
   request/response traffic and zero outstanding transactions at end of test.
-- **Last verified revision:** components build3 (2026-09-04 session log);
-  not re-verified against current `main`.
+- **Last verified revision:** c57fbe3c5 fresh unmodified-source smoke: wrong host-side address mapping precedes 1681844 ps scoreboard mismatch, outstanding request error, 300s timeout. Reduced to L01 selected-prefix foreach; U01 remains unqualified.
 
 ### Z01 — Joint solve-before stages unsupported
 
@@ -214,3 +213,15 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 - **What it blocks:** Ordered small-domain parent/member-object sampling.
 - **Closure requirements:** Exact stage projections, latest partial ordering, rollback, replay, callbacks/activation and required gates; keep ordered dist and non-scalar stages explicit unsupported.
 - **Last verified revision:** b9de0be7f red reducer in both editions; candidate patch passes all required local gates and independent review; remote CI/merge pending.
+
+
+### L01 — Procedural member foreach replaces a selected prefix with a new loop
+
+- **Area / edition:** Procedural iteration / IEEE 1800-2017 and 2023 12.7.3.
+- **State:** IN_PROGRESS
+- **Confidence:** REPRODUCED
+- **Parent:** U01, preserved under evidence/campaign-20260908/u01.
+- **Evidence / reproducer:** lookup.sv fails both editions at c57fbe3c5; inner foreach visits all device ranges despite an enclosing selected-device filter. Slang accepts both editions; Verilator runtime produces correct membership.
+- **What it blocks:** Correct selected member iteration and unmodified xbar scoreboard address routing.
+- **Closure requirements:** Correct terminal-only loop declarations/iteration, constant/variable/nested controls, Bison/focused/integrated gates and independent review; then replay U01.
+- **Last verified revision:** c57fbe3c5.

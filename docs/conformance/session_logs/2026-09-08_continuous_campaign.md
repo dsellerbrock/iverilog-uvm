@@ -314,3 +314,35 @@ and independent review pass. Close the silent-discard defect only; no claim
 that unsupported foreach/clog2 shapes are implemented. Remote CI/merge
 remain pending. Worktree audit unchanged; unrelated trees remain preserved.
 Next: current U01 unmodified application frontier at this coherent milestone.
+
+
+## U01 replay and L01 prerequisite boundary
+
+At c57fbe3c5, one fresh unmodified OpenTitan runtime row was rebuilt using
+pinned 7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19 and native Python 3.13/FuseSoC.
+Core: lowrisc:dv:top_darjeeling_xbar_dbg_sim:0.1, original xbar_smoke config,
+providers and timescale; no explicit seed override. Compilation passed in
+3.298s. Runtime timed out after 300.052s (124) with the same scoreboard error
+at 1681844ps and outstanding-request failure. No application pass is claimed.
+Exact commands, compiler/corpus fingerprints and source/provider metadata:
+../evidence/campaign-20260908/u01/result.json and matrix logs. Corpus stayed clean.
+
+A 10-second UVM_HIGH/unbuffered diagnostic replay of this fresh bytecode
+(trace-high.json/log) no longer crashes in enum comparison. It shows the first
+routing divergence at 977768ps: host address 0x2309 is assigned to rv_dm__dbg
+by the scoreboard, while the DUT sends it to soc_dbg_ctrl__jtag. The actual
+ranges are 0..0x1ff and 0x2300..0x231f respectively. Later comparison errors
+are consequences of this earlier mismatch, not the causal reducer.
+
+lookup.sv reduces the failure without UVM: nested foreach visits both devices'
+ranges even when its enclosing loop selected one device. Both Icarus editions
+fail; Slang 11.0.448 accepts both editions; Verilator 5.050 executes correct
+membership. The grammar's special identifier-prefix alternative introduces
+an extra loop and shadows the prefix, unlike its expression-prefix alternative.
+IEEE 2017/2023 12.7.3 and Annex foreach syntax have a terminal loop-variable
+list; prefix selections belong to the target. Existing dual-dimension test
+comments cite 11.7 incorrectly and assert the erroneous extra-loop behavior.
+
+U01 is suspended at this explicit coordinator boundary. Its reducer, full
+fresh replay and contract are preserved under u01. L01 is the sole active
+implementation blocker; after its semantic gates pass, resume the exact smoke.
