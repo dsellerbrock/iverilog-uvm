@@ -385,3 +385,21 @@ All required local semantic gates and review pass. Checkpoint implementation
 as awaiting the required U01 application replay, not CLOSED. Worktree audit
 unchanged; no sibling trees removed. Next: rebuild the same smoke into a fresh
 u01-after-l01 root with unchanged application sources, providers and options.
+
+Post-L01 application replay uses b0ac00f47 in u01-after-l01, with the same
+core/options/providers and a fresh build. Compile passed (3.262s). Source list
+and all 360 exported source files match the pre-fix replay byte-for-byte;
+input-comparison.json records this. Runtime still pending at this checkpoint.
+
+Post-L01 replay completed: runtime timeout 124 after 300.068s, with no
+scoreboard comparison error; noOutstandingReqsAtEndOfSim_A remains at
+5344083913 ps. Diagnostic high-verbosity/scb_logging trace checks all four
+request routes and the first three responses. The fourth request (0x35cc,
+source 0x3c) has rsp_abort_after_d_valid_len=1 in both pre/post-L01 traces
+at 2014861 ps and no host response. This is a preserved earlier frontier,
+not evidence of application completion. Source inputs remain identical.
+
+Close only L01 local scope at b0ac00f47; required remote CI before merge
+remains pending. Resume U01 read-only reduction: inspect abort configuration,
+member randomize and driver behavior before identifying another prerequisite.
+No application source/check/traffic changes. Worktree audit unchanged.

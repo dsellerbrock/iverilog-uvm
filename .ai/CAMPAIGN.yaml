@@ -1,14 +1,17 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: L01
-phase: application_replay
+current_blocker: U01
+phase: reduce_remaining_response_stall
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: c57fbe3c5
+last_integrated_good_revision: b0ac00f47
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [U01_replay, remote_CI_before_merge]
+pending_gates: [checked_U01_completion, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
-suspended_parent: U01
-next_selection: Resume U01 from preserved current-source bytecode and lookup reducer.
-next_action: Rebuild and run the same U01 debug-xbar smoke in a fresh post-L01 output root.
+suspended_parent: null
+next_selection: U01 resumed after bounded L01 closure.
+next_action: Trace response-abort configuration and member randomize semantics; reduce the first remaining divergence.
+next_command: "sed -n '1,55p' ../clean-corpora/opentitan-7a3ad34/hw/ip/tlul/generic_dv/env/seq_lib/xbar_base_vseq.sv"
+next_command_cwd: repository root
+replay_state: compile passed; runtime timeout 124 at 300.068s, no scoreboard mismatch, outstanding-request error remains

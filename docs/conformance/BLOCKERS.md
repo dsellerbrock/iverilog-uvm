@@ -52,7 +52,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 ### U01 — Xbar runtime/scoreboard/outstanding-request failures
 
 - **Area / edition:** UVM and applications / edition-agnostic
-- **State:** IN_PROGRESS (suspended for L01 prerequisite)
+- **State:** IN_PROGRESS (resumed after locally validated L01)
 - **Confidence:** REPRODUCED
 - **Evidence / reproducer:** `docs/conformance/session_logs/2026-09-04_global_constraint_solver.md`
   (5 xbar runtime logs show scoreboard mismatches; all 8 report outstanding
@@ -65,7 +65,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
   probe, reduce the simulator mechanism it exposes, and demonstrate at least
   one xbar smoke reaching normal completion with matched, checked
   request/response traffic and zero outstanding transactions at end of test.
-- **Last verified revision:** c57fbe3c5 fresh unmodified-source smoke: wrong host-side address mapping precedes 1681844 ps scoreboard mismatch, outstanding request error, 300s timeout. Reduced to L01 selected-prefix foreach; U01 remains unqualified.
+- **Last verified revision:** b0ac00f47 fresh unmodified-source smoke: L01 fixes address routing and scoreboard mismatch; three responses match, fourth response is aborted as before L01, outstanding-request error and 300s timeout remain. U01 remains unqualified.
 
 ### Z01 — Joint solve-before stages unsupported
 
@@ -218,10 +218,10 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 ### L01 — Procedural member foreach replaces a selected prefix with a new loop
 
 - **Area / edition:** Procedural iteration / IEEE 1800-2017 and 2023 12.7.3.
-- **State:** AWAITING_VALIDATION (local semantic gates pass; application replay pending)
+- **State:** CLOSED (bounded local scope; remote CI required before merge)
 - **Confidence:** REPRODUCED
 - **Parent:** U01, preserved under evidence/campaign-20260908/u01.
 - **Evidence / reproducer:** lookup.sv fails both editions at c57fbe3c5; inner foreach visits all device ranges despite an enclosing selected-device filter. Slang accepts both editions; Verilator runtime produces correct membership.
 - **What it blocks:** Correct selected member iteration and unmodified xbar scoreboard address routing.
 - **Closure requirements:** Correct terminal-only loop declarations/iteration, constant/variable/nested controls, Bison/focused/integrated gates and independent review; then replay U01.
-- **Last verified revision:** c57fbe3c5 red; candidate passes paired/focused/integrated/full JSON/UVM and review, application replay pending.
+- **Last verified revision:** b0ac00f47 passes paired/focused/integrated/full JSON/UVM and review. Unmodified U01 replay confirms corrected routing with four request checks and three matched responses; application remains open for its pre-existing fourth-response stall.
