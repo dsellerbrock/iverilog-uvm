@@ -52,7 +52,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 ### U01 — Xbar runtime/scoreboard/outstanding-request failures
 
 - **Area / edition:** UVM and applications / edition-agnostic
-- **State:** IN_PROGRESS (resumed after locally validated L01)
+- **State:** IN_PROGRESS (suspended for reproduced L02 prerequisite)
 - **Confidence:** REPRODUCED
 - **Evidence / reproducer:** `docs/conformance/session_logs/2026-09-04_global_constraint_solver.md`
   (5 xbar runtime logs show scoreboard mismatches; all 8 report outstanding
@@ -225,3 +225,13 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 - **What it blocks:** Correct selected member iteration and unmodified xbar scoreboard address routing.
 - **Closure requirements:** Correct terminal-only loop declarations/iteration, constant/variable/nested controls, Bison/focused/integrated gates and independent review; then replay U01.
 - **Last verified revision:** b0ac00f47 passes paired/focused/integrated/full JSON/UVM and review. Unmodified U01 replay confirms corrected routing with four request checks and three matched responses; application remains open for its pre-existing fourth-response stall.
+
+### L02 — Automatic block locals retain values across loop entries
+
+- **Area / edition:** Lifetime / IEEE 1800-2017 and 2023 6.21, 6.8.
+- **State:** AWAITING_VALIDATION (regression repair)
+- **Confidence:** REPRODUCED and ROOT_CAUSED
+- **Parent:** U01; preserved contract and two-edition reducer in evidence/campaign-20260908/u01-loop.
+- **Evidence:** Class-task for-loop bit local returns 1 on entry 2 instead of default 0. Emitted autobegin.shared stores it in the task frame. Same driver structure leaves rsp_done set after the first response.
+- **Closure requirements:** Fresh per-entry storage/defaults with static and capture controls; required local gates, review and U01 replay.
+- **Last verified revision:** e0dab7221 red in both editions. Candidate passes paired/default controls, but automatic_events2 exposes cross-activation delivery; partial repair restores that test while event-history.sv still fails (2,2 instead of 2,3). Required gates remain pending.

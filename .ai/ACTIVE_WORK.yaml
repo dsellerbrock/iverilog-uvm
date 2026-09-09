@@ -1,31 +1,37 @@
-id: U01
-title: Reproduce the current unmodified Darjeeling debug-xbar DV frontier
-status: in_progress
-phase: reduce_remaining_response_stall
-base_revision: b0ac00f47
+id: L02
+title: Restore automatic block storage on each entry
+status: awaiting_validation
+phase: regression_repair
+base_revision: e0dab7221
+parent: U01
 standards:
-  - Application DV and UVM execution; precise IEEE mechanism to be established from first divergence.
-expected_behavior: The original xbar smoke test completes with checked matched request/response traffic and zero outstanding transactions.
-observed_behavior: Post-L01 replay matches the first three responses and all four request routes, but the fourth response has abort enabled and is never observed by the host; outstanding-request error and 300s timeout remain. The same aborted fourth response existed before L01.
-reproducer: lowrisc:dv:top_darjeeling_xbar_dbg_sim:0.1, xbar_smoke, pinned OpenTitan 7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19.
+  - IEEE 1800-2017 and IEEE 1800-2023 6.21 and 6.8, automatic block lifetime and default initialization.
+expected_behavior: Each entry to an automatic block has fresh local storage and default values; static variables retain their values and detached captures retain their activation.
+observed_behavior: Class-task loop local bit done is 1 on its second entry, despite having no initializer. Both editions fail at time 1.
+reproducer: ../evidence/campaign-20260908/u01-loop/reentry.sv
+causal_mechanism: PBlock scope collapsing shares local storage with the enclosing task; explicit initializers run per entry but default initialization occurs only on task allocation.
 allowed_scope:
-  - Read-only application corpus and current harness/source inspection.
-  - Fresh evidence/campaign-20260908/u01 and u01-after-l01 build/log/reducer artifacts.
+  - elab_scope.cc automatic block frame selection
+  - vvp/event.cc and event.h scalar event routing/history across nested automatic frames (automatic_events2 and event-history regressions)
+  - ivtest permanent block reentry and lifetime controls
   - .ai/ACTIVE_WORK.yaml
   - .ai/CAMPAIGN.yaml
   - docs/conformance/BLOCKERS.md
   - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
+  - docs/conformance/matrices/ieee1800_2017_clause_matrix.md
 non_goals:
-  - No application source edits, disabled checks, weakened smoke traffic, or broad census.
-  - No compiler implementation until a causal reducer and exact scope are established.
+  - No OpenTitan source edits or weakening of checks or traffic.
+  - No unrelated scheduler or randomization redesign.
 invariants:
-  - Use campaign native tools, pinned Python 3.13/FuseSoC, fresh output root, original providers and source list.
-  - Preserve 300-second per-process CPU guard and bounded wall time.
-  - Compilation, reaching a later failure, or a pass banner without meaningful checking is not application qualification.
+  - Preserve static overrides, per-entry explicit initialization, reference identity, delayed captures, recursion and event context ownership.
+  - Reuse existing allocation/free mechanism; no application special cases.
 required_gates:
-  - Corpus/toolchain fingerprints and exact command/source/provider provenance.
-  - First divergence from current-source replay, with traffic and scoreboard evidence.
-  - Any subsequent semantic patch must establish edition-specific semantics and full required regression gates before closure.
-completion: U01 remains open until normal smoke completion and checked traffic are proven; a new earlier blocker requires a deliberate prerequisite boundary.
-discovery_policy: Unrelated findings are record-only.
+  - Paired edition failing reducer and permanent default-value/type/lifetime controls.
+  - Focused lifetime/event/fork suites, integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM, make check and independent review.
+  - Fresh U01 replay after validated semantic checkpoint.
+  - Remote CI before merge.
+completion: Bounded automatic block reentry scope only; U01 requires checked normal application completion separately.
+discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
+remaining_failure: event-history.sv observes 2,2 instead of 2,3; descendant probe initialization copies shared history rather than the owning activation's current value.
+implementation_state: Uncommitted frame-selection patch plus partial scalar routing repair; no qualified semantic checkpoint yet.

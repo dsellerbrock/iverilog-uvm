@@ -403,3 +403,48 @@ Close only L01 local scope at b0ac00f47; required remote CI before merge
 remains pending. Resume U01 read-only reduction: inspect abort configuration,
 member randomize and driver behavior before identifying another prerequisite.
 No application source/check/traffic changes. Worktree audit unchanged.
+
+U01 trace refinement: abort enable is legal randomized stimulus in xbar_base_vseq,
+not itself a bug. Driver d_channel_thread declares rsp_done/rsp_abort inside
+its forever body. After the first response, later loop entries retain rsp_done,
+skip driving, and mark rsp_completed=1. A standalone class-task loop reproduces
+the stale bit on entry 2 in both editions (u01-loop/reentry*.log). Both LRMs
+6.21 require per-entry initialization; 6.8 gives bit default zero. Bytecode
+uses autobegin.shared, with no fresh allocation/default initialization.
+Suspend U01 deliberately and activate L02 only. Existing frame allocation is
+the first candidate; preserve static overrides and detached capture lifetimes.
+
+L02 candidate keeps existing own-frame allocation for automatic blocks with
+direct variables or events; empty blocking scopes still collapse. Removed
+the obsolete explicit-automatic-only capture helper. Permanent paired tests
+exercise scalar/string/object/queue defaults, explicit initializers, static
+persistence, recursion, break/continue/return, delayed inherited captures and
+event-only scopes. Initial test integration had a 2023 include-path mistake
+and missing JSON gold artifact, both corrected without semantic edits. Final
+focus passes 69 legacy and 48 JSON, make check passes, independent review
+finds no actionable issue. Integrated and real-DPI UVM gates now running;
+full JSON and U01 replay remain required before local closure.
+
+L02 integrated fails one real regression: automatic_events2, second task
+instance wakes at 23 instead of 24. Totals 4664 / 4658 pass / 1 fail /
+2 NI / 3 EF; VPI 103, negative 149 and runtime 15 all pass. No waiver.
+Full JSON diagnostic on frame-only installed tools passes 1556/0.
+UVM session 34962 remains running on those same installed tools.
+
+Cause: scalar automatic event receivers discard ancestor source context and
+broadcast across unrelated task activations. Partial vvp/event.cc repair
+uses existing lexical stack recovery and filters ancestor delivery; object
+mutation fanout is unchanged. Built vvp/vvp (not installed) restores exact
+automatic_events2 output. Review identified another issue: probe reset copies
+shared history, and signal allocation does not send initial values. New
+event-history.sv reproduces wrong posedge times (2,2 rather than 2,3) with
+concurrent task activations initialized to 0 and 1 before child allocation.
+This regression remains in L02 scope. No new validated semantic baseline.
+
+Resume at this exact history-initialization reducer; do not repeat broad
+audit or application replay. Candidate source and permanent tests remain
+uncommitted and preserved, along with evidence/u01-loop/candidate.patch.
+The installed runtime is frame-only; built vvp/vvp contains partial routing
+repair. Rebuild/install coherently only after correcting the remaining
+mechanism, then rerun required gates and review. Last fully validated source
+revision remains b0ac00f47. Remote CI and U01 checked completion remain pending.

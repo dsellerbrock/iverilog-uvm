@@ -1,17 +1,20 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: U01
-phase: reduce_remaining_response_stall
+current_blocker: L02
+phase: regression_repair
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: b0ac00f47
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [checked_U01_completion, remote_CI_before_merge]
+pending_gates: [L02_semantic_validation, U01_replay, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
-suspended_parent: null
-next_selection: U01 resumed after bounded L01 closure.
-next_action: Trace response-abort configuration and member randomize semantics; reduce the first remaining divergence.
-next_command: "sed -n '1,55p' ../clean-corpora/opentitan-7a3ad34/hw/ip/tlul/generic_dv/env/seq_lib/xbar_base_vseq.sv"
+suspended_parent: U01
+next_selection: Resume U01 after L02 validated baseline.
+next_action: Repair per-activation initial edge history, add permanent regression, then rerun all required gates before U01 replay.
+next_command: "cat ../evidence/campaign-20260908/u01-loop/event-history.sv ../evidence/campaign-20260908/u01-loop/event-history.log"
 next_command_cwd: repository root
-replay_state: compile passed; runtime timeout 124 at 300.068s, no scoreboard mismatch, outstanding-request error remains
+candidate_state: Uncommitted elab_scope.cc frame patch and vvp/event.cc partial routing repair; do not use as validated baseline.
+installed_tools: Frame patch only; installed runtime predates event.cc repair. Built vvp/vvp includes partial event repair.
+validation_state: Frame-only focus 69 legacy / 48 JSON and make check pass; integrated fails automatic_events2; full JSON diagnostic 1556/0; UVM session 34962 running on installed frame-only tools.
+next_validation: After complete repair, rebuild/install consistently and rerun focus, integrated, full JSON, real-DPI UVM, make check, review, then fresh U01.
