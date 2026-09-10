@@ -383,6 +383,6 @@ gap. Evidence/l12/index_conversion.sv. No ordinary-selector fix included.
 
 ### DD027 — Original UVM1.1d compiles but does not pass smoke
 
-L12 candidatea85a256b1 removes the member-string elaboration frontier. Original1.1d now compiles with ignored-constraint and object-expression null-fallback warnings, then runtime exits0 but fails the smoke qualification checks. Evidence third_party/uvm-releases/results-qb7873zh/1.1d/{compile,runtime}.log. Inspect exact runtime checking failure at selection; exit0 is not a smoke pass. Record-only during L12 required validation.
+L12 candidatea85a256b1 removes the member-string elaboration frontier. Original1.1d now compiles with ignored-constraint and object-expression null-fallback warnings, then runtime exits0 but fails the smoke qualification checks. Evidence third_party/uvm-releases/results-qb7873zh/1.1d/{compile,runtime}.log. Runtime reports missing DPI symbol uvm_dpi_regcomp, four command-line regex UVM_ERRORs and one BUILDERR UVM_FATAL, then exits0 before smoke completion. Exit0 is not a smoke pass. Record-only during L12 required validation.
 
 DD021 follow-up: L12 candidate removes original1.2 printer string-index errors. Four remaining compilation errors at uvm_traversal.svh284-285 concern compiled_regex in visit, plus the existing ignored pick_sequence constraint warning. Original1.1a now reaches fork/join_any-in-function and void-cast-of-void diagnostics; standards legality must be verified before selecting changes. No library edits or qualification claims.
