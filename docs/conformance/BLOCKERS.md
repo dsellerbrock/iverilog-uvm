@@ -613,3 +613,24 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **Root:** Missing ivl.def entries prevent Windows import-library linkage.
 - **Closure:** Old/new invariant proof, exact exports, independent review and
   required Windows CI. Update existing PR273; no new PR or agent merge.
+
+
+### U03 — Select a pinned UVM release from the iverilog command line
+
+- **Area:** User-requested driver and release acquisition integration.
+- **State:** READY after the current B01/L06 validation boundary.
+- **Authorization:** User requests a UVM version picker in iverilog similar to VCS.
+- **Gap:** The driver accepts --uvm-home but has no release-ID selector or
+  available-release listing. Existing --uvm-version reports the bundled version.
+- **Contract:** Add --uvm=<release> and --uvm-list, using acquired pinned sources;
+  preserve -uvm, --uvm-home and reporting-only --uvm-version behavior. Connect
+  the downloader to discovery without downloading during a compiler invocation.
+  Diagnose unknown/missing versions and conflicting path/version options clearly.
+- **Validation:** Driver parsing/resolution tests for valid, missing, invalid and
+  conflicting selectors; listing; path with spaces; existing-option controls;
+  real-DPI compile/run smoke using a known passing pinned release. Required
+  repository gates and independent review remain in force. Selecting a release
+  does not qualify its language support or turn current compile failures into passes.
+- **Boundary:** B01 remains active awaiting Windows CI; L06 source and frozen
+  tools remain preserved. Select U03 deliberately after those validation gates,
+  ahead of discretionary DD013 implementation.

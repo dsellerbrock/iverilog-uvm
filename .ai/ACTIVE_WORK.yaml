@@ -17,6 +17,8 @@ required_gates:
 completion: Local export invariant can validate the patch; Windows remote gate remains required and cannot be reported passed from native checks.
 suspended_parent: L06 candidate source/tests and gatehandles preserved in evidence/b01/suspended-l06.yaml; integrated48575 completed, UVM55602 still running, fullJSON25806 passed1719/0.
 stop_after_completion: false
-next_action: Add seven exports and a permanent invariant check, validate old/new maps, then update existingPR273 without including L06 or U02.
+next_action: Inspect required PR273 CI at08b86b949; await L06 UVM55602. Close B01 only after Windows gate passes, then resume L06 validation.
 
 local_validation: Old map fails exact seven; fixed map passes66/66; syntax, diff and independent review pass. Windows CI pending.
+publication: https://github.com/dsellerbrock/iverilog-uvm/pull/273 at08b86b94931f62958d1f4441a7fb90a7e5c48318
+next_command: gh pr view 273 --json headRefOid,statusCheckRollup

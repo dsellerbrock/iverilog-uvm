@@ -10,9 +10,9 @@ unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouc
 pending_gates: [B01_Windows_CI, L06_UVM_55602, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
-next_selection: L06 empty queue initialization of default-initialized struct element types; DD011 source-backed legal requirement.
-next_action: Validate B01 export correction and update existing PR273; preserve suspended L06 and frozen tools.
-next_command: "tail -20 ../evidence/campaign-20260908/l06/integrated.log"
+next_selection: Resume suspended L06 after B01 required Windows CI and L06 UVM gates pass; then select user-requested U03 version picker before discretionary DD013.
+next_action: Await PR273 CI at08b86b949 and L06 UVM55602; inspect any failure before resuming L06. Preserve frozen tools.
+next_command: "gh pr view 273 --json headRefOid,statusCheckRollup"
 next_command_cwd: repository root
 candidate_state: L06 pform.cc candidate passes14/14focused,27/26neighbors,makecheck and finalreview. UVM2020.3.2 reaches preexisting q[$] lvalue crash (bothbaseline/candidate reproduce).
 installed_tools: Frozen compiler9915d6877914a1eeae199a2fb8796cae95240c355c7d5be112f76455f643a8a3/runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337; saved validated core in evidence/l06/baseline-root.
@@ -169,3 +169,5 @@ uvm_release_matrix: docs/conformance/uvm_release_matrix.md; official Git pins pl
 uvm_release_results: third_party/uvm-releases/results-pv87b5yu/results.json; complete and baseline_valid true.
 
 b01_checkpoint: 7c779ff28; local invariant and independent review pass; existing PR273 updated08b86b949, fresh required CI pending.
+
+user_requested_next: U03 driver --uvm=<release> and --uvm-list; preserve existing UVM flags and integrate pinned acquisition inventory.
