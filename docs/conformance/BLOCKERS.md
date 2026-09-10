@@ -721,6 +721,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 ### U06 — Original UVM2020.1 phase execution
 
-- **State:** AWAITING VALIDATION at fe4e949b8; selected from DD-017 after validated U04.
+- **State:** CLOSED at aad6fe22b (semantic patch fe4e949b8), after all required gates.
 - **Evidence:** Both original releases finish at time0 without the smoke marker or expected missing-traffic fatal, despite successful direct ABI checks.
-- **Scope:** Trace actual phase/component dispatch, minimize and verify semantics before patching. Original sources remain unchanged; no early-exit pass.
+- **Resolved scope:** Preserve recursive caller input context across nested argument calls; IEEE2017/2023 8.6 and13.5.1. Original sources unchanged; both2020.1 releases now execute intended smoke checks through time1.
+- **Validation:** legacy4855/0,VPI105,negative149,runtime15/15,JSON1747/0,real-DPIUVM355/0/0,NFA58/58,makecheck,independent review,relocated frontendS1-S10. Paired reducer fails baseline/passes candidate in both editions. Full15release matrix6SMOKE_PASS9COMPILE_FAIL; original2020.1 smoke4/4 in2017/2023. DD018 output-copying scope remains open.

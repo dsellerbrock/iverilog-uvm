@@ -262,6 +262,9 @@ requires parking. Use the format above for the next agent's discoveries.
 - **Evidence:** results-9mvpk_8f complete=true,baseline_valid=true; both original2020.1 releases compile0/runtime0, no unresolved DPI symbols or command-line UVM errors, but finish at time0 without required smoke completion marker. Direct legacy ABI tests pass4/4 across both releases/editions.
 - **Disposition:** Record-only during U04; still RUNTIME_FAIL. Establish whether the intended run-phase traffic/checking executes and reduce the causal mechanism after the current semantic baseline is validated. No warning waivers or application edits.
 
+U06 closes the recursive-input cause after full validation at aad6fe22b.
+Original2020.1.0/1.1 now pass their unchanged smoke; full qualification remains separate.
+
 ### DD018 — Nested argument output copy-out selects staged caller scope
 
 Discovered under U06. Evidence-only copyout_control.sv and

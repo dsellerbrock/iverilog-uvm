@@ -1740,3 +1740,14 @@ exactly2 new-test golden-output failures: runtime printed PASSED, but
 JSON requires its own -vvp-stdout.gold file, separate from legacy .gold.
 Added stdout PASSED/empty stderr gold at aad6fe22b; fullJSON77801 rerunning.
 Original log preserved as u06/json-first.log; no runtime changes.
+
+U06 closed at validated source aad6fe22b (semantic fe4e949b8): every required
+gate passed, including corrected JSON77801 1747/0 and isolated frontend99674
+S1-S10. Installed root restored; compiler/runtime/DPI fingerprints unchanged.
+Legacy4855total4850pass0fail2NI3EF,VPI105,negative149,runtime15/15,
+real-DPIUVM355/0/0,NFA58/58,makecheck and independent review all pass.
+Full15release matrix6SMOKE_PASS9COMPILE_FAIL; original2020.1.0/1.1 smoke
+passes4/4 in2017/2023 modes. Complete contract preserved in u06/. No
+fullrelease/application/IEEE1800.2 qualification claim. One validated increment
+since publication; defer next PR update to the established3-5increment batch.
+Next justified blocker is preserved DD018 automatic output copy-out.

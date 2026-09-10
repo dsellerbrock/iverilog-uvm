@@ -1,22 +1,22 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: "U06"
-phase: "awaiting_validation"
+phase: "selection"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a"
+last_integrated_good_revision: "aad6fe22bd7cdcb54dccb2ba5d152b094bf67634"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [U06_JSON, U06_frontend, U01_application_qualification, PR273_remote_CI_before_merge]
+pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After U06 required validation and exact closure, consider DD018 caller-local output copy-out: paired evidence proves remaining automatic-argument correctness gap. Preserve U01 application scope; do not implement on unvalidated U06."
-next_action: "Await live JSON77801; first JSON run only lacked the new test golden-output file, corrected at aad6fe22b. UVM11401 completed0 with355pass0fail0skip. Run frontend alone after JSON terminates; no installs."
-next_command: "tail -8 ../evidence/campaign-20260908/u06/json.log"
+next_action: "Select DD018 output copy-out defect as L09; reproduce against validated U06 before implementation."
+next_command: "cat ../evidence/campaign-20260908/u06/copyout_control.sv"
 next_command_cwd: repository root
 candidate_state: "U06 fe4e949b8 awaiting required validation; full15release matrixresults-mseshk7y complete/baseline_valid with6SMOKE_PASS9COMPILE_FAIL, no runtime failures. Both2020.1 releases now execute intended checks. No closure until gates pass."
 installed_tools: "Frozen U06 candidate fe4e949b8: runtimea9c4e201da20cfc3a70c108faee95acab8450fb8f2b9e359808c53adb2ecfbf1; compiler4b08d4e3f174bf52233c2b54e79bf6477bd98151751d2d421d535fb6f6b420ca and DPIe69ec1f7d0d0d94668656c50fb83982241ad912fd229464a365fc5b278c28d5a unchanged. No installs while gates run."
-validation_state: "U04 all required local gates passed: frontendS1-S10,review,makecheck,NFA58/58,integrated4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. OriginallegacyABI4/4;15release matrix4pass9compilefail2runtimefail."
+validation_state: "U06 all required gates passed: legacy4855/0,VPI105,negative149,runtime15/15,JSON1747/0,real-DPIUVM355/0/0,NFA58/58,makecheck,review,frontendS1-S10. Fullmatrix6pass9compilefail; original2020.1 smoke4/4 in2017/2023. Frozen fingerprints unchanged."
 next_validation: "JSON77801 running. Integrated60637,real-DPIUVM355/0/0,makecheck,NFA58,review,full15release matrix and four original2017/2023 smokes complete. Isolated frontend pending."
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
@@ -149,7 +149,7 @@ consolidated_main_pr:
   authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
 
 last_publication_semantic_revision: "aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a"
-validated_increments_since_publication: 0
+validated_increments_since_publication: 1
 
 consolidated_main_merge: PR272 externally merged to main9821855164b179e1a1f7fb0298320f576646bc15; implementation/tests verified identical to validated59e5e07c7.
 

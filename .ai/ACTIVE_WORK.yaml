@@ -1,9 +1,9 @@
 id: U06
 title: Reduce original UVM2020.1 phase-execution gap
-status: in_progress
-phase: "awaiting_validation"
+status: closed
+phase: validated
 base_revision: aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a
-last_validated_revision: aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a
+last_validated_revision: aad6fe22bd7cdcb54dccb2ba5d152b094bf67634
 selection_reason: Both original2020.1 releases compile and pass direct ABI checks after L08/U04/U05, but full smoke exits before intended traffic/checking; qualification must not count this as a pass.
 reproducer: third_party/uvm-releases/results-rqcthqwn/2020.1.0 and2020.1.1 smoke.vvp/runtime.log; complete/baseline_valid allrelease report.
 expected_behavior: release_test run_phase raises objection,creates/clones/compares independent objects,checks regex,advances through #1,reads HDL value13579bdf,sets checked,and drops objection. report_phase must reject missing checks or emit UVM_RELEASE_SMOKE_PASSED.
@@ -47,3 +47,5 @@ next_validation: "JSON77801 running. Integrated60637,real-DPIUVM355/0/0,makechec
 
 u06_final_review: Independent review clear; terminal-only cleanup source guards and baseline/candidate nonlocal exit plus frame reuse control resolve lifetime concern. No additional code changes requested.
 u06_release_matrix: results-mseshk7y complete and baseline_valid; 6SMOKE_PASS9COMPILE_FAIL, both2020.1 releases execute original smoke through time1 with exact checks and zero warnings/errors/fatals. Matrix exit1 reflects remaining compile failures, not incomplete execution.
+
+closure_evidence: All required gates passed; integrated4855total4850pass0fail2NI3EF,VPI105,negative149,runtime15/15,JSON1747/0,real-DPIUVM355/0/0,NFA58/58,makecheck,review,frontendS1-S10. Original2020.1.0/1.1 smoke4/4 in2017/2023; fullmatrix6SMOKE_PASS9COMPILE_FAIL. Tool fingerprints unchanged and installed root restored. DD018 copy-out remains open.
