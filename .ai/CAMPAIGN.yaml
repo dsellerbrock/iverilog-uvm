@@ -1,21 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: L03
-phase: awaiting_validation
+current_blocker: U01
+phase: fresh_replay_after_l03
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: 755b48a09920bced3832409b1548c8437c884976
+last_integrated_good_revision: 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [L03_real_DPI_UVM93480, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [U01_unmodified_application_replay, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
-suspended_parent: S02 design boundary retained; L03 resumed after validatedL04.
-next_selection: L03 resumes from preserved contract after initialization prerequisite 755b48a09920bced3832409b1548c8437c884976.
-next_action: Await terminal real-DPIUVM93480; integrated80505,NFA79303 and fullJSON92046 passed.
-next_command: "tail -20 ../evidence/campaign-20260908/l03/uvm.log"
+suspended_parent: S02 design boundary retained.
+next_selection: Resume U01 qualification on validated L03 runtime.
+next_action: Run original xbar_smoke in fresh u01-after-l03 output root; preserve first divergence and checked traffic.
+next_command: "bash ../evidence/campaign-20260908/u01-after-l03/replay.sh"
 next_command_cwd: repository root
-candidate_state: L03 reviewed source/tests frozen; no closure until all required local gates pass.
+candidate_state: L03 implementation 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb locally validated and checkpointed; U01 qualification active.
 installed_tools: Compiler core aec395fb981c81bc1a425769e15eeab265031a4b14465632b13fe0f6f7fd95cd; runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754.
-validation_state: Focus12/12+12/12,L02neighbors93/50,L04neighbors4/4,directPART_PV,makecheck,review pass. Full gates running.
-next_validation: FullJSON only after integrated terminal result; installed tools frozen.
+validation_state: All L03 required local gates and review pass; no live gate processes.
+next_validation: Unmodified pinned application replay; no compiler patch authorized without reducer and exact scope.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)
