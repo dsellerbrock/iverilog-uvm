@@ -632,6 +632,7 @@ PEIdent::~PEIdent()
 
 void PEIdent::append_name(perm_string name)
 {
+      dotted_suffix_ = true;
       path_.name.push_back(name_component_t(name));
 }
 
@@ -649,6 +650,7 @@ PEIdent* PEIdent::clone_for_reference() const
       res->leading_type_args_ = leading_type_args_;
       res->owns_leading_type_args_ = false;
       res->scoped_type_prefix_ = scoped_type_prefix_;
+      res->dotted_suffix_ = dotted_suffix_;
       res->clocking_access_ = clocking_access_;
       return res;
 }

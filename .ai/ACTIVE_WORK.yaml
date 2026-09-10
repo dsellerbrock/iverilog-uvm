@@ -1,43 +1,47 @@
-id: L05
-title: Preserve associative class-member foreach index type
-status: locally_validated
-phase: documented
-base_revision: 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb
+id: U04
+title: Qualify DPI regex loading for original UVM2020.1 releases
+status: "complete"
+phase: "documented"
+base_revision: "a5eb76ebb49121475467623866ee70f71cb80803"
+last_validated_revision: "aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a"
+selection_reason: Original2020.1.0/1.1 compile after L08 but missing DPI regex symbols prevent meaningful runtime smoke; this directly advances user-requested historical UVM support.
+reproducer: third_party/uvm-releases/results-gizcr5j0/results.json and both original release runtime.log files; complete and baseline_valid true.
+expected_behavior: Original pinned release regex imports resolve with correct signatures, matching and nonmatching cases execute correctly, and command-line parsing is not corrupted by unavailable DPI calls.
+observed_behavior: Missing uvm_re_match and uvm_glob_to_re symbols precede five UVM command-line errors and BUILDERR; no runtime pass despite exit0.
 standards:
-  - IEEE1800-2017 and IEEE1800-2023 12.7.3 and associative array rules; verify primary text before implementation.
-expected_behavior: foreach over a selected class member associative array declares the index with the array key type and visits every existing entry in the required order.
-observed_behavior: Retained DD-002 foreach(boxes[selector].values[key]) for values[string] declares key as int and visits zero entries; reverify on current validated tools.
-reproducer: ../evidence/campaign-20260908/l01/typed.sv
-selection_reason: Incorrect key typing silently skips checking/data traversal in ordinary class-based DV. Concrete pre-existing reducer and L01 selected-prefix evidence justify this independent blocker while U01 teardown lacks a proven compiler fix.
+  - Establish applicable IEEE DPI import and exact official release declarations before any semantic or ABI patch; do not infer equivalence from symbol spelling.
 allowed_scope:
-  - Foreach implicit-index type resolution for selected class-member associative arrays and directly necessary elaboration.
-  - Permanent paired regressions, required focused/full gates, review and conformance records.
+  - Read-only pinned release DPI declarations and runtime source.
+  - Trace installed UVM DPI loading, driver selection and existing native wrappers.
+  - Evidence reducers and active contract, campaign, blocker and session records.
+  - uvm_dpi/uvm_dpi_iverilog.cc legacy C entry points with strict POSIX matching and bounded-input glob conversion.
+  - tests/uvm_releases legacy ABI fixtures and .github/uvm_frontend_test.sh integration.
+  - docs/conformance/uvm_release_matrix.md qualification evidence.
 non_goals:
-  - No application cleanup, warning suppression, unrelated expression drivers, randomization or formal architecture changes.
+  - No original library modifications, regex substitution shortcuts, ignored missing imports, warning waivers or release-wide qualification by compilation alone.
+  - No unrelated compiler/runtime repairs during this blocker.
 invariants:
-  - Preserve selected prefix evaluation, declared key type and ordering, nested scopes, side effects and existing iteration semantics.
-  - No zero-iteration fallback, fabricated key or container substitution.
+  - One active blocker; L08 all required local gates passed before selection.
+  - Native ARM64, serial builds,300second CPU guard, no RSS cap; preserve unrelated worktrees and merge permissions.
 required_gates:
-  - Fresh paired red reducer and applicable primary LRM semantics, actual source trace before patch.
-  - Permanent string/integral key, selection and lifetime controls; focused legacy/JSON plus relevant foreach neighbors.
-  - NFA, integrated,VPI,negative,runtime,fullJSON,real-DPIUVM,makecheck and independent review.
-  - Remote CI before merge.
-completion: Qualify only exact repaired member-key type resolution; broader foreach/container and application status remain separate.
-discovery_policy: Unrelated discoveries are record-only; proven prerequisites require explicit suspension with preserved work.
+  - Reproduce exact unresolved imports and compare original declaration signatures to loaded exports.
+  - Verify matching and nonmatching regex semantics plus glob conversion with permanent coverage for any code change.
+  - Run required focused and integrated gates and independent review before closure.
+completion: Close only the exact validated DPI loading or ABI subcase; historical releases and application qualification remain separate.
 stop_after_completion: false
-last_validated_revision: 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb
-next_action: L05 checkpointed; return to coordinator selection and publish remaining validated increments.
+next_action: "Publish the four validated increments to existing PR273, then select DD-017 phase-execution reducer as next evidence-backed candidate."
+next_command: "git diff --stat abcfdf7fb HEAD"
+prerequisite_resolution: U05 validated at a5eb76ebb; standalone m__uvm_report_dpi dispatches six arguments through existing runtime ABI, all required local gates passed.
+root_cause: Selected legacy SV sources import C uvm_re_match and uvm_glob_to_re; installed modern UVM umbrella exports lower-level uvm_re APIs because modern SV implements those names as wrappers. No legacy symbols exist in installed library.
+design_review: Blind delegation changes strict invalid-regex behavior and return codes; use strict POSIX matching outside existing glob-retry macro, preserve singleton-slash and empty-regex semantics, and verify report severity counts. Modern glob helper needs explicit length/bracket/error boundary treatment; upstream bugs are not normative. DD-016 records source-only edge findings.
 
-causal_trace: Both selected-member parser actions discard selector structure for declaration typing (null target for expression selector, unindexed path for identifier selector); declaration helper also rejects indexed paths. Existing selected-path helper consequently cannot traverse the array element to its class member.
-planned_fix: Preserve selected member target through both parser actions and foreach_index_type_t; reuse PEIdent::test_type_of_ident from enclosing scope without evaluating selectors, then resolve terminal array index type. Keep established unselected route and selected-array non-member production unchanged.
+abi_contract: Official2020.1 declarations are context int uvm_re_match(string,string) and context string uvm_glob_to_re(string), mapped to C int/const char pointers by IEEE2017/2023 TableH.1. Match uses strict POSIX ERE, optional paired slash delimiters, zero for match and nonzero for mismatch/invalid regex; invalid regex increments UVM_ERROR. Explicit ^$ matches only the empty string; raw empty ERE is delegated to the native implementation (Darwin returns14), not given an invented portable result. Singleton slash is literal. Glob empty/slash becomes /^$/, bracketed regex remains bracketed per documented intent; preserve2040 input limit and reportoversize returning original input. Allocate enough conversion storage for worst-case expansion instead of reproducing old buffer overflow.
+implementation_decision: Modern combined matcher changes error codes and retries invalid patterns as globs. Modern deglob helper has different length accounting. Implement legacy entry points directly using POSIX and std::string, retaining native caller signatures and U05 reporting; original vendor sources untouched.
 
-semantic_review: Same-name selector/loop-key positive control withdrawn. IEEE12.7.3 references12.7.1 implicit declarations before wholeloop; both Slang editions bind header key to newstringindex and reject it. Runtime target binding remains unchanged.
+u04_live_gates: []
+u04_unstarted_gates: []
+u04_candidate_revision: aa172f5f9
+u04_release_evidence: results-9mvpk_8f complete and baseline_valid; both original releases compile0/runtime0 with zero severity errors but no required marker, so RUNTIME_FAIL. Direct original ABI tests4/4 pass.
 
-focused_validation: Paired10/10legacy+JSON; foreach neighbors53/53legacy+34/34JSON; makecheck and final independent review pass.
-current_toolchain: Compiler core98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226; runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754. Comment-only rebuild produced identical fingerprints.
-residual_scope: Selected-array non-member production and invalid header index validation DD-009 remain unqualified by this increment; no runtime target-binding change.
-
-final_validation: UVM42794 terminated0 with355 passed,0 failed,0 skipped and real DPI loaded. FullJSON1662/0, integrated4765/4770 with zero failures, NFA58/58 and all focused/neighbor/check/review gates pass. Remote CI remains required before merge.
-next_checkpoint_action: Commit the exact reviewed L05 source/tests and bounded qualification; return to campaign selection without another user message.
-
-implementation_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
+u04_nfa: Passed58/58 terminal6429 exit0.
+closure: All required local gates passed; paired legacy ABI/error controls and originalrelease4/4,relocated frontendS1-S10,review,makecheck,NFA58/58,integrated4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. Frozen fingerprints unchanged. Full15release matrix4SMOKE_PASS,9COMPILE_FAIL,2RUNTIME_FAIL; DD-017 remains separate.

@@ -65,7 +65,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
   probe, reduce the simulator mechanism it exposes, and demonstrate at least
   one xbar smoke reaching normal completion with matched, checked
   request/response traffic and zero outstanding transactions at end of test.
-- **Last verified revision:** 4bcbd9c7b fresh unmodified smoke completes115requests/230scoreboarditems with0UVMerrors/0fatals, but2SEQPRTZMBwarnings and TEST FAILED CHECKS. All360exportedfiles match prior replay. Earlier four-warning teardown frontier and reduced parent-kill mechanism are preserved; warning-count change does not qualify the application. Evidence: campaign-20260908/u01-after-l03.
+- **Last verified revision:** `53b58890c` (P04): fresh smoke plus2repeats all complete115requests/230checked scoreboard items,4SEQPRTZMBwarnings,0errors/fatals and TEST FAILED CHECKS. All360exported source files match the prior replay. P04 fixes its independent live-parent kill reducer; it does not qualify U01. Pinned workload settings select UVM1.2, campaign library2020.3.1; no library edit or warning suppression. Evidence: `campaign-20260908/u01-after-p04`.
 
 ### Z01 — Joint solve-before stages unsupported
 
@@ -488,3 +488,233 @@ qualification remain open. Evidence: campaign-20260908/s03.
   VPI105, negative149, runtime checks, fullJSON1662/0 and real-DPI UVM355/0/0 pass.
 - **L05 residuals:** Invalid same-name header selectors (DD-009), selected-array
   non-member typing and broader container obligations are not qualified here.
+
+### V04 — Merged type coverage saturates wide bin totals before division
+
+- **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.11.3.
+- **State:** LOCALLY VALIDATED — reviewed merged aggregate arithmetic; remote CI before merge.
+- **Evidence:** class_type::type_coverage narrows exact dynamic cardinality
+  to UINT64_MAX and saturates per-item sums; instance coverage already uses
+  unsaturated real aggregation. Multiple named wide families can exceed64 bits.
+- **Scope:** Preserve supported merged totals through percentage calculation,
+  retaining bin identity, thresholds, weights and mode dispatch.
+- **Closure:** Paired relative-error reducer/controls, all required local gates
+  and independent review; remote CI before separately authorized merge.
+- **Residuals:** ParentV01, transition-family cardinality and cross-bin universe
+  obligations remain separate. No per-blocker PR under updated cadence.
+
+- **V04 candidate:** Local128-bit merged total/hit accumulation; individual
+  transition-family cardinality unchanged. Focus2/2+2/2, coverage neighbors75/65,
+  makecheck and independent review pass. Integrated4772total4767pass0fail2NI3EF,VPI105,negative149,runtime checks,
+  fullJSON1664/0,UVM355/0/0,NFA58/58 all pass.
+
+### V05 — Constructed cross bins are omitted or misidentified in merged type coverage
+
+- **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.6,19.11.3.
+- **State:** LOCALLY VALIDATED — exact supported constructed-cross union/count scope; remote CI before merge.
+- **Evidence:** campaign-20260908/v05/cross.sv: two dynamic cross instances,
+  six-bin union and two hits; type coverage0 instead33.333333, instance25 correct.
+- **Scope:** Register supported automatic cross-bin names/counts for merged
+  type coverage and union already-resolved active named properties, preserving
+  per-instance topology and full product identity.
+- **Closure:** Paired canonical identity/union controls, required full gates
+  and independent review; remote CI before merge. ParentV01 remains open.
+
+- **V05 candidate evidence:** Ordered component-name tuples registered only
+  after successful topology validation; local counts map to canonical type
+  counters, with active named-property union. Focus13/13 legacy+JSON,
+  coverage neighbors75/65,V04 neighbors2/2,NFA58/58 and independent review pass.
+  Includes named/arrayed transition identities and malformed-plan denominator
+  assertions. Integrated4785total4780pass0fail2NI3EF,VPI105,negative149,
+  runtime checks,fullJSON1677/0,real-DPIUVM355/0/0 and makecheck all pass.
+  ParentV01 remains open; unsupported topologies, transition cardinality and
+  unqualified options are not closed. No immediate PR under milestone cadence.
+
+
+### V06 — Merged item coverage uses instance weights instead of type weights
+
+- **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.7.1,19.11.3.
+- **State:** LOCALLY VALIDATED — exact declaration-time item type-weight scope; remote CI before merge.
+- **Evidence:** v06/type-weight.sv has coverpoint scores50/0,type weights3/1,
+  instance weights1/3. Type returns12.5 rather than37.5; instance12.5 is correct.
+- **Scope:** Declared coverpoint/cross type-weight validation, metadata and merged
+  aggregation. Preserve independent defaults, instance modes and old bytecode.
+- **Closure:** Paired semantic/invalid-value controls, scoped regression oracle
+  corrections for item isolation, all required local gates and independent review.
+  Procedural static assignment and other type-option obligations remain separate.
+
+- **V06 evidence:** Typed constant validator handles independent defaults,
+  zero weights, group noninheritance, static/dynamic/implicit crosses and
+  merge0/instance isolation. Temporary typed aliases preserve constructor and
+  sample scope, including legal type queries and outer constant functions.
+  Old bytecode fallback and new tagged metadata bounds are controlled.
+  Focus22/22+22/22,coverage75/65,V04 2/2,V05 13/13,integrated4807total4802pass
+  zero unexpected2NI3EF,VPI105,negative149,runtime,JSON1699/0,UVM355/0/0,
+  NFA58/58,makecheck and independent final review all pass. DD010 remains open.
+
+
+### V07 — Never-instantiated covergroup types lower cumulative coverage
+
+- **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.9,19.11,19.11.3.
+- **State:** LOCALLY VALIDATED — never-instantiated type eligibility only; remote CI before merge.
+- **Evidence:** v07/uninstantiated-type.sv reports0 before any instance and50
+  after constructing one fully covered type; expected100 in both situations.
+- **Root:** Compilation registers types whose static metadata merge1 scores
+  without checking whether an instance ever existed. Existing live registry
+  and retired-options marker already preserve the required population state.
+- **Scope:** Shared type-coverage eligibility, preserving constructed/retired
+  populations and independent type/instance weights; no new metadata or registry.
+- **Closure:** Paired lifecycle controls, full required local gates and review.
+  Broader parentV01 and other coverage obligations remain open.
+
+- **V07 validation:** Six permanent lifecycle entries pass both harnesses,
+  with paired baseline failures and zero-weight/retirement controls. V04/V05/V06
+  and coverage neighbors pass; integrated4813total4808pass0fail2NI3EF,VPI105,
+  negative149,runtime,JSON1705/0,NFA58/58,UVM355/0/0 realDPI actual-g2012,
+  makecheck and independent review pass. Existing live/retired state suffices;
+  no metadata, ABI or scheduler changes. Broader qualification remains open.
+
+
+### U02 — Published UVM revision compatibility matrix
+
+- **Area:** UVM release compatibility / qualification tooling.
+- **State:** LOCALLY VALIDATED — requested acquisition/probe tooling complete; release compatibility remains partial.
+- **Evidence:** Accellera official downloads lists 1.0/1.1/1.2,2017 and2020 families; current U01 encounters a UVM-version boundary.
+- **Scope:** Pin official sources, keep releases available locally, run isolated unmodified-library compile/smoke probes and record exact failures.
+- **Closure:** Reproducible acquisition and honest per-release evidence. Does not require all versions to pass or establish IEEE1800.2/application qualification; discovered compiler gaps are record-only during U02.
+
+- **U02 result:** 15 releases available;2020.2.0/2020.3.0/2020.3.1 compile and
+  execute factory/copy/phase/regex/HDL smoke with zero warnings/errors/fatals.
+  Twelve versions fail compilation; see `uvm_release_matrix.md`. Official Git
+  releases use pinned submodules, others verified archive downloads. Six offline
+  evidence-integrity/source-preservation controls pass. No compiler fix or
+  broad UVM/application/ABI qualification is included in this tooling closure.
+
+
+### L06 — Empty queues of structs with member defaults are rejected
+
+- **Area / edition:** Data types / IEEE1800-2017 and1800-2023 7.10,7.2.2.
+- **State:** CLOSED for empty queue-container initialization at `4965219df`; broader structure defaults remain open.
+- **Evidence:** OfficialUVM2020.3.2 uvm_reg_map.svh2058 declares
+  uvm_reg_bus_op accesses[$]; the element has data=0. Compiler emits an
+  unsupported-default diagnostic for the queue declaration.
+- **Expected:** An uninitialized queue is empty; no nonexistent element gets
+  member initialization. Preserve valid scalar defaults and invalid-type errors.
+- **Validation:** Fourteen paired legacy/JSON regressions, 27/26 neighbors,
+  integrated 4827 total / 4822 pass / 0 unexpected failures / 2 NI / 3 EF,
+  VPI 105, negative 149, runtime invariants, JSON 1719/0, NFA 58/58,
+  real-DPI UVM 355/0/0, make check and independent review passed.
+- **Release replay:** Unmodified UVM2020.3.2 passes the former declaration
+  failure, then reaches the independently preexisting DD013 queue-last lvalue
+  assertion. This is not a release/application pass. Unsupported array shapes
+  and invalid member-default diagnostics remain explicitly covered.
+- **Publication:** Local semantic qualification is complete. Separate B01
+  Windows export correction and required remote merge gates remain pending.
+
+
+### B01 — Windows coverage API import-library exports missing
+
+- **Area:** Build/API ABI export map, no language-semantic change.
+- **State:** CLOSED — old/new export invariant and review passed; required Windows CI now passed on PR273 head abcfdf7fb84b36b030ea8d28b05fca73ca06be16.
+- **Evidence:** job102955775883 link of vvp.tgt reports seven missing coverage
+  API symbols; all are declared in ivl_target.h and implemented in t-dll-api.cc.
+- **Root:** Missing ivl.def entries prevent Windows import-library linkage.
+- **Closure:** Old/new invariant proof, exact exports, independent review and
+  required Windows CI. Update existing PR273; no new PR or agent merge.
+
+
+- **Windows evidence:** UCRT64 job102981118128 completed success at2026-09-10T18:56:21Z, including build/link, regression, UVM and installed frontend. MINGW64 and CLANG64 also passed. Export map unchanged from reviewed7c779ff28; macOS remains queued for overall PR, no merge performed.
+
+
+### U03 — Select a pinned UVM release from the iverilog command line
+
+- **Area:** User-requested driver and release acquisition integration.
+- **State:** CLOSED at `c35d2ef36` — focused, registration, selected real-DPI smoke, installed frontend, review, integrated and full JSON gates passed.
+- **Authorization:** User requests a UVM version picker in iverilog similar to VCS.
+- **Gap:** The driver accepts --uvm-home but has no release-ID selector or
+  available-release listing. Existing --uvm-version reports the bundled version.
+- **Contract:** Add --uvm=<release> and --uvm-list, using acquired pinned sources;
+  preserve -uvm, --uvm-home and reporting-only --uvm-version behavior. Connect
+  the downloader to discovery without downloading during a compiler invocation.
+  Diagnose unknown/missing versions and conflicting path/version options clearly.
+- **Validation:** Driver parsing/resolution tests for valid, missing, invalid and
+  conflicting selectors; listing; path with spaces; existing-option controls;
+  real-DPI compile/run smoke using a known passing pinned release. Required
+  repository gates and independent review remain in force. Selecting a release
+  does not qualify its language support or turn current compile failures into passes.
+- **Boundary:** B01 is safely suspended awaiting external Windows CI; U03 is
+  independent of the export-map correction. L06 passed all local gates before
+  installing the candidate driver. U03 is the sole active implementation task.
+
+- **Final validation:** Integrated 4827 total / 4822 pass / 0 unexpected
+  failures / 2 NI / 3 EF; VPI105, negative149, runtime15/15; JSON1719/0.
+  Availability is separate from compatibility and IEEE1800.2 qualification.
+
+### L07 — Queue-last element assignment aborts elaboration
+
+- **Area / editions:** Queue lvalues, IEEE1800-2017 and IEEE1800-2023 7.10/7.10.1.
+- **State:** CLOSED at `9a1b6beb3` for direct queue-variable element lvalues; class-member and other parent forms remain unqualified.
+- **Evidence:** Unmodified UVM2020.3.2 uvm_field_op.svh112 assigns msg_queue[$].
+  Minimal string queue assignment aborts both saved baseline and L06 candidate.
+- **Root candidate:** Plain queue lvalue dispatch handles SEL_BIT but omits
+  SEL_BIT_LAST and reaches the SEL_NONE assertion. Trace all related consumers
+  before correcting the shared lowering path.
+- **Scope:** Runtime last-element selection for direct queue variables and
+  affected ordinary element assignment paths; retain empty/bounded queue,
+  element-type, index evaluation and existing member-selection semantics.
+  Any unsupported parent shapes remain explicitly scoped and recorded.
+- **Closure:** Standards evidence, baseline red, permanent paired regressions,
+  smallest causal patch, required integrated validation and official release
+  replay. Removing the assertion alone is not implementation.
+
+- **Final evidence:** Baseline aborts in both editions. Ten paired legacy/JSON
+  tests, neighbors21/13, make check, independent review, integrated4837 total
+  with zero unexpected failures, VPI105, negative149, runtime15/15, JSON1729/0,
+  NFA58/58 and real-DPI UVM355/0/0 pass. Full 15-release replay is complete and
+  baseline-valid: four smoke passes, eleven compile failures. No broad queue,
+  UVM, application or formal-program completion claim is made.
+
+### P04 — Process kill misses descendants in synchronous task frames
+
+- **Area / edition:** Process runtime / IEEE1800-2017 and2023 9.7.
+- **State:** CLOSED for live-parent descendant traversal; locally validated at `53b58890c63a48aa1943c7ef065db59f19cebef3`.
+- **Evidence:** `u01-after-l07/kill_task_children.sv`; both edition runs report
+  parent KILLED, child WAITING, counter continuing4to9 after parent.kill.
+- **Cause:** Descendant kill traversal skips joined synchronous task frames;
+  their live detached children are later reparented during frame cleanup.
+- **Scope:** Live-parent kill through synchronous frames only. Terminal-parent
+  kill DD-014 and application teardown qualification remain separate.
+- **Closure:** Permanent task/frame/deep-descendant and sibling controls;
+  focused and required integrated gates, independent review, then U01 replay.
+
+- **P04 validation:** Six paired regressions and all required focused/integrated gates passed: legacy4843total0unexpected failures,JSON1735/0,real-DPIUVM355/0/0,NFA58/58,VPI105,negative149,runtime15/15,makecheck and independent review. U01 replay remains separate.
+
+### L08 — UVM2020.1 resource-queue typing frontier
+
+- **Area / edition:** Class-scoped type actuals, IEEE1800-2017/2023 6.20.3 and8.23.
+- **State:** CLOSED for class-scoped type actual resolution and specialization identity; release-wide qualification remains open.
+- **Evidence:** DD-011; original2020.1.0/1.1 compile logs in the pinned release
+  matrix stop at nested resource-queue type/assignment errors.
+- **Closure:** First causal reducer, applicable IEEE semantics and minimal
+  implementation scope before any patch; permanent regression, required gates
+  and review. No release-wide or application qualification by implication.
+
+- **L08 candidate evidence:** Scoped resource-queue actual fails in both editions on the validated baseline; explicit equivalent type passes. Type-only class-member lookup and resolved specialization keys now pass ten permanent paired regressions in legacy and JSON runners, related17/15 controls and make check. Independent review clear after preserving dotted-path provenance through SVA cloning. Integrated legacy/VPI/negative/runtime, full JSON, real-DPI UVM and NFA remain required; no closure yet.
+
+- **L08 closure:** Implementation47e6c87b3 passed all required local gates: legacy4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15,JSON1745/0,NFA58/58,real-DPIUVM355/0/0,focused10/10each,neighbors17/15,makecheck and independent review. Original2020.1.0/1.1 compile but fail runtime as separately recorded in DD-011.
+
+### U04 — Original UVM2020.1 DPI regex loading
+
+- **State:** CLOSED at aa172f5f9 for legacy regex C ABI and real error propagation; original release phase qualification remains DD-017.
+- **Evidence:** DD-011, results-gizcr5j0; both original releases compile but miss uvm_re_match/uvm_glob_to_re symbols at runtime, followed by BUILDERR.
+- **Scope:** Establish declarations, loaded exports and causal reducer before authorizing a bounded patch. No library edits or release-wide qualification.
+
+### U05 — Standalone DPI reporting callback
+
+- **State:** CLOSED at a5eb76ebb after all required local validation; resume U04.
+- **Evidence:** u04/report_bridge.sv compiles but callback count remains0; standalone umbrella defines exported report callback as no-op.
+- **Scope:** Existing runtime export dispatcher adapter, preserved merged builds, argument/count and real-UVM reporting tests. U04 legacy regex reducers preserved; resume after validation.
+
+- **U05 closure evidence:** Four paired baseline failures become four passes in relocated frontend S10; S1-S10,review,makecheck,NFA58/58,integrated4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0 passed. No legacy regex compatibility claim from this reporting fix.
+
+- **U04 closure:** All required local gates passed: paired ABI/error controls,original2020.1.0/1.1 ABI4/4,relocated frontendS1-S10,review,makecheck,NFA58/58,legacy4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. Full15release matrix remains4SMOKE_PASS,9COMPILE_FAIL,2RUNTIME_FAIL; no release-wide qualification inferred.

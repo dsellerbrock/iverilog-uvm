@@ -21,6 +21,8 @@
 // (svGetScope/svSetScope/svGetScopeFromName are provided by the runtime).
 //----------------------------------------------------------------------
 
+#include <string>
+
 // Everything is wrapped in extern "C" (mirroring uvm-core's uvm_dpi.cc) so
 // the DPI entry points keep C linkage when compiled with a C++ compiler.
 #ifdef __cplusplus
@@ -28,6 +30,7 @@ extern "C" {
 #endif
 
 #include <stdlib.h>
+#include <stdint.h>
 #include "uvm_dpi.h"
 
 // -- Vendored, unmodified UVM DPI sources (tool-independent). --
@@ -70,6 +73,74 @@ static int uvm_ivl_regcomp(regex_t*preg, const char*pattern, int flags)
 #include "uvm_regex.cc"
 #undef regcomp
 #include "uvm_svcmd_dpi.c"
+
+// UVM releases through 2020.1 import these C entry points directly. Newer
+// releases implement them in SV. Keep legacy matching strict: the modern
+// regcomp wrapper above deliberately retries some invalid patterns as globs.
+static void uvm_ivl_legacy_regex_error(const char*id, const char*message)
+{
+      m_uvm_report_dpi(M_UVM_ERROR, const_cast<char*>(id),
+                      const_cast<char*>(message), M_UVM_NONE,
+                      const_cast<char*>(__FILE__), __LINE__);
+}
+
+int uvm_re_match(const char*re, const char*str)
+{
+      if (!re || !str) return 1;
+      size_t len = strlen(re);
+      if (len > UVM_REGEX_MAX_LENGTH) {
+            uvm_ivl_legacy_regex_error("UVM/DPI/REGEX_MAX",
+                                      "regular expression exceeds 2048 characters");
+            return 1;
+      }
+      std::string pattern(re);
+      if (len > 1 && re[0] == '/' && re[len-1] == '/')
+            pattern = pattern.substr(1, len-2);
+      regex_t compiled;
+      int result = regcomp(&compiled, pattern.c_str(), REG_EXTENDED);
+      if (result != 0) {
+            char message[UVM_REGEX_MAX_LENGTH];
+            regerror(result, &compiled, message, sizeof message);
+            uvm_ivl_legacy_regex_error("UVM/DPI/REGEX_INV", message);
+            return result;
+      }
+      result = regexec(&compiled, str, 0, nullptr, 0);
+      regfree(&compiled);
+      return result;
+}
+
+const char*uvm_glob_to_re(const char*glob)
+{
+      if (!glob) return nullptr;
+      size_t len = strlen(glob);
+      if (len > 2040) {
+            uvm_ivl_legacy_regex_error("UVM/DPI/REGEX_MAX",
+                                      "glob expression exceeds 2040 characters");
+            return glob;
+      }
+      if (len == 0 || (len == 1 && glob[0] == '/')) return "/^$/";
+      // DPI copies the returned string; retain storage until the next call.
+      static std::string converted;
+      if (glob[0] == '/' && glob[len-1] == '/') {
+            converted = glob;
+            return converted.c_str();
+      }
+      converted = "/";
+      if (glob[0] != '^') converted += '^';
+      for (const char*p = glob; *p; ++p) {
+            switch (*p) {
+              case '*': case '+': converted += '.'; converted += *p; break;
+              case '?': converted += '.'; break;
+              case '.': case '[': case ']': case '(': case ')':
+                  converted += '\\'; converted += *p; break;
+              default: converted += *p; break;
+            }
+      }
+      if (converted.back() != '$') converted += '$';
+      converted += '/';
+      return converted.c_str();
+}
+
 
 //----------------------------------------------------------------------
 // Icarus HDL-backdoor backend.
@@ -192,25 +263,31 @@ int uvm_hdl_release(char* path)
 }
 
 //----------------------------------------------------------------------
-// Standalone/global-umbrella self-containment.
-//
-// uvm_common.c's m_uvm_report_dpi() wrapper calls the DPI *export*
-// m__uvm_report_dpi(), whose C dispatcher is generated per design into that
-// design's .dpiexport.c stub. The `iverilog -uvm' front end installs and loads
-// ONE global umbrella and does not load any per-design stub, so that symbol
-// would be undefined. On ELF/Mach-O that is harmless (the wrapper's own callers
-// — the vendor HDL/polling backends — are excluded from this umbrella, so it is
-// a reference in dead code that is never resolved at run time), but a Windows PE
-// image must bind every symbol at link time. Provide a no-op fallback so the
-// standalone umbrella is self-contained on every platform. It is never actually
-// invoked. Guarded so the per-test *merged* build used by the regression suite
-// (which links the design's real dispatcher) does not see a duplicate.
+// Standalone report export adapter. Match the dispatcher ABI emitted by
+// tgt-vvp/vvp_scope.c for m__uvm_report_dpi: the installed umbrella has no
+// per-design C stub, but vvp already holds the selected SV export. Merged
+// regression builds provide their generated stub instead.
 #ifdef UVM_DPI_STANDALONE
+typedef union ivl_dpi_arg_u {
+      int64_t i;
+      double r;
+      const char*s;
+      void*p;
+      uint32_t*v;
+} ivl_dpi_arg_t;
+extern void __ivl_dpi_export_call_v(const char*, int, ivl_dpi_arg_t*);
+
 void m__uvm_report_dpi(int severity, const char* id, const char* message,
                        int verbosity, const char* file, int linenum)
 {
-      (void)severity; (void)id; (void)message;
-      (void)verbosity; (void)file; (void)linenum;
+      ivl_dpi_arg_t args[6];
+      args[0].i = severity;
+      args[1].s = id;
+      args[2].s = message;
+      args[3].i = verbosity;
+      args[4].s = file;
+      args[5].i = linenum;
+      __ivl_dpi_export_call_v("m__uvm_report_dpi", 6, args);
 }
 #endif
 

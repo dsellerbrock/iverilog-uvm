@@ -1,3 +1,9 @@
 [submodule "uvm-core"]
 	path = uvm-core
 	url = https://github.com/accellera-official/uvm-core.git
+[submodule "third_party/uvm/2020.2.0"]
+	path = third_party/uvm/2020.2.0
+	url = https://github.com/accellera-official/uvm-core.git
+[submodule "third_party/uvm/2020.3.0"]
+	path = third_party/uvm/2020.3.0
+	url = https://github.com/accellera-official/uvm-core.git

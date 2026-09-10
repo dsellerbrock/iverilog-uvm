@@ -2123,6 +2123,13 @@ static void append_cache_expr_key_(Design*des, NetScope*call_scope,
 
       if (const PEIdent*ident = dynamic_cast<const PEIdent*>(expr)) {
 	    const pform_scoped_name_t&path = ident->path();
+	    if (formal_kind == 1 && lookup_scope) {
+		  if (ivl_type_t type = ident->resolve_scoped_type_actual(des, lookup_scope)) {
+			append_cache_ivl_type_key_(des, out, type);
+			close_forward();
+			return;
+		  }
+	    }
 	    if (lookup_scope && path.package == 0 && path.name.size() == 1 &&
 	        path.name.front().index.empty()) {
 		  perm_string ident_name = path.name.front().name;

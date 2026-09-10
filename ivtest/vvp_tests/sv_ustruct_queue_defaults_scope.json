@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_ustruct_queue_defaults_scope.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "sv_ustruct_queue_defaults_scope"
+}

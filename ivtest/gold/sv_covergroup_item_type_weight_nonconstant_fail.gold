@@ -1,0 +1,2 @@
+./ivltests/sv_covergroup_item_type_weight_nonconstant_fail.v:5: error: coverpoint type_option.weight requires a non-negative integral constant.
+1 error(s) during elaboration.

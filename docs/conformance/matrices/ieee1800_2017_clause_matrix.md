@@ -976,3 +976,52 @@ runtime selector binding is unchanged (12.7.1/12.7.3); invalid same-name header
 selectors are recorded separately as DD-009. Selected-array non-member typing
 and broader container obligations remain unqualified. All required local gates
 and independent review pass; remote CI/review and merging remain outstanding.
+
+
+V04: IMPLEMENTED (bounded local qualification, unmerged), IEEE1800-2017 and
+IEEE1800-2023 19.11.3. Merged type-coverage ratios retain supported dynamic
+family cardinalities and aggregate total/hit counts through128-bit arithmetic
+before floating conversion. Distinct named wide families no longer inflate
+coverage through64-bit saturation. Paired relative-error tests cover disjoint
+unsampled/retired universes, unequal families, thresholds, static/dynamic bins,
+weighted items and small/empty domains. All local gates and independent review
+pass. Individual transition-family cardinality, broader cross/bin-universe
+obligations and parentV01 remain separate; remote CI before merge.
+
+
+V05: IMPLEMENTED (bounded local qualification, unmerged), IEEE1800-2017 and
+IEEE1800-2023 19.6,19.11.3. Supported constructed automatic crosses contribute
+the union of ordered component-bin names to merged type coverage. Shared hits
+use canonical tuple identities rather than instance-local dense ordinals;
+already-resolved active named properties also contribute. Paired regressions
+cover overlapping/disjoint constructor domains, source-bin kinds and dimension
+order, thresholds, named/ignore precedence, retirement, parent capture and
+named/arrayed transition sources;2023-only retention is separately controlled.
+Malformed plans publish no type denominator. All required local gates and
+independent review pass. Existing topology limits, transition-family cardinality,
+unqualified type options and parentV01 remain separate; remote CI before merge.
+
+
+V06: IMPLEMENTED (bounded local qualification, unmerged), IEEE1800-2017 and
+IEEE1800-2023 19.7.1,19.10,19.11.3. Declaration-time coverpoint and cross
+type_option.weight independently weights merged type coverage, with default1
+and typed non-negative constant validation. Instance and merge_instances0
+weighting remain independent. Group type weights do not become item defaults.
+Typed formal aliases prevent outer-name capture while permitting constant
+type queries and lexical outer constant functions. New tagged item metadata
+preserves older VVP record interpretation and validates indices/weight bounds.
+All required local gates and independent review pass. Procedural static option
+assignment and other type options remain unqualified; DD010 is addressed in
+V07 below. This does not close parentV01. Remote CI required before merge.
+
+
+V07: IMPLEMENTED (bounded local qualification, unmerged), IEEE1800-2017 and
+IEEE1800-2023 19.11,19.11.3. Never-instantiated covergroup types do not enter
+cumulative coverage. The existing live registry and retired-options marker
+preserve constructed populations independently of instance weights. Paired
+no-instance, partial weighted scores, construction, static/dynamic cross and
+transition sources, empty populations and retirement controls pass. All
+required local gates and independent review pass. UVM evidence is actual-g2012
+with real DPI; it does not qualify either language edition or IEEE1800.2.
+ParentV01, remaining type options and broader application/formal obligations
+remain open. Required remote CI precedes any separately authorized merge.

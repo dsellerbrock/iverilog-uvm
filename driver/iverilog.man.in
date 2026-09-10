@@ -276,6 +276,18 @@ it at startup with no \fB-M\fP/\fB-m\fP/\fB-d\fP arguments. Requires
 SystemVerilog; the generation is raised to \fB-g2012\fP if a non-SystemVerilog
 default was in effect. See \fBdocs/uvm_frontend.md\fP.
 .TP 8
+.B --uvm=\fIversion\fP
+Select an acquired UVM release (implies \fB-uvm\fP). Releases are directories
+under the installation's \fBlib/ivl/uvm/releases\fP, or the directory named
+by \fBIVERILOG_UVM_RELEASES\fP. Each release directory contains
+\fBuvm_pkg.sv\fP directly or under \fBsrc/\fP. This explicit selection
+overrides \fBIVERILOG_UVM_HOME\fP and cannot be combined with
+\fB--uvm-home\fP. A missing release is an error; no download or fallback occurs.
+.TP 8
+.B --uvm-list
+List available release IDs in the release directory and exit. Availability
+means sources are present, not that the release passes compatibility tests.
+.TP 8
 .B --uvm-home=\fIdir\fP
 Use the UVM library at \fIdir\fP instead of the bundled one (implies
 \fB-uvm\fP). \fIdir\fP may contain \fBuvm_pkg.sv\fP directly or a \fBsrc/\fP

@@ -633,6 +633,10 @@ class PEIdent : public PExpr {
             { scoped_type_prefix_ = flag; }
       bool has_scoped_type_prefix() const
             { return scoped_type_prefix_; }
+      void set_dotted_suffix(bool flag = true)
+            { dotted_suffix_ = flag; }
+      bool has_dotted_suffix() const
+            { return dotted_suffix_; }
 
 	// IEEE 1800-2017 6.23 `type()` operator support: resolve the type
 	// of this identifier reference (including any indices, hierarchy
@@ -642,6 +646,9 @@ class PEIdent : public PExpr {
 	// for diagnosing that (no diagnostic is emitted here on failure,
 	// so callers that tolerate a null result don't get double errors).
       ivl_type_t test_type_of_ident(Design*des, NetScope*scope) const;
+
+      // Resolve a parsed Class::type as a type actual, never as a value's type.
+      ivl_type_t resolve_scoped_type_actual(Design*des, NetScope*scope) const;
 
 	// A string character select has integral byte type, but OpenTitan's
 	// commercial-simulator DV sources use it directly in a string concat.
@@ -667,6 +674,7 @@ class PEIdent : public PExpr {
       struct parmvalue_t* leading_type_args_ = 0;
       bool owns_leading_type_args_ = true;
       bool scoped_type_prefix_ = false;
+      bool dotted_suffix_ = false;
       perm_string clocking_access_;
       mutable bool bare_generic_scope_error_reported_ = false;
       mutable bool scoped_lvalue_error_reported_ = false;

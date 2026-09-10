@@ -98,7 +98,7 @@ DPIVPI="$BASE/uvm_dpi.vpi"
 # $PFX; if that failed, even the ivl backend would be unreachable and S1 would
 # not compile — so a passing S1 is itself the relocation proof.
 export PATH="$PFX/bin:$PATH"
-unset IVERILOG_VPI_MODULE_PATH IVERILOG_UVM_HOME 2>/dev/null || true
+unset IVERILOG_VPI_MODULE_PATH IVERILOG_UVM_HOME IVERILOG_UVM_RELEASES 2>/dev/null || true
 
 # The effective runtime tree must also carry the UVM resources; missing DPI
 # here is a hard failure (real DPI is required, not a silent fallback).
@@ -212,6 +212,36 @@ if [ -n "$ver" ] && echo "$ver" | grep -qi 'uvm'; then
 else
     fail "--uvm-version produced nothing useful: '$ver'"
 fi
+
+# --------------------------------------------------------------------------
+say "S9: pinned release picker and existing option controls"
+if python3 "$SRCROOT/tests/uvm_releases/test_picker.py" "$IVERILOG" "$BASE"; then
+    pass "release picker controls"
+else
+    fail "release picker controls"
+fi
+
+# --------------------------------------------------------------------------
+say "S10: standalone DPI reports and legacy regex ABI"
+for edition in 2017 2023; do
+    for fixture in report_bridge report_server legacy_regex; do
+        options=(-m "$DPIVPI")
+        [ "$fixture" != report_bridge ] && options=(-uvm)
+        if "$IVERILOG" "-g$edition" "${options[@]}" -s main -o report.vvp \
+            "$SRCROOT/tests/uvm_releases/$fixture.sv" >report.log 2>&1; then
+            out="$($TO "$VVP" report.vvp 2>&1)"
+            rc=$?
+            if [ "$rc" -eq 0 ] && echo "$out" | grep -qx PASSED && \
+                ! echo "$out" | grep -q 'DPI error:'; then
+                pass "$fixture IEEE $edition"
+            else
+                fail "$fixture IEEE $edition"; echo "$out"
+            fi
+        else
+            fail "$fixture IEEE $edition compile"; cat report.log
+        fi
+    done
+done
 
 # --------------------------------------------------------------------------
 echo ""

@@ -149,3 +149,115 @@ requires parking. Use the format above for the next agent's discoveries.
   reducer and pre-existing validation mechanism remain to be isolated.
 - **Triage status:** record-only; no repair or invalid-header qualification
   is included in L05's legal selected-member index-type increment.
+
+### DD-010 — Uninstantiated merged covergroup type enters overall denominator
+
+- **Discovered while working:** V06 final scope-control review.
+- **Observation:** One fully covered instantiated type plus a declared but
+  uninstantiated merged type produces overall50 rather than100 percent.
+- **File/function:** vvp/class_type.cc type_coverage/registry eligibility and
+  vvp/vthread.cc of_COVGRP_GET_ALL; exact correction not yet selected.
+- **Possible clause:** IEEE1800-2017/2023 19.9,19.11,19.11.3; complete eligibility
+  semantics require review at selection.
+- **Evidence:** campaign-20260908/v06/uninstantiated-type.sv and candidate/v05
+  logs. Both candidate and saved validated V05 runtime reproduce50 vs100.
+  For V05 compatibility only the new item-type-weight tags were removed from
+  emitted bytecode; every item/type weight in this reducer is1.
+- **Reproducer status:** Pre-existing runtime failure established on V05;
+  no source repair or broad application qualification inferred.
+- **Triage status:** record-only during V06. V06 function-scope test instantiates
+  all intended groups before checking their weighted aggregate; its bin/type
+  weight assertions remain explicit and independently checked.
+
+- **DD-010 resolution:** V07 locally validates the shared population guard with
+  paired lifecycle controls and full required local gates. Never-instantiated
+  types are excluded; zero-weight retired merged instances remain represented.
+  Remote CI and broader coverage qualification remain separate.
+
+
+### DD-011 — UVM release-matrix compile frontiers
+
+- **Discovered while working:** U02 user-requested release acquisition/probes.
+- **Evidence:** `docs/conformance/uvm_release_matrix.md` and local
+  `third_party/uvm-releases/results-pv87b5yu/results.json`; unmodified releases,
+  compiler/runtime implementation03caa64c8, actual-g2012.
+- **Observed:** Legacy1.x/2017 libraries encounter member-delay syntax (1.0p1
+  also reports process class lookup);2020.1.0/1.1 encounter nested resource
+  queue type/assignment errors;2020.3.2 rejects default-initialized unpacked
+  struct queue `accesses` in uvm_reg_map.svh2058. Later diagnostics may cascade.
+- **Classification:** Reproduced compile gaps, not yet reduced/standards-classified.
+  Do not label nonstandard library syntax a mandatory IEEE compiler defect.
+- **Triage:** Record-only during U02; select and ground one causal mechanism
+  before any semantic fix. No archived library or application source patched.
+
+
+- **L08 candidate follow-up:** Original2020.1.0/1.1 now compile at47e6c87b3, but both are RUNTIME_FAIL in results-gizcr5j0 (complete=true,baseline_valid=true). Runtime logs report unresolved uvm_re_match/uvm_glob_to_re DPI symbols followed by command-line UVM errors and BUILDERR. Record-only pending L08 validation; release-specific DPI loading/ABI and runtime semantics are not qualified. No library edits.
+
+
+### DD-012 — L06 mixed-array and class-qualified declaration boundaries
+
+- **Discovered while working:** L06 expanded initialization controls.
+- **Evidence:** evidence/campaign-20260908/l06/class-qualified-module-declaration.sv
+  and queue-of-fixed-array.sv plus compile logs; no fixes included.
+- **Observed:** Module-level class-qualified declarations hit parser errors;
+  the supported procedural class-qualified form is covered positively. Queues
+  of fixed-array elements hit the existing netuarray_t unsupported boundary.
+- **Triage:** Record-only. Permanent array boundary tests guard against wrong
+  dimension classification but do not qualify those legal unimplemented shapes.
+
+### DD-013 — Last-element queue lvalue crashes elaboration
+
+- **Discovered while working:** L06 officialUVM2020.3.2 replay after queue-default fix.
+- **Evidence:** UVM uvm_field_op.svh112 assigns msg_queue[$]; minimal
+  evidence/campaign-20260908/l06/queue-last-lvalue.sv creates stringq, pushes
+  one element and assigns q[$]. Expected replacement of the last element.
+- **Observed:** Saved validated03caa64c8 compiler and L06 candidate both abort
+  at elab_lval.cc1335 use_sel==SEL_NONE in2017/2023. Four logs preserve proof.
+- **Triage:** Proven preexisting next-blocker candidate; not caused by L06,
+  not repaired in its patch. UVM2020.3.2 is still COMPILE_FAIL/unqualified.
+
+- **L07 follow-up:** Direct queue-variable element assignment fixed and locally validated at `9a1b6beb3`. Unmodified2020.3.2 now passes the release smoke. Class-property/root-member last-index forms remain outside the resolved scope.
+
+### DD-014 — Terminal process kill loses descendant reachability
+
+- **Discovered while working:** U01 teardown source tracing; record-only.
+- **Observation:** `of_PROCESS_KILL` returns immediately when the process has no
+  owner or already reports FINISHED/KILLED. Thread reaping reparents detached
+  children. This appears unable to kill live descendants through a retained
+  handle to a terminated parent.
+- **File/function:** `vvp/vthread.cc`, `of_PROCESS_KILL`, `vthread_reap`.
+- **Possible clause:** IEEE 1800-2023 9.7 explicitly requires killing live
+  descendants even when the target is FINISHED/KILLED. The 2017 wording differs
+  and needs separate qualification; do not infer identical edition requirements.
+- **Evidence:** Current source at validated semantic revision `9a1b6beb3` and
+  local primary LRM text; no attribution to U01's intermittent warnings.
+- **Reproducer status:** none.
+- **Triage status:** untriaged; no implementation authorized by this entry.
+
+### DD-015 — Function-valued UVM core-state wait diagnostic woke early
+
+- **Discovered while working:** U01 post-report observer construction.
+- **Observation:** An added diagnostic top using
+  `wait (get_core_state() == UVM_CORE_FINISHED)` continued at time zero and
+  stopped the application at 1 ns. This invalidated the observer attempt; it
+  is not application qualification or proof of a compiler defect.
+- **File/function:** `uvm-core/src/base/uvm_globals.svh`, `get_core_state`;
+  evidence `u01-after-l07/teardown_observer_wait_attempt.sv` and
+  `teardown-observer.log` preserve the attempt.
+- **Possible clause:** Wait expression evaluation and function dependencies;
+  exact applicable semantics and cause remain to be established.
+- **Reproducer status:** diagnostic observation only; not minimized.
+- **Triage status:** untriaged, record-only. U01 observer now uses a bounded
+  explicit time after the known smoke completion and verifies log ordering.
+
+### DD-016 — Regex edge cases during legacy ABI comparison
+
+- **Discovered during:** U04 read-only legacy/modern regex comparison, before U05 prerequisite selection.
+- **Evidence:** Modern uvm-core/src/dpi/uvm_regex.cc uvm_re_comp strips slash brackets without the legacy len>1 guard; the single-slash input appears to underflow re_len-2. Source-only, not yet reduced; do not claim a runtime defect without evidence. Legacy2020.1 glob_to_re bracketed-input branch also falls through into the tail rather than preserving input, unlike modern conversion.
+- **Disposition:** Record-only; original vendor code unchanged. U04 must define explicit regex/empty/slash/bracket/error expectations before any ABI delegation; upstream behavior is not automatically normative.
+
+### DD-017 — Original UVM2020.1 smoke exits before intended phase checks
+
+- **Discovered during:** U04 original-release replay.
+- **Evidence:** results-9mvpk_8f complete=true,baseline_valid=true; both original2020.1 releases compile0/runtime0, no unresolved DPI symbols or command-line UVM errors, but finish at time0 without required smoke completion marker. Direct legacy ABI tests pass4/4 across both releases/editions.
+- **Disposition:** Record-only during U04; still RUNTIME_FAIL. Establish whether the intended run-phase traffic/checking executes and reduce the causal mechanism after the current semantic baseline is validated. No warning waivers or application edits.

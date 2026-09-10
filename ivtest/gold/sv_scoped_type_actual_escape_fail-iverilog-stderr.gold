@@ -1,0 +1,3 @@
+ivltests/sv_scoped_type_actual_escape_fail.v:7: error: Type parameter `T` value `selected.word_t` is not a type.
+ivltests/sv_scoped_type_actual_escape_fail.v:7: error: Type parameter `T` value `empty.missing_t` is not a type.
+2 error(s) during elaboration.

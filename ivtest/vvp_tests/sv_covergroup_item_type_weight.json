@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_covergroup_item_type_weight.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "sv_covergroup_item_type_weight"
+}

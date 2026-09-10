@@ -6,6 +6,10 @@ S_unit .scope package, "$unit" "$unit" 1 1;
 S_top .scope module, "top" "top" 1 1;
  .timescale 0 0;
 
+; Invalid cross items use at_least=0 and zero-weight source items.
+; Any accidentally published cross bin would return 100%, while an
+; absent denominator returns 0%.
+
 ; Selector leaf references term 99, which the dimension does not contain.
 C0x1 .class "bad_selector_term" "top.bad_selector_term" [2]
    0: "__src", "q0:sb32"
@@ -16,9 +20,10 @@ C0x1 .class "bad_selector_term" "top.bad_selector_term" [2]
  .covgrp_cross_term 1 0 0 1 0 0
  .covgrp_cross_term 1 1 0 0 0 0
  .covgrp_cross_bin 1 0 1 "bad" "L,0,99,0"
- .covgrp_item 1 1 0 "cp0" "" 0
- .covgrp_item 1 1 0 "cp1" "" 0
- .covgrp_item 1 1 1 "x" "" 0
+ .covgrp_item 1 0 0 "cp0" "" 0
+ .covgrp_item 1 0 0 "cp1" "" 0
+ .covgrp_item 0 1 1 "x" "" 0
+ .covgrp_options 1 1 0 1 0
  ;
 
 ; Two terms in one dimension name different contributing coverpoints.
@@ -29,9 +34,10 @@ C0x2 .class "bad_dimension_sources" "top.bad_dimension_sources" [1]
  .covgrp_cross 1 2 1 1
  .covgrp_cross_term 1 0 0 1 0 0
  .covgrp_cross_term 1 0 1 0 0 0
- .covgrp_item 1 1 0 "cp0" "" 0
- .covgrp_item 1 1 0 "cp1" "" 0
- .covgrp_item 1 1 1 "x" "" 0
+ .covgrp_item 1 0 0 "cp0" "" 0
+ .covgrp_item 1 0 0 "cp1" "" 0
+ .covgrp_item 0 1 1 "x" "" 0
+ .covgrp_options 1 1 0 1 0
  ;
 
 ; A dynamic family must belong to the same coverpoint/item identity.
@@ -39,9 +45,10 @@ C0x3 .class "bad_dynamic_item" "top.bad_dynamic_item" [0]
  .covgrp_dyn_bin 0 1 0 0 0 "each" "c:0:32" "c:1:32" "u32" 4294967295
  .covgrp_cross 1 2 1 1
  .covgrp_cross_term 1 0 0 1 0 0
- .covgrp_item 1 1 0 "cp0" "" 0
- .covgrp_item 1 1 0 "cp1" "" 0
- .covgrp_item 1 1 1 "x" "" 0
+ .covgrp_item 1 0 0 "cp0" "" 0
+ .covgrp_item 1 0 0 "cp1" "" 0
+ .covgrp_item 0 1 1 "x" "" 0
+ .covgrp_options 1 1 0 1 0
  ;
 
 ; One coverage item cannot own two dynamic cross plans.
@@ -51,8 +58,9 @@ C0x4 .class "bad_duplicate_item_plan" "top.bad_duplicate_item_plan" [0]
  .covgrp_cross 2 1 1 1
  .covgrp_cross_term 1 0 0 1 0 0
  .covgrp_cross_term 2 0 0 1 0 0
- .covgrp_item 1 1 0 "cp0" "" 0
- .covgrp_item 1 1 1 "x" "" 0
+ .covgrp_item 1 0 0 "cp0" "" 0
+ .covgrp_item 0 1 1 "x" "" 0
+ .covgrp_options 1 1 0 1 0
  ;
 
 ; A dynamic named-bin counter cannot alias an ordinary source-bin counter.
@@ -64,9 +72,10 @@ C0x5 .class "bad_target_alias" "top.bad_target_alias" [1]
  .covgrp_cross_term 1 0 0 1 0 0
  .covgrp_cross_term 1 1 0 0 0 0
  .covgrp_cross_bin 1 0 0 "alias" "T"
- .covgrp_item 1 1 0 "cp0" "" 0
- .covgrp_item 1 1 0 "cp1" "" 0
- .covgrp_item 1 1 1 "x" "" 0
+ .covgrp_item 1 0 0 "cp0" "" 0
+ .covgrp_item 1 0 0 "cp1" "" 0
+ .covgrp_item 0 1 1 "x" "" 0
+ .covgrp_options 1 1 0 1 0
  ;
 
 ; Records in one dynamic family must describe one source-bin identity.
@@ -75,9 +84,10 @@ C0x6 .class "bad_dynamic_family_identity" "top.bad_dynamic_family_identity" [0]
  .covgrp_dyn_bin 1 1 0 0 0 "each" "c:1:32" "c:1:32" "u32" 4294967295
  .covgrp_cross 1 2 1 1
  .covgrp_cross_term 1 0 0 1 0 0
- .covgrp_item 1 1 0 "cp0" "" 0
- .covgrp_item 1 1 0 "cp1" "" 0
- .covgrp_item 1 1 1 "x" "" 0
+ .covgrp_item 1 0 0 "cp0" "" 0
+ .covgrp_item 1 0 0 "cp1" "" 0
+ .covgrp_item 0 1 1 "x" "" 0
+ .covgrp_options 1 1 0 1 0
  ;
 
 ; A dynamic named-bin counter cannot alias an option/configuration property.
@@ -87,9 +97,10 @@ C0x7 .class "bad_option_target_alias" "top.bad_option_target_alias" [1]
  .covgrp_cross 1 1 1 1
  .covgrp_cross_term 1 0 0 1 0 0
  .covgrp_cross_bin 1 0 0 "alias" "T"
- .covgrp_item 1 1 0 "cp0" "" 0
+ .covgrp_item 1 0 0 "cp0" "" 0
  .covgrp_item_options 0 1 0
- .covgrp_item 1 1 1 "x" "" 0
+ .covgrp_item 0 1 1 "x" "" 0
+ .covgrp_options 1 1 0 1 0
  ;
 
 ; Range predicates count toward the bounded selector work budget.
@@ -99,8 +110,9 @@ C0x8 .class "bad_selector_range_work" "top.bad_selector_range_work" [1]
  .covgrp_cross 1 1 1 1
  .covgrp_cross_term 1 0 0 1 0 0
  .covgrp_cross_bin 1 0 0 "too_much_work" "L,0,0,256,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0"
- .covgrp_item 1 1 0 "cp0" "" 0
- .covgrp_item 1 1 1 "x" "" 0
+ .covgrp_item 1 0 0 "cp0" "" 0
+ .covgrp_item 0 1 1 "x" "" 0
+ .covgrp_options 1 1 0 1 0
  ;
 
 ; Source predicates and wildcard matching also count toward selector work.
@@ -116,9 +128,10 @@ C0x9 .class "bad_selector_source_work" "top.bad_selector_source_work" [2]
  .covgrp_cross_term 1 0 0 0 0 0
  .covgrp_cross_term 1 1 0 1 0 0
  .covgrp_cross_bin 1 0 1 "too_much_source_work" "L,0,0,1,0,1023"
- .covgrp_item 1 1 0 "cp0" "" 0
- .covgrp_item 1 1 0 "cp1" "" 0
- .covgrp_item 1 1 1 "x" "" 0
+ .covgrp_item 1 0 0 "cp0" "" 0
+ .covgrp_item 1 0 0 "cp1" "" 0
+ .covgrp_item 0 1 1 "x" "" 0
+ .covgrp_options 1 1 0 1 0
  ;
 
 ; Parent source/guard IDs occupy a different property namespace and may have
@@ -134,68 +147,151 @@ C0xa .class "valid_parent_namespace_overlap" "top.valid_parent_namespace_overlap
  .covgrp_src 1 1
  ;
 
+C_weight_old .class "old_item_weights" "top.old_item_weights" [2]
+   0: "__a", "q0:sb32"
+   1: "__b", "q0:sb32"
+ .covgrp_bin 0 0 0 0 0 0 0 0 1 1 0 1 4294967295 0 4294967295
+ .covgrp_bin 1 1 0 0 0 0 1 0 1 1 0 1 4294967295 0 4294967295
+ .covgrp_options 1 1 0 1 0
+ .covgrp_item 0 1 0 "a" "" 0
+ .covgrp_item 1 3 0 "b" "" 0
+ ;
+C_weight_new .class "new_item_weights" "top.new_item_weights" [2]
+   0: "__a", "q0:sb32"
+   1: "__b", "q0:sb32"
+ .covgrp_bin 0 0 0 0 0 0 0 0 1 1 0 1 4294967295 0 4294967295
+ .covgrp_bin 1 1 0 0 0 0 1 0 1 1 0 1 4294967295 0 4294967295
+ .covgrp_options 1 1 0 1 0
+ .covgrp_item 0 1 0 "a" "" 0
+ .covgrp_item 1 3 0 "b" "" 0
+ .covgrp_item_type_weight 0 3
+ .covgrp_item_type_weight 1 1
+ ;
     .scope S_top;
 T_0 ;
     %new/cobj C0x1;
     %covgrp/options/init;
+    %dup/obj/ref;
     %covgrp/get_inst_coverage;
     %pop/real 1;
+    %covgrp/get_coverage;
+    %pushi/real 0, 4065;
+    %cmp/wr;
+    %jmp/1 T_0_ok, 4;
+    %vpi_call/w 1 1 "$fatal", 32'sb00000000000000000000000000000001, "disabled cross published type denominator (1)" {0 0 0 0};
+T_0_ok ;
     %end;
     .thread T_0;
 T_1 ;
     %new/cobj C0x2;
     %covgrp/options/init;
+    %dup/obj/ref;
     %covgrp/get_inst_coverage;
     %pop/real 1;
+    %covgrp/get_coverage;
+    %pushi/real 0, 4065;
+    %cmp/wr;
+    %jmp/1 T_1_ok, 4;
+    %vpi_call/w 1 1 "$fatal", 32'sb00000000000000000000000000000001, "disabled cross published type denominator (2)" {0 0 0 0};
+T_1_ok ;
     %end;
     .thread T_1;
 T_2 ;
     %new/cobj C0x3;
     %covgrp/options/init;
+    %dup/obj/ref;
     %covgrp/get_inst_coverage;
     %pop/real 1;
+    %covgrp/get_coverage;
+    %pushi/real 0, 4065;
+    %cmp/wr;
+    %jmp/1 T_2_ok, 4;
+    %vpi_call/w 1 1 "$fatal", 32'sb00000000000000000000000000000001, "disabled cross published type denominator (3)" {0 0 0 0};
+T_2_ok ;
     %end;
     .thread T_2;
 T_3 ;
     %new/cobj C0x4;
     %covgrp/options/init;
+    %dup/obj/ref;
     %covgrp/get_inst_coverage;
     %pop/real 1;
+    %covgrp/get_coverage;
+    %pushi/real 0, 4065;
+    %cmp/wr;
+    %jmp/1 T_3_ok, 4;
+    %vpi_call/w 1 1 "$fatal", 32'sb00000000000000000000000000000001, "disabled cross published type denominator (4)" {0 0 0 0};
+T_3_ok ;
     %end;
     .thread T_3;
 T_4 ;
     %new/cobj C0x5;
     %covgrp/options/init;
+    %dup/obj/ref;
     %covgrp/get_inst_coverage;
     %pop/real 1;
+    %covgrp/get_coverage;
+    %pushi/real 0, 4065;
+    %cmp/wr;
+    %jmp/1 T_4_ok, 4;
+    %vpi_call/w 1 1 "$fatal", 32'sb00000000000000000000000000000001, "disabled cross published type denominator (5)" {0 0 0 0};
+T_4_ok ;
     %end;
     .thread T_4;
 T_5 ;
     %new/cobj C0x6;
     %covgrp/options/init;
+    %dup/obj/ref;
     %covgrp/get_inst_coverage;
     %pop/real 1;
+    %covgrp/get_coverage;
+    %pushi/real 0, 4065;
+    %cmp/wr;
+    %jmp/1 T_5_ok, 4;
+    %vpi_call/w 1 1 "$fatal", 32'sb00000000000000000000000000000001, "disabled cross published type denominator (6)" {0 0 0 0};
+T_5_ok ;
     %end;
     .thread T_5;
 T_6 ;
     %new/cobj C0x7;
     %covgrp/options/init;
+    %dup/obj/ref;
     %covgrp/get_inst_coverage;
     %pop/real 1;
+    %covgrp/get_coverage;
+    %pushi/real 0, 4065;
+    %cmp/wr;
+    %jmp/1 T_6_ok, 4;
+    %vpi_call/w 1 1 "$fatal", 32'sb00000000000000000000000000000001, "disabled cross published type denominator (7)" {0 0 0 0};
+T_6_ok ;
     %end;
     .thread T_6;
 T_7 ;
     %new/cobj C0x8;
     %covgrp/options/init;
+    %dup/obj/ref;
     %covgrp/get_inst_coverage;
     %pop/real 1;
+    %covgrp/get_coverage;
+    %pushi/real 0, 4065;
+    %cmp/wr;
+    %jmp/1 T_7_ok, 4;
+    %vpi_call/w 1 1 "$fatal", 32'sb00000000000000000000000000000001, "disabled cross published type denominator (8)" {0 0 0 0};
+T_7_ok ;
     %end;
     .thread T_7;
 T_8 ;
     %new/cobj C0x9;
     %covgrp/options/init;
+    %dup/obj/ref;
     %covgrp/get_inst_coverage;
     %pop/real 1;
+    %covgrp/get_coverage;
+    %pushi/real 0, 4065;
+    %cmp/wr;
+    %jmp/1 T_8_ok, 4;
+    %vpi_call/w 1 1 "$fatal", 32'sb00000000000000000000000000000001, "disabled cross published type denominator (9)" {0 0 0 0};
+T_8_ok ;
     %end;
     .thread T_8;
 T_9 ;
@@ -205,6 +301,28 @@ T_9 ;
     %pop/real 1;
     %end;
     .thread T_9;
+T_weight_old ;
+    %new/cobj C_weight_old;
+    %covgrp/options/init;
+    %covgrp/get_coverage;
+    %pushi/real 25, 4096;
+    %cmp/wr;
+    %jmp/1 T_weight_old_ok, 4;
+    %vpi_call/w 1 1 "$fatal", 32'sb00000000000000000000000000000001, "old item weight metadata failed" {0 0 0 0};
+T_weight_old_ok ;
+    %end;
+    .thread T_weight_old;
+T_weight_new ;
+    %new/cobj C_weight_new;
+    %covgrp/options/init;
+    %covgrp/get_coverage;
+    %pushi/real 75, 4096;
+    %cmp/wr;
+    %jmp/1 T_weight_new_ok, 4;
+    %vpi_call/w 1 1 "$fatal", 32'sb00000000000000000000000000000001, "new item weight metadata failed" {0 0 0 0};
+T_weight_new_ok ;
+    %end;
+    .thread T_weight_new;
 :file_names 2;
     "N/A";
     "covgrp_cross_semantic_malformed.vvp";

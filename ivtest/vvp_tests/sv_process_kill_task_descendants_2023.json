@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_process_kill_task_descendants.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_process_kill_task_descendants"
+}

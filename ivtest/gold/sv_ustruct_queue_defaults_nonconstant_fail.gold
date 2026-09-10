@@ -1,0 +1,2 @@
+./ivltests/sv_ustruct_queue_defaults_nonconstant_fail.v:3: error: A reference to a net or variable (`runtime_value') is not allowed in a constant expression.
+1 error(s) during elaboration.

@@ -1,26 +1,26 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: L05
-phase: coordination
+current_blocker: "U04"
+phase: "publication"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
+last_integrated_good_revision: "aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [ U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
-next_selection: Assess existing V01 wide-total saturation obligation; L05 is locally validated.
-next_action: Reconcile external merges and canonical main; resume bounded V01 assessment without new PR creation.
-next_command: "rg -n 'dyn_type_total|UINT_MAX|numeric_limits' vvp/class_type.cc vvp/vthread.cc"
+next_selection: "After U04 exact scope closes, select by remaining correctness and application evidence."
+next_action: "Update existing PR273 with validated P04,L08,U05,U04 batch, preserving source history and exact reviewed tree; no merge. Then select DD-017."
+next_command: "git diff --stat abcfdf7fb HEAD"
 next_command_cwd: repository root
-candidate_state: L05 checkpointed in59e5e07c7; all local gates and review pass.
-installed_tools: Compiler core98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226; runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754.
-validation_state: L05focus10/10+10/10,foreach neighbors53/34,makecheck and final review pass; NFA58/58 and integrated4765/4770 with zero unexpected failures pass; fullJSON1662/0 pass; real-DPIUVM355/0/0 pass.
-next_validation: Required remote CI/review before merging; all L05 local gates passed.
-completed_replay: ../evidence/campaign-20260908/u01-after-l03/result.json (RUNTIME_FAIL, two sequence-parent warnings)
+candidate_state: "U04 closed exact legacy regex C ABI scope; all required local gates passed. Four validated increments ready for existing PR273."
+installed_tools: "Frozen L08 candidate compiler4b08d4e3f174bf52233c2b54e79bf6477bd98151751d2d421d535fb6f6b420ca; validated P04 runtime76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522. No installs while gates run."
+validation_state: "U04 all required local gates passed: frontendS1-S10,review,makecheck,NFA58/58,integrated4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. OriginallegacyABI4/4;15release matrix4pass9compilefail2runtimefail."
+next_validation: "U04 refreshed reducer and exact scope before edits, then permanent ABI/error controls and full required validation."
+completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
-publication_policy_checkpoint: 61001162b
+publication_policy_checkpoint: bfb4f1802
 publication_cadence: Publish around substantial milestones, normally after roughly 3-5 validated blockers; prefer updating an existing matching PR. No per-blocker PRs or rapid catch-up stacks. No merge authorization or gate waiver.
 published_batches:
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/263
@@ -29,8 +29,8 @@ published_batches:
     semantic_revision: b9de0be7f7702b7aba7d07d24f76c439322d3773
     publication_revision: a3744e5b7647bad0854b2ea59a47412d75d24f27
     base: main
-    state: merged
-    outstanding: Required remote CI and review before any separately authorized merge.
+    state: externally_merged
+    outstanding: Remote CI still queued/running at latest observation; external merge does not qualify pending checks or imply landing on main.
     external_merge_revision: 3fe277c253412ddf7686e4ab15db7c1516a580c3
     external_merge_base: main
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/264
@@ -40,8 +40,8 @@ published_batches:
     publication_revision: 0bac0a8511ac8d11a414786420008ea490968358
     base: agent/campaign-fork-processes-20260910
     depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/263
-    state: merged
-    outstanding: Required remote CI/review; retarget and revalidate after prerequisite lands; no merge authorization.
+    state: externally_merged
+    outstanding: Remote CI still queued/running at latest observation; external merge does not qualify pending checks or imply landing on main.
     external_merge_revision: 656bb041b21cef686e7a2845112975a1595759e0
     external_merge_base: agent/campaign-fork-processes-20260910
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/265
@@ -52,8 +52,8 @@ published_batches:
     publication_revision: 4175060234aaed865e7713d8d1e474bf05f3301d
     base: agent/campaign-constraints-20260910
     depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/264
-    state: merged
-    outstanding: Required remote CI/review; retarget and revalidate after prerequisites land; no merge authorization.
+    state: externally_merged
+    outstanding: Remote CI still queued/running at latest observation; external merge does not qualify pending checks or imply landing on main.
     external_merge_revision: fab276b0adf860328d86dac743d5e1165b10c26e
     external_merge_base: agent/campaign-constraints-20260910
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/266
@@ -64,8 +64,8 @@ published_batches:
     publication_revision: 2193f80c0f171558a40fb90148d2122bee82220e
     base: agent/campaign-foreach-activation-20260910
     depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/265
-    state: merged
-    outstanding: Required remote CI/review and prerequisite merges; no merge authorization.
+    state: externally_merged
+    outstanding: Remote CI still queued/running at latest observation; external merge does not qualify pending checks or imply landing on main.
     external_merge_revision: 7093c085a9b5104cae220a5e39f4533ef059a131
     external_merge_base: agent/campaign-foreach-activation-20260910
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/267
@@ -76,8 +76,10 @@ published_batches:
     publication_revision: be78334feb6b80e34adbf537c7f48ebe567543fa
     base: agent/campaign-coverage-20260910
     depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/266
-    state: open
-    outstanding: Required remote CI/review and prerequisite merges; no merge authorization.
+    state: externally_merged
+    outstanding: Remote CI still queued/running at latest observation; external merge does not qualify pending checks or imply landing on main.
+    external_merge_revision: 3a835e102608e7231c92e2c741237d6b2f3655ad
+    external_merge_base: agent/campaign-coverage-20260910
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/268
     scope: S05/S06 symbolic assertion parent verdicts and instance delay.
     branch: agent/campaign-sva-timing-20260910
@@ -86,8 +88,8 @@ published_batches:
     publication_revision: 23cce38e9448acda1d72bfc98d457e119fd9e5fc
     base: agent/campaign-sva-verdicts-20260910
     depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/267
-    state: merged
-    outstanding: Required remote CI/review and prerequisite merges; no merge authorization.
+    state: externally_merged
+    outstanding: Remote CI still queued/running at latest observation; external merge does not qualify pending checks or imply landing on main.
     external_merge_revision: 68b54eb0ee8087f2a62555da6341ada9b0547496
     external_merge_base: agent/campaign-sva-verdicts-20260910
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/269
@@ -98,8 +100,8 @@ published_batches:
     publication_revision: ea5ab6c6b2cf2576823b626ec905c5b5ca1ac8e4
     base: agent/campaign-sva-timing-20260910
     depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/268
-    state: merged
-    outstanding: Required remote CI/review and prerequisite merges; no merge authorization.
+    state: externally_merged
+    outstanding: Remote CI still queued/running at latest observation; external merge does not qualify pending checks or imply landing on main.
     external_merge_revision: d47784a1f455c0520798c5c84ca8dc5596fd1bd4
     external_merge_base: agent/campaign-sva-timing-20260910
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/270
@@ -110,8 +112,10 @@ published_batches:
     publication_revision: 53236d900fdd305b337ea4782681f59430cb7088
     base: agent/campaign-sequence-aliases-20260910
     depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/269
-    state: open
-    outstanding: Required remote CI/review and prerequisite merges; no merge authorization.
+    state: externally_merged
+    outstanding: Remote CI still queued/running at latest observation; external merge does not qualify pending checks or imply landing on main.
+    external_merge_revision: dd066c7a88590e1fda4a9f1221968d009ea40368
+    external_merge_base: agent/campaign-sequence-aliases-20260910
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/271
     scope: L05 selected member foreach key typing.
     branch: agent/campaign-foreach-key-types-20260910
@@ -119,11 +123,117 @@ published_batches:
     publication_revision: 021aca3b9862f8fc20954d2da7d98a9262d581fb
     base: agent/campaign-automatic-events-20260910
     depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/270
-    state: merged
-    outstanding: Required remote CI/review and prerequisite merges; no merge authorization.
+    state: externally_merged
+    outstanding: Remote CI still queued/running at latest observation; external merge does not qualify pending checks or imply landing on main.
     external_merge_revision: 1c75101f74dbc17789cadeddb3fc71c19a33d7bd
     external_merge_base: agent/campaign-automatic-events-20260910
 publication_queue: []
 publication_next_action: Publication catch-up stopped at user request. No new PR until a substantial subsequent milestone; reconcile externally changed PR state without merging.
 
 remote_state_note: PR state changed outside this task during publication; merged into a stack base does not imply landed on main. PR263 reached main3fe277c25 while its CI remained in progress at inspection. Do not count outstanding CI as passed.
+
+latest_remote_main: 9821855164b179e1a1f7fb0298320f576646bc15
+main_landed_scope: PR272 externally merged campaign through L05 to main982185516.
+
+consolidated_main_pr:
+  url: https://github.com/dsellerbrock/iverilog-uvm/pull/272
+  branch: agent/campaign-consolidated-main-20260910
+  head: d77b03d2363c58591666a9bd3c1097f30809bc50
+  base: main
+  base_revision_at_creation: 3fe277c253412ddf7686e4ab15db7c1516a580c3
+  validated_semantic_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
+  policy_documentation_snapshot: bfb4f1802
+  scope: All previously published validated campaign changes through L05 plus slower publication cadence; excludes uncommitted V04.
+  state_at_creation: open, ready for review, mergeable
+  outstanding: Required GitHub CI/review; user intends to merge, no agent merge performed.
+  authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
+
+last_publication_semantic_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
+validated_increments_since_publication: 4
+
+consolidated_main_merge: PR272 externally merged to main9821855164b179e1a1f7fb0298320f576646bc15; implementation/tests verified identical to validated59e5e07c7.
+
+coverage_milestone_pr:
+  url: https://github.com/dsellerbrock/iverilog-uvm/pull/273
+  base: main
+  branch: agent/campaign-coverage-v04-v06-main-20260910
+  publication_revision: 08b86b94931f62958d1f4441a7fb90a7e5c48318
+  validated_semantic_revision: 421b50abdcef1b09f9106fa8a35a430a66753928
+  scope: V04, V05, V06; exact validated tree and retained campaign ancestry. V07 excluded pending validation.
+  authorization: User requested one PR directly to main with completed commits.
+  pending: Required GitHub CI and review; no agent merge.
+  preservation: Active V07 source/tests remain untouched in the campaign worktree.
+v07_latest_checkpoint: Candidate built and installed; paired standalone tests passed in both editions, baseline red for population and cross cases, baseline green for mode controls. Session38942 completed0. Focused harnesses, integrated gates and final review remain required.
+
+uvm_release_matrix: docs/conformance/uvm_release_matrix.md; official Git pins plus archive-only downloads,15releases,3smoke passes,12compile failures.
+uvm_release_results: third_party/uvm-releases/results-pv87b5yu/results.json; complete and baseline_valid true.
+
+b01_checkpoint: 7c779ff28; local invariant and independent review pass; existing PR273 updated08b86b949, fresh required CI pending.
+
+user_requested_next: U03 driver --uvm=<release> and --uvm-list; preserve existing UVM flags and integrate pinned acquisition inventory.
+
+b01_ci_retry: MINGW64 job102969844400 failed dependency download from ftp2.osuosl.org before build; gh rerun refused while run active. Retry failed job after run34506491167 permits it.
+l06_validation_complete: All local required gates pass, including JSON1719/0 and real-DPI UVM355/0/0; preserve candidate checkpoint pending B01 Windows boundary.
+
+u03_boundary: Explicit independent driver task selected after safe suspension of B01 external CI. L06 local semantic baseline4965219df validated; frozen compiler/runtime preserved.
+
+u03_validation: Focused selector and registration tests pass; real-DPI selected2020.3.1 smoke passes. Frontend session92166 running and temporarily hides/restores local-install/lib/ivl; no other local gate until terminal.
+b01_publication_correction: c189df5b8d90f438c726fd69745a917976bbc5ad restores executable ivtest gate mode lost during publication; fresh CI required.
+
+u03_current_gate: Integrated90425 live; fullJSON must follow its terminal result. Frontend92166 passed; final review clear. Frozen installed driver75f4c2cb, compiler9915d687, runtime3b162fd9.
+u03_checkpoint: c35d2ef36; installed candidate driver; all focused, acquisition, selected real-DPI smoke, frontend and review pass; integrated90425 pending, fullJSON unstarted.
+last_locally_validated_semantic_revision: 53b58890c63a48aa1943c7ef065db59f19cebef3
+
+l06_closure: 4965219df bounded empty queue-container initialization; all original local required gates and release replay reviewed, no UVM2020.3.2 pass. B01 external Windows gate remains pending independently.
+u03_gate_progress: Integrated90425 terminal0 with4827total4822pass0fail2NI3EF,VPI105,negative149,runtime15/15; fullJSON31236 running.
+
+u03_closure: c35d2ef36 all required local gates passed; fullJSON31236 terminal0,1719/0.
+l07_selection: DD013 queue-last lvalue crash on validated c35d2ef36; sole active implementation. B01 remote CI still pending.
+l07_candidate: elab_lval.cc and ten paired regressions; focus10/10each,neighbors21/13,makecheck,review,NFA58/58 pass; unmodifiedUVM2020.3.2 smoke passes. Integrated27702/UVM33056 running; JSON unstarted.
+
+b01_latest_evidence: "CLOSED: reviewed export map unchanged at PR273 headabcfdf7f; required UCRT64 job102981118128 complete success incl build/link/regression/UVM/frontend; MINGW64 and CLANG64 also success."
+
+l07_integrated_terminal: 27702 exited0;4837total4832pass0fail2NI3EF,VPI105,negative149,runtime15/15. JSON98943 and UVM33056 live.
+publication_milestone_candidate: After L07 validation, V07/U02/L06/U03/L07 comprise five increments; inspect refreshed main and prefer one coherent update to existing requested main PR273, preserving content and file modes. No publication before required local gates pass.
+
+l07_json_terminal: 98943 exited0;1729tests0failures. UVM33056 re-polled live at m1b_darray_elem_partsel_test; only remaining local required gate.
+
+l07_closure: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848; all required local gates pass; latest15release report results-jdbvlt0_ has4smoke passes and11compile failures.
+
+uvm_milestone_publication:
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/273
+  publication_revision: abcfdf7fb84b36b030ea8d28b05fca73ca06be16
+  source_snapshot: e82666161
+  semantic_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
+  added_scope: V07,U02,L06,U03,L07; same existing PR, exact reviewed tree1390318eab71083aba899fe7efbaa6c5fa3a6c68, file modes and pins preserved.
+  validation: All required local gates passed; fresh remote CI and existing merge permissions remain required. No agent merge.
+u01_resume: Fresh single-core runtime replay under evidence/u01-after-l07; original corpus and bundled library unchanged. Last validated compiler/runtime9a1b6beb3.
+
+u01_latest_replay: PASS with115requests/230scoreboarditems and zero warnings/errors/fatals; source360files unchanged. Repeats old2PASS/1FAILwith4guardwarnings,new3PASS. U01 remains open for teardown repeatability and causal classification; no fix attribution from this pass.
+
+p04_integrated_terminal: 29287 exited0;4843total4838pass0fail2NI3EF,VPI105,negative149,runtime15/15. Full JSON started after terminal; UVM5922 remains live.
+p04_json_terminal: 9510 exited0;1735tests0failures. UVM5922 confirmed live; no restart.
+p04_closure: 53b58890c63a48aa1943c7ef065db59f19cebef3; all local gates and review passed,including real-DPIUVM355/0/0. Direct live-parent descendant traversal only; terminal-parent kill DD014 remains open.
+u01_post_p04: Fresh run plus2repeats all115requests/230items,4guardwarnings,0errors/fatals,TEST FAILED CHECKS;360sourcefiles identical. Preserve OPEN compatibility/teardown scope; selected independent L08 from DD011.
+
+l08_live_gates: []
+l08_unstarted_gates: []
+l08_final_review: Clear after SVA clone provenance fix; required gates pending.
+
+l08_candidate_revision: 47e6c87b3
+l08_nfa: Passed58/58, terminal81089 exit0.
+l08_release_probe: results-gizcr5j0 complete and baseline_valid; original2020.1.0/1.1 compile0 but RUNTIME_FAIL, missing DPI regex symbols and UVM BUILDERR; DD-011 record-only.
+pr273_latest_checks: "Ubuntu22.04,Ubuntu24.04,MINGW64,UCRT64,CLANG64 passed; macOS queued. PR remains open; no merge."
+
+u05_live_gates: []
+u05_unstarted_gates: []
+u05_candidate_revision: a5eb76ebb
+
+u05_nfa: Terminal71460 exit0;58passed0failed.
+
+u04_live_gates: []
+u04_unstarted_gates: []
+u04_candidate_revision: aa172f5f9
+u04_release_evidence: results-9mvpk_8f complete and baseline_valid; both original releases compile0/runtime0 with zero severity errors but no required marker, so RUNTIME_FAIL. Direct original ABI tests4/4 pass.
+
+u04_nfa: Passed58/58 terminal6429 exit0.

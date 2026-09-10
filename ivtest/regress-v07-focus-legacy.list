@@ -1,0 +1,6 @@
+sv_covergroup_type_population normal,-g2017 ivltests gold=sv_covergroup_type_population.gold
+sv_covergroup_type_population_2023 normal,-g2023 ivltests gold=sv_covergroup_type_population.gold
+sv_covergroup_type_population_cross normal,-g2017 ivltests gold=sv_covergroup_type_population_cross.gold
+sv_covergroup_type_population_cross_2023 normal,-g2023 ivltests gold=sv_covergroup_type_population_cross.gold
+sv_covergroup_type_population_modes normal,-g2017 ivltests gold=sv_covergroup_type_population_modes.gold
+sv_covergroup_type_population_modes_2023 normal,-g2023 ivltests gold=sv_covergroup_type_population_modes.gold
