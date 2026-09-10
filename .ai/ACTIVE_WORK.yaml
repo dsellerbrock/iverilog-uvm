@@ -42,3 +42,5 @@ closure: "9baa5a9c3;legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,ru
 reopened: "Narrow bit[1:0] index2 becomes signed -2 because cast_to_int2 returns BOOL expressions unchanged. Confirmed parameter result0 versus getc99. L12 resume2 patch/tests/contract preserved outside repository; dependent work suspended."
 
 width_correction: "Explicit cast_to_width preserves source signedness, followed by separate signed32 NetECast for two-state conversion. Prior direct cast_signed mutated extension node and failed; corrected candidate focusedJSON6/0,legacy6/0,neighborsJSON42/0,independent review clear. Baseline9b fails both editions narrow unsigned test. All integrated gates pending."
+
+width_gate_checkpoint: "Candidate849a779ea; integrated97512,UVM12635,release59096 live. NFA8558 exit0 and makecheckexit0. FullJSON after integrated terminal; frontend last alone; verify width-sha256.txt and root restoration before closure. L12 suspended in evidence/l12/resume2."
