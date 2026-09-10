@@ -1848,3 +1848,20 @@ makecheckexit0. JSON follows integrated; frontend runs alone last.
 ### L10 closure at051aeee8e
 
 legacy4873total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1765/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON50/0,focusedlegacy8/0,independent review,frontendS1-S10; restored root and unchanged frozen fingerprints. Fullrelease reportresults-jhzl92on remains6SMOKE_PASS9knownCOMPILE_FAIL,complete/baseline_valid. PR273externallymergedd0932af64,all6CIpassed. Canonicalmain fast-forwarded and sharedgraph updated. Fourvalidatedincrements sincepublication (U06,L09,L11,L10) plusREADME3a87ebca9 form nextsinglemilestonePR; no agentmerge.
+
+
+### U07 candidatea83731194 — legacy UVM delay syntax
+
+Both IEEE editions' delay_value grammar allows ps_identifier, not a dotted
+member. Original UVM1.2 #setting.offset is therefore classified as compatibility
+syntax, enabled through the existing default-on -gicarus-misc switch. A narrow
+dotted-name carrier extends delay1 and reuses PEIdent/ordinary delay lowering;
+strict mode rejects it and parenthesized IEEE syntax remains valid.
+Both modes baseline fail/candidate pass; exact struct/nestedreal/blocking/NBA
+timing and RHS capture are checked. NewJSON8/0,legacy8/0,neighbors40/0.
+Bison563SR1122RR and all209normalized conflict-state signatures unchanged.
+Independent review clear; documented option and no IEEE coverage gain claimed.
+Original1.2 progresses to DD021 elaboration/ignored-constraint frontiers, still
+COMPILE_FAIL. Integrated62003,UVM39509,NFA1896 running;makecheckexit0.
+FullJSON follows integrated, frontendalone last. PR274 remains separate
+validated batch at eb8852748; this candidate is not published.
