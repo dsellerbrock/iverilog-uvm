@@ -69,7 +69,7 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-10, native ARM64, validated compiler/runtime implementation `9a1b6beb3`.
+2026-09-10, native ARM64, candidate implementation `aa172f5f9` (required integrated gates pending).
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
 The smoke checks factory creation, clone/field copy and independence, phase
@@ -88,22 +88,22 @@ release's native DPI backend/ABI. No `UVM_NO_DPI` fallback is requested.
 | 2017.0.9 | COMPILE_FAIL | Unparenthesized member delay in `uvm_component.svh` |
 | 2017.1.0 | COMPILE_FAIL | Unparenthesized member delay in `uvm_component.svh` |
 | 2017.1.1 | COMPILE_FAIL | Unparenthesized member delay in `uvm_component.svh` |
-| 2020.1.0 | COMPILE_FAIL | Resource queue type parameter / assignment compatibility |
-| 2020.1.1 | COMPILE_FAIL | Resource queue type parameter / assignment compatibility |
+| 2020.1.0 | RUNTIME_FAIL | Compiles; exits at time zero without smoke completion marker (DD-017) |
+| 2020.1.1 | RUNTIME_FAIL | Compiles; exits at time zero without smoke completion marker (DD-017) |
 | 2020.2.0 | SMOKE_PASS | All smoke checks passed; zero UVM warnings/errors/fatals |
 | 2020.3.0 | SMOKE_PASS | All smoke checks passed; zero UVM warnings/errors/fatals |
 | 2020.3.1 | SMOKE_PASS | All smoke checks passed; zero UVM warnings/errors/fatals |
 | 2020.3.2 | SMOKE_PASS | All smoke checks passed after L06/L07; zero UVM warnings/errors/fatals |
 
-All 15 sources were acquired; 4 passed compile plus runtime smoke and 11
-failed compilation. These are observed compatibility gaps, not waived
+All 15 sources were acquired; 4 passed compile plus runtime smoke, 9 failed
+compilation, and 2 compiled but failed the required runtime checks. These are observed compatibility gaps, not waived
 requirements or standards-conformance verdicts. The first syntax failure in a
 legacy library still needs classification against the applicable language
 edition before being called a compiler defect. Full UVM regressions,
 IEEE1800.2 qualification and unmodified application DV remain separate.
 
 Machine-readable output is in
-`third_party/uvm-releases/results-jdbvlt0_/results.json`, with per-release
+`third_party/uvm-releases/results-rqcthqwn/results.json`, with per-release
 commands, logs, source tree hashes, and compiler/target/preprocessor/VPI/DPI
 fingerprints. It records `complete: true` and `baseline_valid: true`.
 The script also fingerprints the manifest, itself and the smoke source; changes
@@ -113,16 +113,16 @@ checks or warnings cannot become a pass. Any failed release makes the overall
 command exit nonzero while preserving all rows; this matrix intentionally
 continues through later releases after an earlier failure.
 
-The default library/toolchain is not changed and no release compatibility
-fixes are included in U02. U01 OpenTitan teardown evidence remains preserved.
+All release sources remain unmodified. L08, U05 and U04 record the scoped
+compiler and DPI compatibility changes. U01 teardown evidence remains preserved.
 
-- `ivl` SHA-256: `07b302c2c24b66f0b034ae225fc51a621eded450e565c9cd40d26aedc4d91d8a`
+- `ivl` SHA-256: `4b08d4e3f174bf52233c2b54e79bf6477bd98151751d2d421d535fb6f6b420ca`
 
 - `ivlpp` SHA-256: `8e378933711e11da81e2df44c4210e01bf8e1795acc634d3f0cdb1a1feb1c7f9`
 
-- `vvp` SHA-256: `3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337`
+- `vvp` SHA-256: `76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522`
 
-- `uvm_dpi.vpi` SHA-256: `23a2d7a5a0696d0102f7ad254a7c142688202824caf19772c5583b74ecc85dd1`
+- `uvm_dpi.vpi` SHA-256: `e69ec1f7d0d0d94668656c50fb83982241ad912fd229464a365fc5b278c28d5a`
 
 ### Legacy regex ABI candidate (U04)
 
