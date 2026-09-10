@@ -1,23 +1,23 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: L06
-phase: regression_testing
+current_blocker: B01
+phase: focused_validation
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 03caa64c832a9c1b22b82a5692fda7764c94ebc9
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [L06_integrated_48575, L06_UVM_55602, L06_fullJSON_after_integrated, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [B01_review, B01_Windows_CI, L06_UVM_55602, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: L06 empty queue initialization of default-initialized struct element types; DD011 source-backed legal requirement.
-next_action: Await L06 integrated48575,UVM55602; NFA5788 passed58/58; fullJSON follows integrated termination. Preserve frozen tools.
+next_action: Validate B01 export correction and update existing PR273; preserve suspended L06 and frozen tools.
 next_command: "tail -20 ../evidence/campaign-20260908/l06/integrated.log"
 next_command_cwd: repository root
 candidate_state: L06 pform.cc candidate passes14/14focused,27/26neighbors,makecheck and finalreview. UVM2020.3.2 reaches preexisting q[$] lvalue crash (bothbaseline/candidate reproduce).
 installed_tools: Frozen compiler9915d6877914a1eeae199a2fb8796cae95240c355c7d5be112f76455f643a8a3/runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337; saved validated core in evidence/l06/baseline-root.
 validation_state: V06 focus22/22 legacy+JSON,V04 neighbors2/2,V05 13/13,coverage75/65,metadata boundaries/compatibility,integrated4807total4802pass0fail2NI3EF,VPI105,negative149,runtime,JSON1699/0,UVM355/0/0,NFA58/58,makecheck and final review pass.
-next_validation: Integrated48575,UVM55602 running; NFA5788 passed58/58; fullJSON unstarted.
+next_validation: L06 integrated48575 passed4827total4822pass0fail2NI3EF; fullJSON25806 passed1719/0; NFA58/58; UVM55602 pending. B01 review and Windows CI required.
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802

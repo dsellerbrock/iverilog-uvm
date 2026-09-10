@@ -602,3 +602,14 @@ qualification remain open. Evidence: campaign-20260908/s03.
   member initialization. Preserve valid scalar defaults and invalid-type errors.
 - **Closure:** Paired reducer, smallest shared correction, full required gates
   and release replay; partial progress is not UVM/application qualification.
+
+
+### B01 — Windows coverage API import-library exports missing
+
+- **Area:** Build/API ABI export map, no language-semantic change.
+- **State:** IN_PROGRESS — prerequisite discovered in PR273 required UCRT64 CI.
+- **Evidence:** job102955775883 link of vvp.tgt reports seven missing coverage
+  API symbols; all are declared in ivl_target.h and implemented in t-dll-api.cc.
+- **Root:** Missing ivl.def entries prevent Windows import-library linkage.
+- **Closure:** Old/new invariant proof, exact exports, independent review and
+  required Windows CI. Update existing PR273; no new PR or agent merge.

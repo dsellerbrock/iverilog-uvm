@@ -24,6 +24,10 @@ trap 'rm -rf "$WORK"' EXIT
 
 status=0
 
+if ! python3 "$ROOT/tests/vvp_runtime/run_covgrp_exports.py"; then
+    status=1
+fi
+
 echo "=== ivtest sweep (vendored suite) ==="
 cd "$ROOT/ivtest"
 if ! perl vvp_reg.pl > "$WORK/ivtest.log" 2>&1; then

@@ -1,34 +1,22 @@
-id: L06
-title: Initialize queues of default-initialized structs as empty queues
+id: B01
+title: Restore Windows coverage API exports for PR273
 status: in_progress
-phase: regression_testing
-base_revision: 03caa64c832a9c1b22b82a5692fda7764c94ebc9
-last_validated_revision: 03caa64c832a9c1b22b82a5692fda7764c94ebc9
-standards:
-  - IEEE1800-2017 and IEEE1800-2023 7.10 queue initial value;7.2.2 structure member initialization.
-selection_reason: Official UVM2020.3.2 reg-map queue of uvm_reg_bus_op with data=0 is rejected; legal empty container initialization is a concrete remaining standards and release-compatibility obligation from DD011.
-reproducer: ../evidence/campaign-20260908/l06/queue-default.sv
-expected_behavior: Queue declarations without explicit initializers begin empty regardless of struct element defaults; no nonexistent element is initialized. Scalar struct construction and invalid type-default diagnostics remain intact.
-root_cause_hypothesis: pform_make_struct_member_defaults treats all nonscalar storage as unsupported rather than distinguishing empty queue containers; class/const and nested typedef paths need causal tracing before selecting the smallest shared correction.
+phase: awaiting_validation
+user_authorization: Required correction to the existing user-requested PR273; preserve L06 at a deliberate prerequisite validation boundary.
+reproducer: PR273 UCRT64 job102955775883 fails linking vvp.tgt with seven undefined ivl_type_covgrp functions.
+root_cause: Seven implemented/declaration-visible coverage API functions are missing from ivl.def used by the Windows import library.
 allowed_scope:
-  - Queue declaration/type classification and synthesized struct-member initialization at affected pform callers.
-  - Permanent paired controls for direct/typedef/class/automatic/static/nested queue declarations, explicit insertion and scalar-default behavior; invalid type defaults must still reject.
-  - Exact LRM/source trace, focused and required integrated gates, official2020.3.2 replay and scoped documentation.
+  - Add exactly the missing coverage exports to ivl.def.
+  - Permanent coverage API/export consistency check and integrated gate registration.
+  - Focused evidence and update existing PR273 with only this correction; no merge.
 non_goals:
-  - No nonstandard legacy delay syntax extension, UVM/library edits, unrelated resource-type fixes or broad structure-default completion claim.
-  - No warning removal, dropped element defaults or fabricated queue contents.
+  - No L06 semantic code in this patch, no other export/API redesign, no installed tool mutation while L06 gates run.
 required_gates:
-  - Paired baseline reducer, primary standards evidence and independently reviewed causal patch.
-  - Focused legacy/JSON,affected struct/queue neighbors,integrated,VPI,negative,runtime,NFA,fullJSON,real-DPIUVM,makecheck.
-  - UVM2020.3.2 release probe; getting further is not a release pass.
-completion: Close only the validated queue-container initialization scope; broader struct defaults and application qualification stay open.
+  - Failing old export map and passing corrected map; all declared coverage API names exported.
+  - Independent review, script syntax/diff checks, required Windows CI before completion/merge.
+completion: Local export invariant can validate the patch; Windows remote gate remains required and cannot be reported passed from native checks.
+suspended_parent: L06 candidate source/tests and gatehandles preserved in evidence/b01/suspended-l06.yaml; integrated48575 completed, UVM55602 still running, fullJSON25806 passed1719/0.
 stop_after_completion: false
-discovery_policy: Unrelated discoveries record-only; any required prerequisite gets a deliberate preserved-work boundary.
-next_action: Await integrated48575,UVM55602,NFA5788; fullJSON follows terminal integrated. No semantic checkpoint until all gates pass.
-baseline_evidence: Both2017/2023 fail queue-default.sv at declaration with the unsupported-struct-default queue diagnostic on validated03caa64c8.
-causal_trace: pform_make_struct_member_defaults rejects all nonscalar shapes; pform_has_implicit_struct_member_defaults drives const guards in pform_make_var and pform_class_property; nested pform_append_struct_member_defaults and pform_struct_has_member_defaults recurse through queue element types. Shape helper currently prioritizes typedef dimensions over declaration dimensions, so outer queue typedef-array cases require explicit controls. Type-default validation is separate and must remain unconditional.
-candidate: pform.cc shared declaration-shape helper gives outer dimensions precedence; four initialization paths skip empty queues while preserving separate type validation.
-focused_validation: Fourteen permanent paired entries pass legacy and JSON;neighbors27legacy/26JSON andmakecheck pass; final independent review clear.
-release_replay: OfficialUVM2020.3.2 passes the former declaration error but crashes at queue[$] assignment. Independent reducer crashes savedbaseline andcandidate in2017/2023; preexisting DD013, no release pass.
-pending_local_gates: integrated48575,UVM55602;NFA5788 passed58/58; fullJSON must start only after integrated terminates.
-installed_tools: Frozen compiler9915d6877914a1eeae199a2fb8796cae95240c355c7d5be112f76455f643a8a3 and runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337.
+next_action: Add seven exports and a permanent invariant check, validate old/new maps, then update existingPR273 without including L06 or U02.
+
+local_validation: Old map fails exact seven; fixed map passes66/66; syntax, diff and independent review pass. Windows CI pending.
