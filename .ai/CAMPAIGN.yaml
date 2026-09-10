@@ -1,21 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: S05
-phase: awaiting_validation
+phase: checkpointing
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 2cdaec5bc73f646107d19ed5bf908930a9908089
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [S05_integrated, S05_full_JSON, S05_UVM, S05_NFA, S05_make_check, S05_final_review, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
 next_selection: S05 selected from DD-007 after S04 local qualification; early pass and duplicate failure confirmed in both editions.
-next_action: Wait for integrated session74997 and UVM session66260; do not rebuild or edit test sources while gates run. Run full JSON after integrated is terminal.
-next_command: "tail -n 20 ../evidence/campaign-20260908/s05/integrated.log ../evidence/campaign-20260908/s05/uvm.log"
+next_action: Checkpoint S05, record its validated revision, and return to selection.
+next_command: "tail -n 20 ../evidence/campaign-20260908/s05/json.log ../evidence/campaign-20260908/s05/uvm.log"
 next_command_cwd: repository root
-candidate_state: S05 implementation and permanent regressions uncommitted; focused gates pass; full qualification pending.
+candidate_state: S05 implementation and permanent regressions locally validated; checkpoint pending.
 installed_tools: Compilercd91c31bd800d12808a40e182a712d8b939c280746df11ebb79637015ed9fc8d; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
-validation_state: S05 focus14/14 legacy+JSON in both engines, neighbors17/17+8/8, VPI1/1. Integrated74997 and UVM66260 running. Last complete local baseline remains S04 2cdaec5bc.
-next_validation: After integrated terminates, full JSON; NFA and make check; final independent review. All required gates must pass before S05 closure.
+validation_state: S05 focus14/14 legacy+JSON in both engines, neighbors17/17+8/8, VPI1/1. Integrated74997 terminal0 (4714/4709/0/2/3,VPI105,negative149,runtime15), NFA58/58, make check0, final review pass. JSON52285 terminal0,1606/0; UVM66260 terminal0,355/0/0 real DPI. All required S05 local gates pass.
+next_validation: S05 all local gates pass; remote CI remains required before merge.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)

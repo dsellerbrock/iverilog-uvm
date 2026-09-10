@@ -856,5 +856,24 @@ logical truth including nonunit values. Four paired reducers and callback
 coverage pass with required full local gates: integrated4700/4695/0/2/3,
 VPI104,negative149,runtime15,JSON1592 and real-DPI UVM355. Remote CI remains
 required before merge.
-Symbolic nonvacuous parent-verdict aggregation remains DD-007, and broader
-SVA, multiclock S02 and formal qualification remain PARTIAL/open.
+Symbolic nonvacuous parent-verdict aggregation was separately tracked as DD-007
+and is addressed by S05 below. Broader SVA, multiclock S02 and formal
+qualification remain PARTIAL/open.
+
+
+S05: IMPLEMENTED with reviewed local qualification (unmerged),
+IEEE1800-2017/2023 16.12.7,16.12.22,16.14.1. Accepted parameter-valued
+consecutive repetitions with fixed ##0/##1 Boolean consequences aggregate
+one parent verdict: first failed child retires the parent; success waits for
+antecedent closure and all pending children. Existing packed ages and mature
+counts preserve overlapping starts and repetition-bound overrides without a
+new attempt-pool cap. Direct empty nonoverlapped antecedents start their exact
+consequence windows on the current tick; prefixed zero repeats retain their
+nonempty endpoint timing. Empty-only overlap is rejected per instance; mixed
+empty/nonempty overlap uses nonempty matches. Cover endpoint counting remains
+separate. Four-state, Off/Kill, async/NBA cancellation, callback and delayed
+Reactive action controls pass. All required local gates pass: focus14/14
+legacy+JSON in both engines, NFA58/58, integrated4714/4709/0/2/3,VPI105,
+negative149,runtime15,JSON1606,real-DPI UVM355, make check and independent review.
+Remote CI remains required before merge. Symbolic consequent-delay overrides
+DD-008, broader SVA/multiclock and the formal program remain unqualified.

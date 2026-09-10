@@ -1050,3 +1050,9 @@ Both editions reproduced early/duplicate parent verdicts and empty-window timing
 One initial focus run overlapped the VPI harness and read its shared a.out result (the failed parent's log contained the callback PASS line). Both harnesses rerun serially and pass; no semantic failure inferred from that invalid concurrent run. Initial negative gold formatting was corrected for legacy ./ivltests vs JSON ivltests and VPI compiler banner; diagnostics and callback values unchanged. DD-008 records an independent symbolic consequent-delay override defect, not repaired here.
 
 Compiler SHA256cd91c31bd800d12808a40e182a712d8b939c280746df11ebb79637015ed9fc8d, runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec. Source/tests frozen for integrated74997 and real-DPIUVM66260. Full JSON, NFA, make check, final review and remote CI remain required; S05 is not CLOSED. Worktree audit leaves all prior dirty/nonancestor trees preserved.
+
+S05 full integrated session74997 terminated0:4714total4709pass0fail2NI3EF, VPI105/105, negative149/149, runtime15/15. NFA58/58, make check0 and final independent source/test review also pass. Full JSON session52285 now running separately from the terminal integrated harness; real-DPIUVM66260 remains live. No compiler/test edits during these gates. S05 remains awaiting validation.
+
+S05 full JSON session52285 terminated0,1606tests/0failures. Only real-DPIUVM66260 remains among required local gates; remote CI remains required before merge.
+
+S05 real-DPIUVM session66260 terminated0:355passed,0failed,0skipped with the real DPI umbrella loaded. All required local gates and final review now pass. No semantic source/test edits occurred during the full runs; installed fingerprints match. S05 is locally validated in the exact scope recorded in the matrix and blocker entry; remote CI remains required before merge. Continue campaign selection after checkpointing this increment.

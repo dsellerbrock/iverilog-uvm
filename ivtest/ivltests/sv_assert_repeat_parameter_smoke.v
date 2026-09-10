@@ -3,7 +3,7 @@
 // The declaration default is intentionally the real OpenTitan value: the
 // bounded and unbounded age sets are 61 and 62 bits, not parse-time-expanded
 // collections of expression nodes.
-// S04: compatibility counts retain pre-existing per-endpoint verdicts (DD-007), not full per-attempt qualification.
+// IEEE 16.12.7: success waits for closure; any failing child retires its parent.
 module sv_assert_repeat_parameter_smoke;
   parameter int TimeoutCntDw = 6;
   logic clk = 0;
@@ -61,14 +61,21 @@ module sv_assert_repeat_parameter_smoke;
 
     $display("COUNTS bounded=%0d/%0d unbounded=%0d/%0d",
              bounded_pass, bounded_fail, unbounded_pass, unbounded_fail);
-    if (bounded_pass != 68 || bounded_fail != 122) begin
-      $display("FAILED: bounded repetition missed or extended an endpoint");
+    if (bounded_pass != 68 || bounded_fail != 2) begin
+      $display("FAILED: bounded parents did not fail once each");
       $finish_and_return(1);
     end
-    if (unbounded_pass != 79 || unbounded_fail != 0) begin
-      $display("FAILED: unbounded repetition did not preserve every endpoint");
+    if (unbounded_pass != 68 || unbounded_fail != 0) begin
+      $display("FAILED: unbounded parents passed before antecedent closure");
       $finish_and_return(1);
     end
+    // Stop new attempts, then close the two still-live unbounded parents.
+    $assertoff(0);
+    ping = 1;
+    @(negedge clk);
+    if (bounded_pass != 68 || bounded_fail != 2 ||
+        unbounded_pass != 70 || unbounded_fail != 0)
+      $fatal(1,"unbounded parent closure verdicts");
     $display("PASSED");
     $finish;
   end

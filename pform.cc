@@ -21008,7 +21008,8 @@ static PExpr* sva_parameter_bad_order_(const struct vlltype&loc,
 static void sva_parameter_add_bound_guard_(const struct vlltype&loc,
 					   unsigned inst,
 					   LexicalScope*owner,
-					   PExpr*invalid)
+                                           PExpr*invalid,
+                                           const char*diagnostic = nullptr)
 {
       ivl_assert(loc, owner);
       ivl_assert(loc, invalid);
@@ -21029,7 +21030,7 @@ static void sva_parameter_add_bound_guard_(const struct vlltype&loc,
       FILE_NAME(code.parm, loc);
       fatal_args.push_back(code);
       named_pexpr_t message;
-      message.parm = new PEString(strdup(
+      message.parm = new PEString(strdup(diagnostic ? diagnostic :
 	    "invalid parameter-valued SVA bound after instance override; "
 	    "bounds must be known and nonnegative, with finite lo <= hi "
 	    "(IEEE 1800-2017 16.9.2)"));
@@ -21248,11 +21249,14 @@ static std::vector<perm_string> sva_fixed_branch_progress_(
  * elaboration applies each module instance's parameter override before
  * sizing it.  One new prefix attempt is injected every tick; shifting under
  * `keep' advances ALL overlapping attempts.  For a bounded range every set
- * bit in [lo:hi] is an endpoint.  For an unbounded range a 64-bit mature
+ * bit in [lo:hi] is an endpoint.  For an unbounded range a mature
  * counter retains the exact multiplicity of attempts that reached lo after
  * their age bits leave the [lo:0] vector, preserving every endpoint from lo
  * onward without an attempt-pool cap. Endpoint existence is deliberately not
- * first_match: it launches a ##1 obligation on every eligible tick.
+ * first_match: it launches a ##1 obligation on every eligible tick. Assertions
+ * retire a parent on its first failed child and succeed only after closure;
+ * cover properties retain endpoint counting. Contiguous matches let the age
+ * bits identify prior ##1 obligations without a separate owner table.
  *
  * This focused path commits only for the exact Boolean implication shape.
  * Other parameter-repetition compositions remain loud, rather than being
@@ -21402,6 +21406,13 @@ static bool sva_parameter_repeat_try_assertion_(
       unsigned inst = sva_gensym_counter++;
       sva_parameter_add_bound_guard_(loc, inst, guard_owner,
 				     invalid_bounds);
+      if (!cover && direct_repeat && !unbounded && prop->op_type == 1) {
+            PExpr*empty_only = new PEBComp('e', sva_clone_expr_(top_src), sva_num32_(loc, 0));
+            FILE_NAME(empty_only, loc);
+            sva_parameter_add_bound_guard_(loc, sva_gensym_counter++, guard_owner,
+                  empty_only, "empty-only antecedent of overlapped implication "
+                  "is illegal (IEEE 1800-2017/2023 16.12.22)");
+      }
       unsigned hist_idx = 0;
       std::vector<Statement*> pre, post, init_zero;
 
@@ -21439,8 +21450,14 @@ static bool sva_parameter_repeat_try_assertion_(
       if (!fixed_ante) r_keep = capture(repeat.expr, capture_idx++);
       perm_string r_cons = capture(cons.expr, capture_idx++);
 
-      perm_string pipe = sva_make_parameter_pipe_(
-		loc, inst, sva_clone_expr_(top_src));
+      PExpr*pipe_top = sva_clone_expr_(top_src);
+      if (!cover && !windowed_cons && direct_repeat && unbounded) {
+            PExpr*zero = new PEBComp('e', sva_clone_expr_(top_src), sva_num32_(loc, 0));
+            FILE_NAME(zero, loc);
+            pipe_top = new PETernary(zero, sva_num32_(loc, 1), pipe_top);
+            FILE_NAME(pipe_top, loc);
+      }
+      perm_string pipe = sva_make_parameter_pipe_(loc, inst, pipe_top);
       perm_string r_due = sva_make_reg_(loc, inst, "rdue", 0, true);
       perm_string r_fire = sva_make_reg_(loc, inst, "rfire", 0, true);
       perm_string r_end = sva_make_reg_(loc, inst, "rend", 0, true);
@@ -21577,6 +21594,125 @@ static bool sva_parameter_repeat_try_assertion_(
 		 << "the clock time slot can be visible to the assertion."
 		 << endl;
 
+      if (!cover && !windowed_cons) {
+            /* Consecutive matches have no gaps. At the start of a ##1
+               tick, every surviving matched age (and every mature parent)
+               owns exactly one due child. The terminal count retains only
+               parents that reached HI on the previous tick. */
+            auto binary = [&](char op, PExpr*a, PExpr*b) -> PExpr* {
+                  PExpr*expr = new PEBinary(op, a, b);
+                  FILE_NAME(expr, loc);
+                  return expr;
+            };
+            auto shift = [&](char op, PExpr*a, PExpr*b) -> PExpr* {
+                  PExpr*expr = new PEBShift(op, a, b);
+                  FILE_NAME(expr, loc);
+                  return expr;
+            };
+            auto lower = [&]() -> PExpr* {
+                  PExpr*lo = sva_clone_expr_(repeat.rep_lo_expr);
+                  if (!direct_repeat) return lo;
+                  // An overlapped implication uses nonempty matches only.
+                  PExpr*expr = new PETernary(lo_is_zero(), number32(1), lo);
+                  FILE_NAME(expr, loc);
+                  return expr;
+            };
+            auto matched = [&]() -> PExpr* {
+                  return countones(shift('r', sva_id_(loc, pipe), lower()));
+            };
+            auto young = [&]() -> PExpr* {
+                  return binary('^', sva_id_(loc, pipe),
+                        shift('l', shift('r', sva_id_(loc, pipe), lower()), lower()));
+            };
+            auto mature = [&]() -> PExpr* {
+                  return unbounded ? sva_id_(loc, r_mature) : number32(0);
+            };
+            auto add = [&](perm_string reg, PExpr*count) -> Statement* {
+                  return sva_assign_(loc, reg,
+                        binary('+', sva_id_(loc, reg), count));
+            };
+            auto retire_matched = [&]() -> Statement* {
+                  std::vector<Statement*> stmts;
+                  stmts.push_back(sva_assign_(loc, pipe, young()));
+                  if (unbounded)
+                        stmts.push_back(sva_assign_(loc, r_mature, number32(0)));
+                  return sva_block_(loc, stmts);
+            };
+            body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
+                  sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
+            if (cons.delay_lo == 1) {
+                  std::vector<Statement*> failed;
+                  failed.push_back(add(r_fail_req, binary('+',
+                        binary('+', matched(), mature()), sva_id_(loc, r_due))));
+                  failed.push_back(retire_matched());
+                  body.push_back(sva_if_(loc, exact_true(sva_id_(loc, r_cons)),
+                        add(r_pass_req, sva_id_(loc, r_due)),
+                        sva_block_(loc, failed)));
+                  body.push_back(sva_assign_(loc, r_due, number32(0)));
+            }
+            if (direct_repeat)
+                  body.push_back(sva_assign_(loc, pipe, age_source()));
+
+            std::vector<Statement*> closed;
+            closed.push_back(add(r_pass_req, binary('+', matched(), mature())));
+            closed.push_back(add(r_vac_req, countones(young())));
+            closed.push_back(sva_assign_(loc, pipe, number32(0)));
+            if (unbounded)
+                  closed.push_back(sva_assign_(loc, r_mature, number32(0)));
+
+            std::vector<Statement*> extended;
+            extended.push_back(sva_assign_(loc, pipe,
+                  shift('l', sva_id_(loc, pipe), number32(1))));
+            if (unbounded) {
+                  extended.push_back(add(r_mature, matched()));
+                  extended.push_back(sva_assign_(loc, pipe, young()));
+            }
+            if (cons.delay_lo == 0) {
+                  std::vector<Statement*> failed;
+                  failed.push_back(add(r_fail_req, binary('+', matched(), mature())));
+                  failed.push_back(retire_matched());
+                  extended.push_back(sva_if_(loc,
+                        sva_not_(loc, exact_true(sva_id_(loc, r_cons))),
+                        sva_block_(loc, failed), nullptr));
+            }
+            if (!unbounded) {
+                  PExpr*terminal = sva_index_(loc, pipe, sva_clone_expr_(top_src));
+                  extended.push_back(add(cons.delay_lo == 1 ? r_due : r_pass_req,
+                        terminal));
+                  extended.push_back(sva_assign_(loc, pipe,
+                        binary('^', sva_id_(loc, pipe), shift('l',
+                              shift('r', sva_id_(loc, pipe), sva_clone_expr_(top_src)),
+                              sva_clone_expr_(top_src)))));
+            }
+            body.push_back(sva_if_(loc, exact_true(sva_id_(loc, r_keep)),
+                  sva_block_(loc, extended), sva_block_(loc, closed)));
+
+            if (prefix) {
+                  auto inject = [&]() -> Statement* {
+                        return sva_assign_(loc, pipe,
+                              binary('|', sva_id_(loc, pipe), number32(1)));
+                  };
+                  Statement*zero_live;
+                  if (unbounded) {
+                        zero_live = add(r_mature, number32(1));
+                  } else {
+                        PExpr*terminal = new PEBComp('e',
+                              sva_clone_expr_(top_src), number32(0));
+                        FILE_NAME(terminal, loc);
+                        zero_live = sva_if_(loc, terminal,
+                              add(cons.delay_lo == 1 ? r_due : r_pass_req, number32(1)),
+                              inject());
+                  }
+                  if (cons.delay_lo == 0)
+                        zero_live = sva_if_(loc, exact_true(sva_id_(loc, r_cons)),
+                              zero_live, add(r_fail_req, number32(1)));
+                  Statement*start = sva_if_(loc, lo_is_zero(), zero_live, inject());
+                  start = sva_if_(loc, exact_true(sva_id_(loc, r_prefix)),
+                        start, add(r_vac_req, number32(1)));
+                  body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
+                        start, nullptr));
+            }
+      } else {
       if (!cover && !fixed_ante) {
             /* Only ages below lo have never produced an antecedent
                endpoint. A later failed extension is not vacuity. */
@@ -21664,10 +21800,10 @@ static bool sva_parameter_repeat_try_assertion_(
 	    body.push_back(sva_assign_(loc, r_fire, sva_id_(loc, r_due)));
 
       auto zero_count = [&]() -> PExpr* {
-	    PExpr*source = direct_repeat ? sva_bit_(loc, 1)
-					  : static_cast<PExpr*>(
-						exact_true(
-						      sva_id_(loc, r_prefix)));
+            PExpr*source = sva_enabled_expr_(loc, inst);
+            if (!direct_repeat)
+                  source = sva_logic_(loc, 'a', source,
+                        exact_true(sva_id_(loc, r_prefix)));
 	    PETernary*count = new PETernary(lo_is_zero(), source,
 					       number32(0));
 	    FILE_NAME(count, loc);
@@ -21707,13 +21843,16 @@ static bool sva_parameter_repeat_try_assertion_(
 	    body.push_back(sva_assign_(loc, r_end, total_end));
       }
       if (windowed_cons) {
-	    if (prop->op_type == 2) {
+            Statement*next_tick = nullptr;
+            std::vector<Statement*> same_tick;
+            {
 		  PEBinary*inject_cons = new PEBinary(
 			'|', sva_id_(loc, r_cpipe),
 			exact_true(sva_id_(loc, r_end)));
 		  FILE_NAME(inject_cons, loc);
-		  body.push_back(sva_assign_(loc, r_cpipe, inject_cons));
-	    } else {
+                  next_tick = sva_assign_(loc, r_cpipe, inject_cons);
+            }
+            {
 		  auto inject_age_one = [&]() -> Statement* {
 			PEBinary*inject = new PEBinary(
 			      '|', sva_id_(loc, r_cpipe), number32(2));
@@ -21758,10 +21897,20 @@ static bool sva_parameter_repeat_try_assertion_(
 		  FILE_NAME(lo_zero, loc);
 		  Statement*dispatch_new = sva_if_(
 			loc, lo_zero, at_zero, inject_age_one());
-		  body.push_back(sva_if_(
-			loc, exact_true(sva_id_(loc, r_end)),
-			dispatch_new, nullptr));
-	    }
+                  same_tick.push_back(sva_if_(
+                        loc, exact_true(sva_id_(loc, r_end)),
+                        dispatch_new, nullptr));
+            }
+            Statement*now = sva_block_(loc, same_tick);
+            if (prop->op_type == 2 && direct_repeat)
+                  body.push_back(sva_if_(loc, lo_is_zero(), now, next_tick));
+            else if (prop->op_type == 2) {
+                  delete now;
+                  body.push_back(next_tick);
+            } else {
+                  delete next_tick;
+                  body.push_back(now);
+            }
       } else if (cons.delay_lo == 1) {
 	    body.push_back(sva_assign_(loc, r_due, sva_id_(loc, r_end)));
       } else {
@@ -21816,6 +21965,8 @@ static bool sva_parameter_repeat_try_assertion_(
 					 verdict, nullptr));
 	    }
       }
+
+      } // endpoint-only cover and exact-window paths
 
       auto clear_state = [&]() -> Statement* {
 	    std::vector<Statement*> clear;
