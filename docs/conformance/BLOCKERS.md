@@ -705,7 +705,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 ### U04 — Original UVM2020.1 DPI regex loading
 
-- **State:** OPEN, selected after validated L08.
+- **State:** CLOSED at aa172f5f9 for legacy regex C ABI and real error propagation; original release phase qualification remains DD-017.
 - **Evidence:** DD-011, results-gizcr5j0; both original releases compile but miss uvm_re_match/uvm_glob_to_re symbols at runtime, followed by BUILDERR.
 - **Scope:** Establish declarations, loaded exports and causal reducer before authorizing a bounded patch. No library edits or release-wide qualification.
 
@@ -716,3 +716,5 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **Scope:** Existing runtime export dispatcher adapter, preserved merged builds, argument/count and real-UVM reporting tests. U04 legacy regex reducers preserved; resume after validation.
 
 - **U05 closure evidence:** Four paired baseline failures become four passes in relocated frontend S10; S1-S10,review,makecheck,NFA58/58,integrated4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0 passed. No legacy regex compatibility claim from this reporting fix.
+
+- **U04 closure:** All required local gates passed: paired ABI/error controls,original2020.1.0/1.1 ABI4/4,relocated frontendS1-S10,review,makecheck,NFA58/58,legacy4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. Full15release matrix remains4SMOKE_PASS,9COMPILE_FAIL,2RUNTIME_FAIL; no release-wide qualification inferred.

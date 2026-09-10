@@ -1,22 +1,22 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: "U04"
-phase: "awaiting_validation"
+phase: "publication"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "a5eb76ebb49121475467623866ee70f71cb80803"
+last_integrated_good_revision: "aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
 pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After U04 exact scope closes, select by remaining correctness and application evidence."
-next_action: "Await U04 JSON60095 and UVM73729; integrated88113 passed4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15. All15release matrix complete/baseline_valid:4SMOKE_PASS,9COMPILE_FAIL,2RUNTIME_FAIL."
-next_command: "tail -5 ../evidence/campaign-20260908/u04/full-json.log ../evidence/campaign-20260908/u04/uvm.log"
+next_action: "Update existing PR273 with validated P04,L08,U05,U04 batch, preserving source history and exact reviewed tree; no merge. Then select DD-017."
+next_command: "git diff --stat abcfdf7fb HEAD"
 next_command_cwd: repository root
-candidate_state: "Legacy C ABI adapter built/installed; strict POSIX matching plus safe glob expansion and actual UVM errors pass both editions and relocated frontend. Review clear including requestedboundarytests. Full gates pending."
+candidate_state: "U04 closed exact legacy regex C ABI scope; all required local gates passed. Four validated increments ready for existing PR273."
 installed_tools: "Frozen L08 candidate compiler4b08d4e3f174bf52233c2b54e79bf6477bd98151751d2d421d535fb6f6b420ca; validated P04 runtime76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522. No installs while gates run."
-validation_state: "U05 frontendS1-S10,review,makecheck,NFA58/58,integrated4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0 passed."
+validation_state: "U04 all required local gates passed: frontendS1-S10,review,makecheck,NFA58/58,integrated4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. OriginallegacyABI4/4;15release matrix4pass9compilefail2runtimefail."
 next_validation: "U04 refreshed reducer and exact scope before edits, then permanent ABI/error controls and full required validation."
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
@@ -149,7 +149,7 @@ consolidated_main_pr:
   authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
 
 last_publication_semantic_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
-validated_increments_since_publication: 3
+validated_increments_since_publication: 4
 
 consolidated_main_merge: PR272 externally merged to main9821855164b179e1a1f7fb0298320f576646bc15; implementation/tests verified identical to validated59e5e07c7.
 
@@ -231,7 +231,7 @@ u05_candidate_revision: a5eb76ebb
 
 u05_nfa: Terminal71460 exit0;58passed0failed.
 
-u04_live_gates: [JSON60095, UVM73729]
+u04_live_gates: []
 u04_unstarted_gates: []
 u04_candidate_revision: aa172f5f9
 u04_release_evidence: results-9mvpk_8f complete and baseline_valid; both original releases compile0/runtime0 with zero severity errors but no required marker, so RUNTIME_FAIL. Direct original ABI tests4/4 pass.

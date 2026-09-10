@@ -69,7 +69,7 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-10, native ARM64, candidate implementation `aa172f5f9` (required integrated gates pending).
+2026-09-10, native ARM64, validated implementation `aa172f5f9`.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
 The smoke checks factory creation, clone/field copy and independence, phase
@@ -124,8 +124,8 @@ compiler and DPI compatibility changes. U01 teardown evidence remains preserved.
 
 - `uvm_dpi.vpi` SHA-256: `e69ec1f7d0d0d94668656c50fb83982241ad912fd229464a365fc5b278c28d5a`
 
-### Legacy regex ABI candidate (U04)
+### Legacy regex ABI (U04)
 
 The installed Icarus umbrella now provides the two C entry points imported by original2020.1 UVM: `uvm_re_match` and `uvm_glob_to_re`. Matching delegates strict ERE compilation/execution to the native POSIX library and preserves native compile errors; it does not retry invalid patterns as globs. Raw empty ERE behavior remains native-dependent (Darwin rejects it); explicit `^$` is tested for empty-string matching. See the [POSIX regular-expression specification](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html).
 
-Glob conversion retains the legacy2040-character input limit and documented preservation of slash-delimited regex, using owned expandable storage. It deliberately does not reproduce upstream bracket fall-through or fixed-buffer overflow. Tests cover anchors,metacharacters,2040input/4084expanded output,2048regex acceptance/2049rejection, copied-string lifetime and actual UVM severity/ID counts. Original library sources remain unchanged. The candidate passes paired2017/2023 tests and relocated frontendS1-S10; integrated/release qualification remains pending.
+Glob conversion retains the legacy2040-character input limit and documented preservation of slash-delimited regex, using owned expandable storage. It deliberately does not reproduce upstream bracket fall-through or fixed-buffer overflow. Tests cover anchors,metacharacters,2040input/4084expanded output,2048regex acceptance/2049rejection, copied-string lifetime and actual UVM severity/ID counts. Original library sources remain unchanged. Paired2017/2023 tests, original-release ABI4/4 checks, relocated frontendS1-S10 and all required integrated gates passed. Full release qualification remains open as recorded in the matrix.
