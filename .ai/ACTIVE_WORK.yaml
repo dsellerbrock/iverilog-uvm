@@ -25,7 +25,12 @@ required_gates:
   - Permanent regression,focused and required integrated validation,independent review and original-source replay before closure.
 completion: Close exact validated causal scope only; original-release/application qualification remains separate unless intended checking demonstrably executes.
 stop_after_completion: false
-next_action: "Trace original2020.1 phase implementation dispatch after paired phase/objection replay: old kernel schedules phases but no test objections or marker; passing2020.2 runs test through time1. Minimize before source changes."
-next_command: "sed -n '1320,1420p' third_party/uvm-releases/sources/2020.1.0/1800.2-2020-1.0/src/base/uvm_phase.svh"
+next_action: "Preserve caller-read staging per allocation across nested argument calls; inspect allocation, call consumption, free, ref-context save/restore and fork handoff before expanding U06 implementation scope. Reducer fails both editions; direct-child control passes."
+next_command: "sed -n '12990,13060p' vvp/vthread.cc"
 
 u06_trace_evidence: evidence/campaign-20260908/u06/phase-2020.1.0.log andphase-2020.2.0.log; both replayexit0,old127lines/no marker/no uvm_test_top objections,new270lines/marker/objection raise0 drop1. Kernel phase scheduling alone does not prove callback execution.
+
+u06_reducer_evidence: ../evidence/campaign-20260908/u06/recursive_args.sv, recursive_args_direct.sv, recursive_args-results.json and recursive_args.trace
+u06_standards: IEEE 1800-2017 and 1800-2023 clauses 8.6 automatic class-method lifetime and 13.5.1 independent pass-by-value argument copies, read from canonical local PDFs.
+u06_causal_finding: Nested get_child allocation clears the single staged_alloc_rd_context. After nested free, scoped reads select the outer uninitialized callee write-head, copying null phase and zero state instead of caller values37 and19. Direct child property avoids nested allocation and passes.
+u06_review: Independent review agrees; preserve allocation identity, delay enclosing staging restoration until nested result copy-out/free, and cover same-scope calls, first/middle arguments, defaults, ref/output and fork handoff. No production changes yet.

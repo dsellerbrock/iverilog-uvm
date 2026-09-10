@@ -11,8 +11,8 @@ pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After U04 exact scope closes, select by remaining correctness and application evidence."
-next_action: "Trace original2020.1 phase implementation dispatch after paired phase/objection replay: old kernel schedules phases but no test objections or marker; passing2020.2 runs test through time1. Minimize before source changes."
-next_command: "sed -n '1320,1420p' third_party/uvm-releases/sources/2020.1.0/1800.2-2020-1.0/src/base/uvm_phase.svh"
+next_action: "Preserve caller-read staging per allocation across nested argument calls; inspect allocation, call consumption, free, ref-context save/restore and fork handoff before expanding U06 implementation scope. Reducer fails both editions; direct-child control passes."
+next_command: "sed -n '12990,13060p' vvp/vthread.cc"
 next_command_cwd: repository root
 candidate_state: "U06 selected, no implementation; P04,L08,U05,U04 published together in existing PR273 at1357ae803."
 installed_tools: "Frozen L08 candidate compiler4b08d4e3f174bf52233c2b54e79bf6477bd98151751d2d421d535fb6f6b420ca; validated P04 runtime76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522. No installs while gates run."

@@ -1675,3 +1675,30 @@ U04 original-release ABI checks passed4/4. Full smoke now exits0 at time0 with n
 U04 closed at aa172f5f9 after all required local gates: frontendS1-S10,pairedABI/error and originalrelease4/4,review,makecheck,NFA58/58,legacy4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. Full15release matrixresults-rqcthqwn complete/baseline_valid,4SMOKE_PASS9COMPILE_FAIL2RUNTIME_FAIL. Fingerprints unchanged. Four validated increments P04,L08,U05,U04 ready for existing PR273; no merge.
 
 PR273 updated once with four validated increments P04,L08,U05,U04 at1357ae803. Publication is a fast-forward merge retaining prior and campaign histories; tree8dd85ae9 exactly equals reviewedsourceedacb3d62. Description follows template and retains all qualification gaps. FreshCI pending,no merge. SelectedU06 fromDD-017 to trace original2020.1 phase execution; no implementation yet.
+
+### U06 recursive-argument reducer checkpoint
+
+Original 2020.1.0 replay with UVM_DEBUG reaches uvm_test_top but loses
+phase and state at recursive traversal. Evidence u06/debug-2020.1.0.log
+shows valid root phase followed by empty phase/UVM_PHASE_UNINITIALIZED
+at the child. A standalone recursive class function reproduces this:
+traverse(comp.get_child(), phase, state) receives null phase and state0;
+traverse(comp.child, phase, state) preserves values37/19 and passes. Both
+2017 and2023 compile successfully; nested-call runs fail1, direct controls
+pass0. Reducers, bytecode, logs and results are preserved in
+evidence/campaign-20260908/u06/recursive_args*.
+
+Read both local IEEE editions 8.6 and13.5.1: class methods have automatic
+lifetime and value arguments retain independent copies. Runtime trace
+shows of_ALLOC clears the single staged caller-read override for the
+nested get_child invocation. After its free, scoped loads select the
+uninitialized outer callee write-head. Independent review confirms the
+cause and recommends allocation-associated staging with frame identity,
+restoring enclosing staging only after nested result extraction/release.
+A global read-preference change or merely removing the clear is unsafe.
+Required controls include same-scope nesting, first/middle argument calls,
+defaults, ref/output copy-out and fork handoff. No runtime changes made.
+U06 remains active; last validated semantic revision aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a.
+Worktree audit preserves all existing dirty/divergent trees; none created
+or retired. Next command and pending implementation/gates remain in
+ACTIVE_WORK/CAMPAIGN; no qualification claim or additional PR.
