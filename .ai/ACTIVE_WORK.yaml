@@ -1,47 +1,29 @@
-id: U04
-title: Qualify DPI regex loading for original UVM2020.1 releases
-status: "complete"
-phase: "documented"
-base_revision: "a5eb76ebb49121475467623866ee70f71cb80803"
-last_validated_revision: "aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a"
-selection_reason: Original2020.1.0/1.1 compile after L08 but missing DPI regex symbols prevent meaningful runtime smoke; this directly advances user-requested historical UVM support.
-reproducer: third_party/uvm-releases/results-gizcr5j0/results.json and both original release runtime.log files; complete and baseline_valid true.
-expected_behavior: Original pinned release regex imports resolve with correct signatures, matching and nonmatching cases execute correctly, and command-line parsing is not corrupted by unavailable DPI calls.
-observed_behavior: Missing uvm_re_match and uvm_glob_to_re symbols precede five UVM command-line errors and BUILDERR; no runtime pass despite exit0.
-standards:
-  - Establish applicable IEEE DPI import and exact official release declarations before any semantic or ABI patch; do not infer equivalence from symbol spelling.
+id: U06
+title: Reduce original UVM2020.1 phase-execution gap
+status: in_progress
+phase: reproducing
+base_revision: aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a
+last_validated_revision: aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a
+selection_reason: Both original2020.1 releases compile and pass direct ABI checks after L08/U04/U05, but full smoke exits before intended traffic/checking; qualification must not count this as a pass.
+reproducer: third_party/uvm-releases/results-rqcthqwn/2020.1.0 and2020.1.1 smoke.vvp/runtime.log; complete/baseline_valid allrelease report.
+expected_behavior: release_test run_phase raises objection,creates/clones/compares independent objects,checks regex,advances through #1,reads HDL value13579bdf,sets checked,and drops objection. report_phase must reject missing checks or emit UVM_RELEASE_SMOKE_PASSED.
+observed_behavior: Both versions finish at time0 with zero warning/error/fatal counts and neither completion marker nor TRAFFIC fatal; both remain RUNTIME_FAIL.
 allowed_scope:
-  - Read-only pinned release DPI declarations and runtime source.
-  - Trace installed UVM DPI loading, driver selection and existing native wrappers.
-  - Evidence reducers and active contract, campaign, blocker and session records.
-  - uvm_dpi/uvm_dpi_iverilog.cc legacy C entry points with strict POSIX matching and bounded-input glob conversion.
-  - tests/uvm_releases legacy ABI fixtures and .github/uvm_frontend_test.sh integration.
-  - docs/conformance/uvm_release_matrix.md qualification evidence.
+  - Read-only original2020.1.0/1.1 phase/component source and comparison with the passing2020.2.0 release.
+  - Existing compiled replay with phase/objection trace, evidence-only diagnostic test copies and minimized reducers.
+  - Applicable LRM/UVM semantics, scoped compiler/runtime tracing once reducer identifies mechanism.
+  - Active/campaign/blocker/session records; refresh exact implementation scope before changes.
 non_goals:
-  - No original library modifications, regex substitution shortcuts, ignored missing imports, warning waivers or release-wide qualification by compilation alone.
-  - No unrelated compiler/runtime repairs during this blocker.
+  - No original library or smoke weakening, warning waivers,synthetic marker,or application pass at time0.
+  - No unrelated compiler/runtime fixes or broad audit.
 invariants:
-  - One active blocker; L08 all required local gates passed before selection.
-  - Native ARM64, serial builds,300second CPU guard, no RSS cap; preserve unrelated worktrees and merge permissions.
+  - One active blocker; all U04 required gates complete before selection.
+  - Native ARM64 serial build,300second CPU guard,no RSS cap; preserve unrelated worktrees and merge permissions.
 required_gates:
-  - Reproduce exact unresolved imports and compare original declaration signatures to loaded exports.
-  - Verify matching and nonmatching regex semantics plus glob conversion with permanent coverage for any code change.
-  - Run required focused and integrated gates and independent review before closure.
-completion: Close only the exact validated DPI loading or ABI subcase; historical releases and application qualification remain separate.
+  - Reproduce absence of intended task/function phase callbacks and establish exact causal reducer.
+  - Verify expected semantics in applicable IEEE edition before semantic changes.
+  - Permanent regression,focused and required integrated validation,independent review and original-source replay before closure.
+completion: Close exact validated causal scope only; original-release/application qualification remains separate unless intended checking demonstrably executes.
 stop_after_completion: false
-next_action: "Publish the four validated increments to existing PR273, then select DD-017 phase-execution reducer as next evidence-backed candidate."
-next_command: "git diff --stat abcfdf7fb HEAD"
-prerequisite_resolution: U05 validated at a5eb76ebb; standalone m__uvm_report_dpi dispatches six arguments through existing runtime ABI, all required local gates passed.
-root_cause: Selected legacy SV sources import C uvm_re_match and uvm_glob_to_re; installed modern UVM umbrella exports lower-level uvm_re APIs because modern SV implements those names as wrappers. No legacy symbols exist in installed library.
-design_review: Blind delegation changes strict invalid-regex behavior and return codes; use strict POSIX matching outside existing glob-retry macro, preserve singleton-slash and empty-regex semantics, and verify report severity counts. Modern glob helper needs explicit length/bracket/error boundary treatment; upstream bugs are not normative. DD-016 records source-only edge findings.
-
-abi_contract: Official2020.1 declarations are context int uvm_re_match(string,string) and context string uvm_glob_to_re(string), mapped to C int/const char pointers by IEEE2017/2023 TableH.1. Match uses strict POSIX ERE, optional paired slash delimiters, zero for match and nonzero for mismatch/invalid regex; invalid regex increments UVM_ERROR. Explicit ^$ matches only the empty string; raw empty ERE is delegated to the native implementation (Darwin returns14), not given an invented portable result. Singleton slash is literal. Glob empty/slash becomes /^$/, bracketed regex remains bracketed per documented intent; preserve2040 input limit and reportoversize returning original input. Allocate enough conversion storage for worst-case expansion instead of reproducing old buffer overflow.
-implementation_decision: Modern combined matcher changes error codes and retries invalid patterns as globs. Modern deglob helper has different length accounting. Implement legacy entry points directly using POSIX and std::string, retaining native caller signatures and U05 reporting; original vendor sources untouched.
-
-u04_live_gates: []
-u04_unstarted_gates: []
-u04_candidate_revision: aa172f5f9
-u04_release_evidence: results-9mvpk_8f complete and baseline_valid; both original releases compile0/runtime0 with zero severity errors but no required marker, so RUNTIME_FAIL. Direct original ABI tests4/4 pass.
-
-u04_nfa: Passed58/58 terminal6429 exit0.
-closure: All required local gates passed; paired legacy ABI/error controls and originalrelease4/4,relocated frontendS1-S10,review,makecheck,NFA58/58,integrated4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. Frozen fingerprints unchanged. Full15release matrix4SMOKE_PASS,9COMPILE_FAIL,2RUNTIME_FAIL; DD-017 remains separate.
+next_action: Replay original2020.1.0 with phase and objection trace, then compare against passing2020.2.0 before selecting implementation scope.
+next_command: local-install/bin/vvp third_party/uvm-releases/results-rqcthqwn/2020.1.0/smoke.vvp +UVM_PHASE_TRACE +UVM_OBJECTION_TRACE

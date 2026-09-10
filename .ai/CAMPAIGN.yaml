@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: "U04"
-phase: "publication"
+current_blocker: "U06"
+phase: "reproducing"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a"
@@ -11,13 +11,13 @@ pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After U04 exact scope closes, select by remaining correctness and application evidence."
-next_action: "Update existing PR273 with validated P04,L08,U05,U04 batch, preserving source history and exact reviewed tree; no merge. Then select DD-017."
-next_command: "git diff --stat abcfdf7fb HEAD"
+next_action: "Reduce DD-017 original UVM2020.1 phase-execution gap; compare trace evidence without modifying original libraries or treating zero-error early exit as pass."
+next_command: "local-install/bin/vvp third_party/uvm-releases/results-rqcthqwn/2020.1.0/smoke.vvp +UVM_PHASE_TRACE +UVM_OBJECTION_TRACE"
 next_command_cwd: repository root
-candidate_state: "U04 closed exact legacy regex C ABI scope; all required local gates passed. Four validated increments ready for existing PR273."
+candidate_state: "U06 selected, no implementation; P04,L08,U05,U04 published together in existing PR273 at1357ae803."
 installed_tools: "Frozen L08 candidate compiler4b08d4e3f174bf52233c2b54e79bf6477bd98151751d2d421d535fb6f6b420ca; validated P04 runtime76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522. No installs while gates run."
 validation_state: "U04 all required local gates passed: frontendS1-S10,review,makecheck,NFA58/58,integrated4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. OriginallegacyABI4/4;15release matrix4pass9compilefail2runtimefail."
-next_validation: "U04 refreshed reducer and exact scope before edits, then permanent ABI/error controls and full required validation."
+next_validation: "U06 exact failing reducer/qualification gap, applicable semantics and causal trace before any patch."
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
@@ -128,7 +128,7 @@ published_batches:
     external_merge_revision: 1c75101f74dbc17789cadeddb3fc71c19a33d7bd
     external_merge_base: agent/campaign-automatic-events-20260910
 publication_queue: []
-publication_next_action: Publication catch-up stopped at user request. No new PR until a substantial subsequent milestone; reconcile externally changed PR state without merging.
+publication_next_action: "Wait for fresh PR273 CI/review; continue autonomous campaign and batch next roughly3-5validated increments. No new PR or merge now."
 
 remote_state_note: PR state changed outside this task during publication; merged into a stack base does not imply landed on main. PR263 reached main3fe277c25 while its CI remained in progress at inspection. Do not count outstanding CI as passed.
 
@@ -148,8 +148,8 @@ consolidated_main_pr:
   outstanding: Required GitHub CI/review; user intends to merge, no agent merge performed.
   authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
 
-last_publication_semantic_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
-validated_increments_since_publication: 4
+last_publication_semantic_revision: "aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a"
+validated_increments_since_publication: 0
 
 consolidated_main_merge: PR272 externally merged to main9821855164b179e1a1f7fb0298320f576646bc15; implementation/tests verified identical to validated59e5e07c7.
 
@@ -157,20 +157,22 @@ coverage_milestone_pr:
   url: https://github.com/dsellerbrock/iverilog-uvm/pull/273
   base: main
   branch: agent/campaign-coverage-v04-v06-main-20260910
-  publication_revision: 08b86b94931f62958d1f4441a7fb90a7e5c48318
-  validated_semantic_revision: 421b50abdcef1b09f9106fa8a35a430a66753928
-  scope: V04, V05, V06; exact validated tree and retained campaign ancestry. V07 excluded pending validation.
-  authorization: User requested one PR directly to main with completed commits.
-  pending: Required GitHub CI and review; no agent merge.
-  preservation: Active V07 source/tests remain untouched in the campaign worktree.
+  publication_revision: 1357ae80330680d06973b19d8c1d75e87f26dcd8
+  validated_semantic_revision: aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a
+  reviewed_source_revision: edacb3d622b36899131e9e73814c8d7527aa3a90
+  exact_published_tree: 8dd85ae935f944d4661a9dba465f860040e982df
+  scope: V04-V07,L06-L08,P04,U02-U05,B01; latest batchP04,L08,U05,U04,all required local gates passed.
+  authorization: User requested a consolidated PR directly to main and slower milestone publication.
+  pending: Fresh GitHub CI and review; no agent merge.
+  preservation: Publication merge retains both previous published and campaign histories; exact reviewed tree verified.
 v07_latest_checkpoint: Candidate built and installed; paired standalone tests passed in both editions, baseline red for population and cross cases, baseline green for mode controls. Session38942 completed0. Focused harnesses, integrated gates and final review remain required.
 
-uvm_release_matrix: docs/conformance/uvm_release_matrix.md; official Git pins plus archive-only downloads,15releases,3smoke passes,12compile failures.
-uvm_release_results: third_party/uvm-releases/results-pv87b5yu/results.json; complete and baseline_valid true.
+uvm_release_matrix: "docs/conformance/uvm_release_matrix.md;15pinned releases,4smoke passes,9compile failures,2runtime failures."
+uvm_release_results: "third_party/uvm-releases/results-rqcthqwn/results.json;complete and baseline_valid true."
 
 b01_checkpoint: 7c779ff28; local invariant and independent review pass; existing PR273 updated08b86b949, fresh required CI pending.
 
-user_requested_next: U03 driver --uvm=<release> and --uvm-list; preserve existing UVM flags and integrate pinned acquisition inventory.
+user_requested_next: "Pinned acquisition and driver picker delivered in PR273; continue U06 original-release phase qualification."
 
 b01_ci_retry: MINGW64 job102969844400 failed dependency download from ftp2.osuosl.org before build; gh rerun refused while run active. Retry failed job after run34506491167 permits it.
 l06_validation_complete: All local required gates pass, including JSON1719/0 and real-DPI UVM355/0/0; preserve candidate checkpoint pending B01 Windows boundary.
@@ -223,7 +225,7 @@ l08_final_review: Clear after SVA clone provenance fix; required gates pending.
 l08_candidate_revision: 47e6c87b3
 l08_nfa: Passed58/58, terminal81089 exit0.
 l08_release_probe: results-gizcr5j0 complete and baseline_valid; original2020.1.0/1.1 compile0 but RUNTIME_FAIL, missing DPI regex symbols and UVM BUILDERR; DD-011 record-only.
-pr273_latest_checks: "Ubuntu22.04,Ubuntu24.04,MINGW64,UCRT64,CLANG64 passed; macOS queued. PR remains open; no merge."
+pr273_latest_checks: "Fresh checks pending on1357ae803; prior headpassedUbuntu22/24 and all3Windows jobs,macOS remainedqueued."
 
 u05_live_gates: []
 u05_unstarted_gates: []

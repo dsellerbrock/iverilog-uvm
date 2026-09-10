@@ -718,3 +718,9 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **U05 closure evidence:** Four paired baseline failures become four passes in relocated frontend S10; S1-S10,review,makecheck,NFA58/58,integrated4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0 passed. No legacy regex compatibility claim from this reporting fix.
 
 - **U04 closure:** All required local gates passed: paired ABI/error controls,original2020.1.0/1.1 ABI4/4,relocated frontendS1-S10,review,makecheck,NFA58/58,legacy4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. Full15release matrix remains4SMOKE_PASS,9COMPILE_FAIL,2RUNTIME_FAIL; no release-wide qualification inferred.
+
+### U06 — Original UVM2020.1 phase execution
+
+- **State:** OPEN, selected from DD-017 after validated U04.
+- **Evidence:** Both original releases finish at time0 without the smoke marker or expected missing-traffic fatal, despite successful direct ABI checks.
+- **Scope:** Trace actual phase/component dispatch, minimize and verify semantics before patching. Original sources remain unchanged; no early-exit pass.
