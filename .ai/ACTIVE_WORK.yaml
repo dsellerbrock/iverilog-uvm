@@ -1,7 +1,7 @@
 id: V01
 title: Exact merged constructor-dependent value-bin universe
-status: in_progress
-phase: root_cause_trace
+status: awaiting_validation
+phase: integrated_validation
 base_revision: 9218751e2
 standards:
   - IEEE 1800-2017 and IEEE 1800-2023 19.11.3, with value-bin identity in 19.5.1.
@@ -11,7 +11,7 @@ reproducer: ../evidence/campaign-20260908/v01/union.sv
 causal_hypothesis: type_coverage uses maximum registered family size raised to hit count rather than the complete union of registered bin identities.
 allowed_scope:
   - vvp/class_type.cc and class_type.h dynamic value-bin universe registration and merged denominator
-  - Actual registration callers only if causal tracing proves necessary, documented before edits
+  - vvp/vthread.cc covgrp_dyn_states_ registration call (sole caller currently passes only count)
   - ivtest paired merged-bin regression coverage and lists
   - .ai/ACTIVE_WORK.yaml
   - .ai/CAMPAIGN.yaml
@@ -32,3 +32,4 @@ required_gates:
 completion: Bounded explicit merged value-bin universe only; broader type-option model remains unqualified.
 discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
+validation: Paired permanent test green and previous-runtime red; focus53 legacy/43 JSON, make check and independent review pass. Integrated and UVM pending, full JSON follows integrated.

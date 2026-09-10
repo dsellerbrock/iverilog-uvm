@@ -1,21 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: V01
-phase: root_cause_trace
+phase: integrated_validation
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 9218751e2
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [V01_focused_and_integrated_validation, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [V01_integrated_UVM_JSON_validation, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: null
 next_selection: V01 correctness of coverage denominator; U01 preserved for later teardown qualification.
-next_action: Trace dynamic family universe registration and representation; implement smallest exact merged value-bin union after causal confirmation.
-next_command: "rg -n 'dyn_type_total|dyn_type_register|covgrp_dyn' vvp/class_type.h vvp/class_type.cc"
+next_action: Await V01 integrated and UVM; run full JSON after integrated, then checkpoint validated bounded patch and continue selection.
+next_command: "tail -12 ../evidence/campaign-20260908/v01/integrated.log ../evidence/campaign-20260908/v01/uvm.log"
 next_command_cwd: repository root
-candidate_state: V01 reproduced in both editions:100 percent versus66.666667; no implementation edits yet.
-installed_tools: Coherent compiler a90ef338a4fe and runtime 7a5b2e9d9d19 match build outputs.
-validation_state: Last validated semantic revision9218751e2; L02 gates passed. U01 completes230 checks but remains RUNTIME_FAIL due sequence-parent warnings.
-next_validation: V01 exact overlapping/disjoint bin universe reducers before implementation.
-prepared_replay: bash ../evidence/campaign-20260908/u01-after-l02/replay.sh
+candidate_state: Uncommitted exact dynamic value-bin interval union; focus53/43, make check and review pass.
+installed_tools: Coherent compiler a90ef338a4fe and runtime 2de024fb402d match build outputs.
+validation_state: V01 required integrated/UVM running; full JSON pending. Last validated semantic revision9218751e2; U01 remains open.
+next_validation: Await integrated session23417 and UVM session72988; full JSON follows integrated serially.
+completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)

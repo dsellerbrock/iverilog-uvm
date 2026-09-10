@@ -547,3 +547,22 @@ separate obligation, not implicitly solved by an exact merged denominator.
 Next command: rg -n 'dyn_type_total|dyn_type_register|covgrp_dyn'
 vvp/class_type.h vvp/class_type.cc. Last validated revision9218751e2.
 Worktree audit unchanged; unrelated trees preserved. No running test sessions.
+
+V01 causal trace confirms sole registration caller covgrp_dyn_states_ discarded
+resolved ranges and retained only maximum size. Candidate passes intervals for
+unsized bins and merges them at type registration; scalar/fixed indexed bins
+retain maximum count. Removes hit-driven denominator growth. uint128 cardinality
+and guarded adjacency preserve full64-bit range without enumerating values.
+Permanent paired regression covers LRM overlap, disjoint/unsampled/retired sets,
+threshold accumulation, signed crossing, fixed/scalar identity and wide range.
+Previous installed runtime fails first oracle; candidate passes both editions.
+First focus had a2023 wrapper include-path error; corrected to existing suite
+convention, rerun53legacy/43JSON passed. make check passed. Independent review
+no actionable finding. Existing downstream wide-total saturation and default
+merge_instances weighted averaging are not qualified by this bounded change.
+Required integrated and real-DPI UVM launched; full JSON must follow integrated.
+Last validated source9218751e2, V01 code uncommitted until required gates pass.
+
+V01 live gate handles: integrated23417, UVM72988. Installed compiler
+a90ef338a4fe and runtime2de024fb402d. No full JSON launched until integrated
+finishes; no dependent semantic work until gates pass.
