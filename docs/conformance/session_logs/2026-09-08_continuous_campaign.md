@@ -1655,3 +1655,5 @@ No compiler source changes yet; last validated baseline remains53b58890c.
 ### L08 candidate: class-scoped type actuals
 
 IEEE1800-2017/2023 6.20.3 and8.23 ground the resource-queue reducer. Resolve only selected class typedefs, preserve specialized type identity in cache keys, reject values and dotted paths, and keep cloned syntax provenance. Ten paired permanent regressions pass both runners; related17legacy/15JSON controls and make check pass. Independent review found a missing SVA clone flag, now fixed and reviewed clear. Required integrated gates are pending; no feature or release qualification claim. Evidence: `evidence/campaign-20260908/l08/`.
+
+L08 closed at47e6c87b3 after all required local gates: integrated4853total0unexpected failures,VPI105,negative149,runtime15/15,fullJSON1745/0,NFA58/58,real-DPIUVM355/0/0,focused10/10each,neighbors17/15,makecheck and independent review. Both original2020.1 releases now compile; runtime DPI frontier remains separate. Two validated increments since PR273; continue selection without publishing a per-blocker PR.

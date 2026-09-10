@@ -1,23 +1,23 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: L08
-phase: "awaiting_validation"
+phase: "selection"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: 53b58890c63a48aa1943c7ef065db59f19cebef3
+last_integrated_good_revision: "47e6c87b3f420776e915cc969fe29ac03d8ac827"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
 pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: After U01 diagnostic review, assess one justified remaining standards/application blocker; no repository-wide audit.
-next_action: "Await full JSON31236 and real-DPI UVM7325; integrated9062 passed4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15. NFA58/58, focused10/10 each,neighbors17/15,makecheck and finalreview pass. Do not close L08 until remaining gates pass."
-next_command: "tail -5 ../evidence/campaign-20260908/l08/full-json.log ../evidence/campaign-20260908/l08/uvm.log"
+next_action: "Select and contract original UVM2020.1 DPI regex runtime frontier after validated L08."
+next_command: "graphify query \"How are UVM DPI regex symbols loaded and resolved?\" --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
 next_command_cwd: repository root
-candidate_state: "L08 candidate resolves scoped type actuals and specialization keys; permanent10 paired regressions pass, neighbors17legacy15JSON pass, make check pass. Independent review clone finding fixed; final review pending."
+candidate_state: "L08 closed exact scoped-type actual scope; original UVM release runtime remains unqualified."
 installed_tools: "Frozen L08 candidate compiler4b08d4e3f174bf52233c2b54e79bf6477bd98151751d2d421d535fb6f6b420ca; validated P04 runtime76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522. No installs while gates run."
-validation_state: "L08 partial gates pass; full JSON31236 and UVM7325 pending. Last fully validated semantic revision remains53b58890c63a48aa1943c7ef065db59f19cebef3."
-next_validation: "Wait for live full JSON31236 and UVM7325; original UVM2020.1.0/1.1 compile0 but runtime failures recorded separately. No dependent fixes yet."
+validation_state: "All required L08 local gates passed, including full JSON1745/0 and real-DPI UVM355/0/0."
+next_validation: "Next selected blocker requires exact failing reducer or qualification gap before changes."
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
@@ -149,7 +149,7 @@ consolidated_main_pr:
   authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
 
 last_publication_semantic_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
-validated_increments_since_publication: 1
+validated_increments_since_publication: 2
 
 consolidated_main_merge: PR272 externally merged to main9821855164b179e1a1f7fb0298320f576646bc15; implementation/tests verified identical to validated59e5e07c7.
 
@@ -216,7 +216,7 @@ p04_json_terminal: 9510 exited0;1735tests0failures. UVM5922 confirmed live; no r
 p04_closure: 53b58890c63a48aa1943c7ef065db59f19cebef3; all local gates and review passed,including real-DPIUVM355/0/0. Direct live-parent descendant traversal only; terminal-parent kill DD014 remains open.
 u01_post_p04: Fresh run plus2repeats all115requests/230items,4guardwarnings,0errors/fatals,TEST FAILED CHECKS;360sourcefiles identical. Preserve OPEN compatibility/teardown scope; selected independent L08 from DD011.
 
-l08_live_gates: [JSON31236, UVM7325]
+l08_live_gates: []
 l08_unstarted_gates: []
 l08_final_review: Clear after SVA clone provenance fix; required gates pending.
 

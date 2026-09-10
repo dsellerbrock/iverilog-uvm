@@ -1,7 +1,7 @@
 id: L08
 title: Reduce the UVM2020.1 resource-queue compile frontier
-status: in_progress
-phase: "awaiting_validation"
+status: "complete"
+phase: "documented"
 base_revision: 53b58890c63a48aa1943c7ef065db59f19cebef3
 standards:
   - IEEE1800-2017 and2023 6.20.3 requires a type actual and forbids hierarchical names;8.23 permits class scope type names.2023 explicitly permits type-parameter assignment with incomplete/type-parameter prefixes; preserve edition distinctions.
@@ -27,11 +27,11 @@ required_gates:
   - Paired edition reducer and applicable primary LRM semantics before implementation.
   - Any semantic patch requires permanent regressions and all required focused/integrated gates and review before closure.
 completion: Close only the exact validated causal subcase; release-wide and application qualification remain separate.
-last_validated_revision: 53b58890c63a48aa1943c7ef065db59f19cebef3
+last_validated_revision: "47e6c87b3f420776e915cc969fe29ac03d8ac827"
 discovery_policy: Unrelated findings record-only.
 stop_after_completion: false
-next_action: "Await full JSON31236 and real-DPI UVM7325; integrated9062 passed4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15. NFA58/58, focused10/10 each,neighbors17/15,makecheck and finalreview pass. Do not close L08 until remaining gates pass."
-next_command: "tail -5 ../evidence/campaign-20260908/l08/full-json.log ../evidence/campaign-20260908/l08/uvm.log"
+next_action: "Select a justified blocker after closed scoped-type L08; next candidate is DD-011 missing DPI regex symbols in original UVM2020.1.0/1.1."
+next_command: "graphify query \"How are UVM DPI regex symbols loaded and resolved?\" --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
 root_cause: "Parser deliberately resolves ambiguous TYPE::member as PEIdent; NetScope::evaluate_type_parameter_ only resolves single unqualified PEIdent names. has_scoped_type_prefix distinguishes :: from dotted value paths. Existing scoped class resolvers preserve specialization/typedef provenance, but ordinary find_typedef may escape to enclosing scopes and needs an owner boundary for selected members."
 review_note: Read-only design review recommends elaboration-time type-only resolution, no grammar precedence change and no value-type inference. Include explicit value/property/hierarchy negatives and specialization/shadowing controls.
 evidence:
@@ -43,6 +43,7 @@ implementation_plan: Add a type-only PEIdent resolver guarded by parsed class-sc
 
 scope_refinement: Scoped type actuals must enter specialization keys by resolved type identity; otherwise qualifier arguments are lost in PEIdent textual fallback and9/17bit actuals collide. This is required by the active positive specialization control, not unrelated work.
 
-l08_live_gates: [JSON31236, UVM7325]
+l08_live_gates: []
 l08_unstarted_gates: []
 l08_final_review: Clear after SVA clone provenance fix; required gates pending.
+closure: All required local gates passed; focused10/10each,neighbors17/15,legacy4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15,JSON1745/0,NFA58/58,real-DPIUVM355/0/0,makecheck and independent review. Original2020.1.0/1.1 now compile but runtime frontier remains DD-011; no release-wide qualification.
