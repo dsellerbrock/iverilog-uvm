@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: "U06"
-phase: "reproducing"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a"
@@ -11,13 +11,13 @@ pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After U04 exact scope closes, select by remaining correctness and application evidence."
-next_action: "Preserve caller-read staging per allocation across nested argument calls; inspect allocation, call consumption, free, ref-context save/restore and fork handoff before expanding U06 implementation scope. Reducer fails both editions; direct-child control passes."
-next_command: "sed -n '12990,13060p' vvp/vthread.cc"
+next_action: "Await live integrated18435 and real-DPIUVM11401; JSON must follow integrated terminal, frontend must run alone after other gates finish. Fullrelease matrix64934 is live. No installs or semantic changes."
+next_command: "tail -8 ../evidence/campaign-20260908/u06/integrated.log"
 next_command_cwd: repository root
 candidate_state: "U06 selected, no implementation; P04,L08,U05,U04 published together in existing PR273 at1357ae803."
 installed_tools: "Frozen L08 candidate compiler4b08d4e3f174bf52233c2b54e79bf6477bd98151751d2d421d535fb6f6b420ca; validated P04 runtime76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522. No installs while gates run."
 validation_state: "U04 all required local gates passed: frontendS1-S10,review,makecheck,NFA58/58,integrated4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. OriginallegacyABI4/4;15release matrix4pass9compilefail2runtimefail."
-next_validation: "U06 exact failing reducer/qualification gap, applicable semantics and causal trace before any patch."
+next_validation: "Integrated18435 and UVM11401 running; makecheck and NFA58 passed; JSON and isolated frontend pending. Frozen runtimea9c4e201da20cfc3a70c108faee95acab8450fb8f2b9e359808c53adb2ecfbf1."
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
@@ -241,3 +241,5 @@ u04_release_evidence: results-9mvpk_8f complete and baseline_valid; both origina
 u04_nfa: Passed58/58 terminal6429 exit0.
 
 u06_trace_evidence: evidence/campaign-20260908/u06/phase-2020.1.0.log andphase-2020.2.0.log; both replayexit0,old127lines/no marker/no uvm_test_top objections,new270lines/marker/objection raise0 drop1. Kernel phase scheduling alone does not prove callback execution.
+
+candidate_revision: "fe4e949b8"

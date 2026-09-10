@@ -721,6 +721,6 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 ### U06 — Original UVM2020.1 phase execution
 
-- **State:** OPEN, selected from DD-017 after validated U04.
+- **State:** AWAITING VALIDATION at fe4e949b8; selected from DD-017 after validated U04.
 - **Evidence:** Both original releases finish at time0 without the smoke marker or expected missing-traffic fatal, despite successful direct ABI checks.
 - **Scope:** Trace actual phase/component dispatch, minimize and verify semantics before patching. Original sources remain unchanged; no early-exit pass.

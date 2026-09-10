@@ -1702,3 +1702,23 @@ U06 remains active; last validated semantic revision aa172f5f91dd8f1edfbcbe347e8
 Worktree audit preserves all existing dirty/divergent trees; none created
 or retired. Next command and pending implementation/gates remain in
 ACTIVE_WORK/CAMPAIGN; no qualification claim or additional PR.
+
+U06 candidate fe4e949b8 saves the displaced caller-read override against
+the exact nested allocation and restores it after release or fork move.
+The 33-line runtime patch keeps returned-callee reads and ref delegation
+unchanged. Permanent first/middle/same-scope recursion coverage fails
+validated baseline and passes candidate in both editions; twelve paired
+default/ref/fork/constructor controls pass unchanged. A nonlocal named
+block exit followed by three frame-reuse calls passes both runtimes.
+All release_active_call_context_ callers are terminal-only (disabled or
+ended), so its no-resume cleanup cannot expose saved staging to a later
+call. Independent review investigated this lifetime boundary.
+
+Nested output copy-out was independently isolated and fails identically
+before/after this patch; reducer preserved as DD018, not claimed fixed.
+Original2020.1.0 smoke now executes checks through time1, exact marker,
+zero warnings/errors/fatals. Candidate runtime a9c4e201da20cfc3a70c108faee95acab8450fb8f2b9e359808c53adb2ecfbf1;
+compiler/DPI unchanged. Integrated18435, real-DPIUVM11401 and fullmatrix64934
+running; makecheck and NFA58 pass. JSON follows integrated termination;
+frontend must run alone after gates finish. No dependent implementation.
+PR273 head1357ae803 remains open with six fresh CI jobs in progress.

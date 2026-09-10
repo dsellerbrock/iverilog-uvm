@@ -1,7 +1,7 @@
 id: U06
 title: Reduce original UVM2020.1 phase-execution gap
 status: in_progress
-phase: focused_tested
+phase: "awaiting_validation"
 base_revision: aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a
 last_validated_revision: aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a
 selection_reason: Both original2020.1 releases compile and pass direct ABI checks after L08/U04/U05, but full smoke exits before intended traffic/checking; qualification must not count this as a pass.
@@ -27,8 +27,8 @@ required_gates:
   - Permanent regression,focused and required integrated validation,independent review and original-source replay before closure.
 completion: Close exact validated causal scope only; original-release/application qualification remains separate unless intended checking demonstrably executes.
 stop_after_completion: false
-next_action: "Preserve caller-read staging per allocation across nested argument calls; inspect allocation, call consumption, free, ref-context save/restore and fork handoff before expanding U06 implementation scope. Reducer fails both editions; direct-child control passes."
-next_command: "sed -n '12990,13060p' vvp/vthread.cc"
+next_action: "Await live integrated18435 and real-DPIUVM11401; JSON must follow integrated terminal, frontend must run alone after other gates finish. Fullrelease matrix64934 is live. No installs or semantic changes."
+next_command: "tail -8 ../evidence/campaign-20260908/u06/integrated.log"
 
 u06_trace_evidence: evidence/campaign-20260908/u06/phase-2020.1.0.log andphase-2020.2.0.log; both replayexit0,old127lines/no marker/no uvm_test_top objections,new270lines/marker/objection raise0 drop1. Kernel phase scheduling alone does not prove callback execution.
 
@@ -40,3 +40,7 @@ u06_review: Independent review agrees; preserve allocation identity, delay enclo
 implementation_hypothesis: Save an existing staged caller-read override against the exact nested allocation that displaces it. Restore only when that allocation is released or handed off; shared scopes do not displace a real allocation. Keep ref delegated-access scalar save/restore and callee result reads unchanged.
 
 u06_focused: Permanent test fails baseline and passes candidate in both editions; 12 paired default/ref/fork/constructor neighboring controls pass unchanged. Original2020.1.0 smoke now runs through time1 with exact marker and zero warning/error/fatal counts. Required integrated gates remain pending.
+
+candidate_revision: "fe4e949b8"
+
+next_validation: "Integrated18435 and UVM11401 running; makecheck and NFA58 passed; JSON and isolated frontend pending. Frozen runtimea9c4e201da20cfc3a70c108faee95acab8450fb8f2b9e359808c53adb2ecfbf1."
