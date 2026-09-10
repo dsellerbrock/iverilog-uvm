@@ -7,12 +7,12 @@ source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 755b48a09920bced3832409b1548c8437c884976
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [L03_integrated80505, L03_real_DPI_UVM93480, L03_fullJSON_after_integrated, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [L03_real_DPI_UVM93480, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained; L03 resumed after validatedL04.
 next_selection: L03 resumes from preserved contract after initialization prerequisite 755b48a09920bced3832409b1548c8437c884976.
-next_action: Await terminal results for integrated80505,UVM93480; NFA79303 passed58/58; then fullJSON serially after integrated.
-next_command: "tail -20 ../evidence/campaign-20260908/l03/integrated.log"
+next_action: Await terminal real-DPIUVM93480; integrated80505,NFA79303 and fullJSON92046 passed.
+next_command: "tail -20 ../evidence/campaign-20260908/l03/uvm.log"
 next_command_cwd: repository root
 candidate_state: L03 reviewed source/tests frozen; no closure until all required local gates pass.
 installed_tools: Compiler core aec395fb981c81bc1a425769e15eeab265031a4b14465632b13fe0f6f7fd95cd; runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754.

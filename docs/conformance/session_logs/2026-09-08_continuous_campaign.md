@@ -1125,3 +1125,7 @@ L03 candidate reuses scalar_event_history through a shared header, stores Boolea
 L03 source/tests frozen with compiler core aec395fb981c81bc1a425769e15eeab265031a4b14465632b13fe0f6f7fd95cd/runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754. Integrated80505,NFA79303,real-DPIUVM93480 running; fullJSON waits for integrated. L03 awaiting validation, last fully validated implementation755b48a09.
 
 L03 NFA79303 terminated0,58/58. Integrated80505 and real-DPIUVM93480 remain live. Source/test/install freeze preserved.
+
+L03 integrated80505 terminated0:4760total4755pass0fail2NI3EF; fullJSON92046 launched after integrated completion. NFA58/58 passed; real-DPIUVM93480 remains live. Source/test/install freeze preserved.
+
+L03 integrated ancillary checks passed VPI105/105,negative149/149,and runtime invariants including direct Boolean partial-history check. FullJSON92046 terminated0:1652tests/0failures. Only real-DPIUVM93480 remains among required local gates; remote CI before merge remains required.

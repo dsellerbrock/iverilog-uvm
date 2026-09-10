@@ -28,7 +28,7 @@ completion: Qualify only the exact repaired automatic Boolean event-expression s
 discovery_policy: Unrelated findings record-only; proven prerequisites require a deliberate boundary with preserved reducer and work.
 stop_after_completion: false
 last_validated_revision: 755b48a09920bced3832409b1548c8437c884976
-next_action: Await frozen candidate integrated80505, NFA79303 and real-DPIUVM93480; run fullJSON only after integrated completes.
+next_action: Await real-DPIUVM93480 terminal result; all other required local gates passed. Preserve frozen source/tests/tools.
 
 causal_trace: Boolean operands and scheduled output are shared and source context is discarded. Mixed-scope expressions cannot publish a parent result to children with different local operands. Existing allocation/reset hooks run before stack linkage and do not publish unchanged defaults.
 prerequisite: L04 validated in 755b48a09920bced3832409b1548c8437c884976 establishes post-link initialize_instance and integral default publication. Resume L03 with preserved original reducer.
@@ -40,3 +40,5 @@ implementation_model: Frame-owned operands/dirty state, shared existing ancestor
 focused_validation: L03focus12/12legacy+JSON,L02neighbors93/93+50/50,L04neighbors4/4+4/4,directPART_PV history/reuse,makecheck and final independent review pass.
 current_toolchain: Compiler core aec395fb981c81bc1a425769e15eeab265031a4b14465632b13fe0f6f7fd95cd; runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754.
 residual_scope: BUF,NOT,mux and other expression families are unchanged and not qualified by L03.
+
+full_validation_so_far: integrated80505 passed4760total4755pass0fail2NI3EF,VPI105/105,negative149/149,runtime invariants including new partial-history check; NFA79303 passed58/58; fullJSON92046 passed1652/0.
