@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: U01
-phase: fresh_application_replay
+phase: teardown_repeatability_triage
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
@@ -11,13 +11,13 @@ pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: Complete L07 validation, then reassess the unmodified application and remaining release blockers at a deliberate selection boundary.
-next_action: Await U01 replay24296; inspect exact traffic, scoreboard and teardown diagnostics before selecting a causal prerequisite.
-next_command: "tail -20 ../evidence/campaign-20260908/u01-after-l07/replay.log"
+next_action: Trace original xbar forked sequence parents and UVM process-guard teardown against old/new repeat evidence; no compiler change until a causal reducer is established.
+next_command: "sed -n '55,110p' ../clean-corpora/opentitan-7a3ad34/hw/ip/tlul/generic_dv/env/seq_lib/xbar_base_vseq.sv"
 next_command_cwd: repository root
 candidate_state: L07 locally validated and published; U01 has no active compiler patch.
 installed_tools: Frozen compiler9915d6877914a1eeae199a2fb8796cae95240c355c7d5be112f76455f643a8a3/runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337; saved validated core in evidence/l06/baseline-root.
 validation_state: V06 focus22/22 legacy+JSON,V04 neighbors2/2,V05 13/13,coverage75/65,metadata boundaries/compatibility,integrated4807total4802pass0fail2NI3EF,VPI105,negative149,runtime,JSON1699/0,UVM355/0/0,NFA58/58,makecheck and final review pass.
-next_validation: Strict original xbar smoke verdict from replay24296; no warning suppression or source edits.
+next_validation: Isolate intermittent parent termination ordering; fresh replay24296 and repeated runtime46249 are terminal.
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802

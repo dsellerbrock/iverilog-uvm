@@ -40,7 +40,7 @@ next_triage: Native --uvm-home diagnostic with original application sources and 
 current_action: Replay the same original xbar smoke with the unchanged bundled UVM first, on validated L07 tools, in a fresh native output root. Do not substitute a library or suppress sequence-parent warnings.
 
 replay_handle: 24296
-next_command: tail -20 ../evidence/campaign-20260908/u01-after-l07/replay.log
+next_command: "sed -n '55,110p' ../clean-corpora/opentitan-7a3ad34/hw/ip/tlul/generic_dv/env/seq_lib/xbar_base_vseq.sv"
 
 latest_replay: Fresh unmodified xbar smoke PASS;115requests,230scoreboarditems,zero warnings/errors/fatals,TEST PASSED CHECKS;360exported source files identical to previous replay and same runtime/UVM hashes.
 repeat_evidence: Preserved old executable gives two clean passes and one five-SEQPRTZMB-warning failure; new executable gives three clean passes. Same runtime arguments and no recompilation within repeats. Intermittent old teardown is proven; no causal fix attribution or broad U01 closure.
