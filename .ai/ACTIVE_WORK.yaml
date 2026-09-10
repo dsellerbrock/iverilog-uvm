@@ -36,6 +36,6 @@ planned_fix: Preserve aggregate totals and hit sums as unsigned128 through ratio
 
 implementation_state: Candidate source/tests frozen. Exact local128-bit aggregate change only; permanent paired tests fail saved baseline at2x and pass candidate.
 focused_validation: Focus2/2legacy+JSON, coverage neighbors75/75legacy+65/65JSON, makecheck and final independent review pass.
-full_gate_handles: real-DPIUVM36614 and fullJSON96126 running; integrated7488 passed4767/4772 with0fail,VPI105,negative149,runtime checks; NFA98267 passed58/58.
+full_gate_handles: real-DPIUVM36614 running; fullJSON96126 completed0 with1664/0; integrated7488 passed4767/4772 with0fail,VPI105,negative149,runtime checks; NFA98267 passed58/58.
 current_toolchain: Compiler98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226 unchanged; runtime e094574ede7fce8d3cff9f035c2a827d50e4a30bb30d75cb9b3c86f69ed1b36a candidate. Saved validated runtime is evidence/v04/baseline-vvp.
-next_validation_action: Await fullJSON96126 and UVM36614; source/tests/tools remain frozen. No dependent fix or ordinary new PR while gates pending.
+next_validation_action: Await UVM36614; source/tests/tools remain frozen. No dependent fix or ordinary new PR while gates pending.

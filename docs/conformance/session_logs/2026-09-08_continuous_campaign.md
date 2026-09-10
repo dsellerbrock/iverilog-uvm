@@ -1250,3 +1250,12 @@ The user's slower milestone cadence still governs future ordinary publication.
 V04 integrated7488 terminated0:4772total4767pass0fail2NI3EF, VPI105/105,
 negative149/149,runtime checks. FullJSON starts serially after that completion;
 real-DPIUVM36614 remains running. V04 is not yet a validated semantic baseline.
+
+
+Continuation classification: prior turn made concrete progress (direct-main
+PR272 created and checkpointed). Current authoritative check confirms PR272
+externally merged to main9821855164b179e1a1f7fb0298320f576646bc15. Its implementation
+and test tree matches validated59e5e07c7 exactly. Canonical main update/graph
+refresh proceeds independently of frozen V04 installed tools.
+V04 fullJSON96126 terminated0 with1664 tests,zero failures. UVM36614 is
+confirmed live and remains the final required local gate. No new PR.
