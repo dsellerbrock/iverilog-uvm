@@ -1,21 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: S06
-phase: root_caused
+phase: patched
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: a76c9f67ae854d415043de9b7c5a9052a705c913
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [S06_cover_path_repair, S06_permanent_tests, S06_required_local_validation, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
 next_selection: S06 selected from DD-008: silent instance timing miscompilation reproduced in both editions on validated S05.
-next_action: Implement reviewed delayed replay with real-time vacuity and preserve symbolic single-delay expressions; validate reducers before full gates.
-next_command: "sed -n '8725,8835p' pform.cc && sed -n '8138,8244p' parse.y"
+next_action: Resume S06 partial patch; repair ranged cover-property symbolic delay, then permanent/negative controls and all required gates. Preserve current parser/replay work.
+next_command: "local-install/bin/iverilog -g2017 -s test -o ../evidence/campaign-20260908/s06/cover-delay-override.vvp ../evidence/campaign-20260908/s06/cover-delay-override.sv"
 next_command_cwd: repository root
-candidate_state: S06 root cause and O(delay+bound) representation verified;9450modeltraces999810tick comparisons pass; no source edits yet.
-installed_tools: Compilercd91c31bd800d12808a40e182a712d8b939c280746df11ebb79637015ed9fc8d; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
-validation_state: S05 focus14/14 legacy+JSON in both engines, neighbors17/17+8/8, VPI1/1. Integrated74997 terminal0 (4714/4709/0/2/3,VPI105,negative149,runtime15), NFA58/58, make check0, final review pass. JSON52285 terminal0,1606/0; UVM66260 terminal0,355/0/0 real DPI. All required S05 local gates pass.
-next_validation: S05 all local gates pass; remote CI remains required before merge.
+candidate_state: Uncommitted S06 changes in parse.y,pform.cc,pform.h; original paired reducer and generated parameter timing controls green; ranged cover sibling remains rejected.
+installed_tools: Compilera3f662e2c3ace1dd26288fc8440785964484ce5695be46eb70baa421d4c2d45b; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
+validation_state: S06 original paired reducer green;76generatedcases x52ticks pass with overrides in both editions; S05focus14/14+14/14 current. Bison563SR/1122RR signature unchanged. All sessions terminal. Last fully locally validated implementation remains a76c9f67a.
+next_validation: Repair in-scope cover path and add permanent/boundary regressions; focused/NFA/integrated/JSON/real-DPIUVM/check/review all required on final S06 candidate.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)
