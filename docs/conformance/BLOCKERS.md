@@ -261,11 +261,11 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 ### V03 — Overall coverage ignores covergroup type weights
 
 - **Area / edition:** Coverage / IEEE1800-2017 and2023 19.7.1 table19-3,19.9,19.11.
-- **State:** AWAITING_VALIDATION
+- **State:** CLOSED (bounded local scope; remote CI before merge)
 - **Confidence:** REPRODUCED and ROOT_CAUSED
 - **Evidence:** evidence/campaign-20260908/v03/type-weight.sv; both editions onac60732f3 return75 instead of87.5 for scores50/100 with type weights1/3.
 - **What it blocks:** Correct overall coverage; declared type priority is silently ignored.
 - **Causal trace:** of_COVGRP_GET_ALL computes an unweighted arithmetic mean; group type-weight metadata is absent.
 - **Closure requirements:** Exact group-level type weights, default/zero/eligibility controls, valid constant conversion, all required local gates and independent review.
 - **Limits:** Coverpoint/cross type weights and procedural static option access remain separate obligations.
-- **Last verified revision:** ac60732f3 paired red; uncommitted candidate now passes paired reducers and focused75/65, metadata bounds, make check and review. Separate type-weight tag preserves old bytecode property ordering. Integrated87863, full JSON and real-DPI UVM57001 remain required.
+- **Last verified revision:** 2be79b2c0 implements group-level declared type weights in overall coverage. Focus75/65, integrated4690/4685/0/2/3, VPI103, negative149, runtime15, full JSON1582/0, real-DPI UVM355/0/0, make check and independent review pass. Separate type-weight tag preserves old bytecode/property ordering.

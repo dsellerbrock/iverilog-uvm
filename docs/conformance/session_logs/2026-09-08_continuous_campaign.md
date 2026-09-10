@@ -726,3 +726,19 @@ Full JSON must follow integrated serially. V03 remains uncommitted and awaiting
 validation; last complete local baselineac60732f3. Next poll87863/57001, launch
 full JSON after87863 completes, then checkpoint exact V03 scope only if all
 required local gates pass. No dependent implementation while gates pending.
+
+V03 integrated87863 completed0:4690 total/4685pass/0fail/2NI/3EF, name-diff
+clean, VPI103/103, negative149/149, runtime15/15. Full JSON10521 launched
+after integrated released ivtest logs; real-DPI UVM57001 still live. Unchanged
+installed candidate, no dependent work while required gates remain pending.
+
+V03 full JSON10521 completed0:1582/0. Real-DPI UVM57001 remains the only
+pending local gate; no compiler/runtime source changes since focused validation.
+
+V03 real-DPI UVM57001 completed355/0/0. All local gates and review pass;
+implementation checkpoint2be79b2c0. Bounded group type-weight scope closed
+locally; coverpoint/cross weights, procedural static options, parentV01/U01 and
+remote CI remain open. Worktree audit unchanged, unrelated changes preserved.
+Return to selection and verify existing S01 cross-clock overlapping implication
+against current implementation and LRM rather than assuming old boundary notes
+still describe present behavior. No broad audit or parallel implementation.

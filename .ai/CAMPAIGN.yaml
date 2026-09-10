@@ -1,21 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: V03
-phase: required_validation
+current_blocker: null
+phase: selection
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: ac60732f3
+last_integrated_good_revision: 2be79b2c0
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [V03_integrated_87863, V03_full_JSON, V03_real_DPI_UVM_57001, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: null
-next_selection: V03 selected from paired current-source evidence; U01 and broader V01 remain open.
-next_action: Await integrated87863 and real-DPI UVM57001; launch full JSON after integrated releases shared ivtest logs.
-next_command: "tail -20 ../evidence/campaign-20260908/v03/integrated.log ../evidence/campaign-20260908/v03/uvm.log"
+next_selection: Verify existing S01 cross-clock overlapping implication; preserve U01 and remaining coverage obligations.
+next_action: Run focused graph/source/LRM verification for S01 and establish current reducer before implementation.
+next_command: "graphify query 'cross-clock overlapping implication' --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
 next_command_cwd: repository root
-candidate_state: Uncommitted V03 group type-weight metadata/aggregation with separate .covgrp_type_weight tag; old options grammar and record ordering preserved.
+candidate_state: V03 locally qualified and committed2be79b2c0; no active implementation blocker.
 installed_tools: Compiler a3937469c1cd61277cbe5bfc94da22628ff2eb88db6eec7fb1612d10b3dc9246; runtime 7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
-validation_state: Tagged focus75/65, metadata bounds, old-bytecode reducer and make check pass. Final independent review has no actionable finding. Integrated87863 and real-DPI UVM57001 live; full JSON not launched yet. Last validatedac60732f3.
-next_validation: After integrated87863, run full JSON with unchanged tools; await UVM57001 before checkpointing V03 and returning to selection.
+validation_state: All V03 local gates/review pass, including final real-DPI UVM57001 completed355/0/0. No running test processes.
+next_validation: Verify S01 actual current behavior; select exact next scope from evidence.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)

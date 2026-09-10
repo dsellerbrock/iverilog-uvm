@@ -1,7 +1,7 @@
 id: V03
 title: Honor covergroup type weight in overall coverage
-status: in_progress
-phase: required_validation
+status: completed_local
+phase: selection
 base_revision: ac60732f3
 standards:
   - IEEE1800-2017 and IEEE1800-2023 19.7.1 table19-3, 19.9 and 19.11.
@@ -35,4 +35,7 @@ completion: Close only the exact qualified group-level type-weight scope after a
 discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
 last_validated_revision: ac60732f3
-next_action: Await integrated87863 and real-DPI UVM57001; after integrated completes run full JSON serially with unchanged installed tools.
+implementation_revision: 2be79b2c0
+validation: Focus75/65, integrated4690/4685/0/2/3, VPI103, negative149, runtime15, JSON1582/0, real-DPI UVM355/0/0, make check and review pass.
+remaining_merge_gate: Remote CI before merge.
+next_action: Verify existing S01 cross-clock overlapping implication against current source and applicable LRM.

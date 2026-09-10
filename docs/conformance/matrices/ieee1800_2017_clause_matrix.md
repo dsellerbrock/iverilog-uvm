@@ -822,3 +822,10 @@ four-state conversion, lexical scope, parent methods and once-only constructor
 actuals. Procedural get_inst writes are rejected per19.7; weight stays mutable.
 All required local gates and review pass onac60732f3. Global type_option weights,
 goals/strobe and remaining parentV01 obligations remain unqualified.
+
+V03: IMPLEMENTED (bounded local scope, unmerged), 2017/2023 19.7.1 table19-3,
+19.9 and19.11: declared covergroup type weights contribute to overall coverage
+with existing eligibility exclusions; zero aggregate weight returns100. Typed
+constant conversion and nonnegative domain are checked, and old VVP options
+records remain compatible. All local gates/review pass on2be79b2c0. Coverpoint/
+cross type weights and procedural static type-option updates remain unqualified.
